@@ -13,6 +13,10 @@ import is.hail.utils.FastIndexedSeq
 trait NoBoxLongIterator {
   def init(partitionRegion: Region, elementRegion: Region)
 
+  // after next() has been called, if eos is true, stream has ended
+  // (and value returned by next() is garbage)
+  def eos: Boolean
+
   def next(): Long // -1L if EOS, 0 if missing
 
   def close(): Unit
@@ -97,7 +101,7 @@ class SStreamConcrete(val st: SStreamIteratorLong, val it: Value[NoBoxLongIterat
       override val requiresMemoryManagementPerElement: Boolean = st.requiresMemoryManagement
       override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
         cb.assign(next, it.invoke[Long]("next"))
-        cb.ifx(next ceq -1L, cb.goto(LendOfStream))
+        cb.ifx(it.invoke[Boolean]("eos"), cb.goto(LendOfStream))
         cb.goto(LproduceElementDone)
       }
       override val element: EmitCode = {

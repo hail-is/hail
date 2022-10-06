@@ -2163,15 +2163,17 @@ case class TableMapPartitions(child: TableIR,
     val fsBc = tv.ctx.fsBc
     val itF = { (idx: Int, consumerCtx: RVDContext, partition: (RVDContext) => Iterator[Long]) =>
       val boxedPartition = new NoBoxLongIterator {
+        var eos: Boolean = false
         var iter: Iterator[Long] = _
         override def init(partitionRegion: Region, elementRegion: Region): Unit = {
           iter = partition(new RVDContext(partitionRegion, elementRegion))
         }
 
         override def next(): Long = {
-          if (!iter.hasNext)
-            -1L
-          else
+          if (!iter.hasNext) {
+            eos = true
+            0L
+          } else
             iter.next()
         }
 
