@@ -909,7 +909,7 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
                     reason=f'invalid regions specified: {invalid_user_regions}. Choose from {valid_regions}'
                 )
             if len(regions) == 0:
-                raise web.HTTPBadRequest(reason='must choose at least one region or use "None" to specify all regions')
+                raise web.HTTPBadRequest(reason='regions must not be an empty array')
             job_region_args += [(batch_id, job_id, app['regions'][region]) for region in regions]
 
         secrets = spec.get('secrets')

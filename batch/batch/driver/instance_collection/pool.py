@@ -55,21 +55,10 @@ SCHEDULING_LOOP_JOBS = pc.Gauge(
     ['pool_name', 'region', 'scheduled'],
 )
 
-AUTOSCALER_FULL_JOB_QUEUE_READY_CORES = pc.Gauge(
-    'autoscaler_full_job_queue_ready_cores',
-    'Number of ready cores per control loop execution calculated from the full job queue',
-    ['pool_name'],
-)
 AUTOSCALER_HEAD_JOB_QUEUE_READY_CORES = pc.Gauge(
     'autoscaler_head_job_queue_ready_cores',
     'Number of ready cores per control loop execution calculated from the head of the job queue',
     ['pool_name', 'region'],
-)
-
-AUTOSCALER_FULL_JOB_QUEUE_N_INSTANCES = pc.Gauge(
-    'autoscaler_full_job_queue_n_instances',
-    'Number of instances estimated per control loop calculated from the full job queue',
-    ['pool_name'],
 )
 AUTOSCALER_HEAD_JOB_QUEUE_N_INSTANCES = pc.Gauge(
     'autoscaler_head_job_queue_n_instances',
@@ -248,14 +237,12 @@ WHERE removed = 0 AND inst_coll = %s;
     def compute_n_instances_needed(
         self,
         ready_cores_mcpu: int,
-        n_instances_by_state: Dict[str, int],
-        live_free_cores_mcpu_by_region: Dict[str, int],
         regions: List[str],
     ):
-        n_live_instances = n_instances_by_state['pending'] + n_instances_by_state['active']
-        n_instances = sum(count for count in n_instances_by_state.values())
+        n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
+        n_instances = sum(count for count in self.n_instances_by_state.values())
 
-        live_free_cores_mcpu = sum(live_free_cores_mcpu_by_region[region] for region in regions)
+        live_free_cores_mcpu = sum(self.live_free_cores_mcpu_by_region[region] for region in regions)
 
         instances_needed = (ready_cores_mcpu - live_free_cores_mcpu + (self.worker_cores * 1000) - 1) // (
             self.worker_cores * 1000
@@ -398,60 +385,26 @@ GROUP BY user;
 
         ready_cores_mcpu_per_user = await self.ready_cores_mcpu_per_user()
 
-        full_job_queue_ready_cores_mcpu = sum(ready_cores_mcpu_per_user.values())
-        full_job_queue_n_instances = self.compute_n_instances_needed(
-            full_job_queue_ready_cores_mcpu,
-            self.n_instances_by_state,
-            self.live_free_cores_mcpu_by_region,
-            self.all_supported_regions,
-        )
+        free_cores_mcpu = sum([worker.free_cores_mcpu for worker in self.healthy_instances_by_free_cores])
+        free_cores = free_cores_mcpu / 1000
 
         head_job_queue_regions_ready_cores_mcpu_ordered = (
             await self.regions_to_ready_cores_mcpu_from_estimated_job_queue()
         )
+
         head_job_queue_n_instances = defaultdict(int)
         head_job_queue_ready_cores_mcpu = defaultdict(int)
 
-        n_instances_by_state = copy.deepcopy(self.n_instances_by_state)
-        live_free_cores_mcpu_by_region = copy.deepcopy(self.live_free_cores_mcpu_by_region)
-        for regions, ready_cores_mcpu in head_job_queue_regions_ready_cores_mcpu_ordered:
-            n_regions = len(regions)
-
-            n_instances = self.compute_n_instances_needed(
-                ready_cores_mcpu, n_instances_by_state, live_free_cores_mcpu_by_region, regions=regions
-            )
-
-            for region in regions:
-                head_job_queue_ready_cores_mcpu[region] += ready_cores_mcpu / n_regions
-                head_job_queue_n_instances[region] += n_instances / n_regions
-
-            n_instances_by_state['pending'] += n_instances
-
-        for region in self.all_supported_regions:
-            ready_cores_mcpu = head_job_queue_ready_cores_mcpu.get(region, 0)
-            n_instances = head_job_queue_n_instances.get(region, 0)
-            AUTOSCALER_HEAD_JOB_QUEUE_READY_CORES.labels(pool_name=self.name, region=region).set(
-                ready_cores_mcpu / 1000
-            )
-            AUTOSCALER_HEAD_JOB_QUEUE_N_INSTANCES.labels(pool_name=self.name, region=region).set(n_instances)
-
-        AUTOSCALER_FULL_JOB_QUEUE_READY_CORES.labels(pool_name=self.name).set(full_job_queue_ready_cores_mcpu / 1000)
-        AUTOSCALER_FULL_JOB_QUEUE_N_INSTANCES.labels(pool_name=self.name).set(full_job_queue_n_instances)
-
-        free_cores_mcpu = sum([worker.free_cores_mcpu for worker in self.healthy_instances_by_free_cores])
-        free_cores = free_cores_mcpu / 1000
-
-        log.info(
-            f'{self} n_instances {self.n_instances} {self.n_instances_by_state}'
-            f' free_cores {free_cores} live_free_cores {self.live_free_cores_mcpu / 1000}'
-            f' full_job_queue_ready_cores {full_job_queue_ready_cores_mcpu / 1000}'
-            f' head_job_queue_ready_cores {sum(head_job_queue_ready_cores_mcpu.values()) / 1000}'
-            f' full_job_queue_n_instances {full_job_queue_n_instances}'
-            f' head_job_queue_n_instances {sum(head_job_queue_n_instances.values())}'
-        )
-
         if head_job_queue_regions_ready_cores_mcpu_ordered and free_cores < 500:
             for regions, ready_cores_mcpu in head_job_queue_regions_ready_cores_mcpu_ordered:
+                n_regions = len(regions)
+                for region in regions:
+                    n_instances = self.compute_n_instances_needed(
+                        ready_cores_mcpu, regions
+                    )
+                    head_job_queue_ready_cores_mcpu[region] += ready_cores_mcpu / n_regions
+                    head_job_queue_n_instances[region] += n_instances / n_regions
+
                 await self.create_instances_from_ready_cores(ready_cores_mcpu, regions=regions)
 
         ci_ready_cores_mcpu = ready_cores_mcpu_per_user.get('ci', 0)
@@ -466,6 +419,14 @@ GROUP BY user;
                 regions=self.all_supported_regions,
                 max_idle_time_msecs=STANDING_WORKER_MAX_IDLE_TIME_MSECS,
             )
+
+        log.info(
+            f'{self} n_instances {self.n_instances} {self.n_instances_by_state}'
+            f' free_cores {free_cores} live_free_cores {self.live_free_cores_mcpu / 1000}'
+            f' full_job_queue_ready_cores {sum(ready_cores_mcpu_per_user.values()) / 1000}'
+            f' head_job_queue_ready_cores {sum(head_job_queue_ready_cores_mcpu.values()) / 1000}'
+            f' head_job_queue_n_instances {sum(head_job_queue_n_instances.values())}'
+        )
 
     async def control_loop(self):
         await periodically_call(AUTOSCALER_LOOP_PERIOD_SECONDS, self.create_instances)

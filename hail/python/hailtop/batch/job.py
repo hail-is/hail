@@ -348,6 +348,9 @@ class Job:
         -----
         Can only be used with the :class:`.backend.ServiceBackend`.
 
+        This method may be used to ensure code executes in the same region as the data it reads.
+        This can avoid egress charges as well as improve latency.
+
         Examples
         --------
 
