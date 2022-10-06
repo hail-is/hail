@@ -325,7 +325,7 @@ WHERE removed = 0 AND inst_coll = %s;
 '''
 
             jobs_query.append(user_job_query)
-            jobs_query_args += [user, self.name, user, self.name]
+            jobs_query_args += [user, self.name]
 
         result = self.db.select_and_fetchall(
             # We use the string representation of regions JSON_UNQUOTE for order by instead of the json array
@@ -576,7 +576,7 @@ LEFT JOIN job_regions ON jobs.batch_id = job_regions.batch_id AND jobs.job_id = 
 LEFT JOIN region_ids ON job_regions.region_id = region_ids.region_id
 WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND (always_run = 1 OR always_run = 0 AND batches_cancelled.id IS NULL) AND inst_coll = %s
 GROUP BY jobs.batch_id, jobs.job_id
-ORDER BY scheduling_iteration, user, -n_regions DESC, JSON_UNQUOTE(regions), ready_jobs.batch_id, ready_jobs.job_id
+ORDER BY scheduling_iteration, user, -n_regions DESC, JSON_UNQUOTE(regions), jobs.batch_id, jobs.job_id
 LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS};
 ''',
                 (user, self.pool.name),
