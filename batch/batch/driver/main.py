@@ -1275,6 +1275,19 @@ async def scheduling_cancelling_bump(app):
     app['cancel_running_state_changed'].set()
 
 
+async def refresh_globals_from_db(app, db):
+    resource_ids = {
+        record['resource']: record['resource_id']
+        async for record in db.select_and_fetchall(
+            '''
+SELECT resource, resource_id FROM resources;
+'''
+        )
+    }
+
+    app['resource_name_to_id'] = resource_ids
+
+
 class BatchDriverAccessLogger(AccessLogger):
     def __init__(self, logger: logging.Logger, log_format: str):
         super().__init__(logger, log_format)
@@ -1324,6 +1337,17 @@ SELECT instance_id, internal_token, frozen FROM globals;
     app['batch_headers'] = {'Authorization': f'Bearer {row["internal_token"]}'}
     app['frozen'] = row['frozen']
 
+    resource_ids = {
+        record['resource']: record['resource_id']
+        async for record in db.select_and_fetchall(
+            '''
+SELECT resource, resource_id FROM resources;
+'''
+        )
+    }
+
+    app['resource_name_to_id'] = resource_ids
+
     app['scheduler_state_changed'] = Notice()
     app['cancel_ready_state_changed'] = asyncio.Event()
     app['cancel_creating_state_changed'] = asyncio.Event()
@@ -1353,6 +1377,7 @@ SELECT instance_id, internal_token, frozen FROM globals;
     task_manager.ensure_future(periodically_call(10, cancel_fast_failing_batches, app))
     task_manager.ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
     task_manager.ensure_future(periodically_call(15, monitor_system, app))
+    task_manager.ensure_future(periodically_call(5, refresh_globals_from_db, app, db))
 
 
 async def on_cleanup(app):
