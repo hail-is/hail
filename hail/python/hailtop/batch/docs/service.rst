@@ -212,7 +212,7 @@ and write access to the bucket.
 .. warning::
 
    By default, the Batch Service runs jobs in any region in the US. Make sure you have considered additional `ingress and
-   egress fees <https://cloud.google.com/storage/pricing-announce>`_ when using regional buckets and container or artifact
+   egress fees <https://cloud.google.com/storage/pricing>`_ when using regional buckets and container or artifact
    registries. Multi-regional buckets also have additional replication fees when writing data. A good rule of thumb is to use
    a multi-regional artifact registry for Docker images and regional buckets for data. You can then specify which region(s)
    you want your job to run in with :meth:`.Job.regions`. To set the default region(s) for all jobs, you can set the input
