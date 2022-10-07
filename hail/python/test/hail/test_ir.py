@@ -54,6 +54,9 @@ class ValueIRTests(unittest.TestCase):
 
         block_matrix_read = ir.BlockMatrixRead(ir.BlockMatrixNativeReader(resource('blockmatrix_example/0')))
 
+        def aggregate(x):
+            return ir.TableAggregate(table, x)
+
         value_irs = [
             i, ir.I64(5), ir.F32(3.14), ir.F64(3.14), s, ir.TrueIR(), ir.FalseIR(), ir.Void(),
             ir.Cast(i, hl.tfloat64),
@@ -93,14 +96,13 @@ class ValueIRTests(unittest.TestCase):
             ir.StreamScan(st, ir.I32(0), 'x', 'v', v),
             ir.StreamJoinRightDistinct(st, st, ['k'], ['k'], 'l', 'r', ir.I32(1), "left"),
             ir.StreamFor(st, 'v', ir.Void()),
-            ir.AggFilter(ir.TrueIR(), ir.I32(0), False),
-            ir.AggExplode(ir.StreamRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', ir.I32(0), False),
-            ir.AggGroupBy(ir.TrueIR(), ir.I32(0), False),
-            ir.AggArrayPerElement(ir.ToArray(ir.StreamRange(ir.I32(0), ir.I32(2), ir.I32(1))), 'x', 'y', ir.I32(0), False),
-            ir.ApplyAggOp('Collect', [], [ir.I32(0)]),
-            ir.ApplyScanOp('Collect', [], [ir.I32(0)]),
-            ir.ApplyAggOp('CallStats', [ir.I32(2)], [call]),
-            ir.ApplyAggOp('TakeBy', [ir.I32(10)], [ir.F64(-2.11), ir.F64(-2.11)]),
+            aggregate(ir.AggFilter(ir.TrueIR(), ir.I32(0), False)),
+            aggregate(ir.AggExplode(ir.StreamRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', ir.I32(0), False)),
+            aggregate(ir.AggGroupBy(ir.TrueIR(), ir.I32(0), False)),
+            aggregate(ir.AggArrayPerElement(ir.ToArray(ir.StreamRange(ir.I32(0), ir.I32(2), ir.I32(1))), 'x', 'y', ir.I32(0), False)),
+            aggregate(ir.ApplyAggOp('Collect', [], [ir.I32(0)])),
+            aggregate(ir.ApplyAggOp('CallStats', [ir.I32(2)], [ir.NA(hl.tcall)])),
+            aggregate(ir.ApplyAggOp('TakeBy', [ir.I32(10)], [ir.F64(-2.11), ir.F64(-2.11)])),
             ir.Begin([ir.Void()]),
             ir.MakeStruct([('x', i)]),
             ir.SelectFields(s, ['x', 'z']),
@@ -166,7 +168,6 @@ class TableIRTests(unittest.TestCase):
 
         aa = hl.literal([[0.00],[0.01],[0.02]])._ir
 
-        range = ir.TableRange(10, 4)
         table_irs = [
             ir.TableKeyBy(table_read, ['m', 'd'], False),
             ir.TableFilter(table_read, b),
@@ -192,7 +193,8 @@ class TableIRTests(unittest.TestCase):
                 ir.TableKeyBy(table_read, []),
                 ir.MakeStruct([
                     ('a', ir.GetField(ir.Ref('row', table_read_row_type), 'f32')),
-                    ('b', ir.F64(-2.11))])),
+                    ('b', ir.F64(-2.11)),
+                    ('c', ir.ApplyScanOp('Collect', [], [ir.I32(0)]))])),
             ir.TableMapGlobals(
                 table_read,
                 ir.MakeStruct([
