@@ -314,7 +314,7 @@ WHERE removed = 0 AND inst_coll = %s;
   LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
   LEFT JOIN job_regions ON jobs.batch_id = job_regions.batch_id AND jobs.job_id = job_regions.job_id
   LEFT JOIN region_ids ON job_regions.region_id = region_ids.region_id
-  WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND (always_run = 1 OR (always_run = 0 AND batches_cancelled.id IS NULL)) AND inst_coll = %s
+  WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND (always_run OR batches_cancelled.id IS NULL) AND inst_coll = %s
   GROUP BY jobs.batch_id, jobs.job_id
   ORDER BY jobs.batch_id ASC, jobs.job_id ASC
   LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
@@ -570,7 +570,7 @@ LEFT JOIN batches ON jobs.batch_id = batches.id
 LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
 LEFT JOIN job_regions ON jobs.batch_id = job_regions.batch_id AND jobs.job_id = job_regions.job_id
 LEFT JOIN region_ids ON job_regions.region_id = region_ids.region_id
-WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND (always_run = 1 OR (always_run = 0 AND batches_cancelled.id IS NULL)) AND inst_coll = %s
+WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND (always_run OR batches_cancelled.id IS NULL) AND inst_coll = %s
 GROUP BY jobs.batch_id, jobs.job_id
 ORDER BY scheduling_iteration, user, -n_regions DESC, JSON_UNQUOTE(regions), jobs.batch_id, jobs.job_id
 LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS};
