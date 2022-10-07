@@ -16,5 +16,5 @@ build:
 
 deploy: build
 	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
-	python3 ../ci/jinja2_render.py '{"deploy":$(DEPLOY),"global": {"cloud": "$(CLOUD)", "domain": "$(DOMAIN)"},"default_ns":{"name":"$(NAMESPACE)"}, "grafana_nginx_image": {"image": "$(GRAFANA_NGINX_IMAGE)"}, "base_image":{"image":"'$$(cat ../docker/base-image-ref)'"}}' deployment.yaml deployment.yaml.out
+	python3 ../ci/jinja2_render.py '{"deploy":$(DEPLOY),"global": {"cloud": "$(CLOUD)", "domain": "$(DOMAIN)", "docker_prefix": "$(DOCKER_PREFIX)"},"default_ns":{"name":"$(NAMESPACE)"}, "grafana_nginx_image": {"image": "$(GRAFANA_NGINX_IMAGE)"}, "base_image":{"image":"'$$(cat ../docker/base-image-ref)'"}}' deployment.yaml deployment.yaml.out
 	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out
