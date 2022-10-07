@@ -425,7 +425,7 @@ tomli==2.0.1
     # via
     #   black
     #   mypy
-tqdm==4.42.1
+tqdm==4.64.1
     # via -r requirements.txt
 twine==4.0.1
     # via -r requirements.txt
