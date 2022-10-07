@@ -112,16 +112,3 @@ Utilities
     docker.build_python_image
     utils.concatenate
     utils.plink_merge
-
-
-Globals
-~~~~~~~
-
-.. autosummary::
-   :toctree: api/globals/
-   :nosignatures:
-
-   globals.REGION_SPECIFICATION
-   globals._ANY_REGION
-   globals._ANY_REGION.ANY_REGION
-   globals.ANY_REGION

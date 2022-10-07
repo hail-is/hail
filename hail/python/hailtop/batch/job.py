@@ -10,7 +10,7 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union, cast
 from . import backend, batch  # pylint: disable=cyclic-import
 from . import resource as _resource  # pylint: disable=cyclic-import
 from .exceptions import BatchException
-from .globals import REGION_SPECIFICATION, DEFAULT_SHELL
+from .globals import DEFAULT_SHELL
 
 
 def _add_resource_to_set(resource_set, resource, include_rg=True):
@@ -82,7 +82,7 @@ class Job:
         self._env: Dict[str, str] = {}
         self._wrapper_code: List[str] = []
         self._user_code: List[str] = []
-        self._regions: Optional[REGION_SPECIFICATION] = None
+        self._regions: Optional[List[str]] = None
 
         self._resources: Dict[str, _resource.Resource] = {}
         self._resources_inverse: Dict[_resource.Resource, str] = {}
@@ -340,7 +340,7 @@ class Job:
         self._always_run = always_run
         return self
 
-    def regions(self, regions: REGION_SPECIFICATION) -> 'Job':
+    def regions(self, regions: Optional[List[str]]) -> 'Job':
         """
         Set the cloud regions a job can run in.
 
@@ -365,13 +365,13 @@ class Job:
 
         >>> b = Batch(backend=backend.ServiceBackend('test'))
         >>> j = b.new_job()
-        >>> (j.regions(hb.ANY_REGION)
+        >>> (j.regions(None)
         ...   .command(f'echo "hello"'))
 
         Parameters
         ----------
         regions:
-            The cloud region(s) to run this job in. Use `hb.ANY_REGION` to signify
+            The cloud region(s) to run this job in. Use `None` to signify
             the job can run in any available region. Use :meth:`.ServiceBackend.supported_regions`
             to list the available regions to choose from. The default is the job can run in
             any region.

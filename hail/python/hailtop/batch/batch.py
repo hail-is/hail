@@ -11,7 +11,6 @@ from hailtop.aiotools.router_fs import RouterAsyncFS
 
 from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
 from .exceptions import BatchException
-from .globals import REGION_SPECIFICATION
 
 
 class Batch:
@@ -89,11 +88,6 @@ class Batch:
         Automatically cancel the batch after N failures have occurred. The default
         behavior is there is no limit on the number of failures. Only
         applicable for the :class:`.ServiceBackend`. Must be greater than 0.
-    default_regions:
-        Default regions to run jobs in when using the :class:`.ServiceBackend`. Use `hb.ANY_REGION` to signify
-        the job can run in any available region. Use :meth:`.ServiceBackend.supported_regions`
-        to list the available regions to choose from. The default is the job can run in
-        any region.
     """
 
     _counter = 0
@@ -119,8 +113,7 @@ class Batch:
                  default_shell: Optional[str] = None,
                  default_python_image: Optional[str] = None,
                  project: Optional[str] = None,
-                 cancel_after_n_failures: Optional[int] = None,
-                 default_regions: Optional[REGION_SPECIFICATION] = None):
+                 cancel_after_n_failures: Optional[int] = None):
         self._jobs: List[job.Job] = []
         self._resource_map: Dict[str, _resource.Resource] = {}
         self._allocated_files: Set[str] = set()
@@ -156,11 +149,6 @@ class Batch:
         self._DEPRECATED_fs: Optional[RouterAsyncFS] = None
 
         self._cancel_after_n_failures = cancel_after_n_failures
-
-        if isinstance(self._backend, _backend.ServiceBackend):
-            self._default_regions = default_regions or self._backend._regions
-        else:
-            self._default_regions = None
 
         self._python_function_defs: Dict[int, Callable] = {}
         self._python_function_files: Dict[int, _resource.InputResourceFile] = {}
@@ -268,7 +256,7 @@ class Batch:
             j.timeout(self._default_timeout)
 
         if self._default_regions is not None:
-            j.regions(self._default_regions)
+            j.regions(self._backend._regions)
 
         self._jobs.append(j)
         return j

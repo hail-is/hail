@@ -24,7 +24,7 @@ from hailtop.aiotools.router_fs import RouterAsyncFS
 
 from . import resource, batch, job as _job  # pylint: disable=unused-import
 from .exceptions import BatchException
-from .globals import ANY_REGION, DEFAULT_SHELL, REGION_SPECIFICATION
+from .globals import DEFAULT_SHELL
 
 
 HAIL_GENETICS_HAIL_IMAGE = os.environ.get('HAIL_GENETICS_HAIL_IMAGE',
@@ -482,7 +482,6 @@ class ServiceBackend(Backend[bc.Batch]):
             if regions is not None:
                 assert isinstance(regions, str)
                 regions = regions.split(',')
-        assert isinstance(regions, (List[str], None))
         self._regions = regions
 
     @property
