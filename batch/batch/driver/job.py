@@ -90,7 +90,7 @@ async def add_attempt_resources(app, db, batch_id, job_id, attempt_id, resources
             _resources = dict(sorted(_resources.items()))
 
             resource_args = [
-                (batch_id, job_id, attempt_id, quantity, resource_name_to_id[name])
+                (batch_id, job_id, attempt_id, resource_name_to_id[name], quantity)
                 for name, quantity in _resources.items()
             ]
 
