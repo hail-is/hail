@@ -348,6 +348,8 @@ class LocalBackend(Backend[None]):
 
 
 class ServiceBackend(Backend[bc.Batch]):
+    ANY_REGION = ['any_region']
+
     """Backend that executes batches on Hail's Batch Service on Google Cloud.
 
     Examples
@@ -387,10 +389,10 @@ class ServiceBackend(Backend[bc.Batch]):
         The authorization token to pass to the batch client.
         Should only be set for user delegation purposes.
     regions:
-        Cloud region(s) to run jobs in. Use :meth:`.ServiceBackend.supported_regions` to list the
-        available regions to choose from. Use None to signify the job can run in any
-        available region. The default is the job can run in any region. You can also use hailctl
-        to set the default value. An example invocation is `hailctl config set batch/regions "us-central1,us-east1"`.
+        Cloud region(s) to run jobs in. Use py:staticmethod:`.ServiceBackend.supported_regions` to list the
+        available regions to choose from. Use py:attribute:`.ServiceBackend.ANY_REGION` to signify the default is jobs
+        can run in any available region. The default is jobs can run in any region unless a default value has 
+        been set with hailctl. An example invocation is `hailctl config set batch/regions "us-central1,us-east1"`.
     """
 
     @staticmethod
@@ -416,7 +418,7 @@ class ServiceBackend(Backend[bc.Batch]):
                  remote_tmpdir: Optional[str] = None,
                  google_project: Optional[str] = None,
                  token: Optional[str] = None,
-                 regions: Optional[List[str]] = None,
+                 regions: Optional[List[str]] = None
                  ):
         if len(args) > 2:
             raise TypeError(f'ServiceBackend() takes 2 positional arguments but {len(args)} were given')
@@ -483,6 +485,8 @@ class ServiceBackend(Backend[bc.Batch]):
             if regions_from_conf is not None:
                 assert isinstance(regions_from_conf, str)
                 regions = regions_from_conf.split(',')
+        elif regions == ServiceBackend.ANY_REGION:
+            regions = None
         self.regions = regions
 
     @property

@@ -218,7 +218,7 @@ and write access to the bucket.
    you want your job to run in with :meth:`.Job.regions`. To set the default region(s) for all jobs, you can set the input
    regions argument to :class:`.ServiceBackend` or use hailctl to set the default value. An example invocation is
    `hailctl config set batch/regions "us-central1,us-east1"`. You can also get the full list of supported regions
-   with :meth:`.ServiceBackend.supported_regions`.
+   with py:staticmethod:`.ServiceBackend.supported_regions`.
 
 Next, pass the :class:`.ServiceBackend` object to the :class:`.Batch` constructor
 with the parameter name `backend`.
