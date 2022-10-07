@@ -3065,7 +3065,9 @@ def import_avro(paths, *, key=None, intervals=None):
            reference_genome=reference_genome_type,
            partitions_per_sample=numeric,
            intermediate_resume_point=int,
-           skip_final_merge=bool)
+           skip_final_merge=bool,
+           unphase=bool,
+           )
 def import_gvs(refs: 'List[List[str]]',
                vets: 'List[List[str]]',
                sample_mapping: 'List[str]',
@@ -3079,7 +3081,9 @@ def import_gvs(refs: 'List[List[str]]',
                reference_genome='GRCh38',
                partitions_per_sample=0.35,
                intermediate_resume_point=0,
-               skip_final_merge=False):
+               skip_final_merge=False,
+               unphase=False,
+               ):
     """Import a collection of Avro files exported from GVS.
 
     This function is used to import Avro files exported from BigQuery for
@@ -3169,6 +3173,8 @@ def import_gvs(refs: 'List[List[str]]',
         Index at which to resume sample-group imports. Default 0 (entire import)
     skip_final_merge : :class:`bool`
         Skip final merge if true.
+    unphase : :class:`bool`
+        Unphase VET genotypes on final merge.
 
     Returns
     -------
@@ -3404,6 +3410,10 @@ def import_gvs(refs: 'List[List[str]]',
         vd = vd.annotate_entries(FT=~ft.any_no & (ft.any_yes | ((~ft.any_snp | ft.any_snp_ok) & (~ft.any_indel | ft.any_indel_ok))))
 
         vd = vd.drop('allele_NO', 'allele_YES', 'allele_is_snp', 'allele_OK')
+
+        if unphase:
+            vd = vd.annotate_entries(LGT=vd.LGT.unphase())
+        vd = vd.select_entries(GT=hl.vds.lgt_to_gt(vd.LA, vd.LGT), **vd.entry)
 
         hl.vds.VariantDataset(
             reference_data=rd,
