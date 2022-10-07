@@ -3,13 +3,13 @@ package is.hail.io.index
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.functions.IntervalFunctions.compareStructWithPartitionIntervalEndpoint
-import is.hail.expr.ir.{BinarySearch, EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitSettable}
+import is.hail.expr.ir.{BinarySearch, EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitSettable, IEmitCode}
 import is.hail.io.fs.FS
 import is.hail.rvd.AbstractIndexSpec
+import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.SStackStruct
 import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SIntervalValue, primitive}
 import is.hail.types.physical.stypes.primitives.{SBooleanValue, SInt64}
-import is.hail.types.physical.stypes.{EmitType, SSettable}
 import is.hail.types.physical.{PCanonicalArray, PCanonicalBaseStruct}
 import is.hail.types.virtual.{TBoolean, TInt64, TTuple}
 import is.hail.utils._
@@ -76,17 +76,9 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
     val includesStart = interval.includesStart()
     val includesEnd = interval.includesEnd()
 
-    val startQuerySettable = cb.newSLocal(queryType, "startQuery")
-    cb.ifx(includesStart,
-      cb.assign(startQuerySettable, queryBound(cb, region, start, primitive(false), "lower")),
-      cb.assign(startQuerySettable, queryBound(cb, region, start, primitive(true), "upper"))
-    )
+    val startQuerySettable = queryBound(cb, region, start, primitive(cb.memoize(!includesStart)))
 
-    val endQuerySettable = cb.newSLocal(queryType, "endQuery")
-    cb.ifx(includesEnd,
-      cb.assign(endQuerySettable, queryBound(cb, region, end, primitive(true), "upper")),
-      cb.assign(endQuerySettable, queryBound(cb, region, end, primitive(false), "lower"))
-    )
+    val endQuerySettable = queryBound(cb, region, end, primitive(includesEnd))
 
     val startIdx = cb.memoize(startQuerySettable.asBaseStruct.loadField(cb, 0).get(cb).asInt64.value)
     val endIdx = cb.memoize(endQuerySettable.asBaseStruct.loadField(cb, 0).get(cb).asInt64.value)
@@ -155,17 +147,17 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
   }
 
   // returns queryType
-  def queryBound(cb: EmitCodeBuilder, region: Value[Region], partitionBoundLeftEndpoint: SBaseStructValue, leansRight: SBooleanValue, boundType: String): SBaseStructValue = {
+  def queryBound(cb: EmitCodeBuilder, region: Value[Region], partitionBoundLeftEndpoint: SBaseStructValue, leansRight: SBooleanValue): SBaseStructValue = {
     cb.invokeSCode(
       cb.emb.ecb.getOrGenEmitMethod("lowerBound",
-        ("lowerBound", this, boundType),
+        ("lowerBound", this),
         FastIndexedSeq(typeInfo[Region], partitionBoundLeftEndpoint.st.paramType, leansRight.st.paramType),
       queryType.paramType) { emb =>
       emb.emitSCode { cb =>
         val region = emb.getCodeParam[Region](1)
         val endpoint = emb.getSCodeParam(2).asBaseStruct
         val leansRight = emb.getSCodeParam(3).asBoolean
-        queryType.coerceOrCopy(cb, region, queryBound(cb, region, endpoint, leansRight, cb.memoize(metadata.invoke[Int]("height") - 1), cb.memoize(metadata.invoke[Long]("rootOffset")), boundType), false) }
+        queryType.coerceOrCopy(cb, region, queryBound(cb, region, endpoint, leansRight, cb.memoize(metadata.invoke[Int]("height") - 1), cb.memoize(metadata.invoke[Long]("rootOffset"))), false) }
     }, region, partitionBoundLeftEndpoint, leansRight).asBaseStruct
   }
 
@@ -176,8 +168,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
     endpoint: SBaseStructValue,
     leansRight: SBooleanValue,
     level: Value[Int],
-    offset: Value[Long],
-    boundType: String): SBaseStructValue = {
+    offset: Value[Long]): SBaseStructValue = {
 
     val rInd: Settable[Long] = cb.newLocal[Long]("lowerBoundIndex")
     val rLeafChild: EmitSettable = cb.emb.newEmitLocal(leafChildEmitType)
@@ -216,15 +207,14 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
         children.st,
         EmitType(boundAndSignTuple.st, true),
         ((cb, elt) => cb.memoize(elt.get(cb).asBaseStruct.loadField(cb, "key"))),
-        bound=boundType,
+        bound="lower",
         ltF = { (cb, containerEltEV, partBoundEV) =>
           val containerElt = containerEltEV.get(cb).asBaseStruct
           val partBound = partBoundEV.get(cb).asBaseStruct
           val endpoint = partBound.loadField(cb, 0).get(cb).asBaseStruct
           val leansRight = partBound.loadField(cb, 1).get(cb).asBoolean.value
           val comp = compareStructWithPartitionIntervalEndpoint(cb, containerElt, endpoint, leansRight)
-          val ltOrGt = cb.memoize(if (boundType == "lower") comp < 0 else comp > 0)
-          ltOrGt
+          cb.memoize(comp < 0)
         }
       )
         .search(cb, children, EmitCode.present(cb.emb, boundAndSignTuple))
@@ -232,9 +222,9 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
       val firstIndex = node.asBaseStruct.loadField(cb, "first_idx").get(cb).asInt64.value.get
       val updatedIndex = firstIndex + idx.toL
       cb.assign(rInd, updatedIndex)
-      val idxWithModification = cb.memoize((if (boundType == "lower") idx else cb.memoize((idx-1) max 0)) min (children.loadLength()-1))
-      val leafChild = children.loadElement(cb, idxWithModification).get(cb).asBaseStruct
-      cb.assign(rLeafChild, EmitCode.present(cb.emb, leafChild))
+      cb.assign(rLeafChild, IEmitCode(cb,
+        idx >= children.loadLength(),
+        children.loadElement(cb, idx).get(cb).asBaseStruct))
     }, {
       val children = readInternalNode(cb, offsetSettable).loadField(cb, "children").get(cb).asIndexable
       cb.ifx(children.loadLength() ceq 0, {
@@ -246,15 +236,14 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
           children.st,
           EmitType(boundAndSignTuple.st, true),
           ((cb, elt) => cb.memoize(elt.get(cb).asBaseStruct.loadField(cb, "first_key"))),
-          bound=boundType,
+          bound="lower",
           ltF = { (cb, containerEltEV, partBoundEV) =>
             val containerElt = containerEltEV.get(cb).asBaseStruct
             val partBound = partBoundEV.get(cb).asBaseStruct
             val endpoint = partBound.loadField(cb, 0).get(cb).asBaseStruct
             val leansRight = partBound.loadField(cb, 1).get(cb).asBoolean.value
             val comp = compareStructWithPartitionIntervalEndpoint(cb, containerElt, endpoint, leansRight)
-            val ltOrGt = cb.memoize(if (boundType == "lower") comp < 0 else comp > 0)
-            ltOrGt
+            cb.memoize(comp < 0)
           }
         )
           .search(cb, children, EmitCode.present(cb.emb, boundAndSignTuple))
