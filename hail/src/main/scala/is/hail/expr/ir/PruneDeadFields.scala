@@ -631,7 +631,7 @@ object PruneDeadFields {
         val rightRequestedType = requestedType.copy(
           globalType = TStruct.empty,
           rowKey = right.typ.rowKey,
-          rowType = selectKey(right.typ.rowType, right.typ.rowKey))
+          rowType = unify(right.typ.rowType, requestedType.rowType, selectKey(right.typ.rowType, right.typ.rowKey)))
         memoizeMatrixIR(ctx, left, leftRequestedType, memo)
         memoizeMatrixIR(ctx, right, rightRequestedType, memo)
       case MatrixMapEntries(child, newEntries) =>

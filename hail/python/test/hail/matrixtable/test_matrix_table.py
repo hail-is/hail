@@ -556,17 +556,23 @@ class Tests(unittest.TestCase):
         r, c = 10, 10
         mt = hl.utils.range_matrix_table(2*r, c)
         mt = mt.annotate_entries(entry=hl.tuple([mt.row_idx, mt.col_idx]))
+        mt = mt.annotate_rows(left=mt.row_idx)
         mt2 = hl.utils.range_matrix_table(2*r, c)
         mt2 = mt2.key_rows_by(row_idx=mt2.row_idx + r)
         mt2 = mt2.key_cols_by(col_idx=mt2.col_idx + c)
         mt2 = mt2.annotate_entries(entry=hl.tuple([mt2.row_idx, mt2.col_idx]))
+        mt2 = mt2.annotate_rows(right=mt2.row_idx)
         expected = hl.utils.range_matrix_table(3*r, 2*c)
         missing = hl.missing(hl.ttuple(hl.tint, hl.tint))
         expected = expected.annotate_entries(entry=hl.if_else(
             expected.col_idx < c,
             hl.if_else(expected.row_idx < 2*r, hl.tuple([expected.row_idx, expected.col_idx]), missing),
             hl.if_else(expected.row_idx >= r, hl.tuple([expected.row_idx, expected.col_idx]), missing)))
-        assert mt.union_cols(mt2, row_join_type='outer')._same(expected)
+        expected = expected.annotate_rows(
+            left=hl.if_else(expected.row_idx < 2*r, expected.row_idx, hl.missing(hl.tint)),
+            right=hl.if_else(expected.row_idx >= r, expected.row_idx, hl.missing(hl.tint)),
+        )
+        assert mt.union_cols(mt2, row_join_type='outer', drop_right_row_fields=False)._same(expected)
 
     def test_union_rows_different_col_schema(self):
         mt = hl.utils.range_matrix_table(10, 10)
