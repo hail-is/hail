@@ -82,7 +82,7 @@ class Job:
         self._env: Dict[str, str] = {}
         self._wrapper_code: List[str] = []
         self._user_code: List[str] = []
-        self._regions: Optional[List[str]] = None
+        self._regions: Optional[REGION_SPECIFICATION] = None
 
         self._resources: Dict[str, _resource.Resource] = {}
         self._resources_inverse: Dict[_resource.Resource, str] = {}
@@ -372,7 +372,9 @@ class Job:
         ----------
         regions:
             The cloud region(s) to run this job in. Use `hb.ANY_REGION` to signify
-            the job can run in any available region.
+            the job can run in any available region. Use :meth:`.ServiceBackend.supported_regions`
+            to list the available regions to choose from. The default is the job can run in
+            any region.
 
         Returns
         -------

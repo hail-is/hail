@@ -388,7 +388,8 @@ class ServiceBackend(Backend[bc.Batch]):
         Should only be set for user delegation purposes.
     regions:
         Cloud region(s) to run jobs in. Use :meth:`.ServiceBackend.supported_regions` to list the
-        available regions to choose from.
+        available regions to choose from. Use `hb.ANY_REGION` to signify the job can run in any
+        available region. The default is the job can run in any region.
     """
 
     @staticmethod
@@ -479,8 +480,10 @@ class ServiceBackend(Backend[bc.Batch]):
         if regions is None:
             regions = user_config.get('batch', 'regions', fallback=None)
             if regions is not None:
+                assert isinstance(regions, str)
                 regions = regions.split(',')
-        self.regions = regions
+        assert isinstance(regions, (List[str], None))
+        self._regions = regions
 
     @property
     def _fs(self):
@@ -709,6 +712,8 @@ class ServiceBackend(Backend[bc.Batch]):
             regions = job._regions
             if regions == ANY_REGION:
                 regions = None
+            if regions is not None:
+                assert isinstance(regions, list)
 
             j = bc_batch.create_job(image=image,
                                     command=[job._shell if job._shell else DEFAULT_SHELL, '-c', cmd],

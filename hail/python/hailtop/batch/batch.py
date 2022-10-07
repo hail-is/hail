@@ -90,7 +90,10 @@ class Batch:
         behavior is there is no limit on the number of failures. Only
         applicable for the :class:`.ServiceBackend`. Must be greater than 0.
     default_regions:
-        Default regions to run jobs in when using the :class:`.ServiceBackend`.
+        Default regions to run jobs in when using the :class:`.ServiceBackend`. Use `hb.ANY_REGION` to signify
+        the job can run in any available region. Use :meth:`.ServiceBackend.supported_regions`
+        to list the available regions to choose from. The default is the job can run in
+        any region.
     """
 
     _counter = 0
@@ -155,7 +158,7 @@ class Batch:
         self._cancel_after_n_failures = cancel_after_n_failures
 
         if isinstance(self._backend, _backend.ServiceBackend):
-            self._default_regions = default_regions or self._backend.regions
+            self._default_regions = default_regions or self._backend._regions
         else:
             self._default_regions = None
 
@@ -264,7 +267,7 @@ class Batch:
         if self._default_timeout is not None:
             j.timeout(self._default_timeout)
 
-        if isinstance(self._backend, _backend.ServiceBackend):
+        if self._default_regions is not None:
             j.regions(self._default_regions)
 
         self._jobs.append(j)

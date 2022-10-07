@@ -911,7 +911,7 @@ class BatchClient:
         return await bp_resp.json()
 
     async def supported_regions(self):
-        resp = await self._get(f'/api/v1alpha/supported_regions')
+        resp = await self._get('/api/v1alpha/supported_regions')
         return await resp.json()
 
     async def close(self):
