@@ -131,6 +131,8 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def getObject[T <: AnyRef : TypeInfo](obj: T): Code[T] = ecb.getObject(obj)
 
+  def getPartitionIndex: Code[Int] = ecb.getPartitionIndex
+
   def getSerializedAgg(i: Int): Code[Array[Byte]] = ecb.getSerializedAgg(i)
 
   def setSerializedAgg(i: Int, b: Code[Array[Byte]]): Code[Unit] = ecb.setSerializedAgg(i, b)
@@ -333,6 +335,8 @@ class EmitClassBuilder[C](
     Array(baos.toByteArray) ++ preEncodedLiterals.map(_._1.value.ba)
   }
 
+  private[this] var _partIndexField: Settable[Int] = _
+
   private[this] var _mods: BoxedArrayBuilder[(String, (HailClassLoader, FS, Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new BoxedArrayBuilder()
   private[this] var _backendField: Settable[BackendUtils] = _
 
@@ -448,6 +452,13 @@ class EmitClassBuilder[C](
   def getHailClassLoader: Code[HailClassLoader] = emodb.getHailClassLoader
 
   def getFS: Code[FS] = emodb.getFS
+
+  def getPartitionIndex: Code[Int] = {
+    if (_partIndexField == null) {
+      _partIndexField = genFieldThisRef[Int]()
+    }
+    _partIndexField
+  }
 
   def setObjects(cb: EmitCodeBuilder, objects: Code[Array[AnyRef]]): Unit = modb.setObjects(cb, objects)
 
@@ -653,11 +664,15 @@ class EmitClassBuilder[C](
       field.invoke[Int, Unit]("reset", mb.getCodeParam[Int](1))
     })
 
-    mb.emit(Code(
-      initialized.mux(
-        Code._empty,
-        Code(initialize, initialized := true)),
-      reseed))
+    mb.voidWithBuilder { cb =>
+      cb.ifx(!initialized, {
+        if (_partIndexField != null)
+          cb.assign(_partIndexField, mb.getCodeParam[Int](1))
+        cb += initialize
+        cb.assign(initialized, true)
+      })
+      cb += reseed
+    }
   }
 
   def newRNG(seed: Long): Value[IRRandomness] = {

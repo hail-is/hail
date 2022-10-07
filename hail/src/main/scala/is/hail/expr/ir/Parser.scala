@@ -973,6 +973,19 @@ object IRParser {
           elt = tcoerce[TStream](a.typ).elementType
           lessThan <- ir_value_expr(env.bindEval(l -> elt, r -> elt))(it)
         } yield ArraySort(a, l, r, lessThan)
+      case "ArrayMaximalIndependentSet" =>
+        val hasTieBreaker = boolean_literal(it)
+        val bindings = if (hasTieBreaker) Some(identifier(it) -> identifier(it)) else None
+        for {
+          edges <- ir_value_expr(env)(it)
+          tieBreaker <- if (hasTieBreaker) {
+            val eltType = tcoerce[TArray](edges.typ).elementType.asInstanceOf[TBaseStruct].types.head
+            val Some((left, right)) = bindings
+            ir_value_expr(IRParserEnvironment(env.ctx, BindingEnv.eval(left -> eltType, right -> eltType)))(it).map(tbf => Some((left, right, tbf)))
+          } else {
+            done(None)
+          }
+        } yield ArrayMaximalIndependentSet(edges, tieBreaker)
       case "MakeNDArray" =>
         val errorID = int32_literal(it)
         for {
@@ -2118,4 +2131,3 @@ object IRParser {
 
   def parseMatrixType(code: String): MatrixType = parseMatrixType(code, TypeParserEnvironment.default)
 }
-

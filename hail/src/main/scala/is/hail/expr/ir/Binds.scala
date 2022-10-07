@@ -44,6 +44,13 @@ object Bindings {
     case StreamAggScan(a, name, _) => if (i == 1) FastIndexedSeq(name -> a.typ.asInstanceOf[TStream].elementType) else empty
     case StreamJoinRightDistinct(ll, rr, _, _, l, r, _, _) => if (i == 2) Array(l -> tcoerce[TStream](ll.typ).elementType, r -> tcoerce[TStream](rr.typ).elementType) else empty
     case ArraySort(a, left, right, _) => if (i == 1) Array(left -> tcoerce[TStream](a.typ).elementType, right -> tcoerce[TStream](a.typ).elementType) else empty
+    case ArrayMaximalIndependentSet(a, Some((left, right, _))) =>
+      if (i == 2) {
+        val typ = tcoerce[TArray](a.typ).elementType.asInstanceOf[TBaseStruct].types.head
+        Array(left -> typ, right -> typ)
+      } else {
+        empty
+      }
     case AggArrayPerElement(a, _, indexName, _, _, _) => if (i == 1) FastIndexedSeq(indexName -> TInt32) else empty
     case AggFold(zero, seqOp, combOp, accumName, otherAccumName, _) => {
       if (i == 1) FastIndexedSeq(accumName -> zero.typ)

@@ -81,6 +81,8 @@ object Children {
       Array(nds)
     case ArraySort(a, _, _, lessThan) =>
       Array(a, lessThan)
+    case ArrayMaximalIndependentSet(a, tieBreaker) =>
+      Array(a) ++ tieBreaker.map { case (_, _, tb) => tb }
     case ToSet(a) =>
       Array(a)
     case ToDict(a) =>
