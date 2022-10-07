@@ -388,7 +388,7 @@ class ServiceBackend(Backend[bc.Batch]):
         Should only be set for user delegation purposes.
     regions:
         Cloud region(s) to run jobs in. Use :meth:`.ServiceBackend.supported_regions` to list the
-        available regions to choose from. Use `hb.ANY_REGION` to signify the job can run in any
+        available regions to choose from. Use None to signify the job can run in any
         available region. The default is the job can run in any region.
     """
 
@@ -415,7 +415,7 @@ class ServiceBackend(Backend[bc.Batch]):
                  remote_tmpdir: Optional[str] = None,
                  google_project: Optional[str] = None,
                  token: Optional[str] = None,
-                 regions: Optional[REGION_SPECIFICATION] = None,
+                 regions: Optional[List[str]] = None,
                  ):
         if len(args) > 2:
             raise TypeError(f'ServiceBackend() takes 2 positional arguments but {len(args)} were given')
@@ -482,7 +482,9 @@ class ServiceBackend(Backend[bc.Batch]):
             if regions is not None:
                 assert isinstance(regions, str)
                 regions = regions.split(',')
-        self._regions = regions
+        else:
+            assert isinstance(regions, list)
+        self.regions = regions
 
     @property
     def _fs(self):
@@ -708,12 +710,6 @@ class ServiceBackend(Backend[bc.Batch]):
 
             env = {**job._env, 'BATCH_TMPDIR': local_tmpdir}
 
-            regions = job._regions
-            if regions == ANY_REGION:
-                regions = None
-            if regions is not None:
-                assert isinstance(regions, list)
-
             j = bc_batch.create_job(image=image,
                                     command=[job._shell if job._shell else DEFAULT_SHELL, '-c', cmd],
                                     parents=parents,
@@ -728,7 +724,7 @@ class ServiceBackend(Backend[bc.Batch]):
                                     requester_pays_project=batch.requester_pays_project,
                                     mount_tokens=True,
                                     user_code=user_code,
-                                    regions=regions)
+                                    regions=job.regions)
 
             n_jobs_submitted += 1
 

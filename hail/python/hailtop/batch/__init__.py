@@ -6,7 +6,6 @@ from .batch_pool_executor import BatchPoolExecutor
 from .backend import LocalBackend, ServiceBackend, Backend
 from .docker import build_python_image
 from .exceptions import BatchException
-from .globals import ANY_REGION
 from .utils import concatenate, plink_merge
 from .resource import Resource, ResourceFile, ResourceGroup, PythonResult
 
@@ -23,7 +22,6 @@ __all__ = ['Batch',
            'Resource',
            'ResourceFile',
            'ResourceGroup',
-           'ANY_REGION',
            ]
 
 nest_asyncio.apply()
