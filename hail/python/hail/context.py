@@ -274,13 +274,13 @@ def init(sc=None, app_name=None, master=None, local='local[*]',
         Local temporary directory.  Used on driver and executor nodes.
         Must use the file scheme.  Defaults to TMPDIR, or /tmp.
     driver_cores : :class:`str` or :class:`int`, optional
-        Batch backend only. Number of cores to use for the driver process. May be 1 or 8. Default is
+        Batch backend only. Number of cores to use for the driver process. May be 1, 2, 4, or 8. Default is
         1.
     driver_memory : :class:`str`, optional
         Batch backend only. Memory tier to use for the driver process. May be standard or
         highmem. Default is standard.
     worker_cores : :class:`str` or :class:`int`, optional
-        Batch backend only. Number of cores to use for the worker processes. May be 1 or 8. Default is
+        Batch backend only. Number of cores to use for the worker processes. May be 1, 2, 4, or 8. Default is
         1.
     worker_memory : :class:`str`, optional
         Batch backend only. Memory tier to use for the worker processes. May be standard or
