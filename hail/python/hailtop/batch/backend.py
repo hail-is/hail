@@ -389,7 +389,8 @@ class ServiceBackend(Backend[bc.Batch]):
     regions:
         Cloud region(s) to run jobs in. Use :meth:`.ServiceBackend.supported_regions` to list the
         available regions to choose from. Use None to signify the job can run in any
-        available region. The default is the job can run in any region.
+        available region. The default is the job can run in any region. You can also use hailctl
+        to set the default value. An example invocation is `hailctl config set batch/regions "us-central1,us-east1"`.
     """
 
     @staticmethod
@@ -478,12 +479,10 @@ class ServiceBackend(Backend[bc.Batch]):
         self.__fs: RouterAsyncFS = RouterAsyncFS(default_scheme='file', gcs_kwargs=gcs_kwargs)
 
         if regions is None:
-            regions = user_config.get('batch', 'regions', fallback=None)
-            if regions is not None:
-                assert isinstance(regions, str)
-                regions = regions.split(',')
-        else:
-            assert isinstance(regions, list)
+            regions_from_conf = user_config.get('batch', 'regions', fallback=None)
+            if regions_from_conf is not None:
+                assert isinstance(regions_from_conf, str)
+                regions = regions_from_conf.split(',')
         self.regions = regions
 
     @property
@@ -724,7 +723,7 @@ class ServiceBackend(Backend[bc.Batch]):
                                     requester_pays_project=batch.requester_pays_project,
                                     mount_tokens=True,
                                     user_code=user_code,
-                                    regions=job.regions)
+                                    regions=job._regions)
 
             n_jobs_submitted += 1
 

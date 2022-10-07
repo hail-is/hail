@@ -216,8 +216,9 @@ and write access to the bucket.
    registries. Multi-regional buckets also have additional replication fees when writing data. A good rule of thumb is to use
    a multi-regional artifact registry for Docker images and regional buckets for data. You can then specify which region(s)
    you want your job to run in with :meth:`.Job.regions`. To set the default region(s) for all jobs, you can set the input
-   argument :ref:`.ServiceBackend.regions`. You can also get the full list of supported regions with
-   :func:`.ServiceBackend.supported_regions`.
+   regions argument to :class:`.ServiceBackend` or use hailctl to set the default value. An example invocation is
+   `hailctl config set batch/regions "us-central1,us-east1"`. You can also get the full list of supported regions
+   with :meth:`.ServiceBackend.supported_regions`.
 
 Next, pass the :class:`.ServiceBackend` object to the :class:`.Batch` constructor
 with the parameter name `backend`.
