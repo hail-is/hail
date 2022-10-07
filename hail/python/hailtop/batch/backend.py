@@ -391,7 +391,7 @@ class ServiceBackend(Backend[bc.Batch]):
     regions:
         Cloud region(s) to run jobs in. Use py:staticmethod:`.ServiceBackend.supported_regions` to list the
         available regions to choose from. Use py:attribute:`.ServiceBackend.ANY_REGION` to signify the default is jobs
-        can run in any available region. The default is jobs can run in any region unless a default value has 
+        can run in any available region. The default is jobs can run in any region unless a default value has
         been set with hailctl. An example invocation is `hailctl config set batch/regions "us-central1,us-east1"`.
     """
 
