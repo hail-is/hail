@@ -3413,7 +3413,7 @@ def import_gvs(refs: 'List[List[str]]',
 
         if unphase:
             vd = vd.annotate_entries(LGT=vd.LGT.unphase())
-        vd = vd.select_entries(GT=hl.vds.lgt_to_gt(vd.LA, vd.LGT), **vd.entry)
+        vd = vd.select_entries(GT=hl.vds.lgt_to_gt(vd.LGT, vd.LA), **vd.entry)
 
         hl.vds.VariantDataset(
             reference_data=rd,
