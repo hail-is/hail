@@ -24,13 +24,21 @@ case class BindingEnv[V](
 ) {
   def allEmpty: Boolean = eval.isEmpty && agg.forall(_.isEmpty) && scan.forall(_.isEmpty) && relational.isEmpty
 
-  def promoteAgg: BindingEnv[V] = {
-    BindingEnv(agg.get, scan = scan, relational = relational)
-  }
+  def promoteAgg: BindingEnv[V] = copy(eval = agg.get, agg = None)
 
-  def promoteScan: BindingEnv[V] = {
-    BindingEnv(scan.get, agg = agg, relational = relational)
-  }
+  def promoteScan: BindingEnv[V] = copy(eval = scan.get, scan = None)
+
+  def noAgg: BindingEnv[V] = copy(agg = None)
+
+  def noScan: BindingEnv[V] = copy(scan = None)
+
+  def createAgg: BindingEnv[V] =
+    copy(agg = Some(eval), scan = scan.map(_ => Env.empty))
+
+  def createScan: BindingEnv[V] =
+    copy(scan = Some(eval), agg = agg.map(_ => Env.empty))
+
+  def onlyRelational: BindingEnv[V] = BindingEnv(relational = relational)
 
   def bindEval(name: String, v: V): BindingEnv[V] =
     copy(eval = eval.bind(name, v))
@@ -116,6 +124,8 @@ class Env[V] private(val m: Map[Env.K, V]) {
   }
 
   def isEmpty: Boolean = m.isEmpty
+
+  def apply(name: String): V = m(name)
 
   def lookup(name: String): V =
     m.get(name)
