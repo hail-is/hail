@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS `region_ids` (
+CREATE TABLE IF NOT EXISTS `regions` (
   `region_id` INT NOT NULL AUTO_INCREMENT,
   `region` VARCHAR(40) NOT NULL,
   PRIMARY KEY (`region_id`),
@@ -11,5 +11,5 @@ CREATE TABLE IF NOT EXISTS `job_regions` (
   `region_id` INT NOT NULL,
   PRIMARY KEY (`batch_id`, `job_id`, `region_id`),
   FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(batch_id, job_id) ON DELETE CASCADE,
-  FOREIGN KEY (`region_id`) REFERENCES region_ids(region_id) ON DELETE CASCADE
+  FOREIGN KEY (`region_id`) REFERENCES regions(region_id) ON DELETE CASCADE
 ) ENGINE = InnoDB;

@@ -38,7 +38,7 @@ class AzureDriver(CloudDriver):
         region_args = [(r,) for r in regions]
         await db.execute_many(
             '''
-INSERT INTO region_ids (region) VALUES (%s)
+INSERT INTO regions (region) VALUES (%s)
 ON DUPLICATE KEY UPDATE region = region;
 ''',
             region_args,

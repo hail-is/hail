@@ -339,7 +339,7 @@ WITH ready_jobs AS (
 SELECT ready_jobs.*, JSON_ARRAYAGG(region) AS regions
 FROM ready_jobs
 LEFT JOIN job_regions ON ready_jobs.batch_id = job_regions.batch_id AND ready_jobs.job_id = job_regions.job_id
-LEFT JOIN region_ids ON job_regions.region_id = region_ids.region_id
+LEFT JOIN regions ON job_regions.region_id = regions.region_id
 GROUP BY ready_jobs.batch_id, ready_jobs.job_id;
 ''',
                     (batch['id'], self.name, remaining.value),
@@ -366,7 +366,7 @@ WITH ready_jobs AS (
 SELECT ready_jobs.*, JSON_ARRAYAGG(region) AS regions
 FROM ready_jobs
 LEFT JOIN job_regions ON ready_jobs.batch_id = job_regions.batch_id AND ready_jobs.job_id = job_regions.job_id
-LEFT JOIN region_ids ON job_regions.region_id = region_ids.region_id
+LEFT JOIN regions ON job_regions.region_id = regions.region_id
 GROUP BY ready_jobs.batch_id, ready_jobs.job_id;
 ''',
                         (batch['id'], self.name, remaining.value),

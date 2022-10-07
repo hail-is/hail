@@ -36,7 +36,7 @@ class GCPDriver(CloudDriver):
         region_args = [(region,) for region in regions]
         await db.execute_many(
             '''
-INSERT INTO region_ids (region) VALUES (%s)
+INSERT INTO regions (region) VALUES (%s)
 ON DUPLICATE KEY UPDATE region = region;
 ''',
             region_args,

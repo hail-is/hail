@@ -2505,7 +2505,7 @@ SELECT frozen FROM globals;
 
     regions = {
         record['region']: record['region_id']
-        async for record in db.select_and_fetchall('SELECT region_id, region from region_ids')
+        async for record in db.select_and_fetchall('SELECT region_id, region from regions')
     }
     app['regions'] = regions
 
@@ -2593,7 +2593,7 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
 
     regions = {
         record['region']: record['region_id']
-        async for record in db.select_and_fetchall('SELECT region_id, region from region_ids')
+        async for record in db.select_and_fetchall('SELECT region_id, region from regions')
     }
     app['regions'] = regions
 

@@ -68,4 +68,4 @@ DROP TABLE IF EXISTS `pools`;
 DROP TABLE IF EXISTS `inst_colls`;
 DROP TABLE IF EXISTS `latest_product_versions`;
 DROP TABLE IF EXISTS `resources`;
-DROP TABLE IF EXISTS `region_ids`
+DROP TABLE IF EXISTS `regions`
