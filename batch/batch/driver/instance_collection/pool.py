@@ -239,7 +239,6 @@ WHERE removed = 0 AND inst_coll = %s;
         regions: List[str],
     ):
         n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
-        n_instances = sum(count for count in self.n_instances_by_state.values())
 
         live_free_cores_mcpu = sum(self.live_free_cores_mcpu_by_region[region] for region in regions)
 
@@ -249,7 +248,7 @@ WHERE removed = 0 AND inst_coll = %s;
         instances_needed = min(
             instances_needed,
             self.max_live_instances - n_live_instances,
-            self.max_instances - n_instances,
+            self.max_instances - self.n_instances,
             # 20 queries/s; our GCE long-run quota
             300,
             MAX_INSTANCES_PER_AUTOSCALER_LOOP,
