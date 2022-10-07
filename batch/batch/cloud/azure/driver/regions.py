@@ -1,3 +1,4 @@
+import random
 from typing import List
 
 from ....driver.exceptions import RegionsNotSupportedError
@@ -11,6 +12,7 @@ class RegionMonitor(CloudLocationMonitor):
 
     def __init__(self, default_region: str):
         self._default_region = default_region
+        self.supported_regions = [self._default_region]
 
     def default_location(self) -> str:
         return self._default_region
@@ -23,6 +25,6 @@ class RegionMonitor(CloudLocationMonitor):
         preemptible: bool,  # pylint: disable=unused-argument
         regions: List[str],
     ) -> str:
-        if self._default_region not in regions:
-            raise RegionsNotSupportedError(regions, [self._default_region])
-        return self._default_region
+        if len(set(regions).intersection(self.supported_regions)) == 0:
+            raise RegionsNotSupportedError(regions, self.supported_regions)
+        return random.choice(regions)
