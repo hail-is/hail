@@ -179,3 +179,12 @@ def json_to_value(x):
     if x is None:
         return x
     return json.loads(x)
+
+
+def regions_to_bits_rep(selected_regions, all_regions_mapping):
+    result = 0
+    for region in selected_regions:
+        idx = all_regions_mapping[region]
+        assert idx < 64, str(all_regions_mapping)
+        result |= 1 << (idx - 1)
+    return result

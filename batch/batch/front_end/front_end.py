@@ -72,7 +72,7 @@ from ..file_store import FileStore
 from ..globals import BATCH_FORMAT_VERSION, HTTP_CLIENT_MAX_SIZE
 from ..inst_coll_config import InstanceCollectionConfigs
 from ..spec_writer import SpecWriter
-from ..utils import query_billing_projects, unavailable_if_frozen
+from ..utils import query_billing_projects, regions_to_bits_rep, unavailable_if_frozen
 from .validate import ValidationError, validate_and_clean_jobs, validate_batch, validate_batch_update
 
 # import uvloop
@@ -910,7 +910,12 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
                 )
             if len(regions) == 0:
                 raise web.HTTPBadRequest(reason='regions must not be an empty array')
+            n_regions = len(regions)
+            regions_bits_rep = regions_to_bits_rep(regions, app['regions'])
             job_region_args += [(batch_id, job_id, app['regions'][region]) for region in regions]
+        else:
+            n_regions = None
+            regions_bits_rep = None
 
         secrets = spec.get('secrets')
         if not secrets:
@@ -1015,6 +1020,8 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
                 cores_mcpu,
                 len(parent_ids),
                 inst_coll_name,
+                n_regions,
+                regions_bits_rep,
             )
         )
 
@@ -1036,8 +1043,8 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
             try:
                 await tx.execute_many(
                     '''
-INSERT INTO jobs (batch_id, job_id, update_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO jobs (batch_id, job_id, update_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll, n_regions, regions_bits_rep_int)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
                     jobs_args,
                 )
@@ -2595,6 +2602,7 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
         record['region']: record['region_id']
         async for record in db.select_and_fetchall('SELECT region_id, region from regions')
     }
+    assert max(regions.values()) < 64, str(regions)
     app['regions'] = regions
 
     fs = get_cloud_async_fs(credentials_file='/gsa-key/key.json')

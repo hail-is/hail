@@ -2051,6 +2051,15 @@ steps:
       - name: add-job-regions
         script: /io/sql/add-job-regions.sql
         online: true
+      - name: add-job-regions-bits-rep
+        script: /io/sql/add-job-regions-bits-rep.sql
+        online: true
+      - name: regions-bits-rep-bigint
+        script: /io/sql/regions-bits-rep-bigint.sql
+        online: true
+      - name: regions-bits-rep-index
+        script: /io/sql/regions-bits-rep-index.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

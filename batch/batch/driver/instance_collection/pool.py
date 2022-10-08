@@ -23,7 +23,7 @@ from hailtop.utils import (
 from ...batch_configuration import STANDING_WORKER_MAX_IDLE_TIME_MSECS
 from ...batch_format_version import BatchFormatVersion
 from ...inst_coll_config import PoolConfig
-from ...utils import ExceededSharesCounter, json_to_value
+from ...utils import Box, ExceededSharesCounter, json_to_value
 from ..instance import Instance
 from ..job import mark_job_errored, schedule_job
 from ..resource_manager import CloudResourceManager
@@ -57,11 +57,6 @@ SCHEDULING_LOOP_JOBS = pc.Gauge(
 AUTOSCALER_HEAD_JOB_QUEUE_READY_CORES = pc.Gauge(
     'autoscaler_head_job_queue_ready_cores',
     'Number of ready cores per control loop execution calculated from the head of the job queue',
-    ['pool_name', 'region'],
-)
-AUTOSCALER_HEAD_JOB_QUEUE_N_INSTANCES = pc.Gauge(
-    'autoscaler_head_job_queue_n_instances',
-    'Number of instances estimated per control loop calculated from the head of the job queue',
     ['pool_name', 'region'],
 )
 
@@ -237,6 +232,7 @@ WHERE removed = 0 AND inst_coll = %s;
         self,
         ready_cores_mcpu: int,
         regions: List[str],
+        remaining_max_instances_per_autoscaler_loop: int,
     ):
         n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
 
@@ -251,7 +247,7 @@ WHERE removed = 0 AND inst_coll = %s;
             self.max_instances - self.n_instances,
             # 20 queries/s; our GCE long-run quota
             300,
-            MAX_INSTANCES_PER_AUTOSCALER_LOOP,
+            remaining_max_instances_per_autoscaler_loop,
         )
         return max(0, instances_needed)
 
@@ -270,13 +266,17 @@ WHERE removed = 0 AND inst_coll = %s;
                 ]
             )
 
-    async def create_instances_from_ready_cores(self, ready_cores_mcpu: int, regions: List[str]):
+    async def create_instances_from_ready_cores(
+        self, ready_cores_mcpu: int, regions: List[str], remaining_max_instances_per_autoscaler_loop: int
+    ):
         instances_needed = self.compute_n_instances_needed(
             ready_cores_mcpu,
             regions,
+            remaining_max_instances_per_autoscaler_loop,
         )
 
         await self._create_instances(instances_needed, regions)
+        return instances_needed
 
     async def regions_to_ready_cores_mcpu_from_estimated_job_queue(self) -> List[Tuple[List[str], int]]:
         autoscaler_runs_per_minute = 60 / AUTOSCALER_LOOP_PERIOD_SECONDS
@@ -301,44 +301,60 @@ WHERE removed = 0 AND inst_coll = %s;
         jobs_query = []
         jobs_query_args = []
 
-        for user, share in user_share.items():
+        for user_idx, (user, share) in enumerate(user_share.items(), start=1):
             user_job_query = f'''
 (
-  SELECT user, jobs.batch_id, jobs.job_id, cores_mcpu,
-    JSON_ARRAYAGG(region) AS regions,
-    COUNT(region) AS n_regions,
-    ROW_NUMBER() OVER (ORDER BY batch_id ASC, job_id ASC) DIV {share} AS scheduling_iteration
-  FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
-  LEFT JOIN batches ON jobs.batch_id = batches.id
-  LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
-  LEFT JOIN job_regions ON jobs.batch_id = job_regions.batch_id AND jobs.job_id = job_regions.job_id
-  LEFT JOIN regions ON job_regions.region_id = regions.region_id
-  WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND (always_run OR batches_cancelled.id IS NULL) AND inst_coll = %s
-  GROUP BY jobs.batch_id, jobs.job_id
-  ORDER BY jobs.batch_id ASC, jobs.job_id ASC
-  LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
+  SELECT scheduling_iteration, user_idx, n_regions, regions_bits_rep_int, regions, CAST(COALESCE(SUM(cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
+  FROM (
+    SELECT {user_idx} AS user_idx, batch_id, job_id, cores_mcpu, regions, always_run, n_regions, regions_bits_rep_int,
+      ROW_NUMBER() OVER (ORDER BY batch_id, always_run DESC, -n_regions DESC, regions_bits_rep_int, job_id ASC) DIV {share} AS scheduling_iteration
+    FROM (
+      (
+        SELECT jobs.batch_id, jobs.job_id, cores_mcpu, always_run, n_regions, regions_bits_rep_int, JSON_ARRAYAGG(region) AS regions
+        FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
+        LEFT JOIN batches ON jobs.batch_id = batches.id
+        LEFT JOIN job_regions ON jobs.batch_id = job_regions.batch_id AND jobs.job_id = job_regions.job_id
+        LEFT JOIN regions ON job_regions.region_id = regions.region_id
+        WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND always_run AND inst_coll = %s
+        GROUP BY user, jobs.batch_id, jobs.job_id, cores_mcpu
+        ORDER BY jobs.batch_id ASC, jobs.job_id ASC
+        LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
+      )
+      UNION
+      (
+        SELECT jobs.batch_id, jobs.job_id, cores_mcpu, always_run, n_regions, regions_bits_rep_int, JSON_ARRAYAGG(region) AS regions
+        FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
+        LEFT JOIN batches ON jobs.batch_id = batches.id
+        LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
+        LEFT JOIN job_regions ON jobs.batch_id = job_regions.batch_id AND jobs.job_id = job_regions.job_id
+        LEFT JOIN regions ON job_regions.region_id = regions.region_id
+        WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND NOT always_run AND batches_cancelled.id IS NULL AND inst_coll = %s
+        GROUP BY user, jobs.batch_id, jobs.job_id, cores_mcpu
+        ORDER BY jobs.batch_id ASC, jobs.job_id ASC
+        LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
+      )
+    ) AS t1
+    ORDER BY batch_id, always_run DESC, -n_regions DESC, regions_bits_rep_int, job_id ASC
+    LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
+  ) AS t2
+  GROUP BY scheduling_iteration, user_idx, regions_bits_rep_int, n_regions, regions
+  HAVING ready_cores_mcpu > 0
+  LIMIT {MAX_INSTANCES_PER_AUTOSCALER_LOOP * self.worker_cores}
 )
 '''
 
             jobs_query.append(user_job_query)
-            jobs_query_args += [user, self.name]
+            jobs_query_args += [user, self.name, user, self.name]
 
         result = self.db.select_and_fetchall(
             # We use the string representation of regions JSON_UNQUOTE for order by instead of the json array
             f'''
-WITH ready_jobs AS (
+WITH ready_cores_by_scheduling_iteration_regions AS (
     {" UNION ".join(jobs_query)}
 )
-SELECT regions, CAST(COALESCE(SUM(cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
-FROM (
-  SELECT regions, cores_mcpu,
-    CAST(ROW_NUMBER() OVER (ORDER BY scheduling_iteration, user, -n_regions DESC, JSON_UNQUOTE(regions), ready_jobs.batch_id, ready_jobs.job_id) AS SIGNED) AS row_num_overall,
-    CAST(ROW_NUMBER() OVER (PARTITION BY JSON_UNQUOTE(regions) ORDER BY scheduling_iteration, user, -n_regions DESC, JSON_UNQUOTE(regions), ready_jobs.batch_id, ready_jobs.job_id) AS SIGNED) AS row_num_by_regions
-  FROM ready_jobs
-) AS ordered_jobs
-GROUP BY regions, row_num_overall - row_num_by_regions
-HAVING ready_cores_mcpu > 0
-ORDER BY row_num_overall
+SELECT regions, ready_cores_mcpu
+FROM ready_cores_by_scheduling_iteration_regions
+ORDER BY scheduling_iteration, user_idx, -n_regions DESC, regions_bits_rep_int
 LIMIT {MAX_INSTANCES_PER_AUTOSCALER_LOOP * self.worker_cores};
 ''',
             jobs_query_args,
@@ -389,22 +405,29 @@ GROUP BY user;
             await self.regions_to_ready_cores_mcpu_from_estimated_job_queue()
         )
 
-        head_job_queue_n_instances = defaultdict(int)
         head_job_queue_ready_cores_mcpu = defaultdict(int)
 
+        remaining_instances_per_autoscaler_loop = MAX_INSTANCES_PER_AUTOSCALER_LOOP
         if head_job_queue_regions_ready_cores_mcpu_ordered and free_cores < 500:
             for regions, ready_cores_mcpu in head_job_queue_regions_ready_cores_mcpu_ordered:
+                n_instances_created = await self.create_instances_from_ready_cores(
+                    ready_cores_mcpu, regions, remaining_instances_per_autoscaler_loop
+                )
+
                 n_regions = len(regions)
                 for region in regions:
-                    n_instances = self.compute_n_instances_needed(ready_cores_mcpu, regions)
                     head_job_queue_ready_cores_mcpu[region] += ready_cores_mcpu / n_regions
-                    head_job_queue_n_instances[region] += n_instances / n_regions
 
-                await self.create_instances_from_ready_cores(ready_cores_mcpu, regions=regions)
+                remaining_instances_per_autoscaler_loop -= n_instances_created
+                if remaining_instances_per_autoscaler_loop <= 0:
+                    break
 
         ci_ready_cores_mcpu = ready_cores_mcpu_per_user.get('ci', 0)
         if ci_ready_cores_mcpu > 0 and self.live_free_cores_mcpu_by_region[self._ci_region] == 0:
-            await self.create_instances_from_ready_cores(ci_ready_cores_mcpu, regions=[self._ci_region])
+            ci_remaining_instances_per_autoscaler_loop = max(1, remaining_instances_per_autoscaler_loop)
+            await self.create_instances_from_ready_cores(
+                ci_ready_cores_mcpu, [self._ci_region], ci_remaining_instances_per_autoscaler_loop
+            )
 
         n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
         if self.enable_standing_worker and n_live_instances == 0 and self.max_instances > 0:
@@ -420,8 +443,11 @@ GROUP BY user;
             f' free_cores {free_cores} live_free_cores {self.live_free_cores_mcpu / 1000}'
             f' full_job_queue_ready_cores {sum(ready_cores_mcpu_per_user.values()) / 1000}'
             f' head_job_queue_ready_cores {sum(head_job_queue_ready_cores_mcpu.values()) / 1000}'
-            f' head_job_queue_n_instances {sum(head_job_queue_n_instances.values())}'
         )
+
+        for region in self.all_supported_regions:
+            ready_cores_mcpu = head_job_queue_ready_cores_mcpu.get(region, 0)
+            AUTOSCALER_HEAD_JOB_QUEUE_READY_CORES.labels(pool_name=self.name, region=region).set(ready_cores_mcpu)
 
     async def control_loop(self):
         await periodically_call(AUTOSCALER_LOOP_PERIOD_SECONDS, self.create_instances)
@@ -524,6 +550,7 @@ HAVING n_ready_jobs + n_running_jobs > 0;
         for user in allocating_users_by_total_cores:
             allocate_cores(user, mark)
 
+        result = dict(sorted(result.items(), key=lambda item: item[1]['allocated_cores_mcpu'], reverse=True))
         return result
 
     async def schedule_loop_body(self):
@@ -557,26 +584,57 @@ HAVING n_ready_jobs + n_running_jobs > 0;
             for user, resources in user_resources.items()
         }
 
-        async def user_runnable_jobs(user, share):
-            async for record in self.db.select_and_fetchall(
-                f'''
-SELECT user, jobs.batch_id, jobs.job_id, cores_mcpu, spec, userdata, format_version,
-  JSON_ARRAYAGG(region) AS regions,
-  COUNT(region) AS n_regions
-FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
-LEFT JOIN batches ON jobs.batch_id = batches.id
-LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
+        async def user_runnable_jobs(user, remaining):
+            async for batch in self.db.select_and_fetchall(
+                '''
+SELECT batches.id, batches_cancelled.id IS NOT NULL AS cancelled, userdata, user, format_version
+FROM batches
+LEFT JOIN batches_cancelled
+       ON batches.id = batches_cancelled.id
+WHERE user = %s AND `state` = 'running';
+''',
+                (user,),
+                "user_runnable_jobs__select_running_batches",
+            ):
+                async for record in self.db.select_and_fetchall(
+                    '''
+SELECT jobs.job_id, spec, cores_mcpu, JSON_ARRAYAGG(region) AS regions
+FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
 LEFT JOIN job_regions ON jobs.batch_id = job_regions.batch_id AND jobs.job_id = job_regions.job_id
 LEFT JOIN regions ON job_regions.region_id = regions.region_id
-WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND (always_run OR batches_cancelled.id IS NULL) AND inst_coll = %s
-GROUP BY jobs.batch_id, jobs.job_id
-ORDER BY -n_regions DESC, JSON_UNQUOTE(regions), jobs.batch_id, jobs.job_id
-LIMIT {share};
+WHERE jobs.batch_id = %s AND jobs.state = 'Ready' AND always_run = 1 AND inst_coll = %s
+GROUP BY jobs.job_id, spec, cores_mcpu
+ORDER BY jobs.batch_id, -n_regions DESC, regions_bits_rep_int, jobs.job_id
+LIMIT %s;
 ''',
-                (user, self.pool.name),
-                'select_user_ready_jobs',
-            ):
-                yield record
+                    (batch['id'], self.pool.name, remaining.value),
+                    "user_runnable_jobs__select_ready_always_run_jobs",
+                ):
+                    record['batch_id'] = batch['id']
+                    record['userdata'] = batch['userdata']
+                    record['user'] = batch['user']
+                    record['format_version'] = batch['format_version']
+                    yield record
+                if not batch['cancelled']:
+                    async for record in self.db.select_and_fetchall(
+                        '''
+SELECT jobs.job_id, spec, cores_mcpu, JSON_ARRAYAGG(region) AS regions
+FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
+LEFT JOIN job_regions ON jobs.batch_id = job_regions.batch_id AND jobs.job_id = job_regions.job_id
+LEFT JOIN regions ON job_regions.region_id = regions.region_id
+WHERE jobs.batch_id = %s AND jobs.state = 'Ready' AND always_run = 0 AND inst_coll = %s AND cancelled = 0
+GROUP BY jobs.job_id, spec, cores_mcpu
+ORDER BY jobs.batch_id, -n_regions DESC, regions_bits_rep_int, jobs.job_id
+LIMIT %s;
+''',
+                        (batch['id'], self.pool.name, remaining.value),
+                        "user_runnable_jobs__select_ready_jobs_batch_not_cancelled",
+                    ):
+                        record['batch_id'] = batch['id']
+                        record['userdata'] = batch['userdata']
+                        record['user'] = batch['user']
+                        record['format_version'] = batch['format_version']
+                        yield record
 
         waitable_pool = WaitableSharedPool(self.async_worker_pool)
 
@@ -589,7 +647,8 @@ LIMIT {share};
             scheduled_cores_mcpu = 0
             share = user_share[user]
 
-            async for record in user_runnable_jobs(user, share):
+            remaining = Box(share)
+            async for record in user_runnable_jobs(user, remaining):
                 attempt_id = secret_alnum_string(6)
                 record['attempt_id'] = attempt_id
 
