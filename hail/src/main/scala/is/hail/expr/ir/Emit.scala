@@ -361,8 +361,13 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A, 
     value
   }
 
-  def get(cb: EmitCodeBuilder, errorMsg: Code[String]=s"expected non-missing", errorID: Code[Int] = const(ErrorIDs.NO_ERROR)): A =
-    handle(cb, cb._fatalWithError(errorID, errorMsg))
+  def get(cb: EmitCodeBuilder, errorMsg: Code[String]=null, errorID: Code[Int] = const(ErrorIDs.NO_ERROR)): A = {
+    val msg: Code[String] = if (errorMsg != null)
+      errorMsg
+    else
+      s"expected non-missing - compiler stacktrace: \n  ${Thread.currentThread().getStackTrace.mkString("\n  ")}"
+    handle(cb, cb._fatalWithError(errorID, msg))
+  }
 
   def consume(cb: EmitCodeBuilder, ifMissing: => Unit, ifPresent: (A) => Unit): Unit = {
     val Lafter = CodeLabel()
