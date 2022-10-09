@@ -1149,17 +1149,28 @@ WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= 
         await _cancel_batch(app, batch['id'])
 
 
-USER_CORES = pc.Gauge('batch_user_cores', 'Batch user cores', ['state', 'user', 'inst_coll'])
+USER_CORES = pc.Gauge('batch_user_cores', 'Batch user cores (i.e. total in-use cores)', ['state', 'user', 'inst_coll'])
 USER_JOBS = pc.Gauge('batch_user_jobs', 'Batch user jobs', ['state', 'user', 'inst_coll'])
-FREE_CORES = pc.Summary('batch_free_cores', 'Batch free cores', ['inst_coll'])
-TOTAL_CORES = pc.Summary('batch_total_cores', 'Batch total cores', ['inst_coll'])
-COST_PER_HOUR = pc.Summary('batch_cost_per_hour', 'Batch cost ($/hr)', ['measure', 'inst_coll'])
+FREE_CORES = pc.Gauge('batch_free_cores', 'Batch total free cores', ['inst_coll'])
+TOTAL_CORES = pc.Gauge('batch_total_cores', 'Batch total cores', ['inst_coll'])
+COST_PER_HOUR = pc.Gauge('batch_cost_per_hour', 'Batch cost ($/hr)', ['measure', 'inst_coll'])
 INSTANCES = pc.Gauge('batch_instances', 'Batch instances', ['inst_coll', 'state'])
+INSTANCE_UTILIZATION = pc.Histogram(
+    'batch_instance_utilization',
+    'Batch per-instance percentage of revenue generating cores',
+    ['inst_coll'],
+    # Buckets were chosen to distinguish instances with:
+    # - no jobs (<= 1/8 core in use)
+    # - 1 1/4 core job
+    # - 1 1/2 core job
+    # - 1 core in use
+    # - 2 cores in use,
+    # - etc.
+    #
+    # NB: we conflate some utilizations, for example, using 1.25 cores with using 2 cores.
+    buckets=[c/16 for c in [1/8, 1/4, 1/2, 1, 2, 3, 4, 6, 8, 10, 12, 14, 16]])
 
 StateUserInstCollLabels = namedtuple('StateUserInstCollLabels', ['state', 'user', 'inst_coll'])
-InstCollLabels = namedtuple('InstCollLabels', ['inst_coll'])
-CostPerHourLabels = namedtuple('CostPerHourLabels', ['measure', 'inst_coll'])
-InstanceLabels = namedtuple('InstanceLabels', ['inst_coll', 'state'])
 
 
 async def monitor_user_resources(app):
@@ -1206,39 +1217,29 @@ def monitor_instances(app) -> None:
     inst_coll_manager = driver.inst_coll_manager
     resource_rates = driver.billing_manager.resource_rates
 
-    cost_per_hour: Dict[CostPerHourLabels, List[float]] = defaultdict(list)
-    free_cores: Dict[InstCollLabels, List[float]] = defaultdict(list)
-    total_cores: Dict[InstCollLabels, List[float]] = defaultdict(list)
-    instances: Dict[InstanceLabels, int] = defaultdict(int)
-
     for inst_coll in inst_coll_manager.name_inst_coll.values():
-        inst_coll_labels = InstCollLabels(inst_coll=inst_coll.name)
-        cost_per_hour_labels = CostPerHourLabels(measure='actual', inst_coll=inst_coll.name)
-        revenue_per_hour_labels = CostPerHourLabels(measure='billed', inst_coll=inst_coll.name)
+        total_free_cores = 0.0
+        total_cores = 0.0
+        total_cost_per_hour = 0.0
+        total_revenue_per_hour = 0.0
+        instances_by_state: Dict[str, int] = defaultdict(int)
 
         for instance in inst_coll.name_instance.values():
             if instance.state != 'deleted':
-                free_cores[inst_coll_labels].append(instance.free_cores_mcpu_nonnegative / 1000)
-                total_cores[inst_coll_labels].append(instance.cores_mcpu / 1000)
-                cost_per_hour[cost_per_hour_labels].append(instance.cost_per_hour(resource_rates))
-                cost_per_hour[revenue_per_hour_labels].append(instance.revenue_per_hour(resource_rates))
+                total_free_cores += instance.free_cores_mcpu_nonnegative / 1000
+                total_cores += instance.cores_mcpu / 1000
+                total_cost_per_hour += instance.cost_per_hour(resource_rates)
+                total_revenue_per_hour += instance.revenue_per_hour(resource_rates)
+                INSTANCE_UTILIZATION.labels(inst_coll=inst_coll.name).observe(instance.percent_cores_rented)
 
-            inst_labels = InstanceLabels(inst_coll=inst_coll.name, state=instance.state)
-            instances[inst_labels] += 1
+            instances_by_state[instance.state] += 1
 
-    def observe(summary, data):
-        summary.clear()
-        for labels, items in data.items():
-            for item in items:
-                summary.labels(**labels._asdict()).observe(item)
-
-    observe(COST_PER_HOUR, cost_per_hour)
-    observe(FREE_CORES, free_cores)
-    observe(TOTAL_CORES, total_cores)
-
-    INSTANCES.clear()
-    for labels, count in instances.items():
-        INSTANCES.labels(**labels._asdict()).set(count)
+        FREE_CORES.labels(inst_coll=inst_coll.name).set(total_free_cores)
+        TOTAL_CORES.labels(inst_coll=inst_coll.name).set(total_cores)
+        COST_PER_HOUR.labels(inst_coll=inst_coll.name, measure='actual').set(total_cost_per_hour)
+        COST_PER_HOUR.labels(inst_coll=inst_coll.name, measure='billed').set(total_revenue_per_hour)
+        for state, count in instances_by_state.items():
+            INSTANCES.labels(inst_coll=inst_coll.name, state=state).set(count)
 
 
 async def monitor_system(app):
