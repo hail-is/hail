@@ -484,6 +484,7 @@ module "test_gsa_secret" {
 module "query_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "query"
+  project = var.gcp_project
   iam_roles = ["storage.admin"]
 }
 
