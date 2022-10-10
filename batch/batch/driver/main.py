@@ -1170,14 +1170,9 @@ INSTANCE_CORE_UTILIZATION = pc.Histogram(
     # NB: we conflate some utilizations, for example, using 1.25 cores and using 2 cores.
     buckets=[c/16 for c in [1/8, 1/4, 1/2, 1, 2, 3, 4, 6, 8, 10, 12, 14, 16]])
 
-StateUserInstCollLabels = namedtuple('StateUserInstCollLabels', ['state', 'user', 'inst_coll'])
-
 
 async def monitor_user_resources(app):
     db: Database = app['db']
-
-    user_cores = defaultdict(int)
-    user_jobs = defaultdict(int)
 
     records = db.select_and_fetchall(
         '''
@@ -1192,24 +1187,13 @@ GROUP BY user, inst_coll;
 '''
     )
 
-    def labels(state: str, record: dict) -> StateUserInstCollLabels:
-        return StateUserInstCollLabels(state=state, user=record['user'], inst_coll=record['inst_coll'])
-
     async for record in records:
-        user_cores[labels('ready', record)] += record['ready_cores_mcpu'] / 1000
-        user_cores[labels('running', record)] += record['running_cores_mcpu'] / 1000
-        user_jobs[labels('ready', record)] += record['n_ready_jobs']
-        user_jobs[labels('running', record)] += record['n_running_jobs']
-        user_jobs[labels('creating', record)] += record['n_creating_jobs']
-
-    def set_value(gauge, data):
-        gauge.clear()
-        for labels, count in data.items():
-            if count > 0:
-                gauge.labels(**labels._asdict()).set(count)
-
-    set_value(USER_CORES, user_cores)
-    set_value(USER_JOBS, user_jobs)
+        labels = {'user': record['user'], 'inst_coll': record['inst_coll']}
+        USER_CORES.labels(**labels, state='ready').set(record['ready_cores_mcpu'] / 1000)
+        USER_CORES.labels(**labels, state='running').set(record['running_cores_mcpu'] / 1000)
+        USER_JOBS.labels(**labels, state='ready').set(record['n_ready_jobs'])
+        USER_JOBS.labels(**labels, state='running').set(record['n_running_jobs'])
+        USER_JOBS.labels(**labels, state='creating').set(record['n_creating_jobs'])
 
 
 def monitor_instances(app) -> None:
