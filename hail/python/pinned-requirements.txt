@@ -147,7 +147,7 @@ protobuf==3.20.2
     #   -r python/requirements.txt
     #   google-api-core
     #   googleapis-common-protos
-py4j==0.10.9
+py4j==0.10.9.7
     # via pyspark
 pyasn1==0.4.8
     # via
