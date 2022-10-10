@@ -1155,8 +1155,8 @@ FREE_CORES = pc.Gauge('batch_free_cores', 'Batch total free cores', ['inst_coll'
 TOTAL_CORES = pc.Gauge('batch_total_cores', 'Batch total cores', ['inst_coll'])
 COST_PER_HOUR = pc.Gauge('batch_cost_per_hour', 'Batch cost ($/hr)', ['measure', 'inst_coll'])
 INSTANCES = pc.Gauge('batch_instances', 'Batch instances', ['inst_coll', 'state'])
-INSTANCE_UTILIZATION = pc.Histogram(
-    'batch_instance_utilization',
+INSTANCE_CORE_UTILIZATION = pc.Histogram(
+    'batch_instance_core_utilization',
     'Batch per-instance percentage of revenue generating cores',
     ['inst_coll'],
     # Buckets were chosen to distinguish instances with:
@@ -1167,7 +1167,7 @@ INSTANCE_UTILIZATION = pc.Histogram(
     # - 2 cores in use,
     # - etc.
     #
-    # NB: we conflate some utilizations, for example, using 1.25 cores with using 2 cores.
+    # NB: we conflate some utilizations, for example, using 1.25 cores and using 2 cores.
     buckets=[c/16 for c in [1/8, 1/4, 1/2, 1, 2, 3, 4, 6, 8, 10, 12, 14, 16]])
 
 StateUserInstCollLabels = namedtuple('StateUserInstCollLabels', ['state', 'user', 'inst_coll'])
@@ -1230,7 +1230,7 @@ def monitor_instances(app) -> None:
                 total_cores += instance.cores_mcpu / 1000
                 total_cost_per_hour += instance.cost_per_hour(resource_rates)
                 total_revenue_per_hour += instance.revenue_per_hour(resource_rates)
-                INSTANCE_UTILIZATION.labels(inst_coll=inst_coll.name).observe(instance.percent_cores_rented)
+                INSTANCE_CORE_UTILIZATION.labels(inst_coll=inst_coll.name).observe(instance.percent_cores_used)
 
             instances_by_state[instance.state] += 1
 
