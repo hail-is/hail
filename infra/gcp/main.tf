@@ -436,12 +436,6 @@ resource "google_storage_bucket_iam_member" "batch_hail_query_bucket_storage_vie
   member = "serviceAccount:${module.batch_gsa_secret.email}"
 }
 
-module "benchmark_gsa_secret" {
-  source = "./gsa_k8s_secret"
-  name = "benchmark"
-  project = var.gcp_project
-}
-
 module "ci_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "ci"
@@ -481,13 +475,6 @@ module "test_gsa_secret" {
   ]
 }
 
-module "query_gsa_secret" {
-  source = "./gsa_k8s_secret"
-  name = "query"
-  project = var.gcp_project
-  iam_roles = ["storage.admin"]
-}
-
 resource "google_storage_bucket_iam_member" "test_bucket_admin" {
   bucket = module.hail_test_gcs_bucket.name
   role = "roles/storage.admin"
@@ -525,7 +512,7 @@ resource "google_project_iam_member" "batch_agent_iam_member" {
 }
 
 resource "google_compute_firewall" "default_allow_internal" {
-  name = "default-allow-internal"
+  name    = "default-allow-internal"
   network = google_compute_network.default.name
 
   priority = 65534
@@ -534,12 +521,12 @@ resource "google_compute_firewall" "default_allow_internal" {
 
   allow {
     protocol = "tcp"
-    ports = ["0-65535"]
+    ports    = ["0-65535"]
   }
 
   allow {
     protocol = "udp"
-    ports = ["0-65535"]
+    ports    = ["0-65535"]
   }
 
   allow {
@@ -562,7 +549,7 @@ resource "google_compute_firewall" "allow_ssh" {
 }
 
 resource "google_compute_firewall" "vdc_to_batch_worker" {
-  name = "vdc-to-batch-worker"
+  name    = "vdc-to-batch-worker"
   network = google_compute_network.default.name
 
   source_ranges = [google_container_cluster.vdc.cluster_ipv4_cidr]
@@ -575,12 +562,12 @@ resource "google_compute_firewall" "vdc_to_batch_worker" {
 
   allow {
     protocol = "tcp"
-    ports = ["1-65535"]
+    ports    = ["1-65535"]
   }
 
   allow {
     protocol = "udp"
-    ports = ["1-65535"]
+    ports    = ["1-65535"]
   }
 }
 
