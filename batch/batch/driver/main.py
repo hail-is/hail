@@ -1187,8 +1187,8 @@ GROUP BY user, inst_coll;
 '''
     )
 
-    USER_CORES.clear()  # remove user, inst_coll pairs without ready or running cores
-    USER_JOBS.clear()  # remove user, inst_coll pairs without ready/running/creating
+    USER_CORES.clear()
+    USER_JOBS.clear()
     async for record in records:
         labels = {'user': record['user'], 'inst_coll': record['inst_coll']}
         USER_CORES.labels(**labels, state='ready').set(record['ready_cores_mcpu'] / 1000)
