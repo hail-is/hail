@@ -1178,8 +1178,8 @@ async def monitor_user_resources(app):
         '''
 SELECT user, inst_coll,
   CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu,
-  CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED) AS n_ready_jobs,
   CAST(COALESCE(SUM(running_cores_mcpu), 0) AS SIGNED) AS running_cores_mcpu,
+  CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED) AS n_ready_jobs,
   CAST(COALESCE(SUM(n_running_jobs), 0) AS SIGNED) AS n_running_jobs,
   CAST(COALESCE(SUM(n_creating_jobs), 0) AS SIGNED) AS n_creating_jobs
 FROM user_inst_coll_resources
@@ -1187,6 +1187,8 @@ GROUP BY user, inst_coll;
 '''
     )
 
+    USER_CORES.clear()  # remove user, inst_coll pairs without ready or running cores
+    USER_JOBS.clear()  # remove user, inst_coll pairs without ready/running/creating
     async for record in records:
         labels = {'user': record['user'], 'inst_coll': record['inst_coll']}
         USER_CORES.labels(**labels, state='ready').set(record['ready_cores_mcpu'] / 1000)
