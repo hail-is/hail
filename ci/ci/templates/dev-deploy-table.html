@@ -15,7 +15,7 @@
       {% for batch in dev_deploys %}
       <tr>
         <td class="numeric-cell">
-          <a href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a>
+          <a rel="noopener" href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a>
         </td>
         <td>
           {{ batch['attributes']['target_branch'] }}
