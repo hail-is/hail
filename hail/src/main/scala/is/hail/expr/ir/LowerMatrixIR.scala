@@ -526,7 +526,7 @@ object LowerMatrixIR {
                 handleMissingEntriesArray(entriesField, colsField),
                 handleMissingEntriesArray(Symbol(rightEntries), Symbol(rightCols)))
                 .flatMap('a ~> 'a))
-            .selectFields(ll.typ.rowType.fieldNames ++ right.typ.rowValueStruct.fieldNames: _*))
+            .dropFields(Symbol(rightEntries)))
           .mapGlobals('global
             .insertFields(colsField ->
               makeArray('global(colsField), 'global(Symbol(rightCols))).flatMap('a ~> 'a))
