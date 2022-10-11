@@ -2829,6 +2829,27 @@ class Tests(unittest.TestCase):
             actual.show()
             assert expected._same(actual)
 
+    @fails_service_backend()
+    @fails_local_backend()
+    def test_export_genetic_data_parallel(self):
+        mt = hl.balding_nichols_model(1, 3, 3)
+        mt = mt.key_cols_by(s = 's' + hl.str(mt.sample_idx))
+        with hl.TemporaryDirectory(ensure_exists=False) as f:
+            mt.GT.export(f, parallel=True)
+            actual = hl.import_matrix_table(f + '/*',
+                                            row_fields={'locus': hl.tstr,
+                                                        'alleles': hl.tstr},
+                                            row_key=['locus', 'alleles'],
+                                            entry_type=hl.tstr)
+            actual = actual.rename({'col_id': 's'})
+            actual = actual.key_rows_by(locus = hl.parse_locus(actual.locus),
+                                        alleles = actual.alleles.replace('"', '').replace(r'\[', '').replace(r'\]', '').split(','))
+            actual = actual.transmute_entries(GT = hl.parse_call(actual.x))
+            expected = mt.select_cols().select_globals().select_rows()
+            expected.show()
+            actual.show()
+            assert expected._same(actual)
+
     def test_or_else_type_conversion(self):
         self.assertEqual(hl.eval(hl.or_else(0.5, 2)), 0.5)
 

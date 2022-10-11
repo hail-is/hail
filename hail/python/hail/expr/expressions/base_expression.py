@@ -952,7 +952,7 @@ class Expression(object):
         return self._to_relational(fallback_name)
 
     @typecheck_method(path=str, delimiter=str, missing=str, header=bool)
-    def export(self, path, delimiter='\t', missing='NA', header=True):
+    def export(self, path, delimiter='\t', missing='NA', header=True, *, parallel=None, types_file=None):
         """Export a field to a text file.
 
         Examples
@@ -1042,11 +1042,19 @@ class Expression(object):
             The string to output for missing values.
         header : :obj:`bool`
             When ``True`` include a header line.
+        parallel : :class:`str`, optional
+            If None, a single file is produced, otherwise a
+            folder of file shards is produced. If 'separate_header',
+            the header file is output separately from the file shards. If
+            'header_per_shard', each file shard has a header. If set to None
+            the export will be slower.
+        types_file : :class:`str`, optional
+            URI at which to write file containing field type information.
         """
         uid = Env.get_uid()
         self_name, ds = self._to_relational_preserving_rows_and_cols(uid)
         if isinstance(ds, hl.Table):
-            ds.export(output=path, delimiter=delimiter, header=header)
+            ds.export(output=path, delimiter=delimiter, header=header, parallel=parallel, types_file=types_file)
         else:
             assert len(self._indices.axes) == 2
             entries, cols = Env.get_uid(), Env.get_uid()
@@ -1070,7 +1078,7 @@ class Expression(object):
                     **{k: k for k in ds.row_key},
                     **{output_col_name: hl.delimit(column_names, delimiter)})
                 file_contents = header_table.union(file_contents)
-            file_contents.export(path, delimiter=delimiter, header=False)
+            file_contents.export(path, delimiter=delimiter, header=False, parallel=parallel, types_file=types_file)
 
     @typecheck_method(n=int, _localize=bool)
     def take(self, n, _localize=True):
