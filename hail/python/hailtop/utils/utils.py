@@ -33,7 +33,7 @@ from .time import time_msecs
 try:
     import aiodocker  # pylint: disable=import-error
 except ModuleNotFoundError:
-    aiodocker = None
+    aiodocker = None  # type: ignore
 
 
 log = logging.getLogger('hailtop.utils')
