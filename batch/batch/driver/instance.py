@@ -253,9 +253,7 @@ VALUES (%s, %s);
 
     @property
     def percent_cores_used(self) -> float:
-        """The percent of cores currently in use.
-
-        """
+        """The percent of cores currently in use."""
         return self.used_cores_mcpu_nonnegative / self.cores_mcpu
 
     def cost_per_hour(self, resource_rates: Dict[str, float]) -> float:

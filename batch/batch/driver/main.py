@@ -1170,7 +1170,8 @@ INSTANCE_CORE_UTILIZATION = pc.Histogram(
     # - etc.
     #
     # NB: we conflate some utilizations, for example, using 1.25 cores and using 2 cores.
-    buckets=[c / 16 for c in [1 / 8, 1 / 4, 1 / 2, 1, 2, 3, 4, 6, 8, 10, 12, 14, 16]])
+    buckets=[c / 16 for c in [1 / 8, 1 / 4, 1 / 2, 1, 2, 3, 4, 6, 8, 10, 12, 14, 16]],
+)
 
 
 async def monitor_user_resources(app):
