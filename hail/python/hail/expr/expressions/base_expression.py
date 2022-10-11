@@ -951,7 +951,12 @@ class Expression(object):
                 return None, source.select_rows().select_cols()
         return self._to_relational(fallback_name)
 
-    @typecheck_method(path=str, delimiter=str, missing=str, header=bool)
+    @typecheck_method(path=str,
+                      delimiter=str,
+                      missing=str,
+                      header=bool,
+                      parallel=nullable(ir.ExportType.checker),
+                      types_file=nullable(str))
     def export(self, path, delimiter='\t', missing='NA', header=True, *, parallel=None, types_file=None):
         """Export a field to a text file.
 
