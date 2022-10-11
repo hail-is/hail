@@ -4,7 +4,7 @@
 #
 #    pip-compile --output-file=python/pinned-requirements.txt python/requirements.txt
 #
-aiohttp==3.8.1
+aiohttp==3.8.3
     # via
     #   -r python/requirements.txt
     #   aiohttp-session
@@ -27,15 +27,15 @@ azure-core==1.26.0
     #   azure-identity
     #   azure-storage-blob
     #   msrest
-azure-identity==1.6.0
+azure-identity==1.11.0
     # via -r python/requirements.txt
-azure-storage-blob==12.11.0
+azure-storage-blob==12.14.0
     # via -r python/requirements.txt
 bokeh==1.4.0
     # via -r python/requirements.txt
-boto3==1.24.88
+boto3==1.24.89
     # via -r python/requirements.txt
-botocore==1.27.88
+botocore==1.27.89
     # via
     #   -r python/requirements.txt
     #   boto3
@@ -48,11 +48,11 @@ certifi==2022.9.24
     #   requests
 cffi==1.15.1
     # via cryptography
-chardet==4.0.0
-    # via requests
 charset-normalizer==2.1.1
-    # via aiohttp
-cryptography==38.0.1
+    # via
+    #   aiohttp
+    #   requests
+cryptography==38.0.2
     # via
     #   azure-identity
     #   azure-storage-blob
@@ -68,9 +68,9 @@ frozenlist==1.3.1
     # via
     #   aiohttp
     #   aiosignal
-google-api-core==2.10.1
+google-api-core==2.10.2
     # via google-cloud-core
-google-auth==1.27.0
+google-auth==1.35.0
     # via
     #   -r python/requirements.txt
     #   google-api-core
@@ -84,11 +84,11 @@ google-resumable-media==0.5.1
     # via google-cloud-storage
 googleapis-common-protos==1.56.4
     # via google-api-core
-humanize==1.0.0
+humanize==1.1.0
     # via -r python/requirements.txt
 hurry-filesize==0.9
     # via -r python/requirements.txt
-idna==2.10
+idna==3.4
     # via
     #   requests
     #   yarl
@@ -110,7 +110,7 @@ msal==1.20.0
     # via
     #   azure-identity
     #   msal-extensions
-msal-extensions==0.3.1
+msal-extensions==1.0.0
     # via azure-identity
 msrest==0.7.1
     # via azure-storage-blob
@@ -118,7 +118,7 @@ multidict==6.0.2
     # via
     #   aiohttp
     #   yarl
-nest-asyncio==1.5.4
+nest-asyncio==1.5.6
     # via -r python/requirements.txt
 numpy==1.21.6
     # via
@@ -128,7 +128,7 @@ numpy==1.21.6
     #   scipy
 oauthlib==3.2.1
     # via requests-oauthlib
-orjson==3.6.4
+orjson==3.8.0
     # via -r python/requirements.txt
 packaging==21.3
     # via bokeh
@@ -170,13 +170,13 @@ python-dateutil==2.8.2
     #   bokeh
     #   botocore
     #   pandas
-python-json-logger==2.0.2
+python-json-logger==2.0.4
     # via -r python/requirements.txt
 pytz==2022.4
     # via pandas
 pyyaml==6.0
     # via bokeh
-requests==2.25.1
+requests==2.28.1
     # via
     #   -r python/requirements.txt
     #   azure-core
@@ -205,7 +205,7 @@ six==1.16.0
     #   python-dateutil
 sortedcontainers==2.4.0
     # via -r python/requirements.txt
-tabulate==0.8.9
+tabulate==0.9.0
     # via -r python/requirements.txt
 tenacity==8.1.0
     # via plotly
@@ -227,7 +227,7 @@ urllib3==1.26.12
     # via
     #   botocore
     #   requests
-uvloop==0.16.0 ; sys_platform != "win32"
+uvloop==0.17.0 ; sys_platform != "win32"
     # via -r python/requirements.txt
 wrapt==1.14.1
     # via deprecated

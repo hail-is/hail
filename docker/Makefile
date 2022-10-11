@@ -54,9 +54,9 @@ generate-pip-lockfile:
 	# would differ when generated on MacOS, so we generate the lockfile
 	# on a linux image.
 	docker run --rm -it \
-		-v $(shell pwd):/docker \
+		-v $(HAIL):/hail \
 		python:3.7-slim \
-		/bin/bash -c "pip install pip-tools && cd docker && pip-compile --upgrade requirements.txt --output-file=linux-pinned-requirements.txt"
+		/bin/bash -c "pip install pip-tools && cd hail/docker && pip-compile --upgrade requirements.txt --output-file=linux-pinned-requirements.txt"
 
 .PHONY: clean
 clean:
