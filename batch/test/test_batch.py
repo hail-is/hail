@@ -10,10 +10,11 @@ import pytest
 from hailtop.auth import service_auth_headers
 from hailtop.batch_client.client import BatchClient
 from hailtop.config import get_deploy_config, get_user_config
+from hailtop.test_utils import skip_in_azure
 from hailtop.utils import external_requests_client_session, retry_response_returning_functions, sync_sleep_and_backoff
 
 from .failure_injecting_client_session import FailureInjectingClientSession
-from .utils import legacy_batch_status, skip_in_azure, smallest_machine_type
+from .utils import legacy_batch_status, smallest_machine_type
 
 deploy_config = get_deploy_config()
 

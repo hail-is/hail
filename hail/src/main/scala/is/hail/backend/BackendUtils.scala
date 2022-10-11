@@ -4,8 +4,10 @@ import is.hail.HailContext
 import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s._
 import is.hail.expr.ir.lowering.TableStageDependency
-import is.hail.io.fs.FS
+import is.hail.io.fs._
 import is.hail.utils._
+
+import scala.reflect.ClassTag
 
 object BackendUtils {
   type F = AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]
@@ -37,8 +39,11 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, Int, Region) => Ba
       }
     } else {
       val globalsBC = backend.broadcast(globals)
+      val fsConfigBC = backend.broadcast(fs.getConfiguration())
       backend.parallelizeAndComputeWithIndex(backendContext, fs, contexts, tsd)({ (ctx, htc, theHailClassLoader, fs) =>
+        val fsConfig = fsConfigBC.value
         val gs = globalsBC.value
+        fs.setConfiguration(fsConfig)
         htc.getRegionPool().scopedRegion { region =>
           val res = f(theHailClassLoader, fs, htc.partitionId(), region)(region, ctx, gs)
           res

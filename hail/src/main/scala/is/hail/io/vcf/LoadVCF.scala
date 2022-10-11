@@ -1604,7 +1604,10 @@ object MatrixVCFReader {
         val localArrayElementsRequired = params.arrayElementsRequired
         val localFilterAndReplace = params.filterAndReplace
 
+        val fsConfigBC = backend.broadcast(fs.getConfiguration())
         backend.parallelizeAndComputeWithIndex(ctx.backendContext, fs, files.tail.map(_.getBytes), None) { (bytes, htc, _, fs) =>
+          val fsConfig = fsConfigBC.value
+          fs.setConfiguration(fsConfig)
           val file = new String(bytes)
 
           val hd = parseHeader(
