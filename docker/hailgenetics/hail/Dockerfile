@@ -11,18 +11,6 @@ RUN hail-apt-get-install \
     rsync \
     unzip bzip2 zip tar tabix lz4 \
     vim pv
-RUN --mount=src=wheel-container.tar,target=/wheel-container.tar \
-    tar -xf wheel-container.tar && \
-    pip3 install -U hail-*-py3-none-any.whl && \
-    rm -rf hail-*-py3-none-any.whl
-RUN hail-pip-install \
-      ipython \
-      matplotlib \
-      numpy \
-      scikit-learn \
-      dill \
-      scipy \
-    && rm -rf hail-*-py3-none-any.whl
 RUN export SPARK_HOME=$(find_spark_home.py) && \
     curl https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.2.7.jar \
          >$SPARK_HOME/jars/gcs-connector-hadoop2-2.2.7.jar && \
@@ -37,3 +25,14 @@ RUN curl https://sdk.cloud.google.com | bash && \
       /root/google-cloud-sdk/bin/ \
       -type f -executable \
     | xargs -I % /bin/sh -c 'set -ex ; ln -s ${PWD}/% /usr/local/bin/$(basename %)'
+RUN --mount=src=wheel-container.tar,target=/wheel-container.tar \
+    tar -xf wheel-container.tar && \
+    pip3 install -U hail-*-py3-none-any.whl && \
+    rm -rf hail-*-py3-none-any.whl
+RUN hail-pip-install \
+      ipython \
+      matplotlib \
+      numpy \
+      scikit-learn \
+      dill \
+      scipy
