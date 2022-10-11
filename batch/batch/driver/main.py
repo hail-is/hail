@@ -4,9 +4,9 @@ import json
 import logging
 import re
 import signal
-from collections import defaultdict, namedtuple
+from collections import defaultdict
 from functools import wraps
-from typing import Dict, List
+from typing import Dict, Set, Tuple
 
 import aiohttp_session
 import dictdiffer
@@ -1151,6 +1151,8 @@ WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= 
 
 USER_CORES = pc.Gauge('batch_user_cores', 'Batch user cores (i.e. total in-use cores)', ['state', 'user', 'inst_coll'])
 USER_JOBS = pc.Gauge('batch_user_jobs', 'Batch user jobs', ['state', 'user', 'inst_coll'])
+ACTIVE_USER_INST_COLL_PAIRS: Set[Tuple[str, str]] = set()
+
 FREE_CORES = pc.Gauge('batch_free_cores', 'Batch total free cores', ['inst_coll'])
 TOTAL_CORES = pc.Gauge('batch_total_cores', 'Batch total cores', ['inst_coll'])
 COST_PER_HOUR = pc.Gauge('batch_cost_per_hour', 'Batch cost ($/hr)', ['measure', 'inst_coll'])
@@ -1172,6 +1174,7 @@ INSTANCE_CORE_UTILIZATION = pc.Histogram(
 
 
 async def monitor_user_resources(app):
+    global ACTIVE_USER_INST_COLL_PAIRS
     db: Database = app['db']
 
     records = db.select_and_fetchall(
@@ -1187,15 +1190,29 @@ GROUP BY user, inst_coll;
 '''
     )
 
-    USER_CORES.clear()
-    USER_JOBS.clear()
+    current_user_inst_coll_pairs: Set[Tuple[str, str]] = set()
+
     async for record in records:
-        labels = {'user': record['user'], 'inst_coll': record['inst_coll']}
-        USER_CORES.labels(**labels, state='ready').set(record['ready_cores_mcpu'] / 1000)
-        USER_CORES.labels(**labels, state='running').set(record['running_cores_mcpu'] / 1000)
-        USER_JOBS.labels(**labels, state='ready').set(record['n_ready_jobs'])
-        USER_JOBS.labels(**labels, state='running').set(record['n_running_jobs'])
-        USER_JOBS.labels(**labels, state='creating').set(record['n_creating_jobs'])
+        user = record['user']
+        inst_coll = record['inst_coll']
+
+        current_user_inst_coll_pairs.add((user, inst_coll))
+        labels = {'user': user, 'inst_coll': inst_coll}
+
+        USER_CORES.labels(state='ready', **labels).set(record['ready_cores_mcpu'] / 1000)
+        USER_CORES.labels(state='running', **labels).set(record['running_cores_mcpu'] / 1000)
+        USER_JOBS.labels(state='ready', **labels).set(record['n_ready_jobs'])
+        USER_JOBS.labels(state='running', **labels).set(record['n_running_jobs'])
+        USER_JOBS.labels(state='creating', **labels).set(record['n_creating_jobs'])
+
+    for user, inst_coll in ACTIVE_USER_INST_COLL_PAIRS - current_user_inst_coll_pairs:
+        USER_CORES.remove('ready', user, inst_coll)
+        USER_CORES.remove('running', user, inst_coll)
+        USER_JOBS.remove('ready', user, inst_coll)
+        USER_JOBS.remove('running', user, inst_coll)
+        USER_JOBS.remove('creating', user, inst_coll)
+
+    ACTIVE_USER_INST_COLL_PAIRS = current_user_inst_coll_pairs
 
 
 def monitor_instances(app) -> None:
