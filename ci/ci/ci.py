@@ -643,6 +643,7 @@ async def add_namespace(request, userdata):  # pylint: disable=unused-argument
 
 
 async def cleanup_expired_namespaces(db: Database):
+    assert DEFAULT_NAMESPACE == 'default'
     expired_namespaces = [
         record['namespace']
         async for record in db.execute_and_fetchall(
