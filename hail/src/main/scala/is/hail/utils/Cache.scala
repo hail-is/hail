@@ -31,6 +31,8 @@ class LongToRegionValueCache(capacity: Int) {
 
   // the cache takes ownership of the region passed in
   def put(key: Long, region: Region, addr: Long): Unit = {
+    if (addr == 0L)
+      throw new RuntimeException("tried to cache null pointer")
     val rm = region.getMemory()
     m.put(key, (rm, addr))
   }
@@ -39,7 +41,7 @@ class LongToRegionValueCache(capacity: Int) {
   def get(key: Long): Long = {
     val v = m.get(key)
     if (v == null)
-      -1L
+      0L
     else
       v._2
   }
