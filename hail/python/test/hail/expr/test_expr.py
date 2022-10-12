@@ -2835,7 +2835,7 @@ class Tests(unittest.TestCase):
         mt = hl.balding_nichols_model(1, 3, 3)
         mt = mt.key_cols_by(s = 's' + hl.str(mt.sample_idx))
         with hl.TemporaryDirectory(ensure_exists=False) as f:
-            mt.GT.export(f, parallel=True)
+            mt.GT.export(f, parallel='header_per_shard')
             actual = hl.import_matrix_table(f + '/*',
                                             row_fields={'locus': hl.tstr,
                                                         'alleles': hl.tstr},
