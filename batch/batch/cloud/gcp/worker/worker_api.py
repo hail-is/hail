@@ -74,6 +74,11 @@ class GCPWorkerAPI(CloudWorkerAPI):
         if config['read_only']:
             options.append('ro')
 
+        if config['requester_pays_project']:
+            billing_project_flag = f'--billing-project "{config["requester_pays_project"]}"'
+        else:
+            billing_project_flag = ''
+
         return f'''
 /usr/bin/gcsfuse \
     -o {",".join(options)} \
@@ -81,6 +86,7 @@ class GCPWorkerAPI(CloudWorkerAPI):
     --dir-mode 770 \
     --implicit-dirs \
     --key-file {fuse_credentials_path} \
+    {billing_project_flag} \
     {bucket} {mount_base_path_data}
 '''
 
