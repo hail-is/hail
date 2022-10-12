@@ -34,7 +34,6 @@ from ..fs.fs import FS
 from ..fs.router_fs import RouterFS
 from ..ir import BaseIR
 from ..context import version
-from ..utils import frozendict
 
 
 log = logging.getLogger('backend.service_backend')
