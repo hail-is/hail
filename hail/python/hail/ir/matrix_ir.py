@@ -357,7 +357,15 @@ class MatrixUnionCols(MatrixIR):
     def _compute_type(self, deep_typecheck):
         self.left.compute_type(deep_typecheck)
         self.right.compute_type(deep_typecheck)
-        return self.left.typ
+        left_typ = self.left.typ
+        right_typ = self.right.typ
+        return hl.tmatrix(
+            global_type=left_typ.global_type,
+            col_type=left_typ.col_type,
+            col_key=left_typ.col_key,
+            row_type=left_typ.row_type._concat(right_typ.row_value_type),
+            row_key=left_typ.row_key,
+            entry_type=left_typ.entry_type)
 
 
 class MatrixMapEntries(MatrixIR):

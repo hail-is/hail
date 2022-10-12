@@ -1,7 +1,8 @@
-from typing import Optional, Union
+from typing import Optional, Union, Tuple, List
 import warnings
 import sys
 import os
+from contextlib import contextmanager
 from urllib.parse import urlparse, urlunparse
 
 import pkg_resources
@@ -9,7 +10,8 @@ from pyspark import SparkContext
 
 import hail
 from hail.genetics.reference_genome import ReferenceGenome
-from hail.typecheck import nullable, typecheck, typecheck_method, enumeration, dictof, oneof
+from hail.typecheck import (nullable, typecheck, typecheck_method, enumeration, dictof, oneof,
+                            sized_tupleof, sequenceof)
 from hail.utils import get_env_or_default
 from hail.utils.java import Env, warning, choose_backend
 from hail.backend import Backend
@@ -43,6 +45,16 @@ def _get_log(log):
         log = hail.utils.timestamp_path(os.path.join(log_dir, 'hail'),
                                         suffix=f'-{py_version}.log')
     return log
+
+
+def convert_gcs_requester_pays_configuration_to_hadoop_conf_style(
+    x: Optional[Union[str, Tuple[str, List[str]]]]
+) -> Tuple[Optional[str], Optional[str]]:
+    if isinstance(x, str):
+        return x, None
+    if isinstance(x, tuple):
+        return x[0], ",".join(x[1])
+    return None, None
 
 
 class HailContext(object):
@@ -178,11 +190,20 @@ class HailContext(object):
            driver_cores=nullable(oneof(str, int)),
            driver_memory=nullable(str),
            worker_cores=nullable(oneof(str, int)),
-           worker_memory=nullable(str))
-def init(sc=None, app_name=None, master=None, local='local[*]',
-         log=None, quiet=False, append=False,
-         min_block_size=0, branching_factor=50, tmp_dir=None,
-         default_reference='GRCh37', idempotent=False,
+           worker_memory=nullable(str),
+           gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))))
+def init(sc=None,
+         app_name=None,
+         master=None,
+         local='local[*]',
+         log=None,
+         quiet=False,
+         append=False,
+         min_block_size=0,
+         branching_factor=50,
+         tmp_dir=None,
+         default_reference='GRCh37',
+         idempotent=False,
          global_seed=None,
          spark_conf=None,
          skip_logging_configuration=False,
@@ -193,7 +214,8 @@ def init(sc=None, app_name=None, master=None, local='local[*]',
          driver_cores=None,
          driver_memory=None,
          worker_cores=None,
-         worker_memory=None):
+         worker_memory=None,
+         gcs_requester_pays_configuration: Optional[Union[str, Tuple[str, List[str]]]] = None):
     """Initialize and configure Hail.
 
     This function will be called with default arguments if any Hail functionality is used. If you
@@ -224,6 +246,18 @@ def init(sc=None, app_name=None, master=None, local='local[*]',
     initialized with it as an argument:
 
     >>> hl.init(sc=sc)  # doctest: +SKIP
+
+    Configure Hail to bill to `my_project` when accessing any Google Cloud Storage bucket that has
+    requester pays enabled:
+
+    >>> hl.init(gcs_requester_pays_configuration='my-project')  # doctest: +SKIP
+
+    Configure Hail to bill to `my_project` when accessing the Google Cloud Storage buckets named
+    `bucket_of_fish` and `bucket_of_eels`:
+
+    >>> hl.init(
+    ...     gcs_requester_pays_configuration=('my-project', ['bucket_of_fish', 'bucket_of_eels'])
+    ... )  # doctest: +SKIP
 
     See Also
     --------
@@ -285,6 +319,12 @@ def init(sc=None, app_name=None, master=None, local='local[*]',
     worker_memory : :class:`str`, optional
         Batch backend only. Memory tier to use for the worker processes. May be standard or
         highmem. Default is standard.
+    gcs_requester_pays_configuration : either :class:`str` or :class:`tuple` of :class:`str` and :class:`list` of :class:`str`, optional
+        If a string is provided, configure the Google Cloud Storage file system to bill usage to the
+        project identified by that string. If a tuple is provided, configure the Google Cloud
+        Storage file system to bill usage to the specified project for buckets specified in the
+        list. See examples above.
+
     """
     if Env._hc:
         if idempotent:
@@ -322,7 +362,8 @@ def init(sc=None, app_name=None, master=None, local='local[*]',
                 driver_memory=driver_memory,
                 worker_cores=worker_cores,
                 worker_memory=worker_memory,
-                name_prefix=app_name
+                name_prefix=app_name,
+                gcs_requester_pays_configuration=gcs_requester_pays_configuration
             ))
     if backend == 'spark':
         return init_spark(
@@ -341,7 +382,8 @@ def init(sc=None, app_name=None, master=None, local='local[*]',
             local_tmpdir=local_tmpdir,
             default_reference=default_reference,
             global_seed=global_seed,
-            skip_logging_configuration=skip_logging_configuration
+            skip_logging_configuration=skip_logging_configuration,
+            gcs_requester_pays_configuration=gcs_requester_pays_configuration
         )
     if backend == 'local':
         return init_local(
@@ -351,7 +393,8 @@ def init(sc=None, app_name=None, master=None, local='local[*]',
             tmpdir=tmp_dir,
             default_reference=default_reference,
             global_seed=global_seed,
-            skip_logging_configuration=skip_logging_configuration
+            skip_logging_configuration=skip_logging_configuration,
+            gcs_requester_pays_configuration=gcs_requester_pays_configuration
         )
     raise ValueError(f'unknown Hail Query backend: {backend}')
 
@@ -372,7 +415,8 @@ def init(sc=None, app_name=None, master=None, local='local[*]',
            spark_conf=nullable(dictof(str, str)),
            skip_logging_configuration=bool,
            local_tmpdir=nullable(str),
-           _optimizer_iterations=nullable(int))
+           _optimizer_iterations=nullable(int),
+           gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))))
 def init_spark(sc=None,
                app_name=None,
                master=None,
@@ -389,7 +433,9 @@ def init_spark(sc=None,
                spark_conf=None,
                skip_logging_configuration=False,
                local_tmpdir=None,
-               _optimizer_iterations=None):
+               _optimizer_iterations=None,
+               gcs_requester_pays_configuration: Optional[Union[str, Tuple[str, List[str]]]] = None
+               ):
     from hail.backend.spark_backend import SparkBackend
 
     log = _get_log(log)
@@ -398,10 +444,14 @@ def init_spark(sc=None,
     optimizer_iterations = get_env_or_default(_optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
 
     app_name = app_name or 'Hail'
+    gcs_requester_pays_project, gcs_requester_pays_buckets = convert_gcs_requester_pays_configuration_to_hadoop_conf_style(gcs_requester_pays_configuration)
     backend = SparkBackend(
         idempotent, sc, spark_conf, app_name, master, local, log,
         quiet, append, min_block_size, branching_factor, tmpdir, local_tmpdir,
-        skip_logging_configuration, optimizer_iterations)
+        skip_logging_configuration, optimizer_iterations,
+        gcs_requester_pays_project=gcs_requester_pays_project,
+        gcs_requester_pays_buckets=gcs_requester_pays_buckets
+    )
     if not backend.fs.exists(tmpdir):
         backend.fs.mkdir(tmpdir)
 
@@ -427,7 +477,8 @@ def init_spark(sc=None,
     worker_cores=nullable(oneof(str, int)),
     worker_memory=nullable(str),
     name_prefix=nullable(str),
-    token=nullable(str)
+    token=nullable(str),
+    gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str))))
 )
 async def init_batch(
         *,
@@ -448,6 +499,7 @@ async def init_batch(
         worker_memory: Optional[str] = None,
         name_prefix: Optional[str] = None,
         token: Optional[str] = None,
+        gcs_requester_pays_configuration: Optional[Union[str, Tuple[str, List[str]]]] = None
 ):
     from hail.backend.service_backend import ServiceBackend
     # FIXME: pass local_tmpdir and use on worker and driver
@@ -461,6 +513,18 @@ async def init_batch(
                                           worker_memory=worker_memory,
                                           name_prefix=name_prefix,
                                           token=token)
+
+    if gcs_requester_pays_configuration:
+        if isinstance(gcs_requester_pays_configuration, str):
+            backend.set_flags(
+                gcs_requester_pays_project=gcs_requester_pays_configuration
+            )
+        else:
+            assert isinstance(gcs_requester_pays_configuration, tuple)
+            backend.set_flags(
+                gcs_requester_pays_project=gcs_requester_pays_configuration[0],
+                gcs_requester_pays_buckets=",".join(gcs_requester_pays_configuration[1])
+            )
 
     log = _get_log(log)
     if tmpdir is None:
@@ -481,7 +545,9 @@ async def init_batch(
     default_reference=enumeration(*BUILTIN_REFERENCES),
     global_seed=nullable(int),
     skip_logging_configuration=bool,
-    _optimizer_iterations=nullable(int))
+    _optimizer_iterations=nullable(int),
+    gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str))))
+)
 def init_local(
         log=None,
         quiet=False,
@@ -491,16 +557,22 @@ def init_local(
         default_reference='GRCh37',
         global_seed=None,
         skip_logging_configuration=False,
-        _optimizer_iterations=None):
+        _optimizer_iterations=None,
+        gcs_requester_pays_configuration: Optional[Union[str, Tuple[str, List[str]]]] = None
+):
     from hail.backend.local_backend import LocalBackend
 
     log = _get_log(log)
     tmpdir = _get_tmpdir(tmpdir)
     optimizer_iterations = get_env_or_default(_optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
 
+    gcs_requester_pays_project, gcs_requester_pays_buckets = convert_gcs_requester_pays_configuration_to_hadoop_conf_style(gcs_requester_pays_configuration)
     backend = LocalBackend(
         tmpdir, log, quiet, append, branching_factor,
-        skip_logging_configuration, optimizer_iterations)
+        skip_logging_configuration, optimizer_iterations,
+        gcs_requester_pays_project=gcs_requester_pays_project,
+        gcs_requester_pays_buckets=gcs_requester_pays_buckets
+    )
 
     if not backend.fs.exists(tmpdir):
         backend.fs.mkdir(tmpdir)
@@ -774,6 +846,16 @@ def _set_flags(**flags):
 
 def _get_flags(*flags):
     return Env.backend().get_flags(*flags)
+
+
+@contextmanager
+def _with_flags(**flags):
+    before = _get_flags(*flags)
+    try:
+        _set_flags(**flags)
+        yield
+    finally:
+        _set_flags(**before)
 
 
 def debug_info():

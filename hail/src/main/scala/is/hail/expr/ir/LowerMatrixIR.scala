@@ -512,12 +512,10 @@ object LowerMatrixIR {
             } {
               'row(entries)
             }
+        val rr = lower(ctx, right, ab).distinct()
         TableJoin(
           ll,
-          lower(ctx, right, ab).distinct()
-            .mapRows('row
-              .insertFields(Symbol(rightEntries) -> 'row(entriesField))
-              .selectFields(right.typ.rowKey :+ rightEntries: _*))
+          rr.mapRows('row.castRename(rr.typ.rowType.rename(Map(entriesFieldName -> rightEntries))))
             .mapGlobals('global
               .insertFields(Symbol(rightCols) -> 'global(colsField))
               .selectFields(rightCols)),
@@ -528,8 +526,7 @@ object LowerMatrixIR {
                 handleMissingEntriesArray(entriesField, colsField),
                 handleMissingEntriesArray(Symbol(rightEntries), Symbol(rightCols)))
                 .flatMap('a ~> 'a))
-            // TableJoin puts keys first; drop rightEntries, but also restore left row field order
-            .selectFields(ll.typ.rowType.fieldNames: _*))
+            .dropFields(Symbol(rightEntries)))
           .mapGlobals('global
             .insertFields(colsField ->
               makeArray('global(colsField), 'global(Symbol(rightCols))).flatMap('a ~> 'a))

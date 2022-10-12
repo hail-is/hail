@@ -8,7 +8,7 @@ from threading import Thread
 import py4j
 import pyspark
 
-from typing import List
+from typing import List, Optional
 
 import hail as hl
 from hail.utils.java import Env, scala_package_object, scala_object
@@ -121,8 +121,13 @@ class Log4jLogger(Logger):
 class SparkBackend(Py4JBackend):
     def __init__(self, idempotent, sc, spark_conf, app_name, master,
                  local, log, quiet, append, min_block_size,
-                 branching_factor, tmpdir, local_tmpdir, skip_logging_configuration, optimizer_iterations):
+                 branching_factor, tmpdir, local_tmpdir, skip_logging_configuration, optimizer_iterations,
+                 *,
+                 gcs_requester_pays_project: Optional[str] = None,
+                 gcs_requester_pays_buckets: Optional[str] = None
+                 ):
         super(SparkBackend, self).__init__()
+        assert gcs_requester_pays_project is not None or gcs_requester_pays_buckets is None
 
         if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
             hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
@@ -149,6 +154,7 @@ class SparkBackend(Py4JBackend):
             else:
                 conf.set('spark.driver.extraClassPath', ','.join(jars))
                 conf.set('spark.executor.extraClassPath', './hail-all-spark.jar')
+
             if sc is None:
                 pyspark.SparkContext._ensure_initialized(conf=conf)
             elif not quiet:
@@ -174,12 +180,14 @@ class SparkBackend(Py4JBackend):
 
         if idempotent:
             self._jbackend = hail_package.backend.spark.SparkBackend.getOrCreate(
-                jsc, app_name, master, local, True, min_block_size, tmpdir, local_tmpdir)
+                jsc, app_name, master, local, True, min_block_size, tmpdir, local_tmpdir,
+                gcs_requester_pays_project, gcs_requester_pays_buckets)
             self._jhc = hail_package.HailContext.getOrCreate(
                 self._jbackend, log, True, append, branching_factor, skip_logging_configuration, optimizer_iterations)
         else:
             self._jbackend = hail_package.backend.spark.SparkBackend.apply(
-                jsc, app_name, master, local, True, min_block_size, tmpdir, local_tmpdir)
+                jsc, app_name, master, local, True, min_block_size, tmpdir, local_tmpdir,
+                gcs_requester_pays_project, gcs_requester_pays_buckets)
             self._jhc = hail_package.HailContext.apply(
                 self._jbackend, log, True, append, branching_factor, skip_logging_configuration, optimizer_iterations)
 

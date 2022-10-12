@@ -86,16 +86,7 @@ object Worker {
     timer.start(s"Job $i/$n")
 
     timer.start("readInputs")
-    val fs = retryTransientErrors {
-      using(new FileInputStream(s"$scratchDir/secrets/gsa-key/key.json")) { is =>
-        val credentialsStr = Some(IOUtils.toString(is, Charset.defaultCharset().toString()))
-        sys.env.get("HAIL_CLOUD").get match {
-          case "gcp" => new GoogleStorageFS(credentialsStr).asCacheable()
-          case "azure" => new AzureStorageFS(credentialsStr).asCacheable()
-          case _ => throw new IllegalArgumentException("Bad cloud")
-        }
-      }
-    }
+    val fs = FS.cloudSpecificCacheableFS(s"$scratchDir/secrets/gsa-key/key.json", None)
 
     // FIXME: HACK: working around the memory service until the issue is resolved:
     // https://hail.zulipchat.com/#narrow/stream/223457-Hail-Batch-support/topic/Batch.20Query.3A.20possible.20overloading.20of.20.60memory.60.20service/near/280823230

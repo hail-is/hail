@@ -14,7 +14,7 @@
       <tbody>
 	{% for batch in batches %}
         <tr>
-          <td class="numeric-cell"><a href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></td>
+          <td class="numeric-cell"><a rel="noopener" href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></td>
           <td>
             {% if 'attributes' in batch %}
             {% if 'deploy' in batch['attributes'] %}

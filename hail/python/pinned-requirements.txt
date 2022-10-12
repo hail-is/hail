@@ -22,7 +22,7 @@ attrs==22.1.0
     # via aiohttp
 avro==1.11.1
     # via -r python/requirements.txt
-azure-core==1.25.1
+azure-core==1.26.0
     # via
     #   azure-identity
     #   azure-storage-blob
@@ -33,9 +33,9 @@ azure-storage-blob==12.11.0
     # via -r python/requirements.txt
 bokeh==1.4.0
     # via -r python/requirements.txt
-boto3==1.24.85
+boto3==1.24.88
     # via -r python/requirements.txt
-botocore==1.27.85
+botocore==1.27.88
     # via
     #   -r python/requirements.txt
     #   boto3
@@ -106,7 +106,7 @@ jmespath==1.0.1
     #   botocore
 markupsafe==2.1.1
     # via jinja2
-msal==1.19.0
+msal==1.20.0
     # via
     #   azure-identity
     #   msal-extensions
@@ -142,7 +142,7 @@ plotly==5.10.0
     # via -r python/requirements.txt
 portalocker==2.5.1
     # via msal-extensions
-protobuf==3.20.1
+protobuf==3.20.2
     # via
     #   -r python/requirements.txt
     #   google-api-core
@@ -215,7 +215,7 @@ tqdm==4.64.1
     # via -r python/requirements.txt
 types-cryptography==3.3.23
     # via pyjwt
-typing-extensions==4.3.0
+typing-extensions==4.4.0
     # via
     #   aiohttp
     #   async-timeout

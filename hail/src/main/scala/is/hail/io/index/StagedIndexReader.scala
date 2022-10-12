@@ -37,8 +37,6 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
   private[this]val internalDec = spec.internalNodeCodec.encodedType.buildDecoder(spec.internalNodeCodec.encodedVirtualType, emb.ecb)
 
   private[this] val leafChildType = leafPType.asInstanceOf[PCanonicalBaseStruct].types(1).asInstanceOf[PCanonicalArray].elementType.sType
-  val leafChildEmitType = EmitType(leafChildType, false)
-  private[this] val queryType = SStackStruct(TTuple(TInt64, leafChildType.virtualType), FastIndexedSeq(EmitType(SInt64, true), leafChildEmitType))
 
   def initialize(cb: EmitCodeBuilder,
     indexPath: Value[String]
@@ -65,7 +63,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
   /**
    * returns tuple of (start index, end index, starting leaf)
    * memory of starting leaf is not owned by `region`, consumers should deep copy if necessary
-   * starting leaf may be missing if the index is empty
+   * starting leaf IS MISSING if (end_idx - start_idx == 0)
    */
   def queryInterval(cb: EmitCodeBuilder,
     region: Value[Region],
@@ -76,29 +74,27 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
     val includesStart = interval.includesStart()
     val includesEnd = interval.includesEnd()
 
-    val startQuerySettable = queryBound(cb, region, start, primitive(cb.memoize(!includesStart)))
-
-    val endQuerySettable = queryBound(cb, region, end, primitive(includesEnd))
-
-    val startIdx = cb.memoize(startQuerySettable.asBaseStruct.loadField(cb, 0).get(cb).asInt64.value)
-    val endIdx = cb.memoize(endQuerySettable.asBaseStruct.loadField(cb, 0).get(cb).asInt64.value)
+    val startIdx = queryBound(cb, region, start, primitive(cb.memoize(!includesStart)))
+    val endIdx = queryBound(cb, region, end, primitive(includesEnd))
     val n = cb.memoize(endIdx - startIdx)
-    val startLeaf = cb.memoize(startQuerySettable.asBaseStruct.loadField(cb, 1))
+    val nKeys = cb.memoize(metadata.invoke[Long]("nKeys"))
+    cb.ifx(n < 0L, cb._fatal("n less than 0: ", n.toS, ", startIdx=", startIdx.toS, ", endIdx=", endIdx.toS, ", query=", cb.strValue(interval)))
+    cb.ifx(n > 0L && startIdx >= nKeys, cb._fatal("bad start idx: ", startIdx.toS, ", nKeys=", nKeys.toS))
 
-    cb.ifx(n < 0L, cb._fatal("n less than 0: ", n.toS, ", startQuery=", cb.strValue(startQuerySettable), ", endQuery=", cb.strValue(endQuerySettable)))
-
-
-    SStackStruct.constructFromArgs(cb, region, TTuple(TInt64, TInt64, startLeaf.st.virtualType), EmitCode.present(cb.emb, primitive(startIdx)), EmitCode.present(cb.emb, primitive(endIdx)), startLeaf)
+    SStackStruct.constructFromArgs(cb, region, TTuple(TInt64, TInt64, leafChildType.virtualType),
+      EmitCode.present(cb.emb, primitive(startIdx)),
+      EmitCode.present(cb.emb, primitive(endIdx)),
+      EmitCode.fromI(cb.emb)(cb => IEmitCode(cb, n ceq 0L, queryIndex(cb, region, startIdx))))
   }
 
   // internal node is an array of children
   private[io] def readInternalNode(cb: EmitCodeBuilder, offset: Value[Long]): SBaseStructValue = {
     val ret = cb.newSLocal(internalPType.sType, "internalNode")
 
-    // returns an address if cached, or -1L if not found
+    // returns an address if cached, or 0L if not found
     val cached = cb.memoize(cache.invoke[Long, Long]("get", offset))
 
-    cb.ifx(cached cne -1L, {
+    cb.ifx(cached cne 0L, {
       cb.assign(ret, internalPType.loadCheapSCode(cb, cached))
     }, {
       cb.assign(ret, cb.invokeSCode(cb.emb.ecb.getOrGenEmitMethod("readInternalNode", ("readInternalNode", this), FastIndexedSeq(LongInfo), ret.st.paramType) { emb =>
@@ -123,10 +119,10 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
   private[io] def readLeafNode(cb: EmitCodeBuilder, offset: Value[Long]): SBaseStructValue = {
     val ret = cb.newSLocal(leafPType.sType, "leafNode")
 
-    // returns an address if cached, or -1L if not found
+    // returns an address if cached, or 0L if not found
     val cached = cb.memoize(cache.invoke[Long, Long]("get", offset))
 
-    cb.ifx(cached cne -1L, {
+    cb.ifx(cached cne 0L, {
       cb.assign(ret, leafPType.loadCheapSCode(cb, cached))
     }, {
       cb.assign(ret, cb.invokeSCode(cb.emb.ecb.getOrGenEmitMethod("readLeafNode", ("readLeafNode", this), FastIndexedSeq(LongInfo), ret.st.paramType) { emb =>
@@ -146,32 +142,69 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
     ret.asBaseStruct
   }
 
-  // returns queryType
-  def queryBound(cb: EmitCodeBuilder, region: Value[Region], partitionBoundLeftEndpoint: SBaseStructValue, leansRight: SBooleanValue): SBaseStructValue = {
-    cb.invokeSCode(
+  def queryBound(cb: EmitCodeBuilder, region: Value[Region], partitionBoundLeftEndpoint: SBaseStructValue, leansRight: SBooleanValue): Value[Long] = {
+    cb.invokeCode[Long](
       cb.emb.ecb.getOrGenEmitMethod("lowerBound",
         ("lowerBound", this),
         FastIndexedSeq(typeInfo[Region], partitionBoundLeftEndpoint.st.paramType, leansRight.st.paramType),
-      queryType.paramType) { emb =>
-      emb.emitSCode { cb =>
+        LongInfo) { emb =>
+      emb.emitWithBuilder { cb =>
         val region = emb.getCodeParam[Region](1)
         val endpoint = emb.getSCodeParam(2).asBaseStruct
         val leansRight = emb.getSCodeParam(3).asBoolean
-        queryType.coerceOrCopy(cb, region, queryBound(cb, region, endpoint, leansRight, cb.memoize(metadata.invoke[Int]("height") - 1), cb.memoize(metadata.invoke[Long]("rootOffset"))), false) }
-    }, region, partitionBoundLeftEndpoint, leansRight).asBaseStruct
+        queryBound(cb, region, endpoint, leansRight, cb.memoize(metadata.invoke[Int]("height") - 1), cb.memoize(metadata.invoke[Long]("rootOffset"))) }
+    }, region, partitionBoundLeftEndpoint, leansRight)
+  }
+
+  private def queryIndex(cb: EmitCodeBuilder, region: Value[Region], absIndex: Value[Long]): SBaseStructValue = {
+    cb.invokeSCode(
+      cb.emb.ecb.getOrGenEmitMethod("queryIndex",
+        ("queryIndex", this),
+        FastIndexedSeq(classInfo[Region], typeInfo[Long]),
+        leafChildType.paramType) { emb =>
+        emb.emitSCode { cb =>
+
+          val region = emb.getCodeParam[Region](1)
+          val absIndex = emb.getCodeParam[Long](2)
+          val level = cb.newLocal[Int]("lowerBound_level", metadata.invoke[Int]("height") - 1)
+          val offset = cb.newLocal[Long]("lowerBound_offset", metadata.invoke[Long]("rootOffset"))
+          val branchingFactor = cb.memoize(metadata.invoke[Int]("branchingFactor"))
+          val result = cb.emb.newPLocal(leafChildType)
+
+          val Lstart = CodeLabel()
+          cb.define(Lstart)
+          cb.ifx(level ceq 0, {
+            val leafNode = readLeafNode(cb, offset)
+            val localIdx = cb.memoize((absIndex - leafNode.loadField(cb, "first_idx").get(cb).asInt64.value.toL).toI)
+            cb.assign(result, leafNode.loadField(cb, "keys").get(cb).asIndexable.loadElement(cb, localIdx).get(cb))
+          }, {
+            val internalNode = readInternalNode(cb, offset)
+            val children = internalNode.loadField(cb, "children").get(cb).asIndexable
+            val firstIdx = children.loadElement(cb, 0).get(cb).asBaseStruct.loadField(cb, "first_idx").get(cb).asInt64.value
+            val nKeysPerChild = cb.memoize(Code.invokeStatic2[java.lang.Math, Double, Double, Double]("pow",
+              branchingFactor.toD,
+              level.toD).toL)
+            val localIdx = cb.memoize((absIndex - firstIdx) / nKeysPerChild)
+            cb.assign(level, level - 1)
+            cb.assign(offset, children.loadElement(cb, localIdx.toI).get(cb).asBaseStruct.loadField(cb, "index_file_offset").get(cb).asInt64.value)
+            cb.goto(Lstart)
+          })
+
+          leafChildType.coerceOrCopy(cb, region, result, false)
+        }
+      }, region, absIndex).asBaseStruct
   }
 
   // partitionBoundEndpoint is a tuple(partitionBoundEndpoint, bool)
-  // returns a tuple of (index, LeafChild)
+  // returns leaf index
   private def queryBound(cb: EmitCodeBuilder,
     region: Value[Region],
     endpoint: SBaseStructValue,
     leansRight: SBooleanValue,
     level: Value[Int],
-    offset: Value[Long]): SBaseStructValue = {
+    offset: Value[Long]): Value[Long] = {
 
     val rInd: Settable[Long] = cb.newLocal[Long]("lowerBoundIndex")
-    val rLeafChild: EmitSettable = cb.emb.newEmitLocal(leafChildEmitType)
 
     val levelSettable = cb.newLocal[Int]("lowerBound_level")
     val offsetSettable = cb.newLocal[Long]("lowerBound_offset")
@@ -222,15 +255,11 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
       val firstIndex = node.asBaseStruct.loadField(cb, "first_idx").get(cb).asInt64.value.get
       val updatedIndex = firstIndex + idx.toL
       cb.assign(rInd, updatedIndex)
-      cb.assign(rLeafChild, IEmitCode(cb,
-        idx >= children.loadLength(),
-        children.loadElement(cb, idx).get(cb).asBaseStruct))
     }, {
       val children = readInternalNode(cb, offsetSettable).loadField(cb, "children").get(cb).asIndexable
       cb.ifx(children.loadLength() ceq 0, {
-        // empty interal node occurs if the indexed file contains no keys
+        // empty internal node occurs if the indexed file contains no keys
         cb.assign(rInd, 0L)
-        cb.assign(rLeafChild, EmitCode.missing(cb.emb, leafChildType))
       }, {
         val idx = new BinarySearch(cb.emb,
           children.st,
@@ -253,8 +282,6 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
       })
     })
 
-    SStackStruct.constructFromArgs(cb, region, queryType.virtualType,
-      EmitCode.present(cb.emb, primitive(rInd)),
-      rLeafChild)
+    rInd
   }
 }

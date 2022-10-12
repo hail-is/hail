@@ -16,8 +16,7 @@ from hailtop.utils import grouped, async_to_blocking
 from hailtop.config import get_user_config
 from hailtop.batch.utils import concatenate
 from hailtop.aiotools.router_fs import RouterAsyncFS
-
-from ..utils import skip_in_azure
+from hailtop.test_utils import skip_in_azure
 
 
 DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']

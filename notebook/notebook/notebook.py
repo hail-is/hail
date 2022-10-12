@@ -232,7 +232,7 @@ async def notebook_status_from_notebook(client_session: httpx.ClientSession, k8s
                 service, f'/instance/{notebook["notebook_token"]}/?token={notebook["jupyter_token"]}'
             )
             try:
-                async with client_session.get(ready_url, headers=headers, cookes=cookies) as resp:
+                async with client_session.get(ready_url, headers=headers, cookies=cookies) as resp:
                     if resp.status >= 200 and resp.status < 300:
                         log.info(f'GET on jupyter pod {pod_name} succeeded: {resp}')
                         status['state'] = 'Ready'

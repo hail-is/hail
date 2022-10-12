@@ -5,13 +5,13 @@
     <script src="{{ base_path }}/common_static/focus_on_keyup.js"></script>
 {% endblock %}
 {% block content %}
-    <h1>{{ pr.title }} <a href="https://github.com/{{ repo }}/pull/{{ pr.number }}"><span class="gh-number">#{{ pr.number }}</span></a></h1>
+    <h1>{{ pr.title }} <a rel="noopener" href="https://github.com/{{ repo }}/pull/{{ pr.number }}"><span class="gh-number">#{{ pr.number }}</span></a></h1>
 
     {% if batch is defined %}
     <div class="attributes">
-      <div>batch: <a href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></div>
+      <div>batch: <a rel="noopener" href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></div>
       <div>artifacts:
-        <a  target="_blank" href="{{ artifacts_url }}">{{ artifacts_uri }}</a>
+        <a rel="noopener"  target="_blank" href="{{ artifacts_url }}">{{ artifacts_uri }}</a>
         <i class="material-icons text-icon">open_in_new</i>
       </div>
       <div>cost: {{ batch['cost'] }}</div>
@@ -48,7 +48,7 @@
         {% for batch in history %}
         <tr>
           <td class="numeric-cell">
-            <a href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a>
+            <a rel="noopener" href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a>
           </td>
           <td>
             {% if 'state' in batch and batch['state'] %}

@@ -6,7 +6,7 @@ default:
 	@false
 
 .PHONY: check-all
-check-all: check-hail check-services check-benchmark-service
+check-all: check-hail check-services
 
 .PHONY: check-hail
 check-hail:
@@ -23,10 +23,6 @@ check-auth:
 .PHONY: check-batch
 check-batch:
 	$(MAKE) -C batch check
-
-.PHONY: check-benchmark-service
-check-benchmark-service:
-	$(MAKE) -C benchmark-service check
 
 .PHONY: check-ci
 check-ci:

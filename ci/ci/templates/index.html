@@ -24,7 +24,7 @@
       </div>
       <div>Deploy Batch:
 	{% if wb.deploy_batch_id is not none %}
-	<a href="{{ base_path }}/batches/{{ wb.deploy_batch_id }}">{{ wb.deploy_batch_id }}</a>
+	<a rel="noopener" href="{{ base_path }}/batches/{{ wb.deploy_batch_id }}">{{ wb.deploy_batch_id }}</a>
 	{% endif %}
       </div>
     </div>

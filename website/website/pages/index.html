@@ -14,7 +14,7 @@
           <a class="button" href="#install">Install</a>
           <a class="button" href="#hail-query">Hail Query</a>
           <a class="button" href="#hail-batch">Hail Batch</a>
-          <a class="button" href="{{ base_path }}/gethelp.html">Get Help</a>
+          <a rel="noopener" class="button" href="{{ base_path }}/gethelp.html">Get Help</a>
         </div>
       </div>
 
@@ -54,11 +54,11 @@ show(p)
           pip install hail</div>
         <p>
           Hail requires Python 3 and the
-          <a href="https://adoptopenjdk.net/index.html" target="_blank">Java 8 or 11 JRE</a>.
+          <a rel="noopener" href="https://adoptopenjdk.net/index.html" target="_blank">Java 8 or 11 JRE</a>.
         </p>
         <p>GNU/Linux will also need the C and C++ standard libraries if not already installed.</p>
         <p>
-          <a href="{{ base_path }}/docs/0.2/getting_started.html">Detailed instructions</a>
+          <a rel="noopener" href="{{ base_path }}/docs/0.2/getting_started.html">Detailed instructions</a>
         </p>
       </section>
     </div>
@@ -74,33 +74,33 @@ show(p)
           <p>
             Hail Query provides powerful, easy-to-use data science tools. Interrogate data at every scale: small datasets on a
             laptop through to biobank-scale datasets (e.g. UK
-            Biobank, <a href="https://www.nature.com/immersive/d42859-020-00002-x/index.html">gnomAD</a>, TopMed, FinnGen, and
+            Biobank, <a rel="noopener" href="https://www.nature.com/immersive/d42859-020-00002-x/index.html">gnomAD</a>, TopMed, FinnGen, and
             Biobank Japan) in the cloud.
           </p>
         </section>
         <section>
           <h4>Genomic Dataframes</h4>
           <p>
-            Modern data science is driven by numeric matrices (see <a href="https://numpy.org/">Numpy</a>) and tables
-            (see <a href="https://www.r-project.org/about.html">R</a> dataframes
-            and <a href="https://pandas.pydata.org">Pandas</a>).  While sufficient for many tasks, none of these tools adequately
+            Modern data science is driven by numeric matrices (see <a rel="noopener" href="https://numpy.org/">Numpy</a>) and tables
+            (see <a rel="noopener" href="https://www.r-project.org/about.html">R</a> dataframes
+            and <a rel="noopener" href="https://pandas.pydata.org">Pandas</a>).  While sufficient for many tasks, none of these tools adequately
             capture the structure of genetic data. Genetic data combines the multiple axes of a matrix (e.g. variants and samples)
             with the structured data of tables (e.g. genotypes).  To support genomic analysis, Hail introduces a powerful and
             distributed data structure combining features of matrices and dataframes called
-            <a href="{{ base_path }}/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">MatrixTable</a>.
+            <a rel="noopener" href="{{ base_path }}/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">MatrixTable</a>.
           </p>
         </section>
         <section>
           <h4>Input Unification</h4>
           <p>
-            The <a href="{{ base_path }}/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">Hail
+            The <a rel="noopener" href="{{ base_path }}/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">Hail
             MatrixTable</a> unifies a wide range of input formats (e.g. vcf, bgen, plink, tsv, gtf, bed files), and supports
             scalable queries, even on petabyte-size datasets. Hail's MatrixTable abstraction provides an integrated and scalable
             analysis platform for science.
           </p>
         </section>
       </div>
-      <a class="button" href="{{ base_path }}/tutorial.html" style='align-self:flex-end; margin-top:1rem;'>Learn More</a>
+      <a rel="noopener" class="button" href="{{ base_path }}/tutorial.html" style='align-self:flex-end; margin-top:1rem;'>Learn More</a>
     </div>
   </div>
   <div id="hail-batch" class="about dark">
@@ -133,7 +133,7 @@ show(p)
           </p>
         </section>
       </div>
-      <a class="button" href="{{ base_path }}/docs/batch/index.html" style='align-self:flex-end; margin-top:1rem;'>Learn More</a>
+      <a rel="noopener" class="button" href="{{ base_path }}/docs/batch/index.html" style='align-self:flex-end; margin-top:1rem;'>Learn More</a>
     </div>
   </div>
   <div class="about">
@@ -179,10 +179,10 @@ show(p)
         </ul>
         <p>
           We would like to thank
-          <a href="https://zulipchat.com/" target="_blank">Zulip</a>
+          <a rel="noopener" href="https://zulipchat.com/" target="_blank">Zulip</a>
           for supporting open-source
           by providing free hosting, and YourKit, LLC for generously providing free licenses for
-          <a href="https://www.yourkit.com/java/profiler/">YourKit Java Profiler</a>
+          <a rel="noopener" href="https://www.yourkit.com/java/profiler/">YourKit Java Profiler</a>
           for open-source
           development.
         </p>
@@ -206,7 +206,7 @@ show(p)
       cachedText.textContent = defText;
     }
   </script>
-  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js" integrity="sha512-7Tmwzq3E6Wz5Ue1YikHkMXpyno2Qt4xIz9RMdKXHKyRIsmadkS5yUL0v3YM+H2VQLtFy0zw+RvxqOhevZbxWaA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script>
     requirejs(["https://cdnjs.cloudflare.com/ajax/libs/three.js/r121/three.min.js"],
               function(THREE) {
