@@ -11,6 +11,12 @@ RUN hail-apt-get-install \
     rsync \
     unzip bzip2 zip tar tabix lz4 \
     vim pv
+# source: https://cloud.google.com/storage/docs/gsutil_install#linux
+RUN curl https://sdk.cloud.google.com | bash && \
+    find \
+      /root/google-cloud-sdk/bin/ \
+      -type f -executable \
+    | xargs -I % /bin/sh -c 'set -ex ; ln -s ${PWD}/% /usr/local/bin/$(basename %)'
 RUN --mount=src=wheel-container.tar,target=/wheel-container.tar \
     tar -xf wheel-container.tar && \
     pip3 install -U hail-*-py3-none-any.whl && \
@@ -21,8 +27,7 @@ RUN hail-pip-install \
       numpy \
       scikit-learn \
       dill \
-      scipy \
-    && rm -rf hail-*-py3-none-any.whl
+      scipy
 RUN export SPARK_HOME=$(find_spark_home.py) && \
     curl https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.2.7.jar \
          >$SPARK_HOME/jars/gcs-connector-hadoop2-2.2.7.jar && \
@@ -31,9 +36,3 @@ RUN export SPARK_HOME=$(find_spark_home.py) && \
     sed -i $SPARK_HOME/conf/spark-defaults.conf \
         -e 's:spark\.hadoop\.google\.cloud\.auth\.service\.account\.enable.*:spark.hadoop.google.cloud.auth.service.account.enable true:' \
         -e 's:spark\.hadoop\.google\.cloud\.auth\.service\.account\.json\.keyfile.*:spark\.hadoop\.google\.cloud\.auth\.service\.account\.json\.keyfile /gsa-key/key.json:'
-# source: https://cloud.google.com/storage/docs/gsutil_install#linux
-RUN curl https://sdk.cloud.google.com | bash && \
-    find \
-      /root/google-cloud-sdk/bin/ \
-      -type f -executable \
-    | xargs -I % /bin/sh -c 'set -ex ; ln -s ${PWD}/% /usr/local/bin/$(basename %)'
