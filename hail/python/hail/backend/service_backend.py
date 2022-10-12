@@ -274,6 +274,7 @@ class ServiceBackend(Backend):
                  worker_cores: Optional[Union[int, str]],
                  worker_memory: Optional[str],
                  name_prefix: str):
+        super(ServiceBackend, self).__init__()
         self.billing_project = billing_project
         self._sync_fs = sync_fs
         self._async_fs = async_fs
@@ -291,7 +292,6 @@ class ServiceBackend(Backend):
         self.worker_cores = worker_cores
         self.worker_memory = worker_memory
         self.name_prefix = name_prefix
-        self._persisted_locations: Dict[Any, _TemporaryFilenameManager] = dict()
 
     def debug_info(self) -> Dict[str, Any]:
         return {
@@ -731,28 +731,6 @@ class ServiceBackend(Backend):
         fname = TemporaryFilename(prefix='persist_expression').name
         write_expression(expr, fname)
         return read_expression(fname, _assert_type=expr.dtype)
-
-    def persist_table(self, t, storage_level):
-        tf = TemporaryFilename(prefix='persist_table')
-        self._persisted_locations[t] = tf
-        return t.checkpoint(tf.__enter__())
-
-    def unpersist_table(self, t):
-        try:
-            self._persisted_locations[t].__exit__(None, None, None)
-        except KeyError as err:
-            raise ValueError(f'{t} is not persisted') from err
-
-    def persist_matrix_table(self, mt, storage_level):
-        tf = TemporaryFilename(prefix='persist_matrix_table')
-        self._persisted_locations[mt] = tf
-        return mt.checkpoint(tf.__enter__())
-
-    def unpersist_matrix_table(self, mt):
-        try:
-            self._persisted_locations[mt].__exit__(None, None, None)
-        except KeyError as err:
-            raise ValueError(f'{mt} is not persisted') from err
 
     def set_flags(self, **flags: str):
         self.flags.update(flags)

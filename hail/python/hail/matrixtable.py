@@ -3484,7 +3484,7 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Persisted dataset.
         """
-        return Env.backend().persist_matrix_table(self, storage_level)
+        return Env.backend().persist_matrix_table(self)
 
     def unpersist(self) -> 'MatrixTable':
         """

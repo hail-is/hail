@@ -2065,7 +2065,7 @@ class Table(ExprContainer):
         :class:`.Table`
             Persisted table.
         """
-        return Env.backend().persist_table(self, storage_level)
+        return Env.backend().persist_table(self)
 
     def unpersist(self) -> 'Table':
         """
