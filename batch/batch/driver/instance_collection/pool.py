@@ -316,7 +316,7 @@ WHERE removed = 0 AND inst_coll = %s;
         LEFT JOIN job_regions ON jobs.batch_id = job_regions.batch_id AND jobs.job_id = job_regions.job_id
         LEFT JOIN regions ON job_regions.region_id = regions.region_id
         WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND always_run AND inst_coll = %s
-        GROUP BY user, jobs.batch_id, jobs.job_id, cores_mcpu
+        GROUP BY jobs.batch_id, jobs.job_id
         ORDER BY jobs.batch_id ASC, jobs.job_id ASC
         LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
       )
@@ -329,7 +329,7 @@ WHERE removed = 0 AND inst_coll = %s;
         LEFT JOIN job_regions ON jobs.batch_id = job_regions.batch_id AND jobs.job_id = job_regions.job_id
         LEFT JOIN regions ON job_regions.region_id = regions.region_id
         WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND NOT always_run AND batches_cancelled.id IS NULL AND inst_coll = %s
-        GROUP BY user, jobs.batch_id, jobs.job_id, cores_mcpu
+        GROUP BY jobs.batch_id, jobs.job_id
         ORDER BY jobs.batch_id ASC, jobs.job_id ASC
         LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
       )
