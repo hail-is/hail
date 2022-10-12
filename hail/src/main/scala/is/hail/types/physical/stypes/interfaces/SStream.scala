@@ -17,7 +17,7 @@ trait NoBoxLongIterator {
   // (and value returned by next() is garbage)
   def eos: Boolean
 
-  def next(): Long // -1L if EOS, 0 if missing
+  def next(): Long  // 0L represents missing value
 
   def close(): Unit
 }
