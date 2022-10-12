@@ -42,6 +42,13 @@ ON DUPLICATE KEY UPDATE region = region;
             region_args,
         )
 
+        regions = {
+            record['region']: record['region_id']
+            async for record in db.select_and_fetchall('SELECT region_id, region from regions')
+        }
+        assert max(regions.values()) < 64, str(regions)
+        app['regions'] = regions
+
         compute_client = aiogoogle.GoogleComputeClient(project, credentials_file=credentials_file)
 
         activity_logs_client = aiogoogle.GoogleLoggingClient(

@@ -44,6 +44,13 @@ ON DUPLICATE KEY UPDATE region = region;
             region_args,
         )
 
+        regions = {
+            record['region']: record['region_id']
+            async for record in db.select_and_fetchall('SELECT region_id, region from regions')
+        }
+        assert max(regions.values()) < 64, str(regions)
+        app['regions'] = regions
+
         with open(os.environ['HAIL_SSH_PUBLIC_KEY'], encoding='utf-8') as f:
             ssh_public_key = f.read()
 
