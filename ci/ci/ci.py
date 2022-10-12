@@ -402,10 +402,11 @@ async def batch_callback_handler(request):
                         assert 'dev' not in attrs
                         namespace = json.loads(attrs['namespace'])
                         assert namespace != 'default'
-                        await db.execute_update(
-                            'DELETE FROM active_namespaces WHERE namespace = %s',
-                            (namespace,),
-                        )
+                        if DEFAULT_NAMESPACE == 'default':
+                            await db.execute_update(
+                                'DELETE FROM active_namespaces WHERE namespace = %s',
+                                (namespace,),
+                            )
 
                     await wb.notify_batch_changed(app)
 
