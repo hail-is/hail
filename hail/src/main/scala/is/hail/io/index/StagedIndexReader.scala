@@ -91,10 +91,10 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
   private[io] def readInternalNode(cb: EmitCodeBuilder, offset: Value[Long]): SBaseStructValue = {
     val ret = cb.newSLocal(internalPType.sType, "internalNode")
 
-    // returns an address if cached, or -1L if not found
+    // returns an address if cached, or 0L if not found
     val cached = cb.memoize(cache.invoke[Long, Long]("get", offset))
 
-    cb.ifx(cached cne -1L, {
+    cb.ifx(cached cne 0L, {
       cb.assign(ret, internalPType.loadCheapSCode(cb, cached))
     }, {
       cb.assign(ret, cb.invokeSCode(cb.emb.ecb.getOrGenEmitMethod("readInternalNode", ("readInternalNode", this), FastIndexedSeq(LongInfo), ret.st.paramType) { emb =>
@@ -119,10 +119,10 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
   private[io] def readLeafNode(cb: EmitCodeBuilder, offset: Value[Long]): SBaseStructValue = {
     val ret = cb.newSLocal(leafPType.sType, "leafNode")
 
-    // returns an address if cached, or -1L if not found
+    // returns an address if cached, or 0L if not found
     val cached = cb.memoize(cache.invoke[Long, Long]("get", offset))
 
-    cb.ifx(cached cne -1L, {
+    cb.ifx(cached cne 0L, {
       cb.assign(ret, leafPType.loadCheapSCode(cb, cached))
     }, {
       cb.assign(ret, cb.invokeSCode(cb.emb.ecb.getOrGenEmitMethod("readLeafNode", ("readLeafNode", this), FastIndexedSeq(LongInfo), ret.st.paramType) { emb =>
