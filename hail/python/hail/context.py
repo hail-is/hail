@@ -847,6 +847,7 @@ def _set_flags(**flags):
 def _get_flags(*flags):
     return Env.backend().get_flags(*flags)
 
+
 @contextmanager
 def _with_flags(**flags):
     before = _get_flags(*flags)
@@ -855,6 +856,7 @@ def _with_flags(**flags):
         yield
     finally:
         _set_flags(**before)
+
 
 def debug_info():
     from hail.backend.spark_backend import SparkBackend
