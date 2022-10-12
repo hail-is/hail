@@ -4,7 +4,7 @@
     {% else %}
         <div class="spinner"></div>
     {% endif %}
-    <a class="nb-state-container" target="_blank" href="{{ base_url }}/instance/{{ notebook['notebook_token'] }}/?token={{ notebook['jupyter_token'] }}">
+    <a rel="noopener" class="nb-state-container" target="_blank" href="{{ base_url }}/instance/{{ notebook['notebook_token'] }}/?token={{ notebook['jupyter_token'] }}">
       {% if notebook['state'] == 'Ready' %}
         <b class="nb-link">Open Jupyter<i class="material-icons text-icon">open_in_new</i></b>
       {% else %}

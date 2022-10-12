@@ -1,12 +1,14 @@
 package is.hail.io.fs
 
 import java.io._
+import java.nio.charset._
 import java.util.zip.GZIPOutputStream
-import is.hail.HailContext
+import is.hail.{HailContext, HailFeatureFlags}
 import is.hail.backend.BroadcastValue
 import is.hail.io.compress.{BGzipInputStream, BGzipOutputStream}
 import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
 import is.hail.utils._
+import is.hail.services._
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop
@@ -196,6 +198,30 @@ abstract class FSPositionedOutputStream extends OutputStream with Positioned {
   }
 
   def getPosition: Long = pos
+}
+
+object FS {
+  def cloudSpecificCacheableFS(
+    credentialsPath: String,
+    flags: Option[HailFeatureFlags]
+  ): ServiceCacheableFS = retryTransientErrors {
+    using(new FileInputStream(credentialsPath)) { is =>
+      val credentialsStr = Some(IOUtils.toString(is, Charset.defaultCharset()))
+      sys.env.get("HAIL_CLOUD").get match {
+        case "gcp" =>
+          val requesterPaysConfiguration = flags.flatMap { flags =>
+            RequesterPaysConfiguration.fromFlags(
+              flags.get("gcs_requester_pays_project"), flags.get("gcs_requester_pays_buckets")
+            )
+          }
+          new GoogleStorageFS(credentialsStr, requesterPaysConfiguration).asCacheable()
+        case "azure" =>
+          new AzureStorageFS(credentialsStr).asCacheable()
+        case cloud =>
+          throw new IllegalArgumentException(s"Bad cloud: $cloud")
+      }
+    }
+  }
 }
 
 trait FS extends Serializable {
@@ -519,4 +545,9 @@ trait FS extends Serializable {
   }
 
   lazy val broadcast: BroadcastValue[FS] = HailContext.backend.broadcast(this)
+
+  def getConfiguration(): Any
+
+  def setConfiguration(config: Any): Unit
 }
+

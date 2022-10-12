@@ -65,7 +65,7 @@ from hail.utils import (Struct, Interval, hadoop_copy, hadoop_open, hadoop_ls,  
                         hadoop_is_dir, hadoop_scheme_supported, copy_log)
 
 from .context import (init, init_local, init_batch, stop, spark_context, tmp_dir,  # noqa: E402
-                      default_reference, get_reference, set_global_seed, _set_flags, _get_flags,
+                      default_reference, get_reference, set_global_seed, _set_flags, _get_flags, _with_flags,
                       _async_current_backend, current_backend, debug_info, citation, cite_hail,
                       cite_hail_bibtex, version, TemporaryFilename, TemporaryDirectory)
 
@@ -85,6 +85,7 @@ __all__ = [
     'set_global_seed',
     '_set_flags',
     '_get_flags',
+    '_with_flags',
     'Table',
     'GroupedTable',
     'MatrixTable',

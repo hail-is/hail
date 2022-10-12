@@ -3665,8 +3665,9 @@ class MatrixTable(ExprContainer):
             return MatrixTable(ir.MatrixUnionRows(*[d._mir for d in datasets]))
 
     @typecheck_method(other=matrix_table_type,
-                      row_join_type=enumeration('inner', 'outer'))
-    def union_cols(self, other: 'MatrixTable', row_join_type='inner') -> 'MatrixTable':
+                      row_join_type=enumeration('inner', 'outer'),
+                      drop_right_row_fields=bool)
+    def union_cols(self, other: 'MatrixTable', row_join_type='inner', drop_right_row_fields=True) -> 'MatrixTable':
         """Take the union of dataset columns.
 
         Examples
@@ -3712,9 +3713,13 @@ class MatrixTable(ExprContainer):
         ----------
         other : :class:`.MatrixTable`
             Dataset to concatenate.
-        outer : bool
-            If `True`, perform an outer join on rows, otherwise perform an
-            inner join. Default `False`.
+        row_join_type : string
+            If `outer`, perform an outer join on rows; if 'inner', perform an
+            inner join. Default `inner`.
+        drop_right_row_fields : boolean
+            If true, non-key row fields of `other` are dropped. Otherwise,
+            non-key row fields in the two datasets must have distinct names,
+            and the result contains the union of the row fields.
 
         Returns
         -------
@@ -3737,6 +3742,9 @@ class MatrixTable(ExprContainer):
             raise ValueError(f'row key types differ:\n'
                              f'    left: {", ".join(self.row_key.dtype.values())}\n'
                              f'    right: {", ".join(other.row_key.dtype.values())}')
+
+        if drop_right_row_fields:
+            other = other.select_rows()
 
         return MatrixTable(ir.MatrixUnionCols(self._mir, other._mir, row_join_type))
 

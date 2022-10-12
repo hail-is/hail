@@ -584,6 +584,8 @@ case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR)
 
 case class MatrixUnionCols(left: MatrixIR, right: MatrixIR, joinType: String) extends MatrixIR {
   require(joinType == "inner" || joinType == "outer")
+  require(left.typ.rowKeyStruct isIsomorphicTo right.typ.rowKeyStruct)
+
   lazy val children: IndexedSeq[BaseIR] = Array(left, right)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixUnionCols = {
@@ -591,10 +593,23 @@ case class MatrixUnionCols(left: MatrixIR, right: MatrixIR, joinType: String) ex
     MatrixUnionCols(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[MatrixIR], joinType)
   }
 
+  private val newRowType = {
+    val leftKeyType = left.typ.rowKeyStruct
+    val leftValueType = left.typ.rowValueStruct
+    val rightValueType = right.typ.rowValueStruct
+    if (leftValueType.fieldNames.toSet
+      .intersect(rightValueType.fieldNames.toSet)
+      .nonEmpty)
+      throw new RuntimeException(s"invalid MatrixUnionCols: \n  left value:  $leftValueType\n  right value: $rightValueType")
+
+    leftKeyType ++ leftValueType ++ rightValueType
+  }
+
   val typ: MatrixType = if (joinType == "inner")
-    left.typ
+    left.typ.copy(rowType = newRowType)
   else
     left.typ.copy(
+      rowType = newRowType,
       colType = TStruct(left.typ.colType.fields.map(f => f.copy(typ = f.typ))),
       entryType = TStruct(left.typ.entryType.fields.map(f => f.copy(typ = f.typ))))
 

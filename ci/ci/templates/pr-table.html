@@ -22,13 +22,13 @@
     {% for pr in wb.prs %}
     <tr>
       <td>
-        <a href="https://github.com/{{ wb.repo }}/pull/{{ pr.number }}">
+        <a rel="noopener" href="https://github.com/{{ wb.repo }}/pull/{{ pr.number }}">
           {{ pr.title }} <span class="gh-number">#{{ pr.number }}</span>
         </a>
       </td>
       <td>
         {% if pr.build_state is not none %}
-          <a href="{{ base_path }}/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">{{ pr.build_state }}</a>
+          <a rel="noopener" href="{{ base_path }}/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">{{ pr.build_state }}</a>
         {% else %}
           pending
         {% endif %}

@@ -1,3 +1,4 @@
+from typing import Optional
 import json
 import os
 import socket
@@ -114,8 +115,13 @@ class Log4jLogger(Logger):
 
 class LocalBackend(Py4JBackend):
     def __init__(self, tmpdir, log, quiet, append, branching_factor,
-                 skip_logging_configuration, optimizer_iterations):
+                 skip_logging_configuration, optimizer_iterations,
+                 *,
+                 gcs_requester_pays_project: Optional[str] = None,
+                 gcs_requester_pays_buckets: Optional[str] = None
+                 ):
         super(LocalBackend, self).__init__()
+        assert gcs_requester_pays_project is not None or gcs_requester_pays_buckets is None
 
         spark_home = find_spark_home()
         hail_jar_path = os.environ.get('HAIL_JAR')
@@ -140,7 +146,11 @@ class LocalBackend(Py4JBackend):
         self._hail_package = hail_package
         self._utils_package_object = scala_package_object(hail_package.utils)
 
-        self._jbackend = hail_package.backend.local.LocalBackend.apply(tmpdir)
+        self._jbackend = hail_package.backend.local.LocalBackend.apply(
+            tmpdir,
+            gcs_requester_pays_project,
+            gcs_requester_pays_buckets
+        )
         self._jhc = hail_package.HailContext.apply(
             self._jbackend, log, True, append, branching_factor, skip_logging_configuration, optimizer_iterations)
 

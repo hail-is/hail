@@ -90,6 +90,10 @@ class AzureBlobServiceClientCache(credential: TokenCredential) {
 
 
 class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
+  def getConfiguration(): Unit = ()
+
+  def setConfiguration(config: Any): Unit = { }
+
   private lazy val serviceClientCache = credentialsJSON match {
     case None =>
       val credential: DefaultAzureCredential = new DefaultAzureCredentialBuilder().build()
@@ -284,5 +288,8 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
   def asCacheable(): CacheableAzureStorageFS = new CacheableAzureStorageFS(credentialsJSON, null)
 }
 
-class CacheableAzureStorageFS(credentialsJSON: Option[String], @transient val sessionID: String) extends AzureStorageFS(credentialsJSON) with ServiceCacheableFS {
+class CacheableAzureStorageFS(
+  credentialsJSON: Option[String],
+  @transient val sessionID: String
+) extends AzureStorageFS(credentialsJSON) with ServiceCacheableFS {
 }

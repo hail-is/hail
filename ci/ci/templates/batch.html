@@ -20,7 +20,7 @@
     <div class="attributes">
       {% for name, value in batch['attributes'].items() %}
       {% if name == "pr" and wb is not none %}
-      <div>{{ name }}: <a href="{{ base_path }}/watched_branches/{{ wb }}/pr/{{ value }}">{{ value }}</a></div>
+      <div>{{ name }}: <a rel="noopener" href="{{ base_path }}/watched_branches/{{ wb }}/pr/{{ value }}">{{ value }}</a></div>
       {% else %}
       <div>{{ name }}: {{ value }}</div>
       {% endif %}

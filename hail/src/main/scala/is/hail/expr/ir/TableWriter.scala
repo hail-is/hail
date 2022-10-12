@@ -222,7 +222,8 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, keyFields: Indexe
     private[this] val ctx = _ctx.asString
     private[this] val mb = cb.emb
     private[this] val indexKeyType = ifIndexed { index.get._2 }
-    private[this] val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(indexKeyType, mb.ecb) }
+    private[this] val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(indexKeyType, mb.ecb,
+      branchingFactor = Option(mb.ctx.getFlag("index_branching_factor")).map(_.toInt).getOrElse(4096)) }
     private[this] val filename = mb.newLocal[String]("filename")
     private[this] val os = mb.newLocal[ByteTrackingOutputStream]("write_os")
     private[this] val ob = mb.newLocal[OutputBuffer]("write_ob")

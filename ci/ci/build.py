@@ -244,11 +244,10 @@ class BuildImage2Step(Step):
         super().__init__(params)
         self.dockerfile = dockerfile
         self.context_path = context_path
-        self.publish_as = publish_as
         self.inputs = inputs
         self.resources = resources
 
-        image_name = self.publish_as or 'ci-intermediate'
+        image_name = publish_as
         self.base_image = f'{DOCKER_PREFIX}/{image_name}'
         self.image = f'{self.base_image}:{self.token}'
         self.main_branch_cache_repository = f'{self.base_image}:cache'
@@ -282,7 +281,7 @@ class BuildImage2Step(Step):
             params,
             json['dockerFile'],
             json.get('contextPath'),
-            json.get('publishAs'),
+            json['publishAs'],
             json.get('inputs'),
             json.get('resources'),
         )
@@ -375,7 +374,7 @@ cat /home/user/trace
         )
 
     def cleanup(self, batch, scope, parents):
-        if scope == 'deploy' and self.publish_as and not is_test_deployment:
+        if scope == 'deploy' and not is_test_deployment:
             return
 
         if CLOUD == 'azure':

@@ -7,10 +7,11 @@ EXTRA_PYTHONPATH := ../hail/python:../gear
 PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
 
 TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
+export SPARK_VERSION = 3.2.1
 
 .PHONY: jar
 jar:
-	SPARK_VERSION=3.2.1 $(MAKE) -C ../hail shadowJar
+	$(MAKE) -C ../hail shadowJar
 # janky
 	cp ../hail/build/libs/hail-all-spark.jar ./hail.jar
 

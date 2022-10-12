@@ -69,7 +69,13 @@ object HadoopFS {
     }
 }
 
-class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
+class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends FS {
+  def getConfiguration(): SerializableHadoopConfiguration = conf
+
+  def setConfiguration(_conf: Any): Unit = {
+    conf = _conf.asInstanceOf[SerializableHadoopConfiguration]
+  }
+
   def createNoCompression(filename: String): PositionedDataOutputStream = {
     val fs = getFileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)

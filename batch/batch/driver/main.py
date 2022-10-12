@@ -4,9 +4,9 @@ import json
 import logging
 import re
 import signal
-from collections import defaultdict, namedtuple
+from collections import defaultdict
 from functools import wraps
-from typing import Dict, List
+from typing import Dict, Set, Tuple
 
 import aiohttp_session
 import dictdiffer
@@ -1152,31 +1152,41 @@ WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= 
         await _cancel_batch(app, batch['id'])
 
 
-USER_CORES = pc.Gauge('batch_user_cores', 'Batch user cores', ['state', 'user', 'inst_coll'])
+USER_CORES = pc.Gauge('batch_user_cores', 'Batch user cores (i.e. total in-use cores)', ['state', 'user', 'inst_coll'])
 USER_JOBS = pc.Gauge('batch_user_jobs', 'Batch user jobs', ['state', 'user', 'inst_coll'])
-FREE_CORES = pc.Summary('batch_free_cores', 'Batch instance free cores', ['inst_coll'])
-UTILIZATION = pc.Summary('batch_utilization', 'Batch utilization rates', ['inst_coll'])
-COST_PER_HOUR = pc.Summary('batch_cost_per_hour', 'Batch cost ($/hr)', ['measure', 'inst_coll'])
-INSTANCES = pc.Gauge('batch_instances', 'Batch instances', ['inst_coll', 'state'])
+ACTIVE_USER_INST_COLL_PAIRS: Set[Tuple[str, str]] = set()
 
-StateUserInstCollLabels = namedtuple('StateUserInstCollLabels', ['state', 'user', 'inst_coll'])
-InstCollLabels = namedtuple('InstCollLabels', ['inst_coll'])
-CostPerHourLabels = namedtuple('CostPerHourLabels', ['measure', 'inst_coll'])
-InstanceLabels = namedtuple('InstanceLabels', ['inst_coll', 'state'])
+FREE_CORES = pc.Gauge('batch_free_cores', 'Batch total free cores', ['inst_coll'])
+TOTAL_CORES = pc.Gauge('batch_total_cores', 'Batch total cores', ['inst_coll'])
+COST_PER_HOUR = pc.Gauge('batch_cost_per_hour', 'Batch cost ($/hr)', ['measure', 'inst_coll'])
+INSTANCES = pc.Gauge('batch_instances', 'Batch instances', ['inst_coll', 'state'])
+INSTANCE_CORE_UTILIZATION = pc.Histogram(
+    'batch_instance_core_utilization',
+    'Batch per-instance percentage of revenue generating cores',
+    ['inst_coll'],
+    # Buckets were chosen to distinguish instances with:
+    # - no jobs (<= 1/8 core in use)
+    # - 1 1/4 core job
+    # - 1 1/2 core job
+    # - 1 core in use
+    # - 2 cores in use,
+    # - etc.
+    #
+    # NB: we conflate some utilizations, for example, using 1.25 cores and using 2 cores.
+    buckets=[c / 16 for c in [1 / 8, 1 / 4, 1 / 2, 1, 2, 3, 4, 6, 8, 10, 12, 14, 16]],
+)
 
 
 async def monitor_user_resources(app):
+    global ACTIVE_USER_INST_COLL_PAIRS
     db: Database = app['db']
-
-    user_cores = defaultdict(int)
-    user_jobs = defaultdict(int)
 
     records = db.select_and_fetchall(
         '''
 SELECT user, inst_coll,
   CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu,
-  CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED) AS n_ready_jobs,
   CAST(COALESCE(SUM(running_cores_mcpu), 0) AS SIGNED) AS running_cores_mcpu,
+  CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED) AS n_ready_jobs,
   CAST(COALESCE(SUM(n_running_jobs), 0) AS SIGNED) AS n_running_jobs,
   CAST(COALESCE(SUM(n_creating_jobs), 0) AS SIGNED) AS n_creating_jobs
 FROM user_inst_coll_resources
@@ -1184,85 +1194,59 @@ GROUP BY user, inst_coll;
 '''
     )
 
+    current_user_inst_coll_pairs: Set[Tuple[str, str]] = set()
+
     async for record in records:
-        ready_user_cores_labels = StateUserInstCollLabels(
-            state='ready', user=record['user'], inst_coll=record['inst_coll']
-        )
-        user_cores[ready_user_cores_labels] += record['ready_cores_mcpu'] / 1000
+        user = record['user']
+        inst_coll = record['inst_coll']
 
-        running_user_cores_labels = StateUserInstCollLabels(
-            state='running', user=record['user'], inst_coll=record['inst_coll']
-        )
-        user_cores[running_user_cores_labels] += record['running_cores_mcpu'] / 1000
+        current_user_inst_coll_pairs.add((user, inst_coll))
+        labels = {'user': user, 'inst_coll': inst_coll}
 
-        ready_jobs_labels = StateUserInstCollLabels(state='ready', user=record['user'], inst_coll=record['inst_coll'])
-        user_jobs[ready_jobs_labels] += record['n_ready_jobs']
+        USER_CORES.labels(state='ready', **labels).set(record['ready_cores_mcpu'] / 1000)
+        USER_CORES.labels(state='running', **labels).set(record['running_cores_mcpu'] / 1000)
+        USER_JOBS.labels(state='ready', **labels).set(record['n_ready_jobs'])
+        USER_JOBS.labels(state='running', **labels).set(record['n_running_jobs'])
+        USER_JOBS.labels(state='creating', **labels).set(record['n_creating_jobs'])
 
-        running_jobs_labels = StateUserInstCollLabels(
-            state='running', user=record['user'], inst_coll=record['inst_coll']
-        )
-        user_jobs[running_jobs_labels] += record['n_running_jobs']
+    for user, inst_coll in ACTIVE_USER_INST_COLL_PAIRS - current_user_inst_coll_pairs:
+        USER_CORES.remove('ready', user, inst_coll)
+        USER_CORES.remove('running', user, inst_coll)
+        USER_JOBS.remove('ready', user, inst_coll)
+        USER_JOBS.remove('running', user, inst_coll)
+        USER_JOBS.remove('creating', user, inst_coll)
 
-        creating_jobs_labels = StateUserInstCollLabels(
-            state='creating', user=record['user'], inst_coll=record['inst_coll']
-        )
-        user_jobs[creating_jobs_labels] += record['n_creating_jobs']
-
-    def set_value(gauge, data):
-        gauge.clear()
-        for labels, count in data.items():
-            if count > 0:
-                gauge.labels(**labels._asdict()).set(count)
-
-    set_value(USER_CORES, user_cores)
-    set_value(USER_JOBS, user_jobs)
+    ACTIVE_USER_INST_COLL_PAIRS = current_user_inst_coll_pairs
 
 
 def monitor_instances(app) -> None:
     driver: CloudDriver = app['driver']
     inst_coll_manager = driver.inst_coll_manager
-
-    cost_per_hour: Dict[CostPerHourLabels, List[float]] = defaultdict(list)
-    free_cores: Dict[InstCollLabels, List[float]] = defaultdict(list)
-    utilization: Dict[InstCollLabels, List[float]] = defaultdict(list)
-    instances: Dict[InstanceLabels, int] = defaultdict(int)
+    resource_rates = driver.billing_manager.resource_rates
 
     for inst_coll in inst_coll_manager.name_inst_coll.values():
+        total_free_cores = 0.0
+        total_cores = 0.0
+        total_cost_per_hour = 0.0
+        total_revenue_per_hour = 0.0
+        instances_by_state: Dict[str, int] = defaultdict(int)
+
         for instance in inst_coll.name_instance.values():
-            # free cores mcpu can be negatively temporarily if the worker is oversubscribed
-            utilized_cores_mcpu = instance.cores_mcpu - instance.free_cores_mcpu_nonnegative
-
             if instance.state != 'deleted':
-                actual_cost_per_hour_labels = CostPerHourLabels(measure='actual', inst_coll=instance.inst_coll.name)
-                actual_rate = instance.instance_config.actual_cost_per_hour(driver.billing_manager.resource_rates)
-                cost_per_hour[actual_cost_per_hour_labels].append(actual_rate)
+                total_free_cores += instance.free_cores_mcpu_nonnegative / 1000
+                total_cores += instance.cores_mcpu / 1000
+                total_cost_per_hour += instance.cost_per_hour(resource_rates)
+                total_revenue_per_hour += instance.revenue_per_hour(resource_rates)
+                INSTANCE_CORE_UTILIZATION.labels(inst_coll=inst_coll.name).observe(instance.percent_cores_used)
 
-                billed_cost_per_hour_labels = CostPerHourLabels(measure='billed', inst_coll=instance.inst_coll.name)
-                billed_rate = instance.instance_config.cost_per_hour_from_cores(
-                    driver.billing_manager.resource_rates, utilized_cores_mcpu
-                )
-                cost_per_hour[billed_cost_per_hour_labels].append(billed_rate)
+            instances_by_state[instance.state] += 1
 
-                inst_coll_labels = InstCollLabels(inst_coll=instance.inst_coll.name)
-                free_cores[inst_coll_labels].append(instance.free_cores_mcpu / 1000)
-                utilization[inst_coll_labels].append(utilized_cores_mcpu / instance.cores_mcpu)
-
-            inst_labels = InstanceLabels(inst_coll=instance.inst_coll.name, state=instance.state)
-            instances[inst_labels] += 1
-
-    def observe(summary, data):
-        summary.clear()
-        for labels, items in data.items():
-            for item in items:
-                summary.labels(**labels._asdict()).observe(item)
-
-    observe(COST_PER_HOUR, cost_per_hour)
-    observe(FREE_CORES, free_cores)
-    observe(UTILIZATION, utilization)
-
-    INSTANCES.clear()
-    for labels, count in instances.items():
-        INSTANCES.labels(**labels._asdict()).set(count)
+        FREE_CORES.labels(inst_coll=inst_coll.name).set(total_free_cores)
+        TOTAL_CORES.labels(inst_coll=inst_coll.name).set(total_cores)
+        COST_PER_HOUR.labels(inst_coll=inst_coll.name, measure='actual').set(total_cost_per_hour)
+        COST_PER_HOUR.labels(inst_coll=inst_coll.name, measure='billed').set(total_revenue_per_hour)
+        for state, count in instances_by_state.items():
+            INSTANCES.labels(inst_coll=inst_coll.name, state=state).set(count)
 
 
 async def monitor_system(app):
@@ -1276,6 +1260,19 @@ async def scheduling_cancelling_bump(app):
     app['cancel_ready_state_changed'].set()
     app['cancel_creating_state_changed'].set()
     app['cancel_running_state_changed'].set()
+
+
+async def refresh_globals_from_db(app, db):
+    resource_ids = {
+        record['resource']: record['resource_id']
+        async for record in db.select_and_fetchall(
+            '''
+SELECT resource, resource_id FROM resources;
+'''
+        )
+    }
+
+    app['resource_name_to_id'] = resource_ids
 
 
 class BatchDriverAccessLogger(AccessLogger):
@@ -1327,6 +1324,8 @@ SELECT instance_id, internal_token, frozen FROM globals;
     app['batch_headers'] = {'Authorization': f'Bearer {row["internal_token"]}'}
     app['frozen'] = row['frozen']
 
+    await refresh_globals_from_db(app, db)
+
     app['scheduler_state_changed'] = Notice()
     app['cancel_ready_state_changed'] = asyncio.Event()
     app['cancel_creating_state_changed'] = asyncio.Event()
@@ -1356,6 +1355,7 @@ SELECT instance_id, internal_token, frozen FROM globals;
     task_manager.ensure_future(periodically_call(10, cancel_fast_failing_batches, app))
     task_manager.ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
     task_manager.ensure_future(periodically_call(15, monitor_system, app))
+    task_manager.ensure_future(periodically_call(5, refresh_globals_from_db, app, db))
 
 
 async def on_cleanup(app):

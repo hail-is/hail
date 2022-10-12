@@ -43,7 +43,7 @@ attrs==22.1.0
     #   aiohttp
     #   curlylint
     #   pytest
-azure-core==1.25.1
+azure-core==1.26.0
     # via
     #   azure-identity
     #   azure-storage-blob
@@ -241,7 +241,7 @@ multidict==6.0.2
     # via
     #   aiohttp
     #   yarl
-mypy==0.950
+mypy==0.982
     # via -r requirements.txt
 mypy-extensions==0.4.3
     # via
@@ -285,7 +285,7 @@ prometheus-client==0.11.0
     # via
     #   -r requirements.txt
     #   prometheus-async
-protobuf==3.20.1
+protobuf==3.20.2
     # via
     #   -r requirements.txt
     #   google-api-core
@@ -425,7 +425,7 @@ tomli==2.0.1
     # via
     #   black
     #   mypy
-tqdm==4.42.1
+tqdm==4.64.1
     # via -r requirements.txt
 twine==4.0.1
     # via -r requirements.txt
@@ -446,7 +446,7 @@ types-python-dateutil==2.8.19
     # via -r requirements.txt
 types-pyyaml==6.0.12
     # via -r requirements.txt
-types-requests==2.28.11
+types-requests==2.28.11.2
     # via -r requirements.txt
 types-setuptools==65.4.0.0
     # via -r requirements.txt
