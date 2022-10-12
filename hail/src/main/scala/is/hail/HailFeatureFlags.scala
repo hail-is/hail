@@ -28,7 +28,8 @@ object HailFeatureFlags {
     ("grouped_aggregate_buffer_size", ("HAIL_GROUPED_AGGREGATE_BUFFER_SIZE" -> "50")),
     ("use_ssa_logs", "HAIL_USE_SSA_LOGS" -> null),
     ("gcs_requester_pays_project", "HAIL_GCS_REQUESTER_PAYS_PROJECT" -> null),
-    ("gcs_requester_pays_buckets", "HAIL_GCS_REQUESTER_PAYS_BUCKETS" -> null)
+    ("gcs_requester_pays_buckets", "HAIL_GCS_REQUESTER_PAYS_BUCKETS" -> null),
+    ("index_branching_factor", "HAIL_INDEX_BRANCHING_FACTOR" -> null)
   )
 
   def fromEnv(): HailFeatureFlags =

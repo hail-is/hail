@@ -329,7 +329,7 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
     val m = cb.genEmitMethod[Unit]("writeLeafNode")
 
     val parentBuilder = new StagedInternalNodeBuilder(branchingFactor, keyType, annotationType, m.localBuilder)
-    m.emitWithBuilder { cb =>
+    m.voidWithBuilder { cb =>
       val idxOff = cb.newLocal[Long]("indexOff")
       cb.assign(idxOff, utils.bytesWritten)
       cb += ob.writeByte(0.toByte)
@@ -344,7 +344,6 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
       parentBuilder.add(cb, idxOff, leafBuilder.firstIdx(cb).asLong.value, leafBuilder.getLoadedChild)
       parentBuilder.store(cb, utils, 0)
       leafBuilder.reset(cb, elementIdx)
-      Code._empty
     }
     m
   }
