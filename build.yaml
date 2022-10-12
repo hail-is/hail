@@ -18,6 +18,8 @@ steps:
       {{ code.checkout_script }}
       make -C hail python-version-info
       git rev-parse HEAD > git_version
+      # Separate out the large git history from the repo code
+      mv .git ../git
     outputs:
       - from: /io/repo/
         to: /repo
@@ -27,6 +29,8 @@ steps:
         to: /hail_pip_version
       - from: /io/repo/git_version
         to: /git_version
+      - from: /io/git
+        to: /git
     dependsOn:
       - git_make_bash_image
   - kind: buildImage2
@@ -1491,6 +1495,8 @@ steps:
     inputs:
       - from: /repo
         to: /io/repo
+      - from: /git
+        to: /io/repo/.git
       - from: /www.tar.gz
         to: /io/www.tar.gz
     outputs:
@@ -2854,6 +2860,8 @@ steps:
         to: /io/hail_pip_version
       - from: /repo
         to: /io/repo
+      - from: /git
+        to: /io/repo/.git
     secrets:
       - name: test-dataproc-service-account-key
         namespace:
@@ -2896,6 +2904,8 @@ steps:
         to: /io/hail_pip_version
       - from: /repo
         to: /io/repo
+      - from: /git
+        to: /io/repo/.git
     secrets:
       - name: test-dataproc-service-account-key
         namespace:
@@ -2959,6 +2969,8 @@ steps:
         to: /io/git_version
       - from: /repo
         to: /io/repo
+      - from: /git
+        to: /io/repo/.git
       - from: /wheel-for-azure-container.tar
         to: /io/wheel-for-azure-container.tar
       - from: /www.tar.gz
