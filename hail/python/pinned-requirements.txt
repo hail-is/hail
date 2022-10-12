@@ -52,7 +52,7 @@ charset-normalizer==2.1.1
     # via
     #   aiohttp
     #   requests
-cryptography==38.0.2
+cryptography==38.0.1
     # via
     #   azure-identity
     #   azure-storage-blob
