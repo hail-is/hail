@@ -142,7 +142,6 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
     ret.asBaseStruct
   }
 
-  // returns queryType
   def queryBound(cb: EmitCodeBuilder, region: Value[Region], partitionBoundLeftEndpoint: SBaseStructValue, leansRight: SBooleanValue): Value[Long] = {
     cb.invokeCode[Long](
       cb.emb.ecb.getOrGenEmitMethod("lowerBound",
