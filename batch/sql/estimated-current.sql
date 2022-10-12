@@ -248,8 +248,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `attempt_id` VARCHAR(40),
   `inst_coll` VARCHAR(255),
   `n_regions` INT DEFAULT NULL,
-  `regions_bits_rep` VARCHAR(32) DEFAULT NULL,
-  `regions_bits_rep_int` BIGINT DEFAULT NULL,
+  `regions_bits_rep` BIGINT DEFAULT NULL,
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `update_id`) REFERENCES batch_updates(batch_id, update_id) ON DELETE CASCADE,
@@ -258,12 +257,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
 CREATE INDEX `jobs_batch_id_state_always_run_inst_coll_cancelled` ON `jobs` (`batch_id`, `state`, `always_run`, `inst_coll`, `cancelled`);
 CREATE INDEX `jobs_batch_id_state_always_run_cancelled` ON `jobs` (`batch_id`, `state`, `always_run`, `cancelled`);
 CREATE INDEX `jobs_batch_id_update_id` ON `jobs` (`batch_id`, `update_id`);
-CREATE INDEX `jobs_always_run_n_regions_regions_bits_rep_batch_id_job_id` ON `jobs` (`always_run`, `n_regions`, `regions_bits_rep`, `batch_id`, `job_id`);
-CREATE INDEX `jobs_n_regions_regions_bits_rep_batch_id_job_id` ON `jobs` (`n_regions`, `regions_bits_rep`, `batch_id`, `job_id`);
-CREATE INDEX `jobs_always_run_n_regions_regions_bits_rep_int_batch_id_job_id` ON `jobs` (`always_run`, `n_regions`, `regions_bits_rep_int`, `batch_id`, `job_id`);
-CREATE INDEX `jobs_n_regions_regions_bits_rep_int_batch_id_job_id` ON `jobs` (`n_regions`, `regions_bits_rep_int`, `batch_id`, `job_id`);
-CREATE INDEX `jobs_batch_id_always_run_n_regions_regions_bits_rep_int_job_id` ON `jobs` (`batch_id`, `always_run`, `n_regions`, `regions_bits_rep_int`, `job_id`);
-CREATE INDEX `jobs_batch_id_n_regions_regions_bits_rep_int_job_id` ON `jobs` (`batch_id`, `n_regions`, `regions_bits_rep_int`, `job_id`);
+CREATE INDEX `jobs_batch_id_always_run_n_regions_regions_bits_rep_job_id` ON `jobs` (`batch_id`, `always_run`, `n_regions`, `regions_bits_rep`, `job_id`);
 
 CREATE TABLE IF NOT EXISTS `batch_bunches` (
   `batch_id` BIGINT NOT NULL,

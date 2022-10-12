@@ -304,13 +304,13 @@ WHERE removed = 0 AND inst_coll = %s;
         for user_idx, (user, share) in enumerate(user_share.items(), start=1):
             user_job_query = f'''
 (
-  SELECT scheduling_iteration, user_idx, n_regions, regions_bits_rep_int, regions, CAST(COALESCE(SUM(cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
+  SELECT scheduling_iteration, user_idx, n_regions, regions_bits_rep, regions, CAST(COALESCE(SUM(cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
   FROM (
-    SELECT {user_idx} AS user_idx, batch_id, job_id, cores_mcpu, regions, always_run, n_regions, regions_bits_rep_int,
-      ROW_NUMBER() OVER (ORDER BY batch_id, always_run DESC, -n_regions DESC, regions_bits_rep_int, job_id ASC) DIV {share} AS scheduling_iteration
+    SELECT {user_idx} AS user_idx, batch_id, job_id, cores_mcpu, regions, always_run, n_regions, regions_bits_rep,
+      ROW_NUMBER() OVER (ORDER BY batch_id, always_run DESC, -n_regions DESC, regions_bits_rep, job_id ASC) DIV {share} AS scheduling_iteration
     FROM (
       (
-        SELECT jobs.batch_id, jobs.job_id, cores_mcpu, always_run, n_regions, regions_bits_rep_int, JSON_ARRAYAGG(region) AS regions
+        SELECT jobs.batch_id, jobs.job_id, cores_mcpu, always_run, n_regions, regions_bits_rep, JSON_ARRAYAGG(region) AS regions
         FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
         LEFT JOIN batches ON jobs.batch_id = batches.id
         LEFT JOIN job_regions ON jobs.batch_id = job_regions.batch_id AND jobs.job_id = job_regions.job_id
@@ -322,7 +322,7 @@ WHERE removed = 0 AND inst_coll = %s;
       )
       UNION
       (
-        SELECT jobs.batch_id, jobs.job_id, cores_mcpu, always_run, n_regions, regions_bits_rep_int, JSON_ARRAYAGG(region) AS regions
+        SELECT jobs.batch_id, jobs.job_id, cores_mcpu, always_run, n_regions, regions_bits_rep, JSON_ARRAYAGG(region) AS regions
         FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
         LEFT JOIN batches ON jobs.batch_id = batches.id
         LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
@@ -334,10 +334,10 @@ WHERE removed = 0 AND inst_coll = %s;
         LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
       )
     ) AS t1
-    ORDER BY batch_id, always_run DESC, -n_regions DESC, regions_bits_rep_int, job_id ASC
+    ORDER BY batch_id, always_run DESC, -n_regions DESC, regions_bits_rep, job_id ASC
     LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
   ) AS t2
-  GROUP BY scheduling_iteration, user_idx, regions_bits_rep_int, n_regions, regions
+  GROUP BY scheduling_iteration, user_idx, regions_bits_rep, n_regions, regions
   HAVING ready_cores_mcpu > 0
   LIMIT {MAX_INSTANCES_PER_AUTOSCALER_LOOP * self.worker_cores}
 )
@@ -354,7 +354,7 @@ WITH ready_cores_by_scheduling_iteration_regions AS (
 )
 SELECT regions, ready_cores_mcpu
 FROM ready_cores_by_scheduling_iteration_regions
-ORDER BY scheduling_iteration, user_idx, -n_regions DESC, regions_bits_rep_int
+ORDER BY scheduling_iteration, user_idx, -n_regions DESC, regions_bits_rep
 LIMIT {MAX_INSTANCES_PER_AUTOSCALER_LOOP * self.worker_cores};
 ''',
             jobs_query_args,
@@ -604,7 +604,7 @@ LEFT JOIN job_regions ON jobs.batch_id = job_regions.batch_id AND jobs.job_id = 
 LEFT JOIN regions ON job_regions.region_id = regions.region_id
 WHERE jobs.batch_id = %s AND jobs.state = 'Ready' AND always_run = 1 AND inst_coll = %s
 GROUP BY jobs.job_id, spec, cores_mcpu
-ORDER BY jobs.batch_id, always_run, -n_regions DESC, regions_bits_rep_int, jobs.job_id
+ORDER BY jobs.batch_id, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
 LIMIT 5000;
 ''',
                     (batch['id'], self.pool.name),
@@ -624,7 +624,7 @@ LEFT JOIN job_regions ON jobs.batch_id = job_regions.batch_id AND jobs.job_id = 
 LEFT JOIN regions ON job_regions.region_id = regions.region_id
 WHERE jobs.batch_id = %s AND jobs.state = 'Ready' AND always_run = 0 AND inst_coll = %s AND cancelled = 0
 GROUP BY jobs.job_id, spec, cores_mcpu
-ORDER BY jobs.batch_id, always_run, -n_regions DESC, regions_bits_rep_int, jobs.job_id
+ORDER BY jobs.batch_id, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
 LIMIT 5000;
 ''',
                         (batch['id'], self.pool.name),
