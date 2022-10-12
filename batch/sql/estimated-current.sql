@@ -262,6 +262,8 @@ CREATE INDEX `jobs_always_run_n_regions_regions_bits_rep_batch_id_job_id` ON `jo
 CREATE INDEX `jobs_n_regions_regions_bits_rep_batch_id_job_id` ON `jobs` (`n_regions`, `regions_bits_rep`, `batch_id`, `job_id`);
 CREATE INDEX `jobs_always_run_n_regions_regions_bits_rep_int_batch_id_job_id` ON `jobs` (`always_run`, `n_regions`, `regions_bits_rep_int`, `batch_id`, `job_id`);
 CREATE INDEX `jobs_n_regions_regions_bits_rep_int_batch_id_job_id` ON `jobs` (`n_regions`, `regions_bits_rep_int`, `batch_id`, `job_id`);
+CREATE INDEX `jobs_batch_id_always_run_n_regions_regions_bits_rep_int_job_id` ON `jobs` (`batch_id`, `always_run`, `n_regions`, `regions_bits_rep_int`, `job_id`);
+CREATE INDEX `jobs_batch_id_n_regions_regions_bits_rep_int_job_id` ON `jobs` (`batch_id`, `n_regions`, `regions_bits_rep_int`, `job_id`);
 
 CREATE TABLE IF NOT EXISTS `batch_bunches` (
   `batch_id` BIGINT NOT NULL,
