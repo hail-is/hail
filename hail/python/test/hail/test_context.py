@@ -29,3 +29,7 @@ class Tests(unittest.TestCase):
 
     def test_tmpdir_runs(self):
         isinstance(hl.tmp_dir(), str)
+
+    def test_get_flags(self):
+        assert hl._get_flags() == {}
+        assert list(hl._get_flags('use_new_shuffle')) == 'use_new_shuffle'
