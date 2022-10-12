@@ -23,7 +23,7 @@ from hailtop.utils import (
 from ...batch_configuration import STANDING_WORKER_MAX_IDLE_TIME_MSECS
 from ...batch_format_version import BatchFormatVersion
 from ...inst_coll_config import PoolConfig
-from ...utils import Box, ExceededSharesCounter, json_to_value
+from ...utils import ExceededSharesCounter, json_to_value
 from ..instance import Instance
 from ..job import mark_job_errored, schedule_job
 from ..resource_manager import CloudResourceManager
@@ -584,7 +584,7 @@ HAVING n_ready_jobs + n_running_jobs > 0;
             for user, resources in user_resources.items()
         }
 
-        async def user_runnable_jobs(user, remaining):
+        async def user_runnable_jobs(user):
             async for batch in self.db.select_and_fetchall(
                 '''
 SELECT batches.id, batches_cancelled.id IS NOT NULL AS cancelled, userdata, user, format_version
@@ -605,9 +605,9 @@ LEFT JOIN regions ON job_regions.region_id = regions.region_id
 WHERE jobs.batch_id = %s AND jobs.state = 'Ready' AND always_run = 1 AND inst_coll = %s
 GROUP BY jobs.job_id, spec, cores_mcpu
 ORDER BY jobs.batch_id, always_run, -n_regions DESC, regions_bits_rep_int, jobs.job_id
-LIMIT %s;
+LIMIT 5000;
 ''',
-                    (batch['id'], self.pool.name, remaining.value),
+                    (batch['id'], self.pool.name),
                     "user_runnable_jobs__select_ready_always_run_jobs",
                 ):
                     record['batch_id'] = batch['id']
@@ -625,9 +625,9 @@ LEFT JOIN regions ON job_regions.region_id = regions.region_id
 WHERE jobs.batch_id = %s AND jobs.state = 'Ready' AND always_run = 0 AND inst_coll = %s AND cancelled = 0
 GROUP BY jobs.job_id, spec, cores_mcpu
 ORDER BY jobs.batch_id, always_run, -n_regions DESC, regions_bits_rep_int, jobs.job_id
-LIMIT %s;
+LIMIT 5000;
 ''',
-                        (batch['id'], self.pool.name, remaining.value),
+                        (batch['id'], self.pool.name),
                         "user_runnable_jobs__select_ready_jobs_batch_not_cancelled",
                     ):
                         record['batch_id'] = batch['id']
@@ -647,8 +647,7 @@ LIMIT %s;
             scheduled_cores_mcpu = 0
             share = user_share[user]
 
-            remaining = Box(share)
-            async for record in user_runnable_jobs(user, remaining):
+            async for record in user_runnable_jobs(user):
                 attempt_id = secret_alnum_string(6)
                 record['attempt_id'] = attempt_id
 
@@ -700,8 +699,7 @@ LIMIT %s;
                         unscheduled_cores_mcpu_per_region[region] += record['cores_mcpu'] / n_regions
                         unscheduled_jobs_per_region[region] += 1 / n_regions
 
-                share -= 1
-                if share <= 0:
+                if n_scheduled >= share:
                     should_wait = False
                     break
 
