@@ -21,6 +21,7 @@ def lgt_to_gt(lgt, la):
     """
     return hl.rbind(lgt, lambda lgt: hl.if_else(lgt.is_non_ref(), _func("lgt_to_gt", hl.tcall, lgt, la), lgt))
 
+
 @typecheck(
     array=expr_array(),
     local_alleles=expr_array(expr_int32),
@@ -41,7 +42,7 @@ def local_to_global(array, local_alleles, n_alleles, fill_value, number):
     [9, 0, 10]
 
     >>> hl.eval(local_to_global(local_pl, local_alleles, n_alleles=3, fill_value=999, number='G'))
-    [94, 999, 999, 999, 0, 123]
+    [94, 999, 999, 0, 999, 123]
 
     Notes
     -----
