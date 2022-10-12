@@ -604,7 +604,7 @@ LEFT JOIN job_regions ON jobs.batch_id = job_regions.batch_id AND jobs.job_id = 
 LEFT JOIN regions ON job_regions.region_id = regions.region_id
 WHERE jobs.batch_id = %s AND jobs.state = 'Ready' AND always_run = 1 AND inst_coll = %s
 GROUP BY jobs.job_id, spec, cores_mcpu
-ORDER BY jobs.batch_id, -n_regions DESC, regions_bits_rep_int, jobs.job_id
+ORDER BY jobs.batch_id, always_run, -n_regions DESC, regions_bits_rep_int, jobs.job_id
 LIMIT %s;
 ''',
                     (batch['id'], self.pool.name, remaining.value),
@@ -624,7 +624,7 @@ LEFT JOIN job_regions ON jobs.batch_id = job_regions.batch_id AND jobs.job_id = 
 LEFT JOIN regions ON job_regions.region_id = regions.region_id
 WHERE jobs.batch_id = %s AND jobs.state = 'Ready' AND always_run = 0 AND inst_coll = %s AND cancelled = 0
 GROUP BY jobs.job_id, spec, cores_mcpu
-ORDER BY jobs.batch_id, -n_regions DESC, regions_bits_rep_int, jobs.job_id
+ORDER BY jobs.batch_id, always_run, -n_regions DESC, regions_bits_rep_int, jobs.job_id
 LIMIT %s;
 ''',
                         (batch['id'], self.pool.name, remaining.value),
