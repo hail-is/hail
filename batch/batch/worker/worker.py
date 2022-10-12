@@ -2374,7 +2374,7 @@ class Worker:
                             await self.client_session.close()
                             log.info('closed client session')
 
-    async def run_job(self, job):  # pylint: disable=no-self-use
+    async def run_job(self, job):
         try:
             await job.run()
         except asyncio.CancelledError:

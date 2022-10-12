@@ -495,7 +495,7 @@ class BatchPoolFuture:
         """
         return self.fetch_coro.cancelled()
 
-    def running(self):  # pylint: disable=no-self-use
+    def running(self):
         """Always returns False.
 
         This future can always be cancelled, so this function always returns False.
