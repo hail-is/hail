@@ -23,7 +23,7 @@ from hailtop.utils import (
 from ...batch_format_version import BatchFormatVersion
 from ...inst_coll_config import JobPrivateInstanceManagerConfig
 from ...instance_config import QuantifiedResource
-from ...utils import Box, ExceededSharesCounter, json_to_value
+from ...utils import Box, ExceededSharesCounter, regions_bits_rep_to_regions
 from ..exceptions import RegionsNotSupportedError
 from ..instance import Instance
 from ..job import mark_job_creating, mark_job_errored, schedule_job
@@ -325,22 +325,15 @@ WHERE user = %s AND `state` = 'running';
             ):
                 async for record in self.db.select_and_fetchall(
                     '''
-WITH ready_jobs AS (
-  SELECT jobs.batch_id, jobs.job_id, jobs.spec, jobs.cores_mcpu, COALESCE(SUM(instances.state IS NOT NULL AND
-    (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts
-  FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
-  LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
-  LEFT JOIN instances ON attempts.instance_name = instances.name
-  WHERE jobs.batch_id = %s AND jobs.state = 'Ready' AND always_run = 1 AND jobs.inst_coll = %s
-  GROUP BY jobs.job_id, jobs.spec, jobs.cores_mcpu
-  HAVING live_attempts = 0
-  LIMIT %s
-)
-SELECT ready_jobs.*, JSON_ARRAYAGG(region) AS regions
-FROM ready_jobs
-LEFT JOIN job_regions ON ready_jobs.batch_id = job_regions.batch_id AND ready_jobs.job_id = job_regions.job_id
-LEFT JOIN regions ON job_regions.region_id = regions.region_id
-GROUP BY ready_jobs.batch_id, ready_jobs.job_id;
+SELECT jobs.batch_id, jobs.job_id, jobs.spec, jobs.cores_mcpu, regions_bits_rep, COALESCE(SUM(instances.state IS NOT NULL AND
+  (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts
+FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
+LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
+LEFT JOIN instances ON attempts.instance_name = instances.name
+WHERE jobs.batch_id = %s AND jobs.state = 'Ready' AND always_run = 1 AND jobs.inst_coll = %s
+GROUP BY jobs.job_id, jobs.spec, jobs.cores_mcpu
+HAVING live_attempts = 0
+LIMIT %s;
 ''',
                     (batch['id'], self.name, remaining.value),
                 ):
@@ -352,22 +345,15 @@ GROUP BY ready_jobs.batch_id, ready_jobs.job_id;
                 if not batch['cancelled']:
                     async for record in self.db.select_and_fetchall(
                         '''
-WITH ready_jobs AS (
-  SELECT jobs.batch_id, jobs.job_id, jobs.spec, jobs.cores_mcpu, COALESCE(SUM(instances.state IS NOT NULL AND
-    (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts
-  FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
-  LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
-  LEFT JOIN instances ON attempts.instance_name = instances.name
-  WHERE jobs.batch_id = %s AND jobs.state = 'Ready' AND always_run = 0 AND jobs.inst_coll = %s AND cancelled = 0
-  GROUP BY jobs.job_id, jobs.spec, jobs.cores_mcpu
-  HAVING live_attempts = 0
-  LIMIT %s
-)
-SELECT ready_jobs.*, JSON_ARRAYAGG(region) AS regions
-FROM ready_jobs
-LEFT JOIN job_regions ON ready_jobs.batch_id = job_regions.batch_id AND ready_jobs.job_id = job_regions.job_id
-LEFT JOIN regions ON job_regions.region_id = regions.region_id
-GROUP BY ready_jobs.batch_id, ready_jobs.job_id;
+SELECT jobs.batch_id, jobs.job_id, jobs.spec, jobs.cores_mcpu, regions_bits_rep, COALESCE(SUM(instances.state IS NOT NULL AND
+  (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts
+FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
+LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
+LEFT JOIN instances ON attempts.instance_name = instances.name
+WHERE jobs.batch_id = %s AND jobs.state = 'Ready' AND always_run = 0 AND jobs.inst_coll = %s AND cancelled = 0
+GROUP BY jobs.job_id, jobs.spec, jobs.cores_mcpu
+HAVING live_attempts = 0
+LIMIT %s
 ''',
                         (batch['id'], self.name, remaining.value),
                     ):
@@ -420,10 +406,11 @@ GROUP BY ready_jobs.batch_id, ready_jobs.job_id;
                         spec = json.loads(record['spec'])
                         machine_spec = batch_format_version.get_spec_machine_spec(spec)
 
-                        regions = json_to_value(record['regions'])
-                        # Left join with JSON_ARRAYAGG returns [null]; treat this case as no regions selected
-                        if regions == [None]:
+                        regions_bits_rep = record['regions_bits_rep']
+                        if regions_bits_rep is None:
                             regions = self.inst_coll_manager.regions
+                        else:
+                            regions = regions_bits_rep_to_regions(regions_bits_rep, self.app['regions'])
 
                         instance, total_resources_on_instance = await self.create_instance(machine_spec, regions)
                         log.info(f'created {instance} for {(batch_id, job_id)}')
