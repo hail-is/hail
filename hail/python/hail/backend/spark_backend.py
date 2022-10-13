@@ -247,14 +247,14 @@ class SparkBackend(Py4JBackend):
             {k: t._parsable_string() for k, t in ref_map.items()},
             ir_map)
 
-    def _parse_table_ir(self, code, ref_map={}, ir_map={}):
-        return self._jbackend.parse_table_ir(code, ref_map, ir_map)
+    def _parse_table_ir(self, code, ir_map={}):
+        return self._jbackend.parse_table_ir(code, ir_map)
 
-    def _parse_matrix_ir(self, code, ref_map={}, ir_map={}):
-        return self._jbackend.parse_matrix_ir(code, ref_map, ir_map)
+    def _parse_matrix_ir(self, code, ir_map={}):
+        return self._jbackend.parse_matrix_ir(code, ir_map)
 
-    def _parse_blockmatrix_ir(self, code, ref_map={}, ir_map={}):
-        return self._jbackend.parse_blockmatrix_ir(code, ref_map, ir_map)
+    def _parse_blockmatrix_ir(self, code, ir_map={}):
+        return self._jbackend.parse_blockmatrix_ir(code, ir_map)
 
     @property
     def logger(self):

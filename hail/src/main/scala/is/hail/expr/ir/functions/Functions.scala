@@ -96,7 +96,7 @@ object IRFunctionRegistry {
 
     val typeParameters = typeParamStrs.map(IRParser.parseType).toFastIndexedSeq
     val valueParameterTypes = argTypeStrs.map(IRParser.parseType).toFastIndexedSeq
-    val refMap = argNames.zip(valueParameterTypes).toMap
+    val refMap = BindingEnv.eval(argNames.zip(valueParameterTypes): _*)
     val body = IRParser.parse_value_ir(
       bodyStr,
       IRParserEnvironment(ctx, refMap, Map())

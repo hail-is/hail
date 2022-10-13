@@ -181,22 +181,22 @@ object NewBindings {
 object ChildEnvWithoutBindings {
   def apply[T](ir: BaseIR, i: Int, env: BindingEnv[T]): BindingEnv[T] = {
     ir match {
-      case StreamAgg(_, _, _) => if (i == 1) BindingEnv(eval = env.eval, agg = Some(env.eval), scan = env.scan.map(_ => Env.empty), relational = env.relational) else env
-      case StreamAggScan(_, _, _) => if (i == 1) BindingEnv(eval = env.eval, agg = env.agg.map(_ => Env.empty), scan = Some(env.eval), relational = env.relational) else env
+      case StreamAgg(_, _, _) => if (i == 1) env.createAgg else env
+      case StreamAggScan(_, _, _) => if (i == 1) env.createScan else env
       case ApplyAggOp(init, _, _) => if (i < init.length) env.copy(agg = None) else env.promoteAgg
       case ApplyScanOp(init, _, _) => if (i < init.length) env.copy(scan = None) else env.promoteScan
       case AggFold(zero, seqOp, combOp, elementName, accumName, isScan) => (isScan, i) match {
-        case (true, 0) => env.copy(scan = None)
-        case (false, 0) => env.copy(agg = None)
+        case (true, 0) => env.noScan
+        case (false, 0) => env.noAgg
         case (true, 1) => env.promoteScan
         case (false, 1) => env.promoteAgg
         case (true, 2) => env.copy(eval = Env.empty, scan = None)
         case (false, 2) => env.copy(eval = Env.empty, agg = None)
       }
       case CollectDistributedArray(_, _, _, _, _, _, _, _) => if (i == 2) BindingEnv(relational = env.relational) else env
-      case MatrixAggregate(_, _) => if (i == 0) BindingEnv(relational = env.relational) else BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)
-      case TableAggregate(_, _) => if (i == 0) BindingEnv(relational = env.relational) else BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)
-      case RelationalLet(_, _, _) => if (i == 0) BindingEnv(relational = env.relational) else env.copy(agg = None, scan = None)
+      case MatrixAggregate(_, _) => if (i == 0) env.onlyRelational else BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)
+      case TableAggregate(_, _) => if (i == 0) env.onlyRelational else BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)
+      case RelationalLet(_, _, _) => if (i == 0) env.onlyRelational else env.copy(agg = None, scan = None)
       case LiftMeOut(_) => BindingEnv(Env.empty[T], env.agg.map(_ => Env.empty), env.scan.map(_ => Env.empty), relational = env.relational)
       case _: IR => if (UsesAggEnv(ir, i)) env.promoteAgg else if (UsesScanEnv(ir, i)) env.promoteScan else env
       case x => BindingEnv(
