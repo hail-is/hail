@@ -348,6 +348,8 @@ class LocalBackend(Backend[None]):
 
 
 class ServiceBackend(Backend[bc.Batch]):
+    ANY_REGION = ['any_region']
+
     """Backend that executes batches on Hail's Batch Service on Google Cloud.
 
     Examples
@@ -386,7 +388,28 @@ class ServiceBackend(Backend[bc.Batch]):
     token:
         The authorization token to pass to the batch client.
         Should only be set for user delegation purposes.
+    regions:
+        Cloud region(s) to run jobs in. Use py:staticmethod:`.ServiceBackend.supported_regions` to list the
+        available regions to choose from. Use py:attribute:`.ServiceBackend.ANY_REGION` to signify the default is jobs
+        can run in any available region. The default is jobs can run in any region unless a default value has
+        been set with hailctl. An example invocation is `hailctl config set batch/regions "us-central1,us-east1"`.
     """
+
+    @staticmethod
+    def supported_regions():
+        """
+        Get the supported cloud regions
+
+        Examples
+        --------
+        >>> regions = ServiceBackend.supported_regions()
+
+        Returns
+        -------
+        A list of the supported cloud regions
+        """
+        with BatchClient('dummy') as dummy_client:
+            return dummy_client.supported_regions()
 
     def __init__(self,
                  *args,
@@ -394,7 +417,8 @@ class ServiceBackend(Backend[bc.Batch]):
                  bucket: Optional[str] = None,
                  remote_tmpdir: Optional[str] = None,
                  google_project: Optional[str] = None,
-                 token: Optional[str] = None
+                 token: Optional[str] = None,
+                 regions: Optional[List[str]] = None
                  ):
         if len(args) > 2:
             raise TypeError(f'ServiceBackend() takes 2 positional arguments but {len(args)} were given')
@@ -455,6 +479,15 @@ class ServiceBackend(Backend[bc.Batch]):
 
         gcs_kwargs = {'project': google_project}
         self.__fs: RouterAsyncFS = RouterAsyncFS(default_scheme='file', gcs_kwargs=gcs_kwargs)
+
+        if regions is None:
+            regions_from_conf = user_config.get('batch', 'regions', fallback=None)
+            if regions_from_conf is not None:
+                assert isinstance(regions_from_conf, str)
+                regions = regions_from_conf.split(',')
+        elif regions == ServiceBackend.ANY_REGION:
+            regions = None
+        self.regions = regions
 
     @property
     def _fs(self):
@@ -693,7 +726,8 @@ class ServiceBackend(Backend[bc.Batch]):
                                     env=env,
                                     requester_pays_project=batch.requester_pays_project,
                                     mount_tokens=True,
-                                    user_code=user_code)
+                                    user_code=user_code,
+                                    regions=job._regions)
 
             n_jobs_submitted += 1
 

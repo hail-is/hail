@@ -247,6 +247,8 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
   `attempt_id` VARCHAR(40),
   `inst_coll` VARCHAR(255),
+  `n_regions` INT DEFAULT NULL,
+  `regions_bits_rep` BIGINT DEFAULT NULL,
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `update_id`) REFERENCES batch_updates(batch_id, update_id) ON DELETE CASCADE,
@@ -255,6 +257,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
 CREATE INDEX `jobs_batch_id_state_always_run_inst_coll_cancelled` ON `jobs` (`batch_id`, `state`, `always_run`, `inst_coll`, `cancelled`);
 CREATE INDEX `jobs_batch_id_state_always_run_cancelled` ON `jobs` (`batch_id`, `state`, `always_run`, `cancelled`);
 CREATE INDEX `jobs_batch_id_update_id` ON `jobs` (`batch_id`, `update_id`);
+CREATE INDEX `jobs_batch_id_always_run_n_regions_regions_bits_rep_job_id` ON `jobs` (`batch_id`, `always_run`, `n_regions`, `regions_bits_rep`, `job_id`);
 
 CREATE TABLE IF NOT EXISTS `batch_bunches` (
   `batch_id` BIGINT NOT NULL,
@@ -308,6 +311,13 @@ CREATE TABLE IF NOT EXISTS `job_attributes` (
   FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(batch_id, job_id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX job_attributes_key_value ON `job_attributes` (`key`, `value`(256));
+
+CREATE TABLE IF NOT EXISTS `regions` (
+  `region_id` INT NOT NULL AUTO_INCREMENT,
+  `region` VARCHAR(40) NOT NULL,
+  PRIMARY KEY (`region_id`),
+  UNIQUE(region)
+) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `batch_attributes` (
   `batch_id` BIGINT NOT NULL,

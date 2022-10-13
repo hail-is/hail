@@ -21,7 +21,7 @@ __all__ = ['Batch',
            'PythonResult',
            'Resource',
            'ResourceFile',
-           'ResourceGroup'
+           'ResourceGroup',
            ]
 
 nest_asyncio.apply()

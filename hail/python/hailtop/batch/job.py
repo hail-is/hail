@@ -82,6 +82,7 @@ class Job:
         self._env: Dict[str, str] = {}
         self._wrapper_code: List[str] = []
         self._user_code: List[str] = []
+        self._regions: Optional[List[str]] = None
 
         self._resources: Dict[str, _resource.Resource] = {}
         self._resources_inverse: Dict[_resource.Resource, str] = {}
@@ -337,6 +338,53 @@ class Job:
             raise NotImplementedError("A ServiceBackend is required to use the 'always_run' option")
 
         self._always_run = always_run
+        return self
+
+    def regions(self, regions: Optional[List[str]]) -> 'Job':
+        """
+        Set the cloud regions a job can run in.
+
+        Notes
+        -----
+        Can only be used with the :class:`.backend.ServiceBackend`.
+
+        This method may be used to ensure code executes in the same region as the data it reads.
+        This can avoid egress charges as well as improve latency.
+
+        Examples
+        --------
+
+        Require the job to run in 'us-central1':
+
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
+        >>> j = b.new_job()
+        >>> (j.regions(['us-central1'])
+        ...   .command(f'echo "hello"'))
+
+        Specify the job can run in any region:
+
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
+        >>> j = b.new_job()
+        >>> (j.regions(None)
+        ...   .command(f'echo "hello"'))
+
+        Parameters
+        ----------
+        regions:
+            The cloud region(s) to run this job in. Use `None` to signify
+            the job can run in any available region. Use py:staticmethod:`.ServiceBackend.supported_regions`
+            to list the available regions to choose from. The default is the job can run in
+            any region.
+
+        Returns
+        -------
+        Same job object with the cloud regions the job can run in set.
+        """
+
+        if not isinstance(self._batch._backend, backend.ServiceBackend):
+            raise NotImplementedError("A ServiceBackend is required to use the 'regions' option")
+
+        self._regions = regions
         return self
 
     def timeout(self, timeout: Optional[Union[float, int]]) -> 'Job':

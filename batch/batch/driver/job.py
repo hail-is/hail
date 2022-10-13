@@ -414,10 +414,33 @@ users:
     }
 
 
+async def mark_job_errored(app, batch_id, job_id, attempt_id, user, format_version, error_msg):
+    file_store: FileStore = app['file_store']
+
+    status = {
+        'version': STATUS_FORMAT_VERSION,
+        'worker': None,
+        'batch_id': batch_id,
+        'job_id': job_id,
+        'attempt_id': attempt_id,
+        'user': user,
+        'state': 'error',
+        'error': error_msg,
+        'container_statuses': {k: None for k in tasks},
+    }
+
+    if format_version.has_full_status_in_gcs():
+        await file_store.write_status_file(batch_id, job_id, attempt_id, json.dumps(status))
+
+    db_status = format_version.db_status(status)
+    resources = []
+
+    await mark_job_complete(app, batch_id, job_id, attempt_id, None, 'Error', db_status, None, None, 'error', resources)
+
+
 async def schedule_job(app, record, instance):
     assert instance.state == 'active'
 
-    file_store: FileStore = app['file_store']
     db: Database = app['db']
     client_session: httpx.ClientSession = app['client_session']
 
@@ -432,26 +455,9 @@ async def schedule_job(app, record, instance):
         body = await job_config(app, record, attempt_id)
     except Exception:
         log.exception(f'while making job config for job {id} with attempt id {attempt_id}')
-        status = {
-            'version': STATUS_FORMAT_VERSION,
-            'worker': None,
-            'batch_id': batch_id,
-            'job_id': job_id,
-            'attempt_id': attempt_id,
-            'user': record['user'],
-            'state': 'error',
-            'error': traceback.format_exc(),
-            'container_statuses': {k: None for k in tasks},
-        }
 
-        if format_version.has_full_status_in_gcs():
-            await file_store.write_status_file(batch_id, job_id, attempt_id, json.dumps(status))
-
-        db_status = format_version.db_status(status)
-        resources = []
-
-        await mark_job_complete(
-            app, batch_id, job_id, attempt_id, instance.name, 'Error', db_status, None, None, 'error', resources
+        await mark_job_errored(
+            app, batch_id, job_id, attempt_id, record['user'], format_version, traceback.format_exc()
         )
         raise
 

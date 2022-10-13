@@ -483,7 +483,8 @@ class BatchBuilder:
                     mount_tokens: bool = False,
                     network: Optional[str] = None,
                     unconfined: bool = False,
-                    user_code: Optional[str] = None):
+                    user_code: Optional[str] = None,
+                    regions: Optional[List[str]] = None):
         self._job_idx += 1
 
         if parents is None:
@@ -565,6 +566,8 @@ class BatchBuilder:
             job_spec['unconfined'] = unconfined
         if user_code:
             job_spec['user_code'] = user_code
+        if regions:
+            job_spec['regions'] = regions
 
         self._job_specs.append(job_spec)
 
@@ -906,6 +909,10 @@ class BatchClient:
     async def edit_billing_limit(self, project, limit):
         bp_resp = await self._post(f'/api/v1alpha/billing_limits/{project}/edit', json={'limit': limit})
         return await bp_resp.json()
+
+    async def supported_regions(self):
+        resp = await self._get('/api/v1alpha/supported_regions')
+        return await resp.json()
 
     async def close(self):
         await self._session.close()
