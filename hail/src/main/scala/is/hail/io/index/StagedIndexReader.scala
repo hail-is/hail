@@ -156,7 +156,8 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
     }, region, partitionBoundLeftEndpoint, leansRight)
   }
 
-  private def queryIndex(cb: EmitCodeBuilder, region: Value[Region], absIndex: Value[Long]): SBaseStructValue = {
+  def queryLastIndex(cb: EmitCodeBuilder, region: Value[Region]): SBaseStructValue = {queryIndex(cb, region, cb.memoize(cb.memoize(metadata.invoke[Long]("nKeys"))-1))}
+  def queryIndex(cb: EmitCodeBuilder, region: Value[Region], absIndex: Value[Long]): SBaseStructValue = {
     cb.invokeSCode(
       cb.emb.ecb.getOrGenEmitMethod("queryIndex",
         ("queryIndex", this),

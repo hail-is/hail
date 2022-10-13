@@ -1060,7 +1060,14 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
 
           cb.ifx(endIndex > startIndex, {
             val leafNode = indexResult.loadField(cb, 2)
-              .get(cb)
+              .handle(cb, {
+                cb._fatal("leaf node missing!",
+                  "\n  context: ", cb.strValue(ctxStruct),
+                  "\n  query result: ", cb.strValue(indexResult),
+                  "\n  first leaf: ", index.queryIndex(cb, outerRegion, 0L),
+                  "\n  last leaf: ", index.queryLastIndex(cb, outerRegion)
+                )
+              })
               .asBaseStruct
 
             val leftSeekAddr = leftOffsetFieldIndex match {
