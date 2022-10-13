@@ -1,5 +1,5 @@
-DOCKER_PREFIX := $(shell kubectl get secret global-config --template={{.data.docker_prefix}} | base64 --decode)
-DOMAIN := $(shell kubectl get secret global-config --template={{.data.domain}} | base64 --decode)
+DOCKER_PREFIX := hailazureterradev.azurecr.io
+DOMAIN := hail.fake
 
 ifeq ($(NAMESPACE),default)
 SCOPE = deploy

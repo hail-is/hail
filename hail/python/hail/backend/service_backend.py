@@ -726,7 +726,7 @@ class ServiceBackend(Backend):
         self.flags.update(flags)
 
     def get_flags(self, *flags) -> Mapping[str, str]:
-        return {flag: self.flags[flag] for flag in flags}
+        return {flag: self.flags.get(flag) for flag in flags}
 
     @property
     def requires_lowering(self):
