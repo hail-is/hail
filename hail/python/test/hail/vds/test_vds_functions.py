@@ -29,3 +29,13 @@ def test_lgt_to_gt_invalid():
     # the below fails because phasing uses the sum of j and k for its second allele.
     # we cannot represent this allele index in 28 bits
     # assert hl.eval(hl.vds.lgt_to_gt(c2, [0, 17495])) == hl.Call([17495, 17495], phased=True)
+
+def test_local_to_global():
+    local_alleles = [0, 1, 3]
+    lad = [1, 9, 10]
+    lpl = [1001, 1002, 1003, 1004, 0, 1005]
+
+    assert hl.eval(hl.vds.local_to_global(lad, local_alleles, 4, 0, number='R')) == [1, 9, 0, 10]
+    assert hl.eval(hl.vds.local_to_global(lpl, local_alleles, 4, 999, number='G')) == [1001, 1002, 1003, 999, 999, 999, 1004, 0, 999, 1005]
+    assert hl.eval(hl.vds.local_to_global(lad, [0,1,2], 3, 0, number='R')) == lad
+    assert hl.eval(hl.vds.local_to_global(lpl, [0,1,2], 3, 999, number='G')) == lpl
