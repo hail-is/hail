@@ -10,7 +10,7 @@ import re
 import yaml
 from pathlib import Path
 
-from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename, revision, _TemporaryFilenameManager
+from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename, revision
 from hail.utils import FatalError
 from hail.expr.types import HailType, dtype, ttuple, tvoid
 from hail.expr.table_type import ttable

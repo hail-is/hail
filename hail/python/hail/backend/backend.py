@@ -5,7 +5,6 @@ from ..expr import Expression
 from ..expr.types import HailType
 from ..ir import BaseIR
 from ..utils.java import FatalError, HailUserError
-from hail.context import TemporaryFilename, _TemporaryFilenameManager
 
 
 def fatal_error_from_java_error_triplet(short_message, expanded_message, error_id):
@@ -24,7 +23,7 @@ Error summary: {short_message}''',
 class Backend(abc.ABC):
     @abc.abstractmethod
     def __init__(self):
-        self._persisted_locations: Dict[Any, _TemporaryFilenameManager] = dict()
+        self._persisted_locations = dict()
 
     @abc.abstractmethod
     def stop(self):
@@ -133,6 +132,7 @@ class Backend(abc.ABC):
         pass
 
     def persist_table(self, t):
+        from hail.context import TemporaryFilename
         tf = TemporaryFilename(prefix='persist_table')
         self._persisted_locations[t] = tf
         return t.checkpoint(tf.__enter__())
@@ -144,6 +144,7 @@ class Backend(abc.ABC):
             raise ValueError(f'{t} is not persisted') from err
 
     def persist_matrix_table(self, mt):
+        from hail.context import TemporaryFilename
         tf = TemporaryFilename(prefix='persist_matrix_table')
         self._persisted_locations[mt] = tf
         return mt.checkpoint(tf.__enter__())
