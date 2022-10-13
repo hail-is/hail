@@ -753,7 +753,6 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
     jobs_args = []
     job_parents_args = []
     job_attributes_args = []
-    job_region_args = []
 
     inst_coll_resources: Dict[str, Dict[str, int]] = collections.defaultdict(
         lambda: {
@@ -912,7 +911,6 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
                 raise web.HTTPBadRequest(reason='regions must not be an empty array')
             n_regions = len(regions)
             regions_bits_rep = regions_to_bits_rep(regions, app['regions'])
-            job_region_args += [(batch_id, job_id, app['regions'][region]) for region in regions]
         else:
             n_regions = None
             regions_bits_rep = None
@@ -1128,15 +1126,6 @@ INSERT INTO batch_bunches (batch_id, token, start_job_id)
 VALUES (%s, %s, %s);
 ''',
                     (batch_id, spec_writer.token, bunch_start_job_id),
-                )
-
-            if job_region_args:
-                await tx.execute_many(
-                    '''
-INSERT INTO job_regions (batch_id, job_id, region_id)
-VALUES (%s, %s, %s);
-''',
-                    job_region_args,
                 )
         except asyncio.CancelledError:
             raise
