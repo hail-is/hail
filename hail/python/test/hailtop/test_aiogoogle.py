@@ -133,22 +133,17 @@ async def test_weird_urls(gs_filesystem):
     _, fs, base = gs_filesystem
 
     await fs.write(base + '?', b'contents of ?')
-    assert await fs.read(base + '?') == b'contents of ?'
-
     await fs.write(base + '?a', b'contents of ?a')
-    assert await fs.read(base + '?') == b'contents of ?a'
-
     await fs.write(base + '?a#b', b'contents of ?a#b')
-    assert await fs.read(base + '?a#b') == b'contents of ?a#b'
-
     await fs.write(base + '#b?a', b'contents of #b?a')
-    assert await fs.read(base + '#b?a') == b'contents of #b?a'
-
     await fs.write(base + '?a#b@c', b'contents of ?a#b@c')
-    assert await fs.read(base + '?a#b@c') == b'contents of ?a#b@c'
-
     await fs.write(base + '#b', b'contents of #b')
-    assert await fs.read(base + '#b') == b'contents of #b'
-
     await fs.write(base + '???', b'contents of ???')
+
+    assert await fs.read(base + '?') == b'contents of ?'
+    assert await fs.read(base + '?a') == b'contents of ?a'
+    assert await fs.read(base + '?a#b') == b'contents of ?a#b'
+    assert await fs.read(base + '#b?a') == b'contents of #b?a'
+    assert await fs.read(base + '?a#b@c') == b'contents of ?a#b@c'
+    assert await fs.read(base + '#b') == b'contents of #b'
     assert await fs.read(base + '???') == b'contents of ???'
