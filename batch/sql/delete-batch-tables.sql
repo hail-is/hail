@@ -42,7 +42,6 @@ DROP TABLE IF EXISTS `batch_inst_coll_cancellable_resources`;
 DROP TABLE IF EXISTS `globals`;
 DROP TABLE IF EXISTS `attempts`;
 DROP TABLE IF EXISTS `batch_attributes`;
-DROP TABLE IF EXISTS `job_regions`;
 DROP TABLE IF EXISTS `job_attributes`;
 DROP TABLE IF EXISTS `job_parents`;
 DROP TABLE IF EXISTS `batch_bunches`;
