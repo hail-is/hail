@@ -193,10 +193,9 @@ def regions_to_bits_rep(selected_regions, all_regions_mapping):
 def regions_bits_rep_to_regions(regions_bits_rep, all_regions_mapping):
     if regions_bits_rep is None:
         return None
-    reverse_all_regions_mapping = {idx: region for region, idx in all_regions_mapping.items()}
     result = []
-    for i in range(64):
-        selected_region = bool((regions_bits_rep >> i) & 1)
+    for region, idx in all_regions_mapping.items():
+        selected_region = bool((regions_bits_rep >> idx - 1) & 1)
         if selected_region:
-            result.append(reverse_all_regions_mapping[i + 1])
+            result.append(region)
     return result
