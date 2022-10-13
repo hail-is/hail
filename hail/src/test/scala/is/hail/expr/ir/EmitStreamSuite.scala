@@ -105,9 +105,17 @@ class EmitStreamSuite extends HailSuite {
       IndexedSeq(SingleCodeEmitParamType(true, StreamSingleCodeType(requiresMemoryManagementPerElement, elementType, true)))) { (f: F, r: Region, it: Iterator[Any]) =>
       val rvi = new NoBoxLongIterator  {
         var _eltRegion: Region = _
+        var eos: Boolean = _
+
         def init(outerRegion: Region, eltRegion: Region): Unit = _eltRegion = eltRegion
 
-        override def next(): Long = ScalaToRegionValue(_eltRegion, elementType, it.next())
+        override def next(): Long = {
+          if (eos || !it.hasNext) {
+            eos = true
+            0L
+          } else
+            ScalaToRegionValue(_eltRegion, elementType, it.next())
+        }
         override def close(): Unit = ()
       }
       assert(it != null, "null iterators not supported")
