@@ -384,9 +384,25 @@ class Tests(unittest.TestCase):
     def test_semi_anti_join(self):
         ht = hl.utils.range_table(10)
         ht2 = ht.filter(ht.idx < 3)
+        ht_2k = ht.key_by(k1 = ht.idx, k2 = hl.str(ht.idx * 2))
+        ht2_2k = ht2.key_by(k1 = ht2.idx, k2 = hl.str(ht2.idx * 2))
 
         assert ht.semi_join(ht2).count() == 3
         assert ht.anti_join(ht2).count() == 7
+        assert ht_2k.semi_join(ht2).count() == 3
+        assert ht_2k.anti_join(ht2).count() == 7
+        assert ht_2k.semi_join(ht2_2k).count() == 3
+        assert ht_2k.anti_join(ht2_2k).count() == 7
+
+        with pytest.raises(ValueError, match='semi_join: cannot join'):
+            ht.semi_join(ht2_2k)
+        with pytest.raises(ValueError, match='semi_join: cannot join'):
+            ht.semi_join(ht2.key_by())
+
+        with pytest.raises(ValueError, match='anti_join: cannot join'):
+            ht.anti_join(ht2_2k)
+        with pytest.raises(ValueError, match='anti_join: cannot join'):
+            ht.anti_join(ht2.key_by())
 
     def test_indirected_joins(self):
         kt = hl.utils.range_table(1)

@@ -1386,7 +1386,13 @@ class MatrixTable(ExprContainer):
         --------
         :meth:`.anti_join_rows`, :meth:`.filter_rows`, :meth:`.semi_join_cols`
         """
-        return self.filter_rows(hl.is_defined(other.index(self.row_key)))
+        if len(other.key) == 0:
+            raise ValueError('semi_join_rows: cannot join with a table with no key')
+        if len(other.key) > len(self.row_key) or any(t[0].dtype != t[1].dtype for t in zip(self.row_key.values(), other.key.values())):
+            raise ValueError('semi_join_rows: cannot join: table must have a key of the same type(s) and be the same length or shorter:'
+                             f'\n  MatrixTable row key: {", ".join(str(x.dtype) for x in self.row_key.values())}'
+                             f'\n            Table key: {", ".join(str(x.dtype) for x in other.key.values())}')
+        return self.filter_rows(hl.is_defined(other.index(self.row_key[:len(other.key)])))
 
     @typecheck_method(other=Table)
     def anti_join_rows(self, other: 'Table') -> 'MatrixTable':
@@ -1425,7 +1431,13 @@ class MatrixTable(ExprContainer):
         --------
         :meth:`.anti_join_rows`, :meth:`.filter_rows`, :meth:`.anti_join_cols`
         """
-        return self.filter_rows(hl.is_missing(other.index(self.row_key)))
+        if len(other.key) == 0:
+            raise ValueError('anti_join_rows: cannot join with a table with no key')
+        if len(other.key) > len(self.row_key) or any(t[0].dtype != t[1].dtype for t in zip(self.row_key.values(), other.key.values())):
+            raise ValueError('anti_join_rows: cannot join: table must have a key of the same type(s) and be the same length or shorter:'
+                             f'\n  MatrixTable row key: {", ".join(str(x.dtype) for x in self.row_key.values())}'
+                             f'\n            Table key: {", ".join(str(x.dtype) for x in other.key.values())}')
+        return self.filter_rows(hl.is_missing(other.index(self.row_key[:len(other.key)])))
 
     @typecheck_method(other=Table)
     def semi_join_cols(self, other: 'Table') -> 'MatrixTable':
@@ -1464,7 +1476,14 @@ class MatrixTable(ExprContainer):
         --------
         :meth:`.anti_join_cols`, :meth:`.filter_cols`, :meth:`.semi_join_rows`
         """
-        return self.filter_cols(hl.is_defined(other.index(self.col_key)))
+        if len(other.key) == 0:
+            raise ValueError('semi_join_cols: cannot join with a table with no key')
+        if len(other.key) > len(self.col_key) or any(t[0].dtype != t[1].dtype for t in zip(self.col_key.values(), other.key.values())):
+            raise ValueError('semi_join_cols: cannot join: table must have a key of the same type(s) and be the same length or shorter:'
+                             f'\n  MatrixTable col key: {", ".join(str(x.dtype) for x in self.col_key.values())}'
+                             f'\n            Table key: {", ".join(str(x.dtype) for x in other.key.values())}')
+
+        return self.filter_cols(hl.is_defined(other.index(self.col_key[:len(other.key)])))
 
     @typecheck_method(other=Table)
     def anti_join_cols(self, other: 'Table') -> 'MatrixTable':
@@ -1503,7 +1522,14 @@ class MatrixTable(ExprContainer):
         --------
         :meth:`.semi_join_cols`, :meth:`.filter_cols`, :meth:`.anti_join_rows`
         """
-        return self.filter_cols(hl.is_missing(other.index(self.col_key)))
+        if len(other.key) == 0:
+            raise ValueError('anti_join_cols: cannot join with a table with no key')
+        if len(other.key) > len(self.col_key) or any(t[0].dtype != t[1].dtype for t in zip(self.col_key.values(), other.key.values())):
+            raise ValueError('anti_join_cols: cannot join: table must have a key of the same type(s) and be the same length or shorter:'
+                             f'\n  MatrixTable col key: {", ".join(str(x.dtype) for x in self.col_key.values())}'
+                             f'\n            Table key: {", ".join(str(x.dtype) for x in other.key.values())}')
+
+        return self.filter_cols(hl.is_missing(other.index(self.col_key[:len(other.key)])))
 
     @typecheck_method(expr=expr_bool, keep=bool)
     def filter_rows(self, expr, keep: bool = True) -> 'MatrixTable':
