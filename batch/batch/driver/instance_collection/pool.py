@@ -140,10 +140,6 @@ WHERE removed = 0 AND inst_coll = %s;
         self.data_disk_size_standing_gb = config.data_disk_size_standing_gb
         self.preemptible = config.preemptible
 
-        # FIXME: CI needs to submit jobs to a specific region
-        # instead of batch making this decicion on behalf of CI
-        self._ci_region = self.inst_coll_manager._default_region
-
         self.all_supported_regions = self.inst_coll_manager.regions
 
     @property
@@ -200,9 +196,7 @@ WHERE removed = 0 AND inst_coll = %s;
         while i < len(self.healthy_instances_by_free_cores):
             instance = self.healthy_instances_by_free_cores[i]
             assert cores_mcpu <= instance.free_cores_mcpu
-            if user == 'ci' and instance.region == self._ci_region:
-                return instance
-            if user != 'ci' and instance.region in regions:
+            if instance.region in regions:
                 return instance
             i += 1
         return None
@@ -412,13 +406,6 @@ GROUP BY user;
                 remaining_instances_per_autoscaler_loop -= n_instances_created
                 if remaining_instances_per_autoscaler_loop <= 0:
                     break
-
-        ci_ready_cores_mcpu = ready_cores_mcpu_per_user.get('ci', 0)
-        if ci_ready_cores_mcpu > 0 and self.live_free_cores_mcpu_by_region[self._ci_region] == 0:
-            ci_remaining_instances_per_autoscaler_loop = max(1, remaining_instances_per_autoscaler_loop)
-            await self.create_instances_from_ready_cores(
-                ci_ready_cores_mcpu, [self._ci_region], ci_remaining_instances_per_autoscaler_loop
-            )
 
         n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
         if self.enable_standing_worker and n_live_instances == 0 and self.max_instances > 0:
