@@ -642,7 +642,7 @@ LIMIT 1000;
                 if regions_bits_rep is None:
                     regions = supported_regions
                 else:
-                    regions = regions_bits_rep_to_regions(record['regions_bits_rep'], self.app['regions'])
+                    regions = regions_bits_rep_to_regions(regions_bits_rep, self.app['regions'])
 
                 if len(set(regions).intersection(supported_regions)) == 0:
                     await mark_job_errored(
