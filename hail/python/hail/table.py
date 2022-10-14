@@ -10,7 +10,7 @@ from hail.expr.expressions import Expression, StructExpression, \
     construct_reference, to_expr, construct_expr, extract_refs_by_indices, \
     ExpressionException, TupleExpression, unify_all, NumericExpression, \
     StringExpression, CallExpression, CollectionExpression, DictExpression, \
-    IntervalExpression, LocusExpression, NDArrayExpression, expr_array
+    IntervalExpression, LocusExpression, NDArrayExpression, expr_stream
 from hail.expr.types import hail_type, tstruct, types_match, tarray, tset, dtypes_from_pandas
 from hail.expr.table_type import ttable
 import hail.ir as ir
@@ -3788,22 +3788,21 @@ class Table(ExprContainer):
         def grouping_func(part):
             groups = part.grouped(n)
             key_names = list(self.key)
-            return groups.map(lambda group:
-                              group[0].select(*key_names, **{name: group}))
+            return groups.map(lambda group: group[0].select(*key_names, **{name: group}))
 
         return self._map_partitions(grouping_func)
 
-    @typecheck_method(f=func_spec(1, expr_array(expr_struct())))
+    @typecheck_method(f=func_spec(1, expr_stream(expr_struct())))
     def _map_partitions(self, f):
         rows_uid = 'tmp_rows_' + Env.get_uid()
         globals_uid = 'tmp_globals_' + Env.get_uid()
-        expr = construct_expr(ir.ToArray(ir.Ref(rows_uid, hl.tstream(self.row.dtype))), hl.tarray(self.row.dtype), self._row_indices)
+        expr = construct_expr(ir.Ref(rows_uid, hl.tstream(self.row.dtype)), hl.tstream(self.row.dtype), self._row_indices)
         body = f(expr)
         result_t = body.dtype
         if any(k not in result_t.element_type for k in self.key):
             raise ValueError('Table._map_partitions must preserve key fields')
 
-        body_ir = ir.Let('global', ir.Ref(globals_uid, self._global_type), ir.ToStream(body._ir))
+        body_ir = ir.Let('global', ir.Ref(globals_uid, self._global_type), body._ir)
         return Table(ir.TableMapPartitions(self._tir, globals_uid, rows_uid, body_ir))
 
     def _calculate_new_partitions(self, n_partitions):
