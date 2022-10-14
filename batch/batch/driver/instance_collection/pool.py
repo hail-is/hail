@@ -389,7 +389,7 @@ GROUP BY user;
 
         ready_cores_mcpu_per_user = await self.ready_cores_mcpu_per_user()
 
-        free_cores_mcpu = sum([worker.free_cores_mcpu for worker in self.healthy_instances_by_free_cores])
+        free_cores_mcpu = sum(worker.free_cores_mcpu for worker in self.healthy_instances_by_free_cores)
         free_cores = free_cores_mcpu / 1000
 
         head_job_queue_regions_ready_cores_mcpu_ordered = (
@@ -466,7 +466,7 @@ class PoolScheduler:
         )
 
     async def compute_fair_share(self):
-        free_cores_mcpu = sum([worker.free_cores_mcpu for worker in self.pool.healthy_instances_by_free_cores])
+        free_cores_mcpu = sum(worker.free_cores_mcpu for worker in self.pool.healthy_instances_by_free_cores)
         return await self._compute_fair_share(free_cores_mcpu)
 
     async def _compute_fair_share(self, free_cores_mcpu):
@@ -525,7 +525,7 @@ HAVING n_ready_jobs + n_running_jobs > 0;
                     allocate_cores(lowest_total_user, mark)
                     continue
 
-            allocation = min([c for c in [lowest_running, lowest_total] if c is not None])
+            allocation = min(c for c in [lowest_running, lowest_total] if c is not None)
 
             n_allocating_users = len(allocating_users_by_total_cores)
             cores_to_allocate = n_allocating_users * (allocation - mark)

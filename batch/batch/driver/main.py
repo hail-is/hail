@@ -762,7 +762,7 @@ async def get_pool(request, userdata):
         reverse=True,
     )
 
-    ready_cores_mcpu = sum([record['ready_cores_mcpu'] for record in user_resources])
+    ready_cores_mcpu = sum(record['ready_cores_mcpu'] for record in user_resources)
 
     pool_config_json = json.dumps(pool.config())
 
@@ -790,9 +790,9 @@ async def get_job_private_inst_manager(request, userdata):
         reverse=True,
     )
 
-    n_ready_jobs = sum([record['n_ready_jobs'] for record in user_resources])
-    n_creating_jobs = sum([record['n_creating_jobs'] for record in user_resources])
-    n_running_jobs = sum([record['n_running_jobs'] for record in user_resources])
+    n_ready_jobs = sum(record['n_ready_jobs'] for record in user_resources)
+    n_creating_jobs = sum(record['n_creating_jobs'] for record in user_resources)
+    n_running_jobs = sum(record['n_running_jobs'] for record in user_resources)
 
     page_context = {
         'jpim': jpim,

@@ -134,6 +134,7 @@ async def main(args, pass_through_args):
             headers={'Content-Type': 'application/json', 'X-Requested-By': 'ambari'},
             json=command,
             auth=requests.auth.HTTPBasicAuth('admin', args.http_password),
+            timeout=60,
         )
 
     stop = json.dumps({

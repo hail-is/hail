@@ -72,7 +72,7 @@ class WritableStream(abc.ABC):
         self._closed = False
         self._waited_closed = False
 
-    def writable(self) -> bool:  # pylint: disable=no-self-use
+    def writable(self) -> bool:
         return False
 
     async def write(self, b: bytes) -> int:

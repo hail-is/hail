@@ -232,46 +232,46 @@ class UnsubmittedJob:
         self._job_id = job_id
 
     @property
-    def batch_id(self):  # pylint: disable=no-self-use
+    def batch_id(self):
         raise ValueError("cannot get the batch_id of an unsubmitted job")
 
     @property
-    def job_id(self):  # pylint: disable=no-self-use
+    def job_id(self):
         raise ValueError("cannot get the job_id of an unsubmitted job")
 
     @property
-    def id(self):  # pylint: disable=no-self-use
+    def id(self):
         raise ValueError("cannot get the id of an unsubmitted job")
 
-    async def attributes(self):  # pylint: disable=no-self-use
+    async def attributes(self):
         raise ValueError("cannot get the attributes of an unsubmitted job")
 
-    async def is_complete(self):  # pylint: disable=no-self-use
+    async def is_complete(self):
         raise ValueError("cannot determine if an unsubmitted job is complete")
 
-    async def is_running(self):  # pylint: disable=no-self-use
+    async def is_running(self):
         raise ValueError("cannot determine if an unsubmitted job is running")
 
-    async def is_pending(self):  # pylint: disable=no-self-use
+    async def is_pending(self):
         raise ValueError("cannot determine if an unsubmitted job is pending")
 
-    async def is_ready(self):  # pylint: disable=no-self-use
+    async def is_ready(self):
         raise ValueError("cannot determine if an unsubmitted job is ready")
 
-    async def status(self):  # pylint: disable=no-self-use
+    async def status(self):
         raise ValueError("cannot get the status of an unsubmitted job")
 
     @property
-    def _status(self):  # pylint: disable=no-self-use
+    def _status(self):
         raise ValueError("cannot get the _status of an unsubmitted job")
 
-    async def wait(self):  # pylint: disable=no-self-use
+    async def wait(self):
         raise ValueError("cannot wait on an unsubmitted job")
 
-    async def log(self):  # pylint: disable=no-self-use
+    async def log(self):
         raise ValueError("cannot get the log of an unsubmitted job")
 
-    async def attempts(self):  # pylint: disable=no-self-use
+    async def attempts(self):
         raise ValueError("cannot get the attempts of an unsubmitted job")
 
 

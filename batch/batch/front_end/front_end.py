@@ -2112,7 +2112,7 @@ async def ui_get_billing(request, userdata):
     ]
     billing_by_project_user.sort(key=lambda record: (record['billing_project'], record['user']))
 
-    total_cost = cost_str(sum([record['cost'] for record in billing]))
+    total_cost = cost_str(sum(record['cost'] for record in billing))
 
     page_context = {
         'billing_by_project': billing_by_project,

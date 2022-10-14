@@ -2384,6 +2384,7 @@ steps:
       export HAIL_DOMAIN="{{ global.domain }}"
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
       python3 -m pytest \
+              --asyncio-mode=auto \
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
               --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
               --log-cli-level=INFO \

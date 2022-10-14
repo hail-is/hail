@@ -470,7 +470,7 @@ class Batch:
         self._resource_map.update({rg._uid: rg})
         return rg
 
-    def write_output(self, resource: _resource.Resource, dest: str):  # pylint: disable=R0201
+    def write_output(self, resource: _resource.Resource, dest: str):
         """
         Write resource file or resource file group to an output destination.
 

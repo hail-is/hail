@@ -63,10 +63,10 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
     def _fs(self) -> AsyncFS:
         raise NotImplementedError()
 
-    def _close(self):  # pylint: disable=R0201
+    def _close(self):
         return
 
-    def close(self):  # pylint: disable=R0201
+    def close(self):
         """
         Close a Hail Batch Backend.
 

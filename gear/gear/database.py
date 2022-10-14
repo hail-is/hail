@@ -69,7 +69,7 @@ def transaction(db, **transaction_kwargs):
 
 
 async def aenter(acontext_manager):
-    return await acontext_manager.__aenter__()
+    return await acontext_manager.__aenter__()  # pylint: disable=unnecessary-dunder-call
 
 
 async def aexit(acontext_manager, exc_type=None, exc_val=None, exc_tb=None):
