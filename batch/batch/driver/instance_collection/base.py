@@ -88,11 +88,11 @@ class InstanceCollectionManager:
 
     @property
     def global_live_total_cores_mcpu(self):
-        return sum([inst_coll.live_total_cores_mcpu for inst_coll in self.name_inst_coll.values()])
+        return sum(inst_coll.live_total_cores_mcpu for inst_coll in self.name_inst_coll.values())
 
     @property
     def global_live_free_cores_mcpu(self):
-        return sum([inst_coll.live_free_cores_mcpu for inst_coll in self.name_inst_coll.values()])
+        return sum(inst_coll.live_free_cores_mcpu for inst_coll in self.name_inst_coll.values())
 
     @property
     def global_n_instances_by_state(self):

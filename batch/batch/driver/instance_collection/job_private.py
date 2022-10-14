@@ -253,7 +253,7 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
                     allocate_jobs(lowest_total_user, mark)
                     continue
 
-            allocation = min([c for c in [lowest_running, lowest_total] if c is not None])
+            allocation = min(c for c in [lowest_running, lowest_total] if c is not None)
 
             n_allocating_users = len(allocating_users_by_total_jobs)
             jobs_to_allocate = n_allocating_users * (allocation - mark)
