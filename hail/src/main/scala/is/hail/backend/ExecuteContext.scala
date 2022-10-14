@@ -107,7 +107,7 @@ class ExecuteContext(
 ) extends Closeable {
   var backendContext: BackendContext = _
 
-  val rngNonce: Long = java.lang.Long.parseUnsignedLong(getFlag("rng_nonce"), 16)
+  val rngNonce: Long = java.lang.Long.decode(getFlag("rng_nonce"))
 
   private val tempFileManager: TempFileManager = if (_tempFileManager != null)
     _tempFileManager

@@ -11,7 +11,6 @@ import tempfile
 from collections import defaultdict, Counter
 from contextlib import contextmanager
 from io import StringIO
-from random import Random
 from typing import Optional
 from urllib.parse import urlparse
 

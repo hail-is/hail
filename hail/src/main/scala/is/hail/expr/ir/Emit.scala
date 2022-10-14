@@ -2068,9 +2068,9 @@ class Emit[C](
         val codeArgsMem = codeArgs.map(_.memoize(cb, "ApplySeeded_arg"))
         val state = emitI(rngState).get(cb)
         val impl = x.implementation
-        assert(impl.unify(Array.empty[Type], rngState.typ +: x.argTypes, rt))
-        val newState = state.asRNGState.splitStatic(cb, staticUID)
-        impl.applyI(EmitRegion(cb.emb, region), cb, impl.computeReturnEmitType(x.typ, codeArgs.map(_.emitType)).st, Seq[Type](), const(0), EmitCode.present(mb, newState) +: codeArgsMem.map(_.load): _*)
+        assert(impl.unify(Array.empty[Type], x.argTypes, rt))
+        val newState = EmitCode.present(mb, state.asRNGState.splitStatic(cb, staticUID))
+        impl.applyI(EmitRegion(cb.emb, region), cb, impl.computeReturnEmitType(x.typ, newState.emitType +: codeArgs.map(_.emitType)).st, Seq[Type](), const(0), newState +: codeArgsMem.map(_.load): _*)
 
       case AggStateValue(i, _) =>
         val AggContainer(_, sc, _) = container.get

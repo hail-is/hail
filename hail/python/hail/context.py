@@ -4,6 +4,7 @@ import sys
 import os
 from contextlib import contextmanager
 from urllib.parse import urlparse, urlunparse
+from random import Random
 
 import pkg_resources
 from pyspark import SparkContext
@@ -139,6 +140,8 @@ class HailContext(object):
             # FIXME: print deprication warning
             pass
         Env._hc = self
+
+        backend.set_flags(rng_nonce=hex(Random().randrange(2**64)))
 
     def initialize_references(self, references, default_reference):
         for ref in references:

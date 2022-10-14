@@ -694,11 +694,9 @@ sealed abstract class AbstractApplyNode[F <: JVMFunction] extends IR {
 
 final case class Apply(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type, errorID: Int) extends AbstractApplyNode[UnseededMissingnessObliviousJVMFunction]
 
-final case class ApplySeeded(function: String, args: Seq[IR], rngState: IR, staticUID: Long, returnType: Type) extends AbstractApplyNode[UnseededMissingnessObliviousJVMFunction] {
+final case class ApplySeeded(function: String, _args: Seq[IR], rngState: IR, staticUID: Long, returnType: Type) extends AbstractApplyNode[UnseededMissingnessObliviousJVMFunction] {
+  val args = rngState +: _args
   val typeArgs: Seq[Type] = Seq.empty[Type]
-  override lazy val implementation: UnseededMissingnessObliviousJVMFunction =
-    IRFunctionRegistry.lookupFunctionOrFail(function, returnType, typeArgs, TRNGState +: argTypes)
-      .asInstanceOf[UnseededMissingnessObliviousJVMFunction]
 }
 
 final case class ApplySpecial(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type, errorID: Int) extends AbstractApplyNode[UnseededMissingnessAwareJVMFunction]
