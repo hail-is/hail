@@ -29,5 +29,5 @@ jobs:
         run: |
           curl --fail --silent --show-error -X POST \
               -H "Content-type: application/json" \
-              -d "{\"text\": \"Deploying Hail Batch: $DEPLOY_BATCH_URL_GCP $DEPLOY_BATCH_URL_AZURE\"}" \
+              -d "{\"text\": \"Deploying Hail Batch: \n( GCP ) $DEPLOY_BATCH_URL_GCP\n(Azure) $DEPLOY_BATCH_URL_AZURE\"}" \
               ${{ secrets.SLACK_WEBHOOK }}
