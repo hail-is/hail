@@ -622,13 +622,10 @@ class ServiceBackend(Backend[bc.Batch]):
                 if verbose:
                     print(f"Using image '{default_image}' since no image was specified.")
 
-            make_local_tmpdir = f'mkdir -p {local_tmpdir}/{job._dirname}'
-
             job_command = [cmd.strip() for cmd in job._wrapper_code]
             prepared_job_command = (f'{{\n{x}\n}}' for x in job_command)
             cmd = f'''
 {bash_flags}
-{make_local_tmpdir}
 {"; ".join(symlinks)}
 {" && ".join(prepared_job_command)}
 '''

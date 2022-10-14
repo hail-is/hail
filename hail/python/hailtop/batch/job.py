@@ -1062,7 +1062,8 @@ class PythonJob(Job):
                 [(result._json, "json.dumps"), (result._str, "str"), (result._repr, "repr")]
             ]
 
-            wrapper_code = f'''python3 -c "
+            wrapper_code = f'''mkdir -p "{local_tmpdir}/{self._dirname}"
+python3 -c "
 import os
 import base64
 import dill
