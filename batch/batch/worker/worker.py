@@ -207,7 +207,7 @@ worker: Optional['Worker'] = None
 
 image_configs: Dict[str, Dict[str, Any]] = {}
 
-image_lock = aiorwlock.RWLock()
+image_lock: Optional[aiorwlock.RWLock] = None
 
 
 class PortAllocator:
@@ -2757,8 +2757,9 @@ class Worker:
 
 
 async def async_main():
-    global port_allocator, network_allocator, worker, docker
+    global port_allocator, network_allocator, worker, docker, image_lock
 
+    image_lock = aiorwlock.RWLock()
     docker = aiodocker.Docker()
 
     port_allocator = PortAllocator()
