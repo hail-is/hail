@@ -1,7 +1,5 @@
 include ../config.mk
 
-TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
-
 BATCH_IMAGE := $(DOCKER_PREFIX)/batch:$(TOKEN)
 BATCH_WORKER_IMAGE := $(DOCKER_PREFIX)/batch-worker:$(TOKEN)
 

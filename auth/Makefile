@@ -1,7 +1,5 @@
 include ../config.mk
 
-TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
-
 AUTH_IMAGE := $(DOCKER_PREFIX)/auth:$(TOKEN)
 
 EXTRA_PYTHONPATH := ../hail/python:../gear:../web_common

@@ -1,7 +1,5 @@
 include ../config.mk
 
-TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
-
 UKBB_RG_STATIC_IMAGE := $(DOCKER_PREFIX)/ukbb-rg-static:$(TOKEN)
 UKBB_RG_BROWSER_IMAGE := $(DOCKER_PREFIX)/ukbb-rg-browser:$(TOKEN)
 

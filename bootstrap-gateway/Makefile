@@ -2,8 +2,6 @@ include ../config.mk
 
 .PHONY: build deploy
 
-TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
-
 GATEWAY_IMAGE := $(DOCKER_PREFIX)/gateway:$(TOKEN)
 IP := $(shell kubectl get secret global-config --template={{.data.ip}} | base64 --decode)
 
