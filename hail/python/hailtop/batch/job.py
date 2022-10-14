@@ -741,16 +741,9 @@ class BashJob(Job):
         if len(self._command) == 0:
             return False
 
-        job_shell = self._shell if self._shell else DEFAULT_SHELL
-
         job_command = [cmd.strip() for cmd in self._command]
         job_command = [f'{{\n{x}\n}}' for x in job_command]
         job_command = '\n'.join(job_command)
-
-        job_command = f'''
-#! {job_shell}
-{job_command}
-'''
 
         job_command_bytes = job_command.encode()
 
