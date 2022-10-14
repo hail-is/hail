@@ -586,7 +586,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
 
     def process_partition(part):
         grouped = part.grouped(block_size)
-        return grouped.flatmap(lambda block: process_block(block))
+        return grouped.flatmap(lambda block: process_block(block)._to_stream())
 
     res = ht._map_partitions(process_partition)
 
