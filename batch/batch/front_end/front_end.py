@@ -1741,7 +1741,7 @@ WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
     if len(attempts) == 1 and attempts[0]['attempt_id'] is None:
         return None
 
-    attempts.sort(key=lambda x: x['start_time'])
+    attempts.sort(key=lambda x: x['start_time'] or x['end_time'])
 
     for attempt in attempts:
         start_time = attempt['start_time']
