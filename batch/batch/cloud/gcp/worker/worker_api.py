@@ -74,9 +74,9 @@ class GCPWorkerAPI(CloudWorkerAPI):
         if config['read_only']:
             options.append('ro')
 
-        if config['requester_pays_project']:
+        try:
             billing_project_flag = f'--billing-project "{config["requester_pays_project"]}"'
-        else:
+        except KeyError:
             billing_project_flag = ''
 
         return f'''
