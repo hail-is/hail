@@ -634,8 +634,10 @@ async def test_deleted_open_batches_do_not_prevent_billing_project_closure(
 
 
 async def test_billing_project_case_sensitive(dev_client: BatchClient, new_billing_project: str):
-    project = new_billing_project
-    upper_case_project = project.upper()
+    upper_case_project = new_billing_project.upper()
+
+    # create billing project
+    await dev_client.create_billing_project(new_billing_project)
 
     # create one batch with the correct billing project
     bb = dev_client.create_batch()

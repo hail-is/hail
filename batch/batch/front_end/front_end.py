@@ -2411,7 +2411,9 @@ FOR UPDATE;
         if row['batch_id'] is not None:
             raise BatchUserError(f'Billing project {billing_project} has running batches.', 'error')
 
-        await tx.execute_update("UPDATE billing_projects SET `status` = 'closed' WHERE name_cs = %s;", (billing_project,))
+        await tx.execute_update(
+            "UPDATE billing_projects SET `status` = 'closed' WHERE name_cs = %s;", (billing_project,)
+        )
 
     await close_project()  # pylint: disable=no-value-for-parameter
 
@@ -2498,7 +2500,9 @@ async def _delete_billing_project(db, billing_project):
         if row['status'] == 'open':
             raise BatchUserError(f'Billing project {billing_project} is open and cannot be deleted.', 'error')
 
-        await tx.execute_update("UPDATE billing_projects SET `status` = 'deleted' WHERE name_cs = %s;", (billing_project,))
+        await tx.execute_update(
+            "UPDATE billing_projects SET `status` = 'deleted' WHERE name_cs = %s;", (billing_project,)
+        )
 
     await delete_project()  # pylint: disable=no-value-for-parameter
 
