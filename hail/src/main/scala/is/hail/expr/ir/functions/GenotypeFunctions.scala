@@ -5,7 +5,7 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SFloat64, SInt32}
 import is.hail.types.physical.stypes.{EmitType, SType}
 import is.hail.types.virtual.{TArray, TFloat64, TInt32, Type}
-import is.hail.types.{coerce => _}
+import is.hail.types.{tcoerce => _}
 
 object GenotypeFunctions extends RegistryFunctions {
 

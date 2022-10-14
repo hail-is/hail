@@ -9,7 +9,7 @@ import is.hail.io.{AbstractTypedCodecSpec, BufferSpec}
 import is.hail.rvd.{AbstractRVDSpec, RVDType}
 import is.hail.types.physical._
 import is.hail.types.virtual._
-import is.hail.types.{MatrixType, TableType, VirtualTypeWithReq}
+import is.hail.types.{MatrixType, TableType, VirtualTypeWithReq, tcoerce}
 import is.hail.utils.StackSafe._
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
@@ -629,7 +629,7 @@ object IRParser {
         punctuation(it, ",")
         identifier(it, "row")
         punctuation(it, ":")
-        val rowType = coerce[PStruct](ptype_expr(env)(it))
+        val rowType = tcoerce[PStruct](ptype_expr(env)(it))
         RVDType(rowType, partitionKey ++ restKey)
     }
   }
@@ -640,7 +640,7 @@ object IRParser {
 
     identifier(it, "global")
     punctuation(it, ":")
-    val globalType = coerce[TStruct](type_expr(env)(it))
+    val globalType = tcoerce[TStruct](type_expr(env)(it))
     punctuation(it, ",")
 
     identifier(it, "key")
@@ -650,9 +650,9 @@ object IRParser {
 
     identifier(it, "row")
     punctuation(it, ":")
-    val rowType = coerce[TStruct](type_expr(env)(it))
+    val rowType = tcoerce[TStruct](type_expr(env)(it))
     punctuation(it, "}")
-    TableType(rowType, key.toFastIndexedSeq, coerce[TStruct](globalType))
+    TableType(rowType, key.toFastIndexedSeq, tcoerce[TStruct](globalType))
   }
 
   def matrix_type_expr(env: TypeParserEnvironment)(it: TokenIterator): MatrixType = {
@@ -661,7 +661,7 @@ object IRParser {
 
     identifier(it, "global")
     punctuation(it, ":")
-    val globalType = coerce[TStruct](type_expr(env)(it))
+    val globalType = tcoerce[TStruct](type_expr(env)(it))
     punctuation(it, ",")
 
     identifier(it, "col_key")
@@ -671,7 +671,7 @@ object IRParser {
 
     identifier(it, "col")
     punctuation(it, ":")
-    val colType = coerce[TStruct](type_expr(env)(it))
+    val colType = tcoerce[TStruct](type_expr(env)(it))
     punctuation(it, ",")
 
     identifier(it, "row_key")
@@ -684,15 +684,15 @@ object IRParser {
 
     identifier(it, "row")
     punctuation(it, ":")
-    val rowType = coerce[TStruct](type_expr(env)(it))
+    val rowType = tcoerce[TStruct](type_expr(env)(it))
     punctuation(it, ",")
 
     identifier(it, "entry")
     punctuation(it, ":")
-    val entryType = coerce[TStruct](type_expr(env)(it))
+    val entryType = tcoerce[TStruct](type_expr(env)(it))
     punctuation(it, "}")
 
-    MatrixType(coerce[TStruct](globalType), colKey, colType, rowPartitionKey ++ rowRestKey, rowType, entryType)
+    MatrixType(tcoerce[TStruct](globalType), colKey, colType, rowPartitionKey ++ rowRestKey, rowType, entryType)
   }
 
   def agg_op(it: TokenIterator): AggOp =
@@ -970,7 +970,7 @@ object IRParser {
         val r = identifier(it)
         for {
           a <- ir_value_expr(env)(it)
-          elt = coerce[TStream](a.typ).elementType
+          elt = tcoerce[TStream](a.typ).elementType
           lessThan <- ir_value_expr(env.bindEval(l -> elt, r -> elt))(it)
         } yield ArraySort(a, l, r, lessThan)
       case "MakeNDArray" =>
@@ -996,7 +996,7 @@ object IRParser {
         val name = identifier(it)
         for {
           nd <- ir_value_expr(env)(it)
-          body <- ir_value_expr(env.bindEval(name, coerce[TNDArray](nd.typ).elementType))(it)
+          body <- ir_value_expr(env.bindEval(name, tcoerce[TNDArray](nd.typ).elementType))(it)
         } yield NDArrayMap(nd, name, body)
       case "NDArrayMap2" =>
         val errorID = int32_literal(it)
@@ -1006,8 +1006,8 @@ object IRParser {
           l <- ir_value_expr(env)(it)
           r <- ir_value_expr(env)(it)
           body_env = env.bindEval(
-            lName -> coerce[TNDArray](l.typ).elementType,
-            rName -> coerce[TNDArray](r.typ).elementType)
+            lName -> tcoerce[TNDArray](l.typ).elementType,
+            rName -> tcoerce[TNDArray](r.typ).elementType)
           body <- ir_value_expr(body_env)(it)
         } yield NDArrayMap2(l, r, lName, rName, body, errorID)
       case "NDArrayReindex" =>
@@ -1034,7 +1034,7 @@ object IRParser {
       case "NDArrayFilter" =>
         for {
           nd <- ir_value_expr(env)(it)
-          filters <- fillArray(coerce[TNDArray](nd.typ).nDims)(ir_value_expr(env)(it))
+          filters <- fillArray(tcoerce[TNDArray](nd.typ).nDims)(ir_value_expr(env)(it))
         } yield NDArrayFilter(nd, filters.toFastIndexedSeq)
       case "NDArrayMatMul" =>
         val errorID = int32_literal(it)
@@ -1083,7 +1083,7 @@ object IRParser {
         val name = identifier(it)
         for {
           a <- ir_value_expr(env)(it)
-          body <- ir_value_expr(env.bindEval(name, coerce[TStream](a.typ).elementType))(it)
+          body <- ir_value_expr(env.bindEval(name, tcoerce[TStream](a.typ).elementType))(it)
         } yield StreamMap(a, name, body)
       case "StreamTake" =>
         for {
@@ -1106,31 +1106,31 @@ object IRParser {
         val names = identifiers(it)
         for {
           as <- names.mapRecur(_ => ir_value_expr(env)(it))
-          body <- ir_value_expr(env.bindEval(names.zip(as.map(a => coerce[TStream](a.typ).elementType)): _*))(it)
+          body <- ir_value_expr(env.bindEval(names.zip(as.map(a => tcoerce[TStream](a.typ).elementType)): _*))(it)
         } yield StreamZip(as, names, body, behavior, errorID)
       case "StreamFilter" =>
         val name = identifier(it)
         for {
           a <- ir_value_expr(env)(it)
-          body <- ir_value_expr(env.bindEval(name, coerce[TStream](a.typ).elementType))(it)
+          body <- ir_value_expr(env.bindEval(name, tcoerce[TStream](a.typ).elementType))(it)
         } yield StreamFilter(a, name, body)
       case "StreamTakeWhile" =>
         val name = identifier(it)
         for {
           a <- ir_value_expr(env)(it)
-            body <- ir_value_expr(env.bindEval(name, coerce[TStream](a.typ).elementType))(it)
+            body <- ir_value_expr(env.bindEval(name, tcoerce[TStream](a.typ).elementType))(it)
         } yield StreamTakeWhile(a, name, body)
       case "StreamDropWhile" =>
         val name = identifier(it)
         for {
           a <- ir_value_expr(env)(it)
-            body <- ir_value_expr(env.bindEval(name, coerce[TStream](a.typ).elementType))(it)
+            body <- ir_value_expr(env.bindEval(name, tcoerce[TStream](a.typ).elementType))(it)
         } yield StreamDropWhile(a, name, body)
       case "StreamFlatMap" =>
         val name = identifier(it)
         for {
           a <- ir_value_expr(env)(it)
-          body <- ir_value_expr(env.bindEval(name, coerce[TStream](a.typ).elementType))(it)
+          body <- ir_value_expr(env.bindEval(name, tcoerce[TStream](a.typ).elementType))(it)
         } yield StreamFlatMap(a, name, body)
       case "StreamFold" =>
         val accumName = identifier(it)
@@ -1138,7 +1138,7 @@ object IRParser {
         for {
           a <- ir_value_expr(env)(it)
           zero <- ir_value_expr(env)(it)
-          eltType = coerce[TStream](a.typ).elementType
+          eltType = tcoerce[TStream](a.typ).elementType
           body <- ir_value_expr(env.bindEval(accumName -> zero.typ, valueName -> eltType))(it)
         } yield StreamFold(a, zero, accumName, valueName, body)
       case "StreamFold2" =>
@@ -1148,7 +1148,7 @@ object IRParser {
           a <- ir_value_expr(env)(it)
           accIRs <- fillArray(accumNames.length)(ir_value_expr(env)(it))
           accs = accumNames.zip(accIRs)
-          eltType = coerce[TStream](a.typ).elementType
+          eltType = tcoerce[TStream](a.typ).elementType
           resultEnv = env.bindEval(accs.map { case (name, value) => (name, value.typ) }: _*)
           seqEnv = resultEnv.bindEval(valueName, eltType)
           seqs <- fillArray(accs.length)(ir_value_expr(seqEnv)(it))
@@ -1160,7 +1160,7 @@ object IRParser {
         for {
           a <- ir_value_expr(env)(it)
           zero <- ir_value_expr(env)(it)
-          eltType = coerce[TStream](a.typ).elementType
+          eltType = tcoerce[TStream](a.typ).elementType
           body <- ir_value_expr(env.bindEval(accumName -> zero.typ, valueName -> eltType))(it)
         } yield StreamScan(a, zero, accumName, valueName, body)
       case "StreamJoinRightDistinct" =>
@@ -1172,27 +1172,27 @@ object IRParser {
         for {
           left <- ir_value_expr(env)(it)
           right <- ir_value_expr(env)(it)
-          lelt = coerce[TStream](left.typ).elementType
-          relt = coerce[TStream](right.typ).elementType
+          lelt = tcoerce[TStream](left.typ).elementType
+          relt = tcoerce[TStream](right.typ).elementType
           join <- ir_value_expr(env.bindEval(l -> lelt, r -> relt))(it)
         } yield StreamJoinRightDistinct(left, right, lKey, rKey, l, r, join, joinType)
       case "StreamFor" =>
         val name = identifier(it)
         for {
           a <- ir_value_expr(env)(it)
-          body <- ir_value_expr(env.bindEval(name, coerce[TStream](a.typ).elementType))(it)
+          body <- ir_value_expr(env.bindEval(name, tcoerce[TStream](a.typ).elementType))(it)
         } yield StreamFor(a, name, body)
       case "StreamAgg" =>
         val name = identifier(it)
         for {
           a <- ir_value_expr(env)(it)
-          query <- ir_value_expr(env.createAgg.bindAgg(name, coerce[TStream](a.typ).elementType))(it)
+          query <- ir_value_expr(env.createAgg.bindAgg(name, tcoerce[TStream](a.typ).elementType))(it)
         } yield StreamAgg(a, name, query)
       case "StreamAggScan" =>
         val name = identifier(it)
         for {
           a <- ir_value_expr(env)(it)
-          query <- ir_value_expr(env.createScan.bindScan(name, coerce[TStream](a.typ).elementType))(it)
+          query <- ir_value_expr(env.createScan.bindScan(name, tcoerce[TStream](a.typ).elementType))(it)
         } yield StreamAggScan(a, name, query)
       case "RunAgg" =>
         val signatures = agg_state_signatures(env)(it)
@@ -1205,7 +1205,7 @@ object IRParser {
         val signatures = agg_state_signatures(env)(it)
         for {
           array <- ir_value_expr(env)(it)
-          newE = env.bindEval(name, coerce[TStream](array.typ).elementType)
+          newE = env.bindEval(name, tcoerce[TStream](array.typ).elementType)
           init <- ir_value_expr(env)(it)
           seq <- ir_value_expr(newE)(it)
           result <- ir_value_expr(newE)(it)
@@ -1221,7 +1221,7 @@ object IRParser {
         val isScan = boolean_literal(it)
         for {
           a <- ir_value_expr(env.promoteAggScan(isScan))(it)
-          aggBody <- ir_value_expr(env.bindAggScan(isScan, name -> coerce[TStream](a.typ).elementType))(it)
+          aggBody <- ir_value_expr(env.bindAggScan(isScan, name -> tcoerce[TStream](a.typ).elementType))(it)
         } yield AggExplode(a, name, aggBody, isScan)
       case "AggGroupBy" =>
         val isScan = boolean_literal(it)
@@ -1238,7 +1238,7 @@ object IRParser {
           a <- ir_value_expr(env.promoteAggScan(isScan))(it)
           aggBody <- ir_value_expr(env
             .bindEval(indexName, TInt32)
-            .bindAggScan(isScan, indexName -> TInt32, elementName -> coerce[TArray](a.typ).elementType))(it)
+            .bindAggScan(isScan, indexName -> TInt32, elementName -> tcoerce[TArray](a.typ).elementType))(it)
           knownLength <- if (hasKnownLength) ir_value_expr(env)(it).map(Some(_)) else done(None)
         } yield AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan)
       case "ApplyAggOp" =>
@@ -1459,14 +1459,14 @@ object IRParser {
         for {
           ctxs <- ir_value_expr(env)(it)
           globals <- ir_value_expr(env)(it)
-          body <- ir_value_expr(env.onlyRelational.bindEval(cname -> coerce[TStream](ctxs.typ).elementType, gname -> globals.typ))(it)
+          body <- ir_value_expr(env.onlyRelational.bindEval(cname -> tcoerce[TStream](ctxs.typ).elementType, gname -> globals.typ))(it)
           dynamicID <- ir_value_expr(env)(it)
         } yield CollectDistributedArray(ctxs, globals, cname, gname, body, dynamicID, staticID)
       case "JavaIR" =>
         val name = identifier(it)
         done(env.irMap(name).asInstanceOf[IR])
       case "ReadPartition" =>
-        val rowType = coerce[TStruct](type_expr(env.typEnv)(it))
+        val rowType = tcoerce[TStruct](type_expr(env.typEnv)(it))
         import PartitionReader.formats
         val reader = JsonMethods.parse(string_literal(it)).extract[PartitionReader]
         ir_value_expr(env)(it).map { context =>
@@ -1501,7 +1501,7 @@ object IRParser {
         } yield WriteValue(value, path, spec)
       case "LiftMeOut" => ir_value_expr(env)(it).map(LiftMeOut)
       case "ReadPartition" =>
-        val rowType = coerce[TStruct](type_expr(env.typEnv)(it))
+        val rowType = tcoerce[TStruct](type_expr(env.typEnv)(it))
         import PartitionReader.formats
         val reader = JsonMethods.parse(string_literal(it)).extract[PartitionReader]
         ir_value_expr(env)(it).map { context =>
@@ -2092,9 +2092,9 @@ object IRParser {
 
   def parsePType(code: String, env: TypeParserEnvironment): PType = parse(code, ptype_expr(env))
 
-  def parseStructType(code: String, env: TypeParserEnvironment): TStruct = coerce[TStruct](parse(code, type_expr(env)))
+  def parseStructType(code: String, env: TypeParserEnvironment): TStruct = tcoerce[TStruct](parse(code, type_expr(env)))
 
-  def parseUnionType(code: String, env: TypeParserEnvironment): TUnion = coerce[TUnion](parse(code, type_expr(env)))
+  def parseUnionType(code: String, env: TypeParserEnvironment): TUnion = tcoerce[TUnion](parse(code, type_expr(env)))
 
   def parseRVDType(code: String, env: TypeParserEnvironment): RVDType = parse(code, rvd_type_expr(env))
 

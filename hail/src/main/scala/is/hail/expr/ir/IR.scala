@@ -17,7 +17,7 @@ import is.hail.types.physical.stypes.concrete.SJavaString
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes._
 import is.hail.types.virtual._
-import is.hail.types.{RIterable, RStruct, TypeWithRequiredness}
+import is.hail.types.{RIterable, RStruct, TypeWithRequiredness, tcoerce}
 import is.hail.utils.{FastIndexedSeq, _}
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
@@ -65,7 +65,7 @@ sealed trait IR extends BaseIR {
 }
 
 sealed trait TypedIR[T <: Type] extends IR {
-  override def typ: T = coerce[T](super.typ)
+  override def typ: T = tcoerce[T](super.typ)
 }
 
 object Literal {
@@ -262,15 +262,15 @@ object ArraySort {
   def apply(a: IR, ascending: IR = True(), onKey: Boolean = false): ArraySort = {
     val l = genUID()
     val r = genUID()
-    val atyp = coerce[TStream](a.typ)
+    val atyp = tcoerce[TStream](a.typ)
     val compare = if (onKey) {
       val elementType = atyp.elementType.asInstanceOf[TBaseStruct]
       elementType match {
         case t: TStruct =>
-          val elt = coerce[TStruct](atyp.elementType)
+          val elt = tcoerce[TStruct](atyp.elementType)
           ApplyComparisonOp(Compare(elt.types(0)), GetField(Ref(l, elt), elt.fieldNames(0)), GetField(Ref(r, atyp.elementType), elt.fieldNames(0)))
         case t: TTuple =>
-          val elt = coerce[TTuple](atyp.elementType)
+          val elt = tcoerce[TTuple](atyp.elementType)
           ApplyComparisonOp(Compare(elt.types(0)), GetTupleElement(Ref(l, elt), elt.fields(0).index), GetTupleElement(Ref(r, atyp.elementType), elt.fields(0).index))
       }
     } else {
@@ -309,7 +309,7 @@ final case class StreamGrouped(a: IR, groupSize: IR) extends IR
 final case class StreamGroupByKey(a: IR, key: IndexedSeq[String], missingEqual: Boolean) extends IR
 
 final case class StreamMap(a: IR, name: String, body: IR) extends IR {
-  override def typ: TStream = coerce[TStream](super.typ)
+  override def typ: TStream = tcoerce[TStream](super.typ)
   def elementTyp: Type = typ.elementType
 }
 
@@ -338,10 +338,10 @@ object ArrayZipBehavior extends Enumeration {
 final case class StreamZip(as: IndexedSeq[IR], names: IndexedSeq[String], body: IR, behavior: ArrayZipBehavior,
                            errorID: Int = ErrorIDs.NO_ERROR) extends IR {
   lazy val nameIdx: Map[String, Int] = names.zipWithIndex.toMap
-  override def typ: TStream = coerce[TStream](super.typ)
+  override def typ: TStream = tcoerce[TStream](super.typ)
 }
 final case class StreamMultiMerge(as: IndexedSeq[IR], key: IndexedSeq[String]) extends IR {
-  override def typ: TStream = coerce[TStream](super.typ)
+  override def typ: TStream = tcoerce[TStream](super.typ)
 }
 
 /**
@@ -350,13 +350,13 @@ final case class StreamMultiMerge(as: IndexedSeq[IR], key: IndexedSeq[String]) e
   * is likely the last.
  */
 final case class StreamZipJoin(as: IndexedSeq[IR], key: IndexedSeq[String], curKey: String, curVals: String, joinF: IR) extends IR {
-  override def typ: TStream = coerce[TStream](super.typ)
+  override def typ: TStream = tcoerce[TStream](super.typ)
 }
 final case class StreamFilter(a: IR, name: String, cond: IR) extends IR {
-  override def typ: TStream = coerce[TStream](super.typ)
+  override def typ: TStream = tcoerce[TStream](super.typ)
 }
 final case class StreamFlatMap(a: IR, name: String, body: IR) extends IR {
-  override def typ: TStream = coerce[TStream](super.typ)
+  override def typ: TStream = tcoerce[TStream](super.typ)
 }
 
 final case class StreamFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR
@@ -389,10 +389,10 @@ object StreamJoin {
     requiresMemoryManagement: Boolean,
     rightKeyIsDistinct: Boolean = false
   ): IR = {
-    val lType = coerce[TStream](left.typ)
-    val rType = coerce[TStream](right.typ)
-    val lEltType = coerce[TStruct](lType.elementType)
-    val rEltType = coerce[TStruct](rType.elementType)
+    val lType = tcoerce[TStream](left.typ)
+    val rType = tcoerce[TStream](right.typ)
+    val lEltType = tcoerce[TStruct](lType.elementType)
+    val rEltType = tcoerce[TStruct](rType.elementType)
     assert(lEltType.typeAfterSelectNames(lKey) isIsomorphicTo rEltType.typeAfterSelectNames(rKey))
 
     if(!rightKeyIsDistinct) {
@@ -409,7 +409,7 @@ object StreamJoin {
         }
       }
 
-      val rElt = Ref(genUID(), coerce[TStream](rightGrouped.typ).elementType)
+      val rElt = Ref(genUID(), tcoerce[TStream](rightGrouped.typ).elementType)
       val lElt = Ref(genUID(), lEltType)
       val makeTupleFromJoin = MakeStruct(FastSeq("left" -> lElt, "rightGroup" -> rElt))
       val joined = StreamJoinRightDistinct(left, rightGrouped, lKey, rKey, lElt.name, rElt.name, makeTupleFromJoin, joinType)
@@ -437,8 +437,8 @@ object StreamJoin {
 final case class StreamJoinRightDistinct(left: IR, right: IR, lKey: IndexedSeq[String], rKey: IndexedSeq[String], l: String, r: String, joinF: IR, joinType: String) extends IR {
   def isIntervalJoin: Boolean = {
     if (rKey.size != 1) return false
-    val lKeyTyp = coerce[TStruct](coerce[TStream](left.typ).elementType).fieldType(lKey(0))
-    val rKeyTyp = coerce[TStruct](coerce[TStream](right.typ).elementType).fieldType(rKey(0))
+    val lKeyTyp = tcoerce[TStruct](tcoerce[TStream](left.typ).elementType).fieldType(lKey(0))
+    val rKeyTyp = tcoerce[TStruct](tcoerce[TStream](right.typ).elementType).fieldType(rKey(0))
 
     rKeyTyp.isInstanceOf[TInterval] && lKeyTyp != rKeyTyp
   }
@@ -621,7 +621,7 @@ object InsertFields {
 }
 final case class InsertFields(old: IR, fields: Seq[(String, IR)], fieldOrder: Option[IndexedSeq[String]]) extends IR {
 
-  override def typ: TStruct = coerce[TStruct](super.typ)
+  override def typ: TStruct = tcoerce[TStruct](super.typ)
 }
 
 object GetFieldByIdx {

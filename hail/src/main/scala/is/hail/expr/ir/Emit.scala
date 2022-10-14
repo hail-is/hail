@@ -18,7 +18,7 @@ import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
-import is.hail.types.{RIterable, TypeWithRequiredness, VirtualTypeWithReq}
+import is.hail.types.{RIterable, TypeWithRequiredness, VirtualTypeWithReq, tcoerce}
 import is.hail.utils._
 
 import java.io._
@@ -1605,7 +1605,7 @@ class Emit[C](
 
               answerFinisher(cb)
             }  else {
-              val numericElementType = coerce[PNumeric](PType.canonical(lSType.elementType.storageType().setRequired(true)))
+              val numericElementType = tcoerce[PNumeric](PType.canonical(lSType.elementType.storageType().setRequired(true)))
               val eVti = typeToTypeInfo(numericElementType)
 
               val emitter = new NDArrayEmitter(unifiedShape, leftPVal.st.elementType) {

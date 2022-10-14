@@ -284,9 +284,9 @@ object EType {
           EField("includesStart", EBoolean(true), 2),
           EField("includesEnd", EBoolean(true), 3)),
         required = rinterval.required)
-    case t: TIterable => EArray(fromTypeAndAnalysis(t.elementType, coerce[RIterable](r).elementType), r.required)
+    case t: TIterable => EArray(fromTypeAndAnalysis(t.elementType, tcoerce[RIterable](r).elementType), r.required)
     case t: TBaseStruct =>
-      val rstruct = coerce[RBaseStruct](r)
+      val rstruct = tcoerce[RBaseStruct](r)
       assert(t.size == rstruct.size, s"different number of fields: ${t} ${r}")
       EBaseStruct(Array.tabulate(t.size) { i =>
         val f = rstruct.fields(i)
