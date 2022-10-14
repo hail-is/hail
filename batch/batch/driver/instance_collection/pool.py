@@ -191,7 +191,7 @@ WHERE removed = 0 AND inst_coll = %s;
         if instance.state == 'active' and instance.failed_request_count <= 1:
             self.healthy_instances_by_free_cores.add(instance)
 
-    def get_instance(self, user: str, cores_mcpu: int, regions: List[str]):
+    def get_instance(self, cores_mcpu: int, regions: List[str]):
         i = self.healthy_instances_by_free_cores.bisect_key_left(cores_mcpu)
         while i < len(self.healthy_instances_by_free_cores):
             instance = self.healthy_instances_by_free_cores[i]
@@ -650,7 +650,7 @@ LIMIT 1000;
                         break
                     self.exceeded_shares_counter.push(False)
 
-                instance = self.pool.get_instance(user, record['cores_mcpu'], regions)
+                instance = self.pool.get_instance(record['cores_mcpu'], regions)
                 if instance:
                     instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
                     scheduled_cores_mcpu += record['cores_mcpu']
