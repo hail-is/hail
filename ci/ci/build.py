@@ -258,7 +258,6 @@ class BuildImage2Step(Step):
 
         image_name = publish_as
         self.base_image = f'{DOCKER_PREFIX}/{image_name}'
-        self.image = f'{self.base_image}:{self.token}'
         self.main_branch_cache_repository = f'{self.base_image}:cache'
 
         if params.scope == 'deploy':
@@ -266,15 +265,19 @@ class BuildImage2Step(Step):
                 # CIs that don't live in default doing a deploy
                 # should not clobber the main `cache` tag
                 self.cache_repository = f'{self.base_image}:cache-{DEFAULT_NAMESPACE}-deploy'
+                self.image = f'{self.base_image}:test-deploy-{self.token}'
             else:
                 self.cache_repository = self.main_branch_cache_repository
+                self.image = f'{self.base_image}:deploy-{self.token}'
         elif params.scope == 'dev':
             dev_user = params.code.config()['user']
             self.cache_repository = f'{self.base_image}:cache-{dev_user}'
+            self.image = f'{self.base_image}:dev-{self.token}'
         else:
             assert params.scope == 'test'
             pr_number = params.code.config()['number']
             self.cache_repository = f'{self.base_image}:cache-pr-{pr_number}'
+            self.image = f'{self.base_image}:test-pr-{pr_number}-{self.token}'
 
         self.job = None
 
