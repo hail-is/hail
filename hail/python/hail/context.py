@@ -135,14 +135,9 @@ class HailContext(object):
                                  '  the latest changes weekly.\n')
             sys.stderr.write(f'LOGGING: writing to {log}\n')
 
-        if global_seed is None:
-            if Env._seed_generator is None:
-                Env.set_seed(6348563392232659379)
-        else:  # global_seed is not None
-            if Env._seed_generator is not None:
-                raise ValueError(
-                    'Do not call hl.init with a non-None global seed *after* calling hl.set_global_seed')
-            Env.set_seed(global_seed)
+        if global_seed is not None:
+            # FIXME: print deprication warning
+            pass
         Env._hc = self
 
     def initialize_references(self, references, default_reference):
@@ -831,7 +826,8 @@ def set_global_seed(seed):
         Integer used to seed Hail's random number generator
     """
 
-    Env.set_seed(seed)
+    # FIXME: print deprecation warning
+    pass
 
 
 @typecheck()

@@ -26,7 +26,6 @@ class Env:
     _jutils = None
     _hc = None
     _counter = 0
-    _seed_generator = None
     _static_rng_uid = 0
 
     @staticmethod
@@ -112,16 +111,6 @@ class Env:
             import hail
             Env._dummy_table = hail.utils.range_table(1, 1).key_by().cache()
         return Env._dummy_table
-
-    @staticmethod
-    def set_seed(seed):
-        Env._seed_generator = hail.utils.HailSeedGenerator(seed)
-
-    @staticmethod
-    def next_seed():
-        if Env._seed_generator is None:
-            Env.set_seed(None)
-        return Env._seed_generator.next_seed()
 
     @staticmethod
     def next_static_rng_uid():

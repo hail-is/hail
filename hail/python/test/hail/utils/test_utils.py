@@ -285,15 +285,6 @@ class Tests(unittest.TestCase):
     def test_range_matrix_table_n_lt_partitions(self):
         hl.utils.range_matrix_table(1, 1)._force_count_rows()
 
-    def test_seeding_is_consistent(self):
-        hl.set_global_seed(0)
-        a = [Env.next_seed() for _ in range(10)]
-        hl.set_global_seed(0)
-        b = [Env.next_seed() for _ in range(10)]
-
-        self.assertEqual(len(set(a)), 10)
-        self.assertEqual(a, b)
-
     def test_escape_string(self):
         self.assertEqual(escape_str("\""), "\\\"")
         self.assertEqual(escape_str("cat"), "cat")
