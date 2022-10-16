@@ -1459,11 +1459,10 @@ steps:
 
       # dev deploy elides the hail-is remote, add it and retrieve the tags
       git remote add hail-is https://github.com/hail-is/hail.git
-      git fetch hail-is
 
       export HAIL_PIP_VERSION=$(cat hail/python/hail/hail_pip_version)
 
-      if git ls-remote --exit-code --tags origin $HAIL_PIP_VERSION
+      if git ls-remote --exit-code --tags hail-is $HAIL_PIP_VERSION
       then
         # In this case, we want to get the docs from Google Storage.
         python3 -m hailtop.aiotools.copy 'null' '[
