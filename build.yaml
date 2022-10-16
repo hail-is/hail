@@ -2096,7 +2096,6 @@ steps:
       - batch_worker_image
       - batch_driver_nginx_image
       - batch_database
-      - deploy_auth
       - create_certs
   - kind: runImage
     name: create_billing_projects
@@ -2157,6 +2156,7 @@ steps:
       - service_base_image
       - create_deploy_config
       - create_accounts
+      - deploy_auth
       - deploy_batch
   - kind: runImage
     name: upload_query_jar
@@ -2190,7 +2190,6 @@ steps:
         to: /io/git_version
     dependsOn:
       - default_ns
-      - deploy_batch
       - hail_pip_installed_image
       - build_hail_jar_and_wheel_only_spark_3_2
       - merge_code
@@ -2271,6 +2270,7 @@ steps:
     dependsOn:
       - default_ns
       - merge_code
+      - deploy_auth
       - deploy_batch
       - deploy_memory
       - create_deploy_config
@@ -2431,6 +2431,7 @@ steps:
       - hail_base_image
       - batch_image
       - ci_utils_image
+      - deploy_auth
       - deploy_batch
       - netcat_ubuntu_image
       - volume_image
@@ -2474,6 +2475,7 @@ steps:
       - default_ns
       - merge_code
       - batch_image
+      - deploy_auth
       - deploy_batch
       - test_batch
   - kind: runImage
@@ -2701,6 +2703,7 @@ steps:
       - default_ns
       - merge_code
       - service_base_image
+      - deploy_auth
       - deploy_batch
   - kind: runImage
     name: test_batch_docs
@@ -2736,6 +2739,7 @@ steps:
       - default_ns
       - service_base_image
       - merge_code
+      - deploy_auth
       - deploy_batch
     timeout: 1200
     inputs:
@@ -3176,6 +3180,7 @@ steps:
       - create_accounts
       - hail_run_tests_image
       - build_hail
+      - deploy_auth
       - deploy_batch
   - kind: runImage
     name: cancel_all_running_test_batches
@@ -3217,6 +3222,7 @@ steps:
       - create_accounts
       - default_ns
       - service_base_image
+      - deploy_auth
       - deploy_batch
       - test_batch
       - test_ci
@@ -3256,6 +3262,7 @@ steps:
       - default_ns
       - merge_code
       - batch_image
+      - deploy_auth
       - deploy_batch
       - test_batch
       - test_ci
