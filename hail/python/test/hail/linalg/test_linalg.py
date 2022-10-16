@@ -1101,7 +1101,7 @@ class Tests(unittest.TestCase):
         e, _ = np.linalg.eigh(x0 @ x0.T)
 
         x = BlockMatrix.from_numpy(x0)
-        _, s, _ = x.svd(complexity_bound=0, compute_uv=False)
+        s = x.svd(complexity_bound=0, compute_uv=False)
         assert np.all(s >= 0.0)
 
         s = x.svd(compute_uv=False, complexity_bound=0)
