@@ -214,9 +214,6 @@ class ServiceBackend(
     stageCount += 1
     implicit val formats: Formats = DefaultFormats
     val batchState = (batch \ "state").extract[String]
-    if (batchState == "failed") {
-      throw new HailBatchFailure(s"Update $updateId for batch $batchId failed")
-    }
 
     log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
 
@@ -237,7 +234,12 @@ class ServiceBackend(
       availableGCSConnections.acquire()
       try {
         val bytes = retryTransientErrors {
-          using(open(s"$root/result.$i")) { is =>
+          val is = try {
+            open(s"$root/result.$i")
+          } catch {
+            case e: Throwable => throw new HailWorkerFailure(s"no result for failing job ${i}!", e)
+          }
+          using(is) { is =>
             resultOrHailException(new DataInputStream(is))
           }
         }
@@ -247,6 +249,8 @@ class ServiceBackend(
         availableGCSConnections.release()
       }
     }
+
+    assert(batchState != "failed")  // a failure can't have all the correct outputs with no exceptions!
 
     log.info(s"all results complete")
     results.toArray[Array[Byte]]

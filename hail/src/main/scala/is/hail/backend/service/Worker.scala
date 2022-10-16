@@ -157,6 +157,8 @@ object Worker {
         writeString(dos, shortMessage)
         writeString(dos, expandedMessage)
         dos.writeInt(errorId)
+        log.info(s"job $i/$n failed with user exception: $shortMessage (error id $errorId)\n  $expandedMessage")
+        throw userError
       }
     }
     timer.end("writeOutputs")
