@@ -2556,7 +2556,7 @@ class Table(ExprContainer):
                              f'\n   Left key: {", ".join(str(x.dtype) for x in self.key.values())}'
                              f'\n  Right key: {", ".join(str(x.dtype) for x in other.key.values())}')
 
-        return self.filter(hl.is_defined(other.index(self.key[:len(other.key)])))
+        return self.filter(hl.is_defined(other.index(*(self.key[i] for i in range(len(other.key))))))
 
     @typecheck_method(other=table_type)
     def anti_join(self, other: 'Table') -> 'Table':
@@ -2601,7 +2601,7 @@ class Table(ExprContainer):
                              f'\n   Left key: {", ".join(str(x.dtype) for x in self.key.values())}'
                              f'\n  Right key: {", ".join(str(x.dtype) for x in other.key.values())}')
 
-        return self.filter(hl.is_missing(other.index(self.key[:len(other.key)])))
+        return self.filter(hl.is_missing(*(self.key[i] for i in range(len(other.key)))))
 
     @typecheck_method(right=table_type,
                       how=enumeration('inner', 'outer', 'left', 'right'),

@@ -1392,7 +1392,7 @@ class MatrixTable(ExprContainer):
             raise ValueError('semi_join_rows: cannot join: table must have a key of the same type(s) and be the same length or shorter:'
                              f'\n  MatrixTable row key: {", ".join(str(x.dtype) for x in self.row_key.values())}'
                              f'\n            Table key: {", ".join(str(x.dtype) for x in other.key.values())}')
-        return self.filter_rows(hl.is_defined(other.index(self.row_key[:len(other.key)])))
+        return self.filter_rows(hl.is_defined(other.index(*(self.row_key[i] for i in range(len(other.key))))))
 
     @typecheck_method(other=Table)
     def anti_join_rows(self, other: 'Table') -> 'MatrixTable':
@@ -1437,7 +1437,7 @@ class MatrixTable(ExprContainer):
             raise ValueError('anti_join_rows: cannot join: table must have a key of the same type(s) and be the same length or shorter:'
                              f'\n  MatrixTable row key: {", ".join(str(x.dtype) for x in self.row_key.values())}'
                              f'\n            Table key: {", ".join(str(x.dtype) for x in other.key.values())}')
-        return self.filter_rows(hl.is_missing(other.index(self.row_key[:len(other.key)])))
+        return self.filter_rows(hl.is_missing(other.index(*(self.row_key[i] for i in range(len(other.key))))))
 
     @typecheck_method(other=Table)
     def semi_join_cols(self, other: 'Table') -> 'MatrixTable':
@@ -1483,7 +1483,7 @@ class MatrixTable(ExprContainer):
                              f'\n  MatrixTable col key: {", ".join(str(x.dtype) for x in self.col_key.values())}'
                              f'\n            Table key: {", ".join(str(x.dtype) for x in other.key.values())}')
 
-        return self.filter_cols(hl.is_defined(other.index(self.col_key[:len(other.key)])))
+        return self.filter_cols(hl.is_defined(*(self.col_key[i] for i in range(len(other.key)))))
 
     @typecheck_method(other=Table)
     def anti_join_cols(self, other: 'Table') -> 'MatrixTable':
@@ -1529,7 +1529,7 @@ class MatrixTable(ExprContainer):
                              f'\n  MatrixTable col key: {", ".join(str(x.dtype) for x in self.col_key.values())}'
                              f'\n            Table key: {", ".join(str(x.dtype) for x in other.key.values())}')
 
-        return self.filter_cols(hl.is_missing(other.index(self.col_key[:len(other.key)])))
+        return self.filter_cols(hl.is_missing(other.index(*(self.col_key[i] for i in range(len(other.key))))))
 
     @typecheck_method(expr=expr_bool, keep=bool)
     def filter_rows(self, expr, keep: bool = True) -> 'MatrixTable':
