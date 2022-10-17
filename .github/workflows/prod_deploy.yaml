@@ -16,7 +16,7 @@ jobs:
               https://ci.hail.populationgenomics.org.au/api/v1alpha/prod_deploy)
           echo DEPLOY_BATCH_URL_GCP=$DEPLOY_BATCH_URL >> $GITHUB_ENV
 
-      - name: deploy_azure
+      - name: deploy to Azure
         # Note: deploy_hailgenetics_image and deploy_wheel not implemented yet on Azure
         run: |
           DEPLOY_BATCH_URL=$(curl --fail --silent --show-error -X POST \
