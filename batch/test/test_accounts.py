@@ -9,7 +9,8 @@ import pytest
 
 from hailtop.auth import session_id_encode_to_str
 from hailtop.batch_client.aioclient import Batch, BatchClient
-from hailtop.utils import secret_alnum_string, tqdm
+from hailtop.utils import secret_alnum_string
+from hailtop.utils.rich_progress_bar import SimpleRichProgressBar
 
 from .billing_projects import get_billing_project_prefix
 
@@ -183,7 +184,7 @@ async def test_close_billing_project_with_pending_batch_update_does_not_error(
     bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
     b = await bb._open_batch()
     update_id = await bb._create_update(b.id)
-    with tqdm(total=1) as pbar:
+    with SimpleRichProgressBar(total=1) as pbar:
         process = {
             'type': 'docker',
             'command': ['sleep', '30'],

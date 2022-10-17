@@ -33,9 +33,9 @@ azure-storage-blob==12.14.0
     # via -r python/requirements.txt
 bokeh==1.4.0
     # via -r python/requirements.txt
-boto3==1.24.89
+boto3==1.24.91
     # via -r python/requirements.txt
-botocore==1.27.89
+botocore==1.27.91
     # via
     #   -r python/requirements.txt
     #   boto3
@@ -211,9 +211,7 @@ tenacity==8.1.0
     # via plotly
 tornado==6.2
     # via bokeh
-tqdm==4.64.1
-    # via -r python/requirements.txt
-types-cryptography==3.3.23
+types-cryptography==3.3.23.1
     # via pyjwt
 typing-extensions==4.4.0
     # via

@@ -49,12 +49,19 @@ T = TypeVar('T')
 def configuration_of(section: str, option: str, explicit_argument: Optional[str], fallback: T) -> Union[str, T]:
     assert VALID_SECTION_AND_OPTION_RE.fullmatch(section), (section, option)
     assert VALID_SECTION_AND_OPTION_RE.fullmatch(option), (section, option)
-    return (
-        explicit_argument
-        or os.environ.get('HAIL_' + section.upper() + '_' + option.upper(), None)
-        or get_user_config().get(section, option, fallback=None)
-        or fallback
-    )
+
+    if explicit_argument is not None:
+        return explicit_argument
+
+    envval = os.environ.get('HAIL_' + section.upper() + '_' + option.upper(), None)
+    if envval is not None:
+        return envval
+
+    from_user_config = get_user_config().get(section, option, fallback=None)
+    if from_user_config is not None:
+        return from_user_config
+
+    return fallback
 
 
 def get_remote_tmpdir(caller_name: str,
