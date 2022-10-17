@@ -344,27 +344,21 @@ def init(sc=None,
 
     if backend == 'batch':
         import asyncio
-        try:
-            asyncio.get_running_loop()
-            raise ValueError(
-                'When using Hail Query in async code, initialize the ServiceBackend with `await hl.init_batch()`'
-            )
-        except RuntimeError:  # RuntimeError implies there is no running loop, so we may start one
-            return asyncio.get_event_loop().run_until_complete(init_batch(
-                log=log,
-                quiet=quiet,
-                append=append,
-                tmpdir=tmp_dir,
-                local_tmpdir=local_tmpdir,
-                default_reference=default_reference,
-                global_seed=global_seed,
-                driver_cores=driver_cores,
-                driver_memory=driver_memory,
-                worker_cores=worker_cores,
-                worker_memory=worker_memory,
-                name_prefix=app_name,
-                gcs_requester_pays_configuration=gcs_requester_pays_configuration
-            ))
+        return asyncio.get_event_loop().run_until_complete(init_batch(
+            log=log,
+            quiet=quiet,
+            append=append,
+            tmpdir=tmp_dir,
+            local_tmpdir=local_tmpdir,
+            default_reference=default_reference,
+            global_seed=global_seed,
+            driver_cores=driver_cores,
+            driver_memory=driver_memory,
+            worker_cores=worker_cores,
+            worker_memory=worker_memory,
+            name_prefix=app_name,
+            gcs_requester_pays_configuration=gcs_requester_pays_configuration
+        ))
     if backend == 'spark':
         return init_spark(
             sc=sc,
