@@ -172,6 +172,22 @@ def test_filter_samples_and_merge():
     assert merged.variant_data._same(vds.variant_data)
 
 
+def test_filter_samples_array():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+
+    samples = ['HG00187', 'HG00190']
+    other = ['HG00308', 'HG00313', 'HG00320']
+
+    filt_in = hl.vds.filter_samples(vds, samples, keep=True)
+    filt_out = hl.vds.filter_samples(vds, samples, keep=False)
+
+    assert filt_in.reference_data.s.collect() == samples
+    assert filt_in.variant_data.s.collect() == samples
+
+    assert filt_out.reference_data.s.collect() == other
+    assert filt_out.variant_data.s.collect() == other
+
+
 def test_segment_intervals():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
 

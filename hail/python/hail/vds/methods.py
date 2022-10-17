@@ -2,7 +2,7 @@ from typing import Sequence
 
 import hail as hl
 from hail import ir
-from hail.expr import expr_any, expr_array, expr_interval, expr_locus
+from hail.expr import expr_any, expr_array, expr_interval, expr_locus, expr_str
 from hail.matrixtable import MatrixTable
 from hail.methods.misc import require_first_key_field_locus
 from hail.table import Table
@@ -313,8 +313,8 @@ def sample_qc(vds: 'VariantDataset', *, gq_bins: 'Sequence[int]' = (0, 20, 60),
     return joined_results
 
 
-@typecheck(vds=VariantDataset, samples_table=Table, keep=bool, remove_dead_alleles=bool)
-def filter_samples(vds: 'VariantDataset', samples_table: 'Table', *,
+@typecheck(vds=VariantDataset, samples_table=oneof(Table, expr_array(expr_str)), keep=bool, remove_dead_alleles=bool)
+def filter_samples(vds: 'VariantDataset', samples_table, *,
                    keep: bool = True,
                    remove_dead_alleles: bool = False) -> 'VariantDataset':
     """Filter samples in a :class:`.VariantDataset`.
@@ -323,8 +323,8 @@ def filter_samples(vds: 'VariantDataset', samples_table: 'Table', *,
     ----------
     vds : :class:`.VariantDataset`
         Dataset in VariantDataset representation.
-    samples_table : :class:`.Table`
-        Samples to filter on.
+    samples_table : :class:`.Table` or list of str
+        Samples to keep or remove.
     keep : :obj:`bool`
         Whether to keep (default), or filter out the samples from `samples_table`.
     remove_dead_alleles : :obj:`bool`
@@ -335,6 +335,8 @@ def filter_samples(vds: 'VariantDataset', samples_table: 'Table', *,
     -------
     :class:`.VariantDataset`
     """
+    if not isinstance(samples_table, hl.Table):
+        samples_table = hl.Table.parallelize(samples_table.map(lambda s: hl.struct(s=s)), key='s')
     if not list(samples_table[x].dtype for x in samples_table.key) == [hl.tstr]:
         raise TypeError(f'invalid key: {samples_table.key.dtype}')
     samples_to_keep = samples_table.aggregate(hl.agg.collect_as_set(samples_table.key[0]), _localize=False)._persist()
