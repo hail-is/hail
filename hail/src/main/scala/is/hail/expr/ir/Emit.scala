@@ -66,7 +66,7 @@ object Emit {
     val region = mb.getCodeParam[Region](1)
     val returnTypeOption: Option[SingleCodeType] = if (ir.typ == TVoid) {
       fb.apply_method.voidWithBuilder { cb =>
-        val env = EmitEnv(Env.empty, (0 until nParams).map(i => mb.getEmitParam(cb, i + 2))) // this, region, ...
+        val env = EmitEnv(Env.empty, (0 until nParams).map(i => mb.storeEmitParamAsField(cb, i + 2))) // this, region, ...
         emitter.emitVoid(cb, ir, region, env, container, None)
       }
       None
@@ -74,7 +74,7 @@ object Emit {
       var sct: SingleCodeType = null
       fb.emitWithBuilder { cb =>
 
-        val env = EmitEnv(Env.empty, (0 until nParams).map(i => mb.getEmitParam(cb, i + 2))) // this, region, ...
+        val env = EmitEnv(Env.empty, (0 until nParams).map(i => mb.storeEmitParamAsField(cb, i + 2)))  // this, region, ...
         val sc = emitter.emitI(ir, cb, region, env, container, None).handle(cb, {
           cb._throw[RuntimeException](
             Code.newInstance[RuntimeException, String]("cannot return empty"))
@@ -585,6 +585,7 @@ class Emit[C](
     val mb = cb.emb.genEmitMethod(context, FastIndexedSeq[ParamType](), UnitInfo)
     val r = cb.newField[Region]("emitInSeparate_region", region)
 
+    println(s"emitting in separate method - $context:\n${Pretty(ctx.executeContext, ir)}")
     var ev: EmitSettable = null
     mb.voidWithBuilder { cb =>
       ctx.tryingToSplit.bind(ir, ())

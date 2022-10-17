@@ -946,7 +946,13 @@ class EmitMethodBuilder[C](
     })
   }
 
-  // needs region to support stream arguments
+  def storeEmitParamAsField(cb: EmitCodeBuilder, emitIndex: Int): EmitValue = {
+    val param = getEmitParam(cb, emitIndex)
+    val fd = newEmitField(s"${mb.methodName}_param_${emitIndex}", param.emitType)
+    cb.assign(fd, param)
+    fd
+  }
+
   def getEmitParam(cb: EmitCodeBuilder, emitIndex: Int): EmitValue = {
     assert(mb.isStatic || emitIndex != 0)
     val static = (!mb.isStatic).toInt
@@ -973,7 +979,6 @@ class EmitMethodBuilder[C](
         EmitValue(m, v)
     }
   }
-
 
   def invokeCode[T](cb: CodeBuilderLike, args: Param*): Value[T] = {
     assert(emitReturnType.isInstanceOf[CodeParamType])
