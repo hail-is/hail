@@ -946,51 +946,13 @@ class EmitMethodBuilder[C](
     })
   }
 
-  def storeEmitParam(emitIndex: Int, cb: EmitCodeBuilder): (EmitCodeBuilder) => IEmitCode = {
-    assert(mb.isStatic || emitIndex != 0)
-    val static = (!mb.isStatic).toInt
-    val et = emitParamTypes(emitIndex - static) match {
-      case t: EmitParamType => t
-      case _ => throw new RuntimeException(s"isStatic=${ mb.isStatic }, emitIndex=$emitIndex, params=$emitParamTypes")
-    }
-    val codeIndex = emitParamCodeIndex(emitIndex - static)
-
-    et match {
-      case SingleCodeEmitParamType(required, sct: StreamSingleCodeType) =>
-        val field = cb.memoizeFieldAny(
-          mb.getArg(codeIndex)(sct.ti).get,
-          s"storeEmitParam_sct_$emitIndex",
-          sct.ti)
-        val missing: Value[Boolean] = if (required)
-          const(false)
-        else
-          cb.memoizeField(mb.getArg[Boolean](codeIndex + 1), s"storeEmitParam_${emitIndex}_m")
-
-        { (cb2: EmitCodeBuilder) =>
-          IEmitCode(cb2, missing, sct.loadToSValue(cb2, field))
-        }
-
-      case SingleCodeEmitParamType(required, sct) =>
-        val v = cb.memoizeField(
-          sct.loadToSValue(cb, mb.getArg(codeIndex)(sct.ti)),
-          s"storeEmitParam_$emitIndex")
-        val missing: Value[Boolean] = if (required)
-          const(false)
-        else
-          cb.memoizeField(mb.getArg[Boolean](codeIndex + 1), s"storeEmitParam_${emitIndex}_m")
-
-        { (cb2: EmitCodeBuilder) =>
-          IEmitCode(cb2, missing, v)
-        }
-
-      case SCodeEmitParamType(et) =>
-        val fd = cb.memoizeField(getEmitParam(cb, emitIndex), s"storeEmitParam_$emitIndex")
-        (cb2: EmitCodeBuilder) => fd.loadI(cb2)
-    }
-
+  def storeEmitParamAsField(cb: EmitCodeBuilder, emitIndex: Int): EmitValue = {
+    val param = getEmitParam(cb, emitIndex)
+    val fd = newEmitField(s"${mb.methodName}_param_${emitIndex}", param.emitType)
+    cb.assign(fd, param)
+    fd
   }
 
-  // needs region to support stream arguments
   def getEmitParam(cb: EmitCodeBuilder, emitIndex: Int): EmitValue = {
     assert(mb.isStatic || emitIndex != 0)
     val static = (!mb.isStatic).toInt
@@ -1017,7 +979,6 @@ class EmitMethodBuilder[C](
         EmitValue(m, v)
     }
   }
-
 
   def invokeCode[T](cb: CodeBuilderLike, args: Param*): Value[T] = {
     assert(emitReturnType.isInstanceOf[CodeParamType])

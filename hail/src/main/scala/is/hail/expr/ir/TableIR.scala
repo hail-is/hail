@@ -8,7 +8,7 @@ import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, MatrixToTableFunction, StringFunctions, TableToTableFunction}
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage, TableStageDependency}
-import is.hail.expr.ir.streams.{StreamArgType, StreamProducer}
+import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io._
 import is.hail.io.avro.AvroTableReader
 import is.hail.io.fs.FS
@@ -19,7 +19,7 @@ import is.hail.sparkextras.ContextRDD
 import is.hail.types._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete._
-import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructValue, SStreamValue, primitive}
+import is.hail.types.physical.stypes.interfaces.{NoBoxLongIterator, SBaseStruct, SBaseStructValue, SStreamValue, primitive}
 import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Value}
 import is.hail.types.physical.stypes._
 import is.hail.types.virtual._
@@ -576,6 +576,7 @@ case class PartitionRVDReader(rvd: RVD, uidFieldName: String) extends PartitionR
       val broadcastRVD = mb.getObject[BroadcastRVD](new BroadcastRVD(ctx.backend.asSpark("RVDReader"), rvd))
 
       val producer = new StreamProducer {
+        override def method: EmitMethodBuilder[_] = cb.emb
         override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
         override def initialize(cb: EmitCodeBuilder, partitionRegion: Value[Region]): Unit = {
@@ -674,6 +675,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec, uidFieldName: Str
       val region = mb.genFieldThisRef[Region]("pnr_region")
 
       val producer = new StreamProducer {
+        override def method: EmitMethodBuilder[_] = cb.emb
         override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
         override def initialize(cb: EmitCodeBuilder, partitionRegion: Value[Region]): Unit = {
@@ -757,6 +759,7 @@ case class PartitionNativeReaderIndexed(
       val decodedRow = cb.emb.newPField("rowsValue", eltSType)
 
       val producer = new StreamProducer {
+        override def method: EmitMethodBuilder[_] = cb.emb
         override val length: Option[EmitCodeBuilder => Code[Int]] = Some(_ => (endIdx - curIdx).toI)
 
         override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
@@ -884,12 +887,13 @@ case class PartitionZippedNativeReader(left: PartitionReader, right: PartitionRe
       left.emitStream(ctx, cb, ctx1, lRequested).flatMap(cb) { sstream1 =>
         right.emitStream(ctx, cb, ctx2, rRequested).map(cb) { sstream2 =>
 
-          val stream1 = sstream1.asStream.producer
-          val stream2 = sstream2.asStream.producer
+          val stream1 = sstream1.asStream.getProducer(cb.emb)
+          val stream2 = sstream2.asStream.getProducer(cb.emb)
 
           val region = cb.emb.genFieldThisRef[Region]("partition_zipped_reader_region")
 
           SStreamValue(new StreamProducer {
+            override def method: EmitMethodBuilder[_] = cb.emb
             override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
             override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
@@ -1018,6 +1022,7 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
       val rightValue = mb.newPField("rightValue", specRight.encodedType.decodedSType(rightRType))
 
       val producer = new StreamProducer {
+        override def method: EmitMethodBuilder[_] = cb.emb
         override val length: Option[EmitCodeBuilder => Code[Int]] = Some(_ => (endIdx - curIdx).toI)
 
         override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
@@ -2151,17 +2156,30 @@ case class TableMapPartitions(child: TableIR,
       globalPType, rowPType,
       Subst(body, BindingEnv(Env(
         globalName -> In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(globalPType))),
-        partitionStreamName -> In(1, SingleCodeEmitParamType(true, StreamSingleCodeType(requiresMemoryManagementPerElement = true, rowPType)))))))
+        partitionStreamName -> In(1, SingleCodeEmitParamType(true, StreamSingleCodeType(requiresMemoryManagementPerElement = true, rowPType, true)))))))
 
     val globalsBc = tv.globals.broadcast(ctx.theHailClassLoader)
 
     val fsBc = tv.ctx.fsBc
     val itF = { (idx: Int, consumerCtx: RVDContext, partition: (RVDContext) => Iterator[Long]) =>
-      val boxedPartition = new StreamArgType {
-        def apply(outerRegion: Region, eltRegion: Region): Iterator[java.lang.Long] =
-          partition(new RVDContext(outerRegion, eltRegion)).map(box)
+      val boxedPartition = new NoBoxLongIterator {
+        var eos: Boolean = false
+        var iter: Iterator[Long] = _
+        override def init(partitionRegion: Region, elementRegion: Region): Unit = {
+          iter = partition(new RVDContext(partitionRegion, elementRegion))
+        }
+
+        override def next(): Long = {
+          if (!iter.hasNext) {
+            eos = true
+            0L
+          } else
+            iter.next()
+        }
+
+        override def close(): Unit = ()
       }
-      makeIterator(theHailClassLoaderForSparkWorkers, fsBc.value, idx, consumerCtx,
+    makeIterator(theHailClassLoaderForSparkWorkers, fsBc.value, idx, consumerCtx,
         globalsBc.value.readRegionValue(consumerCtx.partitionRegion, theHailClassLoaderForSparkWorkers),
         boxedPartition
       ).map(l => l.longValue())
