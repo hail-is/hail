@@ -399,7 +399,7 @@ object EmitStream {
         val emittedArgs = args.map(a => EmitCode.fromI(mb)(cb => emit(a, cb, region))).toFastIndexedSeq
 
         // FIXME use SType.chooseCompatibleType
-        val unifiedType = typeWithReq.canonicalEmitType
+        val unifiedType = typeWithReq.canonicalEmitType.st.asInstanceOf[SStream].elementEmitType
         val eltField = mb.newEmitField("makestream_elt", unifiedType)
 
         val staticLen = args.size
