@@ -171,6 +171,8 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def newRNG(seed: Long): Value[IRRandomness] = ecb.newRNG(seed)
 
+  def getThreefryRNG(): Value[ThreefryRandomEngine] = ecb.getThreefryRNG()
+
   def resultWithIndex(writeIRs: Boolean = false, print: Option[PrintWriter] = None): (HailClassLoader, FS, Int, Region) => C = ecb.resultWithIndex(writeIRs, print)
 
   def getOrGenEmitMethod(
@@ -600,6 +602,8 @@ class EmitClassBuilder[C](
 
   val rngs: BoxedArrayBuilder[(Settable[IRRandomness], Code[IRRandomness])] = new BoxedArrayBuilder()
 
+  var threefryRNG: Option[(Settable[ThreefryRandomEngine], Code[ThreefryRandomEngine])] = None
+
   def makeAddPartitionRegion(): Unit = {
     cb.addInterface(typeInfo[FunctionWithPartitionRegion].iname)
     val mb = newEmitMethod("addPartitionRegion", FastIndexedSeq[ParamType](typeInfo[Region]), typeInfo[Unit])
@@ -645,9 +649,15 @@ class EmitClassBuilder[C](
     val mb = newEmitMethod("setPartitionIndex", IndexedSeq[ParamType](typeInfo[Int]), typeInfo[Unit])
 
     val rngFields = rngs.result()
-    val initialize = Code(rngFields.map { case (field, initialization) =>
-      field := initialization
-    })
+    val initialize = Code(
+      Code(rngFields.map { case (field, initialization) =>
+        field := initialization
+      }),
+      threefryRNG match {
+        case Some((field, init)) => field := init
+        case None => Code._empty.get
+      }
+    )
 
     val reseed = Code(rngFields.map { case (field, _) =>
       field.invoke[Int, Unit]("reset", mb.getCodeParam[Int](1))
@@ -664,6 +674,18 @@ class EmitClassBuilder[C](
     val rng = genFieldThisRef[IRRandomness]()
     rngs += rng -> Code.newInstance[IRRandomness, Long](seed)
     rng
+  }
+
+  def getThreefryRNG(): Value[ThreefryRandomEngine] = {
+    threefryRNG match {
+      case Some((rngField, _)) => rngField
+      case None =>
+        val rngField = genFieldThisRef[ThreefryRandomEngine]()
+        val rngInit = Code.invokeScalaObject0[ThreefryRandomEngine](
+          ThreefryRandomEngine.getClass, "apply")
+        threefryRNG = Some(rngField -> rngInit)
+        rngField
+    }
   }
 
   def resultWithIndex(

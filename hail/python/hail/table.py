@@ -3722,7 +3722,7 @@ class Table(ExprContainer):
 
     @typecheck_method(parts=sequenceof(int), keep=bool)
     def _filter_partitions(self, parts, keep=True) -> 'Table':
-        return Table(ir.TableToTableApply(self._tir, {'name': 'TableFilterPartitions', 'parts': parts, 'keep': keep}))
+        return Table(ir.TableToTableApply(self._tir, {'name': 'TableFilterPartitions', 'parts': parts, 'keep': keep})).persist()
 
     @typecheck_method(entries_field_name=str,
                       cols_field_name=str,

@@ -8,7 +8,7 @@ import org.testng.annotations.{DataProvider, Test}
 
 class FoldConstantsSuite extends HailSuite {
   @Test def testRandomBlocksFolding() {
-    val x = ApplySeeded("rand_norm", Seq(F64(0d), F64(0d)), NA(TRNGState), 0L, TFloat64)
+    val x = ApplySeeded("rand_norm", Seq(F64(0d), F64(0d)), RNGStateLiteral(), 0L, TFloat64)
     assert(FoldConstants(ctx, x) == x)
   }
 

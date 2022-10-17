@@ -596,7 +596,7 @@ class Tests(unittest.TestCase):
 
         def equal_with_nans(arr1, arr2):
             def both_nan_or_none(a, b):
-                return (a is None or np.isnan(a)) and (b is None or np.isnan(b))
+                return (a is None or not np.isfinite(a)) and (b is None or not np.isfinite(b))
 
             return all([both_nan_or_none(a, b) or math.isclose(a, b) for a, b in zip(arr1, arr2)])
 
@@ -1282,7 +1282,7 @@ class Tests(unittest.TestCase):
     @fails_service_backend()
     def test_genetic_relatedness_matrix(self):
         n, m = 100, 200
-        hl.set_global_seed(0)
+        hl.reset_global_randomness()
         mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], n_partitions=4)
 
         g = BlockMatrix.from_entry_expr(mt.GT.n_alt_alleles()).to_numpy().T
@@ -1316,7 +1316,7 @@ class Tests(unittest.TestCase):
     @fails_local_backend()
     def test_realized_relationship_matrix(self):
         n, m = 100, 200
-        hl.set_global_seed(0)
+        hl.reset_global_randomness()
         mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], n_partitions=4)
 
         g = BlockMatrix.from_entry_expr(mt.GT.n_alt_alleles()).to_numpy().T
@@ -1352,11 +1352,9 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(np.allclose(actual, expected))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_row_correlation_vs_numpy(self):
         n, m = 11, 10
-        hl.set_global_seed(0)
+        hl.reset_global_randomness()
         mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], n_partitions=2)
         mt = mt.annotate_rows(sd=agg.stats(mt.GT.n_alt_alleles()).stdev)
         mt = mt.filter_rows(mt.sd > 1e-30)
@@ -1552,7 +1550,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(pruned_table.count(), 1)
 
     def test_balding_nichols_model(self):
-        hl.set_global_seed(1)
+        hl.reset_global_randomness()
         ds = hl.balding_nichols_model(2, 20, 25, 3,
                                       pop_dist=[1.0, 2.0],
                                       fst=[.02, .06],
@@ -1573,13 +1571,13 @@ class Tests(unittest.TestCase):
 
     def test_balding_nichols_model_same_results(self):
         for mixture in [True, False]:
-            hl.set_global_seed(1)
+            hl.reset_global_randomness()
             ds1 = hl.balding_nichols_model(2, 20, 25, 3,
                                            pop_dist=[1.0, 2.0],
                                            fst=[.02, .06],
                                            af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95),
                                            mixture=mixture)
-            hl.set_global_seed(1)
+            hl.reset_global_randomness()
             ds2 = hl.balding_nichols_model(2, 20, 25, 3,
                                            pop_dist=[1.0, 2.0],
                                            fst=[.02, .06],
@@ -1589,7 +1587,7 @@ class Tests(unittest.TestCase):
 
     def test_balding_nichols_model_af_ranges(self):
         def test_af_range(rand_func, min, max, seed):
-            hl.set_global_seed(seed)
+            hl.reset_global_randomness()
             bn = hl.balding_nichols_model(3, 400, 400, af_dist=rand_func)
             self.assertTrue(
                 bn.aggregate_rows(
@@ -1603,7 +1601,7 @@ class Tests(unittest.TestCase):
 
     def test_balding_nichols_stats(self):
         def test_stat(k, n, m, seed):
-            hl.set_global_seed(seed)
+            hl.reset_global_randomness()
             bn = hl.balding_nichols_model(k, n, m, af_dist=hl.rand_unif(0.1, 0.9))
 
             # test pop distribution
@@ -1638,18 +1636,18 @@ class Tests(unittest.TestCase):
         test_stat(40, 400, 20, 12)
 
     def test_balding_nichols_model_phased(self):
-        hl.set_global_seed(1)
+        hl.reset_global_randomness()
         bn_ds = hl.balding_nichols_model(1, 5, 5, phased=True)
         assert bn_ds.aggregate_entries(hl.agg.all(bn_ds.GT.phased)) == True
         actual = bn_ds.GT.collect()
         expected = [
             hl.Call(a, phased=True)
             for a in [
-                    [0, 1], [0, 0], [0, 1], [0, 0], [0, 0],
-                    [1, 1], [1, 1], [1, 1], [1, 1], [1, 1],
-                    [0, 1], [0, 0], [0, 0], [1, 1], [0, 1],
-                    [1, 1], [1, 1], [1, 0], [1, 1], [1, 0],
-                    [0, 0], [0, 0], [0, 1], [0, 0], [1, 0]]]
+                    [0, 0], [0, 0], [0, 1], [0, 0], [0, 0],
+                    [0, 1], [1, 1], [0, 1], [1, 1], [0, 1],
+                    [1, 1], [1, 1], [0, 0], [0, 1], [0, 0],
+                    [1, 1], [1, 0], [1, 1], [1, 1], [1, 1],
+                    [1, 1], [0, 1], [1, 1], [1, 1], [1, 1]]]
         assert actual == expected
 
     @fails_service_backend()

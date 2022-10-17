@@ -294,12 +294,7 @@ final case class LowerBoundOnOrderedCollection(orderedCollection: IR, elem: IR, 
 
 final case class GroupByKey(collection: IR) extends IR
 
-// FIXME: Revisit all uses after all infra is in place
-object RNGStateLiteral {
-  def apply(): RNGStateLiteral =
-    RNGStateLiteral(Array.fill(4)(util.Random.nextLong()))
-}
-final case class RNGStateLiteral(key: IndexedSeq[Long]) extends IR
+final case class RNGStateLiteral() extends IR
 
 final case class RNGSplit(state: IR, dynBitstring: IR) extends IR
 
@@ -699,10 +694,10 @@ sealed abstract class AbstractApplyNode[F <: JVMFunction] extends IR {
 
 final case class Apply(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type, errorID: Int) extends AbstractApplyNode[UnseededMissingnessObliviousJVMFunction]
 
-final case class ApplySeeded(function: String, args: Seq[IR], rngState: IR, seed: Long, returnType: Type) extends AbstractApplyNode[SeededJVMFunction] {
+final case class ApplySeeded(function: String, args: Seq[IR], rngState: IR, staticUID: Long, returnType: Type) extends AbstractApplyNode[UnseededMissingnessObliviousJVMFunction] {
   val typeArgs: Seq[Type] = Seq.empty[Type]
-  lazy val pureImplementation: UnseededMissingnessObliviousJVMFunction =
-    IRFunctionRegistry.lookupFunctionOrFail(function + "_pure", returnType, typeArgs, TRNGState +: argTypes)
+  override lazy val implementation: UnseededMissingnessObliviousJVMFunction =
+    IRFunctionRegistry.lookupFunctionOrFail(function, returnType, typeArgs, TRNGState +: argTypes)
       .asInstanceOf[UnseededMissingnessObliviousJVMFunction]
 }
 

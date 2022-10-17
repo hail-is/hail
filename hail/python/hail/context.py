@@ -834,6 +834,14 @@ def set_global_seed(seed):
     Env.set_seed(seed)
 
 
+@typecheck()
+def reset_global_randomness():
+    """Restore global randomness to initial state for test reproducibility.
+    """
+
+    Env.reset_global_randomness()
+
+
 def _set_flags(**flags):
     Env.backend().set_flags(**flags)
 

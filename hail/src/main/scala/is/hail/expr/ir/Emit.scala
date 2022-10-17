@@ -1306,29 +1306,26 @@ class Emit[C](
           dictType.construct(finishOuter(cb))
         }
 
-      case RNGStateLiteral(key) =>
-        IEmitCode.present(cb, SRNGStateStaticSizeValue(cb, key))
+      case RNGStateLiteral() =>
+        IEmitCode.present(cb, SRNGStateStaticSizeValue(cb))
 
       case RNGSplit(state, dynBitstring) =>
-        // FIXME: When new rng support is complete, don't allow missing states
-        emitI(state).flatMap(cb) { stateValue =>
-          emitI(dynBitstring).map(cb) { tupleOrLong =>
-            val longs = if (tupleOrLong.isInstanceOf[SInt64Value]) {
-              Array(tupleOrLong.asInt64.value)
-            } else {
-              val tuple = tupleOrLong.asBaseStruct
-              Array.tabulate(tuple.st.size) { i =>
-                tuple.loadField(cb, i)
-                  .get(cb, "RNGSplit tuple components are required")
-                  .asInt64
-                  .value
-              }
-            }
-            var result = stateValue.asRNGState
-            longs.foreach(l => result = result.splitDyn(cb, l))
-            result
+        val stateValue = emitI(state).get(cb)
+        val tupleOrLong = emitI(dynBitstring).get(cb)
+        val longs = if (tupleOrLong.isInstanceOf[SInt64Value]) {
+          Array(tupleOrLong.asInt64.value)
+        } else {
+          val tuple = tupleOrLong.asBaseStruct
+          Array.tabulate(tuple.st.size) { i =>
+            tuple.loadField(cb, i)
+              .get(cb, "RNGSplit tuple components are required")
+              .asInt64
+              .value
           }
         }
+        var result = stateValue.asRNGState
+        longs.foreach(l => result = result.splitDyn(cb, l))
+        presentPC(result)
 
       case x@StreamLen(a) =>
         emitStream(a, cb, region).map(cb) { case stream: SStreamValue =>
@@ -2066,24 +2063,14 @@ class Emit[C](
         val rvAgg = agg.Extract.getAgg(sig)
         rvAgg.result(cb, sc.states(idx), region)
 
-      case x@ApplySeeded(fn, args, rngState, seed, rt) =>
+      case x@ApplySeeded(fn, args, rngState, staticUID, rt) =>
         val codeArgs = args.map(a => EmitCode.fromI(cb.emb)(emitInNewBuilder(_, a)))
+        val codeArgsMem = codeArgs.map(_.memoize(cb, "ApplySeeded_arg"))
+        val state = emitI(rngState).get(cb)
         val impl = x.implementation
-        val unified = impl.unify(Array.empty[Type], x.argTypes, rt)
-        assert(unified)
-        val newRNGEnabled = Array[String]()
-        if (newRNGEnabled.contains(fn)) {
-          val pureImpl = x.pureImplementation
-          assert(pureImpl.unify(Array.empty[Type], rngState.typ +: x.argTypes, rt))
-          val codeArgsMem = codeArgs.map(_.memoize(cb, "ApplySeeded_arg"))
-          emitI(rngState).consumeI(cb, {
-            impl.applySeededI(seed, cb, region, impl.computeReturnEmitType(x.typ, codeArgs.map(_.emitType)).st, codeArgsMem.map(_.load): _*)
-          }, { state =>
-            pureImpl.applyI(EmitRegion(cb.emb, region), cb, impl.computeReturnEmitType(x.typ, codeArgs.map(_.emitType)).st, Seq[Type](), const(0), EmitCode.present(mb, state) +: codeArgsMem.map(_.load): _*)
-          })
-        } else {
-          impl.applySeededI(seed, cb, region, impl.computeReturnEmitType(x.typ, codeArgs.map(_.emitType)).st, codeArgs: _*)
-        }
+        assert(impl.unify(Array.empty[Type], rngState.typ +: x.argTypes, rt))
+        val newState = state.asRNGState.splitStatic(cb, staticUID)
+        impl.applyI(EmitRegion(cb.emb, region), cb, impl.computeReturnEmitType(x.typ, codeArgs.map(_.emitType)).st, Seq[Type](), const(0), EmitCode.present(mb, newState) +: codeArgsMem.map(_.load): _*)
 
       case AggStateValue(i, _) =>
         val AggContainer(_, sc, _) = container.get

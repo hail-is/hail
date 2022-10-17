@@ -791,7 +791,8 @@ object PruneDeadFields {
       case MatrixRepartition(child, _, _) =>
         memoizeMatrixIR(ctx, child, requestedType, memo)
       case MatrixUnionRows(children) =>
-        children.foreach(memoizeMatrixIR(ctx, _, requestedType, memo))
+        memoizeMatrixIR(ctx, children.head, requestedType, memo)
+        children.tail.foreach(memoizeMatrixIR(ctx, _, requestedType.copy(colType = requestedType.colKeyStruct), memo))
       case MatrixDistinctByRow(child) =>
         val dep = requestedType.copy(
           rowKey = child.typ.rowKey,
@@ -1752,10 +1753,12 @@ object PruneDeadFields {
           rebuildIR(ctx, colExpr, BindingEnv(child2.typ.globalEnv, agg = Some(child2.typ.colEnv)), memo))
       case MatrixUnionRows(children) =>
         val requestedType = memo.requestedType.lookup(mir).asInstanceOf[MatrixType]
-        MatrixUnionRows(children.map { child =>
-          upcast(ctx, rebuild(ctx, child, memo), requestedType,
+        val firstChild = upcast(ctx, rebuild(ctx, children.head, memo), requestedType, upcastGlobals = false)
+        val remainingChildren = children.tail.map { child =>
+          upcast(ctx, rebuild(ctx, child, memo), requestedType.copy(colType = requestedType.colKeyStruct),
             upcastGlobals = false)
-        })
+        }
+        MatrixUnionRows(firstChild +: remainingChildren)
       case MatrixUnionCols(left, right, joinType) =>
         val requestedType = memo.requestedType.lookup(mir).asInstanceOf[MatrixType]
         val left2 = rebuild(ctx, left, memo)
