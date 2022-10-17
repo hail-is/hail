@@ -925,9 +925,10 @@ class BatchClient:
     def create_batch(self, attributes=None, callback=None, token=None, cancel_after_n_failures=None) -> BatchBuilder:
         return BatchBuilder(self, attributes=attributes, callback=callback, token=token, cancel_after_n_failures=cancel_after_n_failures)
 
-    async def update_batch(self, batch_id: int) -> BatchBuilder:
-        batch = await self.get_batch(batch_id)
-        return BatchBuilder(self, batch=batch)
+    async def update_batch(self, *, batch: Union[int, Batch]) -> BatchBuilder:
+        if isinstance(batch, Batch):
+            return BatchBuilder(self, batch=batch)
+        return BatchBuilder(self, batch=(await self.get_batch(batch)))
 
     async def get_billing_project(self, billing_project):
         bp_resp = await self._get(f'/api/v1alpha/billing_projects/{billing_project}')

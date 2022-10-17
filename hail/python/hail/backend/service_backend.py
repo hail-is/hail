@@ -256,6 +256,7 @@ class ServiceBackend(Backend):
         self._async_fs = async_fs
         self.bc = bc
         self.async_bc = self.bc._async_client
+        self._batch: Optional[aiohb.Batch] = None
         self.disable_progress_bar = disable_progress_bar
         self.batch_attributes = batch_attributes
         self.remote_tmpdir = remote_tmpdir
