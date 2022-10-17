@@ -192,6 +192,7 @@ class ModuleBuilder() {
     Code.checkcast[T](toCodeArray(_objectsField).apply(i))
   }
 
+  def objectArray: Array[AnyRef] = if (_objects == null) null else _objects.result()
 }
 
 trait WrappedClassBuilder[C] extends WrappedModuleBuilder {

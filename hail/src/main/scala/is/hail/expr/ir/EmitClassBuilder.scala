@@ -65,6 +65,8 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
   def setObjects(cb: EmitCodeBuilder, objects: Code[Array[AnyRef]]): Unit = modb.setObjects(cb, objects)
 
   def getObject[T <: AnyRef : TypeInfo](obj: T): Code[T] = modb.getObject(obj)
+
+  def objectArray: Array[AnyRef] = modb.objectArray
 }
 
 trait WrappedEmitModuleBuilder {
@@ -332,9 +334,6 @@ class EmitClassBuilder[C](
     enc.close()
     Array(baos.toByteArray) ++ preEncodedLiterals.map(_._1.value.ba)
   }
-
-  private[this] var _objectsField: Settable[Array[AnyRef]] = _
-  private[this] var _objects: BoxedArrayBuilder[AnyRef] = _
 
   private[this] var _mods: BoxedArrayBuilder[(String, (HailClassLoader, FS, Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new BoxedArrayBuilder()
   private[this] var _backendField: Settable[BackendUtils] = _
@@ -702,11 +701,7 @@ class EmitClassBuilder[C](
     val useBackend = _backendField != null
     val backend = if (useBackend) new BackendUtils(_mods.result()) else null
 
-    val objects =
-      if (_objects != null)
-        _objects.result()
-      else
-        null
+    val objects = emodb.objectArray
 
     assert(TaskContext.get() == null,
       "FunctionBuilder emission should happen on master, but happened on worker")
