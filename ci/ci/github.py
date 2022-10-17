@@ -1,5 +1,6 @@
 import asyncio
 import concurrent.futures
+import datetime
 import json
 import logging
 import os
@@ -23,6 +24,7 @@ from .build import BuildConfiguration, Code
 from .constants import AUTHORIZED_USERS, COMPILER_TEAM, GITHUB_CLONE_URL, GITHUB_STATUS_CONTEXT, SERVICES_TEAM
 from .environment import DEPLOY_STEPS
 from .globals import is_test_deployment
+from .utils import add_deployed_services
 
 repos_lock = asyncio.Lock()
 
@@ -481,6 +483,9 @@ mkdir -p {shq(repo_dir)}
 
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
                 config = BuildConfiguration(self, f.read(), scope='test')
+            tomorrow = datetime.datetime.utcnow() + datetime.timedelta(days=1)
+            namespace, services = config.deployed_services()
+            await add_deployed_services(db, namespace, services, tomorrow)
 
             log.info(f'creating test batch for {self.number}')
             batch = batch_client.create_batch(
@@ -490,6 +495,7 @@ mkdir -p {shq(repo_dir)}
                     'source_branch': self.source_branch.short_str(),
                     'target_branch': self.target_branch.branch.short_str(),
                     'pr': str(self.number),
+                    'namespace': namespace,
                     'source_sha': self.source_sha,
                     'target_sha': self.target_branch.sha,
                 },
@@ -634,7 +640,7 @@ class WatchedBranch(Code):
         self.prs: Dict[str, PR] = {}
         self.sha: Optional[str] = None
 
-        self.deploy_batch: Optional[Batch] = None
+        self.deploy_batch: Union[Batch, MergeFailureBatch, None] = None
         # success, failure, pending
         self._deploy_state: Optional[str] = None
 
@@ -819,7 +825,7 @@ url: {url}
             self.deploy_batch is None or (self.deploy_state and self.deploy_batch.attributes['sha'] != self.sha)
         ):
             async with repos_lock:
-                await self._start_deploy(batch_client)
+                await self._start_deploy(app['db'], batch_client)
 
     async def _update_batch(self, batch_client, db: Database):
         log.info(f'update batch {self.short_str()}')
@@ -867,7 +873,7 @@ url: {url}
                 log.info(f'cancel batch {batch.id} for {attrs["pr"]} {attrs["source_sha"]} => {attrs["target_sha"]}')
                 await batch.cancel()
 
-    async def _start_deploy(self, batch_client):
+    async def _start_deploy(self, db: Database, batch_client):
         # not deploying
         assert not self.deploy_batch or self.deploy_state
 
@@ -885,6 +891,8 @@ mkdir -p {shq(repo_dir)}
             )
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
                 config = BuildConfiguration(self, f.read(), requested_step_names=DEPLOY_STEPS, scope='deploy')
+            namespace, services = config.deployed_services()
+            await add_deployed_services(db, namespace, services, None)
 
             log.info(f'creating deploy batch for {self.branch.short_str()}')
             deploy_batch = batch_client.create_batch(
@@ -961,7 +969,7 @@ class UnwatchedBranch(Code):
             config.update(self.extra_config)
         return config
 
-    async def deploy(self, batch_client, steps, excluded_steps=()):
+    async def deploy(self, db: Database, batch_client, steps, excluded_steps=()):
         assert not self.deploy_batch
 
         deploy_batch = None
@@ -978,6 +986,8 @@ mkdir -p {shq(repo_dir)}
                 config = BuildConfiguration(
                     self, f.read(), scope='dev', requested_step_names=steps, excluded_step_names=excluded_steps
                 )
+            namespace, services = config.deployed_services()
+            await add_deployed_services(db, namespace, services, None)
 
             log.info(f'creating dev deploy batch for {self.branch.short_str()} and user {self.user}')
 

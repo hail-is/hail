@@ -6,3 +6,5 @@ DROP TABLE IF EXISTS `ci_migrations`;
 DROP TABLE IF EXISTS `authorized_shas`;
 DROP TABLE IF EXISTS `invalidated_batches`;
 DROP TABLE IF EXISTS `globals`;
+DROP TABLE IF EXISTS `active_namespaces`;
+DROP TABLE IF EXISTS `deployed_services`;
