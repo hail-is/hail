@@ -1800,7 +1800,7 @@ def split_multi(ds, keep_star=False, left_aligned=False, *, permit_shuffle=False
 
     Warning
     -------
-    This method assumes `ds` contains one non-split variant per locus. This assumption permits the
+    This method assumes `ds` contains at most one non-split variant per locus. This assumption permits the
     most efficient implementation of the splitting algorithm. If your queries involving `split_multi`
     crash with errors about out-of-order keys, this assumption may be violated. Otherwise, this
     warning likely does not apply to your dataset.
@@ -1813,7 +1813,7 @@ def split_multi(ds, keep_star=False, left_aligned=False, *, permit_shuffle=False
     non-split variants.
 
     >>> bi = mt.filter_rows(hl.len(mt.alleles) == 2)
-    >>> bi = bi.annotate_rows(a_index=1, was_split=False)
+    >>> bi = bi.annotate_rows(a_index=1, was_split=False, old_locus=bi.locus, old_alleles=bi.alleles)
     >>> multi = mt.filter_rows(hl.len(mt.alleles) > 2)
     >>> split = hl.split_multi(multi)
     >>> mt = split.union_rows(bi)
@@ -1976,7 +1976,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep', *, 
 
     Warning
     -------
-    This method assumes `ds` contains one non-split variant per locus. This assumption permits the
+    This method assumes `ds` contains at most one non-split variant per locus. This assumption permits the
     most efficient implementation of the splitting algorithm. If your queries involving `split_multi_hts`
     crash with errors about out-of-order keys, this assumption may be violated. Otherwise, this
     warning likely does not apply to your dataset.
