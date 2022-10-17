@@ -61,6 +61,10 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
 
   def referenceGenomes(): IndexedSeq[ReferenceGenome] = rgContainers.keys.toFastIndexedSeq.sortBy(_.name)
   def referenceGenomeFields(): IndexedSeq[StaticField[ReferenceGenome]] = rgContainers.toFastIndexedSeq.sortBy(_._1.name).map(_._2)
+
+  def setObjects(cb: EmitCodeBuilder, objects: Code[Array[AnyRef]]): Unit = modb.setObjects(cb, objects)
+
+  def getObject[T <: AnyRef : TypeInfo](obj: T): Code[T] = modb.getObject(obj)
 }
 
 trait WrappedEmitModuleBuilder {
@@ -448,18 +452,19 @@ class EmitClassBuilder[C](
 
   def getFS: Code[FS] = emodb.getFS
 
-  def getObject[T <: AnyRef : TypeInfo](obj: T): Code[T] = {
-    if (_objectsField == null) {
-      cb.addInterface(typeInfo[FunctionWithObjects].iname)
-      _objectsField = genFieldThisRef[Array[AnyRef]]()
-      _objects = new BoxedArrayBuilder[AnyRef]()
-      val mb = newEmitMethod("setObjects", FastIndexedSeq[ParamType](typeInfo[Array[AnyRef]]), typeInfo[Unit])
-      mb.emit(_objectsField := mb.getCodeParam[Array[AnyRef]](1))
-    }
+  def setObjects(cb: EmitCodeBuilder, objects: Code[Array[AnyRef]]): Unit = modb.setObjects(cb, objects)
 
-    val i = _objects.size
-    _objects += obj
-    Code.checkcast[T](toCodeArray(_objectsField).apply(i))
+  def getObject[T <: AnyRef : TypeInfo](obj: T): Code[T] = modb.getObject(obj)
+
+  def makeAddObjects(): Array[AnyRef] = {
+    if (emodb.modb._objects == null)
+      null
+    else {
+      cb.addInterface(typeInfo[FunctionWithObjects].iname)
+      val mb = newEmitMethod("setObjects", FastIndexedSeq[ParamType](typeInfo[Array[AnyRef]]), typeInfo[Unit])
+      mb.voidWithBuilder(cb => emodb.setObjects(cb, mb.getCodeParam[Array[AnyRef]](1)))
+      emodb.modb._objects.result()
+    }
   }
 
   def getPType[T <: PType : TypeInfo](t: T): Code[T] = {
@@ -677,6 +682,8 @@ class EmitClassBuilder[C](
     val hasReferences: Boolean = emodb.hasReferences
     if (hasReferences)
       makeAddReferenceGenomes()
+
+    val objects = makeAddObjects()
 
     val literalsBc = if (hasLiterals)
       ctx.backend.broadcast(encodeLiterals())
