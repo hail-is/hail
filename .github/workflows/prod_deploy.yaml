@@ -7,7 +7,7 @@ jobs:
   invoke-prod-deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: deploy_gcp
+      - name: deploy to GCP
         run: |
           DEPLOY_BATCH_URL=$(curl --fail --silent --show-error -X POST \
               -H "Authorization: Bearer ${{ secrets.CI_TOKEN }}" \
