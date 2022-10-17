@@ -12,6 +12,7 @@ import is.hail.utils._
 import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeType}
+import is.hail.types.tcoerce
 import org.apache.spark.sql.Row
 
 import scala.collection.mutable
@@ -343,7 +344,7 @@ object Interpret {
         if (cValue == null)
           null
         else {
-          val ordering = coerce[TIterable](c.typ).elementType.ordering.toOrdering
+          val ordering = tcoerce[TIterable](c.typ).elementType.ordering.toOrdering
           cValue match {
             case s: Set[_] =>
               s.asInstanceOf[Set[Any]].toFastIndexedSeq.sorted(ordering)
@@ -424,7 +425,7 @@ object Interpret {
         if (aValue == null)
           null
         else {
-          val structType = coerce[TStruct](coerce[TStream](a.typ).elementType)
+          val structType = tcoerce[TStruct](tcoerce[TStream](a.typ).elementType)
           val seq = aValue.asInstanceOf[IndexedSeq[Row]]
           if (seq.isEmpty)
             FastIndexedSeq[IndexedSeq[Row]]()
@@ -486,7 +487,7 @@ object Interpret {
         else {
           val k = as.length
           val tournament = Array.fill[Int](k)(-1)
-          val structType = coerce[TStruct](coerce[TStream](as.head.typ).elementType)
+          val structType = tcoerce[TStruct](tcoerce[TStream](as.head.typ).elementType)
           val (kType, getKey) = structType.select(key)
           val heads = Array.fill[Int](k)(-1)
           val ordering = kType.ordering.toOrdering.on[Row](getKey)
@@ -530,7 +531,7 @@ object Interpret {
         else {
           val k = as.length
           val tournament = Array.fill[Int](k)(-1)
-          val structType = coerce[TStruct](coerce[TStream](as.head.typ).elementType)
+          val structType = tcoerce[TStruct](tcoerce[TStream](as.head.typ).elementType)
           val (kType, getKey) = structType.select(key)
           val heads = Array.fill[Int](k)(-1)
           val ordering = kType.ordering.toOrdering.on[Row](getKey)
@@ -659,8 +660,8 @@ object Interpret {
         if (lValue == null || rValue == null)
           null
         else {
-          val (lKeyTyp, lGetKey) = coerce[TStruct](coerce[TStream](left.typ).elementType).select(lKey)
-          val (rKeyTyp, rGetKey) = coerce[TStruct](coerce[TStream](right.typ).elementType).select(rKey)
+          val (lKeyTyp, lGetKey) = tcoerce[TStruct](tcoerce[TStream](left.typ).elementType).select(lKey)
+          val (rKeyTyp, rGetKey) = tcoerce[TStruct](tcoerce[TStream](right.typ).elementType).select(rKey)
           assert(lKeyTyp isIsomorphicTo rKeyTyp)
           val keyOrd = TBaseStruct.getJoinOrdering(lKeyTyp.types)
 
@@ -723,7 +724,7 @@ object Interpret {
       case MakeStruct(fields) =>
         Row.fromSeq(fields.map { case (name, fieldIR) => interpret(fieldIR, env, args) })
       case SelectFields(old, fields) =>
-        val oldt = coerce[TStruct](old.typ)
+        val oldt = tcoerce[TStruct](old.typ)
         val oldRow = interpret(old, env, args).asInstanceOf[Row]
         if (oldRow == null)
           null

@@ -269,7 +269,7 @@ object LoweredTableReader {
             SelectFields(l, FastSeq("minkey", "maxkey")),
             SelectFields(r, FastSeq("minkey", "maxkey")))
         }
-        val partDataElt = coerce[TArray](sortedPartDataIR.typ).elementType
+        val partDataElt = tcoerce[TArray](sortedPartDataIR.typ).elementType
 
         val summary =
           Let("sortedPartData", sortedPartDataIR,
@@ -1155,14 +1155,14 @@ class TableNativeReader(
   def fullTypeWithoutUIDs = spec.table_type
 
   override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
-    VirtualTypeWithReq(coerce[PStruct](spec.rowsComponent.rvdSpec(ctx.fs, params.path)
+    VirtualTypeWithReq(tcoerce[PStruct](spec.rowsComponent.rvdSpec(ctx.fs, params.path)
       .typedCodecSpec.encodedType.decodedPType(requestedType.rowType)))
 
   protected def uidRequiredness: VirtualTypeWithReq =
     VirtualTypeWithReq(PCanonicalTuple(true, PInt64Required, PInt64Required))
 
   override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
-    VirtualTypeWithReq(coerce[PStruct](spec.globalsComponent.rvdSpec(ctx.fs, params.path)
+    VirtualTypeWithReq(tcoerce[PStruct](spec.globalsComponent.rvdSpec(ctx.fs, params.path)
       .typedCodecSpec.encodedType.decodedPType(requestedType.globalType)))
 
   def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue =
@@ -1253,11 +1253,11 @@ case class TableNativeZippedReader(
     requestedType.filter(f => rightFieldSet.contains(f.name))._1
 
   def leftPType(ctx: ExecuteContext, leftRType: TStruct): PStruct =
-    coerce[PStruct](specLeft.rowsComponent.rvdSpec(ctx.fs, pathLeft)
+    tcoerce[PStruct](specLeft.rowsComponent.rvdSpec(ctx.fs, pathLeft)
       .typedCodecSpec.encodedType.decodedPType(leftRType))
 
   def rightPType(ctx: ExecuteContext, rightRType: TStruct): PStruct =
-    coerce[PStruct](specRight.rowsComponent.rvdSpec(ctx.fs, pathRight)
+    tcoerce[PStruct](specRight.rowsComponent.rvdSpec(ctx.fs, pathRight)
       .typedCodecSpec.encodedType.decodedPType(rightRType))
 
   override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
@@ -2542,7 +2542,7 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
   val idx = Ref(genUID(), TInt32)
   val newRow: InsertFields = {
     val refs = path.init.scanLeft(Ref("row", childRowType))((struct, name) =>
-      Ref(genUID(), coerce[TStruct](struct.typ).field(name).typ))
+      Ref(genUID(), tcoerce[TStruct](struct.typ).field(name).typ))
 
     path.zip(refs).zipWithIndex.foldRight[IR](idx) {
       case (((field, ref), i), arg) =>
@@ -2713,7 +2713,7 @@ case class TableKeyByAndAggregate(
   }
 
   private val keyType = newKey.typ.asInstanceOf[TStruct]
-  val typ: TableType = TableType(rowType = keyType ++ coerce[TStruct](expr.typ),
+  val typ: TableType = TableType(rowType = keyType ++ tcoerce[TStruct](expr.typ),
     globalType = child.typ.globalType,
     key = keyType.fieldNames
   )
@@ -2864,7 +2864,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
     TableAggregateByKey(newChild, newExpr)
   }
 
-  val typ: TableType = child.typ.copy(rowType = child.typ.keyType ++ coerce[TStruct](expr.typ))
+  val typ: TableType = child.typ.copy(rowType = child.typ.keyType ++ tcoerce[TStruct](expr.typ))
 
   protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
     val prev = child.execute(ctx, r).asTableValue(ctx)

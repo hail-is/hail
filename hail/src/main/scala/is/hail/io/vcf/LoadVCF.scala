@@ -1732,7 +1732,7 @@ class MatrixVCFReader(
   val partitionCounts: Option[IndexedSeq[Long]] = None
 
   override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
-    VirtualTypeWithReq(coerce[PStruct](fullRVDType.rowType.subsetTo(requestedType.rowType)))
+    VirtualTypeWithReq(tcoerce[PStruct](fullRVDType.rowType.subsetTo(requestedType.rowType)))
 
   override def uidRequiredness: VirtualTypeWithReq =
     VirtualTypeWithReq(PCanonicalTuple(true, PInt64Required, PInt64Required))

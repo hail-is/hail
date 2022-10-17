@@ -20,7 +20,7 @@ import is.hail.types.physical._
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.primitives.SInt32
 import is.hail.types.virtual._
-import is.hail.types.{BlockMatrixType, TableType, VirtualTypeWithReq}
+import is.hail.types.{BlockMatrixType, TableType, VirtualTypeWithReq, tcoerce}
 import is.hail.utils.{FastIndexedSeq, _}
 import is.hail.variant.{Call2, Locus}
 import is.hail.{ExecStrategy, HailSuite}
@@ -1492,7 +1492,7 @@ class IRSuite extends HailSuite {
   }
 
   def toNestedArray(stream: IR): IR = {
-    val innerType = coerce[TStream](coerce[TStream](stream.typ).elementType)
+    val innerType = tcoerce[TStream](tcoerce[TStream](stream.typ).elementType)
     ToArray(StreamMap(stream, "inner", ToArray(Ref("inner", innerType))))
   }
 
@@ -1516,7 +1516,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(StreamLen(StreamGrouped(r, 2)), 5)
 
     def takeFromEach(stream: IR, take: IR, fromEach: IR): IR = {
-      val innerType = coerce[TStream](stream.typ)
+      val innerType = tcoerce[TStream](stream.typ)
       StreamMap(StreamGrouped(stream, fromEach), "inner", StreamTake(Ref("inner", innerType), take))
     }
 
@@ -1557,7 +1557,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(streamForceCount(group(a)), 5)
 
     def takeFromEach(stream: IR, take: IR): IR = {
-      val innerType = coerce[TStream](stream.typ)
+      val innerType = tcoerce[TStream](stream.typ)
       StreamMap(group(stream), "inner", StreamTake(Ref("inner", innerType), take))
     }
 
@@ -2004,14 +2004,14 @@ class IRSuite extends HailSuite {
           Let("_left", l,
               MakeStruct(
                 (lKeys, rKeys).zipped.map { (lk, rk) => lk -> Coalesce(Seq(getL(lk), getR(rk))) }
-                  ++ coerce[TStruct](l.typ).fields.filter(f => !lKeys.contains(f.name)).map { f =>
+                  ++ tcoerce[TStruct](l.typ).fields.filter(f => !lKeys.contains(f.name)).map { f =>
                   f.name -> GetField(Ref("_left", l.typ), f.name)
-                } ++ coerce[TStruct](r.typ).fields.filter(f => !rKeys.contains(f.name)).map { f =>
+                } ++ tcoerce[TStruct](r.typ).fields.filter(f => !rKeys.contains(f.name)).map { f =>
                   f.name -> GetField(Ref("_right", r.typ), f.name)
                 })))
     }
     ToArray(StreamJoin.apply(left, right, lKeys, rKeys, "_l", "_r",
-                     joinF(Ref("_l", coerce[TStream](left.typ).elementType), Ref("_r", coerce[TStream](right.typ).elementType)),
+                     joinF(Ref("_l", tcoerce[TStream](left.typ).elementType), Ref("_r", tcoerce[TStream](right.typ).elementType)),
                      joinType, requiresMemoryManagement = false, rightKeyIsDistinct = rightDistinct))
   }
 
@@ -3598,7 +3598,7 @@ class IRSuite extends HailSuite {
       val reader = PartitionNativeReader(spec, "rowUID")
       val read = ToArray(ReadPartition(
         MakeStruct(Array("partitionIndex" -> I64(0), "partitionPath" -> Str(path))),
-        coerce[TStruct](spec._vType),
+        tcoerce[TStruct](spec._vType),
         reader))
       val rowsFromDisk = eval(read).asInstanceOf[IndexedSeq[Row]]
       assert(rowsFromDisk.size == elementCount)
