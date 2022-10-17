@@ -65,8 +65,6 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
   def setObjects(cb: EmitCodeBuilder, objects: Code[Array[AnyRef]]): Unit = modb.setObjects(cb, objects)
 
   def getObject[T <: AnyRef : TypeInfo](obj: T): Code[T] = modb.getObject(obj)
-
-  def objectArray: Array[AnyRef] = modb.objectArray
 }
 
 trait WrappedEmitModuleBuilder {
@@ -700,8 +698,6 @@ class EmitClassBuilder[C](
 
     val useBackend = _backendField != null
     val backend = if (useBackend) new BackendUtils(_mods.result()) else null
-
-    val objects = emodb.objectArray
 
     assert(TaskContext.get() == null,
       "FunctionBuilder emission should happen on master, but happened on worker")
