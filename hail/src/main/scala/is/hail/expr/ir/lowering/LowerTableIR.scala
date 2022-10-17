@@ -1230,9 +1230,9 @@ object LowerTableIR {
           val initFromSerializedStates = Begin(aggs.aggs.zipWithIndex.map { case (agg, i) =>
             InitFromSerializedValue(i, GetTupleElement(initStateRef, i), agg.state)
           })
-          val big = aggs.shouldTreeAggregate
+          val branchFactor = HailContext.get.branchingFactor
+          val big = aggs.shouldTreeAggregate && branchFactor > lc.numPartitions
           val (partitionPrefixSumValues, transformPrefixSum): (IR, IR => IR) = if (big) {
-            val branchFactor = HailContext.get.branchingFactor
             val tmpDir = ctx.createTmpPath("aggregate_intermediates/")
 
             val codecSpec = TypedCodecSpec(PCanonicalTuple(true, aggs.aggs.map(_ => PCanonicalBinary(true)): _*), BufferSpec.wireSpec)
