@@ -23,6 +23,15 @@ relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
 ---
+## Version 0.2.103
+
+Release 2022-10-17
+
+### Bug Fixes
+
+- (hail#12305): Fixed a rare crash reading tables/matrixtables with _intervals
+
+---
 
 ## Version 0.2.102
 
