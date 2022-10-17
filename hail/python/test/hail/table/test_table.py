@@ -1800,6 +1800,13 @@ def test_read_partitions_with_missing_key():
     assert hl.read_table(path, _n_partitions=10).n_partitions() == 1  # one key => one partition
 
 
+def test_empty_tree_aggregate():
+    ht = hl.utils.range_table(100, 3)
+    path = new_temp_file()
+    ht = ht.checkpoint(path).filter(False)
+    assert ht.aggregate(hl.agg.counter(ht.idx)) == {}
+
+
 def test_interval_filter_partitions():
     ht = hl.utils.range_table(100, 3)
     path = new_temp_file()
