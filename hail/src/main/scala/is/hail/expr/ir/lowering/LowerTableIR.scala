@@ -623,16 +623,19 @@ object LowerTableIR {
 
             val distAggStatesRef = Ref(genUID(), TArray(TString))
 
-
-            def combineGroup(partArrayRef: IR): IR = {
+            def combineGroup(partArrayRef: IR, useInitStates: Boolean): IR = {
               Begin(FastIndexedSeq(
-                bindIR(ReadValue(ArrayRef(partArrayRef, 0), codecSpec, codecSpec.encodedVirtualType)) { serializedTuple =>
-                  Begin(
-                    aggs.aggs.zipWithIndex.map { case (sig, i) =>
-                      InitFromSerializedValue(i, GetTupleElement(serializedTuple, i), sig.state)
-                    })
+                if (useInitStates) {
+                  initFromSerializedStates
+                } else {
+                  bindIR(ReadValue(ArrayRef(partArrayRef, 0), codecSpec, codecSpec.encodedVirtualType)) { serializedTuple =>
+                    Begin(
+                      aggs.aggs.zipWithIndex.map { case (sig, i) =>
+                        InitFromSerializedValue(i, GetTupleElement(serializedTuple, i), sig.state)
+                      })
+                  }
                 },
-                forIR(StreamRange(1, ArrayLen(partArrayRef), 1, requiresMemoryManagementPerElement = true)) { fileIdx =>
+                forIR(StreamRange(if (useInitStates) 0 else 1, ArrayLen(partArrayRef), 1, requiresMemoryManagementPerElement = true)) { fileIdx =>
 
                   bindIR(ReadValue(ArrayRef(partArrayRef, fileIdx), codecSpec, codecSpec.encodedVirtualType)) { serializedTuple =>
                     Begin(
@@ -647,22 +650,27 @@ object LowerTableIR {
               FastIndexedSeq[(String, IR)](currentAggStates.name -> collected, iterNumber.name -> I32(0)),
               If(ArrayLen(currentAggStates) <= I32(branchFactor),
                 currentAggStates,
-                Recur(treeAggFunction, FastIndexedSeq(CollectDistributedArray(mapIR(StreamGrouped(ToStream(currentAggStates), I32(branchFactor)))(x => ToArray(x)),
-                  MakeStruct(FastSeq()), distAggStatesRef.name, genUID(),
-                  RunAgg(
-                    combineGroup(distAggStatesRef),
-                    WriteValue(MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }), Str(tmpDir) + UUID4(), codecSpec),
-                    aggs.states
-                  ), strConcat(Str("iteration="), invoke("str", TString, iterNumber), Str(", n_states="), invoke("str", TString, ArrayLen(currentAggStates))),
-                  "table_tree_aggregate"
-                ), iterNumber + 1), currentAggStates.typ)))
+                Recur(treeAggFunction,
+                  FastIndexedSeq(
+                    CollectDistributedArray(
+                      mapIR(StreamGrouped(ToStream(currentAggStates), I32(branchFactor)))(x => ToArray(x)),
+                      MakeStruct(FastSeq()),
+                      distAggStatesRef.name,
+                      genUID(),
+                      RunAgg(
+                        combineGroup(distAggStatesRef, false),
+                        WriteValue(MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }), Str(tmpDir) + UUID4(), codecSpec),
+                        aggs.states
+                      ),
+                      strConcat(Str("iteration="), invoke("str", TString, iterNumber), Str(", n_states="), invoke("str", TString, ArrayLen(currentAggStates))),
+                      "table_tree_aggregate"),
+                    iterNumber + 1),
+                  currentAggStates.typ)))
             ) { finalParts =>
               RunAgg(
-                combineGroup(finalParts),
+                combineGroup(finalParts, true),
                 Let("global", globals,
-                  Let(
-                    resultUID,
-                    results,
+                  Let(resultUID, results,
                     aggs.postAggIR)),
                 aggs.states
               )
