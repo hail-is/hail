@@ -594,13 +594,13 @@ object LowerTableIR {
         val initFromSerializedStates = Begin(aggs.aggs.zipWithIndex.map { case (agg, i) =>
           InitFromSerializedValue(i, GetTupleElement(initStateRef, i), agg.state )})
 
-        val useTreeAggregate = aggs.shouldTreeAggregate
+        val branchFactor = HailContext.get.branchingFactor
+        val useTreeAggregate = aggs.shouldTreeAggregate && branchFactor > lc.numPartitions
         val isCommutative = aggs.isCommutative
         log.info(s"Aggregate: useTreeAggregate=${ useTreeAggregate }")
         log.info(s"Aggregate: commutative=${ isCommutative }")
 
         if (useTreeAggregate) {
-          val branchFactor = HailContext.get.branchingFactor
           val tmpDir = ctx.createTmpPath("aggregate_intermediates/")
 
           val codecSpec = TypedCodecSpec(PCanonicalTuple(true, aggs.aggs.map(_ => PCanonicalBinary(true)): _*), BufferSpec.wireSpec)
@@ -690,7 +690,7 @@ object LowerTableIR {
               RunAgg(
                 Begin(FastIndexedSeq(
                   initFromSerializedStates,
-                  forIR(ToStream(collected)) { state =>
+                  forIR(ToStream(collected, requiresMemoryManagementPerElement = true)) { state =>
                     Begin(aggs.aggs.zipWithIndex.map { case (sig, i) => CombOpValue(i, GetTupleElement(state, i), sig) })
                   }
                 )),
@@ -1398,7 +1398,7 @@ object LowerTableIR {
                   val acc = Ref(genUID(), initStateRef.typ)
                   val value = Ref(genUID(), collected.typ.asInstanceOf[TArray].elementType)
                   StreamScan(
-                    ToStream(collected),
+                    ToStream(collected, requiresMemoryManagementPerElement = true),
                     initStateRef,
                     acc.name,
                     value.name,
