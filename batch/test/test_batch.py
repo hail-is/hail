@@ -1211,7 +1211,7 @@ def test_update_batch_w_empty_initial_batch(client: BatchClient):
     bb = client.create_batch()
     b = bb.submit()
 
-    bb = client.update_batch(batch=b.id)
+    bb = client.update_batch(b.id)
     j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
     b = bb.submit()
     status = j1.wait()
@@ -1233,7 +1233,7 @@ def test_update_batch_w_multiple_empty_updates(client: BatchClient):
 def test_update_batch_w_new_batch_builder(client: BatchClient):
     bb = client.create_batch()
     b = bb.submit()
-    bb = client.update_batch(batch=b.id)
+    bb = client.update_batch(b.id)
     j = bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
     b = bb.submit()
     status = b.wait()

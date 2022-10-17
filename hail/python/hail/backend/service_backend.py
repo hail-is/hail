@@ -325,8 +325,11 @@ class ServiceBackend(Backend):
             with timings.step("submit batch"):
                 batch_attributes = self.batch_attributes
                 if 'name' not in batch_attributes:
-                    batch_attributes = {**batch_attributes, 'name': self.name_prefix + name}
-                bb = self.async_bc.create_batch(token=token, attributes=batch_attributes)
+                    batch_attributes = {**batch_attributes, 'name': self.name_prefix}
+                if self._batch is None:
+                    bb = self.async_bc.create_batch(token=token, attributes=batch_attributes)
+                else:
+                    bb = await self.async_bc.update_batch(self._batch)
 
                 resources: Dict[str, Union[str, bool]] = {'preemptible': False}
                 if self.driver_cores is not None:
@@ -334,34 +337,37 @@ class ServiceBackend(Backend):
                 if self.driver_memory is not None:
                     resources['memory'] = str(self.driver_memory)
 
-                bb.create_jvm_job(
+                j = bb.create_jvm_job(
                     jar_spec=self.jar_spec.to_dict(),
                     argv=[
                         ServiceBackend.DRIVER,
-                        batch_attributes['name'],
+                        batch_attributes['name'] + name,
                         iodir + '/in',
                         iodir + '/out',
                     ],
                     mount_tokens=True,
                     resources=resources,
-                    attributes={'name': 'driver'},
+                    attributes={'name': name + '_driver'},
                 )
-                b = await bb.submit(disable_progress_bar=True)
+                self._batch = await bb.submit(disable_progress_bar=True)
 
-            with timings.step("wait batch"):
+            with timings.step("wait driver"):
                 try:
                     if self.disable_progress_bar is not True:
                         deploy_config = get_deploy_config()
-                        url = deploy_config.external_url('batch', f'/batches/{b.id}/jobs/1')
-                        print(f'Submitted batch {b.id}, see {url}')
+                        # FIXME Should we not `print`?
+                        url = deploy_config.external_url('batch', f'/batches/{self._batch.id}/jobs/{j.job_id}')
+                        print(f'Submitted to batch {self._batch.id}, see {url}')
 
-                    await b.wait(description=name,
-                                 disable_progress_bar=self.disable_progress_bar,
-                                 progress=progress)
+                    await self._batch.wait(
+                        description=name,
+                        disable_progress_bar=self.disable_progress_bar,
+                        progress=progress
+                    )
                 except KeyboardInterrupt:
                     raise
                 except Exception:
-                    await b.cancel()
+                    await self._batch.cancel()
                     raise
 
             with timings.step("read output"):
@@ -370,7 +376,7 @@ class ServiceBackend(Backend):
                 except FileNotFoundError as exc:
                     raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
                         'service_backend_debug_info': self.debug_info(),
-                        'batch_debug_info': await b.debug_info()
+                        'batch_debug_info': await self._batch.debug_info()
                     })) from exc
 
                 async with driver_output as outfile:
@@ -382,7 +388,7 @@ class ServiceBackend(Backend):
                         except orjson.JSONDecodeError as err:
                             raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
                                 'service_backend_debug_info': self.debug_info(),
-                                'batch_debug_info': await b.debug_info()
+                                'batch_debug_info': await self._batch.debug_info()
                             })) from err
 
                     short_message = await read_str(outfile)

@@ -925,7 +925,7 @@ class BatchClient:
     def create_batch(self, attributes=None, callback=None, token=None, cancel_after_n_failures=None) -> BatchBuilder:
         return BatchBuilder(self, attributes=attributes, callback=callback, token=token, cancel_after_n_failures=cancel_after_n_failures)
 
-    async def update_batch(self, *, batch: Union[int, Batch]) -> BatchBuilder:
+    async def update_batch(self, batch: Union[int, Batch]) -> BatchBuilder:
         if isinstance(batch, Batch):
             return BatchBuilder(self, batch=batch)
         return BatchBuilder(self, batch=(await self.get_batch(batch)))
