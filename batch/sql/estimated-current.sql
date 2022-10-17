@@ -69,6 +69,8 @@ CREATE TABLE IF NOT EXISTS `billing_projects` (
   PRIMARY KEY (`name`)
 ) ENGINE = InnoDB;
 CREATE INDEX `billing_project_status` ON `billing_projects` (`status`);
+CREATE UNIQUE INDEX `billing_project_name_cs` ON `billing_projects` (`name_cs`);
+CREATE INDEX `billing_project_name_cs_status` ON `billing_projects` (`name_cs`, `status`);
 
 CREATE TABLE IF NOT EXISTS `billing_project_users` (
   `billing_project` VARCHAR(100) NOT NULL,
@@ -77,6 +79,7 @@ CREATE TABLE IF NOT EXISTS `billing_project_users` (
   PRIMARY KEY (`billing_project`, `user`),
   FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name) ON DELETE CASCADE
 ) ENGINE = InnoDB;
+CREATE INDEX `billing_project_users_billing_project_user_cs` ON `billing_project_users` (`billing_project`, `user_cs`);
 
 INSERT INTO `billing_projects` (`name`)
 VALUES ('ci');
