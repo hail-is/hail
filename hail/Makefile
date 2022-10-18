@@ -38,6 +38,7 @@ JAVAC ?= javac
 JAR ?= jar
 endif
 
+PYTEST_TARGET ?= test/hail
 
 # not perfect, not robust to simdpp changes, but probably fine
 BUILD_DEBUG_PREFIX := build/classes/scala/debug
@@ -63,6 +64,25 @@ WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 EGG := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3.6.egg
 
 GRADLE_ARGS += -Dscala.version=$(SCALA_VERSION) -Dspark.version=$(SPARK_VERSION) -Delasticsearch.major-version=$(ELASTIC_MAJOR_VERSION)
+
+QUERY_STORAGE_URI = $(shell kubectl get secret global-config --template={{.data.query_storage_uri}} | base64 --decode)
+TEST_STORAGE_URI = $(shell kubectl get secret global-config --template={{.data.test_storage_uri}} | base64 --decode)
+TOKEN := $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
+
+ifeq ($(NAMESPACE),default)
+ifeq ($(UPLOAD_RELEASE_JAR),true)
+# This should only be used if the normal CI deploy process fails and you need to upload a JAR to the
+# expected location for our users.
+JAR_LOCATION = $(QUERY_STORAGE_URI)/jars/$(REVISION).jar
+else
+JAR_LOCATION = $(QUERY_STORAGE_URI)/jars/$(shell whoami)/$(TOKEN)/$(REVISION).jar
+endif
+else
+JAR_LOCATION = $(TEST_STORAGE_URI)/$(NAMESPACE)/jars/$(TOKEN)/$(REVISION).jar
+endif
+HAIL_TEST_RESOURCES_PREFIX = $(TEST_STORAGE_URI)/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources
+HAIL_TEST_RESOURCES_DIR = $(HAIL_TEST_RESOURCES_PREFIX)/test/resources/
+HAIL_DOCTEST_DATA_DIR = $(HAIL_TEST_RESOURCES_PREFIX)/doctest/data/
 
 .PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
@@ -146,8 +166,7 @@ $(PYTHON_JAR): $(SHADOW_JAR)
 python-jar: $(PYTHON_JAR)
 
 .PHONY: pytest
-pytest: PYTEST_TARGET ?= test/hail
-pytest: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS)
+pytest: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
 pytest: python/README.md $(PYTHON_JAR)
 	cd python && $(HAIL_PYTHON3) setup.py pytest \
      --addopts "-v \
@@ -159,8 +178,24 @@ pytest: python/README.md $(PYTHON_JAR)
      $(PYTEST_TARGET) \
      $(PYTEST_ARGS)"
 
+# NOTE: Look at upload-qob-test-resources target if test resources are missing
+.PHONY: pytest-qob
+pytest-qob: install-for-qob upload-qob-test-resources
+	HAIL_TEST_RESOURCES_DIR='$(HAIL_TEST_RESOURCES_DIR)' \
+	HAIL_DOCTEST_DATA_DIR='$(HAIL_DOCTEST_DATA_DIR)' \
+	cd python && pytest \
+		-v \
+		--color=no \
+		--instafail \
+		-r A \
+		--self-contained-html \
+		--html=../build/reports/pytest.html \
+		$(PYTEST_TARGET) \
+		$(PYTEST_ARGS)
+
+
 .PHONY: doctest
-doctest: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS)
+doctest: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
 doctest: python/README.md $(PYTHON_JAR)
 	cd python && $(HAIL_PYTHON3) setup.py pytest \
 	  --addopts "-v \
@@ -183,7 +218,7 @@ doctest: python/README.md $(PYTHON_JAR)
     $(PYTEST_ARGS)"
 
 .PHONY: copy-py-files
-copy-py-files: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES) $(PYTHON_JAR)
+copy-py-files: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS) $(PY_FILES) $(PYTHON_JAR)
 	rm -rf build/deploy
 	mkdir -p build/deploy
 	mkdir -p build/deploy/src
@@ -243,22 +278,52 @@ upload-artifacts: $(WHEEL)
 	gsutil -m acl set -r public-read $(cloud_base)
 	$(UPLOAD_RETENTION)
 
+
+# NOTE: 1-day expiration of the test bucket means that this
+# target must be run at least once a day. To trigger this target to re-run,
+# > rm upload-qob-test-resources
+upload-qob-test-resources: $(JAR_TEST_SOURCES)
+	! [ -z $(NAMESPACE) ]  # call this like: make upload-qob-test-resources NAMESPACE=default
+	gsutil -m cp -r src/test/resources $(HAIL_TEST_RESOURCES_DIR)
+	gsutil -m cp -r python/hail/docs/data $(HAIL_DOCTEST_DATA_DIR)
+	touch $@
+
+# NOTE: 1-day expiration of the test bucket means that this
+# target must be run at least once a day if using a dev NAMESPACE.
+# To trigger this target to re-run,
+# > rm upload-qob-jar
+upload-qob-jar: SPARK_VERSION := 3.2.1
+upload-qob-jar: $(SHADOW_JAR)
+	! [ -z $(NAMESPACE) ]  # call this like: make upload-qob-jar NAMESPACE=default
+	gsutil -m cp $(SHADOW_JAR) $(JAR_LOCATION)
+	echo $(JAR_LOCATION) > $@
+
 .PHONY: install-editable
 install-editable: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
 install-editable: python/README.md $(PYTHON_JAR)
 	-$(PIP) uninstall -y hail
 	cd python && $(PIP) install -e .
+	hailctl config set query/backend spark
+
+.PHONY: install-for-qob
+install-for-qob: upload-qob-jar install-editable
+	! [ -z $(NAMESPACE) ]  # call this like: make install-for-qob NAMESPACE=default
+	hailctl config set query/backend batch
+	hailctl config set query/jar_url $$(cat upload-qob-jar)
+	hailctl dev config set default_namespace $(NAMESPACE)
 
 .PHONY: install
 install: $(WHEEL)
 	-$(PIP) uninstall -y hail
 	$(PIP) install $(WHEEL)
+	hailctl config set query/backend spark
 
 .PHONY: install-on-cluster
 install-on-cluster: $(WHEEL)
 	sed '/^pyspark/d' python/requirements.txt | grep -v '^#' | tr '\n' '\0' | xargs -0 $(PIP) install -U
 	-$(PIP) uninstall -y hail
 	$(PIP) install $(WHEEL) --no-deps
+	hailctl config set query/backend spark
 
 .PHONY: install-hailctl
 install-hailctl: install upload-artifacts
