@@ -178,7 +178,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         and ``PL`` will be entry fields in the resulting reference matrix in the dataset.
 
     """
-    _default_gvcf_batch_size = 100
+    _default_gvcf_batch_size = 50
     _default_branch_factor = 100
     _default_target_records = 24_000
     _gvcf_merge_task_limit = 150_000
