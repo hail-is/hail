@@ -19,6 +19,7 @@ import pandas as pd
 import plotly
 import plotly.express as px
 import pymysql
+import uvloop
 from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
 
@@ -75,10 +76,7 @@ from ..spec_writer import SpecWriter
 from ..utils import query_billing_projects, regions_to_bits_rep, unavailable_if_frozen
 from .validate import ValidationError, validate_and_clean_jobs, validate_batch, validate_batch_update
 
-# import uvloop
-
-
-# uvloop.install()
+uvloop.install()
 
 log = logging.getLogger('batch.front_end')
 
