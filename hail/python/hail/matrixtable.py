@@ -1483,7 +1483,7 @@ class MatrixTable(ExprContainer):
                              f'\n  MatrixTable col key: {", ".join(str(x.dtype) for x in self.col_key.values())}'
                              f'\n            Table key: {", ".join(str(x.dtype) for x in other.key.values())}')
 
-        return self.filter_cols(hl.is_defined(*(self.col_key[i] for i in range(len(other.key)))))
+        return self.filter_cols(hl.is_defined(other.index(*(self.col_key[i] for i in range(len(other.key))))))
 
     @typecheck_method(other=Table)
     def anti_join_cols(self, other: 'Table') -> 'MatrixTable':
