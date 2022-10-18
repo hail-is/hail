@@ -443,8 +443,8 @@ class Batch:
             description += ': '
         if progress is not None:
             return await self._wait(description, progress, disable_progress_bar)
-        with BatchProgressBar() as progress:
-            return await self._wait(description, progress, disable_progress_bar)
+        with BatchProgressBar() as progress2:
+            return await self._wait(description, progress2, disable_progress_bar)
 
     async def debug_info(self):
         batch_status = await self.status()
@@ -791,11 +791,11 @@ class BatchBuilder:
                                                       progress,
                                                       disable_progress_bar)
         else:
-            with BatchProgressBar(disable=disable_progress_bar) as progress:
+            with BatchProgressBar(disable=disable_progress_bar) as progress2:
                 start_job_id = await self._submit_bunches(byte_job_specs,
                                                           byte_job_specs_bunches,
                                                           bunch_sizes,
-                                                          progress,
+                                                          progress2,
                                                           disable_progress_bar)
         assert self._batch is not None
 
