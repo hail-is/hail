@@ -136,12 +136,14 @@ class HailContext(object):
                                  '  the latest changes weekly.\n')
             sys.stderr.write(f'LOGGING: writing to {log}\n')
 
-        if global_seed is not None:
-            # FIXME: print deprication warning
-            pass
+        self._user_specified_rng_nonce = True
+        if global_seed is None:
+            if 'rng_nonce' not in backend.get_flags('rng_nonce'):
+                backend.set_flags({'rng_nonce': hex(Random().randrange(2**64))})
+                self._user_specified_rng_nonce = False
+        else:
+            backend.set_flags(rng_nonce=hex(global_seed))
         Env._hc = self
-
-        backend.set_flags(rng_nonce=hex(Random().randrange(2**64)))
 
     def initialize_references(self, references, default_reference):
         for ref in references:

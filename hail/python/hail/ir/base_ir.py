@@ -341,7 +341,7 @@ class IR(BaseIR):
         The uid may be an int64, or arbitrary tuple of int64s. The only
         requirement is that all stream elements contain distinct uid values.
         """
-        assert(self.is_stream())
+        assert(self.is_stream)
         if (not create_uids and not self.uses_randomness) or self.has_uids:
             return self
         new = self._handle_randomness(create_uids)

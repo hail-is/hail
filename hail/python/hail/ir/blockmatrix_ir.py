@@ -391,9 +391,9 @@ class BlockMatrixRandom(BlockMatrixIR):
 
     def head_str(self):
         return '{} {} {} {}'.format(self.static_rng_uid,
-                                       self.gaussian,
-                                       _serialize_list(self.shape),
-                                       self.block_size)
+                                    self.gaussian,
+                                    _serialize_list(self.shape),
+                                    self.block_size)
 
     def _eq(self, other):
         return self.static_rng_uid == other.static_rng_uid and \
