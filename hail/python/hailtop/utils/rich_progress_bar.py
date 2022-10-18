@@ -51,7 +51,6 @@ def make_listener(progress: Progress, tid) -> Callable[[int], None]:
             total += delta
             progress.update(tid, total=total)
         else:
-            assert delta != 0
             progress.update(tid, advance=-delta)
     return listen
 
