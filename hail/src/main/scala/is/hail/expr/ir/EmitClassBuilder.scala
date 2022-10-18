@@ -61,6 +61,10 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
 
   def referenceGenomes(): IndexedSeq[ReferenceGenome] = rgContainers.keys.toFastIndexedSeq.sortBy(_.name)
   def referenceGenomeFields(): IndexedSeq[StaticField[ReferenceGenome]] = rgContainers.toFastIndexedSeq.sortBy(_._1.name).map(_._2)
+
+  def setObjects(cb: EmitCodeBuilder, objects: Code[Array[AnyRef]]): Unit = modb.setObjects(cb, objects)
+
+  def getObject[T <: AnyRef : TypeInfo](obj: T): Code[T] = modb.getObject(obj)
 }
 
 trait WrappedEmitModuleBuilder {
@@ -329,9 +333,6 @@ class EmitClassBuilder[C](
     Array(baos.toByteArray) ++ preEncodedLiterals.map(_._1.value.ba)
   }
 
-  private[this] var _objectsField: Settable[Array[AnyRef]] = _
-  private[this] var _objects: BoxedArrayBuilder[AnyRef] = _
-
   private[this] var _mods: BoxedArrayBuilder[(String, (HailClassLoader, FS, Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new BoxedArrayBuilder()
   private[this] var _backendField: Settable[BackendUtils] = _
 
@@ -448,18 +449,19 @@ class EmitClassBuilder[C](
 
   def getFS: Code[FS] = emodb.getFS
 
-  def getObject[T <: AnyRef : TypeInfo](obj: T): Code[T] = {
-    if (_objectsField == null) {
-      cb.addInterface(typeInfo[FunctionWithObjects].iname)
-      _objectsField = genFieldThisRef[Array[AnyRef]]()
-      _objects = new BoxedArrayBuilder[AnyRef]()
-      val mb = newEmitMethod("setObjects", FastIndexedSeq[ParamType](typeInfo[Array[AnyRef]]), typeInfo[Unit])
-      mb.emit(_objectsField := mb.getCodeParam[Array[AnyRef]](1))
-    }
+  def setObjects(cb: EmitCodeBuilder, objects: Code[Array[AnyRef]]): Unit = modb.setObjects(cb, objects)
 
-    val i = _objects.size
-    _objects += obj
-    Code.checkcast[T](toCodeArray(_objectsField).apply(i))
+  def getObject[T <: AnyRef : TypeInfo](obj: T): Code[T] = modb.getObject(obj)
+
+  def makeAddObjects(): Array[AnyRef] = {
+    if (emodb.modb._objects == null)
+      null
+    else {
+      cb.addInterface(typeInfo[FunctionWithObjects].iname)
+      val mb = newEmitMethod("setObjects", FastIndexedSeq[ParamType](typeInfo[Array[AnyRef]]), typeInfo[Unit])
+      mb.voidWithBuilder(cb => emodb.setObjects(cb, mb.getCodeParam[Array[AnyRef]](1)))
+      emodb.modb._objects.result()
+    }
   }
 
   def getPType[T <: PType : TypeInfo](t: T): Code[T] = {
@@ -678,6 +680,8 @@ class EmitClassBuilder[C](
     if (hasReferences)
       makeAddReferenceGenomes()
 
+    val objects = makeAddObjects()
+
     val literalsBc = if (hasLiterals)
       ctx.backend.broadcast(encodeLiterals())
     else
@@ -694,12 +698,6 @@ class EmitClassBuilder[C](
 
     val useBackend = _backendField != null
     val backend = if (useBackend) new BackendUtils(_mods.result()) else null
-
-    val objects =
-      if (_objects != null)
-        _objects.result()
-      else
-        null
 
     assert(TaskContext.get() == null,
       "FunctionBuilder emission should happen on master, but happened on worker")
