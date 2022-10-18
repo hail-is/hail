@@ -10,7 +10,6 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union, cast
 from . import backend, batch  # pylint: disable=cyclic-import
 from . import resource as _resource  # pylint: disable=cyclic-import
 from .exceptions import BatchException
-from .globals import DEFAULT_SHELL
 
 
 def _add_resource_to_set(resource_set, resource, include_rg=True):
