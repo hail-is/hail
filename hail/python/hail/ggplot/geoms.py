@@ -116,12 +116,13 @@ class GeomPoint(Geom):
         return plotly_kwargs
 
     def _get_aes_value(self, df, aes_name):
-        return (
-            getattr(self, aes_name, None)
-            or (aes_name in df.attrs and df.attrs[aes_name])
-            or (aes_name in df.columns and df.columns[aes_name])
-            or self.aes_defaults.get(aes_name, None)
-        )
+        if getattr(self, aes_name, None) is not None:
+            return getattr(self, aes_name)
+        if df.attrs.get(aes_name) is not None:
+            return df.attrs[aes_name]
+        if df.get(aes_name) is not None:
+            return df[aes_name]
+        return self.aes_defaults.get(aes_name, None)
 
     def _get_aes_values(self, df):
         values = {}
