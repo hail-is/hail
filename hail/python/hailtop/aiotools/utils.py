@@ -1,4 +1,4 @@
-from typing import Callable, TypeVar, AsyncIterator, Iterator
+from typing import TypeVar, AsyncIterator, Iterator
 import collections
 import asyncio
 

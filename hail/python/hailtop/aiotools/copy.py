@@ -1,10 +1,9 @@
-from typing import List, Optional, Dict, Callable
+from typing import List, Optional, Dict
 import argparse
 import asyncio
 import json
 import logging
 import sys
-from rich.progress import Progress
 
 from concurrent.futures import ThreadPoolExecutor
 

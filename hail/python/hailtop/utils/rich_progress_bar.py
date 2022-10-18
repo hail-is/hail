@@ -47,6 +47,7 @@ class SimpleRichProgressBar:
 
 def make_listener(progress: Progress, tid) -> Callable[[int], None]:
     total = 0
+
     def listen(delta: int):
         nonlocal total
         if delta > 0:
@@ -135,7 +136,7 @@ class BatchProgressBarTask:
         if self.transient:
             self.progress.remove_task(self.tid)
 
-    def update(self, advance: Optional[int]=None, **kwargs):
+    def update(self, advance: Optional[int] = None, **kwargs):
         self.progress.update(self.tid, advance=advance, **kwargs)
 
 
