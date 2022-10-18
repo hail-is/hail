@@ -272,7 +272,7 @@ object LowerBlockMatrixIR {
     bmir match {
       case BlockMatrixRead(reader) => reader.lower(ctx)
       case x@BlockMatrixRandom(staticUID, gaussian, shape, blockSize) =>
-        new BlockMatrixStage(IndexedSeq(), Array(), TTuple(TInt64, TInt64)) {
+        new BlockMatrixStage(IndexedSeq(), Array(), TTuple(TInt64, TInt64, TInt32)) {
           def blockContext(idx: (Int, Int)): IR = {
             val (m, n) = x.typ.blockShape(idx._1, idx._2)
             MakeTuple.ordered(FastSeq(m, n, idx._1 * x.typ.nColBlocks + idx._2))

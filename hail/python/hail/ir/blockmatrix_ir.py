@@ -390,7 +390,7 @@ class BlockMatrixRandom(BlockMatrixIR):
         self.block_size = block_size
 
     def head_str(self):
-        return '{} {} {} {} {}'.format(self.static_rng_uid,
+        return '{} {} {} {}'.format(self.static_rng_uid,
                                        self.gaussian,
                                        _serialize_list(self.shape),
                                        self.block_size)

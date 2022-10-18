@@ -2462,7 +2462,7 @@ def rand_bool(p, seed=None) -> BooleanExpression:
     return _seeded_func("rand_bool", tbool, seed, p)
 
 
-@typecheck(mean=expr_float64, sd=expr_float64, seed=nullable(int), size=nullable(tupleof(expr_int32)))
+@typecheck(mean=expr_float64, sd=expr_float64, seed=nullable(int), size=nullable(tupleof(expr_int64)))
 def rand_norm(mean=0, sd=1, seed=None, size=None) -> Float64Expression:
     """Samples from a normal distribution with mean `mean` and standard
     deviation `sd`.
@@ -2588,7 +2588,7 @@ def rand_pois(lamb, seed=None) -> Float64Expression:
     return _seeded_func("rand_pois", tfloat64, seed, lamb)
 
 
-@typecheck(lower=expr_float64, upper=expr_float64, seed=nullable(int), size=nullable(tupleof(expr_int32)))
+@typecheck(lower=expr_float64, upper=expr_float64, seed=nullable(int), size=nullable(tupleof(expr_int64)))
 def rand_unif(lower=0.0, upper=1.0, seed=None, size=None) -> Float64Expression:
     """Samples from a uniform distribution within the interval
     [`lower`, `upper`].

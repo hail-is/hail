@@ -327,6 +327,8 @@ class ThreefryRandomEngine(
 
   private[this] val poisState = Poisson.create_random_state()
 
+  def runif(min: Double, max: Double): Double = min + (max - min) * nextDouble()
+
   def rnorm(mean: Double, sd: Double): Double = mean + sd * nextGaussian()
 
   def rpois(lambda: Double): Double = Poisson.random(lambda, this, poisState)

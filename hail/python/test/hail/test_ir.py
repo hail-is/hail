@@ -44,7 +44,7 @@ class ValueIRTests(unittest.TestCase):
         s = ir.Ref('s', env['s'])
         t = ir.Ref('t', env['t'])
         call = ir.Ref('call', env['call'])
-        rngState = ir.RNGStateLiteral((1, 2, 3, 4))
+        rngState = ir.RNGStateLiteral()
 
         table = ir.TableRange(5, 3)
 

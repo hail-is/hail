@@ -2,7 +2,6 @@ from typing import Optional
 import sys
 import re
 
-import hail
 from hailtop.config import configuration_of
 
 

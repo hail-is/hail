@@ -10,7 +10,7 @@ from hail.expr.types import dtype, HailType, hail_type, tint32, tint64, \
 from hail.ir.blockmatrix_writer import BlockMatrixWriter, BlockMatrixMultiWriter
 from hail.typecheck import typecheck, typecheck_method, sequenceof, numeric, \
     sized_tupleof, nullable, tupleof, anytype, func_spec
-from hail.utils.java import Env, HailUserError, warning
+from hail.utils.java import Env, HailUserError
 from hail.utils.misc import escape_str, parsable_strings, escape_id
 from hail.utils.jsonx import dump_json
 from .utils import default_row_uid, default_col_uid, unpack_row_uid, unpack_col_uid
