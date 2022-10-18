@@ -1,5 +1,5 @@
+from typing import Dict, Any
 import abc
-
 import numpy as np
 import plotly.graph_objects as go
 
@@ -109,8 +109,11 @@ class GeomPoint(Geom):
         self.alpha = alpha
         self.shape = shape
 
-    def _map_to_plotly(self, mapping):
-        return {self.aes_to_plotly[k]: v for k, v in mapping.items()}
+    def _map_to_plotly(self, mapping) -> Dict[str, Any]:
+        plotly_kwargs = {self.aes_to_plotly[k]: v for k, v in mapping.items()}
+        if 'tooltip' in mapping:
+            plotly_kwargs['hoverinfo'] = 'text'
+        return plotly_kwargs
 
     def _get_aes_value(self, df, aes_name):
         return (
