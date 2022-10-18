@@ -24,12 +24,8 @@ class SimpleRichProgressBar:
         self.total = total
         self.visible = visible
         if len(args) == 0:
-            args = SimpleRichProgressBar.get_default_columns()
+            args = RichProgressBar.get_default_columns()
         self.progress = Progress(*args, **kwargs)
-
-    @staticmethod
-    def get_default_columns() -> Tuple[ProgressColumn, ...]:
-        return Progress.get_default_columns() + (TimeElapsedColumn(),)
 
     def __enter__(self) -> SimpleRichProgressBarTask:
         self.progress.start()
@@ -68,7 +64,13 @@ class RichProgressBar:
 
     @staticmethod
     def get_default_columns() -> Tuple[ProgressColumn, ...]:
-        return Progress.get_default_columns() + (TimeElapsedColumn(),)
+        return (
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(complete_style="bar.finished"),
+            TaskProgressColumn(),
+            TimeRemainingColumn(),
+            TimeElapsedColumn()
+        )
 
     def __enter__(self) -> Progress:
         self.progress.start()
@@ -94,7 +96,7 @@ class BatchProgressBar:
     def get_default_columns() -> Tuple[ProgressColumn, ...]:
         return (
             TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
+            BarColumn(complete_style="bar.finished"),
             TaskProgressColumn(),
             MofNCompleteColumn(),
             TimeRemainingColumn(),

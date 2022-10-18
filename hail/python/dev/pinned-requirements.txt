@@ -306,7 +306,7 @@ pytest-xdist==2.5.0
     # via -r python/dev/requirements.txt
 python-dateutil==2.8.2
     # via jupyter-client
-pytz==2022.4
+pytz==2022.5
     # via babel
 pyzmq==24.0.1
     # via
@@ -369,7 +369,7 @@ terminado==0.16.0
     #   jupyter-server
     #   nbclassic
     #   notebook
-tinycss2==1.1.1
+tinycss2==1.2.1
     # via nbconvert
 toml==0.10.2
     # via curlylint
@@ -389,7 +389,7 @@ tornado==6.2
     #   nbclassic
     #   notebook
     #   terminado
-traitlets==5.4.0
+traitlets==5.5.0
     # via
     #   ipykernel
     #   ipython

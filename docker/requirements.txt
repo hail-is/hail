@@ -68,6 +68,7 @@ wheel>=0.31.0,<1
 # yarl 1.6.0 broke query string parsing in aiohttp 3.6.[012] https://github.com/aio-libs/aiohttp/issues/4972#issuecomment-700290809
 yarl<1.6.0
 zulip>=0.6.3,<1
+rich==12.6.0
 
 # mypy library stubs
 types-Deprecated
