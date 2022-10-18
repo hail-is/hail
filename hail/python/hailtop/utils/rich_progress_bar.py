@@ -24,10 +24,11 @@ class SimpleRichProgressBar:
         self.total = total
         self.visible = visible
         if len(args) == 0:
-            args = self.get_default_columns()
+            args = SimpleRichProgressBar.get_default_columns()
         self.progress = Progress(*args, **kwargs)
 
-    def get_default_columns(self) -> Tuple[ProgressColumn, ...]:
+    @staticmethod
+    def get_default_columns() -> Tuple[ProgressColumn, ...]:
         return Progress.get_default_columns() + (TimeElapsedColumn(),)
 
     def __enter__(self) -> SimpleRichProgressBarTask:
@@ -62,10 +63,11 @@ def make_listener(progress: Progress, tid) -> Callable[[int], None]:
 class RichProgressBar:
     def __init__(self, *args, **kwargs):
         if len(args) == 0:
-            args = self.get_default_columns()
+            args = RichProgressBar.get_default_columns()
         self.progress = Progress(*args, **kwargs)
 
-    def get_default_columns(self) -> Tuple[ProgressColumn, ...]:
+    @staticmethod
+    def get_default_columns() -> Tuple[ProgressColumn, ...]:
         return Progress.get_default_columns() + (TimeElapsedColumn(),)
 
     def __enter__(self) -> Progress:
@@ -85,10 +87,11 @@ class RichProgressBar:
 class BatchProgressBar:
     def __init__(self, *args, **kwargs):
         if len(args) == 0:
-            args = self.get_default_columns()
+            args = BatchProgressBar.get_default_columns()
         self.progress = Progress(*args, **kwargs)
 
-    def get_default_columns(self) -> Tuple[ProgressColumn, ...]:
+    @staticmethod
+    def get_default_columns() -> Tuple[ProgressColumn, ...]:
         return (
             TextColumn("[progress.description]{task.description}"),
             BarColumn(),
