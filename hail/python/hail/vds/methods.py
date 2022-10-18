@@ -313,8 +313,8 @@ def sample_qc(vds: 'VariantDataset', *, gq_bins: 'Sequence[int]' = (0, 20, 60),
     return joined_results
 
 
-@typecheck(vds=VariantDataset, samples_table=oneof(Table, expr_array(expr_str)), keep=bool, remove_dead_alleles=bool)
-def filter_samples(vds: 'VariantDataset', samples_table, *,
+@typecheck(vds=VariantDataset, samples=oneof(Table, expr_array(expr_str)), keep=bool, remove_dead_alleles=bool)
+def filter_samples(vds: 'VariantDataset', samples, *,
                    keep: bool = True,
                    remove_dead_alleles: bool = False) -> 'VariantDataset':
     """Filter samples in a :class:`.VariantDataset`.
@@ -323,7 +323,7 @@ def filter_samples(vds: 'VariantDataset', samples_table, *,
     ----------
     vds : :class:`.VariantDataset`
         Dataset in VariantDataset representation.
-    samples_table : :class:`.Table` or list of str
+    samples : :class:`.Table` or list of str
         Samples to keep or remove.
     keep : :obj:`bool`
         Whether to keep (default), or filter out the samples from `samples_table`.
@@ -335,11 +335,11 @@ def filter_samples(vds: 'VariantDataset', samples_table, *,
     -------
     :class:`.VariantDataset`
     """
-    if not isinstance(samples_table, hl.Table):
-        samples_table = hl.Table.parallelize(samples_table.map(lambda s: hl.struct(s=s)), key='s')
-    if not list(samples_table[x].dtype for x in samples_table.key) == [hl.tstr]:
-        raise TypeError(f'invalid key: {samples_table.key.dtype}')
-    samples_to_keep = samples_table.aggregate(hl.agg.collect_as_set(samples_table.key[0]), _localize=False)._persist()
+    if not isinstance(samples, hl.Table):
+        samples = hl.Table.parallelize(samples.map(lambda s: hl.struct(s=s)), key='s')
+    if not list(samples[x].dtype for x in samples.key) == [hl.tstr]:
+        raise TypeError(f'invalid key: {samples.key.dtype}')
+    samples_to_keep = samples.aggregate(hl.agg.collect_as_set(samples.key[0]), _localize=False)._persist()
     reference_data = vds.reference_data.filter_cols(samples_to_keep.contains(vds.reference_data.col_key[0]), keep=keep)
     reference_data = reference_data.filter_rows(hl.agg.count() > 0)
     variant_data = vds.variant_data.filter_cols(samples_to_keep.contains(vds.variant_data.col_key[0]), keep=keep)
