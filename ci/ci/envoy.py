@@ -7,15 +7,14 @@ import yaml
 DOMAIN = os.environ['HAIL_DOMAIN']
 
 
-def create_rds_response(services_per_namespace: Dict[str, List[str]], requester: str) -> dict:
-    assert 'default' in services_per_namespace
-    default_services = services_per_namespace['default']
-    internal_services_per_namespace = {k: v for k, v in services_per_namespace.items() if k != 'default'}
-    if requester == 'gateway':
+def create_rds_response(
+    default_services: List[str], internal_services_per_namespace: Dict[str, List[str]], proxy: str
+) -> dict:
+    if proxy == 'gateway':
         default_host = gateway_default_host
         internal_host = gateway_internal_host
     else:
-        assert requester == 'internal-gateway'
+        assert proxy == 'internal-gateway'
         default_host = internal_gateway_default_host
         internal_host = internal_gateway_internal_host
 
@@ -38,11 +37,13 @@ def create_rds_response(services_per_namespace: Dict[str, List[str]], requester:
     }
 
 
-def create_cds_response(services_per_namespace: Dict[str, List[str]], requester: str) -> dict:
+def create_cds_response(
+    default_services: List[str], internal_services_per_namespace: Dict[str, List[str]], proxy: str
+) -> dict:
     return {
         'version_info': 'dummy',
         'type_url': 'type.googleapis.com/envoy.config.cluster.v3.Cluster',
-        'resources': clusters(services_per_namespace, requester),
+        'resources': clusters(default_services, internal_services_per_namespace, proxy),
         'control_plane': {
             'identifier': 'ci',
         },
@@ -86,6 +87,7 @@ def gateway_default_host(service: str) -> dict:
                 'match': {'prefix': '/'},
                 'route': {'timeout': '0s', 'cluster': service},
                 'typed_per_filter_config': {
+                    'envoy.filters.http.local_ratelimit': rate_limit_config(),
                     'envoy.filters.http.ext_authz': auth_check_exemption(),
                 },
             }
@@ -161,8 +163,8 @@ def rate_limit_config() -> dict:
         '@type': 'type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit',
         'stat_prefix': 'http_local_rate_limiter',
         'token_bucket': {
-            'max_tokens': 150,
-            'tokens_per_fill': 150,
+            'max_tokens': 60,
+            'tokens_per_fill': 60,
             'fill_interval': '1s',
         },
         'filter_enabled': {
@@ -182,23 +184,27 @@ def rate_limit_config() -> dict:
     }
 
 
-def clusters(services_per_namespace: Dict[str, List[str]], requester: str) -> List[dict]:
+def clusters(
+    default_services: List[str], internal_services_per_namespace: Dict[str, List[str]], proxy: str
+) -> List[dict]:
     clusters = []
-    for namespace, services in services_per_namespace.items():
+    for service in default_services:
+        if service == 'ukbb-rg':
+            browser_cluster = make_cluster('ukbb-rg-browser', 'ukbb-rg-browser.ukbb-rg', proxy, verify_ca=True)
+            static_cluster = make_cluster('ukbb-rg-static', 'ukbb-rg-static.ukbb-rg', proxy, verify_ca=True)
+            clusters.append(browser_cluster)
+            clusters.append(static_cluster)
+        else:
+            clusters.append(make_cluster(service, f'{service}.default', proxy, verify_ca=True))
+
+    for namespace, services in internal_services_per_namespace.items():
         for service in services:
-            if service == 'ukbb-rg':
-                browser_cluster = make_cluster('ukbb-rg-browser', 'ukbb-rg-browser.ukbb-rg', requester, verify_ca=True)
-                static_cluster = make_cluster('ukbb-rg-static', 'ukbb-rg-static.ukbb-rg', requester, verify_ca=True)
-                clusters.append(browser_cluster)
-                clusters.append(static_cluster)
-            else:
-                name = service if namespace == 'default' else f'{namespace}-{service}'
-                clusters.append(make_cluster(name, f'{service}.{namespace}', requester, verify_ca=True))
+            clusters.append(make_cluster(f'{namespace}-{service}', f'{service}.{namespace}', proxy, verify_ca=False))
 
     return clusters
 
 
-def make_cluster(name: str, address: str, requester: str, *, verify_ca: bool) -> dict:
+def make_cluster(name: str, address: str, proxy: str, *, verify_ca: bool) -> dict:
     cluster = {
         '@type': 'type.googleapis.com/envoy.config.cluster.v3.Cluster',
         'name': name,
@@ -230,8 +236,8 @@ def make_cluster(name: str, address: str, requester: str, *, verify_ca: bool) ->
                 'common_tls_context': {
                     'tls_certificates': [
                         {
-                            'certificate_chain': {'filename': f'/ssl-config/{requester}-cert.pem'},
-                            'private_key': {'filename': f'/ssl-config/{requester}-key.pem'},
+                            'certificate_chain': {'filename': f'/ssl-config/{proxy}-cert.pem'},
+                            'private_key': {'filename': f'/ssl-config/{proxy}-key.pem'},
                         }
                     ]
                 },
@@ -240,19 +246,17 @@ def make_cluster(name: str, address: str, requester: str, *, verify_ca: bool) ->
     }
     if verify_ca:
         cluster['transport_socket']['typed_config']['validation_context'] = {  # type: ignore
-            'trusted_ca': {'filename': f'/ssl-config/{requester}-outgoing.pem'},
+            'trusted_ca': {'filename': f'/ssl-config/{proxy}-outgoing.pem'},
         }
     return cluster
 
 
 if __name__ == '__main__':
-    requester = sys.argv[1]
+    proxy = sys.argv[1]
     with open(sys.argv[2], 'r', encoding='utf-8') as services_file:
         services = [service.rstrip() for service in services_file.readlines()]
 
-    services_per_namespace = {'default': services}
-
     with open(sys.argv[3], 'w', encoding='utf-8') as cds_file:
-        cds_file.write(yaml.dump(create_cds_response(services_per_namespace, requester)))
+        cds_file.write(yaml.dump(create_cds_response(services, {}, proxy)))
     with open(sys.argv[4], 'w', encoding='utf-8') as rds_file:
-        rds_file.write(yaml.dump(create_rds_response(services_per_namespace, requester)))
+        rds_file.write(yaml.dump(create_rds_response(services, {}, proxy)))

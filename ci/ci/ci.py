@@ -664,7 +664,8 @@ async def update_envoy_configs(db: Database, k8s_client):
     services_per_namespace = {
         r['namespace']: [s for s in json.loads(r['services']) if s is not None]
         async for r in db.execute_and_fetchall(
-            '''SELECT active_namespaces.namespace, JSON_ARRAYAGG(service) as services
+            '''
+SELECT active_namespaces.namespace, JSON_ARRAYAGG(service) as services
 FROM active_namespaces
 LEFT JOIN deployed_services
 ON active_namespaces.namespace = deployed_services.namespace
@@ -672,18 +673,17 @@ GROUP BY active_namespaces.namespace'''
         )
     }
     assert 'default' in services_per_namespace
-    assert set(['batch', 'auth', 'batch-driver', 'ci']).issubset(
-        set(services_per_namespace['default'])
-    ), services_per_namespace
+    default_services = services_per_namespace.pop('default')
+    assert set(['batch', 'auth', 'batch-driver', 'ci']).issubset(set(default_services)), default_services
 
-    for deployment in ('gateway', 'internal-gateway'):
-        configmap_name = f'{deployment}-xds-config'
+    for proxy in ('gateway', 'internal-gateway'):
+        configmap_name = f'{proxy}-xds-config'
         configmap = await k8s_client.read_namespaced_config_map(
             name=configmap_name,
             namespace=DEFAULT_NAMESPACE,
         )
-        cds = create_cds_response(services_per_namespace, deployment)
-        rds = create_rds_response(services_per_namespace, deployment)
+        cds = create_cds_response(default_services, services_per_namespace, proxy)
+        rds = create_rds_response(default_services, services_per_namespace, proxy)
         configmap.data['cds.yaml'] = yaml.dump(cds)
         configmap.data['rds.yaml'] = yaml.dump(rds)
         await k8s_client.patch_namespaced_config_map(
