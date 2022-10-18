@@ -19,7 +19,7 @@ class Geom(FigureAttribute):
 
     @abc.abstractmethod
     def apply_to_fig(self, agg_result, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache) -> bool:
-        """Add this geometry to the figure and indicate if this geometry demand a static figure."""
+        """Add this geometry to the figure and indicate if this geometry demands a static figure."""
         pass
 
     @abc.abstractmethod
