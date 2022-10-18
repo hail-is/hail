@@ -106,7 +106,6 @@ def gateway_internal_host(services_per_namespace: Dict[str, List[str]]) -> dict:
                 'route': {'timeout': '0s', 'cluster': f'{namespace}-{service}'},
                 'typed_per_filter_config': {
                     'envoy.filters.http.local_ratelimit': rate_limit_config(),
-                    'envoy.filters.http.ext_authz': auth_check_exemption(),
                 },
             }
             for namespace, services in services_per_namespace.items()
