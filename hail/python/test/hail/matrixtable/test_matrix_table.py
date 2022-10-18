@@ -422,16 +422,48 @@ class Tests(unittest.TestCase):
     def test_semi_anti_join_rows(self):
         mt = hl.utils.range_matrix_table(10, 3)
         ht = hl.utils.range_table(3)
+        mt2 = mt.key_rows_by(k1 = mt.row_idx, k2 = hl.str(mt.row_idx * 2))
+        ht2 = ht.key_by(k1 = ht.idx, k2 = hl.str(ht.idx * 2))
 
         assert mt.semi_join_rows(ht).count() == (3, 3)
         assert mt.anti_join_rows(ht).count() == (7, 3)
+        assert mt2.semi_join_rows(ht).count() == (3, 3)
+        assert mt2.anti_join_rows(ht).count() == (7, 3)
+        assert mt2.semi_join_rows(ht2).count() == (3, 3)
+        assert mt2.anti_join_rows(ht2).count() == (7, 3)
+
+        with pytest.raises(ValueError, match='semi_join_rows: cannot join'):
+            mt.semi_join_rows(ht2)
+        with pytest.raises(ValueError, match='semi_join_rows: cannot join'):
+            mt.semi_join_rows(ht.key_by())
+
+        with pytest.raises(ValueError, match='anti_join_rows: cannot join'):
+            mt.anti_join_rows(ht2)
+        with pytest.raises(ValueError, match='anti_join_rows: cannot join'):
+            mt.anti_join_rows(ht.key_by())
 
     def test_semi_anti_join_cols(self):
         mt = hl.utils.range_matrix_table(3, 10)
         ht = hl.utils.range_table(3)
+        mt2 = mt.key_cols_by(k1 = mt.col_idx, k2 = hl.str(mt.col_idx * 2))
+        ht2 = ht.key_by(k1 = ht.idx, k2 = hl.str(ht.idx * 2))
 
         assert mt.semi_join_cols(ht).count() == (3, 3)
         assert mt.anti_join_cols(ht).count() == (3, 7)
+        assert mt2.semi_join_cols(ht).count() == (3, 3)
+        assert mt2.anti_join_cols(ht).count() == (3, 7)
+        assert mt2.semi_join_cols(ht2).count() == (3, 3)
+        assert mt2.anti_join_cols(ht2).count() == (3, 7)
+
+        with pytest.raises(ValueError, match='semi_join_cols: cannot join'):
+            mt.semi_join_cols(ht2)
+        with pytest.raises(ValueError, match='semi_join_cols: cannot join'):
+            mt.semi_join_cols(ht.key_by())
+
+        with pytest.raises(ValueError, match='anti_join_cols: cannot join'):
+            mt.anti_join_cols(ht2)
+        with pytest.raises(ValueError, match='anti_join_cols: cannot join'):
+            mt.anti_join_cols(ht.key_by())
 
     def test_joins(self):
         mt = self.get_mt().select_rows(x1=1, y1=1)
