@@ -585,7 +585,6 @@ class Emit[C](
     val mb = cb.emb.genEmitMethod(context, FastIndexedSeq[ParamType](), UnitInfo)
     val r = cb.newField[Region]("emitInSeparate_region", region)
 
-    println(s"emitting in separate method - $context:\n${Pretty(ctx.executeContext, ir)}")
     var ev: EmitSettable = null
     mb.voidWithBuilder { cb =>
       ctx.tryingToSplit.bind(ir, ())
