@@ -623,13 +623,13 @@ class ServiceBackend(Backend[bc.Batch]):
                 n_jobs_submitted += 1
 
         pyjobs = [j for j in batch._jobs if isinstance(j, _job.PythonJob)]
-        for job in pyjobs:
-            if job._image is None:
+        for pyjob in pyjobs:
+            if pyjob._image is None:
                 version = sys.version_info
                 if version.major != 3 or version.minor not in (7, 8, 9, 10):
                     raise BatchException(
                         f"You must specify 'image' for Python jobs if you are using a Python version other than 3.7, 3.8, 3.9 or 3.10 (you are using {version})")
-                job._image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
+                pyjob._image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
 
         await batch._serialize_python_functions_to_input_files(
             batch_remote_tmpdir, dry_run=dry_run
