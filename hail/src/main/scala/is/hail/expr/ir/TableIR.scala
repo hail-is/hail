@@ -1032,6 +1032,9 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
             .asInterval
           index.initialize(cb, indexPath)
 
+          cb.assign(partIdx, ctxStruct.loadField(cb, "partitionIndex").get(cb).asInt64.value)
+          cb.consoleInfo("INDEXDEBUG: zipped reader - querying interval ", cb.strValue(interval), " from part index ", partIdx.toS , " - ", indexPath)
+
           val indexResult = index.queryInterval(cb, outerRegion, interval)
           val startIndex = indexResult.loadField(cb, 0)
             .get(cb)
@@ -1044,7 +1047,6 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
           cb.assign(curIdx, startIndex)
           cb.assign(endIdx, endIndex)
 
-          cb.assign(partIdx, ctxStruct.loadField(cb, "partitionIndex").get(cb).asInt64.value)
           cb.assign(leftBuffer, specLeft.buildCodeInputBuffer(
             Code.newInstance[ByteTrackingInputStream, InputStream](
               mb.open(ctxStruct.loadField(cb, "leftPartitionPath")

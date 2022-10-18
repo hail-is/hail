@@ -434,6 +434,8 @@ case class IndexedRVDSpec2(
 
       assert(key.nonEmpty)
 
+      info(s"INDEXDEBUG: new partitioner range bounds are: ${np.rangeBounds.zipWithIndex.map{ case (inter, i) => s"\n  read $i: $inter"}.mkString("")}")
+      info(s"INDEXDEBUG: original partitioner range bounds are: ${partitioner.rangeBounds.zipWithIndex.map{ case (inter, i) => s"\n  disk $i: $inter"}.mkString("")}")
       val rSpec = typedCodecSpec
       val reader = ir.PartitionNativeReaderIndexed(rSpec, indexSpec, partitioner.kType.fieldNames, uidFieldName)
 
