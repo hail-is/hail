@@ -23,9 +23,10 @@ relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
 ---
+
 ## Version 0.2.103
 
-Release 2022-10-17
+Release 2022-10-18
 
 ### Bug Fixes
 
