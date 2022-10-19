@@ -24,6 +24,16 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.104
+
+Release 2022-10-19
+
+### New Features
+
+- (hail#12346): Introduced new progress bars which include total time elapsed and look cool.
+
+---
+
 ## Version 0.2.103
 
 Release 2022-10-18
