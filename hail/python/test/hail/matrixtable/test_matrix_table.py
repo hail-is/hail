@@ -2097,14 +2097,13 @@ def test_matrix_randomness():
     # test MatrixToMatrixApply
     rmt = hl.utils.range_matrix_table(10, 10, 3)
     mt = rmt._filter_partitions([0, 2])
-    mt.show()
     assert_contains_node(mt, ir.MatrixToMatrixApply)
     assert_unique_uids(mt)
 
     # test MatrixRename
     rmt = hl.utils.range_matrix_table(10, 10, 3)
     mt = rmt.rename({'row_idx': 'row_index'})
-    assert_contains_node(mt, ir.TableRename)
+    assert_contains_node(mt, ir.MatrixRename)
     assert_unique_uids(mt)
 
     # test MatrixFilterIntervals

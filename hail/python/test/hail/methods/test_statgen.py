@@ -1643,11 +1643,11 @@ class Tests(unittest.TestCase):
         expected = [
             hl.Call(a, phased=True)
             for a in [
-                    [0, 0], [0, 0], [0, 1], [0, 0], [0, 0],
-                    [0, 1], [1, 1], [0, 1], [1, 1], [0, 1],
-                    [1, 1], [1, 1], [0, 0], [0, 1], [0, 0],
-                    [1, 1], [1, 0], [1, 1], [1, 1], [1, 1],
-                    [1, 1], [0, 1], [1, 1], [1, 1], [1, 1]]]
+                    [0, 1], [0, 0], [0, 1], [0, 0], [1, 0],
+                    [1, 1], [0, 1], [1, 1], [0, 0], [0, 1],
+                    [1, 0], [0, 0], [1, 0], [0, 0], [0, 0],
+                    [1, 1], [1, 1], [1, 0], [0, 1], [1, 1],
+                    [1, 1], [1, 1], [1, 1], [1, 1], [1, 1]]]
         assert actual == expected
 
     @fails_service_backend()
@@ -1728,17 +1728,17 @@ class Tests(unittest.TestCase):
                 [10, 5, 1]
             ])[mt.row_idx]
         )
-        ht = hl.skat(
-            hl.literal(0),
-            mt.row_idx,
-            y=mt.y,
-            x=mt.x[mt.col_idx],
-            logistic=(37, 1e-10),
-            # The logistic settings are only used when fitting the null model, so we need to use a
-            # covariate that triggers nonconvergence
-            covariates=[mt.y]
-        )
         try:
+            ht = hl.skat(
+                hl.literal(0),
+                mt.row_idx,
+                y=mt.y,
+                x=mt.x[mt.col_idx],
+                logistic=(37, 1e-10),
+                # The logistic settings are only used when fitting the null model, so we need to use a
+                # covariate that triggers nonconvergence
+                covariates=[mt.y]
+            )
             ht.collect()[0]
         except FatalError as err:
             assert 'Failed to fit logistic regression null model (MLE with covariates only): exploded at Newton iteration 37' in err.args[0]
@@ -1755,17 +1755,17 @@ class Tests(unittest.TestCase):
                 [10, 5, 1]
             ])[mt.row_idx]
         )
-        ht = hl.skat(
-            hl.literal(0),
-            mt.row_idx,
-            y=mt.y,
-            x=mt.x[mt.col_idx],
-            logistic=(36, 1e-10),
-            # The logistic settings are only used when fitting the null model, so we need to use a
-            # covariate that triggers nonconvergence
-            covariates=[mt.y]
-        )
         try:
+            ht = hl.skat(
+                hl.literal(0),
+                mt.row_idx,
+                y=mt.y,
+                x=mt.x[mt.col_idx],
+                logistic=(36, 1e-10),
+                # The logistic settings are only used when fitting the null model, so we need to use a
+                # covariate that triggers nonconvergence
+                covariates=[mt.y]
+            )
             ht.collect()[0]
         except FatalError as err:
             assert 'Failed to fit logistic regression null model (MLE with covariates only): Newton iteration failed to converge' in err.args[0]

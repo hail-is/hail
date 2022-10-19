@@ -245,6 +245,7 @@ class IR(BaseIR):
         self._free_agg_vars = None
         self._free_scan_vars = None
         self.has_uids = False
+        self.needs_randomness_handling = False
 
     @property
     def aggregations(self):
@@ -342,11 +343,12 @@ class IR(BaseIR):
         requirement is that all stream elements contain distinct uid values.
         """
         assert(self.is_stream)
-        if (not create_uids and not self.uses_randomness) or self.has_uids:
+        if (create_uids == self.has_uids) and not self.needs_randomness_handling:
             return self
         new = self._handle_randomness(create_uids)
         assert(isinstance(self.typ.element_type, tstruct) == isinstance(new.typ.element_type, tstruct))
-        new.has_uids = True
+        new.has_uids = create_uids
+        new.needs_randomness_handling = False
         return new
 
     @property
