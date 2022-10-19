@@ -1043,6 +1043,7 @@ INSERT INTO jobs (batch_id, job_id, update_id, state, spec, always_run, cores_mc
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
                     jobs_args,
+                    query_name='insert_jobs',
                 )
             except pymysql.err.IntegrityError as err:
                 # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
@@ -1057,6 +1058,7 @@ INSERT INTO `job_parents` (batch_id, job_id, parent_id)
 VALUES (%s, %s, %s);
 ''',
                     job_parents_args,
+                    query_name='insert_job_parents',
                 )
             except pymysql.err.IntegrityError as err:
                 # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
@@ -1069,6 +1071,7 @@ INSERT INTO `job_attributes` (batch_id, job_id, `key`, `value`)
 VALUES (%s, %s, %s, %s);
 ''',
                 job_attributes_args,
+                query_name='insert_job_attributes',
             )
 
             batches_inst_coll_staging_args = [
@@ -1093,6 +1096,7 @@ ON DUPLICATE KEY UPDATE
   ready_cores_mcpu = ready_cores_mcpu + VALUES(ready_cores_mcpu);
 ''',
                 batches_inst_coll_staging_args,
+                query_name='insert_batches_inst_coll_staging',
             )
 
             batch_inst_coll_cancellable_resources_args = [
@@ -1115,6 +1119,7 @@ ON DUPLICATE KEY UPDATE
   ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + VALUES(ready_cancellable_cores_mcpu);
 ''',
                 batch_inst_coll_cancellable_resources_args,
+                query_name='insert_inst_coll_cancellable_resources',
             )
 
             if batch_format_version.has_full_spec_in_cloud():
@@ -1124,6 +1129,7 @@ INSERT INTO batch_bunches (batch_id, token, start_job_id)
 VALUES (%s, %s, %s);
 ''',
                     (batch_id, spec_writer.token, bunch_start_job_id),
+                    query_name='insert_batch_bunches',
                 )
         except asyncio.CancelledError:
             raise
@@ -1413,6 +1419,7 @@ INSERT INTO batch_updates
 VALUES (%s, %s, %s, %s, %s, %s, %s);
 ''',
             (batch_id, update_id, update_token, update_start_job_id, n_jobs, False, now),
+            query_name='insert_batch_update',
         )
 
         return (update_id, update_start_job_id)
