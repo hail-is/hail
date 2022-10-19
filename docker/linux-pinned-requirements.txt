@@ -133,7 +133,7 @@ gevent==22.10.1
     #   gevent-websocket
 gevent-websocket==0.10.1
     # via flask-sockets
-gidgethub==4.2.0
+gidgethub==5.2.1
     # via -r requirements.txt
 google-api-core==2.10.2
     # via google-api-python-client
