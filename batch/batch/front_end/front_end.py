@@ -1283,12 +1283,14 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 BATCH_FORMAT_VERSION,
                 batch_spec.get('cancel_after_n_failures'),
             ),
+            query_name='insert_batches',
         )
         await tx.execute_insertone(
             '''
 INSERT INTO batches_n_jobs_in_complete_states (id) VALUES (%s);
 ''',
             (id,),
+            query_name='insert_batches_n_jobs_in_complete_states',
         )
 
         if attributes:
@@ -1298,6 +1300,7 @@ INSERT INTO `batch_attributes` (batch_id, `key`, `value`)
 VALUES (%s, %s, %s)
 ''',
                 [(id, k, v) for k, v in attributes.items()],
+                query_name='insert_batch_attributes',
             )
         return id
 
