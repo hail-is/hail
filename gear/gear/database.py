@@ -227,10 +227,14 @@ class Transaction:
                 for row in rows:
                     yield row
 
-    async def execute_insertone(self, sql, args=None):
+    async def execute_insertone(self, sql, args=None, *, query_name=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
-            await cursor.execute(sql, args)
+            if query_name is None:
+                await cursor.execute(sql, args)
+            else:
+                async with PrometheusSQLTimer(query_name):
+                    await cursor.execute(sql, args)
             return cursor.lastrowid
 
     async def execute_update(self, sql, args=None, query_name=None):
