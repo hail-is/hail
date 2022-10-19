@@ -17,8 +17,7 @@ async def delete(paths: List[str]) -> None:
                 with SimpleRichProgressBar(
                         description='files',
                         transient=True,
-                        total=0,
-                        unit='file') as file_pbar:
+                        total=0) as file_pbar:
                     await asyncio.gather(*[
                         fs.rmtree(sema, path, listener=file_pbar.make_listener())
                         for path in paths
