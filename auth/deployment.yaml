@@ -276,9 +276,5 @@ metadata:
     app: auth
 spec:
   clusterIP: None
-  ports:
-   - port: 443
-     protocol: TCP
-     targetPort: 443
   selector:
     app: auth
