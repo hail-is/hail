@@ -1278,6 +1278,7 @@ class BatchDriverAccessLogger(AccessLogger):
                 ('POST', '/api/v1alpha/instances/job_started'),
                 ('PATCH', '/api/v1alpha/batches/.*/.*/close'),
                 ('POST', '/api/v1alpha/batches/cancel'),
+                ('PATCH', '/api/v1alpha/batches/.*/.*/update'),
                 ('GET', '/metrics'),
             ]
         ]

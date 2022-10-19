@@ -3,6 +3,7 @@ import base64
 import json
 import logging
 import os
+import re
 import signal
 from collections import defaultdict
 
@@ -33,6 +34,8 @@ socket = '/redis/redis.sock'
 ASYNC_FS_FACTORY = get_cloud_async_fs_factory()
 
 auth = AuthClient()
+
+deploy_config = get_deploy_config()
 
 
 @routes.get('/healthcheck')
@@ -138,6 +141,26 @@ async def cache_file(redis: aioredis.ConnectionsPool, file_key: str, data: bytes
     await redis.execute('HMSET', file_key, 'body', data)
 
 
+class MemoryAccessLogger(AccessLogger):
+    def __init__(self, logger: logging.Logger, log_format: str):
+        super().__init__(logger, log_format)
+        self.exclude = [
+            (endpoint[0], re.compile(deploy_config.base_path('memory') + endpoint[1]))
+            for endpoint in [
+                ('POST', '/api/v1alpha/objects'),
+                ('GET', '/api/v1alpha/objects'),
+                ('GET', '/metrics'),
+            ]
+        ]
+
+    def log(self, request, response, time):
+        for method, path_expr in self.exclude:
+            if path_expr.fullmatch(request.path) and method == request.method:
+                return
+
+        super().log(request, response, time)
+
+
 async def on_startup(app):
     app['client_session'] = httpx.client_session()
     app['files_in_progress'] = {}
@@ -181,11 +204,10 @@ def run():
 
     asyncio.get_event_loop().add_signal_handler(signal.SIGUSR1, dump_all_stacktraces)
 
-    deploy_config = get_deploy_config()
     web.run_app(
         deploy_config.prefix_application(app, 'memory'),
         host='0.0.0.0',
         port=5000,
-        access_log_class=AccessLogger,
+        access_log_class=MemoryAccessLogger,
         ssl_context=internal_server_ssl_context(),
     )
