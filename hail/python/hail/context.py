@@ -107,6 +107,14 @@ class HailContext(object):
                       global_seed=nullable(int),
                       backend=Backend)
     def __init__(self, log, quiet, append, tmpdir, local_tmpdir, global_seed, backend):
+        import sys
+        import traceback
+        try:
+            int('k')
+        except:
+            self._tb = sys.exc_info()[2]
+        if Env._hc:
+            traceback.print_tb(Env._hc._tb)
         assert not Env._hc
 
         self._log = log
