@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.asm4s.{coerce => _, _}
+import is.hail.backend.service.WorkerTimer
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.lir
@@ -292,6 +293,10 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
 
   def logInfo(cs: Code[String]*): Unit = {
     this += Code.invokeScalaObject1[String, Unit](LogHelper.getClass, "logInfo", cs.reduce[Code[String]] { case (l, r) => (l.concat(r)) })
+  }
+
+  def workerInfo(cs: Code[String]*): Unit = {
+    this += Code.invokeScalaObject1[String, Unit](WorkerTimer.getClass, "info", cs.reduce[Code[String]] { case (l, r) => (l.concat(r)) })
   }
 
   def warning(cs: Code[String]*): Unit = {

@@ -25,6 +25,7 @@ class ServiceTaskContext(val partitionId: Int) extends HailTaskContext {
 
 object WorkerTimer {
   private val log = Logger.getLogger(getClass.getName())
+  def info(msg: String): Unit = log.info(msg)
 }
 
 class WorkerTimer() {
