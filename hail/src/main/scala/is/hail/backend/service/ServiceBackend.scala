@@ -271,8 +271,8 @@ class ServiceBackend(
   ): String =  {
     val x = IRParser.parse_table_ir(ctx, s)
     val t = x.typ
-    val jv = JObject("global" -> JString(t.globalType.toString),
-      "row" -> JString(t.rowType.toString),
+    val jv = JObject("global_type" -> JString(t.globalType.toString),
+      "row_type" -> JString(t.rowType.toString),
       "row_key" -> JArray(t.key.map(f => JString(f)).toList))
     JsonMethods.compact(jv)
   }
@@ -282,14 +282,7 @@ class ServiceBackend(
     s: String
   ): String = {
     val x = IRParser.parse_matrix_ir(ctx, s)
-    val t = x.typ
-    val jv = JObject("global" -> JString(t.globalType.toString),
-      "col" -> JString(t.colType.toString),
-      "col_key" -> JArray(t.colKey.map(f => JString(f)).toList),
-      "row" -> JString(t.rowType.toString),
-      "row_key" -> JArray(t.rowKey.map(f => JString(f)).toList),
-      "entry" -> JString(t.entryType.toString))
-    JsonMethods.compact(jv)
+    JsonMethods.compact(x.typ.pyJson)
   }
 
   def blockMatrixType(

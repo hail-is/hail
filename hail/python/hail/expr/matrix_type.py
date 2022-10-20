@@ -20,12 +20,12 @@ class tmatrix(object):
     @staticmethod
     def _from_json(json):
         return tmatrix(
-            dtype(json['global']),
-            dtype(json['col']),
-            json['col_key'],
-            dtype(json['row']),
-            json['row_key'],
-            dtype(json['entry']))
+            global_type=dtype(json['global_type']),
+            col_type=dtype(json['col_type']),
+            col_key=json['col_key'],
+            row_type=dtype(json['row_type']),
+            row_key=json['row_key'],
+            entry_type=dtype(json['entry_type']))
 
     @typecheck_method(global_type=tstruct,
                       col_type=tstruct, col_key=sequenceof(str),
