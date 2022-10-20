@@ -655,7 +655,7 @@ async def test_billing_project_case_sensitive(dev_client: BatchClient, new_billi
         j = bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
         b = await bb.submit()
     except aiohttp.ClientResponseError as e:
-        assert e.status == 404, e
+        assert e.status == 403, e
     else:
         assert False
 
