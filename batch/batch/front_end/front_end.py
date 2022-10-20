@@ -1588,11 +1588,13 @@ async def _commit_update(app: web.Application, batch_id: int, update_id: int, us
             raise web.HTTPBadRequest(reason=f'wrong number of jobs: expected {expected_n_jobs}, actual {actual_n_jobs}')
         raise
 
-    await request_retry_transient_errors(
-        client_session,
-        'PATCH',
-        deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/update'),
-        headers=app['batch_headers'],
+    app['task_manager'].ensure_future(
+        request_retry_transient_errors(
+            client_session,
+            'PATCH',
+            deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/update'),
+            headers=app['batch_headers'],
+        )
     )
 
 
