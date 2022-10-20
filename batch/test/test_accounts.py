@@ -638,14 +638,16 @@ async def test_billing_project_case_sensitive(dev_client: BatchClient, new_billi
 
     # create billing project
     await dev_client.create_billing_project(new_billing_project)
-    dev_client.billing_project = new_billing_project
+    await dev_client.add_user('test-dev', new_billing_project)
+
+    dev_client.reset_billing_project(new_billing_project)
 
     # create one batch with the correct billing project
     bb = dev_client.create_batch()
     j = bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
     b = await bb.submit()
 
-    dev_client.billing_project = upper_case_project
+    dev_client.reset_billing_project(upper_case_project)
 
     # create batch
     try:
