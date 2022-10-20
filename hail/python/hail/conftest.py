@@ -30,11 +30,12 @@ def init(doctest_namespace):
     # This gets run once per process -- must avoid race conditions
     print("setting up doctest...")
 
-    hl.init(global_seed=0)
-
     olddir = os.getcwd()
     os.chdir(os.path.join(os.path.dirname(os.path.realpath(__file__)),
                           "docs"))
+
+    hl.init(global_seed=0)
+
     try:
         generate_datasets(doctest_namespace)
         print("finished setting up doctest...")

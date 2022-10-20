@@ -1278,7 +1278,6 @@ class Tests(unittest.TestCase):
 
         assert mt.aggregate_rows(hl.agg.all(mt.foo.bar == ht[mt.row_key].bar))
 
-    @fails_local_backend()
     @fails_service_backend()
     def test_genetic_relatedness_matrix(self):
         n, m = 100, 200
@@ -1313,7 +1312,6 @@ class Tests(unittest.TestCase):
         return np.copy(a[:, np.squeeze(col_filter)] / col_lengths[col_filter])
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_realized_relationship_matrix(self):
         n, m = 100, 200
         hl.reset_global_randomness()

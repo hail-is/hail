@@ -75,7 +75,7 @@ class ValueIRTests(unittest.TestCase):
             ir.ArraySort(ir.ToStream(a), 'l', 'r', ir.ApplyComparisonOp("LT", ir.Ref('l', hl.tint32), ir.Ref('r', hl.tint32))),
             ir.ToSet(a),
             ir.ToDict(da),
-            ir.ToArray(a),
+            ir.ToArray(st),
             ir.CastToArray(ir.NA(hl.tset(hl.tint32))),
             ir.MakeNDArray(ir.MakeArray([ir.F64(-1.0), ir.F64(1.0)], hl.tarray(hl.tfloat64)),
                            ir.MakeTuple([ir.I64(1), ir.I64(2)]),

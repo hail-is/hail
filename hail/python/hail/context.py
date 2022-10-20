@@ -139,7 +139,7 @@ class HailContext(object):
         self._user_specified_rng_nonce = True
         if global_seed is None:
             if 'rng_nonce' not in backend.get_flags('rng_nonce'):
-                backend.set_flags({'rng_nonce': hex(Random().randrange(2**64))})
+                backend.set_flags(rng_nonce=hex(Random().randrange(2**64)))
                 self._user_specified_rng_nonce = False
         else:
             backend.set_flags(rng_nonce=hex(global_seed))

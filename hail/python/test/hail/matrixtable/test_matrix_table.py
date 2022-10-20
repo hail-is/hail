@@ -2016,10 +2016,11 @@ def test_matrix_randomness():
     assert_unique_uids(mt)
 
     # test MatrixRepartition
-    rmt = hl.utils.range_matrix_table(20, 10, 3)
-    mt = mt.repartition(5)
-    assert_contains_node(mt, ir.MatrixRepartition)
-    assert_unique_uids(mt)
+    if not hl.current_backend().requires_lowering:
+        rmt = hl.utils.range_matrix_table(20, 10, 3)
+        mt = rmt.repartition(5)
+        assert_contains_node(mt, ir.MatrixRepartition)
+        assert_unique_uids(mt)
 
     # test MatrixUnionRows
     r, c = 5, 5

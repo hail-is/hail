@@ -2808,7 +2808,6 @@ class Tests(unittest.TestCase):
 '''
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_export_genetic_data(self):
         mt = hl.balding_nichols_model(1, 3, 3)
         mt = mt.key_cols_by(s = 's' + hl.str(mt.sample_idx))
