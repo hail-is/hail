@@ -2058,6 +2058,9 @@ steps:
       - name: add-job-regions
         script: /io/sql/add-job-regions.sql
         online: true
+      - name: faster-regions-pool-scheduler
+        script: /io/sql/faster-regions-pool-scheduler.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
