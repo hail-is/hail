@@ -1991,7 +1991,7 @@ class MatrixTable(ExprContainer):
 
         >>> dataset.aggregate_rows(hl.struct(n_high_quality=hl.agg.count_where(dataset.qual > 40),
         ...                                  mean_qual=hl.agg.mean(dataset.qual)))
-        Struct(n_high_quality=13, mean_qual=544323.8915384616)
+        Struct(n_high_quality=8, mean_qual=157103.15875)
 
         Notes
         -----
@@ -2041,7 +2041,7 @@ class MatrixTable(ExprContainer):
         >>> dataset.aggregate_cols(
         ...    hl.struct(fraction_female=hl.agg.fraction(dataset.pheno.is_female),
         ...              case_ratio=hl.agg.count_where(dataset.is_case) / hl.agg.count()))
-        Struct(fraction_female=0.48, case_ratio=1.0)
+        Struct(fraction_female=0.44, case_ratio=1.0)
 
         Notes
         -----
@@ -2091,7 +2091,7 @@ class MatrixTable(ExprContainer):
 
         >>> dataset.aggregate_entries(hl.struct(global_gq_mean=hl.agg.mean(dataset.GQ),
         ...                                     call_rate=hl.agg.fraction(hl.is_defined(dataset.GT))))
-        Struct(global_gq_mean=64.01841473178543, call_rate=0.9607692307692308)
+        Struct(global_gq_mean=69.41687657430731, call_rate=0.9925)
 
         Notes
         -----

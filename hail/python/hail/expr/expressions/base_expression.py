@@ -963,11 +963,10 @@ class Expression(object):
         ...     for line in f:
         ...         print(line, end='')
         locus	alleles	0	1	2	3
-        1:1	["A","C"]	0/1	0/1	0/0	0/0
-        1:2	["A","C"]	1/1	0/1	1/1	1/1
-        1:3	["A","C"]	1/1	0/1	0/1	0/0
-        1:4	["A","C"]	1/1	0/1	1/1	1/1
-        <BLANKLINE>
+        1:1	["A","C"]	1/1	1/1	0/1	0/1
+        1:2	["A","C"]	1/1	1/1	0/0	1/1
+        1:3	["A","C"]	0/0	0/0	0/1	0/0
+        1:4	["A","C"]	1/1	0/1	1/1	0/1
 
         >>> small_mt.GT.export('output/gt-no-header.tsv', header=False)
         >>> with open('output/gt-no-header.tsv', 'r') as f:

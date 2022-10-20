@@ -22,7 +22,7 @@ The value of `x` will not change, although other calls to :func:`.rand_unif`
 will generate different values:
 
     >>> hl.eval(x)
-    0.5562065047992025
+    0.7769696130603699
 
     >>> hl.eval(x)
     0.5562065047992025

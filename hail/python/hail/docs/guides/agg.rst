@@ -98,7 +98,7 @@ One aggregation
 :**code**:
 
     >>> mt.aggregate_cols(hl.agg.fraction(mt.pheno.is_female))
-    0.48
+    0.44
 
 :**dependencies**: :meth:`.MatrixTable.aggregate_cols`, :func:`.aggregators.fraction`
 

@@ -49,7 +49,7 @@ def generate_datasets(doctest_namespace):
     doctest_namespace['np'] = np
 
     ds = hl.import_vcf('data/sample.vcf.bgz')
-    ds = ds.sample_rows(0.03)
+    ds = ds.sample_rows(0.035)
     ds = ds.annotate_rows(use_as_marker=hl.rand_bool(0.5),
                           panel_maf=0.1,
                           anno1=5,
