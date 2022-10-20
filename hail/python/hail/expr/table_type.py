@@ -16,9 +16,9 @@ class ttable(object):
     @staticmethod
     def _from_json(json):
         return ttable(
-            dtype(json['global']),
-            dtype(json['row']),
-            json['row_key'])
+            global_type=dtype(json['global_type']),
+            row_type=dtype(json['row_type']),
+            row_key=json['row_key'])
 
     @typecheck_method(global_type=tstruct, row_type=tstruct, row_key=sequenceof(str))
     def __init__(self, global_type, row_type, row_key):
