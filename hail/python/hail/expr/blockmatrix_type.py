@@ -29,6 +29,12 @@ class tblockmatrix(object):
         self.is_row_vector = is_row_vector
         self.block_size = block_size
 
+    def to_dict(self):
+        return dict(element_type=str(self.element_type),
+                    shape=self.shape,
+                    is_row_vector=self.is_row_vector,
+                    block_size=self.block_size)
+
     def __eq__(self, other):
         return isinstance(other, tblockmatrix) and \
             self.element_type == other.element_type and \

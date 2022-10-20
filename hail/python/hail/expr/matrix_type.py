@@ -41,6 +41,14 @@ class tmatrix(object):
         self.row_key = row_key
         self.entry_type = entry_type
 
+    def to_dict(self):
+        return dict(global_type=str(self.global_type),
+                    col_type=str(self.col_type),
+                    col_key=self.col_key,
+                    row_type=str(self.row_type),
+                    row_key=self.row_key,
+                    entry_type=self.entry_type)
+
     def __eq__(self, other):
         return (isinstance(other, tmatrix)
                 and self.global_type == other.global_type
