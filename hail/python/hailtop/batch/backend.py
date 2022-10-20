@@ -724,7 +724,7 @@ class ServiceBackend(Backend[bc.Batch]):
                                     resources=resources,
                                     input_files=inputs if len(inputs) > 0 else None,
                                     output_files=outputs if len(outputs) > 0 else None,
-                                    always_run=job._always_run,
+                                    always_run=(not job._cancellable),
                                     timeout=job._timeout,
                                     cloudfuse=job._cloudfuse if len(job._cloudfuse) > 0 else None,
                                     env=env,
@@ -732,8 +732,8 @@ class ServiceBackend(Backend[bc.Batch]):
                                     mount_tokens=True,
                                     user_code=user_code,
                                     regions=job._regions,
-                                    always_copy_output=job._always_copy_output)
-
+                                    always_copy_output=job._always_copy_output,
+                                    run_condition=job._run_condition)
             n_jobs_submitted += 1
 
             job_to_client_job_mapping[job] = j

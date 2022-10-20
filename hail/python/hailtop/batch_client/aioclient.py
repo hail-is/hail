@@ -513,7 +513,8 @@ class BatchBuilder:
                     network: Optional[str] = None,
                     unconfined: bool = False,
                     user_code: Optional[str] = None,
-                    regions: Optional[List[str]] = None):
+                    regions: Optional[List[str]] = None,
+                    run_condition: Optional[str] = None):
         self._job_idx += 1
 
         if parents is None:
@@ -558,6 +559,7 @@ class BatchBuilder:
         job_spec = {
             'always_run': always_run,
             'always_copy_output': always_copy_output,
+            'run_condition': run_condition,
             'job_id': self._job_idx,
             'absolute_parent_ids': absolute_parent_ids,
             'in_update_parent_ids': in_update_parent_ids,

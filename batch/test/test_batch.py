@@ -1312,3 +1312,51 @@ def test_region(client: BatchClient):
     assert status['state'] == 'Success', str((status, b.debug_info()))
     assert status['status']['region'] == region, str((status, b.debug_info()))
     assert region in j.log()['main'], str((status, b.debug_info()))
+
+
+def test_run_condition_always_job(client: BatchClient):
+    bb = client.create_batch()
+    j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['false'])
+    j2 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j1], run_condition='always')
+    b = bb.submit()
+    j2.wait()
+
+    assert j2.status()['state'] == 'Success', str((j2.status(), b.debug_info()))
+
+
+def test_run_condition_any_job(client: BatchClient):
+    bb = client.create_batch()
+    j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['false'])
+    j2 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    j3 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j1, j2], run_condition='any')
+    b = bb.submit()
+    j3.wait()
+
+    assert j3.status()['state'] == 'Success', str((j3.status(), b.debug_info()))
+
+
+def test_run_condition_always_job_with_update(client: BatchClient):
+    bb = client.create_batch()
+    j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['false'])
+    bb.submit()
+    j1.wait()
+
+    j2 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j1], run_condition='always')
+    b = bb.submit()
+    j2.wait()
+
+    assert j2.status()['state'] == 'Success', str((j2.status(), b.debug_info()))
+
+
+def test_run_condition_any_job_with_update(client: BatchClient):
+    bb = client.create_batch()
+    j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['false'])
+    j2 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    b = bb.submit()
+    b.wait()
+
+    j3 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j1, j2], run_condition='any')
+    b = bb.submit()
+    j3.wait()
+
+    assert j3.status()['state'] == 'Success', str((j3.status(), b.debug_info()))

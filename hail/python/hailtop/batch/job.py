@@ -74,7 +74,8 @@ class Job:
         self._memory: Optional[str] = None
         self._storage: Optional[str] = None
         self._image: Optional[str] = None
-        self._always_run: bool = False
+        self._cancellable: bool = True
+        self._run_condition: str = 'all'
         self._preemptible: Optional[bool] = None
         self._machine_type: Optional[str] = None
         self._timeout: Optional[Union[int, float]] = None
@@ -305,6 +306,45 @@ class Job:
         self._cpu = opt_str(cores)
         return self
 
+    def run_when(self, condition: str = 'all', cancellable: bool = True) -> 'Job':
+        """
+        Set when a job should run based on the success status of parent jobs and whether the
+        job is cancellable.
+
+        Notes
+        -----
+        Can only be used with the :class:`.backend.ServiceBackend`.
+
+        Examples
+        --------
+
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
+        >>> j = b.new_job()
+        >>> (j.always_run()
+        ...   .command(f'echo "hello"'))
+
+        Parameters
+        ----------
+        condition:
+            One of 'any', 'all', or 'always'. 'any' is to run the job if at least one parent dependency succeeds.
+            'all' is to run the job if all parent dependencies succeed. 'always' is to run the job regardless of whether
+            the parent dependencies succeed.
+        cancellable:
+            Whether the job can be cancelled. If a job is not cancellable, it will always run regardless of
+            the cancellation state of the batch.
+
+        Returns
+        -------
+        Same job object set with the desired run behavior.
+        """
+
+        if not isinstance(self._batch._backend, backend.ServiceBackend):
+            raise NotImplementedError("A ServiceBackend is required to use the 'always_run' option")
+
+        self._run_condition = condition
+        self._cancellable = cancellable
+        return self
+
     def always_run(self, always_run: bool = True) -> 'Job':
         """
         Set the job to always run, even if dependencies fail.
@@ -335,11 +375,7 @@ class Job:
         Same job object set to always run.
         """
 
-        if not isinstance(self._batch._backend, backend.ServiceBackend):
-            raise NotImplementedError("A ServiceBackend is required to use the 'always_run' option")
-
-        self._always_run = always_run
-        return self
+        return self.run_when('always', cancellable=False)
 
     def regions(self, regions: Optional[List[str]]) -> 'Job':
         """
