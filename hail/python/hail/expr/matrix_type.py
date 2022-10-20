@@ -7,6 +7,8 @@ from hail.utils.java import jiterable_to_list
 
 
 class tmatrix(object):
+    __slots__ = 'global_type', 'col_type', 'col_key', 'row_type', 'row_key', 'entry_type'
+
     @staticmethod
     def _from_java(jtt):
         return tmatrix(

@@ -6,6 +6,8 @@ from hail.utils.java import jiterable_to_list
 
 
 class ttable(object):
+    __slots__ = 'global_type', 'row_type', 'row_key'
+
     @staticmethod
     def _from_java(jtt):
         return ttable(

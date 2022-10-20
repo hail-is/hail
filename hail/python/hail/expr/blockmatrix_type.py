@@ -5,6 +5,8 @@ from hail.expr.types import dtype, hail_type
 
 
 class tblockmatrix(object):
+    __slots__ = 'element_type', 'shape', 'is_row_vector', 'block_size'
+
     @staticmethod
     def _from_java(jtbm):
         return tblockmatrix(
