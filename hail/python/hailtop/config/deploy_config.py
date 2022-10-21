@@ -1,8 +1,10 @@
-from typing import Dict
+from typing import Dict, Optional
 import os
+import ssl
 import json
 import logging
 from ..utils import first_extant_file
+from ..tls import external_client_ssl_context, internal_client_ssl_context, internal_server_ssl_context
 
 from .user_config import get_user_config
 
@@ -14,9 +16,9 @@ def env_var_or_default(name: str, defaults: Dict[str, str]) -> str:
 
 
 class DeployConfig:
-    @staticmethod
-    def from_config(config: Dict[str, str]) -> 'DeployConfig':
-        return DeployConfig(
+    @classmethod
+    def from_config(cls, config: Dict[str, str]) -> 'DeployConfig':
+        return cls(
             env_var_or_default('location', config),
             env_var_or_default('default_namespace', config),
             env_var_or_default('domain', config)
@@ -29,8 +31,8 @@ class DeployConfig:
             'domain': self._domain
         }
 
-    @staticmethod
-    def from_config_file(config_file=None) -> 'DeployConfig':
+    @classmethod
+    def from_config_file(cls, config_file=None) -> 'DeployConfig':
         config_file = first_extant_file(
             config_file,
             os.environ.get('HAIL_DEPLOY_CONFIG_FILE'),
@@ -48,7 +50,7 @@ class DeployConfig:
                 'default_namespace': 'default',
                 'domain': get_user_config().get('global', 'domain', fallback='hail.is'),
             }
-        return DeployConfig.from_config(config)
+        return cls.from_config(config)
 
     def __init__(self, location, default_namespace, domain):
         assert location in ('external', 'k8s', 'gce')
@@ -133,6 +135,58 @@ class DeployConfig:
         log.info(f'serving paths at {base_path}')
         return root_app
 
+    def client_ssl_context(self) -> ssl.SSLContext:
+        if self._location == 'k8s':
+            return internal_client_ssl_context()
+        # no encryption on the internal gateway
+        return external_client_ssl_context()
+
+    def server_ssl_context(self) -> Optional[ssl.SSLContext]:
+        if self._location == 'k8s':
+            return internal_server_ssl_context()
+        # local mode does not have access to self-signed certs
+        return None
+
+
+class TerraDeployConfig(DeployConfig):
+    def __init__(self, location, default_namespace, domain, subpath):
+        super().__init__(location, default_namespace, domain)
+        self._subpath = subpath
+
+    def get_config(self) -> Dict[str, str]:
+        return {
+            'location': self._location,
+            'default_namespace': self._default_namespace,
+            'domain': self._domain,
+            'subpath': self._subpath,
+        }
+
+    @classmethod
+    def from_config(cls, config) -> 'DeployConfig':
+        return cls(config['location'], config['default_namespace'], config['domain'], config['subpath'])
+
+    def domain(self, service):
+        if self._location == 'k8s':
+            return {
+                'batch-driver': 'localhost:5000',
+                'batch': 'localhost:5001',
+            }[service]
+        return self._domain
+
+    def base_path(self, service):
+        return f'{self._subpath}/{service}'
+
+    def external_url(self, service, path, base_scheme='http'):
+        return f'{base_scheme}s://{self._domain}{self._subpath}/{service}{path}'
+
+    def client_ssl_context(self) -> ssl.SSLContext:
+        # Terra app networking doesn't use self-signed certs
+        return external_client_ssl_context()
+
+    def server_ssl_context(self) -> Optional[ssl.SSLContext]:
+        # Terra app services are in the same pod and just use http
+        return None
+
 
 deploy_config = None
 
@@ -142,4 +196,6 @@ def get_deploy_config() -> DeployConfig:
 
     if not deploy_config:
         deploy_config = DeployConfig.from_config_file()
+        if deploy_config._domain.endswith('servicebus.windows.net'):
+            deploy_config = TerraDeployConfig.from_config_file()
     return deploy_config

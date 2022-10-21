@@ -1,9 +1,10 @@
 import abc
 import asyncio
 import logging
+import os
 import urllib.parse
 from functools import wraps
-from typing import Awaitable, Callable, Optional, Tuple, TypedDict
+from typing import Awaitable, Callable, Optional, Tuple, TypedDict, cast
 
 import aiohttp
 import aiohttp_session
@@ -119,6 +120,19 @@ class AuthServiceAuthenticator(Authenticator):
             raise web.HTTPInternalServerError() from e
 
 
+class TrustedSingleTenantAuthenticator(Authenticator):
+    async def _fetch_userdata(self, _: web.Request) -> Optional[UserData]:
+        return cast(
+            UserData,
+            {
+                'is_developer': True,
+                'username': 'test-dev',
+                'hail_credentials_secret_name': 'dummy',
+                'tokens_secret_name': 'dummy',
+            },
+        )
+
+
 async def impersonate_user_and_get_info(session_id: str, client_session: httpx.ClientSession):
     userinfo_url = deploy_config.url('auth', '/api/v1alpha/userinfo')
     return await impersonate_user(session_id, client_session, userinfo_url)
@@ -132,6 +146,12 @@ async def impersonate_user(session_id: str, client_session: httpx.ClientSession,
         if err.status == 401:
             return None
         raise
+
+
+def get_authenticator() -> Authenticator:
+    if os.environ.get('HAIL_TERRA'):
+        return TrustedSingleTenantAuthenticator()
+    return AuthServiceAuthenticator()
 
 
 async def get_session_id(request: web.Request) -> Optional[str]:

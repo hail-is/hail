@@ -57,10 +57,15 @@ object DeployConfig {
 
   def fromConfig(config: JValue): DeployConfig = {
     implicit val formats: Formats = DefaultFormats
-    fromConfig(
-      (config \ "location").extract[String],
-      (config \ "default_namespace").extract[String],
-      (config \ "domain").extract[Option[String]].getOrElse("hail.is"))
+
+    val location = (config \ "location").extract[String]
+    val defaultNamespace = (config \ "default_namespace").extract[String]
+    val domain = (config \ "domain").extract[Option[String]].getOrElse("hail.is")
+
+    sys.env.get("HAIL_TERRA") match {
+      case Some(_) => new TerraDeployConfig(location, defaultNamespace, domain, (config \ "subpath").extract[String])
+      case None => fromConfig(location, defaultNamespace, domain)
+    }
   }
 
   def fromConfig(location: String, defaultNamespace: String, domain: String): DeployConfig = {
@@ -120,5 +125,25 @@ class DeployConfig(
 
   def baseUrl(service: String, baseScheme: String = "http"): String = {
     s"${ scheme(baseScheme) }://${ domain(service) }${ basePath(service) }"
+  }
+}
+
+class TerraDeployConfig(
+  location: String,
+  defaultNamespace: String,
+  domain: String,
+  subpath: String) extends DeployConfig(location, defaultNamespace, domain) {
+  import DeployConfig._
+
+  override def domain(service: String): String = {
+    this.domain
+  }
+
+  override def basePath(service: String): String = {
+    s"$subpath/$service"
+  }
+
+  override def scheme(baseScheme: String = "http"): String = {
+    "https"
   }
 }

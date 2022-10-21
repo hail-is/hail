@@ -441,7 +441,7 @@ class AzureAsyncFS(AsyncFS):
         return AzureAsyncFSHttpsURL(account, container, name, token)
 
     @staticmethod
-    def get_name_parts(name: str) -> Tuple[str, str]:
+    def get_name_parts(name: str) -> Tuple[str, Optional[str]]:
         # Look for a terminating SAS token.
         query_index = name.rfind('?')
         if query_index != -1:
@@ -450,7 +450,7 @@ class AzureAsyncFS(AsyncFS):
             # We will accept it as a token string if it begins with at least 1 key-value pair of the form 'k=v'.
             if len(first_kv_pair) == 2 and all(s != '' for s in first_kv_pair):
                 return (name[:query_index],  query_string)
-        return (name, '')
+        return (name, None)
 
     def get_blob_service_client(self, account: str, container: str, token: Optional[str]) -> BlobServiceClient:
         credential = token if token else self._credential

@@ -245,7 +245,10 @@ object FS {
           }
           new GoogleStorageFS(credentialsStr, requesterPaysConfiguration)
         case Some("azure") =>
-          new AzureStorageFS(credentialsStr)
+          sys.env.get("HAIL_TERRA") match {
+            case Some(_) => new TerraAzureStorageFS()
+            case None => new AzureStorageFS(credentialsStr)
+          }
         case Some(cloud) =>
           throw new IllegalArgumentException(s"Bad cloud: $cloud")
         case None =>

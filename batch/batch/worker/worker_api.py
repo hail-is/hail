@@ -1,5 +1,7 @@
 import abc
-from typing import Dict, Generic, List, TypedDict, TypeVar
+from typing import Dict, Generic, List, TypeVar, Union
+
+from typing_extensions import TypedDict
 
 from hailtop import httpx
 from hailtop.aiotools.fs import AsyncFS
@@ -12,9 +14,16 @@ from .disk import CloudDisk
 CredsType = TypeVar("CredsType", bound=CloudUserCredentials)
 
 
-class ContainerRegistryCredentials(TypedDict):
+class ContainerRegistryUsernamePassword(TypedDict):
     username: str
     password: str
+
+
+class ContainerRegistryAnonymousCredentials(TypedDict):
+    pass
+
+
+ContainerRegistryCredentials = Union[ContainerRegistryUsernamePassword, ContainerRegistryAnonymousCredentials]
 
 
 class CloudWorkerAPI(abc.ABC, Generic[CredsType]):

@@ -8,11 +8,14 @@ from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
 from ..instance_config import InstanceConfig
 from .azure.instance_config import AzureSlimInstanceConfig
 from .gcp.instance_config import GCPSlimInstanceConfig
+from .terra.azure.instance_config import TerraAzureSlimInstanceConfig
 
 
 def instance_config_from_config_dict(config: Dict[str, Any]) -> InstanceConfig:
     cloud = config.get('cloud', 'gcp')
     if cloud == 'azure':
+        if os.environ.get('HAIL_TERRA'):
+            return TerraAzureSlimInstanceConfig.from_dict(config)
         return AzureSlimInstanceConfig.from_dict(config)
     assert cloud == 'gcp'
     return GCPSlimInstanceConfig.from_dict(config)

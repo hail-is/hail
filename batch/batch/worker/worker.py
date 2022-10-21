@@ -43,6 +43,7 @@ import orjson
 from aiodocker.exceptions import DockerError  # type: ignore
 from aiohttp import web
 
+from batch.cloud.terra.azure.worker.worker_api import TerraAzureWorkerAPI
 from gear import json_request, json_response
 from hailtop import aiotools, httpx
 from hailtop.aiotools import AsyncFS, LocalAsyncFS
@@ -2273,8 +2274,11 @@ class JVMJob(Job):
 
                 self.state = 'running'
 
-                with self.step('downloading_jar'):
-                    local_jar_location = await self.download_jar()
+                if os.environ.get('HAIL_TERRA'):
+                    local_jar_location = '/hail-jars/hail-all-spark.jar'
+                else:
+                    with self.step('downloading_jar'):
+                        local_jar_location = await self.download_jar()
 
                 with self.step('running'):
                     await self.jvm.execute(
@@ -2963,7 +2967,7 @@ class Worker:
         self.jobs: Dict[Tuple[int, int], Job] = {}
         self.stop_event = asyncio.Event()
         self.task_manager = aiotools.BackgroundTaskManager()
-        os.mkdir('/hail-jars/')
+        os.makedirs('/hail-jars/', exist_ok=True)
         self.jar_download_locks: Dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
         self.client_session = client_session
 
@@ -3031,9 +3035,11 @@ class Worker:
     async def return_broken_jvm(self, jvm: JVM):
         return await self._jvmpools_by_cores[jvm.n_cores].return_broken_jvm(jvm)
 
-    @property
-    def headers(self) -> Dict[str, str]:
-        return {'X-Hail-Instance-Name': NAME, 'X-Hail-Instance-Token': self.instance_token}
+    async def headers(self):
+        headers = {'X-Hail-Instance-Name': NAME, 'X-Hail-Instance-Token': self.instance_token}
+        if isinstance(CLOUD_WORKER_API, TerraAzureWorkerAPI):
+            headers['Authorization'] = 'Bearer: ' + await CLOUD_WORKER_API.vm_identity_token()
+        return headers
 
     async def shutdown(self):
         log.info('Worker.shutdown')
@@ -3264,7 +3270,7 @@ class Worker:
         # gone (e.g. testing a PR), this would go into an
         # infinite loop and the instance won't be deleted.
         await self.client_session.post(
-            deploy_config.url('batch-driver', '/api/v1alpha/instances/deactivate'), headers=self.headers
+            deploy_config.url('batch-driver', '/api/v1alpha/instances/deactivate'), headers=await self.headers()
         )
 
     async def kill(self, request):  # pylint: disable=unused-argument
@@ -3304,7 +3310,7 @@ class Worker:
                 await self.client_session.post(
                     deploy_config.url('batch-driver', '/api/v1alpha/instances/job_complete'),
                     json=body,
-                    headers=self.headers,
+                    headers=await self.headers(),
                 )
                 return
             except asyncio.CancelledError:
@@ -3371,7 +3377,7 @@ class Worker:
             # If the job is already complete, just send MJC. No need for MJS
             if not job.done():
                 url = deploy_config.url('batch-driver', '/api/v1alpha/instances/job_started')
-                await self.client_session.post(url, json=body, headers=self.headers)
+                await self.client_session.post(url, json=body, headers=await self.headers())
 
         await retry_transient_errors_with_delayed_warnings(300 * 1000, post_started_if_job_still_running)
 
@@ -3398,12 +3404,11 @@ class Worker:
             self.client_session.post_read_json,
             deploy_config.url('batch-driver', '/api/v1alpha/instances/activate'),
             json={'ip_address': os.environ['IP_ADDRESS']},
-            headers=self.headers,
+            headers=await self.headers(),
         )
         self.instance_token = resp_json['token']
         self.active = True
         self.last_updated = time_msecs()
-
         log.info('activated')
 
     async def cleanup_old_images(self):
@@ -3447,7 +3452,7 @@ class Worker:
                 await self.client_session.post(
                     deploy_config.url('batch-driver', '/api/v1alpha/billing_update'),
                     json=billing_update_data,
-                    headers=self.headers,
+                    headers=await self.headers(),
                 )
                 log.info(f'sent billing update for {time_msecs_str(update_timestamp)}')
 
@@ -3460,7 +3465,16 @@ async def async_main():
     image_lock = aiorwlock.RWLock()
     docker = aiodocker.Docker()
 
-    CLOUD_WORKER_API = await GCPWorkerAPI.from_env() if CLOUD == 'gcp' else AzureWorkerAPI.from_env()
+    if CLOUD == 'gcp':
+        CLOUD_WORKER_API = await GCPWorkerAPI.from_env()
+    else:
+        assert CLOUD == 'azure'
+        if os.environ.get('HAIL_TERRA'):
+            CLOUD_WORKER_API = TerraAzureWorkerAPI.from_env()
+        else:
+            CLOUD_WORKER_API = AzureWorkerAPI.from_env()
+
+    assert CLOUD_WORKER_API
     instance_config = CLOUD_WORKER_API.instance_config_from_config_dict(INSTANCE_CONFIG)
     assert instance_config.cores == CORES
     assert instance_config.cloud == CLOUD

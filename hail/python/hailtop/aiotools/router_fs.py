@@ -2,6 +2,7 @@ from typing import Any, Optional, List, Set, AsyncIterator, Dict, AsyncContextMa
 import asyncio
 
 from ..aiocloud import aioaws, aioazure, aiogoogle
+from ..aiocloud.aioterra import azure as aioterra_azure
 from .fs import (AsyncFS, MultiPartCreate, FileStatus, FileListEntry, ReadableStream,
                  WritableStream, AsyncFSURL)
 from .local_fs import LocalAsyncFS
@@ -42,6 +43,7 @@ class RouterAsyncFS(AsyncFS):
             LocalAsyncFS.valid_url(url)
             or aiogoogle.GoogleStorageAsyncFS.valid_url(url)
             or aioazure.AzureAsyncFS.valid_url(url)
+            or aioterra_azure.TerraAzureAsyncFS.valid_url(url)
             or aioaws.S3AsyncFS.valid_url(url)
         )
 
@@ -55,10 +57,14 @@ class RouterAsyncFS(AsyncFS):
                 **self._gcs_kwargs,
                 bucket_allow_list = self._gcs_bucket_allow_list.copy()
             )
-        elif aioazure.AzureAsyncFS.valid_url(uri):
-            fs = aioazure.AzureAsyncFS(**self._azure_kwargs)
         elif aioaws.S3AsyncFS.valid_url(uri):
             fs = aioaws.S3AsyncFS(**self._s3_kwargs)
+        # Azure URLs are also valid for Terra on Azure
+        elif aioazure.AzureAsyncFS.valid_url(uri):
+            if aioterra_azure.TerraAzureAsyncFS.configured():
+                fs = aioterra_azure.TerraAzureAsyncFS(**self._azure_kwargs)
+            else:
+                fs = aioazure.AzureAsyncFS(**self._azure_kwargs)
         else:
             raise ValueError(f'no file system found for url {uri}')
 

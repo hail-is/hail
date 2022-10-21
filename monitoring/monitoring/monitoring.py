@@ -18,7 +18,6 @@ from hailtop import aiotools, httpx
 from hailtop.aiocloud import aiogoogle
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
-from hailtop.tls import internal_server_ssl_context
 from hailtop.utils import (
     cost_str,
     parse_timestamp_msecs,
@@ -378,5 +377,5 @@ def run():
         host='0.0.0.0',
         port=5000,
         access_log_class=AccessLogger,
-        ssl_context=internal_server_ssl_context(),
+        ssl_context=deploy_config.server_ssl_context(),
     )

@@ -1,5 +1,8 @@
+import os
+
 from gear.cloud_config import get_gcp_config, get_global_config
 from hailtop.aiocloud import aioazure, aiogoogle
+from hailtop.aiocloud.aioterra import azure as aioterra_azure
 from hailtop.aiotools.fs import AsyncFS, AsyncFSFactory
 
 
@@ -18,6 +21,8 @@ def get_cloud_async_fs() -> AsyncFS:
     cloud = get_global_config()['cloud']
 
     if cloud == 'azure':
+        if os.environ.get('HAIL_TERRA'):
+            return aioterra_azure.TerraAzureAsyncFS()
         return aioazure.AzureAsyncFS()
 
     assert cloud == 'gcp', cloud

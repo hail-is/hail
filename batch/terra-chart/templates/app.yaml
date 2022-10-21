@@ -1,0 +1,264 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: batch
+  labels:
+    app: batch
+spec:
+  selector:
+    matchLabels:
+      app: batch
+      aadpodidbinding: {{ .Values.identity.name }}
+  serviceName: batch
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: batch
+        aadpodidbinding: {{ .Values.identity.name }}
+    spec:
+      containers:
+        - name: batch
+          image: {{ .Values.batch.image }}
+          command:
+           - bash
+           - -c
+           - |
+             python3 ci/create_local_database.py batch $HAIL_SQL_DATABASE
+             python3 -m batch.front_end
+          env:
+           - name: WORKSPACE_MANAGER_URL
+             value: {{ .Values.persistence.workspaceManager.url }}
+           - name: WORKSPACE_ID
+             value: {{ .Values.persistence.workspaceManager.workspaceId }}
+           - name: WORKSPACE_STORAGE_CONTAINER_ID
+             value: {{ .Values.persistence.workspaceManager.containerResourceId }}
+           - name: WORKSPACE_STORAGE_CONTAINER_URL
+             value: {{ .Values.persistence.workspaceManager.storageContainerUrl }}
+           - name: TERRA_STORAGE_ACCOUNT
+             value: {{ .Values.persistence.storageAccount }}
+           - name: HAIL_DOMAIN
+             value: {{ .Values.relay.domain }}
+           - name: HAIL_DEPLOY_CONFIG_FILE
+             value: /deploy-config/deploy-config.json
+           - name: HAIL_BATCH_WORKER_IMAGE
+             value: {{ .Values.batch.workerImage }}
+           - name: PORT
+             value: "5001"
+           - name: HAIL_DEFAULT_NAMESPACE
+             valueFrom:
+               configMapKeyRef:
+                 name: global-config
+                 key: default_namespace
+           - name: HAIL_DOCKER_ROOT_IMAGE
+             valueFrom:
+               configMapKeyRef:
+                 name: global-config
+                 key: docker_root_image
+           - name: HAIL_DOCKER_PREFIX
+             valueFrom:
+               configMapKeyRef:
+                 name: global-config
+                 key: docker_prefix
+           - name: CLOUD
+             valueFrom:
+               configMapKeyRef:
+                 name: global-config
+                 key: cloud
+           - name: HAIL_TERRA
+             value: "true"
+           - name: HAIL_SQL_DATABASE
+             value: batch
+           - name: INTERNAL_GATEWAY_IP
+             valueFrom:
+               configMapKeyRef:
+                 name: global-config
+                 key: internal_ip
+           - name: KUBERNETES_SERVER_URL
+             valueFrom:
+               configMapKeyRef:
+                 name: global-config
+                 key: kubernetes_server_url
+           - name: HAIL_SHA
+             value: {{ .Values.hailSHA }}
+           - name: HAIL_SCOPE
+             value: deploy
+           - name: HAIL_BATCH_STORAGE_URI
+             valueFrom:
+               configMapKeyRef:
+                 name: global-config
+                 key: batch_logs_storage_uri
+           - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
+             value: "7200" # 2 hours
+           - name: HAIL_QUERY_STORAGE_URI
+             valueFrom:
+               configMapKeyRef:
+                 name: global-config
+                 key: query_storage_uri
+           - name: HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER
+             value: "/jars"
+           - name: HAIL_IDENTITY_PROVIDER_JSON
+             value: '{"idp": "Microsoft"}'
+          ports:
+           - containerPort: 5001
+          volumeMounts:
+           - name: deploy-config
+             mountPath: /deploy-config
+             readOnly: true
+           - name: global-config
+             mountPath: /global-config
+             readOnly: true
+           - name: session-secret-key
+             mountPath: /session-secret-key
+             readOnly: true
+        - name: batch-driver
+          image: {{ .Values.batch.image }}
+          command:
+           - python3
+           - -m
+           - batch.driver
+          env:
+           - name: WORKSPACE_MANAGER_URL
+             value: {{ .Values.persistence.workspaceManager.url }}
+           - name: WORKSPACE_ID
+             value: {{ .Values.persistence.workspaceManager.workspaceId }}
+           - name: WORKSPACE_STORAGE_CONTAINER_ID
+             value: {{ .Values.persistence.workspaceManager.containerResourceId }}
+           - name: WORKSPACE_STORAGE_CONTAINER_URL
+             value: {{ .Values.persistence.workspaceManager.storageContainerUrl }}
+           - name: TERRA_STORAGE_ACCOUNT
+             value: {{ .Values.persistence.storageAccount }}
+           - name: HAIL_DOMAIN
+             value: {{ .Values.relay.domain }}
+           - name: HAIL_DEPLOY_CONFIG_FILE
+             value: /deploy-config/deploy-config.json
+           - name: HAIL_BATCH_WORKER_IMAGE
+             value: {{ .Values.batch.workerImage }}
+           - name: PORT
+             value: "5000"
+           - name: HAIL_DEFAULT_NAMESPACE
+             valueFrom:
+               configMapKeyRef:
+                 name: global-config
+                 key: default_namespace
+           - name: HAIL_DOCKER_ROOT_IMAGE
+             valueFrom:
+               configMapKeyRef:
+                 name: global-config
+                 key: docker_root_image
+           - name: HAIL_DOCKER_PREFIX
+             valueFrom:
+               configMapKeyRef:
+                 name: global-config
+                 key: docker_prefix
+           - name: CLOUD
+             valueFrom:
+               configMapKeyRef:
+                 name: global-config
+                 key: cloud
+           - name: HAIL_TERRA
+             value: "true"
+           - name: INTERNAL_GATEWAY_IP
+             valueFrom:
+               configMapKeyRef:
+                 name: global-config
+                 key: internal_ip
+           - name: KUBERNETES_SERVER_URL
+             valueFrom:
+               configMapKeyRef:
+                 name: global-config
+                 key: kubernetes_server_url
+           - name: HAIL_SHA
+             value: {{ .Values.hailSHA }}
+           - name: HAIL_SCOPE
+             value: deploy
+           - name: HAIL_BATCH_STORAGE_URI
+             valueFrom:
+               configMapKeyRef:
+                 name: global-config
+                 key: batch_logs_storage_uri
+           - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
+             value: "7200" # 2 hours
+           - name: HAIL_QUERY_STORAGE_URI
+             valueFrom:
+               configMapKeyRef:
+                 name: global-config
+                 key: query_storage_uri
+           - name: HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER
+             value: "/jars"
+           - name: HAIL_IDENTITY_PROVIDER_JSON
+             value: '{"idp": "Microsoft"}'
+          ports:
+           - containerPort: 5000
+          volumeMounts:
+           - name: deploy-config
+             mountPath: /deploy-config
+             readOnly: true
+           - name: global-config
+             mountPath: /global-config
+             readOnly: true
+           - name: session-secret-key
+             mountPath: /session-secret-key
+             readOnly: true
+        - name: envoy
+          image: {{ .Values.envoyImage }}
+          command:
+            - /usr/local/bin/envoy
+            - --config-path
+            - /etc/envoy/envoy.yaml
+            - --concurrency
+            - "2"
+          ports:
+           - containerPort: 8080
+          volumeMounts:
+           - name: batch-load-balancer-config
+             mountPath: /etc/envoy
+             readOnly: true
+        - name: db
+          image: mysql:8.0.28
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: pw
+          volumeMounts:
+            - name: mysql-persistent-storage
+              mountPath: /var/lib/mysql
+      volumes:
+       - name: deploy-config
+         configMap:
+           name: deploy-config
+       - name: global-config
+         configMap:
+           name: global-config
+       - name: batch-load-balancer-config
+         configMap:
+           name: batch-load-balancer-config
+       - name: session-secret-key
+         configMap:
+           name: session-secret-key
+       - name: mysql-persistent-storage
+         persistentVolumeClaim:
+           claimName: mysql-pv-claim
+  volumeClaimTemplates:
+  - metadata:
+      name: mysql-persistent-storage
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 20Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: batch
+  labels:
+    app: batch
+spec:
+  ports:
+    - name: https
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+  selector:
+    app: batch

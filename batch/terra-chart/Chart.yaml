@@ -1,0 +1,6 @@
+apiVersion: v2
+name: hail-batch-terra-azure
+description: A chart for deploying Hail Batch into an Azure Terra workspace
+type: application
+version: "0.1.9"
+appVersion: "0.2.123"

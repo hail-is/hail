@@ -12,7 +12,6 @@ from gear import AuthServiceAuthenticator, monitor_endpoints_middleware, setup_a
 from hailtop import httpx
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
-from hailtop.tls import internal_server_ssl_context
 from web_common import render_template, sass_compile, setup_aiohttp_jinja2, setup_common_static_routes
 
 MODULE_PATH = os.path.dirname(__file__)
@@ -144,5 +143,5 @@ def run(local_mode):
         host='0.0.0.0',
         port=int(os.environ.get('PORT', 5000)),
         access_log_class=AccessLogger,
-        ssl_context=None if local_mode else internal_server_ssl_context(),
+        ssl_context=deploy_config.server_ssl_context(),
     )

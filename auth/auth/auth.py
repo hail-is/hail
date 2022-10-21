@@ -37,7 +37,6 @@ from hailtop import httpx
 from hailtop.auth import AzureFlow, Flow, GoogleFlow, IdentityProvider
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
-from hailtop.tls import internal_server_ssl_context
 from hailtop.utils import secret_alnum_string
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
@@ -888,5 +887,5 @@ def run():
         host='0.0.0.0',
         port=443,
         access_log_class=AuthAccessLogger,
-        ssl_context=internal_server_ssl_context(),
+        ssl_context=deploy_config.server_ssl_context(),
     )

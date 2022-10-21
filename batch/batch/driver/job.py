@@ -3,6 +3,7 @@ import base64
 import collections
 import json
 import logging
+import os
 import traceback
 from typing import TYPE_CHECKING, Dict, List
 
@@ -355,22 +356,22 @@ async def job_config(app, record, attempt_id):
 
     userdata = json.loads(record['userdata'])
 
-    secrets = job_spec.get('secrets', [])
-    k8s_secrets = await asyncio.gather(
-        *[k8s_cache.read_secret(secret['name'], secret['namespace']) for secret in secrets]
-    )
-
     gsa_key = None
+    if not os.environ.get('HAIL_TERRA'):
+        secrets = job_spec.get('secrets', [])
+        k8s_secrets = await asyncio.gather(
+            *[k8s_cache.read_secret(secret['name'], secret['namespace']) for secret in secrets]
+        )
 
-    # backwards compatibility
-    gsa_key_secret_name = userdata.get('hail_credentials_secret_name') or userdata['gsa_key_secret_name']
+        # backwards compatibility
+        gsa_key_secret_name = userdata.get('hail_credentials_secret_name') or userdata['gsa_key_secret_name']
 
-    for secret, k8s_secret in zip(secrets, k8s_secrets):
-        if secret['name'] == gsa_key_secret_name:
-            gsa_key = k8s_secret.data
-        secret['data'] = k8s_secret.data
+        for secret, k8s_secret in zip(secrets, k8s_secrets):
+            if secret['name'] == gsa_key_secret_name:
+                gsa_key = k8s_secret.data
+            secret['data'] = k8s_secret.data
 
-    assert gsa_key
+        assert gsa_key
 
     service_account = job_spec.get('service_account')
     if service_account:
