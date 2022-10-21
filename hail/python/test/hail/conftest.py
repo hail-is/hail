@@ -42,7 +42,7 @@ def init_hail():
 
 
 @pytest.fixture(autouse=True)
-def reset_randomness(init):
+def reset_randomness(init_hail):
     reset_global_randomness()
 
 
