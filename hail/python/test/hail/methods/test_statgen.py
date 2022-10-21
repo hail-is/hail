@@ -9,7 +9,7 @@ import hail.expr.aggregators as agg
 import hail.utils as utils
 from hail.linalg import BlockMatrix
 from hail.utils import FatalError
-from hail.utils.java import choose_backend
+from hail.utils.java import choose_backend, Env
 from ..helpers import resource, fails_local_backend, fails_service_backend
 
 
@@ -1626,6 +1626,8 @@ class Tests(unittest.TestCase):
         test_stat(40, 400, 20, 12)
 
     def test_balding_nichols_model_phased(self):
+        print(f'current static uid: {Env._static_rng_uid}')
+        print(f"rng_nonce: {hl._get_flags('rng_nonce')['rng_nonce']}")
         bn_ds = hl.balding_nichols_model(1, 5, 5, phased=True)
         assert bn_ds.aggregate_entries(hl.agg.all(bn_ds.GT.phased)) == True
         actual = bn_ds.GT.collect()
