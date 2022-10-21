@@ -96,8 +96,14 @@ steps:
       cpu: "2"
       memory: standard
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/docker/Dockerfile.base
+        to: /io/repo/docker/Dockerfile.base
+      - from: /repo/docker/linux-pinned-requirements.txt
+        to: /io/repo/docker/linux-pinned-requirements.txt
+      - from: /repo/pylintrc
+        to: /io/repo/pylintrc
+      - from: /repo/setup.cfg
+        to: /io/repo/setup.cfg
     dependsOn:
       - hail_ubuntu_image
       - merge_code
@@ -111,8 +117,10 @@ steps:
       cpu: "2"
       memory: standard
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/docker/Dockerfile.base-with-spark-3-2
+        to: /io/repo/docker/Dockerfile.base-with-spark-3-2
+      - from: /repo/docker/core-site.xml
+        to: /io/repo/docker/core-site.xml
     dependsOn:
       - base_image
       - merge_code
@@ -127,8 +135,14 @@ steps:
       chmod 755 ./check_pip_requirements.sh
       make check-pip-dependencies
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/Makefile
+        to: /io/repo/Makefile
+      - from: /repo/check_pip_requirements.sh
+        to: /io/repo/check_pip_requirements.sh
+      - from: /repo/docker
+        to: /io/repo/docker
+      - from: /repo/hail/python
+        to: /io/repo/hail/python
     dependsOn:
       - base_image
       - merge_code
@@ -141,8 +155,14 @@ steps:
       cd /io/repo
       make check-hail
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/Makefile
+        to: /io/repo/Makefile
+      - from: /repo/pylintrc
+        to: /io/repo/pylintrc
+      - from: /repo/setup.cfg
+        to: /io/repo/setup.cfg
+      - from: /repo/hail/python
+        to: /io/repo/hail/python
     dependsOn:
       - base_image
       - merge_code
@@ -161,8 +181,16 @@ steps:
     inputs:
       - from: /hail_version
         to: /io/repo/hail_version
-      - from: /repo
-        to: /io/repo
+      - from: /repo/docker/Dockerfile.service-base
+        to: /io/repo/docker/Dockerfile.service-base
+      - from: /repo/docker/service-base-requirements.txt
+        to: /io/repo/docker/service-base-requirements.txt
+      - from: /repo/gear
+        to: /io/repo/gear
+      - from: /repo/web_common
+        to: /io/repo/web_common
+      - from: /repo/hail/python
+        to: /io/repo/hail/python
   - kind: runImage
     name: check_services
     image:
@@ -415,8 +443,8 @@ steps:
     contextPath: /io/repo
     publishAs: auth
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/auth
+        to: /io/repo/auth
     dependsOn:
       - service_base_image
       - merge_code
@@ -523,8 +551,14 @@ steps:
       cpu: "2"
       memory: standard
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/hail/Dockerfile.hail-run
+        to: /io/repo/hail/Dockerfile.hail-run
+      - from: /repo/hail/python/pinned-requirements.txt
+        to: /io/repo/hail/python/pinned-requirements.txt
+      - from: /repo/hail/python/dev/pinned-requirements.txt
+        to: /io/repo/hail/python/dev/pinned-requirements.txt
+      - from: /repo/docker/core-site.xml
+        to: /io/repo/docker/core-site.xml
     dependsOn:
       - service_base_image
       - merge_code
@@ -549,8 +583,8 @@ steps:
     contextPath: /io/repo
     publishAs: monitoring
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/monitoring
+        to: /io/repo/monitoring
     dependsOn:
       - service_base_image
       - merge_code
@@ -585,8 +619,12 @@ steps:
       - test
       - dev
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/ci/Dockerfile.test
+        to: /io/repo/ci/Dockerfile.test
+      - from: /repo/hail/python
+        to: /io/repo/hail/python
+      - from: /repo/ci/test
+        to: /io/repo/ci/test
       - from: /hail_version
         to: /io/repo/hail_version
     dependsOn:
@@ -598,8 +636,8 @@ steps:
     contextPath: /io/repo
     publishAs: test-monitoring
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/monitoring
+        to: /io/repo/monitoring
     dependsOn:
       - service_base_image
       - merge_code
@@ -609,8 +647,8 @@ steps:
     contextPath: /io/repo
     publishAs: ci
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/ci
+        to: /io/repo/ci
     dependsOn:
       - service_base_image
       - merge_code
@@ -655,8 +693,10 @@ steps:
       time retry make shadowJar wheel
       (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/README.md
+        to: /io/repo/README.md
+      - from: /repo/hail
+        to: /io/repo/hail
     outputs:
       - from: /io/repo/hail/build/libs/hail-all-spark.jar
         to: /just-jar/hail.jar
@@ -681,8 +721,10 @@ steps:
       time retry make jars wheel
       (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/README.md
+        to: /io/repo/README.md
+      - from: /repo/hail
+        to: /io/repo/hail
     outputs:
       - from: /io/repo/hail/build/libs/hail-all-spark.jar
         to: /just-jar/spark-32/hail.jar
@@ -730,8 +772,10 @@ steps:
       time TESTNG_SPLITS=5 python3 generate_splits.py
       time tar czf splits.tar.gz testng-splits-*.xml
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/README.md
+        to: /io/repo/README.md
+      - from: /repo/hail
+        to: /io/repo/hail
     outputs:
       - from: /io/repo/hail/build/libs/hail-all-spark.jar
         to: /hail.jar
@@ -781,8 +825,10 @@ steps:
       export SPARK_VERSION="2.4.8" SCALA_VERSION="2.12.12"
       time retry make jars python-version-info wheel
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/README.md
+        to: /io/repo/README.md
+      - from: /repo/hail
+        to: /io/repo/hail
     dependsOn:
       - hail_build_image
       - merge_code
@@ -801,8 +847,10 @@ steps:
       export SPARK_VERSION="3.0.1" SCALA_VERSION="2.12.12"
       time retry make jars python-version-info wheel
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/README.md
+        to: /io/repo/README.md
+      - from: /repo/hail
+        to: /io/repo/hail
     dependsOn:
       - hail_build_image
       - merge_code
@@ -822,8 +870,10 @@ steps:
       time retry make wheel
       (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/README.md
+        to: /io/repo/README.md
+      - from: /repo/hail
+        to: /io/repo/hail
     outputs:
       - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
         to: /wheel-for-azure-container.tar
@@ -861,8 +911,18 @@ steps:
     contextPath: /io/repo
     publishAs: batch-worker
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/letsencrypt/subdomains.txt
+        to: /io/repo/letsencrypt/subdomains.txt
+      - from: /repo/docker
+        to: /io/repo/docker
+      - from: /repo/batch
+        to: /io/repo/batch
+      - from: /repo/hail/python
+        to: /io/repo/hail/python
+      - from: /repo/gear
+        to: /io/repo/gear
+      - from: /repo/letsencrypt/subdomains.txt
+        to: /repo/letsencrypt/subdomains.txt
       - from: /batch-jvm-entryway-classes
         to: /io/repo/batch/src/main/java/is/hail
       - from: /junixsocket-selftest-2.3.3-jar-with-dependencies.jar
@@ -879,8 +939,14 @@ steps:
     contextPath: /io/repo
     publishAs: service-java-run-base
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/docker
+        to: /io/repo/docker
+      - from: /repo/web_common
+        to: /io/repo/web_common
+      - from: /repo/hail/python
+        to: /io/repo/hail/python
+      - from: /repo/gear
+        to: /io/repo/gear
       - from: /hail_version
         to: /io/repo/hail_version
     dependsOn:
@@ -892,8 +958,8 @@ steps:
     contextPath: /io/repo
     publishAs: memory
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/memory
+        to: /io/repo/memory
     dependsOn:
       - service_base_image
       - merge_code
@@ -996,8 +1062,6 @@ steps:
       cpu: "2"
       memory: standard
     inputs:
-      - from: /repo
-        to: /io/repo
       - from: /hail.jar
         to: /io/repo/hail.jar
       - from: /hail.zip
@@ -1012,8 +1076,16 @@ steps:
     contextPath: /io/repo
     publishAs: hail-pip-installed-python37
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/hail/Dockerfile.hail-pip-installed-python37
+        to: /io/repo/hail/Dockerfile.hail-pip-installed-python37
+      - from: /repo/hail/python/requirements.txt
+        to: /io/repo/hail/python/requirements.txt
+      - from: /repo/hail/python/dev/requirements.txt
+        to: /io/repo/hail/python/dev/requirements.txt
+      - from: /repo/pylintrc
+        to: /io/repo/pylintrc
+      - from: /repo/setup.cfg
+        to: /io/repo/setup.cfg
       - from: /just-wheel/wheel-container.tar
         to: /io/repo/wheel-container.tar
     dependsOn:
@@ -1026,8 +1098,16 @@ steps:
     contextPath: /io/repo
     publishAs: hail-pip-installed-python38
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/hail/Dockerfile.hail-pip-installed-python38
+        to: /io/repo/hail/Dockerfile.hail-pip-installed-python38
+      - from: /repo/hail/python/requirements.txt
+        to: /io/repo/hail/python/requirements.txt
+      - from: /repo/hail/python/dev/requirements.txt
+        to: /io/repo/hail/python/dev/requirements.txt
+      - from: /repo/pylintrc
+        to: /io/repo/pylintrc
+      - from: /repo/setup.cfg
+        to: /io/repo/setup.cfg
       - from: /just-wheel/wheel-container.tar
         to: /io/repo/wheel-container.tar
     dependsOn:
@@ -1078,8 +1158,8 @@ steps:
     contextPath: /io/repo/
     publishAs: notebook
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/notebook
+        to: /io/repo/notebook
     dependsOn:
       - service_base_image
       - merge_code
@@ -1097,8 +1177,10 @@ steps:
       {% endif %}
       python3 ../ci/jinja2_render.py '{"deploy": '${DEPLOY}', "default_ns": {"name": "{{ default_ns.name }}"}}' nginx.conf nginx.conf.out
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/ci/jinja2_render.py
+        to: /io/repo/ci/jinja2_render.py
+      - from: /repo/notebook
+        to: /io/repo/notebook
     outputs:
       - from: /io/repo/notebook/nginx.conf.out
         to: /notebook/nginx.conf.out
@@ -1452,8 +1534,8 @@ steps:
       memory: standard
       cpu: '2'
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/hail/Makefile
+        to: /io/repo/hail/Makefile
       - from: /www.tar.gz
         to: /io/www.tar.gz
     outputs:
