@@ -93,7 +93,7 @@ job_validator = keyed(
                 'preemptible': bool_type,
             }
         ),
-        'run_condition': oneof('any', 'all', 'always'),
+        'run_condition': nullable(oneof('any', 'all', 'always')),
         'secrets': listof(
             keyed({required('namespace'): k8s_str, required('name'): k8s_str, required('mount_path'): str_type})
         ),

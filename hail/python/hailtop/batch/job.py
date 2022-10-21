@@ -320,13 +320,13 @@ class Job:
 
         >>> b = Batch(backend=backend.ServiceBackend('test'))
         >>> j = b.new_job()
-        >>> (j.always_run()
+        >>> (j.run_when('any', True)
         ...   .command(f'echo "hello"'))
 
         Parameters
         ----------
         condition:
-            One of 'any', 'all', or 'always'. 'any' is to run the job if at least one parent dependency succeeds.
+            One of 'any', 'all', and 'always'. 'any' is to run the job if at least one parent dependency succeeds.
             'all' is to run the job if all parent dependencies succeed. 'always' is to run the job regardless of whether
             the parent dependencies succeed.
         cancellable:
@@ -339,7 +339,7 @@ class Job:
         """
 
         if not isinstance(self._batch._backend, backend.ServiceBackend):
-            raise NotImplementedError("A ServiceBackend is required to use the 'always_run' option")
+            raise NotImplementedError("A ServiceBackend is required to use the 'run_when' option")
 
         self._run_condition = condition
         self._cancellable = cancellable
@@ -375,7 +375,8 @@ class Job:
         Same job object set to always run.
         """
 
-        return self.run_when('always', cancellable=False)
+        cancellable = not always_run
+        return self.run_when('always', cancellable=cancellable)
 
     def regions(self, regions: Optional[List[str]]) -> 'Job':
         """

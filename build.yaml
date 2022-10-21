@@ -2072,6 +2072,9 @@ steps:
       - name: case-sensitive-billing-project
         script: /io/sql/case-sensitive-billing-project.sql
         online: true
+      - name: add-run-conditions
+        script: /io/sql/add-run-conditions.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
