@@ -180,7 +180,11 @@ pytest: python/README.md $(PYTHON_JAR)
 
 # NOTE: Look at upload-qob-test-resources target if test resources are missing
 .PHONY: pytest-qob
-pytest-qob: install-for-qob upload-qob-test-resources
+pytest-qob: upload-qob-jar upload-qob-test-resources install-editable
+	! [ -z $(NAMESPACE) ]  # call this like: make pytest-qob NAMESPACE=default
+	HAIL_QUERY_BACKEND=batch \
+	HAIL_QUERY_JAR_URL=$$(cat upload-qob-jar) \
+	HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
 	HAIL_TEST_RESOURCES_DIR='$(HAIL_TEST_RESOURCES_DIR)' \
 	HAIL_DOCTEST_DATA_DIR='$(HAIL_DOCTEST_DATA_DIR)' \
 	cd python && pytest \
