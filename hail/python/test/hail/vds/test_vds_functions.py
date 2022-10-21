@@ -1,10 +1,5 @@
 import hail as hl
 
-from ..helpers import startTestHailContext, stopTestHailContext
-
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
-
 def test_lgt_to_gt():
     call_0_0_f = hl.call(0, 0, phased=False)
     call_0_0_t = hl.call(0, 0, phased=True)

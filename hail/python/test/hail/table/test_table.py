@@ -16,9 +16,6 @@ from hail import ExpressionException
 from ..helpers import *
 from test.hail.matrixtable.test_file_formats import create_all_values_datasets
 
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
-
 
 class Tests(unittest.TestCase):
     def test_annotate(self):

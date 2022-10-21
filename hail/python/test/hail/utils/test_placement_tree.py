@@ -3,10 +3,6 @@ import unittest
 import hail as hl
 
 from hail.utils.placement_tree import PlacementTree
-from ..helpers import startTestHailContext, stopTestHailContext
-
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):

@@ -44,6 +44,11 @@ def init(doctest_namespace):
         os.chdir(olddir)
 
 
+@pytest.fixture(autouse=True)
+def reset_randomness(init):
+    hl.reset_global_randomness()
+
+
 def generate_datasets(doctest_namespace):
     doctest_namespace['hl'] = hl
     doctest_namespace['np'] = np

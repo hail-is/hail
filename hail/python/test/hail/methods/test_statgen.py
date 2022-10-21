@@ -10,11 +10,7 @@ import hail.utils as utils
 from hail.linalg import BlockMatrix
 from hail.utils import FatalError
 from hail.utils.java import choose_backend
-from ..helpers import (startTestHailContext, stopTestHailContext, resource,
-                       fails_local_backend, fails_service_backend)
-
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
+from ..helpers import resource, fails_local_backend, fails_service_backend
 
 
 class Tests(unittest.TestCase):

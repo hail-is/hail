@@ -11,9 +11,6 @@ from hail.expr.functions import _error_from_cdf
 import hail.ir as ir
 from ..helpers import *
 
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
-
 
 def _test_many_equal(test_cases):
     expressions = [t[0] for t in test_cases]

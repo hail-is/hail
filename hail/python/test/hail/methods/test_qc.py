@@ -4,9 +4,6 @@ import hail as hl
 import hail.expr.aggregators as agg
 from ..helpers import *
 
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
-
 
 class Tests(unittest.TestCase):
     def test_sample_qc(self):

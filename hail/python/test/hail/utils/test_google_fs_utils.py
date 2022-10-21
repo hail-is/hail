@@ -11,11 +11,6 @@ from hail.fs.local_fs import LocalFS
 from hailtop.utils import secret_alnum_string
 from hailtop.config import get_remote_tmpdir
 from hail.utils.java import FatalError
-from ..helpers import startTestHailContext, stopTestHailContext, _initialized
-
-
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):

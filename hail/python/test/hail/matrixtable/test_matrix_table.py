@@ -10,9 +10,6 @@ from hail.utils.java import Env
 from hail.utils.misc import new_temp_file
 from ..helpers import *
 
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
-
 
 class Tests(unittest.TestCase):
     def get_mt(self, min_partitions=None) -> hl.MatrixTable:

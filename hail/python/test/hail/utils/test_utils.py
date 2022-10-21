@@ -9,9 +9,6 @@ from hail.utils.linkedlist import LinkedList
 
 from ..helpers import *
 
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
-
 
 def normalize_path(path: str) -> str:
     return hl.hadoop_stat(path)['path']
@@ -336,7 +333,7 @@ class Tests(unittest.TestCase):
 
 
 @pytest.fixture(scope="module")
-def glob_tests_directory():
+def glob_tests_directory(init_hail):
     with hl.TemporaryDirectory() as dirname:
         touch(dirname + '/abc/ghi/123')
         touch(dirname + '/abc/ghi/!23')
@@ -362,16 +359,12 @@ def glob_tests_directory():
 
 
 def test_hadoop_ls_folder_glob(glob_tests_directory):
-    fs = hl.current_backend().fs
-
     expected = [glob_tests_directory + '/abc/ghi/123',
                 glob_tests_directory + '/abc/jkl/123']
     actual = [x['path'] for x in hl.hadoop_ls(glob_tests_directory + '/abc/*/123')]
     assert set(actual) == set(expected)
 
 def test_hadoop_ls_prefix_folder_glob_qmarks(glob_tests_directory):
-    fs = hl.current_backend().fs
-
     expected = [glob_tests_directory + '/abc/ghi/78',
                 glob_tests_directory + '/abc/jkl/78']
     actual = [x['path'] for x in hl.hadoop_ls(glob_tests_directory + '/abc/*/??')]
@@ -379,8 +372,6 @@ def test_hadoop_ls_prefix_folder_glob_qmarks(glob_tests_directory):
 
 
 def test_hadoop_ls_two_folder_globs(glob_tests_directory):
-    fs = hl.current_backend().fs
-
     expected = [glob_tests_directory + '/abc/ghi/123',
                 glob_tests_directory + '/abc/jkl/123',
                 glob_tests_directory + '/def/ghi/123',
@@ -390,8 +381,6 @@ def test_hadoop_ls_two_folder_globs(glob_tests_directory):
 
 
 def test_hadoop_ls_two_folder_globs_and_two_qmarks(glob_tests_directory):
-    fs = hl.current_backend().fs
-
     expected = [glob_tests_directory + '/abc/ghi/78',
                 glob_tests_directory + '/abc/jkl/78',
                 glob_tests_directory + '/def/ghi/78',
@@ -401,8 +390,6 @@ def test_hadoop_ls_two_folder_globs_and_two_qmarks(glob_tests_directory):
 
 
 def test_hadoop_ls_one_folder_glob_and_qmarks_in_multiple_components(glob_tests_directory):
-    fs = hl.current_backend().fs
-
     expected = [glob_tests_directory + '/abc/ghi/78',
                 glob_tests_directory + '/def/ghi/78']
     actual = [x['path'] for x in hl.hadoop_ls(glob_tests_directory + '/*/?h?/??')]
@@ -410,24 +397,18 @@ def test_hadoop_ls_one_folder_glob_and_qmarks_in_multiple_components(glob_tests_
 
 
 def test_hadoop_ls_groups(glob_tests_directory):
-    fs = hl.current_backend().fs
-
     expected = [glob_tests_directory + '/abc/ghi/123']
     actual = [x['path'] for x in hl.hadoop_ls(glob_tests_directory + '/abc/[ghi][ghi]i/123')]
     assert set(actual) == set(expected)
 
 
 def test_hadoop_ls_size_one_groups(glob_tests_directory):
-    fs = hl.current_backend().fs
-
     expected = []
     actual = [x['path'] for x in hl.hadoop_ls(glob_tests_directory + '/abc/[h][g]i/123')]
     assert set(actual) == set(expected)
 
 
 def test_hadoop_ls_component_with_only_groups(glob_tests_directory):
-    fs = hl.current_backend().fs
-
     expected = [glob_tests_directory + '/abc/ghi/123',
                 glob_tests_directory + '/abc/ghi/!23',
                 glob_tests_directory + '/abc/ghi/?23',
@@ -438,8 +419,6 @@ def test_hadoop_ls_component_with_only_groups(glob_tests_directory):
 
 
 def test_hadoop_ls_negated_group(glob_tests_directory):
-    fs = hl.current_backend().fs
-
     expected = [glob_tests_directory + '/abc/ghi/!23',
                 glob_tests_directory + '/abc/ghi/?23']
     actual = [x['path'] for x in hl.hadoop_ls(glob_tests_directory + '/abc/ghi/[!1]23')]

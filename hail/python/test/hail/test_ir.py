@@ -8,9 +8,6 @@ from hail.utils.java import Env
 from hail.utils import new_temp_file
 from .helpers import *
 
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
-
 
 class ValueIRTests(unittest.TestCase):
     def value_irs_env(self):
