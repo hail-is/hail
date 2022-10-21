@@ -2482,7 +2482,7 @@ def rand_norm(mean=0, sd=1, seed=None, size=None) -> Float64Expression:
     0.347110923255205
 
     >>> hl.eval(hl.rand_norm())
-    -1.5943404792015596
+    -0.9281375348070483
 
     Parameters
     ----------
@@ -2517,7 +2517,7 @@ def rand_norm2d(mean=None, cov=None, seed=None) -> ArrayNumericExpression:
     [-1.3909495945443346, 1.2805588680053859]
 
     >>> hl.eval(hl.rand_norm2d())
-    [-1.1559071720174392, -0.5130711271314501]
+    [0.289520302334123, -1.1108917435930954]
 
     Notes
     -----
@@ -2579,7 +2579,7 @@ def rand_pois(lamb, seed=None) -> Float64Expression:
     4.0
 
     >>> hl.eval(hl.rand_pois(1))
-    1.0
+    4.0
 
     Parameters
     ----------
@@ -2608,10 +2608,10 @@ def rand_unif(lower=0.0, upper=1.0, seed=None, size=None) -> Float64Expression:
     0.9828239225846387
 
     >>> hl.eval(hl.rand_unif(0, 1))
-    0.25250989678083696
+    0.49094525115847415
 
     >>> hl.eval(hl.rand_unif(0, 1))
-    0.25129917581034783
+    0.3972543766997359
 
     Parameters
     ----------
@@ -2649,10 +2649,10 @@ def rand_int32(a, b=None, *, seed=None) -> Int32Expression:
     9
 
     >>> hl.eval(hl.rand_int32(10, 15))
-    13
+    14
 
     >>> hl.eval(hl.rand_int32(10, 15))
-    10
+    12
 
     Parameters
     ----------
@@ -2690,10 +2690,10 @@ def rand_int64(a=None, b=None, *, seed=None) -> Int64Expression:
     9
 
     >>> hl.eval(hl.rand_int64(1 << 33, 1 << 35))
-    27844105735
+    33089740109
 
     >>> hl.eval(hl.rand_int64(1 << 33, 1 << 35))
-    27585770553
+    18195458570
 
     Parameters
     ----------
@@ -2741,7 +2741,7 @@ def rand_beta(a, b, lower=None, upper=None, seed=None) -> Float64Expression:
     0.30607924177641355
 
     >>> hl.eval(hl.rand_beta(2, 5))
-    0.2600750641666824
+    0.1103872607301062
 
     Parameters
     ----------
@@ -2784,7 +2784,7 @@ def rand_gamma(shape, scale, seed=None) -> Float64Expression:
     3.115449479063202
 
     >>> hl.eval(hl.rand_gamma(1, 1))
-    0.4119557259345351
+    3.077698059931638
 
     Parameters
     ----------
@@ -2824,7 +2824,7 @@ def rand_cat(prob, seed=None) -> Int32Expression:
     2
 
     >>> hl.eval(hl.rand_cat([0, 1.7, 2]))
-    1
+    2
 
     Parameters
     ----------
@@ -2853,7 +2853,7 @@ def rand_dirichlet(a, seed=None) -> ArrayExpression:
     [0.6987619676833735, 0.287566556865261, 0.013671475451365567]
 
     >>> hl.eval(hl.rand_dirichlet([1, 1, 1]))
-    [0.007675161191324316, 0.7390117338502963, 0.25331310495837933]
+    [0.16299928555608242, 0.04393664153526524, 0.7930640729086523]
 
     Parameters
     ----------

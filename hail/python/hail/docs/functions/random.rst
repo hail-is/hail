@@ -13,28 +13,25 @@ Evaluating the same expression will yield the same value every time, but multipl
 calls of the same function will have different results. For example, let `x` be
 a random number generated with the function :func:`.rand_unif`:
 
-.. testsetup::
-    hl.reset_global_randomness()
-
     >>> x = hl.rand_unif(0, 1)
 
 The value of `x` will not change, although other calls to :func:`.rand_unif`
 will generate different values:
 
     >>> hl.eval(x)
-    0.7769696130603699
+    0.9828239225846387
 
     >>> hl.eval(x)
-    0.5562065047992025
+    0.9828239225846387
 
     >>> hl.eval(hl.rand_unif(0, 1))
-    0.4678132874101748
+    0.49094525115847415
 
     >>> hl.eval(hl.rand_unif(0, 1))
-    0.9097632224065403
+    0.3972543766997359
 
     >>> hl.eval(hl.array([x, x, x]))
-    [0.5562065047992025, 0.5562065047992025, 0.5562065047992025]
+    [0.9828239225846387, 0.9828239225846387, 0.9828239225846387]
 
 If the three values in the last expression should be distinct, three separate
 calls to :func:`.rand_unif` should be made:
@@ -43,7 +40,7 @@ calls to :func:`.rand_unif` should be made:
     >>> b = hl.rand_unif(0, 1)
     >>> c = hl.rand_unif(0, 1)
     >>> hl.eval(hl.array([a, b, c]))
-    [0.8846327207915881, 0.14415148553468504, 0.8202677741734825]
+    [0.992090957001768, 0.9564448098124774, 0.3905029525642664]
 
 Within the rows of a :class:`.Table`, the same expression will yield a
 consistent value within each row, but different (random) values across rows:
@@ -51,17 +48,18 @@ consistent value within each row, but different (random) values across rows:
     >>> table = hl.utils.range_table(5, 1)
     >>> table = table.annotate(x1=x, x2=x, rand=hl.rand_unif(0, 1))
     >>> table.show()
-    +-------+-------------+-------------+-------------+
-    |   idx |          x1 |          x2 |        rand |
-    +-------+-------------+-------------+-------------+
-    | int32 |     float64 |     float64 |     float64 |
-    +-------+-------------+-------------+-------------+
-    |     0 | 8.50369e-01 | 8.50369e-01 | 9.64129e-02 |
-    |     1 | 5.15437e-01 | 5.15437e-01 | 8.60843e-02 |
-    |     2 | 5.42493e-01 | 5.42493e-01 | 1.69816e-01 |
-    |     3 | 5.51289e-01 | 5.51289e-01 | 6.48706e-01 |
-    |     4 | 6.40977e-01 | 6.40977e-01 | 8.22508e-01 |
-    +-------+-------------+-------------+-------------+
+    +-------+----------+----------+----------+
+    |   idx |       x1 |       x2 |     rand |
+    +-------+----------+----------+----------+
+    | int32 |  float64 |  float64 |  float64 |
+    +-------+----------+----------+----------+
+    |     0 | 4.68e-01 | 4.68e-01 | 6.36e-01 |
+    |     1 | 8.24e-01 | 8.24e-01 | 9.72e-01 |
+    |     2 | 7.33e-01 | 7.33e-01 | 1.43e-01 |
+    |     3 | 8.99e-01 | 8.99e-01 | 5.52e-01 |
+    |     4 | 4.03e-01 | 4.03e-01 | 3.50e-01 |
+    +-------+----------+----------+----------+
+
 
 The same is true of the rows, columns, and entries of a :class:`.MatrixTable`.
 
@@ -72,44 +70,35 @@ All random functions can take a specified seed as an argument. This guarantees
 that multiple invocations of the same function within the same context will
 return the same result, e.g.
 
-.. testsetup::
-    hl.reset_global_randomness()
+    >>> hl.eval(hl.rand_unif(0, 1, seed=0))
+    0.2664972565962568
 
     >>> hl.eval(hl.rand_unif(0, 1, seed=0))
-    0.5488135008937808
+    0.2664972565962568
 
-    >>> hl.eval(hl.rand_unif(0, 1, seed=0))
-    0.5488135008937808
-
-This does not guarantee the same behavior across different contexts; e.g., the
-rows may have different values if the expression is applied to different tables:
-
-.. testsetup::
-    hl.reset_global_randomness()
-
-    >>> table = hl.utils.range_table(5, 1).annotate(x=hl.rand_bool(0.5, seed=0))
+    >>> table = hl.utils.range_table(5, 1).annotate(x=hl.rand_unif(0, 1, seed=0))
     >>> table.x.collect()
-    [0.5488135008937808,
-     0.7151893652121089,
-     0.6027633824638369,
-     0.5448831893094143,
-     0.42365480398481625]
+    [0.5820244750020055,
+     0.33150686392731943,
+     0.20526631289173847,
+     0.6964416913998893,
+     0.6092952493383876]
 
-    >>> table = hl.utils.range_table(5, 1).annotate(x=hl.rand_bool(0.5, seed=0))
+    >>> table = hl.utils.range_table(5, 1).annotate(x=hl.rand_unif(0, 1, seed=0))
     >>> table.x.collect()
-    [0.5488135008937808,
-     0.7151893652121089,
-     0.6027633824638369,
-     0.5448831893094143,
-     0.42365480398481625]
+    [0.5820244750020055,
+     0.33150686392731943,
+     0.20526631289173847,
+     0.6964416913998893,
+     0.6092952493383876]
 
-    >>> table = hl.utils.range_table(5, 5).annotate(x=hl.rand_bool(0.5, seed=0))
+    >>> table = hl.utils.range_table(5, 5).annotate(x=hl.rand_unif(0, 1, seed=0))
     >>> table.x.collect()
-    [0.5488135008937808,
-     0.9595974306263271,
-     0.42205690070893265,
-     0.828743805759555,
-     0.6414977904324134]
+    [0.5820244750020055,
+     0.33150686392731943,
+     0.20526631289173847,
+     0.6964416913998893,
+     0.6092952493383876]
 
 The seed can also be set globally using :func:`.set_global_seed`. This sets the
 seed globally for all subsequent Hail operations, and a pipeline will be

@@ -35,6 +35,7 @@ def init(doctest_namespace):
                           "docs"))
 
     hl.init(global_seed=0)
+    hl.reset_global_randomness()
 
     try:
         generate_datasets(doctest_namespace)

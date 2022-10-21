@@ -4,7 +4,7 @@ import os
 
 import pytest
 
-from hail import current_backend, init
+from hail import current_backend, init, reset_global_randomness
 from hail.backend.service_backend import ServiceBackend
 from .helpers import startTestHailContext, stopTestHailContext
 
@@ -39,6 +39,11 @@ def init_hail():
     startTestHailContext()
     yield
     stopTestHailContext()
+
+
+@pytest.fixture(autouse=True)
+def reset_randomness(init):
+    reset_global_randomness()
 
 
 @pytest.fixture(autouse=True)

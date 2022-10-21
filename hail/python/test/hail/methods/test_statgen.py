@@ -1274,10 +1274,8 @@ class Tests(unittest.TestCase):
 
         assert mt.aggregate_rows(hl.agg.all(mt.foo.bar == ht[mt.row_key].bar))
 
-    @fails_service_backend()
     def test_genetic_relatedness_matrix(self):
         n, m = 100, 200
-        hl.reset_global_randomness()
         mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], n_partitions=4)
 
         g = BlockMatrix.from_entry_expr(mt.GT.n_alt_alleles()).to_numpy().T
@@ -1307,7 +1305,6 @@ class Tests(unittest.TestCase):
         col_filter = col_lengths > 0
         return np.copy(a[:, np.squeeze(col_filter)] / col_lengths[col_filter])
 
-    @fails_service_backend()
     def test_realized_relationship_matrix(self):
         n, m = 100, 200
         hl.reset_global_randomness()
@@ -1348,7 +1345,6 @@ class Tests(unittest.TestCase):
 
     def test_row_correlation_vs_numpy(self):
         n, m = 11, 10
-        hl.reset_global_randomness()
         mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], n_partitions=2)
         mt = mt.annotate_rows(sd=agg.stats(mt.GT.n_alt_alleles()).stdev)
         mt = mt.filter_rows(mt.sd > 1e-30)
@@ -1630,7 +1626,6 @@ class Tests(unittest.TestCase):
         test_stat(40, 400, 20, 12)
 
     def test_balding_nichols_model_phased(self):
-        hl.reset_global_randomness()
         bn_ds = hl.balding_nichols_model(1, 5, 5, phased=True)
         assert bn_ds.aggregate_entries(hl.agg.all(bn_ds.GT.phased)) == True
         actual = bn_ds.GT.collect()
