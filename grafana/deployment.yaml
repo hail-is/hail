@@ -42,6 +42,10 @@ data:
                         cluster: auth
                         timeout: 0.25s
 {% if deploy %}
+                      # Envoy will append the user-requested path to the end of the path_prefix
+                      # so this sets a query param with the user-requested path instead of
+                      # messing with the authorization route for auth
+                      # e.g. /api/v1alpha/verify_dev_credentials?url=/freeze
                       path_prefix: /api/v1alpha/verify_dev_credentials?url=
 {% else %}
                       path_prefix: /{{ default_ns.name }}/auth/api/v1alpha/verify_dev_credentials?url=
@@ -107,7 +111,6 @@ data:
         socket_address:
           address: 127.0.0.1
           port_value: 8001
----
 ---
 apiVersion: apps/v1
 kind: StatefulSet
