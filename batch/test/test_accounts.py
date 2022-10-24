@@ -672,7 +672,7 @@ async def test_billing_project_case_sensitive(dev_client: BatchClient, new_billi
     try:
         bp = await dev_client.get_billing_project(upper_case_project)
     except aiohttp.ClientResponseError as e:
-        assert e.status == 404, e
+        assert e.status == 403, e
     else:
         assert False
 
