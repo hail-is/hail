@@ -13,5 +13,3 @@ ALTER TABLE billing_project_users MODIFY COLUMN user_cs VARCHAR(100) NOT NULL CO
 CREATE UNIQUE INDEX `billing_project_name_cs` ON `billing_projects` (`name_cs`);
 CREATE INDEX `billing_project_name_cs_status` ON `billing_projects` (`name_cs`, `status`);
 CREATE INDEX `billing_project_users_billing_project_user_cs` ON `billing_project_users` (`billing_project`, `user_cs`);
-
-
