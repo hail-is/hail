@@ -825,7 +825,12 @@ def get_reference(name) -> ReferenceGenome:
 
 @typecheck(seed=int)
 def set_global_seed(seed):
-    """Sets Hail's global seed to `seed`.
+    """Deprecated.
+
+    Has no effect. To ensure reproducible randomness, use the `global_seed`
+    argument to :func:`.init` and :func:`.reset_global_randomness`.
+
+    See the :ref:`random functions <sec-random-functions>` reference docs for more.
 
     Parameters
     ----------
@@ -833,7 +838,9 @@ def set_global_seed(seed):
         Integer used to seed Hail's random number generator
     """
 
-    # FIXME: print deprecation warning
+    warning('hl.set_global_seed has no effect. See '
+            'https://hail.is/docs/0.2/functions/random.html for details on '
+            'ensuring reproducibility of randomness.')
     pass
 
 

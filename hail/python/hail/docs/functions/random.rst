@@ -1,3 +1,5 @@
+.. _sec-random-functions:
+
 Random functions
 ----------------
 
@@ -94,6 +96,7 @@ return the same result, e.g.
 
 However, moving it to a sufficiently different context will produce different
 results:
+
     >>> table = hl.utils.range_table(7, 1)
     >>> table = table.filter(table.idx >= 2).annotate(x=hl.rand_unif(0, 1, seed=0))
     >>> table.x.collect()
@@ -104,6 +107,7 @@ results:
      0.5550464170615771]
 
 In fact, in this case we are getting the tail of
+
     >>> table = hl.utils.range_table(7, 1).annotate(x=hl.rand_unif(0, 1, seed=0))
     >>> table.x.collect()
     [0.5820244750020055,
@@ -118,36 +122,36 @@ Reproducibility across sessions
 ===============================
 
 The values of a random function are fully determined by three things:
+
 * The seed set on the function itself. If not specified, these are simply
   generated sequentially.
 * Some data uniquely identifying the current position within a larger context,
   e.g. Table, MatrixTable, or array. For instance, in a :func:`.range_table`,
   this data is simply the row id, as suggested by the previous examples.
 * The global seed. This is fixed for the entire session, and can only be set
-  using the `global_seed` argument to :func:`.init`.
+  using the ``global_seed`` argument to :func:`.init`.
 
 To ensure reproducibility within a single hail session, it suffices to either
 manually set the seed on every random function call, or to call
 :func:`.reset_global_randomness` at the start of a pipeline, which resets the
 counter used to generate seeds.
 
+    >>> hl.reset_global_randomness()
+    >>> hl.eval(hl.array([hl.rand_unif(0, 1), hl.rand_unif(0, 1)]))
+    [0.9828239225846387, 0.49094525115847415]
+
+    >>> hl.reset_global_randomness()
+    >>> hl.eval(hl.array([hl.rand_unif(0, 1), hl.rand_unif(0, 1)]))
+    [0.9828239225846387, 0.49094525115847415]
+
 To ensure reproducibility across sessions, one must in addition specify the
 `global_seed` in :func:`.init`. If not specified, the global seed is chosen
-randomly.
+randomly. All documentation examples were computed using ``global_seed=0``.
 
-
-The seed can also be set globally using :func:`.set_global_seed`. This sets the
-seed globally for all subsequent Hail operations, and a pipeline will be
-guaranteed to have the same results if the global seed is set right beforehand:
-
-    >>> hl.reset_global_randomness()
-    >>> hl.eval(hl.array([hl.rand_unif(0, 1), hl.rand_unif(0, 1)]))
+    >>> hl.stop()                                                   # doctest: +SKIP
+    >>> hl.init(global_seed=0)                                      # doctest: +SKIP
+    >>> hl.eval(hl.array([hl.rand_unif(0, 1), hl.rand_unif(0, 1)])) # doctest: +SKIP
     [0.9828239225846387, 0.49094525115847415]
-
-    >>> hl.reset_global_randomness()
-    >>> hl.eval(hl.array([hl.rand_unif(0, 1), hl.rand_unif(0, 1)]))
-    [0.9828239225846387, 0.49094525115847415]
-
 
 .. autosummary::
 

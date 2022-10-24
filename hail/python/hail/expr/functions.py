@@ -2492,7 +2492,7 @@ def rand_norm(mean=0, sd=1, seed=None, size=None) -> Float64Expression:
         Standard deviation of normal distribution.
     seed : :obj:`int`, optional
         Random seed.
-    size : :obj:`int` or :ojb:`tuple` of :obj:`int`, optional
+    size : :obj:`int` or :obj:`tuple` of :obj:`int`, optional
 
     Returns
     -------
@@ -2621,7 +2621,7 @@ def rand_unif(lower=0.0, upper=1.0, seed=None, size=None) -> Float64Expression:
         Right boundary of range. Defaults to 1.0.
     seed : :obj:`int`, optional
         Random seed.
-    size : :obj:`int` or :ojb:`tuple` of :obj:`int`, optional
+    size : :obj:`int` or :obj:`tuple` of :obj:`int`, optional
 
     Returns
     -------
