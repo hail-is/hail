@@ -2786,7 +2786,7 @@ def import_gvcfs(path,
     :func:`.import_gvcfs` only keys the resulting matrix tables by ``locus``
     rather than ``locus, alleles``.
     """
-
+    hl.utils.no_service_backend('import_gvcfs')
     rg = reference_genome.name if reference_genome else None
 
     if partitions is not None:

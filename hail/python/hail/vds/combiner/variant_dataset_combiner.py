@@ -7,10 +7,11 @@ import sys
 import uuid
 
 from math import floor, log
-from typing import Collection, Dict, List, Optional, Union, Tuple
+from typing import Collection, Dict, List, NamedTuple, Optional, Union
 
 import hail as hl
 
+from hail.expr import tmatrix
 from hail.utils import Interval
 from hail.utils.java import Env, info, warning
 from hail.experimental.vcf_combiner.vcf_combiner import calculate_even_genome_partitioning, \
@@ -19,7 +20,7 @@ from hail.vds.variant_dataset import VariantDataset
 from .combine import combine_variant_datasets, transform_gvcf, defined_entry_fields
 
 
-class VDSMetadata:
+class VDSMetadata(NamedTuple):
     """The path to a Variant Dataset and the number of samples within.
 
     Parameters
@@ -30,14 +31,17 @@ class VDSMetadata:
         Number of samples contained within the Variant Dataset at `path`.
 
     """
+    path: str
+    n_samples: int
 
-    def __init__(self, path: str, n_samples: int):
-        self.path = path
-        self.n_samples = n_samples
 
-    def to_tuple(self) -> Tuple[str, int]:
-        """Convert to a serializable representation."""
-        return (self.path, self.n_samples)
+class VDSType(NamedTuple):
+    """A container for the types of a VDS"""
+    reference_type: tmatrix
+    variant_type: tmatrix
+
+    def serializable(self):
+        return (self.reference_type.to_dict(), self.variant_type.to_dict())
 
 
 FAST_CODEC_SPEC = """{
@@ -54,18 +58,6 @@ FAST_CODEC_SPEC = """{
     }
   }
 }"""
-
-
-def read_variant_datasets(inputs: List[str], intervals: List[Interval], intervals_dtype):
-    n_inputs = len(inputs)
-    paths = list(itertools.chain(
-        (VariantDataset._reference_path(path) for path in inputs),
-        (VariantDataset._variants_path(path) for path in inputs)))
-    mts = Env.spark_backend("read_variant_datasets").read_multiple_matrix_tables(
-        paths, intervals, intervals_dtype)
-    vdss = [VariantDataset(reference_data=ref, variant_data=var)
-            for ref, var in zip(mts[:n_inputs], mts[n_inputs:])]
-    return vdss
 
 
 class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
@@ -198,6 +190,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         '_output_path',
         '_temp_path',
         '_reference_genome',
+        '_dataset_type'
         '_branch_factor',
         '_target_records',
         '_gvcf_batch_size',
@@ -219,6 +212,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                  output_path: str,
                  temp_path: str,
                  reference_genome: hl.ReferenceGenome,
+                 dataset_type: VDSType,
                  branch_factor: int = _default_branch_factor,
                  target_records: int = _default_target_records,
                  gvcf_batch_size: int = _default_gvcf_batch_size,
@@ -256,6 +250,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         self._output_path = output_path
         self._temp_path = temp_path
         self._reference_genome = reference_genome
+        self._dataset_type = dataset_type
         self._branch_factor = branch_factor
         self._target_records = target_records
         self._contig_recoding = contig_recoding
@@ -366,6 +361,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                 'output_path': self._output_path,
                 'temp_path': self._temp_path,
                 'reference_genome': str(self._reference_genome),
+                'dataset_type': self._dataset_type.serializable(),
                 'branch_factor': self._branch_factor,
                 'target_records': self._target_records,
                 'gvcf_batch_size': self._gvcf_batch_size,
@@ -426,20 +422,22 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
 
         temp_path = self._temp_out_path(f'vds-combine_job{self._job_id}')
         largest_vds = max(files_to_merge, key=lambda vds: vds.n_samples)
-        vds = hl.vds.read_vds(largest_vds.path)
+        vds = hl.vds.read_vds(largest_vds.path,
+                              _assert_reference_type=self._dataset_type.reference_type,
+                              _assert_variant_type=self._dataset_type.variant_type)
 
         interval_bin = floor(log(new_n_samples, self._branch_factor))
         intervals, intervals_dtype = self.__intervals_cache.get(interval_bin, (None, None))
 
         if intervals is None:
             # we use the reference data since it generally has more rows than the variant data
-            intervals, intervals_dtype = calculate_new_intervals(vds.reference_data,
+            intervals, _ = calculate_new_intervals(vds.reference_data,
                                                                  self._target_records,
                                                                  os.path.join(temp_path, 'interval_checkpoint.ht'))
-            self.__intervals_cache[interval_bin] = (intervals, intervals_dtype)
+            self.__intervals_cache[interval_bin] = intervals
 
         paths = [f.path for f in files_to_merge]
-        vdss = read_variant_datasets(paths, intervals, intervals_dtype)
+        vdss = self._read_variant_datasets(paths, intervals)
         combined = combine_variant_datasets(vdss)
 
         if self.finished:
@@ -500,6 +498,14 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
 
     def _temp_out_path(self, extra):
         return os.path.join(self._temp_path, 'combiner-intermediates', f'{self._uuid}_{extra}')
+
+    def _read_variant_datasets(self, inputs: List[str], intervals: List[Interval]):
+        reference_type = self._dataset_type.reference_type
+        variant_type = self._dataset_type.variant_type
+        return [hl.vds.read_vds(path, intervals=intervals,
+                                _assert_reference_type=reference_type,
+                                _assert_variant_type=variant_type)
+                for path in inputs]
 
 
 def new_combiner(*,
@@ -612,20 +618,36 @@ def new_combiner(*,
     if isinstance(reference_genome, str):
         reference_genome = hl.get_reference(reference_genome)
 
+    # we need to compute the type that the combiner will have, this will allow us to read matrix
+    # tables quickly, especially in an asynchronous environment like query on batch where typing
+    # a read uses a blocking round trip.
     if gvcf_reference_entry_fields_to_keep is None and vds_paths:
         vds = hl.vds.read_vds(vds_paths[0])
         gvcf_reference_entry_fields_to_keep = set(vds.reference_data.entry) - {'END'}
+        dataset_type = VDSType(reference_type=vds.reference_data._type, variant_type=vds.variant_data._type)
     elif gvcf_reference_entry_fields_to_keep is None and gvcf_paths:
         mt = hl.import_vcf(gvcf_paths[0], force_bgz=True, reference_genome=reference_genome,
                            contig_recoding=contig_recoding)
-        mt = mt.filter_rows(hl.is_defined(mt.info.END))
-        gvcf_reference_entry_fields_to_keep = defined_entry_fields(mt, 100_000) - {'GT', 'PGT', 'PL'}
+        rmt = mt.filter_rows(hl.is_defined(mt.info.END))
+        gvcf_reference_entry_fields_to_keep = defined_entry_fields(rmt, 100_000) - {'GT', 'PGT', 'PL'}
+
+        vds = transform_gvcf(mt._key_rows_by_assert_sorted(['locus']), gvcf_reference_entry_fields_to_keep, gvcf_info_to_keep)
+        dataset_type = VDSType(reference_type=vds.reference_data._type, variant_type=vds.variant_data._type)
+    elif vds_paths:
+        vds = hl.vds.read_vds(vds_paths[0])
+        dataset_type = VDSType(reference_type=vds.reference_data._type, variant_type=vds.variant_data._type)
+    else:
+        mt = hl.import_vcf(gvcf_paths[0], force_bgz=True, reference_genome=reference_genome,
+                           contig_recoding=contig_recoding)
+        vds = transform_gvcf(mt._key_rows_by_assert_sorted(['locus']), gvcf_reference_entry_fields_to_keep, gvcf_info_to_keep)
+        dataset_type = VDSType(reference_type=vds.reference_data._type, variant_type=vds.variant_data._type)
 
     if save_path is None:
         sha = hashlib.sha256()
         sha.update(output_path.encode())
         sha.update(temp_path.encode())
         sha.update(str(reference_genome).encode())
+        sha.update(str(dataset_type).encode())
         for path in vds_paths:
             sha.update(path.encode())
         for path in gvcf_paths:
@@ -661,7 +683,8 @@ def new_combiner(*,
     else:
         vdses = []
         for path in vds_paths:
-            vds = hl.vds.read_vds(path)
+            vds = hl.vds.read_vds(path, _assert_reference_type=dataset_type.reference_type,
+                                  _assert_variant_type=dataset_type.variant_type)
             n_samples = vds.n_samples()
             vdses.append(VDSMetadata(path, n_samples))
 
@@ -671,6 +694,7 @@ def new_combiner(*,
                                   output_path=output_path,
                                   temp_path=temp_path,
                                   reference_genome=reference_genome,
+                                  dataset_type=dataset_type,
                                   branch_factor=branch_factor,
                                   target_records=target_records,
                                   gvcf_batch_size=gvcf_batch_size,
@@ -693,8 +717,8 @@ class Encoder(json.JSONEncoder):
     def default(self, o):
         if isinstance(o, VariantDatasetCombiner):
             return o.to_dict()
-        if isinstance(o, VDSMetadata):
-            return o.to_tuple()
+        if isinstance(o, VDSType):
+            return o.serializable()
         return json.JSONEncoder.default(self, o)
 
 
@@ -710,6 +734,7 @@ class Decoder(json.JSONDecoder):
         if name == VariantDatasetCombiner.__name__:
             del obj['name']
             obj['vdses'] = [VDSMetadata(*x) for x in obj['vdses']]
+            obj['dataset_type'] = VDSType(*(tmatrix._from_json(ty) for ty in obj['dataset_type']))
 
             rg = hl.get_reference(obj['reference_genome'])
             obj['reference_genome'] = rg
