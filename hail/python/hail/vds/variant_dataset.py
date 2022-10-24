@@ -7,7 +7,8 @@ from hail.utils.java import info
 from hail.genetics import ReferenceGenome
 
 
-def read_vds(path, *, intervals=None, n_partitions=None) -> 'VariantDataset':
+def read_vds(path, *, intervals=None, n_partitions=None,
+             _assert_reference_type=None, _assert_variant_type=None) -> 'VariantDataset':
     """Read in a :class:`.VariantDataset` written with :meth:`.VariantDataset.write`.
 
     Parameters
