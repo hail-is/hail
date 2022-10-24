@@ -2271,11 +2271,11 @@ LEFT JOIN (
   SELECT *
   FROM billing_project_users
   LEFT JOIN billing_projects ON billing_projects.name = billing_project_users.billing_project
-  WHERE billing_projects.name = %s AND user = %s
+  WHERE billing_projects.name_cs = %s AND user = %s
   FOR UPDATE
 ) AS t
 ON billing_projects.name = t.billing_project
-WHERE billing_projects.name = %s AND billing_projects.`status` != 'deleted' LOCK IN SHARE MODE;
+WHERE billing_projects.name_cs = %s AND billing_projects.`status` != 'deleted' LOCK IN SHARE MODE;
         ''',
             (billing_project, user, billing_project),
         )
