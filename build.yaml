@@ -774,6 +774,8 @@ steps:
     inputs:
       - from: /repo/README.md
         to: /io/repo/README.md
+      - from: /repo/website
+        to: /io/repo/website
       - from: /repo/hail
         to: /io/repo/hail
     outputs:
