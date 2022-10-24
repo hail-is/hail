@@ -21,6 +21,19 @@ data:
                 - upgrade_type: websocket
               use_remote_address: true
               skip_xff_append: false
+              access_log:
+                - "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+                  log_format:
+                    json_format:
+                      message: "%LOCAL_REPLY_BODY%"
+                      status: "%RESPONSE_CODE%"
+                      duration: "%DURATION%"
+                      remote_address: "%DOWNSTREAM_REMOTE_ADDRESS%"
+                      x_real_ip: "%REQ(X-Real-IP)%"
+                      request_start_time: "%START_TIME%"
+                      bytes_sent: "%BYTES_SENT%"
+                      http_referer: "%REQ(Referer)%"
+                      http_user_agent: "%REQ(User-Agent)%"
               rds:
                 route_config_name: https_routes
                 config_source:
