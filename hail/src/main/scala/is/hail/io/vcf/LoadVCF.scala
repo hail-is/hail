@@ -1572,11 +1572,12 @@ object MatrixVCFReader {
     gzAsBGZ: Boolean,
     forceGZ: Boolean,
     filterAndReplace: TextInputFilterAndReplace,
-    partitionsJSON: String): MatrixVCFReader = {
+    partitionsJSON: Option[String],
+    partitionsTypeStr: Option[String]): MatrixVCFReader = {
     MatrixVCFReader(ctx, MatrixVCFReaderParameters(
       files, callFields, entryFloatTypeName, headerFile, nPartitions, blockSizeInMB, minPartitions, rg,
       contigRecoding, arrayElementsRequired, skipInvalidLoci, gzAsBGZ, forceGZ, filterAndReplace,
-      partitionsJSON))
+      partitionsJSON, partitionsTypeStr))
   }
 
   def apply(ctx: ExecuteContext, params: MatrixVCFReaderParameters): MatrixVCFReader = {
@@ -1648,9 +1649,6 @@ object MatrixVCFReader {
           bytes
         }
 
-      } else {
-        warn("Loading user-provided header file. The sample IDs, " +
-          "INFO fields, and FORMAT fields were not checked for agreement with input data.")
       }
     }
 
@@ -1684,7 +1682,10 @@ case class MatrixVCFReaderParameters(
   gzAsBGZ: Boolean,
   forceGZ: Boolean,
   filterAndReplace: TextInputFilterAndReplace,
-  partitionsJSON: String)
+  partitionsJSON: Option[String],
+  partitionsTypeStr: Option[String]) {
+  require(partitionsJSON.isEmpty == partitionsTypeStr.isEmpty, "partitions and type must either both be defined or undefined")
+}
 
 class MatrixVCFReader(
   val params: MatrixVCFReaderParameters,
