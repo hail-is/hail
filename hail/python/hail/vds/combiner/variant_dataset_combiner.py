@@ -188,7 +188,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         '_output_path',
         '_temp_path',
         '_reference_genome',
-        '_dataset_type'
+        '_dataset_type',
         '_branch_factor',
         '_target_records',
         '_gvcf_batch_size',
