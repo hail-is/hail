@@ -622,7 +622,8 @@ def new_combiner(*,
         gvcf_reference_entry_fields_to_keep = set(vds.reference_data.entry) - {'END'}
         dataset_type = VDSType(reference_type=vds.reference_data._type, variant_type=vds.variant_data._type)
     elif gvcf_reference_entry_fields_to_keep is None and gvcf_paths:
-        mt = hl.import_vcf(gvcf_paths[0], force_bgz=True, reference_genome=reference_genome,
+        mt = hl.import_vcf(gvcf_paths[0], header_file=gvcf_external_header, force_bgz=True,
+                           array_elements_required=False, reference_genome=reference_genome,
                            contig_recoding=contig_recoding)
         rmt = mt.filter_rows(hl.is_defined(mt.info.END))
         gvcf_reference_entry_fields_to_keep = defined_entry_fields(rmt, 100_000) - {'GT', 'PGT', 'PL'}
@@ -633,7 +634,8 @@ def new_combiner(*,
         vds = hl.vds.read_vds(vds_paths[0])
         dataset_type = VDSType(reference_type=vds.reference_data._type, variant_type=vds.variant_data._type)
     else:
-        mt = hl.import_vcf(gvcf_paths[0], force_bgz=True, reference_genome=reference_genome,
+        mt = hl.import_vcf(gvcf_paths[0], header_file=gvcf_external_header, force_bgz=True,
+                           array_elements_required=False, reference_genome=reference_genome,
                            contig_recoding=contig_recoding)
         vds = transform_gvcf(mt._key_rows_by_assert_sorted('locus'), gvcf_reference_entry_fields_to_keep, gvcf_info_to_keep)
         dataset_type = VDSType(reference_type=vds.reference_data._type, variant_type=vds.variant_data._type)
