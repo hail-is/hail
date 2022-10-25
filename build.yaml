@@ -1121,17 +1121,6 @@ steps:
       - render_notebook_nginx_conf
       - merge_code
   - kind: runImage
-    name: check_notebook
-    image:
-      valueFrom: notebook_image.image
-    script: |
-      set -ex
-      SITE_PACKAGES=$(pip3 show notebook | grep Location | sed 's/Location: //')
-      python3 -m flake8 $SITE_PACKAGES/notebook
-      python3 -m pylint --rcfile pylintrc notebook
-    dependsOn:
-      - notebook_image
-  - kind: runImage
     name: test_hail_python
     numSplits: 7
     image:
@@ -1523,17 +1512,6 @@ steps:
       - create_dummy_oauth2_client_secret
       - create_certs
       - create_accounts
-  - kind: runImage
-    name: check_monitoring
-    image:
-      valueFrom: monitoring_image.image
-    script: |
-      set -ex
-      SITE_PACKAGES=$(pip3 show monitoring | grep Location | sed 's/Location: //')
-      python3 -m flake8 $SITE_PACKAGES/monitoring
-      python3 -m pylint --rcfile pylintrc monitoring
-    dependsOn:
-      - monitoring_image
   - kind: runImage
     name: delete_monitoring_tables
     image:
