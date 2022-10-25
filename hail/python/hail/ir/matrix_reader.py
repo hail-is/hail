@@ -2,7 +2,7 @@ import abc
 import json
 
 from .utils import make_filter_and_replace, impute_type_of_partition_interval_array
-from ..expr.types import tfloat32, tfloat64
+from ..expr.types import HailType, tfloat32, tfloat64
 from ..genetics.reference_genome import reference_genome_type
 from ..typecheck import (typecheck_method, sequenceof, nullable, enumeration, anytype, oneof,
                          dictof, sized_tupleof)
@@ -88,7 +88,8 @@ class MatrixVCFReader(MatrixReader):
                       force_gz=bool,
                       filter=nullable(str),
                       find_replace=nullable(sized_tupleof(str, str)),
-                      _partitions_json=nullable(str))
+                      _partitions_json=nullable(str),
+                      _partitions_type=nullable(HailType))
     def __init__(self,
                  path,
                  call_fields,
@@ -105,7 +106,9 @@ class MatrixVCFReader(MatrixReader):
                  force_gz,
                  filter,
                  find_replace,
-                 _partitions_json):
+                 *,
+                 _partitions_json=None,
+                 _partitions_type=None):
         self.path = wrap_to_list(path)
         self.header_file = header_file
         self.n_partitions = n_partitions
@@ -122,6 +125,7 @@ class MatrixVCFReader(MatrixReader):
         self.filter = filter
         self.find_replace = find_replace
         self._partitions_json = _partitions_json
+        self._partitions_type = _partitions_type
 
     def render(self, r):
         reader = {'name': 'MatrixVCFReader',
@@ -139,7 +143,8 @@ class MatrixVCFReader(MatrixReader):
                   'gzAsBGZ': self.force_bgz,
                   'forceGZ': self.force_gz,
                   'filterAndReplace': make_filter_and_replace(self.filter, self.find_replace),
-                  'partitionsJSON': self._partitions_json}
+                  'partitionsJSON': self._partitions_json,
+                  'partitionsTypeStr': self._partitions_type._parsable_string() if self._partitions_type is not None else None}
         return escape_str(json.dumps(reader))
 
     def __eq__(self, other):
