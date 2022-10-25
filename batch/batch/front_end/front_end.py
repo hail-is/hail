@@ -2601,7 +2601,8 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
         record['region']: record['region_id']
         async for record in db.select_and_fetchall('SELECT region_id, region from regions')
     }
-    assert max(regions.values()) < 64, str(regions)
+    if len(regions) != 0:
+        assert max(regions.values()) < 64, str(regions)
     app['regions'] = regions
 
     fs = get_cloud_async_fs(credentials_file='/gsa-key/key.json')
