@@ -137,7 +137,8 @@ class GGPlot:
                 geom_label = make_geom_label(geom_idx)
                 fields_to_select[geom_label] = hl.struct(**geom.aes.properties)
 
-            return self.ht.select(**fields_to_select)
+            name, ht = hl.struct(**fields_to_select)._to_table('__fallback')
+            return ht.select(**{field: ht[name][field] for field in fields_to_select})
 
         def collect_mappings_and_precomputed(selected):
             mapping_per_geom = []
