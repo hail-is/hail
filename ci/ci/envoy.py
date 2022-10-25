@@ -28,6 +28,12 @@ def create_rds_response(
             {
                 '@type': 'type.googleapis.com/envoy.config.route.v3.RouteConfiguration',
                 'name': 'https_routes',
+                'request_headers_to_add': [
+                    {
+                        'header': {'key': 'X-Real-IP', 'value': '%DOWNSTREAM_REMOTE_ADDRESS%'},
+                        'append_action': 'OVERWRITE_IF_EXISTS_OR_ADD',
+                    }
+                ],
                 'virtual_hosts': hosts,
             }
         ],
@@ -63,14 +69,14 @@ def gateway_default_host(service: str) -> dict:
             'routes': [
                 {
                     'match': {'prefix': '/rg_browser'},
-                    'route': {'timeout': '0s', 'cluster': 'ukbb-rg-browser'},
+                    'route': route_to_cluster('ukbb-rg-browser'),
                     'typed_per_filter_config': {
                         'envoy.filters.http.ext_authz': auth_check_exemption(),
                     },
                 },
                 {
                     'match': {'prefix': '/'},
-                    'route': {'timeout': '0s', 'cluster': 'ukbb-rg-static'},
+                    'route': route_to_cluster('ukbb-rg-static'),
                     'typed_per_filter_config': {
                         'envoy.filters.http.ext_authz': auth_check_exemption(),
                     },
@@ -85,7 +91,7 @@ def gateway_default_host(service: str) -> dict:
         'routes': [
             {
                 'match': {'prefix': '/'},
-                'route': {'timeout': '0s', 'cluster': service},
+                'route': route_to_cluster(service),
                 'typed_per_filter_config': {
                     'envoy.filters.http.local_ratelimit': rate_limit_config(),
                     'envoy.filters.http.ext_authz': auth_check_exemption(),
@@ -103,7 +109,7 @@ def gateway_internal_host(services_per_namespace: Dict[str, List[str]]) -> dict:
         'routes': [
             {
                 'match': {'prefix': f'/{namespace}/{service}'},
-                'route': {'timeout': '0s', 'cluster': f'{namespace}-{service}'},
+                'route': route_to_cluster(f'{namespace}-{service}'),
                 'typed_per_filter_config': {
                     'envoy.filters.http.local_ratelimit': rate_limit_config(),
                 },
@@ -122,7 +128,7 @@ def internal_gateway_default_host(service: str) -> dict:
         'routes': [
             {
                 'match': {'prefix': '/'},
-                'route': {'timeout': '0s', 'cluster': service},
+                'route': route_to_cluster(service),
                 'typed_per_filter_config': {
                     'envoy.filters.http.local_ratelimit': rate_limit_config(),
                 },
@@ -139,7 +145,7 @@ def internal_gateway_internal_host(services_per_namespace: Dict[str, List[str]])
         'routes': [
             {
                 'match': {'prefix': f'/{namespace}/{service}'},
-                'route': {'timeout': '0s', 'cluster': f'{namespace}-{service}'},
+                'route': route_to_cluster(f'{namespace}-{service}'),
                 'typed_per_filter_config': {
                     'envoy.filters.http.local_ratelimit': rate_limit_config(),
                 },
@@ -147,6 +153,15 @@ def internal_gateway_internal_host(services_per_namespace: Dict[str, List[str]])
             for namespace, services in services_per_namespace.items()
             for service in services
         ],
+    }
+
+
+def route_to_cluster(cluster_name: str) -> dict:
+    return {
+        'timeout': '0s',
+        'cluster': cluster_name,
+        'auto_host_rewrite': True,
+        'append_x_forwarded_host': True,
     }
 
 
