@@ -189,6 +189,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         '_temp_path',
         '_reference_genome',
         '_dataset_type',
+        '_gvcf_type',
         '_branch_factor',
         '_target_records',
         '_gvcf_batch_size',
@@ -211,6 +212,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                  temp_path: str,
                  reference_genome: hl.ReferenceGenome,
                  dataset_type: VDSType,
+                 gvcf_type: Optional[tmatrix] = None,
                  branch_factor: int = _default_branch_factor,
                  target_records: int = _default_target_records,
                  gvcf_batch_size: int = _default_gvcf_batch_size,
@@ -248,6 +250,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         self._temp_path = temp_path
         self._reference_genome = reference_genome
         self._dataset_type = dataset_type
+        self._gvcf_type = gvcf_type
         self._branch_factor = branch_factor
         self._target_records = target_records
         self._contig_recoding = contig_recoding
@@ -358,7 +361,8 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                 'output_path': self._output_path,
                 'temp_path': self._temp_path,
                 'reference_genome': str(self._reference_genome),
-                'dataset_type': self._dataset_type.serializable(),
+                'dataset_type': self._dataset_type,
+                'gvcf_type': self._gvcf_type,
                 'branch_factor': self._branch_factor,
                 'target_records': self._target_records,
                 'gvcf_batch_size': self._gvcf_batch_size,
@@ -617,6 +621,7 @@ def new_combiner(*,
     # we need to compute the type that the combiner will have, this will allow us to read matrix
     # tables quickly, especially in an asynchronous environment like query on batch where typing
     # a read uses a blocking round trip.
+    gvcf_type = None
     if gvcf_reference_entry_fields_to_keep is None and vds_paths:
         vds = hl.vds.read_vds(vds_paths[0])
         gvcf_reference_entry_fields_to_keep = set(vds.reference_data.entry) - {'END'}
@@ -625,6 +630,7 @@ def new_combiner(*,
         mt = hl.import_vcf(gvcf_paths[0], header_file=gvcf_external_header, force_bgz=True,
                            array_elements_required=False, reference_genome=reference_genome,
                            contig_recoding=contig_recoding)
+        gvcf_type = mt._type
         rmt = mt.filter_rows(hl.is_defined(mt.info.END))
         gvcf_reference_entry_fields_to_keep = defined_entry_fields(rmt, 100_000) - {'GT', 'PGT', 'PL'}
 
@@ -637,8 +643,14 @@ def new_combiner(*,
         mt = hl.import_vcf(gvcf_paths[0], header_file=gvcf_external_header, force_bgz=True,
                            array_elements_required=False, reference_genome=reference_genome,
                            contig_recoding=contig_recoding)
+        gvcf_type = mt._type
         vds = transform_gvcf(mt._key_rows_by_assert_sorted('locus'), gvcf_reference_entry_fields_to_keep, gvcf_info_to_keep)
         dataset_type = VDSType(reference_type=vds.reference_data._type, variant_type=vds.variant_data._type)
+    if gvcf_type is None and gvcf_paths:
+        mt = hl.import_vcf(gvcf_paths[0], header_file=gvcf_external_header, force_bgz=True,
+                           array_elements_required=False, reference_genome=reference_genome,
+                           contig_recoding=contig_recoding)
+        gvcf_type = mt._type
 
     if save_path is None:
         sha = hashlib.sha256()
@@ -646,6 +658,8 @@ def new_combiner(*,
         sha.update(temp_path.encode())
         sha.update(str(reference_genome).encode())
         sha.update(str(dataset_type).encode())
+        if gvcf_type is not None:
+            sha.update(str(gvcf_type).encode())
         for path in vds_paths:
             sha.update(path.encode())
         for path in gvcf_paths:
@@ -719,6 +733,8 @@ class Encoder(json.JSONEncoder):
             return o.serializable()
         if isinstance(o, HailType):
             return str(o)
+        if isinstance(o, tmatrix):
+            return o.to_dict()
         return json.JSONEncoder.default(self, o)
 
 
@@ -735,6 +751,8 @@ class Decoder(json.JSONDecoder):
             del obj['name']
             obj['vdses'] = [VDSMetadata(*x) for x in obj['vdses']]
             obj['dataset_type'] = VDSType(*(tmatrix._from_json(ty) for ty in obj['dataset_type']))
+            if 'gvcf_type' in obj and obj['gvcf_type']:
+                obj['gvcf_type'] = tmatrix._from_json(obj['gvcf_type'])
 
             rg = hl.get_reference(obj['reference_genome'])
             obj['reference_genome'] = rg
