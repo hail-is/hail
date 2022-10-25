@@ -88,6 +88,7 @@ class MatrixVCFReader(MatrixReader):
                       force_gz=bool,
                       filter=nullable(str),
                       find_replace=nullable(sized_tupleof(str, str)),
+                      _sample_ids=nullable(sequenceof(str)),
                       _partitions_json=nullable(str),
                       _partitions_type=nullable(HailType))
     def __init__(self,
@@ -107,6 +108,7 @@ class MatrixVCFReader(MatrixReader):
                  filter,
                  find_replace,
                  *,
+                 _sample_ids=None,
                  _partitions_json=None,
                  _partitions_type=None):
         self.path = wrap_to_list(path)
@@ -124,6 +126,7 @@ class MatrixVCFReader(MatrixReader):
         self.force_bgz = force_bgz
         self.filter = filter
         self.find_replace = find_replace
+        self._sample_ids = _sample_ids
         self._partitions_json = _partitions_json
         self._partitions_type = _partitions_type
 
@@ -143,8 +146,9 @@ class MatrixVCFReader(MatrixReader):
                   'gzAsBGZ': self.force_bgz,
                   'forceGZ': self.force_gz,
                   'filterAndReplace': make_filter_and_replace(self.filter, self.find_replace),
-                  'partitionsJSON': self._partitions_json,
-                  'partitionsTypeStr': self._partitions_type._parsable_string() if self._partitions_type is not None else None}
+                  'sampleIDs': self._sample_ids,
+                  'partitionsTypeStr': self._partitions_type._parsable_string() if self._partitions_type is not None else None,
+                  'partitionsJSON': self._partitions_json}
         return escape_str(json.dumps(reader))
 
     def __eq__(self, other):
@@ -162,7 +166,9 @@ class MatrixVCFReader(MatrixReader):
             other.force_gz == self.force_gz and \
             other.filter == self.filter and \
             other.find_replace == self.find_replace and \
-            other._partitions_json == self._partitions_json
+            other._partitions_json == self._partitions_json and \
+            other._partitions_type == self._partitions_type and \
+            other._sample_ids == self._sample_ids
 
 
 class MatrixBGENReader(MatrixReader):

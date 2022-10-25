@@ -1562,6 +1562,7 @@ object MatrixVCFReader {
     callFields: Set[String],
     entryFloatTypeName: String,
     headerFile: Option[String],
+    sampleIDs: Option[Seq[String]],
     nPartitions: Option[Int],
     blockSizeInMB: Option[Int],
     minPartitions: Option[Int],
@@ -1575,7 +1576,7 @@ object MatrixVCFReader {
     partitionsJSON: Option[String],
     partitionsTypeStr: Option[String]): MatrixVCFReader = {
     MatrixVCFReader(ctx, MatrixVCFReaderParameters(
-      files, callFields, entryFloatTypeName, headerFile, nPartitions, blockSizeInMB, minPartitions, rg,
+      files, callFields, entryFloatTypeName, headerFile, sampleIDs, nPartitions, blockSizeInMB, minPartitions, rg,
       contigRecoding, arrayElementsRequired, skipInvalidLoci, gzAsBGZ, forceGZ, filterAndReplace,
       partitionsJSON, partitionsTypeStr))
   }
@@ -1616,7 +1617,7 @@ object MatrixVCFReader {
             arrayElementsRequired = localArrayElementsRequired)
           val hd1 = header1Bc.value
 
-          if (hd1.sampleIds.length != hd.sampleIds.length) {
+          if (params.sampleIDs.isEmpty && hd1.sampleIds.length != hd.sampleIds.length) {
             fatal(
               s"""invalid sample IDs: expected same number of samples for all inputs.
                  | ${ files(0) } has ${ hd1.sampleIds.length } ids and
@@ -1624,14 +1625,16 @@ object MatrixVCFReader {
          """.stripMargin)
           }
 
-          hd1.sampleIds.iterator.zipAll(hd.sampleIds.iterator, None, None)
-            .zipWithIndex.foreach { case ((s1, s2), i) =>
-            if (s1 != s2) {
-              fatal(
-                s"""invalid sample IDs: expected sample ids to be identical for all inputs. Found different sample IDs at position $i.
-                   |    ${ files(0) }: $s1
-                   |    $file: $s2""".stripMargin)
-            }
+          if (params.sampleIDs.isEmpty) {
+            hd1.sampleIds.iterator.zipAll(hd.sampleIds.iterator, None, None)
+              .zipWithIndex.foreach { case ((s1, s2), i) =>
+                if (s1 != s2) {
+                  fatal(
+                    s"""invalid sample IDs: expected sample ids to be identical for all inputs. Found different sample IDs at position $i.
+                    |    ${ files(0) }: $s1
+                    |    $file: $s2""".stripMargin)
+                }
+              }
           }
 
           if (hd1.genotypeSignature != hd.genotypeSignature)
@@ -1652,7 +1655,8 @@ object MatrixVCFReader {
       }
     }
 
-    val VCFHeaderInfo(sampleIDs, _, vaSignature, genotypeSignature, _, _, _, infoFlagFieldNames) = header1
+    val VCFHeaderInfo(hdrSampleIDs, _, vaSignature, genotypeSignature, _, _, _, infoFlagFieldNames) = header1
+    val sampleIDs = params.sampleIDs.map(_.toArray).getOrElse(hdrSampleIDs)
 
     LoadVCF.warnDuplicates(sampleIDs)
 
@@ -1672,6 +1676,7 @@ case class MatrixVCFReaderParameters(
   callFields: Set[String],
   entryFloatTypeName: String,
   headerFile: Option[String],
+  sampleIDs: Option[Seq[String]],
   nPartitions: Option[Int],
   blockSizeInMB: Option[Int],
   minPartitions: Option[Int],
@@ -1696,6 +1701,7 @@ class MatrixVCFReader(
   genotypeSignature: PStruct,
   sampleIDs: Array[String]
 ) extends MatrixHybridReader {
+  require(params.partitionsJSON.isEmpty || fileStatuses.length == 1, "reading with partitions can currently only read a single path")
 
   def rowUIDType = TTuple(TInt64, TInt64)
   def colUIDType = TInt64
@@ -1732,6 +1738,24 @@ class MatrixVCFReader(
 
   val partitionCounts: Option[IndexedSeq[Long]] = None
 
+  val indexedRangeBounds: Option[IndexedSeq[Interval]] = params.partitionsJSON.map { partitionsJSON =>
+    val indexedPartitionsType = IRParser.parseType(params.partitionsTypeStr.get)
+    val jv = JsonMethods.parse(partitionsJSON)
+    val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, indexedPartitionsType)
+      .asInstanceOf[IndexedSeq[Interval]]
+
+    rangeBounds.foreach { bound =>
+      if (!(bound.includesStart && bound.includesEnd))
+        fatal("range bounds must be inclusive")
+
+      val start = bound.start.asInstanceOf[Row].getAs[Locus](0)
+      val end = bound.end.asInstanceOf[Row].getAs[Locus](0)
+      if (start.contig != end.contig)
+        fatal(s"partition spec must not cross contig boundaries, start: ${start.contig} | end: ${end.contig}")
+    }
+    rangeBounds
+  }
+
   override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
     VirtualTypeWithReq(tcoerce[PStruct](fullRVDType.rowType.subsetTo(requestedType.rowType)))
 
@@ -1746,13 +1770,18 @@ class MatrixVCFReader(
 
     val rgBc = referenceGenome.map(_.broadcast)
     val localArrayElementsRequired = params.arrayElementsRequired
-    val localContigRecording = params.contigRecoding
+    val localContigRecoding = params.contigRecoding
     val localSkipInvalidLoci = params.skipInvalidLoci
     val localInfoFlagFieldNames = infoFlagFieldNames
     val localNSamples = nCols
     val localFilterAndReplace = params.filterAndReplace
 
-    val lines = GenericLines.read(fs, fileStatuses, params.nPartitions, params.blockSizeInMB, params.minPartitions, params.gzAsBGZ, params.forceGZ)
+    val lines = indexedRangeBounds match {
+      case Some(rangeBounds) =>
+        GenericLines.readTabix(fs, fileStatuses(0), localContigRecoding, rangeBounds)
+      case None =>
+        GenericLines.read(fs, fileStatuses, params.nPartitions, params.blockSizeInMB, params.minPartitions, params.gzAsBGZ, params.forceGZ)
+    }
 
     val globals = Row(sampleIDs.zipWithIndex.map { case (s, i) => Row(s, i.toLong) }.toFastIndexedSeq)
 
@@ -1761,11 +1790,7 @@ class MatrixVCFReader(
     val bodyPType = (requestedRowType: TStruct) => fullRowPType.subsetTo(requestedRowType).asInstanceOf[PStruct]
 
     val linesBody = if (dropRows) { (_: FS, _: Any) =>
-      new CloseableIterator[GenericLine] {
-        def close(): Unit = ()
-        def hasNext: Boolean = false
-        def next: GenericLine = throw new NoSuchElementException
-      }
+      CloseableIterator.empty[GenericLine]
     } else
       lines.body
     val body = { (requestedType: TStruct) =>
@@ -1792,7 +1817,7 @@ class MatrixVCFReader(
               rvb.clear()
               try {
                 val vcfLine = new VCFLine(newText, line.fileNum, line.offset, localArrayElementsRequired, abs, abi, abf, abd)
-                LoadVCF.parseLine(rgBc, localContigRecording, localSkipInvalidLoci,
+                LoadVCF.parseLine(rgBc, localContigRecoding, localSkipInvalidLoci,
                   requestedPType, rvb, parseLineContext, vcfLine)
               } catch {
                 case e: Exception =>
