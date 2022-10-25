@@ -315,6 +315,7 @@ object TestUtils {
       callFields,
       entryFloatType,
       headerFile,
+      /*sampleIDs=*/None,
       nPartitions,
       blockSizeInMB,
       minPartitions,
