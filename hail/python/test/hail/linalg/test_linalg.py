@@ -39,7 +39,7 @@ def sparsify_numpy(np_mat, block_size, blocks_to_sparsify):
     return target_mat
 
 
-class batched_asserts(object):
+class BatchedAsserts():
 
     def __init__(self, batch_size=32):
         self._batch_size = batch_size
@@ -47,28 +47,29 @@ class batched_asserts(object):
     def __enter__(self):
         self._a_list = []
         self._b_list = []
-        self._modes = []
+        self._comparison_funcs = []
         self._tbs = []
         return self
-    
-    def _assert_agree(self, a, b, mode):
+
+    def _assert_agree(self, a, b, f):
         self._a_list.append(a)
         self._b_list.append(b)
-        self._modes.append(mode)
+        self._comparison_funcs.append(f)
         self._tbs.append(traceback.format_stack())
+
     def assert_eq(self, a, b):
-        self._assert_agree(a, b, 'eq')
-        
+        self._assert_agree(a, b, np.testing.assert_equal)
+
     def assert_close(self, a, b):
-        self._assert_agree(a, b, 'close')
+        self._assert_agree(a, b, np.testing.assert_allclose)
 
     def __exit__(self, *exc):
         a_list = self._a_list
         b_list = self._b_list
-        modes = self._modes
+        comparisons = self._comparison_funcs
         tb = self._tbs
         assert len(a_list) == len(b_list)
-        assert len(a_list) == len(modes)
+        assert len(a_list) == len(comparisons)
         assert len(a_list) == len(tb)
 
         all_bms = {}
@@ -91,7 +92,6 @@ class batched_asserts(object):
 
         bm_keys = list(all_bms.keys())
 
-
         vals = []
         batch_size = self._batch_size
         n_bms = len(bm_keys)
@@ -109,20 +109,18 @@ class batched_asserts(object):
         for i, x in enumerate(b_results):
             assert x is not None, i
 
-        for a_res, b_res, mode, tb in zip(a_results, b_results, modes, tb):
-            print(a_res, b_res, mode, tb)
+        for a_res, b_res, comp_func, tb in zip(a_results, b_results, comparisons, tb):
             try:
-                if mode == 'close':
-                    assert np.allclose(a_res, b_res)
-                else:
-                    np.testing.assert_equal(a_res, b_res)
+                comp_func(a_res, b_res)
             except AssertionError as e:
                 i = 0
                 while i < len(tb):
                     if 'test/hail' in tb[i]:
                         break
                     i += 1
-                raise AssertionError(f'test failure:\n  left={a_res}\n right={b_res}\n mode={mode}\n  failure at:\n{"".join(x for x in tb[i:])}')
+                raise AssertionError(
+                    f'test failure:\n  left={a_res}\n right={b_res}\n f={comp_func.__name__}\n  failure at:\n{"".join(x for x in tb[i:])}') from e
+
 
 class Tests(unittest.TestCase):
     @staticmethod
@@ -131,17 +129,6 @@ class Tests(unittest.TestCase):
             return hl.eval(a.to_ndarray())
         else:
             return np.array(a)
-
-    def _assert_all_agree(self, a_list, b_list, mode='eq'):
-        assert len(a_list) == len(b_list)
-
-        if isinstance(mode, str):
-            assert mode in ('eq', 'close')
-            mode_prev = mode
-            mode = [mode_prev for _ in a_list]
-        assert len(mode) == len(a_list)
-
-
 
     def _assert_eq(self, a, b):
         anp = self._np_matrix(a)
@@ -378,7 +365,7 @@ class Tests(unittest.TestCase):
         self.assertRaises(TypeError,
                           lambda: x + np.array(['one'], dtype=str))
 
-        with batched_asserts() as b:
+        with BatchedAsserts() as b:
     
             b.assert_eq(+m, 0 + m)
             b.assert_eq(-m, 0 - m)
