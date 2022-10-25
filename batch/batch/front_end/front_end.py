@@ -2193,7 +2193,7 @@ async def _remove_user_from_billing_project(db, billing_project, user):
             '''
 SELECT billing_projects.name_cs as billing_project,
   billing_projects.`status` as `status`,
-  user
+  `user`
 FROM billing_projects
 LEFT JOIN (
   SELECT * FROM billing_project_users
@@ -2620,6 +2620,7 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
         record['region']: record['region_id']
         async for record in db.select_and_fetchall('SELECT region_id, region from regions')
     }
+
     if len(regions) != 0:
         assert max(regions.values()) < 64, str(regions)
     app['regions'] = regions
