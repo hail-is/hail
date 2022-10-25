@@ -627,7 +627,7 @@ def new_combiner(*,
         rmt = mt.filter_rows(hl.is_defined(mt.info.END))
         gvcf_reference_entry_fields_to_keep = defined_entry_fields(rmt, 100_000) - {'GT', 'PGT', 'PL'}
 
-        vds = transform_gvcf(mt._key_rows_by_assert_sorted(['locus']), gvcf_reference_entry_fields_to_keep, gvcf_info_to_keep)
+        vds = transform_gvcf(mt._key_rows_by_assert_sorted('locus'), gvcf_reference_entry_fields_to_keep, gvcf_info_to_keep)
         dataset_type = VDSType(reference_type=vds.reference_data._type, variant_type=vds.variant_data._type)
     elif vds_paths:
         vds = hl.vds.read_vds(vds_paths[0])
@@ -635,7 +635,7 @@ def new_combiner(*,
     else:
         mt = hl.import_vcf(gvcf_paths[0], force_bgz=True, reference_genome=reference_genome,
                            contig_recoding=contig_recoding)
-        vds = transform_gvcf(mt._key_rows_by_assert_sorted(['locus']), gvcf_reference_entry_fields_to_keep, gvcf_info_to_keep)
+        vds = transform_gvcf(mt._key_rows_by_assert_sorted('locus'), gvcf_reference_entry_fields_to_keep, gvcf_info_to_keep)
         dataset_type = VDSType(reference_type=vds.reference_data._type, variant_type=vds.variant_data._type)
 
     if save_path is None:
