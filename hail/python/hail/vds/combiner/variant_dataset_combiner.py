@@ -10,7 +10,7 @@ from typing import Collection, Dict, List, NamedTuple, Optional, Union
 
 import hail as hl
 
-from hail.expr import tmatrix
+from hail.expr import HailType, tmatrix
 from hail.utils import Interval
 from hail.utils.java import info, warning
 from hail.experimental.vcf_combiner.vcf_combiner import calculate_even_genome_partitioning, \
@@ -715,6 +715,8 @@ class Encoder(json.JSONEncoder):
             return o.to_dict()
         if isinstance(o, VDSType):
             return o.serializable()
+        if isinstance(o, HailType):
+            return str(o)
         return json.JSONEncoder.default(self, o)
 
 
