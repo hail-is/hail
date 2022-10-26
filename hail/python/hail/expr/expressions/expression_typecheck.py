@@ -4,7 +4,7 @@ from typing import Optional, Dict, Any, TypeVar, List
 import hail as hl
 from hail.expr.expressions import Expression, ExpressionException, to_expr
 from hail.expr.types import HailType, tint32, tint64, tfloat32, tfloat64, \
-    tstr, tbool, tarray, tndarray, tset, tdict, tstruct, tunion, \
+    tstr, tbool, tarray, tstream, tndarray, tset, tdict, tstruct, tunion, \
     ttuple, tinterval, tlocus, tcall
 
 from hail.typecheck import TypeChecker, TypecheckFailure
@@ -22,6 +22,7 @@ __all__ = [
     'expr_locus',
     'expr_interval',
     'expr_array',
+    'expr_stream',
     'expr_ndarray',
     'expr_set',
     'expr_dict',
@@ -257,6 +258,27 @@ class ArrayCoercer(ExprCoercer):
         return hl.map(lambda x_: self.ec.coerce(x_), x)
 
 
+class StreamCoercer(ExprCoercer):
+    def __init__(self, ec: ExprCoercer = AnyCoercer()):
+        super(StreamCoercer, self).__init__()
+        self.ec = ec
+
+    @property
+    def str_t(self):
+        return f'stream<{self.ec.str_t}>'
+
+    def _requires_conversion(self, t: HailType) -> bool:
+        assert isinstance(t, tstream)
+        return self.ec._requires_conversion(t.element_type)
+
+    def can_coerce(self, t: HailType) -> bool:
+        return isinstance(t, tstream) and self.ec.can_coerce(t.element_type)
+
+    def _coerce(self, x: Expression):
+        assert isinstance(x, hl.expr.StreamExpression)
+        return x.map(lambda x_: self.ec.coerce(x_))
+
+
 class NDArrayCoercer(ExprCoercer):
     def __init__(self, ec: ExprCoercer = AnyCoercer()):
         super(NDArrayCoercer, self).__init__()
@@ -468,6 +490,7 @@ expr_bool = BoolCoercer()
 expr_locus = LocusCoercer
 expr_interval = IntervalCoercer
 expr_array = ArrayCoercer
+expr_stream = StreamCoercer
 expr_ndarray = NDArrayCoercer
 expr_set = SetCoercer
 expr_dict = DictCoercer
@@ -496,6 +519,8 @@ def coercer_from_dtype(t: HailType) -> ExprCoercer:
         return expr_interval(coercer_from_dtype(t.point_type))
     elif isinstance(t, tarray):
         return expr_array(coercer_from_dtype(t.element_type))
+    elif isinstance(t, tstream):
+        return expr_stream(coercer_from_dtype(t.element_type))
     elif isinstance(t, tndarray):
         return expr_ndarray(coercer_from_dtype(t.element_type))
     elif isinstance(t, tset):

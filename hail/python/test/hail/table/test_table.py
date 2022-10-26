@@ -1744,13 +1744,13 @@ def test_read_write_all_types():
 
 def test_map_partitions_flatmap():
     ht = hl.utils.range_table(2)
-    ht2 = ht._map_partitions(lambda rows: rows.flatmap(lambda r: hl.range(2).map(lambda x: r.annotate(x=x))))
+    ht2 = ht._map_partitions(lambda rows: rows.flatmap(lambda r: hl._stream_range(2).map(lambda x: r.annotate(x=x))))
     assert ht2.collect() == [hl.Struct(idx=0, x=0), hl.Struct(idx=0, x=1), hl.Struct(idx=1, x=0), hl.Struct(idx=1, x=1)]
 
 
 def test_map_partitions_errors():
     ht = hl.utils.range_table(2)
-    with pytest.raises(TypeError, match='expected return type expression of type array<struct>'):
+    with pytest.raises(TypeError, match='expected return type expression of type stream<struct>'):
         ht._map_partitions(lambda rows: 5)
     with pytest.raises(ValueError, match='must preserve key fields'):
         ht._map_partitions(lambda rows: rows.map(lambda r: r.drop('idx')))
@@ -1759,7 +1759,7 @@ def test_map_partitions_indexed():
     tmp_file = new_temp_file()
     hl.utils.range_table(100, 8).write(tmp_file)
     ht = hl.read_table(tmp_file, _intervals=[hl.Interval(start=hl.Struct(idx=11), end=hl.Struct(idx=55))])
-    ht = ht.key_by()._map_partitions(lambda partition: [hl.struct(foo=partition)])
+    ht = ht.key_by()._map_partitions(lambda partition: hl.array([hl.struct(foo=partition.to_array())])._to_stream())
     assert [inner.idx for outer in ht.foo.collect() for inner in outer] == list(range(11, 55))
 
 def test_keys_before_scans():
@@ -1834,9 +1834,8 @@ def test_interval_filter_partitions():
 def test_grouped_flatmap_streams():
     ht = hl.import_vcf(resource('sample.vcf')).rows()
     ht = ht.annotate(x=hl.str(ht.locus))  # add a map node
-    ht = ht._map_partitions(lambda part: hl.flatmap(
-        lambda group: hl.range(hl.len(group)).map(lambda i: group[i].annotate(z=group[0])),
-        part.grouped(8)))
+    ht = ht._map_partitions(lambda part: part.grouped(8).flatmap(
+        lambda group: group._to_stream().map(lambda x: x.annotate(z=1))))
     ht._force_count()
 
 
