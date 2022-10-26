@@ -428,7 +428,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                               _assert_variant_type=self._dataset_type.variant_type)
 
         interval_bin = floor(log(new_n_samples, self._branch_factor))
-        intervals, intervals_dtype = self.__intervals_cache.get(interval_bin, (None, None))
+        intervals = self.__intervals_cache.get(interval_bin)
 
         if intervals is None:
             # we use the reference data since it generally has more rows than the variant data
