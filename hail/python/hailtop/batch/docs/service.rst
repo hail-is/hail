@@ -106,6 +106,7 @@ machines with 10 GB of persistent SSD boot disk and 375 GB of local SSD. The cos
 
         The prices shown below are **approximate** prices based on us-central1. Actual prices are
         based on the current spot prices for a given worker type and the region in which the worker is running in.
+        You can use :meth:`.Job.regions` to specify which regions to run a job in.
 
    = $0.01 per core per hour for **preemptible standard** worker types
 
