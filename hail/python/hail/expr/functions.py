@@ -44,12 +44,12 @@ def _func(name, ret_type, *args, type_args=()):
 
 def _seeded_func(name, ret_type, seed, *args):
     if seed is None:
-        if not Env._hc._user_specified_rng_nonce:
+        static_rng_uid = Env.next_static_rng_uid()
+    else:
+        if Env._hc is None or not Env._hc._user_specified_rng_nonce:
             warning('To ensure reproducible randomness across Hail sessions, '
                     'you must set the "global_seed" parameter in hl.init(), in '
                     'addition to the local seed in each random function.')
-        static_rng_uid = Env.next_static_rng_uid()
-    else:
         static_rng_uid = -seed - 1
     indices, aggregations = unify_all(*args)
     rng_state = ir.Ref('__rng_state', trngstate)
