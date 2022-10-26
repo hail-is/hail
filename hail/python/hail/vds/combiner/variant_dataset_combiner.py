@@ -10,7 +10,9 @@ from typing import Collection, Dict, List, NamedTuple, Optional, Union
 
 import hail as hl
 
-from hail.expr import HailType, tmatrix
+from hail import ir
+from hail.expr import HailType, tfloat64, tmatrix
+from hail.matrixtable import MatrixTable
 from hail.utils import Interval
 from hail.utils.java import info, warning
 from hail.experimental.vcf_combiner.vcf_combiner import calculate_even_genome_partitioning, \
@@ -183,7 +185,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
     default_exome_interval_size = 60_000_000
     "A reasonable partition size in basepairs given the density of exomes."
 
-    __serialized_slots__ = [
+    __serialized_slots__ = (
         '_save_path',
         '_output_path',
         '_temp_path',
@@ -201,9 +203,14 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         '_gvcf_import_intervals',
         '_gvcf_info_to_keep',
         '_gvcf_reference_entry_fields_to_keep',
-    ]
+    )
 
-    __slots__ = tuple(__serialized_slots__ + ['_uuid', '_job_id', '__intervals_cache'])
+    __slots__ = (*__serialized_slots__,
+                 '_uuid',
+                 '_job_id',
+                 '__intervals_cache',
+                 '__gvcf_intervals_str',
+                 '__gvcf_intervals_type')
 
     def __init__(self,
                  *,
@@ -269,6 +276,8 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         self._uuid = uuid.uuid4()
         self._job_id = 1
         self.__intervals_cache = {}
+        self.__gvcf_intervals_type = hl.tarray(hl.tinterval(hl.tlocus(self._reference_genome)))
+        self.__gvcf_intervals_str = json.dumps(self.__gvcf_intervals_type._convert_to_json(self._gvcf_import_intervals))
         self._gvcf_batch_size = gvcf_batch_size
 
     @property
@@ -355,7 +364,6 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
 
     def to_dict(self) -> dict:
         """A serializable representation of this combiner."""
-        intervals_typ = hl.tarray(hl.tinterval(hl.tlocus(self._reference_genome)))
         return {'name': self.__class__.__name__,
                 'save_path': self._save_path,
                 'output_path': self._output_path,
@@ -376,7 +384,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                 'vdses': [md for i in sorted(self._vdses, reverse=True) for md in self._vdses[i]],
                 'gvcfs': self._gvcfs,
                 'gvcf_sample_names': self._gvcf_sample_names,
-                'gvcf_import_intervals': intervals_typ._convert_to_json(self._gvcf_import_intervals),
+                'gvcf_import_intervals': self.__gvcf_intervals_type._convert_to_json(self._gvcf_import_intervals),
                 }
 
     @property
@@ -506,6 +514,27 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                                 _assert_reference_type=reference_type,
                                 _assert_variant_type=variant_type)
                 for path in inputs]
+
+    def _import_gvcf(self, path: str, sample_ids: Optional[List[str]]):
+        reader = ir.MatrixVCFReader(path,
+                                    call_fields=['PGT'],
+                                    entry_float_type=tfloat64,
+                                    header_file=self._gvcf_external_header,
+                                    n_partitions=None,
+                                    block_size=None,
+                                    min_partitions=None,
+                                    reference_genome=self._reference_genome,
+                                    contig_recoding=self._contig_recoding,
+                                    array_elements_required=False,
+                                    skip_invalid_loci=False,
+                                    force_bgz=True,
+                                    force_gz=False,
+                                    filter=None,
+                                    find_replace=None,
+                                    _sample_ids=sample_ids,
+                                    _partitions_json=self.__gvcf_intervals_str,
+                                    _partitions_type=self.__gvcf_intervals_type)
+        return MatrixTable(ir.MatrixRead(reader, _assert_type=self._gvcf_type))
 
 
 def new_combiner(*,
