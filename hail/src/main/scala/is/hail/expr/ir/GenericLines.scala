@@ -344,10 +344,9 @@ object GenericLines {
       } else {
         new CloseableIterator[GenericLine] {
           val lines = new TabixLineIterator(fs, file, reg)
-          val inner = new CloseableIterator[GenericLine] {
-            private var l = lines.next()
-            private var curIdx: Long = lines.getCurIdx()
-
+          private var l = lines.next()
+          private var curIdx: Long = lines.getCurIdx()
+          val inner = new Iterator[GenericLine] {
             def hasNext: Boolean = l != null
             def next(): GenericLine = {
               assert(l != null)
@@ -360,12 +359,8 @@ object GenericLines {
               val bytes = n.getBytes
               new GenericLine(file, 0, idx, bytes, bytes.length)
             }
-
-            def close(): Unit = lines.close()
-          }
-
-          val it = inner.filter { l =>
-            val s = l.toString
+          }.filter { gl =>
+            val s = gl.toString
             val t1 = s.indexOf('\t')
             val t2 = s.indexOf('\t', t1 + 1)
 
@@ -378,9 +373,9 @@ object GenericLines {
             start <= pos && pos <= end
           }
 
-          def hasNext: Boolean = it.hasNext
-          def next(): GenericLine = it.next()
-          def close(): Unit = inner.close()
+          def hasNext: Boolean = inner.hasNext
+          def next(): GenericLine = inner.next()
+          def close(): Unit = lines.close()
         }
       }
     }
