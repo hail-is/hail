@@ -1320,19 +1320,31 @@ def test_run_condition_always_job(client: BatchClient):
     j2 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j1], run_condition='always')
     b = bb.submit()
     j2.wait()
-
     assert j2.status()['state'] == 'Success', str((j2.status(), b.debug_info()))
+
+    # test no parents
+    bb = client.create_batch()
+    j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], run_condition='always')
+    b = bb.submit()
+    j1.wait()
+    assert j1.status()['state'] == 'Success', str((j1.status(), b.debug_info()))
 
 
 def test_run_condition_any_job(client: BatchClient):
     bb = client.create_batch()
     j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['false'])
     j2 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
-    j3 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j1, j2], run_condition='any')
+    j3 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j1, j2], run_condition='any_succeeded')
     b = bb.submit()
     j3.wait()
-
     assert j3.status()['state'] == 'Success', str((j3.status(), b.debug_info()))
+
+    # test no parents
+    bb = client.create_batch()
+    j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], run_condition='any_succeeded')
+    b = bb.submit()
+    j1.wait()
+    assert j1.status()['state'] == 'Success', str((j1.status(), b.debug_info()))
 
 
 def test_run_condition_always_job_with_update(client: BatchClient):
@@ -1342,10 +1354,12 @@ def test_run_condition_always_job_with_update(client: BatchClient):
     j1.wait()
 
     j2 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j1], run_condition='always')
+    j3 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], run_condition='always')  # test no parents
     b = bb.submit()
-    j2.wait()
+    b.wait()
 
     assert j2.status()['state'] == 'Success', str((j2.status(), b.debug_info()))
+    assert j3.status()['state'] == 'Success', str((j3.status(), b.debug_info()))
 
 
 def test_run_condition_any_job_with_update(client: BatchClient):
@@ -1355,8 +1369,10 @@ def test_run_condition_any_job_with_update(client: BatchClient):
     b = bb.submit()
     b.wait()
 
-    j3 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j1, j2], run_condition='any')
+    j3 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j1, j2], run_condition='any_succeeded')
+    j4 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], run_condition='any_succeeded')  # test no parents
     b = bb.submit()
-    j3.wait()
+    b.wait()
 
     assert j3.status()['state'] == 'Success', str((j3.status(), b.debug_info()))
+    assert j4.status()['state'] == 'Success', str((j4.status(), b.debug_info()))

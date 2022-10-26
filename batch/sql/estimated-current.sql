@@ -249,13 +249,14 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `cores_mcpu` INT NOT NULL,
   `status` TEXT,
   `n_pending_parents` INT NOT NULL,
+  `n_succeeded_parents` INT DEFAULT NULL,
   `cancelled` BOOLEAN NOT NULL DEFAULT FALSE,
   `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
   `attempt_id` VARCHAR(40),
   `inst_coll` VARCHAR(255),
   `n_regions` INT DEFAULT NULL,
   `regions_bits_rep` BIGINT DEFAULT NULL,
-  `run_condition` ENUM('any', 'all', 'always') NOT NULL DEFAULT 'all',
+  `run_condition` ENUM('any_succeeded', 'all_succeeded', 'always') DEFAULT NULL,
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `update_id`) REFERENCES batch_updates(batch_id, update_id) ON DELETE CASCADE,
@@ -1044,7 +1045,7 @@ BEGIN
             SELECT `job_parents`.batch_id, `job_parents`.job_id,
               COALESCE(SUM(1), 0) AS n_parents,
               COALESCE(SUM(state IN ('Pending', 'Ready', 'Creating', 'Running')), 0) AS n_pending_parents,
-              COALESCE(SUM(state = 'Success'), 0) AS n_succeeded
+              COALESCE(SUM(state = 'Success'), 0) AS n_succeeded_parents
             FROM `job_parents`
             LEFT JOIN `jobs` ON jobs.batch_id = `job_parents`.batch_id AND jobs.job_id = `job_parents`.parent_id
             WHERE job_parents.batch_id = in_batch_id AND
@@ -1057,10 +1058,15 @@ BEGIN
                jobs.job_id = t.job_id
           SET jobs.state = IF(COALESCE(t.n_pending_parents, 0) = 0, 'Ready', 'Pending'),
               jobs.n_pending_parents = COALESCE(t.n_pending_parents, 0),
-              jobs.cancelled = IF(jobs.run_condition = 'all',
-                                  IF(COALESCE(t.n_succeeded, 0) = COALESCE(t.n_parents - t.n_pending_parents, 0), jobs.cancelled, 1),
-                                  IF(jobs.run_condition = 'always', 0,
-                                     (COALESCE(t.n_parents, 0) = 0) | COALESCE(t.n_succeeded, 0) > 0)  # run_condition = 'any'
+              jobs.n_succeeded_parents = COALESCE(t.n_succeeded_parents, 0),
+              jobs.cancelled = CASE run_condition
+                WHEN 'always' THEN 0
+                WHEN 'all_succeeded' THEN IF(COALESCE(t.n_succeeded_parents, 0) = COALESCE(t.n_parents - t.n_pending_parents, 0), jobs.cancelled, 1)
+                WHEN 'any_succeeded' THEN IF(COALESCE(t.n_pending_parents, 0) = 0,
+                                             IF(COALESCE(t.n_parents, 0) = 0 OR COALESCE(t.n_succeeded_parents, 0) > 0, jobs.cancelled, 1),
+                                             jobs.cancelled)
+                ELSE IF(COALESCE(t.n_succeeded_parents, 0) = COALESCE(t.n_parents - t.n_pending_parents, 0), jobs.cancelled, 1)  # backwards compatibility
+                END CASE
           WHERE jobs.batch_id = in_batch_id AND jobs.job_id >= cur_update_start_job_id AND
               jobs.job_id < cur_update_start_job_id + staging_n_jobs;
       END IF;
@@ -1540,11 +1546,15 @@ BEGIN
            jobs.job_id = `job_parents`.job_id
       SET jobs.state = IF(jobs.n_pending_parents = 1, 'Ready', 'Pending'),
           jobs.n_pending_parents = jobs.n_pending_parents - 1,
-          jobs.cancelled = IF(jobs.run_condition = 'any', IF(jobs.cancelled & new_state = 'Success', 0, 1),
-                              IF(jobs.run_condition = 'always', 0,
-                                IF(new_state = 'Success', jobs.cancelled, 1)  # jobs.run_condition = 'all'
-                              )
-                            )
+          jobs.n_succeeded_parents = jobs.n_succeeded_parents + (new_state = 'Success'),
+          jobs.cancelled = CASE jobs.run_condition
+                WHEN 'always' THEN 0
+                WHEN 'all_succeeded' THEN IF(new_state = 'Success', jobs.cancelled, 1)
+                WHEN 'any_succeeded' THEN IF(COALESCE(jobs.n_pending_parents - 1, 0) = 0,
+                                             IF(COALESCE(jobs.n_succeeded_parents, 0) + (new_state = 'Success') > 0, jobs.cancelled, 1)
+                                             jobs.cancelled)
+                ELSE IF(new_state = 'Success', jobs.cancelled, 1)  # backwards compatibility
+                END CASE
       WHERE jobs.batch_id = in_batch_id AND
             `job_parents`.batch_id = in_batch_id AND
             `job_parents`.parent_id = in_job_id;

@@ -93,7 +93,7 @@ job_validator = keyed(
                 'preemptible': bool_type,
             }
         ),
-        'run_condition': nullable(oneof('any', 'all', 'always')),
+        'run_condition': nullable(oneof('any_succeeded', 'all_succeeded', 'always')),
         'secrets': listof(
             keyed({required('namespace'): k8s_str, required('name'): k8s_str, required('mount_path'): str_type})
         ),
@@ -200,6 +200,8 @@ def handle_job_backwards_compatibility(job):
         job['absolute_parent_ids'] = job.pop('parent_ids')
     if 'always_copy_output' not in job:
         job['always_copy_output'] = True
+    if 'run_condition' not in job:
+        job['run_condition'] = 'all_succeeded'
 
 
 def validate_batch(batch):

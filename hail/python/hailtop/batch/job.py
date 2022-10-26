@@ -75,7 +75,7 @@ class Job:
         self._storage: Optional[str] = None
         self._image: Optional[str] = None
         self._cancellable: bool = True
-        self._run_condition: str = 'all'
+        self._run_condition: str = 'all_succeeded'
         self._preemptible: Optional[bool] = None
         self._machine_type: Optional[str] = None
         self._timeout: Optional[Union[int, float]] = None
@@ -306,7 +306,7 @@ class Job:
         self._cpu = opt_str(cores)
         return self
 
-    def run_when(self, condition: str = 'all', cancellable: bool = True) -> 'Job':
+    def run_when(self, condition: str = 'all_succeeded', cancellable: bool = True) -> 'Job':
         """
         Set when a job should run based on the success status of parent jobs and whether the
         job is cancellable.
@@ -326,8 +326,8 @@ class Job:
         Parameters
         ----------
         condition:
-            One of 'any', 'all', and 'always'. 'any' is to run the job if at least one parent dependency succeeds.
-            'all' is to run the job if all parent dependencies succeed. 'always' is to run the job regardless of whether
+            One of 'any_succeeded', 'all_succeeded', and 'always'. 'any_succeeded' is to run the job if at least one parent dependency succeeds.
+            'all_succeeded' is to run the job if all parent dependencies succeed. 'always' is to run the job regardless of whether
             the parent dependencies succeed.
         cancellable:
             Whether the job can be cancelled. If a job is not cancellable, it will always run regardless of
