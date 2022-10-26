@@ -83,7 +83,7 @@ BEGIN
                                              IF(COALESCE(t.n_parents, 0) = 0 OR COALESCE(t.n_succeeded_parents, 0) > 0, jobs.cancelled, 1),
                                              jobs.cancelled)
                 ELSE IF(COALESCE(t.n_succeeded_parents, 0) = COALESCE(t.n_parents - t.n_pending_parents, 0), jobs.cancelled, 1)  # backwards compatibility
-                END CASE
+                END
           WHERE jobs.batch_id = in_batch_id AND jobs.job_id >= cur_update_start_job_id AND
               jobs.job_id < cur_update_start_job_id + staging_n_jobs;
       END IF;
@@ -193,7 +193,7 @@ BEGIN
                                              IF(COALESCE(jobs.n_succeeded_parents, 0) + (new_state = 'Success') > 0, jobs.cancelled, 1)
                                              jobs.cancelled)
                 ELSE IF(new_state = 'Success', jobs.cancelled, 1)  # backwards compatibility
-                END CASE
+                END
       WHERE jobs.batch_id = in_batch_id AND
             `job_parents`.batch_id = in_batch_id AND
             `job_parents`.parent_id = in_job_id;
