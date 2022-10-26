@@ -2196,7 +2196,7 @@ SELECT billing_projects.name_cs as billing_project,
   `user`
 FROM billing_projects
 LEFT JOIN (
-  SELECT * FROM billing_project_users
+  SELECT billing_project_users.* FROM billing_project_users
   LEFT JOIN billing_projects ON billing_projects.name = billing_project_users.billing_project
   WHERE billing_projects.name_cs = %s AND user_cs = %s
   FOR UPDATE
@@ -2221,7 +2221,7 @@ WHERE billing_projects.name_cs = %s;
 
         await tx.just_execute(
             '''
-DELETE FROM billing_project_users
+DELETE billing_project_users FROM billing_project_users
 LEFT JOIN billing_projects ON billing_projects.name = billing_project_users.billing_project
 WHERE billing_projects.name_cs = %s AND user_cs = %s;
 ''',
