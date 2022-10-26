@@ -16,7 +16,8 @@ def setup_aiohttp_session(app):
                 cookie_name=deploy_config.auth_session_cookie_name(),
                 secure=True,
                 httponly=True,
-                domain=os.environ['HAIL_DOMAIN'],
+                # See "Domain attribute" here: https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies
+                domain=None,
                 # 2592000s = 30d
                 max_age=2592000,
             ),
