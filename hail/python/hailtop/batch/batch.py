@@ -168,6 +168,14 @@ class Batch:
         self._python_function_defs: Dict[int, Callable] = {}
         self._python_function_files: Dict[int, _resource.InputResourceFile] = {}
 
+    @property
+    def _unsubmitted_jobs(self):
+        return [j for j in self._jobs if not j._submitted]
+
+    @property
+    def _submitted_jobs(self):
+        return [j for j in self._jobs if j._submitted]
+
     def _register_python_function(self, function: Callable) -> int:
         function_id = id(function)
         self._python_function_defs[function_id] = function
@@ -343,6 +351,7 @@ class Batch:
             j.timeout(self._default_timeout)
 
         self._jobs.append(j)
+        self._unsubmitted_jobs.append(j)
         return j
 
     def _new_job_resource_file(self, source, value=None):
