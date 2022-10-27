@@ -731,7 +731,8 @@ class ServiceBackend(Backend[bc.Batch]):
                                     requester_pays_project=batch.requester_pays_project,
                                     mount_tokens=True,
                                     user_code=user_code,
-                                    regions=job._regions)
+                                    regions=job._regions,
+                                    always_copy_output=job._always_copy_output)
 
             n_jobs_submitted += 1
 
