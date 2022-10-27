@@ -77,7 +77,7 @@ BEGIN
               jobs.n_pending_parents = COALESCE(t.n_pending_parents, 0),
               jobs.n_succeeded_parents = COALESCE(t.n_succeeded_parents, 0),
               jobs.cancelled = (CASE run_condition
-                WHEN 'always' THEN 0
+                WHEN 'always' THEN jobs.cancelled
                 WHEN 'all_succeeded' THEN IF(COALESCE(t.n_succeeded_parents, 0) = COALESCE(t.n_parents - t.n_pending_parents, 0), jobs.cancelled, 1)
                 WHEN 'any_succeeded' THEN IF(COALESCE(t.n_pending_parents, 0) = 0,
                                              IF(COALESCE(t.n_parents, 0) = 0 OR COALESCE(t.n_succeeded_parents, 0) > 0, jobs.cancelled, 1),
@@ -187,7 +187,7 @@ BEGIN
           jobs.n_pending_parents = jobs.n_pending_parents - 1,
           jobs.n_succeeded_parents = jobs.n_succeeded_parents + (new_state = 'Success'),
           jobs.cancelled = (CASE jobs.run_condition
-                WHEN 'always' THEN 0
+                WHEN 'always' THEN jobs.cancelled
                 WHEN 'all_succeeded' THEN IF(new_state = 'Success', jobs.cancelled, 1)
                 WHEN 'any_succeeded' THEN IF(COALESCE(jobs.n_pending_parents - 1, 0) = 0,
                                              IF(COALESCE(jobs.n_succeeded_parents, 0) + (new_state = 'Success') > 0, jobs.cancelled, 1),
