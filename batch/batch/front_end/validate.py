@@ -81,6 +81,7 @@ job_validator = keyed(
                 },
             },
         ),
+        'regions': listof(str_type),
         'requester_pays_project': str_type,
         'resources': keyed(
             {

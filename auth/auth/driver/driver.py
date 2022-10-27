@@ -50,8 +50,8 @@ class EventHandler:
     async def main_loop(self):
         delay_secs = self.min_delay_secs
         while True:
+            start_time = time_msecs()
             try:
-                start_time = time_msecs()
                 while True:
                     self.event.clear()
                     should_wait = await self.handler()

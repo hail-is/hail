@@ -422,16 +422,48 @@ class Tests(unittest.TestCase):
     def test_semi_anti_join_rows(self):
         mt = hl.utils.range_matrix_table(10, 3)
         ht = hl.utils.range_table(3)
+        mt2 = mt.key_rows_by(k1 = mt.row_idx, k2 = hl.str(mt.row_idx * 2))
+        ht2 = ht.key_by(k1 = ht.idx, k2 = hl.str(ht.idx * 2))
 
         assert mt.semi_join_rows(ht).count() == (3, 3)
         assert mt.anti_join_rows(ht).count() == (7, 3)
+        assert mt2.semi_join_rows(ht).count() == (3, 3)
+        assert mt2.anti_join_rows(ht).count() == (7, 3)
+        assert mt2.semi_join_rows(ht2).count() == (3, 3)
+        assert mt2.anti_join_rows(ht2).count() == (7, 3)
+
+        with pytest.raises(ValueError, match='semi_join_rows: cannot join'):
+            mt.semi_join_rows(ht2)
+        with pytest.raises(ValueError, match='semi_join_rows: cannot join'):
+            mt.semi_join_rows(ht.key_by())
+
+        with pytest.raises(ValueError, match='anti_join_rows: cannot join'):
+            mt.anti_join_rows(ht2)
+        with pytest.raises(ValueError, match='anti_join_rows: cannot join'):
+            mt.anti_join_rows(ht.key_by())
 
     def test_semi_anti_join_cols(self):
         mt = hl.utils.range_matrix_table(3, 10)
         ht = hl.utils.range_table(3)
+        mt2 = mt.key_cols_by(k1 = mt.col_idx, k2 = hl.str(mt.col_idx * 2))
+        ht2 = ht.key_by(k1 = ht.idx, k2 = hl.str(ht.idx * 2))
 
         assert mt.semi_join_cols(ht).count() == (3, 3)
         assert mt.anti_join_cols(ht).count() == (3, 7)
+        assert mt2.semi_join_cols(ht).count() == (3, 3)
+        assert mt2.anti_join_cols(ht).count() == (3, 7)
+        assert mt2.semi_join_cols(ht2).count() == (3, 3)
+        assert mt2.anti_join_cols(ht2).count() == (3, 7)
+
+        with pytest.raises(ValueError, match='semi_join_cols: cannot join'):
+            mt.semi_join_cols(ht2)
+        with pytest.raises(ValueError, match='semi_join_cols: cannot join'):
+            mt.semi_join_cols(ht.key_by())
+
+        with pytest.raises(ValueError, match='anti_join_cols: cannot join'):
+            mt.anti_join_cols(ht2)
+        with pytest.raises(ValueError, match='anti_join_cols: cannot join'):
+            mt.anti_join_cols(ht.key_by())
 
     def test_joins(self):
         mt = self.get_mt().select_rows(x1=1, y1=1)
@@ -556,17 +588,23 @@ class Tests(unittest.TestCase):
         r, c = 10, 10
         mt = hl.utils.range_matrix_table(2*r, c)
         mt = mt.annotate_entries(entry=hl.tuple([mt.row_idx, mt.col_idx]))
+        mt = mt.annotate_rows(left=mt.row_idx)
         mt2 = hl.utils.range_matrix_table(2*r, c)
         mt2 = mt2.key_rows_by(row_idx=mt2.row_idx + r)
         mt2 = mt2.key_cols_by(col_idx=mt2.col_idx + c)
         mt2 = mt2.annotate_entries(entry=hl.tuple([mt2.row_idx, mt2.col_idx]))
+        mt2 = mt2.annotate_rows(right=mt2.row_idx)
         expected = hl.utils.range_matrix_table(3*r, 2*c)
         missing = hl.missing(hl.ttuple(hl.tint, hl.tint))
         expected = expected.annotate_entries(entry=hl.if_else(
             expected.col_idx < c,
             hl.if_else(expected.row_idx < 2*r, hl.tuple([expected.row_idx, expected.col_idx]), missing),
             hl.if_else(expected.row_idx >= r, hl.tuple([expected.row_idx, expected.col_idx]), missing)))
-        assert mt.union_cols(mt2, row_join_type='outer')._same(expected)
+        expected = expected.annotate_rows(
+            left=hl.if_else(expected.row_idx < 2*r, expected.row_idx, hl.missing(hl.tint)),
+            right=hl.if_else(expected.row_idx >= r, expected.row_idx, hl.missing(hl.tint)),
+        )
+        assert mt.union_cols(mt2, row_join_type='outer', drop_right_row_fields=False)._same(expected)
 
     def test_union_rows_different_col_schema(self):
         mt = hl.utils.range_matrix_table(10, 10)

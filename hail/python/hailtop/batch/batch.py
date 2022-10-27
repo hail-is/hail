@@ -1,7 +1,9 @@
 import os
 import warnings
 import re
-from typing import Optional, Dict, Union, List, Any, Set
+from typing import Callable, Optional, Dict, Union, List, Any, Set
+from io import BytesIO
+import dill
 
 from hailtop.utils import secret_alnum_string, url_scheme, async_to_blocking
 from hailtop.aiotools import AsyncFS
@@ -86,7 +88,6 @@ class Batch:
         Automatically cancel the batch after N failures have occurred. The default
         behavior is there is no limit on the number of failures. Only
         applicable for the :class:`.ServiceBackend`. Must be greater than 0.
-
     """
 
     _counter = 0
@@ -148,6 +149,40 @@ class Batch:
         self._DEPRECATED_fs: Optional[RouterAsyncFS] = None
 
         self._cancel_after_n_failures = cancel_after_n_failures
+
+        self._python_function_defs: Dict[int, Callable] = {}
+        self._python_function_files: Dict[int, _resource.InputResourceFile] = {}
+
+    def _register_python_function(self, function: Callable) -> int:
+        function_id = id(function)
+        self._python_function_defs[function_id] = function
+        return function_id
+
+    async def _serialize_python_to_input_file(
+        self, path: str, subdir: str, file_id: int, code: Any, dry_run: bool = False
+    ) -> _resource.InputResourceFile:
+        pipe = BytesIO()
+        dill.dump(code, pipe, recurse=True)
+        pipe.seek(0)
+
+        code_path = f"{path}/{subdir}/code{file_id}.p"
+
+        if not dry_run:
+            await self._fs.makedirs(os.path.dirname(code_path), exist_ok=True)
+            await self._fs.write(code_path, pipe.getvalue())
+
+        code_input_file = self.read_input(code_path)
+
+        return code_input_file
+
+    async def _serialize_python_functions_to_input_files(
+        self, path: str, dry_run: bool = False
+    ) -> None:
+        for function_id, function in self._python_function_defs.items():
+            file = await self._serialize_python_to_input_file(
+                path, "functions", function_id, function, dry_run
+            )
+            self._python_function_files[function_id] = file
 
     def _unique_job_token(self, n=5):
         token = secret_alnum_string(n)
@@ -219,6 +254,9 @@ class Batch:
             j.storage(self._default_storage)
         if self._default_timeout is not None:
             j.timeout(self._default_timeout)
+
+        if isinstance(self._backend, _backend.ServiceBackend):
+            j.regions(self._backend.regions)
 
         self._jobs.append(j)
         return j
@@ -432,7 +470,7 @@ class Batch:
         self._resource_map.update({rg._uid: rg})
         return rg
 
-    def write_output(self, resource: _resource.Resource, dest: str):  # pylint: disable=R0201
+    def write_output(self, resource: _resource.Resource, dest: str):
         """
         Write resource file or resource file group to an output destination.
 

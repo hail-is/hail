@@ -5,6 +5,7 @@ import is.hail.backend.ExecuteContext
 import is.hail.types.virtual._
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.rvd.{PartitionBoundOrdering, RVDPartitionInfo}
+import is.hail.types.tcoerce
 import is.hail.utils._
 
 object Simplify {
@@ -389,7 +390,7 @@ object Simplify {
       }
       ForwardLets[IR](rw)
 
-    case SelectFields(old, fields) if coerce[TStruct](old.typ).fieldNames sameElements fields =>
+    case SelectFields(old, fields) if tcoerce[TStruct](old.typ).fieldNames sameElements fields =>
       old
 
     case SelectFields(SelectFields(old, _), fields) =>

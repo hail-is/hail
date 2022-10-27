@@ -1,3 +1,5 @@
+import traceback
+
 import pytest
 
 import hail as hl
@@ -35,6 +37,89 @@ def sparsify_numpy(np_mat, block_size, blocks_to_sparsify):
         target_mat[a:b, c:d] = np_mat[a:b, c:d]
 
     return target_mat
+
+
+class BatchedAsserts():
+
+    def __init__(self, batch_size=32):
+        self._batch_size = batch_size
+
+    def __enter__(self):
+        self._a_list = []
+        self._b_list = []
+        self._comparison_funcs = []
+        self._tbs = []
+        return self
+
+    def _assert_agree(self, a, b, f):
+        self._a_list.append(a)
+        self._b_list.append(b)
+        self._comparison_funcs.append(f)
+        self._tbs.append(traceback.format_stack())
+
+    def assert_eq(self, a, b):
+        self._assert_agree(a, b, np.testing.assert_equal)
+
+    def assert_close(self, a, b):
+        self._assert_agree(a, b, np.testing.assert_allclose)
+
+    def __exit__(self, *exc):
+        a_list = self._a_list
+        b_list = self._b_list
+        comparisons = self._comparison_funcs
+        tb = self._tbs
+        assert len(a_list) == len(b_list)
+        assert len(a_list) == len(comparisons)
+        assert len(a_list) == len(tb)
+
+        all_bms = {}
+
+        a_results = []
+        for i, a in enumerate(a_list):
+            if isinstance(a, BlockMatrix):
+                all_bms[(0, i)] = a.to_ndarray()
+                a_results.append(None)
+            else:
+                a_results.append(np.array(a))
+
+        b_results = []
+        for i, b in enumerate(b_list):
+            if isinstance(b, BlockMatrix):
+                all_bms[(1, i)] = b.to_ndarray()
+                b_results.append(None)
+            else:
+                b_results.append(np.array(b))
+
+        bm_keys = list(all_bms.keys())
+
+        vals = []
+        batch_size = self._batch_size
+        n_bms = len(bm_keys)
+        for batch_start in range(0, n_bms, batch_size):
+            vals.extend(list(hl.eval(tuple([all_bms[k] for k in bm_keys[batch_start:batch_start + batch_size]]))))
+
+        for (a_or_b, idx), v in zip(bm_keys, vals):
+            if a_or_b == 0:
+                a_results[idx] = v
+            else:
+                b_results[idx] = v
+
+        for i, x in enumerate(a_results):
+            assert x is not None, i
+        for i, x in enumerate(b_results):
+            assert x is not None, i
+
+        for a_res, b_res, comp_func, tb in zip(a_results, b_results, comparisons, tb):
+            try:
+                comp_func(a_res, b_res)
+            except AssertionError as e:
+                i = 0
+                while i < len(tb):
+                    if 'test/hail' in tb[i]:
+                        break
+                    i += 1
+                raise AssertionError(
+                    f'test failure:\n  left={a_res}\n right={b_res}\n f={comp_func.__name__}\n  failure at:\n{"".join(x for x in tb[i:])}') from e
 
 
 class Tests(unittest.TestCase):
@@ -280,176 +365,179 @@ class Tests(unittest.TestCase):
         self.assertRaises(TypeError,
                           lambda: x + np.array(['one'], dtype=str))
 
-        self._assert_eq(+m, 0 + m)
-        self._assert_eq(-m, 0 - m)
+        with BatchedAsserts() as b:
+    
+            b.assert_eq(+m, 0 + m)
+            b.assert_eq(-m, 0 - m)
+    
+            # addition
+            b.assert_eq(x + e, nx + e)
+            b.assert_eq(c + e, nc + e)
+            b.assert_eq(r + e, nr + e)
+            b.assert_eq(m + e, nm + e)
+    
+            b.assert_eq(x + e, e + x)
+            b.assert_eq(c + e, e + c)
+            b.assert_eq(r + e, e + r)
+            b.assert_eq(m + e, e + m)
 
-        # addition
-        self._assert_eq(x + e, nx + e)
-        self._assert_eq(c + e, nc + e)
-        self._assert_eq(r + e, nr + e)
-        self._assert_eq(m + e, nm + e)
-
-        self._assert_eq(x + e, e + x)
-        self._assert_eq(c + e, e + c)
-        self._assert_eq(r + e, e + r)
-        self._assert_eq(m + e, e + m)
-
-        self._assert_eq(x + x, 2 * x)
-        self._assert_eq(c + c, 2 * c)
-        self._assert_eq(r + r, 2 * r)
-        self._assert_eq(m + m, 2 * m)
-
-        self._assert_eq(x + c, np.array([[3.0], [4.0]]))
-        self._assert_eq(x + r, np.array([[3.0, 4.0, 5.0]]))
-        self._assert_eq(x + m, np.array([[3.0, 4.0, 5.0], [6.0, 7.0, 8.0]]))
-        self._assert_eq(c + m, np.array([[2.0, 3.0, 4.0], [6.0, 7.0, 8.0]]))
-        self._assert_eq(r + m, np.array([[2.0, 4.0, 6.0], [5.0, 7.0, 9.0]]))
-        self._assert_eq(x + c, c + x)
-        self._assert_eq(x + r, r + x)
-        self._assert_eq(x + m, m + x)
-        self._assert_eq(c + m, m + c)
-        self._assert_eq(r + m, m + r)
-
-        self._assert_eq(x + nx, x + x)
-        self._assert_eq(x + nc, x + c)
-        self._assert_eq(x + nr, x + r)
-        self._assert_eq(x + nm, x + m)
-        self._assert_eq(c + nx, c + x)
-        self._assert_eq(c + nc, c + c)
-        self._assert_eq(c + nm, c + m)
-        self._assert_eq(r + nx, r + x)
-        self._assert_eq(r + nr, r + r)
-        self._assert_eq(r + nm, r + m)
-        self._assert_eq(m + nx, m + x)
-        self._assert_eq(m + nc, m + c)
-        self._assert_eq(m + nr, m + r)
-        self._assert_eq(m + nm, m + m)
-
-        # subtraction
-        self._assert_eq(x - e, nx - e)
-        self._assert_eq(c - e, nc - e)
-        self._assert_eq(r - e, nr - e)
-        self._assert_eq(m - e, nm - e)
-
-        self._assert_eq(x - e, -(e - x))
-        self._assert_eq(c - e, -(e - c))
-        self._assert_eq(r - e, -(e - r))
-        self._assert_eq(m - e, -(e - m))
-
-        self._assert_eq(x - x, np.zeros((1, 1)))
-        self._assert_eq(c - c, np.zeros((2, 1)))
-        self._assert_eq(r - r, np.zeros((1, 3)))
-        self._assert_eq(m - m, np.zeros((2, 3)))
-
-        self._assert_eq(x - c, np.array([[1.0], [0.0]]))
-        self._assert_eq(x - r, np.array([[1.0, 0.0, -1.0]]))
-        self._assert_eq(x - m, np.array([[1.0, 0.0, -1.0], [-2.0, -3.0, -4.0]]))
-        self._assert_eq(c - m, np.array([[0.0, -1.0, -2.0], [-2.0, -3.0, -4.0]]))
-        self._assert_eq(r - m, np.array([[0.0, 0.0, 0.0], [-3.0, -3.0, -3.0]]))
-        self._assert_eq(x - c, -(c - x))
-        self._assert_eq(x - r, -(r - x))
-        self._assert_eq(x - m, -(m - x))
-        self._assert_eq(c - m, -(m - c))
-        self._assert_eq(r - m, -(m - r))
-
-        self._assert_eq(x - nx, x - x)
-        self._assert_eq(x - nc, x - c)
-        self._assert_eq(x - nr, x - r)
-        self._assert_eq(x - nm, x - m)
-        self._assert_eq(c - nx, c - x)
-        self._assert_eq(c - nc, c - c)
-        self._assert_eq(c - nm, c - m)
-        self._assert_eq(r - nx, r - x)
-        self._assert_eq(r - nr, r - r)
-        self._assert_eq(r - nm, r - m)
-        self._assert_eq(m - nx, m - x)
-        self._assert_eq(m - nc, m - c)
-        self._assert_eq(m - nr, m - r)
-        self._assert_eq(m - nm, m - m)
-
-        # multiplication
-        self._assert_eq(x * e, nx * e)
-        self._assert_eq(c * e, nc * e)
-        self._assert_eq(r * e, nr * e)
-        self._assert_eq(m * e, nm * e)
-
-        self._assert_eq(x * e, e * x)
-        self._assert_eq(c * e, e * c)
-        self._assert_eq(r * e, e * r)
-        self._assert_eq(m * e, e * m)
-
-        self._assert_eq(x * x, x ** 2)
-        self._assert_eq(c * c, c ** 2)
-        self._assert_eq(r * r, r ** 2)
-        self._assert_eq(m * m, m ** 2)
-
-        self._assert_eq(x * c, np.array([[2.0], [4.0]]))
-        self._assert_eq(x * r, np.array([[2.0, 4.0, 6.0]]))
-        self._assert_eq(x * m, np.array([[2.0, 4.0, 6.0], [8.0, 10.0, 12.0]]))
-        self._assert_eq(c * m, np.array([[1.0, 2.0, 3.0], [8.0, 10.0, 12.0]]))
-        self._assert_eq(r * m, np.array([[1.0, 4.0, 9.0], [4.0, 10.0, 18.0]]))
-        self._assert_eq(x * c, c * x)
-        self._assert_eq(x * r, r * x)
-        self._assert_eq(x * m, m * x)
-        self._assert_eq(c * m, m * c)
-        self._assert_eq(r * m, m * r)
-
-        self._assert_eq(x * nx, x * x)
-        self._assert_eq(x * nc, x * c)
-        self._assert_eq(x * nr, x * r)
-        self._assert_eq(x * nm, x * m)
-        self._assert_eq(c * nx, c * x)
-        self._assert_eq(c * nc, c * c)
-        self._assert_eq(c * nm, c * m)
-        self._assert_eq(r * nx, r * x)
-        self._assert_eq(r * nr, r * r)
-        self._assert_eq(r * nm, r * m)
-        self._assert_eq(m * nx, m * x)
-        self._assert_eq(m * nc, m * c)
-        self._assert_eq(m * nr, m * r)
-        self._assert_eq(m * nm, m * m)
-
-        # division
-        self._assert_close(x / e, nx / e)
-        self._assert_close(c / e, nc / e)
-        self._assert_close(r / e, nr / e)
-        self._assert_close(m / e, nm / e)
-
-        self._assert_close(x / e, 1 / (e / x))
-        self._assert_close(c / e, 1 / (e / c))
-        self._assert_close(r / e, 1 / (e / r))
-        self._assert_close(m / e, 1 / (e / m))
-
-        self._assert_close(x / x, np.ones((1, 1)))
-        self._assert_close(c / c, np.ones((2, 1)))
-        self._assert_close(r / r, np.ones((1, 3)))
-        self._assert_close(m / m, np.ones((2, 3)))
-
-        self._assert_close(x / c, np.array([[2 / 1.0], [2 / 2.0]]))
-        self._assert_close(x / r, np.array([[2 / 1.0, 2 / 2.0, 2 / 3.0]]))
-        self._assert_close(x / m, np.array([[2 / 1.0, 2 / 2.0, 2 / 3.0], [2 / 4.0, 2 / 5.0, 2 / 6.0]]))
-        self._assert_close(c / m, np.array([[1 / 1.0, 1 / 2.0, 1 / 3.0], [2 / 4.0, 2 / 5.0, 2 / 6.0]]))
-        self._assert_close(r / m, np.array([[1 / 1.0, 2 / 2.0, 3 / 3.0], [1 / 4.0, 2 / 5.0, 3 / 6.0]]))
-        self._assert_close(x / c, 1 / (c / x))
-        self._assert_close(x / r, 1 / (r / x))
-        self._assert_close(x / m, 1 / (m / x))
-        self._assert_close(c / m, 1 / (m / c))
-        self._assert_close(r / m, 1 / (m / r))
-
-        self._assert_close(x / nx, x / x)
-        self._assert_close(x / nc, x / c)
-        self._assert_close(x / nr, x / r)
-        self._assert_close(x / nm, x / m)
-        self._assert_close(c / nx, c / x)
-        self._assert_close(c / nc, c / c)
-        self._assert_close(c / nm, c / m)
-        self._assert_close(r / nx, r / x)
-        self._assert_close(r / nr, r / r)
-        self._assert_close(r / nm, r / m)
-        self._assert_close(m / nx, m / x)
-        self._assert_close(m / nc, m / c)
-        self._assert_close(m / nr, m / r)
-        self._assert_close(m / nm, m / m)
+            b.assert_eq(x + x, 2 * x)
+            b.assert_eq(c + c, 2 * c)
+            b.assert_eq(r + r, 2 * r)
+            b.assert_eq(m + m, 2 * m)
+    
+            b.assert_eq(x + c, np.array([[3.0], [4.0]]))
+            b.assert_eq(x + r, np.array([[3.0, 4.0, 5.0]]))
+            b.assert_eq(x + m, np.array([[3.0, 4.0, 5.0], [6.0, 7.0, 8.0]]))
+            b.assert_eq(c + m, np.array([[2.0, 3.0, 4.0], [6.0, 7.0, 8.0]]))
+            b.assert_eq(r + m, np.array([[2.0, 4.0, 6.0], [5.0, 7.0, 9.0]]))
+            b.assert_eq(x + c, c + x)
+            b.assert_eq(x + r, r + x)
+            b.assert_eq(x + m, m + x)
+            b.assert_eq(c + m, m + c)
+            b.assert_eq(r + m, m + r)
+    
+            b.assert_eq(x + nx, x + x)
+            b.assert_eq(x + nc, x + c)
+            b.assert_eq(x + nr, x + r)
+            b.assert_eq(x + nm, x + m)
+            b.assert_eq(c + nx, c + x)
+            b.assert_eq(c + nc, c + c)
+            b.assert_eq(c + nm, c + m)
+            b.assert_eq(r + nx, r + x)
+            b.assert_eq(r + nr, r + r)
+            b.assert_eq(r + nm, r + m)
+            b.assert_eq(m + nx, m + x)
+            b.assert_eq(m + nc, m + c)
+            b.assert_eq(m + nr, m + r)
+            b.assert_eq(m + nm, m + m)
+    
+            # subtraction
+            b.assert_eq(x - e, nx - e)
+            b.assert_eq(c - e, nc - e)
+            b.assert_eq(r - e, nr - e)
+            b.assert_eq(m - e, nm - e)
+    
+            b.assert_eq(x - e, -(e - x))
+            b.assert_eq(c - e, -(e - c))
+            b.assert_eq(r - e, -(e - r))
+            b.assert_eq(m - e, -(e - m))
+    
+            b.assert_eq(x - x, np.zeros((1, 1)))
+            b.assert_eq(c - c, np.zeros((2, 1)))
+            b.assert_eq(r - r, np.zeros((1, 3)))
+            b.assert_eq(m - m, np.zeros((2, 3)))
+    
+            b.assert_eq(x - c, np.array([[1.0], [0.0]]))
+            b.assert_eq(x - r, np.array([[1.0, 0.0, -1.0]]))
+            b.assert_eq(x - m, np.array([[1.0, 0.0, -1.0], [-2.0, -3.0, -4.0]]))
+            b.assert_eq(c - m, np.array([[0.0, -1.0, -2.0], [-2.0, -3.0, -4.0]]))
+            b.assert_eq(r - m, np.array([[0.0, 0.0, 0.0], [-3.0, -3.0, -3.0]]))
+            b.assert_eq(x - c, -(c - x))
+            b.assert_eq(x - r, -(r - x))
+            b.assert_eq(x - m, -(m - x))
+            b.assert_eq(c - m, -(m - c))
+            b.assert_eq(r - m, -(m - r))
+    
+            b.assert_eq(x - nx, x - x)
+            b.assert_eq(x - nc, x - c)
+            b.assert_eq(x - nr, x - r)
+            b.assert_eq(x - nm, x - m)
+            b.assert_eq(c - nx, c - x)
+            b.assert_eq(c - nc, c - c)
+            b.assert_eq(c - nm, c - m)
+            b.assert_eq(r - nx, r - x)
+            b.assert_eq(r - nr, r - r)
+            b.assert_eq(r - nm, r - m)
+            b.assert_eq(m - nx, m - x)
+            b.assert_eq(m - nc, m - c)
+            b.assert_eq(m - nr, m - r)
+            b.assert_eq(m - nm, m - m)
+    
+            # multiplication
+            b.assert_eq(x * e, nx * e)
+            b.assert_eq(c * e, nc * e)
+            b.assert_eq(r * e, nr * e)
+            b.assert_eq(m * e, nm * e)
+    
+            b.assert_eq(x * e, e * x)
+            b.assert_eq(c * e, e * c)
+            b.assert_eq(r * e, e * r)
+            b.assert_eq(m * e, e * m)
+    
+            b.assert_eq(x * x, x ** 2)
+            b.assert_eq(c * c, c ** 2)
+            b.assert_eq(r * r, r ** 2)
+            b.assert_eq(m * m, m ** 2)
+    
+            b.assert_eq(x * c, np.array([[2.0], [4.0]]))
+            b.assert_eq(x * r, np.array([[2.0, 4.0, 6.0]]))
+            b.assert_eq(x * m, np.array([[2.0, 4.0, 6.0], [8.0, 10.0, 12.0]]))
+            b.assert_eq(c * m, np.array([[1.0, 2.0, 3.0], [8.0, 10.0, 12.0]]))
+            b.assert_eq(r * m, np.array([[1.0, 4.0, 9.0], [4.0, 10.0, 18.0]]))
+            b.assert_eq(x * c, c * x)
+            b.assert_eq(x * r, r * x)
+            b.assert_eq(x * m, m * x)
+            b.assert_eq(c * m, m * c)
+            b.assert_eq(r * m, m * r)
+    
+            b.assert_eq(x * nx, x * x)
+            b.assert_eq(x * nc, x * c)
+            b.assert_eq(x * nr, x * r)
+            b.assert_eq(x * nm, x * m)
+            b.assert_eq(c * nx, c * x)
+            b.assert_eq(c * nc, c * c)
+            b.assert_eq(c * nm, c * m)
+            b.assert_eq(r * nx, r * x)
+            b.assert_eq(r * nr, r * r)
+            b.assert_eq(r * nm, r * m)
+            b.assert_eq(m * nx, m * x)
+            b.assert_eq(m * nc, m * c)
+            b.assert_eq(m * nr, m * r)
+            b.assert_eq(m * nm, m * m)
+    
+            # division
+            b.assert_close(x / e, nx / e)
+            b.assert_close(c / e, nc / e)
+            b.assert_close(r / e, nr / e)
+            b.assert_close(m / e, nm / e)
+    
+            b.assert_close(x / e, 1 / (e / x))
+            b.assert_close(c / e, 1 / (e / c))
+            b.assert_close(r / e, 1 / (e / r))
+            b.assert_close(m / e, 1 / (e / m))
+    
+            b.assert_close(x / x, np.ones((1, 1)))
+            b.assert_close(c / c, np.ones((2, 1)))
+            b.assert_close(r / r, np.ones((1, 3)))
+            b.assert_close(m / m, np.ones((2, 3)))
+    
+            b.assert_close(x / c, np.array([[2 / 1.0], [2 / 2.0]]))
+            b.assert_close(x / r, np.array([[2 / 1.0, 2 / 2.0, 2 / 3.0]]))
+            b.assert_close(x / m, np.array([[2 / 1.0, 2 / 2.0, 2 / 3.0], [2 / 4.0, 2 / 5.0, 2 / 6.0]]))
+            b.assert_close(c / m, np.array([[1 / 1.0, 1 / 2.0, 1 / 3.0], [2 / 4.0, 2 / 5.0, 2 / 6.0]]))
+            b.assert_close(r / m, np.array([[1 / 1.0, 2 / 2.0, 3 / 3.0], [1 / 4.0, 2 / 5.0, 3 / 6.0]]))
+            b.assert_close(x / c, 1 / (c / x))
+            b.assert_close(x / r, 1 / (r / x))
+            b.assert_close(x / m, 1 / (m / x))
+            b.assert_close(c / m, 1 / (m / c))
+            b.assert_close(r / m, 1 / (m / r))
+    
+            b.assert_close(x / nx, x / x)
+            b.assert_close(x / nc, x / c)
+            b.assert_close(x / nr, x / r)
+            b.assert_close(x / nm, x / m)
+            b.assert_close(c / nx, c / x)
+            b.assert_close(c / nc, c / c)
+            b.assert_close(c / nm, c / m)
+            b.assert_close(r / nx, r / x)
+            b.assert_close(r / nr, r / r)
+            b.assert_close(r / nm, r / m)
+            b.assert_close(m / nx, m / x)
+            b.assert_close(m / nc, m / c)
+            b.assert_close(m / nr, m / r)
+            b.assert_close(m / nm, m / m)
+        
 
     def test_special_elementwise_ops(self):
         nm = np.array([[1.0, 2.0, 3.0, 3.14], [4.0, 5.0, 6.0, 12.12]])
@@ -1101,7 +1189,7 @@ class Tests(unittest.TestCase):
         e, _ = np.linalg.eigh(x0 @ x0.T)
 
         x = BlockMatrix.from_numpy(x0)
-        _, s, _ = x.svd(complexity_bound=0)
+        s = x.svd(complexity_bound=0, compute_uv=False)
         assert np.all(s >= 0.0)
 
         s = x.svd(compute_uv=False, complexity_bound=0)
@@ -1216,4 +1304,3 @@ class Tests(unittest.TestCase):
         np_if = np_mat.copy()
         np_if[0, 0] = -8.0
         self._assert_eq(bm_mapped_if, np_if)
-

@@ -152,8 +152,8 @@ class CopyReport:
                 add_source_reports(t)
 
         total_sources = len(source_reports)
-        total_files = sum([sr._files for sr in source_reports])
-        total_bytes = sum([sr._bytes for sr in source_reports])
+        total_files = sum(sr._files for sr in source_reports)
+        total_bytes = sum(sr._bytes for sr in source_reports)
 
         print('Transfer summary:')
         print(f'  Transfers: {total_transfers}')

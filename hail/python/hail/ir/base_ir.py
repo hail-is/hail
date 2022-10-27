@@ -71,6 +71,10 @@ class BaseIR(Renderable):
     def typ(self):
         raise NotImplementedError
 
+    @property
+    def is_stream(self):
+        return False
+
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.children == other.children and self._eq(other)
 
@@ -317,6 +321,14 @@ class IR(BaseIR):
     @abc.abstractmethod
     def _handle_randomness(self, create_uids):
         pass
+
+    @property
+    def might_be_stream(self):
+        return type(self)._handle_randomness != IR._handle_randomness
+
+    @property
+    def is_stream(self):
+        return self.might_be_stream and isinstance(self.typ, tstream)
 
     def handle_randomness(self, create_uids):
         """Elaborate rng semantics in stream typed IR.

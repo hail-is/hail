@@ -384,9 +384,25 @@ class Tests(unittest.TestCase):
     def test_semi_anti_join(self):
         ht = hl.utils.range_table(10)
         ht2 = ht.filter(ht.idx < 3)
+        ht_2k = ht.key_by(k1 = ht.idx, k2 = hl.str(ht.idx * 2))
+        ht2_2k = ht2.key_by(k1 = ht2.idx, k2 = hl.str(ht2.idx * 2))
 
         assert ht.semi_join(ht2).count() == 3
         assert ht.anti_join(ht2).count() == 7
+        assert ht_2k.semi_join(ht2).count() == 3
+        assert ht_2k.anti_join(ht2).count() == 7
+        assert ht_2k.semi_join(ht2_2k).count() == 3
+        assert ht_2k.anti_join(ht2_2k).count() == 7
+
+        with pytest.raises(ValueError, match='semi_join: cannot join'):
+            ht.semi_join(ht2_2k)
+        with pytest.raises(ValueError, match='semi_join: cannot join'):
+            ht.semi_join(ht2.key_by())
+
+        with pytest.raises(ValueError, match='anti_join: cannot join'):
+            ht.anti_join(ht2_2k)
+        with pytest.raises(ValueError, match='anti_join: cannot join'):
+            ht.anti_join(ht2.key_by())
 
     def test_indirected_joins(self):
         kt = hl.utils.range_table(1)
@@ -951,6 +967,22 @@ class Tests(unittest.TestCase):
         ], _filter_intervals=True, _create_row_uids=True)
         self.assertEqual(t2.n_partitions(), 3)
         self.assertTrue(t1.filter((t1.idx >= 150) & (t1.idx < 500))._same(t2))
+
+        t2 = hl.read_table(f, _intervals=[
+            hl.Interval(start=150, end=250, includes_start=False, includes_end=True),
+            hl.Interval(start=250, end=500, includes_start=False, includes_end=True),
+        ], _create_row_uids=True)
+        self.assertEqual(t2.n_partitions(), 2)
+        self.assertEqual(t2.count(), 350)
+        self.assertEqual(t2._force_count(), 350)
+        self.assertTrue(t1.filter((t1.idx > 150) & (t1.idx <= 500))._same(t2))
+
+        t2 = hl.read_table(f, _intervals=[
+            hl.Interval(start=150, end=250, includes_start=False, includes_end=True),
+            hl.Interval(start=250, end=500, includes_start=False, includes_end=True),
+        ], _filter_intervals=True, _create_row_uids=True)
+        self.assertEqual(t2.n_partitions(), 3)
+        self.assertTrue(t1.filter((t1.idx > 150) & (t1.idx <= 500))._same(t2))
 
     def test_order_by_parsing(self):
         hl.utils.range_table(1).annotate(**{'a b c' : 5}).order_by('a b c')._force_count()
@@ -1712,13 +1744,13 @@ def test_read_write_all_types():
 
 def test_map_partitions_flatmap():
     ht = hl.utils.range_table(2)
-    ht2 = ht._map_partitions(lambda rows: rows.flatmap(lambda r: hl.range(2).map(lambda x: r.annotate(x=x))))
+    ht2 = ht._map_partitions(lambda rows: rows.flatmap(lambda r: hl._stream_range(2).map(lambda x: r.annotate(x=x))))
     assert ht2.collect() == [hl.Struct(idx=0, x=0), hl.Struct(idx=0, x=1), hl.Struct(idx=1, x=0), hl.Struct(idx=1, x=1)]
 
 
 def test_map_partitions_errors():
     ht = hl.utils.range_table(2)
-    with pytest.raises(TypeError, match='expected return type expression of type array<struct>'):
+    with pytest.raises(TypeError, match='expected return type expression of type stream<struct>'):
         ht._map_partitions(lambda rows: 5)
     with pytest.raises(ValueError, match='must preserve key fields'):
         ht._map_partitions(lambda rows: rows.map(lambda r: r.drop('idx')))
@@ -1727,7 +1759,7 @@ def test_map_partitions_indexed():
     tmp_file = new_temp_file()
     hl.utils.range_table(100, 8).write(tmp_file)
     ht = hl.read_table(tmp_file, _intervals=[hl.Interval(start=hl.Struct(idx=11), end=hl.Struct(idx=55))])
-    ht = ht.key_by()._map_partitions(lambda partition: [hl.struct(foo=partition)])
+    ht = ht.key_by()._map_partitions(lambda partition: hl.array([hl.struct(foo=partition.to_array())])._to_stream())
     assert [inner.idx for outer in ht.foo.collect() for inner in outer] == list(range(11, 55))
 
 def test_keys_before_scans():
@@ -1802,9 +1834,8 @@ def test_interval_filter_partitions():
 def test_grouped_flatmap_streams():
     ht = hl.import_vcf(resource('sample.vcf')).rows()
     ht = ht.annotate(x=hl.str(ht.locus))  # add a map node
-    ht = ht._map_partitions(lambda part: hl.flatmap(
-        lambda group: hl.range(hl.len(group)).map(lambda i: group[i].annotate(z=group[0])),
-        part.grouped(8)))
+    ht = ht._map_partitions(lambda part: part.grouped(8).flatmap(
+        lambda group: group._to_stream().map(lambda x: x.annotate(z=1))))
     ht._force_count()
 
 
@@ -1915,6 +1946,32 @@ def test_to_pandas_nd_array():
     pd.testing.assert_frame_equal(df_from_hail, df_from_python)
 
 
+def test_literal_of_numpy_int64():
+    t = hl.utils.range_table(10)
+    x = t.key_by(idx=hl.int64(t.idx)).to_pandas().idx.tolist()
+    hl.eval(hl.literal(x))
+
+
+def test_literal_of_numpy_int32():
+    t = hl.utils.range_table(10)
+    x = t.key_by(idx=t.idx).to_pandas().idx.tolist()
+    hl.eval(hl.literal(x))
+
+
+def test_literal_of_pandas_NA_and_numpy_int64():
+    import hail as hl
+    t = hl.utils.range_table(10)
+    x = t.key_by(idx=hl.or_missing(t.idx == 5, hl.int64(t.idx))).to_pandas().idx.tolist()
+    hl.eval(hl.literal(x))
+
+
+def test_literal_of_pandas_NA_and_numpy_int32():
+    import hail as hl
+    t = hl.utils.range_table(10)
+    x = t.key_by(idx=hl.or_missing(t.idx == 5, t.idx)).to_pandas().idx.tolist()
+    hl.eval(hl.literal(x))
+
+
 def test_write_many():
     t = hl.utils.range_table(5)
     t = t.annotate(a = t.idx, b = t.idx * t.idx, c = hl.str(t.idx))
@@ -1944,3 +2001,17 @@ def test_write_many():
             hl.Struct(idx=3, c='3'),
             hl.Struct(idx=4, c='4')
         ]
+
+@pytest.mark.parametrize('branching_factor', [2, 3, 5, 7, 121])
+def test_indexed_read_boundaries(branching_factor):
+    with hl._with_flags(index_branching_factor=str(branching_factor)):
+        t = hl.utils.range_table(1000, 4)
+        t = t.filter(t.idx % 5 != 0)
+        f = new_temp_file(extension='ht')
+        t.write(f)
+        t1 = hl.read_table(f, _intervals=[
+            hl.Interval(start=140, end=145, includes_start=True, includes_end=True),
+            hl.Interval(start=151, end=153, includes_start=False, includes_end=False),
+        ])
+
+        assert t1.idx.collect() == [141, 142, 143, 144, 152]

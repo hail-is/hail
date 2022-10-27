@@ -28,7 +28,8 @@ async def main(args, pass_through_args):  # pylint: disable=unused-argument
                   'spark.jars': 'local:/usr/bin/anaconda/envs/py37/lib/python3.7/site-packages/hail/backend/hail-all-spark.jar',
                   'spark.pyspark.driver.python': '/usr/bin/anaconda/envs/py37/bin/python3',
               }},
-        auth=requests.auth.HTTPBasicAuth('admin', args.http_password))
+        auth=requests.auth.HTTPBasicAuth('admin', args.http_password),
+        timeout=60)
     batch = resp.json()
     resp.raise_for_status()
     batch_id = batch['id']
@@ -37,7 +38,8 @@ async def main(args, pass_through_args):  # pylint: disable=unused-argument
     while True:
         resp = requests.get(
             f'https://{args.name}.azurehdinsight.net/livy/batches/{batch_id}',
-            auth=requests.auth.HTTPBasicAuth('admin', args.http_password))
+            auth=requests.auth.HTTPBasicAuth('admin', args.http_password),
+            timeout=60)
         batch = resp.json()
         resp.raise_for_status()
         if batch.get('appId'):

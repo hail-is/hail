@@ -10,8 +10,8 @@ from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
     MakeArray, ArrayRef, ArraySlice, ArrayLen, ArrayZeros, StreamIota, StreamRange, StreamGrouped, MakeNDArray, \
     NDArrayShape, NDArrayReshape, NDArrayMap, NDArrayMap2, NDArrayRef, NDArraySlice, NDArraySVD, \
     NDArrayReindex, NDArrayAgg, NDArrayMatMul, NDArrayQR, NDArrayInv, NDArrayConcat, NDArrayWrite, \
-    ArraySort, ToSet, ToDict, ToArray, CastToArray, ToStream, \
-    LowerBoundOnOrderedCollection, GroupByKey, StreamMap, StreamZip, \
+    ArraySort, ToSet, ToDict, toArray, ToArray, CastToArray, toStream, ToStream, \
+    LowerBoundOnOrderedCollection, GroupByKey, StreamTake, StreamMap, StreamZip, \
     StreamFilter, StreamFlatMap, StreamFold, StreamScan, \
     StreamJoinRightDistinct, StreamFor, AggFilter, AggExplode, AggGroupBy, \
     AggArrayPerElement, BaseApplyAggOp, ApplyAggOp, ApplyScanOp, AggFold, Begin, \
@@ -167,11 +167,14 @@ __all__ = [
     'ArraySort',
     'ToSet',
     'ToDict',
+    'toArray',
     'ToArray',
     'CastToArray',
+    'toStream',
     'ToStream',
     'LowerBoundOnOrderedCollection',
     'GroupByKey',
+    'StreamTake',
     'StreamMap',
     'StreamZip',
     'StreamFilter',

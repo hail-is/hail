@@ -1,6 +1,7 @@
+from typing import Dict, Any
 import abc
-
 import numpy as np
+import plotly.graph_objects as go
 
 from .aes import aes
 from .stats import StatCount, StatIdentity, StatBin, StatNone, StatFunction, StatCDF
@@ -13,12 +14,12 @@ class FigureAttribute(abc.ABC):
 
 class Geom(FigureAttribute):
 
-    def __init__(self, aes, legend_format=None):
+    def __init__(self, aes):
         self.aes = aes
-        self.legend_format = legend_format
 
     @abc.abstractmethod
-    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
+    def apply_to_fig(self, agg_result, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache) -> bool:
+        """Add this geometry to the figure and indicate if this geometry demands a static figure."""
         pass
 
     @abc.abstractmethod
@@ -26,31 +27,15 @@ class Geom(FigureAttribute):
         pass
 
     def _add_aesthetics_to_trace_args(self, trace_args, df):
-        legend_labels = {}
-
         for aes_name, (plotly_name, default) in self.aes_to_arg.items():
-            value = None
-
             if hasattr(self, aes_name) and getattr(self, aes_name) is not None:
-                value = getattr(self, aes_name)
+                trace_args[plotly_name] = getattr(self, aes_name)
             elif aes_name in df.attrs:
-                value = df.attrs[aes_name]
+                trace_args[plotly_name] = df.attrs[aes_name]
             elif aes_name in df.columns:
-                value = df[aes_name]
+                trace_args[plotly_name] = df[aes_name]
             elif default is not None:
-                value = default
-
-            if value is not None:
-                if plotly_name == "name":
-                    aes_short_name, _, _ = aes_name.partition("_legend")
-                    legend_labels[aes_short_name] = value
-                else:
-                    trace_args[plotly_name] = value
-
-        if self.legend_format is not None:
-            trace_args["name"] = self.legend_format.format(**legend_labels)
-        else:
-            trace_args["name"] = " × ".join(legend_labels.values())
+                trace_args[plotly_name] = default
 
     def _update_legend_trace_args(self, trace_args, legend_cache):
         if "name" in trace_args:
@@ -74,7 +59,7 @@ class GeomLineBasic(Geom):
         super().__init__(aes)
         self.color = color
 
-    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
+    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache) -> bool:
 
         def plot_group(df):
             trace_args = {
@@ -93,6 +78,8 @@ class GeomLineBasic(Geom):
         for group_df in grouped_data:
             plot_group(group_df)
 
+        return False
+
     @abc.abstractmethod
     def get_stat(self):
         return ...
@@ -100,56 +87,119 @@ class GeomLineBasic(Geom):
 
 class GeomPoint(Geom):
 
-    aes_to_arg = {
-        "color": ("marker_color", "black"),
-        "size": ("marker_size", None),
-        "tooltip": ("hovertext", None),
-        "color_legend": ("name", None),
-        "alpha": ("marker_opacity", None),
-        "shape": ("marker_symbol", None),
-        "shape_legend": ("name", None),
+    aes_to_plotly = {
+        "color": "marker_color",
+        "size": "marker_size",
+        "tooltip": "hovertext",
+        "alpha": "marker_opacity",
+        "shape": "marker_symbol",
     }
 
-    def __init__(self, aes, color=None, size=None, alpha=None, shape=None, legend_format=None):
-        super().__init__(aes, legend_format)
+    aes_defaults = {
+        "color": "black",
+        "shape": "circle",
+    }
+
+    aes_legend_groups = {
+        "color",
+        "shape",
+    }
+
+    def __init__(self, aes, color=None, size=None, alpha=None, shape=None):
+        super().__init__(aes)
         self.color = color
         self.size = size
         self.alpha = alpha
         self.shape = shape
 
-    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
-        def plot_group(df):
-            trace_args = {
-                "x": df.x,
-                "y": df.y,
-                "mode": "markers",
-                "row": facet_row,
-                "col": facet_col
+    def _map_to_plotly(self, mapping) -> Dict[str, Any]:
+        plotly_kwargs = {self.aes_to_plotly[k]: v for k, v in mapping.items()}
+        if 'tooltip' in mapping:
+            plotly_kwargs['hoverinfo'] = 'text'
+        return plotly_kwargs
+
+    def _get_aes_value(self, df, aes_name):
+        if getattr(self, aes_name, None) is not None:
+            return getattr(self, aes_name)
+        if df.attrs.get(aes_name) is not None:
+            return df.attrs[aes_name]
+        if df.get(aes_name) is not None:
+            return df[aes_name]
+        return self.aes_defaults.get(aes_name, None)
+
+    def _get_aes_values(self, df):
+        values = {}
+        for aes_name in self.aes_to_plotly:
+            value = self._get_aes_value(df, aes_name)
+            if value is not None:
+                values[aes_name] = value
+        return values
+
+    def _add_trace(self, fig_so_far: go.Figure, df, facet_row, facet_col, values):
+        fig_so_far.add_scatter(
+            **{
+                **{
+                    "x": df.x,
+                    "y": df.y,
+                    "mode": "markers",
+                    "row": facet_row,
+                    "col": facet_col,
+                    "showlegend": False
+                },
+                **self._map_to_plotly(values)
             }
+        )
 
-            self._add_aesthetics_to_trace_args(trace_args, df)
-            self._update_legend_trace_args(trace_args, legend_cache)
+    def _add_legend(self, fig_so_far: go.Figure, aes_name, category, value):
+        fig_so_far.add_scatter(
+            **{
+                **{
+                    "x": [None],
+                    "y": [None],
+                    "mode": "markers",
+                    "name": category,
+                    "showlegend": True,
+                    "legendgroup": aes_name,
+                    "legendgrouptitle_text": aes_name,
+                },
+                **self._map_to_plotly({**self.aes_defaults, aes_name: value})
+            }
+        )
 
-            fig_so_far.add_scatter(**trace_args)
+    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache) -> bool:
+        legends = {}
+        for df in grouped_data:
+            values = self._get_aes_values(df)
+            self._add_trace(fig_so_far, df, facet_row, facet_col, values)
+            for aes_name in self.aes_legend_groups:
+                legends[aes_name] = ({
+                    **legends.get(aes_name, {}),
+                    self._get_aes_value(df, f"{aes_name}_legend"): values[aes_name]
+                })
 
-        for group_df in grouped_data:
-            plot_group(group_df)
+        number_of_displayed_legends = 0
+        for aes_name, legend_group in legends.items():
+            if len(legend_group) > 1:
+                number_of_displayed_legends += 1
+                for category, value in legend_group.items():
+                    self._add_legend(fig_so_far, aes_name, category, value)
+        return number_of_displayed_legends > 1
 
     def get_stat(self):
         return StatIdentity()
 
 
-def geom_point(mapping=aes(), *, color=None, size=None, alpha=None, shape=None, legend_format=None):
+def geom_point(mapping=aes(), *, color=None, size=None, alpha=None, shape=None):
     """Create a scatter plot.
 
-    Supported aesthetics: ``x``, ``y``, ``color``, ``alpha``, ``tooltip``, ``shape``, ``legend_format``
+    Supported aesthetics: ``x``, ``y``, ``color``, ``alpha``, ``tooltip``, ``shape``
 
     Returns
     -------
     :class:`FigureAttribute`
         The geom to be applied.
     """
-    return GeomPoint(mapping, color=color, size=size, alpha=alpha, shape=shape, legend_format=legend_format)
+    return GeomPoint(mapping, color=color, size=size, alpha=alpha, shape=shape)
 
 
 class GeomLine(GeomLineBasic):
@@ -158,8 +208,8 @@ class GeomLine(GeomLineBasic):
         super().__init__(aes, color)
         self.color = color
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
-        super().apply_to_fig(parent, agg_result, fig_so_far, precomputed, facet_row, facet_col, legend_cache)
+    def apply_to_fig(self, agg_result, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache) -> bool:
+        return super().apply_to_fig(agg_result, fig_so_far, precomputed, facet_row, facet_col, legend_cache)
 
     def get_stat(self):
         return StatIdentity()
@@ -193,7 +243,7 @@ class GeomText(Geom):
         self.size = size
         self.alpha = alpha
 
-    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
+    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache) -> bool:
         def plot_group(df):
             trace_args = {
                 "x": df.x,
@@ -211,6 +261,8 @@ class GeomText(Geom):
 
         for group_df in grouped_data:
             plot_group(group_df)
+
+        return False
 
     def get_stat(self):
         return StatIdentity()
@@ -251,7 +303,7 @@ class GeomBar(Geom):
             stat = StatCount()
         self.stat = stat
 
-    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
+    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache) -> bool:
         def plot_group(df):
             trace_args = {
                 "x": df.x,
@@ -269,6 +321,8 @@ class GeomBar(Geom):
             plot_group(group_df)
 
         fig_so_far.update_layout(barmode=bar_position_plotly_to_gg(self.position))
+
+        return False
 
     def get_stat(self):
         return self.stat
@@ -321,7 +375,7 @@ class GeomHistogram(Geom):
         self.position = position
         self.size = size
 
-    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
+    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache) -> bool:
         min_val = self.min_val if self.min_val is not None else precomputed.min_val
         max_val = self.max_val if self.max_val is not None else precomputed.max_val
         # This assumes it doesn't really make sense to use another stat for geom_histogram
@@ -367,6 +421,8 @@ class GeomHistogram(Geom):
             plot_group(group_df, idx)
 
         fig_so_far.update_layout(barmode=bar_position_plotly_to_gg(self.position))
+
+        return False
 
     def get_stat(self):
         return StatBin(self.min_val, self.max_val, self.bins)
@@ -424,7 +480,7 @@ class GeomDensity(Geom):
         self.color = color
         self.alpha = alpha
 
-    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
+    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache) -> bool:
         def plot_group(df, idx):
             slope = 1.0 / (df.attrs['max'] - df.attrs['min'])
             n = df.attrs['n']
@@ -459,6 +515,8 @@ class GeomDensity(Geom):
 
         for idx, group_df in enumerate(grouped_data):
             plot_group(group_df, idx)
+
+        return False
 
     def get_stat(self):
         return StatCDF(self.k)
@@ -508,7 +566,7 @@ class GeomHLine(Geom):
         self.linetype = linetype
         self.color = color
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
+    def apply_to_fig(self, agg_result, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache) -> bool:
         line_attributes = {
             "y": self.yintercept,
             "line_dash": linetype_plotly_to_gg(self.linetype)
@@ -517,6 +575,8 @@ class GeomHLine(Geom):
             line_attributes["line_color"] = self.color
 
         fig_so_far.add_hline(**line_attributes)
+
+        return False
 
     def get_stat(self):
         return StatNone()
@@ -551,7 +611,7 @@ class GeomVLine(Geom):
         self.linetype = linetype
         self.color = color
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
+    def apply_to_fig(self, agg_result, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache) -> bool:
         line_attributes = {
             "x": self.xintercept,
             "line_dash": linetype_plotly_to_gg(self.linetype)
@@ -560,6 +620,8 @@ class GeomVLine(Geom):
             line_attributes["line_color"] = self.color
 
         fig_so_far.add_vline(**line_attributes)
+
+        return False
 
     def get_stat(self):
         return StatNone()
@@ -591,7 +653,7 @@ class GeomTile(Geom):
     def __init__(self, aes):
         self.aes = aes
 
-    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
+    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache) -> bool:
         def plot_group(df):
 
             for idx, row in df.iterrows():
@@ -620,6 +682,8 @@ class GeomTile(Geom):
         for group_df in grouped_data:
             plot_group(group_df)
 
+        return False
+
     def get_stat(self):
         return StatIdentity()
 
@@ -633,8 +697,8 @@ class GeomFunction(GeomLineBasic):
         super().__init__(aes, color)
         self.fun = fun
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
-        super().apply_to_fig(parent, agg_result, fig_so_far, precomputed, facet_row, facet_col, legend_cache)
+    def apply_to_fig(self, agg_result, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache) -> bool:
+        return super().apply_to_fig(agg_result, fig_so_far, precomputed, facet_row, facet_col, legend_cache)
 
     def get_stat(self):
         return StatFunction(self.fun)
@@ -657,7 +721,7 @@ class GeomArea(Geom):
         self.fill = fill
         self.color = color
 
-    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
+    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache) -> bool:
         def plot_group(df):
             trace_args = {
                 "x": df.x,
@@ -674,6 +738,8 @@ class GeomArea(Geom):
 
         for group_df in grouped_data:
             plot_group(group_df)
+
+        return False
 
     def get_stat(self):
         return StatIdentity()
@@ -714,7 +780,7 @@ class GeomRibbon(Geom):
         self.fill = fill
         self.color = color
 
-    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
+    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache) -> bool:
         def plot_group(df):
 
             trace_args_bottom = {
@@ -744,6 +810,8 @@ class GeomRibbon(Geom):
 
         for group_df in grouped_data:
             plot_group(group_df)
+
+        return False
 
     def get_stat(self):
         return StatIdentity()

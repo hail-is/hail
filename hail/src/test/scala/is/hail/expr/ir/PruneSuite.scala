@@ -1116,7 +1116,14 @@ class PruneSuite extends HailSuite {
       MakeStruct(Seq(("ck", getColField("ck")), ("c2", getColField("c2")), ("c3", getColField("c3")))), Some(FastIndexedSeq("ck"))
     )
 
-    val mucBothSame = MatrixUnionCols(wrappedMat, wrappedMat, "inner")
+    val wrappedMat2 = MatrixRename(
+        wrappedMat,
+        Map.empty,
+        Map.empty,
+        wrappedMat.typ.rowType.fieldNames.map(x => x -> (x + "_")).toMap,
+        Map.empty)
+
+    val mucBothSame = MatrixUnionCols(wrappedMat, wrappedMat2, "inner")
     checkRebuild(mucBothSame, mucBothSame.typ)
     checkRebuild[MatrixUnionCols](mucBothSame, mucBothSame.typ.copy(colType = TStruct(("ck", TString), ("c2", TInt32))), (old, rebuilt) =>
       (old.typ.rowType == rebuilt.typ.rowType) &&
@@ -1127,7 +1134,7 @@ class PruneSuite extends HailSuite {
 
     // Since `mat` is a MatrixLiteral, it won't be rebuilt, will keep all fields. But wrappedMat is a MatrixMapCols, so it will drop
     // unrequested fields. This test would fail without upcasting in the MatrixUnionCols rebuild rule.
-    val muc2 = MatrixUnionCols(mat, wrappedMat, "inner")
+    val muc2 = MatrixUnionCols(mat, wrappedMat2, "inner")
     checkRebuild[MatrixUnionCols](muc2, muc2.typ.copy(colType = TStruct(("ck", TString))), (old, rebuilt) =>
       childrenMatch(rebuilt)
     )

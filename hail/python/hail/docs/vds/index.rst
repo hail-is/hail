@@ -46,6 +46,7 @@ large as 955,000 whole exomes. The :class:`.VariantDatasetCombiner` produces a
     to_dense_mt
     to_merged_sparse_mt
     lgt_to_gt
+    local_to_global
 
 .. currentmodule:: hail.vds.combiner
 

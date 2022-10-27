@@ -61,6 +61,10 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
 
   def referenceGenomes(): IndexedSeq[ReferenceGenome] = rgContainers.keys.toFastIndexedSeq.sortBy(_.name)
   def referenceGenomeFields(): IndexedSeq[StaticField[ReferenceGenome]] = rgContainers.toFastIndexedSeq.sortBy(_._1.name).map(_._2)
+
+  def setObjects(cb: EmitCodeBuilder, objects: Code[Array[AnyRef]]): Unit = modb.setObjects(cb, objects)
+
+  def getObject[T <: AnyRef : TypeInfo](obj: T): Code[T] = modb.getObject(obj)
 }
 
 trait WrappedEmitModuleBuilder {
@@ -329,9 +333,6 @@ class EmitClassBuilder[C](
     Array(baos.toByteArray) ++ preEncodedLiterals.map(_._1.value.ba)
   }
 
-  private[this] var _objectsField: Settable[Array[AnyRef]] = _
-  private[this] var _objects: BoxedArrayBuilder[AnyRef] = _
-
   private[this] var _mods: BoxedArrayBuilder[(String, (HailClassLoader, FS, Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new BoxedArrayBuilder()
   private[this] var _backendField: Settable[BackendUtils] = _
 
@@ -448,18 +449,19 @@ class EmitClassBuilder[C](
 
   def getFS: Code[FS] = emodb.getFS
 
-  def getObject[T <: AnyRef : TypeInfo](obj: T): Code[T] = {
-    if (_objectsField == null) {
-      cb.addInterface(typeInfo[FunctionWithObjects].iname)
-      _objectsField = genFieldThisRef[Array[AnyRef]]()
-      _objects = new BoxedArrayBuilder[AnyRef]()
-      val mb = newEmitMethod("setObjects", FastIndexedSeq[ParamType](typeInfo[Array[AnyRef]]), typeInfo[Unit])
-      mb.emit(_objectsField := mb.getCodeParam[Array[AnyRef]](1))
-    }
+  def setObjects(cb: EmitCodeBuilder, objects: Code[Array[AnyRef]]): Unit = modb.setObjects(cb, objects)
 
-    val i = _objects.size
-    _objects += obj
-    Code.checkcast[T](toCodeArray(_objectsField).apply(i))
+  def getObject[T <: AnyRef : TypeInfo](obj: T): Code[T] = modb.getObject(obj)
+
+  def makeAddObjects(): Array[AnyRef] = {
+    if (emodb.modb._objects == null)
+      null
+    else {
+      cb.addInterface(typeInfo[FunctionWithObjects].iname)
+      val mb = newEmitMethod("setObjects", FastIndexedSeq[ParamType](typeInfo[Array[AnyRef]]), typeInfo[Unit])
+      mb.voidWithBuilder(cb => emodb.setObjects(cb, mb.getCodeParam[Array[AnyRef]](1)))
+      emodb.modb._objects.result()
+    }
   }
 
   def getPType[T <: PType : TypeInfo](t: T): Code[T] = {
@@ -678,6 +680,8 @@ class EmitClassBuilder[C](
     if (hasReferences)
       makeAddReferenceGenomes()
 
+    val objects = makeAddObjects()
+
     val literalsBc = if (hasLiterals)
       ctx.backend.broadcast(encodeLiterals())
     else
@@ -694,12 +698,6 @@ class EmitClassBuilder[C](
 
     val useBackend = _backendField != null
     val backend = if (useBackend) new BackendUtils(_mods.result()) else null
-
-    val objects =
-      if (_objects != null)
-        _objects.result()
-      else
-        null
 
     assert(TaskContext.get() == null,
       "FunctionBuilder emission should happen on master, but happened on worker")
@@ -946,52 +944,14 @@ class EmitMethodBuilder[C](
     })
   }
 
-  def storeEmitParam(emitIndex: Int, cb: EmitCodeBuilder): (EmitCodeBuilder, Value[Region]) => IEmitCode = {
-    assert(mb.isStatic || emitIndex != 0)
-    val static = (!mb.isStatic).toInt
-    val et = emitParamTypes(emitIndex - static) match {
-      case t: EmitParamType => t
-      case _ => throw new RuntimeException(s"isStatic=${ mb.isStatic }, emitIndex=$emitIndex, params=$emitParamTypes")
-    }
-    val codeIndex = emitParamCodeIndex(emitIndex - static)
-
-    et match {
-      case SingleCodeEmitParamType(required, sct: StreamSingleCodeType) =>
-        val field = cb.memoizeFieldAny(
-          mb.getArg(codeIndex)(sct.ti).get,
-          s"storeEmitParam_sct_$emitIndex",
-          sct.ti)
-        val missing: Value[Boolean] = if (required)
-          const(false)
-        else
-          cb.memoizeField(mb.getArg[Boolean](codeIndex + 1), s"storeEmitParam_${emitIndex}_m")
-
-        { (cb2: EmitCodeBuilder, region: Value[Region]) =>
-          IEmitCode(cb2, missing, sct.loadToSValue(cb2, region, field))
-        }
-
-      case SingleCodeEmitParamType(required, sct) =>
-        val v = cb.memoizeField(
-          sct.loadToSValue(cb, null, mb.getArg(codeIndex)(sct.ti)),
-          s"storeEmitParam_$emitIndex")
-        val missing: Value[Boolean] = if (required)
-          const(false)
-        else
-          cb.memoizeField(mb.getArg[Boolean](codeIndex + 1), s"storeEmitParam_${emitIndex}_m")
-
-        { (cb2: EmitCodeBuilder, _) =>
-          IEmitCode(cb2, missing, v)
-        }
-
-      case SCodeEmitParamType(et) =>
-        val fd = cb.memoizeField(getEmitParam(cb, emitIndex, null), s"storeEmitParam_$emitIndex")
-        (cb2: EmitCodeBuilder, _) => fd.loadI(cb2)
-    }
-
+  def storeEmitParamAsField(cb: EmitCodeBuilder, emitIndex: Int): EmitValue = {
+    val param = getEmitParam(cb, emitIndex)
+    val fd = newEmitField(s"${mb.methodName}_param_${emitIndex}", param.emitType)
+    cb.assign(fd, param)
+    fd
   }
 
-  // needs region to support stream arguments
-  def getEmitParam(cb: EmitCodeBuilder, emitIndex: Int, r: Value[Region]): EmitValue = {
+  def getEmitParam(cb: EmitCodeBuilder, emitIndex: Int): EmitValue = {
     assert(mb.isStatic || emitIndex != 0)
     val static = (!mb.isStatic).toInt
     val et = emitParamTypes(emitIndex - static) match {
@@ -1003,7 +963,7 @@ class EmitMethodBuilder[C](
     et match {
       case SingleCodeEmitParamType(required, sct) =>
         val m = if (required) None else Some(mb.getArg[Boolean](codeIndex + 1))
-        val v = sct.loadToSValue(cb, r, mb.getArg(codeIndex)(sct.ti))
+        val v = sct.loadToSValue(cb, mb.getArg(codeIndex)(sct.ti))
 
         EmitValue(m, v)
 
@@ -1017,7 +977,6 @@ class EmitMethodBuilder[C](
         EmitValue(m, v)
     }
   }
-
 
   def invokeCode[T](cb: CodeBuilderLike, args: Param*): Value[T] = {
     assert(emitReturnType.isInstanceOf[CodeParamType])
@@ -1101,7 +1060,7 @@ trait WrappedEmitMethodBuilder[C] extends WrappedEmitClassBuilder[C] {
   // EmitMethodBuilder methods
   def getCodeParam[T: TypeInfo](emitIndex: Int): Settable[T] = emb.getCodeParam[T](emitIndex)
 
-  def getEmitParam(cb: EmitCodeBuilder, emitIndex: Int, r: Value[Region]): EmitValue = emb.getEmitParam(cb, emitIndex, r)
+  def getEmitParam(cb: EmitCodeBuilder, emitIndex: Int): EmitValue = emb.getEmitParam(cb, emitIndex)
 
   def newPLocal(st: SType): SSettable = emb.newPLocal(st)
 

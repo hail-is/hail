@@ -1,20 +1,15 @@
 import asyncio
-import functools
 import inspect
 import os
 import re
 import textwrap
 import warnings
-from io import BytesIO
 from shlex import quote as shq
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union, cast
-
-import dill
 
 from . import backend, batch  # pylint: disable=cyclic-import
 from . import resource as _resource  # pylint: disable=cyclic-import
 from .exceptions import BatchException
-from .globals import DEFAULT_SHELL
 
 
 def _add_resource_to_set(resource_set, resource, include_rg=True):
@@ -86,6 +81,7 @@ class Job:
         self._env: Dict[str, str] = {}
         self._wrapper_code: List[str] = []
         self._user_code: List[str] = []
+        self._regions: Optional[List[str]] = None
 
         self._resources: Dict[str, _resource.Resource] = {}
         self._resources_inverse: Dict[_resource.Resource, str] = {}
@@ -341,6 +337,53 @@ class Job:
             raise NotImplementedError("A ServiceBackend is required to use the 'always_run' option")
 
         self._always_run = always_run
+        return self
+
+    def regions(self, regions: Optional[List[str]]) -> 'Job':
+        """
+        Set the cloud regions a job can run in.
+
+        Notes
+        -----
+        Can only be used with the :class:`.backend.ServiceBackend`.
+
+        This method may be used to ensure code executes in the same region as the data it reads.
+        This can avoid egress charges as well as improve latency.
+
+        Examples
+        --------
+
+        Require the job to run in 'us-central1':
+
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
+        >>> j = b.new_job()
+        >>> (j.regions(['us-central1'])
+        ...   .command(f'echo "hello"'))
+
+        Specify the job can run in any region:
+
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
+        >>> j = b.new_job()
+        >>> (j.regions(None)
+        ...   .command(f'echo "hello"'))
+
+        Parameters
+        ----------
+        regions:
+            The cloud region(s) to run this job in. Use `None` to signify
+            the job can run in any available region. Use py:staticmethod:`.ServiceBackend.supported_regions`
+            to list the available regions to choose from. The default is the job can run in
+            any region.
+
+        Returns
+        -------
+        Same job object with the cloud regions the job can run in set.
+        """
+
+        if not isinstance(self._batch._backend, backend.ServiceBackend):
+            raise NotImplementedError("A ServiceBackend is required to use the 'regions' option")
+
+        self._regions = regions
         return self
 
     def timeout(self, timeout: Optional[Union[float, int]]) -> 'Job':
@@ -745,16 +788,9 @@ class BashJob(Job):
         if len(self._command) == 0:
             return False
 
-        job_shell = self._shell if self._shell else DEFAULT_SHELL
-
         job_command = [cmd.strip() for cmd in self._command]
         job_command = [f'{{\n{x}\n}}' for x in job_command]
         job_command = '\n'.join(job_command)
-
-        job_command = f'''
-#! {job_shell}
-{job_command}
-'''
 
         job_command_bytes = job_command.encode()
 
@@ -828,7 +864,7 @@ class PythonJob(Job):
         super().__init__(batch, token, name=name, attributes=attributes, shell=None)
         self._resources: Dict[str, _resource.Resource] = {}
         self._resources_inverse: Dict[_resource.Resource, str] = {}
-        self._functions: List[Tuple[_resource.PythonResult, Callable, Tuple[Any, ...], Dict[str, Any]]] = []
+        self._function_calls: List[Tuple[_resource.PythonResult, int, Tuple[Any, ...], Dict[str, Any]]] = []
         self.n_results = 0
 
     def _get_resource(self, item: str) -> '_resource.PythonResult':
@@ -1030,7 +1066,9 @@ class PythonJob(Job):
         result = self._get_resource(f'result{self.n_results}')
         handle_arg(result)
 
-        self._functions.append((result, unapplied, args, kwargs))
+        unapplied_id = self._batch._register_python_function(unapplied)
+
+        self._function_calls.append((result, unapplied_id, args, kwargs))
 
         return result
 
@@ -1045,60 +1083,24 @@ class PythonJob(Job):
                                       for name, resource in arg._resources.items()})
             return ('value', arg)
 
-        def deserialize_argument(arg):
-            typ, val = arg
-            if typ == 'py_path':
-                return dill.load(open(val, 'rb'))
-            if typ in ('path', 'dict_path'):
-                return val
-            assert typ == 'value'
-            return val
+        for i, (result, unapplied_id, args, kwargs) in enumerate(self._function_calls):
+            func_file = self._batch._python_function_files[unapplied_id]
 
-        def wrap(f):
-            @functools.wraps(f)
-            def wrapped(*args, **kwargs):
-                args = [deserialize_argument(arg) for arg in args]
-                kwargs = {kw: deserialize_argument(arg) for kw, arg in kwargs.items()}
-                return f(*args, **kwargs)
-            return wrapped
-
-        for i, (result, unapplied, args, kwargs) in enumerate(self._functions):
             args = [prepare_argument_for_serialization(arg) for arg in args]
             kwargs = {kw: prepare_argument_for_serialization(arg) for kw, arg in kwargs.items()}
 
-            pipe = BytesIO()
-            dill.dump(functools.partial(wrap(unapplied), *args, **kwargs), pipe, recurse=True)
-            pipe.seek(0)
+            args_file = await self._batch._serialize_python_to_input_file(
+                os.path.dirname(result._get_path(remote_tmpdir)), "args", i, (args, kwargs), dry_run
+            )
 
-            job_path = os.path.dirname(result._get_path(remote_tmpdir))
-            code_path = f'{job_path}/code{i}.p'
-
-            if not dry_run:
-                await self._batch._fs.makedirs(os.path.dirname(code_path), exist_ok=True)
-                await self._batch._fs.write(code_path, pipe.getvalue())
-
-            code = self._batch.read_input(code_path)
-
-            json_write = ''
-            if result._json:
-                json_write = f'''
-            with open(\\"{result._json}\\", \\"w\\") as out:
-                out.write(json.dumps(result) + \\"\\n\\")
+            json_write, str_write, repr_write = [
+                '' if not output else f'''
+        with open('{output}', 'w') as out:
+            out.write({formatter}(result) + '\\n')
 '''
-
-            str_write = ''
-            if result._str:
-                str_write = f'''
-            with open(\\"{result._str}\\", \\"w\\") as out:
-                out.write(str(result) + \\"\\n\\")
-'''
-
-            repr_write = ''
-            if result._repr:
-                repr_write = f'''
-            with open(\\"{result._repr}\\", \\"w\\") as out:
-                out.write(repr(result) + \\"\\n\\")
-'''
+                for output, formatter in
+                [(result._json, "json.dumps"), (result._str, "str"), (result._repr, "repr")]
+            ]
 
             wrapper_code = f'''python3 -c "
 import os
@@ -1108,14 +1110,28 @@ import traceback
 import json
 import sys
 
-with open(\\"{result}\\", \\"wb\\") as dill_out:
+def deserialize_argument(arg):
+    typ, val = arg
+    if typ == 'py_path':
+        return dill.load(open(val, 'rb'))
+    if typ in ('path', 'dict_path'):
+        return val
+    assert typ == 'value'
+    return val
+
+with open('{result}', 'wb') as dill_out:
     try:
-        with open(\\"{code}\\", \\"rb\\") as f:
-            result = dill.load(f)()
-            dill.dump(result, dill_out, recurse=True)
-            {json_write}
-            {str_write}
-            {repr_write}
+        with open('{func_file}', 'rb') as func_file:
+            func = dill.load(func_file)
+        with open('{args_file}', 'rb') as arg_file:
+            args, kwargs = dill.load(arg_file)
+            args = [deserialize_argument(arg) for arg in args]
+            kwargs = {{kw: deserialize_argument(arg) for kw, arg in kwargs.items()}}
+        result = func(*args, **kwargs)
+        dill.dump(result, dill_out, recurse=True)
+        {json_write}
+        {str_write}
+        {repr_write}
     except Exception as e:
         traceback.print_exc()
         dill.dump((e, traceback.format_exception(type(e), e, e.__traceback__)), dill_out, recurse=True)
@@ -1125,6 +1141,7 @@ with open(\\"{result}\\", \\"wb\\") as dill_out:
             wrapper_code = self._interpolate_command(wrapper_code, allow_python_results=True)
             self._wrapper_code.append(wrapper_code)
 
+            unapplied = self._batch._python_function_defs[unapplied_id]
             self._user_code.append(textwrap.dedent(inspect.getsource(unapplied)))
             args = ', '.join([f'{arg!r}' for _, arg in args])
             kwargs = ', '.join([f'{k}={v!r}' for k, (_, v) in kwargs.items()])

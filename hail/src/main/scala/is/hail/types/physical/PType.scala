@@ -8,7 +8,7 @@ import is.hail.expr.ir._
 import is.hail.types.physical.stypes.concrete.SRNGState
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.virtual._
-import is.hail.types.{Requiredness, coerce}
+import is.hail.types.{Requiredness, tcoerce}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.Row
@@ -20,7 +20,7 @@ class PTypeSerializer extends CustomSerializer[PType](format => (
   { case t: PType => JString(t.toString) }))
 
 class PStructSerializer extends CustomSerializer[PStruct](format => (
-  { case JString(s) => coerce[PStruct](IRParser.parsePType(s)) },
+  { case JString(s) => tcoerce[PStruct](IRParser.parsePType(s)) },
   { case t: PStruct => JString(t.toString) }))
 
 object PType {

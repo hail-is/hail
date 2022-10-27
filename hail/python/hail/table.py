@@ -10,7 +10,7 @@ from hail.expr.expressions import Expression, StructExpression, \
     construct_reference, to_expr, construct_expr, extract_refs_by_indices, \
     ExpressionException, TupleExpression, unify_all, NumericExpression, \
     StringExpression, CallExpression, CollectionExpression, DictExpression, \
-    IntervalExpression, LocusExpression, NDArrayExpression, expr_array
+    IntervalExpression, LocusExpression, NDArrayExpression, expr_stream
 from hail.expr.types import hail_type, tstruct, types_match, tarray, tset, dtypes_from_pandas
 from hail.expr.table_type import ttable
 import hail.ir as ir
@@ -2549,7 +2549,14 @@ class Table(ExprContainer):
         --------
         :meth:`.anti_join`
         """
-        return self.filter(hl.is_defined(other.index(self.key)))
+        if len(other.key) == 0:
+            raise ValueError('semi_join: cannot join with a table with no key')
+        if len(other.key) > len(self.key) or any(t[0].dtype != t[1].dtype for t in zip(self.key.values(), other.key.values())):
+            raise ValueError('semi_join: cannot join: table must have a key of the same type(s) and be the same length or shorter:'
+                             f'\n   Left key: {", ".join(str(x.dtype) for x in self.key.values())}'
+                             f'\n  Right key: {", ".join(str(x.dtype) for x in other.key.values())}')
+
+        return self.filter(hl.is_defined(other.index(*(self.key[i] for i in range(len(other.key))))))
 
     @typecheck_method(other=table_type)
     def anti_join(self, other: 'Table') -> 'Table':
@@ -2587,7 +2594,14 @@ class Table(ExprContainer):
         --------
         :meth:`.semi_join`, :meth:`.filter`
         """
-        return self.filter(hl.is_missing(other.index(self.key)))
+        if len(other.key) == 0:
+            raise ValueError('anti_join: cannot join with a table with no key')
+        if len(other.key) > len(self.key) or any(t[0].dtype != t[1].dtype for t in zip(self.key.values(), other.key.values())):
+            raise ValueError('anti_join: cannot join: table must have a key of the same type(s) and be the same length or shorter:'
+                             f'\n   Left key: {", ".join(str(x.dtype) for x in self.key.values())}'
+                             f'\n  Right key: {", ".join(str(x.dtype) for x in other.key.values())}')
+
+        return self.filter(hl.is_missing(other.index(*(self.key[i] for i in range(len(other.key))))))
 
     @typecheck_method(right=table_type,
                       how=enumeration('inner', 'outer', 'left', 'right'),
@@ -3774,22 +3788,21 @@ class Table(ExprContainer):
         def grouping_func(part):
             groups = part.grouped(n)
             key_names = list(self.key)
-            return groups.map(lambda group:
-                              group[0].select(*key_names, **{name: group}))
+            return groups.map(lambda group: group[0].select(*key_names, **{name: group}))
 
         return self._map_partitions(grouping_func)
 
-    @typecheck_method(f=func_spec(1, expr_array(expr_struct())))
+    @typecheck_method(f=func_spec(1, expr_stream(expr_struct())))
     def _map_partitions(self, f):
         rows_uid = 'tmp_rows_' + Env.get_uid()
         globals_uid = 'tmp_globals_' + Env.get_uid()
-        expr = construct_expr(ir.ToArray(ir.Ref(rows_uid, hl.tstream(self.row.dtype))), hl.tarray(self.row.dtype), self._row_indices)
+        expr = construct_expr(ir.Ref(rows_uid, hl.tstream(self.row.dtype)), hl.tstream(self.row.dtype), self._row_indices)
         body = f(expr)
         result_t = body.dtype
         if any(k not in result_t.element_type for k in self.key):
             raise ValueError('Table._map_partitions must preserve key fields')
 
-        body_ir = ir.Let('global', ir.Ref(globals_uid, self._global_type), ir.ToStream(body._ir))
+        body_ir = ir.Let('global', ir.Ref(globals_uid, self._global_type), body._ir)
         return Table(ir.TableMapPartitions(self._tir, globals_uid, rows_uid, body_ir))
 
     def _calculate_new_partitions(self, n_partitions):

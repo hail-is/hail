@@ -106,7 +106,7 @@ case class MatrixNativeWriter(
 
     // write out partitioner key, which may be stricter than table key
     val partitioner = lowered.partitioner
-    val pKey: PStruct = coerce[PStruct](rowSpec.decodedPType(partitioner.kType))
+    val pKey: PStruct = tcoerce[PStruct](rowSpec.decodedPType(partitioner.kType))
 
     val emptyWriter = PartitionNativeWriter(emptySpec, IndexedSeq(), s"$path/globals/globals/parts/", None, None)
     val globalWriter = PartitionNativeWriter(globalSpec, IndexedSeq(), s"$path/globals/rows/parts/", None, None)
@@ -145,8 +145,8 @@ case class MatrixNativeWriter(
 
                 val matrixWriter = MatrixSpecWriter(path, tm, "rows/rows", "globals/rows", "cols/rows", "entries/rows", "references", log = true)
 
-                val rowsIndexSpec = IndexSpec.defaultAnnotation("../../index", coerce[PStruct](pKey))
-                val entriesIndexSpec = IndexSpec.defaultAnnotation("../../index", coerce[PStruct](pKey), withOffsetField = true)
+                val rowsIndexSpec = IndexSpec.defaultAnnotation("../../index", tcoerce[PStruct](pKey))
+                val entriesIndexSpec = IndexSpec.defaultAnnotation("../../index", tcoerce[PStruct](pKey), withOffsetField = true)
 
                 bindIR(writeCols) { colInfo =>
                   bindIR(parts) { partInfo =>
@@ -222,7 +222,8 @@ case class SplitPartitionNativeWriter(
     val iAnnotationType = PCanonicalStruct(required = true, "entries_offset" -> PInt64())
     val mb = cb.emb
 
-    val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(index.get._2, mb.ecb, annotationType = iAnnotationType) }
+    val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(index.get._2, mb.ecb, annotationType = iAnnotationType,
+      branchingFactor = Option(mb.ctx.getFlag("index_branching_factor")).map(_.toInt).getOrElse(4096)) }
 
     context.toI(cb).map(cb) { pctx =>
       val filename1 = mb.newLocal[String]("filename1")
@@ -972,9 +973,9 @@ case class MatrixBGENWriter(
       val partFiles = ToStream(Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"$folder/${ partFile(d, i) }-").toFastIndexedSeq))
       val numVariants = if (writeHeader) ToStream(ts.countPerPartition(relationalLetsAbove)) else ToStream(MakeArray(Array.tabulate(ts.numPartitions)(_ => NA(TInt64)): _*))
 
-      val ctxElt = Ref(genUID(), coerce[TStream](oldCtx.typ).elementType)
-      val pf = Ref(genUID(), coerce[TStream](partFiles.typ).elementType)
-      val nv = Ref(genUID(), coerce[TStream](numVariants.typ).elementType)
+      val ctxElt = Ref(genUID(), tcoerce[TStream](oldCtx.typ).elementType)
+      val pf = Ref(genUID(), tcoerce[TStream](partFiles.typ).elementType)
+      val nv = Ref(genUID(), tcoerce[TStream](numVariants.typ).elementType)
 
       StreamZip(FastSeq(oldCtx, partFiles, numVariants), FastSeq(ctxElt.name, pf.name, nv.name),
         MakeStruct(FastSeq("oldCtx" -> ctxElt, "numVariants" -> nv, "partFile" -> pf)),

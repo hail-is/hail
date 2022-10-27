@@ -1,6 +1,7 @@
 steps:
   - kind: buildImage2
     name: git_make_bash_image
+    publishAs: git-make-bash
     dockerFile:
       inline: |
         FROM {{ global.docker_root_image }}
@@ -54,7 +55,6 @@ steps:
         clouds:
           - gcp
       - name: zulip-config
-      - name: benchmark-gsa-key
       - name: billing-monitor-gsa-key
         clouds:
           - gcp
@@ -398,7 +398,6 @@ steps:
     script: |
       kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "auth-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
       kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "batch-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
-      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "benchmark-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
       kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "ci-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
       kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "test-dev-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
       kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "grafana-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
@@ -547,28 +546,6 @@ steps:
       cpu: "2"
       memory: standard
   - kind: buildImage2
-    name: benchmark_image
-    dockerFile: /io/repo/benchmark-service/Dockerfile
-    contextPath: /io/repo
-    publishAs: benchmark
-    inputs:
-      - from: /repo
-        to: /io/repo
-    dependsOn:
-      - service_base_image
-      - merge_code
-  - kind: runImage
-    name: check_benchmark_service
-    image:
-      valueFrom: benchmark_image.image
-    script: |
-      set -ex
-      SITE_PACKAGES=$(pip3 show benchmark | grep Location | sed 's/Location: //')
-      python3 -m flake8 $SITE_PACKAGES/benchmark
-      python3 -m pylint --rcfile pylintrc benchmark --score=n
-    dependsOn:
-      - benchmark_image
-  - kind: buildImage2
     name: monitoring_image
     dockerFile: /io/repo/monitoring/Dockerfile
     contextPath: /io/repo
@@ -601,43 +578,6 @@ steps:
     dependsOn:
       - service_base_image
       - merge_code
-  - kind: runImage
-    name: render_grafana_nginx_conf
-    image:
-      valueFrom: service_base_image.image
-    script: |
-      set -ex
-      cd /io/repo/grafana
-      {% if deploy %}
-      DEPLOY=true
-      {% else %}
-      DEPLOY=false
-      {% endif %}
-      python3 ../ci/jinja2_render.py '{"deploy": '${DEPLOY}', "global": {"domain": "{{ global.domain }}"}, "default_ns": {"name": "{{ default_ns.name }}"}}' nginx.conf nginx.conf.out
-    inputs:
-      - from: /repo
-        to: /io/repo
-    outputs:
-      - from: /io/repo/grafana/nginx.conf.out
-        to: /grafana/nginx.conf.out
-    dependsOn:
-      - default_ns
-      - service_base_image
-      - merge_code
-  - kind: buildImage2
-    name: grafana_nginx_image
-    dockerFile: /io/grafana/Dockerfile.nginx
-    contextPath: /io/grafana
-    publishAs: grafana
-    inputs:
-      - from: /repo/grafana
-        to: /io/grafana
-      - from: /grafana/nginx.conf.out
-        to: /io/grafana/nginx.conf.out
-    dependsOn:
-      - hail_ubuntu_image
-      - render_grafana_nginx_conf
-      - merge_code
   - kind: buildImage2
     name: test_ci_image
     dockerFile: /io/repo/ci/Dockerfile.test
@@ -659,17 +599,6 @@ steps:
     dockerFile: /io/repo/monitoring/Dockerfile.test
     contextPath: /io/repo
     publishAs: test-monitoring
-    inputs:
-      - from: /repo
-        to: /io/repo
-    dependsOn:
-      - service_base_image
-      - merge_code
-  - kind: buildImage2
-    name: test_benchmark_image
-    dockerFile: /io/repo/benchmark-service/Dockerfile.test
-    contextPath: /io/repo
-    publishAs: test-benchmark
     inputs:
       - from: /repo
         to: /io/repo
@@ -1194,17 +1123,6 @@ steps:
       - render_notebook_nginx_conf
       - merge_code
   - kind: runImage
-    name: check_notebook
-    image:
-      valueFrom: notebook_image.image
-    script: |
-      set -ex
-      SITE_PACKAGES=$(pip3 show notebook | grep Location | sed 's/Location: //')
-      python3 -m flake8 $SITE_PACKAGES/notebook
-      python3 -m pylint --rcfile pylintrc notebook
-    dependsOn:
-      - notebook_image
-  - kind: runImage
     name: test_hail_python
     numSplits: 7
     image:
@@ -1384,6 +1302,11 @@ steps:
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       mkdir -p /io/tmp
 
+      # The test should use the test credentials, not CI's credentials
+      sed -i 's/gsa-key/test-gsa-key/g' ${SPARK_HOME}/conf/core-site.xml
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+
+      export HAIL_CLOUD={{ global.cloud }}
       export HAIL_TEST_STORAGE_URI=/io/tmp/
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
@@ -1490,11 +1413,10 @@ steps:
 
       # dev deploy elides the hail-is remote, add it and retrieve the tags
       git remote add hail-is https://github.com/hail-is/hail.git
-      git fetch hail-is
 
       export HAIL_PIP_VERSION=$(cat hail/python/hail/hail_pip_version)
 
-      if git ls-remote --exit-code --tags origin $HAIL_PIP_VERSION
+      if git ls-remote --exit-code --tags hail-is $HAIL_PIP_VERSION
       then
         # In this case, we want to get the docs from Google Storage.
         python3 -m hailtop.aiotools.copy 'null' '[
@@ -1546,45 +1468,7 @@ steps:
     dependsOn:
       - default_ns
       - base_image
-      - grafana_nginx_image
       - create_certs
-  - kind: runImage
-    name: render_prom_nginx_conf
-    image:
-      valueFrom: service_base_image.image
-    script: |
-      set -ex
-      cd /io/repo/prometheus
-      {% if deploy %}
-      DEPLOY=true
-      {% else %}
-      DEPLOY=false
-      {% endif %}
-      python3 ../ci/jinja2_render.py '{"deploy": '${DEPLOY}', "default_ns": {"name": "{{ default_ns.name }}"}}' nginx.conf nginx.conf.out
-    inputs:
-      - from: /repo
-        to: /io/repo
-    outputs:
-      - from: /io/repo/prometheus/nginx.conf.out
-        to: /prometheus/nginx.conf.out
-    dependsOn:
-      - default_ns
-      - service_base_image
-      - merge_code
-  - kind: buildImage2
-    name: prom_nginx_image
-    dockerFile: /io/prometheus/Dockerfile.nginx
-    contextPath: /io/prometheus
-    publishAs: prometheus
-    inputs:
-      - from: /repo/prometheus
-        to: /io/prometheus
-      - from: /prometheus/nginx.conf.out
-        to: /io/prometheus/nginx.conf.out
-    dependsOn:
-      - hail_ubuntu_image
-      - render_prom_nginx_conf
-      - merge_code
   - kind: deploy
     name: deploy_prometheus
     namespace:
@@ -1595,7 +1479,6 @@ steps:
       - dev
     dependsOn:
       - default_ns
-      - prom_nginx_image
       - create_certs
   - kind: runImage
     name: create_dummy_oauth2_client_secret
@@ -1631,17 +1514,6 @@ steps:
       - create_dummy_oauth2_client_secret
       - create_certs
       - create_accounts
-  - kind: runImage
-    name: check_monitoring
-    image:
-      valueFrom: monitoring_image.image
-    script: |
-      set -ex
-      SITE_PACKAGES=$(pip3 show monitoring | grep Location | sed 's/Location: //')
-      python3 -m flake8 $SITE_PACKAGES/monitoring
-      python3 -m pylint --rcfile pylintrc monitoring
-    dependsOn:
-      - monitoring_image
   - kind: runImage
     name: delete_monitoring_tables
     image:
@@ -1896,6 +1768,9 @@ steps:
       - name: add-frozen-mode
         script: /io/sql/add-frozen-mode.sql
         online: true
+      - name: active-namespaces
+        script: /io/sql/active-namespaces.sql
+        online: true
     inputs:
       - from: /repo/ci/sql
         to: /io/sql
@@ -2084,6 +1959,15 @@ steps:
       - name: add-commit-updates
         script: /io/sql/add-commit-updates.sql
         online: true
+      - name: add-job-regions
+        script: /io/sql/add-job-regions.sql
+        online: true
+      - name: faster-regions-pool-scheduler
+        script: /io/sql/faster-regions-pool-scheduler.sql
+        online: true
+      - name: add-batch-state-index
+        script: /io/sql/add-batch-state-index.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -2184,55 +2068,6 @@ steps:
       - create_deploy_config
       - create_accounts
       - deploy_batch
-  - kind: deploy
-    name: deploy_benchmark
-    namespace:
-      valueFrom: default_ns.name
-    config: benchmark-service/deployment.yaml
-    wait:
-      - kind: Service
-        name: benchmark
-        for: alive
-    dependsOn:
-      - default_ns
-      - benchmark_image
-      - create_certs
-      - deploy_auth
-      - create_accounts
-      - create_billing_projects
-      - deploy_batch
-    clouds:
-      - gcp
-  - kind: runImage
-    name: test_benchmark
-    image:
-      valueFrom: test_benchmark_image.image
-    script: |
-      set -ex
-      python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /test/
-    secrets:
-      - name: worker-deploy-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /deploy-config
-      - name: test-dev-tokens
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /user-tokens
-      - name: ssl-config-benchmark-tests
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ssl-config
-    timeout: 1200
-    dependsOn:
-      - test_benchmark_image
-      - create_deploy_config
-      - create_accounts
-      - default_ns
-      - create_certs
-      - deploy_benchmark
-    clouds:
-      - gcp
   - kind: runImage
     name: upload_query_jar
     image:
@@ -2298,6 +2133,7 @@ steps:
 
       cd /io/repo/hail/python
 
+      export HAIL_CLOUD={{ global.cloud }}
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
       export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
@@ -2355,6 +2191,7 @@ steps:
       - build_hail_jar_and_wheel_only_spark_3_2
   - kind: buildImage2
     name: netcat_ubuntu_image
+    publishAs: netcat
     dockerFile:
       inline: |
         FROM {{ hail_ubuntu_image.image }}
@@ -2363,6 +2200,7 @@ steps:
       - hail_ubuntu_image
   - kind: buildImage2
     name: volume_image
+    publishAs: volume
     dockerFile:
       inline: |
         FROM {{ hail_ubuntu_image.image }}
@@ -2371,6 +2209,7 @@ steps:
       - hail_ubuntu_image
   - kind: buildImage2
     name: workdir_image
+    publishAs: workdir
     dockerFile:
       inline: |
         FROM {{ hail_ubuntu_image.image }}
@@ -2379,6 +2218,7 @@ steps:
       - hail_ubuntu_image
   - kind: buildImage2
     name: curl_image
+    publishAs: curl
     dockerFile:
       inline: |
         FROM {{ hail_ubuntu_image.image }}
@@ -2456,6 +2296,7 @@ steps:
       export HAIL_DOMAIN="{{ global.domain }}"
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
       python3 -m pytest \
+              --asyncio-mode=auto \
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
               --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
               --log-cli-level=INFO \

@@ -23,6 +23,7 @@ else
 fi
 
 DOCKER_BUILDKIT=1 docker build \
+       --platform linux/amd64 \
        --file ${DOCKERFILE} \
        --cache-from ${MAIN_CACHE} \
        ${DEV_CACHE:+--cache-from ${DEV_CACHE}} \

@@ -8,6 +8,7 @@ steps:
         optional: true
   - kind: buildImage2
     name: git_make_bash_image
+    publishAs: git-make-bash
     dockerFile:
       inline: |
         FROM {{ global.docker_root_image }}

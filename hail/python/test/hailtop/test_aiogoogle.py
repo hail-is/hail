@@ -129,6 +129,7 @@ async def test_multi_part_create_many_two_level_merge(gs_filesystem):
     except (concurrent.futures._base.CancelledError, asyncio.CancelledError) as err:
         raise AssertionError('uncaught cancelled error') from err
 
+@pytest.mark.asyncio
 async def test_weird_urls(gs_filesystem):
     _, fs, base = gs_filesystem
 
@@ -136,7 +137,7 @@ async def test_weird_urls(gs_filesystem):
     assert await fs.read(base + '?') == b'contents of ?'
 
     await fs.write(base + '?a', b'contents of ?a')
-    assert await fs.read(base + '?') == b'contents of ?a'
+    assert await fs.read(base + '?a') == b'contents of ?a'
 
     await fs.write(base + '?a#b', b'contents of ?a#b')
     assert await fs.read(base + '?a#b') == b'contents of ?a#b'

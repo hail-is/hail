@@ -215,17 +215,6 @@ resource "azurerm_role_assignment" "test_test_container_contributor" {
   principal_id         = module.test_sp.principal_id
 }
 
-resource "azuread_application" "benchmark" {
-  display_name = "${var.resource_group.name}-benchmark"
-}
-module "benchmark_sp" {
-  source = "../service_principal"
-
-  name                  = "benchmark"
-  application_id        = azuread_application.benchmark.application_id
-  application_object_id = azuread_application.benchmark.object_id
-}
-
 resource "azuread_application" "ci" {
   display_name = "${var.resource_group.name}-ci"
 }

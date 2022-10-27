@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import random
+import traceback
 from typing import List, Tuple
 
 import sortedcontainers
@@ -22,9 +23,10 @@ from hailtop.utils import (
 from ...batch_format_version import BatchFormatVersion
 from ...inst_coll_config import JobPrivateInstanceManagerConfig
 from ...instance_config import QuantifiedResource
-from ...utils import Box, ExceededSharesCounter
+from ...utils import Box, ExceededSharesCounter, regions_bits_rep_to_regions
+from ..exceptions import RegionsNotSupportedError
 from ..instance import Instance
-from ..job import mark_job_creating, schedule_job
+from ..job import mark_job_creating, mark_job_errored, schedule_job
 from ..resource_manager import CloudResourceManager
 from .base import InstanceCollection, InstanceCollectionManager
 
@@ -251,7 +253,7 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
                     allocate_jobs(lowest_total_user, mark)
                     continue
 
-            allocation = min([c for c in [lowest_running, lowest_total] if c is not None])
+            allocation = min(c for c in [lowest_running, lowest_total] if c is not None)
 
             n_allocating_users = len(allocating_users_by_total_jobs)
             jobs_to_allocate = n_allocating_users * (allocation - mark)
@@ -269,7 +271,9 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
 
         return result
 
-    async def create_instance(self, machine_spec: dict) -> Tuple[Instance, List[QuantifiedResource]]:
+    async def create_instance(
+        self, machine_spec: dict, regions: List[str]
+    ) -> Tuple[Instance, List[QuantifiedResource]]:
         machine_type = machine_spec['machine_type']
         preemptible = machine_spec['preemptible']
         storage_gb = machine_spec['storage_gib']
@@ -279,8 +283,7 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
             cores=cores,
             machine_type=machine_type,
             job_private=True,
-            location=None,
-            region=None,
+            regions=regions,
             preemptible=preemptible,
             max_idle_time_msecs=None,
             local_ssd_data_disk=False,
@@ -322,7 +325,7 @@ WHERE user = %s AND `state` = 'running';
             ):
                 async for record in self.db.select_and_fetchall(
                     '''
-SELECT jobs.job_id, jobs.spec, jobs.cores_mcpu, COALESCE(SUM(instances.state IS NOT NULL AND
+SELECT jobs.batch_id, jobs.job_id, jobs.spec, jobs.cores_mcpu, regions_bits_rep, COALESCE(SUM(instances.state IS NOT NULL AND
   (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
@@ -342,7 +345,7 @@ LIMIT %s;
                 if not batch['cancelled']:
                     async for record in self.db.select_and_fetchall(
                         '''
-SELECT jobs.job_id, jobs.spec, jobs.cores_mcpu, COALESCE(SUM(instances.state IS NOT NULL AND
+SELECT jobs.batch_id, jobs.job_id, jobs.spec, jobs.cores_mcpu, regions_bits_rep, COALESCE(SUM(instances.state IS NOT NULL AND
   (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
@@ -350,7 +353,7 @@ LEFT JOIN instances ON attempts.instance_name = instances.name
 WHERE jobs.batch_id = %s AND jobs.state = 'Ready' AND always_run = 0 AND jobs.inst_coll = %s AND cancelled = 0
 GROUP BY jobs.job_id, jobs.spec, jobs.cores_mcpu
 HAVING live_attempts = 0
-LIMIT %s;
+LIMIT %s
 ''',
                         (batch['id'], self.name, remaining.value),
                     ):
@@ -402,10 +405,27 @@ LIMIT %s;
                         batch_format_version = BatchFormatVersion(record['format_version'])
                         spec = json.loads(record['spec'])
                         machine_spec = batch_format_version.get_spec_machine_spec(spec)
-                        instance, total_resources_on_instance = await self.create_instance(machine_spec)
+
+                        regions_bits_rep = record['regions_bits_rep']
+                        if regions_bits_rep is None:
+                            regions = self.inst_coll_manager.regions
+                        else:
+                            regions = regions_bits_rep_to_regions(regions_bits_rep, self.app['regions'])
+
+                        instance, total_resources_on_instance = await self.create_instance(machine_spec, regions)
                         log.info(f'created {instance} for {(batch_id, job_id)}')
                         await mark_job_creating(
                             self.app, batch_id, job_id, attempt_id, instance, time_msecs(), total_resources_on_instance
+                        )
+                    except RegionsNotSupportedError:
+                        await mark_job_errored(
+                            self.app,
+                            batch_id,
+                            job_id,
+                            attempt_id,
+                            record['user'],
+                            record['format_version'],
+                            traceback.format_exc(),
                         )
                     except Exception:
                         log.exception(f'while creating job private instance for job {id}', exc_info=True)

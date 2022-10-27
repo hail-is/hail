@@ -207,7 +207,7 @@ worker: Optional['Worker'] = None
 
 image_configs: Dict[str, Dict[str, Any]] = {}
 
-image_lock = aiorwlock.RWLock()
+image_lock: Optional[aiorwlock.RWLock] = None
 
 
 class PortAllocator:
@@ -1345,10 +1345,13 @@ class Job:
         self.main_volume_mounts.append(io_volume_mount)
         self.output_volume_mounts.append(io_volume_mount)
 
+        requester_pays_project = job_spec.get('requester_pays_project')
         cloudfuse = job_spec.get('cloudfuse') or job_spec.get('gcsfuse')
         self.cloudfuse = cloudfuse
         if cloudfuse:
             for config in cloudfuse:
+                if requester_pays_project:
+                    config['requester_pays_project'] = requester_pays_project
                 config['mounted'] = False
                 bucket = config['bucket']
                 assert bucket
@@ -2325,11 +2328,11 @@ class Worker:
 
     async def _initialize_jvms(self):
         if instance_config.worker_type() in ('standard', 'D', 'highmem', 'E'):
-            jvms = await asyncio.gather(
-                *[JVM.create(i, 1, self) for i in range(CORES)],
-                *[JVM.create(CORES + i, 8, self) for i in range(CORES // 8)],
-            )
-            self._jvms.update(jvms)
+            jvms = []
+            for jvm_cores in (1, 2, 4, 8):
+                for _ in range(CORES // jvm_cores):
+                    jvms.append(JVM.create(len(jvms), jvm_cores, self))
+            self._jvms.update(await asyncio.gather(*jvms))
         log.info(f'JVMs initialized {self._jvms}')
 
     async def borrow_jvm(self, n_cores: int) -> JVM:
@@ -2374,7 +2377,7 @@ class Worker:
                             await self.client_session.close()
                             log.info('closed client session')
 
-    async def run_job(self, job):  # pylint: disable=no-self-use
+    async def run_job(self, job):
         try:
             await job.run()
         except asyncio.CancelledError:
@@ -2757,8 +2760,9 @@ class Worker:
 
 
 async def async_main():
-    global port_allocator, network_allocator, worker, docker
+    global port_allocator, network_allocator, worker, docker, image_lock
 
+    image_lock = aiorwlock.RWLock()
     docker = aiodocker.Docker()
 
     port_allocator = PortAllocator()

@@ -2131,7 +2131,7 @@ def import_matrix_table(paths,
     file_per_partition = import_lines(paths, force_bgz=force_bgz, file_per_partition=True)
     file_per_partition = file_per_partition.filter(hl.bool(hl.len(file_per_partition.text) == 0)
                                                    | comment_filter(file_per_partition), False)
-    first_lines_table = file_per_partition._map_partitions(lambda rows: rows[:1])
+    first_lines_table = file_per_partition._map_partitions(lambda rows: rows.take(1))
     first_lines_table = first_lines_table.annotate(split_array=first_lines_table.text.split(delimiter)).add_index()
 
     if not no_header:

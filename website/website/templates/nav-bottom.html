@@ -26,7 +26,7 @@
     };
   })();
 </script>
-<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js" integrity="sha512-7Tmwzq3E6Wz5Ue1YikHkMXpyno2Qt4xIz9RMdKXHKyRIsmadkS5yUL0v3YM+H2VQLtFy0zw+RvxqOhevZbxWaA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script type="text/javascript">
   requirejs(["https://cdn.jsdelivr.net/npm/docsearch.js@2/dist/cdn/docsearch.min.js"], function(docsearch) {
     let isHighlighted = false;
@@ -39,7 +39,7 @@
 
     function handleSearchKeyUp(query, ev) {
       if(ev.keyCode == 13 && !isHighlighted) {
-        location.href = `{{ base_path }}/search.html?query=${query}`;
+        location.href = `{{ base_path }}/search.html?query=${encodeURIComponent(query)}`;
       }
     }
 

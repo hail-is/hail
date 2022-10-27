@@ -33,6 +33,22 @@ class GCPDriver(CloudDriver):
         region = gcp_config.region
         regions = gcp_config.regions
 
+        region_args = [(region,) for region in regions]
+        await db.execute_many(
+            '''
+INSERT INTO regions (region) VALUES (%s)
+ON DUPLICATE KEY UPDATE region = region;
+''',
+            region_args,
+        )
+
+        db_regions = {
+            record['region']: record['region_id']
+            async for record in db.select_and_fetchall('SELECT region_id, region from regions')
+        }
+        assert max(db_regions.values()) < 64, str(db_regions)
+        app['regions'] = db_regions
+
         compute_client = aiogoogle.GoogleComputeClient(project, credentials_file=credentials_file)
 
         activity_logs_client = aiogoogle.GoogleLoggingClient(
@@ -49,7 +65,7 @@ class GCPDriver(CloudDriver):
 
         zone_monitor = await ZoneMonitor.create(compute_client, regions, zone)
         billing_manager = await GCPBillingManager.create(db)
-        inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, zone_monitor, region)
+        inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, zone_monitor, region, regions)
         resource_manager = GCPResourceManager(project, compute_client, billing_manager)
 
         create_pools_coros = [

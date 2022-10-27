@@ -756,14 +756,14 @@ class GoogleStorageAsyncFS(AsyncFS):
 
 
 class GoogleStorageAsyncFSFactory(AsyncFSFactory[GoogleStorageAsyncFS]):
-    def from_credentials_data(self, credentials_data: dict) -> GoogleStorageAsyncFS:  # pylint: disable=no-self-use
+    def from_credentials_data(self, credentials_data: dict) -> GoogleStorageAsyncFS:
         return GoogleStorageAsyncFS(
             credentials=GoogleCredentials.from_credentials_data(credentials_data))
 
-    def from_credentials_file(self, credentials_file: str) -> GoogleStorageAsyncFS:  # pylint: disable=no-self-use
+    def from_credentials_file(self, credentials_file: str) -> GoogleStorageAsyncFS:
         return GoogleStorageAsyncFS(
             credentials=GoogleCredentials.from_file(credentials_file))
 
-    def from_default_credentials(self) -> GoogleStorageAsyncFS:  # pylint: disable=no-self-use
+    def from_default_credentials(self) -> GoogleStorageAsyncFS:
         return GoogleStorageAsyncFS(
             credentials=GoogleCredentials.default_credentials())

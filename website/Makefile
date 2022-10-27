@@ -2,8 +2,6 @@ include ../config.mk
 
 .PHONY: docs build run run-docker deploy clean
 
-TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
-
 WEBSITE_IMAGE := $(DOCKER_PREFIX)/website:$(TOKEN)
 
 EXTRA_PYTHONPATH := ../hail/python:../gear:../web_common

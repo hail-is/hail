@@ -1604,7 +1604,10 @@ object MatrixVCFReader {
         val localArrayElementsRequired = params.arrayElementsRequired
         val localFilterAndReplace = params.filterAndReplace
 
+        val fsConfigBC = backend.broadcast(fs.getConfiguration())
         backend.parallelizeAndComputeWithIndex(ctx.backendContext, fs, files.tail.map(_.getBytes), None) { (bytes, htc, _, fs) =>
+          val fsConfig = fsConfigBC.value
+          fs.setConfiguration(fsConfig)
           val file = new String(bytes)
 
           val hd = parseHeader(
@@ -1729,7 +1732,7 @@ class MatrixVCFReader(
   val partitionCounts: Option[IndexedSeq[Long]] = None
 
   override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
-    VirtualTypeWithReq(coerce[PStruct](fullRVDType.rowType.subsetTo(requestedType.rowType)))
+    VirtualTypeWithReq(tcoerce[PStruct](fullRVDType.rowType.subsetTo(requestedType.rowType)))
 
   override def uidRequiredness: VirtualTypeWithReq =
     VirtualTypeWithReq(PCanonicalTuple(true, PInt64Required, PInt64Required))

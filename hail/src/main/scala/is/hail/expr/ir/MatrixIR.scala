@@ -554,8 +554,8 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, entryExpr: IR, rowExpr: IR)
   }
 
   val typ: MatrixType = child.typ.copy(
-    rowType = child.typ.rowKeyStruct ++ coerce[TStruct](rowExpr.typ),
-    entryType = coerce[TStruct](entryExpr.typ)
+    rowType = child.typ.rowKeyStruct ++ tcoerce[TStruct](rowExpr.typ),
+    entryType = tcoerce[TStruct](entryExpr.typ)
   )
 
   override def columnCount: Option[Int] = child.columnCount
@@ -574,8 +574,8 @@ case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR)
   }
 
   val typ = child.typ.copy(
-    entryType = coerce[TStruct](entryExpr.typ),
-    colType = child.typ.colKeyStruct ++ coerce[TStruct](colExpr.typ))
+    entryType = tcoerce[TStruct](entryExpr.typ),
+    colType = child.typ.colKeyStruct ++ tcoerce[TStruct](colExpr.typ))
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
@@ -584,6 +584,8 @@ case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR)
 
 case class MatrixUnionCols(left: MatrixIR, right: MatrixIR, joinType: String) extends MatrixIR {
   require(joinType == "inner" || joinType == "outer")
+  require(left.typ.rowKeyStruct isIsomorphicTo right.typ.rowKeyStruct)
+
   lazy val children: IndexedSeq[BaseIR] = Array(left, right)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixUnionCols = {
@@ -591,10 +593,23 @@ case class MatrixUnionCols(left: MatrixIR, right: MatrixIR, joinType: String) ex
     MatrixUnionCols(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[MatrixIR], joinType)
   }
 
+  private val newRowType = {
+    val leftKeyType = left.typ.rowKeyStruct
+    val leftValueType = left.typ.rowValueStruct
+    val rightValueType = right.typ.rowValueStruct
+    if (leftValueType.fieldNames.toSet
+      .intersect(rightValueType.fieldNames.toSet)
+      .nonEmpty)
+      throw new RuntimeException(s"invalid MatrixUnionCols: \n  left value:  $leftValueType\n  right value: $rightValueType")
+
+    leftKeyType ++ leftValueType ++ rightValueType
+  }
+
   val typ: MatrixType = if (joinType == "inner")
-    left.typ
+    left.typ.copy(rowType = newRowType)
   else
     left.typ.copy(
+      rowType = newRowType,
       colType = TStruct(left.typ.colType.fields.map(f => f.copy(typ = f.typ))),
       entryType = TStruct(left.typ.entryType.fields.map(f => f.copy(typ = f.typ))))
 
@@ -618,7 +633,7 @@ case class MatrixMapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
   }
 
   val typ: MatrixType =
-    child.typ.copy(entryType = coerce[TStruct](newEntries.typ))
+    child.typ.copy(entryType = tcoerce[TStruct](newEntries.typ))
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
@@ -797,7 +812,7 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
 
   val newRow: InsertFields = {
     val refs = path.init.scanLeft(Ref("va", child.typ.rowType))((struct, name) =>
-      Ref(genUID(), coerce[TStruct](struct.typ).field(name).typ))
+      Ref(genUID(), tcoerce[TStruct](struct.typ).field(name).typ))
 
     path.zip(refs).zipWithIndex.foldRight[IR](idx) {
       case (((field, ref), i), arg) =>

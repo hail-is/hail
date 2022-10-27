@@ -17,12 +17,12 @@ import is.hail.rvd.{AbstractRVDSpec, IndexSpec, RVDPartitioner, RVDSpecMaker}
 import is.hail.types.encoded.EType
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SContainer, SStringValue, SVoidValue}
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.{EmitType, SCode, SValue, SSettable}
-import is.hail.types.physical.stypes.concrete.{SStackStruct, SJavaArrayString, SJavaArrayStringValue, SSubsetStruct, SSubsetStructValue}
+import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SValue}
+import is.hail.types.physical.stypes.concrete.{SJavaArrayString, SJavaArrayStringValue, SStackStruct, SSubsetStruct, SSubsetStructValue}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.primitives.{SBooleanValue, SInt64Value, SInt64}
+import is.hail.types.physical.stypes.primitives.{SBooleanValue, SInt64, SInt64Value}
 import is.hail.types.virtual._
-import is.hail.types.{RIterable, RStruct, RTuple, RTable, TableType, TypeWithRequiredness}
+import is.hail.types.{RIterable, RStruct, RTable, RTuple, TableType, TypeWithRequiredness, tcoerce}
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 import is.hail.variant.ReferenceGenome
@@ -50,7 +50,7 @@ object TableNativeWriter {
     rowSpec: TypedCodecSpec, globalSpec: TypedCodecSpec, relationalLetsAbove: Map[String, IR]): IR = {
     // write out partitioner key, which may be stricter than table key
     val partitioner = ts.partitioner
-    val pKey: PStruct = coerce[PStruct](rowSpec.decodedPType(partitioner.kType))
+    val pKey: PStruct = tcoerce[PStruct](rowSpec.decodedPType(partitioner.kType))
     val rowWriter = PartitionNativeWriter(rowSpec, pKey.fieldNames, s"$path/rows/parts/", Some(s"$path/index/" -> pKey), if (stageLocally) Some(ctx.localTmpdir) else None)
     val globalWriter = PartitionNativeWriter(globalSpec, IndexedSeq(), s"$path/globals/parts/", None, None)
 
@@ -76,7 +76,7 @@ object TableNativeWriter {
             WriteMetadata(MakeArray(GetField(writeGlobals, "filePath")),
               RVDSpecWriter(s"$path/globals", RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(1)))),
             WriteMetadata(ToArray(mapIR(ToStream(fileCountAndDistinct)) { fc => GetField(fc, "filePath") }),
-              RVDSpecWriter(s"$path/rows", RVDSpecMaker(rowSpec, partitioner, IndexSpec.emptyAnnotation("../index", coerce[PStruct](pKey))))),
+              RVDSpecWriter(s"$path/rows", RVDSpecMaker(rowSpec, partitioner, IndexSpec.emptyAnnotation("../index", tcoerce[PStruct](pKey))))),
             WriteMetadata(ToArray(mapIR(ToStream(fileCountAndDistinct)) { fc =>
               SelectFields(fc, Seq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey"))
             }),
@@ -222,7 +222,8 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, keyFields: Indexe
     private[this] val ctx = _ctx.asString
     private[this] val mb = cb.emb
     private[this] val indexKeyType = ifIndexed { index.get._2 }
-    private[this] val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(indexKeyType, mb.ecb) }
+    private[this] val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(indexKeyType, mb.ecb,
+      branchingFactor = Option(mb.ctx.getFlag("index_branching_factor")).map(_.toInt).getOrElse(4096)) }
     private[this] val filename = mb.newLocal[String]("filename")
     private[this] val os = mb.newLocal[ByteTrackingOutputStream]("write_os")
     private[this] val ob = mb.newLocal[OutputBuffer]("write_ob")
@@ -638,7 +639,7 @@ case class TableNativeFanoutWriter(
         val targetRowType = rowType.typeAfterSelectNames(fieldAndKey)
         val targetRowRType = rowRType.select(fieldAndKey)
         val rowSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(targetRowType, targetRowRType), targetRowType, bufferSpec)
-        val keyPType = coerce[PStruct](rowSpec.decodedPType(keyType))
+        val keyPType = tcoerce[PStruct](rowSpec.decodedPType(keyType))
         val tableType = TableType(targetRowType, keyFields, t.typ.globalType)
         val rowWriter = PartitionNativeWriter(
           rowSpec,
@@ -691,7 +692,7 @@ case class TableNativeFanoutWriter(
                 RVDSpecMaker(
                   target.rowSpec,
                   partitioner,
-                  IndexSpec.emptyAnnotation("../index", coerce[PStruct](target.keyPType))
+                  IndexSpec.emptyAnnotation("../index", tcoerce[PStruct](target.keyPType))
                 )
               )
             ),

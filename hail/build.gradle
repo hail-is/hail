@@ -9,7 +9,7 @@ plugins {
   id 'scala'
   id 'idea'
   id 'com.github.johnrengelman.shadow' version '6.1.0'
-  id "de.undercouch.download" version "3.2.0"
+  id "de.undercouch.download" version "5.3.0"
   id 'eclipse'
 }
 
@@ -122,7 +122,7 @@ dependencies {
     unbundled('org.apache.spark:spark-core_' + scalaMajorVersion + ':' + sparkVersion) {
         exclude module: 'hadoop-client'
     }
-    unbundled('org.apache.hadoop:hadoop-client:2.7.1') {
+    unbundled('org.apache.hadoop:hadoop-client:3.3.4') {
         exclude module: 'servlet-api'
         exclude module: 'asm'
     }
@@ -143,7 +143,7 @@ dependencies {
     bundled 'org.scalanlp:breeze_' + scalaMajorVersion + ':' + breezeVersion
 
     bundled 'com.github.fommil.netlib:all:1.1.2'
-    bundled('com.github.samtools:htsjdk:2.24.1') {
+    bundled('com.github.samtools:htsjdk:3.0.2') {
         transitive = false
     }
 
@@ -156,15 +156,15 @@ dependencies {
 
     if (sparkVersion.startsWith("3.")) {
         if (elasticMajorVersion == "8") {
-            bundled 'org.elasticsearch:elasticsearch-spark-30_2.12:8.0.0'
+            bundled 'org.elasticsearch:elasticsearch-spark-30_2.12:8.4.3'
         }
         else if (elasticMajorVersion == "7") {
-            bundled 'org.elasticsearch:elasticsearch-spark-30_2.12:7.17.0'
+            bundled 'org.elasticsearch:elasticsearch-spark-30_2.12:8.4.3'
         }
     }
     else if (sparkVersion.startsWith("2.4.")) {
         assert(elasticMajorVersion == "7")
-        bundled 'org.elasticsearch:elasticsearch-spark-20_2.12:7.17.1'
+        bundled 'org.elasticsearch:elasticsearch-spark-20_2.12:8.4.3'
     }
     else {
         throw new UnsupportedOperationException("Couldn't pick a valid elasticsearch.")
@@ -193,7 +193,7 @@ dependencies {
 
     unbundled group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
     bundled group: 'commons-codec', name: 'commons-codec', version: '1.11'
-    bundled group: 'org.apache.commons', name: 'commons-lang3', version: '3.5'
+    bundled group: 'org.apache.commons', name: 'commons-lang3', version: '3.12.0'
     bundled(group: 'org.apache.avro', name: 'avro', version: '1.10.2') {
         exclude group: 'com.fasterxml.jackson.core'
     }

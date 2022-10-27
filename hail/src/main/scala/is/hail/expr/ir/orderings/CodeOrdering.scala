@@ -115,8 +115,8 @@ abstract class CodeOrdering {
       FastIndexedSeq(arg1.emitParamType, arg2.emitParamType), ti) { mb =>
 
       mb.emitWithBuilder[T] { cb =>
-        val arg1 = mb.getEmitParam(cb, 1, null) // can't contain streams
-        val arg2 = mb.getEmitParam(cb, 2, null) // can't contain streams
+        val arg1 = mb.getEmitParam(cb, 1)
+        val arg2 = mb.getEmitParam(cb, 2)
         f(cb, arg1, arg2, missingEqual)
       }
     }

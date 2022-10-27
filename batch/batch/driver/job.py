@@ -78,7 +78,8 @@ GROUP BY batches.id;
         log.info(f'callback for batch {batch_id} failed, will not retry.')
 
 
-async def add_attempt_resources(db, batch_id, job_id, attempt_id, resources):
+async def add_attempt_resources(app, db, batch_id, job_id, attempt_id, resources):
+    resource_name_to_id = app['resource_name_to_id']
     if attempt_id:
         try:
             _resources = collections.defaultdict(lambda: 0)
@@ -88,14 +89,15 @@ async def add_attempt_resources(db, batch_id, job_id, attempt_id, resources):
             # This must be sorted in order to match the order of values in the actual SQL table!
             _resources = dict(sorted(_resources.items()))
 
-            resource_args = [(batch_id, job_id, attempt_id, quantity, name) for name, quantity in _resources.items()]
+            resource_args = [
+                (batch_id, job_id, attempt_id, resource_name_to_id[name], quantity)
+                for name, quantity in _resources.items()
+            ]
 
             await db.execute_many(
                 '''
 INSERT INTO `attempt_resources` (batch_id, job_id, attempt_id, resource_id, quantity)
-SELECT %s, %s, %s, resource_id, %s
-FROM resources
-WHERE resource = %s
+VALUES (%s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE quantity = quantity;
 ''',
                 resource_args,
@@ -158,7 +160,7 @@ async def mark_job_complete(
         else:
             log.warning(f'mark_complete for job {id} from unknown {instance}')
 
-    await add_attempt_resources(db, batch_id, job_id, attempt_id, resources)
+    await add_attempt_resources(app, db, batch_id, job_id, attempt_id, resources)
 
     if rv['rc'] != 0:
         log.info(f'mark_job_complete returned {rv} for job {id}')
@@ -198,7 +200,7 @@ CALL mark_job_started(%s, %s, %s, %s, %s);
     if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
 
-    await add_attempt_resources(db, batch_id, job_id, attempt_id, resources)
+    await add_attempt_resources(app, db, batch_id, job_id, attempt_id, resources)
 
 
 async def mark_job_creating(
@@ -232,7 +234,7 @@ CALL mark_job_creating(%s, %s, %s, %s, %s);
     if rv['delta_cores_mcpu'] != 0 and instance.state == 'pending':
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
 
-    await add_attempt_resources(db, batch_id, job_id, attempt_id, resources)
+    await add_attempt_resources(app, db, batch_id, job_id, attempt_id, resources)
 
 
 async def unschedule_job(app, record):
@@ -412,10 +414,33 @@ users:
     }
 
 
+async def mark_job_errored(app, batch_id, job_id, attempt_id, user, format_version, error_msg):
+    file_store: FileStore = app['file_store']
+
+    status = {
+        'version': STATUS_FORMAT_VERSION,
+        'worker': None,
+        'batch_id': batch_id,
+        'job_id': job_id,
+        'attempt_id': attempt_id,
+        'user': user,
+        'state': 'error',
+        'error': error_msg,
+        'container_statuses': {k: None for k in tasks},
+    }
+
+    if format_version.has_full_status_in_gcs():
+        await file_store.write_status_file(batch_id, job_id, attempt_id, json.dumps(status))
+
+    db_status = format_version.db_status(status)
+    resources = []
+
+    await mark_job_complete(app, batch_id, job_id, attempt_id, None, 'Error', db_status, None, None, 'error', resources)
+
+
 async def schedule_job(app, record, instance):
     assert instance.state == 'active'
 
-    file_store: FileStore = app['file_store']
     db: Database = app['db']
     client_session: httpx.ClientSession = app['client_session']
 
@@ -430,26 +455,9 @@ async def schedule_job(app, record, instance):
         body = await job_config(app, record, attempt_id)
     except Exception:
         log.exception(f'while making job config for job {id} with attempt id {attempt_id}')
-        status = {
-            'version': STATUS_FORMAT_VERSION,
-            'worker': None,
-            'batch_id': batch_id,
-            'job_id': job_id,
-            'attempt_id': attempt_id,
-            'user': record['user'],
-            'state': 'error',
-            'error': traceback.format_exc(),
-            'container_statuses': {k: None for k in tasks},
-        }
 
-        if format_version.has_full_status_in_gcs():
-            await file_store.write_status_file(batch_id, job_id, attempt_id, json.dumps(status))
-
-        db_status = format_version.db_status(status)
-        resources = []
-
-        await mark_job_complete(
-            app, batch_id, job_id, attempt_id, instance.name, 'Error', db_status, None, None, 'error', resources
+        await mark_job_errored(
+            app, batch_id, job_id, attempt_id, record['user'], format_version, traceback.format_exc()
         )
         raise
 

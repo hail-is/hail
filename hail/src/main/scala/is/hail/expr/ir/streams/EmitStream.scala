@@ -16,28 +16,11 @@ import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.utils._
 
 
-object StreamProducer {
-  def defineUnusedLabels(producer: StreamProducer, mb: EmitMethodBuilder[_]): Unit = {
-    (producer.LendOfStream.isImplemented, producer.LproduceElementDone.isImplemented) match {
-      case (true, true) =>
-      case (false, false) =>
-
-        EmitCodeBuilder.scopedVoid(mb) { cb =>
-          cb.define(producer.LendOfStream)
-          cb.define(producer.LproduceElementDone)
-          cb._fatal("unreachable")
-        }
-
-      case (eos, ped) => throw new RuntimeException(s"unrealizable value unused asymmetrically: eos=$eos, ped=$ped")
-    }
-    producer.element.pv match {
-      case SStreamValue(_, nested) => defineUnusedLabels(nested, mb)
-      case _ =>
-    }
-  }
-}
-
 abstract class StreamProducer {
+
+  // method builder where this stream is valid
+  def method: EmitMethodBuilder[_]
+
   /**
     * Stream length, which is present if it can be computed (somewhat) cheaply without
     * consuming the stream.
@@ -56,7 +39,7 @@ abstract class StreamProducer {
     * This block cannot jump away, e.g. to `LendOfStream`.
     *
     */
-  def initialize(cb: EmitCodeBuilder): Unit
+  def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit
 
   /**
     * Stream element region, into which the `element` is emitted. The assignment, clearing,
@@ -108,9 +91,9 @@ abstract class StreamProducer {
     */
   def close(cb: EmitCodeBuilder): Unit
 
-  final def unmanagedConsume(cb: EmitCodeBuilder, setup: EmitCodeBuilder => Unit = _ => ())(perElement: EmitCodeBuilder => Unit): Unit = {
+  final def unmanagedConsume(cb: EmitCodeBuilder, outerRegion: Value[Region], setup: EmitCodeBuilder => Unit = _ => ())(perElement: EmitCodeBuilder => Unit): Unit = {
 
-    this.initialize(cb)
+    this.initialize(cb, outerRegion)
     setup(cb)
     cb.goto(this.LproduceElement)
     cb.define(this.LproduceElementDone)
@@ -126,14 +109,14 @@ abstract class StreamProducer {
     if (requiresMemoryManagementPerElement) {
       cb.assign(elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
 
-      unmanagedConsume(cb, setup) { cb =>
+      unmanagedConsume(cb, outerRegion, setup) { cb =>
         perElement(cb)
         cb += elementRegion.clearRegion()
       }
       cb += elementRegion.invalidate()
     } else {
       cb.assign(elementRegion, outerRegion)
-      unmanagedConsume(cb, setup)(perElement)
+      unmanagedConsume(cb, outerRegion, setup)(perElement)
     }
   }
 }
@@ -173,7 +156,8 @@ object EmitStream {
         val st = SStream(EmitType(SUnreachable.fromVirtualType(_typ.elementType), true))
         val region = mb.genFieldThisRef[Region]("na_region")
         val producer = new StreamProducer {
-          override def initialize(cb: EmitCodeBuilder): Unit = {}
+          override def method: EmitMethodBuilder[_] = mb
+          override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {}
 
           override val length: Option[EmitCodeBuilder => Code[Int]] = Some(_ => Code._fatal[Int]("tried to get NA stream length"))
           override val elementRegion: Settable[Region] = region
@@ -191,9 +175,10 @@ object EmitStream {
         assert(_typ.isInstanceOf[TStream])
         env.bindings.lookup(name).toI(cb)
           .map(cb) { case stream: SStreamValue =>
-            val childProducer = stream.producer
+            val childProducer = stream.getProducer(mb)
             val producer = new StreamProducer {
-              override def initialize(cb: EmitCodeBuilder): Unit = childProducer.initialize(cb)
+              override def method: EmitMethodBuilder[_] = mb
+              override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = childProducer.initialize(cb, outerRegion)
 
               override val length: Option[EmitCodeBuilder => Code[Int]] = childProducer.length
               override val elementRegion: Settable[Region] = childProducer.elementRegion
@@ -210,7 +195,7 @@ object EmitStream {
             mb.implementLabel(childProducer.LendOfStream) { cb =>
               cb.goto(producer.LendOfStream)
             }
-            stream.copy(producer = producer)
+            SStreamValue(producer)
           }
 
       case Let(name, value, body) =>
@@ -220,7 +205,7 @@ object EmitStream {
 
       case In(n, _) =>
         // this, Code[Region], ...
-        val param = env.inputValues(n).apply(cb, outerRegion)
+        val param = env.inputValues(n).toI(cb)
         if (!param.st.isInstanceOf[SStream])
           throw new RuntimeException(s"parameter ${ 2 + n } is not a stream! t=${ param.st } }, params=${ mb.emitParamTypes }")
         param
@@ -235,7 +220,8 @@ object EmitStream {
 
           SStreamValue(
             new StreamProducer {
-              override def initialize(cb: EmitCodeBuilder): Unit = {
+              override def method: EmitMethodBuilder[_] = mb
+              override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                 cb.assign(containerField, ind)
                 cb.assign(idx, -1)
               }
@@ -259,13 +245,13 @@ object EmitStream {
             })
 
         }
-        
+
       case x@StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, name,
         aggSignatures: IndexedSeq[PhysicalAggSig], bufferSize: Int) =>
         val region = mb.genFieldThisRef[Region]("stream_buff_agg_region")
         produce(streamChild, cb)
           .map(cb) { case childStream: SStreamValue =>
-            val childProducer = childStream.producer
+            val childProducer = childStream.getProducer(mb)
             val eltField = mb.newEmitField("stream_buff_agg_elt", childProducer.element.emitType)
             val newKeyVType = typeWithReqx(newKey)
             val kb = mb.ecb
@@ -287,15 +273,16 @@ object EmitStream {
             val childStreamEnded = mb.genFieldThisRef[Boolean]("stream_buff_agg_child_stream_ended")
             val produceElementMode = mb.genFieldThisRef[Boolean]("stream_buff_agg_child_produce_elt_mode")
             val producer: StreamProducer = new StreamProducer {
+              override def method: EmitMethodBuilder[_] = mb
               override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-              override def initialize(cb: EmitCodeBuilder): Unit = {
+              override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                 if (childProducer.requiresMemoryManagementPerElement)
                   cb.assign(childProducer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
                 else
                   cb.assign(childProducer.elementRegion, region)
 
-                childProducer.initialize(cb)
+                childProducer.initialize(cb, outerRegion)
                 cb.assign(childStreamEnded, false)
                 cb.assign(produceElementMode, false)
                 cb.assign(idx, 0)
@@ -412,17 +399,16 @@ object EmitStream {
         val emittedArgs = args.map(a => EmitCode.fromI(mb)(cb => emit(a, cb, region))).toFastIndexedSeq
 
         // FIXME use SType.chooseCompatibleType
-        val st = typeWithReq.canonicalEmitType.st.asInstanceOf[SStream]
-        val unifiedType = st.elementEmitType
+        val unifiedType = typeWithReq.canonicalEmitType.st.asInstanceOf[SStream].elementEmitType
         val eltField = mb.newEmitField("makestream_elt", unifiedType)
 
         val staticLen = args.size
         val current = mb.genFieldThisRef[Int]("makestream_current")
 
         IEmitCode.present(cb, SStreamValue(
-          st,
           new StreamProducer {
-            override def initialize(cb: EmitCodeBuilder): Unit = {
+            override def method: EmitMethodBuilder[_] = mb
+            override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
               cb.assign(current, 0) // switches on 1..N
             }
 
@@ -466,8 +452,8 @@ object EmitStream {
           val leftEC = EmitCode.fromI(mb)(cb => produce(cnsq, cb))
           val rightEC = EmitCode.fromI(mb)(cb => produce(altr, cb))
 
-          val leftProducer = leftEC.pv.asStream.producer
-          val rightProducer = rightEC.pv.asStream.producer
+          val leftProducer = leftEC.pv.asStream.getProducer(mb)
+          val rightProducer = rightEC.pv.asStream.getProducer(mb)
 
           val unifiedStreamSType = typeWithReq.canonicalEmitType.st.asInstanceOf[SStream]
           val unifiedElementType = unifiedStreamSType.elementEmitType
@@ -480,6 +466,7 @@ object EmitStream {
             rightEC.toI(cb).consume(cb, cb.goto(Lmissing), _ => cb.goto(Lpresent)))
 
           val producer = new StreamProducer {
+            override def method: EmitMethodBuilder[_] = mb
             override val length: Option[EmitCodeBuilder => Code[Int]] = leftProducer.length
               .liftedZip(rightProducer.length).map { case (computeL1, computeL2) =>
               cb: EmitCodeBuilder => {
@@ -489,13 +476,13 @@ object EmitStream {
               }
             }
 
-            override def initialize(cb: EmitCodeBuilder): Unit = {
+            override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
               cb.ifx(xCond, {
                 cb.assign(leftProducer.elementRegion, region)
-                leftProducer.initialize(cb)
+                leftProducer.initialize(cb, outerRegion)
               }, {
                 cb.assign(rightProducer.elementRegion, region)
-                rightProducer.initialize(cb)
+                rightProducer.initialize(cb, outerRegion)
               })
             }
 
@@ -538,9 +525,10 @@ object EmitStream {
             val stepVar = mb.genFieldThisRef[Int]("streamrange_stop")
             val regionVar = mb.genFieldThisRef[Region]("sr_region")
             val producer: StreamProducer = new StreamProducer {
+              override def method: EmitMethodBuilder[_] = mb
               override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-              override def initialize(cb: EmitCodeBuilder): Unit = {
+              override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                 val startVar = startCode.asInt.value
                 cb.assign(stepVar, stepCode.asInt.value)
                 cb.assign(curr, startVar - stepVar)
@@ -571,6 +559,7 @@ object EmitStream {
             val stopVar = mb.genFieldThisRef[Int]("streamrange_stop")
             val regionVar = mb.genFieldThisRef[Region]("sr_region")
             val producer: StreamProducer = new StreamProducer {
+              override def method: EmitMethodBuilder[_] = mb
               override val length: Option[EmitCodeBuilder => Code[Int]] = Some({ cb =>
                 val len = cb.newLocal[Int]("streamrange_len")
                 if (step > 0)
@@ -584,7 +573,7 @@ object EmitStream {
                 len
               })
 
-              override def initialize(cb: EmitCodeBuilder): Unit = {
+              override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                 cb.assign(startVar, startCode.asInt.value)
                 cb.assign(stopVar, stopCode.asInt.value)
                 start match {
@@ -635,9 +624,10 @@ object EmitStream {
               val idx = mb.genFieldThisRef[Int]("streamrange_idx")
 
               val producer: StreamProducer = new StreamProducer {
+                override def method: EmitMethodBuilder[_] = mb
                 override val length: Option[EmitCodeBuilder => Code[Int]] = Some(_ => len)
 
-                override def initialize(cb: EmitCodeBuilder): Unit = {
+                override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                   val llen = cb.newLocal[Long]("streamrange_llen")
 
                   cb.assign(start, startc.asInt.value)
@@ -701,9 +691,10 @@ object EmitStream {
             val elementToReturn = cb.newField[Int]("seq_sample_element_to_return", -1) // -1 should never be returned.
 
             val producer = new StreamProducer {
+              override def method: EmitMethodBuilder[_] = mb
               override val length: Option[EmitCodeBuilder => Code[Int]] = Some(_ => len)
 
-              override def initialize(cb: EmitCodeBuilder): Unit = {
+              override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                 cb.assign(len, numToSampleVal.asInt.value)
                 cb.assign(nRemaining, numToSampleVal.value)
                 cb.assign(candidate, 0)
@@ -741,21 +732,22 @@ object EmitStream {
       case StreamFilter(a, name, cond) =>
         produce(a, cb)
           .map(cb) { case childStream: SStreamValue =>
-            val childProducer = childStream.producer
+            val childProducer = childStream.getProducer(mb)
 
             val filterEltRegion = mb.genFieldThisRef[Region]("streamfilter_filter_region")
 
             val elementField = cb.emb.newEmitField("streamfilter_cond", childProducer.element.emitType)
 
             val producer = new StreamProducer {
+              override def method: EmitMethodBuilder[_] = mb
               override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-              override def initialize(cb: EmitCodeBuilder): Unit = {
+              override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                 if (childProducer.requiresMemoryManagementPerElement)
                   cb.assign(childProducer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
                 else
                   cb.assign(childProducer.elementRegion, outerRegion)
-                childProducer.initialize(cb)
+                childProducer.initialize(cb, outerRegion)
               }
 
               override val elementRegion: Settable[Region] = filterEltRegion
@@ -806,19 +798,20 @@ object EmitStream {
         produce(a, cb)
           .flatMap(cb) { case childStream: SStreamValue =>
             emit(num, cb).map(cb) { case num: SInt32Value =>
-              val childProducer = childStream.producer
+              val childProducer = childStream.getProducer(mb)
               val n = mb.genFieldThisRef[Int]("stream_take_n")
               val idx = mb.genFieldThisRef[Int]("stream_take_idx")
 
               val producer = new StreamProducer {
+                override def method: EmitMethodBuilder[_] = mb
                 override val length: Option[EmitCodeBuilder => Code[Int]] =
                   childProducer.length.map(compLen => (cb: EmitCodeBuilder) => compLen(cb).min(n))
 
-                override def initialize(cb: EmitCodeBuilder): Unit = {
+                override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                   cb.assign(n, num.value)
                   cb.ifx(n < 0, cb._fatal(s"stream take: negative number of elements to take: ", n.toS))
                   cb.assign(idx, 0)
-                  childProducer.initialize(cb)
+                  childProducer.initialize(cb, outerRegion)
                 }
 
                 override val elementRegion: Settable[Region] = childProducer.elementRegion
@@ -849,20 +842,21 @@ object EmitStream {
         produce(a, cb)
           .flatMap(cb) { case (childStream: SStreamValue) =>
             emit(num, cb).map(cb) { case num: SInt32Value =>
-              val childProducer = childStream.producer
+              val childProducer = childStream.getProducer(mb)
               val n = mb.genFieldThisRef[Int]("stream_drop_n")
               val idx = mb.genFieldThisRef[Int]("stream_drop_idx")
 
               val producer = new StreamProducer {
+                override def method: EmitMethodBuilder[_] = mb
                 override val length: Option[EmitCodeBuilder => Code[Int]] = childProducer.length.map { computeL =>
                   (cb: EmitCodeBuilder) => (computeL(cb) - n).max(0)
                 }
 
-                override def initialize(cb: EmitCodeBuilder): Unit = {
+                override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                   cb.assign(n, num.value)
                   cb.ifx(n < 0, cb._fatal(s"stream drop: negative number of elements to drop: ", n.toS))
                   cb.assign(idx, 0)
-                  childProducer.initialize(cb)
+                  childProducer.initialize(cb, outerRegion)
                 }
 
                 override val elementRegion: Settable[Region] = childProducer.elementRegion
@@ -895,15 +889,16 @@ object EmitStream {
       case StreamTakeWhile(a, elt, condIR) =>
         produce(a, cb)
           .map(cb) { case childStream: SStreamValue =>
-            val childProducer = childStream.producer
+            val childProducer = childStream.getProducer(mb)
 
             val eltSettable = mb.newEmitField("stream_take_while_elt", childProducer.element.emitType)
 
             val producer = new StreamProducer {
+              override def method: EmitMethodBuilder[_] = mb
               override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-              override def initialize(cb: EmitCodeBuilder): Unit = {
-                childProducer.initialize(cb)
+              override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
+                childProducer.initialize(cb, outerRegion)
               }
 
               override val elementRegion: Settable[Region] = childProducer.elementRegion
@@ -937,15 +932,16 @@ object EmitStream {
       case StreamDropWhile(a, elt, condIR) =>
         produce(a, cb)
           .map(cb) { case childStream: SStreamValue =>
-            val childProducer = childStream.producer
+            val childProducer = childStream.getProducer(mb)
             val eltSettable = mb.newEmitField("stream_drop_while_elt", childProducer.element.emitType)
             val doneComparisons = mb.genFieldThisRef[Boolean]("stream_drop_while_donecomparisons")
 
             val producer = new StreamProducer {
+              override def method: EmitMethodBuilder[_] = mb
               override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-              override def initialize(cb: EmitCodeBuilder): Unit = {
-                childProducer.initialize(cb)
+              override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
+                childProducer.initialize(cb, outerRegion)
                 cb.assign(doneComparisons, false)
               }
 
@@ -993,7 +989,7 @@ object EmitStream {
       case StreamMap(a, name, body) =>
         produce(a, cb)
           .map(cb) { case childStream: SStreamValue =>
-            val childProducer = childStream.producer
+            val childProducer = childStream.getProducer(mb)
 
             val bodyResult = EmitCode.fromI(mb) { cb =>
               cb.withScopedMaybeStreamValue(childProducer.element, "streammap_element") { childProducerElement =>
@@ -1005,10 +1001,11 @@ object EmitStream {
             }
 
             val producer: StreamProducer = new StreamProducer {
+              override def method: EmitMethodBuilder[_] = mb
               override val length: Option[EmitCodeBuilder => Code[Int]] = childProducer.length
 
-              override def initialize(cb: EmitCodeBuilder): Unit = {
-                childProducer.initialize(cb)
+              override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
+                childProducer.initialize(cb, outerRegion)
               }
 
               override val elementRegion: Settable[Region] = childProducer.elementRegion
@@ -1035,7 +1032,7 @@ object EmitStream {
 
       case x@StreamScan(childIR, zeroIR, accName, eltName, bodyIR) =>
         produce(childIR, cb).map(cb) { case childStream: SStreamValue =>
-          val childProducer = childStream.producer
+          val childProducer = childStream.getProducer(mb)
 
           val accEmitType = VirtualTypeWithReq(zeroIR.typ, emitter.ctx.req.lookupState(x).head.asInstanceOf[TypeWithRequiredness]).canonicalEmitType
 
@@ -1047,16 +1044,17 @@ object EmitStream {
           val first = mb.genFieldThisRef[Boolean]("streamscan_first")
 
           val producer = new StreamProducer {
+            override def method: EmitMethodBuilder[_] = mb
             override val length: Option[EmitCodeBuilder => Code[Int]] =
               childProducer.length.map(compL => (cb: EmitCodeBuilder) => compL(cb) + const(1))
 
-            override def initialize(cb: EmitCodeBuilder): Unit = {
+            override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
 
               if (childProducer.requiresMemoryManagementPerElement) {
                 cb.assign(accRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
               }
               cb.assign(first, true)
-              childProducer.initialize(cb)
+              childProducer.initialize(cb, outerRegion)
             }
 
             override val elementRegion: Settable[Region] = childProducer.elementRegion
@@ -1121,7 +1119,7 @@ object EmitStream {
         val (newContainer, aggSetup, aggCleanup) = AggContainer.fromMethodBuilder(states.toArray, mb, "run_agg_scan")
 
         produce(child, cb).map(cb) { case childStream: SStreamValue =>
-          val childProducer = childStream.producer
+          val childProducer = childStream.getProducer(mb)
 
           val childEltField = mb.newEmitField("runaggscan_child_elt", childProducer.element.emitType)
           val bodyEnv = env.bind(name -> childEltField)
@@ -1130,12 +1128,13 @@ object EmitStream {
           val bodyResultField = mb.newEmitField("runaggscan_result_elt", bodyResult.emitType)
 
           val producer = new StreamProducer {
+            override def method: EmitMethodBuilder[_] = mb
             override val length: Option[EmitCodeBuilder => Code[Int]] = childProducer.length
 
-            override def initialize(cb: EmitCodeBuilder): Unit = {
+            override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
               aggSetup(cb)
               emitVoid(init, cb = cb, region = outerRegion, container = Some(newContainer))
-              childProducer.initialize(cb)
+              childProducer.initialize(cb, outerRegion)
             }
 
             override val elementRegion: Settable[Region] = childProducer.elementRegion
@@ -1165,7 +1164,7 @@ object EmitStream {
 
       case StreamFlatMap(a, name, body) =>
         produce(a, cb).map(cb) { case outerStream: SStreamValue =>
-          val outerProducer = outerStream.producer
+          val outerProducer = outerStream.getProducer(mb)
 
           // variables used in control flow
           val first = mb.genFieldThisRef[Boolean]("flatmap_first")
@@ -1182,12 +1181,13 @@ object EmitStream {
 
           val resultElementRegion = mb.genFieldThisRef[Region]("flatmap_result_region")
           // grabbing emitcode.pv weird pattern but should be safe
-          val SStreamValue(_, innerProducer) = innerStreamEmitCode.pv
+          val innerProducer = innerStreamEmitCode.pv.asStream.getProducer(mb)
 
           val producer = new StreamProducer {
+            override def method: EmitMethodBuilder[_] = mb
             override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-            override def initialize(cb: EmitCodeBuilder): Unit = {
+            override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
               cb.assign(first, true)
               cb.assign(innerUnclosed, false)
 
@@ -1196,7 +1196,7 @@ object EmitStream {
               else
                 cb.assign(outerProducer.elementRegion, outerRegion)
 
-              outerProducer.initialize(cb)
+              outerProducer.initialize(cb, outerRegion)
             }
 
             override val elementRegion: Settable[Region] = resultElementRegion
@@ -1239,7 +1239,7 @@ object EmitStream {
                       else
                         cb.assign(innerProducer.elementRegion, outerProducer.elementRegion)
 
-                      innerProducer.initialize(cb)
+                      innerProducer.initialize(cb, outerRegion)
                       cb.goto(LnextInner)
                   }
                 )
@@ -1290,8 +1290,8 @@ object EmitStream {
         produce(leftIR, cb).flatMap(cb) { case leftStream: SStreamValue =>
           produce(rightIR, cb).map(cb) { case rightStream: SStreamValue =>
 
-            val leftProducer = leftStream.producer
-            val rightProducer = rightStream.producer
+            val leftProducer = leftStream.getProducer(mb)
+            val rightProducer = rightStream.getProducer(mb)
 
             val lEltType = leftProducer.element.emitType
             val rEltType = rightProducer.element.emitType
@@ -1360,8 +1360,8 @@ object EmitStream {
               else
                 cb.assign(leftProducer.elementRegion, outerRegion)
 
-              leftProducer.initialize(cb)
-              rightProducer.initialize(cb)
+              leftProducer.initialize(cb, outerRegion)
+              rightProducer.initialize(cb, outerRegion)
             }
 
             def sharedClose(cb: EmitCodeBuilder): Unit = {
@@ -1380,9 +1380,10 @@ object EmitStream {
                 val pulledRight = mb.genFieldThisRef[Boolean]("left_join_right_distinct_pulledRight]")
 
                 val producer = new StreamProducer {
+                  override def method: EmitMethodBuilder[_] = mb
                   override val length: Option[EmitCodeBuilder => Code[Int]] = leftProducer.length
 
-                  override def initialize(cb: EmitCodeBuilder): Unit = {
+                  override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                     cb.assign(rightEOS, false)
                     cb.assign(pulledRight, false)
 
@@ -1469,9 +1470,10 @@ object EmitStream {
                 val c = mb.genFieldThisRef[Int]("join_right_distinct_compResult")
 
                 val producer = new StreamProducer {
+                  override def method: EmitMethodBuilder[_] = mb
                   override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-                  override def initialize(cb: EmitCodeBuilder): Unit = {
+                  override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                     cb.assign(leftEOS, false)
                     cb.assign(pulledRight, false)
                     cb.assign(pushedRight, false)
@@ -1571,9 +1573,10 @@ object EmitStream {
                 val pulledRight = mb.genFieldThisRef[Boolean]("left_join_right_distinct_pulledRight]")
 
                 val producer = new StreamProducer {
+                  override def method: EmitMethodBuilder[_] = mb
                   override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-                  override def initialize(cb: EmitCodeBuilder): Unit = {
+                  override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                     cb.assign(pulledRight, false)
                     sharedInit(cb)
                   }
@@ -1641,9 +1644,10 @@ object EmitStream {
                 val c = mb.genFieldThisRef[Int]("join_right_distinct_compResult")
 
                 val producer = new StreamProducer {
+                  override def method: EmitMethodBuilder[_] = mb
                   override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-                  override def initialize(cb: EmitCodeBuilder): Unit = {
+                  override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                     cb.assign(pulledRight, false)
                     cb.assign(leftEOS, false)
                     cb.assign(rightEOS, false)
@@ -1808,7 +1812,7 @@ object EmitStream {
       case StreamGroupByKey(a, key, missingEqual) =>
         produce(a, cb).map(cb) { case childStream: SStreamValue =>
 
-          val childProducer = childStream.producer
+          val childProducer = childStream.getProducer(mb)
 
           val xCurElt = mb.newPField("st_grpby_curelt", childProducer.element.st)
 
@@ -1839,9 +1843,10 @@ object EmitStream {
           val LchildProduceDoneInner = CodeLabel()
           val LchildProduceDoneOuter = CodeLabel()
           val innerProducer = new StreamProducer {
+            override def method: EmitMethodBuilder[_] = mb
             override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-            override def initialize(cb: EmitCodeBuilder): Unit = {}
+            override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {}
 
             override val elementRegion: Settable[Region] = innerResultRegion
             override val requiresMemoryManagementPerElement: Boolean = childProducer.requiresMemoryManagementPerElement
@@ -1885,9 +1890,10 @@ object EmitStream {
           }
 
           val outerProducer = new StreamProducer {
+            override def method: EmitMethodBuilder[_] = mb
             override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-            override def initialize(cb: EmitCodeBuilder): Unit = {
+            override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
               cb.assign(nextGroupReady, false)
               cb.assign(eos, false)
               cb.assign(inOuter, true)
@@ -1901,7 +1907,7 @@ object EmitStream {
                 cb.assign(childProducer.elementRegion, outerRegion)
               }
 
-              childProducer.initialize(cb)
+              childProducer.initialize(cb, outerRegion)
             }
 
             override val elementRegion: Settable[Region] = outerElementRegion
@@ -1983,7 +1989,7 @@ object EmitStream {
 
             val n = mb.genFieldThisRef[Int]("streamgrouped_n")
 
-            val childProducer = childStream.producer
+            val childProducer = childStream.getProducer(mb)
 
             val xCounter = mb.genFieldThisRef[Int]("streamgrouped_ctr")
             val inOuter = mb.genFieldThisRef[Boolean]("streamgrouped_io")
@@ -2000,9 +2006,10 @@ object EmitStream {
             val LchildProduceDoneInner = CodeLabel()
             val LchildProduceDoneOuter = CodeLabel()
             val innerProducer = new StreamProducer {
+              override def method: EmitMethodBuilder[_] = mb
               override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-              override def initialize(cb: EmitCodeBuilder): Unit = {}
+              override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {}
 
               override val elementRegion: Settable[Region] = innerResultRegion
               override val requiresMemoryManagementPerElement: Boolean = childProducer.requiresMemoryManagementPerElement
@@ -2034,10 +2041,11 @@ object EmitStream {
             val innerStreamCode = EmitCode.present(mb, SStreamValue(innerProducer))
 
             val outerProducer = new StreamProducer {
+              override def method: EmitMethodBuilder[_] = mb
               override val length: Option[EmitCodeBuilder => Code[Int]] =
                 childProducer.length.map(compL => (cb: EmitCodeBuilder) => ((compL(cb).toL + n.toL - 1L) / n.toL).toI)
 
-              override def initialize(cb: EmitCodeBuilder): Unit = {
+              override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                 cb.assign(n, groupSize.value)
                 cb.ifx(n <= 0, cb._fatal(s"stream grouped: non-positive size: ", n.toS))
                 cb.assign(eos, false)
@@ -2049,7 +2057,7 @@ object EmitStream {
                   cb.assign(childProducer.elementRegion, outerRegion)
                 }
 
-                childProducer.initialize(cb)
+                childProducer.initialize(cb, outerRegion)
               }
 
               override val elementRegion: Settable[Region] = outerElementRegion
@@ -2101,7 +2109,7 @@ object EmitStream {
       case StreamZip(as, names, body, behavior, errorID) =>
         IEmitCode.multiMapEmitCodes(cb, as.map(a => EmitCode.fromI(mb)(cb => produce(a, cb)))) { childStreams =>
 
-          val producers = childStreams.map(_.asInstanceOf[SStreamValue].producer)
+          val producers = childStreams.map(_.asStream.getProducer(mb))
 
           assert(names.length == producers.length)
 
@@ -2113,6 +2121,7 @@ object EmitStream {
               val bodyCode = EmitCode.fromI(mb)(cb => emit(body, cb, region = eltRegion, env = env.bind(names.zip(vars): _*)))
 
               new StreamProducer {
+                override def method: EmitMethodBuilder[_] = mb
                 override val length: Option[EmitCodeBuilder => Code[Int]] = {
                   behavior match {
                     case ArrayZipBehavior.AssumeSameLength =>
@@ -2131,13 +2140,13 @@ object EmitStream {
                   }
                 }
 
-                override def initialize(cb: EmitCodeBuilder): Unit = {
+                override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                   producers.foreach { p =>
                     if (p.requiresMemoryManagementPerElement)
                       cb.assign(p.elementRegion, eltRegion)
                     else
                       cb.assign(p.elementRegion, outerRegion)
-                    p.initialize(cb)
+                    p.initialize(cb, outerRegion)
                   }
                 }
 
@@ -2181,6 +2190,7 @@ object EmitStream {
 
 
               new StreamProducer {
+                override def method: EmitMethodBuilder[_] = mb
                 override val length: Option[EmitCodeBuilder => Code[Int]] = producers.flatMap(_.length) match {
                   case Seq() => None
                   case ls =>
@@ -2196,7 +2206,7 @@ object EmitStream {
                     })
                 }
 
-                override def initialize(cb: EmitCodeBuilder): Unit = {
+                override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                   cb.assign(anyEOS, false)
 
                   producers.foreach { p =>
@@ -2204,7 +2214,7 @@ object EmitStream {
                       cb.assign(p.elementRegion, eltRegion)
                     else
                       cb.assign(p.elementRegion, outerRegion)
-                    p.initialize(cb)
+                    p.initialize(cb, outerRegion)
                   }
                 }
 
@@ -2259,6 +2269,7 @@ object EmitStream {
               val nEOS = mb.genFieldThisRef[Int]("zip_n_eos")
 
               new StreamProducer {
+                override def method: EmitMethodBuilder[_] = mb
                 override val length: Option[EmitCodeBuilder => Code[Int]] =
                   anyFailAllFail(producers.map(_.length))
                     .map  { compLens =>
@@ -2267,13 +2278,13 @@ object EmitStream {
                       }
                     }
 
-                override def initialize(cb: EmitCodeBuilder): Unit = {
+                override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                   producers.foreach { p =>
                     if (p.requiresMemoryManagementPerElement)
                       cb.assign(p.elementRegion, eltRegion)
                     else
                       cb.assign(p.elementRegion, outerRegion)
-                    p.initialize(cb)
+                    p.initialize(cb, outerRegion)
                   }
 
                   eosPerStream.foreach { eos =>
@@ -2332,7 +2343,7 @@ object EmitStream {
 
       case x@StreamZipJoin(as, key, keyRef, valsRef, joinIR) =>
         IEmitCode.multiMapEmitCodes(cb, as.map(a => EmitCode.fromI(mb)(cb => emit(a, cb)))) { children =>
-          val producers = children.map(_.asStream.producer)
+          val producers = children.map(_.asStream.getProducer(mb))
 
           val eltType = VirtualTypeWithReq.union(as.map(a => typeWithReqx(a))).canonicalEmitType
             .st
@@ -2403,9 +2414,10 @@ object EmitStream {
           }
 
           val producer = new StreamProducer {
+            override def method: EmitMethodBuilder[_] = mb
             override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-            override def initialize(cb: EmitCodeBuilder): Unit = {
+            override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
               cb.assign(regionArray, Code.newArray[Region](k))
               producers.zipWithIndex.foreach { case (p, idx) =>
                 if (p.requiresMemoryManagementPerElement) {
@@ -2413,7 +2425,7 @@ object EmitStream {
                 } else
                   cb.assign(p.elementRegion, outerRegion)
                 cb += (regionArray(idx) = p.elementRegion)
-                p.initialize(cb)
+                p.initialize(cb, outerRegion)
               }
               initMemoryManagementPerElementArray(cb)
               cb.assign(bracket, Code.newArray[Int](k))
@@ -2568,7 +2580,7 @@ object EmitStream {
 
       case x@StreamMultiMerge(as, key) =>
         IEmitCode.multiMapEmitCodes(cb, as.map(a => EmitCode.fromI(mb)(cb => emit(a, cb)))) { children =>
-          val producers = children.map(_.asStream.producer)
+          val producers = children.map(_.asStream.getProducer(mb))
 
           val unifiedType = VirtualTypeWithReq.union(as.map(a => typeWithReqx(a))).canonicalEmitType
             .st
@@ -2648,6 +2660,7 @@ object EmitStream {
           }
 
           val producer = new StreamProducer {
+            override def method: EmitMethodBuilder[_] = mb
             override val length: Option[EmitCodeBuilder => Code[Int]] =
               anyFailAllFail(producers.map(_.length))
                 .map { compLens =>
@@ -2656,7 +2669,7 @@ object EmitStream {
                   }
                 }
 
-            override def initialize(cb: EmitCodeBuilder): Unit = {
+            override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
               cb.assign(regionArray, Code.newArray[Region](k))
               producers.zipWithIndex.foreach { case (p, i) =>
                 if (p.requiresMemoryManagementPerElement) {
@@ -2664,7 +2677,7 @@ object EmitStream {
                 } else
                   cb.assign(p.elementRegion, outerRegion)
                 cb += (regionArray(i) = p.elementRegion)
-                p.initialize(cb)
+                p.initialize(cb, outerRegion)
               }
               initMemoryManagementPerElementArray(cb)
               cb.assign(bracket, Code.newArray[Int](k))
@@ -2763,7 +2776,7 @@ object EmitStream {
 
       case ReadPartition(context, rowType, reader) =>
         val ctxCode = EmitCode.fromI(mb)(cb => emit(context, cb))
-        reader.emitStream(emitter.ctx.executeContext, cb, ctxCode, outerRegion, rowType)
+        reader.emitStream(emitter.ctx.executeContext, cb, ctxCode, rowType)
     }
   }
 }

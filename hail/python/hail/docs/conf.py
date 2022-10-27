@@ -51,17 +51,6 @@ extensions = [
     'sphinx.ext.intersphinx'
 ]
 
-katex_css_path = \
-    'https://cdn.jsdelivr.net/npm/katex@0.12.0/dist/katex.min.css'
-katex_js_path = \
-    'https://cdn.jsdelivr.net/npm/katex@0.12.0/dist/katex.min.js'
-katex_autorender_path = \
-    'https://cdn.jsdelivr.net/npm/katex@0.12.0/dist/contrib/auto-render.min.js'
-katex_inline = [r'\(', r'\)']
-katex_display = [r'\[', r'\]']
-katex_prerender = False
-katex_options = ''
-
 nbsphinx_timeout = 300
 nbsphinx_allow_errors = False
 # F821 undefined name 'tags'

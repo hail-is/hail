@@ -8,7 +8,7 @@ import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{IRParser, _}
 import is.hail.expr.{JSONAnnotationImpex, Validate}
 import is.hail.io.bgen.IndexBgen
-import is.hail.io.fs.{FS, HadoopFS}
+import is.hail.io.fs._
 import is.hail.io.plink.LoadPlink
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
@@ -36,25 +36,50 @@ class LocalTaskContext(val partitionId: Int, val stageId: Int) extends HailTaskC
 object LocalBackend {
   private var theLocalBackend: LocalBackend = _
 
-  def apply(tmpdir: String): LocalBackend = synchronized {
+  def apply(
+    tmpdir: String,
+    gcsRequesterPaysProject: String,
+    gcsRequesterPaysBuckets: String
+  ): LocalBackend = synchronized {
     require(theLocalBackend == null)
 
-    theLocalBackend = new LocalBackend(tmpdir)
+    theLocalBackend = new LocalBackend(
+      tmpdir,
+      gcsRequesterPaysProject,
+      gcsRequesterPaysBuckets
+    )
     theLocalBackend
   }
 
   def stop(): Unit = synchronized {
     if (theLocalBackend != null) {
       theLocalBackend = null
+      // Hadoop does not honor the hadoop configuration as a component of the cache key for file
+      // systems, so we blow away the cache so that a new configuration can successfully take
+      // effect.
+      // https://github.com/hail-is/hail/pull/12133#issuecomment-1241322443
+      hadoop.fs.FileSystem.closeAll()
     }
   }
 }
 
 class LocalBackend(
-  val tmpdir: String
+  val tmpdir: String,
+  gcsRequesterPaysProject: String,
+  gcsRequesterPaysBuckets: String
 ) extends Backend {
   // FIXME don't rely on hadoop
   val hadoopConf = new hadoop.conf.Configuration()
+  if (gcsRequesterPaysProject != null) {
+    if (gcsRequesterPaysBuckets == null) {
+      hadoopConf.set("fs.gs.requester.pays.mode", "AUTO")
+      hadoopConf.set("fs.gs.requester.pays.project.id", gcsRequesterPaysProject)
+    } else {
+      hadoopConf.set("fs.gs.requester.pays.mode", "CUSTOM")
+      hadoopConf.set("fs.gs.requester.pays.project.id", gcsRequesterPaysProject)
+      hadoopConf.set("fs.gs.requester.pays.buckets", gcsRequesterPaysBuckets)
+    }
+  }
   hadoopConf.set(
     "hadoop.io.compression.codecs",
     "org.apache.hadoop.io.compress.DefaultCodec,"
@@ -87,7 +112,14 @@ class LocalBackend(
     current
   }
 
-  def parallelizeAndComputeWithIndex(backendContext: BackendContext, fs: FS, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]): Array[Array[Byte]] = {
+  def parallelizeAndComputeWithIndex(
+    backendContext: BackendContext,
+    fs: FS,
+    collection: Array[Array[Byte]],
+    dependency: Option[TableStageDependency] = None
+  )(
+    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
+  ): Array[Array[Byte]] = {
     val stageId = nextStageId()
     collection.zipWithIndex.map { case (c, i) =>
       val htc = new LocalTaskContext(i, stageId)
@@ -252,33 +284,33 @@ class LocalBackend(
   def parse_value_ir(s: String, refMap: java.util.Map[String, String], irMap: java.util.Map[String, BaseIR]): IR = {
     ExecutionTimer.logTime("LocalBackend.parse_value_ir") { timer =>
       withExecuteContext(timer) { ctx =>
-        IRParser.parse_value_ir(s, IRParserEnvironment(ctx, refMap.asScala.toMap.mapValues(IRParser.parseType), irMap.asScala.toMap))
+        IRParser.parse_value_ir(s, IRParserEnvironment(ctx, BindingEnv.eval(refMap.asScala.toMap.mapValues(IRParser.parseType).toSeq: _*), irMap.asScala.toMap))
       }
     }
   }
 
-  def parse_table_ir(s: String, refMap: java.util.Map[String, String], irMap: java.util.Map[String, BaseIR]): TableIR = {
+  def parse_table_ir(s: String, irMap: java.util.Map[String, BaseIR]): TableIR = {
     ExecutionTimer.logTime("LocalBackend.parse_table_ir") { timer =>
       withExecuteContext(timer) { ctx =>
-        IRParser.parse_table_ir(s, IRParserEnvironment(ctx, refMap.asScala.toMap.mapValues(IRParser.parseType), irMap.asScala.toMap))
+        IRParser.parse_table_ir(s, IRParserEnvironment(ctx, irMap = irMap.asScala.toMap))
       }
     }
   }
 
-  def parse_matrix_ir(s: String, refMap: java.util.Map[String, String], irMap: java.util.Map[String, BaseIR]): MatrixIR = {
+  def parse_matrix_ir(s: String, irMap: java.util.Map[String, BaseIR]): MatrixIR = {
     ExecutionTimer.logTime("LocalBackend.parse_matrix_ir") { timer =>
       withExecuteContext(timer) { ctx =>
-        IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, refMap.asScala.toMap.mapValues(IRParser.parseType), irMap.asScala.toMap))
+        IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, irMap = irMap.asScala.toMap))
       }
     }
   }
 
   def parse_blockmatrix_ir(
-    s: String, refMap: java.util.Map[String, String], irMap: java.util.Map[String, BaseIR]
+    s: String, irMap: java.util.Map[String, BaseIR]
   ): BlockMatrixIR = {
     ExecutionTimer.logTime("LocalBackend.parse_blockmatrix_ir") { timer =>
       withExecuteContext(timer) { ctx =>
-        IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, refMap.asScala.toMap.mapValues(IRParser.parseType), irMap.asScala.toMap))
+        IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, irMap = irMap.asScala.toMap))
       }
     }
   }

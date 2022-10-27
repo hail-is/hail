@@ -16,13 +16,12 @@ from .utils import (unzip, async_to_blocking, blocking_to_async, AsyncWorkerPool
 from .process import (
     CalledProcessError, check_shell, check_shell_output, check_exec_output,
     sync_check_shell, sync_check_shell_output, sync_check_exec)
-from .tqdm import tqdm, TqdmDisableOption
 from .rates import (
     rate_cpu_hour_to_mcpu_msec, rate_gib_hour_to_mib_msec, rate_gib_month_to_mib_msec,
     rate_instance_hour_to_fraction_msec
 )
 from .rate_limiter import RateLimit, RateLimiter
-from . import serialization
+from . import serialization, rich_progress_bar
 
 __all__ = [
     'time_msecs',
@@ -57,8 +56,6 @@ __all__ = [
     'request_retry_transient_errors',
     'request_raise_transient_errors',
     'collect_agen',
-    'tqdm',
-    'TqdmDisableOption',
     'RETRY_FUNCTION_SCRIPT',
     'sync_retry_transient_errors',
     'retry_response_returning_functions',
@@ -93,4 +90,5 @@ __all__ = [
     'parse_timestamp_msecs',
     'Timings',
     'is_retry_once_error',
+    'rich_progress_bar',
 ]

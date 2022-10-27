@@ -447,7 +447,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
       mb.voidWithBuilder { cb =>
         val x = mb.getSCodeParam(1)
         val y = mb.getSCodeParam(2)
-        val l = mb.getEmitParam(cb, 3, region)
+        val l = mb.getEmitParam(cb, 3)
 
         def xx = x.asDouble.value
 

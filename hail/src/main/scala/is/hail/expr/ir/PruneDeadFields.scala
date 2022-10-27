@@ -631,7 +631,7 @@ object PruneDeadFields {
         val rightRequestedType = requestedType.copy(
           globalType = TStruct.empty,
           rowKey = right.typ.rowKey,
-          rowType = selectKey(right.typ.rowType, right.typ.rowKey))
+          rowType = unify(right.typ.rowType, requestedType.rowType, selectKey(right.typ.rowType, right.typ.rowKey)))
         memoizeMatrixIR(ctx, left, leftRequestedType, memo)
         memoizeMatrixIR(ctx, right, rightRequestedType, memo)
       case MatrixMapEntries(child, newEntries) =>
@@ -1076,23 +1076,23 @@ object PruneDeadFields {
           memoizeValueIR(ctx, a, requestedType.asInstanceOf[TStream].elementType, memo),
           memoizeValueIR(ctx, size, size.typ, memo))
       case StreamGroupByKey(a, key, _) =>
-        val reqStructT = coerce[TStruct](coerce[TStream](coerce[TStream](requestedType).elementType).elementType)
-        val origStructT = coerce[TStruct](coerce[TStream](a.typ).elementType)
+        val reqStructT = tcoerce[TStruct](tcoerce[TStream](tcoerce[TStream](requestedType).elementType).elementType)
+        val origStructT = tcoerce[TStruct](tcoerce[TStream](a.typ).elementType)
         memoizeValueIR(ctx, a, TStream(unify(origStructT, reqStructT, selectKey(origStructT, key))), memo)
       case StreamZip(as, names, body, behavior, _) =>
         val bodyEnv = memoizeValueIR(ctx, body,
           requestedType.asInstanceOf[TStream].elementType,
           memo)
         val valueTypes = (names, as).zipped.map { (name, a) =>
-          bodyEnv.eval.lookupOption(name).map(ab => unifySeq(coerce[TStream](a.typ).elementType, ab.result()))
+          bodyEnv.eval.lookupOption(name).map(ab => unifySeq(tcoerce[TStream](a.typ).elementType, ab.result()))
         }
         if (behavior == ArrayZipBehavior.AssumeSameLength && valueTypes.forall(_.isEmpty)) {
-          unifyEnvs(memoizeValueIR(ctx, as.head, TStream(minimal(coerce[TStream](as.head.typ).elementType)), memo) +:
+          unifyEnvs(memoizeValueIR(ctx, as.head, TStream(minimal(tcoerce[TStream](as.head.typ).elementType)), memo) +:
                       Array(bodyEnv.deleteEval(names)): _*)
         } else {
           unifyEnvs(
             (as, valueTypes).zipped.map { (a, vtOption) =>
-              val at = coerce[TStream](a.typ)
+              val at = tcoerce[TStream](a.typ)
               if (behavior == ArrayZipBehavior.AssumeSameLength) {
                 vtOption.map { vt =>
                   memoizeValueIR(ctx, a, TStream(vt), memo)
@@ -1102,8 +1102,8 @@ object PruneDeadFields {
             } ++ Array(bodyEnv.deleteEval(names)): _*)
         }
       case StreamZipJoin(as, key, curKey, curVals, joinF) =>
-        val eltType = coerce[TStruct](coerce[TStream](as.head.typ).elementType)
-        val requestedEltType = coerce[TStream](requestedType).elementType
+        val eltType = tcoerce[TStruct](tcoerce[TStream](as.head.typ).elementType)
+        val requestedEltType = tcoerce[TStream](requestedType).elementType
         val bodyEnv = memoizeValueIR(ctx, joinF, requestedEltType, memo)
         val childRequestedEltType = unifySeq(
           eltType,
@@ -1111,8 +1111,8 @@ object PruneDeadFields {
             selectKey(eltType, key))
         unifyEnvsSeq(as.map(memoizeValueIR(ctx, _, TStream(childRequestedEltType), memo)))
       case StreamMultiMerge(as, key) =>
-        val eltType = coerce[TStruct](coerce[TStream](as.head.typ).elementType)
-        val requestedEltType = coerce[TStream](requestedType).elementType
+        val eltType = tcoerce[TStruct](tcoerce[TStream](as.head.typ).elementType)
+        val requestedEltType = tcoerce[TStream](requestedType).elementType
         val childRequestedEltType = unify(eltType, requestedEltType, selectKey(eltType, key))
         unifyEnvsSeq(as.map(memoizeValueIR(ctx, _, TStream(childRequestedEltType), memo)))
       case StreamFilter(a, name, cond) =>
@@ -1535,7 +1535,7 @@ object PruneDeadFields {
         assert(bodyEnv.agg.isEmpty)
 
         val cDep = bodyEnv.eval.lookupOption(cname) match {
-          case Some(ts) => TStream(unify[Type](coerce[TStream](contexts.typ).elementType, ts.result(): _*))
+          case Some(ts) => TStream(unify[Type](tcoerce[TStream](contexts.typ).elementType, ts.result(): _*))
           case None => minimal(contexts.typ)
         }
 
@@ -1942,8 +1942,8 @@ object PruneDeadFields {
           memo)
         StreamZipJoin(newAs, key, curKey, curVals, newJoinF)
       case StreamMultiMerge(as, key) =>
-        val eltType = coerce[TStruct](coerce[TStream](as.head.typ).elementType)
-        val requestedEltType = coerce[TStream](requestedType).elementType
+        val eltType = tcoerce[TStruct](tcoerce[TStream](as.head.typ).elementType)
+        val requestedEltType = tcoerce[TStream](requestedType).elementType
         val reqEltWithKey = unify(eltType, requestedEltType, selectKey(eltType, key))
 
         val newAs = as.map(a => rebuildIR(ctx, a, env, memo))

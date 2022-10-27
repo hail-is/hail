@@ -191,7 +191,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
       }
       val res = f(ev)
       ec.pv match {
-        case SStreamValue(_, producer) => StreamProducer.defineUnusedLabels(producer, emb)
+        case ss: SStreamValue => ss.defineUnusedLabels(emb)
       }
       res
     }
