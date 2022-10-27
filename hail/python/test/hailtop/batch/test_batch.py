@@ -971,3 +971,18 @@ class ServiceTests(unittest.TestCase):
         res = b.run()
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+
+    def test_update_batch(self):
+        b = self.batch()
+        j = b.new_job()
+        j.command('true')
+        res = b.run()
+
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+
+        j2 = b.new_job()
+        j2.command('true')
+        res = b.run()
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
