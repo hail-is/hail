@@ -12,6 +12,7 @@ from hail.context import TemporaryFilename
 import pytest
 import hail as hl
 from ..helpers import *
+from hail import ir
 from hail.utils import new_temp_file, FatalError, run_command, uri_path, HailUserError
 
 setUpModule = startTestHailContext
@@ -327,6 +328,7 @@ class VCFTests(unittest.TestCase):
         assert hl.import_vcf(tmp)._same(mt)
 
     def import_gvcfs_sample_vcf(self, path):
+        parts_type = hl.tarray(hl.tinterval(hl.tstruct(locus=hl.tlocus('GRCh37'))))
         parts = [
             hl.Interval(start=hl.Struct(locus=hl.Locus('20', 1)),
                         end=hl.Struct(locus=hl.Locus('20', 13509135)),
@@ -338,8 +340,17 @@ class VCFTests(unittest.TestCase):
                         end=hl.Struct(locus=hl.Locus('20', 20000000)),
                         includes_end=True)
         ]
+        parts_str = parts_type._convert_to_json(parts)
+        vir = ir.MatrixVCFReader(path=path, call_fields=['PGT'], entry_float_type=hl.tfloat64,
+                                 header_file=None, block_size=None, min_partitions=None,
+                                 reference_genome='default', contig_recoding=None,
+                                 array_elements_required=True, skip_invalid_loci=False,
+                                 force_bgz=False, force_gz=False, filter=None, find_replace=None,
+                                 n_partitions=None, _partitions_json=parts_str,
+                                 _partitions_type=parts_type)
+
         vcf1 = hl.import_vcf(path).key_rows_by('locus')
-        vcf2 = hl.import_gvcfs([path], parts)[0]
+        vcf2 = hl.MatrixTable(ir.MatrixRead(vir))
         self.assertEqual(len(parts), vcf2.n_partitions())
         self.assertTrue(vcf1._same(vcf2))
 
