@@ -542,7 +542,7 @@ async def bounded_gather2(
     return await bounded_gather2_raise_exceptions(sema, *pfs, cancel_on_error=cancel_on_error)
 
 
-RETRYABLE_HTTP_STATUS_CODES = {408, 500, 502, 503, 504, 429}
+RETRYABLE_HTTP_STATUS_CODES = {408, 429, 500, 502, 503, 504}
 if os.environ.get('HAIL_DONT_RETRY_500') == '1':
     RETRYABLE_HTTP_STATUS_CODES.remove(500)
 
