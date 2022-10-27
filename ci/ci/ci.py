@@ -387,6 +387,14 @@ async def github_callback(request):
     return web.Response(status=200)
 
 
+async def remove_namespace_from_db(db: Database, namespace: str):
+    assert namespace != 'default'
+    await db.just_execute(
+        'DELETE FROM active_namespaces WHERE namespace = %s',
+        (namespace,),
+    )
+
+
 async def batch_callback_handler(request):
     app = request.app
     db: Database = app['db']
@@ -404,12 +412,8 @@ async def batch_callback_handler(request):
                         assert 'deploy' not in attrs
                         assert 'dev' not in attrs
                         namespace = json.loads(attrs['namespace'])
-                        assert namespace != 'default'
                         if DEFAULT_NAMESPACE == 'default':
-                            await db.execute_update(
-                                'DELETE FROM active_namespaces WHERE namespace = %s',
-                                (namespace,),
-                            )
+                            await remove_namespace_from_db(db, namespace)
 
                     await wb.notify_batch_changed(app)
 
@@ -646,18 +650,27 @@ async def add_namespace(request, userdata):  # pylint: disable=unused-argument
     return web.HTTPFound(deploy_config.external_url('ci', '/namespaces'))
 
 
-async def cleanup_expired_namespaces(db: Database):
+async def cleanup_expired_namespaces(db: Database, k8s_client):
     assert DEFAULT_NAMESPACE == 'default'
     expired_namespaces = [
         record['namespace']
         async for record in db.execute_and_fetchall(
-            'SELECT namespace from active_namespaces WHERE expiration_time < UTC_TIMESTAMP()'
+            'SELECT namespace FROM active_namespaces WHERE expiration_time < UTC_TIMESTAMP()'
         )
     ]
     for namespace in expired_namespaces:
         assert namespace != 'default'
         log.info(f'Cleaning up expired namespace: {namespace}')
-        await db.execute_update('DELETE FROM active_namespaces WHERE namespace = %s', (namespace,))
+        await remove_namespace_from_db(db, namespace)
+
+    remaining_namespaces = [
+        record['namespace'] async for record in db.execute_and_fetchall('SELECT namespace FROM active_namespaces;')
+    ]
+    api_response = await k8s_client.list_namespace()
+    live_namespaces = [ns.metadata.name for ns in api_response.items]
+    for ns in remaining_namespaces:
+        if ns not in live_namespaces:
+            await remove_namespace_from_db(db, ns)
 
 
 async def update_envoy_configs(db: Database, k8s_client):
@@ -729,7 +742,7 @@ SELECT frozen_merge_deploy FROM globals;
         kubernetes_asyncio.config.load_incluster_config()
         k8s_client = kubernetes_asyncio.client.CoreV1Api()
         app['task_manager'].ensure_future(periodically_call(10, update_envoy_configs, app['db'], k8s_client))
-        app['task_manager'].ensure_future(periodically_call(300, cleanup_expired_namespaces, app['db']))
+        app['task_manager'].ensure_future(periodically_call(10, cleanup_expired_namespaces, app['db'], k8s_client))
 
 
 async def on_cleanup(app):
