@@ -1,7 +1,7 @@
 from typing import Dict
 import hail as hl
 from hailtop.frozendict import frozendict
-from hailtop.frozenlist import frozenlist
+from hailtop.hail_frozenlist import frozenlist
 
 
 def test_collect_as_set_list():

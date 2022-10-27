@@ -11,7 +11,7 @@ import pandas as pd
 
 import hail as hl
 from hailtop.frozendict import frozendict
-from hailtop.frozenlist import frozenlist
+from hailtop.hail_frozenlist import frozenlist
 
 from .nat import NatBase, NatLiteral
 from .type_parsing import type_grammar, type_node_visitor
