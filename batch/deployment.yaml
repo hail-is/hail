@@ -17,6 +17,14 @@ data:
               "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
               codec_type: AUTO
               stat_prefix: ingress_http
+              access_log:
+                name: only_log_errors
+                filter:
+                  status_code_filter:
+                    comparison:
+                      op: GE  # >=
+                      value:
+                        runtime_key: "500"
               route_config:
                 name: local_route
                 virtual_hosts:
