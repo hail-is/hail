@@ -201,7 +201,10 @@ def handle_job_backwards_compatibility(job):
     if 'always_copy_output' not in job:
         job['always_copy_output'] = True
     if 'run_condition' not in job:
-        job['run_condition'] = 'all_succeeded'
+        if job['always_run']:
+            job['run_condition'] = 'always'
+        else:
+            job['run_condition'] = 'all_succeeded'
 
 
 def validate_batch(batch):
