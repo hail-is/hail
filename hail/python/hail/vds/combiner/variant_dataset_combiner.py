@@ -1,23 +1,33 @@
+import asyncio
 import collections
 import hashlib
+import itertools
 import json
 import os
 import sys
 import uuid
 
-from math import floor, log
-from typing import Collection, Dict, List, NamedTuple, Optional, Union
+from math import ceil, floor, log
+from typing import Collection, Dict, Iterable, List, NamedTuple, Optional, Union
 
 import hail as hl
 
+from hailtop.aiotools.fs import Copier, Transfer
+from hailtop.utils import async_to_blocking, bounded_gather2
+
 from hail import ir
+from hail.backend.service_backend import ServiceBackend
 from hail.expr import HailType, tfloat64, tmatrix
 from hail.matrixtable import MatrixTable
 from hail.utils import Interval
 from hail.utils.java import info, warning
 from hail.experimental.vcf_combiner.vcf_combiner import calculate_even_genome_partitioning, \
     calculate_new_intervals
-from .combine import combine_variant_datasets, transform_gvcf, defined_entry_fields
+from ..variant_dataset import VariantDataset
+from .combine import async_calculate_new_intervals, combine_variant_datasets, transform_gvcf, \
+    defined_entry_fields
+
+combiner_semaphore = asyncio.Semaphore(250)
 
 
 class VDSMetadata(NamedTuple):
@@ -333,6 +343,9 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
 
     def run(self):
         """Combine the specified GVCFs and Variant Datasets."""
+        if isinstance(hl.current_backend(), ServiceBackend):
+            return async_to_blocking(self.arun())
+
         flagname = 'no_ir_logging'
         prev_flag_value = hl._get_flags(flagname).get(flagname)
         hl._set_flags(**{flagname: '1'})
@@ -430,15 +443,15 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         info(f'VDS Combine (job {self._job_id}): merging {len(files_to_merge)} datasets with {new_n_samples} samples')
 
         temp_path = self._temp_out_path(f'vds-combine_job{self._job_id}')
-        largest_vds = max(files_to_merge, key=lambda vds: vds.n_samples)
-        vds = hl.vds.read_vds(largest_vds.path,
-                              _assert_reference_type=self._dataset_type.reference_type,
-                              _assert_variant_type=self._dataset_type.variant_type)
 
         interval_bin = floor(log(new_n_samples, self._branch_factor))
         intervals = self.__intervals_cache.get(interval_bin)
 
         if intervals is None:
+            largest_vds = max(files_to_merge, key=lambda vds: vds.n_samples)
+            vds = hl.vds.read_vds(largest_vds.path,
+                                  _assert_reference_type=self._dataset_type.reference_type,
+                                  _assert_variant_type=self._dataset_type.variant_type)
             # we use the reference data since it generally has more rows than the variant data
             intervals, _ = calculate_new_intervals(vds.reference_data, self._target_records,
                                                    os.path.join(temp_path, 'interval_checkpoint.ht'))
@@ -515,7 +528,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                                 _assert_variant_type=variant_type)
                 for path in inputs]
 
-    def _import_gvcf(self, path: str, sample_ids: Optional[List[str]]):
+    def _import_gvcf(self, path: str, sample_id: Optional[str]):
         reader = ir.MatrixVCFReader(path,
                                     call_fields=['PGT'],
                                     entry_float_type=tfloat64,
@@ -531,10 +544,170 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                                     force_gz=False,
                                     filter=None,
                                     find_replace=None,
-                                    _sample_ids=sample_ids,
+                                    _sample_ids=[sample_id] if sample_id is not None else None,
                                     _partitions_json=self.__gvcf_intervals_str,
                                     _partitions_type=self.__gvcf_intervals_type)
         return MatrixTable(ir.MatrixRead(reader, _assert_type=self._gvcf_type))
+
+    # async combiner
+    async def asave(self):
+        """Save a :class:`.VariantDatasetCombiner` to its `save_path`."""
+        fs = hl.current_backend().fs.afs
+        try:
+            backup_path = self._save_path + '.bak'
+            if await fs.isfile(self._save_path):
+                transfer = Transfer(self._save_path, backup_path)
+                await Copier.copy(fs, combiner_semaphore, transfer)
+            async with await fs.create(self._save_path) as out:
+                ser = json.dumps(self, indent=2, cls=Encoder)
+                await out.write(ser)
+            if await fs.isfile(backup_path):
+                await fs.remove(backup_path)
+        except OSError as e:
+            # these messages get printed, because there is absolutely no guarantee
+            # that the hail context is in a sane state if any of the above operations
+            # fail
+            print(f'Failed saving {self.__class__.__name__} state at {self._save_path}')
+            print(f'An attempt was made to copy {self._save_path} to {backup_path}')
+            print('An old version of this state may be there.')
+            print('Dumping current state as json to standard output, you may wish '
+                  'to save this output in order to resume the combiner.')
+            json.dump(self, sys.stdout, indent=2, cls=Encoder)
+            print()
+            raise e
+
+    async def arun(self):
+        """Combine the specified GVCFs and Variant Datasets. In Query-on-Batch."""
+        assert isinstance(hl.current_backend(), ServiceBackend)
+        flagname = 'no_ir_logging'
+        prev_flag_value = hl._get_flags(flagname).get(flagname)
+        hl._set_flags(**{flagname: '1'})
+
+        vds_samples = sum(vds.n_samples for vdses in self._vdses.values() for vds in vdses)
+        info('Running VDS combiner:\n'
+             f'    VDS arguments: {self._num_vdses} datasets with {vds_samples} samples\n'
+             f'    GVCF arguments: {len(self._gvcfs)} inputs/samples\n'
+             f'    Branch factor: {self._branch_factor}\n'
+             f'    GVCF merge batch size: {self._gvcf_batch_size}')
+        while not self.finished:
+            await self.asave()
+            await self.astep()
+        await self.asave()
+        info('Finished VDS combiner!')
+        hl._set_flags(**{flagname: prev_flag_value})
+
+    async def astep(self):
+        if self.finished:
+            return
+        if self._gvcfs:
+            await self._step_gvcfs_async()
+        else:
+            await self._step_vdses_async()
+        if not self.finished:
+            self._job_id += 1
+
+    async def _step_gvcfs_async(self):
+        # where we're going, we don't need batch sizes
+        step = self._branch_factor
+        gvcf_pathss = list(chunks(self._gvcfs, step))
+        sample_idss = chunks(self._gvcf_sample_names, step) if self._gvcf_external_header is not None else itertools.repeat(itertools.repeat(None))
+        self._gvcfs = []
+        self._gvcf_sample_names = []
+
+        if self.finished and len(gvcf_pathss) == 1:
+            gvcfs = gvcf_pathss[0]
+            sample_ids = next(sample_idss)
+            await self._merge_gvcfs(self._output_path, gvcfs, sample_ids)
+            return
+
+        coros = []
+        temp_path = self._temp_out_path(f'gvcf-combine_job{self._job_id}/dataset_')
+        pad = len(str(len(gvcf_pathss) - 1))
+        for gvcfs, sample_ids, count in zip(gvcf_pathss, sample_ids, range(len(gvcf_pathss))):
+            path = temp_path + str(count).rjust(pad, '0') + '.vds'
+            coros.append(self._merge_gvcfs(path, gvcfs, sample_ids, overwrite=True,
+                                           codec_spec=FAST_CODEC_SPEC))
+        merge_metadata = await bounded_gather2(combiner_semaphore, *coros)
+        for md in merge_metadata:
+            self._vdses[max(1, floor(log(md.n_samples, self._branch_factor)))].append(md)
+
+    async def _merge_gvcfs(self, path: str, gvcf_paths: List[str], sample_ids: Iterable[Optional[str]],
+                           overwrite: bool = False, codec_spec: Optional[str] = None):
+        n_samples = len(gvcf_paths)
+        vcfs = [transform_gvcf(self._import_gvcf(vcf, sample_id),
+                               reference_entry_fields_to_keep=self._gvcf_reference_entry_fields_to_keep,
+                               info_to_keep=self._gvcf_info_to_keep)
+                for (vcf, sample_id) in zip(gvcf_paths, sample_ids)]
+        vds = combine_variant_datasets(vcfs)
+        await self._write_vds(vds, path, overwrite, codec_spec)
+        return VDSMetadata(path=path, n_samples=n_samples)
+
+    async def _step_vdses_async(self):
+        current_bin = min(self._vdses)
+        if self._num_vdses <= self._branch_factor:
+            files_to_merge = [[md for i in sorted(self._vdses, reverse=True) for md in self._vdses[i]]]
+            self._vdses.clear()
+        else:
+            files = self._vdses[current_bin]
+            chunk_size = ceil(len(files) / ceil(len(files) / self._branch_factor))
+            files_to_merge = list(chunks(files, chunk_size))
+            del self._vdses[current_bin]
+
+        temp_path = self._temp_out_path(f'vds-combine_job{self._job_id}')
+        max_new_samples = max(sum(f.n_samples for f in files) for files in files_to_merge)
+        interval_bin = floor(log(max_new_samples, self._branch_factor))
+        intervals = self.__intervals_cache.get(interval_bin)
+        if intervals is None:
+            largest_vds = max((f for files in files_to_merge for f in files), key=lambda vds: vds.n_samples)
+            vds = hl.vds.read_vds(largest_vds.path,
+                                  _assert_reference_type=self._dataset_type.reference_type,
+                                  _assert_variant_type=self._dataset_type.variant_type)
+            intervals, _ = await async_calculate_new_intervals(vds.reference_data, self._target_records,
+                                                               os.path.join(temp_path, 'interval_checkpoint.ht'))
+            self.__intervals_cache[interval_bin] = intervals
+
+        if self.finished and len(files_to_merge) == 1:
+            vdses = files_to_merge[0]
+            await self._merge_vdses(self._output_path, vdses, intervals)
+            return
+
+        coros = []
+        pad = len(str(len(files_to_merge) - 1))
+        for i, vdses in enumerate(files_to_merge):
+            filename = 'dataset_' + str(i).rjust(pad, '0') + '.vds'
+            path = os.path.join(temp_path, filename)
+            coros.append(self._merge_vdses(path, vdses, intervals, overwrite=True,
+                                           codec_spec=FAST_CODEC_SPEC))
+        merge_metadata = await bounded_gather2(combiner_semaphore, *coros)
+        for md in merge_metadata:
+            new_bin = floor(log(md.n_samples, self._branch_factor))
+            if new_bin <= current_bin:
+                new_bin = current_bin + 1
+            self._vdses[new_bin].append(md)
+
+    async def _merge_vdses(self, path: str, vdses: List[VDSMetadata], intervals,
+                           overwrite: bool = False, codec_spec: Optional[str] = None):
+        vds_paths = [vdsmd.path for vdsmd in vdses]
+        new_n_samples = sum(vdsmd.n_samples for vdsmd in vdses)
+        vdss = self._read_variant_datasets(vds_paths, intervals)
+        vds = combine_variant_datasets(vdss)
+        await self._write_vds(vds, path, overwrite=overwrite, codec_spec=codec_spec)
+        return VDSMetadata(path=path, n_samples=new_n_samples)
+
+    async def _write_vds(self, vds, path: str, overwrite: bool = False,
+                         codec_spec: Optional[str] = None):
+        writer_ref = ir.MatrixNativeWriter(path=VariantDataset._reference_path(path),
+                                           overwrite=overwrite, stage_locally=False,
+                                           codec_spec=codec_spec, partitions=None,
+                                           partitions_type=None, checkpoint_file=None)
+        writer_var = ir.MatrixNativeWriter(path=VariantDataset._variants_path(path),
+                                           overwrite=overwrite, stage_locally=False,
+                                           codec_spec=codec_spec, partitions=None,
+                                           partitions_type=None, checkpoint_file=None)
+        write_ref = ir.MatrixWrite(vds.reference_data._mir, writer_ref)
+        write_var = ir.MatrixWrite(vds.variant_data._mir, writer_var)
+        return await hl.current_backend()._async_execute_many(write_ref, write_var, timed=False)
+
 
 
 def new_combiner(*,
@@ -791,3 +964,7 @@ class Decoder(json.JSONDecoder):
 
             return VariantDatasetCombiner(**obj)
         return obj
+
+
+def chunks(sliceable, size):
+    return (sliceable[i:i+size] for i in range(0, len(sliceable), size))

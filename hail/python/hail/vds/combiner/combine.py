@@ -1,7 +1,7 @@
 from typing import Collection, List, Optional, Set
 
 import hail as hl
-from hail import MatrixTable, Table
+from hail import MatrixTable, Table, ir
 from hail.ir import Apply, TableMapRows
 from hail.experimental.vcf_combiner.vcf_combiner import combine_gvcfs, localize, parse_as_fields, unlocalize
 from ..variant_dataset import VariantDataset
@@ -225,3 +225,87 @@ def combine_variant_datasets(vdss: List[VariantDataset]) -> VariantDataset:
 
     variants = combine_gvcfs(no_variant_key)
     return VariantDataset(reference, variants._key_rows_by_assert_sorted('locus', 'alleles'))
+
+
+async def async_calculate_new_intervals(mt, desired_average_partition_size: int, tmp_path: str):
+    """takes a table, keyed by ['locus', ...] and produces a list of intervals suitable
+    for repartitioning a combiner matrix table.
+
+    Parameters
+    ----------
+    mt : :class:`.MatrixTable`
+        Sparse MT intermediate.
+    desired_average_partition_size : :obj:`int`
+        Average target number of rows for each partition.
+    tmp_path : :obj:`str`
+        Temporary path for scan checkpointing.
+
+    Returns
+    -------
+    (:obj:`List[Interval]`, :obj:`.Type`)
+    """
+    backend = hl.current_backend()
+    assert list(mt.row_key) == ['locus']
+    assert isinstance(mt.locus.dtype, hl.tlocus)
+    reference_genome = mt.locus.dtype.reference_genome
+    end = hl.Locus(reference_genome.contigs[-1],
+                   reference_genome.lengths[reference_genome.contigs[-1]],
+                   reference_genome=reference_genome)
+
+    n_rows, n_cols = await backend._async_execute(ir.MatrixCount(mt._mir))
+
+    if n_rows == 0:
+        raise ValueError('empty table!')
+
+    # split by a weight function that takes into account the number of
+    # dense entries per row. However, give each row some base weight
+    # to prevent densify computations from becoming unbalanced (these
+    # scale roughly linearly with N_ROW * N_COL)
+    codec_spec = """{
+  "name": "LEB128BufferSpec",
+  "child": {
+    "name": "BlockingBufferSpec",
+    "blockSize": 32768,
+    "child": {
+      "name": "LZ4FastBlockBufferSpec",
+      "blockSize": 32768,
+      "child": {
+        "name": "StreamBlockBufferSpec"
+      }
+    }
+  }
+}"""
+    ht = mt.select_rows(weight=hl.agg.count() + (n_cols // 25) + 1).rows()
+    tir = ir.TableWrite(ht._tir, ir.TableNativeWriter(tmp_path, overwrite=False, stage_locally=False, codec_spec=codec_spec))
+    await backend._async_execute(tir)
+    tr = ir.TableNativeReader(tmp_path, intervals=None, filter_intervals=False)
+    ht = Table(ir.TableRead(tr, _assert_type=ht._type))
+
+    total_weight = ht.aggregate(hl.agg.sum(ht.weight), _localize=False)
+    partition_weight = hl.int64(total_weight / (n_rows / desired_average_partition_size))
+
+    ht = ht.annotate(cumulative_weight=hl.scan.sum(ht.weight),
+                     last_weight=hl.scan._prev_nonnull(ht.weight),
+                     row_idx=hl.scan.count())
+
+    def partition_bound(x):
+        return x - (x % hl.int64(partition_weight))
+
+    at_partition_bound = partition_bound(ht.cumulative_weight) != partition_bound(ht.cumulative_weight - ht.last_weight)
+
+    ht = ht.filter(at_partition_bound | (ht.row_idx == n_rows - 1))
+    ht = ht.annotate(start=hl.or_else(
+        hl.scan._prev_nonnull(hl.locus_from_global_position(ht.locus.global_position() + 1,
+                                                            reference_genome=reference_genome)),
+        hl.locus_from_global_position(0, reference_genome=reference_genome)))
+    ht = ht.select(
+        interval=hl.interval(start=hl.struct(locus=ht.start), end=hl.struct(locus=ht.locus), includes_end=True))
+
+    intervals_dtype = hl.tarray(ht.interval.dtype)
+    intervals = await backend._async_execute(ht.aggregate(hl.agg.collect(ht.interval), _localize=False)._ir)
+    last_st = await backend._async_execute(
+        hl.locus_from_global_position(hl.literal(intervals[-1].end.locus).global_position() + 1,
+                                      reference_genome=reference_genome)._ir)
+    interval = hl.Interval(start=hl.Struct(locus=last_st), end=hl.Struct(locus=end), includes_end=True)
+    intervals.append(interval)
+    return intervals, intervals_dtype
