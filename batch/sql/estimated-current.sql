@@ -1551,7 +1551,7 @@ BEGIN
                 WHEN 'always' THEN 0
                 WHEN 'all_succeeded' THEN IF(new_state = 'Success', jobs.cancelled, 1)
                 WHEN 'any_succeeded' THEN IF(COALESCE(jobs.n_pending_parents - 1, 0) = 0,
-                                             IF(COALESCE(jobs.n_succeeded_parents, 0) + (new_state = 'Success') > 0, jobs.cancelled, 1)
+                                             IF(COALESCE(jobs.n_succeeded_parents, 0) + (new_state = 'Success') > 0, jobs.cancelled, 1),
                                              jobs.cancelled)
                 ELSE IF(new_state = 'Success', jobs.cancelled, 1)  # backwards compatibility
                 END)
