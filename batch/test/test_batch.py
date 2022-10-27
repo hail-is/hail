@@ -1133,7 +1133,7 @@ def test_update_batch_w_deps_in_update_always_run(client: BatchClient):
 
     j.wait()
 
-    j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], always_run=True)
+    j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], always_run=True, run_condition='always')
     j2 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j, j1])
     b = bb.submit()
     j2.wait()
@@ -1163,7 +1163,7 @@ def test_update_with_always_run(client: BatchClient):
     j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['sleep', '3600'])
     b = bb.submit()
 
-    j2 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], always_run=True, parents=[j1])
+    j2 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], always_run=True, parents=[j1], run_condition='always')
     b = bb.submit()
 
     delay = 0.1
@@ -1374,5 +1374,23 @@ def test_run_condition_any_job_with_update(client: BatchClient):
     b = bb.submit()
     b.wait()
 
+    assert j3.status()['state'] == 'Success', str((j3.status(), b.debug_info()))
+    assert j4.status()['state'] == 'Success', str((j4.status(), b.debug_info()))
+
+
+def test_run_condition_any_job_with_always_run(client: BatchClient):
+    bb = client.create_batch()
+    j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    b = bb.submit()
+    j1.wait()
+
+    j2 = bb.create_job(DOCKER_ROOT_IMAGE, ['sleep', '20'], run_condition='always', always_run=True, parents=[j1])
+    j3 = bb.create_job(DOCKER_ROOT_IMAGE, ['sleep', '20'], run_condition='all_succeeded', always_run=True, parents=[j1])
+    j4 = bb.create_job(DOCKER_ROOT_IMAGE, ['sleep', '20'], run_condition='any_succeeded', always_run=True, parents=[j1])
+    b = bb.submit()
+    b.cancel()
+    b.wait()
+
+    assert j2.status()['state'] == 'Success', str((j2.status(), b.debug_info()))
     assert j3.status()['state'] == 'Success', str((j3.status(), b.debug_info()))
     assert j4.status()['state'] == 'Success', str((j4.status(), b.debug_info()))

@@ -259,7 +259,7 @@ def test_always_run_cancel(client):
         DOCKER_ROOT_IMAGE, command=['/bin/sh', '-c', 'while true; do sleep 86000; done'], parents=[head]
     )
     right = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'right'], parents=[head])
-    tail = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[left, right], always_run=True)
+    tail = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[left, right], always_run=True, run_condition='always')
     batch = batch.submit()
     right.wait()
     batch.cancel()
@@ -277,7 +277,7 @@ def test_always_run_cancel(client):
 def test_always_run_error(client):
     batch = client.create_batch()
     head = batch.create_job(DOCKER_ROOT_IMAGE, command=['/bin/sh', '-c', 'exit 1'])
-    tail = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[head], always_run=True)
+    tail = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[head], always_run=True, run_condition='always')
     batch = batch.submit()
     batch.wait()
     status = legacy_batch_status(batch)

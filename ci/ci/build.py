@@ -466,6 +466,7 @@ true
             ],
             parents=parents,
             always_run=True,
+            run_condition='always',
             network='private',
             timeout=5 * 60,
             regions=[REGION],
@@ -590,6 +591,7 @@ class RunImageStep(Step):
             service_account=self.service_account,
             parents=self.deps_parents(),
             always_run=self.always_run,
+            run_condition='always' if self.always_run else 'all_succeeded',
             timeout=self.timeout,
             network='private',
             env=env,
@@ -793,6 +795,7 @@ true
             service_account={'namespace': DEFAULT_NAMESPACE, 'name': 'ci-agent'},
             parents=parents,
             always_run=True,
+            run_condition='always',
             network='private',
             regions=[REGION],
         )
@@ -951,6 +954,7 @@ date
                 service_account={'namespace': DEFAULT_NAMESPACE, 'name': 'ci-agent'},
                 parents=parents,
                 always_run=True,
+                run_condition='always',
                 network='private',
                 regions=[REGION],
             )
@@ -1147,6 +1151,7 @@ done
             service_account={'namespace': DEFAULT_NAMESPACE, 'name': 'ci-agent'},
             parents=parents,
             always_run=True,
+            run_condition='always',
             network='private',
             regions=[REGION],
         )
