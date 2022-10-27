@@ -18,7 +18,9 @@ data:
               codec_type: AUTO
               stat_prefix: ingress_http
               access_log:
-                - "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+                name: json_access_log
+                typed_config:
+                  "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
                   log_format:
                     json_format:
                       message: "%LOCAL_REPLY_BODY%"
@@ -69,7 +71,9 @@ data:
               use_remote_address: true
               skip_xff_append: false
               access_log:
-                - "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+                name: json_access_log
+                typed_config:
+                  "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
                   log_format:
                     json_format:
                       message: "%LOCAL_REPLY_BODY%"

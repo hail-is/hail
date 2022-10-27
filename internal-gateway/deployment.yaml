@@ -36,7 +36,7 @@ spec:
               topologyKey: "kubernetes.io/hostname"
       containers:
        - name: internal-gateway
-         image: "{{ global.docker_prefix }}/envoy:v1.22.3"
+         image: "{{ global.docker_prefix }}/envoyproxy/envoy:v1.22.3"
          command:
            - /usr/local/bin/envoy
            - --config-path
