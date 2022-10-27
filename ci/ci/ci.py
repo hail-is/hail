@@ -650,7 +650,7 @@ async def add_namespace(request, userdata):  # pylint: disable=unused-argument
     return web.HTTPFound(deploy_config.external_url('ci', '/namespaces'))
 
 
-async def cleanup_expired_namespaces(db: Database, k8s_client):
+async def cleanup_expired_namespaces(db: Database):
     assert DEFAULT_NAMESPACE == 'default'
     expired_namespaces = [
         record['namespace']
@@ -665,6 +665,8 @@ async def cleanup_expired_namespaces(db: Database, k8s_client):
 
 
 async def update_envoy_configs(db: Database, k8s_client):
+    assert DEFAULT_NAMESPACE == 'default'
+
     api_response = await k8s_client.list_namespace()
     live_namespaces = tuple(ns.metadata.name for ns in api_response.items)
     namespace_arg_list = "(" + ",".join('%s' for _ in live_namespaces) + ")"

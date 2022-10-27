@@ -1,15 +1,15 @@
 include ../config.mk
 
-.PHONY: envoy-xds-config envoy-config deploy-no-xds deploy
+.PHONY: envoy-xds-config deploy
 
 IP := $(shell kubectl get secret global-config --template={{.data.ip}} | base64 --decode)
 SHA := $(shell git rev-parse --short=12 HEAD)
 
 envoy-xds-config:
-	HAIL_DOMAIN=$(DOMAIN) python3 ../ci/ci/envoy.py gateway ${HAIL}/letsencrypt/subdomains.txt ${HAIL}/gateway/cds.yaml ${HAIL}/gateway/rds.yaml
+	HAIL_DOMAIN=$(DOMAIN) python3 ../ci/ci/envoy.py gateway ${HAIL}/letsencrypt/subdomains.txt ${HAIL}/gateway/cds.yaml.out ${HAIL}/gateway/rds.yaml.out
 	kubectl -n default create configmap gateway-xds-config \
-		--from-file=cds.yaml \
-		--from-file=rds.yaml \
+		--from-file=cds.yaml=cds.yaml.out \
+		--from-file=rds.yaml=rds.yaml.out \
 		--dry-run=client -o yaml \
 		| kubectl apply -f -
 
