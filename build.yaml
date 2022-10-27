@@ -1963,6 +1963,9 @@ steps:
       - name: faster-regions-pool-scheduler
         script: /io/sql/faster-regions-pool-scheduler.sql
         online: true
+      - name: add-batch-state-index
+        script: /io/sql/add-batch-state-index.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
