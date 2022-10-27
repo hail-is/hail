@@ -709,7 +709,6 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         return await hl.current_backend()._async_execute_many(write_ref, write_var, timed=False)
 
 
-
 def new_combiner(*,
                  output_path: str,
                  temp_path: str,
@@ -967,4 +966,4 @@ class Decoder(json.JSONDecoder):
 
 
 def chunks(sliceable, size):
-    return (sliceable[i:i+size] for i in range(0, len(sliceable), size))
+    return (sliceable[i:(i + size)] for i in range(0, len(sliceable), size))
