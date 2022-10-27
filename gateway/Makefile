@@ -13,14 +13,10 @@ envoy-xds-config:
 		--dry-run=client -o yaml \
 		| kubectl apply -f -
 
-envoy-config:
+deploy:
 	python3 ../ci/jinja2_render.py '{"domain":"$(DOMAIN)"}' envoy.yaml envoy.yaml.out
 	kubectl -n default apply -f envoy.yaml.out
-
-deploy-no-xds: envoy-config
 	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(SHA)"},"global":{"ip":"$(IP)"}}' service.yaml service.yaml.out
 	kubectl -n default apply -f service.yaml.out
 	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(SHA)"},"global":{"docker_prefix":"$(DOCKER_PREFIX)"}}' deployment.yaml deployment.yaml.out
 	kubectl -n default apply -f deployment.yaml.out
-
-deploy: envoy-xds-config deploy-no-xds
