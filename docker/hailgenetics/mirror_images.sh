@@ -26,7 +26,6 @@ images=(
     "python-dill:3.10"
     "python-dill:3.10-slim"
     "hail:${HAIL_PIP_VERSION}"
-    "genetics:${HAIL_PIP_VERSION}"
 )
 for image in "${images[@]}"
 do
