@@ -1345,10 +1345,13 @@ class Job:
         self.main_volume_mounts.append(io_volume_mount)
         self.output_volume_mounts.append(io_volume_mount)
 
+        requester_pays_project = job_spec.get('requester_pays_project')
         cloudfuse = job_spec.get('cloudfuse') or job_spec.get('gcsfuse')
         self.cloudfuse = cloudfuse
         if cloudfuse:
             for config in cloudfuse:
+                if requester_pays_project:
+                    config['requester_pays_project'] = requester_pays_project
                 config['mounted'] = False
                 bucket = config['bucket']
                 assert bucket

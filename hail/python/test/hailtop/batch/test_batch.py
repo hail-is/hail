@@ -665,6 +665,35 @@ class ServiceTests(unittest.TestCase):
             j.cloudfuse(self.bucket, '')
 
     @skip_in_azure
+    def test_fuse_requester_pays(self):
+        b = self.batch(requester_pays_project='hail-vdc')
+        j = b.new_job()
+        j.cloudfuse('hail-services-requester-pays', '/fuse-bucket')
+        j.command('cat /fuse-bucket/hello')
+        res = b.run()
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+
+    @skip_in_azure
+    def test_fuse_non_requester_pays_bucket_when_requester_pays_project_specified(self):
+        assert self.bucket
+        path = f'/{self.bucket}{self.cloud_output_path}'
+
+        b = self.batch(requester_pays_project='hail-vdc')
+        head = b.new_job()
+        head.command(f'mkdir -p {path}; echo head > {path}/cloudfuse_test_1')
+        head.cloudfuse(self.bucket, f'/{self.bucket}', read_only=False)
+
+        tail = b.new_job()
+        tail.command(f'cat {path}/cloudfuse_test_1')
+        tail.cloudfuse(self.bucket, f'/{self.bucket}', read_only=True)
+        tail.depends_on(head)
+
+        res = b.run()
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+
+    @skip_in_azure
     def test_requester_pays(self):
         b = self.batch(requester_pays_project='hail-vdc')
         input = b.read_input('gs://hail-services-requester-pays/hello')
