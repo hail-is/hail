@@ -343,10 +343,10 @@ object GenericLines {
         CloseableIterator.empty
       } else {
         new CloseableIterator[GenericLine] {
-          val lines = new TabixLineIterator(fs, file, reg)
-          private var l = lines.next()
-          private var curIdx: Long = lines.getCurIdx()
-          val inner = new Iterator[GenericLine] {
+          private[this] val lines = new TabixLineIterator(fs, file, reg)
+          private[this] var l = lines.next()
+          private[this] var curIdx: Long = lines.getCurIdx()
+          private[this] val inner = new Iterator[GenericLine] {
             def hasNext: Boolean = l != null
             def next(): GenericLine = {
               assert(l != null)
