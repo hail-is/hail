@@ -3121,7 +3121,7 @@ def import_avro(paths, *, key=None, intervals=None):
 
 
 @typecheck(spreadsheetID=oneof(str, sequenceof(str)), sheetname=str)
-def import_gsheet(spreadsheetID, sheetname) -> Table:
+def import_google_sheet(spreadsheetID, sheetname) -> Table:
     """Import sheet from a google sheets fle as a :class:`.Table` of strings.
 
     Examples
@@ -3134,7 +3134,7 @@ def import_gsheet(spreadsheetID, sheetname) -> Table:
 
     To import the data on the sheeet titled 'Class Data' the sheetname should be entered as 'Class Data'
 
-    >>> ht = hl.import_gsheet('1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms', 'Class Data')
+    >>> ht = hl.import_google_sheet('1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms', 'Class Data')
     >>> ht.describe()
     ----------------------------------------
     Global fields:
