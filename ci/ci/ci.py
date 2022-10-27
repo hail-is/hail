@@ -663,26 +663,23 @@ async def cleanup_expired_namespaces(db: Database, k8s_client):
         log.info(f'Cleaning up expired namespace: {namespace}')
         await remove_namespace_from_db(db, namespace)
 
-    remaining_namespaces = [
-        record['namespace'] async for record in db.execute_and_fetchall('SELECT namespace FROM active_namespaces;')
-    ]
-    api_response = await k8s_client.list_namespace()
-    live_namespaces = [ns.metadata.name for ns in api_response.items]
-    for ns in remaining_namespaces:
-        if ns not in live_namespaces:
-            await remove_namespace_from_db(db, ns)
-
 
 async def update_envoy_configs(db: Database, k8s_client):
+    api_response = await k8s_client.list_namespace()
+    live_namespaces = tuple(ns.metadata.name for ns in api_response.items)
+    namespace_arg_list = "(" + ",".join('%s' for _ in live_namespaces) + ")"
+
     services_per_namespace = {
         r['namespace']: [s for s in json.loads(r['services']) if s is not None]
         async for r in db.execute_and_fetchall(
-            '''
+            f'''
 SELECT active_namespaces.namespace, JSON_ARRAYAGG(service) as services
 FROM active_namespaces
 LEFT JOIN deployed_services
 ON active_namespaces.namespace = deployed_services.namespace
-GROUP BY active_namespaces.namespace'''
+WHERE active_namespaces.namespace IN {namespace_arg_list}
+GROUP BY active_namespaces.namespace''',
+            live_namespaces,
         )
     }
     assert 'default' in services_per_namespace
