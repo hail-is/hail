@@ -383,8 +383,8 @@ object GenericLines {
       "partitionIndex" -> TInt32,
       "file" -> TString,
       "chrom" -> TString,
-      "start" -> TInt64,
-      "end" -> TInt64)
+      "start" -> TInt32,
+      "end" -> TInt32)
     new GenericLines(contextType, contexts, body)
   }
 
