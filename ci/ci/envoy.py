@@ -209,11 +209,15 @@ def clusters(
             clusters.append(browser_cluster)
             clusters.append(static_cluster)
         else:
-            clusters.append(make_cluster(service, f'{service}.default', proxy, verify_ca=True))
+            clusters.append(make_cluster(service, f'{service}.default.svc.cluster.local', proxy, verify_ca=True))
 
     for namespace, services in internal_services_per_namespace.items():
         for service in services:
-            clusters.append(make_cluster(f'{namespace}-{service}', f'{service}.{namespace}', proxy, verify_ca=False))
+            clusters.append(
+                make_cluster(
+                    f'{namespace}-{service}', f'{service}.{namespace}.svc.cluster.local', proxy, verify_ca=False
+                )
+            )
 
     return clusters
 
