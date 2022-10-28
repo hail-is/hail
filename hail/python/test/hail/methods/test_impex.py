@@ -340,7 +340,7 @@ class VCFTests(unittest.TestCase):
                         end=hl.Struct(locus=hl.Locus('20', 20000000)),
                         includes_end=True)
         ]
-        parts_str = parts_type._convert_to_json(parts)
+        parts_str = json.dumps(parts_type._convert_to_json(parts))
         vir = ir.MatrixVCFReader(path=path, call_fields=['PGT'], entry_float_type=hl.tfloat64,
                                  header_file=None, block_size=None, min_partitions=None,
                                  reference_genome='default', contig_recoding=None,
