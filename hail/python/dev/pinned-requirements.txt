@@ -82,7 +82,7 @@ idna==3.4
     #   requests
 imagesize==1.4.1
     # via sphinx
-importlib-metadata==3.10.1
+importlib-metadata==5.0.0
     # via
     #   -r python/dev/requirements.txt
     #   click
