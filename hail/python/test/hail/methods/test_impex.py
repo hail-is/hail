@@ -368,8 +368,6 @@ class VCFTests(unittest.TestCase):
         self.assertEqual(hl.filter_intervals(vcf2, interval_b).n_partitions(), 2)
         self.assertEqual(hl.filter_intervals(vcf2, interval_c).n_partitions(), 3)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_tabix_export(self):
         mt = hl.import_vcf(resource('sample.vcf.bgz'))
         tmp = new_temp_file(extension="bgz")
@@ -383,8 +381,6 @@ class VCFTests(unittest.TestCase):
         files = hl.current_backend().fs.ls(tmp)
         self.assertTrue(any(f.path.endswith('.tbi') for f in files))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_gvcfs(self):
         path = resource('sample.vcf.bgz')
         self.import_gvcfs_sample_vcf(path)
