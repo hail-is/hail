@@ -108,7 +108,7 @@ def gateway_internal_host(services_per_namespace: Dict[str, List[str]]) -> dict:
         'domains': [f'internal.{DOMAIN}'],
         'routes': [
             {
-                'match': {'prefix': f'/{namespace}/{service}'},
+                'match': {'path_separated_prefix': f'/{namespace}/{service}'},
                 'route': route_to_cluster(f'{namespace}-{service}'),
                 'typed_per_filter_config': {
                     'envoy.filters.http.local_ratelimit': rate_limit_config(),
@@ -144,7 +144,7 @@ def internal_gateway_internal_host(services_per_namespace: Dict[str, List[str]])
         'domains': ['internal.hail'],
         'routes': [
             {
-                'match': {'prefix': f'/{namespace}/{service}'},
+                'match': {'path_separated_prefix': f'/{namespace}/{service}'},
                 'route': route_to_cluster(f'{namespace}-{service}'),
                 'typed_per_filter_config': {
                     'envoy.filters.http.local_ratelimit': rate_limit_config(),
