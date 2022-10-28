@@ -1738,7 +1738,7 @@ class MatrixVCFReader(
 
   val partitionCounts: Option[IndexedSeq[Long]] = None
 
-  val indexedRangeBounds: Option[IndexedSeq[Interval]] = params.partitionsJSON.map { partitionsJSON =>
+  val partitioner: Option[RVDPartitioner] = params.partitionsJSON.map { partitionsJSON =>
     val indexedPartitionsType = IRParser.parseType(params.partitionsTypeStr.get)
     val jv = JsonMethods.parse(partitionsJSON)
     val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, indexedPartitionsType)
@@ -1753,7 +1753,10 @@ class MatrixVCFReader(
       if (start.contig != end.contig)
         fatal(s"partition spec must not cross contig boundaries, start: ${start.contig} | end: ${end.contig}")
     }
-    rangeBounds
+    new RVDPartitioner(
+      Array("locus"),
+      fullType.keyType,
+      rangeBounds)
   }
 
   override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
@@ -1776,9 +1779,9 @@ class MatrixVCFReader(
     val localNSamples = nCols
     val localFilterAndReplace = params.filterAndReplace
 
-    val lines = indexedRangeBounds match {
-      case Some(rangeBounds) =>
-        GenericLines.readTabix(fs, fileStatuses(0), localContigRecoding, rangeBounds)
+    val lines = partitioner match {
+      case Some(partitioner) =>
+        GenericLines.readTabix(fs, fileStatuses(0), localContigRecoding, partitioner.rangeBounds)
       case None =>
         GenericLines.read(fs, fileStatuses, params.nPartitions, params.blockSizeInMB, params.minPartitions, params.gzAsBGZ, params.forceGZ)
     }
@@ -1835,7 +1838,7 @@ class MatrixVCFReader(
     new GenericTableValue(
       fullType,
       rowUIDFieldName,
-      None,
+      partitioner,
       { (requestedGlobalsType: Type) =>
         val subset = fullType.globalType.valueSubsetter(requestedGlobalsType)
         subset(globals).asInstanceOf[Row]

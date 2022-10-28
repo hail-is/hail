@@ -349,7 +349,7 @@ class VCFTests(unittest.TestCase):
                                  n_partitions=None, _partitions_json=parts_str,
                                  _partitions_type=parts_type)
 
-        vcf1 = hl.import_vcf(path).key_rows_by('locus')
+        vcf1 = hl.import_vcf(path)
         vcf2 = hl.MatrixTable(ir.MatrixRead(vir))
         self.assertEqual(len(parts), vcf2.n_partitions())
         self.assertTrue(vcf1._same(vcf2))
