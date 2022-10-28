@@ -22,7 +22,7 @@ package object services {
   lazy val log: Logger = LogManager.getLogger("is.hail.services")
 
   val RETRYABLE_HTTP_STATUS_CODES: Set[Int] = {
-    val s = Set(408, 500, 502, 503, 504)
+    val s = Set(408, 429, 500, 502, 503, 504)
     if (System.getenv("HAIL_DONT_RETRY_500") == "1")
       s - 500
     else
