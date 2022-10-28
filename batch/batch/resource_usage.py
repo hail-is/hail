@@ -91,20 +91,24 @@ class ResourceUsageMonitor:
             return
 
         data = struct.pack('>2qd', now, memory_usage_bytes, percent_cpu_usage)
+
         self.out.write(data)
         self.out.flush()
 
     async def __aenter__(self):
         async def periodically_measure():
+            cancelled = False
             while True:
                 try:
                     await self.measure()
                 except asyncio.CancelledError:
+                    cancelled = True
                     raise
                 except Exception:
                     log.exception(f'while monitoring {self.container_name}')
                 finally:
-                    await asyncio.sleep(5)
+                    if not cancelled:
+                        await asyncio.sleep(5)
 
         self.task = asyncio.ensure_future(periodically_measure())
         return self

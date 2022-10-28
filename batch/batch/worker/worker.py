@@ -2,6 +2,7 @@ import asyncio
 import base64
 import concurrent
 import errno
+import humanize
 import json
 import logging
 import os
@@ -1169,6 +1170,11 @@ class Container:
             return await self.fs.read(self.resource_usage_path)
         return ResourceUsageMonitor.no_data()
 
+    async def get_resource_usage_file_size(self) -> int:
+        if os.path.exists(self.resource_usage_path):
+            return os.path.getsize(self.resource_usage_path)
+        return 0
+
     def __str__(self):
         return f'container {self.name}'
 
@@ -1782,6 +1788,9 @@ class DockerJob(Job):
 
     async def get_resource_usage(self):
         return {name: await c.get_resource_usage() for name, c in self.containers.items()}
+
+    async def get_resource_usage_file_sizes(self):
+        return {name: await c.get_resource_usage_file_size() for name, c in self.containers.items()}
 
     async def delete(self):
         await super().delete()
@@ -2583,6 +2592,7 @@ class Worker:
             return
 
         self.task_manager.ensure_future(periodically_call(60, self.send_billing_update))
+        self.task_manager.ensure_future(periodically_call(60, self.monitor_resource_usage))
 
         try:
             while True:
@@ -2813,6 +2823,15 @@ class Worker:
                 log.info(f'sent billing update for {time_msecs_str(update_timestamp)}')
 
         await retry_transient_errors(update)
+
+    async def monitor_resource_usage(self):
+        stdout, stderr = await check_shell_output('xfs_quota -x -c "report -h -p" /host/; df -kh')
+        log.info(stdout)
+        for job in self.jobs.values():
+            if isinstance(job, DockerJob):
+                file_sizes = await job.get_resource_usage_file_sizes()
+                file_sizes = {name: humanize.naturalsize(size) for name, size in file_sizes.items()}
+                log.info(f'{job} {file_sizes}')
 
 
 async def async_main():

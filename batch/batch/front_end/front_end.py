@@ -1913,7 +1913,7 @@ def plot_resource_usage(resource_usage: Optional[Dict[str, Optional[pd.DataFrame
     if resource_usage is None:
         return None
 
-    fig = make_subplots(rows=2, cols=1, subplot_titles=('CPU Usage', 'Memory (GB)'))
+    fig = make_subplots(rows=2, cols=1, subplot_titles=('CPU Usage', 'Memory'))
 
     colors = {'input': 'red', 'main': 'green', 'output': 'blue'}
 
