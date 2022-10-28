@@ -335,7 +335,7 @@ pytest==6.2.5
     #   pytest-instafail
     #   pytest-metadata
     #   pytest-xdist
-pytest-asyncio==0.19.0
+pytest-asyncio==0.20.1
     # via -r requirements.txt
 pytest-forked==1.4.0
     # via pytest-xdist
