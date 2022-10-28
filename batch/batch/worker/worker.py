@@ -2192,6 +2192,8 @@ class JVM:
                 if self.container:
                     await self.container.remove()
 
+                await blocking_to_async(self.pool, shutil.rmtree, f'{self.root_dir}/container', ignore_errors=True)
+
                 container = await self.create_container_and_connect(
                     self.index, self.n_cores, self.socket_file, self.root_dir, self.client_session, self.pool
                 )
