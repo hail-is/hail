@@ -2866,6 +2866,7 @@ class MatrixAggregate(IR):
     def renderable_agg_bindings(self, i, default_value=None):
         return self.child.typ.entry_env(default_value) if i == 1 else {}
 
+
 class PartitionReader(object):
     pass
 
@@ -2889,8 +2890,8 @@ class PartitionNativeIntervalReader(PartitionReader):
 
     def render(self):
         return escape_str(json.dumps({"name": "PartitionNativeIntervalReader",
-                "path": self.path,
-                "uidFieldName": self.uid_field}))
+                                      "path": self.path,
+                                      "uidFieldName": self.uid_field}))
 
     def _eq(self, other):
         return isinstance(other, PartitionNativeIntervalReader) and self.path == other.path
