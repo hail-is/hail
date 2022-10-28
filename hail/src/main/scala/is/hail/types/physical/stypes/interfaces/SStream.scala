@@ -10,6 +10,9 @@ import is.hail.types.virtual.{TStream, Type}
 import is.hail.types.{RIterable, TypeWithRequiredness}
 import is.hail.utils.FastIndexedSeq
 
+trait MissingnessAsMethod {
+  def isMissing: Boolean
+}
 trait NoBoxLongIterator {
   def init(partitionRegion: Region, elementRegion: Region)
 

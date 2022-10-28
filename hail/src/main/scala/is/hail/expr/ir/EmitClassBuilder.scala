@@ -75,6 +75,37 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
   def setObjects(cb: EmitCodeBuilder, objects: Code[Array[AnyRef]]): Unit = modb.setObjects(cb, objects)
 
   def getObject[T <: AnyRef : TypeInfo](obj: T): Code[T] = modb.getObject(obj)
+
+  private[this] var currLitIndex: Int = 0
+  private[this] val literalsBuilder = mutable.Map.empty[(VirtualTypeWithReq, Any), (PType, Int)]
+  private[this] val encodedLiteralsBuilder = mutable.Map.empty[EncodedLiteral, (PType, Int)]
+
+  def registerLiteral(t: VirtualTypeWithReq, value: Any): (PType, Int) = {
+    literalsBuilder.getOrElseUpdate((t, value), {
+      val curr = currLitIndex
+      val pt = t.canonicalPType
+      literalsBuilder.put((t, value), (pt, curr))
+      currLitIndex += 1
+      (pt, curr)
+    })
+  }
+
+  def registerEncodedLiteral(el: EncodedLiteral): (PType, Int) = {
+    encodedLiteralsBuilder.getOrElseUpdate(el, {
+      val curr = currLitIndex
+      val pt = el.codec.decodedPType()
+      encodedLiteralsBuilder.put(el, (pt, curr))
+      currLitIndex += 1
+      (pt, curr)
+    })
+  }
+
+  def literalsResult(): (Array[(VirtualTypeWithReq, Any, PType, Int)], Array[(EncodedLiteral, PType, Int)]) = {
+    (literalsBuilder.toArray.map { case ((vt, a), (pt, i)) => (vt, a, pt, i) },
+      encodedLiteralsBuilder.toArray.map { case (el, (pt, i)) => (el, pt, i) })
+  }
+
+  def hasLiterals: Boolean = currLitIndex > 0
 }
 
 trait WrappedEmitModuleBuilder {
@@ -156,9 +187,9 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def partitionRegion: Settable[Region] = ecb.partitionRegion
 
-  def addLiteral(v: Any, t: VirtualTypeWithReq): SValue = ecb.addLiteral(v, t)
+  def addLiteral(cb: EmitCodeBuilder, v: Any, t: VirtualTypeWithReq): SValue = ecb.addLiteral(cb, v, t)
 
-  def addEncodedLiteral(encodedLiteral: EncodedLiteral) = ecb.addEncodedLiteral(encodedLiteral)
+  def addEncodedLiteral(cb: EmitCodeBuilder, encodedLiteral: EncodedLiteral) = ecb.addEncodedLiteral(cb, encodedLiteral)
 
   def getPType[T <: PType : TypeInfo](t: T): Code[T] = ecb.getPType(t)
 
@@ -277,38 +308,39 @@ class EmitClassBuilder[C](
 
   def numTypes: Int = typMap.size
 
-  private[this] val literalsMap: mutable.Map[(VirtualTypeWithReq, Any), SSettable] =
-    mutable.Map[(VirtualTypeWithReq, Any), SSettable]()
-  private[this] val encodedLiteralsMap: mutable.Map[EncodedLiteral, SSettable] =
-    mutable.Map[EncodedLiteral, SSettable]()
-  private[this] lazy val encLitField: Settable[Array[Byte]] = genFieldThisRef[Array[Byte]]("encodedLiterals")
+  private[this] val decodedLiteralsField = genFieldThisRef[Array[Long]]("decoded_lits")
+
+  def literalsArray(): Value[Array[Long]] = decodedLiteralsField
+
+  def setLiteralsArray(cb: EmitCodeBuilder, arr: Code[Array[Long]]): Unit = cb.assign(decodedLiteralsField, arr)
 
   lazy val partitionRegion: Settable[Region] = genFieldThisRef[Region]("partitionRegion")
   private[this] lazy val _taskContext: Settable[HailTaskContext] = genFieldThisRef[HailTaskContext]("taskContext")
   private[this] lazy val poolField: Settable[RegionPool] = genFieldThisRef[RegionPool]()
 
-  def addLiteral(v: Any, t: VirtualTypeWithReq): SValue = {
+  def addLiteral(cb: EmitCodeBuilder, v: Any, t: VirtualTypeWithReq): SValue = {
     assert(v != null)
 
-    literalsMap.getOrElseUpdate(t -> v, SSettable(fieldBuilder, t.canonicalEmitType.st, "literal"))
+    val (pt, i) = emodb.registerLiteral(t, v)
+    pt.loadCheapSCode(cb, decodedLiteralsField.get(i))
   }
 
-  def addEncodedLiteral(encodedLiteral: EncodedLiteral): SValue = {
-    encodedLiteralsMap.getOrElseUpdate(encodedLiteral, SSettable(fieldBuilder, encodedLiteral.codec.encodedType.decodedSType(encodedLiteral.typ), "encodedLiteral"))
+  def addEncodedLiteral(cb: EmitCodeBuilder, encodedLiteral: EncodedLiteral): SValue = {
+    val (pt, i) = emodb.registerEncodedLiteral(encodedLiteral)
+    pt.loadCheapSCode(cb, decodedLiteralsField.get(i))
   }
 
   private[this] def encodeLiterals(): Array[AnyRef] = {
-    val literals = literalsMap.toArray
-    val litType = PCanonicalTuple(true, literals.map(_._1._1.canonicalPType.setRequired(true)): _*)
+    val (literals, preEncodedLiterals) = emodb.literalsResult()
+    val litType = PCanonicalTuple(true, literals.map(_._1.canonicalPType.setRequired(true)): _*)
     val spec = TypedCodecSpec(litType, BufferSpec.defaultUncompressed)
 
     cb.addInterface(typeInfo[FunctionWithLiterals].iname)
-    val mb2 = newEmitMethod("addLiterals", FastIndexedSeq[ParamType](typeInfo[Array[AnyRef]]), typeInfo[Unit])
-
-    val preEncodedLiterals = encodedLiteralsMap.toArray
+    val mb2 = newEmitMethod("addAndDecodeLiterals", FastIndexedSeq[ParamType](typeInfo[Array[AnyRef]]), typeInfo[Unit])
 
     mb2.voidWithBuilder { cb =>
       val allEncodedFields = mb2.getCodeParam[Array[AnyRef]](1)
+      cb.assign(decodedLiteralsField, Code.newArray[Long](literals.length + preEncodedLiterals.length))
 
       val ib = cb.newLocal[InputBuffer]("ib",
         spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](Code.checkcast[Array[Byte]](allEncodedFields(0)))))
@@ -316,22 +348,21 @@ class EmitClassBuilder[C](
       val lits = spec.encodedType.buildDecoder(spec.encodedVirtualType, this)
         .apply(cb, partitionRegion, ib)
         .asBaseStruct
-      literals.zipWithIndex.foreach { case (((_, _), f), i) =>
+      literals.zipWithIndex.foreach { case ((t, _, pt, arrIdx), i) =>
         lits.loadField(cb, i)
           .consume(cb,
             cb._fatal("expect non-missing literals!"),
-            { pc => f.store(cb, pc) })
+            { pc =>
+              cb += (decodedLiteralsField(arrIdx) = pt.store(cb, partitionRegion, pc, false))
+            })
       }
       // Handle the pre-encoded literals, which only need to be decoded.
-      preEncodedLiterals.zipWithIndex.foreach { case ((encLit, f), index) =>
+      preEncodedLiterals.zipWithIndex.foreach { case ((encLit, pt, arrIdx), index) =>
         val spec = encLit.codec
         cb.assign(ib, spec.buildCodeInputBuffer(Code.newInstance[ArrayOfByteArrayInputStream, Array[Array[Byte]]](Code.checkcast[Array[Array[Byte]]](allEncodedFields(index + 1)))))
         val decodedValue = encLit.codec.encodedType.buildDecoder(encLit.typ, this)
           .apply(cb, partitionRegion, ib)
-        assert(decodedValue.st == f.st)
-
-        // Because 0th index is for the regular literals
-        f.store(cb, decodedValue)
+        cb += (decodedLiteralsField(arrIdx) = pt.store(cb, partitionRegion, decodedValue, false))
       }
     }
 
@@ -341,13 +372,13 @@ class EmitClassBuilder[C](
       val rvb = new RegionValueBuilder(ctx.stateManager, region)
       rvb.start(litType)
       rvb.startTuple()
-      literals.foreach { case ((typ, a), _) => rvb.addAnnotation(typ.t, a) }
+      literals.foreach { case (typ, a, _, _) => rvb.addAnnotation(typ.t, a) }
       rvb.endTuple()
       enc.writeRegionValue(rvb.end())
     }
     enc.flush()
     enc.close()
-    Array(baos.toByteArray) ++ preEncodedLiterals.map(_._1.value.ba)
+    Array[AnyRef](baos.toByteArray) ++ preEncodedLiterals.map(_._1.value.ba)
   }
 
   private[this] var _mods: BoxedArrayBuilder[(String, (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new BoxedArrayBuilder()
@@ -711,7 +742,7 @@ class EmitClassBuilder[C](
     makeAddFS()
     makeAddTaskContext()
 
-    val hasLiterals: Boolean = literalsMap.nonEmpty || encodedLiteralsMap.nonEmpty
+    val hasLiterals: Boolean = emodb.hasLiterals
     val hasReferences: Boolean = emodb.hasReferences
     if (hasReferences)
       makeAddReferenceGenomes()
@@ -766,7 +797,7 @@ class EmitClassBuilder[C](
         if (objects != null)
           f.asInstanceOf[FunctionWithObjects].setObjects(objects)
         if (hasLiterals)
-          f.asInstanceOf[FunctionWithLiterals].addLiterals(literalsBc.value)
+          f.asInstanceOf[FunctionWithLiterals].addAndDecodeLiterals(literalsBc.value)
         if (hasReferences)
           f.asInstanceOf[FunctionWithReferences].addReferenceGenomes(references)
         if (nSerializedAggs != 0)
@@ -910,7 +941,7 @@ trait FunctionWithPartitionRegion {
 }
 
 trait FunctionWithLiterals {
-  def addLiterals(lit: Array[AnyRef]): Unit
+  def addAndDecodeLiterals(lit: Array[AnyRef]): Unit
 }
 
 trait FunctionWithSeededRandomness {
@@ -1085,6 +1116,10 @@ class EmitMethodBuilder[C](
     val label = CodeLabel()
     implementLabel(label)(f)
     label
+  }
+
+  override def toString: String = {
+    s"[${ mb.methodName }]${ super.toString }"
   }
 }
 

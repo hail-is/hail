@@ -264,7 +264,7 @@ case class SplitPartitionNativeWriter(spec1: AbstractTypedCodecSpec,
       writeIndexInfo.foreach { case (name, _, writer) =>
         val indexFile = cb.newLocal[String]("indexFile")
         cb.assign(indexFile, const(name).concat(ctxValue).concat(".idx"))
-        writer.init(cb, indexFile)
+        writer.init(cb, indexFile, cb.memoize(mb.getObject[Map[String, Any]](Map.empty)))
       }
 
       val pCount = mb.newLocal[Long]("partition_count")

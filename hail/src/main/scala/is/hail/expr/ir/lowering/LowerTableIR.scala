@@ -888,12 +888,15 @@ object LowerTableIR {
       case TableDistinct(child) =>
         val loweredChild = lower(child)
 
-        loweredChild.repartitionNoShuffle(loweredChild.partitioner.coarsen(child.typ.key.length).strictify())
-          .mapPartition(None) { partition =>
-            flatMapIR(StreamGroupByKey(partition, child.typ.key, missingEqual = true)) { groupRef =>
-              StreamTake(groupRef, 1)
+        if (analyses.distinctKeyedAnalysis.contains(child))
+          loweredChild
+        else
+          loweredChild.repartitionNoShuffle(loweredChild.partitioner.coarsen(child.typ.key.length).strictify())
+            .mapPartition(None) { partition =>
+              flatMapIR(StreamGroupByKey(partition, child.typ.key, missingEqual = true)) { groupRef =>
+                StreamTake(groupRef, 1)
+              }
             }
-          }
 
       case TableFilter(child, cond) =>
         val loweredChild = lower(child)

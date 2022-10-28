@@ -15,7 +15,6 @@ import is.hail.backend._
 import is.hail.expr.ir.IRParser.parseType
 import is.hail.io.fs._
 import is.hail.utils._
-import is.hail.io.bgen.IndexBgen
 import org.json4s.DefaultFormats
 import org.json4s.jackson.{JsonMethods, Serialization}
 import org.apache.spark.{Dependency, NarrowDependency, Partition, ProgressBarBuilder, ShuffleDependency, SparkConf, SparkContext, TaskContext}
@@ -530,20 +529,6 @@ class SparkBackend(
         JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(
           UnsafeRow.read(pt, ctx.r, off), pt.virtualType))
       }
-    }
-  }
-
-  def pyIndexBgen(
-    files: java.util.List[String],
-    indexFileMap: java.util.Map[String, String],
-    rg: String,
-    contigRecoding: java.util.Map[String, String],
-    skipInvalidLoci: Boolean) {
-    ExecutionTimer.logTime("SparkBackend.pyIndexBgen") { timer =>
-      withExecuteContext(timer) { ctx =>
-        IndexBgen(ctx, files.asScala.toArray, indexFileMap.asScala.toMap, Option(rg), contigRecoding.asScala.toMap, skipInvalidLoci)
-      }
-      info(s"Number of BGEN files indexed: ${ files.size() }")
     }
   }
 

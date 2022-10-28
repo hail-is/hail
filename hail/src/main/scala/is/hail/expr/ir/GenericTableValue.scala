@@ -46,6 +46,7 @@ class PartitionIteratorLongReader(
   override def emitStream(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
+    mb: EmitMethodBuilder[_],
     context: EmitCode,
     requestedType: TStruct): IEmitCode = {
 
@@ -60,17 +61,17 @@ class PartitionIteratorLongReader(
     val uidSType: SStackStruct = SStackStruct(
       TTuple(TInt64, TInt64),
       Array(EmitType(SInt64, true), EmitType(SInt64, true)))
-    val mb = cb.emb
 
-    context.toI(cb).map(cb) { case ctxStruct: SBaseStructValue =>
-      val partIdx = ctxStruct.loadField(cb, "partitionIndex").get(cb).asInt.value
+    context.toI(cb).map(cb) { case _ctxStruct: SBaseStructValue =>
+      val ctxStruct = cb.memoizeField(_ctxStruct, "ctxStruct")
+      val partIdx = cb.memoizeField(_ctxStruct.loadField(cb, "partitionIndex").get(cb).asInt.value.toL)
       val rowIdx = mb.genFieldThisRef[Long]("pnr_rowidx")
       val region = mb.genFieldThisRef[Region]("pilr_region")
       val it = mb.genFieldThisRef[Iterator[java.lang.Long]]("pilr_it")
       val rv = mb.genFieldThisRef[Long]("pilr_rv")
 
       val producer = new StreamProducer {
-        override def method: EmitMethodBuilder[_] = cb.emb
+        override def method: EmitMethodBuilder[_] = mb
         override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
         override def initialize(cb: EmitCodeBuilder, partitionRegion: Value[Region]): Unit = {
@@ -95,7 +96,7 @@ class PartitionIteratorLongReader(
           if (insertUID) {
             val uid = EmitValue.present(
               new SStackStructValue(uidSType, Array(
-                EmitValue.present(primitive(cb.memoize(partIdx.toL))),
+                EmitValue.present(primitive(partIdx)),
                 EmitValue.present(primitive(rowIdx)))))
             eltPType.loadCheapSCode(cb, rv)._insert(requestedType, uidFieldName -> uid)
           } else {

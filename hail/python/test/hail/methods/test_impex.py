@@ -1041,7 +1041,6 @@ def generate_random_gen():
 
 
 class BGENTests(unittest.TestCase):
-    @fails_service_backend()
     def test_error_if_no_gp(self):
         mt = hl.balding_nichols_model(3, 3, 3)
         mt = mt.key_cols_by(s=hl.str(mt.sample_idx))
@@ -1051,28 +1050,25 @@ class BGENTests(unittest.TestCase):
         with pytest.raises(ValueError, match="GEN requires a GP"):
             hl.export_gen(mt, "dummy_path")
 
-    @fails_service_backend()
     def test_import_bgen_dosage_entry(self):
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['dosage'])
         self.assertEqual(bgen.entry.dtype, hl.tstruct(dosage=hl.tfloat64))
         self.assertEqual(bgen.count_rows(), 199)
+        self.assertEqual(bgen._force_count_rows(), 199)
 
-    @fails_service_backend()
     def test_import_bgen_GT_GP_entries(self):
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['GT', 'GP'],
                               sample_file=resource('example.sample'))
         self.assertEqual(bgen.entry.dtype, hl.tstruct(GT=hl.tcall, GP=hl.tarray(hl.tfloat64)))
 
-    @fails_service_backend()
     def test_import_bgen_no_entries(self):
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=[],
                               sample_file=resource('example.sample'))
         self.assertEqual(bgen.entry.dtype, hl.tstruct())
 
-    @fails_service_backend()
     def test_import_bgen_no_reference(self):
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['GT', 'GP', 'dosage'],
@@ -1080,7 +1076,6 @@ class BGENTests(unittest.TestCase):
         assert bgen.locus.dtype == hl.tstruct(contig=hl.tstr, position=hl.tint32)
         assert bgen.count_rows() == 199
 
-    @fails_service_backend()
     def test_import_bgen_skip_invalid_loci_does_not_error_with_invalid_loci(self):
         # Note: the skip_invalid_loci.bgen has 16-bit probabilities, and Hail
         # will crash if the genotypes are decoded
@@ -1101,8 +1096,6 @@ class BGENTests(unittest.TestCase):
                                     sample_file=resource('skip_invalid_loci.sample'))
                 mt.rows().count()
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_bgen_gavin_example(self):
         recoding = {'0{}'.format(i): str(i) for i in range(1, 10)}
 
@@ -1116,8 +1109,6 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(
             bgenmt._same(genmt, tolerance=1.0 / 255, absolute=True))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_bgen_random(self):
         sample_file = resource('random.sample')
         genmt = hl.import_gen(resource('random.gen'), sample_file)
@@ -1126,15 +1117,12 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(
             bgenmt._same(genmt, tolerance=1.0 / 255, absolute=True))
 
-    @fails_service_backend()
     def test_parallel_import(self):
         mt = hl.import_bgen(resource('parallelBgenExport.bgen'),
                             ['GT', 'GP'],
                             resource('parallelBgenExport.sample'))
         self.assertEqual(mt.count(), (16, 10))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_bgen_dosage_and_gp_dosage_function_agree(self):
         recoding = {'0{}'.format(i): str(i) for i in range(1, 10)}
 
@@ -1148,8 +1136,6 @@ class BGENTests(unittest.TestCase):
             (hl.is_missing(et.dosage) & hl.is_missing(et.gp_dosage)) |
             (hl.abs(et.dosage - et.gp_dosage) < 1e-6)))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_bgen_row_fields(self):
         default_row_fields = hl.import_bgen(resource('example.8bits.bgen'),
                                             entry_fields=['dosage'])
@@ -1184,8 +1170,6 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(
             default_row_fields.drop('varid', 'rsid')._same(no_row_fields))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_bgen_variant_filtering_from_literals(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1227,8 +1211,6 @@ class BGENTests(unittest.TestCase):
 
         self.assertTrue(expected._same(part_1))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_bgen_locus_filtering_from_literals(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1255,13 +1237,11 @@ class BGENTests(unittest.TestCase):
         self.assertEqual(locus_object.rows().key_by('locus', 'alleles').select().collect(),
                          expected_result)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_bgen_variant_filtering_from_exprs(self):
         bgen_file = resource('example.8bits.bgen')
 
         everything = hl.import_bgen(bgen_file, ['GT'])
-        self.assertEqual(everything.count(), (199, 500))
+        # self.assertEqual(everything.count(), (199, 500))
 
         desired_variants = hl.struct(locus=everything.locus, alleles=everything.alleles)
 
@@ -1272,8 +1252,6 @@ class BGENTests(unittest.TestCase):
 
         self.assertTrue(everything._same(actual))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_bgen_locus_filtering_from_exprs(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1292,8 +1270,6 @@ class BGENTests(unittest.TestCase):
 
         self.assertTrue(everything._same(actual_locus))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_bgen_variant_filtering_from_table(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1309,8 +1285,6 @@ class BGENTests(unittest.TestCase):
 
         self.assertTrue(everything._same(actual))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_bgen_locus_filtering_from_table(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1330,8 +1304,6 @@ class BGENTests(unittest.TestCase):
         self.assertEqual(result.rows().key_by('locus', 'alleles').select().collect(),
                         expected_result)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_bgen_empty_variant_filter(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1353,16 +1325,12 @@ class BGENTests(unittest.TestCase):
         self.assertEqual(actual.count_rows(), 0)
 
     # FIXME testing block_size (in MB) requires large BGEN
-    @fails_service_backend()
-    @fails_local_backend()
     def test_n_partitions(self):
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['dosage'],
                               n_partitions=210)
         self.assertEqual(bgen.n_partitions(), 199) # only 199 variants in the file
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_drop(self):
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['dosage'])
@@ -1375,8 +1343,6 @@ class BGENTests(unittest.TestCase):
         self.assertEqual(dc._force_count_rows(), 199)
         self.assertEqual(dc._force_count_cols(), 0)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_index_multiple_bgen_files_does_not_fail_and_is_importable(self):
         original_bgen_files = [resource('random-b.bgen'), resource('random-c.bgen'), resource('random-a.bgen')]
         with hl.TemporaryFilename(suffix='.bgen') as f, \
@@ -1394,8 +1360,6 @@ class BGENTests(unittest.TestCase):
 
             assert actual._same(expected, tolerance=1.0 / 255, absolute=True)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_multiple_files_variant_filtering(self):
         bgen_file = [resource('random-b.bgen'), resource('random-c.bgen'), resource('random-a.bgen')]
 
@@ -1424,7 +1388,6 @@ class BGENTests(unittest.TestCase):
 
         assert expected._same(actual)
 
-    @fails_service_backend()
     def test_multiple_files_disjoint(self):
         sample_file = resource('random.sample')
         bgen_file = [resource('random-b-disjoint.bgen'), resource('random-c-disjoint.bgen'), resource('random-a-disjoint.bgen')]
@@ -1463,8 +1426,6 @@ class BGENTests(unittest.TestCase):
             finally:
                 hl.current_backend().fs.remove(f + '.idx')
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_specify_different_index_file(self):
         sample_file = resource('random.sample')
         bgen_file = resource('random.bgen')
@@ -1488,8 +1449,6 @@ class BGENTests(unittest.TestCase):
                 index_file_map = {bgen_file: index_file}
                 hl.index_bgen(bgen_file, index_file_map=index_file_map)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_export_bgen(self):
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['GP'],
@@ -1504,8 +1463,6 @@ class BGENTests(unittest.TestCase):
                                    sample_file=tmp + '.sample')
             assert bgen._same(bgen2)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_export_bgen_zstd(self):
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['GP'],
@@ -1519,8 +1476,6 @@ class BGENTests(unittest.TestCase):
                                    sample_file=tmp + '.sample')
             assert bgen._same(bgen2)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_export_bgen_parallel(self):
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['GP'],
@@ -1535,8 +1490,6 @@ class BGENTests(unittest.TestCase):
                                    sample_file=tmp + '.sample')
             assert bgen._same(bgen2)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_export_bgen_from_vcf(self):
         mt = hl.import_vcf(resource('sample.vcf'))
 
@@ -1556,6 +1509,33 @@ class BGENTests(unittest.TestCase):
             mt = mt.select_entries('GT').select_rows().select_cols()
             bgen2 = bgen2.unfilter_entries().select_rows() # drop varid, rsid
             assert bgen2._same(mt)
+
+    def test_randomness(self):
+        alleles = ['A', 'G']
+
+        desired_variants = [
+            hl.Struct(locus=hl.Locus('1', 2000), alleles=alleles),
+            hl.Struct(locus=hl.Locus('1', 2001), alleles=alleles),
+            hl.Struct(locus=hl.Locus('1', 4000), alleles=alleles),
+            hl.Struct(locus=hl.Locus('1', 10000), alleles=alleles),
+            hl.Struct(locus=hl.Locus('1', 100001), alleles=alleles),
+        ]
+
+        bgen1 = hl.import_bgen(resource('example.8bits.bgen'),
+                               entry_fields=['GT'],
+                               sample_file=resource('example.sample'),
+                               n_partitions=3)
+        bgen1 = bgen1.filter_rows(hl.literal(desired_variants).contains(bgen1.row_key))
+        c1 = bgen1.filter_entries(hl.rand_bool(0.2, seed=1234))
+
+        bgen2 = hl.import_bgen(resource('example.8bits.bgen'),
+                               entry_fields=['GT'],
+                               sample_file=resource('example.sample'),
+                               n_partitions=5,
+                               variants=desired_variants)
+
+        c2 = bgen2.filter_entries(hl.rand_bool(0.2, seed=1234))
+        assert c1._same(c2)
 
 
 class GENTests(unittest.TestCase):

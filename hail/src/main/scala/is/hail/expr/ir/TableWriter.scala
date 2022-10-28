@@ -248,8 +248,8 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec,
       val ctxValue = ctx.asString.loadString(cb)
       writeIndexInfo.foreach { case (indexName, _, writer) =>
         val indexFile = cb.newLocal[String]("indexFile")
-        cb.assign(indexFile, const(indexName).concat(ctxValue).concat(".idx"))
-        writer.init(cb, indexFile)
+        cb.assign(indexFile, const(indexName).concat(filename).concat(".idx"))
+        writer.init(cb, indexFile, cb.memoize(mb.getObject[Map[String, Any]](Map.empty)))
       }
 
       cb.assign(filename, const(partPrefix).concat(ctxValue))
@@ -564,7 +564,7 @@ object TableTextFinalizer {
   def cleanup(fs: FS, outputPath: String, files: Array[String]): Unit = {
     val outputFiles = fs.listStatus(fs.makeQualified(outputPath)).map(_.getPath).toSet
     val fileSet = files.map(fs.makeQualified(_)).toSet
-    outputFiles.diff(fileSet).foreach(fs.delete(_, false))
+    outputFiles.diff(fileSet).foreach(fs.delete(_, true))
   }
 }
 
