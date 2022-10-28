@@ -11,7 +11,7 @@ from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
     NDArrayShape, NDArrayReshape, NDArrayMap, NDArrayMap2, NDArrayRef, NDArraySlice, NDArraySVD, \
     NDArrayReindex, NDArrayAgg, NDArrayMatMul, NDArrayQR, NDArrayInv, NDArrayConcat, NDArrayWrite, \
     ArraySort, ArrayMaximalIndependentSet, ToSet, ToDict, toArray, ToArray, CastToArray, \
-    ToStream, toStream, LowerBoundOnOrderedCollection, GroupByKey, StreamMap, StreamZip, \
+    ToStream, toStream, LowerBoundOnOrderedCollection, GroupByKey, StreamMap, StreamZip, StreamTake, \
     StreamFilter, StreamFlatMap, StreamFold, StreamScan, StreamJoinRightDistinct, StreamFor, \
     AggFilter, AggExplode, AggGroupBy, AggArrayPerElement, BaseApplyAggOp, ApplyAggOp, ApplyScanOp, \
     AggFold, Begin, MakeStruct, SelectFields, InsertFields, GetField, MakeTuple, \
