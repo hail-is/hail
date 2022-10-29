@@ -526,23 +526,8 @@ steps:
       - from: /repo
         to: /io/repo
     dependsOn:
-      - service_base_image
+      - base_image
       - merge_code
-  - kind: buildImage2
-    name: hail_run_tests_image
-    dockerFile: /io/hail/Dockerfile.hail-run-tests
-    contextPath: /io/hail
-    publishAs: hail-run-tests
-    inputs:
-      - from: /repo/hail
-        to: /io/hail
-    dependsOn:
-      - hail_run_image
-      - merge_code
-    resources:
-      storage: 10Gi
-      cpu: "2"
-      memory: standard
   - kind: buildImage2
     name: monitoring_image
     dockerFile: /io/repo/monitoring/Dockerfile
@@ -942,7 +927,7 @@ steps:
     name: test_hail_java
     numSplits: 5
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: hail_run_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -971,7 +956,7 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
-      - hail_run_tests_image
+      - hail_run_image
       - build_hail
   - kind: buildImage2
     name: hail_base_image
@@ -1111,7 +1096,7 @@ steps:
     name: test_hail_python
     numSplits: 7
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: hail_run_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1156,7 +1141,7 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
-      - hail_run_tests_image
+      - hail_run_image
       - build_hail
     clouds:
       - gcp
@@ -1219,7 +1204,7 @@ steps:
   - kind: runImage
     name: test_hail_python_unchecked_allocator
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: hail_run_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1265,7 +1250,7 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
-      - hail_run_tests_image
+      - hail_run_image
       - build_hail
     clouds:
       - gcp
@@ -1273,7 +1258,7 @@ steps:
     name: test_hail_python_local_backend
     numSplits: 7
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: hail_run_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1322,7 +1307,7 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
-      - hail_run_tests_image
+      - hail_run_image
       - build_hail
   - kind: runImage
     name: test_python_docs
@@ -2149,7 +2134,7 @@ steps:
     name: test_hail_python_service_backend
     numSplits: 5
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: hail_run_image.image
     resources:
       cpu: '1'
     script: |
@@ -2211,7 +2196,7 @@ steps:
       - deploy_memory
       - create_deploy_config
       - create_accounts
-      - hail_run_tests_image
+      - hail_run_image
       - upload_query_jar
       - upload_test_resources_to_blob_storage
       - build_hail_jar_and_wheel_only_spark_3_2
@@ -3071,7 +3056,7 @@ steps:
   - kind: runImage
     name: test_hail_services_java
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: hail_run_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -3110,7 +3095,7 @@ steps:
       - default_ns
       - create_certs
       - create_accounts
-      - hail_run_tests_image
+      - hail_run_image
       - build_hail
       - deploy_batch
   - kind: runImage
