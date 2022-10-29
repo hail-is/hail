@@ -6344,7 +6344,7 @@ def query_table(path, point_or_interval):
 
     def coerce_endpoint(point):
         if point.dtype == key_typ[0]:
-            return hl.tuple([hl.struct(**{key_names[0]: point}), 1])
+            point = hl.struct(**{key_names[0]: point})
         ts = point.dtype
         if isinstance(ts, tstruct):
             i = 0
@@ -6361,13 +6361,14 @@ def query_table(path, point_or_interval):
 
             point_size = builtins.len(point.dtype)
             return hl.tuple(
-                [hl.struct(**{key_names[i]: point[i] for i in builtins.range(point_size)}), hl.int32(point_size)])
+                [hl.struct(**{key_names[i]: (point[i] if i < point_size else hl.missing(key_typ[i]))
+                              for i in builtins.range(builtins.len(key_typ))}), hl.int32(point_size)])
         else:
             raise ValueError(
                 f"query_table: key mismatch: cannot query a table with key "
                 f"({', '.join(builtins.str(x) for x in key_typ.values())}) with query point type {point.dtype}")
 
-    if isinstance(point_or_interval.dtype, hl.tinterval):
+    if point_or_interval.dtype != key_typ[0] and isinstance(point_or_interval.dtype, hl.tinterval):
         partition_interval = hl.interval(start=coerce_endpoint(point_or_interval.start),
                                          end=coerce_endpoint(point_or_interval.end),
                                          includes_start=point_or_interval.includes_start,
@@ -6376,7 +6377,7 @@ def query_table(path, point_or_interval):
         point = coerce_endpoint(point_or_interval)
         partition_interval=hl.interval(start=point, end=point, includes_start=True, includes_end=True)
     return construct_expr(
-        ir.ToArray(ir.ReadPartition(partition_interval._ir, row_typ=row_typ, reader=ir.PartitionNativeIntervalReader(path))),
+        ir.ToArray(ir.ReadPartition(partition_interval._ir, reader=ir.PartitionNativeIntervalReader(path, row_typ))),
         type=hl.tarray(row_typ),
         indices=partition_interval._indices,
         aggregations=partition_interval._aggregations

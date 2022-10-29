@@ -2073,3 +2073,48 @@ def test_query_table():
         hl.query_table(f, hl.struct())
     with pytest.raises(ValueError, match='query_table: queried with 2 key field'):
         hl.query_table(f, hl.struct(idx=5, foo='s'))
+
+
+def test_query_table_compound_key():
+    f = new_temp_file(extension='ht')
+
+    ht = hl.utils.range_table(200, 10)
+    ht = ht.filter(ht.idx % 10 == 0)
+    ht.annotate(idx2=ht.idx % 20, s=hl.str(ht.idx)).key_by('idx', 'idx2').write(f)
+
+    queries = [
+        hl.query_table(f, 50),
+        hl.query_table(f, hl.struct(idx=50)),
+        hl.query_table(f, hl.interval(hl.struct(idx=50, idx2=11), hl.struct(idx=60, idx2=-1)))
+    ]
+
+    expected = [
+        [hl.Struct(idx=50, idx2=10, s='50')],
+        [hl.Struct(idx=50, idx2=10, s='50')],
+        []
+    ]
+    assert hl.eval(queries) == expected
+
+def test_query_table_interval_key():
+    f = new_temp_file(extension='ht')
+
+    ht = hl.utils.range_table(200, 10)
+    ht = ht.filter(ht.idx % 10 == 0)
+
+    ht = ht.key_by(interval=hl.interval(ht.idx, ht.idx + 50))
+    ht.write(f)
+
+    queries = [
+        hl.query_table(f, hl.interval(20, 70)),
+        hl.query_table(f, hl.interval(20, 0)),
+        hl.query_table(f, hl.struct(interval=hl.interval(20, 0))),
+        hl.query_table(f, hl.interval(hl.interval(15, 10), hl.interval(20, 71)))
+    ]
+
+    expected = [
+        [hl.Struct(idx=20, interval=hl.Interval(20, 70))],
+        [],
+        [],
+        [hl.Struct(idx=20, interval=hl.Interval(20, 70))],
+    ]
+    assert hl.eval(queries) == expected

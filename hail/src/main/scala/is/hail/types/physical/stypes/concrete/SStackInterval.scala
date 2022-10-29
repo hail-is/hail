@@ -9,6 +9,12 @@ import is.hail.types.physical.{PInterval, PType}
 import is.hail.types.virtual.{TInterval, Type}
 import is.hail.utils.FastIndexedSeq
 
+object SStackInterval {
+  def construct(start: EmitValue, end: EmitValue, includesStart: Value[Boolean], includesEnd: Value[Boolean]): SStackIntervalValue = {
+    assert(start.emitType == end.emitType)
+    new SStackIntervalValue(SStackInterval(start.emitType), start, end, includesStart, includesEnd)
+  }
+}
 
 final case class SStackInterval(pointEmitType: EmitType) extends SInterval {
 
@@ -85,15 +91,6 @@ class SStackIntervalValue(
   override def loadEnd(cb: EmitCodeBuilder): IEmitCode = end.toI(cb)
 
   override def endDefined(cb: EmitCodeBuilder): Value[Boolean] = end.m
-}
-
-object SIntervalPointerSettable {
-  def apply(sb: SettableBuilder, st: SIntervalPointer, name: String): SIntervalPointerSettable = {
-    new SIntervalPointerSettable(st,
-      sb.newSettable[Long](s"${ name }_a"),
-      sb.newSettable[Boolean](s"${ name }_includes_start"),
-      sb.newSettable[Boolean](s"${ name }_includes_end"))
-  }
 }
 
 final class SStackIntervalSettable(

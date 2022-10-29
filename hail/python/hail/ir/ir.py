@@ -2870,61 +2870,68 @@ class MatrixAggregate(IR):
 class PartitionReader(object):
     pass
 
-    def set_uid_field(self, uid_field):
+    def with_uid_field(self, uid_field):
         pass
 
     def render(self):
         pass
 
     def _eq(self, other):
+        pass
+
+    def row_type(self):
         pass
 
 
 class PartitionNativeIntervalReader(PartitionReader):
-    def __init__(self, path):
+    def __init__(self, path, table_row_type, uid_field=None):
         self.path = path
-        self.uid_field = '__dummy'
-
-    def set_uid_field(self, uid_field):
+        self.table_row_type = table_row_type
         self.uid_field = uid_field
+
+    def with_uid_field(self, uid_field):
+        return PartitionNativeIntervalReader(self.path, uid_field)
 
     def render(self):
         return escape_str(json.dumps({"name": "PartitionNativeIntervalReader",
                                       "path": self.path,
-                                      "uidFieldName": self.uid_field}))
+                                      "uidFieldName": self.uid_field if self.uid_field is not None else '__dummy'}))
 
     def _eq(self, other):
-        return isinstance(other, PartitionNativeIntervalReader) and self.path == other.path
+        return isinstance(other,
+                          PartitionNativeIntervalReader) and self.path == other.path and self.uid_field == other.uid_field
+
+    def row_type(self):
+        if self.uid_field is None:
+            return self.table_row_type
+        return tstruct(**self.table_row_type, **{self.uid_field: ttuple(tint64, tint64)})
 
 
 class ReadPartition(IR):
-    @typecheck_method(context=IR, row_typ=tstruct, reader=PartitionReader)
-    def __init__(self, context, row_typ, reader):
+    @typecheck_method(context=IR, reader=PartitionReader)
+    def __init__(self, context, reader):
         super().__init__(context)
         self.context = context
-        self.row_typ = row_typ
-        self.row_typ_with_uid = row_typ
-        self.drop_uid = True
+        self.has_uid = False
         self.reader = reader
 
     def _handle_randomness(self, create_uids):
         if create_uids:
-            self.row_typ_with_uid = tstruct(**self.row_typ, __uid=ttuple(tint64, tint64))
-            self.drop_uid = False
-            self.reader.set_uid_field('__uid')
+            return ReadPartition(self.context, self.reader.with_uid_field('__uid'))
+        return self
 
     @typecheck_method(context=IR)
     def copy(self, context):
-        return ReadPartition(context, row_typ=self.row_typ, reader=self.reader)
+        return ReadPartition(context, reader=self.reader)
 
     def head_str(self):
-        return f'{"DropRowUIDs" if self.drop_uid else "None"} "{self.reader.render()}"'
+        return f'{"DropRowUIDs" if self.reader.uid_field is None else "None"} "{self.reader.render()}"'
 
     def _eq(self, other):
         return self.reader.eq(other.reader)
 
     def _compute_type(self, env, agg_env, deep_typecheck):
-        return tstream(self.row_typ_with_uid)
+        return tstream(self.reader.row_type())
 
 
 class TableWrite(IR):

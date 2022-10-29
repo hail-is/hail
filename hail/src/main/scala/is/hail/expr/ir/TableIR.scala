@@ -7,7 +7,7 @@ import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.IntervalFunctions._
-import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, MatrixToTableFunction, TableToTableFunction}
+import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, IntervalFunctions, MatrixToTableFunction, TableToTableFunction}
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage, TableStageDependency}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io._
@@ -771,7 +771,7 @@ case class PartitionNativeIntervalReader(tablePath: String, tableSpec: AbstractT
 
       val startPartitionIndex = mb.genFieldThisRef[Int]("start_part")
       val currPartitionIdx = mb.genFieldThisRef[Int]("curr_part")
-      val lastIncludedPartitionIdx = mb.genFieldThisRef[Int]("end_part")
+      val lastIncludedPartitionIdx = mb.genFieldThisRef[Int]("last_part")
       val ib = mb.genFieldThisRef[InputBuffer]("buffer")
 
       // leave the index open/initialized to allow queries to reuse the same index for the same file
@@ -792,49 +792,18 @@ case class PartitionNativeIntervalReader(tablePath: String, tableSpec: AbstractT
           val endBound = ctx.loadEnd(cb).get(cb)
           val includesEnd = ctx.includesEnd()
 
-          val startAndSignTuple = SStackStruct.constructFromArgs(cb,
-            region,
-            TTuple(startBound.st.virtualType, TInt32),
-            EmitCode.present(cb.emb, startBound),
-            EmitCode.present(cb.emb, primitive(cb.ifx[Int](includesStart, -1, 1)))
-          )
+          val (startPart, endPart) = IntervalFunctions.partitionerFindIntervalRange(cb,
+            partitionerRuntime,
+            SStackInterval.construct(EmitValue.present(startBound), EmitValue.present(endBound), includesStart, includesEnd),
+            -1)
 
-          val endAndSignTuple = SStackStruct.constructFromArgs(cb,
-            region,
-            TTuple(endBound.st.virtualType, TInt32),
-            EmitCode.present(cb.emb, endBound),
-            EmitCode.present(cb.emb, primitive(cb.ifx[Int](includesEnd, 1, -1)))
-          )
+          cb.ifx(endPart < startPart, cb._fatal("invalid start/end config - startPartIdx=",
+            startPartitionIndex.toS, ", endPartIdx=", lastIncludedPartitionIdx.toS))
 
-          def compareEnd(cb: EmitCodeBuilder, containerEltEV: EmitValue, partBoundEV: EmitValue, f: Value[Int] => Code[Boolean]): Value[Boolean] = {
-            val containerElt = containerEltEV.get(cb).asInterval
-            val partitionBoundStart = containerElt.loadEnd(cb).get(cb).asBaseStruct
-            val partitionBoundSign = cb.ifx[Int](containerElt.includesEnd(), 1, -1)
-            val queryBound = partBoundEV.get(cb).asBaseStruct
-            val queryPoint = queryBound.loadField(cb, 0).get(cb).asBaseStruct
-            val querySign = queryBound.loadField(cb, 1).get(cb).asInt.value
-            cb.memoize(f(partitionIntervalEndpointCompare(cb, partitionBoundStart, partitionBoundSign, queryPoint, querySign)))
-          }
-
-          cb.assign(startPartitionIndex, new BinarySearch(cb.emb,
-            partitionerRuntime.st,
-            EmitType(startAndSignTuple.st, true),
-            ((cb, elt) => elt),
-            bound = "lower",
-            compareEnd(_, _, _, _ < 1)
-          ).search(cb, partitionerRuntime, EmitCode.present(cb.emb, startAndSignTuple)))
+          cb.assign(startPartitionIndex, startPart)
+          cb.assign(lastIncludedPartitionIdx, endPart - 1)
           cb.assign(currPartitionIdx, startPartitionIndex)
 
-          cb.assign(lastIncludedPartitionIdx, new BinarySearch(cb.emb,
-            partitionerRuntime.st,
-            EmitType(endAndSignTuple.st, true),
-            ((cb, elt) => elt),
-            bound = "lower",
-            compareEnd(_, _, _, _ < 1)
-          ).search(cb, partitionerRuntime, EmitCode.present(cb.emb, endAndSignTuple)))
-
-          cb.ifx(lastIncludedPartitionIdx < startPartitionIndex, cb._fatal("invalid start/end config - startPartIdx=",
-            startPartitionIndex.toS, ", endPartIdx=", lastIncludedPartitionIdx.toS))
 
           cb.assign(indexInitialized, false) // basically "!first"
           cb.assign(currIdxInPartition, 0L)

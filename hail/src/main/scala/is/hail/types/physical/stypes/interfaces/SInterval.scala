@@ -47,7 +47,7 @@ trait SIntervalValue extends SValue {
     new SInt64Value(sizeSoFar)
   }
 
-  override def isEmpty(cb: EmitCodeBuilder): Value[Boolean] = {
+  def isEmpty(cb: EmitCodeBuilder): Value[Boolean] = {
     val gt = cb.emb.ecb.getOrderingFunction(st.pointType, CodeOrdering.Gt())
     val gteq = cb.emb.ecb.getOrderingFunction(st.pointType, CodeOrdering.Gteq())
 
