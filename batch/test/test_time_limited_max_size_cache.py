@@ -1,8 +1,8 @@
-import pytest
 import asyncio
 
-from gear.time_limited_max_size_cache import TimeLimitedMaxSizeCache
+import pytest
 
+from gear.time_limited_max_size_cache import TimeLimitedMaxSizeCache
 
 pytestmark = pytest.mark.asyncio
 
