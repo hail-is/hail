@@ -20,9 +20,9 @@ trait SInterval extends SType {
 trait SIntervalValue extends SValue {
   def st: SInterval
 
-  def includesStart(): Value[Boolean]
+  def includesStart: Value[Boolean]
 
-  def includesEnd(): Value[Boolean]
+  def includesEnd: Value[Boolean]
 
   def loadStart(cb: EmitCodeBuilder): IEmitCode
 

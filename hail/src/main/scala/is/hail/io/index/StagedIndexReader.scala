@@ -2,16 +2,15 @@ package is.hail.io.index
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.ir.functions.IntervalFunctions.{arrayOfStructFindIntervalRange, compareStructWithPartitionIntervalEndpoint, partitionIntervalEndpointCompare}
-import is.hail.expr.ir.{BinarySearch, EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitSettable, EmitValue, IEmitCode}
+import is.hail.expr.ir.functions.IntervalFunctions.{arrayOfStructFindIntervalRange, compareStructWithPartitionIntervalEndpoint}
+import is.hail.expr.ir.{BinarySearch, EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitValue, IEmitCode}
 import is.hail.io.fs.FS
 import is.hail.rvd.AbstractIndexSpec
-import is.hail.types.physical.stypes.{EmitType, SSettable, SValue}
-import is.hail.types.physical.stypes.concrete.{SStackStruct, SStackStructSettable, SStackStructValue}
-import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructSettable, SBaseStructValue, SIndexableValue, SIntervalValue, primitive}
-import is.hail.types.physical.stypes.primitives.{SBooleanValue, SInt64}
+import is.hail.types.physical.stypes.concrete.{SStackInterval, SStackIntervalValue, SStackStruct, SStackStructSettable, SStackStructValue}
+import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.stypes.{SSettable, SValue}
 import is.hail.types.physical.{PCanonicalArray, PCanonicalBaseStruct}
-import is.hail.types.virtual.{TBoolean, TInt64, TTuple}
+import is.hail.types.virtual.{TInt64, TTuple}
 import is.hail.utils._
 
 import java.io.InputStream
@@ -123,9 +122,9 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
     val endIdx = cb.newLocal[Long]("queryInterval_endIdx")
 
     val startKey = interval.loadStart(cb).get(cb).asBaseStruct
-    val startLeansRight = cb.memoize(!interval.includesStart())
+    val startLeansRight = cb.memoize(!interval.includesStart)
     val endKey = interval.loadEnd(cb).get(cb).asBaseStruct
-    val endLeansRight = interval.includesEnd()
+    val endLeansRight = interval.includesEnd
 
     val LReturn = CodeLabel()
 
@@ -158,9 +157,9 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
       cb.goto(LReturn)
     })
 
+    val stackInterval = SStackInterval.construct(EmitValue.present(startKey), EmitValue.present(endKey), cb.memoize(!startLeansRight), endLeansRight)
     val (_startIdx, _startLeaf, _endIdx) = runQuery(cb,
-      startKey, startLeansRight, endKey, endLeansRight,
-      rootLevel, rootOffset, nKeys, startLeaf, isPointQuery = false)
+      stackInterval, rootLevel, rootOffset, nKeys, startLeaf, isPointQuery = false)
     cb.assign(startIdx, _startIdx)
     cb.assign(startLeaf, _startLeaf)
     cb.assign(endIdx, _endIdx)
@@ -197,7 +196,8 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
           val rootOffset = emb.getCodeParam[Long](4)
           val rootSuccessorIndex = emb.getCodeParam[Long](5)
           val rootSuccessorLeaf = emb.getSCodeParam(6)
-          val (startIndex, startLeaf, _) = runQuery(cb, endpoint, leansRight, endpoint, leansRight, rootLevel, rootOffset, rootSuccessorIndex, rootSuccessorLeaf, isPointQuery = true)
+          val interval = SStackInterval.construct(EmitValue.present(endpoint), EmitValue.present(endpoint), cb.memoize(!leansRight), leansRight)
+          val (startIndex, startLeaf, _) = runQuery(cb, interval, rootLevel, rootOffset, rootSuccessorIndex, rootSuccessorLeaf, isPointQuery = true)
           cb.assign(queryResultStartIndex, startIndex)
           cb.assign(queryResultStartLeaf, startLeaf)
           Code._empty
@@ -213,16 +213,17 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
   // `rootSuccessorIndex` must be `nKeys`, and `rootSuccessorLeaf` can be anything,
   // as it will never be accessed.
   private[this] def runQuery(cb: EmitCodeBuilder,
-    startKey: SBaseStructValue,
-    startLeansRight: Value[Boolean],
-    endKey: SBaseStructValue,
-    endLeansRight: Value[Boolean],
+    interval: SStackIntervalValue,
     rootLevel: Value[Int],
     rootOffset: Value[Long],
     rootSuccessorIndex: Value[Long],
     rootSuccessorLeaf: SValue,
     isPointQuery: Boolean
   ): (Value[Long], SStackStructValue, Value[Long]) = {
+    val startKey = interval.loadStart(cb).get(cb).asBaseStruct
+    val startLeansRight = cb.memoize(!interval.includesStart)
+    val endKey = interval.loadEnd(cb).get(cb).asBaseStruct
+    val endLeansRight = interval.includesEnd
 
     def searchChildren(children: SIndexableValue, isInternalNode: Boolean): (Value[Int], Value[Int]) = {
       val keyFieldName = if (isInternalNode) "first_key" else "key"
