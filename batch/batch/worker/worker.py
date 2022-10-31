@@ -1296,6 +1296,7 @@ class Job:
         self.worker = worker
 
         self.deleted_event = asyncio.Event()
+        self.killed = False
 
         self.token = uuid.uuid4().hex
         self.scratch = f'/batch/{self.token}'
@@ -1368,6 +1369,7 @@ class Job:
         self.project_id = Job.get_next_xfsquota_project_id()
 
         self.mjs_fut: Optional[asyncio.Future] = None
+        self.run_job_fut: Optional[asyncio.Future] = None
 
     def write_batch_config(self):
         os.makedirs(f'{self.scratch}/batch-config')
@@ -1400,10 +1402,22 @@ class Job:
         log.info(f'deleting {self}')
         self.deleted_event.set()
 
+    async def kill(self):
+        log.info(f'killing {self}')
+        self.killed = True
+        if self.run_job_fut is not None:
+            self.run_job_fut.cancel()
+            await asyncio.wait([self.run_job_fut])
+            assert self.run_job_fut.done()
+            self.run_job_fut = None
+
     def mark_started(self):
         self.mjs_fut = self.task_manager.ensure_future(self.worker.post_job_started(self))
 
     async def mark_complete(self):
+        if self.killed:
+            return
+
         self.end_time = time_msecs()
 
         full_status = self.status()
@@ -1605,7 +1619,6 @@ class DockerJob(Job):
     async def run(self):
         async with self.worker.cpu_sem(self.cpu_in_mcpu):
             self.start_time = time_msecs()
-
             try:
                 self.mark_started()
 
@@ -2348,31 +2361,36 @@ class Worker:
     async def shutdown(self):
         log.info('Worker.shutdown')
         try:
-            async with AsyncExitStack() as cleanup:
-                for jvm in self._jvms:
-                    cleanup.callback(jvm.kill)
+            await asyncio.gather(*[job.kill() for job in self.jobs.values()])
+            log.info('killed any remaining jobs')
         finally:
             try:
-                self.task_manager.shutdown()
-                log.info('shutdown task manager')
+                async with AsyncExitStack() as cleanup:
+                    for jvm in self._jvms:
+                        cleanup.callback(jvm.kill)
+                log.info('shut down jvms')
             finally:
                 try:
-                    if self.file_store:
-                        await self.file_store.close()
-                        log.info('closed file store')
+                    self.task_manager.shutdown()
+                    log.info('shutdown task manager')
                 finally:
                     try:
-                        if self.compute_client:
-                            await self.compute_client.close()
-                            log.info('closed compute client')
+                        if self.file_store:
+                            await self.file_store.close()
+                            log.info('closed file store')
                     finally:
                         try:
-                            if self.fs:
-                                await self.fs.close()
-                                log.info('closed worker file system')
+                            if self.compute_client:
+                                await self.compute_client.close()
+                                log.info('closed compute client')
                         finally:
-                            await self.client_session.close()
-                            log.info('closed client session')
+                            try:
+                                if self.fs:
+                                    await self.fs.close()
+                                    log.info('closed worker file system')
+                            finally:
+                                await self.client_session.close()
+                                log.info('closed client session')
 
     async def run_job(self, job):
         try:
@@ -2440,7 +2458,7 @@ class Worker:
 
         self.jobs[job.id] = job
 
-        self.task_manager.ensure_future(self.run_job(job))
+        job.run_job_fut = self.task_manager.ensure_future(self.run_job(job))
 
         return web.Response()
 
