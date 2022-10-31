@@ -17,4 +17,11 @@ ENV PATH "$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"
 ENV PYSPARK_PYTHON python3
 
 RUN curl >${SPARK_HOME}/jars/gcs-connector-hadoop2-2.2.7.jar https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.2.7.jar
+
 COPY docker/core-site.xml ${SPARK_HOME}/conf/core-site.xml
+
+COPY hail/python/setup-hailtop.py /hailtop/setup.py
+COPY hail/python/hailtop /hailtop/hailtop/
+COPY hail/python/MANIFEST.in /hailtop/MANIFEST.in
+COPY /hail_version /hailtop/hailtop/hail_version
+RUN hail-pip-install /hailtop && rm -rf /hailtop

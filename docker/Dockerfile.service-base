@@ -13,6 +13,6 @@ RUN hail-pip-install /web_common && rm -rf /web_common
 
 COPY hail/python/setup-hailtop.py /hailtop/setup.py
 COPY hail/python/hailtop /hailtop/hailtop/
-COPY /hail_version /hailtop/hailtop/hail_version
 COPY hail/python/MANIFEST.in /hailtop/MANIFEST.in
+COPY /hail_version /hailtop/hailtop/hail_version
 RUN hail-pip-install /hailtop && rm -rf /hailtop
