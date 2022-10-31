@@ -216,6 +216,27 @@ object IntervalFunctions extends RegistryFunctions {
     BinarySearch.equalRange(cb, intervals, compare, ltNeedle, gtNeedle, 0, intervals.loadLength())
   }
 
+  def arrayOfStructFindIntervalRange(cb: EmitCodeBuilder,
+    array: SIndexableValue,
+    startKey: SBaseStructValue, startLeansRight: Value[Boolean],
+    endKey: SBaseStructValue, endLeansRight: Value[Boolean],
+    key: IEmitCode => IEmitCode
+  ): (Value[Int], Value[Int]) = {
+    def ltNeedle(elt: IEmitCode): Code[Boolean] = {
+      val eltKey = cb.memoize(key(elt)).get(cb).asBaseStruct
+      val c = compareStructWithPartitionIntervalEndpoint(cb, eltKey, startKey, startLeansRight)
+      c <= 0
+    }
+    def gtNeedle(elt: IEmitCode): Code[Boolean] = {
+      val eltKey = cb.memoize(key(elt)).get(cb).asBaseStruct
+      val c = compareStructWithPartitionIntervalEndpoint(cb, eltKey, endKey, endLeansRight)
+      c >= 0
+    }
+    val compare = BinarySearch.Comparator.fromLtGt(ltNeedle, gtNeedle)
+
+    BinarySearch.equalRange(cb, array, compare, ltNeedle, gtNeedle, 0, array.loadLength())
+  }
+
   def registerAll(): Unit = {
     registerIEmitCode4("Interval", tv("T"), tv("T"), TBoolean, TBoolean, TInterval(tv("T")),
       { case (_: Type, startpt, endpt, includesStartET, includesEndET) =>
