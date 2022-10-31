@@ -1739,19 +1739,10 @@ object LowerTableIR {
           )
         }
 
-      case TableToTableApply(child,
-        WrappedMatrixToTableFunction(LocalLDPrune(callField, r2Threshold, windowSize, maxQueueSize),
-          colsFieldName, entriesFieldName, _)) =>
+      case TableToTableApply(child, WrappedMatrixToTableFunction(localLDPrune: LocalLDPrune, colsFieldName, entriesFieldName, _)) =>
         val lc = lower(child)
         lc.mapPartition(Some(child.typ.key)) { rows =>
-          val newRow = mapIR(rows) { row =>
-            val entries = ToStream(GetField(row, entriesFieldName))
-            val genotypes = ToArray(mapIR(entries)(ent => GetField(ent, callField)))
-            val locus = GetField(row, "locus")
-            val alleles = GetField(row, "alleles")
-            makestruct("locus" -> locus, "alleles" -> alleles, "genotypes" -> genotypes)
-          }
-          StreamLocalLDPrune(newRow, r2Threshold, windowSize, maxQueueSize, ArrayLen(GetField(lc.globals, colsFieldName)))
+          localLDPrune.makeStream(rows, entriesFieldName, ArrayLen(GetField(lc.globals, colsFieldName)))
         }.mapGlobals(_ => makestruct())
 
       case bmtt@BlockMatrixToTable(bmir) =>
