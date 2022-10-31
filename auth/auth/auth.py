@@ -311,7 +311,7 @@ async def callback(request):
     if user is None:
         if caller == 'login':
             set_message(session, f'Account does not exist for login id {login_id}', 'error')
-            return aiohttp.web.HTTPFound(next_url)
+            return aiohttp.web.HTTPFound(deploy_config.external_url('auth', ''))
 
         assert caller == 'signup'
 
