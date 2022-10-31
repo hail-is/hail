@@ -741,7 +741,7 @@ SELECT frozen_merge_deploy FROM globals;
         kubernetes_asyncio.config.load_incluster_config()
         k8s_client = kubernetes_asyncio.client.CoreV1Api()
         app['task_manager'].ensure_future(periodically_call(10, update_envoy_configs, app['db'], k8s_client))
-        app['task_manager'].ensure_future(periodically_call(10, cleanup_expired_namespaces, app['db'], k8s_client))
+        app['task_manager'].ensure_future(periodically_call(10, cleanup_expired_namespaces, app['db']))
 
 
 async def on_cleanup(app):

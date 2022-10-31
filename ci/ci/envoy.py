@@ -108,7 +108,7 @@ def gateway_internal_host(services_per_namespace: Dict[str, List[str]]) -> dict:
         'domains': [f'internal.{DOMAIN}'],
         'routes': [
             {
-                'match': {'prefix': f'/{namespace}/{service}'},
+                'match': {'path_separated_prefix': f'/{namespace}/{service}'},
                 'route': route_to_cluster(f'{namespace}-{service}'),
                 'typed_per_filter_config': {
                     'envoy.filters.http.local_ratelimit': rate_limit_config(),
@@ -144,7 +144,7 @@ def internal_gateway_internal_host(services_per_namespace: Dict[str, List[str]])
         'domains': ['internal.hail'],
         'routes': [
             {
-                'match': {'prefix': f'/{namespace}/{service}'},
+                'match': {'path_separated_prefix': f'/{namespace}/{service}'},
                 'route': route_to_cluster(f'{namespace}-{service}'),
                 'typed_per_filter_config': {
                     'envoy.filters.http.local_ratelimit': rate_limit_config(),
@@ -209,17 +209,21 @@ def clusters(
             clusters.append(browser_cluster)
             clusters.append(static_cluster)
         else:
-            clusters.append(make_cluster(service, f'{service}.default', proxy, verify_ca=True))
+            clusters.append(make_cluster(service, f'{service}.default.svc.cluster.local', proxy, verify_ca=True))
 
     for namespace, services in internal_services_per_namespace.items():
         for service in services:
-            clusters.append(make_cluster(f'{namespace}-{service}', f'{service}.{namespace}', proxy, verify_ca=False))
+            clusters.append(
+                make_cluster(
+                    f'{namespace}-{service}', f'{service}.{namespace}.svc.cluster.local', proxy, verify_ca=False
+                )
+            )
 
     return clusters
 
 
 def make_cluster(name: str, address: str, proxy: str, *, verify_ca: bool) -> dict:
-    cluster = {
+    return {
         '@type': 'type.googleapis.com/envoy.config.cluster.v3.Cluster',
         'name': name,
         'type': 'STRICT_DNS',
@@ -243,7 +247,13 @@ def make_cluster(name: str, address: str, proxy: str, *, verify_ca: bool) -> dic
                 }
             ],
         },
-        'transport_socket': {
+        'transport_socket': upstream_transport_socket(proxy, verify_ca),
+    }
+
+
+def upstream_transport_socket(proxy: str, verify_ca: bool) -> dict:
+    if verify_ca:
+        return {
             'name': 'envoy.transport_sockets.tls',
             'typed_config': {
                 '@type': 'type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext',
@@ -252,17 +262,25 @@ def make_cluster(name: str, address: str, proxy: str, *, verify_ca: bool) -> dic
                         {
                             'certificate_chain': {'filename': f'/ssl-config/{proxy}-cert.pem'},
                             'private_key': {'filename': f'/ssl-config/{proxy}-key.pem'},
-                        }
-                    ]
+                        },
+                    ],
                 },
+                'validation_context': {'filename': f'/ssl-config/{proxy}-outgoing.pem'},
+            },
+        }
+
+    return {
+        'name': 'envoy.transport_sockets.tls',
+        'typed_config': {
+            '@type': 'type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext',
+            'common_tls_context': {
+                'tls_certificates': [],
+            },
+            'validation_context': {
+                'trust_chain_verification': 'ACCEPT_UNTRUSTED',
             },
         },
     }
-    if verify_ca:
-        cluster['transport_socket']['typed_config']['validation_context'] = {  # type: ignore
-            'trusted_ca': {'filename': f'/ssl-config/{proxy}-outgoing.pem'},
-        }
-    return cluster
 
 
 if __name__ == '__main__':
