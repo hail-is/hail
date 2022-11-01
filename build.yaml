@@ -525,6 +525,8 @@ steps:
     inputs:
       - from: /repo
         to: /io/repo
+      - from: /hail_version
+        to: /io/repo/hail_version
     dependsOn:
       - base_image
       - merge_code
