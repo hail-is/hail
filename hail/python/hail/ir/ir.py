@@ -707,13 +707,13 @@ class ArrayMaximalIndependentSet(IR):
     def _compute_type(self, env, agg_env, deep_typecheck):
         self.edges.compute_type(env, agg_env, deep_typecheck)
         if self.tie_breaker is not None:
-            self.tie_breaker.compute_type(_env_bind(env, self.bindings(2)), agg_env, deep_typecheck)
-        return tarray(self.edges.element_type[0])
+            self.tie_breaker.compute_type(self.bindings(2), agg_env, deep_typecheck)
+        return tarray(self.edges.typ.element_type[0])
 
     def renderable_bindings(self, i, default_value=None):
         if i == 2:
             if default_value is None:
-                ty = ttuple(self.edges.element_type[0])
+                ty = ttuple(self.edges.typ.element_type[0])
                 return {self.left_name: ty, self.right_name: ty}
             else:
                 return {self.left_name: default_value, self.right_name: default_value}

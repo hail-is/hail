@@ -145,14 +145,14 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None, keyed=True) -> Ta
         tie_breaker_ir = tie_breaker_expr._ir
         t, _ = source._process_joins(i, j, tie_breaker_expr)
     else:
-        left, right, tie_breaker_ir = None, None, None
+        left_id, right_id, tie_breaker_ir = None, None, None
         t, _ = source._process_joins(i, j)
 
     edges = t.select(__i=i, __j=j).key_by().select('__i', '__j')
     edges = edges.checkpoint(new_temp_file())
 
     mis_nodes = hl.set(construct_expr(
-        ir.ArrayMaximalIndependentSet(edges.collect(_localize=False)._ir, left, right, tie_breaker_ir),
+        ir.ArrayMaximalIndependentSet(edges.collect(_localize=False)._ir, left_id, right_id, tie_breaker_ir),
         hl.tarray(node_t)))
 
     nodes = edges.select(node=[edges.__i, edges.__j])
