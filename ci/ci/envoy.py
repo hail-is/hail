@@ -173,8 +173,6 @@ def auth_check_exemption() -> dict:
 
 
 def rate_limit_config(service: str, namespace: str) -> dict:
-    # FIXME We didn't set a rate limit before with nginx so I'm making this
-    # sort of unreasonably high. This should be tuned per service
     max_rps = 60 if service == 'batch-driver' and namespace == 'default' else 200
 
     return {
