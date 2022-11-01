@@ -7,7 +7,7 @@ Obviously, update the paths for your environment.
 git clone https://github.com/llvm/llvm-project.git
 mkdir llvm-project/build
 cd llvm-project/build
-git checkout llvmorg-14.0.6  # latest stable LLVM/MLIR release
+git checkout llvmorg-15.0.3  # latest stable LLVM/MLIR release
 
 # Some notes:
 #     1. -G Ninja generates a build.ninja file rather than makefiles it's not
