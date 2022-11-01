@@ -76,7 +76,7 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     conf = _conf.asInstanceOf[SerializableHadoopConfiguration]
   }
 
-  def createNoCompression(filename: String): PositionedDataOutputStream = {
+  def createNoCompression(filename: String): PositionedDataOutputStream = retryTransientErrors {
     val fs = getFileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
     val os = fs.create(hPath)
@@ -84,7 +84,7 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
       HadoopFS.toPositionedOutputStream(os))
   }
 
-  def openNoCompression(filename: String): SeekableDataInputStream = {
+  def openNoCompression(filename: String): SeekableDataInputStream = retryTransientErrors {
     val fs = getFileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
     val is = try {
@@ -106,7 +106,7 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     new hadoop.fs.Path(filename).getFileSystem(conf.value)
   }
 
-  def listStatus(filename: String): Array[FileStatus] = {
+  def listStatus(filename: String): Array[FileStatus] = retryTransientErrors {
     val fs = getFileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
     var statuses = fs.globStatus(hPath)
@@ -120,19 +120,19 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     }
   }
 
-  override def mkDir(dirname: String): Unit = {
+  override def mkDir(dirname: String): Unit = retryTransientErrors {
     getFileSystem(dirname).mkdirs(new hadoop.fs.Path(dirname))
   }
 
-  def remove(fname: String): Unit = {
+  def remove(fname: String): Unit = retryTransientErrors {
     getFileSystem(fname).delete(new hadoop.fs.Path(fname), false)
   }
 
-  def rmtree(dirname: String): Unit = {
+  def rmtree(dirname: String): Unit = retryTransientErrors {
     getFileSystem(dirname).delete(new hadoop.fs.Path(dirname), true)
   }
 
-  def delete(filename: String, recursive: Boolean) {
+  def delete(filename: String, recursive: Boolean) = retryTransientErrors {
     getFileSystem(filename).delete(new hadoop.fs.Path(filename), recursive)
   }
 
@@ -156,7 +156,7 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     }.toArray
   }
 
-  def glob(filename: String): Array[FileStatus] = {
+  def glob(filename: String): Array[FileStatus] = retryTransientErrors {
     val fs = getFileSystem(filename)
     val path = new hadoop.fs.Path(filename)
 
@@ -167,7 +167,7 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     files.map(fileStatus => new HadoopFileStatus(fileStatus))
   }
 
-  def fileStatus(filename: String): FileStatus = {
+  def fileStatus(filename: String): FileStatus = retryTransientErrors {
     val p = new hadoop.fs.Path(filename)
     new HadoopFileStatus(p.getFileSystem(conf.value).getFileStatus(p))
   }
