@@ -897,7 +897,7 @@ mkdir -p {shq(repo_dir)}
                 config = BuildConfiguration(self, f.read(), requested_step_names=DEPLOY_STEPS, scope='deploy')
                 namespace, services = config.deployed_services()
             with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:
-                _, test_services = BuildConfiguration(self, f.read(), scope='test').deployed_services()
+                _, test_services = BuildConfiguration(self, f.read(), scope='deploy').deployed_services()
 
             services.extend(test_services)
             await add_deployed_services(db, namespace, services, None)
@@ -996,7 +996,7 @@ mkdir -p {shq(repo_dir)}
                 )
                 namespace, services = config.deployed_services()
             with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:
-                _, test_services = BuildConfiguration(self, f.read(), scope='test').deployed_services()
+                _, test_services = BuildConfiguration(self, f.read(), scope='dev').deployed_services()
 
             services.extend(test_services)
             await add_deployed_services(db, namespace, services, None)
