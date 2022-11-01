@@ -874,19 +874,6 @@ steps:
       - hail_ubuntu_image
       - compile_batch_worker_jvm_entryway
   - kind: buildImage2
-    name: service_java_run_base_image
-    dockerFile: /io/repo/docker/Dockerfile.service-java-run-base
-    contextPath: /io/repo
-    publishAs: service-java-run-base
-    inputs:
-      - from: /repo
-        to: /io/repo
-      - from: /hail_version
-        to: /io/repo/hail_version
-    dependsOn:
-      - hail_ubuntu_image
-      - merge_code
-  - kind: buildImage2
     name: memory_image
     dockerFile: /io/repo/memory/Dockerfile
     contextPath: /io/repo
