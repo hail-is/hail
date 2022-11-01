@@ -4,6 +4,7 @@ import is.hail.utils._
 
 import org.apache.hadoop
 import org.apache.hadoop.fs.{FSDataInputStream, FSDataOutputStream}
+import is.hail.services.retryTransientErrors
 
 import java.io._
 
