@@ -17,9 +17,11 @@ git checkout llvmorg-14.0.6  # latest stable LLVM/MLIR release
 #        .git/info/exclude and it will be like adding it to a gitignore
 #     3. On linux, using lld via -DLLVM_ENABLE_LLD=ON can speed up the build due
 #        to faster linking.
+#
+# The -DLLVM_BUILD_EXAMPLES=ON flag is optional.
 cmake ../llvm -G Ninja \
    -DLLVM_ENABLE_PROJECTS=mlir \
-   -DLLVM_BUILD_EXAMPLES=ON \ # this is optional
+   -DLLVM_BUILD_EXAMPLES=ON \
    -DLLVM_TARGETS_TO_BUILD="AArch64;X86;NVPTX;AMDGPU" \
    -DCMAKE_BUILD_TYPE=Release \
    -DLLVM_ENABLE_ASSERTIONS=ON \
