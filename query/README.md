@@ -24,7 +24,7 @@ cmake ../llvm -G Ninja \
    -DCMAKE_BUILD_TYPE=Release \
    -DLLVM_ENABLE_ASSERTIONS=ON \
    -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
-   -DCMAKE_INSTALL_PREFIX=~/src/hail/query-mlir/.dist/llvm
+   -DCMAKE_INSTALL_PREFIX=~/src/hail/query/.dist/llvm
 ninja # this will take a while
 ninja install
 ```
