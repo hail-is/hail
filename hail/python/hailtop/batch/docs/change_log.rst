@@ -6,7 +6,7 @@ Change Log
 **Version 0.2.106**
 
 - Added Job.always_copy_output when using the ServiceBackend. The default behavior is False which
-is a breaking change from the previous behavior to always copy output files irregardless of the job's
+is a breaking change from the previous behavior to always copy output files regardless of the job's
 completion state.
 
 **Version 0.2.103**
