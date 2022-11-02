@@ -18,20 +18,10 @@ class Hail_Type<string name, string typeMnemonic, list<Trait> traits = []>
 
 // Here is a simple definition of an "integer" type, with a width parameter.
 def Hail_Int : Hail_Type<"Integer", "int"> {
-  let summary = "Integer type with arbitrary precision up to a fixed limit";
+  let summary = "Hail 32 bit integer type";
   let description = [{
-    Integer types have a designated bit width.
+    Hail 32 bit integer type
   }];
-  /// Here we defined a single parameter for the type, which is the bitwidth.
-  let parameters = (ins "unsigned":$width);
-
-  /// Here we define the textual format of the type declaratively, which will
-  /// automatically generate parser and printer logic. This will allow for
-  /// instances of the type to be output as, for example:
-  ///
-  ///    !my.int<10> // a 10-bit integer.
-  ///
-  let assemblyFormat = "`<` $width `>`";
 
   /// Indicate that our type will add additional verification to the parameters.
   let genVerifyDecl = 0;
