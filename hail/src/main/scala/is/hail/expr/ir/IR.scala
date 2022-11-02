@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.annotations.{Annotation, Region, SafeRow}
-import is.hail.asm4s.Value
+import is.hail.asm4s.{Code, Value}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.agg.{AggStateSig, PhysicalAggSig}
@@ -22,6 +22,7 @@ import is.hail.utils.{FastIndexedSeq, _}
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
 import java.io.OutputStream
+import java.util.UUID
 import scala.language.existentials
 
 sealed trait IR extends BaseIR {
@@ -842,6 +843,8 @@ abstract class PartitionWriter {
 }
 
 abstract class SimplePartitionWriter extends PartitionWriter {
+  def extension: String
+
   def ctxType: Type = TString
   def returnType: Type = TString
   def unionTypeRequiredness(r: TypeWithRequiredness, ctxType: TypeWithRequiredness, streamType: RIterable): Unit = {
@@ -856,7 +859,7 @@ abstract class SimplePartitionWriter extends PartitionWriter {
   final def consumeStream(ctx: ExecuteContext, cb: EmitCodeBuilder, stream: StreamProducer,
       context: EmitCode, region: Value[Region]): IEmitCode = {
     context.toI(cb).map(cb) { case ctx: SStringValue =>
-      val filename = ctx.loadString(cb)
+      val filename = ctx.loadString(cb).concat(Code.invokeStatic0[UUID, UUID]("randomUUID").invoke[String]("toString").concat(extension))
       val os = cb.memoize(cb.emb.create(filename))
 
       preConsume(cb, os)

@@ -841,6 +841,7 @@ case class MatrixGENWriter(
 
     val sampleWriter = new GenSampleWriter
 
+
     val lineWriter = GenVariantWriter(tm, entriesFieldName, precision)
     val folder = ctx.createTmpPath("export-gen")
 
@@ -869,6 +870,8 @@ case class MatrixGENWriter(
 }
 
 final case class GenVariantWriter(typ: MatrixType, entriesFieldName: String, precision: Int) extends SimplePartitionWriter {
+
+  override def extension: String = ".gen"
   def consumeElement(cb: EmitCodeBuilder, element: EmitCode, os: Value[OutputStream], region: Value[Region]): Unit = {
     def _writeC(cb: EmitCodeBuilder, code: Code[Int]) = { cb += os.invoke[Int, Unit]("write", code) }
     def _writeB(cb: EmitCodeBuilder, code: Code[Array[Byte]]) = { cb += os.invoke[Array[Byte], Unit]("write", code) }
@@ -921,6 +924,8 @@ final case class GenVariantWriter(typ: MatrixType, entriesFieldName: String, pre
 }
 
 final class GenSampleWriter extends SimplePartitionWriter {
+
+  override def extension: String = ".txt"
   def consumeElement(cb: EmitCodeBuilder, element: EmitCode, os: Value[OutputStream], region: Value[Region]): Unit = {
     element.toI(cb).consume(cb, cb._fatal("stream element cannot be missing!"), { case sv: SBaseStructValue =>
       val id1 = sv.loadField(cb, 0).get(cb).asString.loadString(cb)
@@ -1252,7 +1257,7 @@ case class MatrixPLINKWriter(
       WritePartition(rows, ctx, lineWriter)
     }{ (parts, globals) =>
       val commit = PLINKExportFinalizer(tm, path, tmpBedDir + "/header")
-      val famWriter = TableTextPartitionWriter(tm.colsTableType.rowType, "\t", writeHeader = false)
+      val famWriter = TableTextPartitionWriter(tm.colsTableType.rowType, "\t", writeHeader = false, ".fam")
       val famPath = Str(path + ".fam")
       val cols = ToStream(GetField(globals, colsFieldName))
       val writeFam = WritePartition(cols, famPath, famWriter)

@@ -487,7 +487,7 @@ case class TableTextWriter(
       ctx.createTmpPath("write-table-concatenated")
     else
       path
-    val lineWriter = TableTextPartitionWriter(ts.rowType, delimiter, writeHeader = exportType == ExportType.PARALLEL_HEADER_IN_SHARD)
+    val lineWriter = TableTextPartitionWriter(ts.rowType, delimiter, writeHeader = exportType == ExportType.PARALLEL_HEADER_IN_SHARD, extension=ext)
 
     ts.mapContexts { oldCtx =>
       val d = digitsNeeded(ts.numPartitions)
@@ -508,7 +508,8 @@ case class TableTextWriter(
   }
 }
 
-case class TableTextPartitionWriter(rowType: TStruct, delimiter: String, writeHeader: Boolean) extends SimplePartitionWriter {
+case class TableTextPartitionWriter(rowType: TStruct, delimiter: String, writeHeader: Boolean, extension: String) extends SimplePartitionWriter {
+
   lazy val headerStr = rowType.fields.map(_.name).mkString(delimiter)
 
   override def preConsume(cb: EmitCodeBuilder, os: Value[OutputStream]): Unit = if (writeHeader) {
