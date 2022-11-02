@@ -197,6 +197,8 @@ def handle_job_backwards_compatibility(job):
         job['gcsfuse'] = job.pop('cloudfuse')
     if 'parent_ids' in job:
         job['absolute_parent_ids'] = job.pop('parent_ids')
+    if 'always_copy_output' not in job:
+        job['always_copy_output'] = True
 
 
 def validate_batch(batch):

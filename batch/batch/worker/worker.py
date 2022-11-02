@@ -1676,7 +1676,7 @@ class DockerJob(Job):
 
                     output = self.containers.get('output')
 
-                    always_copy_output = self.job_spec.get('always_copy_output', False)
+                    always_copy_output = self.job_spec.get('always_copy_output', True)
                     copy_output = output and (main.state == 'succeeded' or always_copy_output)
 
                     if copy_output:
