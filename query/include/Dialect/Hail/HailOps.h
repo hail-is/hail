@@ -1,6 +1,7 @@
 #ifndef DIALECT_HAIL_HAILOPS_H
 #define DIALECT_HAIL_HAILOPS_H
 
+#include "Dialect/Hail/HailDialect.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
