@@ -9,6 +9,7 @@ def Hail_Dialect : Dialect {
   let summary = "Dialect for defining operations of the hail query system";
   let cppNamespace = "::hail::ir";
   let useDefaultTypePrinterParser = 1;
+  let hasConstantMaterializer = 1;
 }
 
 class Hail_Type<string name, string typeMnemonic, list<Trait> traits = []>

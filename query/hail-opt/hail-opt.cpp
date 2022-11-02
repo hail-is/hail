@@ -23,6 +23,7 @@ int main(int argc, char **argv) {
     registry.insert<
         mlir::arith::ArithmeticDialect,
         mlir::scf::SCFDialect,
+        mlir::func::FuncDialect,
         hail::ir::HailDialect
     >();
 
