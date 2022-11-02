@@ -1441,6 +1441,46 @@ steps:
       - make_docs
     clouds:
       - gcp
+  - kind: buildImage2
+    name: query_build_image
+    dockerFile: /io/query/Dockerfile.query-build
+    contextPath: /io/query
+    publishAs: query-build
+    inputs:
+      - from: /repo/query
+        to: /io/query
+    dependsOn:
+      - hail_ubuntu_image
+      - merge_code
+  - kind: runImage
+    name: build_native_query
+    image:
+      valueFrom: query_build_image.image
+    script: |
+      set -ex
+      export LLVM_DIR=/usr/lib/llvm-15
+      cd /io/repo/query
+      mkdir build
+      cd build
+      cmake .. \
+        -G Ninja \
+        -DCMAKE_C_COMPILER=$LLVM_DIR/bin/clang \
+        -DCMAKE_CXX_COMPILER=$LLVM_DIR/bin/clang++ \
+        -DCMAKE_C_FLAGS=-Werror \
+        -DCMAKE_CXX_FLAGS=-Werror \
+        -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+        -DMLIR_DIR=$LLVM_DIR/lib/cmake/mlir
+        # -DLLVM_BUILD_BINARY_DIR=$LLVM_SRC_DIR/build/bin # FIXME need llvm-lit for tests
+      ninja
+    resources:
+      memory: standard
+      cpu: '2'
+    inputs:
+      - from: /repo
+        to: /io/repo
+    dependsOn:
+      - query_build_image
+      - merge_code
   - kind: deploy
     name: deploy_grafana
     namespace:
