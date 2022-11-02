@@ -1704,7 +1704,9 @@ class DockerJob(Job):
                     try:
                         await self.cleanup()
                     finally:
-                        await self.mark_complete()
+                        _, exc, _ = sys.exc_info()
+                        if not isinstance(exc, asyncio.CancelledError):
+                            await self.mark_complete()
 
     async def cleanup(self):
         if self.disk:
@@ -1896,7 +1898,9 @@ class JVMJob(Job):
             else:
                 await self.cleanup()
             finally:
-                await self.mark_complete()
+                _, exc, _ = sys.exc_info()
+                if not isinstance(exc, asyncio.CancelledError):
+                    await self.mark_complete()
 
     async def cleanup(self):
         if self.jvm is not None:
@@ -2356,7 +2360,7 @@ class Worker:
                     cleanup.callback(jvm.kill)
         finally:
             try:
-                self.task_manager.shutdown()
+                await self.task_manager.shutdown_and_wait()
                 log.info('shutdown task manager')
             finally:
                 try:

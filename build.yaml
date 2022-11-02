@@ -874,19 +874,6 @@ steps:
       - hail_ubuntu_image
       - compile_batch_worker_jvm_entryway
   - kind: buildImage2
-    name: service_java_run_base_image
-    dockerFile: /io/repo/docker/Dockerfile.service-java-run-base
-    contextPath: /io/repo
-    publishAs: service-java-run-base
-    inputs:
-      - from: /repo
-        to: /io/repo
-      - from: /hail_version
-        to: /io/repo/hail_version
-    dependsOn:
-      - hail_ubuntu_image
-      - merge_code
-  - kind: buildImage2
     name: memory_image
     dockerFile: /io/repo/memory/Dockerfile
     contextPath: /io/repo
@@ -2018,6 +2005,7 @@ steps:
       import json
       import asyncio
       import aiohttp
+      from hailtop import httpx
       from hailtop.utils import async_to_blocking
       from hailtop.batch_client.aioclient import BatchClient
       async def create(billing_project, user, limit=None):
@@ -2025,14 +2013,14 @@ steps:
           try:
               try:
                   await bc.create_billing_project(billing_project)
-              except aiohttp.ClientResponseError as e:
-                  if e.status != 403 or 'already exists' not in e.message:
+              except httpx.ClientResponseError as e:
+                  if e.status != 403 or 'already exists' not in e.body:
                        raise
 
               try:
                   await bc.add_user(user, billing_project)
               except aiohttp.ClientResponseError as e:
-                  if e.status != 403 or 'already member of billing project' not in e.message:
+                  if e.status != 403 or 'already member of billing project' not in e.body:
                        raise
 
               await bc.edit_billing_limit(billing_project, limit)
