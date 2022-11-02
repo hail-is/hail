@@ -1,5 +1,5 @@
-#ifndef DIALECT_HAIL_HAILDIALECT
-#define DIALECT_HAIL_HAILDIALECT
+#ifndef DIALECT_HAIL_HAILDIALECTBASE
+#define DIALECT_HAIL_HAILDIALECTBASE
 
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/OpBase.td"
@@ -27,14 +27,4 @@ def Hail_Int : Hail_Type<"Integer", "int"> {
   let genVerifyDecl = 0;
 }
 
-class Hail_Op<string mnemonic, list<Trait> traits = []> :
-        Op<Hail_Dialect, mnemonic, traits>;
-
-def I32Op : Hail_Op<"i32"> {
-  let arguments = (ins SI32Attr:$value);
-  let results = (outs Hail_Int:$output);
-  let assemblyFormat = "$value attr-dict `:` type($output)";
-}
-
-
-#endif // DIALECT_HAIL_HAILDIALECT
+#endif // DIALECT_HAIL_HAILDIALECTBASE
