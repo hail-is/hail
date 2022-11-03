@@ -90,6 +90,8 @@ class AzureBlobServiceClientCache(credential: TokenCredential) {
 
 
 class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
+  import AzureStorageFS.log
+
   def getConfiguration(): Unit = ()
 
   def setConfiguration(config: Any): Unit = { }
@@ -129,7 +131,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     getBlobServiceClient(account).getBlobContainerClient(container)
   }
 
-  def openNoCompression(filename: String): SeekableDataInputStream = retryTransientErrors {
+  def openNoCompression(filename: String, _debug: Boolean): SeekableDataInputStream = retryTransientErrors {
     val (account, container, path) = getAccountContainerPath(filename)
     val blobClient: BlobClient = getBlobClient(account, container, path)
     val blobSize = blobClient.getProperties.getBlobSize
@@ -158,10 +160,19 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
         if (response.getStatusCode >= 200 && response.getStatusCode < 300) {
           bb.flip()
           assert(bb.position() == 0 && bb.remaining() > 0)
-          return bb.remaining()
-        }
 
-        -1
+          if (_debug) {
+            val byteContents = bb.array().map("%02X" format _).mkString
+            log.info(s"AzureStorageFS.openNoCompression SeekableInputStream: pos=$pos blobSize=$blobSize count=$count response.getStatusCode()=${response.getStatusCode()} bb.toString()=${bb} byteContents=${byteContents}")
+          }
+
+          bb.remaining()
+        } else {
+          if (_debug) {
+            log.info(s"AzureStorageFS.openNoCompression SeekableInputStream: pos=$pos blobSize=$blobSize count=$count response.getStatusCode()=${response.getStatusCode()}")
+          }
+          -1
+        }
       }
     }
 
