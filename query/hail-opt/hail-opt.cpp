@@ -12,12 +12,14 @@
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 
+#include "InitAllPasses.h"
+
 // dialect includes
 #include "Dialect/Sandbox/IR/Sandbox.h"
 
 int main(int argc, char **argv) {
-    mlir::registerAllPasses();
-    // FIXME register hail passes
+    // mlir::registerAllPasses();
+    hail::registerAllPasses();
 
     mlir::DialectRegistry registry;
     registry.insert<
