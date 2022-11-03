@@ -58,6 +58,22 @@ data:
                   typed_config:
                     "@type": type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
                     stat_prefix: http_local_rate_limiter
+                - name: envoy.filters.http.compressor
+                  typed_config:
+                    "@type": type.googleapis.com/envoy.extensions.filters.http.compressor.v3.Compressor
+                    request_direction_config:
+                      common_config:
+                        enabled:
+                          runtime_key: request_compressor_enabled
+                          default_value: true
+                    compressor_library:
+                      name: gzip_compress
+                      typed_config:
+                        "@type": type.googleapis.com/envoy.extensions.compression.gzip.compressor.v3.Gzip
+                        memory_level: 9
+                        window_bits: 15
+                        compression_level: BEST_SPEED
+                        compression_strategy: DEFAULT_STRATEGY
                 - name: envoy.filters.http.router
                   typed_config:
                     "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
