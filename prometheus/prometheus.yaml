@@ -234,16 +234,6 @@ data:
        - source_labels: [__meta_kubernetes_pod_name]
          action: replace
          target_label: kubernetes_pod_name
-       - source_labels: [__meta_kubernetes_namespace]
-         action: drop
-         regex: pr-.*
-         replacement: pr
-       metric_relabel_configs:
-       - source_labels: [namespace]
-         action: replace
-         regex: pr-.*
-         replacement: pr
-         target_label: namespace
 ---
 apiVersion: apps/v1
 kind: StatefulSet
