@@ -25,6 +25,26 @@ def Sandbox_AddIOp : Sandbox_Op<"addi", [NoSideEffect, Commutative]> {
   let hasCanonicalizer = true;
 }
 
+def BoolOp : Sandbox_Op<"bool", [ConstantLike, NoSideEffect]> {
+  let arguments = (ins BoolAttr:$value);
+  let results = (outs Sandbox_Bool:$output);
+  let assemblyFormat = "$value attr-dict `:` type($output)";
+}
+
+
+def ComparisonOp : Sandbox_Op<"compare", [NoSideEffect]> {
+  let arguments = (ins Sandbox_CmpPredicateAttr:$predicate, Sandbox_Int:$lhs, Sandbox_Int:$rhs);
+  let results = (outs Sandbox_Bool:$output);
+  let assemblyFormat = "$predicate `,` $lhs `,` $rhs attr-dict `:` type($output)";
+
+    let extraClassDeclaration = [{
+    static CmpPredicate getPredicateByName(llvm::StringRef name);
+  }];
+
+  let hasFolder = 0;
+  let hasCanonicalizer = 0;
+}
+
 def Sandbox_PrintOp : Sandbox_Op<"print"> {
   let arguments = (ins Sandbox_Int:$value);
   let assemblyFormat = "$value attr-dict";
