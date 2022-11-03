@@ -15,7 +15,7 @@ spec:
       labels:
         app: internal-gateway
         hail.is/sha: "{{ code.sha }}"
-        envoy: true
+        envoy: "true"
     spec:
       priorityClassName: infrastructure
       nodeSelector:
