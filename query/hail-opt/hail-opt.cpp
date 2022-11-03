@@ -12,7 +12,7 @@
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 
 // dialect includes
-#include "Dialect/Hail/HailDialect.h"
+#include "hail/Dialect/Hail/HailDialect.h"
 
 int main(int argc, char **argv) {
     mlir::registerAllPasses();

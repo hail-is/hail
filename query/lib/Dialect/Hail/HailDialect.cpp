@@ -1,5 +1,5 @@
-#include "Dialect/Hail/HailDialect.h"
-#include "Dialect/Hail/HailOps.h"
+#include "hail/Dialect/Hail/HailDialect.h"
+#include "hail/Dialect/Hail/HailOps.h"
 
 using namespace hail;
 using namespace hail::ir;
