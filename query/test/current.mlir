@@ -1,7 +1,7 @@
-func.func @foo(%in: !hail.int) -> (!hail.int) {
-    %i1 = hail.i32 5 : !hail.int
-    %i2 = hail.i32 7 : !hail.int
-    %i3 = hail.i32_plus %in %i1
-    %i4 = hail.i32_plus %i3 %i2
-    func.return %i4 : !hail.int
+func.func @foo(%in: !sb.int) -> (!sb.int) {
+    %i1 = sb.constant 5 : !sb.int
+    %i2 = sb.constant 7 : !sb.int
+    %i3 = sb.addi %in %i1
+    %i4 = sb.addi %i3 %i2
+    func.return %i4 : !sb.int
 }

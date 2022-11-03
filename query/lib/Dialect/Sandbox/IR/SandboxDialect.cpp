@@ -1,4 +1,4 @@
-#include "Dialect/Hail/IR/HailDialect.h"
+#include "Dialect/Sandbox/IR/Sandbox.h"
 
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/Operation.h"
@@ -9,26 +9,26 @@
 using namespace hail;
 using namespace hail::ir;
 
-mlir::Operation *HailDialect::materializeConstant(mlir::OpBuilder &builder, mlir::Attribute value,
+mlir::Operation *SandboxDialect::materializeConstant(mlir::OpBuilder &builder, mlir::Attribute value,
                                             mlir::Type type, mlir::Location loc) {
-  assert(type.isa<IntegerType>());
+  assert(type.isa<IntType>());
   auto intAttr = value.cast<mlir::IntegerAttr>();
   assert(intAttr);
-  auto i32Op = builder.create<I32Op>(loc, type, intAttr);
-  return i32Op;
+  auto constOp = builder.create<ConstantOp>(loc, type, intAttr);
+  return constOp;
 }
 
 #define GET_TYPEDEF_CLASSES
-#include "Dialect/Hail/IR/HailOpsTypes.cpp.inc"
-#include "Dialect/Hail/IR/HailOpsDialect.cpp.inc"
+#include "Dialect/Sandbox/IR/SandboxOpsTypes.cpp.inc"
+#include "Dialect/Sandbox/IR/SandboxOpsDialect.cpp.inc"
 
-void HailDialect::initialize() {
+void SandboxDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
-#include "Dialect/Hail/IR/HailOps.cpp.inc"
+#include "Dialect/Sandbox/IR/SandboxOps.cpp.inc"
       >();
   addTypes<
 #define GET_TYPEDEF_LIST
-#include "Dialect/Hail/IR/HailOpsTypes.cpp.inc"
+#include "Dialect/Sandbox/IR/SandboxOpsTypes.cpp.inc"
       >();
 }

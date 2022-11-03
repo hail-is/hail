@@ -13,7 +13,7 @@
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 
 // dialect includes
-#include "Dialect/Hail/IR/HailDialect.h"
+#include "Dialect/Sandbox/IR/Sandbox.h"
 
 int main(int argc, char **argv) {
     mlir::registerAllPasses();
@@ -24,7 +24,7 @@ int main(int argc, char **argv) {
         mlir::arith::ArithmeticDialect,
         mlir::scf::SCFDialect,
         mlir::func::FuncDialect,
-        hail::ir::HailDialect
+        hail::ir::SandboxDialect
     >();
 
     // Register additional dialects below. Only dialects that will be *parsed*

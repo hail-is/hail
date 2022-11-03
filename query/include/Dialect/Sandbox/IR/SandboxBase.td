@@ -1,24 +1,24 @@
-#ifndef DIALECT_HAIL_HAILDIALECTBASE
-#define DIALECT_HAIL_HAILDIALECTBASE
+#ifndef DIALECT_SANDBOX_SANDBOXBASE
+#define DIALECT_SANDBOX_SANDBOXBASE
 
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/OpBase.td"
 
-def Hail_Dialect : Dialect {
-  let name = "hail";
-  let summary = "Dialect for defining operations of the hail query system";
+def Sandbox_Dialect : Dialect {
+  let name = "sb";
+  let summary = "Dialect for experimenting with MLIR";
   let cppNamespace = "::hail::ir";
   let useDefaultTypePrinterParser = 1;
   let hasConstantMaterializer = 1;
 }
 
-class Hail_Type<string name, string typeMnemonic, list<Trait> traits = []>
-    : TypeDef<Hail_Dialect, name, traits> {
+class Sandbox_Type<string name, string typeMnemonic, list<Trait> traits = []>
+    : TypeDef<Sandbox_Dialect, name, traits> {
   let mnemonic = typeMnemonic;
 }
 
 // Here is a simple definition of an "integer" type, with a width parameter.
-def Hail_Int : Hail_Type<"Integer", "int"> {
+def Sandbox_Int : Sandbox_Type<"Int", "int"> {
   let summary = "Hail 32 bit integer type";
   let description = [{
     Hail 32 bit integer type
@@ -28,4 +28,4 @@ def Hail_Int : Hail_Type<"Integer", "int"> {
   let genVerifyDecl = 0;
 }
 
-#endif // DIALECT_HAIL_HAILDIALECTBASE
+#endif // DIALECT_SANDBOX_SANDBOXBASE

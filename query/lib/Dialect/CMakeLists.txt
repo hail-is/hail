@@ -1,1 +1,1 @@
-add_subdirectory(Hail)
+add_subdirectory(Sandbox)

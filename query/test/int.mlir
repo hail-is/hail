@@ -1,8 +1,8 @@
 %b = arith.constant 1 : i1
-%0 = scf.if %b -> !hail.int {
-    %1 = hail.i32 5 : !hail.int
-    scf.yield %1 : !hail.int
+%0 = scf.if %b -> !sb.int {
+    %1 = sb.constant 5 : !sb.int
+    scf.yield %1 : !sb.int
 } else {
-    %2 = hail.i32 -2 : !hail.int
-    scf.yield %2 : !hail.int
+    %2 = sb.constant -2 : !sb.int
+    scf.yield %2 : !sb.int
 }
