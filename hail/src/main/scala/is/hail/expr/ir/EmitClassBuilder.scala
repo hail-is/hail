@@ -470,8 +470,8 @@ class EmitClassBuilder[C](
       Code.checkcast[T](
         Code.invokeScalaObject1[String, PType](
           IRParser.getClass, "parsePType", t.toString)))
-    pTypeMap.getOrElseUpdate(t,
-      genLazyFieldThisRef[T](setup)).get.asInstanceOf[Code[T]]
+    Code.checkcast[T](pTypeMap.getOrElseUpdate(t,
+      genLazyFieldThisRef[T](setup)).get)
   }
 
   def getType[T <: Type : TypeInfo](t: T): Code[T] = {
@@ -480,8 +480,8 @@ class EmitClassBuilder[C](
       Code.checkcast[T](
         Code.invokeScalaObject1[String, Type](
           IRParser.getClass, "parseType", t.parsableString())))
-    typMap.getOrElseUpdate(t,
-      genLazyFieldThisRef[T](setup)).get.asInstanceOf[Code[T]]
+    Code.checkcast[T](typMap.getOrElseUpdate(t,
+      genLazyFieldThisRef[T](setup)).get)
   }
 
   def getOrdering(t1: SType,
