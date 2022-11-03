@@ -46,7 +46,7 @@ struct SimplifyAddConstAddConst : public mlir::OpRewritePattern<AddIOp> {
     if (!lhs) return mlir::failure();
     
     auto lConst = lhs.rhs().getDefiningOp<ConstantOp>();
-    auto rConst = op.lhs().getDefiningOp<ConstantOp>();
+    auto rConst = op.rhs().getDefiningOp<ConstantOp>();
     if (!lConst || !rConst) return mlir::failure();
 
     auto sumConst = rewriter.create<ConstantOp>(

@@ -19,6 +19,7 @@
 
 int main(int argc, char **argv) {
     // mlir::registerAllPasses();
+    mlir::registerCanonicalizerPass();
     hail::registerAllPasses();
 
     mlir::DialectRegistry registry;
