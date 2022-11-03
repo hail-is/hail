@@ -15,6 +15,7 @@ spec:
       labels:
         app: gateway
         hail.is/sha: "{{ code.sha }}"
+        envoy: true
     spec:
       priorityClassName: infrastructure
       nodeSelector:
@@ -57,6 +58,7 @@ spec:
          ports:
           - containerPort: 8080
           - containerPort: 8443
+          - containerPort: 8001
          volumeMounts:
           - mountPath: /etc/letsencrypt
             name: letsencrypt-config
