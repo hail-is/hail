@@ -170,7 +170,7 @@ async def on_cleanup(app):
 
 
 def run():
-    app = web.Application(middlewares=[monitor_endpoints_middleware])
+    app = web.Application(middlewares=[monitor_endpoints_middleware], client_max_size=20 * 1024 * 1024)
 
     setup_aiohttp_session(app)
     app.add_routes(routes)
