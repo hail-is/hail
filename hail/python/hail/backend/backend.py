@@ -1,8 +1,11 @@
-from typing import Mapping, List, Union, Tuple, Dict, Optional, Any
+from typing import Mapping, List, Union, Tuple, Dict, Optional, Any, AbstractSet
 import abc
 import orjson
 import pkg_resources
 import zipfile
+
+from hailtop.config.user_config import configuration_of
+
 from ..fs.fs import FS
 from ..builtin_references import BUILTIN_REFERENCE_RESOURCE_PATHS
 from ..expr import Expression
@@ -25,6 +28,34 @@ Error summary: {short_message}''',
 
 
 class Backend(abc.ABC):
+    # Must match knownFlags in HailFeatureFlags.py
+    _flags_env_vars_and_defaults: Dict[str, Tuple[str, Optional[str]]] = {
+        "no_whole_stage_codegen": ("HAIL_DEV_NO_WHOLE_STAGE_CODEGEN", None),
+        "no_ir_logging": ("HAIL_DEV_NO_IR_LOG", None),
+        "lower": ("HAIL_DEV_LOWER", None),
+        "lower_only": ("HAIL_DEV_LOWER_ONLY", None),
+        "lower_bm": ("HAIL_DEV_LOWER_BM", None),
+        "print_ir_on_worker": ("HAIL_DEV_PRINT_IR_ON_WORKER", None),
+        "print_inputs_on_worker": ("HAIL_DEV_PRINT_INPUTS_ON_WORKER", None),
+        "max_leader_scans": ("HAIL_DEV_MAX_LEADER_SCANS", "1000"),
+        "distributed_scan_comb_op": ("HAIL_DEV_DISTRIBUTED_SCAN_COMB_OP", None),
+        "jvm_bytecode_dump": ("HAIL_DEV_JVM_BYTECODE_DUMP", None),
+        "write_ir_files": ("HAIL_WRITE_IR_FILES", None),
+        "method_split_ir_limit": ("HAIL_DEV_METHOD_SPLIT_LIMIT", "16"),
+        "use_new_shuffle": ("HAIL_USE_NEW_SHUFFLE", None),
+        "shuffle_max_branch_factor": ("HAIL_SHUFFLE_MAX_BRANCH", "64"),
+        "shuffle_cutoff_to_local_sort": ("HAIL_SHUFFLE_CUTOFF", "512000000"),  # This is in bytes
+        "grouped_aggregate_buffer_size": ("HAIL_GROUPED_AGGREGATE_BUFFER_SIZE", "50"),
+        "use_ssa_logs": ("HAIL_USE_SSA_LOGS", None),
+        "gcs_requester_pays_project": ("HAIL_GCS_REQUESTER_PAYS_PROJECT", None),
+        "gcs_requester_pays_buckets": ("HAIL_GCS_REQUESTER_PAYS_BUCKETS", None),
+        "index_branching_factor": ("HAIL_INDEX_BRANCHING_FACTOR", None),
+        "rng_nonce": ("HAIL_RNG_NONCE", "0x0")
+    }
+
+    def _valid_flags(self) -> AbstractSet[str]:
+        return self._flags_env_vars_and_defaults.keys()
+
     @abc.abstractmethod
     def __init__(self):
         self._persisted_locations = dict()
@@ -166,6 +197,12 @@ class Backend(abc.ABC):
     @abc.abstractmethod
     def persist_expression(self, expr: Expression) -> Expression:
         pass
+
+    def _initialize_flags(self) -> None:
+        self.set_flags(**{
+            k: configuration_of('query', k, None, default, deprecated_envvar=deprecated_envvar)
+            for k, (deprecated_envvar, default) in Backend._flags_env_vars_and_defaults.items()
+        })
 
     @abc.abstractmethod
     def set_flags(self, **flags: Mapping[str, str]):
