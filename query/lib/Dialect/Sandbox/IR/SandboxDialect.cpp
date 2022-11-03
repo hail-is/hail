@@ -19,6 +19,7 @@ mlir::Operation *SandboxDialect::materializeConstant(mlir::OpBuilder &builder, m
 }
 
 #define GET_TYPEDEF_CLASSES
+
 #include "Dialect/Sandbox/IR/SandboxOpsTypes.cpp.inc"
 #include "Dialect/Sandbox/IR/SandboxOpsDialect.cpp.inc"
 

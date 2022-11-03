@@ -7,11 +7,14 @@
 #include "mlir/IR/Location.h"
 #include <cstddef>
 
-#define GET_OP_CLASSES
-#include "Dialect/Sandbox/IR/SandboxOps.cpp.inc"
+#include "Dialect/Sandbox/IR/SandboxOpsEnums.cpp.inc"
 
+#define GET_OP_CLASSES
+
+#include "Dialect/Sandbox/IR/SandboxOps.cpp.inc"
 namespace hail {
 namespace ir{
+
 
 mlir::OpFoldResult ConstantOp::fold(llvm::ArrayRef<mlir::Attribute> operands) {
   return valueAttr();
