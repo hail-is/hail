@@ -304,6 +304,8 @@ steps:
         script: /io/sql/rename-gsa-identity.sql
       - name: support-azure-oauth
         script: /io/sql/support-azure-oauth.sql
+      - name: change-username-collation
+        script: /io/sql/change-username-collation.sql
     inputs:
       - from: /repo/auth/sql
         to: /io/sql
