@@ -42,7 +42,7 @@ package object services {
     val e = reactor.core.Exceptions.unwrap(_e)
     e match {
       case e: SocketException =>
-        e.getMessage.contains("Connection reset")
+        e.getMessage != null && e.getMessage.contains("Connection reset")
       case e: HttpResponseException =>
         e.getStatusCode() == 400 && e.getMessage.contains("Invalid grant: account not found")
       case e @ (_: SSLException | _: StorageException | _: IOException) =>
