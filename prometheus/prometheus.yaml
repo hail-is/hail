@@ -234,16 +234,23 @@ data:
        - source_labels: [__meta_kubernetes_pod_name]
          action: replace
          target_label: kubernetes_pod_name
+     - job_name: "envoy-pods"
+       scheme: http
+       kubernetes_sd_configs:
+        - role: pod
+       metrics_path: /stats/prometheus
+       relabel_configs:
+       - source_labels: [__meta_kubernetes_pod_label_envoy]
+         action: keep
+         regex: true
+       - action: labelmap
+         regex: __meta_kubernetes_pod_label_(.+)
        - source_labels: [__meta_kubernetes_namespace]
-         action: drop
-         regex: pr-.*
-         replacement: pr
-       metric_relabel_configs:
-       - source_labels: [namespace]
          action: replace
-         regex: pr-.*
-         replacement: pr
-         target_label: namespace
+         target_label: kubernetes_namespace
+       - source_labels: [__meta_kubernetes_pod_name]
+         action: replace
+         target_label: kubernetes_pod_name
 ---
 apiVersion: apps/v1
 kind: StatefulSet

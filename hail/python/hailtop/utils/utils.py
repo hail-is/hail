@@ -568,6 +568,8 @@ def is_retry_once_error(e):
                 and 'not found: manifest unknown: ' in e.message)
     if isinstance(e, hailtop.httpx.ClientResponseError):
         return e.status == 400 and any(msg in e.body for msg in RETRY_ONCE_BAD_REQUEST_ERROR_MESSAGES)
+    if isinstance(e, ConnectionResetError):
+        return True
     return False
 
 
@@ -673,8 +675,6 @@ def is_transient_error(e):
         # socket.EAI_AGAIN: [Errno -3] Temporary failure in name resolution
         # socket.EAI_NONAME: [Errno 8] nodename nor servname provided, or not known
         return e.errno in (socket.EAI_AGAIN, socket.EAI_NONAME)
-    if isinstance(e, ConnectionResetError):
-        return True
     if isinstance(e, google.auth.exceptions.TransportError):
         return is_transient_error(e.__cause__)
     if isinstance(e, google.api_core.exceptions.GatewayTimeout):

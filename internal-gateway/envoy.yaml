@@ -28,7 +28,8 @@ data:
                     comparison:
                       op: GE  # >=
                       value:
-                        runtime_key: "500"
+                        default_value: 400
+                        runtime_key: "min_log_status_code"
                 typed_config:
                   "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
                   log_format:
@@ -36,6 +37,9 @@ data:
                       message: "%LOCAL_REPLY_BODY%"
                       status: "%RESPONSE_CODE%"
                       duration: "%DURATION%"
+                      host: "%REQ(:AUTHORITY)%"
+                      path: "%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%"
+                      upstream_address: "%UPSTREAM_HOST%"
                       remote_address: "%DOWNSTREAM_REMOTE_ADDRESS%"
                       x_real_ip: "%REQ(X-Real-IP)%"
                       request_start_time: "%START_TIME%"
@@ -55,13 +59,29 @@ data:
                   typed_config:
                     "@type": type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
                     stat_prefix: http_local_rate_limiter
+                - name: envoy.filters.http.compressor
+                  typed_config:
+                    "@type": type.googleapis.com/envoy.extensions.filters.http.compressor.v3.Compressor
+                    request_direction_config:
+                      common_config:
+                        enabled:
+                          runtime_key: request_compressor_enabled
+                          default_value: true
+                    compressor_library:
+                      name: gzip_compress
+                      typed_config:
+                        "@type": type.googleapis.com/envoy.extensions.compression.gzip.compressor.v3.Gzip
+                        memory_level: 9
+                        window_bits: 15
+                        compression_level: BEST_SPEED
+                        compression_strategy: DEFAULT_STRATEGY
                 - name: envoy.filters.http.router
                   typed_config:
                     "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
     admin:
       address:
         socket_address:
-          address: 127.0.0.1
+          address: 0.0.0.0
           port_value: 8001
     layered_runtime:
       layers:
