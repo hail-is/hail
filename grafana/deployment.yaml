@@ -292,8 +292,8 @@ data:
           tlsAuth: true
           oauthPassThru: true
           keepCookies:
-            - session
-            - sesh
+            - {{ global.cloud }}_session
+            - {{ global.cloud }}_sesh
         secureJsonData:
           httpHeaderValue1: 'Bearer $__file{/grafana-shared/token}'
         editable: true

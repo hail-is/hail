@@ -15,6 +15,7 @@ from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
 
 from gear import AuthClient, check_csrf_token, create_database_pool, monitor_endpoints_middleware, setup_aiohttp_session
+from gear.cloud_config import get_global_config
 from hailtop import httpx
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
@@ -363,10 +364,10 @@ async def _wait_websocket(service, request, userdata):
         headers['X-Hail-Internal-Authorization'] = request.headers['X-Hail-Internal-Authorization']
 
     cookies = {}
-    if 'session' in request.cookies:
-        cookies['session'] = request.cookies['session']
-    if 'sesh' in request.cookies:
-        cookies['sesh'] = request.cookies['sesh']
+    cloud = get_global_config()['cloud']
+    for k in (f'{cloud}_session', f'{cloud}_sesh'):
+        if k in request.cookies:
+            cookies[k] = request.cookies[k]
 
     ready = notebook['state'] == 'Ready'
     count = 0
