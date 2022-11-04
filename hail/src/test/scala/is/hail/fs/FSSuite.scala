@@ -1,7 +1,7 @@
 package is.hail.fs
 
 import java.io.FileNotFoundException
-import is.hail.io.fs.azure.AzureStorageFSSuite
+import is.hail.fs.azure.AzureStorageFSSuite
 import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
 import is.hail.io.fs.FSUtil.dropTrailingSlash
