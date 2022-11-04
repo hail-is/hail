@@ -1,6 +1,3 @@
-import nest_asyncio
-nest_asyncio.apply()
-
 from typing import Optional  # noqa: E402
 import pkg_resources  # noqa: E402
 import sys  # noqa: E402
