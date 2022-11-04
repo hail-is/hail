@@ -1,11 +1,7 @@
 import asyncio
 import hashlib
 import os
-
 import pytest
-
-from hail import current_backend
-from hail.backend.service_backend import ServiceBackend
 
 
 def pytest_collection_modifyitems(config, items):
@@ -35,6 +31,9 @@ def ensure_event_loop_is_initialized_in_test_thread():
 
 @pytest.fixture(autouse=True)
 def set_query_name(request):
+    from hail import current_backend
+    from hail.backend.service_backend import ServiceBackend
+
     backend = current_backend()
     if isinstance(backend, ServiceBackend):
         backend.batch_attributes = dict(name=request.node.name)
