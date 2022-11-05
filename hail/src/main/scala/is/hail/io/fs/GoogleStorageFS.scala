@@ -151,7 +151,8 @@ class GoogleStorageFS(
 
   def asCacheable(sessionID: String): CacheableGoogleStorageFS = new CacheableGoogleStorageFS(serviceAccountKey, requesterPaysConfiguration, sessionID)
 
-  def openNoCompression(filename: String): SeekableDataInputStream = retryTransientErrors {
+  def openNoCompression(filename: String, _debug: Boolean = false): SeekableDataInputStream = retryTransientErrors {
+    assert(!_debug)
     val (bucket, path) = getBucketPath(filename)
 
     val is: SeekableInputStream = new FSSeekableInputStream {

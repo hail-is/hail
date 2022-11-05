@@ -1,6 +1,7 @@
 package is.hail.fs
 
 import java.io.FileNotFoundException
+import is.hail.fs.azure.AzureStorageFSSuite
 import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
 import is.hail.io.fs.FSUtil.dropTrailingSlash
@@ -334,7 +335,9 @@ trait FSSuite extends TestNGSuite {
 
     assert(fs.exists(f))
 
-    using(fs.open(f)) { is =>
+    val debug = this.isInstanceOf[AzureStorageFSSuite]
+
+    using(fs.open(f, fs.getCodecFromPath(f), _debug=debug)) { is =>
       is match {
         case base: Seekable => base.seek(Int.MaxValue + 2.toLong)
         case base: org.apache.hadoop.fs.Seekable => base.seek(Int.MaxValue + 2.toLong)

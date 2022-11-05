@@ -92,7 +92,7 @@ object Worker {
     val (open, create) = if (n <= 50) {
       (fs.openCachedNoCompression _, fs.createCachedNoCompression _)
     } else {
-      (fs.openNoCompression _, fs.createNoCompression _)
+      ((x: String) => fs.openNoCompression(x), fs.createNoCompression _)
     }
 
     val fFuture = Future {
