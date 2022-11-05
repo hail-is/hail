@@ -1,5 +1,13 @@
 # [MLIR](https://mlir.llvm.org) + [hail](https://hail.is) = 🚀🧬?
 
+## Dependencies
+
+You will need `cmake` and `ninja`. If you're on OS X, use https://brew.sh:
+
+```sh
+brew install cmake ninja
+```
+
 ## Building/Installing LLVM and MLIR
 Obviously, update the paths for your environment. `$HAIL_DIR` is the root of the
 hail repository.
