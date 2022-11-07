@@ -2181,7 +2181,7 @@ steps:
               -vv \
               --instafail \
               --durations=50 \
-              -n 4 \
+              -n 8 \
               test
     timeout: 5400
     inputs:
