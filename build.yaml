@@ -1327,6 +1327,8 @@ steps:
         to: /io/repo/hail.jar
     dependsOn:
       - hail_run_image
+      - build_hail
+      - merge_code
     clouds:
       - gcp
   - kind: runImage
