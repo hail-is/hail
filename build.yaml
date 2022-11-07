@@ -1995,6 +1995,9 @@ steps:
       - name: add-batch-state-index
         script: /io/sql/add-batch-state-index.sql
         online: true
+      - name: set-test-and-dev-pools-to-8-core-max-3
+        script: /io/sql/set-test-and-dev-pools-to-8-core-max-3.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
