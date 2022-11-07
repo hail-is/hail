@@ -1325,8 +1325,6 @@ steps:
         to: /io/repo/hail/python/hail
       - from: /hail.jar
         to: /io/repo/hail.jar
-      - from: /hail.zip
-        to: /io/repo/hail.zip
     dependsOn:
       - hail_run_image
     clouds:
