@@ -2966,7 +2966,7 @@ steps:
     config: website/deployment.yaml
     wait:
       - kind: Service
-        name: website
+        name: www
         for: alive
     dependsOn:
       - default_ns
