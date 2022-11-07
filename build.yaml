@@ -1309,17 +1309,26 @@ steps:
   - kind: runImage
     name: test_python_docs
     image:
-      valueFrom: hail_base_image.image
+      valueFrom: hail_run_image.image
     script: |
       set -ex
-      cd /hail/python/hail
+
+      cp /io/repo/hail.jar $SPARK_HOME/jars/hail.jar
+      cd /io/hail/python/hail
       python3 -m pytest --instafail \
         --doctest-modules \
         --doctest-glob='*.rst' \
         --ignore=docs/conf.py \
         --ignore=docs/doctest_write_data.py
+    inputs:
+      - from: /repo/hail/python/hail
+        to: /io/repo/hail/python/hail
+      - from: /hail.jar
+        to: /io/repo/hail.jar
+      - from: /hail.zip
+        to: /io/repo/hail.zip
     dependsOn:
-      - hail_base_image
+      - hail_run_image
     clouds:
       - gcp
   - kind: runImage
