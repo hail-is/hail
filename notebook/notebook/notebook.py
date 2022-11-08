@@ -96,7 +96,7 @@ def web_authenticated_workshop_guest_only(redirect=True):
 async def start_pod(k8s, service, userdata, notebook_token, jupyter_token):
     service_base_path = deploy_config.base_path(service)
 
-    origin = deploy_config.external_url('workshop','/').rstrip('/')
+    origin = deploy_config.external_url('workshop', '/').rstrip('/')
 
     command = [
         'jupyter',
