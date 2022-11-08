@@ -49,6 +49,58 @@ struct ConstantOpConversion : public mlir::OpConversionPattern<ir::ConstantOp> {
   }
 };
 
+struct ComparisonOpConversion : public mlir::OpConversionPattern<ir::ComparisonOp> {
+  ComparisonOpConversion(mlir::MLIRContext *context)
+      : OpConversionPattern<ir::ComparisonOp>(context, /*benefit=*/1) {}
+
+  mlir::LogicalResult
+  matchAndRewrite(ir::ComparisonOp op, OpAdaptor adaptor,
+                  mlir::ConversionPatternRewriter &rewriter) const override {
+    auto lhs = castToMLIR(rewriter, op->getLoc(), adaptor.lhs());
+    auto rhs = castToMLIR(rewriter, op->getLoc(), adaptor.rhs());
+
+    mlir::arith::CmpIPredicate pred;
+
+    switch(adaptor.predicate()) {
+      case CmpPredicate::LT:
+        pred = mlir::arith::CmpIPredicate::slt;
+        break;
+      case CmpPredicate::LTEQ:
+        pred = mlir::arith::CmpIPredicate::sle;
+        break;
+      case CmpPredicate::GT:
+        pred = mlir::arith::CmpIPredicate::sgt;
+        break;
+      case CmpPredicate::GTEQ:
+        pred = mlir::arith::CmpIPredicate::sge;
+        break;
+      case CmpPredicate::EQ:
+        pred = mlir::arith::CmpIPredicate::eq;
+        break;
+      case CmpPredicate::NEQ:
+        pred = mlir::arith::CmpIPredicate::ne;
+        break;
+    }
+
+    rewriter.replaceOpWithNewOp<mlir::arith::CmpIOp>(op,pred, lhs, rhs);
+    return mlir::success();
+  }
+};
+
+struct PrintOpConversion : public mlir::OpConversionPattern<ir::PrintOp> {
+  PrintOpConversion(mlir::MLIRContext *context)
+      : OpConversionPattern<ir::PrintOp>(context, /*benefit=*/1) {}
+
+  mlir::LogicalResult
+  matchAndRewrite(ir::PrintOp op, OpAdaptor adaptor,
+                  mlir::ConversionPatternRewriter &rewriter) const override {
+    auto value2 = castToMLIR(rewriter, op->getLoc(), adaptor.value());
+    rewriter.replaceOpWithNewOp<ir::PrintOp>(op, value2);
+    return mlir::success();
+  }
+};
+
+
 } // end namespace
 
 void LowerSandboxPass::runOnOperation() {
@@ -57,7 +109,7 @@ void LowerSandboxPass::runOnOperation() {
 
   // Configure conversion to lower out SCF operations.
   mlir::ConversionTarget target(getContext());
-  target.addIllegalOp<ir::ConstantOp, ir::AddIOp>();
+  target.addIllegalOp<ir::ConstantOp, ir::AddIOp, ir::ComparisonOp>();
   target.markUnknownOpDynamicallyLegal([](mlir::Operation *) { return true; });
   if (failed(
           applyPartialConversion(getOperation(), target, std::move(patterns))))
@@ -66,7 +118,10 @@ void LowerSandboxPass::runOnOperation() {
 
 void populateLowerSandboxConversionPatterns(
     mlir::RewritePatternSet &patterns) {
-  patterns.add<ConstantOpConversion, AddIOpConversion>(patterns.getContext());
+  patterns.add<
+    ConstantOpConversion,
+    AddIOpConversion,
+    ComparisonOpConversion>(patterns.getContext());
 }
 
 std::unique_ptr<mlir::Pass> createLowerSandboxPass() {

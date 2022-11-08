@@ -49,6 +49,7 @@ def Sandbox_CmpPredicateAttr : I64EnumAttr<
       I64EnumAttrCase<"GT", 2, "gt">,
       I64EnumAttrCase<"GTEQ", 3, "gteq">,
       I64EnumAttrCase<"EQ", 4, "eq">,
+      I64EnumAttrCase<"NEQ", 5, "eq">,
     ]> {
 }
 
