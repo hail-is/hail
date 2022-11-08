@@ -1,10 +1,13 @@
-FROM {{ service_base_image.image }}
+FROM {{ hail_ubuntu_image.image }}
 
 ENV PYTHONPATH ""
-RUN hail-apt-get-install liblz4-dev
+RUN hail-apt-get-install openjdk-8-jdk-headless liblz4-dev
 
+COPY python/pinned-requirements.txt requirements.txt
 COPY python/dev/pinned-requirements.txt dev-requirements.txt
-RUN hail-pip-install -r dev-requirements.txt
+RUN file=$(mktemp) && \
+    cat requirements.txt dev-requirements.txt > $file && \
+    hail-pip-install -r $file
 
 RUN --mount=src=wheel-container.tar,target=/wheel-container.tar \
     tar -xf wheel-container.tar && \
