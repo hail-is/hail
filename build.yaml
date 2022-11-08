@@ -904,7 +904,7 @@ steps:
       - from: /just-wheel/wheel-container.tar
         to: /io/hail/wheel-container.tar
     dependsOn:
-      - hail_ubuntu_image
+      - service_base_image
       - build_hail_jar_and_wheel_only
       - merge_code
     resources:

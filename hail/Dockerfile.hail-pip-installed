@@ -1,4 +1,4 @@
-FROM {{ hail_ubuntu_image.image }}
+FROM {{ service_base_image.image }}
 
 ENV PYTHONPATH ""
 RUN hail-apt-get-install openjdk-8-jdk-headless liblz4-dev
