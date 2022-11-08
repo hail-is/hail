@@ -96,6 +96,8 @@ def web_authenticated_workshop_guest_only(redirect=True):
 async def start_pod(k8s, service, userdata, notebook_token, jupyter_token):
     service_base_path = deploy_config.base_path(service)
 
+    origin = deploy_config.external_url('workshop','/').rstrip('/')
+
     command = [
         'jupyter',
         'notebook',
@@ -103,6 +105,7 @@ async def start_pod(k8s, service, userdata, notebook_token, jupyter_token):
         f'--NotebookApp.base_url={service_base_path}/instance/{notebook_token}/',
         "--ip",
         "0.0.0.0",
+        f"--NotebookApp.allow_origin={origin}",
         "--no-browser",
         "--allow-root",
     ]
