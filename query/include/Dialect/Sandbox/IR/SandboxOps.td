@@ -46,8 +46,8 @@ def Sandbox_ComparisonOp : Sandbox_Op<"compare", [NoSideEffect]> {
 }
 
 def Sandbox_PrintOp : Sandbox_Op<"print"> {
-  let arguments = (ins Sandbox_Int:$value);
-  let assemblyFormat = "$value attr-dict";
+  let arguments = (ins AnyType:$value);
+  let assemblyFormat = "$value attr-dict `:` type($value)";
 }
 
 #endif // DIALECT_SANDBOX_SANDBOXOPS
