@@ -5,6 +5,8 @@
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Location.h"
+#include "mlir/Support/LogicalResult.h"
+#include "llvm/ADT/APSInt.h"
 #include <cstddef>
 
 #include "Dialect/Sandbox/IR/SandboxOpsEnums.cpp.inc"
@@ -19,6 +21,23 @@ namespace ir{
 mlir::OpFoldResult ConstantOp::fold(llvm::ArrayRef<mlir::Attribute> operands) {
   return valueAttr();
 }
+
+mlir::LogicalResult ConstantOp::verify() {
+  auto type = getType();
+  // The value's type must match the return type.
+  auto valueType = value().getType();
+
+  if (valueType.isa<mlir::IntegerType>() && type.isa<IntType>()) {
+    return mlir::success();
+  }
+
+  if (valueType == mlir::IntegerType::get(getContext(), 1) && type.isa<BooleanType>()) {
+    return mlir::success();
+  }
+
+  return emitOpError() << "bad constant: type=" << type << ", valueType=" << valueType;
+}
+
 
 mlir::OpFoldResult AddIOp::fold(llvm::ArrayRef<mlir::Attribute> operands) {
   assert(operands.size() == 2 && "binary op takes two operands");
@@ -95,7 +114,8 @@ struct SimplifyAddConstAddConst : public mlir::OpRewritePattern<AddIOp> {
 
     auto sumConst = rewriter.create<ConstantOp>(
       mlir::FusedLoc::get(op->getContext(), {lConst->getLoc(), rConst.getLoc()}, nullptr),
-      lConst.getType(), lConst.value() + rConst.value());
+      lConst.getType(), 
+      mlir::IntegerAttr::get(lConst.getType(), lConst.value().cast<mlir::IntegerAttr>().getValue() + rConst.value().cast<mlir::IntegerAttr>().getValue()));
     rewriter.replaceOpWithNewOp<AddIOp>(op, lhs.result().getType(), lhs.lhs(), sumConst);
     return mlir::success();
   }
