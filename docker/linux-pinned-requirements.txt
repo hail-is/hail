@@ -188,7 +188,7 @@ isort==5.10.1
     #   pylint
 itsdangerous==2.1.2
     # via flask
-janus==0.7.0
+janus==1.0.0
     # via -r requirements.txt
 jaraco-classes==3.2.3
     # via keyring
