@@ -1,16 +1,18 @@
 #include "Dialect/Sandbox/IR/Sandbox.h"
 
-#include "mlir/IR/DialectImplementation.h"
-#include "mlir/IR/Operation.h"
-#include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/DialectImplementation.h"
+#include "mlir/IR/OpImplementation.h"
+#include "mlir/IR/Operation.h"
 #include "llvm/ADT/TypeSwitch.h"
 
 using namespace hail;
 using namespace hail::ir;
 
-mlir::Operation *SandboxDialect::materializeConstant(mlir::OpBuilder &builder, mlir::Attribute value,
-                                            mlir::Type type, mlir::Location loc) {
+mlir::Operation *SandboxDialect::materializeConstant(mlir::OpBuilder &builder,
+                                                     mlir::Attribute value,
+                                                     mlir::Type type,
+                                                     mlir::Location loc) {
   assert(type.isa<IntType>());
   auto intAttr = value.cast<mlir::IntegerAttr>();
   assert(intAttr);
@@ -20,8 +22,8 @@ mlir::Operation *SandboxDialect::materializeConstant(mlir::OpBuilder &builder, m
 
 #define GET_TYPEDEF_CLASSES
 
-#include "Dialect/Sandbox/IR/SandboxOpsTypes.cpp.inc"
 #include "Dialect/Sandbox/IR/SandboxOpsDialect.cpp.inc"
+#include "Dialect/Sandbox/IR/SandboxOpsTypes.cpp.inc"
 
 void SandboxDialect::initialize() {
   addOperations<

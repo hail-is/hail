@@ -1,6 +1,6 @@
 #include "Conversion/LowerSandbox/LowerSandbox.h"
-#include "Dialect/Sandbox/IR/Sandbox.h"
 #include "../PassDetail.h"
+#include "Dialect/Sandbox/IR/Sandbox.h"
 
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/IR/BuiltinAttributes.h"
@@ -10,8 +10,7 @@
 
 namespace hail {
 
-struct LowerSandboxPass
-    : public LowerSandboxBase<LowerSandboxPass> {
+struct LowerSandboxPass : public LowerSandboxBase<LowerSandboxPass> {
   void runOnOperation() override;
 };
 
@@ -23,7 +22,8 @@ struct AddIOpConversion : public mlir::OpConversionPattern<ir::AddIOp> {
   mlir::LogicalResult
   matchAndRewrite(ir::AddIOp op, OpAdaptor adaptor,
                   mlir::ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<mlir::arith::AddIOp>(op, adaptor.lhs(), adaptor.rhs());
+    rewriter.replaceOpWithNewOp<mlir::arith::AddIOp>(op, adaptor.lhs(),
+                                                     adaptor.rhs());
     return mlir::success();
   }
 };
@@ -41,7 +41,7 @@ struct ConstantOpConversion : public mlir::OpConversionPattern<ir::ConstantOp> {
     if (op.output().getType().isa<ir::BooleanType>()) {
       newType = rewriter.getI1Type();
       newAttr = rewriter.getBoolAttr(value == 0);
-    }  else {
+    } else {
       newType = rewriter.getI32Type();
       newAttr = rewriter.getIntegerAttr(newType, value);
     }
@@ -50,7 +50,8 @@ struct ConstantOpConversion : public mlir::OpConversionPattern<ir::ConstantOp> {
   }
 };
 
-struct ComparisonOpConversion : public mlir::OpConversionPattern<ir::ComparisonOp> {
+struct ComparisonOpConversion
+    : public mlir::OpConversionPattern<ir::ComparisonOp> {
   ComparisonOpConversion(mlir::MLIRContext *context)
       : OpConversionPattern<ir::ComparisonOp>(context, /*benefit=*/1) {}
 
@@ -59,28 +60,29 @@ struct ComparisonOpConversion : public mlir::OpConversionPattern<ir::ComparisonO
                   mlir::ConversionPatternRewriter &rewriter) const override {
     mlir::arith::CmpIPredicate pred;
 
-    switch(adaptor.predicate()) {
-      case CmpPredicate::LT:
-        pred = mlir::arith::CmpIPredicate::slt;
-        break;
-      case CmpPredicate::LTEQ:
-        pred = mlir::arith::CmpIPredicate::sle;
-        break;
-      case CmpPredicate::GT:
-        pred = mlir::arith::CmpIPredicate::sgt;
-        break;
-      case CmpPredicate::GTEQ:
-        pred = mlir::arith::CmpIPredicate::sge;
-        break;
-      case CmpPredicate::EQ:
-        pred = mlir::arith::CmpIPredicate::eq;
-        break;
-      case CmpPredicate::NEQ:
-        pred = mlir::arith::CmpIPredicate::ne;
-        break;
+    switch (adaptor.predicate()) {
+    case CmpPredicate::LT:
+      pred = mlir::arith::CmpIPredicate::slt;
+      break;
+    case CmpPredicate::LTEQ:
+      pred = mlir::arith::CmpIPredicate::sle;
+      break;
+    case CmpPredicate::GT:
+      pred = mlir::arith::CmpIPredicate::sgt;
+      break;
+    case CmpPredicate::GTEQ:
+      pred = mlir::arith::CmpIPredicate::sge;
+      break;
+    case CmpPredicate::EQ:
+      pred = mlir::arith::CmpIPredicate::eq;
+      break;
+    case CmpPredicate::NEQ:
+      pred = mlir::arith::CmpIPredicate::ne;
+      break;
     }
 
-    rewriter.replaceOpWithNewOp<mlir::arith::CmpIOp>(op,pred, adaptor.lhs(), adaptor.rhs());
+    rewriter.replaceOpWithNewOp<mlir::arith::CmpIOp>(op, pred, adaptor.lhs(),
+                                                     adaptor.rhs());
     return mlir::success();
   }
 };
@@ -97,9 +99,11 @@ struct PrintOpConversion : public mlir::OpConversionPattern<ir::PrintOp> {
   }
 };
 
-struct UnrealizedCastConversion : public mlir::OpConversionPattern<mlir::UnrealizedConversionCastOp> {
+struct UnrealizedCastConversion
+    : public mlir::OpConversionPattern<mlir::UnrealizedConversionCastOp> {
   UnrealizedCastConversion(mlir::MLIRContext *context)
-      : OpConversionPattern<mlir::UnrealizedConversionCastOp>(context, /*benefit=*/1) {}
+      : OpConversionPattern<mlir::UnrealizedConversionCastOp>(context,
+                                                              /*benefit=*/1) {}
 
   mlir::LogicalResult
   matchAndRewrite(mlir::UnrealizedConversionCastOp op, OpAdaptor adaptor,
@@ -118,27 +122,24 @@ void LowerSandboxPass::runOnOperation() {
   // Configure conversion to lower out SCF operations.
   mlir::ConversionTarget target(getContext());
   target.addIllegalDialect<ir::SandboxDialect>();
-  target.addDynamicallyLegalOp<ir::PrintOp, mlir::UnrealizedConversionCastOp>([](mlir::Operation *op) {
-    auto cond = [](mlir::Type type) {
-      return type.isa<ir::IntType>() || type.isa<ir::BooleanType>();
-    };
-    return llvm::none_of(op->getOperandTypes(), cond) && llvm::none_of(op->getResultTypes(), cond);
-  });
+  target.addDynamicallyLegalOp<ir::PrintOp, mlir::UnrealizedConversionCastOp>(
+      [](mlir::Operation *op) {
+        auto cond = [](mlir::Type type) {
+          return type.isa<ir::IntType>() || type.isa<ir::BooleanType>();
+        };
+        return llvm::none_of(op->getOperandTypes(), cond) &&
+               llvm::none_of(op->getResultTypes(), cond);
+      });
   target.markUnknownOpDynamicallyLegal([](mlir::Operation *) { return true; });
   if (failed(
           applyPartialConversion(getOperation(), target, std::move(patterns))))
     signalPassFailure();
 }
 
-void populateLowerSandboxConversionPatterns(
-    mlir::RewritePatternSet &patterns) {
-  patterns.add<
-    ConstantOpConversion,
-    AddIOpConversion,
-    ComparisonOpConversion,
-    PrintOpConversion,
-    UnrealizedCastConversion
-  >(patterns.getContext());
+void populateLowerSandboxConversionPatterns(mlir::RewritePatternSet &patterns) {
+  patterns.add<ConstantOpConversion, AddIOpConversion, ComparisonOpConversion,
+               PrintOpConversion, UnrealizedCastConversion>(
+      patterns.getContext());
 }
 
 std::unique_ptr<mlir::Pass> createLowerSandboxPass() {

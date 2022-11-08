@@ -22,6 +22,6 @@ class SandboxDialect;
 #define GEN_PASS_CLASSES
 #include "Conversion/Passes.h.inc"
 
-} // namespace mlir
+} // namespace hail
 
 #endif // CONVERSION_PASSDETAIL_H_
