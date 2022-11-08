@@ -18,13 +18,30 @@ data:
               codec_type: AUTO
               stat_prefix: ingress_http
               access_log:
-                name: only_log_errors
+                name: json_error_access_log
                 filter:
                   status_code_filter:
                     comparison:
                       op: GE  # >=
                       value:
-                        runtime_key: "500"
+                        default_value: 400
+                        runtime_key: "min_log_status_code"
+                typed_config:
+                  "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+                  log_format:
+                    json_format:
+                      message: "%LOCAL_REPLY_BODY%"
+                      status: "%RESPONSE_CODE%"
+                      duration: "%DURATION%"
+                      host: "%REQ(:AUTHORITY)%"
+                      path: "%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%"
+                      upstream_address: "%UPSTREAM_HOST%"
+                      remote_address: "%DOWNSTREAM_REMOTE_ADDRESS%"
+                      x_real_ip: "%REQ(X-Real-IP)%"
+                      request_start_time: "%START_TIME%"
+                      bytes_sent: "%BYTES_SENT%"
+                      http_referer: "%REQ(Referer)%"
+                      http_user_agent: "%REQ(User-Agent)%"
               route_config:
                 name: local_route
                 virtual_hosts:
