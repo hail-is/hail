@@ -3,6 +3,7 @@
 #include "../PassDetail.h"
 
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -15,14 +16,6 @@ struct LowerSandboxPass
 };
 
 namespace {
-
-mlir::Value castToMLIR(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc, mlir::Value value) {
-  auto castOp = rewriter.create<mlir::UnrealizedConversionCastOp>(
-    loc,
-     mlir::TypeRange{rewriter.getType<mlir::IntegerType>(32)},
-      mlir::ValueRange{value});
-  return castOp.getResult(0);
-}
 struct AddIOpConversion : public mlir::OpConversionPattern<ir::AddIOp> {
   AddIOpConversion(mlir::MLIRContext *context)
       : OpConversionPattern<ir::AddIOp>(context, /*benefit=*/1) {}
@@ -30,9 +23,7 @@ struct AddIOpConversion : public mlir::OpConversionPattern<ir::AddIOp> {
   mlir::LogicalResult
   matchAndRewrite(ir::AddIOp op, OpAdaptor adaptor,
                   mlir::ConversionPatternRewriter &rewriter) const override {
-    auto lhs = castToMLIR(rewriter, op->getLoc(), adaptor.lhs());
-    auto rhs = castToMLIR(rewriter, op->getLoc(), adaptor.rhs());
-    rewriter.replaceOpWithNewOp<mlir::arith::AddIOp>(op, lhs, rhs);
+    rewriter.replaceOpWithNewOp<mlir::arith::AddIOp>(op, adaptor.lhs(), adaptor.rhs());
     return mlir::success();
   }
 };
@@ -44,7 +35,17 @@ struct ConstantOpConversion : public mlir::OpConversionPattern<ir::ConstantOp> {
   mlir::LogicalResult
   matchAndRewrite(ir::ConstantOp op, OpAdaptor adaptor,
                   mlir::ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<mlir::arith::ConstantOp>(op, adaptor.valueAttr(), rewriter.getType<mlir::IntegerType>(32));
+    auto value = adaptor.valueAttr().cast<mlir::IntegerAttr>().getValue();
+    mlir::Attribute newAttr;
+    mlir::Type newType;
+    if (op.output().getType().isa<ir::BooleanType>()) {
+      newType = rewriter.getI1Type();
+      newAttr = rewriter.getBoolAttr(value == 0);
+    }  else {
+      newType = rewriter.getI32Type();
+      newAttr = rewriter.getIntegerAttr(newType, value);
+    }
+    rewriter.replaceOpWithNewOp<mlir::arith::ConstantOp>(op, newAttr, newType);
     return mlir::success();
   }
 };
@@ -56,9 +57,6 @@ struct ComparisonOpConversion : public mlir::OpConversionPattern<ir::ComparisonO
   mlir::LogicalResult
   matchAndRewrite(ir::ComparisonOp op, OpAdaptor adaptor,
                   mlir::ConversionPatternRewriter &rewriter) const override {
-    auto lhs = castToMLIR(rewriter, op->getLoc(), adaptor.lhs());
-    auto rhs = castToMLIR(rewriter, op->getLoc(), adaptor.rhs());
-
     mlir::arith::CmpIPredicate pred;
 
     switch(adaptor.predicate()) {
@@ -82,7 +80,7 @@ struct ComparisonOpConversion : public mlir::OpConversionPattern<ir::ComparisonO
         break;
     }
 
-    rewriter.replaceOpWithNewOp<mlir::arith::CmpIOp>(op,pred, lhs, rhs);
+    rewriter.replaceOpWithNewOp<mlir::arith::CmpIOp>(op,pred, adaptor.lhs(), adaptor.rhs());
     return mlir::success();
   }
 };
@@ -94,12 +92,22 @@ struct PrintOpConversion : public mlir::OpConversionPattern<ir::PrintOp> {
   mlir::LogicalResult
   matchAndRewrite(ir::PrintOp op, OpAdaptor adaptor,
                   mlir::ConversionPatternRewriter &rewriter) const override {
-    auto value2 = castToMLIR(rewriter, op->getLoc(), adaptor.value());
-    rewriter.replaceOpWithNewOp<ir::PrintOp>(op, value2);
+    rewriter.replaceOpWithNewOp<ir::PrintOp>(op, adaptor.value());
     return mlir::success();
   }
 };
 
+struct UnrealizedCastConversion : public mlir::OpConversionPattern<mlir::UnrealizedConversionCastOp> {
+  UnrealizedCastConversion(mlir::MLIRContext *context)
+      : OpConversionPattern<mlir::UnrealizedConversionCastOp>(context, /*benefit=*/1) {}
+
+  mlir::LogicalResult
+  matchAndRewrite(mlir::UnrealizedConversionCastOp op, OpAdaptor adaptor,
+                  mlir::ConversionPatternRewriter &rewriter) const override {
+    rewriter.replaceOp(op, adaptor.getInputs());
+    return mlir::success();
+  }
+};
 
 } // end namespace
 
@@ -109,7 +117,13 @@ void LowerSandboxPass::runOnOperation() {
 
   // Configure conversion to lower out SCF operations.
   mlir::ConversionTarget target(getContext());
-  target.addIllegalOp<ir::ConstantOp, ir::AddIOp, ir::ComparisonOp>();
+  target.addIllegalDialect<ir::SandboxDialect>();
+  target.addDynamicallyLegalOp<ir::PrintOp, mlir::UnrealizedConversionCastOp>([](mlir::Operation *op) {
+    auto cond = [](mlir::Type type) {
+      return type.isa<ir::IntType>() || type.isa<ir::BooleanType>();
+    };
+    return llvm::none_of(op->getOperandTypes(), cond) && llvm::none_of(op->getResultTypes(), cond);
+  });
   target.markUnknownOpDynamicallyLegal([](mlir::Operation *) { return true; });
   if (failed(
           applyPartialConversion(getOperation(), target, std::move(patterns))))
@@ -121,7 +135,10 @@ void populateLowerSandboxConversionPatterns(
   patterns.add<
     ConstantOpConversion,
     AddIOpConversion,
-    ComparisonOpConversion>(patterns.getContext());
+    ComparisonOpConversion,
+    PrintOpConversion,
+    UnrealizedCastConversion
+  >(patterns.getContext());
 }
 
 std::unique_ptr<mlir::Pass> createLowerSandboxPass() {
