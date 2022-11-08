@@ -8,8 +8,8 @@ async def main():
         return
 
     worker_cores = 8
-    max_instances = 3
-    max_live_instances = 3
+    max_instances = 4
+    max_live_instances = 4
 
     db = Database()
     await db.async_init()
