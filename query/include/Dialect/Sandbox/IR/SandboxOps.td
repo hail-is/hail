@@ -32,7 +32,7 @@ def BoolOp : Sandbox_Op<"bool", [ConstantLike, NoSideEffect]> {
 }
 
 
-def ComparisonOp : Sandbox_Op<"compare", [NoSideEffect]> {
+def Sandbox_ComparisonOp : Sandbox_Op<"compare", [NoSideEffect]> {
   let arguments = (ins Sandbox_CmpPredicateAttr:$predicate, Sandbox_Int:$lhs, Sandbox_Int:$rhs);
   let results = (outs Sandbox_Bool:$output);
   let assemblyFormat = "$predicate `,` $lhs `,` $rhs attr-dict `:` type($output)";
@@ -41,7 +41,7 @@ def ComparisonOp : Sandbox_Op<"compare", [NoSideEffect]> {
     static CmpPredicate getPredicateByName(llvm::StringRef name);
   }];
 
-  let hasFolder = 0;
+  let hasFolder = 1;
   let hasCanonicalizer = 0;
 }
 

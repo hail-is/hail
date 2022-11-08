@@ -37,6 +37,50 @@ mlir::OpFoldResult AddIOp::fold(llvm::ArrayRef<mlir::Attribute> operands) {
   return {};
 }
 
+
+mlir::OpFoldResult ComparisonOp::fold(llvm::ArrayRef<mlir::Attribute> operands) {
+  assert(operands.size() == 2 && "comparison op takes two operands");
+  if (!operands[0] || !operands[1])
+    return {};
+
+
+  if (operands[0].isa<mlir::IntegerAttr>() && operands[1].isa<mlir::IntegerAttr>()) {
+    auto pred = predicate();
+    auto lhs = operands[0].cast<mlir::IntegerAttr>();
+    auto rhs = operands[1].cast<mlir::IntegerAttr>();
+
+
+    bool x;
+    auto l = lhs.getValue();
+    auto r = rhs.getValue();
+    switch(pred) {
+      case CmpPredicate::LT:
+        x = l.slt(r);
+        break;
+      case CmpPredicate::LTEQ:
+        x = l.sle(r);
+        break;
+      case CmpPredicate::GT:
+        x = l.sgt(r);
+        break;
+      case CmpPredicate::GTEQ:
+        x = l.sge(r);
+        break;
+      case CmpPredicate::EQ:
+        x = l == r;
+        break;
+      case CmpPredicate::NEQ:
+        x = l != r;
+        break;
+    }
+
+    auto result = mlir::BoolAttr::get(getContext(), x);
+    return result;
+  }
+
+  return {};
+}
+
 struct SimplifyAddConstAddConst : public mlir::OpRewritePattern<AddIOp> {
   SimplifyAddConstAddConst(mlir::MLIRContext *context)
       : OpRewritePattern<AddIOp>(context, /*benefit=*/1) {}
