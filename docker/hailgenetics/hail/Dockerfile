@@ -38,5 +38,5 @@ RUN export SPARK_HOME=$(find_spark_home.py) && \
 
 RUN --mount=src=wheel-container.tar,target=/wheel-container.tar \
     tar -xf wheel-container.tar && \
-    pip3 install --no-deps hail-*-py3-none-any.whl && \
+    hail-pip-install --no-deps hail-*-py3-none-any.whl && \
     rm -rf hail-*-py3-none-any.whl
