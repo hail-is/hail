@@ -1,7 +1,7 @@
 FROM {{ service_base_image.image }}
 
 ENV PYTHONPATH ""
-RUN hail-apt-get-install openjdk-8-jdk-headless liblz4-dev
+RUN hail-apt-get-install liblz4-dev
 
 COPY python/pinned-requirements.txt requirements.txt
 COPY python/dev/pinned-requirements.txt dev-requirements.txt
