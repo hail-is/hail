@@ -40,7 +40,7 @@ botocore==1.29.6
     #   -r python/requirements.txt
     #   boto3
     #   s3transfer
-cachetools==4.2.4
+cachetools==5.2.0
     # via google-auth
 certifi==2022.9.24
     # via
@@ -72,18 +72,22 @@ frozenlist==1.3.3
     #   aiohttp
     #   aiosignal
 google-api-core==2.10.2
-    # via google-cloud-core
-google-auth==1.35.0
+    # via
+    #   google-cloud-core
+    #   google-cloud-storage
+google-auth==2.14.1
     # via
     #   -r python/requirements.txt
     #   google-api-core
     #   google-cloud-core
     #   google-cloud-storage
-google-cloud-core==1.7.3
+google-cloud-core==2.3.2
     # via google-cloud-storage
-google-cloud-storage==1.25.0
+google-cloud-storage==2.6.0
     # via -r python/requirements.txt
-google-resumable-media==0.5.1
+google-crc32c==1.5.0
+    # via google-resumable-media
+google-resumable-media==2.4.0
     # via google-cloud-storage
 googleapis-common-protos==1.56.4
     # via google-api-core
@@ -186,6 +190,7 @@ requests==2.28.1
     #   -r python/requirements.txt
     #   azure-core
     #   google-api-core
+    #   google-cloud-storage
     #   msal
     #   msrest
     #   requests-oauthlib
@@ -205,8 +210,6 @@ six==1.16.0
     #   azure-identity
     #   bokeh
     #   google-auth
-    #   google-cloud-core
-    #   google-resumable-media
     #   isodate
     #   parsimonious
     #   python-dateutil
