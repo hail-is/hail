@@ -17,7 +17,7 @@ aiohttp==3.8.3
     #   kubernetes-asyncio
 aiohttp-jinja2==1.5
     # via -r requirements.txt
-aiohttp-session==2.12.0
+aiohttp-session==2.11.0
     # via -r requirements.txt
 aiomysql==0.1.1
     # via -r requirements.txt
@@ -27,7 +27,7 @@ aiorwlock==1.3.0
     # via -r requirements.txt
 aiosignal==1.3.1
     # via aiohttp
-astroid==2.12.12
+astroid==2.12.11
     # via pylint
 async-timeout==4.0.2
     # via
@@ -50,7 +50,7 @@ azure-core==1.26.1
     #   msrest
 azure-identity==1.12.0
     # via -r requirements.txt
-azure-storage-blob==12.14.1
+azure-storage-blob==12.14.0
     # via -r requirements.txt
 black==22.10.0
     # via -r requirements.txt
@@ -87,7 +87,7 @@ click==8.1.3
     #   zulip
 commonmark==0.9.1
     # via rich
-cryptography==38.0.3
+cryptography==38.0.1
     # via
     #   azure-identity
     #   azure-storage-blob
@@ -99,7 +99,7 @@ decorator==5.1.1
     # via -r requirements.txt
 dictdiffer==0.9.0
     # via -r requirements.txt
-dill==0.3.6
+dill==0.3.5.1
     # via
     #   -r requirements.txt
     #   pylint
@@ -124,10 +124,10 @@ flask-sockets==0.2.1
     # via -r requirements.txt
 frozenlist==1.3.3
     # via
-    #   -r requirements.txt
+    #   -r python/requirements.txt
     #   aiohttp
     #   aiosignal
-gevent==22.10.2
+gevent==22.10.1
     # via
     #   flask-sockets
     #   gevent-websocket
@@ -155,7 +155,7 @@ greenlet==2.0.1
     # via gevent
 hiredis==2.0.0
     # via aioredis
-httplib2==0.21.0
+httplib2==0.20.4
     # via
     #   google-api-python-client
     #   google-auth-httplib2
@@ -200,7 +200,7 @@ keyrings-alt==3.5.2
     # via -r requirements.txt
 kubernetes-asyncio==19.15.1
     # via -r requirements.txt
-lazy-object-proxy==1.8.0
+lazy-object-proxy==1.7.1
     # via astroid
 libsass==0.22.0
     # via -r requirements.txt
@@ -238,7 +238,7 @@ numpy==1.21.6
     # via pandas
 oauthlib==3.2.2
     # via requests-oauthlib
-orjson==3.8.1
+orjson==3.8.0
     # via -r requirements.txt
 packaging==21.3
     # via pytest
@@ -258,7 +258,7 @@ platformdirs==2.5.3
     # via
     #   black
     #   pylint
-plotly==5.11.0
+plotly==5.10.0
     # via -r requirements.txt
 pluggy==1.0.0
     # via pytest
@@ -299,7 +299,7 @@ pygments==2.13.0
     # via
     #   readme-renderer
     #   rich
-pyjwt[crypto]==2.6.0
+pyjwt[crypto]==2.5.0
     # via
     #   -r requirements.txt
     #   gidgethub
@@ -331,7 +331,7 @@ pytest-html==1.22.1
     # via -r requirements.txt
 pytest-instafail==0.4.2
     # via -r requirements.txt
-pytest-metadata==2.0.4
+pytest-metadata==2.0.2
     # via pytest-html
 pytest-xdist==2.5.0
     # via -r requirements.txt
@@ -343,13 +343,13 @@ python-dateutil==2.8.2
     #   pandas
 python-json-logger==2.0.4
     # via -r requirements.txt
-pytz==2022.6
+pytz==2022.5
     # via pandas
 pyyaml==6.0
     # via kubernetes-asyncio
-readme-renderer==37.3
+readme-renderer==37.2
     # via twine
-regex==2022.10.31
+regex==2022.9.13
     # via parsimonious
 requests[security]==2.28.1
     # via
@@ -368,7 +368,7 @@ requests-oauthlib==1.3.1
     # via
     #   google-auth-oauthlib
     #   msrest
-requests-toolbelt==0.10.1
+requests-toolbelt==0.10.0
     # via twine
 rich==12.6.0
     # via -r requirements.txt
@@ -403,7 +403,7 @@ tomli==2.0.1
     #   black
     #   mypy
     #   pylint
-tomlkit==0.11.6
+tomlkit==0.11.5
     # via pylint
 tqdm==4.64.1
     # via twine
@@ -416,6 +416,8 @@ typed-ast==1.5.4
     #   mypy
 types-chardet==5.0.4
     # via -r requirements.txt
+types-cryptography==3.3.23.1
+    # via pyjwt
 types-decorator==5.1.8.1
     # via -r requirements.txt
 types-deprecated==1.2.9
@@ -428,7 +430,7 @@ types-pyyaml==6.0.12.2
     # via -r requirements.txt
 types-requests==2.28.11.4
     # via -r requirements.txt
-types-setuptools==65.5.0.2
+types-setuptools==65.5.0.1
     # via -r requirements.txt
 types-six==1.16.21.2
     # via -r requirements.txt
@@ -485,7 +487,7 @@ yarl==1.5.1
     # via
     #   -r requirements.txt
     #   aiohttp
-zipp==3.10.0
+zipp==3.9.0
     # via importlib-metadata
 zope-event==4.5.0
     # via gevent

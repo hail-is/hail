@@ -73,7 +73,6 @@ rich==12.6.0
 
 # mypy library stubs
 types-Deprecated
-types-PyMySQL
 types-PyYAML
 types-chardet
 types-decorator
