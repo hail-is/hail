@@ -1313,7 +1313,7 @@ steps:
     script: |
       set -ex
 
-      cp /io/repo/hail.jar $SPARK_HOME/jars/hail.jar
+      cp /io/hail.jar $SPARK_HOME/jars/hail.jar
       cd /io/hail/python/hail
       python3 -m pytest --instafail \
         --doctest-modules \
@@ -1322,9 +1322,9 @@ steps:
         --ignore=docs/doctest_write_data.py
     inputs:
       - from: /repo/hail/python/hail
-        to: /io/repo/hail/python/hail
+        to: /io/hail/python/hail
       - from: /hail.jar
-        to: /io/repo/hail.jar
+        to: /io/hail.jar
     dependsOn:
       - hail_run_image
       - build_hail
