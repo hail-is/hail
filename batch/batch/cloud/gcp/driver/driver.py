@@ -3,6 +3,7 @@ import asyncio
 from gear import Database
 from gear.cloud_config import get_gcp_config
 from hailtop import aiotools
+import hailtop.aiocloud as aiocloud
 from hailtop.aiocloud import aiogoogle
 from hailtop.utils import RateLimit, periodically_call
 
@@ -63,7 +64,7 @@ ON DUPLICATE KEY UPDATE region = region;
             rate_limit=RateLimit(10, 60),
         )
 
-        billing_client = aiogoogle.GoogleBillingClient(credentials_file=credentials_file)
+        billing_client = aiogoogle.GoogleBillingClient(credentials=aiocloud.AnonymousCloudCredentials())
 
         zone_monitor = await ZoneMonitor.create(compute_client, regions, zone)
         billing_manager = await GCPBillingManager.create(db, billing_client, regions)

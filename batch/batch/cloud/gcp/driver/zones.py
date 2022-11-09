@@ -90,9 +90,6 @@ class ZoneMonitor(CloudLocationMonitor):
         preemptible: bool,
         regions: List[str],
     ) -> str:
-        if regions is None and self.zone_success_rate.zone_success_rate(self._default_zone) >= 0.7:
-            return self._default_zone
-
         zone_weights = self.compute_zone_weights(cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions)
 
         zones = [zw.zone for zw in zone_weights]
