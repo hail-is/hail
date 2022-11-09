@@ -151,6 +151,32 @@ mlir::LogicalResult ArrayRefOp::verify() {
   return mlir::success();
 }
 
+
+struct SimplifyArrayRefMakeArray : public mlir::OpRewritePattern<ArrayRefOp> {
+  SimplifyArrayRefMakeArray(mlir::MLIRContext *context)
+      : OpRewritePattern<ArrayRefOp>(context, /*benefit=*/1) {}
+  
+  mlir::LogicalResult
+  matchAndRewrite(ArrayRefOp op, mlir::PatternRewriter &rewriter) const override {
+    auto array = op.array().getDefiningOp<MakeArrayOp>();
+    auto indexRef = op.index().getDefiningOp<ir::ConstantOp>();
+    if (!array || !indexRef)
+      return mlir::failure();
+
+    auto idx = indexRef.value().cast<mlir::IntegerAttr>().getInt();
+    if (idx < 0 || idx >= array->getNumOperands())
+      return mlir::failure(); // don't rewrite if this would be a runtime error
+    
+    rewriter.replaceOp(op, array.elems()[idx]);
+    return mlir::success();
+  }
+};
+
+void ArrayRefOp::getCanonicalizationPatterns(mlir::RewritePatternSet &patterns,
+                                         mlir::MLIRContext *context) {
+  patterns.add<SimplifyArrayRefMakeArray>(context);
+}
+
 mlir::LogicalResult MakeArrayOp::verify() {
   auto assignedResultType = result().getType();
 

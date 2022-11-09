@@ -3,10 +3,12 @@
 #include "Dialect/Sandbox/IR/Sandbox.h"
 
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "llvm/ADT/SmallVector.h"
 
 namespace hail::ir {
 
@@ -83,6 +85,42 @@ struct ComparisonOpConversion
 
     rewriter.replaceOpWithNewOp<mlir::arith::CmpIOp>(op, pred, adaptor.lhs(),
                                                      adaptor.rhs());
+    return mlir::success();
+  }
+};
+
+mlir::Type getLoweredType(mlir::Builder &b, mlir::Type t) {
+  if (t.isa<ir::IntType>())
+    return b.getI32Type();
+
+  if (t.isa<ir::BooleanType>())
+    return b.getI1Type();
+
+  if (t.isa<ir::ArrayType>()) {
+    auto loweredElem =
+        getLoweredType(b, t.cast<ir::ArrayType>().getElementType());
+    llvm::SmallVector<int64_t, 1> v = {-1};
+
+    return mlir::RankedTensorType::get(v, loweredElem);
+  }
+
+  return nullptr;
+}
+
+struct MakeArrayOpConversion
+    : public mlir::OpConversionPattern<ir::MakeArrayOp> {
+  MakeArrayOpConversion(mlir::MLIRContext *context)
+      : OpConversionPattern<ir::MakeArrayOp>(context, /*benefit=*/1) {}
+
+  mlir::LogicalResult
+  matchAndRewrite(ir::MakeArrayOp op, OpAdaptor adaptor,
+                  mlir::ConversionPatternRewriter &rewriter) const override {
+
+    auto elems = adaptor.elems();
+    auto tensorType = getLoweredType(rewriter, op.result().getType());
+    rewriter.replaceOpWithNewOp<mlir::tensor::FromElementsOp>(op, tensorType,
+                                                              elems);
+
     return mlir::success();
   }
 };

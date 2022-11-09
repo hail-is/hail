@@ -108,42 +108,6 @@ def Sandbox_Array : Sandbox_Type<"Array", "array", [
   ]> {
   let summary = "Sandbox array";
   let parameters = (ins "mlir::Type":$elementType);
-
-  // let builders = [
-  //   TypeBuilderWithInferredContext<(ins "Type":$elementType), [{
-  //     // Drop default memory space value and replace it with empty attribute.
-  //     Attribute nonDefaultMemorySpace = skipDefaultMemorySpace(memorySpace);
-  //     return $_get(elementType.getContext(), elementType, nonDefaultMemorySpace);
-  //   }]>,
-  //   /// [deprecated] `Attribute`-based form should be used instead.
-  //   TypeBuilderWithInferredContext<(ins "Type":$elementType,
-  //                                       "unsigned":$memorySpace), [{
-  //     // Convert deprecated integer-like memory space to Attribute.
-  //     Attribute memorySpaceAttr =
-  //         wrapIntegerMemorySpace(memorySpace, elementType.getContext());
-  //     return UnrankedMemRefType::get(elementType, memorySpaceAttr);
-  //   }]>
-  // ];
-  //   let printer = [{
-  //   $_printer << ArrayType::getMnemonic() << '<';
-  //   $_printer << getElementType();
-  //   $_printer << '<';
-  // }];
-
-  // let parser = [{
-  //   if (parser.parseKeyword("array") || parser.parseLess())
-  //     return Type();
-    
-  //   mlir::Type elementType;
-  //   if (parser.parseType(elementType))
-  //     return nullptr;
-
-  //   if (parser.parseGreater())
-  //     return Type();
-
-  // return ArrayType::get(context, elementType;)
-  // }];
-
   let hasCustomAssemblyFormat = 1;
   let genVerifyDecl = 1;
 }

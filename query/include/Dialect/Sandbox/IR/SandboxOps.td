@@ -57,14 +57,14 @@ def Sandbox_MakeArrayOp : Sandbox_Op<"make_array", [NoSideEffect]> {
 }
 
 def Sandbox_ArrayRefOp : Sandbox_Op<"array_ref", [NoSideEffect]> {
-  let arguments = (ins TypeAttr:$elementType, AnyType:$array);
+  let arguments = (ins AnyType:$array, Sandbox_Int:$index);
   let results = (outs AnyType:$result);
 
-  let assemblyFormat = "$array attr-dict `:` type($array) `->` type($result)";
+  let assemblyFormat = "$array type($array) $index attr-dict `:` type($result)";
   let hasVerifier = 1;
 
   let hasFolder = 0;
-  let hasCanonicalizer = 0;
+  let hasCanonicalizer = 1;
 }
 
 def Sandbox_PrintOp : Sandbox_Op<"print"> {
