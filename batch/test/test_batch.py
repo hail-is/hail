@@ -759,7 +759,7 @@ b.run()
 backend.close()
 '''
     j = bb.create_job(
-        os.environ['HAIL_HAIL_BASE_IMAGE'],
+        os.environ['HAIL_GENETICS_HAIL_IMAGE'],
         ['/bin/bash', '-c', f'''python3 -c \'{script}\''''],
         mount_tokens=True,
     )
@@ -781,7 +781,7 @@ backend.close()
 
     bb = client.create_batch()
     j = bb.create_job(
-        os.environ['HAIL_HAIL_BASE_IMAGE'],
+        os.environ['HAIL_GENETICS_HAIL_IMAGE'],
         [
             '/bin/bash',
             '-c',
@@ -802,7 +802,7 @@ python3 -c \'{script}\'''',
 
     bb = client.create_batch()
     j = bb.create_job(
-        os.environ['HAIL_HAIL_BASE_IMAGE'],
+        os.environ['HAIL_GENETICS_HAIL_IMAGE'],
         [
             '/bin/bash',
             '-c',
@@ -858,7 +858,7 @@ hl.utils.range_table(10).write(location)
 hl.read_table(location).show()
 '''
     j = bb.create_job(
-        os.environ['HAIL_HAIL_BASE_IMAGE'], ['/bin/bash', '-c', f'python3 -c >out 2>err \'{script}\'; cat out err']
+        os.environ['HAIL_GENETICS_HAIL_IMAGE'], ['/bin/bash', '-c', f'python3 -c >out 2>err \'{script}\'; cat out err']
     )
     b = bb.submit()
     status = j.wait()

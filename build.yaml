@@ -976,26 +976,6 @@ steps:
       - hail_run_tests_image
       - build_hail
   - kind: buildImage2
-    name: hail_base_image
-    dockerFile: /io/repo/hail/Dockerfile.hail-base
-    contextPath: /io/repo
-    publishAs: hail-base
-    resources:
-      storage: 10Gi
-      cpu: "2"
-      memory: standard
-    inputs:
-      - from: /repo
-        to: /io/repo
-      - from: /hail.jar
-        to: /io/repo/hail.jar
-      - from: /hail.zip
-        to: /io/repo/hail.zip
-    dependsOn:
-      - hail_run_image
-      - build_hail
-      - merge_code
-  - kind: buildImage2
     name: hail_pip_installed_python37_image
     dockerFile: /io/repo/hail/Dockerfile.hail-pip-installed-python37
     contextPath: /io/repo
@@ -1345,7 +1325,7 @@ steps:
   - kind: runImage
     name: make_docs
     image:
-      valueFrom: hail_base_image.image
+      valueFrom: hail_run_image.image
     script: |
       set -ex
       set -o pipefail
@@ -1386,7 +1366,7 @@ steps:
       - from: /io/www.tar.gz
         to: /www.tar.gz
     dependsOn:
-      - hail_base_image
+      - hail_run_image
       - build_hail
   - kind: runImage
     name: get_pip_versioned_docs
@@ -2298,6 +2278,33 @@ steps:
       - deploy_memory
     clouds:
       - gcp
+  - kind: buildImage2
+    name: hailgenetics_hail_image
+    dockerFile: /io/repo/docker/hailgenetics/hail/Dockerfile
+    contextPath: /io/repo
+    publishAs: hailgenetics/hail
+    inputs:
+      - from: /repo/docker/hailgenetics/hail
+        to: /io/repo/docker/hailgenetics/hail
+      - from: /repo/hail/python/pinned-requirements.txt
+        to: /io/repo/hail/python/pinned-requirements.txt
+      - from: /just-wheel/wheel-container.tar
+        to: /io/repo/wheel-container.tar
+    dependsOn:
+      - merge_code
+      - build_hail_jar_and_wheel_only
+      - hail_ubuntu_image
+  - kind: runImage
+    name: test_hailgenetics_hail_image
+    image:
+      valueFrom: hailgenetics_hail_image.image
+    script: |
+      set -ex
+      python3 -c 'import hail as hl; hl.balding_nichols_model(3, 100, 100)._force_count_rows()'
+      python3 -c 'import numpy; import pandas; import sklearn; import matplotlib; import scipy'
+      gsutil --version
+    dependsOn:
+      - hailgenetics_hail_image
   - kind: runImage
     name: test_batch
     numSplits: 5
@@ -2307,13 +2314,13 @@ steps:
       set -ex
       export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
       export HAIL_BASE_IMAGE={{ base_image.image }}
+      export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
       export CI_UTILS_IMAGE={{ ci_utils_image.image }}
       export HAIL_CURL_IMAGE={{ curl_image.image }}
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
       export HAIL_VOLUME_IMAGE={{ volume_image.image }}
       export HAIL_WORKDIR_IMAGE={{ workdir_image.image }}
-      export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
@@ -2366,7 +2373,7 @@ steps:
       - default_ns
       - merge_code
       - base_image
-      - hail_base_image
+      - hailgenetics_hail_image
       - batch_image
       - ci_utils_image
       - deploy_batch
@@ -2562,33 +2569,6 @@ steps:
       - deploy_ci
       - test_ci_image
       - create_ci_test_repo
-  - kind: buildImage2
-    name: hailgenetics_hail_image
-    dockerFile: /io/repo/docker/hailgenetics/hail/Dockerfile
-    contextPath: /io/repo
-    publishAs: hailgenetics/hail
-    inputs:
-      - from: /repo/docker/hailgenetics/hail
-        to: /io/repo/docker/hailgenetics/hail
-      - from: /repo/hail/python/pinned-requirements.txt
-        to: /io/repo/hail/python/pinned-requirements.txt
-      - from: /just-wheel/wheel-container.tar
-        to: /io/repo/wheel-container.tar
-    dependsOn:
-      - merge_code
-      - build_hail_jar_and_wheel_only
-      - hail_ubuntu_image
-  - kind: runImage
-    name: test_hailgenetics_hail_image
-    image:
-      valueFrom: hailgenetics_hail_image.image
-    script: |
-      set -ex
-      python3 -c 'import hail as hl; hl.balding_nichols_model(3, 100, 100)._force_count_rows()'
-      python3 -c 'import numpy; import pandas; import sklearn; import matplotlib; import scipy'
-      gsutil --version
-    dependsOn:
-      - hailgenetics_hail_image
   - kind: runImage
     name: test_hailtop_batch
     numSplits: 5
