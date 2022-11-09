@@ -135,5 +135,37 @@ void AddIOp::getCanonicalizationPatterns(mlir::RewritePatternSet &patterns,
   patterns.add<SimplifyAddConstAddConst>(context);
 }
 
+mlir::LogicalResult ArrayRefOp::verify() {
+  auto type = getType();
+  // The value's type must match the return type.
+  auto arrayType = array().getType();
+
+  if (!arrayType.isa<ir::ArrayType>()) {
+    return emitOpError() << "ArrayRef requires an array as input: " << arrayType;
+  }
+
+  if (arrayType.cast<ir::ArrayType>().getElementType() != type) {
+    return emitOpError() << "ArrayRef return type is not the array element type: array=" << arrayType << ", result=" << type;
+  }
+
+  return mlir::success();
+}
+
+mlir::LogicalResult MakeArrayOp::verify() {
+  auto assignedResultType = result().getType();
+
+  if (!assignedResultType.isa<ir::ArrayType>()) {
+    return emitOpError() << "MakeArray expects an ArrayType as return type, found " << assignedResultType;
+  }
+
+  auto elemType = assignedResultType.cast<ir::ArrayType>().getElementType();
+  for (auto elem : elems()) {
+    if (elemType != elem.getType()) {
+      return emitOpError() << "MakeArray with return element type " << elemType << " had element with type " << elem.getType();
+    }
+  }
+  return mlir::success();
+}
+
 } // namespace ir
 } // namespace hail
