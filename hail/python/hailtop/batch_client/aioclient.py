@@ -552,14 +552,13 @@ class BatchBuilder:
 
         job_spec = {
             'always_run': always_run,
+            'always_copy_output': always_copy_output,
             'job_id': self._job_idx,
             'absolute_parent_ids': absolute_parent_ids,
             'in_update_parent_ids': in_update_parent_ids,
             'process': process,
         }
 
-        if always_copy_output:
-            job_spec['always_copy_output'] = always_copy_output
         if env:
             job_spec['env'] = [{'name': k, 'value': v} for (k, v) in env.items()]
         if port is not None:
