@@ -201,6 +201,7 @@ class LocalBackend(Backend[None]):
                 if r not in copied_input_resource_files:
                     copied_input_resource_files.add(r)
 
+                    assert r._input_path
                     input_scheme = url_scheme(r._input_path)
                     if input_scheme != '':
                         transfers_bytes = orjson.dumps([{"from": r._input_path, "to": r._get_path(tmpdir)}])

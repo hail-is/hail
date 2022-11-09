@@ -2,7 +2,7 @@ import asyncio
 import logging
 import random
 from collections import defaultdict
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import prometheus_client as pc
 import sortedcontainers
@@ -390,7 +390,7 @@ GROUP BY user;
             await self.regions_to_ready_cores_mcpu_from_estimated_job_queue()
         )
 
-        head_job_queue_ready_cores_mcpu = defaultdict(int)
+        head_job_queue_ready_cores_mcpu: Dict[str, float] = defaultdict(float)
 
         remaining_instances_per_autoscaler_loop = MAX_INSTANCES_PER_AUTOSCALER_LOOP
         if head_job_queue_regions_ready_cores_mcpu_ordered and free_cores < 500:
@@ -424,7 +424,7 @@ GROUP BY user;
         )
 
         for region in self.all_supported_regions:
-            ready_cores_mcpu = head_job_queue_ready_cores_mcpu.get(region, 0)
+            ready_cores_mcpu = int(head_job_queue_ready_cores_mcpu.get(region, 0.0))
             AUTOSCALER_HEAD_JOB_QUEUE_READY_CORES.labels(pool_name=self.name, region=region).set(ready_cores_mcpu)
 
     async def control_loop(self):
@@ -457,8 +457,8 @@ class PoolScheduler:
         return await self._compute_fair_share(free_cores_mcpu)
 
     async def _compute_fair_share(self, free_cores_mcpu):
-        user_running_cores_mcpu = {}
-        user_total_cores_mcpu = {}
+        user_running_cores_mcpu: Dict[str, int] = {}
+        user_total_cores_mcpu: Dict[str, int] = {}
         result = {}
 
         pending_users_by_running_cores = sortedcontainers.SortedSet(key=lambda user: user_running_cores_mcpu[user])
@@ -541,10 +541,10 @@ HAVING n_ready_jobs + n_running_jobs > 0;
 
         n_scheduled = 0
 
-        scheduled_jobs_per_region = defaultdict(int)
-        scheduled_cores_mcpu_per_region = defaultdict(int)
-        unscheduled_jobs_per_region = defaultdict(int)
-        unscheduled_cores_mcpu_per_region = defaultdict(int)
+        scheduled_jobs_per_region: Dict[str, int] = defaultdict(int)
+        scheduled_cores_mcpu_per_region: Dict[str, int] = defaultdict(int)
+        unscheduled_jobs_per_region: Dict[str, float] = defaultdict(float)
+        unscheduled_cores_mcpu_per_region: Dict[str, int] = defaultdict(int)
 
         user_resources = await self.compute_fair_share()
 

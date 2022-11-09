@@ -82,7 +82,7 @@ from ..publicly_available_images import publicly_available_images
 from ..resource_usage import ResourceUsageMonitor
 from ..semaphore import FIFOWeightedSemaphore
 from ..utils import Box
-from ..worker.worker_api import CloudWorkerAPI
+from ..worker.worker_api import CloudDisk, CloudWorkerAPI
 from .credentials import CloudUserCredentials
 from .jvm_entryway_protocol import EndOfStream, read_bool, read_int, read_str, write_int, write_str
 
@@ -126,7 +126,7 @@ class BatchWorkerAccessLogger(AccessLogger):
 
 
 def compose_auth_header_urlsafe(orig_f):
-    def compose(auth: Union[MutableMapping, str, bytes], registry_addr: str = None):
+    def compose(auth: Union[MutableMapping, str, bytes], registry_addr: Optional[str] = None):
         orig_auth_header = orig_f(auth, registry_addr=registry_addr)
         auth = json.loads(base64.b64decode(orig_auth_header))
         auth_json = json.dumps(auth).encode('ascii')
@@ -214,7 +214,7 @@ image_lock: Optional[aiorwlock.RWLock] = None
 
 class PortAllocator:
     def __init__(self):
-        self.ports = asyncio.Queue()
+        self.ports: asyncio.Queue[int] = asyncio.Queue()
         port_base = 46572
         for port in range(port_base, port_base + 10):
             self.ports.put_nowait(port)
@@ -324,8 +324,8 @@ ip netns delete {self.network_ns_name}'''
 
 class NetworkAllocator:
     def __init__(self):
-        self.private_networks = asyncio.Queue()
-        self.public_networks = asyncio.Queue()
+        self.private_networks: asyncio.Queue[NetworkNamespace] = asyncio.Queue()
+        self.public_networks: asyncio.Queue[NetworkNamespace] = asyncio.Queue()
         self.internet_interface = INTERNET_INTERFACE
 
     async def reserve(self):
@@ -490,7 +490,8 @@ class Image:
         )
 
     async def _localize_rootfs(self):
-        async with image_lock.reader_lock:
+        assert image_lock
+        async with image_lock.reader:
             # FIXME Authentication is entangled with pulling images. We need a way to test
             # that a user has access to a cached image without pulling.
             await self._pull_image()
@@ -498,6 +499,7 @@ class Image:
             self.image_id = self.image_config['Id'].split(":")[1]
             assert self.image_id
 
+            assert worker
             worker.image_data[self.image_id] += 1
 
             image_data = worker.image_data[self.image_id]
@@ -518,6 +520,7 @@ class Image:
         await asyncio.shield(self._localize_rootfs())
 
     def release(self):
+        assert worker
         if self.image_id is not None:
             worker.image_data[self.image_id] -= 1
 
@@ -813,10 +816,12 @@ class Container:
                     log.exception(f'while unmounting overlay in {self}', exc_info=True)
 
             if self.host_port is not None:
+                assert port_allocator
                 port_allocator.free(self.host_port)
                 self.host_port = None
 
             if self.netns:
+                assert network_allocator
                 network_allocator.free(self.netns)
                 self.netns = None
         finally:
@@ -855,6 +860,8 @@ class Container:
         self.overlay_mounted = True
 
     async def _setup_network_namespace(self):
+        assert network_allocator
+        assert port_allocator
         if self.network == 'private':
             self.netns = await network_allocator.allocate_private()
         else:
@@ -904,6 +911,9 @@ class Container:
 
     # https://github.com/opencontainers/runtime-spec/blob/master/config.md
     async def container_config(self):
+        assert self.image.image_config
+        assert self.netns
+
         uid, gid = await self._get_in_container_user()
         weight = worker_fraction_in_1024ths(self.cpu_in_mcpu)
         workdir = self.image.image_config['Config']['WorkingDir']
@@ -999,10 +1009,11 @@ class Container:
         return config
 
     async def _get_in_container_user(self):
+        assert self.image.image_config
         user = self.image.image_config['Config']['User']
         if not user:
-            uid, gid = 0, 0
-        elif ":" in user:
+            return 0, 0
+        if ":" in user:
             uid, gid = user.split(":")
         else:
             uid, gid = await self._read_user_from_rootfs(user)
@@ -1017,6 +1028,8 @@ class Container:
             raise ValueError("Container user not found in image's /etc/passwd")
 
     def _mounts(self, uid, gid):
+        assert self.image.image_config
+        assert self.netns
         # Only supports empty volumes
         external_volumes = []
         volumes = self.image.image_config['Config']['Volumes']
@@ -1101,6 +1114,7 @@ class Container:
         )
 
     def _env(self):
+        assert self.image.image_config
         env = self.image.image_config['Config']['Env'] + self.env
         if self.port is not None:
             assert self.host_port is not None
@@ -1306,19 +1320,19 @@ class Job:
         self.pool = pool
 
         assert worker
-        self.worker = worker
+        self.worker: Worker = worker
 
         self.deleted_event = asyncio.Event()
 
         self.token = uuid.uuid4().hex
         self.scratch = f'/batch/{self.token}'
 
-        self.disk = None
+        self.disk: Optional[CloudDisk] = None
         self.state = 'pending'
-        self.error = None
+        self.error: Optional[str] = None
 
-        self.start_time = None
-        self.end_time = None
+        self.start_time: Optional[int] = None
+        self.end_time: Optional[int] = None
 
         self.marked_job_started = False
 
@@ -1428,6 +1442,7 @@ class Job:
         full_status = self.status()
 
         if self.format_version.has_full_status_in_gcs():
+            assert self.worker.file_store
             await retry_transient_errors(
                 self.worker.file_store.write_status_file,
                 self.batch_id,
@@ -1534,6 +1549,7 @@ class DockerJob(Job):
                 client_session,
             )
 
+        assert self.worker.fs
         containers['main'] = Container(
             fs=self.worker.fs,
             name=self.container_name('main'),
@@ -1855,6 +1871,9 @@ class JVMJob(Job):
         return f'{self.scratch}/secrets/{secret["mount_path"]}'
 
     async def download_jar(self):
+        assert self.worker
+        assert self.worker.pool
+
         async with self.worker.jar_download_locks[self.jar_url]:
             unique_key = self.jar_url.replace('_', '__').replace('/', '_')
             local_jar_location = f'/hail-jars/{unique_key}.jar'
@@ -1864,19 +1883,20 @@ class JVMJob(Job):
                 async def download_jar():
                     temporary_file = tempfile.NamedTemporaryFile(delete=False)  # pylint: disable=consider-using-with
                     try:
+                        assert self.worker.fs is not None
                         async with await self.worker.fs.open(self.jar_url) as jar_data:
                             while True:
                                 b = await jar_data.read(256 * 1024)
                                 if not b:
                                     break
-                                written = await blocking_to_async(worker.pool, temporary_file.write, b)
+                                written = await blocking_to_async(self.worker.pool, temporary_file.write, b)
                                 assert written == len(b)
                         temporary_file.close()
                         os.rename(temporary_file.name, local_jar_location)
                     finally:
                         temporary_file.close()  # close is idempotent
                         try:
-                            await blocking_to_async(worker.pool, os.remove, temporary_file.name)
+                            await blocking_to_async(self.worker.pool, os.remove, temporary_file.name)
                         except OSError as err:
                             if err.errno != errno.ENOENT:
                                 raise
@@ -1945,8 +1965,12 @@ class JVMJob(Job):
                     await self.mark_complete()
 
     async def cleanup(self):
+        assert self.worker
+        assert self.worker.file_store is not None
+        assert self.worker.fs
+
         if self.jvm is not None:
-            worker.return_jvm(self.jvm)
+            self.worker.return_jvm(self.jvm)
             self.jvm = None
 
         with self.step('uploading_log'):
@@ -1963,6 +1987,8 @@ class JVMJob(Job):
             log.exception('while deleting volumes')
 
     async def _get_log(self):
+        assert self.worker
+        assert self.worker.fs is not None
         if os.path.exists(self.log_file):
             return (await self.worker.fs.read(self.log_file)).decode()
         return ''
@@ -2140,7 +2166,7 @@ class JVMContainer:
 
     def __init__(self, container: Container, fs: LocalAsyncFS):
         self.container = container
-        self.fs = fs
+        self.fs: Optional[LocalAsyncFS] = fs
 
     @property
     def returncode(self) -> Optional[int]:
@@ -2235,22 +2261,6 @@ class JVM:
             worker.pool,
         )
 
-    async def new_connection(self):
-        while True:
-            try:
-                return await asyncio.open_unix_connection(self.socket_file)
-            except ConnectionRefusedError:
-                os.remove(self.socket_file)
-                if self.container:
-                    await self.container.remove()
-
-                await blocking_to_async(self.pool, shutil.rmtree, f'{self.root_dir}/container', ignore_errors=True)
-
-                container = await self.create_container_and_connect(
-                    self.index, self.n_cores, self.socket_file, self.root_dir, self.client_session, self.pool
-                )
-                self.container = container
-
     def __init__(
         self,
         index: int,
@@ -2288,6 +2298,22 @@ class JVM:
     async def kill(self):
         if self.container is not None:
             await self.container.remove()
+
+    async def new_connection(self):
+        while True:
+            try:
+                return await asyncio.open_unix_connection(self.socket_file)
+            except ConnectionRefusedError:
+                os.remove(self.socket_file)
+                if self.container:
+                    await self.container.remove()
+
+                await blocking_to_async(self.pool, shutil.rmtree, f'{self.root_dir}/container', ignore_errors=True)
+
+                container = await self.create_container_and_connect(
+                    self.index, self.n_cores, self.socket_file, self.root_dir, self.client_session, self.pool
+                )
+                self.container = container
 
     async def execute(self, classpath: str, scratch_dir: str, log_file: str, jar_url: str, argv: List[str]):
         assert worker is not None
@@ -2369,9 +2395,9 @@ class Worker:
         self.image_data[BATCH_WORKER_IMAGE_ID] += 1
 
         # filled in during activation
-        self.fs = None
-        self.file_store = None
-        self.headers = None
+        self.fs: Optional[RouterAsyncFS] = None
+        self.file_store: Optional[FileStore] = None
+        self.headers: Optional[Dict[str, str]] = None
         self.compute_client = None
 
         self._jvm_initializer_task = asyncio.ensure_future(self._initialize_jvms())
@@ -2379,7 +2405,7 @@ class Worker:
 
     async def _initialize_jvms(self):
         if instance_config.worker_type() in ('standard', 'D', 'highmem', 'E'):
-            jvms = []
+            jvms: List[Awaitable[JVM]] = []
             for jvm_cores in (1, 2, 4, 8):
                 for _ in range(CORES // jvm_cores):
                     jvms.append(JVM.create(len(jvms), jvm_cores, self))
@@ -2451,6 +2477,7 @@ class Worker:
         start_job_id = body['start_job_id']
         addtl_spec = body['job_spec']
 
+        assert self.file_store
         job_spec = await self.file_store.read_spec_file(batch_id, token, start_job_id, job_id)
         job_spec = json.loads(job_spec)
 
@@ -2780,7 +2807,8 @@ class Worker:
 
     async def cleanup_old_images(self):
         try:
-            async with image_lock.writer_lock:
+            assert image_lock
+            async with image_lock.writer:
                 for image_id in list(self.image_data.keys()):
                     now = time_msecs()
                     image_data = self.image_data[image_id]

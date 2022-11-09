@@ -1,4 +1,4 @@
-PYTHON := python3
+PYTHON := python
 
 .PHONY: check-hail
 check-hail:
