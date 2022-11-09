@@ -1340,6 +1340,8 @@ steps:
       set -o pipefail
       export HAIL_SHORT_VERSION='0.2'
       export SPHINXOPTS='-tgenerate_notebook_outputs'
+      export PYTHONPATH="${PYTHONPATH:+${PYTHONPATH}:}{{ token }}/python"
+      export PYSPARK_SUBMIT_ARGS="--conf spark.kryo.registrator=is.hail.kryo.HailKryoRegistrator pyspark-shell"
 
       mkdir -p {{ token }}/python
       cd {{ token }}
