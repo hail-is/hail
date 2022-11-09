@@ -56,9 +56,9 @@ black==22.10.0
     # via -r requirements.txt
 bleach==5.0.1
     # via readme-renderer
-boto3==1.26.5
+boto3==1.26.6
     # via -r requirements.txt
-botocore==1.29.5
+botocore==1.29.6
     # via
     #   -r requirements.txt
     #   boto3
@@ -226,7 +226,7 @@ multidict==6.0.2
     # via
     #   aiohttp
     #   yarl
-mypy==0.990
+mypy==0.982
     # via -r requirements.txt
 mypy-extensions==0.4.3
     # via
@@ -475,7 +475,7 @@ websocket-client==1.4.2
     # via docker
 werkzeug==2.2.2
     # via flask
-wheel==0.38.3
+wheel==0.38.4
     # via -r requirements.txt
 wrapt==1.14.1
     # via
