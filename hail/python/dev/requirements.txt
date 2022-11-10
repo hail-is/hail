@@ -1,7 +1,7 @@
 -c ../requirements.txt
 
 flake8>=4.0.1,<5
-mypy>=0.950,<1
+mypy==0.982
 pylint>=2.13.5,<3
 black>=22.8.0,<23
 curlylint>=0.13.1,<1
