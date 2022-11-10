@@ -5,7 +5,8 @@ set(LIBS
         ${conversion_libs}
         MLIROptLib
         # Hail Libraries Go Here
-        MLIRSandbox
+        HailSandboxDialect
+        HailLowerToLLVM
         )
 add_llvm_executable(hail-opt hail-opt.cpp)
 install(TARGETS hail-opt

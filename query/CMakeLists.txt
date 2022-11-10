@@ -5,7 +5,7 @@ set(CMAKE_BUILD_WITH_INSTALL_NAME_DIR ON)
 
 set(CMAKE_CXX_STANDARD 20 CACHE STRING "C++ standard to conform to")
 
-find_package(MLIR REQUIRED CONFIG)
+find_package(MLIR REQUIRED CONFIG PATHS "/Users/pschulz/hail/query/.dist/llvm/lib/cmake/mlir")
 
 message(STATUS "Using MLIRConfig.cmake in: ${MLIR_DIR}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
@@ -41,5 +41,5 @@ add_compile_options($<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang
 
 add_subdirectory(include)
 add_subdirectory(lib)
-add_subdirectory(hail-opt)
+add_subdirectory(tools)
 add_subdirectory(test)

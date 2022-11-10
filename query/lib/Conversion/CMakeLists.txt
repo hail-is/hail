@@ -1,1 +1,2 @@
 add_subdirectory(LowerSandbox)
+add_subdirectory(LowerToLLVM)

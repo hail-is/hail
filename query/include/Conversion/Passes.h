@@ -2,6 +2,8 @@
 #define CONVERSION_PASSES_H
 
 #include "Conversion/LowerSandbox/LowerSandbox.h"
+#include "Conversion/LowerToLLVM/LowerToLLVM.h"
+#include "mlir/Pass/PassRegistry.h"
 
 namespace hail {
 

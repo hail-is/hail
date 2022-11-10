@@ -13,7 +13,7 @@ mlir::Operation *SandboxDialect::materializeConstant(mlir::OpBuilder &builder,
                                                      mlir::Attribute value,
                                                      mlir::Type type,
                                                      mlir::Location loc) {
-  assert(type.isa<IntType>());
+  assert(type.isa<IntType>() || type.isa<BooleanType>());
   auto intAttr = value.cast<mlir::IntegerAttr>();
   assert(intAttr);
   auto constOp = builder.create<ConstantOp>(loc, type, intAttr);

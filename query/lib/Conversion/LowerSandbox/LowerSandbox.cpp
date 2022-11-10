@@ -8,7 +8,7 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Transforms/DialectConversion.h"
 
-namespace hail {
+namespace hail::ir {
 
 struct LowerSandboxPass : public LowerSandboxBase<LowerSandboxPass> {
   void runOnOperation() override;
@@ -146,4 +146,4 @@ std::unique_ptr<mlir::Pass> createLowerSandboxPass() {
   return std::make_unique<LowerSandboxPass>();
 }
 
-} // namespace hail
+} // namespace hail::ir
