@@ -45,6 +45,32 @@ def Sandbox_ComparisonOp : Sandbox_Op<"compare", [NoSideEffect]> {
   let hasCanonicalizer = 0;
 }
 
+def Sandbox_MakeArrayOp : Sandbox_Op<"make_array", [NoSideEffect]> {
+  let arguments = (ins Variadic<AnyType>:$elems);
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat = "`(` $elems `)` `(` type($elems) `)` attr-dict `:` type($result)";
+
+  let hasVerifier = 1;
+  let hasFolder = 0;
+  let hasCanonicalizer = 0;
+}
+
+def Sandbox_ArrayRefOp : Sandbox_Op<"array_ref", [NoSideEffect]> {
+  let arguments = (ins AnyType:$array, Sandbox_Int:$index);
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat = "$array type($array) $index attr-dict `:` type($result)";
+  let hasVerifier = 1;
+
+  let hasFolder = 1;
+  let hasCanonicalizer = 0;
+}
+
+// def Sandbox_ArrayMap : Sandbox_Op<"array_map", [NoSideEffect]> {
+
+// }
+
 def Sandbox_PrintOp : Sandbox_Op<"print"> {
   let arguments = (ins AnyType:$value);
   let assemblyFormat = "$value attr-dict `:` type($value)";

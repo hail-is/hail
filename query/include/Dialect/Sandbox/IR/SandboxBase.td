@@ -3,6 +3,8 @@
 
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/OpBase.td"
+include "mlir/IR/BuiltInTypes.td"
+
 
 include "mlir/IR/EnumAttr.td"
 
@@ -19,6 +21,11 @@ class Sandbox_Type<string name, string typeMnemonic, list<Trait> traits = []>
     : TypeDef<Sandbox_Dialect, name, traits> {
   let mnemonic = typeMnemonic;
 }
+
+def SandboxType :
+    DialectType<Sandbox_Dialect, CPred<"$_self.isa<Sandbox_Type>()">,
+                "Sandbox type", "::hail::ir::SandboxType">;
+
 
 // Here is a simple definition of an "integer" type, with a width parameter.
 def Sandbox_Int : Sandbox_Type<"Int", "int"> {
@@ -53,4 +60,58 @@ def Sandbox_CmpPredicateAttr : I64EnumAttr<
     ]> {
 }
 
+// def Sandbox_Array : Sandbox_Type<"Array", "array", [
+//     DeclareTypeInterfaceMethods<SubElementTypeInterface>
+//   ]> {
+//   let summary = "Sandbox array";
+//   let parameters = (ins "mlir::Type":$elementType);
+
+//   // let builders = [
+//   //   TypeBuilderWithInferredContext<(ins "Type":$elementType), [{
+//   //     // Drop default memory space value and replace it with empty attribute.
+//   //     Attribute nonDefaultMemorySpace = skipDefaultMemorySpace(memorySpace);
+//   //     return $_get(elementType.getContext(), elementType, nonDefaultMemorySpace);
+//   //   }]>,
+//   //   /// [deprecated] `Attribute`-based form should be used instead.
+//   //   TypeBuilderWithInferredContext<(ins "Type":$elementType,
+//   //                                       "unsigned":$memorySpace), [{
+//   //     // Convert deprecated integer-like memory space to Attribute.
+//   //     Attribute memorySpaceAttr =
+//   //         wrapIntegerMemorySpace(memorySpace, elementType.getContext());
+//   //     return UnrankedMemRefType::get(elementType, memorySpaceAttr);
+//   //   }]>
+//   // ];
+//   let extraClassDeclaration = [{
+//     // using ShapedType::Trait<UnrankedMemRefType>::clone;
+//     // using ShapedType::Trait<UnrankedMemRefType>::getElementTypeBitWidth;
+//     // using ShapedType::Trait<UnrankedMemRefType>::getRank;
+//     // using ShapedType::Trait<UnrankedMemRefType>::getNumElements;
+//     // using ShapedType::Trait<UnrankedMemRefType>::isDynamicDim;
+//     // using ShapedType::Trait<UnrankedMemRefType>::hasStaticShape;
+//     // using ShapedType::Trait<UnrankedMemRefType>::getNumDynamicDims;
+//     // using ShapedType::Trait<UnrankedMemRefType>::getDimSize;
+//     // using ShapedType::Trait<UnrankedMemRefType>::getDynamicDimIndex;
+
+//     // ArrayRef<int64_t> getShape() const { return llvm::None; }
+
+//     // /// [deprecated] Returns the memory space in old raw integer representation.
+//     // /// New `Attribute getMemorySpace()` method should be used instead.
+//     // unsigned getMemorySpaceAsInt() const;
+//   }];
+//   let skipDefaultBuilders = 1;
+//   let mnemonic = ?;
+//   let genVerifyDecl = 1;
+// }
+
+def Sandbox_Array : Sandbox_Type<"Array", "array", [
+    DeclareTypeInterfaceMethods<SubElementTypeInterface>
+  ]> {
+  let summary = "Sandbox array";
+  let parameters = (ins "mlir::Type":$elementType);
+  let hasCustomAssemblyFormat = 1;
+  let genVerifyDecl = 1;
+}
+
+
 #endif // DIALECT_SANDBOX_SANDBOXBASE
+

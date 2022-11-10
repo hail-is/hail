@@ -3,6 +3,7 @@
 
 include "mlir/Pass/PassBase.td"
 
+
 //===----------------------------------------------------------------------===//
 // AffineToStandard
 //===----------------------------------------------------------------------===//
@@ -15,7 +16,8 @@ def LowerSandbox : Pass<"lower-sandbox"> {
   }];
   let constructor = "hail::ir::createLowerSandboxPass()";
   let dependentDialects = [
-    "mlir::arith::ArithmeticDialect"
+    "mlir::arith::ArithmeticDialect",
+    "mlir::tensor::TensorDialect"
   ];
 }
 
