@@ -1,7 +1,6 @@
 ALTER TABLE jobs ADD COLUMN run_condition VARCHAR(40) DEFAULT NULL, ALGORITHM=INSTANT;
 ALTER TABLE jobs ADD COLUMN n_succeeded_parents INT DEFAULT NULL, ALGORITHM=INSTANT;
 ALTER TABLE jobs ADD COLUMN migrated_n_succeeded_parents BOOLEAN DEFAULT 0, ALGORITHM=INSTANT;
-ALTER TABLE batches ADD COLUMN migrated_n_succeeded_parents BOOLEAN DEFAULT 0, ALGORITHM=INSTANT;
 
 DELIMITER $$
 
@@ -13,10 +12,8 @@ BEGIN
   DECLARE cur_batch_cancelled BOOLEAN;
   DECLARE cur_n_tokens INT;
   DECLARE rand_token INT;
-  DECLARE batch_migrated_n_succeeded_parents BOOLEAN;
 
-  SELECT user, migrated_n_succeeded_parents INTO cur_user, batch_migrated_n_succeeded_parents
-  FROM batches WHERE id = NEW.batch_id;
+  SELECT user INTO cur_user FROM batches WHERE id = NEW.batch_id;
 
   SET cur_batch_cancelled = EXISTS (SELECT TRUE
                                     FROM batches_cancelled
@@ -26,7 +23,7 @@ BEGIN
   SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
   SET rand_token = FLOOR(RAND() * cur_n_tokens);
 
-  IF NOT OLD.migrated_n_succeeded_parents AND NOT batch_migrated_n_succeeded_parents THEN
+  IF NOT OLD.migrated_n_succeeded_parents THEN
     SET NEW.n_succeeded_parents = (
       SELECT COALESCE(SUM(jobs.state = 'Success'), 0)
       FROM `job_parents`
@@ -399,13 +396,6 @@ BEGIN
       delta_cores_mcpu,
       'job state not Ready, Creating, Running or complete' as message;
   END IF;
-END $$
-
-DROP TRIGGER IF EXISTS batches_before_insert $$
-CREATE TRIGGER batches_before_insert BEFORE INSERT ON batches
-FOR EACH ROW
-BEGIN
-  SET migrated_n_succeeded_parents = 1;
 END $$
 
 DROP TRIGGER IF EXISTS jobs_before_update $$
