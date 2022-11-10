@@ -27,9 +27,11 @@ class FileListEntry(abc.ABC):
     async def url(self) -> str:
         pass
 
-    @abc.abstractmethod
-    def url_maybe_trailing_slash(self) -> str:
-        pass
+    async def url_maybe_trailing_slash(self) -> str:
+        return await self.url()
+
+    async def url_with_query(self) -> str:
+        return await self.url()
 
     @abc.abstractmethod
     async def is_file(self) -> bool:
@@ -74,6 +76,11 @@ class AsyncFSURL(abc.ABC):
 
     @property
     @abc.abstractmethod
+    def query(self) -> str:
+        pass
+
+    @property
+    @abc.abstractmethod
     def scheme(self) -> str:
         pass
 
@@ -82,7 +89,9 @@ class AsyncFSURL(abc.ABC):
         pass
 
     def with_new_path_component(self, new_path_component) -> 'AsyncFSURL':
-        return self.with_path(self.path + '/' + new_path_component)
+        prefix = self.path if self.path.endswith('/') else self.path + '/'
+        suffix = new_path_component[1:] if new_path_component.startswith('/') else new_path_component
+        return self.with_path(prefix + suffix)
 
     @abc.abstractmethod
     def __str__(self) -> str:
@@ -220,7 +229,7 @@ class AsyncFS(abc.ABC):
         async def rm(entry: FileListEntry):
             assert listener is not None
             listener(1)
-            await self._remove_doesnt_exist_ok(await entry.url())
+            await self._remove_doesnt_exist_ok(await entry.url_with_query())
             listener(-1)
 
         try:

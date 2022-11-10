@@ -419,9 +419,6 @@ class GoogleStorageFileListEntry(FileListEntry):
     async def url(self) -> str:
         return f'gs://{self._bucket}/{self._name}'
 
-    def url_maybe_trailing_slash(self) -> str:
-        return f'gs://{self._bucket}/{self._name}'
-
     async def is_file(self) -> bool:
         return self._items is not None
 
@@ -538,6 +535,10 @@ class GoogleStorageAsyncFSURL(AsyncFSURL):
     @property
     def path(self) -> str:
         return self._path
+
+    @property
+    def query(self) -> str:
+        return None
 
     @property
     def scheme(self) -> str:

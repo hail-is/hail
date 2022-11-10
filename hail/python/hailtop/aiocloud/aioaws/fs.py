@@ -134,9 +134,6 @@ class S3FileListEntry(FileListEntry):
     async def url(self) -> str:
         return f's3://{self._bucket}/{self._key}'
 
-    def url_maybe_trailing_slash(self) -> str:
-        return f's3://{self._bucket}/{self._key}'
-
     async def is_file(self) -> bool:
         return self._item is not None
 
@@ -261,6 +258,10 @@ class S3AsyncFSURL(AsyncFSURL):
     @property
     def path(self) -> str:
         return self._path
+
+    @property
+    def query(self) -> str:
+        return None
 
     @property
     def scheme(self) -> str:
