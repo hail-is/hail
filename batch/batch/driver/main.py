@@ -314,6 +314,7 @@ async def kill_instance(request, userdata):  # pylint: disable=unused-argument
 async def job_complete_1(request, instance):
     body = await request.json()
     job_status = body['status']
+    marked_job_started = body.get('marked_job_started', False)
 
     batch_id = job_status['batch_id']
     job_id = job_status['job_id']
@@ -345,6 +346,7 @@ async def job_complete_1(request, instance):
         end_time,
         'completed',
         resources,
+        marked_job_started=marked_job_started,
     )
 
     await instance.mark_healthy()

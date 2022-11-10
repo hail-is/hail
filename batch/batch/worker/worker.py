@@ -2582,7 +2582,9 @@ class Worker:
             raise web.HTTPServiceUnavailable
         return await asyncio.shield(self.kill_1(request))
 
-    async def post_job_complete_1(self, job, full_status):
+    async def post_job_complete_1(self, job: Job, full_status):
+        assert job.end_time
+        assert job.start_time
         run_duration = job.end_time - job.start_time
         db_status = job.format_version.db_status(full_status)
 
@@ -2598,7 +2600,10 @@ class Worker:
             'status': db_status,
         }
 
-        body = {'status': status}
+        body = {
+            'status': status,
+            'marked_job_started': job.marked_job_started,
+        }
 
         start_time = time_msecs()
         delay_secs = 0.1
