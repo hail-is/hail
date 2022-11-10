@@ -63,9 +63,13 @@ def Sandbox_ArrayRefOp : Sandbox_Op<"array_ref", [NoSideEffect]> {
   let assemblyFormat = "$array type($array) $index attr-dict `:` type($result)";
   let hasVerifier = 1;
 
-  let hasFolder = 0;
-  let hasCanonicalizer = 1;
+  let hasFolder = 1;
+  let hasCanonicalizer = 0;
 }
+
+// def Sandbox_ArrayMap : Sandbox_Op<"array_map", [NoSideEffect]> {
+
+// }
 
 def Sandbox_PrintOp : Sandbox_Op<"print"> {
   let arguments = (ins AnyType:$value);

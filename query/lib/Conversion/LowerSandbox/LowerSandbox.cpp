@@ -117,13 +117,33 @@ struct MakeArrayOpConversion
                   mlir::ConversionPatternRewriter &rewriter) const override {
 
     auto elems = adaptor.elems();
-    auto tensorType = getLoweredType(rewriter, op.result().getType());
+    llvm::SmallVector<int64_t, 1> v = {op->getNumOperands()};
+    mlir::Type loweredElem = op.getNumOperands() > 0 ? adaptor.elems()[0].getType() : getLoweredType(rewriter, op.result().getType().cast<ir::ArrayType>().getElementType());
+    auto tensorType = mlir::RankedTensorType::get(v, loweredElem);
     rewriter.replaceOpWithNewOp<mlir::tensor::FromElementsOp>(op, tensorType,
                                                               elems);
 
     return mlir::success();
   }
 };
+
+struct ArrayRefOpConversion
+    : public mlir::OpConversionPattern<ir::ArrayRefOp> {
+  ArrayRefOpConversion(mlir::MLIRContext *context)
+      : OpConversionPattern<ir::ArrayRefOp>(context, /*benefit=*/1) {}
+
+  mlir::LogicalResult
+  matchAndRewrite(ir::ArrayRefOp op, OpAdaptor adaptor,
+                  mlir::ConversionPatternRewriter &rewriter) const override {
+
+    auto a = adaptor.array();
+    auto idx = adaptor.index();
+    rewriter.replaceOpWithNewOp<mlir::tensor::ExtractOp>(op, a, idx);
+
+    return mlir::success();
+  }
+};
+
 
 struct PrintOpConversion : public mlir::OpConversionPattern<ir::PrintOp> {
   PrintOpConversion(mlir::MLIRContext *context)
@@ -163,7 +183,7 @@ void LowerSandboxPass::runOnOperation() {
   target.addDynamicallyLegalOp<ir::PrintOp, mlir::UnrealizedConversionCastOp>(
       [](mlir::Operation *op) {
         auto cond = [](mlir::Type type) {
-          return type.isa<ir::IntType>() || type.isa<ir::BooleanType>();
+          return type.isa<ir::IntType>() || type.isa<ir::BooleanType>() || type.isa<ir::ArrayType>();
         };
         return llvm::none_of(op->getOperandTypes(), cond) &&
                llvm::none_of(op->getResultTypes(), cond);
@@ -176,7 +196,8 @@ void LowerSandboxPass::runOnOperation() {
 
 void populateLowerSandboxConversionPatterns(mlir::RewritePatternSet &patterns) {
   patterns.add<ConstantOpConversion, AddIOpConversion, ComparisonOpConversion,
-               PrintOpConversion, UnrealizedCastConversion>(
+               PrintOpConversion, UnrealizedCastConversion, MakeArrayOpConversion,
+               ArrayRefOpConversion>(
       patterns.getContext());
 }
 
