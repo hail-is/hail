@@ -242,14 +242,10 @@ class RouterFS(FS):
            *,
            error_when_file_and_directory: bool = True,
            _max_simultaneous_files: int = 50) -> List[StatResult]:
-        return async_to_blocking(self._async_ls(
-            path,
-            error_when_file_and_directory=error_when_file_and_directory,
-            _max_simultaneous_files=_max_simultaneous_files))
+        return async_to_blocking(self._async_ls(path, error_when_file_and_directory, _max_simultaneous_files))
 
     async def _async_ls(self,
                         path: str,
-                        *,
                         error_when_file_and_directory: bool = True,
                         _max_simultaneous_files: int = 50) -> List[StatResult]:
         async def ls_no_glob(*parts, query) -> List[StatResult]:
@@ -300,7 +296,7 @@ class RouterFS(FS):
         found_stats = [
             stat
             for cumulative_prefix in cumulative_prefixes
-            for stat in await ls_no_glob(cumulative_prefix, suffix_components, query=url.query)
+            for stat in await ls_no_glob(cumulative_prefix, *suffix_components, query=url.query)
         ]
 
         if len(glob_components) == 0 and len(found_stats) == 0:

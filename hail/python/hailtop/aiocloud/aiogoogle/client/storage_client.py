@@ -537,7 +537,7 @@ class GoogleStorageAsyncFSURL(AsyncFSURL):
         return self._path
 
     @property
-    def query(self) -> str:
+    def query(self) -> Optional[str]:
         return None
 
     @property

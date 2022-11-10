@@ -284,7 +284,7 @@ class AzureAsyncFSURL(AsyncFSURL):
         return self._path
 
     @property
-    def query(self) -> str:
+    def query(self) -> Optional[str]:
         return self._query
 
     @property
@@ -301,7 +301,7 @@ class AzureAsyncFSURL(AsyncFSURL):
 
 class AzureAsyncFS(AsyncFS):
     schemes: Set[str] = {'hail-az'}
-    PATH_REGEX = re.compile('/(?P<container>[^?/]+)(?P<name>[^?]*)([?](?P<token>.*))?')
+    PATH_REGEX = re.compile('/(?P<container>[^/]+)(?P<name>.*)')
 
     def __init__(self, *, credential_file: Optional[str] = None, credentials: Optional[AzureCredentials] = None):
         if credentials is None:
@@ -370,7 +370,15 @@ class AzureAsyncFS(AsyncFS):
             assert name[0] == '/'
             name = name[1:]
 
-        token = match.groupdict()['token']
+        token = ''
+        # Look for a terminating SAS token.
+        query_index = name.rfind('?')
+        if query_index != -1:
+            query_string = name[query_index + 1:]
+            # We will accept it as a token string if it begins with at least 1 key-value pair of the form 'k=v'.
+            if len(list(filter(str.strip, query_string.split('&')[0].split('=')))) == 2:
+                name = name[:query_index]
+                token = query_string
 
         return (account, container, name, token)
 

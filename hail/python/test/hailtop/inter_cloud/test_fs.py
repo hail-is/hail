@@ -485,10 +485,6 @@ async def test_statfile(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL
 async def test_file_can_contain_url_query_delimiter(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
     _, fs, base = filesystem
 
-    # AzureFS treats query string as SAS token.
-    if base.scheme == 'hail-az':
-        return
-
     file = str(base.with_new_path_component('bar?baz'))
     await fs.write(file, secrets.token_bytes(10))
     assert await fs.exists(file)

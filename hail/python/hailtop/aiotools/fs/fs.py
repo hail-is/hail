@@ -76,7 +76,7 @@ class AsyncFSURL(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def query(self) -> str:
+    def query(self) -> Optional[str]:
         pass
 
     @property
