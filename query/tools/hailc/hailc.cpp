@@ -1,8 +1,11 @@
 #include "Conversion/Passes.h"
 #include "Dialect/Sandbox/IR/Sandbox.h"
 
-#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/ExecutionEngine/ExecutionEngine.h"
 #include "mlir/ExecutionEngine/OptUtils.h"
 #include "mlir/IR/AsmState.h"
@@ -185,9 +188,12 @@ int main(int argc, char **argv) {
 
   mlir::MLIRContext context;
   // Load our Dialect in this MLIR Context.
-  context.getOrLoadDialect<hail::ir::SandboxDialect>();
-  context.getOrLoadDialect<mlir::func::FuncDialect>();
   context.getOrLoadDialect<mlir::arith::ArithmeticDialect>();
+  context.getOrLoadDialect<mlir::func::FuncDialect>();
+  context.getOrLoadDialect<mlir::linalg::LinalgDialect>();
+  context.getOrLoadDialect<mlir::scf::SCFDialect>();
+  context.getOrLoadDialect<mlir::tensor::TensorDialect>();
+  context.getOrLoadDialect<hail::ir::SandboxDialect>();
 
   mlir::OwningOpRef<mlir::ModuleOp> module;
   if (int error = loadAndProcessMLIR(context, module))
