@@ -6,6 +6,12 @@
 #
 alabaster==0.7.12
     # via sphinx
+anyio==3.6.2
+    # via jupyter-server
+appnope==0.1.3
+    # via
+    #   ipykernel
+    #   ipython
 argon2-cffi==21.3.0
     # via
     #   jupyter-server
@@ -13,14 +19,14 @@ argon2-cffi==21.3.0
     #   notebook
 argon2-cffi-bindings==21.2.0
     # via argon2-cffi
-astroid==2.11.5
+astroid==2.12.12
     # via pylint
-attrs==21.4.0
+attrs==22.1.0
     # via
     #   curlylint
     #   jsonschema
     #   pytest
-babel==2.10.1
+babel==2.11.0
     # via sphinx
 backcall==0.2.0
     # via ipython
@@ -28,11 +34,11 @@ beautifulsoup4==4.11.1
     # via nbconvert
 black==22.10.0
     # via -r python/dev/requirements.txt
-bleach==5.0.0
+bleach==5.0.1
     # via nbconvert
-certifi==2022.5.18.1
+certifi==2022.9.24
     # via requests
-cffi==1.15.0
+cffi==1.15.1
     # via argon2-cffi-bindings
 charset-normalizer==2.1.1
     # via requests
@@ -43,7 +49,7 @@ click==8.1.3
     #   curlylint
 curlylint==0.13.1
     # via -r python/dev/requirements.txt
-debugpy==1.6.0
+debugpy==1.6.3
     # via ipykernel
 decorator==4.4.2
     # via
@@ -55,29 +61,27 @@ dill==0.3.6
     # via
     #   -c python/dev/../requirements.txt
     #   pylint
-distlib==0.3.4
-    # via virtualenv
 docutils==0.16
     # via
     #   nbsphinx
     #   sphinx
     #   sphinx-rtd-theme
 entrypoints==0.4
-    # via
-    #   jupyter-client
-    #   nbconvert
+    # via jupyter-client
+exceptiongroup==1.0.1
+    # via pytest
 execnet==1.9.0
     # via pytest-xdist
-fastjsonschema==2.15.3
+fastjsonschema==2.16.2
     # via nbformat
 flake8==4.0.1
     # via -r python/dev/requirements.txt
 fswatch==0.1.1
     # via -r python/dev/requirements.txt
-identify==2.5.1
-    # via pre-commit
-idna==2.10
-    # via requests
+idna==3.4
+    # via
+    #   anyio
+    #   requests
 imagesize==1.4.1
     # via sphinx
 importlib-metadata==3.10.1
@@ -86,15 +90,15 @@ importlib-metadata==3.10.1
     #   click
     #   flake8
     #   jsonschema
+    #   nbconvert
+    #   nbformat
     #   pluggy
-    #   pre-commit
     #   pytest
-    #   virtualenv
-importlib-resources==5.9.0
+importlib-resources==5.10.0
     # via jsonschema
 iniconfig==1.1.1
     # via pytest
-ipykernel==6.13.0
+ipykernel==6.16.2
     # via
     #   ipywidgets
     #   jupyter
@@ -109,10 +113,10 @@ ipython==7.34.0
     #   jupyter-console
 ipython-genutils==0.2.0
     # via
-    #   ipywidgets
+    #   nbclassic
     #   notebook
     #   qtconsole
-ipywidgets==7.7.0
+ipywidgets==8.0.2
     # via jupyter
 isort==5.10.1
     # via
@@ -129,11 +133,11 @@ jinja2==3.0.3
     #   nbsphinx
     #   notebook
     #   sphinx
-jsonschema==4.6.0
+jsonschema==4.17.0
     # via nbformat
 jupyter==1.0.0
     # via -r python/dev/requirements.txt
-jupyter-client==7.3.4
+jupyter-client==7.4.4
     # via
     #   ipykernel
     #   jupyter-console
@@ -142,9 +146,9 @@ jupyter-client==7.3.4
     #   nbclient
     #   notebook
     #   qtconsole
-jupyter-console==6.4.3
+jupyter-console==6.4.4
     # via jupyter
-jupyter-core==4.10.0
+jupyter-core==4.11.2
     # via
     #   jupyter-client
     #   jupyter-server
@@ -159,7 +163,7 @@ jupyter-server==1.23.1
     #   notebook-shim
 jupyterlab-pygments==0.2.2
     # via nbconvert
-jupyterlab-widgets==1.1.0
+jupyterlab-widgets==3.0.3
     # via ipywidgets
 lazy-object-proxy==1.8.0
     # via astroid
@@ -167,7 +171,7 @@ markupsafe==2.1.1
     # via
     #   jinja2
     #   nbconvert
-matplotlib-inline==0.1.3
+matplotlib-inline==0.1.6
     # via
     #   ipykernel
     #   ipython
@@ -175,7 +179,7 @@ mccabe==0.6.1
     # via
     #   flake8
     #   pylint
-mistune==0.8.4
+mistune==2.0.4
     # via nbconvert
 mypy==0.982
     # via -r python/dev/requirements.txt
@@ -183,18 +187,21 @@ mypy-extensions==0.4.3
     # via
     #   black
     #   mypy
-nbclient==0.6.4
+nbclassic==0.4.8
+    # via notebook
+nbclient==0.7.0
     # via nbconvert
-nbconvert==6.5.0
+nbconvert==7.2.4
     # via
     #   jupyter
     #   jupyter-server
     #   nbclassic
     #   nbsphinx
     #   notebook
-nbformat==5.4.0
+nbformat==5.7.0
     # via
-    #   ipywidgets
+    #   jupyter-server
+    #   nbclassic
     #   nbclient
     #   nbconvert
     #   nbsphinx
@@ -209,12 +216,10 @@ nest-asyncio==1.5.6
     #   nbclassic
     #   nbclient
     #   notebook
-nodeenv==1.6.0
-    # via pre-commit
-notebook==6.4.12
-    # via
-    #   jupyter
-    #   widgetsnbextension
+notebook==6.5.2
+    # via jupyter
+notebook-shim==0.2.2
+    # via nbclassic
 packaging==21.3
     # via
     #   ipykernel
@@ -229,7 +234,7 @@ parso==0.8.3
     # via jedi
 parsy==1.1.0
     # via curlylint
-pathspec==0.9.0
+pathspec==0.10.1
     # via
     #   black
     #   curlylint
@@ -245,15 +250,16 @@ platformdirs==2.5.3
     #   pylint
 pluggy==1.0.0
     # via pytest
-pre-commit==2.18.1
-    # via -r python/dev/requirements.txt
-prometheus-client==0.14.1
-    # via notebook
-prompt-toolkit==3.0.29
+prometheus-client==0.15.0
+    # via
+    #   jupyter-server
+    #   nbclassic
+    #   notebook
+prompt-toolkit==3.0.32
     # via
     #   ipython
     #   jupyter-console
-psutil==5.9.1
+psutil==5.9.4
     # via ipykernel
 ptyprocess==0.7.0
     # via
@@ -267,7 +273,7 @@ pycparser==2.21
     # via cffi
 pyflakes==2.4.0
     # via flake8
-pygments==2.12.0
+pygments==2.13.0
     # via
     #   ipython
     #   jupyter-console
@@ -300,18 +306,17 @@ pytest-xdist==2.5.0
     # via -r python/dev/requirements.txt
 python-dateutil==2.8.2
     # via jupyter-client
-pytz==2022.1
+pytz==2022.6
     # via babel
-pyyaml==6.0
-    # via pre-commit
-pyzmq==23.1.0
+pyzmq==24.0.1
     # via
+    #   ipykernel
     #   jupyter-client
     #   jupyter-server
     #   nbclassic
     #   notebook
     #   qtconsole
-qtconsole==5.3.0
+qtconsole==5.4.0
     # via jupyter
 qtpy==2.3.0
     # via qtconsole
@@ -328,7 +333,8 @@ six==1.16.0
     # via
     #   bleach
     #   python-dateutil
-    #   virtualenv
+sniffio==1.3.0
+    # via anyio
 snowballstemmer==2.2.0
     # via sphinx
 soupsieve==2.3.2.post1
@@ -358,9 +364,12 @@ sphinxcontrib-qthelp==1.0.3
     # via sphinx
 sphinxcontrib-serializinghtml==1.1.5
     # via sphinx
-terminado==0.16.0
-    # via notebook
-tinycss2==1.1.1
+terminado==0.17.0
+    # via
+    #   jupyter-server
+    #   nbclassic
+    #   notebook
+tinycss2==1.2.1
     # via nbconvert
 toml==0.10.2
     # via curlylint
@@ -370,7 +379,9 @@ tomli==2.0.1
     #   mypy
     #   pylint
     #   pytest
-tornado==6.1
+tomlkit==0.11.6
+    # via pylint
+tornado==6.2
     # via
     #   ipykernel
     #   jupyter-client
@@ -378,7 +389,7 @@ tornado==6.1
     #   nbclassic
     #   notebook
     #   terminado
-traitlets==5.2.2.post1
+traitlets==5.5.0
     # via
     #   ipykernel
     #   ipython
@@ -399,30 +410,31 @@ typed-ast==1.5.4
     #   astroid
     #   black
     #   mypy
-types-chardet==5.0.1
+types-chardet==5.0.4
     # via -r python/dev/requirements.txt
-types-decorator==5.1.7
+types-decorator==5.1.8.1
     # via -r python/dev/requirements.txt
-types-deprecated==1.2.8
+types-deprecated==1.2.9
     # via -r python/dev/requirements.txt
 types-python-dateutil==2.8.19.3
     # via -r python/dev/requirements.txt
-types-pyyaml==6.0.8
+types-pyyaml==6.0.12.2
     # via -r python/dev/requirements.txt
-types-requests==2.27.30
+types-requests==2.28.11.4
     # via -r python/dev/requirements.txt
-types-setuptools==65.4.0.0
+types-setuptools==65.5.0.2
     # via -r python/dev/requirements.txt
-types-six==1.16.19
+types-six==1.16.21.1
     # via -r python/dev/requirements.txt
-types-tabulate==0.8.9
+types-tabulate==0.9.0.0
     # via -r python/dev/requirements.txt
-types-urllib3==1.26.15
+types-urllib3==1.26.25.3
     # via
     #   -r python/dev/requirements.txt
     #   types-requests
-typing-extensions==4.3.0
+typing-extensions==4.4.0
     # via
+    #   anyio
     #   argon2-cffi
     #   astroid
     #   black
@@ -432,19 +444,19 @@ typing-extensions==4.3.0
     #   pylint
 urllib3==1.26.12
     # via requests
-virtualenv==20.14.1
-    # via pre-commit
 wcwidth==0.2.5
     # via prompt-toolkit
 webencodings==0.5.1
     # via
     #   bleach
     #   tinycss2
-widgetsnbextension==3.6.0
+websocket-client==1.4.2
+    # via jupyter-server
+widgetsnbextension==4.0.3
     # via ipywidgets
 wrapt==1.14.1
     # via astroid
-zipp==3.8.0
+zipp==3.10.0
     # via
     #   importlib-metadata
     #   importlib-resources
