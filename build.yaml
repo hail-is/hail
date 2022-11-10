@@ -2075,6 +2075,9 @@ steps:
       - name: add-run-conditions
         script: /io/sql/add-run-conditions.sql
         online: true
+      - name: populate-n-succeeded-parents
+        script: /io/sql/populate_n_succeeded_parents.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

@@ -164,6 +164,7 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `token` VARCHAR(100) DEFAULT NULL,
   `format_version` INT NOT NULL,
   `cancel_after_n_failures` INT DEFAULT NULL,
+  `migrated_n_succeeded_parents` BOOLEAN DEFAULT 0,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name)
 ) ENGINE = InnoDB;
@@ -257,6 +258,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `n_regions` INT DEFAULT NULL,
   `regions_bits_rep` BIGINT DEFAULT NULL,
   `run_condition` ENUM('any_succeeded', 'all_succeeded', 'always') DEFAULT NULL,
+  `migrated_n_succeeded_parents` BOOLEAN DEFAULT 0,
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `update_id`) REFERENCES batch_updates(batch_id, update_id) ON DELETE CASCADE,
@@ -571,6 +573,20 @@ BEGIN
   END IF;
 END $$
 
+DROP TRIGGER IF EXISTS batches_before_insert $$
+CREATE TRIGGER batches_before_insert BEFORE INSERT ON batches
+FOR EACH ROW
+BEGIN
+  SET migrated_n_succeeded_parents = 1;
+END $$
+
+DROP TRIGGER IF EXISTS jobs_before_update $$
+CREATE TRIGGER jobs_before_update BEFORE UPDATE ON jobs
+FOR EACH ROW
+BEGIN
+  SET migrated_n_succeeded_parents = 1;
+END $$
+
 DROP TRIGGER IF EXISTS jobs_after_update $$
 CREATE TRIGGER jobs_after_update AFTER UPDATE ON jobs
 FOR EACH ROW
@@ -579,8 +595,10 @@ BEGIN
   DECLARE cur_batch_cancelled BOOLEAN;
   DECLARE cur_n_tokens INT;
   DECLARE rand_token INT;
+  DECLARE batch_migrated_n_succeeded_parents BOOLEAN;
 
-  SELECT user INTO cur_user FROM batches WHERE id = NEW.batch_id;
+  SELECT user, migrated_n_succeeded_parents INTO cur_user, batch_migrated_n_succeeded_parents
+  FROM batches WHERE id = NEW.batch_id;
 
   SET cur_batch_cancelled = EXISTS (SELECT TRUE
                                     FROM batches_cancelled
@@ -589,6 +607,17 @@ BEGIN
 
   SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
   SET rand_token = FLOOR(RAND() * cur_n_tokens);
+
+  IF NOT OLD.migrated_n_succeeded_parents AND NOT batch_migrated_n_succeeded_parents THEN
+    SET NEW.n_succeeded_parents = (
+      SELECT COALESCE(SUM(jobs.state = 'Success'), 0)
+      FROM `job_parents`
+      LEFT JOIN `jobs` ON jobs.batch_id = job_parents.batch_id AND jobs.job_id = job_parents.parent_id
+      WHERE job_parents.batch_id = NEW.batch_id AND job_parents.job_id = NEW.job_id
+      GROUP BY `job_parents`.batch_id, `job_parents`.job_id
+      FOR UPDATE
+    );
+  END IF;
 
   IF OLD.state = 'Ready' THEN
     IF NOT (OLD.always_run OR OLD.cancelled OR cur_batch_cancelled) THEN
@@ -1059,14 +1088,12 @@ BEGIN
           SET jobs.state = IF(COALESCE(t.n_pending_parents, 0) = 0, 'Ready', 'Pending'),
               jobs.n_pending_parents = COALESCE(t.n_pending_parents, 0),
               jobs.n_succeeded_parents = COALESCE(t.n_succeeded_parents, 0),
-              jobs.cancelled = (CASE run_condition
-                WHEN 'always' THEN jobs.cancelled
-                WHEN 'all_succeeded' THEN IF(COALESCE(t.n_succeeded_parents, 0) = COALESCE(t.n_parents - t.n_pending_parents, 0), jobs.cancelled, 1)
-                WHEN 'any_succeeded' THEN IF(COALESCE(t.n_pending_parents, 0) = 0,
-                                             IF(COALESCE(t.n_parents, 0) = 0 OR COALESCE(t.n_succeeded_parents, 0) > 0, jobs.cancelled, 1),
-                                             jobs.cancelled)
-                ELSE IF(COALESCE(t.n_succeeded_parents, 0) = COALESCE(t.n_parents - t.n_pending_parents, 0), jobs.cancelled, 1)  # backwards compatibility
-                END)
+              jobs.cancelled = CASE jobs.run_condition
+                                 WHEN 'always' THEN jobs.cancelled
+                                 WHEN 'all_succeeded' THEN new_state != 'Success' OR jobs.cancelled
+                                 WHEN 'any_succeeded' THEN (COALESCE(jobs.n_pending_parents - 1, 0) = 0 AND COALESCE(jobs.n_succeeded_parents, 0) = 0 AND new_state != 'Success') OR jobs.cancelled
+                                 ELSE new_state != 'Success' or jobs.cancelled  # backwards compatibility
+                               END
           WHERE jobs.batch_id = in_batch_id AND jobs.job_id >= cur_update_start_job_id AND
               jobs.job_id < cur_update_start_job_id + staging_n_jobs;
       END IF;
@@ -1541,20 +1568,22 @@ BEGIN
     END IF;
 
     UPDATE jobs
+    SET migrated_n_succeeded_parents = 1
+    WHERE jobs.batch_id = in_batch_id AND jobs.job_id = in_job_id;
+
+    UPDATE jobs
       INNER JOIN `job_parents`
         ON jobs.batch_id = `job_parents`.batch_id AND
            jobs.job_id = `job_parents`.job_id
       SET jobs.state = IF(jobs.n_pending_parents = 1, 'Ready', 'Pending'),
           jobs.n_pending_parents = jobs.n_pending_parents - 1,
           jobs.n_succeeded_parents = jobs.n_succeeded_parents + (new_state = 'Success'),
-          jobs.cancelled = (CASE jobs.run_condition
-                WHEN 'always' THEN jobs.cancelled
-                WHEN 'all_succeeded' THEN IF(new_state = 'Success', jobs.cancelled, 1)
-                WHEN 'any_succeeded' THEN IF(COALESCE(jobs.n_pending_parents - 1, 0) = 0,
-                                             IF(COALESCE(jobs.n_succeeded_parents, 0) + (new_state = 'Success') > 0, jobs.cancelled, 1),
-                                             jobs.cancelled)
-                ELSE IF(new_state = 'Success', jobs.cancelled, 1)  # backwards compatibility
-                END)
+          jobs.cancelled = CASE jobs.run_condition
+                             WHEN 'always' THEN jobs.cancelled
+                             WHEN 'all_succeeded' THEN new_state != 'Success' OR jobs.cancelled
+                             WHEN 'any_succeeded' THEN (COALESCE(jobs.n_pending_parents - 1, 0) = 0 AND COALESCE(jobs.n_succeeded_parents, 0) = 0 AND new_state != 'Success') OR jobs.cancelled
+                             ELSE new_state != 'Success' or jobs.cancelled  # backwards compatibility
+                           END
       WHERE jobs.batch_id = in_batch_id AND
             `job_parents`.batch_id = in_batch_id AND
             `job_parents`.parent_id = in_job_id;

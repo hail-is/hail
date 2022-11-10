@@ -19,6 +19,7 @@ DROP TRIGGER IF EXISTS batches_after_update;
 DROP TRIGGER IF EXISTS instances_before_update;
 DROP TRIGGER IF EXISTS attempts_before_update;
 DROP TRIGGER IF EXISTS attempts_after_update;
+DROP TRIGGER IF EXISTS jobs_before_update;
 DROP TRIGGER IF EXISTS jobs_after_update;
 DROP TRIGGER IF EXISTS attempt_resources_after_insert;
 DROP TRIGGER IF EXISTS attempt_resources_before_insert;  # deprecated
