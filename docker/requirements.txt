@@ -36,7 +36,7 @@ importlib-metadata<4
 janus>=0.6.1,<1
 Jinja2==3.0.3
 # keyrings.alt>3.1: https://bugs.launchpad.net/usd-importer/+bug/1794041/comments/6
-keyrings.alt>=3.1,<4
+keyrings.alt>=3.1,<5
 kubernetes-asyncio>=19.15.1,<20
 libsass>=0.19.2,<1
 mypy==0.982
