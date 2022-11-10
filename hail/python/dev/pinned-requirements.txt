@@ -175,7 +175,7 @@ matplotlib-inline==0.1.6
     # via
     #   ipykernel
     #   ipython
-mccabe==0.6.1
+mccabe==0.7.0
     # via
     #   flake8
     #   pylint
