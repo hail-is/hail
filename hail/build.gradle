@@ -170,7 +170,7 @@ dependencies {
         throw new UnsupportedOperationException("Couldn't pick a valid elasticsearch.")
     }
 
-    bundled(group: 'com.google.cloud', name: 'google-cloud-storage', version: '1.106.0') {
+    bundled(group: 'com.google.cloud', name: 'google-cloud-storage', version: '2.15.0') {
         exclude group: 'com.fasterxml.jackson.core'
     }
 
