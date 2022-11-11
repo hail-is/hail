@@ -106,8 +106,10 @@ data:
                       authorization_request:
                         allowed_headers:
                           patterns:
-                            exact: "Cookie"
-                            ignore_case: true
+                            - exact: "Cookie"
+                              ignore_case: true
+                            - exact: "X-Hail-Internal-Authorization"
+                              ignore_case: true
                 - name: envoy.filters.http.local_ratelimit
                   typed_config:
                     "@type": type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
