@@ -92,6 +92,10 @@ def hwe_normalized_pca(call_expr, k=10, compute_loadings=False) -> Tuple[List[fl
     (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
         List of eigenvalues, table with column scores, table with row loadings.
     """
+    from hail.backend.service_backend import ServiceBackend
+
+    if isinstance(hl.current_backend(), ServiceBackend):
+        return _hwe_normalized_blanczos(call_expr, k, compute_loadings)
 
     return pca(hwe_normalize(call_expr),
                k,
@@ -181,6 +185,11 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
     (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
         List of eigenvalues, table with column scores, table with row loadings.
     """
+    from hail.backend.service_backend import ServiceBackend
+
+    if isinstance(hl.current_backend(), ServiceBackend):
+        return _blanczos_pca(entry_expr, k, compute_loadings)
+
     check_entry_indexed('pca/entry_expr', entry_expr)
 
     mt = matrix_table_source('pca/entry_expr', entry_expr)
@@ -397,13 +406,16 @@ def _spectral_moments(A, num_moments, p=None, moment_samples=500, block_size=128
            num_moments=int,
            compute_loadings=bool,
            q_iterations=int,
-           oversampling_param=int,
+           oversampling_param=nullable(int),
            block_size=int,
            moment_samples=int)
-def _pca_and_moments(A, k=10, num_moments=5, compute_loadings=False, q_iterations=2, oversampling_param=2, block_size=128, moment_samples=100):
+def _pca_and_moments(A, k=10, num_moments=5, compute_loadings=False, q_iterations=10, oversampling_param=None, block_size=128, moment_samples=100):
     if not isinstance(A, TallSkinnyMatrix):
         check_entry_indexed('_spectral_moments/entry_expr', A)
         A = _make_tsm_from_call(A, block_size)
+
+    if oversampling_param is None:
+        oversampling_param = k
 
     # Set Parameters
     q = q_iterations
@@ -458,9 +470,9 @@ def _pca_and_moments(A, k=10, num_moments=5, compute_loadings=False, q_iteration
            k=int,
            compute_loadings=bool,
            q_iterations=int,
-           oversampling_param=int,
+           oversampling_param=nullable(int),
            block_size=int)
-def _blanczos_pca(A, k=10, compute_loadings=False, q_iterations=2, oversampling_param=2, block_size=128):
+def _blanczos_pca(A, k=10, compute_loadings=False, q_iterations=10, oversampling_param=None, block_size=128):
     r"""Run randomized principal component analysis approximation (PCA)
     on numeric columns derived from a matrix table.
 
@@ -551,6 +563,9 @@ def _blanczos_pca(A, k=10, compute_loadings=False, q_iterations=2, oversampling_
         check_entry_indexed('_blanczos_pca/entry_expr', A)
         A = _make_tsm(A, block_size)
 
+    if oversampling_param is None:
+        oversampling_param = k
+
     U, S, V = _reduced_svd(A, k, compute_loadings, q_iterations, k + oversampling_param)
 
     scores = V * S
@@ -577,9 +592,9 @@ def _blanczos_pca(A, k=10, compute_loadings=False, q_iterations=2, oversampling_
            k=int,
            compute_loadings=bool,
            q_iterations=int,
-           oversampling_param=int,
+           oversampling_param=nullable(int),
            block_size=int)
-def _hwe_normalized_blanczos(call_expr, k=10, compute_loadings=False, q_iterations=2, oversampling_param=2, block_size=128):
+def _hwe_normalized_blanczos(call_expr, k=10, compute_loadings=False, q_iterations=10, oversampling_param=None, block_size=128):
     r"""Run randomized principal component analysis approximation (PCA) on the
     Hardy-Weinberg-normalized genotype call matrix.
 
