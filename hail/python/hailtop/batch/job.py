@@ -1183,7 +1183,7 @@ with open('{result}', 'wb') as dill_out:
 
             unapplied = self._batch._python_function_defs[unapplied_id]
             self._user_code.append(textwrap.dedent(inspect.getsource(unapplied)))
-            args_str = ', '.join([f'{arg!r}' for _, arg in args])
+            args_str = ', '.join([f'{arg!r}' for _, arg in prepared_args])
             kwargs_str = ', '.join([f'{k}={v!r}' for k, (_, v) in kwargs.items()])
             separator = ', ' if args_str and kwargs_str else ''
             func_call = f'{unapplied.__name__}({args_str}{separator}{kwargs_str})'

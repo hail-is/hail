@@ -111,7 +111,7 @@ def main():
             from hailtop.hailctl.dataproc import cli as dataproc_cli  # pylint: disable=import-outside-toplevel
             dataproc_cli.main(args)
         elif module == 'describe':
-            from hailtop.hailctl.describe import main  as describe_main  # pylint: disable=import-outside-toplevel
+            from hailtop.hailctl.describe import main as describe_main  # pylint: disable=import-outside-toplevel
             describe_main(args)
         elif module == 'hdinsight':
             from hailtop.hailctl.hdinsight import cli as hdinsight_cli  # pylint: disable=import-outside-toplevel
