@@ -1588,11 +1588,13 @@ async def _commit_update(app: web.Application, batch_id: int, update_id: int, us
             raise web.HTTPBadRequest(reason=f'wrong number of jobs: expected {expected_n_jobs}, actual {actual_n_jobs}')
         raise
 
-    await request_retry_transient_errors(
-        client_session,
-        'PATCH',
-        deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/update'),
-        headers=app['batch_headers'],
+    app['task_manager'].ensure_future(
+        request_retry_transient_errors(
+            client_session,
+            'PATCH',
+            deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/update'),
+            headers=app['batch_headers'],
+        )
     )
 
 
@@ -2599,7 +2601,8 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
         record['region']: record['region_id']
         async for record in db.select_and_fetchall('SELECT region_id, region from regions')
     }
-    assert max(regions.values()) < 64, str(regions)
+    if len(regions) != 0:
+        assert max(regions.values()) < 64, str(regions)
     app['regions'] = regions
 
     fs = get_cloud_async_fs(credentials_file='/gsa-key/key.json')
@@ -2656,7 +2659,7 @@ def run():
     web.run_app(
         deploy_config.prefix_application(app, 'batch', client_max_size=HTTP_CLIENT_MAX_SIZE),
         host='0.0.0.0',
-        port=5000,
+        port=443,
         access_log_class=BatchFrontEndAccessLogger,
         ssl_context=internal_server_ssl_context(),
     )

@@ -7,7 +7,9 @@ import traceback
 from typing import Callable, Dict, List, Optional, Set
 
 import aiohttp_session  # type: ignore
+import kubernetes_asyncio
 import uvloop  # type: ignore
+import yaml
 from aiohttp import web
 from gidgethub import aiohttp as gh_aiohttp
 from gidgethub import routing as gh_routing
@@ -26,6 +28,7 @@ from web_common import render_template, set_message, setup_aiohttp_jinja2, setup
 
 from .constants import AUTHORIZED_USERS, TEAMS
 from .environment import DEFAULT_NAMESPACE, STORAGE_URI
+from .envoy import create_cds_response, create_rds_response
 from .github import PR, WIP, FQBranch, MergeFailureBatch, Repo, UnwatchedBranch, WatchedBranch, select_random_teammate
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r', encoding='utf-8') as f:
@@ -384,6 +387,14 @@ async def github_callback(request):
     return web.Response(status=200)
 
 
+async def remove_namespace_from_db(db: Database, namespace: str):
+    assert namespace != 'default'
+    await db.just_execute(
+        'DELETE FROM active_namespaces WHERE namespace = %s',
+        (namespace,),
+    )
+
+
 async def batch_callback_handler(request):
     app = request.app
     db: Database = app['db']
@@ -401,12 +412,8 @@ async def batch_callback_handler(request):
                         assert 'deploy' not in attrs
                         assert 'dev' not in attrs
                         namespace = json.loads(attrs['namespace'])
-                        assert namespace != 'default'
                         if DEFAULT_NAMESPACE == 'default':
-                            await db.execute_update(
-                                'DELETE FROM active_namespaces WHERE namespace = %s',
-                                (namespace,),
-                            )
+                            await remove_namespace_from_db(db, namespace)
 
                     await wb.notify_batch_changed(app)
 
@@ -648,13 +655,54 @@ async def cleanup_expired_namespaces(db: Database):
     expired_namespaces = [
         record['namespace']
         async for record in db.execute_and_fetchall(
-            'SELECT namespace from active_namespaces WHERE expiration_time < UTC_TIMESTAMP()'
+            'SELECT namespace FROM active_namespaces WHERE expiration_time < UTC_TIMESTAMP()'
         )
     ]
     for namespace in expired_namespaces:
         assert namespace != 'default'
         log.info(f'Cleaning up expired namespace: {namespace}')
-        await db.execute_update('DELETE FROM active_namespaces WHERE namespace = %s', (namespace,))
+        await remove_namespace_from_db(db, namespace)
+
+
+async def update_envoy_configs(db: Database, k8s_client):
+    assert DEFAULT_NAMESPACE == 'default'
+
+    api_response = await k8s_client.list_namespace()
+    live_namespaces = tuple(ns.metadata.name for ns in api_response.items)
+    namespace_arg_list = "(" + ",".join('%s' for _ in live_namespaces) + ")"
+
+    services_per_namespace = {
+        r['namespace']: [s for s in json.loads(r['services']) if s is not None]
+        async for r in db.execute_and_fetchall(
+            f'''
+SELECT active_namespaces.namespace, JSON_ARRAYAGG(service) as services
+FROM active_namespaces
+LEFT JOIN deployed_services
+ON active_namespaces.namespace = deployed_services.namespace
+WHERE active_namespaces.namespace IN {namespace_arg_list}
+GROUP BY active_namespaces.namespace''',
+            live_namespaces,
+        )
+    }
+    assert 'default' in services_per_namespace
+    default_services = services_per_namespace.pop('default')
+    assert set(['batch', 'auth', 'batch-driver', 'ci']).issubset(set(default_services)), default_services
+
+    for proxy in ('gateway', 'internal-gateway'):
+        configmap_name = f'{proxy}-xds-config'
+        configmap = await k8s_client.read_namespaced_config_map(
+            name=configmap_name,
+            namespace=DEFAULT_NAMESPACE,
+        )
+        cds = create_cds_response(default_services, services_per_namespace, proxy)
+        rds = create_rds_response(default_services, services_per_namespace, proxy)
+        configmap.data['cds.yaml'] = yaml.dump(cds)
+        configmap.data['rds.yaml'] = yaml.dump(rds)
+        await k8s_client.patch_namespaced_config_map(
+            name=configmap_name,
+            namespace=DEFAULT_NAMESPACE,
+            body=configmap,
+        )
 
 
 async def update_loop(app):
@@ -690,7 +738,10 @@ SELECT frozen_merge_deploy FROM globals;
     app['task_manager'].ensure_future(update_loop(app))
 
     if DEFAULT_NAMESPACE == 'default':
-        app['task_manager'].ensure_future(periodically_call(300, cleanup_expired_namespaces, app['db']))
+        kubernetes_asyncio.config.load_incluster_config()
+        k8s_client = kubernetes_asyncio.client.CoreV1Api()
+        app['task_manager'].ensure_future(periodically_call(10, update_envoy_configs, app['db'], k8s_client))
+        app['task_manager'].ensure_future(periodically_call(10, cleanup_expired_namespaces, app['db']))
 
 
 async def on_cleanup(app):

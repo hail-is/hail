@@ -22,7 +22,7 @@ package object services {
   lazy val log: Logger = LogManager.getLogger("is.hail.services")
 
   val RETRYABLE_HTTP_STATUS_CODES: Set[Int] = {
-    val s = Set(408, 500, 502, 503, 504)
+    val s = Set(408, 429, 500, 502, 503, 504)
     if (System.getenv("HAIL_DONT_RETRY_500") == "1")
       s - 500
     else
@@ -41,6 +41,8 @@ package object services {
     // true error.
     val e = reactor.core.Exceptions.unwrap(_e)
     e match {
+      case e: SocketException =>
+        e.getMessage != null && e.getMessage.contains("Connection reset")
       case e: HttpResponseException =>
         e.getStatusCode() == 400 && e.getMessage.contains("Invalid grant: account not found")
       case e @ (_: SSLException | _: StorageException | _: IOException) =>
@@ -83,7 +85,6 @@ package object services {
       case e: SocketException =>
         e.getMessage != null && (
           e.getMessage.contains("Connection timed out (Read failed)") ||
-            e.getMessage.contains("Connection reset") ||
             e.getMessage.contains("Broken pipe") ||
             e.getMessage.contains("Connection refused"))
       case e: EOFException =>

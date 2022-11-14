@@ -6,6 +6,8 @@ from hail.utils.java import jiterable_to_list
 
 
 class ttable(object):
+    __slots__ = 'global_type', 'row_type', 'row_key'
+
     @staticmethod
     def _from_java(jtt):
         return ttable(
@@ -16,15 +18,20 @@ class ttable(object):
     @staticmethod
     def _from_json(json):
         return ttable(
-            dtype(json['global']),
-            dtype(json['row']),
-            json['row_key'])
+            global_type=dtype(json['global_type']),
+            row_type=dtype(json['row_type']),
+            row_key=json['row_key'])
 
     @typecheck_method(global_type=tstruct, row_type=tstruct, row_key=sequenceof(str))
     def __init__(self, global_type, row_type, row_key):
         self.global_type = global_type
         self.row_type = row_type
         self.row_key = row_key
+
+    def to_dict(self):
+        return dict(global_type=str(self.global_type),
+                    row_type=str(self.row_type),
+                    row_key=self.row_key)
 
     def __eq__(self, other):
         return (isinstance(other, ttable)

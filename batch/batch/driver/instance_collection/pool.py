@@ -140,10 +140,6 @@ WHERE removed = 0 AND inst_coll = %s;
         self.data_disk_size_standing_gb = config.data_disk_size_standing_gb
         self.preemptible = config.preemptible
 
-        # FIXME: CI needs to submit jobs to a specific region
-        # instead of batch making this decicion on behalf of CI
-        self._ci_region = self.inst_coll_manager._default_region
-
         self.all_supported_regions = self.inst_coll_manager.regions
 
     @property
@@ -195,14 +191,12 @@ WHERE removed = 0 AND inst_coll = %s;
         if instance.state == 'active' and instance.failed_request_count <= 1:
             self.healthy_instances_by_free_cores.add(instance)
 
-    def get_instance(self, user: str, cores_mcpu: int, regions: List[str]):
+    def get_instance(self, cores_mcpu: int, regions: List[str]):
         i = self.healthy_instances_by_free_cores.bisect_key_left(cores_mcpu)
         while i < len(self.healthy_instances_by_free_cores):
             instance = self.healthy_instances_by_free_cores[i]
             assert cores_mcpu <= instance.free_cores_mcpu
-            if user == 'ci' and instance.region == self._ci_region:
-                return instance
-            if user != 'ci' and instance.region in regions:
+            if instance.region in regions:
                 return instance
             i += 1
         return None
@@ -413,13 +407,6 @@ GROUP BY user;
                 if remaining_instances_per_autoscaler_loop <= 0:
                     break
 
-        ci_ready_cores_mcpu = ready_cores_mcpu_per_user.get('ci', 0)
-        if ci_ready_cores_mcpu > 0 and self.live_free_cores_mcpu_by_region[self._ci_region] == 0:
-            ci_remaining_instances_per_autoscaler_loop = max(1, remaining_instances_per_autoscaler_loop)
-            await self.create_instances_from_ready_cores(
-                ci_ready_cores_mcpu, [self._ci_region], ci_remaining_instances_per_autoscaler_loop
-            )
-
         n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
         if self.enable_standing_worker and n_live_instances == 0 and self.max_instances > 0:
             await self.create_instance(
@@ -591,9 +578,9 @@ WHERE user = %s AND `state` = 'running';
                     '''
 SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
-WHERE jobs.batch_id = %s AND jobs.state = 'Ready' AND always_run = 1 AND inst_coll = %s
-ORDER BY jobs.batch_id, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
-LIMIT 1000;
+WHERE jobs.batch_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 1
+ORDER BY jobs.batch_id, inst_coll, state, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
+LIMIT 300;
 ''',
                     (batch['id'], self.pool.name),
                     "user_runnable_jobs__select_ready_always_run_jobs",
@@ -608,9 +595,9 @@ LIMIT 1000;
                         '''
 SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
-WHERE jobs.batch_id = %s AND jobs.state = 'Ready' AND always_run = 0 AND inst_coll = %s AND cancelled = 0
-ORDER BY jobs.batch_id, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
-LIMIT 1000;
+WHERE jobs.batch_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 0 AND cancelled = 0
+ORDER BY jobs.batch_id, inst_coll, state, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
+LIMIT 300;
 ''',
                         (batch['id'], self.pool.name),
                         "user_runnable_jobs__select_ready_jobs_batch_not_cancelled",
@@ -663,7 +650,7 @@ LIMIT 1000;
                         break
                     self.exceeded_shares_counter.push(False)
 
-                instance = self.pool.get_instance(user, record['cores_mcpu'], regions)
+                instance = self.pool.get_instance(record['cores_mcpu'], regions)
                 if instance:
                     instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
                     scheduled_cores_mcpu += record['cores_mcpu']

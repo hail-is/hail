@@ -84,7 +84,8 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
       HadoopFS.toPositionedOutputStream(os))
   }
 
-  def openNoCompression(filename: String): SeekableDataInputStream = {
+  def openNoCompression(filename: String, _debug: Boolean = false): SeekableDataInputStream = {
+    assert(!_debug)
     val fs = getFileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
     val is = try {

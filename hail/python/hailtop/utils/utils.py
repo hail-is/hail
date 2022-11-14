@@ -542,7 +542,7 @@ async def bounded_gather2(
     return await bounded_gather2_raise_exceptions(sema, *pfs, cancel_on_error=cancel_on_error)
 
 
-RETRYABLE_HTTP_STATUS_CODES = {408, 500, 502, 503, 504, 429}
+RETRYABLE_HTTP_STATUS_CODES = {408, 429, 500, 502, 503, 504}
 if os.environ.get('HAIL_DONT_RETRY_500') == '1':
     RETRYABLE_HTTP_STATUS_CODES.remove(500)
 
@@ -568,6 +568,8 @@ def is_retry_once_error(e):
                 and 'not found: manifest unknown: ' in e.message)
     if isinstance(e, hailtop.httpx.ClientResponseError):
         return e.status == 400 and any(msg in e.body for msg in RETRY_ONCE_BAD_REQUEST_ERROR_MESSAGES)
+    if isinstance(e, ConnectionResetError):
+        return True
     return False
 
 
@@ -673,8 +675,6 @@ def is_transient_error(e):
         # socket.EAI_AGAIN: [Errno -3] Temporary failure in name resolution
         # socket.EAI_NONAME: [Errno 8] nodename nor servname provided, or not known
         return e.errno in (socket.EAI_AGAIN, socket.EAI_NONAME)
-    if isinstance(e, ConnectionResetError):
-        return True
     if isinstance(e, google.auth.exceptions.TransportError):
         return is_transient_error(e.__cause__)
     if isinstance(e, google.api_core.exceptions.GatewayTimeout):

@@ -1345,10 +1345,13 @@ class Job:
         self.main_volume_mounts.append(io_volume_mount)
         self.output_volume_mounts.append(io_volume_mount)
 
+        requester_pays_project = job_spec.get('requester_pays_project')
         cloudfuse = job_spec.get('cloudfuse') or job_spec.get('gcsfuse')
         self.cloudfuse = cloudfuse
         if cloudfuse:
             for config in cloudfuse:
+                if requester_pays_project:
+                    config['requester_pays_project'] = requester_pays_project
                 config['mounted'] = False
                 bucket = config['bucket']
                 assert bucket
@@ -1701,7 +1704,9 @@ class DockerJob(Job):
                     try:
                         await self.cleanup()
                     finally:
-                        await self.mark_complete()
+                        _, exc, _ = sys.exc_info()
+                        if not isinstance(exc, asyncio.CancelledError):
+                            await self.mark_complete()
 
     async def cleanup(self):
         if self.disk:
@@ -1893,7 +1898,9 @@ class JVMJob(Job):
             else:
                 await self.cleanup()
             finally:
-                await self.mark_complete()
+                _, exc, _ = sys.exc_info()
+                if not isinstance(exc, asyncio.CancelledError):
+                    await self.mark_complete()
 
     async def cleanup(self):
         if self.jvm is not None:
@@ -2192,6 +2199,8 @@ class JVM:
                 if self.container:
                     await self.container.remove()
 
+                await blocking_to_async(self.pool, shutil.rmtree, f'{self.root_dir}/container', ignore_errors=True)
+
                 container = await self.create_container_and_connect(
                     self.index, self.n_cores, self.socket_file, self.root_dir, self.client_session, self.pool
                 )
@@ -2353,7 +2362,7 @@ class Worker:
                     cleanup.callback(jvm.kill)
         finally:
             try:
-                self.task_manager.shutdown()
+                await self.task_manager.shutdown_and_wait()
                 log.info('shutdown task manager')
             finally:
                 try:

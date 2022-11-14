@@ -162,6 +162,9 @@ abstract class FSSeekableInputStream extends InputStream with Seekable {
     } else {
       bb.clear()
       bb.limit(0)
+      if (bb.remaining() != 0) {
+        assert(false, bb.remaining().toString())
+      }
     }
     pos = newPos
   }
@@ -278,7 +281,7 @@ trait FS extends Serializable {
       ""
   }
 
-  def openNoCompression(filename: String): SeekableDataInputStream
+  def openNoCompression(filename: String, _debug: Boolean = false): SeekableDataInputStream
 
   def createNoCompression(filename: String): PositionedDataOutputStream
 
@@ -350,8 +353,8 @@ trait FS extends Serializable {
       new Thread(() => delete(filename, recursive = false)))
   }
 
-  def open(path: String, codec: CompressionCodec): InputStream = {
-    val is = openNoCompression(path)
+  def open(path: String, codec: CompressionCodec, _debug: Boolean = false): InputStream = {
+    val is = openNoCompression(path, _debug)
     if (codec != null)
       codec.makeInputStream(is)
     else

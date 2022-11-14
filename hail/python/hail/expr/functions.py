@@ -668,7 +668,7 @@ def dict(collection) -> DictExpression:
     --------
 
     >>> hl.eval(hl.dict([('foo', 1), ('bar', 2), ('baz', 3)]))
-    frozendict({'bar': 2, 'baz': 3, 'foo': 1})
+    {'bar': 2, 'baz': 3, 'foo': 1}
 
     Notes
     -----
@@ -3456,7 +3456,7 @@ def filter(f: Callable, collection):
     [2, 4]
 
     >>> hl.eval(hl.filter(lambda x: ~(x[-1] == 'e'), s))
-    frozenset({'Bob'})
+    {'Bob'}
 
     Notes
     -----
@@ -3717,7 +3717,7 @@ def group_by(f: Callable, collection) -> DictExpression:
 
     >>> a = ['The', 'quick', 'brown', 'fox']
     >>> hl.eval(hl.group_by(lambda x: hl.len(x), a))
-    frozendict({3: ['The', 'fox'], 5: ['quick', 'brown']})
+    {3: ['The', 'fox'], 5: ['quick', 'brown']}
 
     Parameters
     ----------
@@ -4567,7 +4567,7 @@ def set(collection) -> SetExpression:
 
     >>> s = hl.set(['Bob', 'Charlie', 'Alice', 'Bob', 'Bob'])
     >>> hl.eval(s) # doctest: +SKIP
-    frozenset({'Alice', 'Bob', 'Charlie'})
+    {'Alice', 'Bob', 'Charlie'}
 
     Returns
     -------
@@ -4587,7 +4587,7 @@ def empty_set(t: Union[HailType, builtins.str]) -> SetExpression:
     --------
 
     >>> hl.eval(hl.empty_set(hl.tstr))
-    frozenset()
+    set()
 
     Parameters
     ----------
@@ -4763,7 +4763,7 @@ def empty_dict(key_type: Union[HailType, builtins.str], value_type: Union[HailTy
     --------
 
     >>> hl.eval(hl.empty_dict(hl.tstr, hl.tint32))
-    frozendict({})
+    {}
 
     Parameters
     ----------
