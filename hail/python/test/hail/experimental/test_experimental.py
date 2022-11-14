@@ -302,7 +302,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(f1(1, 3)), 24) # idempotent
         self.assertEqual(hl.eval(f2(1, 3)), 24) # idempotent
 
-    @fails_service_backend()
     @fails_local_backend()
     def test_pc_project(self):
         mt = hl.balding_nichols_model(3, 100, 50)
