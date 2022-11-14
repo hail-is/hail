@@ -33,9 +33,9 @@ azure-storage-blob==12.14.1
     # via -r python/hailtop/requirements.txt
 bokeh==1.4.0
     # via -r python/requirements.txt
-boto3==1.26.7
-    # via -r python/hailtop/requirements.txt
-botocore==1.29.7
+boto3==1.26.9
+    # via -r python/requirements.txt
+botocore==1.29.9
     # via
     #   -r python/hailtop/requirements.txt
     #   boto3
