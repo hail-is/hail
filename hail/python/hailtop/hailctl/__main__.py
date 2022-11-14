@@ -111,16 +111,16 @@ def main():
             from hailtop.hailctl.dataproc import cli as dataproc_cli  # pylint: disable=import-outside-toplevel
             dataproc_cli.main(args)
         elif module == 'describe':
-            from hailtop.hailctl.describe import main  as describe_main # pylint: disable=import-outside-toplevel
+            from hailtop.hailctl.describe import main  as describe_main  # pylint: disable=import-outside-toplevel
             describe_main(args)
         elif module == 'hdinsight':
             from hailtop.hailctl.hdinsight import cli as hdinsight_cli  # pylint: disable=import-outside-toplevel
             hdinsight_cli.main(args)
         elif module == 'auth':
-            from hailtop.hailctl.auth import cli as auth_cli # pylint: disable=import-outside-toplevel
+            from hailtop.hailctl.auth import cli as auth_cli  # pylint: disable=import-outside-toplevel
             auth_cli.main(args)
         elif module == 'dev':
-            from hailtop.hailctl.dev import cli as dev_cli # pylint: disable=import-outside-toplevel
+            from hailtop.hailctl.dev import cli as dev_cli  # pylint: disable=import-outside-toplevel
             dev_cli.main(args)
         elif module == 'batch':
             from hailtop.hailctl.batch import cli as batch_cli  # pylint: disable=import-outside-toplevel

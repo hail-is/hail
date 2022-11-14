@@ -98,8 +98,7 @@ async def main(args, pass_through_args):  # pylint: disable=unused-argument
                    stdout=PIPE,
                    stderr=PIPE) as process:
             output = process.communicate()
-        diagnose_tar_path_match = re.search(r'Diagnostic results saved in: (?P<tarfile>gs://\S+diagnostic\.tar)',
-                                      str(output))
+        diagnose_tar_path_match = re.search(r'Diagnostic results saved in: (?P<tarfile>gs://\S+diagnostic\.tar)', str(output))
         assert diagnose_tar_path_match
         diagnose_tar_path = diagnose_tar_path_match.group('tarfile')
 
