@@ -209,7 +209,7 @@ dependencies {
         }
     }
 
-    bundled(group: 'com.azure', name: 'azure-core-http-netty', version: '1.10.0') {
+    bundled(group: 'com.azure', name: 'azure-core-http-netty', version: '1.12.7') {
         exclude group: 'com.fasterxml.jackson'
         exclude group: 'com.fasterxml.jackson.core'
         exclude group: 'com.fasterxml.jackson.databind'
