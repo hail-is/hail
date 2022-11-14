@@ -7,6 +7,7 @@ add_mlir_dialect_library(HailSandboxDialect
 
         DEPENDS
         MLIRSandboxOpsIncGen
+        MLIRSandboxOpsAttributesIncGen
 
     LINK_LIBS PUBLIC
     MLIRIR

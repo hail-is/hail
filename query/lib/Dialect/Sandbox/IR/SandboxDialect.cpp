@@ -59,7 +59,7 @@ ir::ArrayType::verify(mlir::function_ref<mlir::InFlightDiagnostic()> emitError,
 }
 
 
-::mlir::Type ir::ArrayType::parse(::mlir::AsmParser &parser) {
+mlir::Type ir::ArrayType::parse(::mlir::AsmParser &parser) {
   mlir::Type elementType;
   if (parser.parseLess()) return Type();
   if (parser.parseType(elementType))

@@ -22,10 +22,26 @@ class Sandbox_Type<string name, string typeMnemonic, list<Trait> traits = []>
   let mnemonic = typeMnemonic;
 }
 
+class Sandbox_Attr<string name, string attrMnemonic, list<Trait> traits = []>
+    : AttrDef<Sandbox_Dialect, name, traits> {
+  let mnemonic = attrMnemonic;
+}
+
 def SandboxType :
     DialectType<Sandbox_Dialect, CPred<"$_self.isa<Sandbox_Type>()">,
                 "Sandbox type", "::hail::ir::SandboxType">;
 
+def Sandbox_OptionalAttr : Sandbox_Attr<"Optional", "opt"> {
+  let summary = "Sandbox attribute representing a possibly missing value";
+  let parameters = (ins AttributeSelfTypeParameter<"">:$type, OptionalParameter<"mlir::Attribute">:$value);
+  // let builders = [
+  //   AttrBuilderWithInferredContext<(ins "Type":$type,
+  //                                       "const Attribute &":$value), [{
+  //     return $_get(type.getContext(), type, value);
+  //   }]>
+  // ];
+  let assemblyFormat = "`<` $value `>`";
+}
 
 // Here is a simple definition of an "integer" type, with a width parameter.
 def Sandbox_Int : Sandbox_Type<"Int", "int"> {
