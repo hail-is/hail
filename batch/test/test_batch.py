@@ -1300,8 +1300,9 @@ def test_submit_update_to_deleted_batch(client: BatchClient):
 
 @skip_in_azure
 def test_region(client: BatchClient):
+    assert CLOUD == 'gcp'
     bb = client.create_batch()
-    region = nondefault_region(CLOUD)
+    region = 'us-east1'
     j = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], regions=[region])
     b = bb.submit()
     status = j.wait()

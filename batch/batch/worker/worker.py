@@ -157,7 +157,7 @@ IP_ADDRESS = os.environ['IP_ADDRESS']
 INTERNAL_GATEWAY_IP = os.environ['INTERNAL_GATEWAY_IP']
 BATCH_LOGS_STORAGE_URI = os.environ['BATCH_LOGS_STORAGE_URI']
 INSTANCE_ID = os.environ['INSTANCE_ID']
-REGION = os.environ['REGION']
+LOCATION = os.environ['LOCATION']
 DOCKER_PREFIX = os.environ['DOCKER_PREFIX']
 PUBLIC_IMAGES = publicly_available_images(DOCKER_PREFIX)
 INSTANCE_CONFIG = json.loads(base64.b64decode(os.environ['INSTANCE_CONFIG']).decode())
@@ -189,12 +189,13 @@ log.info(f'BATCH_WORKER_IMAGE_ID {BATCH_WORKER_IMAGE_ID}')
 log.info(f'INTERNET_INTERFACE {INTERNET_INTERFACE}')
 log.info(f'UNRESERVED_WORKER_DATA_DISK_SIZE_GB {UNRESERVED_WORKER_DATA_DISK_SIZE_GB}')
 log.info(f'ACCEPTABLE_QUERY_JAR_URL_PREFIX {ACCEPTABLE_QUERY_JAR_URL_PREFIX}')
-log.info(f'REGION {REGION}')
+log.info(f'LOCATION {LOCATION}')
 
 instance_config = CLOUD_WORKER_API.instance_config_from_config_dict(INSTANCE_CONFIG)
 assert instance_config.cores == CORES
 assert instance_config.cloud == CLOUD
 
+REGION = instance_config.region_for(LOCATION)
 
 N_SLOTS = 4 * CORES  # Jobs are allowed at minimum a quarter core
 
@@ -1492,7 +1493,7 @@ class DockerJob(Job):
 
         self.timings: Timings = Timings()
 
-        self.env['HAIL_REGION'] = REGION
+        self.env.append({'name': 'HAIL_REGION', 'value': REGION})
 
         if self.secrets:
             for secret in self.secrets:

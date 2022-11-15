@@ -18,10 +18,3 @@ def smallest_machine_type(cloud):
         return 'n1-standard-1'
     assert cloud == 'azure'
     return 'Standard_D2ds_v4'
-
-
-def nondefault_region(cloud):
-    if cloud == 'gcp':
-        return 'us-east1'
-    assert cloud == 'azure'
-    return None

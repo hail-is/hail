@@ -40,7 +40,6 @@ def create_vm_config(
     instance_config: InstanceConfig,
 ) -> dict:
     _, cores = gcp_machine_type_to_worker_type_and_cores(machine_type)
-    region = zone.rsplit('-', maxsplit=1)[0]
 
     if local_ssd_data_disk:
         worker_data_disk = {
@@ -249,7 +248,6 @@ ZONE=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/zone 
 BATCH_WORKER_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_worker_image")
 DOCKER_ROOT_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/docker_root_image")
 DOCKER_PREFIX=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/docker_prefix")
-REGION=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/region")
 
 INTERNAL_GATEWAY_IP=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/internal_ip")
 
@@ -289,7 +287,7 @@ docker run \
 -e INSTANCE_ID=$INSTANCE_ID \
 -e PROJECT=$PROJECT \
 -e ZONE=$ZONE \
--e REGION=$REGION \
+-e LOCATION=$ZONE \
 -e DOCKER_PREFIX=$DOCKER_PREFIX \
 -e DOCKER_ROOT_IMAGE=$DOCKER_ROOT_IMAGE \
 -e INSTANCE_CONFIG=$INSTANCE_CONFIG \
@@ -348,7 +346,6 @@ journalctl -u docker.service > dockerd.log
                 {'key': 'docker_prefix', 'value': DOCKER_PREFIX},
                 {'key': 'namespace', 'value': DEFAULT_NAMESPACE},
                 {'key': 'internal_ip', 'value': INTERNAL_GATEWAY_IP},
-                {'key': 'region', 'value': region},
                 {'key': 'batch_logs_storage_uri', 'value': file_store.batch_logs_storage_uri},
                 {'key': 'instance_id', 'value': file_store.instance_id},
                 {'key': 'max_idle_time_msecs', 'value': max_idle_time_msecs},
