@@ -20,6 +20,7 @@ from hail.experimental import write_expression, read_expression
 from hail.ir import finalize_randomness
 from hail.ir.renderer import CSERenderer
 
+from hailtop import yamlx
 from hailtop.config import (configuration_of, get_user_local_cache_dir, get_remote_tmpdir, get_deploy_config)
 from hailtop.utils import async_to_blocking, secret_alnum_string, TransientError, Timings
 from hailtop.utils.rich_progress_bar import BatchProgressBar
@@ -98,17 +99,6 @@ async def read_str(strm: afs.ReadableStream) -> str:
     return b.decode('utf-8')
 
 
-class yaml_literally_shown_str(str):
-    pass
-
-
-def yaml_literally_shown_str_representer(dumper, data):
-    return dumper.represent_scalar(u'tag:yaml.org,2002:str', data, style='|')
-
-
-yaml.add_representer(yaml_literally_shown_str, yaml_literally_shown_str_representer)
-
-
 class JarSpec(abc.ABC):
     @abc.abstractmethod
     def to_dict(self) -> Dict[str, str]:
@@ -174,8 +164,6 @@ class IRFunction:
 
 
 class ServiceBackend(Backend):
-    HAIL_BATCH_FAILURE_EXCEPTION_MESSAGE_RE = re.compile("is.hail.backend.service.HailBatchFailure: ([0-9]+)\n")
-
     # is.hail.backend.service.Main protocol
     WORKER = "worker"
     DRIVER = "driver"
@@ -386,76 +374,34 @@ class ServiceBackend(Backend):
                     await b.cancel()
                     raise
 
-            with timings.step("parse status"):
-                if status['n_succeeded'] != status['n_jobs']:
-                    job_status = await j.status()
-                    if 'status' in job_status:
-                        if 'error' in job_status['status']:
-                            job_status['status']['error'] = yaml_literally_shown_str(job_status['status']['error'].strip())
-                    logs = await j.log()
-                    for k in logs:
-                        logs[k] = yaml_literally_shown_str(logs[k].strip())
-                    message = {'service_backend_debug_info': self.debug_info(),
-                               'batch_status': status,
-                               'job_status': job_status,
-                               'log': logs}
-                    log.error(yaml.dump(message))
-                    raise FatalError(message)
-
             with timings.step("read output"):
-                async with await self._async_fs.open(iodir + '/out') as outfile:
+                try:
+                    driver_output = await self._async_fs.open(iodir + '/out')
+                except FileNotFoundError as exc:
+                    raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
+                        'service_backend_debug_info': self.debug_info(),
+                        'batch_debug_info': b.debug_info()
+                    })) from exc
+
+                async with driver_output as outfile:
                     success = await read_bool(outfile)
                     if success:
                         result_bytes = await read_bytes(outfile)
                         try:
                             return token, result_bytes, timings
                         except orjson.JSONDecodeError as err:
-                            raise FatalError(f'batch id was {b.id}\ncould not decode {result_bytes}') from err
-                    else:
-                        short_message = await read_str(outfile)
-                        expanded_message = await read_str(outfile)
-                        error_id = await read_int(outfile)
-                        if error_id == -1:
-                            error_id = None
-                        maybe_batch_id = ServiceBackend.HAIL_BATCH_FAILURE_EXCEPTION_MESSAGE_RE.match(expanded_message)
-                        if error_id is not None:
-                            assert maybe_batch_id is None, str((short_message, expanded_message, error_id))
-                            assert ir is not None
-                            self._handle_fatal_error_from_backend(
-                                fatal_error_from_java_error_triplet(short_message, expanded_message, error_id),
-                                ir)
-                        if maybe_batch_id is not None:
-                            assert error_id is None, str((short_message, expanded_message, error_id))
-                            batch_id = maybe_batch_id.groups()[0]
-                            b2 = await self.async_bc.get_batch(batch_id)
-                            b2_status = await b2.status()
-                            assert b2_status['state'] != 'success'
-                            failed_jobs = []
-                            async for j in b2.jobs():
-                                if j['state'] != 'Success':
-                                    logs, job = await asyncio.gather(
-                                        self.async_bc.get_job_log(j['batch_id'], j['job_id']),
-                                        self.async_bc.get_job(j['batch_id'], j['job_id']),
-                                    )
-                                    full_status = job._status
-                                    if 'status' in full_status:
-                                        if 'error' in full_status['status']:
-                                            full_status['status']['error'] = yaml_literally_shown_str(full_status['status']['error'].strip())
-                                    main_log = logs.get('main', '')
-                                    failed_jobs.append({
-                                        'partial_status': j,
-                                        'status': full_status,
-                                        'log': yaml_literally_shown_str(main_log.strip()),
-                                    })
-                            message = {
-                                'id': b.id,
+                            raise FatalError(f'Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
                                 'service_backend_debug_info': self.debug_info(),
-                                'short_message': yaml_literally_shown_str(short_message.strip()),
-                                'expanded_message': yaml_literally_shown_str(expanded_message.strip()),
-                                'cause': {'id': batch_id, 'batch_status': b2_status, 'failed_jobs': failed_jobs}}
-                            log.error(yaml.dump(message))
-                            raise FatalError(orjson.dumps(message).decode('utf-8'))
-                        raise FatalError(f'batch id was {b.id}\n' + short_message + '\n' + expanded_message)
+                                'batch_debug_info': b.debug_info()
+                            })) from err
+
+                    short_message = await read_str(outfile)
+                    expanded_message = await read_str(outfile)
+                    error_id = await read_int(outfile)
+                    assert ir is not None
+                    self._raise_error_from_driver(
+                        fatal_error_from_java_error_triplet(short_message, expanded_message, error_id),
+                        ir)
 
     def execute(self, ir: BaseIR, timed: bool = False):
         return async_to_blocking(self._async_execute(ir, timed=timed))

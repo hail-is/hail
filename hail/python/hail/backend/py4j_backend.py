@@ -101,7 +101,7 @@ class Py4JBackend(Backend):
 
             return (value, timings) if timed else value
         except FatalError as e:
-            self._handle_fatal_error_from_backend(e, ir)
+            self._raise_error_from_driver(e, ir)
 
     async def _async_execute(self, ir, timed=False):
         raise NotImplementedError('no async available in Py4JBackend')

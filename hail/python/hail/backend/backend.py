@@ -172,7 +172,7 @@ class Backend(abc.ABC):
     def requires_lowering(self):
         pass
 
-    def _handle_fatal_error_from_backend(self, err: FatalError, ir: BaseIR):
+    def _raise_error_from_driver(self, err: FatalError, ir: BaseIR):
         if err._error_id is None:
             raise err
 
