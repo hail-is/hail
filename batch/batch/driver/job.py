@@ -80,7 +80,7 @@ GROUP BY batches.id;
 
 async def add_attempt_resources(app, db, batch_id, job_id, attempt_id, resources):
     resource_name_to_id = app['resource_name_to_id']
-    if attempt_id:
+    if attempt_id and len(resources) > 0:
         try:
             _resources = collections.defaultdict(lambda: 0)
             for resource in resources:
@@ -109,7 +109,19 @@ ON DUPLICATE KEY UPDATE quantity = quantity;
 
 
 async def mark_job_complete(
-    app, batch_id, job_id, attempt_id, instance_name, new_state, status, start_time, end_time, reason, resources
+    app,
+    batch_id,
+    job_id,
+    attempt_id,
+    instance_name,
+    new_state,
+    status,
+    start_time,
+    end_time,
+    reason,
+    resources,
+    *,
+    marked_job_started=False,
 ):
     scheduler_state_changed: Notice = app['scheduler_state_changed']
     cancel_ready_state_changed: asyncio.Event = app['cancel_ready_state_changed']
@@ -160,7 +172,8 @@ async def mark_job_complete(
         else:
             log.warning(f'mark_complete for job {id} from unknown {instance}')
 
-    await add_attempt_resources(app, db, batch_id, job_id, attempt_id, resources)
+    if not marked_job_started:
+        await add_attempt_resources(app, db, batch_id, job_id, attempt_id, resources)
 
     if rv['rc'] != 0:
         log.info(f'mark_job_complete returned {rv} for job {id}')
