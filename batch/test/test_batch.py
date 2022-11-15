@@ -14,7 +14,7 @@ from hailtop.test_utils import skip_in_azure
 from hailtop.utils import external_requests_client_session, retry_response_returning_functions, sync_sleep_and_backoff
 
 from .failure_injecting_client_session import FailureInjectingClientSession
-from .utils import legacy_batch_status, smallest_machine_type, nondefault_region
+from .utils import legacy_batch_status, smallest_machine_type
 
 deploy_config = get_deploy_config()
 
