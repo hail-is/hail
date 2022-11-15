@@ -268,10 +268,6 @@ class ServiceBackend(
 
     stageCount += 1
     implicit val formats: Formats = DefaultFormats
-    val batchState = (batch \ "state").extract[String]
-    if (batchState == "failed") {
-      throw new HailBatchFailure(s"Update $updateId for batch $batchId failed")
-    }
 
     log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
 
@@ -281,16 +277,29 @@ class ServiceBackend(
       collection.map { case (_, i) =>
         (
           () => {
-            val bytes = fs.readNoCompression(s"$root/result.$i")
-            if (bytes(0) != 0) {
-              bytes.slice(1, bytes.length)
-            } else {
-              val errorInformationBytes = bytes.slice(1, bytes.length)
-              val is = new DataInputStream(new ByteArrayInputStream(errorInformationBytes))
-              val shortMessage = readString(is)
-              val expandedMessage = readString(is)
-              val errorId = is.readInt()
-              throw new HailWorkerException(i, shortMessage, expandedMessage, errorId)
+            try {
+              val bytes = fs.readNoCompression(s"$root/result.$i")
+              if (bytes(0) != 0) {
+                bytes.slice(1, bytes.length)
+              } else {
+                val errorInformationBytes = bytes.slice(1, bytes.length)
+                val is = new DataInputStream(new ByteArrayInputStream(errorInformationBytes))
+                val shortMessage = readString(is)
+                val expandedMessage = readString(is)
+                val errorId = is.readInt()
+                throw new HailWorkerException(i, shortMessage, expandedMessage, errorId)
+              }
+            } catch {
+              case e: HailWorkerException => throw e
+              case e: Exception => {
+                val jobId = (jobs(i) \ "job_id").extract[Int]
+                val err = s"Update $updateId for batch $batchId failed due to error in job $jobId."
+                val (jobData, jobLog) = batchClient.getJob(batchId, jobId)
+                (jobData \ "state").extract[String].toLowerCase() match {
+                  case "failed" => throw new HailWorkerException(i, err, s"""Log for job $jobId:\n\n${(jobLog \ "main").extract[String]}\n\n""", -1)
+                  case _ => throw new HailBatchFailure(err, e)
+                }
+              }
             }
           },
           i
@@ -407,7 +416,7 @@ class ServiceBackend(
 }
 
 class EndOfInputException extends RuntimeException
-class HailBatchFailure(message: String) extends RuntimeException(message)
+class HailBatchFailure(message: String, error: Exception) extends RuntimeException(message, error)
 
 object ServiceBackendAPI {
   private[this] val log = Logger.getLogger(getClass.getName())

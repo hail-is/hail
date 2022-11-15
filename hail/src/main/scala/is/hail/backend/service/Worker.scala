@@ -179,6 +179,7 @@ object Worker {
     timer.end("executeFunction")
     timer.start("writeOutputs")
 
+    /* TODO uncomment after testing
     retryTransientErrors {
       write(s"$root/result.$i") { dos =>
         result match {
@@ -194,6 +195,7 @@ object Worker {
         }
       }
     }
+    */
 
     timer.end("writeOutputs")
     timer.end(s"Job $i")
