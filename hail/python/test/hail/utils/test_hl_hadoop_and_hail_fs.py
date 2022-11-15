@@ -20,8 +20,8 @@ def touch(fs, filename: str):
 
 
 @pytest.fixture(params=['remote', pytest.param('local', marks=fails_service_backend)])
-def tmpdir(location) -> str:
-    if location == 'local':
+def tmpdir(request) -> str:
+    if request.param == 'local':
         tmpdir = _get_local_tmpdir(None)
         tmpdir = tmpdir[len('file://'):]
     else:
