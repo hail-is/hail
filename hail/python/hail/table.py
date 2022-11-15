@@ -431,8 +431,14 @@ class Table(ExprContainer):
         """
         return Env.backend().execute(ir.TableCount(self._tir))
 
+    async def _async_count(self):
+        return await Env.backend()._async_execute(ir.TableCount(self._tir))
+
     def _force_count(self):
         return Env.backend().execute(ir.TableToValueApply(self._tir, {'name': 'ForceCountTable'}))
+
+    async def _async_force_count(self):
+        return await Env.backend()._async_execute(ir.TableToValueApply(self._tir, {'name': 'ForceCountTable'}))
 
     @typecheck_method(caller=str,
                       row=expr_struct())
