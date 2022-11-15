@@ -222,6 +222,12 @@ class BatchClient(
     throw new AssertionError("unreachable")
   }
 
+  def getJob(batchId: Long, jobId: Int): (JValue, JValue) =
+    (
+      get(s"/api/v1alpha/batches/$batchId/jobs/$jobId"),
+      get(s"/api/v1alpha/batches/$batchId/jobs/$jobId/log"),
+    )
+
   private def createBunches(jobs: IndexedSeq[JObject]): BoxedArrayBuilder[Array[Array[Byte]]] = {
     val bunches = new BoxedArrayBuilder[Array[Array[Byte]]]()
     val bunchb = new BoxedArrayBuilder[Array[Byte]]()

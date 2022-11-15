@@ -30,6 +30,7 @@ class JVMEntryway {
   private static int FINISH_NORMAL = 2;
   private static int FINISH_CANCELLED = 3;
   private static int FINISH_JVM_EOS = 4;  // NEVER USED ON JVM SIDE
+  private static int FINISH_QOB_EXCEPTION = 5;
 
   public static void main(String[] args) throws Exception {
     assert args.length == 1;
@@ -206,6 +207,18 @@ class JVMEntryway {
     }
   }
 
+  private static boolean isQOBExceptionType(Throwable exception) {
+    boolean ret = false;
+    String exceptionType = null;
+    Throwable cause = exception.getCause();
+    while (cause != null) {
+      exceptionType = cause.getClass().getName();
+      ret = ret || exceptionType == "HailBatchError" || exceptionType == "HailWorkerFailure";
+      cause = cause.getCause();
+    }
+    return ret;
+  }
+
   private static void finishFutures(DataOutputStream out,
                                     int finishedNormalType,
                                     int finishedExceptionType,
@@ -215,13 +228,31 @@ class JVMEntryway {
     Throwable finishedException = retrieveException(finished);
     Throwable secondaryException = cancelThreadRetrieveException(secondary);
 
+    // check if something went wrong with QOB internals and override the FINISH_*_EXCEPTION code accordingly
+    int overrideFinishExceptionType = -1;
+    int overrideSecondaryExceptionType = -1;
+    if ((finishedExceptionType == FINISH_USER_EXCEPTION && isQOBExceptionType(finishedException))) {
+      overrideFinishExceptionType = FINISH_QOB_EXCEPTION;
+    }
+    if ((secondaryExceptionType == FINISH_USER_EXCEPTION && isQOBExceptionType(secondaryException))) {
+      overrideSecondaryExceptionType = FINISH_QOB_EXCEPTION;
+    }
+
     if (finishedException != null) {
       if (secondaryException != null) {
         finishedException.addSuppressed(secondaryException);
       }
-      finishException(finishedExceptionType, out, finishedException);
+      finishException(
+          (overrideFinishExceptionType != -1 ? overrideFinishExceptionType : finishedExceptionType),
+          out,
+          finishedException
+      );
     } else if (secondaryException != null) {
-      finishException(secondaryExceptionType, out, secondaryException);
+      finishException(
+          (overrideSecondaryExceptionType != -1 ? overrideSecondaryExceptionType : secondaryExceptionType),
+          out,
+          secondaryException
+      );
     } else {
       out.writeInt(finishedNormalType);
     }
@@ -237,7 +268,9 @@ class JVMEntryway {
 
   private static void finishException(int type, DataOutputStream out, Throwable t) throws IOException {
     out.writeInt(type);
-    String s = throwableToString(t);
+    // FIXME undo
+    Throwable t2 = new Exception("exception type: " + t.getClass().getName(), t);
+    String s = throwableToString(t2);
     byte[] bytes = s.getBytes(StandardCharsets.UTF_8);
     out.writeInt(bytes.length);
     out.write(bytes);
@@ -258,4 +291,3 @@ class JVMEntryway {
     return null;
   }
 }
-

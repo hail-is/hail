@@ -2605,6 +2605,10 @@ class JVMUserError(Exception):
     pass
 
 
+class JVMQOBError(Exception):
+    pass
+
+
 class JVMProfiler:
     def __init__(self, container: JVMContainer, output_file: Optional[str]):
         self.container = container
@@ -2644,6 +2648,7 @@ class JVM:
     FINISH_NORMAL = 2
     FINISH_CANCELLED = 3
     FINISH_JVM_EOS = 4
+    FINISH_QOB_EXCEPTION = 5
 
     @classmethod
     async def create_container_and_connect(
@@ -2865,9 +2870,10 @@ class JVM:
             elif message == JVM.FINISH_CANCELLED:
                 assert wait_for_interrupt.done()
                 raise JobDeletedError
-            elif message == JVM.FINISH_USER_EXCEPTION:
+            elif message in {JVM.FINISH_USER_EXCEPTION, JVM.FINISH_QOB_EXCEPTION}:
                 exception = await read_str(reader)
-                raise JVMUserError(exception)
+                error = JVMUserError if message == JVM.FINISH_USER_EXCEPTION else JVMQOBError
+                raise error(exception)
             else:
                 jvm_output = ''
                 if os.path.exists(self.container.container.log_path):
