@@ -78,6 +78,7 @@ class Job:
         self._machine_type: Optional[str] = None
         self._timeout: Optional[Union[int, float]] = None
         self._cloudfuse: List[Tuple[str, str, bool]] = []
+        self._always_copy_output: bool = False
         self._env: Dict[str, str] = {}
         self._wrapper_code: List[str] = []
         self._user_code: List[str] = []
@@ -518,6 +519,39 @@ class Job:
         self._cloudfuse.append((bucket, mount_point, read_only))
         return self
 
+    def always_copy_output(self, always_copy_output: bool = True) -> 'Job':
+        """
+        Set the job to always copy output to cloud storage, even if the job failed.
+
+        Notes
+        -----
+        Can only be used with the :class:`.backend.ServiceBackend`.
+
+        Examples
+        --------
+
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
+        >>> j = b.new_job()
+        >>> (j.always_copy_output()
+        ...   .command(f'echo "hello" > {j.ofile} && false'))
+
+        Parameters
+        ----------
+        always_copy_output:
+            If True, set job to always copy output to cloud storage regardless
+            of whether the job succeeded.
+
+        Returns
+        -------
+        Same job object set to always copy output.
+        """
+
+        if not isinstance(self._batch._backend, backend.ServiceBackend):
+            raise NotImplementedError("A ServiceBackend is required to use the 'always_copy_output' option")
+
+        self._always_copy_output = always_copy_output
+        return self
+
     async def _compile(self, local_tmpdir, remote_tmpdir, *, dry_run=False):
         raise NotImplementedError
 
@@ -548,6 +582,11 @@ class Job:
                         raise BatchException(f"undefined resource '{name}'\n"
                                              f"Hint: resources must be defined within "
                                              f"the job methods 'command' or 'declare_resource_group'")
+
+                    if self._always_run:
+                        warnings.warn('A job marked as always run has a resource file dependency on another job. If the dependent job fails, '
+                                      f'the always run job with the following command may not succeed:\n{command}')
+
                     self._dependencies.add(r._source)
                     r._source._add_internal_outputs(r)
             else:
