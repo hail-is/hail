@@ -8,8 +8,8 @@ from hailtop.config import get_remote_tmpdir, get_user_config_path, get_deploy_c
 from hailtop.utils import unpack_comma_delimited_inputs
 
 def init_parser(parser):
-    parser.add_argument('name', type=str, help='Batch name')
     parser.add_argument('script', type=str, help='Path to script')
+    parser.add_argument('--name', type=str, default='', help='Batch name')
     parser.add_argument('--image-name', type=str, required=False,
                         help='Name for Docker image. Defaults to hailgenetics/hail')
     parser.add_argument('--files', nargs='+', action='append', default=[],
