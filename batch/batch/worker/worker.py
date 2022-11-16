@@ -1725,11 +1725,13 @@ class DockerJob(Job):
                     copy_output = output and (main.state == 'succeeded' or always_copy_output)
 
                     if copy_output:
+                        assert output
                         await self.run_container(output, 'output')
 
                     if main.state != 'succeeded':
                         self.state = main.state
                     elif copy_output:
+                        assert output
                         self.state = output.state
                     else:
                         self.state = 'succeeded'
