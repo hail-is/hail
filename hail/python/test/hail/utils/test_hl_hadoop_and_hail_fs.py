@@ -91,7 +91,7 @@ def test_hadoop_exists(tmpdir: str):
     r_exists = f'{tmpdir}/test_exists.txt'
     r_not_exists = f'{tmpdir}/not_exists.txt'
     assert hl.hadoop_exists(r_exists)
-    assert hl.hadoop_exists(r_not_exists)
+    assert not hl.hadoop_exists(r_not_exists)
 
 
 def test_hadoop_is_file(tmpdir: str):
@@ -100,8 +100,8 @@ def test_hadoop_is_file(tmpdir: str):
         f.write("HELLO WORLD")
 
     assert hl.hadoop_is_file(a_file)
-    assert hl.hadoop_is_file(f'{tmpdir}/')
-    assert hl.hadoop_is_file(f'{tmpdir}/invalid-path')
+    assert not hl.hadoop_is_file(f'{tmpdir}/')
+    assert not hl.hadoop_is_file(f'{tmpdir}/invalid-path')
 
 
 def test_hadoop_stat(tmpdir: str):
