@@ -396,10 +396,11 @@ class ServiceBackend(Backend):
                     short_message = await read_str(outfile)
                     expanded_message = await read_str(outfile)
                     error_id = await read_int(outfile)
-                    assert ir is not None
-                    self._raise_error_from_driver(
-                        fatal_error_from_java_error_triplet(short_message, expanded_message, error_id),
-                        ir)
+
+                    reconstructed_error = fatal_error_from_java_error_triplet(short_message, expanded_message, error_id)
+                    if ir is None:
+                        raise reconstructed_error
+                    raise reconstructed_error.maybe_user_error(ir)
 
     def execute(self, ir: BaseIR, timed: bool = False):
         return async_to_blocking(self._async_execute(ir, timed=timed))
