@@ -14,4 +14,6 @@ class AzureSession(Session):
                 credentials = AzureCredentials.from_file(credentials_file, scopes=scopes)
             else:
                 credentials = AzureCredentials.default_credentials(scopes=scopes)
+        if 'timeout' not in kwargs:
+            kwargs['timeout'] = aiohttp.ClientTimeout(total=30)
         super().__init__(credentials=credentials, params=params, **kwargs)
