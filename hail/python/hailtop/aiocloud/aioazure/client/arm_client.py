@@ -1,5 +1,7 @@
 from typing import AsyncGenerator, Any, Optional
 
+import aiohttp
+
 from .base_client import AzureBaseClient
 
 
@@ -18,4 +20,4 @@ class AzureResourceManagerClient(AzureBaseClient):
         params = {}
         if filter is not None:
             params['$filter'] = filter
-        return self._paged_get('/deployments', params=params)
+        return self._paged_get('/deployments', params=params, timeout=aiohttp.ClientTimeout(total=30))
