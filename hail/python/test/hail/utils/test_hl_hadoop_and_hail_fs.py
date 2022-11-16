@@ -19,7 +19,7 @@ def touch(fs, filename: str):
         fobj.write('hello world')
 
 
-@pytest.fixture(params=['remote', pytest.param('local', marks=fails_service_backend)])
+@pytest.fixture(params=['remote', 'local'])
 def tmpdir(request) -> str:
     if request.param == 'local':
         tmpdir = _get_local_tmpdir(None)
