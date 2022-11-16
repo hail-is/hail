@@ -6,8 +6,6 @@ import os
 from hail.expr.expressions.base_expression import Expression
 import orjson
 import logging
-import re
-import yaml
 from pathlib import Path
 
 from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename, revision, _TemporaryFilenameManager
@@ -346,7 +344,7 @@ class ServiceBackend(Backend):
                 if self.driver_memory is not None:
                     resources['memory'] = str(self.driver_memory)
 
-                j = bb.create_jvm_job(
+                bb.create_jvm_job(
                     jar_spec=self.jar_spec.to_dict(),
                     argv=[
                         ServiceBackend.DRIVER,
@@ -367,9 +365,9 @@ class ServiceBackend(Backend):
                         url = deploy_config.external_url('batch', f'/batches/{b.id}/jobs/1')
                         print(f'Submitted batch {b.id}, see {url}')
 
-                    status = await b.wait(description=name,
-                                          disable_progress_bar=self.disable_progress_bar,
-                                          progress=progress)
+                    await b.wait(description=name,
+                                 disable_progress_bar=self.disable_progress_bar,
+                                 progress=progress)
                 except Exception:
                     await b.cancel()
                     raise
@@ -390,7 +388,7 @@ class ServiceBackend(Backend):
                         try:
                             return token, result_bytes, timings
                         except orjson.JSONDecodeError as err:
-                            raise FatalError(f'Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
+                            raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
                                 'service_backend_debug_info': self.debug_info(),
                                 'batch_debug_info': b.debug_info()
                             })) from err
