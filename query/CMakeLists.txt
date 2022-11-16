@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.18)
 project(hail-mlir-dialect LANGUAGES CXX C)
 
+# CMP0116: Ninja generators transform `DEPFILE`s from `add_custom_command()`
+# New in CMake 3.20. https://cmake.org/cmake/help/latest/policy/CMP0116.html
+if(POLICY CMP0116)
+  cmake_policy(SET CMP0116 OLD)
+endif()
+
 set(CMAKE_BUILD_WITH_INSTALL_NAME_DIR ON)
 
 set(CMAKE_CXX_STANDARD 20 CACHE STRING "C++ standard to conform to")
