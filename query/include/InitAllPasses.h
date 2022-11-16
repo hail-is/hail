@@ -15,11 +15,11 @@
 #define INITALLPASSES_H_
 
 #include "Conversion/Passes.h"
-#include "mlir/Conversion/Passes.h"
+#include "Transforms/Passes.h"
 
 #include <cstdlib>
 
-namespace hail {
+namespace hail::ir {
 
 // This function may be called to register the MLIR passes with the
 // global registry.
@@ -30,8 +30,9 @@ namespace hail {
 // The global registry is interesting to interact with the command-line tools.
 inline void registerAllPasses() {
   registerConversionPasses();
+  registerTransformsPasses();
 }
 
-} // namespace hail
+} // namespace hail::ir
 
 #endif // INITALLPASSES_H_

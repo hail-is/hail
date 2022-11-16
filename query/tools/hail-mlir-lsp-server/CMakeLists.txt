@@ -25,6 +25,7 @@ set(LIBS
   MLIRIR
   # Hail Libraries Go Here
   HailSandboxDialect
+  HailMissingDialect
   HailLowerToLLVM
   )
 
