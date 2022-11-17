@@ -1,4 +1,4 @@
-add_mlir_dialect_library(HailSandboxDialect
+add_hail_dialect_library(HailSandboxDialect
         SandboxDialect.cpp
         SandboxOps.cpp
 

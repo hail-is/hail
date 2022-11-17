@@ -1,4 +1,4 @@
-add_mlir_dialect_library(HailCPSDialect
+add_hail_dialect_library(HailCPSDialect
         CPSDialect.cpp
         CPSOps.cpp
 

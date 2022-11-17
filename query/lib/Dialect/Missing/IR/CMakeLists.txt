@@ -1,4 +1,4 @@
-add_mlir_dialect_library(HailMissingDialect
+add_hail_dialect_library(HailMissingDialect
         MissingDialect.cpp
         MissingOps.cpp
 

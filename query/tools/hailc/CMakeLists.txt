@@ -1,7 +1,8 @@
-get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
+get_property(mlir_dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
+get_property(hail_dialect_libs GLOBAL PROPERTY HAIL_DIALECT_LIBS)
 get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
 set(LIBS
-        ${dialect_libs}
+        ${mlir_dialect_libs}
         ${conversion_libs}
         MLIRExecutionEngine
         MLIRLLVMCommonConversion
@@ -11,7 +12,7 @@ set(LIBS
         MLIRPass
         MLIRTargetLLVMIRExport
         # Hail Libraries Go Here
-        HailSandboxDialect
+        ${hail_dialect_libs}
         HailLowerToLLVM
         )
 add_llvm_executable(hailc hailc.cpp)

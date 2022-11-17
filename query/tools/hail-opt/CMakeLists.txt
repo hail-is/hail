@@ -1,12 +1,12 @@
-get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
+get_property(mlir_dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
+get_property(hail_dialect_libs GLOBAL PROPERTY HAIL_DIALECT_LIBS)
 get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
 set(LIBS
-        ${dialect_libs}
+        ${mlir_dialect_libs}
         ${conversion_libs}
         MLIROptLib
         # Hail Libraries Go Here
-        HailMissingDialect
-        HailSandboxDialect
+        ${hail_dialect_libs}
         HailLowerToLLVM
         HailTransforms
         )
