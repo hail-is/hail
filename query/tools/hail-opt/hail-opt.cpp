@@ -17,9 +17,9 @@
 #include "InitAllPasses.h"
 
 // dialect includes
+#include "Dialect/CPS/IR/CPS.h"
 #include "Dialect/Missing/IR/Missing.h"
 #include "Dialect/Sandbox/IR/Sandbox.h"
-
 
 int main(int argc, char **argv) {
   // mlir::registerAllPasses();
@@ -50,7 +50,8 @@ int main(int argc, char **argv) {
   mlir::DialectRegistry registry;
   registry.insert<mlir::arith::ArithmeticDialect, mlir::func::FuncDialect,
                   mlir::linalg::LinalgDialect, mlir::scf::SCFDialect,
-                  mlir::tensor::TensorDialect, hail::ir::SandboxDialect, hail::ir::MissingDialect>();
+                  mlir::tensor::TensorDialect, hail::ir::CPSDialect,
+                  hail::ir::SandboxDialect, hail::ir::MissingDialect>();
 
   // Uncomment the line below to include *all* MLIR Core dialects
   // registerAllDialects(registry);

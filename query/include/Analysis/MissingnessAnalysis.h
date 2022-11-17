@@ -25,8 +25,8 @@ public:
   bool isPresent() const { return state == Present; }
   State getState() const { return state; }
 
-  void setMissing() { join(*this, {Missing}); }
-  void setPresent() { join(*this, {Present}); }
+  void setMissing() { join(*this, Missing); }
+  void setPresent() { join(*this, Present); }
 
   bool operator==(const MissingnessValue &rhs) const {
     return state == rhs.state;

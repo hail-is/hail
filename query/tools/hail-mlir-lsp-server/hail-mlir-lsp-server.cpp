@@ -11,6 +11,7 @@
 #include "mlir/InitAllDialects.h"
 #include "mlir/Tools/mlir-lsp-server/MlirLspServerMain.h"
 
+#include "Dialect/CPS/IR/CPS.h"
 #include "Dialect/Missing/IR/Missing.h"
 #include "Dialect/Sandbox/IR/Sandbox.h"
 
@@ -19,8 +20,8 @@ int main(int argc, char **argv) {
   // registerAllDialects(registry);
   registry.insert<mlir::arith::ArithmeticDialect, mlir::func::FuncDialect,
                   mlir::linalg::LinalgDialect, mlir::scf::SCFDialect,
-                  mlir::tensor::TensorDialect, hail::ir::SandboxDialect,
-                  hail::ir::MissingDialect>();
+                  mlir::tensor::TensorDialect, hail::ir::CPSDialect,
+                  hail::ir::MissingDialect, hail::ir::SandboxDialect>();
 
   return failed(MlirLspServerMain(argc, argv, registry));
 }
