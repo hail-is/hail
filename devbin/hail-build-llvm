@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+
+_HELP="
+Builds LLVM and its subproject MLIR for local development of Hail.
+
+Usage: hail-build-llvm [OPTIONS]
+
+Options:
+  --examples        builds examples
+  --linux           enables a faster build if running on Linux
+"
+
+_DLLVM_BUILD_EXAMPLES=OFF
+_DLLVM_ENABLE_LLD=OFF
+
+while :; do
+  case $1 in
+    -h|--help)
+      echo "${_HELP}"
+      exit
+      ;;
+    --examples)
+      _DLLVM_BUILD_EXAMPLES=ON
+      ;;
+    --linux)
+      _DLLVM_ENABLE_LLD=ON
+      ;;
+    -?*)
+      echo "Unsupported option: $1. Re-run with --help to list supported options."
+      exit 1
+      ;;
+    *)
+      break
+      ;;
+  esac
+  shift
+done
+
+
+cd "${LLVM_DIRECTORY}"
+git checkout llvmorg-15.0.3
+rm -rf "${LLVM_BUILD_DIRECTORY}"
+mkdir -p "${LLVM_BUILD_DIRECTORY}"
+cd "${LLVM_BUILD_DIRECTORY}"
+cmake ../llvm -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_C_COMPILER=clang \
+  -DCMAKE_CXX_COMPILER=clang++ \
+  -DCMAKE_EXPORT_COMPILE_COMMANDS=1 \
+  -DLLVM_BUILD_EXAMPLES=${_DLLVM_BUILD_EXAMPLES} \
+  -DLLVM_ENABLE_ASSERTIONS=ON \
+  -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;mlir" \
+  -DLLVM_ENABLE_LLD=${_DLLVM_ENABLE_LLD} \
+  -DLLVM_TARGETS_TO_BUILD="AArch64;X86;NVPTX;AMDGPU"
+ninja
+cd -
