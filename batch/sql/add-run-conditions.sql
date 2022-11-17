@@ -225,14 +225,14 @@ BEGIN
   SET NEW.migrated_n_succeeded_parents = 1;
 
   IF NOT OLD.migrated_n_succeeded_parents THEN
-    SET NEW.n_succeeded_parents = (
+    SET NEW.n_succeeded_parents = COALESCE((
       SELECT COALESCE(SUM(jobs.state = 'Success'), 0)
       FROM `job_parents`
       LEFT JOIN `jobs` ON jobs.batch_id = job_parents.batch_id AND jobs.job_id = job_parents.parent_id
       WHERE job_parents.batch_id = NEW.batch_id AND job_parents.job_id = NEW.job_id
       GROUP BY `job_parents`.batch_id, `job_parents`.job_id
-      FOR UPDATE
-    );
+      LOCK IN SHARE MODE
+    ), 0);
   END IF;
 END $$
 
