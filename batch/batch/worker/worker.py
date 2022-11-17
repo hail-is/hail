@@ -2825,7 +2825,7 @@ class Worker:
         await retry_transient_errors(update)
 
     async def monitor_resource_usage(self):
-        stdout, stderr = await check_shell_output('xfs_quota -x -c "report -h -p" /host/; df -kh')
+        stdout, _ = await check_shell_output('xfs_quota -x -c "report -h -p" /host/; df -kh')
         log.info(stdout)
         for job in self.jobs.values():
             if isinstance(job, DockerJob):
