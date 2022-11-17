@@ -7,6 +7,7 @@ from hailtop.aiotools.copy import copy_from_dict
 from hailtop.config import get_remote_tmpdir, get_user_config_path, get_deploy_config
 from hailtop.utils import unpack_comma_delimited_inputs
 
+
 def init_parser(parser):
     parser.add_argument('script', type=str, help='Path to script')
     parser.add_argument('--name', type=str, default='', help='Batch name')
@@ -22,6 +23,7 @@ async def async_main(args):
     user_config = get_user_config_path()
 
     remote_tmpdir = get_remote_tmpdir('hailctl batch submit')
+
     def cloud_prefix(path):
         return f'{remote_tmpdir}/{path}'
 
