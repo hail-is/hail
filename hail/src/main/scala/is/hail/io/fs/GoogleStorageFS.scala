@@ -225,7 +225,7 @@ class GoogleStorageFS(
     val blobInfo = BlobInfo.newBuilder(blobId)
       .build()
 
-    val os: PositionedOutputStream = new FSPositionedOutputStream {
+    val os: PositionedOutputStream = new FSPositionedOutputStream(8 * 1024 * 1024) {
       private[this] val write: WriteChannel = storage.writer(blobInfo)
 
       override def flush(): Unit = {

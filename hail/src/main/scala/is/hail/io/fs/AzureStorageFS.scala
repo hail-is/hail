@@ -184,7 +184,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     val appendClient = getBlobClient(account, container, path).getAppendBlobClient
     appendClient.create(true)
 
-    val os: PositionedOutputStream = new FSPositionedOutputStream {
+    val os: PositionedOutputStream = new FSPositionedOutputStream(4 * 1024 * 1024) {
       private[this] val client: AppendBlobClient = appendClient
 
       override def flush(): Unit = {
