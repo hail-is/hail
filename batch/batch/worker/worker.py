@@ -1678,12 +1678,16 @@ class DockerJob(Job):
                     await self.run_container(main, 'main')
 
                     output = self.containers.get('output')
-                    if output:
+
+                    always_copy_output = self.job_spec.get('always_copy_output', True)
+                    copy_output = output and (main.state == 'succeeded' or always_copy_output)
+
+                    if copy_output:
                         await self.run_container(output, 'output')
 
                     if main.state != 'succeeded':
                         self.state = main.state
-                    elif output:
+                    elif copy_output:
                         self.state = output.state
                     else:
                         self.state = 'succeeded'
@@ -2582,7 +2586,9 @@ class Worker:
             raise web.HTTPServiceUnavailable
         return await asyncio.shield(self.kill_1(request))
 
-    async def post_job_complete_1(self, job, full_status):
+    async def post_job_complete_1(self, job: Job, full_status):
+        assert job.end_time
+        assert job.start_time
         run_duration = job.end_time - job.start_time
         db_status = job.format_version.db_status(full_status)
 
@@ -2598,7 +2604,10 @@ class Worker:
             'status': db_status,
         }
 
-        body = {'status': status}
+        body = {
+            'status': status,
+            'marked_job_started': job.marked_job_started,
+        }
 
         start_time = time_msecs()
         delay_secs = 0.1

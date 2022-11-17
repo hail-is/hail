@@ -225,7 +225,8 @@ class BatchBuilder:
                    timeout=None, cloudfuse=None, requester_pays_project=None,
                    mount_tokens=False, network: Optional[str] = None,
                    unconfined: bool = False, user_code: Optional[str] = None,
-                   regions: Optional[List[str]] = None) -> Job:
+                   regions: Optional[List[str]] = None,
+                   always_copy_output: bool = False) -> Job:
         if parents:
             parents = [parent._async_job for parent in parents]
 
@@ -235,7 +236,7 @@ class BatchBuilder:
             service_account=service_account,
             attributes=attributes, parents=parents,
             input_files=input_files, output_files=output_files, always_run=always_run,
-            timeout=timeout, cloudfuse=cloudfuse,
+            always_copy_output=always_copy_output, timeout=timeout, cloudfuse=cloudfuse,
             requester_pays_project=requester_pays_project, mount_tokens=mount_tokens,
             network=network, unconfined=unconfined, user_code=user_code,
             regions=regions)

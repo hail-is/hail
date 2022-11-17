@@ -483,6 +483,8 @@ class BatchBuilder:
         )
 
     def create_jvm_job(self, jar_spec: Dict[str, str], argv: List[str], **kwargs):
+        if 'always_copy_output' in kwargs:
+            raise ValueError("the 'always_copy_output' option is not allowed for JVM jobs")
         return self._create_job({'type': 'jvm', 'jar_spec': jar_spec, 'command': argv}, **kwargs)
 
     def _create_job(self,
@@ -498,6 +500,7 @@ class BatchBuilder:
                     input_files: Optional[List[Tuple[str, str]]] = None,
                     output_files: Optional[List[Tuple[str, str]]] = None,
                     always_run: bool = False,
+                    always_copy_output: bool = False,
                     timeout: Optional[Union[int, float]] = None,
                     cloudfuse: Optional[List[Tuple[str, str, bool]]] = None,
                     requester_pays_project: Optional[str] = None,
@@ -549,6 +552,7 @@ class BatchBuilder:
 
         job_spec = {
             'always_run': always_run,
+            'always_copy_output': always_copy_output,
             'job_id': self._job_idx,
             'absolute_parent_ids': absolute_parent_ids,
             'in_update_parent_ids': in_update_parent_ids,
