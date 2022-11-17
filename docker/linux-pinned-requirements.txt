@@ -105,7 +105,7 @@ dill==0.3.6
     #   pylint
 distro==1.8.0
     # via zulip
-docker==5.0.3
+docker==6.0.1
     # via -r requirements.txt
 docutils==0.19
     # via readme-renderer
