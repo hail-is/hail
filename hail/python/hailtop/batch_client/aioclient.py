@@ -462,6 +462,7 @@ class Batch:
             if err.code != 404:
                 raise
 
+
 class BatchBuilder:
     def __init__(self, client, *, attributes=None, callback=None, token=None, cancel_after_n_failures=None, batch=None):
         self._client = client
