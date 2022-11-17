@@ -1302,7 +1302,7 @@ def test_submit_update_to_deleted_batch(client: BatchClient):
 def test_region(client: BatchClient):
     assert CLOUD == 'gcp'
     bb = client.create_batch()
-    region = 'us-east1'
+    region = 'us-central1'
     j = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], regions=[region])
     b = bb.submit()
     status = j.wait()
