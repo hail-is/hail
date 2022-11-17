@@ -442,10 +442,6 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(1).annotate_globals(foo=5)
         assert hl.eval(ht.index_globals().foo) == 5
 
-    def test_interval_filter_loci(self):
-        ht = hl.import_vcf(resource('sample.vcf')).rows()
-        assert ht.filter(ht.locus > hl.locus('20', 17434581)).count() == 100
-
     def test_interval_join(self):
         left = hl.utils.range_table(50, n_partitions=10)
         intervals = hl.utils.range_table(4)
