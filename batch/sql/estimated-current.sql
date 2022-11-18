@@ -1080,9 +1080,9 @@ BEGIN
               jobs.n_succeeded_parents = COALESCE(t.n_succeeded_parents, 0),
               jobs.cancelled = CASE jobs.run_condition
                                  WHEN 'always' THEN jobs.cancelled
-                                 WHEN 'all_succeeded' THEN new_state != 'Success' OR jobs.cancelled
-                                 WHEN 'any_succeeded' THEN (COALESCE(jobs.n_pending_parents - 1, 0) = 0 AND COALESCE(jobs.n_succeeded_parents, 0) = 0 AND new_state != 'Success') OR jobs.cancelled
-                                 ELSE new_state != 'Success' or jobs.cancelled  # backwards compatibility
+                                 WHEN 'all_succeeded' THEN t.n_succeeded_parents != t.n_parents - t.n_pending_parents OR jobs.cancelled
+                                 WHEN 'any_succeeded' THEN (t.n_parents > 0 AND t.n_pending_parents = 0 AND t.n_succeeded = 0) OR jobs.cancelled
+                                 ELSE t.n_succeeded_parents != t.n_parents - t.n_pending_parents OR jobs.cancelled  # backwards compatibility
                                END
           WHERE jobs.batch_id = in_batch_id AND jobs.job_id >= cur_update_start_job_id AND
               jobs.job_id < cur_update_start_job_id + staging_n_jobs;
