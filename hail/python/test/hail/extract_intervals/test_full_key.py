@@ -1,48 +1,12 @@
 import hail as hl
 
 
-def test_mt_lt(mt, probe_variant):
-    expr = mt.filter_rows(mt.row_key < probe_variant)
-    assert expr.n_partitions() == 15
-    assert expr.count() == (245, 100)
-
-
-def test_mt_le(mt, probe_variant):
-    expr = mt.filter_rows(mt.row_key <= probe_variant)
-    assert expr.n_partitions() == 15
-    assert expr.count() == (246, 100)
-
-
 def test_mt_eq(mt, probe_variant):
     expr = mt.filter_rows(mt.row_key == probe_variant)
     assert expr.n_partitions() == 1
     actual = expr.GT.collect()
     expected = [hl.Call([0, int(i in (13, 17))]) for i in range(100)]
     assert actual == expected
-
-
-def test_mt_ge(mt, probe_variant):
-    expr = mt.filter_rows(mt.row_key >= probe_variant)
-    assert expr.n_partitions() == 6
-    assert expr.count() == (101, 100)
-
-
-def test_mt_gt(mt, probe_variant):
-    expr = mt.filter_rows(mt.row_key > probe_variant)
-    assert expr.n_partitions() == 6
-    assert expr.count() == (100, 100)
-
-
-def test_ht_lt(ht, probe_variant):
-    expr = ht.filter(ht.key < probe_variant)
-    assert expr.n_partitions() == 15
-    assert expr.count() == 245
-
-
-def test_ht_le(ht, probe_variant):
-    expr = ht.filter(ht.key <= probe_variant)
-    assert expr.n_partitions() == 15
-    assert expr.count() == 246
 
 
 def test_ht_eq(ht, probe_variant):
@@ -87,15 +51,3 @@ def test_ht_eq(ht, probe_variant):
         )
     )]
     assert actual == expected
-
-
-def test_ht_ge(ht, probe_variant):
-    expr = ht.filter(ht.key >= probe_variant)
-    assert expr.n_partitions() == 6
-    assert expr.count() == 101
-
-
-def test_ht_gt(ht, probe_variant):
-    expr = ht.filter(ht.key > probe_variant)
-    assert expr.n_partitions() == 6
-    assert expr.count() == 100
