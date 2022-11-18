@@ -9,6 +9,7 @@ import is.hail.expr.ir.functions._
 import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.avro.{AvroPartitionReader, AvroSchemaSerializer}
+import is.hail.io.fs.FS
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
 import is.hail.rvd.RVDSpecMaker
 import is.hail.types.encoded._
@@ -751,6 +752,7 @@ object PartitionReader {
       classOf[PartitionRVDReader],
       classOf[PartitionNativeReader],
       classOf[PartitionNativeReaderIndexed],
+      classOf[PartitionNativeIntervalReader],
       classOf[PartitionZippedNativeReader],
       classOf[PartitionZippedIndexedNativeReader],
       classOf[AbstractTypedCodecSpec],
@@ -763,6 +765,16 @@ object PartitionReader {
     new PTypeSerializer +
     new ETypeSerializer +
     new AvroSchemaSerializer
+
+  def extract(fs: FS, jv: JValue): PartitionReader = {
+    (jv \ "name").extract[String] match {
+      case "PartitionNativeIntervalReader" =>
+        val path = (jv \ "path").extract[String]
+        val spec = TableNativeReader.read(fs, path, None).spec
+        PartitionNativeIntervalReader(path, spec, (jv \ "uidFieldName").extract[String])
+      case _ => jv.extract[PartitionReader]
+    }
+  }
 }
 
 object PartitionWriter {

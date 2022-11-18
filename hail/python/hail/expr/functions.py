@@ -6302,6 +6302,83 @@ def shuffle(a, seed: builtins.int = None) -> ArrayExpression:
     return sorted(a, key=lambda _: hl.rand_unif(0.0, 1.0, seed=seed))
 
 
+@typecheck(path=builtins.str, point_or_interval=expr_any)
+def query_table(path, point_or_interval):
+    """Query records from a table corresponding to a given point or range of keys.
+
+    Notes
+    -----
+    This function does not dispatch to a distributed runtime; it can be used inside
+    already-distributed queries such as in :meth:`.Table.annotate`.
+
+    Warning
+    -------
+    This function contains no safeguards against reading large amounts of data
+    using a single thread.
+
+    Parameters
+    ----------
+    path : :class:`str`
+        Table path.
+    point_or_interval
+        Point or interval to query.
+
+    Returns
+    -------
+    :class:`.ArrayExpression`
+    """
+    table = hl.read_table(path)
+    row_typ = table.row.dtype
+
+    key_typ = table.key.dtype
+    key_names = list(key_typ)
+    len = builtins.len
+    if len(key_typ) == 0:
+        raise ValueError("query_table: cannot query unkeyed table")
+
+    def coerce_endpoint(point):
+        if point.dtype == key_typ[0]:
+            point = hl.struct(**{key_names[0]: point})
+        ts = point.dtype
+        if isinstance(ts, tstruct):
+            i = 0
+            while (i < len(ts)):
+                if i >= len(key_typ):
+                    raise ValueError(
+                        f"query_table: queried with {len(ts)} key field(s), but table only has {len(key_typ)} key field(s)")
+                if key_typ[i] != ts[i]:
+                    raise ValueError(
+                        f"query_table: key mismatch at key field {i} ({list(ts.keys())[i]!r}): query type is {ts[i]}, table key type is {key_typ[i]}")
+                i += 1
+
+            if i == 0:
+                raise ValueError("query_table: cannot query with empty key")
+
+            point_size = builtins.len(point.dtype)
+            return hl.tuple(
+                [hl.struct(**{key_names[i]: (point[i] if i < point_size else hl.missing(key_typ[i]))
+                              for i in builtins.range(builtins.len(key_typ))}), hl.int32(point_size)])
+        else:
+            raise ValueError(
+                f"query_table: key mismatch: cannot query a table with key "
+                f"({', '.join(builtins.str(x) for x in key_typ.values())}) with query point type {point.dtype}")
+
+    if point_or_interval.dtype != key_typ[0] and isinstance(point_or_interval.dtype, hl.tinterval):
+        partition_interval = hl.interval(start=coerce_endpoint(point_or_interval.start),
+                                         end=coerce_endpoint(point_or_interval.end),
+                                         includes_start=point_or_interval.includes_start,
+                                         includes_end=point_or_interval.includes_end)
+    else:
+        point = coerce_endpoint(point_or_interval)
+        partition_interval = hl.interval(start=point, end=point, includes_start=True, includes_end=True)
+    return construct_expr(
+        ir.ToArray(ir.ReadPartition(partition_interval._ir, reader=ir.PartitionNativeIntervalReader(path, row_typ))),
+        type=hl.tarray(row_typ),
+        indices=partition_interval._indices,
+        aggregations=partition_interval._aggregations
+    )
+
+
 @typecheck(msg=expr_str, result=expr_any)
 def _console_log(msg, result):
     indices, aggregations = unify_all(msg, result)

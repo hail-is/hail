@@ -177,6 +177,45 @@ object IntervalFunctions extends RegistryFunctions {
     }).asInt.value
   }
 
+  def partitionerFindIntervalRange(cb: EmitCodeBuilder, intervals: SIndexableValue, query: SIntervalValue, errorID: Value[Int]): (Value[Int], Value[Int]) = {
+    val needleStart = query.loadStart(cb)
+      .get(cb, "partitionerFindIntervalRange assumes non-missing interval endpoints", errorID)
+      .asBaseStruct
+    val needleEnd = query.loadEnd(cb)
+      .get(cb, "partitionerFindIntervalRange assumes non-missing interval endpoints", errorID)
+      .asBaseStruct
+
+    def ltNeedle(interval: IEmitCode): Code[Boolean] = {
+      val intervalVal = interval
+        .get(cb, "partitionerFindIntervalRange: partition intervals cannot be missing", errorID)
+        .asInterval
+      val intervalEnd = intervalVal.loadEnd(cb)
+        .get(cb, "partitionerFindIntervalRange assumes non-missing interval endpoints", errorID)
+        .asBaseStruct
+      val c = partitionIntervalEndpointCompare(cb,
+        intervalEnd, cb.memoize((intervalVal.includesEnd().toI << 1) - 1),
+        needleStart, cb.memoize(const(1) - (query.includesStart().toI << 1)))
+      c <= 0
+    }
+
+    def gtNeedle(interval: IEmitCode): Code[Boolean] = {
+      val intervalVal = interval
+        .get(cb, "partitionerFindIntervalRange: partition intervals cannot be missing", errorID)
+        .asInterval
+      val intervalStart = intervalVal.loadStart(cb)
+        .get(cb, "partitionerFindIntervalRange assumes non-missing interval endpoints", errorID)
+        .asBaseStruct
+      val c = partitionIntervalEndpointCompare(cb,
+        intervalStart, cb.memoize(const(1) - (intervalVal.includesStart().toI << 1)),
+        needleEnd, cb.memoize((query.includesEnd().toI << 1) - 1))
+      c >= 0
+    }
+
+    val compare = BinarySearch.Comparator.fromLtGt(ltNeedle, gtNeedle)
+
+    BinarySearch.equalRange(cb, intervals, compare, ltNeedle, gtNeedle, 0, intervals.loadLength())
+  }
+
   def registerAll(): Unit = {
     registerIEmitCode4("Interval", tv("T"), tv("T"), TBoolean, TBoolean, TInterval(tv("T")),
       { case (_: Type, startpt, endpt, includesStartET, includesEndET) =>
@@ -309,43 +348,12 @@ object IntervalFunctions extends RegistryFunctions {
     val requiredInt = EmitType(SInt32, true)
     val equalRangeResultType = TTuple(TInt32, TInt32)
     val equalRangeResultSType = SStackStruct(equalRangeResultType, FastIndexedSeq(requiredInt, requiredInt))
+
     registerSCode2("partitionerFindIntervalRange",
       TArray(partitionIntervalType), partitionIntervalType, equalRangeResultType,
       (_, _, _) => equalRangeResultSType
     ) { case (_, cb, rt, intervals: SIndexableValue, query: SIntervalValue, errorID) =>
-      val needleStart = query.loadStart(cb)
-        .get(cb, "partitionerFindIntervalRange assumes non-missing interval endpoints", errorID)
-        .asBaseStruct
-      val needleEnd = query.loadEnd(cb)
-        .get(cb, "partitionerFindIntervalRange assumes non-missing interval endpoints", errorID)
-        .asBaseStruct
-      def ltNeedle(interval: IEmitCode): Code[Boolean] = {
-        val intervalVal = interval
-          .get(cb, "partitionerFindIntervalRange: partition intervals cannot be missing", errorID)
-          .asInterval
-        val intervalEnd = intervalVal.loadEnd(cb)
-          .get(cb, "partitionerFindIntervalRange assumes non-missing interval endpoints", errorID)
-          .asBaseStruct
-        val c = partitionIntervalEndpointCompare(cb,
-          intervalEnd, cb.memoize((intervalVal.includesEnd().toI << 1) - 1),
-          needleStart, cb.memoize(const(1) - (query.includesStart().toI << 1)))
-        c <= 0
-      }
-      def gtNeedle(interval: IEmitCode): Code[Boolean] = {
-        val intervalVal = interval
-          .get(cb, "partitionerFindIntervalRange: partition intervals cannot be missing", errorID)
-          .asInterval
-        val intervalStart = intervalVal.loadStart(cb)
-          .get(cb, "partitionerFindIntervalRange assumes non-missing interval endpoints", errorID)
-          .asBaseStruct
-        val c = partitionIntervalEndpointCompare(cb,
-          intervalStart, cb.memoize(const(1) - (intervalVal.includesStart().toI << 1)),
-          needleEnd, cb.memoize((query.includesEnd().toI << 1) - 1))
-        c >= 0
-      }
-      val compare = BinarySearch.Comparator.fromLtGt(ltNeedle, gtNeedle)
-
-      val (start, end) = BinarySearch.equalRange(cb, intervals, compare, ltNeedle, gtNeedle, 0, intervals.loadLength())
+      val (start, end) = partitionerFindIntervalRange(cb, intervals, query, errorID)
       new SStackStructValue(equalRangeResultSType,
         FastIndexedSeq(
           EmitValue.present(primitive(start)),

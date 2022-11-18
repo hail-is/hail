@@ -1,4 +1,5 @@
 import copy
+import json
 from collections import defaultdict
 
 import decorator
@@ -11,13 +12,13 @@ from hail.ir.blockmatrix_writer import BlockMatrixWriter, BlockMatrixMultiWriter
 from hail.typecheck import typecheck, typecheck_method, sequenceof, numeric, \
     sized_tupleof, nullable, tupleof, anytype, func_spec
 from hail.utils.java import Env, HailUserError, warning
-from hail.utils.misc import escape_str, parsable_strings, escape_id
 from hail.utils.jsonx import dump_json
-from .utils import default_row_uid, default_col_uid, rng_key, unpack_row_uid, unpack_col_uid
+from hail.utils.misc import escape_str, parsable_strings, escape_id
 from .base_ir import BaseIR, IR, TableIR, MatrixIR, BlockMatrixIR, _env_bind
 from .matrix_writer import MatrixWriter, MatrixNativeMultiWriter
 from .renderer import Renderer, Renderable, ParensRenderer
 from .table_writer import TableWriter
+from .utils import default_row_uid, default_col_uid, rng_key, unpack_row_uid, unpack_col_uid
 
 
 class I32(IR):
@@ -2901,6 +2902,73 @@ class MatrixAggregate(IR):
 
     def renderable_agg_bindings(self, i, default_value=None):
         return self.child.typ.entry_env(default_value) if i == 1 else {}
+
+
+class PartitionReader(object):
+    pass
+
+    def with_uid_field(self, uid_field):
+        pass
+
+    def render(self):
+        pass
+
+    def _eq(self, other):
+        pass
+
+    def row_type(self):
+        pass
+
+
+class PartitionNativeIntervalReader(PartitionReader):
+    def __init__(self, path, table_row_type, uid_field=None):
+        self.path = path
+        self.table_row_type = table_row_type
+        self.uid_field = uid_field
+
+    def with_uid_field(self, uid_field):
+        return PartitionNativeIntervalReader(self.path, uid_field)
+
+    def render(self):
+        return escape_str(json.dumps({"name": "PartitionNativeIntervalReader",
+                                      "path": self.path,
+                                      "uidFieldName": self.uid_field if self.uid_field is not None else '__dummy'}))
+
+    def _eq(self, other):
+        return isinstance(other,
+                          PartitionNativeIntervalReader) and self.path == other.path and self.uid_field == other.uid_field
+
+    def row_type(self):
+        if self.uid_field is None:
+            return self.table_row_type
+        return tstruct(**self.table_row_type, **{self.uid_field: ttuple(tint64, tint64)})
+
+
+class ReadPartition(IR):
+    @typecheck_method(context=IR, reader=PartitionReader)
+    def __init__(self, context, reader):
+        super().__init__(context)
+        self.context = context
+        self.has_uid = False
+        self.reader = reader
+
+    def _handle_randomness(self, create_uids):
+        if create_uids:
+            return ReadPartition(self.context, self.reader.with_uid_field('__uid'))
+        return self
+
+    @typecheck_method(context=IR)
+    def copy(self, context):
+        return ReadPartition(context, reader=self.reader)
+
+    def head_str(self):
+        return f'{"DropRowUIDs" if self.reader.uid_field is None else "None"} "{self.reader.render()}"'
+
+    def _eq(self, other):
+        return self.reader.eq(other.reader)
+
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        return tstream(self.reader.row_type())
 
 
 class TableWrite(IR):
