@@ -456,7 +456,11 @@ class Batch:
         return {'status': batch_status, 'jobs': jobs}
 
     async def delete(self):
-        await self._client._delete(f'/api/v1alpha/batches/{self.id}')
+        try:
+            await self._client._delete(f'/api/v1alpha/batches/{self.id}')
+        except httpx.ClientResponseError as err:
+            if err.code != 404:
+                raise
 
 
 class BatchBuilder:
