@@ -30,6 +30,36 @@ void CPSDialect::initialize() {
 // CallCCOp
 //===----------------------------------------------------------------------===//
 
+mlir::Type ContinuationType::parse(::mlir::AsmParser &parser) {
+  mlir::Builder builder(parser.getContext());
+  llvm::SmallVector<mlir::Type> inputs;
+
+  auto parseType = [&](){
+    auto element = mlir::FieldParser<mlir::Type>::parse(parser);
+    if (failed(element))
+      return mlir::failure();
+    inputs.push_back(*element);
+    return mlir::success();
+  };
+
+  if (parser.parseCommaSeparatedList(mlir::AsmParser::Delimiter::LessGreater, parseType)) {
+    parser.emitError(parser.getCurrentLocation(), "failed to parse CPS_ContType parameter 'inputs' which is to be a `::llvm::ArrayRef<mlir::Type>`");
+    return {};
+  }
+  return ContinuationType::get(parser.getContext(), inputs);
+}
+
+void ContinuationType::print(::mlir::AsmPrinter &p) const {
+  ::mlir::Builder odsBuilder(getContext());
+  p << "<";
+  p.printStrippedAttrOrType(getInputs());
+  p << ">";
+}
+
+//===----------------------------------------------------------------------===//
+// CallCCOp
+//===----------------------------------------------------------------------===//
+
 mlir::ParseResult CallCCOp::parse(mlir::OpAsmParser &parser,
                                   mlir::OperationState &result) {
   auto &builder = parser.getBuilder();

@@ -91,6 +91,7 @@ int loadAndProcessMLIR(mlir::MLIRContext &context,
   if (isLoweringToMLIR) {
     // Partially lower the sandbox dialect.
     pm.addPass(createLowerSandboxPass());
+    pm.addPass(createCPSToCFPass());
 
     // Add a few cleanups post lowering.
     mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();

@@ -2,27 +2,10 @@
 #define DIALECT_CPS_IR_CPSOPS
 
 include "mlir/Interfaces/SideEffectInterfaces.td"
-include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/BuiltInTypes.td"
 include "mlir/IR/OpBase.td"
 
-def CPS_Dialect : Dialect {
-  let name = "cps";
-  let summary = "Allows for blocks of code in continuation passing style";
-  let cppNamespace = "::hail::ir";
-  let useDefaultTypePrinterParser = 1;
-}
-
-class CPS_Type<string name, string typeMnemonic, list<Trait> traits = []>
-    : TypeDef<CPS_Dialect, name, traits> {
-  let mnemonic = typeMnemonic;
-}
-
-def CPS_ContType : CPS_Type<"Continuation", "cont"> {
-  let summary = "Continuation type";
-  let parameters = (ins ArrayRefParameter<"mlir::Type">:$inputs);
-  let assemblyFormat = "`<` $inputs `>`";
-}
+include "Dialect/CPS/IR/CPSBase.td"
 
 class CPS_Op<string mnemonic, list<Trait> traits = []> :
         Op<CPS_Dialect, mnemonic, traits>;
@@ -50,7 +33,7 @@ def CPS_DefContOp : CPS_Op<"cont", [NoSideEffect, SingleBlock]> {
   let hasCustomAssemblyFormat = 1;
 }
 
-def CPS_ApplyContOp : CPS_Op<"apply", [Terminator, ParentOneOf<["CallCCOp", "DefContOp"]>]> {
+def CPS_ApplyContOp : CPS_Op<"apply", [Terminator]> {
   let summary = "Apply a continuation";
   let description = [{
   }];

@@ -1,4 +1,4 @@
-func.func @cont() {
+func.func @main() {
   %foo = cps.callcc %ret : i32 {
     %cont = cps.cont(%arg1: i32) {
       cps.apply %ret(%arg1) : i32
