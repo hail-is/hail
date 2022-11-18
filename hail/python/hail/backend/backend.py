@@ -4,7 +4,7 @@ from ..fs.fs import FS
 from ..expr import Expression
 from ..expr.types import HailType
 from ..ir import BaseIR
-from ..utils.java import FatalError, HailUserError
+from ..utils.java import FatalError
 
 
 def fatal_error_from_java_error_triplet(short_message, expanded_message, error_id):
@@ -171,19 +171,3 @@ class Backend(abc.ABC):
     @abc.abstractmethod
     def requires_lowering(self):
         pass
-
-    def _handle_fatal_error_from_backend(self, err: FatalError, ir: BaseIR):
-        if err._error_id is None:
-            raise err
-
-        error_sources = ir.base_search(lambda x: x._error_id == err._error_id)
-        if len(error_sources) == 0:
-            raise err
-
-        better_stack_trace = error_sources[0]._stack_trace
-        error_message = str(err)
-        message_and_trace = (f'{error_message}\n'
-                             '------------\n'
-                             'Hail stack trace:\n'
-                             f'{better_stack_trace}')
-        raise HailUserError(message_and_trace) from None
