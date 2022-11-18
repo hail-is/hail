@@ -10,6 +10,7 @@
 
 #include "Dialect/CPS/IR/CPS.h"
 #include "Dialect/Missing/IR/Missing.h"
+#include "Dialect/Option/IR/Option.h"
 #include "Dialect/Sandbox/IR/Sandbox.h"
 
 namespace hail::ir {
@@ -23,6 +24,7 @@ inline void registerAllDialects(mlir::DialectRegistry &registry) {
                   mlir::tensor::TensorDialect,
                   hail::ir::CPSDialect,
                   hail::ir::MissingDialect,
+                  hail::ir::OptionDialect,
                   hail::ir::SandboxDialect>();
   // clang-format on
 }
