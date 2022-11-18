@@ -2948,6 +2948,7 @@ steps:
       - build_hail
       - merge_code
       - hailgenetics_hail_image
+      - hailgenetics_hailtop_image
       - build_wheel_for_azure
       - make_docs
     clouds:
