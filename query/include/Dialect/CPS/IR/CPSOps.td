@@ -48,10 +48,6 @@ def CPS_DefContOp : CPS_Op<"cont", [NoSideEffect, SingleBlock]> {
   let regions = (region SizedRegion<1>:$bodyRegion);
 
   let hasCustomAssemblyFormat = 1;
-
-  let extraClassDeclaration = [{
-    mlir::Block *body();
-  }];
 }
 
 def CPS_ApplyContOp : CPS_Op<"apply", [Terminator, ParentOneOf<["CallCCOp", "DefContOp"]>]> {

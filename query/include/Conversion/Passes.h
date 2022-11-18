@@ -1,6 +1,7 @@
 #ifndef CONVERSION_PASSES_H
 #define CONVERSION_PASSES_H
 
+#include "Conversion/CPSToCF/CPSToCF.h"
 #include "Conversion/LowerSandbox/LowerSandbox.h"
 #include "Conversion/LowerToLLVM/LowerToLLVM.h"
 #include "mlir/Pass/PassRegistry.h"

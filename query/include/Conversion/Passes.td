@@ -4,10 +4,6 @@
 include "mlir/Pass/PassBase.td"
 
 
-//===----------------------------------------------------------------------===//
-// AffineToStandard
-//===----------------------------------------------------------------------===//
-
 def LowerSandbox : Pass<"lower-sandbox"> {
   let summary = "Lower sandbox operations to arith";
   let description = [{
@@ -18,6 +14,16 @@ def LowerSandbox : Pass<"lower-sandbox"> {
   let dependentDialects = [
     "mlir::arith::ArithmeticDialect",
     "mlir::tensor::TensorDialect"
+  ];
+}
+
+def CPSToCF : Pass<"cps-to-cf"> {
+  let summary = "Lower CPS-style control flow to the CFG-based cf dialect";
+  let description = [{
+  }];
+  let constructor = "hail::ir::createCPSToCFPass()";
+  let dependentDialects = [
+    "mlir::cf::ControlFlowDialect",
   ];
 }
 
