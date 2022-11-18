@@ -6308,6 +6308,7 @@ def shuffle(a, seed: builtins.int = None) -> ArrayExpression:
     """
     return sorted(a, key=lambda _: hl.rand_unif(0.0, 1.0, seed=seed))
 
+
 @typecheck(path=builtins.str, point_or_interval=expr_any)
 def query_table(path, point_or_interval):
     """Query records from a table corresponding to a given point or range of keys.
@@ -6340,7 +6341,7 @@ def query_table(path, point_or_interval):
     key_names = list(key_typ)
     len = builtins.len
     if len(key_typ) == 0:
-        raise ValueError(f"query_table: cannot query unkeyed table")
+        raise ValueError("query_table: cannot query unkeyed table")
 
     def coerce_endpoint(point):
         if point.dtype == key_typ[0]:
@@ -6353,11 +6354,12 @@ def query_table(path, point_or_interval):
                     raise ValueError(
                         f"query_table: queried with {len(ts)} key field(s), but table only has {len(key_typ)} key field(s)")
                 if key_typ[i] != ts[i]:
-                    raise ValueError(f"query_table: key mismatch at key field {i} ({list(ts.keys())[i]!r}): query type is {ts[i]}, table key type is {key_typ[i]}")
+                    raise ValueError(
+                        f"query_table: key mismatch at key field {i} ({list(ts.keys())[i]!r}): query type is {ts[i]}, table key type is {key_typ[i]}")
                 i += 1
 
             if i == 0:
-                raise ValueError(f"query_table: cannot query with empty key")
+                raise ValueError("query_table: cannot query with empty key")
 
             point_size = builtins.len(point.dtype)
             return hl.tuple(
@@ -6375,7 +6377,7 @@ def query_table(path, point_or_interval):
                                          includes_end=point_or_interval.includes_end)
     else:
         point = coerce_endpoint(point_or_interval)
-        partition_interval=hl.interval(start=point, end=point, includes_start=True, includes_end=True)
+        partition_interval = hl.interval(start=point, end=point, includes_start=True, includes_end=True)
     return construct_expr(
         ir.ToArray(ir.ReadPartition(partition_interval._ir, reader=ir.PartitionNativeIntervalReader(path, row_typ))),
         type=hl.tarray(row_typ),
