@@ -1,18 +1,22 @@
 package is.hail.io.fs
 
-import com.google.auth.oauth2.ServiceAccountCredentials
-import com.google.cloud.storage.Storage.{BlobListOption, BlobSourceOption}
-import com.google.cloud.storage._
-import com.google.cloud.{ReadChannel, WriteChannel}
-import is.hail.io.fs.FSUtil.dropTrailingSlash
-import is.hail.services.retryTransientErrors
-import is.hail.utils.fatal
-import org.apache.log4j.Logger
 
 import java.io.{ByteArrayInputStream, FileNotFoundException}
 import java.net.URI
 import java.nio.ByteBuffer
+import java.nio.file.FileSystems
+import org.apache.log4j.Logger
+import com.google.auth.oauth2.ServiceAccountCredentials
+import com.google.cloud.{ReadChannel, WriteChannel}
+import com.google.cloud.storage.Storage.{BlobListOption, BlobWriteOption, BlobSourceOption}
+import com.google.cloud.storage.{Option => StorageOption, _}
+import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
+import is.hail.services.retryTransientErrors
+import is.hail.utils.fatal
+
 import scala.collection.JavaConverters._
+import scala.collection.mutable
+import scala.reflect.ClassTag
 
 object GoogleStorageFS {
   private val log = Logger.getLogger(getClass.getName())
