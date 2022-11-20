@@ -4,9 +4,8 @@ import java.io.FileNotFoundException
 import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
 import is.hail.io.fs.FSUtil.dropTrailingSlash
-import is.hail.io.fs.{FS, FileStatus, GoogleStorageFS, Seekable}
+import is.hail.io.fs.{FS, FileStatus, Seekable}
 import is.hail.utils._
-import org.apache.commons.codec.binary.Hex
 import org.apache.commons.io.IOUtils
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
@@ -346,36 +345,6 @@ trait FSSuite extends TestNGSuite {
 
     fs.delete(f, false)
     assert(!fs.exists(f))
-  }
-
-  @Test def testSeekAndReadStraddlingBufferSize(): Unit = {
-    val data = Array.tabulate(251)(_.toByte)
-    val f = t()
-    using(fs.create(f)) { os =>
-      var i = 0
-      // 66058 replicates are 8MB of data
-      while (i < 70000) {
-        os.write(data)
-        i += 1
-      }
-    }
-
-    using(fs.openNoCompression(f)) { is =>
-
-      is.seek(251)
-      assert(is.read() == 0)
-      assert(is.read() == 1)
-
-      val seekPos = 8 * 1024 * 1024 - 512
-      is.seek(8 * 1024 * 1024 - 512)
-      assert(is.getPosition == seekPos)
-      val toRead = new Array[Byte](512)
-      is.readFully(toRead)
-
-      (0 until toRead.length).foreach { i =>
-        assert(toRead(i) == ((seekPos + i) % 251).toByte)
-      }
-    }
   }
 }
 

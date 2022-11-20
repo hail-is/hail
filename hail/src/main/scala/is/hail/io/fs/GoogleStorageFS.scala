@@ -1,6 +1,5 @@
 package is.hail.io.fs
 
-
 import java.io.{ByteArrayInputStream, FileNotFoundException}
 import java.net.URI
 import java.nio.ByteBuffer
@@ -209,7 +208,8 @@ class GoogleStorageFS(
         return n
       }
 
-      override def physicalSeek(newPos: Long): Unit = {
+      override def seek(newPos: Long): Unit = {
+        super.seek(newPos)
         seekHandlingRequesterPays(newPos)
       }
     }
