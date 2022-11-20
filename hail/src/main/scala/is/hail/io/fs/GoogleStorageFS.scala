@@ -208,8 +208,7 @@ class GoogleStorageFS(
         return n
       }
 
-      override def seek(newPos: Long): Unit = {
-        super.seek(newPos)
+      override def physicalSeek(newPos: Long): Unit = {
         seekHandlingRequesterPays(newPos)
       }
     }
