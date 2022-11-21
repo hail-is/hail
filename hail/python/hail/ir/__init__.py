@@ -18,7 +18,8 @@ from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
     MakeStruct, SelectFields, InsertFields, GetField, MakeTuple, \
     GetTupleElement, Die, ConsoleLog, Apply, ApplySeeded, RNGStateLiteral, RNGSplit,\
     TableCount, TableGetGlobals, TableCollect, TableAggregate, MatrixCount,\
-    MatrixAggregate, TableWrite, udf, subst, clear_session_functions, get_static_split_uid
+    MatrixAggregate, TableWrite, udf, subst, clear_session_functions, get_static_split_uid, \
+    ReadPartition, PartitionNativeIntervalReader
 from .register_functions import register_functions
 from .register_aggregators import register_aggregators
 from .table_ir import MatrixRowsTable, TableJoin, TableLeftJoinRightDistinct, \
@@ -314,5 +315,7 @@ __all__ = [
     'TableWriter',
     'TableNativeWriter',
     'TableTextWriter',
-    'TableNativeFanoutWriter'
+    'TableNativeFanoutWriter',
+    'ReadPartition',
+    'PartitionNativeIntervalReader',
 ]
