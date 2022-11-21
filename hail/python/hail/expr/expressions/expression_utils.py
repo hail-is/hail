@@ -130,24 +130,21 @@ def analyze(caller: str,
         raise errors[0]
 
 
-def _eval_many(*expressions, timed=False, name='_eval_many'):
+def _eval(expression, timed=False, name='_eval'):
     from hail.utils.java import Env
 
-    irs = []
-    for expression in expressions:
-        analyze(name, expression, Indices(expression._indices.source))
-        if expression._indices.source is None:
-            ir_type = expression._ir.typ
-            expression_type = expression.dtype
-            if ir_type != expression.dtype:
-                raise ExpressionException(f'Expression type and IR type differed: \n{ir_type}\n vs \n{expression_type}')
-            irs.append(expression._ir)
-        else:
-            uid = Env.get_uid()
-            ir = expression._indices.source.select_globals(**{uid: expression}).index_globals()[uid]._ir
-            irs.append(ir)
+    analyze(name, expression, Indices(expression._indices.source))
+    if expression._indices.source is None:
+        ir_type = expression._ir.typ
+        expression_type = expression.dtype
+        if ir_type != expression.dtype:
+            raise ExpressionException(f'Expression type and IR type differed: \n{ir_type}\n vs \n{expression_type}')
+        ir = expression._ir
+    else:
+        uid = Env.get_uid()
+        ir = expression._indices.source.select_globals(**{uid: expression}).index_globals()[uid]._ir
 
-    return Env.backend().execute_many(*irs, timed=timed)
+    return Env.backend().execute(ir, timed=timed)
 
 
 @typecheck(expression=expr_any)
@@ -165,7 +162,7 @@ def eval_timed(expression):
     (Any, dict)
         Result of evaluating `expression` and a dictionary of the timings
     """
-    return _eval_many(expression, timed=True, name='eval_timed')[0]
+    return _eval(expression, timed=True, name='eval_timed')
 
 
 @typecheck(expression=expr_any)

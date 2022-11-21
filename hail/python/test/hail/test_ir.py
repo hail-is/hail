@@ -404,7 +404,7 @@ class ValueTests(unittest.TestCase):
             test_exprs.append(hl.Table(map_globals_ir).index_globals())
             expecteds.append(hl.Struct(foo=v))
 
-        actuals = hl._eval_many(*test_exprs)
+        actuals = hl.eval(hl.tuple(test_exprs))
         for expr, actual, expected in zip(test_exprs, actuals, expecteds):
             assert actual == expected, str(expr)
 

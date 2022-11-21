@@ -423,21 +423,6 @@ class ServiceBackend(Backend):
             return converted_value, timings
         return converted_value
 
-    def execute_many(self, *irs, timed=False):
-        return async_to_blocking(self._async_execute_many(*irs, timed=timed))
-
-    async def _async_execute_many(self,
-                                  *irs,
-                                  timed=False,
-                                  progress: Optional[BatchProgressBar] = None):
-        if progress is None:
-            with BatchProgressBar() as progress:
-                return await asyncio.gather(*[self._async_execute(ir, timed=timed, progress=progress)
-                                              for ir in irs])
-        else:
-            return await asyncio.gather(*[self._async_execute(ir, timed=timed, progress=progress)
-                                          for ir in irs])
-
     def value_type(self, ir):
         return async_to_blocking(self._async_value_type(ir))
 
