@@ -1190,7 +1190,7 @@ def compute_charr(
         min_dp: int = 10,
         max_dp: int = 100,
         min_gq: int = 20,
-        ref_AF = None
+        ref_AF: Optional[hl.Float64Expression] = None
 ):
     """Compute CHARR, the DNA sample contamination estimator.
 
@@ -1252,7 +1252,7 @@ def compute_charr(
     if ref_AF is None:
         n_samples = mt.count_cols()
         if n_samples < 10000:
-            raise ValueError(f"'compute_charr': with fewer than 10,000 samples, require a reference AF in 'reference_data_source'.")
+            raise ValueError("'compute_charr': with fewer than 10,000 samples, require a reference AF in 'reference_data_source'.")
 
         n_alleles = 2 * n_samples
         mt = mt.annotate_rows(
@@ -1260,7 +1260,6 @@ def compute_charr(
         )
     else:
         mt = mt.annotate_rows(**{ref_af_field: ref_AF})
-
 
     # Filter to autosomal biallelic SNVs with reference allele frequency within the range (min_af, max_af)
     rg = mt.locus.dtype.reference_genome.name
