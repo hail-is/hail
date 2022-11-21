@@ -2,6 +2,7 @@
 #define CONVERSION_PASSES_H
 
 #include "Conversion/CPSToCF/CPSToCF.h"
+#include "Conversion/LowerOption/LowerOption.h"
 #include "Conversion/LowerSandbox/LowerSandbox.h"
 #include "Conversion/LowerToLLVM/LowerToLLVM.h"
 #include "mlir/Pass/PassRegistry.h"

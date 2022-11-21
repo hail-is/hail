@@ -1,3 +1,4 @@
 add_subdirectory(CPSToCF)
+add_subdirectory(LowerOption)
 add_subdirectory(LowerSandbox)
 add_subdirectory(LowerToLLVM)

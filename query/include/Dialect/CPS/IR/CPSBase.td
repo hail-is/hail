@@ -20,6 +20,20 @@ def CPS_ContType : CPS_Type<"Continuation", "cont"> {
   let parameters = (ins ArrayRefParameter<"mlir::Type">:$inputs);
   // The declarative format "`<` $inputs `>`" doesn't support the empty list of types
   let hasCustomAssemblyFormat = 1;
+  let builders = [
+    TypeBuilder<(ins "mlir::TypeRange":$inputTypes), [{
+      return $_get($_ctxt, inputTypes);
+    }]>,
+    TypeBuilder<(ins), [{
+      return $_get($_ctxt, mlir::TypeRange());
+    }]>
+  ];
+  let skipDefaultBuilders = 1;
+  let genStorageClass = 0;
+}
+
+def CPS_EmptyContType : Type<CPred<"$_self.isa<ContinuationType>()">> {
+  let builderCall = "$_builder.getType<ContinuationType>(llvm::ArrayRef<mlir::Type>())";
 }
 
 #endif // DIALECT_CPS_IR_CPSBASE

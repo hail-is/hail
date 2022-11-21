@@ -7,7 +7,6 @@ set(LIBS
         MLIROptLib
         # Hail Libraries Go Here
         ${hail_dialect_libs}
-        HailLowerToLLVM
         HailTransforms
         )
 add_llvm_executable(hail-opt hail-opt.cpp)

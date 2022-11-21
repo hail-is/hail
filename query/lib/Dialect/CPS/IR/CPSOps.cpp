@@ -8,10 +8,28 @@
 #include "mlir/Support/LogicalResult.h"
 
 #define GET_OP_CLASSES
-
 #include "Dialect/CPS/IR/CPSOps.cpp.inc"
-namespace hail {
-namespace ir {
 
-} // namespace ir
-} // namespace hail
+using namespace hail::ir;
+
+namespace {
+
+struct InlineCont : public mlir::OpRewritePattern<ApplyContOp> {
+  using OpRewritePattern<ApplyContOp>::OpRewritePattern;
+
+  mlir::LogicalResult matchAndRewrite(ApplyContOp apply,
+                                      mlir::PatternRewriter &rewriter) const override {
+    auto defcont = apply.cont().getDefiningOp<DefContOp>();
+    if (!defcont || !defcont->hasOneUse())
+      return mlir::failure();
+
+    rewriter.mergeBlocks(defcont.getBody(), apply->getBlock(), apply.args());
+    rewriter.eraseOp(apply);
+  }
+};
+
+} // namespace
+
+void ApplyContOp::getCanonicalizationPatterns(mlir::RewritePatternSet &results, mlir::MLIRContext *context) {
+  results.add<InlineCont>(context);
+}

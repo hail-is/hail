@@ -39,7 +39,8 @@ mlir::LogicalResult CPSToCFPass::lowerCallCCOp(mlir::IRRewriter &rewriter, CallC
   for (mlir::OpOperand &use : llvm::make_early_inc_range(body.getArgument(0).getUses())) {
     auto applyOp = dyn_cast<ApplyContOp>(use.getOwner());
     // continuations can only be used as first operand to an apply op
-    assert((applyOp == nullptr) || (use.getOperandNumber() != 0));
+    assert(applyOp != nullptr && use.getOperandNumber() == 0);
+    ContinuationType::get(rewriter.getContext(), llvm::SmallVector<mlir::Type>(applyOp->getOperandTypes()));
     rewriter.setInsertionPoint(applyOp);
     rewriter.replaceOpWithNewOp<mlir::cf::BranchOp>(applyOp, applyOp.args(), continuation);
   }
@@ -71,7 +72,7 @@ mlir::LogicalResult CPSToCFPass::lowerDefContOp(mlir::IRRewriter &rewriter, DefC
   for (mlir::OpOperand &use : llvm::make_early_inc_range(op.result().getUses())) {
     auto applyOp = dyn_cast<ApplyContOp>(use.getOwner());
     // continuations can only be used as first operand to an apply op
-    assert((applyOp == nullptr) || (use.getOperandNumber() != 0));
+    assert(applyOp != nullptr && use.getOperandNumber() == 0);
     rewriter.setInsertionPoint(applyOp);
     assert(body.getNumArguments() == applyOp.args().size());
     rewriter.replaceOpWithNewOp<mlir::cf::BranchOp>(applyOp, applyOp.args(), &body);

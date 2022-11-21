@@ -27,8 +27,49 @@ void CPSDialect::initialize() {
 }
 
 //===----------------------------------------------------------------------===//
-// CallCCOp
+// ContinuationType
 //===----------------------------------------------------------------------===//
+
+namespace hail::ir::detail {
+
+struct ContinuationTypeStorage final
+    : public mlir::TypeStorage,
+      public llvm::TrailingObjects<ContinuationTypeStorage, mlir::Type> {
+  using KeyTy = mlir::TypeRange;
+
+  ContinuationTypeStorage(unsigned numTypes) : numElements(numTypes) {}
+
+  /// Construction.
+  static ContinuationTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
+                                     mlir::TypeRange key) {
+    // Allocate a new storage instance.
+    auto byteSize = ContinuationTypeStorage::totalSizeToAlloc<mlir::Type>(key.size());
+    auto *rawMem = allocator.allocate(byteSize, alignof(ContinuationTypeStorage));
+    auto *result = ::new (rawMem) ContinuationTypeStorage(key.size());
+
+    // Copy in the element types into the trailing storage.
+    std::uninitialized_copy(key.begin(), key.end(),
+                            result->getTrailingObjects<mlir::Type>());
+    return result;
+  }
+
+  bool operator==(const KeyTy &key) const { return key == getTypes(); }
+
+  /// Return the number of held types.
+  unsigned size() const { return numElements; }
+
+  /// Return the held types.
+  llvm::ArrayRef<mlir::Type> getTypes() const {
+    return {getTrailingObjects<mlir::Type>(), size()};
+  }
+
+  /// The number of tuple elements.
+  unsigned numElements;
+};
+
+} // namespace hail::ir::detail
+
+llvm::ArrayRef<mlir::Type> ContinuationType::getInputs() const { return getImpl()->getTypes(); }
 
 mlir::Type ContinuationType::parse(::mlir::AsmParser &parser) {
   mlir::Builder builder(parser.getContext());
@@ -153,47 +194,4 @@ void DefContOp::print(mlir::OpAsmPrinter &p) {
   // Print the body
   p << ' ';
   p.printRegion(getRegion(), /*printEntryBlocksArgs=*/false);
-}
-
-//===----------------------------------------------------------------------===//
-// ApplyContOp
-//===----------------------------------------------------------------------===//
-
-mlir::ParseResult ApplyContOp::parse(mlir::OpAsmParser &parser,
-                                   mlir::OperationState &result) {
-  auto &builder = parser.getBuilder();
-
-  // Parse the continuation and argument names
-  mlir::OpAsmParser::UnresolvedOperand contName;
-  llvm::SmallVector<mlir::OpAsmParser::UnresolvedOperand> argNames;
-
-  if (parser.parseOperand(contName) ||
-      parser.parseOperandList(argNames, mlir::OpAsmParser::Delimiter::Paren))
-    return mlir::failure();
-
-  llvm::SmallVector<mlir::Type> argTypes;
-  llvm::SmallVector<mlir::Value, 1> cont;
-  llvm::SmallVector<mlir::Value> args;
-  mlir::NamedAttrList parsedAttributes;
-  result.attributes.append(parsedAttributes);
-  argTypes.reserve(argNames.size());
-  args.reserve(argNames.size());
-  if (parser.parseOptionalColonTypeList(argTypes) ||
-      parser.resolveOperand(contName, builder.getType<ContinuationType>(argTypes), cont) ||
-      parser.resolveOperands(argNames, argTypes, parser.getCurrentLocation(), args) ||
-      parser.parseOptionalAttrDict(parsedAttributes))
-    return mlir::failure();
-
-  result.addOperands(cont);
-  result.addOperands(args);
-  result.attributes.append(parsedAttributes);
-  return mlir::success();
-}
-
-void ApplyContOp::print(mlir::OpAsmPrinter &p) {
-  p << ' ' << cont() << '(' << args() << ')';
-  if (args().size() > 0) {
-    p << " : " << args().getTypes();
-  }
-  p.printOptionalAttrDict(getOperation()->getAttrs());
 }

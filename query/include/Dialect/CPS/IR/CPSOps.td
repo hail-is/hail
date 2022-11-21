@@ -33,13 +33,52 @@ def CPS_DefContOp : CPS_Op<"cont", [NoSideEffect, SingleBlock]> {
   let hasCustomAssemblyFormat = 1;
 }
 
-def CPS_ApplyContOp : CPS_Op<"apply", [Terminator]> {
+def CPS_ApplyContOp : CPS_Op<"apply", [
+    Terminator, NoSideEffect,
+    TypesMatchWith<"", "args", "cont", "::hail::ir::ContinuationType::get($_ctxt, $_self)">
+  ]> {
   let summary = "Apply a continuation";
   let description = [{
   }];
 
   let arguments = (ins CPS_ContType:$cont, Variadic<AnyType>:$args);
-  let hasCustomAssemblyFormat = 1;
+  let assemblyFormat = "$cont (`(` $args^ `)` `:` type($args))? attr-dict";
+
+  let hasCanonicalizer = 1;
+}
+
+def CPS_IfOp : CPS_Op<"if", [
+    Terminator, NoSideEffect, AttrSizedOperandSegments,
+    TypesMatchWith<"", "trueArgs", "trueCont", "::hail::ir::ContinuationType::get($_ctxt, $_self)">,
+    TypesMatchWith<"", "falseArgs", "falseCont", "::hail::ir::ContinuationType::get($_ctxt, $_self)">
+  ]> {
+  let summary = "if-then-else operation";
+  let description = [{
+  }];
+  let arguments = (ins I1:$condition);
+  let arguments = (ins I1:$condition,
+                       CPS_ContType:$trueCont, Variadic<AnyType>:$trueArgs,
+                       CPS_ContType:$falseCont, Variadic<AnyType>:$falseArgs);
+
+  let assemblyFormat = [{
+    $condition `,`
+    $trueCont (`(` $trueArgs^ `:` type($trueArgs) `)`)? `,`
+    $falseCont (`(` $falseArgs^ `:` type($falseArgs) `)`)?
+    attr-dict
+  }];
+}
+
+// FIXME: find the right dialect for this to live
+def CPS_UndefinedOp : CPS_Op<"undefined", [NoSideEffect]> {
+  let summary = "undefined";
+  let description = [{
+  }];
+
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat = [{
+    attr-dict `:` type($result)
+  }];
 }
 
 #endif // DIALECT_CPS_IR_CPSOPS
