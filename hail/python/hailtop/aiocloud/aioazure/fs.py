@@ -45,7 +45,8 @@ class AzureWritableStream(WritableStream):
             n = self._chunk_size
 
         block_id = secrets.token_urlsafe(32)
-        await self.client.stage_block(block_id, self._write_buffer.chunks(n))
+        with self._write_buffer.chunks(n) as chunks:
+            await self.client.stage_block(block_id, chunks)
         self.block_ids.append(block_id)
 
         new_offset = self._write_buffer.offset() + n
