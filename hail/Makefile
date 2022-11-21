@@ -373,6 +373,8 @@ install-deps: install-dev-deps
 
 .PHONY: generate-pip-lockfile
 generate-pip-lockfile:
+	pip-compile --upgrade python/hailtop/requirements.txt \
+		--output-file=python/hailtop/pinned-requirements.txt
 	pip-compile --upgrade python/requirements.txt \
 		--output-file=python/pinned-requirements.txt
 	pip-compile --upgrade python/dev/requirements.txt \

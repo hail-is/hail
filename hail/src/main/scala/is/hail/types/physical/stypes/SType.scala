@@ -116,4 +116,15 @@ case class EmitType(st: SType, required: Boolean) {
   )
 
   def nSettables: Int = settableTupleTypes.length
+
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: EmitValue, deepCopy: Boolean): EmitValue = {
+    if (value.emitType == this && (!deepCopy || !value.st.containsPointers))
+      value
+    else
+      (required, value.required) match {
+        case (true, _) => EmitValue.present(st.coerceOrCopy(cb, region, value.get(cb), deepCopy))
+        case (false, true) => EmitValue.present(st.coerceOrCopy(cb, region, value.get(cb), deepCopy)).setOptional
+        case (false, false) => cb.memoize(value.toI(cb).map(cb)(value => st.coerceOrCopy(cb, region, value, deepCopy)))
+      }
+  }
 }

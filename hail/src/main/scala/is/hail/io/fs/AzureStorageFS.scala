@@ -23,6 +23,7 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 
+
 object AzureStorageFS {
   private val pathRegex = "/([^/]+)(.*)".r
 
@@ -139,6 +140,11 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     val is: SeekableInputStream = new FSSeekableInputStream {
       private[this] val client: BlobClient = blobClient
 
+      val bbOS = new OutputStream {
+        override def write(b: Array[Byte]): Unit = bb.put(b)
+        override def write(b: Int): Unit = bb.put(b.toByte)
+      }
+
       override def fill(): Int = {
         val pos = getPosition
         val numBytesRemainingInBlob = blobSize - pos
@@ -147,13 +153,10 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
           return -1
         }
 
-        val outputStreamToBuffer: OutputStream = (i: Int) => {
-          bb.put(i.toByte)
-        }
         val response = retryTransientErrors {
           bb.clear()
           client.downloadStreamWithResponse(
-            outputStreamToBuffer, new BlobRange(pos, count),
+            bbOS, new BlobRange(pos, count),
             null, null, false, timeout, null)
         }
 
@@ -184,7 +187,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     val appendClient = getBlobClient(account, container, path).getAppendBlobClient
     appendClient.create(true)
 
-    val os: PositionedOutputStream = new FSPositionedOutputStream {
+    val os: PositionedOutputStream = new FSPositionedOutputStream(4 * 1024 * 1024) {
       private[this] val client: AppendBlobClient = appendClient
 
       override def flush(): Unit = {

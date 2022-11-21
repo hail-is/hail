@@ -172,9 +172,9 @@ abstract class FSSeekableInputStream extends InputStream with Seekable {
   def getPosition: Long = pos
 }
 
-abstract class FSPositionedOutputStream extends OutputStream with Positioned {
+abstract class FSPositionedOutputStream(val capacity: Int) extends OutputStream with Positioned {
   protected[this] var closed: Boolean = false
-  protected[this] val bb: ByteBuffer = ByteBuffer.allocate(64 * 1024)
+  protected[this] val bb: ByteBuffer = ByteBuffer.allocate(capacity)
   protected[this] var pos: Long = 0
 
    def flush(): Unit
