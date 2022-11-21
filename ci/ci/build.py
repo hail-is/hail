@@ -3,10 +3,11 @@ import json
 import logging
 from collections import Counter, defaultdict
 from shlex import quote as shq
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import jinja2
 import yaml
+from typing_extensions import TypedDict
 
 from gear.cloud_config import get_global_config
 from hailtop.utils import RETRY_FUNCTION_SCRIPT, flatten
@@ -31,6 +32,11 @@ pretty_print_log = "jq -Rr '. as $raw | try \
     ([.severity, .asctime, .filename, .funcNameAndLine, .message, .exc_info] | @tsv) \
     else $raw end) \
 catch $raw'"
+
+
+class ServiceAccount(TypedDict):
+    name: str
+    namespace: str
 
 
 def expand_value_from(value, config):
@@ -171,13 +177,13 @@ class Step(abc.ABC):
         json = params.json
 
         self.name = json['name']
+        self.deps: List[Step] = []
         if 'dependsOn' in json:
             duplicates = [name for name, count in Counter(json['dependsOn']).items() if count > 1]
             if duplicates:
                 raise BuildConfigurationError(f'found duplicate dependencies of {self.name}: {duplicates}')
-            self.deps: List[Step] = [params.name_step[d] for d in json['dependsOn'] if d in params.name_step]
-        else:
-            self.deps: List[Step] = []
+            self.deps = [params.name_step[d] for d in json['dependsOn'] if d in params.name_step]
+
         self.scopes = json.get('scopes')
         self.clouds = json.get('clouds')
         self.run_if_requested = json.get('runIfRequested', False)
@@ -489,6 +495,7 @@ class RunImageStep(Step):
         self.outputs = outputs
         self.port = port
         self.resources = resources
+        self.service_account: Optional[ServiceAccount]
         if service_account:
             self.service_account = {
                 'name': service_account['name'],
@@ -597,6 +604,7 @@ class CreateNamespaceStep(Step):
     def __init__(self, params, namespace_name, admin_service_account, public, secrets):
         super().__init__(params)
         self.namespace_name = namespace_name
+        self.admin_service_account: Optional[ServiceAccount]
         if admin_service_account:
             self.admin_service_account = {
                 'name': admin_service_account['name'],

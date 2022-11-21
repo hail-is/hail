@@ -49,7 +49,9 @@ async def main(args, pass_through_args):  # pylint: disable=unused-argument
         workers = config['workerConfig']['instanceNames'] + config['secondaryWorkerConfig']['instanceNames']
     except KeyError:
         workers = config['workerConfig']['instanceNames']
-    zone = re.search(r'zones/(?P<zone>\S+)$', config['gceClusterConfig']['zoneUri']).group('zone')
+    zone_match = re.search(r'zones/(?P<zone>\S+)$', config['gceClusterConfig']['zoneUri'])
+    assert zone_match
+    zone = zone_match.group('zone')
 
     if args.workers:
         invalid_workers = set(args.workers).difference(set(workers))
@@ -96,8 +98,9 @@ async def main(args, pass_through_args):  # pylint: disable=unused-argument
                    stdout=PIPE,
                    stderr=PIPE) as process:
             output = process.communicate()
-        diagnose_tar_path = re.search(r'Diagnostic results saved in: (?P<tarfile>gs://\S+diagnostic\.tar)',
-                                      str(output)).group('tarfile')
+        diagnose_tar_path_match = re.search(r'Diagnostic results saved in: (?P<tarfile>gs://\S+diagnostic\.tar)', str(output))
+        assert diagnose_tar_path_match
+        diagnose_tar_path = diagnose_tar_path_match.group('tarfile')
 
         call(gsutil_cp(diagnose_tar_path, args.dest), shell=True)
 

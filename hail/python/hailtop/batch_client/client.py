@@ -120,8 +120,8 @@ class Batch:
         b._async_batch = batch
         return b
 
-    def __init__(self, client, id, attributes, n_jobs, token):
-        self._async_batch: aioclient.Batch = aioclient.Batch(client, id, attributes, n_jobs, token)
+    def __init__(self, client, id, attributes, token):
+        self._async_batch: aioclient.Batch = aioclient.Batch(client, id, attributes, token)
 
     @property
     def id(self) -> int:

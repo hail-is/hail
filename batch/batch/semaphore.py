@@ -1,6 +1,7 @@
 import asyncio
 import collections
 import logging
+from typing import Deque, Tuple
 
 log = logging.getLogger('semaphore')
 
@@ -33,7 +34,7 @@ class FIFOWeightedSemaphoreContextManager:
 class FIFOWeightedSemaphore:
     def __init__(self, value=1):
         self.value = value
-        self.queue = collections.deque()
+        self.queue: Deque[Tuple[asyncio.Event, int]] = collections.deque()
 
     async def acquire(self, weight):
         if not self.queue and self.value >= weight:

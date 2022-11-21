@@ -33,9 +33,9 @@ azure-storage-blob==12.14.1
     # via -r python/hailtop/requirements.txt
 bokeh==1.4.0
     # via -r python/requirements.txt
-boto3==1.26.7
+boto3==1.26.13
     # via -r python/hailtop/requirements.txt
-botocore==1.29.7
+botocore==1.29.13
     # via
     #   -r python/hailtop/requirements.txt
     #   boto3
@@ -89,7 +89,7 @@ google-crc32c==1.5.0
     # via google-resumable-media
 google-resumable-media==2.4.0
     # via google-cloud-storage
-googleapis-common-protos==1.56.4
+googleapis-common-protos==1.57.0
     # via google-api-core
 humanize==1.1.0
     # via -r python/hailtop/requirements.txt
@@ -135,7 +135,7 @@ numpy==1.21.6
     #   scipy
 oauthlib==3.2.2
     # via requests-oauthlib
-orjson==3.8.1
+orjson==3.8.2
     # via -r python/hailtop/requirements.txt
 packaging==21.3
     # via bokeh

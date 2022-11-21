@@ -332,7 +332,7 @@ class SubmittedJob:
 
 
 class BatchSubmissionInfo:
-    def __init__(self, used_fast_create: Optional[bool] = None, used_fast_update: Dict[int, bool] = None):
+    def __init__(self, used_fast_create: Optional[bool] = None, used_fast_update: Optional[Dict[int, bool]] = None):
         self.used_fast_create = used_fast_create
         self.used_fast_update = used_fast_update or {}
 
@@ -344,7 +344,7 @@ class Batch:
                  attributes: Dict[str, str],
                  token: str,
                  *,
-                 last_known_status: bool = None,
+                 last_known_status: Optional[bool] = None,
                  submission_info: Optional[BatchSubmissionInfo] = None):
         self._client = client
         self.id: int = id
@@ -849,23 +849,27 @@ class BatchClient:
                  headers: Dict[str, str]):
         self.billing_project = billing_project
         self.url = url
-        self._session = session
+        self._session: Optional[httpx.ClientSession] = session
         self._headers = headers
 
-    async def _get(self, path, params=None):
+    async def _get(self, path, params=None) -> aiohttp.client_reqrep.ClientResponse:
+        assert self._session
         return await request_retry_transient_errors(
             self._session, 'GET', self.url + path, params=params, headers=self._headers
         )
 
-    async def _post(self, path, data=None, json=None):
+    async def _post(self, path, data=None, json=None) -> aiohttp.client_reqrep.ClientResponse:
+        assert self._session
         return await request_retry_transient_errors(
             self._session, 'POST', self.url + path, data=data, json=json, headers=self._headers
         )
 
-    async def _patch(self, path):
+    async def _patch(self, path) -> aiohttp.client_reqrep.ClientResponse:
+        assert self._session
         return await request_retry_transient_errors(self._session, 'PATCH', self.url + path, headers=self._headers)
 
-    async def _delete(self, path):
+    async def _delete(self, path) -> aiohttp.client_reqrep.ClientResponse:
+        assert self._session
         return await request_retry_transient_errors(self._session, 'DELETE', self.url + path, headers=self._headers)
 
     async def list_batches(self, q=None, last_batch_id=None, limit=2 ** 64):
@@ -966,6 +970,7 @@ class BatchClient:
         return await resp.json()
 
     async def close(self):
+        assert self._session
         await self._session.close()
         self._session = None
 
