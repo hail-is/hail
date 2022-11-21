@@ -6,7 +6,7 @@ boto3>=1.17,<2.0
 botocore>=1.20,<2.0
 google-auth==2.14.1
 google-cloud-storage>=1.25.*
-humanize>=1.0.0,<2
+humanize>=1.0.0,<5
 janus>=0.6,<1.1
 orjson>=3.6.4,<4
 rich==12.6.0

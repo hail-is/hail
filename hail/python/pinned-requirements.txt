@@ -91,7 +91,7 @@ google-resumable-media==2.4.0
     # via google-cloud-storage
 googleapis-common-protos==1.57.0
     # via google-api-core
-humanize==1.1.0
+humanize==4.4.0
     # via -r python/hailtop/requirements.txt
 hurry-filesize==0.9
     # via -r python/requirements.txt
