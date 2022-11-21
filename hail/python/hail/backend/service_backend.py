@@ -2,11 +2,9 @@ from typing import Dict, Optional, Callable, Awaitable, Mapping, Any, List, Unio
 import abc
 import asyncio
 import struct
-import os
 from hail.expr.expressions.base_expression import Expression
 import orjson
 import logging
-from pathlib import Path
 
 from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename, revision, _TemporaryFilenameManager
 from hail.utils import FatalError
@@ -32,7 +30,6 @@ from .backend import Backend, fatal_error_from_java_error_triplet
 from ..fs.fs import FS
 from ..fs.router_fs import RouterFS
 from ..ir import BaseIR
-from ..context import version
 from ..utils import frozendict
 
 
