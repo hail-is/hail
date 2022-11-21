@@ -202,7 +202,7 @@ kubernetes-asyncio==19.15.1
     # via -r requirements.txt
 lazy-object-proxy==1.8.0
     # via astroid
-libsass==0.21.0
+libsass==0.22.0
     # via -r requirements.txt
 markupsafe==2.1.1
     # via
