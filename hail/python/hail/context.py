@@ -59,26 +59,6 @@ def convert_gcs_requester_pays_configuration_to_hadoop_conf_style(
 
 class HailContext(object):
     @staticmethod
-    async def async_create(log: str,
-                           quiet: bool,
-                           append: bool,
-                           tmpdir: str,
-                           local_tmpdir: str,
-                           default_reference: str,
-                           global_seed: Optional[int],
-                           backend: Backend):
-        hc = HailContext(log=log,
-                         quiet=quiet,
-                         append=append,
-                         tmpdir=tmpdir,
-                         local_tmpdir=local_tmpdir,
-                         global_seed=global_seed,
-                         backend=backend)
-        references = await backend._async_get_references(BUILTIN_REFERENCES)
-        hc.initialize_references(references, default_reference)
-        return hc
-
-    @staticmethod
     def create(log: str,
                quiet: bool,
                append: bool,
@@ -527,7 +507,7 @@ async def init_batch(
         tmpdir = backend.remote_tmpdir + 'tmp/hail/' + secret_alnum_string()
     local_tmpdir = _get_local_tmpdir(local_tmpdir)
 
-    await HailContext.async_create(
+    HailContext.create(
         log, quiet, append, tmpdir, local_tmpdir, default_reference,
         global_seed, backend)
 
