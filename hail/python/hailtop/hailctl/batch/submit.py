@@ -54,6 +54,8 @@ async def async_main(args):
     config_file = b.read_input(cloud_prefix(user_config))
     j.command(f'mkdir -p $HOME/.config/hail && ln -s {config_file} $HOME/.config/hail/config.ini')
 
+    j.env('HAIL_QUERY_BACKEND', 'batch')
+
     command = 'python3' if script.endswith('.py') else 'bash'
     j.command(f'{command} {script_file}')
     batch_handle: bc.Batch = b.run(wait=False, disable_progress_bar=quiet)  # type: ignore
