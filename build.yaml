@@ -2648,6 +2648,8 @@ steps:
     image:
       valueFrom: hailgenetics_hail_image.image
     script: |
+      export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
+
       mkdir -p foo
       echo "bar" > foo/baz.txt
 

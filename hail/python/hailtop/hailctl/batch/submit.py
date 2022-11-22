@@ -8,6 +8,8 @@ from hailtop.aiotools.copy import copy_from_dict
 from hailtop.config import get_remote_tmpdir, get_user_config_path, get_deploy_config
 from hailtop.utils import unpack_comma_delimited_inputs
 
+HAIL_GENETICS_HAIL_IMAGE = os.environ.get('HAIL_GENETICS_HAIL_IMAGE', f'hailgenetics/hail:{pip_version()}')
+
 
 def init_parser(parser):
     parser.add_argument('script', type=str, help='Path to script')
@@ -30,7 +32,7 @@ async def async_main(args):
 
     b = hb.Batch(name=args.name, backend=hb.ServiceBackend())
     j = b.new_bash_job()
-    j.image(args.image_name or f'hailgenetics/hail:{pip_version()}')
+    j.image(args.image_name or HAIL_GENETICS_HAIL_IMAGE)
 
     rel_file_paths = [os.path.relpath(file) for file in files]
     local_files_to_cloud_files = [{'from': local, 'to': cloud_prefix(local)} for local in rel_file_paths]
