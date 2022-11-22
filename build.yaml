@@ -2643,6 +2643,49 @@ steps:
       - service_base_image
       - deploy_batch
   - kind: runImage
+    name: test_hailctl_batch
+    numSplits: 5
+    image:
+      valueFrom: hailgenetics_hail_image.image
+    script: |
+      mkdir -p foo
+      echo "bar" > foo/baz.txt
+
+      cat >simple_hail.py <<EOF
+      import hail as hl
+
+      with open('foo/baz.txt') as f:
+          print(f.read())
+
+      hl.utils.range_table(10).collect()
+      EOF
+
+      hailctl batch submit simple_hail.py --name=test-hailctl-submit --files=foo
+    secrets:
+      - name: worker-deploy-config
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /deploy-config
+      - name: test-tokens
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /user-tokens
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
+      - name: ssl-config-batch-tests
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /ssl-config
+    dependsOn:
+      - hailgenetics_hail_image
+      - create_deploy_config
+      - create_accounts
+      - default_ns
+      - merge_code
+      - deploy_batch
+  - kind: runImage
     name: test_batch_docs
     image:
       valueFrom: service_base_image.image
