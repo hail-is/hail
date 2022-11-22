@@ -1064,8 +1064,8 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
                 cb._fatal("leaf node missing!",
                   "\n  context: ", cb.strValue(ctxStruct),
                   "\n  query result: ", cb.strValue(indexResult),
-                  "\n  first leaf: ", cb.strValue(index.queryIndex(cb, outerRegion, 0L)),
-                  "\n  last leaf: ", cb.strValue(index.queryLastIndex(cb, outerRegion))
+                  "\n  first leaf: ", index.queryIndex(cb, outerRegion, 0L),
+                  "\n  last leaf: ", index.queryLastIndex(cb, outerRegion)
                 )
               })
               .asBaseStruct
