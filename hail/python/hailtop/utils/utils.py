@@ -718,6 +718,8 @@ def retry_all_errors(msg=None, error_logging_interval=10):
                 return await f(*args, **kwargs)
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
+            except KeyboardInterrupt:
+                raise
             except Exception:
                 errors += 1
                 if msg and errors % error_logging_interval == 0:
@@ -734,6 +736,8 @@ def retry_all_errors_n_times(max_errors=10, msg=None, error_logging_interval=10)
             try:
                 return await f(*args, **kwargs)
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                raise
+            except KeyboardInterrupt:
                 raise
             except Exception:
                 errors += 1
@@ -755,6 +759,8 @@ async def retry_transient_errors_with_debug_string(debug_string: str, f: Callabl
     while True:
         try:
             return await f(*args, **kwargs)
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             errors += 1
             if errors == 1 and is_retry_once_error(e):
@@ -779,6 +785,8 @@ def sync_retry_transient_errors(f, *args, **kwargs):
     while True:
         try:
             return f(*args, **kwargs)
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             errors += 1
             if errors % 10 == 0:
@@ -808,6 +816,8 @@ async def request_raise_transient_errors(
 ) -> aiohttp.ClientResponse:
     try:
         return await session.request(method, url, **kwargs)
+    except KeyboardInterrupt:
+        raise
     except Exception as e:
         if is_transient_error(e):
             log.exception('request failed with transient exception: {method} {url}')
@@ -873,6 +883,8 @@ async def retry_long_running(name, f, *args, **kwargs):
         try:
             return await f(*args, **kwargs)
         except asyncio.CancelledError:
+            raise
+        except KeyboardInterrupt:
             raise
         except Exception:
             end_time = time_msecs()
