@@ -358,6 +358,8 @@ class ServiceBackend(Backend):
                     await b.wait(description=name,
                                  disable_progress_bar=self.disable_progress_bar,
                                  progress=progress)
+                except KeyboardInterrupt:
+                    raise
                 except Exception:
                     await b.cancel()
                     raise
