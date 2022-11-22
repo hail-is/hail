@@ -4,6 +4,7 @@ import hail as hl
 
 from .indices import Indices, Aggregation
 from ..expressions import Expression, ExpressionException, expr_any
+from ...ir import MakeTuple
 
 
 @typecheck(caller=str,
@@ -130,23 +131,6 @@ def analyze(caller: str,
         raise errors[0]
 
 
-def _eval(expression, timed=False, name='_eval'):
-    from hail.utils.java import Env
-
-    analyze(name, expression, Indices(expression._indices.source))
-    if expression._indices.source is None:
-        ir_type = expression._ir.typ
-        expression_type = expression.dtype
-        if ir_type != expression.dtype:
-            raise ExpressionException(f'Expression type and IR type differed: \n{ir_type}\n vs \n{expression_type}')
-        ir = expression._ir
-    else:
-        uid = Env.get_uid()
-        ir = expression._indices.source.select_globals(**{uid: expression}).index_globals()[uid]._ir
-
-    return Env.backend().execute(ir, timed=timed)
-
-
 @typecheck(expression=expr_any)
 def eval_timed(expression):
     """Evaluate a Hail expression, returning the result and the times taken for
@@ -162,7 +146,20 @@ def eval_timed(expression):
     (Any, dict)
         Result of evaluating `expression` and a dictionary of the timings
     """
-    return _eval(expression, timed=True, name='eval_timed')
+
+    from hail.utils.java import Env
+    analyze('eval', expression, Indices(expression._indices.source))
+    if expression._indices.source is None:
+        ir_type = expression._ir.typ
+        expression_type = expression.dtype
+        if ir_type != expression.dtype:
+            raise ExpressionException(f'Expression type and IR type differed: \n{ir_type}\n vs \n{expression_type}')
+        ir = expression._ir
+    else:
+        uid = Env.get_uid()
+        ir = expression._indices.source.select_globals(**{uid: expression}).index_globals()[uid]._ir
+
+    return Env.backend().execute(MakeTuple([ir]), timed=True)[0]
 
 
 @typecheck(expression=expr_any)
