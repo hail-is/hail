@@ -1,9 +1,13 @@
+import json
 import sys
 from .batch_cli_utils import get_batch_if_exists
 
 
 def init_parser(parser):
     parser.add_argument('batch_id', type=int)
+    parser.add_argument("--quiet", "-q",
+                        action="store_true",
+                        help="Do not print a progress bar for the batch")
 
 
 def main(args, pass_through_args, client):  # pylint: disable=unused-argument
@@ -13,4 +17,4 @@ def main(args, pass_through_args, client):  # pylint: disable=unused-argument
         sys.exit(1)
 
     batch = maybe_batch
-    print(batch.wait())
+    print(json.dumps(batch.wait(disable_progress_bar=True)))

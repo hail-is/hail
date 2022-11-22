@@ -62,7 +62,8 @@ async def copy(*,
                         transfers,
                         files_listener=make_listener(progress, file_tid),
                         bytes_listener=make_listener(progress, bytes_tid))
-                copy_report.summarize()
+                if verbose:
+                    copy_report.summarize()
 
 
 def make_transfer(json_object: Dict[str, str]) -> Transfer:

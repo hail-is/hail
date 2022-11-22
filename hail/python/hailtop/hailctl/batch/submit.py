@@ -1,4 +1,5 @@
 import asyncio
+import orjson
 import os
 
 import hailtop.batch as hb
@@ -18,12 +19,14 @@ def init_parser(parser):
                         help='Name for Docker image. Defaults to hailgenetics/hail')
     parser.add_argument('--files', nargs='+', action='append', default=[],
                         help='Comma-separated list of files or directories to add to the working directory of job')
+    parser.add_argument('-o', type=str, default='text', choices=['text', 'json'])
 
 
 async def async_main(args):
     script = args.script
     files = unpack_comma_delimited_inputs(args.files)
     user_config = get_user_config_path()
+    quiet = args.o != 'text'
 
     remote_tmpdir = get_remote_tmpdir('hailctl batch submit')
 
@@ -53,11 +56,15 @@ async def async_main(args):
 
     command = 'python3' if script.endswith('.py') else 'bash'
     j.command(f'{command} {script_file}')
-    batch_handle: bc.Batch = b.run(wait=False)  # type: ignore
+    batch_handle: bc.Batch = b.run(wait=False, disable_progress_bar=quiet)  # type: ignore
 
-    deploy_config = get_deploy_config()
-    url = deploy_config.external_url('batch', f'/batches/{batch_handle.id}/jobs/1')
-    print(f'Submitted batch {batch_handle.id}, see {url}')
+    if args.o == 'text':
+        deploy_config = get_deploy_config()
+        url = deploy_config.external_url('batch', f'/batches/{batch_handle.id}/jobs/1')
+        print(f'Submitted batch {batch_handle.id}, see {url}')
+    else:
+        assert args.o == 'json'
+        print(orjson.dumps({'id': batch_handle.id}).decode('utf-8'))
 
 
 def main(args, pass_through_args, client):  # pylint: disable=unused-argument

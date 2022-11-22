@@ -443,7 +443,7 @@ class Batch:
             description += ': '
         if progress is not None:
             return await self._wait(description, progress, disable_progress_bar)
-        with BatchProgressBar() as progress2:
+        with BatchProgressBar(disable=disable_progress_bar) as progress2:
             return await self._wait(description, progress2, disable_progress_bar)
 
     async def debug_info(self):

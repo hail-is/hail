@@ -2648,6 +2648,8 @@ steps:
     image:
       valueFrom: hailgenetics_hail_image.image
     script: |
+      set -ex
+
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
 
       mkdir -p foo
@@ -2662,7 +2664,13 @@ steps:
       hl.utils.range_table(10).collect()
       EOF
 
-      hailctl batch submit simple_hail.py --name=test-hailctl-submit --files=foo
+      BATCH_ID=$(hailctl batch submit simple_hail.py --name=test-hailctl-batch-submit --files=foo -o json | jq '.id')
+      STATUS=$(hailctl batch wait --quiet $BATCH_ID | jq -jr '.state')
+      if [ "$STATUS" == "success" ]; then
+          exit 0;
+      else
+          exit 1;
+      fi
     secrets:
       - name: worker-deploy-config
         namespace:
