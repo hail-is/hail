@@ -1,4 +1,5 @@
 import asyncio
+import os
 
 import hailtop.batch as hb
 import hailtop.batch_client.client as bc
@@ -31,7 +32,8 @@ async def async_main(args):
     j = b.new_bash_job()
     j.image(args.image_name or f'hailgenetics/hail:{pip_version()}')
 
-    local_files_to_cloud_files = [{'from': local, 'to': cloud_prefix(local)} for local in files]
+    rel_file_paths = [os.path.relpath(file) for file in files]
+    local_files_to_cloud_files = [{'from': local, 'to': cloud_prefix(local)} for local in rel_file_paths]
     await copy_from_dict(files=[
         {'from': script, 'to': cloud_prefix(script)},
         {'from': str(user_config), 'to': cloud_prefix(user_config)},
