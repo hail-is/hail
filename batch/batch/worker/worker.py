@@ -1335,6 +1335,8 @@ class Job:
         self.end_time: Optional[int] = None
 
         self.marked_job_started = False
+        self.last_logged_mjs_attempt_failure = None
+        self.last_logged_mjc_attempt_failure = None
 
         self.cpu_in_mcpu = job_spec['resources']['cores_mcpu']
         self.memory_in_bytes = job_spec['resources']['memory_bytes']
@@ -2726,7 +2728,12 @@ class Worker:
         except asyncio.CancelledError:
             raise
         except Exception:
-            log.exception(f'error while marking {job} complete', stack_info=True)
+            if job.last_logged_mjc_attempt_failure is None:
+                job.last_logged_mjc_attempt_failure = time_msecs()
+
+            if time_msecs() - job.last_logged_mjc_attempt_failure >= 300 * 1000:
+                log.exception(f'error while marking {job} complete', stack_info=True)
+                job.last_logged_mjc_attempt_failure = time_msecs()
         finally:
             log.info(
                 f'{job} attempt {job.attempt_id} marked complete after {time_msecs() - job.end_time}ms: {job.state}'
@@ -2764,7 +2771,12 @@ class Worker:
         except asyncio.CancelledError:
             raise
         except Exception:
-            log.exception(f'error while posting {job} started')
+            if job.last_logged_mjs_attempt_failure is None:
+                job.last_logged_mjs_attempt_failure = time_msecs()
+
+            if time_msecs() - job.last_logged_mjs_attempt_failure >= 300 * 1000:
+                log.exception(f'error while posting {job} started')
+                job.last_logged_mjs_attempt_failure = time_msecs()
 
     async def activate(self):
         log.info('activating')
