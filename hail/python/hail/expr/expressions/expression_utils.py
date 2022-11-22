@@ -1,6 +1,5 @@
 from typing import Set, Dict
 from hail.typecheck import typecheck, setof
-import hail as hl
 
 from .indices import Indices, Aggregation
 from ..expressions import Expression, ExpressionException, expr_any

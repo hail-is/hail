@@ -1,6 +1,5 @@
 from typing import Dict, Optional, Callable, Awaitable, Mapping, Any, List, Union, Tuple
 import abc
-import asyncio
 import struct
 from hail.expr.expressions.base_expression import Expression
 import orjson
