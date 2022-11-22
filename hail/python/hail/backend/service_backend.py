@@ -16,7 +16,7 @@ from hail.ir import finalize_randomness
 from hail.ir.renderer import CSERenderer
 
 from hailtop import yamlx
-from hailtop.config import (configuration_of, get_remote_tmpdir, get_deploy_config)
+from hailtop.config import (configuration_of, get_remote_tmpdir)
 from hailtop.utils import async_to_blocking, secret_alnum_string, TransientError, Timings
 from hailtop.utils.rich_progress_bar import BatchProgressBar
 from hailtop.batch_client import client as hb
