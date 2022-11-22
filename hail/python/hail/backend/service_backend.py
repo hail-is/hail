@@ -368,7 +368,7 @@ class ServiceBackend(Backend):
                 except FileNotFoundError as exc:
                     raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
                         'service_backend_debug_info': self.debug_info(),
-                        'batch_debug_info': b.debug_info()
+                        'batch_debug_info': await b.debug_info()
                     })) from exc
 
                 async with driver_output as outfile:
@@ -380,7 +380,7 @@ class ServiceBackend(Backend):
                         except orjson.JSONDecodeError as err:
                             raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
                                 'service_backend_debug_info': self.debug_info(),
-                                'batch_debug_info': b.debug_info()
+                                'batch_debug_info': await b.debug_info()
                             })) from err
 
                     short_message = await read_str(outfile)
