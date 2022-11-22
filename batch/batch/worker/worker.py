@@ -2732,7 +2732,7 @@ class Worker:
                 job.last_logged_mjc_attempt_failure = time_msecs()
 
             if time_msecs() - job.last_logged_mjc_attempt_failure >= 300 * 1000:
-                log.exception(f'error while marking {job} complete', stack_info=True)
+                log.exception(f'error while marking {job} complete since {time_msecs_str(job.last_logged_mjc_attempt_failure)}', stack_info=True)
                 job.last_logged_mjc_attempt_failure = time_msecs()
         finally:
             log.info(
@@ -2775,7 +2775,7 @@ class Worker:
                 job.last_logged_mjs_attempt_failure = time_msecs()
 
             if time_msecs() - job.last_logged_mjs_attempt_failure >= 300 * 1000:
-                log.exception(f'error while posting {job} started')
+                log.exception(f'error while posting {job} started since {time_msecs_str(job.last_logged_mjs_attempt_failure)}', stack_info=True)
                 job.last_logged_mjs_attempt_failure = time_msecs()
 
     async def activate(self):
