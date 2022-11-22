@@ -2644,7 +2644,6 @@ steps:
       - deploy_batch
   - kind: runImage
     name: test_hailctl_batch
-    numSplits: 5
     image:
       valueFrom: hailgenetics_hail_image.image
     script: |
