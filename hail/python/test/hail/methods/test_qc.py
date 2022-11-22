@@ -215,7 +215,6 @@ class Tests(unittest.TestCase):
                       n_discordant=0),
         ]
 
-    @fails_service_backend()
     def test_concordance_no_values_doesnt_error(self):
         dataset = get_dataset().filter_rows(False)
         _, cols_conc, rows_conc = hl.concordance(dataset, dataset)

@@ -13,10 +13,10 @@ case class TableCalculateNewPartitions(
   def typ(childType: types.TableType): Type = TArray(TInterval(childType.keyType))
 
   def unionRequiredness(childType: types.RTable, resultType: types.TypeWithRequiredness): Unit = {
-    val rinterval = types.coerce[types.RInterval](
-      types.coerce[types.RIterable](resultType).elementType)
-    val rstart = types.coerce[types.RStruct](rinterval.startType)
-    val rend = types.coerce[types.RStruct](rinterval.endType)
+    val rinterval = types.tcoerce[types.RInterval](
+      types.tcoerce[types.RIterable](resultType).elementType)
+    val rstart = types.tcoerce[types.RStruct](rinterval.startType)
+    val rend = types.tcoerce[types.RStruct](rinterval.endType)
     childType.keyFields.foreach { k =>
       rstart.field(k).unionFrom(childType.field(k))
       rend.field(k).unionFrom(childType.field(k))

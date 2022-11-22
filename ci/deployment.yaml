@@ -17,6 +17,7 @@ spec:
         hail.is/sha: "{{ code.sha }}"
         grafanak8sapp: "true"
     spec:
+      serviceAccountName: ci-agent
 {% if deploy %}
       priorityClassName: production
 {% endif %}

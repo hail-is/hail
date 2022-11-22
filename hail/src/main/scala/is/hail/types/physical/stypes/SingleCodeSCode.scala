@@ -3,9 +3,8 @@ package is.hail.types.physical.stypes
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir._
-import is.hail.expr.ir.streams.{StreamArgType, StreamProducer}
 import is.hail.types.physical.PType
-import is.hail.types.physical.stypes.interfaces.{SStream, SStreamValue}
+import is.hail.types.physical.stypes.interfaces.{NoBoxLongIterator, SStream, SStreamConcrete, SStreamIteratorLong, SStreamValue}
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -109,48 +108,20 @@ case object BooleanSingleCodeType extends SingleCodeType {
     SingleCodeSCode(this, pc.asBoolean.value)
 }
 
-case class StreamSingleCodeType(requiresMemoryManagementPerElement: Boolean, eltType: PType) extends SingleCodeType {
+case class StreamSingleCodeType(requiresMemoryManagementPerElement: Boolean, eltType: PType, eltRequired: Boolean) extends SingleCodeType {
   self =>
 
   override def loadedSType: SType = SStream(EmitType(eltType.sType, true))
 
   def virtualType: Type = TStream(eltType.virtualType)
 
-  def ti: TypeInfo[_] = classInfo[StreamArgType]
+  def ti: TypeInfo[_] = classInfo[NoBoxLongIterator]
 
   def loadToSValue(cb: EmitCodeBuilder, c: Value[_]): SValue = {
-    val mb = cb.emb
-    val xIter = mb.genFieldThisRef[Iterator[java.lang.Long]]("streamInIterator")
-
-    // this, Region, ...
-    val mkIter = coerce[StreamArgType](c)
-    val eltRegion = mb.genFieldThisRef[Region]("stream_input_element_region")
-    val rvAddr = mb.genFieldThisRef[Long]("stream_input_addr")
-
-    val producer = new StreamProducer {
-      override val length: Option[EmitCodeBuilder => Code[Int]] = None
-
-      override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
-        cb.assign(xIter, mkIter.invoke[Region, Region, Iterator[java.lang.Long]]("apply", outerRegion, eltRegion))
-      }
-
-      override val elementRegion: Settable[Region] = eltRegion
-      override val requiresMemoryManagementPerElement: Boolean = self.requiresMemoryManagementPerElement
-      override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
-        // NB: locals should not be used in this implementation. The way In() nodes are
-        // stored in fields at the beginning of code generation leads to the method builder
-        // here being different from the method the stream will eventually be consumed in
-        cb.ifx(!xIter.load().hasNext, cb.goto(LendOfStream))
-        cb.assign(rvAddr, xIter.load().next().invoke[Long]("longValue"))
-        cb.goto(LproduceElementDone)
-      }
-
-      override val element: EmitCode =
-        EmitCode.fromI(mb)(cb => IEmitCode.present(cb, cb.memoizeField(eltType.loadCheapSCode(cb, rvAddr), "stream_input_element")))
-
-      override def close(cb: EmitCodeBuilder): Unit = {}
-    }
-    SStreamValue(SStream(EmitType(eltType.sType, true)), producer)
+    new SStreamConcrete(
+      SStreamIteratorLong(eltRequired, eltType, requiresMemoryManagementPerElement),
+      coerce[NoBoxLongIterator](c)
+    )
   }
 
   def coerceSCode(cb: EmitCodeBuilder, pc: SValue, region: Value[Region], deepCopy: Boolean): SingleCodeSCode =

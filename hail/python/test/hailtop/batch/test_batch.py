@@ -22,6 +22,8 @@ from hailtop.test_utils import skip_in_azure
 DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
 PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.7-slim'
 HAIL_GENETICS_HAIL_IMAGE = os.environ['HAIL_GENETICS_HAIL_IMAGE']
+CLOUD = os.environ['HAIL_CLOUD']
+
 
 class LocalTests(unittest.TestCase):
     def batch(self, requester_pays_project=None):
@@ -663,6 +665,35 @@ class ServiceTests(unittest.TestCase):
             j.cloudfuse(self.bucket, '')
 
     @skip_in_azure
+    def test_fuse_requester_pays(self):
+        b = self.batch(requester_pays_project='hail-vdc')
+        j = b.new_job()
+        j.cloudfuse('hail-services-requester-pays', '/fuse-bucket')
+        j.command('cat /fuse-bucket/hello')
+        res = b.run()
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+
+    @skip_in_azure
+    def test_fuse_non_requester_pays_bucket_when_requester_pays_project_specified(self):
+        assert self.bucket
+        path = f'/{self.bucket}{self.cloud_output_path}'
+
+        b = self.batch(requester_pays_project='hail-vdc')
+        head = b.new_job()
+        head.command(f'mkdir -p {path}; echo head > {path}/cloudfuse_test_1')
+        head.cloudfuse(self.bucket, f'/{self.bucket}', read_only=False)
+
+        tail = b.new_job()
+        tail.command(f'cat {path}/cloudfuse_test_1')
+        tail.cloudfuse(self.bucket, f'/{self.bucket}', read_only=True)
+        tail.depends_on(head)
+
+        res = b.run()
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+
+    @skip_in_azure
     def test_requester_pays(self):
         b = self.batch(requester_pays_project='hail-vdc')
         input = b.read_input('gs://hail-services-requester-pays/hello')
@@ -959,3 +990,57 @@ class ServiceTests(unittest.TestCase):
         assert batch_status['state'] == 'success', str((batch_status, batch.debug_info()))
         job_log_2 = batch.get_job_log(2)
         assert job_log_2['main'] == "6\n", str((job_log_2, batch.debug_info()))
+
+    def test_specify_job_region(self):
+        b = self.batch(cancel_after_n_failures=1)
+        j = b.new_job('region')
+        possible_regions = self.backend.supported_regions()
+        j.regions(possible_regions)
+        j.command('true')
+        res = b.run()
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+
+    def test_always_copy_output(self):
+        output_path = f'{self.cloud_output_dir}/test_always_copy_output.txt'
+
+        b = self.batch()
+        j = b.new_job()
+        j.always_copy_output()
+        j.command(f'echo "hello" > {j.ofile} && false')
+
+        b.write_output(j.ofile, output_path)
+        res = b.run()
+        res_status = res.status()
+        assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
+
+        b2 = self.batch()
+        input = b2.read_input(output_path)
+        file_exists_j = b2.new_job()
+        file_exists_j.command(f'cat {input}')
+
+        res = b2.run()
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+        assert res.get_job_log(1)['main'] == "hello\n", str(res.debug_info())
+
+    def test_no_copy_output_on_failure(self):
+        output_path = f'{self.cloud_output_dir}/test_no_copy_output.txt'
+
+        b = self.batch()
+        j = b.new_job()
+        j.command(f'echo "hello" > {j.ofile} && false')
+
+        b.write_output(j.ofile, output_path)
+        res = b.run()
+        res_status = res.status()
+        assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
+
+        b2 = self.batch()
+        input = b2.read_input(output_path)
+        file_exists_j = b2.new_job()
+        file_exists_j.command(f'cat {input}')
+
+        res = b2.run()
+        res_status = res.status()
+        assert res_status['state'] == 'failure', str((res_status, res.debug_info()))

@@ -1,7 +1,5 @@
 include ../config.mk
 
-TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
-
 LETSENCRYPT_IMAGE := $(DOCKER_PREFIX)/letsencrypt:$(TOKEN)
 
 .PHONY: build start-service run clean

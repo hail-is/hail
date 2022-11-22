@@ -4,7 +4,7 @@ import is.hail.annotations.{Region, RegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.types.physical.{PCanonicalTuple, PTuple, PType, stypes}
-import is.hail.expr.ir.{Compile, IR, IRParser, IRParserEnvironment, Interpret, Literal, MakeTuple, SingleCodeEmitParamType}
+import is.hail.expr.ir.{BindingEnv, Compile, IR, IRParser, IRParserEnvironment, Interpret, Literal, MakeTuple, SingleCodeEmitParamType}
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._
 import org.apache.spark.sql.Row
@@ -57,7 +57,7 @@ object Graph {
       warn(s"over 400,000 edges are in the graph; maximal_independent_set may run out of memory")
 
     val wrappedNodeType = PCanonicalTuple(true, PType.canonical(nodeType))
-    val refMap = Map("l" -> wrappedNodeType.virtualType, "r" -> wrappedNodeType.virtualType)
+    val refMap = BindingEnv.eval[Type]("l" -> wrappedNodeType.virtualType, "r" -> wrappedNodeType.virtualType)
 
     ExecuteContext.scoped() { ctx =>
       val region = ctx.r

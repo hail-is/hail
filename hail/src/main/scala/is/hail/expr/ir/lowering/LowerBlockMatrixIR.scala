@@ -5,7 +5,7 @@ import is.hail.expr.Nat
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.GetElement
 import is.hail.rvd.RVDPartitioner
-import is.hail.types.{BlockMatrixSparsity, BlockMatrixType, TypeWithRequiredness}
+import is.hail.types.{BlockMatrixSparsity, BlockMatrixType, TypeWithRequiredness, tcoerce}
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -94,8 +94,8 @@ abstract class BlockMatrixStage(val letBindings: IndexedSeq[(String, IR)], val b
             val (nRows, nCols) = typ.blockShape(i, j)
             MakeNDArray.fill(zero(typ.elementType), FastIndexedSeq(nRows, nCols), True())
           }
-        }, coerce[TArray](cda.typ)), 1)
-      }, coerce[TArray](cda.typ))
+        }, tcoerce[TArray](cda.typ)), 1)
+      }, tcoerce[TArray](cda.typ))
     } else {
       ToArray(mapIR(rangeIR(I32(typ.nRowBlocks))){ rowIdxRef =>
         val blocksInOneRow = ToArray(mapIR(rangeIR(I32(typ.nColBlocks))) { colIdxRef =>

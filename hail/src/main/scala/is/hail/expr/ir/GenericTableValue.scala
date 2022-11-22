@@ -70,6 +70,7 @@ class PartitionIteratorLongReader(
       val rv = mb.genFieldThisRef[Long]("pilr_rv")
 
       val producer = new StreamProducer {
+        override def method: EmitMethodBuilder[_] = cb.emb
         override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
         override def initialize(cb: EmitCodeBuilder, partitionRegion: Value[Region]): Unit = {
@@ -104,7 +105,7 @@ class PartitionIteratorLongReader(
         override def close(cb: EmitCodeBuilder): Unit = {}
       }
 
-      SStreamValue(SStream(producer.element.emitType), producer)
+      SStreamValue(producer)
     }
   }
 

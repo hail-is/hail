@@ -108,7 +108,7 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
   private val aoff = sb.newSettable[Long](s"${name}_aoff")
   private val len = sb.newSettable[Int](s"${name}_len")
 
-  val eltType: PCanonicalStruct = types.coerce[PCanonicalStruct](arrayType.elementType.setRequired((false)))
+  val eltType: PCanonicalStruct = types.tcoerce[PCanonicalStruct](arrayType.elementType.setRequired((false)))
   private val elt = new SBaseStructPointerSettable(SBaseStructPointer(eltType), sb.newSettable[Long](s"${name}_elt_off"))
 
   def length: Code[Int] = len

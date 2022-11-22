@@ -3,15 +3,25 @@ import json
 import logging
 from collections import Counter, defaultdict
 from shlex import quote as shq
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 
 import jinja2
 import yaml
+from typing_extensions import TypedDict
 
 from gear.cloud_config import get_global_config
 from hailtop.utils import RETRY_FUNCTION_SCRIPT, flatten
 
-from .environment import BUILDKIT_IMAGE, CI_UTILS_IMAGE, CLOUD, DEFAULT_NAMESPACE, DOCKER_PREFIX, DOMAIN, STORAGE_URI
+from .environment import (
+    BUILDKIT_IMAGE,
+    CI_UTILS_IMAGE,
+    CLOUD,
+    DEFAULT_NAMESPACE,
+    DOCKER_PREFIX,
+    DOMAIN,
+    REGION,
+    STORAGE_URI,
+)
 from .globals import is_test_deployment
 from .utils import generate_token
 
@@ -22,6 +32,11 @@ pretty_print_log = "jq -Rr '. as $raw | try \
     ([.severity, .asctime, .filename, .funcNameAndLine, .message, .exc_info] | @tsv) \
     else $raw end) \
 catch $raw'"
+
+
+class ServiceAccount(TypedDict):
+    name: str
+    namespace: str
 
 
 def expand_value_from(value, config):
@@ -143,19 +158,32 @@ class BuildConfiguration:
             if step.can_run_in_scope(scope):
                 step.cleanup(batch, scope, parent_jobs)
 
+    def deployed_services(self) -> Tuple[str, List[str]]:
+        services = defaultdict(list)
+        for s in self.steps:
+            if isinstance(s, DeployStep):
+                services[s.namespace].extend(s.services())
+        # build.yaml allows for multiple namespaces, but
+        # in actuality we only ever use 1 and make many assumptions
+        # around there being a 1:1 correspondence between builds and namespaces
+        namespaces = list(services.keys())
+        assert len(namespaces) == 1
+        ns = namespaces[0]
+        return ns, services[ns]
+
 
 class Step(abc.ABC):
     def __init__(self, params):
         json = params.json
 
         self.name = json['name']
+        self.deps: List[Step] = []
         if 'dependsOn' in json:
             duplicates = [name for name, count in Counter(json['dependsOn']).items() if count > 1]
             if duplicates:
                 raise BuildConfigurationError(f'found duplicate dependencies of {self.name}: {duplicates}')
-            self.deps: List[Step] = [params.name_step[d] for d in json['dependsOn'] if d in params.name_step]
-        else:
-            self.deps: List[Step] = []
+            self.deps = [params.name_step[d] for d in json['dependsOn'] if d in params.name_step]
+
         self.scopes = json.get('scopes')
         self.clouds = json.get('clouds')
         self.run_if_requested = json.get('runIfRequested', False)
@@ -249,7 +277,6 @@ class BuildImage2Step(Step):
 
         image_name = publish_as
         self.base_image = f'{DOCKER_PREFIX}/{image_name}'
-        self.image = f'{self.base_image}:{self.token}'
         self.main_branch_cache_repository = f'{self.base_image}:cache'
 
         if params.scope == 'deploy':
@@ -257,15 +284,19 @@ class BuildImage2Step(Step):
                 # CIs that don't live in default doing a deploy
                 # should not clobber the main `cache` tag
                 self.cache_repository = f'{self.base_image}:cache-{DEFAULT_NAMESPACE}-deploy'
+                self.image = f'{self.base_image}:test-deploy-{self.token}'
             else:
                 self.cache_repository = self.main_branch_cache_repository
+                self.image = f'{self.base_image}:deploy-{self.token}'
         elif params.scope == 'dev':
             dev_user = params.code.config()['user']
             self.cache_repository = f'{self.base_image}:cache-{dev_user}'
+            self.image = f'{self.base_image}:dev-{self.token}'
         else:
             assert params.scope == 'test'
             pr_number = params.code.config()['number']
             self.cache_repository = f'{self.base_image}:cache-pr-{pr_number}'
+            self.image = f'{self.base_image}:test-pr-{pr_number}-{self.token}'
 
         self.job = None
 
@@ -371,6 +402,7 @@ cat /home/user/trace
             parents=self.deps_parents(),
             network='private',
             unconfined=True,
+            regions=[REGION],
         )
 
     def cleanup(self, batch, scope, parents):
@@ -436,6 +468,7 @@ true
             always_run=True,
             network='private',
             timeout=5 * 60,
+            regions=[REGION],
         )
 
 
@@ -462,6 +495,7 @@ class RunImageStep(Step):
         self.outputs = outputs
         self.port = port
         self.resources = resources
+        self.service_account: Optional[ServiceAccount]
         if service_account:
             self.service_account = {
                 'name': service_account['name'],
@@ -559,6 +593,7 @@ class RunImageStep(Step):
             timeout=self.timeout,
             network='private',
             env=env,
+            regions=[REGION],
         )
 
     def cleanup(self, batch, scope, parents):
@@ -569,6 +604,7 @@ class CreateNamespaceStep(Step):
     def __init__(self, params, namespace_name, admin_service_account, public, secrets):
         super().__init__(params)
         self.namespace_name = namespace_name
+        self.admin_service_account: Optional[ServiceAccount]
         if admin_service_account:
             self.admin_service_account = {
                 'name': admin_service_account['name'],
@@ -729,6 +765,7 @@ date
             service_account={'namespace': DEFAULT_NAMESPACE, 'name': 'ci-agent'},
             parents=self.deps_parents(),
             network='private',
+            regions=[REGION],
         )
 
     def cleanup(self, batch, scope, parents):
@@ -757,6 +794,7 @@ true
             parents=parents,
             always_run=True,
             network='private',
+            regions=[REGION],
         )
 
 
@@ -785,6 +823,11 @@ class DeployStep(Step):
             json.get('link'),
             json.get('wait'),
         )
+
+    def services(self):
+        if self.wait:
+            return [w['name'] for w in self.wait]
+        return []
 
     def config(self, scope):  # pylint: disable=unused-argument
         return {'token': self.token}
@@ -883,6 +926,7 @@ date
             service_account={'namespace': DEFAULT_NAMESPACE, 'name': 'ci-agent'},
             parents=self.deps_parents(),
             network='private',
+            regions=[REGION],
         )
 
     def cleanup(self, batch, scope, parents):  # pylint: disable=unused-argument
@@ -908,6 +952,7 @@ date
                 parents=parents,
                 always_run=True,
                 network='private',
+                regions=[REGION],
             )
 
 
@@ -1041,6 +1086,7 @@ EOF
                 attributes={'name': self.name + "_create_passwords"},
                 output_files=[(x[1], x[0]) for x in password_files_input],
                 parents=self.deps_parents(),
+                regions=[REGION],
             )
 
         n_cores = 4 if scope == 'deploy' and not is_test_deployment else 1
@@ -1061,6 +1107,7 @@ EOF
             parents=[self.create_passwords_job] if self.create_passwords_job else self.deps_parents(),
             network='private',
             resources={'preemptible': False, 'cpu': str(n_cores)},
+            regions=[REGION],
         )
 
     def cleanup(self, batch, scope, parents):
@@ -1101,4 +1148,5 @@ done
             parents=parents,
             always_run=True,
             network='private',
+            regions=[REGION],
         )

@@ -171,6 +171,31 @@ upload-secret() {
 	      | kubectl apply -f -
 }
 
+download-configmap() {
+    # download-configmap configmap-name namespace
+    #
+    # Download a configmap and write into files on your computer. Use
+    # `popd` to return to your previous working directory.
+    #
+    # Example:
+    #
+    #     # download-configmap gateway-xds-config
+    #     /var/folders/cq/p_l4jm3x72j7wkxqxswccs180000gq/T/tmp.NTb5sZMX ~/projects/hail
+    #     # ls
+    #     contents	configmap.json
+    #     # ls contents
+    #     rds.yaml			cds.yaml
+	  name=$1
+	  namespace=${2:-default}
+	  pushd $(mktemp -d)
+	  kubectl get configmap $name --namespace $namespace -o json > configmap.json
+	  mkdir contents
+	  for field in $(jq -r  '.data | keys[]' configmap.json)
+	  do
+		    jq -r '.data["'$field'"]' configmap.json > contents/$field
+	  done
+}
+
 get_global_config_field() {
     kubectl get secret global-config --template={{.data.$1}} | base64 --decode
 }

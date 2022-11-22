@@ -5,7 +5,7 @@ import is.hail.TestUtils._
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.agg._
-import is.hail.types.{MatrixType, RPrimitive, TypeWithRequiredness, VirtualTypeWithReq}
+import is.hail.types.{MatrixType, RPrimitive, TypeWithRequiredness, VirtualTypeWithReq, tcoerce}
 import is.hail.types.physical.{stypes, _}
 import is.hail.types.virtual._
 import is.hail.io.BufferSpec
@@ -416,7 +416,7 @@ class Aggregators2Suite extends HailSuite {
 
   def seqOpOverArray(aggIdx: Int, a: IR, seqOps: IR => IR, alstate: ArrayLenAggSig): IR = {
     val idx = Ref(genUID(), TInt32)
-    val elt = Ref(genUID(), coerce[TArray](a.typ).elementType)
+    val elt = Ref(genUID(), tcoerce[TArray](a.typ).elementType)
 
     Begin(FastIndexedSeq(
       SeqOp(aggIdx, FastIndexedSeq(ArrayLen(a)), alstate),

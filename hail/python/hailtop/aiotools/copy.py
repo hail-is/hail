@@ -7,10 +7,9 @@ import sys
 
 from concurrent.futures import ThreadPoolExecutor
 
-from ..utils import tqdm, TqdmDisableOption
+from ..utils.rich_progress_bar import RichProgressBar, make_listener
 from . import Transfer, Copier
 from .router_fs import RouterAsyncFS
-from .utils import make_tqdm_listener
 
 try:
     import uvloop
@@ -53,16 +52,16 @@ async def copy(*,
                                  azure_kwargs=azure_kwargs,
                                  s3_kwargs=s3_kwargs) as fs:
             sema = asyncio.Semaphore(max_simultaneous_transfers)
-            should_disable_tqdm = not verbose or TqdmDisableOption.default
             async with sema:
-                with tqdm(desc='files', leave=False, position=0, unit='file', disable=should_disable_tqdm) as file_pbar, \
-                     tqdm(desc='bytes', leave=False, position=1, unit='byte', unit_scale=True, smoothing=0.1, disable=should_disable_tqdm) as byte_pbar:
+                with RichProgressBar(transient=True) as progress:
+                    file_tid = progress.add_task(description='files', total=0, visible=verbose)
+                    bytes_tid = progress.add_task(description='bytes', total=0, visible=verbose)
                     copy_report = await Copier.copy(
                         fs,
                         sema,
                         transfers,
-                        files_listener=make_tqdm_listener(file_pbar),
-                        bytes_listener=make_tqdm_listener(byte_pbar))
+                        files_listener=make_listener(progress, file_tid),
+                        bytes_listener=make_listener(progress, bytes_tid))
                 copy_report.summarize()
 
 

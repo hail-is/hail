@@ -221,6 +221,8 @@ def register_functions():
     register_seeded_function("rand_gamma", (dtype("float64"), dtype("float64"),), dtype("float64"))
     register_function("UnphasedDiploidGtIndexCall", (dtype("int32"),), dtype("call"))
     register_function("lgt_to_gt", (dtype("call"), dtype("array<int32>"),), dtype("call"))
+    register_function("allele_to_genotype_reindex", (dtype("array<int32>"),), dtype("array<int32>"))
+    register_function("local_to_global", (dtype("array<?T>"), dtype("array<int32>"), dtype("int32"), dtype("?T")), dtype("array<?T>"))
     register_function("index", (dtype("call"), dtype("int32"),), dtype("int32"))
     register_function("sign", (dtype("int64"),), dtype("int64"))
     register_function("sign", (dtype("float64"),), dtype("float64"))

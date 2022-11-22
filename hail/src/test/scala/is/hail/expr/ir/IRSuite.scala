@@ -20,7 +20,7 @@ import is.hail.types.physical._
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.primitives.SInt32
 import is.hail.types.virtual._
-import is.hail.types.{BlockMatrixType, TableType, VirtualTypeWithReq}
+import is.hail.types.{BlockMatrixType, TableType, VirtualTypeWithReq, tcoerce}
 import is.hail.utils.{FastIndexedSeq, _}
 import is.hail.variant.{Call2, Locus}
 import is.hail.{ExecStrategy, HailSuite}
@@ -1492,7 +1492,7 @@ class IRSuite extends HailSuite {
   }
 
   def toNestedArray(stream: IR): IR = {
-    val innerType = coerce[TStream](coerce[TStream](stream.typ).elementType)
+    val innerType = tcoerce[TStream](tcoerce[TStream](stream.typ).elementType)
     ToArray(StreamMap(stream, "inner", ToArray(Ref("inner", innerType))))
   }
 
@@ -1516,7 +1516,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(StreamLen(StreamGrouped(r, 2)), 5)
 
     def takeFromEach(stream: IR, take: IR, fromEach: IR): IR = {
-      val innerType = coerce[TStream](stream.typ)
+      val innerType = tcoerce[TStream](stream.typ)
       StreamMap(StreamGrouped(stream, fromEach), "inner", StreamTake(Ref("inner", innerType), take))
     }
 
@@ -1557,7 +1557,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(streamForceCount(group(a)), 5)
 
     def takeFromEach(stream: IR, take: IR): IR = {
-      val innerType = coerce[TStream](stream.typ)
+      val innerType = tcoerce[TStream](stream.typ)
       StreamMap(group(stream), "inner", StreamTake(Ref("inner", innerType), take))
     }
 
@@ -2004,14 +2004,14 @@ class IRSuite extends HailSuite {
           Let("_left", l,
               MakeStruct(
                 (lKeys, rKeys).zipped.map { (lk, rk) => lk -> Coalesce(Seq(getL(lk), getR(rk))) }
-                  ++ coerce[TStruct](l.typ).fields.filter(f => !lKeys.contains(f.name)).map { f =>
+                  ++ tcoerce[TStruct](l.typ).fields.filter(f => !lKeys.contains(f.name)).map { f =>
                   f.name -> GetField(Ref("_left", l.typ), f.name)
-                } ++ coerce[TStruct](r.typ).fields.filter(f => !rKeys.contains(f.name)).map { f =>
+                } ++ tcoerce[TStruct](r.typ).fields.filter(f => !rKeys.contains(f.name)).map { f =>
                   f.name -> GetField(Ref("_right", r.typ), f.name)
                 })))
     }
     ToArray(StreamJoin.apply(left, right, lKeys, rKeys, "_l", "_r",
-                     joinF(Ref("_l", coerce[TStream](left.typ).elementType), Ref("_r", coerce[TStream](right.typ).elementType)),
+                     joinF(Ref("_l", tcoerce[TStream](left.typ).elementType), Ref("_r", tcoerce[TStream](right.typ).elementType)),
                      joinType, requiresMemoryManagement = false, rightKeyIsDistinct = rightDistinct))
   }
 
@@ -2661,13 +2661,13 @@ class IRSuite extends HailSuite {
   }
 
   @DataProvider(name = "valueIRs")
-  def valueIRs(): Array[Array[IR]] = {
+  def valueIRs(): Array[Array[Object]] = {
     withExecuteContext() { ctx =>
       valueIRs(ctx)
     }
   }
 
-  def valueIRs(ctx: ExecuteContext): Array[Array[IR]] = {
+  def valueIRs(ctx: ExecuteContext): Array[Array[Object]] = {
     val fs = ctx.fs
 
     IndexBgen(ctx, Array("src/test/resources/example.8bits.bgen"), rg = Some("GRCh37"), contigRecoding = Map("01" -> "1"))
@@ -2724,7 +2724,15 @@ class IRSuite extends HailSuite {
       True(), ErrorIDs.NO_ERROR)
     val rngState = RNGStateLiteral(Array(1L, 2L, 3L, 4L))
 
-    val irs = Array(
+    def collect(ir: IR): IR =
+      ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq(ir), collectSig)
+
+    implicit def addEnv(ir: IR): (IR, BindingEnv[Type] => BindingEnv[Type]) =
+      (ir, env => env)
+    implicit def liftRefs(refs: Array[Ref]): BindingEnv[Type] => BindingEnv[Type] =
+      env => env.bindEval(refs.map(r => r.name -> r.typ): _*)
+
+    val irs = Array[(IR, BindingEnv[Type] => BindingEnv[Type])](
       i, I64(5), F32(3.14f), F64(3.14), str, True(), False(), Void(),
       UUID4(),
       Cast(i, TFloat64),
@@ -2733,8 +2741,8 @@ class IRSuite extends HailSuite {
       If(b, i, j),
       Coalesce(FastSeq(i, I32(1))),
       Let("v", i, v),
-      AggLet("v", i, v, false),
-      Ref("x", TInt32),
+      AggLet("v", i, collect(v), false) -> (_.createAgg),
+      Ref("x", TInt32) -> (_.bindEval("x", TInt32)),
       ApplyBinaryPrimOp(Add(), i, j),
       ApplyUnaryPrimOp(Negate(), i),
       ApplyComparisonOp(EQ(TInt32), i, j),
@@ -2753,38 +2761,38 @@ class IRSuite extends HailSuite {
       NDArraySlice(nd, MakeTuple.ordered(FastSeq(MakeTuple.ordered(FastSeq(F64(0), F64(2), F64(1))),
                                          MakeTuple.ordered(FastSeq(F64(0), F64(2), F64(1)))))),
       NDArrayFilter(nd, FastIndexedSeq(NA(TArray(TInt64)), NA(TArray(TInt64)))),
-      ArrayRef(a, i),
-      ArrayLen(a),
+      ArrayRef(a, i) -> Array(a),
+      ArrayLen(a) -> Array(a),
       RNGSplit(rngState, MakeTuple.ordered(FastSeq(I64(1), MakeTuple.ordered(FastSeq(I64(2), I64(3)))))),
-      StreamLen(st),
+      StreamLen(st) -> Array(st),
       StreamRange(I32(0), I32(5), I32(1)),
       StreamRange(I32(0), I32(5), I32(1)),
-      ArraySort(st, b),
-      ToSet(st),
-      ToDict(std),
-      ToArray(st),
+      ArraySort(st, b) -> Array(st),
+      ToSet(st) -> Array(st),
+      ToDict(std) -> Array(std),
+      ToArray(st) -> Array(st),
       CastToArray(NA(TSet(TInt32))),
-      ToStream(a),
-      LowerBoundOnOrderedCollection(a, i, onKey = true),
-      GroupByKey(da),
-      StreamTake(st, I32(10)),
-      StreamDrop(st, I32(10)),
-      StreamTakeWhile(st, "v", v < I32(5)),
-      StreamDropWhile(st, "v", v < I32(5)),
-      StreamMap(st, "v", v),
-      StreamZip(FastIndexedSeq(st, st), FastIndexedSeq("foo", "bar"), True(), ArrayZipBehavior.TakeMinLength),
-      StreamFilter(st, "v", b),
-      StreamFlatMap(sta, "v", ToStream(a)),
-      StreamFold(st, I32(0), "x", "v", v),
-      StreamFold2(StreamFold(st, I32(0), "x", "v", v)),
-      StreamScan(st, I32(0), "x", "v", v),
+      ToStream(a) -> Array(a),
+      LowerBoundOnOrderedCollection(a, i, onKey = true) -> Array(a),
+      GroupByKey(da) -> Array(da),
+      StreamTake(st, I32(10)) -> Array(st),
+      StreamDrop(st, I32(10)) -> Array(st),
+      StreamTakeWhile(st, "v", v < I32(5)) -> Array(st),
+      StreamDropWhile(st, "v", v < I32(5)) -> Array(st),
+      StreamMap(st, "v", v) -> Array(st),
+      StreamZip(FastIndexedSeq(st, st), FastIndexedSeq("foo", "bar"), True(), ArrayZipBehavior.TakeMinLength) -> Array(st),
+      StreamFilter(st, "v", b) -> Array(st),
+      StreamFlatMap(sta, "a", ToStream(a)) -> Array(sta),
+      StreamFold(st, I32(0), "x", "v", v) -> Array(st),
+      StreamFold2(StreamFold(st, I32(0), "x", "v", v)) -> Array(st),
+      StreamScan(st, I32(0), "x", "v", v) -> Array(st),
       StreamJoinRightDistinct(
         StreamMap(StreamRange(0, 2, 1), "x", MakeStruct(FastSeq("x" -> Ref("x", TInt32)))),
         StreamMap(StreamRange(0, 3, 1), "x", MakeStruct(FastSeq("x" -> Ref("x", TInt32)))),
         FastIndexedSeq("x"), FastIndexedSeq("x"), "l", "r", I32(1), "left"),
-      StreamFor(st, "v", Void()),
-      StreamAgg(st, "x", ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq(Cast(Ref("x", TInt32), TInt64)), sumSig)),
-      StreamAggScan(st, "x", ApplyScanOp(FastIndexedSeq.empty, FastIndexedSeq(Cast(Ref("x", TInt32), TInt64)), sumSig)),
+      StreamFor(st, "v", Void()) -> Array(st),
+      StreamAgg(st, "x", ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq(Cast(Ref("x", TInt32), TInt64)), sumSig)) -> Array(st),
+      StreamAggScan(st, "x", ApplyScanOp(FastIndexedSeq.empty, FastIndexedSeq(Cast(Ref("x", TInt32), TInt64)), sumSig)) -> Array(st),
       RunAgg(Begin(FastSeq(
         InitOp(0, FastIndexedSeq(Begin(FastIndexedSeq(InitOp(0, FastSeq(), pSumSig)))), groupSignature),
         SeqOp(0, FastSeq(I32(1), SeqOp(0, FastSeq(), pSumSig)), groupSignature))),
@@ -2795,13 +2803,13 @@ class IRSuite extends HailSuite {
         SeqOp(0, FastSeq(Ref("foo", TInt32), SeqOp(0, FastSeq(), pSumSig)), groupSignature),
         AggStateValue(0, groupSignature.state),
         FastIndexedSeq(groupSignature.state)),
-      AggFilter(True(), I32(0), false),
-      AggExplode(NA(TStream(TInt32)), "x", I32(0), false),
-      AggGroupBy(True(), I32(0), false),
-      ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq(I32(0)), collectSig),
-      ApplyAggOp(FastIndexedSeq(I32(2)), FastIndexedSeq(call), callStatsSig),
-      ApplyAggOp(FastIndexedSeq(I32(10)), FastIndexedSeq(F64(-2.11), I32(4)), takeBySig),
-      AggFold(I32(0), l + I32(1), l + r, l.name, r.name, false),
+      AggFilter(True(), I32(0), false) -> (_.createAgg),
+      AggExplode(NA(TStream(TInt32)), "x", I32(0), false) -> (_.createAgg),
+      AggGroupBy(True(), I32(0), false) -> (_.createAgg),
+      ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq(I32(0)), collectSig) -> (_.createAgg),
+      ApplyAggOp(FastIndexedSeq(I32(2)), FastIndexedSeq(call), callStatsSig) -> (_.createAgg.bindAgg(call.name, call.typ)),
+      ApplyAggOp(FastIndexedSeq(I32(10)), FastIndexedSeq(F64(-2.11), I32(4)), takeBySig) -> (_.createAgg),
+      AggFold(I32(0), l + I32(1), l + r, l.name, r.name, false) -> (_.createAgg),
       InitOp(0, FastIndexedSeq(I32(2)), pCallStatsSig),
       SeqOp(0, FastIndexedSeq(i), pCollectSig),
       CombOp(0, 1, pCollectSig),
@@ -2809,20 +2817,20 @@ class IRSuite extends HailSuite {
       ResultOp(0, PhysicalAggSig(Fold(), FoldStateSig(EmitType(SInt32, true), "accum", "other", Ref("accum", TInt32)))),
       SerializeAggs(0, 0, BufferSpec.default, FastSeq(pCollectSig.state)),
       DeserializeAggs(0, 0, BufferSpec.default, FastSeq(pCollectSig.state)),
-      CombOpValue(0, bin, pCollectSig),
+      CombOpValue(0, bin, pCollectSig) -> Array(bin),
       AggStateValue(0, pCollectSig.state),
-      InitFromSerializedValue(0, bin, pCollectSig.state),
+      InitFromSerializedValue(0, bin, pCollectSig.state) -> Array(bin),
       Begin(FastIndexedSeq(Void())),
       MakeStruct(FastIndexedSeq("x" -> i)),
-      SelectFields(s, FastIndexedSeq("x", "z")),
-      InsertFields(s, FastIndexedSeq("x" -> i)),
-      InsertFields(s, FastIndexedSeq("* x *" -> i)), // Won't parse as a simple identifier
-      GetField(s, "x"),
+      SelectFields(s, FastIndexedSeq("x", "z")) -> Array(s),
+      InsertFields(s, FastIndexedSeq("x" -> i)) -> Array(s),
+      InsertFields(s, FastIndexedSeq("* x *" -> i)) -> Array(s), // Won't parse as a simple identifier
+      GetField(s, "x") -> Array(s),
       MakeTuple(FastIndexedSeq(2 -> i, 4 -> b)),
-      GetTupleElement(t, 1),
+      GetTupleElement(t, 1) -> Array(t),
       Die("mumblefoo", TFloat64),
       Trap(Die("mumblefoo", TFloat64)),
-      invoke("land", TBoolean, b, c), // ApplySpecial
+      invoke("land", TBoolean, b, c) -> Array(c), // ApplySpecial
       invoke("toFloat64", TFloat64, i), // Apply
       Literal(TStruct("x" -> TInt32), Row(1)),
       TableCount(table),
@@ -2863,7 +2871,8 @@ class IRSuite extends HailSuite {
       RelationalLet("x", I32(0), I32(0)),
       TailLoop("y", IndexedSeq("x" -> I32(0)), Recur("y", FastSeq(I32(4)), TInt32))
       )
-    irs.map(x => Array(x))
+    val emptyEnv = BindingEnv.empty[Type]
+    irs.map { case (ir, bind) => Array(ir, bind(emptyEnv)) }
   }
 
   @DataProvider(name = "tableIRs")
@@ -3061,25 +3070,8 @@ class IRSuite extends HailSuite {
   }
 
   @Test(dataProvider = "valueIRs")
-  def testValueIRParser(x: IR) {
-    val env = IRParserEnvironment(ctx, refMap = Map(
-      "c" -> TBoolean,
-      "a" -> TArray(TInt32),
-      "aa" -> TArray(TArray(TInt32)),
-      "da" -> TArray(TTuple(TInt32, TString)),
-      "st" -> TStream(TInt32),
-      "sta" -> TStream(TArray(TInt32)),
-      "std" -> TStream(TTuple(TInt32, TString)),
-      "nd" -> TNDArray(TFloat64, Nat(1)),
-      "nd2" -> TNDArray(TArray(TString), Nat(1)),
-      "v" -> TInt32,
-      "l" -> TInt32,
-      "r" -> TInt32,
-      "s" -> TStruct("x" -> TInt32, "y" -> TInt64, "z" -> TFloat64),
-      "t" -> TTuple(TInt32, TInt64, TFloat64),
-      "call" -> TCall,
-      "bin" -> TBinary,
-      "x" -> TInt32))
+  def testValueIRParser(x: IR, refMap: BindingEnv[Type]) {
+    val env = IRParserEnvironment(ctx, refMap = refMap)
 
     val s = Pretty.sexprStyle(x, elideLiterals = false)
 
@@ -3124,7 +3116,7 @@ class IRSuite extends HailSuite {
     val cached = Literal(TSet(TInt32), Set(1))
     val s = s"(JavaIR __uid1)"
     val x2 = ExecuteContext.scoped() { ctx =>
-      IRParser.parse_value_ir(s, IRParserEnvironment(ctx, refMap = Map.empty, irMap = Map("__uid1" -> cached)))
+      IRParser.parse_value_ir(s, IRParserEnvironment(ctx, irMap = Map("__uid1" -> cached)))
     }
     assert(x2 eq cached)
   }
@@ -3133,7 +3125,7 @@ class IRSuite extends HailSuite {
     val cached = TableRange(1, 1)
     val s = s"(JavaTable __uid1)"
     val x2 = ExecuteContext.scoped() { ctx =>
-      IRParser.parse_table_ir(s, IRParserEnvironment(ctx, refMap = Map.empty, irMap = Map("__uid1" -> cached)))
+      IRParser.parse_table_ir(s, IRParserEnvironment(ctx, irMap = Map("__uid1" -> cached)))
     }
     assert(x2 eq cached)
   }
@@ -3142,7 +3134,7 @@ class IRSuite extends HailSuite {
     val cached = MatrixIR.range(3, 7, None)
     val s = s"(JavaMatrix __uid1)"
     val x2 = ExecuteContext.scoped() { ctx =>
-      IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, refMap = Map.empty, irMap = Map("__uid1" -> cached)))
+      IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, irMap = Map("__uid1" -> cached)))
     }
     assert(x2 eq cached)
   }
@@ -3152,7 +3144,7 @@ class IRSuite extends HailSuite {
     val id = hc.addIrVector(Array(cached))
     val s = s"(JavaMatrixVectorRef $id 0)"
     val x2 = ExecuteContext.scoped() { ctx =>
-      IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, refMap = Map.empty, irMap = Map.empty))
+      IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, irMap = Map.empty))
     }
     assert(cached eq x2)
 
@@ -3606,7 +3598,7 @@ class IRSuite extends HailSuite {
       val reader = PartitionNativeReader(spec, "rowUID")
       val read = ToArray(ReadPartition(
         MakeStruct(Array("partitionIndex" -> I64(0), "partitionPath" -> Str(path))),
-        coerce[TStruct](spec._vType),
+        tcoerce[TStruct](spec._vType),
         reader))
       val rowsFromDisk = eval(read).asInstanceOf[IndexedSeq[Row]]
       assert(rowsFromDisk.size == elementCount)

@@ -384,9 +384,25 @@ class Tests(unittest.TestCase):
     def test_semi_anti_join(self):
         ht = hl.utils.range_table(10)
         ht2 = ht.filter(ht.idx < 3)
+        ht_2k = ht.key_by(k1 = ht.idx, k2 = hl.str(ht.idx * 2))
+        ht2_2k = ht2.key_by(k1 = ht2.idx, k2 = hl.str(ht2.idx * 2))
 
         assert ht.semi_join(ht2).count() == 3
         assert ht.anti_join(ht2).count() == 7
+        assert ht_2k.semi_join(ht2).count() == 3
+        assert ht_2k.anti_join(ht2).count() == 7
+        assert ht_2k.semi_join(ht2_2k).count() == 3
+        assert ht_2k.anti_join(ht2_2k).count() == 7
+
+        with pytest.raises(ValueError, match='semi_join: cannot join'):
+            ht.semi_join(ht2_2k)
+        with pytest.raises(ValueError, match='semi_join: cannot join'):
+            ht.semi_join(ht2.key_by())
+
+        with pytest.raises(ValueError, match='anti_join: cannot join'):
+            ht.anti_join(ht2_2k)
+        with pytest.raises(ValueError, match='anti_join: cannot join'):
+            ht.anti_join(ht2.key_by())
 
     def test_indirected_joins(self):
         kt = hl.utils.range_table(1)
@@ -425,10 +441,6 @@ class Tests(unittest.TestCase):
     def test_index_globals(self):
         ht = hl.utils.range_table(1).annotate_globals(foo=5)
         assert hl.eval(ht.index_globals().foo) == 5
-
-    def test_interval_filter_loci(self):
-        ht = hl.import_vcf(resource('sample.vcf')).rows()
-        assert ht.filter(ht.locus > hl.locus('20', 17434581)).count() == 100
 
     def test_interval_join(self):
         left = hl.utils.range_table(50, n_partitions=10)
@@ -1728,13 +1740,13 @@ def test_read_write_all_types():
 
 def test_map_partitions_flatmap():
     ht = hl.utils.range_table(2)
-    ht2 = ht._map_partitions(lambda rows: rows.flatmap(lambda r: hl.range(2).map(lambda x: r.annotate(x=x))))
+    ht2 = ht._map_partitions(lambda rows: rows.flatmap(lambda r: hl._stream_range(2).map(lambda x: r.annotate(x=x))))
     assert ht2.collect() == [hl.Struct(idx=0, x=0), hl.Struct(idx=0, x=1), hl.Struct(idx=1, x=0), hl.Struct(idx=1, x=1)]
 
 
 def test_map_partitions_errors():
     ht = hl.utils.range_table(2)
-    with pytest.raises(TypeError, match='expected return type expression of type array<struct>'):
+    with pytest.raises(TypeError, match='expected return type expression of type stream<struct>'):
         ht._map_partitions(lambda rows: 5)
     with pytest.raises(ValueError, match='must preserve key fields'):
         ht._map_partitions(lambda rows: rows.map(lambda r: r.drop('idx')))
@@ -1743,7 +1755,7 @@ def test_map_partitions_indexed():
     tmp_file = new_temp_file()
     hl.utils.range_table(100, 8).write(tmp_file)
     ht = hl.read_table(tmp_file, _intervals=[hl.Interval(start=hl.Struct(idx=11), end=hl.Struct(idx=55))])
-    ht = ht.key_by()._map_partitions(lambda partition: [hl.struct(foo=partition)])
+    ht = ht.key_by()._map_partitions(lambda partition: hl.array([hl.struct(foo=partition.to_array())])._to_stream())
     assert [inner.idx for outer in ht.foo.collect() for inner in outer] == list(range(11, 55))
 
 def test_keys_before_scans():
@@ -1818,9 +1830,8 @@ def test_interval_filter_partitions():
 def test_grouped_flatmap_streams():
     ht = hl.import_vcf(resource('sample.vcf')).rows()
     ht = ht.annotate(x=hl.str(ht.locus))  # add a map node
-    ht = ht._map_partitions(lambda part: hl.flatmap(
-        lambda group: hl.range(hl.len(group)).map(lambda i: group[i].annotate(z=group[0])),
-        part.grouped(8)))
+    ht = ht._map_partitions(lambda part: part.grouped(8).flatmap(
+        lambda group: group._to_stream().map(lambda x: x.annotate(z=1))))
     ht._force_count()
 
 
@@ -2000,3 +2011,105 @@ def test_indexed_read_boundaries(branching_factor):
         ])
 
         assert t1.idx.collect() == [141, 142, 143, 144, 152]
+
+
+def test_query_table():
+    f = new_temp_file(extension='ht')
+    ht = hl.utils.range_table(200, 10)
+    ht = ht.filter(ht.idx % 10 == 0)
+    ht.annotate(s=hl.str(ht.idx)).write(f)
+
+    queries = [
+        hl.query_table(f, 50),
+        hl.query_table(f, hl.struct(idx=50)),
+        hl.query_table(f, 55),
+        hl.query_table(f, 5),
+        hl.query_table(f, -1),
+        hl.query_table(f, 205),
+        hl.query_table(f, hl.interval(27, 66)),
+        hl.query_table(f, hl.interval(276, 33333)),
+        hl.query_table(f, hl.interval(-22276, -5)),
+        hl.query_table(f, hl.interval(hl.struct(idx=27), hl.struct(idx=66))),
+        hl.query_table(f, hl.interval(40, 80, includes_end=True)),
+    ]
+
+    expected = [
+        [hl.Struct(idx=50, s='50')],
+        [hl.Struct(idx=50, s='50')],
+        [],
+        [],
+        [],
+        [],
+        [hl.Struct(idx=30, s='30'),
+         hl.Struct(idx=40, s='40'),
+         hl.Struct(idx=50, s='50'),
+         hl.Struct(idx=60, s='60')],
+        [],
+        [],
+        [hl.Struct(idx=30, s='30'),
+         hl.Struct(idx=40, s='40'),
+         hl.Struct(idx=50, s='50'),
+         hl.Struct(idx=60, s='60')],
+        [hl.Struct(idx=40, s='40'),
+         hl.Struct(idx=50, s='50'),
+         hl.Struct(idx=60, s='60'),
+         hl.Struct(idx=70, s='70'),
+         hl.Struct(idx=80, s='80'),
+         ]
+    ]
+
+    assert hl.eval(queries) == expected
+
+    with pytest.raises(ValueError, match='query_table: key mismatch'):
+        hl.query_table(f, hl.interval('1', '2'))
+    with pytest.raises(ValueError, match='query_table: key mismatch: cannot query'):
+        hl.query_table(f, '1')
+    with pytest.raises(ValueError, match='query_table: cannot query with empty key'):
+        hl.query_table(f, hl.struct())
+    with pytest.raises(ValueError, match='query_table: queried with 2 key field'):
+        hl.query_table(f, hl.struct(idx=5, foo='s'))
+
+
+def test_query_table_compound_key():
+    f = new_temp_file(extension='ht')
+
+    ht = hl.utils.range_table(200, 10)
+    ht = ht.filter(ht.idx % 10 == 0)
+    ht.annotate(idx2=ht.idx % 20, s=hl.str(ht.idx)).key_by('idx', 'idx2').write(f)
+
+    queries = [
+        hl.query_table(f, 50),
+        hl.query_table(f, hl.struct(idx=50)),
+        hl.query_table(f, hl.interval(hl.struct(idx=50, idx2=11), hl.struct(idx=60, idx2=-1)))
+    ]
+
+    expected = [
+        [hl.Struct(idx=50, idx2=10, s='50')],
+        [hl.Struct(idx=50, idx2=10, s='50')],
+        []
+    ]
+    assert hl.eval(queries) == expected
+
+def test_query_table_interval_key():
+    f = new_temp_file(extension='ht')
+
+    ht = hl.utils.range_table(200, 10)
+    ht = ht.filter(ht.idx % 10 == 0)
+
+    ht = ht.key_by(interval=hl.interval(ht.idx, ht.idx + 50))
+    ht.write(f)
+
+    queries = [
+        hl.query_table(f, hl.interval(20, 70)),
+        hl.query_table(f, hl.interval(20, 0)),
+        hl.query_table(f, hl.struct(interval=hl.interval(20, 0))),
+        hl.query_table(f, hl.interval(hl.interval(15, 10), hl.interval(20, 71)))
+    ]
+
+    expected = [
+        [hl.Struct(idx=20, interval=hl.Interval(20, 70))],
+        [],
+        [],
+        [hl.Struct(idx=20, interval=hl.Interval(20, 70))],
+    ]
+    assert hl.eval(queries) == expected

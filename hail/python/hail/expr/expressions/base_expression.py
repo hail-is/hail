@@ -355,7 +355,7 @@ def _to_expr(e, dtype):
                      else hl.literal(element, dtype.element_type)
                      for element in elements]
             indices, aggregations = unify_all(*exprs)
-            x = ir.ToSet(ir.ToStream(ir.MakeArray([e._ir for e in exprs], None)))
+            x = ir.ToSet(ir.toStream(ir.MakeArray([e._ir for e in exprs], None)))
             return expressions.construct_expr(x, dtype, indices, aggregations)
     elif isinstance(dtype, ttuple):
         elements = []

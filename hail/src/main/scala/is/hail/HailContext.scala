@@ -33,7 +33,7 @@ case class FilePartition(index: Int, file: String) extends Partition
 object HailContext {
   val tera: Long = 1024L * 1024L * 1024L * 1024L
 
-  val logFormat: String = "%d{yyyy-MM-dd HH:mm:ss} %c{1}: %p: %m%n"
+  val logFormat: String = "%d{yyyy-MM-dd HH:mm:ss.SSS} %c{1}: %p: %m%n"
 
   private var theContext: HailContext = _
 

@@ -71,16 +71,17 @@ for more information about access control.
 
     gsutil iam ch serviceAccount:[SERVICE_ACCOUNT_NAME]:objectAdmin gs://[BUCKET_NAME]
 
-The Google Container Repository (GCR) is a Docker repository hosted by Google that is an alternative
-to Docker Hub for storing images. It is recommended to use GCR for images that shouldn't be publically
-available. If you have a GCR `associated with your project <https://cloud.google.com/container-registry/docs/>`__,
+The Google Artifact Registry is a Docker repository hosted by Google that is an alternative
+to Docker Hub for storing images. It is recommended to use the artifact registry for images that shouldn't be publically
+available. If you have an artifact registry `associated with your project <https://cloud.google.com/artifact-registry/docs/>`__,
 then you can enable the service account to view Docker images with the command below where
-`SERVICE_ACCOUNT_NAME` is your full service account name and `PROJECT_ID` is the name of your project
-you want to grant access to:
+`SERVICE_ACCOUNT_NAME` is your full service account name, `<PROJECT>` is the name of your google project, and `<REPO>` is the name of your repository
+you want to grant access to and has a path that has the following prefix `us-docker.pkg.dev/<MY_PROJECT>`:
 
 .. code-block:: sh
 
-    gsutil iam ch serviceAccount:[SERVICE_ACCOUNT_NAME]:objectViewer gs://artifacts.[PROJECT-ID].appspot.com
+   gcloud artifacts repositories add-iam-policy-binding <REPO> \
+       --member=<SERVICE_ACCOUNT_NAME> --role=roles/artifactregistry.repoAdmin
 
 If you want to run gcloud or gsutil commands within your Batch jobs, the service
 account file is available at `/gsa-key/key.json` in the main container. You can authenticate using the service
@@ -210,8 +211,14 @@ and write access to the bucket.
 
 .. warning::
 
-   To avoid expensive egress charges, make sure your bucket is multi-regional
-   in the United States because Batch runs your job in any US region.
+   By default, the Batch Service runs jobs in any region in the US. Make sure you have considered additional `ingress and
+   egress fees <https://cloud.google.com/storage/pricing>`_ when using regional buckets and container or artifact
+   registries. Multi-regional buckets also have additional replication fees when writing data. A good rule of thumb is to use
+   a multi-regional artifact registry for Docker images and regional buckets for data. You can then specify which region(s)
+   you want your job to run in with :meth:`.Job.regions`. To set the default region(s) for all jobs, you can set the input
+   regions argument to :class:`.ServiceBackend` or use hailctl to set the default value. An example invocation is
+   `hailctl config set batch/regions "us-central1,us-east1"`. You can also get the full list of supported regions
+   with py:staticmethod:`.ServiceBackend.supported_regions`.
 
 Next, pass the :class:`.ServiceBackend` object to the :class:`.Batch` constructor
 with the parameter name `backend`.

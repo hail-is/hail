@@ -107,6 +107,7 @@ class LocalBatchBuilder:
         prefix = f'{STORAGE_URI}/build/{batch_token}'
 
         for j in self._jobs:
+            assert j._attributes
             job_name = j._attributes.get('name')
 
             print(f'{j._index}: {job_name}: running...')

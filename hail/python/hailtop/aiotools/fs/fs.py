@@ -277,7 +277,7 @@ class AsyncFS(abc.ABC):
                         exc_tb: Optional[TracebackType]) -> None:
         await self.close()
 
-    def copy_part_size(self, url: str) -> int:  # pylint: disable=unused-argument,no-self-use
+    def copy_part_size(self, url: str) -> int:  # pylint: disable=unused-argument
         '''Part size when copying using multi-part uploads.  The part size of
         the destination filesystem is used.'''
         return 128 * 1024 * 1024

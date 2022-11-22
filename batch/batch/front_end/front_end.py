@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import collections
 import datetime
 import json
@@ -18,8 +19,11 @@ import humanize
 import pandas as pd
 import plotly
 import plotly.express as px
+import plotly.graph_objects as go
 import pymysql
+import uvloop
 from aiohttp import web
+from plotly.subplots import make_subplots
 from prometheus_async.aio.web import server_stats  # type: ignore
 
 from gear import (
@@ -69,16 +73,14 @@ from ..exceptions import (
     NonExistentBillingProjectError,
 )
 from ..file_store import FileStore
-from ..globals import BATCH_FORMAT_VERSION, HTTP_CLIENT_MAX_SIZE
+from ..globals import BATCH_FORMAT_VERSION, HTTP_CLIENT_MAX_SIZE, complete_states
 from ..inst_coll_config import InstanceCollectionConfigs
+from ..resource_usage import ResourceUsageMonitor
 from ..spec_writer import SpecWriter
-from ..utils import query_billing_projects, unavailable_if_frozen
+from ..utils import query_billing_projects, regions_to_bits_rep, unavailable_if_frozen
 from .validate import ValidationError, validate_and_clean_jobs, validate_batch, validate_batch_update
 
-# import uvloop
-
-
-# uvloop.install()
+uvloop.install()
 
 log = logging.getLogger('batch.front_end')
 
@@ -178,6 +180,12 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 @routes.get('/api/v1alpha/version')
 async def rest_get_version(request):  # pylint: disable=W0613
     return web.Response(text=version())
+
+
+@routes.get('/api/v1alpha/supported_regions')
+@auth.rest_authenticated_users_only
+async def rest_get_supported_regions(request, userdata):  # pylint: disable=unused-argument
+    return web.json_response(list(request.app['regions'].keys()))
 
 
 async def _handle_ui_error(session, f, *args, **kwargs):
@@ -461,63 +469,7 @@ async def get_jobs_for_billing(request, userdata, batch_id):
     return web.json_response(resp)
 
 
-async def _get_job_log_from_record(app, batch_id, job_id, record):
-    client_session: httpx.ClientSession = app['client_session']
-    batch_format_version = BatchFormatVersion(record['format_version'])
-
-    state = record['state']
-    ip_address = record['ip_address']
-
-    spec = json.loads(record['spec'])
-    tasks = []
-
-    has_input_files = batch_format_version.get_spec_has_input_files(spec)
-    if has_input_files:
-        tasks.append('input')
-
-    tasks.append('main')
-
-    has_output_files = batch_format_version.get_spec_has_output_files(spec)
-    if has_output_files:
-        tasks.append('output')
-
-    if state == 'Running':
-        try:
-            resp = await request_retry_transient_errors(
-                client_session, 'GET', f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log'
-            )
-            return await resp.json()
-        except aiohttp.ClientResponseError:
-            log.exception(f'while getting log for {(batch_id, job_id)}')
-            return {task: 'ERROR: encountered a problem while fetching the log' for task in tasks}
-
-    if state in ('Pending', 'Ready', 'Creating'):
-        return None
-
-    if state == 'Cancelled' and record['last_cancelled_attempt_id'] is None:
-        return None
-
-    assert state in ('Error', 'Failed', 'Success', 'Cancelled')
-
-    attempt_id = record['attempt_id'] or record['last_cancelled_attempt_id']
-    assert attempt_id is not None
-
-    file_store: FileStore = app['file_store']
-    batch_format_version = BatchFormatVersion(record['format_version'])
-
-    async def _read_log_from_cloud_storage(task):
-        try:
-            data = await file_store.read_log_file(batch_format_version, batch_id, job_id, attempt_id, task)
-        except FileNotFoundError:
-            id = (batch_id, job_id)
-            log.exception(f'missing log file for {id} and task {task}')
-            data = 'ERROR: could not find log file'
-        return task, data
-
-    return dict(await asyncio.gather(*[_read_log_from_cloud_storage(task) for task in tasks]))
-
-
-async def _get_job_log(app, batch_id, job_id):
+async def _get_job_record(app, batch_id, job_id):
     db: Database = app['db']
 
     record = await db.select_and_fetchone(
@@ -544,7 +496,125 @@ WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
     )
     if not record:
         raise web.HTTPNotFound()
-    return await _get_job_log_from_record(app, batch_id, job_id, record)
+    return record
+
+
+def job_tasks_from_spec(record):
+    batch_format_version = BatchFormatVersion(record['format_version'])
+    spec = json.loads(record['spec'])
+    tasks = []
+
+    has_input_files = batch_format_version.get_spec_has_input_files(spec)
+    if has_input_files:
+        tasks.append('input')
+
+    tasks.append('main')
+
+    has_output_files = batch_format_version.get_spec_has_output_files(spec)
+    if has_output_files:
+        tasks.append('output')
+
+    return tasks
+
+
+def has_resource_available(record):
+    state = record['state']
+    if state in ('Pending', 'Ready', 'Creating'):
+        return False
+    if state == 'Cancelled' and record['last_cancelled_attempt_id'] is None:
+        return False
+    if state == 'Running':
+        return True
+    assert state in complete_states, state
+    return True
+
+
+def attempt_id_from_spec(record):
+    return record['attempt_id'] or record['last_cancelled_attempt_id']
+
+
+async def _get_job_log(app, batch_id, job_id):
+    record = await _get_job_record(app, batch_id, job_id)
+
+    client_session: httpx.ClientSession = app['client_session']
+    file_store: FileStore = app['file_store']
+    batch_format_version = BatchFormatVersion(record['format_version'])
+
+    state = record['state']
+    ip_address = record['ip_address']
+    tasks = job_tasks_from_spec(record)
+    attempt_id = attempt_id_from_spec(record)
+
+    if not has_resource_available(record):
+        return None
+
+    if state == 'Running':
+        try:
+            async with await request_retry_transient_errors(
+                client_session, 'GET', f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log'
+            ) as resp:
+                return await resp.json()
+        except aiohttp.ClientResponseError:
+            log.exception(f'while getting log for {(batch_id, job_id)}')
+            return {task: 'ERROR: encountered a problem while fetching the log' for task in tasks}
+
+    assert attempt_id is not None and state in complete_states
+
+    async def _read_log_from_cloud_storage(task):
+        try:
+            data = await file_store.read_log_file(batch_format_version, batch_id, job_id, attempt_id, task)
+        except FileNotFoundError:
+            id = (batch_id, job_id)
+            log.exception(f'missing log file for {id} and task {task}')
+            data = 'ERROR: could not find log file'
+        return task, data
+
+    return dict(await asyncio.gather(*[_read_log_from_cloud_storage(task) for task in tasks]))
+
+
+async def _get_job_resource_usage(app, batch_id, job_id):
+    record = await _get_job_record(app, batch_id, job_id)
+
+    client_session: httpx.ClientSession = app['client_session']
+    file_store: FileStore = app['file_store']
+    batch_format_version = BatchFormatVersion(record['format_version'])
+
+    state = record['state']
+    ip_address = record['ip_address']
+    tasks = job_tasks_from_spec(record)
+    attempt_id = attempt_id_from_spec(record)
+
+    if not has_resource_available(record):
+        return None
+
+    if state == 'Running':
+        try:
+            resp = await request_retry_transient_errors(
+                client_session,
+                'GET',
+                f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resource_usage',
+            )
+            data = await resp.json()
+            return {
+                task: ResourceUsageMonitor.decode_to_df(base64.b64decode(encoded_df))
+                for task, encoded_df in data.items()
+            }
+        except aiohttp.ClientResponseError:
+            log.exception(f'while getting resource usage for {(batch_id, job_id)}')
+            return {task: None for task in tasks}
+
+    assert attempt_id is not None and state in complete_states
+
+    async def _read_resource_usage_from_cloud_storage(task):
+        try:
+            df = await file_store.read_resource_usage_file(batch_format_version, batch_id, job_id, attempt_id, task)
+        except FileNotFoundError:
+            id = (batch_id, job_id)
+            log.exception(f'missing resource usage file for {id} and task {task}')
+            df = None
+        return task, df
+
+    return dict(await asyncio.gather(*[_read_resource_usage_from_cloud_storage(task) for task in tasks]))
 
 
 async def _get_attributes(app, record):
@@ -1029,6 +1099,22 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
         resources['storage_gib'] = storage_gib
         resources['preemptible'] = preemptible
 
+        regions = spec.get('regions')
+        if regions is not None:
+            valid_regions = set(app['regions'].keys())
+            invalid_user_regions = set(regions).difference(valid_regions)
+            if invalid_user_regions:
+                raise web.HTTPBadRequest(
+                    reason=f'invalid regions specified: {invalid_user_regions}. Choose from {valid_regions}'
+                )
+            if len(regions) == 0:
+                raise web.HTTPBadRequest(reason='regions must not be an empty array')
+            n_regions = len(regions)
+            regions_bits_rep = regions_to_bits_rep(regions, app['regions'])
+        else:
+            n_regions = None
+            regions_bits_rep = None
+
         secrets = spec.get('secrets')
         if not secrets:
             secrets = []
@@ -1132,6 +1218,8 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
                 cores_mcpu,
                 len(parent_ids),
                 inst_coll_name,
+                n_regions,
+                regions_bits_rep,
             )
         )
 
@@ -1153,10 +1241,11 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
             try:
                 await tx.execute_many(
                     '''
-INSERT INTO jobs (batch_id, job_id, update_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO jobs (batch_id, job_id, update_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll, n_regions, regions_bits_rep)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
                     jobs_args,
+                    query_name='insert_jobs',
                 )
             except pymysql.err.IntegrityError as err:
                 # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
@@ -1171,6 +1260,7 @@ INSERT INTO `job_parents` (batch_id, job_id, parent_id)
 VALUES (%s, %s, %s);
 ''',
                     job_parents_args,
+                    query_name='insert_job_parents',
                 )
             except pymysql.err.IntegrityError as err:
                 # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
@@ -1183,6 +1273,7 @@ INSERT INTO `job_attributes` (batch_id, job_id, `key`, `value`)
 VALUES (%s, %s, %s, %s);
 ''',
                 job_attributes_args,
+                query_name='insert_job_attributes',
             )
 
             batches_inst_coll_staging_args = [
@@ -1207,6 +1298,7 @@ ON DUPLICATE KEY UPDATE
   ready_cores_mcpu = ready_cores_mcpu + VALUES(ready_cores_mcpu);
 ''',
                 batches_inst_coll_staging_args,
+                query_name='insert_batches_inst_coll_staging',
             )
 
             batch_inst_coll_cancellable_resources_args = [
@@ -1229,6 +1321,7 @@ ON DUPLICATE KEY UPDATE
   ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + VALUES(ready_cancellable_cores_mcpu);
 ''',
                 batch_inst_coll_cancellable_resources_args,
+                query_name='insert_inst_coll_cancellable_resources',
             )
 
             if batch_format_version.has_full_spec_in_cloud():
@@ -1238,6 +1331,7 @@ INSERT INTO batch_bunches (batch_id, token, start_job_id)
 VALUES (%s, %s, %s);
 ''',
                     (batch_id, spec_writer.token, bunch_start_job_id),
+                    query_name='insert_batch_bunches',
                 )
         except asyncio.CancelledError:
             raise
@@ -1391,12 +1485,14 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 BATCH_FORMAT_VERSION,
                 batch_spec.get('cancel_after_n_failures'),
             ),
+            query_name='insert_batches',
         )
         await tx.execute_insertone(
             '''
 INSERT INTO batches_n_jobs_in_complete_states (id) VALUES (%s);
 ''',
             (id,),
+            query_name='insert_batches_n_jobs_in_complete_states',
         )
 
         if attributes:
@@ -1406,6 +1502,7 @@ INSERT INTO `batch_attributes` (batch_id, `key`, `value`)
 VALUES (%s, %s, %s)
 ''',
                 [(id, k, v) for k, v in attributes.items()],
+                query_name='insert_batch_attributes',
             )
         return id
 
@@ -1527,6 +1624,7 @@ INSERT INTO batch_updates
 VALUES (%s, %s, %s, %s, %s, %s, %s);
 ''',
             (batch_id, update_id, update_token, update_start_job_id, n_jobs, False, now),
+            query_name='insert_batch_update',
         )
 
         return (update_id, update_start_job_id)
@@ -1692,11 +1790,13 @@ async def _commit_update(app: web.Application, batch_id: int, update_id: int, us
             raise web.HTTPBadRequest(reason=f'wrong number of jobs: expected {expected_n_jobs}, actual {actual_n_jobs}')
         raise
 
-    await request_retry_transient_errors(
-        client_session,
-        'PATCH',
-        deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/update'),
-        headers=app['batch_headers'],
+    app['task_manager'].ensure_future(
+        request_retry_transient_errors(
+            client_session,
+            'PATCH',
+            deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/update'),
+            headers=app['batch_headers'],
+        )
     )
 
 
@@ -1853,7 +1953,7 @@ WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
     if len(attempts) == 1 and attempts[0]['attempt_id'] is None:
         return None
 
-    attempts.sort(key=lambda x: x['start_time'])
+    attempts.sort(key=lambda x: x['start_time'] or x['end_time'])
 
     for attempt in attempts:
         start_time = attempt['start_time']
@@ -1894,6 +1994,125 @@ async def get_job(request, userdata, batch_id):  # pylint: disable=unused-argume
     return web.json_response(status)
 
 
+def plot_job_durations(container_statuses: dict, batch_id: int, job_id: int):
+    data = []
+    for step in ['input', 'main', 'output']:
+        if container_statuses[step]:
+            for timing_name, timing_data in container_statuses[step]['timing'].items():
+                if timing_data is not None:
+                    plot_dict = {
+                        'Title': f'{(batch_id, job_id)}',
+                        'Step': step,
+                        'Task': timing_name,
+                    }
+
+                    if timing_data.get('start_time') is not None:
+                        plot_dict['Start'] = datetime.datetime.fromtimestamp(timing_data['start_time'] / 1000)
+
+                        finish_time = timing_data.get('finish_time')
+                        if finish_time is None:
+                            finish_time = time_msecs()
+                        plot_dict['Finish'] = datetime.datetime.fromtimestamp(finish_time / 1000)
+
+                    data.append(plot_dict)
+
+    if not data:
+        return None
+
+    df = pd.DataFrame(data)
+
+    fig = px.timeline(
+        df,
+        x_start='Start',
+        x_end='Finish',
+        y='Step',
+        color='Task',
+        hover_data=['Step'],
+        color_discrete_sequence=px.colors.qualitative.Prism,
+        category_orders={
+            'Step': ['input', 'main', 'output'],
+            'Task': [
+                'pulling',
+                'setting up overlay',
+                'setting up network',
+                'running',
+                'uploading_log',
+                'uploading_resource_usage',
+            ],
+        },
+    )
+
+    return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
+
+def plot_resource_usage(resource_usage: Optional[Dict[str, Optional[pd.DataFrame]]]) -> Optional[str]:
+    if resource_usage is None:
+        return None
+
+    fig = make_subplots(rows=2, cols=1, subplot_titles=('CPU Usage', 'Memory'))
+
+    colors = {'input': 'red', 'main': 'green', 'output': 'blue'}
+
+    max_cpu_value = 1
+    max_memory_value = 1024 * 1024
+    n_total_rows = 0
+
+    for container_name, df in resource_usage.items():
+        if df is None:
+            continue
+
+        n_rows = df.shape[0]
+        n_total_rows += n_rows
+
+        time_df = pd.to_datetime(df['time_msecs'], unit='ms')
+        mem_df = df['memory_in_bytes']
+        cpu_df = df['cpu_usage']
+
+        if n_rows != 0:
+            max_cpu_value = max(max_cpu_value, cpu_df.max())
+            max_memory_value = max(max_memory_value, mem_df.max())
+
+        fig.add_trace(
+            go.Scatter(
+                x=time_df,
+                y=cpu_df,
+                legendgroup=container_name,
+                name=container_name,
+                mode='markers+lines',
+                line=dict(color=colors[container_name]),
+            ),
+            row=1,
+            col=1,
+        )
+
+        fig.add_trace(
+            go.Scatter(
+                x=time_df,
+                y=mem_df,
+                showlegend=False,
+                legendgroup=container_name,
+                name=container_name,
+                mode='markers+lines',
+                line=dict(color=colors[container_name]),
+            ),
+            row=2,
+            col=1,
+        )
+
+    fig.update_layout(
+        showlegend=True,
+        yaxis1_tickformat='%',
+        yaxis2_tickformat='s',
+        yaxis1_range=[0, 1.25 * max_cpu_value],
+        yaxis2_range=[0, 1.25 * max_memory_value],
+    )
+
+    if n_total_rows == 0:
+        return None
+
+    return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
+
 @routes.get('/batches/{batch_id}/jobs/{job_id}')
 @web_billing_project_users_only()
 @catch_ui_error_in_dev
@@ -1901,8 +2120,11 @@ async def ui_get_job(request, userdata, batch_id):
     app = request.app
     job_id = int(request.match_info['job_id'])
 
-    job, attempts, job_log = await asyncio.gather(
-        _get_job(app, batch_id, job_id), _get_attempts(app, batch_id, job_id), _get_job_log(app, batch_id, job_id)
+    job, attempts, job_log, resource_usage = await asyncio.gather(
+        _get_job(app, batch_id, job_id),
+        _get_attempts(app, batch_id, job_id),
+        _get_job_log(app, batch_id, job_id),
+        _get_job_resource_usage(app, batch_id, job_id),
     )
 
     job['duration'] = humanize_timedelta_msecs(job['duration'])
@@ -1915,6 +2137,7 @@ async def ui_get_job(request, userdata, batch_id):
             'timing': {
                 'pulling': dictfix.NoneOr({'duration': dictfix.NoneOr(Number)}),
                 'running': dictfix.NoneOr({'duration': dictfix.NoneOr(Number)}),
+                'uploading_resource_usage': dictfix.NoneOr({'duration': dictfix.NoneOr(Number)}),
             },
             'short_error': dictfix.NoneOr(str),
             'error': dictfix.NoneOr(str),
@@ -1961,48 +2184,6 @@ async def ui_get_job(request, userdata, batch_id):
         resources['actual_cpu'] = resources['cores_mcpu'] / 1000
         del resources['cores_mcpu']
 
-    data = []
-    for step in ['input', 'main', 'output']:
-        if container_statuses[step]:
-            for timing_name, timing_data in container_statuses[step]['timing'].items():
-                if timing_data is not None:
-                    plot_dict = {
-                        'Title': f'{(batch_id, job_id)}',
-                        'Step': step,
-                        'Task': timing_name,
-                    }
-
-                    if timing_data.get('start_time') is not None:
-                        plot_dict['Start'] = datetime.datetime.fromtimestamp(timing_data['start_time'] / 1000)
-
-                        finish_time = timing_data.get('finish_time')
-                        if finish_time is None:
-                            finish_time = time_msecs()
-                        plot_dict['Finish'] = datetime.datetime.fromtimestamp(finish_time / 1000)
-
-                    data.append(plot_dict)
-
-    if data:
-        df = pd.DataFrame(data)
-
-        fig = px.timeline(
-            df,
-            x_start='Start',
-            x_end='Finish',
-            y='Step',
-            color='Task',
-            hover_data=['Step'],
-            color_discrete_sequence=px.colors.qualitative.Prism,
-            category_orders={
-                'Step': ['input', 'main', 'output'],
-                'Task': ['pulling', 'setting up overlay', 'setting up network', 'running', 'uploading_log'],
-            },
-        )
-
-        plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-    else:
-        plot_json = None
-
     page_context = {
         'batch_id': batch_id,
         'job_id': job_id,
@@ -2014,7 +2195,8 @@ async def ui_get_job(request, userdata, batch_id):
         'job_status_str': json.dumps(job, indent=2),
         'step_errors': step_errors,
         'error': job_status.get('error'),
-        'plot_json': plot_json,
+        'plot_job_durations': plot_job_durations(container_statuses, batch_id, job_id),
+        'plot_resource_usage': plot_resource_usage(resource_usage),
     }
 
     return await render_template('batch', request, userdata, 'job.html', page_context)
@@ -2128,16 +2310,16 @@ async def _query_billing(request, user=None):
     date_format = '%m/%d/%Y'
 
     default_start = datetime.datetime.now().replace(day=1)
-    default_start = datetime.datetime.strftime(default_start, date_format)
+    default_start_str = datetime.datetime.strftime(default_start, date_format)
 
     default_end = None
 
     async def parse_error(msg):
         session = await aiohttp_session.get_session(request)
         set_message(session, msg, 'error')
-        return ([], default_start, default_end)
+        return ([], default_start_str, default_end)
 
-    start_query = request.query.get('start', default_start)
+    start_query = request.query.get('start', default_start_str)
     try:
         start = datetime.datetime.strptime(start_query, date_format)
     except ValueError:
@@ -2200,8 +2382,8 @@ async def ui_get_billing(request, userdata):
     user = userdata['username'] if not is_developer else None
     billing, start, end = await _query_billing(request, user=user)
 
-    billing_by_user = {}
-    billing_by_project = {}
+    billing_by_user: Dict[str, int] = {}
+    billing_by_project: Dict[str, int] = {}
     for record in billing:
         billing_project = record['billing_project']
         user = record['user']
@@ -2209,26 +2391,26 @@ async def ui_get_billing(request, userdata):
         billing_by_user[user] = billing_by_user.get(user, 0) + cost
         billing_by_project[billing_project] = billing_by_project.get(billing_project, 0) + cost
 
-    billing_by_project = [
-        {'billing_project': billing_project, 'cost': cost_str(cost)}
+    billing_by_project_list = [
+        {'billing_project': billing_project, 'cost': cost_str(cost) or '$0'}
         for billing_project, cost in billing_by_project.items()
     ]
-    billing_by_project.sort(key=lambda record: record['billing_project'])
+    billing_by_project_list.sort(key=lambda record: record['billing_project'])
 
-    billing_by_user = [{'user': user, 'cost': cost_str(cost)} for user, cost in billing_by_user.items()]
-    billing_by_user.sort(key=lambda record: record['user'])
+    billing_by_user_list = [{'user': user, 'cost': cost_str(cost) or '$0'} for user, cost in billing_by_user.items()]
+    billing_by_user_list.sort(key=lambda record: record['user'])
 
     billing_by_project_user = [
-        {'billing_project': record['billing_project'], 'user': record['user'], 'cost': cost_str(record['cost'])}
+        {'billing_project': record['billing_project'], 'user': record['user'], 'cost': cost_str(record['cost']) or '$0'}
         for record in billing
     ]
     billing_by_project_user.sort(key=lambda record: (record['billing_project'], record['user']))
 
-    total_cost = cost_str(sum([record['cost'] for record in billing]))
+    total_cost = cost_str(sum(record['cost'] for record in billing))
 
     page_context = {
-        'billing_by_project': billing_by_project,
-        'billing_by_user': billing_by_user,
+        'billing_by_project': billing_by_project_list,
+        'billing_by_user': billing_by_user_list,
         'billing_by_project_user': billing_by_project_user,
         'start': start,
         'end': end,
@@ -2611,6 +2793,12 @@ SELECT frozen FROM globals;
     )
     app['frozen'] = row['frozen']
 
+    regions = {
+        record['region']: record['region_id']
+        async for record in db.select_and_fetchall('SELECT region_id, region from regions')
+    }
+    app['regions'] = regions
+
 
 @routes.get('')
 @routes.get('/')
@@ -2693,6 +2881,14 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
 
     app['frozen'] = row['frozen']
 
+    regions = {
+        record['region']: record['region_id']
+        async for record in db.select_and_fetchall('SELECT region_id, region from regions')
+    }
+    if len(regions) != 0:
+        assert max(regions.values()) < 64, str(regions)
+    app['regions'] = regions
+
     fs = get_cloud_async_fs(credentials_file='/gsa-key/key.json')
     app['file_store'] = FileStore(fs, BATCH_STORAGE_URI, instance_id)
 
@@ -2747,7 +2943,7 @@ def run():
     web.run_app(
         deploy_config.prefix_application(app, 'batch', client_max_size=HTTP_CLIENT_MAX_SIZE),
         host='0.0.0.0',
-        port=5000,
+        port=443,
         access_log_class=BatchFrontEndAccessLogger,
         ssl_context=internal_server_ssl_context(),
     )

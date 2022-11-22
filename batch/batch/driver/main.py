@@ -6,7 +6,7 @@ import re
 import signal
 from collections import defaultdict
 from functools import wraps
-from typing import Dict, Set, Tuple
+from typing import Any, Dict, Set, Tuple
 
 import aiohttp_session
 import dictdiffer
@@ -62,7 +62,7 @@ from ..exceptions import BatchUserError
 from ..file_store import FileStore
 from ..globals import HTTP_CLIENT_MAX_SIZE
 from ..inst_coll_config import InstanceCollectionConfigs, PoolConfig
-from ..utils import authorization_token, batch_only, query_billing_projects
+from ..utils import authorization_token, batch_only, json_to_value, query_billing_projects
 from .canceller import Canceller
 from .driver import CloudDriver
 from .instance_collection import InstanceCollectionManager, JobPrivateInstanceManager, Pool
@@ -314,6 +314,7 @@ async def kill_instance(request, userdata):  # pylint: disable=unused-argument
 async def job_complete_1(request, instance):
     body = await request.json()
     job_status = body['status']
+    marked_job_started = body.get('marked_job_started', False)
 
     batch_id = job_status['batch_id']
     job_id = job_status['job_id']
@@ -345,6 +346,7 @@ async def job_complete_1(request, instance):
         end_time,
         'completed',
         resources,
+        marked_job_started=marked_job_started,
     )
 
     await instance.mark_healthy()
@@ -453,8 +455,7 @@ FROM user_inst_coll_resources;
 @auth.web_authenticated_developers_only()
 async def get_quotas(request, userdata):
     if CLOUD != 'gcp':
-        page_context = {"plot_json": None}
-        return await render_template('batch-driver', request, userdata, 'quotas.html', page_context)
+        return await render_template('batch-driver', request, userdata, 'quotas.html', {"plot_json": None})
 
     data = request.app['driver'].get_quotas()
 
@@ -516,9 +517,7 @@ async def get_quotas(request, userdata):
     )
 
     plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-
-    page_context = {"plot_json": plot_json}
-    return await render_template('batch-driver', request, userdata, 'quotas.html', page_context)
+    return await render_template('batch-driver', request, userdata, 'quotas.html', {"plot_json": plot_json})
 
 
 class ConfigError(Exception):
@@ -765,7 +764,7 @@ async def get_pool(request, userdata):
         reverse=True,
     )
 
-    ready_cores_mcpu = sum([record['ready_cores_mcpu'] for record in user_resources])
+    ready_cores_mcpu = sum(record['ready_cores_mcpu'] for record in user_resources)
 
     pool_config_json = json.dumps(pool.config())
 
@@ -793,9 +792,9 @@ async def get_job_private_inst_manager(request, userdata):
         reverse=True,
     )
 
-    n_ready_jobs = sum([record['n_ready_jobs'] for record in user_resources])
-    n_creating_jobs = sum([record['n_creating_jobs'] for record in user_resources])
-    n_running_jobs = sum([record['n_running_jobs'] for record in user_resources])
+    n_ready_jobs = sum(record['n_ready_jobs'] for record in user_resources)
+    n_creating_jobs = sum(record['n_creating_jobs'] for record in user_resources)
+    n_running_jobs = sum(record['n_running_jobs'] for record in user_resources)
 
     page_context = {
         'jpim': jpim,
@@ -958,11 +957,6 @@ LOCK IN SHARE MODE;
 
 
 async def check_resource_aggregation(app, db):
-    def json_to_value(x):
-        if x is None:
-            return x
-        return json.loads(x)
-
     def merge(r1, r2):
         if r1 is None:
             r1 = {}
@@ -992,7 +986,7 @@ async def check_resource_aggregation(app, db):
         if d is None:
             d = {}
         d = copy.deepcopy(d)
-        result = {}
+        result: Dict[str, Any] = {}
         for k, v in d.items():
             seqop(result, key_f(k), v)
         return result
@@ -1286,6 +1280,7 @@ class BatchDriverAccessLogger(AccessLogger):
                 ('POST', '/api/v1alpha/instances/job_started'),
                 ('PATCH', '/api/v1alpha/batches/.*/.*/close'),
                 ('POST', '/api/v1alpha/batches/cancel'),
+                ('PATCH', '/api/v1alpha/batches/.*/.*/update'),
                 ('GET', '/metrics'),
             ]
         ]

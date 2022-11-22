@@ -59,26 +59,6 @@ def convert_gcs_requester_pays_configuration_to_hadoop_conf_style(
 
 class HailContext(object):
     @staticmethod
-    async def async_create(log: str,
-                           quiet: bool,
-                           append: bool,
-                           tmpdir: str,
-                           local_tmpdir: str,
-                           default_reference: str,
-                           global_seed: Optional[int],
-                           backend: Backend):
-        hc = HailContext(log=log,
-                         quiet=quiet,
-                         append=append,
-                         tmpdir=tmpdir,
-                         local_tmpdir=local_tmpdir,
-                         global_seed=global_seed,
-                         backend=backend)
-        references = await backend._async_get_references(BUILTIN_REFERENCES)
-        hc.initialize_references(references, default_reference)
-        return hc
-
-    @staticmethod
     def create(log: str,
                quiet: bool,
                append: bool,
@@ -343,28 +323,24 @@ def init(sc=None,
         backend = 'batch'
 
     if backend == 'batch':
+        import nest_asyncio
+        nest_asyncio.apply()
         import asyncio
-        try:
-            asyncio.get_running_loop()
-            raise ValueError(
-                'When using Hail Query in async code, initialize the ServiceBackend with `await hl.init_batch()`'
-            )
-        except RuntimeError:  # RuntimeError implies there is no running loop, so we may start one
-            return asyncio.get_event_loop().run_until_complete(init_batch(
-                log=log,
-                quiet=quiet,
-                append=append,
-                tmpdir=tmp_dir,
-                local_tmpdir=local_tmpdir,
-                default_reference=default_reference,
-                global_seed=global_seed,
-                driver_cores=driver_cores,
-                driver_memory=driver_memory,
-                worker_cores=worker_cores,
-                worker_memory=worker_memory,
-                name_prefix=app_name,
-                gcs_requester_pays_configuration=gcs_requester_pays_configuration
-            ))
+        return asyncio.get_event_loop().run_until_complete(init_batch(
+            log=log,
+            quiet=quiet,
+            append=append,
+            tmpdir=tmp_dir,
+            local_tmpdir=local_tmpdir,
+            default_reference=default_reference,
+            global_seed=global_seed,
+            driver_cores=driver_cores,
+            driver_memory=driver_memory,
+            worker_cores=worker_cores,
+            worker_memory=worker_memory,
+            name_prefix=app_name,
+            gcs_requester_pays_configuration=gcs_requester_pays_configuration
+        ))
     if backend == 'spark':
         return init_spark(
             sc=sc,
@@ -531,7 +507,7 @@ async def init_batch(
         tmpdir = backend.remote_tmpdir + 'tmp/hail/' + secret_alnum_string()
     local_tmpdir = _get_local_tmpdir(local_tmpdir)
 
-    await HailContext.async_create(
+    HailContext.create(
         log, quiet, append, tmpdir, local_tmpdir, default_reference,
         global_seed, backend)
 

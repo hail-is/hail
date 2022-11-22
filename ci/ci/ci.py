@@ -7,7 +7,9 @@ import traceback
 from typing import Callable, Dict, List, Optional, Set
 
 import aiohttp_session  # type: ignore
+import kubernetes_asyncio
 import uvloop  # type: ignore
+import yaml
 from aiohttp import web
 from gidgethub import aiohttp as gh_aiohttp
 from gidgethub import routing as gh_routing
@@ -27,11 +29,12 @@ from hailtop.batch_client.aioclient import Batch, BatchClient
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
-from hailtop.utils import collect_agen, humanize_timedelta_msecs
+from hailtop.utils import collect_agen, humanize_timedelta_msecs, periodically_call
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
 from .constants import AUTHORIZED_USERS, TEAMS
-from .environment import STORAGE_URI
+from .environment import DEFAULT_NAMESPACE, STORAGE_URI
+from .envoy import create_cds_response, create_rds_response
 from .github import PR, WIP, FQBranch, MergeFailureBatch, Repo, UnwatchedBranch, WatchedBranch, select_random_teammate
 
 oauth_path = os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token')
@@ -384,7 +387,7 @@ async def pull_request_review_callback(event):
 
 async def github_callback_handler(request):
     event = gh_sansio.Event.from_http(request.headers, await request.read())
-    event.app = request.app
+    event.app = request.app  # type: ignore
     await gh_router.dispatch(event)
 
 
@@ -394,8 +397,17 @@ async def github_callback(request):
     return web.Response(status=200)
 
 
+async def remove_namespace_from_db(db: Database, namespace: str):
+    assert namespace != 'default'
+    await db.just_execute(
+        'DELETE FROM active_namespaces WHERE namespace = %s',
+        (namespace,),
+    )
+
+
 async def batch_callback_handler(request):
     app = request.app
+    db: Database = app['db']
     params = await request.json()
     log.info(f'batch callback {params}')
     attrs = params.get('attributes')
@@ -405,6 +417,14 @@ async def batch_callback_handler(request):
             for wb in watched_branches:
                 if wb.branch.short_str() == target_branch:
                     log.info(f'watched_branch {wb.branch.short_str()} notify batch changed')
+
+                    if 'test' in attrs and params['complete']:
+                        assert 'deploy' not in attrs
+                        assert 'dev' not in attrs
+                        namespace = json.loads(attrs['namespace'])
+                        if DEFAULT_NAMESPACE == 'default':
+                            await remove_namespace_from_db(db, namespace)
+
                     await wb.notify_batch_changed(app)
 
 
@@ -498,7 +518,7 @@ async def dev_deploy_branch(request, userdata):
     batch_client = app['batch_client']
 
     try:
-        batch_id = await unwatched_branch.deploy(batch_client, steps, excluded_steps=excluded_steps)
+        batch_id = await unwatched_branch.deploy(app['db'], batch_client, steps, excluded_steps=excluded_steps)
     except asyncio.CancelledError:
         raise
     except Exception as e:  # pylint: disable=broad-except
@@ -617,6 +637,138 @@ UPDATE globals SET frozen_merge_deploy = 0;
     return web.HTTPFound(deploy_config.external_url('ci', '/'))
 
 
+@routes.get('/namespaces')
+@auth.web_authenticated_developers_only()
+async def get_active_namespaces(request, userdata):
+    db: Database = request.app['db']
+    namespaces = [
+        r
+        async for r in db.execute_and_fetchall(
+            '''
+SELECT active_namespaces.*, JSON_ARRAYAGG(service) as services
+FROM active_namespaces
+LEFT JOIN deployed_services
+ON active_namespaces.namespace = deployed_services.namespace
+GROUP BY active_namespaces.namespace'''
+        )
+    ]
+    for ns in namespaces:
+        ns['services'] = [s for s in json.loads(ns['services']) if s is not None]
+    context = {
+        'namespaces': namespaces,
+    }
+    return await render_template('ci', request, userdata, 'namespaces.html', context)
+
+
+@routes.post('/namespaces/{namespace}/services/add')
+@check_csrf_token
+@auth.web_authenticated_developers_only()
+async def add_namespaced_service(request, userdata):  # pylint: disable=unused-argument
+    db: Database = request.app['db']
+    post = await request.post()
+    service = post['service']
+    namespace = request.match_info['namespace']
+
+    record = await db.select_and_fetchone(
+        '''
+SELECT 1 FROM deployed_services
+WHERE namespace = %s AND service = %s
+''',
+        (namespace, service),
+    )
+
+    if record:
+        session = await aiohttp_session.get_session(request)
+        set_message(session, 'Service already registered', 'info')
+    else:
+        await db.execute_insertone(
+            'INSERT INTO deployed_services VALUES (%s, %s)',
+            (namespace, service),
+        )
+
+    return web.HTTPFound(deploy_config.external_url('ci', '/namespaces'))
+
+
+@routes.post('/namespaces/add')
+@check_csrf_token
+@auth.web_authenticated_developers_only()
+async def add_namespace(request, userdata):  # pylint: disable=unused-argument
+    db: Database = request.app['db']
+    post = await request.post()
+    namespace = post['namespace']
+
+    record = await db.execute_and_fetchone(
+        'SELECT 1 FROM active_namespaces where namespace = %s',
+        (namespace,),
+    )
+
+    if record:
+        session = await aiohttp_session.get_session(request)
+        set_message(session, 'Namespace already registered', 'info')
+    else:
+        await db.execute_insertone(
+            'INSERT INTO active_namespaces (`namespace`) VALUES (%s)',
+            (namespace,),
+        )
+
+    return web.HTTPFound(deploy_config.external_url('ci', '/namespaces'))
+
+
+async def cleanup_expired_namespaces(db: Database):
+    assert DEFAULT_NAMESPACE == 'default'
+    expired_namespaces = [
+        record['namespace']
+        async for record in db.execute_and_fetchall(
+            'SELECT namespace FROM active_namespaces WHERE expiration_time < UTC_TIMESTAMP()'
+        )
+    ]
+    for namespace in expired_namespaces:
+        assert namespace != 'default'
+        log.info(f'Cleaning up expired namespace: {namespace}')
+        await remove_namespace_from_db(db, namespace)
+
+
+async def update_envoy_configs(db: Database, k8s_client):
+    assert DEFAULT_NAMESPACE == 'default'
+
+    api_response = await k8s_client.list_namespace()
+    live_namespaces = tuple(ns.metadata.name for ns in api_response.items)
+    namespace_arg_list = "(" + ",".join('%s' for _ in live_namespaces) + ")"
+
+    services_per_namespace = {
+        r['namespace']: [s for s in json.loads(r['services']) if s is not None]
+        async for r in db.execute_and_fetchall(
+            f'''
+SELECT active_namespaces.namespace, JSON_ARRAYAGG(service) as services
+FROM active_namespaces
+LEFT JOIN deployed_services
+ON active_namespaces.namespace = deployed_services.namespace
+WHERE active_namespaces.namespace IN {namespace_arg_list}
+GROUP BY active_namespaces.namespace''',
+            live_namespaces,
+        )
+    }
+    assert 'default' in services_per_namespace
+    default_services = services_per_namespace.pop('default')
+    assert set(['batch', 'auth', 'batch-driver', 'ci']).issubset(set(default_services)), default_services
+
+    for proxy in ('gateway', 'internal-gateway'):
+        configmap_name = f'{proxy}-xds-config'
+        configmap = await k8s_client.read_namespaced_config_map(
+            name=configmap_name,
+            namespace=DEFAULT_NAMESPACE,
+        )
+        cds = create_cds_response(default_services, services_per_namespace, proxy)
+        rds = create_rds_response(default_services, services_per_namespace, proxy)
+        configmap.data['cds.yaml'] = yaml.dump(cds)
+        configmap.data['rds.yaml'] = yaml.dump(rds)
+        await k8s_client.patch_namespaced_config_map(
+            name=configmap_name,
+            namespace=DEFAULT_NAMESPACE,
+            body=configmap,
+        )
+
+
 async def update_loop(app):
     while True:
         try:
@@ -648,6 +800,12 @@ SELECT frozen_merge_deploy FROM globals;
 
     app['task_manager'] = aiotools.BackgroundTaskManager()
     app['task_manager'].ensure_future(update_loop(app))
+
+    if DEFAULT_NAMESPACE == 'default':
+        kubernetes_asyncio.config.load_incluster_config()
+        k8s_client = kubernetes_asyncio.client.CoreV1Api()
+        app['task_manager'].ensure_future(periodically_call(10, update_envoy_configs, app['db'], k8s_client))
+        app['task_manager'].ensure_future(periodically_call(10, cleanup_expired_namespaces, app['db']))
 
 
 async def on_cleanup(app):
