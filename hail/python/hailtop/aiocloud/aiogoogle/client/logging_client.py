@@ -23,9 +23,8 @@ class PagedEntryIterator:
         # in case a response is empty but there are more pages
         while True:
             assert self._page
-            assert self._entry_index
             # an empty page has no entries
-            if 'entries' in self._page and self._entry_index < len(self._page['entries']):
+            if 'entries' in self._page and self._entry_index is not None and self._entry_index < len(self._page['entries']):
                 i = self._entry_index
                 self._entry_index += 1
                 return self._page['entries'][i]
