@@ -353,12 +353,6 @@ class ServiceBackend(Backend):
 
             with timings.step("wait driver"):
                 try:
-                    if self.disable_progress_bar is not True:
-                        deploy_config = get_deploy_config()
-                        # FIXME Should we not `print`?
-                        url = deploy_config.external_url('batch', f'/batches/{self._batch.id}/jobs/{j.job_id}')
-                        print(f'Submitted to batch {self._batch.id}, see {url}')
-
                     await self._batch.wait(
                         description=name,
                         disable_progress_bar=self.disable_progress_bar,
