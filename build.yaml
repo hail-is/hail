@@ -557,17 +557,6 @@ steps:
       - service_base_image
       - merge_code
   - kind: buildImage2
-    name: batch_driver_nginx_image
-    dockerFile: /io/batch/Dockerfile.driver-nginx
-    contextPath: /io/batch
-    publishAs: batch-driver-nginx
-    inputs:
-      - from: /repo/batch
-        to: /io/batch
-    dependsOn:
-      - hail_ubuntu_image
-      - merge_code
-  - kind: buildImage2
     name: batch_image
     dockerFile: /io/batch/Dockerfile
     contextPath: /io/batch/
@@ -642,6 +631,25 @@ steps:
     dependsOn:
       - service_base_image
       - merge_code
+  - kind: buildImage2
+    name: hailgenetics_hailtop_image
+    dockerFile: /io/repo/docker/hailgenetics/hailtop/Dockerfile
+    contextPath: /io/repo
+    publishAs: hailgenetics/hailtop
+    inputs:
+      - from: /repo/docker/hailgenetics/hailtop
+        to: /io/repo/docker/hailgenetics/hailtop
+      - from: /repo/hail/python/setup-hailtop.py
+        to: /io/repo/hail/python/setup-hailtop.py
+      - from: /repo/hail/python/MANIFEST.in
+        to: /io/repo/hail/python/MANIFEST.in
+      - from: /repo/hail/python/hailtop
+        to: /io/repo/hail/python/hailtop
+      - from: /hail_version
+        to: /io/repo/hail_version
+    dependsOn:
+      - merge_code
+      - hail_ubuntu_image
   - kind: runImage
     name: build_hail_jar_and_wheel_only
     image:
@@ -914,7 +922,7 @@ steps:
   - kind: runImage
     name: upload_test_resources_to_blob_storage
     image:
-      valueFrom: hail_pip_installed_image.image
+      valueFrom: hailgenetics_hailtop_image.image
     script: |
       set -ex
       cd /io/repo/hail/
@@ -938,7 +946,7 @@ steps:
         to: /io/repo/hail/python/hail/docs/data
     dependsOn:
       - default_ns
-      - hail_pip_installed_image
+      - hailgenetics_hailtop_image
       - merge_code
   - kind: runImage
     name: test_hail_java
@@ -1166,7 +1174,7 @@ steps:
     name: test_hail_python_fs
     numSplits: 5
     image:
-      valueFrom: hail_run_image.image
+      valueFrom: hailgenetics_hailtop_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1174,8 +1182,8 @@ steps:
       set -ex
       cd /io
       tar xzf test.tar.gz
-      tar xvf debug-wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+
+      python3 -m pip install -r test-requirements.txt
 
       export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
@@ -1195,8 +1203,8 @@ steps:
               --durations=50 \
               test/hailtop/inter_cloud
     inputs:
-      - from: /debug-wheel-container.tar
-        to: /io/debug-wheel-container.tar
+      - from: /repo/hail/python/dev/pinned-requirements.txt
+        to: /io/test-requirements.txt
       - from: /test.tar.gz
         to: /io/test.tar.gz
     secrets:
@@ -1214,7 +1222,7 @@ steps:
         mountPath: /test-azure-key
     dependsOn:
       - default_ns
-      - hail_run_image
+      - hailgenetics_hailtop_image
       - build_hail
     clouds:
       - gcp
@@ -2031,7 +2039,6 @@ steps:
       - create_accounts
       - batch_image
       - batch_worker_image
-      - batch_driver_nginx_image
       - batch_database
       - deploy_auth
       - create_certs
@@ -2099,7 +2106,7 @@ steps:
   - kind: runImage
     name: upload_query_jar
     image:
-      valueFrom: hail_pip_installed_image.image
+      valueFrom: hailgenetics_hailtop_image.image
     script: |
       set -ex
       export GOOGLE_APPLICATION_CREDENTIALS=/batch-gsa-key/key.json
@@ -2129,7 +2136,7 @@ steps:
     dependsOn:
       - default_ns
       - deploy_batch
-      - hail_pip_installed_image
+      - hailgenetics_hailtop_image
       - build_hail_jar_and_wheel_only_spark_3_2
       - merge_code
       - create_test_gsa_keys
@@ -2602,6 +2609,7 @@ steps:
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
+      export HAIL_GENETICS_HAILTOP_IMAGE="{{ hailgenetics_hailtop_image.image }}"
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
       python3 -m pytest \
@@ -2636,6 +2644,7 @@ steps:
         mountPath: /ssl-config
     dependsOn:
       - hailgenetics_hail_image
+      - hailgenetics_hailtop_image
       - create_deploy_config
       - create_accounts
       - default_ns
@@ -2952,6 +2961,7 @@ steps:
                              /io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl \
                              /io/github-oauth \
                              docker://{{ hailgenetics_hail_image.image }} \
+                             docker://{{ hailgenetics_hailtop_image.image }} \
                              /io/wheel-for-azure/hail-*-py3-none-any.whl \
                              /io/www.tar.gz
     inputs:
@@ -2995,6 +3005,7 @@ steps:
       - build_hail
       - merge_code
       - hailgenetics_hail_image
+      - hailgenetics_hailtop_image
       - build_wheel_for_azure
       - make_docs
     clouds:

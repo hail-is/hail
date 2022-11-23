@@ -13,6 +13,7 @@ from .exceptions import BatchException
 
 
 def _add_resource_to_set(resource_set, resource, include_rg=True):
+    rg: Optional[_resource.ResourceGroup]
     if isinstance(resource, _resource.ResourceGroup):
         rg = resource
         if include_rg:
@@ -829,15 +830,15 @@ class BashJob(Job):
 
         job_command = [cmd.strip() for cmd in self._command]
         job_command = [f'{{\n{x}\n}}' for x in job_command]
-        job_command = '\n'.join(job_command)
+        job_command_str = '\n'.join(job_command)
 
-        job_command_bytes = job_command.encode()
+        job_command_bytes = job_command_str.encode()
 
         if len(job_command_bytes) <= 10 * 1024:
-            self._wrapper_code.append(job_command)
+            self._wrapper_code.append(job_command_str)
             return False
 
-        self._user_code.append(job_command)
+        self._user_code.append(job_command_str)
 
         job_path = f'{remote_tmpdir}/{self._dirname}'
         code_path = f'{job_path}/code.sh'
@@ -1125,11 +1126,11 @@ class PythonJob(Job):
         for i, (result, unapplied_id, args, kwargs) in enumerate(self._function_calls):
             func_file = self._batch._python_function_files[unapplied_id]
 
-            args = [prepare_argument_for_serialization(arg) for arg in args]
+            prepared_args = [prepare_argument_for_serialization(arg) for arg in args]
             kwargs = {kw: prepare_argument_for_serialization(arg) for kw, arg in kwargs.items()}
 
             args_file = await self._batch._serialize_python_to_input_file(
-                os.path.dirname(result._get_path(remote_tmpdir)), "args", i, (args, kwargs), dry_run
+                os.path.dirname(result._get_path(remote_tmpdir)), "args", i, (prepared_args, kwargs), dry_run
             )
 
             json_write, str_write, repr_write = [
@@ -1182,10 +1183,10 @@ with open('{result}', 'wb') as dill_out:
 
             unapplied = self._batch._python_function_defs[unapplied_id]
             self._user_code.append(textwrap.dedent(inspect.getsource(unapplied)))
-            args = ', '.join([f'{arg!r}' for _, arg in args])
-            kwargs = ', '.join([f'{k}={v!r}' for k, (_, v) in kwargs.items()])
-            separator = ', ' if args and kwargs else ''
-            func_call = f'{unapplied.__name__}({args}{separator}{kwargs})'
+            args_str = ', '.join([f'{arg!r}' for _, arg in prepared_args])
+            kwargs_str = ', '.join([f'{k}={v!r}' for k, (_, v) in kwargs.items()])
+            separator = ', ' if args_str and kwargs_str else ''
+            func_call = f'{unapplied.__name__}({args_str}{separator}{kwargs_str})'
             self._user_code.append(self._interpolate_command(func_call, allow_python_results=True))
 
         return True

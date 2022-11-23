@@ -442,10 +442,6 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(1).annotate_globals(foo=5)
         assert hl.eval(ht.index_globals().foo) == 5
 
-    def test_interval_filter_loci(self):
-        ht = hl.import_vcf(resource('sample.vcf')).rows()
-        assert ht.filter(ht.locus > hl.locus('20', 17434581)).count() == 100
-
     def test_interval_join(self):
         left = hl.utils.range_table(50, n_partitions=10)
         intervals = hl.utils.range_table(4)
@@ -2015,3 +2011,105 @@ def test_indexed_read_boundaries(branching_factor):
         ])
 
         assert t1.idx.collect() == [141, 142, 143, 144, 152]
+
+
+def test_query_table():
+    f = new_temp_file(extension='ht')
+    ht = hl.utils.range_table(200, 10)
+    ht = ht.filter(ht.idx % 10 == 0)
+    ht.annotate(s=hl.str(ht.idx)).write(f)
+
+    queries = [
+        hl.query_table(f, 50),
+        hl.query_table(f, hl.struct(idx=50)),
+        hl.query_table(f, 55),
+        hl.query_table(f, 5),
+        hl.query_table(f, -1),
+        hl.query_table(f, 205),
+        hl.query_table(f, hl.interval(27, 66)),
+        hl.query_table(f, hl.interval(276, 33333)),
+        hl.query_table(f, hl.interval(-22276, -5)),
+        hl.query_table(f, hl.interval(hl.struct(idx=27), hl.struct(idx=66))),
+        hl.query_table(f, hl.interval(40, 80, includes_end=True)),
+    ]
+
+    expected = [
+        [hl.Struct(idx=50, s='50')],
+        [hl.Struct(idx=50, s='50')],
+        [],
+        [],
+        [],
+        [],
+        [hl.Struct(idx=30, s='30'),
+         hl.Struct(idx=40, s='40'),
+         hl.Struct(idx=50, s='50'),
+         hl.Struct(idx=60, s='60')],
+        [],
+        [],
+        [hl.Struct(idx=30, s='30'),
+         hl.Struct(idx=40, s='40'),
+         hl.Struct(idx=50, s='50'),
+         hl.Struct(idx=60, s='60')],
+        [hl.Struct(idx=40, s='40'),
+         hl.Struct(idx=50, s='50'),
+         hl.Struct(idx=60, s='60'),
+         hl.Struct(idx=70, s='70'),
+         hl.Struct(idx=80, s='80'),
+         ]
+    ]
+
+    assert hl.eval(queries) == expected
+
+    with pytest.raises(ValueError, match='query_table: key mismatch'):
+        hl.query_table(f, hl.interval('1', '2'))
+    with pytest.raises(ValueError, match='query_table: key mismatch: cannot query'):
+        hl.query_table(f, '1')
+    with pytest.raises(ValueError, match='query_table: cannot query with empty key'):
+        hl.query_table(f, hl.struct())
+    with pytest.raises(ValueError, match='query_table: queried with 2 key field'):
+        hl.query_table(f, hl.struct(idx=5, foo='s'))
+
+
+def test_query_table_compound_key():
+    f = new_temp_file(extension='ht')
+
+    ht = hl.utils.range_table(200, 10)
+    ht = ht.filter(ht.idx % 10 == 0)
+    ht.annotate(idx2=ht.idx % 20, s=hl.str(ht.idx)).key_by('idx', 'idx2').write(f)
+
+    queries = [
+        hl.query_table(f, 50),
+        hl.query_table(f, hl.struct(idx=50)),
+        hl.query_table(f, hl.interval(hl.struct(idx=50, idx2=11), hl.struct(idx=60, idx2=-1)))
+    ]
+
+    expected = [
+        [hl.Struct(idx=50, idx2=10, s='50')],
+        [hl.Struct(idx=50, idx2=10, s='50')],
+        []
+    ]
+    assert hl.eval(queries) == expected
+
+def test_query_table_interval_key():
+    f = new_temp_file(extension='ht')
+
+    ht = hl.utils.range_table(200, 10)
+    ht = ht.filter(ht.idx % 10 == 0)
+
+    ht = ht.key_by(interval=hl.interval(ht.idx, ht.idx + 50))
+    ht.write(f)
+
+    queries = [
+        hl.query_table(f, hl.interval(20, 70)),
+        hl.query_table(f, hl.interval(20, 0)),
+        hl.query_table(f, hl.struct(interval=hl.interval(20, 0))),
+        hl.query_table(f, hl.interval(hl.interval(15, 10), hl.interval(20, 71)))
+    ]
+
+    expected = [
+        [hl.Struct(idx=20, interval=hl.Interval(20, 70))],
+        [],
+        [],
+        [hl.Struct(idx=20, interval=hl.Interval(20, 70))],
+    ]
+    assert hl.eval(queries) == expected

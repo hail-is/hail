@@ -109,7 +109,7 @@ def main(args):
     args, pass_through_args = parser().parse_known_args(args=args)
 
     # hailctl batch doesn't create batches
-    client = BatchClient(None)
+    client = BatchClient(None)  # type: ignore
 
     try:
         if args.module == 'billing':

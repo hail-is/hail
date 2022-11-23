@@ -377,7 +377,7 @@ async def pull_request_review_callback(event):
 
 async def github_callback_handler(request):
     event = gh_sansio.Event.from_http(request.headers, await request.read())
-    event.app = request.app
+    event.app = request.app  # type: ignore
     await gh_router.dispatch(event)
 
 

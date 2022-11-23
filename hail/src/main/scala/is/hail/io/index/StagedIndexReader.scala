@@ -60,6 +60,8 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
     cb.assign(metadata, Code._null)
   }
 
+  def nKeys(cb: EmitCodeBuilder): Value[Long] = cb.memoize(metadata.invoke[Long]("nKeys"))
+
   /**
    * returns tuple of (start index, end index, starting leaf)
    * memory of starting leaf is not owned by `region`, consumers should deep copy if necessary
@@ -77,7 +79,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
     val startIdx = queryBound(cb, region, start, primitive(cb.memoize(!includesStart)))
     val endIdx = queryBound(cb, region, end, primitive(includesEnd))
     val n = cb.memoize(endIdx - startIdx)
-    val nKeys = cb.memoize(metadata.invoke[Long]("nKeys"))
+    val nKeys = this.nKeys(cb)
     cb.ifx(n < 0L, cb._fatal("n less than 0: ", n.toS, ", startIdx=", startIdx.toS, ", endIdx=", endIdx.toS, ", query=", cb.strValue(interval)))
     cb.ifx(n > 0L && startIdx >= nKeys, cb._fatal("bad start idx: ", startIdx.toS, ", nKeys=", nKeys.toS))
 
@@ -156,7 +158,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
     }, region, partitionBoundLeftEndpoint, leansRight)
   }
 
-  private def queryIndex(cb: EmitCodeBuilder, region: Value[Region], absIndex: Value[Long]): SBaseStructValue = {
+  def queryIndex(cb: EmitCodeBuilder, region: Value[Region], absIndex: Value[Long]): SBaseStructValue = {
     cb.invokeSCode(
       cb.emb.ecb.getOrGenEmitMethod("queryIndex",
         ("queryIndex", this),

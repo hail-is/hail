@@ -198,7 +198,7 @@ dependencies {
         exclude group: 'com.fasterxml.jackson.core'
     }
 
-    bundled 'commons-io:commons-io:2.5'
+    bundled 'commons-io:commons-io:2.11.0'
     bundled(group: 'com.azure', name: 'azure-storage-blob', version: '12.13.0') {
         exclude group: 'com.fasterxml.jackson'
         exclude group: 'com.fasterxml.jackson.core'
@@ -232,7 +232,7 @@ dependencies {
 
     bundled group: 'org.freemarker', name: 'freemarker', version: '2.3.31'
 
-    bundled 'com.kohlschutter.junixsocket:junixsocket-core:2.3.2'
+    bundled 'com.kohlschutter.junixsocket:junixsocket-core:2.6.1'
 }
 
 task(checkSettings) doLast {
