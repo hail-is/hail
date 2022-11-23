@@ -88,8 +88,6 @@ class GCPSlimInstanceConfig(InstanceConfig):
 
     def region_for(self, location: str) -> str:
         # location = zone
-        if location.startswith('projects'):
-            location = location.rsplit('/', maxsplit=1)[1]
         return location.rsplit('-', maxsplit=1)[0]
 
     @staticmethod

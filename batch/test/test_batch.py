@@ -1298,13 +1298,19 @@ def test_submit_update_to_deleted_batch(client: BatchClient):
         assert False
 
 
-@skip_in_azure
 def test_region(client: BatchClient):
-    assert CLOUD == 'gcp'
     bb = client.create_batch()
-    region = 'us-east1'
-    j = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], regions=[region])
+    if CLOUD == 'gcp':
+        region = 'us-east1'
+    else:
+        assert CLOUD == 'azure'
+        region = 'eastus'
+    resources = {'memory': 'lowmem'}
+    j = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], regions=[region], resources=resources)
     b = bb.submit()
     status = j.wait()
     assert status['state'] == 'Success', str((status, b.debug_info()))
     assert status['status']['region'] == region, str((status, b.debug_info()))
+    env = status['status']['spec']['env']
+    hail_region = [val['value'] for val in env if val['name'] == 'HAIL_REGION'][0]
+    assert hail_region == region
