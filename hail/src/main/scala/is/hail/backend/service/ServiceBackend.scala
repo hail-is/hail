@@ -116,7 +116,7 @@ class ServiceBackend(
 
     // FIXME: HACK: working around the memory service until the issue is resolved:
     // https://hail.zulipchat.com/#narrow/stream/223457-Hail-Batch-support/topic/Batch.20Query.3A.20possible.20overloading.20of.20.60memory.60.20service/near/280823230
-    val (open, create) = (fs.openNoCompression _, fs.createNoCompression _)
+    val (open, create) = ((x: String) => fs.openNoCompression(x), fs.createNoCompression _)
 
     log.info(s"parallelizeAndComputeWithIndex: $token: nPartitions $n")
     log.info(s"parallelizeAndComputeWithIndex: $token: writing f and contexts")
