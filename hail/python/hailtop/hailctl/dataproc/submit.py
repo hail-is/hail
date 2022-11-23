@@ -24,6 +24,9 @@ async def main(args, pass_through_args):  # pylint: disable=unused-argument
     if args.files:
         files = args.files
 
+    def _filter_pyfile(fname: str) -> bool:
+        return not fname.endswith('.pyc')
+
     # If you only provide one (comma-sep) argument, and it's a zip file, use that file directly
     if args.pyfiles and args.pyfiles.endswith('.zip') and ',' not in args.pyfiles:
         # Adding the zip archive directly
@@ -37,12 +40,12 @@ async def main(args, pass_through_args):  # pylint: disable=unused-argument
             tfile = tempfile.mkstemp(suffix='.zip', prefix='pyscripts_')[1]
             zipf = zipfile.ZipFile(tfile, 'w', zipfile.ZIP_DEFLATED)
             for hail_script_entry in pyfiles:
-                if hail_script_entry.endswith('.py'):
+                if os.path.isfile(hail_script_entry) and _filter_pyfile(hail_script_entry):
                     zipf.write(hail_script_entry, arcname=os.path.basename(hail_script_entry))
                 else:
                     for root, _, pyfiles_walk in os.walk(hail_script_entry):
                         for pyfile in pyfiles_walk:
-                            if pyfile.endswith('.py'):
+                            if os.path.isfile(pyfile) and _filter_pyfile(pyfile):
                                 zipf.write(os.path.join(root, pyfile),
                                            os.path.relpath(os.path.join(root, pyfile),
                                                            os.path.join(hail_script_entry, '..')))
