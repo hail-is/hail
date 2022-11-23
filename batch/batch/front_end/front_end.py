@@ -1914,12 +1914,26 @@ def plot_resource_usage(resource_usage: Optional[Dict[str, Optional[pd.DataFrame
     if resource_usage is None:
         return None
 
-    fig = make_subplots(rows=2, cols=1, subplot_titles=('CPU Usage', 'Memory'))
+    fig = make_subplots(
+        rows=6,
+        cols=1,
+        subplot_titles=(
+            'CPU Usage',
+            'Memory',
+            'Storage (Container)',
+            'Storage (/io)',
+            'Network Upload Bandwidth (MB/sec)',
+            'Network Download Bandwidth (MB/sec)',
+        ),
+    )
+    fig.update_layout(height=1000, width=800)
 
     colors = {'input': 'red', 'main': 'green', 'output': 'blue'}
 
     max_cpu_value = 1
     max_memory_value = 1024 * 1024
+    max_storage_value = 1024 * 1024 * 1024
+    max_network_bandwidth_value = 500
     n_total_rows = 0
 
     for container_name, df in resource_usage.items():
@@ -1933,43 +1947,58 @@ def plot_resource_usage(resource_usage: Optional[Dict[str, Optional[pd.DataFrame
         mem_df = df['memory_in_bytes']
         cpu_df = df['cpu_usage']
 
+        def get_df(df, colname):
+            if colname not in df:
+                df[colname] = ResourceUsageMonitor.missing_value
+            return df[colname]
+
+        overlay_df = get_df(df, 'overlay_storage_in_bytes')
+        disk_df = get_df(df, 'disk_storage_in_bytes')
+        network_upload_df = get_df(df, 'network_bandwidth_upload_in_bytes_per_second')
+        network_download_df = get_df(df, 'network_bandwidth_download_in_bytes_per_second')
+
         if n_rows != 0:
             max_cpu_value = max(max_cpu_value, cpu_df.max())
             max_memory_value = max(max_memory_value, mem_df.max())
+            max_storage_value = max(max_storage_value, overlay_df.max(), disk_df.max())
+            max_network_bandwidth_value = max(
+                max_network_bandwidth_value, network_upload_df.max(), network_download_df.max()
+            )
 
-        fig.add_trace(
-            go.Scatter(
-                x=time_df,
-                y=cpu_df,
-                legendgroup=container_name,
-                name=container_name,
-                mode='markers+lines',
-                line=dict(color=colors[container_name]),
-            ),
-            row=1,
-            col=1,
-        )
+        def add_trace(time, measurement, row, col, container_name, show_legend):
+            fig.add_trace(
+                go.Scatter(
+                    x=time,
+                    y=measurement,
+                    showlegend=show_legend,
+                    legendgroup=container_name,
+                    name=container_name,
+                    mode='markers+lines',
+                    line=dict(color=colors[container_name]),
+                ),
+                row=row,
+                col=col,
+            )
 
-        fig.add_trace(
-            go.Scatter(
-                x=time_df,
-                y=mem_df,
-                showlegend=False,
-                legendgroup=container_name,
-                name=container_name,
-                mode='markers+lines',
-                line=dict(color=colors[container_name]),
-            ),
-            row=2,
-            col=1,
-        )
+        add_trace(time_df, cpu_df, 1, 1, container_name, True)
+        add_trace(time_df, mem_df, 2, 1, container_name, False)
+        add_trace(time_df, overlay_df, 3, 1, container_name, False)
+        add_trace(time_df, disk_df, 4, 1, container_name, False)
+        add_trace(time_df, network_upload_df, 5, 1, container_name, False)
+        add_trace(time_df, network_download_df, 6, 1, container_name, False)
 
     fig.update_layout(
         showlegend=True,
         yaxis1_tickformat='%',
         yaxis2_tickformat='s',
+        yaxis3_tickformat='s',
+        yaxis4_tickformat='s',
         yaxis1_range=[0, 1.25 * max_cpu_value],
         yaxis2_range=[0, 1.25 * max_memory_value],
+        yaxis3_range=[0, 1.25 * max_storage_value],
+        yaxis4_range=[0, 1.25 * max_storage_value],
+        yaxis5_range=[0, 1.25 * max_network_bandwidth_value],
+        yaxis6_range=[0, 1.25 * max_network_bandwidth_value],
     )
 
     if n_total_rows == 0:

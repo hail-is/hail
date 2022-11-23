@@ -252,6 +252,7 @@ class NetworkNamespace:
     async def init(self):
         await self.create_netns()
         await self.enable_iptables_forwarding()
+        await self.mark_packets()
 
         os.makedirs(f'/etc/netns/{self.network_ns_name}')
         with open(f'/etc/netns/{self.network_ns_name}/hosts', 'w', encoding='utf-8') as hosts:
@@ -292,6 +293,14 @@ ip -n {self.network_ns_name} route add default via {self.host_ip}'''
             f'''
 iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.internet_interface} --jump ACCEPT && \
 iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.veth_host} --jump ACCEPT'''
+        )
+
+    async def mark_packets(self):
+        await check_shell(
+            f'''
+iptables -t mangle -A PREROUTING --in-interface {self.veth_host} -j MARK --set-mark 10
+iptables -t mangle -A POSTROUTING --out-interface {self.veth_host} -j MARK --set-mark 11
+'''
         )
 
     async def expose_port(self, port, host_port):
@@ -642,6 +651,9 @@ class Container:
         self.env = env or []
         self.stdin = stdin
 
+        maybe_io_mount = [vm['source'] for vm in self.volume_mounts if vm['destination'] == '/io']
+        self.io_mount_path = maybe_io_mount[0] if maybe_io_mount else None
+
         self.deleted_event = asyncio.Event()
 
         self.host_port = None
@@ -654,8 +666,6 @@ class Container:
         self.finished_at: Optional[int] = None
 
         self.timings = Timings()
-
-        self.overlay_path = None
 
         self.container_scratch = scratch_dir
         self.container_overlay_path = f'{self.container_scratch}/rootfs_overlay'
@@ -746,7 +756,12 @@ class Container:
         finally:
             self._run_fut = None
 
-    async def run(self, on_completion: Callable[..., Awaitable[Any]], *args, **kwargs):
+    async def run(
+        self,
+        on_completion: Callable[..., Awaitable[Any]],
+        *args,
+        **kwargs,
+    ):
         async with self._cleanup_lock:
             try:
                 await self.create()
@@ -895,7 +910,15 @@ class Container:
                         stderr=container_log,
                     )
 
-                    async with ResourceUsageMonitor(self.name, self.resource_usage_path):
+                    assert self.netns
+
+                    async with ResourceUsageMonitor(
+                        self.name,
+                        self.container_overlay_path,
+                        self.io_mount_path,
+                        self.netns.veth_host,
+                        self.resource_usage_path,
+                    ):
                         if self.stdin is not None:
                             await self.process.communicate(self.stdin.encode('utf-8'))
                         await self.process.wait()
