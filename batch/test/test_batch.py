@@ -1311,6 +1311,3 @@ def test_region(client: BatchClient):
     status = j.wait()
     assert status['state'] == 'Success', str((status, b.debug_info()))
     assert status['status']['region'] == region, str((status, b.debug_info()))
-    env = status['spec']['env']
-    hail_region = [val['value'] for val in env if val['name'] == 'HAIL_REGION'][0]
-    assert hail_region == region
