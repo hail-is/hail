@@ -1306,8 +1306,9 @@ def test_region(client: BatchClient):
         assert CLOUD == 'azure'
         region = 'eastus'
     resources = {'memory': 'lowmem'}
-    j = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], regions=[region], resources=resources)
+    j = bb.create_job(DOCKER_ROOT_IMAGE, ['echo', '$HAIL_REGION'], regions=[region], resources=resources)
     b = bb.submit()
     status = j.wait()
     assert status['state'] == 'Success', str((status, b.debug_info()))
     assert status['status']['region'] == region, str((status, b.debug_info()))
+    assert region in j.log()['main'], str((status, b.debug_info()))
