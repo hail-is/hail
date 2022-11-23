@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS `pools` (
   `enable_standing_worker` BOOLEAN NOT NULL DEFAULT FALSE,
   `standing_worker_cores` BIGINT NOT NULL DEFAULT 0,
   `preemptible` BOOLEAN NOT NULL DEFAULT TRUE,
+  `label` VARCHAR(100) NOT NULL,
   PRIMARY KEY (`name`),
   FOREIGN KEY (`name`) REFERENCES inst_colls(name) ON DELETE CASCADE
 ) ENGINE = InnoDB;
