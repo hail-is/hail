@@ -56,7 +56,7 @@ black==22.10.0
     # via -r requirements.txt
 bleach==5.0.1
     # via readme-renderer
-boto3==1.26.7
+boto3==1.26.15
     # via -r requirements.txt
 botocore==1.29.7
     # via
