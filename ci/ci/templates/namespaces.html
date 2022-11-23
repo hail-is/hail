@@ -1,0 +1,64 @@
+{% extends "layout.html" %}
+{% block title %}Active Namespaces{% endblock %}
+{% block content %}
+<h1>Active Namespaces</h1>
+
+<table id="namespaces-table" class="grouped-data-table">
+  <thead>
+    <tr>
+      <th colspan="1">Namespace</th>
+      <th colspan="1">Creation Time</th>
+      <th colspan="1">Expiration Time</th>
+      <th colspan="2">Services</th>
+    </tr>
+  </thead>
+  {% for ns in namespaces %}
+  <tbody>
+    <tr>
+      <td rowspan="{{ ns['services']|length + 4 }}">
+        {{ ns['namespace'] }}
+      </td>
+    </tr>
+    <tr>
+      <td rowspan="{{ ns['services']|length + 4 }}">
+        {{ ns['creation_time'] }}
+      </td>
+    </tr>
+    <tr>
+      <td rowspan="{{ ns['services']|length + 4 }}">
+        {{ ns['expiration_time'] }}
+      </td>
+    </tr>
+    {% for service in ns['services'] %}
+    <tr>
+      <td>
+        {{ service }}
+      </td>
+    </tr>
+    {% endfor %}
+    <tr>
+      <form action="{{ base_path }}/namespaces/{{ ns['namespace'] }}/services/add" method="POST">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+        <td><input type="text" name="service"></td>
+        <td>
+          <button>Add</button>
+        </td>
+      </form>
+    </tr>
+  </tbody>
+  {% endfor %}
+  <tbody>
+    <form action="{{ base_path }}/namespaces/add" method="POST">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+      <tr>
+        <td><input type="text" name="namespace"></td>
+        <td>
+          <button>Add</button>
+        </td>
+        <td></td>
+        <td></td>
+      </tr>
+    </form>
+  </tbody>
+</table>
+{% endblock %}

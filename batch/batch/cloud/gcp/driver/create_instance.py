@@ -153,6 +153,56 @@ nohup /bin/bash run.sh >run.log 2>&1 &
 #!/bin/bash
 set -x
 
+# Setup fluentd
+touch /worker.log
+touch /run.log
+
+sudo rm /etc/google-fluentd/config.d/*  # remove unused config files
+
+sudo tee /etc/google-fluentd/config.d/worker-log.conf <<EOF
+<source>
+@type tail
+format json
+path /worker.log
+pos_file /var/lib/google-fluentd/pos/worker-log.pos
+read_from_head true
+tag worker.log
+</source>
+
+<filter worker.log>
+@type record_transformer
+enable_ruby
+<record>
+    severity \${{ record["levelname"] }}
+    timestamp \${{ record["asctime"] }}
+</record>
+</filter>
+EOF
+
+sudo tee /etc/google-fluentd/config.d/run-log.conf <<EOF
+<source>
+@type tail
+format none
+path /run.log
+pos_file /var/lib/google-fluentd/pos/run-log.pos
+read_from_head true
+tag run.log
+</source>
+EOF
+
+sudo cp /etc/google-fluentd/google-fluentd.conf /etc/google-fluentd/google-fluentd.conf.bak
+head -n -1 /etc/google-fluentd/google-fluentd.conf.bak | sudo tee /etc/google-fluentd/google-fluentd.conf
+sudo tee -a /etc/google-fluentd/google-fluentd.conf <<EOF
+labels {{
+"namespace": "$NAMESPACE",
+"instance_id": "$INSTANCE_ID"
+}}
+</match>
+EOF
+rm /etc/google-fluentd/google-fluentd.conf.bak
+
+sudo service google-fluentd restart
+
 WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
 UNRESERVED_WORKER_DATA_DISK_SIZE_GB="{unreserved_disk_storage_gb}"
 ACCEPTABLE_QUERY_JAR_URL_PREFIX="{ACCEPTABLE_QUERY_JAR_URL_PREFIX}"
@@ -216,57 +266,6 @@ iptables --append FORWARD --destination $IP_ADDRESS --jump ACCEPT
 # Forbid outgoing requests to cluster-internal IP addresses
 INTERNET_INTERFACE=$(ip link list | grep ens | awk -F": " '{{ print $2 }}')
 iptables --append FORWARD --out-interface $INTERNET_INTERFACE ! --destination 10.128.0.0/16 --jump ACCEPT
-
-
-# Setup fluentd
-touch /worker.log
-touch /run.log
-
-sudo rm /etc/google-fluentd/config.d/*  # remove unused config files
-
-sudo tee /etc/google-fluentd/config.d/worker-log.conf <<EOF
-<source>
-@type tail
-format json
-path /worker.log
-pos_file /var/lib/google-fluentd/pos/worker-log.pos
-read_from_head true
-tag worker.log
-</source>
-
-<filter worker.log>
-@type record_transformer
-enable_ruby
-<record>
-    severity \${{ record["levelname"] }}
-    timestamp \${{ record["asctime"] }}
-</record>
-</filter>
-EOF
-
-sudo tee /etc/google-fluentd/config.d/run-log.conf <<EOF
-<source>
-@type tail
-format none
-path /run.log
-pos_file /var/lib/google-fluentd/pos/run-log.pos
-read_from_head true
-tag run.log
-</source>
-EOF
-
-sudo cp /etc/google-fluentd/google-fluentd.conf /etc/google-fluentd/google-fluentd.conf.bak
-head -n -1 /etc/google-fluentd/google-fluentd.conf.bak | sudo tee /etc/google-fluentd/google-fluentd.conf
-sudo tee -a /etc/google-fluentd/google-fluentd.conf <<EOF
-labels {{
-"namespace": "$NAMESPACE",
-"instance_id": "$INSTANCE_ID"
-}}
-</match>
-EOF
-rm /etc/google-fluentd/google-fluentd.conf.bak
-
-sudo service google-fluentd restart
 
 {make_global_config_str}
 

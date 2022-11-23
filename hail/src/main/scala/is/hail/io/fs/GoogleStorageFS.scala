@@ -1,5 +1,6 @@
 package is.hail.io.fs
 
+
 import java.io.{ByteArrayInputStream, FileNotFoundException}
 import java.net.URI
 import java.nio.ByteBuffer
@@ -151,7 +152,8 @@ class GoogleStorageFS(
 
   def asCacheable(sessionID: String): CacheableGoogleStorageFS = new CacheableGoogleStorageFS(serviceAccountKey, requesterPaysConfiguration, sessionID)
 
-  def openNoCompression(filename: String): SeekableDataInputStream = retryTransientErrors {
+  def openNoCompression(filename: String, _debug: Boolean = false): SeekableDataInputStream = retryTransientErrors {
+    assert(!_debug)
     val (bucket, path) = getBucketPath(filename)
 
     val is: SeekableInputStream = new FSSeekableInputStream {
@@ -223,7 +225,7 @@ class GoogleStorageFS(
     val blobInfo = BlobInfo.newBuilder(blobId)
       .build()
 
-    val os: PositionedOutputStream = new FSPositionedOutputStream {
+    val os: PositionedOutputStream = new FSPositionedOutputStream(8 * 1024 * 1024) {
       private[this] val write: WriteChannel = storage.writer(blobInfo)
 
       override def flush(): Unit = {

@@ -7,7 +7,7 @@ import is.hail.expr.ir._
 import is.hail.expr.ir.functions.{ArrayFunctions, IRRandomness, UtilFunctions}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.rvd.RVDPartitioner
-import is.hail.types.RStruct
+import is.hail.types.{RStruct, tcoerce}
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.physical.{PArray, PStruct}
 import is.hail.types.virtual._
@@ -192,7 +192,7 @@ object LowerDistributedSort {
           mapIR(
             ReadPartition(
               MakeStruct(Array("partitionIndex" -> I64(0), "partitionPath" -> fileName)),
-              coerce[TStruct](spec._vType), reader)
+              tcoerce[TStruct](spec._vType), reader)
           ) { partitionElement =>
             SelectFields(partitionElement, keyToSortBy.fields.map(_.name))
           }
@@ -314,7 +314,7 @@ object LowerDistributedSort {
           val path = invoke("concat", TString, Str(tmpPath + "_"), invoke("str", TString, GetField(ctxRef, "partIdx")))
           val filenames = GetField(ctxRef, "files")
           val partitionStream = flatMapIR(ToStream(filenames)) { fileName =>
-            ReadPartition(MakeStruct(Array("partitionIndex" -> I64(0), "partitionPath" -> fileName)), coerce[TStruct](spec._vType), reader)
+            ReadPartition(MakeStruct(Array("partitionIndex" -> I64(0), "partitionPath" -> fileName)), tcoerce[TStruct](spec._vType), reader)
           }
           MakeTuple.ordered(IndexedSeq(segmentIdx, StreamDistribute(partitionStream, ArrayRef(pivotsWithEndpointsGroupedBySegmentIdx, indexIntoPivotsArray), path, StructCompare(keyToSortBy, keyToSortBy, sortFields.toArray), spec)))
         }
@@ -367,7 +367,7 @@ object LowerDistributedSort {
     val sortedFilenamesIR = cdaIR(ToStream(needSortingFilenamesContext), MakeStruct(Seq()), "shuffle_local_sort") { case (ctxRef, _) =>
       val filenames = ctxRef
       val partitionInputStream = flatMapIR(ToStream(filenames)) { fileName =>
-        ReadPartition(MakeStruct(Array("partitionIndex" -> I64(0), "partitionPath" -> fileName)), coerce[TStruct](spec._vType), reader)
+        ReadPartition(MakeStruct(Array("partitionIndex" -> I64(0), "partitionPath" -> fileName)), tcoerce[TStruct](spec._vType), reader)
       }
       val newKeyFieldNames = keyToSortBy.fields.map(_.name)
       val sortedStream = ToStream(sortIR(partitionInputStream) { (refLeft, refRight) =>
@@ -410,7 +410,7 @@ object LowerDistributedSort {
     val finalTs = TableStage(initialGlobalsLiteral, partitioner, TableStageDependency.none, contexts, { ctxRef =>
       val files = GetField(ctxRef, "files")
       val partitionInputStream = flatMapIR(ToStream(files)) { fileInfo =>
-        ReadPartition(fileInfo, coerce[TStruct](spec._vType), reader)
+        ReadPartition(fileInfo, tcoerce[TStruct](spec._vType), reader)
       }
       partitionInputStream
     })

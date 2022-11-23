@@ -1,4 +1,4 @@
-from typing import Callable, TypeVar, AsyncIterator, Iterator
+from typing import Deque, TypeVar, AsyncIterator, Iterator
 import collections
 import asyncio
 
@@ -39,7 +39,7 @@ class WriteBuffer:
         that can be retried. WriteBuffer stores data at the end of
         the write stream that has not been committed and may be needed
         to retry the failed write of a chunk."""
-        self._buffers = collections.deque()
+        self._buffers: Deque[bytes] = collections.deque()
         self._offset = 0
         self._size = 0
         self._iterating = False
@@ -98,15 +98,3 @@ class WriteBuffer:
                 yield b[:remaining]
                 break
         self._iterating = False
-
-
-def make_tqdm_listener(pbar) -> Callable[[int], None]:
-    def listener(delta):
-        if pbar.total is None:
-            pbar.total = 0
-        if delta > 0:
-            pbar.total += delta
-            pbar.refresh()
-        if delta < 0:
-            pbar.update(-delta)
-    return listener

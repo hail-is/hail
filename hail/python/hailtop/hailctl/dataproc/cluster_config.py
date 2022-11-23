@@ -15,7 +15,7 @@ class ClusterConfig:
             self.flags[flag].update(values)
 
     def parse_and_extend(self, flag, values):
-        values = dict(tuple(pair.split('=')) for pair in values.split(',') if '=' in pair)
+        values = dict(tuple(pair.split('=')) for pair in values.split(',') if '=' in pair)  # type: ignore
         self.extend_flag(flag, values)
 
     def format(self, obj):

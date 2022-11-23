@@ -326,6 +326,8 @@ steps:
         script: /io/sql/rename-gsa-identity.sql
       - name: support-azure-oauth
         script: /io/sql/support-azure-oauth.sql
+      - name: change-username-collation
+        script: /io/sql/change-username-collation.sql
     inputs:
       - from: /repo/auth/sql
         to: /io/sql
@@ -577,17 +579,6 @@ steps:
       - service_base_image
       - merge_code
   - kind: buildImage2
-    name: batch_driver_nginx_image
-    dockerFile: /io/batch/Dockerfile.driver-nginx
-    contextPath: /io/batch
-    publishAs: batch-driver-nginx
-    inputs:
-      - from: /repo/batch
-        to: /io/batch
-    dependsOn:
-      - hail_ubuntu_image
-      - merge_code
-  - kind: buildImage2
     name: batch_image
     dockerFile: /io/batch/Dockerfile
     contextPath: /io/batch/
@@ -597,43 +588,6 @@ steps:
         to: /io/batch
     dependsOn:
       - service_base_image
-      - merge_code
-  - kind: runImage
-    name: render_grafana_nginx_conf
-    image:
-      valueFrom: service_base_image.image
-    script: |
-      set -ex
-      cd /io/repo/grafana
-      {% if deploy %}
-      DEPLOY=true
-      {% else %}
-      DEPLOY=false
-      {% endif %}
-      python3 ../ci/jinja2_render.py '{"deploy": '${DEPLOY}', "global": {"domain": "{{ global.domain }}"}, "default_ns": {"name": "{{ default_ns.name }}"}}' nginx.conf nginx.conf.out
-    inputs:
-      - from: /repo
-        to: /io/repo
-    outputs:
-      - from: /io/repo/grafana/nginx.conf.out
-        to: /grafana/nginx.conf.out
-    dependsOn:
-      - default_ns
-      - service_base_image
-      - merge_code
-  - kind: buildImage2
-    name: grafana_nginx_image
-    dockerFile: /io/grafana/Dockerfile.nginx
-    contextPath: /io/grafana
-    publishAs: grafana
-    inputs:
-      - from: /repo/grafana
-        to: /io/grafana
-      - from: /grafana/nginx.conf.out
-        to: /io/grafana/nginx.conf.out
-    dependsOn:
-      - hail_ubuntu_image
-      - render_grafana_nginx_conf
       - merge_code
   - kind: buildImage2
     name: test_ci_image
@@ -699,6 +653,25 @@ steps:
     dependsOn:
       - service_base_image
       - merge_code
+  - kind: buildImage2
+    name: hailgenetics_hailtop_image
+    dockerFile: /io/repo/docker/hailgenetics/hailtop/Dockerfile
+    contextPath: /io/repo
+    publishAs: hailgenetics/hailtop
+    inputs:
+      - from: /repo/docker/hailgenetics/hailtop
+        to: /io/repo/docker/hailgenetics/hailtop
+      - from: /repo/hail/python/setup-hailtop.py
+        to: /io/repo/hail/python/setup-hailtop.py
+      - from: /repo/hail/python/MANIFEST.in
+        to: /io/repo/hail/python/MANIFEST.in
+      - from: /repo/hail/python/hailtop
+        to: /io/repo/hail/python/hailtop
+      - from: /hail_version
+        to: /io/repo/hail_version
+    dependsOn:
+      - merge_code
+      - hail_ubuntu_image
   - kind: runImage
     name: build_hail_jar_and_wheel_only
     image:
@@ -933,19 +906,6 @@ steps:
       - hail_ubuntu_image
       - compile_batch_worker_jvm_entryway
   - kind: buildImage2
-    name: service_java_run_base_image
-    dockerFile: /io/repo/docker/Dockerfile.service-java-run-base
-    contextPath: /io/repo
-    publishAs: service-java-run-base
-    inputs:
-      - from: /repo
-        to: /io/repo
-      - from: /hail_version
-        to: /io/repo/hail_version
-    dependsOn:
-      - hail_ubuntu_image
-      - merge_code
-  - kind: buildImage2
     name: memory_image
     dockerFile: /io/repo/memory/Dockerfile
     contextPath: /io/repo
@@ -984,7 +944,7 @@ steps:
   - kind: runImage
     name: upload_test_resources_to_blob_storage
     image:
-      valueFrom: hail_pip_installed_image.image
+      valueFrom: hailgenetics_hailtop_image.image
     script: |
       set -ex
       cd /io/repo/hail/
@@ -1008,7 +968,7 @@ steps:
         to: /io/repo/hail/python/hail/docs/data
     dependsOn:
       - default_ns
-      - hail_pip_installed_image
+      - hailgenetics_hailtop_image
       - merge_code
   - kind: runImage
     name: test_hail_java
@@ -1180,17 +1140,6 @@ steps:
       - render_notebook_nginx_conf
       - merge_code
   - kind: runImage
-    name: check_notebook
-    image:
-      valueFrom: notebook_image.image
-    script: |
-      set -ex
-      SITE_PACKAGES=$(pip3 show notebook | grep Location | sed 's/Location: //')
-      python3 -m flake8 $SITE_PACKAGES/notebook
-      python3 -m pylint --rcfile pylintrc notebook
-    dependsOn:
-      - notebook_image
-  - kind: runImage
     name: test_hail_python
     numSplits: 7
     image:
@@ -1247,7 +1196,7 @@ steps:
     name: test_hail_python_fs
     numSplits: 5
     image:
-      valueFrom: hail_run_image.image
+      valueFrom: hailgenetics_hailtop_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1255,8 +1204,8 @@ steps:
       set -ex
       cd /io
       tar xzf test.tar.gz
-      tar xvf debug-wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+
+      python3 -m pip install -r test-requirements.txt
 
       export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
@@ -1276,8 +1225,8 @@ steps:
               --durations=50 \
               test/hailtop/inter_cloud
     inputs:
-      - from: /debug-wheel-container.tar
-        to: /io/debug-wheel-container.tar
+      - from: /repo/hail/python/dev/pinned-requirements.txt
+        to: /io/test-requirements.txt
       - from: /test.tar.gz
         to: /io/test.tar.gz
     secrets:
@@ -1295,7 +1244,7 @@ steps:
         mountPath: /test-azure-key
     dependsOn:
       - default_ns
-      - hail_run_image
+      - hailgenetics_hailtop_image
       - build_hail
     clouds:
       - gcp
@@ -1481,11 +1430,10 @@ steps:
 
       # dev deploy elides the hail-is remote, add it and retrieve the tags
       git remote add hail-is https://github.com/hail-is/hail.git
-      git fetch hail-is
 
       export HAIL_PIP_VERSION=$(cat hail/python/hail/hail_pip_version)
 
-      if git ls-remote --exit-code --tags origin $HAIL_PIP_VERSION
+      if git ls-remote --exit-code --tags hail-is $HAIL_PIP_VERSION
       then
         # In this case, we want to get the docs from Google Storage.
         python3 -m hailtop.aiotools.copy 'null' '[
@@ -1525,6 +1473,46 @@ steps:
       - make_docs
     clouds:
       - gcp
+  - kind: buildImage2
+    name: query_build_image
+    dockerFile: /io/query/Dockerfile.query-build
+    contextPath: /io/query
+    publishAs: query-build
+    inputs:
+      - from: /repo/query
+        to: /io/query
+    dependsOn:
+      - hail_ubuntu_image
+      - merge_code
+  - kind: runImage
+    name: build_native_query
+    image:
+      valueFrom: query_build_image.image
+    script: |
+      set -ex
+      export LLVM_DIR=/usr/lib/llvm-15
+      cd /io/repo/query
+      mkdir build
+      cd build
+      cmake .. \
+        -G Ninja \
+        -DCMAKE_C_COMPILER=$LLVM_DIR/bin/clang \
+        -DCMAKE_CXX_COMPILER=$LLVM_DIR/bin/clang++ \
+        -DCMAKE_C_FLAGS=-Werror \
+        -DCMAKE_CXX_FLAGS=-Werror \
+        -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+        -DMLIR_DIR=$LLVM_DIR/lib/cmake/mlir
+        # -DLLVM_BUILD_BINARY_DIR=$LLVM_SRC_DIR/build/bin # FIXME need llvm-lit for tests
+      ninja
+    resources:
+      memory: standard
+      cpu: '2'
+    inputs:
+      - from: /repo
+        to: /io/repo
+    dependsOn:
+      - query_build_image
+      - merge_code
   - kind: deploy
     name: deploy_grafana
     namespace:
@@ -1537,45 +1525,7 @@ steps:
     dependsOn:
       - default_ns
       - base_image
-      - grafana_nginx_image
       - create_certs
-  - kind: runImage
-    name: render_prom_nginx_conf
-    image:
-      valueFrom: service_base_image.image
-    script: |
-      set -ex
-      cd /io/repo/prometheus
-      {% if deploy %}
-      DEPLOY=true
-      {% else %}
-      DEPLOY=false
-      {% endif %}
-      python3 ../ci/jinja2_render.py '{"deploy": '${DEPLOY}', "default_ns": {"name": "{{ default_ns.name }}"}}' nginx.conf nginx.conf.out
-    inputs:
-      - from: /repo
-        to: /io/repo
-    outputs:
-      - from: /io/repo/prometheus/nginx.conf.out
-        to: /prometheus/nginx.conf.out
-    dependsOn:
-      - default_ns
-      - service_base_image
-      - merge_code
-  - kind: buildImage2
-    name: prom_nginx_image
-    dockerFile: /io/prometheus/Dockerfile.nginx
-    contextPath: /io/prometheus
-    publishAs: prometheus
-    inputs:
-      - from: /repo/prometheus
-        to: /io/prometheus
-      - from: /prometheus/nginx.conf.out
-        to: /io/prometheus/nginx.conf.out
-    dependsOn:
-      - hail_ubuntu_image
-      - render_prom_nginx_conf
-      - merge_code
   - kind: deploy
     name: deploy_prometheus
     namespace:
@@ -1586,7 +1536,6 @@ steps:
       - dev
     dependsOn:
       - default_ns
-      - prom_nginx_image
       - create_certs
   - kind: runImage
     name: create_dummy_oauth2_client_secret
@@ -1622,17 +1571,6 @@ steps:
       - create_dummy_oauth2_client_secret
       - create_certs
       - create_accounts
-  - kind: runImage
-    name: check_monitoring
-    image:
-      valueFrom: monitoring_image.image
-    script: |
-      set -ex
-      SITE_PACKAGES=$(pip3 show monitoring | grep Location | sed 's/Location: //')
-      python3 -m flake8 $SITE_PACKAGES/monitoring
-      python3 -m pylint --rcfile pylintrc monitoring
-    dependsOn:
-      - monitoring_image
   - kind: runImage
     name: delete_monitoring_tables
     image:
@@ -1887,6 +1825,9 @@ steps:
       - name: add-frozen-mode
         script: /io/sql/add-frozen-mode.sql
         online: true
+      - name: active-namespaces
+        script: /io/sql/active-namespaces.sql
+        online: true
     inputs:
       - from: /repo/ci/sql
         to: /io/sql
@@ -2077,6 +2018,15 @@ steps:
       - name: add-commit-updates
         script: /io/sql/add-commit-updates.sql
         online: true
+      - name: add-job-regions
+        script: /io/sql/add-job-regions.sql
+        online: true
+      - name: faster-regions-pool-scheduler
+        script: /io/sql/faster-regions-pool-scheduler.sql
+        online: true
+      - name: add-batch-state-index
+        script: /io/sql/add-batch-state-index.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -2113,7 +2063,6 @@ steps:
       - create_accounts
       - batch_image
       - batch_worker_image
-      - batch_driver_nginx_image
       - batch_database
       - deploy_auth
       - create_certs
@@ -2129,6 +2078,7 @@ steps:
       import json
       import asyncio
       import aiohttp
+      from hailtop import httpx
       from hailtop.utils import async_to_blocking
       from hailtop.batch_client.aioclient import BatchClient
       async def create(billing_project, user, limit=None):
@@ -2136,14 +2086,14 @@ steps:
           try:
               try:
                   await bc.create_billing_project(billing_project)
-              except aiohttp.ClientResponseError as e:
-                  if e.status != 403 or 'already exists' not in e.message:
+              except httpx.ClientResponseError as e:
+                  if e.status != 403 or 'already exists' not in e.body:
                        raise
 
               try:
                   await bc.add_user(user, billing_project)
               except aiohttp.ClientResponseError as e:
-                  if e.status != 403 or 'already member of billing project' not in e.message:
+                  if e.status != 403 or 'already member of billing project' not in e.body:
                        raise
 
               await bc.edit_billing_limit(billing_project, limit)
@@ -2180,7 +2130,7 @@ steps:
   - kind: runImage
     name: upload_query_jar
     image:
-      valueFrom: hail_pip_installed_image.image
+      valueFrom: hailgenetics_hailtop_image.image
     script: |
       set -ex
       export GOOGLE_APPLICATION_CREDENTIALS=/batch-gsa-key/key.json
@@ -2210,7 +2160,7 @@ steps:
     dependsOn:
       - default_ns
       - deploy_batch
-      - hail_pip_installed_image
+      - hailgenetics_hailtop_image
       - build_hail_jar_and_wheel_only_spark_3_2
       - merge_code
       - create_test_gsa_keys
@@ -2405,6 +2355,7 @@ steps:
       export HAIL_DOMAIN="{{ global.domain }}"
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
       python3 -m pytest \
+              --asyncio-mode=auto \
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
               --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
               --log-cli-level=INFO \
@@ -2643,14 +2594,16 @@ steps:
       - create_ci_test_repo
   - kind: buildImage2
     name: hailgenetics_hail_image
-    dockerFile: /io/docker/hailgenetics/hail/Dockerfile
-    contextPath: /io/docker/hailgenetics/hail
+    dockerFile: /io/repo/docker/hailgenetics/hail/Dockerfile
+    contextPath: /io/repo
     publishAs: hailgenetics/hail
     inputs:
       - from: /repo/docker/hailgenetics/hail
-        to: /io/docker/hailgenetics/hail
+        to: /io/repo/docker/hailgenetics/hail
+      - from: /repo/hail/python/pinned-requirements.txt
+        to: /io/repo/hail/python/pinned-requirements.txt
       - from: /just-wheel/wheel-container.tar
-        to: /io/docker/hailgenetics/hail/wheel-container.tar
+        to: /io/repo/wheel-container.tar
     dependsOn:
       - merge_code
       - build_hail_jar_and_wheel_only
@@ -2679,6 +2632,7 @@ steps:
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
+      export HAIL_GENETICS_HAILTOP_IMAGE="{{ hailgenetics_hailtop_image.image }}"
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
       python3 -m pytest \
@@ -2713,6 +2667,7 @@ steps:
         mountPath: /ssl-config
     dependsOn:
       - hailgenetics_hail_image
+      - hailgenetics_hailtop_image
       - create_deploy_config
       - create_accounts
       - default_ns
@@ -2972,6 +2927,7 @@ steps:
                              /io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl \
                              /io/github-oauth \
                              docker://{{ hailgenetics_hail_image.image }} \
+                             docker://{{ hailgenetics_hailtop_image.image }} \
                              /io/wheel-for-azure/hail-*-py3-none-any.whl \
                              /io/www.tar.gz
     inputs:
@@ -3013,6 +2969,7 @@ steps:
       - build_hail
       - merge_code
       - hailgenetics_hail_image
+      - hailgenetics_hailtop_image
       - build_wheel_for_azure
       - make_docs
     clouds:
@@ -3094,7 +3051,7 @@ steps:
     config: website/deployment.yaml
     wait:
       - kind: Service
-        name: website
+        name: www
         for: alive
     dependsOn:
       - default_ns

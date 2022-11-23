@@ -4,7 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.streams.StreamProducer
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitValue, IEmitCode, PartitionReader}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitValue, IEmitCode, PartitionReader}
 import is.hail.types.physical.{PCanonicalTuple, PInt64Required}
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete._
@@ -70,6 +70,7 @@ case class AvroPartitionReader(schema: Schema, uidFieldName: String) extends Par
       val rowIdx = mb.genFieldThisRef[Long]("rowIdx")
 
       val producer = new StreamProducer {
+        override def method: EmitMethodBuilder[_] = cb.emb
         val length: Option[EmitCodeBuilder => Code[Int]] = None
 
         def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {

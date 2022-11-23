@@ -49,6 +49,9 @@ spec:
            - mountPath: /deploy-config
              name: deploy-config
              readOnly: true
+           - name: global-config
+             mountPath: /global-config
+             readOnly: true
            - name: session-secret-key
              mountPath: /session-secret-key
              readOnly: true
@@ -75,6 +78,10 @@ spec:
          secret:
            optional: false
            secretName: deploy-config
+       - name: global-config
+         secret:
+           optional: false
+           secretName: global-config
        - name: session-secret-key
          secret:
            optional: false

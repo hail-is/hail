@@ -11,10 +11,12 @@ import copy
 from shlex import quote as shq
 import webbrowser
 import warnings
+from rich.progress import track
 
 from hailtop import pip_version
 from hailtop.config import get_deploy_config, get_user_config
-from hailtop.utils import parse_docker_image_reference, async_to_blocking, bounded_gather, tqdm, url_scheme
+from hailtop.utils.rich_progress_bar import SimpleRichProgressBar
+from hailtop.utils import parse_docker_image_reference, async_to_blocking, bounded_gather, url_scheme
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
 import hailtop.batch_client.client as bc
@@ -27,8 +29,7 @@ from .exceptions import BatchException
 from .globals import DEFAULT_SHELL
 
 
-HAIL_GENETICS_HAIL_IMAGE = os.environ.get('HAIL_GENETICS_HAIL_IMAGE',
-                                          f'hailgenetics/hail:{pip_version()}')
+HAIL_GENETICS_HAILTOP_IMAGE = os.environ.get('HAIL_GENETICS_HAILTOP_IMAGE', f'hailgenetics/hailtop:{pip_version()}')
 
 
 RunningBatchType = TypeVar('RunningBatchType')
@@ -63,10 +64,10 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
     def _fs(self) -> AsyncFS:
         raise NotImplementedError()
 
-    def _close(self):  # pylint: disable=R0201
+    def _close(self):
         return
 
-    def close(self):  # pylint: disable=R0201
+    def close(self):
         """
         Close a Hail Batch Backend.
 
@@ -200,6 +201,7 @@ class LocalBackend(Backend[None]):
                 if r not in copied_input_resource_files:
                     copied_input_resource_files.add(r)
 
+                    assert r._input_path
                     input_scheme = url_scheme(r._input_path)
                     if input_scheme != '':
                         transfers_bytes = orjson.dumps([{"from": r._input_path, "to": r._get_path(tmpdir)}])
@@ -348,6 +350,8 @@ class LocalBackend(Backend[None]):
 
 
 class ServiceBackend(Backend[bc.Batch]):
+    ANY_REGION = ['any_region']
+
     """Backend that executes batches on Hail's Batch Service on Google Cloud.
 
     Examples
@@ -386,7 +390,28 @@ class ServiceBackend(Backend[bc.Batch]):
     token:
         The authorization token to pass to the batch client.
         Should only be set for user delegation purposes.
+    regions:
+        Cloud region(s) to run jobs in. Use py:staticmethod:`.ServiceBackend.supported_regions` to list the
+        available regions to choose from. Use py:attribute:`.ServiceBackend.ANY_REGION` to signify the default is jobs
+        can run in any available region. The default is jobs can run in any region unless a default value has
+        been set with hailctl. An example invocation is `hailctl config set batch/regions "us-central1,us-east1"`.
     """
+
+    @staticmethod
+    def supported_regions():
+        """
+        Get the supported cloud regions
+
+        Examples
+        --------
+        >>> regions = ServiceBackend.supported_regions()
+
+        Returns
+        -------
+        A list of the supported cloud regions
+        """
+        with BatchClient('dummy') as dummy_client:
+            return dummy_client.supported_regions()
 
     def __init__(self,
                  *args,
@@ -394,7 +419,8 @@ class ServiceBackend(Backend[bc.Batch]):
                  bucket: Optional[str] = None,
                  remote_tmpdir: Optional[str] = None,
                  google_project: Optional[str] = None,
-                 token: Optional[str] = None
+                 token: Optional[str] = None,
+                 regions: Optional[List[str]] = None
                  ):
         if len(args) > 2:
             raise TypeError(f'ServiceBackend() takes 2 positional arguments but {len(args)} were given')
@@ -455,6 +481,15 @@ class ServiceBackend(Backend[bc.Batch]):
 
         gcs_kwargs = {'project': google_project}
         self.__fs: RouterAsyncFS = RouterAsyncFS(default_scheme='file', gcs_kwargs=gcs_kwargs)
+
+        if regions is None:
+            regions_from_conf = user_config.get('batch', 'regions', fallback=None)
+            if regions_from_conf is not None:
+                assert isinstance(regions_from_conf, str)
+                regions = regions_from_conf.split(',')
+        elif regions == ServiceBackend.ANY_REGION:
+            regions = None
+        self.regions = regions
 
     @property
     def _fs(self):
@@ -581,26 +616,28 @@ class ServiceBackend(Backend[bc.Batch]):
             if dry_run:
                 commands.append(' '.join(shq(x) for x in write_cmd))
             else:
-                j = bc_batch.create_job(image=HAIL_GENETICS_HAIL_IMAGE,
+                j = bc_batch.create_job(image=HAIL_GENETICS_HAILTOP_IMAGE,
                                         command=write_cmd,
                                         attributes={'name': 'write_external_inputs'})
                 jobs_to_command[j] = ' '.join(shq(x) for x in write_cmd)
                 n_jobs_submitted += 1
 
         pyjobs = [j for j in batch._jobs if isinstance(j, _job.PythonJob)]
-        for job in pyjobs:
-            if job._image is None:
+        for pyjob in pyjobs:
+            if pyjob._image is None:
                 version = sys.version_info
                 if version.major != 3 or version.minor not in (7, 8, 9, 10):
                     raise BatchException(
                         f"You must specify 'image' for Python jobs if you are using a Python version other than 3.7, 3.8, 3.9 or 3.10 (you are using {version})")
-                job._image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
+                pyjob._image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
 
         await batch._serialize_python_functions_to_input_files(
             batch_remote_tmpdir, dry_run=dry_run
         )
 
-        with tqdm(total=len(batch._jobs), desc='upload code', disable=disable_progress_bar) as pbar:
+        with SimpleRichProgressBar(total=len(batch._jobs),
+                                   description='upload code',
+                                   disable=disable_progress_bar) as pbar:
             async def compile_job(job):
                 used_remote_tmpdir = await job._compile(local_tmpdir, batch_remote_tmpdir, dry_run=dry_run)
                 pbar.update(1)
@@ -608,7 +645,7 @@ class ServiceBackend(Backend[bc.Batch]):
             used_remote_tmpdir_results = await bounded_gather(*[functools.partial(compile_job, j) for j in batch._jobs], parallelism=150)
             used_remote_tmpdir |= any(used_remote_tmpdir_results)
 
-        for job in tqdm(batch._jobs, desc='create job objects', disable=disable_progress_bar):
+        for job in track(batch._jobs, description='create job objects', disable=disable_progress_bar):
             inputs = [x for r in job._inputs for x in copy_input(r)]
 
             outputs = [x for r in job._internal_outputs for x in copy_internal_output(r)]
@@ -695,7 +732,9 @@ class ServiceBackend(Backend[bc.Batch]):
                                     env=env,
                                     requester_pays_project=batch.requester_pays_project,
                                     mount_tokens=True,
-                                    user_code=user_code)
+                                    user_code=user_code,
+                                    regions=job._regions,
+                                    always_copy_output=job._always_copy_output)
 
             n_jobs_submitted += 1
 
@@ -709,7 +748,7 @@ class ServiceBackend(Backend[bc.Batch]):
         if delete_scratch_on_exit and used_remote_tmpdir:
             parents = list(jobs_to_command.keys())
             j = bc_batch.create_job(
-                image=HAIL_GENETICS_HAIL_IMAGE,
+                image=HAIL_GENETICS_HAILTOP_IMAGE,
                 command=['python3', '-m', 'hailtop.aiotools.delete', batch_remote_tmpdir],
                 parents=parents,
                 attributes={'name': 'remove_tmpdir'},
@@ -733,13 +772,13 @@ class ServiceBackend(Backend[bc.Batch]):
 
         deploy_config = get_deploy_config()
         url = deploy_config.external_url('batch', f'/batches/{batch_handle.id}')
-        print(f'Submitted batch {batch_handle.id}, see {url}')
 
         if open:
             webbrowser.open(url)
         if wait:
-            print(f'Waiting for batch {batch_handle.id}...')
-            status = batch_handle.wait()
+            if verbose:
+                print(f'Waiting for batch {batch_handle.id}...')
+            status = batch_handle.wait(disable_progress_bar=disable_progress_bar)
             print(f'batch {batch_handle.id} complete: {status["state"]}')
         return batch_handle
 

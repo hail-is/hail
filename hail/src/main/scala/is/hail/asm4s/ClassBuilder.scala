@@ -154,6 +154,43 @@ class ModuleBuilder() {
     }
     classesBytes
   }
+
+  private var staticFieldWrapperIdx: Int = 0
+  private val maxFieldsOrMethodsOnClass: Int = 512
+  private var nStaticFieldsOnThisClass: Int = maxFieldsOrMethodsOnClass
+  private var staticCls: ClassBuilder[_] = null
+
+  private def incrStaticClassSize(n: Int = 1): Unit = {
+    if (nStaticFieldsOnThisClass + n >= maxFieldsOrMethodsOnClass) {
+      nStaticFieldsOnThisClass = n
+      staticFieldWrapperIdx += 1
+      staticCls = genClass[Unit](s"staticWrapperClass_$staticFieldWrapperIdx")
+    }
+  }
+
+  def genStaticField[T: TypeInfo](name: String = null): StaticFieldRef[T] = {
+    incrStaticClassSize()
+    val fd = staticCls.newStaticField[T](genName("f", name))
+    new StaticFieldRef[T](fd)
+  }
+
+  var _objectsField: Settable[Array[AnyRef]] = _
+  var _objects: BoxedArrayBuilder[AnyRef] = _
+
+  def setObjects(cb: EmitCodeBuilder, objects: Code[Array[AnyRef]]): Unit = {
+    cb.assign(_objectsField, objects)
+  }
+
+  def getObject[T <: AnyRef : TypeInfo](obj: T): Code[T] = {
+    if (_objectsField == null) {
+      _objectsField = genStaticField[Array[AnyRef]]()
+      _objects = new BoxedArrayBuilder[AnyRef]()
+    }
+
+    val i = _objects.size
+    _objects += obj
+    Code.checkcast[T](toCodeArray(_objectsField).apply(i))
+  }
 }
 
 trait WrappedClassBuilder[C] extends WrappedModuleBuilder {

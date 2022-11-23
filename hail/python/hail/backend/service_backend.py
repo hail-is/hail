@@ -2,13 +2,9 @@ from typing import Dict, Optional, Callable, Awaitable, Mapping, Any, List, Unio
 import abc
 import asyncio
 import struct
-import os
 from hail.expr.expressions.base_expression import Expression
 import orjson
 import logging
-import re
-import yaml
-from pathlib import Path
 
 from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename, revision, _TemporaryFilenameManager
 from hail.utils import FatalError
@@ -20,8 +16,10 @@ from hail.experimental import write_expression, read_expression
 from hail.ir import finalize_randomness
 from hail.ir.renderer import CSERenderer
 
-from hailtop.config import (configuration_of, get_user_local_cache_dir, get_remote_tmpdir, get_deploy_config)
+from hailtop import yamlx
+from hailtop.config import (configuration_of, get_remote_tmpdir, get_deploy_config)
 from hailtop.utils import async_to_blocking, secret_alnum_string, TransientError, Timings
+from hailtop.utils.rich_progress_bar import BatchProgressBar
 from hailtop.batch_client import client as hb
 from hailtop.batch_client import aioclient as aiohb
 from hailtop.aiotools.fs import AsyncFS
@@ -29,11 +27,9 @@ from hailtop.aiotools.router_fs import RouterAsyncFS
 import hailtop.aiotools.fs as afs
 
 from .backend import Backend, fatal_error_from_java_error_triplet
-from ..builtin_references import BUILTIN_REFERENCE_DOWNLOAD_LOCKS
 from ..fs.fs import FS
 from ..fs.router_fs import RouterFS
 from ..ir import BaseIR
-from ..context import version
 from ..utils import frozendict
 
 
@@ -95,17 +91,6 @@ async def read_bytes(strm: afs.ReadableStream) -> bytes:
 async def read_str(strm: afs.ReadableStream) -> str:
     b = await read_bytes(strm)
     return b.decode('utf-8')
-
-
-class yaml_literally_shown_str(str):
-    pass
-
-
-def yaml_literally_shown_str_representer(dumper, data):
-    return dumper.represent_scalar(u'tag:yaml.org,2002:str', data, style='|')
-
-
-yaml.add_representer(yaml_literally_shown_str, yaml_literally_shown_str_representer)
 
 
 class JarSpec(abc.ABC):
@@ -173,8 +158,6 @@ class IRFunction:
 
 
 class ServiceBackend(Backend):
-    HAIL_BATCH_FAILURE_EXCEPTION_MESSAGE_RE = re.compile("is.hail.backend.service.HailBatchFailure: ([0-9]+)\n")
-
     # is.hail.backend.service.Main protocol
     WORKER = "worker"
     DRIVER = "driver"
@@ -219,8 +202,6 @@ class ServiceBackend(Backend):
             batch_client = await aiohb.BatchClient.create(billing_project, _token=token)
         bc = hb.BatchClient.from_async(batch_client)
         batch_attributes: Dict[str, str] = dict()
-        user_local_reference_cache_dir = Path(get_user_local_cache_dir(), 'references', version())
-        os.makedirs(user_local_reference_cache_dir, exist_ok=True)
         remote_tmpdir = get_remote_tmpdir('ServiceBackend', remote_tmpdir=remote_tmpdir)
 
         jar_url = configuration_of('query', 'jar_url', jar_url, None)
@@ -245,7 +226,6 @@ class ServiceBackend(Backend):
             bc=bc,
             disable_progress_bar=disable_progress_bar,
             batch_attributes=batch_attributes,
-            user_local_reference_cache_dir=user_local_reference_cache_dir,
             remote_tmpdir=remote_tmpdir,
             flags=flags,
             jar_spec=jar_spec,
@@ -264,7 +244,6 @@ class ServiceBackend(Backend):
                  bc: hb.BatchClient,
                  disable_progress_bar: bool,
                  batch_attributes: Dict[str, str],
-                 user_local_reference_cache_dir: Path,
                  remote_tmpdir: str,
                  flags: Dict[str, str],
                  jar_spec: JarSpec,
@@ -280,7 +259,6 @@ class ServiceBackend(Backend):
         self.async_bc = self.bc._async_client
         self.disable_progress_bar = disable_progress_bar
         self.batch_attributes = batch_attributes
-        self.user_local_reference_cache_dir = user_local_reference_cache_dir
         self.remote_tmpdir = remote_tmpdir
         self.flags = flags
         self.jar_spec = jar_spec
@@ -297,7 +275,6 @@ class ServiceBackend(Backend):
             'jar_spec': str(self.jar_spec),
             'billing_project': self.billing_project,
             'batch_attributes': self.batch_attributes,
-            'user_local_reference_cache_dir': str(self.user_local_reference_cache_dir),
             'remote_tmpdir': self.remote_tmpdir,
             'flags': self.flags,
             'driver_cores': self.driver_cores,
@@ -328,7 +305,8 @@ class ServiceBackend(Backend):
                    name: str,
                    inputs: Callable[[afs.WritableStream, str], Awaitable[None]],
                    *,
-                   ir: Optional[BaseIR] = None):
+                   ir: Optional[BaseIR] = None,
+                   progress: Optional[BatchProgressBar] = None):
         timings = Timings()
         token = secret_alnum_string()
         with TemporaryDirectory(ensure_exists=False) as iodir:
@@ -356,7 +334,7 @@ class ServiceBackend(Backend):
                 if self.driver_memory is not None:
                     resources['memory'] = str(self.driver_memory)
 
-                j = bb.create_jvm_job(
+                bb.create_jvm_job(
                     jar_spec=self.jar_spec.to_dict(),
                     argv=[
                         ServiceBackend.DRIVER,
@@ -377,86 +355,51 @@ class ServiceBackend(Backend):
                         url = deploy_config.external_url('batch', f'/batches/{b.id}/jobs/1')
                         print(f'Submitted batch {b.id}, see {url}')
 
-                    status = await b.wait(disable_progress_bar=self.disable_progress_bar)
+                    await b.wait(description=name,
+                                 disable_progress_bar=self.disable_progress_bar,
+                                 progress=progress)
                 except Exception:
                     await b.cancel()
                     raise
 
-            with timings.step("parse status"):
-                if status['n_succeeded'] != status['n_jobs']:
-                    job_status = await j.status()
-                    if 'status' in job_status:
-                        if 'error' in job_status['status']:
-                            job_status['status']['error'] = yaml_literally_shown_str(job_status['status']['error'].strip())
-                    logs = await j.log()
-                    for k in logs:
-                        logs[k] = yaml_literally_shown_str(logs[k].strip())
-                    message = {'service_backend_debug_info': self.debug_info(),
-                               'batch_status': status,
-                               'job_status': job_status,
-                               'log': logs}
-                    log.error(yaml.dump(message))
-                    raise FatalError(message)
-
             with timings.step("read output"):
-                async with await self._async_fs.open(iodir + '/out') as outfile:
+                try:
+                    driver_output = await self._async_fs.open(iodir + '/out')
+                except FileNotFoundError as exc:
+                    raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
+                        'service_backend_debug_info': self.debug_info(),
+                        'batch_debug_info': b.debug_info()
+                    })) from exc
+
+                async with driver_output as outfile:
                     success = await read_bool(outfile)
                     if success:
                         result_bytes = await read_bytes(outfile)
                         try:
                             return token, result_bytes, timings
                         except orjson.JSONDecodeError as err:
-                            raise FatalError(f'batch id was {b.id}\ncould not decode {result_bytes}') from err
-                    else:
-                        short_message = await read_str(outfile)
-                        expanded_message = await read_str(outfile)
-                        error_id = await read_int(outfile)
-                        if error_id == -1:
-                            error_id = None
-                        maybe_batch_id = ServiceBackend.HAIL_BATCH_FAILURE_EXCEPTION_MESSAGE_RE.match(expanded_message)
-                        if error_id is not None:
-                            assert maybe_batch_id is None, str((short_message, expanded_message, error_id))
-                            assert ir is not None
-                            self._handle_fatal_error_from_backend(
-                                fatal_error_from_java_error_triplet(short_message, expanded_message, error_id),
-                                ir)
-                        if maybe_batch_id is not None:
-                            assert error_id is None, str((short_message, expanded_message, error_id))
-                            batch_id = maybe_batch_id.groups()[0]
-                            b2 = await self.async_bc.get_batch(batch_id)
-                            b2_status = await b2.status()
-                            assert b2_status['state'] != 'success'
-                            failed_jobs = []
-                            async for j in b2.jobs():
-                                if j['state'] != 'Success':
-                                    logs, job = await asyncio.gather(
-                                        self.async_bc.get_job_log(j['batch_id'], j['job_id']),
-                                        self.async_bc.get_job(j['batch_id'], j['job_id']),
-                                    )
-                                    full_status = job._status
-                                    if 'status' in full_status:
-                                        if 'error' in full_status['status']:
-                                            full_status['status']['error'] = yaml_literally_shown_str(full_status['status']['error'].strip())
-                                    main_log = logs.get('main', '')
-                                    failed_jobs.append({
-                                        'partial_status': j,
-                                        'status': full_status,
-                                        'log': yaml_literally_shown_str(main_log.strip()),
-                                    })
-                            message = {
-                                'id': b.id,
+                            raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
                                 'service_backend_debug_info': self.debug_info(),
-                                'short_message': yaml_literally_shown_str(short_message.strip()),
-                                'expanded_message': yaml_literally_shown_str(expanded_message.strip()),
-                                'cause': {'id': batch_id, 'batch_status': b2_status, 'failed_jobs': failed_jobs}}
-                            log.error(yaml.dump(message))
-                            raise FatalError(orjson.dumps(message).decode('utf-8'))
-                        raise FatalError(f'batch id was {b.id}\n' + short_message + '\n' + expanded_message)
+                                'batch_debug_info': b.debug_info()
+                            })) from err
+
+                    short_message = await read_str(outfile)
+                    expanded_message = await read_str(outfile)
+                    error_id = await read_int(outfile)
+
+                    reconstructed_error = fatal_error_from_java_error_triplet(short_message, expanded_message, error_id)
+                    if ir is None:
+                        raise reconstructed_error
+                    raise reconstructed_error.maybe_user_error(ir)
 
     def execute(self, ir: BaseIR, timed: bool = False):
         return async_to_blocking(self._async_execute(ir, timed=timed))
 
-    async def _async_execute(self, ir: BaseIR, timed: bool = False):
+    async def _async_execute(self,
+                             ir: BaseIR,
+                             *,
+                             timed: bool = False,
+                             progress: Optional[BatchProgressBar] = None):
         async def inputs(infile, token):
             await write_int(infile, ServiceBackend.EXECUTE)
             await write_str(infile, tmp_dir())
@@ -469,7 +412,7 @@ class ServiceBackend(Backend):
                 await fun.serialize(infile)
             await write_str(infile, '{"name":"StreamBufferSpec"}')
 
-        _, resp, timings = await self._rpc('execute(...)', inputs, ir=ir)
+        _, resp, timings = await self._rpc('execute(...)', inputs, ir=ir, progress=progress)
         typ: HailType = ir.typ
         if typ == tvoid:
             assert resp == b'', (typ, resp)
@@ -483,59 +426,68 @@ class ServiceBackend(Backend):
     def execute_many(self, *irs, timed=False):
         return async_to_blocking(self._async_execute_many(*irs, timed=timed))
 
-    async def _async_execute_many(self, *irs, timed=False):
-        return await asyncio.gather(*[self._async_execute(ir, timed=timed) for ir in irs])
+    async def _async_execute_many(self,
+                                  *irs,
+                                  timed=False,
+                                  progress: Optional[BatchProgressBar] = None):
+        if progress is None:
+            with BatchProgressBar() as progress:
+                return await asyncio.gather(*[self._async_execute(ir, timed=timed, progress=progress)
+                                              for ir in irs])
+        else:
+            return await asyncio.gather(*[self._async_execute(ir, timed=timed, progress=progress)
+                                          for ir in irs])
 
     def value_type(self, ir):
         return async_to_blocking(self._async_value_type(ir))
 
-    async def _async_value_type(self, ir):
+    async def _async_value_type(self, ir, *, progress: Optional[BatchProgressBar] = None):
         async def inputs(infile, _):
             await write_int(infile, ServiceBackend.VALUE_TYPE)
             await write_str(infile, tmp_dir())
             await write_str(infile, self.billing_project)
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, self.render(ir))
-        _, resp, _ = await self._rpc('value_type(...)', inputs)
+        _, resp, _ = await self._rpc('value_type(...)', inputs, progress=progress)
         return dtype(orjson.loads(resp))
 
     def table_type(self, tir):
         return async_to_blocking(self._async_table_type(tir))
 
-    async def _async_table_type(self, tir):
+    async def _async_table_type(self, tir, *, progress: Optional[BatchProgressBar] = None):
         async def inputs(infile, _):
             await write_int(infile, ServiceBackend.TABLE_TYPE)
             await write_str(infile, tmp_dir())
             await write_str(infile, self.billing_project)
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, self.render(tir))
-        _, resp, _ = await self._rpc('table_type(...)', inputs)
+        _, resp, _ = await self._rpc('table_type(...)', inputs, progress=progress)
         return ttable._from_json(orjson.loads(resp))
 
     def matrix_type(self, mir):
         return async_to_blocking(self._async_matrix_type(mir))
 
-    async def _async_matrix_type(self, mir):
+    async def _async_matrix_type(self, mir, *, progress: Optional[BatchProgressBar] = None):
         async def inputs(infile, _):
             await write_int(infile, ServiceBackend.MATRIX_TABLE_TYPE)
             await write_str(infile, tmp_dir())
             await write_str(infile, self.billing_project)
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, self.render(mir))
-        _, resp, _ = await self._rpc('matrix_type(...)', inputs)
+        _, resp, _ = await self._rpc('matrix_type(...)', inputs, progress=progress)
         return tmatrix._from_json(orjson.loads(resp))
 
     def blockmatrix_type(self, bmir):
         return async_to_blocking(self._async_blockmatrix_type(bmir))
 
-    async def _async_blockmatrix_type(self, bmir):
+    async def _async_blockmatrix_type(self, bmir, *, progress: Optional[BatchProgressBar] = None):
         async def inputs(infile, _):
             await write_int(infile, ServiceBackend.BLOCK_MATRIX_TYPE)
             await write_str(infile, tmp_dir())
             await write_str(infile, self.billing_project)
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, self.render(bmir))
-        _, resp, _ = await self._rpc('blockmatrix_type(...)', inputs)
+        _, resp, _ = await self._rpc('blockmatrix_type(...)', inputs, progress=progress)
         return tblockmatrix._from_json(orjson.loads(resp))
 
     def add_reference(self, config):
@@ -547,48 +499,20 @@ class ServiceBackend(Backend):
     def remove_reference(self, name):
         raise NotImplementedError("ServiceBackend does not support 'remove_reference'")
 
-    def get_reference(self, name):
-        return async_to_blocking(self._async_get_reference(name))
-
-    async def _async_get_reference(self, name):
-        async def inputs(infile, _):
-            await write_int(infile, ServiceBackend.REFERENCE_GENOME)
-            await write_str(infile, tmp_dir())
-            await write_str(infile, self.billing_project)
-            await write_str(infile, self.remote_tmpdir)
-            await write_str(infile, name)
-
-        if name in BUILTIN_REFERENCE_DOWNLOAD_LOCKS:
-            with BUILTIN_REFERENCE_DOWNLOAD_LOCKS[name]:
-                try:
-                    with open(Path(self.user_local_reference_cache_dir, name)) as f:
-                        return orjson.loads(f.read())
-                except FileNotFoundError:
-                    _, resp, _ = await self._rpc('get_reference(...)', inputs)
-                    with open(Path(self.user_local_reference_cache_dir, name), 'wb') as f:
-                        f.write(resp)
-        else:
-            _, resp, _ = await self._rpc('get_reference(...)', inputs)
-
-        return orjson.loads(resp)
-
-    def get_references(self, names):
-        return async_to_blocking(self._async_get_references(names))
-
-    async def _async_get_references(self, names):
-        return await asyncio.gather(*[self._async_get_reference(name) for name in names])
+    def _get_non_builtin_reference(self, name):
+        raise NotImplementedError("ServiceBackend does not support non-builtin references")
 
     def load_references_from_dataset(self, path):
         return async_to_blocking(self._async_load_references_from_dataset(path))
 
-    async def _async_load_references_from_dataset(self, path):
+    async def _async_load_references_from_dataset(self, path, *, progress: Optional[BatchProgressBar] = None):
         async def inputs(infile, _):
             await write_int(infile, ServiceBackend.LOAD_REFERENCES_FROM_DATASET)
             await write_str(infile, tmp_dir())
             await write_str(infile, self.billing_project)
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, path)
-        _, resp, _ = await self._rpc('load_references_from_dataset(...)', inputs)
+        _, resp, _ = await self._rpc('load_references_from_dataset(...)', inputs, progress=progress)
         return orjson.loads(resp)
 
     def add_sequence(self, name, fasta_file, index_file):
@@ -606,14 +530,14 @@ class ServiceBackend(Backend):
     def parse_vcf_metadata(self, path):
         return async_to_blocking(self._async_parse_vcf_metadata(path))
 
-    async def _async_parse_vcf_metadata(self, path):
+    async def _async_parse_vcf_metadata(self, path, *, progress: Optional[BatchProgressBar] = None):
         async def inputs(infile, _):
             await write_int(infile, ServiceBackend.PARSE_VCF_METADATA)
             await write_str(infile, tmp_dir())
             await write_str(infile, self.billing_project)
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, path)
-        _, resp, _ = await self._rpc('parse_vcf_metadata(...)', inputs)
+        _, resp, _ = await self._rpc('parse_vcf_metadata(...)', inputs, progress=progress)
         return orjson.loads(resp)
 
     def index_bgen(self,
@@ -635,7 +559,9 @@ class ServiceBackend(Backend):
                                 index_file_map: Dict[str, str],
                                 referenceGenomeName: Optional[str],
                                 contig_recoding: Dict[str, str],
-                                skip_invalid_loci: bool):
+                                skip_invalid_loci: bool,
+                                *,
+                                progress: Optional[BatchProgressBar] = None):
         async def inputs(infile, _):
             await write_int(infile, ServiceBackend.INDEX_BGEN)
             await write_str(infile, tmp_dir())
@@ -659,14 +585,20 @@ class ServiceBackend(Backend):
                 await write_str(infile, v)
             await write_bool(infile, skip_invalid_loci)
 
-        _, resp, _ = await self._rpc('index_bgen(...)', inputs)
+        _, resp, _ = await self._rpc('index_bgen(...)', inputs, progress=progress)
         assert resp == b'null'
         return None
 
     def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
         return async_to_blocking(self._async_import_fam(path, quant_pheno, delimiter, missing))
 
-    async def _async_import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
+    async def _async_import_fam(self,
+                                path: str,
+                                quant_pheno: bool,
+                                delimiter: str,
+                                missing: str,
+                                *,
+                                progress: Optional[BatchProgressBar] = None):
         async def inputs(infile, _):
             await write_int(infile, ServiceBackend.IMPORT_FAM)
             await write_str(infile, tmp_dir())
@@ -676,7 +608,7 @@ class ServiceBackend(Backend):
             await write_bool(infile, quant_pheno)
             await write_str(infile, delimiter)
             await write_str(infile, missing)
-        _, resp, _ = await self._rpc('import_fam(...)', inputs)
+        _, resp, _ = await self._rpc('import_fam(...)', inputs, progress=progress)
         return orjson.loads(resp)
 
     def register_ir_function(self,

@@ -1,10 +1,14 @@
 from typing import Mapping, List, Union, Tuple, Dict, Optional, Any
 import abc
+import orjson
+import pkg_resources
+import zipfile
 from ..fs.fs import FS
+from ..builtin_references import BUILTIN_REFERENCE_RESOURCE_PATHS
 from ..expr import Expression
 from ..expr.types import HailType
 from ..ir import BaseIR
-from ..utils.java import FatalError, HailUserError
+from ..utils.java import FatalError
 
 
 def fatal_error_from_java_error_triplet(short_message, expanded_message, error_id):
@@ -69,20 +73,19 @@ class Backend(abc.ABC):
     def remove_reference(self, name):
         pass
 
-    @abc.abstractmethod
     def get_reference(self, name):
-        pass
+        if name in BUILTIN_REFERENCE_RESOURCE_PATHS:
+            path_in_jar = BUILTIN_REFERENCE_RESOURCE_PATHS[name]
+            jar_path = pkg_resources.resource_filename(__name__, 'hail-all-spark.jar')
+            return orjson.loads(zipfile.ZipFile(jar_path).open(path_in_jar).read())
+        return self._get_non_builtin_reference(name)
 
     @abc.abstractmethod
-    async def _async_get_reference(self, name):
+    def _get_non_builtin_reference(self, name):
         pass
 
     def get_references(self, names):
         return [self.get_reference(name) for name in names]
-
-    @abc.abstractmethod
-    async def _async_get_references(self, names):
-        pass
 
     @abc.abstractmethod
     def add_sequence(self, name, fasta_file, index_file):
@@ -171,19 +174,3 @@ class Backend(abc.ABC):
     @abc.abstractmethod
     def requires_lowering(self):
         pass
-
-    def _handle_fatal_error_from_backend(self, err: FatalError, ir: BaseIR):
-        if err._error_id is None:
-            raise err
-
-        error_sources = ir.base_search(lambda x: x._error_id == err._error_id)
-        if len(error_sources) == 0:
-            raise err
-
-        better_stack_trace = error_sources[0]._stack_trace
-        error_message = str(err)
-        message_and_trace = (f'{error_message}\n'
-                             '------------\n'
-                             'Hail stack trace:\n'
-                             f'{better_stack_trace}')
-        raise HailUserError(message_and_trace) from None

@@ -220,7 +220,7 @@ class CSEAnalysisPass:
 
             if child_idx >= len(node.children):
                 # mark node as visited at potential let insertion site
-                if not node.is_effectful():
+                if not (node.is_effectful() or node.is_stream):
                     bind_depth = frame.bind_depth()
                     if bind_depth < frame.min_value_binding_depth:
                         if frame.scan_scope:

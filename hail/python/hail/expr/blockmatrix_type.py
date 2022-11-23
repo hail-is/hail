@@ -5,6 +5,8 @@ from hail.expr.types import dtype, hail_type
 
 
 class tblockmatrix(object):
+    __slots__ = 'element_type', 'shape', 'is_row_vector', 'block_size'
+
     @staticmethod
     def _from_java(jtbm):
         return tblockmatrix(
@@ -15,10 +17,10 @@ class tblockmatrix(object):
 
     @staticmethod
     def _from_json(json):
-        return tblockmatrix(dtype(json['element_type']),
-                            json['shape'],
-                            json['is_row_vector'],
-                            json['block_size'])
+        return tblockmatrix(element_type=dtype(json['element_type']),
+                            shape=json['shape'],
+                            is_row_vector=json['is_row_vector'],
+                            block_size=json['block_size'])
 
     @typecheck_method(element_type=hail_type, shape=sequenceof(int), is_row_vector=bool, block_size=int)
     def __init__(self, element_type, shape, is_row_vector, block_size):
@@ -26,6 +28,12 @@ class tblockmatrix(object):
         self.shape = shape
         self.is_row_vector = is_row_vector
         self.block_size = block_size
+
+    def to_dict(self):
+        return dict(element_type=str(self.element_type),
+                    shape=self.shape,
+                    is_row_vector=self.is_row_vector,
+                    block_size=self.block_size)
 
     def __eq__(self, other):
         return isinstance(other, tblockmatrix) and \

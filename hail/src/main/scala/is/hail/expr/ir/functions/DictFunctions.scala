@@ -46,11 +46,11 @@ object DictFunctions extends RegistryFunctions {
 
     registerIR3("get", tdict, tv("key"), tv("value"), tv("value"))((_, a, b, c, _) => get(a, b, c))
     registerIR2("get", tdict, tv("key"), tv("tvalue")) { (_, d, k, _) =>
-      get(d, k, NA(types.coerce[TDict](d.typ).valueType))
+      get(d, k, NA(types.tcoerce[TDict](d.typ).valueType))
     }
 
     registerIR2("index", tdict, tv("key"), tv("value")) { (_, d, k, errorID) =>
-      val vtype = types.coerce[TBaseStruct](types.coerce[TContainer](d.typ).elementType).types(1)
+      val vtype = types.tcoerce[TBaseStruct](types.tcoerce[TContainer](d.typ).elementType).types(1)
       val errormsg = invoke("concat", TString,
         Str("Key "),
         invoke("concat", TString,
@@ -62,7 +62,7 @@ object DictFunctions extends RegistryFunctions {
     }
 
     registerIR1("dictToArray", tdict, TArray(TStruct("key" -> tv("key"), "value" -> tv("value")))) { (_, d, _) =>
-      val elt = Ref(genUID(), types.coerce[TContainer](d.typ).elementType)
+      val elt = Ref(genUID(), types.tcoerce[TContainer](d.typ).elementType)
       ToArray(StreamMap(
         ToStream(d),
         elt.name,
@@ -70,7 +70,7 @@ object DictFunctions extends RegistryFunctions {
     }
 
     registerIR1("keySet", tdict, TSet(tv("key"))) { (_, d, _) =>
-      val pairs = Ref(genUID(), types.coerce[TContainer](d.typ).elementType)
+      val pairs = Ref(genUID(), types.tcoerce[TContainer](d.typ).elementType)
       ToSet(StreamMap(ToStream(d), pairs.name, GetField(pairs, "key")))
     }
 
@@ -79,12 +79,12 @@ object DictFunctions extends RegistryFunctions {
     registerIR1("dict", TArray(TTuple(tv("key"), tv("value"))), tdict)((_, a, _) => ToDict(ToStream(a)))
 
     registerIR1("keys", tdict, TArray(tv("key"))) { (_, d, _) =>
-      val elt = Ref(genUID(), types.coerce[TContainer](d.typ).elementType)
+      val elt = Ref(genUID(), types.tcoerce[TContainer](d.typ).elementType)
       ToArray(StreamMap(ToStream(d), elt.name, GetField(elt, "key")))
     }
 
     registerIR1("values", tdict, TArray(tv("value"))) { (_, d, _) =>
-      val elt = Ref(genUID(), types.coerce[TContainer](d.typ).elementType)
+      val elt = Ref(genUID(), types.tcoerce[TContainer](d.typ).elementType)
       ToArray(StreamMap(ToStream(d), elt.name, GetField(elt, "value")))
     }
   }

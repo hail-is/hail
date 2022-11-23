@@ -10,10 +10,10 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union, cast
 from . import backend, batch  # pylint: disable=cyclic-import
 from . import resource as _resource  # pylint: disable=cyclic-import
 from .exceptions import BatchException
-from .globals import DEFAULT_SHELL
 
 
 def _add_resource_to_set(resource_set, resource, include_rg=True):
+    rg: Optional[_resource.ResourceGroup]
     if isinstance(resource, _resource.ResourceGroup):
         rg = resource
         if include_rg:
@@ -80,9 +80,11 @@ class Job:
         self._pool_label: Optional[str] = None
         self._timeout: Optional[Union[int, float]] = None
         self._cloudfuse: List[Tuple[str, str, bool]] = []
+        self._always_copy_output: bool = False
         self._env: Dict[str, str] = {}
         self._wrapper_code: List[str] = []
         self._user_code: List[str] = []
+        self._regions: Optional[List[str]] = None
 
         self._resources: Dict[str, _resource.Resource] = {}
         self._resources_inverse: Dict[_resource.Resource, str] = {}
@@ -340,6 +342,53 @@ class Job:
         self._always_run = always_run
         return self
 
+    def regions(self, regions: Optional[List[str]]) -> 'Job':
+        """
+        Set the cloud regions a job can run in.
+
+        Notes
+        -----
+        Can only be used with the :class:`.backend.ServiceBackend`.
+
+        This method may be used to ensure code executes in the same region as the data it reads.
+        This can avoid egress charges as well as improve latency.
+
+        Examples
+        --------
+
+        Require the job to run in 'us-central1':
+
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
+        >>> j = b.new_job()
+        >>> (j.regions(['us-central1'])
+        ...   .command(f'echo "hello"'))
+
+        Specify the job can run in any region:
+
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
+        >>> j = b.new_job()
+        >>> (j.regions(None)
+        ...   .command(f'echo "hello"'))
+
+        Parameters
+        ----------
+        regions:
+            The cloud region(s) to run this job in. Use `None` to signify
+            the job can run in any available region. Use py:staticmethod:`.ServiceBackend.supported_regions`
+            to list the available regions to choose from. The default is the job can run in
+            any region.
+
+        Returns
+        -------
+        Same job object with the cloud regions the job can run in set.
+        """
+
+        if not isinstance(self._batch._backend, backend.ServiceBackend):
+            raise NotImplementedError("A ServiceBackend is required to use the 'regions' option")
+
+        self._regions = regions
+        return self
+
     def timeout(self, timeout: Optional[Union[float, int]]) -> 'Job':
         """
         Set the maximum amount of time this job can run for in seconds.
@@ -472,6 +521,39 @@ class Job:
         self._cloudfuse.append((bucket, mount_point, read_only))
         return self
 
+    def always_copy_output(self, always_copy_output: bool = True) -> 'Job':
+        """
+        Set the job to always copy output to cloud storage, even if the job failed.
+
+        Notes
+        -----
+        Can only be used with the :class:`.backend.ServiceBackend`.
+
+        Examples
+        --------
+
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
+        >>> j = b.new_job()
+        >>> (j.always_copy_output()
+        ...   .command(f'echo "hello" > {j.ofile} && false'))
+
+        Parameters
+        ----------
+        always_copy_output:
+            If True, set job to always copy output to cloud storage regardless
+            of whether the job succeeded.
+
+        Returns
+        -------
+        Same job object set to always copy output.
+        """
+
+        if not isinstance(self._batch._backend, backend.ServiceBackend):
+            raise NotImplementedError("A ServiceBackend is required to use the 'always_copy_output' option")
+
+        self._always_copy_output = always_copy_output
+        return self
+
     async def _compile(self, local_tmpdir, remote_tmpdir, *, dry_run=False):
         raise NotImplementedError
 
@@ -502,6 +584,11 @@ class Job:
                         raise BatchException(f"undefined resource '{name}'\n"
                                              f"Hint: resources must be defined within "
                                              f"the job methods 'command' or 'declare_resource_group'")
+
+                    if self._always_run:
+                        warnings.warn('A job marked as always run has a resource file dependency on another job. If the dependent job fails, '
+                                      f'the always run job with the following command may not succeed:\n{command}')
+
                     self._dependencies.add(r._source)
                     r._source._add_internal_outputs(r)
             else:
@@ -742,24 +829,17 @@ class BashJob(Job):
         if len(self._command) == 0:
             return False
 
-        job_shell = self._shell if self._shell else DEFAULT_SHELL
-
         job_command = [cmd.strip() for cmd in self._command]
         job_command = [f'{{\n{x}\n}}' for x in job_command]
-        job_command = '\n'.join(job_command)
+        job_command_str = '\n'.join(job_command)
 
-        job_command = f'''
-#! {job_shell}
-{job_command}
-'''
-
-        job_command_bytes = job_command.encode()
+        job_command_bytes = job_command_str.encode()
 
         if len(job_command_bytes) <= 10 * 1024:
-            self._wrapper_code.append(job_command)
+            self._wrapper_code.append(job_command_str)
             return False
 
-        self._user_code.append(job_command)
+        self._user_code.append(job_command_str)
 
         job_path = f'{remote_tmpdir}/{self._dirname}'
         code_path = f'{job_path}/code.sh'
@@ -1047,11 +1127,11 @@ class PythonJob(Job):
         for i, (result, unapplied_id, args, kwargs) in enumerate(self._function_calls):
             func_file = self._batch._python_function_files[unapplied_id]
 
-            args = [prepare_argument_for_serialization(arg) for arg in args]
+            prepared_args = [prepare_argument_for_serialization(arg) for arg in args]
             kwargs = {kw: prepare_argument_for_serialization(arg) for kw, arg in kwargs.items()}
 
             args_file = await self._batch._serialize_python_to_input_file(
-                os.path.dirname(result._get_path(remote_tmpdir)), "args", i, (args, kwargs), dry_run
+                os.path.dirname(result._get_path(remote_tmpdir)), "args", i, (prepared_args, kwargs), dry_run
             )
 
             json_write, str_write, repr_write = [
@@ -1104,10 +1184,10 @@ with open('{result}', 'wb') as dill_out:
 
             unapplied = self._batch._python_function_defs[unapplied_id]
             self._user_code.append(textwrap.dedent(inspect.getsource(unapplied)))
-            args = ', '.join([f'{arg!r}' for _, arg in args])
-            kwargs = ', '.join([f'{k}={v!r}' for k, (_, v) in kwargs.items()])
-            separator = ', ' if args and kwargs else ''
-            func_call = f'{unapplied.__name__}({args}{separator}{kwargs})'
+            args_str = ', '.join([f'{arg!r}' for _, arg in prepared_args])
+            kwargs_str = ', '.join([f'{k}={v!r}' for k, (_, v) in kwargs.items()])
+            separator = ', ' if args_str and kwargs_str else ''
+            func_call = f'{unapplied.__name__}({args_str}{separator}{kwargs_str})'
             self._user_code.append(self._interpolate_command(func_call, allow_python_results=True))
 
         return True

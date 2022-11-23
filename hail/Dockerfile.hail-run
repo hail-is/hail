@@ -1,6 +1,5 @@
 FROM {{ service_base_image.image }}
 
-RUN hail-pip-install pyspark==3.1.1
 COPY hail/python/pinned-requirements.txt requirements.txt
 COPY hail/python/dev/pinned-requirements.txt dev-requirements.txt
 RUN hail-pip-install -r requirements.txt -r dev-requirements.txt

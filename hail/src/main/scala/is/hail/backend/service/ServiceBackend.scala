@@ -116,7 +116,7 @@ class ServiceBackend(
 
     // FIXME: HACK: working around the memory service until the issue is resolved:
     // https://hail.zulipchat.com/#narrow/stream/223457-Hail-Batch-support/topic/Batch.20Query.3A.20possible.20overloading.20of.20.60memory.60.20service/near/280823230
-    val (open, create) = (fs.openNoCompression _, fs.createNoCompression _)
+    val (open, create) = ((x: String) => fs.openNoCompression(x), fs.createNoCompression _)
 
     log.info(s"parallelizeAndComputeWithIndex: $token: nPartitions $n")
     log.info(s"parallelizeAndComputeWithIndex: $token: writing f and contexts")
@@ -268,8 +268,8 @@ class ServiceBackend(
   ): String =  {
     val x = IRParser.parse_table_ir(ctx, s)
     val t = x.typ
-    val jv = JObject("global" -> JString(t.globalType.toString),
-      "row" -> JString(t.rowType.toString),
+    val jv = JObject("global_type" -> JString(t.globalType.toString),
+      "row_type" -> JString(t.rowType.toString),
       "row_key" -> JArray(t.key.map(f => JString(f)).toList))
     JsonMethods.compact(jv)
   }
@@ -279,14 +279,7 @@ class ServiceBackend(
     s: String
   ): String = {
     val x = IRParser.parse_matrix_ir(ctx, s)
-    val t = x.typ
-    val jv = JObject("global" -> JString(t.globalType.toString),
-      "col" -> JString(t.colType.toString),
-      "col_key" -> JArray(t.colKey.map(f => JString(f)).toList),
-      "row" -> JString(t.rowType.toString),
-      "row_key" -> JArray(t.rowKey.map(f => JString(f)).toList),
-      "entry" -> JString(t.entryType.toString))
-    JsonMethods.compact(jv)
+    JsonMethods.compact(x.typ.pyJson)
   }
 
   def blockMatrixType(

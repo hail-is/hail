@@ -15,6 +15,7 @@ from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
 
 from gear import AuthClient, check_csrf_token, create_database_pool, monitor_endpoints_middleware, setup_aiohttp_session
+from gear.cloud_config import get_global_config
 from hailtop import httpx
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
@@ -95,6 +96,8 @@ def web_authenticated_workshop_guest_only(redirect=True):
 async def start_pod(k8s, service, userdata, notebook_token, jupyter_token):
     service_base_path = deploy_config.base_path(service)
 
+    origin = deploy_config.external_url('workshop', '/').rstrip('/')
+
     command = [
         'jupyter',
         'notebook',
@@ -102,6 +105,7 @@ async def start_pod(k8s, service, userdata, notebook_token, jupyter_token):
         f'--NotebookApp.base_url={service_base_path}/instance/{notebook_token}/',
         "--ip",
         "0.0.0.0",
+        f"--NotebookApp.allow_origin={origin}",
         "--no-browser",
         "--allow-root",
     ]
@@ -363,10 +367,10 @@ async def _wait_websocket(service, request, userdata):
         headers['X-Hail-Internal-Authorization'] = request.headers['X-Hail-Internal-Authorization']
 
     cookies = {}
-    if 'session' in request.cookies:
-        cookies['session'] = request.cookies['session']
-    if 'sesh' in request.cookies:
-        cookies['sesh'] = request.cookies['sesh']
+    cloud = get_global_config()['cloud']
+    for k in (f'{cloud}_session', f'{cloud}_sesh'):
+        if k in request.cookies:
+            cookies[k] = request.cookies[k]
 
     ready = notebook['state'] == 'Ready'
     count = 0

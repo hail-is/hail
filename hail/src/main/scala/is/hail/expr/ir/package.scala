@@ -6,7 +6,7 @@ import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.SValue
 import is.hail.types.virtual._
-import is.hail.types.{coerce => tycoerce, _}
+import is.hail.types.{tcoerce, _}
 import is.hail.utils._
 
 import java.util.UUID
@@ -38,20 +38,6 @@ package object ir {
         ir.False(),
         ir.Ref(pred, TBoolean)))
   }
-
-  private[ir] def coerce[T](c: Code[_]): Code[T] = asm4s.coerce(c)
-
-  private[ir] def coerce[T](c: Value[_]): Value[T] = asm4s.coerce(c)
-
-  private[ir] def coerce[T](lr: Settable[_]): Settable[T] = lr.asInstanceOf[Settable[T]]
-
-  private[ir] def coerce[T](ti: TypeInfo[_]): TypeInfo[T] = ti.asInstanceOf[TypeInfo[T]]
-
-  private[ir] def coerce[T <: Type](x: Type): T = tycoerce[T](x)
-
-  private[ir] def coerce[T <: PType](x: PType): T = tycoerce[T](x)
-
-  private[ir] def coerce[T <: BaseTypeWithRequiredness](x: BaseTypeWithRequiredness): T = tycoerce[T](x)
 
   def invoke(name: String, rt: Type, typeArgs: Array[Type], errorID: Int, args: IR*): IR = IRFunctionRegistry.lookupUnseeded(name, rt, typeArgs, args.map(_.typ)) match {
     case Some(f) => f(typeArgs, args, errorID)
@@ -104,12 +90,12 @@ package object ir {
   def iota(start: IR, step: IR): IR = StreamIota(start, step)
 
   def dropWhile(v: IR)(f: Ref => IR): IR = {
-    val ref = Ref(genUID(), coerce[TStream](v.typ).elementType)
+    val ref = Ref(genUID(), tcoerce[TStream](v.typ).elementType)
     StreamDropWhile(v, ref.name, f(ref))
   }
 
   def takeWhile(v: IR)(f: Ref => IR): IR = {
-    val ref = Ref(genUID(), coerce[TStream](v.typ).elementType)
+    val ref = Ref(genUID(), tcoerce[TStream](v.typ).elementType)
     StreamTakeWhile(v, ref.name, f(ref))
   }
 
@@ -122,27 +108,27 @@ package object ir {
   }
 
   def streamAggIR(stream: IR)(f: Ref => IR): IR = {
-    val ref = Ref(genUID(), coerce[TStream](stream.typ).elementType)
+    val ref = Ref(genUID(), tcoerce[TStream](stream.typ).elementType)
     StreamAgg(stream, ref.name, f(ref))
   }
 
   def forIR(stream: IR)(f: Ref => IR): IR = {
-    val ref = Ref(genUID(), coerce[TStream](stream.typ).elementType)
+    val ref = Ref(genUID(), tcoerce[TStream](stream.typ).elementType)
     StreamFor(stream, ref.name, f(ref))
   }
 
   def filterIR(stream: IR)(f: Ref => IR): IR = {
-    val ref = Ref(genUID(), coerce[TStream](stream.typ).elementType)
+    val ref = Ref(genUID(), tcoerce[TStream](stream.typ).elementType)
     StreamFilter(stream, ref.name, f(ref))
   }
 
   def mapIR(stream: IR)(f: Ref => IR): IR = {
-    val ref = Ref(genUID(), coerce[TStream](stream.typ).elementType)
+    val ref = Ref(genUID(), tcoerce[TStream](stream.typ).elementType)
     StreamMap(stream, ref.name, f(ref))
   }
 
   def flatMapIR(stream: IR)(f: Ref => IR): IR = {
-    val ref = Ref(genUID(), coerce[TStream](stream.typ).elementType)
+    val ref = Ref(genUID(), tcoerce[TStream](stream.typ).elementType)
     StreamFlatMap(stream, ref.name, f(ref))
   }
 
@@ -151,13 +137,13 @@ package object ir {
   }
 
   def foldIR(stream: IR, zero: IR)(f: (Ref, Ref) => IR): IR = {
-    val elt = Ref(genUID(), coerce[TStream](stream.typ).elementType)
+    val elt = Ref(genUID(), tcoerce[TStream](stream.typ).elementType)
     val accum = Ref(genUID(), zero.typ)
     StreamFold(stream, zero, accum.name, elt.name, f(accum, elt))
   }
 
   def sortIR(stream: IR)(f: (Ref, Ref) => IR): IR = {
-    val t = coerce[TStream](stream.typ).elementType
+    val t = tcoerce[TStream](stream.typ).elementType
     val l = Ref(genUID(), t)
     val r = Ref(genUID(), t)
     ArraySort(stream, l.name, r.name, f(l, r))
@@ -188,13 +174,13 @@ package object ir {
   def selectIR(old: IR, fields: String*): SelectFields = SelectFields(old, fields)
 
   def zip2(s1: IR, s2: IR, behavior: ArrayZipBehavior.ArrayZipBehavior)(f: (Ref, Ref) => IR): IR = {
-    val r1 = Ref(genUID(), coerce[TStream](s1.typ).elementType)
-    val r2 = Ref(genUID(), coerce[TStream](s2.typ).elementType)
+    val r1 = Ref(genUID(), tcoerce[TStream](s1.typ).elementType)
+    val r2 = Ref(genUID(), tcoerce[TStream](s2.typ).elementType)
     StreamZip(FastSeq(s1, s2), FastSeq(r1.name, r2.name), f(r1, r2), behavior)
   }
 
   def zipWithIndex(s: IR): IR = {
-    val r1 = Ref(genUID(), coerce[TStream](s.typ).elementType)
+    val r1 = Ref(genUID(), tcoerce[TStream](s.typ).elementType)
     val r2 = Ref(genUID(), TInt32)
     StreamZip(
       FastIndexedSeq(s, StreamIota(I32(0), I32(1))),
@@ -205,7 +191,7 @@ package object ir {
   }
 
   def zipIR(ss: IndexedSeq[IR], behavior: ArrayZipBehavior.ArrayZipBehavior)(f: IndexedSeq[Ref] => IR): IR = {
-    val refs = ss.map(s => Ref(genUID(), coerce[TStream](s.typ).elementType))
+    val refs = ss.map(s => Ref(genUID(), tcoerce[TStream](s.typ).elementType))
     StreamZip(ss, refs.map(_.name), f(refs), behavior, ErrorIDs.NO_ERROR)
   }
 

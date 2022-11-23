@@ -1,14 +1,14 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: website
+  name: www
   labels:
-    app: website
+    app: www
     hail.is/sha: "{{ code.sha }}"
 spec:
   selector:
     matchLabels:
-      app: website
+      app: www
 {% if scope == "deploy" %}
   replicas: 3
 {% elif scope == "test" or scope == "dev" %}
@@ -19,7 +19,7 @@ spec:
   template:
     metadata:
       labels:
-        app: website
+        app: www
         hail.is/sha: "{{ code.sha }}"
         grafanak8sapp: "true"
     spec:
@@ -41,7 +41,7 @@ spec:
                   - key: "app"
                     operator: In
                     values:
-                    - website
+                    - www
               topologyKey: "kubernetes.io/hostname"
       containers:
        - name: website
@@ -67,6 +67,9 @@ spec:
           - name: deploy-config
             mountPath: /deploy-config
             readOnly: true
+          - name: global-config
+            mountPath: /global-config
+            readOnly: true
           - name: session-secret-key
             mountPath: /session-secret-key
             readOnly: true
@@ -87,6 +90,9 @@ spec:
        - name: deploy-config
          secret:
            secretName: deploy-config
+       - name: global-config
+         secret:
+           secretName: global-config
        - name: session-secret-key
          secret:
            secretName: session-secret-key
@@ -98,12 +104,12 @@ spec:
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler
 metadata:
-  name: website
+  name: www
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: website
+    name: www
 {% if scope == "deploy" %}
   minReplicas: 3
   maxReplicas: 10
@@ -122,7 +128,7 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: website
+  name: www
 spec:
 {% if scope == "deploy" %}
   minAvailable: 2
@@ -133,7 +139,7 @@ spec:
 {% endif %}
   selector:
     matchLabels:
-      app: website
+      app: www
 ---
 apiVersion: v1
 kind: Service
@@ -148,4 +154,4 @@ spec:
     protocol: TCP
     targetPort: 5000
   selector:
-    app: website
+    app: www

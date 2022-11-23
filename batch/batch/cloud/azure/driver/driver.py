@@ -35,6 +35,22 @@ class AzureDriver(CloudDriver):
         region = azure_config.region
         regions = [region]
 
+        region_args = [(r,) for r in regions]
+        await db.execute_many(
+            '''
+INSERT INTO regions (region) VALUES (%s)
+ON DUPLICATE KEY UPDATE region = region;
+''',
+            region_args,
+        )
+
+        db_regions = {
+            record['region']: record['region_id']
+            async for record in db.select_and_fetchall('SELECT region_id, region from regions')
+        }
+        assert max(db_regions.values()) < 64, str(db_regions)
+        app['regions'] = db_regions
+
         with open(os.environ['HAIL_SSH_PUBLIC_KEY'], encoding='utf-8') as f:
             ssh_public_key = f.read()
 
@@ -48,7 +64,7 @@ class AzureDriver(CloudDriver):
 
         region_monitor = await RegionMonitor.create(region)
         billing_manager = await AzureBillingManager.create(db, pricing_client, regions)
-        inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, region_monitor, region)
+        inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, region_monitor, region, regions)
         resource_manager = AzureResourceManager(
             subscription_id, resource_group, ssh_public_key, arm_client, compute_client, billing_manager
         )

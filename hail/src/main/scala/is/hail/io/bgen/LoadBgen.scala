@@ -489,7 +489,7 @@ class MatrixBGENReader(
 
     val settings = getSettings(requestedType)
 
-    val rvdType = RVDType(coerce[PStruct](settings.rowPType.subsetTo(requestedType.rowType)),
+    val rvdType = RVDType(tcoerce[PStruct](settings.rowPType.subsetTo(requestedType.rowType)),
       fullType.key.take(requestedType.key.length))
 
     val rvd = if (dropRows)

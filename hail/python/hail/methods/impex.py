@@ -2131,7 +2131,7 @@ def import_matrix_table(paths,
     file_per_partition = import_lines(paths, force_bgz=force_bgz, file_per_partition=True)
     file_per_partition = file_per_partition.filter(hl.bool(hl.len(file_per_partition.text) == 0)
                                                    | comment_filter(file_per_partition), False)
-    first_lines_table = file_per_partition._map_partitions(lambda rows: rows[:1])
+    first_lines_table = file_per_partition._map_partitions(lambda rows: rows.take(1))
     first_lines_table = first_lines_table.annotate(split_array=first_lines_table.text.split(delimiter)).add_index()
 
     if not no_header:
@@ -2564,9 +2564,7 @@ def get_vcf_metadata(path):
            filter=nullable(str),
            find_replace=nullable(sized_tupleof(str, str)),
            n_partitions=nullable(int),
-           block_size=nullable(int),
-           # json
-           _partitions=nullable(str))
+           block_size=nullable(int))
 def import_vcf(path,
                force=False,
                force_bgz=False,
@@ -2582,8 +2580,7 @@ def import_vcf(path,
                filter=None,
                find_replace=None,
                n_partitions=None,
-               block_size=None,
-               _partitions=None) -> MatrixTable:
+               block_size=None) -> MatrixTable:
     """Import VCF file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -2732,8 +2729,7 @@ def import_vcf(path,
     reader = ir.MatrixVCFReader(path, call_fields, entry_float_type, header_file,
                                 n_partitions, block_size, min_partitions,
                                 reference_genome, contig_recoding, array_elements_required,
-                                skip_invalid_loci, force_bgz, force, filter, find_replace,
-                                _partitions)
+                                skip_invalid_loci, force_bgz, force, filter, find_replace)
     return MatrixTable(ir.MatrixRead(reader, drop_cols=drop_samples))
 
 
@@ -2789,11 +2785,8 @@ def import_gvcfs(path,
 
     rg = reference_genome.name if reference_genome else None
 
-    if partitions is not None:
-        partitions, partitions_type = hl.utils._dumps_partitions(partitions, hl.tstruct(locus=hl.tlocus(rg),
-                                                                                        alleles=hl.tarray(hl.tstr)))
-    else:
-        partitions_type = None
+    partitions, partitions_type = hl.utils._dumps_partitions(partitions, hl.tstruct(locus=hl.tlocus(rg),
+                                                                                    alleles=hl.tarray(hl.tstr)))
 
     vector_ref_s = Env.spark_backend('import_vcfs')._jbackend.pyImportVCFs(
         wrap_to_list(path),

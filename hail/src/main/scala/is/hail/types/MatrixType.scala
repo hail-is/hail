@@ -207,12 +207,12 @@ case class MatrixType(
 
   def pyJson: JObject = {
     JObject(
-      "row" -> JString(rowType.toString),
+      "row_type" -> JString(rowType.toString),
       "row_key" -> JArray(rowKey.toList.map(JString(_))),
-      "col" -> JString(colType.toString),
+      "col_type" -> JString(colType.toString),
       "col_key" -> JArray(colKey.toList.map(JString(_))),
-      "entry" -> JString(entryType.toString),
-      "global" -> JString(globalType.toString)
+      "entry_type" -> JString(entryType.toString),
+      "global_type" -> JString(globalType.toString)
     )
   }
 }

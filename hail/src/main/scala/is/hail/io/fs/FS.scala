@@ -3,7 +3,6 @@ package is.hail.io.fs
 import is.hail.backend.BroadcastValue
 import is.hail.io.compress.{BGzipInputStream, BGzipOutputStream}
 import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
-import is.hail.utils._
 import is.hail.services._
 import is.hail.utils._
 import is.hail.{HailContext, HailFeatureFlags}
@@ -176,9 +175,9 @@ abstract class FSSeekableInputStream extends InputStream with Seekable {
   def getPosition: Long = pos
 }
 
-abstract class FSPositionedOutputStream extends OutputStream with Positioned {
+abstract class FSPositionedOutputStream(val capacity: Int) extends OutputStream with Positioned {
   protected[this] var closed: Boolean = false
-  protected[this] val bb: ByteBuffer = ByteBuffer.allocate(64 * 1024)
+  protected[this] val bb: ByteBuffer = ByteBuffer.allocate(capacity)
   protected[this] var pos: Long = 0
 
    def flush(): Unit
@@ -285,7 +284,7 @@ trait FS extends Serializable {
       ""
   }
 
-  def openNoCompression(filename: String): SeekableDataInputStream
+  def openNoCompression(filename: String, _debug: Boolean = false): SeekableDataInputStream
 
   def createNoCompression(filename: String): PositionedDataOutputStream
 
@@ -357,8 +356,8 @@ trait FS extends Serializable {
       new Thread(() => delete(filename, recursive = false)))
   }
 
-  def open(path: String, codec: CompressionCodec): InputStream = {
-    val is = openNoCompression(path)
+  def open(path: String, codec: CompressionCodec, _debug: Boolean = false): InputStream = {
+    val is = openNoCompression(path, _debug)
     if (codec != null)
       codec.makeInputStream(is)
     else
