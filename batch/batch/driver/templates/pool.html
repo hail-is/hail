@@ -31,7 +31,7 @@
     <div>Standing worker cores: <input name="standing_worker_cores" value="{{ pool.standing_worker_cores }}" /></div>
     <div>Max instances: <input name="max_instances" value="{{ pool.max_instances }}" /></div>
     <div>Max live instances: <input name="max_live_instances" value="{{ pool.max_live_instances }}" /></div>
-    <div>Label: <input name="label" value="{{ pool.label }}" /></div>
+    <div>Labels: <input name="labels" value="{{ labels }}" /></div>
     <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
     <input type="hidden" name="_pool_config_json" value="{{ pool_config_json }}"/>
     <button>

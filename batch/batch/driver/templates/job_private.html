@@ -10,7 +10,9 @@
     <div>Boot disk size (in GB): <input name="boot_disk_size_gb" value="{{ jpim.boot_disk_size_gb }}" /></div>
     <div>Max instances: <input name="max_instances" value="{{ jpim.max_instances }}" /></div>
     <div>Max live instances: <input name="max_live_instances" value="{{ jpim.max_live_instances }}" /></div>
+    <div>Labels: <input name="labels" value="{{ labels }}" /></div>
     <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
+    <input type="hidden" name="_jpim_config_json" value="{{ jpim_config_json }}"/>
     <button>
       Update
     </button>

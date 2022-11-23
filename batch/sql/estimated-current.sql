@@ -30,6 +30,13 @@ CREATE TABLE IF NOT EXISTS `inst_colls` (
 ) ENGINE = InnoDB;
 CREATE INDEX `inst_colls_is_pool` ON `inst_colls` (`is_pool`);
 
+CREATE TABLE IF NOT EXISTS `inst_coll_labels` (
+  `name` VARCHAR(255) NOT NULL,
+  `label` VARCHAR(100) NOT NULL,
+  PRIMARY KEY (`name`, `label`),
+  FOREIGN KEY (`name`) REFERENCES inst_colls(name) ON DELETE CASCADE
+) ENGINE = InnoDB;
+
 INSERT INTO inst_colls (`name`, `is_pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`) VALUES ('standard', 1, 10, 6250, 800);
 INSERT INTO inst_colls (`name`, `is_pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`) VALUES ('highmem', 1, 10, 6250, 800);
 INSERT INTO inst_colls (`name`, `is_pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`) VALUES ('highcpu', 1, 10, 6250, 800);

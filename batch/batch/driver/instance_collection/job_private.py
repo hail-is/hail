@@ -7,7 +7,7 @@ from typing import Dict, List, Tuple
 
 import sortedcontainers
 
-from gear import Database
+from gear import Database, transaction
 from hailtop import aiotools
 from hailtop.utils import (
     AsyncWorkerPool,
@@ -98,6 +98,7 @@ WHERE removed = 0 AND inst_coll = %s;
             is_pool=False,
             max_instances=config.max_instances,
             max_live_instances=config.max_live_instances,
+            labels=config.labels,
             task_manager=task_manager,
         )
         self.app = app
@@ -116,21 +117,39 @@ WHERE removed = 0 AND inst_coll = %s;
             'worker_disk_size_gb': self.boot_disk_size_gb,
             'max_instances': self.max_instances,
             'max_live_instances': self.max_live_instances,
+            'labels': self.labels,
         }
 
-    async def configure(self, boot_disk_size_gb, max_instances, max_live_instances):
-        await self.db.just_execute(
-            '''
+    async def configure(self, boot_disk_size_gb: int, max_instances: int, max_live_instances: int, labels: List[str]):
+        @transaction(self.db)
+        async def update_db(tx):
+            await self.db.just_execute(
+                '''
 UPDATE inst_colls
 SET boot_disk_size_gb = %s, max_instances = %s, max_live_instances = %s
 WHERE name = %s;
 ''',
-            (boot_disk_size_gb, max_instances, max_live_instances, self.name),
-        )
+                (boot_disk_size_gb, max_instances, max_live_instances, self.name),
+            )
+
+            await tx.just_execute('DELETE FROM inst_coll_labels WHERE name = %s', (self.name,))
+
+            label_args = [(self.name, label) for label in labels]
+            await tx.execute_many(
+                '''
+INSERT INTO inst_coll_labels (name, label)
+VALUES (%s, %s)
+ON DUPLICATE KEY UPDATE label = label
+''',
+                label_args,
+            )
+
+        await update_db()  # pylint: disable=no-value-for-parameter
 
         self.boot_disk_size_gb = boot_disk_size_gb
         self.max_instances = max_instances
         self.max_live_instances = max_live_instances
+        self.labels = labels
 
     async def bump_scheduler(self):
         self.scheduler_state_changed.set()

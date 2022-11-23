@@ -607,7 +607,7 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
             session, 'Max live instances', post['max_live_instances'], lambda v: v > 0, 'a positive integer'
         )
 
-        label = post['label']
+        labels = [label for label in post['labels'].split(',') if label != '']
 
         enable_standing_worker = 'enable_standing_worker' in post
 
@@ -661,7 +661,7 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
             max_instances,
             max_live_instances,
             pool.preemptible,
-            label,
+            labels,
         )
 
         current_client_pool_config = json.loads(post['_pool_config_json'])
@@ -728,7 +728,24 @@ async def job_private_config_update(request, userdata):  # pylint: disable=unuse
             session, 'Max live instances', post['max_live_instances'], lambda v: v > 0, 'a positive integer'
         )
 
-        await jpim.configure(boot_disk_size_gb, max_instances, max_live_instances)
+        labels = [label for label in post['labels'].split(',') if label != '']
+
+        current_client_jpim_config = json.loads(post['_jpim_config_json'])
+        current_server_jpim_config = jpim.config()
+
+        client_items = current_client_jpim_config.items()
+        server_items = current_server_jpim_config.items()
+
+        match = client_items == server_items
+        if not match:
+            set_message(
+                session,
+                'The jpim config was stale; please re-enter config updates and try again',
+                'error',
+            )
+            raise ConfigError()
+
+        await jpim.configure(boot_disk_size_gb, max_instances, max_live_instances, labels)
 
         set_message(session, f'Updated configuration for {jpim}.', 'info')
     except ConfigError:
@@ -774,6 +791,7 @@ async def get_pool(request, userdata):
         'instances': pool.name_instance.values(),
         'user_resources': user_resources,
         'ready_cores_mcpu': ready_cores_mcpu,
+        'labels': ','.join(pool.labels),
     }
 
     return await render_template('batch-driver', request, userdata, 'pool.html', page_context)
@@ -796,6 +814,8 @@ async def get_job_private_inst_manager(request, userdata):
     n_creating_jobs = sum(record['n_creating_jobs'] for record in user_resources)
     n_running_jobs = sum(record['n_running_jobs'] for record in user_resources)
 
+    jpim_config_json = json.dumps(jpim.config())
+
     page_context = {
         'jpim': jpim,
         'instances': jpim.name_instance.values(),
@@ -803,6 +823,8 @@ async def get_job_private_inst_manager(request, userdata):
         'n_ready_jobs': n_ready_jobs,
         'n_creating_jobs': n_creating_jobs,
         'n_running_jobs': n_running_jobs,
+        'jpim_config_json': jpim_config_json,
+        'labels': ','.join(jpim.labels),
     }
 
     return await render_template('batch-driver', request, userdata, 'job_private.html', page_context)

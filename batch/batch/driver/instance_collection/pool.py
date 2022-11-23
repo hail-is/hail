@@ -119,6 +119,7 @@ WHERE removed = 0 AND inst_coll = %s;
             is_pool=True,
             max_instances=config.max_instances,
             max_live_instances=config.max_live_instances,
+            labels=config.labels,
             task_manager=task_manager,
         )
         self.app = app
@@ -139,7 +140,7 @@ WHERE removed = 0 AND inst_coll = %s;
         self.data_disk_size_gb = config.data_disk_size_gb
         self.data_disk_size_standing_gb = config.data_disk_size_standing_gb
         self.preemptible = config.preemptible
-        self.label = config.label
+        self.labels = config.labels
 
         self.all_supported_regions = self.inst_coll_manager.regions
 
@@ -163,7 +164,7 @@ WHERE removed = 0 AND inst_coll = %s;
             'max_instances': self.max_instances,
             'max_live_instances': self.max_live_instances,
             'preemptible': self.preemptible,
-            'label': self.label,
+            'labels': self.labels,
         }
 
     def configure(self, pool_config: PoolConfig):
@@ -182,7 +183,7 @@ WHERE removed = 0 AND inst_coll = %s;
         self.max_instances = pool_config.max_instances
         self.max_live_instances = pool_config.max_live_instances
         self.preemptible = pool_config.preemptible
-        self.label = pool_config.label
+        self.labels = pool_config.labels
 
     def adjust_for_remove_instance(self, instance):
         super().adjust_for_remove_instance(instance)

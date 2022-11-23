@@ -140,6 +140,7 @@ class InstanceCollection:
         is_pool: bool,
         max_instances: int,
         max_live_instances: int,
+        labels: List[str],
         task_manager: aiotools.BackgroundTaskManager,  # BORROWED
     ):
         self.db = db
@@ -151,6 +152,7 @@ class InstanceCollection:
         self.is_pool = is_pool
         self.max_instances = max_instances
         self.max_live_instances = max_live_instances
+        self.labels = labels
 
         self.name_instance: Dict[str, Instance] = {}
         self.live_free_cores_mcpu_by_region: Dict[str, int] = collections.defaultdict(int)

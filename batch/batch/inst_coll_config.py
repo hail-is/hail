@@ -1,8 +1,8 @@
 import asyncio
 import logging
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
-from gear import Database
+from gear import Database, transaction
 
 from .cloud.azure.instance_config import AzureSlimInstanceConfig
 from .cloud.azure.resource_utils import azure_worker_properties_to_machine_type
@@ -78,12 +78,14 @@ class PoolConfig(InstanceCollectionConfig):
             max_instances=record['max_instances'],
             max_live_instances=record['max_live_instances'],
             preemptible=bool(record['preemptible']),
-            label=record['label'],
+            labels=record['labels'] or [],
         )
 
     async def update_database(self, db: Database):
-        await db.just_execute(
-            '''
+        @transaction(db)
+        async def update_db(tx):
+            await tx.just_execute(
+                '''
 UPDATE pools
 INNER JOIN inst_colls ON pools.name = inst_colls.name
 SET worker_cores = %s,
@@ -94,24 +96,36 @@ SET worker_cores = %s,
     boot_disk_size_gb = %s,
     max_instances = %s,
     max_live_instances = %s,
-    preemptible = %s,
-    label = %s
+    preemptible = %s
 WHERE pools.name = %s;
 ''',
-            (
-                self.worker_cores,
-                self.worker_local_ssd_data_disk,
-                self.worker_external_ssd_data_disk_size_gb,
-                self.enable_standing_worker,
-                self.standing_worker_cores,
-                self.boot_disk_size_gb,
-                self.max_instances,
-                self.max_live_instances,
-                self.preemptible,
-                self.label,
-                self.name,
-            ),
-        )
+                (
+                    self.worker_cores,
+                    self.worker_local_ssd_data_disk,
+                    self.worker_external_ssd_data_disk_size_gb,
+                    self.enable_standing_worker,
+                    self.standing_worker_cores,
+                    self.boot_disk_size_gb,
+                    self.max_instances,
+                    self.max_live_instances,
+                    self.preemptible,
+                    self.name,
+                ),
+            )
+
+            await tx.just_execute('DELETE FROM inst_coll_labels WHERE name = %s', (self.name,))
+
+            label_args = [(self.name, label) for label in self.labels]
+            await tx.execute_many(
+                '''
+INSERT INTO inst_coll_labels (name, label)
+VALUES (%s, %s)
+ON DUPLICATE KEY UPDATE label = label
+''',
+                label_args,
+            )
+
+        await update_db()  # pylint: disable=no-value-for-parameter
 
     def __init__(
         self,
@@ -127,7 +141,7 @@ WHERE pools.name = %s;
         max_instances: int,
         max_live_instances: int,
         preemptible: bool,
-        label: str,
+        labels: List[str],
     ):
         self.name = name
         self.cloud = cloud
@@ -141,7 +155,7 @@ WHERE pools.name = %s;
         self.max_instances = max_instances
         self.max_live_instances = max_live_instances
         self.preemptible = preemptible
-        self.label = label
+        self.labels = labels
 
     def instance_config(self, product_versions: ProductVersions, location: str) -> InstanceConfig:
         return instance_config_from_pool_config(self, product_versions, location)
@@ -188,14 +202,24 @@ class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):
             record['boot_disk_size_gb'],
             record['max_instances'],
             record['max_live_instances'],
+            record['labels'] or [],
         )
 
-    def __init__(self, name, cloud, boot_disk_size_gb: int, max_instances, max_live_instances):
+    def __init__(
+        self,
+        name: str,
+        cloud: str,
+        boot_disk_size_gb: int,
+        max_instances: int,
+        max_live_instances: int,
+        labels: List[str],
+    ):
         self.name = name
         self.cloud = cloud
         self.boot_disk_size_gb = boot_disk_size_gb
         self.max_instances = max_instances
         self.max_live_instances = max_live_instances
+        self.labels = labels
 
     def convert_requests_to_resources(self, machine_type, storage_bytes):
         storage_gib = requested_storage_bytes_to_actual_storage_gib(self.cloud, storage_bytes, allow_zero_storage=False)
@@ -225,9 +249,13 @@ class InstanceCollectionConfigs:
     ) -> Tuple[Dict[str, PoolConfig], JobPrivateInstanceManagerConfig]:
         records = db.execute_and_fetchall(
             '''
-SELECT inst_colls.*, pools.*
+SELECT inst_colls.*, pools.*, labels
 FROM inst_colls
-LEFT JOIN pools ON inst_colls.name = pools.name;
+LEFT JOIN pools ON inst_colls.name = pools.name
+LEFT JOIN (
+  SELECT name, JSON_ARRAYAGG(label) AS labels FROM inst_coll_labels
+  GROUP BY name
+) AS t ON t.name = inst_colls.name;
 '''
         )
 
@@ -284,7 +312,7 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
         optimal_result = None
         optimal_cost = None
         for pool in self.name_pool_config.values():
-            if pool.cloud != cloud or pool.preemptible != preemptible or pool.label != pool_label:
+            if pool.cloud != cloud or pool.preemptible != preemptible or pool_label not in pool.labels:
                 continue
 
             result = pool.convert_requests_to_resources(cores_mcpu, memory_bytes, storage_bytes)
@@ -317,7 +345,7 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
                 pool.cloud == cloud
                 and pool.worker_type == worker_type
                 and pool.preemptible == preemptible
-                and pool.label == pool_label
+                and pool_label in pool.labels
             ):
                 result = pool.convert_requests_to_resources(cores_mcpu, memory_bytes, storage_bytes)
                 if result:

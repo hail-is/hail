@@ -2006,6 +2006,9 @@ steps:
       - name: add-pool-label
         script: /io/sql/add-pool-label.sql
         online: true
+      - name: add-inst-coll-labels-table
+        script: /io/sql/add-inst-coll-labels-table.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
