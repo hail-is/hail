@@ -60,7 +60,7 @@ bleach==5.0.1
     # via nbconvert
 boto3==1.26.13
     # via -r python/dev/../hailtop/requirements.txt
-botocore==1.29.13
+botocore==1.29.16
     # via
     #   -r python/dev/../hailtop/requirements.txt
     #   boto3

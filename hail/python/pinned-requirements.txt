@@ -35,7 +35,7 @@ bokeh==1.4.0
     # via -r python/requirements.txt
 boto3==1.26.13
     # via -r python/hailtop/requirements.txt
-botocore==1.29.13
+botocore==1.29.16
     # via
     #   -r python/hailtop/requirements.txt
     #   boto3
