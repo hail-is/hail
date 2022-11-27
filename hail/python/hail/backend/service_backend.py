@@ -1,6 +1,5 @@
 from typing import Dict, Optional, Callable, Awaitable, Mapping, Any, List, Union, Tuple
 import abc
-import asyncio
 import struct
 from hail.expr.expressions.base_expression import Expression
 import orjson
@@ -17,7 +16,7 @@ from hail.ir import finalize_randomness
 from hail.ir.renderer import CSERenderer
 
 from hailtop import yamlx
-from hailtop.config import (configuration_of, get_remote_tmpdir, get_deploy_config)
+from hailtop.config import (configuration_of, get_remote_tmpdir)
 from hailtop.utils import async_to_blocking, secret_alnum_string, TransientError, Timings
 from hailtop.utils.rich_progress_bar import BatchProgressBar
 from hailtop.batch_client import client as hb
@@ -257,6 +256,7 @@ class ServiceBackend(Backend):
         self._async_fs = async_fs
         self.bc = bc
         self.async_bc = self.bc._async_client
+        self._batch: Optional[aiohb.Batch] = None
         self.disable_progress_bar = disable_progress_bar
         self.batch_attributes = batch_attributes
         self.remote_tmpdir = remote_tmpdir
@@ -325,8 +325,11 @@ class ServiceBackend(Backend):
             with timings.step("submit batch"):
                 batch_attributes = self.batch_attributes
                 if 'name' not in batch_attributes:
-                    batch_attributes = {**batch_attributes, 'name': self.name_prefix + name}
-                bb = self.async_bc.create_batch(token=token, attributes=batch_attributes)
+                    batch_attributes = {**batch_attributes, 'name': self.name_prefix}
+                if self._batch is None:
+                    bb = self.async_bc.create_batch(token=token, attributes=batch_attributes)
+                else:
+                    bb = await self.async_bc.update_batch(self._batch)
 
                 resources: Dict[str, Union[str, bool]] = {'preemptible': False}
                 if self.driver_cores is not None:
@@ -334,32 +337,32 @@ class ServiceBackend(Backend):
                 if self.driver_memory is not None:
                     resources['memory'] = str(self.driver_memory)
 
-                bb.create_jvm_job(
+                j = bb.create_jvm_job(
                     jar_spec=self.jar_spec.to_dict(),
                     argv=[
                         ServiceBackend.DRIVER,
-                        batch_attributes['name'],
+                        batch_attributes['name'] + name,
                         iodir + '/in',
                         iodir + '/out',
                     ],
                     mount_tokens=True,
                     resources=resources,
-                    attributes={'name': 'driver'},
+                    attributes={'name': name + '_driver'},
                 )
-                b = await bb.submit(disable_progress_bar=True)
+                self._batch = await bb.submit(disable_progress_bar=True)
 
-            with timings.step("wait batch"):
+            with timings.step("wait driver"):
                 try:
-                    if self.disable_progress_bar is not True:
-                        deploy_config = get_deploy_config()
-                        url = deploy_config.external_url('batch', f'/batches/{b.id}/jobs/1')
-                        print(f'Submitted batch {b.id}, see {url}')
-
-                    await b.wait(description=name,
-                                 disable_progress_bar=self.disable_progress_bar,
-                                 progress=progress)
+                    await self._batch.wait(
+                        description=name,
+                        disable_progress_bar=self.disable_progress_bar,
+                        progress=progress,
+                        starting_job=j.job_id,
+                    )
+                except KeyboardInterrupt:
+                    raise
                 except Exception:
-                    await b.cancel()
+                    await self._batch.cancel()
                     raise
 
             with timings.step("read output"):
@@ -368,7 +371,7 @@ class ServiceBackend(Backend):
                 except FileNotFoundError as exc:
                     raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
                         'service_backend_debug_info': self.debug_info(),
-                        'batch_debug_info': b.debug_info()
+                        'batch_debug_info': await self._batch.debug_info()
                     })) from exc
 
                 async with driver_output as outfile:
@@ -380,7 +383,7 @@ class ServiceBackend(Backend):
                         except orjson.JSONDecodeError as err:
                             raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
                                 'service_backend_debug_info': self.debug_info(),
-                                'batch_debug_info': b.debug_info()
+                                'batch_debug_info': await self._batch.debug_info()
                             })) from err
 
                     short_message = await read_str(outfile)
@@ -422,21 +425,6 @@ class ServiceBackend(Backend):
         if timed:
             return converted_value, timings
         return converted_value
-
-    def execute_many(self, *irs, timed=False):
-        return async_to_blocking(self._async_execute_many(*irs, timed=timed))
-
-    async def _async_execute_many(self,
-                                  *irs,
-                                  timed=False,
-                                  progress: Optional[BatchProgressBar] = None):
-        if progress is None:
-            with BatchProgressBar() as progress:
-                return await asyncio.gather(*[self._async_execute(ir, timed=timed, progress=progress)
-                                              for ir in irs])
-        else:
-            return await asyncio.gather(*[self._async_execute(ir, timed=timed, progress=progress)
-                                          for ir in irs])
 
     def value_type(self, ir):
         return async_to_blocking(self._async_value_type(ir))
