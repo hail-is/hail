@@ -37,14 +37,6 @@ class Backend(abc.ABC):
     async def _async_execute(self, ir, timed=False):
         pass
 
-    def execute_many(self, *irs, timed=False):
-        from ..ir import MakeTuple  # pylint: disable=import-outside-toplevel
-        return [self.execute(MakeTuple([ir]), timed=timed)[0] for ir in irs]
-
-    @abc.abstractmethod
-    async def _async_execute_many(self, *irs, timed=False):
-        pass
-
     @abc.abstractmethod
     def value_type(self, ir):
         pass

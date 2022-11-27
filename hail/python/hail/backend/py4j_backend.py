@@ -106,9 +106,6 @@ class Py4JBackend(Backend):
     async def _async_execute(self, ir, timed=False):
         raise NotImplementedError('no async available in Py4JBackend')
 
-    async def _async_execute_many(self, *irs, timed=False):
-        raise NotImplementedError('no async available in Py4JBackend')
-
     def persist_expression(self, expr):
         return construct_expr(
             JavaIR(self._jbackend.executeLiteral(self._to_java_value_ir(expr._ir))),

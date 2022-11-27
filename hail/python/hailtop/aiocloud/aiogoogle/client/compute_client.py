@@ -45,9 +45,8 @@ class PagedIterator:
             self._index = 0
 
         while True:
-            assert self._index
             assert self._page
-            if 'items' in self._page and self._index < len(self._page['items']):
+            if 'items' in self._page and self._index is not None and self._index < len(self._page['items']):
                 i = self._index
                 self._index += 1
                 return self._page['items'][i]
