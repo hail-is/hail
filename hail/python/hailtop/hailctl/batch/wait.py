@@ -8,6 +8,7 @@ def init_parser(parser):
     parser.add_argument("--quiet", "-q",
                         action="store_true",
                         help="Do not print a progress bar for the batch")
+    parser.add_argument('-o', type=str, default='text', choices=['text', 'json'])
 
 
 def main(args, pass_through_args, client):  # pylint: disable=unused-argument
@@ -17,4 +18,9 @@ def main(args, pass_through_args, client):  # pylint: disable=unused-argument
         sys.exit(1)
 
     batch = maybe_batch
-    print(json.dumps(batch.wait(disable_progress_bar=True)))
+    quiet = args.quiet or args.o != 'text'
+    out = batch.wait(disable_progress_bar=quiet)
+    if args.o == 'json':
+        print(json.dumps(out))
+    else:
+        print(out)

@@ -7,7 +7,7 @@ import hailtop.batch_client.client as bc
 from hailtop import pip_version
 from hailtop.aiotools.copy import copy_from_dict
 from hailtop.config import get_remote_tmpdir, get_user_config_path, get_deploy_config
-from hailtop.utils import unpack_comma_delimited_inputs
+from hailtop.utils import secret_alnum_string, unpack_comma_delimited_inputs
 
 HAIL_GENETICS_HAIL_IMAGE = os.environ.get('HAIL_GENETICS_HAIL_IMAGE', f'hailgenetics/hail:{pip_version()}')
 
@@ -30,8 +30,9 @@ async def async_main(args):
 
     remote_tmpdir = get_remote_tmpdir('hailctl batch submit')
 
+    tmpdir_path_prefix = secret_alnum_string()
     def cloud_prefix(path):
-        return f'{remote_tmpdir}/{path}'
+        return f'{remote_tmpdir}/{tmpdir_path_prefix}/{path}'
 
     b = hb.Batch(name=args.name, backend=hb.ServiceBackend())
     j = b.new_bash_job()

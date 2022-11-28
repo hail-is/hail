@@ -2661,7 +2661,6 @@ steps:
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
 
-      hailctl config set query/backend batch
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/{{ token }}/hailctl-test
 
@@ -2678,7 +2677,7 @@ steps:
       EOF
 
       BATCH_ID=$(hailctl batch submit simple_hail.py --name=test-hailctl-batch-submit --files=foo -o json | jq '.id')
-      STATUS=$(hailctl batch wait --quiet $BATCH_ID | jq -jr '.state')
+      STATUS=$(hailctl batch wait -o json $BATCH_ID | jq -jr '.state')
       if [ "$STATUS" == "success" ]; then
           exit 0;
       else
