@@ -3,7 +3,6 @@ import logging
 from typing import Dict, List, Optional
 
 from gear import Database, transaction
-from gear.cloud_config import get_global_config
 
 from .pricing import Price
 
