@@ -556,7 +556,7 @@ class BatchBuilder:
         if error_msg:
             raise ValueError("\n".join(error_msg))
 
-        job_spec = {
+        job_spec: Dict[Any, Any] = {
             'always_run': always_run,
             'always_copy_output': always_copy_output,
             'run_condition': run_condition,
