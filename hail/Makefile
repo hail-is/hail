@@ -268,13 +268,13 @@ $(eval $(call ENV_VAR,cloud_base))
 $(eval $(call ENV_VAR,wheel_cloud_path))
 
 python/hailtop/hailctl/deploy.yaml: env/cloud_base env/wheel_cloud_path
-python/hailtop/hailctl/deploy.yaml: $(resources) python/requirements.txt
+python/hailtop/hailctl/deploy.yaml: $(resources) python/pinned-requirements.txt
 	rm -f $@
 	echo "dataproc:" >> $@
 	for FILE in $(notdir $(resources)); do \
 	  echo "  $$FILE: $(cloud_base)/$$FILE" >> $@ || exit 1; done
 	echo "  wheel: $(wheel_cloud_path)" >> $@
-	echo "  pip_dependencies: $(shell cat python/requirements.txt | sed '/^[[:blank:]]*#/d;s/#.*//' | grep -v pyspark | tr "\n" "|||")" >> $@
+	echo "  pip_dependencies: $(shell cat python/pinned-requirements.txt | sed '/^[[:blank:]]*#/d;s/#.*//' | grep -v pyspark | tr "\n" "|||")" >> $@
 
 .PHONY: upload-artifacts
 upload-artifacts: $(WHEEL)
@@ -324,7 +324,7 @@ install: $(WHEEL)
 
 .PHONY: install-on-cluster
 install-on-cluster: $(WHEEL)
-	sed '/^pyspark/d' python/requirements.txt | grep -v '^#' | tr '\n' '\0' | xargs -0 $(PIP) install -U
+	sed '/^pyspark/d' python/pinned-requirements.txt | grep -v '^#' | tr '\n' '\0' | xargs -0 $(PIP) install -U
 	-$(PIP) uninstall -y hail
 	$(PIP) install $(WHEEL) --no-deps
 	hailctl config set query/backend spark
