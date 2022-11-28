@@ -29,8 +29,8 @@ async def async_main(args):
     quiet = args.o != 'text'
 
     remote_tmpdir = get_remote_tmpdir('hailctl batch submit')
-
     tmpdir_path_prefix = secret_alnum_string()
+
     def cloud_prefix(path):
         return f'{remote_tmpdir}/{tmpdir_path_prefix}/{path}'
 
