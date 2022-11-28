@@ -24,6 +24,27 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.106
+
+Released 2022-11-28
+
+### New Features
+
+- (hail#12522) Added `hailctl` config setting `'batch/backend'` to specify the default backend to use in batch scripts when not specified in code.
+- (hail#12497) Added support for `scales`, `nrow`, and `ncol` arguments, as well as grouped legends, to `hail.ggplot.facet_wrap`.
+- (hail#12471) Added `hailctl batch submit` command to run local scripts inside batch jobs.
+- (hail#12465) Batch jobs' status now contains the region the job ran in. The job itself can access which region it is in through the `HAIL_REGION` environment variable.
+- (hail#12464) When using Query-on-Batch, all jobs for a single hail session are inserted into the same batch instead of one batch per action.
+- (hail#12457) `pca` and `hwe_normalized_pca` are now supported in Query-on-Batch.
+- (hail#12376) Added `hail.query_table` function for reading tables with indices from Python.
+- (hail#12139) Random number generation has been updated, but shouldn't affect most users. If you need to manually set seeds, see https://hail.is/docs/0.2/functions/random.html for details.
+- (hail#11884) Added `Job.always_copy_output` when using the `ServiceBackend`. The default behavior is `False`, which is a breaking change from the previous behavior to always copy output files regardless of the job's completion state.
+
+### Bug Fixes
+- (hail#12487) Fixed a bug causing rare but deterministic job failures deserializing data in Query-on-Batch.
+
+---
+
 ## Version 0.2.105
 
 Released 2022-10-31 🎃
