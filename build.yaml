@@ -2673,6 +2673,7 @@ steps:
       with open('foo/baz.txt') as f:
           print(f.read())
 
+      hl.init(app_name='test-hailctl-batch-submit-query')
       hl.utils.range_table(10).collect()
       EOF
 
