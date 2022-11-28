@@ -10,9 +10,6 @@ from .pricing import Price
 log = logging.getLogger('billing_manager')
 
 
-CLOUD = get_global_config()['cloud']
-
-
 def product_version_to_resource(product: str, version: str) -> str:
     return f'{product}/{version}'
 

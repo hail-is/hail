@@ -99,7 +99,7 @@ class GCPSlimInstanceConfig(InstanceConfig):
 
     def region_for(self, location: str) -> str:
         # location = zone
-        return location.rsplit('-', maxsplit=1)[0]
+        return region_from_location(location)
 
     @staticmethod
     def from_dict(data: dict) -> 'GCPSlimInstanceConfig':
