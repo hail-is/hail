@@ -589,7 +589,7 @@ typing-extensions==4.4.0
     #   pylint
     #   rich
     #   yarl
-urllib3==1.26.12
+urllib3==1.26.13
     # via
     #   botocore
     #   requests
