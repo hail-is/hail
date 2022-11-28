@@ -1336,8 +1336,6 @@ class Job:
         self.end_time: Optional[int] = None
 
         self.marked_job_started = False
-        self.last_logged_mjs_attempt_failure = None
-        self.last_logged_mjc_attempt_failure = None
 
         self.cpu_in_mcpu = job_spec['resources']['cores_mcpu']
         self.memory_in_bytes = job_spec['resources']['memory_bytes']
@@ -1401,6 +1399,8 @@ class Job:
         self.project_id = Job.get_next_xfsquota_project_id()
 
         self.mjs_fut: Optional[asyncio.Future] = None
+
+        self.last_logged_failure: Dict[str, Tuple[int, int]] = defaultdict(lambda: (time_msecs(), time_msecs()))
 
     def write_batch_config(self):
         os.makedirs(f'{self.scratch}/batch-config')
@@ -1496,6 +1496,18 @@ class Job:
 
     def done(self):
         return self.state in ('succeeded', 'error', 'failed')
+
+    def log_delayed_exception(self, message, stack_info):
+        last_logged_time_msecs, start_time_msecs = self.last_logged_failure[message]
+        if time_msecs() - last_logged_time_msecs >= 300 * 1000:
+            log.exception(message + f' since {time_msecs_str(start_time_msecs)}', stack_info=stack_info)
+            self.last_logged_failure[message] = (time_msecs(), start_time_msecs)
+
+    def log_delayed_warning(self, message, exc_info):
+        last_logged_time_msecs, start_time_msecs = self.last_logged_failure[message]
+        if time_msecs() - last_logged_time_msecs >= 300 * 1000:
+            log.warning(message + f' since {time_msecs_str(start_time_msecs)}', exc_info=exc_info)
+            self.last_logged_failure[message] = (time_msecs(), start_time_msecs)
 
     def __str__(self):
         return f'job {self.id}'
@@ -2711,7 +2723,7 @@ class Worker:
             except Exception as e:
                 if isinstance(e, aiohttp.ClientResponseError) and e.status == 404:  # pylint: disable=no-member
                     raise
-                log.warning(f'failed to mark {job} complete, retrying', exc_info=True)
+                job.log_delayed_warning(f'failed to mark {job} complete, retrying', exc_info=True)
 
             # unlist job after 3m or half the run duration
             now = time_msecs()
@@ -2733,15 +2745,10 @@ class Worker:
         except asyncio.CancelledError:
             raise
         except Exception:
-            if job.last_logged_mjc_attempt_failure is None:
-                job.last_logged_mjc_attempt_failure = time_msecs()
-
-            if time_msecs() - job.last_logged_mjc_attempt_failure >= 300 * 1000:
-                log.exception(
-                    f'error while marking {job} complete since {time_msecs_str(job.last_logged_mjc_attempt_failure)}',
-                    stack_info=True,
-                )
-                job.last_logged_mjc_attempt_failure = time_msecs()
+            job.log_delayed_exception(
+                f'error while marking {job} complete',
+                stack_info=True,
+            )
         finally:
             log.info(
                 f'{job} attempt {job.attempt_id} marked complete after {time_msecs() - job.end_time}ms: {job.state}'
@@ -2779,15 +2786,10 @@ class Worker:
         except asyncio.CancelledError:
             raise
         except Exception:
-            if job.last_logged_mjs_attempt_failure is None:
-                job.last_logged_mjs_attempt_failure = time_msecs()
-
-            if time_msecs() - job.last_logged_mjs_attempt_failure >= 300 * 1000:
-                log.exception(
-                    f'error while posting {job} started since {time_msecs_str(job.last_logged_mjs_attempt_failure)}',
-                    stack_info=True,
-                )
-                job.last_logged_mjs_attempt_failure = time_msecs()
+            job.log_delayed_exception(
+                f'error while posting {job}',
+                stack_info=True,
+            )
 
     async def activate(self):
         log.info('activating')
