@@ -2345,7 +2345,7 @@ steps:
       - from: /repo/batch/test
         to: /io/test
     port: 5000
-    timeout: 1200
+    timeout: 1500
     secrets:
       - name: worker-deploy-config
         namespace:

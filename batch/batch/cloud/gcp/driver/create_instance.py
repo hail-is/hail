@@ -41,6 +41,8 @@ def create_vm_config(
 ) -> dict:
     _, cores = gcp_machine_type_to_worker_type_and_cores(machine_type)
 
+    region = instance_config.region_for(zone)
+
     if local_ssd_data_disk:
         worker_data_disk = {
             'type': 'SCRATCH',
@@ -242,6 +244,8 @@ BATCH_LOGS_STORAGE_URI=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.g
 INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
 INSTANCE_CONFIG=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_config")
 MAX_IDLE_TIME_MSECS=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/max_idle_time_msecs")
+REGION=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/region")
+
 NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
 ZONE=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
 
@@ -287,6 +291,7 @@ docker run \
 -e INSTANCE_ID=$INSTANCE_ID \
 -e PROJECT=$PROJECT \
 -e ZONE=$ZONE \
+-e REGION=$REGION \
 -e DOCKER_PREFIX=$DOCKER_PREFIX \
 -e DOCKER_ROOT_IMAGE=$DOCKER_ROOT_IMAGE \
 -e INSTANCE_CONFIG=$INSTANCE_CONFIG \
@@ -348,6 +353,7 @@ journalctl -u docker.service > dockerd.log
                 {'key': 'batch_logs_storage_uri', 'value': file_store.batch_logs_storage_uri},
                 {'key': 'instance_id', 'value': file_store.instance_id},
                 {'key': 'max_idle_time_msecs', 'value': max_idle_time_msecs},
+                {'key': 'region', 'value': region},
                 {
                     'key': 'instance_config',
                     'value': base64.b64encode(json.dumps(instance_config.to_dict()).encode()).decode(),
