@@ -190,7 +190,7 @@ NAME=$(curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/i
 BATCH_WORKER_IMAGE=$(jq -r '.batch_worker_image' userdata)
 DOCKER_ROOT_IMAGE=$(jq -r '.docker_root_image' userdata)
 DOCKER_PREFIX=$(jq -r '.docker_prefix' userdata)
-REGION=$(jq -r '.region' region)
+REGION=$(jq -r '.region' userdata)
 
 INTERNAL_GATEWAY_IP=$(jq -r '.internal_ip' userdata)
 
