@@ -285,6 +285,10 @@ async def fetch_prices(
             if category['resourceGroup'] == 'LocalSSD':
                 for local_ssd_price in process_local_ssd_sku(sku, regions):
                     yield local_ssd_price
-            elif category['resourceGroup'] == 'SSD' and 'SSD backed PD Capacity' in sku['description'] and 'Regional' not in sku['description']:
+            elif (
+                category['resourceGroup'] == 'SSD'
+                and 'SSD backed PD Capacity' in sku['description']
+                and 'Regional' not in sku['description']
+            ):
                 for disk_price in process_disk_sku(sku, regions):
                     yield disk_price
