@@ -25,11 +25,39 @@ struct InlineCont : public mlir::OpRewritePattern<ApplyContOp> {
 
     rewriter.mergeBlocks(defcont.getBody(), apply->getBlock(), apply.args());
     rewriter.eraseOp(apply);
+    rewriter.eraseOp(defcont);
+
+    return mlir::success();
+  }
+};
+
+struct TrivialCallCC : public mlir::OpRewritePattern<CallCCOp> {
+  using OpRewritePattern<CallCCOp>::OpRewritePattern;
+
+  mlir::LogicalResult matchAndRewrite(CallCCOp callcc,
+                                      mlir::PatternRewriter &rewriter) const override {
+    auto terminator = dyn_cast<ApplyContOp>(callcc.getBody()->getTerminator());
+    if (!terminator)
+      return mlir::failure();
+    if (terminator.cont() != callcc.getBody()->getArgument(0))
+      return mlir::failure();
+    llvm::SmallVector<mlir::Value> values(terminator.args().begin(), terminator.args().end());
+    rewriter.eraseOp(terminator);
+    callcc.getBody()->eraseArgument(0);
+    rewriter.mergeBlockBefore(callcc.getBody(), callcc);
+    rewriter.replaceOp(callcc, values);
+    return mlir::success();
   }
 };
 
 } // namespace
 
-void ApplyContOp::getCanonicalizationPatterns(mlir::RewritePatternSet &results, mlir::MLIRContext *context) {
+void ApplyContOp::getCanonicalizationPatterns(mlir::RewritePatternSet &results,
+                                              mlir::MLIRContext *context) {
   results.add<InlineCont>(context);
+}
+
+void CallCCOp::getCanonicalizationPatterns(mlir::RewritePatternSet &results,
+                                              mlir::MLIRContext *context) {
+  results.add<TrivialCallCC>(context);
 }

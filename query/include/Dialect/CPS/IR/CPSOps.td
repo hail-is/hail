@@ -11,7 +11,7 @@ class CPS_Op<string mnemonic, list<Trait> traits = []> :
         Op<CPS_Dialect, mnemonic, traits>;
 
 
-def CPS_CallCCOp : CPS_Op<"callcc", [RecursiveSideEffects]> {
+def CPS_CallCCOp : CPS_Op<"callcc", [RecursiveSideEffects, SingleBlock]> {
   let summary = "Call with current continuation";
   let description = [{
   }];
@@ -20,6 +20,7 @@ def CPS_CallCCOp : CPS_Op<"callcc", [RecursiveSideEffects]> {
   let regions = (region SizedRegion<1>:$body);
 
   let hasCustomAssemblyFormat = 1;
+  let hasCanonicalizer = 1;
 }
 
 def CPS_DefContOp : CPS_Op<"cont", [NoSideEffect, SingleBlock]> {

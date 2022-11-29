@@ -6,7 +6,10 @@
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/Value.h"
 #include "mlir/Pass/Pass.h"
+#include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/TypeSwitch.h"
@@ -17,95 +20,99 @@ namespace hail::ir {
 
 struct CPSToCFPass : public CPSToCFBase<CPSToCFPass> {
   void runOnOperation() override;
-
-private:
-  mlir::LogicalResult lowerCallCCOp(mlir::IRRewriter &rewriter, CallCCOp op);
-  mlir::LogicalResult lowerDefContOp(mlir::IRRewriter &rewriter, DefContOp op);
 };
 
-mlir::LogicalResult CPSToCFPass::lowerCallCCOp(mlir::IRRewriter &rewriter, CallCCOp op) {
-  // Split the current block before the CallCCOp to create the continuation point.
-  mlir::Block *parentBlock = op->getBlock();
-  mlir::Block *continuation = rewriter.splitBlock(parentBlock, op->getIterator());
+} // namespace hail::ir
 
+using namespace hail::ir;
+
+namespace {
+
+void lowerCallCCOp(mlir::IRRewriter &rewriter, CallCCOp callcc, std::vector<DefContOp> &defsWorklist) {
+  auto loc = callcc->getLoc();
+  assert(callcc->getParentRegion()->hasOneBlock());
+  // Split the current block before callcc to create the continuation point.
+  mlir::Block *parentBlock = callcc->getBlock();
+  mlir::Block *continuation = rewriter.splitBlock(parentBlock, callcc->getIterator());
+
+  // create a DefContOp holding the continuation of callcc
+  rewriter.setInsertionPointToEnd(parentBlock);
+  auto defcont = rewriter.create<DefContOp>(loc, rewriter.getType<ContinuationType>(callcc->getResultTypes()));
+  auto &contBody = defcont.getBodyRegion().emplaceBlock();
   // add args to continuation block for each return value of op
-  llvm::SmallVector<mlir::Location, 4> locs(op->getNumResults(), op.getLoc());
-  continuation->addArguments(op->getResultTypes(), locs);
+  llvm::SmallVector<mlir::Location, 4> locs(callcc->getNumResults(), callcc.getLoc());
+  contBody.addArguments(callcc->getResultTypes(), locs);
+  rewriter.mergeBlocks(continuation, &contBody, {});
 
-  // Replace all uses of captured continuation (which must be ApplyContOps) with branches to the
-  // continuation block. 'make_early_inc_range' finds the next user before executing the body, so
-  // that deleting the current user is safe
-  mlir::Region &body = op.body();
-  for (mlir::OpOperand &use : llvm::make_early_inc_range(body.getArgument(0).getUses())) {
-    auto applyOp = dyn_cast<ApplyContOp>(use.getOwner());
-    // continuations can only be used as first operand to an apply op
-    assert(applyOp != nullptr && use.getOperandNumber() == 0);
-    ContinuationType::get(rewriter.getContext(), llvm::SmallVector<mlir::Type>(applyOp->getOperandTypes()));
-    rewriter.setInsertionPoint(applyOp);
-    rewriter.replaceOpWithNewOp<mlir::cf::BranchOp>(applyOp, applyOp.args(), continuation);
-  }
-  assert(body.getArgument(0).use_empty() && "should be no uses of callcc body arg");
-  // continuation arg now has no uses, safe to delete
-  body.eraseArgument(0);
-  assert(body.getNumArguments() == 0);
+  defsWorklist.push_back(defcont);
 
-  mlir::Block &bodyEntryBlock = body.front();
-  // insert the (now fully lowered) body into the parent region
-  rewriter.inlineRegionBefore(body, continuation);
-  assert(body.empty());
-  // append the callcc body to the end of parentBlock
-  rewriter.mergeBlocks(&bodyEntryBlock, parentBlock);
-
-  // finally, replace results of callcc with continuation args
-  rewriter.replaceOp(op, continuation->getArguments());
-  return mlir::success();
+  // inline the body of callcc, replacing the return continuation with the defcont,
+  // and replacing uses of the results with the args of the defcont
+  rewriter.mergeBlocks(callcc.getBody(), parentBlock, defcont.getResult());
+  rewriter.replaceOp(callcc, contBody.getArguments());
+  return;
 }
 
-mlir::LogicalResult CPSToCFPass::lowerDefContOp(mlir::IRRewriter &rewriter, DefContOp op) {
-  mlir::Block &body = op.bodyRegion().front();
-  // inline body into parent region
+mlir::Block *getDefBlock(mlir::Value cont) {
+  auto def = cont.getDefiningOp<DefContOp>();
+  assert(def && "Continuation def is not visable");
+  return &def.bodyRegion().front();
+}
+
+void lowerApplyContOp(mlir::IRRewriter &rewriter, ApplyContOp op) {
+  rewriter.setInsertionPoint(op);
+  rewriter.replaceOpWithNewOp<mlir::cf::BranchOp>(op, op.args(), getDefBlock(op.cont()));
+}
+
+void lowerIfOp(mlir::IRRewriter &rewriter, IfOp op) {
+  rewriter.setInsertionPoint(op);
+  rewriter.replaceOpWithNewOp<mlir::cf::CondBranchOp>(op, op.condition(),
+                                                      getDefBlock(op.trueCont()), op.trueArgs(),
+                                                      getDefBlock(op.falseCont()), op.falseArgs());
+}
+
+void lowerDefContOp(mlir::IRRewriter &rewriter, DefContOp op) {
   rewriter.inlineRegionBefore(op.bodyRegion(), *op->getParentRegion(),
                               std::next(op->getBlock()->getIterator()));
-  // replace all uses (which must be ApplyContOps) with branches to the body block
-  // make_early_inc_range finds the next user before executing the body, so that deleting the
-  // current user is safe
-  for (mlir::OpOperand &use : llvm::make_early_inc_range(op.result().getUses())) {
-    auto applyOp = dyn_cast<ApplyContOp>(use.getOwner());
-    // continuations can only be used as first operand to an apply op
-    assert(applyOp != nullptr && use.getOperandNumber() == 0);
-    rewriter.setInsertionPoint(applyOp);
-    assert(body.getNumArguments() == applyOp.args().size());
-    rewriter.replaceOpWithNewOp<mlir::cf::BranchOp>(applyOp, applyOp.args(), &body);
-  }
-  assert(op.result().use_empty() && "should be no uses of defcont result");
-  // there are no more uses, safe to delete
   rewriter.eraseOp(op);
-  return mlir::success();
 }
 
+} // namespace
+
+namespace hail::ir {
+
 void CPSToCFPass::runOnOperation() {
-  std::vector<mlir::Operation *> worklist;
-  worklist.reserve(64);
+  std::vector<CallCCOp> callccsWorklist;
+  std::vector<DefContOp> defsWorklist;
+  std::vector<mlir::Operation *> usesWorklist;
+  defsWorklist.reserve(64);
+  usesWorklist.reserve(64);
 
   // add nested ops to worklist in postorder
   auto *root = getOperation();
   for (auto &region : getOperation()->getRegions())
-    region.walk([&worklist](mlir::Operation *op) {
-      if (isa<CallCCOp>(op) || isa<DefContOp>(op))
-        worklist.push_back(op);
+    region.walk([&](mlir::Operation *op) {
+      if (auto callcc = dyn_cast<CallCCOp>(op))
+        callccsWorklist.push_back(callcc);
+      else if (auto defcont = dyn_cast<DefContOp>(op))
+        defsWorklist.push_back(defcont);
+      else if (isa<ApplyContOp>(op) || isa<IfOp>(op))
+        usesWorklist.push_back(op);
     });
 
   mlir::IRRewriter rewriter(root->getContext());
-  for (auto *op : worklist) {
-    op->emitWarning() << "Visiting:";
-    if (auto callcc = dyn_cast<CallCCOp>(op)) {
-      if (lowerCallCCOp(rewriter, callcc).failed())
-        return;
-    } else if (auto defcont = dyn_cast<DefContOp>(op)) {
-      if (lowerDefContOp(rewriter, defcont).failed())
-        return;
+  for (auto callcc : callccsWorklist) {
+    lowerCallCCOp(rewriter, callcc, defsWorklist);
+  }
+  for (auto *op : usesWorklist) {
+    if (auto apply = dyn_cast<ApplyContOp>(op)) {
+      lowerApplyContOp(rewriter, apply);
+    } else if (auto ifOp = dyn_cast<IfOp>(op)) {
+      lowerIfOp(rewriter, ifOp);
     }
-    root->emitWarning() << "After change:";
+  }
+  for (auto defcont : defsWorklist) {
+    lowerDefContOp(rewriter, defcont);
   }
 }
 

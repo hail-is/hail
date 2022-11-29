@@ -51,4 +51,13 @@ def LowerToLLVM : Pass<"lower-to-llvm", "mlir::ModuleOp"> {
   ];
 }
 
+def OptionToGenericOption : Pass<"option-to-generic-option", "mlir::ModuleOp"> {
+  let summary = "Convert all option ops to generic 'construct'/'destruct' ops";
+  let description = [{
+    Convert operations and types from the SCF, Arithmetic, and Func dialects,
+    plus the sandbox print operation, to the LLVM dialect.
+  }];
+  let constructor = "hail::ir::createOptionToGenericOptionPass()";
+}
+
 #endif // HAIL_CONVERSION_PASSES

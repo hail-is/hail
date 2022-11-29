@@ -31,35 +31,31 @@ def Option_OptionType : Option_Type<"Option", "option"> {
 class Option_Op<string mnemonic, list<Trait> traits = []> :
         Op<Option_Dialect, mnemonic, traits>;
 
-// def Option_DestructOp : Option_Op<"destruct", [NoSideEffect]> {
-//   let arguments = (ins Option_OptionType:$input);
-//   let results = (outs Variadic<AnyType>);
-//   let regions = (region SizedRegion<1>:$missingRegion, SizedRegion<1>:$presentRegion);
+def Option_DestructOp : Option_Op<"destruct", [ NoSideEffect, Terminator ]> {
+  let arguments = (ins Variadic<Option_OptionType>:$inputs, CPS_EmptyContType:$missingCont, CPS_ContType:$presentCont);
 
-//   let assemblyFormat = "$input `:` functional-type($input, results) attr-dict-with-keyword $missingRegion $presentRegion";
-//   // let hasCustomAssemblyFormat = 1;
-//   // let hasVerifier = 1;
-// }
-
-def Option_DestructOp : Option_Op<"destruct", [
-      NoSideEffect, Terminator,
-      TypesMatchWith<"", "input", "missingCont", "::hail::ir::ContinuationType::get($_ctxt, {})">,
-      TypesMatchWith<"", "input", "presentCont", "::hail::ir::ContinuationType::get($_ctxt, $_self.cast<::hail::ir::OptionType>().getValueTypes())">
-    ]> {
-  let arguments = (ins Option_OptionType:$input, CPS_EmptyContType:$missingCont, CPS_ContType:$presentCont);
-
-  let assemblyFormat = "$input`(` $missingCont`,` $presentCont `)` `:` qualified(type($input)) attr-dict";
-  // let hasCustomAssemblyFormat = 1;
-  // let hasVerifier = 1;
+  let hasCustomAssemblyFormat = 1;
   let hasCanonicalizer = 1;
 }
 
-def Option_ConstructOp : Option_Op<"construct", [NoSideEffect]> {
+def Option_ConstructOp : Option_Op<"construct", [NoSideEffect, SingleBlock]> {
   let results = (outs Option_OptionType:$result);
   let regions = (region SizedRegion<1>:$bodyRegion);
 
   let assemblyFormat = "qualified(type($result)) attr-dict-with-keyword $bodyRegion";
-  // let hasCustomAssemblyFormat = 1;
+}
+
+def Option_MapOp : Option_Op<"map", [NoSideEffect, SingleBlock]> {
+  let arguments = (ins Variadic<Option_OptionType>:$inputs);
+  let results = (outs Option_OptionType:$result);
+  let regions = (region SizedRegion<1>:$bodyRegion);
+
+  let assemblyFormat = "`(` $inputs `)` `:` functional-type($inputs, $result) attr-dict-with-keyword $bodyRegion";
+}
+
+def Option_YieldOp : Option_Op<"yield", [NoSideEffect, Terminator]> {
+  let arguments = (ins Variadic<AnyType>:$inputs);
+  let assemblyFormat = "$inputs `:` type($inputs) attr-dict";
 }
 
 #endif // DIALECT_OPTION_IR_OPTIONOPS

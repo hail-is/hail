@@ -118,10 +118,21 @@ struct DestructOpConversion : public mlir::OpConversionPattern<DestructOp> {
 
   mlir::LogicalResult matchAndRewrite(DestructOp op, OpAdaptor adaptor,
                                       mlir::ConversionPatternRewriter &rewriter) const override {
-    LoweredOption unpack = unpackOptional(rewriter, op.getLoc(), adaptor.input());
+    llvm::SmallVector<mlir::Value> values;
+    mlir::Value isDefined;
+    for (auto option : adaptor.inputs()) {
+      LoweredOption unpack = unpackOptional(rewriter, op.getLoc(), option);
+      values.append(unpack.values().begin(), unpack.values().end());
+      if (!isDefined) {
+        isDefined = unpack.isDefined();
+      } else {
+        isDefined =
+            rewriter.create<mlir::arith::AndIOp>(op.getLoc(), isDefined, unpack.isDefined());
+      }
+    }
 
-    rewriter.replaceOpWithNewOp<IfOp>(op, unpack.isDefined(), op.presentCont(), unpack.values(),
-                                      op.missingCont(), mlir::ValueRange{});
+    rewriter.replaceOpWithNewOp<IfOp>(op, isDefined, op.presentCont(), values, op.missingCont(),
+                                      mlir::ValueRange{});
     return mlir::success();
   }
 };
@@ -132,7 +143,6 @@ void LowerOptionPass::runOnOperation() {
   mlir::RewritePatternSet patterns(&getContext());
   populateLowerOptionConversionPatterns(patterns);
 
-  // Configure conversion to lower out SCF operations.
   mlir::ConversionTarget target(getContext());
   target.addIllegalDialect<OptionDialect>();
   target.markUnknownOpDynamicallyLegal([](mlir::Operation *) { return true; });
