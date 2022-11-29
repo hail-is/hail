@@ -68,8 +68,6 @@ struct ConstructOpConversion : public mlir::OpConversionPattern<ConstructOp> {
     resultTypes.append(valueTypes.begin(), valueTypes.end());
 
     auto callcc = rewriter.create<CallCCOp>(loc, resultTypes);
-    callcc.body().emplaceBlock();
-    callcc.body().addArgument(rewriter.getType<ContinuationType>(resultTypes), loc);
     mlir::Value retCont = callcc.body().getArgument(0);
 
     llvm::SmallVector<mlir::Value, 4> results;
@@ -78,9 +76,7 @@ struct ConstructOpConversion : public mlir::OpConversionPattern<ConstructOp> {
 
     // Define the new missing continuation
     rewriter.setInsertionPointToStart(&callcc.body().front());
-    auto missingCont = rewriter.create<DefContOp>(
-        loc, rewriter.getType<ContinuationType>(llvm::ArrayRef<mlir::Type>()));
-    missingCont.bodyRegion().emplaceBlock();
+    auto missingCont = rewriter.create<DefContOp>(loc);
     rewriter.setInsertionPointToStart(&missingCont.bodyRegion().front());
     auto constFalse = rewriter.create<mlir::arith::ConstantOp>(loc, rewriter.getBoolAttr(false));
     results.push_back(constFalse);
@@ -91,11 +87,7 @@ struct ConstructOpConversion : public mlir::OpConversionPattern<ConstructOp> {
     // Define the new present continuation
     results.clear();
     rewriter.setInsertionPointAfter(missingCont);
-    auto presentCont =
-        rewriter.create<DefContOp>(loc, rewriter.getType<ContinuationType>(valueTypes));
-    presentCont.bodyRegion().emplaceBlock();
-    llvm::SmallVector<mlir::Location, 4> locs(valueTypes.size(), loc);
-    presentCont.bodyRegion().addArguments(valueTypes, locs);
+    auto presentCont = rewriter.create<DefContOp>(loc, valueTypes);
     rewriter.setInsertionPointToStart(&presentCont.bodyRegion().front());
     auto constTrue = rewriter.create<mlir::arith::ConstantOp>(loc, rewriter.getBoolAttr(true));
     results.push_back(constTrue);

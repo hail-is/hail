@@ -37,19 +37,15 @@ void lowerCallCCOp(mlir::IRRewriter &rewriter, CallCCOp callcc, std::vector<DefC
 
   // create a DefContOp holding the continuation of callcc
   rewriter.setInsertionPointToEnd(parentBlock);
-  auto defcont = rewriter.create<DefContOp>(loc, rewriter.getType<ContinuationType>(callcc->getResultTypes()));
-  auto &contBody = defcont.getBodyRegion().emplaceBlock();
-  // add args to continuation block for each return value of op
-  llvm::SmallVector<mlir::Location, 4> locs(callcc->getNumResults(), callcc.getLoc());
-  contBody.addArguments(callcc->getResultTypes(), locs);
-  rewriter.mergeBlocks(continuation, &contBody, {});
+  auto defcont = rewriter.create<DefContOp>(loc, callcc->getResultTypes());
+  rewriter.mergeBlocks(continuation, defcont.getBody(), {});
 
   defsWorklist.push_back(defcont);
 
   // inline the body of callcc, replacing the return continuation with the defcont,
   // and replacing uses of the results with the args of the defcont
   rewriter.mergeBlocks(callcc.getBody(), parentBlock, defcont.getResult());
-  rewriter.replaceOp(callcc, contBody.getArguments());
+  rewriter.replaceOp(callcc, defcont.getBody()->getArguments());
   return;
 }
 

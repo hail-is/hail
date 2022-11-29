@@ -21,6 +21,9 @@ def CPS_CallCCOp : CPS_Op<"callcc", [RecursiveSideEffects, SingleBlock]> {
 
   let hasCustomAssemblyFormat = 1;
   let hasCanonicalizer = 1;
+
+  let skipDefaultBuilders = 1;
+  let builders = [ OpBuilder<(ins "mlir::TypeRange":$resultTypes)> ];
 }
 
 def CPS_DefContOp : CPS_Op<"cont", [NoSideEffect, SingleBlock]> {
@@ -32,6 +35,9 @@ def CPS_DefContOp : CPS_Op<"cont", [NoSideEffect, SingleBlock]> {
   let regions = (region SizedRegion<1>:$bodyRegion);
 
   let hasCustomAssemblyFormat = 1;
+
+  let skipDefaultBuilders = 1;
+  let builders = [ OpBuilder<(ins CArg<"mlir::TypeRange", "mlir::TypeRange()">:$argTypes)> ];
 }
 
 def CPS_ApplyContOp : CPS_Op<"apply", [

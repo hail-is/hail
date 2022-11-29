@@ -25,7 +25,16 @@ class Option_Type<string name, string typeMnemonic, list<Trait> traits = []>
 def Option_OptionType : Option_Type<"Option", "option"> {
   let summary = "Option type";
   let parameters = (ins ArrayRefParameter<"mlir::Type">:$valueTypes);
-  let assemblyFormat = "`<` $valueTypes `>`";
+  // The declarative format "`<` $inputs `>`" doesn't support the empty list of types
+  let hasCustomAssemblyFormat = 1;
+
+  let builders = [
+    TypeBuilder<(ins CArg<"mlir::TypeRange", "mlir::TypeRange()">:$inputTypes), [{
+      return $_get($_ctxt, inputTypes);
+    }]>
+  ];
+  let skipDefaultBuilders = 1;
+  let genStorageClass = 0;
 }
 
 class Option_Op<string mnemonic, list<Trait> traits = []> :
@@ -43,6 +52,14 @@ def Option_ConstructOp : Option_Op<"construct", [NoSideEffect, SingleBlock]> {
   let regions = (region SizedRegion<1>:$bodyRegion);
 
   let assemblyFormat = "qualified(type($result)) attr-dict-with-keyword $bodyRegion";
+
+  let skipDefaultBuilders = 1;
+  let builders = [ OpBuilder<(ins CArg<"mlir::TypeRange", "mlir::TypeRange()">:$valueTypes)> ];
+
+  let extraClassDeclaration = [{
+    mlir::Value getMissingCont() { return getBody()->getArgument(0); }
+    mlir::Value getPresentCont() { return getBody()->getArgument(0); }
+  }];
 }
 
 def Option_MapOp : Option_Op<"map", [NoSideEffect, SingleBlock]> {
@@ -51,6 +68,11 @@ def Option_MapOp : Option_Op<"map", [NoSideEffect, SingleBlock]> {
   let regions = (region SizedRegion<1>:$bodyRegion);
 
   let assemblyFormat = "`(` $inputs `)` `:` functional-type($inputs, $result) attr-dict-with-keyword $bodyRegion";
+
+  let skipDefaultBuilders = 1;
+  let builders = [
+     OpBuilder<(ins CArg<"mlir::TypeRange", "mlir::TypeRange()">:$resultValueTypes,
+                    CArg<"mlir::ValueRange", "mlir::ValueRange()">:$inputs)> ];
 }
 
 def Option_YieldOp : Option_Op<"yield", [NoSideEffect, Terminator]> {

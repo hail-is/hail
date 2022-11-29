@@ -61,3 +61,18 @@ void CallCCOp::getCanonicalizationPatterns(mlir::RewritePatternSet &results,
                                               mlir::MLIRContext *context) {
   results.add<TrivialCallCC>(context);
 }
+
+void CallCCOp::build(mlir::OpBuilder &builder, mlir::OperationState &result, mlir::TypeRange resultTypes) {
+  result.addTypes(resultTypes);
+  auto region = result.addRegion();
+  region->emplaceBlock();
+  region->addArgument(builder.getType<ContinuationType>(resultTypes), result.location);
+}
+
+void DefContOp::build(mlir::OpBuilder &builder, mlir::OperationState &result, mlir::TypeRange argTypes) {
+  result.addTypes(builder.getType<ContinuationType>(argTypes));
+  auto region = result.addRegion();
+  region->emplaceBlock();
+  llvm::SmallVector<mlir::Location> locs(argTypes.size(), result.location);
+  region->addArguments(argTypes, locs);
+}

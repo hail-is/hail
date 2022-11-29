@@ -28,25 +28,18 @@ public:
       valueTypes.append(types.begin(), types.end());
     }
 
-    auto construct = rewriter.create<ConstructOp>(loc, op.getType());
-    construct.bodyRegion().emplaceBlock();
-    auto contType = rewriter.getType<ContinuationType>(valueTypes);
-    construct.getBody()->addArgument(rewriter.getType<ContinuationType>(), loc);
-    construct.getBody()->addArgument(rewriter.getType<ContinuationType>(op.getType().getValueTypes()), loc);
+    auto construct = rewriter.create<ConstructOp>(loc, op.getType().getValueTypes());
 
     rewriter.setInsertionPointToStart(construct.getBody());
-    auto bodyCont = rewriter.create<DefContOp>(loc, contType);
-    bodyCont.bodyRegion().emplaceBlock();
-    llvm::SmallVector<mlir::Location> locs(valueTypes.size(), loc);
-    bodyCont.bodyRegion().addArguments(valueTypes, locs);
+    auto bodyCont = rewriter.create<DefContOp>(loc, valueTypes);
     rewriter.mergeBlocks(op.getBody(), bodyCont.getBody(), bodyCont.getBody()->getArguments());
     auto yield = llvm::cast<YieldOp>(bodyCont.getBody()->getTerminator());
     rewriter.setInsertionPointAfter(yield);
-    rewriter.replaceOpWithNewOp<ApplyContOp>(yield, construct.bodyRegion().getArgument(1),
+    rewriter.replaceOpWithNewOp<ApplyContOp>(yield, construct.getPresentCont(),
                                              yield.getOperands());
-    
+
     rewriter.setInsertionPointAfter(bodyCont);
-    rewriter.create<DestructOp>(loc, op.getOperands(), construct.getBody()->getArgument(0), bodyCont);
+    rewriter.create<DestructOp>(loc, op.getOperands(), construct.getMissingCont(), bodyCont);
 
     rewriter.replaceOp(op, construct->getResults());
     return mlir::success();

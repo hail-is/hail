@@ -14,6 +14,37 @@
 using namespace hail::ir;
 
 //===----------------------------------------------------------------------===//
+// MapOp
+//===----------------------------------------------------------------------===//
+
+void MapOp::build(mlir::OpBuilder &builder, mlir::OperationState &result,
+                  mlir::TypeRange resultValueTypes, mlir::ValueRange inputs) {
+  result.addTypes(builder.getType<OptionType>(resultValueTypes));
+  auto region = result.addRegion();
+  region->emplaceBlock();
+  llvm::SmallVector<mlir::Type> argTypes;
+  for (auto input : inputs) {
+    auto valueTypes = input.getType().cast<OptionType>().getValueTypes();
+    argTypes.append(valueTypes.begin(), valueTypes.end());
+  }
+  llvm::SmallVector<mlir::Location> locs(argTypes.size(), result.location);
+  region->addArguments(argTypes, locs);
+}
+
+//===----------------------------------------------------------------------===//
+// ConstructOp
+//===----------------------------------------------------------------------===//
+
+void ConstructOp::build(mlir::OpBuilder &builder, mlir::OperationState &result,
+                        mlir::TypeRange valueTypes) {
+  result.addTypes(builder.getType<OptionType>(valueTypes));
+  auto region = result.addRegion();
+  region->emplaceBlock();
+  region->addArgument(builder.getType<ContinuationType>(), result.location);
+  region->addArgument(builder.getType<ContinuationType>(valueTypes), result.location);
+}
+
+//===----------------------------------------------------------------------===//
 // DestructOp
 //===----------------------------------------------------------------------===//
 
@@ -25,9 +56,7 @@ struct DestructOfConstruct : public mlir::OpRewritePattern<DestructOp> {
   mlir::LogicalResult matchAndRewrite(DestructOp destruct,
                                       mlir::PatternRewriter &rewriter) const override {
     ConstructOp source;
-    int sourceIdx;
     int sourceValuesStart;
-    int sourceValuesEnd;
     int curValueIdx = 0;
     llvm::SmallVector<mlir::Type> sourceValueTypes;
     llvm::SmallVector<mlir::Type> remainingValueTypes;
@@ -36,11 +65,9 @@ struct DestructOfConstruct : public mlir::OpRewritePattern<DestructOp> {
       if (auto construct = input.value().getDefiningOp<ConstructOp>()) {
         if (!source && construct->hasOneUse()) {
           source = construct;
-          sourceIdx = input.index();
           auto valueTypes = construct.getType().getValueTypes();
           sourceValuesStart = curValueIdx;
           curValueIdx += valueTypes.size();
-          sourceValuesEnd = curValueIdx;
           sourceValueTypes.append(valueTypes.begin(), valueTypes.end());
         } else {
           auto valueTypes = input.value().getType().cast<OptionType>().getValueTypes();
@@ -57,11 +84,7 @@ struct DestructOfConstruct : public mlir::OpRewritePattern<DestructOp> {
     // Define present continuation to pass to source. It will destruct all remaining options, with a
     // present continuation that merges its values with those of this continuation, and pases them
     // on to the original present continuation.
-    auto cont = rewriter.create<DefContOp>(destruct.getLoc(),
-                                           rewriter.getType<ContinuationType>(sourceValueTypes));
-    cont.bodyRegion().emplaceBlock();
-    llvm::SmallVector<mlir::Location> locs(sourceValueTypes.size(), destruct.getLoc());
-    cont.bodyRegion().addArguments(sourceValueTypes, locs);
+    auto cont = rewriter.create<DefContOp>(destruct.getLoc(), sourceValueTypes);
 
     rewriter.mergeBlockBefore(&source.bodyRegion().front(), destruct,
                               {destruct.missingCont(), cont});
@@ -69,11 +92,7 @@ struct DestructOfConstruct : public mlir::OpRewritePattern<DestructOp> {
     // Define present continuation for the new destruct op, taking all remaining values, after
     // removing those of 'source'.
     rewriter.setInsertionPointToStart(cont.getBody());
-    auto cont2 = rewriter.create<DefContOp>(
-        destruct.getLoc(), rewriter.getType<ContinuationType>(remainingValueTypes));
-    cont2.bodyRegion().emplaceBlock();
-    llvm::SmallVector<mlir::Location> locs2(remainingValueTypes.size(), destruct.getLoc());
-    cont2.bodyRegion().addArguments(remainingValueTypes, locs2);
+    auto cont2 = rewriter.create<DefContOp>(destruct.getLoc(), remainingValueTypes);
 
     // Create new destruct op taking all remaining options.
     rewriter.create<DestructOp>(destruct.getLoc(), remainingOptions, destruct.missingCont(), cont2);
@@ -100,7 +119,8 @@ struct EmptyDestruct : public mlir::OpRewritePattern<DestructOp> {
     if (destruct.inputs().size() != 0)
       return mlir::failure();
 
-    rewriter.replaceOpWithNewOp<ApplyContOp>(destruct, destruct.presentCont(), llvm::ArrayRef<mlir::Value>{});
+    rewriter.replaceOpWithNewOp<ApplyContOp>(destruct, destruct.presentCont(),
+                                             llvm::ArrayRef<mlir::Value>{});
     return mlir::success();
   }
 };
