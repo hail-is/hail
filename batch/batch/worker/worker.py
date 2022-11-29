@@ -1400,7 +1400,7 @@ class Job:
 
         self.mjs_fut: Optional[asyncio.Future] = None
 
-        self.last_logged_failure: Dict[str, Tuple[int, int]] = defaultdict(lambda: (time_msecs(), time_msecs()))
+        self.last_logged_message: Dict[str, Tuple[int, int]] = defaultdict(lambda: (time_msecs(), time_msecs()))
 
     def write_batch_config(self):
         os.makedirs(f'{self.scratch}/batch-config')
@@ -1497,17 +1497,11 @@ class Job:
     def done(self):
         return self.state in ('succeeded', 'error', 'failed')
 
-    def log_delayed_exception(self, message, stack_info):
-        last_logged_time_msecs, start_time_msecs = self.last_logged_failure[message]
-        if time_msecs() - last_logged_time_msecs >= 300 * 1000:
-            log.exception(message + f' since {time_msecs_str(start_time_msecs)}', stack_info=stack_info)
-            self.last_logged_failure[message] = (time_msecs(), start_time_msecs)
-
     def log_delayed_warning(self, message, exc_info):
-        last_logged_time_msecs, start_time_msecs = self.last_logged_failure[message]
+        last_logged_time_msecs, start_time_msecs = self.last_logged_message[message]
         if time_msecs() - last_logged_time_msecs >= 300 * 1000:
             log.warning(message + f' since {time_msecs_str(start_time_msecs)}', exc_info=exc_info)
-            self.last_logged_failure[message] = (time_msecs(), start_time_msecs)
+            self.last_logged_message[message] = (time_msecs(), start_time_msecs)
 
     def __str__(self):
         return f'job {self.id}'
@@ -2745,10 +2739,7 @@ class Worker:
         except asyncio.CancelledError:
             raise
         except Exception:
-            job.log_delayed_exception(
-                f'error while marking {job} complete',
-                stack_info=True,
-            )
+            log.exception(f'error while marking {job} complete', stack_info=True)
         finally:
             log.info(
                 f'{job} attempt {job.attempt_id} marked complete after {time_msecs() - job.end_time}ms: {job.state}'
@@ -2786,10 +2777,7 @@ class Worker:
         except asyncio.CancelledError:
             raise
         except Exception:
-            job.log_delayed_exception(
-                f'error while posting {job}',
-                stack_info=True,
-            )
+            log.exception(f'error while posting {job}', stack_info=True)
 
     async def activate(self):
         log.info('activating')
