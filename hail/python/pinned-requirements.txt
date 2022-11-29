@@ -127,7 +127,7 @@ multidict==6.0.2
     #   yarl
 nest-asyncio==1.5.6
     # via -r python/requirements.txt
-numpy==1.21.6
+numpy==1.23.5
     # via
     #   -r python/requirements.txt
     #   bokeh
