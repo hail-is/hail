@@ -341,7 +341,7 @@ class ServiceBackend(Backend):
                     jar_spec=self.jar_spec.to_dict(),
                     argv=[
                         ServiceBackend.DRIVER,
-                        batch_attributes['name'] + name,
+                        name,
                         iodir + '/in',
                         iodir + '/out',
                     ],
