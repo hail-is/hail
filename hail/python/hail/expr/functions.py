@@ -27,7 +27,8 @@ from hail.expr.types import (HailType, hail_type, tint32, tint64, tfloat32,
 from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
 import hail.ir as ir
 from hail.typecheck import (typecheck, nullable, anytype, enumeration, tupleof,
-                            func_spec, oneof, arg_check, args_check, anyfunc)
+                            func_spec, oneof, arg_check, args_check, anyfunc,
+                            sequenceof)
 from hail.utils.java import Env, warning
 from hail.utils.misc import plural
 
@@ -4800,6 +4801,96 @@ def flatten(collection):
     collection : :class:`.ArrayExpression` or :class:`.SetExpression`
     """
     return collection.flatmap(lambda x: x)
+
+
+def _union_intersection_base(name, arrays, key, join_f, result_f):
+    if builtins.len(arrays) == 0:
+        raise ValueError(f"{name}: require at least one input array")
+
+    t = arrays[0].dtype.element_type
+    if not isinstance(t, tstruct):
+        raise ValueError(f"{name}: expect a struct element type, found {t}")
+    for k in key:
+        if k not in t:
+            raise ValueError(f"{name}: key field {k!r} not in element type {t}")
+    for i, a in builtins.enumerate(arrays):
+        if a.dtype.element_type != t:
+            raise ValueError(f"{name}: input {i} has a different element type than input 0:"
+                             f"\n  input 0: {t}"
+                             f"\n  input {i}: {a.dtype.element_type}")
+
+    key_typ = hl.tstruct(**{k: t[k] for k in key})
+    vals_typ = hl.tarray(t)
+
+    key_uid = Env.get_uid()
+    vals_uid = Env.get_uid()
+
+    key_var = construct_variable(key_uid, key_typ)
+    vals_var = construct_variable(vals_uid, vals_typ)
+
+    join_ir = join_f(key_var, vals_var)
+
+    irs = []
+    for a in arrays:
+        if isinstance(a.dtype, hl.tarray):
+            irs.append(ir.toStream(a._ir))
+        else:
+            irs.append(a._ir)
+    indices, aggs = unify_all(*arrays)
+
+    zj = ir.ToArray(ir.StreamZipJoin(irs, key, key_uid, vals_uid, join_ir._ir))
+    return result_f(construct_expr(zj, zj.typ, indices, aggs))
+
+
+@typecheck(arrays=expr_oneof(expr_stream(expr_any), expr_array(expr_any)), key=sequenceof(builtins.str))
+def keyed_intersection(*arrays, key):
+    """Compute the intersection of sorted arrays on a given key.
+
+    Requires sorted arrays with distinct keys.
+
+    Warning
+    -------
+    Experimental. Does not support downstream randomness.
+
+    Parameters
+    ----------
+    arrays
+    key
+
+    Returns
+    -------
+    :class:`.ArrayExpression`
+    """
+    return _union_intersection_base(
+        'keyed_intersection',
+        arrays,
+        key,
+        lambda key_var, vals_var: hl.tuple((key_var, vals_var)),
+        lambda res: res \
+            .filter(lambda x: hl.fold(lambda acc, elt: acc & hl.is_defined(elt), True, x[1])) \
+            .map(lambda x: x[1].first()))
+
+@typecheck(arrays=expr_oneof(expr_stream(expr_any), expr_array(expr_any)), key=sequenceof(builtins.str))
+def keyed_union(*arrays, key):
+    """Compute the distinct union of sorted arrays on a given key.
+
+    Requires sorted arrays with distinct keys.
+
+    Parameters
+    ----------
+    exprs
+    key
+
+    Returns
+    -------
+
+    """
+    return _union_intersection_base(
+        'keyed_union',
+        arrays,
+        key,
+        lambda keys_var, vals_var: hl.fold(lambda acc, elt: hl.coalesce(acc, elt), hl.missing(vals_var.dtype.element_type), vals_var),
+    lambda res: res)
 
 
 @typecheck(collection=expr_oneof(expr_array(), expr_set()),

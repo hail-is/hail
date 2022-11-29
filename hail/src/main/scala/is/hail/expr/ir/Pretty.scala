@@ -220,8 +220,8 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
       case ArrayZipBehavior.ExtendNA => "ExtendNA"
       case ArrayZipBehavior.AssumeSameLength => "AssumeSameLength"
     }, prettyIdentifiers(names))
-    case StreamZipJoin(_, key, curKey, curVals, _) if !elideBindings =>
-      FastSeq(prettyIdentifiers(key), prettyIdentifier(curKey), prettyIdentifier(curVals))
+    case StreamZipJoin(streams, key, curKey, curVals, _) if !elideBindings =>
+      FastSeq(streams.length.toString, prettyIdentifiers(key), prettyIdentifier(curKey), prettyIdentifier(curVals))
     case StreamMultiMerge(_, key) => single(prettyIdentifiers(key))
     case StreamFilter(_, name, _) if !elideBindings => single(prettyIdentifier(name))
     case StreamTakeWhile(_, name, _) if !elideBindings => single(prettyIdentifier(name))

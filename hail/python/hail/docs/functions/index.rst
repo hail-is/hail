@@ -37,6 +37,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     or_else
     or_missing
     range
+    query_table
 
 .. rubric:: Constructors
 
@@ -85,6 +86,8 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     fold
     array_scan
     reversed
+    keyed_intersection
+    keyed_union
 
 .. rubric:: Numeric functions
 

@@ -1302,6 +1302,78 @@ class ToStream(IR):
         return tstream(self.a.typ.element_type)
 
 
+class StreamZipJoin(IR):
+    @typecheck_method(streams=sequenceof(IR), key=sequenceof(str), cur_key=str, cur_vals=str, join_f=IR)
+    def __init__(self, streams, key, cur_key, cur_vals, join_f):
+        super().__init__(*streams, join_f)
+        self.streams = streams
+        self.key = key
+        self.cur_key = cur_key
+        self.cur_vals = cur_vals
+        self.join_f = join_f
+
+    def _handle_randomness(self, create_uids):
+        assert not create_uids
+        return self
+
+    @typecheck_method(new_ir=IR)
+    def copy(self, *new_irs):
+        assert len(new_irs) == len(self.streams) + 1
+        return StreamZipJoin(new_irs[:-1], self.key, self.cur_key, self.cur_vals, new_irs[-1])
+
+    def head_str(self):
+        return '{} ({}) {} {}'.format(len(self.streams), ' '.join([escape_id(x) for x in self.key]), self.cur_key, self.cur_vals)
+
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        for stream in self.streams:
+            stream.compute_type(env, agg_env, deep_typecheck)
+
+        stream_t = self.streams[0].typ
+        struct_t = stream_t.element_type
+        new_env = {**env}
+        new_env[self.cur_key] = tstruct(**{k: struct_t[k] for k in self.key})
+        new_env[self.cur_vals] = tarray(struct_t)
+        self.join_f.compute_type(new_env, agg_env, deep_typecheck)
+        return tstream(self.join_f.typ)
+
+    def renderable_bindings(self, i, default_value=None):
+        if i == len(self.streams):
+            if default_value is None:
+                struct_t = self.streams[0].typ.element_type
+                key_x = tstruct(**{k: struct_t[k] for k in self.key})
+                vals_x = tarray(struct_t)
+            else:
+                key_x = default_value
+                vals_x = default_value
+            return {self.cur_key: key_x, self.cur_vals: vals_x}
+        else:
+            return {}
+
+
+class StreamMultiMerge(IR):
+    @typecheck_method(streams=IR, key=sequenceof(str))
+    def __init__(self, *streams, key):
+        super().__init__(*streams)
+        self.streams = streams
+        self.key = key
+
+    def _handle_randomness(self, create_uids):
+        assert not create_uids
+        return self
+
+    @typecheck_method(new_streams=IR)
+    def copy(self, *new_streams):
+        return StreamMultiMerge(new_streams, self.key)
+
+    def head_str(self):
+        return '({})'.format(' '.join([escape_id(x) for x in self.key]))
+
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        for stream in self.streams:
+            stream.compute_type(env, agg_env, deep_typecheck)
+        return self.streams[0].typ
+
+
 class LowerBoundOnOrderedCollection(IR):
     @typecheck_method(ordered_collection=IR, elem=IR, on_key=bool)
     def __init__(self, ordered_collection, elem, on_key):
