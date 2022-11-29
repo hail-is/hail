@@ -249,7 +249,8 @@ def process_disk_sku(sku: dict, regions: List[str]) -> List[GCPDiskPrice]:
     category = sku['category']
     assert category['resourceFamily'] == 'Storage', sku
     assert category['resourceGroup'] == 'SSD', sku
-    assert sku['description'] == 'SSD backed PD Capacity', sku
+    assert 'SSD backed PD Capacity' in sku['description'], sku
+    assert 'Regional' not in sku['description'], sku
 
     effective_start_date = parse_effective_start_date(sku)
 
@@ -284,6 +285,6 @@ async def fetch_prices(
             if category['resourceGroup'] == 'LocalSSD':
                 for local_ssd_price in process_local_ssd_sku(sku, regions):
                     yield local_ssd_price
-            elif category['resourceGroup'] == 'SSD' and sku['description'] == 'SSD backed PD Capacity':
+            elif category['resourceGroup'] == 'SSD' and 'SSD backed PD Capacity' in sku['description'] and 'Regional' not in sku['description']:
                 for disk_price in process_disk_sku(sku, regions):
                     yield disk_price
