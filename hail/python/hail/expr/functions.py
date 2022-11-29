@@ -4866,9 +4866,10 @@ def keyed_intersection(*arrays, key):
         arrays,
         key,
         lambda key_var, vals_var: hl.tuple((key_var, vals_var)),
-        lambda res: res \
-            .filter(lambda x: hl.fold(lambda acc, elt: acc & hl.is_defined(elt), True, x[1])) \
+        lambda res: res
+            .filter(lambda x: hl.fold(lambda acc, elt: acc & hl.is_defined(elt), True, x[1]))
             .map(lambda x: x[1].first()))
+
 
 @typecheck(arrays=expr_oneof(expr_stream(expr_any), expr_array(expr_any)), key=sequenceof(builtins.str))
 def keyed_union(*arrays, key):
@@ -4889,8 +4890,9 @@ def keyed_union(*arrays, key):
         'keyed_union',
         arrays,
         key,
-        lambda keys_var, vals_var: hl.fold(lambda acc, elt: hl.coalesce(acc, elt), hl.missing(vals_var.dtype.element_type), vals_var),
-    lambda res: res)
+        lambda keys_var, vals_var: hl.fold(lambda acc, elt: hl.coalesce(acc, elt),
+                                           hl.missing(vals_var.dtype.element_type), vals_var),
+        lambda res: res)
 
 
 @typecheck(collection=expr_oneof(expr_array(), expr_set()),
