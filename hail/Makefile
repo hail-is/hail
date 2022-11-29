@@ -280,7 +280,7 @@ python/hailtop/hailctl/deploy.yaml: $(resources) python/requirements.txt
 	for FILE in $(notdir $(resources)); do \
 	  echo "  $$FILE: $(cloud_base)/$$FILE" >> $@ || exit 1; done
 	echo "  wheel: $(wheel_cloud_path)" >> $@
-	echo "  pip_dependencies: $(shell cat python/requirements.txt python/hailtop/requirements.txt | grep '^\-r ' | sed '/^[[:blank:]]*#/d;s/#.*//' | grep -v pyspark | tr "\n" "|||")" >> $@
+	echo "  pip_dependencies: $(shell cat python/requirements.txt python/hailtop/requirements.txt | grep -v '^\-r ' | sed '/^[[:blank:]]*#/d;s/#.*//' | grep -v pyspark | tr "\n" "|||")" >> $@
 
 .PHONY: upload-artifacts
 upload-artifacts: $(WHEEL)
