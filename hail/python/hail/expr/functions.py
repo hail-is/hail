@@ -4877,6 +4877,10 @@ def keyed_union(*arrays, key):
 
     Requires sorted arrays with distinct keys.
 
+    Warning
+    -------
+    Experimental. Does not support downstream randomness.
+
     Parameters
     ----------
     exprs
