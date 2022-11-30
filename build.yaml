@@ -3008,6 +3008,7 @@ steps:
       gcloud auth activate-service-account --key-file=/registry-push-credentials/credentials.json
       gcloud auth -q configure-docker australia-southeast1-docker.pkg.dev
       skopeo copy docker://{{ hailgenetics_hail_image.image }} docker://australia-southeast1-docker.pkg.dev/hail-295901/hail/hailgenetics/hail:$(cat /io/hail_pip_version)
+      skopeo copy docker://{{ hailgenetics_hailtop_image.image }} docker://australia-southeast1-docker.pkg.dev/hail-295901/hail/hailgenetics/hailtop:$(cat /io/hail_pip_version)
     inputs:
       - from: /hail_pip_version
         to: /io/hail_pip_version
@@ -3023,6 +3024,7 @@ steps:
       - default_ns
       - ci_utils_image
       - hailgenetics_hail_image
+      - hailgenetics_hailtop_image
     clouds:
       - gcp
   - kind: buildImage2
