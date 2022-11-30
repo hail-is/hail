@@ -2121,7 +2121,7 @@ class MatrixTable(ExprContainer):
         analyze('MatrixTable.aggregate_entries', expr, self._global_indices, {self._row_axis, self._col_axis})
         agg_ir = ir.MatrixAggregate(base._mir, expr._ir)
         if _localize:
-            return Env.backend().execute(agg_ir)
+            return Env.backend().execute(ir.MakeTuple([agg_ir]))[0]
         else:
             return construct_expr(ir.LiftMeOut(agg_ir), expr.dtype)
 
@@ -3484,7 +3484,7 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Persisted dataset.
         """
-        return Env.backend().persist_matrix_table(self, storage_level)
+        return Env.backend().persist_matrix_table(self)
 
     def unpersist(self) -> 'MatrixTable':
         """

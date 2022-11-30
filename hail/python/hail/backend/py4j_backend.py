@@ -42,6 +42,7 @@ class Py4JBackend(Backend):
 
     @abc.abstractmethod
     def __init__(self):
+        super(Py4JBackend, self).__init__()
         import base64
 
         def decode_bytearray(encoded):
