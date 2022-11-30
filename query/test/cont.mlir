@@ -10,7 +10,7 @@ func.func @main() {
       %x = arith.constant 0 : i32
       cps.apply %cont(%x) : i32
     }
-    cps.apply %cont2()
+    cps.apply %cont2
   }
   func.return
 }
