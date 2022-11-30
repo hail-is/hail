@@ -279,3 +279,12 @@ class Tests(unittest.TestCase):
         assert r['n_variants'] == 346
         assert r['r_ti_tv'] == 2.5
         assert r['allele_counts'] == {2: 346}
+
+    def test_charr(self):
+        mt = hl.import_vcf(resource('sample.vcf'))
+        es = mt.select_rows().entries()
+        charr = hl.compute_charr(mt, ref_AF=0.9)
+        d = charr.aggregate(hl.dict(hl.agg.collect((charr.s, charr.charr))))
+
+        assert pytest.approx(d['C1046::HG02024'], abs=0.0001) == .00126
+        assert pytest.approx(d['C1046::HG02025'], abs=0.0001) == .00124

@@ -1,6 +1,10 @@
 from typing import Mapping, List, Union, Tuple, Dict, Optional, Any
 import abc
+import orjson
+import pkg_resources
+import zipfile
 from ..fs.fs import FS
+from ..builtin_references import BUILTIN_REFERENCE_RESOURCE_PATHS
 from ..expr import Expression
 from ..expr.types import HailType
 from ..ir import BaseIR
@@ -33,14 +37,6 @@ class Backend(abc.ABC):
     async def _async_execute(self, ir, timed=False):
         pass
 
-    def execute_many(self, *irs, timed=False):
-        from ..ir import MakeTuple  # pylint: disable=import-outside-toplevel
-        return [self.execute(MakeTuple([ir]), timed=timed)[0] for ir in irs]
-
-    @abc.abstractmethod
-    async def _async_execute_many(self, *irs, timed=False):
-        pass
-
     @abc.abstractmethod
     def value_type(self, ir):
         pass
@@ -69,20 +65,19 @@ class Backend(abc.ABC):
     def remove_reference(self, name):
         pass
 
-    @abc.abstractmethod
     def get_reference(self, name):
-        pass
+        if name in BUILTIN_REFERENCE_RESOURCE_PATHS:
+            path_in_jar = BUILTIN_REFERENCE_RESOURCE_PATHS[name]
+            jar_path = pkg_resources.resource_filename(__name__, 'hail-all-spark.jar')
+            return orjson.loads(zipfile.ZipFile(jar_path).open(path_in_jar).read())
+        return self._get_non_builtin_reference(name)
 
     @abc.abstractmethod
-    async def _async_get_reference(self, name):
+    def _get_non_builtin_reference(self, name):
         pass
 
     def get_references(self, names):
         return [self.get_reference(name) for name in names]
-
-    @abc.abstractmethod
-    async def _async_get_references(self, names):
-        pass
 
     @abc.abstractmethod
     def add_sequence(self, name, fasta_file, index_file):

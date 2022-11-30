@@ -232,7 +232,7 @@ dependencies {
 
     bundled group: 'org.freemarker', name: 'freemarker', version: '2.3.31'
 
-    bundled 'com.kohlschutter.junixsocket:junixsocket-core:2.3.2'
+    bundled 'com.kohlschutter.junixsocket:junixsocket-core:2.6.1'
 }
 
 task(checkSettings) doLast {

@@ -1,7 +1,7 @@
 -c ../requirements.txt
 
 flake8>=4.0.1,<5
-mypy==0.982
+mypy==0.990
 pylint>=2.13.5,<3
 black>=22.8.0,<23
 curlylint>=0.13.1,<1
@@ -23,6 +23,7 @@ fswatch>=0.1.1,<1
 
 # mypy library stubs
 types-Deprecated
+types-PyMySQL
 types-PyYAML
 types-chardet
 types-decorator

@@ -2174,16 +2174,16 @@ async def _query_billing(request, user=None):
     date_format = '%m/%d/%Y'
 
     default_start = datetime.datetime.now().replace(day=1)
-    default_start = datetime.datetime.strftime(default_start, date_format)
+    default_start_str = datetime.datetime.strftime(default_start, date_format)
 
     default_end = None
 
     async def parse_error(msg):
         session = await aiohttp_session.get_session(request)
         set_message(session, msg, 'error')
-        return ([], default_start, default_end)
+        return ([], default_start_str, default_end)
 
-    start_query = request.query.get('start', default_start)
+    start_query = request.query.get('start', default_start_str)
     try:
         start = datetime.datetime.strptime(start_query, date_format)
     except ValueError:
@@ -2246,8 +2246,8 @@ async def ui_get_billing(request, userdata):
     user = userdata['username'] if not is_developer else None
     billing, start, end = await _query_billing(request, user=user)
 
-    billing_by_user = {}
-    billing_by_project = {}
+    billing_by_user: Dict[str, int] = {}
+    billing_by_project: Dict[str, int] = {}
     for record in billing:
         billing_project = record['billing_project']
         user = record['user']
@@ -2255,17 +2255,17 @@ async def ui_get_billing(request, userdata):
         billing_by_user[user] = billing_by_user.get(user, 0) + cost
         billing_by_project[billing_project] = billing_by_project.get(billing_project, 0) + cost
 
-    billing_by_project = [
-        {'billing_project': billing_project, 'cost': cost_str(cost)}
+    billing_by_project_list = [
+        {'billing_project': billing_project, 'cost': cost_str(cost) or '$0'}
         for billing_project, cost in billing_by_project.items()
     ]
-    billing_by_project.sort(key=lambda record: record['billing_project'])
+    billing_by_project_list.sort(key=lambda record: record['billing_project'])
 
-    billing_by_user = [{'user': user, 'cost': cost_str(cost)} for user, cost in billing_by_user.items()]
-    billing_by_user.sort(key=lambda record: record['user'])
+    billing_by_user_list = [{'user': user, 'cost': cost_str(cost) or '$0'} for user, cost in billing_by_user.items()]
+    billing_by_user_list.sort(key=lambda record: record['user'])
 
     billing_by_project_user = [
-        {'billing_project': record['billing_project'], 'user': record['user'], 'cost': cost_str(record['cost'])}
+        {'billing_project': record['billing_project'], 'user': record['user'], 'cost': cost_str(record['cost']) or '$0'}
         for record in billing
     ]
     billing_by_project_user.sort(key=lambda record: (record['billing_project'], record['user']))
@@ -2273,8 +2273,8 @@ async def ui_get_billing(request, userdata):
     total_cost = cost_str(sum(record['cost'] for record in billing))
 
     page_context = {
-        'billing_by_project': billing_by_project,
-        'billing_by_user': billing_by_user,
+        'billing_by_project': billing_by_project_list,
+        'billing_by_user': billing_by_user_list,
         'billing_by_project_user': billing_by_project_user,
         'start': start,
         'end': end,

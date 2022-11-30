@@ -1,12 +1,9 @@
 from typing import Dict, Optional, Callable, Awaitable, Mapping, Any, List, Union, Tuple
 import abc
-import asyncio
 import struct
-import os
 from hail.expr.expressions.base_expression import Expression
 import orjson
 import logging
-from pathlib import Path
 
 from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename, revision, _TemporaryFilenameManager
 from hail.utils import FatalError
@@ -19,7 +16,7 @@ from hail.ir import finalize_randomness
 from hail.ir.renderer import CSERenderer
 
 from hailtop import yamlx
-from hailtop.config import (configuration_of, get_user_local_cache_dir, get_remote_tmpdir, get_deploy_config)
+from hailtop.config import (configuration_of, get_remote_tmpdir)
 from hailtop.utils import async_to_blocking, secret_alnum_string, TransientError, Timings
 from hailtop.utils.rich_progress_bar import BatchProgressBar
 from hailtop.batch_client import client as hb
@@ -29,11 +26,9 @@ from hailtop.aiotools.router_fs import RouterAsyncFS
 import hailtop.aiotools.fs as afs
 
 from .backend import Backend, fatal_error_from_java_error_triplet
-from ..builtin_references import BUILTIN_REFERENCE_DOWNLOAD_LOCKS
 from ..fs.fs import FS
 from ..fs.router_fs import RouterFS
 from ..ir import BaseIR
-from ..context import version
 from ..utils import frozendict
 
 
@@ -206,8 +201,6 @@ class ServiceBackend(Backend):
             batch_client = await aiohb.BatchClient.create(billing_project, _token=token)
         bc = hb.BatchClient.from_async(batch_client)
         batch_attributes: Dict[str, str] = dict()
-        user_local_reference_cache_dir = Path(get_user_local_cache_dir(), 'references', version())
-        os.makedirs(user_local_reference_cache_dir, exist_ok=True)
         remote_tmpdir = get_remote_tmpdir('ServiceBackend', remote_tmpdir=remote_tmpdir)
 
         jar_url = configuration_of('query', 'jar_url', jar_url, None)
@@ -232,7 +225,6 @@ class ServiceBackend(Backend):
             bc=bc,
             disable_progress_bar=disable_progress_bar,
             batch_attributes=batch_attributes,
-            user_local_reference_cache_dir=user_local_reference_cache_dir,
             remote_tmpdir=remote_tmpdir,
             flags=flags,
             jar_spec=jar_spec,
@@ -251,7 +243,6 @@ class ServiceBackend(Backend):
                  bc: hb.BatchClient,
                  disable_progress_bar: bool,
                  batch_attributes: Dict[str, str],
-                 user_local_reference_cache_dir: Path,
                  remote_tmpdir: str,
                  flags: Dict[str, str],
                  jar_spec: JarSpec,
@@ -265,9 +256,9 @@ class ServiceBackend(Backend):
         self._async_fs = async_fs
         self.bc = bc
         self.async_bc = self.bc._async_client
+        self._batch: Optional[aiohb.Batch] = None
         self.disable_progress_bar = disable_progress_bar
         self.batch_attributes = batch_attributes
-        self.user_local_reference_cache_dir = user_local_reference_cache_dir
         self.remote_tmpdir = remote_tmpdir
         self.flags = flags
         self.jar_spec = jar_spec
@@ -284,7 +275,6 @@ class ServiceBackend(Backend):
             'jar_spec': str(self.jar_spec),
             'billing_project': self.billing_project,
             'batch_attributes': self.batch_attributes,
-            'user_local_reference_cache_dir': str(self.user_local_reference_cache_dir),
             'remote_tmpdir': self.remote_tmpdir,
             'flags': self.flags,
             'driver_cores': self.driver_cores,
@@ -335,8 +325,11 @@ class ServiceBackend(Backend):
             with timings.step("submit batch"):
                 batch_attributes = self.batch_attributes
                 if 'name' not in batch_attributes:
-                    batch_attributes = {**batch_attributes, 'name': self.name_prefix + name}
-                bb = self.async_bc.create_batch(token=token, attributes=batch_attributes)
+                    batch_attributes = {**batch_attributes, 'name': self.name_prefix}
+                if self._batch is None:
+                    bb = self.async_bc.create_batch(token=token, attributes=batch_attributes)
+                else:
+                    bb = await self.async_bc.update_batch(self._batch)
 
                 resources: Dict[str, Union[str, bool]] = {'preemptible': False}
                 if self.driver_cores is not None:
@@ -344,32 +337,32 @@ class ServiceBackend(Backend):
                 if self.driver_memory is not None:
                     resources['memory'] = str(self.driver_memory)
 
-                bb.create_jvm_job(
+                j = bb.create_jvm_job(
                     jar_spec=self.jar_spec.to_dict(),
                     argv=[
                         ServiceBackend.DRIVER,
-                        batch_attributes['name'],
+                        name,
                         iodir + '/in',
                         iodir + '/out',
                     ],
                     mount_tokens=True,
                     resources=resources,
-                    attributes={'name': 'driver'},
+                    attributes={'name': name + '_driver'},
                 )
-                b = await bb.submit(disable_progress_bar=True)
+                self._batch = await bb.submit(disable_progress_bar=True)
 
-            with timings.step("wait batch"):
+            with timings.step("wait driver"):
                 try:
-                    if self.disable_progress_bar is not True:
-                        deploy_config = get_deploy_config()
-                        url = deploy_config.external_url('batch', f'/batches/{b.id}/jobs/1')
-                        print(f'Submitted batch {b.id}, see {url}')
-
-                    await b.wait(description=name,
-                                 disable_progress_bar=self.disable_progress_bar,
-                                 progress=progress)
+                    await self._batch.wait(
+                        description=name,
+                        disable_progress_bar=self.disable_progress_bar,
+                        progress=progress,
+                        starting_job=j.job_id,
+                    )
+                except KeyboardInterrupt:
+                    raise
                 except Exception:
-                    await b.cancel()
+                    await self._batch.cancel()
                     raise
 
             with timings.step("read output"):
@@ -378,7 +371,7 @@ class ServiceBackend(Backend):
                 except FileNotFoundError as exc:
                     raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
                         'service_backend_debug_info': self.debug_info(),
-                        'batch_debug_info': b.debug_info()
+                        'batch_debug_info': await self._batch.debug_info()
                     })) from exc
 
                 async with driver_output as outfile:
@@ -390,7 +383,7 @@ class ServiceBackend(Backend):
                         except orjson.JSONDecodeError as err:
                             raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
                                 'service_backend_debug_info': self.debug_info(),
-                                'batch_debug_info': b.debug_info()
+                                'batch_debug_info': await self._batch.debug_info()
                             })) from err
 
                     short_message = await read_str(outfile)
@@ -432,21 +425,6 @@ class ServiceBackend(Backend):
         if timed:
             return converted_value, timings
         return converted_value
-
-    def execute_many(self, *irs, timed=False):
-        return async_to_blocking(self._async_execute_many(*irs, timed=timed))
-
-    async def _async_execute_many(self,
-                                  *irs,
-                                  timed=False,
-                                  progress: Optional[BatchProgressBar] = None):
-        if progress is None:
-            with BatchProgressBar() as progress:
-                return await asyncio.gather(*[self._async_execute(ir, timed=timed, progress=progress)
-                                              for ir in irs])
-        else:
-            return await asyncio.gather(*[self._async_execute(ir, timed=timed, progress=progress)
-                                          for ir in irs])
 
     def value_type(self, ir):
         return async_to_blocking(self._async_value_type(ir))
@@ -509,42 +487,8 @@ class ServiceBackend(Backend):
     def remove_reference(self, name):
         raise NotImplementedError("ServiceBackend does not support 'remove_reference'")
 
-    def get_reference(self, name):
-        return async_to_blocking(self._async_get_reference(name))
-
-    async def _async_get_reference(self, name, *, progress: Optional[BatchProgressBar] = None):
-        async def inputs(infile, _):
-            await write_int(infile, ServiceBackend.REFERENCE_GENOME)
-            await write_str(infile, tmp_dir())
-            await write_str(infile, self.billing_project)
-            await write_str(infile, self.remote_tmpdir)
-            await write_str(infile, name)
-
-        if name in BUILTIN_REFERENCE_DOWNLOAD_LOCKS:
-            with BUILTIN_REFERENCE_DOWNLOAD_LOCKS[name]:
-                try:
-                    with open(Path(self.user_local_reference_cache_dir, name)) as f:
-                        return orjson.loads(f.read())
-                except FileNotFoundError:
-                    _, resp, _ = await self._rpc('get_reference(...)', inputs, progress=progress)
-                    with open(Path(self.user_local_reference_cache_dir, name), 'wb') as f:
-                        f.write(resp)
-        else:
-            _, resp, _ = await self._rpc('get_reference(...)', inputs)
-
-        return orjson.loads(resp)
-
-    def get_references(self, names):
-        return async_to_blocking(self._async_get_references(names))
-
-    async def _async_get_references(self, names, *, progress: Optional[BatchProgressBar] = None):
-        if progress is None:
-            with BatchProgressBar() as progress:
-                return await asyncio.gather(*[self._async_get_reference(name, progress=progress)
-                                              for name in names])
-        else:
-            return await asyncio.gather(*[self._async_get_reference(name, progress=progress)
-                                          for name in names])
+    def _get_non_builtin_reference(self, name):
+        raise NotImplementedError("ServiceBackend does not support non-builtin references")
 
     def load_references_from_dataset(self, path):
         return async_to_blocking(self._async_load_references_from_dataset(path))
