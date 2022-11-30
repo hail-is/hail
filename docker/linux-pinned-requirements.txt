@@ -270,7 +270,7 @@ prometheus-client==0.15.0
     # via
     #   -r requirements.txt
     #   prometheus-async
-protobuf==3.20.2
+protobuf==4.21.9
     # via
     #   -r requirements.txt
     #   google-api-core
