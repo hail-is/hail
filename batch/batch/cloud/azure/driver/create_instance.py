@@ -43,6 +43,8 @@ def create_vm_config(
 ) -> dict:
     _, cores = azure_machine_type_to_worker_type_and_cores(machine_type)
 
+    region = instance_config.region_for(location)
+
     if max_price is not None and not preemptible:
         raise ValueError(f'max price given for a nonpreemptible machine {max_price}')
 
@@ -188,6 +190,7 @@ NAME=$(curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/i
 BATCH_WORKER_IMAGE=$(jq -r '.batch_worker_image' userdata)
 DOCKER_ROOT_IMAGE=$(jq -r '.docker_root_image' userdata)
 DOCKER_PREFIX=$(jq -r '.docker_prefix' userdata)
+REGION=$(jq -r '.region' userdata)
 
 INTERNAL_GATEWAY_IP=$(jq -r '.internal_ip' userdata)
 
@@ -235,6 +238,7 @@ docker run \
 -e SUBSCRIPTION_ID=$SUBSCRIPTION_ID \
 -e RESOURCE_GROUP=$RESOURCE_GROUP \
 -e LOCATION=$LOCATION \
+-e REGION=$REGION \
 -e DOCKER_PREFIX=$DOCKER_PREFIX \
 -e DOCKER_ROOT_IMAGE=$DOCKER_ROOT_IMAGE \
 -e INSTANCE_CONFIG=$INSTANCE_CONFIG \
@@ -288,6 +292,7 @@ done
         'instance_id': file_store.instance_id,
         'max_idle_time_msecs': max_idle_time_msecs,
         'instance_config': base64.b64encode(json.dumps(instance_config.to_dict()).encode()).decode(),
+        'region': region,
     }
     user_data_str = base64.b64encode(json.dumps(user_data).encode('utf-8')).decode('utf-8')
 

@@ -141,9 +141,8 @@ LIMIT %s;
 
                 async def cancel_with_error_handling(app, batch_id, job_id, id):
                     try:
-                        resources = []
                         await mark_job_complete(
-                            app, batch_id, job_id, None, None, 'Cancelled', None, None, None, 'cancelled', resources
+                            app, batch_id, job_id, None, None, 'Cancelled', None, None, None, 'cancelled', []
                         )
                     except Exception:
                         log.info(f'error while cancelling job {id}', exc_info=True)
@@ -220,7 +219,6 @@ LIMIT %s;
 
                 async def cancel_with_error_handling(app, batch_id, job_id, attempt_id, instance_name, id):
                     try:
-                        resources = []
                         end_time = time_msecs()
                         await mark_job_complete(
                             app,
@@ -233,7 +231,7 @@ LIMIT %s;
                             None,
                             end_time,
                             'cancelled',
-                            resources,
+                            [],
                         )
 
                         instance = self.inst_coll_manager.get_instance(instance_name)

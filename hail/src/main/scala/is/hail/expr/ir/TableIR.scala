@@ -6,13 +6,14 @@ import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.expr.ir
-import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, MatrixToTableFunction, StringFunctions, TableToTableFunction}
+import is.hail.expr.ir.functions.IntervalFunctions._
+import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, IntervalFunctions, MatrixToTableFunction, TableToTableFunction}
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage, TableStageDependency}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io._
 import is.hail.io.avro.AvroTableReader
 import is.hail.io.fs.FS
-import is.hail.io.index.{IndexReader, IndexReaderBuilder, LeafChild, StagedIndexReader}
+import is.hail.io.index.StagedIndexReader
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, BlockMatrixReadRowBlockedRDD}
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
@@ -22,11 +23,13 @@ import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces.{NoBoxLongIterator, SBaseStruct, SBaseStructValue, SStreamValue, primitive}
 import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Value}
 import is.hail.types.physical.stypes._
+import is.hail.types.physical.stypes._
+import is.hail.types.physical.stypes.concrete.{SInsertFieldsStruct, SStackStruct}
+import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SIntervalValue, SStreamValue, primitive}
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
 import org.apache.spark.TaskContext
-import org.apache.spark.executor.InputMetrics
 import org.apache.spark.sql.Row
 import org.json4s.JsonAST.JString
 import org.json4s.jackson.JsonMethods
@@ -563,7 +566,7 @@ case class PartitionRVDReader(rvd: RVD, uidFieldName: String) extends PartitionR
     val createUID = requestedType.hasField(uidFieldName)
 
     assert(upcastPType == rowPType,
-      s"ptype mismatch:\n  upcast: $upcastPType\n  computed: ${rowPType}")
+    s"ptype mismatch:\n  upcast: $upcastPType\n  computed: ${ rowPType }")
 
     context.toI(cb).map(cb) { partIdx =>
       val iterator = mb.genFieldThisRef[Iterator[Long]]("rvdreader_iterator")
@@ -586,6 +589,7 @@ case class PartitionRVDReader(rvd: RVD, uidFieldName: String) extends PartitionR
           cb.assign(upcastF, Code.checkcast[AsmFunction2RegionLongLong](upcastCode.invoke[AnyRef, AnyRef, AnyRef, AnyRef, AnyRef](
             "apply", cb.emb.ecb.emodb.getHailClassLoader, cb.emb.ecb.emodb.getFS, Code.boxInt(0), partitionRegion)))
         }
+
         override val elementRegion: Settable[Region] = region
         override val requiresMemoryManagementPerElement: Boolean = true
         override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
@@ -682,6 +686,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec, uidFieldName: Str
           cb.assign(xRowBuf, spec.buildCodeInputBuffer(mb.open(pathString, checkCodec = true)))
           cb.assign(rowIdx, -1L)
         }
+
         override val elementRegion: Settable[Region] = region
         override val requiresMemoryManagementPerElement: Boolean = true
         override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
@@ -710,6 +715,214 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec, uidFieldName: Str
   }
 
   def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
+}
+
+case class PartitionNativeIntervalReader(tablePath: String, tableSpec: AbstractTableSpec, uidFieldName: String) extends AbstractNativeReader {
+  require(tableSpec.indexed)
+
+  lazy val rowsSpec = tableSpec.rowsSpec
+  lazy val spec = rowsSpec.typedCodecSpec
+  lazy val indexSpec = tableSpec.rowsSpec.asInstanceOf[Indexed].indexSpec
+  lazy val partitioner = rowsSpec.partitioner
+
+  lazy val contextType: Type = RVDPartitioner.intervalIRRepresentation(partitioner.kType)
+
+  def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
+
+  def emitStream(
+    ctx: ExecuteContext,
+    cb: EmitCodeBuilder,
+    context: EmitCode,
+    requestedType: TStruct): IEmitCode = {
+
+    val mb = cb.emb
+
+    val insertUID: Boolean = requestedType.hasField(uidFieldName)
+    val concreteType: TStruct = if (insertUID)
+      requestedType.deleteKey(uidFieldName)
+    else
+      requestedType
+    val concreteSType: SBaseStruct = spec.encodedType.decodedSType(concreteType).asInstanceOf[SBaseStruct]
+    val uidSType: SStackStruct = SStackStruct(
+      TTuple(TInt64, TInt64),
+      Array(EmitType(SInt64, true), EmitType(SInt64, true)))
+    val eltSType: SBaseStruct = if (insertUID)
+      SInsertFieldsStruct(requestedType, concreteSType,
+        Array(uidFieldName -> EmitType(uidSType, true)))
+    else
+      concreteSType
+
+    val index = new StagedIndexReader(cb.emb, indexSpec)
+
+    context.toI(cb).map(cb) { case _ctx: SIntervalValue =>
+      val ctx = cb.memoizeField(_ctx, "ctx").asInterval
+
+      val partitionerLit = partitioner.partitionBoundsIRRepresentation
+      val partitionerRuntime = cb.emb.addLiteral(partitionerLit.value, VirtualTypeWithReq.fullyOptional(partitionerLit.typ))
+        .asIndexable
+
+      val pathsType = VirtualTypeWithReq.fullyRequired(TArray(TString))
+      val rowsPath = tableSpec.rowsComponent.absolutePath(tablePath)
+      val partitionPathsRuntime = mb.addLiteral(rowsSpec.absolutePartPaths(rowsPath).toFastIndexedSeq, pathsType).asIndexable
+      val indexPathsRuntime = mb.addLiteral(rowsSpec.partFiles.map(partPath => s"${ rowsPath }/${ indexSpec.relPath }/${ partPath }.idx").toFastIndexedSeq, pathsType).asIndexable
+
+      val currIdxInPartition = mb.genFieldThisRef[Long]("n_to_read")
+      val stopIdxInPartition = mb.genFieldThisRef[Long]("n_to_read")
+
+      val startPartitionIndex = mb.genFieldThisRef[Int]("start_part")
+      val currPartitionIdx = mb.genFieldThisRef[Int]("curr_part")
+      val lastIncludedPartitionIdx = mb.genFieldThisRef[Int]("last_part")
+      val ib = mb.genFieldThisRef[InputBuffer]("buffer")
+
+      // leave the index open/initialized to allow queries to reuse the same index for the same file
+      val indexInitialized = mb.genFieldThisRef[Boolean]("index_init")
+
+      val region = mb.genFieldThisRef[Region]("pnr_region")
+
+      val decodedRow = cb.emb.newPField("rowsValue", eltSType)
+
+      val producer = new StreamProducer {
+        override def method: EmitMethodBuilder[_] = mb
+        override val length: Option[EmitCodeBuilder => Code[Int]] = None
+
+        override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
+
+          val startBound = ctx.loadStart(cb).get(cb)
+          val includesStart = ctx.includesStart()
+          val endBound = ctx.loadEnd(cb).get(cb)
+          val includesEnd = ctx.includesEnd()
+
+          val (startPart, endPart) = IntervalFunctions.partitionerFindIntervalRange(cb,
+            partitionerRuntime,
+            SStackInterval.construct(EmitValue.present(startBound), EmitValue.present(endBound), includesStart, includesEnd),
+            -1)
+
+          cb.ifx(endPart < startPart, cb._fatal("invalid start/end config - startPartIdx=",
+            startPartitionIndex.toS, ", endPartIdx=", lastIncludedPartitionIdx.toS))
+
+          cb.assign(startPartitionIndex, startPart)
+          cb.assign(lastIncludedPartitionIdx, endPart - 1)
+          cb.assign(currPartitionIdx, startPartitionIndex)
+
+
+          cb.assign(indexInitialized, false) // basically "!first"
+          cb.assign(currIdxInPartition, 0L)
+          cb.assign(stopIdxInPartition, 0L)
+        }
+
+        override val elementRegion: Settable[Region] = region
+        override val requiresMemoryManagementPerElement: Boolean = true
+        override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
+          val Lstart = CodeLabel()
+          cb.define(Lstart)
+          cb.ifx(currIdxInPartition >= stopIdxInPartition, {
+            cb.ifx(currPartitionIdx >= rowsSpec.partitioner.numPartitions || currPartitionIdx > lastIncludedPartitionIdx,
+              cb.goto(LendOfStream))
+
+            // open the next index
+
+            cb.ifx(indexInitialized, {
+              index.close(cb)
+              cb += ib.close()
+            }, {
+              cb.assign(indexInitialized, true)
+            })
+
+            val partPath = partitionPathsRuntime.loadElement(cb, currPartitionIdx).get(cb).asString.loadString(cb)
+            val idxPath = indexPathsRuntime.loadElement(cb, currPartitionIdx).get(cb).asString.loadString(cb)
+            index.initialize(cb, idxPath)
+            cb.assign(ib, spec.buildCodeInputBuffer(Code.newInstance[ByteTrackingInputStream, InputStream](cb.emb.open(partPath, false))))
+
+            cb.ifx(currPartitionIdx ceq lastIncludedPartitionIdx, {
+              cb.ifx(currPartitionIdx ceq startPartitionIndex, {
+                // query the full interval
+                val indexResult = index.queryInterval(cb, region, ctx)
+                val startIdx = indexResult.loadField(cb, 0)
+                  .get(cb)
+                  .asInt64
+                  .value
+                cb.assign(currIdxInPartition, startIdx)
+                val endIdx = indexResult.loadField(cb, 1)
+                  .get(cb)
+                  .asInt64
+                  .value
+                cb.assign(stopIdxInPartition, endIdx)
+                cb.ifx(endIdx > startIdx, {
+                  val firstOffset = indexResult.loadField(cb, 2)
+                    .get(cb)
+                    .asBaseStruct
+                    .loadField(cb, "offset")
+                    .get(cb)
+                    .asInt64
+                    .value
+
+                  cb += ib.seek(firstOffset)
+                })
+              }, {
+                // read from start of partition to the end interval
+
+                val idx = index.queryBound(cb, region, ctx.loadEnd(cb).get(cb).asBaseStruct, primitive(ctx.includesEnd()))
+                cb.assign(currIdxInPartition, 0L)
+                cb.assign(stopIdxInPartition, idx)
+                // no need to seek, starting at beginning of partition
+              })
+            }, {
+              cb.ifx(currPartitionIdx ceq startPartitionIndex,
+                {
+                  // read from left endpoint until end of partition
+                  val idx = index.queryBound(cb, region, ctx.loadStart(cb).get(cb).asBaseStruct, primitive(cb.memoize(!ctx.includesStart())))
+                  val queryResult = index.queryIndex(cb, elementRegion, idx)
+
+                  cb.assign(currIdxInPartition, idx)
+                  cb.assign(stopIdxInPartition, index.nKeys(cb))
+                  cb.ifx(currIdxInPartition < stopIdxInPartition, {
+                    val firstOffset = queryResult.asBaseStruct
+                      .loadField(cb, "offset")
+                      .get(cb)
+                      .asInt64
+                      .value
+
+                    cb += ib.seek(firstOffset)
+                  })
+                }, {
+                  // in the middle of a partition run, so read everything
+                  cb.assign(currIdxInPartition, 0L)
+                  cb.assign(stopIdxInPartition, index.nKeys(cb))
+                })
+            })
+
+            cb.assign(currPartitionIdx, currPartitionIdx + 1)
+            cb.goto(Lstart)
+          })
+
+          cb.ifx(ib.readByte() cne 1, cb._fatal(s"bad buffer state!"))
+          cb.assign(currIdxInPartition, currIdxInPartition + 1L)
+          val decRow = spec.encodedType.buildDecoder(requestedType, cb.emb.ecb)(cb, region, ib).asBaseStruct
+          cb.assign(decodedRow, if (insertUID)
+            decRow.insert(cb,
+              elementRegion,
+              eltSType.virtualType.asInstanceOf[TStruct],
+              uidFieldName -> EmitValue.present(uidSType.fromEmitCodes(cb,
+                FastIndexedSeq(
+                EmitCode.present(mb, primitive(currPartitionIdx)),
+                EmitCode.present(mb, primitive(currIdxInPartition))))))
+            else decRow)
+          cb.goto(LproduceElementDone)
+        }
+        override val element: EmitCode = EmitCode.fromI(mb) { cb =>
+          IEmitCode.present(cb, decodedRow)
+        }
+
+        override def close(cb: EmitCodeBuilder): Unit = {
+          cb.ifx(indexInitialized, {
+            index.close(cb)
+            cb += ib.close()
+          })
+        }
+      }
+      SStreamValue(producer)
+    }
+  }
 }
 
 case class PartitionNativeReaderIndexed(

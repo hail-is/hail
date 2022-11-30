@@ -1,4 +1,4 @@
-from typing import (Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Iterable, Tuple,
+from typing import (Any, Callable, TypeVar, Awaitable, Mapping, Optional, Type, List, Dict, Iterable, Tuple,
                     Generic, cast)
 from typing_extensions import Literal
 from types import TracebackType
@@ -208,7 +208,7 @@ class AsyncThrottledGather(Generic[T]):
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception as err:  # pylint: disable=broad-except
-                res = err
+                res = err  # type: ignore
                 if not self._return_exceptions:
                     self._errors.append(err)
                     self._done.set()
@@ -235,7 +235,7 @@ class AsyncThrottledGather(Generic[T]):
 
 class AsyncWorkerPool:
     def __init__(self, parallelism, queue_size=1000):
-        self._queue = asyncio.Queue(maxsize=queue_size)
+        self._queue: asyncio.Queue[Tuple[Callable, Tuple[Any, ...], Mapping[str, Any]]] = asyncio.Queue(maxsize=queue_size)
         self.workers = weakref.WeakSet([
             asyncio.ensure_future(self._worker())
             for _ in range(parallelism)])
@@ -630,6 +630,7 @@ def is_transient_error(e):
         # 429 "Temporarily throttled, too many requests"
         return True
     if (isinstance(e, hailtop.aiocloud.aiogoogle.client.compute_client.GCPOperationError)
+            and e.error_codes is not None
             and 'QUOTA_EXCEEDED' in e.error_codes):
         return True
     if isinstance(e, hailtop.httpx.ClientResponseError) and (
@@ -717,6 +718,8 @@ def retry_all_errors(msg=None, error_logging_interval=10):
                 return await f(*args, **kwargs)
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
+            except KeyboardInterrupt:
+                raise
             except Exception:
                 errors += 1
                 if msg and errors % error_logging_interval == 0:
@@ -733,6 +736,8 @@ def retry_all_errors_n_times(max_errors=10, msg=None, error_logging_interval=10)
             try:
                 return await f(*args, **kwargs)
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                raise
+            except KeyboardInterrupt:
                 raise
             except Exception:
                 errors += 1
@@ -754,6 +759,8 @@ async def retry_transient_errors_with_debug_string(debug_string: str, f: Callabl
     while True:
         try:
             return await f(*args, **kwargs)
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             errors += 1
             if errors == 1 and is_retry_once_error(e):
@@ -778,6 +785,8 @@ def sync_retry_transient_errors(f, *args, **kwargs):
     while True:
         try:
             return f(*args, **kwargs)
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             errors += 1
             if errors % 10 == 0:
@@ -807,6 +816,8 @@ async def request_raise_transient_errors(
 ) -> aiohttp.ClientResponse:
     try:
         return await session.request(method, url, **kwargs)
+    except KeyboardInterrupt:
+        raise
     except Exception as e:
         if is_transient_error(e):
             log.exception('request failed with transient exception: {method} {url}')
@@ -873,6 +884,8 @@ async def retry_long_running(name, f, *args, **kwargs):
             return await f(*args, **kwargs)
         except asyncio.CancelledError:
             raise
+        except KeyboardInterrupt:
+            raise
         except Exception:
             end_time = time_msecs()
 
@@ -923,13 +936,14 @@ class LoggingTimerStep:
     def __init__(self, timer, name):
         self.timer = timer
         self.name = name
-        self.start_time = None
+        self.start_time: Optional[int] = None
 
     async def __aenter__(self):
         self.start_time = time_msecs()
 
     async def __aexit__(self, exc_type, exc, tb):
         finish_time = time_msecs()
+        assert self.start_time is not None
         self.timer.timing[self.name] = finish_time - self.start_time
 
 
@@ -938,7 +952,7 @@ class LoggingTimer:
         self.description = description
         self.threshold_ms = threshold_ms
         self.timing = {}
-        self.start_time = None
+        self.start_time: Optional[int] = None
 
     def step(self, name):
         return LoggingTimerStep(self, name)
@@ -949,6 +963,7 @@ class LoggingTimer:
 
     async def __aexit__(self, exc_type, exc, tb):
         finish_time = time_msecs()
+        assert self.start_time is not None
         total = finish_time - self.start_time
         if self.threshold_ms is None or total > self.threshold_ms:
             self.timing['total'] = total

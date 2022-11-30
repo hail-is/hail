@@ -53,5 +53,6 @@ def set_query_name(init_hail, request):
         backend.batch_attributes = dict(name=request.node.name)
         yield
         backend.batch_attributes = dict()
+        backend._batch = None
     else:
         yield

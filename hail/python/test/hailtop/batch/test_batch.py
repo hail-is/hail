@@ -1000,3 +1000,47 @@ class ServiceTests(unittest.TestCase):
         res = b.run()
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+
+    def test_always_copy_output(self):
+        output_path = f'{self.cloud_output_dir}/test_always_copy_output.txt'
+
+        b = self.batch()
+        j = b.new_job()
+        j.always_copy_output()
+        j.command(f'echo "hello" > {j.ofile} && false')
+
+        b.write_output(j.ofile, output_path)
+        res = b.run()
+        res_status = res.status()
+        assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
+
+        b2 = self.batch()
+        input = b2.read_input(output_path)
+        file_exists_j = b2.new_job()
+        file_exists_j.command(f'cat {input}')
+
+        res = b2.run()
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+        assert res.get_job_log(1)['main'] == "hello\n", str(res.debug_info())
+
+    def test_no_copy_output_on_failure(self):
+        output_path = f'{self.cloud_output_dir}/test_no_copy_output.txt'
+
+        b = self.batch()
+        j = b.new_job()
+        j.command(f'echo "hello" > {j.ofile} && false')
+
+        b.write_output(j.ofile, output_path)
+        res = b.run()
+        res_status = res.status()
+        assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
+
+        b2 = self.batch()
+        input = b2.read_input(output_path)
+        file_exists_j = b2.new_job()
+        file_exists_j.command(f'cat {input}')
+
+        res = b2.run()
+        res_status = res.status()
+        assert res_status['state'] == 'failure', str((res_status, res.debug_info()))

@@ -1466,11 +1466,20 @@ object IRParser {
         val name = identifier(it)
         done(env.irMap(name).asInstanceOf[IR])
       case "ReadPartition" =>
-        val rowType = tcoerce[TStruct](type_expr(env.typEnv)(it))
-        import PartitionReader.formats
-        val reader = JsonMethods.parse(string_literal(it)).extract[PartitionReader]
+        val requestedTypeRaw = it.head match {
+          case x: IdentifierToken if x.value == "None" || x.value == "DropRowUIDs" =>
+            consumeToken(it)
+            Left(x.value)
+          case _ =>
+            Right(type_expr(env.typEnv)(it))
+        }
+        val reader = PartitionReader.extract(env.ctx.fs, JsonMethods.parse(string_literal(it)))
         ir_value_expr(env)(it).map { context =>
-          ReadPartition(context, rowType, reader)
+          ReadPartition(context, requestedTypeRaw match {
+            case Left("None") => reader.fullRowType
+            case Left("DropRowUIDs") => reader.fullRowType.deleteKey(reader.uidFieldName)
+            case Right(t) => t.asInstanceOf[TStruct]
+          }, reader)
         }
       case "WritePartition" =>
         import PartitionWriter.formats

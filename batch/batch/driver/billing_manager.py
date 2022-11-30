@@ -66,6 +66,6 @@ async def refresh_product_versions_from_db(db: Database) -> Dict[str, str]:
     return {record['product']: record['version'] async for record in records}
 
 
-async def refresh_resource_rates_from_db(db: Database) -> Dict[str, str]:
+async def refresh_resource_rates_from_db(db: Database) -> Dict[str, float]:
     records = db.execute_and_fetchall('SELECT resource, rate FROM resources')
-    return {record['resource']: record['rate'] async for record in records}
+    return {record['resource']: float(record['rate']) async for record in records}

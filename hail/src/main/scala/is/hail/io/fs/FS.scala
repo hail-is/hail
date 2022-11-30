@@ -1,20 +1,20 @@
 package is.hail.io.fs
 
-import java.io._
-import java.nio.charset._
-import java.util.zip.GZIPOutputStream
-import is.hail.{HailContext, HailFeatureFlags}
 import is.hail.backend.BroadcastValue
 import is.hail.io.compress.{BGzipInputStream, BGzipOutputStream}
 import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
-import is.hail.utils._
 import is.hail.services._
+import is.hail.utils._
+import is.hail.{HailContext, HailFeatureFlags}
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop
 
+import java.io._
 import java.nio.ByteBuffer
+import java.nio.charset._
 import java.nio.file.FileSystems
+import java.util.zip.GZIPOutputStream
 import scala.collection.mutable
 import scala.io.Source
 
@@ -153,6 +153,8 @@ abstract class FSSeekableInputStream extends InputStream with Seekable {
     toTransfer
   }
 
+  protected def physicalSeek(newPos: Long): Unit
+
   def seek(newPos: Long): Unit = {
     val distance = newPos - pos
     val bufferSeekPosition = bb.position() + distance
@@ -165,6 +167,7 @@ abstract class FSSeekableInputStream extends InputStream with Seekable {
       if (bb.remaining() != 0) {
         assert(false, bb.remaining().toString())
       }
+      physicalSeek(newPos)
     }
     pos = newPos
   }
@@ -172,9 +175,9 @@ abstract class FSSeekableInputStream extends InputStream with Seekable {
   def getPosition: Long = pos
 }
 
-abstract class FSPositionedOutputStream extends OutputStream with Positioned {
+abstract class FSPositionedOutputStream(val capacity: Int) extends OutputStream with Positioned {
   protected[this] var closed: Boolean = false
-  protected[this] val bb: ByteBuffer = ByteBuffer.allocate(64 * 1024)
+  protected[this] val bb: ByteBuffer = ByteBuffer.allocate(capacity)
   protected[this] var pos: Long = 0
 
    def flush(): Unit

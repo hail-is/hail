@@ -11,16 +11,17 @@ import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
 import org.apache.log4j.Logger
 
 import java.net.URI
-import is.hail.utils.{fatal, defaultJSONFormats}
+import is.hail.utils.{defaultJSONFormats, fatal}
 import org.json4s
 import org.json4s.jackson.JsonMethods
 import org.json4s.Formats
 
-import java.io.{ByteArrayInputStream, FileNotFoundException, OutputStream}
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, FileNotFoundException, OutputStream}
 import java.nio.file.FileSystems
 import java.time.Duration
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
+
 
 
 object AzureStorageFS {
@@ -139,6 +140,13 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     val is: SeekableInputStream = new FSSeekableInputStream {
       private[this] val client: BlobClient = blobClient
 
+      val bbOS = new OutputStream {
+        override def write(b: Array[Byte]): Unit = bb.put(b)
+        override def write(b: Int): Unit = bb.put(b.toByte)
+      }
+
+      override def physicalSeek(newPos: Long): Unit = ()
+
       override def fill(): Int = {
         val pos = getPosition
         val numBytesRemainingInBlob = blobSize - pos
@@ -147,13 +155,10 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
           return -1
         }
 
-        val outputStreamToBuffer: OutputStream = (i: Int) => {
-          bb.put(i.toByte)
-        }
         val response = retryTransientErrors {
           bb.clear()
           client.downloadStreamWithResponse(
-            outputStreamToBuffer, new BlobRange(pos, count),
+            bbOS, new BlobRange(pos, count),
             null, null, false, timeout, null)
         }
 
@@ -184,7 +189,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     val appendClient = getBlobClient(account, container, path).getAppendBlobClient
     appendClient.create(true)
 
-    val os: PositionedOutputStream = new FSPositionedOutputStream {
+    val os: PositionedOutputStream = new FSPositionedOutputStream(4 * 1024 * 1024) {
       private[this] val client: AppendBlobClient = appendClient
 
       override def flush(): Unit = {

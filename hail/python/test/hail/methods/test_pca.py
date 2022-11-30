@@ -7,7 +7,6 @@ from hail.methods.pca import _make_tsm
 from ..helpers import resource, fails_local_backend, fails_service_backend, skip_when_service_backend
 
 
-@fails_service_backend()
 @fails_local_backend()
 def test_hwe_normalized_pca():
     mt = hl.balding_nichols_model(3, 100, 50)
@@ -22,7 +21,6 @@ def test_hwe_normalized_pca():
     assert loadings is None
 
 
-@fails_service_backend()
 @fails_local_backend()
 def test_pca_against_numpy():
     mt = hl.import_vcf(resource('tiny_m.vcf'))

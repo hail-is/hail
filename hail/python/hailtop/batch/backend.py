@@ -29,8 +29,7 @@ from .exceptions import BatchException
 from .globals import DEFAULT_SHELL
 
 
-HAIL_GENETICS_HAIL_IMAGE = os.environ.get('HAIL_GENETICS_HAIL_IMAGE',
-                                          f'hailgenetics/hail:{pip_version()}')
+HAIL_GENETICS_HAILTOP_IMAGE = os.environ.get('HAIL_GENETICS_HAILTOP_IMAGE', f'hailgenetics/hailtop:{pip_version()}')
 
 
 RunningBatchType = TypeVar('RunningBatchType')
@@ -202,6 +201,7 @@ class LocalBackend(Backend[None]):
                 if r not in copied_input_resource_files:
                     copied_input_resource_files.add(r)
 
+                    assert r._input_path
                     input_scheme = url_scheme(r._input_path)
                     if input_scheme != '':
                         transfers_bytes = orjson.dumps([{"from": r._input_path, "to": r._get_path(tmpdir)}])
@@ -616,7 +616,7 @@ class ServiceBackend(Backend[bc.Batch]):
             if dry_run:
                 commands.append(' '.join(shq(x) for x in write_cmd))
             else:
-                j = bc_batch.create_job(image=HAIL_GENETICS_HAIL_IMAGE,
+                j = bc_batch.create_job(image=HAIL_GENETICS_HAILTOP_IMAGE,
                                         command=write_cmd,
                                         attributes={'name': 'write_external_inputs'})
                 jobs_to_command[j] = ' '.join(shq(x) for x in write_cmd)
@@ -731,7 +731,8 @@ class ServiceBackend(Backend[bc.Batch]):
                                     requester_pays_project=batch.requester_pays_project,
                                     mount_tokens=True,
                                     user_code=user_code,
-                                    regions=job._regions)
+                                    regions=job._regions,
+                                    always_copy_output=job._always_copy_output)
 
             n_jobs_submitted += 1
 
@@ -745,7 +746,7 @@ class ServiceBackend(Backend[bc.Batch]):
         if delete_scratch_on_exit and used_remote_tmpdir:
             parents = list(jobs_to_command.keys())
             j = bc_batch.create_job(
-                image=HAIL_GENETICS_HAIL_IMAGE,
+                image=HAIL_GENETICS_HAILTOP_IMAGE,
                 command=['python3', '-m', 'hailtop.aiotools.delete', batch_remote_tmpdir],
                 parents=parents,
                 attributes={'name': 'remove_tmpdir'},

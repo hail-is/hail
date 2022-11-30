@@ -95,7 +95,14 @@ object JSONAnnotationImpex {
     "-Infinity" -> Float.NegativeInfinity
   )
 
-  def exportAnnotation(a: Annotation, t: Type): JValue =
+  def exportAnnotation(a: Annotation, t: Type): JValue = try {
+    _exportAnnotation(a, t)
+  } catch {
+    case exc: Exception =>
+      fatal(s"Could not export annotation with type $t: $a", exc)
+  }
+
+  def _exportAnnotation(a: Annotation, t: Type): JValue =
     if (a == null)
       JNull
     else {

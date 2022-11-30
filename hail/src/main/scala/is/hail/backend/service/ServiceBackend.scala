@@ -70,7 +70,6 @@ class ServiceBackend(
   import ServiceBackend.log
 
   private[this] var stageCount = 0
-  private[this] var totalNumWorkerJobs: Int = 0
   private[this] implicit val ec = scalaConcurrent.ExecutionContext.fromExecutorService(
     Executors.newCachedThreadPool())
   private[this] val MAX_AVAILABLE_GCS_CONNECTIONS = 100
@@ -191,14 +190,10 @@ class ServiceBackend(
 
     log.info(s"parallelizeAndComputeWithIndex: $token: running job")
 
-    val (batchId, updateId, nJobsToWaitOn) = curBatchId match {
+    val (batchId, updateId) = curBatchId match {
       case Some(id) => {
         val updateId = batchClient.update(id, token, jobs)
-        // Only wait for the number of worker jobs that have run instead of
-        // all the jobs to account for the fact that this driver is an extra
-        // job in the batch
-        totalNumWorkerJobs += n
-        (id, updateId, totalNumWorkerJobs)
+        (id, updateId)
       }
       case None => {
         val batchId = batchClient.create(
@@ -208,11 +203,11 @@ class ServiceBackend(
             "token" -> JString(token),
             "attributes" -> JObject("name" -> JString(name + "_" + stageCount))),
           jobs)
-        (batchId, 1L, n)
+        (batchId, 1L)
       }
     }
 
-    val batch = batchClient.waitForBatch(batchId, nJobsToWaitOn)
+    val batch = batchClient.waitForBatch(batchId, true)
 
     stageCount += 1
     implicit val formats: Formats = DefaultFormats
