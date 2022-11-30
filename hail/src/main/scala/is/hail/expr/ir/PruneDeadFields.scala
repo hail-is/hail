@@ -640,7 +640,13 @@ object PruneDeadFields {
         memoizeMatrixIR(ctx, child, unify(child.typ, depMod, irDep), memo)
       case MatrixKeyRowsBy(child, _, isSorted) =>
         val reqKey = requestedType.rowKey
-        val childReqKey = if (isSorted) child.typ.rowKey.take(reqKey.length) else FastIndexedSeq()
+        val isPrefix = reqKey.zip(child.typ.rowKey).forall { case (l, r) => l == r }
+        val childReqKey = if (isSorted)
+          child.typ.rowKey
+        else if (isPrefix)
+          if (reqKey.length <= child.typ.rowKey.length) reqKey else child.typ.rowKey
+        else FastIndexedSeq()
+
         memoizeMatrixIR(ctx, child, requestedType.copy(
           rowKey = childReqKey,
           rowType = unify(child.typ.rowType, requestedType.rowType, selectKey(child.typ.rowType, childReqKey))),
