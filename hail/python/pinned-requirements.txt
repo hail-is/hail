@@ -33,9 +33,9 @@ azure-storage-blob==12.14.1
     # via -r python/hailtop/requirements.txt
 bokeh==1.4.0
     # via -r python/requirements.txt
-boto3==1.26.15
+boto3==1.26.20
     # via -r python/hailtop/requirements.txt
-botocore==1.29.16
+botocore==1.29.20
     # via
     #   -r python/hailtop/requirements.txt
     #   boto3
@@ -54,7 +54,7 @@ charset-normalizer==2.1.1
     #   requests
 commonmark==0.9.1
     # via rich
-cryptography==38.0.3
+cryptography==38.0.4
     # via
     #   azure-identity
     #   azure-storage-blob
@@ -224,6 +224,7 @@ tornado==6.2
 typing-extensions==4.4.0
     # via
     #   aiohttp
+    #   aiohttp-session
     #   async-timeout
     #   avro
     #   azure-core
