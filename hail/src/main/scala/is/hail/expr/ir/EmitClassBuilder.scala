@@ -904,6 +904,10 @@ class EmitMethodBuilder[C](
   val mb: MethodBuilder[C],
   private[ir] val asmTuple: AsmTuple[_]
 ) extends WrappedEmitClassBuilder[C] {
+  private[this] val nCodeArgs = emitParamTypes.map(_.nCodes).sum
+  if (nCodeArgs > 255)
+    throw new RuntimeException(s"invalid method ${ mb.methodName }: ${ nCodeArgs } code arguments:" +
+      s"\n  ${ emitParamTypes.map(p => s"${ p.nCodes } - $p").mkString("\n  ") }")
   // wrapped MethodBuilder methods
   def newLocal[T: TypeInfo](name: String = null): LocalRef[T] = mb.newLocal[T](name)
 
