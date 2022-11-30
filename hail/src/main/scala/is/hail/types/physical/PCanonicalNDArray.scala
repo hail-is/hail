@@ -174,7 +174,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     constructByCopyingDataPointer(shape, strides, this.allocateData(shape, region), cb, region)
   }
 
-  def constructUnintialized(
+  def constructUninitialized(
     shape: IndexedSeq[SizeValue],
     cb: EmitCodeBuilder,
     region: Value[Region]
