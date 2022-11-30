@@ -95,15 +95,14 @@ async def create_database():
     with open(create_database_config['user_password_file']) as f:
         user_password = f.read()
 
-
     admin_exists = await db.execute_and_fetchone(
-        f"SELECT user FROM mysql.user WHERE user=%s",
+        "SELECT user FROM mysql.user WHERE user=%s",
         (admin_username,)
     )
     admin_exists = admin_exists and admin_exists.get('user') == admin_username
 
     user_exists = await db.execute_and_fetchone(
-        f"SELECT user FROM mysql.user WHERE user=%s",
+        "SELECT user FROM mysql.user WHERE user=%s",
         (user_username,)
     )
     user_exists = user_exists and user_exists.get('user') == user_username
