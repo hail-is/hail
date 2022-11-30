@@ -363,6 +363,7 @@ class ServiceBackend(Backend):
                     raise
                 except Exception:
                     await self._batch.cancel()
+                    self._batch = None
                     raise
 
             with timings.step("read output"):
