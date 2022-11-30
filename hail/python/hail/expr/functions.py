@@ -4867,8 +4867,8 @@ def keyed_intersection(*arrays, key):
         key,
         lambda key_var, vals_var: hl.tuple((key_var, vals_var)),
         lambda res: res
-            .filter(lambda x: hl.fold(lambda acc, elt: acc & hl.is_defined(elt), True, x[1]))
-            .map(lambda x: x[1].first()))
+        .filter(lambda x: hl.fold(lambda acc, elt: acc & hl.is_defined(elt), True, x[1]))
+        .map(lambda x: x[1].first()))
 
 
 @typecheck(arrays=expr_oneof(expr_stream(expr_any), expr_array(expr_any)), key=sequenceof(builtins.str))
