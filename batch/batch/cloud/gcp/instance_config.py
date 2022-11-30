@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Union
 
 from ...driver.billing_manager import ProductVersions
 from ...instance_config import InstanceConfig
@@ -7,6 +7,7 @@ from .resources import (
     GCPComputeResource,
     GCPDynamicSizedDiskResource,
     GCPIPFeeResource,
+    GCPLocalSSDStaticSizedDiskResource,
     GCPMemoryResource,
     GCPResource,
     GCPServiceFeeResource,
@@ -15,6 +16,10 @@ from .resources import (
 )
 
 GCP_INSTANCE_CONFIG_VERSION = 5
+
+
+def region_from_location(location: str) -> str:
+    return location.rsplit('-', maxsplit=1)[0]
 
 
 class GCPSlimInstanceConfig(InstanceConfig):
@@ -29,21 +34,27 @@ class GCPSlimInstanceConfig(InstanceConfig):
         job_private: bool,
         location: str,
     ) -> 'GCPSlimInstanceConfig':  # pylint: disable=unused-argument
+        region = region_from_location(location)
+        data_disk_resource: Union[GCPLocalSSDStaticSizedDiskResource, GCPStaticSizedDiskResource]
         if local_ssd_data_disk:
-            data_disk_resource = GCPStaticSizedDiskResource.create(product_versions, 'local-ssd', data_disk_size_gb)
+            data_disk_resource = GCPLocalSSDStaticSizedDiskResource.create(
+                product_versions, data_disk_size_gb, preemptible, region
+            )
         else:
-            data_disk_resource = GCPStaticSizedDiskResource.create(product_versions, 'pd-ssd', data_disk_size_gb)
+            data_disk_resource = GCPStaticSizedDiskResource.create(
+                product_versions, 'pd-ssd', data_disk_size_gb, region
+            )
 
         machine_type_parts = gcp_machine_type_to_parts(machine_type)
         assert machine_type_parts is not None, machine_type
         instance_family = machine_type_parts.machine_family
 
         resources = [
-            GCPComputeResource.create(product_versions, instance_family, preemptible),
-            GCPMemoryResource.create(product_versions, instance_family, preemptible),
-            GCPStaticSizedDiskResource.create(product_versions, 'pd-ssd', boot_disk_size_gb),
+            GCPComputeResource.create(product_versions, instance_family, preemptible, region),
+            GCPMemoryResource.create(product_versions, instance_family, preemptible, region),
+            GCPStaticSizedDiskResource.create(product_versions, 'pd-ssd', boot_disk_size_gb, region),
             data_disk_resource,
-            GCPDynamicSizedDiskResource.create(product_versions, 'pd-ssd'),
+            GCPDynamicSizedDiskResource.create(product_versions, 'pd-ssd', region),
             GCPIPFeeResource.create(product_versions, 1024),
             GCPServiceFeeResource.create(product_versions),
         ]
@@ -88,7 +99,7 @@ class GCPSlimInstanceConfig(InstanceConfig):
 
     def region_for(self, location: str) -> str:
         # location = zone
-        return location.rsplit('-', maxsplit=1)[0]
+        return region_from_location(location)
 
     @staticmethod
     def from_dict(data: dict) -> 'GCPSlimInstanceConfig':
@@ -131,6 +142,7 @@ class GCPSlimInstanceConfig(InstanceConfig):
             else:
                 data_disk_resource = GCPStaticSizedDiskResource('disk/pd-ssd/1', data_disk_size_gb)
 
+            # hard coded product versions "/1" are for backwards compatibility
             resources = [
                 GCPComputeResource(f'compute/{instance_family}-{preemptible_str}/1'),
                 GCPMemoryResource(f'memory/{instance_family}-{preemptible_str}/1'),
