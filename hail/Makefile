@@ -305,7 +305,8 @@ python/hailtop/hailctl/deploy.yaml: $(resources) python/pinned-requirements.txt
 	for FILE in $(notdir $(resources)); do \
 	  echo "  $$FILE: $(cloud_base)/$$FILE" >> $@ || exit 1; done
 	echo "  wheel: $(wheel_cloud_path)" >> $@
-	echo "  pip_dependencies: $(shell cat python/pinned-requirements.txt | sed '/^[[:blank:]]*#/d;s/#.*//' | grep -v pyspark | tr "\n" "|||" | tr -d '[:space:]')" >> $@
+	printf "  pip_dependencies: " >> $@
+	cat python/pinned-requirements.txt | sed '/^[[:blank:]]*#/d;s/#.*//' | grep -v pyspark | tr "\n" "|||" | tr -d '[:space:]' >> $@
 
 .PHONY: upload-artifacts
 upload-artifacts: $(WHEEL)
