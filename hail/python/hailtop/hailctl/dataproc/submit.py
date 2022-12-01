@@ -45,9 +45,10 @@ async def main(args, pass_through_args):  # pylint: disable=unused-argument
                 else:
                     for root, _, pyfiles_walk in os.walk(hail_script_entry):
                         for pyfile in pyfiles_walk:
-                            if os.path.isfile(pyfile) and _filter_pyfile(pyfile):
-                                zipf.write(os.path.join(root, pyfile),
-                                           os.path.relpath(os.path.join(root, pyfile),
+                            path = os.path.join(root, pyfile)
+                            if os.path.isfile(path) and _filter_pyfile(path):
+                                zipf.write(path,
+                                           os.path.relpath(path,
                                                            os.path.join(hail_script_entry, '..')))
             zipf.close()
             pyfiles = tfile
