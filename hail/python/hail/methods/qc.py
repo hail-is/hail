@@ -972,7 +972,7 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
 
     A new row field is added in the location specified by `name` with type given
     by the type given by the `json_vep_schema` (if `csq` is ``False``) or
-    :py:data:`.tarray` of :py:data:`.tstr` (if `csq` is ``True``).
+    :class:`.tarray` of :py:data:`.tstr` (if `csq` is ``True``).
 
     If csq is ``True``, then the CSQ header string is also added as a global
     field with name ``name + '_csq_header'``.
