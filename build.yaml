@@ -2671,6 +2671,25 @@ steps:
       else
           exit 1;
       fi
+
+      cat >hail_with_args.py <<EOF
+      import hail as hl
+      import sys
+
+      with open('foo/baz.txt') as f:
+          print(f.read())
+
+      hl.init(app_name='test-hailctl-batch-submit-query')
+      assert hl.utils.range_table(int(sys.argv[1]))._force_count() == 100
+      EOF
+
+      BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit --files=foo -o json hail_with_args.py 100 | jq '.id')
+      STATUS=$(hailctl batch wait -o json $BATCH_ID | jq -jr '.state')
+      if [ "$STATUS" == "success" ]; then
+          exit 0;
+      else
+          exit 1;
+      fi
     secrets:
       - name: worker-deploy-config
         namespace:
