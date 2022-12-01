@@ -3,7 +3,7 @@
 
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/OpBase.td"
-include "mlir/IR/BuiltInTypes.td"
+include "mlir/IR/BuiltinTypes.td"
 
 
 include "mlir/IR/EnumAttr.td"
@@ -130,4 +130,3 @@ def Sandbox_Array : Sandbox_Type<"Array", "array", [
 
 
 #endif // DIALECT_SANDBOX_SANDBOXBASE
-

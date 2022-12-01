@@ -4,7 +4,7 @@
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/OpBase.td"
-include "mlir/IR/BuiltInTypes.td"
+include "mlir/IR/BuiltinTypes.td"
 
 include "Dialect/CPS/IR/CPSBase.td"
 

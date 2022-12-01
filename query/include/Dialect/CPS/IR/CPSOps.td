@@ -2,7 +2,7 @@
 #define DIALECT_CPS_IR_CPSOPS
 
 include "mlir/Interfaces/SideEffectInterfaces.td"
-include "mlir/IR/BuiltInTypes.td"
+include "mlir/IR/BuiltinTypes.td"
 include "mlir/IR/OpBase.td"
 
 include "Dialect/CPS/IR/CPSBase.td"
