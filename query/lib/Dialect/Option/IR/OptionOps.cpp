@@ -17,17 +17,17 @@ using namespace hail::ir;
 // MapOp
 //===----------------------------------------------------------------------===//
 
-void MapOp::build(mlir::OpBuilder &builder, mlir::OperationState &result,
+void MapOp::build(mlir::OpBuilder &odsBuilder, mlir::OperationState &odsState,
                   mlir::TypeRange resultValueTypes, mlir::ValueRange inputs) {
-  result.addTypes(builder.getType<OptionType>(resultValueTypes));
-  auto region = result.addRegion();
+  odsState.addTypes(odsBuilder.getType<OptionType>(resultValueTypes));
+  auto region = odsState.addRegion();
   region->emplaceBlock();
   llvm::SmallVector<mlir::Type> argTypes;
   for (auto input : inputs) {
     auto valueTypes = input.getType().cast<OptionType>().getValueTypes();
     argTypes.append(valueTypes.begin(), valueTypes.end());
   }
-  llvm::SmallVector<mlir::Location> locs(argTypes.size(), result.location);
+  llvm::SmallVector<mlir::Location> locs(argTypes.size(), odsState.location);
   region->addArguments(argTypes, locs);
 }
 
@@ -35,13 +35,13 @@ void MapOp::build(mlir::OpBuilder &builder, mlir::OperationState &result,
 // ConstructOp
 //===----------------------------------------------------------------------===//
 
-void ConstructOp::build(mlir::OpBuilder &builder, mlir::OperationState &result,
+void ConstructOp::build(mlir::OpBuilder &odsBuilder, mlir::OperationState &odsState,
                         mlir::TypeRange valueTypes) {
-  result.addTypes(builder.getType<OptionType>(valueTypes));
-  auto region = result.addRegion();
+  odsState.addTypes(odsBuilder.getType<OptionType>(valueTypes));
+  auto region = odsState.addRegion();
   region->emplaceBlock();
-  region->addArgument(builder.getType<ContinuationType>(), result.location);
-  region->addArgument(builder.getType<ContinuationType>(valueTypes), result.location);
+  region->addArgument(odsBuilder.getType<ContinuationType>(), odsState.location);
+  region->addArgument(odsBuilder.getType<ContinuationType>(valueTypes), odsState.location);
 }
 
 //===----------------------------------------------------------------------===//
@@ -61,7 +61,7 @@ struct DestructOfConstruct : public mlir::OpRewritePattern<DestructOp> {
     llvm::SmallVector<mlir::Type> sourceValueTypes;
     llvm::SmallVector<mlir::Type> remainingValueTypes;
     llvm::SmallVector<mlir::Value> remainingOptions;
-    for (auto input : llvm::enumerate(destruct.inputs())) {
+    for (const auto &input : llvm::enumerate(destruct.inputs())) {
       if (auto construct = input.value().getDefiningOp<ConstructOp>()) {
         if (!source && construct->hasOneUse()) {
           source = construct;
@@ -116,7 +116,7 @@ struct EmptyDestruct : public mlir::OpRewritePattern<DestructOp> {
 
   mlir::LogicalResult matchAndRewrite(DestructOp destruct,
                                       mlir::PatternRewriter &rewriter) const override {
-    if (destruct.inputs().size() != 0)
+    if (!destruct.inputs().empty())
       return mlir::failure();
 
     rewriter.replaceOpWithNewOp<ApplyContOp>(destruct, destruct.presentCont(),
@@ -182,7 +182,7 @@ void DestructOp::print(mlir::OpAsmPrinter &p) {
   p.printOptionalAttrDictWithKeyword(getOperation()->getAttrs());
 
   p << ' ';
-  if (inputs().size() > 0) {
+  if (!inputs().empty()) {
     p << " : " << inputs().getTypes();
   }
 }

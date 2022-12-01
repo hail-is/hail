@@ -58,7 +58,7 @@ void MissingnessAwareConstantPropagation::visitOperation(
   if (anyMissing)
     return;
 
-  llvm::SmallVector<mlir::Attribute, 8> constantOperands;
+  llvm::SmallVector<mlir::Attribute> constantOperands;
   constantOperands.reserve(op->getNumOperands());
   for (auto *operandLattice : operands)
     constantOperands.push_back(operandLattice->getValue().getConstantValue());
@@ -66,12 +66,12 @@ void MissingnessAwareConstantPropagation::visitOperation(
   // Save the original operands and attributes just in case the operation
   // folds in-place. The constant passed in may not correspond to the real
   // runtime value, so in-place updates are not allowed.
-  llvm::SmallVector<mlir::Value, 8> originalOperands(op->getOperands());
+  llvm::SmallVector<mlir::Value> originalOperands(op->getOperands());
   mlir::DictionaryAttr originalAttrs = op->getAttrDictionary();
 
   // Simulate the result of folding this operation to a constant. If folding
   // fails or was an in-place fold, mark the results as overdefined.
-  llvm::SmallVector<mlir::OpFoldResult, 8> foldResults;
+  llvm::SmallVector<mlir::OpFoldResult> foldResults;
   foldResults.reserve(op->getNumResults());
   if (failed(op->fold(constantOperands, foldResults))) {
     markAllPessimisticFixpoint(results);

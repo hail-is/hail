@@ -46,7 +46,6 @@ void lowerCallCCOp(mlir::IRRewriter &rewriter, CallCCOp callcc, std::vector<DefC
   // and replacing uses of the results with the args of the defcont
   rewriter.mergeBlocks(callcc.getBody(), parentBlock, defcont.getResult());
   rewriter.replaceOp(callcc, defcont.getBody()->getArguments());
-  return;
 }
 
 mlir::Block *getDefBlock(mlir::Value cont) {

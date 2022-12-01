@@ -51,6 +51,8 @@ add_definitions(${LLVM_DEFINITIONS})
 # surpress a warning on clang
 add_compile_options($<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>:-Wno-ambiguous-reversed-operator>)
 
+set(CMAKE_CXX_CLANG_TIDY clang-tidy --use-color) # --header-filter='hail/query/*\.h$')
+
 add_subdirectory(include)
 add_subdirectory(lib)
 add_subdirectory(tools)

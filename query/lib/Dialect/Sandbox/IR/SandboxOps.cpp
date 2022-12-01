@@ -30,13 +30,11 @@ mlir::LogicalResult ConstantOp::verify() {
     return mlir::success();
   }
 
-  if (valueType == mlir::IntegerType::get(getContext(), 1) &&
-      type.isa<BooleanType>()) {
+  if (valueType == mlir::IntegerType::get(getContext(), 1) && type.isa<BooleanType>()) {
     return mlir::success();
   }
 
-  return emitOpError() << "bad constant: type=" << type
-                       << ", valueType=" << valueType;
+  return emitOpError() << "bad constant: type=" << type << ", valueType=" << valueType;
 }
 
 mlir::OpFoldResult AddIOp::fold(llvm::ArrayRef<mlir::Attribute> operands) {
@@ -44,13 +42,11 @@ mlir::OpFoldResult AddIOp::fold(llvm::ArrayRef<mlir::Attribute> operands) {
   if (!operands[0] || !operands[1])
     return {};
 
-  if (operands[0].isa<mlir::IntegerAttr>() &&
-      operands[1].isa<mlir::IntegerAttr>()) {
+  if (operands[0].isa<mlir::IntegerAttr>() && operands[1].isa<mlir::IntegerAttr>()) {
     auto lhs = operands[0].cast<mlir::IntegerAttr>();
     auto rhs = operands[1].cast<mlir::IntegerAttr>();
 
-    auto result =
-        mlir::IntegerAttr::get(lhs.getType(), lhs.getValue() + rhs.getValue());
+    auto result = mlir::IntegerAttr::get(lhs.getType(), lhs.getValue() + rhs.getValue());
     assert(result);
     return result;
   }
@@ -58,14 +54,12 @@ mlir::OpFoldResult AddIOp::fold(llvm::ArrayRef<mlir::Attribute> operands) {
   return {};
 }
 
-mlir::OpFoldResult
-ComparisonOp::fold(llvm::ArrayRef<mlir::Attribute> operands) {
+mlir::OpFoldResult ComparisonOp::fold(llvm::ArrayRef<mlir::Attribute> operands) {
   assert(operands.size() == 2 && "comparison op takes two operands");
   if (!operands[0] || !operands[1])
     return {};
 
-  if (operands[0].isa<mlir::IntegerAttr>() &&
-      operands[1].isa<mlir::IntegerAttr>()) {
+  if (operands[0].isa<mlir::IntegerAttr>() && operands[1].isa<mlir::IntegerAttr>()) {
     auto pred = predicate();
     auto lhs = operands[0].cast<mlir::IntegerAttr>();
     auto rhs = operands[1].cast<mlir::IntegerAttr>();
@@ -105,8 +99,7 @@ struct SimplifyAddConstAddConst : public mlir::OpRewritePattern<AddIOp> {
   SimplifyAddConstAddConst(mlir::MLIRContext *context)
       : OpRewritePattern<AddIOp>(context, /*benefit=*/1) {}
 
-  mlir::LogicalResult
-  matchAndRewrite(AddIOp op, mlir::PatternRewriter &rewriter) const override {
+  mlir::LogicalResult matchAndRewrite(AddIOp op, mlir::PatternRewriter &rewriter) const override {
     auto lhs = op.lhs().getDefiningOp<AddIOp>();
     if (!lhs)
       return mlir::failure();
@@ -117,22 +110,19 @@ struct SimplifyAddConstAddConst : public mlir::OpRewritePattern<AddIOp> {
       return mlir::failure();
 
     auto sumConst = rewriter.create<ConstantOp>(
-        mlir::FusedLoc::get(op->getContext(),
-                            {lConst->getLoc(), rConst.getLoc()}, nullptr),
+        mlir::FusedLoc::get(op->getContext(), {lConst->getLoc(), rConst.getLoc()}, nullptr),
         lConst.getType(),
-        mlir::IntegerAttr::get(
-            lConst.getType(),
-            lConst.value().cast<mlir::IntegerAttr>().getValue() +
-                rConst.value().cast<mlir::IntegerAttr>().getValue()));
-    rewriter.replaceOpWithNewOp<AddIOp>(op, lhs.result().getType(), lhs.lhs(),
-                                        sumConst);
+        mlir::IntegerAttr::get(lConst.getType(),
+                               lConst.value().cast<mlir::IntegerAttr>().getValue() +
+                                   rConst.value().cast<mlir::IntegerAttr>().getValue()));
+    rewriter.replaceOpWithNewOp<AddIOp>(op, lhs.result().getType(), lhs.lhs(), sumConst);
     return mlir::success();
   }
 };
 
-void AddIOp::getCanonicalizationPatterns(mlir::RewritePatternSet &patterns,
+void AddIOp::getCanonicalizationPatterns(mlir::RewritePatternSet &results,
                                          mlir::MLIRContext *context) {
-  patterns.add<SimplifyAddConstAddConst>(context);
+  results.add<SimplifyAddConstAddConst>(context);
 }
 
 mlir::LogicalResult ArrayRefOp::verify() {
@@ -145,15 +135,14 @@ mlir::LogicalResult ArrayRefOp::verify() {
   }
 
   if (arrayType.cast<ir::ArrayType>().getElementType() != type) {
-    return emitOpError() << "ArrayRef return type is not the array element type: array=" << arrayType << ", result=" << type;
+    return emitOpError() << "ArrayRef return type is not the array element type: array="
+                         << arrayType << ", result=" << type;
   }
 
   return mlir::success();
 }
 
-
-mlir::OpFoldResult
-ArrayRefOp::fold(llvm::ArrayRef<mlir::Attribute> operands) {
+mlir::OpFoldResult ArrayRefOp::fold(llvm::ArrayRef<mlir::Attribute> operands) {
   auto a = array().getDefiningOp<MakeArrayOp>();
   if (operands[1].isa<mlir::IntegerAttr>() && a) {
     auto idx = operands[1].cast<mlir::IntegerAttr>().getInt();
@@ -168,13 +157,15 @@ mlir::LogicalResult MakeArrayOp::verify() {
   auto assignedResultType = result().getType();
 
   if (!assignedResultType.isa<ir::ArrayType>()) {
-    return emitOpError() << "MakeArray expects an ArrayType as return type, found " << assignedResultType;
+    return emitOpError() << "MakeArray expects an ArrayType as return type, found "
+                         << assignedResultType;
   }
 
   auto elemType = assignedResultType.cast<ir::ArrayType>().getElementType();
   for (auto elem : elems()) {
     if (elemType != elem.getType()) {
-      return emitOpError() << "MakeArray with return element type " << elemType << " had element with type " << elem.getType();
+      return emitOpError() << "MakeArray with return element type " << elemType
+                           << " had element with type " << elem.getType();
     }
   }
   return mlir::success();

@@ -90,11 +90,11 @@ mlir::Type ContinuationType::parse(::mlir::AsmParser &parser) {
   return ContinuationType::get(parser.getContext(), inputs);
 }
 
-void ContinuationType::print(::mlir::AsmPrinter &p) const {
+void ContinuationType::print(::mlir::AsmPrinter &odsPrinter) const {
   ::mlir::Builder odsBuilder(getContext());
-  p << "<";
-  p.printStrippedAttrOrType(getInputs());
-  p << ">";
+  odsPrinter << "<";
+  odsPrinter.printStrippedAttrOrType(getInputs());
+  odsPrinter << ">";
 }
 
 //===----------------------------------------------------------------------===//
@@ -139,7 +139,7 @@ void CallCCOp::print(mlir::OpAsmPrinter &p) {
   }
   p.printOptionalAttrDictWithKeyword(getOperation()->getAttrs());
   p << ' ';
-  p.printRegion(getRegion(), /*printEntryBlocksArgs=*/false);
+  p.printRegion(getRegion(), /*printEntryBlockArgs=*/false);
 }
 
 //===----------------------------------------------------------------------===//
@@ -193,5 +193,5 @@ void DefContOp::print(mlir::OpAsmPrinter &p) {
 
   // Print the body
   p << ' ';
-  p.printRegion(getRegion(), /*printEntryBlocksArgs=*/false);
+  p.printRegion(getRegion(), /*printEntryBlockArgs=*/false);
 }

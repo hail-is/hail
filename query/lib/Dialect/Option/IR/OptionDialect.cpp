@@ -86,9 +86,9 @@ mlir::Type OptionType::parse(::mlir::AsmParser &parser) {
   return OptionType::get(parser.getContext(), inputs);
 }
 
-void OptionType::print(::mlir::AsmPrinter &p) const {
+void OptionType::print(::mlir::AsmPrinter &odsPrinter) const {
   ::mlir::Builder odsBuilder(getContext());
-  p << "<";
-  p.printStrippedAttrOrType(getValueTypes());
-  p << ">";
+  odsPrinter << "<";
+  odsPrinter.printStrippedAttrOrType(getValueTypes());
+  odsPrinter << ">";
 }

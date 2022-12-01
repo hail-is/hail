@@ -21,18 +21,6 @@ struct LowerOptionPass : public LowerOptionBase<LowerOptionPass> {
   void runOnOperation() override;
 };
 
-mlir::Value packOptional(mlir::PatternRewriter &rewriter, mlir::Location loc, OptionType type,
-                         mlir::Value isPresent, mlir::ValueRange values) {
-  assert(type.getValueTypes() == values.getTypes());
-  llvm::SmallVector<mlir::Value, 1> results;
-  llvm::SmallVector<mlir::Value, 2> toCast;
-  toCast.reserve(values.size() + 1);
-  toCast.push_back(isPresent);
-  toCast.append(values.begin(), values.end());
-  rewriter.createOrFold<mlir::UnrealizedConversionCastOp>(results, loc, type, toCast);
-  return results[0];
-}
-
 struct LoweredOption {
   explicit LoweredOption(OptionType type) { operands.reserve(type.getValueTypes().size() + 1); };
   mlir::Value isDefined() { return operands[0]; };

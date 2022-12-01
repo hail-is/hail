@@ -45,11 +45,11 @@ void ApplyContOp::getCanonicalizationPatterns(mlir::RewritePatternSet &results,
 // CallCCOp
 //===----------------------------------------------------------------------===//
 
-void CallCCOp::build(mlir::OpBuilder &builder, mlir::OperationState &result, mlir::TypeRange resultTypes) {
-  result.addTypes(resultTypes);
-  auto region = result.addRegion();
+void CallCCOp::build(mlir::OpBuilder &odsBuilder, mlir::OperationState &odsState, mlir::TypeRange resultTypes) {
+  odsState.addTypes(resultTypes);
+  auto region = odsState.addRegion();
   region->emplaceBlock();
-  region->addArgument(builder.getType<ContinuationType>(resultTypes), result.location);
+  region->addArgument(odsBuilder.getType<ContinuationType>(resultTypes), odsState.location);
 }
 
 namespace {
@@ -84,11 +84,11 @@ void CallCCOp::getCanonicalizationPatterns(mlir::RewritePatternSet &results,
 // DefContOp
 //===----------------------------------------------------------------------===//
 
-void DefContOp::build(mlir::OpBuilder &builder, mlir::OperationState &result, mlir::TypeRange argTypes) {
-  result.addTypes(builder.getType<ContinuationType>(argTypes));
-  auto region = result.addRegion();
+void DefContOp::build(mlir::OpBuilder &odsBuilder, mlir::OperationState &odsState, mlir::TypeRange argTypes) {
+  odsState.addTypes(odsBuilder.getType<ContinuationType>(argTypes));
+  auto region = odsState.addRegion();
   region->emplaceBlock();
-  llvm::SmallVector<mlir::Location> locs(argTypes.size(), result.location);
+  llvm::SmallVector<mlir::Location> locs(argTypes.size(), odsState.location);
   region->addArguments(argTypes, locs);
 }
 

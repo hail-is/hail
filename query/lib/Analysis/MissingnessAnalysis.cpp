@@ -48,5 +48,4 @@ void MissingnessAnalysis::visitOperation(
     LLVM_DEBUG(llvm::dbgs() << " result: "; result->print(llvm::dbgs()); llvm::dbgs() << "\n");
     propagateIfChanged(result, changed);
   };
-  return;
-}
+  }
