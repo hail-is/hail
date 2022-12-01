@@ -1085,7 +1085,7 @@ def explode(f, array_agg_expr) -> Expression:
     Compute the set of all observed elements in the `filters` field (``Set[String]``):
 
     >>> dataset.aggregate_rows(hl.agg.explode(lambda elt: hl.agg.collect_as_set(elt), dataset.filters))
-    {}
+    set()
 
     Notes
     -----
