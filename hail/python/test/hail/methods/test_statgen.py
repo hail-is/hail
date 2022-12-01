@@ -1,6 +1,5 @@
 import os
 import math
-import unittest
 import pytest
 import numpy as np
 
@@ -13,8 +12,11 @@ from hail.utils.java import choose_backend, Env
 from ..helpers import resource, fails_local_backend, fails_service_backend
 
 
-class Tests(unittest.TestCase):
-    @unittest.skipIf('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
+class Tests:
+    def __init__(self):
+        pass
+
+    @pytest.mark.skipif('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
     @fails_service_backend()
     def test_impute_sex_same_as_plink(self):
         ds = hl.import_vcf(resource('x-chromosome.vcf'))
@@ -449,6 +451,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(combined.aggregate(hl.agg.all(
                 eq(combined.p_value, combined.multi.p_value[0]) &
                 eq(combined.multi.p_value[0], combined.multi.p_value[1]))))
+
 
     def test_logistic_regression_rows_max_iter_zero(self):
         import hail as hl
@@ -1626,8 +1629,6 @@ class Tests(unittest.TestCase):
         test_stat(40, 400, 20, 12)
 
     def test_balding_nichols_model_phased(self):
-        print(f'current static uid: {Env._static_rng_uid}')
-        print(f"rng_nonce: {hl._get_flags('rng_nonce')['rng_nonce']}")
         bn_ds = hl.balding_nichols_model(1, 5, 5, phased=True)
         assert bn_ds.aggregate_entries(hl.agg.all(bn_ds.GT.phased)) == True
         actual = bn_ds.GT.collect()
