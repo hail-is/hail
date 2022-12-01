@@ -35,6 +35,7 @@ def CPS_DefContOp : CPS_Op<"cont", [NoSideEffect, SingleBlock]> {
   let regions = (region SizedRegion<1>:$bodyRegion);
 
   let hasCustomAssemblyFormat = 1;
+  let hasRegionVerifier = 1;
 
   let skipDefaultBuilders = 1;
   let builders = [ OpBuilder<(ins CArg<"mlir::TypeRange", "mlir::TypeRange()">:$argTypes)> ];
@@ -42,7 +43,7 @@ def CPS_DefContOp : CPS_Op<"cont", [NoSideEffect, SingleBlock]> {
 
 def CPS_ApplyContOp : CPS_Op<"apply", [
     Terminator, NoSideEffect,
-    TypesMatchWith<"", "args", "cont", "::hail::ir::ContinuationType::get($_ctxt, $_self)">
+    TypesMatchWith<"argument types match continuation type", "args", "cont", "::hail::ir::ContinuationType::get($_ctxt, $_self)">
   ]> {
   let summary = "Apply a continuation";
   let description = [{
