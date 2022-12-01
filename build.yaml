@@ -598,6 +598,7 @@ steps:
         to: /io/repo
     dependsOn:
       - merge_code
+      - hail_ubuntu_image
   - kind: buildImage2
     name: qob_vep_image_grch38
     dockerFile: /io/repo/docker/vep/grch38/95/Dockerfile
@@ -608,6 +609,7 @@ steps:
         to: /io/repo
     dependsOn:
       - merge_code
+      - hail_ubuntu_image
   - kind: buildImage2
     name: monitoring_image
     dockerFile: /io/repo/monitoring/Dockerfile

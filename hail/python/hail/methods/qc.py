@@ -743,8 +743,8 @@ def _service_vep(backend: ServiceBackend,
                              "to set the requester pays project to use.")
 
     token = secret_alnum_string(16)
-    vep_input_path = hl.TemporaryDirectory(prefix=f'qob/vep/inputs/')
-    vep_output_path = hl.TemporaryDirectory(prefix=f'qob/vep/outputs/')
+    vep_input_path = hl.TemporaryDirectory(prefix='qob/vep/inputs/')
+    vep_output_path = hl.TemporaryDirectory(prefix='qob/vep/outputs/')
 
     def get_env(part_id: int, input_file: Optional[str], output_file: str):
         local_env = copy.deepcopy(vep_config.env)
