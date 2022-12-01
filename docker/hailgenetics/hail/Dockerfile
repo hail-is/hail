@@ -1,7 +1,5 @@
 FROM {{ hail_ubuntu_image.image }}
 
-ENV MAKEFLAGS -j2
-
 RUN hail-apt-get-install \
     curl \
     git \
@@ -9,24 +7,10 @@ RUN hail-apt-get-install \
     liblapack3 \
     openjdk-8-jre-headless \
     rsync \
-    unzip bzip2 zip tar tabix lz4 \
-    vim pv
-
-# source: https://cloud.google.com/storage/docs/gsutil_install#linux
-RUN curl https://sdk.cloud.google.com | bash && \
-    find \
-      /root/google-cloud-sdk/bin/ \
-      -type f -executable \
-    | xargs -I % /bin/sh -c 'set -ex ; ln -s ${PWD}/% /usr/local/bin/$(basename %)'
+    vim
 
 COPY hail/python/pinned-requirements.txt requirements.txt
-RUN hail-pip-install -r requirements.txt \
-      ipython \
-      matplotlib \
-      numpy \
-      scikit-learn \
-      dill \
-      scipy
+RUN hail-pip-install -r requirements.txt ipython
 
 RUN export SPARK_HOME=$(find_spark_home.py) && \
     curl https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.2.7.jar \
