@@ -102,7 +102,7 @@ dill==0.3.6
     # via
     #   -c python/dev/../requirements.txt
     #   pylint
-docutils==0.16
+docutils==0.19
     # via
     #   nbsphinx
     #   sphinx
