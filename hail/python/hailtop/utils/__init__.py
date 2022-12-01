@@ -25,7 +25,6 @@ from .rates import (
     rate_instance_hour_to_fraction_msec
 )
 from .rate_limiter import RateLimit, RateLimiter
-from .yaml import yaml_literally_shown_str
 from . import serialization, rich_progress_bar
 
 __all__ = [
@@ -101,5 +100,4 @@ __all__ = [
     'rich_progress_bar',
     'time_ns',
     'am_i_interactive',
-    'yaml_literally_shown_str',
 ]

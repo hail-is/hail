@@ -1,6 +1,5 @@
 import copy
 import logging
-import yaml
 
 import hail as hl
 from collections import Counter
@@ -10,10 +9,11 @@ from shlex import quote as shq
 from typing import Any, Dict, Tuple, List, Optional, Union
 
 from hailtop import pip_version
-from hailtop.utils import Timings, secret_alnum_string, yaml_literally_shown_str
+from hailtop.utils import Timings, secret_alnum_string
 import hailtop.batch_client as bc
 from hailtop.config import configuration_of
 from hailtop.aiocloud import aiogoogle
+from hailtop import yamlx
 
 from hail.backend.service_backend import ServiceBackend
 from hail.typecheck import typecheck, oneof, anytype, dictof, nullable, numeric, sequenceof
@@ -807,11 +807,14 @@ def _service_vep(backend: ServiceBackend,
     name = 'vep(...)'
 
     with timings.step("submit batch"):
-        bb = backend.bc.create_batch(token=token,
-                                     attributes={'name': backend.name_prefix + name, 'vep': '1', 'token': token},
-                                     cancel_after_n_failures=1)
+        if backend._batch is None:
+            bb = backend.bc.create_batch(token=token,
+                                         attributes={'name': backend.name_prefix + name})
+        else:
+            bb = backend.bc.update_batch(backend._batch.id)
         build_vep_batch(bb)
         b = bb.submit(disable_progress_bar=True)
+        backend._batch = b
 
     with timings.step("wait batch"):
         try:
@@ -821,6 +824,7 @@ def _service_vep(backend: ServiceBackend,
         except BaseException:
             print('cancelling batch...')
             b.cancel()
+            backend._batch = None
             raise
 
     with timings.step("parse status"):
@@ -830,14 +834,14 @@ def _service_vep(backend: ServiceBackend,
             job_status = failing_job.status()
             if 'status' in job_status:
                 if 'error' in job_status['status']:
-                    job_status['status']['error'] = yaml_literally_shown_str(job_status['status']['error'].strip())
+                    job_status['status']['error'] = yamlx.dump(job_status['status']['error'].strip())
             logs = failing_job.log()
             for k in logs:
-                logs[k] = yaml_literally_shown_str(logs[k].strip())
+                logs[k] = yamlx.dump(logs[k].strip())
             message = {'batch_status': status,
                        'job_status': job_status,
                        'log': logs}
-            log.error(yaml.dump(message))
+            log.error(yamlx.dump(message))
             raise FatalError(message)
 
     annotations = hl.import_table(f'{vep_output_path.name}/annotations/*',
