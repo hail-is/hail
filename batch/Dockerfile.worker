@@ -65,8 +65,6 @@ RUN git clone --depth 1 --branch 1.4.4 https://github.com/containers/crun.git &&
 
 FROM base
 COPY --from=crun_builder /usr/local/bin/crun /usr/local/bin/crun
-RUN python3 -m pip install --upgrade --no-cache-dir pip
-
 COPY hail/python/setup-hailtop.py /hailtop/setup.py
 COPY hail/python/hailtop /hailtop/hailtop/
 COPY /hail_version /hailtop/hailtop/hail_version
