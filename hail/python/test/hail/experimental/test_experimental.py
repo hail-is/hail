@@ -466,3 +466,24 @@ class Tests(unittest.TestCase):
         def foo(recur, arr, idx): return hl.if_else(idx > 10, arr, recur(arr.append(hl.str(idx)), idx+1))
 
         assert hl.eval(hl.experimental.loop(foo, hl.tarray(hl.tstr), hl.literal(['foo']), 1)) == ['foo', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10']
+
+
+def test_secondary_indexing():
+
+    ht = hl.utils.range_table(1_000_000)
+    ht = ht.annotate(a=hl.int(hl.rand_unif(0, 250, seed=37)), b=hl.int(hl.rand_unif(0, 1000, seed=38)))
+
+    base_path = new_temp_file()
+    ht.write(base_path, overwrite=True)
+    si_a = hl.experimental.secondary_indices.make_secondary_index(ht, 'a', new_temp_file())
+    si_b = hl.experimental.secondary_indices.make_secondary_index(ht, 'b', new_temp_file())
+
+    assert hl.eval(hl.experimental.secondary_indices.read_secondary_indices(base_path,
+                                                                            (si_a, 134),
+                                                                            (si_b, 0))) == [
+        hl.Struct(idx=485198, a=134, b=0),
+        hl.Struct(idx=660743, a=134, b=0),
+        hl.Struct(idx=879166, a=134, b=0),
+        hl.Struct(idx=883704, a=134, b=0),
+        hl.Struct(idx=886214, a=134, b=0),
+    ]
