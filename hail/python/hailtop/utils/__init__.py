@@ -14,7 +14,7 @@ from .utils import (unzip, async_to_blocking, blocking_to_async, AsyncWorkerPool
                     url_scheme, Notice, periodically_call, dump_all_stacktraces, find_spark_home,
                     TransientError, bounded_gather2, OnlineBoundedGather2,
                     unpack_comma_delimited_inputs, unpack_key_value_inputs,
-                    retry_all_errors_n_times, Timings, is_retry_once_error)
+                    retry_all_errors_n_times, Timings, is_retry_once_error, am_i_interactive)
 from .process import (
     CalledProcessError, check_shell, check_shell_output, check_exec_output,
     sync_check_shell, sync_check_shell_output, sync_check_exec)
@@ -94,4 +94,5 @@ __all__ = [
     'is_retry_once_error',
     'rich_progress_bar',
     'time_ns',
+    'am_i_interactive',
 ]

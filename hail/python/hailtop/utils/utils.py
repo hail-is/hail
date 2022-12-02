@@ -1090,3 +1090,13 @@ class Timings:
 
     def to_dict(self):
         return self.timings
+
+
+def am_i_interactive() -> bool:
+    """Determine if the current Python session is interactive.
+
+    This should return True in IPython, a Python interpreter, and a Jupyter Notebook.
+
+    """
+    # https://stackoverflow.com/questions/2356399/tell-if-python-is-in-interactive-mode
+    return bool(getattr(sys, 'ps1', sys.flags.interactive))
