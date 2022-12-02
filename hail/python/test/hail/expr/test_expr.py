@@ -4003,3 +4003,48 @@ def test_stream_randomness():
     mt = hl.utils.range_matrix_table(5, 5)
     a = mt.aggregate_entries(hl.agg.collect(hl.rand_int64()).map(lambda x: x + hl.rand_int64()))
     assert(len(set(a)) == 25)
+def test_keyed_intersection():
+    a1 = hl.literal(
+        [
+            hl.Struct(a=5, b='foo'),
+            hl.Struct(a=7, b='bar'),
+            hl.Struct(a=9, b='baz'),
+        ]
+    )
+    a2 = hl.literal(
+        [
+            hl.Struct(a=5, b='foo'),
+            hl.Struct(a=6, b='qux'),
+            hl.Struct(a=8, b='qux'),
+            hl.Struct(a=9, b='baz'),
+        ]
+    )
+    assert hl.eval(hl.keyed_intersection(a1, a2, key=['a'])) == [
+        hl.Struct(a=5, b='foo'),
+        hl.Struct(a=9, b='baz'),
+    ]
+
+
+def test_keyed_union():
+    a1 = hl.literal(
+        [
+            hl.Struct(a=5, b='foo'),
+            hl.Struct(a=7, b='bar'),
+            hl.Struct(a=9, b='baz'),
+        ]
+    )
+    a2 = hl.literal(
+        [
+            hl.Struct(a=5, b='foo'),
+            hl.Struct(a=6, b='qux'),
+            hl.Struct(a=8, b='qux'),
+            hl.Struct(a=9, b='baz'),
+        ]
+    )
+    assert hl.eval(hl.keyed_union(a1, a2, key=['a'])) == [
+        hl.Struct(a=5, b='foo'),
+        hl.Struct(a=6, b='qux'),
+        hl.Struct(a=7, b='bar'),
+        hl.Struct(a=8, b='qux'),
+        hl.Struct(a=9, b='baz'),
+    ]

@@ -1108,6 +1108,23 @@ object IRParser {
           as <- names.mapRecur(_ => ir_value_expr(env)(it))
           body <- ir_value_expr(env.bindEval(names.zip(as.map(a => tcoerce[TStream](a.typ).elementType)): _*))(it)
         } yield StreamZip(as, names, body, behavior, errorID)
+      case "StreamZipJoin" =>
+        val nStreams = int32_literal(it)
+        val key = identifiers(it)
+        val curKey = identifier(it)
+        val curVals = identifier(it)
+        for {
+          streams <- (0 until nStreams).mapRecur(_ => ir_value_expr(env)(it))
+          body <- {
+            val structType = streams.head.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
+            ir_value_expr(env.bindEval((curKey, structType.typeAfterSelectNames(key)), (curVals, TArray(structType))))(it)
+          }
+        } yield StreamZipJoin(streams, key, curKey, curVals, body)
+      case "StreamMultiMerge" =>
+        val key = identifiers(it)
+        for {
+          streams <- ir_value_exprs(env)(it)
+        } yield StreamMultiMerge(streams, key)
       case "StreamFilter" =>
         val name = identifier(it)
         for {

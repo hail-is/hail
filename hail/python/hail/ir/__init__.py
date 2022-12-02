@@ -19,7 +19,7 @@ from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
     GetTupleElement, Die, ConsoleLog, Apply, ApplySeeded, RNGStateLiteral, RNGSplit,\
     TableCount, TableGetGlobals, TableCollect, TableAggregate, MatrixCount,\
     MatrixAggregate, TableWrite, udf, subst, clear_session_functions, ReadPartition,\
-    PartitionNativeIntervalReader
+    PartitionNativeIntervalReader, StreamMultiMerge, StreamZipJoin
 from .register_functions import register_functions
 from .register_aggregators import register_aggregators
 from .table_ir import MatrixRowsTable, TableJoin, TableLeftJoinRightDistinct, \
@@ -173,6 +173,8 @@ __all__ = [
     'CastToArray',
     'toStream',
     'ToStream',
+    'StreamZipJoin',
+    'StreamMultiMerge',
     'LowerBoundOnOrderedCollection',
     'GroupByKey',
     'StreamTake',

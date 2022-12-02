@@ -36,6 +36,8 @@ Collection functions
     fold
     array_scan
     reversed
+    keyed_intersection
+    keyed_union
 
 .. autofunction:: len
 .. autofunction:: map
@@ -54,3 +56,5 @@ Collection functions
 .. autofunction:: fold
 .. autofunction:: array_scan
 .. autofunction:: reversed
+.. autofunction:: keyed_intersection
+.. autofunction:: keyed_union
