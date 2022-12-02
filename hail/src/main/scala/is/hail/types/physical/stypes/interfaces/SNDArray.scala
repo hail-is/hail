@@ -652,9 +652,8 @@ trait SNDArrayValue extends SValue {
     coiterateMutate(cb, region, false, arrays: _*)(body)
 
   def coiterateMutate(cb: EmitCodeBuilder, region: Value[Region], deepCopy: Boolean, arrays: (SNDArrayValue, String)*)(body: IndexedSeq[SValue] => SValue): Unit = {
-    if (arrays.isEmpty) return
-    val indexVars = Array.tabulate(arrays(0)._1.st.nDims)(i => s"i$i").toFastIndexedSeq
-    val indices = Array.range(0, arrays(0)._1.st.nDims).toFastIndexedSeq
+    val indexVars = Array.tabulate(st.nDims)(i => s"i$i").toFastIndexedSeq
+    val indices = Array.range(0, st.nDims).toFastIndexedSeq
     coiterateMutate(cb, region, deepCopy, indexVars, indices, arrays.map { case (array, name) => (array, indices, name) }: _*)(body)
   }
 

@@ -1,13 +1,15 @@
 package is.hail.expr.ir.functions
 
 import is.hail.asm4s._
+import is.hail.expr.Nat
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.stypes._
-import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SRNGStateStaticSizeValue}
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SNDArrayPointer, SRNGStateStaticSizeValue, SRNGStateValue}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
-import is.hail.types.physical.{PBoolean, PCanonicalArray, PFloat64, PInt32, PType}
+import is.hail.types.physical.{PBoolean, PCanonicalArray, PCanonicalNDArray, PFloat64, PInt32, PType}
 import is.hail.types.virtual._
+import is.hail.utils.FastIndexedSeq
 import net.sourceforge.jdistlib.rng.MersenneTwister
 import net.sourceforge.jdistlib.{Beta, Gamma, HyperGeometric, Poisson}
 
@@ -30,6 +32,8 @@ class IRRandomness(seed: Long) {
 
   def rint32(n: Int): Int = random.nextInt(n)
 
+  def rint64(): Long = random.nextLong()
+
   def rint64(n: Long): Long = random.nextLong(n)
 
   def rcoin(p: Double): Boolean = random.nextDouble() < p
@@ -42,7 +46,8 @@ class IRRandomness(seed: Long) {
 
   def rgamma(shape: Double, scale: Double): Double = Gamma.random(shape, scale, random)
 
-  def rhyper(numSuccessStates: Double, numFailureStates: Double, numToDraw: Double): Double = HyperGeometric.random(numSuccessStates, numFailureStates, numToDraw, random)
+  def rhyper(numSuccessStates: Double, numFailureStates: Double, numToDraw: Double): Double =
+    HyperGeometric.random(numSuccessStates, numFailureStates, numToDraw, random)
 
   def rcat(prob: Array[Double]): Int = {
     var i = 0
@@ -91,105 +96,150 @@ object RandomSeededFunctions extends RegistryFunctions {
   }
 
   def registerAll() {
-    registerSeeded2("rand_unif", TFloat64, TFloat64, TFloat64, {
-      case (_: Type, _: SType, _: SType) => SFloat64
-    }) { case (cb, r, rt, seed, min, max) =>
-      primitive(cb.memoize(cb.emb.newRNG(seed).invoke[Double, Double, Double]("runif", min.asDouble.value, max.asDouble.value)))
-    }
-
-    registerSCode3("rand_unif_pure", TRNGState, TFloat64, TFloat64, TFloat64, {
+    registerSCode3("rand_unif", TRNGState, TFloat64, TFloat64, TFloat64, {
       case (_: Type, _: SType, _: SType, _: SType) => SFloat64
-    }) { case (_, cb, rt, rngState: SRNGStateStaticSizeValue, min: SFloat64Value, max: SFloat64Value, errorID) =>
+    }) { case (_, cb, rt, rngState: SRNGStateValue, min: SFloat64Value, max: SFloat64Value, errorID) =>
       primitive(cb.memoize(rand_unif(cb, rngState.rand(cb)) * (max.value - min.value) + min.value))
     }
 
-    registerSeeded1("rand_int32", TInt32, TInt32, {
-      case (_: Type, _: SType) => SInt32
-    }) { case (cb, r, rt, seed, n) =>
-      primitive(cb.memoize(cb.emb.newRNG(seed).invoke[Int, Int]("rint32", n.asInt.value)))
+    registerSCode5("rand_unif_nd", TRNGState, TInt64, TInt64, TFloat64, TFloat64, TNDArray(TFloat64, Nat(2)), {
+      case (_: Type, _: SType, _: SType, _: SType, _: SType, _: SType) => PCanonicalNDArray(PFloat64(true), 2, true).sType
+    }) { case (r, cb, rt: SNDArrayPointer, rngState: SRNGStateValue, nRows: SInt64Value, nCols: SInt64Value, min, max, errorID) =>
+      val result = rt.pType.constructUninitialized(FastIndexedSeq(SizeValueDyn(nRows.value), SizeValueDyn(nCols.value)), cb, r.region)
+      val rng = cb.emb.getThreefryRNG()
+      rngState.copyIntoEngine(cb, rng)
+      result.coiterateMutate(cb, r.region) { _ =>
+        primitive(cb.memoize(rng.invoke[Double, Double, Double]("runif", min.asDouble.value, max.asDouble.value)))
+      }
+      result
     }
 
-    registerSeeded1("rand_int64", TInt64, TInt64, {
+    registerSCode2("rand_int32", TRNGState, TInt32, TInt32, {
+      case (_: Type, _: SType, _: SType) => SInt32
+    }) { case (r, cb, rt, rngState: SRNGStateValue, n: SInt32Value, errorID) =>
+      val rng = cb.emb.getThreefryRNG()
+      rngState.copyIntoEngine(cb, rng)
+      primitive(cb.memoize(rng.invoke[Int, Int]("nextInt", n.value)))
+    }
+
+    registerSCode2("rand_int64", TRNGState, TInt64, TInt64, {
+      case (_: Type, _: SType, _: SType) => SInt64
+    }) { case (r, cb, rt, rngState: SRNGStateValue, n: SInt64Value, errorID) =>
+      val rng = cb.emb.getThreefryRNG()
+      rngState.copyIntoEngine(cb, rng)
+      primitive(cb.memoize(rng.invoke[Long, Long]("nextLong", n.value)))
+    }
+
+    registerSCode1("rand_int64", TRNGState, TInt64, {
       case (_: Type, _: SType) => SInt64
-    }) { case (cb, r, rt, seed, n) =>
-      primitive(cb.memoize(cb.emb.newRNG(seed).invoke[Long, Long]("rint64", n.asLong.value)))
+    }) { case (r, cb, rt, rngState: SRNGStateValue, errorID) =>
+      primitive(rngState.rand(cb)(0))
     }
 
-    registerSeeded2("rand_norm", TFloat64, TFloat64, TFloat64, {
+    registerSCode5("rand_norm_nd", TRNGState, TInt64, TInt64, TFloat64, TFloat64, TNDArray(TFloat64, Nat(2)), {
+      case (_: Type, _: SType, _: SType, _: SType, _: SType, _: SType) => PCanonicalNDArray(PFloat64(true), 2, true).sType
+    }) { case (r, cb, rt: SNDArrayPointer, rngState: SRNGStateValue, nRows: SInt64Value, nCols: SInt64Value, mean, sd, errorID) =>
+      val result = rt.pType.constructUninitialized(FastIndexedSeq(SizeValueDyn(nRows.value), SizeValueDyn(nCols.value)), cb, r.region)
+      val rng = cb.emb.getThreefryRNG()
+      rngState.copyIntoEngine(cb, rng)
+      result.coiterateMutate(cb, r.region) { _ =>
+        primitive(cb.memoize(rng.invoke[Double, Double, Double]("rnorm", mean.asDouble.value, sd.asDouble.value)))
+      }
+      result
+    }
+
+    registerSCode3("rand_norm", TRNGState, TFloat64, TFloat64, TFloat64, {
+      case (_: Type, _: SType, _: SType, _: SType) => SFloat64
+    }) { case (_, cb, rt, rngState: SRNGStateValue, mean: SFloat64Value, sd: SFloat64Value, errorID) =>
+      val rng = cb.emb.getThreefryRNG()
+      rngState.copyIntoEngine(cb, rng)
+      primitive(cb.memoize(rng.invoke[Double, Double, Double]("rnorm", mean.value, sd.value)))
+    }
+
+    registerSCode2("rand_bool", TRNGState, TFloat64, TBoolean, {
+      case (_: Type, _: SType, _: SType) => SBoolean
+    }) { case (_, cb, rt, rngState: SRNGStateValue, p: SFloat64Value, errorID) =>
+      val u = rand_unif(cb, rngState.rand(cb))
+      primitive(cb.memoize(u < p.value))
+    }
+
+    registerSCode2("rand_pois", TRNGState, TFloat64, TFloat64, {
       case (_: Type, _: SType, _: SType) => SFloat64
-    }) { case (cb, r, rt, seed, mean, sd) =>
-      primitive(cb.memoize(cb.emb.newRNG(seed).invoke[Double, Double, Double]("rnorm", mean.asDouble.value, sd.asDouble.value)))
+    }) { case (_, cb, rt, rngState: SRNGStateValue, lambda: SFloat64Value, errorID) =>
+      val rng = cb.emb.getThreefryRNG()
+      rngState.copyIntoEngine(cb, rng)
+      primitive(cb.memoize(rng.invoke[Double, Double]("rpois", lambda.value)))
     }
 
-    registerSeeded1("rand_bool", TFloat64, TBoolean, (_: Type, _: SType) => SBoolean) { case (cb, r, rt, seed, p) =>
-      primitive(cb.memoize(cb.emb.newRNG(seed).invoke[Double, Boolean]("rcoin", p.asDouble.value)))
-    }
-
-    registerSeeded1("rand_pois", TFloat64, TFloat64, (_: Type, _: SType) => SFloat64) { case (cb, r, rt, seed, lambda) =>
-      primitive(cb.memoize(cb.emb.newRNG(seed).invoke[Double, Double]("rpois", lambda.asDouble.value)))
-    }
-
-    registerSeeded2("rand_pois", TInt32, TFloat64, TArray(TFloat64), {
-      case (_: Type, _: SType, _: SType) => PCanonicalArray(PFloat64(true)).sType
-    }) { case (cb, r, SIndexablePointer(rt: PCanonicalArray), seed, n, lambdaCode) =>
-      val len = n.asInt.value
-      val lambda = lambdaCode.asDouble.value
-
-      rt.constructFromElements(cb, r, len, deepCopy = false) { case (cb, _) =>
-        IEmitCode.present(cb, primitive(cb.memoize(cb.emb.newRNG(seed).invoke[Double, Double]("rpois", lambda))))
+    registerSCode3("rand_pois", TRNGState, TInt32, TFloat64, TArray(TFloat64), {
+      case (_: Type, _: SType, _: SType, _: SType) => PCanonicalArray(PFloat64(true)).sType
+    }) { case (r, cb, SIndexablePointer(rt: PCanonicalArray), rngState: SRNGStateValue, n: SInt32Value, lambda: SFloat64Value, errorID) =>
+      val rng = cb.emb.getThreefryRNG()
+      rngState.copyIntoEngine(cb, rng)
+      rt.constructFromElements(cb, r.region, n.value, deepCopy = false) { case (cb, _) =>
+        IEmitCode.present(cb,
+          primitive(cb.memoize(rng.invoke[Double, Double]("rpois", lambda.value)))
+        )
       }
     }
 
-    registerSeeded2("rand_beta", TFloat64, TFloat64, TFloat64, {
-      case (_: Type, _: SType, _: SType) => SFloat64
-    }) { case (cb, r, rt, seed, a, b) =>
-      primitive(cb.memoize(
-        cb.emb.newRNG(seed).invoke[Double, Double, Double]("rbeta",
-          a.asDouble.value, b.asDouble.value)))
+    registerSCode3("rand_beta", TRNGState, TFloat64, TFloat64, TFloat64, {
+      case (_: Type, _: SType, _: SType, _: SType) => SFloat64
+    }) { case (_, cb, rt, rngState: SRNGStateValue, a: SFloat64Value, b: SFloat64Value, errorID) =>
+      val rng = cb.emb.getThreefryRNG()
+      rngState.copyIntoEngine(cb, rng)
+      primitive(cb.memoize(rng.invoke[Double, Double, Double]("rbeta", a.value, b.value)))
     }
 
-    registerSeeded4("rand_beta", TFloat64, TFloat64, TFloat64, TFloat64, TFloat64, {
-      case (_: Type, _: SType, _: SType, _: SType, _: SType) => SFloat64
-    }) {
-      case (cb, r, rt, seed, a, b, min, max) =>
-        val rng = cb.emb.newRNG(seed)
-        val la = a.asDouble.value
-        val lb = b.asDouble.value
-        val lmin = min.asDouble.value
-        val lmax = max.asDouble.value
-        val value = cb.newLocal[Double]("value", rng.invoke[Double, Double, Double]("rbeta", la, lb))
-        cb.whileLoop(value < lmin || value > lmax, {
-          cb.assign(value, rng.invoke[Double, Double, Double]("rbeta", la, lb))
-        })
-        primitive(value)
+    registerSCode5("rand_beta", TRNGState, TFloat64, TFloat64, TFloat64, TFloat64, TFloat64, {
+      case (_: Type, _: SType, _: SType, _: SType, _: SType, _: SType) => SFloat64
+    }) { case (_, cb, rt, rngState: SRNGStateValue, a: SFloat64Value, b: SFloat64Value, min: SFloat64Value, max: SFloat64Value, errorID) =>
+      val rng = cb.emb.getThreefryRNG()
+      rngState.copyIntoEngine(cb, rng)
+      val value = cb.newLocal[Double]("value", rng.invoke[Double, Double, Double]("rbeta", a.value, b.value))
+      cb.whileLoop(value < min.value || value > max.value, {
+        cb.assign(value, rng.invoke[Double, Double, Double]("rbeta", a.value, b.value))
+      })
+      primitive(value)
     }
 
-    registerSeeded2("rand_gamma", TFloat64, TFloat64, TFloat64, {
-      case (_: Type, _: SType, _: SType) => SFloat64
-    }) { case (cb, r, rt, seed, a, scale) =>
-      primitive(cb.memoize(
-        cb.emb.newRNG(seed).invoke[Double, Double, Double]("rgamma", a.asDouble.value, scale.asDouble.value)
-      ))
+    registerSCode3("rand_gamma", TRNGState, TFloat64, TFloat64, TFloat64, {
+      case (_: Type, _: SType, _: SType, _: SType) => SFloat64
+    }) { case (_, cb, rt, rngState: SRNGStateValue, a: SFloat64Value, scale: SFloat64Value, errorID) =>
+      val rng = cb.emb.getThreefryRNG()
+      rngState.copyIntoEngine(cb, rng)
+      primitive(cb.memoize(rng.invoke[Double, Double, Double]("rgamma", a.value, scale.value)))
     }
 
-    registerSeeded1("rand_cat", TArray(TFloat64), TInt32, (_: Type, _: SType) => SInt32) { case (cb, r, rt, seed, weights: SIndexableValue) =>
+    registerSCode2("rand_cat", TRNGState, TArray(TFloat64), TInt32, {
+      case (_: Type, _: SType, _: SType) => SInt32
+    }) { case (_, cb, rt, rngState: SRNGStateValue, weights: SIndexableValue, errorID) =>
       val len = weights.loadLength()
-
-      val a = cb.newLocal[Array[Double]]("rand_cat_a", Code.newArray[Double](len))
-
-      val i = cb.newLocal[Int]("rand_cat_i", 0)
+      val i = cb.newLocal[Int]("i", 0)
+      val s = cb.newLocal[Double]("sum", 0.0)
       cb.whileLoop(i < len, {
-        weights.loadElement(cb, i).consume(cb,
-          cb._fatal("rand_cat requires all elements of input array to be present"),
-          sc => cb += a.update(i, sc.asDouble.value)
-        )
+        cb.assign(s, s + weights.loadElement(cb, i).get(cb, "rand_cat requires all elements of input array to be present").asFloat64.value)
         cb.assign(i, i + 1)
       })
-      primitive(cb.memoize(cb.emb.newRNG(seed).invoke[Array[Double], Int]("rcat", a)))
+      val r = cb.newLocal[Double]("r", rand_unif(cb, rngState.rand(cb)) * s)
+      cb.assign(i, 0)
+      val elt = cb.newLocal[Double]("elt")
+      cb.loop { start =>
+        cb.assign(elt, weights.loadElement(cb, i).get(cb, "rand_cat requires all elements of input array to be present").asFloat64.value)
+        cb.ifx(r > elt && i < len, {
+          cb.assign(r, r - elt)
+          cb.assign(i, i + 1)
+          cb.goto(start)
+        })
+      }
+      primitive(i)
     }
 
-    registerSeeded2("shuffle_compute_num_samples_per_partition", TInt32, TArray(TInt32), TArray(TInt32),
-      (_, _, _) => SIndexablePointer(PCanonicalArray(PInt32(true), false))) { case (cb, r, rt, seed, initalNumSamplesToSelect: SInt32Value, partitionCounts: SIndexableValue) =>
+    registerSCode3("shuffle_compute_num_samples_per_partition", TRNGState, TInt32, TArray(TInt32), TArray(TInt32),
+      (_, _, _, _) => SIndexablePointer(PCanonicalArray(PInt32(true), false))
+    ) { case (r, cb, rt, rngState: SRNGStateValue, initalNumSamplesToSelect: SInt32Value, partitionCounts: SIndexableValue, errorID) =>
+      val rng = cb.emb.getThreefryRNG()
+      rngState.copyIntoEngine(cb, rng)
 
       val totalNumberOfRecords = cb.newLocal[Int]("scnspp_total_number_of_records", 0)
       val resultSize: Value[Int] = partitionCounts.loadLength()
@@ -205,10 +255,10 @@ object RandomSeededFunctions extends RegistryFunctions {
       val failureStatesRemaining = cb.newLocal[Int]("scnspp_failure", totalNumberOfRecords - successStatesRemaining)
 
       val arrayRt = rt.asInstanceOf[SIndexablePointer]
-      val (push, finish) = arrayRt.pType.asInstanceOf[PCanonicalArray].constructFromFunctions(cb, r, resultSize, false)
+      val (push, finish) = arrayRt.pType.asInstanceOf[PCanonicalArray].constructFromFunctions(cb, r.region, resultSize, false)
 
       cb.forLoop(cb.assign(i, 0), i < resultSize, cb.assign(i, i + 1), {
-        val numSuccesses = cb.memoize(cb.emb.newRNG(seed).invoke[Double, Double, Double, Double]("rhyper",
+        val numSuccesses = cb.memoize(rng.invoke[Double, Double, Double, Double]("rhyper",
           successStatesRemaining.toD, failureStatesRemaining.toD, partitionCounts.loadElement(cb, i).get(cb).asInt32.value.toD).toI)
         cb.assign(successStatesRemaining, successStatesRemaining - numSuccesses)
         cb.assign(failureStatesRemaining, failureStatesRemaining - (partitionCounts.loadElement(cb, i).get(cb).asInt32.value - numSuccesses))

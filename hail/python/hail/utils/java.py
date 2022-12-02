@@ -2,7 +2,6 @@ from typing import Optional, Union
 import sys
 import re
 
-import hail
 from hailtop.config import configuration_of
 
 
@@ -39,7 +38,7 @@ class Env:
     _jutils = None
     _hc = None
     _counter = 0
-    _seed_generator = None
+    _static_rng_uid = 0
 
     @staticmethod
     def get_uid(base=None):
@@ -126,14 +125,15 @@ class Env:
         return Env._dummy_table
 
     @staticmethod
-    def set_seed(seed):
-        Env._seed_generator = hail.utils.HailSeedGenerator(seed)
+    def next_static_rng_uid():
+        result = Env._static_rng_uid
+        assert(result <= 0xFFFF_FFFF_FFFF_FFFF)
+        Env._static_rng_uid += 1
+        return result
 
     @staticmethod
-    def next_seed():
-        if Env._seed_generator is None:
-            Env.set_seed(None)
-        return Env._seed_generator.next_seed()
+    def reset_global_randomness():
+        Env._static_rng_uid = 0
 
 
 def scala_object(jpackage, name):

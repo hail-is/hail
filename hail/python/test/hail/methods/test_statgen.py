@@ -1,6 +1,5 @@
 import os
 import math
-import unittest
 import pytest
 import numpy as np
 
@@ -9,16 +8,15 @@ import hail.expr.aggregators as agg
 import hail.utils as utils
 from hail.linalg import BlockMatrix
 from hail.utils import FatalError
-from hail.utils.java import choose_backend
-from ..helpers import (startTestHailContext, stopTestHailContext, resource,
-                       fails_local_backend, fails_service_backend)
-
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
+from hail.utils.java import choose_backend, Env
+from ..helpers import resource, fails_local_backend, fails_service_backend
 
 
-class Tests(unittest.TestCase):
-    @unittest.skipIf('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
+class Tests:
+    def __init__(self):
+        pass
+
+    @pytest.mark.skipif('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
     @fails_service_backend()
     def test_impute_sex_same_as_plink(self):
         ds = hl.import_vcf(resource('x-chromosome.vcf'))
@@ -454,6 +452,7 @@ class Tests(unittest.TestCase):
                 eq(combined.p_value, combined.multi.p_value[0]) &
                 eq(combined.multi.p_value[0], combined.multi.p_value[1]))))
 
+
     def test_logistic_regression_rows_max_iter_zero(self):
         import hail as hl
         mt = hl.utils.range_matrix_table(1, 3)
@@ -596,7 +595,7 @@ class Tests(unittest.TestCase):
 
         def equal_with_nans(arr1, arr2):
             def both_nan_or_none(a, b):
-                return (a is None or np.isnan(a)) and (b is None or np.isnan(b))
+                return (a is None or not np.isfinite(a)) and (b is None or not np.isfinite(b))
 
             return all([both_nan_or_none(a, b) or math.isclose(a, b) for a, b in zip(arr1, arr2)])
 
@@ -1278,11 +1277,8 @@ class Tests(unittest.TestCase):
 
         assert mt.aggregate_rows(hl.agg.all(mt.foo.bar == ht[mt.row_key].bar))
 
-    @fails_local_backend()
-    @fails_service_backend()
     def test_genetic_relatedness_matrix(self):
         n, m = 100, 200
-        hl.set_global_seed(0)
         mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], n_partitions=4)
 
         g = BlockMatrix.from_entry_expr(mt.GT.n_alt_alleles()).to_numpy().T
@@ -1312,11 +1308,9 @@ class Tests(unittest.TestCase):
         col_filter = col_lengths > 0
         return np.copy(a[:, np.squeeze(col_filter)] / col_lengths[col_filter])
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_realized_relationship_matrix(self):
         n, m = 100, 200
-        hl.set_global_seed(0)
+        hl.reset_global_randomness()
         mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], n_partitions=4)
 
         g = BlockMatrix.from_entry_expr(mt.GT.n_alt_alleles()).to_numpy().T
@@ -1352,11 +1346,8 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(np.allclose(actual, expected))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_row_correlation_vs_numpy(self):
         n, m = 11, 10
-        hl.set_global_seed(0)
         mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], n_partitions=2)
         mt = mt.annotate_rows(sd=agg.stats(mt.GT.n_alt_alleles()).stdev)
         mt = mt.filter_rows(mt.sd > 1e-30)
@@ -1552,7 +1543,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(pruned_table.count(), 1)
 
     def test_balding_nichols_model(self):
-        hl.set_global_seed(1)
+        hl.reset_global_randomness()
         ds = hl.balding_nichols_model(2, 20, 25, 3,
                                       pop_dist=[1.0, 2.0],
                                       fst=[.02, .06],
@@ -1573,13 +1564,13 @@ class Tests(unittest.TestCase):
 
     def test_balding_nichols_model_same_results(self):
         for mixture in [True, False]:
-            hl.set_global_seed(1)
+            hl.reset_global_randomness()
             ds1 = hl.balding_nichols_model(2, 20, 25, 3,
                                            pop_dist=[1.0, 2.0],
                                            fst=[.02, .06],
                                            af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95),
                                            mixture=mixture)
-            hl.set_global_seed(1)
+            hl.reset_global_randomness()
             ds2 = hl.balding_nichols_model(2, 20, 25, 3,
                                            pop_dist=[1.0, 2.0],
                                            fst=[.02, .06],
@@ -1589,7 +1580,7 @@ class Tests(unittest.TestCase):
 
     def test_balding_nichols_model_af_ranges(self):
         def test_af_range(rand_func, min, max, seed):
-            hl.set_global_seed(seed)
+            hl.reset_global_randomness()
             bn = hl.balding_nichols_model(3, 400, 400, af_dist=rand_func)
             self.assertTrue(
                 bn.aggregate_rows(
@@ -1603,7 +1594,7 @@ class Tests(unittest.TestCase):
 
     def test_balding_nichols_stats(self):
         def test_stat(k, n, m, seed):
-            hl.set_global_seed(seed)
+            hl.reset_global_randomness()
             bn = hl.balding_nichols_model(k, n, m, af_dist=hl.rand_unif(0.1, 0.9))
 
             # test pop distribution
@@ -1638,18 +1629,17 @@ class Tests(unittest.TestCase):
         test_stat(40, 400, 20, 12)
 
     def test_balding_nichols_model_phased(self):
-        hl.set_global_seed(1)
         bn_ds = hl.balding_nichols_model(1, 5, 5, phased=True)
         assert bn_ds.aggregate_entries(hl.agg.all(bn_ds.GT.phased)) == True
         actual = bn_ds.GT.collect()
         expected = [
             hl.Call(a, phased=True)
             for a in [
-                    [0, 1], [0, 0], [0, 1], [0, 0], [0, 0],
-                    [1, 1], [1, 1], [1, 1], [1, 1], [1, 1],
-                    [0, 1], [0, 0], [0, 0], [1, 1], [0, 1],
-                    [1, 1], [1, 1], [1, 0], [1, 1], [1, 0],
-                    [0, 0], [0, 0], [0, 1], [0, 0], [1, 0]]]
+                    [0, 1], [0, 0], [0, 1], [0, 0], [1, 0],
+                    [1, 1], [0, 1], [1, 1], [0, 0], [0, 1],
+                    [1, 0], [0, 0], [1, 0], [0, 0], [0, 0],
+                    [1, 1], [1, 1], [1, 0], [0, 1], [1, 1],
+                    [1, 1], [1, 1], [1, 1], [1, 1], [1, 1]]]
         assert actual == expected
 
     @fails_service_backend()
@@ -1730,17 +1720,17 @@ class Tests(unittest.TestCase):
                 [10, 5, 1]
             ])[mt.row_idx]
         )
-        ht = hl.skat(
-            hl.literal(0),
-            mt.row_idx,
-            y=mt.y,
-            x=mt.x[mt.col_idx],
-            logistic=(37, 1e-10),
-            # The logistic settings are only used when fitting the null model, so we need to use a
-            # covariate that triggers nonconvergence
-            covariates=[mt.y]
-        )
         try:
+            ht = hl.skat(
+                hl.literal(0),
+                mt.row_idx,
+                y=mt.y,
+                x=mt.x[mt.col_idx],
+                logistic=(37, 1e-10),
+                # The logistic settings are only used when fitting the null model, so we need to use a
+                # covariate that triggers nonconvergence
+                covariates=[mt.y]
+            )
             ht.collect()[0]
         except FatalError as err:
             assert 'Failed to fit logistic regression null model (MLE with covariates only): exploded at Newton iteration 37' in err.args[0]
@@ -1757,17 +1747,17 @@ class Tests(unittest.TestCase):
                 [10, 5, 1]
             ])[mt.row_idx]
         )
-        ht = hl.skat(
-            hl.literal(0),
-            mt.row_idx,
-            y=mt.y,
-            x=mt.x[mt.col_idx],
-            logistic=(36, 1e-10),
-            # The logistic settings are only used when fitting the null model, so we need to use a
-            # covariate that triggers nonconvergence
-            covariates=[mt.y]
-        )
         try:
+            ht = hl.skat(
+                hl.literal(0),
+                mt.row_idx,
+                y=mt.y,
+                x=mt.x[mt.col_idx],
+                logistic=(36, 1e-10),
+                # The logistic settings are only used when fitting the null model, so we need to use a
+                # covariate that triggers nonconvergence
+                covariates=[mt.y]
+            )
             ht.collect()[0]
         except FatalError as err:
             assert 'Failed to fit logistic regression null model (MLE with covariates only): Newton iteration failed to converge' in err.args[0]

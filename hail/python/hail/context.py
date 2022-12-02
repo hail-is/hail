@@ -4,6 +4,7 @@ import sys
 import os
 from contextlib import contextmanager
 from urllib.parse import urlparse, urlunparse
+from random import Random
 
 import pkg_resources
 from pyspark import SparkContext
@@ -115,14 +116,13 @@ class HailContext(object):
                                  '  the latest changes weekly.\n')
             sys.stderr.write(f'LOGGING: writing to {log}\n')
 
+        self._user_specified_rng_nonce = True
         if global_seed is None:
-            if Env._seed_generator is None:
-                Env.set_seed(6348563392232659379)
-        else:  # global_seed is not None
-            if Env._seed_generator is not None:
-                raise ValueError(
-                    'Do not call hl.init with a non-None global seed *after* calling hl.set_global_seed')
-            Env.set_seed(global_seed)
+            if 'rng_nonce' not in backend.get_flags('rng_nonce'):
+                backend.set_flags(rng_nonce=hex(Random().randrange(-2**63, 2**63 - 1)))
+                self._user_specified_rng_nonce = False
+        else:
+            backend.set_flags(rng_nonce=hex(global_seed))
         Env._hc = self
 
     def initialize_references(self, references, default_reference):
@@ -805,7 +805,12 @@ def get_reference(name) -> ReferenceGenome:
 
 @typecheck(seed=int)
 def set_global_seed(seed):
-    """Sets Hail's global seed to `seed`.
+    """Deprecated.
+
+    Has no effect. To ensure reproducible randomness, use the `global_seed`
+    argument to :func:`.init` and :func:`.reset_global_randomness`.
+
+    See the :ref:`random functions <sec-random-functions>` reference docs for more.
 
     Parameters
     ----------
@@ -813,7 +818,18 @@ def set_global_seed(seed):
         Integer used to seed Hail's random number generator
     """
 
-    Env.set_seed(seed)
+    warning('hl.set_global_seed has no effect. See '
+            'https://hail.is/docs/0.2/functions/random.html for details on '
+            'ensuring reproducibility of randomness.')
+    pass
+
+
+@typecheck()
+def reset_global_randomness():
+    """Restore global randomness to initial state for test reproducibility.
+    """
+
+    Env.reset_global_randomness()
 
 
 def _set_flags(**flags):

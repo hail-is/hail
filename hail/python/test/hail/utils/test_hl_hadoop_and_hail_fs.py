@@ -7,11 +7,6 @@ from hail.context import _get_local_tmpdir
 from hail.utils import hadoop_open, hadoop_copy
 from hailtop.utils import secret_alnum_string
 from hail.utils.java import FatalError
-from ..helpers import startTestHailContext, stopTestHailContext, fails_service_backend
-
-
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
 
 
 def touch(fs, filename: str):

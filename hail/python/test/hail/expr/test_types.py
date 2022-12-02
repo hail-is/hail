@@ -5,9 +5,6 @@ from hail.expr.types import *
 from ..helpers import *
 from hail.utils.java import Env
 
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
-
 
 class Tests(unittest.TestCase):
     def types_to_test(self):

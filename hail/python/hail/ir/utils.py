@@ -4,10 +4,10 @@ from hail.utils.java import Env
 from hail.expr.types import tint32, tint64
 
 
-def finalize_randomness(x, key=(0, 0, 0, 0)):
+def finalize_randomness(x):
     import hail.ir.ir as ir
     if isinstance(x, ir.IR):
-        x = ir.Let('__rng_state', ir.RNGStateLiteral(key), x)
+        x = ir.Let('__rng_state', ir.RNGStateLiteral(), x)
     elif isinstance(x, ir.TableIR):
         x = x.handle_randomness(None)
     elif isinstance(x, ir.MatrixIR):
@@ -17,7 +17,6 @@ def finalize_randomness(x, key=(0, 0, 0, 0)):
 
 default_row_uid = '__row_uid'
 default_col_uid = '__col_uid'
-rng_key = (0, 1, 2, 3)
 
 
 def unpack_row_uid(new_row_type, uid_field_name):
@@ -46,39 +45,40 @@ def modify_deep_field(struct, path, new_deep_field, new_struct=None):
     import hail.ir.ir as ir
     refs = [struct]
     for i in range(len(path)):
-        refs[i + 1] = ir.Ref(Env.gen_uid(), refs[i].typ[path[i]])
+        refs.append(ir.Ref(Env.get_uid(), refs[i].typ[path[i]]))
 
     acc = new_deep_field(refs[-1])
-    for parent_struct, field_name in reversed(zip(refs[:-1], path)):
+    for parent_struct, field_name in zip(refs[-2::-1], path[::-1]):
         acc = ir.InsertFields(parent_struct, [(field_name, acc)], None)
-    acc = new_struct(acc, refs[-1])
-    for struct_ref, field_ref, field_name in reversed(zip(refs[:-1], refs[1:], path)):
-        acc = ir.Let(field_ref.name, ir.GetField(struct_ref, field_name))
+    if new_struct is not None:
+        acc = new_struct(acc, refs[-1])
+    for struct_ref, field_ref, field_name in zip(refs[-2::-1], refs[:0:-1], path[::-1]):
+        acc = ir.Let(field_ref.name, ir.GetField(struct_ref, field_name), acc)
     return acc
 
 
 def zip_with_index(array):
     import hail.ir.ir as ir
-    elt = Env.gen_uid()
-    inner_row_uid = Env.gen_uid()
+    elt = Env.get_uid()
+    inner_row_uid = Env.get_uid()
     iota = ir.StreamIota(ir.I32(0), ir.I32(1))
-    return ir.StreamZip(
-        [ir.ToStream(array), iota],
+    return ir.toArray(ir.StreamZip(
+        [ir.toStream(array), iota],
         [elt, inner_row_uid],
-        ir.MakeTuple(ir.Ref(elt, array.typ.element_type), ir.Ref(inner_row_uid, tint32)),
-        'TakeMinLength')
+        ir.MakeTuple((ir.Ref(elt, array.typ.element_type), ir.Ref(inner_row_uid, tint32))),
+        'TakeMinLength'))
 
 
 def zip_with_index_field(array, idx_field_name):
     import hail.ir.ir as ir
-    elt = Env.gen_uid()
-    inner_row_uid = Env.gen_uid()
+    elt = Env.get_uid()
+    inner_row_uid = Env.get_uid()
     iota = ir.StreamIota(ir.I32(0), ir.I32(1))
-    return ir.StreamZip(
-        [ir.ToStream(array), iota],
+    return ir.toArray(ir.StreamZip(
+        [ir.toStream(array), iota],
         [elt, inner_row_uid],
-        ir.InsertFields(ir.Ref(elt, array.typ.element_type), [(idx_field_name, ir.Ref(inner_row_uid, tint32))], None),
-        'TakeMinLength')
+        ir.InsertFields(ir.Ref(elt, array.typ.element_type), [(idx_field_name, ir.Cast(ir.Ref(inner_row_uid, tint32), tint64))], None),
+        'TakeMinLength'))
 
 
 def impute_type_of_partition_interval_array(

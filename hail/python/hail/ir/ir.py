@@ -11,14 +11,14 @@ from hail.expr.types import dtype, HailType, hail_type, tint32, tint64, \
 from hail.ir.blockmatrix_writer import BlockMatrixWriter, BlockMatrixMultiWriter
 from hail.typecheck import typecheck, typecheck_method, sequenceof, numeric, \
     sized_tupleof, nullable, tupleof, anytype, func_spec
-from hail.utils.java import Env, HailUserError, warning
+from hail.utils.java import Env, HailUserError
 from hail.utils.jsonx import dump_json
 from hail.utils.misc import escape_str, parsable_strings, escape_id
 from .base_ir import BaseIR, IR, TableIR, MatrixIR, BlockMatrixIR, _env_bind
 from .matrix_writer import MatrixWriter, MatrixNativeMultiWriter
 from .renderer import Renderer, Renderable, ParensRenderer
 from .table_writer import TableWriter
-from .utils import default_row_uid, default_col_uid, rng_key, unpack_row_uid, unpack_col_uid
+from .utils import default_row_uid, default_col_uid, unpack_row_uid, unpack_col_uid
 
 
 class I32(IR):
@@ -188,12 +188,12 @@ class NA(IR):
         self._typ = typ
 
     def _handle_randomness(self, create_uids):
-        if create_uids:
-            if isinstance(self.typ.element_type, tstruct):
-                new_elt_typ = self.typ.element_type._insert_field(uid_field_name, tint64)
-            else:
-                new_elt_typ = ttuple(tint64, self.typ.element_type)
-            return NA(tstream(new_elt_typ))
+        assert create_uids
+        if isinstance(self.typ.element_type, tstruct):
+            new_elt_typ = self.typ.element_type._insert_field(uid_field_name, tint64)
+        else:
+            new_elt_typ = ttuple(tint64, self.typ.element_type)
+        return NA(tstream(new_elt_typ))
 
     @property
     def typ(self):
@@ -234,6 +234,7 @@ class If(IR):
         self.cond = cond
         self.cnsq = cnsq
         self.altr = altr
+        self.needs_randomness_handling = cnsq.needs_randomness_handling or altr.needs_randomness_handling
 
     def _handle_randomness(self, create_uids):
         return If(self.cond,
@@ -283,6 +284,10 @@ class Let(IR):
         self.name = name
         self.value = value
         self.body = body
+        self.needs_randomness_handling = body.needs_randomness_handling
+
+    def _handle_randomness(self, create_uids):
+        return Let(self.name, self.value, self.body.handle_randomness(create_uids))
 
     @typecheck_method(value=IR, body=IR)
     def copy(self, value, body):
@@ -370,21 +375,26 @@ class AggLet(IR):
 
 
 class Ref(IR):
-    @typecheck_method(name=str, type=nullable(HailType))
-    def __init__(self, name, type=None):
+    @typecheck_method(name=str, type=nullable(HailType), has_uids=bool)
+    def __init__(self, name, type=None, has_uids=False):
         super().__init__()
         self.name = name
         self._free_vars = {name}
         self._typ = type
+        self.has_uids = has_uids
 
     def _handle_randomness(self, create_uids):
-        if not create_uids:
-            return self
-        elt = Env.get_uid
-        uid = Env.get_uid
-        return StreamZip([self, StreamIota(I32(0), I32(1))],
-                         [elt, uid],
-                         pack_uid(Cast(Ref(uid, tint32), tint64), Ref(elt, tint32)))
+        assert create_uids != self.has_uids
+        if create_uids:
+            elt = Env.get_uid()
+            uid = Env.get_uid()
+            return StreamZip([self, StreamIota(I32(0), I32(1))],
+                             [elt, uid],
+                             pack_uid(Cast(Ref(uid, tint32), tint64), Ref(elt, self.typ.element_type)),
+                             'TakeMinLength')
+        else:
+            tuple, uid, elt = unpack_uid(self.typ)
+            return StreamMap(self, tuple, elt)
 
     def copy(self):
         return Ref(self.name, self._type)
@@ -407,7 +417,7 @@ class Ref(IR):
 
 class TopLevelReference(Ref):
     @typecheck_method(name=str, type=nullable(HailType))
-    def __init__(self, name, type=None):
+    def __init__(self, name, type):
         super().__init__(name, type)
 
     @property
@@ -690,9 +700,8 @@ class StreamIota(IR):
         self.requires_memory_management_per_element = requires_memory_management_per_element
 
     def _handle_randomness(self, create_uids):
-        if not create_uids:
-            return self
-        elt = Env.get_uid
+        assert create_uids
+        elt = Env.get_uid()
         return StreamMap(self, elt, MakeTuple([Cast(Ref(elt, tint32), tint64), Ref(elt, tint32)]))
 
     @typecheck_method(start=IR, step=IR)
@@ -725,8 +734,7 @@ class StreamRange(IR):
             self.save_error_info()
 
     def _handle_randomness(self, create_uids):
-        if not create_uids:
-            return self
+        assert create_uids
         elt = Env.get_uid()
         return StreamMap(self, elt, MakeTuple([Cast(Ref(elt, tint32), tint64), Ref(elt, tint32)]))
 
@@ -750,9 +758,11 @@ class StreamGrouped(IR):
         super().__init__(stream, group_size)
         self.stream = stream
         self.group_size = group_size
+        self.needs_randomness_handling = stream.needs_randomness_handling
 
     def _handle_randomness(self, create_uids):
         assert(not create_uids)
+        assert(self.stream.needs_randomness_handling)
         self.stream.handle_randomness(False)
 
     @typecheck_method(stream=IR, group_size=IR)
@@ -832,6 +842,7 @@ class NDArrayReshape(IR):
 class NDArrayMap(IR):
     @typecheck_method(nd=IR, name=str, body=IR)
     def __init__(self, nd, name, body):
+        assert(not body.uses_randomness)
         super().__init__(nd, body)
         self.nd = nd
         self.name = name
@@ -1152,6 +1163,7 @@ class NDArrayWrite(IR):
 class ArraySort(IR):
     @typecheck_method(a=IR, l_name=str, r_name=str, compare=IR)
     def __init__(self, a, l_name, r_name, compare):
+        a = a.handle_randomness(False)
         super().__init__(a, compare)
         self.a = a
         self.l_name = l_name
@@ -1228,8 +1240,7 @@ def toArray(s):
 class ToArray(IR):
     @typecheck_method(a=IR)
     def __init__(self, a):
-        if a.uses_randomness:
-            a = a.handle_randomness(False)
+        a = a.handle_randomness(False)
         super().__init__(a)
         self.a = a
 
@@ -1273,8 +1284,7 @@ class ToStream(IR):
         self.requires_memory_management_per_element = requires_memory_management_per_element
 
     def _handle_randomness(self, create_uids):
-        if not create_uids:
-            return self
+        assert create_uids
         uid = Env.get_uid()
         elt = Env.get_uid()
         iota = StreamIota(I32(0), I32(1))
@@ -1329,16 +1339,7 @@ class GroupByKey(IR):
                      tarray(self.collection.typ.element_type.types[1]))
 
 
-static_split_ctr = 0
 uid_field_name = '__uid'
-
-
-def get_static_split_uid():
-    global static_split_ctr
-    result = static_split_ctr
-    assert(result <= 0xFFFF_FFFF_FFFF_FFFF)
-    static_split_ctr += 1
-    return result
 
 
 def uid_size(type):
@@ -1353,7 +1354,7 @@ def unify_uid_types(types, tag=False):
         size += 1
     if size == 1:
         return tint64
-    return ttuple(tint64 for _ in range(size))
+    return ttuple(*(tint64 for _ in range(size)))
 
 
 def pad_uid(uid, type, tag=None):
@@ -1368,10 +1369,9 @@ def pad_uid(uid, type, tag=None):
     else:
         fields = (GetTupleElement(uid, i) for i in range(size))
     if tag is None:
-        tuple = MakeTuple([*(I64(0) for _ in range(padding)), *fields])
+        return MakeTuple([*(I64(0) for _ in range(padding)), *fields])
     else:
-        tuple = MakeTuple([I64(tag), *(I64(0) for _ in range(padding)), *fields])
-    return If(IsNA(uid), NA(tuple.typ), tuple)
+        return MakeTuple([I64(tag), *(I64(0) for _ in range(padding)), *fields])
 
 
 def concat_uids(uid1, uid2, handle_missing_left=False, handle_missing_right=False):
@@ -1389,8 +1389,7 @@ def concat_uids(uid1, uid2, handle_missing_left=False, handle_missing_right=Fals
         fields2 = (GetTupleElement(uid2, i) for i in range(size2))
     if handle_missing_right:
         fields2 = (Coalesce(field, I64(0)) for field in fields2)
-    tuple = MakeTuple([*fields1, *fields2])
-    return If(Apply("lor", tbool, IsNA(uid1), IsNA(uid2)), NA(tuple.typ), tuple)
+    return MakeTuple([*fields1, *fields2])
 
 
 def unpack_uid(stream_type):
@@ -1408,7 +1407,7 @@ def unpack_uid(stream_type):
 
 def pack_uid(uid, elt):
     if isinstance(elt.typ, tstruct):
-        return InsertFields(elt, [uid_field_name, uid])
+        return InsertFields(elt, [(uid_field_name, uid)], None)
     else:
         return MakeTuple([uid, elt])
 
@@ -1428,6 +1427,7 @@ class StreamTake(IR):
         super().__init__(a, n)
         self.a = a
         self.n = n
+        self.needs_randomness_handling = a.needs_randomness_handling
 
     def _handle_randomness(self, create_uids):
         a = self.a.handle_randomness(create_uids)
@@ -1450,6 +1450,7 @@ class StreamMap(IR):
         self.a = a
         self.name = name
         self.body = body
+        self.needs_randomness_handling = a.needs_randomness_handling or body.uses_randomness
 
     def _handle_randomness(self, create_uids):
         if not self.body.uses_randomness and not create_uids:
@@ -1517,6 +1518,7 @@ class StreamZip(IR):
         self._stack_trace = stack_trace
         if error_id is None or stack_trace is None:
             self.save_error_info()
+        self.needs_randomness_handling = any(stream.needs_randomness_handling for stream in streams) or body.uses_randomness
 
     def _handle_randomness(self, create_uids):
         if not self.body.uses_randomness and not create_uids:
@@ -1526,24 +1528,24 @@ class StreamZip(IR):
         if self.behavior == 'ExtendNA':
             new_streams = [stream.handle_randomness(True) for stream in self.streams]
             tuples, uids, elts = zip(*(unpack_uid(stream.typ) for stream in new_streams))
-            uid_type = unify_uid_types(uid.typ for uid in uids)
-            uid = Coalesce(If(IsNA(uid), NA(uid_type), pad_uid(uid, uid_type, i)) for i, uid in enumerate(uids))
+            uid_type = unify_uid_types((uid.typ for uid in uids), tag=True)
+            uid = Coalesce(*(If(IsNA(uid), NA(uid_type), pad_uid(uid, uid_type, i)) for i, uid in enumerate(uids)))
             new_body = self.body
             for elt, name in zip(elts, self.names):
                 new_body = Let(name, elt, new_body)
             if self.body.uses_randomness:
                 new_body = with_split_rng_state(new_body, uid)
             if create_uids:
-                pack_uid(uid, new_body)
+                new_body = pack_uid(uid, new_body)
             return StreamZip(new_streams, tuples, new_body, self.behavior, self._error_id, self._stack_trace)
 
         new_streams = [self.streams[0].handle_randomness(True), *(stream.handle_randomness(False) for stream in self.streams[1:])]
-        tuple, uid, elt = unpack_uid(self.streams[0].typ)
+        tuple, uid, elt = unpack_uid(new_streams[0].typ)
         new_body = Let(self.names[0], elt, self.body)
         if self.body.uses_randomness:
             new_body = with_split_rng_state(new_body, uid)
         if create_uids:
-            pack_uid(uid, new_body)
+            new_body = pack_uid(uid, new_body)
         return StreamZip(new_streams, [tuple, *self.names[1:]], new_body, self.behavior, self._error_id, self._stack_trace)
 
     @typecheck_method(children=IR)
@@ -1580,6 +1582,7 @@ class StreamFilter(IR):
         self.a = a
         self.name = name
         self.body = body
+        self.needs_randomness_handling = a.needs_randomness_handling or body.uses_randomness
 
     def _handle_randomness(self, create_uids):
         if not self.body.uses_randomness and not create_uids:
@@ -1633,6 +1636,7 @@ class StreamFlatMap(IR):
         self.a = a
         self.name = name
         self.body = body
+        self.needs_randomness_handling = a.needs_randomness_handling or body.uses_randomness
 
     def _handle_randomness(self, create_uids):
         if not self.body.uses_randomness and not create_uids:
@@ -1683,8 +1687,7 @@ class StreamFlatMap(IR):
 class StreamFold(IR):
     @typecheck_method(a=IR, zero=IR, accum_name=str, value_name=str, body=IR)
     def __init__(self, a, zero, accum_name, value_name, body):
-        if a.uses_randomness or body.uses_randomness:
-            a = a.handle_randomness(create_uids=body.uses_randomness)
+        a = a.handle_randomness(create_uids=body.uses_randomness)
         if body.uses_randomness:
             tuple, uid, elt = unpack_uid(a.typ)
             body = Let(value_name, elt, body)
@@ -1738,6 +1741,7 @@ class StreamScan(IR):
         self.accum_name = accum_name
         self.value_name = value_name
         self.body = body
+        self.needs_randomness_handling = a.needs_randomness_handling or body.uses_randomness
 
     def _handle_randomness(self, create_uids):
         if not self.body.uses_randomness and not create_uids:
@@ -1746,7 +1750,7 @@ class StreamScan(IR):
 
         a = self.a.handle_randomness(True)
         tuple, uid, elt = unpack_uid(a.typ)
-        new_body = Let(self.name, elt, self.body)
+        new_body = Let(self.value_name, elt, self.body)
         if self.body.uses_randomness:
             new_body = with_split_rng_state(new_body, uid)
         if create_uids:
@@ -1796,26 +1800,23 @@ class StreamJoinRightDistinct(IR):
         self.r_name = r_name
         self.join = join
         self.join_type = join_type
+        self.needs_randomness_handling = left.needs_randomness_handling or right.needs_randomness_handling or join.uses_randomness
 
     def _handle_randomness(self, create_uids):
         if not self.join.uses_randomness and not create_uids:
-            if self.left.uses_randomness:
-                left = self.left.handle_randomness(False)
-            if self.right.uses_randomness:
-                right = self.right.handle_randomness(False)
+            left = self.left.handle_randomness(False)
+            right = self.right.handle_randomness(False)
             return StreamJoinRightDistinct(left, right, self.l_key, self.r_key, self.l_name, self.r_name, self.join, self.join_type)
 
         if self.join_type == 'left' or self.join_type == 'inner':
             left = self.left.handle_randomness(True)
-            if self.right.uses_randomness:
-                right = self.right.handle_randomness(False)
+            right = self.right.handle_randomness(False)
             r_name = self.r_name
             l_name, uid, l_elt = unpack_uid(left.typ)
             new_join = Let(self.l_name, l_elt, self.join)
         elif self.join_type == 'right':
             right = self.right.handle_randomness(True)
-            if self.left.uses_randomness:
-                left = self.left.handle_randomness(False)
+            left = self.left.handle_randomness(False)
             l_name = self.l_name
             r_name, uid, r_elt = unpack_uid(right.typ)
             new_join = Let(self.r_name, r_elt, self.join)
@@ -1868,14 +1869,12 @@ class StreamJoinRightDistinct(IR):
 class StreamFor(IR):
     @typecheck_method(a=IR, value_name=str, body=IR)
     def __init__(self, a, value_name, body):
+        a = a.handle_randomness(body.uses_randomness)
         if body.uses_randomness:
-            a = a.handle_randomness(True)
             tuple, uid, elt = unpack_uid(a.typ)
             body = Let(value_name, elt, body)
             body = with_split_rng_state(body, uid)
             value_name = tuple
-        elif a.uses_randomness:
-            a = a.handle_randomness(False)
 
         super().__init__(a, body)
         self.a = a
@@ -1955,14 +1954,13 @@ class AggFilter(IR):
 class AggExplode(IR):
     @typecheck_method(s=IR, name=str, agg_body=IR, is_scan=bool)
     def __init__(self, s, name, agg_body, is_scan):
-        if s.uses_randomness or agg_body.uses_agg_randomness(is_scan):
-            if agg_body.uses_agg_randomness(is_scan):
-                s = s.handle_randomness(True)
-                tuple, uid, elt = unpack_uid(s.typ)
-                agg_body = Let(self.name, elt, agg_body)
-                agg_body = with_split_rng_state(agg_body, uid, is_scan)
-            else:
-                s = s.handle_randomness(False)
+        s = s.handle_randomness(agg_body.uses_agg_randomness(is_scan))
+        if agg_body.uses_agg_randomness(is_scan):
+            s = s.handle_randomness(True)
+            tuple, uid, elt = unpack_uid(s.typ)
+            agg_body = AggLet(name, elt, agg_body, is_scan)
+            agg_body = with_split_rng_state(agg_body, uid, is_scan)
+            name = tuple
         super().__init__(s, agg_body)
         self.name = name
         self.s = s
@@ -2355,7 +2353,7 @@ class SelectFields(IR):
 class SelectedTopLevelReference(SelectFields):
     @typecheck_method(name=str, type=tstruct)
     def __init__(self, name, type=None):
-        ref = TopLevelReference(name)
+        ref = TopLevelReference(name, None)
         super().__init__(ref, type.fields)
         self.ref = ref
         self._typ = type
@@ -2492,7 +2490,7 @@ class GetField(IR):
 class ProjectedTopLevelReference(GetField):
     @typecheck_method(name=str, field=str, type=HailType)
     def __init__(self, name, field, type=None):
-        ref = TopLevelReference(name)
+        ref = TopLevelReference(name, None)
         super().__init__(ref, field)
         self.ref = ref
         self.field = field
@@ -2689,27 +2687,24 @@ class Apply(IR):
 
 
 class ApplySeeded(IR):
-    @typecheck_method(function=str, seed=int, rng_state=IR, return_type=hail_type, args=IR)
-    def __init__(self, function, seed, rng_state, return_type, *args):
-        if hail.current_backend().requires_lowering:
-            warning("Seeded randomness is currently unreliable on the service. "
-                    "You may observe some unexpected behavior. Don't use for real work yet.")
+    @typecheck_method(function=str, static_rng_uid=int, rng_state=IR, return_type=hail_type, args=IR)
+    def __init__(self, function, static_rng_uid, rng_state, return_type, *args):
         super().__init__(rng_state, *args)
         self.function = function
         self.args = args
         self.rng_state = rng_state
-        self.seed = seed
+        self.static_rng_uid = static_rng_uid
         self.return_type = return_type
 
     def copy(self, rng_state, *args):
-        return ApplySeeded(self.function, self.seed, rng_state, self.return_type, *args)
+        return ApplySeeded(self.function, self.static_rng_uid, rng_state, self.return_type, *args)
 
     def head_str(self):
-        return f'{escape_id(self.function)} {self.seed} {self.return_type._parsable_string()}'
+        return f'{escape_id(self.function)} {self.static_rng_uid} {self.return_type._parsable_string()}'
 
     def _eq(self, other):
         return other.function == self.function and \
-            other.seed == self.seed and \
+            other.static_rng_uid == self.static_rng_uid and \
             other.return_type == self.return_type
 
     def _compute_type(self, env, agg_env, deep_typecheck):
@@ -2720,21 +2715,12 @@ class ApplySeeded(IR):
 
 
 class RNGStateLiteral(IR):
-    @typecheck_method(key=sized_tupleof(int, int, int, int))
-    def __init__(self, key):
-        for k in key:
-            assert 0 <= k < 0xFFFFFFFF_FFFFFFFF
+    @typecheck_method()
+    def __init__(self):
         super().__init__()
-        self.key = key
 
     def copy(self):
-        return RNGStateLiteral(self.key)
-
-    def head_str(self):
-        return f'({" ".join(map(str, self.key))})'
-
-    def _eq(self, other):
-        return other.key == self.key
+        return RNGStateLiteral()
 
     def _compute_type(self, env, agg_env, deep_typecheck):
         return trngstate
@@ -2809,12 +2795,12 @@ class TableAggregate(IR):
     @typecheck_method(child=TableIR, query=IR)
     def __init__(self, child, query):
         if query.uses_randomness:
-            child = child.handle_randomness(uid_field_name)
-            uid = GetField(Ref('row', child.typ.row_type), uid_field_name)
+            child = child.handle_randomness(default_row_uid)
+            uid = GetField(Ref('row', child.typ.row_type), default_row_uid)
             if query.uses_value_randomness:
-                query = Let('__rng_state', RNGStateLiteral(rng_key), query)
+                query = Let('__rng_state', RNGStateLiteral(), query)
             if query.uses_agg_randomness(is_scan=False):
-                query = AggLet('__rng_state', RNGSplit(RNGStateLiteral(rng_key), uid), query, is_scan=False)
+                query = AggLet('__rng_state', RNGSplit(RNGStateLiteral(), uid), query, is_scan=False)
         else:
             child = child.handle_randomness(None)
         super().__init__(child, query)
@@ -2865,14 +2851,14 @@ class MatrixAggregate(IR):
     @typecheck_method(child=MatrixIR, query=IR)
     def __init__(self, child, query):
         if query.uses_value_randomness:
-            query = Let('__rng_state', RNGStateLiteral(rng_key), query)
+            query = Let('__rng_state', RNGStateLiteral(), query)
 
         if query.uses_agg_randomness(is_scan=False):
             child = child.handle_randomness(default_row_uid, default_col_uid)
             row_uid, old_row = unpack_row_uid(child.typ.row_type, default_row_uid)
             col_uid, old_col = unpack_col_uid(child.typ.col_type, default_col_uid)
             entry_uid = concat_uids(row_uid, col_uid)
-            query = AggLet('__rng_state', RNGSplit(RNGStateLiteral(rng_key), entry_uid), query, is_scan=False)
+            query = AggLet('__rng_state', RNGSplit(RNGStateLiteral(), entry_uid), query, is_scan=False)
         else:
             child = child.handle_randomness(None, None)
 

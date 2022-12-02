@@ -937,7 +937,7 @@ object IRParser {
           case Array(a, start, stop, step) => ArraySlice(a, start, Some(stop), step, errorID)
         }
       case "RNGStateLiteral" =>
-        done(RNGStateLiteral(int64_literals(it)))
+        done(RNGStateLiteral())
       case "RNGSplit" =>
         for {
           state <- ir_value_expr(env)(it)
@@ -1363,12 +1363,12 @@ object IRParser {
         } yield ConsoleLog(msg, result)
       case "ApplySeeded" =>
         val function = identifier(it)
-        val seed = int64_literal(it)
+        val staticUID = int64_literal(it)
         val rt = type_expr(env.typEnv)(it)
         for {
           rngState <- ir_value_expr(env)(it)
           args <- ir_value_children(env)(it)
-        } yield ApplySeeded(function, args, rngState, seed, rt)
+        } yield ApplySeeded(function, args, rngState, staticUID, rt)
       case "ApplyIR" | "ApplySpecial" | "Apply" =>
         val errorID = int32_literal(it)
         val function = identifier(it)
@@ -2054,11 +2054,11 @@ object IRParser {
           ValueToBlockMatrix(child, shape, blockSize)
         }
       case "BlockMatrixRandom" =>
-        val seed = int64_literal(it)
+        val staticUID = int64_literal(it)
         val gaussian = boolean_literal(it)
         val shape = int64_literals(it)
         val blockSize = int32_literal(it)
-        done(BlockMatrixRandom(seed, gaussian, shape, blockSize))
+        done(BlockMatrixRandom(staticUID, gaussian, shape, blockSize))
       case "RelationalLetBlockMatrix" =>
         val name = identifier(it)
         for {
