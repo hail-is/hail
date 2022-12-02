@@ -807,14 +807,11 @@ def _service_vep(backend: ServiceBackend,
     name = 'vep(...)'
 
     with timings.step("submit batch"):
-        if backend._batch is None:
-            bb = backend.bc.create_batch(token=token,
-                                         attributes={'name': backend.name_prefix + name})
-        else:
-            bb = backend.bc.update_batch(backend._batch.id)
+        bb = backend.bc.create_batch(token=token,
+                                     attributes={'name': backend.name_prefix + name, 'vep': 1, 'token': token},
+                                     cancel_after_n_failures=1)
         build_vep_batch(bb)
         b = bb.submit(disable_progress_bar=True)
-        backend._batch = b
 
     with timings.step("wait batch"):
         try:
@@ -824,7 +821,6 @@ def _service_vep(backend: ServiceBackend,
         except BaseException:
             print('cancelling batch...')
             b.cancel()
-            backend._batch = None
             raise
 
     with timings.step("parse status"):
