@@ -1059,3 +1059,29 @@ class ServiceTests(unittest.TestCase):
         res = b.run()
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+
+    def test_update_batch_with_dependencies(self):
+        b = self.batch()
+        j1 = b.new_job()
+        j1.command('true')
+        j2 = b.new_job()
+        j2.command('false')
+        res = b.run()
+
+        res_status = res.status()
+        assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
+
+        j3 = b.new_job()
+        j3.command('true')
+        j3.depends_on(j1)
+
+        j4 = b.new_job()
+        j4.command('true')
+        j4.depends_on(j2)
+
+        res = b.run()
+        res_status = res.status()
+        assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
+
+        assert res.get_job(3).status()['state'] == 'Success', str((res_status, res.debug_info()))
+        assert res.get_job(4).status()['state'] == 'Cancelled', str((res_status, res.debug_info()))
