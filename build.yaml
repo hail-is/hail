@@ -2362,6 +2362,7 @@ steps:
       {% endif %}
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}
+      hailctl config set domain {{ global.domain }}
 
       python3 -m pytest \
               -Werror:::hail -Werror:::hailtop \
