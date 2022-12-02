@@ -20,7 +20,7 @@ using namespace hail::ir;
 void MapOp::build(mlir::OpBuilder &odsBuilder, mlir::OperationState &odsState,
                   mlir::TypeRange resultValueTypes, mlir::ValueRange inputs) {
   odsState.addTypes(odsBuilder.getType<OptionType>(resultValueTypes));
-  auto region = odsState.addRegion();
+  auto *region = odsState.addRegion();
   region->emplaceBlock();
   llvm::SmallVector<mlir::Type> argTypes;
   for (auto input : inputs) {
@@ -38,7 +38,7 @@ void MapOp::build(mlir::OpBuilder &odsBuilder, mlir::OperationState &odsState,
 void ConstructOp::build(mlir::OpBuilder &odsBuilder, mlir::OperationState &odsState,
                         mlir::TypeRange valueTypes) {
   odsState.addTypes(odsBuilder.getType<OptionType>(valueTypes));
-  auto region = odsState.addRegion();
+  auto *region = odsState.addRegion();
   region->emplaceBlock();
   region->addArgument(odsBuilder.getType<ContinuationType>(), odsState.location);
   region->addArgument(odsBuilder.getType<ContinuationType>(valueTypes), odsState.location);
@@ -53,11 +53,11 @@ namespace {
 struct DestructOfConstruct : public mlir::OpRewritePattern<DestructOp> {
   using OpRewritePattern<DestructOp>::OpRewritePattern;
 
-  mlir::LogicalResult matchAndRewrite(DestructOp destruct,
-                                      mlir::PatternRewriter &rewriter) const override {
+  auto matchAndRewrite(DestructOp destruct, mlir::PatternRewriter &rewriter) const
+      -> mlir::LogicalResult override {
     ConstructOp source;
-    int sourceValuesStart;
-    int curValueIdx = 0;
+    size_t sourceValuesStart = 0;
+    size_t curValueIdx = 0;
     llvm::SmallVector<mlir::Type> sourceValueTypes;
     llvm::SmallVector<mlir::Type> remainingValueTypes;
     llvm::SmallVector<mlir::Value> remainingOptions;
@@ -114,8 +114,8 @@ struct DestructOfConstruct : public mlir::OpRewritePattern<DestructOp> {
 struct EmptyDestruct : public mlir::OpRewritePattern<DestructOp> {
   using OpRewritePattern<DestructOp>::OpRewritePattern;
 
-  mlir::LogicalResult matchAndRewrite(DestructOp destruct,
-                                      mlir::PatternRewriter &rewriter) const override {
+  auto matchAndRewrite(DestructOp destruct, mlir::PatternRewriter &rewriter) const
+      -> mlir::LogicalResult override {
     if (!destruct.inputs().empty())
       return mlir::failure();
 
@@ -132,7 +132,8 @@ void DestructOp::getCanonicalizationPatterns(mlir::RewritePatternSet &results,
   results.add<DestructOfConstruct, EmptyDestruct>(context);
 }
 
-mlir::ParseResult DestructOp::parse(mlir::OpAsmParser &parser, mlir::OperationState &result) {
+auto DestructOp::parse(mlir::OpAsmParser &parser, mlir::OperationState &result)
+    -> mlir::ParseResult {
   auto &builder = parser.getBuilder();
   llvm::SmallVector<mlir::OpAsmParser::UnresolvedOperand> inputNames;
   llvm::SmallVector<mlir::OpAsmParser::UnresolvedOperand, 2> contNames;

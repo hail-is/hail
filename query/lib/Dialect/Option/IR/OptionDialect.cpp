@@ -28,34 +28,33 @@ void OptionDialect::initialize() {
 
 namespace hail::ir::detail {
 
-struct OptionTypeStorage final
-    : public mlir::TypeStorage,
-      public llvm::TrailingObjects<OptionTypeStorage, mlir::Type> {
+struct OptionTypeStorage final : public mlir::TypeStorage,
+                                 public llvm::TrailingObjects<OptionTypeStorage, mlir::Type> {
   using KeyTy = mlir::TypeRange;
 
   OptionTypeStorage(unsigned numTypes) : numElements(numTypes) {}
 
   /// Construction.
-  static OptionTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
-                                      mlir::TypeRange key) {
+  static auto construct(mlir::TypeStorageAllocator &allocator, mlir::TypeRange key)
+      -> OptionTypeStorage * {
     // Allocate a new storage instance.
     auto byteSize = OptionTypeStorage::totalSizeToAlloc<mlir::Type>(key.size());
     auto *rawMem = allocator.allocate(byteSize, alignof(OptionTypeStorage));
+    // NOLINTNEXTLINE(*-owning-memory)
     auto *result = ::new (rawMem) OptionTypeStorage(key.size());
 
     // Copy in the element types into the trailing storage.
-    std::uninitialized_copy(key.begin(), key.end(),
-                            result->getTrailingObjects<mlir::Type>());
+    std::uninitialized_copy(key.begin(), key.end(), result->getTrailingObjects<mlir::Type>());
     return result;
   }
 
-  bool operator==(const KeyTy &key) const { return key == getTypes(); }
+  auto operator==(const KeyTy &key) const -> bool { return key == getTypes(); }
 
   /// Return the number of held types.
-  unsigned size() const { return numElements; }
+  auto size() const -> unsigned { return numElements; }
 
   /// Return the held types.
-  llvm::ArrayRef<mlir::Type> getTypes() const {
+  auto getTypes() const -> llvm::ArrayRef<mlir::Type> {
     return {getTrailingObjects<mlir::Type>(), size()};
   }
 
@@ -65,13 +64,15 @@ struct OptionTypeStorage final
 
 } // namespace hail::ir::detail
 
-llvm::ArrayRef<mlir::Type> OptionType::getValueTypes() const { return getImpl()->getTypes(); }
+auto OptionType::getValueTypes() const -> llvm::ArrayRef<mlir::Type> {
+  return getImpl()->getTypes();
+}
 
-mlir::Type OptionType::parse(::mlir::AsmParser &parser) {
+auto OptionType::parse(::mlir::AsmParser &parser) -> mlir::Type {
   mlir::Builder builder(parser.getContext());
   llvm::SmallVector<mlir::Type> inputs;
 
-  auto parseType = [&](){
+  auto parseType = [&]() {
     auto element = mlir::FieldParser<mlir::Type>::parse(parser);
     if (failed(element))
       return mlir::failure();
@@ -80,7 +81,9 @@ mlir::Type OptionType::parse(::mlir::AsmParser &parser) {
   };
 
   if (parser.parseCommaSeparatedList(mlir::AsmParser::Delimiter::LessGreater, parseType)) {
-    parser.emitError(parser.getCurrentLocation(), "failed to parse OptionType parameter 'valueTypes' which is to be a `::llvm::ArrayRef<mlir::Type>`");
+    parser.emitError(parser.getCurrentLocation(),
+                     "failed to parse OptionType parameter 'valueTypes' which is to be a "
+                     "`::llvm::ArrayRef<mlir::Type>`");
     return {};
   }
   return OptionType::get(parser.getContext(), inputs);

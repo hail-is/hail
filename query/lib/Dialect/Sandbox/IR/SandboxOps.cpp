@@ -14,14 +14,14 @@
 #define GET_OP_CLASSES
 
 #include "Dialect/Sandbox/IR/SandboxOps.cpp.inc"
-namespace hail {
-namespace ir {
 
-mlir::OpFoldResult ConstantOp::fold(llvm::ArrayRef<mlir::Attribute> operands) {
+namespace hail::ir {
+
+auto ConstantOp::fold(llvm::ArrayRef<mlir::Attribute> operands) -> mlir::OpFoldResult {
   return valueAttr();
 }
 
-mlir::LogicalResult ConstantOp::verify() {
+auto ConstantOp::verify() -> mlir::LogicalResult {
   auto type = getType();
   // The value's type must match the return type.
   auto valueType = value().getType();
@@ -37,7 +37,8 @@ mlir::LogicalResult ConstantOp::verify() {
   return emitOpError() << "bad constant: type=" << type << ", valueType=" << valueType;
 }
 
-mlir::OpFoldResult AddIOp::fold(llvm::ArrayRef<mlir::Attribute> operands) {
+// NOLINTNEXTLINE(*-member-functions-to-static)
+auto AddIOp::fold(llvm::ArrayRef<mlir::Attribute> operands) -> mlir::OpFoldResult {
   assert(operands.size() == 2 && "binary op takes two operands");
   if (!operands[0] || !operands[1])
     return {};
@@ -54,7 +55,7 @@ mlir::OpFoldResult AddIOp::fold(llvm::ArrayRef<mlir::Attribute> operands) {
   return {};
 }
 
-mlir::OpFoldResult ComparisonOp::fold(llvm::ArrayRef<mlir::Attribute> operands) {
+auto ComparisonOp::fold(llvm::ArrayRef<mlir::Attribute> operands) -> mlir::OpFoldResult {
   assert(operands.size() == 2 && "comparison op takes two operands");
   if (!operands[0] || !operands[1])
     return {};
@@ -64,7 +65,7 @@ mlir::OpFoldResult ComparisonOp::fold(llvm::ArrayRef<mlir::Attribute> operands) 
     auto lhs = operands[0].cast<mlir::IntegerAttr>();
     auto rhs = operands[1].cast<mlir::IntegerAttr>();
 
-    bool x;
+    bool x = false;
     auto l = lhs.getValue();
     auto r = rhs.getValue();
     switch (pred) {
@@ -99,7 +100,8 @@ struct SimplifyAddConstAddConst : public mlir::OpRewritePattern<AddIOp> {
   SimplifyAddConstAddConst(mlir::MLIRContext *context)
       : OpRewritePattern<AddIOp>(context, /*benefit=*/1) {}
 
-  mlir::LogicalResult matchAndRewrite(AddIOp op, mlir::PatternRewriter &rewriter) const override {
+  auto matchAndRewrite(AddIOp op, mlir::PatternRewriter &rewriter) const
+      -> mlir::LogicalResult override {
     auto lhs = op.lhs().getDefiningOp<AddIOp>();
     if (!lhs)
       return mlir::failure();
@@ -125,7 +127,7 @@ void AddIOp::getCanonicalizationPatterns(mlir::RewritePatternSet &results,
   results.add<SimplifyAddConstAddConst>(context);
 }
 
-mlir::LogicalResult ArrayRefOp::verify() {
+auto ArrayRefOp::verify() -> mlir::LogicalResult {
   auto type = getType();
   // The value's type must match the return type.
   auto arrayType = array().getType();
@@ -142,7 +144,7 @@ mlir::LogicalResult ArrayRefOp::verify() {
   return mlir::success();
 }
 
-mlir::OpFoldResult ArrayRefOp::fold(llvm::ArrayRef<mlir::Attribute> operands) {
+auto ArrayRefOp::fold(llvm::ArrayRef<mlir::Attribute> operands) -> mlir::OpFoldResult {
   auto a = array().getDefiningOp<MakeArrayOp>();
   if (operands[1].isa<mlir::IntegerAttr>() && a) {
     auto idx = operands[1].cast<mlir::IntegerAttr>().getInt();
@@ -153,7 +155,7 @@ mlir::OpFoldResult ArrayRefOp::fold(llvm::ArrayRef<mlir::Attribute> operands) {
   return {};
 }
 
-mlir::LogicalResult MakeArrayOp::verify() {
+auto MakeArrayOp::verify() -> mlir::LogicalResult {
   auto assignedResultType = result().getType();
 
   if (!assignedResultType.isa<ir::ArrayType>()) {
@@ -171,5 +173,4 @@ mlir::LogicalResult MakeArrayOp::verify() {
   return mlir::success();
 }
 
-} // namespace ir
 } // namespace hail

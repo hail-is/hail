@@ -12,7 +12,7 @@
 #include "InitAllDialects.h"
 #include "InitAllPasses.h"
 
-int main(int argc, char **argv) {
+auto main(int argc, char **argv) -> int {
   // mlir::registerAllPasses();
 
   // General passes

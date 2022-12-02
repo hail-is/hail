@@ -12,7 +12,7 @@
 
 using namespace hail::ir;
 
-int main(int argc, char **argv) {
+auto main(int argc, char **argv) -> int {
   mlir::DialectRegistry registry;
   registerAllDialects(registry);
 

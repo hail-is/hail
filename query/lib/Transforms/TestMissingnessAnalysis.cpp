@@ -11,7 +11,7 @@ using namespace hail::ir;
 
 static void rewrite(mlir::DataFlowSolver &solver, mlir::Operation *root) {
   root->walk([&solver, root](mlir::Operation *op) {
-    auto context = root->getContext();
+    auto *context = root->getContext();
     auto builder = mlir::Builder(root->getContext());
     llvm::SmallVector<mlir::Attribute> annotations;
 
@@ -82,6 +82,6 @@ void TestMissingnessAnalysisPass::runOnOperation() {
   rewrite(solver, op);
 }
 
-std::unique_ptr<mlir::Pass> hail::ir::createTestMissingnessAnalysisPass() {
+auto hail::ir::createTestMissingnessAnalysisPass() -> std::unique_ptr<mlir::Pass> {
   return std::make_unique<TestMissingnessAnalysisPass>();
 }

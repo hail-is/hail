@@ -18,8 +18,8 @@ public:
   explicit ConvertMapOp(mlir::MLIRContext *context)
       : OpConversionPattern<MapOp>(context, /*benefit=*/1) {}
 
-  mlir::LogicalResult matchAndRewrite(MapOp op, OpAdaptor adaptor,
-                                      mlir::ConversionPatternRewriter &rewriter) const override {
+  auto matchAndRewrite(MapOp op, OpAdaptor adaptor, mlir::ConversionPatternRewriter &rewriter) const
+      -> mlir::LogicalResult override {
     auto loc = op.getLoc();
 
     llvm::SmallVector<mlir::Type> valueTypes;
@@ -67,7 +67,7 @@ void OptionToGenericOptionPass::runOnOperation() {
     signalPassFailure();
 }
 
-std::unique_ptr<mlir::Pass> createOptionToGenericOptionPass() {
+auto createOptionToGenericOptionPass() -> std::unique_ptr<mlir::Pass> {
   return std::make_unique<OptionToGenericOptionPass>();
 }
 

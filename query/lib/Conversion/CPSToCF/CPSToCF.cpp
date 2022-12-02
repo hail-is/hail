@@ -28,7 +28,8 @@ using namespace hail::ir;
 
 namespace {
 
-void lowerCallCCOp(mlir::IRRewriter &rewriter, CallCCOp callcc, std::vector<DefContOp> &defsWorklist) {
+void lowerCallCCOp(mlir::IRRewriter &rewriter, CallCCOp callcc,
+                   std::vector<DefContOp> &defsWorklist) {
   auto loc = callcc->getLoc();
   assert(callcc->getParentRegion()->hasOneBlock());
   // Split the current block before callcc to create the continuation point.
@@ -48,7 +49,7 @@ void lowerCallCCOp(mlir::IRRewriter &rewriter, CallCCOp callcc, std::vector<DefC
   rewriter.replaceOp(callcc, defcont.getBody()->getArguments());
 }
 
-mlir::Block *getDefBlock(mlir::Value cont) {
+auto getDefBlock(mlir::Value cont) -> mlir::Block * {
   auto def = cont.getDefiningOp<DefContOp>();
   assert(def && "Continuation def is not visable");
   return &def.bodyRegion().front();
@@ -80,8 +81,9 @@ void CPSToCFPass::runOnOperation() {
   std::vector<CallCCOp> callccsWorklist;
   std::vector<DefContOp> defsWorklist;
   std::vector<mlir::Operation *> usesWorklist;
-  defsWorklist.reserve(64);
-  usesWorklist.reserve(64);
+  constexpr int initCapacity = 64;
+  defsWorklist.reserve(initCapacity);
+  usesWorklist.reserve(initCapacity);
 
   // add nested ops to worklist in postorder
   auto *root = getOperation();
@@ -111,6 +113,6 @@ void CPSToCFPass::runOnOperation() {
   }
 }
 
-std::unique_ptr<mlir::Pass> createCPSToCFPass() { return std::make_unique<CPSToCFPass>(); }
+auto createCPSToCFPass() -> std::unique_ptr<mlir::Pass> { return std::make_unique<CPSToCFPass>(); }
 
 } // namespace hail::ir

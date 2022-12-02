@@ -40,26 +40,26 @@ struct ContinuationTypeStorage final
   ContinuationTypeStorage(unsigned numTypes) : numElements(numTypes) {}
 
   /// Construction.
-  static ContinuationTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
-                                     mlir::TypeRange key) {
+  static auto construct(mlir::TypeStorageAllocator &allocator, mlir::TypeRange key)
+      -> ContinuationTypeStorage * {
     // Allocate a new storage instance.
     auto byteSize = ContinuationTypeStorage::totalSizeToAlloc<mlir::Type>(key.size());
     auto *rawMem = allocator.allocate(byteSize, alignof(ContinuationTypeStorage));
+    // NOLINTNEXTLINE(*-owning-memory)
     auto *result = ::new (rawMem) ContinuationTypeStorage(key.size());
 
     // Copy in the element types into the trailing storage.
-    std::uninitialized_copy(key.begin(), key.end(),
-                            result->getTrailingObjects<mlir::Type>());
+    std::uninitialized_copy(key.begin(), key.end(), result->getTrailingObjects<mlir::Type>());
     return result;
   }
 
-  bool operator==(const KeyTy &key) const { return key == getTypes(); }
+  auto operator==(const KeyTy &key) const -> bool { return key == getTypes(); }
 
   /// Return the number of held types.
-  unsigned size() const { return numElements; }
+  auto size() const -> unsigned { return numElements; }
 
   /// Return the held types.
-  llvm::ArrayRef<mlir::Type> getTypes() const {
+  auto getTypes() const -> llvm::ArrayRef<mlir::Type> {
     return {getTrailingObjects<mlir::Type>(), size()};
   }
 
@@ -69,13 +69,15 @@ struct ContinuationTypeStorage final
 
 } // namespace hail::ir::detail
 
-llvm::ArrayRef<mlir::Type> ContinuationType::getInputs() const { return getImpl()->getTypes(); }
+auto ContinuationType::getInputs() const -> llvm::ArrayRef<mlir::Type> {
+  return getImpl()->getTypes();
+}
 
-mlir::Type ContinuationType::parse(::mlir::AsmParser &parser) {
+auto ContinuationType::parse(::mlir::AsmParser &parser) -> mlir::Type {
   mlir::Builder builder(parser.getContext());
   llvm::SmallVector<mlir::Type> inputs;
 
-  auto parseType = [&](){
+  auto parseType = [&]() {
     auto element = mlir::FieldParser<mlir::Type>::parse(parser);
     if (failed(element))
       return mlir::failure();
@@ -84,7 +86,9 @@ mlir::Type ContinuationType::parse(::mlir::AsmParser &parser) {
   };
 
   if (parser.parseCommaSeparatedList(mlir::AsmParser::Delimiter::LessGreater, parseType)) {
-    parser.emitError(parser.getCurrentLocation(), "failed to parse CPS_ContType parameter 'inputs' which is to be a `::llvm::ArrayRef<mlir::Type>`");
+    parser.emitError(parser.getCurrentLocation(),
+                     "failed to parse CPS_ContType parameter 'inputs' which is to be a "
+                     "`::llvm::ArrayRef<mlir::Type>`");
     return {};
   }
   return ContinuationType::get(parser.getContext(), inputs);
@@ -101,8 +105,7 @@ void ContinuationType::print(::mlir::AsmPrinter &odsPrinter) const {
 // CallCCOp
 //===----------------------------------------------------------------------===//
 
-mlir::ParseResult CallCCOp::parse(mlir::OpAsmParser &parser,
-                                  mlir::OperationState &result) {
+auto CallCCOp::parse(mlir::OpAsmParser &parser, mlir::OperationState &result) -> mlir::ParseResult {
   auto &builder = parser.getBuilder();
 
   // Parse the return continuation argument and return types
@@ -146,8 +149,8 @@ void CallCCOp::print(mlir::OpAsmPrinter &p) {
 // DefContOp
 //===----------------------------------------------------------------------===//
 
-mlir::ParseResult DefContOp::parse(mlir::OpAsmParser &parser,
-                                   mlir::OperationState &result) {
+auto DefContOp::parse(mlir::OpAsmParser &parser, mlir::OperationState &result)
+    -> mlir::ParseResult {
   auto &builder = parser.getBuilder();
 
   // Parse the arguments list
@@ -183,9 +186,8 @@ mlir::ParseResult DefContOp::parse(mlir::OpAsmParser &parser,
 void DefContOp::print(mlir::OpAsmPrinter &p) {
   // Print the arguments list
   p << '(';
-  llvm::interleaveComma(getRegion().getArguments(), p, [&](auto arg){
-    p.printRegionArgument(arg);
-  });
+  llvm::interleaveComma(getRegion().getArguments(), p,
+                        [&](auto arg) { p.printRegionArgument(arg); });
   p << ')';
 
   // If attributes are present, print them.

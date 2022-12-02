@@ -40,10 +40,10 @@ void MissingnessAnalysis::visitOperation(
 
   // By default, operations are strict: if any operand is missing, all results are missing
   MissingnessValue::State operandsState {};
-  for (auto *lattice : operands) {
+  for (const auto *lattice : operands) {
     operandsState = std::max(operandsState, lattice->getValue().getState());
   }
-  for (auto result : results) {
+  for (auto *result : results) {
     auto changed = result->join({operandsState});
     LLVM_DEBUG(llvm::dbgs() << " result: "; result->print(llvm::dbgs()); llvm::dbgs() << "\n");
     propagateIfChanged(result, changed);

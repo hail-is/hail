@@ -23,14 +23,14 @@ struct LowerOptionPass : public LowerOptionBase<LowerOptionPass> {
 
 struct LoweredOption {
   explicit LoweredOption(OptionType type) { operands.reserve(type.getValueTypes().size() + 1); };
-  mlir::Value isDefined() { return operands[0]; };
-  mlir::ValueRange values() { return mlir::ValueRange(operands).drop_front(1); };
+  auto isDefined() -> mlir::Value { return operands[0]; };
+  auto values() -> mlir::ValueRange { return mlir::ValueRange(operands).drop_front(1); };
 
   llvm::SmallVector<mlir::Value, 4> operands{};
 };
 
-LoweredOption unpackOptional(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-                             mlir::Value optional) {
+auto unpackOptional(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+                    mlir::Value optional) -> LoweredOption {
   auto type = optional.getType().cast<OptionType>();
   llvm::SmallVector<mlir::Type, 2> resultTypes;
   resultTypes.reserve(type.getValueTypes().size() + 1);
@@ -46,8 +46,9 @@ struct ConstructOpConversion : public mlir::OpConversionPattern<ConstructOp> {
   ConstructOpConversion(mlir::MLIRContext *context)
       : OpConversionPattern<ConstructOp>(context, /*benefit=*/1) {}
 
-  mlir::LogicalResult matchAndRewrite(ConstructOp op, OpAdaptor adaptor,
-                                      mlir::ConversionPatternRewriter &rewriter) const override {
+  auto matchAndRewrite(ConstructOp op, OpAdaptor adaptor,
+                       mlir::ConversionPatternRewriter &rewriter) const
+      -> mlir::LogicalResult override {
     auto loc = op.getLoc();
     llvm::SmallVector<mlir::Type, 4> resultTypes;
     auto valueTypes = op.getType().getValueTypes();
@@ -96,8 +97,9 @@ struct ConstructOpConversion : public mlir::OpConversionPattern<ConstructOp> {
 struct DestructOpConversion : public mlir::OpConversionPattern<DestructOp> {
   using OpConversionPattern<DestructOp>::OpConversionPattern;
 
-  mlir::LogicalResult matchAndRewrite(DestructOp op, OpAdaptor adaptor,
-                                      mlir::ConversionPatternRewriter &rewriter) const override {
+  auto matchAndRewrite(DestructOp op, OpAdaptor adaptor,
+                       mlir::ConversionPatternRewriter &rewriter) const
+      -> mlir::LogicalResult override {
     llvm::SmallVector<mlir::Value> values;
     mlir::Value isDefined;
     for (auto option : adaptor.inputs()) {
@@ -134,6 +136,8 @@ void populateLowerOptionConversionPatterns(mlir::RewritePatternSet &patterns) {
   patterns.add<ConstructOpConversion, DestructOpConversion>(patterns.getContext());
 }
 
-std::unique_ptr<mlir::Pass> createLowerOptionPass() { return std::make_unique<LowerOptionPass>(); }
+auto createLowerOptionPass() -> std::unique_ptr<mlir::Pass> {
+  return std::make_unique<LowerOptionPass>();
+}
 
 } // namespace hail::ir

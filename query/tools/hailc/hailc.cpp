@@ -1,5 +1,5 @@
-#include "InitAllDialects.h"
 #include "Conversion/Passes.h"
+#include "InitAllDialects.h"
 
 #include "mlir/ExecutionEngine/ExecutionEngine.h"
 #include "mlir/ExecutionEngine/OptUtils.h"
@@ -22,32 +22,24 @@
 using namespace hail::ir;
 namespace cl = llvm::cl;
 
-static cl::opt<std::string> inputFilename(cl::Positional,
-                                          cl::desc("<input mlir file>"),
-                                          cl::init("-"),
-                                          cl::value_desc("filename"));
+static const cl::opt<std::string> inputFilename(cl::Positional, cl::desc("<input mlir file>"),
+                                                cl::init("-"), cl::value_desc("filename"));
 
 namespace {
 enum Action { None, DumpSandbox, DumpMLIR, DumpMLIRLLVM, DumpLLVMIR, RunJIT };
 } // namespace
 
-static cl::opt<enum Action> emitAction(
+static const cl::opt<enum Action> emitAction(
     "emit", cl::desc("Select the kind of output desired"),
-    cl::values(clEnumValN(DumpSandbox, "sandbox",
-                          "output the sandbox dialect dump")),
-    cl::values(clEnumValN(DumpMLIR, "mlir",
-                          "output the MLIR dump after lowering sandbox")),
-    cl::values(clEnumValN(DumpMLIRLLVM, "mlir-llvm",
-                          "output the MLIR dump after llvm lowering")),
+    cl::values(clEnumValN(DumpSandbox, "sandbox", "output the sandbox dialect dump")),
+    cl::values(clEnumValN(DumpMLIR, "mlir", "output the MLIR dump after lowering sandbox")),
+    cl::values(clEnumValN(DumpMLIRLLVM, "mlir-llvm", "output the MLIR dump after llvm lowering")),
     cl::values(clEnumValN(DumpLLVMIR, "llvm", "output the LLVM IR dump")),
-    cl::values(
-        clEnumValN(RunJIT, "jit",
-                   "JIT the code and run it by invoking the main function")));
+    cl::values(clEnumValN(RunJIT, "jit", "JIT the code and run it by invoking the main function")));
 
-static cl::opt<bool> enableOpt("opt", cl::desc("Enable optimizations"));
+static const cl::opt<bool> enableOpt("opt", cl::desc("Enable optimizations"));
 
-int loadMLIR(mlir::MLIRContext &context,
-             mlir::OwningOpRef<mlir::ModuleOp> &module) {
+auto loadMLIR(mlir::MLIRContext &context, mlir::OwningOpRef<mlir::ModuleOp> &module) -> int {
   llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> fileOrErr =
       llvm::MemoryBuffer::getFileOrSTDIN(inputFilename);
   if (std::error_code ec = fileOrErr.getError()) {
@@ -66,8 +58,8 @@ int loadMLIR(mlir::MLIRContext &context,
   return 0;
 }
 
-int loadAndProcessMLIR(mlir::MLIRContext &context,
-                       mlir::OwningOpRef<mlir::ModuleOp> &module) {
+auto loadAndProcessMLIR(mlir::MLIRContext &context, mlir::OwningOpRef<mlir::ModuleOp> &module)
+    -> int {
   if (int error = loadMLIR(context, module))
     return error;
 
@@ -113,7 +105,7 @@ int loadAndProcessMLIR(mlir::MLIRContext &context,
   return 0;
 }
 
-int dumpLLVMIR(mlir::ModuleOp module) {
+auto dumpLLVMIR(mlir::ModuleOp module) -> int {
   // Register the translation to LLVM IR with the MLIR context.
   mlir::registerLLVMDialectTranslation(*module->getContext());
 
@@ -142,7 +134,7 @@ int dumpLLVMIR(mlir::ModuleOp module) {
   return 0;
 }
 
-int runJit(mlir::ModuleOp module) {
+auto runJit(mlir::ModuleOp module) -> int {
   // Initialize LLVM targets.
   llvm::InitializeNativeTarget();
   llvm::InitializeNativeTargetAsmPrinter();
@@ -174,7 +166,7 @@ int runJit(mlir::ModuleOp module) {
   return 0;
 }
 
-int main(int argc, char **argv) {
+auto main(int argc, char **argv) -> int {
   // Register any command line options.
   mlir::registerAsmPrinterCLOptions();
   mlir::registerMLIRContextCLOptions();

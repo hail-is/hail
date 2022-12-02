@@ -20,8 +20,8 @@ namespace {
 struct InlineCont : public mlir::OpRewritePattern<ApplyContOp> {
   using OpRewritePattern<ApplyContOp>::OpRewritePattern;
 
-  mlir::LogicalResult matchAndRewrite(ApplyContOp apply,
-                                      mlir::PatternRewriter &rewriter) const override {
+  auto matchAndRewrite(ApplyContOp apply, mlir::PatternRewriter &rewriter) const
+      -> mlir::LogicalResult override {
     auto defcont = apply.cont().getDefiningOp<DefContOp>();
     if (!defcont || !defcont->hasOneUse())
       return mlir::failure();
@@ -45,9 +45,10 @@ void ApplyContOp::getCanonicalizationPatterns(mlir::RewritePatternSet &results,
 // CallCCOp
 //===----------------------------------------------------------------------===//
 
-void CallCCOp::build(mlir::OpBuilder &odsBuilder, mlir::OperationState &odsState, mlir::TypeRange resultTypes) {
+void CallCCOp::build(mlir::OpBuilder &odsBuilder, mlir::OperationState &odsState,
+                     mlir::TypeRange resultTypes) {
   odsState.addTypes(resultTypes);
-  auto region = odsState.addRegion();
+  auto *region = odsState.addRegion();
   region->emplaceBlock();
   region->addArgument(odsBuilder.getType<ContinuationType>(resultTypes), odsState.location);
 }
@@ -57,8 +58,8 @@ namespace {
 struct TrivialCallCC : public mlir::OpRewritePattern<CallCCOp> {
   using OpRewritePattern<CallCCOp>::OpRewritePattern;
 
-  mlir::LogicalResult matchAndRewrite(CallCCOp callcc,
-                                      mlir::PatternRewriter &rewriter) const override {
+  auto matchAndRewrite(CallCCOp callcc, mlir::PatternRewriter &rewriter) const
+      -> mlir::LogicalResult override {
     auto terminator = dyn_cast<ApplyContOp>(callcc.getBody()->getTerminator());
     if (!terminator)
       return mlir::failure();
@@ -76,7 +77,7 @@ struct TrivialCallCC : public mlir::OpRewritePattern<CallCCOp> {
 } // namespace
 
 void CallCCOp::getCanonicalizationPatterns(mlir::RewritePatternSet &results,
-                                              mlir::MLIRContext *context) {
+                                           mlir::MLIRContext *context) {
   results.add<TrivialCallCC>(context);
 }
 
@@ -84,28 +85,27 @@ void CallCCOp::getCanonicalizationPatterns(mlir::RewritePatternSet &results,
 // DefContOp
 //===----------------------------------------------------------------------===//
 
-void DefContOp::build(mlir::OpBuilder &odsBuilder, mlir::OperationState &odsState, mlir::TypeRange argTypes) {
+void DefContOp::build(mlir::OpBuilder &odsBuilder, mlir::OperationState &odsState,
+                      mlir::TypeRange argTypes) {
   odsState.addTypes(odsBuilder.getType<ContinuationType>(argTypes));
-  auto region = odsState.addRegion();
+  auto *region = odsState.addRegion();
   region->emplaceBlock();
   llvm::SmallVector<mlir::Location> locs(argTypes.size(), odsState.location);
   region->addArguments(argTypes, locs);
 }
 
-mlir::LogicalResult DefContOp::verifyRegions() {
+auto DefContOp::verifyRegions() -> mlir::LogicalResult {
   auto *body = getBody();
   ContinuationType type = getType();
   auto numArgs = type.getInputs().size();
 
   if (body->getNumArguments() != numArgs)
-    return emitOpError(
-        "mismatch in number of basic block args and continuation type");
+    return emitOpError("mismatch in number of basic block args and continuation type");
 
   unsigned i = 0;
   for (auto e : llvm::zip(body->getArguments(), type.getInputs())) {
     if (std::get<0>(e).getType() != std::get<1>(e))
-      return emitOpError() << "type mismatch between " << i
-                           << "th block arg and continuation type";
+      return emitOpError() << "type mismatch between " << i << "th block arg and continuation type";
 
     i++;
   }

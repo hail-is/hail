@@ -10,10 +10,8 @@
 using namespace hail;
 using namespace hail::ir;
 
-mlir::Operation *SandboxDialect::materializeConstant(mlir::OpBuilder &builder,
-                                                     mlir::Attribute value,
-                                                     mlir::Type type,
-                                                     mlir::Location loc) {
+auto SandboxDialect::materializeConstant(mlir::OpBuilder &builder, mlir::Attribute value,
+                                         mlir::Type type, mlir::Location loc) -> mlir::Operation * {
   assert(type.isa<IntType>() || type.isa<BooleanType>());
   auto intAttr = value.cast<mlir::IntegerAttr>();
   assert(intAttr);
@@ -34,7 +32,6 @@ void SandboxDialect::initialize() {
 #define GET_TYPEDEF_LIST
 #include "Dialect/Sandbox/IR/SandboxOpsTypes.cpp.inc"
       >();
-      
 }
 
 void ir::ArrayType::walkImmediateSubElements(
@@ -43,28 +40,30 @@ void ir::ArrayType::walkImmediateSubElements(
   walkTypesFn(getElementType());
 }
 
-mlir::Type ir::ArrayType::replaceImmediateSubElements(
-    mlir::ArrayRef<mlir::Attribute> replAttrs, mlir::ArrayRef<Type> replTypes) const {
-      return get(getContext(), replTypes.front());
+auto ir::ArrayType::replaceImmediateSubElements(mlir::ArrayRef<mlir::Attribute> replAttrs,
+                                                mlir::ArrayRef<Type> replTypes) const
+    -> mlir::Type {
+  return get(getContext(), replTypes.front());
 }
 
-mlir::LogicalResult
-ir::ArrayType::verify(mlir::function_ref<mlir::InFlightDiagnostic()> emitError,
-                           Type elementType) {
-  if (elementType.isa<ir::BooleanType>() || elementType.isa<ir::IntType>() || elementType.isa<ir::ArrayType>()) {
+auto ir::ArrayType::verify(mlir::function_ref<mlir::InFlightDiagnostic()> emitError,
+                           Type elementType) -> mlir::LogicalResult {
+  if (elementType.isa<ir::BooleanType>() || elementType.isa<ir::IntType>() ||
+      elementType.isa<ir::ArrayType>()) {
     return mlir::success();
   }
 
   return mlir::failure();
 }
 
-
-mlir::Type ir::ArrayType::parse(::mlir::AsmParser &parser) {
+auto ir::ArrayType::parse(::mlir::AsmParser &parser) -> mlir::Type {
   mlir::Type elementType;
-  if (parser.parseLess()) return Type();
+  if (parser.parseLess())
+    return {};
   if (parser.parseType(elementType))
     return nullptr;
-  if (parser.parseGreater()) return Type();
+  if (parser.parseGreater())
+    return {};
   return ir::ArrayType::get(parser.getContext(), elementType);
 }
 

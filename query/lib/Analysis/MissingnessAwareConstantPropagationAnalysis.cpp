@@ -22,7 +22,7 @@ void MissingnessAwareConstantPropagation::visitOperation(
 
   // FIXME: move missingness op semantics to an interface
   if (auto missingOp = dyn_cast<IsMissingOp>(op)) {
-    auto missingness = getOrCreateFor<Lattice<MissingnessValue>>(
+    const auto *missingness = getOrCreateFor<Lattice<MissingnessValue>>(
         missingOp, missingOp.getOperand());
     if (missingness->isUninitialized())
       return;
@@ -43,7 +43,7 @@ void MissingnessAwareConstantPropagation::visitOperation(
   // guarantee that folding will be out-of-place. We don't allow in-place
   // folds as the desire here is for simulated execution, and not general
   // folding.
-  if (op->getNumRegions())
+  if (op->getNumRegions() != 0U)
     return;
 
   // By default, only propagate constants if there are no missing operands.
@@ -60,7 +60,7 @@ void MissingnessAwareConstantPropagation::visitOperation(
 
   llvm::SmallVector<mlir::Attribute> constantOperands;
   constantOperands.reserve(op->getNumOperands());
-  for (auto *operandLattice : operands)
+  for (const auto *operandLattice : operands)
     constantOperands.push_back(operandLattice->getValue().getConstantValue());
 
   // Save the original operands and attributes just in case the operation
@@ -95,7 +95,7 @@ void MissingnessAwareConstantPropagation::visitOperation(
 
     // Merge in the result of the fold, either a constant or a value.
     mlir::OpFoldResult foldResult = std::get<1>(it);
-    if (mlir::Attribute attr = foldResult.dyn_cast<mlir::Attribute>()) {
+    if (const auto attr = foldResult.dyn_cast<mlir::Attribute>()) {
       LLVM_DEBUG(llvm::dbgs() << "Folded to constant: " << attr << "\n");
       propagateIfChanged(lattice,
                          lattice->join(ConstantValue(attr, op->getDialect())));
