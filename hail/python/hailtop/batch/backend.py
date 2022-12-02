@@ -578,7 +578,6 @@ class ServiceBackend(Backend[bc.Batch]):
         n_jobs_submitted = 0
         used_remote_tmpdir = False
 
-        job_to_client_job_mapping: Dict[_job.Job, bc.Job] = {}
         jobs_to_command = {}
         commands = []
 
@@ -649,9 +648,6 @@ class ServiceBackend(Backend[bc.Batch]):
             used_remote_tmpdir_results = await bounded_gather(*[functools.partial(compile_job, j) for j in batch._jobs], parallelism=150)
             used_remote_tmpdir |= any(used_remote_tmpdir_results)
 
-        for job in batch._submitted_jobs:
-            job_to_client_job_mapping[job] = job._client_job
-
         for job in track(batch._unsubmitted_jobs, description='create job objects', disable=disable_setup_steps_progress_bar):
             inputs = [x for r in job._inputs for x in copy_input(r)]
 
@@ -698,7 +694,7 @@ class ServiceBackend(Backend[bc.Batch]):
                 commands.append(formatted_command)
                 continue
 
-            parents = [job_to_client_job_mapping[j] for j in job._dependencies]
+            parents = [j._client_job for j in job._dependencies]
 
             attributes = copy.deepcopy(job.attributes) if job.attributes else {}
             if job.name:
@@ -744,7 +740,6 @@ class ServiceBackend(Backend[bc.Batch]):
             n_jobs_submitted += 1
 
             job._client_job = j
-            job_to_client_job_mapping[job] = j
             jobs_to_command[j] = cmd
 
         if dry_run:
