@@ -528,7 +528,7 @@ object LowerTableIR {
               MakeArray(
                 ApplyAggOp(
                   FastIndexedSeq(I32(samplesPerPartition)),
-                  FastIndexedSeq(SelectFields(elt, keyType.fieldNames), invokeSeeded("rand_unif", 1, TFloat64, NA(TRNGState), F64(0.0), F64(1.0))),
+                  FastIndexedSeq(SelectFields(elt, keyType.fieldNames), invokeSeeded("rand_unif", 1, TFloat64, RNGStateLiteral(), F64(0.0), F64(1.0))),
                   samplekey),
                 ApplyAggOp(
                   FastIndexedSeq(I32(1)),
@@ -594,7 +594,7 @@ object LowerTableIR {
           InitFromSerializedValue(i, GetTupleElement(initStateRef, i), agg.state )})
 
         val branchFactor = HailContext.get.branchingFactor
-        val useTreeAggregate = aggs.shouldTreeAggregate && branchFactor > lc.numPartitions
+        val useTreeAggregate = aggs.shouldTreeAggregate && branchFactor < lc.numPartitions
         val isCommutative = aggs.isCommutative
         log.info(s"Aggregate: useTreeAggregate=${ useTreeAggregate }")
         log.info(s"Aggregate: commutative=${ isCommutative }")
@@ -1238,7 +1238,7 @@ object LowerTableIR {
             InitFromSerializedValue(i, GetTupleElement(initStateRef, i), agg.state)
           })
           val branchFactor = HailContext.get.branchingFactor
-          val big = aggs.shouldTreeAggregate && branchFactor > lc.numPartitions
+          val big = aggs.shouldTreeAggregate && branchFactor < lc.numPartitions
           val (partitionPrefixSumValues, transformPrefixSum): (IR, IR => IR) = if (big) {
             val tmpDir = ctx.createTmpPath("aggregate_intermediates/")
 

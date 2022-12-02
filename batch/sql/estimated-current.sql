@@ -162,6 +162,7 @@ CREATE TABLE IF NOT EXISTS `batches` (
   PRIMARY KEY (`id`),
   FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name)
 ) ENGINE = InnoDB;
+CREATE INDEX `batches_state` ON `batches` (`state`);
 CREATE INDEX `batches_user_state` ON `batches` (`user`, `state`);
 CREATE INDEX `batches_deleted` ON `batches` (`deleted`);
 CREATE INDEX `batches_token` ON `batches` (`token`);

@@ -122,7 +122,7 @@ dependencies {
     unbundled('org.apache.spark:spark-core_' + scalaMajorVersion + ':' + sparkVersion) {
         exclude module: 'hadoop-client'
     }
-    unbundled('org.apache.hadoop:hadoop-client:2.7.1') {
+    unbundled('org.apache.hadoop:hadoop-client:3.3.4') {
         exclude module: 'servlet-api'
         exclude module: 'asm'
     }
@@ -183,7 +183,7 @@ dependencies {
     bundled group: 'org.ow2.asm', name: 'asm-util', version: '7.3.1'
     bundled group: 'org.ow2.asm', name: 'asm-analysis', version: '7.3.1'
 
-    bundled 'net.java.dev.jna:jna:5.6.0'
+    bundled 'net.java.dev.jna:jna:5.12.1'
     bundled('net.sourceforge.jdistlib:jdistlib:0.4.5') {
         transitive = false
     }
@@ -192,13 +192,13 @@ dependencies {
     hailTest 'org.scalatest:scalatest_' + scalaMajorVersion + ':3.0.5'
 
     unbundled group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
-    bundled group: 'commons-codec', name: 'commons-codec', version: '1.11'
-    bundled group: 'org.apache.commons', name: 'commons-lang3', version: '3.5'
+    bundled group: 'commons-codec', name: 'commons-codec', version: '1.15'
+    bundled group: 'org.apache.commons', name: 'commons-lang3', version: '3.12.0'
     bundled(group: 'org.apache.avro', name: 'avro', version: '1.10.2') {
         exclude group: 'com.fasterxml.jackson.core'
     }
 
-    bundled 'commons-io:commons-io:2.5'
+    bundled 'commons-io:commons-io:2.11.0'
     bundled(group: 'com.azure', name: 'azure-storage-blob', version: '12.13.0') {
         exclude group: 'com.fasterxml.jackson'
         exclude group: 'com.fasterxml.jackson.core'
@@ -230,9 +230,9 @@ dependencies {
         }
     }
 
-    bundled group: 'org.freemarker', name: 'freemarker', version: '2.3.14'
+    bundled group: 'org.freemarker', name: 'freemarker', version: '2.3.31'
 
-    bundled 'com.kohlschutter.junixsocket:junixsocket-core:2.3.2'
+    bundled 'com.kohlschutter.junixsocket:junixsocket-core:2.6.1'
 }
 
 task(checkSettings) doLast {

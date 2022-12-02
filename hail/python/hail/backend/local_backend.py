@@ -261,7 +261,7 @@ class LocalBackend(Py4JBackend):
     def remove_reference(self, name):
         self._hail_package.variant.ReferenceGenome.removeReference(name)
 
-    def get_reference(self, name):
+    def _get_non_builtin_reference(self, name):
         return json.loads(self._hail_package.variant.ReferenceGenome.getReference(name).toJSONString())
 
     def add_sequence(self, name, fasta_file, index_file):

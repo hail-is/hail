@@ -516,8 +516,8 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
 
                     await self._compose(chunk_names, dest_name)
 
-                    for n in chunk_names:
-                        await pool.call(self._fs._remove_doesnt_exist_ok, f'gs://{self._bucket}/{n}')
+                    for name in chunk_names:
+                        await pool.call(self._fs._remove_doesnt_exist_ok, f'gs://{self._bucket}/{name}')
 
                 await tree_compose(
                     [self._part_name(i) for i in range(self._num_parts)],

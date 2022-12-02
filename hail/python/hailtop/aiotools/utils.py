@@ -1,4 +1,4 @@
-from typing import TypeVar, AsyncIterator, Iterator
+from typing import Deque, TypeVar, AsyncIterator, Iterator
 import collections
 import asyncio
 
@@ -39,7 +39,7 @@ class WriteBuffer:
         that can be retried. WriteBuffer stores data at the end of
         the write stream that has not been committed and may be needed
         to retry the failed write of a chunk."""
-        self._buffers = collections.deque()
+        self._buffers: Deque[bytes] = collections.deque()
         self._offset = 0
         self._size = 0
         self._iterating = False

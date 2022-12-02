@@ -1,0 +1,2 @@
+ALTER TABLE users MODIFY COLUMN username varchar(255) NOT NULL COLLATE utf8mb4_0900_as_cs;
+ALTER TABLE users MODIFY COLUMN login_id varchar(255) DEFAULT NULL COLLATE utf8mb4_0900_as_cs;

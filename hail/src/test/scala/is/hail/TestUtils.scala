@@ -303,7 +303,8 @@ object TestUtils {
     contigRecoding: Option[Map[String, String]] = None,
     arrayElementsRequired: Boolean = true,
     skipInvalidLoci: Boolean = false,
-    partitionsJSON: String = null): MatrixIR = {
+    partitionsJSON: Option[String] = None,
+    partitionsTypeStr: Option[String] = None): MatrixIR = {
     rg.foreach { referenceGenome =>
       ReferenceGenome.addReference(referenceGenome)
     }
@@ -314,6 +315,7 @@ object TestUtils {
       callFields,
       entryFloatType,
       headerFile,
+      /*sampleIDs=*/None,
       nPartitions,
       blockSizeInMB,
       minPartitions,
@@ -324,7 +326,8 @@ object TestUtils {
       forceBGZ,
       force,
       TextInputFilterAndReplace(),
-      partitionsJSON)
+      partitionsJSON,
+      partitionsTypeStr)
     MatrixRead(reader.fullMatrixTypeWithoutUIDs, dropSamples, false, reader)
   }
 }

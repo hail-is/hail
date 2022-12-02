@@ -1,10 +1,7 @@
 import hail as hl
 import hail.utils as utils
 
-from ...helpers import (resource, startTestHailContext, stopTestHailContext, skip_when_service_backend)
-
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
+from ...helpers import resource, skip_when_service_backend
 
 
 def test_pc_relate_against_R_truth():

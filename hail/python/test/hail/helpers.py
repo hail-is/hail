@@ -7,22 +7,17 @@ from decorator import decorator
 from hail.utils.java import Env, choose_backend
 import hail as hl
 
-_initialized = False
-
 
 def startTestHailContext():
-    global _initialized
-    if not _initialized:
-        backend_name = choose_backend()
-        if backend_name == 'spark':
-            hl.init(master='local[2]', min_block_size=0, quiet=True)
-        else:
-            Env.hc()  # force initialization
-        _initialized = True
+    backend_name = choose_backend()
+    if backend_name == 'spark':
+        hl.init(master='local[2]', min_block_size=0, quiet=True, global_seed=0)
+    else:
+        hl.init(global_seed=0)
 
 
 def stopTestHailContext():
-    pass
+    hl.stop()
 
 _test_dir = os.environ.get('HAIL_TEST_RESOURCES_DIR', '../src/test/resources')
 _doctest_dir = os.environ.get('HAIL_DOCTEST_DATA_DIR', 'hail/docs/data')

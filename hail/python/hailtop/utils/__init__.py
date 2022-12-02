@@ -1,4 +1,6 @@
-from .time import time_msecs, time_msecs_str, humanize_timedelta_msecs, parse_timestamp_msecs
+from .time import (
+    time_msecs, time_msecs_str, humanize_timedelta_msecs, parse_timestamp_msecs,
+    time_ns)
 from .utils import (unzip, async_to_blocking, blocking_to_async, AsyncWorkerPool, bounded_gather,
                     grouped, sync_sleep_and_backoff, sleep_and_backoff, is_transient_error,
                     request_retry_transient_errors, request_raise_transient_errors, collect_agen,
@@ -12,7 +14,7 @@ from .utils import (unzip, async_to_blocking, blocking_to_async, AsyncWorkerPool
                     url_scheme, Notice, periodically_call, dump_all_stacktraces, find_spark_home,
                     TransientError, bounded_gather2, OnlineBoundedGather2,
                     unpack_comma_delimited_inputs, unpack_key_value_inputs,
-                    retry_all_errors_n_times, Timings, is_retry_once_error)
+                    retry_all_errors_n_times, Timings, is_retry_once_error, am_i_interactive)
 from .process import (
     CalledProcessError, check_shell, check_shell_output, check_exec_output,
     sync_check_shell, sync_check_shell_output, sync_check_exec)
@@ -91,4 +93,6 @@ __all__ = [
     'Timings',
     'is_retry_once_error',
     'rich_progress_bar',
+    'time_ns',
+    'am_i_interactive',
 ]

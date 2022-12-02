@@ -43,6 +43,7 @@ image_str = str_type
 
 job_validator = keyed(
     {
+        'always_copy_output': bool_type,
         'always_run': bool_type,
         'attributes': dictof(str_type),
         'env': listof(keyed({'name': str_type, 'value': str_type})),
@@ -196,6 +197,8 @@ def handle_job_backwards_compatibility(job):
         job['gcsfuse'] = job.pop('cloudfuse')
     if 'parent_ids' in job:
         job['absolute_parent_ids'] = job.pop('parent_ids')
+    if 'always_copy_output' not in job:
+        job['always_copy_output'] = True
 
 
 def validate_batch(batch):

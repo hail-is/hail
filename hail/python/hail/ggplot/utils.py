@@ -2,6 +2,10 @@ import plotly
 import hail as hl
 
 
+def n_partitions(items: int, n_splits: int) -> int:
+    return (items + n_splits - 1) // n_splits
+
+
 def check_scale_continuity(scale, dtype, aes_key):
     if not scale.valid_dtype(dtype):
         raise ValueError(f"Invalid scale for aesthetic {aes_key} of type {dtype}")

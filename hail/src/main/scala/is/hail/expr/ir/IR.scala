@@ -9,6 +9,7 @@ import is.hail.expr.ir.functions._
 import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.avro.{AvroPartitionReader, AvroSchemaSerializer}
+import is.hail.io.fs.FS
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
 import is.hail.rvd.RVDSpecMaker
 import is.hail.types.encoded._
@@ -294,12 +295,7 @@ final case class LowerBoundOnOrderedCollection(orderedCollection: IR, elem: IR, 
 
 final case class GroupByKey(collection: IR) extends IR
 
-// FIXME: Revisit all uses after all infra is in place
-object RNGStateLiteral {
-  def apply(): RNGStateLiteral =
-    RNGStateLiteral(Array.fill(4)(util.Random.nextLong()))
-}
-final case class RNGStateLiteral(key: IndexedSeq[Long]) extends IR
+final case class RNGStateLiteral() extends IR
 
 final case class RNGSplit(state: IR, dynBitstring: IR) extends IR
 
@@ -699,11 +695,9 @@ sealed abstract class AbstractApplyNode[F <: JVMFunction] extends IR {
 
 final case class Apply(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type, errorID: Int) extends AbstractApplyNode[UnseededMissingnessObliviousJVMFunction]
 
-final case class ApplySeeded(function: String, args: Seq[IR], rngState: IR, seed: Long, returnType: Type) extends AbstractApplyNode[SeededJVMFunction] {
+final case class ApplySeeded(function: String, _args: Seq[IR], rngState: IR, staticUID: Long, returnType: Type) extends AbstractApplyNode[UnseededMissingnessObliviousJVMFunction] {
+  val args = rngState +: _args
   val typeArgs: Seq[Type] = Seq.empty[Type]
-  lazy val pureImplementation: UnseededMissingnessObliviousJVMFunction =
-    IRFunctionRegistry.lookupFunctionOrFail(function + "_pure", returnType, typeArgs, TRNGState +: argTypes)
-      .asInstanceOf[UnseededMissingnessObliviousJVMFunction]
 }
 
 final case class ApplySpecial(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type, errorID: Int) extends AbstractApplyNode[UnseededMissingnessAwareJVMFunction]
@@ -751,6 +745,7 @@ object PartitionReader {
       classOf[PartitionRVDReader],
       classOf[PartitionNativeReader],
       classOf[PartitionNativeReaderIndexed],
+      classOf[PartitionNativeIntervalReader],
       classOf[PartitionZippedNativeReader],
       classOf[PartitionZippedIndexedNativeReader],
       classOf[AbstractTypedCodecSpec],
@@ -763,6 +758,16 @@ object PartitionReader {
     new PTypeSerializer +
     new ETypeSerializer +
     new AvroSchemaSerializer
+
+  def extract(fs: FS, jv: JValue): PartitionReader = {
+    (jv \ "name").extract[String] match {
+      case "PartitionNativeIntervalReader" =>
+        val path = (jv \ "path").extract[String]
+        val spec = TableNativeReader.read(fs, path, None).spec
+        PartitionNativeIntervalReader(path, spec, (jv \ "uidFieldName").extract[String])
+      case _ => jv.extract[PartitionReader]
+    }
+  }
 }
 
 object PartitionWriter {

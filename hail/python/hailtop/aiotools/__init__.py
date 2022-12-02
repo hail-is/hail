@@ -3,7 +3,7 @@ from .fs import (FileStatus, FileListEntry, AsyncFS, Transfer, MultiPartCreate,
                  WritableStream, blocking_readable_stream_to_async, blocking_writable_stream_to_async)
 from .local_fs import LocalAsyncFS
 from .utils import FeedableAsyncIterable, WriteBuffer
-from .tasks import BackgroundTaskManager
+from .tasks import BackgroundTaskManager, TaskManagerClosedError
 from .weighted_semaphore import WeightedSemaphore
 
 __all__ = [
@@ -17,6 +17,7 @@ __all__ = [
     'LocalAsyncFS',
     'FeedableAsyncIterable',
     'BackgroundTaskManager',
+    'TaskManagerClosedError',
     'Transfer',
     'FileAndDirectoryError',
     'MultiPartCreate',

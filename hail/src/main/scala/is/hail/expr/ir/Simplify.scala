@@ -79,6 +79,7 @@ object Simplify {
   private[this] def isStrict(x: IR): Boolean = {
     x match {
       case _: Apply |
+           _: ApplySeeded |
            _: ApplyUnaryPrimOp |
            _: ApplyBinaryPrimOp |
            _: ArrayRef |
@@ -86,7 +87,6 @@ object Simplify {
            _: GetField |
            _: GetTupleElement => true
       case ApplyComparisonOp(op, _, _) => op.strict
-      case f: ApplySeeded => f.implementation.isStrict
       case _ => false
     }
   }
@@ -98,6 +98,7 @@ object Simplify {
   private[this] def hasMissingStrictChild(x: IR): Boolean = {
     x match {
       case _: Apply |
+           _: ApplySeeded |
            _: ApplyUnaryPrimOp |
            _: ApplyBinaryPrimOp |
            _: ArrayRef |
@@ -105,7 +106,6 @@ object Simplify {
            _: GetField |
            _: GetTupleElement => Children(x).exists(_.isInstanceOf[NA])
       case ApplyComparisonOp(op, _, _) if op.strict => Children(x).exists(_.isInstanceOf[NA])
-      case f: ApplySeeded if f.implementation.isStrict => f.args.exists(_.isInstanceOf[NA])
       case _ => false
     }
   }

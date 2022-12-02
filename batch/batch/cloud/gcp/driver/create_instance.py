@@ -41,6 +41,8 @@ def create_vm_config(
 ) -> dict:
     _, cores = gcp_machine_type_to_worker_type_and_cores(machine_type)
 
+    region = instance_config.region_for(zone)
+
     if local_ssd_data_disk:
         worker_data_disk = {
             'type': 'SCRATCH',
@@ -153,71 +155,6 @@ nohup /bin/bash run.sh >run.log 2>&1 &
 #!/bin/bash
 set -x
 
-WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
-UNRESERVED_WORKER_DATA_DISK_SIZE_GB="{unreserved_disk_storage_gb}"
-ACCEPTABLE_QUERY_JAR_URL_PREFIX="{ACCEPTABLE_QUERY_JAR_URL_PREFIX}"
-
-# format worker data disk
-sudo mkfs.xfs -m reflink=1 -n ftype=1 /dev/$WORKER_DATA_DISK_NAME
-sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME
-sudo mount -o prjquota /dev/$WORKER_DATA_DISK_NAME /mnt/disks/$WORKER_DATA_DISK_NAME
-sudo chmod a+w /mnt/disks/$WORKER_DATA_DISK_NAME
-XFS_DEVICE=$(xfs_info /mnt/disks/$WORKER_DATA_DISK_NAME | head -n 1 | awk '{{ print $1 }}' | awk  'BEGIN {{ FS = "=" }}; {{ print $2 }}')
-
-# reconfigure docker to use local SSD
-sudo service docker stop
-sudo mv /var/lib/docker /mnt/disks/$WORKER_DATA_DISK_NAME/docker
-sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/docker /var/lib/docker
-sudo service docker start
-
-# reconfigure /batch and /logs and /gcsfuse to use local SSD
-sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/batch/
-sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/batch /batch
-
-sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/logs/
-sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/logs /logs
-
-sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/cloudfuse/
-sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/cloudfuse /cloudfuse
-
-sudo mkdir -p /etc/netns
-
-CORES=$(nproc)
-NAMESPACE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/namespace")
-ACTIVATION_TOKEN=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/activation_token")
-IP_ADDRESS=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip")
-PROJECT=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/project/project-id")
-
-BATCH_LOGS_STORAGE_URI=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_logs_storage_uri")
-INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
-INSTANCE_CONFIG=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_config")
-MAX_IDLE_TIME_MSECS=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/max_idle_time_msecs")
-NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
-ZONE=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
-
-BATCH_WORKER_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_worker_image")
-DOCKER_ROOT_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/docker_root_image")
-DOCKER_PREFIX=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/docker_prefix")
-
-INTERNAL_GATEWAY_IP=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/internal_ip")
-
-# private job network = 172.20.0.0/16
-# public job network = 172.21.0.0/16
-# [all networks] Rewrite traffic coming from containers to masquerade as the host
-iptables --table nat --append POSTROUTING --source 172.20.0.0/15 --jump MASQUERADE
-
-# [public]
-# Block public traffic to the metadata server
-iptables --append FORWARD --source 172.21.0.0/16 --destination 169.254.169.254 --jump DROP
-# But allow the internal gateway
-iptables --append FORWARD --destination $INTERNAL_GATEWAY_IP --jump ACCEPT
-# And this worker
-iptables --append FORWARD --destination $IP_ADDRESS --jump ACCEPT
-# Forbid outgoing requests to cluster-internal IP addresses
-INTERNET_INTERFACE=$(ip link list | grep ens | awk -F": " '{{ print $2 }}')
-iptables --append FORWARD --out-interface $INTERNET_INTERFACE ! --destination 10.128.0.0/16 --jump ACCEPT
-
-
 # Setup fluentd
 touch /worker.log
 touch /run.log
@@ -268,6 +205,72 @@ rm /etc/google-fluentd/google-fluentd.conf.bak
 
 sudo service google-fluentd restart
 
+WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
+UNRESERVED_WORKER_DATA_DISK_SIZE_GB="{unreserved_disk_storage_gb}"
+ACCEPTABLE_QUERY_JAR_URL_PREFIX="{ACCEPTABLE_QUERY_JAR_URL_PREFIX}"
+
+# format worker data disk
+sudo mkfs.xfs -m reflink=1 -n ftype=1 /dev/$WORKER_DATA_DISK_NAME
+sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME
+sudo mount -o prjquota /dev/$WORKER_DATA_DISK_NAME /mnt/disks/$WORKER_DATA_DISK_NAME
+sudo chmod a+w /mnt/disks/$WORKER_DATA_DISK_NAME
+XFS_DEVICE=$(xfs_info /mnt/disks/$WORKER_DATA_DISK_NAME | head -n 1 | awk '{{ print $1 }}' | awk  'BEGIN {{ FS = "=" }}; {{ print $2 }}')
+
+# reconfigure docker to use local SSD
+sudo service docker stop
+sudo mv /var/lib/docker /mnt/disks/$WORKER_DATA_DISK_NAME/docker
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/docker /var/lib/docker
+sudo service docker start
+
+# reconfigure /batch and /logs and /gcsfuse to use local SSD
+sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/batch/
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/batch /batch
+
+sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/logs/
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/logs /logs
+
+sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/cloudfuse/
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/cloudfuse /cloudfuse
+
+sudo mkdir -p /etc/netns
+
+CORES=$(nproc)
+NAMESPACE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/namespace")
+ACTIVATION_TOKEN=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/activation_token")
+IP_ADDRESS=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip")
+PROJECT=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/project/project-id")
+
+BATCH_LOGS_STORAGE_URI=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_logs_storage_uri")
+INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
+INSTANCE_CONFIG=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_config")
+MAX_IDLE_TIME_MSECS=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/max_idle_time_msecs")
+REGION=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/region")
+
+NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
+ZONE=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
+
+BATCH_WORKER_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_worker_image")
+DOCKER_ROOT_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/docker_root_image")
+DOCKER_PREFIX=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/docker_prefix")
+
+INTERNAL_GATEWAY_IP=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/internal_ip")
+
+# private job network = 172.20.0.0/16
+# public job network = 172.21.0.0/16
+# [all networks] Rewrite traffic coming from containers to masquerade as the host
+iptables --table nat --append POSTROUTING --source 172.20.0.0/15 --jump MASQUERADE
+
+# [public]
+# Block public traffic to the metadata server
+iptables --append FORWARD --source 172.21.0.0/16 --destination 169.254.169.254 --jump DROP
+# But allow the internal gateway
+iptables --append FORWARD --destination $INTERNAL_GATEWAY_IP --jump ACCEPT
+# And this worker
+iptables --append FORWARD --destination $IP_ADDRESS --jump ACCEPT
+# Forbid outgoing requests to cluster-internal IP addresses
+INTERNET_INTERFACE=$(ip link list | grep ens | awk -F": " '{{ print $2 }}')
+iptables --append FORWARD --out-interface $INTERNET_INTERFACE ! --destination 10.128.0.0/16 --jump ACCEPT
+
 {make_global_config_str}
 
 # retry once
@@ -288,6 +291,7 @@ docker run \
 -e INSTANCE_ID=$INSTANCE_ID \
 -e PROJECT=$PROJECT \
 -e ZONE=$ZONE \
+-e REGION=$REGION \
 -e DOCKER_PREFIX=$DOCKER_PREFIX \
 -e DOCKER_ROOT_IMAGE=$DOCKER_ROOT_IMAGE \
 -e INSTANCE_CONFIG=$INSTANCE_CONFIG \
@@ -349,6 +353,7 @@ journalctl -u docker.service > dockerd.log
                 {'key': 'batch_logs_storage_uri', 'value': file_store.batch_logs_storage_uri},
                 {'key': 'instance_id', 'value': file_store.instance_id},
                 {'key': 'max_idle_time_msecs', 'value': max_idle_time_msecs},
+                {'key': 'region', 'value': region},
                 {
                     'key': 'instance_config',
                     'value': base64.b64encode(json.dumps(instance_config.to_dict()).encode()).decode(),

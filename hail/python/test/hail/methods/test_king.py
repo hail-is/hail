@@ -1,10 +1,7 @@
 import pytest
 
 import hail as hl
-from ..helpers import resource, startTestHailContext, stopTestHailContext, fails_local_backend, fails_service_backend
-
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
+from ..helpers import resource, fails_local_backend, fails_service_backend
 
 
 def assert_c_king_same_as_hail_king(c_king_path, hail_king_mt):

@@ -264,7 +264,6 @@ def multitrait_inf(mt, h2=None, rg=None, cov_matrix=None, seed=None):
     rg = rg.tolist() if type(rg) is np.ndarray else ([rg] if type(rg) is not list else rg)
     assert (all(x >= 0 and x <= 1 for x in h2)), 'h2 values must be between 0 and 1'
     assert h2 is not [None] or cov_matrix is not None, 'h2 and cov_matrix cannot both be None'
-    seed = seed if seed is not None else int(str(Env.next_seed())[:8])
     M = mt.count_rows()
     if cov_matrix is not None:
         n_phens = cov_matrix.shape[0]
@@ -336,7 +335,6 @@ def multitrait_ss(mt, h2, pi, rg=0, seed=None):
         covariance matrix was not positive semi-definite.
     """
     assert sum(pi) <= 1, "probabilities of being causal must sum to be less than 1"
-    seed = seed if seed is not None else int(str(Env.next_seed())[:8])
     ptt, ptf, pft, pff = pi[0], pi[1], pi[2], 1 - sum(pi)
     cov_matrix = np.asarray([[1 / (ptt + ptf), rg / ptt], [rg / ptt, 1 / (ptt + pft)]])
     M = mt.count_rows()

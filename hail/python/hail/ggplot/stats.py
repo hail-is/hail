@@ -1,4 +1,8 @@
+from typing import List
+
 import abc
+
+from pandas import DataFrame
 
 import pandas as pd
 import numpy as np
@@ -14,7 +18,7 @@ class Stat:
         return
 
     @abc.abstractmethod
-    def listify(self, agg_result):
+    def listify(self, agg_result) -> List[DataFrame]:
         # Turns the agg result into a list of data frames to be plotted.
         return
 
@@ -29,7 +33,7 @@ class StatIdentity(Stat):
         non_grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys() if aes_key not in grouping_variables}
         return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.collect(hl.struct(**non_grouping_variables)))
 
-    def listify(self, agg_result):
+    def listify(self, agg_result) -> List[DataFrame]:
         result = []
         for grouped_struct, collected in agg_result.items():
             columns = list(collected[0].keys())
@@ -58,8 +62,8 @@ class StatNone(Stat):
     def make_agg(self, mapping, precomputed, scales):
         return hl.agg.take(hl.struct(), 0)
 
-    def listify(self, agg_result):
-        return pd.DataFrame({})
+    def listify(self, agg_result) -> List[DataFrame]:
+        return [pd.DataFrame({})]
 
 
 class StatCount(Stat):
@@ -70,7 +74,7 @@ class StatCount(Stat):
             return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.counter(mapping["x"], weight=mapping["weight"]))
         return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.group_by(mapping["x"], hl.agg.count()))
 
-    def listify(self, agg_result):
+    def listify(self, agg_result) -> List[DataFrame]:
         result = []
         for grouped_struct, count_by_x in agg_result.items():
             data_dict = {}
@@ -115,7 +119,7 @@ class StatBin(Stat):
             bins = self.bins
         return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.hist(mapping["x"], start, end, bins))
 
-    def listify(self, agg_result):
+    def listify(self, agg_result) -> List[DataFrame]:
         items = list(agg_result.items())
         x_edges = items[0][1].bin_edges
         num_edges = len(x_edges)
@@ -142,7 +146,7 @@ class StatCDF(Stat):
                               if should_use_scale_for_grouping(scales[aes_key])}
         return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.approx_cdf(mapping["x"], self.k))
 
-    def listify(self, agg_result):
+    def listify(self, agg_result) -> List[DataFrame]:
         result = []
 
         for grouped_struct, data in agg_result.items():

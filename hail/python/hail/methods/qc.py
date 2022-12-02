@@ -1,8 +1,9 @@
 import hail as hl
 from collections import Counter
 import os
-from typing import Tuple, List, Union
-from hail.typecheck import typecheck, oneof, anytype, nullable
+from typing import Tuple, List, Union, Optional
+from hail.typecheck import typecheck, oneof, anytype, nullable, numeric
+from hail.expr.expressions.expression_typecheck import expr_float64
 from hail.utils.java import Env, info, warning
 from hail.utils.misc import divide_null, guess_cloud_spark_provider
 from hail.matrixtable import MatrixTable
@@ -1173,3 +1174,126 @@ def summarize_variants(mt: Union[MatrixTable, MatrixTable], show=True, *, handle
                          allele_counts=allele_counts,
                          n_variants=n_variants,
                          r_ti_tv=nti / ntv)
+
+
+@typecheck(ds=oneof(hl.MatrixTable, hl.vds.VariantDataset),
+           min_af=numeric,
+           max_af=numeric,
+           min_dp=int,
+           max_dp=int,
+           min_gq=int,
+           ref_AF=nullable(expr_float64))
+def compute_charr(
+        ds: Union[hl.MatrixTable, hl.vds.VariantDataset],
+        min_af: float = 0.05,
+        max_af: float = 0.95,
+        min_dp: int = 10,
+        max_dp: int = 100,
+        min_gq: int = 20,
+        ref_AF: Optional[hl.Float64Expression] = None
+):
+    """Compute CHARR, the DNA sample contamination estimator.
+
+    .. include:: _templates/experimental.rst
+
+    Notes
+    -----
+
+    The returned table has the sample ID field, plus the field:
+
+     - `charr` (float64): CHARR contamination estimation.
+
+    Note
+    -----
+    It is possible to use gnomAD reference allele frequencies with the following:
+
+    >>> gnomad_sites = hl.experimental.load_dataset('gnomad_genome_sites', version='3.1.2') # doctest: +SKIP
+    >>> charr_result = hl.compute_charr(mt, ref_af=(1 - gnomad_sites[mt.row_key].freq[1])) # doctest: +SKIP
+
+    Parameters
+    ----------
+    ds : :class:`.MatrixTable` or :class:`.VariantDataset`
+        Dataset.
+    min_af
+        Minimum reference allele frequency to filter variants.
+    max_af
+        Maximum reference allele frequency to filter variants.
+    min_dp
+        Minimum sequencing depth to filter variants.
+    max_dp
+        Maximum sequencing depth to filter variants.
+    min_gq
+        Minimum genotype quality to filter variants
+    ref_AF
+        Reference AF expression. Necessary when the sample size is below 10,000.
+
+    Returns
+    -------
+    :class:`.Table`
+    """
+
+    # Determine whether the input data is in the VDS format; if not, convert matrixtable to VDS and extract only the variant call information
+    if isinstance(ds, hl.vds.VariantDataset):
+        mt = ds.variant_data
+    else:
+        mt = ds
+
+    if all(x in mt.entry for x in ['LA', 'LAD', 'LGT', 'GQ']):
+        ad_field = 'LAD'
+        gt_field = 'LGT'
+    elif all(x in mt.entry for x in ['AD', 'GT', 'GQ']):
+        ad_field = 'AD'
+        gt_field = 'GT'
+    else:
+        raise ValueError(f"'compute_charr': require a VDS or MatrixTable with fields LAD/LAD/LGT/GQ/DP or AD/GT/GQ/DP,"
+                         f" found entry fields {list(mt.entry)}")
+    # Annotate reference allele frequency when it is not defined in the original data, and name it 'ref_AF'.
+    ref_af_field = '__ref_af'
+    if ref_AF is None:
+        n_samples = mt.count_cols()
+        if n_samples < 10000:
+            raise ValueError("'compute_charr': with fewer than 10,000 samples, require a reference AF in 'reference_data_source'.")
+
+        n_alleles = 2 * n_samples
+        mt = mt.annotate_rows(
+            **{ref_af_field: 1 - hl.agg.sum(mt[gt_field].n_alt_alleles()) / n_alleles}
+        )
+    else:
+        mt = mt.annotate_rows(**{ref_af_field: ref_AF})
+
+    # Filter to autosomal biallelic SNVs with reference allele frequency within the range (min_af, max_af)
+    rg = mt.locus.dtype.reference_genome.name
+    if rg == 'GRCh37':
+        mt = hl.filter_intervals(mt, [hl.parse_locus_interval('1-22', reference_genome=rg)])
+    elif rg == 'GRCh38':
+        mt = hl.filter_intervals(mt, [hl.parse_locus_interval('chr1-chr22', reference_genome=rg)])
+    else:
+        mt = mt.filter_rows(mt.locus.in_autosome())
+
+    mt = mt.filter_rows(
+        (hl.len(mt.alleles) == 2)
+        & hl.is_snp(mt.alleles[0], mt.alleles[1])
+        & (mt[ref_af_field] > min_af)
+        & (mt[ref_af_field] < max_af)
+    )
+
+    # Filter to variant calls with GQ above min_gq and DP within the range (min_dp, max_dp)
+    ad_dp = mt['DP'] if 'DP' in mt.entry else hl.sum(mt[ad_field])
+    mt = mt.filter_entries(
+        mt[gt_field].is_hom_var() & (mt.GQ >= min_gq) & (ad_dp >= min_dp) & (ad_dp <= max_dp)
+    )
+
+    # Compute CHARR
+    mt = mt.select_cols(
+        charr=hl.agg.mean((mt[ad_field][0] / (mt[ad_field][0] + mt[ad_field][1])) / mt[ref_af_field])
+    )
+
+    mt = mt.select_globals(
+        af_min=min_af,
+        af_max=max_af,
+        dp_min=min_dp,
+        dp_max=max_dp,
+        gq_min=min_gq,
+    )
+
+    return mt.cols()

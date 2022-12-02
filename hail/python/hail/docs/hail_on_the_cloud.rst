@@ -15,4 +15,5 @@ requirements of scientific research without an up-front capital investment in ha
         Query-on-Batch <cloud/query_on_batch.rst>
         Google Cloud <cloud/google_cloud.rst>
         Microsoft Azure <cloud/azure.rst>
-        Other Cloud Providers <cloud/other_cloud_providers.rst>
+        Amazon Web Services <cloud/amazon_web_services.rst>
+        Databricks <cloud/databricks.rst>

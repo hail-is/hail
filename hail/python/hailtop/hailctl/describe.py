@@ -2,10 +2,12 @@ import argparse
 import asyncio
 import orjson
 import sys
+from typing import List
 from os import path
 from zlib import decompress, MAX_WBITS
 from statistics import median, mean, stdev
 from collections import OrderedDict
+
 
 from ..aiotools import aio_contextlib
 from ..aiotools.router_fs import RouterAsyncFS
@@ -16,8 +18,8 @@ IDENT = ' ' * 4
 
 
 def parse_schema(s):
-    def parse_type(s, end_delimiter, element_type):
-        keys = []
+    def parse_type(s: str, end_delimiter: str, element_type: str):
+        keys: List[str] = []
         values = []
         i = 0
         while i < len(s):

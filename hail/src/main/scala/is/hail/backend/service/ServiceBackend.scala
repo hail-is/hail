@@ -9,9 +9,9 @@ import is.hail.{HAIL_REVISION, HailContext, HailFeatureFlags}
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.{Backend, BackendContext, BroadcastValue, ExecuteContext, HailTaskContext}
-import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.{JSONAnnotationImpex, Validate}
 import is.hail.expr.ir.lowering._
-import is.hail.expr.ir.{Compile, IR, IRParser, MakeTuple, SortField}
+import is.hail.expr.ir.{Compile, IR, IRParser, MakeTuple, SortField, TypeCheck}
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.bgen.IndexBgen
@@ -70,7 +70,6 @@ class ServiceBackend(
   import ServiceBackend.log
 
   private[this] var stageCount = 0
-  private[this] var totalNumWorkerJobs: Int = 0
   private[this] implicit val ec = scalaConcurrent.ExecutionContext.fromExecutorService(
     Executors.newCachedThreadPool())
   private[this] val MAX_AVAILABLE_GCS_CONNECTIONS = 100
@@ -118,7 +117,7 @@ class ServiceBackend(
     val (open, create) = if (n <= 50) {
       (fs.openCachedNoCompression _, fs.createCachedNoCompression _)
     } else {
-      (fs.openNoCompression _, fs.createNoCompression _)
+      ((x: String) => fs.openNoCompression(x), fs.createNoCompression _)
     }
 
     log.info(s"parallelizeAndComputeWithIndex: $token: nPartitions $n")
@@ -191,14 +190,10 @@ class ServiceBackend(
 
     log.info(s"parallelizeAndComputeWithIndex: $token: running job")
 
-    val (batchId, updateId, nJobsToWaitOn) = curBatchId match {
+    val (batchId, updateId) = curBatchId match {
       case Some(id) => {
         val updateId = batchClient.update(id, token, jobs)
-        // Only wait for the number of worker jobs that have run instead of
-        // all the jobs to account for the fact that this driver is an extra
-        // job in the batch
-        totalNumWorkerJobs += n
-        (id, updateId, totalNumWorkerJobs)
+        (id, updateId)
       }
       case None => {
         val batchId = batchClient.create(
@@ -208,11 +203,11 @@ class ServiceBackend(
             "token" -> JString(token),
             "attributes" -> JObject("name" -> JString(name + "_" + stageCount))),
           jobs)
-        (batchId, 1L, n)
+        (batchId, 1L)
       }
     }
 
-    val batch = batchClient.waitForBatch(batchId, nJobsToWaitOn)
+    val batch = batchClient.waitForBatch(batchId, true)
 
     stageCount += 1
     implicit val formats: Formats = DefaultFormats
@@ -306,7 +301,8 @@ class ServiceBackend(
   }
 
   private[this] def execute(ctx: ExecuteContext, _x: IR, bufferSpecString: String): Array[Byte] = {
-    // FIXME: do we need Validate(_x)?
+    TypeCheck(ctx, _x)
+    Validate(_x)
     val x = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All).apply(ctx, _x)
       .asInstanceOf[IR]
     if (x.typ == TVoid) {
@@ -460,7 +456,7 @@ class ServiceBackendSocketAPI2(
   private[this] val backend: ServiceBackend,
   private[this] val in: InputStream,
   private[this] val out: OutputStream,
-  private[this] val sessionId: String
+  private[this] val sessionId: String,
 ) extends Thread {
   private[this] val LOAD_REFERENCES_FROM_DATASET = 1
   private[this] val VALUE_TYPE = 2
