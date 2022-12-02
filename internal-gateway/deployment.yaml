@@ -15,6 +15,7 @@ spec:
       labels:
         app: internal-gateway
         hail.is/sha: "{{ code.sha }}"
+        envoy: "true"
     spec:
       priorityClassName: infrastructure
       nodeSelector:
@@ -56,6 +57,7 @@ spec:
              memory: "1G"
          ports:
           - containerPort: 8080
+          - containerPort: 8001
          volumeMounts:
           - name: ssl-config-internal-gateway
             mountPath: /ssl-config

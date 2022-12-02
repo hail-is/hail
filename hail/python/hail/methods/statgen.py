@@ -596,6 +596,9 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
 
     res = res.select_globals()
 
+    temp_file_name = hl.utils.new_temp_file("_linear_regression_rows_nd", "result")
+    res = res.checkpoint(temp_file_name)
+
     return res
 
 
@@ -1724,7 +1727,7 @@ def skat(key_expr,
         'logistic_tolerance': tolerance
     }
 
-    return Table(ir.MatrixToTableApply(mt._mir, config))
+    return Table(ir.MatrixToTableApply(mt._mir, config)).persist()
 
 
 @typecheck(p_value=expr_numeric,
@@ -2610,7 +2613,7 @@ def balding_nichols_model(n_populations: int,
     Generate a matrix table of genotypes with 1000 variants and 100 samples
     across 3 populations:
 
-    >>> hl.set_global_seed(1)
+    >>> hl.reset_global_randomness()
     >>> bn_ds = hl.balding_nichols_model(3, 100, 1000)
     >>> bn_ds.show(n_rows=5, n_cols=5)
     +---------------+------------+------+------+------+------+------+
@@ -2618,18 +2621,18 @@ def balding_nichols_model(n_populations: int,
     +---------------+------------+------+------+------+------+------+
     | locus<GRCh37> | array<str> | call | call | call | call | call |
     +---------------+------------+------+------+------+------+------+
-    | 1:1           | ["A","C"]  | 1/1  | 0/1  | 0/1  | 1/1  | 0/1  |
-    | 1:2           | ["A","C"]  | 1/1  | 0/0  | 0/1  | 0/0  | 0/1  |
-    | 1:3           | ["A","C"]  | 0/1  | 1/1  | 1/1  | 0/1  | 0/1  |
-    | 1:4           | ["A","C"]  | 0/1  | 1/1  | 1/1  | 1/1  | 0/1  |
-    | 1:5           | ["A","C"]  | 0/1  | 0/0  | 0/1  | 0/0  | 0/1  |
+    | 1:1           | ["A","C"]  | 0/0  | 1/1  | 1/1  | 0/1  | 0/0  |
+    | 1:2           | ["A","C"]  | 0/0  | 1/1  | 0/1  | 0/1  | 1/1  |
+    | 1:3           | ["A","C"]  | 0/0  | 0/1  | 0/0  | 0/0  | 0/0  |
+    | 1:4           | ["A","C"]  | 0/1  | 0/1  | 0/1  | 1/1  | 1/1  |
+    | 1:5           | ["A","C"]  | 0/1  | 0/1  | 0/1  | 0/0  | 0/1  |
     +---------------+------------+------+------+------+------+------+
     showing top 5 rows
     showing the first 5 of 100 columns
 
     Generate a dataset as above but with phased genotypes:
 
-    >>> hl.set_global_seed(1)
+    >>> hl.reset_global_randomness()
     >>> bn_ds = hl.balding_nichols_model(3, 100, 1000, phased=True)
     >>> bn_ds.show(n_rows=5, n_cols=5)
     +---------------+------------+------+------+------+------+------+
@@ -2637,11 +2640,11 @@ def balding_nichols_model(n_populations: int,
     +---------------+------------+------+------+------+------+------+
     | locus<GRCh37> | array<str> | call | call | call | call | call |
     +---------------+------------+------+------+------+------+------+
-    | 1:1           | ["A","C"]  | 0|1  | 0|0  | 0|1  | 0|0  | 0|0  |
-    | 1:2           | ["A","C"]  | 0|1  | 1|1  | 0|0  | 1|1  | 0|0  |
-    | 1:3           | ["A","C"]  | 1|1  | 0|0  | 0|0  | 0|0  | 1|0  |
-    | 1:4           | ["A","C"]  | 1|1  | 0|0  | 0|1  | 0|0  | 1|1  |
-    | 1:5           | ["A","C"]  | 1|0  | 1|0  | 0|0  | 1|0  | 0|1  |
+    | 1:1           | ["A","C"]  | 0|0  | 0|0  | 0|1  | 0|1  | 1|0  |
+    | 1:2           | ["A","C"]  | 1|1  | 0|1  | 0|0  | 0|0  | 0|1  |
+    | 1:3           | ["A","C"]  | 0|0  | 0|0  | 1|0  | 1|0  | 0|0  |
+    | 1:4           | ["A","C"]  | 1|1  | 1|1  | 1|0  | 0|1  | 0|1  |
+    | 1:5           | ["A","C"]  | 1|1  | 0|1  | 0|1  | 1|0  | 1|1  |
     +---------------+------------+------+------+------+------+------+
     showing top 5 rows
     showing the first 5 of 100 columns
@@ -2652,7 +2655,7 @@ def balding_nichols_model(n_populations: int,
     frequencies drawn from a truncated beta distribution with ``a = 0.01`` and
     ``b = 0.05`` over the interval ``[0.05, 1]``, and random seed 1:
 
-    >>> hl.set_global_seed(1)
+    >>> hl.reset_global_randomness()
     >>> bn_ds = hl.balding_nichols_model(4, 40, 150, 3,
     ...          pop_dist=[0.1, 0.2, 0.3, 0.4],
     ...          fst=[.02, .06, .04, .12],
@@ -3258,7 +3261,7 @@ def _local_ld_prune(mt, call_field, r2=0.2, bp_window_size=1000000, memory_per_c
         'r2Threshold': float(r2),
         'windowSize': bp_window_size,
         'maxQueueSize': max_queue_size
-    }))
+    })).persist()
 
 
 @typecheck(call_expr=expr_call,

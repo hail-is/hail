@@ -97,7 +97,7 @@ object Children {
       Array(orderedCollection, elem)
     case GroupByKey(collection) =>
       Array(collection)
-    case RNGStateLiteral(_) => none
+    case RNGStateLiteral() => none
     case RNGSplit(state, split) =>
       Array(state, split)
     case StreamLen(a) =>
@@ -217,7 +217,7 @@ object Children {
       args.toFastIndexedSeq
     case Apply(_, _, args, _, _) =>
       args.toFastIndexedSeq
-    case ApplySeeded(_, args, rngState, seed, _) =>
+    case ApplySeeded(_, args, rngState, _, _) =>
       args.toFastIndexedSeq :+ rngState
     case ApplySpecial(_, _, args, _, _) =>
       args.toFastIndexedSeq

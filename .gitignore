@@ -37,3 +37,5 @@ website/website/static/css/
 *.dylib  # macOS dynamic libraries
 */hail.jar
 infra/.terraform.lock.hcl
+.dist/
+.cache/

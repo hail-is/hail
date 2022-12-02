@@ -42,6 +42,7 @@ class Py4JBackend(Backend):
 
     @abc.abstractmethod
     def __init__(self):
+        super(Py4JBackend, self).__init__()
         import base64
 
         def decode_bytearray(encoded):
@@ -101,18 +102,9 @@ class Py4JBackend(Backend):
 
             return (value, timings) if timed else value
         except FatalError as e:
-            self._handle_fatal_error_from_backend(e, ir)
+            raise e.maybe_user_error(ir) from None
 
     async def _async_execute(self, ir, timed=False):
-        raise NotImplementedError('no async available in Py4JBackend')
-
-    async def _async_execute_many(self, *irs, timed=False):
-        raise NotImplementedError('no async available in Py4JBackend')
-
-    async def _async_get_reference(self, name):
-        raise NotImplementedError('no async available in Py4JBackend')
-
-    async def _async_get_references(self, names):
         raise NotImplementedError('no async available in Py4JBackend')
 
     def persist_expression(self, expr):

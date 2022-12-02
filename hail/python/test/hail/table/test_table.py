@@ -10,13 +10,11 @@ import hail as hl
 import hail.expr.aggregators as agg
 from hail.utils import new_temp_file
 from hail.utils.java import Env
+import hail.ir as ir
 
 from hail import ExpressionException
 from ..helpers import *
 from test.hail.matrixtable.test_file_formats import create_all_values_datasets
-
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
@@ -441,10 +439,6 @@ class Tests(unittest.TestCase):
     def test_index_globals(self):
         ht = hl.utils.range_table(1).annotate_globals(foo=5)
         assert hl.eval(ht.index_globals().foo) == 5
-
-    def test_interval_filter_loci(self):
-        ht = hl.import_vcf(resource('sample.vcf')).rows()
-        assert ht.filter(ht.locus > hl.locus('20', 17434581)).count() == 100
 
     def test_interval_join(self):
         left = hl.utils.range_table(50, n_partitions=10)
@@ -1238,8 +1232,6 @@ class Tests(unittest.TestCase):
         assert inner.idx.collect() == [*([2] * 4), *([3] * 9)]
         assert outer.idx.collect() == [1, *([2] * 4), *([3] * 9), *([4] * 4)]
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_partitioning_rewrite(self):
         ht = hl.utils.range_table(10, 3)
         ht1 = ht.annotate(x=hl.rand_unif(0, 1))
@@ -1498,7 +1490,6 @@ class Tests(unittest.TestCase):
         assert ht2.idx.collect() == list(range(444))
         assert ht2.n_partitions() == 50
 
-    @fails_service_backend()
     def test_path_collision_error(self):
         path = new_temp_file(extension='ht')
         ht = hl.utils.range_table(10)
@@ -1801,6 +1792,13 @@ def test_read_partitions_with_missing_key():
     assert hl.read_table(path, _n_partitions=10).n_partitions() == 1  # one key => one partition
 
 
+def test_empty_tree_aggregate():
+    ht = hl.utils.range_table(100, 3)
+    path = new_temp_file()
+    ht = ht.checkpoint(path).filter(False)
+    assert ht.aggregate(hl.agg.counter(ht.idx)) == {}
+
+
 def test_interval_filter_partitions():
     ht = hl.utils.range_table(100, 3)
     path = new_temp_file()
@@ -2015,3 +2013,345 @@ def test_indexed_read_boundaries(branching_factor):
         ])
 
         assert t1.idx.collect() == [141, 142, 143, 144, 152]
+
+
+def test_table_randomness():
+    def assert_unique_uids(ht):
+        ht = ht.annotate(r=hl.rand_int64())
+        x = ht.aggregate(hl.struct(r=hl.agg.collect_as_set(ht.r), n=hl.agg.count()))
+        assert(len(x.r) == x.n)
+
+    def assert_contains_node(t, node):
+        assert(t._tir.base_search(lambda x: isinstance(x, node)))
+
+    # test TableRange
+    t = hl.utils.range_table(10, 3)
+    assert_contains_node(t, ir.TableRange)
+    assert_unique_uids(t)
+
+    # test MatrixRowsTable
+    mt = hl.utils.range_matrix_table(10, 10, 3)
+    t = mt.rows()
+    assert_contains_node(t, ir.MatrixRowsTable)
+    assert_unique_uids(t)
+
+    # test TableJoin
+    t1 = hl.utils.range_table(12, 3)
+    t1 = t1.key_by(k=(t1.idx // 2) * 2)
+    t2 = hl.utils.range_table(8, 3)
+    t2 = t2.key_by(k=(t2.idx // 2) * 3)
+    t = t1.join(t2, how='outer')
+    assert_contains_node(t, ir.TableJoin)
+    assert_unique_uids(t)
+
+    # test TableLeftJoinRightDistinct
+    t1 = hl.utils.range_table(12, 3)
+    t1 = t1.key_by(k=(t1.idx // 2) * 2)
+    t2 = hl.utils.range_table(4, 3)
+    t2 = t2.key_by(k=t2.idx * 3)
+    t = t1.annotate(x=t2[t1.k].idx)
+    assert_contains_node(t, ir.TableLeftJoinRightDistinct)
+    assert_unique_uids(t)
+
+    # test TableIntervalJoin
+    t1 = hl.utils.range_table(12, 3)
+    t2 = hl.utils.range_table(4, 3)
+    t2 = t2.key_by(k=hl.interval(t2.idx * 3, (t2.idx + 1) * 3))
+    t = t1.annotate(x=t2[t1.idx].idx)
+    assert_contains_node(t, ir.TableIntervalJoin)
+    assert_unique_uids(t)
+
+    # test TableUnion
+    t1 = hl.utils.range_table(12, 3)
+    t2 = hl.utils.range_table(4, 3)
+    t2 = t2.key_by(idx=t2.idx * 3)
+    t = t1.union(t2)
+    assert_contains_node(t, ir.TableUnion)
+    assert_unique_uids(t)
+
+    # test TableMapGlobals
+    rt = hl.utils.range_table(5)
+    # with body randomness
+    t1 = rt.annotate_globals(x=hl.rand_int64())
+    assert_contains_node(t1, ir.TableMapGlobals)
+    t1._force_count() # test with no consumer randomness
+    assert_unique_uids(t1)
+    # w/o body randomness
+    t2 = rt.annotate_globals(x=1)
+    assert_contains_node(t2, ir.TableMapGlobals)
+    assert_unique_uids(t2)
+
+    # test TableExplode
+    t = hl.utils.range_table(5)
+    t = t.annotate(s=hl.struct(a=hl.range(t.idx)))
+    t = t.explode(t.s.a)
+    assert_contains_node(t, ir.TableExplode)
+    assert_unique_uids(t)
+
+    # test TableKeyBy
+    t = hl.utils.range_table(12, 3)
+    t = t.key_by(k=t.idx // 4)
+    assert_contains_node(t, ir.TableKeyBy)
+    assert_unique_uids(t)
+
+    # test TableMapRows
+    rt = hl.utils.range_table(12, 3)
+    # with body randomness
+    t = rt.annotate(x=hl.rand_int64())
+    assert_contains_node(t, ir.TableMapRows)
+    t._force_count() # test with no consumer randomness
+    assert_unique_uids(t)
+    # with body scan randomness
+    t = rt.annotate(x=hl.scan.sum(hl.rand_int64()))
+    assert_contains_node(t, ir.TableMapRows)
+    assert_unique_uids(t)
+    # w/o body randomness
+    t = rt.annotate(x=1)
+    assert_contains_node(t, ir.TableMapRows)
+    assert_unique_uids(t)
+
+    # test TableMapPartitions
+    rt = hl.utils.range_table(10, 3)
+    t = rt.annotate(x=hl.rand_int64())
+    t = t._map_partitions(lambda part: part.map(lambda row: row.annotate(x=row.x / 2)))
+    assert_contains_node(t, ir.TableMapPartitions)
+    t._force_count() # test with no consumer randomness
+
+    # test TableRead
+    rt = hl.utils.range_table(10, 3)
+    path = new_temp_file()
+    rt.write(path)
+    t = hl.read_table(path)
+    assert_contains_node(t, ir.TableRead)
+    assert_unique_uids(t)
+
+    # test MatrixEntriesTable
+    mt = hl.utils.range_matrix_table(10, 10, 3)
+    t = mt.entries()
+    assert_contains_node(t, ir.MatrixEntriesTable)
+    assert_unique_uids(t)
+
+    # test TableFilter
+    rt = hl.utils.range_table(20, 3)
+    # with cond randomness
+    t = rt.filter(hl.rand_int64() % 2 == 0)
+    assert_contains_node(t, ir.TableFilter)
+    t._force_count() # test with no consumer randomness
+    assert_unique_uids(t)
+    # w/o cond randomness
+    t = rt.filter(rt.idx < 100)
+    assert_contains_node(t, ir.TableFilter)
+    assert_unique_uids(t)
+
+    # test TableKeyByAndAggregate
+    rt = hl.utils.range_table(20, 3)
+    # with body randomness
+    t = rt.group_by(k=rt.idx % 5).aggregate(x=hl.agg.sum(rt.idx) + hl.rand_int64())
+    assert_contains_node(t, ir.TableKeyByAndAggregate)
+    t._force_count() # test with no consumer randomness
+    assert_unique_uids(t)
+    # with agg randomness
+    t = rt.group_by(k=rt.idx % 5).aggregate(x=hl.agg.sum(hl.rand_int64()))
+    assert_contains_node(t, ir.TableKeyByAndAggregate)
+    t._force_count() # test with no consumer randomness
+    assert_unique_uids(t)
+    # w/o body randomness
+    t = rt.group_by(k=rt.idx % 5).aggregate(x=hl.agg.sum(rt.idx))
+    assert_contains_node(t, ir.TableKeyByAndAggregate)
+    assert_unique_uids(t)
+
+    # test TableAggregateByKey
+    rt = hl.utils.range_table(20, 3)
+    t = rt.key_by(k=rt.idx % 5)
+    t = t.collect_by_key()
+    assert_contains_node(t, ir.TableAggregateByKey)
+    assert_unique_uids(t)
+
+    # test MatrixColsTable
+    mt = hl.utils.range_matrix_table(10, 10, 3)
+    t = mt.cols()
+    assert_contains_node(t, ir.MatrixColsTable)
+    assert_unique_uids(t)
+
+    # test TableParallelize
+    rt = hl.utils.range_table(20, 3)
+    # with body randomness
+    t = hl.Table.parallelize(hl.array([1, 2, 3]).map(lambda x: hl.struct(x=x, r=hl.rand_int64())))
+    assert_contains_node(t, ir.TableParallelize)
+    t._force_count() # test with no consumer randomness
+    assert_unique_uids(t)
+    # w/o body randomness
+    t = hl.Table.parallelize(hl.array([1, 2, 3]).map(lambda x: hl.struct(x=x)))
+    assert_contains_node(t, ir.TableParallelize)
+    assert_unique_uids(t)
+
+    # test TableHead
+    t = hl.utils.range_table(20, 3)
+    t = t.head(10)
+    assert_contains_node(t, ir.TableHead)
+    assert_unique_uids(t)
+
+    # test TableTail
+    t = hl.utils.range_table(20, 3)
+    t = t.tail(10)
+    assert_contains_node(t, ir.TableTail)
+    assert_unique_uids(t)
+
+    # test TableOrderBy
+    t = hl.utils.range_table(10, 3)
+    t = t.order_by(-t.idx)
+    assert_contains_node(t, ir.TableOrderBy)
+    assert_unique_uids(t)
+
+    # test TableDistinct
+    rt = hl.utils.range_table(20, 3)
+    t = rt.key_by(k=rt.idx % 5)
+    t = t.distinct()
+    assert_contains_node(t, ir.TableDistinct)
+    assert_unique_uids(t)
+
+    # test TableRepartition
+    if not hl.current_backend().requires_lowering:
+        rt = hl.utils.range_table(20, 3)
+        t = rt.repartition(5)
+        print(t._tir)
+        assert_contains_node(t, ir.TableRepartition)
+        assert_unique_uids(t)
+
+    # test CastMatrixToTable
+    mt = hl.utils.range_matrix_table(10, 10, 3)
+    t = mt._localize_entries("entries", "cols")
+    assert_contains_node(t, ir.CastMatrixToTable)
+    assert_unique_uids(t)
+
+    # test TableRename
+    rt = hl.utils.range_table(20, 3)
+    t = rt.rename({'idx': 'index'})
+    assert_contains_node(t, ir.TableRename)
+    assert_unique_uids(t)
+
+    # test TableMultiWayZipJoin
+    t1 = hl.utils.range_table(12, 3)
+    t1 = t1.key_by(k=(t1.idx // 2) * 2)
+    t2 = hl.utils.range_table(12, 3)
+    t2 = t2.key_by(k=(t2.idx // 3) * 3)
+    t3 = hl.utils.range_table(12, 3)
+    t3 = t3.key_by(k=(t3.idx // 4) * 4)
+    t = hl.Table.multi_way_zip_join([t1, t2, t3], 'data', 'globals')
+    assert_contains_node(t, ir.TableMultiWayZipJoin)
+    assert_unique_uids(t)
+
+    # test TableFilterIntervals
+    rt = hl.utils.range_table(20, 3)
+    intervals = [hl.interval(0, 5), hl.interval(10, 15)]
+    t = hl.filter_intervals(rt, intervals)
+    assert_contains_node(t, ir.TableFilterIntervals)
+    assert_unique_uids(t)
+
+    # test BlockMatrixToTable
+    bm = hl.linalg.BlockMatrix.fill(10, 10, 0)
+    t = bm.entries()
+    assert_contains_node(t, ir.BlockMatrixToTable)
+    assert_unique_uids(t)
+
+
+def test_query_table():
+    f = new_temp_file(extension='ht')
+    ht = hl.utils.range_table(200, 10)
+    ht = ht.filter(ht.idx % 10 == 0)
+    ht.annotate(s=hl.str(ht.idx)).write(f)
+
+    queries = [
+        hl.query_table(f, 50),
+        hl.query_table(f, hl.struct(idx=50)),
+        hl.query_table(f, 55),
+        hl.query_table(f, 5),
+        hl.query_table(f, -1),
+        hl.query_table(f, 205),
+        hl.query_table(f, hl.interval(27, 66)),
+        hl.query_table(f, hl.interval(276, 33333)),
+        hl.query_table(f, hl.interval(-22276, -5)),
+        hl.query_table(f, hl.interval(hl.struct(idx=27), hl.struct(idx=66))),
+        hl.query_table(f, hl.interval(40, 80, includes_end=True)),
+    ]
+
+    expected = [
+        [hl.Struct(idx=50, s='50')],
+        [hl.Struct(idx=50, s='50')],
+        [],
+        [],
+        [],
+        [],
+        [hl.Struct(idx=30, s='30'),
+         hl.Struct(idx=40, s='40'),
+         hl.Struct(idx=50, s='50'),
+         hl.Struct(idx=60, s='60')],
+        [],
+        [],
+        [hl.Struct(idx=30, s='30'),
+         hl.Struct(idx=40, s='40'),
+         hl.Struct(idx=50, s='50'),
+         hl.Struct(idx=60, s='60')],
+        [hl.Struct(idx=40, s='40'),
+         hl.Struct(idx=50, s='50'),
+         hl.Struct(idx=60, s='60'),
+         hl.Struct(idx=70, s='70'),
+         hl.Struct(idx=80, s='80'),
+         ]
+    ]
+
+    assert hl.eval(queries) == expected
+
+    with pytest.raises(ValueError, match='query_table: key mismatch'):
+        hl.query_table(f, hl.interval('1', '2'))
+    with pytest.raises(ValueError, match='query_table: key mismatch: cannot query'):
+        hl.query_table(f, '1')
+    with pytest.raises(ValueError, match='query_table: cannot query with empty key'):
+        hl.query_table(f, hl.struct())
+    with pytest.raises(ValueError, match='query_table: queried with 2 key field'):
+        hl.query_table(f, hl.struct(idx=5, foo='s'))
+
+
+def test_query_table_compound_key():
+    f = new_temp_file(extension='ht')
+
+    ht = hl.utils.range_table(200, 10)
+    ht = ht.filter(ht.idx % 10 == 0)
+    ht.annotate(idx2=ht.idx % 20, s=hl.str(ht.idx)).key_by('idx', 'idx2').write(f)
+
+    queries = [
+        hl.query_table(f, 50),
+        hl.query_table(f, hl.struct(idx=50)),
+        hl.query_table(f, hl.interval(hl.struct(idx=50, idx2=11), hl.struct(idx=60, idx2=-1)))
+    ]
+
+    expected = [
+        [hl.Struct(idx=50, idx2=10, s='50')],
+        [hl.Struct(idx=50, idx2=10, s='50')],
+        []
+    ]
+    assert hl.eval(queries) == expected
+
+def test_query_table_interval_key():
+    f = new_temp_file(extension='ht')
+
+    ht = hl.utils.range_table(200, 10)
+    ht = ht.filter(ht.idx % 10 == 0)
+
+    ht = ht.key_by(interval=hl.interval(ht.idx, ht.idx + 50))
+    ht.write(f)
+
+    queries = [
+        hl.query_table(f, hl.interval(20, 70)),
+        hl.query_table(f, hl.interval(20, 0)),
+        hl.query_table(f, hl.struct(interval=hl.interval(20, 0))),
+        hl.query_table(f, hl.interval(hl.interval(15, 10), hl.interval(20, 71)))
+    ]
+
+    expected = [
+        [hl.Struct(idx=20, interval=hl.Interval(20, 70))],
+        [],
+        [],
+        [hl.Struct(idx=20, interval=hl.Interval(20, 70))],
+    ]
+    assert hl.eval(queries) == expected

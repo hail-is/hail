@@ -1,3 +1,4 @@
+from typing import Union
 import abc
 import json
 import math
@@ -9,15 +10,19 @@ import numpy as np
 import pandas as pd
 
 import hail as hl
-from hail import genetics
-from hail.expr.nat import NatBase, NatLiteral
+from hailtop.frozendict import frozendict
+from hailtop.hail_frozenlist import frozenlist
+
+from .nat import NatBase, NatLiteral
 from .type_parsing import type_grammar, type_node_visitor
-from hail.genetics.reference_genome import reference_genome_type
-from hail.typecheck import typecheck, typecheck_method, oneof, transformed
-from hail.utils.java import escape_parsable
-from hail.utils import frozendict
-from hail.utils.misc import lookup_bit
-from hail.utils.byte_reader import ByteReader
+from .. import genetics
+from ..typecheck import typecheck, typecheck_method, oneof, transformed
+from ..utils.struct import Struct
+from ..utils.byte_reader import ByteReader
+from ..utils.misc import lookup_bit
+from ..utils.java import escape_parsable
+from ..genetics.reference_genome import reference_genome_type
+
 
 __all__ = [
     'dtype',
@@ -258,19 +263,19 @@ class HailType(object):
         x = json.loads(s)
         return self._convert_from_json_na(x)
 
-    def _convert_from_json_na(self, x):
+    def _convert_from_json_na(self, x, _should_freeze: bool = False):
         if x is None:
             return x
         else:
-            return self._convert_from_json(x)
+            return self._convert_from_json(x, _should_freeze)
 
-    def _convert_from_json(self, x):
+    def _convert_from_json(self, x, _should_freeze: bool = False):
         return x
 
     def _from_encoding(self, encoding):
         return self._convert_from_encoding(ByteReader(memoryview(encoding)))
 
-    def _convert_from_encoding(self, byte_reader):
+    def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False):
         raise ValueError("Not implemented yet")
 
     def _traverse(self, obj, f):
@@ -334,7 +339,7 @@ class _tvoid(HailType):
     def clear(self):
         pass
 
-    def _convert_from_encoding(self, byte_reader):
+    def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False):
         return None
 
 
@@ -387,7 +392,7 @@ class _tint32(HailType):
     def to_numpy(self):
         return np.int32
 
-    def _convert_from_encoding(self, byte_reader):
+    def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> int:
         return byte_reader.read_int32()
 
     def _byte_size(self):
@@ -442,7 +447,7 @@ class _tint64(HailType):
     def to_numpy(self):
         return np.int64
 
-    def _convert_from_encoding(self, byte_reader):
+    def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> int:
         return byte_reader.read_int64()
 
     def _byte_size(self):
@@ -471,7 +476,7 @@ class _tfloat32(HailType):
     def _parsable_string(self):
         return "Float32"
 
-    def _convert_from_json(self, x):
+    def _convert_from_json(self, x, _should_freeze: bool = False):
         return float(x)
 
     def _convert_to_json(self, x):
@@ -480,7 +485,7 @@ class _tfloat32(HailType):
         else:
             return str(x)
 
-    def _convert_from_encoding(self, byte_reader):
+    def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> float:
         return byte_reader.read_float32()
 
     def unify(self, t):
@@ -521,7 +526,7 @@ class _tfloat64(HailType):
     def _parsable_string(self):
         return "Float64"
 
-    def _convert_from_json(self, x):
+    def _convert_from_json(self, x, _should_freeze: bool = False):
         return float(x)
 
     def _convert_to_json(self, x):
@@ -542,7 +547,7 @@ class _tfloat64(HailType):
     def to_numpy(self):
         return np.float64
 
-    def _convert_from_encoding(self, byte_reader):
+    def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> float:
         return byte_reader.read_float64()
 
     def _byte_size(self):
@@ -580,7 +585,7 @@ class _tstr(HailType):
     def clear(self):
         pass
 
-    def _convert_from_encoding(self, byte_reader):
+    def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> str:
         length = byte_reader.read_int32()
         str_literal = byte_reader.read_bytes(length).decode()
 
@@ -624,7 +629,7 @@ class _tbool(HailType):
     def _byte_size(self):
         return 1
 
-    def _convert_from_encoding(self, byte_reader):
+    def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> bool:
         return byte_reader.read_bool()
 
 
@@ -731,7 +736,7 @@ class tndarray(HailType):
     def _parsable_string(self):
         return f'NDArray[{self._element_type._parsable_string()},{self.ndim}]'
 
-    def _convert_from_json(self, x):
+    def _convert_from_json(self, x, _should_freeze: bool = False) -> np.ndarray:
         if is_numeric(self._element_type):
             np_type = self.element_type.to_numpy()
             return np.ndarray(shape=x['shape'], buffer=np.array(x['data'], dtype=np_type), dtype=np_type)
@@ -768,7 +773,7 @@ class tndarray(HailType):
     def _get_context(self):
         return self.element_type.get_context()
 
-    def _convert_from_encoding(self, byte_reader):
+    def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> np.ndarray:
         shape = [byte_reader.read_int64() for i in range(self.ndim)]
         total_num_elements = np.product(shape, dtype=np.int64)
 
@@ -776,9 +781,9 @@ class tndarray(HailType):
             element_byte_size = self.element_type._byte_size
             bytes_to_read = element_byte_size * total_num_elements
             buffer = byte_reader.read_bytes_view(bytes_to_read)
-            np.frombuffer(buffer, self.element_type.to_numpy, count=total_num_elements).reshape(shape)
+            return np.frombuffer(buffer, self.element_type.to_numpy, count=total_num_elements).reshape(shape)
         else:
-            elements = [self.element_type._convert_from_encoding(byte_reader) for i in range(total_num_elements)]
+            elements = [self.element_type._convert_from_encoding(byte_reader, _should_freeze) for i in range(total_num_elements)]
             np_type = self.element_type.to_numpy()
             return np.ndarray(shape=shape, buffer=np.array(elements, dtype=np_type), dtype=np_type, order="F")
 
@@ -844,8 +849,11 @@ class tarray(HailType):
     def _parsable_string(self):
         return "Array[" + self.element_type._parsable_string() + "]"
 
-    def _convert_from_json(self, x):
-        return [self.element_type._convert_from_json_na(elt) for elt in x]
+    def _convert_from_json(self, x, _should_freeze: bool = False) -> Union[list, frozenlist]:
+        ls = [self.element_type._convert_from_json_na(elt, _should_freeze) for elt in x]
+        if _should_freeze:
+            return frozenlist(ls)
+        return ls
 
     def _convert_to_json(self, x):
         return [self.element_type._convert_to_json_na(elt) for elt in x]
@@ -865,7 +873,7 @@ class tarray(HailType):
     def _get_context(self):
         return self.element_type.get_context()
 
-    def _convert_from_encoding(self, byte_reader):
+    def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> Union[list, frozenlist]:
         length = byte_reader.read_int32()
 
         num_missing_bytes = math.ceil(length / 8)
@@ -882,9 +890,11 @@ class tarray(HailType):
             if lookup_bit(current_missing_byte, which_missing_bit):
                 decoded.append(None)
             else:
-                element_decoded = self.element_type._convert_from_encoding(byte_reader)
+                element_decoded = self.element_type._convert_from_encoding(byte_reader, _should_freeze)
                 decoded.append(element_decoded)
             i += 1
+        if _should_freeze:
+            return frozenlist(decoded)
         return decoded
 
 
@@ -920,8 +930,11 @@ class tstream(HailType):
     def _parsable_string(self):
         return "Stream[" + self.element_type._parsable_string() + "]"
 
-    def _convert_from_json(self, x):
-        return [self.element_type._convert_from_json_na(elt) for elt in x]
+    def _convert_from_json(self, x, _should_freeze: bool = False) -> Union[list, frozenlist]:
+        ls = [self.element_type._convert_from_json_na(elt, _should_freeze) for elt in x]
+        if _should_freeze:
+            return frozenlist(ls)
+        return ls
 
     def _convert_to_json(self, x):
         return [self.element_type._convert_to_json_na(elt) for elt in x]
@@ -1008,14 +1021,20 @@ class tset(HailType):
     def _parsable_string(self):
         return "Set[" + self.element_type._parsable_string() + "]"
 
-    def _convert_from_json(self, x):
-        return frozenset({self.element_type._convert_from_json_na(elt) for elt in x})
+    def _convert_from_json(self, x, _should_freeze: bool = False) -> Union[set, frozenset]:
+        s = {self.element_type._convert_from_json_na(elt, _should_freeze=True) for elt in x}
+        if _should_freeze:
+            return frozenset(s)
+        return s
 
     def _convert_to_json(self, x):
         return [self.element_type._convert_to_json_na(elt) for elt in x]
 
-    def _convert_from_encoding(self, byte_reader):
-        return frozenset(self._array_repr._convert_from_encoding(byte_reader))
+    def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> Union[set, frozenset]:
+        s = self._array_repr._convert_from_encoding(byte_reader, _should_freeze=True)
+        if _should_freeze:
+            return frozenset(s)
+        return set(s)
 
     def _propagate_jtypes(self, jtype):
         self._element_type._add_jtype(jtype.elementType())
@@ -1031,6 +1050,17 @@ class tset(HailType):
 
     def _get_context(self):
         return self.element_type.get_context()
+
+
+class _freeze_this_type(HailType):
+    def __init__(self, t):
+        self.t = t
+
+    def _convert_from_json_na(self, x, _should_freeze: bool = False):
+        return self.t._convert_from_json_na(x, _should_freeze=True)
+
+    def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False):
+        return self.t._convert_from_encoding(byte_reader, _should_freeze=True)
 
 
 class tdict(HailType):
@@ -1059,7 +1089,7 @@ class tdict(HailType):
     def __init__(self, key_type, value_type):
         self._key_type = key_type
         self._value_type = value_type
-        self._array_repr = tarray(tstruct(key=key_type, value=value_type))
+        self._array_repr = tarray(tstruct(key=_freeze_this_type(key_type), value=value_type))
         super(tdict, self).__init__()
 
     @property
@@ -1115,16 +1145,24 @@ class tdict(HailType):
     def _parsable_string(self):
         return "Dict[{},{}]".format(self.key_type._parsable_string(), self.value_type._parsable_string())
 
-    def _convert_from_json(self, x):
-        return frozendict({self.key_type._convert_from_json_na(elt['key']): self.value_type._convert_from_json_na(elt['value']) for elt in x})
+    def _convert_from_json(self, x, _should_freeze: bool = False) -> Union[dict, frozendict]:
+        d = {self.key_type._convert_from_json_na(elt['key'], _should_freeze=True):
+             self.value_type._convert_from_json_na(elt['value'], _should_freeze=_should_freeze) for elt in x}
+        if _should_freeze:
+            return frozendict(d)
+        return d
 
     def _convert_to_json(self, x):
         return [{'key': self.key_type._convert_to_json(k),
                  'value': self.value_type._convert_to_json(v)} for k, v in x.items()]
 
-    def _convert_from_encoding(self, byte_reader):
-        array_of_pairs = self._array_repr._convert_from_encoding(byte_reader)
-        return frozendict({pair.key: pair.value for pair in array_of_pairs})
+    def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> Union[dict, frozendict]:
+        # NB: We ensure the key is always frozen with a wrapper on the key_type in the _array_repr.
+        array_of_pairs = self._array_repr._convert_from_encoding(byte_reader, _should_freeze)
+        d = {pair.key: pair.value for pair in array_of_pairs}
+        if _should_freeze:
+            return frozendict(d)
+        return d
 
     def _propagate_jtypes(self, jtype):
         self._key_type._add_jtype(jtype.keyType())
@@ -1279,13 +1317,13 @@ class tstruct(HailType, Mapping):
         return "Struct{{{}}}".format(
             ','.join('{}:{}'.format(escape_parsable(f), t._parsable_string()) for f, t in self.items()))
 
-    def _convert_from_json(self, x):
-        return hl.utils.Struct(**{f: t._convert_from_json_na(x.get(f)) for f, t in self._field_types.items()})
+    def _convert_from_json(self, x, _should_freeze: bool = False) -> Struct:
+        return Struct(**{f: t._convert_from_json_na(x.get(f), _should_freeze) for f, t in self._field_types.items()})
 
     def _convert_to_json(self, x):
         return {f: t._convert_to_json_na(x[f]) for f, t in self.items()}
 
-    def _convert_from_encoding(self, byte_reader):
+    def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> Struct:
         num_missing_bytes = math.ceil(len(self) / 8)
         missing_bytes = byte_reader.read_bytes_view(num_missing_bytes)
 
@@ -1300,10 +1338,10 @@ class tstruct(HailType, Mapping):
             if lookup_bit(current_missing_byte, which_missing_bit):
                 kwargs[f] = None
             else:
-                field_decoded = t._convert_from_encoding(byte_reader)
+                field_decoded = t._convert_from_encoding(byte_reader, _should_freeze)
                 kwargs[f] = field_decoded
 
-        return hl.utils.Struct(**kwargs)
+        return Struct(**kwargs)
 
     def _is_prefix_of(self, other):
         return (isinstance(other, tstruct)
@@ -1554,13 +1592,13 @@ class ttuple(HailType, Sequence):
     def _parsable_string(self):
         return "Tuple[{}]".format(",".join([t._parsable_string() for t in self.types]))
 
-    def _convert_from_json(self, x):
-        return tuple(self.types[i]._convert_from_json_na(x[i]) for i in range(len(self.types)))
+    def _convert_from_json(self, x, _should_freeze: bool = False) -> tuple:
+        return tuple(self.types[i]._convert_from_json_na(x[i], _should_freeze) for i in range(len(self.types)))
 
     def _convert_to_json(self, x):
         return [self.types[i]._convert_to_json_na(x[i]) for i in range(len(self.types))]
 
-    def _convert_from_encoding(self, byte_reader):
+    def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> tuple:
         num_missing_bytes = math.ceil(len(self) / 8)
         missing_bytes = byte_reader.read_bytes_view(num_missing_bytes)
 
@@ -1574,7 +1612,7 @@ class ttuple(HailType, Sequence):
             if lookup_bit(current_missing_byte, which_missing_bit):
                 answer.append(None)
             else:
-                field_decoded = t._convert_from_encoding(byte_reader)
+                field_decoded = t._convert_from_encoding(byte_reader, _should_freeze)
                 answer.append(field_decoded)
 
         return tuple(answer)
@@ -1646,13 +1684,13 @@ class _tcall(HailType):
     def _parsable_string(self):
         return "Call"
 
-    def _convert_from_json(self, x):
+    def _convert_from_json(self, x, _should_freeze: bool = False) -> genetics.Call:
         if x == '-':
-            return hl.Call([])
+            return genetics.Call([])
         if x == '|-':
-            return hl.Call([], phased=True)
+            return genetics.Call([], phased=True)
         if x[0] == '|':
-            return hl.Call([int(x[1:])], phased=True)
+            return genetics.Call([int(x[1:])], phased=True)
 
         n = len(x)
         i = 0
@@ -1663,14 +1701,14 @@ class _tcall(HailType):
             i += 1
 
         if i == n:
-            return hl.Call([int(x)])
+            return genetics.Call([int(x)])
 
-        return hl.Call([int(x[0:i]), int(x[i + 1:])], phased=(c == '|'))
+        return genetics.Call([int(x[0:i]), int(x[i + 1:])], phased=(c == '|'))
 
     def _convert_to_json(self, x):
         return str(x)
 
-    def _convert_from_encoding(self, byte_reader):
+    def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> genetics.Call:
         int_rep = byte_reader.read_int32()
 
         ploidy = (int_rep >> 1) & 0x3
@@ -1712,7 +1750,7 @@ class _tcall(HailType):
         else:
             raise ValueError("Unsupported Ploidy")
 
-        return hl.Call(alleles, phased)
+        return genetics.Call(alleles, phased)
 
     def unify(self, t):
         return t == tcall
@@ -1781,13 +1819,13 @@ class tlocus(HailType):
     def _pretty(self, b, indent, increment):
         b.append('locus<{}>'.format(escape_parsable(self.reference_genome.name)))
 
-    def _convert_from_json(self, x):
+    def _convert_from_json(self, x, _should_freeze: bool = False) -> genetics.Locus:
         return genetics.Locus(x['contig'], x['position'], reference_genome=self.reference_genome)
 
     def _convert_to_json(self, x):
         return {'contig': x.contig, 'position': x.position}
 
-    def _convert_from_encoding(self, byte_reader):
+    def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> genetics.Locus:
         as_struct = tlocus.struct_repr._convert_from_encoding(byte_reader)
         return genetics.Locus(as_struct.contig, as_struct.pos, self.reference_genome)
 
@@ -1866,10 +1904,10 @@ class tinterval(HailType):
     def _parsable_string(self):
         return "Interval[{}]".format(self.point_type._parsable_string())
 
-    def _convert_from_json(self, x):
+    def _convert_from_json(self, x, _should_freeze: bool = False):
         from hail.utils import Interval
-        return Interval(self.point_type._convert_from_json_na(x['start']),
-                        self.point_type._convert_from_json_na(x['end']),
+        return Interval(self.point_type._convert_from_json_na(x['start'], _should_freeze),
+                        self.point_type._convert_from_json_na(x['end'], _should_freeze),
                         x['includeStart'],
                         x['includeEnd'],
                         point_type=self.point_type)
@@ -1880,9 +1918,13 @@ class tinterval(HailType):
                 'includeStart': x.includes_start,
                 'includeEnd': x.includes_end}
 
-    def _convert_from_encoding(self, byte_reader):
-        interval_as_struct = self._struct_repr._convert_from_encoding(byte_reader)
-        return hl.Interval(interval_as_struct.start, interval_as_struct.end, interval_as_struct.includes_start, interval_as_struct.includes_end, point_type=self.point_type)
+    def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False):
+        interval_as_struct = self._struct_repr._convert_from_encoding(byte_reader, _should_freeze)
+        return hl.Interval(interval_as_struct.start,
+                           interval_as_struct.end,
+                           interval_as_struct.includes_start,
+                           interval_as_struct.includes_end,
+                           point_type=self.point_type)
 
     def unify(self, t):
         return isinstance(t, tinterval) and self.point_type.unify(t.point_type)

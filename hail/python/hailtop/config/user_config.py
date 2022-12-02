@@ -16,13 +16,6 @@ def xdg_config_home() -> Path:
     return Path(value)
 
 
-def get_user_local_cache_dir(ensure_exists: bool = False) -> Path:
-    cache_dir = Path(xdg_config_home(), 'hail', 'cache')
-    if ensure_exists:
-        os.makedirs(cache_dir, exist_ok=True)
-    return cache_dir
-
-
 def get_user_config_path() -> Path:
     return Path(xdg_config_home(), 'hail', 'config.ini')
 

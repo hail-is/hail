@@ -279,8 +279,8 @@ object TypeCheck {
         val td = tcoerce[TDict](x.typ)
         assert(td.keyType == telt.types(0))
         assert(td.valueType == TArray(telt.types(1)))
-      case RNGStateLiteral(key) =>
-        assert(key.length == 4)
+      case x@RNGStateLiteral() =>
+        assert(x.typ == TRNGState)
       case RNGSplit(state, dynBitstring) =>
         assert(state.typ == TRNGState)
         def isValid: Type => Boolean = {

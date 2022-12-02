@@ -18,6 +18,7 @@ RUN hail-apt-get-install \
     jq \
     openjdk-8-jdk-headless \
     liblapack3 \
+    liblz4-dev \
     g++-10 \
     gcc-10 \
     cmake \

@@ -4,6 +4,7 @@ import sys
 import os
 from contextlib import contextmanager
 from urllib.parse import urlparse, urlunparse
+from random import Random
 
 import pkg_resources
 from pyspark import SparkContext
@@ -58,26 +59,6 @@ def convert_gcs_requester_pays_configuration_to_hadoop_conf_style(
 
 
 class HailContext(object):
-    @staticmethod
-    async def async_create(log: str,
-                           quiet: bool,
-                           append: bool,
-                           tmpdir: str,
-                           local_tmpdir: str,
-                           default_reference: str,
-                           global_seed: Optional[int],
-                           backend: Backend):
-        hc = HailContext(log=log,
-                         quiet=quiet,
-                         append=append,
-                         tmpdir=tmpdir,
-                         local_tmpdir=local_tmpdir,
-                         global_seed=global_seed,
-                         backend=backend)
-        references = await backend._async_get_references(BUILTIN_REFERENCES)
-        hc.initialize_references(references, default_reference)
-        return hc
-
     @staticmethod
     def create(log: str,
                quiet: bool,
@@ -135,14 +116,13 @@ class HailContext(object):
                                  '  the latest changes weekly.\n')
             sys.stderr.write(f'LOGGING: writing to {log}\n')
 
+        self._user_specified_rng_nonce = True
         if global_seed is None:
-            if Env._seed_generator is None:
-                Env.set_seed(6348563392232659379)
-        else:  # global_seed is not None
-            if Env._seed_generator is not None:
-                raise ValueError(
-                    'Do not call hl.init with a non-None global seed *after* calling hl.set_global_seed')
-            Env.set_seed(global_seed)
+            if 'rng_nonce' not in backend.get_flags('rng_nonce'):
+                backend.set_flags(rng_nonce=hex(Random().randrange(-2**63, 2**63 - 1)))
+                self._user_specified_rng_nonce = False
+        else:
+            backend.set_flags(rng_nonce=hex(global_seed))
         Env._hc = self
 
     def initialize_references(self, references, default_reference):
@@ -343,6 +323,8 @@ def init(sc=None,
         backend = 'batch'
 
     if backend == 'batch':
+        import nest_asyncio
+        nest_asyncio.apply()
         import asyncio
         return asyncio.get_event_loop().run_until_complete(init_batch(
             log=log,
@@ -465,7 +447,7 @@ def init_spark(sc=None,
     local_tmpdir=nullable(str),
     default_reference=enumeration(*BUILTIN_REFERENCES),
     global_seed=nullable(int),
-    disable_progress_bar=bool,
+    disable_progress_bar=nullable(bool),
     driver_cores=nullable(oneof(str, int)),
     driver_memory=nullable(str),
     worker_cores=nullable(oneof(str, int)),
@@ -486,7 +468,7 @@ async def init_batch(
         local_tmpdir: Optional[str] = None,
         default_reference: str = 'GRCh37',
         global_seed: Optional[int] = None,
-        disable_progress_bar: bool = True,
+        disable_progress_bar: Optional[bool] = None,
         driver_cores: Optional[Union[str, int]] = None,
         driver_memory: Optional[str] = None,
         worker_cores: Optional[Union[str, int]] = None,
@@ -525,7 +507,7 @@ async def init_batch(
         tmpdir = backend.remote_tmpdir + 'tmp/hail/' + secret_alnum_string()
     local_tmpdir = _get_local_tmpdir(local_tmpdir)
 
-    await HailContext.async_create(
+    HailContext.create(
         log, quiet, append, tmpdir, local_tmpdir, default_reference,
         global_seed, backend)
 
@@ -823,7 +805,12 @@ def get_reference(name) -> ReferenceGenome:
 
 @typecheck(seed=int)
 def set_global_seed(seed):
-    """Sets Hail's global seed to `seed`.
+    """Deprecated.
+
+    Has no effect. To ensure reproducible randomness, use the `global_seed`
+    argument to :func:`.init` and :func:`.reset_global_randomness`.
+
+    See the :ref:`random functions <sec-random-functions>` reference docs for more.
 
     Parameters
     ----------
@@ -831,7 +818,18 @@ def set_global_seed(seed):
         Integer used to seed Hail's random number generator
     """
 
-    Env.set_seed(seed)
+    warning('hl.set_global_seed has no effect. See '
+            'https://hail.is/docs/0.2/functions/random.html for details on '
+            'ensuring reproducibility of randomness.')
+    pass
+
+
+@typecheck()
+def reset_global_randomness():
+    """Restore global randomness to initial state for test reproducibility.
+    """
+
+    Env.reset_global_randomness()
 
 
 def _set_flags(**flags):

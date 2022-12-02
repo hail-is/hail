@@ -1625,17 +1625,17 @@ def import_table(paths,
     if should_remove_line_expr is not None:
         ht = ht.filter(should_remove_line_expr, keep=False)
 
-    if len(paths) <= 1:
-        # With zero or one files and no filters, the first row, if it exists must be in the first
-        # partition, so we take this one-pass fast-path.
-        first_row_ht = ht._filter_partitions([0]).head(1)
-    else:
-        first_row_ht = ht.head(1)
-
-    if find_replace is not None:
-        ht = ht.annotate(text=ht['text'].replace(*find_replace))
-
     try:
+        if len(paths) <= 1:
+            # With zero or one files and no filters, the first row, if it exists must be in the first
+            # partition, so we take this one-pass fast-path.
+            first_row_ht = ht._filter_partitions([0]).head(1)
+        else:
+            first_row_ht = ht.head(1)
+
+        if find_replace is not None:
+            ht = ht.annotate(text=ht['text'].replace(*find_replace))
+
         first_rows = first_row_ht.annotate(
             header=first_row_ht.text._split_line(
                 delimiter, missing=hl.empty_array(hl.tstr), quote=quote, regex=len(delimiter) > 1)
@@ -2564,9 +2564,7 @@ def get_vcf_metadata(path):
            filter=nullable(str),
            find_replace=nullable(sized_tupleof(str, str)),
            n_partitions=nullable(int),
-           block_size=nullable(int),
-           # json
-           _partitions=nullable(str))
+           block_size=nullable(int))
 def import_vcf(path,
                force=False,
                force_bgz=False,
@@ -2582,8 +2580,7 @@ def import_vcf(path,
                filter=None,
                find_replace=None,
                n_partitions=None,
-               block_size=None,
-               _partitions=None) -> MatrixTable:
+               block_size=None) -> MatrixTable:
     """Import VCF file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -2732,8 +2729,7 @@ def import_vcf(path,
     reader = ir.MatrixVCFReader(path, call_fields, entry_float_type, header_file,
                                 n_partitions, block_size, min_partitions,
                                 reference_genome, contig_recoding, array_elements_required,
-                                skip_invalid_loci, force_bgz, force, filter, find_replace,
-                                _partitions)
+                                skip_invalid_loci, force_bgz, force, filter, find_replace)
     return MatrixTable(ir.MatrixRead(reader, drop_cols=drop_samples))
 
 
@@ -2789,11 +2785,8 @@ def import_gvcfs(path,
 
     rg = reference_genome.name if reference_genome else None
 
-    if partitions is not None:
-        partitions, partitions_type = hl.utils._dumps_partitions(partitions, hl.tstruct(locus=hl.tlocus(rg),
-                                                                                        alleles=hl.tarray(hl.tstr)))
-    else:
-        partitions_type = None
+    partitions, partitions_type = hl.utils._dumps_partitions(partitions, hl.tstruct(locus=hl.tlocus(rg),
+                                                                                    alleles=hl.tarray(hl.tstr)))
 
     vector_ref_s = Env.spark_backend('import_vcfs')._jbackend.pyImportVCFs(
         wrap_to_list(path),

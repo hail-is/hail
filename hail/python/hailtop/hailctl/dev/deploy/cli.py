@@ -3,6 +3,9 @@ import aiohttp
 import webbrowser
 import sys
 
+from typing import Optional
+
+from hailtop import httpx
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers
 from hailtop.httpx import client_session
@@ -28,7 +31,7 @@ class CIClient:
         if not deploy_config:
             deploy_config = get_deploy_config()
         self._deploy_config = deploy_config
-        self._session = None
+        self._session: Optional[httpx.ClientSession] = None
 
     async def __aenter__(self):
         headers = service_auth_headers(self._deploy_config, 'ci')
@@ -52,6 +55,7 @@ class CIClient:
             'excluded_steps': excluded_steps,
             'extra_config': extra_config,
         }
+        assert self._session
         async with self._session.post(
                 self._deploy_config.url('ci', '/api/v1alpha/dev_deploy_branch'), json=data) as resp:
             if resp.status >= 400:

@@ -24,6 +24,21 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.105
+
+Released 2022-10-31 🎃
+
+### New Features
+
+- (hail#12293)  Added support for `hail.MatrixTable`s to `hail.ggplot`.
+
+### Bug Fixes
+
+- (hail#12384) Fixed a critical bug that disabled tree aggregation and scan executions in 0.2.104, leading to out-of-memory errors.
+- (hail#12265) Fix long-standing bug wherein `hl.agg.collect_as_set` and `hl.agg.counter` error when applied to types which, in Python, are unhashable. For example, `hl.agg.counter(t.list_of_genes)` will not error when `t.list_of_genes` is a list. Instead, the counter dictionary will use `FrozenList` keys from the `frozenlist` package.
+
+---
+
 ## Version 0.2.104
 
 Release 2022-10-19

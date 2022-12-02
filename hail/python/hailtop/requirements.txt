@@ -1,0 +1,16 @@
+aiohttp>=3.8.1,<4
+aiohttp_session>=2.7,<2.13
+azure-identity>=1.6.0,<2
+azure-storage-blob>=12.11.0,<13
+boto3>=1.17,<2.0
+botocore>=1.20,<2.0
+google-auth==2.14.1
+google-cloud-storage>=1.25.*
+humanize>=1.0.0,<2
+janus>=0.6,<1.1
+orjson>=3.6.4,<4
+rich==12.6.0
+python-json-logger>=2.0.2,<3
+sortedcontainers>=2.4.0,<3
+tabulate>=0.8.9,<1
+uvloop>=0.16.0,<1; sys_platform!='win32'

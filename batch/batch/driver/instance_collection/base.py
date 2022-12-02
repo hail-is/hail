@@ -3,7 +3,7 @@ import collections
 import logging
 import re
 import secrets
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Counter, Dict, List, Optional, Tuple
 
 import sortedcontainers
 
@@ -95,9 +95,9 @@ class InstanceCollectionManager:
         return sum(inst_coll.live_free_cores_mcpu for inst_coll in self.name_inst_coll.values())
 
     @property
-    def global_n_instances_by_state(self):
+    def global_n_instances_by_state(self) -> Counter[str]:
         counters = [collections.Counter(inst_coll.n_instances_by_state) for inst_coll in self.name_inst_coll.values()]
-        result = collections.Counter({})
+        result: Counter[str] = collections.Counter()
         for counter in counters:
             result += counter
         return result
@@ -265,7 +265,7 @@ class InstanceCollection:
             cores=cores,
             location=location,
             machine_type=machine_type,
-            preemptible=True,
+            preemptible=preemptible,
             instance_config=instance_config,
         )
         self.add_instance(instance)

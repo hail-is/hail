@@ -3,7 +3,7 @@ import json
 import logging
 import random
 import traceback
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 import sortedcontainers
 
@@ -200,8 +200,8 @@ LIMIT %s;
     async def compute_fair_share(self):
         n_jobs_to_allocate = self.max_instances_to_create()
 
-        user_live_jobs = {}
-        user_total_jobs = {}
+        user_live_jobs: Dict[str, int] = {}
+        user_total_jobs: Dict[str, int] = {}
         result = {}
 
         pending_users_by_live_jobs = sortedcontainers.SortedSet(key=lambda user: user_live_jobs[user])

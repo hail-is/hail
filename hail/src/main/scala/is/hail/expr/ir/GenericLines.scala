@@ -1,10 +1,13 @@
 package is.hail.expr.ir
 
 import is.hail.backend.spark.SparkBackend
-import is.hail.utils._
-import is.hail.types.virtual.{TBoolean, TInt32, TInt64, TString, TStruct, Type}
 import is.hail.io.compress.BGzipInputStream
 import is.hail.io.fs.{FS, FileStatus, Positioned, PositionedInputStream, BGZipCompressionCodec}
+import is.hail.io.tabix.{TabixReader, TabixLineIterator}
+import is.hail.types.virtual.{TBoolean, TInt32, TInt64, TString, TStruct, Type}
+import is.hail.utils._
+import is.hail.variant.Locus
+
 import org.apache.commons.io.input.{CountingInputStream, ProxyInputStream}
 import org.apache.hadoop.io.compress.SplittableCompressionCodec
 import org.apache.spark.{Partition, TaskContext}
@@ -14,6 +17,14 @@ import org.apache.spark.sql.Row
 import scala.annotation.meta.param
 
 trait CloseableIterator[T] extends Iterator[T] with AutoCloseable
+
+object CloseableIterator {
+  def empty[T]: CloseableIterator[T] = new CloseableIterator[T] {
+    def close(): Unit = ()
+    def hasNext: Boolean = false
+    def next: T = throw new NoSuchElementException
+  }
+}
 
 object GenericLines {
   def read(fs: FS, contexts: IndexedSeq[Any], gzAsBGZ: Boolean, filePerPartition: Boolean): GenericLines = {
@@ -296,6 +307,85 @@ object GenericLines {
     }
 
     GenericLines.read(fs, contexts, gzAsBGZ, filePerPartition)
+  }
+
+  def readTabix(fs: FS, fileStatus: FileStatus, contigMapping: Map[String, String], partitions: IndexedSeq[Interval]): GenericLines = {
+    val reverseContigMapping: Map[String, String] =
+      contigMapping.toArray
+        .groupBy(_._2)
+        .map { case (target, mappings) =>
+          if (mappings.length > 1)
+            fatal(s"contig_recoding may not map multiple contigs to the same target contig, " +
+              s"due to ambiguity when querying the tabix index." +
+            s"\n  Duplicate mappings: ${ mappings.map(_._1).mkString(",") } all map to ${ target }")
+            (target, mappings.head._1)
+        }.toMap
+    val contexts = partitions.zipWithIndex.map { case (interval, i) =>
+      val start = interval.start.asInstanceOf[Row].getAs[Locus](0)
+      val end = interval.end.asInstanceOf[Row].getAs[Locus](0)
+      val contig = reverseContigMapping.getOrElse(start.contig, start.contig)
+      Row(i, fileStatus.getPath, contig, start.position, end.position)
+    }
+    val body: (FS, Any) => CloseableIterator[GenericLine] = { (fs: FS, context: Any) =>
+      val contextRow = context.asInstanceOf[Row]
+      val index = contextRow.getAs[Int](0)
+      val file = contextRow.getAs[String](1)
+      val chrom = contextRow.getAs[String](2)
+      val start = contextRow.getAs[Int](3)
+      val end = contextRow.getAs[Int](4)
+
+      val reg = {
+        val r = new TabixReader(file, fs)
+        val tid = r.chr2tid(chrom)
+        r.queryPairs(tid, start - 1, end)
+      }
+      if (reg.isEmpty) {
+        CloseableIterator.empty
+      } else {
+        new CloseableIterator[GenericLine] {
+          private[this] val lines = new TabixLineIterator(fs, file, reg)
+          private[this] var l = lines.next()
+          private[this] var curIdx: Long = lines.getCurIdx()
+          private[this] val inner = new Iterator[GenericLine] {
+            def hasNext: Boolean = l != null
+            def next(): GenericLine = {
+              assert(l != null)
+              val n = l
+              val idx = curIdx
+              l = lines.next()
+              curIdx = lines.getCurIdx()
+              if (l == null)
+                lines.close()
+              val bytes = n.getBytes
+              new GenericLine(file, 0, idx, bytes, bytes.length)
+            }
+          }.filter { gl =>
+            val s = gl.toString
+            val t1 = s.indexOf('\t')
+            val t2 = s.indexOf('\t', t1 + 1)
+
+            val chr = s.substring(0, t1)
+            val pos = s.substring(t1 + 1, t2).toInt
+
+            if (chr != chrom) {
+              throw new RuntimeException(s"bad chromosome! ${chrom}, $s")
+            }
+            start <= pos && pos <= end
+          }
+
+          def hasNext: Boolean = inner.hasNext
+          def next(): GenericLine = inner.next()
+          def close(): Unit = lines.close()
+        }
+      }
+    }
+    val contextType = TStruct(
+      "partitionIndex" -> TInt32,
+      "file" -> TString,
+      "chrom" -> TString,
+      "start" -> TInt32,
+      "end" -> TInt32)
+    new GenericLines(contextType, contexts, body)
   }
 
   def collect(fs: FS, lines: GenericLines): IndexedSeq[String] = {

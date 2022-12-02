@@ -24,7 +24,7 @@ class GCPOperationError(Exception):
 
 
 class PagedIterator:
-    def __init__(self, client: 'GoogleComputeClient', path: str, request_params: Optional[Mapping[str, Any]], request_kwargs: Mapping[str, Any]):
+    def __init__(self, client: 'GoogleComputeClient', path: str, request_params: Optional[MutableMapping[str, Any]], request_kwargs: Mapping[str, Any]):
         assert 'params' not in request_kwargs
         self._client = client
         self._path = path
@@ -33,7 +33,7 @@ class PagedIterator:
         self._request_params = request_params
         self._request_kwargs = request_kwargs
         self._page = None
-        self._index = None
+        self._index: Optional[int] = None
 
     def __aiter__(self) -> 'PagedIterator':
         return self
@@ -45,13 +45,15 @@ class PagedIterator:
             self._index = 0
 
         while True:
-            if 'items' in self._page and self._index < len(self._page['items']):
+            assert self._page
+            if 'items' in self._page and self._index is not None and self._index < len(self._page['items']):
                 i = self._index
                 self._index += 1
                 return self._page['items'][i]
 
             next_page_token = self._page.get('nextPageToken')
             if next_page_token is not None:
+                assert self._request_params
                 self._request_params['pageToken'] = next_page_token
                 self._page = await self._client.get(self._path, params=self._request_params, **self._request_kwargs)
                 self._index = 0
@@ -71,23 +73,23 @@ class GoogleComputeClient(GoogleBaseClient):
     # https://cloud.google.com/compute/docs/reference/rest/v1/instances/delete
     # https://cloud.google.com/compute/docs/reference/rest/v1/disks
 
-    async def list(self, path: str, *, params: MutableMapping[str, Any] = None, **kwargs) -> PagedIterator:
+    async def list(self, path: str, *, params: Optional[MutableMapping[str, Any]] = None, **kwargs) -> PagedIterator:
         return PagedIterator(self, path, params, kwargs)
 
-    async def create_disk(self, path: str, *, params: MutableMapping[str, Any] = None, **kwargs):
+    async def create_disk(self, path: str, *, params: Optional[MutableMapping[str, Any]] = None, **kwargs):
         return await self._request_with_zonal_operations_response(self.post, path, params, **kwargs)
 
-    async def attach_disk(self, path: str, *, params: MutableMapping[str, Any] = None, **kwargs):
+    async def attach_disk(self, path: str, *, params: Optional[MutableMapping[str, Any]] = None, **kwargs):
         return await self._request_with_zonal_operations_response(self.post, path, params, **kwargs)
 
-    async def detach_disk(self, path: str, *, params: MutableMapping[str, Any] = None, **kwargs):
+    async def detach_disk(self, path: str, *, params: Optional[MutableMapping[str, Any]] = None, **kwargs):
         return await self._request_with_zonal_operations_response(self.post, path, params, **kwargs)
 
-    async def delete_disk(self, path: str, *, params: MutableMapping[str, Any] = None, **kwargs):
+    async def delete_disk(self, path: str, *, params: Optional[MutableMapping[str, Any]] = None, **kwargs):
         return await self.delete(path, params=params, **kwargs)
 
-    async def _request_with_zonal_operations_response(self, request_f, path, params: MutableMapping[str, Any] = None, **kwargs):
-        params = params or {}
+    async def _request_with_zonal_operations_response(self, request_f, path, maybe_params: Optional[MutableMapping[str, Any]] = None, **kwargs):
+        params = maybe_params or {}
         assert 'requestId' not in params
 
         async def request_and_wait():

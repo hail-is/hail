@@ -63,8 +63,10 @@ ON DUPLICATE KEY UPDATE region = region;
             rate_limit=RateLimit(10, 60),
         )
 
+        billing_client = aiogoogle.GoogleBillingClient(credentials_file=credentials_file)
+
         zone_monitor = await ZoneMonitor.create(compute_client, regions, zone)
-        billing_manager = await GCPBillingManager.create(db)
+        billing_manager = await GCPBillingManager.create(db, billing_client, regions)
         inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, zone_monitor, region, regions)
         resource_manager = GCPResourceManager(project, compute_client, billing_manager)
 
@@ -111,7 +113,7 @@ ON DUPLICATE KEY UPDATE region = region;
         task_manager.ensure_future(periodically_call(15, driver.process_activity_logs))
         task_manager.ensure_future(periodically_call(60, zone_monitor.update_region_quotas))
         task_manager.ensure_future(periodically_call(60, driver.delete_orphaned_disks))
-        task_manager.ensure_future(periodically_call(300, billing_manager.refresh_resources))
+        task_manager.ensure_future(periodically_call(300, billing_manager.refresh_resources_from_retail_prices))
 
         return driver
 

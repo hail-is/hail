@@ -167,7 +167,7 @@ object Copy {
       case GroupByKey(_) =>
         assert(newChildren.length == 1)
         GroupByKey(newChildren(0).asInstanceOf[IR])
-      case RNGStateLiteral(key) => RNGStateLiteral(key)
+      case RNGStateLiteral() => RNGStateLiteral()
       case RNGSplit(_, _) =>
         assert(newChildren.nonEmpty)
         RNGSplit(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
@@ -331,8 +331,8 @@ object Copy {
         r
       case Apply(fn, typeArgs, args, t, errorID) =>
         Apply(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), t, errorID)
-      case ApplySeeded(fn, args, rngState, seed, t) =>
-        ApplySeeded(fn, newChildren.init.map(_.asInstanceOf[IR]), newChildren.last.asInstanceOf[IR], seed, t)
+      case ApplySeeded(fn, args, rngState, staticUID, t) =>
+        ApplySeeded(fn, newChildren.init.map(_.asInstanceOf[IR]), newChildren.last.asInstanceOf[IR], staticUID, t)
       case ApplySpecial(fn, typeArgs, args, t, errorID) =>
         ApplySpecial(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), t, errorID)
       // from MatrixIR

@@ -2,8 +2,8 @@ CREATE TABLE `users` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
   `state` VARCHAR(100) NOT NULL,
   -- creating, active, deleting, deleted
-  `username` varchar(255) NOT NULL,
-  `login_id` varchar(255) DEFAULT NULL,
+  `username` varchar(255) NOT NULL COLLATE utf8mb4_0900_as_cs,
+  `login_id` varchar(255) DEFAULT NULL COLLATE utf8mb4_0900_as_cs,
   `display_name` varchar(255) DEFAULT NULL,
   `is_developer` tinyint(1) NOT NULL DEFAULT 0,
   `is_service_account` tinyint(1) NOT NULL DEFAULT 0,

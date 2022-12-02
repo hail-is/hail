@@ -362,20 +362,20 @@ class BillingProjectResource:
 
         try:
             await self.batch_client.create_billing_project(billing_project)
-        except aiohttp.ClientResponseError as e:
-            if e.status != 403 or 'already exists' not in e.message:
+        except httpx.ClientResponseError as e:
+            if e.status != 403 or 'already exists' not in e.body:
                 raise
 
         try:
             await self.batch_client.reopen_billing_project(billing_project)
-        except aiohttp.ClientResponseError as e:
-            if e.status != 403 or 'is already open' not in e.message:
+        except httpx.ClientResponseError as e:
+            if e.status != 403 or 'is already open' not in e.body:
                 raise
 
         try:
             await self.batch_client.add_user(user, billing_project)
-        except aiohttp.ClientResponseError as e:
-            if e.status != 403 or 'already member of billing project' not in e.message:
+        except httpx.ClientResponseError as e:
+            if e.status != 403 or 'already member of billing project' not in e.body:
                 raise
 
         await self.batch_client.edit_billing_limit(billing_project, 10)
@@ -386,8 +386,8 @@ class BillingProjectResource:
     async def _delete(self, user, billing_project):
         try:
             bp = await self.batch_client.get_billing_project(billing_project)
-        except aiohttp.ClientResponseError as e:
-            if e.status == 403 and 'Unknown Hail Batch billing project' in e.message:
+        except httpx.ClientResponseError as e:
+            if e.status == 403 and 'Unknown Hail Batch billing project' in e.body:
                 return
             raise
         else:
@@ -396,8 +396,8 @@ class BillingProjectResource:
 
         try:
             await self.batch_client.remove_user(user, billing_project)
-        except aiohttp.ClientResponseError as e:
-            if e.status != 403 or 'is not in billing project' not in e.message:
+        except httpx.ClientResponseError as e:
+            if e.status != 403 or 'is not in billing project' not in e.body:
                 raise
         finally:
             await self.batch_client.close_billing_project(billing_project)

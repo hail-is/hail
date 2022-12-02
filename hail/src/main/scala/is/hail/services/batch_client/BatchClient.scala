@@ -168,10 +168,10 @@ class BatchClient(
 
   def run(batchJson: JObject, jobs: IndexedSeq[JObject]): JValue = {
     val batchID = create(batchJson, jobs)
-    waitForBatch(batchID, jobs.length)
+    waitForBatch(batchID, false)
   }
 
-  def waitForBatch(batchID: Long, nJobsToComplete: Int): JValue = {
+  def waitForBatch(batchID: Long, excludeDriverJobInBatch: Boolean): JValue = {
     implicit val formats: Formats = DefaultFormats
 
     val start = System.nanoTime()
@@ -179,7 +179,8 @@ class BatchClient(
     while (true) {
       val batch = retryTransientErrors { get(s"/api/v1alpha/batches/$batchID") }
       val n_completed = (batch \ "n_completed").extract[Int]
-      if (n_completed == nJobsToComplete)
+      val n_jobs = (batch \ "n_jobs").extract[Int]
+      if ((excludeDriverJobInBatch && n_completed == n_jobs - 1) || n_completed == n_jobs)
         return batch
 
       // wait 10% of duration so far

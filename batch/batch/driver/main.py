@@ -6,7 +6,7 @@ import re
 import signal
 from collections import defaultdict
 from functools import wraps
-from typing import Dict, Set, Tuple
+from typing import Any, Dict, Set, Tuple
 
 import aiohttp_session
 import dictdiffer
@@ -314,6 +314,7 @@ async def kill_instance(request, userdata):  # pylint: disable=unused-argument
 async def job_complete_1(request, instance):
     body = await request.json()
     job_status = body['status']
+    marked_job_started = body.get('marked_job_started', False)
 
     batch_id = job_status['batch_id']
     job_id = job_status['job_id']
@@ -345,6 +346,7 @@ async def job_complete_1(request, instance):
         end_time,
         'completed',
         resources,
+        marked_job_started=marked_job_started,
     )
 
     await instance.mark_healthy()
@@ -453,8 +455,7 @@ FROM user_inst_coll_resources;
 @auth.web_authenticated_developers_only()
 async def get_quotas(request, userdata):
     if CLOUD != 'gcp':
-        page_context = {"plot_json": None}
-        return await render_template('batch-driver', request, userdata, 'quotas.html', page_context)
+        return await render_template('batch-driver', request, userdata, 'quotas.html', {"plot_json": None})
 
     data = request.app['driver'].get_quotas()
 
@@ -516,9 +517,7 @@ async def get_quotas(request, userdata):
     )
 
     plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-
-    page_context = {"plot_json": plot_json}
-    return await render_template('batch-driver', request, userdata, 'quotas.html', page_context)
+    return await render_template('batch-driver', request, userdata, 'quotas.html', {"plot_json": plot_json})
 
 
 class ConfigError(Exception):
@@ -984,7 +983,7 @@ async def check_resource_aggregation(app, db):
         if d is None:
             d = {}
         d = copy.deepcopy(d)
-        result = {}
+        result: Dict[str, Any] = {}
         for k, v in d.items():
             seqop(result, key_f(k), v)
         return result
