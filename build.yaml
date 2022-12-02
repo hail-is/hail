@@ -1334,7 +1334,7 @@ steps:
   - kind: runImage
     name: make_docs
     image:
-      valueFrom: hail_run_image.image
+      valueFrom: hailgenetics_hail_image.image
     script: |
       set -ex
       set -o pipefail
@@ -1342,6 +1342,8 @@ steps:
       export SPHINXOPTS='-tgenerate_notebook_outputs'
       export PYTHONPATH="${PYTHONPATH:+${PYTHONPATH}:}{{ token }}/python"
       export PYSPARK_SUBMIT_ARGS="--conf spark.kryo.registrator=is.hail.kryo.HailKryoRegistrator pyspark-shell"
+
+      hail-pip-install -r /dev-pinned-requirements.txt
 
       mkdir -p {{ token }}/python
       cd {{ token }}
@@ -1371,6 +1373,8 @@ steps:
     inputs:
       - from: /hail.zip
         to: /io/hail.zip
+      - from: /repo/hail/python/dev/pinned-requirements.txt
+        to: /dev-pinned-requirements.txt
       - from: /website-src.tar.gz
         to: /io/website-src.tar.gz
     outputs:
