@@ -2690,6 +2690,38 @@ steps:
       else
           exit 1;
       fi
+      
+      cat >file.sh <<EOF
+      set -ex
+      
+      cat foo
+      echo "Hello World!"
+      EOF
+
+      BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit --files=foo -o json file.sh | jq '.id')
+      STATUS=$(hailctl batch wait -o json $BATCH_ID | jq -jr '.state')
+      if [ "$STATUS" == "success" ]; then
+          exit 0;
+      else
+          exit 1;
+      fi
+
+      cat >file-with-args.sh <<EOF
+      set -ex
+      
+      [[ $# -eq 2 ]]
+      
+      cat foo
+      echo "Hello World! $1 $2"
+      EOF
+
+      BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit --files=foo -o json file-with-args.sh abc 123 | jq '.id')
+      STATUS=$(hailctl batch wait -o json $BATCH_ID | jq -jr '.state')
+      if [ "$STATUS" == "success" ]; then
+          exit 0;
+      else
+          exit 1;
+      fi
     secrets:
       - name: worker-deploy-config
         namespace:
