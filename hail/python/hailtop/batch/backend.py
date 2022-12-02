@@ -743,6 +743,7 @@ class ServiceBackend(Backend[bc.Batch]):
 
             n_jobs_submitted += 1
 
+            job._client_job = j
             job_to_client_job_mapping[job] = j
             jobs_to_command[j] = cmd
 
