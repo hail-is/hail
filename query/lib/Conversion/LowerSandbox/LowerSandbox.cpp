@@ -179,11 +179,11 @@ void LowerSandboxPass::runOnOperation() {
   target.addDynamicallyLegalOp<ir::PrintOp, mlir::UnrealizedConversionCastOp>(
       [](mlir::Operation *op) {
         auto cond = [](mlir::Type type) {
-          return type.isa<ir::IntType>() || type.isa<ir::BooleanType>() ||
-                 type.isa<ir::ArrayType>();
+          return type.isa<ir::IntType>() || type.isa<ir::BooleanType>()
+              || type.isa<ir::ArrayType>();
         };
-        return llvm::none_of(op->getOperandTypes(), cond) &&
-               llvm::none_of(op->getResultTypes(), cond);
+        return llvm::none_of(op->getOperandTypes(), cond)
+            && llvm::none_of(op->getResultTypes(), cond);
       });
   target.markUnknownOpDynamicallyLegal([](mlir::Operation *) { return true; });
   if (failed(applyPartialConversion(getOperation(), target, std::move(patterns))))

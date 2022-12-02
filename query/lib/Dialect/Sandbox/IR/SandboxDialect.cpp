@@ -48,8 +48,8 @@ auto ir::ArrayType::replaceImmediateSubElements(mlir::ArrayRef<mlir::Attribute> 
 
 auto ir::ArrayType::verify(mlir::function_ref<mlir::InFlightDiagnostic()> emitError,
                            Type elementType) -> mlir::LogicalResult {
-  if (elementType.isa<ir::BooleanType>() || elementType.isa<ir::IntType>() ||
-      elementType.isa<ir::ArrayType>()) {
+  if (elementType.isa<ir::BooleanType>() || elementType.isa<ir::IntType>()
+      || elementType.isa<ir::ArrayType>()) {
     return mlir::success();
   }
 

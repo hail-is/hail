@@ -12,6 +12,4 @@
 #define GET_OP_CLASSES
 #include "Dialect/Missing/IR/MissingOps.cpp.inc"
 
-namespace hail::ir {
-
-}
+namespace hail::ir {}

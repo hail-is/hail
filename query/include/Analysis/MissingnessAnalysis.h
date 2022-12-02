@@ -14,9 +14,9 @@ namespace ir {
 class MissingnessValue {
 public:
   enum State {
-    Present,          // value is always present
-    Unknown,          // value might be present or missing
-    Missing           // value is always missing
+    Present, // value is always present
+    Unknown, // value might be present or missing
+    Missing  // value is always missing
   };
 
   MissingnessValue(State state) : state(state) {}
@@ -28,18 +28,13 @@ public:
   void setMissing() { join(*this, Missing); }
   void setPresent() { join(*this, Present); }
 
-  bool operator==(const MissingnessValue &rhs) const {
-    return state == rhs.state;
-  }
+  bool operator==(MissingnessValue const &rhs) const { return state == rhs.state; }
 
   void print(llvm::raw_ostream &os) const;
 
-  static MissingnessValue getPessimisticValueState(mlir::Value value) {
-    return {Unknown};
-  }
+  static MissingnessValue getPessimisticValueState(mlir::Value value) { return {Unknown}; }
 
-  static MissingnessValue join(const MissingnessValue &lhs,
-                               const MissingnessValue &rhs) {
+  static MissingnessValue join(MissingnessValue const &lhs, MissingnessValue const &rhs) {
     return lhs == rhs ? lhs : MissingnessValue(Unknown);
   }
 
@@ -55,17 +50,14 @@ private:
 /// determine constant-valued results for operations using constant-valued
 /// operands, by speculatively folding operations. When combined with dead-code
 /// analysis, this becomes sparse conditional constant propagation (SCCP).
-class MissingnessAnalysis : public mlir::dataflow::SparseDataFlowAnalysis<
-                                mlir::dataflow::Lattice<MissingnessValue>> {
+class MissingnessAnalysis
+    : public mlir::dataflow::SparseDataFlowAnalysis<mlir::dataflow::Lattice<MissingnessValue>> {
 public:
   using SparseDataFlowAnalysis::SparseDataFlowAnalysis;
 
-  void visitOperation(
-      mlir::Operation *op,
-      llvm::ArrayRef<const mlir::dataflow::Lattice<MissingnessValue> *>
-          operands,
-      llvm::ArrayRef<mlir::dataflow::Lattice<MissingnessValue> *> results)
-      override;
+  void visitOperation(mlir::Operation *op,
+                      llvm::ArrayRef<mlir::dataflow::Lattice<MissingnessValue> const *> operands,
+                      llvm::ArrayRef<mlir::dataflow::Lattice<MissingnessValue> *> results) override;
 };
 
 } // end namespace ir

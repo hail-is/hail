@@ -27,8 +27,7 @@ void MissingnessValue::print(llvm::raw_ostream &os) const {
 //===----------------------------------------------------------------------===//
 
 void MissingnessAnalysis::visitOperation(
-    mlir::Operation *op,
-    llvm::ArrayRef<const mlir::dataflow::Lattice<MissingnessValue> *> operands,
+    mlir::Operation *op, llvm::ArrayRef<mlir::dataflow::Lattice<MissingnessValue> const *> operands,
     llvm::ArrayRef<mlir::dataflow::Lattice<MissingnessValue> *> results) {
   LLVM_DEBUG(llvm::dbgs() << "Missingness: Visiting operation: " << *op << "\n");
 
@@ -39,8 +38,8 @@ void MissingnessAnalysis::visitOperation(
   };
 
   // By default, operations are strict: if any operand is missing, all results are missing
-  MissingnessValue::State operandsState {};
-  for (const auto *lattice : operands) {
+  MissingnessValue::State operandsState{};
+  for (auto const *lattice : operands) {
     operandsState = std::max(operandsState, lattice->getValue().getState());
   }
   for (auto *result : results) {
@@ -48,4 +47,4 @@ void MissingnessAnalysis::visitOperation(
     LLVM_DEBUG(llvm::dbgs() << " result: "; result->print(llvm::dbgs()); llvm::dbgs() << "\n");
     propagateIfChanged(result, changed);
   };
-  }
+}

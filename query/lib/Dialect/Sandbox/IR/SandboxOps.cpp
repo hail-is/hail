@@ -115,8 +115,8 @@ struct SimplifyAddConstAddConst : public mlir::OpRewritePattern<AddIOp> {
         mlir::FusedLoc::get(op->getContext(), {lConst->getLoc(), rConst.getLoc()}, nullptr),
         lConst.getType(),
         mlir::IntegerAttr::get(lConst.getType(),
-                               lConst.value().cast<mlir::IntegerAttr>().getValue() +
-                                   rConst.value().cast<mlir::IntegerAttr>().getValue()));
+                               lConst.value().cast<mlir::IntegerAttr>().getValue()
+                                   + rConst.value().cast<mlir::IntegerAttr>().getValue()));
     rewriter.replaceOpWithNewOp<AddIOp>(op, lhs.result().getType(), lhs.lhs(), sumConst);
     return mlir::success();
   }
@@ -173,4 +173,4 @@ auto MakeArrayOp::verify() -> mlir::LogicalResult {
   return mlir::success();
 }
 
-} // namespace hail
+} // namespace hail::ir

@@ -38,6 +38,5 @@ auto main(int argc, char **argv) -> int {
   mlir::DialectRegistry registry;
   hail::ir::registerAllDialects(registry);
 
-  return mlir::asMainReturnCode(
-      mlir::MlirOptMain(argc, argv, "Hail optimizer driver\n", registry));
+  return mlir::asMainReturnCode(mlir::MlirOptMain(argc, argv, "Hail optimizer driver\n", registry));
 }

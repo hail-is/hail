@@ -6,9 +6,9 @@
 #include "Conversion/LowerSandbox/LowerSandbox.h"
 #include "Conversion/LowerToLLVM/LowerToLLVM.h"
 #include "Conversion/OptionToGenericOption/OptionToGenericOption.h"
-#include "mlir/Pass/PassRegistry.h"
-#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/Pass/PassRegistry.h"
 
 namespace hail {
 

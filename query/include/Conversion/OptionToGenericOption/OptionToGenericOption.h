@@ -8,7 +8,6 @@ namespace mlir {
 class Pass;
 class RewritePatternSet;
 
-
 } // namespace mlir
 
 namespace hail::ir {

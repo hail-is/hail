@@ -16,8 +16,8 @@
 #ifndef HAIL_ANALYSIS_MISSINGNESSAWARECONSTANTPROPAGATIONANALYSIS_H
 #define HAIL_ANALYSIS_MISSINGNESSAWARECONSTANTPROPAGATIONANALYSIS_H
 
-#include "mlir/Analysis/DataFlow/SparseAnalysis.h"
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
+#include "mlir/Analysis/DataFlow/SparseAnalysis.h"
 
 namespace hail {
 namespace ir {
@@ -35,13 +35,15 @@ namespace ir {
 /// be sound, it must satisfy the invariant that whenever a value is inferred to
 /// me missing, its inferred constant value is uninitialized.
 class MissingnessAwareConstantPropagation
-    : public mlir::dataflow::SparseDataFlowAnalysis<mlir::dataflow::Lattice<mlir::dataflow::ConstantValue>> {
+    : public mlir::dataflow::SparseDataFlowAnalysis<
+          mlir::dataflow::Lattice<mlir::dataflow::ConstantValue>> {
 public:
   using SparseDataFlowAnalysis::SparseDataFlowAnalysis;
 
-  void visitOperation(mlir::Operation *op,
-                      llvm::ArrayRef<const mlir::dataflow::Lattice<mlir::dataflow::ConstantValue> *> operands,
-                      llvm::ArrayRef<mlir::dataflow::Lattice<mlir::dataflow::ConstantValue> *> results) override;
+  void visitOperation(
+      mlir::Operation *op,
+      llvm::ArrayRef<mlir::dataflow::Lattice<mlir::dataflow::ConstantValue> const *> operands,
+      llvm::ArrayRef<mlir::dataflow::Lattice<mlir::dataflow::ConstantValue> *> results) override;
 };
 
 } // end namespace ir

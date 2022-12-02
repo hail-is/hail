@@ -61,7 +61,7 @@ struct DestructOfConstruct : public mlir::OpRewritePattern<DestructOp> {
     llvm::SmallVector<mlir::Type> sourceValueTypes;
     llvm::SmallVector<mlir::Type> remainingValueTypes;
     llvm::SmallVector<mlir::Value> remainingOptions;
-    for (const auto &input : llvm::enumerate(destruct.inputs())) {
+    for (auto const &input : llvm::enumerate(destruct.inputs())) {
       if (auto construct = input.value().getDefiningOp<ConstructOp>()) {
         if (!source && construct->hasOneUse()) {
           source = construct;
@@ -139,9 +139,10 @@ auto DestructOp::parse(mlir::OpAsmParser &parser, mlir::OperationState &result)
   llvm::SmallVector<mlir::OpAsmParser::UnresolvedOperand, 2> contNames;
   llvm::SmallVector<mlir::Type> optTypes;
   mlir::NamedAttrList parsedAttributes;
-  if (parser.parseOperandList(inputNames, mlir::OpAsmParser::Delimiter::Paren) ||
-      parser.parseOperandList(contNames, 2, mlir::OpAsmParser::Delimiter::Square) ||
-      parser.parseOptionalAttrDict(parsedAttributes) || parser.parseOptionalColonTypeList(optTypes))
+  if (parser.parseOperandList(inputNames, mlir::OpAsmParser::Delimiter::Paren)
+      || parser.parseOperandList(contNames, 2, mlir::OpAsmParser::Delimiter::Square)
+      || parser.parseOptionalAttrDict(parsedAttributes)
+      || parser.parseOptionalColonTypeList(optTypes))
     return mlir::failure();
 
   llvm::SmallVector<mlir::Value> inputs;

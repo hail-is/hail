@@ -48,7 +48,7 @@ struct OptionTypeStorage final : public mlir::TypeStorage,
     return result;
   }
 
-  auto operator==(const KeyTy &key) const -> bool { return key == getTypes(); }
+  auto operator==(KeyTy const &key) const -> bool { return key == getTypes(); }
 
   /// Return the number of held types.
   auto size() const -> unsigned { return numElements; }

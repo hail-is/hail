@@ -53,7 +53,7 @@ struct ContinuationTypeStorage final
     return result;
   }
 
-  auto operator==(const KeyTy &key) const -> bool { return key == getTypes(); }
+  auto operator==(KeyTy const &key) const -> bool { return key == getTypes(); }
 
   /// Return the number of held types.
   auto size() const -> unsigned { return numElements; }
@@ -111,8 +111,8 @@ auto CallCCOp::parse(mlir::OpAsmParser &parser, mlir::OperationState &result) ->
   // Parse the return continuation argument and return types
   mlir::OpAsmParser::UnresolvedOperand retContName;
   llvm::SmallVector<mlir::Type> retTypes;
-  if (parser.parseOperand(retContName, /*allowResultNumber=*/false) ||
-      parser.parseOptionalColonTypeList(retTypes))
+  if (parser.parseOperand(retContName, /*allowResultNumber=*/false)
+      || parser.parseOptionalColonTypeList(retTypes))
     return mlir::failure();
   result.addTypes(retTypes);
 

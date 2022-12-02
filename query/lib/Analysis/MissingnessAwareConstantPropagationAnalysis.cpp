@@ -13,8 +13,7 @@ using mlir::dataflow::ConstantValue;
 using mlir::dataflow::Lattice;
 
 void MissingnessAwareConstantPropagation::visitOperation(
-    mlir::Operation *op,
-    llvm::ArrayRef<const Lattice<ConstantValue> *> operands,
+    mlir::Operation *op, llvm::ArrayRef<Lattice<ConstantValue> const *> operands,
     llvm::ArrayRef<Lattice<ConstantValue> *> results) {
   LLVM_DEBUG(llvm::dbgs() << "MACP: Visiting operation: " << *op << "\n");
 
@@ -22,19 +21,16 @@ void MissingnessAwareConstantPropagation::visitOperation(
 
   // FIXME: move missingness op semantics to an interface
   if (auto missingOp = dyn_cast<IsMissingOp>(op)) {
-    const auto *missingness = getOrCreateFor<Lattice<MissingnessValue>>(
-        missingOp, missingOp.getOperand());
+    auto const *missingness =
+        getOrCreateFor<Lattice<MissingnessValue>>(missingOp, missingOp.getOperand());
     if (missingness->isUninitialized())
       return;
     if (missingness->getValue().isMissing()) {
-      propagateIfChanged(results.front(),
-                         results.front()->join(builder.getBoolAttr(true)));
+      propagateIfChanged(results.front(), results.front()->join(builder.getBoolAttr(true)));
     } else if (missingness->getValue().isPresent()) {
-      propagateIfChanged(results.front(),
-                         results.front()->join(builder.getBoolAttr(false)));
+      propagateIfChanged(results.front(), results.front()->join(builder.getBoolAttr(false)));
     } else {
-      propagateIfChanged(results.front(),
-                         results.front()->join(ConstantValue()));
+      propagateIfChanged(results.front(), results.front()->join(ConstantValue()));
     }
     return;
   };
@@ -47,20 +43,17 @@ void MissingnessAwareConstantPropagation::visitOperation(
     return;
 
   // By default, only propagate constants if there are no missing operands.
-  bool anyMissing = std::any_of(
-      op->operand_begin(), op->operand_end(), [this, op](auto operand) {
-        auto missingness =
-            getOrCreateFor<Lattice<MissingnessValue>>(op, operand);
-        return missingness->isUninitialized() ||
-               missingness->getValue().isMissing();
-      });
+  bool anyMissing = std::any_of(op->operand_begin(), op->operand_end(), [this, op](auto operand) {
+    auto missingness = getOrCreateFor<Lattice<MissingnessValue>>(op, operand);
+    return missingness->isUninitialized() || missingness->getValue().isMissing();
+  });
 
   if (anyMissing)
     return;
 
   llvm::SmallVector<mlir::Attribute> constantOperands;
   constantOperands.reserve(op->getNumOperands());
-  for (const auto *operandLattice : operands)
+  for (auto const *operandLattice : operands)
     constantOperands.push_back(operandLattice->getValue().getConstantValue());
 
   // Save the original operands and attributes just in case the operation
@@ -90,20 +83,18 @@ void MissingnessAwareConstantPropagation::visitOperation(
 
   // Merge the fold results into the lattice for this operation.
   assert(foldResults.size() == op->getNumResults() && "invalid result size");
-  for (const auto it : llvm::zip(results, foldResults)) {
+  for (auto const it : llvm::zip(results, foldResults)) {
     Lattice<ConstantValue> *lattice = std::get<0>(it);
 
     // Merge in the result of the fold, either a constant or a value.
     mlir::OpFoldResult foldResult = std::get<1>(it);
-    if (const auto attr = foldResult.dyn_cast<mlir::Attribute>()) {
+    if (auto const attr = foldResult.dyn_cast<mlir::Attribute>()) {
       LLVM_DEBUG(llvm::dbgs() << "Folded to constant: " << attr << "\n");
-      propagateIfChanged(lattice,
-                         lattice->join(ConstantValue(attr, op->getDialect())));
+      propagateIfChanged(lattice, lattice->join(ConstantValue(attr, op->getDialect())));
     } else {
-      LLVM_DEBUG(llvm::dbgs() << "Folded to value: "
-                              << foldResult.get<mlir::Value>() << "\n");
-      AbstractSparseDataFlowAnalysis::join(
-          lattice, *getLatticeElement(foldResult.get<mlir::Value>()));
+      LLVM_DEBUG(llvm::dbgs() << "Folded to value: " << foldResult.get<mlir::Value>() << "\n");
+      AbstractSparseDataFlowAnalysis::join(lattice,
+                                           *getLatticeElement(foldResult.get<mlir::Value>()));
     }
   }
 }

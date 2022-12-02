@@ -22,7 +22,7 @@ namespace hail::ir {
 struct LowerToLLVMPass : public LowerToLLVMBase<LowerToLLVMPass> {
   void runOnOperation() override;
 };
- 
+
 namespace {
 
 class PrintOpLowering : public mlir::OpConversionPattern<PrintOp> {
@@ -34,8 +34,8 @@ public:
                        mlir::ConversionPatternRewriter &rewriter) const
       -> mlir::LogicalResult override {
 
-    if (!(op.getOperand().getType() == rewriter.getI32Type() ||
-          op.getOperand().getType() == rewriter.getI1Type()))
+    if (!(op.getOperand().getType() == rewriter.getI32Type()
+          || op.getOperand().getType() == rewriter.getI1Type()))
       return mlir::failure();
 
     auto loc = op->getLoc();

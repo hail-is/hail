@@ -20,6 +20,6 @@ void populateLowerSandboxConversionPatterns(mlir::RewritePatternSet &patterns);
 /// the ControlFlow dialect.
 std::unique_ptr<mlir::Pass> createLowerSandboxPass();
 
-} // namespace hail
+} // namespace hail::ir
 
 #endif // CONVERSION_LOWERSANDBOX_LOWERSANDBOX_H

@@ -1,7 +1,7 @@
-#include "PassDetail.h"
-#include "Transforms/Passes.h"
 #include "Analysis/MissingnessAnalysis.h"
 #include "Analysis/MissingnessAwareConstantPropagationAnalysis.h"
+#include "PassDetail.h"
+#include "Transforms/Passes.h"
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinAttributes.h"
@@ -17,8 +17,10 @@ static void rewrite(mlir::DataFlowSolver &solver, mlir::Operation *root) {
 
     annotations.reserve(op->getNumOperands());
     for (mlir::Value result : op->getResults()) {
-      auto *missingnessState = solver.getOrCreateState<mlir::dataflow::Lattice<hail::ir::MissingnessValue>>(result);
-      auto *constState = solver.getOrCreateState<mlir::dataflow::Lattice<mlir::dataflow::ConstantValue>>(result);
+      auto *missingnessState =
+          solver.getOrCreateState<mlir::dataflow::Lattice<hail::ir::MissingnessValue>>(result);
+      auto *constState =
+          solver.getOrCreateState<mlir::dataflow::Lattice<mlir::dataflow::ConstantValue>>(result);
 
       if (missingnessState->isUninitialized())
         continue;
@@ -42,8 +44,10 @@ static void rewrite(mlir::DataFlowSolver &solver, mlir::Operation *root) {
       auto &region = op->getRegion(0);
       annotations.reserve(region.getNumArguments());
       for (mlir::Value arg : region.getArguments()) {
-        auto *missingnessState = solver.getOrCreateState<mlir::dataflow::Lattice<hail::ir::MissingnessValue>>(arg);
-        auto *constState = solver.getOrCreateState<mlir::dataflow::Lattice<mlir::dataflow::ConstantValue>>(arg);
+        auto *missingnessState =
+            solver.getOrCreateState<mlir::dataflow::Lattice<hail::ir::MissingnessValue>>(arg);
+        auto *constState =
+            solver.getOrCreateState<mlir::dataflow::Lattice<mlir::dataflow::ConstantValue>>(arg);
 
         if (missingnessState->isUninitialized())
           continue;
@@ -65,7 +69,8 @@ static void rewrite(mlir::DataFlowSolver &solver, mlir::Operation *root) {
 }
 
 namespace {
-struct TestMissingnessAnalysisPass : public TestMissingnessAnalysisBase<TestMissingnessAnalysisPass> {
+struct TestMissingnessAnalysisPass
+    : public TestMissingnessAnalysisBase<TestMissingnessAnalysisPass> {
   void runOnOperation() override;
 };
 } // namespace
