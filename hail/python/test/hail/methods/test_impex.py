@@ -2098,7 +2098,6 @@ class ImportTableTests(unittest.TestCase):
 
 
 class GrepTests(unittest.TestCase):
-    @fails_service_backend()
     @fails_local_backend()
     def test_grep_show_false(self):
         expected = {'sampleAnnotations.tsv': ['HG00120\tCASE\t19599', 'HG00121\tCASE\t4832'],
