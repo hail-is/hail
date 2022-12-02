@@ -1,11 +1,7 @@
 import unittest
 
 import hail as hl
-from .helpers import startTestHailContext, stopTestHailContext, skip_unless_spark_backend, fails_local_backend, fails_service_backend
 from hail.utils.java import Env
-
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):

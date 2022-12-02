@@ -15,9 +15,6 @@ from ..helpers import *
 from hail import ir
 from hail.utils import new_temp_file, FatalError, run_command, uri_path, HailUserError
 
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
-
 _FLOAT_INFO_FIELDS = [
     'BaseQRankSum',
     'ClippingRankSum',

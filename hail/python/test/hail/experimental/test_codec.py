@@ -1,9 +1,6 @@
 import hail as hl
 from test.hail.helpers import *
 
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
-
 UNBLOCKED_UNBUFFERED_SPEC = '{"name":"StreamBufferSpec"}'
 
 

@@ -2741,6 +2741,7 @@ steps:
         mountPath: /ssl-config
     dependsOn:
       - hailgenetics_hail_image
+      - upload_query_jar
       - create_deploy_config
       - create_accounts
       - default_ns

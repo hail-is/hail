@@ -1,6 +1,7 @@
 import asyncio
 import orjson
 import os
+import sys
 from shlex import quote as shq
 
 import hailtop.batch as hb
@@ -74,4 +75,7 @@ async def async_main(args):
 
 
 def main(args, pass_through_args, client):  # pylint: disable=unused-argument
+    if pass_through_args:
+        print(f'Unrecognized arguments: {" ".join(pass_through_args)}')
+        sys.exit(1)
     asyncio.run(async_main(args))

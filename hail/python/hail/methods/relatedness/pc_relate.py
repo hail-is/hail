@@ -346,7 +346,7 @@ def pc_relate(call_expr: CallExpression,
         'maf': min_individual_maf,
         'blockSize': block_size,
         'minKinship': min_kinship,
-        'statistics': {'kin': 0, 'kin2': 1, 'kin20': 2, 'all': 3}[statistics]}))
+        'statistics': {'kin': 0, 'kin2': 1, 'kin20': 2, 'all': 3}[statistics]})).persist()
 
     if statistics == 'kin':
         ht = ht.drop('ibd0', 'ibd1', 'ibd2')
@@ -359,7 +359,7 @@ def pc_relate(call_expr: CallExpression,
         ht = ht.filter(ht.i == ht.j, keep=False)
 
     col_keys = hl.literal(mt.select_cols().key_cols_by().cols().collect(), dtype=tarray(mt.col_key.dtype))
-    return ht.key_by(i=col_keys[ht.i], j=col_keys[ht.j])
+    return ht.key_by(i=col_keys[ht.i], j=col_keys[ht.j]).persist()
 
 
 def _bad_mu(mu: Float64Expression, maf: float) -> BooleanExpression:
