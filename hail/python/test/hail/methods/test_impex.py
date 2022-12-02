@@ -1670,14 +1670,13 @@ class LocusIntervalTests(unittest.TestCase):
         t = hl.import_locus_intervals(interval_file, reference_genome=None, skip_invalid_intervals=True)
         self.assertEqual(t.count(), 22)
 
-    @fails_service_backend()
     def test_import_bed(self):
         bed_file = resource('example1.bed')
         bed = hl.import_bed(bed_file, reference_genome='GRCh37')
 
         nbed = bed.count()
         i = 0
-        with open(bed_file) as f:
+        with hl.hadoop_open(bed_file) as f:
             for line in f:
                 if len(line.strip()) != 0:
                     try:

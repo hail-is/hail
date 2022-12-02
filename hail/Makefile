@@ -80,7 +80,7 @@ endif
 else
 JAR_LOCATION = $(TEST_STORAGE_URI)/$(NAMESPACE)/jars/$(TOKEN)/$(REVISION).jar
 endif
-HAIL_TEST_RESOURCES_PREFIX = $(TEST_STORAGE_URI)/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources
+HAIL_TEST_RESOURCES_PREFIX = $(TEST_STORAGE_URI)/$(shell whoami)/hail-test-resources
 HAIL_TEST_RESOURCES_DIR = $(HAIL_TEST_RESOURCES_PREFIX)/test/resources/
 HAIL_DOCTEST_DATA_DIR = $(HAIL_TEST_RESOURCES_PREFIX)/doctest/data/
 
@@ -182,12 +182,13 @@ pytest: python/README.md $(PYTHON_JAR)
 .PHONY: pytest-qob
 pytest-qob: upload-qob-jar upload-qob-test-resources install-editable
 	! [ -z $(NAMESPACE) ]  # call this like: make pytest-qob NAMESPACE=default
-	HAIL_QUERY_BACKEND=batch \
-	HAIL_QUERY_JAR_URL=$$(cat upload-qob-jar) \
+	cd python && \
+  HAIL_QUERY_BACKEND=batch \
+	HAIL_QUERY_JAR_URL=$$(cat ../upload-qob-jar) \
 	HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
 	HAIL_TEST_RESOURCES_DIR='$(HAIL_TEST_RESOURCES_DIR)' \
 	HAIL_DOCTEST_DATA_DIR='$(HAIL_DOCTEST_DATA_DIR)' \
-	cd python && pytest \
+	pytest \
 		-v \
 		--color=no \
 		--instafail \
