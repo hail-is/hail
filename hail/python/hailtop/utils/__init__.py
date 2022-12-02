@@ -46,6 +46,7 @@ __all__ = [
     'bounded_gather',
     'grouped',
     'is_transient_error',
+    'is_delayed_warning_error',
     'sync_sleep_and_backoff',
     'sleep_and_backoff',
     'retry_all_errors',
