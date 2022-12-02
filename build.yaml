@@ -2341,7 +2341,8 @@ steps:
       export HAIL_GENETICS_QOB_VEP_GRCH38_IMAGE={{ qob_vep_image_grch38.image }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
 
-      if [[ "$HAIL_CLOUD" = "gcp" ]] then
+      if [[ "$HAIL_CLOUD" = "gcp" ]]
+      then
           export GCS_REQUESTER_PAYS_PROJECT=broad-ctsa
       fi
 
