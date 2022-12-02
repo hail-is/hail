@@ -145,7 +145,7 @@ object Copy {
         assert(newChildren.length == 2)
         ArraySort(newChildren(0).asInstanceOf[IR], l, r, newChildren(1).asInstanceOf[IR])
       case ArrayMaximalIndependentSet(_, tb) =>
-        ArrayMaximalIndependentSet(newChildren(0).asInstanceOf[IR], tb.map { case (l, r, _) => (l, r, newChildren(1).asInstanceOf[IR]))
+        ArrayMaximalIndependentSet(newChildren(0).asInstanceOf[IR], tb.map { case (l, r, _) => (l, r, newChildren(1).asInstanceOf[IR]) } )
       case ToSet(_) =>
         assert(newChildren.length == 1)
         ToSet(newChildren(0).asInstanceOf[IR])
