@@ -27,6 +27,7 @@ def startTestHailContext():
 
 def stopTestHailContext():
     hl.stop()
+    _initialized = False
 
 
 _test_dir = os.environ.get('HAIL_TEST_RESOURCES_DIR',
