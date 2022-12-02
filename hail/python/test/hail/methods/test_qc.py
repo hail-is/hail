@@ -107,7 +107,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(r[1].vqc.gq_stats.mean, 10)
         self.assertEqual(r[1].vqc.gq_stats.stdev, 0)
 
-    @fails_service_backend(reason='very slow / nonterminating')
     def test_concordance(self):
         dataset = get_dataset()
         glob_conc, cols_conc, rows_conc = hl.concordance(dataset, dataset)
@@ -132,8 +131,9 @@ class Tests(unittest.TestCase):
         self.assertTrue(cols_conc.all(hl.sum(hl.flatten(cols_conc.concordance)) == dataset.count_rows()))
         self.assertTrue(rows_conc.all(hl.sum(hl.flatten(rows_conc.concordance)) == dataset.count_cols()))
 
-        cols_conc.write('/tmp/foo.kt', overwrite=True)
-        rows_conc.write('/tmp/foo.kt', overwrite=True)
+        with hl.TemporaryDirectory(ensure_exists=False) as outfile:
+            cols_conc.write(outfile, overwrite=True)
+            rows_conc.write(outfile, overwrite=True)
 
     def test_concordance_n_discordant(self):
         dataset = get_dataset()

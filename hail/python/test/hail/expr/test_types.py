@@ -84,7 +84,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(c.can_coerce(t))
             self.assertFalse(c.requires_conversion(t))
 
-    @fails_service_backend()
+    @skip_when_service_backend(reason='to_spark is nonsensical in the service')
     @fails_local_backend()
     def test_nested_type_to_spark(self):
         ht = hl.utils.range_table(10)

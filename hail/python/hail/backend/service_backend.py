@@ -17,7 +17,7 @@ from hail.ir.renderer import CSERenderer
 
 from hailtop import yamlx
 from hailtop.config import (configuration_of, get_remote_tmpdir)
-from hailtop.utils import async_to_blocking, secret_alnum_string, TransientError, Timings
+from hailtop.utils import async_to_blocking, secret_alnum_string, TransientError, Timings, am_i_interactive
 from hailtop.utils.rich_progress_bar import BatchProgressBar
 from hailtop.batch_client import client as hb
 from hailtop.batch_client import aioclient as aiohb
@@ -213,8 +213,11 @@ class ServiceBackend(Backend):
         name_prefix = configuration_of('query', 'name_prefix', name_prefix, '')
 
         if disable_progress_bar is None:
-            disable_progress_bar_str = configuration_of('query', 'disable_progress_bar', None, '1')
-            disable_progress_bar = len(disable_progress_bar_str) > 0
+            disable_progress_bar_str = configuration_of('query', 'disable_progress_bar', None, None)
+            if disable_progress_bar_str is None:
+                disable_progress_bar = not am_i_interactive()
+            else:
+                disable_progress_bar = len(disable_progress_bar_str) > 0
 
         flags = {"use_new_shuffle": "1", **(flags or {})}
 

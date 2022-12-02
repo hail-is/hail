@@ -1490,7 +1490,6 @@ class Tests(unittest.TestCase):
         assert ht2.idx.collect() == list(range(444))
         assert ht2.n_partitions() == 50
 
-    @fails_service_backend()
     def test_path_collision_error(self):
         path = new_temp_file(extension='ht')
         ht = hl.utils.range_table(10)
