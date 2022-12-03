@@ -535,8 +535,11 @@ steps:
   - kind: buildImage2
     name: hail_build_image
     dockerFile: /io/hail/Dockerfile.hail-build
-    contextPath: /io
+    contextPath: /io/hail
     publishAs: hail-build
+    inputs:
+      - from: /repo/hail/Dockerfile.hail-build
+        to: /io/hail/Dockerfile.hail-build
     dependsOn:
       - base_image
       - merge_code
