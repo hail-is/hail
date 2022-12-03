@@ -693,10 +693,8 @@ steps:
       time retry make shadowJar wheel
       (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
     inputs:
-      - from: /repo/README.md
-        to: /io/repo/README.md
-      - from: /repo/hail
-        to: /io/repo/hail
+      - from: /repo
+        to: /io/repo
     outputs:
       - from: /io/repo/hail/build/libs/hail-all-spark.jar
         to: /just-jar/hail.jar
@@ -721,10 +719,8 @@ steps:
       time retry make jars wheel
       (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
     inputs:
-      - from: /repo/README.md
-        to: /io/repo/README.md
-      - from: /repo/hail
-        to: /io/repo/hail
+      - from: /repo
+        to: /io/repo
     outputs:
       - from: /io/repo/hail/build/libs/hail-all-spark.jar
         to: /just-jar/spark-32/hail.jar
@@ -772,12 +768,8 @@ steps:
       time TESTNG_SPLITS=5 python3 generate_splits.py
       time tar czf splits.tar.gz testng-splits-*.xml
     inputs:
-      - from: /repo/README.md
-        to: /io/repo/README.md
-      - from: /repo/website
-        to: /io/repo/website
-      - from: /repo/hail
-        to: /io/repo/hail
+      - from: /repo
+        to: /io/repo
     outputs:
       - from: /io/repo/hail/build/libs/hail-all-spark.jar
         to: /hail.jar
