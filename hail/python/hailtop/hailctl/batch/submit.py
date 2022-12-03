@@ -2,6 +2,7 @@ import asyncio
 import orjson
 import os
 import sys
+from shlex import quote as shq
 
 import hailtop.batch as hb
 import hailtop.batch_client.client as bc
@@ -14,13 +15,14 @@ HAIL_GENETICS_HAIL_IMAGE = os.environ.get('HAIL_GENETICS_HAIL_IMAGE', f'hailgene
 
 
 def init_parser(parser):
-    parser.add_argument('script', type=str, help='Path to script')
     parser.add_argument('--name', type=str, default='', help='Batch name')
     parser.add_argument('--image-name', type=str, required=False,
                         help='Name for Docker image. Defaults to hailgenetics/hail')
     parser.add_argument('--files', nargs='+', action='append', default=[],
                         help='Comma-separated list of files or directories to add to the working directory of job')
     parser.add_argument('-o', type=str, default='text', choices=['text', 'json'])
+    parser.add_argument('script', type=str, help='Path to script')
+    parser.add_argument('arguments', nargs='*', help='Arguments to script')
 
 
 async def async_main(args):
@@ -59,7 +61,8 @@ async def async_main(args):
     j.env('HAIL_QUERY_BACKEND', 'batch')
 
     command = 'python3' if script.endswith('.py') else 'bash'
-    j.command(f'{command} {script_file}')
+    script_arguments = " ".join(shq(x) for x in args.arguments)
+    j.command(f'{command} {script_file} {script_arguments}')
     batch_handle: bc.Batch = b.run(wait=False, disable_progress_bar=quiet)  # type: ignore
 
     if args.o == 'text':
