@@ -1,0 +1,10 @@
+-c ../hail/python/pinned-requirements.txt
+-c ../hail/python/dev/pinned-requirements.txt
+aiohttp_session>=2.7,<2.13
+aiomysql>=0.0.20,<1
+google-cloud-profiler<4.0.0
+kubernetes-asyncio>=19.15.1,<20
+prometheus_async>=19.2.0,<20
+prometheus_client>=0.11.0,<1
+PyMySQL>=1,<2
+sortedcontainers>=2.4.0,<3

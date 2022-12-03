@@ -5,7 +5,6 @@ include ../config.mk
 CLOUD := $(shell kubectl get secret global-config --template={{.data.cloud}} | base64 --decode)
 
 build:
-	$(MAKE) -C ../docker hail-ubuntu
 	$(MAKE) -C ../docker base
 
 deploy: build

@@ -13,7 +13,7 @@ RUN chmod 755 /bin/retry && \
     chmod 755 /controller.sh && \
     echo "APT::Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries && \
     mkdir -p /usr/share/keyrings/ && \
-    hail-apt-get-install curl gpg && \
+    hail-apt-get-install curl gpg jq && \
     curl 'https://keyserver.ubuntu.com/pks/lookup?search=0xF23C5A6CF475977595C89F51BA6932366A755776&hash=on&exact=on&options=mr&op=get' \
          | gpg --dearmor > /usr/share/keyrings/deadsnakes-ppa-archive-keyring.gpg && \
     echo 'deb [signed-by=/usr/share/keyrings/deadsnakes-ppa-archive-keyring.gpg] http://ppa.launchpad.net/deadsnakes/ppa/ubuntu focal main' \

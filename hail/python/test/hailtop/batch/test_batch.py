@@ -10,6 +10,7 @@ import uuid
 import re
 
 from hailtop.batch import Batch, ServiceBackend, LocalBackend
+from hailtop.batch.backend import HAIL_GENETICS_HAIL_IMAGE
 from hailtop.batch.exceptions import BatchException
 from hailtop.batch.globals import arg_max
 from hailtop.utils import grouped, async_to_blocking
