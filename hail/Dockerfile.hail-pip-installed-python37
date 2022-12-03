@@ -4,8 +4,8 @@ ENV LANG C.UTF-8
 
 RUN hail-apt-get-install openjdk-8-jdk-headless
 
-COPY hail/python/pinned-requirements.txt requirements.txt
-COPY hail/python/dev/pinned-requirements.txt dev-requirements.txt
+COPY python/pinned-requirements.txt requirements.txt
+COPY python/dev/pinned-requirements.txt dev-requirements.txt
 RUN file=$(mktemp) && \
     cat requirements.txt dev-requirements.txt > $file && \
     hail-pip-install -r $file
