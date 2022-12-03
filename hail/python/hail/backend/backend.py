@@ -1,10 +1,14 @@
 from typing import Mapping, List, Union, Tuple, Dict, Optional, Any
 import abc
+import orjson
+import pkg_resources
+import zipfile
 from ..fs.fs import FS
+from ..builtin_references import BUILTIN_REFERENCE_RESOURCE_PATHS
 from ..expr import Expression
 from ..expr.types import HailType
 from ..ir import BaseIR
-from ..utils.java import FatalError, HailUserError
+from ..utils.java import FatalError
 
 
 def fatal_error_from_java_error_triplet(short_message, expanded_message, error_id):
@@ -22,6 +26,10 @@ Error summary: {short_message}''',
 
 class Backend(abc.ABC):
     @abc.abstractmethod
+    def __init__(self):
+        self._persisted_locations = dict()
+
+    @abc.abstractmethod
     def stop(self):
         pass
 
@@ -31,14 +39,6 @@ class Backend(abc.ABC):
 
     @abc.abstractmethod
     async def _async_execute(self, ir, timed=False):
-        pass
-
-    def execute_many(self, *irs, timed=False):
-        from ..ir import MakeTuple  # pylint: disable=import-outside-toplevel
-        return [self.execute(MakeTuple([ir]), timed=timed)[0] for ir in irs]
-
-    @abc.abstractmethod
-    async def _async_execute_many(self, *irs, timed=False):
         pass
 
     @abc.abstractmethod
@@ -69,20 +69,19 @@ class Backend(abc.ABC):
     def remove_reference(self, name):
         pass
 
-    @abc.abstractmethod
     def get_reference(self, name):
-        pass
+        if name in BUILTIN_REFERENCE_RESOURCE_PATHS:
+            path_in_jar = BUILTIN_REFERENCE_RESOURCE_PATHS[name]
+            jar_path = pkg_resources.resource_filename(__name__, 'hail-all-spark.jar')
+            return orjson.loads(zipfile.ZipFile(jar_path).open(path_in_jar).read())
+        return self._get_non_builtin_reference(name)
 
     @abc.abstractmethod
-    async def _async_get_reference(self, name):
+    def _get_non_builtin_reference(self, name):
         pass
 
     def get_references(self, names):
         return [self.get_reference(name) for name in names]
-
-    @abc.abstractmethod
-    async def _async_get_references(self, names):
-        pass
 
     @abc.abstractmethod
     def add_sequence(self, name, fasta_file, index_file):
@@ -127,18 +126,29 @@ class Backend(abc.ABC):
     def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
         pass
 
-    def persist_table(self, t, storage_level):
-        # FIXME: this can't possibly be right.
-        return t
+    def persist_table(self, t):
+        from hail.context import TemporaryFilename
+        tf = TemporaryFilename(prefix='persist_table')
+        self._persisted_locations[t] = tf
+        return t.checkpoint(tf.__enter__())
 
     def unpersist_table(self, t):
-        return t
+        try:
+            self._persisted_locations[t].__exit__(None, None, None)
+        except KeyError as err:
+            raise ValueError(f'{t} is not persisted') from err
 
-    def persist_matrix_table(self, mt, storage_level):
-        return mt
+    def persist_matrix_table(self, mt):
+        from hail.context import TemporaryFilename
+        tf = TemporaryFilename(prefix='persist_matrix_table')
+        self._persisted_locations[mt] = tf
+        return mt.checkpoint(tf.__enter__())
 
     def unpersist_matrix_table(self, mt):
-        return mt
+        try:
+            self._persisted_locations[mt].__exit__(None, None, None)
+        except KeyError as err:
+            raise ValueError(f'{mt} is not persisted') from err
 
     def unpersist_block_matrix(self, id):
         pass
@@ -171,19 +181,3 @@ class Backend(abc.ABC):
     @abc.abstractmethod
     def requires_lowering(self):
         pass
-
-    def _handle_fatal_error_from_backend(self, err: FatalError, ir: BaseIR):
-        if err._error_id is None:
-            raise err
-
-        error_sources = ir.base_search(lambda x: x._error_id == err._error_id)
-        if len(error_sources) == 0:
-            raise err
-
-        better_stack_trace = error_sources[0]._stack_trace
-        error_message = str(err)
-        message_and_trace = (f'{error_message}\n'
-                             '------------\n'
-                             'Hail stack trace:\n'
-                             f'{better_stack_trace}')
-        raise HailUserError(message_and_trace) from None

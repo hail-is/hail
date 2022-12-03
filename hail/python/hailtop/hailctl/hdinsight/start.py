@@ -85,7 +85,9 @@ async def main(args, pass_through_args):
          *pass_through_args)
 
     print(f'Installing Hail on {args.cluster_name}')
-    wheel_pip_version, = re.match('[^-]*-([^-]*)-.*.whl', os.path.basename(args.wheel_uri)).groups()
+    wheel_pip_version_match = re.match('[^-]*-([^-]*)-.*.whl', os.path.basename(args.wheel_uri))
+    assert wheel_pip_version_match
+    wheel_pip_version, = wheel_pip_version_match.groups()
     exec('az', 'hdinsight', 'script-action', 'execute', '-g', args.resource_group, '-n', 'installhail',
          '--cluster-name', args.cluster_name,
          '--script-uri', args.install_hail_uri,

@@ -533,7 +533,7 @@ class ArrayExpression(CollectionExpression):
         None
         """
         # FIXME: this should generate short-circuiting IR when that is possible
-        return hl.rbind(self, lambda x: hl.or_missing(hl.len(x) > 0, x[0]))
+        return hl.fold(lambda acc, elt: hl.coalesce(acc, elt), hl.missing(self.dtype.element_type), self)
 
     def last(self):
         """Returns the last element of the array, or missing if empty.

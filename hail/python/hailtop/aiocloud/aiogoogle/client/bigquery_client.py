@@ -1,4 +1,4 @@
-from typing import Mapping, Any
+from typing import Any, Dict, Mapping, Optional
 from .base_client import GoogleBaseClient
 
 
@@ -56,11 +56,11 @@ class PagedQueriesIterator:
         self._client = client
         self._query = query
         self._request_kwargs = request_kwargs
-        self._page = None
-        self._parser = None
+        self._page: Optional[Dict[str, Any]] = None
+        self._parser: Optional[ResultsParser] = None
         self._job_id = None
         self._location = None
-        self._row_index = None
+        self._row_index: Optional[int] = None
         self._total_rows = None
 
     def __aiter__(self) -> 'PagedQueriesIterator':
@@ -87,9 +87,12 @@ class PagedQueriesIterator:
         # in case a response is empty but there are more pages
         while True:
             # an empty page has no rows
+            assert self._row_index is not None
+            assert self._page
             if 'rows' in self._page and self._row_index < len(self._page['rows']):
                 i = self._row_index
                 self._row_index += 1
+                assert self._parser
                 return self._parser.parse_record(self._page['rows'][i])
 
             next_page_token = self._page.get('pageToken')

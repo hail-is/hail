@@ -1,8 +1,8 @@
-import pytest
 import asyncio
 
-from gear.time_limited_max_size_cache import TimeLimitedMaxSizeCache
+import pytest
 
+from gear.time_limited_max_size_cache import TimeLimitedMaxSizeCache
 
 pytestmark = pytest.mark.asyncio
 
@@ -13,7 +13,7 @@ one_day_ns = 24 * 60 * 60 * one_second_ns
 
 async def test_simple():
     async def load_secret(k: int):
-        return k ** 2
+        return k**2
 
     c = TimeLimitedMaxSizeCache(load_secret, one_day_ns, 2, 'test_cache')
     assert await c.lookup(3) == 9
@@ -26,12 +26,13 @@ async def test_simple():
 
 async def test_num_slots():
     load_counts = 0
+
     async def load_secret_only_twice(k: int):
         nonlocal load_counts
         if load_counts == 2:
             raise ValueError("already loaded secret twice")
         load_counts += 1
-        return k ** 2
+        return k**2
 
     c = TimeLimitedMaxSizeCache(load_secret_only_twice, one_day_ns, 2, 'test_cache')
     assert await c.lookup(3) == 9
@@ -50,10 +51,11 @@ async def test_num_slots():
 
 async def test_lifetime():
     load_counts = 0
+
     async def load_secret(k: int):
         nonlocal load_counts
         load_counts += 1
-        return k ** 2
+        return k**2
 
     c = TimeLimitedMaxSizeCache(load_secret, one_second_ns, 3, 'test_cache')
     assert await c.lookup(3) == 9
@@ -82,12 +84,14 @@ async def test_lifetime():
     assert await c.lookup(10) == 100
     assert load_counts == 5
 
+
 async def test_num_slots_deletes_oldest():
     load_counts = 0
+
     async def load_secret(k: int):
         nonlocal load_counts
         load_counts += 1
-        return k ** 2
+        return k**2
 
     c = TimeLimitedMaxSizeCache(load_secret, one_day_ns, 3, 'test_cache')
     assert await c.lookup(0) == 0
@@ -116,6 +120,7 @@ async def test_num_slots_deletes_oldest():
 
     assert await c.lookup(0) == 0
     assert load_counts == 5
+
 
 async def test_exception_propagates_everywhere():
     async def boom(_: int):

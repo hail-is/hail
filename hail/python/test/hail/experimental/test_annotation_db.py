@@ -1,27 +1,25 @@
-import unittest
+import pytest
 
 import hail as hl
 from hail.backend.service_backend import ServiceBackend
-from ..helpers import startTestHailContext, stopTestHailContext
 
 
-class AnnotationDBTests(unittest.TestCase):
-    @classmethod
-    def setupAnnotationDBTests(cls):
-        startTestHailContext()
+class TestAnnotationDB:
+    @pytest.fixture(scope="class")
+    def db_json(init_hail):
         backend = hl.current_backend()
         if isinstance(backend, ServiceBackend):
             backend.batch_attributes = dict(name='setupAnnotationDBTests')
         t = hl.utils.range_table(10)
         t = t.key_by(locus=hl.locus('1', t.idx + 1))
         t = t.annotate(annotation=hl.str(t.idx))
-        cls.tempdir_manager = hl.TemporaryDirectory()
-        d = cls.tempdir_manager.__enter__()
+        tempdir_manager = hl.TemporaryDirectory()
+        d = tempdir_manager.__enter__()
         fname = d + '/f.mt'
         t.write(fname)
         if isinstance(backend, ServiceBackend):
             backend.batch_attributes = dict()
-        cls.db_json = {
+        db_json = {
             'unique_dataset': {
                 'description': 'now with unique rows!',
                 'url': 'https://example.com',
@@ -46,16 +44,12 @@ class AnnotationDBTests(unittest.TestCase):
             }
         }
 
-    @classmethod
-    def tearDownAnnotationDBTests(cls):
-        stopTestHailContext()
-        cls.tempdir_manager.__exit__(None, None, None)
+        yield db_json
 
-    setUpClass = setupAnnotationDBTests
-    tearDownClass = tearDownAnnotationDBTests
+        tempdir_manager.__exit__(None, None, None)
 
-    def test_uniqueness(self):
-        db = hl.experimental.DB(region='us', cloud='gcp', config=AnnotationDBTests.db_json)
+    def test_uniqueness(self, db_json):
+        db = hl.experimental.DB(region='us', cloud='gcp', config=db_json)
         t = hl.utils.range_table(10)
         t = t.key_by(locus=hl.locus('1', t.idx + 1))
         t = db.annotate_rows_db(t, 'unique_dataset', 'nonunique_dataset')

@@ -1,5 +1,6 @@
 package is.hail.io.fs
 
+
 import java.io.{ByteArrayInputStream, FileNotFoundException}
 import java.net.URI
 import java.nio.ByteBuffer
@@ -209,8 +210,7 @@ class GoogleStorageFS(
         return n
       }
 
-      override def seek(newPos: Long): Unit = {
-        super.seek(newPos)
+      override def physicalSeek(newPos: Long): Unit = {
         seekHandlingRequesterPays(newPos)
       }
     }
@@ -225,7 +225,7 @@ class GoogleStorageFS(
     val blobInfo = BlobInfo.newBuilder(blobId)
       .build()
 
-    val os: PositionedOutputStream = new FSPositionedOutputStream {
+    val os: PositionedOutputStream = new FSPositionedOutputStream(8 * 1024 * 1024) {
       private[this] val write: WriteChannel = storage.writer(blobInfo)
 
       override def flush(): Unit = {

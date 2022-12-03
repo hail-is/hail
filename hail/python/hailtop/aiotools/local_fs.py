@@ -178,7 +178,7 @@ class TruncatedReadableBinaryIO(BinaryIO):
     def tell(self) -> int:
         return self.bio.tell()
 
-    def truncate(self, size: int = None):
+    def truncate(self, size: Optional[int] = None):
         raise NotImplementedError
 
     def writable(self) -> bool:

@@ -4,7 +4,7 @@ import collections
 import json
 import logging
 import traceback
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, Dict, List
 
 import aiohttp
 
@@ -78,11 +78,11 @@ GROUP BY batches.id;
         log.info(f'callback for batch {batch_id} failed, will not retry.')
 
 
-async def add_attempt_resources(app, db, batch_id, job_id, attempt_id, resources):
+async def add_attempt_resources(app, db, batch_id, job_id, attempt_id, resources: List[QuantifiedResource]):
     resource_name_to_id = app['resource_name_to_id']
-    if attempt_id:
+    if attempt_id and len(resources) > 0:
         try:
-            _resources = collections.defaultdict(lambda: 0)
+            _resources: Dict[str, int] = collections.defaultdict(lambda: 0)
             for resource in resources:
                 _resources[resource['name']] += resource['quantity']
 
@@ -109,7 +109,19 @@ ON DUPLICATE KEY UPDATE quantity = quantity;
 
 
 async def mark_job_complete(
-    app, batch_id, job_id, attempt_id, instance_name, new_state, status, start_time, end_time, reason, resources
+    app,
+    batch_id,
+    job_id,
+    attempt_id,
+    instance_name,
+    new_state,
+    status,
+    start_time,
+    end_time,
+    reason,
+    resources: List[QuantifiedResource],
+    *,
+    marked_job_started=False,
 ):
     scheduler_state_changed: Notice = app['scheduler_state_changed']
     cancel_ready_state_changed: asyncio.Event = app['cancel_ready_state_changed']
@@ -160,7 +172,8 @@ async def mark_job_complete(
         else:
             log.warning(f'mark_complete for job {id} from unknown {instance}')
 
-    await add_attempt_resources(app, db, batch_id, job_id, attempt_id, resources)
+    if not marked_job_started:
+        await add_attempt_resources(app, db, batch_id, job_id, attempt_id, resources)
 
     if rv['rc'] != 0:
         log.info(f'mark_job_complete returned {rv} for job {id}')
@@ -357,7 +370,7 @@ async def job_config(app, record, attempt_id):
 
         secret = await k8s_cache.read_secret(token_secret_name, namespace)
 
-        token = base64.b64decode(secret.data['token']).decode()
+        user_token = base64.b64decode(secret.data['token']).decode()
         cert = secret.data['ca.crt']
 
         kube_config = f'''
@@ -379,7 +392,7 @@ preferences: {{}}
 users:
 - name: {namespace}-{name}
   user:
-    token: {token}
+    token: {user_token}
 '''
 
         job_spec['secrets'].append(
@@ -397,16 +410,16 @@ users:
         env.append({'name': 'KUBECONFIG', 'value': '/.kube/config'})
 
     if format_version.has_full_spec_in_cloud():
-        token, start_job_id = await SpecWriter.get_token_start_id(db, batch_id, job_id)
+        spec_token, start_job_id = await SpecWriter.get_token_start_id(db, batch_id, job_id)
     else:
-        token = None
+        spec_token = None
         start_job_id = None
 
     return {
         'batch_id': batch_id,
         'job_id': job_id,
         'format_version': format_version.format_version,
-        'token': token,
+        'token': spec_token,
         'start_job_id': start_job_id,
         'user': record['user'],
         'gsa_key': gsa_key,
@@ -433,9 +446,8 @@ async def mark_job_errored(app, batch_id, job_id, attempt_id, user, format_versi
         await file_store.write_status_file(batch_id, job_id, attempt_id, json.dumps(status))
 
     db_status = format_version.db_status(status)
-    resources = []
 
-    await mark_job_complete(app, batch_id, job_id, attempt_id, None, 'Error', db_status, None, None, 'error', resources)
+    await mark_job_complete(app, batch_id, job_id, attempt_id, None, 'Error', db_status, None, None, 'error', [])
 
 
 async def schedule_job(app, record, instance):

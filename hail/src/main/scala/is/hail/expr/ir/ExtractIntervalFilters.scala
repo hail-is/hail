@@ -236,7 +236,7 @@ object ExtractIntervalFilters {
             case x if es.isKeyStructPrefix(x) =>
               assert(op.isInstanceOf[EQ])
               val c = constValue(const)
-              Some((True(), Array(Interval(endpoint(c, -1), endpoint(c, 1)))))
+              Some((True(), Array(Interval(endpoint(c, -1, wrapped = false), endpoint(c, 1, wrapped = false)))))
             case Apply("contig", _, Seq(x), _, errorID) if es.isFirstKey(x) =>
               // locus contig comparison
               val intervals = (constValue(const): @unchecked) match {

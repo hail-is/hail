@@ -5,6 +5,7 @@ ENV MAKEFLAGS -j2
 RUN hail-apt-get-install \
     curl \
     git \
+    jq \
     liblapack3 \
     openjdk-8-jre-headless \
     rsync \

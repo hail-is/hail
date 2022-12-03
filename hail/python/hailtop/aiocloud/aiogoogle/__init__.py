@@ -1,5 +1,14 @@
-from .client import GoogleBigQueryClient, GoogleContainerClient, GoogleComputeClient, GoogleIAmClient, GoogleLoggingClient, \
-    GoogleStorageClient, GoogleStorageAsyncFS, GoogleStorageAsyncFSFactory
+from .client import (
+    GoogleBigQueryClient,
+    GoogleBillingClient,
+    GoogleContainerClient,
+    GoogleComputeClient,
+    GoogleIAmClient,
+    GoogleLoggingClient,
+    GoogleStorageClient,
+    GoogleStorageAsyncFS,
+    GoogleStorageAsyncFSFactory
+)
 from .credentials import GoogleCredentials, GoogleApplicationDefaultCredentials, GoogleServiceAccountCredentials
 from .session import GoogleSession
 
@@ -9,6 +18,7 @@ __all__ = [
     'GoogleServiceAccountCredentials',
     'GoogleSession',
     'GoogleBigQueryClient',
+    'GoogleBillingClient',
     'GoogleContainerClient',
     'GoogleComputeClient',
     'GoogleIAmClient',

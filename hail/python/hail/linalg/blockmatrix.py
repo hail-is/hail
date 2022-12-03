@@ -458,9 +458,9 @@ class BlockMatrix(object):
         if not block_size:
             block_size = BlockMatrix.default_block_size()
 
-        seed = seed if seed is not None else Env.next_seed()
+        static_rng_uid = seed if seed is not None else Env.next_static_rng_uid()
 
-        rand = BlockMatrixRandom(seed, gaussian, [n_rows, n_cols], block_size)
+        rand = BlockMatrixRandom(static_rng_uid, gaussian, [n_rows, n_cols], block_size)
         return BlockMatrix(rand)
 
     @classmethod

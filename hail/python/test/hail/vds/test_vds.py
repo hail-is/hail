@@ -4,10 +4,7 @@ import pytest
 import hail as hl
 from hail.utils import new_temp_file
 from hail.vds.combiner.combine import defined_entry_fields
-from ..helpers import startTestHailContext, stopTestHailContext, resource, fails_local_backend, fails_service_backend
-
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
+from ..helpers import resource, fails_local_backend, fails_service_backend
 
 
 # run this method to regenerate the combined VDS from 5 samples

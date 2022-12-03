@@ -1,10 +1,6 @@
-from ..helpers import startTestHailContext, stopTestHailContext
 import unittest
 
 import hail as hl
-
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):

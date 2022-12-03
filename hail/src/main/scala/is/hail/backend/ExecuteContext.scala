@@ -107,7 +107,7 @@ class ExecuteContext(
 ) extends Closeable {
   var backendContext: BackendContext = _
 
-  val rngKey: IndexedSeq[Long] = Threefry.expandKey(Array(0L, 0L, 0L, 0L))
+  val rngNonce: Long = java.lang.Long.decode(getFlag("rng_nonce"))
 
   private val tempFileManager: TempFileManager = if (_tempFileManager != null)
     _tempFileManager

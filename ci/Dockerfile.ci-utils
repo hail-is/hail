@@ -13,7 +13,6 @@ FROM {{ service_base_image.image }}
 COPY --from=skopeo-build /usr/src/skopeo/bin/skopeo /usr/local/bin/
 COPY --from=skopeo-build /usr/src/skopeo/default-policy.json /etc/containers/policy.json
 
-RUN hail-pip-install twine
 COPY jinja2_render.py .
 COPY wait-for.py .
 COPY create_database.py .

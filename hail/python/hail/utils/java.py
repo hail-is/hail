@@ -1,8 +1,7 @@
-from typing import Optional
+from typing import Optional, Union
 import sys
 import re
 
-import hail
 from hailtop.config import configuration_of
 
 
@@ -10,23 +9,36 @@ def choose_backend(backend: Optional[str] = None) -> str:
     return configuration_of('query', 'backend', backend, 'spark')
 
 
+class HailUserError(Exception):
+    """:class:`.HailUserError` is an error thrown by Hail when the user makes an error."""
+
+
 class FatalError(Exception):
     """:class:`.FatalError` is an error thrown by Hail method failures"""
 
-    def __init__(self, msg, error_id=-1):
+    def __init__(self, msg, error_id: int = -1):
         super().__init__(msg)
         self._error_id = error_id
 
+    def maybe_user_error(self, ir) -> Union['FatalError', HailUserError]:
+        error_sources = ir.base_search(lambda x: x._error_id == self._error_id)
+        if len(error_sources) == 0:
+            return self
 
-class HailUserError(Exception):
-    """:class:`.HailUserError` is an error thrown by Hail when the user makes an error."""
+        better_stack_trace = error_sources[0]._stack_trace
+        error_message = str(self)
+        message_and_trace = (f'{error_message}\n'
+                             '------------\n'
+                             'Hail stack trace:\n'
+                             f'{better_stack_trace}')
+        return HailUserError(message_and_trace)
 
 
 class Env:
     _jutils = None
     _hc = None
     _counter = 0
-    _seed_generator = None
+    _static_rng_uid = 0
 
     @staticmethod
     def get_uid(base=None):
@@ -113,14 +125,15 @@ class Env:
         return Env._dummy_table
 
     @staticmethod
-    def set_seed(seed):
-        Env._seed_generator = hail.utils.HailSeedGenerator(seed)
+    def next_static_rng_uid():
+        result = Env._static_rng_uid
+        assert(result <= 0xFFFF_FFFF_FFFF_FFFF)
+        Env._static_rng_uid += 1
+        return result
 
     @staticmethod
-    def next_seed():
-        if Env._seed_generator is None:
-            Env.set_seed(None)
-        return Env._seed_generator.next_seed()
+    def reset_global_randomness():
+        Env._static_rng_uid = 0
 
 
 def scala_object(jpackage, name):

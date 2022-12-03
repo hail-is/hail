@@ -20,7 +20,7 @@ def full_outer_join_mt(left: hl.MatrixTable, right: hl.MatrixTable) -> hl.Matrix
     genotypes for loci 1:1 and 1:2 because those loci are not present in `mt2`
     and these samples are not present in `mt1`
 
-    >>> hl.set_global_seed(0)
+    >>> hl.reset_global_randomness()
     >>> mt1 = hl.balding_nichols_model(1, 2, 3)
     >>> mt2 = hl.balding_nichols_model(1, 2, 3)
     >>> mt2 = mt2.key_rows_by(locus=hl.locus(mt2.locus.contig,
@@ -34,19 +34,19 @@ def full_outer_join_mt(left: hl.MatrixTable, right: hl.MatrixTable) -> hl.Matrix
     | locus<GRCh37> | array<str> | call | call |
     +---------------+------------+------+------+
     | 1:1           | ["A","C"]  | 0/1  | 0/1  |
-    | 1:2           | ["A","C"]  | 1/1  | 1/1  |
+    | 1:2           | ["A","C"]  | 0/0  | 1/1  |
     | 1:3           | ["A","C"]  | 0/0  | 0/0  |
     +---------------+------------+------+------+
     <BLANKLINE>
-    >>> mt2.show()  # doctest: +SKIP_OUTPUT_CHECK
+    >>> mt2.show()
     +---------------+------------+------+------+
-    | locus         | alleles    | 0.GT | 1.GT |
+    | locus         | alleles    | 2.GT | 3.GT |
     +---------------+------------+------+------+
     | locus<GRCh37> | array<str> | call | call |
     +---------------+------------+------+------+
-    | 1:3           | ["A","C"]  | 0/1  | 1/1  |
-    | 1:4           | ["A","C"]  | 0/1  | 0/1  |
-    | 1:5           | ["A","C"]  | 1/1  | 0/0  |
+    | 1:3           | ["A","C"]  | 0/0  | 0/1  |
+    | 1:4           | ["A","C"]  | 1/1  | 0/1  |
+    | 1:5           | ["A","C"]  | 0/0  | 0/0  |
     +---------------+------------+------+------+
     <BLANKLINE>
     >>> mt3 = hl.experimental.full_outer_join_mt(mt1, mt2)
@@ -58,10 +58,10 @@ def full_outer_join_mt(left: hl.MatrixTable, right: hl.MatrixTable) -> hl.Matrix
     | locus<GRCh37> | array<str> | call | call | call | call |
     +---------------+------------+------+------+------+------+
     | 1:1           | ["A","C"]  | 0/1  | 0/1  | NA   | NA   |
-    | 1:2           | ["A","C"]  | 1/1  | 1/1  | NA   | NA   |
-    | 1:3           | ["A","C"]  | 0/0  | 0/0  | 0/1  | 1/1  |
-    | 1:4           | ["A","C"]  | NA   | NA   | 0/1  | 0/1  |
-    | 1:5           | ["A","C"]  | NA   | NA   | 1/1  | 0/0  |
+    | 1:2           | ["A","C"]  | 0/0  | 1/1  | NA   | NA   |
+    | 1:3           | ["A","C"]  | 0/0  | 0/0  | 0/0  | 0/1  |
+    | 1:4           | ["A","C"]  | NA   | NA   | 1/1  | 0/1  |
+    | 1:5           | ["A","C"]  | NA   | NA   | 0/0  | 0/0  |
     +---------------+------------+------+------+------+------+
     <BLANKLINE>
 

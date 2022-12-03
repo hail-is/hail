@@ -3,6 +3,7 @@ import logging
 from typing import Dict, Tuple
 
 import sortedcontainers
+from typing_extensions import Literal
 
 from hailtop.utils import secret_alnum_string
 
@@ -16,7 +17,7 @@ JOB_TOKEN_CACHE_MAX_BUNCHES_PER_BATCH = 100
 
 
 class SpecWriter:
-    byteorder = 'little'
+    byteorder: Literal['little', 'big'] = 'little'
     signed = False
     bytes_per_offset = 8
 

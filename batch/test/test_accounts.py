@@ -592,13 +592,6 @@ async def test_batch_cannot_be_accessed_by_users_outside_the_billing_project(
         else:
             assert False, str(await b.debug_info())
 
-        try:
-            await user2_batch.delete()
-        except httpx.ClientResponseError as e:
-            assert e.status == 404, str((e, await b.debug_info()))
-        else:
-            assert False, str(await b.debug_info())
-
         # list batches results for user2
         found, batches = await search_batches(user2_client, b.id, q='')
         assert not found, str((b.id, batches, await b.debug_info()))

@@ -1,6 +1,6 @@
 .PHONY: jars clean
 
-HAIL_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
+HAIL_HAIL_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
 include env_var.mk
 
@@ -80,7 +80,7 @@ endif
 else
 JAR_LOCATION = $(TEST_STORAGE_URI)/$(NAMESPACE)/jars/$(TOKEN)/$(REVISION).jar
 endif
-HAIL_TEST_RESOURCES_PREFIX = $(TEST_STORAGE_URI)/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources
+HAIL_TEST_RESOURCES_PREFIX = $(TEST_STORAGE_URI)/$(shell whoami)/hail-test-resources
 HAIL_TEST_RESOURCES_DIR = $(HAIL_TEST_RESOURCES_PREFIX)/test/resources/
 HAIL_DOCTEST_DATA_DIR = $(HAIL_TEST_RESOURCES_PREFIX)/doctest/data/
 
@@ -182,12 +182,13 @@ pytest: python/README.md $(PYTHON_JAR)
 .PHONY: pytest-qob
 pytest-qob: upload-qob-jar upload-qob-test-resources install-editable
 	! [ -z $(NAMESPACE) ]  # call this like: make pytest-qob NAMESPACE=default
-	HAIL_QUERY_BACKEND=batch \
-	HAIL_QUERY_JAR_URL=$$(cat upload-qob-jar) \
+	cd python && \
+  HAIL_QUERY_BACKEND=batch \
+	HAIL_QUERY_JAR_URL=$$(cat ../upload-qob-jar) \
 	HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
 	HAIL_TEST_RESOURCES_DIR='$(HAIL_TEST_RESOURCES_DIR)' \
 	HAIL_DOCTEST_DATA_DIR='$(HAIL_DOCTEST_DATA_DIR)' \
-	cd python && pytest \
+	pytest \
 		-v \
 		--color=no \
 		--instafail \
@@ -373,10 +374,16 @@ install-deps: install-dev-deps
 
 .PHONY: generate-pip-lockfile
 generate-pip-lockfile:
+	docker run --rm -it \
+		-v $(HAIL_HAIL_DIR):/hail \
+		python:3.7-slim \
+		/bin/bash -c "pip install pip-tools && cd /hail && \
+	pip-compile --upgrade python/hailtop/requirements.txt \
+		--output-file=python/hailtop/pinned-requirements.txt && \
 	pip-compile --upgrade python/requirements.txt \
-		--output-file=python/pinned-requirements.txt
+		--output-file=python/pinned-requirements.txt && \
 	pip-compile --upgrade python/dev/requirements.txt \
-		--output-file=python/dev/pinned-requirements.txt
+		--output-file=python/dev/pinned-requirements.txt"
 
 .PHONY: benchmark
 benchmark: $(WHEEL)
@@ -400,7 +407,7 @@ endif
 .PHONY: batch-docs
 batch-docs:
 	$(MAKE) -C python/hailtop/batch/docs \
-	      BUILDDIR=$(HAIL_DIR)/build/docs/batch \
+	      BUILDDIR=$(HAIL_HAIL_DIR)/build/docs/batch \
 	      html
 	rm -rf build/www/docs/batch
 	mkdir -p build/www/docs
@@ -416,7 +423,7 @@ HAIL_CACHE_VERSION = $(shell cat python/hail/hail_version)
 hail-docs: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	$(MAKE) -C python/hail/docs \
 	        SPHINXOPTS='-tgenerate_notebook_outputs' \
-	        BUILDDIR=$(HAIL_DIR)/build/docs/hail \
+	        BUILDDIR=$(HAIL_HAIL_DIR)/build/docs/hail \
 	        html
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
@@ -430,7 +437,7 @@ hail-docs: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 .PHONY: hail-docs-no-test
 hail-docs-no-test: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	$(MAKE) -C python/hail/docs \
-	        BUILDDIR=$(HAIL_DIR)/build/docs/hail \
+	        BUILDDIR=$(HAIL_HAIL_DIR)/build/docs/hail \
 	        html
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
@@ -439,7 +446,7 @@ hail-docs-no-test: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	     -iname *.html \
 	     -type f \
 	     -exec $(SED_INPLACE) -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
-	@echo Built docs: file://$(HAIL_DIR)/build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
+	@echo Built docs: file://$(HAIL_HAIL_DIR)/build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
 .PHONY: upload-docs
 upload-docs: hail-docs batch-docs
