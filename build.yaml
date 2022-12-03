@@ -1040,6 +1040,8 @@ steps:
       cpu: "2"
       memory: standard
     inputs:
+      - from: /repo/hail/Dockerfile.hail-base
+        to: /io/repo/hail/Dockerfile.hail-base
       - from: /hail.jar
         to: /io/repo/hail.jar
       - from: /hail.zip
@@ -1056,10 +1058,10 @@ steps:
     inputs:
       - from: /repo/hail/Dockerfile.hail-pip-installed-python37
         to: /io/repo/hail/Dockerfile.hail-pip-installed-python37
-      - from: /repo/hail/python/requirements.txt
-        to: /io/repo/hail/python/requirements.txt
-      - from: /repo/hail/python/dev/requirements.txt
-        to: /io/repo/hail/python/dev/requirements.txt
+      - from: /repo/hail/python/pinned-requirements.txt
+        to: /io/repo/hail/python/pinned-requirements.txt
+      - from: /repo/hail/python/dev/pinned-requirements.txt
+        to: /io/repo/hail/python/dev/pinned-requirements.txt
       - from: /repo/pylintrc
         to: /io/repo/pylintrc
       - from: /repo/setup.cfg
@@ -1078,10 +1080,10 @@ steps:
     inputs:
       - from: /repo/hail/Dockerfile.hail-pip-installed-python38
         to: /io/repo/hail/Dockerfile.hail-pip-installed-python38
-      - from: /repo/hail/python/requirements.txt
-        to: /io/repo/hail/python/requirements.txt
-      - from: /repo/hail/python/dev/requirements.txt
-        to: /io/repo/hail/python/dev/requirements.txt
+      - from: /repo/hail/python/pinned-requirements.txt
+        to: /io/repo/hail/python/pinned-requirements.txt
+      - from: /repo/hail/python/dev/pinned-requirements.txt
+        to: /io/repo/hail/python/dev/pinned-requirements.txt
       - from: /repo/pylintrc
         to: /io/repo/pylintrc
       - from: /repo/setup.cfg
