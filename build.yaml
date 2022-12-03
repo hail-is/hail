@@ -1381,7 +1381,7 @@ steps:
       - from: /io/www.tar.gz
         to: /www.tar.gz
     dependsOn:
-      - hail_run_image
+      - hailgenetics_hail_image
       - build_hail
   - kind: runImage
     name: get_pip_versioned_docs
