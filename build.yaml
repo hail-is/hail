@@ -1503,8 +1503,8 @@ steps:
       memory: standard
       cpu: '2'
     inputs:
-      - from: /repo/hail/Makefile
-        to: /io/repo/hail/Makefile
+      - from: /repo
+        to: /io/repo
       - from: /www.tar.gz
         to: /io/www.tar.gz
     outputs:
