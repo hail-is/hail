@@ -400,11 +400,14 @@ pyrsistent==0.19.2
 pytest==7.2.0
     # via
     #   -r python/dev/requirements.txt
+    #   pytest-asyncio
     #   pytest-forked
     #   pytest-html
     #   pytest-instafail
     #   pytest-metadata
     #   pytest-xdist
+pytest-asyncio==0.20.2
+    # via -r python/dev/requirements.txt
 pytest-forked==1.4.0
     # via pytest-xdist
 pytest-html==1.22.1
@@ -586,6 +589,7 @@ typing-extensions==4.4.0
     #   jsonschema
     #   mypy
     #   pylint
+    #   pytest-asyncio
     #   rich
     #   yarl
 urllib3==1.26.13

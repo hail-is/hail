@@ -110,7 +110,7 @@ orjson==3.8.2
     # via -r python/hailtop/requirements.txt
 portalocker==2.6.0
     # via msal-extensions
-protobuf==4.21.9
+protobuf==4.21.10
     # via
     #   google-api-core
     #   googleapis-common-protos
