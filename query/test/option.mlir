@@ -1,3 +1,6 @@
+// RUN: hail-opt %s | FileCheck %s
+
+// CHECK-LABEL: option
 func.func @option() -> i32 {
   %0 = option.construct !option.option<i32, i32> {
   ^bb0(%missing: !cps.cont<>, %present: !cps.cont<i32, i32>):

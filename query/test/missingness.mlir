@@ -1,3 +1,4 @@
+// RUN: hail-opt %s
 func.func @loop_inner_control_flow(%arg0 : index, %arg1 : index, %arg2 : index) -> i32 {
   %cst_1 = arith.constant 1 : i32
   %result = scf.for %i0 = %arg0 to %arg1 step %arg2 iter_args(%si = %cst_1) -> (i32) {

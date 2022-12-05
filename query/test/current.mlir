@@ -1,3 +1,4 @@
+// RUN: hail-opt %s
 func.func @main() -> () {
     %in = sb.constant(1: i32) : !sb.int
     %i1 = sb.constant(5: i32) : !sb.int

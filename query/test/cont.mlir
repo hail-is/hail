@@ -1,3 +1,6 @@
+// RUN: hail-opt %s | FileCheck %s
+
+// CHECK-LABEL: main
 func.func @main() {
   %foo = cps.callcc %ret : i32 {
     %cont = cps.cont(%arg1: i32) {
