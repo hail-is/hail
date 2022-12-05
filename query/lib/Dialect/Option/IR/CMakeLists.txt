@@ -9,5 +9,6 @@ add_hail_dialect_library(HailOptionDialect
         MLIROptionOpsIncGen
 
     LINK_LIBS PUBLIC
+    HailCPSDialect
     MLIRIR
 )

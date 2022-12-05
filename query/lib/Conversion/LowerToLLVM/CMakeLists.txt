@@ -11,7 +11,13 @@ add_mlir_conversion_library(HailLowerToLLVM
   Core
 
   LINK_LIBS PUBLIC
+  HailSandboxDialect
+  MLIRControlFlowToLLVM
   MLIRLLVMDialect
+  MLIRLLVMCommonConversion
+  MLIRFuncToLLVM
+  MLIRMemRefToLLVM
   MLIRPass
+  MLIRSCFDialect
   MLIRTransforms
   )

@@ -11,6 +11,8 @@ add_mlir_conversion_library(HailOptionToGenericOption
   Core
 
   LINK_LIBS PUBLIC
+  HailCPSDialect
+  HailOptionDialect
   MLIRPass
   MLIRTransforms
   )

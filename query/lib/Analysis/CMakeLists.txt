@@ -14,6 +14,8 @@ add_mlir_library(HailAnalysis
   mlir-headers
 
   LINK_LIBS PUBLIC
+  HailMissingDialect
+  MLIRAnalysis
   # MLIRCallInterfaces
   MLIRControlFlowInterfaces
   # MLIRDataLayoutInterfaces

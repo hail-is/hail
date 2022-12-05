@@ -12,6 +12,8 @@ add_mlir_conversion_library(HailLowerOption
 
   LINK_LIBS PUBLIC
   HailCPSDialect
+  HailOptionDialect
+  MLIRArithmeticDialect
   MLIRPass
   MLIRTransforms
   )
