@@ -129,3 +129,6 @@ Checks: >
 
 # this seems to get triggered by asserts somehow
 Checks: -cppcoreguidelines-pro-bounds-array-to-pointer-decay
+
+# check hail header files too
+HeaderFilter: .

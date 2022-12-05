@@ -1,4 +1,6 @@
-#include "Conversion/Passes.h"
+#include "Conversion/LowerSandbox/LowerSandbox.h"
+#include "Conversion/CPSToCF/CPSToCF.h"
+#include "Conversion/LowerToLLVM/LowerToLLVM.h"
 #include "InitAllDialects.h"
 
 #include "mlir/ExecutionEngine/ExecutionEngine.h"

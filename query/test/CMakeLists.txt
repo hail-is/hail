@@ -14,7 +14,7 @@ if(LLVM_LIT)
         message(STATUS "Found llvm-lit: ${LLVM_LIT}")
         get_filename_component(LLVM_TEST_BINARY_DIR "${LLVM_LIT}" DIRECTORY)
         message(STATUS "Found FileCheck: ${FILE_CHECK}")
-        add_custom_target(check COMMAND "${LLVM_LIT}" "${CMAKE_CURRENT_BINARY_DIR}" -v
+        add_custom_target(check-hail COMMAND "${LLVM_LIT}" "${CMAKE_CURRENT_BINARY_DIR}" -v
             DEPENDS hail-opt)
     else()
         message(WARNING "FileCheck not found, disabling tests")
