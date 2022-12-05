@@ -808,7 +808,7 @@ def _service_vep(backend: ServiceBackend,
 
     with timings.step("submit batch"):
         bb = backend.bc.create_batch(token=token,
-                                     attributes={'name': backend.name_prefix + name, 'vep': 1, 'token': token},
+                                     attributes={'name': backend.name_prefix + name, 'vep': '1', 'token': token},
                                      cancel_after_n_failures=1)
         build_vep_batch(bb)
         b = bb.submit(disable_progress_bar=True)
