@@ -10,7 +10,7 @@ RUN hail-apt-get-install \
     vim
 
 COPY hail/python/pinned-requirements.txt requirements.txt
-RUN hail-pip-install -r requirements.txt ipython
+RUN hail-pip-install -r requirements.txt scikit-learn ipython
 
 RUN export SPARK_HOME=$(find_spark_home.py) && \
     curl https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.2.7.jar \
