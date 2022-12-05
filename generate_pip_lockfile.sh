@@ -9,7 +9,9 @@ pinned_reqs=$2
 # would differ when generated on MacOS, so we generate the lockfile
 # on a linux image.
 if [[ "$(uname)" == 'Linux' ]]; then
-    pip-compile --upgrade $reqs --output-file=$pinned_reqs
+    # `pip install pip-tools` on dataproc by default installs into the
+    # user's local bin which is not on the PATH
+    PATH="$PATH:$HOME/.local/bin" pip-compile --upgrade $reqs --output-file=$pinned_reqs
 else
 	docker run --rm -it \
         -v ${HAIL_HAIL_DIR}:/hail \
