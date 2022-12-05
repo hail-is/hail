@@ -270,28 +270,16 @@ $(eval $(call ENV_VAR,wheel_cloud_path))
 
 
 python/hailtop/pinned-requirements.txt: python/hailtop/requirements.txt
-	docker run --rm -it \
-		-v $(HAIL_HAIL_DIR):/hail \
-		python:3.7-slim \
-		/bin/bash -c "pip install pip-tools && cd /hail && \
-	pip-compile --upgrade python/hailtop/requirements.txt \
-		--output-file=python/hailtop/pinned-requirements.txt"
+	HAIL_HAIL_DIR=$(HAIL_HAIL_DIR) \
+	../generate_pip_lockfile.sh python/hailtop/requirements.txt python/hailtop/pinned-requirements.txt
 
 python/pinned-requirements.txt: python/hailtop/requirements.txt python/requirements.txt
-	docker run --rm -it \
-		-v $(HAIL_HAIL_DIR):/hail \
-		python:3.7-slim \
-		/bin/bash -c "pip install pip-tools && cd /hail && \
-	pip-compile --upgrade python/requirements.txt \
-		--output-file=python/pinned-requirements.txt"
+	HAIL_HAIL_DIR=$(HAIL_HAIL_DIR) \
+	../generate_pip_lockfile.sh python/requirements.txt python/pinned-requirements.txt
 
 python/dev/pinned-requirements.txt: python/hailtop/requirements.txt python/requirements.txt python/dev/requirements.txt
-	docker run --rm -it \
-		-v $(HAIL_HAIL_DIR):/hail \
-		python:3.7-slim \
-		/bin/bash -c "pip install pip-tools && cd /hail && \
-	pip-compile --upgrade python/dev/requirements.txt \
-		--output-file=python/dev/pinned-requirements.txt"
+	HAIL_HAIL_DIR=$(HAIL_HAIL_DIR) \
+	../generate_pip_lockfile.sh python/dev/requirements.txt python/dev/pinned-requirements.txt
 
 .PHONY: generate-pip-lockfiles
 generate-pip-lockfiles: python/hailtop/pinned-requirements.txt
