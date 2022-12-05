@@ -8,6 +8,7 @@ import dill
 from hailtop.utils import secret_alnum_string, url_scheme, async_to_blocking
 from hailtop.aiotools import AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
+import hailtop.batch_client as _bc
 from hailtop.config import configuration_of
 
 from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
@@ -167,6 +168,8 @@ class Batch:
 
         self._python_function_defs: Dict[int, Callable] = {}
         self._python_function_files: Dict[int, _resource.InputResourceFile] = {}
+
+        self._client_batch: Optional[_bc.client.Batch] = None
 
     @property
     def _unsubmitted_jobs(self):

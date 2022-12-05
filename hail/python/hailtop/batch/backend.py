@@ -572,8 +572,12 @@ class ServiceBackend(Backend[bc.Batch]):
         if batch.name is not None:
             attributes['name'] = batch.name
 
-        bc_batch = self._batch_client.create_batch(attributes=attributes, callback=callback,
-                                                   token=token, cancel_after_n_failures=batch._cancel_after_n_failures)
+        if batch._client_batch is None:
+            batch._client_batch = self._batch_client.create_batch(
+                attributes=attributes, callback=callback, token=token, cancel_after_n_failures=batch._cancel_after_n_failures
+            )
+
+        bc_batch = batch._client_batch
 
         n_jobs_submitted = 0
         used_remote_tmpdir = False
