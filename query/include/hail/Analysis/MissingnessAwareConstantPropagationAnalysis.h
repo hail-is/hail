@@ -19,8 +19,7 @@
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
 #include "mlir/Analysis/DataFlow/SparseAnalysis.h"
 
-namespace hail {
-namespace ir {
+namespace hail::ir {
 
 //===----------------------------------------------------------------------===//
 // SparseConstantPropagation
@@ -46,7 +45,6 @@ public:
       llvm::ArrayRef<mlir::dataflow::Lattice<mlir::dataflow::ConstantValue> *> results) override;
 };
 
-} // end namespace ir
-} // end namespace hail
+} // namespace hail::ir
 
 #endif // HAIL_ANALYSIS_MISSINGNESSAWARECONSTANTPROPAGATIONANALYSIS_H

@@ -1,7 +1,10 @@
-#include "Analysis/MissingnessAnalysis.h"
-#include "Analysis/MissingnessAwareConstantPropagationAnalysis.h"
-#include "PassDetail.h"
-#include "Transforms/Passes.h"
+#include "./PassDetail.h"
+
+#include "hail/Analysis/MissingnessAnalysis.h"
+#include "hail/Analysis/MissingnessAwareConstantPropagationAnalysis.h"
+#include "hail/Support/MLIR.h"
+#include "hail/Transforms/Passes.h"
+
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinAttributes.h"
@@ -9,14 +12,14 @@
 
 using namespace hail::ir;
 
-static void rewrite(mlir::DataFlowSolver &solver, mlir::Operation *root) {
-  root->walk([&solver, root](mlir::Operation *op) {
+static void rewrite(mlir::DataFlowSolver &solver, Operation *root) {
+  root->walk([&solver, root](Operation *op) {
     auto *context = root->getContext();
-    auto builder = mlir::Builder(root->getContext());
-    llvm::SmallVector<mlir::Attribute> annotations;
+    auto builder = Builder(root->getContext());
+    SmallVector<Attribute> annotations;
 
     annotations.reserve(op->getNumOperands());
-    for (mlir::Value result : op->getResults()) {
+    for (Value result : op->getResults()) {
       auto *missingnessState =
           solver.getOrCreateState<mlir::dataflow::Lattice<hail::ir::MissingnessValue>>(result);
       auto *constState =
@@ -37,13 +40,13 @@ static void rewrite(mlir::DataFlowSolver &solver, mlir::Operation *root) {
     }
 
     if (op->getNumResults() > 0)
-      op->setAttr("missing.result_states", mlir::ArrayAttr::get(context, annotations));
+      op->setAttr("missing.result_states", ArrayAttr::get(context, annotations));
 
     annotations.clear();
     if (op->getNumRegions() > 0 && op->getRegion(0).getNumArguments() > 0) {
       auto &region = op->getRegion(0);
       annotations.reserve(region.getNumArguments());
-      for (mlir::Value arg : region.getArguments()) {
+      for (Value arg : region.getArguments()) {
         auto *missingnessState =
             solver.getOrCreateState<mlir::dataflow::Lattice<hail::ir::MissingnessValue>>(arg);
         auto *constState =
@@ -63,7 +66,7 @@ static void rewrite(mlir::DataFlowSolver &solver, mlir::Operation *root) {
         }
       }
 
-      op->setAttr("missing.region_arg_states", mlir::ArrayAttr::get(context, annotations));
+      op->setAttr("missing.region_arg_states", ArrayAttr::get(context, annotations));
     }
   });
 }
@@ -76,7 +79,7 @@ struct TestMissingnessAnalysisPass
 } // namespace
 
 void TestMissingnessAnalysisPass::runOnOperation() {
-  mlir::Operation *op = getOperation();
+  Operation *op = getOperation();
 
   mlir::DataFlowSolver solver;
   solver.load<mlir::dataflow::DeadCodeAnalysis>();
@@ -87,6 +90,6 @@ void TestMissingnessAnalysisPass::runOnOperation() {
   rewrite(solver, op);
 }
 
-auto hail::ir::createTestMissingnessAnalysisPass() -> std::unique_ptr<mlir::Pass> {
+auto hail::ir::createTestMissingnessAnalysisPass() -> std::unique_ptr<Pass> {
   return std::make_unique<TestMissingnessAnalysisPass>();
 }

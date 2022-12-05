@@ -1,7 +1,7 @@
 #ifndef DIALECT_SANDBOX_SANDBOXOPS
 #define DIALECT_SANDBOX_SANDBOXOPS
 
-include "Dialect/Sandbox/IR/SandboxBase.td"
+include "hail/Dialect/Sandbox/IR/SandboxBase.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/OpBase.td"
 

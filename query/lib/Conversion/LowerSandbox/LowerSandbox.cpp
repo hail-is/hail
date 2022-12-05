@@ -1,6 +1,8 @@
-#include "Conversion/LowerSandbox/LowerSandbox.h"
 #include "../PassDetail.h"
-#include "Dialect/Sandbox/IR/Sandbox.h"
+
+#include "hail/Conversion/LowerSandbox/LowerSandbox.h"
+#include "hail/Dialect/Sandbox/IR/Sandbox.h"
+#include "hail/Support/MLIR.h"
 
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -17,29 +19,26 @@ struct LowerSandboxPass : public LowerSandboxBase<LowerSandboxPass> {
 };
 
 namespace {
-struct AddIOpConversion : public mlir::OpConversionPattern<ir::AddIOp> {
-  AddIOpConversion(mlir::MLIRContext *context)
-      : OpConversionPattern<ir::AddIOp>(context, /*benefit=*/1) {}
+struct AddIOpConversion : public OpConversionPattern<AddIOp> {
+  AddIOpConversion(MLIRContext *context) : OpConversionPattern<AddIOp>(context, /*benefit=*/1) {}
 
-  auto matchAndRewrite(ir::AddIOp op, OpAdaptor adaptor,
-                       mlir::ConversionPatternRewriter &rewriter) const
-      -> mlir::LogicalResult override {
+  auto matchAndRewrite(AddIOp op, OpAdaptor adaptor, ConversionPatternRewriter &rewriter) const
+      -> LogicalResult override {
     rewriter.replaceOpWithNewOp<mlir::arith::AddIOp>(op, adaptor.lhs(), adaptor.rhs());
-    return mlir::success();
+    return success();
   }
 };
 
-struct ConstantOpConversion : public mlir::OpConversionPattern<ir::ConstantOp> {
-  ConstantOpConversion(mlir::MLIRContext *context)
-      : OpConversionPattern<ir::ConstantOp>(context, /*benefit=*/1) {}
+struct ConstantOpConversion : public OpConversionPattern<ConstantOp> {
+  ConstantOpConversion(MLIRContext *context)
+      : OpConversionPattern<ConstantOp>(context, /*benefit=*/1) {}
 
-  auto matchAndRewrite(ir::ConstantOp op, OpAdaptor adaptor,
-                       mlir::ConversionPatternRewriter &rewriter) const
-      -> mlir::LogicalResult override {
-    auto value = adaptor.valueAttr().cast<mlir::IntegerAttr>().getValue();
-    mlir::Attribute newAttr;
-    mlir::Type newType;
-    if (op.output().getType().isa<ir::BooleanType>()) {
+  auto matchAndRewrite(ConstantOp op, OpAdaptor adaptor, ConversionPatternRewriter &rewriter) const
+      -> LogicalResult override {
+    auto value = adaptor.valueAttr().cast<IntegerAttr>().getValue();
+    Attribute newAttr;
+    Type newType;
+    if (op.output().getType().isa<BooleanType>()) {
       newType = rewriter.getI1Type();
       newAttr = rewriter.getBoolAttr(value == 0);
     } else {
@@ -47,17 +46,16 @@ struct ConstantOpConversion : public mlir::OpConversionPattern<ir::ConstantOp> {
       newAttr = rewriter.getIntegerAttr(newType, value);
     }
     rewriter.replaceOpWithNewOp<mlir::arith::ConstantOp>(op, newAttr, newType);
-    return mlir::success();
+    return success();
   }
 };
 
-struct ComparisonOpConversion : public mlir::OpConversionPattern<ir::ComparisonOp> {
-  ComparisonOpConversion(mlir::MLIRContext *context)
-      : OpConversionPattern<ir::ComparisonOp>(context, /*benefit=*/1) {}
+struct ComparisonOpConversion : public OpConversionPattern<ComparisonOp> {
+  ComparisonOpConversion(MLIRContext *context)
+      : OpConversionPattern<ComparisonOp>(context, /*benefit=*/1) {}
 
-  auto matchAndRewrite(ir::ComparisonOp op, OpAdaptor adaptor,
-                       mlir::ConversionPatternRewriter &rewriter) const
-      -> mlir::LogicalResult override {
+  auto matchAndRewrite(ComparisonOp op, OpAdaptor adaptor,
+                       ConversionPatternRewriter &rewriter) const -> LogicalResult override {
     mlir::arith::CmpIPredicate pred{};
 
     switch (adaptor.predicate()) {
@@ -82,121 +80,111 @@ struct ComparisonOpConversion : public mlir::OpConversionPattern<ir::ComparisonO
     }
 
     rewriter.replaceOpWithNewOp<mlir::arith::CmpIOp>(op, pred, adaptor.lhs(), adaptor.rhs());
-    return mlir::success();
+    return success();
   }
 };
 
-auto getLoweredType(mlir::Builder &b, mlir::Type t) -> mlir::Type {
-  if (t.isa<ir::IntType>())
+auto getLoweredType(Builder &b, Type t) -> Type {
+  if (t.isa<IntType>())
     return b.getI32Type();
 
-  if (t.isa<ir::BooleanType>())
+  if (t.isa<BooleanType>())
     return b.getI1Type();
 
-  if (t.isa<ir::ArrayType>()) {
-    auto loweredElem = getLoweredType(b, t.cast<ir::ArrayType>().getElementType());
-    llvm::SmallVector<int64_t, 1> v = {-1};
+  if (t.isa<ArrayType>()) {
+    auto loweredElem = getLoweredType(b, t.cast<ArrayType>().getElementType());
+    SmallVector<int64_t, 1> v = {-1};
 
-    return mlir::RankedTensorType::get(v, loweredElem);
+    return RankedTensorType::get(v, loweredElem);
   }
 
-  return nullptr;
+  return {};
 }
 
-struct MakeArrayOpConversion : public mlir::OpConversionPattern<ir::MakeArrayOp> {
-  MakeArrayOpConversion(mlir::MLIRContext *context)
-      : OpConversionPattern<ir::MakeArrayOp>(context, /*benefit=*/1) {}
+struct MakeArrayOpConversion : public OpConversionPattern<MakeArrayOp> {
+  MakeArrayOpConversion(MLIRContext *context)
+      : OpConversionPattern<MakeArrayOp>(context, /*benefit=*/1) {}
 
-  auto matchAndRewrite(ir::MakeArrayOp op, OpAdaptor adaptor,
-                       mlir::ConversionPatternRewriter &rewriter) const
-      -> mlir::LogicalResult override {
+  auto matchAndRewrite(MakeArrayOp op, OpAdaptor adaptor, ConversionPatternRewriter &rewriter) const
+      -> LogicalResult override {
 
     auto elems = adaptor.elems();
-    llvm::SmallVector<int64_t, 1> v = {op->getNumOperands()};
-    mlir::Type loweredElem =
+    SmallVector<int64_t, 1> v = {op->getNumOperands()};
+    Type loweredElem =
         op.getNumOperands() > 0
             ? adaptor.elems()[0].getType()
-            : getLoweredType(rewriter,
-                             op.result().getType().cast<ir::ArrayType>().getElementType());
-    auto tensorType = mlir::RankedTensorType::get(v, loweredElem);
+            : getLoweredType(rewriter, op.result().getType().cast<ArrayType>().getElementType());
+    auto tensorType = RankedTensorType::get(v, loweredElem);
     rewriter.replaceOpWithNewOp<mlir::tensor::FromElementsOp>(op, tensorType, elems);
 
-    return mlir::success();
+    return success();
   }
 };
 
-struct ArrayRefOpConversion : public mlir::OpConversionPattern<ir::ArrayRefOp> {
-  ArrayRefOpConversion(mlir::MLIRContext *context)
-      : OpConversionPattern<ir::ArrayRefOp>(context, /*benefit=*/1) {}
+struct ArrayRefOpConversion : public OpConversionPattern<ir::ArrayRefOp> {
+  ArrayRefOpConversion(MLIRContext *context)
+      : OpConversionPattern<ArrayRefOp>(context, /*benefit=*/1) {}
 
-  auto matchAndRewrite(ir::ArrayRefOp op, OpAdaptor adaptor,
-                       mlir::ConversionPatternRewriter &rewriter) const
-      -> mlir::LogicalResult override {
+  auto matchAndRewrite(ArrayRefOp op, OpAdaptor adaptor, ConversionPatternRewriter &rewriter) const
+      -> LogicalResult override {
 
     auto a = adaptor.array();
     auto idx = adaptor.index();
     rewriter.replaceOpWithNewOp<mlir::tensor::ExtractOp>(op, a, idx);
 
-    return mlir::success();
+    return success();
   }
 };
 
-struct PrintOpConversion : public mlir::OpConversionPattern<ir::PrintOp> {
-  PrintOpConversion(mlir::MLIRContext *context)
-      : OpConversionPattern<ir::PrintOp>(context, /*benefit=*/1) {}
+struct PrintOpConversion : public OpConversionPattern<PrintOp> {
+  PrintOpConversion(MLIRContext *context) : OpConversionPattern<PrintOp>(context, /*benefit=*/1) {}
 
-  auto matchAndRewrite(ir::PrintOp op, OpAdaptor adaptor,
-                       mlir::ConversionPatternRewriter &rewriter) const
-      -> mlir::LogicalResult override {
-    rewriter.replaceOpWithNewOp<ir::PrintOp>(op, adaptor.value());
-    return mlir::success();
+  auto matchAndRewrite(PrintOp op, OpAdaptor adaptor, ConversionPatternRewriter &rewriter) const
+      -> LogicalResult override {
+    rewriter.replaceOpWithNewOp<PrintOp>(op, adaptor.value());
+    return success();
   }
 };
 
-struct UnrealizedCastConversion
-    : public mlir::OpConversionPattern<mlir::UnrealizedConversionCastOp> {
-  UnrealizedCastConversion(mlir::MLIRContext *context)
+struct UnrealizedCastConversion : public OpConversionPattern<mlir::UnrealizedConversionCastOp> {
+  UnrealizedCastConversion(MLIRContext *context)
       : OpConversionPattern<mlir::UnrealizedConversionCastOp>(context,
                                                               /*benefit=*/1) {}
 
   auto matchAndRewrite(mlir::UnrealizedConversionCastOp op, OpAdaptor adaptor,
-                       mlir::ConversionPatternRewriter &rewriter) const
-      -> mlir::LogicalResult override {
+                       ConversionPatternRewriter &rewriter) const -> LogicalResult override {
     rewriter.replaceOp(op, adaptor.getInputs());
-    return mlir::success();
+    return success();
   }
 };
 
 } // end namespace
 
 void LowerSandboxPass::runOnOperation() {
-  mlir::RewritePatternSet patterns(&getContext());
+  RewritePatternSet patterns(&getContext());
   populateLowerSandboxConversionPatterns(patterns);
 
   // Configure conversion to lower out SCF operations.
-  mlir::ConversionTarget target(getContext());
-  target.addIllegalDialect<ir::SandboxDialect>();
-  target.addDynamicallyLegalOp<ir::PrintOp, mlir::UnrealizedConversionCastOp>(
-      [](mlir::Operation *op) {
-        auto cond = [](mlir::Type type) {
-          return type.isa<ir::IntType>() || type.isa<ir::BooleanType>()
-              || type.isa<ir::ArrayType>();
-        };
-        return llvm::none_of(op->getOperandTypes(), cond)
-            && llvm::none_of(op->getResultTypes(), cond);
-      });
-  target.markUnknownOpDynamicallyLegal([](mlir::Operation *) { return true; });
+  ConversionTarget target(getContext());
+  target.addIllegalDialect<SandboxDialect>();
+  target.addDynamicallyLegalOp<PrintOp, mlir::UnrealizedConversionCastOp>([](Operation *op) {
+    auto cond = [](Type type) {
+      return type.isa<IntType>() || type.isa<BooleanType>() || type.isa<ArrayType>();
+    };
+    return llvm::none_of(op->getOperandTypes(), cond) && llvm::none_of(op->getResultTypes(), cond);
+  });
+  target.markUnknownOpDynamicallyLegal([](Operation *) { return true; });
   if (failed(applyPartialConversion(getOperation(), target, std::move(patterns))))
     signalPassFailure();
 }
 
-void populateLowerSandboxConversionPatterns(mlir::RewritePatternSet &patterns) {
+void populateLowerSandboxConversionPatterns(RewritePatternSet &patterns) {
   patterns.add<ConstantOpConversion, AddIOpConversion, ComparisonOpConversion, PrintOpConversion,
                UnrealizedCastConversion, MakeArrayOpConversion, ArrayRefOpConversion>(
       patterns.getContext());
 }
 
-auto createLowerSandboxPass() -> std::unique_ptr<mlir::Pass> {
+auto createLowerSandboxPass() -> std::unique_ptr<Pass> {
   return std::make_unique<LowerSandboxPass>();
 }
 

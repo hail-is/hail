@@ -1,14 +1,15 @@
-#include "Dialect/CPS/IR/CPS.h"
+#include "hail/Dialect/CPS/IR/CPS.h"
+
+#include "hail/Support/MLIR.h"
+
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/Location.h"
 #include "mlir/IR/OpDefinition.h"
-#include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Support/LogicalResult.h"
 
 #define GET_OP_CLASSES
-#include "Dialect/CPS/IR/CPSOps.cpp.inc"
+#include "hail/Dialect/CPS/IR/CPSOps.cpp.inc"
 
 using namespace hail::ir;
 
@@ -17,27 +18,26 @@ using namespace hail::ir;
 //===----------------------------------------------------------------------===//
 
 namespace {
-struct InlineCont : public mlir::OpRewritePattern<ApplyContOp> {
+struct InlineCont : public OpRewritePattern<ApplyContOp> {
   using OpRewritePattern<ApplyContOp>::OpRewritePattern;
 
-  auto matchAndRewrite(ApplyContOp apply, mlir::PatternRewriter &rewriter) const
-      -> mlir::LogicalResult override {
+  auto matchAndRewrite(ApplyContOp apply, PatternRewriter &rewriter) const
+      -> LogicalResult override {
     auto defcont = apply.cont().getDefiningOp<DefContOp>();
     if (!defcont || !defcont->hasOneUse())
-      return mlir::failure();
+      return failure();
 
     rewriter.mergeBlocks(defcont.getBody(), apply->getBlock(), apply.args());
     rewriter.eraseOp(apply);
     rewriter.eraseOp(defcont);
 
-    return mlir::success();
+    return success();
   }
 };
 
 } // namespace
 
-void ApplyContOp::getCanonicalizationPatterns(mlir::RewritePatternSet &results,
-                                              mlir::MLIRContext *context) {
+void ApplyContOp::getCanonicalizationPatterns(RewritePatternSet &results, MLIRContext *context) {
   results.add<InlineCont>(context);
 }
 
@@ -45,8 +45,7 @@ void ApplyContOp::getCanonicalizationPatterns(mlir::RewritePatternSet &results,
 // CallCCOp
 //===----------------------------------------------------------------------===//
 
-void CallCCOp::build(mlir::OpBuilder &odsBuilder, mlir::OperationState &odsState,
-                     mlir::TypeRange resultTypes) {
+void CallCCOp::build(OpBuilder &odsBuilder, OperationState &odsState, TypeRange resultTypes) {
   odsState.addTypes(resultTypes);
   auto *region = odsState.addRegion();
   region->emplaceBlock();
@@ -55,29 +54,27 @@ void CallCCOp::build(mlir::OpBuilder &odsBuilder, mlir::OperationState &odsState
 
 namespace {
 
-struct TrivialCallCC : public mlir::OpRewritePattern<CallCCOp> {
+struct TrivialCallCC : public OpRewritePattern<CallCCOp> {
   using OpRewritePattern<CallCCOp>::OpRewritePattern;
 
-  auto matchAndRewrite(CallCCOp callcc, mlir::PatternRewriter &rewriter) const
-      -> mlir::LogicalResult override {
+  auto matchAndRewrite(CallCCOp callcc, PatternRewriter &rewriter) const -> LogicalResult override {
     auto terminator = dyn_cast<ApplyContOp>(callcc.getBody()->getTerminator());
     if (!terminator)
-      return mlir::failure();
+      return failure();
     if (terminator.cont() != callcc.getBody()->getArgument(0))
-      return mlir::failure();
-    llvm::SmallVector<mlir::Value> values(terminator.args().begin(), terminator.args().end());
+      return failure();
+    SmallVector<Value> values(terminator.args().begin(), terminator.args().end());
     rewriter.eraseOp(terminator);
     callcc.getBody()->eraseArgument(0);
     rewriter.mergeBlockBefore(callcc.getBody(), callcc);
     rewriter.replaceOp(callcc, values);
-    return mlir::success();
+    return success();
   }
 };
 
 } // namespace
 
-void CallCCOp::getCanonicalizationPatterns(mlir::RewritePatternSet &results,
-                                           mlir::MLIRContext *context) {
+void CallCCOp::getCanonicalizationPatterns(RewritePatternSet &results, MLIRContext *context) {
   results.add<TrivialCallCC>(context);
 }
 
@@ -85,16 +82,15 @@ void CallCCOp::getCanonicalizationPatterns(mlir::RewritePatternSet &results,
 // DefContOp
 //===----------------------------------------------------------------------===//
 
-void DefContOp::build(mlir::OpBuilder &odsBuilder, mlir::OperationState &odsState,
-                      mlir::TypeRange argTypes) {
+void DefContOp::build(OpBuilder &odsBuilder, OperationState &odsState, TypeRange argTypes) {
   odsState.addTypes(odsBuilder.getType<ContinuationType>(argTypes));
   auto *region = odsState.addRegion();
   region->emplaceBlock();
-  llvm::SmallVector<mlir::Location> locs(argTypes.size(), odsState.location);
+  SmallVector<Location> locs(argTypes.size(), odsState.location);
   region->addArguments(argTypes, locs);
 }
 
-auto DefContOp::verifyRegions() -> mlir::LogicalResult {
+auto DefContOp::verifyRegions() -> LogicalResult {
   auto *body = getBody();
   ContinuationType type = getType();
   auto numArgs = type.getInputs().size();
@@ -109,5 +105,5 @@ auto DefContOp::verifyRegions() -> mlir::LogicalResult {
 
     i++;
   }
-  return mlir::success();
+  return success();
 }

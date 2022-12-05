@@ -11,7 +11,7 @@ std::unique_ptr<mlir::Pass> createTestMissingnessAnalysisPass();
 
 /// Generate the code for registering passes.
 #define GEN_PASS_REGISTRATION
-#include "Transforms/Passes.h.inc"
+#include "hail/Transforms/Passes.h.inc"
 
 } // namespace hail::ir
 

@@ -4,8 +4,7 @@
 #include "mlir/Analysis/DataFlow/SparseAnalysis.h"
 #include "mlir/Analysis/DataFlowFramework.h"
 
-namespace hail {
-namespace ir {
+namespace hail::ir {
 
 //===----------------------------------------------------------------------===//
 // MissingnessValue
@@ -20,7 +19,6 @@ public:
   };
 
   MissingnessValue(State state) : state(state) {}
-
   bool isMissing() const { return state == Missing; }
   bool isPresent() const { return state == Present; }
   State getState() const { return state; }
@@ -60,7 +58,6 @@ public:
                       llvm::ArrayRef<mlir::dataflow::Lattice<MissingnessValue> *> results) override;
 };
 
-} // end namespace ir
-} // end namespace hail
+} // namespace hail::ir
 
 #endif // HAIL_ANALYSIS_MISSINGNESSANALYSIS_H

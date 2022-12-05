@@ -10,12 +10,10 @@
 #define HAIL_TRANSFORMS_PASSDETAIL_H_
 
 #include "mlir/Pass/Pass.h"
-#include "mlir/Pass/PassManager.h"
-#include "mlir/Transforms/Passes.h"
 
 namespace hail::ir {
 #define GEN_PASS_CLASSES
-#include "Transforms/Passes.h.inc"
+#include "hail/Transforms/Passes.h.inc"
 } // namespace hail::ir
 
 #endif // HAIL_TRANSFORMS_PASSDETAIL_H_

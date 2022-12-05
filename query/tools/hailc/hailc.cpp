@@ -1,7 +1,7 @@
-#include "Conversion/LowerSandbox/LowerSandbox.h"
-#include "Conversion/CPSToCF/CPSToCF.h"
-#include "Conversion/LowerToLLVM/LowerToLLVM.h"
-#include "InitAllDialects.h"
+#include "hail/Conversion/LowerSandbox/LowerSandbox.h"
+#include "hail/Conversion/CPSToCF/CPSToCF.h"
+#include "hail/Conversion/LowerToLLVM/LowerToLLVM.h"
+#include "hail/InitAllDialects.h"
 
 #include "mlir/ExecutionEngine/ExecutionEngine.h"
 #include "mlir/ExecutionEngine/OptUtils.h"

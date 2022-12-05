@@ -125,10 +125,9 @@ Checks: >
   -readability-braces-around-statements,
   -readability-function-*,
   -readability-identifier-length,
-  -readability-magic-numbers
+  -readability-magic-numbers,
 
 # this seems to get triggered by asserts somehow
 Checks: -cppcoreguidelines-pro-bounds-array-to-pointer-decay
 
-# check hail header files too
-HeaderFilter: .
+HeaderFilterRegex: include/hail.*\.h$

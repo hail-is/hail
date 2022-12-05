@@ -6,7 +6,7 @@ include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/OpBase.td"
 include "mlir/IR/BuiltinTypes.td"
 
-include "Dialect/CPS/IR/CPSBase.td"
+include "hail/Dialect/CPS/IR/CPSBase.td"
 
 
 def Option_Dialect : Dialect {

@@ -1,6 +1,7 @@
-#include "Analysis/MissingnessAwareConstantPropagationAnalysis.h"
-#include "Analysis/MissingnessAnalysis.h"
-#include "Dialect/Missing/IR/Missing.h"
+#include "hail/Analysis/MissingnessAwareConstantPropagationAnalysis.h"
+#include "hail/Analysis/MissingnessAnalysis.h"
+#include "hail/Dialect/Missing/IR/Missing.h"
+#include "hail/Support/MLIR.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OpDefinition.h"
 #include "llvm/Support/Debug.h"
@@ -13,11 +14,11 @@ using mlir::dataflow::ConstantValue;
 using mlir::dataflow::Lattice;
 
 void MissingnessAwareConstantPropagation::visitOperation(
-    mlir::Operation *op, llvm::ArrayRef<Lattice<ConstantValue> const *> operands,
-    llvm::ArrayRef<Lattice<ConstantValue> *> results) {
+    Operation *op, ArrayRef<Lattice<ConstantValue> const *> operands,
+    ArrayRef<Lattice<ConstantValue> *> results) {
   LLVM_DEBUG(llvm::dbgs() << "MACP: Visiting operation: " << *op << "\n");
 
-  auto builder = mlir::Builder(op->getContext());
+  auto builder = Builder(op->getContext());
 
   // FIXME: move missingness op semantics to an interface
   if (auto missingOp = dyn_cast<IsMissingOp>(op)) {
@@ -51,7 +52,7 @@ void MissingnessAwareConstantPropagation::visitOperation(
   if (anyMissing)
     return;
 
-  llvm::SmallVector<mlir::Attribute> constantOperands;
+  SmallVector<Attribute> constantOperands;
   constantOperands.reserve(op->getNumOperands());
   for (auto const *operandLattice : operands)
     constantOperands.push_back(operandLattice->getValue().getConstantValue());
@@ -59,12 +60,12 @@ void MissingnessAwareConstantPropagation::visitOperation(
   // Save the original operands and attributes just in case the operation
   // folds in-place. The constant passed in may not correspond to the real
   // runtime value, so in-place updates are not allowed.
-  llvm::SmallVector<mlir::Value> originalOperands(op->getOperands());
-  mlir::DictionaryAttr originalAttrs = op->getAttrDictionary();
+  SmallVector<Value> originalOperands(op->getOperands());
+  DictionaryAttr originalAttrs = op->getAttrDictionary();
 
   // Simulate the result of folding this operation to a constant. If folding
   // fails or was an in-place fold, mark the results as overdefined.
-  llvm::SmallVector<mlir::OpFoldResult> foldResults;
+  SmallVector<OpFoldResult> foldResults;
   foldResults.reserve(op->getNumResults());
   if (failed(op->fold(constantOperands, foldResults))) {
     markAllPessimisticFixpoint(results);
@@ -87,14 +88,13 @@ void MissingnessAwareConstantPropagation::visitOperation(
     Lattice<ConstantValue> *lattice = std::get<0>(it);
 
     // Merge in the result of the fold, either a constant or a value.
-    mlir::OpFoldResult foldResult = std::get<1>(it);
-    if (auto const attr = foldResult.dyn_cast<mlir::Attribute>()) {
+    OpFoldResult foldResult = std::get<1>(it);
+    if (auto const attr = foldResult.dyn_cast<Attribute>()) {
       LLVM_DEBUG(llvm::dbgs() << "Folded to constant: " << attr << "\n");
       propagateIfChanged(lattice, lattice->join(ConstantValue(attr, op->getDialect())));
     } else {
-      LLVM_DEBUG(llvm::dbgs() << "Folded to value: " << foldResult.get<mlir::Value>() << "\n");
-      AbstractSparseDataFlowAnalysis::join(lattice,
-                                           *getLatticeElement(foldResult.get<mlir::Value>()));
+      LLVM_DEBUG(llvm::dbgs() << "Folded to value: " << foldResult.get<Value>() << "\n");
+      AbstractSparseDataFlowAnalysis::join(lattice, *getLatticeElement(foldResult.get<Value>()));
     }
   }
 }

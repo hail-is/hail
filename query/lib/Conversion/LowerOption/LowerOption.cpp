@@ -1,7 +1,9 @@
-#include "Conversion/LowerOption/LowerOption.h"
 #include "../PassDetail.h"
-#include "Dialect/CPS/IR/CPS.h"
-#include "Dialect/Option/IR/Option.h"
+
+#include "hail/Conversion/LowerOption/LowerOption.h"
+#include "hail/Dialect/CPS/IR/CPS.h"
+#include "hail/Dialect/Option/IR/Option.h"
+#include "hail/Support/MLIR.h"
 
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -9,7 +11,6 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/TypeSwitch.h"
 
 #include <vector>
 
@@ -23,16 +24,16 @@ struct LowerOptionPass : public LowerOptionBase<LowerOptionPass> {
 
 struct LoweredOption {
   explicit LoweredOption(OptionType type) { operands.reserve(type.getValueTypes().size() + 1); };
-  auto isDefined() -> mlir::Value { return operands[0]; };
-  auto values() -> mlir::ValueRange { return mlir::ValueRange(operands).drop_front(1); };
+  auto isDefined() -> Value { return operands[0]; };
+  auto values() -> ValueRange { return ValueRange(operands).drop_front(1); };
 
-  llvm::SmallVector<mlir::Value, 4> operands{};
+  SmallVector<Value, 4> operands{};
 };
 
-auto unpackOptional(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-                    mlir::Value optional) -> LoweredOption {
+auto unpackOptional(ConversionPatternRewriter &rewriter, mlir::Location loc, Value optional)
+    -> LoweredOption {
   auto type = optional.getType().cast<OptionType>();
-  llvm::SmallVector<mlir::Type, 2> resultTypes;
+  SmallVector<mlir::Type, 2> resultTypes;
   resultTypes.reserve(type.getValueTypes().size() + 1);
   LoweredOption result{type};
   resultTypes.push_back(rewriter.getI1Type());
@@ -42,24 +43,23 @@ auto unpackOptional(mlir::ConversionPatternRewriter &rewriter, mlir::Location lo
   return result;
 }
 
-struct ConstructOpConversion : public mlir::OpConversionPattern<ConstructOp> {
-  ConstructOpConversion(mlir::MLIRContext *context)
+struct ConstructOpConversion : public OpConversionPattern<ConstructOp> {
+  ConstructOpConversion(MLIRContext *context)
       : OpConversionPattern<ConstructOp>(context, /*benefit=*/1) {}
 
-  auto matchAndRewrite(ConstructOp op, OpAdaptor adaptor,
-                       mlir::ConversionPatternRewriter &rewriter) const
-      -> mlir::LogicalResult override {
+  auto matchAndRewrite(ConstructOp op, OpAdaptor adaptor, ConversionPatternRewriter &rewriter) const
+      -> LogicalResult override {
     auto loc = op.getLoc();
-    llvm::SmallVector<mlir::Type, 4> resultTypes;
+    SmallVector<Type, 4> resultTypes;
     auto valueTypes = op.getType().getValueTypes();
     resultTypes.reserve(valueTypes.size() + 1);
     resultTypes.push_back(rewriter.getI1Type());
     resultTypes.append(valueTypes.begin(), valueTypes.end());
 
     auto callcc = rewriter.create<CallCCOp>(loc, resultTypes);
-    mlir::Value retCont = callcc.body().getArgument(0);
+    Value retCont = callcc.body().getArgument(0);
 
-    llvm::SmallVector<mlir::Value, 4> results;
+    SmallVector<Value, 4> results;
     results.reserve(valueTypes.size() + 1);
     auto &body = op.bodyRegion();
 
@@ -94,14 +94,13 @@ struct ConstructOpConversion : public mlir::OpConversionPattern<ConstructOp> {
   }
 };
 
-struct DestructOpConversion : public mlir::OpConversionPattern<DestructOp> {
+struct DestructOpConversion : public OpConversionPattern<DestructOp> {
   using OpConversionPattern<DestructOp>::OpConversionPattern;
 
-  auto matchAndRewrite(DestructOp op, OpAdaptor adaptor,
-                       mlir::ConversionPatternRewriter &rewriter) const
-      -> mlir::LogicalResult override {
-    llvm::SmallVector<mlir::Value> values;
-    mlir::Value isDefined;
+  auto matchAndRewrite(DestructOp op, OpAdaptor adaptor, ConversionPatternRewriter &rewriter) const
+      -> LogicalResult override {
+    SmallVector<Value> values;
+    Value isDefined;
     for (auto option : adaptor.inputs()) {
       LoweredOption unpack = unpackOptional(rewriter, op.getLoc(), option);
       values.append(unpack.values().begin(), unpack.values().end());
@@ -114,7 +113,7 @@ struct DestructOpConversion : public mlir::OpConversionPattern<DestructOp> {
     }
 
     rewriter.replaceOpWithNewOp<IfOp>(op, isDefined, op.presentCont(), values, op.missingCont(),
-                                      mlir::ValueRange{});
+                                      ValueRange{});
     return mlir::success();
   }
 };
@@ -122,17 +121,17 @@ struct DestructOpConversion : public mlir::OpConversionPattern<DestructOp> {
 } // end namespace
 
 void LowerOptionPass::runOnOperation() {
-  mlir::RewritePatternSet patterns(&getContext());
+  RewritePatternSet patterns(&getContext());
   populateLowerOptionConversionPatterns(patterns);
 
-  mlir::ConversionTarget target(getContext());
+  ConversionTarget target(getContext());
   target.addIllegalDialect<OptionDialect>();
-  target.markUnknownOpDynamicallyLegal([](mlir::Operation *) { return true; });
+  target.markUnknownOpDynamicallyLegal([](Operation *) { return true; });
   if (failed(applyPartialConversion(getOperation(), target, std::move(patterns))))
     signalPassFailure();
 }
 
-void populateLowerOptionConversionPatterns(mlir::RewritePatternSet &patterns) {
+void populateLowerOptionConversionPatterns(RewritePatternSet &patterns) {
   patterns.add<ConstructOpConversion, DestructOpConversion>(patterns.getContext());
 }
 

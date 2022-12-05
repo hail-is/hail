@@ -9,8 +9,8 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
 
-#include "InitAllDialects.h"
-#include "InitAllPasses.h"
+#include "hail/InitAllDialects.h"
+#include "hail/InitAllPasses.h"
 
 auto main(int argc, char **argv) -> int {
   // mlir::registerAllPasses();

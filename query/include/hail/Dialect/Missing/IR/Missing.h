@@ -7,9 +7,9 @@
 
 #include "mlir/IR/BuiltinTypes.h"
 
-#include "Dialect/Missing/IR/MissingOpsDialect.h.inc"
+#include "hail/Dialect/Missing/IR/MissingOpsDialect.h.inc"
 
 #define GET_OP_CLASSES
-#include "Dialect/Missing/IR/MissingOps.h.inc"
+#include "hail/Dialect/Missing/IR/MissingOps.h.inc"
 
 #endif // DIALECT_MISSING_MISSING_H

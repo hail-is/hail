@@ -1,18 +1,11 @@
 #include "../PassDetail.h"
-#include "Conversion/LowerSandbox/LowerSandbox.h"
-#include "Dialect/CPS/IR/CPS.h"
+#include "hail/Dialect/CPS/IR/CPS.h"
+#include "hail/Support/MLIR.h"
 
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
-#include "mlir/IR/BuiltinAttributes.h"
-#include "mlir/IR/BuiltinOps.h"
-#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/LogicalResult.h"
-#include "mlir/Transforms/DialectConversion.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/TypeSwitch.h"
 
 #include <vector>
 
@@ -28,13 +21,12 @@ using namespace hail::ir;
 
 namespace {
 
-void lowerCallCCOp(mlir::IRRewriter &rewriter, CallCCOp callcc,
-                   std::vector<DefContOp> &defsWorklist) {
+void lowerCallCCOp(IRRewriter &rewriter, CallCCOp callcc, std::vector<DefContOp> &defsWorklist) {
   auto loc = callcc->getLoc();
   assert(callcc->getParentRegion()->hasOneBlock());
   // Split the current block before callcc to create the continuation point.
-  mlir::Block *parentBlock = callcc->getBlock();
-  mlir::Block *continuation = rewriter.splitBlock(parentBlock, callcc->getIterator());
+  Block *parentBlock = callcc->getBlock();
+  Block *continuation = rewriter.splitBlock(parentBlock, callcc->getIterator());
 
   // create a DefContOp holding the continuation of callcc
   rewriter.setInsertionPointToEnd(parentBlock);
@@ -49,25 +41,25 @@ void lowerCallCCOp(mlir::IRRewriter &rewriter, CallCCOp callcc,
   rewriter.replaceOp(callcc, defcont.getBody()->getArguments());
 }
 
-auto getDefBlock(mlir::Value cont) -> mlir::Block * {
+auto getDefBlock(Value cont) -> Block * {
   auto def = cont.getDefiningOp<DefContOp>();
   assert(def && "Continuation def is not visable");
   return &def.bodyRegion().front();
 }
 
-void lowerApplyContOp(mlir::IRRewriter &rewriter, ApplyContOp op) {
+void lowerApplyContOp(IRRewriter &rewriter, ApplyContOp op) {
   rewriter.setInsertionPoint(op);
   rewriter.replaceOpWithNewOp<mlir::cf::BranchOp>(op, op.args(), getDefBlock(op.cont()));
 }
 
-void lowerIfOp(mlir::IRRewriter &rewriter, IfOp op) {
+void lowerIfOp(IRRewriter &rewriter, IfOp op) {
   rewriter.setInsertionPoint(op);
   rewriter.replaceOpWithNewOp<mlir::cf::CondBranchOp>(op, op.condition(),
                                                       getDefBlock(op.trueCont()), op.trueArgs(),
                                                       getDefBlock(op.falseCont()), op.falseArgs());
 }
 
-void lowerDefContOp(mlir::IRRewriter &rewriter, DefContOp op) {
+void lowerDefContOp(IRRewriter &rewriter, DefContOp op) {
   rewriter.inlineRegionBefore(op.bodyRegion(), *op->getParentRegion(),
                               std::next(op->getBlock()->getIterator()));
   rewriter.eraseOp(op);
@@ -88,7 +80,7 @@ void CPSToCFPass::runOnOperation() {
   // add nested ops to worklist in postorder
   auto *root = getOperation();
   for (auto &region : getOperation()->getRegions())
-    region.walk([&](mlir::Operation *op) {
+    region.walk([&](Operation *op) {
       if (auto callcc = dyn_cast<CallCCOp>(op))
         callccsWorklist.push_back(callcc);
       else if (auto defcont = dyn_cast<DefContOp>(op))
@@ -97,7 +89,7 @@ void CPSToCFPass::runOnOperation() {
         usesWorklist.push_back(op);
     });
 
-  mlir::IRRewriter rewriter(root->getContext());
+  IRRewriter rewriter(root->getContext());
   for (auto callcc : callccsWorklist) {
     lowerCallCCOp(rewriter, callcc, defsWorklist);
   }
@@ -113,6 +105,6 @@ void CPSToCFPass::runOnOperation() {
   }
 }
 
-auto createCPSToCFPass() -> std::unique_ptr<mlir::Pass> { return std::make_unique<CPSToCFPass>(); }
+auto createCPSToCFPass() -> std::unique_ptr<Pass> { return std::make_unique<CPSToCFPass>(); }
 
 } // namespace hail::ir

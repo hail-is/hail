@@ -8,7 +8,7 @@
 
 #include "mlir/Tools/mlir-lsp-server/MlirLspServerMain.h"
 
-#include "InitAllDialects.h"
+#include "hail/InitAllDialects.h"
 
 using namespace hail::ir;
 

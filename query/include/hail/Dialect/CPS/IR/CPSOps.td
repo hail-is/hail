@@ -5,7 +5,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/BuiltinTypes.td"
 include "mlir/IR/OpBase.td"
 
-include "Dialect/CPS/IR/CPSBase.td"
+include "hail/Dialect/CPS/IR/CPSBase.td"
 
 class CPS_Op<string mnemonic, list<Trait> traits = []> :
         Op<CPS_Dialect, mnemonic, traits>;

@@ -1,5 +1,6 @@
-#include "Analysis/MissingnessAnalysis.h"
-#include "Dialect/Missing/IR/Missing.h"
+#include "hail/Analysis/MissingnessAnalysis.h"
+#include "hail/Dialect/Missing/IR/Missing.h"
+#include "hail/Support/MLIR.h"
 #include "mlir/IR/OpDefinition.h"
 #include "llvm/Support/Debug.h"
 
@@ -27,8 +28,8 @@ void MissingnessValue::print(llvm::raw_ostream &os) const {
 //===----------------------------------------------------------------------===//
 
 void MissingnessAnalysis::visitOperation(
-    mlir::Operation *op, llvm::ArrayRef<mlir::dataflow::Lattice<MissingnessValue> const *> operands,
-    llvm::ArrayRef<mlir::dataflow::Lattice<MissingnessValue> *> results) {
+    Operation *op, ArrayRef<mlir::dataflow::Lattice<MissingnessValue> const *> operands,
+    ArrayRef<mlir::dataflow::Lattice<MissingnessValue> *> results) {
   LLVM_DEBUG(llvm::dbgs() << "Missingness: Visiting operation: " << *op << "\n");
 
   // FIXME: move missingness op semantics to an interface

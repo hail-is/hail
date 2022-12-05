@@ -1,7 +1,9 @@
-#include "Conversion/OptionToGenericOption/OptionToGenericOption.h"
 #include "../PassDetail.h"
-#include "Dialect/CPS/IR/CPS.h"
-#include "Dialect/Option/IR/Option.h"
+
+#include "hail/Conversion/OptionToGenericOption/OptionToGenericOption.h"
+#include "hail/Dialect/CPS/IR/CPS.h"
+#include "hail/Dialect/Option/IR/Option.h"
+#include "hail/Support/MLIR.h"
 
 #include "mlir/Transforms/DialectConversion.h"
 
@@ -13,16 +15,16 @@ struct OptionToGenericOptionPass : public OptionToGenericOptionBase<OptionToGene
 
 namespace {
 
-class ConvertMapOp : public mlir::OpConversionPattern<MapOp> {
+class ConvertMapOp : public OpConversionPattern<MapOp> {
 public:
-  explicit ConvertMapOp(mlir::MLIRContext *context)
+  explicit ConvertMapOp(MLIRContext *context)
       : OpConversionPattern<MapOp>(context, /*benefit=*/1) {}
 
-  auto matchAndRewrite(MapOp op, OpAdaptor adaptor, mlir::ConversionPatternRewriter &rewriter) const
-      -> mlir::LogicalResult override {
+  auto matchAndRewrite(MapOp op, OpAdaptor adaptor, ConversionPatternRewriter &rewriter) const
+      -> LogicalResult override {
     auto loc = op.getLoc();
 
-    llvm::SmallVector<mlir::Type> valueTypes;
+    SmallVector<Type> valueTypes;
     for (auto option : op.getOperandTypes()) {
       auto types = option.cast<OptionType>().getValueTypes();
       valueTypes.append(types.begin(), types.end());
@@ -42,32 +44,32 @@ public:
     rewriter.create<DestructOp>(loc, op.getOperands(), construct.getMissingCont(), bodyCont);
 
     rewriter.replaceOp(op, construct->getResults());
-    return mlir::success();
+    return success();
   }
 };
 
 } // end namespace
 
-void populateOptionToGenericOptionConversionPatterns(mlir::RewritePatternSet &patterns) {
+void populateOptionToGenericOptionConversionPatterns(RewritePatternSet &patterns) {
   patterns.add<ConvertMapOp>(patterns.getContext());
 }
 
 void OptionToGenericOptionPass::runOnOperation() {
-  mlir::RewritePatternSet patterns(&getContext());
+  RewritePatternSet patterns(&getContext());
   populateOptionToGenericOptionConversionPatterns(patterns);
 
-  mlir::ConversionTarget target(getContext());
+  ConversionTarget target(getContext());
   target.addIllegalDialect<OptionDialect>();
   target.addLegalOp<ConstructOp, DestructOp>();
 
   // We want to completely lower to LLVM, so we use a `FullConversion`. This
   // ensures that only legal operations will remain after the conversion.
-  target.markUnknownOpDynamicallyLegal([](mlir::Operation *) { return true; });
+  target.markUnknownOpDynamicallyLegal([](Operation *) { return true; });
   if (failed(mlir::applyPartialConversion(getOperation(), target, std::move(patterns))))
     signalPassFailure();
 }
 
-auto createOptionToGenericOptionPass() -> std::unique_ptr<mlir::Pass> {
+auto createOptionToGenericOptionPass() -> std::unique_ptr<Pass> {
   return std::make_unique<OptionToGenericOptionPass>();
 }
 

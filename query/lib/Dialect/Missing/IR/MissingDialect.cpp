@@ -1,4 +1,4 @@
-#include "Dialect/Missing/IR/Missing.h"
+#include "hail/Dialect/Missing/IR/Missing.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectImplementation.h"
@@ -10,11 +10,11 @@
 using namespace hail::ir;
 
 #define GET_TYPEDEF_CLASSES
-#include "Dialect/Missing/IR/MissingOpsDialect.cpp.inc"
+#include "hail/Dialect/Missing/IR/MissingOpsDialect.cpp.inc"
 
 void MissingDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
-#include "Dialect/Missing/IR/MissingOps.cpp.inc"
+#include "hail/Dialect/Missing/IR/MissingOps.cpp.inc"
       >();
 }

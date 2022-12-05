@@ -7,12 +7,12 @@
 
 #include "mlir/IR/BuiltinTypes.h"
 
-#include "Dialect/CPS/IR/CPSOpsDialect.h.inc"
+#include "hail/Dialect/CPS/IR/CPSOpsDialect.h.inc"
 
 #define GET_TYPEDEF_CLASSES
-#include "Dialect/CPS/IR/CPSOpsTypes.h.inc"
+#include "hail/Dialect/CPS/IR/CPSOpsTypes.h.inc"
 
 #define GET_OP_CLASSES
-#include "Dialect/CPS/IR/CPSOps.h.inc"
+#include "hail/Dialect/CPS/IR/CPSOps.h.inc"
 
 #endif // DIALECT_CPS_IR_CPS_H

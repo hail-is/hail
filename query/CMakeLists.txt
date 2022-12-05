@@ -53,7 +53,7 @@ add_compile_options($<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang
 
 set(CMAKE_CXX_CLANG_TIDY clang-tidy --use-color --warnings-as-errors=*)
 
-add_subdirectory(include)
+add_subdirectory(include/hail)
 add_subdirectory(lib)
 add_subdirectory(tools)
 add_subdirectory(test)
