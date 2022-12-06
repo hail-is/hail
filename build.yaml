@@ -1547,6 +1547,7 @@ steps:
         -DMLIR_DIR=$LLVM_DIR/lib/cmake/mlir
         # -DLLVM_BUILD_BINARY_DIR=$LLVM_SRC_DIR/build/bin # FIXME need llvm-lit for tests
       ninja
+      ninja check-hail
     resources:
       memory: standard
       cpu: '2'
