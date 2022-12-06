@@ -860,7 +860,7 @@ def _with_flags(**flags):
         _set_flags(**flags)
         yield
     finally:
-        _set_flags(**before)
+        Env.backend().flags = before
 
 
 def debug_info():
