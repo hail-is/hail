@@ -36,7 +36,6 @@ import aiohttp
 import aiohttp.client_exceptions
 import aiorwlock
 import async_timeout
-import humanize
 import orjson
 from aiodocker.exceptions import DockerError  # type: ignore
 from aiohttp import web
@@ -2630,7 +2629,6 @@ class Worker:
             return
 
         self.task_manager.ensure_future(periodically_call(60, self.send_billing_update))
-        self.task_manager.ensure_future(periodically_call(60, self.monitor_resource_usage))
 
         try:
             while True:
@@ -2881,15 +2879,6 @@ class Worker:
                 log.info(f'sent billing update for {time_msecs_str(update_timestamp)}')
 
         await retry_transient_errors(update)
-
-    async def monitor_resource_usage(self):
-        stdout, _ = await check_shell_output('xfs_quota -x -c "report -h -p" /host/; df -kh')
-        log.info(stdout)
-        for job in self.jobs.values():
-            if isinstance(job, DockerJob):
-                file_sizes = await job.get_resource_usage_file_sizes()
-                file_sizes = {name: humanize.naturalsize(size) for name, size in file_sizes.items()}
-                log.info(f'{job} {file_sizes}')
 
 
 async def async_main():
