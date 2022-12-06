@@ -65,7 +65,7 @@ struct OptionTypeStorage final : public mlir::TypeStorage,
 auto OptionType::getValueTypes() const -> ArrayRef<Type> { return getImpl()->getTypes(); }
 
 auto OptionType::parse(mlir::AsmParser &parser) -> Type {
-  Builder builder(parser.getContext());
+  Builder const builder(parser.getContext());
   SmallVector<Type> inputs;
 
   auto parseType = [&]() {
@@ -86,7 +86,7 @@ auto OptionType::parse(mlir::AsmParser &parser) -> Type {
 }
 
 void OptionType::print(mlir::AsmPrinter &odsPrinter) const {
-  Builder odsBuilder(getContext());
+  Builder const odsBuilder(getContext());
   odsPrinter << "<";
   odsPrinter.printStrippedAttrOrType(getValueTypes());
   odsPrinter << ">";

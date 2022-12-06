@@ -1,104 +1,7 @@
-# copied from llvm
-Checks: '-*,clang-diagnostic-*,llvm-*,misc-*,-misc-unused-parameters,-misc-non-private-member-variables-in-classes,-misc-no-recursion,readability-identifier-naming'
-CheckOptions:
-  - key:             readability-identifier-naming.ClassCase
-    value:           CamelCase
-  - key:             readability-identifier-naming.EnumCase
-    value:           CamelCase
-  - key:             readability-identifier-naming.FunctionCase
-    value:           camelBack
-  # Exclude from scanning as this is an exported symbol used for fuzzing
-  # throughout the code base.
-  - key:             readability-identifier-naming.FunctionIgnoredRegexp
-    value:           "LLVMFuzzerTestOneInput"
-  - key:             readability-identifier-naming.MemberCase
-    value:           CamelCase
-  - key:             readability-identifier-naming.ParameterCase
-    value:           CamelCase
-  - key:             readability-identifier-naming.UnionCase
-    value:           CamelCase
-  - key:             readability-identifier-naming.VariableCase
-    value:           CamelCase
-  - key:             readability-identifier-naming.IgnoreMainLikeFunctions
-    value:           1
-  - key:             readability-redundant-member-init.IgnoreBaseInCopyConstructors
-    value:           1
-  - key:             modernize-use-default-member-init.UseAssignment
-    value:           1
-
-# copied from mlir
 Checks: >
-  bugprone-argument-comment,
-  bugprone-assert-side-effect,
-  bugprone-branch-clone,
-  bugprone-copy-constructor-init,
-  bugprone-dangling-handle,
-  bugprone-dynamic-static-initializers,
-  bugprone-macro-parentheses,
-  bugprone-macro-repeated-side-effects,
-  bugprone-misplaced-widening-cast,
-  bugprone-move-forwarding-reference,
-  bugprone-multiple-statement-macro,
-  bugprone-suspicious-semicolon,
-  bugprone-swapped-arguments,
-  bugprone-terminating-continue,
-  bugprone-unused-raii,
-  bugprone-unused-return-value,
-  misc-redundant-expression,
-  misc-static-assert,
-  misc-unused-using-decls,
-  modernize-use-bool-literals,
-  modernize-loop-convert,
-  modernize-make-unique,
-  modernize-raw-string-literal,
-  modernize-use-equals-default,
-  modernize-use-default-member-init,
-  modernize-use-emplace,
-  modernize-use-nullptr,
-  modernize-use-override,
-  modernize-use-using,
-  performance-for-range-copy,
-  performance-implicit-conversion-in-loop,
-  performance-inefficient-algorithm,
-  performance-inefficient-vector-operation,
-  performance-move-const-arg,
-  performance-no-automatic-move,
-  performance-trivially-destructible,
-  performance-unnecessary-copy-initialization,
-  performance-unnecessary-value-param,
-  readability-avoid-const-params-in-decls,
-  readability-const-return-type,
-  readability-container-size-empty,
-  readability-inconsistent-declaration-parameter-name,
-  readability-misleading-indentation,
-  readability-redundant-control-flow,
-  readability-redundant-smartptr-get,
-  readability-simplify-boolean-expr,
-  readability-simplify-subscript-expr,
-  readability-use-anyofallof
-
-
-CheckOptions:
-  - key:             readability-identifier-naming.MemberCase
-    value:           camelBack
-  - key:             readability-identifier-naming.ParameterCase
-    value:           camelBack
-  - key:             readability-identifier-naming.VariableCase
-    value:           camelBack
-
-
-# hail additions
-CheckOptions:
-  - key:             bugprone-argument-comment.StrictMode
-    value:           true
-  - key:             bugprone-argument-comment.CommentBoolLiterals
-    value:           true
-  - key:             bugprone-argument-comment.CommentNullPtrs
-    value:           true
-  - key:             bugprone-argument-comment.IgnoreSingleArgument
-    value:           true
-
-Checks: >
+  -*,
+  clang-diagnostic-*,
+  llvm-*,
   bugprone-*,
   -bugprone-bad-signal-to-kill-thread,
   -bugprone-easily-swappable-parameters,
@@ -110,6 +13,11 @@ Checks: >
   -bugprone-unhandled-exception-at-new,
   cppcoreguidelines-*,
   -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  misc-*,
+  -misc-unused-parameters,
+  -misc-non-private-member-variables-in-classes,
+  -misc-no-recursion,
   modernize-*,
   -modernize-avoid-bind,
   -modernize-macro-to-enum,
@@ -125,9 +33,40 @@ Checks: >
   -readability-braces-around-statements,
   -readability-function-*,
   -readability-identifier-length,
-  -readability-magic-numbers,
+  -readability-magic-numbers
 
-# this seems to get triggered by asserts somehow
-Checks: -cppcoreguidelines-pro-bounds-array-to-pointer-decay
+CheckOptions:
+  - key:             readability-identifier-naming.ClassCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.EnumCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.FunctionCase
+    value:           camelBack
+  # Exclude from scanning as this is an exported symbol used for fuzzing
+  # throughout the code base.
+  - key:             readability-identifier-naming.FunctionIgnoredRegexp
+    value:           "LLVMFuzzerTestOneInput"
+  - key:             readability-identifier-naming.MemberCase
+    value:           camelBack
+  - key:             readability-identifier-naming.ParameterCase
+    value:           camelBack
+  - key:             readability-identifier-naming.UnionCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.VariableCase
+    value:           camelBack
+  - key:             readability-identifier-naming.IgnoreMainLikeFunctions
+    value:           1
+  - key:             readability-redundant-member-init.IgnoreBaseInCopyConstructors
+    value:           1
+  - key:             modernize-use-default-member-init.UseAssignment
+    value:           1
+  - key:             bugprone-argument-comment.StrictMode
+    value:           true
+  - key:             bugprone-argument-comment.CommentBoolLiterals
+    value:           true
+  - key:             bugprone-argument-comment.CommentNullPtrs
+    value:           true
+  - key:             bugprone-argument-comment.IgnoreSingleArgument
+    value:           true
 
 HeaderFilterRegex: include/hail.*\.h$

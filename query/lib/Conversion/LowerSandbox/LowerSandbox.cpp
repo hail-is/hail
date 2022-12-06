@@ -93,7 +93,7 @@ auto getLoweredType(Builder &b, Type t) -> Type {
 
   if (t.isa<ArrayType>()) {
     auto loweredElem = getLoweredType(b, t.cast<ArrayType>().getElementType());
-    SmallVector<int64_t, 1> v = {-1};
+    SmallVector<int64_t, 1> const v = {-1};
 
     return RankedTensorType::get(v, loweredElem);
   }
@@ -109,8 +109,8 @@ struct MakeArrayOpConversion : public OpConversionPattern<MakeArrayOp> {
       -> LogicalResult override {
 
     auto elems = adaptor.elems();
-    SmallVector<int64_t, 1> v = {op->getNumOperands()};
-    Type loweredElem =
+    SmallVector<int64_t, 1> const v = {op->getNumOperands()};
+    Type const loweredElem =
         op.getNumOperands() > 0
             ? adaptor.elems()[0].getType()
             : getLoweredType(rewriter, op.result().getType().cast<ArrayType>().getElementType());

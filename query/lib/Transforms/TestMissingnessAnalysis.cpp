@@ -19,7 +19,7 @@ static void rewrite(mlir::DataFlowSolver &solver, Operation *root) {
     SmallVector<Attribute> annotations;
 
     annotations.reserve(op->getNumOperands());
-    for (Value result : op->getResults()) {
+    for (Value const result : op->getResults()) {
       auto *missingnessState =
           solver.getOrCreateState<mlir::dataflow::Lattice<hail::ir::MissingnessValue>>(result);
       auto *constState =
@@ -46,7 +46,7 @@ static void rewrite(mlir::DataFlowSolver &solver, Operation *root) {
     if (op->getNumRegions() > 0 && op->getRegion(0).getNumArguments() > 0) {
       auto &region = op->getRegion(0);
       annotations.reserve(region.getNumArguments());
-      for (Value arg : region.getArguments()) {
+      for (Value const arg : region.getArguments()) {
         auto *missingnessState =
             solver.getOrCreateState<mlir::dataflow::Lattice<hail::ir::MissingnessValue>>(arg);
         auto *constState =

@@ -1,5 +1,5 @@
-#ifndef DIALECT_CPS_IR_CPS_H
-#define DIALECT_CPS_IR_CPS_H
+#ifndef HAIL_DIALECT_CPS_IR_CPS_H
+#define HAIL_DIALECT_CPS_IR_CPS_H
 
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
@@ -15,4 +15,4 @@
 #define GET_OP_CLASSES
 #include "hail/Dialect/CPS/IR/CPSOps.h.inc"
 
-#endif // DIALECT_CPS_IR_CPS_H
+#endif // HAIL_DIALECT_CPS_IR_CPS_H

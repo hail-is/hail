@@ -2,7 +2,6 @@
 #define HAIL_ANALYSIS_MISSINGNESSANALYSIS_H
 
 #include "mlir/Analysis/DataFlow/SparseAnalysis.h"
-#include "mlir/Analysis/DataFlowFramework.h"
 
 namespace hail::ir {
 
@@ -19,20 +18,20 @@ public:
   };
 
   MissingnessValue(State state) : state(state) {}
-  bool isMissing() const { return state == Missing; }
-  bool isPresent() const { return state == Present; }
-  State getState() const { return state; }
+  auto isMissing() const -> bool { return state == Missing; }
+  auto isPresent() const -> bool { return state == Present; }
+  auto getState() const -> State { return state; }
 
-  void setMissing() { join(*this, Missing); }
-  void setPresent() { join(*this, Present); }
+  void setMissing() const { join(*this, Missing); }
+  void setPresent() const { join(*this, Present); }
 
-  bool operator==(MissingnessValue const &rhs) const { return state == rhs.state; }
+  auto operator==(MissingnessValue const &rhs) const -> bool { return state == rhs.state; }
 
   void print(llvm::raw_ostream &os) const;
 
-  static MissingnessValue getPessimisticValueState(mlir::Value value) { return {Unknown}; }
+  static auto getPessimisticValueState(mlir::Value value) -> MissingnessValue { return {Unknown}; }
 
-  static MissingnessValue join(MissingnessValue const &lhs, MissingnessValue const &rhs) {
+  static auto join(MissingnessValue const &lhs, MissingnessValue const &rhs) -> MissingnessValue {
     return lhs == rhs ? lhs : MissingnessValue(Unknown);
   }
 

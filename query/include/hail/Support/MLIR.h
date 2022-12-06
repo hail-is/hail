@@ -131,12 +131,15 @@ class PatternRewriter;
 class RewritePatternSet;
 
 // Common functions
-LogicalResult success(bool isSuccess);
-LogicalResult failure(bool isSuccess);
+// NOLINTBEGIN(readability-redundant-declaration)
+auto success(bool isSuccess) -> LogicalResult;
+auto failure(bool isFailure) -> LogicalResult;
+// NOLINTEND(readability-redundant-declaration)
 
 } // namespace mlir
 
 namespace hail::ir {
+// NOLINTBEGIN(misc-unused-using-decls)
 
 // Casting operators.
 using llvm::cast;
@@ -226,6 +229,7 @@ using mlir::RewritePatternSet;
 using mlir::failure;
 using mlir::success;
 
+// NOLINTEND(misc-unused-using-decls)
 } // namespace hail::ir
 
 #endif // HAIL_SUPPORT_MLIR_H

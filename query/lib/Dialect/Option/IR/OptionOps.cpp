@@ -30,7 +30,7 @@ void MapOp::build(OpBuilder &odsBuilder, OperationState &odsState, TypeRange res
     auto valueTypes = input.getType().cast<OptionType>().getValueTypes();
     argTypes.append(valueTypes.begin(), valueTypes.end());
   }
-  llvm::SmallVector<Location> locs(argTypes.size(), odsState.location);
+  llvm::SmallVector<Location> const locs(argTypes.size(), odsState.location);
   region->addArguments(argTypes, locs);
 }
 

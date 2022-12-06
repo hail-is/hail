@@ -70,7 +70,7 @@ struct ContinuationTypeStorage final : public mlir::TypeStorage,
 auto ContinuationType::getInputs() const -> ArrayRef<Type> { return getImpl()->getTypes(); }
 
 auto ContinuationType::parse(mlir::AsmParser &parser) -> Type {
-  Builder builder(parser.getContext());
+  Builder const builder(parser.getContext());
   SmallVector<Type> inputs;
 
   auto parseType = [&]() {
@@ -91,7 +91,7 @@ auto ContinuationType::parse(mlir::AsmParser &parser) -> Type {
 }
 
 void ContinuationType::print(mlir::AsmPrinter &odsPrinter) const {
-  Builder odsBuilder(getContext());
+  Builder const odsBuilder(getContext());
   odsPrinter << "<";
   odsPrinter.printStrippedAttrOrType(getInputs());
   odsPrinter << ">";
@@ -112,8 +112,8 @@ auto CallCCOp::parse(mlir::OpAsmParser &parser, OperationState &result) -> mlir:
     return failure();
   result.addTypes(retTypes);
 
-  Type retContType = builder.getType<ContinuationType>(retTypes);
-  mlir::OpAsmParser::Argument retContArg{retContName, retContType, {}, {}};
+  Type const retContType = builder.getType<ContinuationType>(retTypes);
+  mlir::OpAsmParser::Argument const retContArg{retContName, retContType, {}, {}};
 
   // If attributes are present, parse them.
   NamedAttrList parsedAttributes;
@@ -122,7 +122,7 @@ auto CallCCOp::parse(mlir::OpAsmParser &parser, OperationState &result) -> mlir:
   result.attributes.append(parsedAttributes);
 
   auto *body = result.addRegion();
-  mlir::SMLoc loc = parser.getCurrentLocation();
+  mlir::SMLoc const loc = parser.getCurrentLocation();
   if (parser.parseRegion(*body, retContArg))
     return failure();
   if (body->empty())
@@ -169,7 +169,7 @@ auto DefContOp::parse(mlir::OpAsmParser &parser, OperationState &result) -> mlir
 
   // Parse the body
   auto *body = result.addRegion();
-  mlir::SMLoc loc = parser.getCurrentLocation();
+  mlir::SMLoc const loc = parser.getCurrentLocation();
   if (parser.parseRegion(*body, arguments))
     return failure();
   if (body->empty())

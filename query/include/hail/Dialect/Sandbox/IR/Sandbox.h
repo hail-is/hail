@@ -1,5 +1,5 @@
-#ifndef DIALECT_SANDBOX_SANDBOX_H
-#define DIALECT_SANDBOX_SANDBOX_H
+#ifndef HAIL_DIALECT_SANDBOX_IR_SANDBOX_H
+#define HAIL_DIALECT_SANDBOX_IR_SANDBOX_H
 
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
@@ -16,4 +16,4 @@
 #define GET_OP_CLASSES
 #include "hail/Dialect/Sandbox/IR/SandboxOps.h.inc"
 
-#endif // DIALECT_SANDBOX_SANDBOX_H
+#endif // HAIL_DIALECT_SANDBOX_IR_SANDBOX_H

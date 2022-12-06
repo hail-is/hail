@@ -1,5 +1,5 @@
-#ifndef DIALECT_MISSING_MISSING_H
-#define DIALECT_MISSING_MISSING_H
+#ifndef HAIL_DIALECT_MISSING_IR_MISSING_H
+#define HAIL_DIALECT_MISSING_IR_MISSING_H
 
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
@@ -12,4 +12,4 @@
 #define GET_OP_CLASSES
 #include "hail/Dialect/Missing/IR/MissingOps.h.inc"
 
-#endif // DIALECT_MISSING_MISSING_H
+#endif // HAIL_DIALECT_MISSING_IR_MISSING_H

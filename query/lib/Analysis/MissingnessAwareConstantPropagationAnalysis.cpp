@@ -44,10 +44,11 @@ void MissingnessAwareConstantPropagation::visitOperation(
     return;
 
   // By default, only propagate constants if there are no missing operands.
-  bool anyMissing = std::any_of(op->operand_begin(), op->operand_end(), [this, op](auto operand) {
-    auto missingness = getOrCreateFor<Lattice<MissingnessValue>>(op, operand);
-    return missingness->isUninitialized() || missingness->getValue().isMissing();
-  });
+  bool const anyMissing =
+      std::any_of(op->operand_begin(), op->operand_end(), [this, op](auto operand) {
+        auto missingness = getOrCreateFor<Lattice<MissingnessValue>>(op, operand);
+        return missingness->isUninitialized() || missingness->getValue().isMissing();
+      });
 
   if (anyMissing)
     return;
@@ -60,8 +61,8 @@ void MissingnessAwareConstantPropagation::visitOperation(
   // Save the original operands and attributes just in case the operation
   // folds in-place. The constant passed in may not correspond to the real
   // runtime value, so in-place updates are not allowed.
-  SmallVector<Value> originalOperands(op->getOperands());
-  DictionaryAttr originalAttrs = op->getAttrDictionary();
+  SmallVector<Value> const originalOperands(op->getOperands());
+  DictionaryAttr const originalAttrs = op->getAttrDictionary();
 
   // Simulate the result of folding this operation to a constant. If folding
   // fails or was an in-place fold, mark the results as overdefined.
@@ -88,7 +89,7 @@ void MissingnessAwareConstantPropagation::visitOperation(
     Lattice<ConstantValue> *lattice = std::get<0>(it);
 
     // Merge in the result of the fold, either a constant or a value.
-    OpFoldResult foldResult = std::get<1>(it);
+    OpFoldResult const foldResult = std::get<1>(it);
     if (auto const attr = foldResult.dyn_cast<Attribute>()) {
       LLVM_DEBUG(llvm::dbgs() << "Folded to constant: " << attr << "\n");
       propagateIfChanged(lattice, lattice->join(ConstantValue(attr, op->getDialect())));

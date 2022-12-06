@@ -1,5 +1,5 @@
-#ifndef DIALECT_OPTION_OPTION_H
-#define DIALECT_OPTION_OPTION_H
+#ifndef HAIL_DIALECT_OPTION_IR_OPTION_H
+#define HAIL_DIALECT_OPTION_IR_OPTION_H
 
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
@@ -16,4 +16,4 @@
 #define GET_OP_CLASSES
 #include "hail/Dialect/Option/IR/OptionOps.h.inc"
 
-#endif // DIALECT_OPTION_OPTION_H
+#endif // HAIL_DIALECT_OPTION_IR_OPTION_H

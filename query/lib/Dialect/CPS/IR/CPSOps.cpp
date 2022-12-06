@@ -63,7 +63,7 @@ struct TrivialCallCC : public OpRewritePattern<CallCCOp> {
       return failure();
     if (terminator.cont() != callcc.getBody()->getArgument(0))
       return failure();
-    SmallVector<Value> values(terminator.args().begin(), terminator.args().end());
+    SmallVector<Value> const values(terminator.args().begin(), terminator.args().end());
     rewriter.eraseOp(terminator);
     callcc.getBody()->eraseArgument(0);
     rewriter.mergeBlockBefore(callcc.getBody(), callcc);
@@ -86,13 +86,13 @@ void DefContOp::build(OpBuilder &odsBuilder, OperationState &odsState, TypeRange
   odsState.addTypes(odsBuilder.getType<ContinuationType>(argTypes));
   auto *region = odsState.addRegion();
   region->emplaceBlock();
-  SmallVector<Location> locs(argTypes.size(), odsState.location);
+  SmallVector<Location> const locs(argTypes.size(), odsState.location);
   region->addArguments(argTypes, locs);
 }
 
 auto DefContOp::verifyRegions() -> LogicalResult {
   auto *body = getBody();
-  ContinuationType type = getType();
+  ContinuationType const type = getType();
   auto numArgs = type.getInputs().size();
 
   if (body->getNumArguments() != numArgs)

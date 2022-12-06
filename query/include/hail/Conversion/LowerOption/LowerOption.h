@@ -1,5 +1,5 @@
-#ifndef CONVERSION_LOWEROPTION_LOWEROPTION_H
-#define CONVERSION_LOWEROPTION_LOWEROPTION_H
+#ifndef HAIL_CONVERSION_LOWEROPTION_LOWEROPTION_H
+#define HAIL_CONVERSION_LOWEROPTION_LOWEROPTION_H
 
 #include <memory>
 
@@ -16,8 +16,8 @@ void populateLowerOptionConversionPatterns(mlir::RewritePatternSet &patterns);
 
 /// Creates a pass to lower the Option type to bool and values ssa-values, using CPS for control
 /// flow
-std::unique_ptr<mlir::Pass> createLowerOptionPass();
+auto createLowerOptionPass() -> std::unique_ptr<mlir::Pass>;
 
 } // namespace hail::ir
 
-#endif // CONVERSION_LOWEROPTION_LOWEROPTION_H
+#endif // HAIL_CONVERSION_LOWEROPTION_LOWEROPTION_H

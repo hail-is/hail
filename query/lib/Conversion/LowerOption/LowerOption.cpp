@@ -57,7 +57,7 @@ struct ConstructOpConversion : public OpConversionPattern<ConstructOp> {
     resultTypes.append(valueTypes.begin(), valueTypes.end());
 
     auto callcc = rewriter.create<CallCCOp>(loc, resultTypes);
-    Value retCont = callcc.body().getArgument(0);
+    Value const retCont = callcc.body().getArgument(0);
 
     SmallVector<Value, 4> results;
     results.reserve(valueTypes.size() + 1);

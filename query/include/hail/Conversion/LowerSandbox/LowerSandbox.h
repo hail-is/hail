@@ -1,5 +1,5 @@
-#ifndef CONVERSION_LOWERSANDBOX_LOWERSANDBOX_H
-#define CONVERSION_LOWERSANDBOX_LOWERSANDBOX_H
+#ifndef HAIL_CONVERSION_LOWERSANDBOX_LOWERSANDBOX_H
+#define HAIL_CONVERSION_LOWERSANDBOX_LOWERSANDBOX_H
 
 #include <memory>
 
@@ -18,8 +18,8 @@ void populateLowerSandboxConversionPatterns(mlir::RewritePatternSet &patterns);
 
 /// Creates a pass to convert SCF operations to CFG branch-based operation in
 /// the ControlFlow dialect.
-std::unique_ptr<mlir::Pass> createLowerSandboxPass();
+auto createLowerSandboxPass() -> std::unique_ptr<mlir::Pass>;
 
 } // namespace hail::ir
 
-#endif // CONVERSION_LOWERSANDBOX_LOWERSANDBOX_H
+#endif // HAIL_CONVERSION_LOWERSANDBOX_LOWERSANDBOX_H

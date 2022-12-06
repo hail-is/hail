@@ -1,5 +1,5 @@
-#ifndef CONVERSION_LOWERTOLLVM_LOWERTOLLVM_H
-#define CONVERSION_LOWERTOLLVM_LOWERTOLLVM_H
+#ifndef HAIL_CONVERSION_LOWERTOLLVM_LOWERTOLLVM_H
+#define HAIL_CONVERSION_LOWERTOLLVM_LOWERTOLLVM_H
 
 #include <memory>
 
@@ -16,8 +16,8 @@ void populateLowerToLLVMConversionPatterns(mlir::RewritePatternSet &patterns);
 
 /// Creates a pass to convert SCF operations to CFG branch-based operation in
 /// the ControlFlow dialect.
-std::unique_ptr<mlir::Pass> createLowerToLLVMPass();
+auto createLowerToLLVMPass() -> std::unique_ptr<mlir::Pass>;
 
 } // namespace hail::ir
 
-#endif // CONVERSION_LOWERTOLLVM_LOWERTOLLVM_H
+#endif // HAIL_CONVERSION_LOWERTOLLVM_LOWERTOLLVM_H

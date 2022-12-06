@@ -38,9 +38,9 @@ public:
 
     // Get a symbol reference to the printf function, inserting it if necessary.
     auto printfRef = getOrInsertPrintf(rewriter, parentModule);
-    Value formatSpecifierCst =
+    Value const formatSpecifierCst =
         getOrCreateGlobalString(loc, rewriter, "frmt_spec", StringRef("%i \0", 4), parentModule);
-    Value newLineCst =
+    Value const newLineCst =
         getOrCreateGlobalString(loc, rewriter, "nl", StringRef("\n\0", 2), parentModule);
 
     rewriter.create<mlir::func::CallOp>(loc, printfRef, rewriter.getIntegerType(32),
@@ -69,7 +69,7 @@ private:
                                                         /*isVarArg=*/true);
 
     // Insert the printf function into the body of the parent module.
-    PatternRewriter::InsertionGuard insertGuard(rewriter);
+    PatternRewriter::InsertionGuard const insertGuard(rewriter);
     rewriter.setInsertionPointToStart(module.getBody());
     rewriter.create<mlir::LLVM::LLVMFuncOp>(module.getLoc(), "printf", llvmFnType);
     return SymbolRefAttr::get(context, "printf");
@@ -82,7 +82,7 @@ private:
     // Create the global at the entry of the module.
     mlir::LLVM::GlobalOp global;
     if (global = module.lookupSymbol<mlir::LLVM::GlobalOp>(name); !global) {
-      OpBuilder::InsertionGuard insertGuard(builder);
+      OpBuilder::InsertionGuard const insertGuard(builder);
       builder.setInsertionPointToStart(module.getBody());
       auto type =
           mlir::LLVM::LLVMArrayType::get(IntegerType::get(builder.getContext(), 8), value.size());
@@ -93,8 +93,8 @@ private:
     }
 
     // Get the pointer to the first character in the global string.
-    Value globalPtr = builder.create<mlir::LLVM::AddressOfOp>(loc, global);
-    Value cst0 =
+    Value const globalPtr = builder.create<mlir::LLVM::AddressOfOp>(loc, global);
+    Value const cst0 =
         builder.create<mlir::LLVM::ConstantOp>(loc, IntegerType::get(builder.getContext(), 64),
                                                builder.getIntegerAttr(builder.getIndexType(), 0));
     return builder.create<mlir::LLVM::GEPOp>(

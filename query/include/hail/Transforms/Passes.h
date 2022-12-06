@@ -7,7 +7,7 @@
 
 namespace hail::ir {
 
-std::unique_ptr<mlir::Pass> createTestMissingnessAnalysisPass();
+auto createTestMissingnessAnalysisPass() -> std::unique_ptr<mlir::Pass>;
 
 /// Generate the code for registering passes.
 #define GEN_PASS_REGISTRATION
