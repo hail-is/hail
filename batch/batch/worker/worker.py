@@ -36,7 +36,6 @@ import aiohttp
 import aiohttp.client_exceptions
 import aiorwlock
 import async_timeout
-import humanize
 import orjson
 from aiodocker.exceptions import DockerError  # type: ignore
 from aiohttp import web
