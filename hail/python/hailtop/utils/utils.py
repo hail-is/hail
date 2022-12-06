@@ -1,4 +1,4 @@
-from typing import (Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Iterable, Tuple,
+from typing import (Any, Callable, TypeVar, Awaitable, Mapping, Optional, Type, List, Dict, Iterable, Tuple,
                     Generic, cast)
 from typing_extensions import Literal
 from types import TracebackType
@@ -208,7 +208,7 @@ class AsyncThrottledGather(Generic[T]):
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception as err:  # pylint: disable=broad-except
-                res = err
+                res = err  # type: ignore
                 if not self._return_exceptions:
                     self._errors.append(err)
                     self._done.set()
@@ -235,7 +235,7 @@ class AsyncThrottledGather(Generic[T]):
 
 class AsyncWorkerPool:
     def __init__(self, parallelism, queue_size=1000):
-        self._queue = asyncio.Queue(maxsize=queue_size)
+        self._queue: asyncio.Queue[Tuple[Callable, Tuple[Any, ...], Mapping[str, Any]]] = asyncio.Queue(maxsize=queue_size)
         self.workers = weakref.WeakSet([
             asyncio.ensure_future(self._worker())
             for _ in range(parallelism)])
@@ -568,6 +568,8 @@ def is_retry_once_error(e):
                 and 'not found: manifest unknown: ' in e.message)
     if isinstance(e, hailtop.httpx.ClientResponseError):
         return e.status == 400 and any(msg in e.body for msg in RETRY_ONCE_BAD_REQUEST_ERROR_MESSAGES)
+    if isinstance(e, ConnectionResetError):
+        return True
     return False
 
 
@@ -628,6 +630,7 @@ def is_transient_error(e):
         # 429 "Temporarily throttled, too many requests"
         return True
     if (isinstance(e, hailtop.aiocloud.aiogoogle.client.compute_client.GCPOperationError)
+            and e.error_codes is not None
             and 'QUOTA_EXCEEDED' in e.error_codes):
         return True
     if isinstance(e, hailtop.httpx.ClientResponseError) and (
@@ -673,8 +676,6 @@ def is_transient_error(e):
         # socket.EAI_AGAIN: [Errno -3] Temporary failure in name resolution
         # socket.EAI_NONAME: [Errno 8] nodename nor servname provided, or not known
         return e.errno in (socket.EAI_AGAIN, socket.EAI_NONAME)
-    if isinstance(e, ConnectionResetError):
-        return True
     if isinstance(e, google.auth.exceptions.TransportError):
         return is_transient_error(e.__cause__)
     if isinstance(e, google.api_core.exceptions.GatewayTimeout):
@@ -690,6 +691,14 @@ def is_transient_error(e):
             return False
         return e.status in RETRYABLE_HTTP_STATUS_CODES
     if isinstance(e, TransientError):
+        return True
+    return False
+
+
+def is_delayed_warning_error(e):
+    if isinstance(e, aiohttp.ClientResponseError) and e.status in (503, 429):
+        # 503 service unavailable
+        # 429 "Temporarily throttled, too many requests"
         return True
     return False
 
@@ -717,6 +726,8 @@ def retry_all_errors(msg=None, error_logging_interval=10):
                 return await f(*args, **kwargs)
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
+            except KeyboardInterrupt:
+                raise
             except Exception:
                 errors += 1
                 if msg and errors % error_logging_interval == 0:
@@ -734,6 +745,8 @@ def retry_all_errors_n_times(max_errors=10, msg=None, error_logging_interval=10)
                 return await f(*args, **kwargs)
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
+            except KeyboardInterrupt:
+                raise
             except Exception:
                 errors += 1
                 if msg and errors % error_logging_interval == 0:
@@ -745,26 +758,34 @@ def retry_all_errors_n_times(max_errors=10, msg=None, error_logging_interval=10)
 
 
 async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
-    return await retry_transient_errors_with_debug_string('', f, *args, **kwargs)
+    return await retry_transient_errors_with_debug_string('', 0, f, *args, **kwargs)
 
 
-async def retry_transient_errors_with_debug_string(debug_string: str, f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
+async def retry_transient_errors_with_delayed_warnings(warning_delay_msecs: int, f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
+    return await retry_transient_errors_with_debug_string('', warning_delay_msecs, f, *args, **kwargs)
+
+
+async def retry_transient_errors_with_debug_string(debug_string: str, warning_delay_msecs: int, f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
+    start_time = time_msecs()
     delay = 0.1
     errors = 0
     while True:
         try:
             return await f(*args, **kwargs)
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             errors += 1
             if errors == 1 and is_retry_once_error(e):
                 return await f(*args, **kwargs)
             if not is_transient_error(e):
                 raise
-            if errors == 2:
+            log_warnings = (time_msecs() - start_time >= warning_delay_msecs) or not is_delayed_warning_error(e)
+            if log_warnings and errors == 2:
                 log.warning(f'A transient error occured. We will automatically retry. Do not be alarmed. '
                             f'We have thus far seen {errors} transient errors (current delay: '
                             f'{delay}). The most recent error was {type(e)} {e}. {debug_string}')
-            elif errors % 10 == 0:
+            elif log_warnings and errors % 10 == 0:
                 st = ''.join(traceback.format_stack())
                 log.warning(f'A transient error occured. We will automatically retry. '
                             f'We have thus far seen {errors} transient errors (current delay: '
@@ -778,6 +799,8 @@ def sync_retry_transient_errors(f, *args, **kwargs):
     while True:
         try:
             return f(*args, **kwargs)
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             errors += 1
             if errors % 10 == 0:
@@ -807,6 +830,8 @@ async def request_raise_transient_errors(
 ) -> aiohttp.ClientResponse:
     try:
         return await session.request(method, url, **kwargs)
+    except KeyboardInterrupt:
+        raise
     except Exception as e:
         if is_transient_error(e):
             log.exception('request failed with transient exception: {method} {url}')
@@ -873,6 +898,8 @@ async def retry_long_running(name, f, *args, **kwargs):
             return await f(*args, **kwargs)
         except asyncio.CancelledError:
             raise
+        except KeyboardInterrupt:
+            raise
         except Exception:
             end_time = time_msecs()
 
@@ -923,13 +950,14 @@ class LoggingTimerStep:
     def __init__(self, timer, name):
         self.timer = timer
         self.name = name
-        self.start_time = None
+        self.start_time: Optional[int] = None
 
     async def __aenter__(self):
         self.start_time = time_msecs()
 
     async def __aexit__(self, exc_type, exc, tb):
         finish_time = time_msecs()
+        assert self.start_time is not None
         self.timer.timing[self.name] = finish_time - self.start_time
 
 
@@ -938,7 +966,7 @@ class LoggingTimer:
         self.description = description
         self.threshold_ms = threshold_ms
         self.timing = {}
-        self.start_time = None
+        self.start_time: Optional[int] = None
 
     def step(self, name):
         return LoggingTimerStep(self, name)
@@ -949,6 +977,7 @@ class LoggingTimer:
 
     async def __aexit__(self, exc_type, exc, tb):
         finish_time = time_msecs()
+        assert self.start_time is not None
         total = finish_time - self.start_time
         if self.threshold_ms is None or total > self.threshold_ms:
             self.timing['total'] = total
@@ -1075,3 +1104,13 @@ class Timings:
 
     def to_dict(self):
         return self.timings
+
+
+def am_i_interactive() -> bool:
+    """Determine if the current Python session is interactive.
+
+    This should return True in IPython, a Python interpreter, and a Jupyter Notebook.
+
+    """
+    # https://stackoverflow.com/questions/2356399/tell-if-python-is-in-interactive-mode
+    return bool(getattr(sys, 'ps1', sys.flags.interactive))

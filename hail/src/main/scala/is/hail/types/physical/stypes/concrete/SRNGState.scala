@@ -2,7 +2,7 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder, Threefry}
+import is.hail.expr.ir.{EmitCodeBuilder, Threefry, ThreefryRandomEngine}
 import is.hail.types.{RPrimitive, TypeWithRequiredness}
 import is.hail.types.physical.{PType, StoredSTypePType}
 import is.hail.types.physical.stypes.primitives.SInt64Value
@@ -12,12 +12,6 @@ import is.hail.utils.{Bitstring, FastIndexedSeq, toRichIterable}
 
 import scala.collection.mutable
 import scala.collection.mutable
-
-object SRNGState {
-  val staticTweak = -1L
-  val finalBlockNoPadTweak = -2L
-  val finalBlockPaddedTweak = -3L
-}
 
 final case class SRNGStateStaticInfo(numWordsInLastBlock: Int, hasStaticSplit: Boolean, numDynBlocks: Int) {
   assert(numWordsInLastBlock <= 4 && numWordsInLastBlock >= 0)
@@ -87,9 +81,21 @@ trait SRNGStateValue extends SValue {
   def splitStatic(cb: EmitCodeBuilder, idx: Long): SRNGStateValue
   def splitDyn(cb: EmitCodeBuilder, idx: Value[Long]): SRNGStateValue
   def rand(cb: EmitCodeBuilder): IndexedSeq[Value[Long]]
+  def copyIntoEngine(cb: EmitCodeBuilder, tf: Value[ThreefryRandomEngine]): Unit
 }
 
 trait SRNGStateSettable extends SRNGStateValue with SSettable
+
+object SCanonicalRNGStateValue {
+  def apply(cb: EmitCodeBuilder): SCanonicalRNGStateValue = {
+    val typ = SRNGState(None)
+    new SCanonicalRNGStateValue(
+      typ,
+      Array.fill[Value[Long]](4)(0),
+      Array.fill[Value[Long]](4)(0),
+      0, false, 0)
+  }
+}
 
 class SCanonicalRNGStateValue(
   override val st: SRNGState,
@@ -109,11 +115,12 @@ class SCanonicalRNGStateValue(
     new SInt64Value(4*8 + 4*8 + 4 + 4 + 4)
 
   def splitStatic(cb: EmitCodeBuilder, idx: Long): SCanonicalRNGStateValue = {
-    cb.ifx(!hasStaticSplit, cb._fatal("RNGState received two static splits"))
+    cb.ifx(hasStaticSplit, cb._fatal("RNGState received two static splits"))
     val x = Array.ofDim[Long](4)
-    x(0) = idx
-    val key = cb.emb.ctx.rngKey
-    Threefry.encrypt(key, SRNGState.staticTweak, x)
+    x(0) = cb.emb.ctx.rngNonce
+    x(1) = idx
+    val key = Threefry.defaultKey
+    Threefry.encrypt(key, Array(Threefry.staticTweak, 0L), x)
     val newDynBlocksSum = Array.tabulate[Value[Long]](4)(i => cb.memoize(runningSum(i) ^ x(i)))
 
     new SCanonicalRNGStateValue(st, newDynBlocksSum, lastDynBlock, numWordsInLastBlock, const(true), numDynBlocks)
@@ -136,8 +143,8 @@ class SCanonicalRNGStateValue(
           newLastDynBlock(3) := idx))
       cb.assign(newNumWordsInLastBlock, newNumWordsInLastBlock + 1)
     }, {
-      val key = cb.emb.ctx.rngKey
-      Threefry.encrypt(cb, key, cb.memoize(numDynBlocks.toL), newLastDynBlock)
+      val key = Threefry.defaultKey
+      Threefry.encrypt(cb, key, Array(cb.memoize(numDynBlocks.toL), const(0L)), newLastDynBlock)
       for (i <- 0 until 4) cb.assign(newRunningSum(i), newRunningSum(i) ^ newLastDynBlock(i))
       cb.assign(newLastDynBlock(0), idx)
       for (i <- 1 until 4) cb.assign(newLastDynBlock(i), 0L)
@@ -149,19 +156,39 @@ class SCanonicalRNGStateValue(
   }
 
   def rand(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = {
+    cb.ifx(!hasStaticSplit, cb._fatal("RNGState never received static split"))
     val x = Array.tabulate[Settable[Long]](4)(i => cb.newLocal[Long](s"rand_x$i", runningSum(i)))
-    val key = cb.emb.ctx.rngKey
-    val tweak = cb.ifx(numWordsInLastBlock.ceq(4), SRNGState.finalBlockNoPadTweak, SRNGState.finalBlockPaddedTweak)
+    val key = Threefry.defaultKey
+    val finalTweak = cb.ifx(numWordsInLastBlock.ceq(4), Threefry.finalBlockNoPadTweak, Threefry.finalBlockPaddedTweak)
+    for (i <- 0 until 4) cb.assign(x(i), x(i) ^ lastDynBlock(i))
     cb += Code.switch(
       numWordsInLastBlock,
       Code._fatal[Unit]("invalid numWordsInLastBlock"),
       FastIndexedSeq(
-        x(0) := x(0) ^ (1L << 63),
-        x(1) := x(1) ^ (1L << 63),
-        x(2) := x(2) ^ (1L << 63),
-        x(3) := x(3) ^ (1L << 63)))
-    Threefry.encrypt(cb, key, tweak, x)
+        x(0) := x(0) ^ 1L,
+        x(1) := x(1) ^ 1L,
+        x(2) := x(2) ^ 1L,
+        x(3) := x(3) ^ 1L,
+        Code._empty))
+    Threefry.encrypt(cb, key, Array(finalTweak, const(0L)), x)
     x
+  }
+
+  def copyIntoEngine(cb: EmitCodeBuilder, tf: Value[ThreefryRandomEngine]): Unit = {
+    cb.ifx(!hasStaticSplit, cb._fatal("RNGState never received static split"))
+    val x = Array.tabulate[Settable[Long]](4)(i => cb.newLocal[Long](s"cie_x$i", runningSum(i)))
+    val finalTweak = cb.ifx(numWordsInLastBlock.ceq(4), Threefry.finalBlockNoPadTweak, Threefry.finalBlockPaddedTweak)
+    for (i <- 0 until 4) cb.assign(x(i), x(i) ^ lastDynBlock(i))
+    cb += Code.switch(
+      numWordsInLastBlock,
+      Code._fatal[Unit]("invalid numWordsInLastBlock"),
+      FastIndexedSeq(
+        x(0) := x(0) ^ 1L,
+        x(1) := x(1) ^ 1L,
+        x(2) := x(2) ^ 1L,
+        x(3) := x(3) ^ 1L,
+        Code._empty))
+    cb += tf.invoke[Long, Long, Long, Long, Long, Unit]("resetState", x(0), x(1), x(2), x(3), finalTweak)
   }
 }
 
@@ -190,7 +217,7 @@ class SCanonicalRNGStateSettable(
 }
 
 object SRNGStateStaticSizeValue {
-  def apply(cb: EmitCodeBuilder, key: IndexedSeq[Long]): SRNGStateStaticSizeValue = {
+  def apply(cb: EmitCodeBuilder): SRNGStateStaticSizeValue = {
     val typ = SRNGState(Some(SRNGStateStaticInfo(0, false, 0)))
     new SRNGStateStaticSizeValue(
       typ,
@@ -217,9 +244,10 @@ class SRNGStateStaticSizeValue(
   def splitStatic(cb: EmitCodeBuilder, idx: Long): SRNGStateStaticSizeValue = {
     assert(!staticInfo.hasStaticSplit)
     val x = Array.ofDim[Long](4)
-    x(0) = idx
-    val key = cb.emb.ctx.rngKey
-    Threefry.encrypt(key, SRNGState.staticTweak, x)
+    x(0) = cb.emb.ctx.rngNonce
+    x(1) = idx
+    val key = Threefry.defaultKey
+    Threefry.encrypt(key, Array(Threefry.staticTweak, 0L), x)
     val newDynBlocksSum = Array.tabulate[Value[Long]](4)(i => cb.memoize(runningSum(i) ^ x(i)))
 
     new SRNGStateStaticSizeValue(
@@ -237,8 +265,8 @@ class SRNGStateStaticSizeValue(
       )
     }
     val x = Array.tabulate[Settable[Long]](4)(i => cb.newLocal[Long](s"splitDyn_x$i", lastDynBlock(i)))
-    val key = cb.emb.ctx.rngKey
-    Threefry.encrypt(cb, key, staticInfo.numDynBlocks.toLong, x)
+    val key = Threefry.defaultKey
+    Threefry.encrypt(cb, key, Array(const(staticInfo.numDynBlocks.toLong), const(0L)), x)
     for (i <- 0 until 4) cb.assign(x(i), x(i) ^ runningSum(i))
 
     new SRNGStateStaticSizeValue(
@@ -249,17 +277,30 @@ class SRNGStateStaticSizeValue(
   }
 
   def rand(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = {
+    assert(staticInfo.hasStaticSplit)
     val x = Array.tabulate[Settable[Long]](4)(i => cb.newLocal[Long](s"rand_x$i", runningSum(i)))
-    val key = cb.emb.ctx.rngKey
+    val key = Threefry.defaultKey
     if (staticInfo.numWordsInLastBlock == 4) {
       for (i <- lastDynBlock.indices) cb.assign(x(i), x(i) ^ lastDynBlock(i))
-      Threefry.encrypt(cb, key, SRNGState.finalBlockNoPadTweak, x)
+      Threefry.encrypt(cb, key, Array(const(Threefry.finalBlockNoPadTweak), const(0L)), x)
     } else {
       for (i <- lastDynBlock.indices) cb.assign(x(i), x(i) ^ lastDynBlock(i))
-      cb.assign(x(lastDynBlock.size), x(lastDynBlock.size) ^ (1L << 63))
-      Threefry.encrypt(cb, key, SRNGState.finalBlockPaddedTweak, x)
+      cb.assign(x(lastDynBlock.size), x(lastDynBlock.size) ^ 1L)
+      Threefry.encrypt(cb, key, Array(const(Threefry.finalBlockPaddedTweak), const(0L)), x)
     }
     x
+  }
+
+  def copyIntoEngine(cb: EmitCodeBuilder, tf: Value[ThreefryRandomEngine]): Unit = {
+    val x = Array.tabulate[Settable[Long]](4)(i => cb.newLocal[Long](s"cie_x$i", runningSum(i)))
+    for (i <- lastDynBlock.indices) cb.assign(x(i), x(i) ^ lastDynBlock(i))
+    val finalTweak = if (staticInfo.numWordsInLastBlock < 4) {
+      cb.assign(x(lastDynBlock.size), x(lastDynBlock.size) ^ 1L)
+      Threefry.finalBlockPaddedTweak
+    } else {
+      Threefry.finalBlockNoPadTweak
+    }
+    cb += tf.invoke[Long, Long, Long, Long, Long, Unit]("resetState", x(0), x(1), x(2), x(3), finalTweak)
   }
 }
 

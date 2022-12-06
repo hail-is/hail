@@ -93,7 +93,7 @@ def gateway_default_host(service: str) -> dict:
                 'match': {'prefix': '/'},
                 'route': route_to_cluster(service),
                 'typed_per_filter_config': {
-                    'envoy.filters.http.local_ratelimit': rate_limit_config(),
+                    'envoy.filters.http.local_ratelimit': rate_limit_config(service),
                     'envoy.filters.http.ext_authz': auth_check_exemption(),
                 },
             }
@@ -111,7 +111,7 @@ def gateway_internal_host(services_per_namespace: Dict[str, List[str]]) -> dict:
                 'match': {'path_separated_prefix': f'/{namespace}/{service}'},
                 'route': route_to_cluster(f'{namespace}-{service}'),
                 'typed_per_filter_config': {
-                    'envoy.filters.http.local_ratelimit': rate_limit_config(),
+                    'envoy.filters.http.local_ratelimit': rate_limit_config(service),
                 },
             }
             for namespace, services in services_per_namespace.items()
@@ -130,7 +130,7 @@ def internal_gateway_default_host(service: str) -> dict:
                 'match': {'prefix': '/'},
                 'route': route_to_cluster(service),
                 'typed_per_filter_config': {
-                    'envoy.filters.http.local_ratelimit': rate_limit_config(),
+                    'envoy.filters.http.local_ratelimit': rate_limit_config(service),
                 },
             }
         ],
@@ -147,7 +147,7 @@ def internal_gateway_internal_host(services_per_namespace: Dict[str, List[str]])
                 'match': {'path_separated_prefix': f'/{namespace}/{service}'},
                 'route': route_to_cluster(f'{namespace}-{service}'),
                 'typed_per_filter_config': {
-                    'envoy.filters.http.local_ratelimit': rate_limit_config(),
+                    'envoy.filters.http.local_ratelimit': rate_limit_config(service),
                 },
             }
             for namespace, services in services_per_namespace.items()
@@ -172,13 +172,15 @@ def auth_check_exemption() -> dict:
     }
 
 
-def rate_limit_config() -> dict:
+def rate_limit_config(service: str) -> dict:
+    max_rps = 60 if service == 'batch-driver' else 200
+
     return {
         '@type': 'type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit',
         'stat_prefix': 'http_local_rate_limiter',
         'token_bucket': {
-            'max_tokens': 60,
-            'tokens_per_fill': 60,
+            'max_tokens': max_rps,
+            'tokens_per_fill': max_rps,
             'fill_interval': '1s',
         },
         'filter_enabled': {

@@ -4,9 +4,6 @@ from hail.genetics import Trio, Pedigree
 from ..helpers import *
 from hail.utils.java import FatalError
 
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
-
 
 class Tests(unittest.TestCase):
 

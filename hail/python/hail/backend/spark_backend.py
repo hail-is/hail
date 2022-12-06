@@ -300,19 +300,6 @@ class SparkBackend(Py4JBackend):
         jir = self._to_java_matrix_ir(mir)
         return tmatrix._from_java(jir.typ())
 
-    def persist_table(self, t, storage_level):
-        return Table._from_java(self._jbackend.pyPersistTable(storage_level, self._to_java_table_ir(t._tir)))
-
-    def unpersist_table(self, t):
-        return Table._from_java(self._to_java_table_ir(t._tir).pyUnpersist())
-
-    def persist_matrix_table(self, mt, storage_level):
-        ir = mt._mir.handle_randomness(None, None)
-        return MatrixTable._from_java(self._jbackend.pyPersistMatrix(storage_level, self._to_java_matrix_ir(ir)))
-
-    def unpersist_matrix_table(self, mt):
-        return MatrixTable._from_java(self._to_java_matrix_ir(mt._mir).pyUnpersist())
-
     def unpersist_block_matrix(self, id):
         self._jhc.backend().unpersist(id)
 
@@ -343,7 +330,7 @@ class SparkBackend(Py4JBackend):
     def remove_reference(self, name):
         self.hail_package().variant.ReferenceGenome.removeReference(name)
 
-    def get_reference(self, name):
+    def _get_non_builtin_reference(self, name):
         return json.loads(self.hail_package().variant.ReferenceGenome.getReference(name).toJSONString())
 
     def add_sequence(self, name, fasta_file, index_file):

@@ -40,7 +40,7 @@ class PageIterator:
 
     async def __anext__(self):
         if self._page is None:
-            self._page = await blocking_to_async(self._fs._thread_pool, self._fs._s3.list_objects_v2,
+            self._page = await blocking_to_async(self._fs._thread_pool, self._fs._s3.list_objects_v2,  # type: ignore
                                                  Bucket=self._bucket,
                                                  Prefix=self._prefix,
                                                  **self._kwargs)

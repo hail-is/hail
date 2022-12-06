@@ -3,9 +3,6 @@ import unittest
 from hail.genetics import *
 from ..helpers import *
 
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
-
 
 class Tests(unittest.TestCase):
     def test_hom_ref(self):

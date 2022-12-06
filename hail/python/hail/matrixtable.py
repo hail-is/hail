@@ -1991,7 +1991,7 @@ class MatrixTable(ExprContainer):
 
         >>> dataset.aggregate_rows(hl.struct(n_high_quality=hl.agg.count_where(dataset.qual > 40),
         ...                                  mean_qual=hl.agg.mean(dataset.qual)))
-        Struct(n_high_quality=13, mean_qual=544323.8915384616)
+        Struct(n_high_quality=9, mean_qual=140054.73333333334)
 
         Notes
         -----
@@ -2041,7 +2041,7 @@ class MatrixTable(ExprContainer):
         >>> dataset.aggregate_cols(
         ...    hl.struct(fraction_female=hl.agg.fraction(dataset.pheno.is_female),
         ...              case_ratio=hl.agg.count_where(dataset.is_case) / hl.agg.count()))
-        Struct(fraction_female=0.48, case_ratio=1.0)
+        Struct(fraction_female=0.44, case_ratio=1.0)
 
         Notes
         -----
@@ -2091,7 +2091,7 @@ class MatrixTable(ExprContainer):
 
         >>> dataset.aggregate_entries(hl.struct(global_gq_mean=hl.agg.mean(dataset.GQ),
         ...                                     call_rate=hl.agg.fraction(hl.is_defined(dataset.GT))))
-        Struct(global_gq_mean=64.01841473178543, call_rate=0.9607692307692308)
+        Struct(global_gq_mean=69.60514541387025, call_rate=0.9933333333333333)
 
         Notes
         -----
@@ -2121,7 +2121,7 @@ class MatrixTable(ExprContainer):
         analyze('MatrixTable.aggregate_entries', expr, self._global_indices, {self._row_axis, self._col_axis})
         agg_ir = ir.MatrixAggregate(base._mir, expr._ir)
         if _localize:
-            return Env.backend().execute(agg_ir)
+            return Env.backend().execute(ir.MakeTuple([agg_ir]))[0]
         else:
             return construct_expr(ir.LiftMeOut(agg_ir), expr.dtype)
 
@@ -3484,7 +3484,7 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Persisted dataset.
         """
-        return Env.backend().persist_matrix_table(self, storage_level)
+        return Env.backend().persist_matrix_table(self)
 
     def unpersist(self) -> 'MatrixTable':
         """

@@ -45,7 +45,8 @@ class AzureWritableStream(WritableStream):
             n = self._chunk_size
 
         block_id = secrets.token_urlsafe(32)
-        await self.client.stage_block(block_id, self._write_buffer.chunks(n))
+        with self._write_buffer.chunks(n) as chunks:
+            await self.client.stage_block(block_id, chunks)
         self.block_ids.append(block_id)
 
         new_offset = self._write_buffer.offset() + n
@@ -161,7 +162,7 @@ class AzureReadableStream(ReadableStream):
 
         if n == -1:
             try:
-                downloader = await self._client.download_blob(offset=self._offset, length=self._length)
+                downloader = await self._client.download_blob(offset=self._offset, length=self._length)  # type: ignore
             except azure.core.exceptions.ResourceNotFoundError as e:
                 raise FileNotFoundError(self._url) from e
             data = await downloader.readall()
@@ -170,7 +171,7 @@ class AzureReadableStream(ReadableStream):
 
         if self._downloader is None:
             try:
-                self._downloader = await self._client.download_blob(offset=self._offset)
+                self._downloader = await self._client.download_blob(offset=self._offset)  # type: ignore
             except azure.core.exceptions.ResourceNotFoundError as e:
                 raise FileNotFoundError(self._url) from e
             except azure.core.exceptions.HttpResponseError as e:
@@ -251,7 +252,9 @@ class AzureFileStatus(FileStatus):
         self.blob_props = blob_props
 
     async def size(self) -> int:
-        return self.blob_props.size
+        size = self.blob_props.size
+        assert isinstance(size, int)
+        return size
 
     async def __getitem__(self, key: str) -> Any:
         return self.blob_props.__dict__[key]
@@ -411,7 +414,7 @@ class AzureAsyncFS(AsyncFS):
         assert not name or name.endswith('/')
         async for blob_props in client.list_blobs(name_starts_with=name,
                                                   include=['metadata']):
-            yield AzureFileListEntry(client.account_name, client.container_name, blob_props.name, blob_props)
+            yield AzureFileListEntry(client.account_name, client.container_name, blob_props.name, blob_props)  # type: ignore
 
     @staticmethod
     async def _listfiles_flat(client: ContainerClient, name: str) -> AsyncIterator[FileListEntry]:
@@ -420,10 +423,10 @@ class AzureAsyncFS(AsyncFS):
                                             include=['metadata'],
                                             delimiter='/'):
             if isinstance(item, BlobPrefix):
-                yield AzureFileListEntry(client.account_name, client.container_name, item.prefix, None)
+                yield AzureFileListEntry(client.account_name, client.container_name, item.prefix, None)  # type: ignore
             else:
                 assert isinstance(item, BlobProperties)
-                yield AzureFileListEntry(client.account_name, client.container_name, item.name, item)
+                yield AzureFileListEntry(client.account_name, client.container_name, item.name, item)  # type: ignore
 
     async def listfiles(self,
                         url: str,

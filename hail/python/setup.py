@@ -19,12 +19,24 @@ with open('requirements.txt', 'r') as f:
 
         pkg = stripped
 
-        if pkg.startswith('pyspark') and os.path.exists('../env/SPARK_VERSION'):
-            with open('../env/SPARK_VERSION', 'r') as file:
-                spark_version = file.read()
-            dependencies.append(f'pyspark=={spark_version}')
-        else:
-            dependencies.append(pkg)
+def add_dependencies(fname):
+    with open(fname, 'r') as f:
+        for line in f:
+            stripped = line.strip()
+            if stripped.startswith('#') or len(stripped) == 0:
+                continue
+            if stripped.startswith('-r'):
+                additional_requirements = stripped[len('-r'):].strip()
+                add_dependencies(additional_requirements)
+                continue
+            pkg = stripped
+            if pkg.startswith('pyspark') and os.path.exists('../env/SPARK_VERSION'):
+                with open('../env/SPARK_VERSION', 'r') as file:
+                    spark_version = file.read()
+                dependencies.append(f'pyspark=={spark_version}')
+            else:
+                dependencies.append(pkg)
+add_dependencies('requirements.txt')
 
 setup(
     name="hail",

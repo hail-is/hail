@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.16)
 project(hail-mlir-dialect LANGUAGES CXX C)
 
 # CMP0116: Ninja generators transform `DEPFILE`s from `add_custom_command()`
@@ -48,7 +48,7 @@ include_directories(${PROJECT_BINARY_DIR}/include)
 link_directories(${LLVM_BUILD_LIBRARY_DIR})
 add_definitions(${LLVM_DEFINITIONS})
 
-# surpress a warning on clang
+# supress a warning on clang
 add_compile_options($<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>:-Wno-ambiguous-reversed-operator>)
 
 set(CMAKE_CXX_CLANG_TIDY clang-tidy --use-color --warnings-as-errors=*)

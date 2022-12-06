@@ -543,38 +543,6 @@ class SparkBackend(
     }
   }
 
-  def pyPersistMatrix(storageLevel: String, mir: MatrixIR): MatrixIR = {
-    ExecutionTimer.logTime("SparkBackend.pyPersistMatrix") { timer =>
-      val level = try {
-        StorageLevel.fromString(storageLevel)
-      } catch {
-        case e: IllegalArgumentException =>
-          fatal(s"unknown StorageLevel: $storageLevel")
-      }
-
-      withExecuteContext(timer, selfContainedExecution = false) { ctx =>
-        val tv = Interpret(mir, ctx, optimize = true)
-        MatrixLiteral(mir.typ, TableLiteral(tv.persist(ctx, level), ctx.theHailClassLoader))
-      }
-    }
-  }
-
-  def pyPersistTable(storageLevel: String, tir: TableIR): TableIR = {
-    ExecutionTimer.logTime("SparkBackend.pyPersistTable") { timer =>
-      val level = try {
-        StorageLevel.fromString(storageLevel)
-      } catch {
-        case e: IllegalArgumentException =>
-          fatal(s"unknown StorageLevel: $storageLevel")
-      }
-
-      withExecuteContext(timer, selfContainedExecution = false) { ctx =>
-        val tv = Interpret(tir, ctx, optimize = true)
-        TableLiteral(tv.persist(ctx, level), ctx.theHailClassLoader)
-      }
-    }
-  }
-
   def pyToDF(tir: TableIR): DataFrame = {
     ExecutionTimer.logTime("SparkBackend.pyToDF") { timer =>
       withExecuteContext(timer, selfContainedExecution = false) { ctx =>

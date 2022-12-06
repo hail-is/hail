@@ -3,9 +3,6 @@ import unittest
 import hail as hl
 from ..helpers import *
 
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
-
 
 class Tests(unittest.TestCase):
     def test_trio_matrix(self):

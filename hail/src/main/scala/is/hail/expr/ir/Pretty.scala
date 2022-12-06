@@ -196,7 +196,6 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     case ApplyBinaryPrimOp(op, _, _) => single(Pretty.prettyClass(op))
     case ApplyUnaryPrimOp(op, _) => single(Pretty.prettyClass(op))
     case ApplyComparisonOp(op, _, _) => single(op.render())
-    case RNGStateLiteral(key) => single(prettyLongs(key, false))
     case GetField(_, name) => single(prettyIdentifier(name))
     case GetTupleElement(_, idx) => single(idx.toString)
     case MakeTuple(fields) => FastSeq(prettyInts(fields.map(_._1).toFastIndexedSeq, elideLiterals))
@@ -221,8 +220,8 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
       case ArrayZipBehavior.ExtendNA => "ExtendNA"
       case ArrayZipBehavior.AssumeSameLength => "AssumeSameLength"
     }, prettyIdentifiers(names))
-    case StreamZipJoin(_, key, curKey, curVals, _) if !elideBindings =>
-      FastSeq(prettyIdentifiers(key), prettyIdentifier(curKey), prettyIdentifier(curVals))
+    case StreamZipJoin(streams, key, curKey, curVals, _) if !elideBindings =>
+      FastSeq(streams.length.toString, prettyIdentifiers(key), prettyIdentifier(curKey), prettyIdentifier(curVals))
     case StreamMultiMerge(_, key) => single(prettyIdentifiers(key))
     case StreamFilter(_, name, _) if !elideBindings => single(prettyIdentifier(name))
     case StreamTakeWhile(_, name, _) if !elideBindings => single(prettyIdentifier(name))
@@ -271,7 +270,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     case ArrayRef(_,_, errorID) => single(s"$errorID")
     case ApplyIR(function, typeArgs, _, errorID) => FastSeq(s"$errorID", prettyIdentifier(function), prettyTypes(typeArgs), ir.typ.parsableString())
     case Apply(function, typeArgs, _, t, errorID) => FastSeq(s"$errorID", prettyIdentifier(function), prettyTypes(typeArgs), t.parsableString())
-    case ApplySeeded(function, _, rngState, seed, t) => FastSeq(prettyIdentifier(function), seed.toString, t.parsableString())
+    case ApplySeeded(function, _, rngState, staticUID, t) => FastSeq(prettyIdentifier(function), staticUID.toString, t.parsableString())
     case ApplySpecial(function, typeArgs, _, t, errorID) => FastSeq(s"$errorID", prettyIdentifier(function), prettyTypes(typeArgs), t.parsableString())
     case SelectFields(_, fields) => single(fillList(fields.view.map(f => text(prettyIdentifier(f)))))
     case LowerBoundOnOrderedCollection(_, _, onKey) => single(Pretty.prettyBooleanLiteral(onKey))
@@ -307,8 +306,9 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
       single(fillList(indicesToKeepPerDim.toSeq.view.map(indices => prettyLongs(indices, elideLiterals))))
     case BlockMatrixSparsify(_, sparsifier) =>
       single(sparsifier.pretty())
-    case BlockMatrixRandom(seed, gaussian, shape, blockSize) =>
-      FastSeq(seed.toString,
+    case BlockMatrixRandom(staticUID, gaussian, shape, blockSize) =>
+      FastSeq(
+        staticUID.toString,
         Pretty.prettyBooleanLiteral(gaussian),
         prettyLongs(shape, elideLiterals),
         blockSize.toString)
