@@ -125,7 +125,7 @@ async def query_billing_projects(db, user=None, billing_project=None):
         args.append(user)
 
     if billing_project:
-        where_conditions.append('billing_projects.name = %s')
+        where_conditions.append('billing_projects.name_cs = %s')
         args.append(billing_project)
 
     if where_conditions:
@@ -139,7 +139,7 @@ SELECT billing_projects.name as billing_project,
   billing_projects.`status` as `status`,
   users, `limit`
 FROM (
-  SELECT billing_project, JSON_ARRAYAGG(`user`) as users
+  SELECT billing_project, JSON_ARRAYAGG(`user_cs`) as users
   FROM billing_project_users
   GROUP BY billing_project
   LOCK IN SHARE MODE

@@ -873,6 +873,9 @@ class BatchClient:
         assert self._session
         return await request_retry_transient_errors(self._session, 'DELETE', self.url + path, headers=self._headers)
 
+    def reset_billing_project(self, billing_project):
+        self.billing_project = billing_project
+
     async def list_batches(self, q=None, last_batch_id=None, limit=2 ** 64):
         n = 0
         while True:

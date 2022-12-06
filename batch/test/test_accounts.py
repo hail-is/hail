@@ -624,3 +624,91 @@ async def test_deleted_open_batches_do_not_prevent_billing_project_closure(
         await open_batch.delete()
     finally:
         await dev_client.close_billing_project(project)
+
+
+async def test_billing_project_case_sensitive(dev_client: BatchClient, new_billing_project: str):
+    upper_case_project = new_billing_project.upper()
+
+    # create billing project
+    await dev_client.create_billing_project(new_billing_project)
+    await dev_client.add_user('test-dev', new_billing_project)
+
+    dev_client.reset_billing_project(new_billing_project)
+
+    # create one batch with the correct billing project
+    bb = dev_client.create_batch()
+    j = bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
+    b = await bb.submit()
+
+    dev_client.reset_billing_project(upper_case_project)
+
+    # create batch
+    try:
+        bb = dev_client.create_batch()
+        j = bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
+        b = await bb.submit()
+    except aiohttp.ClientResponseError as e:
+        assert e.status == 403, e
+    else:
+        assert False
+
+    # edit billing limit
+    try:
+        limit = 5
+        await dev_client.edit_billing_limit(upper_case_project, limit)
+    except aiohttp.ClientResponseError as e:
+        assert e.status == 404, e
+    else:
+        assert False
+
+    # get billing project
+    try:
+        bp = await dev_client.get_billing_project(upper_case_project)
+    except aiohttp.ClientResponseError as e:
+        assert e.status == 403, e
+    else:
+        assert False
+
+    # add user to project
+    try:
+        r = await dev_client.add_user('test', upper_case_project)
+    except aiohttp.ClientResponseError as e:
+        assert e.status == 404, e
+    else:
+        assert False
+
+    # remove user from project
+    try:
+        r = await dev_client.remove_user('test', upper_case_project)
+    except aiohttp.ClientResponseError as e:
+        assert e.status == 404, e
+    else:
+        assert False
+
+    # close billing project
+    try:
+        r = await dev_client.close_billing_project(upper_case_project)
+    except aiohttp.ClientResponseError as e:
+        assert e.status == 404, e
+    else:
+        assert False
+
+    # delete billing project
+    try:
+        r = await dev_client.delete_billing_project(upper_case_project)
+    except aiohttp.ClientResponseError as e:
+        assert e.status == 404, e
+    else:
+        assert False
+
+    # list batches for a billing project
+    batches = [batch async for batch in dev_client.list_batches(f'billing_project:{upper_case_project}')]
+    assert len(batches) == 0
+
+    # list batches for a user
+    batches = [batch async for batch in dev_client.list_batches(f'user:DEV-TEST')]
+    assert len(batches) == 0
+
+    # list batches for a user that submitted the batch
+    batches = [batch async for batch in dev_client.list_batches(f'user=DEV-TEST')]
+    assert len(batches) == 0
