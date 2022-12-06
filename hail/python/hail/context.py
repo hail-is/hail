@@ -855,7 +855,7 @@ def _get_flags(*flags):
 
 @contextmanager
 def _with_flags(**flags):
-    before = _get_flags(*flags)
+    before = _get_flags(*flags).d
     try:
         _set_flags(**flags)
         yield
