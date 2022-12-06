@@ -189,17 +189,28 @@ def assert_all_eval_to(*expr_and_expected):
     assert_evals_to(hl.tuple(exprs), expecteds)
 
 
-def with_flags(*flags):
+def with_flags(**flags):
     @decorator
     def wrapper(func, *args, **kwargs):
         prev_flags = hl._get_flags(*flags)
 
-        hl._set_flags(**{k: '1' for k in flags})
+        hl._set_flags(**{k: v for k, v in flags.items()})
 
         try:
             return func(*args, **kwargs)
         finally:
             hl._set_flags(**prev_flags)
+    return wrapper
+
+
+def set_gcs_requester_pays_configuration(gcs_project):
+    @decorator
+    def wrapper(func, *args, **kwargs):
+        if gcs_project is not None:
+            with hl._with_flags(gcs_requester_pays_configuration=gcs_project):
+                return func(*args, **kwargs)
+        else:
+            return func(*args, **kwargs)
     return wrapper
 
 

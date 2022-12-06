@@ -5,6 +5,9 @@ import hail.expr.aggregators as agg
 from ..helpers import *
 
 
+GCS_REQUESTER_PAYS_PROJECT = os.environ.get('GCS_REQUESTER_PAYS_PROJECT')
+
+
 class Tests(unittest.TestCase):
     def test_sample_qc(self):
         data = [
@@ -297,6 +300,7 @@ class Tests(unittest.TestCase):
         assert pytest.approx(d['C1046::HG02025'], abs=0.0001) == .00124
 
     @skip_unless_service_backend()
+    @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     def test_vep_grch37_consequence_true(self):
         gnomad_vep_result = hl.import_vcf(resource('sample.gnomad.exomes.r2.1.1.sites.chr1.vcf.gz'), reference_genome='GRCh37', force=True)
         hail_vep_result = hl.vep(gnomad_vep_result, csq=True)
@@ -308,6 +312,7 @@ class Tests(unittest.TestCase):
         assert 'Consequence annotations from Ensembl VEP' in vep_csq_header, vep_csq_header
 
     @skip_unless_service_backend()
+    @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     def test_vep_grch38_consequence_true(self):
         gnomad_vep_result = hl.import_vcf(resource('sample.gnomad.genomes.r3.0.sites.chr1.vcf.gz'), reference_genome='GRCh38', force=True)
         hail_vep_result = hl.vep(gnomad_vep_result, csq=True)
@@ -319,19 +324,21 @@ class Tests(unittest.TestCase):
         assert 'Consequence annotations from Ensembl VEP' in vep_csq_header, vep_csq_header
 
     @skip_unless_service_backend()
+    @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     def test_vep_grch37_consequence_false(self):
         mt = hl.import_vcf(resource('sample.gnomad.exomes.r2.1.1.sites.chr1.vcf.gz'), reference_genome='GRCh37', force=True)
         hail_vep_result = hl.vep(mt, csq=False)
         ht = hail_vep_result.rows()
         ht = ht.select(variant_class=ht.vep.variant_class)
-        variant_class = ht.head(1).collect()
-        assert variant_class == 'SNV', variant_class
+        result = ht.head(1).collect()
+        assert result.variant_class == 'SNV', result
 
     @skip_unless_service_backend()
+    @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     def test_vep_grch38_consequence_false(self):
         mt = hl.import_vcf(resource('sample.gnomad.genomes.r3.0.sites.chr1.vcf.gz'), reference_genome='GRCh38', force=True)
         hail_vep_result = hl.vep(mt, csq=False)
         ht = hail_vep_result.rows()
         ht = ht.select(variant_class=ht.vep.variant_class)
-        variant_class = ht.head(1).collect()
-        assert variant_class == 'SNV', variant_class
+        result = ht.head(1).collect()
+        assert result.variant_class == 'SNV', result
