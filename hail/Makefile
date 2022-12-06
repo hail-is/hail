@@ -287,13 +287,14 @@ generate-pip-lockfiles: python/pinned-requirements.txt
 generate-pip-lockfiles: python/dev/pinned-requirements.txt
 
 python/hailtop/hailctl/deploy.yaml: env/cloud_base env/wheel_cloud_path
-python/hailtop/hailctl/deploy.yaml: $(resources) python/pinned-requirements.txt
+python/hailtop/hailctl/deploy.yaml: $(resources)
 	rm -f $@
 	echo "dataproc:" >> $@
 	for FILE in $(notdir $(resources)); do \
 	  echo "  $$FILE: $(cloud_base)/$$FILE" >> $@ || exit 1; done
 	echo "  wheel: $(wheel_cloud_path)" >> $@
 	printf "  pip_dependencies: " >> $@
+	$(PIP) install pip-tools && ../check_pip_requirements.sh python/requirements.txt python/pinned-requirements.txt
 	cat python/pinned-requirements.txt | sed '/^[[:blank:]]*#/d;s/#.*//' | grep -v pyspark | tr "\n" "|||" | tr -d '[:space:]' >> $@
 
 .PHONY: upload-artifacts
