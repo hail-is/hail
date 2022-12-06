@@ -330,7 +330,7 @@ class Tests(unittest.TestCase):
         hail_vep_result = hl.vep(mt, csq=False)
         ht = hail_vep_result.rows()
         ht = ht.select(variant_class=ht.vep.variant_class)
-        result = ht.head(1).collect()
+        result = ht.head(1).collect()[0]
         assert result.variant_class == 'SNV', result
 
     @skip_unless_service_backend()
@@ -340,5 +340,5 @@ class Tests(unittest.TestCase):
         hail_vep_result = hl.vep(mt, csq=False)
         ht = hail_vep_result.rows()
         ht = ht.select(variant_class=ht.vep.variant_class)
-        result = ht.head(1).collect()
+        result = ht.head(1).collect()[0]
         assert result.variant_class == 'SNV', result
