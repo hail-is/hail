@@ -1,6 +1,7 @@
+#include "hail/Conversion/LowerOption/LowerOption.h"
+
 #include "../PassDetail.h"
 
-#include "hail/Conversion/LowerOption/LowerOption.h"
 #include "hail/Dialect/CPS/IR/CPS.h"
 #include "hail/Dialect/Option/IR/Option.h"
 #include "hail/Support/MLIR.h"

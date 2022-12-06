@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef INITALLPASSES_H_
-#define INITALLPASSES_H_
+#ifndef HAIL_INITALLPASSES_H_
+#define HAIL_INITALLPASSES_H_
 
 #include "Conversion/Passes.h"
 #include "Transforms/Passes.h"
@@ -35,4 +35,4 @@ inline void registerAllPasses() {
 
 } // namespace hail::ir
 
-#endif // INITALLPASSES_H_
+#endif // HAIL_INITALLPASSES_H_

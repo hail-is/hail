@@ -44,7 +44,7 @@ static const cl::opt<bool> enableOpt("opt", cl::desc("Enable optimizations"));
 auto loadMLIR(mlir::MLIRContext &context, mlir::OwningOpRef<mlir::ModuleOp> &module) -> int {
   llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> fileOrErr =
       llvm::MemoryBuffer::getFileOrSTDIN(inputFilename);
-  if (std::error_code ec = fileOrErr.getError()) {
+  if (std::error_code const ec = fileOrErr.getError()) {
     llvm::errs() << "Could not open input file: " << ec.message() << "\n";
     return -1;
   }
@@ -62,7 +62,7 @@ auto loadMLIR(mlir::MLIRContext &context, mlir::OwningOpRef<mlir::ModuleOp> &mod
 
 auto loadAndProcessMLIR(mlir::MLIRContext &context, mlir::OwningOpRef<mlir::ModuleOp> &module)
     -> int {
-  if (int error = loadMLIR(context, module))
+  if (int const error = loadMLIR(context, module))
     return error;
 
   mlir::PassManager pm(&context);
@@ -70,8 +70,8 @@ auto loadAndProcessMLIR(mlir::MLIRContext &context, mlir::OwningOpRef<mlir::Modu
   applyPassManagerCLOptions(pm);
 
   // Check to see what granularity of MLIR we are compiling to.
-  bool isLoweringToMLIR = emitAction >= Action::DumpMLIR;
-  bool isLoweringToLLVM = emitAction >= Action::DumpMLIRLLVM;
+  bool const isLoweringToMLIR = emitAction >= Action::DumpMLIR;
+  bool const isLoweringToLLVM = emitAction >= Action::DumpMLIRLLVM;
 
   if (enableOpt || isLoweringToMLIR) {
     // Inline all functions into main and then delete them.
@@ -180,11 +180,11 @@ auto main(int argc, char **argv) -> int {
   hail::ir::registerAllDialects(context);
 
   mlir::OwningOpRef<mlir::ModuleOp> module;
-  if (int error = loadAndProcessMLIR(context, module))
+  if (int const error = loadAndProcessMLIR(context, module))
     return error;
 
   // If we aren't exporting to non-mlir, then we are done.
-  bool isOutputingMLIR = emitAction <= Action::DumpMLIRLLVM;
+  bool const isOutputingMLIR = emitAction <= Action::DumpMLIRLLVM;
   if (isOutputingMLIR) {
     module->dump();
     return 0;

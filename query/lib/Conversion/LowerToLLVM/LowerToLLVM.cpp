@@ -1,6 +1,7 @@
+#include "hail/Conversion/LowerToLLVM/LowerToLLVM.h"
+
 #include "../PassDetail.h"
 
-#include "hail/Conversion/LowerToLLVM/LowerToLLVM.h"
 #include "hail/Dialect/Sandbox/IR/Sandbox.h"
 #include "hail/Support/MLIR.h"
 

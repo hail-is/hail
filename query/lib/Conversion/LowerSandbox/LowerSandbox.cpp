@@ -1,6 +1,7 @@
+#include "hail/Conversion/LowerSandbox/LowerSandbox.h"
+
 #include "../PassDetail.h"
 
-#include "hail/Conversion/LowerSandbox/LowerSandbox.h"
 #include "hail/Dialect/Sandbox/IR/Sandbox.h"
 #include "hail/Support/MLIR.h"
 

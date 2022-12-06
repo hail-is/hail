@@ -16,5 +16,5 @@ auto main(int argc, char **argv) -> int {
   mlir::DialectRegistry registry;
   registerAllDialects(registry);
 
-  return failed(MlirLspServerMain(argc, argv, registry));
+  return static_cast<int>(failed(MlirLspServerMain(argc, argv, registry)));
 }

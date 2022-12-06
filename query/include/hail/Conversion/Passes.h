@@ -1,5 +1,5 @@
-#ifndef CONVERSION_PASSES_H
-#define CONVERSION_PASSES_H
+#ifndef HAIL_CONVERSION_PASSES_H
+#define HAIL_CONVERSION_PASSES_H
 
 #include "hail/Conversion/CPSToCF/CPSToCF.h"
 #include "hail/Conversion/LowerOption/LowerOption.h"
@@ -16,4 +16,4 @@ namespace hail {
 
 } // namespace hail
 
-#endif // CONVERSION_PASSES_H
+#endif // HAIL_CONVERSION_PASSES_H

@@ -1,4 +1,7 @@
+#include "hail/Conversion/CPSToCF/CPSToCF.h"
+
 #include "../PassDetail.h"
+
 #include "hail/Dialect/CPS/IR/CPS.h"
 #include "hail/Support/MLIR.h"
 
