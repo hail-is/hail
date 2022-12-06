@@ -1,4 +1,4 @@
-// RUN: hail-opt %s | FileCheck %s
+// RUN: hail-opt -allow-unregistered-dialect %s | FileCheck %s
 
 // CHECK-LABEL: option
 func.func @option() -> i32 {
