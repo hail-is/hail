@@ -535,7 +535,7 @@ class BatchBuilder:
                     in_update_parent_ids.append(job._job_id)
             else:
                 assert isinstance(job, SubmittedJob)
-                if self._batch is None or job._batch != self._batch:
+                if self._batch is None or (job._batch != self._batch and job._batch.id != self._batch.id):
                     foreign_batches.append(job)
                 else:
                     absolute_parent_ids.append(job.job_id)
