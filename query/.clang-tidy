@@ -15,6 +15,7 @@ Checks: >
   -cppcoreguidelines-avoid-magic-numbers,
   -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
   misc-*,
+  -misc-confusable-identifiers,
   -misc-unused-parameters,
   -misc-non-private-member-variables-in-classes,
   -misc-no-recursion,
