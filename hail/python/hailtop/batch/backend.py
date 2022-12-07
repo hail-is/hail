@@ -573,11 +573,12 @@ class ServiceBackend(Backend[bc.Batch]):
             attributes['name'] = batch.name
 
         if batch._client_batch is None:
-            batch._client_batch = self._batch_client.create_batch(
+            bc_batch_builder = self._batch_client.create_batch(
                 attributes=attributes, callback=callback, token=token, cancel_after_n_failures=batch._cancel_after_n_failures
             )
-
-        bc_batch = batch._client_batch
+        else:
+            assert batch._client_batch
+            bc_batch_builder = self._batch_client.update_batch(batch._client_batch.id)
 
         n_jobs_submitted = 0
         used_remote_tmpdir = False
@@ -622,9 +623,9 @@ class ServiceBackend(Backend[bc.Batch]):
             if dry_run:
                 commands.append(' '.join(shq(x) for x in write_cmd))
             else:
-                j = bc_batch.create_job(image=HAIL_GENETICS_HAILTOP_IMAGE,
-                                        command=write_cmd,
-                                        attributes={'name': 'write_external_inputs'})
+                j = bc_batch_builder.create_job(image=HAIL_GENETICS_HAILTOP_IMAGE,
+                                                command=write_cmd,
+                                                attributes={'name': 'write_external_inputs'})
                 jobs_to_command[j] = ' '.join(shq(x) for x in write_cmd)
                 n_jobs_submitted += 1
 
@@ -724,22 +725,22 @@ class ServiceBackend(Backend[bc.Batch]):
 
             env = {**job._env, 'BATCH_TMPDIR': local_tmpdir}
 
-            j = bc_batch.create_job(image=image,
-                                    command=[job._shell if job._shell else DEFAULT_SHELL, '-c', cmd],
-                                    parents=parents,
-                                    attributes=attributes,
-                                    resources=resources,
-                                    input_files=inputs if len(inputs) > 0 else None,
-                                    output_files=outputs if len(outputs) > 0 else None,
-                                    always_run=job._always_run,
-                                    timeout=job._timeout,
-                                    cloudfuse=job._cloudfuse if len(job._cloudfuse) > 0 else None,
-                                    env=env,
-                                    requester_pays_project=batch.requester_pays_project,
-                                    mount_tokens=True,
-                                    user_code=user_code,
-                                    regions=job._regions,
-                                    always_copy_output=job._always_copy_output)
+            j = bc_batch_builder.create_job(image=image,
+                                            command=[job._shell if job._shell else DEFAULT_SHELL, '-c', cmd],
+                                            parents=parents,
+                                            attributes=attributes,
+                                            resources=resources,
+                                            input_files=inputs if len(inputs) > 0 else None,
+                                            output_files=outputs if len(outputs) > 0 else None,
+                                            always_run=job._always_run,
+                                            timeout=job._timeout,
+                                            cloudfuse=job._cloudfuse if len(job._cloudfuse) > 0 else None,
+                                            env=env,
+                                            requester_pays_project=batch.requester_pays_project,
+                                            mount_tokens=True,
+                                            user_code=user_code,
+                                            regions=job._regions,
+                                            always_copy_output=job._always_copy_output)
 
             n_jobs_submitted += 1
 
@@ -752,7 +753,7 @@ class ServiceBackend(Backend[bc.Batch]):
 
         if delete_scratch_on_exit and used_remote_tmpdir:
             parents = list(jobs_to_command.keys())
-            j = bc_batch.create_job(
+            j = bc_batch_builder.create_job(
                 image=HAIL_GENETICS_HAILTOP_IMAGE,
                 command=['python3', '-m', 'hailtop.aiotools.delete', batch_remote_tmpdir],
                 parents=parents,
@@ -765,7 +766,8 @@ class ServiceBackend(Backend[bc.Batch]):
             print(f'Built DAG with {n_jobs_submitted} jobs in {round(time.time() - build_dag_start, 3)} seconds.')
 
         submit_batch_start = time.time()
-        batch_handle = bc_batch.submit(disable_progress_bar=disable_progress_bar)
+        batch_handle = bc_batch_builder.submit(disable_progress_bar=disable_progress_bar)
+        batch._client_batch = batch_handle
 
         for job in batch._unsubmitted_jobs:
             job._submitted = True
