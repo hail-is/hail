@@ -1,1 +1,3 @@
-google-cloud-profiler==4.0.0
+# https://github.com/sass/libsass-python/issues/413
+google-cloud-profiler<4.0.0
+protobuf<=3.20.0
