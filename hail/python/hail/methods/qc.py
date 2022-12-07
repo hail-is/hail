@@ -12,7 +12,6 @@ from hailtop import pip_version
 from hailtop.utils import Timings, secret_alnum_string
 import hailtop.batch_client as bc
 from hailtop.config import configuration_of
-from hailtop.aiocloud import aiogoogle
 from hailtop import yamlx
 
 from hail.backend.service_backend import ServiceBackend
