@@ -1,6 +1,8 @@
 #ifndef HAIL_CONVERSION_CPSTOCF_CPSTOCF_H
 #define HAIL_CONVERSION_CPSTOCF_CPSTOCF_H
 
+#include "mlir/Pass/Pass.h"
+
 #include <memory>
 
 namespace mlir {
