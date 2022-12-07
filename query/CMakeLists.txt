@@ -51,7 +51,7 @@ add_definitions(${LLVM_DEFINITIONS})
 # supress a warning on clang
 add_compile_options($<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>:-Wno-ambiguous-reversed-operator>)
 
-if(NOT CMAKE_CXX_CLANG_TIDY)
+if(HAIL_USE_CLANG_TIDY AND NOT CMAKE_CXX_CLANG_TIDY)
     find_program(CLANG_TIDY "clang-tidy" HINTS ${LLVM_TOOLS_BINARY_DIR})
     if(CLANG_TIDY)
         message(STATUS "Found clang-tidy: ${CLANG_TIDY}")

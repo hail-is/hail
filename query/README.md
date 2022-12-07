@@ -55,7 +55,7 @@ cmake .. -G Ninja \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   -DMLIR_DIR=$HAIL_DIR/.dist/llvm/lib/cmake/mlir \
   -DCMAKE_EXPORT_COMPILE_COMMANDS=1 \
-  -DLLVM_BUILD_BINARY_DIR=~/src/llvm-project/build/bin \
+  -DLLVM_BUILD_BINARY_DIR=~/src/llvm-project/build/bin
   # ^ this argument is necessary to find llvm-lit and FileCheck for the tests
   #   they are skipped and a warning printed otherwise
 ```
@@ -66,6 +66,9 @@ cd build
 ninja
 ```
 
+To also run `clang-tidy` when building, pass `-DCMAKE_CXX_CLANG_TIDY=clang-tidy` or
+`-DHAIL_USE_CLANG_TIDY=ON` to cmake. This can drastically increase build times,
+so it may not be suitable for local development.
 
 ## Running the tests
 
@@ -122,8 +125,8 @@ The location of the `settings.json` file on your platform can be found
 # file on your platform
 VS_CODE_SETTINGS="$HOME/Library/Application Support/Code/User"
 cp "${VS_CODE_SETTINGS}/settings.json" "${VS_CODE_SETTINGS}/settings.json.bak"
-jq "                                 
-  .[\"mlir.pdll_server_path\"] = \"${LLVM_BUILD_BIN}/mlir-pdll-lsp-server\" 
+jq "
+  .[\"mlir.pdll_server_path\"] = \"${LLVM_BUILD_BIN}/mlir-pdll-lsp-server\"
 | .[\"mlir.server_path\"] = \"${LLVM_BUILD_BIN}/mlir-lsp-server\"
 | .[\"mlir.tablegen_server_path\"] = \"${LLVM_BUILD_BIN}/tblgen-lsp-server\"
 | .[\"mlir.tablegen_compilation_databases\"] = [
