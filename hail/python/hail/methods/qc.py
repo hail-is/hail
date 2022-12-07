@@ -649,7 +649,8 @@ class VEPConfig:
             config['vep_json_typ'],
             config['command'],
             config['csq_header_command'],
-            False
+            False,
+            config.get('cloud'),
         )
 
     def __init__(self,
@@ -661,7 +662,8 @@ class VEPConfig:
                  vep_json_typ: hl.expr.HailType,
                  command: List[str],
                  csq_header_command: List[str],
-                 is_maintained_by_hail: bool):
+                 is_maintained_by_hail: bool,
+                 cloud: Optional[str]):
         self.data_bucket = data_bucket
         self.regions = regions
         self.image = image
@@ -671,6 +673,7 @@ class VEPConfig:
         self.command = command
         self.csq_header_command = csq_header_command
         self.is_maintained_by_hail = is_maintained_by_hail
+        self.cloud = cloud
 
 
 supported_vep_configs = {
@@ -683,7 +686,8 @@ supported_vep_configs = {
         VEPConfig.default_vep_json_typ,
         ["python3", "/hail-vep/run_vep_grch37.py", "vep"],
         ["python3", "/hail-vep/run_vep_grch37.py", "csq_header"],
-        True
+        True,
+        'gcp',
     ),
     ('GRCh38', 'gcp', 'us-central1', 'hail.is'): VEPConfig(
         'hail-qob-vep-grch38-us-central1',
@@ -699,7 +703,8 @@ supported_vep_configs = {
         )),
         ["python3", "/hail-vep/run_vep_grch38.py", "vep"],
         ["python3", "/hail-vep/run_vep_grch38.py", "csq_header"],
-        True
+        True,
+        'gcp',
     ),
 }
 
@@ -736,11 +741,10 @@ def _service_vep(backend: ServiceBackend,
         vep_config = supported_vep_config(backend, cloud, reference_genome, regions=regions)
 
     requester_pays_project = backend.flags.get('gcs_requester_pays_project')
-    if requester_pays_project is None and vep_config.is_maintained_by_hail:
-        if backend._async_fs.parse_url(vep_config.data_bucket).scheme in aiogoogle.GoogleStorageAsyncFS.schemes:
-            raise ValueError("No requester pays project has been set. "
-                             "Use hl.init(gcs_requester_pays_configuration='MY_PROJECT') "
-                             "to set the requester pays project to use.")
+    if requester_pays_project is None and vep_config.is_maintained_by_hail and vep_config.cloud == 'gcp':
+        raise ValueError("No requester pays project has been set. "
+                         "Use hl.init(gcs_requester_pays_configuration='MY_PROJECT') "
+                         "to set the requester pays project to use.")
 
     token = secret_alnum_string(16)
     vep_input_path = hl.TemporaryDirectory(prefix='qob/vep/inputs/')
