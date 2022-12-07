@@ -312,37 +312,6 @@ object ArrayFunctions extends RegistryFunctions {
       }
     }
 
-    registerSCode1("allele_to_genotype_reindex", TArray(TInt32), TArray(TInt32), (_, _) => PCanonicalArray(PInt32(true), false).sType) {
-      case (er, cb, rt: SIndexablePointer, la: SIndexableValue, err) =>
-
-        val laLen = la.loadLength()
-        cb.ifx(laLen ceq 0, cb._fatalWithError(err, "reindex_local_alleles_to_genotype: local alleles cannot be empty"))
-
-        val pt = rt.pType.asInstanceOf[PCanonicalArray]
-
-        def laAt(cb: EmitCodeBuilder, idx: Code[Int]): Value[Int] = la.loadElement(cb, idx)
-          .get(cb, "local alleles elements cannot be missing", err)
-          .asInt32.value
-
-        val reindexedLen = cb.memoize((laLen * (laLen + 1)) / 2)
-
-        val (push, finish) = pt.constructFromFunctions(cb, er.region, reindexedLen, false)
-
-        val i = cb.newLocal[Int]("i", 0)
-        cb.whileLoop(i < laLen, {
-          val j = cb.newLocal[Int]("j", 0)
-          val curr = laAt(cb, i)
-          val startIdx = cb.memoize(((curr) * (curr + 1)) / 2)
-          cb.whileLoop(j <= i, {
-            push(cb, IEmitCode.present(cb, primitive(cb.memoize(startIdx.get + laAt(cb, j).get))))
-            cb.assign(j, j+1)
-          })
-          cb.assign(i, i+1)
-        })
-
-        finish(cb)
-    }
-
     registerIEmitCode4("local_to_global_g", TArray(TVariable("T")), TArray(TInt32), TInt32, TVariable("T"), TArray(TVariable("T")),
       { case (rt, inArrayET, la, n, _) => EmitType(PCanonicalArray(PType.canonical(inArrayET.st.asInstanceOf[SContainer].elementType.storageType())).sType, inArrayET.required && la.required && n.required) })(
       { case (cb, region, rt: SIndexablePointer, err, array, localAlleles, nTotalAlleles, fillInValue) =>
