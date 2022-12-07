@@ -1545,7 +1545,6 @@ steps:
         -DCMAKE_CXX_FLAGS=-Werror \
         -DCMAKE_BUILD_TYPE=RelWithDebInfo \
         -DMLIR_DIR=$LLVM_DIR/lib/cmake/mlir
-        # -DLLVM_BUILD_BINARY_DIR=$LLVM_SRC_DIR/build/bin # FIXME need llvm-lit for tests
       ninja
       ninja check-hail
     resources:
