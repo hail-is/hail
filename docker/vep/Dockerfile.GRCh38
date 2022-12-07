@@ -1,8 +1,6 @@
 FROM {{ hail_ubuntu_image.image }}
 
 ENV VEP_VERSION 95
-ENV DEBIAN_FRONTEND noninteractive
-ENV TZ Etc/UTC
 ENV VEP_DIR /vep
 
 RUN apt-get update && apt-get -y install \
@@ -50,7 +48,5 @@ RUN git clone -b release/95.1 https://github.com/Ensembl/ensembl-vep.git && \
     git clone -b v1.0.2 https://github.com/konradjk/loftee.git && \
     git clone https://github.com/Ensembl/VEP_plugins.git Plugins/ && \
     mv loftee/* Plugins/
-
-ENV PERL5LIB "${PERL5LIB}:${VEP_DIR}/Plugins/loftee"
 
 COPY vep.py run_vep_grch38.py /hail-vep/

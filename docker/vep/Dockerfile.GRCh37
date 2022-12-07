@@ -1,8 +1,6 @@
 FROM {{ hail_ubuntu_image.image }}
 
 ENV VEP_VERSION 85
-ENV DEBIAN_FRONTEND noninteractive
-ENV TZ Etc/UTC
 ENV VEP_DIR /vep
 
 RUN apt-get update && apt-get -y install \
@@ -20,7 +18,6 @@ RUN apt-get update && apt-get -y install \
     openssl \
     perl \
     perl-base \
-    python3.8 \
     samtools \
     sqlite3 \
     tabix \
@@ -53,7 +50,5 @@ RUN wget https://github.com/Ensembl/ensembl-tools/archive/release/${VEP_VERSION}
     echo "exec perl ${VEP_DIR}/ensembl-tools-release-$VEP_VERSION/scripts/variant_effect_predictor/variant_effect_predictor.pl \"\$@\"" >> /vep/vep && \
     chmod +x /vep /vep/vep && \
     git clone -b v1.0.2 https://github.com/konradjk/loftee.git
-
-ENV PERL5LIB "${PERL5LIB}:${VEP_DIR}/loftee"
 
 COPY vep.py run_vep_grch37.py /hail-vep/

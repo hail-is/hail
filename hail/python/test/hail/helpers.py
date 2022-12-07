@@ -18,8 +18,6 @@ def startTestHailContext():
         backend_name = choose_backend()
         if backend_name == 'spark':
             hl.init(master='local[2]', min_block_size=0, quiet=True, global_seed=0)
-        elif backend_name == 'batch':
-            hl.init(gcs_requester_pays_configuration=GCS_REQUESTER_PAYS_PROJECT, global_seed=0)
         else:
             hl.init(global_seed=0)
         _initialized = True

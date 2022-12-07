@@ -827,18 +827,12 @@ def _service_vep(backend: ServiceBackend,
         if status['n_succeeded'] != status['n_jobs']:
             failing_job = [job for job in b.jobs('!success')][0]
             failing_job = b.get_job(failing_job['job_id'])
-            job_status = failing_job.status()
-            if 'status' in job_status:
-                if 'error' in job_status['status']:
-                    job_status['status']['error'] = yamlx.dump(job_status['status']['error'].strip())
-            logs = failing_job.log()
-            for k in logs:
-                logs[k] = yamlx.dump(logs[k].strip())
-            message = {'batch_status': status,
-                       'job_status': job_status,
-                       'log': logs}
-            log.error(yamlx.dump(message))
-            raise FatalError(message)
+            message = {
+                'batch_status': status,
+                'job_status': failing_job.status(),
+                'log': failing_job.log()
+            }
+            raise FatalError(yamlx.dump(message))
 
     annotations = hl.import_table(f'{vep_output_path.name}/annotations/*',
                                   key='variant',
@@ -854,10 +848,8 @@ def _service_vep(backend: ServiceBackend,
     if csq:
         with hl.hadoop_open(f'{vep_output_path.name}/csq-header') as f:
             vep_csq_header = f.read().rstrip()
-    else:
-        vep_csq_header = ''
+        annotations = annotations.annotate_globals(vep_csq_header=vep_csq_header)
 
-    annotations = annotations.annotate_globals(vep_csq_header=vep_csq_header)
     return annotations
 
 
@@ -938,6 +930,8 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
 
      - ``GRCh37``: ``gs://hail-us-vep/vep85-loftee-gcloud.json``
      - ``GRCh38``: ``gs://hail-us-vep/vep95-GRCh38-loftee-gcloud.json``
+
+    If no config file is specified, this function will check to see if environment variable `VEP_CONFIG_URI` is set with a path to a config file.
 
     When using the Service Backend, the config argument is a dictionary with the following expected fields:
 
