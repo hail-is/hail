@@ -1544,12 +1544,13 @@ steps:
         -DCMAKE_C_FLAGS=-Werror \
         -DCMAKE_CXX_FLAGS=-Werror \
         -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-        -DMLIR_DIR=$LLVM_DIR/lib/cmake/mlir
-        # -DLLVM_BUILD_BINARY_DIR=$LLVM_SRC_DIR/build/bin # FIXME need llvm-lit for tests
+        -DMLIR_DIR=$LLVM_DIR/lib/cmake/mlir \
+        -DHAIL_USE_CLANG_TIDY=ON
       ninja
+      ninja check-hail
     resources:
       memory: standard
-      cpu: '2'
+      cpu: '4'
     inputs:
       - from: /repo
         to: /io/repo
@@ -2771,10 +2772,10 @@ steps:
       else
           exit 1;
       fi
-      
+
       cat >file.sh <<EOF
       set -ex
-      
+
       cat foo
       echo "Hello World!"
       EOF
