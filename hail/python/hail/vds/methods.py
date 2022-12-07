@@ -103,15 +103,15 @@ def to_merged_sparse_mt(vds: 'VariantDataset') -> 'MatrixTable':
     vht = vht.key_by('locus')
 
     merged_schema = {}
-    for e in vds.variant_data.entry:
-        merged_schema[e] = vds.variant_data[e].dtype
-
     for e in vds.reference_data.entry:
+        merged_schema[e] = vds.reference_data[e].dtype
+
+    for e in vds.variant_data.entry:
         if e in merged_schema:
-            if not merged_schema[e] == vds.reference_data[e].dtype:
-                raise TypeError(f"cannot unify field {e!r}: {merged_schema[e]}, {vds.reference_data[e].dtype}")
+            if not merged_schema[e] == vds.variant_data[e].dtype:
+                raise TypeError(f"cannot unify field {e!r}: {merged_schema[e]}, {vds.variant_data[e].dtype}")
         else:
-            merged_schema[e] = vds.reference_data[e].dtype
+            merged_schema[e] = vds.variant_data[e].dtype
 
     ht = vht.join(rht, how='outer').drop('_ref_cols')
 
@@ -120,9 +120,7 @@ def to_merged_sparse_mt(vds: 'VariantDataset') -> 'MatrixTable':
         def rewrite_ref(r):
             ref_block_selector = {}
             for k, t in merged_schema.items():
-                if k == 'LA':
-                    ref_block_selector[k] = hl.literal([0])
-                elif k in ('LGT', 'GT'):
+                if k in ('LGT', 'GT'):
                     ref_block_selector[k] = hl.call(0, 0)
                 else:
                     ref_block_selector[k] = r[k] if k in r else hl.missing(t)
