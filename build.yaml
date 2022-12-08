@@ -1549,7 +1549,7 @@ steps:
       export LLVM_DIR=/usr/lib/llvm-15
       mkdir /io/llvm-project
       cd /io/llvm-project
-      curl -Lf "https://api.github.com/repos/llvm/llvm-project/tarball/$(cat /io/llvm.ref)" > /io/llvm-src.tar.gz
+      curl -m 300 -Lf "https://api.github.com/repos/llvm/llvm-project/tarball/$(cat /io/llvm.ref)" -o /io/llvm-src.tar.gz
       tar --strip-components=1 -xf /io/llvm-src.tar.gz
       mkdir build
       cd build
