@@ -1532,7 +1532,10 @@ steps:
     image:
       valueFrom: query_build_image.image
     script: |
-      set -e
+      set -ex
+      export SCCACHE_LOG=debug
+      export SCCACHE_ERROR_LOG=/io/sccache_log.txt
+      trap 'cat /io/sccache_log.txt' EXIT
       {% if global.cloud == 'gcp' %}
       export SCCACHE_GCS_BUCKET=hail-sccache
       export SCCACHE_GCS_KEY_PATH=/gsa-key/key.json
@@ -1540,12 +1543,13 @@ steps:
       # TODO sccache in azure
       # {% elif global.cloud == 'azure' %}
       # export SCCACHE_AZURE_BLOB_CONTAINER=hail-sccache
+      # set +x
       # export SCCACHE_AZURE_CONNECTION_STRING=???
+      # set -x
       {% else %}
       echo >2 'Unsupported sccache clound storage backend {{ global.cloud }}. Compiling LLVM without a build cache'
       {% endif %}
 
-      set -x
       export LLVM_DIR=/usr/lib/llvm-15
       mkdir /io/llvm-project
       cd /io/llvm-project
