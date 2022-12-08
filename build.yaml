@@ -1532,8 +1532,7 @@ steps:
     image:
       valueFrom: query_build_image.image
     script: |
-      set -ex
-
+      set -e
       {% if global.cloud == 'gcp' %}
       export SCCACHE_GCS_BUCKET=hail-sccache
       export SCCACHE_GCS_KEY_PATH=/gsa-key/key.json
@@ -1545,11 +1544,12 @@ steps:
       {% else %}
       echo >2 'Unsupported sccache clound storage backend {{ global.cloud }}. Compiling LLVM without a build cache'
       {% endif %}
-      upstream_oid=$(cat /io/llvm.ref)
+      set -x
+
       export LLVM_DIR=/usr/lib/llvm-15
       mkdir /io/llvm-project
       cd /io/llvm-project
-      curl -Lf "https://api.github.com/repos/llvm/llvm-project/tarball/${upstream_oid}" | tar --strip-components=1 -xz
+      curl -Lf "https://api.github.com/repos/llvm/llvm-project/tarball/$(cat /io/llvm.ref)" | tar --strip-components=1 -xz
       mkdir build
       cd build
       cmake ../llvm -G Ninja \
