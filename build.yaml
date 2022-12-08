@@ -1544,12 +1544,13 @@ steps:
       {% else %}
       echo >2 'Unsupported sccache clound storage backend {{ global.cloud }}. Compiling LLVM without a build cache'
       {% endif %}
-      set -x
 
+      set -x
       export LLVM_DIR=/usr/lib/llvm-15
       mkdir /io/llvm-project
       cd /io/llvm-project
-      curl -Lf "https://api.github.com/repos/llvm/llvm-project/tarball/$(cat /io/llvm.ref)" | tar --strip-components=1 -xz
+      curl -Lf "https://api.github.com/repos/llvm/llvm-project/tarball/$(cat /io/llvm.ref)" > /io/llvm-src.tar.gz
+      tar --strip-components=1 -xf /io/llvm-src.tar.gz
       mkdir build
       cd build
       cmake ../llvm -G Ninja \
@@ -1574,7 +1575,6 @@ steps:
       - from: /io/pkg/llvm.tar.xz
         to: /llvm.tar.xz
     resources:
-      storage: 50Gi
       memory: standard
       cpu: '8'
     dependsOn:
