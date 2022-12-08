@@ -1,4 +1,4 @@
-// RUN: hail-opt %s -pass-pipeline='func.func(canonicalize)' -split-input-file -allow-unregistered-dialect | FileCheck %s
+// RUN: hail-opt %s -pass-pipeline='builtin.module(func.func(canonicalize))' -split-input-file -allow-unregistered-dialect | FileCheck %s
 
 
 // -----
