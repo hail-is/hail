@@ -116,7 +116,9 @@ class ResourceUsageMonitor:
         return shutil.disk_usage(self.container_overlay).used
 
     def io_storage_usage_bytes(self) -> int:
-        return shutil.disk_usage(self.io_volume_mount).used
+        if self.io_volume_mount is not None:
+            return shutil.disk_usage(self.io_volume_mount).used
+        return 0
 
     def is_attached_disk(self) -> bool:
         return self.io_volume_mount is not None and os.path.ismount(self.io_volume_mount)
