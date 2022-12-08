@@ -4,10 +4,13 @@ RUN curl 'https://apt.llvm.org/llvm-snapshot.gpg.key' \
         | gpg --dearmor >> /usr/share/keyrings/llvm-snapshot-keyring.gpg && \
     echo 'deb [signed-by=/usr/share/keyrings/llvm-snapshot-keyring.gpg] http://apt.llvm.org/focal/ llvm-toolchain-focal-15 main' \
          >> /etc/apt/sources.list && \
+    hail-pip-install lit && \
     hail-apt-get-install \
         build-essential \
         cmake ninja-build \
-        llvm-15-dev \
-        clang-15 clang-tools-15 clang-format-15 clang-tidy-15 \
-        libmlir-15-dev mlir-15-tools && \
-    hail-pip-install lit
+        clang-15
+
+RUN curl -Lf 'https://github.com/mozilla/sccache/releases/download/v0.3.1/sccache-v0.3.1-x86_64-unknown-linux-musl.tar.gz' \
+        | tar -xz && \
+    mv -v sccache-v0.3.1-x86_64-unknown-linux-musl/sccache /usr/local/bin/sccache && \
+    rm -rf sccache-v0.3.1-x86_64-unknown-linux-musl

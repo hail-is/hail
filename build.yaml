@@ -1528,12 +1528,56 @@ steps:
       - hail_ubuntu_image
       - merge_code
   - kind: runImage
+    name: build_llvm
+    image:
+      valueFrom: query_build_image.image
+    script: |
+      set -ex
+      export SCCACHE_GCS_BUCKET=hail-sccache
+      export SCCACHE_GCS_KEY_PATH=/gsa-key/key.json
+      export SCCACHE_GCS_RW_MODE=READ_WRITE
+      upstream_oid=$(cat /io/llvm.ref)
+      export LLVM_DIR=/usr/lib/llvm-15
+      mkdir /io/llvm-project
+      cd /io/llvm-project
+      curl -Lf "https://api.github.com/repos/llvm/llvm-project/tarball/${upstream_oid}" | tar --strip-components=1 -xz
+      mkdir build
+      cd build
+      cmake ../llvm -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_C_COMPILER=$LLVM_DIR/bin/clang \
+        -DCMAKE_CXX_COMPILER=$LLVM_DIR/bin/clang++ \
+        -DCMAKE_C_COMPILER_LAUNCHER=sccache \
+        -DCMAKE_CXX_COMPILER_LAUNCHER=sccache \
+        -DCMAKE_INSTALL_PREFIX=/io/opt/llvm \
+        -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;lld;mlir" \
+        -DLLVM_TARGETS_TO_BUILD="AArch64;X86;NVPTX;AMDGPU" \
+        -DLLVM_ENABLE_ASSERTIONS=OFF \
+        -DLLVM_BUILD_EXAMPLES=OFF
+      ninja
+      DESTDIR=/io/pkg/llvm ninja install
+      cd /io/pkg/llvm
+      tar -cvJf /io/pkg/llvm.tar.xz io/opt/llvm
+    inputs:
+      - from: /repo/query/.llvm.ref
+        to: /io/llvm.ref
+    outputs:
+      - from: /io/pkg/llvm.tar.xz
+        to: /llvm.tar.xz
+    resources:
+      memory: standard
+      cpu: '8'
+    dependsOn:
+      - query_build_image
+      - merge_code
+  - kind: runImage
     name: build_native_query
     image:
       valueFrom: query_build_image.image
     script: |
       set -ex
-      export LLVM_DIR=/usr/lib/llvm-15
+      (cd / && tar xvf /io/llvm.tar.xz)
+      export LLVM_DIR=/io/opt/llvm
       cd /io/repo/query
       mkdir build
       cd build
@@ -1541,8 +1585,8 @@ steps:
         -G Ninja \
         -DCMAKE_C_COMPILER=$LLVM_DIR/bin/clang \
         -DCMAKE_CXX_COMPILER=$LLVM_DIR/bin/clang++ \
-        -DCMAKE_C_FLAGS=-Werror \
-        -DCMAKE_CXX_FLAGS=-Werror \
+        -DCMAKE_C_FLAGS="-Werror -fuse-ld=lld --ld-path=$LLVM_DIR/bin/ld.lld" \
+        -DCMAKE_CXX_FLAGS="-Werror -fuse-ld=lld --ld-path=$LLVM_DIR/bin/ld.lld" \
         -DCMAKE_BUILD_TYPE=RelWithDebInfo \
         -DMLIR_DIR=$LLVM_DIR/lib/cmake/mlir \
         -DHAIL_USE_CLANG_TIDY=ON
@@ -1554,9 +1598,11 @@ steps:
     inputs:
       - from: /repo
         to: /io/repo
+      - from: /llvm.tar.xz
+        to: /io/llvm.tar.xz
     dependsOn:
       - query_build_image
-      - merge_code
+      - build_llvm
   - kind: deploy
     name: deploy_grafana
     namespace:
@@ -2790,9 +2836,9 @@ steps:
 
       cat >file-with-args.sh <<EOF
       set -ex
-      
+
       [[ $# -eq 2 ]]
-      
+
       cat foo
       echo "Hello World! $1 $2"
       EOF
