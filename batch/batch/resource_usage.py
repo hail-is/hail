@@ -125,14 +125,14 @@ class ResourceUsageMonitor:
         now_time_msecs = time_msecs()
 
         iptables_output, _ = await check_shell_output(
-                f'''
+            f'''
 iptables -t mangle -L -v -n -x | grep "{self.veth_host}" | awk '{{ if ($7 == "{self.veth_host}") print $2 }}'
 '''
         )
         now_download_bytes = int(iptables_output.decode('utf-8').rstrip())
 
         iptables_output, _ = await check_shell_output(
-                f'''
+            f'''
 iptables -t mangle -L -v -n -x | grep "{self.veth_host}" | awk '{{ if ($6 == "{self.veth_host}") print $2 }}'
 '''
         )
