@@ -10,7 +10,7 @@ RUN curl 'https://apt.llvm.org/llvm-snapshot.gpg.key' \
         cmake ninja-build \
         clang-15
 
-RUN curl -Lf 'https://github.com/mozilla/sccache/releases/download/v0.3.1/sccache-v0.3.1-x86_64-unknown-linux-musl.tar.gz' \
+RUN curl -Lf 'https://github.com/mozilla/sccache/releases/download/v0.3.3/sccache-v0.3.3-x86_64-unknown-linux-musl.tar.gz' \
         | tar -xz && \
-    mv -v sccache-v0.3.1-x86_64-unknown-linux-musl/sccache /usr/local/bin/sccache && \
-    rm -rf sccache-v0.3.1-x86_64-unknown-linux-musl
+    mv -v sccache-v0.3.3-x86_64-unknown-linux-musl/sccache /usr/local/bin/sccache && \
+    rm -rf sccache-v0.3.3-x86_64-unknown-linux-musl
