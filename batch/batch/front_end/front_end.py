@@ -1915,18 +1915,18 @@ def plot_resource_usage(resource_usage: Optional[Dict[str, Optional[pd.DataFrame
         return None
 
     fig = make_subplots(
-        rows=6,
-        cols=1,
+        rows=3,
+        cols=2,
         subplot_titles=(
             'CPU Usage',
             'Memory',
-            'Storage (Container)',
+            'Storage (Container minus /io)',
             'Storage (/io)',
             'Network Upload Bandwidth (MB/sec)',
             'Network Download Bandwidth (MB/sec)',
         ),
     )
-    fig.update_layout(height=1000, width=800)
+    fig.update_layout(height=600, width=800)
 
     colors = {'input': 'red', 'main': 'green', 'output': 'blue'}
 
@@ -1952,15 +1952,15 @@ def plot_resource_usage(resource_usage: Optional[Dict[str, Optional[pd.DataFrame
                 df[colname] = ResourceUsageMonitor.missing_value
             return df[colname]
 
-        overlay_df = get_df(df, 'overlay_storage_in_bytes')
-        disk_df = get_df(df, 'disk_storage_in_bytes')
+        non_io_storage_df = get_df(df, 'non_io_storage_in_bytes')
+        io_storage_df = get_df(df, 'io_storage_in_bytes')
         network_upload_df = get_df(df, 'network_bandwidth_upload_in_bytes_per_second')
         network_download_df = get_df(df, 'network_bandwidth_download_in_bytes_per_second')
 
         if n_rows != 0:
             max_cpu_value = max(max_cpu_value, cpu_df.max())
             max_memory_value = max(max_memory_value, mem_df.max())
-            max_storage_value = max(max_storage_value, overlay_df.max(), disk_df.max())
+            max_storage_value = max(max_storage_value, non_io_storage_df.max(), io_storage_df.max())
             max_network_bandwidth_value = max(
                 max_network_bandwidth_value, network_upload_df.max(), network_download_df.max()
             )
@@ -1981,11 +1981,11 @@ def plot_resource_usage(resource_usage: Optional[Dict[str, Optional[pd.DataFrame
             )
 
         add_trace(time_df, cpu_df, 1, 1, container_name, True)
-        add_trace(time_df, mem_df, 2, 1, container_name, False)
-        add_trace(time_df, overlay_df, 3, 1, container_name, False)
-        add_trace(time_df, disk_df, 4, 1, container_name, False)
-        add_trace(time_df, network_upload_df, 5, 1, container_name, False)
-        add_trace(time_df, network_download_df, 6, 1, container_name, False)
+        add_trace(time_df, mem_df, 1, 2, container_name, False)
+        add_trace(time_df, non_io_storage_df, 2, 1, container_name, False)
+        add_trace(time_df, io_storage_df, 2, 2, container_name, False)
+        add_trace(time_df, network_upload_df, 3, 1, container_name, False)
+        add_trace(time_df, network_download_df, 3, 2, container_name, False)
 
     fig.update_layout(
         showlegend=True,

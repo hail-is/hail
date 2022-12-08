@@ -15,7 +15,7 @@ log = logging.getLogger('resource_usage')
 
 class ResourceUsageMonitor:
     VERSION = 2
-    missing_value = 0
+    missing_value = None
 
     @staticmethod
     def no_data() -> bytes:
@@ -42,8 +42,8 @@ class ResourceUsageMonitor:
         if version >= 1:
             assert version == ResourceUsageMonitor.VERSION, version
             dtype += [
-                ('overlay_storage_in_bytes', '>i8'),
-                ('disk_storage_in_bytes', '>i8'),
+                ('non_io_storage_in_bytes', '>i8'),
+                ('io_storage_in_bytes', '>i8'),
                 ('network_bandwidth_upload_in_bytes_per_second', '>f8'),
                 ('network_bandwidth_download_in_bytes_per_second', '>f8'),
             ]
@@ -116,30 +116,27 @@ class ResourceUsageMonitor:
         return shutil.disk_usage(self.container_overlay).used
 
     def io_storage_usage_bytes(self) -> int:
-        if self.io_volume_mount is None:
-            return 0
         return shutil.disk_usage(self.io_volume_mount).used
 
+    def is_attached_disk(self) -> bool:
+        return self.io_volume_mount is not None and os.path.ismount(self.io_volume_mount)
+
     async def network_bandwidth(self) -> Tuple[Optional[float], Optional[float]]:
-        async def get_bandwidth() -> Tuple[Optional[int], Optional[int]]:
-            iptables_output, _ = await check_shell_output(
+        now_time_msecs = time_msecs()
+
+        iptables_output, _ = await check_shell_output(
                 f'''
 iptables -t mangle -L -v -n -x | grep "{self.veth_host}" | awk '{{ if ($7 == "{self.veth_host}") print $2 }}'
 '''
-            )
-            download_bytes = int(iptables_output.decode('utf-8').rstrip())
+        )
+        now_download_bytes = int(iptables_output.decode('utf-8').rstrip())
 
-            iptables_output, _ = await check_shell_output(
+        iptables_output, _ = await check_shell_output(
                 f'''
 iptables -t mangle -L -v -n -x | grep "{self.veth_host}" | awk '{{ if ($6 == "{self.veth_host}") print $2 }}'
 '''
-            )
-            upload_bytes = int(iptables_output.decode('utf-8').rstrip())
-
-            return (upload_bytes, download_bytes)
-
-        now_time_msecs = time_msecs()
-        now_upload_bytes, now_download_bytes = await get_bandwidth()
+        )
+        now_upload_bytes = int(iptables_output.decode('utf-8').rstrip())
 
         if (
             now_upload_bytes is None
@@ -175,6 +172,7 @@ iptables -t mangle -L -v -n -x | grep "{self.veth_host}" | awk '{{ if ($6 == "{s
 
         overlay_usage_bytes = self.overlay_storage_usage_bytes()
         io_usage_bytes = self.io_storage_usage_bytes()
+        non_io_usage_bytes = overlay_usage_bytes if self.is_attached_disk() else overlay_usage_bytes - io_usage_bytes
         network_upload_bytes_per_second, network_download_bytes_per_second = await self.network_bandwidth()
 
         data = struct.pack(
@@ -182,7 +180,7 @@ iptables -t mangle -L -v -n -x | grep "{self.veth_host}" | awk '{{ if ($6 == "{s
             now,
             memory_usage_bytes,
             percent_cpu_usage,
-            overlay_usage_bytes,
+            non_io_usage_bytes,
             io_usage_bytes,
             network_upload_bytes_per_second,
             network_download_bytes_per_second,
