@@ -23,11 +23,11 @@ struct InlineCont : public OpRewritePattern<ApplyContOp> {
 
   auto matchAndRewrite(ApplyContOp apply, PatternRewriter &rewriter) const
       -> LogicalResult override {
-    auto defcont = apply.cont().getDefiningOp<DefContOp>();
+    auto defcont = apply.getCont().getDefiningOp<DefContOp>();
     if (!defcont || !defcont->hasOneUse())
       return failure();
 
-    rewriter.mergeBlocks(defcont.getBody(), apply->getBlock(), apply.args());
+    rewriter.mergeBlocks(defcont.getBody(), apply->getBlock(), apply.getArgs());
     rewriter.eraseOp(apply);
     rewriter.eraseOp(defcont);
 
@@ -61,9 +61,9 @@ struct TrivialCallCC : public OpRewritePattern<CallCCOp> {
     auto terminator = dyn_cast<ApplyContOp>(callcc.getBody()->getTerminator());
     if (!terminator)
       return failure();
-    if (terminator.cont() != callcc.getBody()->getArgument(0))
+    if (terminator.getCont() != callcc.getBody()->getArgument(0))
       return failure();
-    SmallVector<Value> const values(terminator.args().begin(), terminator.args().end());
+    SmallVector<Value> const values(terminator.getArgs().begin(), terminator.getArgs().end());
     rewriter.eraseOp(terminator);
     callcc.getBody()->eraseArgument(0);
     rewriter.mergeBlockBefore(callcc.getBody(), callcc);

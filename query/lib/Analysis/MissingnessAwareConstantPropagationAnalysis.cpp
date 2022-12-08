@@ -13,6 +13,10 @@ using namespace hail::ir;
 using mlir::dataflow::ConstantValue;
 using mlir::dataflow::Lattice;
 
+void MissingnessAwareConstantPropagation::setToEntryState(Lattice<ConstantValue> *lattice) {
+  propagateIfChanged(lattice, lattice->join(ConstantValue::getUnknownConstant()));
+}
+
 void MissingnessAwareConstantPropagation::visitOperation(
     Operation *op, ArrayRef<Lattice<ConstantValue> const *> operands,
     ArrayRef<Lattice<ConstantValue> *> results) {
@@ -20,16 +24,27 @@ void MissingnessAwareConstantPropagation::visitOperation(
 
   auto builder = Builder(op->getContext());
 
+  // Bail out if any inputs don't yet have a value
+  bool const anyUninit = llvm::any_of(operands, [](auto operand) {
+    return operand->getValue().isUninitialized();
+  });
+  if (anyUninit)
+    return;
+
   // FIXME: move missingness op semantics to an interface
   if (auto missingOp = dyn_cast<IsMissingOp>(op)) {
     auto const *missingness =
         getOrCreateFor<Lattice<MissingnessValue>>(missingOp, missingOp.getOperand());
-    if (missingness->isUninitialized())
+    if (missingness->getValue().isUninitialized())
       return;
     if (missingness->getValue().isMissing()) {
-      propagateIfChanged(results.front(), results.front()->join(builder.getBoolAttr(true)));
+      mlir::Dialect *arith = builder.getContext()->getLoadedDialect("arith");
+      ConstantValue constTrue{builder.getBoolAttr(true), arith};
+      propagateIfChanged(results.front(), results.front()->join(constTrue));
     } else if (missingness->getValue().isPresent()) {
-      propagateIfChanged(results.front(), results.front()->join(builder.getBoolAttr(false)));
+      mlir::Dialect *arith = builder.getContext()->getLoadedDialect("arith");
+      ConstantValue constFalse{builder.getBoolAttr(false), arith};
+      propagateIfChanged(results.front(), results.front()->join(constFalse));
     } else {
       propagateIfChanged(results.front(), results.front()->join(ConstantValue()));
     }
@@ -47,7 +62,7 @@ void MissingnessAwareConstantPropagation::visitOperation(
   bool const anyMissing =
       std::any_of(op->operand_begin(), op->operand_end(), [this, op](auto operand) {
         auto missingness = getOrCreateFor<Lattice<MissingnessValue>>(op, operand);
-        return missingness->isUninitialized() || missingness->getValue().isMissing();
+        return missingness->getValue().isUninitialized() || missingness->getValue().isMissing();
       });
 
   if (anyMissing)
@@ -69,7 +84,7 @@ void MissingnessAwareConstantPropagation::visitOperation(
   SmallVector<OpFoldResult> foldResults;
   foldResults.reserve(op->getNumResults());
   if (failed(op->fold(constantOperands, foldResults))) {
-    markAllPessimisticFixpoint(results);
+    setAllToEntryStates(results);
     return;
   }
 
@@ -79,7 +94,7 @@ void MissingnessAwareConstantPropagation::visitOperation(
   if (foldResults.empty()) {
     op->setOperands(originalOperands);
     op->setAttrs(originalAttrs);
-    markAllPessimisticFixpoint(results);
+    setAllToEntryStates(results);
     return;
   }
 

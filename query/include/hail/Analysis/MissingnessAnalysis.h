@@ -12,12 +12,14 @@ namespace hail::ir {
 class MissingnessValue {
 public:
   enum State {
-    Present, // value is always present
-    Unknown, // value might be present or missing
-    Missing  // value is always missing
+    Uninitialized, // has no value
+    Present,       // value is always present
+    Unknown,       // value might be present or missing
+    Missing        // value is always missing
   };
 
-  MissingnessValue(State state) : state(state) {}
+  MissingnessValue(State state = Uninitialized) : state(state) {}
+  auto isUninitialized() const -> bool { return state == Uninitialized; }
   auto isMissing() const -> bool { return state == Missing; }
   auto isPresent() const -> bool { return state == Present; }
   auto getState() const -> State { return state; }
@@ -32,6 +34,10 @@ public:
   static auto getPessimisticValueState(mlir::Value value) -> MissingnessValue { return {Unknown}; }
 
   static auto join(MissingnessValue const &lhs, MissingnessValue const &rhs) -> MissingnessValue {
+    if (lhs == Uninitialized)
+      return rhs;
+    if (rhs == Uninitialized)
+      return lhs;
     return lhs == rhs ? lhs : MissingnessValue(Unknown);
   }
 
@@ -55,6 +61,9 @@ public:
   void visitOperation(mlir::Operation *op,
                       llvm::ArrayRef<mlir::dataflow::Lattice<MissingnessValue> const *> operands,
                       llvm::ArrayRef<mlir::dataflow::Lattice<MissingnessValue> *> results) override;
+
+protected:
+  void setToEntryState(mlir::dataflow::Lattice<MissingnessValue> *lattice) override;
 };
 
 } // namespace hail::ir

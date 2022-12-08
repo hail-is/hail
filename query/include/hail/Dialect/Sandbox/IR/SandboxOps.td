@@ -8,7 +8,7 @@ include "mlir/IR/OpBase.td"
 class Sandbox_Op<string mnemonic, list<Trait> traits = []> :
         Op<Sandbox_Dialect, mnemonic, traits>;
 
-def Sandbox_ConstantOp : Sandbox_Op<"constant", [ConstantLike, NoSideEffect]> {
+def Sandbox_ConstantOp : Sandbox_Op<"constant", [ConstantLike, Pure]> {
   let arguments = (ins AnyAttr:$value);
   let results = (outs AnyType:$output);
   let assemblyFormat = "`(`$value`)` attr-dict `:` type($output)";
@@ -23,7 +23,7 @@ def Sandbox_ConstantOp : Sandbox_Op<"constant", [ConstantLike, NoSideEffect]> {
 }
 
 
-def Sandbox_AddIOp : Sandbox_Op<"addi", [NoSideEffect, Commutative]> {
+def Sandbox_AddIOp : Sandbox_Op<"addi", [Pure, Commutative]> {
   let arguments = (ins Sandbox_Int:$lhs, Sandbox_Int:$rhs);
   let results = (outs Sandbox_Int:$result);
   let assemblyFormat = "$lhs $rhs attr-dict";
@@ -32,7 +32,7 @@ def Sandbox_AddIOp : Sandbox_Op<"addi", [NoSideEffect, Commutative]> {
   let hasCanonicalizer = true;
 }
 
-def Sandbox_ComparisonOp : Sandbox_Op<"compare", [NoSideEffect]> {
+def Sandbox_ComparisonOp : Sandbox_Op<"compare", [Pure]> {
   let arguments = (ins Sandbox_CmpPredicateAttr:$predicate, Sandbox_Int:$lhs, Sandbox_Int:$rhs);
   let results = (outs Sandbox_Bool:$output);
   let assemblyFormat = "$predicate `,` $lhs `,` $rhs attr-dict `:` type($output)";
@@ -45,7 +45,7 @@ def Sandbox_ComparisonOp : Sandbox_Op<"compare", [NoSideEffect]> {
   let hasCanonicalizer = 0;
 }
 
-def Sandbox_MakeArrayOp : Sandbox_Op<"make_array", [NoSideEffect]> {
+def Sandbox_MakeArrayOp : Sandbox_Op<"make_array", [Pure]> {
   let arguments = (ins Variadic<AnyType>:$elems);
   let results = (outs AnyType:$result);
 
@@ -56,7 +56,7 @@ def Sandbox_MakeArrayOp : Sandbox_Op<"make_array", [NoSideEffect]> {
   let hasCanonicalizer = 0;
 }
 
-def Sandbox_ArrayRefOp : Sandbox_Op<"array_ref", [NoSideEffect]> {
+def Sandbox_ArrayRefOp : Sandbox_Op<"array_ref", [Pure]> {
   let arguments = (ins AnyType:$array, Sandbox_Int:$index);
   let results = (outs AnyType:$result);
 
@@ -67,7 +67,7 @@ def Sandbox_ArrayRefOp : Sandbox_Op<"array_ref", [NoSideEffect]> {
   let hasCanonicalizer = 0;
 }
 
-// def Sandbox_ArrayMap : Sandbox_Op<"array_map", [NoSideEffect]> {
+// def Sandbox_ArrayMap : Sandbox_Op<"array_map", [Pure]> {
 
 // }
 

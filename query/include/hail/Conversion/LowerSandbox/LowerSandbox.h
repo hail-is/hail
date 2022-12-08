@@ -7,6 +7,7 @@ namespace mlir {
 
 class Pass;
 class RewritePatternSet;
+class TypeConverter;
 
 } // namespace mlir
 
@@ -14,7 +15,8 @@ namespace hail::ir {
 
 /// Collect a set of patterns to convert SCF operations to CFG branch-based
 /// operations within the ControlFlow dialect.
-void populateLowerSandboxConversionPatterns(mlir::RewritePatternSet &patterns);
+void populateLowerSandboxConversionPatterns(mlir::RewritePatternSet &patterns,
+                                            mlir::TypeConverter *converter);
 
 /// Creates a pass to convert SCF operations to CFG branch-based operation in
 /// the ControlFlow dialect.

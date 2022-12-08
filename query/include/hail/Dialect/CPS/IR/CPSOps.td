@@ -11,13 +11,13 @@ class CPS_Op<string mnemonic, list<Trait> traits = []> :
         Op<CPS_Dialect, mnemonic, traits>;
 
 
-def CPS_CallCCOp : CPS_Op<"callcc", [RecursiveSideEffects, SingleBlock]> {
+def CPS_CallCCOp : CPS_Op<"callcc", [RecursiveMemoryEffects, RecursivelySpeculatable, SingleBlock]> {
   let summary = "Call with current continuation";
   let description = [{
   }];
 
   let results = (outs Variadic<AnyType>:$results);
-  let regions = (region SizedRegion<1>:$body);
+  let regions = (region SizedRegion<1>);
 
   let hasCustomAssemblyFormat = 1;
   let hasCanonicalizer = 1;
@@ -26,13 +26,13 @@ def CPS_CallCCOp : CPS_Op<"callcc", [RecursiveSideEffects, SingleBlock]> {
   let builders = [ OpBuilder<(ins "mlir::TypeRange":$resultTypes)> ];
 }
 
-def CPS_DefContOp : CPS_Op<"cont", [NoSideEffect, SingleBlock]> {
+def CPS_DefContOp : CPS_Op<"cont", [Pure, SingleBlock]> {
   let summary = "Define a continuation";
   let description = [{
   }];
 
   let results = (outs CPS_ContType:$result);
-  let regions = (region SizedRegion<1>:$bodyRegion);
+  let regions = (region SizedRegion<1>);
 
   let hasCustomAssemblyFormat = 1;
   let hasRegionVerifier = 1;
@@ -42,7 +42,7 @@ def CPS_DefContOp : CPS_Op<"cont", [NoSideEffect, SingleBlock]> {
 }
 
 def CPS_ApplyContOp : CPS_Op<"apply", [
-    Terminator, NoSideEffect,
+    Terminator, Pure,
     TypesMatchWith<"argument types match continuation type", "args", "cont", "::hail::ir::ContinuationType::get($_ctxt, $_self)">
   ]> {
   let summary = "Apply a continuation";
@@ -56,7 +56,7 @@ def CPS_ApplyContOp : CPS_Op<"apply", [
 }
 
 def CPS_IfOp : CPS_Op<"if", [
-    Terminator, NoSideEffect, AttrSizedOperandSegments,
+    Terminator, Pure, AttrSizedOperandSegments,
     TypesMatchWith<"", "trueArgs", "trueCont", "::hail::ir::ContinuationType::get($_ctxt, $_self)">,
     TypesMatchWith<"", "falseArgs", "falseCont", "::hail::ir::ContinuationType::get($_ctxt, $_self)">
   ]> {
@@ -77,7 +77,7 @@ def CPS_IfOp : CPS_Op<"if", [
 }
 
 // FIXME: find the right dialect for this to live
-def CPS_UndefinedOp : CPS_Op<"undefined", [NoSideEffect]> {
+def CPS_UndefinedOp : CPS_Op<"undefined", [Pure]> {
   let summary = "undefined";
   let description = [{
   }];

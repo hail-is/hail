@@ -25,7 +25,7 @@ static void rewrite(mlir::DataFlowSolver &solver, Operation *root) {
       auto *constState =
           solver.getOrCreateState<mlir::dataflow::Lattice<mlir::dataflow::ConstantValue>>(result);
 
-      if (missingnessState->isUninitialized())
+      if (missingnessState->getValue().isUninitialized())
         continue;
 
       if (missingnessState->getValue().isMissing()) {
@@ -52,7 +52,7 @@ static void rewrite(mlir::DataFlowSolver &solver, Operation *root) {
         auto *constState =
             solver.getOrCreateState<mlir::dataflow::Lattice<mlir::dataflow::ConstantValue>>(arg);
 
-        if (missingnessState->isUninitialized())
+        if (missingnessState->getValue().isUninitialized())
           continue;
 
         if (missingnessState->getValue().isMissing()) {

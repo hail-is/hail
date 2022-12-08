@@ -1,7 +1,7 @@
 #ifndef HAIL_INITALLDIALECTS_H_
 #define HAIL_INITALLDIALECTS_H_
 
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -17,7 +17,7 @@ namespace hail::ir {
 
 inline void registerAllDialects(mlir::DialectRegistry &registry) {
   // clang-format off
-  registry.insert<mlir::arith::ArithmeticDialect,
+  registry.insert<mlir::arith::ArithDialect,
                   mlir::func::FuncDialect,
                   mlir::linalg::LinalgDialect,
                   mlir::scf::SCFDialect,

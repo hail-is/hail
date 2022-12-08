@@ -5,7 +5,7 @@
 #include "hail/Dialect/Sandbox/IR/Sandbox.h"
 #include "hail/Support/MLIR.h"
 
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -36,10 +36,10 @@ struct ConstantOpConversion : public OpConversionPattern<ConstantOp> {
 
   auto matchAndRewrite(ConstantOp op, OpAdaptor adaptor, ConversionPatternRewriter &rewriter) const
       -> LogicalResult override {
-    auto value = adaptor.valueAttr().cast<IntegerAttr>().getValue();
+    auto value = adaptor.getValueAttr().cast<IntegerAttr>().getValue();
     Attribute newAttr;
     Type newType;
-    if (op.output().getType().isa<BooleanType>()) {
+    if (op.getOutput().getType().isa<BooleanType>()) {
       newType = rewriter.getI1Type();
       newAttr = rewriter.getBoolAttr(value == 0);
     } else {
@@ -59,7 +59,7 @@ struct ComparisonOpConversion : public OpConversionPattern<ComparisonOp> {
                        ConversionPatternRewriter &rewriter) const -> LogicalResult override {
     mlir::arith::CmpIPredicate pred{};
 
-    switch (adaptor.predicate()) {
+    switch (adaptor.getPredicate()) {
     case CmpPredicate::LT:
       pred = mlir::arith::CmpIPredicate::slt;
       break;
@@ -80,7 +80,7 @@ struct ComparisonOpConversion : public OpConversionPattern<ComparisonOp> {
       break;
     }
 
-    rewriter.replaceOpWithNewOp<mlir::arith::CmpIOp>(op, pred, adaptor.lhs(), adaptor.rhs());
+    rewriter.replaceOpWithNewOp<mlir::arith::CmpIOp>(op, pred, adaptor.getLhs(), adaptor.getRhs());
     return success();
   }
 };
@@ -109,12 +109,12 @@ struct MakeArrayOpConversion : public OpConversionPattern<MakeArrayOp> {
   auto matchAndRewrite(MakeArrayOp op, OpAdaptor adaptor, ConversionPatternRewriter &rewriter) const
       -> LogicalResult override {
 
-    auto elems = adaptor.elems();
+    auto elems = adaptor.getElems();
     SmallVector<int64_t, 1> const v = {op->getNumOperands()};
     Type const loweredElem =
         op.getNumOperands() > 0
-            ? adaptor.elems()[0].getType()
-            : getLoweredType(rewriter, op.result().getType().cast<ArrayType>().getElementType());
+            ? adaptor.getElems()[0].getType()
+            : getLoweredType(rewriter, op.getResult().getType().cast<ArrayType>().getElementType());
     auto tensorType = RankedTensorType::get(v, loweredElem);
     rewriter.replaceOpWithNewOp<mlir::tensor::FromElementsOp>(op, tensorType, elems);
 
@@ -129,8 +129,8 @@ struct ArrayRefOpConversion : public OpConversionPattern<ir::ArrayRefOp> {
   auto matchAndRewrite(ArrayRefOp op, OpAdaptor adaptor, ConversionPatternRewriter &rewriter) const
       -> LogicalResult override {
 
-    auto a = adaptor.array();
-    auto idx = adaptor.index();
+    auto a = adaptor.getArray();
+    auto idx = adaptor.getIndex();
     rewriter.replaceOpWithNewOp<mlir::tensor::ExtractOp>(op, a, idx);
 
     return success();
@@ -142,7 +142,7 @@ struct PrintOpConversion : public OpConversionPattern<PrintOp> {
 
   auto matchAndRewrite(PrintOp op, OpAdaptor adaptor, ConversionPatternRewriter &rewriter) const
       -> LogicalResult override {
-    rewriter.replaceOpWithNewOp<PrintOp>(op, adaptor.value());
+    rewriter.replaceOpWithNewOp<PrintOp>(op, adaptor.getValue());
     return success();
   }
 };

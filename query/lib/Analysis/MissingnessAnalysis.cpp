@@ -27,6 +27,10 @@ void MissingnessValue::print(llvm::raw_ostream &os) const {
 // MissingnessAnalysis
 //===----------------------------------------------------------------------===//
 
+void MissingnessAnalysis::setToEntryState(mlir::dataflow::Lattice<MissingnessValue> *lattice) {
+  propagateIfChanged(lattice, lattice->join(MissingnessValue::Unknown));
+}
+
 void MissingnessAnalysis::visitOperation(
     Operation *op, ArrayRef<mlir::dataflow::Lattice<MissingnessValue> const *> operands,
     ArrayRef<mlir::dataflow::Lattice<MissingnessValue> *> results) {

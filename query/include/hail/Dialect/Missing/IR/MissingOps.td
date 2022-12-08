@@ -13,7 +13,7 @@ def Missing_Dialect : Dialect {
 class Missing_Op<string mnemonic, list<Trait> traits = []> :
         Op<Missing_Dialect, mnemonic, traits>;
 
-def Missing_MissingOp : Missing_Op<"missing", [NoSideEffect]> {
+def Missing_MissingOp : Missing_Op<"missing", [Pure]> {
   let results = (outs AnyType:$result);
   let assemblyFormat = "attr-dict `:` type($result)";
 
@@ -23,7 +23,7 @@ def Missing_MissingOp : Missing_Op<"missing", [NoSideEffect]> {
   // ];
 }
 
-def Missing_IsMissingOp : Missing_Op<"is_missing", [NoSideEffect]> {
+def Missing_IsMissingOp : Missing_Op<"is_missing", [Pure]> {
   let arguments = (ins AnyType:$operand);
   let results = (outs I1);
   let assemblyFormat = "$operand attr-dict `:` type($operand)";

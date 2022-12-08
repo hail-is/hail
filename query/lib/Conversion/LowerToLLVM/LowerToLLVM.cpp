@@ -5,7 +5,7 @@
 #include "hail/Dialect/Sandbox/IR/Sandbox.h"
 #include "hail/Support/MLIR.h"
 
-#include "mlir/Conversion/ArithmeticToLLVM/ArithmeticToLLVM.h"
+#include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
 #include "mlir/Conversion/ControlFlowToLLVM/ControlFlowToLLVM.h"
 #include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
@@ -109,7 +109,7 @@ private:
 void populateLowerLLVMConversionPatterns(mlir::LLVMTypeConverter &typeConverter,
                                          RewritePatternSet &patterns) {
   // populateSCFToControlFlowConversionPatterns(patterns);
-  mlir::arith::populateArithmeticToLLVMConversionPatterns(typeConverter, patterns);
+  mlir::arith::populateArithToLLVMConversionPatterns(typeConverter, patterns);
   populateMemRefToLLVMConversionPatterns(typeConverter, patterns);
   mlir::cf::populateControlFlowToLLVMConversionPatterns(typeConverter, patterns);
   populateFuncToLLVMConversionPatterns(typeConverter, patterns);

@@ -58,16 +58,16 @@ struct ConstructOpConversion : public OpConversionPattern<ConstructOp> {
     resultTypes.append(valueTypes.begin(), valueTypes.end());
 
     auto callcc = rewriter.create<CallCCOp>(loc, resultTypes);
-    Value const retCont = callcc.body().getArgument(0);
+    Value const retCont = callcc.getBody()->getArgument(0);
 
     SmallVector<Value, 4> results;
     results.reserve(valueTypes.size() + 1);
-    auto &body = op.bodyRegion();
+    auto &body = op.getBodyRegion();
 
     // Define the new missing continuation
-    rewriter.setInsertionPointToStart(&callcc.body().front());
+    rewriter.setInsertionPointToStart(callcc.getBody());
     auto missingCont = rewriter.create<DefContOp>(loc);
-    rewriter.setInsertionPointToStart(&missingCont.bodyRegion().front());
+    rewriter.setInsertionPointToStart(missingCont.getBody());
     auto constFalse = rewriter.create<mlir::arith::ConstantOp>(loc, rewriter.getBoolAttr(false));
     results.push_back(constFalse);
     llvm::transform(valueTypes, std::back_inserter(results),
@@ -78,13 +78,13 @@ struct ConstructOpConversion : public OpConversionPattern<ConstructOp> {
     results.clear();
     rewriter.setInsertionPointAfter(missingCont);
     auto presentCont = rewriter.create<DefContOp>(loc, valueTypes);
-    rewriter.setInsertionPointToStart(&presentCont.bodyRegion().front());
+    rewriter.setInsertionPointToStart(presentCont.getBody());
     auto constTrue = rewriter.create<mlir::arith::ConstantOp>(loc, rewriter.getBoolAttr(true));
     results.push_back(constTrue);
-    results.append(presentCont.bodyRegion().args_begin(), presentCont.bodyRegion().args_end());
+    results.append(presentCont.getBody()->args_begin(), presentCont.getBody()->args_end());
     rewriter.create<ApplyContOp>(loc, retCont, results);
 
-    rewriter.mergeBlocks(&body.front(), &callcc.body().front(), {missingCont, presentCont});
+    rewriter.mergeBlocks(&body.front(), callcc.getBody(), {missingCont, presentCont});
 
     // Cast results back to Option type and replace
     rewriter.setInsertionPointAfter(callcc);
@@ -102,7 +102,7 @@ struct DestructOpConversion : public OpConversionPattern<DestructOp> {
       -> LogicalResult override {
     SmallVector<Value> values;
     Value isDefined;
-    for (auto option : adaptor.inputs()) {
+    for (auto option : adaptor.getInputs()) {
       LoweredOption unpack = unpackOptional(rewriter, op.getLoc(), option);
       values.append(unpack.values().begin(), unpack.values().end());
       if (!isDefined) {
@@ -113,7 +113,7 @@ struct DestructOpConversion : public OpConversionPattern<DestructOp> {
       }
     }
 
-    rewriter.replaceOpWithNewOp<IfOp>(op, isDefined, op.presentCont(), values, op.missingCont(),
+    rewriter.replaceOpWithNewOp<IfOp>(op, isDefined, op.getPresentCont(), values, op.getMissingCont(),
                                       ValueRange{});
     return mlir::success();
   }

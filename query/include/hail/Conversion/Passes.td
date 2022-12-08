@@ -21,7 +21,7 @@ def LowerOption : Pass<"lower-option"> {
   }];
   let constructor = "hail::ir::createLowerOptionPass()";
   let dependentDialects = [
-    "mlir::arith::ArithmeticDialect",
+    "mlir::arith::ArithDialect",
   ];
 }
 
@@ -33,7 +33,7 @@ def LowerSandbox : Pass<"lower-sandbox"> {
   }];
   let constructor = "hail::ir::createLowerSandboxPass()";
   let dependentDialects = [
-    "mlir::arith::ArithmeticDialect",
+    "mlir::arith::ArithDialect",
     "mlir::tensor::TensorDialect"
   ];
 }

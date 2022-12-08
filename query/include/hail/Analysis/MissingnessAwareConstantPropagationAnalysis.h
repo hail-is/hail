@@ -43,6 +43,9 @@ public:
       mlir::Operation *op,
       llvm::ArrayRef<mlir::dataflow::Lattice<mlir::dataflow::ConstantValue> const *> operands,
       llvm::ArrayRef<mlir::dataflow::Lattice<mlir::dataflow::ConstantValue> *> results) override;
+
+protected:
+  void setToEntryState(mlir::dataflow::Lattice<mlir::dataflow::ConstantValue> *lattice) override;
 };
 
 } // namespace hail::ir

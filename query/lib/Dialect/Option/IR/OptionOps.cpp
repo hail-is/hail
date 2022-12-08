@@ -63,7 +63,7 @@ struct DestructOfConstruct : public OpRewritePattern<DestructOp> {
     llvm::SmallVector<Type> sourceValueTypes;
     llvm::SmallVector<Type> remainingValueTypes;
     llvm::SmallVector<Value> remainingOptions;
-    for (auto const &input : llvm::enumerate(destruct.inputs())) {
+    for (auto const &input : llvm::enumerate(destruct.getInputs())) {
       if (auto construct = input.value().getDefiningOp<ConstructOp>()) {
         if (!source && construct->hasOneUse()) {
           source = construct;
@@ -88,8 +88,8 @@ struct DestructOfConstruct : public OpRewritePattern<DestructOp> {
     // on to the original present continuation.
     auto cont = rewriter.create<DefContOp>(destruct.getLoc(), sourceValueTypes);
 
-    rewriter.mergeBlockBefore(&source.bodyRegion().front(), destruct,
-                              {destruct.missingCont(), cont});
+    rewriter.mergeBlockBefore(&source.getBodyRegion().front(), destruct,
+                              {destruct.getMissingCont(), cont});
 
     // Define present continuation for the new destruct op, taking all remaining values, after
     // removing those of 'source'.
@@ -97,15 +97,15 @@ struct DestructOfConstruct : public OpRewritePattern<DestructOp> {
     auto cont2 = rewriter.create<DefContOp>(destruct.getLoc(), remainingValueTypes);
 
     // Create new destruct op taking all remaining options.
-    rewriter.create<DestructOp>(destruct.getLoc(), remainingOptions, destruct.missingCont(), cont2);
+    rewriter.create<DestructOp>(destruct.getLoc(), remainingOptions, destruct.getMissingCont(), cont2);
 
     // Define body of 'cont2' to forward all values on to original present continuation.
     rewriter.setInsertionPointToStart(cont2.getBody());
-    llvm::SmallVector<Value> newValues(cont2.bodyRegion().args_begin(),
-                                       cont2.bodyRegion().args_end());
-    newValues.insert(newValues.begin() + sourceValuesStart, cont.bodyRegion().args_begin(),
-                     cont.bodyRegion().args_end());
-    rewriter.create<ApplyContOp>(destruct.getLoc(), destruct.presentCont(), newValues);
+    llvm::SmallVector<Value> newValues(cont2.getBodyRegion().args_begin(),
+                                       cont2.getBodyRegion().args_end());
+    newValues.insert(newValues.begin() + sourceValuesStart, cont.getBodyRegion().args_begin(),
+                     cont.getBodyRegion().args_end());
+    rewriter.create<ApplyContOp>(destruct.getLoc(), destruct.getPresentCont(), newValues);
 
     rewriter.eraseOp(destruct);
     rewriter.eraseOp(source);
@@ -118,10 +118,10 @@ struct EmptyDestruct : public OpRewritePattern<DestructOp> {
 
   auto matchAndRewrite(DestructOp destruct, PatternRewriter &rewriter) const
       -> LogicalResult override {
-    if (!destruct.inputs().empty())
+    if (!destruct.getInputs().empty())
       return failure();
 
-    rewriter.replaceOpWithNewOp<ApplyContOp>(destruct, destruct.presentCont(),
+    rewriter.replaceOpWithNewOp<ApplyContOp>(destruct, destruct.getPresentCont(),
                                              llvm::ArrayRef<Value>{});
     return success();
   }
@@ -173,18 +173,18 @@ auto DestructOp::parse(mlir::OpAsmParser &parser, OperationState &result) -> mli
 
 void DestructOp::print(mlir::OpAsmPrinter &p) {
   p << '(';
-  p.printOperands(inputs());
+  p.printOperands(getInputs());
   p << ')';
   p << '[';
-  p.printOperand(missingCont());
+  p.printOperand(getMissingCont());
   p << ", ";
-  p.printOperand(presentCont());
+  p.printOperand(getPresentCont());
   p << ']';
 
   p.printOptionalAttrDictWithKeyword(getOperation()->getAttrs());
 
   p << ' ';
-  if (!inputs().empty()) {
-    p << " : " << inputs().getTypes();
+  if (!getInputs().empty()) {
+    p << " : " << getInputs().getTypes();
   }
 }

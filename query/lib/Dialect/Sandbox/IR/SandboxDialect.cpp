@@ -34,17 +34,7 @@ void SandboxDialect::initialize() {
       >();
 }
 
-void ArrayType::walkImmediateSubElements(llvm::function_ref<void(Attribute)> walkAttrsFn,
-                                         llvm::function_ref<void(Type)> walkTypesFn) const {
-  walkTypesFn(getElementType());
-}
-
-auto ArrayType::replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
-                                            ArrayRef<Type> replTypes) const -> Type {
-  return get(getContext(), replTypes.front());
-}
-
-auto ArrayType::verify(llvm::function_ref<InFlightDiagnostic()> emitError, Type elementType)
+auto ArrayType::verify(function_ref<InFlightDiagnostic()> emitError, Type elementType)
     -> LogicalResult {
   if (elementType.isa<BooleanType>() || elementType.isa<IntType>()
       || elementType.isa<ArrayType>()) {

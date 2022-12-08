@@ -47,23 +47,23 @@ void lowerCallCCOp(IRRewriter &rewriter, CallCCOp callcc, std::vector<DefContOp>
 auto getDefBlock(Value cont) -> Block * {
   auto def = cont.getDefiningOp<DefContOp>();
   assert(def && "Continuation def is not visable");
-  return &def.bodyRegion().front();
+  return def.getBody();
 }
 
 void lowerApplyContOp(IRRewriter &rewriter, ApplyContOp op) {
   rewriter.setInsertionPoint(op);
-  rewriter.replaceOpWithNewOp<mlir::cf::BranchOp>(op, op.args(), getDefBlock(op.cont()));
+  rewriter.replaceOpWithNewOp<mlir::cf::BranchOp>(op, op.getArgs(), getDefBlock(op.getCont()));
 }
 
 void lowerIfOp(IRRewriter &rewriter, IfOp op) {
   rewriter.setInsertionPoint(op);
-  rewriter.replaceOpWithNewOp<mlir::cf::CondBranchOp>(op, op.condition(),
-                                                      getDefBlock(op.trueCont()), op.trueArgs(),
-                                                      getDefBlock(op.falseCont()), op.falseArgs());
+  rewriter.replaceOpWithNewOp<mlir::cf::CondBranchOp>(
+      op, op.getCondition(), getDefBlock(op.getTrueCont()), op.getTrueArgs(),
+      getDefBlock(op.getFalseCont()), op.getFalseArgs());
 }
 
 void lowerDefContOp(IRRewriter &rewriter, DefContOp op) {
-  rewriter.inlineRegionBefore(op.bodyRegion(), *op->getParentRegion(),
+  rewriter.inlineRegionBefore(op.getBodyRegion(), *op->getParentRegion(),
                               std::next(op->getBlock()->getIterator()));
   rewriter.eraseOp(op);
 }

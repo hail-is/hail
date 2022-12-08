@@ -12,7 +12,7 @@ add_mlir_conversion_library(HailLowerSandbox
 
   LINK_LIBS PUBLIC
   HailSandboxDialect
-  MLIRArithmeticDialect
+  MLIRArithDialect
   MLIRPass
   MLIRTensorDialect
   MLIRTransforms

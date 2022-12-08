@@ -19,12 +19,12 @@
 
 namespace hail::ir {
 
-auto ConstantOp::fold(ArrayRef<Attribute> operands) -> OpFoldResult { return valueAttr(); }
+auto ConstantOp::fold(ArrayRef<Attribute> operands) -> OpFoldResult { return getValueAttr(); }
 
 auto ConstantOp::verify() -> LogicalResult {
   auto type = getType();
   // The value's type must match the return type.
-  auto valueType = value().getType();
+  auto valueType = getValue().cast<mlir::TypedAttr>().getType();
 
   if (valueType.isa<IntegerType>() && type.isa<IntType>()) {
     return success();
@@ -56,12 +56,12 @@ auto AddIOp::fold(ArrayRef<Attribute> operands) -> OpFoldResult {
 }
 
 auto ComparisonOp::fold(ArrayRef<Attribute> operands) -> OpFoldResult {
-  assert(operands.size() == 2 && "comparison op takes two operands");
+  assert((operands.size() == 2) && "comparison op takes two operands");
   if (!operands[0] || !operands[1])
     return {};
 
   if (operands[0].isa<IntegerAttr>() && operands[1].isa<IntegerAttr>()) {
-    auto pred = predicate();
+    auto pred = getPredicate();
     auto lhs = operands[0].cast<IntegerAttr>();
     auto rhs = operands[1].cast<IntegerAttr>();
 
@@ -101,21 +101,21 @@ struct SimplifyAddConstAddConst : public OpRewritePattern<AddIOp> {
       : OpRewritePattern<AddIOp>(context, /*benefit=*/1) {}
 
   auto matchAndRewrite(AddIOp op, PatternRewriter &rewriter) const -> LogicalResult override {
-    auto lhs = op.lhs().getDefiningOp<AddIOp>();
+    auto lhs = op.getLhs().getDefiningOp<AddIOp>();
     if (!lhs)
       return failure();
 
-    auto lConst = lhs.rhs().getDefiningOp<ConstantOp>();
-    auto rConst = op.rhs().getDefiningOp<ConstantOp>();
+    auto lConst = lhs.getRhs().getDefiningOp<ConstantOp>();
+    auto rConst = op.getRhs().getDefiningOp<ConstantOp>();
     if (!lConst || !rConst)
       return failure();
 
     auto sumConst = rewriter.create<ConstantOp>(
         mlir::FusedLoc::get(op->getContext(), {lConst->getLoc(), rConst.getLoc()}, nullptr),
         lConst.getType(),
-        IntegerAttr::get(lConst.getType(), lConst.value().cast<IntegerAttr>().getValue()
-                                               + rConst.value().cast<IntegerAttr>().getValue()));
-    rewriter.replaceOpWithNewOp<AddIOp>(op, lhs.result().getType(), lhs.lhs(), sumConst);
+        IntegerAttr::get(lConst.getType(), lConst.getValue().cast<IntegerAttr>().getValue()
+                                               + rConst.getValue().cast<IntegerAttr>().getValue()));
+    rewriter.replaceOpWithNewOp<AddIOp>(op, lhs.getResult().getType(), lhs.getLhs(), sumConst);
     return success();
   }
 };
@@ -127,7 +127,7 @@ void AddIOp::getCanonicalizationPatterns(RewritePatternSet &results, MLIRContext
 auto ArrayRefOp::verify() -> LogicalResult {
   auto type = getType();
   // The value's type must match the return type.
-  auto arrayType = array().getType();
+  auto arrayType = getArray().getType();
 
   if (!arrayType.isa<ArrayType>()) {
     return emitOpError() << "ArrayRef requires an array as input: " << arrayType;
@@ -142,7 +142,7 @@ auto ArrayRefOp::verify() -> LogicalResult {
 }
 
 auto ArrayRefOp::fold(ArrayRef<Attribute> operands) -> OpFoldResult {
-  auto a = array().getDefiningOp<MakeArrayOp>();
+  auto a = getArray().getDefiningOp<MakeArrayOp>();
   if (operands[1].isa<IntegerAttr>() && a) {
     auto idx = operands[1].cast<IntegerAttr>().getInt();
     if (idx < 0 || idx >= a->getNumOperands())
@@ -153,7 +153,7 @@ auto ArrayRefOp::fold(ArrayRef<Attribute> operands) -> OpFoldResult {
 }
 
 auto MakeArrayOp::verify() -> LogicalResult {
-  auto assignedResultType = result().getType();
+  auto assignedResultType = getResult().getType();
 
   if (!assignedResultType.isa<ArrayType>()) {
     return emitOpError() << "MakeArray expects an ArrayType as return type, found "
@@ -161,7 +161,7 @@ auto MakeArrayOp::verify() -> LogicalResult {
   }
 
   auto elemType = assignedResultType.cast<ArrayType>().getElementType();
-  for (auto elem : elems()) {
+  for (auto elem : getElems()) {
     if (elemType != elem.getType()) {
       return emitOpError() << "MakeArray with return element type " << elemType
                            << " had element with type " << elem.getType();

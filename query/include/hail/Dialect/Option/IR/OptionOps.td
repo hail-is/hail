@@ -40,14 +40,14 @@ def Option_OptionType : Option_Type<"Option", "option"> {
 class Option_Op<string mnemonic, list<Trait> traits = []> :
         Op<Option_Dialect, mnemonic, traits>;
 
-def Option_DestructOp : Option_Op<"destruct", [ NoSideEffect, Terminator ]> {
+def Option_DestructOp : Option_Op<"destruct", [ Pure, Terminator ]> {
   let arguments = (ins Variadic<Option_OptionType>:$inputs, CPS_EmptyContType:$missingCont, CPS_ContType:$presentCont);
 
   let hasCustomAssemblyFormat = 1;
   let hasCanonicalizer = 1;
 }
 
-def Option_ConstructOp : Option_Op<"construct", [NoSideEffect, SingleBlock]> {
+def Option_ConstructOp : Option_Op<"construct", [Pure, SingleBlock]> {
   let results = (outs Option_OptionType:$result);
   let regions = (region SizedRegion<1>:$bodyRegion);
 
@@ -62,7 +62,7 @@ def Option_ConstructOp : Option_Op<"construct", [NoSideEffect, SingleBlock]> {
   }];
 }
 
-def Option_MapOp : Option_Op<"map", [NoSideEffect, SingleBlock]> {
+def Option_MapOp : Option_Op<"map", [Pure, SingleBlock]> {
   let arguments = (ins Variadic<Option_OptionType>:$inputs);
   let results = (outs Option_OptionType:$result);
   let regions = (region SizedRegion<1>:$bodyRegion);
@@ -75,7 +75,7 @@ def Option_MapOp : Option_Op<"map", [NoSideEffect, SingleBlock]> {
                     CArg<"mlir::ValueRange", "mlir::ValueRange()">:$inputs)> ];
 }
 
-def Option_YieldOp : Option_Op<"yield", [NoSideEffect, Terminator]> {
+def Option_YieldOp : Option_Op<"yield", [Pure, Terminator]> {
   let arguments = (ins Variadic<AnyType>:$inputs);
   let assemblyFormat = "$inputs `:` type($inputs) attr-dict";
 }

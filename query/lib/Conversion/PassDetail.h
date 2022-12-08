@@ -2,7 +2,7 @@
 #ifndef HAIL_CONVERSION_PASSDETAIL_H_
 #define HAIL_CONVERSION_PASSDETAIL_H_
 
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlow.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"

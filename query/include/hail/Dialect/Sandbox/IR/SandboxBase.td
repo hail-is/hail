@@ -119,9 +119,7 @@ def Sandbox_CmpPredicateAttr : I64EnumAttr<
 //   let genVerifyDecl = 1;
 // }
 
-def Sandbox_Array : Sandbox_Type<"Array", "array", [
-    DeclareTypeInterfaceMethods<SubElementTypeInterface>
-  ]> {
+def Sandbox_Array : Sandbox_Type<"Array", "array", [SubElementTypeInterface]> {
   let summary = "Sandbox array";
   let parameters = (ins "mlir::Type":$elementType);
   let hasCustomAssemblyFormat = 1;
