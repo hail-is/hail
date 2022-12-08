@@ -1534,7 +1534,7 @@ steps:
     script: |
       set -ex
 
-      {% if global.cloud == 'gcs' %}
+      {% if global.cloud == 'gcp' %}
       export SCCACHE_GCS_BUCKET=hail-sccache
       export SCCACHE_GCS_KEY_PATH=/gsa-key/key.json
       export SCCACHE_GCS_RW_MODE=READ_WRITE
