@@ -6,7 +6,7 @@ RUN curl 'https://apt.llvm.org/llvm-snapshot.gpg.key' \
          >> /etc/apt/sources.list && \
     hail-pip-install lit && \
     hail-apt-get-install \
-        build-essential \
+        build-essential git \
         cmake ninja-build \
         clang-15
 
