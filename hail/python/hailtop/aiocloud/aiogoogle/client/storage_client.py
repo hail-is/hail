@@ -213,13 +213,14 @@ class ResumableInsertObjectStream(WritableStream):
                                   raise_for_status=False,
                                   retry=False),
                 closable=True) as put_task:
-            for chunk in self._write_buffer.chunks(n):
-                async with _TaskManager(it.feed(chunk)) as feed_task:
-                    done, _ = await asyncio.wait([put_task, feed_task], return_when=asyncio.FIRST_COMPLETED)
-                    if feed_task not in done:
-                        msg = 'resumable upload chunk PUT request finished before writing data'
-                        log.warning(msg)
-                        raise TransientError(msg)
+            with self._write_buffer.chunks(n) as chunks:
+                for chunk in chunks:
+                    async with _TaskManager(it.feed(chunk)) as feed_task:
+                        done, _ = await asyncio.wait([put_task, feed_task], return_when=asyncio.FIRST_COMPLETED)
+                        if feed_task not in done:
+                            msg = 'resumable upload chunk PUT request finished before writing data'
+                            log.warning(msg)
+                            raise TransientError(msg)
 
             await it.stop()
 

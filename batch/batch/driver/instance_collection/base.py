@@ -265,7 +265,7 @@ class InstanceCollection:
             cores=cores,
             location=location,
             machine_type=machine_type,
-            preemptible=True,
+            preemptible=preemptible,
             instance_config=instance_config,
         )
         self.add_instance(instance)

@@ -476,6 +476,11 @@ class PruneSuite extends HailSuite {
       Array(subsetMatrixTable(mat.typ, "global.g1", "sa.c2", "va.r2", "g.e2", "va.r3"), null))
   }
 
+  @Test def testMatrixKeyRowsByMemo() {
+    val mkr = MatrixKeyRowsBy(mat, FastIndexedSeq("rk"))
+    checkMemo(mkr, subsetMatrixTable(mkr.typ, "va.rk"), Array(subsetMatrixTable(mat.typ, "va.rk")))
+  }
+
   @Test def testMatrixMapRowsMemo() {
     val mmr = MatrixMapRows(
       MatrixKeyRowsBy(mat, IndexedSeq.empty),

@@ -20,6 +20,7 @@ Core language functions
     or_else
     or_missing
     range
+    query_table
 
 
 .. autofunction:: literal
@@ -38,6 +39,7 @@ Core language functions
 .. autofunction:: or_else
 .. autofunction:: or_missing
 .. autofunction:: range
+.. autofunction:: query_table
 
 .. currentmodule:: hail.expr.builders
 

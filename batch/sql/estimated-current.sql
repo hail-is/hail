@@ -62,19 +62,24 @@ VALUES ('highcpu', 'highcpu', 16, 10, 1, 0, 0, 4);
 
 CREATE TABLE IF NOT EXISTS `billing_projects` (
   `name` VARCHAR(100) NOT NULL,
+  `name_cs` VARCHAR(100) NOT NULL COLLATE utf8mb4_0900_as_cs,
   `status` ENUM('open', 'closed', 'deleted') NOT NULL DEFAULT 'open',
   `limit` DOUBLE DEFAULT NULL,
   `msec_mcpu` BIGINT DEFAULT 0,
   PRIMARY KEY (`name`)
 ) ENGINE = InnoDB;
 CREATE INDEX `billing_project_status` ON `billing_projects` (`status`);
+CREATE UNIQUE INDEX `billing_project_name_cs` ON `billing_projects` (`name_cs`);
+CREATE INDEX `billing_project_name_cs_status` ON `billing_projects` (`name_cs`, `status`);
 
 CREATE TABLE IF NOT EXISTS `billing_project_users` (
   `billing_project` VARCHAR(100) NOT NULL,
   `user` VARCHAR(100) NOT NULL,
+  `user_cs` VARCHAR(100) NOT NULL COLLATE utf8mb4_0900_as_cs,
   PRIMARY KEY (`billing_project`, `user`),
   FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name) ON DELETE CASCADE
 ) ENGINE = InnoDB;
+CREATE INDEX `billing_project_users_billing_project_user_cs` ON `billing_project_users` (`billing_project`, `user_cs`);
 
 INSERT INTO `billing_projects` (`name`)
 VALUES ('ci');

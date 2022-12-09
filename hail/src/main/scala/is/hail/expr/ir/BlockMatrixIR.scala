@@ -945,7 +945,7 @@ case class ValueToBlockMatrix(
 }
 
 case class BlockMatrixRandom(
-  seed: Long,
+  staticUID: Long,
   gaussian: Boolean,
   shape: IndexedSeq[Long],
   blockSize: Int) extends BlockMatrixIR {
@@ -961,11 +961,11 @@ case class BlockMatrixRandom(
 
   def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixRandom = {
     assert(newChildren.isEmpty)
-    BlockMatrixRandom(seed, gaussian, shape, blockSize)
+    BlockMatrixRandom(staticUID, gaussian, shape, blockSize)
   }
 
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
-    BlockMatrix.random(shape(0), shape(1), blockSize, seed, gaussian)
+    BlockMatrix.random(shape(0), shape(1), blockSize, ctx.rngNonce, staticUID, gaussian)
   }
 }
 

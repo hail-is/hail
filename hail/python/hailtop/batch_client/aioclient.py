@@ -444,7 +444,7 @@ class Batch:
             description += ': '
         if progress is not None:
             return await self._wait(description, progress, disable_progress_bar, starting_job)
-        with BatchProgressBar() as progress2:
+        with BatchProgressBar(disable=disable_progress_bar) as progress2:
             return await self._wait(description, progress2, disable_progress_bar, starting_job)
 
     async def debug_info(self):
@@ -872,6 +872,9 @@ class BatchClient:
     async def _delete(self, path) -> aiohttp.client_reqrep.ClientResponse:
         assert self._session
         return await request_retry_transient_errors(self._session, 'DELETE', self.url + path, headers=self._headers)
+
+    def reset_billing_project(self, billing_project):
+        self.billing_project = billing_project
 
     async def list_batches(self, q=None, last_batch_id=None, limit=2 ** 64):
         n = 0

@@ -32,6 +32,7 @@ class BlockMatrixRead(BlockMatrixIR):
 class BlockMatrixMap(BlockMatrixIR):
     @typecheck_method(child=BlockMatrixIR, name=str, f=IR, needs_dense=bool)
     def __init__(self, child, name, f, needs_dense):
+        assert(not f.uses_randomness)
         super().__init__(child, f)
         self.child = child
         self.name = name
@@ -64,6 +65,7 @@ class BlockMatrixMap(BlockMatrixIR):
 class BlockMatrixMap2(BlockMatrixIR):
     @typecheck_method(left=BlockMatrixIR, right=BlockMatrixIR, left_name=str, right_name=str, f=IR, sparsity_strategy=str)
     def __init__(self, left, right, left_name, right_name, f, sparsity_strategy):
+        assert(not f.uses_randomness)
         super().__init__(left, right, f)
         self.left = left
         self.right = right
@@ -299,6 +301,7 @@ class PerBlockSparsifier(BlockMatrixSparsifier):
 class BlockMatrixSparsify(BlockMatrixIR):
     @typecheck_method(child=BlockMatrixIR, value=IR, sparsifier=BlockMatrixSparsifier)
     def __init__(self, child, value, sparsifier):
+        assert(not value.uses_randomness)
         super().__init__(value, child)
         self.child = child
         self.value = value
@@ -345,6 +348,9 @@ class ValueToBlockMatrix(BlockMatrixIR):
                       shape=sequenceof(int),
                       block_size=int)
     def __init__(self, child, shape, block_size):
+        from .ir import Let, RNGStateLiteral
+        if child.uses_randomness:
+            child = Let('__rng_state', RNGStateLiteral(), child)
         super().__init__(child)
         self.child = child
         self.shape = shape
@@ -372,25 +378,25 @@ class ValueToBlockMatrix(BlockMatrixIR):
 
 
 class BlockMatrixRandom(BlockMatrixIR):
-    @typecheck_method(seed=int,
+    @typecheck_method(static_rng_uid=int,
                       gaussian=bool,
                       shape=sequenceof(int),
                       block_size=int)
-    def __init__(self, seed, gaussian, shape, block_size):
+    def __init__(self, static_rng_uid, gaussian, shape, block_size):
         super().__init__()
-        self.seed = seed
+        self.static_rng_uid = static_rng_uid
         self.gaussian = gaussian
         self.shape = shape
         self.block_size = block_size
 
     def head_str(self):
-        return '{} {} {} {}'.format(self.seed,
+        return '{} {} {} {}'.format(self.static_rng_uid,
                                     self.gaussian,
                                     _serialize_list(self.shape),
                                     self.block_size)
 
     def _eq(self, other):
-        return self.seed == other.seed and \
+        return self.static_rng_uid == other.static_rng_uid and \
             self.gaussian == other.gaussian and \
             self.shape == other.shape and \
             self.block_size == other.block_size

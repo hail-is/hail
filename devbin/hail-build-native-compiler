@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+cd "${HAIL_NATIVE_COMPILER}"
+rm -rf "${HAIL_NATIVE_COMPILER_BUILD}"
+mkdir -p "${HAIL_NATIVE_COMPILER_BUILD}"
+cd "${HAIL_NATIVE_COMPILER_BUILD}"
+cmake .. -G Ninja \
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DCMAKE_C_COMPILER="${LLVM_BUILD_BIN}/clang" \
+  -DCMAKE_CXX_COMPILER="${LLVM_BUILD_BIN}/clang++" \
+  -DCMAKE_EXPORT_COMPILE_COMMANDS=1 \
+  -DLLVM_BUILD_BINARY_DIR="${LLVM_BUILD_BIN}" \
+  -DMLIR_DIR="${LLVM_BUILD}/lib/cmake/mlir"
+ninja
+cd -

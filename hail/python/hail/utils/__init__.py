@@ -1,6 +1,6 @@
 from .misc import (wrap_to_list, get_env_or_default, uri_path, local_path_uri, new_temp_file,
                    new_local_temp_dir, new_local_temp_file, with_local_temp_file, storage_level,
-                   range_matrix_table, range_table, run_command, HailSeedGenerator, timestamp_path,
+                   range_matrix_table, range_table, run_command, timestamp_path,
                    _dumps_partitions, default_handler, guess_cloud_spark_provider, no_service_backend)
 from .hadoop_utils import (hadoop_copy, hadoop_open, hadoop_exists, hadoop_is_dir, hadoop_is_file,
                            hadoop_ls, hadoop_scheme_supported, hadoop_stat, copy_log)
@@ -41,7 +41,6 @@ __all__ = ['hadoop_open',
            'HailUserError',
            'range_table',
            'range_matrix_table',
-           'HailSeedGenerator',
            'LinkedList',
            'get_1kg',
            'get_hgdp',

@@ -33,6 +33,10 @@ def init(doctest_namespace):
     olddir = os.getcwd()
     os.chdir(os.path.join(os.path.dirname(os.path.realpath(__file__)),
                           "docs"))
+
+    hl.init(global_seed=0)
+    hl.reset_global_randomness()
+
     try:
         generate_datasets(doctest_namespace)
         print("finished setting up doctest...")
@@ -41,12 +45,17 @@ def init(doctest_namespace):
         os.chdir(olddir)
 
 
+@pytest.fixture(autouse=True)
+def reset_randomness(init):
+    hl.reset_global_randomness()
+
+
 def generate_datasets(doctest_namespace):
     doctest_namespace['hl'] = hl
     doctest_namespace['np'] = np
 
     ds = hl.import_vcf('data/sample.vcf.bgz')
-    ds = ds.sample_rows(0.03)
+    ds = ds.sample_rows(0.035)
     ds = ds.annotate_rows(use_as_marker=hl.rand_bool(0.5),
                           panel_maf=0.1,
                           anno1=5,

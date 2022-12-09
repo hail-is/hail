@@ -5,9 +5,6 @@ import pytest
 from ..helpers import *
 from hail.utils import new_temp_file
 
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
-
 
 class Tests(unittest.TestCase):
     @fails_service_backend()

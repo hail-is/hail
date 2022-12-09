@@ -18,17 +18,13 @@ class GCPResource(Resource, abc.ABC):
     pass
 
 
-def gcp_disk_product(disk_type: str) -> str:
-    return f'disk/{disk_type}'
-
-
 class GCPStaticSizedDiskResource(StaticSizedDiskResourceMixin, GCPResource):
     FORMAT_VERSION = 1
     TYPE = 'gcp_static_sized_disk'
 
     @staticmethod
-    def product_name(disk_type: str) -> str:
-        return gcp_disk_product(disk_type)
+    def product_name(disk_type: str, region: str) -> str:
+        return f'disk/{disk_type}/{region}'
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> 'GCPStaticSizedDiskResource':
@@ -37,11 +33,11 @@ class GCPStaticSizedDiskResource(StaticSizedDiskResourceMixin, GCPResource):
 
     @staticmethod
     def create(
-        product_versions: ProductVersions,
-        disk_type: str,
-        storage_in_gib: int,
+        product_versions: ProductVersions, disk_type: str, storage_in_gib: int, region: str
     ) -> 'GCPStaticSizedDiskResource':
-        product = GCPStaticSizedDiskResource.product_name(disk_type)
+        product = GCPStaticSizedDiskResource.product_name(disk_type, region)
+        if product_versions.latest_version(product) is None:
+            product = f'disk/{disk_type}'  # backwards compatibility
         name = product_versions.resource_name(product)
         assert name, product
         return GCPStaticSizedDiskResource(name, storage_in_gib)
@@ -64,8 +60,8 @@ class GCPDynamicSizedDiskResource(DynamicSizedDiskResourceMixin, GCPResource):
     TYPE = 'gcp_dynamic_sized_disk'
 
     @staticmethod
-    def product_name(disk_type: str) -> str:
-        return gcp_disk_product(disk_type)
+    def product_name(disk_type: str, region: str) -> str:
+        return f'disk/{disk_type}/{region}'
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> 'GCPDynamicSizedDiskResource':
@@ -73,8 +69,10 @@ class GCPDynamicSizedDiskResource(DynamicSizedDiskResourceMixin, GCPResource):
         return GCPDynamicSizedDiskResource(data['name'])
 
     @staticmethod
-    def create(product_versions: ProductVersions, disk_type: str) -> 'GCPDynamicSizedDiskResource':
-        product = GCPDynamicSizedDiskResource.product_name(disk_type)
+    def create(product_versions: ProductVersions, disk_type: str, region: str) -> 'GCPDynamicSizedDiskResource':
+        product = GCPDynamicSizedDiskResource.product_name(disk_type, region)
+        if product_versions.latest_version(product) is None:
+            product = f'disk/{disk_type}'  # backwards compatibility
         name = product_versions.resource_name(product)
         assert name, product
         return GCPDynamicSizedDiskResource(name)
@@ -94,14 +92,55 @@ class GCPDynamicSizedDiskResource(DynamicSizedDiskResourceMixin, GCPResource):
         return {'type': self.TYPE, 'name': self.name, 'version': self.FORMAT_VERSION}
 
 
+class GCPLocalSSDStaticSizedDiskResource(StaticSizedDiskResourceMixin, GCPResource):
+    FORMAT_VERSION = 1
+    TYPE = 'gcp_local_ssd_static_sized_disk'
+
+    @staticmethod
+    def product_name(preemptible: bool, region: str) -> str:
+        preemptible_str = 'preemptible' if preemptible else 'nonpreemptible'
+        return f'disk/local-ssd/{preemptible_str}/{region}'
+
+    @staticmethod
+    def from_dict(data: Dict[str, Any]) -> 'GCPLocalSSDStaticSizedDiskResource':
+        assert data['type'] == GCPLocalSSDStaticSizedDiskResource.TYPE
+        return GCPLocalSSDStaticSizedDiskResource(data['name'], data['storage_in_gib'])
+
+    @staticmethod
+    def create(
+        product_versions: ProductVersions,
+        storage_in_gib: int,
+        preemptible: bool,
+        region: str,
+    ) -> 'GCPLocalSSDStaticSizedDiskResource':
+        product = GCPLocalSSDStaticSizedDiskResource.product_name(preemptible, region)
+        if product_versions.latest_version(product) is None:
+            product = 'disk/local-ssd'  # backwards compatibility
+        name = product_versions.resource_name(product)
+        assert name, product
+        return GCPLocalSSDStaticSizedDiskResource(name, storage_in_gib)
+
+    def __init__(self, name: str, storage_in_gib: int):
+        self.name = name
+        self.storage_in_gib = storage_in_gib
+
+    def to_dict(self) -> dict:
+        return {
+            'type': self.TYPE,
+            'name': self.name,
+            'storage_in_gib': self.storage_in_gib,
+            'version': self.FORMAT_VERSION,
+        }
+
+
 class GCPComputeResource(ComputeResourceMixin, GCPResource):
     FORMAT_VERSION = 1
     TYPE = 'gcp_compute'
 
     @staticmethod
-    def product_name(instance_family: str, preemptible: bool) -> str:
+    def product_name(instance_family: str, preemptible: bool, region: str) -> str:
         preemptible_str = 'preemptible' if preemptible else 'nonpreemptible'
-        return f'compute/{instance_family}-{preemptible_str}'
+        return f'compute/{instance_family}-{preemptible_str}/{region}'
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> 'GCPComputeResource':
@@ -113,8 +152,12 @@ class GCPComputeResource(ComputeResourceMixin, GCPResource):
         product_versions: ProductVersions,
         instance_family: str,
         preemptible: bool,
+        region: str,
     ) -> 'GCPComputeResource':
-        product = GCPComputeResource.product_name(instance_family, preemptible)
+        product = GCPComputeResource.product_name(instance_family, preemptible, region)
+        if product_versions.latest_version(product) is None:
+            preemptible_str = 'preemptible' if preemptible else 'nonpreemptible'
+            product = f'compute/{instance_family}-{preemptible_str}'  # backwards compatibility
         name = product_versions.resource_name(product)
         assert name, product
         return GCPComputeResource(name)
@@ -131,9 +174,9 @@ class GCPMemoryResource(MemoryResourceMixin, GCPResource):
     TYPE = 'gcp_memory'
 
     @staticmethod
-    def product_name(instance_family: str, preemptible: bool) -> str:
+    def product_name(instance_family: str, preemptible: bool, region: str) -> str:
         preemptible_str = 'preemptible' if preemptible else 'nonpreemptible'
-        return f'memory/{instance_family}-{preemptible_str}'
+        return f'memory/{instance_family}-{preemptible_str}/{region}'
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> 'GCPMemoryResource':
@@ -145,8 +188,12 @@ class GCPMemoryResource(MemoryResourceMixin, GCPResource):
         product_versions: ProductVersions,
         instance_family: str,
         preemptible: bool,
+        region: str,
     ) -> 'GCPMemoryResource':
-        product = GCPMemoryResource.product_name(instance_family, preemptible)
+        product = GCPMemoryResource.product_name(instance_family, preemptible, region)
+        if product_versions.latest_version(product) is None:
+            preemptible_str = 'preemptible' if preemptible else 'nonpreemptible'
+            product = f'memory/{instance_family}-{preemptible_str}'  # backwards compatibility
         name = product_versions.resource_name(product)
         assert name, product
         return GCPMemoryResource(name)
@@ -218,6 +265,8 @@ def gcp_resource_from_dict(data: dict) -> GCPResource:
         return GCPStaticSizedDiskResource.from_dict(data)
     if typ == GCPDynamicSizedDiskResource.TYPE:
         return GCPDynamicSizedDiskResource.from_dict(data)
+    if typ == GCPLocalSSDStaticSizedDiskResource.TYPE:
+        return GCPLocalSSDStaticSizedDiskResource.from_dict(data)
     if typ == GCPComputeResource.TYPE:
         return GCPComputeResource.from_dict(data)
     if typ == GCPMemoryResource.TYPE:

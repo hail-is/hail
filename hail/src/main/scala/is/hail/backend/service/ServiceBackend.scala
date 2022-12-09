@@ -9,9 +9,9 @@ import is.hail.{HAIL_REVISION, HailContext, HailFeatureFlags}
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.{Backend, BackendContext, BroadcastValue, ExecuteContext, HailTaskContext}
-import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.{JSONAnnotationImpex, Validate}
 import is.hail.expr.ir.lowering._
-import is.hail.expr.ir.{Compile, IR, IRParser, MakeTuple, SortField}
+import is.hail.expr.ir.{Compile, IR, IRParser, MakeTuple, SortField, TypeCheck}
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.bgen.IndexBgen
@@ -301,7 +301,8 @@ class ServiceBackend(
   }
 
   private[this] def execute(ctx: ExecuteContext, _x: IR, bufferSpecString: String): Array[Byte] = {
-    // FIXME: do we need Validate(_x)?
+    TypeCheck(ctx, _x)
+    Validate(_x)
     val x = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All).apply(ctx, _x)
       .asInstanceOf[IR]
     if (x.typ == TVoid) {
@@ -455,7 +456,7 @@ class ServiceBackendSocketAPI2(
   private[this] val backend: ServiceBackend,
   private[this] val in: InputStream,
   private[this] val out: OutputStream,
-  private[this] val sessionId: String
+  private[this] val sessionId: String,
 ) extends Thread {
   private[this] val LOAD_REFERENCES_FROM_DATASET = 1
   private[this] val VALUE_TYPE = 2
