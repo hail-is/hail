@@ -1571,13 +1571,13 @@ steps:
       ninja
       DESTDIR=/io/pkg/llvm ninja install
       cd /io/pkg/llvm
-      tar -cvJf /io/pkg/llvm.tar.xz io/opt/llvm
+      tar -cvf /io/pkg/llvm.tar io/opt/llvm
     inputs:
       - from: /repo/query/.llvm.ref
         to: /io/llvm.ref
     outputs:
-      - from: /io/pkg/llvm.tar.xz
-        to: /llvm.tar.xz
+      - from: /io/pkg/llvm.tar
+        to: /llvm.tar
     resources:
       storage: 50Gi
       memory: standard
@@ -1591,7 +1591,7 @@ steps:
       valueFrom: query_build_image.image
     script: |
       set -ex
-      (cd / && tar xvf /io/llvm.tar.xz)
+      (cd / && tar xvf /io/llvm.tar)
       export LLVM_DIR=/io/opt/llvm
       cd /io/repo/query
       mkdir build
@@ -1613,8 +1613,8 @@ steps:
     inputs:
       - from: /repo
         to: /io/repo
-      - from: /llvm.tar.xz
-        to: /io/llvm.tar.xz
+      - from: /llvm.tar
+        to: /io/llvm.tar
     dependsOn:
       - query_build_image
       - build_llvm
