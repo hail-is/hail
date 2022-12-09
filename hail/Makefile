@@ -272,7 +272,9 @@ $(eval $(call ENV_VAR,wheel_cloud_path))
 generate-pip-lockfiles:
 	HAIL_HAIL_DIR=$(HAIL_HAIL_DIR) \
 	../generate_pip_lockfile.sh python/hailtop/requirements.txt python/hailtop/pinned-requirements.txt && \
+	HAIL_HAIL_DIR=$(HAIL_HAIL_DIR) \
 	../generate_pip_lockfile.sh python/requirements.txt python/pinned-requirements.txt && \
+	HAIL_HAIL_DIR=$(HAIL_HAIL_DIR) \
 	../generate_pip_lockfile.sh python/dev/requirements.txt python/dev/pinned-requirements.txt
 
 
