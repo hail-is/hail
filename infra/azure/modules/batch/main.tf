@@ -73,6 +73,12 @@ resource "azurerm_storage_container" "query" {
   container_access_type = "private"
 }
 
+resource "azurerm_storage_container" "sccache" {
+  name                  = "sccache"
+  storage_account_name  = azurerm_storage_account.batch.name
+  container_access_type = "private"
+}
+
 resource "azurerm_storage_account" "test" {
   name                     = "${var.resource_group.name}test"
   resource_group_name      = var.resource_group.name

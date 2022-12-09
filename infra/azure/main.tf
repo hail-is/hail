@@ -98,16 +98,17 @@ module "batch" {
 module "global_config" {
   source = "../k8s/global_config"
 
-  cloud                  = "azure"
-  domain                 = var.domain
-  docker_prefix          = azurerm_container_registry.acr.login_server
-  internal_gateway_ip    = module.vdc.internal_gateway_ip
-  gateway_ip             = module.vdc.gateway_ip
-  kubernetes_server      = module.vdc.kubernetes_server
-  batch_logs_storage_uri = module.batch.batch_logs_storage_uri
-  test_storage_uri       = module.batch.test_storage_uri
-  query_storage_uri      = module.batch.query_storage_uri
-  organization_domain    = var.organization_domain
+  cloud                      = "azure"
+  domain                     = var.domain
+  docker_prefix              = azurerm_container_registry.acr.login_server
+  internal_gateway_ip        = module.vdc.internal_gateway_ip
+  gateway_ip                 = module.vdc.gateway_ip
+  kubernetes_server          = module.vdc.kubernetes_server
+  batch_logs_storage_uri     = module.batch.batch_logs_storage_uri
+  test_storage_uri           = module.batch.test_storage_uri
+  query_storage_uri          = module.batch.query_storage_uri
+  sccache_storage_container  = module.batch.sccache_storage_container
+  organization_domain        = var.organization_domain
 
   extra_fields = {
     azure_subscription_id = data.azurerm_subscription.primary.subscription_id

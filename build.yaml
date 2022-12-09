@@ -1540,15 +1540,15 @@ steps:
 
       # uncomment this line to force a full rebuild/recache
       # export SCCACHE_RECACHE=yes
+
       {% if global.cloud == 'gcp' %}
       export SCCACHE_GCS_KEY_PATH=$GOOGLE_APPLICATION_CREDENTIALS
       export SCCACHE_GCS_BUCKET=hail-sccache
       export SCCACHE_GCS_RW_MODE=READ_WRITE
-      # TODO sccache in azure
-      # {% elif global.cloud == 'azure' %}
-      # export SCCACHE_AZURE_BLOB_CONTAINER=hail-sccache
+      {% elif global.cloud == 'azure' %}
+      export SCCACHE_AZURE_BLOB_CONTAINER={{ global.sccache_storage_container }}
       # set +x
-      # export SCCACHE_AZURE_CONNECTION_STRING=???
+      # export SCCACHE_AZURE_CONNECTION_STRING=??? # FIXME add the connection string
       # set -x
       {% else %}
       echo >2 'Unsupported sccache clound storage backend {{ global.cloud }}. Compiling LLVM without a build cache'

@@ -10,6 +10,10 @@ output test_storage_container {
   value = azurerm_storage_container.test
 }
 
+output sccache_storage_continer {
+    value = azurerm_storage_container.sccache
+}
+
 output test_storage_uri {
   value = "hail-az://${azurerm_storage_account.test.name}/${azurerm_storage_container.test.name}"
 }
