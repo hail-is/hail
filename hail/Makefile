@@ -268,33 +268,27 @@ $(eval $(call ENV_VAR,cloud_base))
 $(eval $(call ENV_VAR,wheel_cloud_path))
 
 
-
-python/hailtop/pinned-requirements.txt: python/hailtop/requirements.txt
+.PHONY: generate-pip-lockfiles
+generate-pip-lockfiles:
 	HAIL_HAIL_DIR=$(HAIL_HAIL_DIR) \
-	../generate_pip_lockfile.sh python/hailtop/requirements.txt python/hailtop/pinned-requirements.txt
-
-python/pinned-requirements.txt: python/hailtop/requirements.txt python/requirements.txt
-	HAIL_HAIL_DIR=$(HAIL_HAIL_DIR) \
-	../generate_pip_lockfile.sh python/requirements.txt python/pinned-requirements.txt
-
-python/dev/pinned-requirements.txt: python/hailtop/requirements.txt python/requirements.txt python/dev/requirements.txt
-	HAIL_HAIL_DIR=$(HAIL_HAIL_DIR) \
+	../generate_pip_lockfile.sh python/hailtop/requirements.txt python/hailtop/pinned-requirements.txt && \
+	../generate_pip_lockfile.sh python/requirements.txt python/pinned-requirements.txt && \
 	../generate_pip_lockfile.sh python/dev/requirements.txt python/dev/pinned-requirements.txt
 
-.PHONY: generate-pip-lockfiles
-generate-pip-lockfiles: python/hailtop/pinned-requirements.txt
-generate-pip-lockfiles: python/pinned-requirements.txt
-generate-pip-lockfiles: python/dev/pinned-requirements.txt
+
+.PHONY: check-pip-lockfiles
+check-pip-lockfiles:
+	$(PIP) install pip-tools && ../check_pip_requirements.sh python/requirements.txt python/pinned-requirements.txt
+
 
 python/hailtop/hailctl/deploy.yaml: env/cloud_base env/wheel_cloud_path
-python/hailtop/hailctl/deploy.yaml: $(resources)
+python/hailtop/hailctl/deploy.yaml: $(resources) check-pip-lockfiles
 	rm -f $@
 	echo "dataproc:" >> $@
 	for FILE in $(notdir $(resources)); do \
 	  echo "  $$FILE: $(cloud_base)/$$FILE" >> $@ || exit 1; done
 	echo "  wheel: $(wheel_cloud_path)" >> $@
 	printf "  pip_dependencies: " >> $@
-	$(PIP) install pip-tools && ../check_pip_requirements.sh python/requirements.txt python/pinned-requirements.txt
 	cat python/pinned-requirements.txt | sed '/^[[:blank:]]*#/d;s/#.*//' | grep -v pyspark | tr "\n" "|||" | tr -d '[:space:]' >> $@
 
 .PHONY: upload-artifacts
@@ -344,8 +338,7 @@ install: $(WHEEL)
 	hailctl config set query/backend spark
 
 .PHONY: install-on-cluster
-install-on-cluster: $(WHEEL)
-	$(PIP) install pip-tools && ../check_pip_requirements.sh python/requirements.txt python/pinned-requirements.txt
+install-on-cluster: $(WHEEL) check-pip-lockfiles
 	sed '/^pyspark/d' python/pinned-requirements.txt | grep -v -e '^[[:space:]]*#' -e '^$$' | tr '\n' '\0' | xargs -0 $(PIP) install -U
 	-$(PIP) uninstall -y hail
 	$(PIP) install $(WHEEL) --no-deps
