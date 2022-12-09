@@ -1571,7 +1571,7 @@ steps:
         -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;lld;mlir" \
         -DLLVM_TARGETS_TO_BUILD="AArch64;X86;NVPTX;AMDGPU" \
         -DLLVM_ENABLE_ASSERTIONS=OFF \
-        -DLLVM_ENABLE_LLD=ON \
+        -DLLVM_USE_LINKER=lld \
         -DLLVM_BUILD_EXAMPLES=OFF
       ninja
       DESTDIR=/io/pkg/llvm ninja install
@@ -1610,6 +1610,7 @@ steps:
         -DCMAKE_CXX_FLAGS="-Werror" \
         -DCMAKE_BUILD_TYPE=RelWithDebInfo \
         -DMLIR_DIR=$LLVM_DIR/lib/cmake/mlir \
+        -DLLVM_USE_LINKER=lld \
         -DHAIL_USE_CLANG_TIDY=ON
       ninja
       ninja check-hail
