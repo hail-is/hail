@@ -1551,7 +1551,7 @@ steps:
       # export SCCACHE_AZURE_CONNECTION_STRING=??? # FIXME add the connection string
       # set -x
       {% else %}
-      echo >2 'Unsupported sccache clound storage backend {{ global.cloud }}. Compiling LLVM without a build cache'
+      echo >2 'Unsupported sccache cloud storage backend {{ global.cloud }}. Compiling LLVM without a build cache'
       {% endif %}
 
       export LLVM_DIR=/usr/lib/llvm-15
