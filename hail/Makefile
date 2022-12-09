@@ -281,7 +281,7 @@ generate-pip-lockfiles:
 
 .PHONY: check-pip-lockfiles
 check-pip-lockfiles:
-	$(PIP) install pip-tools && ../check_pip_requirements.sh python/requirements.txt python/pinned-requirements.txt
+	$(PIP) install pip-tools && bash ../check_pip_requirements.sh python/requirements.txt python/pinned-requirements.txt
 
 
 python/hailtop/hailctl/deploy.yaml: env/cloud_base env/wheel_cloud_path
