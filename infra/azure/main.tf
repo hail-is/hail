@@ -107,13 +107,13 @@ module "global_config" {
   batch_logs_storage_uri     = module.batch.batch_logs_storage_uri
   test_storage_uri           = module.batch.test_storage_uri
   query_storage_uri          = module.batch.query_storage_uri
-  sccache_storage_container  = module.batch.sccache_storage_container
   organization_domain        = var.organization_domain
 
   extra_fields = {
     azure_subscription_id = data.azurerm_subscription.primary.subscription_id
     azure_resource_group  = data.azurerm_resource_group.rg.name
     azure_location        = data.azurerm_resource_group.rg.location
+    azure_sccache_storage_container  = module.batch.sccache_storage_container
   }
 }
 

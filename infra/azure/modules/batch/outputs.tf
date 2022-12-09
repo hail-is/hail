@@ -10,8 +10,8 @@ output test_storage_container {
   value = azurerm_storage_container.test
 }
 
-output sccache_storage_continer {
-    value = azurerm_storage_container.sccache
+output sccache_storage_container {
+    value = azurerm_storage_container.sccache.name
 }
 
 output test_storage_uri {
