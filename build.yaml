@@ -1612,6 +1612,7 @@ steps:
       ninja
       ninja check-hail
     resources:
+      storage: 20Gi
       memory: standard
       cpu: '4'
     inputs:
