@@ -826,6 +826,8 @@ steps:
         to: /io/repo/README.md
       - from: /repo/hail
         to: /io/repo/hail
+      - from: /repo/check_pip_requirements.sh
+        to: /io/repo/check_pip_requirements.sh
     dependsOn:
       - hail_build_image
       - merge_code
@@ -848,6 +850,8 @@ steps:
         to: /io/repo/README.md
       - from: /repo/hail
         to: /io/repo/hail
+      - from: /repo/check_pip_requirements.sh
+        to: /io/repo/check_pip_requirements.sh
     dependsOn:
       - hail_build_image
       - merge_code
