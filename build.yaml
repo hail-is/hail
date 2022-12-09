@@ -1571,6 +1571,8 @@ steps:
         -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;lld;mlir" \
         -DLLVM_TARGETS_TO_BUILD="AArch64;X86;NVPTX;AMDGPU" \
         -DLLVM_ENABLE_ASSERTIONS=OFF \
+        -DLLVM_BUILD_UTILS=ON \
+        -DLLVM_INSTALL_UTILS=ON \
         -DLLVM_USE_LINKER=lld \
         -DLLVM_BUILD_EXAMPLES=OFF
       ninja
@@ -1596,7 +1598,7 @@ steps:
       valueFrom: query_build_image.image
     script: |
       set -ex
-      (cd / && tar xvf /io/llvm.tar.gz)
+      (cd / && tar xf /io/llvm.tar.gz && rm /io/llvm.tar.gz)
       export LLVM_DIR=/io/opt/llvm
       export PATH="$LLVM_DIR/bin:$PATH"
       cd /io/repo/query
