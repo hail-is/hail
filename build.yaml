@@ -1606,11 +1606,10 @@ steps:
         -G Ninja \
         -DCMAKE_C_COMPILER=$LLVM_DIR/bin/clang \
         -DCMAKE_CXX_COMPILER=$LLVM_DIR/bin/clang++ \
-        -DCMAKE_C_FLAGS="-Werror" \
-        -DCMAKE_CXX_FLAGS="-Werror" \
         -DCMAKE_BUILD_TYPE=RelWithDebInfo \
         -DMLIR_DIR=$LLVM_DIR/lib/cmake/mlir \
         -DLLVM_USE_LINKER=lld \
+        -DLLVM_ENABLE_WERROR=ON \
         -DHAIL_USE_CLANG_TIDY=ON
       ninja
       ninja check-hail
