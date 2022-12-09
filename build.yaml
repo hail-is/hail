@@ -1533,12 +1533,16 @@ steps:
       valueFrom: query_build_image.image
     script: |
       set -ex
-      export SCCACHE_LOG=info
-      export SCCACHE_ERROR_LOG=/io/sccache_log.txt
-      trap 'cat /io/sccache_log.txt' EXIT
+      # uncomment these three lines to debug sccache
+      # export SCCACHE_LOG=info
+      # export SCCACHE_ERROR_LOG=/io/sccache_log.txt
+      # trap 'cat /io/sccache_log.txt' EXIT
+
+      # uncomment this line to force a full rebuild/recache
+      # export SCCACHE_RECACHE=yes
       {% if global.cloud == 'gcp' %}
+      export SCCACHE_GCS_KEY_PATH=$GOOGLE_APPLICATION_CREDENTIALS
       export SCCACHE_GCS_BUCKET=hail-sccache
-      export SCCACHE_GCS_KEY_PATH=/gsa-key/key.json
       export SCCACHE_GCS_RW_MODE=READ_WRITE
       # TODO sccache in azure
       # {% elif global.cloud == 'azure' %}
