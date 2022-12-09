@@ -1533,7 +1533,7 @@ steps:
       valueFrom: query_build_image.image
     script: |
       set -ex
-      export SCCACHE_LOG=debug
+      export SCCACHE_LOG=info
       export SCCACHE_ERROR_LOG=/io/sccache_log.txt
       trap 'cat /io/sccache_log.txt' EXIT
       {% if global.cloud == 'gcp' %}
@@ -1579,6 +1579,7 @@ steps:
       - from: /io/pkg/llvm.tar.xz
         to: /llvm.tar.xz
     resources:
+      storage: 50Gi
       memory: standard
       cpu: '8'
     dependsOn:
