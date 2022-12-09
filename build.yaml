@@ -1571,17 +1571,18 @@ steps:
         -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;lld;mlir" \
         -DLLVM_TARGETS_TO_BUILD="AArch64;X86;NVPTX;AMDGPU" \
         -DLLVM_ENABLE_ASSERTIONS=OFF \
+        -DLLVM_ENABLE_LLD=ON \
         -DLLVM_BUILD_EXAMPLES=OFF
       ninja
       DESTDIR=/io/pkg/llvm ninja install
       cd /io/pkg/llvm
-      tar -cvf /io/pkg/llvm.tar io/opt/llvm
+      tar -czf /io/pkg/llvm.tar.gz io/opt/llvm
     inputs:
       - from: /repo/query/.llvm.ref
         to: /io/llvm.ref
     outputs:
-      - from: /io/pkg/llvm.tar
-        to: /llvm.tar
+      - from: /io/pkg/llvm.tar.gz
+        to: /llvm.tar.gz
     resources:
       storage: 50Gi
       memory: standard
@@ -1595,8 +1596,9 @@ steps:
       valueFrom: query_build_image.image
     script: |
       set -ex
-      (cd / && tar xvf /io/llvm.tar)
+      (cd / && tar xvf /io/llvm.tar.gz)
       export LLVM_DIR=/io/opt/llvm
+      export PATH="$LLVM_DIR/bin:$PATH"
       cd /io/repo/query
       mkdir build
       cd build
@@ -1604,8 +1606,8 @@ steps:
         -G Ninja \
         -DCMAKE_C_COMPILER=$LLVM_DIR/bin/clang \
         -DCMAKE_CXX_COMPILER=$LLVM_DIR/bin/clang++ \
-        -DCMAKE_C_FLAGS="-Werror -fuse-ld=lld --ld-path=$LLVM_DIR/bin/ld.lld" \
-        -DCMAKE_CXX_FLAGS="-Werror -fuse-ld=lld --ld-path=$LLVM_DIR/bin/ld.lld" \
+        -DCMAKE_C_FLAGS="-Werror" \
+        -DCMAKE_CXX_FLAGS="-Werror" \
         -DCMAKE_BUILD_TYPE=RelWithDebInfo \
         -DMLIR_DIR=$LLVM_DIR/lib/cmake/mlir \
         -DHAIL_USE_CLANG_TIDY=ON
@@ -1618,8 +1620,8 @@ steps:
     inputs:
       - from: /repo
         to: /io/repo
-      - from: /llvm.tar
-        to: /io/llvm.tar
+      - from: /llvm.tar.gz
+        to: /io/llvm.tar.gz
     dependsOn:
       - query_build_image
       - build_llvm
