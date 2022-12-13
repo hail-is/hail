@@ -1004,8 +1004,8 @@ def grep(regex, path, max_count=100, *, show: bool = True, force: bool = False, 
         return
 
     results = defaultdict(list)
-    for l in lines:
-        results[l.file].append(l.text)
+    for line in lines:
+        results[line.file].append(line.text)
     return results
 
 
