@@ -96,5 +96,4 @@ def local_to_global(array, local_alleles, n_alleles, fill_value, number):
     else:
         raise ValueError(f'unrecognized number {number}')
 
-
     return _func("local_to_global_a_r", array.dtype, array, local_alleles, n_alleles, fill_value, hl.bool(omit_first))
