@@ -826,6 +826,8 @@ steps:
         to: /io/repo/README.md
       - from: /repo/hail
         to: /io/repo/hail
+      - from: /repo/check_pip_requirements.sh
+        to: /io/repo/check_pip_requirements.sh
     dependsOn:
       - hail_build_image
       - merge_code
@@ -848,6 +850,8 @@ steps:
         to: /io/repo/README.md
       - from: /repo/hail
         to: /io/repo/hail
+      - from: /repo/check_pip_requirements.sh
+        to: /io/repo/check_pip_requirements.sh
     dependsOn:
       - hail_build_image
       - merge_code
@@ -871,6 +875,8 @@ steps:
         to: /io/repo/README.md
       - from: /repo/hail
         to: /io/repo/hail
+      - from: /repo/check_pip_requirements.sh
+        to: /io/repo/check_pip_requirements.sh
     outputs:
       - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
         to: /wheel-for-azure-container.tar
@@ -2790,9 +2796,9 @@ steps:
 
       cat >file-with-args.sh <<EOF
       set -ex
-      
+
       [[ $# -eq 2 ]]
-      
+
       cat foo
       echo "Hello World! $1 $2"
       EOF
