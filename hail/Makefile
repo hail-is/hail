@@ -279,13 +279,13 @@ generate-pip-lockfiles:
 	../generate_pip_lockfile.sh python/dev/requirements.txt python/dev/pinned-requirements.txt
 
 
-.PHONY: check-pip-lockfiles
-check-pip-lockfiles:
+.PHONY: check-pip-lockfile
+check-pip-lockfile:
 	$(PIP) install pip-tools && bash ../check_pip_requirements.sh python/requirements.txt python/pinned-requirements.txt
 
 
 python/hailtop/hailctl/deploy.yaml: env/cloud_base env/wheel_cloud_path
-python/hailtop/hailctl/deploy.yaml: $(resources) check-pip-lockfiles
+python/hailtop/hailctl/deploy.yaml: $(resources) check-pip-lockfile
 	rm -f $@
 	echo "dataproc:" >> $@
 	for FILE in $(notdir $(resources)); do \
