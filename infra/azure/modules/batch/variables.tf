@@ -6,6 +6,10 @@ variable resource_group {
   })
 }
 
+variable batch_test_user_storage_account_name {
+  type = string
+}
+
 variable container_registry_id {
   type = string
 }
