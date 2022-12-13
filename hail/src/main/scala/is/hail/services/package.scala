@@ -44,7 +44,10 @@ package object services {
       case e: SocketException =>
         e.getMessage != null && e.getMessage.contains("Connection reset")
       case e: HttpResponseException =>
-        e.getStatusCode() == 400 && e.getMessage.contains("Invalid grant: account not found")
+        e.getStatusCode() == 400 && e.getMessage != null && (
+          e.getMessage.contains("Invalid grant: account not found") ||
+            e.getMessage.contains("{\"error\":\"unhandled_canonical_code_14\"}")
+        )
       case e @ (_: SSLException | _: StorageException | _: IOException) =>
         val cause = e.getCause
         cause != null && isRetryOnceError(cause)
