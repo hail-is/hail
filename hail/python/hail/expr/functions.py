@@ -4888,7 +4888,7 @@ def keyed_union(*arrays, key):
 
     Returns
     -------
-
+    :class:`.ArrayExpression`
     """
     return _union_intersection_base(
         'keyed_union',
