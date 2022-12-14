@@ -632,7 +632,7 @@ def _hwe_normalized_blanczos(call_expr,
         rows_per_block. The last block may have fewer rows.
 
     Returns
-p    -------
+    -------
     (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
         List of eigenvalues, table with column scores, table with row loadings.
     """

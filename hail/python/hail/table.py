@@ -457,7 +457,7 @@ class Table(ExprContainer):
     @typecheck_method(caller=str, s=expr_struct())
     def _select_globals(self, caller, s) -> 'Table':
         base, cleanup = self._process_joins(s)
-        analyze(caller, s, self._global_indices, self._row_indices.axes)
+        analyze(caller, s, self._global_indices)
         return cleanup(Table(ir.TableMapGlobals(base._tir, s._ir)))
 
     @classmethod
@@ -662,7 +662,7 @@ class Table(ExprContainer):
             Table with new global field(s).
         """
         caller = 'Table.annotate_globals'
-        check_annotate_exprs(caller, named_exprs, self._global_indices, self._row_indices.axes)
+        check_annotate_exprs(caller, named_exprs, self._global_indices, set())
         return self._select_globals('Table.annotate_globals', self.globals.annotate(**named_exprs))
 
     def select_globals(self, *exprs, **named_exprs) -> 'Table':
@@ -736,7 +736,7 @@ class Table(ExprContainer):
         :class:`.Table`
         """
         caller = 'Table.transmute_globals'
-        check_annotate_exprs(caller, named_exprs, self._global_indices, self._row_indices.axes)
+        check_annotate_exprs(caller, named_exprs, self._global_indices, set())
         fields_referenced = extract_refs_by_indices(named_exprs.values(), self._global_indices) - set(named_exprs.keys())
 
         return self._select_globals(caller,
@@ -1230,7 +1230,7 @@ class Table(ExprContainer):
         """
         expr = to_expr(expr)
         base, _ = self._process_joins(expr)
-        analyze('Table.aggregate', expr, self._global_indices, self._row_indices.axes)
+        analyze('Table.aggregate', expr, self._global_indices, {self._row_axis})
 
         agg_ir = ir.TableAggregate(base._tir, expr._ir)
 
