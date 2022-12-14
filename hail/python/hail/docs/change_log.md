@@ -24,9 +24,19 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.107
+
+Released 2022-12-14
+
+### Bug fixes
+
+- (hail#12543) Fixed `hl.vds.local_to_global` error when LA array contains non-ascending allele indices.
+
+---
+
 ## Version 0.2.106
 
-Released 2022-11-28
+Released 2022-12-13
 
 ### New Features
 
