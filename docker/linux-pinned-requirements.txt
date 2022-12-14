@@ -289,7 +289,7 @@ pyasn1==0.4.8
     #   rsa
 pyasn1-modules==0.2.8
     # via google-auth
-pycares==4.2.2
+pycares==4.3.0
     # via aiodns
 pycodestyle==2.8.0
     # via flake8
