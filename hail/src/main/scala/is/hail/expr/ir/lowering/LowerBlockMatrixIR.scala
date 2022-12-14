@@ -271,16 +271,19 @@ object LowerBlockMatrixIR {
 
     bmir match {
       case BlockMatrixRead(reader) => reader.lower(ctx)
-      case x@BlockMatrixRandom(seed, gaussian, shape, blockSize) =>
-        val generator = invokeSeeded(if (gaussian) "rand_norm" else "rand_unif", seed, TFloat64, NA(TRNGState), F64(0.0), F64(1.0))
-        new BlockMatrixStage(IndexedSeq(), Array(), TTuple(TInt64, TInt64)) {
+      case x@BlockMatrixRandom(staticUID, gaussian, shape, blockSize) =>
+        new BlockMatrixStage(IndexedSeq(), Array(), TTuple(TInt64, TInt64, TInt32)) {
           def blockContext(idx: (Int, Int)): IR = {
-            val (i, j) = x.typ.blockShape(idx._1, idx._2)
-            MakeTuple.ordered(FastSeq(i, j))
+            val (m, n) = x.typ.blockShape(idx._1, idx._2)
+            MakeTuple.ordered(FastSeq(m, n, idx._1 * x.typ.nColBlocks + idx._2))
           }
           def blockBody(ctxRef: Ref): IR = {
-            val len = (GetTupleElement(ctxRef, 0) * GetTupleElement(ctxRef, 1)).toI
-            MakeNDArray(ToArray(mapIR(rangeIR(len))(_ => generator)), ctxRef, True(), ErrorIDs.NO_ERROR)
+            val m = GetTupleElement(ctxRef, 0)
+            val n = GetTupleElement(ctxRef, 1)
+            val i = GetTupleElement(ctxRef, 2)
+            val f = if (gaussian) "rand_norm_nd" else "rand_unif_nd"
+            val rngState = RNGSplit(RNGStateLiteral(), Cast(i, TInt64))
+            invokeSeeded(f, staticUID, TNDArray(TFloat64, Nat(2)), rngState, m, n, F64(0.0), F64(1.0))
           }
         }
       case BlockMatrixMap(child, eltName, f, _) =>

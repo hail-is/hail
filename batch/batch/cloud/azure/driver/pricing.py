@@ -1,4 +1,3 @@
-import abc
 import asyncio
 import logging
 from typing import Dict, List, Optional
@@ -6,39 +5,17 @@ from typing import Dict, List, Optional
 import dateutil.parser
 
 from hailtop.aiocloud import aioazure
-from hailtop.utils import flatten, grouped, time_msecs
+from hailtop.utils import flatten, grouped
 from hailtop.utils.rates import rate_gib_month_to_mib_msec, rate_instance_hour_to_fraction_msec
 
+from ....driver.pricing import Price
 from ..resource_utils import azure_disk_name_to_storage_gib, azure_valid_machine_types
 from ..resources import AzureStaticSizedDiskResource, AzureVMResource
 
 log = logging.getLogger('pricing')
 
 
-class AzurePrice(abc.ABC):
-    region: str
-    effective_start_date: int
-    effective_end_date: Optional[int]
-    time_updated: int
-
-    def is_current_price(self):
-        now = time_msecs()
-        return now >= self.effective_start_date and (self.effective_end_date is None or now <= self.effective_end_date)
-
-    @property
-    def version(self) -> str:
-        return f'{self.effective_start_date}'
-
-    @property
-    def product(self):
-        raise NotImplementedError
-
-    @property
-    def rate(self):
-        raise NotImplementedError
-
-
-class AzureVMPrice(AzurePrice):
+class AzureVMPrice(Price):
     def __init__(
         self,
         machine_type: str,
@@ -64,7 +41,7 @@ class AzureVMPrice(AzurePrice):
         return rate_instance_hour_to_fraction_msec(self.cost_per_hour, 1024)
 
 
-class AzureDiskPrice(AzurePrice):
+class AzureDiskPrice(Price):
     def __init__(
         self,
         disk_name: str,
@@ -172,7 +149,7 @@ async def managed_disk_prices_by_region(
     return prices
 
 
-async def fetch_prices(pricing_client: aioazure.AzurePricingClient, regions: List[str]) -> List[AzurePrice]:
+async def fetch_prices(pricing_client: aioazure.AzurePricingClient, regions: List[str]) -> List[Price]:
     # Azure seems to have a limit on how long the OData filter request can be so we split the query into smaller groups
     vm_coros = [
         vm_prices_by_region(pricing_client, region, machine_types)

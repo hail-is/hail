@@ -4,7 +4,14 @@ This is a work in progress for setting up hail infrasture on Azure. The
 following should be executed in the `$HAIL/infra/azure` directory unless
 otherwise noted.
 
+Prerequisites:
+
+- You must have `jq`, `terraform` installed.
+- Export `HAIL` as the root of the checked out Hail repository
+- Generate a public-private SSH (using RSA) key at `~/.ssh/batch_worker_ssh_rsa`.
+
 ## Authenticating with the Azure CLI
+
 You will need an Azure account. Install the Azure CLI by running the following
 (on Mac) and log in:
 
@@ -65,10 +72,18 @@ this new service principal admin consent:
 We'll complete the rest of the process on a VM. To create one, run
 
 ```
-./create_bootstrap_vm.sh <RESOURCE_GROUP>
+./create_bootstrap_vm.sh <RESOURCE_GROUP> <SUBSCRIPTION_ID>
 ```
 
-SSH into the VM (ssh -i ~/.ssh/id_rsa <username>@<public_ip>).
+Find the public ip of the created bootstrap vm doing the following:
+
+```
+BOOTSTRAP_VM=$(az vm list -g hail | jq -r '.[].name')
+PUBLIC_IP=$(az vm show -d -n $BOOTSTRAP_VM -g hail --query "publicIps" -o tsv)
+echo $BOOTSTRAP_VM $PUBLIC_IP
+```
+
+SSH into the VM (ssh -i ~/.ssh/id_rsa <username>@$PUBLIC_IP).
 
 Clone the hail repository:
 
@@ -97,6 +112,7 @@ container registry and kubernetes cluster, respectively.
 ```
 azsetcluster <RESOURCE_GROUP>
 ```
+
 The ACR authentication token only lasts three hours. If you pause the deployment
 process after this point, you may have to rerun `azsetcluster` before continuing.
 
@@ -108,6 +124,21 @@ Deploy unmanaged resources by running
 ```
 ./bootstrap.sh deploy_unmanaged
 ```
+
+During the deploy while running into issues you may have to run the
+above command multiple times. Each time it will try to create certificates
+using letsencrypt. You may reach a limit on the number of attempts possible
+withing a 24hr period, or it may fail if the specified certs already exist.
+If this happens it will retrieve the exiting certs, but the deploy_unmanaged step will fail.
+
+If the final letsencrypt step in deploy_unmanaged fails, you will have to
+comment out the "set +x" line in letsencrypt.sh. Then set the environment 
+variable `DRY_RUN=1`. Re-run the deploy_unmanaged step again and copy the
+kubectl secret from stdout.
+
+Apply the secret manually using `kubectl apply` and revert the changes.
+You can then move on from this step.
+
 
 Build the batch worker image by running the following in $HAIL/batch:
 
@@ -126,6 +157,12 @@ cd ~/hail/infra/azure
 
 Create the initial (developer) user. The OBJECT_ID is the Azure Active
 Directory user's object ID.
+
+You can find the current object id locally if you're logged in using:
+
+```
+az ad signed-in-user show | jq '.objectId'
+```
 
 ```
 ./bootstrap.sh bootstrap <REPO>/hail:<BRANCH> create_initial_user <USERNAME> <OBJECT_ID>

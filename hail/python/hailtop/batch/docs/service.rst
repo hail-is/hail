@@ -96,16 +96,29 @@ installed.
 Billing
 -------
 
-The cost for executing a job depends on the underlying machine type and how much CPU and
-memory is being requested. Currently, Batch runs most jobs on 16 core, preemptible, n1
+The cost for executing a job depends on the underlying machine type, the region in which the VM is running in,
+and how much CPU and memory is being requested. Currently, Batch runs most jobs on 16 core, preemptible, n1
 machines with 10 GB of persistent SSD boot disk and 375 GB of local SSD. The costs are as follows:
 
 - Compute cost
-   = $0.01 per core per hour for **standard** worker types
 
-   = $0.012453 per core per hour for **highmem** worker types
+    .. caution::
 
-   = $0.0074578 per core per hour for **highcpu** worker types
+        The prices shown below are **approximate** prices based on us-central1. Actual prices are
+        based on the current spot prices for a given worker type and the region in which the worker is running in.
+        You can use :meth:`.Job.regions` to specify which regions to run a job in.
+
+   = $0.01 per core per hour for **preemptible standard** worker types
+
+   = $0.012453 per core per hour for **preemptible highmem** worker types
+
+   = $0.0074578 per core per hour for **preemptible highcpu** worker types
+
+   = $0.04749975 per core per hour for **nonpreemptible standard** worker types
+
+   = $0.0591515 per core per hour for **nonpreemptible highmem** worker types
+
+   = $0.0354243 per core per hour for **nonpreemptible highcpu** worker types
 
 - Disk cost
    - Boot Disk
@@ -156,6 +169,8 @@ At any given moment as many as four cores of the cluster may come from a 4 core 
 is standard. If a job is scheduled on this machine, then the cost per core hour is **$0.02774** plus
 **$0.00023** per GB per hour storage of extra storage requested.
 
+For jobs that run on non-preemptible machines, the costs are **$0.060462** per core/hour for standard workers, **$0.072114** per core/hour
+for highmem workers, and **$0.048365** per core/hour for highcpu workers.
 
 .. note::
 

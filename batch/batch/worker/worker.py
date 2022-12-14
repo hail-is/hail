@@ -36,7 +36,6 @@ import aiohttp
 import aiohttp.client_exceptions
 import aiorwlock
 import async_timeout
-import humanize
 import orjson
 from aiodocker.exceptions import DockerError  # type: ignore
 from aiohttp import web
@@ -58,11 +57,13 @@ from hailtop.utils import (
     check_shell_output,
     dump_all_stacktraces,
     find_spark_home,
+    is_delayed_warning_error,
     parse_docker_image_reference,
     periodically_call,
     request_retry_transient_errors,
     retry_transient_errors,
     retry_transient_errors_with_debug_string,
+    retry_transient_errors_with_delayed_warnings,
     time_msecs,
     time_msecs_str,
 )
@@ -159,6 +160,7 @@ IP_ADDRESS = os.environ['IP_ADDRESS']
 INTERNAL_GATEWAY_IP = os.environ['INTERNAL_GATEWAY_IP']
 BATCH_LOGS_STORAGE_URI = os.environ['BATCH_LOGS_STORAGE_URI']
 INSTANCE_ID = os.environ['INSTANCE_ID']
+REGION = os.environ['REGION']
 DOCKER_PREFIX = os.environ['DOCKER_PREFIX']
 PUBLIC_IMAGES = publicly_available_images(DOCKER_PREFIX)
 INSTANCE_CONFIG = json.loads(base64.b64decode(os.environ['INSTANCE_CONFIG']).decode())
@@ -190,11 +192,11 @@ log.info(f'BATCH_WORKER_IMAGE_ID {BATCH_WORKER_IMAGE_ID}')
 log.info(f'INTERNET_INTERFACE {INTERNET_INTERFACE}')
 log.info(f'UNRESERVED_WORKER_DATA_DISK_SIZE_GB {UNRESERVED_WORKER_DATA_DISK_SIZE_GB}')
 log.info(f'ACCEPTABLE_QUERY_JAR_URL_PREFIX {ACCEPTABLE_QUERY_JAR_URL_PREFIX}')
+log.info(f'REGION {REGION}')
 
 instance_config = CLOUD_WORKER_API.instance_config_from_config_dict(INSTANCE_CONFIG)
 assert instance_config.cores == CORES
 assert instance_config.cloud == CLOUD
-
 
 N_SLOTS = 4 * CORES  # Jobs are allowed at minimum a quarter core
 
@@ -362,7 +364,7 @@ def docker_call_retry(timeout, name, f, *args, **kwargs):
     async def timed_out_f(*args, **kwargs):
         return await asyncio.wait_for(f(*args, **kwargs), timeout)
 
-    return retry_transient_errors_with_debug_string(debug_string, timed_out_f, *args, **kwargs)
+    return retry_transient_errors_with_debug_string(debug_string, 0, timed_out_f, *args, **kwargs)
 
 
 class ImageCannotBePulled(Exception):
@@ -1335,6 +1337,8 @@ class Job:
         self.end_time: Optional[int] = None
 
         self.marked_job_started = False
+        self.last_logged_mjs_attempt_failure = None
+        self.last_logged_mjc_attempt_failure = None
 
         self.cpu_in_mcpu = job_spec['resources']['cores_mcpu']
         self.memory_in_bytes = job_spec['resources']['memory_bytes']
@@ -1468,6 +1472,7 @@ class Job:
     #   start_time: int,
     #   end_time: int,
     #   resources: list of dict, {name: str, quantity: int}
+    #   region: str
     # }
     def status(self):
         status = {
@@ -1480,6 +1485,7 @@ class Job:
             'state': self.state,
             'format_version': self.format_version.format_version,
             'resources': self.resources,
+            'region': REGION,
         }
         if self.error:
             status['error'] = self.error
@@ -1518,6 +1524,8 @@ class DockerJob(Job):
         requester_pays_project = job_spec.get('requester_pays_project')
 
         self.timings: Timings = Timings()
+
+        self.env.append({'name': 'HAIL_REGION', 'value': REGION})
 
         if self.secrets:
             for secret in self.secrets:
@@ -2621,7 +2629,6 @@ class Worker:
             return
 
         self.task_manager.ensure_future(periodically_call(60, self.send_billing_update))
-        self.task_manager.ensure_future(periodically_call(60, self.monitor_resource_usage))
 
         try:
             while True:
@@ -2704,7 +2711,10 @@ class Worker:
             except Exception as e:
                 if isinstance(e, aiohttp.ClientResponseError) and e.status == 404:  # pylint: disable=no-member
                     raise
-                log.warning(f'failed to mark {job} complete, retrying', exc_info=True)
+
+                log_delayed_warnings = time_msecs() - start_time >= 300 * 1000
+                if log_delayed_warnings or not is_delayed_warning_error(e):
+                    log.warning(f'failed to mark {job} complete, retrying', exc_info=True)
 
             # unlist job after 3m or half the run duration
             now = time_msecs()
@@ -2726,7 +2736,15 @@ class Worker:
         except asyncio.CancelledError:
             raise
         except Exception:
-            log.exception(f'error while marking {job} complete', stack_info=True)
+            if job.last_logged_mjc_attempt_failure is None:
+                job.last_logged_mjc_attempt_failure = time_msecs()
+
+            if time_msecs() - job.last_logged_mjc_attempt_failure >= 300 * 1000:
+                log.exception(
+                    f'error while marking {job} complete since {time_msecs_str(job.last_logged_mjc_attempt_failure)}',
+                    stack_info=True,
+                )
+                job.last_logged_mjc_attempt_failure = time_msecs()
         finally:
             log.info(
                 f'{job} attempt {job.attempt_id} marked complete after {time_msecs() - job.end_time}ms: {job.state}'
@@ -2755,7 +2773,7 @@ class Worker:
                 url = deploy_config.url('batch-driver', '/api/v1alpha/instances/job_started')
                 await self.client_session.post(url, json=body, headers=self.headers)
 
-        await retry_transient_errors(post_started_if_job_still_running)
+        await retry_transient_errors_with_delayed_warnings(300 * 1000, post_started_if_job_still_running)
 
     async def post_job_started(self, job):
         try:
@@ -2764,7 +2782,15 @@ class Worker:
         except asyncio.CancelledError:
             raise
         except Exception:
-            log.exception(f'error while posting {job} started')
+            if job.last_logged_mjs_attempt_failure is None:
+                job.last_logged_mjs_attempt_failure = time_msecs()
+
+            if time_msecs() - job.last_logged_mjs_attempt_failure >= 300 * 1000:
+                log.exception(
+                    f'error while posting {job} started since {time_msecs_str(job.last_logged_mjs_attempt_failure)}',
+                    stack_info=True,
+                )
+                job.last_logged_mjs_attempt_failure = time_msecs()
 
     async def activate(self):
         log.info('activating')
@@ -2853,15 +2879,6 @@ class Worker:
                 log.info(f'sent billing update for {time_msecs_str(update_timestamp)}')
 
         await retry_transient_errors(update)
-
-    async def monitor_resource_usage(self):
-        stdout, _ = await check_shell_output('xfs_quota -x -c "report -h -p" /host/; df -kh')
-        log.info(stdout)
-        for job in self.jobs.values():
-            if isinstance(job, DockerJob):
-                file_sizes = await job.get_resource_usage_file_sizes()
-                file_sizes = {name: humanize.naturalsize(size) for name, size in file_sizes.items()}
-                log.info(f'{job} {file_sizes}')
 
 
 async def async_main():

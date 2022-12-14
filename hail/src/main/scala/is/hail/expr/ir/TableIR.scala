@@ -197,7 +197,7 @@ object LoweredTableReader {
             "key",
             MakeStruct(FastIndexedSeq(
               "key" -> Ref("key", keyType),
-              "token" -> invokeSeeded("rand_unif", 1, TFloat64, NA(TRNGState), F64(0.0), F64(1.0)),
+              "token" -> invokeSeeded("rand_unif", 1, TFloat64, RNGStateLiteral(), F64(0.0), F64(1.0)),
               "prevkey" -> ApplyScanOp(FastIndexedSeq(), FastIndexedSeq(Ref("key", keyType)), prevkey)))),
           "x",
           Let("n", ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(), count),

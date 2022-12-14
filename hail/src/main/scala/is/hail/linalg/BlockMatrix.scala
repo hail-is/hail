@@ -1,37 +1,33 @@
 package is.hail.linalg
 
-import java.io._
-import java.nio._
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV, sum => breezeSum, _}
 import breeze.numerics.{abs => breezeAbs, log => breezeLog, pow => breezePow, sqrt => breezeSqrt}
 import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
 import is.hail._
 import is.hail.annotations._
-import is.hail.backend.{BroadcastValue, ExecuteContext, HailTaskContext}
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
-import is.hail.utils._
-import is.hail.expr.Parser
-import is.hail.expr.ir.{CompileAndEvaluate, IR, IntArrayBuilder, TableReader, TableValue}
-import is.hail.types._
-import is.hail.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, PFloat64, PFloat64Optional, PFloat64Required, PInt64, PInt64Optional, PInt64Required, PStruct}
-import is.hail.types.virtual._
+import is.hail.backend.{BroadcastValue, ExecuteContext}
+import is.hail.expr.ir.{IntArrayBuilder, TableReader, TableValue, ThreefryRandomEngine}
 import is.hail.io._
-import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
-import is.hail.sparkextras.{ContextRDD, OriginUnionPartition, OriginUnionRDD}
-import is.hail.utils._
-import is.hail.utils.richUtils.{ByteTrackingOutputStream, RichArray, RichContextRDD, RichDenseMatrixDouble}
 import is.hail.io.fs.FS
 import is.hail.io.index.IndexWriter
+import is.hail.rvd.{RVD, RVDContext}
+import is.hail.sparkextras.{ContextRDD, OriginUnionPartition, OriginUnionRDD}
+import is.hail.types._
+import is.hail.types.physical._
+import is.hail.types.virtual._
+import is.hail.utils._
+import is.hail.utils.richUtils.{ByteTrackingOutputStream, RichArray, RichContextRDD, RichDenseMatrixDouble}
 import org.apache.commons.lang3.StringUtils
 import org.apache.commons.math3.random.MersenneTwister
-import org.apache.spark.executor.InputMetrics
 import org.apache.spark._
+import org.apache.spark.executor.InputMetrics
 import org.apache.spark.mllib.linalg.distributed._
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s._
 
+import java.io._
 import scala.collection.immutable.NumericRange
 
 case class CollectMatricesRDDPartition(index: Int, firstPartition: Int, blockPartitions: Array[Partition], blockSize: Int, nRows: Int, nCols: Int) extends Partition {
@@ -138,12 +134,11 @@ object BlockMatrix {
 
   // uniform or Gaussian
   def random(nRows: Long, nCols: Long, blockSize: Int = defaultBlockSize,
-             seed: Long = 0, gaussian: Boolean): M =
+    nonce: Long = 0, staticUID: Long = 0, gaussian: Boolean): M =
     BlockMatrix(GridPartitioner(blockSize, nRows, nCols), (gp, pi) => {
       val (i, j) = gp.blockCoordinates(pi)
-      val blockSeed = seed + 15485863 * pi // millionth prime
-
-      val randBasis: RandBasis = new RandBasis(new ThreadLocalRandomGenerator(new MersenneTwister(blockSeed)))
+      val generator = ThreefryRandomEngine(nonce, staticUID, Array(pi.toLong))
+      val randBasis: RandBasis = new RandBasis(generator)
       val rand = if (gaussian) randBasis.gaussian else randBasis.uniform
 
       ((i, j), BDM.rand[Double](gp.blockRowNRows(i), gp.blockColNCols(j), rand))

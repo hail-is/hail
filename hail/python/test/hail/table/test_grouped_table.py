@@ -1,10 +1,6 @@
 import unittest
 
 import hail as hl
-from ..helpers import *
-
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
 
 
 class GroupedTableTests(unittest.TestCase):

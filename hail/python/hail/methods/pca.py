@@ -229,7 +229,6 @@ class TallSkinnyMatrix:
 def _make_tsm(entry_expr, block_size):
     mt = matrix_table_source('_make_tsm/entry_expr', entry_expr)
     A, ht = mt_to_table_of_ndarray(entry_expr, block_size, return_checkpointed_table_also=True)
-    A = A.persist()
     return TallSkinnyMatrix(A, A.ndarray, ht, list(mt.col_key))
 
 
@@ -259,7 +258,6 @@ def _make_tsm_from_call(call_expr, block_size, mean_center=False, hwe_normalize=
         mt = mt.select_entries(__x=mt.__gt)
 
     A, ht = mt_to_table_of_ndarray(mt.__x, block_size, return_checkpointed_table_also=True)
-    A = A.persist()
     return TallSkinnyMatrix(A, A.ndarray, ht, list(mt.col_key))
 
 
@@ -366,7 +364,7 @@ def _reduced_svd(A: TallSkinnyMatrix, k=10, compute_U=False, iterations=2, itera
     n = A.ncols
 
     # Generate random matrix G
-    G = hl.nd.zeros((n, L)).map(lambda n: hl.rand_norm(0, 1))
+    G = hl.rand_norm(0, 1, size=(n, L))
     G = hl.nd.qr(G)[0]._persist()
 
     fact = _krylov_factorization(A, G, q, compute_U)
@@ -392,7 +390,7 @@ def _spectral_moments(A, num_moments, p=None, moment_samples=500, block_size=128
     # TODO: When moment_samples > n, we should just do a TSQR on A, and compute
     # the spectrum of R.
     assert moment_samples < n, '_spectral_moments: moment_samples must be smaller than num cols of A'
-    G = hl.nd.zeros((n, moment_samples)).map(lambda n: hl.if_else(hl.rand_bool(0.5), -1, 1))
+    G = hl.rand_unif(-1, 1, size=(n, moment_samples)).map(lambda x: hl.sign(x))
     Q1, R1 = hl.nd.qr(G)._persist()
     fact = _krylov_factorization(A, Q1, p, compute_U=False)
     moments_and_stdevs = hl.eval(fact.spectral_moments(num_moments, R1))
@@ -423,7 +421,7 @@ def _pca_and_moments(A, k=10, num_moments=5, compute_loadings=False, q_iteration
     n = A.ncols
 
     # Generate random matrix G
-    G = hl.nd.zeros((n, L)).map(lambda n: hl.rand_norm(0, 1))
+    G = hl.rand_norm(0, 1, size=(n, L))
     G = hl.nd.qr(G)[0]._persist()
 
     fact = _krylov_factorization(A, G, q, compute_loadings)
@@ -433,7 +431,7 @@ def _pca_and_moments(A, k=10, num_moments=5, compute_loadings=False, q_iteration
     p = min(num_moments // 2, 10)
 
     # Generate random matrix G2 for moment estimation
-    G2 = hl.nd.zeros((n, moment_samples)).map(lambda n: hl.if_else(hl.rand_bool(0.5), -1, 1))
+    G2 = hl.rand_unif(-1, 1, size=(n, moment_samples)).map(lambda x: hl.sign(x))
     # Project out components in subspace fact.V, which we can compute exactly
     G2 = G2 - fact.V @ (fact.V.T @ G2)
     Q1, R1 = hl.nd.qr(G2)._persist()

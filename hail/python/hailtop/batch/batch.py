@@ -8,6 +8,7 @@ import dill
 from hailtop.utils import secret_alnum_string, url_scheme, async_to_blocking
 from hailtop.aiotools import AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.config import configuration_of
 
 from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
 from .exceptions import BatchException
@@ -48,7 +49,13 @@ class Batch:
     name:
         Name of the batch.
     backend:
-        Backend used to execute the jobs. Default is :class:`.LocalBackend`.
+        Backend used to execute the jobs. If no backend is specified, a backend
+        will be created by first looking at the environment variable HAIL_BATCH_BACKEND,
+        then the hailctl config variable batch/backend. These configurations, if set,
+        can be either `local` or `service`, and will result in the use of a
+        :class:`.LocalBackend` and :class:`.ServiceBackend` respectively. If no
+        argument is given and no configurations are set, the default is
+        :class:`.LocalBackend`.
     attributes:
         Key-value pairs of additional attributes. 'name' is not a valid keyword.
         Use the name argument instead.
@@ -121,7 +128,15 @@ class Batch:
         self._uid = Batch._get_uid()
         self._job_tokens: Set[str] = set()
 
-        self._backend = backend if backend else _backend.LocalBackend()
+        if backend:
+            self._backend = backend
+        else:
+            backend_config = configuration_of('batch', 'backend', None, 'local')
+            if backend_config == 'service':
+                self._backend = _backend.ServiceBackend()
+            else:
+                assert backend_config == 'local'
+                self._backend = _backend.LocalBackend()
 
         self.name = name
 

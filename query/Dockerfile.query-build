@@ -7,4 +7,7 @@ RUN curl 'https://apt.llvm.org/llvm-snapshot.gpg.key' \
     hail-apt-get-install \
         build-essential \
         cmake ninja-build \
-        clang-15 llvm-15-dev libmlir-15-dev mlir-15-tools
+        llvm-15-dev \
+        clang-15 clang-tools-15 clang-format-15 clang-tidy-15 \
+        libmlir-15-dev mlir-15-tools && \
+    hail-pip-install lit

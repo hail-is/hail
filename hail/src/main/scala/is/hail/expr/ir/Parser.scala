@@ -937,7 +937,7 @@ object IRParser {
           case Array(a, start, stop, step) => ArraySlice(a, start, Some(stop), step, errorID)
         }
       case "RNGStateLiteral" =>
-        done(RNGStateLiteral(int64_literals(it)))
+        done(RNGStateLiteral())
       case "RNGSplit" =>
         for {
           state <- ir_value_expr(env)(it)
@@ -1108,6 +1108,23 @@ object IRParser {
           as <- names.mapRecur(_ => ir_value_expr(env)(it))
           body <- ir_value_expr(env.bindEval(names.zip(as.map(a => tcoerce[TStream](a.typ).elementType)): _*))(it)
         } yield StreamZip(as, names, body, behavior, errorID)
+      case "StreamZipJoin" =>
+        val nStreams = int32_literal(it)
+        val key = identifiers(it)
+        val curKey = identifier(it)
+        val curVals = identifier(it)
+        for {
+          streams <- (0 until nStreams).mapRecur(_ => ir_value_expr(env)(it))
+          body <- {
+            val structType = streams.head.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
+            ir_value_expr(env.bindEval((curKey, structType.typeAfterSelectNames(key)), (curVals, TArray(structType))))(it)
+          }
+        } yield StreamZipJoin(streams, key, curKey, curVals, body)
+      case "StreamMultiMerge" =>
+        val key = identifiers(it)
+        for {
+          streams <- ir_value_exprs(env)(it)
+        } yield StreamMultiMerge(streams, key)
       case "StreamFilter" =>
         val name = identifier(it)
         for {
@@ -1363,12 +1380,12 @@ object IRParser {
         } yield ConsoleLog(msg, result)
       case "ApplySeeded" =>
         val function = identifier(it)
-        val seed = int64_literal(it)
+        val staticUID = int64_literal(it)
         val rt = type_expr(env.typEnv)(it)
         for {
           rngState <- ir_value_expr(env)(it)
           args <- ir_value_children(env)(it)
-        } yield ApplySeeded(function, args, rngState, seed, rt)
+        } yield ApplySeeded(function, args, rngState, staticUID, rt)
       case "ApplyIR" | "ApplySpecial" | "Apply" =>
         val errorID = int32_literal(it)
         val function = identifier(it)
@@ -2054,11 +2071,11 @@ object IRParser {
           ValueToBlockMatrix(child, shape, blockSize)
         }
       case "BlockMatrixRandom" =>
-        val seed = int64_literal(it)
+        val staticUID = int64_literal(it)
         val gaussian = boolean_literal(it)
         val shape = int64_literals(it)
         val blockSize = int32_literal(it)
-        done(BlockMatrixRandom(seed, gaussian, shape, blockSize))
+        done(BlockMatrixRandom(staticUID, gaussian, shape, blockSize))
       case "RelationalLetBlockMatrix" =>
         val name = identifier(it)
         for {

@@ -1,1 +1,0 @@
-// RUN: hail-opt %s

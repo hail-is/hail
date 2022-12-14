@@ -55,9 +55,12 @@ class MatrixIRSuite extends HailSuite {
     }
   }
 
-  def rangeMatrix(nRows: Int = 20, nCols: Int = 20, nPartitions: Option[Int] = Some(4)): MatrixIR = {
+  def rangeMatrix(nRows: Int = 20, nCols: Int = 20, nPartitions: Option[Int] = Some(4), uids: Boolean = false): MatrixIR = {
     val reader = MatrixRangeReader(nRows, nCols, nPartitions)
-    val requestedType = reader.fullMatrixTypeWithoutUIDs
+    val requestedType = if (uids)
+      reader.fullMatrixType
+    else
+      reader.fullMatrixTypeWithoutUIDs
     MatrixRead(requestedType, false, false, reader)
   }
 
@@ -277,12 +280,18 @@ class MatrixIRSuite extends HailSuite {
   }
 
   @Test def testMatrixFiltersWorkWithRandomness() {
-    val range = rangeMatrix(20, 20, Some(4))
-    val rand = ApplySeeded("rand_bool", FastIndexedSeq(0.5), RNGStateLiteral(), seed=0, TBoolean)
+    val range = rangeMatrix(20, 20, Some(4), uids = true)
+    def rand(rng: IR): IR =
+      ApplySeeded("rand_bool", FastIndexedSeq(0.5), rng, 0, TBoolean)
 
-    val cols = Interpret(MatrixFilterCols(range, rand), ctx, optimize = true).toMatrixValue(range.typ.colKey).nCols
-    val rows = Interpret(MatrixFilterRows(range, rand), ctx, optimize = true).rvd.count()
-    val entries = Interpret(MatrixEntriesTable(MatrixFilterEntries(range, rand)), ctx, optimize = true).rvd.count()
+    val colUID = GetField(Ref("sa", range.typ.colType), MatrixReader.colUIDFieldName)
+    val colRNG = RNGSplit(RNGStateLiteral(), colUID)
+    val cols = Interpret(MatrixFilterCols(range, rand(colRNG)), ctx, optimize = true).toMatrixValue(range.typ.colKey).nCols
+    val rowUID = GetField(Ref("va", range.typ.rowType), MatrixReader.rowUIDFieldName)
+    val rowRNG = RNGSplit(RNGStateLiteral(), rowUID)
+    val rows = Interpret(MatrixFilterRows(range, rand(rowRNG)), ctx, optimize = true).rvd.count()
+    val entryRNG = RNGSplit(RNGStateLiteral(), MakeTuple.ordered(FastSeq(rowUID, colUID)))
+    val entries = Interpret(MatrixEntriesTable(MatrixFilterEntries(range, rand(entryRNG))), ctx, optimize = true).rvd.count()
 
     assert(cols < 20 && cols > 0)
     assert(rows < 20 && rows > 0)

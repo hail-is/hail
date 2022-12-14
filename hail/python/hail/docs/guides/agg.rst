@@ -98,7 +98,7 @@ One aggregation
 :**code**:
 
     >>> mt.aggregate_cols(hl.agg.fraction(mt.pheno.is_female))
-    0.48
+    0.44
 
 :**dependencies**: :meth:`.MatrixTable.aggregate_cols`, :func:`.aggregators.fraction`
 
@@ -114,7 +114,7 @@ Multiple aggregations
     >>> mt.aggregate_cols(hl.struct(
     ...         fraction_female=hl.agg.fraction(mt.pheno.is_female),
     ...         case_ratio=hl.agg.count_where(mt.is_case) / hl.agg.count()))
-    Struct(fraction_female=0.48, case_ratio=1.0)
+    Struct(fraction_female=0.44, case_ratio=1.0)
 
 :**dependencies**: :meth:`.MatrixTable.aggregate_cols`, :func:`.aggregators.fraction`, :func:`.aggregators.count_where`, :class:`.StructExpression`
 
@@ -129,7 +129,7 @@ One aggregation
 :**code**:
 
     >>> mt.aggregate_rows(hl.agg.mean(mt.qual))
-    544323.8915384616
+    140054.73333333334
 
 :**dependencies**: :meth:`.MatrixTable.aggregate_rows`, :func:`.aggregators.mean`
 
@@ -148,7 +148,7 @@ Multiple aggregations
     >>> mt.aggregate_rows(
     ...             hl.struct(n_high_quality=hl.agg.count_where(mt.qual > 40),
     ...                       mean_qual=hl.agg.mean(mt.qual)))
-    Struct(n_high_quality=13, mean_qual=544323.8915384616)
+    Struct(n_high_quality=9, mean_qual=140054.73333333334)
 
 :**dependencies**: :meth:`.MatrixTable.aggregate_rows`, :func:`.aggregators.count_where`, :func:`.aggregators.mean`, :class:`.StructExpression`
 
@@ -167,7 +167,7 @@ Aggregate Entry Values Into A Local Value
     >>> mt.aggregate_entries(
     ...     hl.struct(global_gq_mean=hl.agg.mean(mt.GQ),
     ...               call_rate=hl.agg.fraction(hl.is_defined(mt.GT))))
-    Struct(global_gq_mean=64.01841473178543, call_rate=0.9607692307692308)
+    Struct(global_gq_mean=69.60514541387025, call_rate=0.9933333333333333)
 
 :**dependencies**: :meth:`.MatrixTable.aggregate_entries`, :func:`.aggregators.mean`, :func:`.aggregators.fraction`, :class:`.StructExpression`
 

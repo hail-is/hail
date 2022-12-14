@@ -74,7 +74,7 @@ resource "azurerm_storage_container" "query" {
 }
 
 resource "azurerm_storage_account" "test" {
-  name                     = "${var.resource_group.name}test"
+  name                     = "${var.batch_test_user_storage_account_name}test"
   resource_group_name      = var.resource_group.name
   location                 = var.resource_group.location
   account_tier             = "Standard"

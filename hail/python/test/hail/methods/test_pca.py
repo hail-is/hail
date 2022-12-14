@@ -4,12 +4,7 @@ import numpy as np
 
 import hail as hl
 from hail.methods.pca import _make_tsm
-from ..helpers import (resource, startTestHailContext, stopTestHailContext, fails_local_backend,
-                       fails_service_backend, skip_when_service_backend)
-
-
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
+from ..helpers import resource, fails_local_backend, fails_service_backend, skip_when_service_backend
 
 
 @fails_local_backend()
