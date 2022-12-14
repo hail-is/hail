@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 import hail as hl
 import hail.expr.aggregators as agg
@@ -9,7 +9,7 @@ from hail.table import Table
 from hail.typecheck import (typecheck, oneof, nullable)
 from hail.utils import FatalError
 from hail.utils.java import Env, info
-from hail.experimental import mt_to_table_of_ndarray
+from hail.experimental import mt_to_tsm, TallSkinnyMatrix
 
 
 def hwe_normalize(call_expr):
@@ -216,23 +216,16 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
     return hl.eval(g.eigenvalues), scores, None if t is None else t.drop('eigenvalues', 'scores')
 
 
-class TallSkinnyMatrix:
-    def __init__(self, block_table, block_expr, source_table, col_key):
-        self.col_key = col_key
-        first_block = block_expr.take(1)[0]
-        self.ncols = first_block.shape[1]
-        self.block_table = block_table
-        self.block_expr = block_expr
-        self.source_table = source_table
-
-
-def _make_tsm(entry_expr, block_size):
+def _make_tsm(entry_expr, rows_per_block: Optional[int]) -> TallSkinnyMatrix:
     mt = matrix_table_source('_make_tsm/entry_expr', entry_expr)
-    A, ht = mt_to_table_of_ndarray(entry_expr, block_size, return_checkpointed_table_also=True)
-    return TallSkinnyMatrix(A, A.ndarray, ht, list(mt.col_key))
+    return mt_to_tsm(entry_expr, rows_per_block, None)
 
 
-def _make_tsm_from_call(call_expr, block_size, mean_center=False, hwe_normalize=False):
+def _make_tsm_from_call(call_expr,
+                        rows_per_block: Optional[int],
+                        mean_center: bool = False,
+                        hwe_normalize: bool = False
+                        ) -> TallSkinnyMatrix:
     mt = matrix_table_source('_make_tsm/entry_expr', call_expr)
     mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
     if mean_center or hwe_normalize:
@@ -240,7 +233,8 @@ def _make_tsm_from_call(call_expr, block_size, mean_center=False, hwe_normalize=
                               __n_called=agg.count_where(hl.is_defined(mt.__gt)))
         mt = mt.filter_rows((mt.__AC > 0) & (mt.__AC < 2 * mt.__n_called))
 
-        n_variants = mt.count_rows()
+        dimensions = mt.count()
+        n_rows = dimensions[0]
         if n_variants == 0:
             raise FatalError("_make_tsm: found 0 variants after filtering out monomorphic sites.")
         info(f"_make_tsm: found {n_variants} variants after filtering out monomorphic sites.")
@@ -255,10 +249,10 @@ def _make_tsm_from_call(call_expr, block_size, mean_center=False, hwe_normalize=
                 __hwe_scaled_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) * n_variants / 2))
             mt = mt.select_entries(__x=mt.__x / mt.__hwe_scaled_std_dev)
     else:
+        dimensions = None
         mt = mt.select_entries(__x=mt.__gt)
 
-    A, ht = mt_to_table_of_ndarray(mt.__x, block_size, return_checkpointed_table_also=True)
-    return TallSkinnyMatrix(A, A.ndarray, ht, list(mt.col_key))
+    return mt_to_tsm(mt.__x, rows_per_block, dimensions)
 
 
 class KrylovFactorization:
@@ -361,7 +355,7 @@ def _reduced_svd(A: TallSkinnyMatrix, k=10, compute_U=False, iterations=2, itera
     else:
         L = iteration_size
     assert((q + 1) * L >= k)
-    n = A.ncols
+    n = A.n_cols
 
     # Generate random matrix G
     G = hl.rand_norm(0, 1, size=(n, L))
@@ -382,7 +376,7 @@ def _spectral_moments(A, num_moments, p=None, moment_samples=500, block_size=128
         check_entry_indexed('_spectral_moments/entry_expr', A)
         A = _make_tsm_from_call(A, block_size)
 
-    n = A.ncols
+    n = A.n_cols
 
     if p is None:
         p = min(num_moments // 2, 10)
@@ -418,7 +412,7 @@ def _pca_and_moments(A, k=10, num_moments=5, compute_loadings=False, q_iteration
     # Set Parameters
     q = q_iterations
     L = k + oversampling_param
-    n = A.ncols
+    n = A.n_cols
 
     # Generate random matrix G
     G = hl.rand_norm(0, 1, size=(n, L))
@@ -469,8 +463,13 @@ def _pca_and_moments(A, k=10, num_moments=5, compute_loadings=False, q_iteration
            compute_loadings=bool,
            q_iterations=int,
            oversampling_param=nullable(int),
-           block_size=int)
-def _blanczos_pca(A, k=10, compute_loadings=False, q_iterations=10, oversampling_param=None, block_size=128):
+           rows_per_block=nullable(int))
+def _blanczos_pca(A,
+                  k: int = 10,
+                  compute_loadings: bool = False,
+                  q_iterations: int = 10,
+                  oversampling_param: Optional[int] = None,
+                  rows_per_block: Optional[int] = None):
     r"""Run randomized principal component analysis approximation (PCA)
     on numeric columns derived from a matrix table.
 
@@ -551,15 +550,19 @@ def _blanczos_pca(A, k=10, compute_loadings=False, q_iterations=10, oversampling
     oversampling_param : :obj:`int`
         Amount of oversampling to use when approximating the singular values.
         Usually a value between `0 <= oversampling_param <= k`.
+    rows_per_block : :obj:`.int`
+        This method internally uses a tall skinny matrix of blocks. Each block comprises at most
+        rows_per_block. The last block may have fewer rows.
 
     Returns
     -------
     (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
         List of eigenvalues, table with column scores, table with row loadings.
+
     """
     if not isinstance(A, TallSkinnyMatrix):
         check_entry_indexed('_blanczos_pca/entry_expr', A)
-        A = _make_tsm(A, block_size)
+        A = _make_tsm(A, rows_per_block)
 
     if oversampling_param is None:
         oversampling_param = k
@@ -591,8 +594,13 @@ def _blanczos_pca(A, k=10, compute_loadings=False, q_iterations=10, oversampling
            compute_loadings=bool,
            q_iterations=int,
            oversampling_param=nullable(int),
-           block_size=int)
-def _hwe_normalized_blanczos(call_expr, k=10, compute_loadings=False, q_iterations=10, oversampling_param=None, block_size=128):
+           rows_per_block=nullable(int))
+def _hwe_normalized_blanczos(call_expr,
+                             k: int = 10,
+                             compute_loadings: int = False,
+                             q_iterations: int = 10,
+                             oversampling_param: Optional[int] = None,
+                             rows_per_block: Optional[int] = None):
     r"""Run randomized principal component analysis approximation (PCA) on the
     Hardy-Weinberg-normalized genotype call matrix.
 
@@ -619,14 +627,17 @@ def _hwe_normalized_blanczos(call_expr, k=10, compute_loadings=False, q_iteratio
         Number of principal components.
     compute_loadings : :obj:`bool`
         If ``True``, compute row loadings.
+    rows_per_block : :obj:`.int`
+        This method internally uses a tall skinny matrix of blocks. Each block comprises at most
+        rows_per_block. The last block may have fewer rows.
 
     Returns
-    -------
+p    -------
     (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
         List of eigenvalues, table with column scores, table with row loadings.
     """
     check_entry_indexed('_blanczos_pca/entry_expr', call_expr)
-    A = _make_tsm_from_call(call_expr, block_size, hwe_normalize=True)
+    A = _make_tsm_from_call(call_expr, rows_per_block, hwe_normalize=True)
 
     return _blanczos_pca(A, k, compute_loadings=compute_loadings, q_iterations=q_iterations,
-                         oversampling_param=oversampling_param, block_size=block_size)
+                         oversampling_param=oversampling_param, rows_per_block=rows_per_block)

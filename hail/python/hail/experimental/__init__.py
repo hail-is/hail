@@ -21,7 +21,7 @@ from .compile import compile_comparison_binary, compiled_compare
 from .loop import loop
 from .time import strftime, strptime
 from .pca import pc_project
-from .table_ndarray_utils import mt_to_table_of_ndarray
+from .table_ndarray_utils import mt_to_tsm, TallSkinnyMatrix
 
 __all__ = ['ld_score',
            'ld_score_regression',
@@ -61,4 +61,5 @@ __all__ = ['ld_score',
            'strptime',
            'strftime',
            'pc_project',
-           'mt_to_table_of_ndarray']
+           'mt_to_tsm',
+           'TallSkinnyMatrix']
