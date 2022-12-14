@@ -2187,13 +2187,10 @@ steps:
       export GOOGLE_APPLICATION_CREDENTIALS=/batch-gsa-key/key.json
       export AZURE_APPLICATION_CREDENTIALS=/batch-gsa-key/key.json
 
-      {% if scope == "deploy" %}
+      {% if deploy %}
       HAIL_QUERY_JAR_URL={{ global.query_storage_uri }}
-      {% elif scope == "test" or scope == "dev" %}
-      HAIL_QUERY_JAR_URL={{ global.test_storage_uri }}/{{ default_ns.name }}
       {% else %}
-      echo "!!! unexpected scope {{ scope }} !!!"
-      exit 1
+      HAIL_QUERY_JAR_URL={{ global.test_storage_uri }}/{{ default_ns.name }}
       {% endif %}
       HAIL_QUERY_JAR_URL=${HAIL_QUERY_JAR_URL}/jars/$(cat /io/git_version).jar
 
