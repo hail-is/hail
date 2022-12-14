@@ -119,9 +119,14 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
 
   override def preservesPartitionCounts: Boolean = false
 
+  private[this] val procIDType = TStruct("part_idx" -> TInt32, "block_idx" -> TInt32)
+
   override def typ(childType: TableType): TableType = {
     val vepType = if (params.csq) TArray(TString) else vepSignature
-    TableType(childType.rowType ++ TStruct("vep" -> vepType), childType.key, childType.globalType)
+    val globType = if (params.csq) TStruct("vep_csq_header" -> TString) else TStruct.empty
+    TableType(childType.rowType ++ TStruct("vep" -> vepType, "vep_proc_id" -> procIDType),
+      childType.key,
+      globType)
   }
 
   override def execute(ctx: ExecuteContext, tv: TableValue): TableValue = {
@@ -237,7 +242,7 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
 
     val vepRVDType = prev.typ.copy(rowType = prev.rowPType
       .appendKey("vep", PType.canonical(vepType))
-      .appendKey("vep_proc_id", PType.canonical(TStruct("part_idx" -> TInt32, "block_idx" -> TInt32))))
+      .appendKey("vep_proc_id", PType.canonical(procIDType, true, true)))
 
     val vepRowType = vepRVDType.rowType
 
@@ -260,15 +265,16 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
         }
       })
 
-    val (globalValue, globalType) =
+    val globalValue =
       if (params.csq)
-        (Row(csqHeader.getOrElse("")), TStruct("vep_csq_header" -> TString))
+        Row(csqHeader.getOrElse(""))
       else
-        (Row(), TStruct.empty)
+        Row()
 
+    val newTT = typ(tv.typ)
     TableValue(ctx,
-      TableType(vepRowType.virtualType, FastIndexedSeq("locus", "alleles"), globalType),
-      BroadcastRow(ctx, globalValue, globalType),
+      newTT,
+      BroadcastRow(ctx, globalValue, newTT.globalType),
       vepRVD)
   }
 
