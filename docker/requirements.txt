@@ -46,7 +46,7 @@ pandas>=1.3.0,<1.5.0
 plotly>=5.5.0,<6
 prometheus_async>=19.2.0,<20
 prometheus_client>=0.11.0,<1
-protobuf<=3.20.0
+protobuf<4.22.0
 psutil>=5.9.0,<6
 pyjwt>=2.4.0,<3
 pylint==2.15.4
