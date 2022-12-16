@@ -1,0 +1,142 @@
+import hail as hl
+
+
+ROW_FIELD_C_REFERENCES_COL_FIELD_COL_IDX_ERROR_MESSAGE = '''scope violation: 'MatrixTable.annotate_rows: field 'c'' expects an expression indexed by ['row']
+    Found indices ['column'], with unexpected indices ['column']. Invalid fields:
+        'col_idx' (indices ['column'])
+    'MatrixTable.annotate_rows: field 'c'' supports aggregation over axes ['column'], so these fields may appear inside an aggregator function.'''
+ROW_FIELD_C_REFERENCES_COL_FIELD_A_ERROR_MESSAGE = '''scope violation: 'MatrixTable.annotate_rows: field 'c'' expects an expression indexed by ['row']
+    Found indices ['column'], with unexpected indices ['column']. Invalid fields:
+        'a' (indices ['column'])
+    'MatrixTable.annotate_rows: field 'c'' supports aggregation over axes ['column'], so these fields may appear inside an aggregator function.'''
+
+
+def test_array_slice_end():
+    ht = hl.utils.range_matrix_table(1, 1)
+    try:
+        ht = ht.annotate_rows(c = hl.array([1,2,3])[:ht.col_idx])
+    except hl.ExpressionException as exc:
+        assert ROW_FIELD_C_REFERENCES_COL_FIELD_COL_IDX_ERROR_MESSAGE in exc.args[0]
+    else:
+        assert False
+
+
+def test_array_slice_start():
+    ht = hl.utils.range_matrix_table(1, 1)
+    try:
+        ht = ht.annotate_rows(c = hl.array([1,2,3])[ht.col_idx:])
+    except hl.ExpressionException as exc:
+        assert ROW_FIELD_C_REFERENCES_COL_FIELD_COL_IDX_ERROR_MESSAGE in exc.args[0]
+    else:
+        assert False
+
+
+def test_array_slice_step():
+    ht = hl.utils.range_matrix_table(1, 1)
+    try:
+        ht = ht.annotate_rows(c = hl.array([1,2,3])[::ht.col_idx])
+    except hl.ExpressionException as exc:
+        assert ROW_FIELD_C_REFERENCES_COL_FIELD_COL_IDX_ERROR_MESSAGE in exc.args[0]
+    else:
+        assert False
+
+
+def test_matmul():
+    ht = hl.utils.range_matrix_table(1, 1)
+    ht = ht.annotate_cols(a = hl.nd.array([0]))
+    ht = ht.annotate_rows(b = hl.nd.array([0]))
+    try:
+        ht = ht.annotate_rows(c = ht.b @ ht.a)
+    except hl.ExpressionException as exc:
+        assert ROW_FIELD_C_REFERENCES_COL_FIELD_A_ERROR_MESSAGE in exc.args[0]
+    else:
+        assert False
+
+
+def test_ndarray_index():
+    ht = hl.utils.range_matrix_table(1, 1)
+    ht = ht.annotate_rows(b = hl.nd.array([0]))
+    try:
+        ht = ht.annotate_rows(c = ht.b[ht.col_idx])
+    except hl.ExpressionException as exc:
+        assert ROW_FIELD_C_REFERENCES_COL_FIELD_COL_IDX_ERROR_MESSAGE in exc.args[0]
+    else:
+        assert False
+
+
+def test_ndarray_index_with_slice_1():
+    ht = hl.utils.range_matrix_table(1, 1)
+    ht = ht.annotate_rows(b = hl.nd.array([[0]]))
+    try:
+        ht = ht.annotate_rows(c = ht.b[ht.col_idx, :])
+    except hl.ExpressionException as exc:
+        assert ROW_FIELD_C_REFERENCES_COL_FIELD_COL_IDX_ERROR_MESSAGE in exc.args[0]
+    else:
+        assert False
+
+
+def test_ndarray_index_with_slice_2():
+    ht = hl.utils.range_matrix_table(1, 1)
+    ht = ht.annotate_rows(b = hl.nd.array([[0]]))
+    try:
+        ht = ht.annotate_rows(c = ht.b[:, ht.col_idx])
+    except hl.ExpressionException as exc:
+        assert ROW_FIELD_C_REFERENCES_COL_FIELD_COL_IDX_ERROR_MESSAGE in exc.args[0]
+    else:
+        assert False
+
+
+def test_ndarray_index_with_None_1():
+    ht = hl.utils.range_matrix_table(1, 1)
+    ht = ht.annotate_rows(b = hl.nd.array([[0]]))
+    try:
+        ht = ht.annotate_rows(c = ht.b[ht.col_idx, None])
+    except hl.ExpressionException as exc:
+        assert ROW_FIELD_C_REFERENCES_COL_FIELD_COL_IDX_ERROR_MESSAGE in exc.args[0]
+    else:
+        assert False
+
+
+def test_ndarray_index_with_None_2():
+    ht = hl.utils.range_matrix_table(1, 1)
+    ht = ht.annotate_rows(b = hl.nd.array([[0]]))
+    try:
+        ht = ht.annotate_rows(c = ht.b[None, ht.col_idx])
+    except hl.ExpressionException as exc:
+        assert ROW_FIELD_C_REFERENCES_COL_FIELD_COL_IDX_ERROR_MESSAGE in exc.args[0]
+    else:
+        assert False
+
+
+def test_ndarray_reshape_1():
+    ht = hl.utils.range_matrix_table(1, 1)
+    ht = ht.annotate_rows(b = hl.nd.array([[0]]))
+    try:
+        ht = ht.annotate_rows(c = ht.b.reshape((ht.col_idx, None)))
+    except hl.ExpressionException as exc:
+        assert ROW_FIELD_C_REFERENCES_COL_FIELD_COL_IDX_ERROR_MESSAGE in exc.args[0]
+    else:
+        assert False
+
+
+def test_ndarray_reshape_2():
+    ht = hl.utils.range_matrix_table(1, 1)
+    ht = ht.annotate_rows(b = hl.nd.array([[0]]))
+    try:
+        ht = ht.annotate_rows(c = ht.b.reshape((None, ht.col_idx)))
+    except hl.ExpressionException as exc:
+        assert ROW_FIELD_C_REFERENCES_COL_FIELD_COL_IDX_ERROR_MESSAGE in exc.args[0]
+    else:
+        assert False
+
+
+def test_ndarray_reshape_tuple():
+    ht = hl.utils.range_matrix_table(1, 1)
+    ht = ht.annotate_cols(a = hl.tuple((1, 1)))
+    ht = ht.annotate_rows(b = hl.nd.array([[0]]))
+    try:
+        ht = ht.annotate_rows(c = ht.b.reshape(ht.a))
+    except hl.ExpressionException as exc:
+        assert ROW_FIELD_C_REFERENCES_COL_FIELD_A_ERROR_MESSAGE in exc.args[0]
+    else:
+        assert False
