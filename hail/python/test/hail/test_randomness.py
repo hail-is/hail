@@ -59,16 +59,6 @@ def test_table_annotate():
     assert expected == actual
 
 
-def test_table_map_partitions():
-    hl.reset_global_randomness()
-    ht = hl.utils.range_table(5)
-    ht = ht.annotate(x = hl.rand_int32(5))
-    ht = ht._map_partitions(lambda part: hl.array([hl.struct(y=hl.sum(part.map(lambda row: row.x).to_array()))])._to_stream())
-    expected = []
-    actual = ht.collect()
-    assert expected == actual
-
-
 def test_matrix_table_entries():
     hl.reset_global_randomness()
     mt = hl.utils.range_matrix_table(5, 2)
