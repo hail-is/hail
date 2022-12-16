@@ -5,9 +5,6 @@ from hail.genetics import *
 from ..helpers import *
 from hail.utils import FatalError
 
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
-
 
 class Tests(unittest.TestCase):
 

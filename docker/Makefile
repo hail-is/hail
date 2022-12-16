@@ -40,13 +40,7 @@ deploy: build
 
 .PHONY: generate-pip-lockfile
 generate-pip-lockfile:
-	# Some service dependencies are linux-specific and the lockfile
-	# would differ when generated on MacOS, so we generate the lockfile
-	# on a linux image.
-	docker run --rm -it \
-		-v $(HAIL):/hail \
-		python:3.7-slim \
-		/bin/bash -c "pip install pip-tools && cd hail/docker && pip-compile --upgrade requirements.txt --output-file=linux-pinned-requirements.txt"
+	HAIL_HAIL_DIR=$(HAIL) ../generate_pip_lockfile.sh requirements.txt linux-pinned-requirements.txt
 
 .PHONY: clean
 clean:

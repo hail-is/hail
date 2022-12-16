@@ -312,38 +312,64 @@ object ArrayFunctions extends RegistryFunctions {
       }
     }
 
-    registerSCode1("allele_to_genotype_reindex", TArray(TInt32), TArray(TInt32), (_, _) => PCanonicalArray(PInt32(true), false).sType) {
-      case (er, cb, rt: SIndexablePointer, la: SIndexableValue, err) =>
+    registerIEmitCode4("local_to_global_g", TArray(TVariable("T")), TArray(TInt32), TInt32, TVariable("T"), TArray(TVariable("T")),
+      { case (rt, inArrayET, la, n, _) => EmitType(PCanonicalArray(PType.canonical(inArrayET.st.asInstanceOf[SContainer].elementType.storageType())).sType, inArrayET.required && la.required && n.required) })(
+      { case (cb, region, rt: SIndexablePointer, err, array, localAlleles, nTotalAlleles, fillInValue) =>
 
-        val laLen = la.loadLength()
-        cb.ifx(laLen ceq 0, cb._fatalWithError(err, "reindex_local_alleles_to_genotype: local alleles cannot be empty"))
+        IEmitCode.multiMapEmitCodes(cb, FastIndexedSeq(array, localAlleles, nTotalAlleles)) {
+          case IndexedSeq(array: SIndexableValue, localAlleles: SIndexableValue, _nTotalAlleles: SInt32Value) =>
+            def triangle(x: Value[Int]): Code[Int] = (x * (x + 1)) / 2
+            val nTotalAlleles =_nTotalAlleles.value
+            val nGenotypes = cb.memoize(triangle(nTotalAlleles))
+            val pt = rt.pType.asInstanceOf[PCanonicalArray]
+            cb.ifx(nTotalAlleles < 0, cb._fatalWithError(err, "local_to_global: n_total_alleles less than 0: ", nGenotypes.toS))
+            val localLen = array.loadLength()
+            val laLen = localAlleles.loadLength()
+            cb.ifx(localLen cne triangle(laLen), cb._fatalWithError(err, "local_to_global: array should be the triangle number of local alleles: found: ", localLen.toS, " elements, and", laLen.toS, " alleles"))
 
-        val pt = rt.pType.asInstanceOf[PCanonicalArray]
+            val fillIn = cb.memoize(fillInValue)
 
-        def laAt(cb: EmitCodeBuilder, idx: Code[Int]): Value[Int] = la.loadElement(cb, idx)
-          .get(cb, "local alleles elements cannot be missing", err)
-          .asInt32.value
+            val (push, finish) = pt.constructFromIndicesUnsafe(cb, region, nGenotypes, false)
 
-        val reindexedLen = cb.memoize((laLen * (laLen + 1)) / 2)
+            // fill in if necessary
+            cb.ifx(localLen cne nGenotypes, {
+              val i = cb.newLocal[Int]("i", 0)
+              cb.whileLoop(i < nGenotypes, {
+                push(cb, i, fillIn.toI(cb))
+                cb.assign(i, i + 1)
+              })
+            })
 
-        val (push, finish) = pt.constructFromFunctions(cb, er.region, reindexedLen, false)
 
-        val i = cb.newLocal[Int]("i", 0)
-        cb.whileLoop(i < laLen, {
-          val j = cb.newLocal[Int]("j", 0)
-          val curr = laAt(cb, i)
-          val startIdx = cb.memoize(((curr) * (curr + 1)) / 2)
-          cb.whileLoop(j <= i, {
-            push(cb, IEmitCode.present(cb, primitive(cb.memoize(startIdx.get + laAt(cb, j).get))))
-            cb.assign(j, j+1)
-          })
-          cb.assign(i, i+1)
-        })
+            val i = cb.newLocal[Int]("la_i", 0)
+            val laGIndexer = cb.newLocal[Int]("g_indexer", 0)
+            cb.whileLoop(i < laLen, {
+              val lai = localAlleles.loadElement(cb, i).get(cb, "local_to_global: local alleles elements cannot be missing", err).asInt32.value
 
-        finish(cb)
-    }
+              val j = cb.newLocal[Int]("la_j", 0)
+              cb.whileLoop(j <= i, {
+                val laj = localAlleles.loadElement(cb, j).get(cb, "local_to_global: local alleles elements cannot be missing", err).asInt32.value
 
-    registerIEmitCode5("local_to_global", TArray(TVariable("T")), TArray(TInt32), TInt32, TVariable("T"), TBoolean, TArray(TVariable("T")),
+                val dest = cb.newLocal[Int]("dest")
+                cb.ifx(lai >= laj, {
+                  cb.assign(dest, triangle(lai) + laj)
+                }, {
+                  cb.assign(dest, triangle(laj) + lai)
+                })
+
+                push(cb, dest, array.loadElement(cb, laGIndexer))
+                cb.assign(laGIndexer, laGIndexer + 1)
+                cb.assign(j, j+1)
+              })
+
+              cb.assign(i, i+1)
+            })
+
+            finish(cb)
+        }
+      })
+
+    registerIEmitCode5("local_to_global_a_r", TArray(TVariable("T")), TArray(TInt32), TInt32, TVariable("T"), TBoolean, TArray(TVariable("T")),
     {case (rt, inArrayET, la, n, _, omitFirst) => EmitType(PCanonicalArray(PType.canonical(inArrayET.st.asInstanceOf[SContainer].elementType.storageType())).sType, inArrayET.required && la.required && n.required && omitFirst.required)})(
       { case (cb, region, rt: SIndexablePointer, err, array, localAlleles, nTotalAlleles, fillInValue, omitFirstElement) =>
 
@@ -363,40 +389,26 @@ object ArrayFunctions extends RegistryFunctions {
               cb.assign(idxAdjustmentForOmitFirst, 0))
 
             val globalLen = cb.memoize(nTotalAlleles - idxAdjustmentForOmitFirst)
-            val (push, finish) = pt.constructFromFunctions(cb, region, globalLen, false)
 
-            val currIdxGlobal = cb.newLocal[Int]("idxGlobal", 0)
-            val currIdxLocal = cb.newLocal[Int]("idxLocal", idxAdjustmentForOmitFirst)
-            val nextArrayValue = cb.emb.newEmitLocal(array.st.elementEmitType)
-            val nextToSet = cb.newLocal[Int]("nextToSet", -1)
+            val (push, finish) = pt.constructFromIndicesUnsafe(cb, region, globalLen, false)
 
-            val LreadNextLocalIndex = CodeLabel()
-            val LloopStart = CodeLabel()
-            val Lend = CodeLabel()
-
-            cb.define(LreadNextLocalIndex)
-            cb.ifx(currIdxLocal < localLen, {
-              val nextLA = localAlleles.loadElement(cb, currIdxLocal).get(cb, "local alleles elements cannot be missing", err).asInt32.value
-              cb.ifx(nextLA <= nextToSet, cb._fatalWithError(err,"local_to_global: local alleles not strictly increasing: ", cb.strValue(localAlleles)))
-              cb.assign(nextToSet, nextLA)
-              cb.assign(nextArrayValue, array.loadElement(cb, currIdxLocal))
-            }, {
-              cb.assign(nextToSet, globalLen)
+            // fill in if necessary
+            cb.ifx(localLen cne globalLen, {
+              val i = cb.newLocal[Int]("i", 0)
+              cb.whileLoop(i < globalLen, {
+                push(cb, i, fillIn.toI(cb))
+                cb.assign(i, i + 1)
+              })
             })
-            cb.assign(currIdxLocal, currIdxLocal + 1)
 
-            cb.define(LloopStart)
-            cb.ifx(currIdxGlobal >= globalLen, cb.goto(Lend))
-            cb.ifx(currIdxGlobal ceq nextToSet, {
-              push(cb, nextArrayValue.toI(cb))
-              cb.assign(currIdxGlobal, currIdxGlobal + 1)
-              cb.goto(LreadNextLocalIndex)
+            val i = cb.newLocal[Int]("la_i", 0)
+            cb.whileLoop(i < localLen, {
+              val lai = localAlleles.loadElement(cb, i + idxAdjustmentForOmitFirst).get(cb, "local_to_global: local alleles elements cannot be missing", err).asInt32.value
+              push(cb, cb.memoize(lai - idxAdjustmentForOmitFirst), array.loadElement(cb, i))
+
+              cb.assign(i, i + 1)
             })
-            push(cb, fillIn.toI(cb))
-            cb.assign(currIdxGlobal, currIdxGlobal + 1)
-            cb.goto(LloopStart)
 
-            cb.define(Lend)
             finish(cb)
         }
       })

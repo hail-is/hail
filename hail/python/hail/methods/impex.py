@@ -1625,17 +1625,17 @@ def import_table(paths,
     if should_remove_line_expr is not None:
         ht = ht.filter(should_remove_line_expr, keep=False)
 
-    if len(paths) <= 1:
-        # With zero or one files and no filters, the first row, if it exists must be in the first
-        # partition, so we take this one-pass fast-path.
-        first_row_ht = ht._filter_partitions([0]).head(1)
-    else:
-        first_row_ht = ht.head(1)
-
-    if find_replace is not None:
-        ht = ht.annotate(text=ht['text'].replace(*find_replace))
-
     try:
+        if len(paths) <= 1:
+            # With zero or one files and no filters, the first row, if it exists must be in the first
+            # partition, so we take this one-pass fast-path.
+            first_row_ht = ht._filter_partitions([0]).head(1)
+        else:
+            first_row_ht = ht.head(1)
+
+        if find_replace is not None:
+            ht = ht.annotate(text=ht['text'].replace(*find_replace))
+
         first_rows = first_row_ht.annotate(
             header=first_row_ht.text._split_line(
                 delimiter, missing=hl.empty_array(hl.tstr), quote=quote, regex=len(delimiter) > 1)

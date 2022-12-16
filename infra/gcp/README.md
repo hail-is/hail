@@ -26,7 +26,8 @@ Instructions:
        cloudprofiler.googleapis.com \
        monitoring.googleapis.com \
        iam.googleapis.com \
-       artifactregistry.googleapis.com
+       artifactregistry.googleapis.com \
+       cloudbilling.googleapis.com
    ```
 
 - Delete the default network if it exists. Enabling the networking

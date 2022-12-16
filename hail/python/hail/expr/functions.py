@@ -27,7 +27,8 @@ from hail.expr.types import (HailType, hail_type, tint32, tint64, tfloat32,
 from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
 import hail.ir as ir
 from hail.typecheck import (typecheck, nullable, anytype, enumeration, tupleof,
-                            func_spec, oneof, arg_check, args_check, anyfunc)
+                            func_spec, oneof, arg_check, args_check, anyfunc,
+                            sequenceof)
 from hail.utils.java import Env, warning
 from hail.utils.misc import plural
 
@@ -43,10 +44,17 @@ def _func(name, ret_type, *args, type_args=()):
 
 
 def _seeded_func(name, ret_type, seed, *args):
-    seed = seed if seed is not None else Env.next_seed()
+    if seed is None:
+        static_rng_uid = Env.next_static_rng_uid()
+    else:
+        if Env._hc is None or not Env._hc._user_specified_rng_nonce:
+            warning('To ensure reproducible randomness across Hail sessions, '
+                    'you must set the "global_seed" parameter in hl.init(), in '
+                    'addition to the local seed in each random function.')
+        static_rng_uid = -seed - 1
     indices, aggregations = unify_all(*args)
-    rng_state = ir.RNGSplit(ir.Ref('__rng_state', trngstate), ir.MakeTuple([]))
-    return construct_expr(ir.ApplySeeded(name, seed, rng_state, ret_type, *(a._ir for a in args)), ret_type, indices, aggregations)
+    rng_state = ir.Ref('__rng_state', trngstate)
+    return construct_expr(ir.ApplySeeded(name, static_rng_uid, rng_state, ret_type, *(a._ir for a in args)), ret_type, indices, aggregations)
 
 
 def ndarray_broadcasting(func):
@@ -2441,7 +2449,7 @@ def rand_bool(p, seed=None) -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.set_global_seed(0)
+    >>> hl.reset_global_randomness()
     >>> hl.eval(hl.rand_bool(0.5))
     False
 
@@ -2462,20 +2470,20 @@ def rand_bool(p, seed=None) -> BooleanExpression:
     return _seeded_func("rand_bool", tbool, seed, p)
 
 
-@typecheck(mean=expr_float64, sd=expr_float64, seed=nullable(int))
-def rand_norm(mean=0, sd=1, seed=None) -> Float64Expression:
+@typecheck(mean=expr_float64, sd=expr_float64, seed=nullable(int), size=nullable(tupleof(expr_int64)))
+def rand_norm(mean=0, sd=1, seed=None, size=None) -> Float64Expression:
     """Samples from a normal distribution with mean `mean` and standard
     deviation `sd`.
 
     Examples
     --------
 
-    >>> hl.set_global_seed(0)
+    >>> hl.reset_global_randomness()
     >>> hl.eval(hl.rand_norm())
-    0.30971254606692267
+    0.347110923255205
 
     >>> hl.eval(hl.rand_norm())
-    -1.6120679347033475
+    -0.9281375348070483
 
     Parameters
     ----------
@@ -2485,12 +2493,17 @@ def rand_norm(mean=0, sd=1, seed=None) -> Float64Expression:
         Standard deviation of normal distribution.
     seed : :obj:`int`, optional
         Random seed.
+    size : :obj:`int` or :obj:`tuple` of :obj:`int`, optional
 
     Returns
     -------
     :class:`.Float64Expression`
     """
-    return _seeded_func("rand_norm", tfloat64, seed, mean, sd)
+    if size is None:
+        return _seeded_func("rand_norm", tfloat64, seed, mean, sd)
+    else:
+        (nrows, ncols) = size
+        return _seeded_func("rand_norm_nd", tndarray(tfloat64, 2), seed, nrows, ncols, mean, sd)
 
 
 @typecheck(mean=nullable(expr_array(expr_float64)), cov=nullable(expr_array(expr_float64)), seed=nullable(int))
@@ -2500,12 +2513,12 @@ def rand_norm2d(mean=None, cov=None, seed=None) -> ArrayNumericExpression:
     Examples
     --------
 
-    >>> hl.set_global_seed(0)
+    >>> hl.reset_global_randomness()
     >>> hl.eval(hl.rand_norm2d())
-    [0.30971254606692267, -1.266553783097155]
+    [-1.3909495945443346, 1.2805588680053859]
 
     >>> hl.eval(hl.rand_norm2d())
-    [-1.6120679347033475, 1.6121791827078364]
+    [0.289520302334123, -1.1108917435930954]
 
     Notes
     -----
@@ -2562,12 +2575,12 @@ def rand_pois(lamb, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.set_global_seed(0)
+    >>> hl.reset_global_randomness()
     >>> hl.eval(hl.rand_pois(1))
-    1.0
+    4.0
 
     >>> hl.eval(hl.rand_pois(1))
-    1.0
+    4.0
 
     Parameters
     ----------
@@ -2583,23 +2596,23 @@ def rand_pois(lamb, seed=None) -> Float64Expression:
     return _seeded_func("rand_pois", tfloat64, seed, lamb)
 
 
-@typecheck(lower=expr_float64, upper=expr_float64, seed=nullable(int))
-def rand_unif(lower=0.0, upper=1.0, seed=None) -> Float64Expression:
+@typecheck(lower=expr_float64, upper=expr_float64, seed=nullable(int), size=nullable(tupleof(expr_int64)))
+def rand_unif(lower=0.0, upper=1.0, seed=None, size=None) -> Float64Expression:
     """Samples from a uniform distribution within the interval
     [`lower`, `upper`].
 
     Examples
     --------
 
-    >>> hl.set_global_seed(0)
+    >>> hl.reset_global_randomness()
     >>> hl.eval(hl.rand_unif())
-    0.6830630912401323
+    0.9828239225846387
 
     >>> hl.eval(hl.rand_unif(0, 1))
-    0.4035978197966855
+    0.49094525115847415
 
     >>> hl.eval(hl.rand_unif(0, 1))
-    0.26020045338162423
+    0.3972543766997359
 
     Parameters
     ----------
@@ -2609,12 +2622,17 @@ def rand_unif(lower=0.0, upper=1.0, seed=None) -> Float64Expression:
         Right boundary of range. Defaults to 1.0.
     seed : :obj:`int`, optional
         Random seed.
+    size : :obj:`int` or :obj:`tuple` of :obj:`int`, optional
 
     Returns
     -------
     :class:`.Float64Expression`
     """
-    return _seeded_func("rand_unif", tfloat64, seed, lower, upper)
+    if size is None:
+        return _seeded_func("rand_unif", tfloat64, seed, lower, upper)
+    else:
+        (nrows, ncols) = size
+        return _seeded_func("rand_unif_nd", tndarray(tfloat64, 2), seed, nrows, ncols, lower, upper)
 
 
 @typecheck(a=expr_int32, b=nullable(expr_int32), seed=nullable(int))
@@ -2627,12 +2645,12 @@ def rand_int32(a, b=None, *, seed=None) -> Int32Expression:
     Examples
     --------
 
-    >>> hl.set_global_seed(0)
+    >>> hl.reset_global_randomness()
     >>> hl.eval(hl.rand_int32(10))
-    0
+    9
 
     >>> hl.eval(hl.rand_int32(10, 15))
-    11
+    14
 
     >>> hl.eval(hl.rand_int32(10, 15))
     12
@@ -2656,25 +2674,27 @@ def rand_int32(a, b=None, *, seed=None) -> Int32Expression:
     return _seeded_func("rand_int32", tint32, seed, b - a) + a
 
 
-@typecheck(a=expr_int64, b=nullable(expr_int64), seed=nullable(int))
-def rand_int64(a, b=None, *, seed=None) -> Int64Expression:
+@typecheck(a=nullable(expr_int64), b=nullable(expr_int64), seed=nullable(int))
+def rand_int64(a=None, b=None, *, seed=None) -> Int64Expression:
     """Samples from a uniform distribution of 64-bit integers.
 
-    If b is `None`, samples from the uniform distribution over [0, a). Otherwise, sample from the
-    uniform distribution over [a, b).
+    If a and b are both specified, samples from the uniform distribution over [a, b).
+    If b is `None`, samples from the uniform distribution over [0, a).
+    If both a and b are `None` samples from the uniform distribution over all
+    64-bit integers.
 
     Examples
     --------
 
-    >>> hl.set_global_seed(0)
+    >>> hl.reset_global_randomness()
     >>> hl.eval(hl.rand_int64(10))
-    2
+    9
 
     >>> hl.eval(hl.rand_int64(1 << 33, 1 << 35))
-    13313179445
+    33089740109
 
     >>> hl.eval(hl.rand_int64(1 << 33, 1 << 35))
-    18981019040
+    18195458570
 
     Parameters
     ----------
@@ -2689,6 +2709,8 @@ def rand_int64(a, b=None, *, seed=None) -> Int64Expression:
     -------
     :class:`.Int64Expression`
     """
+    if a is None:
+        return _seeded_func("rand_int64", tint64, seed)
     if b is None:
         return _seeded_func("rand_int64", tint64, seed, a)
     return _seeded_func("rand_int64", tint64, seed, b - a) + a
@@ -2715,12 +2737,12 @@ def rand_beta(a, b, lower=None, upper=None, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.set_global_seed(0)
+    >>> hl.reset_global_randomness()
     >>> hl.eval(hl.rand_beta(0.5, 0.5))
-    0.3483677318466065
+    0.30607924177641355
 
     >>> hl.eval(hl.rand_beta(2, 5))
-    0.23894608018057753
+    0.1103872607301062
 
     Parameters
     ----------
@@ -2758,12 +2780,12 @@ def rand_gamma(shape, scale, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.set_global_seed(0)
+    >>> hl.reset_global_randomness()
     >>> hl.eval(hl.rand_gamma(1, 1))
-    0.8934929450909811
+    3.115449479063202
 
     >>> hl.eval(hl.rand_gamma(1, 1))
-    0.3423233699402248
+    3.077698059931638
 
     Parameters
     ----------
@@ -2798,12 +2820,12 @@ def rand_cat(prob, seed=None) -> Int32Expression:
     Examples
     --------
 
-    >>> hl.set_global_seed(0)
+    >>> hl.reset_global_randomness()
     >>> hl.eval(hl.rand_cat([0, 1.7, 2]))
     2
 
     >>> hl.eval(hl.rand_cat([0, 1.7, 2]))
-    1
+    2
 
     Parameters
     ----------
@@ -2827,12 +2849,12 @@ def rand_dirichlet(a, seed=None) -> ArrayExpression:
     Examples
     --------
 
-    >>> hl.set_global_seed(0)
+    >>> hl.reset_global_randomness()
     >>> hl.eval(hl.rand_dirichlet([1, 1, 1]))
-    [0.31600799564679466, 0.22921566396520351, 0.45477634038800185]
+    [0.6987619676833735, 0.287566556865261, 0.013671475451365567]
 
     >>> hl.eval(hl.rand_dirichlet([1, 1, 1]))
-    [0.28935842257116556, 0.40020478428981887, 0.31043679313901557]
+    [0.16299928555608242, 0.04393664153526524, 0.7930640729086523]
 
     Parameters
     ----------
@@ -4781,6 +4803,102 @@ def flatten(collection):
     return collection.flatmap(lambda x: x)
 
 
+def _union_intersection_base(name, arrays, key, join_f, result_f):
+    if builtins.len(arrays) == 0:
+        raise ValueError(f"{name}: require at least one input array")
+
+    t = arrays[0].dtype.element_type
+    if not isinstance(t, tstruct):
+        raise ValueError(f"{name}: expect a struct element type, found {t}")
+    for k in key:
+        if k not in t:
+            raise ValueError(f"{name}: key field {k!r} not in element type {t}")
+    for i, a in builtins.enumerate(arrays):
+        if a.dtype.element_type != t:
+            raise ValueError(f"{name}: input {i} has a different element type than input 0:"
+                             f"\n  input 0: {t}"
+                             f"\n  input {i}: {a.dtype.element_type}")
+
+    key_typ = hl.tstruct(**{k: t[k] for k in key})
+    vals_typ = hl.tarray(t)
+
+    key_uid = Env.get_uid()
+    vals_uid = Env.get_uid()
+
+    key_var = construct_variable(key_uid, key_typ)
+    vals_var = construct_variable(vals_uid, vals_typ)
+
+    join_ir = join_f(key_var, vals_var)
+
+    irs = []
+    for a in arrays:
+        if isinstance(a.dtype, hl.tarray):
+            irs.append(ir.toStream(a._ir))
+        else:
+            irs.append(a._ir)
+    indices, aggs = unify_all(*arrays)
+
+    zj = ir.ToArray(ir.StreamZipJoin(irs, key, key_uid, vals_uid, join_ir._ir))
+    return result_f(construct_expr(zj, zj.typ, indices, aggs))
+
+
+@typecheck(arrays=expr_oneof(expr_stream(expr_any), expr_array(expr_any)), key=sequenceof(builtins.str))
+def keyed_intersection(*arrays, key):
+    """Compute the intersection of sorted arrays on a given key.
+
+    Requires sorted arrays with distinct keys.
+
+    Warning
+    -------
+    Experimental. Does not support downstream randomness.
+
+    Parameters
+    ----------
+    arrays
+    key
+
+    Returns
+    -------
+    :class:`.ArrayExpression`
+    """
+    return _union_intersection_base(
+        'keyed_intersection',
+        arrays,
+        key,
+        lambda key_var, vals_var: hl.tuple((key_var, vals_var)),
+        lambda res: res
+        .filter(lambda x: hl.fold(lambda acc, elt: acc & hl.is_defined(elt), True, x[1]))
+        .map(lambda x: x[1].first()))
+
+
+@typecheck(arrays=expr_oneof(expr_stream(expr_any), expr_array(expr_any)), key=sequenceof(builtins.str))
+def keyed_union(*arrays, key):
+    """Compute the distinct union of sorted arrays on a given key.
+
+    Requires sorted arrays with distinct keys.
+
+    Warning
+    -------
+    Experimental. Does not support downstream randomness.
+
+    Parameters
+    ----------
+    exprs
+    key
+
+    Returns
+    -------
+    :class:`.ArrayExpression`
+    """
+    return _union_intersection_base(
+        'keyed_union',
+        arrays,
+        key,
+        lambda keys_var, vals_var: hl.fold(lambda acc, elt: hl.coalesce(acc, elt),
+                                           hl.missing(vals_var.dtype.element_type), vals_var),
+        lambda res: res)
+
+
 @typecheck(collection=expr_oneof(expr_array(), expr_set()),
            delimiter=expr_str)
 def delimit(collection, delimiter=',') -> StringExpression:
@@ -6284,9 +6402,9 @@ def shuffle(a, seed: builtins.int = None) -> ArrayExpression:
     Example
     -------
 
-    >>> hl.set_global_seed(0)
+    >>> hl.reset_global_randomness()
     >>> hl.eval(hl.shuffle(hl.range(5)))
-    [3, 2, 0, 4, 1]
+    [4, 0, 2, 1, 3]
 
     Parameters
     ----------
@@ -6299,7 +6417,7 @@ def shuffle(a, seed: builtins.int = None) -> ArrayExpression:
     -------
     :class:`.ArrayExpression`
     """
-    return sorted(a, key=lambda _: hl.rand_unif(0.0, 1.0, seed=seed))
+    return sorted(a, key=lambda _: hl.rand_unif(0.0, 1.0))
 
 
 @typecheck(path=builtins.str, point_or_interval=expr_any)

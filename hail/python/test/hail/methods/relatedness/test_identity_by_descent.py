@@ -4,11 +4,7 @@ from subprocess import DEVNULL, call as syscall
 
 import hail as hl
 import hail.utils as utils
-from ...helpers import (startTestHailContext, stopTestHailContext, get_dataset,
-                        fails_service_backend, fails_local_backend)
-
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
+from ...helpers import get_dataset, fails_service_backend, fails_local_backend
 
 
 class Tests(unittest.TestCase):

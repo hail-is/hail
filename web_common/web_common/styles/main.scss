@@ -238,8 +238,13 @@ a {
     }
 
     tr {
+        /* Holiday theme colors! :)
+           Also see: https://github.com/hail-is/hail/pull/12191 */
+        &:nth-of-type(odd) {
+            background-color: #fff4f4;
+        }
         &:nth-of-type(even) {
-            background-color: #f0f0f0;
+            background-color: #f4fff4;
         }
 
         td.data-table-bad {

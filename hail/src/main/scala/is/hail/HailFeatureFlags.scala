@@ -29,7 +29,8 @@ object HailFeatureFlags {
     ("use_ssa_logs", "HAIL_USE_SSA_LOGS" -> null),
     ("gcs_requester_pays_project", "HAIL_GCS_REQUESTER_PAYS_PROJECT" -> null),
     ("gcs_requester_pays_buckets", "HAIL_GCS_REQUESTER_PAYS_BUCKETS" -> null),
-    ("index_branching_factor", "HAIL_INDEX_BRANCHING_FACTOR" -> null)
+    ("index_branching_factor", "HAIL_INDEX_BRANCHING_FACTOR" -> null),
+    ("rng_nonce", "HAIL_RNG_NONCE" -> "0x0")
   )
 
   def fromEnv(): HailFeatureFlags =

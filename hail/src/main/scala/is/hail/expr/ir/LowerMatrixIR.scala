@@ -673,10 +673,11 @@ object LowerMatrixIR {
         val keyMap = Symbol(genUID())
         val aggElementIdx = Symbol(genUID())
 
-        val substEnv = matrixSubstEnv(child)
-        val ceSub = subst(lower(ctx, colExpr, ab), substEnv)
-        val vaBinding = 'row.selectFields(child.typ.rowType.fieldNames: _*)
-        val eeSub = subst(lower(ctx, entryExpr, ab), substEnv.bindEval("va", vaBinding).bindAgg("va", vaBinding))
+        val e1 = Env[IRProxy]("global" -> 'global.selectFields(child.typ.globalType.fieldNames: _*),
+          "va" -> 'row.selectFields(child.typ.rowType.fieldNames: _*))
+        val e2 = Env[IRProxy]("global" -> 'global.selectFields(child.typ.globalType.fieldNames: _*))
+        val ceSub = subst(lower(ctx, colExpr, ab), BindingEnv(e2, agg = Some(e1)))
+        val eeSub = subst(lower(ctx, entryExpr, ab), BindingEnv(e1, agg = Some(e1)))
 
         lower(ctx, child, ab)
           .mapGlobals('global.insertFields(keyMap ->

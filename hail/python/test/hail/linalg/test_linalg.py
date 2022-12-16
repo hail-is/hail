@@ -10,9 +10,6 @@ import numpy as np
 import math
 from hail.expr.expressions import ExpressionException
 
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
-
 
 def sparsify_numpy(np_mat, block_size, blocks_to_sparsify):
     n_rows, n_cols = np_mat.shape
