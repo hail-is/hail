@@ -4161,7 +4161,6 @@ class NDArrayExpression(Expression):
         """
 
         # varargs with many ints works, but can't be a mix of ints and tuples.
-        indices, aggregations = unify_all(self, *shape)
 
         if len(shape) > 1:
             for i, arg in enumerate(shape):
@@ -4171,12 +4170,14 @@ class NDArrayExpression(Expression):
             shape = shape[0]
 
         if isinstance(shape, TupleExpression):
+            indices, aggregations = unify_all(self, shape)
             for i, tuple_field_type in enumerate(shape.dtype.types):
                 if tuple_field_type not in [hl.tint32, hl.tint64]:
                     raise TypeError(f"Argument {i} of reshape needs to be an integer, got {tuple_field_type}.")
             shape_ir = hl.or_missing(hl.is_defined(shape), hl.tuple([hl.int64(i) for i in shape]))._ir
             ndim = len(shape)
         else:
+            indices, aggregations = unify_all(self, *shape)
             wrapped_shape = wrap_to_list(shape)
             ndim = len(wrapped_shape)
             shape_ir = hl.tuple(wrapped_shape)._ir

@@ -128,3 +128,15 @@ def test_ndarray_reshape_2():
         assert ROW_FIELD_C_REFERENCES_COL_FIELD_COL_IDX_ERROR_MESSAGE in exc.args[0]
     else:
         assert False
+
+
+def test_ndarray_reshape_tuple():
+    ht = hl.utils.range_matrix_table(1, 1)
+    ht = ht.annotate_cols(a = hl.tuple((1, 1)))
+    ht = ht.annotate_rows(b = hl.nd.array([[0]]))
+    try:
+        ht = ht.annotate_rows(c = ht.b.reshape(ht.a))
+    except hl.ExpressionException as exc:
+        assert ROW_FIELD_C_REFERENCES_COL_FIELD_A_ERROR_MESSAGE in exc.args[0]
+    else:
+        assert False
