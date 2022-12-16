@@ -311,7 +311,7 @@ class ServiceBackend(Backend):
                    ir: Optional[BaseIR] = None,
                    progress: Optional[BatchProgressBar] = None):
         import traceback
-        traceback.print_tb()
+        traceback.print_stack()
 
         timings = Timings()
         token = secret_alnum_string()
