@@ -2839,6 +2839,7 @@ def balding_nichols_model(n_populations: int,
     # generate matrix table
 
     bn = hl.utils.range_matrix_table(n_variants, n_samples, n_partitions)
+
     bn = bn.annotate_globals(
         bn=hl.struct(n_populations=n_populations,
                      n_samples=n_samples,
@@ -2847,9 +2848,10 @@ def balding_nichols_model(n_populations: int,
                      pop_dist=pop_dist,
                      fst=fst,
                      mixture=mixture))
+
     # col info
     pop_f = hl.rand_dirichlet if mixture else hl.rand_cat
-    bn = bn.key_cols_by(sample_idx=bn.col_idx)
+    bn = bn.rename({'col_idx': 'sample_idx'})
     bn = bn.select_cols(pop=pop_f(pop_dist))
 
     # row info
@@ -2862,6 +2864,7 @@ def balding_nichols_model(n_populations: int,
                                         hl.rand_beta(ancestral * x,
                                                      (1 - ancestral) * x)),
                                    af_dist))
+
     # entry info
     p = hl.sum(bn.pop * bn.af) if mixture else bn.af[bn.pop]
     q = 1 - p

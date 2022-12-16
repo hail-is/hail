@@ -226,6 +226,7 @@ class BlockMatrix(object):
 
     def __init__(self, bmir):
         self._bmir = bmir
+        self._type = self._bmir._type
 
     @classmethod
     @typecheck_method(path=str, _assert_type=nullable(tblockmatrix))

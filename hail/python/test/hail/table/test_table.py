@@ -2332,6 +2332,7 @@ def test_query_table_compound_key():
     ]
     assert hl.eval(queries) == expected
 
+
 def test_query_table_interval_key():
     f = new_temp_file(extension='ht')
 

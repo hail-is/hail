@@ -134,7 +134,11 @@ class MatrixRead(MatrixIR):
             drop_col_uids = True
         elif col_uid_field_name != default_col_uid:
             rename_col_uid = True
-        result = MatrixRead(self.reader, self.drop_cols, self.drop_rows, drop_row_uids, drop_col_uids)
+        result = MatrixRead(self.reader,
+                            self.drop_cols,
+                            self.drop_rows,
+                            drop_row_uids,
+                            drop_col_uids)
         if rename_row_uid or rename_col_uid:
             rename = False
             row_map = {}

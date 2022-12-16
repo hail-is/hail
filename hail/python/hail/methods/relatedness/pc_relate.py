@@ -13,7 +13,7 @@ from hail.table import Table
 from hail.typecheck import enumeration, nullable, numeric, typecheck
 from hail.utils import new_temp_file
 from hail.utils.java import Env
-from ..pca import _hwe_normalized_blanczos, hwe_normalized_pca
+from ..pca import hwe_normalized_pca
 
 
 @typecheck(call_expr=expr_call,
@@ -477,7 +477,7 @@ def _pc_relate_bm(call_expr: CallExpression,
         f'Must have min_individual_maf on interval [0.0, 1.0].'
     mt = matrix_table_source('pc_relate_bm/call_expr', call_expr)
     if k and scores_expr is None:
-        eigens, scores, _ = _hwe_normalized_blanczos(call_expr, k, compute_loadings=False, q_iterations=10)
+        eigens, scores, _ = hwe_normalized_pca(call_expr, k, compute_loadings=False, q_iterations=10)
         scores_table = scores.select(__scores=scores.scores).key_by().select('__scores')
         compute_S0 = False
     elif not k and scores_expr is not None:

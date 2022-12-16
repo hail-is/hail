@@ -310,6 +310,9 @@ class ServiceBackend(Backend):
                    *,
                    ir: Optional[BaseIR] = None,
                    progress: Optional[BatchProgressBar] = None):
+        import traceback
+        traceback.print_tb()
+
         timings = Timings()
         token = secret_alnum_string()
         with TemporaryDirectory(ensure_exists=False) as iodir:

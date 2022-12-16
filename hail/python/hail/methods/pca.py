@@ -94,9 +94,6 @@ def hwe_normalized_pca(call_expr, k=10, compute_loadings=False) -> Tuple[List[fl
     """
     from hail.backend.service_backend import ServiceBackend
 
-    if isinstance(hl.current_backend(), ServiceBackend):
-        return _hwe_normalized_blanczos(call_expr, k, compute_loadings)
-
     return pca(hwe_normalize(call_expr),
                k,
                compute_loadings)
@@ -256,39 +253,46 @@ def _make_tsm_from_call(call_expr,
 
 
 class KrylovFactorization:
-    # For now, all three factors are `NDArrayExpression`s, but eventually U and/or V should be
-    # allowed to be distributed. All properties must be persisted.
-    def __init__(self, U, R, V, k):
-        self.U = U
-        self.V = V
+    def __init__(self, mt, k):
+        '''Do not initialize this directly. Call _krylov_factorization.'''
+        self.mt = mt
         self.k = k
-        (self.U1, self.S, self.V1t) = hl.nd.svd(R, full_matrices=False)._persist()
 
     def reduced_svd(self, k):
-        S = self.S[:k]._persist()
-
-        if self.U is None:
-            U = None
-        else:
-            U = (self.U @ self.U1[:, :k])._persist()
-
-        if self.V is None:
-            V = None
-        else:
-            V = (self.V @ self.V1t.T[:, :k])._persist()
-
-        return U, S, V
+        mt = self.mt
+        k = self.k
+        mt = mt.annotate_cols(S = mt.S[:k])
+        if 'U' in mt.col:
+            mt = mt.annotate_cols(U = mt.U @ mt.U1[:, :k])
+        if 'V' in mt.col:
+            mt = mt.annotate_cols(V = mt.V @ mt.V1t.T[:, :k])
+        return mt
 
     def spectral_moments(self, num_moments, R):
-        eigval_powers = hl.nd.vstack([self.S.map(lambda x: x**(2 * i)) for i in range(1, num_moments + 1)])
-        moments = eigval_powers @ (self.V1t[:, :self.k] @ R).map(lambda x: x**2)
-        means = moments.sum(1) / self.k
-        variances = (moments - means.reshape(-1, 1)).map(lambda x: x**2).sum(1) / (self.k - 1)
-        stdevs = variances.map(lambda x: hl.sqrt(x))
-        return hl.struct(moments=means, stdevs=stdevs)
+        def sqr(x):
+            return x ** 2
+
+        mt = self.mt
+        k = self.k
+        mt = mt.annotate_cols(
+            eigval_powers = hl.nd.vstack([mt.S.map(lambda x: x**(2 * i)) for i in range(1, num_moments + 1)])
+        )
+        mt = mt.annotate_cols(
+            moments = mt.eigval_powers @ (mt.V1t[:, :k] @ mt.R).map(sqr)
+        )
+        mt = mt.annotate_cols(
+            means = mt.moments.sum(1) / k
+        )
+        mt = mt.annotate_cols(
+            variances = (mt.moments - mt.means.reshape(-1, 1)).map(sqr).sum(1) / (k - 1)
+        )
+        mt = mt.annotate_cols(
+            stdevs = mt.variances.map(hl.sqrt)
+        )
+        return mt
 
 
-def _krylov_factorization(A: TallSkinnyMatrix, V0, p, compute_U=False, compute_V=True):
+def _krylov_factorization(tsm: TallSkinnyMatrix, p, compute_U=False, compute_V=True):
     r"""Computes matrices :math:`U`, :math:`R`, and :math:`V` satisfying the following properties:
     * :math:`U\in\mathbb{R}^{m\times (p+1)b` and :math:`V\in\mathbb{R}^{n\times (p+1)b` are
       orthonormal matrices (:math:`U^TU = I` and :math:`V^TV = I`)
@@ -310,59 +314,68 @@ def _krylov_factorization(A: TallSkinnyMatrix, V0, p, compute_U=False, compute_V
     -------
 
     """
-    t = A.block_table
-    A_expr = A.block_expr
+    mt = tsm.block_matrix_table
+    assert 'V0' in mt.globals
 
-    g_list = [V0]
-    G_i = V0
-    k = hl.eval(V0.shape[1])
+    prev = mt.V0
+    for j in range(1, p+1):
+        mt = mt.annotate_cols(**{
+            f'G_{j}': hl.nd.qr(
+                hl.agg.ndarray_sum(mt.block.T @ (mt.block @ prev))
+            )[0]
+        })
+        prev = mt[f'G_{j}']
 
-    for j in range(0, p):
-        info(f"krylov_factorization: Beginning iteration {j+1}/{p}")
-        G_i = t.aggregate(hl.agg.ndarray_sum(A_expr.T @ (A_expr @ G_i)), _localize=False)
-        G_i = hl.nd.qr(G_i)[0]._persist()
-        g_list.append(G_i)
+    mt = mt.annotate_cols(
+        V = hl.nd.qr(
+            hl.nd.hstack(
+                [mt.V0, *[mt[f'G_{j}'] for j in range(1, p+1)]]
+            )
+        )[0]
+    )
+    mt = mt.annotate_rows(AV=mt.block @ mt.V)
+    mt = mt.annotate_cols(
+        UandR = hl.nd.qr(hl.nd.vstack(hl.agg.collect(mt.AV)))
+    )
+    mt = mt.annotate_cols(
+        U = mt.UandR[0]
+    )
+    mt = mt.annotate_cols(
+        R = mt.UandR[1]
+    )
 
-    info("krylov_factorization: Iterations complete. Computing local QR")
-    V0 = hl.nd.hstack(g_list)
+    if not compute_V:
+        mt = mt.drop('V')
+    if not compute_U:
+        mt = mt.drop('U')
 
-    if compute_V:
-        V = hl.nd.qr(V0)[0]._persist()
-        t = t.annotate(AV=A_expr @ V)
-    else:
-        V = hl.nd.qr(V0)[0]
-        t = t.annotate(AV=A_expr @ V)
-        V = None
-
-    if compute_U:
-        temp_file_name = hl.utils.new_temp_file("_krylov_factorization_intermediate", "ht")
-        t = t.checkpoint(temp_file_name)
-        AV_local = t.aggregate(hl.nd.vstack(hl.agg.collect(t.AV)), _localize=False)
-        U, R = hl.nd.qr(AV_local)._persist()
-    else:
-        Rs = t.aggregate(hl.nd.vstack(hl.agg.collect(hl.nd.qr(t.AV)[1])), _localize=False)
-        R = hl.nd.qr(Rs)[1]._persist()
-        U = None
-
-    return KrylovFactorization(U, R, V, k)
+    mt = mt.annotate_cols(
+        svdR = hl.nd.svd(mt.R, full_matrices=False)
+    )
+    mt = mt.annotate_cols(
+        U1 = mt.svdR[0], S = mt.svdR[1], V1t = mt.svdR[2]
+    )
+    return KrylovFactorization(mt, tsm.n_cols)
 
 
-def _reduced_svd(A: TallSkinnyMatrix, k=10, compute_U=False, iterations=2, iteration_size=None):
+def _reduced_svd(tsm: TallSkinnyMatrix, k=10, compute_U=False, iterations=2, iteration_size=None):
     # Set Parameters
     q = iterations
     if iteration_size is None:
         L = k + 2
     else:
         L = iteration_size
-    assert((q + 1) * L >= k)
-    n = A.n_cols
+    assert (q + 1) * L >= k
 
     # Generate random matrix G
-    G = hl.rand_norm(0, 1, size=(n, L))
-    G = hl.nd.qr(G)[0]._persist()
+    G = hl.rand_norm(0, 1, size=(tsm.n_cols, L))
+    G = hl.nd.qr(G)[0]
 
-    fact = _krylov_factorization(A, G, q, compute_U)
-    info("_reduced_svd: Computing local SVD")
+    mt = tsm.block_matrix_table
+    mt = mt.annotate_globals(V0 = G)
+    tsm.block_matrix_table = mt
+
+    fact = _krylov_factorization(tsm, q, compute_U)
     return fact.reduced_svd(k)
 
 
@@ -458,13 +471,13 @@ def _pca_and_moments(A, k=10, num_moments=5, compute_loadings=False, q_iteration
     return eigens, st, lt, moments, stdevs
 
 
-@typecheck(A=oneof(expr_float64, TallSkinnyMatrix),
+@typecheck(mat=oneof(expr_float64, TallSkinnyMatrix),
            k=int,
            compute_loadings=bool,
            q_iterations=int,
            oversampling_param=nullable(int),
            rows_per_block=nullable(int))
-def _blanczos_pca(A,
+def _blanczos_pca(mat,
                   k: int = 10,
                   compute_loadings: bool = False,
                   q_iterations: int = 10,
@@ -560,33 +573,62 @@ def _blanczos_pca(A,
         List of eigenvalues, table with column scores, table with row loadings.
 
     """
-    if not isinstance(A, TallSkinnyMatrix):
-        check_entry_indexed('_blanczos_pca/entry_expr', A)
-        A = _make_tsm(A, rows_per_block)
+    if not isinstance(mat, TallSkinnyMatrix):
+        check_entry_indexed('_blanczos_pca/entry_expr', mat)
+        tsm = _make_tsm(mat, rows_per_block)
 
     if oversampling_param is None:
         oversampling_param = k
 
-    U, S, V = _reduced_svd(A, k, compute_loadings, q_iterations, k + oversampling_param)
+    mt = _reduced_svd(tsm, k, compute_loadings, q_iterations, k + oversampling_param)
+    mt = mt.annotate_cols(
+        scores = mt.V * mt.S,  # FIXME: why not matmul?
+        eigens = mt.S * mt.S
+    )
+    mt = mt.annotate_cols(
+        real_cols = hl.range(tsm.n_cols).map(
+            lambda i: hl.struct(
+                col_key = mt.col_keys[i],
+                scores = mt.scores[i, :]._data_array()
+            )
+        )
+    )
+    mt = mt.annotate_entries(
+        loading_vectors = hl.range(hl.len(mt.row_keys)).map(
+            lambda i: hl.struct(
+                row_key = mt.row_keys[i],
+                loadings = mt.U[i, :]._data_array()
+            )
+        )
+    )
+    ht = mt.localize_entries('fake_entries', 'fake_cols')
 
-    scores = V * S
-    eigens = hl.eval(S * S)
-    info("blanczos_pca: SVD Complete. Computing conversion to PCs.")
+    ht = ht.annotate(loading_vectors = ht.fake_entries[0].loading_vectors)
+    ht = ht.select_globals(real_cols = ht.fake_cols[0].real_cols)
 
-    hail_array_scores = scores._data_array()
-    cols_and_scores = hl.zip(A.source_table.index_globals().cols, hail_array_scores).map(lambda tup: tup[0].annotate(scores=tup[1]))
-    st = hl.Table.parallelize(cols_and_scores, key=A.col_key)
+    ht = ht.explode(ht.loading_vectors)
+    ht = ht.key_by(**ht.loading_vectors.row_key)
+    ht = ht.select(loadings = ht.loading_vectors.loadings)
+
+
+    if not compute_loadings:
+        ht = ht.head(0)
+
+    ht = ht.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
+
+    ht = ht.annotate(
+        fake_entries = hl.range(hl.len(ht.real_cols)).map(lambda _: hl.struct())
+    )
+    mt = ht._unlocalize_entries('real_cols', 'fake_entries', tsm.col_key)
+
+    st = mt.cols().key_cols_by(*mt.col_key)
+    eigens = mt.eigens.collect()[0]
+    lt = None
 
     if compute_loadings:
-        lt = A.source_table.select()
-        lt = lt.annotate_globals(U=U)
-        idx_name = '_tmp_pca_loading_index'
-        lt = lt.add_index(idx_name)
-        lt = lt.annotate(loadings=lt.U[lt[idx_name], :]._data_array()).select_globals()
-        lt = lt.drop(lt[idx_name])
-        return eigens, st, lt
-    else:
-        return eigens, st, None
+        lt = mt.rows()
+
+    return eigens, st, lt
 
 
 @typecheck(call_expr=expr_call,
