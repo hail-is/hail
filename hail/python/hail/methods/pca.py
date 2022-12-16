@@ -262,10 +262,13 @@ class KrylovFactorization:
         mt = self.mt
         k = self.k
         mt = mt.annotate_cols(S = mt.S[:k])
+        mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
         if 'U' in mt.col:
             mt = mt.annotate_cols(U = mt.U @ mt.U1[:, :k])
+        mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
         if 'V' in mt.col:
             mt = mt.annotate_cols(V = mt.V @ mt.V1t.T[:, :k])
+        mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
         return mt
 
     def spectral_moments(self, num_moments, R):
@@ -326,6 +329,7 @@ def _krylov_factorization(tsm: TallSkinnyMatrix, p, compute_U=False, compute_V=T
         })
         prev = mt[f'G_{j}']
 
+    mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
     mt = mt.annotate_cols(
         V = hl.nd.qr(
             hl.nd.hstack(
@@ -333,28 +337,37 @@ def _krylov_factorization(tsm: TallSkinnyMatrix, p, compute_U=False, compute_V=T
             )
         )[0]
     )
+    mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
     mt = mt.annotate_rows(AV=mt.block @ mt.V)
+    mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
     mt = mt.annotate_cols(
         UandR = hl.nd.qr(hl.nd.vstack(hl.agg.collect(mt.AV)))
     )
+    mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
     mt = mt.annotate_cols(
         U = mt.UandR[0]
     )
+    mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
     mt = mt.annotate_cols(
         R = mt.UandR[1]
     )
+    mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
 
     if not compute_V:
         mt = mt.drop('V')
+    mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
     if not compute_U:
         mt = mt.drop('U')
+    mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
 
     mt = mt.annotate_cols(
         svdR = hl.nd.svd(mt.R, full_matrices=False)
     )
+    mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
     mt = mt.annotate_cols(
         U1 = mt.svdR[0], S = mt.svdR[1], V1t = mt.svdR[2]
     )
+    mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
     return KrylovFactorization(mt, tsm.n_cols)
 
 
@@ -581,10 +594,12 @@ def _blanczos_pca(mat,
         oversampling_param = k
 
     mt = _reduced_svd(tsm, k, compute_loadings, q_iterations, k + oversampling_param)
+    mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
     mt = mt.annotate_cols(
         scores = mt.V * mt.S,  # FIXME: why not matmul?
         eigens = mt.S * mt.S
     )
+    mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
     mt = mt.annotate_cols(
         real_cols = hl.range(tsm.n_cols).map(
             lambda i: hl.struct(
@@ -593,6 +608,7 @@ def _blanczos_pca(mat,
             )
         )
     )
+    mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
     mt = mt.annotate_entries(
         loading_vectors = hl.range(hl.len(mt.row_keys)).map(
             lambda i: hl.struct(
@@ -601,7 +617,9 @@ def _blanczos_pca(mat,
             )
         )
     )
+    mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
     ht = mt.localize_entries('fake_entries', 'fake_cols')
+    ht.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
 
     ht = ht.annotate(loading_vectors = ht.fake_entries[0].loading_vectors)
     ht = ht.select_globals(real_cols = ht.fake_cols[0].real_cols)
@@ -609,7 +627,6 @@ def _blanczos_pca(mat,
     ht = ht.explode(ht.loading_vectors)
     ht = ht.key_by(**ht.loading_vectors.row_key)
     ht = ht.select(loadings = ht.loading_vectors.loadings)
-
 
     if not compute_loadings:
         ht = ht.head(0)

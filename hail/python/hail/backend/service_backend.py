@@ -311,7 +311,16 @@ class ServiceBackend(Backend):
                    ir: Optional[BaseIR] = None,
                    progress: Optional[BatchProgressBar] = None):
         import traceback
-        traceback.print_stack()
+        frames = traceback.extract_stack()
+        frames = traceback.StackSummary.from_list([
+            f for f in frames
+            if all(("/asyncio/" not in f.filename,
+                    "/hail/backend/" not in f.filename,
+                    "/hail/typecheck/check.py" not in f.filename,
+                    "nest_asyncio.py" not in f.filename,
+                    "decorator-gen" not in f.filename))
+        ])
+        traceback.print_list(frames)
 
         timings = Timings()
         token = secret_alnum_string()
