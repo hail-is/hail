@@ -2,7 +2,7 @@ from hail.expr.expressions import construct_expr, expr_any, unify_all
 from hail.expr.types import hail_type
 from hail.ir import Apply, Ref
 from hail.typecheck import typecheck, nullable, tupleof, anytype
-from hail.utils.java import Env
+from hail.foundation.java import Env
 
 
 class Function(object):

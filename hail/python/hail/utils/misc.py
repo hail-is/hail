@@ -19,7 +19,7 @@ from typing_extensions import Literal
 import hail
 import hail as hl
 from hail.typecheck import enumeration, typecheck, nullable
-from hail.utils.java import Env, error
+from hail.foundation.java import Env, error
 
 
 @typecheck(n_rows=int, n_cols=int, n_partitions=nullable(int))
@@ -80,7 +80,9 @@ def range_matrix_table(n_rows, n_cols, n_partitions=None) -> 'hail.MatrixTable':
 
 
 @typecheck(n=int, n_partitions=nullable(int))
-def range_table(n, n_partitions=None) -> 'hail.Table':
+def range_table(n: int,
+                n_partitions: Optional[int] = None
+                ) -> 'hail.Table':
     """Construct a table with the row index and no other fields.
 
     Examples

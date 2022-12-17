@@ -22,7 +22,7 @@ from hail.table import Table
 from hail.typecheck import typecheck, nullable, oneof, dictof, anytype, \
     sequenceof, enumeration, sized_tupleof, numeric, table_key_type, char
 from hail.utils.misc import wrap_to_list, plural
-from hail.utils.java import Env, FatalError, jindexed_seq_args, warning
+from hail.foundation.java import Env, FatalError, jindexed_seq_args, warning
 from hail.utils.deduplicate import deduplicate
 
 from .import_lines_helpers import split_lines, should_remove_line

@@ -2,7 +2,7 @@ from typing import Optional, List, Union, Tuple
 
 import hail as hl
 from hail.expr import (check_entry_indexed, matrix_table_source)
-from hail.utils.java import Env
+from hail.foundation.java import Env
 
 
 def key_intervals(ht: hl.Table, max_rows_per_interval: int, n_rows: int) -> List[hl.utils.Interval]:
@@ -94,7 +94,7 @@ def mt_to_tsm(entry_expr,
     source_mt = mt.checkpoint(first_checkpoint)
 
     new_partitions = key_intervals(mt.rows(), rows_per_block, n_rows)
-    mt = hl.read_matrix_table(first_checkpoint, _intervals=new_partitions, _assert_type=mt._type)
+    mt = hl.read_matrix_table(first_checkpoint, _intervals=new_partitions, _assert_type=mt._type, _load_refs=False)
     ht = mt.localize_entries('row_vector', 'col_keys')
     ht = ht.annotate(row_vector = ht.row_vector[field])
     ht = ht._group_within_partitions('groups', rows_per_block)

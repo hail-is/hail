@@ -314,11 +314,15 @@ class ServiceBackend(Backend):
         frames = traceback.extract_stack()
         frames = traceback.StackSummary.from_list([
             f for f in frames
-            if all(("/asyncio/" not in f.filename,
+            if all((not f.filename.endswith("ipython"),
+                    "traitlets/config/application.py" not in f.filename,
+                    "/IPython/" not in f.filename,
+                    "/asyncio/" not in f.filename,
                     "/hail/backend/" not in f.filename,
                     "/hail/typecheck/check.py" not in f.filename,
                     "nest_asyncio.py" not in f.filename,
-                    "decorator-gen" not in f.filename))
+                    "decorator-gen" not in f.filename,
+                    "async_to_blocking" != f.name))
         ])
         traceback.print_list(frames)
 

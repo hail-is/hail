@@ -1,7 +1,7 @@
 from parsimonious import Grammar, NodeVisitor
 from hail.expr.nat import NatVariable
 from . import types
-from hail.utils.java import unescape_parsable
+from hail.foundation.java import unescape_parsable
 
 type_grammar = Grammar(
     r"""

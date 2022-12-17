@@ -3,7 +3,7 @@ import re
 from hail.typecheck import typecheck_method, sequenceof, dictof, oneof, \
     sized_tupleof, nullable, transformed, lazy
 from hail.utils.misc import wrap_to_list
-from hail.utils.java import Env
+from hail.foundation.java import Env
 import hail as hl
 
 rg_type = lazy()

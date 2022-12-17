@@ -146,7 +146,7 @@ def eval_timed(expression):
         Result of evaluating `expression` and a dictionary of the timings
     """
 
-    from hail.utils.java import Env
+    from hail.foundation.java import Env
     analyze('eval', expression, Indices(expression._indices.source))
     if expression._indices.source is None:
         ir_type = expression._ir.typ

@@ -12,7 +12,7 @@ from hail.expr.expressions import expr_bool, expr_str
 from hail.genetics.reference_genome import reference_genome_type
 from hail.ir import Apply, TableMapRows, MatrixKeyRowsBy
 from hail.typecheck import oneof, sequenceof, typecheck
-from hail.utils.java import info, warning, Env
+from hail.foundation.java import info, warning, Env
 
 _transform_rows_function_map = {}
 _merge_function_map = {}

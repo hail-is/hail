@@ -4,7 +4,7 @@ from hail import MatrixTable
 from hail.linalg import BlockMatrix
 from hail.ir import MatrixMultiWrite, MatrixNativeMultiWriter, BlockMatrixMultiWrite, BlockMatrixBinaryMultiWriter, BlockMatrixTextMultiWriter, BlockMatrixNativeMultiWriter
 from hail.typecheck import nullable, sequenceof, typecheck, enumeration
-from hail.utils.java import Env
+from hail.foundation.java import Env
 
 
 @typecheck(mts=sequenceof(MatrixTable),

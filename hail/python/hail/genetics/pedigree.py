@@ -2,7 +2,7 @@ import re
 from collections import Counter
 
 from hail.typecheck import typecheck_method, nullable, sequenceof
-from hail.utils.java import Env, FatalError, warning
+from hail.foundation.java import Env, FatalError, warning
 
 
 class Trio(object):

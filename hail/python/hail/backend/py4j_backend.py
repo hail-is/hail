@@ -8,7 +8,7 @@ import hail
 from hail.expr import construct_expr
 from hail.ir import JavaIR, finalize_randomness
 from hail.ir.renderer import CSERenderer
-from hail.utils.java import FatalError, Env
+from hail.foundation.java import FatalError, Env
 from .backend import Backend, fatal_error_from_java_error_triplet
 from ..expr import Expression
 from ..expr.types import HailType

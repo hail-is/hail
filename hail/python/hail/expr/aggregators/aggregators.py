@@ -17,7 +17,7 @@ import hail.ir as ir
 from hail.typecheck import (TypeChecker, typecheck_method, typecheck,
                             sequenceof, func_spec, identity, nullable, oneof)
 from hail.utils import wrap_to_list
-from hail.utils.java import Env
+from hail.foundation.java import Env
 
 
 class AggregableChecker(TypeChecker):

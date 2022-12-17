@@ -3,7 +3,7 @@ import numpy as np
 import hail as hl
 from hail.typecheck import typecheck, oneof, nullable
 from hail.expr.expressions import expr_locus, expr_float64, check_row_indexed
-from hail.utils.java import Env
+from hail.foundation.java import Env
 
 
 @typecheck(a=np.ndarray,

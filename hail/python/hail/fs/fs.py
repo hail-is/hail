@@ -3,7 +3,7 @@ import sys
 import os
 from typing import List
 
-from hail.utils.java import Env, info
+from hail.foundation.java import Env, info
 from hail.utils import local_path_uri
 
 from .stat_result import StatResult

@@ -11,7 +11,7 @@ import pyspark
 from typing import List, Optional
 
 import hail as hl
-from hail.utils.java import Env, scala_package_object, scala_object
+from hail.foundation.java import Env, scala_package_object, scala_object
 from hail.expr.types import dtype
 from hail.expr.table_type import ttable
 from hail.expr.matrix_type import tmatrix

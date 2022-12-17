@@ -12,7 +12,7 @@ from typing import Collection, Dict, List, Optional, Union, Tuple
 import hail as hl
 
 from hail.utils import Interval
-from hail.utils.java import Env, info, warning
+from hail.foundation.java import Env, info, warning
 from hail.experimental.vcf_combiner.vcf_combiner import calculate_even_genome_partitioning, \
     calculate_new_intervals
 from hail.vds.variant_dataset import VariantDataset

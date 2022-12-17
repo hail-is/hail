@@ -13,7 +13,7 @@ from hail.table import Table, ExprContainer, TableIndexKeyError
 from hail.typecheck import typecheck, typecheck_method, dictof, anytype, \
     anyfunc, nullable, sequenceof, oneof, numeric, lazy, enumeration
 from hail.utils import storage_level, default_handler
-from hail.utils.java import warning, Env
+from hail.foundation.java import warning, Env
 from hail.utils.misc import wrap_to_tuple, \
     get_key_by_exprs, \
     get_select_exprs, check_annotate_exprs, process_joins

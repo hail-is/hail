@@ -6,20 +6,22 @@ from hail.expr import (expr_float64, expr_call, check_entry_indexed,
                        matrix_table_source)
 from hail import ir
 from hail.table import Table
-from hail.typecheck import (typecheck, oneof, nullable)
+from hail.typecheck import typecheck, oneof, nullable, sized_tupleof
 from hail.utils import FatalError
-from hail.utils.java import Env, info
+from hail.foundation.java import Env, info
 from hail.experimental import mt_to_tsm, TallSkinnyMatrix
 
 
-def hwe_normalize(call_expr):
-    mt = matrix_table_source('hwe_normalize/call_expr', call_expr)
+def hwe_normalize(mt: hl.MatrixTable,
+                  call_expr: hl.CallExpression,
+                  dimensions: Optional[Tuple[int, int]] = None
+                  ):
     mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
     mt = mt.annotate_rows(__AC=agg.sum(mt.__gt),
                           __n_called=agg.count_where(hl.is_defined(mt.__gt)))
     mt = mt.filter_rows((mt.__AC > 0) & (mt.__AC < 2 * mt.__n_called))
 
-    n_variants = mt.count_rows()
+    n_variants, _ = dimensions
     if n_variants == 0:
         raise FatalError("hwe_normalize: found 0 variants after filtering out monomorphic sites.")
     info(f"hwe_normalize: found {n_variants} variants after filtering out monomorphic sites.")
@@ -94,15 +96,25 @@ def hwe_normalized_pca(call_expr, k=10, compute_loadings=False) -> Tuple[List[fl
     """
     from hail.backend.service_backend import ServiceBackend
 
-    return pca(hwe_normalize(call_expr),
+    mt = matrix_table_source('hwe_normalize/call_expr', call_expr)
+    dimensions = mt.count()
+
+    return pca(hwe_normalize(mt, call_expr, dimensions),
                k,
-               compute_loadings)
+               compute_loadings,
+               _dimensions=dimensions)
 
 
 @typecheck(entry_expr=expr_float64,
            k=int,
-           compute_loadings=bool)
-def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, Table]:
+           compute_loadings=bool,
+           _dimensions=nullable(sized_tupleof(int, int)))
+def pca(entry_expr,
+        k: int = 10,
+        compute_loadings: bool = False,
+        *,
+        _dimensions: Optional[Tuple[int, int]] = None
+        ) -> Tuple[List[float], Table, Table]:
     r"""Run principal component analysis (PCA) on numeric columns derived from a
     matrix table.
 
@@ -185,7 +197,7 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
     from hail.backend.service_backend import ServiceBackend
 
     if isinstance(hl.current_backend(), ServiceBackend):
-        return _blanczos_pca(entry_expr, k, compute_loadings)
+        return _blanczos_pca(entry_expr, k, compute_loadings, _dimensions=_dimensions)
 
     check_entry_indexed('pca/entry_expr', entry_expr)
 
@@ -213,15 +225,19 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
     return hl.eval(g.eigenvalues), scores, None if t is None else t.drop('eigenvalues', 'scores')
 
 
-def _make_tsm(entry_expr, rows_per_block: Optional[int]) -> TallSkinnyMatrix:
+def _make_tsm(entry_expr,
+              rows_per_block: Optional[int],
+              dimensions: Optional[Tuple[int, int]] = None
+              ) -> TallSkinnyMatrix:
     mt = matrix_table_source('_make_tsm/entry_expr', entry_expr)
-    return mt_to_tsm(entry_expr, rows_per_block, None)
+    return mt_to_tsm(entry_expr, rows_per_block, dimensions=dimensions)
 
 
 def _make_tsm_from_call(call_expr,
                         rows_per_block: Optional[int],
                         mean_center: bool = False,
-                        hwe_normalize: bool = False
+                        hwe_normalize: bool = False,
+                        dimensions: Optional[Tuple[int, int]] = None
                         ) -> TallSkinnyMatrix:
     mt = matrix_table_source('_make_tsm/entry_expr', call_expr)
     mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
@@ -230,7 +246,8 @@ def _make_tsm_from_call(call_expr,
                               __n_called=agg.count_where(hl.is_defined(mt.__gt)))
         mt = mt.filter_rows((mt.__AC > 0) & (mt.__AC < 2 * mt.__n_called))
 
-        dimensions = mt.count()
+        if dimensions is None:
+            dimensions = mt.count()
         n_rows = dimensions[0]
         if n_variants == 0:
             raise FatalError("_make_tsm: found 0 variants after filtering out monomorphic sites.")
@@ -246,7 +263,6 @@ def _make_tsm_from_call(call_expr,
                 __hwe_scaled_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) * n_variants / 2))
             mt = mt.select_entries(__x=mt.__x / mt.__hwe_scaled_std_dev)
     else:
-        dimensions = None
         mt = mt.select_entries(__x=mt.__gt)
 
     return mt_to_tsm(mt.__x, rows_per_block, dimensions)
@@ -262,13 +278,10 @@ class KrylovFactorization:
         mt = self.mt
         k = self.k
         mt = mt.annotate_cols(S = mt.S[:k])
-        mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
         if 'U' in mt.col:
             mt = mt.annotate_cols(U = mt.U @ mt.U1[:, :k])
-        mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
         if 'V' in mt.col:
             mt = mt.annotate_cols(V = mt.V @ mt.V1t.T[:, :k])
-        mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
         return mt
 
     def spectral_moments(self, num_moments, R):
@@ -329,7 +342,6 @@ def _krylov_factorization(tsm: TallSkinnyMatrix, p, compute_U=False, compute_V=T
         })
         prev = mt[f'G_{j}']
 
-    mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
     mt = mt.annotate_cols(
         V = hl.nd.qr(
             hl.nd.hstack(
@@ -337,37 +349,28 @@ def _krylov_factorization(tsm: TallSkinnyMatrix, p, compute_U=False, compute_V=T
             )
         )[0]
     )
-    mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
-    mt = mt.annotate_rows(AV=mt.block @ mt.V)
-    mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
+    mt = mt.annotate_rows(AV=mt.block @ hl.agg.collect(mt.V)[0])
     mt = mt.annotate_cols(
         UandR = hl.nd.qr(hl.nd.vstack(hl.agg.collect(mt.AV)))
     )
-    mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
     mt = mt.annotate_cols(
         U = mt.UandR[0]
     )
-    mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
     mt = mt.annotate_cols(
         R = mt.UandR[1]
     )
-    mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
 
     if not compute_V:
         mt = mt.drop('V')
-    mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
     if not compute_U:
         mt = mt.drop('U')
-    mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
 
     mt = mt.annotate_cols(
         svdR = hl.nd.svd(mt.R, full_matrices=False)
     )
-    mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
     mt = mt.annotate_cols(
         U1 = mt.svdR[0], S = mt.svdR[1], V1t = mt.svdR[2]
     )
-    mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
     return KrylovFactorization(mt, tsm.n_cols)
 
 
@@ -489,13 +492,16 @@ def _pca_and_moments(A, k=10, num_moments=5, compute_loadings=False, q_iteration
            compute_loadings=bool,
            q_iterations=int,
            oversampling_param=nullable(int),
-           rows_per_block=nullable(int))
+           rows_per_block=nullable(int),
+           _dimensions=nullable(sized_tupleof(int, int)))
 def _blanczos_pca(mat,
                   k: int = 10,
                   compute_loadings: bool = False,
                   q_iterations: int = 10,
                   oversampling_param: Optional[int] = None,
-                  rows_per_block: Optional[int] = None):
+                  rows_per_block: Optional[int] = None,
+                  *,
+                  _dimensions: Optional[Tuple[int, int]] = None):
     r"""Run randomized principal component analysis approximation (PCA)
     on numeric columns derived from a matrix table.
 
@@ -588,27 +594,25 @@ def _blanczos_pca(mat,
     """
     if not isinstance(mat, TallSkinnyMatrix):
         check_entry_indexed('_blanczos_pca/entry_expr', mat)
-        tsm = _make_tsm(mat, rows_per_block)
+        tsm = _make_tsm(mat, rows_per_block, dimensions=_dimensions)
 
     if oversampling_param is None:
         oversampling_param = k
 
     mt = _reduced_svd(tsm, k, compute_loadings, q_iterations, k + oversampling_param)
-    mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
     mt = mt.annotate_cols(
         scores = mt.V * mt.S,  # FIXME: why not matmul?
         eigens = mt.S * mt.S
     )
-    mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
+    assert 'scores' not in mt.col_keys.dtype.element_type
     mt = mt.annotate_cols(
         real_cols = hl.range(tsm.n_cols).map(
             lambda i: hl.struct(
-                col_key = mt.col_keys[i],
-                scores = mt.scores[i, :]._data_array()
+                **mt.col_keys[i],
+                scores = mt.scores[i, :]._data_array(),
             )
         )
     )
-    mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
     mt = mt.annotate_entries(
         loading_vectors = hl.range(hl.len(mt.row_keys)).map(
             lambda i: hl.struct(
@@ -617,9 +621,7 @@ def _blanczos_pca(mat,
             )
         )
     )
-    mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
     ht = mt.localize_entries('fake_entries', 'fake_cols')
-    ht.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
 
     ht = ht.annotate(loading_vectors = ht.fake_entries[0].loading_vectors)
     ht = ht.select_globals(real_cols = ht.fake_cols[0].real_cols)
@@ -631,14 +633,18 @@ def _blanczos_pca(mat,
     if not compute_loadings:
         ht = ht.head(0)
 
-    ht = ht.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
-
     ht = ht.annotate(
         fake_entries = hl.range(hl.len(ht.real_cols)).map(lambda _: hl.struct())
     )
-    mt = ht._unlocalize_entries('real_cols', 'fake_entries', tsm.col_key)
 
-    st = mt.cols().key_cols_by(*mt.col_key)
+    ht.describe()
+    print(tsm.col_key())
+
+    mt = ht._unlocalize_entries('fake_entries', 'real_cols', tsm.col_key())
+
+    mt = mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
+
+    st = mt.cols().key_by(*mt.col_key)
     eigens = mt.eigens.collect()[0]
     lt = None
 

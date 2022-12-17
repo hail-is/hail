@@ -29,6 +29,7 @@ import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SIntervalValu
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
+import is.hail.variant._
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
 import org.json4s.JsonAST.JString
@@ -1817,6 +1818,97 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
                 val off = localRowType.allocate(region)
                 localRowType.setFieldPresent(off, 0)
                 Region.storeInt(localRowType.fieldOffset(off, 0), j)
+                off
+              }
+          })))
+  }
+}
+
+object TableGenomicRange {
+  def toLocus(
+    referenceGenome: Option[ReferenceGenome]
+  ): Long => Annotation = referenceGenome match {
+    case Some(rg) => rg.globalPosToLocus _
+    case None => (idx: Long) => Row("1", idx + 1)
+  }
+}
+
+case class TableGenomicRange(
+  n: Long,
+  nPartitions: Int,
+  referenceGenome: Option[ReferenceGenome]
+) extends TableIR {
+  require(n >= 0)
+  require(nPartitions > 0)
+  private val nPartitionsAdj = math.max(math.min(n, nPartitions), 1).toInt
+  val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableGenomicRange = {
+    assert(newChildren.isEmpty)
+    TableGenomicRange(n, nPartitions, referenceGenome)
+  }
+
+  private[this] val partCounts: Array[Long] = partition(n, nPartitionsAdj)
+
+  override val partitionCounts  = Some(partCounts.toFastIndexedSeq)
+
+  lazy val rowCountUpperBound: Option[Long] = Some(n.toLong)
+
+  val typ: TableType = TableType(
+    TStruct("locus" -> TLocus.schemaFromRG(referenceGenome)),
+    Array("locus"),
+    TStruct.empty)
+
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
+    val localLocusType = PCanonicalLocus.schemaFromRG(referenceGenome, true)
+    val unstagedStoreLocusFromGlobalPos: (Long, Long, Region) => Unit = localLocusType match {
+      case x: PCanonicalLocus =>
+        val rgBc = x.rgBc
+
+        { (off: Long, globalPos: Long, region: Region) =>
+          val l = rgBc.value.globalPosToLocus(globalPos)
+          x.unstagedStoreJavaObjectAtAddress(off, l, region)
+        }
+      case x: PCanonicalStruct =>
+        assert(n < (1 << 31))
+
+        { (off: Long, globalPos: Long, region: Region) =>
+          Region.storeLong(
+            x.fieldOffset(off, 0),
+            x.field("locus").asInstanceOf[PCanonicalString].unstagedStoreJavaObject("1", region))
+          Region.storeInt(x.fieldOffset(off, 1), globalPos.toInt)
+        }
+    }
+    val localRowType = PCanonicalStruct(true, "locus" -> localLocusType)
+    val localPartCounts = partCounts
+    val partStarts = partCounts.scanLeft(0L)(_ + _)
+
+    val partLocusStarts = partStarts.map(TableGenomicRange.toLocus(referenceGenome))
+    new TableValueIntermediate(TableValue(ctx, typ,
+      BroadcastRow.empty(ctx),
+      new RVD(
+        RVDType(localRowType, Array("locus")),
+        new RVDPartitioner(
+          Array("locus"),
+          typ.rowType,
+          Array.tabulate(nPartitionsAdj) { i =>
+            val start = partLocusStarts(i)
+            val end = partLocusStarts(i + 1)
+            Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
+          }
+        ),
+        ContextRDD.parallelize(Range(0, nPartitionsAdj), nPartitionsAdj)
+          .cmapPartitionsWithIndex { case (i, ctx, _) =>
+            val region = ctx.region
+
+            val start = partStarts(i)
+            longRangeIterator(start, (start + localPartCounts(i)))
+              .map { j =>
+                val off = localRowType.allocate(region)
+                unstagedStoreLocusFromGlobalPos(
+                  localRowType.fieldOffset(off, 0),
+                  j,
+                  region)
                 off
               }
           })))

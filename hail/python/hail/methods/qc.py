@@ -4,7 +4,7 @@ import os
 from typing import Tuple, List, Union, Optional
 from hail.typecheck import typecheck, oneof, anytype, nullable, numeric
 from hail.expr.expressions.expression_typecheck import expr_float64
-from hail.utils.java import Env, info, warning
+from hail.foundation.java import Env, info, warning
 from hail.utils.misc import divide_null, guess_cloud_spark_provider
 from hail.matrixtable import MatrixTable
 from hail.table import Table
