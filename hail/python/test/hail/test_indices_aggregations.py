@@ -28,7 +28,8 @@ def test_array_slice_step():
     try:
         ht = ht.annotate_rows(c = hl.array([1,2,3])[::ht.col_idx])
     except hl.ExpressionException as exc:
-        assert ROW_FIELD_C_REFERENCES_COL_FIELD_COL_IDX_ERROR_MESSAGE == exc.args[0]
+        assert 'scope violation' in exc.args[0]
+        assert "'col_idx' (indices ['column'])" in exc.args[0]
     else:
         assert False
 
