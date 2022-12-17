@@ -1,15 +1,15 @@
 from typing import Optional
 
 import hail as hl
-from .misc import check_nonnegative_and_in_range
-from ..genetics.reference_genome import reference_genome_type, ReferenceGenome
+from .misc import check_nonnegative_and_in_range, check_positive_and_in_range
+from ..genetics.reference_genome import reference_genome_type
 from ..typecheck import typecheck, nullable
 
 
-@typecheck(n=int, n_partitions=nullable(int), reference_genome=reference_genome_type)
+@typecheck(n=int, n_partitions=nullable(int), reference_genome=nullable(reference_genome_type))
 def genomic_range_table(n: int,
                         n_partitions: Optional[int] = None,
-                        reference_genome=None
+                        reference_genome='default'
                         ) -> 'hl.Table':
     """Construct a table with a locus and no other fields.
 
@@ -31,7 +31,7 @@ def genomic_range_table(n: int,
     Parameters
     ----------
     n : int
-        Number of loci.
+        Number of loci. Must be less than 2 ** 31.
     n_partitions : int, optional
         Number of partitions (uses Spark default parallelism if None).
     reference_genome : :class:`str` or :class:`.ReferenceGenome`
@@ -44,7 +44,7 @@ def genomic_range_table(n: int,
     check_nonnegative_and_in_range('range_table', 'n', n)
     if n_partitions is not None:
         check_positive_and_in_range('range_table', 'n_partitions', n_partitions)
-    if reference_genome is None and n >= (1 >> 31):
-        raise ValueError(f'When no reference genome is specified, `n` must be less than 2 ** 31')
+    if n >= (1 << 31):
+        raise ValueError(f'`n` must be less than 2 ** 31')
 
-    return Table(hail.ir.TableGenomicRange(n, n_partitions))
+    return hl.Table(hl.ir.TableGenomicRange(n, n_partitions, reference_genome))

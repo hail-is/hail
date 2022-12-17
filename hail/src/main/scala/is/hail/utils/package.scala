@@ -934,23 +934,6 @@ package object utils extends Logging
     }
     offset
   }
-
-  def longRangeIterator(start: Long, end: Long): Iterator[Long] = {
-    assert(start < end)
-    new Iterator[Long] {
-      private[this] var index = start
-      def hasNext: Boolean = index < end
-      def next(): Long = {
-        if (hasNext) {
-          val current = index
-          index += 1
-          current
-        } else {
-          throw new NoSuchElementException("next on empty iterator")
-        }
-      }
-    }
-  }
 }
 
 // FIXME: probably resolved in 3.6 https://github.com/json4s/json4s/commit/fc96a92e1aa3e9e3f97e2e91f94907fdfff6010d

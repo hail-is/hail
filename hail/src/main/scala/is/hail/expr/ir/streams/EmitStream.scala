@@ -609,7 +609,6 @@ object EmitStream {
         }
 
       case StreamRange(startIR, stopIR, stepIR, _requiresMemoryManagementPerElement, errorID) =>
-
         emit(startIR, cb).flatMap(cb) { startc =>
           emit(stopIR, cb).flatMap(cb) { stopc =>
             emit(stepIR, cb).map(cb) { stepc =>

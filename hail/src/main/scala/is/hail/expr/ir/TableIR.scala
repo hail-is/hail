@@ -1827,20 +1827,22 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
 object TableGenomicRange {
   def toLocus(
     referenceGenome: Option[ReferenceGenome]
-  ): Long => Annotation = referenceGenome match {
-    case Some(rg) => rg.globalPosToLocus _
-    case None => (idx: Long) => Row("1", idx + 1)
+  ): Int => Annotation = referenceGenome match {
+    case Some(rg) => (x: Int) => rg.globalPosToLocus(x.toLong)
+    case None => (idx: Int) =>
+      Row("1", idx.toInt + 1)
   }
 }
 
 case class TableGenomicRange(
-  n: Long,
+  n: Int,
   nPartitions: Int,
   referenceGenome: Option[ReferenceGenome]
 ) extends TableIR {
+  require(n < Int.MaxValue)
   require(n >= 0)
   require(nPartitions > 0)
-  private val nPartitionsAdj = math.max(math.min(n, nPartitions), 1).toInt
+  private val nPartitionsAdj = math.max(math.min(n, nPartitions), 1)
   val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableGenomicRange = {
@@ -1848,9 +1850,9 @@ case class TableGenomicRange(
     TableGenomicRange(n, nPartitions, referenceGenome)
   }
 
-  private[this] val partCounts: Array[Long] = partition(n, nPartitionsAdj)
+  private[this] val partCounts = partition(n, nPartitionsAdj)
 
-  override val partitionCounts  = Some(partCounts.toFastIndexedSeq)
+  override val partitionCounts  = Some(partCounts.map(_.toLong).toFastIndexedSeq)
 
   lazy val rowCountUpperBound: Option[Long] = Some(n.toLong)
 
@@ -1861,27 +1863,25 @@ case class TableGenomicRange(
 
   protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
     val localLocusType = PCanonicalLocus.schemaFromRG(referenceGenome, true)
-    val unstagedStoreLocusFromGlobalPos: (Long, Long, Region) => Unit = localLocusType match {
+    val unstagedStoreLocusFromGlobalPos: (Long, Int, Region) => Unit = localLocusType match {
       case x: PCanonicalLocus =>
         val rgBc = x.rgBc
 
-        { (off: Long, globalPos: Long, region: Region) =>
+        { (off: Long, globalPos: Int, region: Region) =>
           val l = rgBc.value.globalPosToLocus(globalPos)
           x.unstagedStoreJavaObjectAtAddress(off, l, region)
         }
       case x: PCanonicalStruct =>
-        assert(n < (1 << 31))
-
-        { (off: Long, globalPos: Long, region: Region) =>
+        { (off: Long, globalPos: Int, region: Region) =>
           Region.storeLong(
             x.fieldOffset(off, 0),
             x.field("locus").asInstanceOf[PCanonicalString].unstagedStoreJavaObject("1", region))
-          Region.storeInt(x.fieldOffset(off, 1), globalPos.toInt)
+          Region.storeInt(x.fieldOffset(off, 1), globalPos)
         }
     }
     val localRowType = PCanonicalStruct(true, "locus" -> localLocusType)
     val localPartCounts = partCounts
-    val partStarts = partCounts.scanLeft(0L)(_ + _)
+    val partStarts = partCounts.scanLeft(0)(_ + _)
 
     val partLocusStarts = partStarts.map(TableGenomicRange.toLocus(referenceGenome))
     new TableValueIntermediate(TableValue(ctx, typ,
@@ -1902,7 +1902,7 @@ case class TableGenomicRange(
             val region = ctx.region
 
             val start = partStarts(i)
-            longRangeIterator(start, (start + localPartCounts(i)))
+            Iterator.range(start, (start + localPartCounts(i)))
               .map { j =>
                 val off = localRowType.allocate(region)
                 unstagedStoreLocusFromGlobalPos(

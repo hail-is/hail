@@ -42,6 +42,7 @@ object CanLowerEfficiently {
         case t: TableRepartition => fail(s"TableRepartition has no lowered implementation")
         case t: TableParallelize =>
         case t: TableRange =>
+        case t: TableGenomicRange =>
         case TableKeyBy(child, keys, isSorted) =>
         case t: TableOrderBy =>
         case t: TableFilter =>

@@ -751,7 +751,7 @@ object LowerTableIR {
           reader.lower(ctx, typ)
 
       case TableParallelize(rowsAndGlobal, nPartitions) =>
-        val nPartitionsAdj = nPartitions.getOrElse(16)
+        val nPartitionsAdj = nPartitions.getOrElse(ctx.backend.defaultParallelism)
 
         val loweredRowsAndGlobal = lowerIR(rowsAndGlobal)
         val loweredRowsAndGlobalRef = Ref(genUID(), loweredRowsAndGlobal.typ)
@@ -820,11 +820,12 @@ object LowerTableIR {
           })
 
       case TableGenomicRange(n, nPartitions, referenceGenome) =>
-        val nPartitionsAdj = math.max(math.min(n, nPartitions), 1L).toInt
+        assert(n < Int.MaxValue)
+        val nPartitionsAdj = math.max(math.min(n, nPartitions), 1)
         val partCounts = partition(n, nPartitionsAdj)
-        val partStarts = partCounts.scanLeft(0L)(_ + _)
+        val partStarts = partCounts.scanLeft(0)(_ + _)
 
-        val contextType = TStruct("start" -> TInt64, "end" -> TInt64)
+        val contextType = TStruct("start" -> TInt32, "end" -> TInt32)
         val toLocus = TableGenomicRange.toLocus(referenceGenome)
 
         val globalPosRanges = Array.tabulate(nPartitionsAdj) { i =>
@@ -836,7 +837,7 @@ object LowerTableIR {
 
         TableStage(
           MakeStruct(FastSeq()),
-          new RVDPartitioner(Array("idx"), tir.typ.rowType,
+          new RVDPartitioner(Array("locus"), tir.typ.rowType,
             locusRanges.map { case (start, end) =>
               Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
             }),
@@ -851,10 +852,9 @@ object LowerTableIR {
             mapIR(StreamRange(GetField(ctxRef, "start"), GetField(ctxRef, "end"), I32(1), true)) { globalPos =>
               val locusIR = referenceGenome match {
                 case Some(rg) =>
-                  val locusType = tir.typ.rowType.field("locus").asInstanceOf[TLocus]
-                  invoke("globalPosToLocus", locusType, globalPos)
+                  val locusType = tir.typ.rowType.field("locus").typ.asInstanceOf[TLocus]
+                  invoke("globalPosToLocus", locusType, Cast(globalPos, TInt64))
                 case None =>
-                  assert(n < (1 << 31))
                   MakeStruct(FastSeq(
                     "contig" -> Str("1"),
                     "position" -> Cast(globalPos, TInt32)))

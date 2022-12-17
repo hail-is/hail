@@ -2,7 +2,6 @@ from typing import Optional, Union
 import sys
 import re
 
-from hail.errors import FatalError
 from hailtop.config import configuration_of
 
 

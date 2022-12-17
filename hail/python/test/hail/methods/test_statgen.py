@@ -8,6 +8,7 @@ import hail.expr.aggregators as agg
 import hail.utils as utils
 from hail.linalg import BlockMatrix
 from hail._foundation.java import choose_backend
+from hail._foundation.misc import run_command, new_temp_file, uri_path
 from hail.errors import FatalError
 from ..helpers import resource, fails_local_backend, fails_service_backend
 
@@ -23,13 +24,13 @@ class Tests:
 
         sex = hl.impute_sex(ds.GT, include_par=True)
 
-        vcf_file = utils.uri_path(utils.new_temp_file(prefix="plink", extension="vcf"))
-        out_file = utils.uri_path(utils.new_temp_file(prefix="plink"))
+        vcf_file = uri_path(new_temp_file(prefix="plink", extension="vcf"))
+        out_file = uri_path(new_temp_file(prefix="plink"))
 
         hl.export_vcf(ds, vcf_file)
 
-        utils.run_command(["plink", "--vcf", vcf_file, "--const-fid",
-                           "--check-sex", "--silent", "--out", out_file])
+        run_command(["plink", "--vcf", vcf_file, "--const-fid",
+                     "--check-sex", "--silent", "--out", out_file])
 
         plink_sex = hl.import_table(out_file + '.sexcheck',
                                     delimiter=' +',

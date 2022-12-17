@@ -1785,7 +1785,7 @@ class tlocus(HailType):
     def _schema_from_rg(cls, reference_genome='default'):
         # must match TLocus.schemaFromRG
         if reference_genome is None:
-            return hl.tstruct(contig=hl.str, position=hl.int32)
+            return hl.tstruct(contig=hl.tstr, position=hl.tint32)
         return cls(reference_genome)
 
     @typecheck_method(reference_genome=reference_genome_type)

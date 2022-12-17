@@ -23,6 +23,7 @@ object DistinctlyKeyed {
         if (child.typ.key.forall(cKey => keys.contains(cKey)) && memo.contains(child))
           memo.bind(node, ())
       case TableRange(_,_) => memo.bind(node, ())
+      case TableGenomicRange(_, _, _) => memo.bind(node, ())
       case TableFilter(child, _) => basicChildrenCheck(IndexedSeq(child))
       case TableHead(child, _) => basicChildrenCheck(IndexedSeq(child))
       case TableTail(child, _) => basicChildrenCheck(IndexedSeq(child))

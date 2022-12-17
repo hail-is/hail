@@ -312,6 +312,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.rowType.unionFields(rowPType.r.asInstanceOf[RStruct])
         requiredness.globalType.unionFields(globalPType.r.asInstanceOf[RStruct])
       case TableRange(_, _) =>
+      case TableGenomicRange(_, _, _) =>
 
       // pass through TableIR child
       case TableKeyBy(child, _, _) => requiredness.unionFrom(lookup(child))

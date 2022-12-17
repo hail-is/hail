@@ -269,14 +269,13 @@ def _make_tsm_from_call(call_expr,
 
 
 class KrylovFactorization:
-    def __init__(self, mt, k):
+    def __init__(self, mt, n_cols):
         '''Do not initialize this directly. Call _krylov_factorization.'''
         self.mt = mt
-        self.k = k
+        self.n_cols = n_cols
 
     def reduced_svd(self, k):
         mt = self.mt
-        k = self.k
         mt = mt.annotate_cols(S = mt.S[:k])
         if 'U' in mt.col:
             mt = mt.annotate_cols(U = mt.U @ mt.U1[:, :k])
@@ -289,18 +288,17 @@ class KrylovFactorization:
             return x ** 2
 
         mt = self.mt
-        k = self.k
         mt = mt.annotate_cols(
             eigval_powers = hl.nd.vstack([mt.S.map(lambda x: x**(2 * i)) for i in range(1, num_moments + 1)])
         )
         mt = mt.annotate_cols(
-            moments = mt.eigval_powers @ (mt.V1t[:, :k] @ mt.R).map(sqr)
+            moments = mt.eigval_powers @ (mt.V1t[:, :self.n_cols] @ mt.R).map(sqr)
         )
         mt = mt.annotate_cols(
-            means = mt.moments.sum(1) / k
+            means = mt.moments.sum(1) / self.n_cols
         )
         mt = mt.annotate_cols(
-            variances = (mt.moments - mt.means.reshape(-1, 1)).map(sqr).sum(1) / (k - 1)
+            variances = (mt.moments - mt.means.reshape(-1, 1)).map(sqr).sum(1) / (self.n_cols - 1)
         )
         mt = mt.annotate_cols(
             stdevs = mt.variances.map(hl.sqrt)
@@ -613,38 +611,40 @@ def _blanczos_pca(mat,
             )
         )
     )
-    mt = mt.annotate_entries(
-        loading_vectors = hl.range(hl.len(mt.row_keys)).map(
-            lambda i: hl.struct(
-                row_key = mt.row_keys[i],
-                loadings = mt.U[i, :]._data_array()
+    if compute_loadings:
+        mt = mt.annotate_entries(
+            loading_vectors = hl.range(hl.len(mt.row_keys)).map(
+                lambda i: hl.struct(
+                    row_key = mt.row_keys[i],
+                    loadings = mt.U[i, :]._data_array()
+                )
             )
         )
-    )
     ht = mt.localize_entries('fake_entries', 'fake_cols')
 
-    ht = ht.annotate(loading_vectors = ht.fake_entries[0].loading_vectors)
-    ht = ht.select_globals(real_cols = ht.fake_cols[0].real_cols)
+    if compute_loadings:
+        ht = ht.annotate(loading_vectors = ht.fake_entries[0].loading_vectors)
+    ht = ht.select_globals(
+        eigens = ht.fake_cols[0].eigens,
+        real_cols = ht.fake_cols[0].real_cols
+    )
 
-    ht = ht.explode(ht.loading_vectors)
-    ht = ht.key_by(**ht.loading_vectors.row_key)
-    ht = ht.select(loadings = ht.loading_vectors.loadings)
-
-    if not compute_loadings:
+    if compute_loadings:
+        ht = ht.explode(ht.loading_vectors)
+        ht = ht.key_by(**ht.loading_vectors.row_key)
+        ht = ht.select(loadings = ht.loading_vectors.loadings)
+    else:
         ht = ht.head(0)
 
     ht = ht.annotate(
         fake_entries = hl.range(hl.len(ht.real_cols)).map(lambda _: hl.struct())
     )
 
-    ht.describe()
-    print(tsm.col_key())
-
     mt = ht._unlocalize_entries('fake_entries', 'real_cols', tsm.col_key())
 
     mt = mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
 
-    st = mt.cols().key_by(*mt.col_key)
+    st = mt.cols()
     eigens = mt.eigens.collect()[0]
     lt = None
 
