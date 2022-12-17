@@ -1,22 +1,13 @@
 import hail as hl
 
 
-ROW_FIELD_C_REFERENCES_COL_FIELD_COL_IDX_ERROR_MESSAGE = '''scope violation: 'MatrixTable.annotate_rows: field 'c'' expects an expression indexed by ['row']
-    Found indices ['column', 'row], with unexpected indices ['column']. Invalid fields:
-        'col_idx' (indices ['column'])
-    'MatrixTable.annotate_rows: field 'c'' supports aggregation over axes ['column'], so these fields may appear inside an aggregator function.'''
-ROW_FIELD_C_REFERENCES_COL_FIELD_A_ERROR_MESSAGE = '''scope violation: 'MatrixTable.annotate_rows: field 'c'' expects an expression indexed by ['row']
-    Found indices ['column', 'row'], with unexpected indices ['column']. Invalid fields:
-        'a' (indices ['column'])
-    'MatrixTable.annotate_rows: field 'c'' supports aggregation over axes ['column'], so these fields may appear inside an aggregator function.'''
-
-
 def test_array_slice_end():
     ht = hl.utils.range_matrix_table(1, 1)
     try:
         ht = ht.annotate_rows(c = hl.array([1,2,3])[:ht.col_idx])
     except hl.ExpressionException as exc:
-        assert ROW_FIELD_C_REFERENCES_COL_FIELD_COL_IDX_ERROR_MESSAGE in exc.args[0]
+        assert 'scope violation' in exc.args[0]
+        assert "'col_idx' (indices ['column'])" in exc.args[0]
     else:
         assert False
 
@@ -26,7 +17,8 @@ def test_array_slice_start():
     try:
         ht = ht.annotate_rows(c = hl.array([1,2,3])[ht.col_idx:])
     except hl.ExpressionException as exc:
-        assert ROW_FIELD_C_REFERENCES_COL_FIELD_COL_IDX_ERROR_MESSAGE in exc.args[0]
+        assert 'scope violation' in exc.args[0]
+        assert "'col_idx' (indices ['column'])" in exc.args[0]
     else:
         assert False
 
@@ -36,7 +28,7 @@ def test_array_slice_step():
     try:
         ht = ht.annotate_rows(c = hl.array([1,2,3])[::ht.col_idx])
     except hl.ExpressionException as exc:
-        assert ROW_FIELD_C_REFERENCES_COL_FIELD_COL_IDX_ERROR_MESSAGE in exc.args[0]
+        assert ROW_FIELD_C_REFERENCES_COL_FIELD_COL_IDX_ERROR_MESSAGE == exc.args[0]
     else:
         assert False
 
@@ -48,7 +40,8 @@ def test_matmul():
     try:
         ht = ht.annotate_rows(c = ht.b @ ht.a)
     except hl.ExpressionException as exc:
-        assert ROW_FIELD_C_REFERENCES_COL_FIELD_A_ERROR_MESSAGE in exc.args[0]
+        assert 'scope violation' in exc.args[0]
+        assert "'a' (indices ['column'])" in exc.args[0]
     else:
         assert False
 
@@ -59,7 +52,8 @@ def test_ndarray_index():
     try:
         ht = ht.annotate_rows(c = ht.b[ht.col_idx])
     except hl.ExpressionException as exc:
-        assert ROW_FIELD_C_REFERENCES_COL_FIELD_COL_IDX_ERROR_MESSAGE in exc.args[0]
+        assert 'scope violation' in exc.args[0]
+        assert "'col_idx' (indices ['column'])" in exc.args[0]
     else:
         assert False
 
@@ -70,7 +64,8 @@ def test_ndarray_index_with_slice_1():
     try:
         ht = ht.annotate_rows(c = ht.b[ht.col_idx, :])
     except hl.ExpressionException as exc:
-        assert ROW_FIELD_C_REFERENCES_COL_FIELD_COL_IDX_ERROR_MESSAGE in exc.args[0]
+        assert 'scope violation' in exc.args[0]
+        assert "'col_idx' (indices ['column'])" in exc.args[0]
     else:
         assert False
 
@@ -81,7 +76,8 @@ def test_ndarray_index_with_slice_2():
     try:
         ht = ht.annotate_rows(c = ht.b[:, ht.col_idx])
     except hl.ExpressionException as exc:
-        assert ROW_FIELD_C_REFERENCES_COL_FIELD_COL_IDX_ERROR_MESSAGE in exc.args[0]
+        assert 'scope violation' in exc.args[0]
+        assert "'col_idx' (indices ['column'])" in exc.args[0]
     else:
         assert False
 
@@ -92,7 +88,8 @@ def test_ndarray_index_with_None_1():
     try:
         ht = ht.annotate_rows(c = ht.b[ht.col_idx, None])
     except hl.ExpressionException as exc:
-        assert ROW_FIELD_C_REFERENCES_COL_FIELD_COL_IDX_ERROR_MESSAGE in exc.args[0]
+        assert 'scope violation' in exc.args[0]
+        assert "'col_idx' (indices ['column'])" in exc.args[0]
     else:
         assert False
 
@@ -103,7 +100,8 @@ def test_ndarray_index_with_None_2():
     try:
         ht = ht.annotate_rows(c = ht.b[None, ht.col_idx])
     except hl.ExpressionException as exc:
-        assert ROW_FIELD_C_REFERENCES_COL_FIELD_COL_IDX_ERROR_MESSAGE in exc.args[0]
+        assert 'scope violation' in exc.args[0]
+        assert "'col_idx' (indices ['column'])" in exc.args[0]
     else:
         assert False
 
@@ -114,7 +112,8 @@ def test_ndarray_reshape_1():
     try:
         ht = ht.annotate_rows(c = ht.b.reshape((ht.col_idx, 1)))
     except hl.ExpressionException as exc:
-        assert ROW_FIELD_C_REFERENCES_COL_FIELD_COL_IDX_ERROR_MESSAGE in exc.args[0]
+        assert 'scope violation' in exc.args[0]
+        assert "'col_idx' (indices ['column'])" in exc.args[0]
     else:
         assert False
 
@@ -125,7 +124,8 @@ def test_ndarray_reshape_2():
     try:
         ht = ht.annotate_rows(c = ht.b.reshape((1, ht.col_idx)))
     except hl.ExpressionException as exc:
-        assert ROW_FIELD_C_REFERENCES_COL_FIELD_COL_IDX_ERROR_MESSAGE in exc.args[0]
+        assert 'scope violation' in exc.args[0]
+        assert "'col_idx' (indices ['column'])" in exc.args[0]
     else:
         assert False
 
@@ -137,6 +137,7 @@ def test_ndarray_reshape_tuple():
     try:
         ht = ht.annotate_rows(c = ht.b.reshape(ht.a))
     except hl.ExpressionException as exc:
-        assert ROW_FIELD_C_REFERENCES_COL_FIELD_A_ERROR_MESSAGE in exc.args[0]
+        assert 'scope violation' in exc.args[0]
+        assert "'a' (indices ['column'])" in exc.args[0]
     else:
         assert False
