@@ -94,8 +94,6 @@ def hwe_normalized_pca(call_expr, k=10, compute_loadings=False) -> Tuple[List[fl
     (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
         List of eigenvalues, table with column scores, table with row loadings.
     """
-    from hail.backend.service_backend import ServiceBackend
-
     mt = matrix_table_source('hwe_normalize/call_expr', call_expr)
     dimensions = mt.count()
 
@@ -229,7 +227,6 @@ def _make_tsm(entry_expr,
               rows_per_block: Optional[int],
               dimensions: Optional[Tuple[int, int]] = None
               ) -> TallSkinnyMatrix:
-    mt = matrix_table_source('_make_tsm/entry_expr', entry_expr)
     return mt_to_tsm(entry_expr, rows_per_block, dimensions=dimensions)
 
 
@@ -249,9 +246,9 @@ def _make_tsm_from_call(call_expr,
         if dimensions is None:
             dimensions = mt.count()
         n_rows = dimensions[0]
-        if n_variants == 0:
+        if n_rows == 0:
             raise FatalError("_make_tsm: found 0 variants after filtering out monomorphic sites.")
-        info(f"_make_tsm: found {n_variants} variants after filtering out monomorphic sites.")
+        info(f"_make_tsm: found {n_rows} variants after filtering out monomorphic sites.")
 
         mt = mt.annotate_rows(__mean_gt=mt.__AC / mt.__n_called)
         mt = mt.unfilter_entries()
@@ -332,7 +329,7 @@ def _krylov_factorization(tsm: TallSkinnyMatrix, p, compute_U=False, compute_V=T
     assert 'V0' in mt.globals
 
     prev = mt.V0
-    for j in range(1, p+1):
+    for j in range(1, p + 1):
         mt = mt.annotate_cols(**{
             f'G_{j}': hl.nd.qr(
                 hl.agg.ndarray_sum(mt.block.T @ (mt.block @ prev))
@@ -343,7 +340,7 @@ def _krylov_factorization(tsm: TallSkinnyMatrix, p, compute_U=False, compute_V=T
     mt = mt.annotate_cols(
         V = hl.nd.qr(
             hl.nd.hstack(
-                [mt.V0, *[mt[f'G_{j}'] for j in range(1, p+1)]]
+                [mt.V0, *[mt[f'G_{j}'] for j in range(1, p + 1)]]
             )
         )[0]
     )

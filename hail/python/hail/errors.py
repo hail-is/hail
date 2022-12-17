@@ -24,4 +24,3 @@ class FatalError(Exception):
                              'Hail stack trace:\n'
                              f'{better_stack_trace}')
         return HailUserError(message_and_trace)
-

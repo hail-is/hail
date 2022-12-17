@@ -278,6 +278,7 @@ __all__ = [
     'TableIntervalJoin',
     'TableUnion',
     'TableRange',
+    'TableGenomicRange',
     'TableMapGlobals',
     'TableExplode',
     'TableKeyBy',

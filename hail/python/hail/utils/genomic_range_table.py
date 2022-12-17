@@ -45,6 +45,6 @@ def genomic_range_table(n: int,
     if n_partitions is not None:
         check_positive_and_in_range('range_table', 'n_partitions', n_partitions)
     if n >= (1 << 31):
-        raise ValueError(f'`n` must be less than 2 ** 31')
+        raise ValueError(f'`n`, {n}, must be less than 2 ** 31.')
 
     return hl.Table(hl.ir.TableGenomicRange(n, n_partitions, reference_genome))

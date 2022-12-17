@@ -1,6 +1,6 @@
 from typing import Optional
 import hail as hl
-from hail.expr.types import dtype, tint32, tint64, tlocus
+from hail.expr.types import dtype, tint32, tint64
 from hail.ir.base_ir import BaseIR, TableIR
 import hail.ir.ir as ir
 from hail.ir.utils import modify_deep_field, zip_with_index, default_row_uid, default_col_uid

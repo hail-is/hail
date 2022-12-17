@@ -1,4 +1,4 @@
-from typing import Optional, List, Union, Tuple
+from typing import Optional, List, Tuple
 
 import hail as hl
 from hail.expr import (check_entry_indexed, matrix_table_source)

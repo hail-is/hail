@@ -4047,7 +4047,6 @@ class NDArrayExpression(Expression):
             ellipsis_location = list_types.index(type(...))
             num_slices_to_add = self.ndim - (len(item) - num_nones) + 1
 
-
             no_ellipses = list_item[:ellipsis_location] + [slice(None)] * num_slices_to_add + list_item[ellipsis_location + 1:]
         else:
             no_ellipses = list_item

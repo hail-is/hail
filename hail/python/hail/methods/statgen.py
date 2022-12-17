@@ -2853,7 +2853,6 @@ def balding_nichols_model(n_populations: int,
                      fst=fst,
                      mixture=mixture))
 
-
     pop_f = hl.rand_dirichlet if mixture else hl.rand_cat
     bn = bn.annotate_globals(cols = hl.range(n_samples).map(
         lambda idx: hl.struct(
