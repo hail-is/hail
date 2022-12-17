@@ -6,8 +6,8 @@ from ..expr.types import HailType, tfloat32, tfloat64
 from ..genetics.reference_genome import reference_genome_type
 from ..typecheck import (typecheck_method, sequenceof, nullable, enumeration, anytype, oneof,
                          dictof, sized_tupleof)
-from ..utils import wrap_to_list
-from ..utils.misc import escape_str
+from .._foundation.misc import wrap_to_list
+from .._foundation.misc import escape_str
 
 
 class MatrixReader(object):

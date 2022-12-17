@@ -8,7 +8,7 @@ from hail.ir.ir import unify_uid_types, pad_uid, concat_uids
 from hail.genetics import ReferenceGenome
 from hail._foundation.java import Env
 from hail.errors import FatalError
-from hail.utils.misc import escape_str, parsable_strings, escape_id
+from hail._foundation.misc import escape_str, parsable_strings, escape_id
 from hail.utils.jsonx import dump_json
 
 

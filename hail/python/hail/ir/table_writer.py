@@ -1,7 +1,7 @@
 import abc
 import json
 from ..typecheck import typecheck_method, nullable, sequenceof
-from ..utils.misc import escape_str
+from .._foundation.misc import escape_str
 from .export_type import ExportType
 
 

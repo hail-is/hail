@@ -3,7 +3,7 @@ import json
 
 from ..typecheck import typecheck_method, sequenceof, nullable, enumeration
 from ..expr.types import tvoid, tstr
-from ..utils.misc import escape_str
+from .._foundation.misc import escape_str
 
 
 class BlockMatrixWriter(object):

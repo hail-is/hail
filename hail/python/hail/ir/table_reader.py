@@ -7,7 +7,7 @@ import hail as hl
 
 from hail.ir.utils import make_filter_and_replace, default_row_uid
 from hail.typecheck import typecheck_method, sequenceof, nullable, anytype, oneof
-from hail.utils.misc import escape_str
+from hail._foundation.misc import escape_str
 
 from .utils import impute_type_of_partition_interval_array
 

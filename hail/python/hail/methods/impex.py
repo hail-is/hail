@@ -21,7 +21,7 @@ from hail.methods.misc import require_biallelic, require_row_key_variant, requir
 from hail.table import Table
 from hail.typecheck import typecheck, nullable, oneof, dictof, anytype, \
     sequenceof, enumeration, sized_tupleof, numeric, table_key_type, char
-from hail.utils.misc import wrap_to_list, plural
+from hail._foundation.misc import wrap_to_list, plural
 from hail._foundation.java import Env, jindexed_seq_args, warning
 from hail.errors import FatalError
 from hail.utils.deduplicate import deduplicate
@@ -2786,7 +2786,7 @@ def import_gvcfs(path,
 
     rg = reference_genome.name if reference_genome else None
 
-    partitions, partitions_type = hl.utils._dumps_partitions(partitions, hl.tstruct(locus=hl.tlocus(rg),
+    partitions, partitions_type = hl._dumps_partitions(partitions, hl.tstruct(locus=hl.tlocus(rg),
                                                                                     alleles=hl.tarray(hl.tstr)))
 
     vector_ref_s = Env.spark_backend('import_vcfs')._jbackend.pyImportVCFs(

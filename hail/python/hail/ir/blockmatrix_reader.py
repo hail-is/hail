@@ -2,7 +2,7 @@ import abc
 import json
 
 from ..typecheck import typecheck_method, sequenceof
-from ..utils.misc import escape_str
+from .._foundation.misc import escape_str
 
 
 class BlockMatrixReader(object):

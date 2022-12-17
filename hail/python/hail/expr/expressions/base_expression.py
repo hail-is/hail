@@ -12,6 +12,7 @@ from hail.expr.types import HailType, is_numeric, is_compound, is_setlike, tint3
 from hail import ir
 from hail.typecheck import typecheck_method, nullable, anyfunc, linked_list
 from hail._foundation.java import Env
+from hail._foundation.misc import default_handler
 from hail.utils.linkedlist import LinkedList
 from .indices import Indices, Aggregation
 
@@ -1192,7 +1193,7 @@ class Expression(object):
                 prefix = '<expr>'
 
         if handler is None:
-            handler = hl.utils.default_handler()
+            handler = default_handler()
         handler(self._summarize(name=prefix))
 
     def _selector_and_agg_method(self):

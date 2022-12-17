@@ -5,7 +5,7 @@ from typing import Tuple, List, Union, Optional
 from hail.typecheck import typecheck, oneof, anytype, nullable, numeric
 from hail.expr.expressions.expression_typecheck import expr_float64
 from hail._foundation.java import Env, info, warning
-from hail.utils.misc import divide_null, guess_cloud_spark_provider
+from hail._foundation.misc import divide_null, guess_cloud_spark_provider, default_handler
 from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.ir import TableToTableApply
@@ -1166,7 +1166,7 @@ def summarize_variants(mt: Union[MatrixTable, MatrixTable], show=True, *, handle
     if show:
         summary = _VariantSummary(rg, n_variants, allele_counts, contigs, allele_types, nti, ntv)
         if handler is None:
-            handler = hl.utils.default_handler()
+            handler = default_handler()
         handler(summary)
     else:
         return hl.Struct(allele_types=allele_types,

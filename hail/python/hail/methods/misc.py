@@ -9,7 +9,7 @@ from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.typecheck import typecheck, nullable, func_spec, oneof
 from hail.utils import Interval, Struct, new_temp_file, deduplicate
-from hail.utils.misc import plural
+from hail._foundation.misc import plural
 from hail._foundation.java import Env, info
 from hail import ir
 

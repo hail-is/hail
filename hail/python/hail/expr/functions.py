@@ -30,7 +30,7 @@ from hail.typecheck import (typecheck, nullable, anytype, enumeration, tupleof,
                             func_spec, oneof, arg_check, args_check, anyfunc,
                             sequenceof)
 from hail._foundation.java import Env, warning
-from hail.utils.misc import plural
+from hail._foundation.misc import plural
 
 import numpy as np
 

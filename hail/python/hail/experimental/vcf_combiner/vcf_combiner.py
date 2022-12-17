@@ -13,6 +13,7 @@ from hail.genetics.reference_genome import reference_genome_type
 from hail.ir import Apply, TableMapRows, MatrixKeyRowsBy
 from hail.typecheck import oneof, sequenceof, typecheck
 from hail._foundation.java import info, warning, Env
+from hail._foundation.misc import no_service_backend, plural
 
 _transform_rows_function_map = {}
 _merge_function_map = {}
@@ -509,10 +510,10 @@ class CombinerConfig(object):
         total_jobs = 0
         for i, phase in enumerate(phases):
             n = len(phase.jobs)
-            job_str = hl.utils.misc.plural('job', n)
+            job_str = plural('job', n)
             n_files_produced = len(file_size[i + 1])
             adjective = 'final' if n_files_produced == 1 else 'intermediate'
-            file_str = hl.utils.misc.plural('file', n_files_produced)
+            file_str = plural('file', n_files_produced)
             phase_strs.append(
                 f'\n        Phase {i + 1}: {n} {job_str} corresponding to {n_files_produced} {adjective} output {file_str}.')
             total_jobs += n
@@ -607,7 +608,7 @@ def run_combiner(sample_paths: List[str],
     None
 
     """
-    hl.utils.no_service_backend('vcf_combiner')
+    no_service_backend('vcf_combiner')
     flagname = 'no_ir_logging'
     prev_flag_value = hl._get_flags(flagname).get(flagname)
     hl._set_flags(**{flagname: '1'})
@@ -662,7 +663,7 @@ def run_combiner(sample_paths: List[str],
 
         n_jobs = len(phase.jobs)
         merge_str = 'input GVCFs' if phase_i == 1 else 'intermediate sparse matrix tables'
-        job_str = hl.utils.misc.plural('job', n_jobs)
+        job_str = plural('job', n_jobs)
         info(f"Starting phase {phase_i}/{n_phases}, merging {len(files_to_merge)} {merge_str} in {n_jobs} {job_str}.")
 
         if phase_i > 1:
@@ -677,7 +678,7 @@ def run_combiner(sample_paths: List[str],
             job_i += 1  # used for info messages, 1-indexed for readability
 
             n_merges = len(job.merges)
-            merge_str = hl.utils.misc.plural('file', n_merges)
+            merge_str = plural('file', n_merges)
             pct_total = 100 * job.input_total_size / total_ops
             info(
                 f"Starting phase {phase_i}/{n_phases}, job {job_i}/{len(phase.jobs)} to create {n_merges} merged {merge_str}, corresponding to ~{pct_total:.1f}% of total I/O.")

@@ -13,6 +13,7 @@ import hail as hl
 
 from hail.utils import Interval
 from hail._foundation.java import Env, info, warning
+from hail._foundation.misc import no_service_backend
 from hail.experimental.vcf_combiner.vcf_combiner import calculate_even_genome_partitioning, \
     calculate_new_intervals
 from hail.vds.variant_dataset import VariantDataset
@@ -231,7 +232,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                  gvcf_info_to_keep: Optional[Collection[str]] = None,
                  gvcf_reference_entry_fields_to_keep: Optional[Collection[str]] = None,
                  ):
-        hl.utils.no_service_backend('VariantDatasetCombiner')
+        no_service_backend('VariantDatasetCombiner')
         if not (vdses or gvcfs):
             raise ValueError("one of 'vdses' or 'gvcfs' must be nonempty")
         if not gvcf_import_intervals:

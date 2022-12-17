@@ -1,6 +1,6 @@
 from typing import List, Optional
 import hail as hl
-from hail.utils.misc import hl_plural, plural
+from hail._foundation.misc import hl_plural, plural
 
 
 def split_lines(

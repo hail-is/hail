@@ -15,6 +15,7 @@ from hail.typecheck import (nullable, typecheck, typecheck_method, enumeration, 
                             sized_tupleof, sequenceof)
 from hail.utils import get_env_or_default
 from hail._foundation.java import Env, warning, choose_backend
+from hail._foundation.misc import timestamp_path
 from hail.backend import Backend
 from hailtop.utils import secret_alnum_string
 from .builtin_references import BUILTIN_REFERENCES
@@ -43,8 +44,8 @@ def _get_log(log):
         log_dir = os.environ.get('HAIL_LOG_DIR')
         if log_dir is None:
             log_dir = os.getcwd()
-        log = hail.utils.timestamp_path(os.path.join(log_dir, 'hail'),
-                                        suffix=f'-{py_version}.log')
+        log = timestamp_path(os.path.join(log_dir, 'hail'),
+                             suffix=f'-{py_version}.log')
     return log
 
 

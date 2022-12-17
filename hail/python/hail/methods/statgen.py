@@ -22,6 +22,7 @@ from hail.typecheck import (typecheck, nullable, numeric, oneof, sized_tupleof,
                             sequenceof, enumeration, anytype)
 from hail.utils import wrap_to_list, new_temp_file
 from hail._foundation.java import Env, info, warning
+from hail._foundation.misc import no_service_backend
 from hail.errors import FatalError
 from . import pca
 from . import relatedness
@@ -3352,7 +3353,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     :class:`.Table`
         Table of a maximal independent set of variants.
     """
-    hl.utils.no_service_backend('ld_prune')
+    no_service_backend('ld_prune')
     if block_size is None:
         block_size = BlockMatrix.default_block_size()
 

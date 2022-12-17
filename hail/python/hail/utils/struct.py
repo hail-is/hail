@@ -2,7 +2,7 @@ from collections import OrderedDict
 from collections.abc import Mapping
 import pprint
 
-from hail.utils.misc import get_nice_attr_error, get_nice_field_error
+from hail._foundation.misc import get_nice_attr_error, get_nice_field_error
 from hail.typecheck import typecheck, typecheck_method, anytype
 
 
