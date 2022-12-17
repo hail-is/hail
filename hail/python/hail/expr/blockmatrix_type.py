@@ -1,6 +1,6 @@
 import pprint
 from hail.typecheck import typecheck_method, sequenceof
-from hail.foundation.java import jiterable_to_list
+from hail._foundation.java import jiterable_to_list
 from hail.expr.types import dtype, hail_type
 
 

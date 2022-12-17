@@ -12,7 +12,7 @@ from .frozendict import frozendict
 from .tutorial import get_1kg, get_hgdp, get_movie_lens
 from .deduplicate import deduplicate
 
-from ..foundation.java import error, warning, info, FatalError, HailUserError
+from .._foundation.java import error, warning, info, FatalError, HailUserError
 from ..foundation.jsonx import JSONEncoder
 
 __all__ = ['hadoop_open',

@@ -2,7 +2,7 @@ from typing import Optional, List, Union, Tuple
 
 import hail as hl
 from hail.expr import (check_entry_indexed, matrix_table_source)
-from hail.foundation.java import Env
+from hail._foundation.java import Env
 
 
 def key_intervals(ht: hl.Table, max_rows_per_interval: int, n_rows: int) -> List[hl.utils.Interval]:

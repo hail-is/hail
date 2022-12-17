@@ -12,7 +12,7 @@ from hail.linalg import BlockMatrix
 from hail.table import Table
 from hail.typecheck import enumeration, nullable, numeric, typecheck
 from hail.utils import new_temp_file
-from hail.foundation.java import Env
+from hail._foundation.java import Env
 from ..pca import hwe_normalized_pca
 
 

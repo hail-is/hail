@@ -6,7 +6,7 @@ from .base_ir import BlockMatrixIR, IR
 from hail.typecheck import typecheck_method, sequenceof, nullable
 from hail.utils.misc import escape_id
 
-from hail.foundation.java import Env
+from hail._foundation.java import Env
 
 
 class BlockMatrixRead(BlockMatrixIR):

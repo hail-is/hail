@@ -1,4 +1,4 @@
-from hail.foundation.java import Env
+from hail._foundation.java import Env
 
 stream_codec = '{"name":"StreamBufferSpec"}'
 

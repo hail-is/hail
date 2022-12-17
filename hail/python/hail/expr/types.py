@@ -20,7 +20,7 @@ from ..typecheck import typecheck, typecheck_method, oneof, transformed, nullabl
 from ..utils.struct import Struct
 from ..utils.byte_reader import ByteReader
 from ..utils.misc import lookup_bit
-from ..utils.java import escape_parsable
+from .._foundation.java import escape_parsable
 from ..genetics.reference_genome import reference_genome_type
 
 

@@ -3,7 +3,7 @@ import functools
 import hail as hl
 from hail.genetics.reference_genome import reference_genome_type
 from hail.typecheck import typecheck, nullable, sequenceof
-from hail.foundation.java import info
+from hail._foundation.java import info
 from hail.utils import new_temp_file
 
 

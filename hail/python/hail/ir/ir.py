@@ -11,7 +11,7 @@ from hail.expr.types import dtype, HailType, hail_type, tint32, tint64, \
 from hail.ir.blockmatrix_writer import BlockMatrixWriter, BlockMatrixMultiWriter
 from hail.typecheck import typecheck, typecheck_method, sequenceof, numeric, \
     sized_tupleof, nullable, tupleof, anytype, func_spec
-from hail.foundation.java import Env, HailUserError
+from hail._foundation.java import Env, HailUserError
 from hail.utils.jsonx import dump_json
 from hail.utils.misc import escape_str, parsable_strings, escape_id
 from .base_ir import BaseIR, IR, TableIR, MatrixIR, BlockMatrixIR, _env_bind

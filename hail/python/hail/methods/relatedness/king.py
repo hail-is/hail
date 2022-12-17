@@ -4,7 +4,7 @@ from hail.expr.expressions import expr_call
 from hail.expr.expressions import matrix_table_source
 from hail.typecheck import typecheck, nullable
 from hail.utils import deduplicate
-from hail.foundation.java import Env
+from hail._foundation.java import Env
 
 
 @typecheck(call_expr=expr_call, block_size=nullable(int))

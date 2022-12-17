@@ -1,6 +1,6 @@
 from typing import Optional, List, Any, Tuple
 import hail as hl
-from hail.foundation.java import Env
+from hail._foundation.java import Env
 from hail.expr.types import tint32, tint64
 
 

@@ -12,7 +12,7 @@ from ..expr import StructExpression
 from ..matrixtable import MatrixTable, matrix_table_type
 from ..table import Table, table_type
 from ..typecheck import oneof, typecheck_method
-from ..utils.java import Env, info
+from .._foundation.java import Env, info
 
 
 class DatasetVersion:

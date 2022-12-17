@@ -4,7 +4,7 @@ import unittest
 import pytest
 from decorator import decorator
 
-from hail.utils.java import Env, choose_backend
+from hail._foundation.java import Env, choose_backend
 import hail as hl
 
 
@@ -116,7 +116,7 @@ def skip_unless_spark_backend(reason='requires Spark'):
     from hail.backend.spark_backend import SparkBackend
     @decorator
     def wrapper(func, *args, **kwargs):
-        if isinstance(hl.utils.java.Env.backend(), SparkBackend):
+        if isinstance(hl._foundation.java.Env.backend(), SparkBackend):
             return func(*args, **kwargs)
         else:
             raise unittest.SkipTest(reason)
@@ -127,7 +127,7 @@ def skip_when_service_backend(reason='skipping for Service Backend'):
     from hail.backend.service_backend import ServiceBackend
     @decorator
     def wrapper(func, *args, **kwargs):
-        if isinstance(hl.utils.java.Env.backend(), ServiceBackend):
+        if isinstance(hl._foundation.java.Env.backend(), ServiceBackend):
             raise unittest.SkipTest(reason)
         else:
             return func(*args, **kwargs)
@@ -139,7 +139,7 @@ def skip_unless_service_backend(reason='only relevant to service backend'):
     from hail.backend.service_backend import ServiceBackend
     @decorator
     def wrapper(func, *args, **kwargs):
-        if not isinstance(hl.utils.java.Env.backend(), ServiceBackend):
+        if not isinstance(hl._foundation.java.Env.backend(), ServiceBackend):
             raise unittest.SkipTest(reason)
         else:
             return func(*args, **kwargs)

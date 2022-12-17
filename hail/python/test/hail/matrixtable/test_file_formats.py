@@ -2,7 +2,7 @@ import pytest
 import asyncio
 
 import hail as hl
-from hail.utils.java import Env, scala_object
+from hail._foundation.java import Env, scala_object
 from ..helpers import *
 
 

@@ -3,7 +3,7 @@ import os
 import hail as hl
 from hail.matrixtable import MatrixTable
 from hail.typecheck import typecheck_method
-from hail.foundation.java import info
+from hail._foundation.java import info
 from hail.genetics import ReferenceGenome
 
 

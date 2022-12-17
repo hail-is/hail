@@ -11,7 +11,7 @@ from hail.expr.types import HailType, is_numeric, is_compound, is_setlike, tint3
     tlocus, tcall, from_numpy
 from hail import ir
 from hail.typecheck import typecheck_method, nullable, anyfunc, linked_list
-from hail.foundation.java import Env
+from hail._foundation.java import Env
 from hail.utils.linkedlist import LinkedList
 from .indices import Indices, Aggregation
 

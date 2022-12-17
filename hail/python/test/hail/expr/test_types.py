@@ -3,7 +3,7 @@ import unittest
 from hail.expr import coercer_from_dtype
 from hail.expr.types import *
 from ..helpers import *
-from hail.utils.java import Env
+from hail._foundation.java import Env
 
 
 class Tests(unittest.TestCase):

@@ -97,10 +97,10 @@ def sparse_split_multi(sparse_mt, *, filter_changed_loci=False):
 
     hl.methods.misc.require_row_key_variant(sparse_mt, "sparse_split_multi")
 
-    entries = hl.utils.java.Env.get_uid()
-    cols = hl.utils.java.Env.get_uid()
+    entries = hl._foundation.java.Env.get_uid()
+    cols = hl._foundation.java.Env.get_uid()
     ds = sparse_mt.localize_entries(entries, cols)
-    new_id = hl.utils.java.Env.get_uid()
+    new_id = hl._foundation.java.Env.get_uid()
 
     def struct_from_min_rep(i):
         return hl.bind(lambda mr:

@@ -25,7 +25,7 @@ from hail.typecheck import typecheck, oneof, nullable
 from hail.expr.expressions import expr_float64, expr_int32, expr_array, expr_call
 from hail.matrixtable import MatrixTable
 from hail.table import Table
-from hail.foundation.java import Env
+from hail._foundation.java import Env
 import numpy as np
 import pandas as pd
 import scipy.stats as stats

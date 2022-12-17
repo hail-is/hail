@@ -4,7 +4,7 @@ import hail.ir as ir
 from hail.ir.renderer import CSERenderer
 from hail.expr import construct_expr
 from hail.expr.types import tint32
-from hail.utils.java import Env
+from hail._foundation.java import Env
 from hail.utils import new_temp_file
 from .helpers import *
 

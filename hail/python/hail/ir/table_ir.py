@@ -7,7 +7,7 @@ from hail.ir.utils import modify_deep_field, zip_with_index, default_row_uid, de
 from hail.ir.ir import unify_uid_types, pad_uid, concat_uids
 from hail.genetics import ReferenceGenome
 from hail.utils import FatalError
-from hail.foundation.java import Env
+from hail._foundation.java import Env
 from hail.utils.misc import escape_str, parsable_strings, escape_id
 from hail.utils.jsonx import dump_json
 

@@ -8,7 +8,7 @@ from hail.expr.types import HailType, tint32, tint64, tfloat32, tfloat64, \
     ttuple, tinterval, tlocus, tcall
 
 from hail.typecheck import TypeChecker, TypecheckFailure
-from hail.foundation.java import escape_parsable
+from hail._foundation.java import escape_parsable
 
 __all__ = [
     'expr_any',

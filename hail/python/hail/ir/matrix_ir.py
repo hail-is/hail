@@ -7,7 +7,7 @@ import hail.ir.ir as ir
 from hail.utils import FatalError
 from hail.utils.misc import escape_str, parsable_strings, escape_id
 from hail.utils.jsonx import dump_json
-from hail.foundation.java import Env
+from hail._foundation.java import Env
 
 
 class MatrixAggregateRowsByKey(MatrixIR):

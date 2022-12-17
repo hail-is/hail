@@ -8,7 +8,7 @@ import hail.expr.aggregators as agg
 import hail.utils as utils
 from hail.linalg import BlockMatrix
 from hail.utils import FatalError
-from hail.utils.java import choose_backend, Env
+from hail._foundation.java import choose_backend, Env
 from ..helpers import resource, fails_local_backend, fails_service_backend
 
 

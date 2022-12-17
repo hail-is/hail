@@ -19,7 +19,7 @@ from typing_extensions import Literal
 import hail
 import hail as hl
 from hail.typecheck import enumeration, typecheck, nullable
-from hail.foundation.java import Env, error
+from hail._foundation.java import Env, error
 
 
 @typecheck(n_rows=int, n_cols=int, n_partitions=nullable(int))

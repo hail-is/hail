@@ -16,7 +16,7 @@ from hail.expr.table_type import ttable
 from hail.expr.types import dtype
 from hail.ir import finalize_randomness
 from hail.ir.renderer import CSERenderer
-from hail.foundation.java import scala_package_object, scala_object
+from hail._foundation.java import scala_package_object, scala_object
 from .py4j_backend import Py4JBackend, handle_java_exception
 from ..fs.local_fs import LocalFS
 from ..hail_logging import Logger

@@ -1,7 +1,7 @@
 import unittest
 
 import hail as hl
-from hail.utils.java import Env
+from hail._foundation.java import Env
 
 
 class Tests(unittest.TestCase):

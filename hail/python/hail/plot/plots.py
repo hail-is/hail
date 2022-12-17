@@ -22,7 +22,7 @@ from hail.typecheck import typecheck, oneof, nullable, sized_tupleof, numeric, \
     sequenceof, dictof
 from hail import Table
 from hail.utils.struct import Struct
-from hail.foundation.java import warning
+from hail._foundation.java import warning
 from typing import List, Tuple, Dict, Union
 import hail
 

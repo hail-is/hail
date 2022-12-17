@@ -2,7 +2,7 @@ import numpy as np
 from ..helpers import *
 import pytest
 
-from hail.utils.java import FatalError, HailUserError
+from hail._foundation.java import FatalError, HailUserError
 
 def assert_ndarrays(asserter, exprs_and_expecteds):
     exprs, expecteds = zip(*exprs_and_expecteds)

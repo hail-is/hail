@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 
 import hail as hl
-from hail.foundation.java import warning
+from hail._foundation.java import warning
 from .utils import should_use_scale_for_grouping
 
 

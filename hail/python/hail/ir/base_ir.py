@@ -1,7 +1,7 @@
 import abc
 
 from hail.expr.types import tstream, tstruct
-from hail.foundation.java import Env
+from hail._foundation.java import Env
 from .renderer import Renderer, PlainRenderer, Renderable
 
 

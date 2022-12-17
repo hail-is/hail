@@ -10,7 +10,7 @@ from bokeh.plotting import figure
 from bokeh.transform import factor_cmap
 from hail.typecheck import typecheck
 from hail.utils.hadoop_utils import hadoop_open, hadoop_ls
-from hail.foundation.java import warning
+from hail._foundation.java import warning
 
 
 def plot_roc_curve(ht, scores, tp_label='tp', fp_label='fp', colors=None, title='ROC Curve', hover_mode='mouse'):

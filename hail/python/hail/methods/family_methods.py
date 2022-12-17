@@ -6,7 +6,7 @@ from hail.matrixtable import MatrixTable
 from hail.expr import expr_call, expr_float64
 from hail.table import Table
 from hail.typecheck import typecheck, numeric
-from hail.foundation.java import Env
+from hail._foundation.java import Env
 from .misc import require_biallelic, require_col_key_str
 
 

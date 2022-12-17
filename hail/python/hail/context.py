@@ -14,7 +14,7 @@ from hail.genetics.reference_genome import ReferenceGenome
 from hail.typecheck import (nullable, typecheck, typecheck_method, enumeration, dictof, oneof,
                             sized_tupleof, sequenceof)
 from hail.utils import get_env_or_default
-from hail.foundation.java import Env, warning, choose_backend
+from hail._foundation.java import Env, warning, choose_backend
 from hail.backend import Backend
 from hailtop.utils import secret_alnum_string
 from .builtin_references import BUILTIN_REFERENCES

@@ -4,7 +4,7 @@ import os.path
 from typing import Any, Dict, List
 
 from hail.fs.hadoop_fs import HadoopFS
-from hail.foundation.java import Env
+from hail._foundation.java import Env
 from hail.typecheck import typecheck, enumeration
 
 

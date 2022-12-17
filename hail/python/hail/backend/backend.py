@@ -8,7 +8,7 @@ from ..builtin_references import BUILTIN_REFERENCE_RESOURCE_PATHS
 from ..expr import Expression
 from ..expr.types import HailType
 from ..ir import BaseIR
-from ..utils.java import FatalError
+from .._foundation.java import FatalError
 
 
 def fatal_error_from_java_error_triplet(short_message, expanded_message, error_id):

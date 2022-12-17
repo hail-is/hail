@@ -6,7 +6,7 @@ import hail as hl
 from hail.context import _get_local_tmpdir
 from hail.utils import hadoop_open, hadoop_copy
 from hailtop.utils import secret_alnum_string
-from hail.utils.java import FatalError
+from hail._foundation.java import FatalError
 
 
 def touch(fs, filename: str):

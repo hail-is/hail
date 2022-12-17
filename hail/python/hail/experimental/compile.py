@@ -4,7 +4,7 @@ import platform
 import tempfile
 import zipfile
 
-from ..utils.java import Env
+from .._foundation.java import Env
 from .codec import encode
 from ..expr.functions import literal
 

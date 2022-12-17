@@ -21,7 +21,7 @@ from hail.table import Table
 from hail.typecheck import (typecheck, nullable, numeric, oneof, sized_tupleof,
                             sequenceof, enumeration, anytype)
 from hail.utils import wrap_to_list, new_temp_file, FatalError
-from hail.foundation.java import Env, info, warning
+from hail._foundation.java import Env, info, warning
 from . import pca
 from . import relatedness
 from ..backend.spark_backend import SparkBackend

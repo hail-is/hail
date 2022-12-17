@@ -9,7 +9,7 @@ import random
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.utils import new_temp_file
-from hail.utils.java import Env
+from hail._foundation.java import Env
 import hail.ir as ir
 
 from hail import ExpressionException

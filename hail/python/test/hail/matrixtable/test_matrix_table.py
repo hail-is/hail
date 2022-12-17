@@ -6,7 +6,7 @@ import pytest
 import hail as hl
 import hail.ir as ir
 import hail.expr.aggregators as agg
-from hail.utils.java import Env
+from hail._foundation.java import Env
 from hail.utils.misc import new_temp_file
 from ..helpers import *
 
@@ -944,7 +944,7 @@ class Tests(unittest.TestCase):
 
     @fails_service_backend()
     def test_codecs_matrix(self):
-        from hail.utils.java import scala_object
+        from hail._foundation.java import scala_object
         supported_codecs = scala_object(Env.hail().io, 'BufferSpec').specs()
         ds = self.get_mt()
         temp = new_temp_file(extension='mt')
@@ -955,7 +955,7 @@ class Tests(unittest.TestCase):
 
     @fails_service_backend()
     def test_codecs_table(self):
-        from hail.utils.java import scala_object
+        from hail._foundation.java import scala_object
         supported_codecs = scala_object(Env.hail().io, 'BufferSpec').specs()
         rt = self.get_mt().rows()
         temp = new_temp_file(extension='ht')
