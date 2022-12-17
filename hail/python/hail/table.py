@@ -20,7 +20,7 @@ from hail.typecheck import typecheck, typecheck_method, dictof, anytype, \
 from hail.utils import deduplicate
 from hail.utils.placement_tree import PlacementTree
 from hail._foundation.java import Env, info, warning
-from hail._foundation.misc import (no_service_backend, default_handler wrap_to_tuple, storage_level,
+from hail._foundation.misc import (no_service_backend, default_handler, wrap_to_tuple, storage_level,
                                    plural, get_nice_field_error, get_nice_attr_error,
                                    get_key_by_exprs, check_keys, get_select_exprs,
                                    check_annotate_exprs, process_joins)

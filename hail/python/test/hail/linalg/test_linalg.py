@@ -4,8 +4,8 @@ import pytest
 
 import hail as hl
 from hail.linalg import BlockMatrix
-from hail.utils import local_path_uri
-from hail._foundation import FatalError, HailUserError
+from hail._foundation.misc import local_path_uri
+from hail.errors import FatalError, HailUserError
 from ..helpers import *
 import numpy as np
 import math

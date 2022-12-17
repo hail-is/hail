@@ -2,7 +2,7 @@ import os
 import pytest
 
 import hail as hl
-from hail.utils import new_temp_file
+from hail._foundation.misc import new_temp_file
 from hail.vds.combiner.combine import defined_entry_fields
 from ..helpers import resource, fails_local_backend, fails_service_backend
 

@@ -1,7 +1,7 @@
 import hail as hl
 from hail import Table
 from hail.typecheck import typecheck, nullable, oneof, sequenceof
-from hail.utils import wrap_to_list, new_temp_file
+from hail._foundation.misc import wrap_to_list, new_temp_file
 
 
 @typecheck(ht=Table,

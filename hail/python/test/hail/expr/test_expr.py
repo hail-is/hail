@@ -528,7 +528,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(sum_float64, 4950.0)
 
         ht = ht.annotate_globals(foo=7)
-        with pytest.raises(hl._foundation.java.HailUserError) as exc:
+        with pytest.raises(hl.errors.HailUserError) as exc:
             ht.aggregate(hl.agg.fold(0, lambda x: x + ht.idx, lambda a, b: a + b + ht.foo))
         assert "comb_op function of fold cannot reference any fields" in str(exc.value)
 
@@ -1335,7 +1335,7 @@ class Tests(unittest.TestCase):
             .default(4))
         self.assertEqual(hl.eval(expr5), -1)
 
-        with pytest.raises(hl._foundation.java.HailUserError) as exc:
+        with pytest.raises(hl.errors.HailUserError) as exc:
             hl.eval(hl.switch(x).when('0', 0).or_error("foo"))
         assert '.or_error("foo")' in str(exc.value)
 
@@ -1359,7 +1359,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.case(missing_false=True).when(hl.missing(hl.tbool), 1).default(2)), 2)
 
         error_case = hl.case().when(False, 1).or_error("foo")
-        with pytest.raises(hl._foundation.java.HailUserError) as exc:
+        with pytest.raises(hl.errors.HailUserError) as exc:
             hl.eval(error_case)
         assert '.or_error("foo")' in str(exc.value)
 

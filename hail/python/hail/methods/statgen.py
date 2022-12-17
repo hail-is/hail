@@ -20,7 +20,7 @@ from hail.stats import LinearMixedModel
 from hail.table import Table
 from hail.typecheck import (typecheck, nullable, numeric, oneof, sized_tupleof,
                             sequenceof, enumeration, anytype)
-from hail.utils import wrap_to_list, new_temp_file
+from hail._foundation.misc import wrap_to_list, new_temp_file
 from hail._foundation.java import Env, info, warning
 from hail._foundation.misc import no_service_backend
 from hail.errors import FatalError

@@ -247,7 +247,7 @@ def _run(benchmark: Benchmark, config: RunConfig, context):
                             'failed': True})
             return
 
-    from hail.utils.java import Env
+    from hail._foundation.java import Env
     peak_task_memory = get_peak_task_memory(Env.hc()._log)
     config.handler({'name': benchmark.name,
                     'failed': False,

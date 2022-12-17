@@ -2,7 +2,7 @@ import hail as hl
 from hail.linalg import BlockMatrix
 from hail.typecheck import typecheck, nullable, sequenceof, oneof
 from hail.expr.expressions import expr_float64, expr_numeric, expr_locus
-from hail.utils import new_temp_file, wrap_to_list
+from hail._foundation.misc import new_temp_file, wrap_to_list
 
 
 @typecheck(entry_expr=expr_float64,

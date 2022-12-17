@@ -3,7 +3,7 @@ import os
 import hail as hl
 
 from hail._foundation.java import Env
-from hail.utils.misc import new_temp_file
+from hail._foundation.misc import new_temp_file
 from hail.vds.combiner import combine_variant_datasets, new_combiner, load_combiner, transform_gvcf
 from hail.vds.combiner.combine import defined_entry_fields
 from ..helpers import resource, fails_local_backend, fails_service_backend

@@ -4,7 +4,7 @@ from hail.expr.types import HailType, tint64
 from hail.ir.base_ir import BaseIR, MatrixIR
 from hail.ir.utils import modify_deep_field, zip_with_index, zip_with_index_field, default_row_uid, default_col_uid, unpack_row_uid, unpack_col_uid
 import hail.ir.ir as ir
-from hail.utils.jsonx import dump_json
+from hail._foundation.jsonx import dump_json
 from hail._foundation.java import Env
 from hail._foundation.misc import escape_str, parsable_strings, escape_id
 from hail.errors import FatalError

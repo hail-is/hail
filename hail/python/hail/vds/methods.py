@@ -8,7 +8,8 @@ from hail.methods.misc import require_first_key_field_locus
 from hail.table import Table
 from hail.typecheck import sequenceof, typecheck, nullable, oneof, enumeration
 from hail._foundation.java import Env, info
-from hail.utils.misc import divide_null, new_temp_file, wrap_to_list
+from hail.utils.misc import divide_null
+from hail._foundation.misc import new_temp_file, wrap_to_list
 from hail.vds.variant_dataset import VariantDataset
 
 

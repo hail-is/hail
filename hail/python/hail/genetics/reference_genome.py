@@ -2,7 +2,7 @@ import json
 import re
 from hail.typecheck import typecheck_method, sequenceof, dictof, oneof, \
     sized_tupleof, nullable, transformed, lazy
-from hail.utils.misc import wrap_to_list
+from hail._foundation.misc import wrap_to_list
 from hail._foundation.java import Env
 import hail as hl
 

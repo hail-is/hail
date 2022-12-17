@@ -4,7 +4,7 @@ import os
 from typing import List
 
 from hail._foundation.java import Env, info
-from hail.utils import local_path_uri
+from hail._foundation.misc import local_path_uri
 
 from .stat_result import StatResult
 

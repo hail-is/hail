@@ -3,12 +3,6 @@ import json
 import numpy as np
 import pandas as pd
 
-
-from .frozendict import frozendict
-from .struct import Struct
-from .interval import Interval
-from ..genetics.locus import Locus
-from ..genetics.reference_genome import ReferenceGenome
 from .misc import escape_str
 
 
@@ -16,6 +10,12 @@ class JSONEncoder(json.JSONEncoder):
     """JSONEncoder that supports some Hail types."""
 
     def default(self, o: Any):
+        from ..utils.frozendict import frozendict
+        from ..utils.struct import Struct
+        from ..utils.interval import Interval
+        from ..genetics.locus import Locus
+        from ..genetics.reference_genome import ReferenceGenome
+
         if isinstance(o, (frozendict, Struct)):
             return dict(o)
         if isinstance(o, Interval):

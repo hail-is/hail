@@ -2,7 +2,7 @@
 
 import hail as hl
 from hail import Table
-from hail.utils import wrap_to_list
+from hail._foundation.misc import wrap_to_list
 
 
 def import_gtf(path, reference_genome=None, skip_invalid_contigs=False) -> hl.Table:

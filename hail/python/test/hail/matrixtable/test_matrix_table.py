@@ -7,7 +7,7 @@ import hail as hl
 import hail.ir as ir
 import hail.expr.aggregators as agg
 from hail._foundation.java import Env
-from hail.utils.misc import new_temp_file
+from hail._foundation.misc import new_temp_file
 from ..helpers import *
 
 

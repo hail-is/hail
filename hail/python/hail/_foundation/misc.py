@@ -3,7 +3,6 @@ from typing import Iterator, Optional, Literal
 import atexit
 import datetime
 import difflib
-import json
 import os
 import re
 import secrets

@@ -1,6 +1,6 @@
 import hail as hl
-from .java import Env, info
-from .misc import new_temp_file, local_path_uri, new_local_temp_dir
+from .._foundation.java import Env, info
+from .._foundation.misc import new_temp_file, local_path_uri, new_local_temp_dir
 import os
 import zipfile
 from urllib.request import urlretrieve
