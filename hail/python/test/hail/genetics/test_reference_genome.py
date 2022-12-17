@@ -3,7 +3,7 @@ import unittest
 import hail as hl
 from hail.genetics import *
 from ..helpers import *
-from hail.utils import FatalError
+from hail.errors import FatalError
 
 
 class Tests(unittest.TestCase):

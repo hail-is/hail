@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 
 from hail.typecheck import typecheck_method
-from hail.utils import FatalError
+from hail.errors import FatalError
 
 
 class Call(object):

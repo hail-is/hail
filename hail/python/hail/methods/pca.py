@@ -7,8 +7,8 @@ from hail.expr import (expr_float64, expr_call, check_entry_indexed,
 from hail import ir
 from hail.table import Table
 from hail.typecheck import typecheck, oneof, nullable, sized_tupleof
-from hail.utils import FatalError
 from hail._foundation.java import Env, info
+from hail.errors import FatalError
 from hail.experimental import mt_to_tsm, TallSkinnyMatrix
 
 

@@ -1495,7 +1495,7 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(10)
         ht.write(path)
         ht = hl.read_table(path)
-        with pytest.raises(hl.utils.FatalError) as exc:
+        with pytest.raises(hl.errors.FatalError) as exc:
             ht.write(path)
         assert "both an input and output source" in str(exc.value)
 

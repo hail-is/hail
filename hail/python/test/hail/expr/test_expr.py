@@ -338,10 +338,10 @@ class Tests(unittest.TestCase):
         strs = [None, '', 'TATAN']
         assert hl.eval(hl.literal(strs, 'array<str>').map(lambda x: x.translate({'T': 'A', 'A': 'T'}))) == [None, '', 'ATATN']
 
-        with pytest.raises(hl.utils.FatalError, match='mapping keys must be one character'):
+        with pytest.raises(hl.errors.FatalError, match='mapping keys must be one character'):
             hl.eval(hl.str('foo').translate({'foo': 'bar'}))
 
-        with pytest.raises(hl.utils.FatalError, match='mapping keys must be one character'):
+        with pytest.raises(hl.errors.FatalError, match='mapping keys must be one character'):
             hl.eval(hl.str('foo').translate({'': 'bar'}))
 
     def test_reverse_complement(self):
@@ -646,7 +646,7 @@ class Tests(unittest.TestCase):
     def test_agg_array_agg_errors(self):
         ht = hl.utils.range_table(10)
         ht = ht.annotate(a=hl.range(0, ht.idx))
-        with pytest.raises(hl.utils.FatalError):
+        with pytest.raises(hl.errors.FatalError):
             ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.a))
 
     def test_agg_array_explode(self):
@@ -2632,7 +2632,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl._sort_by(["c", "aaa", "bb", hl.missing(hl.tstr)], lambda l, r: hl.len(l) < hl.len(r))), ["c", "bb", "aaa", None])
         self.assertEqual(hl.eval(hl._sort_by([hl.Struct(x=i, y="foo", z=5.5) for i in [5, 3, 8, 2, 5]], lambda l, r: l.x < r.x)),
                          [hl.Struct(x=i, y="foo", z=5.5) for i in [2, 3, 5, 5, 8]])
-        with self.assertRaises(hl._foundation.java.FatalError):
+        with self.assertRaises(hl.errors.FatalError):
             self.assertEqual(hl.eval(hl._sort_by([hl.Struct(x=i, y="foo", z=5.5) for i in [5, 3, 8, 2, 5, hl.missing(hl.tint32)]], lambda l, r: l.x < r.x)),
                              [hl.Struct(x=i, y="foo", z=5.5) for i in [2, 3, 5, 5, 8, None]])
 
@@ -2947,7 +2947,7 @@ class Tests(unittest.TestCase):
         self.assertFalse(hl.eval(hl.is_valid_locus('chr1', 2645, 'GRCh37')))
 
         assert hl.eval(hl.contig_length('5', 'GRCh37') == 180915260)
-        with self.assertRaises(hl.utils.FatalError):
+        with self.assertRaises(hl.errors.FatalError):
             hl.eval(hl.contig_length('chr5', 'GRCh37'))
 
 
@@ -3154,9 +3154,9 @@ class Tests(unittest.TestCase):
         assert_min_reps_to(['GCTAA', 'GCAAA', 'GCCAA', '*'], ['T', 'A', 'C', '*'], pos_change=2)
 
     def test_min_rep_error(self):
-        with pytest.raises(hl.utils.FatalError, match='min_rep: found null allele'):
+        with pytest.raises(hl.errors.FatalError, match='min_rep: found null allele'):
             hl.eval(hl.min_rep(hl.locus('1', 100), ['A', hl.missing('str')]))
-        with pytest.raises(hl.utils.FatalError, match='min_rep: expect at least one allele'):
+        with pytest.raises(hl.errors.FatalError, match='min_rep: expect at least one allele'):
             hl.eval(hl.min_rep(hl.locus('1', 100), hl.empty_array('str')))
 
     def assert_evals_to(self, e, v):
@@ -3234,7 +3234,7 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, 0, 3, tolerance=tol)), 1)
         self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: hl.log(x) - 1, 0, 3, tolerance=tol)), 2.718281828459045, delta=tol)
 
-        with self.assertRaisesRegex(hl.utils.FatalError, r"value of f\(x\) is missing"):
+        with self.assertRaisesRegex(hl.errors.FatalError, r"value of f\(x\) is missing"):
             hl.eval(hl.uniroot(lambda x: hl.missing('float'), 0, 1))
         with self.assertRaisesRegex(hl.utils.HailUserError, 'opposite signs'):
             hl.eval(hl.uniroot(lambda x: x ** 2 - 0.5, -1, 1))

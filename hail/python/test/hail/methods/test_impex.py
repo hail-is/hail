@@ -13,7 +13,8 @@ import pytest
 import hail as hl
 from ..helpers import *
 from hail import ir
-from hail.utils import new_temp_file, FatalError, run_command, uri_path, HailUserError
+from hail.utils import new_temp_file, run_command, uri_path
+from hail.foundation.java import FatalError, HailUserError
 
 _FLOAT_INFO_FIELDS = [
     'BaseQRankSum',

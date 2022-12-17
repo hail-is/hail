@@ -117,7 +117,7 @@ def load_dataset(name: str,
     if path.startswith('s3://'):
         try:
             dataset = _read_dataset(path)
-        except hl._foundation.java.FatalError:
+        except hl.errors.FatalError:
             dataset = _read_dataset(path.replace('s3://', 's3a://'))
     else:
         dataset = _read_dataset(path)

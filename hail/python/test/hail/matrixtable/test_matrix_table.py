@@ -1668,13 +1668,13 @@ class Tests(unittest.TestCase):
         f = new_temp_file(extension='mt')
         mt.write(f)
 
-        with pytest.raises(hl.utils.FatalError, match= "file already exists"):
+        with pytest.raises(hl.errors.FatalError, match= "file already exists"):
             mt.write(f)
 
         mt.write(f, overwrite=True)
 
     def test_invalid_metadata(self):
-        with pytest.raises(hl.utils.FatalError, match='metadata does not contain file version'):
+        with pytest.raises(hl.errors.FatalError, match='metadata does not contain file version'):
             hl.read_matrix_table(resource('0.1-1fd5cc7.vds'))
 
     def test_legacy_files_with_required_globals(self):

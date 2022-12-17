@@ -143,9 +143,9 @@ def transform_gvcf(mt, info_to_keep=[]) -> Table:
                              'LPGT', 'PGT'}
 
             if 'END' not in row.info:
-                raise hl.utils.FatalError("the Hail GVCF combiner expects GVCFs to have an 'END' field in INFO.")
+                raise hl.errors.FatalError("the Hail GVCF combiner expects GVCFs to have an 'END' field in INFO.")
             if 'GT' not in e:
-                raise hl.utils.FatalError("the Hail GVCF combiner expects GVCFs to have a 'GT' field in FORMAT.")
+                raise hl.errors.FatalError("the Hail GVCF combiner expects GVCFs to have a 'GT' field in FORMAT.")
 
             handled_fields['LA'] = hl.range(0, alleles_len - hl.if_else(has_non_ref, 1, 0))
             handled_fields['LGT'] = get_lgt(e, alleles_len, has_non_ref, row)
