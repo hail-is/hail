@@ -1,4 +1,5 @@
-from typing import Iterator, Optional, Literal
+from typing import Iterator, Optional
+from typing_extensions import Literal
 
 import atexit
 import datetime
