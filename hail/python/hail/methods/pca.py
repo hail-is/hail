@@ -1,4 +1,4 @@
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Any
 
 import hail as hl
 import hail.expr.aggregators as agg
@@ -402,7 +402,7 @@ def _spectral_moments(tsm,
                       block_size: Optional[int] = None
                       ) -> Tuple[Any, Any]:
     if not isinstance(tsm, TallSkinnyMatrix):
-        check_entry_indexed('_spectral_moments/entry_expr', A)
+        check_entry_indexed('_spectral_moments/entry_expr', tsm)
         tsm = _make_tsm_from_call(tsm, block_size)
 
     n = tsm.n_cols
@@ -653,7 +653,7 @@ def _blanczos_pca(tsm,
     """
     if not isinstance(tsm, TallSkinnyMatrix):
         check_entry_indexed('_blanczos_pca/entry_expr', tsm)
-        tsm = _make_tsm(mat, rows_per_block, dimensions=_dimensions)
+        tsm = _make_tsm(tsm, rows_per_block, dimensions=_dimensions)
 
     if oversampling_param is None:
         oversampling_param = k
