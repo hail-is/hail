@@ -449,7 +449,9 @@ class ArrayExpression(CollectionExpression):
 
     @typecheck_method(start=nullable(expr_int32), stop=nullable(expr_int32), step=nullable(expr_int32))
     def _slice(self, start=None, stop=None, step=None):
-        indices, aggregations = unify_all(self, start, stop, step)
+        indices, aggregations = unify_all(
+            self,
+            *(x for x in (start, stop, step) if x is not None))
         if step is None:
             step = hl.int(1)
         if start is None:
@@ -4047,7 +4049,6 @@ class NDArrayExpression(Expression):
             ellipsis_location = list_types.index(type(...))
             num_slices_to_add = self.ndim - (len(item) - num_nones) + 1
 
-
             no_ellipses = list_item[:ellipsis_location] + [slice(None)] * num_slices_to_add + list_item[ellipsis_location + 1:]
         else:
             no_ellipses = list_item
@@ -4169,15 +4170,18 @@ class NDArrayExpression(Expression):
         else:
             shape = shape[0]
 
-        if isinstance(shape, TupleExpression):
+        if isinstance(shape, tuple):
+            indices, aggregations = unify_all(self, *shape)
+        else:
             indices, aggregations = unify_all(self, shape)
+
+        if isinstance(shape, TupleExpression):
             for i, tuple_field_type in enumerate(shape.dtype.types):
                 if tuple_field_type not in [hl.tint32, hl.tint64]:
                     raise TypeError(f"Argument {i} of reshape needs to be an integer, got {tuple_field_type}.")
             shape_ir = hl.or_missing(hl.is_defined(shape), hl.tuple([hl.int64(i) for i in shape]))._ir
             ndim = len(shape)
         else:
-            indices, aggregations = unify_all(self, *shape)
             wrapped_shape = wrap_to_list(shape)
             ndim = len(wrapped_shape)
             shape_ir = hl.tuple(wrapped_shape)._ir
