@@ -451,8 +451,7 @@ class ArrayExpression(CollectionExpression):
     def _slice(self, start=None, stop=None, step=None):
         indices, aggregations = unify_all(
             self,
-            *(x for x in (start, stop, step) if x is not None)
-        )
+            *(x for x in (start, stop, step) if x is not None))
         if step is None:
             step = hl.int(1)
         if start is None:

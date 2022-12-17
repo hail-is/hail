@@ -2,11 +2,11 @@ import hail as hl
 
 
 ROW_FIELD_C_REFERENCES_COL_FIELD_COL_IDX_ERROR_MESSAGE = '''scope violation: 'MatrixTable.annotate_rows: field 'c'' expects an expression indexed by ['row']
-    Found indices ['column'], with unexpected indices ['column']. Invalid fields:
+    Found indices ['column', 'row], with unexpected indices ['column']. Invalid fields:
         'col_idx' (indices ['column'])
     'MatrixTable.annotate_rows: field 'c'' supports aggregation over axes ['column'], so these fields may appear inside an aggregator function.'''
 ROW_FIELD_C_REFERENCES_COL_FIELD_A_ERROR_MESSAGE = '''scope violation: 'MatrixTable.annotate_rows: field 'c'' expects an expression indexed by ['row']
-    Found indices ['column'], with unexpected indices ['column']. Invalid fields:
+    Found indices ['column', 'row'], with unexpected indices ['column']. Invalid fields:
         'a' (indices ['column'])
     'MatrixTable.annotate_rows: field 'c'' supports aggregation over axes ['column'], so these fields may appear inside an aggregator function.'''
 
@@ -112,7 +112,7 @@ def test_ndarray_reshape_1():
     ht = hl.utils.range_matrix_table(1, 1)
     ht = ht.annotate_rows(b = hl.nd.array([[0]]))
     try:
-        ht = ht.annotate_rows(c = ht.b.reshape((ht.col_idx, None)))
+        ht = ht.annotate_rows(c = ht.b.reshape((ht.col_idx, 1)))
     except hl.ExpressionException as exc:
         assert ROW_FIELD_C_REFERENCES_COL_FIELD_COL_IDX_ERROR_MESSAGE in exc.args[0]
     else:
@@ -123,7 +123,7 @@ def test_ndarray_reshape_2():
     ht = hl.utils.range_matrix_table(1, 1)
     ht = ht.annotate_rows(b = hl.nd.array([[0]]))
     try:
-        ht = ht.annotate_rows(c = ht.b.reshape((None, ht.col_idx)))
+        ht = ht.annotate_rows(c = ht.b.reshape((1, ht.col_idx)))
     except hl.ExpressionException as exc:
         assert ROW_FIELD_C_REFERENCES_COL_FIELD_COL_IDX_ERROR_MESSAGE in exc.args[0]
     else:
