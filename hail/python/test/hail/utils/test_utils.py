@@ -3,7 +3,7 @@ import unittest
 
 import hail as hl
 from hail.utils import *
-from hail._foundation.misc import escape_str, escape_id
+from hail._foundation.misc import escape_str, escape_id, with_local_temp_file
 from hail.errors import FatalError
 from hail.utils.linkedlist import LinkedList
 

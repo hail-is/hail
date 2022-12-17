@@ -390,7 +390,7 @@ def _reduced_svd(tsm: TallSkinnyMatrix, k=10, compute_U=False, iterations=2, ite
     return fact.reduced_svd(k)
 
 
-@typecheck(A=oneof(expr_float64, TallSkinnyMatrix),
+@typecheck(tsm=oneof(expr_float64, TallSkinnyMatrix),
            num_moments=int,
            p=nullable(int),
            moment_samples=int,
@@ -546,7 +546,7 @@ def _pca_and_moments(tsm,
     return eigens, st, lt, moments, stdevs
 
 
-@typecheck(mat=oneof(expr_float64, TallSkinnyMatrix),
+@typecheck(tsm=oneof(expr_float64, TallSkinnyMatrix),
            k=int,
            compute_loadings=bool,
            q_iterations=int,
