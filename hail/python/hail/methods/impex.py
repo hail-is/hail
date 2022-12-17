@@ -2786,8 +2786,8 @@ def import_gvcfs(path,
 
     rg = reference_genome.name if reference_genome else None
 
-    partitions, partitions_type = hl._dumps_partitions(partitions, hl.tstruct(locus=hl.tlocus(rg),
-                                                                              alleles=hl.tarray(hl.tstr)))
+    partitions, partitions_type = hl.utils.misc._dumps_partitions(partitions, hl.tstruct(locus=hl.tlocus(rg),
+                                                                                        alleles=hl.tarray(hl.tstr)))
 
     vector_ref_s = Env.spark_backend('import_vcfs')._jbackend.pyImportVCFs(
         wrap_to_list(path),
