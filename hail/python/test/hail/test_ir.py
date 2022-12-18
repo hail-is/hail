@@ -427,8 +427,8 @@ class CSETests(unittest.TestCase):
             ' (Let __cse_2 (I32 10)'
             ' (Let __cse_3 (I32 1)'
             ' (MakeTuple (0 1)'
-                ' (ToArray (StreamRange 1 False (Ref __cse_1) (Ref __cse_2) (Ref __cse_3)))'
-                ' (ToArray (StreamRange 1 False (Ref __cse_1) (Ref __cse_2) (Ref __cse_3)))))))'
+                ' (ToArray (StreamRange 27 False (Ref __cse_1) (Ref __cse_2) (Ref __cse_3)))'
+                ' (ToArray (StreamRange 27 False (Ref __cse_1) (Ref __cse_2) (Ref __cse_3)))))))'
         )
         assert expected == CSERenderer()(t)
 
