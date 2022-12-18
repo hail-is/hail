@@ -4422,10 +4422,10 @@ class NDArrayNumericExpression(NDArrayExpression):
         -------
         :class:`.NDArrayNumericExpression` or :class:`.NumericExpression`
         """
-        indices, aggregations = unify_all(self, other)
-
         if not isinstance(other, NDArrayNumericExpression):
             other = hl.nd.array(other)
+
+        indices, aggregations = unify_all(self, other)
 
         if self.ndim == 0 or other.ndim == 0:
             raise ValueError('MatMul must be between objects of 1 dimension or more. Try * instead')
