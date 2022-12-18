@@ -536,12 +536,12 @@ def _pca_and_moments(tsm,
 
     mt = mt.checkpoint(hl.utils.new_temp_file('_pca_and_moments', 'ht'))
 
-    st = mt.cols().select_gloabls()
+    st = mt.cols().select_globals()
     eigens, moments, stdevs = hl.tuple((mt.eigens, mt.moments, mt.stdevs)).collect()[0]
     lt = None
 
     if compute_loadings:
-        lt = mt.rows().select_gloabls()
+        lt = mt.rows().select_globals()
 
     return eigens, st, lt, moments, stdevs
 
@@ -705,12 +705,12 @@ def _blanczos_pca(tsm,
 
     mt = mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
 
-    st = mt.cols().select_gloabls()
+    st = mt.cols().select_globals()
     eigens = mt.eigens.collect()[0]
     lt = None
 
     if compute_loadings:
-        lt = mt.rows().select_gloabls()
+        lt = mt.rows().select_globals()
 
     return eigens, st, lt
 
