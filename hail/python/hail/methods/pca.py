@@ -423,10 +423,10 @@ def _spectral_moments(tsm,
     mt = fact.spectral_moments(num_moments, R1)
     return mt.aggregate_cols(hl.tuple((
         hl.agg.collect(mt.moments)[0],
-        hl.agg.collect(mt.devs)[0])))
+        hl.agg.collect(mt.stdevs)[0])))
 
 
-@typecheck(A=oneof(expr_float64, TallSkinnyMatrix),
+@typecheck(tsm=oneof(expr_float64, TallSkinnyMatrix),
            k=int,
            num_moments=int,
            compute_loadings=bool,
@@ -536,12 +536,12 @@ def _pca_and_moments(tsm,
 
     mt = mt.checkpoint(hl.utils.new_temp_file('_pca_and_moments', 'ht'))
 
-    st = mt.cols()
+    st = mt.cols().select_gloabls()
     eigens, moments, stdevs = hl.tuple((mt.eigens, mt.moments, mt.stdevs)).collect()[0]
     lt = None
 
     if compute_loadings:
-        lt = mt.rows()
+        lt = mt.rows().select_gloabls()
 
     return eigens, st, lt, moments, stdevs
 
@@ -705,12 +705,12 @@ def _blanczos_pca(tsm,
 
     mt = mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'ht'))
 
-    st = mt.cols()
+    st = mt.cols().select_gloabls()
     eigens = mt.eigens.collect()[0]
     lt = None
 
     if compute_loadings:
-        lt = mt.rows()
+        lt = mt.rows().select_gloabls()
 
     return eigens, st, lt
 

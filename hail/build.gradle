@@ -33,7 +33,7 @@ sourceSets {
 }
 
 compileJava {
-    options.compilerArgs << "-Xlint:all" << "-Werror" << "-XDenableSunApiLintControl" << "-XDignore.symbol.file"
+    options.compilerArgs << "-Xlint:all" << "-XDenableSunApiLintControl" << "-XDignore.symbol.file"
 }
 tasks.withType(JavaCompile) {
     options.fork = true // necessary to make -XDenableSunApiLintControl work

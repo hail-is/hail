@@ -3,7 +3,7 @@ import unittest
 from subprocess import DEVNULL, call as syscall
 
 import hail as hl
-import hail.utils as utils
+from hail._foundation.misc import uri_path
 from ...helpers import get_dataset, fails_service_backend, fails_local_backend
 
 
@@ -22,10 +22,10 @@ class Tests(unittest.TestCase):
                                               "--max {}".format(max) if max else "")
 
             plink_command = "plink --double-id --allow-extra-chr --vcf {} --genome full --out {} {}" \
-                .format(utils.uri_path(vcf),
-                        utils.uri_path(plinkpath),
+                .format(uri_path(vcf),
+                        uri_path(plinkpath),
                         threshold_string)
-            result_file = utils.uri_path(plinkpath + ".genome")
+            result_file = uri_path(plinkpath + ".genome")
 
             syscall(plink_command, shell=True, stdout=DEVNULL, stderr=DEVNULL)
 
