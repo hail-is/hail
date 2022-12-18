@@ -266,10 +266,10 @@ def _make_tsm_from_call(call_expr,
 
 
 class KrylovFactorization:
-    def __init__(self, mt, n_cols):
+    def __init__(self, mt, over_sampling_factor):
         '''Do not initialize this directly. Call _krylov_factorization.'''
         self.mt = mt
-        self.n_cols = n_cols
+        self.over_sampling_factor = over_sampling_factor
 
     def reduced_svd(self, k):
         mt = self.mt
@@ -284,18 +284,20 @@ class KrylovFactorization:
         def sqr(x):
             return x ** 2
 
+        k = self.over_sampling_factor
+
         mt = self.mt
         mt = mt.annotate_cols(
             eigval_powers = hl.nd.vstack([mt.S.map(lambda x: x**(2 * i)) for i in range(1, num_moments + 1)])
         )
         mt = mt.annotate_cols(
-            moments = mt.eigval_powers @ (mt.V1t[:, :self.n_cols] @ R).map(sqr)
+            moments = mt.eigval_powers @ (mt.V1t[:, :k] @ R).map(sqr)
         )
         mt = mt.annotate_cols(
-            means = mt.moments.sum(1) / self.n_cols
+            means = mt.moments.sum(1) / k
         )
         mt = mt.annotate_cols(
-            variances = (mt.moments - mt.means.reshape(-1, 1)).map(sqr).sum(1) / (self.n_cols - 1)
+            variances = (mt.moments - mt.means.reshape(-1, 1)).map(sqr).sum(1) / (k - 1)
         )
         mt = mt.annotate_cols(
             stdevs = mt.variances.map(hl.sqrt)
@@ -303,7 +305,14 @@ class KrylovFactorization:
         return mt
 
 
-def _krylov_factorization(tsm: TallSkinnyMatrix, p, compute_U=False, compute_V=True):
+def _krylov_factorization(
+        tsm: TallSkinnyMatrix,
+        p: int,
+        pver_sampling_factor: int,
+        *,
+        compute_U: bool = False,
+        compute_V: bool = True
+):
     r"""Computes matrices :math:`U`, :math:`R`, and :math:`V` satisfying the following properties:
     * :math:`U\in\mathbb{R}^{m\times (p+1)b` and :math:`V\in\mathbb{R}^{n\times (p+1)b` are
       orthonormal matrices (:math:`U^TU = I` and :math:`V^TV = I`)
@@ -366,7 +375,7 @@ def _krylov_factorization(tsm: TallSkinnyMatrix, p, compute_U=False, compute_V=T
     mt = mt.annotate_cols(
         U1 = mt.svdR[0], S = mt.svdR[1], V1t = mt.svdR[2]
     )
-    return KrylovFactorization(mt, tsm.n_cols)
+    return KrylovFactorization(mt, over_sampling_factor)
 
 
 def _reduced_svd(tsm: TallSkinnyMatrix, k=10, compute_U=False, iterations=2, iteration_size=None):
@@ -386,7 +395,7 @@ def _reduced_svd(tsm: TallSkinnyMatrix, k=10, compute_U=False, iterations=2, ite
     mt = mt.annotate_globals(V0 = G)
     tsm.block_matrix_table = mt
 
-    fact = _krylov_factorization(tsm, q, compute_U)
+    fact = _krylov_factorization(tsm, q, L, compute_U=compute_U)
     return fact.reduced_svd(k)
 
 
@@ -419,7 +428,7 @@ def _spectral_moments(tsm,
     mt = mt.annotate_globals(V0 = Q1, R1 = R1)
     tsm.block_matrix_table = mt
 
-    fact = _krylov_factorization(tsm, p, compute_U=False)
+    fact = _krylov_factorization(tsm, p, moment_samples, compute_U=False)
     mt = fact.spectral_moments(num_moments, R1)
     return mt.aggregate_cols(hl.tuple((
         hl.agg.collect(mt.moments)[0],
@@ -461,7 +470,7 @@ def _pca_and_moments(tsm,
     mt = mt.annotate_globals(V0 = G)
     tsm.block_matrix_table = mt
 
-    fact = _krylov_factorization(tsm, q, compute_loadings)
+    fact = _krylov_factorization(tsm, q, L, compute_U=compute_loadings)
     mt = mt.annotate_cols(firstS = mt.S)
     mt = fact.reduced_svd(k)
 
@@ -476,7 +485,7 @@ def _pca_and_moments(tsm,
     Q1, R1 = hl.nd.qr(G2)
     mt = mt.annotate_cols(Q1 = Q1, R1 = R1)
     tsm.block_matrix_table = mt
-    fact2 = _krylov_factorization(tsm, p, compute_U=False)
+    fact2 = _krylov_factorization(tsm, p, moment_samples, compute_U=False)
     mt = fact2.spectral_moments(num_moments, R1)
     # Add back exact moments
     mt = mt.annotate_cols(

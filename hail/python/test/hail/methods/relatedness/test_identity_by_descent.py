@@ -3,7 +3,7 @@ import unittest
 from subprocess import DEVNULL, call as syscall
 
 import hail as hl
-from hail._foundation.misc import uri_path
+from hail._foundation.misc import uri_path, new_temp_file
 from ...helpers import get_dataset, fails_service_backend, fails_local_backend
 
 
@@ -15,8 +15,8 @@ class Tests(unittest.TestCase):
         dataset = get_dataset()
 
         def plinkify(ds, min=None, max=None):
-            vcf = utils.new_temp_file(prefix="plink", extension="vcf")
-            plinkpath = utils.new_temp_file(prefix="plink")
+            vcf = new_temp_file(prefix="plink", extension="vcf")
+            plinkpath = new_temp_file(prefix="plink")
             hl.export_vcf(ds, vcf)
             threshold_string = "{} {}".format("--min {}".format(min) if min else "",
                                               "--max {}".format(max) if max else "")
