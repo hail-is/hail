@@ -300,6 +300,7 @@ class KrylovFactorization:
             variances = (mt.moments - mt.means.reshape(-1, 1)).map(sqr).sum(1) / (k - 1)
         )
         mt = mt.annotate_cols(
+            moments = mt.means,
             stdevs = mt.variances.map(hl.sqrt)
         )
         return mt
