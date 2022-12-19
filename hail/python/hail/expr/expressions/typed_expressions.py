@@ -4048,7 +4048,6 @@ class NDArrayExpression(Expression):
             list_types = [type(e) for e in list_item]
             ellipsis_location = list_types.index(type(...))
             num_slices_to_add = self.ndim - (len(item) - num_nones) + 1
-
             no_ellipses = list_item[:ellipsis_location] + [slice(None)] * num_slices_to_add + list_item[ellipsis_location + 1:]
         else:
             no_ellipses = list_item
@@ -4162,7 +4161,6 @@ class NDArrayExpression(Expression):
         """
 
         # varargs with many ints works, but can't be a mix of ints and tuples.
-
         if len(shape) > 1:
             for i, arg in enumerate(shape):
                 if not isinstance(arg, Int64Expression):
