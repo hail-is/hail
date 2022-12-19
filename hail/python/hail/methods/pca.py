@@ -308,7 +308,7 @@ class KrylovFactorization:
 def _krylov_factorization(
         tsm: TallSkinnyMatrix,
         p: int,
-        pver_sampling_factor: int,
+        over_sampling_factor: int,
         *,
         compute_U: bool = False,
         compute_V: bool = True
