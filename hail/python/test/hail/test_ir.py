@@ -431,6 +431,7 @@ class CSETests(unittest.TestCase):
                 ' (ToArray (StreamRange [0-9]+ False (Ref __cse_1) (Ref __cse_2) (Ref __cse_3)))'
                 ' (ToArray (StreamRange [0-9]+ False (Ref __cse_1) (Ref __cse_2) (Ref __cse_3)))))))'
         )
+        expected_re = expected_re.replace('(', '\\(').replace(')', '\\)')
         assert re.match(expected_re, CSERenderer()(t))
 
     def test_cse2(self):
