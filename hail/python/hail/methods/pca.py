@@ -474,6 +474,8 @@ def _pca_and_moments(tsm,
     fact = _krylov_factorization(tsm, q, L, compute_U=compute_loadings)
     mt = fact.reduced_svd(k)
     mt = mt.annotate_cols(firstS = mt.S)
+    if compute_loadings:
+        mt = mt.annotate_cols(firstU = mt.U)
 
     p = min(num_moments // 2, 10)
 
@@ -516,7 +518,7 @@ def _pca_and_moments(tsm,
             loading_vectors = hl.range(hl.len(mt.row_keys)).map(
                 lambda i: hl.struct(
                     row_key = mt.row_keys[i],
-                    loadings = mt.U[i, :]._data_array()
+                    loadings = mt.firstU[i, :]._data_array()
                 )
             )
         )
