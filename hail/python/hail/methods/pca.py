@@ -472,8 +472,8 @@ def _pca_and_moments(tsm,
     tsm.block_matrix_table = mt
 
     fact = _krylov_factorization(tsm, q, L, compute_U=compute_loadings)
-    mt = mt.annotate_cols(firstS = mt.S)
     mt = fact.reduced_svd(k)
+    mt = mt.annotate_cols(firstS = mt.S)
 
     p = min(num_moments // 2, 10)
 
