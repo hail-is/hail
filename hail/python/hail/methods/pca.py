@@ -280,7 +280,9 @@ class KrylovFactorization:
             mt = mt.annotate_cols(V = mt.V @ mt.V1t.T[:, :k])
         return mt
 
-    def spectral_moments(self, num_moments, R):
+    def spectral_moments(self, num_moments):
+        assert 'R1' in self.mt
+
         def sqr(x):
             return x ** 2
 
@@ -430,7 +432,7 @@ def _spectral_moments(tsm,
     tsm.block_matrix_table = mt
 
     fact = _krylov_factorization(tsm, p, moment_samples, compute_U=False)
-    mt = fact.spectral_moments(num_moments, R1)
+    mt = fact.spectral_moments(num_moments)
     return mt.aggregate_cols(hl.tuple((
         hl.agg.collect(mt.moments)[0],
         hl.agg.collect(mt.stdevs)[0])))
@@ -474,6 +476,10 @@ def _pca_and_moments(tsm,
     fact = _krylov_factorization(tsm, q, L, compute_U=compute_loadings)
     mt = fact.reduced_svd(k)
     mt = mt.annotate_cols(firstS = mt.S)
+    mt = mt.annotate_cols(
+        scores = mt.V * mt.S,
+        eigens = mt.S * mt.S
+    )
     if compute_loadings:
         mt = mt.annotate_cols(firstU = mt.U)
 
@@ -486,10 +492,10 @@ def _pca_and_moments(tsm,
         G2 = G2 - mt.V @ (mt.V.T @ G2)
     )
     Q1, R1 = hl.nd.qr(G2)
-    mt = mt.annotate_cols(Q1 = Q1, R1 = R1)
+    mt = mt.annotate_cols(V0 = Q1, R1 = R1)
     tsm.block_matrix_table = mt
     fact2 = _krylov_factorization(tsm, p, moment_samples, compute_U=False)
-    mt = fact2.spectral_moments(num_moments, R1)
+    mt = fact2.spectral_moments(num_moments)
     # Add back exact moments
     mt = mt.annotate_cols(
         moments = mt.moments + hl.nd.array([
@@ -498,12 +504,6 @@ def _pca_and_moments(tsm,
         ])
     )
 
-    mt = mt.annotate_cols(
-        scores = mt.V * mt.S,
-        eigens = mt.S * mt.S
-    )
-
-    assert 'scores' not in mt.col_keys.dtype.element_type
     mt = mt.annotate_cols(
         real_cols = hl.range(tsm.n_cols).map(
             lambda i: hl.struct(
