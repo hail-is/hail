@@ -281,7 +281,7 @@ class KrylovFactorization:
         return mt
 
     def spectral_moments(self, num_moments):
-        assert 'R1' in self.mt
+        assert 'R1' in self.globals 'R1' in self.mt.col
 
         def sqr(x):
             return x ** 2
@@ -338,7 +338,7 @@ def _krylov_factorization(
 
     """
     mt = tsm.block_matrix_table
-    assert 'V0' in mt.globals
+    assert 'V0' in mt.globals or 'V0' in mt.col
 
     prev = mt.V0
     for j in range(1, p + 1):
@@ -470,7 +470,7 @@ def _pca_and_moments(tsm,
     # Generate random matrix G
     G = hl.rand_norm(0, 1, size=(n, L))
     G = hl.nd.qr(G)[0]
-    mt = mt.annotate_globals(V0 = G)
+    mt = mt.annotate_cols(V0 = G)
     tsm.block_matrix_table = mt
 
     fact = _krylov_factorization(tsm, q, L, compute_U=compute_loadings)
