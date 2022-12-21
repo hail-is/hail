@@ -56,7 +56,7 @@ class TallSkinnyMatrix:
         #     ht.annotate_globals(x=hl.agg.collect(mt.row))
         #
         # is not.
-        self.block_matrix_table = block_matrix_table
+        self.mt = block_matrix_table
         assert 'block' in block_matrix_table.row
         self.source_mt = source_mt
         # NB: the last row may have fewer rows
@@ -74,6 +74,58 @@ class TallSkinnyMatrix:
     def entryless_matrix_table(self) -> hl.MatrixTable:
         return self.source_mt.select_entries()
 
+    def __getitem__(self, x):
+        return self.mt.__getitem__(x)
+
+    def __getattr__(self, x):
+        return self.mt.__getattr__(x)
+
+    def _copy(self, mt):
+        return TallSkinnyMatrix(mt,
+                                self.source_mt,
+                                self.n_rows,
+                                self.n_cols,
+                                self.rows_per_block)
+
+    def annotate_globals(self, **kwargs):
+        return self._copy(self.mt.annotate_cols(**kwargs))
+
+    def select_globals(self, **kwargs):
+        return self._copy(self.mt.annotate_cols(**kwargs))
+
+    def annotate(self, **kwargs):
+        return self._copy(self.mt.annotate_entries(**kwargs))
+
+    def select(self, **kwargs):
+        return self._copy(self.mt.annotate_entries(**kwargs))
+
+    def drop(self, *args):
+        return self._copy(self.mt.drop(*args))
+
+    def checkpoint(self, path):
+        return self._copy(self.checkpoint(path))
+
+    def to_table(self):
+        mt = self.mt
+        ht = mt.localize_entries('fake_entries', 'fake_cols')
+
+        the_col = ht.fake_cols[0]
+        ht = ht.select_globals(
+            *mt.globals,
+            **{k: the_col[k] for k in the_col}
+        )
+
+        the_entry = ht.fake_entries[0]
+        ht = ht.select(
+            *mt.row_value,
+            **{k: the_entry[k] for k in the_entry}
+        )
+        return ht
+
+    @property
+    def globals(self):
+        return self.to_table().globals
+
 
 def mt_to_tsm(entry_expr,
               rows_per_block: Optional[int],
@@ -84,7 +136,6 @@ def mt_to_tsm(entry_expr,
 
     n_rows, n_cols = dimensions or mt.count()
     rows_per_block = reasonable_block_size(entry_expr.dtype, n_rows, n_cols)
-
     mt, field = mt.expr_to_field(entry_expr)
     mt = mt.select_globals()
     mt = mt.select_cols()

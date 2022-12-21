@@ -3,7 +3,7 @@ import math
 import numpy as np
 
 import hail as hl
-from hail.methods.pca import _make_tsm
+from hail.experimental import mt_to_tsm, TallSkinnyMatrix
 from ..helpers import resource, fails_local_backend, fails_service_backend, skip_when_service_backend
 
 
@@ -225,7 +225,8 @@ def spectral_moments_helper(spec_func):
         A = U @ sigma @ V.T
         mt_A = matrix_table_from_numpy(A)
 
-        moments, stdevs = hl._spectral_moments(_make_tsm(mt_A.ent, 128), 7)
+        tsm = mt_to_tsm(mt_A.ent, 128, (m, n))
+        moments, stdevs = hl._spectral_moments(tsm, 7)
         true_moments = np.array([np.sum(np.power(sigma, 2*i)) for i in range(1, 8)])
         np.testing.assert_allclose(moments, true_moments, rtol=2e-01)
 
@@ -267,7 +268,15 @@ def spectra_and_moments_helper(spec_func):
         A = U @ sigma @ V.T
         mt_A = matrix_table_from_numpy(A)
 
-        eigenvalues, scores, loadings, moments, stdevs = hl._pca_and_moments(_make_tsm(mt_A.ent, 128), k=k, num_moments=7, oversampling_param=k, compute_loadings=True, q_iterations=4)
+        tsm = mt_to_tsm(mt_A.ent, 128, (m, n))
+        eigenvalues, scores, loadings, moments, stdevs = hl._pca_and_moments(
+            tsm,
+            k=k,
+            num_moments=7,
+            oversampling_param=k,
+            compute_loadings=True,
+            q_iterations=4
+        )
         singulars = np.sqrt(eigenvalues)
         hail_V = (np.array(scores.scores.collect()) / singulars).T
         hail_U = np.array(loadings.loadings.collect())
