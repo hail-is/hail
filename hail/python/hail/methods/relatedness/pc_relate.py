@@ -477,7 +477,7 @@ def _pc_relate_bm(call_expr: CallExpression,
         f'Must have min_individual_maf on interval [0.0, 1.0].'
     mt = matrix_table_source('pc_relate_bm/call_expr', call_expr)
     if k and scores_expr is None:
-        eigens, scores, _ = hwe_normalized_pca(call_expr, k, compute_loadings=False, q_iterations=10)
+        eigens, scores, _ = hwe_normalized_pca(call_expr, k, compute_loadings=False)
         scores_table = scores.select(__scores=scores.scores).key_by().select('__scores')
         compute_S0 = False
     elif not k and scores_expr is not None:
