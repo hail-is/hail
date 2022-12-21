@@ -263,7 +263,7 @@ def tsm_reduced_svd(tsm: TallSkinnyMatrix, k: int):
     if 'U' in tsm.globals:
         tsm = tsm.annotate_globals(U = tsm.U @ tsm.U1[:, :k])
     if 'V' in tsm.globals:
-       tsm = tsm.annotate_globals(V = tsm.V @ tsm.V1t.T[:, :k])
+        tsm = tsm.annotate_globals(V = tsm.V @ tsm.V1t.T[:, :k])
     return tsm
 
 
@@ -388,7 +388,7 @@ def _spectral_moments(tsm,
                       p: Optional[int] = None,
                       moment_samples: int = 500,
                       block_size: Optional[int] = None
-                     ) -> Tuple[Any, Any]:
+                      ) -> Tuple[Any, Any]:
     if not isinstance(tsm, TallSkinnyMatrix):
         check_entry_indexed('_spectral_moments/entry_expr', tsm)
         tsm = _make_tsm_from_call(tsm, block_size)
@@ -649,10 +649,10 @@ def _blanczos_pca(tsm,
         oversampling_param = k
 
     tsm = _reduced_svd(tsm,
-                      k=k,
-                      compute_U=compute_loadings,
-                      iterations=q_iterations,
-                      iteration_size=k + oversampling_param)
+                       k=k,
+                       compute_U=compute_loadings,
+                       iterations=q_iterations,
+                       iteration_size=k + oversampling_param)
     tsm = tsm.annotate_globals(
         scores = tsm.V * tsm.S,
         eigens = tsm.S * tsm.S
