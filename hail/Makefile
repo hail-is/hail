@@ -341,7 +341,7 @@ install: $(WHEEL)
 	hailctl config set query/backend spark
 
 .PHONY: install-on-cluster
-install-on-cluster: $(WHEEL) check-pip-lockfiles
+install-on-cluster: $(WHEEL) check-pip-lockfile
 	sed '/^pyspark/d' python/pinned-requirements.txt | grep -v -e '^[[:space:]]*#' -e '^$$' | tr '\n' '\0' | xargs -0 $(PIP) install -U
 	-$(PIP) uninstall -y hail
 	$(PIP) install $(WHEEL) --no-deps
