@@ -1,4 +1,5 @@
 from typing import Tuple, AsyncIterator
+import datetime
 import random
 import functools
 import os
@@ -471,6 +472,28 @@ async def test_statfile(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
     status = await fs.statfile(file)
     assert await status.size() == n
 
+
+@pytest.mark.asyncio
+async def test_statfile_creation_and_modified_time(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
+    _, fs, base = filesystem
+
+    file = f'{base}bar'
+    now = datetime.datetime.utcnow()
+    await fs.write(file, b'abc123')
+    status = await fs.statfile(file)
+
+    if isinstance(fs, LocalAsyncFS):
+        try:
+            status.time_created()
+        except ValueError as err:
+            assert err.args[0] == 'LocalFS does not support time created.'
+        else:
+            assert False
+    else:
+        create_time = status.time_created()
+        assert create_time.timestamp() == pytest.approx(now.timestamp(), abs=60)
+        modified_time = status.time_modified()
+        assert modified_time == create_time
 
 @pytest.mark.asyncio
 async def test_file_can_contain_url_query_delimiter(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):

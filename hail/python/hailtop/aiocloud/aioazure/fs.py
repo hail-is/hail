@@ -5,6 +5,7 @@ import re
 import asyncio
 import secrets
 import logging
+import datetime
 
 from azure.storage.blob import BlobProperties
 from azure.storage.blob.aio import BlobClient, ContainerClient, BlobServiceClient, StorageStreamDownloader
@@ -255,6 +256,12 @@ class AzureFileStatus(FileStatus):
         size = self.blob_props.size
         assert isinstance(size, int)
         return size
+
+    def time_created(self) -> datetime.datetime:
+        return self.blob_props.creation_time
+
+    def time_modified(self) -> datetime.datetime:
+        return self.blob_props.last_modified
 
     async def __getitem__(self, key: str) -> Any:
         return self.blob_props.__dict__[key]

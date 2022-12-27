@@ -3,6 +3,7 @@ from typing import (Any, AsyncContextManager, Optional, Type, Set, AsyncIterator
 from types import TracebackType
 import abc
 import asyncio
+import datetime
 from hailtop.utils import retry_transient_errors, OnlineBoundedGather2
 from .stream import EmptyReadableStream, ReadableStream, WritableStream
 from .exceptions import FileAndDirectoryError
@@ -11,6 +12,20 @@ from .exceptions import FileAndDirectoryError
 class FileStatus(abc.ABC):
     @abc.abstractmethod
     async def size(self) -> int:
+        pass
+
+    @abc.abstractmethod
+    def time_created(self) -> datetime.datetime:
+        '''The time the object was created in seconds since the epcoh, UTC.'''
+        pass
+
+    @abc.abstractmethod
+    def time_modified(self) -> datetime.datetime:
+        '''The time the object was last modified in seconds since the epoch, UTC.
+
+        Not all clouds expose a modification time.
+
+        '''
         pass
 
     @abc.abstractmethod
