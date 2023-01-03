@@ -303,11 +303,7 @@ class InstanceCollection:
     async def check_on_instance(self, instance: Instance):
         active_and_healthy = await instance.check_is_active_and_healthy()
 
-        if (
-            instance.state == 'active'
-            and instance.failed_request_count > 5
-            and time_msecs() - instance.last_updated > 5 * 60 * 1000
-        ):
+        if instance.state == 'active' and instance.failed_request_count > 5:
             log.exception(
                 f'deleting {instance} with {instance.failed_request_count} failed request counts after more than 5 minutes'
             )
