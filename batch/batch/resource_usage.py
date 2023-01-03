@@ -13,6 +13,9 @@ from hailtop.utils import check_shell_output, time_msecs, time_ns
 log = logging.getLogger('resource_usage')
 
 
+iptables_lock = asyncio.Lock()
+
+
 class ResourceUsageMonitor:
     VERSION = 2
     missing_value = None
@@ -39,7 +42,7 @@ class ResourceUsageMonitor:
             ('cpu_usage', '>f8'),
         ]
 
-        if version >= 1:
+        if version > 1:
             assert version == ResourceUsageMonitor.VERSION, version
             dtype += [
                 ('non_io_storage_in_bytes', '>i8'),
@@ -56,7 +59,7 @@ class ResourceUsageMonitor:
         container_name: str,
         container_overlay: str,
         io_volume_mount: Optional[str],
-        veth_host: Optional[str],
+        veth_host: str,
         output_file_path: str,
     ):
         self.container_name = container_name
@@ -64,6 +67,8 @@ class ResourceUsageMonitor:
         self.io_volume_mount = io_volume_mount
         self.veth_host = veth_host
         self.output_file_path = output_file_path
+
+        self.is_attached_disk = io_volume_mount is not None and os.path.ismount(io_volume_mount)
 
         self.last_time_ns: Optional[int] = None
         self.last_cpu_ns: Optional[int] = None
@@ -120,33 +125,35 @@ class ResourceUsageMonitor:
             return shutil.disk_usage(self.io_volume_mount).used
         return 0
 
-    def is_attached_disk(self) -> bool:
-        return self.io_volume_mount is not None and os.path.ismount(self.io_volume_mount)
-
     async def network_bandwidth(self) -> Tuple[Optional[float], Optional[float]]:
-        now_time_msecs = time_msecs()
+        async with iptables_lock:
+            now_time_msecs = time_msecs()
 
-        iptables_output, _ = await check_shell_output(
-            f'''
-iptables -t mangle -L -v -n -x | grep "{self.veth_host}" | awk '{{ if ($7 == "{self.veth_host}") print $2 }}'
+            iptables_output, stderr = await check_shell_output(
+                f'''
+iptables -t mangle -L -v -n -x -w | grep "{self.veth_host}" | awk '{{ if ($6 == "{self.veth_host}" || $7 == "{self.veth_host}") print $2, $6, $7 }}'
 '''
-        )
-        now_download_bytes = int(iptables_output.decode('utf-8').rstrip())
+            )
+        if stderr:
+            log.exception(stderr)
+        output = iptables_output.decode('utf-8').rstrip().splitlines()
+        assert len(output) == 2, str((output, self.veth_host))
 
-        iptables_output, _ = await check_shell_output(
-            f'''
-iptables -t mangle -L -v -n -x | grep "{self.veth_host}" | awk '{{ if ($6 == "{self.veth_host}") print $2 }}'
-'''
-        )
-        now_upload_bytes = int(iptables_output.decode('utf-8').rstrip())
+        now_upload_bytes = None
+        now_download_bytes = None
+        for line in output:
+            fields = line.split()
+            bytes_transmitted = int(fields[0])
 
-        if (
-            now_upload_bytes is None
-            or now_download_bytes is None
-            or self.last_upload_bytes is None
-            or self.last_download_bytes is None
-            or self.last_time_msecs is None
-        ):
+            if fields[1] == self.veth_host and fields[2] != self.veth_host:
+                now_upload_bytes = bytes_transmitted
+            else:
+                assert fields[1] != self.veth_host and fields[2] == self.veth_host, line
+                now_download_bytes = bytes_transmitted
+
+        assert now_upload_bytes is not None and now_download_bytes is not None, output
+
+        if self.last_upload_bytes is None or self.last_download_bytes is None or self.last_time_msecs is None:
             self.last_time_msecs = time_msecs()
             self.last_upload_bytes = now_upload_bytes
             self.last_download_bytes = now_download_bytes
@@ -174,8 +181,11 @@ iptables -t mangle -L -v -n -x | grep "{self.veth_host}" | awk '{{ if ($6 == "{s
 
         overlay_usage_bytes = self.overlay_storage_usage_bytes()
         io_usage_bytes = self.io_storage_usage_bytes()
-        non_io_usage_bytes = overlay_usage_bytes if self.is_attached_disk() else overlay_usage_bytes - io_usage_bytes
+        non_io_usage_bytes = overlay_usage_bytes if self.is_attached_disk else overlay_usage_bytes - io_usage_bytes
         network_upload_bytes_per_second, network_download_bytes_per_second = await self.network_bandwidth()
+
+        if network_upload_bytes_per_second is None or network_download_bytes_per_second is None:
+            return
 
         data = struct.pack(
             '>2qd2q2d',

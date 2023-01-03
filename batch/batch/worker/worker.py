@@ -252,7 +252,6 @@ class NetworkNamespace:
     async def init(self):
         await self.create_netns()
         await self.enable_iptables_forwarding()
-        await self.mark_packets()
 
         os.makedirs(f'/etc/netns/{self.network_ns_name}')
         with open(f'/etc/netns/{self.network_ns_name}/hosts', 'w', encoding='utf-8') as hosts:
@@ -285,7 +284,9 @@ ip address add {self.host_ip}/24 dev {self.veth_host}
 ip -n {self.network_ns_name} link set dev {self.veth_job} up && \
 ip -n {self.network_ns_name} link set dev lo up && \
 ip -n {self.network_ns_name} address add {self.job_ip}/24 dev {self.veth_job} && \
-ip -n {self.network_ns_name} route add default via {self.host_ip}'''
+ip -n {self.network_ns_name} route add default via {self.host_ip} && \
+iptables -t mangle -A PREROUTING --in-interface {self.veth_host} -j MARK --set-mark 10 && \
+iptables -t mangle -A POSTROUTING --out-interface {self.veth_host} -j MARK --set-mark 11'''
         )
 
     async def enable_iptables_forwarding(self):
@@ -293,14 +294,6 @@ ip -n {self.network_ns_name} route add default via {self.host_ip}'''
             f'''
 iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.internet_interface} --jump ACCEPT && \
 iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.veth_host} --jump ACCEPT'''
-        )
-
-    async def mark_packets(self):
-        await check_shell(
-            f'''
-iptables -t mangle -A PREROUTING --in-interface {self.veth_host} -j MARK --set-mark 10
-iptables -t mangle -A POSTROUTING --out-interface {self.veth_host} -j MARK --set-mark 11
-'''
         )
 
     async def expose_port(self, port, host_port):
@@ -327,6 +320,8 @@ iptables -t mangle -A POSTROUTING --out-interface {self.veth_host} -j MARK --set
         self.port = None
         await check_shell(
             f'''
+iptables -t mangle -D PREROUTING --in-interface {self.veth_host} -j MARK --set-mark 10 && \
+iptables -t mangle -D POSTROUTING --out-interface {self.veth_host} -j MARK --set-mark 11 && \
 ip link delete {self.veth_host} && \
 ip netns delete {self.network_ns_name}'''
         )
