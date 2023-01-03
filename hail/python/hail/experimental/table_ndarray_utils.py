@@ -41,7 +41,7 @@ def reasonable_block_size(typ: hl.HailType, n_rows: int, n_cols: int):
 class TallSkinnyMatrix:
     def __init__(self,
                  block_matrix_table: hl.MatrixTable,
-                 source_mt: hl.MatrixTable,
+                 col_key: List[str],
                  n_rows: int,
                  n_cols: int,
                  rows_per_block: int):
@@ -58,21 +58,9 @@ class TallSkinnyMatrix:
         # is not.
         self.mt = block_matrix_table
         assert 'block' in block_matrix_table.row
-        self.source_mt = source_mt
+        self.col_key = col_key
         # NB: the last row may have fewer rows
         self.rows_per_block = rows_per_block
-
-    def row_key_table(self) -> hl.Table:
-        return self.source_mt.rows()
-
-    def col_key_table(self) -> hl.Table:
-        return self.source_mt.cols()
-
-    def col_key(self) -> List[str]:
-        return list(self.source_mt.col_key)
-
-    def entryless_matrix_table(self) -> hl.MatrixTable:
-        return self.source_mt.select_entries()
 
     def __getitem__(self, x):
         return self.mt.__getitem__(x)
@@ -82,7 +70,7 @@ class TallSkinnyMatrix:
 
     def _copy(self, mt):
         return TallSkinnyMatrix(mt,
-                                self.source_mt,
+                                self.col_key,
                                 self.n_rows,
                                 self.n_cols,
                                 self.rows_per_block)
@@ -156,4 +144,7 @@ def mt_to_tsm(entry_expr,
     ht = ht.annotate_globals(fake_cols = [hl.struct()])
     ht = ht.annotate(fake_entries = [hl.struct()])
     mt = ht._unlocalize_entries('fake_entries', 'fake_cols', col_key=[])
-    return TallSkinnyMatrix(mt, source_mt, n_rows, n_cols, rows_per_block)
+
+    col_key_fields = list(self.source_mt.col_key)
+
+    return TallSkinnyMatrix(mt, col_key_fields, n_rows, n_cols, rows_per_block)
