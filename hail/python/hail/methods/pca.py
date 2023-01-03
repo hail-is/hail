@@ -471,13 +471,15 @@ def _pca_and_moments(tsm,
     p = min(num_moments // 2, 10)
 
     # Generate random matrix G2 for moment estimation
-    G2 = hl.rand_unif(-1, 1, size=(n, moment_samples)).map(lambda x: hl.sign(x))
+    tsm = tsm.annotate_globals(
+        G2 = hl.rand_unif(-1, 1, size=(n, moment_samples)).map(lambda x: hl.sign(x))
+    )
     # Project out components in the subspace KrylovFactorization V (nb: NOT the V from SVD), which
     # we can compute exactly
     tsm = tsm.annotate_globals(
-        G2 = G2 - tsm.krylov1_V @ (tsm.krylov1_V.T @ G2)
+        G2 = tsm.G2 - tsm.krylov1_V @ (tsm.krylov1_V.T @ tsm.G2)
     )
-    Q1, R1 = hl.nd.qr(G2)
+    Q1, R1 = hl.nd.qr(tsm.G2)
     tsm = tsm.annotate_globals(Q1 = Q1, R1 = R1)
     tsm = tsm_krylov_factorization(tsm, p, 'Q1', compute_U=False)
     k = min(n, moment_samples)
