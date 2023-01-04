@@ -233,12 +233,14 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, keyFields: Indexe
     private[this] val keyEmitType = EmitType(spec.decodedPType(keyType).sType, false)
     private[this] val firstSeenSettable = mb.newEmitLocal("pnw_firstSeen", keyEmitType)
     private[this] val lastSeenSettable = mb.newEmitLocal("pnw_lastSeen", keyEmitType)
+    private[this] val lastSeenRegion = mb.newLocal[Region]("last_key_region")
 
     def setup(): Unit = {
       cb.assign(distinctlyKeyed, !keyFields.isEmpty) // True until proven otherwise, if there's a key to care about at all.
       // Start off missing, we will use this to determine if we haven't processed any rows yet.
       cb.assign(firstSeenSettable, EmitCode.missing(cb.emb, keyEmitType.st))
       cb.assign(lastSeenSettable, EmitCode.missing(cb.emb, keyEmitType.st))
+      cb.assign(lastSeenRegion, Region.stagedCreate(Region.TINY, region.getPool()))
 
       cb.assign(filename, ctx.loadString(cb))
       if (hasIndex) {
@@ -286,7 +288,8 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, keyFields: Indexe
             })
           })
         })
-        cb.assign(lastSeenSettable, IEmitCode.present(cb, key.copyToRegion(cb, region, lastSeenSettable.st)))
+        cb += lastSeenRegion.clearRegion()
+        cb.assign(lastSeenSettable, IEmitCode.present(cb, key.copyToRegion(cb, lastSeenRegion, lastSeenSettable.st)))
       }
 
       cb += ob.writeByte(1.asInstanceOf[Byte])
@@ -307,6 +310,10 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, keyFields: Indexe
       cb += ob.flush()
       cb += os.invoke[Unit]("close")
 
+      lastSeenSettable.loadI(cb).consume(cb, { /* do nothing */ }, { lastSeen =>
+        cb.assign(lastSeenSettable, IEmitCode.present(cb, lastSeen.copyToRegion(cb, region, lastSeenSettable.st)))
+      })
+      cb += lastSeenRegion.invalidate()
       val values = Seq[EmitCode](
         EmitCode.present(mb, ctx),
         EmitCode.present(mb, new SInt64Value(n)),
