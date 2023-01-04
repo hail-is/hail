@@ -240,9 +240,11 @@ case class SplitPartitionNativeWriter(
 
       val firstSeenSettable =  mb.newEmitLocal("pnw_firstSeen", keyEmitType)
       val lastSeenSettable =  mb.newEmitLocal("pnw_lastSeen", keyEmitType)
+      val lastSeenRegion = cb.newLocal[Region]("last_seen_region")
       // Start off missing, we will use this to determine if we haven't processed any rows yet.
       cb.assign(firstSeenSettable, EmitCode.missing(cb.emb, keyEmitType.st))
       cb.assign(lastSeenSettable, EmitCode.missing(cb.emb, keyEmitType.st))
+      cb.assign(lastSeenRegion, Region.stagedCreate(Region.TINY, region.getPool()))
 
 
       def writeFile(cb: EmitCodeBuilder, codeRow: EmitCode): Unit = {
@@ -280,7 +282,8 @@ case class SplitPartitionNativeWriter(
               })
             })
           })
-          cb.assign(lastSeenSettable, IEmitCode.present(cb, key.copyToRegion(cb, region, lastSeenSettable.st)))
+          cb += lastSeenRegion.clearRegion()
+          cb.assign(lastSeenSettable, IEmitCode.present(cb, key.copyToRegion(cb, lastSeenRegion, lastSeenSettable.st)))
         }
 
         cb += ob1.writeByte(1.asInstanceOf[Byte])
@@ -322,6 +325,10 @@ case class SplitPartitionNativeWriter(
       cb += os1.invoke[Unit]("close")
       cb += os2.invoke[Unit]("close")
 
+      lastSeenSettable.loadI(cb).consume(cb, { /* do nothing */ }, { lastSeen =>
+        cb.assign(lastSeenSettable, IEmitCode.present(cb, lastSeen.copyToRegion(cb, region, lastSeenSettable.st)))
+      })
+      cb += lastSeenRegion.invalidate()
 
       SStackStruct.constructFromArgs(cb, region, returnType.asInstanceOf[TBaseStruct],
         EmitCode.present(mb, pctx),
