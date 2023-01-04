@@ -284,9 +284,7 @@ ip address add {self.host_ip}/24 dev {self.veth_host}
 ip -n {self.network_ns_name} link set dev {self.veth_job} up && \
 ip -n {self.network_ns_name} link set dev lo up && \
 ip -n {self.network_ns_name} address add {self.job_ip}/24 dev {self.veth_job} && \
-ip -n {self.network_ns_name} route add default via {self.host_ip} && \
-iptables -t mangle -A PREROUTING --in-interface {self.veth_host} -j MARK --set-mark 10 && \
-iptables -t mangle -A POSTROUTING --out-interface {self.veth_host} -j MARK --set-mark 11'''
+ip -n {self.network_ns_name} route add default via {self.host_ip}'''
         )
 
     async def enable_iptables_forwarding(self):
@@ -294,6 +292,14 @@ iptables -t mangle -A POSTROUTING --out-interface {self.veth_host} -j MARK --set
             f'''
 iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.internet_interface} --jump ACCEPT && \
 iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.veth_host} --jump ACCEPT'''
+        )
+
+    async def mark_packets(self):
+        await check_shell(
+            f'''
+iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} -t mangle -A PREROUTING --in-interface {self.veth_host} -j MARK --set-mark 10 && \
+iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} -t mangle -A POSTROUTING --out-interface {self.veth_host} -j MARK --set-mark 11
+'''
         )
 
     async def expose_port(self, port, host_port):
@@ -320,12 +326,13 @@ iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.
         self.port = None
         await check_shell(
             f'''
-iptables -t mangle -D PREROUTING --in-interface {self.veth_host} -j MARK --set-mark 10 && \
-iptables -t mangle -D POSTROUTING --out-interface {self.veth_host} -j MARK --set-mark 11 && \
+iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} -t mangle -D PREROUTING --in-interface {self.veth_host} -j MARK --set-mark 10 && \
+iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} -t mangle -D POSTROUTING --out-interface {self.veth_host} -j MARK --set-mark 11 && \
+iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} -D FORWARD --out-interface {self.veth_host} --in-interface {self.internet_interface} --jump ACCEPT && \
+iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} -D FORWARD --out-interface {self.veth_host} --in-interface {self.veth_host} --jump ACCEPT && \
 ip link delete {self.veth_host} && \
 ip netns delete {self.network_ns_name}'''
         )
-        await self.create_netns()
 
 
 class NetworkAllocator:
@@ -356,6 +363,9 @@ class NetworkAllocator:
 
     async def _free(self, netns: NetworkNamespace):
         await netns.cleanup()
+        await netns.create_netns()
+        await netns.enable_iptables_forwarding()
+        await netns.mark_packets()
         if netns.private:
             self.private_networks.put_nowait(netns)
         else:
