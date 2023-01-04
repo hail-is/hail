@@ -2,7 +2,7 @@ import asyncio
 import logging
 import random
 from collections import defaultdict
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import prometheus_client as pc
 import sortedcontainers
@@ -13,14 +13,12 @@ from hailtop.utils import (
     AsyncWorkerPool,
     Notice,
     WaitableSharedPool,
-    periodically_call,
     retry_long_running,
     run_if_changed,
     secret_alnum_string,
     time_msecs,
 )
 
-from ...batch_configuration import STANDING_WORKER_MAX_IDLE_TIME_MSECS
 from ...batch_format_version import BatchFormatVersion
 from ...inst_coll_config import PoolConfig
 from ...utils import ExceededSharesCounter, regions_bits_rep_to_regions
@@ -59,11 +57,6 @@ AUTOSCALER_HEAD_JOB_QUEUE_READY_CORES = pc.Gauge(
     'Number of ready cores per control loop execution calculated from the head of the job queue',
     ['pool_name', 'region'],
 )
-
-
-AUTOSCALER_LOOP_PERIOD_SECONDS = 15
-MAX_INSTANCES_PER_AUTOSCALER_LOOP = 10  # n * 16 cores / 15s = excess_scheduling_rate/s = 10/s => n ~= 10
-JOB_QUEUE_SCHEDULING_WINDOW_SECONDS = 150  # 2.5 minutes is approximately worker start up time
 
 
 class Pool(InstanceCollection):
@@ -139,6 +132,11 @@ WHERE removed = 0 AND inst_coll = %s;
         self.data_disk_size_gb = config.data_disk_size_gb
         self.data_disk_size_standing_gb = config.data_disk_size_standing_gb
         self.preemptible = config.preemptible
+        self.max_instances_per_autoscaler_loop = config.max_instances_per_autoscaler_loop
+        self.autoscaler_loop_period_secs = config.autoscaler_loop_period_secs
+        self.standing_worker_max_idle_time_secs = config.standing_worker_max_idle_time_secs
+        self.worker_max_idle_time_secs = config.worker_max_idle_time_secs
+        self.job_queue_scheduling_window_secs = config.job_queue_scheduling_window_secs
 
         self.all_supported_regions = self.inst_coll_manager.regions
 
@@ -162,6 +160,11 @@ WHERE removed = 0 AND inst_coll = %s;
             'max_instances': self.max_instances,
             'max_live_instances': self.max_live_instances,
             'preemptible': self.preemptible,
+            'max_instances_per_autoscaler_loop': self.max_instances_per_autoscaler_loop,
+            'autoscaler_loop_period_secs': self.autoscaler_loop_period_secs,
+            'standing_worker_max_idle_time_secs': self.standing_worker_max_idle_time_secs,
+            'worker_max_idle_time_secs': self.worker_max_idle_time_secs,
+            'job_queue_scheduling_window_secs': self.job_queue_scheduling_window_secs,
         }
 
     def configure(self, pool_config: PoolConfig):
@@ -180,6 +183,11 @@ WHERE removed = 0 AND inst_coll = %s;
         self.max_instances = pool_config.max_instances
         self.max_live_instances = pool_config.max_live_instances
         self.preemptible = pool_config.preemptible
+        self.max_instances_per_autoscaler_loop = pool_config.max_instances_per_autoscaler_loop
+        self.autoscaler_loop_period_secs = pool_config.autoscaler_loop_period_secs
+        self.standing_worker_max_idle_time_secs = pool_config.standing_worker_max_idle_time_secs
+        self.worker_max_idle_time_secs = pool_config.worker_max_idle_time_secs
+        self.job_queue_scheduling_window_secs = pool_config.job_queue_scheduling_window_secs
 
     def adjust_for_remove_instance(self, instance):
         super().adjust_for_remove_instance(instance)
@@ -206,7 +214,7 @@ WHERE removed = 0 AND inst_coll = %s;
         cores: int,
         data_disk_size_gb: int,
         regions: List[str],
-        max_idle_time_msecs: Optional[int] = None,
+        max_idle_time_msecs: int,
     ):
         machine_type = self.resource_manager.machine_type(cores, self.worker_type, self.worker_local_ssd_data_disk)
         _, _ = await self._create_instance(
@@ -255,6 +263,7 @@ WHERE removed = 0 AND inst_coll = %s;
                         cores=self.worker_cores,
                         data_disk_size_gb=self.data_disk_size_gb,
                         regions=regions,
+                        max_idle_time_msecs=self.worker_max_idle_time_secs * 1000,
                     )
                     for _ in range(n_instances)
                 ]
@@ -273,9 +282,9 @@ WHERE removed = 0 AND inst_coll = %s;
         return instances_needed
 
     async def regions_to_ready_cores_mcpu_from_estimated_job_queue(self) -> List[Tuple[List[str], int]]:
-        autoscaler_runs_per_minute = 60 / AUTOSCALER_LOOP_PERIOD_SECONDS
+        autoscaler_runs_per_minute = 60 / self.autoscaler_loop_period_secs
         max_new_instances_in_two_and_a_half_minutes = int(
-            2.5 * MAX_INSTANCES_PER_AUTOSCALER_LOOP * autoscaler_runs_per_minute
+            2.5 * self.max_instances_per_autoscaler_loop * autoscaler_runs_per_minute
         )
         max_possible_future_cores = self.worker_cores * max_new_instances_in_two_and_a_half_minutes
 
@@ -309,7 +318,7 @@ WHERE removed = 0 AND inst_coll = %s;
         LEFT JOIN batches ON jobs.batch_id = batches.id
         WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND always_run AND inst_coll = %s
         ORDER BY jobs.batch_id ASC, jobs.job_id ASC
-        LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
+        LIMIT {share * self.job_queue_scheduling_window_secs}
       )
       UNION
       (
@@ -319,15 +328,15 @@ WHERE removed = 0 AND inst_coll = %s;
         LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
         WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND NOT always_run AND batches_cancelled.id IS NULL AND inst_coll = %s
         ORDER BY jobs.batch_id ASC, jobs.job_id ASC
-        LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
+        LIMIT {share * self.job_queue_scheduling_window_secs}
       )
     ) AS t1
     ORDER BY batch_id, always_run DESC, -n_regions DESC, regions_bits_rep, job_id ASC
-    LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
+    LIMIT {share * self.job_queue_scheduling_window_secs}
   ) AS t2
   GROUP BY scheduling_iteration, user_idx, regions_bits_rep, n_regions
   HAVING ready_cores_mcpu > 0
-  LIMIT {MAX_INSTANCES_PER_AUTOSCALER_LOOP * self.worker_cores}
+  LIMIT {self.max_instances_per_autoscaler_loop * self.worker_cores}
 )
 '''
 
@@ -342,7 +351,7 @@ WITH ready_cores_by_scheduling_iteration_regions AS (
 SELECT regions_bits_rep, ready_cores_mcpu
 FROM ready_cores_by_scheduling_iteration_regions
 ORDER BY scheduling_iteration, user_idx, -n_regions DESC, regions_bits_rep
-LIMIT {MAX_INSTANCES_PER_AUTOSCALER_LOOP * self.worker_cores};
+LIMIT {self.max_instances_per_autoscaler_loop * self.worker_cores};
 ''',
             jobs_query_args,
             query_name='get_job_queue_head',
@@ -392,7 +401,7 @@ GROUP BY user;
 
         head_job_queue_ready_cores_mcpu: Dict[str, float] = defaultdict(float)
 
-        remaining_instances_per_autoscaler_loop = MAX_INSTANCES_PER_AUTOSCALER_LOOP
+        remaining_instances_per_autoscaler_loop = self.max_instances_per_autoscaler_loop
         if head_job_queue_regions_ready_cores_mcpu_ordered and free_cores < 500:
             for regions, ready_cores_mcpu in head_job_queue_regions_ready_cores_mcpu_ordered:
                 n_instances_created = await self.create_instances_from_ready_cores(
@@ -413,7 +422,7 @@ GROUP BY user;
                 cores=self.standing_worker_cores,
                 data_disk_size_gb=self.data_disk_size_standing_gb,
                 regions=self.all_supported_regions,
-                max_idle_time_msecs=STANDING_WORKER_MAX_IDLE_TIME_MSECS,
+                max_idle_time_msecs=self.standing_worker_max_idle_time_secs * 1000,
             )
 
         log.info(
@@ -428,7 +437,11 @@ GROUP BY user;
             AUTOSCALER_HEAD_JOB_QUEUE_READY_CORES.labels(pool_name=self.name, region=region).set(ready_cores_mcpu)
 
     async def control_loop(self):
-        await periodically_call(AUTOSCALER_LOOP_PERIOD_SECONDS, self.create_instances)
+        async def loop():
+            while True:
+                await self.create_instances()
+                await asyncio.sleep(self.autoscaler_loop_period_secs)
+        await retry_long_running('create_instances', loop)
 
     def __str__(self):
         return f'pool {self.name}'

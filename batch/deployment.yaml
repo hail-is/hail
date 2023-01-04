@@ -223,16 +223,12 @@ spec:
              secretKeyRef:
                name: global-config
                key: batch_logs_storage_uri
-         - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
-           value: "7200" # 2 hours
 {% else %}
          - name: HAIL_BATCH_STORAGE_URI
            valueFrom:
              secretKeyRef:
                name: global-config
                key: test_storage_uri
-         - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
-           value: "300"
 {% endif %}
 {% if deploy %}
          - name: HAIL_QUERY_STORAGE_URI
