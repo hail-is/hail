@@ -524,7 +524,7 @@ def _pca_and_moments(tsm,
         fake_entries = hl.range(hl.len(ht.real_cols)).map(lambda _: hl.struct())
     )
 
-    mt = ht._unlocalize_entries('fake_entries', 'real_cols', tsm.col_key())
+    mt = ht._unlocalize_entries('fake_entries', 'real_cols', tsm.col_key)
 
     mt = mt.checkpoint(hl.utils.new_temp_file('_pca_and_moments', 'ht'))
 
@@ -690,7 +690,7 @@ def _blanczos_pca(tsm,
         fake_entries = hl.range(hl.len(ht.real_cols)).map(lambda _: hl.struct())
     )
 
-    mt = ht._unlocalize_entries('fake_entries', 'real_cols', tsm.col_key())
+    mt = ht._unlocalize_entries('fake_entries', 'real_cols', tsm.col_key)
 
     mt = mt.checkpoint(hl.utils.new_temp_file('_blanczos_pca', 'mt'))
 

@@ -145,6 +145,6 @@ def mt_to_tsm(entry_expr,
     ht = ht.annotate(fake_entries = [hl.struct()])
     mt = ht._unlocalize_entries('fake_entries', 'fake_cols', col_key=[])
 
-    col_key_fields = list(self.source_mt.col_key)
+    col_key_fields = list(source_mt.col_key)
 
     return TallSkinnyMatrix(mt, col_key_fields, n_rows, n_cols, rows_per_block)
