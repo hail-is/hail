@@ -252,6 +252,7 @@ class NetworkNamespace:
     async def init(self):
         await self.create_netns()
         await self.enable_iptables_forwarding()
+        await self.mark_packets()
 
         os.makedirs(f'/etc/netns/{self.network_ns_name}')
         with open(f'/etc/netns/{self.network_ns_name}/hosts', 'w', encoding='utf-8') as hosts:

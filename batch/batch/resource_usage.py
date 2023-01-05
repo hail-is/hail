@@ -136,6 +136,8 @@ iptables -t mangle -L -v -n -x -w | grep "{self.veth_host}" | awk '{{ if ($6 == 
             )
         if stderr:
             log.exception(stderr)
+            return (None, None)
+
         output = iptables_output.decode('utf-8').rstrip().splitlines()
         assert len(output) == 2, str((output, self.veth_host))
 
