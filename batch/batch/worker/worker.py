@@ -327,13 +327,10 @@ iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} -t mangle -A POSTROUTING --out-interfac
         self.port = None
         await check_shell(
             f'''
-iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} -t mangle -D PREROUTING --in-interface {self.veth_host} -j MARK --set-mark 10 && \
-iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} -t mangle -D POSTROUTING --out-interface {self.veth_host} -j MARK --set-mark 11 && \
-iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} -D FORWARD --out-interface {self.veth_host} --in-interface {self.internet_interface} --jump ACCEPT && \
-iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} -D FORWARD --out-interface {self.veth_host} --in-interface {self.veth_host} --jump ACCEPT && \
 ip link delete {self.veth_host} && \
 ip netns delete {self.network_ns_name}'''
         )
+        await self.create_netns()
 
 
 class NetworkAllocator:
@@ -364,9 +361,6 @@ class NetworkAllocator:
 
     async def _free(self, netns: NetworkNamespace):
         await netns.cleanup()
-        await netns.create_netns()
-        await netns.enable_iptables_forwarding()
-        await netns.mark_packets()
         if netns.private:
             self.private_networks.put_nowait(netns)
         else:
