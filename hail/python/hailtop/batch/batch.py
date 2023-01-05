@@ -14,6 +14,16 @@ from . import backend as _backend, job, resource as _resource  # pylint: disable
 from .exceptions import BatchException
 
 
+class PythonFunctionDefinition:
+    def __init__(self, id: int, function: Callable):
+        self.id = id
+        self.function = function
+        self.references: List['job.PythonJob'] = []
+
+    def add_reference(self, j: 'job.PythonJob'):
+        self.references.append(j)
+
+
 class Batch:
     """
     Object representing the distributed acyclic graph (DAG) of jobs to run.
@@ -165,7 +175,7 @@ class Batch:
 
         self._cancel_after_n_failures = cancel_after_n_failures
 
-        self._python_function_defs: Dict[int, Callable] = {}
+        self._python_function_defs: Dict[int, PythonFunctionDefinition] = {}
         self._python_function_files: Dict[int, _resource.InputResourceFile] = {}
 
         self._batch_id: Optional[int] = None
@@ -178,9 +188,16 @@ class Batch:
     def _submitted_jobs(self):
         return [j for j in self._jobs if j._submitted]
 
-    def _register_python_function(self, function: Callable) -> int:
+    def _register_python_function(self, j: 'job.PythonJob', function: Callable) -> int:
         function_id = id(function)
-        self._python_function_defs[function_id] = function
+
+        func_def = self._python_function_defs.get(function_id)
+        if func_def is None:
+            func_def = PythonFunctionDefinition(function_id, function)
+            self._python_function_defs[function_id] = func_def
+
+        func_def.add_reference(j)
+
         return function_id
 
     async def _serialize_python_to_input_file(
@@ -203,11 +220,13 @@ class Batch:
     async def _serialize_python_functions_to_input_files(
         self, path: str, dry_run: bool = False
     ) -> None:
-        for function_id, function in self._python_function_defs.items():
-            file = await self._serialize_python_to_input_file(
-                path, "functions", function_id, function, dry_run
-            )
-            self._python_function_files[function_id] = file
+        for function_id, func_def in self._python_function_defs.items():
+            transfer_required = any(not j._submitted for j in func_def.references)
+            if transfer_required:
+                file = await self._serialize_python_to_input_file(
+                    path, "functions", function_id, func_def.function, dry_run
+                )
+                self._python_function_files[function_id] = file
 
     def _unique_job_token(self, n=5):
         token = secret_alnum_string(n)
@@ -353,7 +372,6 @@ class Batch:
             j.timeout(self._default_timeout)
 
         self._jobs.append(j)
-        self._unsubmitted_jobs.append(j)
         return j
 
     def _new_job_resource_file(self, source, value=None):

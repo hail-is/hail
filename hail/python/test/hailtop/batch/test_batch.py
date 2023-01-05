@@ -1085,3 +1085,32 @@ class ServiceTests(unittest.TestCase):
 
         assert res.get_job(3).status()['state'] == 'Success', str((res_status, res.debug_info()))
         assert res.get_job(4).status()['state'] == 'Cancelled', str((res_status, res.debug_info()))
+
+    def test_update_batch_with_python_job_dependencies(self):
+        b = self.batch()
+
+        async def foo(i, j):
+            await asyncio.sleep(1)
+            return i * j
+
+        j1 = b.new_python_job()
+        j1.call(foo, 2, 3)
+
+        batch = b.run()
+        batch_status = batch.status()
+        assert batch_status['state'] == 'success', str((batch_status, batch.debug_info()))
+
+        j2 = b.new_python_job()
+        j2.call(foo, 2, 3)
+
+        batch = b.run()
+        batch_status = batch.status()
+        assert batch_status['state'] == 'success', str((batch_status, batch.debug_info()))
+
+        j3 = b.new_python_job()
+        j3.depends_on(j2)
+        j3.call(foo, 2, 3)
+
+        batch = b.run()
+        batch_status = batch.status()
+        assert batch_status['state'] == 'success', str((batch_status, batch.debug_info()))

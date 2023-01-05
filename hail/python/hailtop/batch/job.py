@@ -1110,7 +1110,7 @@ class PythonJob(Job):
         result = self._get_resource(f'result{self.n_results}')
         handle_arg(result)
 
-        unapplied_id = self._batch._register_python_function(unapplied)
+        unapplied_id = self._batch._register_python_function(self, unapplied)
 
         self._function_calls.append((result, unapplied_id, args, kwargs))
 

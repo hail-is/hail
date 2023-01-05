@@ -329,9 +329,7 @@ class LocalBackend(Backend[None]):
                 code += ['\n']
 
                 run_code(code)
-
-                for job in batch._unsubmitted_jobs:
-                    job._submitted = True
+                job._submitted = True
         finally:
             if delete_scratch_on_exit:
                 sp.run(f'rm -rf {tmpdir}', shell=True, check=False)
@@ -629,7 +627,9 @@ class ServiceBackend(Backend[bc.Batch]):
                 jobs_to_command[j] = ' '.join(shq(x) for x in write_cmd)
                 n_jobs_submitted += 1
 
-        pyjobs = [j for j in batch._jobs if isinstance(j, _job.PythonJob)]
+        unsubmitted_jobs = batch._unsubmitted_jobs
+
+        pyjobs = [j for j in unsubmitted_jobs if isinstance(j, _job.PythonJob)]
         for pyjob in pyjobs:
             if pyjob._image is None:
                 version = sys.version_info
@@ -642,18 +642,18 @@ class ServiceBackend(Backend[bc.Batch]):
             batch_remote_tmpdir, dry_run=dry_run
         )
 
-        disable_setup_steps_progress_bar = disable_progress_bar or len(batch._jobs) < 10_000
-        with SimpleRichProgressBar(total=len(batch._jobs),
+        disable_setup_steps_progress_bar = disable_progress_bar or len(unsubmitted_jobs) < 10_000
+        with SimpleRichProgressBar(total=len(unsubmitted_jobs),
                                    description='upload code',
                                    disable=disable_setup_steps_progress_bar) as pbar:
             async def compile_job(job):
                 used_remote_tmpdir = await job._compile(local_tmpdir, batch_remote_tmpdir, dry_run=dry_run)
                 pbar.update(1)
                 return used_remote_tmpdir
-            used_remote_tmpdir_results = await bounded_gather(*[functools.partial(compile_job, j) for j in batch._jobs], parallelism=150)
+            used_remote_tmpdir_results = await bounded_gather(*[functools.partial(compile_job, j) for j in unsubmitted_jobs], parallelism=150)
             used_remote_tmpdir |= any(used_remote_tmpdir_results)
 
-        for job in track(batch._unsubmitted_jobs, description='create job objects', disable=disable_setup_steps_progress_bar):
+        for job in track(unsubmitted_jobs, description='create job objects', disable=disable_setup_steps_progress_bar):
             inputs = [x for r in job._inputs for x in copy_input(r)]
 
             outputs = [x for r in job._internal_outputs for x in copy_internal_output(r)]
@@ -788,7 +788,8 @@ class ServiceBackend(Backend[bc.Batch]):
         if wait:
             if verbose:
                 print(f'Waiting for batch {batch_handle.id}...')
-            status = batch_handle.wait(disable_progress_bar=disable_progress_bar)
+            starting_job_id = min(j._client_job.job_id for j in unsubmitted_jobs)
+            status = batch_handle.wait(disable_progress_bar=disable_progress_bar, starting_job=starting_job_id)
             print(f'batch {batch_handle.id} complete: {status["state"]}')
         return batch_handle
 
