@@ -1185,7 +1185,7 @@ with open('{result}', 'wb') as dill_out:
             wrapper_code = self._interpolate_command(wrapper_code, allow_python_results=True)
             self._wrapper_code.append(wrapper_code)
 
-            unapplied = self._batch._python_function_defs[unapplied_id]
+            unapplied = self._batch._python_function_defs[unapplied_id].function
             self._user_code.append(textwrap.dedent(inspect.getsource(unapplied)))
             args_str = ', '.join([f'{arg!r}' for _, arg in prepared_args])
             kwargs_str = ', '.join([f'{k}={v!r}' for k, (_, v) in kwargs.items()])
