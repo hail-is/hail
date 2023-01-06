@@ -469,8 +469,10 @@ def _pca_and_moments(A, k=10, num_moments=5, compute_loadings=False, q_iteration
            compute_loadings=bool,
            q_iterations=int,
            oversampling_param=nullable(int),
-           block_size=int)
-def _blanczos_pca(A, k=10, compute_loadings=False, q_iterations=10, oversampling_param=None, block_size=128):
+           block_size=int,
+           compute_scores=bool,
+           transpose=bool)
+def _blanczos_pca(A, k=10, compute_loadings=False, q_iterations=10, oversampling_param=None, block_size=128, compute_scores=True, transpose=False):
     r"""Run randomized principal component analysis approximation (PCA)
     on numeric columns derived from a matrix table.
 
@@ -565,25 +567,38 @@ def _blanczos_pca(A, k=10, compute_loadings=False, q_iterations=10, oversampling
         oversampling_param = k
 
     U, S, V = _reduced_svd(A, k, compute_loadings, q_iterations, k + oversampling_param)
-
-    scores = V * S
-    eigens = hl.eval(S * S)
     info("blanczos_pca: SVD Complete. Computing conversion to PCs.")
 
-    hail_array_scores = scores._data_array()
-    cols_and_scores = hl.zip(A.source_table.index_globals().cols, hail_array_scores).map(lambda tup: tup[0].annotate(scores=tup[1]))
-    st = hl.Table.parallelize(cols_and_scores, key=A.col_key)
-
-    if compute_loadings:
-        lt = A.source_table.select()
-        lt = lt.annotate_globals(U=U)
+    def numpy_to_rows_table(X, field_name):
+        t = A.source_table.select()
+        t = t.annotate_globals(X=X)
         idx_name = '_tmp_pca_loading_index'
-        lt = lt.add_index(idx_name)
-        lt = lt.annotate(loadings=lt.U[lt[idx_name], :]._data_array()).select_globals()
-        lt = lt.drop(lt[idx_name])
-        return eigens, st, lt
+        t = t.add_index(idx_name)
+        t = t.annotate(**{field_name: t.X[t[idx_name], :]._data_array()}).select_globals()
+        t = t.drop(t[idx_name])
+        return t
+
+    def numpy_to_cols_table(X, field_name):
+        hail_array = X._data_array()
+        cols_and_X = hl.zip(A.source_table.index_globals().cols, hail_array).map(lambda tup: tup[0].annotate(**{field_name: tup[1]}))
+        t = hl.Table.parallelize(cols_and_X, key=A.col_key)
+        return t
+
+    st = None
+    lt = None
+    eigens = hl.eval(S * S)
+    if transpose:
+        if compute_loadings:
+            lt = numpy_to_cols_table(V, 'loadings')
+        if compute_scores:
+            st = numpy_to_rows_table(U * S, 'scores')
     else:
-        return eigens, st, None
+        if compute_scores:
+            st = numpy_to_cols_table(V * S, 'scores')
+        if compute_loadings:
+            lt = numpy_to_rows_table(U, 'loadings')
+
+    return eigens, st, lt
 
 
 @typecheck(call_expr=expr_call,
