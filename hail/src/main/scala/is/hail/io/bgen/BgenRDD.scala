@@ -140,11 +140,6 @@ object BgenRDD {
 
     ContextRDD(new BgenRDD(ctx.fsBc, f, indexBuilder, partitions, settings, keys))
   }
-
-  private[bgen] def decompress(
-    input: Array[Byte],
-    uncompressedSize: Int
-  ): Array[Byte] = is.hail.utils.decompress(input, uncompressedSize)
 }
 
 private class BgenRDD(
