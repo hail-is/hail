@@ -161,6 +161,8 @@ class IRFunction:
 
 
 class ServiceBackend(Backend):
+    input_version = 2
+
     # is.hail.backend.service.Main protocol
     WORKER = "worker"
     DRIVER = "driver"
@@ -189,7 +191,8 @@ class ServiceBackend(Backend):
                      worker_cores: Optional[Union[int, str]] = None,
                      worker_memory: Optional[str] = None,
                      name_prefix: Optional[str] = None,
-                     token: Optional[str] = None):
+                     token: Optional[str] = None,
+                     regions: Optional[List[str]] = None):
         billing_project = configuration_of('batch', 'billing_project', billing_project, None)
         if billing_project is None:
             raise ValueError(
@@ -215,6 +218,12 @@ class ServiceBackend(Backend):
         worker_memory = configuration_of('query', 'batch_worker_memory', worker_memory, None)
         name_prefix = configuration_of('query', 'name_prefix', name_prefix, '')
 
+        regions_str = configuration_of('query', 'regions', regions, None)
+        if regions_str is not None:
+            regions = regions_str.split(',')
+        else:
+            regions = None
+
         if disable_progress_bar is None:
             disable_progress_bar_str = configuration_of('query', 'disable_progress_bar', None, None)
             if disable_progress_bar_str is None:
@@ -237,6 +246,7 @@ class ServiceBackend(Backend):
             worker_cores=worker_cores,
             worker_memory=worker_memory,
             name_prefix=name_prefix or '',
+            regions=regions,
         )
         sb._initialize_flags()
         return sb
@@ -256,7 +266,8 @@ class ServiceBackend(Backend):
                  driver_memory: Optional[str],
                  worker_cores: Optional[Union[int, str]],
                  worker_memory: Optional[str],
-                 name_prefix: str):
+                 name_prefix: str,
+                 regions: Optional[List[str]]):
         super(ServiceBackend, self).__init__()
         self.billing_project = billing_project
         self._sync_fs = sync_fs
@@ -275,6 +286,7 @@ class ServiceBackend(Backend):
         self.worker_cores = worker_cores
         self.worker_memory = worker_memory
         self.name_prefix = name_prefix
+        self.regions = regions
         # Source genome -> [Destination Genome -> Chain file]
         self._liftovers: Dict[str, Dict[str, str]] = collections.defaultdict(dict)
 
@@ -289,6 +301,7 @@ class ServiceBackend(Backend):
             'driver_memory': self.driver_memory,
             'worker_cores': self.worker_cores,
             'worker_memory': self.worker_memory,
+            'regions': self.regions,
         }
 
     @property
@@ -340,6 +353,9 @@ class ServiceBackend(Backend):
                             await write_str(infile, chain_file)
                     await write_str(infile, str(self.worker_cores))
                     await write_str(infile, str(self.worker_memory))
+                    await write_int(infile, len(self.regions) if self.regions else 0)
+                    for region in self.regions:
+                        await write_str(infile, region)
                     await inputs(infile, token)
 
             with timings.step("submit batch"):
@@ -368,6 +384,7 @@ class ServiceBackend(Backend):
                     mount_tokens=True,
                     resources=resources,
                     attributes={'name': name + '_driver'},
+                    regions=self.regions,
                 )
                 self._batch = await bb.submit(disable_progress_bar=True)
 

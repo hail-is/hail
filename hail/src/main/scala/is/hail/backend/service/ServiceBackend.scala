@@ -50,6 +50,7 @@ class ServiceBackendContext(
   val remoteTmpDir: String,
   val workerCores: String,
   val workerMemory: String,
+  val regions: Option[Array[String]]
 ) extends BackendContext with Serializable {
   def tokens(): Tokens =
     new Tokens(Map((DeployConfig.get.defaultNamespace, sessionID)))
@@ -163,6 +164,10 @@ class ServiceBackend(
       if (backendContext.workerMemory != "None") {
         resources = resources.merge(JObject(("memory" -> JString(backendContext.workerMemory))))
       }
+      val regions = backendContext.regions match {
+        case Some(regions) => JArray(regions.map(JString).toList)
+        case None => JNull
+      }
       jobs(i) = JObject(
         "always_run" -> JBool(false),
         "job_id" -> JInt(i + 1),
@@ -183,6 +188,7 @@ class ServiceBackend(
         ),
         "mount_tokens" -> JBool(true),
         "resources" -> resources,
+        "regions" -> regions
       )
       i += 1
     }
@@ -557,6 +563,19 @@ class ServiceBackendSocketAPI2(
     val workerCores = readString()
     val workerMemory = readString()
 
+    var nRegions = readInt()
+    val regions = if (nRegions > 0) {
+      var regionsArrayBuffer = mutable.ArrayBuffer[String]()
+      while (nRegions > 0) {
+        val region = readString()
+        regionsArrayBuffer += region
+        nRegions -= 1
+      }
+      Some(regionsArrayBuffer.toArray)
+    } else {
+      None
+    }
+
     val cmd = readInt()
 
     val tmpdir = readString()
@@ -582,7 +601,7 @@ class ServiceBackendSocketAPI2(
             ctx.getReference(sourceGenome).addLiftover(ctx, chainFile, destGenome)
           }
         }
-        ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir, workerCores, workerMemory)
+        ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir, workerCores, workerMemory, regions)
         method(ctx)
       }
     }
