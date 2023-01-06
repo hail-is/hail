@@ -118,18 +118,13 @@ class PruneSuite extends HailSuite {
 
     def partitionCounts: Option[IndexedSeq[Long]] = ???
 
-    override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
-      ???
-
-    override def uidRequiredness: VirtualTypeWithReq =
+    override def rowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
       ???
 
     override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
       ???
 
-    def uidType = TInt64
-
-    def fullTypeWithoutUIDs: TableType = tab.typ
+    override def fullType: TableType = tab.typ
   })
 
   lazy val mType = MatrixType(

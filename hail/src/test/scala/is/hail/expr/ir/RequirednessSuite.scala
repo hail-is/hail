@@ -518,7 +518,8 @@ class RequirednessSuite extends HailSuite {
     for (rType <- Array(table.typ,
       TableType(TStruct("a" -> tnestedarray), FastIndexedSeq(), TStruct("z" -> tstruct))
     )) {
-      val (row, global) = reader.rowAndGlobalRequiredness(ctx, rType)
+      val row = reader.rowRequiredness(ctx, rType)
+      val global = reader.globalRequiredness(ctx, rType)
       val node = TableRead(rType, dropRows = false, reader)
       val res = Requiredness.apply(node, ctx)
       val actual = res.r.lookup(node).asInstanceOf[RTable]
