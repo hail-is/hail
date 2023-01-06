@@ -441,6 +441,7 @@ GROUP BY user;
             while True:
                 await self.create_instances()
                 await asyncio.sleep(self.autoscaler_loop_period_secs)
+
         await retry_long_running('create_instances', loop)
 
     def __str__(self):
