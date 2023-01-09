@@ -566,7 +566,7 @@ case class PartitionRVDReader(rvd: RVD, uidFieldName: String) extends PartitionR
     val createUID = requestedType.hasField(uidFieldName)
 
     assert(upcastPType == rowPType,
-    s"ptype mismatch:\n  upcast: $upcastPType\n  computed: ${ rowPType }")
+    s"ptype mismatch:\n  upcast: $upcastPType\n  computed: ${ rowPType }\n  inputType: ${rvd.rowPType}\n  requested: ${requestedType}")
 
     context.toI(cb).map(cb) { partIdx =>
       val iterator = mb.genFieldThisRef[Iterator[Long]]("rvdreader_iterator")
