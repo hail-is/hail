@@ -218,7 +218,7 @@ class ServiceBackend(Backend):
         worker_memory = configuration_of('query', 'batch_worker_memory', worker_memory, None)
         name_prefix = configuration_of('query', 'name_prefix', name_prefix, '')
 
-        regions_str = configuration_of('query', 'regions', regions, None)
+        regions_str = configuration_of('batch', 'regions', regions, None)
         if regions_str is not None:
             regions = regions_str.split(',')
         else:
