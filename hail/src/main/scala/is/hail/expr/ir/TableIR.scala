@@ -442,19 +442,19 @@ object LoweredTableReader {
 
 trait TableReaderWithExtraUID extends TableReader {
 
-
   def fullTypeWithoutUIDs: TableType
 
-  val fullType: TableType = if (fullTypeWithoutUIDs.rowType.hasField(uidFieldName))
-    fullTypeWithoutUIDs
-  else
+  final val uidFieldName = TableReader.uidFieldName
+
+  lazy val fullType: TableType = {
+    require(!fullTypeWithoutUIDs.rowType.hasField(uidFieldName))
     fullTypeWithoutUIDs.copy(
       rowType = fullTypeWithoutUIDs.rowType.insertFields(
         Array((uidFieldName, uidType))))
+  }
 
   def uidType: Type
 
-  final val uidFieldName = TableReader.uidFieldName
 
   protected def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq
 
@@ -476,7 +476,6 @@ trait TableReaderWithExtraUID extends TableReader {
       concreteRowReq
     }
   }
-  require(!fullTypeWithoutUIDs.rowType.hasField(uidFieldName))
 }
 abstract class TableReader {
   def pathsUsed: Seq[String]
