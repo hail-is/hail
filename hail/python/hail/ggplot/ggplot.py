@@ -27,8 +27,6 @@ class GGPlot:
     """
 
     def __init__(self, ht, aes, geoms=[], labels=Labels(), coord_cartesian=None, scales=None, facet=None):
-        self.is_static = False
-
         if scales is None:
             scales = {}
 
@@ -242,8 +240,7 @@ class GGPlot:
 
                 facet_row = facet_idx // n_facet_cols + 1
                 facet_col = facet_idx % n_facet_cols + 1
-                requires_static = geom.apply_to_fig(scaled_grouped_dfs, fig, precomputed[geom_label], facet_row, facet_col, legend_cache, is_faceted)
-                self.is_static |= requires_static
+                geom.apply_to_fig(scaled_grouped_dfs, fig, precomputed[geom_label], facet_row, facet_col, legend_cache, is_faceted)
 
         # Important to update axes after labels, axes names take precedence.
         self.labels.apply_to_fig(fig)
@@ -275,7 +272,7 @@ class GGPlot:
     def show(self):
         """Render and show the plot, either in a browser or notebook.
         """
-        self.to_plotly().show(config={"staticPlot": self.is_static})
+        self.to_plotly().show()
 
     def write_image(self, path):
         """Write out this plot as an image.
