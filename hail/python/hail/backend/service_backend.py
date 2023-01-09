@@ -353,9 +353,12 @@ class ServiceBackend(Backend):
                             await write_str(infile, chain_file)
                     await write_str(infile, str(self.worker_cores))
                     await write_str(infile, str(self.worker_memory))
-                    await write_int(infile, len(self.regions) if self.regions else 0)
-                    for region in self.regions:
-                        await write_str(infile, region)
+                    if self.regions is None:
+                        await write_int(infile, 0)
+                    else:
+                        await write_int(infile, len(self.regions))
+                        for region in self.regions:
+                            await write_str(infile, region)
                     await inputs(infile, token)
 
             with timings.step("submit batch"):

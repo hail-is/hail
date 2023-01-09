@@ -565,7 +565,7 @@ class ServiceBackendSocketAPI2(
 
     var nRegions = readInt()
     val regions = if (nRegions > 0) {
-      var regionsArrayBuffer = mutable.ArrayBuffer[String]()
+      val regionsArrayBuffer = mutable.ArrayBuffer[String]()
       while (nRegions > 0) {
         val region = readString()
         regionsArrayBuffer += region

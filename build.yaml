@@ -2667,7 +2667,7 @@ steps:
 
       BATCH_ID=$(hailctl batch submit simple_hail.py --name=test-hailctl-batch-submit --files=foo -o json | jq '.id')
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
-      STATE=$(jq -jr '.state' $STATUS)
+      STATE=$(echo $STATUS | jq -jr '.state')
       if [ "$STATE" == "success" ]; then
           exit 0;
       else
@@ -2688,7 +2688,7 @@ steps:
 
       BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit --files=foo -o json hail_with_args.py 100 | jq '.id')
       STATUS=$(hailctl batch wait -o json $BATCH_ID | jq -jr '.state')
-      STATE=$(jq -jr '.state' $STATUS)
+      STATE=$(echo $STATUS | jq -jr '.state')
       if [ "$STATE" == "success" ]; then
           exit 0;
       else
@@ -2705,7 +2705,7 @@ steps:
 
       BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit --files=foo -o json file.sh | jq '.id')
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
-      STATE=$(jq -jr '.state' $STATUS)
+      STATE=$(echo $STATUS | jq -jr '.state')
       if [ "$STATE" == "success" ]; then
           exit 0;
       else
@@ -2724,7 +2724,7 @@ steps:
 
       BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit --files=foo -o json file-with-args.sh abc 123 | jq '.id')
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
-      STATE=$(jq -jr '.state' $STATUS)
+      STATE=$(echo $STATUS | jq -jr '.state')
       if [ "$STATE" == "success" ]; then
           exit 0;
       else
