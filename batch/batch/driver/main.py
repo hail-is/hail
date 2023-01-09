@@ -45,7 +45,7 @@ from hailtop.utils import (
 )
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
-from ..batch import cancel_batch_in_db
+from ..batch import cancel_job_group_in_db
 from ..batch_configuration import (
     BATCH_STORAGE_URI,
     CLOUD,
@@ -906,11 +906,11 @@ FROM
   FROM
   (
     SELECT batches.user, jobs.state, jobs.cores_mcpu, jobs.inst_coll,
-      (jobs.always_run OR NOT (jobs.cancelled OR batches_cancelled.id IS NOT NULL)) AS runnable,
-      (NOT jobs.always_run AND (jobs.cancelled OR batches_cancelled.id IS NOT NULL)) AS cancelled
+      (jobs.always_run OR NOT (jobs.cancelled OR jobs.cancellation_op_id >= job_groups.cancellation_op_id)) AS runnable,
+      (NOT jobs.always_run AND (jobs.cancelled OR jobs.cancellation_op_id < job_groups.cancellation_op_id)) AS cancelled
     FROM batches
     INNER JOIN jobs ON batches.id = jobs.batch_id
-    LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
+    INNER JOIN job_groups ON job_groups.batch_id = jobs.batch_id AND job_groups.job_group_id = jobs.job_group_id
     WHERE batches.`state` = 'running'
   ) as v
   GROUP BY user, inst_coll
@@ -1099,10 +1099,14 @@ LOCK IN SHARE MODE;
 
 
 async def _cancel_batch(app, batch_id):
+    await _cancel_job_group(app, batch_id, 1)
+
+
+async def _cancel_job_group(app, batch_id, job_group_id):
     try:
-        await cancel_batch_in_db(app['db'], batch_id)
+        await cancel_job_group_in_db(app['db'], batch_id, job_group_id)
     except BatchUserError as exc:
-        log.info(f'cannot cancel batch because {exc.message}')
+        log.info(f'cannot cancel job_group {(batch_id, job_group_id)} because {exc.message}')
         return
     set_cancel_state_changed(app)
 
@@ -1127,20 +1131,23 @@ WHERE billing_project = %s AND state = 'running';
                 await _cancel_batch(app, batch['id'])
 
 
-async def cancel_fast_failing_batches(app):
+async def cancel_fast_failing_job_groups(app):
     db: Database = app['db']
 
     records = db.select_and_fetchall(
         '''
-SELECT batches.id, batches_n_jobs_in_complete_states.n_failed
-FROM batches
-LEFT JOIN batches_n_jobs_in_complete_states
-  ON batches.id = batches_n_jobs_in_complete_states.id
-WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= cancel_after_n_failures
+SELECT batch_id, job_group_id, CAST(COALESCE(SUM(n_failed), 0) AS SIGNED) AS n_failed
+FROM job_groups_n_jobs_in_complete_states
+INNER JOIN job_groups ON job_groups_n_jobs_in_complete_states.batch_id = job_groups.batch_id AND job_groups_n_jobs_in_complete_states.job_group_id = job_groups.job_group_id
+LEFT JOIN job_groups_cancelled ON job_groups.batch_id = job_groups_cancelled.batch_id AND job_groups.job_group_id = job_groups_cancelled.job_group_id
+WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND job_groups_cancelled.batch_id IS NULL
+GROUP BY batch_id, job_group_id
+HAVING n_failed >= cancel_after_n_failures
+LIMIT 50;
 '''
     )
-    async for batch in records:
-        await _cancel_batch(app, batch['id'])
+    async for job_group in records:
+        await _cancel_job_group(app, job_group['batch_id'], job_group['job_group_id'])
 
 
 USER_CORES = pc.Gauge('batch_user_cores', 'Batch user cores (i.e. total in-use cores)', ['state', 'user', 'inst_coll'])
@@ -1344,7 +1351,7 @@ SELECT instance_id, internal_token, frozen FROM globals;
         task_manager.ensure_future(periodically_call(10, check_resource_aggregation, app, db))
 
     task_manager.ensure_future(periodically_call(10, monitor_billing_limits, app))
-    task_manager.ensure_future(periodically_call(10, cancel_fast_failing_batches, app))
+    task_manager.ensure_future(periodically_call(10, cancel_fast_failing_job_groups, app))
     task_manager.ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
     task_manager.ensure_future(periodically_call(15, monitor_system, app))
     task_manager.ensure_future(periodically_call(5, refresh_globals_from_db, app, db))

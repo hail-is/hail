@@ -37,6 +37,16 @@ class NonExistentBatchError(BatchUserError):
         super().__init__(f'Batch {batch_id} does not exist.', 'error')
 
 
+class NonExistentJobGroupError(BatchUserError):
+    def __init__(self, batch_id, job_group_id):
+        super().__init__(f'Job Group {(batch_id, job_group_id)} does not exist.', 'error')
+
+
+class NonExistentJobGroupPathError(BatchUserError):
+    def __init__(self, batch_id, job_group_path):
+        super().__init__(f'Job Group {(batch_id, job_group_path)} does not exist.', 'error')
+
+
 class OpenBatchError(BatchUserError):
     def __init__(self, batch_id):
         super().__init__(f'Batch {batch_id} is open.', 'error')

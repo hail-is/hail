@@ -1,0 +1,190 @@
+{% extends "layout.html" %}
+{% block title %}Batch {{ batch_id }} Job Group {{ path }}{% endblock %}
+{% block head %}
+  <script src="{{ base_path }}/common_static/focus_on_keyup.js"></script>
+{% endblock %}
+{% block content %}
+
+<h1>Batch {{ batch_id }} Job Group {{ path }}</h1>
+
+<h2>Properties</h2>
+<ul>
+  <li>User: {{ job_group['user'] }}</li>
+  <li>Billing Project: {{ job_group['billing_project'] }}</li>
+  <li>Time Created: {% if 'time_created' in job_group and job_group['time_created'] is not none %}{{ job_group['time_created'] }}{% endif %}</li>
+  <li>Time Completed: {% if 'time_completed' in job_group and job_group['time_completed'] is not none %}{{ job_group['time_completed'] }}{% endif %}</li>
+  <li>Total Jobs: {{ job_group['n_jobs'] }}</li>
+  <ul>
+    <li>Pending Jobs: {{ job_group['n_jobs'] - job_group['n_completed'] }}</li>
+    <li>Succeeded Jobs: {{ job_group['n_succeeded'] }}</li>
+    <li>Failed Jobs: {{ job_group['n_failed'] }}</li>
+    <li>Cancelled Jobs: {{ job_group['n_cancelled'] }}</li>
+  </ul>
+  <li>Duration: {% if 'duration' in job_group and job_group['duration'] is not none %}{{ job_group['duration'] }}{% endif %}</li>
+  <li>Cost: {% if 'cost' in job_group and job_group['cost'] is not none %}{{ job_group['cost'] }}{% endif %}</li>
+</ul>
+
+{% if not job_group['complete'] and job_group['state'] != 'Cancelled' %}
+<form action="{{ base_path }}/batches/{{ job_group['batch_id'] }}/job_groups/{{ job_group['job_group_id'] }}/cancel" method="post">
+  <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
+  {% if q is not none %}
+  <input type="hidden" name="q" value="{{ q }}"/>
+  {% endif %}
+  <button>Cancel</button>
+</form>
+{% endif %}
+
+<h2>Job Groups -- {{ job_group['path'] }}</h2>
+<div class="flex-col">
+  <div class='flex-col' style="overflow: auto;">
+    <table class="data-table" id="job_groups" style="width: 100%">
+      <thead>
+        <tr>
+          <th>Path</th>
+	      <th>Submitted</th>
+	      <th>Completed</th>
+	      <th>State</th>
+	      <th>Jobs</th>
+	      <th>Pending</th>
+	      <th>Succeeded</th>
+	      <th>Failed</th>
+	      <th>Cancelled</th>
+	      <th>Duration</th>
+	      <th>Cost</th>
+        </tr>
+      </thead>
+	  <tbody>
+	    {% for child_job_group in job_group['child_job_groups'] %}
+	    <tr>
+	      <td>
+          <a class="fill-td" href="{{ base_path }}/batches/{{ child_job_group['batch_id'] }}/job_groups/{{ child_job_group['job_group_id'] }}">{{ child_job_group['name'] }}</a>
+	      </td>
+	      <td>
+	        {% if 'time_created' in child_job_group and child_job_group['time_created'] is not none %}
+	        {{ child_job_group['time_created'] }}
+	        {% endif %}
+	      </td>
+	      <td>
+	        {% if 'time_completed' in child_job_group and child_job_group['time_completed'] is not none %}
+	        {{ child_job_group['time_completed'] }}
+	        {% endif %}
+	      </td>
+	      <td>{{ child_job_group['state'] }}</td>
+	      <td class="numeric-cell">{{ child_job_group['n_jobs'] }}</td>
+	      <td class="numeric-cell">{{ child_job_group['n_jobs'] - child_job_group['n_completed'] }}</td>
+	      <td class="numeric-cell">{{ child_job_group['n_succeeded'] }}</td>
+	      <td class="numeric-cell">{{ child_job_group['n_failed'] }}</td>
+	      <td class="numeric-cell">{{ child_job_group['n_cancelled'] }}</td>
+	      <td class="numeric-cell">
+		    {% if 'duration' in child_job_group and child_job_group['duration'] is not none %}
+		    {{ child_job_group['duration'] }}
+		    {% endif %}
+	      </td>
+	      <td class="numeric-cell">
+	        {% if 'cost' in child_job_group and child_job_group['cost'] is not none %}
+	        {{ child_job_group['cost'] }}
+	        {% endif %}
+	      </td>
+	  </tr>
+	  {% endfor %}
+	</tbody>
+    </table>
+  </div>
+</div>
+
+<h2>Jobs</h2>
+<div class="flex-col">
+  <div class="flex-col-align-right">
+    <form method="GET" action="{{ base_path }}/batches/{{ batch['id'] }}">
+      <input style="vertical-align:text-bottom;" id="searchBar" name="q" size=30 type="text"
+        {% if q %}
+        value="{{ q }}"
+        {% else %}
+          placeholder="Search terms..."
+        {% endif %}
+       >
+      <button type="submit">Search</button>
+    </form>
+    <input id="expand-search-syntax-checkbox" class="expand-checkbox" type="checkbox">
+    <label for="expand-search-syntax-checkbox" class="expand-label">Search Help</label>
+    <div class="expand-content" style="max-width:75%;">
+      <p>Search jobs with the given search terms.  Return jobs
+        that match all terms.  Terms:</p>
+      <ul>
+        <li>k=v - jobs with an attribute with key k and value v</li>
+        <li>has:k - jobs that have an attribute with key k</li>
+        <li>state - jobs in the given state, one of:
+          <ul>
+            <li>ready</li>
+            <li>running</li>
+            <li>live (ready or running)</li>
+            <li>cancelled</li>
+            <li>error</li>
+            <li>failed</li>
+            <li>bad (error or failed)</li>
+            <li>success</li>
+            <li>done (cancelled, error, failed or success)</li>
+          </ul>
+        </li>
+        <li>!term - jobs not matched by term</li>
+      </ul>
+    </div>
+  </div>
+  <div class='flex-col' style="overflow: auto;">
+    <table class="data-table" id="batch" style="width: 100%">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>State</th>
+          <th>Exit Code</th>
+          <th>Duration</th>
+          <th>Cost</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for job in batch['jobs'] %}
+        <tr>
+          <td class="numeric-cell">
+            <a class="fill-td" href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}">{{ job['job_id'] }}</a>
+          </td>
+          <td>
+            {% if 'name' in job and job['name'] is not none %}
+            {{ job['name'] }}
+            {% endif %}
+          </td>
+          <td>{{ job['state'] }}</td>
+          <td>
+            {% if 'exit_code' in job and job['exit_code'] is not none %}
+            {{ job['exit_code'] }}
+            {% endif %}
+          </td>
+          <td>
+            {% if 'duration' in job and job['duration'] is not none %}
+            {{ job['duration'] }}
+            {% endif %}
+          </td>
+          <td>
+            {% if 'cost' in job and job['cost'] is not none %}
+            {{ job['cost'] }}
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if last_job_id is not none %}
+  <form method="GET" action="{{ base_path }}/batches/{{ batch['id'] }}">
+    {% if q is not none %}
+    <input type="hidden" name="q" value="{{ q }}" />
+    {% endif %}
+    <input type="hidden" name="last_job_id" value="{{ last_job_id }}" />
+    <button>Next page</button>
+  </form>
+  {% endif %}
+</div>
+<script type="text/javascript">
+  focusOnSlash("searchBar");
+</script>
+{% endblock %}

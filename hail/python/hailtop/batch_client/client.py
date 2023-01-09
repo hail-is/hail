@@ -142,8 +142,18 @@ class Batch:
     def cancel(self):
         async_to_blocking(self._async_batch.cancel())
 
+    def cancel_job_group(self, job_group: str):
+        async_to_blocking(self._async_batch.cancel_job_group(job_group))
+
+    def create_job_group(self, job_group: str, *, cancel_after_n_failures: Optional[int] = None):
+        async_to_blocking(self._async_batch.create_job_group(job_group, cancel_after_n_failures=cancel_after_n_failures))
+
+    def update_job_group(self, job_group: str, *, cancel_after_n_failures: Optional[int] = None):
+        async_to_blocking(self._async_batch.update_job_group(job_group, cancel_after_n_failures=cancel_after_n_failures))
+
     # {
     #   id: int
+    #   job_group_id: int
     #   user: str
     #   billing_project: str
     #   token: str
@@ -163,11 +173,11 @@ class Batch:
     #   msec_mcpu: int
     #   cost: float
     # }
-    def status(self):
-        return async_to_blocking(self._async_batch.status())
+    def status(self, *, job_group: Optional[str] = None):
+        return async_to_blocking(self._async_batch.status(job_group=job_group))
 
-    def last_known_status(self):
-        return async_to_blocking(self._async_batch.last_known_status())
+    def last_known_status(self, *, job_group: Optional[str] = None):
+        return async_to_blocking(self._async_batch.last_known_status(job_group=job_group))
 
     def jobs(self, q=None):
         return agen_to_blocking(self._async_batch.jobs(q=q))
@@ -226,7 +236,8 @@ class BatchBuilder:
                    mount_tokens=False, network: Optional[str] = None,
                    unconfined: bool = False, user_code: Optional[str] = None,
                    regions: Optional[List[str]] = None,
-                   always_copy_output: bool = False) -> Job:
+                   always_copy_output: bool = False,
+                   job_group: Optional[str] = None) -> Job:
         if parents:
             parents = [parent._async_job for parent in parents]
 
@@ -239,7 +250,7 @@ class BatchBuilder:
             always_copy_output=always_copy_output, timeout=timeout, cloudfuse=cloudfuse,
             requester_pays_project=requester_pays_project, mount_tokens=mount_tokens,
             network=network, unconfined=unconfined, user_code=user_code,
-            regions=regions)
+            regions=regions, job_group=job_group)
 
         return Job.from_async_job(async_job)
 
@@ -317,6 +328,12 @@ class BatchClient:
     def update_batch(self, batch_id: int) -> 'BatchBuilder':
         builder = async_to_blocking(self._async_client.update_batch(batch_id))
         return BatchBuilder.from_async_builder(builder)
+
+    def create_job_group(self, batch_id: int, job_group: str, *, cancel_after_n_failures: Optional[int] = None):
+        return async_to_blocking(self._async_client.create_job_group(batch_id, job_group, cancel_after_n_failures=cancel_after_n_failures))
+
+    def update_job_group(self, batch_id: int, job_group: str, *, cancel_after_n_failures: Optional[int] = None):
+        return async_to_blocking(self._async_client.update_job_group(batch_id, job_group, cancel_after_n_failures=cancel_after_n_failures))
 
     def get_billing_project(self, billing_project):
         return async_to_blocking(self._async_client.get_billing_project(billing_project))

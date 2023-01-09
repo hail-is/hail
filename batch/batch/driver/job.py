@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Dict, List
 
 import aiohttp
 
-from gear import Database
+from gear import Database, transaction
 from hailtop import httpx
 from hailtop.aiotools import BackgroundTaskManager
 from hailtop.utils import Notice, retry_transient_errors, time_msecs
@@ -32,23 +32,25 @@ log = logging.getLogger('job')
 async def notify_batch_job_complete(db: Database, client_session: httpx.ClientSession, batch_id):
     record = await db.select_and_fetchone(
         '''
-SELECT batches.*, COALESCE(SUM(`usage` * rate), 0) AS cost, batches_cancelled.id IS NOT NULL AS cancelled, batches_n_jobs_in_complete_states.n_completed, batches_n_jobs_in_complete_states.n_succeeded, batches_n_jobs_in_complete_states.n_failed, batches_n_jobs_in_complete_states.n_cancelled
+SELECT batches.*, COALESCE(SUM(`usage` * rate), 0) AS cost,
+  CAST(COALESCE(SUM(job_groups_n_jobs_in_complete_states.n_completed), 0) AS SIGNED) AS n_completed,
+  CAST(COALESCE(SUM(job_groups_n_jobs_in_complete_states.n_succeeded), 0) AS SIGNED) AS n_succeeded,
+  CAST(COALESCE(SUM(job_groups_n_jobs_in_complete_states.n_failed), 0) AS SIGNED) AS n_failed,
+  CAST(COALESCE(SUM(job_groups_n_jobs_in_complete_states.n_cancelled), 0) AS SIGNED) AS n_cancelled,
+  CAST(MAX(job_groups_n_jobs_in_complete_states.time_completed) AS SIGNED) AS time_completed
 FROM batches
-LEFT JOIN batches_n_jobs_in_complete_states
-  ON batches.id = batches_n_jobs_in_complete_states.id
+LEFT JOIN job_groups_n_jobs_in_complete_states
+  ON batches.id = job_groups_n_jobs_in_complete_states.batch_id
 LEFT JOIN (
   SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM aggregated_batch_resources_v2
-  WHERE batch_id = %s
+  FROM aggregated_job_group_resources_v2
+  WHERE batch_id = %s AND job_group_id = 1
   GROUP BY batch_id, resource_id
 ) AS abr
   ON batches.id = abr.batch_id
 LEFT JOIN resources
   ON abr.resource_id = resources.resource_id
-LEFT JOIN batches_cancelled
-  ON batches.id = batches_cancelled.id
-WHERE batches.id = %s AND NOT deleted AND callback IS NOT NULL AND
-   batches.`state` = 'complete'
+WHERE batches.id = %s AND job_group_id = 1 AND NOT deleted AND callback IS NOT NULL AND batches.`state` = 'complete'
 GROUP BY batches.id;
 ''',
         (batch_id, batch_id),
@@ -112,6 +114,7 @@ async def mark_job_complete(
     app,
     batch_id,
     job_id,
+    job_group_id,
     attempt_id,
     instance_name,
     new_state,
@@ -156,6 +159,40 @@ async def mark_job_complete(
         )
     except Exception:
         log.exception(f'error while marking job {id} complete on instance {instance_name}')
+        raise
+
+    try:
+        @transaction(db)
+        async def _mark_job_group_complete(tx):
+            complete_job_groups = await tx.select_and_fetchone(
+                '''
+SELECT job_groups_n_jobs_in_complete_states.batch_id, job_groups_n_jobs_in_complete_states.parent_id,
+  CAST(COALESCE(SUM(n_jobs), 0) AS SIGNED) AS n_jobs, CAST(COALESCE(SUM(n_completed), 0) AS SIGNED) AS n_completed
+FROM job_groups_n_jobs_in_complete_states
+INNER JOIN job_group_parents ON job_groups_n_jobs_in_complete_states.batch_id = job_group_parents.batch_id AND
+  job_groups_n_jobs_in_complete_states.job_group_id = job_group_parents.job_group_id
+WHERE batch_id = %s AND job_group_id = %s
+GROUP BY batch_id, parent_id
+HAVING n_jobs = n_completed;
+''',
+                (batch_id, job_group_id),
+                'get_complete_job_groups',
+            )
+            job_groups = [(record['batch_id'], record['parent_id']) async for record in complete_job_groups]
+
+            if job_groups:
+                await tx.just_execute(
+                    '''
+UPDATE job_groups
+SET state = 'complete'
+WHERE batch_id = %s AND job_group_id = %s;
+''',
+                    job_groups,
+                    'update_job_group_state',
+                )
+        await _mark_job_group_complete()  # pylint: disable=no-value-for-parameter
+    except Exception:
+        log.exception(f'error while getting and marking completed job groups for job {id}')
         raise
 
     scheduler_state_changed.notify()
@@ -427,7 +464,7 @@ users:
     }
 
 
-async def mark_job_errored(app, batch_id, job_id, attempt_id, user, format_version, error_msg):
+async def mark_job_errored(app, batch_id, job_id, job_group_id, attempt_id, user, format_version, error_msg):
     file_store: FileStore = app['file_store']
 
     status = {
@@ -447,7 +484,7 @@ async def mark_job_errored(app, batch_id, job_id, attempt_id, user, format_versi
 
     db_status = format_version.db_status(status)
 
-    await mark_job_complete(app, batch_id, job_id, attempt_id, None, 'Error', db_status, None, None, 'error', [])
+    await mark_job_complete(app, batch_id, job_id, job_group_id, attempt_id, None, 'Error', db_status, None, None, 'error', [])
 
 
 async def schedule_job(app, record, instance):
@@ -458,6 +495,7 @@ async def schedule_job(app, record, instance):
 
     batch_id = record['batch_id']
     job_id = record['job_id']
+    job_group_id = record['job_group_id']
     attempt_id = record['attempt_id']
     format_version = BatchFormatVersion(record['format_version'])
 
@@ -469,7 +507,7 @@ async def schedule_job(app, record, instance):
         log.exception(f'while making job config for job {id} with attempt id {attempt_id}')
 
         await mark_job_errored(
-            app, batch_id, job_id, attempt_id, record['user'], format_version, traceback.format_exc()
+            app, batch_id, job_id, job_group_id, attempt_id, record['user'], format_version, traceback.format_exc()
         )
         raise
 
