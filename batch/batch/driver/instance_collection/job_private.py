@@ -109,7 +109,7 @@ WHERE removed = 0 AND inst_coll = %s;
         self.exceeded_shares_counter = ExceededSharesCounter()
 
         self.boot_disk_size_gb = config.boot_disk_size_gb
-        self.max_instances_per_autoscaler_loop = config.max_instances_per_autoscaler_loop
+        self.max_new_instances_per_autoscaler_loop = config.max_new_instances_per_autoscaler_loop
         self.autoscaler_loop_period_secs = config.autoscaler_loop_period_secs
         self.worker_max_idle_time_secs = config.worker_max_idle_time_secs
 
@@ -119,17 +119,18 @@ WHERE removed = 0 AND inst_coll = %s;
             'worker_disk_size_gb': self.boot_disk_size_gb,
             'max_instances': self.max_instances,
             'max_live_instances': self.max_live_instances,
-            'max_instances_per_autoscaler_loop': self.max_instances_per_autoscaler_loop,
+            'max_new_instances_per_autoscaler_loop': self.max_new_instances_per_autoscaler_loop,
             'autoscaler_loop_period_secs': self.autoscaler_loop_period_secs,
             'worker_max_idle_time_secs': self.worker_max_idle_time_secs,
         }
 
     async def configure(
         self,
+        *,
         boot_disk_size_gb,
         max_instances,
         max_live_instances,
-        max_instances_per_autoscaler_loop,
+        max_new_instances_per_autoscaler_loop,
         autoscaler_loop_period_secs,
         worker_max_idle_time_secs,
     ):
@@ -139,7 +140,7 @@ UPDATE inst_colls
 SET boot_disk_size_gb = %s,
     max_instances = %s,
     max_live_instances = %s,
-    max_instances_per_autoscaler_loop = %s,
+    max_new_instances_per_autoscaler_loop = %s,
     autoscaler_loop_period_secs = %s,
     worker_max_idle_time_secs = %s
 WHERE name = %s;
@@ -148,7 +149,7 @@ WHERE name = %s;
                 boot_disk_size_gb,
                 max_instances,
                 max_live_instances,
-                max_instances_per_autoscaler_loop,
+                max_new_instances_per_autoscaler_loop,
                 autoscaler_loop_period_secs,
                 worker_max_idle_time_secs,
                 self.name,
@@ -158,7 +159,7 @@ WHERE name = %s;
         self.boot_disk_size_gb = boot_disk_size_gb
         self.max_instances = max_instances
         self.max_live_instances = max_live_instances
-        self.max_instances_per_autoscaler_loop = max_instances_per_autoscaler_loop
+        self.max_new_instances_per_autoscaler_loop = max_new_instances_per_autoscaler_loop
         self.autoscaler_loop_period_secs = autoscaler_loop_period_secs
         self.worker_max_idle_time_secs = worker_max_idle_time_secs
 
@@ -339,7 +340,7 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
             return should_wait
         user_share = {
             user: min(
-                int(self.max_instances_per_autoscaler_loop * resources['n_allocated_jobs'] / total + 0.5),
+                int(self.max_new_instances_per_autoscaler_loop * (resources['n_allocated_jobs'] / total) + 0.5),
                 resources['n_allocated_jobs'],
             )
             for user, resources in user_resources.items()

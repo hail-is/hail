@@ -646,10 +646,10 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
                 set_message(session, f'External SSD must be at least {min_disk_storage} GB', 'error')
                 raise ConfigError()
 
-        max_instances_per_autoscaler_loop = validate_int(
+        max_new_instances_per_autoscaler_loop = validate_int(
             session,
             'Max instances per autoscaler loop',
-            post['max_instances_per_autoscaler_loop'],
+            post['max_new_instances_per_autoscaler_loop'],
             lambda v: v > 0,
             'a positive integer',
         )
@@ -687,23 +687,23 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
         )
 
         proposed_pool_config = PoolConfig(
-            pool_name,
-            pool.cloud,
-            worker_type,
-            worker_cores,
-            worker_local_ssd_data_disk,
-            worker_external_ssd_data_disk_size_gb,
-            enable_standing_worker,
-            standing_worker_cores,
-            boot_disk_size_gb,
-            max_instances,
-            max_live_instances,
-            pool.preemptible,
-            max_instances_per_autoscaler_loop,
-            autoscaler_loop_period_secs,
-            worker_max_idle_time_secs,
-            standing_worker_max_idle_time_secs,
-            job_queue_scheduling_window_secs,
+            name=pool_name,
+            cloud=pool.cloud,
+            worker_type=worker_type,
+            worker_cores=worker_cores,
+            worker_local_ssd_data_disk=worker_local_ssd_data_disk,
+            worker_external_ssd_data_disk_size_gb=worker_external_ssd_data_disk_size_gb,
+            enable_standing_worker=enable_standing_worker,
+            standing_worker_cores=standing_worker_cores,
+            boot_disk_size_gb=boot_disk_size_gb,
+            max_instances=max_instances,
+            max_live_instances=max_live_instances,
+            preemptible=pool.preemptible,
+            max_new_instances_per_autoscaler_loop=max_new_instances_per_autoscaler_loop,
+            autoscaler_loop_period_secs=autoscaler_loop_period_secs,
+            worker_max_idle_time_secs=worker_max_idle_time_secs,
+            standing_worker_max_idle_time_secs=standing_worker_max_idle_time_secs,
+            job_queue_scheduling_window_secs=job_queue_scheduling_window_secs,
         )
 
         current_client_pool_config = json.loads(post['_pool_config_json'])
@@ -770,10 +770,10 @@ async def job_private_config_update(request, userdata):  # pylint: disable=unuse
             session, 'Max live instances', post['max_live_instances'], lambda v: v > 0, 'a positive integer'
         )
 
-        max_instances_per_autoscaler_loop = validate_int(
+        max_new_instances_per_autoscaler_loop = validate_int(
             session,
             'Max instances per autoscaler loop',
-            post['max_instances_per_autoscaler_loop'],
+            post['max_new_instances_per_autoscaler_loop'],
             lambda v: v > 0,
             'a positive integer',
         )
@@ -795,12 +795,12 @@ async def job_private_config_update(request, userdata):  # pylint: disable=unuse
         )
 
         await jpim.configure(
-            boot_disk_size_gb,
-            max_instances,
-            max_live_instances,
-            max_instances_per_autoscaler_loop,
-            autoscaler_loop_period_secs,
-            worker_max_idle_time_secs,
+            boot_disk_size_gb=boot_disk_size_gb,
+            max_instances=max_instances,
+            max_live_instances=max_live_instances,
+            max_new_instances_per_autoscaler_loop=max_new_instances_per_autoscaler_loop,
+            autoscaler_loop_period_secs=autoscaler_loop_period_secs,
+            worker_max_idle_time_secs=worker_max_idle_time_secs,
         )
 
         set_message(session, f'Updated configuration for {jpim}.', 'info')

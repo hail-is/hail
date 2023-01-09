@@ -78,7 +78,7 @@ class PoolConfig(InstanceCollectionConfig):
             max_instances=record['max_instances'],
             max_live_instances=record['max_live_instances'],
             preemptible=bool(record['preemptible']),
-            max_instances_per_autoscaler_loop=record['max_instances_per_autoscaler_loop'],
+            max_new_instances_per_autoscaler_loop=record['max_new_instances_per_autoscaler_loop'],
             autoscaler_loop_period_secs=record['autoscaler_loop_period_secs'],
             worker_max_idle_time_secs=record['worker_max_idle_time_secs'],
             standing_worker_max_idle_time_secs=record['standing_worker_max_idle_time_secs'],
@@ -99,7 +99,7 @@ SET worker_cores = %s,
     max_instances = %s,
     max_live_instances = %s,
     preemptible = %s,
-    max_instances_per_autoscaler_loop = %s,
+    max_new_instances_per_autoscaler_loop = %s,
     autoscaler_loop_period_secs = %s,
     worker_max_idle_time_secs = %s,
     standing_worker_max_idle_time_secs = %s,
@@ -116,7 +116,7 @@ WHERE pools.name = %s;
                 self.max_instances,
                 self.max_live_instances,
                 self.preemptible,
-                self.max_instances_per_autoscaler_loop,
+                self.max_new_instances_per_autoscaler_loop,
                 self.autoscaler_loop_period_secs,
                 self.worker_max_idle_time_secs,
                 self.standing_worker_max_idle_time_secs,
@@ -139,7 +139,7 @@ WHERE pools.name = %s;
         max_instances: int,
         max_live_instances: int,
         preemptible: bool,
-        max_instances_per_autoscaler_loop: int,
+        max_new_instances_per_autoscaler_loop: int,
         autoscaler_loop_period_secs: int,
         worker_max_idle_time_secs: int,
         standing_worker_max_idle_time_secs: int,
@@ -157,7 +157,7 @@ WHERE pools.name = %s;
         self.max_instances = max_instances
         self.max_live_instances = max_live_instances
         self.preemptible = preemptible
-        self.max_instances_per_autoscaler_loop = max_instances_per_autoscaler_loop
+        self.max_new_instances_per_autoscaler_loop = max_new_instances_per_autoscaler_loop
         self.autoscaler_loop_period_secs = autoscaler_loop_period_secs
         self.worker_max_idle_time_secs = worker_max_idle_time_secs
         self.standing_worker_max_idle_time_secs = standing_worker_max_idle_time_secs
@@ -203,14 +203,14 @@ class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):
     @staticmethod
     def from_record(record):
         return JobPrivateInstanceManagerConfig(
-            record['name'],
-            record['cloud'],
-            record['boot_disk_size_gb'],
-            record['max_instances'],
-            record['max_live_instances'],
-            record['max_instances_per_autoscaler_loop'],
-            record['autoscaler_loop_period_secs'],
-            record['worker_max_idle_time_secs'],
+            name=record['name'],
+            cloud=record['cloud'],
+            boot_disk_size_gb=record['boot_disk_size_gb'],
+            max_instances=record['max_instances'],
+            max_live_instances=record['max_live_instances'],
+            max_new_instances_per_autoscaler_loop=record['max_new_instances_per_autoscaler_loop'],
+            autoscaler_loop_period_secs=record['autoscaler_loop_period_secs'],
+            worker_max_idle_time_secs=record['worker_max_idle_time_secs'],
         )
 
     def __init__(
@@ -220,7 +220,7 @@ class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):
         boot_disk_size_gb: int,
         max_instances: int,
         max_live_instances: int,
-        max_instances_per_autoscaler_loop: int,
+        max_new_instances_per_autoscaler_loop: int,
         autoscaler_loop_period_secs: int,
         worker_max_idle_time_secs: int,
     ):
@@ -229,7 +229,7 @@ class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):
         self.boot_disk_size_gb = boot_disk_size_gb
         self.max_instances = max_instances
         self.max_live_instances = max_live_instances
-        self.max_instances_per_autoscaler_loop = max_instances_per_autoscaler_loop
+        self.max_new_instances_per_autoscaler_loop = max_new_instances_per_autoscaler_loop
         self.autoscaler_loop_period_secs = autoscaler_loop_period_secs
         self.worker_max_idle_time_secs = worker_max_idle_time_secs
 

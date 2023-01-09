@@ -13,6 +13,7 @@ from hailtop.utils import (
     AsyncWorkerPool,
     Notice,
     WaitableSharedPool,
+    periodically_call_with_dynamic_sleep,
     retry_long_running,
     run_if_changed,
     secret_alnum_string,
@@ -132,7 +133,7 @@ WHERE removed = 0 AND inst_coll = %s;
         self.data_disk_size_gb = config.data_disk_size_gb
         self.data_disk_size_standing_gb = config.data_disk_size_standing_gb
         self.preemptible = config.preemptible
-        self.max_instances_per_autoscaler_loop = config.max_instances_per_autoscaler_loop
+        self.max_new_instances_per_autoscaler_loop = config.max_new_instances_per_autoscaler_loop
         self.autoscaler_loop_period_secs = config.autoscaler_loop_period_secs
         self.standing_worker_max_idle_time_secs = config.standing_worker_max_idle_time_secs
         self.worker_max_idle_time_secs = config.worker_max_idle_time_secs
@@ -160,7 +161,7 @@ WHERE removed = 0 AND inst_coll = %s;
             'max_instances': self.max_instances,
             'max_live_instances': self.max_live_instances,
             'preemptible': self.preemptible,
-            'max_instances_per_autoscaler_loop': self.max_instances_per_autoscaler_loop,
+            'max_new_instances_per_autoscaler_loop': self.max_new_instances_per_autoscaler_loop,
             'autoscaler_loop_period_secs': self.autoscaler_loop_period_secs,
             'standing_worker_max_idle_time_secs': self.standing_worker_max_idle_time_secs,
             'worker_max_idle_time_secs': self.worker_max_idle_time_secs,
@@ -183,7 +184,7 @@ WHERE removed = 0 AND inst_coll = %s;
         self.max_instances = pool_config.max_instances
         self.max_live_instances = pool_config.max_live_instances
         self.preemptible = pool_config.preemptible
-        self.max_instances_per_autoscaler_loop = pool_config.max_instances_per_autoscaler_loop
+        self.max_new_instances_per_autoscaler_loop = pool_config.max_new_instances_per_autoscaler_loop
         self.autoscaler_loop_period_secs = pool_config.autoscaler_loop_period_secs
         self.standing_worker_max_idle_time_secs = pool_config.standing_worker_max_idle_time_secs
         self.worker_max_idle_time_secs = pool_config.worker_max_idle_time_secs
@@ -234,7 +235,7 @@ WHERE removed = 0 AND inst_coll = %s;
         self,
         ready_cores_mcpu: int,
         regions: List[str],
-        remaining_max_instances_per_autoscaler_loop: int,
+        remaining_max_new_instances_per_autoscaler_loop: int,
     ):
         n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
 
@@ -249,7 +250,7 @@ WHERE removed = 0 AND inst_coll = %s;
             self.max_instances - self.n_instances,
             # 20 queries/s; our GCE long-run quota
             300,
-            remaining_max_instances_per_autoscaler_loop,
+            remaining_max_new_instances_per_autoscaler_loop,
         )
         return max(0, instances_needed)
 
@@ -270,12 +271,12 @@ WHERE removed = 0 AND inst_coll = %s;
             )
 
     async def create_instances_from_ready_cores(
-        self, ready_cores_mcpu: int, regions: List[str], remaining_max_instances_per_autoscaler_loop: int
+        self, ready_cores_mcpu: int, regions: List[str], remaining_max_new_instances_per_autoscaler_loop: int
     ):
         instances_needed = self.compute_n_instances_needed(
             ready_cores_mcpu,
             regions,
-            remaining_max_instances_per_autoscaler_loop,
+            remaining_max_new_instances_per_autoscaler_loop,
         )
 
         await self._create_instances(instances_needed, regions)
@@ -284,7 +285,7 @@ WHERE removed = 0 AND inst_coll = %s;
     async def regions_to_ready_cores_mcpu_from_estimated_job_queue(self) -> List[Tuple[List[str], int]]:
         autoscaler_runs_per_minute = 60 / self.autoscaler_loop_period_secs
         max_new_instances_in_two_and_a_half_minutes = int(
-            2.5 * self.max_instances_per_autoscaler_loop * autoscaler_runs_per_minute
+            2.5 * self.max_new_instances_per_autoscaler_loop * autoscaler_runs_per_minute
         )
         max_possible_future_cores = self.worker_cores * max_new_instances_in_two_and_a_half_minutes
 
@@ -336,7 +337,7 @@ WHERE removed = 0 AND inst_coll = %s;
   ) AS t2
   GROUP BY scheduling_iteration, user_idx, regions_bits_rep, n_regions
   HAVING ready_cores_mcpu > 0
-  LIMIT {self.max_instances_per_autoscaler_loop * self.worker_cores}
+  LIMIT {self.max_new_instances_per_autoscaler_loop * self.worker_cores}
 )
 '''
 
@@ -351,7 +352,7 @@ WITH ready_cores_by_scheduling_iteration_regions AS (
 SELECT regions_bits_rep, ready_cores_mcpu
 FROM ready_cores_by_scheduling_iteration_regions
 ORDER BY scheduling_iteration, user_idx, -n_regions DESC, regions_bits_rep
-LIMIT {self.max_instances_per_autoscaler_loop * self.worker_cores};
+LIMIT {self.max_new_instances_per_autoscaler_loop * self.worker_cores};
 ''',
             jobs_query_args,
             query_name='get_job_queue_head',
@@ -401,7 +402,7 @@ GROUP BY user;
 
         head_job_queue_ready_cores_mcpu: Dict[str, float] = defaultdict(float)
 
-        remaining_instances_per_autoscaler_loop = self.max_instances_per_autoscaler_loop
+        remaining_instances_per_autoscaler_loop = self.max_new_instances_per_autoscaler_loop
         if head_job_queue_regions_ready_cores_mcpu_ordered and free_cores < 500:
             for regions, ready_cores_mcpu in head_job_queue_regions_ready_cores_mcpu_ordered:
                 n_instances_created = await self.create_instances_from_ready_cores(
@@ -437,12 +438,7 @@ GROUP BY user;
             AUTOSCALER_HEAD_JOB_QUEUE_READY_CORES.labels(pool_name=self.name, region=region).set(ready_cores_mcpu)
 
     async def control_loop(self):
-        async def loop():
-            while True:
-                await self.create_instances()
-                await asyncio.sleep(self.autoscaler_loop_period_secs)
-
-        await retry_long_running('create_instances', loop)
+        await periodically_call_with_dynamic_sleep(lambda: self.autoscaler_loop_period_secs, self.create_instances)
 
     def __str__(self):
         return f'pool {self.name}'

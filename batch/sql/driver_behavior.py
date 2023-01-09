@@ -15,7 +15,7 @@ async def main():
     await db.async_init()
 
     columns = [
-        ('inst_colls', 'max_instances_per_autoscaler_loop', 'INT', 10),  # n * 16 cores / 15s = excess_scheduling_rate/s = 10/s => n ~= 10
+        ('inst_colls', 'max_new_instances_per_autoscaler_loop', 'INT', 10),  # n * 16 cores / 15s = excess_scheduling_rate/s = 10/s => n ~= 10
         ('inst_colls', 'autoscaler_loop_period_secs', 'INT', 15),
         ('inst_colls', 'worker_max_idle_time_secs', 'INT', 30),
         ('pools', 'standing_worker_max_idle_time_secs', 'INT', standing_worker_max_idle_time_secs),
