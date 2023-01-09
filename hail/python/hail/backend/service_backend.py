@@ -222,7 +222,7 @@ class ServiceBackend(Backend):
         if regions_str is not None:
             regions = regions_str.split(',')
         else:
-            regions = None
+            regions = bc.supported_regions()
 
         if disable_progress_bar is None:
             disable_progress_bar_str = configuration_of('query', 'disable_progress_bar', None, None)
@@ -353,12 +353,9 @@ class ServiceBackend(Backend):
                             await write_str(infile, chain_file)
                     await write_str(infile, str(self.worker_cores))
                     await write_str(infile, str(self.worker_memory))
-                    if self.regions is None:
-                        await write_int(infile, 0)
-                    else:
-                        await write_int(infile, len(self.regions))
-                        for region in self.regions:
-                            await write_str(infile, region)
+                    await write_int(infile, len(self.regions))
+                    for region in self.regions:
+                        await write_str(infile, region)
                     await inputs(infile, token)
 
             with timings.step("submit batch"):
