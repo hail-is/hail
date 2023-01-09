@@ -1,36 +1,40 @@
 import json
 import logging
 
-from gear import transaction
+from gear import Database, transaction
 from hailtop.utils import humanize_timedelta_msecs, time_msecs_str
 
 from .batch_format_version import BatchFormatVersion
-from .exceptions import NonExistentBatchError, OpenBatchError
+from .exceptions import NonExistentJobGroupError, OpenBatchError
 from .utils import coalesce
 
 log = logging.getLogger('batch')
 
 
-def batch_record_to_dict(record):
+def _time_msecs_str(t):
+    if t:
+        return time_msecs_str(t)
+    return None
+
+
+def job_group_record_to_dict(record):
     if record['state'] == 'open':
         state = 'open'
     elif record['n_failed'] > 0:
         state = 'failure'
-    elif record['cancelled'] or record['n_cancelled'] > 0:
+    elif record['cancelled']:
         state = 'cancelled'
     elif record['state'] == 'complete':
-        assert record['n_succeeded'] == record['n_jobs']
-        state = 'success'
+        if record['n_cancelled'] > 0:
+            state = 'cancelled'
+        else:
+            assert record['n_succeeded'] == record['n_jobs']
+            state = 'success'
     else:
         state = 'running'
 
-    def _time_msecs_str(t):
-        if t:
-            return time_msecs_str(t)
-        return None
-
     time_created = _time_msecs_str(record['time_created'])
-    time_closed = _time_msecs_str(record['time_closed'])
+    time_closed = None
     time_completed = _time_msecs_str(record['time_completed'])
 
     if record['time_created'] and record['time_completed']:
@@ -39,7 +43,9 @@ def batch_record_to_dict(record):
         duration = None
 
     d = {
-        'id': record['id'],
+        'id': record['batch_id'],
+        'batch_id': record['batch_id'],
+        'job_group_id': record['job_group_id'],
         'user': record['user'],
         'billing_project': record['billing_project'],
         'token': record['token'],
@@ -57,9 +63,13 @@ def batch_record_to_dict(record):
         'duration': duration,
         'msec_mcpu': record['msec_mcpu'],
         'cost': coalesce(record['cost'], 0),
+        'path': record['path'],
     }
 
-    attributes = json.loads(record['attributes'])
+    try:
+        attributes = json.loads(record['attributes'])
+    except KeyError:
+        raise
     if attributes:
         d['attributes'] = attributes
 
@@ -80,6 +90,8 @@ def job_record_to_dict(record, name):
     result = {
         'batch_id': record['batch_id'],
         'job_id': record['job_id'],
+        'job_group_id': record['job_group_id'],
+        'job_group': record['path'],
         'name': name,
         'user': record['user'],
         'billing_project': record['billing_project'],
@@ -93,23 +105,25 @@ def job_record_to_dict(record, name):
     return result
 
 
-async def cancel_batch_in_db(db, batch_id):
+async def cancel_job_group_in_db(db: Database, batch_id: int, job_group_id: int):
     @transaction(db)
     async def cancel(tx):
         record = await tx.execute_and_fetchone(
             '''
-SELECT `state` FROM batches
-WHERE id = %s AND NOT deleted
+SELECT job_groups.`state`
+FROM job_groups
+LEFT JOIN batches ON batches.id = job_groups.batch_id
+WHERE batch_id = %s AND job_group_id = %s AND NOT deleted
 FOR UPDATE;
 ''',
-            (batch_id,),
+            (batch_id, job_group_id),
         )
         if not record:
-            raise NonExistentBatchError(batch_id)
+            raise NonExistentJobGroupError(batch_id, job_group_id)
 
         if record['state'] == 'open':
             raise OpenBatchError(batch_id)
 
-        await tx.just_execute('CALL cancel_batch(%s);', (batch_id,))
+        await tx.just_execute('CALL cancel_job_group(%s, %s);', (batch_id, job_group_id))
 
     await cancel()

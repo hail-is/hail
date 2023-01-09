@@ -127,6 +127,9 @@ class Job:
     def attempts(self):
         return async_to_blocking(self._async_job.attempts())
 
+    def resources(self):
+        return async_to_blocking(self._async_job.resources())
+
 
 class Batch:
     @classmethod
@@ -157,8 +160,22 @@ class Batch:
     def cancel(self):
         async_to_blocking(self._async_batch.cancel())
 
+    def cancel_job_group(self, job_group: str):
+        async_to_blocking(self._async_batch.cancel_job_group(job_group))
+
+    def create_job_group(self,
+                         job_group: str,
+                         *,
+                         cancel_after_n_failures: Optional[int] = None,
+                         callback: Optional[str] = None,
+                         attributes: Optional[Dict[str, Any]] = None):
+        async_to_blocking(self._async_batch.create_job_group(
+            job_group, cancel_after_n_failures=cancel_after_n_failures, callback=callback, attributes=attributes)
+        )
+
     # {
     #   id: int
+    #   job_group_id: int
     #   user: str
     #   billing_project: str
     #   token: str
@@ -178,14 +195,20 @@ class Batch:
     #   msec_mcpu: int
     #   cost: float
     # }
-    def status(self):
-        return async_to_blocking(self._async_batch.status())
+    def status(self, *, job_group: Optional[str] = None):
+        return async_to_blocking(self._async_batch.status(job_group=job_group))
 
-    def last_known_status(self):
-        return async_to_blocking(self._async_batch.last_known_status())
+    def last_known_status(self, *, job_group: Optional[str] = None):
+        return async_to_blocking(self._async_batch.last_known_status(job_group=job_group))
 
     def jobs(self, q=None, version=None):
         return agen_to_blocking(self._async_batch.jobs(q=q, version=version))
+
+    def job_groups(self, job_group='/', q=None, recursive: bool = False, limit: int = 2 ** 64):
+        return agen_to_blocking(self._async_batch.job_groups(job_group=job_group, q=q, recursive=recursive, limit=limit))
+
+    def get_job_group(self, job_group: str):
+        return async_to_blocking(self._async_batch.get_job_group(job_group=job_group))
 
     def get_job(self, job_id: int) -> Job:
         j = async_to_blocking(self._async_batch.get_job(job_id))
@@ -202,6 +225,9 @@ class Batch:
 
     def delete(self):
         async_to_blocking(self._async_batch.delete())
+
+    def resources(self, job_group='/'):
+        return async_to_blocking(self._async_batch.resources(job_group=job_group))
 
 
 class BatchBuilder:
@@ -231,6 +257,17 @@ class BatchBuilder:
     def token(self):
         return self._async_builder.token
 
+    def create_job_group(self,
+                         path: str,
+                         *,
+                         cancel_after_n_failures: Optional[int] = None,
+                         callback: Optional[str] = None,
+                         attributes: Optional[Dict[str, str]] = None,
+                         ):
+        return self._async_builder.create_job_group(
+            path, cancel_after_n_failures=cancel_after_n_failures, callback=callback, attributes=attributes
+        )
+
     def create_job(self,
                    image,
                    command,
@@ -243,7 +280,8 @@ class BatchBuilder:
                    mount_tokens=False, network: Optional[str] = None,
                    unconfined: bool = False, user_code: Optional[str] = None,
                    regions: Optional[List[str]] = None,
-                   always_copy_output: bool = False) -> Job:
+                   always_copy_output: bool = False,
+                   job_group: Optional[str] = None) -> Job:
         if parents:
             parents = [parent._async_job for parent in parents]
 
@@ -256,7 +294,7 @@ class BatchBuilder:
             always_copy_output=always_copy_output, timeout=timeout, cloudfuse=cloudfuse,
             requester_pays_project=requester_pays_project, mount_tokens=mount_tokens,
             network=network, unconfined=unconfined, user_code=user_code,
-            regions=regions)
+            regions=regions, job_group=job_group)
 
         return Job.from_async_job(async_job)
 
@@ -308,6 +346,10 @@ class BatchClient:
         for b in agen_to_blocking(self._async_client.list_batches(q=q, last_batch_id=last_batch_id, limit=limit, version=version)):
             yield Batch.from_async_batch(b)
 
+    def list_job_groups(self, batch_id, job_group='/', q=None, recursive=False, limit=2**64):
+        for jg in agen_to_blocking(self._async_client.list_job_groups(batch_id, job_group=job_group, q=q, recursive=recursive, limit=limit)):
+            yield jg
+
     def get_job(self, batch_id, job_id):
         j = async_to_blocking(self._async_client.get_job(batch_id, job_id))
         return Job.from_async_job(j)
@@ -340,6 +382,15 @@ class BatchClient:
         if isinstance(batch, Batch):
             return BatchBuilder.from_async_builder(batch_builder, batch=batch)
         return BatchBuilder.from_async_builder(batch_builder, batch=None)
+
+    def create_job_group(self, batch_id: int, job_group: str, *, cancel_after_n_failures: Optional[int] = None, callback: Optional[str] = None,
+                         attributes: Optional[Dict[str, str]] = None, token: Optional[str] = None):
+        return async_to_blocking(self._async_client.create_job_group(
+            batch_id, job_group, cancel_after_n_failures=cancel_after_n_failures, callback=callback, attributes=attributes, token=token
+        ))
+
+    def get_job_group(self, batch_id: int, job_group: str):
+        return async_to_blocking(self._async_client.get_job_group(batch_id, job_group))
 
     def get_billing_project(self, billing_project):
         return async_to_blocking(self._async_client.get_billing_project(billing_project))

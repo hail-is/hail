@@ -256,6 +256,9 @@ class Transaction:
                 for row in rows:
                     yield row
 
+    async def select_and_fetchall(self, sql, args=None, query_name=None):
+        return self.execute_and_fetchall(sql, args, query_name)
+
     async def execute_insertone(self, sql, args=None, *, query_name=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
@@ -330,9 +333,9 @@ class Database:
                 yield row
 
     @retry_transient_mysql_errors
-    async def execute_insertone(self, sql, args=None):
+    async def execute_insertone(self, sql, args=None, query_name=None):
         async with self.start() as tx:
-            return await tx.execute_insertone(sql, args)
+            return await tx.execute_insertone(sql, args, query_name=query_name)
 
     @retry_transient_mysql_errors
     async def execute_update(self, sql, args=None, query_name=None):

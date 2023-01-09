@@ -942,6 +942,11 @@ def test_authorized_users_only():
         (session.get, '/api/v1alpha/batches/0', 401),
         (session.delete, '/api/v1alpha/batches/0', 401),
         (session.patch, '/api/v1alpha/batches/0/close', 401),
+        (session.get, '/api/v1alpha/batches/0/job_groups', 401),
+        (session.patch, '/api/v1alpha/batches/0/job_groups/1/cancel', 401),
+        (session.post, '/api/v1alpha/batches/0/job_groups', 401),
+        (session.get, '/api/v1alpha/batches/0/job_groups/1', 401),
+        (session.get, '/api/v1alpha/batches/0/job_groups/resources', 401),
         # redirect to auth/login
         (session.get, '/batches', 302),
         (session.get, '/batches/0', 302),
@@ -1677,7 +1682,7 @@ def test_update_cancelled_batch_wout_fast_path(client: BatchClient):
         b = bb.submit()
     except httpx.ClientResponseError as err:
         assert err.status == 400
-        assert 'Cannot submit new jobs to a cancelled batch' in err.body
+        assert 'bunch contains job where the job group has already been cancelled' in err.body
     else:
         assert False
 
@@ -1693,7 +1698,7 @@ def test_submit_update_to_cancelled_batch(client: BatchClient):
         b = bb.submit()
     except httpx.ClientResponseError as err:
         assert err.status == 400
-        assert 'Cannot submit new jobs to a cancelled batch' in err.body
+        assert 'bunch contains job where the job group has already been cancelled' in err.body
     else:
         assert False
 
@@ -1729,3 +1734,321 @@ def test_region(client: BatchClient):
     assert status['state'] == 'Success', str((status, b.debug_info()))
     assert status['status']['region'] == region, str((status, b.debug_info()))
     assert region in j.log()['main'], str((status, b.debug_info()))
+
+
+def test_job_group_creation_with_no_jobs(client: BatchClient):
+    bb = client.create_batch()
+    bb.create_job_group('/foo')
+    b = bb.submit()
+    job_groups = list(b.job_groups())
+    assert len(job_groups) == 1, str(job_groups)
+    assert job_groups[0]['path'] == '/foo', str(job_groups)
+
+
+def test_job_group_creation_on_update_with_no_jobs(client: BatchClient):
+    bb = client.create_batch()
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    b = bb.submit()
+
+    bb = client.update_batch(b.id)
+    bb.create_job_group('/foo')
+    b = bb.submit()
+
+    job_groups = list(b.job_groups())
+    assert len(job_groups) == 1, str(job_groups)
+    assert job_groups[0]['path'] == '/foo', str(job_groups)
+
+    b.cancel()
+
+
+def test_batch_with_no_predeclared_job_groups(client: BatchClient):
+    bb = client.create_batch()
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'], job_group='/foo')
+    b = bb.submit()
+    job_groups = list(b.job_groups())
+    assert len(job_groups) == 1, str(job_groups)
+    assert job_groups[0]['path'] == '/foo', str(job_groups)
+
+
+def test_batch_with_predeclared_job_groups(client: BatchClient):
+    bb = client.create_batch()
+    bb.create_job_group('/foo')
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'], job_group='/foo')
+    b = bb.submit()
+    job_groups = list(b.job_groups())
+    assert len(job_groups) == 1, str(job_groups)
+    jg = job_groups[0]
+    assert jg['path'] == '/foo', str(jg)
+
+
+def test_existing_batch_with_job_groups_created_by_client(client: BatchClient):
+    bb = client.create_batch()
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'], job_group='/foo')
+    b = bb.submit()
+    client.create_job_group(b.id, '/bar')
+    job_groups = list(b.job_groups())
+    jg_paths = {jg['path'] for jg in job_groups}
+    assert jg_paths == {'/foo', '/bar'}, str(job_groups)
+
+
+def test_job_group_cancel_after_n_failures(client: BatchClient):
+    bb = client.create_batch()
+    bb.create_job_group('/foo', cancel_after_n_failures=1)
+    bb.create_job(DOCKER_ROOT_IMAGE, ['false'], job_group='/foo')
+    j = bb.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'], job_group='/foo')
+    b = bb.submit()
+    j_status = j.wait()
+    status = b.wait()
+    assert j_status['state'] == 'Cancelled', str((j_status, b.debug_info()))
+    assert status['state'] == 'failure', str((status, b.debug_info()))
+
+
+def test_job_group_attributes(client: BatchClient):
+    bb = client.create_batch()
+    bb.create_job_group('/foo', attributes={'test': '1'})
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'], job_group='/foo')
+    b = bb.submit()
+    b.cancel()
+    job_groups = list(b.job_groups())
+    assert len(job_groups) == 1, str(job_groups)
+    jg = job_groups[0]
+    assert jg['path'] == '/foo', str(jg)
+    assert jg['attributes'] == {'test': '1'}, str(jg)
+
+
+def test_query_nested_job_groups(client: BatchClient):
+    bb = client.create_batch(attributes={'test': '1'})
+    bb.create_job_group('/foo', attributes={'test': '1'})
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'], job_group='/foo/bar')
+    bb.create_job(DOCKER_ROOT_IMAGE, ['false'], job_group='/foo/bar')
+    bb.create_job_group('/foo/baz', attributes={'test': '1', 'baz': '1'})
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'], job_group='/foo/baz')
+    bb.create_job_group('/x/y', attributes={'test': '1', 'y': '1'})
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'], job_group='/x/y/z')
+    b = bb.submit()
+    b.wait()
+
+    root_job_groups = list(b.job_groups(job_group='/', recursive=False))
+    assert {jg['path'] for jg in root_job_groups} == {'/foo', '/x'}, str(root_job_groups)
+
+    foo_job_groups = list(b.job_groups(job_group='/foo'))
+    assert {jg['path'] for jg in foo_job_groups} == {'/foo/bar', '/foo/baz'}, str(foo_job_groups)
+
+    all_job_groups = list(b.job_groups(job_group='/', recursive=True))
+    assert {jg['path'] for jg in all_job_groups} == {'/foo', '/foo/bar', '/foo/baz', '/x', '/x/y', '/x/y/z'}, str(
+        root_job_groups
+    )
+
+    foo_client_job_groups = list(client.list_job_groups(b.id, job_group='/foo'))
+    assert {jg['path'] for jg in foo_client_job_groups} == {'/foo/bar', '/foo/baz'}, str(foo_job_groups)
+
+    test_job_groups = list(b.job_groups(q='test=1', recursive=True))
+    assert {jg['path'] for jg in test_job_groups} == {'/foo', '/foo/baz', '/x/y'}, str(test_job_groups)
+
+    test_job_groups = list(b.job_groups(q='test=1', recursive=False))
+    assert {jg['path'] for jg in test_job_groups} == {'/foo'}, str(test_job_groups)
+
+    test_job_groups = list(b.job_groups(job_group='/foo', q='baz=1', recursive=False))
+    assert {jg['path'] for jg in test_job_groups} == {'/foo/baz'}, str(test_job_groups)
+
+    foo_status = b.get_job_group('/foo')
+    assert foo_status['n_jobs'] == 3, str(foo_status)
+    assert foo_status['n_completed'] == 3, str(foo_status)
+    assert foo_status['n_succeeded'] == 2, str(foo_status)
+    assert foo_status['n_failed'] == 1, str(foo_status)
+    assert foo_status['complete'], str(foo_status)
+
+
+def test_nested_job_group_billing_propogation(client: BatchClient):
+    bb = client.create_batch()
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'], job_group='/foo/bar')
+    bb.create_job(DOCKER_ROOT_IMAGE, ['false'], job_group='/foo/baz')
+    b = bb.submit()
+    b.wait()
+
+    foo_resources = b.resources('/foo')
+    bar_resources = b.resources('/foo/bar')
+    baz_resources = b.resources('/foo/baz')
+
+    assert set(foo_resources.keys()) == set(bar_resources.keys())
+    assert set(foo_resources.keys()) == set(baz_resources.keys())
+
+    for resource in foo_resources.keys():
+        assert foo_resources[resource] == bar_resources[resource] + baz_resources[resource], str(
+            (foo_resources, bar_resources, baz_resources)
+        )
+
+
+def test_cancel_job_group(client: BatchClient):
+    bb = client.create_batch()
+    head = bb.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'], job_group='/foo')
+    tail = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[head], job_group='/foo/bar')
+    b = bb.submit()
+
+    delay = 1
+    while True:
+        status = head.status()
+        if status['state'] == 'Running':
+            break
+        if status['state'] != 'Ready':
+            assert False, str(status)
+        delay = sync_sleep_and_backoff(delay)
+
+    b.cancel_job_group('/foo')
+    root_status = b.wait()
+    foo_status = b.get_job_group('/foo')
+
+    # FIXME: I don't like the semantics of cancelled here
+    assert root_status['state'] == 'cancelled', str(root_status)
+
+    assert foo_status['state'] == 'cancelled', str(foo_status)
+    assert head.status()['state'] == 'Cancelled', str(head.status())
+    assert tail.status()['state'] == 'Cancelled', str(tail.status())
+
+    bb = client.update_batch(b.id)
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'], job_group='/foo')
+    with pytest.raises(
+        httpx.ClientResponseError, match='bunch contains job where the job group has already been cancelled'
+    ):
+        bb.submit()
+
+    bb = client.update_batch(b.id)
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'], job_group='/foo/bar')
+    with pytest.raises(
+        httpx.ClientResponseError, match='bunch contains job where the job group has already been cancelled'
+    ):
+        bb.submit()
+
+    bb = client.update_batch(b.id)
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'], job_group='/')
+    bb.submit()
+
+
+def test_nested_job_groups_cancel_middle_group(client: BatchClient):
+    bb = client.create_batch()
+    bb.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'], job_group='/foo/bar')
+    bb.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'], job_group='/foo/baz')
+    bb.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'], job_group='/a/b')
+    b = bb.submit()
+
+    b.cancel_job_group('/foo/bar')
+    foo_bar = b.wait(job_group='/foo/bar')
+    assert foo_bar['state'] == 'cancelled'
+
+    foo_baz = b.get_job_group('/foo/baz')
+    assert foo_baz['state'] == 'running'
+
+    foo_jg = b.get_job_group('/foo')
+    assert foo_jg['state'] == 'running'
+
+    root = b.get_job_group('/')
+    assert root['state'] == 'running'
+
+    b.cancel_job_group('/foo')
+
+    foo_jg = b.get_job_group('/foo')
+    assert foo_jg['state'] == 'cancelled'
+
+    foo_baz = b.get_job_group('/foo/baz')
+    assert foo_baz['state'] == 'cancelled'
+
+    root = b.get_job_group('/')
+    assert root['state'] == 'running'
+
+    a_jg = b.get_job_group('/a')
+    assert a_jg['state'] == 'running'
+
+    b.cancel_job_group('/')
+
+
+def test_job_groups_with_slow_create(client: BatchClient):
+    bb = create_batch(client)
+    bb.create_job_group('/foo')
+    bb.create_job_group('/bar')
+    for _ in range(4):
+        bb.create_job(DOCKER_ROOT_IMAGE, ['echo', 'a' * (900 * 1024)])
+    b = bb.submit()
+    job_groups = list(b.job_groups(job_group='/'))
+    assert len(job_groups) == 2, str(job_groups)
+
+
+def test_job_groups_with_slow_update(client: BatchClient):
+    bb = create_batch(client)
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    bb.submit()
+
+    bb.create_job_group('/foo')
+    bb.create_job_group('/bar')
+    for _ in range(4):
+        bb.create_job(DOCKER_ROOT_IMAGE, ['echo', 'a' * (900 * 1024)])
+    b = bb.submit()
+    job_groups = list(b.job_groups(job_group='/'))
+    assert len(job_groups) == 2, str(job_groups)
+
+
+def test_more_than_100_job_groups_created(client: BatchClient):
+    bb = create_batch(client)
+    for i in range(110):
+        bb.create_job_group(f'/foo{i}')
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    b = bb.submit()
+    job_groups = list(b.job_groups(job_group='/'))
+    assert len(job_groups) == 110, str(job_groups)
+
+
+def test_job_group_creation_with_bad_paths(client: BatchClient):
+    bb = create_batch(client)
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'], job_group='/a/b/c/d/e/f/g/h/i/j')
+    with pytest.raises(httpx.ClientResponseError, match='max level of nesting of job groups is'):
+        bb.submit()
+
+    bb = create_batch(client)
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'], job_group='a')
+    with pytest.raises(httpx.ClientResponseError, match='must match regex'):
+        bb.submit()
+
+    bb = create_batch(client)
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'], job_group='/' + ('a' * 300))
+    with pytest.raises(httpx.ClientResponseError, match='maximum job group path length is 255 characters'):
+        bb.submit()
+
+    bb = create_batch(client)
+    bb.create_job_group('/a/b/c/d/e/f/g/h/i/j')
+    with pytest.raises(httpx.ClientResponseError, match='max level of nesting of job groups is'):
+        bb.submit()
+
+    bb = create_batch(client)
+    bb.create_job_group('a')
+    with pytest.raises(httpx.ClientResponseError, match='must match regex'):
+        bb.submit()
+
+    bb = create_batch(client)
+    bb.create_job_group('/')
+    with pytest.raises(httpx.ClientResponseError, match='cannot create job group with path "/"'):
+        bb.submit()
+
+    bb = create_batch(client)
+    bb.create_job_group('/' + ('a' * 300))
+    with pytest.raises(httpx.ClientResponseError, match='maximum job group path length is 255 characters'):
+        bb.submit()
+
+
+def test_duplicate_job_groups_errors(client: BatchClient):
+    bb = create_batch(client)
+    bb.create_job_group('/foo', cancel_after_n_failures=1)
+    bb.create_job_group('/foo', cancel_after_n_failures=5)
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    with pytest.raises(httpx.ClientResponseError, match='found duplicate job group paths'):
+        bb.submit()
+
+
+def test_cant_create_or_update_already_existing_job_groups(client: BatchClient):
+    bb = create_batch(client)
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'], job_group='/a')
+    b = bb.submit()
+
+    bb = client.update_batch(b.id)
+    bb.create_job_group('/a', cancel_after_n_failures=1)
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'], job_group='/a')
+    with pytest.raises(httpx.ClientResponseError, match='already exists'):
+        bb.submit()

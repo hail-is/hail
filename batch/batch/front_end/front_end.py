@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import collections
+import copy
 import datetime
 import json
 import logging
@@ -43,6 +44,7 @@ from gear import (
 from gear.clients import get_cloud_async_fs
 from gear.database import CallError
 from gear.profiling import install_profiler_if_requested
+from gear.time_limited_max_size_cache import TimeLimitedMaxSizeCache
 from hailtop import aiotools, dictfix, httpx, version
 from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
 from hailtop.config import get_deploy_config
@@ -61,7 +63,7 @@ from hailtop.utils import (
 )
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
-from ..batch import batch_record_to_dict, cancel_batch_in_db, job_record_to_dict
+from ..batch import cancel_job_group_in_db, job_group_record_to_dict, job_record_to_dict
 from ..batch_configuration import BATCH_STORAGE_URI, CLOUD, DEFAULT_NAMESPACE, SCOPE
 from ..batch_format_version import BatchFormatVersion
 from ..cloud.resource_utils import (
@@ -76,11 +78,21 @@ from ..exceptions import (
     BatchUserError,
     ClosedBillingProjectError,
     InvalidBillingLimitError,
+    InvalidJobGroupPathError,
+    JobGroupAlreadyExistsError,
     NonExistentBillingProjectError,
+    NonExistentJobGroupIDError,
+    NonExistentJobGroupPathError,
     QueryError,
 )
 from ..file_store import FileStore
-from ..globals import BATCH_FORMAT_VERSION, HTTP_CLIENT_MAX_SIZE, RESERVED_STORAGE_GB_PER_CORE, complete_states
+from ..globals import (
+    BATCH_FORMAT_VERSION,
+    HTTP_CLIENT_MAX_SIZE,
+    MAX_NUMBER_OF_JOB_GROUP_LEVELS_PER_JOB,
+    RESERVED_STORAGE_GB_PER_CORE,
+    complete_states,
+)
 from ..inst_coll_config import InstanceCollectionConfigs
 from ..resource_usage import ResourceUsageMonitor
 from ..spec_writer import SpecWriter
@@ -98,7 +110,7 @@ from .query import (
     parse_list_batches_query_v1,
     parse_list_batches_query_v2,
 )
-from .validate import ValidationError, validate_and_clean_jobs, validate_batch, validate_batch_update
+from .validate import ValidationError, validate_and_clean_jobs, validate_batch, validate_batch_update, validate_job_groups
 
 uvloop.install()
 
@@ -202,6 +214,108 @@ def cast_query_param_to_int(param: Optional[str]) -> Optional[int]:
     return None
 
 
+class JobGroup:
+    @staticmethod
+    def job_group_path_str_from_list(path: List[str]) -> str:
+        return '/' + '/'.join(path)
+
+    @staticmethod
+    def job_group_path_from_str(path: str) -> List[str]:
+        path = path.lstrip('/').rstrip('/')
+        if path == '':
+            return []
+        return path.split('/')
+
+    @staticmethod
+    def is_valid_job_group_path(path: List[str]) -> bool:
+        return all(segment != '' for segment in path)
+
+    @staticmethod
+    def is_valid_job_group_path_str(path: str) -> bool:
+        path_list = JobGroup.job_group_path_from_str(path)
+        return JobGroup.is_valid_job_group_path(path_list)
+
+    @staticmethod
+    def job_group_path_str(path: Union[List[str], str]) -> str:
+        if isinstance(path, str) and JobGroup.is_valid_job_group_path_str(path):
+            return path
+        if isinstance(path, list) and JobGroup.is_valid_job_group_path(path):
+            return JobGroup.job_group_path_str_from_list(path)
+        raise InvalidJobGroupPathError(path)
+
+    def __init__(self, batch_id: int, job_group_id: int, path: str, parent_ids: List[int], token: Optional[str]):
+        self.batch_id = batch_id
+        self.job_group_id = job_group_id
+        self.path = path
+        self.parent_ids = parent_ids
+        self.token = token
+
+
+class JobGroupCache:
+    def __init__(self, db: Database):
+        self.db = db
+        self.job_group_path_cache = TimeLimitedMaxSizeCache[Tuple[int, str], JobGroup](
+            load=self._get_job_group_by_path, lifetime_ns=3600 * 10**9, num_slots=1000, cache_name='job-group-cache'
+        )
+        self.job_group_id_cache = TimeLimitedMaxSizeCache[Tuple[int, int], JobGroup](
+            load=self._get_job_group_by_id, lifetime_ns=3600 * 10**9, num_slots=1000, cache_name='job-group-cache'
+        )
+
+    async def lookup_by_path(self, batch_id: int, path: str) -> JobGroup:
+        return await self.job_group_path_cache.lookup((batch_id, path))
+
+    async def lookup_by_id(self, batch_id: int, job_group_id: int) -> JobGroup:
+        return await self.job_group_id_cache.lookup((batch_id, job_group_id))
+
+    def put_from_path(self, batch_id: int, path: str, job_group: JobGroup):
+        return self.job_group_path_cache._put((batch_id, path), job_group)
+
+    def put_from_id(self, batch_id: int, job_group_id: int, job_group: JobGroup):
+        return self.job_group_id_cache._put((batch_id, job_group_id), job_group)
+
+    async def _get_job_group_by_path(self, input: Tuple[int, str]) -> JobGroup:
+        batch_id, path = input
+        records = self.db.select_and_fetchall(
+            '''
+SELECT job_groups.job_group_id, parent_id, token
+FROM job_groups
+LEFT JOIN job_group_parents ON job_groups.batch_id = job_group_parents.batch_id AND job_groups.job_group_id = job_group_parents.job_group_id
+WHERE job_groups.batch_id = %s AND job_groups.path = %s
+ORDER BY parent_id ASC;
+''',
+            (batch_id, path),
+        )
+        records = [record async for record in records]
+        if not records:
+            raise NonExistentJobGroupPathError(batch_id, path)
+
+        parent_ids = [record['parent_id'] for record in records if record['parent_id'] != record['job_group_id']]
+        job_group_id = records[0]['job_group_id']
+        token = records[0]['token']
+        return JobGroup(batch_id, job_group_id, path, parent_ids, token)
+
+    async def _get_job_group_by_id(self, input: Tuple[int, int]) -> JobGroup:
+        batch_id, job_group_id = input
+        records = self.db.select_and_fetchall(
+            '''
+SELECT job_groups.job_group_id, parent_id, path, token
+FROM job_groups
+LEFT JOIN job_group_parents ON job_groups.batch_id = job_group_parents.batch_id AND job_groups.job_group_id = job_group_parents.job_group_id
+WHERE job_groups.batch_id = %s AND job_groups.job_group_id = %s
+ORDER BY parent_id ASC;
+''',
+            (batch_id, job_group_id),
+        )
+        records = [record async for record in records]
+        if not records:
+            raise NonExistentJobGroupIDError(batch_id, job_group_id)
+
+        parent_ids = [record['parent_id'] for record in records if record['parent_id'] != record['job_group_id']]
+        path = records[0]['path']
+        token = records[0]['token']
+        return JobGroup(batch_id, job_group_id, path, parent_ids, token)
+
+
 @routes.get('/healthcheck')
 async def get_healthcheck(_) -> web.Response:
     return web.Response()
@@ -252,6 +366,285 @@ async def _handle_api_error(f: Callable[P, Awaitable[T]], *args: P.args, **kwarg
         raise e.http_response()
 
 
+async def _query_job_groups(
+    request, user, q: str, batch_id: int, job_group: JobGroup
+) -> Tuple[List[dict], Optional[str]]:
+    db = request.app['db']
+    job_group_id = job_group.job_group_id
+
+    where_conditions = [
+        'job_groups.batch_id = %s',
+        '(billing_project_users.`user` = %s AND billing_project_users.billing_project = batches.billing_project)',
+        'NOT deleted',
+    ]
+    where_args = [batch_id, user]
+
+    having_conditions = []
+    having_args = []
+
+    job_group_filter_args = []
+    recursive = request.query.get('recursive', '0') == '1'
+    if recursive:
+        job_group_filter = '(job_group_parents.parent_id = %s AND level > 0)'
+        job_group_filter_args.append(job_group_id)
+    else:
+        job_group_filter = '(job_group_parents.parent_id = %s AND level = 1)'
+        job_group_filter_args.append(job_group_id)
+
+    last_job_group_path = request.query.get('last_job_group_path')
+    if last_job_group_path is not None:
+        where_conditions.append('(job_groups.path > %s)')
+        where_args.append(last_job_group_path)
+
+    terms = q.split()
+    for _t in terms:
+        if _t[0] == '!':
+            negate = True
+            t = _t[1:]
+        else:
+            negate = False
+            t = _t
+
+        args: List[Any]
+        having = False
+
+        if '=' in t:
+            k, v = t.split('=', 1)
+            condition = '''
+((job_groups.batch_id, job_groups.job_group_id) IN
+ (SELECT batch_id, job_group_id FROM batch_attributes
+  WHERE `key` = %s AND `value` = %s))
+        '''
+            args = [k, v]
+        elif t.startswith('has:'):
+            k = t[4:]
+            condition = '''
+((job_groups.batch_id, job_groups.job_group_id) IN
+ (SELECT batch_id, job_group_id FROM batch_attributes
+  WHERE `key` = %s))
+        '''
+            args = [k]
+        elif t == 'complete':
+            condition = "(job_groups.`state` = 'complete')"
+            args = []
+        elif t == 'running':
+            condition = "(job_groups.`state` = 'running')"
+            args = []
+        elif t == 'failure':
+            condition = '(n_failed > 0)'
+            args = []
+        elif t == 'cancelled':
+            condition = '(batches_cancelled.id IS NOT NULL)'
+            args = []
+        elif t == 'success':
+            # need complete because there might be no jobs
+            having = True
+            condition = "((job_groups.`state` = 'complete') AND (n_succeeded = job_groups.n_jobs))"
+            args = []
+        else:
+            session = await aiohttp_session.get_session(request)
+            set_message(session, f'Invalid search term: {t}.', 'error')
+            return ([], None)
+
+        if negate:
+            condition = f'(NOT {condition})'
+
+        if having:
+            having_conditions.append(condition)
+            having_args.extend(args)
+        else:
+            where_conditions.append(condition)
+            where_args.extend(args)
+
+    if having_conditions:
+        having_statement = f'HAVING {" AND ".join(having_conditions)}'
+    else:
+        having_statement = ''
+
+    sql = f'''
+WITH base_t AS (
+  SELECT job_groups.batch_id, job_groups.job_group_id, job_groups.time_created, job_groups.time_completed, job_groups.path,
+    job_groups.state, job_groups.token, job_groups.n_jobs, job_groups.attributes, batches.`user`, batches.billing_project,
+    batches.msec_mcpu, batches_cancelled.id IS NOT NULL AS cancelled,
+    CAST(COALESCE(SUM(batches_n_jobs_in_complete_states.n_completed), 0) AS SIGNED) AS n_completed,
+    CAST(COALESCE(SUM(batches_n_jobs_in_complete_states.n_succeeded), 0) AS SIGNED) AS n_succeeded,
+    CAST(COALESCE(SUM(batches_n_jobs_in_complete_states.n_failed), 0) AS SIGNED) AS n_failed,
+    CAST(COALESCE(SUM(batches_n_jobs_in_complete_states.n_cancelled), 0) AS SIGNED) AS n_cancelled
+  FROM job_groups
+  INNER JOIN batches ON batches.id = job_groups.batch_id
+  INNER JOIN (
+    SELECT job_group_parents.batch_id, job_group_parents.job_group_id
+    FROM job_group_parents
+    INNER JOIN job_groups ON job_groups.batch_id = job_group_parents.batch_id AND job_groups.job_group_id = job_group_parents.parent_id
+    WHERE job_group_parents.batch_id = %s AND {job_group_filter}
+  ) AS t ON job_groups.batch_id = t.batch_id AND job_groups.job_group_id = t.job_group_id
+  LEFT JOIN batches_cancelled ON job_groups.batch_id = batches_cancelled.id AND job_groups.job_group_id = batches_cancelled.job_group_id
+  LEFT JOIN billing_projects ON batches.billing_project = billing_projects.name
+  LEFT JOIN batches_n_jobs_in_complete_states
+    ON job_groups.batch_id = batches_n_jobs_in_complete_states.id AND
+       job_groups.job_group_id = batches_n_jobs_in_complete_states.job_group_id
+  STRAIGHT_JOIN billing_project_users ON batches.billing_project = billing_project_users.billing_project
+  WHERE {' AND '.join(where_conditions)}
+  GROUP BY job_groups.batch_id, job_groups.job_group_id
+  {having_statement}
+  ORDER BY path ASC
+  LIMIT 50
+)
+SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
+FROM base_t
+LEFT JOIN (
+  SELECT base_t.batch_id, base_t.job_group_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM base_t
+  LEFT JOIN aggregated_batch_resources_v2 ON base_t.batch_id = aggregated_batch_resources_v2.batch_id AND
+    base_t.job_group_id = aggregated_batch_resources_v2.job_group_id
+  GROUP BY base_t.batch_id, base_t.job_group_id, resource_id
+) AS usage_t ON base_t.batch_id = usage_t.batch_id
+LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
+GROUP BY base_t.batch_id, base_t.job_group_id
+ORDER BY path ASC;
+    '''
+    sql_args = [batch_id, *job_group_filter_args, *where_args, *having_args]
+
+    job_groups = [
+        job_group_record_to_dict(job_group)
+        async for job_group in db.select_and_fetchall(sql, sql_args, query_name='get_job_groups')
+    ]
+
+    if len(job_groups) == 50:
+        last_job_group_path = job_groups[-1]['path']
+    else:
+        last_job_group_path = None
+
+    return (job_groups, last_job_group_path)
+
+
+async def _query_batch_jobs_backup(request, batch_id, job_group_id, q: str):
+    state_query_values = {
+        'pending': ['Pending'],
+        'ready': ['Ready'],
+        'creating': ['Creating'],
+        'running': ['Running'],
+        'live': ['Ready', 'Creating', 'Running'],
+        'cancelled': ['Cancelled'],
+        'error': ['Error'],
+        'failed': ['Failed'],
+        'bad': ['Error', 'Failed'],
+        'success': ['Success'],
+        'done': ['Cancelled', 'Error', 'Failed', 'Success'],
+    }
+
+    db = request.app['db']
+
+    # batch has already been validated
+    where_conditions = ['(jobs.batch_id = %s AND batch_updates.committed AND job_group_parents.parent_id = %s)']
+    where_args = [batch_id, job_group_id]
+
+    recursive = request.query.get('recursive', '0') == '1'
+
+    last_job_id = request.query.get('last_job_id')
+    if last_job_id is not None:
+        last_job_id = int(last_job_id)
+        where_conditions.append('(jobs.job_id > %s)')
+        where_args.append(last_job_id)
+
+    terms = q.split()
+    for _t in terms:
+        if _t[0] == '!':
+            negate = True
+            t = _t[1:]
+        else:
+            negate = False
+            t = _t
+
+        if '=' in t:
+            k, v = t.split('=', 1)
+            if k == 'job_id':
+                condition = '(jobs.job_id = %s)'
+                args = [v]
+            else:
+                condition = '''
+((jobs.batch_id, jobs.job_id) IN
+ (SELECT batch_id, job_id FROM job_attributes
+  WHERE `key` = %s AND `value` = %s))
+'''
+                args = [k, v]
+        elif t.startswith('has:'):
+            k = t[4:]
+            condition = '''
+((jobs.batch_id, jobs.job_id) IN
+ (SELECT batch_id, job_id FROM job_attributes
+  WHERE `key` = %s))
+'''
+            args = [k]
+        elif t.startswith('job_group:'):
+            k = t[10:]
+            if not recursive:
+                condition = '''
+(job_groups.path = %s)
+'''
+                args = [k]
+            else:
+                condition = '''
+(job_groups.path LIKE %s)
+'''
+                args = [k + '%']
+        elif t in state_query_values:
+            values = state_query_values[t]
+            condition = ' OR '.join(['(jobs.state = %s)' for v in values])
+            condition = f'({condition})'
+            args = values
+        else:
+            session = await aiohttp_session.get_session(request)
+            set_message(session, f'Invalid search term: {t}.', 'error')
+            return ([], None)
+
+        if negate:
+            condition = f'(NOT {condition})'
+
+        where_conditions.append(condition)
+        where_args.extend(args)
+
+    sql = f'''
+WITH base_t AS
+(
+  SELECT jobs.*, batches.user, batches.billing_project, batches.format_version,
+    job_attributes.value AS name, job_groups.path
+  FROM jobs
+  INNER JOIN batches ON jobs.batch_id = batches.id
+  INNER JOIN batch_updates ON jobs.batch_id = batch_updates.batch_id AND jobs.update_id = batch_updates.update_id
+  LEFT JOIN job_attributes
+  ON jobs.batch_id = job_attributes.batch_id AND
+    jobs.job_id = job_attributes.job_id AND
+    job_attributes.`key` = 'name'
+  LEFT JOIN job_groups ON jobs.batch_id = job_groups.batch_id AND jobs.job_group_id = job_groups.job_group_id
+  LEFT JOIN job_group_parents ON job_groups.batch_id = job_group_parents.batch_id AND job_groups.job_group_id = job_group_parents.job_group_id
+  WHERE {' AND '.join(where_conditions)}
+  ORDER BY jobs.batch_id ASC, jobs.job_id ASC
+  LIMIT 50
+)
+SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
+FROM base_t
+LEFT JOIN (
+  SELECT aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM base_t
+  LEFT JOIN aggregated_job_resources_v2 ON base_t.batch_id = aggregated_job_resources_v2.batch_id AND base_t.job_id = aggregated_job_resources_v2.job_id
+  GROUP BY aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, aggregated_job_resources_v2.resource_id
+) AS usage_t ON base_t.batch_id = usage_t.batch_id AND base_t.job_id = usage_t.job_id
+LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
+GROUP BY base_t.batch_id, base_t.job_id;
+'''
+    sql_args = where_args
+
+    jobs = [job_record_to_dict(record, record['name']) async for record in db.select_and_fetchall(sql, sql_args)]
+
+    if len(jobs) == 50:
+        last_job_id = jobs[-1]['job_id']
+    else:
+        last_job_id = None
+
+    return (jobs, last_job_id)
+
+
 async def _query_batch_jobs(request: web.Request, batch_id: int, version: int, q: str, last_job_id: Optional[int]):
     db: Database = request.app['db']
     if version == 1:
@@ -283,7 +676,7 @@ WHERE id = %s AND NOT deleted;
     if not record:
         raise web.HTTPNotFound()
 
-    jobs, last_job_id = await _query_batch_jobs(request, batch_id, version, q, last_job_id)
+    jobs, last_job_id = await _query_batch_jobs(request, batch_id, version, q, last_job_id)  # FIXME: add job group id here
 
     resp = {'jobs': jobs}
     if last_job_id is not None:
@@ -310,6 +703,26 @@ async def get_jobs_v2(request: web.Request, _, batch_id: int) -> web.Response:
     last_job_id = cast_query_param_to_int(request.query.get('last_job_id'))
     resp = await _handle_api_error(_get_jobs, request, batch_id, 2, q, last_job_id)
     assert resp is not None
+    return json_response(resp)
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}/job_groups')
+@rest_billing_project_users_only
+async def get_job_groups_from_path(request, userdata, batch_id):
+    user = userdata['username']
+    job_group_cache: JobGroupCache = request.app['job_group_cache']
+    job_group_path_str = request.query['job_group']
+    try:
+        job_group = await job_group_cache.lookup_by_path(batch_id, job_group_path_str)
+    except NonExistentJobGroupPathError as e:
+        return e.http_response()
+
+    q = request.query.get('q', '')
+
+    job_groups, last_job_group_path = await _query_job_groups(request, user, q, batch_id, job_group)
+    resp: dict = {'job_groups': job_groups}
+    if last_job_group_path is not None:
+        resp['last_job_group_path'] = last_job_group_path
     return json_response(resp)
 
 
@@ -622,6 +1035,184 @@ async def rest_get_job_container_log(request, _, batch_id) -> web.Response:
     return await get_job_container_log(request, batch_id)
 
 
+async def _query_batches_backup(request, user: str, q: str, version: int, last_batch_id: Optional[int]):
+    db: Database = request.app['db']
+
+    where_conditions = [
+        '(billing_project_users.`user` = %s AND billing_project_users.billing_project = batches.billing_project)',
+        'NOT deleted',
+        'job_groups.job_group_id = 1',
+    ]
+    where_args = [user]
+
+    last_batch_id = request.query.get('last_batch_id')
+    if last_batch_id is not None:
+        last_batch_id = int(last_batch_id)
+        where_conditions.append('(job_groups.batch_id < %s)')
+        where_args.append(last_batch_id)
+
+    terms = q.split()
+    for _t in terms:
+        if _t[0] == '!':
+            negate = True
+            t = _t[1:]
+        else:
+            negate = False
+            t = _t
+
+        if '=' in t:
+            k, v = t.split('=', 1)
+            condition = '''
+((batches.id) IN
+ (SELECT batch_id FROM batch_attributes
+  WHERE job_group_id = 1 AND `key` = %s AND `value` = %s))
+'''
+            args = [k, v]
+        elif t.startswith('has:'):
+            k = t[4:]
+            condition = '''
+((batches.id) IN
+ (SELECT batch_id FROM batch_attributes
+  WHERE job_group_id = 1 AND `key` = %s))
+'''
+            args = [k]
+        elif t.startswith('user:'):
+            k = t[5:]
+            condition = '''
+(batches.`user` = %s)
+'''
+            args = [k]
+        elif t.startswith('billing_project:'):
+            k = t[16:]
+            condition = '''
+(billing_projects.name_cs = %s)
+'''
+            args = [k]
+        elif t == 'open':
+            condition = "(job_groups.`state` = 'open')"
+            args = []
+        elif t == 'closed':
+            condition = "(job_groups.`state` != 'open')"
+            args = []
+        elif t == 'complete':
+            condition = "(job_groups.`state` = 'complete')"
+            args = []
+        elif t == 'running':
+            condition = "(job_groups.`state` = 'running')"
+            args = []
+        elif t == 'cancelled':
+            condition = '(batches_cancelled.id IS NOT NULL)'
+            args = []
+        elif t == 'failure':
+            condition = '(n_failed > 0)'
+            args = []
+        elif t == 'success':
+            # need complete because there might be no jobs
+            condition = "(job_groups.`state` = 'complete' AND n_succeeded = job_groups.n_jobs)"
+            args = []
+        else:
+            session = await aiohttp_session.get_session(request)
+            set_message(session, f'Invalid search term: {t}.', 'error')
+            return ([], None)
+
+        if negate:
+            condition = f'(NOT {condition})'
+
+        where_conditions.append(condition)
+        where_args.extend(args)
+
+    # +----+-------------+-----------------------------------+------------+--------+-------------------------------------------------------------------------------------------------------------------------------------------------------+-------------+---------+-----------------------------------------------------------------------+------+----------+---------------------------------+
+    # | id | select_type | table | partitions | type | possible_keys | key | key_len | ref | rows | filtered | Extra |
+    # +----+-------------+-----------------------------------+------------+--------+-------------------------------------------------------------------------------------------------------------------------------------------------------+-------------+---------+-----------------------------------------------------------------------+------+----------+---------------------------------+
+    # | 1 | PRIMARY | < derived2 > | NULL | ALL | NULL | NULL | NULL | NULL | 51 | 100.00 | Using
+    # temporary;
+    # Using
+    # filesort |
+    # | 1 | PRIMARY | < derived4 > | NULL | ref | < auto_key0 > | < auto_key0 > | 12 | base_t.batch_id, base_t.job_group_id | 21 | 100.00 | NULL |
+    # | 1 | PRIMARY | resources | NULL | eq_ref | resource_id | resource_id | 4 | usage_t.resource_id | 1 | 100.00 | NULL |
+    # | 4 | DERIVED | < derived2 > | NULL | ALL | NULL | NULL | NULL | NULL | 51 | 100.00 | Using
+    # temporary |
+    # | 4 | DERIVED | aggregated_batch_resources_v2 | NULL | ref | PRIMARY | PRIMARY | 12 | base_t.batch_id, base_t.job_group_id | 40 | 100.00 | NULL |
+    # | 2 | DERIVED | job_groups | NULL | index | PRIMARY, batch_id, job_groups_path, job_groups_state_callback, job_groups_time_created, job_groups_time_completed, job_groups_state_cancel_after_n_failures | PRIMARY | 12 | NULL | 4 | 100.00 | Backward
+    # index
+    # scan |
+    # | 2 | DERIVED | batches | NULL | eq_ref | PRIMARY, batches_billing_project_state | PRIMARY | 8 | jigold - batch.job_groups.batch_id | 1 | 100.00 | Using
+    # where |
+    # | 2 | DERIVED | billing_projects | NULL | eq_ref | PRIMARY | PRIMARY | 402 | jigold - batch.batches.billing_project | 1 | 100.00 | Using
+    # index |
+    # | 2 | DERIVED | batches_cancelled | NULL | eq_ref | PRIMARY | PRIMARY | 12 | jigold - batch.job_groups.batch_id, jigold - batch.job_groups.job_group_id | 1 | 100.00 | Using
+    # index |
+    # | 2 | DERIVED | < derived3 > | NULL | ref | < auto_key0 > | < auto_key0 > | 12 | jigold - batch.job_groups.batch_id, jigold - batch.job_groups.job_group_id | 2 | 100.00 | NULL |
+    # | 2 | DERIVED | billing_project_users | NULL | ref | PRIMARY, billing_project_users_billing_project_user_cs | PRIMARY | 402 | jigold - batch.batches.billing_project | 1 | 100.00 | Using
+    # index |
+    # | 3 | DERIVED | batches_n_jobs_in_complete_states | NULL | index | PRIMARY | PRIMARY | 16 | NULL | 23 | 100.00 | Backward
+    # index
+    # scan |
+    # +----+-------------+-----------------------------------+------------+--------+-------------------------------------------------------------------------------------------------------------------------------------------------------+-------------+---------+-----------------------------------------------------------------------+------+----------+---------------------------------+
+    # 12
+    # rows in set, 1
+    # warning(0.01
+    # sec)
+
+    sql = f'''
+WITH states_t AS (
+  SELECT id AS batch_id, job_group_id,
+    CAST(COALESCE(SUM(n_completed), 0) AS SIGNED) AS n_completed,
+    CAST(COALESCE(SUM(n_succeeded), 0) AS SIGNED) AS n_succeeded,
+    CAST(COALESCE(SUM(n_failed), 0) AS SIGNED) AS n_failed,
+    CAST(COALESCE(SUM(n_cancelled), 0) AS SIGNED) AS n_cancelled
+  FROM batches_n_jobs_in_complete_states
+  GROUP BY batch_id, job_group_id
+  ORDER BY id DESC, job_group_id DESC
+), base_t AS (
+  SELECT job_groups.*, batches.billing_project, batches.`user`, batches.msec_mcpu,
+    batches_cancelled.id IS NOT NULL AS cancelled,
+    CAST(COALESCE(states_t.n_completed, 0) AS SIGNED) AS n_completed,
+    CAST(COALESCE(states_t.n_succeeded, 0) AS SIGNED) AS n_succeeded,
+    CAST(COALESCE(states_t.n_failed, 0) AS SIGNED) AS n_failed,
+    CAST(COALESCE(states_t.n_cancelled, 0) AS SIGNED) AS n_cancelled
+  FROM job_groups
+  LEFT JOIN states_t ON states_t.batch_id = job_groups.batch_id AND states_t.job_group_id = job_groups.job_group_id
+  LEFT JOIN batches ON job_groups.batch_id = batches.id
+  LEFT JOIN billing_projects ON batches.billing_project = billing_projects.name
+  LEFT JOIN batches_cancelled
+    ON job_groups.batch_id = batches_cancelled.id AND job_groups.job_group_id = batches_cancelled.job_group_id
+  STRAIGHT_JOIN billing_project_users ON batches.billing_project = billing_project_users.billing_project
+  WHERE {' AND '.join(where_conditions)}
+  GROUP BY job_groups.batch_id, job_groups.job_group_id
+  ORDER BY job_groups.batch_id DESC
+  LIMIT 51
+)
+SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
+FROM base_t
+LEFT JOIN (
+  SELECT base_t.batch_id, base_t.job_group_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM base_t
+  LEFT JOIN aggregated_batch_resources_v2 ON
+    base_t.batch_id = aggregated_batch_resources_v2.batch_id AND
+    base_t.job_group_id = aggregated_batch_resources_v2.job_group_id
+  GROUP BY base_t.batch_id, base_t.job_group_id, resource_id
+) AS usage_t ON base_t.batch_id = usage_t.batch_id AND base_t.job_group_id = usage_t.job_group_id
+LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
+GROUP BY batch_id, job_group_id
+ORDER BY batch_id DESC, job_group_id;
+'''
+    sql_args = where_args
+
+    batches = [
+        job_group_record_to_dict(batch)
+        async for batch in db.select_and_fetchall(sql, sql_args, query_name='get_batches')
+    ]
+
+    if len(batches) == 51:
+        batches.pop()
+        last_batch_id = batches[-1]['batch_id']
+    else:
+        last_batch_id = None
+
+    return (batches, last_batch_id)
+
+
 async def _query_batches(request, user: str, q: str, version: int, last_batch_id: Optional[int]):
     db: Database = request.app['db']
     if version == 1:
@@ -630,11 +1221,11 @@ async def _query_batches(request, user: str, q: str, version: int, last_batch_id
         assert version == 2, version
         sql, sql_args = parse_list_batches_query_v2(user, q, last_batch_id)
 
-    batches = [batch_record_to_dict(record) async for record in db.select_and_fetchall(sql, sql_args)]
+    batches = [batch_record_to_dict(record) async for record in db.select_and_fetchall(sql, sql_args)]  # FIXME
 
     if len(batches) == 51:
         batches.pop()
-        last_batch_id = batches[-1]['id']
+        last_batch_id = batches[-1]['batch_id']
     else:
         last_batch_id = None
 
@@ -720,11 +1311,142 @@ def assert_is_sha_1_hex_string(revision: str):
         raise web.HTTPBadRequest(reason=f'revision must be 40 character hexadecimal encoded SHA-1, got: {revision}')
 
 
+async def _create_job_group(
+    job_group_cache: JobGroupCache,
+    tx: Transaction,
+    batch_id: int,
+    path_str: str,
+    token: Optional[str],
+    *,
+    cancel_after_n_failures: Optional[int] = None,
+    callback: Optional[str] = None,
+    attributes: Optional[Dict[str, str]] = None,
+) -> JobGroup:
+    now = time_msecs()
+
+    if not JobGroup.is_valid_job_group_path_str(path_str):
+        raise InvalidJobGroupPathError(path_str)
+
+    try:
+        job_group = await job_group_cache.lookup_by_path(batch_id, path_str)
+    except NonExistentJobGroupPathError:
+        pass
+    else:
+        if token and job_group.token != token:
+            raise JobGroupAlreadyExistsError(batch_id, path_str)
+        return job_group
+
+    async def _insert_job_group(
+        tx: Union[Transaction, Database],
+        path_str: str,
+        parent_ids: List[int],
+    ) -> JobGroup:
+        try:
+            return await job_group_cache.lookup_by_path(batch_id, path_str)
+        except NonExistentJobGroupPathError:
+            record = await tx.execute_and_fetchone(
+                '''
+SELECT job_group_id
+FROM job_groups
+WHERE batch_id = %s
+ORDER BY job_group_id DESC
+FOR UPDATE;
+''',
+                (batch_id,),
+            )
+
+            if record is None:
+                job_group_id = 1
+            else:
+                job_group_id = record['job_group_id'] + 1
+
+            try:
+                await tx.execute_insertone(
+                    '''
+INSERT INTO job_groups (batch_id, job_group_id, path, state, n_jobs, time_created, time_completed, attributes, token)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
+''',
+                    (batch_id, job_group_id, path_str, 'complete', 0, now, now, json.dumps(None), None),
+                    query_name='insert_job_groups',
+                )
+            except pymysql.err.IntegrityError as e:
+                # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
+                if e.args[0] == 1062:
+                    return await job_group_cache.lookup_by_path(batch_id, path_str)
+                raise
+
+            n_parents = len(parent_ids)
+            job_parent_args = [
+                (batch_id, job_group_id, parent_id, n_parents - parent_idx)
+                for parent_idx, parent_id in enumerate(parent_ids)
+            ]
+            job_parent_args.append((batch_id, job_group_id, job_group_id, 0))
+
+            await tx.execute_many(
+                '''
+INSERT INTO job_group_parents (batch_id, job_group_id, parent_id, level)
+VALUES (%s, %s, %s, %s)
+ON DUPLICATE KEY UPDATE level = level;
+''',
+                job_parent_args,
+                query_name='insert_job_group_parents',
+            )
+
+            jg = JobGroup(batch_id, job_group_id, path_str, copy.deepcopy(parent_ids), None)
+            job_group_cache.put_from_id(batch_id, jg.job_group_id, jg)
+            job_group_cache.put_from_path(batch_id, jg.path, jg)
+            return jg
+
+    # try and create the root job group
+    job_group = await _insert_job_group(tx, '/', [])
+    assert job_group.job_group_id == 1 and len(job_group.parent_ids) == 0
+
+    path = JobGroup.job_group_path_from_str(path_str)
+    n_path_segments = len(path)
+    for i in range(n_path_segments):
+        parent_ids = [*copy.deepcopy(job_group.parent_ids), job_group.job_group_id]
+        job_group = await _insert_job_group(
+            tx,
+            JobGroup.job_group_path_str(path[: i + 1]),
+            parent_ids,
+        )
+
+    job_group_id = job_group.job_group_id
+
+    await tx.execute_update(
+        '''
+UPDATE job_groups
+SET callback = %s, cancel_after_n_failures = %s, attributes = %s, token = %s
+WHERE batch_id = %s AND job_group_id = %s;
+''',
+        (callback, cancel_after_n_failures, json.dumps(attributes), token, batch_id, job_group_id),
+        'update_job_groups',
+    )
+
+    if attributes:
+        await tx.execute_many(
+            '''
+INSERT INTO batch_attributes (batch_id, job_group_id, `key`, value)
+VALUES (%s, %s, %s, %s);
+''',
+            [(batch_id, job_group_id, k, v) for k, v in attributes.items()],
+            'insert_job_group_attributes',
+        )
+
+    job_group.token = token
+
+    return job_group
+
+
 async def _create_jobs(
     userdata, job_specs: List[Dict[str, Any]], batch_id: int, update_id: int, app: web.Application
 ) -> web.Response:
     db: Database = app['db']
     file_store: FileStore = app['file_store']
+    job_group_cache: JobGroupCache = app['job_group_cache']
+
+    rand_token = random.randint(0, app['n_tokens'] - 1)
+
     user = userdata['username']
 
     # restrict to what's necessary; in particular, drop the session
@@ -764,7 +1486,7 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
     job_attributes_args = []
     jobs_telemetry_args = []
 
-    inst_coll_resources: Dict[str, Dict[str, int]] = collections.defaultdict(
+    inst_coll_resources: Dict[Tuple[int, str], Dict[str, int]] = collections.defaultdict(
         lambda: {
             'n_jobs': 0,
             'n_ready_jobs': 0,
@@ -986,11 +1708,47 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
                 }
             )
 
+        job_group_path_str = spec['job_group']
+        if not JobGroup.is_valid_job_group_path_str(job_group_path_str):
+            raise web.HTTPBadRequest(
+                reason=f'invalid job group path - must start with "/" but found "{job_group_path_str}"'
+            )
+        if len(job_group_path_str) > 255:
+            raise web.HTTPBadRequest(
+                reason=f'maximum job group path length is 255 characters. found {job_group_path_str} with length {len(job_group_path_str)}'
+            )
+
+        job_group_path = JobGroup.job_group_path_from_str(job_group_path_str)
+        if len(job_group_path) + 1 > MAX_NUMBER_OF_JOB_GROUP_LEVELS_PER_JOB:
+            raise web.HTTPBadRequest(
+                reason=f'max level of nesting of job groups is {MAX_NUMBER_OF_JOB_GROUP_LEVELS_PER_JOB}. Found {len(job_group_path)}'
+            )
+
+        @transaction(db)
+        async def create_job_group(tx, path_str):
+            try:
+                return await _create_job_group(job_group_cache, tx, batch_id, path_str, token=None)
+            except InvalidJobGroupPathError as e:
+                raise e.http_response()
+
+        job_group = await create_job_group(job_group_path_str)  # pylint: disable=no-value-for-parameter
+
         sa = spec.get('service_account')
         check_service_account_permissions(user, sa)
 
-        icr = inst_coll_resources[inst_coll_name]
-        icr['n_jobs'] += 1
+        job_group_id = job_group.job_group_id
+        all_job_group_ids = [job_group_id, *job_group.parent_ids]
+
+        for jg_id in all_job_group_ids:
+            icr = inst_coll_resources[(jg_id, inst_coll_name)]
+            icr['n_jobs'] += 1
+
+            if update_id == 1 and len(parent_ids) == 0:
+                icr['n_ready_jobs'] += 1
+                icr['ready_cores_mcpu'] += cores_mcpu
+                if not always_run:
+                    icr['n_ready_cancellable_jobs'] += 1
+                    icr['ready_cancellable_cores_mcpu'] += cores_mcpu
 
         # jobs in non-initial updates of a batch always start out as pending
         # because they may have currently running parents in previous updates
@@ -999,11 +1757,6 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
         if update_id == 1 and len(parent_ids) == 0:
             state = 'Ready'
             time_ready = time_msecs()
-            icr['n_ready_jobs'] += 1
-            icr['ready_cores_mcpu'] += cores_mcpu
-            if not always_run:
-                icr['n_ready_cancellable_jobs'] += 1
-                icr['ready_cancellable_cores_mcpu'] += cores_mcpu
         else:
             state = 'Pending'
             time_ready = None
@@ -1024,6 +1777,7 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
                 batch_id,
                 job_id,
                 update_id,
+                job_group_id,
                 state,
                 json.dumps(db_spec),
                 always_run,
@@ -1044,8 +1798,6 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
             for k, v in attributes.items():
                 job_attributes_args.append((batch_id, job_id, k, v))
 
-    rand_token = random.randint(0, app['n_tokens'] - 1)
-
     async def write_spec_to_cloud():
         if batch_format_version.has_full_spec_in_cloud():
             await spec_writer.write()
@@ -1055,8 +1807,8 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
             try:
                 await tx.execute_many(
                     '''
-INSERT INTO jobs (batch_id, job_id, update_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll, n_regions, regions_bits_rep)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO jobs (batch_id, job_id, update_id, job_group_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll, n_regions, regions_bits_rep)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
                     jobs_args,
                     query_name='insert_jobs',
@@ -1066,6 +1818,11 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 if err.args[0] == 1062:
                     log.info(f'bunch containing job {(batch_id, jobs_args[0][1])} already inserted')
                     return
+            except pymysql.err.OperationalError as err:
+                if err.args[0] == 1644 and err.args[1] == 'job group has already been cancelled':
+                    raise web.HTTPBadRequest(
+                        text=f'bunch contains job where the job group has already been cancelled ({(batch_id, jobs_args[0][1])})'
+                    )
                 raise
             try:
                 await tx.execute_many(
@@ -1100,52 +1857,55 @@ VALUES (%s, %s, %s);
                 query_name='insert_jobs_telemetry',
             )
 
-            batches_inst_coll_staging_args = [
+            inst_coll_staging_args = [
                 (
                     batch_id,
                     update_id,
+                    job_group_id,
                     inst_coll,
                     rand_token,
                     resources['n_jobs'],
                     resources['n_ready_jobs'],
                     resources['ready_cores_mcpu'],
                 )
-                for inst_coll, resources in inst_coll_resources.items()
+                for (job_group_id, inst_coll), resources in inst_coll_resources.items()
             ]
+
             await tx.execute_many(
                 '''
-INSERT INTO batches_inst_coll_staging (batch_id, update_id, inst_coll, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
-VALUES (%s, %s, %s, %s, %s, %s, %s)
+INSERT INTO batches_inst_coll_staging (batch_id, update_id, job_group_id, inst_coll, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
   n_jobs = n_jobs + VALUES(n_jobs),
   n_ready_jobs = n_ready_jobs + VALUES(n_ready_jobs),
   ready_cores_mcpu = ready_cores_mcpu + VALUES(ready_cores_mcpu);
 ''',
-                batches_inst_coll_staging_args,
+                inst_coll_staging_args,
                 query_name='insert_batches_inst_coll_staging',
             )
 
-            batch_inst_coll_cancellable_resources_args = [
+            inst_coll_cancellable_resources_args = [
                 (
                     batch_id,
+                    job_group_id,
                     update_id,
                     inst_coll,
                     rand_token,
                     resources['n_ready_cancellable_jobs'],
                     resources['ready_cancellable_cores_mcpu'],
                 )
-                for inst_coll, resources in inst_coll_resources.items()
+                for (job_group_id, inst_coll), resources in inst_coll_resources.items()
             ]
             await tx.execute_many(
                 '''
-INSERT INTO batch_inst_coll_cancellable_resources (batch_id, update_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
-VALUES (%s, %s, %s, %s, %s, %s)
+INSERT INTO batch_inst_coll_cancellable_resources (batch_id, job_group_id, update_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
+VALUES (%s, %s, %s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
   n_ready_cancellable_jobs = n_ready_cancellable_jobs + VALUES(n_ready_cancellable_jobs),
   ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + VALUES(ready_cancellable_cores_mcpu);
 ''',
-                batch_inst_coll_cancellable_resources_args,
-                query_name='insert_inst_coll_cancellable_resources',
+                inst_coll_cancellable_resources_args,
+                query_name='insert_job_group_inst_coll_cancellable_resources',
             )
 
             if batch_format_version.has_full_spec_in_cloud():
@@ -1185,19 +1945,57 @@ VALUES (%s, %s, %s);
 async def create_batch_fast(request, userdata):
     app = request.app
     db: Database = app['db']
+    job_group_cache: JobGroupCache = app['job_group_cache']
 
     user = userdata['username']
     batch_and_bunch = await json_request(request)
     batch_spec = batch_and_bunch['batch']
+
     bunch = batch_and_bunch['bunch']
     batch_id = await _create_batch(batch_spec, userdata, db)
     update_id, _ = await _create_batch_update(batch_id, batch_spec['token'], batch_spec['n_jobs'], user, db)
+
+    @transaction(db)
+    async def _insert_job_groups(tx, job_groups):
+        await _create_job_group(
+            job_group_cache,
+            tx,
+            batch_id,
+            '/',
+            token=job_groups['token'],
+            cancel_after_n_failures=batch_spec.get('cancel_after_n_failures'),
+            callback=batch_spec.get('callback'),
+            attributes=batch_spec.get('attributes'),
+        )
+        for jg in job_groups['groups']:
+            await _create_job_group(
+                job_group_cache,
+                tx,
+                batch_id,
+                path_str=jg['job_group'],
+                token=job_groups['token'],
+                cancel_after_n_failures=jg.get('cancel_after_n_failures'),
+                callback=jg.get('callback'),
+                attributes=jg.get('attributes'),
+            )
+
+    try:
+        job_groups = batch_and_bunch.get('job_groups')
+        if job_groups:
+            validate_job_groups(job_groups)
+            await _insert_job_groups(job_groups)  # pylint: disable=no-value-for-parameter
+    except BatchUserError as e:
+        return e.http_response()
+    except ValidationError as e:
+        raise web.HTTPBadRequest(reason=e.reason)
+
     try:
         await _create_jobs(userdata, bunch, batch_id, update_id, app)
     except web.HTTPBadRequest as e:
         if f'update {update_id} is already committed' == e.reason:
             return json_response({'id': batch_id})
         raise
+
     await _commit_update(app, batch_id, update_id, user, db)
     request['batch_telemetry']['batch_id'] = str(batch_id)
     return json_response({'id': batch_id})
@@ -1206,11 +2004,49 @@ async def create_batch_fast(request, userdata):
 @routes.post('/api/v1alpha/batches/create')
 @auth.rest_authenticated_users_only
 @add_metadata_to_request
-async def create_batch(request, userdata):
+async def create_batch_new(request, userdata):
+    app = request.app
+    job_group_cache: JobGroupCache = app['job_group_cache']
+    db: Database = app['db']
+
+    batch_spec = await json_request(request)
+
+    id = await _create_batch(batch_spec, userdata, db)
+    n_jobs = batch_spec['n_jobs']
+    if n_jobs > 0:
+        update_id, _ = await _create_batch_update(
+            id, batch_spec['token'], batch_spec['n_jobs'], userdata['username'], db
+        )
+    else:
+        update_id = None
+    request['batch_telemetry']['batch_id'] = str(id)
+
+    @transaction(db)
+    async def create_job_group(tx):
+        await _create_job_group(
+            job_group_cache,
+            tx,
+            id,
+            '/',
+            token=batch_spec['token'],
+            cancel_after_n_failures=batch_spec.get('cancel_after_n_failures'),
+            callback=batch_spec.get('callback'),
+            attributes=batch_spec.get('attributes'),
+        )
+
+    await create_job_group()  # pylint: disable=no-value-for-parameter
+
+    return json_response({'id': id, 'update_id': update_id})
+
+@routes.post('/api/v1alpha/batches/create')
+@auth.rest_authenticated_users_only
+@add_metadata_to_request
+async def create_batch_old(request, userdata):
     app = request.app
     db: Database = app['db']
 
     batch_spec = await json_request(request)
+
     id = await _create_batch(batch_spec, userdata, db)
     n_jobs = batch_spec['n_jobs']
     if n_jobs > 0:
@@ -1241,8 +2077,6 @@ async def _create_batch(batch_spec: dict, userdata, db: Database) -> int:
 
     billing_project = batch_spec['billing_project']
     token = batch_spec['token']
-
-    attributes = batch_spec.get('attributes')
 
     @transaction(db)
     async def insert(tx):
@@ -1296,14 +2130,14 @@ WHERE token = %s AND user = %s FOR UPDATE;
         now = time_msecs()
         id = await tx.execute_insertone(
             '''
-INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created, time_completed, token, state, format_version, cancel_after_n_failures)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created, time_completed, token, state, format_version, cancel_after_n_failures, migrated)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
             (
                 json.dumps(userdata),
                 user,
                 billing_project,
-                json.dumps(attributes),
+                json.dumps(batch_spec.get('attributes')),
                 batch_spec.get('callback'),
                 0,
                 now,
@@ -1312,26 +2146,11 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 'complete',
                 BATCH_FORMAT_VERSION,
                 batch_spec.get('cancel_after_n_failures'),
+                True,
             ),
             query_name='insert_batches',
         )
-        await tx.execute_insertone(
-            '''
-INSERT INTO batches_n_jobs_in_complete_states (id) VALUES (%s);
-''',
-            (id,),
-            query_name='insert_batches_n_jobs_in_complete_states',
-        )
 
-        if attributes:
-            await tx.execute_many(
-                '''
-INSERT INTO `batch_attributes` (batch_id, `key`, `value`)
-VALUES (%s, %s, %s)
-''',
-                [(id, k, v) for k, v in attributes.items()],
-                query_name='insert_batch_attributes',
-            )
         return id
 
     return await insert()
@@ -1343,6 +2162,7 @@ VALUES (%s, %s, %s)
 async def update_batch_fast(request, userdata):
     app = request.app
     db: Database = app['db']
+    job_group_cache: JobGroupCache = app['job_group_cache']
 
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
@@ -1358,6 +2178,30 @@ async def update_batch_fast(request, userdata):
     update_id, start_job_id = await _create_batch_update(
         batch_id, update_spec['token'], update_spec['n_jobs'], user, db
     )
+
+    @transaction(db)
+    async def _create_job_groups(tx, job_groups):
+        if job_groups is not None:
+            validate_job_groups(job_groups)
+            for jg in job_groups['groups']:
+                await _create_job_group(
+                    job_group_cache,
+                    tx,
+                    batch_id,
+                    path_str=jg['job_group'],
+                    token=job_groups['token'],
+                    cancel_after_n_failures=jg.get('cancel_after_n_failures'),
+                    callback=jg.get('callback'),
+                    attributes=jg.get('attributes'),
+                )
+
+    try:
+        job_groups = update_and_bunch.get('job_groups')
+        await _create_job_groups(job_groups)  # pylint: disable=no-value-for-parameter
+    except BatchUserError as e:
+        return e.http_response()
+    except ValidationError as e:
+        raise web.HTTPBadRequest(reason=e.reason)
 
     try:
         await _create_jobs(userdata, bunch, batch_id, update_id, app)
@@ -1399,7 +2243,6 @@ async def _create_batch_update(
 ) -> Tuple[int, int]:
     @transaction(db)
     async def update(tx: Transaction):
-        assert n_jobs > 0
         record = await tx.execute_and_fetchone(
             '''
 SELECT update_id, start_job_id FROM batch_updates
@@ -1417,18 +2260,15 @@ WHERE batch_id = %s AND token = %s;
         # but do allow updates to batches with jobs that have been cancelled.
         record = await tx.execute_and_fetchone(
             '''
-SELECT batches_cancelled.id IS NOT NULL AS cancelled
+SELECT 1
 FROM batches
-LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
-WHERE batches.id = %s AND user = %s AND NOT deleted
+WHERE id = %s AND user = %s AND NOT deleted
 FOR UPDATE;
 ''',
             (batch_id, user),
         )
         if not record:
             raise web.HTTPNotFound()
-        if record['cancelled']:
-            raise web.HTTPBadRequest(reason='Cannot submit new jobs to a cancelled batch')
 
         now = time_msecs()
 
@@ -1464,45 +2304,104 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
 
 
 async def _get_batch(app, batch_id):
+    return await _get_job_group_dict(app, batch_id, 1)
+
+
+async def _get_job_group_resources(app, batch_id: int, job_group_identifier: Union[str, int]):
     db: Database = app['db']
 
+    if isinstance(job_group_identifier, int):
+        identifier_query = 'job_groups.job_group_id = %s'
+    else:
+        assert isinstance(job_group_identifier, str)
+        identifier_query = 'job_groups.path = %s'
+
     record = await db.select_and_fetchone(
-        '''
-WITH base_t AS (
-SELECT batches.*,
-  batches_cancelled.id IS NOT NULL AS cancelled,
-  batches_n_jobs_in_complete_states.n_completed,
-  batches_n_jobs_in_complete_states.n_succeeded,
-  batches_n_jobs_in_complete_states.n_failed,
-  batches_n_jobs_in_complete_states.n_cancelled
-FROM batches
-LEFT JOIN batches_n_jobs_in_complete_states
-       ON batches.id = batches_n_jobs_in_complete_states.id
-LEFT JOIN batches_cancelled
-       ON batches.id = batches_cancelled.id
-WHERE batches.id = %s AND NOT deleted
-)
-SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
-FROM base_t
+        f'''
+SELECT job_groups.batch_id, job_groups.job_group_id, resources
+FROM job_groups
 LEFT JOIN (
-  SELECT aggregated_batch_resources_v2.batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM base_t
-  LEFT JOIN aggregated_batch_resources_v2 ON base_t.id = aggregated_batch_resources_v2.batch_id
-  GROUP BY aggregated_batch_resources_v2.batch_id, aggregated_batch_resources_v2.resource_id
-) AS usage_t ON base_t.id = usage_t.batch_id
-LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-GROUP BY base_t.id;
+  SELECT batch_id, job_group_id, JSON_OBJECTAGG(resource, `usage`) AS resources
+  FROM (
+    SELECT aggregated_batch_resources_v2.batch_id, aggregated_batch_resources_v2.job_group_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+    FROM aggregated_batch_resources_v2
+    LEFT JOIN job_groups ON job_groups.batch_id = aggregated_batch_resources_v2.batch_id AND job_groups.job_group_id = aggregated_batch_resources_v2.job_group_id
+    WHERE job_groups.batch_id = %s AND {identifier_query}
+    GROUP BY aggregated_batch_resources_v2.batch_id, aggregated_batch_resources_v2.job_group_id, resource_id
+  ) AS t
+  LEFT JOIN resources ON resources.resource_id = t.resource_id
+  GROUP BY batch_id, job_group_id
+) AS t2 ON t2.batch_id = job_groups.batch_id AND t2.job_group_id = job_groups.job_group_id
+WHERE job_groups.batch_id = %s AND {identifier_query};
 ''',
-        (batch_id,),
+        (batch_id, job_group_identifier, batch_id, job_group_identifier),
     )
     if not record:
         raise web.HTTPNotFound()
 
-    return batch_record_to_dict(record)
+    if record['resources'] is None:
+        return None
+
+    return json.loads(record['resources'])
 
 
-async def _cancel_batch(app, batch_id):
-    await cancel_batch_in_db(app['db'], batch_id)
+async def _get_job_group_dict(app, batch_id: int, job_group_identifier: Union[str, int]):
+    db: Database = app['db']
+
+    if isinstance(job_group_identifier, int):
+        identifier_query = 'job_groups.job_group_id = %s'
+    else:
+        assert isinstance(job_group_identifier, str)
+        identifier_query = 'job_groups.path = %s'
+
+    record = await db.select_and_fetchone(
+        f'''
+WITH base_t AS (
+  SELECT job_groups.batch_id, job_groups.job_group_id, job_groups.time_created, job_groups.time_completed, job_groups.path,
+    job_groups.state, job_groups.n_jobs, batches.`user`, job_groups.attributes,
+    batches.msec_mcpu, job_groups.token, batches.billing_project,
+    batches_cancelled.id IS NOT NULL AS cancelled,
+    CAST(COALESCE(n_completed, 0) AS SIGNED) AS n_completed,
+    CAST(COALESCE(n_succeeded, 0) AS SIGNED) AS n_succeeded,
+    CAST(COALESCE(n_failed, 0) AS SIGNED) AS n_failed,
+    CAST(COALESCE(n_cancelled, 0) AS SIGNED) AS n_cancelled
+  FROM job_groups
+  LEFT JOIN batches ON job_groups.batch_id = batches.id
+  LEFT JOIN batches_cancelled ON job_groups.batch_id = batches_cancelled.id AND job_groups.job_group_id = batches_cancelled.job_group_id
+  LEFT JOIN (
+    SELECT batches_n_jobs_in_complete_states.id, batches_n_jobs_in_complete_states.job_group_id,
+      CAST(COALESCE(SUM(batches_n_jobs_in_complete_states.n_completed), 0) AS SIGNED) AS n_completed,
+      CAST(COALESCE(SUM(batches_n_jobs_in_complete_states.n_succeeded), 0) AS SIGNED) AS n_succeeded,
+      CAST(COALESCE(SUM(batches_n_jobs_in_complete_states.n_failed), 0) AS SIGNED) AS n_failed,
+      CAST(COALESCE(SUM(batches_n_jobs_in_complete_states.n_cancelled), 0) AS SIGNED) AS n_cancelled
+    FROM batches_n_jobs_in_complete_states
+    LEFT JOIN job_groups ON batches_n_jobs_in_complete_states.id = job_groups.batch_id AND batches_n_jobs_in_complete_states.job_group_id = job_groups.job_group_id
+    WHERE id = %s AND {identifier_query}
+    GROUP BY batches_n_jobs_in_complete_states.id, batches_n_jobs_in_complete_states.job_group_id
+  ) AS t ON job_groups.batch_id = t.id AND job_groups.job_group_id = t.job_group_id
+  WHERE job_groups.batch_id = %s AND {identifier_query} AND NOT deleted
+)
+SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
+FROM base_t
+LEFT JOIN (
+  SELECT aggregated_batch_resources_v2.batch_id, aggregated_batch_resources_v2.job_group_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM base_t
+  LEFT JOIN aggregated_batch_resources_v2 ON base_t.batch_id = aggregated_batch_resources_v2.batch_id
+  GROUP BY aggregated_batch_resources_v2.batch_id, aggregated_batch_resources_v2.job_group_id, aggregated_batch_resources_v2.resource_id
+) AS usage_t ON base_t.batch_id = usage_t.batch_id AND base_t.job_group_id = usage_t.job_group_id
+LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
+GROUP BY base_t.batch_id, base_t.job_group_id;
+''',
+        (batch_id, job_group_identifier, batch_id, job_group_identifier),
+    )
+    if not record:
+        raise web.HTTPNotFound()
+
+    return job_group_record_to_dict(record)
+
+
+async def _cancel_job_group(app: web.Application, batch_id: int, job_group_id: int):
+    await cancel_job_group_in_db(app['db'], batch_id, job_group_id)
     app['cancel_batch_state_changed'].set()
     return web.Response()
 
@@ -1520,7 +2419,7 @@ WHERE id = %s AND NOT deleted;
     if not record:
         raise web.HTTPNotFound()
 
-    await db.just_execute('CALL cancel_batch(%s);', (batch_id,))
+    await cancel_job_group_in_db(db, batch_id, 1)
     await db.execute_update('UPDATE batches SET deleted = 1 WHERE id = %s;', (batch_id,))
 
     if record['state'] == 'running':
@@ -1530,15 +2429,89 @@ WHERE id = %s AND NOT deleted;
 @routes.get('/api/v1alpha/batches/{batch_id}')
 @rest_billing_project_users_only
 @add_metadata_to_request
-async def get_batch(request: web.Request, _, batch_id: int) -> web.Response:
+async def get_batch(request: web.Request, _, batch_id: int) -> web.Response:  # old
     return json_response(await _get_batch(request.app, batch_id))
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}')
+@rest_billing_project_users_only
+@add_metadata_to_request
+async def get_job_group(request, userdata, batch_id):  # pylint: disable=unused-argument
+    job_group_path = request.query.get('job_group', '/')
+    job_group = await _get_job_group_dict(request.app, batch_id, job_group_path)
+    return json_response(job_group)
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}/job_groups/resources')
+@rest_billing_project_users_only
+async def get_job_group_resources(request, userdata, batch_id):  # pylint: disable=unused-argument
+    job_group_path = request.query.get('job_group', '/')
+    resources = await _get_job_group_resources(request.app, batch_id, job_group_path)
+    return json_response(resources)
+
+
+# @routes.patch('/api/v1alpha/batches/{batch_id}/cancel')
+# @rest_billing_project_users_only
+# @add_metadata_to_request
+# async def cancel_batch_old(request: web.Request, _, batch_id: int) -> web.Response:
+#     await _handle_api_error(_cancel_batch, request.app, batch_id)
+#     return web.Response()
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/cancel')
 @rest_billing_project_users_only
 @add_metadata_to_request
 async def cancel_batch(request: web.Request, _, batch_id: int) -> web.Response:
-    await _handle_api_error(_cancel_batch, request.app, batch_id)
+    job_group_cache: JobGroupCache = request.app['job_group_cache']
+    job_group_path = request.query.get('job_group')
+
+    async def _cancel():
+        job_group = await job_group_cache.lookup_by_path(batch_id, job_group_path)
+        await _cancel_job_group(request.app, batch_id, job_group.job_group_id)
+
+    await _handle_api_error(_cancel)
+    return web.Response()
+
+
+@routes.patch('/api/v1alpha/batches/{batch_id}/job_groups/{job_group_id}/cancel')
+@rest_billing_project_users_only
+async def cancel_batch_by_job_group(request, userdata, batch_id):  # pylint: disable=unused-argument
+    job_group_id = int(request.match_info['job_group_id'])
+    await _handle_api_error(_cancel_job_group, request.app, batch_id, job_group_id)
+    return web.Response()
+
+
+@routes.post('/api/v1alpha/batches/{batch_id}/job_groups')
+@rest_billing_project_users_only
+async def create_job_groups(request, userdata, batch_id):  # pylint: disable=unused-argument
+    db: Database = request.app['db']
+    job_group_cache: JobGroupCache = request.app['job_group_cache']
+    job_groups_spec = await request.json()
+
+    try:
+        validate_job_groups(job_groups_spec)
+    except ValidationError as e:
+        raise web.HTTPBadRequest(reason=e.reason)
+
+    @transaction(db)
+    async def _insert(tx):
+        for jg in job_groups_spec['groups']:
+            await _create_job_group(
+                job_group_cache,
+                tx,
+                batch_id,
+                path_str=jg['job_group'],
+                token=job_groups_spec['token'],
+                cancel_after_n_failures=jg.get('cancel_after_n_failures'),
+                callback=jg.get('callback'),
+                attributes=jg.get('attributes'),
+            )
+
+    try:
+        await _insert()  # pylint: disable=no-value-for-parameter
+    except BatchUserError as e:
+        return e.http_response()
+
     return web.Response()
 
 
@@ -1642,12 +2615,71 @@ async def delete_batch(request: web.Request, _, batch_id: int) -> web.Response:
     return web.Response()
 
 
-@routes.get('/batches/{batch_id}')
+@routes.get('/batches/{batch_id}/job_groups/{job_group_id}', name='job_group')
 @web_billing_project_users_only()
 @catch_ui_error_in_dev
-async def ui_batch(request, userdata, batch_id):
+async def ui_job_group(request, userdata, batch_id):
     app = request.app
-    batch = await _get_batch(app, batch_id)
+    job_group_cache: JobGroupCache = app['job_group_cache']
+    user = userdata['username']
+    job_group_id = int(request.match_info['job_group_id'])
+    job_group = await job_group_cache.lookup_by_id(batch_id, job_group_id)
+
+    job_groups_query = request.query.get('job_groups_q', '')
+    jobs_query = request.query.get('jobs_q', '')
+
+    job_group_dict, (child_job_groups, last_job_group_path), (jobs, last_job_id) = await asyncio.gather(
+        _get_job_group_dict(app, batch_id, job_group_id),
+        _query_job_groups(request, user, job_groups_query, batch_id, job_group),
+        _query_batch_jobs(request, batch_id, job_group_id, jobs_query),
+    )
+
+    for child in child_job_groups:
+        child['name'] = child['path'].rsplit('/', maxsplit=1)[1]
+        child['cost'] = cost_str(child['cost'])
+
+    for j in jobs:
+        j['duration'] = humanize_timedelta_msecs(j['duration'])
+        j['cost'] = cost_str(j['cost'])
+
+    job_group_dict['child_job_groups'] = child_job_groups
+    job_group_dict['jobs'] = jobs
+
+    job_group_dict['cost'] = cost_str(job_group_dict['cost'])
+
+    page_context = {
+        'job_group': job_group_dict,
+        'jobs_q': jobs_query,
+        'job_groups_q': job_groups_query,
+        'last_job_group_path': last_job_group_path,
+        'last_job_id': last_job_id,
+    }
+
+    return await render_template('batch', request, userdata, 'job_group.html', page_context)
+
+
+@routes.get('/batches/{batch_id}/job_groups/{job_group_id}', name='job_group')
+@web_billing_project_users_only()
+@catch_ui_error_in_dev
+async def ui_batch(request, userdata, batch_id):  # FIXME
+    app = request.app
+    job_group_cache: JobGroupCache = app['job_group_cache']
+    user = userdata['username']
+    job_group_id = int(request.match_info['job_group_id'])
+    job_group = await job_group_cache.lookup_by_id(batch_id, job_group_id)
+
+    job_groups_query = request.query.get('job_groups_q', '')
+    jobs_query = request.query.get('jobs_q', '')
+
+    job_group_dict, (child_job_groups, last_job_group_path), (jobs, last_job_id) = await asyncio.gather(
+        _get_job_group_dict(app, batch_id, job_group_id),
+        _query_job_groups(request, user, job_groups_query, batch_id, job_group),
+        _query_batch_jobs(request, batch_id, job_group_id, jobs_query),
+    )
+
+    for child in child_job_groups:
+        child['name'] = child['path'].rsplit('/', maxsplit=1)[1]
+        child['cost'] = cost_str(child['cost'])
 
     q = request.query.get('q', '')
     last_job_id = cast_query_param_to_int(request.query.get('last_job_id'))
@@ -1663,9 +2695,9 @@ async def ui_batch(request, userdata, batch_id):
     for j in jobs:
         j['duration'] = humanize_timedelta_msecs(j['duration'])
         j['cost'] = cost_str(j['cost'])
-    batch['jobs'] = jobs
 
-    batch['cost'] = cost_str(batch['cost'])
+    job_group_dict['child_job_groups'] = child_job_groups
+    job_group_dict['jobs'] = jobs
 
     page_context = {
         'batch': batch,
@@ -1673,6 +2705,15 @@ async def ui_batch(request, userdata, batch_id):
         'last_job_id': last_job_id,
     }
     return await render_template('batch', request, userdata, 'batch.html', page_context)
+
+
+@routes.get('/batches/{batch_id}')
+@web_billing_project_users_only()
+@catch_ui_error_in_dev
+async def ui_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
+    params = request.query
+    location = request.app.router['job_group'].url_for(batch_id=str(batch_id), job_group_id='1').with_query(params)
+    return web.HTTPFound(location=location)
 
 
 @routes.post('/batches/{batch_id}/cancel')
@@ -1692,6 +2733,68 @@ async def ui_cancel_batch(request: web.Request, _, batch_id: int) -> web.HTTPFou
     finally:
         location = request.app.router['batches'].url_for().with_query(params)
         return web.HTTPFound(location=location)  # pylint: disable=lost-exception
+
+
+@routes.post('/batches/{batch_id}/cancel')
+@check_csrf_token
+@web_billing_project_users_only(redirect=False)
+@catch_ui_error_in_dev
+async def ui_cancel_batch(request: web.Request, _, batch_id: int) -> web.HTTPFound:
+    job_group_cache: JobGroupCache = request.app['job_group_cache']
+    job_group_id = 1
+    post = await request.post()
+    q = post.get('q')
+    last_batch_id = post.get('last_batch_id')
+    params = {}
+    if q is not None:
+        params['q'] = q
+    if last_batch_id is not None:
+        params['last_batch_id'] = last_batch_id
+    session = await aiohttp_session.get_session(request)
+    errored = await _handle_ui_error(session, _cancel_job_group, request.app, batch_id, job_group_id)
+    if not errored:
+        job_group = await job_group_cache.lookup_by_id(batch_id, job_group_id)
+        set_message(
+            session, f'Job group path="{job_group.path}" id={job_group_id} for batch {batch_id} cancelled.', 'info'
+        )
+    location = request.app.router['batches'].url_for().with_query(params)
+    return web.HTTPFound(location=location)
+
+
+@routes.post('/batches/{batch_id}/job_groups/{job_group_id}/cancel')
+@check_csrf_token
+@web_billing_project_users_only(redirect=False)
+@catch_ui_error_in_dev
+async def ui_cancel_job_group(request, userdata, batch_id):  # pylint: disable=unused-argument
+    job_group_cache: JobGroupCache = request.app['job_group_cache']
+    job_group_id = int(request.match_info['job_group_id'])
+    post = await request.post()
+    jobs_q = post.get('jobs_q')
+    job_groups_q = post.get('job_groups_q')
+    last_job_id = post.get('last_job_id')
+    last_job_group_path = post.get('last_job_group_path')
+    params = {}
+    if jobs_q is not None:
+        params['jobs_q'] = jobs_q
+    if job_groups_q is not None:
+        params['job_groups_q'] = job_groups_q
+    if last_job_id is not None:
+        params['last_job_id'] = last_job_id
+    if last_job_group_path is not None:
+        params['last_job_group_path'] = last_job_group_path
+    session = await aiohttp_session.get_session(request)
+    errored = await _handle_ui_error(session, _cancel_job_group, request.app, batch_id, job_group_id)
+    if not errored:
+        job_group = await job_group_cache.lookup_by_id(batch_id, job_group_id)
+        set_message(
+            session, f'Job group path="{job_group.path}" id={job_group_id} for batch {batch_id} cancelled.', 'info'
+        )
+    location = (
+        request.app.router['job_group']
+        .url_for(batch_id=str(batch_id), job_group_id=str(job_group_id))
+        .with_query(params)
+    )
+    return web.HTTPFound(location=location)
 
 
 @routes.post('/batches/{batch_id}/delete')
@@ -1741,7 +2844,7 @@ async def _get_job(app, batch_id, job_id):
     record = await db.select_and_fetchone(
         '''
 WITH base_t AS (
-SELECT jobs.*, user, billing_project, ip_address, format_version, t.attempt_id AS last_cancelled_attempt_id
+SELECT jobs.*, user, billing_project, ip_address, format_version, t.attempt_id AS last_cancelled_attempt_id, job_groups.path
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
@@ -1758,6 +2861,8 @@ LEFT JOIN (
 ) AS t ON jobs.batch_id = t.batch_id AND jobs.job_id = t.job_id
 LEFT JOIN batch_updates
   ON jobs.batch_id = batch_updates.batch_id AND jobs.update_id = batch_updates.update_id
+LEFT JOIN job_groups
+  ON job_groups.batch_id = jobs.batch_id AND job_groups.job_group_id = jobs.job_group_id
 WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s AND batch_updates.committed
 )
 SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
@@ -1839,6 +2944,34 @@ WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
     return attempts
 
 
+async def _get_job_resources(app, batch_id: int, job_id: int):
+    db: Database = app['db']
+
+    record = await db.select_and_fetchone(
+        '''
+SELECT jobs.batch_id, jobs.job_id, resources
+FROM jobs
+LEFT JOIN (
+  SELECT batch_id, job_id, JSON_OBJECTAGG(resource, `usage`) AS resources
+  FROM (
+    SELECT batch_id, job_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+    FROM aggregated_job_resources_v2
+    WHERE batch_id = %s AND job_id = %s
+    GROUP BY batch_id, job_id, resource_id
+  ) AS t
+  LEFT JOIN resources ON resources.resource_id = t.resource_id
+  GROUP BY batch_id, job_id
+) AS t2 ON jobs.batch_id = t2.batch_id AND jobs.job_id = t2.job_id
+WHERE batch_id = %s AND job_id = %s;
+''',
+        (batch_id, job_id, batch_id, job_id),
+    )
+    if not record:
+        raise web.HTTPNotFound()
+
+    return json.loads(record['resources'])
+
+
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/attempts')
 @rest_billing_project_users_only
 async def get_attempts(request: web.Request, _, batch_id: int) -> web.Response:
@@ -1853,6 +2986,22 @@ async def get_attempts(request: web.Request, _, batch_id: int) -> web.Response:
 async def get_job(request: web.Request, _, batch_id: int) -> web.Response:
     job_id = int(request.match_info['job_id'])
     status = await _get_job(request.app, batch_id, job_id)
+    return json_response(status)
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resources')
+@rest_billing_project_users_only
+async def get_job_resources(request, userdata, batch_id):  # pylint: disable=unused-argument
+    job_id = int(request.match_info['job_id'])
+    resources = await _get_job_resources(request.app, batch_id, job_id)
+    return json_response(resources)
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}/job_groups/{job_group_id}')
+@rest_billing_project_users_only
+async def get_job_group_by_id(request, userdata, batch_id):  # pylint: disable=unused-argument
+    job_group_id = int(request.match_info['job_group_id'])
+    status = await _get_job_group_dict(request.app, batch_id, job_group_id)
     return json_response(status)
 
 
@@ -2856,6 +4005,8 @@ async def on_startup(app):
     db = Database()
     await db.async_init()
     app['db'] = db
+
+    app['job_group_cache'] = JobGroupCache(db)
 
     row = await db.select_and_fetchone(
         '''

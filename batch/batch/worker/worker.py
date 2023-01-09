@@ -1639,6 +1639,7 @@ class Job(abc.ABC):
     #   worker: str,
     #   batch_id: int,
     #   job_id: int,
+    #   job_group_id: int,
     #   attempt_id: int,
     #   user: str,
     #   state: str, (pending, initializing, running, succeeded, error, failed)
@@ -1656,6 +1657,7 @@ class Job(abc.ABC):
             'worker': NAME,
             'batch_id': self.batch_id,
             'job_id': self.job_spec['job_id'],
+            'job_group_id': self.job_spec['job_group_id'],
             'attempt_id': self.job_spec['attempt_id'],
             'user': self.user,
             'state': self.state,
@@ -2995,6 +2997,7 @@ class Worker:
         job_spec = await self.file_store.read_spec_file(batch_id, token, start_job_id, job_id)
         job_spec = json.loads(job_spec)
 
+        job_spec['job_group_id'] = addtl_spec['job_group_id']
         job_spec['attempt_id'] = addtl_spec['attempt_id']
         job_spec['secrets'] = addtl_spec['secrets']
 
@@ -3203,6 +3206,7 @@ class Worker:
             'version': full_status['version'],
             'batch_id': full_status['batch_id'],
             'job_id': full_status['job_id'],
+            'job_group_id': full_status['job_group_id'],
             'attempt_id': full_status['attempt_id'],
             'state': full_status['state'],
             'start_time': full_status['start_time'],

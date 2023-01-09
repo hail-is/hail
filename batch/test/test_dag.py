@@ -163,6 +163,7 @@ async def test_callback(client):
         callback_body.pop('duration')
         assert callback_body == {
             'id': b.id,
+            'batch_id': b.id,
             'user': 'test',
             'billing_project': 'test',
             'token': token,
@@ -175,6 +176,8 @@ async def test_callback(client):
             'n_failed': 0,
             'n_cancelled': 0,
             'attributes': {'foo': 'bar', 'name': 'test_callback'},
+            'path': '/',
+            'job_group_id': 1,
         }, callback_body
     finally:
         await runner.cleanup()

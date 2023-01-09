@@ -428,11 +428,11 @@ async def test_billing_limit_tiny(
     assert r['limit'] is None
     assert r['accrued_cost'] == 0
 
+    client = await make_client(project)
+
     limit = 0.00001
     r = await dev_client.edit_billing_limit(project, limit)
     assert r['limit'] == limit
-
-    client = await make_client(project)
 
     bb = create_batch(client)
     j1 = bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])

@@ -24,7 +24,7 @@ from hailtop.utils.validate import (
     switch,
 )
 
-from ..globals import memory_types
+from ..globals import MAX_NUMBER_OF_JOB_GROUP_LEVELS_PER_JOB, memory_types
 
 k8s_str = regex(r'[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9](?:[-a-z0-9]*[a-z0-9])?)*', maxlen=253)
 
@@ -58,6 +58,7 @@ job_validator = keyed(
         ),
         'input_files': listof(keyed({required('from'): str_type, required('to'): str_type})),
         required('job_id'): int_type,
+        'job_group': regex('^/.*'),
         'mount_tokens': bool_type,
         'network': oneof('public', 'private'),
         'unconfined': bool_type,
@@ -120,6 +121,19 @@ batch_update_validator = keyed(
         required('n_jobs'): numeric(**{"x > 0": lambda x: isinstance(x, int) and x > 0}),
     }
 )
+
+
+job_group_validator = keyed(
+    {
+        required('job_group'): regex('^/.*'),
+        'cancel_after_n_failures': nullable(int_type),
+        'callback': nullable(str_type),
+        'attributes': nullable(dictof(str_type)),
+    }
+)
+
+
+job_groups_validator = keyed({required('token'): str_type, required('groups'): listof(job_group_validator)})
 
 
 def validate_and_clean_jobs(jobs):
@@ -206,6 +220,8 @@ def handle_job_backwards_compatibility(job):
         process = job['process']
         if process['type'] == 'jvm' and 'profile' not in process:
             process['profile'] = False
+    if 'job_group' not in job:
+        job['job_group'] = '/'
 
 
 def validate_batch(batch):
@@ -214,3 +230,23 @@ def validate_batch(batch):
 
 def validate_batch_update(update):
     batch_update_validator.validate('batch_update', update)
+
+
+def validate_job_groups(job_groups):
+    job_groups_validator.validate('job_groups', job_groups)
+    seen = []
+    for i, job_group in enumerate(job_groups['groups']):
+        job_group_validator.validate(f'job_group[{i}]', job_group)
+        job_group['job_group'] = job_group['job_group'].rstrip('/')
+
+        jg = job_group['job_group']
+        if jg == '':
+            raise ValidationError('cannot create job group with path "/"')
+        if len(jg) > 255:
+            raise ValidationError('maximum job group path length is 255 characters')
+        if len(jg.split('/')) + 1 > MAX_NUMBER_OF_JOB_GROUP_LEVELS_PER_JOB:
+            raise ValidationError(f'max level of nesting of job groups is {MAX_NUMBER_OF_JOB_GROUP_LEVELS_PER_JOB}')
+        seen.append(jg)
+
+    if len(seen) != len(set(seen)):
+        raise ValidationError('found duplicate job group paths')

@@ -50,7 +50,7 @@ from hailtop.utils import (
 )
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
-from ..batch import cancel_batch_in_db
+from ..batch import cancel_job_group_in_db
 from ..batch_configuration import (
     BATCH_STORAGE_URI,
     CLOUD,
@@ -329,6 +329,7 @@ async def job_complete_1(request, instance):
 
     batch_id = job_status['batch_id']
     job_id = job_status['job_id']
+    job_group_id = job_status['job_group_id']
     attempt_id = job_status['attempt_id']
 
     request['batch_telemetry']['batch_id'] = str(batch_id)
@@ -352,6 +353,7 @@ async def job_complete_1(request, instance):
         request.app,
         batch_id,
         job_id,
+        job_group_id,
         attempt_id,
         instance.name,
         new_state,
@@ -1041,7 +1043,8 @@ FROM
       (NOT jobs.always_run AND (jobs.cancelled OR batches_cancelled.id IS NOT NULL)) AS cancelled
     FROM batches
     INNER JOIN jobs ON batches.id = jobs.batch_id
-    LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
+    INNER JOIN job_groups ON job_groups.batch_id = jobs.batch_id AND job_groups.job_group_id = jobs.job_group_id
+    LEFT JOIN batches_cancelled ON job_groups.batch_id = batches_cancelled.id AND job_groups.job_group_id = batches_cancelled.job_group_id
     WHERE batches.`state` = 'running'
   ) as v
   GROUP BY user, inst_coll
@@ -1222,10 +1225,14 @@ LOCK IN SHARE MODE;
 
 
 async def _cancel_batch(app, batch_id):
+    await _cancel_job_group(app, batch_id, 1)
+
+
+async def _cancel_job_group(app, batch_id, job_group_id):
     try:
-        await cancel_batch_in_db(app['db'], batch_id)
+        await cancel_job_group_in_db(app['db'], batch_id, job_group_id)
     except BatchUserError as exc:
-        log.info(f'cannot cancel batch because {exc.message}')
+        log.info(f'cannot cancel job_group {(batch_id, job_group_id)} because {exc.message}')
         return
     set_cancel_state_changed(app)
 
@@ -1240,30 +1247,34 @@ async def monitor_billing_limits(app):
         if limit is not None and accrued_cost >= limit:
             running_batches = db.execute_and_fetchall(
                 '''
-SELECT id
-FROM batches
-WHERE billing_project = %s AND state = 'running';
+SELECT batch_id, job_group_id
+FROM job_groups
+LEFT JOIN batches ON batches.id = job_groups.batch_id
+WHERE billing_project = %s AND job_groups.state = 'running' AND job_group_id = 1;
 ''',
                 (record['billing_project'],),
             )
             async for batch in running_batches:
-                await _cancel_batch(app, batch['id'])
+                await _cancel_batch(app, batch['batch_id'])
 
 
-async def cancel_fast_failing_batches(app):
+async def cancel_fast_failing_job_groups(app):
     db: Database = app['db']
 
     records = db.select_and_fetchall(
         '''
-SELECT batches.id, batches_n_jobs_in_complete_states.n_failed
-FROM batches
-LEFT JOIN batches_n_jobs_in_complete_states
-  ON batches.id = batches_n_jobs_in_complete_states.id
-WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= cancel_after_n_failures
+SELECT job_groups.batch_id, job_groups.job_group_id, cancel_after_n_failures, CAST(COALESCE(SUM(n_failed), 0) AS SIGNED) AS n_failed
+FROM job_groups
+INNER JOIN batches_n_jobs_in_complete_states ON batches_n_jobs_in_complete_states.id = job_groups.batch_id AND batches_n_jobs_in_complete_states.job_group_id = job_groups.job_group_id
+LEFT JOIN batches_cancelled ON job_groups.batch_id = batches_cancelled.id AND job_groups.job_group_id = batches_cancelled.job_group_id
+WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND batches_cancelled.id IS NULL
+GROUP BY job_groups.batch_id, job_groups.job_group_id
+HAVING n_failed >= cancel_after_n_failures
+LIMIT 50;
 '''
     )
-    async for batch in records:
-        await _cancel_batch(app, batch['id'])
+    async for job_group in records:
+        await _cancel_job_group(app, job_group['batch_id'], job_group['job_group_id'])
 
 
 USER_CORES = pc.Gauge('batch_user_cores', 'Batch user cores (i.e. total in-use cores)', ['state', 'user', 'inst_coll'])
@@ -1612,7 +1623,7 @@ SELECT instance_id, internal_token, frozen FROM globals;
     app['canceller'] = await Canceller.create(app)
 
     task_manager.ensure_future(periodically_call(10, monitor_billing_limits, app))
-    task_manager.ensure_future(periodically_call(10, cancel_fast_failing_batches, app))
+    task_manager.ensure_future(periodically_call(10, cancel_fast_failing_job_groups, app))
     task_manager.ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
     task_manager.ensure_future(periodically_call(15, monitor_system, app))
     task_manager.ensure_future(periodically_call(5, refresh_globals_from_db, app, db))

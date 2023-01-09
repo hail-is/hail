@@ -19,6 +19,7 @@ DROP TRIGGER IF EXISTS batches_after_update;
 DROP TRIGGER IF EXISTS instances_before_update;
 DROP TRIGGER IF EXISTS attempts_before_update;
 DROP TRIGGER IF EXISTS attempts_after_update;
+DROP TRIGGER IF EXISTS jobs_before_insert;
 DROP TRIGGER IF EXISTS jobs_after_update;
 DROP TRIGGER IF EXISTS attempt_resources_after_insert;
 DROP TRIGGER IF EXISTS attempt_resources_before_insert;  # deprecated
@@ -61,11 +62,13 @@ DROP TABLE IF EXISTS `ready_cores`;  # deprecated
 DROP TABLE IF EXISTS `gevents_mark`; # deprecated
 DROP TABLE IF EXISTS `events_mark`;
 DROP TABLE IF EXISTS `jobs`;
+DROP TABLE IF EXISTS `job_group_parents`;
 DROP TABLE IF EXISTS `batches_cancelled`;
 DROP TABLE IF EXISTS `batches_staging`;  # deprecated
 DROP TABLE IF EXISTS `batches_inst_coll_staging`;
-DROP TABLE IF EXISTS `batch_updates`;
 DROP TABLE IF EXISTS `batches_n_jobs_in_complete_states`;
+DROP TABLE IF EXISTS `job_groups`;
+DROP TABLE IF EXISTS `batch_updates`;
 DROP TABLE IF EXISTS `batches`;
 DROP TABLE IF EXISTS `user_resources`;  # deprecated
 DROP TABLE IF EXISTS `user_inst_coll_resources`;

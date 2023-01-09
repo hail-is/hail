@@ -37,6 +37,34 @@ class NonExistentBatchError(BatchUserError):
         super().__init__(f'Batch {batch_id} does not exist.', 'error')
 
 
+class NonExistentJobGroupError(BatchUserError):
+    def __init__(self, batch_id, job_group_id):
+        super().__init__(f'Job Group {(batch_id, job_group_id)} does not exist.', 'error')
+
+
+class JobGroupAlreadyExistsError(BatchUserError):
+    def __init__(self, batch_id, job_group_path):
+        super().__init__(f'Job Group {(batch_id, job_group_path)} already exists.', 'error')
+
+
+class NonExistentJobGroupPathError(BatchUserError):
+    def __init__(self, batch_id, job_group_path):
+        super().__init__(f'Job Group {(batch_id, job_group_path)} does not exist.', 'error')
+
+
+class NonExistentJobGroupIDError(BatchUserError):
+    def __init__(self, batch_id, job_group_id):
+        super().__init__(f'Job Group {(batch_id, job_group_id)} does not exist.', 'error')
+
+
+class InvalidJobGroupPathError(BatchUserError):
+    def __init__(self, job_group_path):
+        super().__init__(f'Job group path "{job_group_path}" is invalid. Must start with "/"', 'error')
+
+    def http_response(self):
+        return web.HTTPBadRequest(reason=self.message)
+
+
 class OpenBatchError(BatchUserError):
     def __init__(self, batch_id):
         super().__init__(f'Batch {batch_id} is open.', 'error')

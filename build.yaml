@@ -2181,6 +2181,15 @@ steps:
       - name: add-billing-index-token
         script: /io/sql/add-billing-index-token.sql
         online: true
+      - name: setup-job-groups
+        script: /io/sql/setup-job-groups.sql
+        online: true
+      - name: populate-job-groups
+        script: /io/sql/populate_job_groups.py
+        online: true
+      - name: finalize-job-groups
+        script: /io/sql/finalize-job-groups.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
