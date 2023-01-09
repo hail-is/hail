@@ -1616,7 +1616,7 @@ class Table(ExprContainer):
                     s += f'<td style="{default_td_style}" colspan="{width}">'
                     if text is not None:
                         s += f'<div style="{div_style}{non_empty_div_style}">'
-                        s += text
+                        s += html.escape(text)
                         s += '</div>'
                     else:
                         s += f'<div style="{div_style}"></div>'
