@@ -2440,7 +2440,7 @@ class Worker:
         try:
             async with AsyncExitStack() as cleanup:
                 for jvm in self._jvms:
-                    cleanup.callback(jvm.kill)
+                    cleanup.push_async_callback(jvm.kill)
         finally:
             try:
                 await self.task_manager.shutdown_and_wait()
@@ -2904,13 +2904,13 @@ async def async_main():
                 log.info('docker closed')
             finally:
                 asyncio.get_event_loop().set_debug(True)
-                log.debug('Tasks immediately after docker close')
-                dump_all_stacktraces()
                 other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
                 if other_tasks:
+                    log.warning('Tasks immediately after docker close')
+                    dump_all_stacktraces()
                     _, pending = await asyncio.wait(other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED)
                     for t in pending:
-                        log.debug('Dangling task:')
+                        log.warning('Dangling task:')
                         t.print_stack()
                         t.cancel()
 
