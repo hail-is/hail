@@ -946,7 +946,7 @@ class Expression(object):
             if self is source.col:
                 return None, source.key_cols_by().cols()
             if self is source.col_key:
-                return None, source.cols().select()
+                return None, source.select_cols().key_cols_by().cols()
             if self is source.entry:
                 return None, source.select_rows().select_cols()
         return self._to_relational(fallback_name)
