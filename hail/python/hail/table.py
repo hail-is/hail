@@ -3886,7 +3886,7 @@ class Table(ExprContainer):
             raise ValueError('Table._map_partitions must preserve key fields')
 
         body_ir = ir.Let('global', ir.Ref(globals_uid, self._global_type), body._ir)
-        return Table(ir.TableMapPartitions(self._tir, globals_uid, rows_uid, body_ir))
+        return Table(ir.TableMapPartitions(self._tir, globals_uid, rows_uid, body_ir, 0, len(self.key)))
 
     def _calculate_new_partitions(self, n_partitions):
         """returns a set of range bounds that can be passed to write"""

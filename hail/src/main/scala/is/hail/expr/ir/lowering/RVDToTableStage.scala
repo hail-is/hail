@@ -7,15 +7,62 @@ import is.hail.backend.spark.{AnonymousDependency, SparkTaskContext}
 import is.hail.expr.ir.{Compile, CompileIterator, GetField, IR, In, Let, MakeStruct, PartitionRVDReader, ReadPartition, StreamRange, ToArray, _}
 import is.hail.io.fs.FS
 import is.hail.io.{BufferSpec, TypedCodecSpec}
-import is.hail.rvd.{RVD, RVDType}
+import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
 import is.hail.sparkextras.ContextRDD
+import is.hail.types.{RTable, TableType, VirtualTypeWithReq}
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.physical.{PArray, PStruct}
+import is.hail.types.virtual.TStruct
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{Dependency, Partition, SparkContext, TaskContext}
+import org.json4s.JValue
+import org.json4s.JsonAST.JString
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+
+case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader {
+  lazy val fullType: TableType = TableType(rvd.rowType, rvd.typ.key, globals.typ.asInstanceOf[TStruct])
+
+  override def pathsUsed: Seq[String] = Seq()
+
+  override def partitionCounts: Option[IndexedSeq[Long]] = None
+
+  def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
+    assert(!dropRows)
+    assert(requestedType == fullType)
+    val (Some(PTypeReferenceSingleCodeType(globType: PStruct)), f) = Compile[AsmFunction1RegionLong](
+      ctx, FastIndexedSeq(), FastIndexedSeq(classInfo[Region]), LongInfo, globals)
+    val gbAddr = f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
+
+    val globRow = BroadcastRow(ctx, RegionValue(ctx.r, gbAddr), globType)
+    TableValue(ctx, fullType, globRow, rvd)
+  }
+
+  override def isDistinctlyKeyed: Boolean = false
+
+  def rowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = {
+    VirtualTypeWithReq(requestedType.rowType, rt.rowType)
+  }
+
+  def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = {
+    VirtualTypeWithReq(requestedType.globalType, rt.globalType)
+  }
+
+  override def toJValue: JValue = JString("RVDTableReader")
+
+  def renderShort(): String = "RVDTableReader"
+
+  override def defaultRender(): String = "RVDTableReader"
+
+  override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
+    PruneDeadFields.upcast(ctx, globals, requestedGlobalsType)
+
+  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
+    RVDToTableStage(rvd, globals)
+      .upcast(ctx, requestedType)
+  }
+}
 
 object RVDToTableStage {
   def apply(rvd: RVD, globals: IR): TableStage = {
@@ -30,7 +77,7 @@ object RVDToTableStage {
 }
 
 object TableStageToRVD {
-  def apply(ctx: ExecuteContext, _ts: TableStage, relationalBindings: Map[String, IR]): (BroadcastRow, RVD) = {
+  def apply(ctx: ExecuteContext, _ts: TableStage): (BroadcastRow, RVD) = {
 
     val ts = TableStage(letBindings = _ts.letBindings,
       broadcastVals = _ts.broadcastVals,
@@ -48,9 +95,9 @@ object TableStageToRVD {
       ("globals", ts.globals),
       ("broadcastVals", MakeStruct(ts.broadcastVals)),
       ("contexts", ToArray(ts.contexts))))
-    val globalsAndBroadcastVals = LowerToCDA.substLets(ts.letBindings.foldRight[IR](baseStruct) { case ((name, value), acc) =>
+    val globalsAndBroadcastVals = ts.letBindings.foldRight[IR](baseStruct) { case ((name, value), acc) =>
       Let(name, value, acc)
-    }, relationalBindings)
+    }
 
     val (Some(PTypeReferenceSingleCodeType(gbPType: PStruct)), f) = Compile[AsmFunction1RegionLong](ctx, FastIndexedSeq(), FastIndexedSeq(classInfo[Region]), LongInfo, globalsAndBroadcastVals)
     val gbAddr = f(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)(ctx.r)
@@ -85,9 +132,9 @@ object TableStageToRVD {
     val (newRowPType: PStruct, makeIterator) = CompileIterator.forTableStageToRVD(
       ctx,
       decodedContextPType, decodedBcValsPType,
-      LowerToCDA.substLets(ts.broadcastVals.map(_._1).foldRight[IR](ts.partition(In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(decodedContextPType))))) { case (bcVal, acc) =>
+      ts.broadcastVals.map(_._1).foldRight[IR](ts.partition(In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(decodedContextPType))))) { case (bcVal, acc) =>
         Let(bcVal, GetField(In(1, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(decodedBcValsPType))), bcVal), acc)
-      }, relationalBindings))
+      })
 
     val fsBc = ctx.fsBc
 

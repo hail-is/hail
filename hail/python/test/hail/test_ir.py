@@ -212,7 +212,7 @@ class TableIRTests(unittest.TestCase):
             ir.TableToTableApply(table_read, {'name': 'TableFilterPartitions', 'parts': [0], 'keep': True}),
             ir.BlockMatrixToTableApply(block_matrix_read, aa, {'name': 'PCRelate', 'maf': 0.01, 'blockSize': 4096}),
             ir.TableFilterIntervals(table_read, [hl.utils.Interval(hl.utils.Struct(row_idx=0), hl.utils.Struct(row_idx=10))], hl.tstruct(row_idx=hl.tint32), keep=False),
-            ir.TableMapPartitions(table_read, 'glob', 'rows', ir.Ref('rows', hl.tstream(table_read_row_type))),
+            ir.TableMapPartitions(table_read, 'glob', 'rows', ir.Ref('rows', hl.tstream(table_read_row_type)), None),
             ir.TableGen(
                 contexts=ir.StreamRange(ir.I32(0), ir.I32(10), ir.I32(1)),
                 globals=ir.MakeStruct([]),

@@ -327,11 +327,10 @@ class LocalBackend(
     ctx: ExecuteContext,
     stage: TableStage,
     sortFields: IndexedSeq[SortField],
-    relationalLetsAbove: Map[String, IR],
-    rowTypeRequiredness: RStruct
-  ): TableStage = {
+    rt: RTable
+  ): TableReader = {
 
-    LowerDistributedSort.distributedSort(ctx, stage, sortFields, relationalLetsAbove, rowTypeRequiredness)
+    LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt)
   }
 
   def pyLoadReferencesFromDataset(path: String): String = {

@@ -69,7 +69,7 @@ class RVDPartitioner(
       Some(Interval(rangeBounds.head.left, rangeBounds.last.right))
 
   def satisfiesAllowedOverlap(testAllowedOverlap: Int): Boolean =
-    RVDPartitioner.isValid(sm, kType, rangeBounds, testAllowedOverlap)
+    (testAllowedOverlap >= kType.size) || RVDPartitioner.isValid(sm, kType, rangeBounds, testAllowedOverlap)
 
   def isStrict: Boolean = satisfiesAllowedOverlap(kType.size - 1)
 
@@ -130,7 +130,13 @@ class RVDPartitioner(
     }
   }
 
-  def strictify: RVDPartitioner = extendKey(kType)
+  def strictify(allowedOverlap: Int = kType.size - 1): RVDPartitioner = {
+    if (satisfiesAllowedOverlap(allowedOverlap))
+      this
+    else
+      coarsen(allowedOverlap+1)
+        .extendKey(kType)
+  }
 
   // Adjusts 'rangeBounds' so that 'satisfiesAllowedOverlap(kType.size - 1)'
   // holds, then changes key type to 'newKType'. If 'newKType' is 'kType', still

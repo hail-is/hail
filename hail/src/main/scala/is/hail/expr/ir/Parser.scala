@@ -1754,10 +1754,11 @@ object IRParser {
       case "TableMapPartitions" =>
         val globalsName = identifier(it)
         val partitionStreamName = identifier(it)
+        val allowedOverlap = opt[Int](it, int32_literal)
         for {
           child <- table_ir(env.onlyRelational)(it)
           body <- ir_value_expr(env.onlyRelational.bindEval(globalsName -> child.typ.globalType, partitionStreamName -> TStream(child.typ.rowType)))(it)
-        } yield TableMapPartitions(child, globalsName, partitionStreamName, body)
+        } yield TableMapPartitions(child, globalsName, partitionStreamName, body, allowedOverlap)
       case "RelationalLetTable" =>
         val name = identifier(it)
         for {

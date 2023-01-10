@@ -1082,8 +1082,8 @@ class TableIRSuite extends HailSuite {
         ApplyAggOp(Collect())(GetField(Ref("row", tableType.rowType), "rsid"))
       )))
     val optimized = Optimize(irToLower, "foo", ctx)
-    val analyses = Analyses.apply(optimized, ctx)
-    LowerTableIR(optimized, DArrayLowering.All, ctx, analyses, Map.empty)
+    val analyses = LoweringAnalyses.apply(optimized, ctx)
+    LowerTableIR(optimized, DArrayLowering.All, ctx, analyses)
   }
 
   @Test def testTableMapPartitions() {
@@ -1106,7 +1106,7 @@ class TableIRSuite extends HailSuite {
           StreamMap(
             part,
             "row2",
-            InsertFields(Ref("row2", rowType), FastSeq("str" -> Str("foo")))))
+            InsertFields(Ref("row2", rowType), FastSeq("str" -> Str("foo")))), None)
       ),
       Row(IndexedSeq.tabulate(20) { i =>
         Row(i, "foo")
@@ -1118,7 +1118,7 @@ class TableIRSuite extends HailSuite {
           StreamFilter(
             part,
             "row2",
-            GetField(Ref("row2", rowType), "idx") > 0))
+            GetField(Ref("row2", rowType), "idx") > 0), None)
       ),
       Row(IndexedSeq.tabulate(20) { i =>
         Row(i)
@@ -1133,7 +1133,7 @@ class TableIRSuite extends HailSuite {
             mapIR(StreamRange(0, 3, 1)) { i =>
               MakeStruct(Seq("str" -> Str("Hello"), "i" -> i))
             }
-          ))),
+          ), None)),
       Row((0 until 20).flatMap(i => (0 until 3).map(j => Row("Hello", j))), Row("Hello")))
 
     assertEvalsTo(
@@ -1146,7 +1146,7 @@ class TableIRSuite extends HailSuite {
               "acc", "row",
               If(IsNA(acc), row, acc)),
             "row",
-            !IsNA(row)))
+            !IsNA(row)), None)
       ),
       Row(IndexedSeq.tabulate(20) { i =>
         // 0,1,2,3,4,5,6,7,8,9,... ==>
@@ -1156,7 +1156,7 @@ class TableIRSuite extends HailSuite {
 
     val e = intercept[HailException](TypeCheck(
       ctx,
-      collect(TableMapPartitions(table, "g", "part", StreamFlatMap(StreamRange(0, 2, 1), "_", part)))))
+      collect(TableMapPartitions(table, "g", "part", StreamFlatMap(StreamRange(0, 2, 1), "_", part), None))))
     assert("must iterate over the partition exactly once".r.findFirstIn(e.getCause.getMessage).isDefined)
   }
 

@@ -2882,7 +2882,7 @@ class IRSuite extends HailSuite {
           MakeStruct(FastIndexedSeq(
             "a" -> GetField(Ref("row", read.typ.rowType), "f32"),
             "b" -> F64(-2.11)))),
-        TableMapPartitions(TableKeyBy(read, FastIndexedSeq()), "g", "rs", StreamTake(Ref("rs", TStream(read.typ.rowType)), 1)),
+        TableMapPartitions(TableKeyBy(read, FastIndexedSeq()), "g", "rs", StreamTake(Ref("rs", TStream(read.typ.rowType)), 1), None),
         TableMapGlobals(read,
           MakeStruct(FastIndexedSeq(
             "foo" -> NA(TArray(TInt32))))),

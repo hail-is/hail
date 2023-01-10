@@ -463,6 +463,11 @@ case class RUnion(cases: Seq[(String, TypeWithRequiredness)]) extends TypeWithRe
   def _toString: String = s"RStruct[${ cases.map { case (n, t) => s"${ n }: ${ t.toString }" }.mkString(",") }]"
 }
 
+object RTable {
+  def apply(rowStruct: RStruct, globStruct: RStruct, key: Seq[String]): RTable = {
+    RTable(rowStruct.fields.map(f => (f.name -> f.typ)), globStruct.fields.map(f => (f.name -> f.typ)), key)
+  }
+}
 case class RTable(rowFields: Seq[(String, TypeWithRequiredness)], globalFields: Seq[(String, TypeWithRequiredness)], key: Seq[String]) extends BaseTypeWithRequiredness {
   val rowTypes: Seq[TypeWithRequiredness] = rowFields.map(_._2)
   val globalTypes: Seq[TypeWithRequiredness] = globalFields.map(_._2)

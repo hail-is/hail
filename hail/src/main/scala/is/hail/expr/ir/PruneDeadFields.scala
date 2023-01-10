@@ -499,20 +499,19 @@ object PruneDeadFields {
           rowType = unify(child.typ.rowType, requestedType.rowType, selectKey(child.typ.rowType, child.typ.key)),
           globalType = requestedType.globalType)
         memoizeTableIR(ctx, child, dep, memo)
-      case TableMapPartitions(child, gName, pName, body) =>
+      case TableMapPartitions(child, gName, pName, body, requestedKey, _) =>
         val reqRowsType = TStream(requestedType.rowType)
         val bodyDep = memoizeValueIR(ctx, body, reqRowsType, memo)
         val depGlobalType = unifySeq(
           child.typ.globalType,
           uses(gName, bodyDep.eval) :+ requestedType.globalType
         )
+        val requestedKeyStruct = child.typ.keyType.truncate(math.max(requestedType.key.length, requestedKey))
         val depRowType = unifySeq(
           child.typ.rowType,
-          uses(pName, bodyDep.eval).map(TIterable.elementType)
-        )
-        
+          uses(pName, bodyDep.eval).map(TIterable.elementType) :+ requestedKeyStruct)
         val dep = TableType(
-          key = requestedType.key,
+          key = requestedKeyStruct.fieldNames,
           rowType = depRowType.asInstanceOf[TStruct],
           globalType = depGlobalType.asInstanceOf[TStruct])
         memoizeTableIR(ctx, child, dep, memo)
@@ -1563,7 +1562,7 @@ object PruneDeadFields {
         val child2 = rebuild(ctx, child, memo)
         val pred2 = rebuildIR(ctx, pred, BindingEnv(child2.typ.rowEnv), memo)
         TableFilter(child2, pred2)
-      case TableMapPartitions(child, gName, pName, body) =>
+      case TableMapPartitions(child, gName, pName, body, requestedKey, allowedOverlap) =>
         val child2 = rebuild(ctx, child, memo)
         val body2 = rebuildIR(ctx, body, BindingEnv(Env(
           gName -> child2.typ.globalType,
@@ -1573,7 +1572,9 @@ object PruneDeadFields {
           TableKeyBy(child2, child2.typ.key.takeWhile(body2ElementType.hasField))
         else
           child2
-        TableMapPartitions(child2Keyed, gName, pName, body2)
+        val childKeyLen = child2Keyed.typ.key.length
+        require(requestedKey <= childKeyLen)
+        TableMapPartitions(child2Keyed, gName, pName, body2, requestedKey, math.min(allowedOverlap, childKeyLen))
       case TableMapRows(child, newRow) =>
         val child2 = rebuild(ctx, child, memo)
         val newRow2 = rebuildIR(ctx, newRow, BindingEnv(child2.typ.rowEnv, scan = Some(child2.typ.rowEnv)), memo)

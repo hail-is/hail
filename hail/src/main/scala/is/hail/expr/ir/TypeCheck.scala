@@ -546,8 +546,9 @@ object TypeCheck {
       case TableMapRows(child, newRow) =>
         val newFieldSet = newRow.typ.asInstanceOf[TStruct].fieldNames.toSet
         assert(child.typ.key.forall(newFieldSet.contains))
-      case TableMapPartitions(child, globalName, partitionStreamName, body) =>
+      case TableMapPartitions(child, globalName, partitionStreamName, body, allowedOverlap) =>
         assert(StreamUtils.isIterationLinear(body, partitionStreamName), "must iterate over the partition exactly once")
+        assert(allowedOverlap.forall(x => x > 0 && x <= child.typ.key.size))
         val newRowType = body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
         child.typ.key.foreach { k => if (!newRowType.hasField(k)) throw new RuntimeException(s"prev key: ${child.typ.key}, new row: ${newRowType}")}
 

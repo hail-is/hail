@@ -422,13 +422,14 @@ object LoweredTableReader {
                 body)
 
               val rowRType = VirtualTypeWithReq(bodyPType(tableStage.rowType)).r.asInstanceOf[RStruct]
+              val globReq = Requiredness(globals, ctx)
+              val globRType = globReq.lookup(globals).asInstanceOf[RStruct]
 
               ctx.backend.lowerDistributedSort(ctx,
                 tableStage,
                 keyType.fieldNames.map(f => SortField(f, Ascending)),
-                Map.empty,
-                rowRType
-              )
+                RTable(rowRType, globRType, FastSeq())
+              ).lower(ctx, TableType(tableStage.rowType, keyType.fieldNames, globals.typ.asInstanceOf[TStruct]))
             }
           }
         }
@@ -2520,7 +2521,9 @@ case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: Strin
 case class TableMapPartitions(child: TableIR,
   globalName: String,
   partitionStreamName: String,
-  body: IR
+  body: IR,
+  requestedKey: Int,
+  allowedOverlap: Int
 ) extends TableIR {
   assert(body.typ.isInstanceOf[TStream], s"${ body.typ }")
   lazy val typ = child.typ.copy(
@@ -2533,7 +2536,7 @@ case class TableMapPartitions(child: TableIR,
   override def copy(newChildren: IndexedSeq[BaseIR]): TableMapPartitions = {
     assert(newChildren.length == 2)
     TableMapPartitions(newChildren(0).asInstanceOf[TableIR],
-      globalName, partitionStreamName, newChildren(1).asInstanceOf[IR])
+      globalName, partitionStreamName, newChildren(1).asInstanceOf[IR], requestedKey, allowedOverlap)
   }
 
   protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
@@ -2575,10 +2578,12 @@ case class TableMapPartitions(child: TableIR,
       ).map(l => l.longValue())
     }
 
+    val rvd = tv.rvd.repartition(ctx, tv.rvd.partitioner.strictify(allowedOverlap))
+
     new TableValueIntermediate(
       tv.copy(
         typ = typ,
-        rvd = tv.rvd
+        rvd = rvd
           .mapPartitionsWithContextAndIndex(RVDType(newRowPType, typ.key))(itF))
     )
   }
@@ -3333,7 +3338,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
     val newRVDType = prevRVD.typ.copy(rowType = rowType)
 
     val newRVD = prevRVD
-      .repartition(ctx, prevRVD.partitioner.strictify)
+      .repartition(ctx, prevRVD.partitioner.strictify())
       .boundary
       .mapPartitionsWithIndex(newRVDType) { (i, ctx, it) =>
         val partRegion = ctx.partitionRegion
@@ -3402,6 +3407,8 @@ object TableOrderBy {
 }
 
 case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) extends TableIR {
+
+  lazy val definitelyDoesNotShuffle: Boolean = TableOrderBy.isAlreadyOrdered(sortFields, child.typ.key)
   // TableOrderBy expects an unkeyed child, so that we can better optimize by
   // pushing these two steps around as needed
 
