@@ -455,10 +455,10 @@ class Image:
                 and 'Permission "artifactregistry.repositories.downloadArtifacts" denied on resource' in e.message
             ):
                 raise ImageCannotBePulled from e
-            if 'not found: manifest unknown' in e.message:
-                raise ImageNotFound from e
             if 'Invalid repository name' in e.message:
                 raise InvalidImageRepository from e
+            if 'unknown' in e.message:
+                raise ImageNotFound from e
             raise
 
         image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
