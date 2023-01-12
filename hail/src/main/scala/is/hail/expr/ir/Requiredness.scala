@@ -308,9 +308,10 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.rowType.fromPType(rvd.rowPType)
         requiredness.globalType.fromPType(enc.encodedType.decodedPType(typ.globalType))
       case TableRead(typ, dropRows, tr) =>
-        val (rowPType, globalPType) = tr.rowAndGlobalRequiredness(ctx, typ)
-        requiredness.rowType.unionFields(rowPType.r.asInstanceOf[RStruct])
-        requiredness.globalType.unionFields(globalPType.r.asInstanceOf[RStruct])
+        val rowReq = tr.rowRequiredness(ctx, typ)
+        val globalReq = tr.globalRequiredness(ctx, typ)
+        requiredness.rowType.unionFields(rowReq.r.asInstanceOf[RStruct])
+        requiredness.globalType.unionFields(globalReq.r.asInstanceOf[RStruct])
       case TableRange(_, _) =>
 
       // pass through TableIR child

@@ -14,7 +14,7 @@ class AvroTableReader(
   partitionReader: AvroPartitionReader,
   paths: IndexedSeq[String],
   unsafeOptions: Option[UnsafeAvroTableReaderOptions] = None
-) extends TableReader {
+) extends TableReaderWithExtraUID {
 
   private val partitioner: RVDPartitioner = unsafeOptions.map { case UnsafeAvroTableReaderOptions(key, intervals, _) =>
     require(intervals.length == paths.length,

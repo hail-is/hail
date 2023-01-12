@@ -154,7 +154,7 @@ trait MatrixReader {
   final def colUIDFieldName: String = MatrixReader.colUIDFieldName
 }
 
-abstract class MatrixHybridReader extends TableReader with MatrixReader {
+abstract class MatrixHybridReader extends TableReaderWithExtraUID with MatrixReader {
   override def uidType = rowUIDType
 
   override def fullTypeWithoutUIDs: TableType = matrixToTableType(
