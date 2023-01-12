@@ -24,6 +24,18 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.108
+
+Released 2023-1-12
+
+### Bug fixes
+
+- (hail#12585) `hail.ggplot`s that have more than one legend group or facet are now interactive. If such a plot has enough legend entries that the legend would be taller than the plot, the legend will now be scrollable. Legend entries for such plots can be clicked to show/hide traces on the plot, but this does not work and is a known issue that will only be addressed if `hail.ggplot` is migrated off of plotly.
+- (hail#12582) Fixed bug where matrix tables with duplicate col keys do not show properly. Also fixed bug where tables and matrix tables with HTML unsafe column headers are rendered wrong in Jupyter.
+- (hail#12565) Fixed a bug that prevented exploding on a field of a Table whose value is a random value.
+
+---
+
 ## Version 0.2.107
 
 Released 2022-12-14
