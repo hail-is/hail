@@ -9,10 +9,11 @@ import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.expr.{JSONAnnotationImpex, Nat}
 import is.hail.io._
+import is.hail.io.bgen.BgenSettings
 import is.hail.io.fs.FS
 import is.hail.io.gen.{BgenWriter, ExportGen}
 import is.hail.io.index.StagedIndexWriter
-import is.hail.io.plink.{ExportPlink, BitPacker}
+import is.hail.io.plink.{BitPacker, ExportPlink}
 import is.hail.io.vcf.{ExportVCF, TabixVCF}
 import is.hail.linalg.BlockMatrix
 import is.hail.rvd.{IndexSpec, RVDPartitioner, RVDSpecMaker}
@@ -23,8 +24,8 @@ import is.hail.types.physical.stypes.primitives._
 import is.hail.types.physical.{PBooleanRequired, PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PInt64, PStruct, PType}
 import is.hail.types.virtual._
 import is.hail.types._
-import is.hail.types.physical.stypes.concrete.{SJavaString, SJavaArrayString, SJavaArrayStringValue, SStackStruct}
-import is.hail.types.physical.stypes.interfaces.{SIndexableValue, SBaseStructValue, SStringValue}
+import is.hail.types.physical.stypes.concrete.{SJavaArrayString, SJavaArrayStringValue, SJavaString, SStackStruct}
+import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SIndexableValue, SStringValue}
 import is.hail.types.physical.stypes.primitives.{SBooleanValue, SInt64Value}
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
@@ -976,8 +977,8 @@ case class MatrixBGENWriter(
     assert(compressionCodec == "zlib" || compressionCodec == "zstd")
     val writeHeader = exportType == ExportType.PARALLEL_HEADER_IN_SHARD
     val compressionInt = compressionCodec match {
-      case "zlib" => 0x01
-      case "zstd" => 0x02
+      case "zlib" => BgenSettings.ZLIB_COMPRESSION
+      case "zstd" => BgenSettings.ZSTD_COMPRESSION
     }
     val partWriter = BGENPartitionWriter(tm, entriesFieldName, writeHeader, compressionInt)
 

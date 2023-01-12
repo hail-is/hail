@@ -23,6 +23,10 @@ import org.apache.spark.{OneToOneDependency, Partition, TaskContext}
 import scala.language.reflectiveCalls
 
 object BgenSettings {
+  val UNCOMPRESSED = 0x0
+  val ZLIB_COMPRESSION = 0x1
+  val ZSTD_COMPRESSION = 0x2
+
   def indexKeyType(rg: Option[ReferenceGenome]): TStruct = TStruct(
     "locus" -> rg.map(TLocus(_)).getOrElse(TLocus.representation),
     "alleles" -> TArray(TString))

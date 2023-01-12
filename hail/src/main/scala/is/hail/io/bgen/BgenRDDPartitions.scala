@@ -426,16 +426,17 @@ object CompileDecoder {
           }
 
           val compression = cb.memoize(cp.invoke[Int]("compression"))
-          cb.ifx(compression ceq 0, {
+          cb.ifx(compression ceq BgenSettings.UNCOMPRESSED, {
             cb.assign(data, cbfis.invoke[Int, Array[Byte]]("readBytes", dataSize))
           }, {
             cb.assign(uncompressedSize, cbfis.invoke[Int]("readInt"))
             cb.assign(input, cbfis.invoke[Int, Array[Byte]]("readBytes", dataSize - 4))
-            cb.ifx(compression ceq 1, {
+            cb.ifx(compression ceq BgenSettings.ZLIB_COMPRESSION, {
               cb.assign(data,
                 Code.invokeScalaObject2[Array[Byte], Int, Array[Byte]](
                   CompressionUtils.getClass, "decompressZlib", input, uncompressedSize))
             }, {
+              // zstd
               cb.assign(data,Code.invokeScalaObject2[Array[Byte], Int, Array[Byte]](
                 CompressionUtils.getClass, "decompressZstd", input, uncompressedSize))
             })
