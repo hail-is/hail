@@ -2443,7 +2443,7 @@ class Emit[C](
           emitI(dynamicID).consume(cb,
             (),
             { dynamicID =>
-              cb.assign(stageName, stageName.concat(": ").concat(dynamicID.asString.loadString(cb)))
+              cb.assign(stageName, stageName.concat("|").concat(dynamicID.asString.loadString(cb)))
             })
 
           cb.assign(encRes, spark.invoke[BackendContext, HailClassLoader, FS, String, Array[Array[Byte]], Array[Byte], String, Option[TableStageDependency], Array[Array[Byte]]](

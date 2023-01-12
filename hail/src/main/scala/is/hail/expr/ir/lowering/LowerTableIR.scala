@@ -1038,7 +1038,7 @@ object LowerTableIR {
                 FastIndexedSeq(howManyPartsToTryRef.name -> howManyPartsToTry, iteration.name -> 0),
                 bindIR(loweredChild.mapContexts(_ => StreamTake(ToStream(childContexts), howManyPartsToTryRef)){ ctx: IR => ctx }
                   .mapCollect(relationalLetsAbove, "table_head_recursive_count",
-                    strConcat(Str("iteration="), invoke("str", TString, iteration), Str(", nParts="), invoke("str", TString, howManyPartsToTryRef))
+                    strConcat(Str("iteration="), invoke("str", TString, iteration), Str(",nParts="), invoke("str", TString, howManyPartsToTryRef))
                   )(streamLenOrMax)) { counts =>
                   If((Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows) || (ArrayLen(childContexts) <= ArrayLen(counts)),
                     counts,

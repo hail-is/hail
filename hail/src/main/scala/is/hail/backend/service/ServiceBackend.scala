@@ -104,6 +104,7 @@ class ServiceBackend(
     _backendContext: BackendContext,
     _fs: FS,
     collection: Array[Array[Byte]],
+    stageIdentifier: String,
     dependency: Option[TableStageDependency] = None
   )(f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
   ): Array[Array[Byte]] = {
@@ -180,7 +181,7 @@ class ServiceBackend(
             JString(s"$n"))),
           "type" -> JString("jvm")),
         "attributes" -> JObject(
-          "name" -> JString(name + "_" + stageCount + "_" + i),
+          "name" -> JString(s"${ name }_stage${ stageCount }_${ stageIdentifier }_job$i"),
         ),
         "mount_tokens" -> JBool(true),
         "resources" -> resources,
