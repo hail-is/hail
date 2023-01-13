@@ -209,7 +209,6 @@ class Batch:
                     path, "functions", function_id, function, dry_run
                 )
                 self._python_function_files[function_id] = file
-        self._python_function_defs.clear()
 
     def _unique_job_token(self, n=5):
         token = secret_alnum_string(n)
