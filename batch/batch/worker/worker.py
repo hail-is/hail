@@ -475,7 +475,8 @@ class Image:
             if e.status == 404:
 
                 async def _pull():
-                    credentials = await auth()
+                    assert docker
+                    credentials = await auth() if auth else None
                     return await docker.images.pull(self.image_ref_str, auth=credentials)
 
                 await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, str(self), _pull)
