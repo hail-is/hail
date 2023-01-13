@@ -127,6 +127,7 @@ WHERE pools.name = %s;
 
     def __init__(
         self,
+        *,
         name: str,
         cloud: str,
         worker_type: str,
@@ -215,6 +216,7 @@ class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):
 
     def __init__(
         self,
+        *,
         name,
         cloud,
         boot_disk_size_gb: int,
