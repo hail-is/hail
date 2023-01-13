@@ -485,7 +485,7 @@ class Image:
     async def _batch_worker_access_token(self) -> Dict[str, str]:
         return await CLOUD_WORKER_API.worker_access_token(self.client_session)
 
-    def _current_user_access_token(self) -> Dict[str, str]:
+    async def _current_user_access_token(self) -> Dict[str, str]:
         assert self.credentials and isinstance(self.credentials, CloudUserCredentials)
         return {'username': self.credentials.username, 'password': self.credentials.password}
 
