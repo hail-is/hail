@@ -270,6 +270,7 @@ class EmitClassBuilder[C](
   private[this] lazy val encLitField: Settable[Array[Byte]] = genFieldThisRef[Array[Byte]]("encodedLiterals")
 
   lazy val partitionRegion: Settable[Region] = genFieldThisRef[Region]("partitionRegion")
+  private[this] lazy val _taskContext: Settable[HailTaskContext] = genFieldThisRef[HailTaskContext]("taskContext")
   private[this] lazy val poolField: Settable[RegionPool] = genFieldThisRef[RegionPool]()
 
   def addLiteral(v: Any, t: VirtualTypeWithReq): SValue = {
@@ -451,6 +452,8 @@ class EmitClassBuilder[C](
 
   def getFS: Code[FS] = emodb.getFS
 
+  def getTaskContext: Value[HailTaskContext] = _taskContext
+
   def setObjects(cb: EmitCodeBuilder, objects: Code[Array[AnyRef]]): Unit = modb.setObjects(cb, objects)
 
   def getObject[T <: AnyRef : TypeInfo](obj: T): Code[T] = modb.getObject(obj)
@@ -628,6 +631,14 @@ class EmitClassBuilder[C](
     }
   }
 
+  def makeAddTaskContext(): Unit = {
+    cb.addInterface(typeInfo[FunctionWithTaskContext].iname)
+    val mb = newEmitMethod("addTaskContext", FastIndexedSeq[ParamType](typeInfo[HailTaskContext]), typeInfo[Unit])
+    mb.voidWithBuilder { cb =>
+      cb.assign(_taskContext, mb.getCodeParam[HailTaskContext](1))
+    }
+  }
+
   def makeAddReferenceGenomes(): Unit = {
     cb.addInterface(typeInfo[FunctionWithReferences].iname)
     val mb = newEmitMethod("addReferenceGenomes", FastIndexedSeq[ParamType](typeInfo[Array[ReferenceGenome]]), typeInfo[Unit])
@@ -696,6 +707,7 @@ class EmitClassBuilder[C](
     makeAddPartitionRegion()
     makeAddHailClassLoader()
     makeAddFS()
+    makeAddTaskContext()
 
     val hasLiterals: Boolean = literalsMap.nonEmpty || encodedLiteralsMap.nonEmpty
     val hasReferences: Boolean = emodb.hasReferences
@@ -744,6 +756,7 @@ class EmitClassBuilder[C](
         val f = theClass.getDeclaredConstructor().newInstance().asInstanceOf[C]
         f.asInstanceOf[FunctionWithHailClassLoader].addHailClassLoader(hcl)
         f.asInstanceOf[FunctionWithFS].addFS(fs)
+        f.asInstanceOf[FunctionWithTaskContext].addTaskContext(htc)
         f.asInstanceOf[FunctionWithPartitionRegion].addPartitionRegion(region)
         f.asInstanceOf[FunctionWithPartitionRegion].setPool(region.pool)
         if (useBackend)
@@ -878,6 +891,10 @@ trait FunctionWithHailClassLoader {
 
 trait FunctionWithFS {
   def addFS(fs: FS): Unit
+}
+
+trait FunctionWithTaskContext {
+  def addTaskContext(htc: HailTaskContext): Unit
 }
 
 trait FunctionWithReferences {

@@ -56,10 +56,11 @@ class Classx[C](val name: String, val superName: String, var sourceFile: Option[
     sourceFile = Some(path)
   }
 
-  def asBytes(writeIRs: Boolean, print: Option[PrintWriter]): Array[(String, Array[Byte])] = {
+  def asBytes(_writeIRs: Boolean, print: Option[PrintWriter]): Array[(String, Array[Byte])] = {
     val classes = new mutable.ArrayBuffer[Classx[_]]()
     classes += this
 
+    val writeIRs = true
     for (m <- methods) {
       m.verify()
       SimplifyControl(m)
