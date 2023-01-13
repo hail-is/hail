@@ -432,8 +432,7 @@ class Image:
             if not self.is_cloud_image:
                 await self._ensure_image_is_pulled()
             elif self.is_public_image:
-                auth = await self._batch_worker_access_token()
-                await self._ensure_image_is_pulled(auth=auth)
+                await self._ensure_image_is_pulled(auth=self._batch_worker_access_token)
             elif self.image_ref_str == BATCH_WORKER_IMAGE and isinstance(
                 self.credentials, (JVMUserCredentials, CopyStepCredentials)
             ):
@@ -443,9 +442,12 @@ class Image:
                 # image.
                 # FIXME improve the performance of this with a
                 # per-user image cache.
-                auth = self._current_user_access_token()
                 await docker_call_retry(
-                    MAX_DOCKER_IMAGE_PULL_SECS, str(self), docker.images.pull, self.image_ref_str, auth=auth
+                    MAX_DOCKER_IMAGE_PULL_SECS,
+                    str(self),
+                    docker.images.pull,
+                    self.image_ref_str,
+                    auth=self._current_user_access_token,
                 )
         except DockerError as e:
             if e.status == 404 and 'pull access denied' in e.message:
@@ -464,16 +466,19 @@ class Image:
         image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
         image_configs[self.image_ref_str] = json.loads(image_config)[0]
 
-    async def _ensure_image_is_pulled(self, auth: Optional[Dict[str, str]] = None):
+    async def _ensure_image_is_pulled(self, auth: Optional[Callable[..., Awaitable[Optional[Dict[str, str]]]]] = None):
         assert docker
 
         try:
             await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, str(self), docker.images.get, self.image_ref_str)
         except DockerError as e:
             if e.status == 404:
-                await docker_call_retry(
-                    MAX_DOCKER_IMAGE_PULL_SECS, str(self), docker.images.pull, self.image_ref_str, auth=auth
-                )
+
+                async def _pull():
+                    credentials = await auth()
+                    return await docker.images.pull(self.image_ref_str, auth=credentials)
+
+                await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, str(self), _pull)
             else:
                 raise
 
