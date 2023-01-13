@@ -2,11 +2,11 @@ package is.hail.expr.ir.lowering
 
 import is.hail.HailContext
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.functions.TableCalculateNewPartitions
+import is.hail.expr.ir.functions.{TableCalculateNewPartitions, WrappedMatrixToTableFunction}
 import is.hail.expr.ir.agg.{Aggs, Extract, PhysicalAggSig, TakeStateSig}
 import is.hail.expr.ir.{agg, _}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
-import is.hail.methods.{ForceCountTable, NPartitionsTable, TableFilterPartitions}
+import is.hail.methods.{LocalLDPrune, ForceCountTable, NPartitionsTable, TableFilterPartitions}
 import is.hail.rvd.{PartitionBoundOrdering, RVDPartitioner}
 import is.hail.types.physical.{PCanonicalBinary, PCanonicalTuple}
 import is.hail.types.virtual._
@@ -1738,6 +1738,12 @@ object LowerTableIR {
               GetField(t, "elt") }
           )
         }
+
+      case TableToTableApply(child, WrappedMatrixToTableFunction(localLDPrune: LocalLDPrune, colsFieldName, entriesFieldName, _)) =>
+        val lc = lower(child)
+        lc.mapPartition(Some(child.typ.key)) { rows =>
+          localLDPrune.makeStream(rows, entriesFieldName, ArrayLen(GetField(lc.globals, colsFieldName)))
+        }.mapGlobals(_ => makestruct())
 
       case bmtt@BlockMatrixToTable(bmir) =>
         val ts = LowerBlockMatrixIR.lowerToTableStage(bmir, typesToLower, ctx, analyses, relationalLetsAbove)

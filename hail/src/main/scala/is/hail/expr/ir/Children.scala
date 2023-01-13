@@ -140,6 +140,8 @@ object Children {
       Array(a, query)
     case StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, _, _, _) =>
       Array(streamChild, initAggs, newKey, seqOps)
+    case StreamLocalLDPrune(streamChild, r2Threshold, windowSize, maxQueueSize, nSamples) =>
+      Array(streamChild, r2Threshold, windowSize, maxQueueSize, nSamples)
     case RunAggScan(array, _, init, seq, result, _) =>
       Array(array, init, seq, result)
     case RunAgg(body, result, _) =>

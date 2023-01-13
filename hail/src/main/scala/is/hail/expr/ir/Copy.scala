@@ -224,6 +224,9 @@ object Copy {
       case StreamJoinRightDistinct(_, _, lKey, rKey, l, r, _, joinType) =>
         assert(newChildren.length == 3)
         StreamJoinRightDistinct(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], lKey, rKey, l, r, newChildren(2).asInstanceOf[IR], joinType)
+      case _: StreamLocalLDPrune =>
+        val IndexedSeq(child: IR, r2Threshold: IR, windowSize: IR, maxQueueSize: IR, nSamples: IR) = newChildren
+        StreamLocalLDPrune(child, r2Threshold, windowSize, maxQueueSize, nSamples)
       case StreamFor(_, valueName, _) =>
         assert(newChildren.length == 2)
         StreamFor(newChildren(0).asInstanceOf[IR], valueName, newChildren(1).asInstanceOf[IR])

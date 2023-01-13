@@ -592,6 +592,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case StreamJoinRightDistinct(left, right, _, _, _, _, joinf, joinType) =>
         requiredness.union(lookup(left).required && lookup(right).required)
         tcoerce[RIterable](requiredness).elementType.unionFrom(lookup(joinf))
+      case StreamLocalLDPrune(a, r2Threshold, windowSize, maxQueueSize, nSamples) =>
+        // FIXME what else needs to go here?
+        requiredness.union(lookup(a).required)
       case StreamAgg(a, name, query) =>
         requiredness.union(lookup(a).required)
         requiredness.unionFrom(lookup(query))

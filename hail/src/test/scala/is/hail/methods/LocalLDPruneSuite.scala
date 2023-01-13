@@ -16,8 +16,6 @@ import is.hail.{HailSuite, TestUtils}
 import org.apache.spark.rdd.RDD
 import org.testng.annotations.Test
 
-import BitPackedVector._
-
 object LocalLDPruneSuite {
   val variantByteOverhead = 50
   val fractionMemoryToUse = 0.25
@@ -32,55 +30,15 @@ object LocalLDPruneSuite {
     val locus = Locus("1", 1)
     val alleles = Array("A", "T")
     val nSamples = calls.length
-
-    var nMissing = 0
-    var gtSum = 0
-    var gtSumSq = 0
-
-    val nPacks = (nSamples - 1) / GENOTYPES_PER_PACK + 1
-    val packs = new LongArrayBuilder(nPacks)
-    var pack = 0L
-    var packOffset = BITS_PER_PACK - 2
-    var i = 0
+    val builder = new BitPackedVectorBuilder(nSamples)
     for (call <- calls) {
-      val gt = if (call == null) -1 else Call.nNonRefAlleles(call)
-      pack = pack | ((gt & 3).toLong << packOffset)
-
-      if (packOffset == 0) {
-        packs.add(pack)
-        pack = 0L
-        packOffset = BITS_PER_PACK
-      }
-
-      packOffset -= 2
-
-      gt match {
-        case 1 => gtSum += 1; gtSumSq += 1
-        case 2 => gtSum += 2; gtSumSq += 4
-        case -1 => nMissing += 1
-        case _ =>
-      }
+      if (call == null)
+        builder.addMissing()
+      else
+        builder.addGT(call)
     }
 
-    if (packs.size < nPacks) {
-      packs.add(pack)
-    }
-
-    val nPresent = nSamples - nMissing
-    val allHomRef = gtSum == 0
-    val allHet = gtSum == nPresent && gtSumSq == nPresent
-    val allHomVar = gtSum == 2 * nPresent
-
-    if (allHomRef || allHet || allHomVar || nMissing == nSamples) {
-      None
-    } else {
-      val gtMean = gtSum.toDouble / nPresent
-      val gtSumAll = gtSum + nMissing * gtMean
-      val gtSumSqAll = gtSumSq + nMissing * gtMean * gtMean
-      val gtCenteredLengthRec = 1d / math.sqrt(gtSumSqAll - (gtSumAll * gtSumAll / nSamples))
-
-      Some(BitPackedVector(locus, alleles, packs.result(), nSamples, gtMean, gtCenteredLengthRec))
-    }
+    Option(builder.finish(locus, alleles))
   }
 
   def correlationMatrixGT(gts: Array[Iterable[Annotation]]) = correlationMatrix(gts.map { gts =>
@@ -101,7 +59,7 @@ object LocalLDPruneSuite {
   }
 
   def estimateMemoryRequirements(nVariants: Long, nSamples: Int, memoryPerCore: Long): Int = {
-    val bytesPerVariant = math.ceil(8 * nSamples.toDouble / GENOTYPES_PER_PACK).toLong + variantByteOverhead
+    val bytesPerVariant = math.ceil(8 * nSamples.toDouble / BitPackedVector.GENOTYPES_PER_PACK).toLong + variantByteOverhead
     val memoryAvailPerCore = memoryPerCore * fractionMemoryToUse
 
     val maxQueueSize = math.max(1, math.ceil(memoryAvailPerCore / bytesPerVariant).toInt)
