@@ -193,7 +193,7 @@ class Aggs(original: IR, rewriteMap: Memo[IR], bindingNodesReferenced: Memo[Unit
 
     val fsBc = ctx.fsBc;
     { (aggRegion: Region, bytes: Array[Byte]) =>
-      val f2 = f(theHailClassLoaderForSparkWorkers, fsBc.value, 0, aggRegion)
+      val f2 = f(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), aggRegion)
       f2.newAggState(aggRegion)
       f2.setSerializedAgg(0, bytes)
       f2(aggRegion)
@@ -210,7 +210,7 @@ class Aggs(original: IR, rewriteMap: Memo[IR], bindingNodesReferenced: Memo[Unit
 
     val fsBc = ctx.fsBc;
     { (aggRegion: Region, off: Long) =>
-      val f2 = f(theHailClassLoaderForSparkWorkers, fsBc.value, 0, aggRegion)
+      val f2 = f(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), aggRegion)
       f2.setAggState(aggRegion, off)
       f2(aggRegion)
       f2.storeAggsToRegion()
@@ -243,7 +243,7 @@ class Aggs(original: IR, rewriteMap: Memo[IR], bindingNodesReferenced: Memo[Unit
     val fsBc = ctx.fsBc
     poolGetter: (() => RegionPool) => { (bytes1: Array[Byte], bytes2: Array[Byte]) =>
       poolGetter().scopedSmallRegion { r =>
-        val f2 = f(theHailClassLoaderForSparkWorkers, fsBc.value, 0, r)
+        val f2 = f(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), r)
         f2.newAggState(r)
         f2.setSerializedAgg(0, bytes1)
         f2.setSerializedAgg(1, bytes2)
@@ -300,7 +300,7 @@ class Aggs(original: IR, rewriteMap: Memo[IR], bindingNodesReferenced: Memo[Unit
 
     { (l: RegionValue, r: RegionValue) =>
       // FIXME: this seems wrong? we cannot use broadcasted FSes in the service backend
-      val comb = f(theHailClassLoaderForSparkWorkers, fsBc.value, 0, l.region)
+      val comb = f(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), l.region)
       l.setOffset(comb(l.region, l.offset, r.region, r.offset))
       r.region.invalidate()
       l

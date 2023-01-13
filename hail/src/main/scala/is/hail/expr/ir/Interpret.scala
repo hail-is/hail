@@ -11,6 +11,7 @@ import is.hail.rvd.RVDContext
 import is.hail.utils._
 import is.hail.HailContext
 import is.hail.backend.ExecuteContext
+import is.hail.backend.spark.SparkTaskContext
 import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeType}
 import is.hail.types.tcoerce
 import org.apache.spark.sql.Row
@@ -827,7 +828,7 @@ object Interpret {
               FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
               MakeTuple.ordered(FastSeq(wrappedIR)),
               optimize = false)
-            (rt.get, makeFunction(ctx.theHailClassLoader, ctx.fs, 0, region))
+            (rt.get, makeFunction(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, region))
           })
           val rvb = new RegionValueBuilder()
           rvb.set(region)
@@ -894,9 +895,7 @@ object Interpret {
             MakeTuple.ordered(FastSeq(extracted.postAggIR)))
 
           // TODO Is this right? where does wrapped run?
-          ctx.r.pool.scopedRegion { region =>
-            SafeRow(rt, f(ctx.theHailClassLoader, ctx.fs, 0, region)(region, globalsOffset))
-          }
+          ctx.scopedExecution((hcl, fs, htc, r) => SafeRow(rt, f(hcl, fs, htc, r).apply(r, globalsOffset)))
         } else {
           val spec = BufferSpec.defaultUncompressed
 
@@ -959,8 +958,8 @@ object Interpret {
           def itF(theHailClassLoader: HailClassLoader, i: Int, ctx: RVDContext, it: Iterator[Long]): RegionValue = {
             val partRegion = ctx.partitionRegion
             val globalsOffset = globalsBc.value.readRegionValue(partRegion, theHailClassLoader)
-            val init = initOp(theHailClassLoader, fsBc.value, i, partRegion)
-            val seqOps = partitionOpSeq(theHailClassLoader, fsBc.value, i, partRegion)
+            val init = initOp(theHailClassLoader, fsBc.value, SparkTaskContext.get(), partRegion)
+            val seqOps = partitionOpSeq(theHailClassLoader, fsBc.value, SparkTaskContext.get(), partRegion)
             val aggRegion = ctx.freshRegion(Region.SMALL)
 
             init.newAggState(aggRegion)
@@ -978,7 +977,7 @@ object Interpret {
           // the caller
           val mkZero = (theHailClassLoader: HailClassLoader, pool: RegionPool) => {
             val region = Region(Region.SMALL, pool)
-            val initF = initOp(theHailClassLoader, fsBc.value, 0, region)
+            val initF = initOp(theHailClassLoader, fsBc.value, SparkTaskContext.get(), region)
             initF.newAggState(region)
             initF(region, globalsBc.value.readRegionValue(region, theHailClassLoader))
             RegionValue(region, initF.getAggOffset())
@@ -996,7 +995,7 @@ object Interpret {
           assert(rTyp.types(0).virtualType == query.typ)
 
           ctx.r.pool.scopedRegion { r =>
-            val resF = f(ctx.theHailClassLoader, fsBc.value, 0, r)
+            val resF = f(ctx.theHailClassLoader, fsBc.value, SparkTaskContext.get(), r)
             resF.setAggState(rv.region, rv.offset)
             val resAddr = resF(r, globalsOffset)
             val res = SafeRow(rTyp, resAddr)
@@ -1013,8 +1012,8 @@ object Interpret {
           FastIndexedSeq(classInfo[Region]), LongInfo,
           MakeTuple.ordered(FastSeq(child)),
           optimize = false)
-        ctx.r.pool.scopedRegion { r =>
-          SafeRow.read(rt, makeFunction(ctx.theHailClassLoader, ctx.fs, 0, r)(r)).asInstanceOf[Row](0)
+        ctx.scopedExecution { (hcl, fs, htc, r) =>
+          SafeRow.read(rt, makeFunction(hcl, fs, htc, r)(r)).asInstanceOf[Row](0)
         }
       case UUID4(_) =>
          uuid4()

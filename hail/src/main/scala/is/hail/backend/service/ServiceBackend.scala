@@ -306,7 +306,7 @@ class ServiceBackend(
         x,
         optimize = true)
 
-      f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
+      ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r))
       Array()
     } else {
       val (Some(PTypeReferenceSingleCodeType(pt)), f) = Compile[AsmFunction1RegionLong](ctx,
@@ -315,7 +315,7 @@ class ServiceBackend(
         MakeTuple.ordered(FastIndexedSeq(x)),
         optimize = true)
       val retPType = pt.asInstanceOf[PBaseStruct]
-      val off = f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
+      val off = ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r))
       val codec = TypedCodecSpec(
         EType.fromTypeAllOptional(retPType.virtualType),
         retPType.virtualType,
