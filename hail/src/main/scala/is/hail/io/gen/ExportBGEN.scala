@@ -53,13 +53,13 @@ object BgenWriter {
     bb(pos + 3) = ((i >>> 24) & 0xff).toByte
   }
 
-  def headerBlock(sampleIds: Array[String], nVariants: Long): Array[Byte] = {
+  def headerBlock(sampleIds: Array[String], nVariants: Long, compression: Int): Array[Byte] = {
     val bb = new ByteArrayBuilder()
     val nSamples = sampleIds.length
     assert(nVariants < (1L << 32))
 
     val magicNumbers = Array("b", "g", "e", "n").flatMap(_.getBytes)
-    val flags = 0x01 | (0x02 << 2) | (0x01 << 31)
+    val flags = compression | (0x02 << 2) | (0x01 << 31)
     val headerLength = 20
 
     intToBytesLE(bb, 0) // placeholder for offset

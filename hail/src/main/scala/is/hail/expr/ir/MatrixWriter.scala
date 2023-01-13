@@ -9,10 +9,11 @@ import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.expr.{JSONAnnotationImpex, Nat}
 import is.hail.io._
+import is.hail.io.bgen.BgenSettings
 import is.hail.io.fs.FS
 import is.hail.io.gen.{BgenWriter, ExportGen}
 import is.hail.io.index.StagedIndexWriter
-import is.hail.io.plink.{ExportPlink, BitPacker}
+import is.hail.io.plink.{BitPacker, ExportPlink}
 import is.hail.io.vcf.{ExportVCF, TabixVCF}
 import is.hail.linalg.BlockMatrix
 import is.hail.rvd.{IndexSpec, RVDPartitioner, RVDSpecMaker}
@@ -23,8 +24,8 @@ import is.hail.types.physical.stypes.primitives._
 import is.hail.types.physical.{PBooleanRequired, PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PInt64, PStruct, PType}
 import is.hail.types.virtual._
 import is.hail.types._
-import is.hail.types.physical.stypes.concrete.{SJavaString, SJavaArrayString, SJavaArrayStringValue, SStackStruct}
-import is.hail.types.physical.stypes.interfaces.{SIndexableValue, SBaseStructValue, SStringValue}
+import is.hail.types.physical.stypes.concrete.{SJavaArrayString, SJavaArrayStringValue, SJavaString, SStackStruct}
+import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SIndexableValue, SStringValue}
 import is.hail.types.physical.stypes.primitives.{SBooleanValue, SInt64Value}
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
@@ -951,7 +952,8 @@ final class GenSampleWriter extends SimplePartitionWriter {
 
 case class MatrixBGENWriter(
   path: String,
-  exportType: String
+  exportType: String,
+  compressionCodec: String
 ) extends MatrixWriter {
   def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = {
     val tv = mv.toTableValue
@@ -972,8 +974,13 @@ case class MatrixBGENWriter(
     else
       path + ".bgen"
 
+    assert(compressionCodec == "zlib" || compressionCodec == "zstd")
     val writeHeader = exportType == ExportType.PARALLEL_HEADER_IN_SHARD
-    val partWriter = BGENPartitionWriter(tm, entriesFieldName, writeHeader)
+    val compressionInt = compressionCodec match {
+      case "zlib" => BgenSettings.ZLIB_COMPRESSION
+      case "zstd" => BgenSettings.ZSTD_COMPRESSION
+    }
+    val partWriter = BGENPartitionWriter(tm, entriesFieldName, writeHeader, compressionInt)
 
     ts.mapContexts { oldCtx =>
       val d = digitsNeeded(ts.numPartitions)
@@ -996,13 +1003,13 @@ case class MatrixBGENWriter(
       WritePartition(rows, ctx, partWriter)
     }{ (results, globals) =>
       val ctx = MakeStruct(FastSeq("cols" -> GetField(globals, colsFieldName), "results" -> results))
-      val commit = BGENExportFinalizer(tm, path, exportType)
+      val commit = BGENExportFinalizer(tm, path, exportType, compressionInt)
       Begin(FastIndexedSeq(WriteMetadata(ctx, commit)))
     }
   }
 }
 
-case class BGENPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHeader: Boolean) extends PartitionWriter {
+case class BGENPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHeader: Boolean, compression: Int) extends PartitionWriter {
   val ctxType: Type = TStruct("cols" -> TArray(typ.colType), "numVariants" -> TInt64, "partFile" -> TString)
   override def returnType: TStruct = TStruct("partFile" -> TString, "numVariants" -> TInt64, "dropped" -> TInt64)
   def unionTypeRequiredness(r: TypeWithRequiredness, ctxType: TypeWithRequiredness, streamType: RIterable): Unit = {
@@ -1027,7 +1034,7 @@ case class BGENPartitionWriter(typ: MatrixType, entriesFieldName: String, writeH
           cb += (sampleIds(i) = s.loadString(cb))
         }
         val numVariants = ctx.loadField(cb, "numVariants").get(cb).asInt64.value
-        val header = Code.invokeScalaObject2[Array[String], Long, Array[Byte]](BgenWriter.getClass, "headerBlock", sampleIds, numVariants)
+        val header = Code.invokeScalaObject3[Array[String], Long, Int, Array[Byte]](BgenWriter.getClass, "headerBlock", sampleIds, numVariants, compression)
         cb += os.invoke[Array[Byte], Unit]("write", header)
       }
 
@@ -1145,7 +1152,12 @@ case class BGENPartitionWriter(typ: MatrixType, entriesFieldName: String, writeH
     // end emitGPData
 
     val uncompLen = cb.memoize(uncompBuf.invoke[Int]("size"))
-    val compLen = cb.memoize(Code.invokeScalaObject2[ByteArrayBuilder, Array[Byte], Int](CompressionUtils.getClass, "compress", buf, uncompBuf.invoke[Array[Byte]]("result")))
+
+    val compMethod = compression match {
+      case 1 => "compressZlib"
+      case 2 => "compressZstd"
+    }
+    val compLen = cb.memoize(Code.invokeScalaObject2[ByteArrayBuilder, Array[Byte], Int](CompressionUtils.getClass, compMethod, buf, uncompBuf.invoke[Array[Byte]]("result")))
 
     updateIntToBytesLE(cb, buf, cb.memoize(compLen + 4), gtDataBlockStart)
     updateIntToBytesLE(cb, buf, uncompLen, cb.memoize(gtDataBlockStart + 4))
@@ -1154,7 +1166,7 @@ case class BGENPartitionWriter(typ: MatrixType, entriesFieldName: String, writeH
   }
 }
 
-case class BGENExportFinalizer(typ: MatrixType, path: String, exportType: String) extends MetadataWriter {
+case class BGENExportFinalizer(typ: MatrixType, path: String, exportType: String, compression: Int) extends MetadataWriter {
   def annotationType: Type = TStruct("cols" -> TArray(typ.colType), "results" -> TArray(TStruct("partFile" -> TString, "numVariants" -> TInt64, "dropped" -> TInt64)))
 
   def writeMetadata(writeAnnotations: => IEmitCode, cb: EmitCodeBuilder, region: Value[Region]): Unit = {
@@ -1195,14 +1207,14 @@ case class BGENExportFinalizer(typ: MatrixType, path: String, exportType: String
 
     if (exportType == ExportType.PARALLEL_SEPARATE_HEADER) {
       val os = cb.memoize(cb.emb.create(const(path + ".bgen").concat("/header")))
-      val header = Code.invokeScalaObject2[Array[String], Long, Array[Byte]](BgenWriter.getClass, "headerBlock", sampleIds, numVariants)
+      val header = Code.invokeScalaObject3[Array[String], Long, Int, Array[Byte]](BgenWriter.getClass, "headerBlock", sampleIds, numVariants, compression)
       cb += os.invoke[Array[Byte], Unit]("write", header)
       cb += os.invoke[Unit]("close")
     }
 
     if (exportType == ExportType.CONCATENATED) {
       val os = cb.memoize(cb.emb.create(const(path + ".bgen")))
-      val header = Code.invokeScalaObject2[Array[String], Long, Array[Byte]](BgenWriter.getClass, "headerBlock", sampleIds, numVariants)
+      val header = Code.invokeScalaObject3[Array[String], Long, Int, Array[Byte]](BgenWriter.getClass, "headerBlock", sampleIds, numVariants, compression)
       cb += os.invoke[Array[Byte], Unit]("write", header)
 
       annotations.loadField(cb, "results").get(cb).asIndexable.forEachDefined(cb) { (cb, i, res) =>
