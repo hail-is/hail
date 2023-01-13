@@ -12,6 +12,8 @@ object HailFeatureFlags {
     ("lower", ("HAIL_DEV_LOWER" -> null)),
     ("lower_only", ("HAIL_DEV_LOWER_ONLY" -> null)),
     ("lower_bm", ("HAIL_DEV_LOWER_BM" -> null)),
+    ("print_ir_on_worker", ("HAIL_DEV_PRINT_IR_ON_WORKER" -> null)),
+    ("print_inputs_on_worker", ("HAIL_DEV_PRINT_INPUTS_ON_WORKER" -> null)),
     ("max_leader_scans", ("HAIL_DEV_MAX_LEADER_SCANS" -> "1000")),
     ("distributed_scan_comb_op", ("HAIL_DEV_DISTRIBUTED_SCAN_COMB_OP" -> null)),
     ("jvm_bytecode_dump", ("HAIL_DEV_JVM_BYTECODE_DUMP" -> null)),
