@@ -2,6 +2,7 @@ package is.hail.utils
 
 import is.hail.annotations.{Region, RegionMemory}
 
+import java.io.Closeable
 import java.util
 import java.util.Map.Entry
 
@@ -17,7 +18,7 @@ class Cache[K, V](capacity: Int) {
   def size: Int = synchronized { m.size() }
 }
 
-class LongToRegionValueCache(capacity: Int) {
+class LongToRegionValueCache(capacity: Int) extends Closeable {
   private[this] val m = new util.LinkedHashMap[Long, (RegionMemory, Long)](capacity, 0.75f, true) {
     override def removeEldestEntry(eldest: Entry[Long, (RegionMemory, Long)]): Boolean = {
       val b = (size() > capacity)
@@ -50,4 +51,6 @@ class LongToRegionValueCache(capacity: Int) {
     m.forEach((k, v) => v._1.release())
     m.clear()
   }
+
+  def close(): Unit = free()
 }

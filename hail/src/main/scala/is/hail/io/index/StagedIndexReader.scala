@@ -2,18 +2,19 @@ package is.hail.io.index
 
 import is.hail.annotations._
 import is.hail.asm4s._
+import is.hail.backend.TaskFinalizer
 import is.hail.expr.ir.functions.IntervalFunctions.{arrayOfStructFindIntervalRange, compareStructWithPartitionIntervalEndpoint}
 import is.hail.expr.ir.{BinarySearch, EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitValue, IEmitCode}
 import is.hail.io.fs.FS
 import is.hail.rvd.AbstractIndexSpec
-import is.hail.types.physical.stypes.concrete.{SStackInterval, SStackIntervalValue, SStackStruct, SStackStructSettable, SStackStructValue}
+import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.{SSettable, SValue}
 import is.hail.types.physical.{PCanonicalArray, PCanonicalBaseStruct}
 import is.hail.types.virtual.{TInt64, TTuple}
 import is.hail.utils._
 
-import java.io.InputStream
+import java.io.{Closeable, InputStream}
 
 case class VariableMetadata(
   branchingFactor: Int,
@@ -54,6 +55,11 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
     // FIXME: hardcoded. Will break if we change spec -- assumption not introduced with this code, but propagated.
     cb.assign(is, Code.newInstance[ByteTrackingInputStream, InputStream](cb.emb.open(indexPath.concat("/index"), false)))
 
+  }
+
+  def addToFinalizer(cb: EmitCodeBuilder, finalizer: Value[TaskFinalizer]): Unit = {
+    cb += finalizer.invoke[Closeable, Unit]("addCloseable", cache)
+    cb += finalizer.invoke[Closeable, Unit]("addCloseable", is)
   }
 
   def close(cb: EmitCodeBuilder): Unit = {

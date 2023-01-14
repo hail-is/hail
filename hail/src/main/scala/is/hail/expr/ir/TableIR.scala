@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.{ExecuteContext, HailTaskContext}
+import is.hail.backend.{ExecuteContext, HailTaskContext, TaskFinalizer}
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.IntervalFunctions._
@@ -35,7 +35,7 @@ import org.json4s.JsonAST.JString
 import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
-import java.io.{DataInputStream, DataOutputStream, InputStream}
+import java.io.{Closeable, DataInputStream, DataOutputStream, InputStream}
 import scala.reflect.ClassTag
 
 object TableIR {
@@ -774,6 +774,7 @@ case class PartitionNativeIntervalReader(tablePath: String, tableSpec: AbstractT
 
       val currIdxInPartition = mb.genFieldThisRef[Long]("n_to_read")
       val stopIdxInPartition = mb.genFieldThisRef[Long]("n_to_read")
+      val finalizer = mb.genFieldThisRef[TaskFinalizer]("finalizer")
 
       val startPartitionIndex = mb.genFieldThisRef[Int]("start_part")
       val currPartitionIdx = mb.genFieldThisRef[Int]("curr_part")
@@ -782,6 +783,10 @@ case class PartitionNativeIntervalReader(tablePath: String, tableSpec: AbstractT
 
       // leave the index open/initialized to allow queries to reuse the same index for the same file
       val indexInitialized = mb.genFieldThisRef[Boolean]("index_init")
+      val indexCachedIndex = mb.genFieldThisRef[Int]("index_last_idx")
+      val streamFirst = mb.genFieldThisRef[Boolean]("stream_first")
+
+      val nOpens = mb.genFieldThisRef[Int]("n_opens")
 
       val region = mb.genFieldThisRef[Region]("pnr_region")
 
@@ -811,9 +816,11 @@ case class PartitionNativeIntervalReader(tablePath: String, tableSpec: AbstractT
           cb.assign(currPartitionIdx, startPartitionIndex)
 
 
-          cb.assign(indexInitialized, false) // basically "!first"
+          cb.assign(streamFirst, true) // basically "!first"
           cb.assign(currIdxInPartition, 0L)
           cb.assign(stopIdxInPartition, 0L)
+
+          cb.assign(finalizer, cb.emb.ecb.getTaskContext.invoke[TaskFinalizer]("newFinalizer"))
         }
 
         override val elementRegion: Settable[Region] = region
@@ -825,19 +832,40 @@ case class PartitionNativeIntervalReader(tablePath: String, tableSpec: AbstractT
             cb.ifx(currPartitionIdx >= rowsSpec.partitioner.numPartitions || currPartitionIdx > lastIncludedPartitionIdx,
               cb.goto(LendOfStream))
 
-            // open the next index
+            val requiresIndexInit = cb.newLocal[Boolean]("requiresIndexInit")
 
-            cb.ifx(indexInitialized, {
-              index.close(cb)
-              cb += ib.close()
+            cb.ifx(streamFirst, {
+              // if first, reuse open index from previous time the stream was run if possible
+              // this is a common case if looking up nearby keys
+              cb.assign(requiresIndexInit, !(indexInitialized && (indexCachedIndex ceq currPartitionIdx)))
+              cb.ifx(indexInitialized, {
+                cb.assign(nOpens, nOpens + 1)
+                cb.logInfo("query_table: nOpens=", nOpens.toS)
+              }, {
+                cb.assign(nOpens, 0)
+              })
             }, {
-              cb.assign(indexInitialized, true)
+              // if not first, then the index must be open to the previous partition and needs to be reinitialized
+              cb.assign(streamFirst, false)
+              cb.assign(requiresIndexInit, true)
             })
 
-            val partPath = partitionPathsRuntime.loadElement(cb, currPartitionIdx).get(cb).asString.loadString(cb)
-            val idxPath = indexPathsRuntime.loadElement(cb, currPartitionIdx).get(cb).asString.loadString(cb)
-            index.initialize(cb, idxPath)
-            cb.assign(ib, spec.buildCodeInputBuffer(Code.newInstance[ByteTrackingInputStream, InputStream](cb.emb.open(partPath, false))))
+            cb.ifx(requiresIndexInit, {
+              cb.ifx(indexInitialized, {
+                cb += finalizer.invoke[Unit]("clear")
+                index.close(cb)
+                cb += ib.close()
+              }, {
+                cb.assign(indexInitialized, true)
+              })
+              cb.assign(indexCachedIndex, currPartitionIdx)
+              val partPath = partitionPathsRuntime.loadElement(cb, currPartitionIdx).get(cb).asString.loadString(cb)
+              val idxPath = indexPathsRuntime.loadElement(cb, currPartitionIdx).get(cb).asString.loadString(cb)
+              index.initialize(cb, idxPath)
+              cb.assign(ib, spec.buildCodeInputBuffer(Code.newInstance[ByteTrackingInputStream, InputStream](cb.emb.open(partPath, false))))
+              index.addToFinalizer(cb, finalizer)
+              cb += finalizer.invoke[Closeable, Unit]("addCloseable", ib)
+            })
 
             cb.ifx(currPartitionIdx ceq lastIncludedPartitionIdx, {
               cb.ifx(currPartitionIdx ceq startPartitionIndex, {
@@ -918,10 +946,9 @@ case class PartitionNativeIntervalReader(tablePath: String, tableSpec: AbstractT
         }
 
         override def close(cb: EmitCodeBuilder): Unit = {
-          cb.ifx(indexInitialized, {
-            index.close(cb)
-            cb += ib.close()
-          })
+          // no cleanup! leave the index open for the next time the stream is run.
+          // the task finalizer will clean up the last open index, so this node
+          // leaks 2 open file handles until the end of the task.
         }
       }
       SStreamValue(producer)
