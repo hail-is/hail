@@ -786,8 +786,6 @@ case class PartitionNativeIntervalReader(tablePath: String, tableSpec: AbstractT
       val indexCachedIndex = mb.genFieldThisRef[Int]("index_last_idx")
       val streamFirst = mb.genFieldThisRef[Boolean]("stream_first")
 
-      val nOpens = mb.genFieldThisRef[Int]("n_opens")
-
       val region = mb.genFieldThisRef[Region]("pnr_region")
 
       val decodedRow = cb.emb.newPField("rowsValue", eltSType)
@@ -838,12 +836,6 @@ case class PartitionNativeIntervalReader(tablePath: String, tableSpec: AbstractT
               // if first, reuse open index from previous time the stream was run if possible
               // this is a common case if looking up nearby keys
               cb.assign(requiresIndexInit, !(indexInitialized && (indexCachedIndex ceq currPartitionIdx)))
-              cb.ifx(indexInitialized, {
-                cb.assign(nOpens, nOpens + 1)
-                cb.logInfo("query_table: nOpens=", nOpens.toS)
-              }, {
-                cb.assign(nOpens, 0)
-              })
             }, {
               // if not first, then the index must be open to the previous partition and needs to be reinitialized
               cb.assign(streamFirst, false)
