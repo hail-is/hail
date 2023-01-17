@@ -4,9 +4,10 @@ import is.hail.asm4s.Code
 import is.hail.expr.ir._
 import is.hail.stats._
 import is.hail.types.physical.stypes._
+import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces.primitive
 import is.hail.types.physical.stypes.primitives._
-import is.hail.types.physical.{PBoolean, PFloat32, PFloat64, PInt32, PInt64, PType}
+import is.hail.types.physical.{PCanonicalArray, PBoolean, PFloat32, PFloat64, PInt32, PInt64, PType}
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.commons.math3.special.Gamma
@@ -185,6 +186,53 @@ object MathFunctions extends RegistryFunctions {
 
     registerScalaFunction("qnchisqtail", Array(TFloat64, TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "qnchisqtail")
     registerScalaFunction("qnchisqtail", Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(statsPackageClass, "qnchisqtail")
+
+    registerSCode7(
+      "pgenchisq",
+      TFloat64,
+      TArray(TFloat64),
+      TArray(TInt32),
+      TArray(TFloat64),
+      TFloat64,
+      TInt32,
+      TFloat64,
+      DaviesAlgorithm.pType.virtualType,
+      (_, _, _, _, _, _, _, _) => DaviesAlgorithm.pType.sType
+    ) {
+      case (r, cb, rt,
+        x: SFloat64Value,
+        _w: SIndexablePointerValue,
+        _k: SIndexablePointerValue,
+        _lam: SIndexablePointerValue,
+        sigma: SFloat64Value,
+        maxIterations: SInt32Value,
+        minAccuracy: SFloat64Value,
+        _) =>
+
+        val w = _w.castToArray(cb)
+        val k = _k.castToArray(cb)
+        val lam = _lam.castToArray(cb)
+
+        val res = cb.newLocal[DaviesResultForPython]("pgenchisq_result",
+          Code.invokeScalaObject7[
+            Double, IndexedSeq[Double], IndexedSeq[Int], IndexedSeq[Double], Double, Int, Double, DaviesResultForPython
+          ](statsPackageClass, "pgenchisq",
+            x.value,
+            Code.checkcast[IndexedSeq[Double]](svalueToJavaValue(cb, r.region, w)),
+            Code.checkcast[IndexedSeq[Int]](svalueToJavaValue(cb, r.region, k)),
+            Code.checkcast[IndexedSeq[Double]](svalueToJavaValue(cb, r.region, lam)),
+            sigma.value,
+            maxIterations.value,
+            minAccuracy.value)
+        )
+
+        DaviesAlgorithm.pType.constructFromFields(cb, r.region, FastIndexedSeq(
+          EmitValue.present(primitive(cb.memoize(res.invoke[Double]("value")))),
+          EmitValue.present(primitive(cb.memoize(res.invoke[Int]("nIterations")))),
+          EmitValue.present(primitive(cb.memoize(res.invoke[Boolean]("converged")))),
+          EmitValue.present(primitive(cb.memoize(res.invoke[Int]("fault"))))
+        ), deepCopy = false)
+    }
 
     registerScalaFunction("floor", Array(TFloat32), TFloat32, null)(thisClass, "floor")
     registerScalaFunction("floor", Array(TFloat64), TFloat64, null)(thisClass, "floor")
