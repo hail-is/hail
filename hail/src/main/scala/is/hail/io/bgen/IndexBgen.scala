@@ -16,7 +16,7 @@ import org.apache.spark.{Partition, TaskContext}
 
 private case class IndexBgenPartition(
   path: String,
-  compressed: Boolean,
+  compression: Int,
   skipInvalidLoci: Boolean,
   contigRecoding: Map[String, String],
   startByteOffset: Long,
@@ -83,7 +83,7 @@ object IndexBgen {
     val partitions: Array[Partition] = headers.zipWithIndex.map { case (f, i) =>
       IndexBgenPartition(
         f.path,
-        f.compressed,
+        f.compression,
         skipInvalidLoci,
         recoding,
         f.dataStart,

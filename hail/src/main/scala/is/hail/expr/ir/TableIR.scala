@@ -439,6 +439,44 @@ object LoweredTableReader {
   }
 }
 
+
+trait TableReaderWithExtraUID extends TableReader {
+
+  def fullTypeWithoutUIDs: TableType
+
+  final val uidFieldName = TableReader.uidFieldName
+
+  lazy val fullType: TableType = {
+    require(!fullTypeWithoutUIDs.rowType.hasField(uidFieldName))
+    fullTypeWithoutUIDs.copy(
+      rowType = fullTypeWithoutUIDs.rowType.insertFields(
+        Array((uidFieldName, uidType))))
+  }
+
+  def uidType: Type
+
+
+  protected def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq
+
+  protected def uidRequiredness: VirtualTypeWithReq
+
+  override def rowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = {
+    val requestedUID = requestedType.rowType.hasField(uidFieldName)
+    val concreteRowType = if (requestedUID)
+      requestedType.rowType.deleteKey(uidFieldName)
+    else
+      requestedType.rowType
+    val concreteRowReq = concreteRowRequiredness(ctx, requestedType.copy(rowType = concreteRowType))
+    if (requestedUID) {
+      val concreteRFields = concreteRowReq.r.asInstanceOf[RStruct].fields
+      VirtualTypeWithReq(
+        requestedType.rowType,
+        RStruct(concreteRFields :+ RField(uidFieldName, uidRequiredness.r, concreteRFields.length)))
+    } else {
+      concreteRowReq
+    }
+  }
+}
 abstract class TableReader {
   def pathsUsed: Seq[String]
 
@@ -448,43 +486,11 @@ abstract class TableReader {
 
   def isDistinctlyKeyed: Boolean = false // FIXME: No default value
 
-  def uidType: Type
+  def fullType: TableType
 
-  def fullTypeWithoutUIDs: TableType
+  def rowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq
 
-  val fullType: TableType = if (fullTypeWithoutUIDs.rowType.hasField(uidFieldName))
-    fullTypeWithoutUIDs
-  else
-    fullTypeWithoutUIDs.copy(
-      rowType = fullTypeWithoutUIDs.rowType.insertFields(
-        Array((uidFieldName, uidType))))
-
-  protected def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq
-
-  protected def uidRequiredness: VirtualTypeWithReq
-
-  protected def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq
-
-  def rowAndGlobalRequiredness(ctx: ExecuteContext, requestedType: TableType): (VirtualTypeWithReq, VirtualTypeWithReq) = {
-    val requestedUID = requestedType.rowType.hasField(uidFieldName)
-    val concreteRowType = if (requestedUID)
-      requestedType.rowType.deleteKey(uidFieldName)
-    else
-      requestedType.rowType
-    val concreteRowReq = concreteRowRequiredness(ctx, requestedType.copy(rowType = concreteRowType))
-    val rowReq = if (requestedUID) {
-      val concreteRFields = concreteRowReq.r.asInstanceOf[RStruct].fields
-      VirtualTypeWithReq(
-        requestedType.rowType,
-        RStruct(concreteRFields :+ RField(uidFieldName, uidRequiredness.r, concreteRFields.length)))
-    } else {
-      concreteRowReq
-    }
-
-    val globalReq = globalRequiredness(ctx, requestedType)
-
-    (rowReq, globalReq)
-  }
+  def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq
 
   def toJValue: JValue = {
     Extraction.decompose(this)(TableReader.formats)
@@ -501,8 +507,6 @@ abstract class TableReader {
 
   def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
     throw new LowererUnsupportedOperation(s"${ getClass.getSimpleName }.lower not implemented")
-
-  final def uidFieldName = TableReader.uidFieldName
 }
 
 object TableNativeReader {
@@ -566,7 +570,7 @@ case class PartitionRVDReader(rvd: RVD, uidFieldName: String) extends PartitionR
     val createUID = requestedType.hasField(uidFieldName)
 
     assert(upcastPType == rowPType,
-    s"ptype mismatch:\n  upcast: $upcastPType\n  computed: ${ rowPType }")
+    s"ptype mismatch:\n  upcast: $upcastPType\n  computed: ${ rowPType }\n  inputType: ${rvd.rowPType}\n  requested: ${requestedType}")
 
     context.toI(cb).map(cb) { partIdx =>
       val iterator = mb.genFieldThisRef[Iterator[Long]]("rvdreader_iterator")
@@ -1359,7 +1363,7 @@ case class TableNativeReaderParameters(
 class TableNativeReader(
   val params: TableNativeReaderParameters,
   val spec: AbstractTableSpec
-) extends TableReader {
+) extends TableReaderWithExtraUID {
   def pathsUsed: Seq[String] = Array(params.path)
 
   val filterIntervals: Boolean = params.options.map(_.filterIntervals).getOrElse(false)
@@ -1441,7 +1445,7 @@ case class TableNativeZippedReader(
   options: Option[NativeReaderOptions],
   specLeft: AbstractTableSpec,
   specRight: AbstractTableSpec
-) extends TableReader {
+) extends TableReaderWithExtraUID {
   def pathsUsed: Seq[String] = FastSeq(pathLeft, pathRight)
 
   override def renderShort(): String = s"(TableNativeZippedReader $pathLeft $pathRight ${ options.map(_.renderShort()).getOrElse("") })"
@@ -1554,7 +1558,7 @@ case class TableFromBlockMatrixNativeReaderParameters(path: String, nPartitions:
 case class TableFromBlockMatrixNativeReader(
   params: TableFromBlockMatrixNativeReaderParameters,
   metadata: BlockMatrixMetadata
-) extends TableReader {
+) extends TableReaderWithExtraUID {
   def pathsUsed: Seq[String] = FastSeq(params.path)
 
   val getNumPartitions: Int = params.nPartitions.getOrElse(HailContext.backend.defaultParallelism)
@@ -1622,7 +1626,6 @@ object TableRead {
     dropRows: Boolean,
     tr: TableReader
   ): TableRead = {
-    assert(!tr.fullTypeWithoutUIDs.rowType.hasField(TableReader.uidFieldName))
     new TableRead(typ, dropRows, tr)
   }
 

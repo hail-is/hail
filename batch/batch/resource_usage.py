@@ -1,19 +1,24 @@
 import asyncio
 import logging
 import os
+import shutil
 import struct
-from typing import Optional
+from typing import Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
-from hailtop.utils import time_msecs, time_ns
+from hailtop.utils import check_shell_output, time_msecs, time_ns
 
 log = logging.getLogger('resource_usage')
 
 
+iptables_lock = asyncio.Lock()
+
+
 class ResourceUsageMonitor:
-    VERSION = 1
+    VERSION = 2
+    missing_value = None
 
     @staticmethod
     def no_data() -> bytes:
@@ -29,18 +34,48 @@ class ResourceUsageMonitor:
             return None
 
         (version,) = struct.unpack_from('>q', data, 0)
-        assert version == ResourceUsageMonitor.VERSION, version
+        assert 1 <= version <= ResourceUsageMonitor.VERSION, version
 
-        dtype = [('time_msecs', '>i8'), ('memory_in_bytes', '>i8'), ('cpu_usage', '>f8')]
+        dtype = [
+            ('time_msecs', '>i8'),
+            ('memory_in_bytes', '>i8'),
+            ('cpu_usage', '>f8'),
+        ]
+
+        if version > 1:
+            assert version == ResourceUsageMonitor.VERSION, version
+            dtype += [
+                ('non_io_storage_in_bytes', '>i8'),
+                ('io_storage_in_bytes', '>i8'),
+                ('network_bandwidth_upload_in_bytes_per_second', '>f8'),
+                ('network_bandwidth_download_in_bytes_per_second', '>f8'),
+            ]
         np_array = np.frombuffer(data, offset=8, dtype=dtype)
+
         return pd.DataFrame.from_records(np_array)
 
-    def __init__(self, container_name: str, output_file_path: str):
+    def __init__(
+        self,
+        container_name: str,
+        container_overlay: str,
+        io_volume_mount: Optional[str],
+        veth_host: str,
+        output_file_path: str,
+    ):
         self.container_name = container_name
+        self.container_overlay = container_overlay
+        self.io_volume_mount = io_volume_mount
+        self.veth_host = veth_host
         self.output_file_path = output_file_path
+
+        self.is_attached_disk = io_volume_mount is not None and os.path.ismount(io_volume_mount)
 
         self.last_time_ns: Optional[int] = None
         self.last_cpu_ns: Optional[int] = None
+
+        self.last_download_bytes: Optional[int] = None
+        self.last_upload_bytes: Optional[int] = None
+        self.last_time_msecs: Optional[int] = None
 
         self.out = open(output_file_path, 'wb')  # pylint: disable=consider-using-with
         self.write_header()
@@ -82,6 +117,62 @@ class ResourceUsageMonitor:
                 return int(f.read().rstrip())
         return None
 
+    def overlay_storage_usage_bytes(self) -> int:
+        return shutil.disk_usage(self.container_overlay).used
+
+    def io_storage_usage_bytes(self) -> int:
+        if self.io_volume_mount is not None:
+            return shutil.disk_usage(self.io_volume_mount).used
+        return 0
+
+    async def network_bandwidth(self) -> Tuple[Optional[float], Optional[float]]:
+        async with iptables_lock:
+            now_time_msecs = time_msecs()
+
+            iptables_output, stderr = await check_shell_output(
+                f'''
+iptables -t mangle -L -v -n -x -w | grep "{self.veth_host}" | awk '{{ if ($6 == "{self.veth_host}" || $7 == "{self.veth_host}") print $2, $6, $7 }}'
+'''
+            )
+        if stderr:
+            log.exception(stderr)
+            return (None, None)
+
+        output = iptables_output.decode('utf-8').rstrip().splitlines()
+        assert len(output) == 2, str((output, self.veth_host))
+
+        now_upload_bytes = None
+        now_download_bytes = None
+        for line in output:
+            fields = line.split()
+            bytes_transmitted = int(fields[0])
+
+            if fields[1] == self.veth_host and fields[2] != self.veth_host:
+                now_upload_bytes = bytes_transmitted
+            else:
+                assert fields[1] != self.veth_host and fields[2] == self.veth_host, line
+                now_download_bytes = bytes_transmitted
+
+        assert now_upload_bytes is not None and now_download_bytes is not None, output
+
+        if self.last_upload_bytes is None or self.last_download_bytes is None or self.last_time_msecs is None:
+            self.last_time_msecs = time_msecs()
+            self.last_upload_bytes = now_upload_bytes
+            self.last_download_bytes = now_download_bytes
+            return (None, None)
+
+        upload_bandwidth = (now_upload_bytes - self.last_upload_bytes) / (now_time_msecs - self.last_time_msecs)
+        download_bandwidth = (now_download_bytes - self.last_download_bytes) / (now_time_msecs - self.last_time_msecs)
+
+        upload_bandwidth_mb_sec = (upload_bandwidth / 1024 / 1024) * 1000
+        download_bandwidth_mb_sec = (download_bandwidth / 1024 / 1024) * 1000
+
+        self.last_time_msecs = now_time_msecs
+        self.last_upload_bytes = now_upload_bytes
+        self.last_download_bytes = now_download_bytes
+
+        return (upload_bandwidth_mb_sec, download_bandwidth_mb_sec)
+
     async def measure(self):
         now = time_msecs()
         memory_usage_bytes = self.memory_usage_bytes()
@@ -90,7 +181,24 @@ class ResourceUsageMonitor:
         if memory_usage_bytes is None or percent_cpu_usage is None:
             return
 
-        data = struct.pack('>2qd', now, memory_usage_bytes, percent_cpu_usage)
+        overlay_usage_bytes = self.overlay_storage_usage_bytes()
+        io_usage_bytes = self.io_storage_usage_bytes()
+        non_io_usage_bytes = overlay_usage_bytes if self.is_attached_disk else overlay_usage_bytes - io_usage_bytes
+        network_upload_bytes_per_second, network_download_bytes_per_second = await self.network_bandwidth()
+
+        if network_upload_bytes_per_second is None or network_download_bytes_per_second is None:
+            return
+
+        data = struct.pack(
+            '>2qd2q2d',
+            now,
+            memory_usage_bytes,
+            percent_cpu_usage,
+            non_io_usage_bytes,
+            io_usage_bytes,
+            network_upload_bytes_per_second,
+            network_download_bytes_per_second,
+        )
 
         self.out.write(data)
         self.out.flush()

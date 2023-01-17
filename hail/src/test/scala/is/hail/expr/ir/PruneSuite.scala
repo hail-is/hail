@@ -118,18 +118,13 @@ class PruneSuite extends HailSuite {
 
     def partitionCounts: Option[IndexedSeq[Long]] = ???
 
-    override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
-      ???
-
-    override def uidRequiredness: VirtualTypeWithReq =
+    override def rowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
       ???
 
     override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
       ???
 
-    def uidType = TInt64
-
-    def fullTypeWithoutUIDs: TableType = tab.typ
+    override def fullType: TableType = tab.typ
   })
 
   lazy val mType = MatrixType(
@@ -474,6 +469,11 @@ class PruneSuite extends HailSuite {
         ("foo",matrixRefStruct(mat.typ, "global.g1", "sa.c2", "va.r2", "g.e2")))), None)
     checkMemo(mmc2, subsetMatrixTable(mmc2.typ, "va.r3", "sa.foo.foo"),
       Array(subsetMatrixTable(mat.typ, "global.g1", "sa.c2", "va.r2", "g.e2", "va.r3"), null))
+  }
+
+  @Test def testMatrixKeyRowsByMemo() {
+    val mkr = MatrixKeyRowsBy(mat, FastIndexedSeq("rk"))
+    checkMemo(mkr, subsetMatrixTable(mkr.typ, "va.rk"), Array(subsetMatrixTable(mat.typ, "va.rk")))
   }
 
   @Test def testMatrixMapRowsMemo() {

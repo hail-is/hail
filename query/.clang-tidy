@@ -1,0 +1,73 @@
+Checks: >
+  -*,
+  clang-diagnostic-*,
+  llvm-*,
+  bugprone-*,
+  -bugprone-bad-signal-to-kill-thread,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-exception-escape,
+  -bugprone-no-escape,
+  -bugprone-not-null-terminated-result,
+  -bugprone-throw-keyword-missing,
+  -bugprone-unchecked-optional-access,
+  -bugprone-unhandled-exception-at-new,
+  cppcoreguidelines-*,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  misc-*,
+  -misc-confusable-identifiers,
+  -misc-unused-parameters,
+  -misc-non-private-member-variables-in-classes,
+  -misc-no-recursion,
+  modernize-*,
+  -modernize-avoid-bind,
+  -modernize-macro-to-enum,
+  -modernize-redundant-void-arg,
+  -modernize-replace-auto-ptr,
+  -modernize-replace-disallow-copy-and-assign-macro,
+  -modernize-replace-random-shuffle,
+  -modernize-use-nodiscard,
+  -modernize-use-noexcept,
+  -modernize-use-uncaught-exceptions,
+  performance-*,
+  readability-*,
+  -readability-braces-around-statements,
+  -readability-function-*,
+  -readability-identifier-length,
+  -readability-magic-numbers
+
+CheckOptions:
+  - key:             readability-identifier-naming.ClassCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.EnumCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.FunctionCase
+    value:           camelBack
+  # Exclude from scanning as this is an exported symbol used for fuzzing
+  # throughout the code base.
+  - key:             readability-identifier-naming.FunctionIgnoredRegexp
+    value:           "LLVMFuzzerTestOneInput"
+  - key:             readability-identifier-naming.MemberCase
+    value:           camelBack
+  - key:             readability-identifier-naming.ParameterCase
+    value:           camelBack
+  - key:             readability-identifier-naming.UnionCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.VariableCase
+    value:           camelBack
+  - key:             readability-identifier-naming.IgnoreMainLikeFunctions
+    value:           1
+  - key:             readability-redundant-member-init.IgnoreBaseInCopyConstructors
+    value:           1
+  - key:             modernize-use-default-member-init.UseAssignment
+    value:           1
+  - key:             bugprone-argument-comment.StrictMode
+    value:           true
+  - key:             bugprone-argument-comment.CommentBoolLiterals
+    value:           true
+  - key:             bugprone-argument-comment.CommentNullPtrs
+    value:           true
+  - key:             bugprone-argument-comment.IgnoreSingleArgument
+    value:           true
+
+HeaderFilterRegex: include/hail.*\.h$

@@ -131,7 +131,7 @@ async def _user_can_access(db: Database, batch_id: int, user: str):
 SELECT id
 FROM batches
 LEFT JOIN billing_project_users ON batches.billing_project = billing_project_users.billing_project
-WHERE id = %s AND billing_project_users.`user` = %s;
+WHERE id = %s AND billing_project_users.`user_cs` = %s;
 ''',
         (batch_id, user),
     )
@@ -638,7 +638,7 @@ async def _query_batches(request, user, q):
         elif t.startswith('billing_project:'):
             k = t[16:]
             condition = '''
-(batches.`billing_project` = %s)
+(billing_projects.name_cs = %s)
 '''
             args = [k]
         elif t == 'open':
@@ -683,6 +683,7 @@ WITH base_t AS (
     batches_n_jobs_in_complete_states.n_failed,
     batches_n_jobs_in_complete_states.n_cancelled
   FROM batches
+  LEFT JOIN billing_projects ON batches.billing_project = billing_projects.name
   LEFT JOIN batches_n_jobs_in_complete_states
     ON batches.id = batches_n_jobs_in_complete_states.id
   LEFT JOIN batches_cancelled
@@ -1288,7 +1289,7 @@ SELECT billing_projects.status, billing_projects.limit
 FROM billing_project_users
 INNER JOIN billing_projects
   ON billing_projects.name = billing_project_users.billing_project
-WHERE billing_project = %s AND user = %s
+WHERE billing_projects.name_cs = %s AND user_cs = %s
 LOCK IN SHARE MODE''',
             (billing_project, user),
         )
@@ -1913,12 +1914,26 @@ def plot_resource_usage(resource_usage: Optional[Dict[str, Optional[pd.DataFrame
     if resource_usage is None:
         return None
 
-    fig = make_subplots(rows=2, cols=1, subplot_titles=('CPU Usage', 'Memory'))
+    fig = make_subplots(
+        rows=3,
+        cols=2,
+        subplot_titles=(
+            'CPU Usage',
+            'Memory',
+            'Storage (Container minus /io)',
+            'Storage (/io)',
+            'Network Upload Bandwidth (MB/sec)',
+            'Network Download Bandwidth (MB/sec)',
+        ),
+    )
+    fig.update_layout(height=600, width=800)
 
     colors = {'input': 'red', 'main': 'green', 'output': 'blue'}
 
     max_cpu_value = 1
     max_memory_value = 1024 * 1024
+    max_storage_value = 1024 * 1024 * 1024
+    max_network_bandwidth_value = 500
     n_total_rows = 0
 
     for container_name, df in resource_usage.items():
@@ -1932,43 +1947,58 @@ def plot_resource_usage(resource_usage: Optional[Dict[str, Optional[pd.DataFrame
         mem_df = df['memory_in_bytes']
         cpu_df = df['cpu_usage']
 
+        def get_df(df, colname):
+            if colname not in df:
+                df[colname] = ResourceUsageMonitor.missing_value
+            return df[colname]
+
+        non_io_storage_df = get_df(df, 'non_io_storage_in_bytes')
+        io_storage_df = get_df(df, 'io_storage_in_bytes')
+        network_upload_df = get_df(df, 'network_bandwidth_upload_in_bytes_per_second')
+        network_download_df = get_df(df, 'network_bandwidth_download_in_bytes_per_second')
+
         if n_rows != 0:
             max_cpu_value = max(max_cpu_value, cpu_df.max())
             max_memory_value = max(max_memory_value, mem_df.max())
+            max_storage_value = max(max_storage_value, non_io_storage_df.max(), io_storage_df.max())
+            max_network_bandwidth_value = max(
+                max_network_bandwidth_value, network_upload_df.max(), network_download_df.max()
+            )
 
-        fig.add_trace(
-            go.Scatter(
-                x=time_df,
-                y=cpu_df,
-                legendgroup=container_name,
-                name=container_name,
-                mode='markers+lines',
-                line=dict(color=colors[container_name]),
-            ),
-            row=1,
-            col=1,
-        )
+        def add_trace(time, measurement, row, col, container_name, show_legend):
+            fig.add_trace(
+                go.Scatter(
+                    x=time,
+                    y=measurement,
+                    showlegend=show_legend,
+                    legendgroup=container_name,
+                    name=container_name,
+                    mode='markers+lines',
+                    line=dict(color=colors[container_name]),
+                ),
+                row=row,
+                col=col,
+            )
 
-        fig.add_trace(
-            go.Scatter(
-                x=time_df,
-                y=mem_df,
-                showlegend=False,
-                legendgroup=container_name,
-                name=container_name,
-                mode='markers+lines',
-                line=dict(color=colors[container_name]),
-            ),
-            row=2,
-            col=1,
-        )
+        add_trace(time_df, cpu_df, 1, 1, container_name, True)
+        add_trace(time_df, mem_df, 1, 2, container_name, False)
+        add_trace(time_df, non_io_storage_df, 2, 1, container_name, False)
+        add_trace(time_df, io_storage_df, 2, 2, container_name, False)
+        add_trace(time_df, network_upload_df, 3, 1, container_name, False)
+        add_trace(time_df, network_download_df, 3, 2, container_name, False)
 
     fig.update_layout(
         showlegend=True,
         yaxis1_tickformat='%',
         yaxis2_tickformat='s',
+        yaxis3_tickformat='s',
+        yaxis4_tickformat='s',
         yaxis1_range=[0, 1.25 * max_cpu_value],
         yaxis2_range=[0, 1.25 * max_memory_value],
+        yaxis3_range=[0, 1.25 * max_storage_value],
+        yaxis4_range=[0, 1.25 * max_storage_value],
+        yaxis5_range=[0, 1.25 * max_network_bandwidth_value],
+        yaxis6_range=[0, 1.25 * max_network_bandwidth_value],
     )
 
     if n_total_rows == 0:
@@ -2120,7 +2150,7 @@ async def _edit_billing_limit(db, billing_project, limit):
 SELECT billing_projects.name as billing_project,
     billing_projects.`status` as `status`
 FROM billing_projects
-WHERE billing_projects.name = %s AND billing_projects.`status` != 'deleted'
+WHERE billing_projects.name_cs = %s AND billing_projects.`status` != 'deleted'
 FOR UPDATE;
         ''',
             (billing_project,),
@@ -2133,7 +2163,7 @@ FOR UPDATE;
 
         await tx.execute_update(
             '''
-UPDATE billing_projects SET `limit` = %s WHERE name = %s;
+UPDATE billing_projects SET `limit` = %s WHERE name_cs = %s;
 ''',
             (limit, billing_project),
         )
@@ -2338,13 +2368,17 @@ async def _remove_user_from_billing_project(db, billing_project, user):
     async def delete(tx):
         row = await tx.execute_and_fetchone(
             '''
-SELECT billing_projects.name as billing_project,
-billing_projects.`status` as `status`,
-user FROM billing_projects
-LEFT JOIN (SELECT * FROM billing_project_users
-    WHERE billing_project = %s AND user = %s FOR UPDATE) AS t
-  ON billing_projects.name = t.billing_project
-WHERE billing_projects.name = %s;
+SELECT billing_projects.name_cs as billing_project,
+  billing_projects.`status` as `status`,
+  `user`
+FROM billing_projects
+LEFT JOIN (
+  SELECT billing_project_users.* FROM billing_project_users
+  LEFT JOIN billing_projects ON billing_projects.name = billing_project_users.billing_project
+  WHERE billing_projects.name_cs = %s AND user_cs = %s
+  FOR UPDATE
+) AS t ON billing_projects.name = t.billing_project
+WHERE billing_projects.name_cs = %s;
 ''',
             (billing_project, user, billing_project),
         )
@@ -2364,8 +2398,9 @@ WHERE billing_projects.name = %s;
 
         await tx.just_execute(
             '''
-DELETE FROM billing_project_users
-WHERE billing_project = %s AND user = %s;
+DELETE billing_project_users FROM billing_project_users
+LEFT JOIN billing_projects ON billing_projects.name = billing_project_users.billing_project
+WHERE billing_projects.name_cs = %s AND user_cs = %s;
 ''',
             (billing_project, user),
         )
@@ -2402,16 +2437,22 @@ async def api_get_billing_projects_remove_user(request, userdata):  # pylint: di
 async def _add_user_to_billing_project(db, billing_project, user):
     @transaction(db)
     async def insert(tx):
+        # we want to be case-insensitive here to avoid duplicates with existing records
         row = await tx.execute_and_fetchone(
             '''
 SELECT billing_projects.name as billing_project,
     billing_projects.`status` as `status`,
     user
 FROM billing_projects
-LEFT JOIN (SELECT * FROM billing_project_users
-WHERE billing_project = %s AND user = %s FOR UPDATE) AS t
+LEFT JOIN (
+  SELECT *
+  FROM billing_project_users
+  LEFT JOIN billing_projects ON billing_projects.name = billing_project_users.billing_project
+  WHERE billing_projects.name_cs = %s AND user = %s
+  FOR UPDATE
+) AS t
 ON billing_projects.name = t.billing_project
-WHERE billing_projects.name = %s AND billing_projects.`status` != 'deleted' LOCK IN SHARE MODE;
+WHERE billing_projects.name_cs = %s AND billing_projects.`status` != 'deleted' LOCK IN SHARE MODE;
         ''',
             (billing_project, user, billing_project),
         )
@@ -2427,10 +2468,10 @@ WHERE billing_projects.name = %s AND billing_projects.`status` != 'deleted' LOCK
             )
         await tx.execute_insertone(
             '''
-INSERT INTO billing_project_users(billing_project, user)
-VALUES (%s, %s);
+INSERT INTO billing_project_users(billing_project, user, user_cs)
+VALUES (%s, %s, %s);
         ''',
-            (billing_project, user),
+            (billing_project, user, user),
         )
 
     await insert()  # pylint: disable=no-value-for-parameter
@@ -2468,23 +2509,26 @@ async def api_billing_projects_add_user(request, userdata):  # pylint: disable=u
 async def _create_billing_project(db, billing_project):
     @transaction(db)
     async def insert(tx):
+        # we want to avoid having billing projects with different cases but the same name
         row = await tx.execute_and_fetchone(
             '''
-SELECT `status` FROM billing_projects
+SELECT name_cs, `status`
+FROM billing_projects
 WHERE name = %s
 FOR UPDATE;
 ''',
             (billing_project),
         )
         if row is not None:
-            raise BatchOperationAlreadyCompletedError(f'Billing project {billing_project} already exists.', 'info')
+            billing_project_cs = row['name_cs']
+            raise BatchOperationAlreadyCompletedError(f'Billing project {billing_project_cs} already exists.', 'info')
 
         await tx.execute_insertone(
             '''
-INSERT INTO billing_projects(name)
-VALUES (%s);
+INSERT INTO billing_projects(name, name_cs)
+VALUES (%s, %s);
 ''',
-            (billing_project,),
+            (billing_project, billing_project),
         )
 
     await insert()  # pylint: disable=no-value-for-parameter
@@ -2521,14 +2565,14 @@ async def _close_billing_project(db, billing_project):
     async def close_project(tx):
         row = await tx.execute_and_fetchone(
             '''
-SELECT name, `status`, batches.id as batch_id
+SELECT name_cs, `status`, batches.id as batch_id
 FROM billing_projects
 LEFT JOIN batches
 ON billing_projects.name = batches.billing_project
 AND billing_projects.`status` != 'deleted'
 AND batches.time_completed IS NULL
 AND NOT batches.deleted
-WHERE name = %s
+WHERE name_cs = %s
 LIMIT 1
 FOR UPDATE;
     ''',
@@ -2536,7 +2580,7 @@ FOR UPDATE;
         )
         if not row:
             raise NonExistentBillingProjectError(billing_project)
-        assert row['name'] == billing_project
+        assert row['name_cs'] == billing_project
         if row['status'] == 'closed':
             raise BatchOperationAlreadyCompletedError(
                 f'Billing project {billing_project} is already closed or deleted.', 'info'
@@ -2544,7 +2588,9 @@ FOR UPDATE;
         if row['batch_id'] is not None:
             raise BatchUserError(f'Billing project {billing_project} has running batches.', 'error')
 
-        await tx.execute_update("UPDATE billing_projects SET `status` = 'closed' WHERE name = %s;", (billing_project,))
+        await tx.execute_update(
+            "UPDATE billing_projects SET `status` = 'closed' WHERE name_cs = %s;", (billing_project,)
+        )
 
     await close_project()  # pylint: disable=no-value-for-parameter
 
@@ -2578,17 +2624,17 @@ async def _reopen_billing_project(db, billing_project):
     @transaction(db)
     async def open_project(tx):
         row = await tx.execute_and_fetchone(
-            "SELECT name, `status` FROM billing_projects WHERE name = %s FOR UPDATE;", (billing_project,)
+            "SELECT name_cs, `status` FROM billing_projects WHERE name_cs = %s FOR UPDATE;", (billing_project,)
         )
         if not row:
             raise NonExistentBillingProjectError(billing_project)
-        assert row['name'] == billing_project
+        assert row['name_cs'] == billing_project
         if row['status'] == 'deleted':
             raise BatchUserError(f'Billing project {billing_project} has been deleted and cannot be reopened.', 'error')
         if row['status'] == 'open':
             raise BatchOperationAlreadyCompletedError(f'Billing project {billing_project} is already open.', 'info')
 
-        await tx.execute_update("UPDATE billing_projects SET `status` = 'open' WHERE name = %s;", (billing_project,))
+        await tx.execute_update("UPDATE billing_projects SET `status` = 'open' WHERE name_cs = %s;", (billing_project,))
 
     await open_project()  # pylint: disable=no-value-for-parameter
 
@@ -2621,17 +2667,19 @@ async def _delete_billing_project(db, billing_project):
     @transaction(db)
     async def delete_project(tx):
         row = await tx.execute_and_fetchone(
-            'SELECT name, `status` FROM billing_projects WHERE name = %s FOR UPDATE;', (billing_project,)
+            'SELECT name_cs, `status` FROM billing_projects WHERE name_cs = %s FOR UPDATE;', (billing_project,)
         )
         if not row:
             raise NonExistentBillingProjectError(billing_project)
-        assert row['name'] == billing_project, row
+        assert row['name_cs'] == billing_project, row
         if row['status'] == 'deleted':
             raise BatchOperationAlreadyCompletedError(f'Billing project {billing_project} is already deleted.', 'info')
         if row['status'] == 'open':
             raise BatchUserError(f'Billing project {billing_project} is open and cannot be deleted.', 'error')
 
-        await tx.execute_update("UPDATE billing_projects SET `status` = 'deleted' WHERE name = %s;", (billing_project,))
+        await tx.execute_update(
+            "UPDATE billing_projects SET `status` = 'deleted' WHERE name_cs = %s;", (billing_project,)
+        )
 
     await delete_project()  # pylint: disable=no-value-for-parameter
 
@@ -2749,6 +2797,7 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
         record['region']: record['region_id']
         async for record in db.select_and_fetchall('SELECT region_id, region from regions')
     }
+
     if len(regions) != 0:
         assert max(regions.values()) < 64, str(regions)
     app['regions'] = regions

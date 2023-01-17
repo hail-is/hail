@@ -3,7 +3,7 @@ package is.hail.io.fs
 import com.azure.core.credential.TokenCredential
 import com.azure.identity.{ClientSecretCredential, ClientSecretCredentialBuilder, DefaultAzureCredential, DefaultAzureCredentialBuilder}
 import com.azure.storage.blob.models.{BlobProperties, BlobRange, ListBlobsOptions}
-import com.azure.storage.blob.specialized.AppendBlobClient
+import com.azure.storage.blob.specialized.BlockBlobClient
 import com.azure.storage.blob.{BlobClient, BlobContainerClient, BlobServiceClient, BlobServiceClientBuilder}
 import is.hail.services.retryTransientErrors
 import is.hail.io.fs.AzureStorageFS.getAccountContainerPath
@@ -186,17 +186,17 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
 
   def createNoCompression(filename: String): PositionedDataOutputStream = retryTransientErrors {
     val (account, container, path) = getAccountContainerPath(filename)
-    val appendClient = getBlobClient(account, container, path).getAppendBlobClient
-    appendClient.create(true)
+    val blockBlobClient = getBlobClient(account, container, path).getBlockBlobClient
 
     val os: PositionedOutputStream = new FSPositionedOutputStream(4 * 1024 * 1024) {
-      private[this] val client: AppendBlobClient = appendClient
+      private[this] val client: BlockBlobClient = blockBlobClient
+      private[this] val blobOutputStream = client.getBlobOutputStream(true)
 
       override def flush(): Unit = {
         bb.flip()
 
         if (bb.limit() > 0) {
-          client.appendBlock(new ByteArrayInputStream(bb.array(), 0, bb.limit()), bb.limit())
+          blobOutputStream.write(bb.array(), 0, bb.limit())
         }
 
         bb.clear()
@@ -205,6 +205,8 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
       override def close(): Unit = {
         if (!closed) {
           flush()
+          blobOutputStream.flush()
+          blobOutputStream.close()
           closed = true
         }
       }

@@ -19,7 +19,7 @@ import org.apache.spark.Partition
 trait BgenPartition extends Partition {
   def path: String
 
-  def compressed: Boolean
+  def compression: Int // 0 uncompressed, 1 zlib, 2 zstd
 
   def skipInvalidLoci: Boolean
 
@@ -38,7 +38,7 @@ private case class LoadBgenPartition(
   path: String,
   indexPath: String,
   filterPartition: Partition,
-  compressed: Boolean,
+  compression: Int,
   skipInvalidLoci: Boolean,
   contigRecoding: Map[String, String],
   partitionIndex: Int,
@@ -149,7 +149,7 @@ object BgenRDDPartitions extends Logging {
               file.path,
               file.indexPath,
               filterPartition = null,
-              file.header.compressed,
+              file.header.compression,
               file.skipInvalidLoci,
               file.contigRecoding,
               partitionIndex,
@@ -425,14 +425,23 @@ object CompileDecoder {
             cb.define(LnoOp)
           }
 
-          cb.ifx(cp.invoke[Boolean]("compressed"), {
+          val compression = cb.memoize(cp.invoke[Int]("compression"))
+          cb.ifx(compression ceq BgenSettings.UNCOMPRESSED, {
+            cb.assign(data, cbfis.invoke[Int, Array[Byte]]("readBytes", dataSize))
+          }, {
             cb.assign(uncompressedSize, cbfis.invoke[Int]("readInt"))
             cb.assign(input, cbfis.invoke[Int, Array[Byte]]("readBytes", dataSize - 4))
-            cb.assign(data, Code.invokeScalaObject2[Array[Byte], Int, Array[Byte]](
-              BgenRDD.getClass, "decompress", input, uncompressedSize))
-          }, {
-            cb.assign(data, cbfis.invoke[Int, Array[Byte]]("readBytes", dataSize))
+            cb.ifx(compression ceq BgenSettings.ZLIB_COMPRESSION, {
+              cb.assign(data,
+                Code.invokeScalaObject2[Array[Byte], Int, Array[Byte]](
+                  CompressionUtils.getClass, "decompressZlib", input, uncompressedSize))
+            }, {
+              // zstd
+              cb.assign(data,Code.invokeScalaObject2[Array[Byte], Int, Array[Byte]](
+                CompressionUtils.getClass, "decompressZstd", input, uncompressedSize))
+            })
           })
+
 
           cb.assign(reader, Code.newInstance[ByteArrayReader, Array[Byte]](data))
           cb.assign(nRow, reader.invoke[Int]("readInt"))

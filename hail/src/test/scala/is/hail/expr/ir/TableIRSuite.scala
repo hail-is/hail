@@ -828,15 +828,11 @@ class TableIRSuite extends HailSuite {
 
       override def partitionCounts: Option[IndexedSeq[Long]] = Some(FastIndexedSeq(1, 2, 3, 4))
 
-      override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = ???
-
-      override def uidRequiredness: VirtualTypeWithReq = ???
-
       override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = ???
 
-      override def uidType = TInt64
+      override def rowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = ???
 
-      override def fullTypeWithoutUIDs: TableType = TableType(TStruct(), FastIndexedSeq(), TStruct.empty)
+      override def fullType: TableType = TableType(TStruct(), FastIndexedSeq(), TStruct.empty)
     }
     val tir = TableRead(tr.fullType, true, tr)
     assert(tir.partitionCounts.forall(_.sum == 0))

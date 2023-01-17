@@ -386,6 +386,23 @@ object TypeCheck {
         assert(seqOps.typ == TVoid)
         assert(newKey.typ.isInstanceOf[TStruct])
         assert(x.typ.isInstanceOf[TStream])
+      case x@StreamLocalLDPrune(streamChild, r2Threshold, windowSize, maxQueueSize, nSamples) =>
+        assert(streamChild.typ.isInstanceOf[TStream])
+        assert(r2Threshold.typ == TFloat64)
+        assert(windowSize.typ == TInt32)
+        assert(maxQueueSize.typ == TInt32)
+        assert(nSamples.typ == TInt32)
+        val eltType = streamChild.typ.asInstanceOf[TStream].elementType
+        assert(eltType.isInstanceOf[TStruct])
+        val structType = eltType.asInstanceOf[TStruct]
+        assert(structType.fieldType("locus").isInstanceOf[TLocus])
+        val allelesType = structType.fieldType("alleles")
+        assert(allelesType.isInstanceOf[TArray])
+        assert(allelesType.asInstanceOf[TArray].elementType == TString)
+        val gtType = structType.fieldType("genotypes")
+        assert(gtType.isInstanceOf[TArray])
+        assert(gtType.asInstanceOf[TArray].elementType == TCall)
+        assert(x.typ.isInstanceOf[TStream])
       case x@RunAgg(body, result, _) =>
         assert(x.typ == result.typ)
         assert(body.typ == TVoid)

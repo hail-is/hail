@@ -4048,3 +4048,16 @@ def test_keyed_union():
         hl.Struct(a=8, b='qux'),
         hl.Struct(a=9, b='baz'),
     ]
+
+
+def test_to_relational_row_and_col_refs():
+    mt = hl.utils.range_matrix_table(1, 1)
+    mt = mt.annotate_rows(x=1)
+    mt = mt.annotate_cols(y=1)
+    mt = mt.annotate_entries(z=1)
+
+    assert mt.row._to_relational_preserving_rows_and_cols('x')[1].row.dtype == hl.tstruct(row_idx=hl.tint32, x=hl.tint32)
+    assert mt.row_key._to_relational_preserving_rows_and_cols('x')[1].row.dtype == hl.tstruct(row_idx=hl.tint32)
+
+    assert mt.col._to_relational_preserving_rows_and_cols('x')[1].row.dtype == hl.tstruct(col_idx=hl.tint32, y=hl.tint32)
+    assert mt.col_key._to_relational_preserving_rows_and_cols('x')[1].row.dtype == hl.tstruct(col_idx=hl.tint32)

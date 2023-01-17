@@ -23,6 +23,10 @@ import org.apache.spark.{OneToOneDependency, Partition, TaskContext}
 import scala.language.reflectiveCalls
 
 object BgenSettings {
+  val UNCOMPRESSED = 0x0
+  val ZLIB_COMPRESSION = 0x1
+  val ZSTD_COMPRESSION = 0x2
+
   def indexKeyType(rg: Option[ReferenceGenome]): TStruct = TStruct(
     "locus" -> rg.map(TLocus(_)).getOrElse(TLocus.representation),
     "alleles" -> TArray(TString))
@@ -140,11 +144,6 @@ object BgenRDD {
 
     ContextRDD(new BgenRDD(ctx.fsBc, f, indexBuilder, partitions, settings, keys))
   }
-
-  private[bgen] def decompress(
-    input: Array[Byte],
-    uncompressedSize: Int
-  ): Array[Byte] = is.hail.utils.decompress(input, uncompressedSize)
 }
 
 private class BgenRDD(

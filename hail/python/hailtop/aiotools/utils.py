@@ -1,5 +1,6 @@
 from typing import Deque, TypeVar, AsyncIterator, Iterator
 import collections
+from contextlib import contextmanager
 import asyncio
 
 
@@ -80,21 +81,26 @@ class WriteBuffer:
             self._size -= n
         assert self._offset == new_offset
 
-    def chunks(self, chunk_size: int) -> Iterator[bytes]:
+    @contextmanager
+    def chunks(self, chunk_size: int) -> Iterator[Iterator[bytes]]:
         """Return an iterator that yields bytes whose total size is
         `chunk_size` from the beginning of the write buffer."""
         assert not self._iterating
+
+        def _chunks_iterator() -> Iterator[bytes]:
+            remaining = chunk_size
+            i = 0
+            while remaining > 0:
+                b = self._buffers[i]
+                n = len(b)
+                if n <= remaining:
+                    yield b
+                    remaining -= n
+                    i += 1
+                else:
+                    yield b[:remaining]
+                    break
+
         self._iterating = True
-        remaining = chunk_size
-        i = 0
-        while remaining > 0:
-            b = self._buffers[i]
-            n = len(b)
-            if n <= remaining:
-                yield b
-                remaining -= n
-                i += 1
-            else:
-                yield b[:remaining]
-                break
+        yield _chunks_iterator()
         self._iterating = False

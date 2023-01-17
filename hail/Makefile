@@ -14,7 +14,7 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 SCALA_VERSION ?= 2.12.13
 SPARK_VERSION ?= 3.1.3
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 105
+HAIL_PATCH_VERSION := 107
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 ELASTIC_MAJOR_VERSION ?= 7
@@ -268,14 +268,31 @@ resources := $(wildcard python/hailtop/hailctl/dataproc/resources/*)
 $(eval $(call ENV_VAR,cloud_base))
 $(eval $(call ENV_VAR,wheel_cloud_path))
 
+
+.PHONY: generate-pip-lockfiles
+generate-pip-lockfiles:
+	HAIL_HAIL_DIR=$(HAIL_HAIL_DIR) \
+	../generate_pip_lockfile.sh python/hailtop/requirements.txt python/hailtop/pinned-requirements.txt && \
+	HAIL_HAIL_DIR=$(HAIL_HAIL_DIR) \
+	../generate_pip_lockfile.sh python/requirements.txt python/pinned-requirements.txt && \
+	HAIL_HAIL_DIR=$(HAIL_HAIL_DIR) \
+	../generate_pip_lockfile.sh python/dev/requirements.txt python/dev/pinned-requirements.txt
+
+
+.PHONY: check-pip-lockfile
+check-pip-lockfile:
+	$(PIP) install pip-tools && bash ../check_pip_requirements.sh python/requirements.txt python/pinned-requirements.txt
+
+
 python/hailtop/hailctl/deploy.yaml: env/cloud_base env/wheel_cloud_path
-python/hailtop/hailctl/deploy.yaml: $(resources) python/requirements.txt
+python/hailtop/hailctl/deploy.yaml: $(resources) check-pip-lockfile
 	rm -f $@
 	echo "dataproc:" >> $@
 	for FILE in $(notdir $(resources)); do \
 	  echo "  $$FILE: $(cloud_base)/$$FILE" >> $@ || exit 1; done
 	echo "  wheel: $(wheel_cloud_path)" >> $@
-	echo "  pip_dependencies: $(shell cat python/requirements.txt | sed '/^[[:blank:]]*#/d;s/#.*//' | grep -v pyspark | tr "\n" "|||")" >> $@
+	printf "  pip_dependencies: " >> $@
+	cat python/pinned-requirements.txt | sed '/^[[:blank:]]*#/d;s/#.*//' | grep -v pyspark | tr "\n" "|||" | tr -d '[:space:]' >> $@
 
 .PHONY: upload-artifacts
 upload-artifacts: $(WHEEL)
@@ -324,8 +341,8 @@ install: $(WHEEL)
 	hailctl config set query/backend spark
 
 .PHONY: install-on-cluster
-install-on-cluster: $(WHEEL)
-	sed '/^pyspark/d' python/requirements.txt | grep -v '^#' | tr '\n' '\0' | xargs -0 $(PIP) install -U
+install-on-cluster: $(WHEEL) check-pip-lockfile
+	sed '/^pyspark/d' python/pinned-requirements.txt | grep -v -e '^[[:space:]]*#' -e '^$$' | tr '\n' '\0' | xargs -0 $(PIP) install -U
 	-$(PIP) uninstall -y hail
 	$(PIP) install $(WHEEL) --no-deps
 	hailctl config set query/backend spark
@@ -371,19 +388,6 @@ install-dev-deps:
 .PHONY: install-deps
 install-deps: install-dev-deps
 	sed "s/^pyspark.*/pyspark==$(SPARK_VERSION)/" python/requirements.txt | xargs $(PIP) install -U
-
-.PHONY: generate-pip-lockfile
-generate-pip-lockfile:
-	docker run --rm -it \
-		-v $(HAIL_HAIL_DIR):/hail \
-		python:3.7-slim \
-		/bin/bash -c "pip install pip-tools && cd /hail && \
-	pip-compile --upgrade python/hailtop/requirements.txt \
-		--output-file=python/hailtop/pinned-requirements.txt && \
-	pip-compile --upgrade python/requirements.txt \
-		--output-file=python/pinned-requirements.txt && \
-	pip-compile --upgrade python/dev/requirements.txt \
-		--output-file=python/dev/pinned-requirements.txt"
 
 .PHONY: benchmark
 benchmark: $(WHEEL)

@@ -441,6 +441,8 @@ final case class StreamJoinRightDistinct(left: IR, right: IR, lKey: IndexedSeq[S
   }
 }
 
+final case class StreamLocalLDPrune(child: IR, r2Threshold: IR, windowSize: IR, maxQueueSize: IR, nSamples: IR) extends IR
+
 sealed trait NDArrayIR extends TypedIR[TNDArray] {
   def elementTyp: Type = typ.elementType
 }

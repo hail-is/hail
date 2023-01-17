@@ -2109,3 +2109,12 @@ def test_matrix_randomness():
     mt = hl.filter_intervals(rmt, intervals)
     assert_contains_node(mt, ir.MatrixFilterIntervals)
     assert_unique_uids(mt)
+
+
+def test_upcast_tuples():
+    t = hl.utils.range_matrix_table(1,1)
+    t = t.annotate_cols(foo=[('0', 1)])
+    t = t.explode_cols(t.foo)
+    t = t.annotate_cols(x=t.foo[1])
+    t = t.drop('foo')
+    t.cols().collect()

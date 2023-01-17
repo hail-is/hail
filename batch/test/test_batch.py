@@ -1071,6 +1071,14 @@ def test_job_private_instance_cancel(client: BatchClient):
     assert status['state'] == 'Cancelled', str((status, b.debug_info()))
 
 
+def test_create_fast_path_more_than_one_job(client: BatchClient):
+    bb = client.create_batch()
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    b = bb.submit()
+    assert b.submission_info.used_fast_create, b.submission_info
+
+
 def test_update_batch_no_deps(client: BatchClient):
     bb = client.create_batch()
     j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['false'])

@@ -233,6 +233,8 @@ dependencies {
     bundled group: 'org.freemarker', name: 'freemarker', version: '2.3.31'
 
     bundled 'com.kohlschutter.junixsocket:junixsocket-core:2.6.1'
+
+    bundled 'com.github.luben:zstd-jni:1.4.8-1'
 }
 
 task(checkSettings) doLast {

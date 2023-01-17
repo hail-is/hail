@@ -1593,11 +1593,9 @@ object IRParser {
         val dropRows = boolean_literal(it)
         val readerStr = string_literal(it)
         val reader = TableReader.fromJValue(env.ctx.fs, JsonMethods.parse(readerStr).asInstanceOf[JObject])
-        val fullType = reader.fullType
         val requestedType = requestedTypeRaw match {
-          case Left("None") => fullType
-          case Left("DropRowUIDs") => fullType.copy(
-            rowType = fullType.rowType.deleteKey(reader.uidFieldName))
+          case Left("None") => reader.fullType
+          case Left("DropRowUIDs") => reader.asInstanceOf[TableReaderWithExtraUID].fullTypeWithoutUIDs
           case Right(t) => t
         }
         done(TableRead(requestedType, dropRows, reader))

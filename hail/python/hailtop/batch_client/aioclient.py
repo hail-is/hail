@@ -6,6 +6,7 @@ import json
 import functools
 import asyncio
 import aiohttp
+import orjson
 import secrets
 
 from hailtop.config import get_deploy_config, DeployConfig
@@ -711,13 +712,12 @@ class BatchBuilder:
     MAX_BUNCH_SIZE = 1024
 
     async def _submit_bunches(self,
-                              byte_job_specs: List[bytes],
                               byte_job_specs_bunches: List[List[bytes]],
                               bunch_sizes: List[int],
                               progress: BatchProgressBar,
                               disable_progress_bar: bool):
         with progress.with_task('submit bunches', total=len(self._job_specs), disable=disable_progress_bar) as progress_task:
-            n_bunches = len(byte_job_specs)
+            n_bunches = len(byte_job_specs_bunches)
             if self._batch is None:
                 if n_bunches == 0:
                     self._batch = await self._open_batch()
@@ -767,7 +767,7 @@ class BatchBuilder:
                      ) -> Batch:
         assert max_bunch_bytesize > 0
         assert max_bunch_size > 0
-        byte_job_specs = [json.dumps(job_spec).encode('utf-8')
+        byte_job_specs = [orjson.dumps(job_spec)
                           for job_spec in self._job_specs]
         byte_job_specs_bunches: List[List[bytes]] = []
         bunch_sizes = []
@@ -794,15 +794,14 @@ class BatchBuilder:
             bunch_sizes.append(bunch_n_jobs)
 
         if progress is not None:
-            start_job_id = await self._submit_bunches(byte_job_specs,
-                                                      byte_job_specs_bunches,
+            start_job_id = await self._submit_bunches(byte_job_specs_bunches,
                                                       bunch_sizes,
                                                       progress,
                                                       disable_progress_bar)
         else:
-            with BatchProgressBar(disable=disable_progress_bar) as progress2:
-                start_job_id = await self._submit_bunches(byte_job_specs,
-                                                          byte_job_specs_bunches,
+            n_bunches = len(byte_job_specs_bunches)
+            with BatchProgressBar(disable=disable_progress_bar or n_bunches < 100) as progress2:
+                start_job_id = await self._submit_bunches(byte_job_specs_bunches,
                                                           bunch_sizes,
                                                           progress2,
                                                           disable_progress_bar)
@@ -872,6 +871,9 @@ class BatchClient:
     async def _delete(self, path) -> aiohttp.client_reqrep.ClientResponse:
         assert self._session
         return await request_retry_transient_errors(self._session, 'DELETE', self.url + path, headers=self._headers)
+
+    def reset_billing_project(self, billing_project):
+        self.billing_project = billing_project
 
     async def list_batches(self, q=None, last_batch_id=None, limit=2 ** 64):
         n = 0

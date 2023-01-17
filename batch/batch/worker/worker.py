@@ -36,7 +36,6 @@ import aiohttp
 import aiohttp.client_exceptions
 import aiorwlock
 import async_timeout
-import humanize
 import orjson
 from aiodocker.exceptions import DockerError  # type: ignore
 from aiohttp import web
@@ -58,11 +57,13 @@ from hailtop.utils import (
     check_shell_output,
     dump_all_stacktraces,
     find_spark_home,
+    is_delayed_warning_error,
     parse_docker_image_reference,
     periodically_call,
     request_retry_transient_errors,
     retry_transient_errors,
     retry_transient_errors_with_debug_string,
+    retry_transient_errors_with_delayed_warnings,
     time_msecs,
     time_msecs_str,
 )
@@ -251,6 +252,7 @@ class NetworkNamespace:
     async def init(self):
         await self.create_netns()
         await self.enable_iptables_forwarding()
+        await self.mark_packets()
 
         os.makedirs(f'/etc/netns/{self.network_ns_name}')
         with open(f'/etc/netns/{self.network_ns_name}/hosts', 'w', encoding='utf-8') as hosts:
@@ -291,6 +293,14 @@ ip -n {self.network_ns_name} route add default via {self.host_ip}'''
             f'''
 iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.internet_interface} --jump ACCEPT && \
 iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.veth_host} --jump ACCEPT'''
+        )
+
+    async def mark_packets(self):
+        await check_shell(
+            f'''
+iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} -t mangle -A PREROUTING --in-interface {self.veth_host} -j MARK --set-mark 10 && \
+iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} -t mangle -A POSTROUTING --out-interface {self.veth_host} -j MARK --set-mark 11
+'''
         )
 
     async def expose_port(self, port, host_port):
@@ -363,7 +373,7 @@ def docker_call_retry(timeout, name, f, *args, **kwargs):
     async def timed_out_f(*args, **kwargs):
         return await asyncio.wait_for(f(*args, **kwargs), timeout)
 
-    return retry_transient_errors_with_debug_string(debug_string, timed_out_f, *args, **kwargs)
+    return retry_transient_errors_with_debug_string(debug_string, 0, timed_out_f, *args, **kwargs)
 
 
 class ImageCannotBePulled(Exception):
@@ -454,10 +464,10 @@ class Image:
                 and 'Permission "artifactregistry.repositories.downloadArtifacts" denied on resource' in e.message
             ):
                 raise ImageCannotBePulled from e
-            if 'not found: manifest unknown' in e.message:
-                raise ImageNotFound from e
             if 'Invalid repository name' in e.message:
                 raise InvalidImageRepository from e
+            if 'unknown' in e.message:
+                raise ImageNotFound from e
             raise
 
         image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
@@ -641,6 +651,9 @@ class Container:
         self.env = env or []
         self.stdin = stdin
 
+        maybe_io_mount = [vm['source'] for vm in self.volume_mounts if vm['destination'] == '/io']
+        self.io_mount_path = maybe_io_mount[0] if maybe_io_mount else None
+
         self.deleted_event = asyncio.Event()
 
         self.host_port = None
@@ -653,8 +666,6 @@ class Container:
         self.finished_at: Optional[int] = None
 
         self.timings = Timings()
-
-        self.overlay_path = None
 
         self.container_scratch = scratch_dir
         self.container_overlay_path = f'{self.container_scratch}/rootfs_overlay'
@@ -745,7 +756,12 @@ class Container:
         finally:
             self._run_fut = None
 
-    async def run(self, on_completion: Callable[..., Awaitable[Any]], *args, **kwargs):
+    async def run(
+        self,
+        on_completion: Callable[..., Awaitable[Any]],
+        *args,
+        **kwargs,
+    ):
         async with self._cleanup_lock:
             try:
                 await self.create()
@@ -894,7 +910,15 @@ class Container:
                         stderr=container_log,
                     )
 
-                    async with ResourceUsageMonitor(self.name, self.resource_usage_path):
+                    assert self.netns
+
+                    async with ResourceUsageMonitor(
+                        self.name,
+                        self.container_overlay_path,
+                        self.io_mount_path,
+                        self.netns.veth_host,
+                        self.resource_usage_path,
+                    ):
                         if self.stdin is not None:
                             await self.process.communicate(self.stdin.encode('utf-8'))
                         await self.process.wait()
@@ -2439,7 +2463,7 @@ class Worker:
         try:
             async with AsyncExitStack() as cleanup:
                 for jvm in self._jvms:
-                    cleanup.callback(jvm.kill)
+                    cleanup.push_async_callback(jvm.kill)
         finally:
             try:
                 await self.task_manager.shutdown_and_wait()
@@ -2628,7 +2652,6 @@ class Worker:
             return
 
         self.task_manager.ensure_future(periodically_call(60, self.send_billing_update))
-        self.task_manager.ensure_future(periodically_call(60, self.monitor_resource_usage))
 
         try:
             while True:
@@ -2711,7 +2734,10 @@ class Worker:
             except Exception as e:
                 if isinstance(e, aiohttp.ClientResponseError) and e.status == 404:  # pylint: disable=no-member
                     raise
-                log.warning(f'failed to mark {job} complete, retrying', exc_info=True)
+
+                log_delayed_warnings = time_msecs() - start_time >= 300 * 1000
+                if log_delayed_warnings or not is_delayed_warning_error(e):
+                    log.warning(f'failed to mark {job} complete, retrying', exc_info=True)
 
             # unlist job after 3m or half the run duration
             now = time_msecs()
@@ -2770,7 +2796,7 @@ class Worker:
                 url = deploy_config.url('batch-driver', '/api/v1alpha/instances/job_started')
                 await self.client_session.post(url, json=body, headers=self.headers)
 
-        await retry_transient_errors(post_started_if_job_still_running)
+        await retry_transient_errors_with_delayed_warnings(300 * 1000, post_started_if_job_still_running)
 
     async def post_job_started(self, job):
         try:
@@ -2877,15 +2903,6 @@ class Worker:
 
         await retry_transient_errors(update)
 
-    async def monitor_resource_usage(self):
-        stdout, _ = await check_shell_output('xfs_quota -x -c "report -h -p" /host/; df -kh')
-        log.info(stdout)
-        for job in self.jobs.values():
-            if isinstance(job, DockerJob):
-                file_sizes = await job.get_resource_usage_file_sizes()
-                file_sizes = {name: humanize.naturalsize(size) for name, size in file_sizes.items()}
-                log.info(f'{job} {file_sizes}')
-
 
 async def async_main():
     global port_allocator, network_allocator, worker, docker, image_lock
@@ -2910,13 +2927,13 @@ async def async_main():
                 log.info('docker closed')
             finally:
                 asyncio.get_event_loop().set_debug(True)
-                log.debug('Tasks immediately after docker close')
-                dump_all_stacktraces()
                 other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
                 if other_tasks:
+                    log.warning('Tasks immediately after docker close')
+                    dump_all_stacktraces()
                     _, pending = await asyncio.wait(other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED)
                     for t in pending:
-                        log.debug('Dangling task:')
+                        log.warning('Dangling task:')
                         t.print_stack()
                         t.cancel()
 

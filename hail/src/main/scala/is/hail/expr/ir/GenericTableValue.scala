@@ -156,7 +156,7 @@ class GenericTableValue(
   val bodyPType: TStruct => PStruct,
   val body: TStruct => (Region, HailClassLoader, FS, Any) => Iterator[Long]) {
 
-  assert(fullTableType.rowType.hasField(uidFieldName))
+  assert(fullTableType.rowType.hasField(uidFieldName), s"uid=$uidFieldName, t=$fullTableType")
   assert(contextType.hasField("partitionIndex"))
   assert(contextType.fieldType("partitionIndex") == TInt32)
 
