@@ -2669,12 +2669,15 @@ class MatrixTable(ExprContainer):
         if len(t.key) > 0:
             t = t.order_by(*t.key)
         col_key_type = self.col_key.dtype
+
+        col_headers = [f'<col {i}>' for i in range(0, displayed_n_cols)]
         if len(col_key_type) == 1 and col_key_type[0] in (hl.tstr, hl.tint32, hl.tint64):
             cols = self.col_key[0].take(displayed_n_cols)
-            entries = {repr(cols[i]): t.entries[i]
-                       for i in range(0, displayed_n_cols)}
-        else:
-            entries = {f'<col {i}>': t.entries[i] for i in range(0, displayed_n_cols)}
+            if len(set(cols)) == len(cols):
+                col_headers = [repr(c) for c in cols]
+
+        entries = {col_headers[i]: t.entries[i]
+                   for i in range(0, displayed_n_cols)}
         t = t.select(
             **{f: t[f] for f in self.row_key},
             **{f: t[f] for f in self.row_value if include_row_fields},

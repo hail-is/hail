@@ -132,7 +132,7 @@ class BGzipOutputStream(out: OutputStream) extends CompressionOutputStream(out) 
     writeInt8(constants.bgzfId2)
     writeInt16(constants.bgzfLen)
     writeInt16(totalBlockSize - 1)
-    out.write(compressedBuffer.slice(0,compressedSize))
+    out.write(compressedBuffer, 0, compressedSize)
     writeInt32(crc32val.toInt)
     writeInt32(bytesToCompress)
     totalBlockSize

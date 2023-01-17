@@ -2211,13 +2211,10 @@ steps:
       export GOOGLE_APPLICATION_CREDENTIALS=/batch-gsa-key/key.json
       export AZURE_APPLICATION_CREDENTIALS=/batch-gsa-key/key.json
 
-      {% if scope == "deploy" %}
+      {% if deploy %}
       HAIL_QUERY_JAR_URL={{ global.query_storage_uri }}
-      {% elif scope == "test" or scope == "dev" %}
-      HAIL_QUERY_JAR_URL={{ global.test_storage_uri }}/{{ default_ns.name }}
       {% else %}
-      echo "!!! unexpected scope {{ scope }} !!!"
-      exit 1
+      HAIL_QUERY_JAR_URL={{ global.test_storage_uri }}/{{ default_ns.name }}
       {% endif %}
       HAIL_QUERY_JAR_URL=${HAIL_QUERY_JAR_URL}/jars/$(cat /io/git_version).jar
 
@@ -2368,6 +2365,7 @@ steps:
       cpu: '1'
     script: |
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
       python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /io/test/
     timeout: 600
@@ -2388,10 +2386,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: global-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /global-config
     inputs:
       - from: /repo/memory/test
         to: /io/test
@@ -2402,8 +2396,6 @@ steps:
       - merge_code
       - memory_image
       - deploy_memory
-    clouds:
-      - gcp
   - kind: runImage
     name: test_batch
     numSplits: 5

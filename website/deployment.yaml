@@ -9,12 +9,10 @@ spec:
   selector:
     matchLabels:
       app: www
-{% if scope == "deploy" %}
+{% if deploy %}
   replicas: 3
-{% elif scope == "test" or scope == "dev" %}
-  replicas: 1
 {% else %}
-!!! unexpected scope {{ scope }} !!!
+  replicas: 1
 {% endif %}
   template:
     metadata:
@@ -110,14 +108,12 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: www
-{% if scope == "deploy" %}
+{% if deploy %}
   minReplicas: 3
   maxReplicas: 10
-{% elif scope == "test" or scope == "dev" %}
+{% else %}
   minReplicas: 1
   maxReplicas: 3
-{% else %}
-!!! unexpected scope {{ scope }} !!!
 {% endif %}
   metrics:
   - type: Resource
@@ -130,12 +126,10 @@ kind: PodDisruptionBudget
 metadata:
   name: www
 spec:
-{% if scope == "deploy" %}
+{% if deploy %}
   minAvailable: 2
-{% elif scope == "test" or scope == "dev" %}
-  minAvailable: 0
 {% else %}
-!!! unexpected scope {{ scope }} !!!
+  minAvailable: 0
 {% endif %}
   selector:
     matchLabels:

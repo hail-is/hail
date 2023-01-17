@@ -684,6 +684,10 @@ final class ByteArrayBuilder(initialCapacity: Int = 16) {
     size_ = n
   }
 
+  def setSizeUnchecked(n: Int) {
+    size_ = n
+  }
+
   def apply(i: Int): Byte = {
     require(i >= 0 && i < size)
     b(i)

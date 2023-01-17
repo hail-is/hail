@@ -23,7 +23,7 @@ import org.json4s.{DefaultFormats, Formats, JObject, JValue}
 import scala.io.Source
 
 case class BgenHeader(
-  compressed: Boolean,
+  compression: Int, // 0 uncompressed, 1 zlib, 2 zstd
   nSamples: Int,
   nVariants: Int,
   headerLength: Int,
@@ -113,10 +113,8 @@ object LoadBgen {
     val flags = is.readInt()
     val compressType = flags & 3
 
-    if (compressType != 0 && compressType != 1)
-      fatal(s"Hail only supports zlib compression.")
-
-    val isCompressed = compressType != 0
+    if (compressType != 0 && compressType != 1 && compressType != 2)
+      fatal(s"Hail only supports zlib or zstd compression.")
 
     val version = (flags >>> 2) & 0xf
     if (version != 2)
@@ -124,7 +122,7 @@ object LoadBgen {
 
     val hasIds = (flags >> 31 & 1) != 0
     BgenHeader(
-      isCompressed,
+      compressType,
       nSamples,
       nVariants,
       headerLength,

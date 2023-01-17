@@ -18,7 +18,7 @@ class Geom(FigureAttribute):
         self.aes = aes
 
     @abc.abstractmethod
-    def apply_to_fig(self, agg_result, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted) -> bool:
+    def apply_to_fig(self, agg_result, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
         """Add this geometry to the figure and indicate if this geometry demands a static figure."""
         pass
 
@@ -59,7 +59,7 @@ class GeomLineBasic(Geom):
         super().__init__(aes)
         self.color = color
 
-    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool) -> bool:
+    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
 
         def plot_group(df):
             trace_args = {
@@ -77,8 +77,6 @@ class GeomLineBasic(Geom):
 
         for group_df in grouped_data:
             plot_group(group_df)
-
-        return False
 
     @abc.abstractmethod
     def get_stat(self):
@@ -170,7 +168,7 @@ class GeomPoint(Geom):
             }
         )
 
-    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool) -> bool:
+    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
         traces = []
         legends = {}
         for df in grouped_data:
@@ -188,9 +186,9 @@ class GeomPoint(Geom):
         non_empty_legend_groups = [
             legend_group for legend_group in legends.values() if len(legend_group) > 1
         ]
-        requires_static = is_faceted or len(non_empty_legend_groups) >= 2
+        dummy_legend = is_faceted or len(non_empty_legend_groups) >= 2
 
-        if requires_static:
+        if dummy_legend:
             for trace in traces:
                 self._add_trace(*trace[:-1])
             for aes_name, legend_group in legends.items():
@@ -202,8 +200,6 @@ class GeomPoint(Geom):
         else:
             for trace in traces:
                 self._add_trace(*trace)
-
-        return requires_static
 
     def get_stat(self):
         return StatIdentity()
@@ -228,7 +224,7 @@ class GeomLine(GeomLineBasic):
         super().__init__(aes, color)
         self.color = color
 
-    def apply_to_fig(self, agg_result, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted) -> bool:
+    def apply_to_fig(self, agg_result, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
         return super().apply_to_fig(agg_result, fig_so_far, precomputed, facet_row, facet_col, legend_cache, is_faceted)
 
     def get_stat(self):
@@ -263,7 +259,7 @@ class GeomText(Geom):
         self.size = size
         self.alpha = alpha
 
-    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool) -> bool:
+    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
         def plot_group(df):
             trace_args = {
                 "x": df.x,
@@ -281,8 +277,6 @@ class GeomText(Geom):
 
         for group_df in grouped_data:
             plot_group(group_df)
-
-        return False
 
     def get_stat(self):
         return StatIdentity()
@@ -323,7 +317,7 @@ class GeomBar(Geom):
             stat = StatCount()
         self.stat = stat
 
-    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool) -> bool:
+    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
         def plot_group(df):
             trace_args = {
                 "x": df.x,
@@ -341,8 +335,6 @@ class GeomBar(Geom):
             plot_group(group_df)
 
         fig_so_far.update_layout(barmode=bar_position_plotly_to_gg(self.position))
-
-        return False
 
     def get_stat(self):
         return self.stat
@@ -395,7 +387,7 @@ class GeomHistogram(Geom):
         self.position = position
         self.size = size
 
-    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool) -> bool:
+    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
         min_val = self.min_val if self.min_val is not None else precomputed.min_val
         max_val = self.max_val if self.max_val is not None else precomputed.max_val
         # This assumes it doesn't really make sense to use another stat for geom_histogram
@@ -441,8 +433,6 @@ class GeomHistogram(Geom):
             plot_group(group_df, idx)
 
         fig_so_far.update_layout(barmode=bar_position_plotly_to_gg(self.position))
-
-        return False
 
     def get_stat(self):
         return StatBin(self.min_val, self.max_val, self.bins)
@@ -500,7 +490,7 @@ class GeomDensity(Geom):
         self.color = color
         self.alpha = alpha
 
-    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool) -> bool:
+    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
         def plot_group(df, idx):
             slope = 1.0 / (df.attrs['max'] - df.attrs['min'])
             n = df.attrs['n']
@@ -535,8 +525,6 @@ class GeomDensity(Geom):
 
         for idx, group_df in enumerate(grouped_data):
             plot_group(group_df, idx)
-
-        return False
 
     def get_stat(self):
         return StatCDF(self.k)
@@ -586,7 +574,7 @@ class GeomHLine(Geom):
         self.linetype = linetype
         self.color = color
 
-    def apply_to_fig(self, agg_result, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted) -> bool:
+    def apply_to_fig(self, agg_result, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
         line_attributes = {
             "y": self.yintercept,
             "line_dash": linetype_plotly_to_gg(self.linetype)
@@ -595,8 +583,6 @@ class GeomHLine(Geom):
             line_attributes["line_color"] = self.color
 
         fig_so_far.add_hline(**line_attributes)
-
-        return False
 
     def get_stat(self):
         return StatNone()
@@ -631,7 +617,7 @@ class GeomVLine(Geom):
         self.linetype = linetype
         self.color = color
 
-    def apply_to_fig(self, agg_result, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted) -> bool:
+    def apply_to_fig(self, agg_result, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
         line_attributes = {
             "x": self.xintercept,
             "line_dash": linetype_plotly_to_gg(self.linetype)
@@ -640,8 +626,6 @@ class GeomVLine(Geom):
             line_attributes["line_color"] = self.color
 
         fig_so_far.add_vline(**line_attributes)
-
-        return False
 
     def get_stat(self):
         return StatNone()
@@ -673,7 +657,7 @@ class GeomTile(Geom):
     def __init__(self, aes):
         self.aes = aes
 
-    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool) -> bool:
+    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
         def plot_group(df):
 
             for idx, row in df.iterrows():
@@ -702,8 +686,6 @@ class GeomTile(Geom):
         for group_df in grouped_data:
             plot_group(group_df)
 
-        return False
-
     def get_stat(self):
         return StatIdentity()
 
@@ -717,7 +699,7 @@ class GeomFunction(GeomLineBasic):
         super().__init__(aes, color)
         self.fun = fun
 
-    def apply_to_fig(self, agg_result, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted) -> bool:
+    def apply_to_fig(self, agg_result, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
         return super().apply_to_fig(agg_result, fig_so_far, precomputed, facet_row, facet_col, legend_cache, is_faceted)
 
     def get_stat(self):
@@ -741,7 +723,7 @@ class GeomArea(Geom):
         self.fill = fill
         self.color = color
 
-    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool) -> bool:
+    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
         def plot_group(df):
             trace_args = {
                 "x": df.x,
@@ -758,8 +740,6 @@ class GeomArea(Geom):
 
         for group_df in grouped_data:
             plot_group(group_df)
-
-        return False
 
     def get_stat(self):
         return StatIdentity()
@@ -800,7 +780,7 @@ class GeomRibbon(Geom):
         self.fill = fill
         self.color = color
 
-    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool) -> bool:
+    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
         def plot_group(df):
 
             trace_args_bottom = {
@@ -830,8 +810,6 @@ class GeomRibbon(Geom):
 
         for group_df in grouped_data:
             plot_group(group_df)
-
-        return False
 
     def get_stat(self):
         return StatIdentity()

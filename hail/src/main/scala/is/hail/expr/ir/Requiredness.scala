@@ -308,9 +308,10 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.rowType.fromPType(rvd.rowPType)
         requiredness.globalType.fromPType(enc.encodedType.decodedPType(typ.globalType))
       case TableRead(typ, dropRows, tr) =>
-        val (rowPType, globalPType) = tr.rowAndGlobalRequiredness(ctx, typ)
-        requiredness.rowType.unionFields(rowPType.r.asInstanceOf[RStruct])
-        requiredness.globalType.unionFields(globalPType.r.asInstanceOf[RStruct])
+        val rowReq = tr.rowRequiredness(ctx, typ)
+        val globalReq = tr.globalRequiredness(ctx, typ)
+        requiredness.rowType.unionFields(rowReq.r.asInstanceOf[RStruct])
+        requiredness.globalType.unionFields(globalReq.r.asInstanceOf[RStruct])
       case TableRange(_, _) =>
 
       // pass through TableIR child
@@ -591,6 +592,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case StreamJoinRightDistinct(left, right, _, _, _, _, joinf, joinType) =>
         requiredness.union(lookup(left).required && lookup(right).required)
         tcoerce[RIterable](requiredness).elementType.unionFrom(lookup(joinf))
+      case StreamLocalLDPrune(a, r2Threshold, windowSize, maxQueueSize, nSamples) =>
+        // FIXME what else needs to go here?
+        requiredness.union(lookup(a).required)
       case StreamAgg(a, name, query) =>
         requiredness.union(lookup(a).required)
         requiredness.unionFrom(lookup(query))

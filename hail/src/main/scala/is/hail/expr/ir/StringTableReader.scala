@@ -141,7 +141,7 @@ case class StringTablePartitionReader(lines: GenericLines, uidFieldName: String)
 class StringTableReader(
   val params: StringTableReaderParameters,
   fileStatuses: IndexedSeq[FileStatus]
-) extends TableReader {
+) extends TableReaderWithExtraUID {
 
   override def uidType = TTuple(TInt64, TInt64)
 

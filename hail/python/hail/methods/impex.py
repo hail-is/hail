@@ -176,8 +176,9 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
            gp=nullable(expr_array(expr_float64)),
            varid=nullable(expr_str),
            rsid=nullable(expr_str),
-           parallel=nullable(ir.ExportType.checker))
-def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None):
+           parallel=nullable(ir.ExportType.checker),
+           compression_codec=enumeration('zlib', 'zstd'))
+def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None, compression_codec='zlib'):
     """Export MatrixTable as :class:`.MatrixTable` as BGEN 1.2 file with 8
     bits of per probability.  Also writes SAMPLE file.
 
@@ -206,6 +207,8 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None):
         per partition), each with its own header.  If
         ``'separate_header'``, write a file for each partition,
         without header, and a header file for the combined dataset.
+    compresssion_codec : str, optional
+        Compression codec. One of 'zlib', 'zstd'.
     """
     require_row_key_variant(mt, 'export_bgen')
     require_col_key_str(mt, 'export_bgen')
@@ -244,7 +247,8 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None):
 
     Env.backend().execute(ir.MatrixWrite(mt._mir, ir.MatrixBGENWriter(
         output,
-        parallel)))
+        parallel,
+        compression_codec)))
 
 
 @typecheck(dataset=MatrixTable,

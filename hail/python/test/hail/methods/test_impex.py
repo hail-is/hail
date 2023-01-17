@@ -1506,6 +1506,20 @@ class BGENTests(unittest.TestCase):
 
     @fails_service_backend()
     @fails_local_backend()
+    def test_export_bgen_zstd(self):
+        bgen = hl.import_bgen(resource('example.8bits.bgen'),
+                              entry_fields=['GP'],
+                              sample_file=resource('example.sample'))
+        tmp = new_temp_file("zstd")
+        hl.export_bgen(bgen, tmp, compression_codec='zstd')
+        hl.index_bgen(tmp + '.bgen')
+        bgen2 = hl.import_bgen(tmp + '.bgen',
+                               entry_fields=['GP'],
+                               sample_file=tmp + '.sample')
+        assert bgen._same(bgen2)
+
+    @fails_service_backend()
+    @fails_local_backend()
     def test_export_bgen_parallel(self):
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['GP'],
