@@ -238,15 +238,13 @@ async def _query_batch_jobs(request, batch_id):
     where_conditions = ['(jobs.batch_id = %s AND batch_updates.committed)']
     where_args = [batch_id]
 
-    q = request.query.get('q', '')
-    last_query = request.query.get('_last_query', '')
-    if q == last_query:
-        last_job_id = request.query.get('last_job_id')
-        if last_job_id is not None:
-            last_job_id = int(last_job_id)
-            where_conditions.append('(jobs.job_id > %s)')
-            where_args.append(last_job_id)
+    last_job_id = request.query.get('last_job_id')
+    if last_job_id is not None:
+        last_job_id = int(last_job_id)
+        where_conditions.append('(jobs.job_id > %s)')
+        where_args.append(last_job_id)
 
+    q = request.query.get('q', '')
     terms = q.split()
     for t in terms:
         if t[0] == '!':
@@ -1693,8 +1691,7 @@ async def ui_batch(request, userdata, batch_id):
 
     batch['cost'] = cost_str(batch['cost'])
 
-    q = request.query.get('q')
-    page_context = {'batch': batch, 'q': q, '_last_query': q, 'last_job_id': last_job_id}
+    page_context = {'batch': batch, 'q': request.query.get('q'), 'last_job_id': last_job_id}
     return await render_template('batch', request, userdata, 'batch.html', page_context)
 
 
