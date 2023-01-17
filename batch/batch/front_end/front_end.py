@@ -255,12 +255,16 @@ async def _query_batch_jobs(request, batch_id):
 
         if '=' in t:
             k, v = t.split('=', 1)
-            condition = '''
+            if k == 'job_id':
+                condition = '(jobs.job_id = %s)'
+                args = [v]
+            else:
+                condition = '''
 ((jobs.batch_id, jobs.job_id) IN
  (SELECT batch_id, job_id FROM job_attributes
   WHERE `key` = %s AND `value` = %s))
 '''
-            args = [k, v]
+                args = [k, v]
         elif t.startswith('has:'):
             k = t[4:]
             condition = '''
