@@ -10,7 +10,7 @@ import is.hail.linalg.BlockMatrix
 import is.hail.rvd.RVDContext
 import is.hail.utils._
 import is.hail.HailContext
-import is.hail.backend.ExecuteContext
+import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.backend.spark.SparkTaskContext
 import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeType}
 import is.hail.types.tcoerce
@@ -975,9 +975,9 @@ object Interpret {
 
           // creates a new region holding the zero value, giving ownership to
           // the caller
-          val mkZero = (theHailClassLoader: HailClassLoader, pool: RegionPool) => {
-            val region = Region(Region.SMALL, pool)
-            val initF = initOp(theHailClassLoader, fsBc.value, SparkTaskContext.get(), region)
+          val mkZero = (theHailClassLoader: HailClassLoader, tc: HailTaskContext) => {
+            val region = Region(Region.SMALL, tc.getRegionPool())
+            val initF = initOp(theHailClassLoader, fsBc.value, tc, region)
             initF.newAggState(region)
             initF(region, globalsBc.value.readRegionValue(region, theHailClassLoader))
             RegionValue(region, initF.getAggOffset())

@@ -4,8 +4,8 @@ import java.util
 import is.hail.asm4s.{HailClassLoader, theHailClassLoaderForSparkWorkers}
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.backend.ExecuteContext
-import is.hail.backend.spark.SparkBackend
+import is.hail.backend.{ExecuteContext, HailTaskContext}
+import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.expr.ir.PruneDeadFields.isSupertype
 import is.hail.types._
 import is.hail.types.physical.{PCanonicalStruct, PInt64, PStruct, PType}
@@ -649,7 +649,7 @@ class RVD(
 
   def combine[U: ClassTag, T: ClassTag](
      execCtx: ExecuteContext,
-     mkZero: (HailClassLoader, RegionPool) => T,
+     mkZero: (HailClassLoader, HailTaskContext) => T,
      itF: (HailClassLoader, Int, RVDContext, Iterator[Long]) => T,
      deserialize: RegionPool => (U => T),
      serialize: T => U,
@@ -679,7 +679,7 @@ class RVD(
             override def numPartitions: Int = newNParts
           })
           .cmapPartitions { (ctx, it) =>
-            var acc = mkZero(theHailClassLoaderForSparkWorkers, ctx.r.pool)
+            var acc = mkZero(theHailClassLoaderForSparkWorkers, SparkTaskContext.get())
             it.foreach { case (newPart, (oldPart, v)) =>
               acc = combOp(acc, deserialize(ctx.r.pool)(v))
             }
@@ -689,7 +689,7 @@ class RVD(
       }
     }
 
-    val ac = Combiner(mkZero(execCtx.theHailClassLoader, execCtx.r.pool), combOp, commutative, true)
+    val ac = Combiner(mkZero(execCtx.theHailClassLoader, execCtx.taskContext), combOp, commutative, true)
     sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), (i, x: U) => ac.combine(i, deserialize(execCtx.r.pool)(x)))
     ac.result()
   }
