@@ -81,7 +81,7 @@ def test_regions():
         if CLOUD == 'gcp':
             backend.regions = ['us-east1']
         else:
-            backend.regions = None
+            backend.regions = ['eastus']
         hl.utils.range_table(1, 1).to_pandas()
     finally:
         backend.regions = old_regions
