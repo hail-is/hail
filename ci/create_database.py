@@ -87,6 +87,7 @@ async def create_database():
         rows = [row async for row in rows]
         if len(rows) > 0:
             assert len(rows) == 1
+            return
 
     with open(create_database_config['admin_password_file']) as f:
         admin_password = f.read()
@@ -121,10 +122,6 @@ async def create_database():
 
         {create_user_or_alter_password}
         GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}'@'%';
-
-        ALTER USER '{admin_username}'@'%' IDENTIFIED BY '{admin_password}';
-
-        ALTER USER '{user_username}'@'%' IDENTIFIED BY '{user_password}';
         '''
     )
 
