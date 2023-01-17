@@ -380,6 +380,14 @@ class InvalidImageRepository(Exception):
 
 
 class Image:
+    @staticmethod
+    async def _pull_with_auth_refresh(
+        image_ref_str: str, auth: Optional[Callable[..., Awaitable[Optional[Dict[str, str]]]]] = None
+    ):
+        assert docker
+        credentials = await auth() if auth else None
+        return await docker.images.pull(image_ref_str, auth=credentials)
+
     def __init__(
         self,
         name: str,
@@ -445,7 +453,7 @@ class Image:
                 await docker_call_retry(
                     MAX_DOCKER_IMAGE_PULL_SECS,
                     str(self),
-                    docker.images.pull,
+                    self._pull_with_auth_refresh,
                     self.image_ref_str,
                     auth=self._current_user_access_token,
                 )
@@ -473,13 +481,9 @@ class Image:
             await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, str(self), docker.images.get, self.image_ref_str)
         except DockerError as e:
             if e.status == 404:
-
-                async def _pull():
-                    assert docker
-                    credentials = await auth() if auth else None
-                    return await docker.images.pull(self.image_ref_str, auth=credentials)
-
-                await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, str(self), _pull)
+                await docker_call_retry(
+                    MAX_DOCKER_IMAGE_PULL_SECS, str(self), self._pull_with_auth_refresh, self.image_ref_str, auth
+                )
             else:
                 raise
 
