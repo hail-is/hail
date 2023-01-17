@@ -184,10 +184,57 @@ abstract class BlockMatrixStage(val letBindings: IndexedSeq[(String, IR)], val b
   }
 }
 
+object BlockMatrixStage2 {
+  def fromOldBMS(bms: BlockMatrixStage, typ: BlockMatrixType): BlockMatrixStage2 = {
+    val ctxRef = Ref(genUID(), bms.ctxType)
+    val blocks = typ.sparsity.allBlocks(typ.nRowBlocks, typ.nColBlocks, false)
+    val ctxs = MakeStream(blocks.map(idx => bms.blockContext(idx)), TStream(ctxRef.typ))
+    new BlockMatrixStage2(
+      bms.letBindings,
+      bms.broadcastVals,
+      ctxs,
+      typ,
+      blocks.zipWithIndex.toMap,
+      ctxRef.name,
+      bms.blockBody(ctxRef)
+    )
+  }
+
+  def empty(eltType: Type) = new BlockMatrixStage2(
+    IndexedSeq(),
+    IndexedSeq(),
+    MakeStream(Seq(), TStream(TInt32)),
+    BlockMatrixType.dense(eltType, 0, 0, 0),
+    Map(),
+    genUID(),
+    NA(TNDArray(eltType, Nat(2))))
+}
+
+class BlockMatrixStage2(
+  val letBindings: IndexedSeq[(String, IR)],
+  val broadcastVals: IndexedSeq[(String, IR)],
+  val contexts: IR,
+  val typ: BlockMatrixType,
+  val coordToContextIdx: Map[(Int, Int), Int],
+  private val ctxRefName: String,
+  private val blockIR: IR
+) {
+  def toOldBMS: BlockMatrixStage = {
+    val contextArray = ToArray(contexts)
+    val contextArrayRef = Ref(genUID(), contextArray.typ)
+    new BlockMatrixStage(letBindings :+ (contextArrayRef.name -> contextArray), broadcastVals.toArray, contexts.typ.asInstanceOf[TContainer].elementType) {
+      override def blockContext(idx: (Int, Int)): IR =
+        ArrayRef(contextArrayRef, coordToContextIdx(idx))
+      override def blockBody(ctxRef: Ref): IR =
+        Let(ctxRefName, ctxRef, blockIR)
+    }
+  }
+}
+
 object LowerBlockMatrixIR {
   def apply(node: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: Analyses, relationalLetsAbove: Map[String, IR]): IR = {
 
-    def lower(bmir: BlockMatrixIR) = LowerBlockMatrixIR.lower(bmir, typesToLower, ctx, analyses, relationalLetsAbove)
+    def lower(bmir: BlockMatrixIR) = LowerBlockMatrixIR.lower(bmir, typesToLower, ctx, analyses, relationalLetsAbove).toOldBMS
 
     node match {
       case BlockMatrixCollect(child) =>
@@ -222,7 +269,7 @@ object LowerBlockMatrixIR {
     bmir: BlockMatrixIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext,
     analyses: Analyses, relationalLetsAbove: Map[String, IR]
   ): TableStage = {
-    val bms = lower(bmir, typesToLower, ctx, analyses, relationalLetsAbove)
+    val bms = lower(bmir, typesToLower, ctx, analyses, relationalLetsAbove).toOldBMS
     val typ = bmir.typ
     val bmsWithCtx = bms.addContext(TTuple(TInt32, TInt32)){ case (i, j) => MakeTuple(Seq(0 -> i, 1 -> j))}
     val blocksRowMajor = Array.range(0, typ.nRowBlocks).flatMap { i =>
@@ -251,7 +298,7 @@ object LowerBlockMatrixIR {
   private def unimplemented[T](ctx: ExecuteContext, node: BaseIR): T =
     throw new LowererUnsupportedOperation(s"unimplemented: \n${ Pretty(ctx, node) }")
 
-  def lower(bmir: BlockMatrixIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: Analyses, relationalLetsAbove: Map[String, IR]): BlockMatrixStage = {
+  def lower(bmir: BlockMatrixIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: Analyses, relationalLetsAbove: Map[String, IR]): BlockMatrixStage2 = {
     if (!DArrayLowering.lowerBM(typesToLower))
       throw new LowererUnsupportedOperation("found BlockMatrixIR in lowering; lowering only TableIRs.")
     bmir.children.foreach {
@@ -260,12 +307,17 @@ object LowerBlockMatrixIR {
       case _ =>
     }
     if (bmir.typ.nDefinedBlocks == 0)
-      BlockMatrixStage.empty(bmir.typ.elementType)
-    else lowerNonEmpty(bmir, typesToLower, ctx, analyses, relationalLetsAbove)
+      BlockMatrixStage2.empty(bmir.typ.elementType)
+    else lowerNonEmpty2(bmir, typesToLower, ctx, analyses, relationalLetsAbove)
+  }
+
+  def lowerNonEmpty2(bmir: BlockMatrixIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: Analyses, relationalLetsAbove: Map[String, IR]): BlockMatrixStage2 = {
+    assert(false)
+    BlockMatrixStage2.fromOldBMS(lowerNonEmpty(bmir, typesToLower, ctx, analyses, relationalLetsAbove), bmir.typ)
   }
 
   def lowerNonEmpty(bmir: BlockMatrixIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: Analyses, relationalLetsAbove: Map[String, IR]): BlockMatrixStage = {
-    def lower(ir: BlockMatrixIR) = LowerBlockMatrixIR.lower(ir, typesToLower, ctx, analyses, relationalLetsAbove)
+    def lower(ir: BlockMatrixIR) = LowerBlockMatrixIR.lower(ir, typesToLower, ctx, analyses, relationalLetsAbove).toOldBMS
 
     def lowerIR(node: IR): IR = LowerToCDA.lower(node, typesToLower, ctx, analyses, relationalLetsAbove: Map[String, IR])
 
