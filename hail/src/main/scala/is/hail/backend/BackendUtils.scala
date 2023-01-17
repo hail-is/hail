@@ -40,7 +40,7 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, Int, Region) => Ba
     } else {
       val globalsBC = backend.broadcast(globals)
       val fsConfigBC = backend.broadcast(fs.getConfiguration())
-      backend.parallelizeAndComputeWithIndex(backendContext, fs, contexts, tsd)({ (ctx, htc, theHailClassLoader, fs) =>
+      backend.parallelizeAndComputeWithIndex(backendContext, fs, contexts, stageName, tsd)({ (ctx, htc, theHailClassLoader, fs) =>
         val fsConfig = fsConfigBC.value
         val gs = globalsBC.value
         fs.setConfiguration(fsConfig)

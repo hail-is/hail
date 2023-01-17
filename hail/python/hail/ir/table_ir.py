@@ -229,7 +229,7 @@ class TableExplode(TableIR):
 
     def _handle_randomness(self, uid_field_name):
         if uid_field_name is None:
-            TableExplode(self.child.handle_randomness(None), self.path)
+            return TableExplode(self.child.handle_randomness(None), self.path)
 
         child = self.child.handle_randomness(uid_field_name)
 

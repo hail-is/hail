@@ -6,14 +6,18 @@ import is.hail.expr.ir._
 import is.hail.expr.ir.agg.{AggStateSig, DictState, PhysicalAggSig, StateTuple}
 import is.hail.expr.ir.functions.IntervalFunctions
 import is.hail.expr.ir.orderings.{CodeOrdering, StructOrdering}
+import is.hail.methods.{LocalLDPrune, BitPackedVector, BitPackedVectorBuilder}
 import is.hail.types.physical.stypes.EmitType
-import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SStackStruct, SUnreachable}
+import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SStackStruct, SJavaArrayString, SJavaArrayStringValue, SUnreachable}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.primitives.SInt32Value
+import is.hail.types.physical.stypes.primitives.{SInt32Value, SFloat64Value}
 import is.hail.types.physical.{PCanonicalArray, PCanonicalBinary, PCanonicalStruct}
 import is.hail.types.virtual._
 import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.utils._
+import is.hail.variant.Locus
+
+import java.util
 
 
 abstract class StreamProducer {
@@ -2773,6 +2777,86 @@ object EmitStream {
           }
           SStreamValue(producer)
         }
+
+      case StreamLocalLDPrune(a, r2Threshold, winSize, maxQueueSize, nSamples) =>
+        produce(a, cb)
+          .map(cb) { case childStream: SStreamValue =>
+            val childProducer = childStream.getProducer(mb)
+            val queueSize = cb.newField[Int]("max_queue_size")
+            val queue = cb.newField[util.ArrayDeque[BitPackedVector]]("queue")
+            val threshold = cb.newField[Double]("r2_threshold")
+            val windowSize = cb.newField[Int]("window_size")
+            val builder = cb.newField[BitPackedVectorBuilder]("vector_builder")
+            val elementType = typeWithReq.canonicalEmitType.st.asInstanceOf[SStream].elementEmitType
+            val elementField = mb.newEmitField(elementType)
+
+            val producer = new StreamProducer {
+              def method: EmitMethodBuilder[_] = mb
+
+              val length: Option[EmitCodeBuilder => Code[Int]] = None
+
+              val elementRegion: Settable[Region] = childProducer.elementRegion
+
+              val element: EmitCode = elementField
+
+              val requiresMemoryManagementPerElement: Boolean = childProducer.requiresMemoryManagementPerElement
+
+              def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
+                cb.assign(queueSize, emit(maxQueueSize, cb).get(cb).asInt32.value)
+                cb.assign(queue, Code.newInstance[util.ArrayDeque[BitPackedVector], Int](queueSize))
+                cb.assign(threshold, emit(r2Threshold, cb).get(cb).asFloat64.value)
+                cb.assign(windowSize, emit(winSize, cb).get(cb).asInt32.value)
+                cb.assign(builder, Code.newInstance[BitPackedVectorBuilder, Int](emit(nSamples, cb).get(cb).asInt32.value))
+                childProducer.initialize(cb, outerRegion)
+              }
+
+              val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
+                val Lpruned = CodeLabel()
+
+                cb.goto(childProducer.LproduceElement)
+                cb.define(childProducer.LproduceElementDone)
+
+                childProducer.element.toI(cb).consume(cb,
+                  cb.goto(Lpruned),
+                  { case sc: SBaseStructValue =>
+                    val locus = sc.loadField(cb, "locus").get(cb).asLocus
+                    val locusObj = locus.getLocusObj(cb)
+                    val genotypes = sc.loadField(cb, "genotypes").get(cb).asIndexable
+                    cb += builder.invoke[Unit]("reset")
+                    genotypes.forEachDefinedOrMissing(cb)({ (cb, _) =>
+                      cb += builder.invoke[Unit]("addMissing")
+                    }, { (cb, _, gt) =>
+                      cb += builder.invoke[Int, Unit]("addGT", gt.asCall.canonicalCall(cb))
+                    })
+                    val bpv = cb.memoize(builder.invoke[Locus, Array[String], BitPackedVector]("finish", locusObj, Code._null[Array[String]]))
+                    cb.ifx(bpv.isNull, cb.goto(Lpruned))
+                    val keepVariant = Code.invokeScalaObject5[util.ArrayDeque[BitPackedVector], BitPackedVector, Double, Int, Int, Boolean](LocalLDPrune.getClass, "pruneLocal",
+                      queue, bpv, threshold, windowSize, queueSize)
+                    cb.ifx(!keepVariant, cb.goto(Lpruned))
+
+                    val mean = SFloat64Value(cb.memoize(bpv.invoke[Double]("mean")))
+                    val centeredLengthRec = SFloat64Value(cb.memoize(bpv.invoke[Double]("centeredLengthRec")))
+                    val elt = SStackStruct.constructFromArgs(cb, elementRegion, elementType.virtualType.asInstanceOf[TBaseStruct],
+                      EmitCode.present(mb, locus), EmitCode.fromI(mb)(cb => sc.loadField(cb, "alleles")), EmitCode.present(mb, mean), EmitCode.present(mb, centeredLengthRec))
+                    cb.assign(elementField, EmitCode.present(mb, elt.castTo(cb, elementRegion, elementField.emitType.st)))
+                  })
+
+                cb.goto(LproduceElementDone)
+
+                cb.define(Lpruned)
+                if (requiresMemoryManagementPerElement)
+                  cb += childProducer.elementRegion.clearRegion()
+                cb.goto(childProducer.LproduceElement)
+             }
+
+              def close(cb: EmitCodeBuilder): Unit = childProducer.close(cb)
+            }
+
+            mb.implementLabel(childProducer.LendOfStream) { cb =>
+              cb.goto(producer.LendOfStream)
+            }
+            SStreamValue(producer)
+          }
 
       case ReadPartition(context, rowType, reader) =>
         val ctxCode = EmitCode.fromI(mb)(cb => emit(context, cb))

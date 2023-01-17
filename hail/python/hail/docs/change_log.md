@@ -24,6 +24,25 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.108
+
+Released 2023-1-12
+
+### New Features
+
+- (hail#12576) `hl.import_bgen` and `hl.export_bgen` now support compression with Zstd.
+
+### Bug fixes
+
+- (hail#12585) `hail.ggplot`s that have more than one legend group or facet are now interactive. If such a plot has enough legend entries that the legend would be taller than the plot, the legend will now be scrollable. Legend entries for such plots can be clicked to show/hide traces on the plot, but this does not work and is a known issue that will only be addressed if `hail.ggplot` is migrated off of plotly.
+- (hail#12584) Fixed bug which arose as an assertion error about type mismatches. This was usually triggered when working with tuples.
+- (hail#12583) Fixed bug which showed an empty table for `ht.col_key.show()`.
+- (hail#12582) Fixed bug where matrix tables with duplicate col keys do not show properly. Also fixed bug where tables and matrix tables with HTML unsafe column headers are rendered wrong in Jupyter.
+- (hail#12574) Fixed a memory leak when processing tables. Could trigger unnecessarily high memory use and out of memory errors when there are many rows per partition or large key fields.
+- (hail#12565) Fixed a bug that prevented exploding on a field of a Table whose value is a random value.
+
+---
+
 ## Version 0.2.107
 
 Released 2022-12-14
