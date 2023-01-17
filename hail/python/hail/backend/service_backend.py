@@ -161,8 +161,6 @@ class IRFunction:
 
 
 class ServiceBackend(Backend):
-    input_version = 2
-
     # is.hail.backend.service.Main protocol
     WORKER = "worker"
     DRIVER = "driver"
