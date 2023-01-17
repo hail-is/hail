@@ -43,6 +43,7 @@ abstract class Backend {
     backendContext: BackendContext,
     fs: FS,
     collection: Array[Array[Byte]],
+    stageIdentifier: String,
     dependency: Option[TableStageDependency] = None
   )(
     f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
