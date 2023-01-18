@@ -62,6 +62,16 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
   def referenceGenomes(): IndexedSeq[ReferenceGenome] = rgContainers.keys.toFastIndexedSeq.sortBy(_.name)
   def referenceGenomeFields(): IndexedSeq[StaticField[ReferenceGenome]] = rgContainers.toFastIndexedSeq.sortBy(_._1.name).map(_._2)
 
+  var _rgMapField: StaticFieldRef[Map[String, ReferenceGenome]] = null
+
+  def referenceGenomeMap: Value[Map[String, ReferenceGenome]] = {
+    if (_rgMapField == null) {
+      val cls = genEmitClass[Unit](s"RGMapContainer")
+      _rgMapField = new StaticFieldRef(cls.newStaticField("reference_genome_map", Code._null[Map[String, ReferenceGenome]]))
+    }
+    _rgMapField
+  }
+
   def setObjects(cb: EmitCodeBuilder, objects: Code[Array[AnyRef]]): Unit = modb.setObjects(cb, objects)
 
   def getObject[T <: AnyRef : TypeInfo](obj: T): Code[T] = modb.getObject(obj)
@@ -256,12 +266,6 @@ class EmitClassBuilder[C](
 
 
   def numTypes: Int = typMap.size
-
-  private[this] def addReferenceGenome(rg: ReferenceGenome): Code[Unit] = {
-    val rgExists = Code.invokeScalaObject1[String, Boolean](ReferenceGenome.getClass, "hasReference", rg.name)
-    val addRG = Code.invokeScalaObject1[ReferenceGenome, Unit](ReferenceGenome.getClass, "addReference", getReferenceGenome(rg))
-    rgExists.mux(Code._empty, addRG)
-  }
 
   private[this] val literalsMap: mutable.Map[(VirtualTypeWithReq, Any), SSettable] =
     mutable.Map[(VirtualTypeWithReq, Any), SSettable]()
@@ -467,21 +471,19 @@ class EmitClassBuilder[C](
   }
 
   def getPType[T <: PType : TypeInfo](t: T): Code[T] = {
-    val references = ReferenceGenome.getReferences(t.virtualType).toArray
-    val setup = Code(Code(references.map(addReferenceGenome)),
-      Code.checkcast[T](
-        Code.invokeScalaObject1[String, PType](
-          IRParser.getClass, "parsePType", t.toString)))
+    ReferenceGenome.getReferences(t.virtualType).toArray.map(getReferenceGenome)
+    val setup = Code.checkcast[T](
+        Code.invokeScalaObject2[String, Map[String, ReferenceGenome], PType](
+          IRParser.getClass, "parsePType", t.toString, emodb.referenceGenomeMap))
     Code.checkcast[T](pTypeMap.getOrElseUpdate(t,
       genLazyFieldThisRef[T](setup)).get)
   }
 
   def getType[T <: Type : TypeInfo](t: T): Code[T] = {
-    val references = ReferenceGenome.getReferences(t).toArray
-    val setup = Code(Code(references.map(addReferenceGenome)),
-      Code.checkcast[T](
-        Code.invokeScalaObject1[String, Type](
-          IRParser.getClass, "parseType", t.parsableString())))
+    ReferenceGenome.getReferences(t).toArray.map(getReferenceGenome)
+    val setup = Code.checkcast[T](
+        Code.invokeScalaObject2[String, Map[String, ReferenceGenome], Type](
+          IRParser.getClass, "parseType", t.parsableString(), emodb.referenceGenomeMap))
     Code.checkcast[T](typMap.getOrElseUpdate(t,
       genLazyFieldThisRef[T](setup)).get)
   }
@@ -638,6 +640,10 @@ class EmitClassBuilder[C](
       for ((fld, i) <- rgFields.zipWithIndex) {
         cb += rgs(i).invoke[String, FS, Unit]("heal", ctx.localTmpdir, getFS)
         cb += fld.put(rgs(i))
+      }
+
+      Option(emodb._rgMapField).foreach { fld =>
+        cb.assign(fld, Code.invokeStatic1[ReferenceGenome, Array[ReferenceGenome], Map[String, ReferenceGenome]]("getMapFromArray", rgs))
       }
     }
   }

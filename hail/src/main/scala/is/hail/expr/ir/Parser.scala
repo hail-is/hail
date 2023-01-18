@@ -2097,7 +2097,7 @@ object IRParser {
   }
 
   def parse_value_ir(ctx: ExecuteContext, s: String): IR = {
-    parse_value_ir(s, IRParserEnvironment(ctx))
+    parse_value_ir(s, IRParserEnvironment(ctx, typEnv=TypeParserEnvironment(ctx.referenceGenomes)))
   }
 
   def parse_table_ir(ctx: ExecuteContext, s: String): TableIR = parse_table_ir(s, IRParserEnvironment(ctx))
@@ -2114,7 +2114,11 @@ object IRParser {
 
   def parseType(code: String, env: TypeParserEnvironment): Type = parse(code, type_expr(env))
 
+  def parseType(code: String, rgMap: Map[String, ReferenceGenome]): Type = parseType(code, TypeParserEnvironment(rgMap))
+
   def parsePType(code: String, env: TypeParserEnvironment): PType = parse(code, ptype_expr(env))
+
+  def parsePType(code: String, rgMap: Map[String, ReferenceGenome]): PType = parsePType(code, TypeParserEnvironment(rgMap))
 
   def parseStructType(code: String, env: TypeParserEnvironment): TStruct = tcoerce[TStruct](parse(code, type_expr(env)))
 
@@ -2142,4 +2146,3 @@ object IRParser {
 
   def parseMatrixType(code: String): MatrixType = parseMatrixType(code, TypeParserEnvironment.default)
 }
-

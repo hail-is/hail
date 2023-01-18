@@ -322,13 +322,9 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     if (!fs.exists(indexFile))
       fatal(s"FASTA index file '$indexFile' does not exist.")
     fastaFilePath = fastaFile
-    fastaIndexPath = indexFile
 
     // assumption, fastaFile and indexFile will not move or change for the entire duration of a hail pipeline
-    val localIndexFile = ExecuteContext.createTmpPathNoCleanup(tmpdir, "fasta-reader-add-seq", "fai")
-    fs.copyRecode(indexFile, localIndexFile)
-
-    val index = new FastaSequenceIndex(new java.io.File(uriPath(localIndexFile)))
+    val index = using(fs.open(indexFile))(new FastaSequenceIndex(_))
 
     val missingContigs = contigs.filterNot(index.hasIndexEntry)
     if (missingContigs.nonEmpty)
@@ -398,7 +394,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
       fatal(s"Chain file '$chainFile' does not exist.")
 
     val chainFilePath = fs.fileStatus(chainFile).getPath
-    val lo = LiftOver(tmpdir, fs, chainFilePath)
+    val lo = LiftOver(fs, chainFilePath)
     val destRG = ctx.getReference(destRGName)
     lo.checkChainFile(this, destRG)
 
@@ -438,7 +434,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
       val chainFilePath = fs.fileStatus(chainFile).getPath
       liftoverMap.get(destRGName) match {
         case Some(lo) if lo.chainFile == chainFilePath => // do nothing
-        case _ => liftoverMap += destRGName -> LiftOver(tmpdir, fs, chainFilePath)
+        case _ => liftoverMap += destRGName -> LiftOver(fs, chainFilePath)
       }
     }
 
@@ -522,6 +518,19 @@ object ReferenceGenome {
     GRCm38 = fromResource("reference/grcm38.json")
     CanFam3 = fromResource("reference/canfam3.json")
     hailReferences = references.keySet
+  }
+
+  def builtinReferences(): Map[String, ReferenceGenome] = {
+    var builtin: Map[String, ReferenceGenome] = Map()
+    val files = Array(
+      "reference/grch37.json", "reference/grch38.json",
+      "reference/grcm38.json", "reference/canfam3.json"
+    )
+    for (filename <- files) {
+      val rg = loadFromResource[ReferenceGenome](filename)(read)
+      builtin += (rg.name -> rg)
+    }
+    builtin
   }
 
   def reset(): Unit = {
@@ -735,4 +744,6 @@ object ReferenceGenome {
     mtContigs: java.util.List[String], parInput: java.util.List[String]): ReferenceGenome =
     ReferenceGenome(name, contigs.asScala.toArray, lengths.asScala.toMap, xContigs.asScala.toArray, yContigs.asScala.toArray,
       mtContigs.asScala.toArray, parInput.asScala.toArray)
+
+  def getMapFromArray(arr: Array[ReferenceGenome]): Map[String, ReferenceGenome] = arr.map(rg => (rg.name, rg)).toMap
 }

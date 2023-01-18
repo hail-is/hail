@@ -192,7 +192,7 @@ object LoadBgen {
       }
       using(indexReaderBuilder(ctx.theHailClassLoader, fs, indexFile, 8, ctx.r.pool)) { index =>
         val attributes = index.attributes
-        val rg = Option(attributes("reference_genome")).map(name => ReferenceGenome.getReference(name.asInstanceOf[String]))
+        val rg = Option(attributes("reference_genome")).map(name => ctx.getReference(name.asInstanceOf[String]))
         val skipInvalidLoci = attributes("skip_invalid_loci").asInstanceOf[Boolean]
         val contigRecoding = Option(attributes("contig_recoding")).map(_.asInstanceOf[Map[String, String]]).getOrElse(Map.empty[String, String])
         val nVariants = index.nKeys

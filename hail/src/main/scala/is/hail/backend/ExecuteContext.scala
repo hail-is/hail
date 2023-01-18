@@ -5,6 +5,8 @@ import is.hail.{HailContext, HailFeatureFlags}
 import is.hail.annotations.{Region, RegionPool}
 import is.hail.expr.ir.Threefry
 import is.hail.io.fs.FS
+import is.hail.types.MapTypes
+import is.hail.types.virtual.{TLocus, Type}
 import is.hail.utils.{ExecutionTimer, using}
 import is.hail.variant.ReferenceGenome
 
@@ -106,7 +108,7 @@ class ExecuteContext(
   val timer: ExecutionTimer,
   _tempFileManager: TempFileManager,
   val theHailClassLoader: HailClassLoader,
-  private[this] val referenceGenomes: Map[String, ReferenceGenome],
+  val referenceGenomes: Map[String, ReferenceGenome],
   private[this] val flags: HailFeatureFlags
 ) extends Closeable {
   var backendContext: BackendContext = _

@@ -1,5 +1,6 @@
 from typing import Dict, Optional, Callable, Awaitable, Mapping, Any, List, Union, Tuple
 import abc
+import collections
 import struct
 from hail.expr.expressions.base_expression import Expression
 import orjson
@@ -275,6 +276,8 @@ class ServiceBackend(Backend):
         self.worker_memory = worker_memory
         self.name_prefix = name_prefix
         self._custom_reference_configs = dict()
+        # Source genome -> [Destination Genome -> Chain file]
+        self._liftovers: Dict[str, Dict[str, str]] = collections.defaultdict(dict)
 
     def debug_info(self) -> Dict[str, Any]:
         return {
@@ -327,6 +330,14 @@ class ServiceBackend(Backend):
                     await write_int(infile, len(self._custom_reference_configs))
                     for reference_config in self._custom_reference_configs.values():
                         await write_str(infile, orjson.dumps(reference_config).decode('utf-8'))
+                    non_empty_liftovers = {name: liftovers for name, liftovers in self._liftovers.items() if len(liftovers) > 0}
+                    await write_int(infile, len(non_empty_liftovers))
+                    for source_genome_name, liftovers in non_empty_liftovers.items():
+                        await write_str(infile, source_genome_name)
+                        await write_int(infile, len(liftovers))
+                        for dest_reference_genome, chain_file in liftovers.items():
+                            await write_str(infile, dest_reference_genome)
+                            await write_str(infile, chain_file)
                     await write_str(infile, str(self.worker_cores))
                     await write_str(infile, str(self.worker_memory))
                     await inputs(infile, token)
@@ -519,11 +530,16 @@ class ServiceBackend(Backend):
     def remove_sequence(self, name):
         raise NotImplementedError("ServiceBackend does not support 'remove_sequence'")
 
-    def add_liftover(self, name, chain_file, dest_reference_genome):
-        raise NotImplementedError("ServiceBackend does not support 'add_liftover'")
+    def add_liftover(self, name: str, chain_file: str, dest_reference_genome: str):
+        if name == dest_reference_genome:
+            raise ValueError(f'Destination reference genome cannot have the same name as this reference {name}.')
+        if dest_reference_genome in self._liftovers[name]:
+            raise ValueError(f'Chain file already exists for destination reference {dest_reference_genome}.')
+        self._liftovers[name][dest_reference_genome] = chain_file
 
     def remove_liftover(self, name, dest_reference_genome):
-        raise NotImplementedError("ServiceBackend does not support 'remove_liftover'")
+        assert dest_reference_genome in self._liftovers[name]
+        del self._liftovers[name][dest_reference_genome]
 
     def parse_vcf_metadata(self, path):
         return async_to_blocking(self._async_parse_vcf_metadata(path))

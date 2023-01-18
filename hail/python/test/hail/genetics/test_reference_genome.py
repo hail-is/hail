@@ -123,7 +123,6 @@ class Tests(unittest.TestCase):
         grch37.remove_liftover("GRCh38")
         grch38.remove_liftover("GRCh37")
 
-    @fails_service_backend()
     def test_liftover_strand(self):
         grch37 = hl.get_reference('GRCh37')
         grch37.add_liftover(resource('grch37_to_grch38_chr20.over.chain.gz'), 'GRCh38')
