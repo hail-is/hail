@@ -294,13 +294,6 @@ class ServiceBackend(
     JsonMethods.compact(jv)
   }
 
-  def referenceGenome(
-    ctx: ExecuteContext,
-    name: String
-  ): String = {
-    ReferenceGenome.getReference(name).toJSONString
-  }
-
   private[this] def execute(ctx: ExecuteContext, _x: IR, bufferSpecString: String): Array[Byte] = {
     TypeCheck(ctx, _x)
     Validate(_x)
@@ -464,11 +457,10 @@ class ServiceBackendSocketAPI2(
   private[this] val TABLE_TYPE = 3
   private[this] val MATRIX_TABLE_TYPE = 4
   private[this] val BLOCK_MATRIX_TYPE = 5
-  private[this] val REFERENCE_GENOME = 6
-  private[this] val EXECUTE = 7
-  private[this] val PARSE_VCF_METADATA = 8
-  private[this] val INDEX_BGEN = 9
-  private[this] val IMPORT_FAM = 10
+  private[this] val EXECUTE = 6
+  private[this] val PARSE_VCF_METADATA = 7
+  private[this] val INDEX_BGEN = 8
+  private[this] val IMPORT_FAM = 9
 
   private[this] val dummy = new Array[Byte](8)
 
@@ -539,6 +531,14 @@ class ServiceBackendSocketAPI2(
       flagsMap.update(flagName, flagValue)
       nFlagsRemaining -= 1
     }
+    val nCustomReferences = readInt()
+    val customReferences = mutable.Map[String, ReferenceGenome]()
+    var i = 0
+    while (i < nCustomReferences) {
+      val reference = ReferenceGenome.fromJSON(readString())
+      customReferences(reference.name) = reference
+      i += 1
+    }
     val workerCores = readString()
     val workerMemory = readString()
 
@@ -559,6 +559,7 @@ class ServiceBackendSocketAPI2(
         timer,
         null,
         backend.theHailClassLoader,
+        customReferences.toMap,
         flags
       ) { ctx =>
         ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir, workerCores, workerMemory)
@@ -597,12 +598,6 @@ class ServiceBackendSocketAPI2(
           withExecuteContext(
             "ServiceBackend.blockMatrixType",
             backend.blockMatrixType(_, s).getBytes(StandardCharsets.UTF_8)
-          )
-        case REFERENCE_GENOME =>
-          val name = readString()
-          withExecuteContext(
-            "ServiceBackend.referenceGenome",
-            backend.referenceGenome(_, name).getBytes(StandardCharsets.UTF_8)
           )
         case EXECUTE =>
           val code = readString()

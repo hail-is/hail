@@ -399,7 +399,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
     val chainFilePath = fs.fileStatus(chainFile).getPath
     val lo = LiftOver(tmpdir, fs, chainFilePath)
-    val destRG = ReferenceGenome.getReference(destRGName)
+    val destRG = ctx.getReference(destRGName)
     lo.checkChainFile(this, destRG)
 
     chainFiles += destRGName -> chainFile

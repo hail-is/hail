@@ -296,7 +296,6 @@ class Tests(unittest.TestCase):
         for f, t in kt.row.dtype.items():
             self.assertEqual(expected_schema[f], t)
 
-    @fails_service_backend()
     def test_genetics_constructors(self):
         rg = hl.ReferenceGenome("foo", ["1"], {"1": 100})
 
