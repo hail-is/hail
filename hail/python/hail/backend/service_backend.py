@@ -32,6 +32,8 @@ from ..ir import BaseIR
 from ..utils import frozendict
 
 
+ReferenceGenomeConfig = Dict[str, Any]
+
 
 log = logging.getLogger('backend.service_backend')
 
@@ -272,6 +274,7 @@ class ServiceBackend(Backend):
         self.worker_cores = worker_cores
         self.worker_memory = worker_memory
         self.name_prefix = name_prefix
+        self._custom_reference_configs = dict()
 
     def debug_info(self) -> Dict[str, Any]:
         return {
@@ -487,6 +490,15 @@ class ServiceBackend(Backend):
 
     def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
         raise NotImplementedError("ServiceBackend does not support 'from_fasta_file'")
+
+    def add_reference(self, config: ReferenceGenomeConfig):
+        self._custom_reference_configs[config['name']] = config
+
+    def remove_reference(self, name):
+        self._custom_reference_configs.pop(name)
+
+    def _get_non_builtin_reference(self, name) -> ReferenceGenomeConfig:
+        return self._custom_reference_configs[name]
 
     def load_references_from_dataset(self, path):
         return async_to_blocking(self._async_load_references_from_dataset(path))

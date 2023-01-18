@@ -24,14 +24,10 @@ Error summary: {short_message}''',
                       error_id)
 
 
-ReferenceGenomeConfig = Dict[str, Any]
-
-
 class Backend(abc.ABC):
     @abc.abstractmethod
     def __init__(self):
         self._persisted_locations = dict()
-        self._custom_reference_configs = dict()
 
     @abc.abstractmethod
     def stop(self):
@@ -57,8 +53,9 @@ class Backend(abc.ABC):
     def matrix_type(self, mir):
         pass
 
-    def add_reference(self, config: ReferenceGenomeConfig):
-        self._custom_reference_configs[config['name']] = config
+    @abc.abstractmethod
+    def add_reference(self, config):
+        pass
 
     @abc.abstractmethod
     def load_references_from_dataset(self, path):
@@ -68,8 +65,9 @@ class Backend(abc.ABC):
     def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
         pass
 
+    @abc.abstractmethod
     def remove_reference(self, name):
-        self._custom_reference_configs.pop(name)
+        pass
 
     def get_reference(self, name):
         if name in BUILTIN_REFERENCE_RESOURCE_PATHS:
@@ -78,8 +76,9 @@ class Backend(abc.ABC):
             return orjson.loads(zipfile.ZipFile(jar_path).open(path_in_jar).read())
         return self._get_non_builtin_reference(name)
 
-    def _get_non_builtin_reference(self, name) -> ReferenceGenomeConfig:
-        return self._custom_reference_configs[name]
+    @abc.abstractmethod
+    def _get_non_builtin_reference(self, name):
+        pass
 
     def get_references(self, names):
         return [self.get_reference(name) for name in names]
