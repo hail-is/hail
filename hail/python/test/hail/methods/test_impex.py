@@ -970,7 +970,6 @@ class PLINKTests(unittest.TestCase):
         with self.assertRaisesRegex(FatalError, "no white space allowed:"):
             hl.export_plink(ds, new_temp_file(), varid="hello world")
 
-    @fails_service_backend()
     def test_contig_recoding_defaults(self):
         hl.import_plink(resource('sex_mt_contigs.bed'),
                         resource('sex_mt_contigs.bim'),

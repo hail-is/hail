@@ -8,7 +8,6 @@ from hail.utils import FatalError
 
 class Tests(unittest.TestCase):
 
-    @fails_service_backend()
     def test_reference_genome(self):
         rg = hl.get_reference('GRCh37')
         self.assertEqual(rg.name, "GRCh37")
@@ -142,7 +141,6 @@ class Tests(unittest.TestCase):
 
         grch37.remove_liftover("GRCh38")
 
-    @fails_service_backend()
     def test_read_custom_reference_genome(self):
         # this test doesn't behave properly if these reference genomes are already defined in scope.
         available_rgs = set(hl.ReferenceGenome._references.keys())
