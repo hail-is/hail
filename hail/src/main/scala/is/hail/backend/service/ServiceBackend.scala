@@ -532,7 +532,7 @@ class ServiceBackendSocketAPI2(
       nFlagsRemaining -= 1
     }
     val nCustomReferences = readInt()
-    val customReferences = mutable.Map[String, ReferenceGenome]()
+    val customReferences = mutable.Map[String, ReferenceGenome](ReferenceGenome.references.toSeq: _*)
     var i = 0
     while (i < nCustomReferences) {
       val reference = ReferenceGenome.fromJSON(readString())
