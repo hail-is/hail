@@ -2,7 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.ExecuteContext
+import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.ir._
 import is.hail.types.physical.stypes.concrete.SRNGState
@@ -33,8 +33,7 @@ object PType {
   val genRequiredScalar: Gen[PType] = genScalar(true)
 
   def genComplexType(required: Boolean): Gen[PType] = {
-    val rgDependents = ReferenceGenome.references.values.toArray.map(rg =>
-      PCanonicalLocus(rg, required))
+    val rgDependents = ReferenceGenome.hailReferences.toArray.map(PCanonicalLocus(_, required))
     val others = Array(PCanonicalCall(required))
     Gen.oneOfSeq(rgDependents ++ others)
   }
@@ -342,10 +341,10 @@ object PType {
 abstract class PType extends Serializable with Requiredness {
   self =>
 
-  def genValue: Gen[Annotation] =
-    if (required) genNonmissingValue else Gen.nextCoin(0.05).flatMap(isEmpty => if (isEmpty) Gen.const(null) else genNonmissingValue)
+  def genValue(sm: HailStateManager): Gen[Annotation] =
+    if (required) genNonmissingValue(sm) else Gen.nextCoin(0.05).flatMap(isEmpty => if (isEmpty) Gen.const(null) else genNonmissingValue(sm))
 
-  def genNonmissingValue: Gen[Annotation] = virtualType.genNonmissingValue
+  def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = virtualType.genNonmissingValue(sm)
 
   def virtualType: Type
 
@@ -359,13 +358,13 @@ abstract class PType extends Serializable with Requiredness {
     sb.result()
   }
 
-  def unsafeOrdering(): UnsafeOrdering
+  def unsafeOrdering(sm: HailStateManager): UnsafeOrdering
 
   def isCanonical: Boolean = PType.canonical(this) == this // will recons, may need to rewrite this method
 
-  def unsafeOrdering(rightType: PType): UnsafeOrdering = {
+  def unsafeOrdering(sm: HailStateManager, rightType: PType): UnsafeOrdering = {
     require(virtualType == rightType.virtualType, s"$this, $rightType")
-    unsafeOrdering()
+    unsafeOrdering(sm)
   }
 
   def asIdent: String = (if (required) "r_" else "o_") + _asIdent
@@ -441,9 +440,9 @@ abstract class PType extends Serializable with Requiredness {
     }
   }
 
-  protected[physical] def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long
+  protected[physical] def _copyFromAddress(sm: HailStateManager, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long
 
-  def copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
+  def copyFromAddress(sm: HailStateManager, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
     // no requirement for requiredness
     // this can have more/less requiredness than srcPType
     // if value is not compatible with this, an exception will be thrown
@@ -451,7 +450,7 @@ abstract class PType extends Serializable with Requiredness {
       case (l: TBaseStruct, r: TBaseStruct) => assert(l.isCompatibleWith(r))
       case _ => assert(virtualType == srcPType.virtualType, s"virtualType: ${virtualType} != srcPType.virtualType: ${srcPType.virtualType}")
     }
-    _copyFromAddress(region, srcPType, srcAddress, deepCopy)
+    _copyFromAddress(sm, region, srcPType, srcAddress, deepCopy)
   }
 
   // return a SCode that can cheaply operate on the region representation. Generally a pointer type, but not necessarily (e.g. primitives).
@@ -463,7 +462,7 @@ abstract class PType extends Serializable with Requiredness {
   // stores a stack value inside pre-allocated memory of this type (in a nested structure, for instance).
   def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit
 
-  def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit
+  def unstagedStoreAtAddress(sm: HailStateManager, addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit
 
   def deepRename(t: Type): PType = this
 
@@ -473,7 +472,7 @@ abstract class PType extends Serializable with Requiredness {
 
   def unstagedLoadFromNested(addr: Long): Long
 
-  def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long
+  def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region): Long
 
-  def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit
+  def unstagedStoreJavaObjectAtAddress(sm: HailStateManager, addr: Long, annotation: Annotation, region: Region): Unit
 }

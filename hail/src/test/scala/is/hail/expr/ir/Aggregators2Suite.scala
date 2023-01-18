@@ -57,7 +57,7 @@ class Aggregators2Suite extends HailSuite {
       assert(resultType.virtualType.typeCheck(expected), s"expected type ${ resultType.virtualType.parsableString() }, got ${expected}")
 
     pool.scopedRegion { region =>
-      val argOff = ScalaToRegionValue(region, argT, argVs)
+      val argOff = ScalaToRegionValue(ctx.stateManager, region, argT, argVs)
 
       def withArgs(foo: IR) = {
         CompileWithAggregators[AsmFunction2RegionLongUnit](ctx,

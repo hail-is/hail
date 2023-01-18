@@ -5,7 +5,7 @@ import java.util
 import java.util.Map.Entry
 import is.hail.asm4s.HailClassLoader
 import is.hail.annotations._
-import is.hail.backend.ExecuteContext
+import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.types.virtual.{TStruct, Type, TypeSerializer}
 import is.hail.expr.ir.IRParser
 import is.hail.types.physical.{PStruct, PType}
@@ -24,17 +24,18 @@ object IndexReaderBuilder {
     val (keyType, annotationType) = spec.types
     val (leafPType: PStruct, leafDec) = spec.leafCodec.buildDecoder(ctx, spec.leafCodec.encodedVirtualType)
     val (intPType: PStruct, intDec) = spec.internalNodeCodec.buildDecoder(ctx, spec.internalNodeCodec.encodedVirtualType)
-    withDecoders(leafDec, intDec, keyType, annotationType, leafPType, intPType)
-
+    withDecoders(ctx, leafDec, intDec, keyType, annotationType, leafPType, intPType)
   }
 
   def withDecoders(
+    ctx: ExecuteContext,
     leafDec: (InputStream, HailClassLoader) => Decoder, intDec: (InputStream, HailClassLoader) => Decoder,
     keyType: Type, annotationType: Type,
     leafPType: PStruct, intPType: PStruct
   ): (HailClassLoader, FS, String, Int, RegionPool) => IndexReader = {
+    val sm = ctx.stateManager
     (theHailClassLoader, fs, path, cacheCapacity, pool) => new IndexReader(
-      theHailClassLoader, fs, path, cacheCapacity, leafDec, intDec, keyType, annotationType, leafPType, intPType, pool)
+      theHailClassLoader, fs, path, cacheCapacity, leafDec, intDec, keyType, annotationType, leafPType, intPType, pool, sm)
   }
 }
 
@@ -73,7 +74,8 @@ class IndexReader(
   val annotationType: Type,
   val leafPType: PStruct,
   val internalPType: PStruct,
-  val pool: RegionPool
+  val pool: RegionPool,
+  val sm: HailStateManager
 ) extends AutoCloseable {
   private[io] val metadata = IndexReader.readMetadata(fs, path, keyType, annotationType)
   val branchingFactor = metadata.branchingFactor
@@ -82,8 +84,8 @@ class IndexReader(
   val attributes = metadata.attributes
   val indexRelativePath = metadata.indexPath
   val ordering = keyType match {
-    case ts: TStruct => PartitionBoundOrdering(ts)
-    case t => t.ordering
+    case ts: TStruct => PartitionBoundOrdering(sm, ts)
+    case t => t.ordering(sm)
   }
 
   private val is = fs.openNoCompression(path + "/" + indexRelativePath)

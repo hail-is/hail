@@ -1,6 +1,8 @@
 package is.hail.types.virtual
 
-import is.hail.annotations.ExtendedOrdering
+import is.hail.annotations.{Annotation, ExtendedOrdering}
+import is.hail.backend.HailStateManager
+import is.hail.check.Gen
 import is.hail.expr.ir.IRParser
 import is.hail.types.physical.PType
 import is.hail.utils._
@@ -121,7 +123,9 @@ final case class TUnion(cases: IndexedSeq[Case]) extends Type {
     }
   }
 
+  override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = ???
+
   override def scalaClassTag: ClassTag[AnyRef] = ???
 
-  def mkOrdering(missingEqual: Boolean): ExtendedOrdering = ???
+  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering = ???
 }

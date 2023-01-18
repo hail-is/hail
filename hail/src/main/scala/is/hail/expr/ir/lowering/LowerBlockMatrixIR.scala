@@ -839,7 +839,7 @@ object LowerBlockMatrixIR {
         s
       ), TStream(s.typ))
     }
-    val ts = TableStage(letBindings, bcFields, Ref(globalsId, emptyGlobals.typ), RVDPartitioner.unkeyed(blocksRowMajor.size), TableStageDependency.none, contextsIR, tsPartitionFunction)
+    val ts = TableStage(letBindings, bcFields, Ref(globalsId, emptyGlobals.typ), RVDPartitioner.unkeyed(ctx.stateManager, blocksRowMajor.size), TableStageDependency.none, contextsIR, tsPartitionFunction)
     ts
   }
 

@@ -93,7 +93,6 @@ class ReferenceGenome(object):
                       par=sequenceof(sized_tupleof(str, int, int)),
                       _builtin=bool)
     def __init__(self, name, contigs, lengths, x_contigs=[], y_contigs=[], mt_contigs=[], par=[], _builtin=False):
-        super(ReferenceGenome, self).__init__()
 
         contigs = wrap_to_list(contigs)
         x_contigs = wrap_to_list(x_contigs)
@@ -422,9 +421,9 @@ class ReferenceGenome(object):
         :class:`.ReferenceGenome`
         """
         par_strings = ["{}:{}-{}".format(contig, start, end) for (contig, start, end) in par]
-        Env.backend().from_fasta_file(name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par_strings)
+        config = Env.backend().from_fasta_file(name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par_strings)
 
-        rg = ReferenceGenome._from_config(Env.backend().get_reference(name), _builtin=True)
+        rg = ReferenceGenome._from_config(config, _builtin=True)
         rg._sequence_files = (fasta_file, index_file)
         return rg
 

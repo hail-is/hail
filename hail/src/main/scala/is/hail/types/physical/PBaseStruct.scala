@@ -2,6 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
+import is.hail.backend.HailStateManager
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces.SBaseStructValue
@@ -74,15 +75,15 @@ abstract class PBaseStruct extends PType {
   def isCompatibleWith(other: PBaseStruct): Boolean =
     fields.zip(other.fields).forall{ case (l, r) => l.typ isOfType r.typ }
 
-  override def unsafeOrdering(): UnsafeOrdering =
-    unsafeOrdering(this)
+  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering =
+    unsafeOrdering(sm, this)
 
-  override def unsafeOrdering(rightType: PType): UnsafeOrdering = {
+  override def unsafeOrdering(sm: HailStateManager, rightType: PType): UnsafeOrdering = {
     require(this isOfType rightType)
 
     val right = rightType.asInstanceOf[PBaseStruct]
     val fieldOrderings: Array[UnsafeOrdering] =
-      types.zip(right.types).map { case (l, r) => l.unsafeOrdering(r)}
+      types.zip(right.types).map { case (l, r) => l.unsafeOrdering(sm, r)}
 
     new UnsafeOrdering {
       def compare(o1: Long, o2: Long): Int = {
@@ -147,10 +148,10 @@ abstract class PBaseStruct extends PType {
 
   override lazy val containsPointers: Boolean = types.exists(_.containsPointers)
 
-  override def genNonmissingValue: Gen[Annotation] = {
+  override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = {
     if (types.isEmpty) {
       Gen.const(Annotation.empty)
     } else
-      Gen.uniformSequence(types.map(t => t.genValue)).map(a => Annotation(a: _*))
+      Gen.uniformSequence(types.map(t => t.genValue(sm))).map(a => Annotation(a: _*))
   }
 }

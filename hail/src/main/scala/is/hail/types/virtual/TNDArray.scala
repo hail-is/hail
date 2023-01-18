@@ -1,7 +1,9 @@
 package is.hail.types.virtual
 
 import is.hail.annotations.{Annotation, ExtendedOrdering, NDArray, UnsafeIndexedSeq}
+import is.hail.backend.HailStateManager
 import is.hail.expr.{Nat, NatBase}
+import is.hail.check.Gen
 import is.hail.types.physical.PNDArray
 import org.apache.spark.sql.Row
 
@@ -114,7 +116,9 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
 
   }
 
-  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering = null
+  override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = ???
+
+  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering = null
 
   lazy val shapeType: TTuple = TTuple(Array.fill(nDims)(TInt64): _*)
 

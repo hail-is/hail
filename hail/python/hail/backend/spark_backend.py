@@ -12,7 +12,7 @@ import pyspark.sql
 from typing import List, Optional
 
 import hail as hl
-from hail.utils.java import scala_package_object, scala_object
+from hail.utils.java import scala_package_object
 from hail.expr.types import dtype
 from hail.expr.table_type import ttable
 from hail.expr.matrix_type import tmatrix
@@ -319,33 +319,32 @@ class SparkBackend(Py4JBackend):
         return pyspark.sql.DataFrame(self._jbackend.pyToDF(self._to_java_table_ir(t._tir)), self._spark_session)
 
     def add_reference(self, config):
-        self.hail_package().variant.ReferenceGenome.fromJSON(json.dumps(config))
+        self._jbackend.pyAddReference(json.dumps(config))
 
     def load_references_from_dataset(self, path):
-        return json.loads(self.hail_package().variant.ReferenceGenome.fromHailDataset(self.fs._jfs, path))
+        return json.loads(self._jbackend.pyLoadReferencesFromDataset(path))
 
     def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
-        self._jbackend.pyFromFASTAFile(
-            name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par)
+        return json.loads(self._jbackend.pyFromFASTAFile(name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par))
 
     def remove_reference(self, name):
-        self.hail_package().variant.ReferenceGenome.removeReference(name)
+        self._jbackend.pyRemoveReference(name)
 
     def _get_non_builtin_reference(self, name):
-        return json.loads(self.hail_package().variant.ReferenceGenome.getReference(name).toJSONString())
+        from hail.genetics.reference_genome import ReferenceGenome
+        return ReferenceGenome._references[name]._config
 
     def add_sequence(self, name, fasta_file, index_file):
         self._jbackend.pyAddSequence(name, fasta_file, index_file)
 
     def remove_sequence(self, name):
-        scala_object(self.hail_package().variant, 'ReferenceGenome').removeSequence(name)
+        self._jbackend.pyRemoveSequence(name)
 
     def add_liftover(self, name, chain_file, dest_reference_genome):
-        self._jbackend.pyReferenceAddLiftover(name, chain_file, dest_reference_genome)
+        self._jbackend.pyAddLiftover(name, chain_file, dest_reference_genome)
 
     def remove_liftover(self, name, dest_reference_genome):
-        scala_object(self.hail_package().variant, 'ReferenceGenome').referenceRemoveLiftover(
-            name, dest_reference_genome)
+        self._jbackend.pyRemoveLiftover(name, dest_reference_genome)
 
     def parse_vcf_metadata(self, path):
         return json.loads(self._jhc.pyParseVCFMetadataJSON(self.fs._jfs, path))

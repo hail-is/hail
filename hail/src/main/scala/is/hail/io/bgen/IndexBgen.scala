@@ -69,7 +69,7 @@ object IndexBgen {
     val settings: BgenSettings = BgenSettings(
       0, // nSamples not used if there are no entries
       TableType(rowType = TStruct(
-        "locus" -> TLocus.schemaFromRG(referenceGenome),
+        "locus" -> TLocus.schemaFromRG(rg),
         "alleles" -> TArray(TString),
         "offset" -> TInt64,
         "file_idx" -> TInt32),
@@ -106,7 +106,7 @@ object IndexBgen {
       "skip_invalid_loci" -> skipInvalidLoci)
 
     val rangeBounds = bgenFilePaths.zipWithIndex.map { case (_, i) => Interval(Row(i), Row(i), includesStart = true, includesEnd = true) }
-    val partitioner = new RVDPartitioner(Array("file_idx"), keyType.asInstanceOf[TStruct], rangeBounds)
+    val partitioner = new RVDPartitioner(ctx.stateManager, Array("file_idx"), keyType.asInstanceOf[TStruct], rangeBounds)
     val crvd = BgenRDD(ctx, partitions, settings, null).toCRDDPtr
 
     val makeIW = IndexWriter.builder(ctx, indexKeyType, annotationType, attributes = attributes)

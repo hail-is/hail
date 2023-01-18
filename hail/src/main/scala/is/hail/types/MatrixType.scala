@@ -200,9 +200,9 @@ case class MatrixType(
     }
   }
 
-  def referenceGenome: ReferenceGenome = {
+  def referenceGenomeName: String = {
     val firstKeyField = rowKeyStruct.types(0)
-    firstKeyField.asInstanceOf[TLocus].rg.asInstanceOf[ReferenceGenome]
+    firstKeyField.asInstanceOf[TLocus].rg
   }
 
   def pyJson: JObject = {
