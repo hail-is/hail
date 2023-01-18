@@ -57,7 +57,7 @@ object IndexBgen {
     }
 
     val recoding = Option(contigRecoding).getOrElse(Map.empty[String, String])
-    val referenceGenome = rg.map(ReferenceGenome.getReference)
+    val referenceGenome = rg.map(ctx.getReference)
     referenceGenome.foreach(_.validateContigRemap(recoding))
 
     val headers = LoadBgen.getFileHeaders(fs, bgenFilePaths)

@@ -323,6 +323,7 @@ class SparkBackend(
     timer,
     if (selfContainedExecution) null else new NonOwningTempFileManager(longLifeTempFileManager),
     theHailClassLoader,
+    ReferenceGenome.references,
     flags
   )
 
@@ -335,6 +336,7 @@ class SparkBackend(
       timer,
       if (selfContainedExecution) null else new NonOwningTempFileManager(longLifeTempFileManager),
       theHailClassLoader,
+      ReferenceGenome.references,
       flags
     )(f)
   }
