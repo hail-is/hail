@@ -48,14 +48,13 @@ class DaviesAlgorithm(
     *     Davies, Robert. "The distribution of a linear combination of chi-squared
     *     random variables." Applied Statistics 29 323-333. 1980.
     *
-    * The fortran code was published with the aforementioned paper and appears to be in the public
-    * domain? The C code also lacks a license but has appeared within packages holding a number of
-    * different licenses. The R package "CompQuadForm" claims a license of "GPL (>= 2)" and includes
-    * Davies' source code almost verbatim. An MIT licensed repository of Python code,
-    * https://github.com/limix/chi2comb, also includes an almost verbatim copy of Davies' source
-    * code: https://github.com/limix/chi2comb/blob/master/src/chi2comb.c .
+    * The Fortran code was published with the aforementioned paper. A port to C is available on
+    * Davies' website http://www.robertnz.net/download.html . At the time of retrieval (2023-01-15),
+    * the code lacks a description of its license. On 2023-01-18 0304 ET I received personal e-mail
+    * correspondence from Robert Davies indicating:
     *
-    * Robert Davies' source code is available at his website: http://www.robertnz.net/download.html .
+    *     Assume it has the MIT license. That is on my todo list to say the MIT license applies to
+    *     all the software on the website unless specified otherwise.
     *
     **/
   import GeneralizedChiSquaredDistribution._
