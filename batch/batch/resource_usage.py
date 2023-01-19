@@ -1,4 +1,5 @@
 import asyncio
+import errno
 import logging
 import os
 import shutil
@@ -30,6 +31,13 @@ class ResourceUsageMonitor:
 
     @staticmethod
     def decode_to_df(data: bytes) -> Optional[pd.DataFrame]:
+        try:
+            return ResourceUsageMonitor._decode_to_df(data)
+        except Exception:
+            return None
+
+    @staticmethod
+    def _decode_to_df(data: bytes) -> Optional[pd.DataFrame]:
         if len(data) == 0:
             return None
 
@@ -212,6 +220,11 @@ iptables -t mangle -L -v -n -x -w | grep "{self.veth_host}" | awk '{{ if ($6 == 
                 except asyncio.CancelledError:
                     cancelled = True
                     raise
+                except OSError as err:
+                    if err.errno == errno.ENOSPC:
+                        cancelled = True
+                        raise
+                    log.exception(f'while monitoring {self.container_name}')
                 except Exception:
                     log.exception(f'while monitoring {self.container_name}')
                 finally:
