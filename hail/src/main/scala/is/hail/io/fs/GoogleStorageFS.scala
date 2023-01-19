@@ -10,6 +10,7 @@ import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.cloud.{ReadChannel, WriteChannel}
 import com.google.cloud.storage.Storage.{BlobListOption, BlobWriteOption, BlobSourceOption}
 import com.google.cloud.storage.{Option => StorageOption, _}
+import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.cloud.http.HttpTransportOptions
 import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
 import is.hail.services.retryTransientErrors
@@ -117,7 +118,7 @@ class GoogleStorageFS(
     try {
       makeRequest(Seq())
     } catch {
-      case exc: StorageException =>
+      case exc: GoogleJsonResponseException =>
         if ((exc.getReason() != null && exc.getReason().equals("userProjectMissing")) ||
           (exc.getCode() == 400 && exc.getMessage().contains("requester pays"))) {
           makeRequest(requesterPaysOptions(bucket, makeUserProjectOption))
