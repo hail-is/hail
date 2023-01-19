@@ -2806,7 +2806,7 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
         assert max(regions.values()) < 64, str(regions)
     app['regions'] = regions
 
-    fs = get_cloud_async_fs(credentials_file='/gsa-key/key.json')
+    fs = get_cloud_async_fs()
     app['file_store'] = FileStore(fs, BATCH_STORAGE_URI, instance_id)
 
     app['inst_coll_configs'] = await InstanceCollectionConfigs.create(db)
