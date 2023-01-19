@@ -12,7 +12,6 @@ import datetime
 import botocore.config
 import botocore.exceptions
 import boto3
-from hailtop import timex
 from hailtop.utils import blocking_to_async
 from hailtop.aiotools.fs import (FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
                                  AsyncFSURL, MultiPartCreate, FileAndDirectoryError)
