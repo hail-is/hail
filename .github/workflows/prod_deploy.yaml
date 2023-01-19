@@ -7,18 +7,28 @@ jobs:
   invoke-prod-deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: deploy
+      - name: deploy to GCP
         run: |
           DEPLOY_BATCH_URL=$(curl --fail --silent --show-error -X POST \
               -H "Authorization: Bearer ${{ secrets.CI_TOKEN }}" \
               -H "Content-Type:application/json" \
               -d '{"steps": ["deploy_auth", "deploy_batch", "deploy_ci", "deploy_hailgenetics_image", "deploy_memory", "deploy_wheel", "upload_query_jar"], "sha": "${{ github.sha }}"}' \
               https://ci.hail.populationgenomics.org.au/api/v1alpha/prod_deploy)
-          echo DEPLOY_BATCH_URL=$DEPLOY_BATCH_URL >> $GITHUB_ENV
+          echo DEPLOY_BATCH_URL_GCP=$DEPLOY_BATCH_URL >> $GITHUB_ENV
+
+      - name: deploy to Azure
+        # Note: deploy_hailgenetics_image and deploy_wheel not implemented yet on Azure
+        run: |
+          DEPLOY_BATCH_URL=$(curl --fail --silent --show-error -X POST \
+              -H "Authorization: Bearer ${{ secrets.CI_TOKEN_AZURE }}" \
+              -H "Content-Type:application/json" \
+              -d '{"steps": ["deploy_auth", "deploy_batch", "deploy_ci", "deploy_memory", "upload_query_jar"], "sha": "${{ github.sha }}"}' \
+              https://ci.azhail.popgen.rocks/api/v1alpha/prod_deploy)
+          echo DEPLOY_BATCH_URL_AZURE=$DEPLOY_BATCH_URL >> $GITHUB_ENV
 
       - name: post to Slack
         run: |
           curl --fail --silent --show-error -X POST \
               -H "Content-type: application/json" \
-              -d "{\"text\": \"Deploying Hail Batch: $DEPLOY_BATCH_URL\"}" \
+              -d "{\"text\": \"Deploying Hail Batch: \n_GCP:_ $DEPLOY_BATCH_URL_GCP\n_Azure:_ $DEPLOY_BATCH_URL_AZURE\"}" \
               ${{ secrets.SLACK_WEBHOOK }}
