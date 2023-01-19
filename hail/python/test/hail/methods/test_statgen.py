@@ -15,7 +15,7 @@ import unittest
 
 
 class Tests(unittest.TestCase):
-    @pytest.mark.skipif('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
+    @pytest.mark.skipif('HAIL_TEST_SKIP_PLINK' in os.environ, reason='Skipping tests requiring plink')
     @fails_service_backend()
     def test_impute_sex_same_as_plink(self):
         ds = hl.import_vcf(resource('x-chromosome.vcf'))
