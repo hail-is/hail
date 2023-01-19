@@ -2100,14 +2100,19 @@ class ImportTableTests(unittest.TestCase):
 class GrepTests(unittest.TestCase):
     @fails_local_backend()
     def test_grep_show_false(self):
-        expected = {'sampleAnnotations.tsv': ['HG00120\tCASE\t19599', 'HG00121\tCASE\t4832'],
-                    'sample2_rename.tsv': ['HG00120\tB_HG00120', 'HG00121\tB_HG00121'],
-                    'sampleAnnotations2.tsv': ['HG00120\t3919.8\t19589',
-                                               'HG00121\t966.4\t4822',
-                                               'HG00120_B\t3919.8\t19589',
-                                               'HG00121_B\t966.4\t4822',
-                                               'HG00120_B_B\t3919.8\t19589',
-                                               'HG00121_B_B\t966.4\t4822']}
+        from hail.backend.service_backend import ServiceBackend
+        if isinstance(hl.current_backend(), ServiceBackend):
+            prefix = resource('')
+        else:
+            prefix = ''
+        expected = {prefix + 'sampleAnnotations.tsv': ['HG00120\tCASE\t19599', 'HG00121\tCASE\t4832'],
+                    prefix + 'sample2_rename.tsv': ['HG00120\tB_HG00120', 'HG00121\tB_HG00121'],
+                    prefix + 'sampleAnnotations2.tsv': ['HG00120\t3919.8\t19589',
+                                                        'HG00121\t966.4\t4822',
+                                                        'HG00120_B\t3919.8\t19589',
+                                                        'HG00121_B\t966.4\t4822',
+                                                        'HG00120_B_B\t3919.8\t19589',
+                                                        'HG00121_B_B\t966.4\t4822']}
 
         assert hl.grep('HG0012[0-1]', resource('*.tsv'), show=False) == expected
 
