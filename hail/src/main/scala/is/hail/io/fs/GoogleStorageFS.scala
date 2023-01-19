@@ -110,6 +110,26 @@ class GoogleStorageFS(
     }
   }
 
+  private[this] def retryIfRequesterPays[T, U](
+    exc: Exception,
+    message: String,
+    code: Int,
+    makeRequest: Seq[U] => T,
+    makeUserProjectOption: String => U,
+    bucket: String
+  ): T = {
+    if (message == null) {
+      throw exc
+    }
+
+    val probablyNeedsRequesterPays = message.equals("userProjectMissing") || (code == 400 && message.contains("requester pays"))
+    if (!probablyNeedsRequesterPays) {
+      throw exc
+    }
+
+    makeRequest(requesterPaysOptions(bucket, makeUserProjectOption))
+  }
+
   private[this] def handleRequesterPays[T, U](
     makeRequest: Seq[U] => T,
     makeUserProjectOption: String => U,
@@ -118,13 +138,10 @@ class GoogleStorageFS(
     try {
       makeRequest(Seq())
     } catch {
+      case exc: StorageException =>
+        retryIfRequesterPays(exc, exc.getMessage(), exc.getCode(), makeRequest, makeUserProjectOption, bucket)
       case exc: GoogleJsonResponseException =>
-        if ((exc.getMessage() != null && exc.getMessage().equals("userProjectMissing")) ||
-          (exc.getStatusCode() == 400 && exc.getMessage() != null && exc.getMessage().contains("requester pays"))) {
-          makeRequest(requesterPaysOptions(bucket, makeUserProjectOption))
-        } else {
-          throw exc
-        }
+        retryIfRequesterPays(exc, exc.getMessage(), exc.getStatusCode(), makeRequest, makeUserProjectOption, bucket)
     }
   }
 
@@ -258,44 +275,56 @@ class GoogleStorageFS(
     val (dstBucket, dstPath) = getBucketPath(dst)
     val srcId = BlobId.of(srcBucket, srcPath)
     val dstId = BlobId.of(dstBucket, dstPath)
-    try {
-      val copyReq = Storage.CopyRequest.newBuilder()
-        .setSource(srcId)
-        .setTarget(dstId)
-        .build()
-      storage.copy(copyReq).getResult() // getResult is necessary to cause this to go to completion
-    } catch {
-      case exc: GoogleJsonResponseException =>
-        if (exc.getMessage() != null && exc.getMessage().equals("userProjectMissing") ||
-          (exc.getStatusCode() == 400 && exc.getMessage() != null && exc.getMessage().contains("requester pays"))) {
-          // There is only one userProject for the whole request, the source takes precedence over the target.
-          // https://github.com/googleapis/java-storage/blob/0bd17b1f70e47081941a44f018e3098b37ba2c47/google-cloud-storage/src/main/java/com/google/cloud/storage/spi/v1/HttpStorageRpc.java#L1016-L1019
-          val copyReq = requesterPaysConfiguration match {
-            case None =>
-              throw exc
-            case Some(RequesterPaysConfiguration(project, None)) =>
-              Storage.CopyRequest.newBuilder()
-                .setSourceOptions(BlobSourceOption.userProject(project))
-                .setSource(srcId)
-                .setTarget(dstId)
-                .build()
-            case Some(RequesterPaysConfiguration(project, Some(buckets))) =>
-              if (buckets.contains(srcBucket) && buckets.contains(dstBucket)) {
-                Storage.CopyRequest.newBuilder()
-                  .setSourceOptions(BlobSourceOption.userProject(project))
-                  .setSource(srcId)
-                  .setTarget(dstId)
-                  .build()
-              } else if (buckets.contains(srcBucket) || buckets.contains(dstBucket)) {
-                throw new RuntimeException(s"both $srcBucket and $dstBucket must be specified in the requester_pays_buckets to copy between these buckets", exc)
-              } else {
-                throw exc
-              }
-          }
-          storage.copy(copyReq).getResult() // getResult is necessary to cause this to go to completion
-        } else {
+
+    // There is only one userProject for the whole request, the source takes precedence over the target.
+    // https://github.com/googleapis/java-storage/blob/0bd17b1f70e47081941a44f018e3098b37ba2c47/google-cloud-storage/src/main/java/com/google/cloud/storage/spi/v1/HttpStorageRpc.java#L1016-L1019
+    def retryCopyIfRequesterPays(exc: Exception, message: String, code: Int) = {
+      if (message == null) {
+        throw exc
+      }
+
+      val probablyNeedsRequesterPays = message.equals("userProjectMissing") || (code == 400 && message.contains("requester pays"))
+      if (!probablyNeedsRequesterPays) {
+        throw exc
+      }
+
+      val config = requesterPaysConfiguration match {
+        case None =>
           throw exc
-        }
+        case Some(RequesterPaysConfiguration(project, None)) =>
+          Storage.CopyRequest.newBuilder()
+            .setSourceOptions(BlobSourceOption.userProject(project))
+            .setSource(srcId)
+            .setTarget(dstId)
+            .build()
+        case Some(RequesterPaysConfiguration(project, Some(buckets))) =>
+          if (buckets.contains(srcBucket) && buckets.contains(dstBucket)) {
+            Storage.CopyRequest.newBuilder()
+              .setSourceOptions(BlobSourceOption.userProject(project))
+              .setSource(srcId)
+              .setTarget(dstId)
+              .build()
+          } else if (buckets.contains(srcBucket) || buckets.contains(dstBucket)) {
+            throw new RuntimeException(s"both $srcBucket and $dstBucket must be specified in the requester_pays_buckets to copy between these buckets", exc)
+          } else {
+            throw exc
+          }
+      }
+      storage.copy(config).getResult() // getResult is necessary to cause this to go to completion
+    }
+
+    try {
+      storage.copy(
+        Storage.CopyRequest.newBuilder()
+          .setSource(srcId)
+          .setTarget(dstId)
+          .build()
+      ).getResult() // getResult is necessary to cause this to go to completion
+    } catch {
+      case exc: StorageException =>
+        retryCopyIfRequesterPays(exc, exc.getMessage(), exc.getCode())
+      case exc: GoogleJsonResponseException =>
+        retryCopyIfRequesterPays(exc, exc.getMessage(), exc.getStatusCode())
     }
     if (deleteSource)
       storage.delete(srcId)
