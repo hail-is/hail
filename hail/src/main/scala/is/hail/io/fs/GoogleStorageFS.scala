@@ -10,6 +10,7 @@ import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.cloud.{ReadChannel, WriteChannel}
 import com.google.cloud.storage.Storage.{BlobListOption, BlobWriteOption, BlobSourceOption}
 import com.google.cloud.storage.{Option => StorageOption, _}
+import com.google.cloud.http.HttpTransportOptions
 import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
 import is.hail.services.retryTransientErrors
 import is.hail.utils.fatal
@@ -127,7 +128,7 @@ class GoogleStorageFS(
   }
 
   private lazy val storage: Storage = {
-    val transportOptions = HttpStorageOptions.HttpStorageDefaults.getDefaultTransportOptions().toBuilder()
+    val transportOptions = HttpTransportOptions.newBuilder()
       .setConnectTimeout(5000)
       .setReadTimeout(5000)
       .build()
