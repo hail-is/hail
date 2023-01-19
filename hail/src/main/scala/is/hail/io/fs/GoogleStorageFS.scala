@@ -265,9 +265,9 @@ class GoogleStorageFS(
         .build()
       storage.copy(copyReq).getResult() // getResult is necessary to cause this to go to completion
     } catch {
-      case exc: StorageException =>
-        if (exc.getReason().equals("userProjectMissing") ||
-          (exc.getCode() == 400 && exc.getMessage().contains("requester pays"))) {
+      case exc: GoogleJsonResponseException =>
+        if (exc.getMessage() != null && exc.getMessage().equals("userProjectMissing") ||
+          (exc.getStatusCode() == 400 && exc.getMessage() != null && exc.getMessage().contains("requester pays"))) {
           // There is only one userProject for the whole request, the source takes precedence over the target.
           // https://github.com/googleapis/java-storage/blob/0bd17b1f70e47081941a44f018e3098b37ba2c47/google-cloud-storage/src/main/java/com/google/cloud/storage/spi/v1/HttpStorageRpc.java#L1016-L1019
           val copyReq = requesterPaysConfiguration match {
