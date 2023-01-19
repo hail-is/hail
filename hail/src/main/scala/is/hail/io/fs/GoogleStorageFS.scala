@@ -119,8 +119,8 @@ class GoogleStorageFS(
       makeRequest(Seq())
     } catch {
       case exc: GoogleJsonResponseException =>
-        if ((exc.getReason() != null && exc.getReason().equals("userProjectMissing")) ||
-          (exc.getCode() == 400 && exc.getMessage().contains("requester pays"))) {
+        if ((exc.getMessage() != null && exc.getMessage().equals("userProjectMissing")) ||
+          (exc.getStatusCode() == 400 && exc.getMessage() != null && exc.getMessage().contains("requester pays"))) {
           makeRequest(requesterPaysOptions(bucket, makeUserProjectOption))
         } else {
           throw exc
