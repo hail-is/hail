@@ -34,6 +34,7 @@ class ResourceUsageMonitor:
         try:
             return ResourceUsageMonitor._decode_to_df(data)
         except Exception:
+            log.exception('corrupt resource usage file found', stack_info=True)
             return None
 
     @staticmethod
