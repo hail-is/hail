@@ -1000,7 +1000,7 @@ def grep(regex, path, max_count=100, *, show: bool = True, force: bool = False, 
     ht = ht.head(max_count)
     lines = ht.collect()
     if show:
-        print('\n'.join(l.file + ': ' + l.text for l in lines))
+        print('\n'.join(line.file + ': ' + line.text for line in lines))
         return
 
     results = defaultdict(list)
