@@ -10,4 +10,5 @@ RUN curl 'https://apt.llvm.org/llvm-snapshot.gpg.key' \
         llvm-15-dev \
         clang-15 clang-tools-15 clang-format-15 clang-tidy-15 \
         libmlir-15-dev mlir-15-tools && \
+        python3-pip && \
     hail-pip-install lit
