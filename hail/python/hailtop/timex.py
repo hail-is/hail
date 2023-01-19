@@ -55,9 +55,9 @@ def parse_rfc3339(s: str) -> datetime.datetime:
         if n_digits > 6:
             # python only supports integral microseconds
             rounding_digit = fractional_second[6]
-            fractional_second = int(fractional_second[:6])
+            microsecond = int(fractional_second[:6])
             if rounding_digit in ('5', '6', '7', '8', '9'):
-                fractional_second += 1
+                microsecond += 1
         else:
             fractional_second = int(fractional_second)
             magnitude_relative_to_micro = (10 ** (6 - n_digits))

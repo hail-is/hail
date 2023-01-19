@@ -8,7 +8,7 @@ import functools
 import glob
 import fnmatch
 
-from hailtop.aiotools.fs import Copier, Transfer, FileListEntry, ReadableStream, WritableStream, FileStatus
+from hailtop.aiotools.fs import Copier, Transfer, FileListEntry, ReadableStream, WritableStream
 from hailtop.aiotools.local_fs import LocalAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.utils import bounded_gather, async_to_blocking

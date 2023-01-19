@@ -482,7 +482,12 @@ async def test_statfile_creation_and_modified_time(filesystem: Tuple[asyncio.Sem
     await fs.write(file, b'abc123')
     status = await fs.statfile(file)
 
-    if isinstance(fs, LocalAsyncFS):
+    if isinstance(fs, RouterAsyncFS):
+        is_local = isinstance(fs._get_fs(file), LocalAsyncFS)
+    else:
+        is_local = isinstance(fs, LocalAsyncFS)
+
+    if is_local:
         try:
             status.time_created()
         except ValueError as err:
