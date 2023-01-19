@@ -49,7 +49,7 @@ object GoogleStorageFileStatus {
       if (isDir)
         null
       else
-        blob.getUpdateTime,
+        blob.getUpdateTimeOffsetDateTime.toInstant().toEpochMilli(),
       blob.getSize,
       isDir)
   }
@@ -127,7 +127,7 @@ class GoogleStorageFS(
   }
 
   private lazy val storage: Storage = {
-    val transportOptions = StorageOptions.getDefaultHttpTransportOptions().toBuilder()
+    val transportOptions = HttpStorageOptions.HttpStorageDefaults.getDefaultTransportOptions().toBuilder()
       .setConnectTimeout(5000)
       .setReadTimeout(5000)
       .build()
