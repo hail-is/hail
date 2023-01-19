@@ -2,6 +2,7 @@ import json
 import os
 import re
 from typing import List
+from collections import defaultdict
 
 import avro.schema
 from avro.datafile import DataFileReader
@@ -934,8 +935,10 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA') -> Tabl
 @typecheck(regex=str,
            path=oneof(str, sequenceof(str)),
            max_count=int,
-           show=bool)
-def grep(regex, path, max_count=100, *, show=True):
+           show=bool,
+           force=bool,
+           force_bgz=bool)
+def grep(regex, path, max_count=100, *, show: bool = True, force: bool = False, force_bgz: bool = False):
     r"""Searches given paths for all lines containing regex matches.
 
     Examples
@@ -970,17 +973,44 @@ def grep(regex, path, max_count=100, *, show=True):
     show : :obj:`bool`
         When `True`, show the values on stdout. When `False`, return a
         dictionary mapping file names to lines.
+    force_bgz : :obj:`bool`
+        If ``True``, read files as blocked gzip files, assuming
+        that they were actually compressed using the BGZ codec. This option is
+        useful when the file extension is not ``'.bgz'``, but the file is
+        blocked gzip, so that the file can be read in parallel and not on a
+        single node.
+    force : :obj:`bool`
+        If ``True``, read gzipped files serially on one core. This should
+        be used only when absolutely necessary, as processing time will be
+        increased due to lack of parallelism.
 
     Returns
     ---
     :obj:`dict` of :class:`str` to :obj:`list` of :obj:`str`
     """
-    jfs = Env.spark_backend('grep').fs._jfs
+    from hail.backend.spark_backend import SparkBackend
+
+    if isinstance(hl.current_backend(), SparkBackend):
+        jfs = Env.spark_backend('grep').fs._jfs
+        if show:
+            Env.backend()._jhc.grepPrint(jfs, regex, jindexed_seq_args(path), max_count)
+            return
+        else:
+            jarr = Env.backend()._jhc.grepReturn(jfs, regex, jindexed_seq_args(path), max_count)
+            return {x._1(): list(x._2()) for x in jarr}
+
+    ht = hl.import_lines(path, force=force, force_bgz=force_bgz)
+    ht = ht.filter(ht.text.matches(regex))
+    ht = ht.head(max_count)
+    lines = ht.collect()
     if show:
-        Env.backend()._jhc.grepPrint(jfs, regex, jindexed_seq_args(path), max_count)
-    else:
-        jarr = Env.backend()._jhc.grepReturn(jfs, regex, jindexed_seq_args(path), max_count)
-        return {x._1(): list(x._2()) for x in jarr}
+        print('\n'.join(line.file + ': ' + line.text for line in lines))
+        return
+
+    results = defaultdict(list)
+    for line in lines:
+        results[line.file].append(line.text)
+    return results
 
 
 @typecheck(path=oneof(str, sequenceof(str)),
