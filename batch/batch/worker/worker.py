@@ -389,6 +389,14 @@ class InvalidImageRepository(Exception):
 
 
 class Image:
+    @staticmethod
+    async def _pull_with_auth_refresh(
+        image_ref_str: str, auth: Optional[Callable[..., Awaitable[Optional[Dict[str, str]]]]] = None
+    ):
+        assert docker
+        credentials = await auth() if auth else None
+        return await docker.images.pull(image_ref_str, auth=credentials)
+
     def __init__(
         self,
         name: str,
@@ -441,8 +449,7 @@ class Image:
             if not self.is_cloud_image:
                 await self._ensure_image_is_pulled()
             elif self.is_public_image:
-                auth = await self._batch_worker_access_token()
-                await self._ensure_image_is_pulled(auth=auth)
+                await self._ensure_image_is_pulled(auth=self._batch_worker_access_token)
             elif self.image_ref_str == BATCH_WORKER_IMAGE and isinstance(
                 self.credentials, (JVMUserCredentials, CopyStepCredentials)
             ):
@@ -452,9 +459,12 @@ class Image:
                 # image.
                 # FIXME improve the performance of this with a
                 # per-user image cache.
-                auth = self._current_user_access_token()
                 await docker_call_retry(
-                    MAX_DOCKER_IMAGE_PULL_SECS, str(self), docker.images.pull, self.image_ref_str, auth=auth
+                    MAX_DOCKER_IMAGE_PULL_SECS,
+                    str(self),
+                    self._pull_with_auth_refresh,
+                    self.image_ref_str,
+                    auth=self._current_user_access_token,
                 )
         except DockerError as e:
             if e.status == 404 and 'pull access denied' in e.message:
@@ -473,7 +483,7 @@ class Image:
         image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
         image_configs[self.image_ref_str] = json.loads(image_config)[0]
 
-    async def _ensure_image_is_pulled(self, auth: Optional[Dict[str, str]] = None):
+    async def _ensure_image_is_pulled(self, auth: Optional[Callable[..., Awaitable[Optional[Dict[str, str]]]]] = None):
         assert docker
 
         try:
@@ -481,7 +491,7 @@ class Image:
         except DockerError as e:
             if e.status == 404:
                 await docker_call_retry(
-                    MAX_DOCKER_IMAGE_PULL_SECS, str(self), docker.images.pull, self.image_ref_str, auth=auth
+                    MAX_DOCKER_IMAGE_PULL_SECS, str(self), self._pull_with_auth_refresh, self.image_ref_str, auth
                 )
             else:
                 raise
@@ -489,7 +499,7 @@ class Image:
     async def _batch_worker_access_token(self) -> Dict[str, str]:
         return await CLOUD_WORKER_API.worker_access_token(self.client_session)
 
-    def _current_user_access_token(self) -> Dict[str, str]:
+    async def _current_user_access_token(self) -> Dict[str, str]:
         assert self.credentials and isinstance(self.credentials, CloudUserCredentials)
         return {'username': self.credentials.username, 'password': self.credentials.password}
 
