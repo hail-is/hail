@@ -19,12 +19,10 @@ rfc3339_re = re.compile(
     '(.[0-9][0-9]*)?'                   # optional fractional seconds
     '([Zz]|[+-][0-9][0-9]:[0-9][0-9])'  # offset / timezone
 )
-_timezone_cache: Dict[str, datetime.timezone] = dict()
+_timezone_cache: Dict[str, datetime.timezone] = {}
 
 
 def parse_rfc3339(s: str) -> datetime.datetime:
-    global _timezone_cache
-
     parts = rfc3339_re.fullmatch(s)
     if parts is None:
         raise ValueError(f'Datetime string is not RFC3339 compliant: {s}.')

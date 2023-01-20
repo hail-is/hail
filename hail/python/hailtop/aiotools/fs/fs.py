@@ -17,7 +17,6 @@ class FileStatus(abc.ABC):
     @abc.abstractmethod
     def time_created(self) -> datetime.datetime:
         '''The time the object was created in seconds since the epcoh, UTC.'''
-        pass
 
     @abc.abstractmethod
     def time_modified(self) -> datetime.datetime:
@@ -26,7 +25,6 @@ class FileStatus(abc.ABC):
         Not all clouds expose a modification time.
 
         '''
-        pass
 
     @abc.abstractmethod
     async def __getitem__(self, key: str) -> Any:
