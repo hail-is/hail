@@ -6,9 +6,6 @@ import is.hail.utils._
 
 object Optimize {
   def apply[T <: BaseIR](ir0: T, context: String, ctx: ExecuteContext): T = {
-    if (ctx.shouldLogIR())
-      log.info(s"optimize $context: before: IR size ${ IRSize(ir0) }: \n" + Pretty(ctx, ir0, elideLiterals = true))
-
     var ir = ir0
     var last: BaseIR = null
     var iter = 0
@@ -40,9 +37,6 @@ object Optimize {
         s"\n  after:  ${ ir.typ.parsableString() }" +
         s"\n  Before IR:\n  ----------\n${ Pretty(ctx, ir0) }" +
         s"\n  After IR:\n  ---------\n${ Pretty(ctx, ir) }")
-
-    if (ctx.shouldLogIR())
-      log.info(s"optimize $context: after: IR size ${ IRSize(ir) }:\n" + Pretty(ctx, ir, elideLiterals = true))
 
     ir
   }
