@@ -16,13 +16,19 @@ class FileStatus(abc.ABC):
 
     @abc.abstractmethod
     def time_created(self) -> datetime.datetime:
-        '''The time the object was created in seconds since the epcoh, UTC.'''
+        '''The time the object was created in seconds since the epcoh, UTC.
+
+        Some filesystems do not support creation time. In that case, an error is raised.
+
+        '''
 
     @abc.abstractmethod
     def time_modified(self) -> datetime.datetime:
         '''The time the object was last modified in seconds since the epoch, UTC.
 
-        Not all clouds expose a modification time.
+        The meaning of modification time is cloud-defined. In some clouds, it is the creation
+        time. In some clouds, it is the more recent of the creation time or the time of the most
+        recent metadata modification.
 
         '''
 
