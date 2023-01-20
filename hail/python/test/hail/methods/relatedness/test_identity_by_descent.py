@@ -8,8 +8,6 @@ from ...helpers import get_dataset, fails_service_backend, fails_local_backend
 
 
 class Tests(unittest.TestCase):
-    @fails_service_backend()
-    @fails_local_backend()
     @unittest.skipIf('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
     def test_ibd(self):
         dataset = get_dataset()
