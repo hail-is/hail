@@ -765,14 +765,15 @@ class ServiceBackend(Backend[bc.Batch]):
 
         jobs_to_command = {j.id: cmd for j, cmd in jobs_to_command.items()}
 
+        deploy_config = get_deploy_config()
+        url = deploy_config.external_url('batch', f'/batches/{batch_handle.id}')
+        print(f'Submitted batch {batch_handle.id}, see {url}')
+
         if verbose:
-            print(f'Submitted batch {batch_handle.id} with {n_jobs_submitted} jobs in {round(time.time() - submit_batch_start, 3)} seconds:')
+            print(f'Batch consists of {n_jobs_submitted} jobs, submitted in {round(time.time() - submit_batch_start, 3)} seconds:')
             for jid, cmd in jobs_to_command.items():
                 print(f'{jid}: {cmd}')
             print('')
-
-        deploy_config = get_deploy_config()
-        url = deploy_config.external_url('batch', f'/batches/{batch_handle.id}')
 
         if open:
             webbrowser.open(url)
