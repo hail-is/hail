@@ -171,6 +171,8 @@ spec:
             cpu: "1.5"
             memory: "2.5G"
         env:
+         - name: PORT
+           value: "5000"
          - name: HAIL_DOMAIN
            valueFrom:
              secretKeyRef:
@@ -368,6 +370,8 @@ spec:
          - -m
          - batch.front_end
         env:
+         - name: PORT
+           value: "443"
          - name: HAIL_DOMAIN
            valueFrom:
              secretKeyRef:

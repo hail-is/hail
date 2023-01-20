@@ -2,6 +2,7 @@ import asyncio
 import copy
 import json
 import logging
+import os
 import re
 import signal
 from collections import defaultdict
@@ -1409,6 +1410,6 @@ def run():
     web.run_app(
         deploy_config.prefix_application(app, 'batch-driver', client_max_size=HTTP_CLIENT_MAX_SIZE),
         host='0.0.0.0',
-        port=5000,
+        port=int(os.environ['PORT']),
         access_log_class=BatchDriverAccessLogger,
     )
