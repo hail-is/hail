@@ -1,7 +1,7 @@
 package is.hail.io.fs
 
 
-import java.io.{ByteArrayInputStream, FileNotFoundException}
+import java.io.{ByteArrayInputStream, FileNotFoundException, IOException}
 import java.net.URI
 import java.nio.ByteBuffer
 import java.nio.file.FileSystems
@@ -10,7 +10,6 @@ import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.cloud.{ReadChannel, WriteChannel}
 import com.google.cloud.storage.Storage.{BlobListOption, BlobWriteOption, BlobSourceOption}
 import com.google.cloud.storage.{Option => StorageOption, _}
-import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.cloud.http.HttpTransportOptions
 import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
 import is.hail.services.retryTransientErrors
@@ -138,10 +137,12 @@ class GoogleStorageFS(
     try {
       makeRequest(Seq())
     } catch {
-      case exc: StorageException =>
-        retryIfRequesterPays(exc, exc.getMessage(), exc.getCode(), makeRequest, makeUserProjectOption, bucket)
-      case exc: GoogleJsonResponseException =>
-        retryIfRequesterPays(exc, exc.getMessage(), exc.getStatusCode(), makeRequest, makeUserProjectOption, bucket)
+      case exc: IOException =>
+        exc.getCause() match {
+          case cause: StorageException =>
+            retryIfRequesterPays(cause, cause.getMessage(), cause.getCode(), makeRequest, makeUserProjectOption, bucket)
+        }
+        throw exc
     }
   }
 
@@ -321,11 +322,14 @@ class GoogleStorageFS(
           .build()
       ).getResult() // getResult is necessary to cause this to go to completion
     } catch {
-      case exc: StorageException =>
-        retryCopyIfRequesterPays(exc, exc.getMessage(), exc.getCode())
-      case exc: GoogleJsonResponseException =>
-        retryCopyIfRequesterPays(exc, exc.getMessage(), exc.getStatusCode())
+      case exc: IOException =>
+        exc.getCause() match {
+          case cause: StorageException =>
+            retryCopyIfRequesterPays(cause, cause.getMessage(), cause.getCode())
+        }
+        throw exc
     }
+
     if (deleteSource)
       storage.delete(srcId)
   }
