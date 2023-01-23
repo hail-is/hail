@@ -196,8 +196,7 @@ object BlockMatrixStage2 {
       typ,
       typ.sparsity.definedBlocksColMajor.map(_.zipWithIndex.toMap),
       ctxRef.name,
-      bms.blockBody(ctxRef)
-    )
+      bms.blockBody(ctxRef))
   }
 
   def empty(eltType: Type) = new BlockMatrixStage2(
@@ -317,7 +316,7 @@ object LowerBlockMatrixIR {
 
   def lowerNonEmpty2(bmir: BlockMatrixIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: Analyses, relationalLetsAbove: Map[String, IR]): BlockMatrixStage2 = {
     bmir match {
-      case BlockMatrixRead(reader) => reader.lower2(ctx)
+      case BlockMatrixRead(reader) => reader.lower(ctx)
       case _ =>
         BlockMatrixStage2.fromOldBMS(lowerNonEmpty(bmir, typesToLower, ctx, analyses, relationalLetsAbove), bmir.typ)
     }

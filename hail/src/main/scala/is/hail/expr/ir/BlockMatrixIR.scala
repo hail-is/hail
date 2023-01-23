@@ -1,25 +1,24 @@
 package is.hail.expr.ir
 
-import is.hail.HailContext
-import is.hail.types.{BlockMatrixSparsity, BlockMatrixType}
-import is.hail.types.virtual.{TArray, TBaseStruct, TFloat64, TInt32, TInt64, TNDArray, TStream, TString, TTuple, Type}
-import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata}
-import is.hail.utils._
 import breeze.linalg.DenseMatrix
 import breeze.numerics
-import is.hail.annotations.{NDArray, Region}
+import is.hail.HailContext
+import is.hail.annotations.NDArray
 import is.hail.backend.{BackendContext, ExecuteContext}
 import is.hail.expr.Nat
-import is.hail.expr.ir.lowering.{BlockMatrixStage, BlockMatrixStage2, LowererUnsupportedOperation}
-import is.hail.io.{StreamBufferSpec, TypedCodecSpec}
+import is.hail.expr.ir.lowering.{BlockMatrixStage2, LowererUnsupportedOperation}
 import is.hail.io.fs.FS
+import is.hail.io.{StreamBufferSpec, TypedCodecSpec}
+import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata}
 import is.hail.types.encoded.{EBlockMatrixNDArray, EFloat64, ENumpyBinaryNDArray}
-
-import scala.collection.mutable.ArrayBuffer
+import is.hail.types.virtual._
+import is.hail.types.{BlockMatrixSparsity, BlockMatrixType}
+import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
 import scala.collection.immutable.NumericRange
+import scala.collection.mutable.ArrayBuffer
 
 object BlockMatrixIR {
   def checkFitsIntoArray(nRows: Long, nCols: Long) {
@@ -106,9 +105,8 @@ object BlockMatrixReader {
 abstract class BlockMatrixReader {
   def pathsUsed: Seq[String]
   def apply(ctx: ExecuteContext): BlockMatrix
-  def lower(ctx: ExecuteContext): BlockMatrixStage =
+  def lower(ctx: ExecuteContext): BlockMatrixStage2 =
     throw new LowererUnsupportedOperation(s"BlockMatrixReader not implemented: ${ this.getClass }")
-  def lower2(ctx: ExecuteContext): BlockMatrixStage2 = BlockMatrixStage2.fromOldBMS(lower(ctx), fullType)
   def fullType: BlockMatrixType
   def toJValue: JValue = {
     Extraction.decompose(this)(BlockMatrixReader.formats)
@@ -158,7 +156,7 @@ class BlockMatrixNativeReader(
 
   }
 
-  override def lower2(ctx: ExecuteContext): BlockMatrixStage2 = {
+  override def lower(ctx: ExecuteContext): BlockMatrixStage2 = {
     val coordToContextIdx = fullType.sparsity.definedBlocksColMajor.map(_.zipWithIndex.toMap)
     val ctxRef = Ref(genUID(), TString)
     val ctxs = ToStream(Literal(TArray(TString), metadata.partFiles))
@@ -200,22 +198,24 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
     BlockMatrix.fromBreezeMatrix(breezeMatrix, blockSize)
   }
 
-  override def lower(ctx: ExecuteContext): BlockMatrixStage = {
+  override def lower(ctx: ExecuteContext): BlockMatrixStage2 = {
     val readFromNumpyEType = ENumpyBinaryNDArray(nRows, nCols, true)
     val readFromNumpySpec = TypedCodecSpec(readFromNumpyEType, TNDArray(TFloat64, Nat(2)), new StreamBufferSpec())
     val nd = ReadValue(Str(path), readFromNumpySpec, TNDArray(TFloat64, nDimsBase = Nat(2)))
-    val ndRef = Ref(genUID(), nd.typ)
 
-    new BlockMatrixStage(IndexedSeq(ndRef.name -> nd), Array(), nd.typ) {
-      def blockContext(idx: (Int, Int)): IR = {
-        val (r, c) = idx
-        NDArraySlice(ndRef, MakeTuple.ordered(FastSeq(
-          MakeTuple.ordered(FastSeq(I64(r.toLong * blockSize), I64(java.lang.Math.min((r.toLong + 1) * blockSize, nRows)), I64(1))),
-          MakeTuple.ordered(FastSeq(I64(c.toLong * blockSize), I64(java.lang.Math.min((c.toLong + 1) * blockSize, nCols)), I64(1))))))
+    val typ = fullType
+    val ctxRef = Ref(genUID(), nd.typ)
+    val ctxs = bindIR(nd) { ndRef =>
+      flatMapIR(rangeIR(typ.nColBlocks)) { c =>
+        mapIR(rangeIR(typ.nRowBlocks)) { r =>
+          NDArraySlice(ndRef, MakeTuple.ordered(FastSeq(
+            MakeTuple.ordered(FastSeq(r.toL * blockSize.toLong, minIR((r + 1).toL * blockSize.toLong, nRows), 1L)),
+            MakeTuple.ordered(FastSeq(c.toL * blockSize.toLong, minIR((c + 1).toL * blockSize.toLong, nCols), 1L)))))
+        }
       }
-
-      def blockBody(ctxRef: Ref): IR = ctxRef
     }
+
+    new BlockMatrixStage2(FastIndexedSeq(), FastIndexedSeq(), ctxs, typ, None, ctxRef.name, ctxRef)
   }
 }
 
