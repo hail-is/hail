@@ -2125,6 +2125,7 @@ class JVMContainer:
         root_dir: str,
         client_session: httpx.ClientSession,
         pool: concurrent.futures.ThreadPoolExecutor,
+        fs: AsyncFS,
         task_manager: aiotools.BackgroundTaskManager,
     ):
         assert os.path.commonpath([socket_file, root_dir]) == root_dir
@@ -2181,8 +2182,6 @@ class JVMContainer:
             },
         ]
 
-        fs = LocalAsyncFS(pool)  # worker does not have a fs when initializing JVMs
-
         c = Container(
             task_manager=task_manager,
             fs=fs,
@@ -2201,9 +2200,9 @@ class JVMContainer:
 
         return JVMContainer(c, fs)
 
-    def __init__(self, container: Container, fs: LocalAsyncFS):
+    def __init__(self, container: Container, fs: AsyncFS):
         self.container = container
-        self.fs: Optional[LocalAsyncFS] = fs
+        self.fs: AsyncFS = fs
 
     @property
     def returncode(self) -> Optional[int]:
@@ -2237,11 +2236,12 @@ class JVM:
         root_dir: str,
         client_session: httpx.ClientSession,
         pool: concurrent.futures.ThreadPoolExecutor,
+        fs: AsyncFS,
         task_manager: aiotools.BackgroundTaskManager,
     ) -> JVMContainer:
         try:
             container = await JVMContainer.create_and_start(
-                index, n_cores, socket_file, root_dir, client_session, pool, task_manager
+                index, n_cores, socket_file, root_dir, client_session, pool, fs, task_manager
             )
 
             attempts = 0
@@ -2290,6 +2290,7 @@ class JVM:
             root_dir,
             worker.client_session,
             worker.pool,
+            worker.fs,
             worker.task_manager,
         )
         return cls(
@@ -2302,6 +2303,7 @@ class JVM:
             container,
             worker.client_session,
             worker.pool,
+            worker.fs,
             worker.task_manager,
         )
 
@@ -2316,6 +2318,7 @@ class JVM:
         container: JVMContainer,
         client_session: httpx.ClientSession,
         pool: concurrent.futures.ThreadPoolExecutor,
+        fs: AsyncFS,
         task_manager: aiotools.BackgroundTaskManager,
     ):
         self.index = index
@@ -2327,6 +2330,7 @@ class JVM:
         self.container = container
         self.client_session = client_session
         self.pool = pool
+        self.fs = fs
         self.task_manager = task_manager
 
     def __str__(self):
@@ -2363,6 +2367,7 @@ class JVM:
                     self.root_dir,
                     self.client_session,
                     self.pool,
+                    self.fs,
                     self.task_manager,
                 )
                 self.container = container
