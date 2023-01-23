@@ -317,6 +317,26 @@ object LowerBlockMatrixIR {
   def lowerNonEmpty2(bmir: BlockMatrixIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: Analyses, relationalLetsAbove: Map[String, IR]): BlockMatrixStage2 = {
     bmir match {
       case BlockMatrixRead(reader) => reader.lower(ctx)
+
+      case x@BlockMatrixRandom(staticUID, gaussian, shape, blockSize) =>
+        val ctxRef = Ref(genUID(), TTuple(TInt64, TInt64, TInt32))
+        val ctxs: IR = flatMapIR(rangeIR(x.typ.nColBlocks)) { c =>
+          mapIR(rangeIR(x.typ.nRowBlocks)) { r =>
+            val (m, n) = x.typ.blockShapeIR(r, c)
+            MakeTuple.ordered(FastSeq(m, n, r * x.typ.nColBlocks + c))
+          }
+        }
+        val bodyIR: IR = {
+          val m = GetTupleElement(ctxRef, 0)
+          val n = GetTupleElement(ctxRef, 1)
+          val i = GetTupleElement(ctxRef, 2)
+          val f = if (gaussian) "rand_norm_nd" else "rand_unif_nd"
+          val rngState = RNGSplit(RNGStateLiteral(), Cast(i, TInt64))
+          invokeSeeded(f, staticUID, TNDArray(TFloat64, Nat(2)), rngState, m, n, F64(0.0), F64(1.0))
+        }
+
+        new BlockMatrixStage2(FastIndexedSeq(), FastIndexedSeq(), ctxs, x.typ, None, ctxRef.name, bodyIR)
+
       case _ =>
         BlockMatrixStage2.fromOldBMS(lowerNonEmpty(bmir, typesToLower, ctx, analyses, relationalLetsAbove), bmir.typ)
     }
@@ -328,21 +348,6 @@ object LowerBlockMatrixIR {
     def lowerIR(node: IR): IR = LowerToCDA.lower(node, typesToLower, ctx, analyses, relationalLetsAbove: Map[String, IR])
 
     bmir match {
-      case x@BlockMatrixRandom(staticUID, gaussian, shape, blockSize) =>
-        new BlockMatrixStage(IndexedSeq(), Array(), TTuple(TInt64, TInt64, TInt32)) {
-          def blockContext(idx: (Int, Int)): IR = {
-            val (m, n) = x.typ.blockShape(idx._1, idx._2)
-            MakeTuple.ordered(FastSeq(m, n, idx._1 * x.typ.nColBlocks + idx._2))
-          }
-          def blockBody(ctxRef: Ref): IR = {
-            val m = GetTupleElement(ctxRef, 0)
-            val n = GetTupleElement(ctxRef, 1)
-            val i = GetTupleElement(ctxRef, 2)
-            val f = if (gaussian) "rand_norm_nd" else "rand_unif_nd"
-            val rngState = RNGSplit(RNGStateLiteral(), Cast(i, TInt64))
-            invokeSeeded(f, staticUID, TNDArray(TFloat64, Nat(2)), rngState, m, n, F64(0.0), F64(1.0))
-          }
-        }
       case BlockMatrixMap(child, eltName, f, _) =>
         lower(child).mapBody { (_, body) =>
           NDArrayMap(body, eltName, f)

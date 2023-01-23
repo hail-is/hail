@@ -1,7 +1,8 @@
 package is.hail.types
 
+import is.hail.expr.ir.{I64, IR, If}
 import is.hail.utils._
-import is.hail.types.virtual.{TFloat64, Type}
+import is.hail.types.virtual.{TFloat64, TInt32, Type}
 import is.hail.linalg.BlockMatrix
 
 object BlockMatrixSparsity {
@@ -139,6 +140,14 @@ case class BlockMatrixType(
   def blockShape(i: Int, j: Int): (Long, Long) = {
     val r = if (i == nRowBlocks - 1) nRows - (i * blockSize) else blockSize
     val c = if (j == nColBlocks - 1) nCols - (j * blockSize) else blockSize
+    r -> c
+  }
+
+  def blockShapeIR(i: IR, j: IR): (IR, IR) = {
+    assert(i.typ == TInt32)
+    assert(j.typ == TInt32)
+    val r = If(i.ceq(nRowBlocks - 1), I64(nRows) - (i.toL * blockSize.toLong), blockSize.toLong)
+    val c = If(j.ceq(nColBlocks - 1), I64(nCols) - (j.toL * blockSize.toLong), blockSize.toLong)
     r -> c
   }
 
