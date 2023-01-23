@@ -187,14 +187,14 @@ abstract class BlockMatrixStage(val letBindings: IndexedSeq[(String, IR)], val b
 object BlockMatrixStage2 {
   def fromOldBMS(bms: BlockMatrixStage, typ: BlockMatrixType): BlockMatrixStage2 = {
     val ctxRef = Ref(genUID(), bms.ctxType)
-    val blocks = typ.sparsity.allBlocks(typ.nRowBlocks, typ.nColBlocks, false)
+    val blocks = typ.sparsity.allBlocks(typ.nRowBlocks, typ.nColBlocks, true)
     val ctxs = MakeStream(blocks.map(idx => bms.blockContext(idx)), TStream(ctxRef.typ))
     new BlockMatrixStage2(
       bms.letBindings,
       bms.broadcastVals,
       ctxs,
       typ,
-      blocks.zipWithIndex.toMap,
+      typ.sparsity.definedBlocksColMajor.map(_.zipWithIndex.toMap),
       ctxRef.name,
       bms.blockBody(ctxRef)
     )
@@ -205,7 +205,7 @@ object BlockMatrixStage2 {
     IndexedSeq(),
     MakeStream(Seq(), TStream(TInt32)),
     BlockMatrixType.dense(eltType, 0, 0, 0),
-    Map(),
+    None,
     genUID(),
     NA(TNDArray(eltType, Nat(2))))
 }
@@ -215,16 +215,20 @@ class BlockMatrixStage2(
   val broadcastVals: IndexedSeq[(String, IR)],
   val contexts: IR,
   val typ: BlockMatrixType,
-  val coordToContextIdx: Map[(Int, Int), Int],
+  _coordToContextIdx: Option[Map[(Int, Int), Int]],
   private val ctxRefName: String,
   private val blockIR: IR
 ) {
+  def coordToContextIdx(i: Int, j: Int): Int =
+    _coordToContextIdx.map(_((i, j))).getOrElse(i + j * typ.nRowBlocks)
+
   def toOldBMS: BlockMatrixStage = {
     val contextArray = ToArray(contexts)
     val contextArrayRef = Ref(genUID(), contextArray.typ)
-    new BlockMatrixStage(letBindings :+ (contextArrayRef.name -> contextArray), broadcastVals.toArray, contexts.typ.asInstanceOf[TContainer].elementType) {
+    new BlockMatrixStage(letBindings :+ (contextArrayRef.name -> contextArray), broadcastVals.toArray, contexts.typ.asInstanceOf[TStream].elementType) {
       override def blockContext(idx: (Int, Int)): IR =
-        ArrayRef(contextArrayRef, coordToContextIdx(idx))
+        ArrayRef(contextArrayRef, coordToContextIdx(idx._1, idx._2))
+
       override def blockBody(ctxRef: Ref): IR =
         Let(ctxRefName, ctxRef, blockIR)
     }
@@ -312,8 +316,11 @@ object LowerBlockMatrixIR {
   }
 
   def lowerNonEmpty2(bmir: BlockMatrixIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: Analyses, relationalLetsAbove: Map[String, IR]): BlockMatrixStage2 = {
-    assert(false)
-    BlockMatrixStage2.fromOldBMS(lowerNonEmpty(bmir, typesToLower, ctx, analyses, relationalLetsAbove), bmir.typ)
+    bmir match {
+      case BlockMatrixRead(reader) => reader.lower2(ctx)
+      case _ =>
+        BlockMatrixStage2.fromOldBMS(lowerNonEmpty(bmir, typesToLower, ctx, analyses, relationalLetsAbove), bmir.typ)
+    }
   }
 
   def lowerNonEmpty(bmir: BlockMatrixIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: Analyses, relationalLetsAbove: Map[String, IR]): BlockMatrixStage = {
@@ -322,7 +329,6 @@ object LowerBlockMatrixIR {
     def lowerIR(node: IR): IR = LowerToCDA.lower(node, typesToLower, ctx, analyses, relationalLetsAbove: Map[String, IR])
 
     bmir match {
-      case BlockMatrixRead(reader) => reader.lower(ctx)
       case x@BlockMatrixRandom(staticUID, gaussian, shape, blockSize) =>
         new BlockMatrixStage(IndexedSeq(), Array(), TTuple(TInt64, TInt64, TInt32)) {
           def blockContext(idx: (Int, Int)): IR = {

@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.types.{BlockMatrixSparsity, BlockMatrixType}
-import is.hail.types.virtual.{TArray, TBaseStruct, TFloat64, TInt32, TInt64, TNDArray, TString, TTuple, Type}
+import is.hail.types.virtual.{TArray, TBaseStruct, TFloat64, TInt32, TInt64, TNDArray, TStream, TString, TTuple, Type}
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata}
 import is.hail.utils._
 import breeze.linalg.DenseMatrix
@@ -10,7 +10,7 @@ import breeze.numerics
 import is.hail.annotations.{NDArray, Region}
 import is.hail.backend.{BackendContext, ExecuteContext}
 import is.hail.expr.Nat
-import is.hail.expr.ir.lowering.{BlockMatrixStage, LowererUnsupportedOperation}
+import is.hail.expr.ir.lowering.{BlockMatrixStage, BlockMatrixStage2, LowererUnsupportedOperation}
 import is.hail.io.{StreamBufferSpec, TypedCodecSpec}
 import is.hail.io.fs.FS
 import is.hail.types.encoded.{EBlockMatrixNDArray, EFloat64, ENumpyBinaryNDArray}
@@ -108,6 +108,7 @@ abstract class BlockMatrixReader {
   def apply(ctx: ExecuteContext): BlockMatrix
   def lower(ctx: ExecuteContext): BlockMatrixStage =
     throw new LowererUnsupportedOperation(s"BlockMatrixReader not implemented: ${ this.getClass }")
+  def lower2(ctx: ExecuteContext): BlockMatrixStage2 = BlockMatrixStage2.fromOldBMS(lower(ctx), fullType)
   def fullType: BlockMatrixType
   def toJValue: JValue = {
     Extraction.decompose(this)(BlockMatrixReader.formats)
@@ -157,24 +158,19 @@ class BlockMatrixNativeReader(
 
   }
 
-  override def lower(ctx: ExecuteContext): BlockMatrixStage = {
-    val blockFiles = fullType.sparsity.definedBlocksColMajor.map { blocks =>
-      blocks.zipWithIndex.toMap.mapValues { i => metadata.partFiles(i) }
-    }
+  override def lower2(ctx: ExecuteContext): BlockMatrixStage2 = {
+    val coordToContextIdx = fullType.sparsity.definedBlocksColMajor.map(_.zipWithIndex.toMap)
+    val ctxRef = Ref(genUID(), TString)
+    val ctxs = ToStream(Literal(TArray(TString), metadata.partFiles))
+
     val vType = TNDArray(fullType.elementType, Nat(2))
     val spec = TypedCodecSpec(EBlockMatrixNDArray(EFloat64(required = true), required = true), vType, BlockMatrix.bufferSpec)
+    val path = Apply("concat", FastSeq(),
+      FastSeq(Str(s"${ params.path }/parts/"), ctxRef),
+      TString, ErrorIDs.NO_ERROR)
+    val blockIR = ReadValue(path, spec, vType)
 
-
-    new BlockMatrixStage(IndexedSeq(), Array(), TString) {
-      def blockContext(idx: (Int, Int)): IR = {
-        if (!fullType.hasBlock(idx))
-          fatal(s"trying to read nonexistent block $idx from path ${ params.path }")
-        val filename = blockFiles.map(_(idx)).getOrElse(metadata.partFiles(idx._1 + idx._2 * fullType.nRowBlocks))
-        Str(s"${params.path}/parts/$filename")
-      }
-
-      def blockBody(ctxRef: Ref): IR = ReadValue(ctxRef, spec, vType)
-    }
+    new BlockMatrixStage2(FastIndexedSeq(), FastIndexedSeq(), ctxs, fullType, coordToContextIdx, ctxRef.name, blockIR)
   }
 
   override def toJValue: JValue = {
