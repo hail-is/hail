@@ -12,7 +12,7 @@ from hail.expr import (ExpressionException, Expression, ArrayExpression,
 from hail.expr.types import (hail_type, tint32, tint64, tfloat32, tfloat64,
                              tbool, tcall, tset, tarray, tstruct, tdict, ttuple, tstr)
 from hail.expr.expressions.typed_expressions import construct_variable
-from hail.expr.functions import rbind, float32, _quantile_from_cdf
+from hail.expr.functions import rbind, float32, _quantile_from_cdf, _func
 import hail.ir as ir
 from hail.typecheck import (TypeChecker, typecheck_method, typecheck,
                             sequenceof, func_spec, identity, nullable, oneof)
@@ -331,8 +331,11 @@ def approx_cdf(expr, k=100):
         Struct containing `values` and `ranks` arrays.
     """
     res = _agg_func('ApproxCDF', [hl.float64(expr)],
-                    tstruct(values=tarray(tfloat64), ranks=tarray(tint64), _compaction_counts=tarray(tint32)),
+                    tstruct(levels=tarray(tint32), items=tarray(tfloat64), _compaction_counts=tarray(tint32)),
                     init_op_args=[k])
+    res = _func('approxCDFResult',
+                tstruct(values=tarray(tfloat64), ranks=tarray(tint64), _compaction_counts=tarray(tint32)),
+                res)
     conv = {
         tint32: lambda x: x.map(hl.int),
         tint64: lambda x: x.map(hl.int64),
