@@ -241,6 +241,25 @@ class BlockMatrixStage2(
     }
   }
 
+  def getBlock(i: IR, j: IR): IR = {
+    val ctx = Let(rowBlockIdxName, i, Let(colBlockIdxName, j, contextIR))
+    Let(ctxRefName, ctx, blockIR)
+  }
+
+  def getElement(i: IR, j: IR): IR = {
+    val blockSize = typ.blockSize.toLong
+    bindIR(i floorDiv blockSize) { rowBlock =>
+      bindIR(j floorDiv blockSize) { colBlock =>
+        val iInBlock = i - rowBlock * blockSize
+        val jInBlock = j - colBlock * blockSize
+
+        val elt = NDArrayRef(getBlock(rowBlock.toI, colBlock.toI), FastIndexedSeq(iInBlock, jInBlock), -1)
+
+        wrapLetsAndBroadcasts(elt)
+      }
+    }
+  }
+
   private def wrapLetsAndBroadcasts(ctxIR: IR): IR = {
     (letBindings ++ broadcastVals).foldRight[IR](ctxIR) { case ((f, v), accum) => Let(f, v, accum) }
   }
@@ -253,6 +272,14 @@ class BlockMatrixStage2(
     val newBlockIR = Let(ctxRefName, GetField(newCtxRef, "old"), blockIR)
 
     new BlockMatrixStage2(letBindings, broadcastVals, typ, rowBlockIdxName, colBlockIdxName, newContextIR, newCtxRef.name, newBlockIR)
+  }
+
+  def mapBody(f: (IR, IR) => IR): BlockMatrixStage2 = {
+    val blockRef = Ref(genUID(), blockIR.typ)
+    val newBlockIR = Let(blockRef.name, blockIR, f(ctxRef, blockRef))
+    val newType = typ.copy(elementType = newBlockIR.typ.asInstanceOf[TNDArray].elementType)
+
+    new BlockMatrixStage2(letBindings, broadcastVals, newType, rowBlockIdxName, colBlockIdxName, contextIR, ctxRefName, newBlockIR)
   }
 
   def collectBlocks(
@@ -329,28 +356,16 @@ class BlockMatrixStage2(
 object LowerBlockMatrixIR {
   def apply(node: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: Analyses, relationalLetsAbove: Map[String, IR]): IR = {
 
-    def lower2(bmir: BlockMatrixIR) = LowerBlockMatrixIR.lower(bmir, typesToLower, ctx, analyses, relationalLetsAbove)
-    def lower(bmir: BlockMatrixIR) = lower2(bmir).toOldBMS
+    def lower(bmir: BlockMatrixIR) =
+      LowerBlockMatrixIR.lower(bmir, typesToLower, ctx, analyses, relationalLetsAbove)
 
     node match {
       case BlockMatrixCollect(child) =>
-        lower(child).collectLocal(relationalLetsAbove, child.typ, "block_matrix_collect")
+        lower(child).collectLocal(relationalLetsAbove, "block_matrix_collect")
       case BlockMatrixToValueApply(child, GetElement(IndexedSeq(i, j))) =>
-        val rowBlock = child.typ.getBlockIdx(i)
-        val colBlock = child.typ.getBlockIdx(j)
-
-        val iInBlock = i - rowBlock * child.typ.blockSize
-        val jInBlock = j - colBlock * child.typ.blockSize
-
-        val lowered = lower(child)
-
-        val elt = bindIR(lowered.blockContext(rowBlock -> colBlock)) { ctx =>
-          NDArrayRef(lowered.blockBody(ctx), FastIndexedSeq(I64(iInBlock), I64(jInBlock)), -1)
-        }
-
-        lowered.wrapLetsAndBroadcasts(elt)
+        lower(child).getElement(i, j)
       case BlockMatrixWrite(child, writer) =>
-        writer.lower(ctx, lower2(child), relationalLetsAbove, TypeWithRequiredness(child.typ.elementType)) //FIXME: BlockMatrixIR is currently ignored in Requiredness inference since all eltTypes are +TFloat64
+        writer.lower(ctx, lower(child), relationalLetsAbove, TypeWithRequiredness(child.typ.elementType)) //FIXME: BlockMatrixIR is currently ignored in Requiredness inference since all eltTypes are +TFloat64
       case BlockMatrixMultiWrite(blockMatrices, writer) => unimplemented(ctx, node)
       case node if node.children.exists(_.isInstanceOf[BlockMatrixIR]) =>
         throw new LowererUnsupportedOperation(s"IR nodes with BlockMatrixIR children need explicit rules: \n${ Pretty(ctx, node) }")
@@ -408,6 +423,9 @@ object LowerBlockMatrixIR {
   }
 
   def lowerNonEmpty2(bmir: BlockMatrixIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: Analyses, relationalLetsAbove: Map[String, IR]): BlockMatrixStage2 = {
+
+    def lower(ir: BlockMatrixIR) = LowerBlockMatrixIR.lower(ir, typesToLower, ctx, analyses, relationalLetsAbove)
+
     bmir match {
       case BlockMatrixRead(reader) => reader.lower(ctx)
 
@@ -430,6 +448,11 @@ object LowerBlockMatrixIR {
         }
 
         new BlockMatrixStage2(FastIndexedSeq(), FastIndexedSeq(), x.typ, rowBlockIdxRef.name, colBlockIdxRef.name, contextIR, ctxRef.name, bodyIR)
+
+      case BlockMatrixMap(child, eltName, f, _) =>
+        lower(child).mapBody { (_, body) =>
+          NDArrayMap(body, eltName, f)
+        }
 
       case _ =>
         BlockMatrixStage2.fromOldBMS(lowerNonEmpty(bmir, typesToLower, ctx, analyses, relationalLetsAbove), bmir.typ)
