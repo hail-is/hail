@@ -332,7 +332,6 @@ class LocalBackend(Backend[None]):
                 job._submitted = True
         finally:
             batch._python_function_defs.clear()
-            batch._python_function_files.clear()
             if delete_scratch_on_exit:
                 sp.run(f'rm -rf {tmpdir}', shell=True, check=False)
 
@@ -795,7 +794,6 @@ class ServiceBackend(Backend[bc.Batch]):
             print(f'batch {batch_handle.id} complete: {status["state"]}')
 
         batch._python_function_defs.clear()
-        batch._python_function_files.clear()
         return batch_handle
 
     def validate_file_scheme(self, uri: str) -> None:
