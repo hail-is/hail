@@ -5,7 +5,7 @@ import hail as hl
 from ..helpers import skip_unless_service_backend
 from hail.backend.service_backend import ServiceBackend
 
-CLOUD = os.environ['HAIL_CLOUD']
+CLOUD = os.environ.get('HAIL_CLOUD')
 
 
 @skip_unless_service_backend()
