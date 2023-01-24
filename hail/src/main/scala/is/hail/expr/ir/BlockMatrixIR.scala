@@ -157,18 +157,30 @@ class BlockMatrixNativeReader(
   }
 
   override def lower(ctx: ExecuteContext): BlockMatrixStage2 = {
-    val coordToContextIdx = fullType.sparsity.definedBlocksColMajor.map(_.zipWithIndex.toMap)
-    val ctxRef = Ref(genUID(), TString)
-    val ctxs = ToStream(Literal(TArray(TString), metadata.partFiles))
+    val fileNames = Literal(TArray(TString), metadata.partFiles)
+    val fileNamesRef = Ref(genUID(), fileNames.typ)
+    val rowBlockIdxRef = Ref(genUID(), TInt32)
+    val colBlockIdxRef = Ref(genUID(), TInt32)
+    val contextIR = ArrayRef(fileNamesRef, (colBlockIdxRef * fullType.nRowBlocks) + rowBlockIdxRef)
 
     val vType = TNDArray(fullType.elementType, Nat(2))
     val spec = TypedCodecSpec(EBlockMatrixNDArray(EFloat64(required = true), required = true), vType, BlockMatrix.bufferSpec)
+
+    val ctxRef = Ref(genUID(), TString)
     val path = Apply("concat", FastSeq(),
       FastSeq(Str(s"${ params.path }/parts/"), ctxRef),
       TString, ErrorIDs.NO_ERROR)
     val blockIR = ReadValue(path, spec, vType)
 
-    new BlockMatrixStage2(FastIndexedSeq(), FastIndexedSeq(), ctxs, fullType, coordToContextIdx, ctxRef.name, blockIR)
+    new BlockMatrixStage2(
+      FastIndexedSeq(fileNamesRef.name -> fileNames),
+      FastIndexedSeq(),
+      fullType,
+      rowBlockIdxRef.name,
+      colBlockIdxRef.name,
+      contextIR,
+      ctxRef.name,
+      blockIR)
   }
 
   override def toJValue: JValue = {
@@ -202,20 +214,18 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
     val readFromNumpyEType = ENumpyBinaryNDArray(nRows, nCols, true)
     val readFromNumpySpec = TypedCodecSpec(readFromNumpyEType, TNDArray(TFloat64, Nat(2)), new StreamBufferSpec())
     val nd = ReadValue(Str(path), readFromNumpySpec, TNDArray(TFloat64, nDimsBase = Nat(2)))
+    val ndRef = Ref(genUID(), nd.typ)
 
     val typ = fullType
-    val ctxRef = Ref(genUID(), nd.typ)
-    val ctxs = bindIR(nd) { ndRef =>
-      flatMapIR(rangeIR(typ.nColBlocks)) { c =>
-        mapIR(rangeIR(typ.nRowBlocks)) { r =>
-          NDArraySlice(ndRef, MakeTuple.ordered(FastSeq(
-            MakeTuple.ordered(FastSeq(r.toL * blockSize.toLong, minIR((r + 1).toL * blockSize.toLong, nRows), 1L)),
-            MakeTuple.ordered(FastSeq(c.toL * blockSize.toLong, minIR((c + 1).toL * blockSize.toLong, nCols), 1L)))))
-        }
-      }
-    }
+    val rowBlockIdxRef = Ref(genUID(), TInt32)
+    val colBlockIdxRef = Ref(genUID(), TInt32)
+    val contextIR =
+      NDArraySlice(ndRef, MakeTuple.ordered(FastSeq(
+        MakeTuple.ordered(FastSeq(rowBlockIdxRef.toL * blockSize.toLong, minIR((rowBlockIdxRef + 1).toL * blockSize.toLong, nRows), 1L)),
+        MakeTuple.ordered(FastSeq(colBlockIdxRef.toL * blockSize.toLong, minIR((colBlockIdxRef + 1).toL * blockSize.toLong, nCols), 1L)))))
 
-    new BlockMatrixStage2(FastIndexedSeq(), FastIndexedSeq(), ctxs, typ, None, ctxRef.name, ctxRef)
+    val ctxRef = Ref(genUID(), nd.typ)
+    new BlockMatrixStage2(FastIndexedSeq(ndRef.name -> nd), FastIndexedSeq(), typ, rowBlockIdxRef.name, colBlockIdxRef.name, contextIR, ctxRef.name, ctxRef)
   }
 }
 

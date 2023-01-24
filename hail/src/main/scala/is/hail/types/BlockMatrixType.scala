@@ -42,6 +42,12 @@ case class BlockMatrixSparsity(definedBlocks: Option[IndexedSeq[(Int, Int)]]) {
     }
   }
 
+  lazy val definedBlocksRowMajor: Option[IndexedSeq[(Int, Int)]] = definedBlocks.map { blocks =>
+    blocks.sortWith { case ((i1, j1), (i2, j2)) =>
+      i1 < i2 || (i1 == i2 && j1 < j2)
+    }
+  }
+
   def isSparse: Boolean = definedBlocks.isDefined
   lazy val blockSet: Set[(Int, Int)] = definedBlocks.get.toSet
   def hasBlock(idx: (Int, Int)): Boolean = definedBlocks.isEmpty || blockSet.contains(idx)
@@ -53,21 +59,42 @@ case class BlockMatrixSparsity(definedBlocks: Option[IndexedSeq[(Int, Int)]]) {
       }
     }.getOrElse(BlockMatrixSparsity.dense)
   }
-  def allBlocks(nRowBlocks: Int, nColBlocks: Int, forceColMajor: Boolean): IndexedSeq[(Int, Int)] = {
-    (if (forceColMajor) definedBlocksColMajor else definedBlocks).getOrElse {
+  def allBlocksColMajor(nRowBlocks: Int, nColBlocks: Int): IndexedSeq[(Int, Int)] = {
+    definedBlocksColMajor.getOrElse {
       val foo = Array.fill[(Int, Int)](nRowBlocks * nColBlocks)(null)
+      var idx = 0
+      var j = 0
+      while (j < nColBlocks) {
+        var i = 0
+        while (i < nRowBlocks) {
+          foo(idx) = i -> j
+          i += 1
+          idx += 1
+        }
+        j += 1
+      }
+      foo
+    }
+  }
+
+  def allBlocksRowMajor(nRowBlocks: Int, nColBlocks: Int): IndexedSeq[(Int, Int)] = {
+    (definedBlocksRowMajor).getOrElse {
+      val foo = Array.fill[(Int, Int)](nRowBlocks * nColBlocks)(null)
+      var idx = 0
       var i = 0
       while (i < nRowBlocks) {
         var j = 0
         while (j < nColBlocks) {
-          foo(i + j * nRowBlocks) = i -> j
+          foo(idx) = i -> j
           j += 1
+          idx += 1
         }
         i += 1
       }
       foo
     }
   }
+
   override def toString: String =
     definedBlocks.map { blocks =>
       blocks.map { case (i, j) => s"($i,$j)" }.mkString("[", ",", "]")
@@ -131,7 +158,8 @@ case class BlockMatrixType(
   def hasBlock(idx: (Int, Int)): Boolean = {
     if (isSparse) sparsity.hasBlock(idx) else true
   }
-  def allBlocks(forceColMajor: Boolean): IndexedSeq[(Int, Int)] = sparsity.allBlocks(nRowBlocks, nColBlocks, forceColMajor)
+  def allBlocksColMajor: IndexedSeq[(Int, Int)] = sparsity.allBlocksColMajor(nRowBlocks, nColBlocks)
+  def allBlocksRowMajor: IndexedSeq[(Int, Int)] = sparsity.allBlocksRowMajor(nRowBlocks, nColBlocks)
 
   lazy val linearizedDefinedBlocks: Option[IndexedSeq[Int]] = sparsity.definedBlocksColMajor.map { blocks =>
     blocks.map { case (i, j) => i + j * nRowBlocks }

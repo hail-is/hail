@@ -8,6 +8,7 @@ import is.hail.rvd.RVDPartitioner
 import is.hail.types.{BlockMatrixSparsity, BlockMatrixType, TypeWithRequiredness, tcoerce}
 import is.hail.types.virtual._
 import is.hail.utils._
+import org.apache.spark.sql.Row
 
 object BlockMatrixStage {
   def empty(eltType: Type): BlockMatrixStage =
@@ -186,15 +187,21 @@ abstract class BlockMatrixStage(val letBindings: IndexedSeq[(String, IR)], val b
 
 object BlockMatrixStage2 {
   def fromOldBMS(bms: BlockMatrixStage, typ: BlockMatrixType): BlockMatrixStage2 = {
+    val blocks = typ.allBlocksColMajor
+    val ctxsArray = MakeArray(blocks.map(idx => bms.blockContext(idx)), TArray(bms.ctxType))
+    val ctxsArrayRef = Ref(genUID(), ctxsArray.typ)
+    val rowBlockIdxRef = Ref(genUID(), TInt32)
+    val colBlockIdxRef = Ref(genUID(), TInt32)
+    val contextIR = ArrayRef(ctxsArrayRef, (colBlockIdxRef * typ.nRowBlocks) + rowBlockIdxRef)
+
     val ctxRef = Ref(genUID(), bms.ctxType)
-    val blocks = typ.sparsity.allBlocks(typ.nRowBlocks, typ.nColBlocks, true)
-    val ctxs = MakeStream(blocks.map(idx => bms.blockContext(idx)), TStream(ctxRef.typ))
     new BlockMatrixStage2(
-      bms.letBindings,
+      bms.letBindings :+ (ctxsArrayRef.name -> ctxsArray),
       bms.broadcastVals,
-      ctxs,
       typ,
-      typ.sparsity.definedBlocksColMajor.map(_.zipWithIndex.toMap),
+      rowBlockIdxRef.name,
+      colBlockIdxRef.name,
+      contextIR,
       ctxRef.name,
       bms.blockBody(ctxRef))
   }
@@ -202,9 +209,10 @@ object BlockMatrixStage2 {
   def empty(eltType: Type) = new BlockMatrixStage2(
     IndexedSeq(),
     IndexedSeq(),
-    MakeStream(Seq(), TStream(TInt32)),
     BlockMatrixType.dense(eltType, 0, 0, 0),
-    None,
+    genUID(),
+    genUID(),
+    NA(TInt32),
     genUID(),
     NA(TNDArray(eltType, Nat(2))))
 }
@@ -212,32 +220,117 @@ object BlockMatrixStage2 {
 class BlockMatrixStage2(
   val letBindings: IndexedSeq[(String, IR)],
   val broadcastVals: IndexedSeq[(String, IR)],
-  val contexts: IR,
   val typ: BlockMatrixType,
-  _coordToContextIdx: Option[Map[(Int, Int), Int]],
+  private val rowBlockIdxName: String,
+  private val colBlockIdxName: String,
+  private val contextIR: IR,
   private val ctxRefName: String,
   private val blockIR: IR
 ) {
-  def coordToContextIdx(i: Int, j: Int): Int =
-    _coordToContextIdx.map(_((i, j))).getOrElse(i + j * typ.nRowBlocks)
+  def ctxType: Type = contextIR.typ
+
+  def ctxRef: IR = Ref(ctxRefName, ctxType)
 
   def toOldBMS: BlockMatrixStage = {
-    val contextArray = ToArray(contexts)
-    val contextArrayRef = Ref(genUID(), contextArray.typ)
-    new BlockMatrixStage(letBindings :+ (contextArrayRef.name -> contextArray), broadcastVals.toArray, contexts.typ.asInstanceOf[TStream].elementType) {
+    new BlockMatrixStage(letBindings, broadcastVals.toArray, contextIR.typ) {
       override def blockContext(idx: (Int, Int)): IR =
-        ArrayRef(contextArrayRef, coordToContextIdx(idx._1, idx._2))
+        Let(rowBlockIdxName, idx._1, Let(colBlockIdxName, idx._2, contextIR))
 
       override def blockBody(ctxRef: Ref): IR =
         Let(ctxRefName, ctxRef, blockIR)
     }
+  }
+
+  private def wrapLetsAndBroadcasts(ctxIR: IR): IR = {
+    (letBindings ++ broadcastVals).foldRight[IR](ctxIR) { case ((f, v), accum) => Let(f, v, accum) }
+  }
+
+  def addContext(newCtx: (IR, IR) => IR): BlockMatrixStage2 = {
+    val rowBlockIdxRef = Ref(rowBlockIdxName, TInt32)
+    val colBlockIdxRef = Ref(colBlockIdxName, TInt32)
+    val newContextIR = makestruct("old" -> contextIR, "new" -> newCtx(rowBlockIdxRef, colBlockIdxRef))
+    val newCtxRef = Ref(genUID(), newContextIR.typ)
+    val newBlockIR = Let(ctxRefName, GetField(newCtxRef, "old"), blockIR)
+
+    new BlockMatrixStage2(letBindings, broadcastVals, typ, rowBlockIdxName, colBlockIdxName, newContextIR, newCtxRef.name, newBlockIR)
+  }
+
+  def collectBlocks(
+    relationalBindings: Map[String, IR],
+    staticID: String,
+    dynamicID: IR = NA(TString),
+    blocksToCollect: Option[IndexedSeq[(Int, Int)]] = None
+  )(f: (IR, IR, IR) => IR // (ctx, idx, block)
+  ): IR = {
+    val idxRef = Ref(genUID(), TInt32)
+    val newCtxRef = Ref(genUID(), TTuple(TInt32, ctxType))
+    val body = Let(idxRef.name, GetTupleElement(newCtxRef, 0),
+      Let(ctxRefName, GetTupleElement(newCtxRef, 1),
+        f(ctxRef, idxRef, blockIR)))
+    val bodyFreeVars = FreeVariables(body, supportsAgg = false, supportsScan = false)
+    val bcFields = broadcastVals.filter { case (f, _) => bodyFreeVars.eval.lookupOption(f).isDefined }
+    val bcVals = MakeStruct(bcFields.map { case (f, v) => f -> Ref(f, v.typ) })
+    val bcRef = Ref(genUID(), bcVals.typ)
+    val wrappedBody = bcFields.foldLeft(body) { case (accum, (f, _)) =>
+      Let(f, GetField(bcRef, f), accum)
+    }
+
+    val contexts = if (!typ.isSparse && blocksToCollect.isEmpty) {
+      StreamFlatMap(rangeIR(typ.nColBlocks), colBlockIdxName,
+        StreamMap(rangeIR(typ.nRowBlocks), rowBlockIdxName,
+          maketuple((Ref(colBlockIdxName, TInt32) * typ.nRowBlocks) + Ref(rowBlockIdxName, TInt32), contextIR)))
+    } else {
+      val blocks = blocksToCollect.getOrElse(typ.allBlocksColMajor).map(Row.fromTuple)
+      zip2(
+        ToStream(Literal(TArray(TTuple(TInt32, TInt32)), blocks)),
+        StreamIota(0, 1),
+        ArrayZipBehavior.TakeMinLength
+      ) { (rowCol, idx) =>
+        Let(rowBlockIdxName, GetTupleElement(rowCol, 0),
+          Let(colBlockIdxName, GetTupleElement(rowCol, 1),
+            maketuple(idx, contextIR)))
+      }
+    }
+
+    val collect = wrapLetsAndBroadcasts(CollectDistributedArray(contexts, bcVals, newCtxRef.name, bcRef.name, wrappedBody, dynamicID, staticID))
+    LowerToCDA.substLets(collect, relationalBindings)
+  }
+
+  def collectLocal(relationalBindings: Map[String, IR], staticID: String, dynamicID: IR = NA(TString)): IR = {
+    val blocksRowMajor = typ.allBlocksRowMajor
+    val cda = collectBlocks(relationalBindings, staticID, dynamicID, Some(blocksRowMajor))((_, _, b) => b)
+    val blockResults = Ref(genUID(), cda.typ)
+
+    val rows = if (typ.isSparse) {
+      val blockMap = blocksRowMajor.zipWithIndex.toMap
+      MakeArray(Array.tabulate[IR](typ.nRowBlocks) { i =>
+        NDArrayConcat(MakeArray(Array.tabulate[IR](typ.nColBlocks) { j =>
+          if (blockMap.contains(i -> j))
+            ArrayRef(blockResults, i * typ.nColBlocks + j)
+          else {
+            val (nRows, nCols) = typ.blockShape(i, j)
+            MakeNDArray.fill(zero(typ.elementType), FastIndexedSeq(nRows, nCols), True())
+          }
+        }, tcoerce[TArray](cda.typ)), 1)
+      }, tcoerce[TArray](cda.typ))
+    } else {
+      ToArray(mapIR(rangeIR(I32(typ.nRowBlocks))) { rowIdxRef =>
+        val blocksInOneRow = ToArray(mapIR(rangeIR(I32(typ.nColBlocks))) { colIdxRef =>
+          ArrayRef(blockResults, rowIdxRef * typ.nColBlocks + colIdxRef)
+        })
+        NDArrayConcat(blocksInOneRow, 1)
+      })
+    }
+
+    Let(blockResults.name, cda, NDArrayConcat(rows, 0))
   }
 }
 
 object LowerBlockMatrixIR {
   def apply(node: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: Analyses, relationalLetsAbove: Map[String, IR]): IR = {
 
-    def lower(bmir: BlockMatrixIR) = LowerBlockMatrixIR.lower(bmir, typesToLower, ctx, analyses, relationalLetsAbove).toOldBMS
+    def lower2(bmir: BlockMatrixIR) = LowerBlockMatrixIR.lower(bmir, typesToLower, ctx, analyses, relationalLetsAbove)
+    def lower(bmir: BlockMatrixIR) = lower2(bmir).toOldBMS
 
     node match {
       case BlockMatrixCollect(child) =>
@@ -257,7 +350,7 @@ object LowerBlockMatrixIR {
 
         lowered.wrapLetsAndBroadcasts(elt)
       case BlockMatrixWrite(child, writer) =>
-        writer.lower(ctx, lower(child), child, relationalLetsAbove, TypeWithRequiredness(child.typ.elementType)) //FIXME: BlockMatrixIR is currently ignored in Requiredness inference since all eltTypes are +TFloat64
+        writer.lower(ctx, lower2(child), relationalLetsAbove, TypeWithRequiredness(child.typ.elementType)) //FIXME: BlockMatrixIR is currently ignored in Requiredness inference since all eltTypes are +TFloat64
       case BlockMatrixMultiWrite(blockMatrices, writer) => unimplemented(ctx, node)
       case node if node.children.exists(_.isInstanceOf[BlockMatrixIR]) =>
         throw new LowererUnsupportedOperation(s"IR nodes with BlockMatrixIR children need explicit rules: \n${ Pretty(ctx, node) }")
@@ -319,13 +412,14 @@ object LowerBlockMatrixIR {
       case BlockMatrixRead(reader) => reader.lower(ctx)
 
       case x@BlockMatrixRandom(staticUID, gaussian, shape, blockSize) =>
-        val ctxRef = Ref(genUID(), TTuple(TInt64, TInt64, TInt32))
-        val ctxs: IR = flatMapIR(rangeIR(x.typ.nColBlocks)) { c =>
-          mapIR(rangeIR(x.typ.nRowBlocks)) { r =>
-            val (m, n) = x.typ.blockShapeIR(r, c)
-            MakeTuple.ordered(FastSeq(m, n, r * x.typ.nColBlocks + c))
-          }
+        val rowBlockIdxRef = Ref(genUID(), TInt32)
+        val colBlockIdxRef = Ref(genUID(), TInt32)
+        val contextIR = {
+          val (m, n) = x.typ.blockShapeIR(rowBlockIdxRef, colBlockIdxRef)
+          MakeTuple.ordered(FastSeq(m, n, rowBlockIdxRef * x.typ.nColBlocks + colBlockIdxRef))
         }
+
+        val ctxRef = Ref(genUID(), TTuple(TInt64, TInt64, TInt32))
         val bodyIR: IR = {
           val m = GetTupleElement(ctxRef, 0)
           val n = GetTupleElement(ctxRef, 1)
@@ -335,7 +429,7 @@ object LowerBlockMatrixIR {
           invokeSeeded(f, staticUID, TNDArray(TFloat64, Nat(2)), rngState, m, n, F64(0.0), F64(1.0))
         }
 
-        new BlockMatrixStage2(FastIndexedSeq(), FastIndexedSeq(), ctxs, x.typ, None, ctxRef.name, bodyIR)
+        new BlockMatrixStage2(FastIndexedSeq(), FastIndexedSeq(), x.typ, rowBlockIdxRef.name, colBlockIdxRef.name, contextIR, ctxRef.name, bodyIR)
 
       case _ =>
         BlockMatrixStage2.fromOldBMS(lowerNonEmpty(bmir, typesToLower, ctx, analyses, relationalLetsAbove), bmir.typ)
