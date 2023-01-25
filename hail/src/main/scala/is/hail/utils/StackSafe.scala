@@ -136,7 +136,20 @@ object StackSafe {
     }
   }
 
-  implicit class RichIterator[A](val i: Iterator[StackFrame[A]]) extends AnyVal {
+  implicit class RichIterator[A](val i: Iterator[A]) extends AnyVal {
+    def foreachRecur(f: A => StackFrame[Unit]): StackFrame[Unit] = {
+      def loop(): StackFrame[Unit] = {
+        if (i.hasNext) {
+          f(i.next()).flatMap { _ => call(loop()) }
+        } else {
+          done(())
+        }
+      }
+      loop()
+    }
+  }
+
+  implicit class RichIteratorStackFrame[A](val i: Iterator[StackFrame[A]]) extends AnyVal {
     def collectRecur(implicit bf: CanBuild[A, Array[A]]): StackFrame[IndexedSeq[A]] = {
       val builder = bf()
       var cont: A => StackFrame[IndexedSeq[A]] = null
