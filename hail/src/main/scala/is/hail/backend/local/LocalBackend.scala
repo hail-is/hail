@@ -67,7 +67,7 @@ class LocalBackend(
   val tmpdir: String,
   gcsRequesterPaysProject: String,
   gcsRequesterPaysBuckets: String
-) extends Backend {
+) extends Backend with BackendWithCodeCache {
   // FIXME don't rely on hadoop
   val hadoopConf = new hadoop.conf.Configuration()
   if (gcsRequesterPaysProject != null) {

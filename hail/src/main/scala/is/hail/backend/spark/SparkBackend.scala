@@ -267,7 +267,7 @@ class SparkBackend(
   val sc: SparkContext,
   gcsRequesterPaysProject: String,
   gcsRequesterPaysBuckets: String
-) extends Backend with Closeable {
+) extends Backend with Closeable with BackendWithCodeCache {
   assert(gcsRequesterPaysProject != null || gcsRequesterPaysBuckets == null)
   lazy val sparkSession: SparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
   private[this] val theHailClassLoader: HailClassLoader = new HailClassLoader(getClass().getClassLoader())
