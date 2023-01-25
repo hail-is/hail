@@ -48,14 +48,14 @@ spec:
          volumeMounts:
           - mountPath: "/ukbb-rg-static"
             name: ukbb-rg-static-storage
-          - name: ssl-config-batch-driver-nginx
+          - name: ssl-config-ukbb-rg
             mountPath: /ssl-config
             readOnly: true
       volumes:
-       - name: ssl-config-batch-driver-nginx
+       - name: ssl-config-ukbb-rg
          secret:
            optional: false
-           secretName: ssl-config-batch-driver-nginx
+           secretName: ssl-config-ukbb-rg
   volumeClaimTemplates:
     - metadata:
         name: ukbb-rg-static-storage
@@ -109,9 +109,9 @@ data:
               common_tls_context:
                 tls_certificates:
                 - certificate_chain:
-                    filename: /ssl-config/batch-driver-nginx-cert.pem  # FIXME
+                    filename: /ssl-config/ukbb-rg-cert.pem
                   private_key:
-                    filename: /ssl-config/batch-driver-nginx-key.pem
+                    filename: /ssl-config/ukbb-rg-key.pem
       clusters:
       - name: ukbb-rg-browser
         type: STRICT_DNS
@@ -193,7 +193,7 @@ spec:
          ports:
           - containerPort: 8443
          volumeMounts:
-          - name: ssl-config-batch-driver-nginx
+          - name: ssl-config-ukbb-rg
             mountPath: /ssl-config
             readOnly: true
           - name: tls-sidecar-envoy-config
@@ -205,10 +205,10 @@ spec:
            initialDelaySeconds: 5
            periodSeconds: 5
       volumes:
-       - name: ssl-config-batch-driver-nginx
+       - name: ssl-config-ukbb-rg
          secret:
            optional: false
-           secretName: ssl-config-batch-driver-nginx
+           secretName: ssl-config-ukbb-rg
        - name: tls-sidecar-envoy-config
          configMap:
            name: tls-sidecar-envoy-config
