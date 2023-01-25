@@ -980,8 +980,9 @@ object IRParser {
           edges <- ir_value_expr(env)(it)
           tieBreaker <- if (hasTieBreaker) {
             val eltType = tcoerce[TArray](edges.typ).elementType.asInstanceOf[TBaseStruct].types.head
+            val tbType = TTuple(eltType)
             val Some((left, right)) = bindings
-            ir_value_expr(IRParserEnvironment(env.ctx, BindingEnv.eval(left -> eltType, right -> eltType)))(it).map(tbf => Some((left, right, tbf)))
+            ir_value_expr(IRParserEnvironment(env.ctx, BindingEnv.eval(left -> tbType, right -> tbType)))(it).map(tbf => Some((left, right, tbf)))
           } else {
             done(None)
           }

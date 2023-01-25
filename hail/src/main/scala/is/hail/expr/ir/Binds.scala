@@ -45,9 +45,10 @@ object Bindings {
     case StreamJoinRightDistinct(ll, rr, _, _, l, r, _, _) => if (i == 2) Array(l -> tcoerce[TStream](ll.typ).elementType, r -> tcoerce[TStream](rr.typ).elementType) else empty
     case ArraySort(a, left, right, _) => if (i == 1) Array(left -> tcoerce[TStream](a.typ).elementType, right -> tcoerce[TStream](a.typ).elementType) else empty
     case ArrayMaximalIndependentSet(a, Some((left, right, _))) =>
-      if (i == 2) {
+      if (i == 1) {
         val typ = tcoerce[TArray](a.typ).elementType.asInstanceOf[TBaseStruct].types.head
-        Array(left -> typ, right -> typ)
+        val tupleType = TTuple(typ)
+        Array(left -> tupleType, right -> tupleType)
       } else {
         empty
       }

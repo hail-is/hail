@@ -178,6 +178,11 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case ArraySort(a, l, r, c) =>
         addElementBinding(l, a, makeRequired = true)
         addElementBinding(r, a, makeRequired = true)
+      case ArrayMaximalIndependentSet(a, tiebreaker) =>
+        tiebreaker.foreach { case (left, right, _) =>
+          addElementBinding(left, a)
+          addElementBinding(right, a)
+        }
       case StreamMap(a, name, body) =>
         addElementBinding(name, a)
       case x@StreamZip(as, names, body, behavior, _) =>
