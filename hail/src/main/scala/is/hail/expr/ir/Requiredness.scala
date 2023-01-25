@@ -527,7 +527,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case ArraySort(a, l, r, c) =>
         requiredness.unionFrom(lookup(a))
       case ArrayMaximalIndependentSet(a, _) =>
-        requiredness.unionFrom(lookup(a))
+        requiredness.union(lookup(a).required)
       case ToDict(a) =>
         val aReq = lookupAs[RIterable](a)
         val Seq(keyType, valueType) = tcoerce[RBaseStruct](aReq.elementType).children
