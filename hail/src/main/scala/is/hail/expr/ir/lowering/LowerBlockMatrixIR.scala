@@ -295,27 +295,36 @@ class BlockMatrixStage2 private (
     new BlockMatrixStage2(letBindings, broadcastVals, newType, rowBlockIdxName, colBlockIdxName, _contextIR, ctxRefName, newBlockIR)
   }
 
-//  def mapBody2(
-//    other: BlockMatrixStage2
-//  )(f: (IR, IR, IR, IR) => IR // (left context, left block, right context, right block)
-//  ): BlockMatrixStage2 = {
-//    val newContextIR = maketuple(contextIR, other.contextIR)
-//
-//    val leftBlockRef = Ref(genUID(), blockIR.typ)
-//    val rightBlockRef = Ref(genUID(), other.blockIR.typ)
-//    val newBlockIR = Let(leftBlockRef.name, blockIR, Let(rightBlockRef.name, other.blockIR, f(ctxRef, leftBlockRef, other.ctxRef, rightBlockRef)))
-//    val newType = typ.copy(elementType = newBlockIR.typ.asInstanceOf[TNDArray].elementType)
-//
-//    new BlockMatrixStage2(
-//      letBindings ++ other.letBindings,
-//      broadcastVals ++ other.broadcastVals,
-//      newType,
-//      rowBlockIdxName,
-//      colBlockIdxName,
-//      contextIR,
-//      ctxRefName,
-//      newBlockIR)
-//  }
+  def mapBody2(
+    other: BlockMatrixStage2
+  )(f: (IR, IR, IR, IR) => IR // (left context, left block, right context, right block)
+  ): BlockMatrixStage2 = {
+    val rowBlock = Ref(genUID(), TInt32)
+    val colBlock = Ref(genUID(), TInt32)
+    val newContextIR = maketuple(contextIR(rowBlock, colBlock), other.contextIR(rowBlock, colBlock))
+    val ctx = Ref(genUID(), newContextIR.typ)
+
+    val leftBlockRef = Ref(genUID(), _blockIR.typ)
+    val rightBlockRef = Ref(genUID(), other._blockIR.typ)
+    val newBlockIR = {
+      Let(ctxRefName, GetTupleElement(ctx, 0),
+        Let(other.ctxRefName, GetTupleElement(ctx, 1),
+          Let(leftBlockRef.name, _blockIR,
+            Let(rightBlockRef.name, other._blockIR,
+              f(ctxRef, leftBlockRef, other.ctxRef, rightBlockRef)))))
+    }
+    val newType = typ.copy(elementType = newBlockIR.typ.asInstanceOf[TNDArray].elementType)
+
+    new BlockMatrixStage2(
+      letBindings ++ other.letBindings,
+      broadcastVals ++ other.broadcastVals,
+      newType,
+      rowBlock.name,
+      colBlock.name,
+      newContextIR,
+      ctx.name,
+      newBlockIR)
+  }
 
   def collectBlocks(
     relationalBindings: Map[String, IR],
@@ -486,15 +495,12 @@ object LowerBlockMatrixIR {
           NDArrayMap(body, eltName, f)
         }
 
-//      case BlockMatrixMap2(left, right, lname, rname, f, sparsityStrategy) =>
-//        val loweredLeft = lower(left)
-//        val loweredRight = lower(right)
-//        loweredLeft
-//          .addLets(loweredRight.letBindings: _*)
-//          .addGlobals(loweredRight.broadcastVals: _*)
-//          .addContext(loweredRight.ctxType)(loweredRight.blockContext).mapBody { (ctx, leftBody) =>
-//          NDArrayMap2(leftBody, bindIR(GetField(ctx, "new"))(loweredRight.blockBody), lname, rname, f, ErrorIDs.NO_ERROR)
-//        }
+      case BlockMatrixMap2(left, right, lname, rname, f, sparsityStrategy) =>
+        val loweredLeft = lower(left)
+        val loweredRight = lower(right)
+        loweredLeft.mapBody2(loweredRight) { (lCtx, lBody, rCtx, rBody) =>
+          NDArrayMap2(lBody, rBody, lname, rname, f, ErrorIDs.NO_ERROR)
+        }
 
       case _ =>
         BlockMatrixStage2.fromOldBMS(lowerNonEmpty(bmir, typesToLower, ctx, analyses, relationalLetsAbove), bmir.typ)
@@ -507,17 +513,6 @@ object LowerBlockMatrixIR {
     def lowerIR(node: IR): IR = LowerToCDA.lower(node, typesToLower, ctx, analyses, relationalLetsAbove: Map[String, IR])
 
     bmir match {
-      case BlockMatrixMap2(left, right, lname, rname, f, sparsityStrategy) =>
-        val loweredLeft = lower(left)
-        val loweredRight = lower(right)
-        loweredLeft
-          .addLets(loweredRight.letBindings: _*)
-          .addGlobals(loweredRight.broadcastVals: _*)
-          .addContext(loweredRight.ctxType)(loweredRight.blockContext)
-          .mapBody { (ctx, leftBody) =>
-            NDArrayMap2(leftBody, bindIR(GetField(ctx, "new"))(loweredRight.blockBody), lname, rname, f, ErrorIDs.NO_ERROR)
-          }
-
       case x@BlockMatrixBroadcast(child, IndexedSeq(), _, _) =>
         val lowered = lower(child)
         val eltValue = lowered.wrapLetsAndBroadcasts(bindIR(lowered.blockContext(0 -> 0)) { ctx =>
