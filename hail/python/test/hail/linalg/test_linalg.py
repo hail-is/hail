@@ -736,6 +736,19 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: bm[0, :-11])
 
     @fails_service_backend()
+    def test_diagonal_sparse(self):
+        nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
+                       [ 5.0,  6.0,  7.0,  8.0],
+                       [ 9.0, 10.0, 11.0, 12.0],
+                       [13.0, 14.0, 15.0, 16.0],
+                       [17.0, 18.0, 19.0, 20.0]])
+        bm = BlockMatrix.from_numpy(nd, block_size=2)
+        bm = bm.sparsify_row_intervals([0, 0, 0, 0, 0], [2, 2, 2, 2, 2])
+
+        self.assertTrue(bm.is_sparse)
+        self._assert_eq(bm.diagonal(), np.array([[1.0, 6.0, 0.0, 0.0]]))
+
+    @fails_service_backend()
     @fails_local_backend()
     def test_slices_with_sparsify(self):
         nd = np.array(np.arange(0, 80, dtype=float)).reshape(8, 10)
@@ -1156,7 +1169,6 @@ class Tests(unittest.TestCase):
             self._assert_eq(nd, bm)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_svd(self):
         def assert_same_columns_up_to_sign(a, b):
             for j in range(a.shape[1]):

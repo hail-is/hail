@@ -556,6 +556,52 @@ object LowerBlockMatrixIR {
           ErrorIDs.NO_ERROR)
         BlockMatrixStage2.broadcastVector(vector, x.typ, asRowVector = axis == 1)
 
+      case x@BlockMatrixBroadcast(child, IndexedSeq(axis, axis2), _, _) if (axis == axis2) => // diagonal as row/col vector
+        val blocks = child.typ.sparsity.definedBlocksColMajorIR match {
+          case Some(definedBlocks) =>
+            filterIR(definedBlocks) { idx =>
+              GetTupleElement(idx, 0) ceq GetTupleElement(idx, 1)
+            }
+          case None =>
+            mapIR(rangeIR(math.min(child.typ.nRowBlocks, child.typ.nColBlocks))) { i =>
+              maketuple(i, i)
+            }
+        }
+
+        val diagArray = bindIR(
+          lower(child)
+            .addContext { case (i, j) =>
+              val (rows, cols) = child.typ.blockShapeIR(i, j)
+              minIR(rows, cols).toI
+            }
+            .collectBlocks(relationalLetsAbove, "block_matrix_broadcast_diagonal", blocksToCollect = Some(blocks)) { (ctx: IR, idx: IR, block: IR) =>
+              ToArray(mapIR(rangeIR(GetField(ctx, "new"))) { i =>
+                NDArrayRef(block, FastIndexedSeq(Cast(i, TInt64), Cast(i, TInt64)), ErrorIDs.NO_ERROR)
+              })
+            }
+        ) { existingDiags =>
+          if (!child.typ.isSparse) {
+            ToStream(existingDiags)
+          } else {
+            val nBlocks = java.lang.Math.min(child.typ.nRowBlocks, child.typ.nColBlocks)
+            val allIdxs = mapIR(rangeIR(nBlocks)) { i => makestruct("idx" -> i) }
+            val idxedExisting = zip2(ToStream(existingDiags), blocks, ArrayZipBehavior.AssertSameLength) { (vec, idx) =>
+              makestruct("idx" -> GetTupleElement(idx, 0), "vec" -> vec)
+            }
+            joinRightDistinctIR(allIdxs, idxedExisting, FastIndexedSeq("idx"), FastIndexedSeq("idx"), "left") { (_, struct) =>
+              val idx = GetField(struct, "idx")
+              val vec = GetField(struct, "vec")
+              val (m, n) = child.typ.blockShapeIR(idx, idx)
+              If(IsNA(vec),
+                mapIR(rangeIR(minIR(m, n).toI))(_ => zero(child.typ.elementType)),
+                ToStream(vec))
+            }
+          }
+        }
+
+        val diagVector = MakeNDArray(ToArray(flatten(diagArray)), maketuple(math.min(child.typ.nRows, child.typ.nCols)), true, ErrorIDs.NO_ERROR)
+        BlockMatrixStage2.broadcastVector(diagVector, x.typ, asRowVector = axis == 0)
+
       case _ =>
         BlockMatrixStage2.fromOldBMS(lowerNonEmpty(bmir, typesToLower, ctx, analyses, relationalLetsAbove), bmir.typ)
     }
@@ -567,34 +613,6 @@ object LowerBlockMatrixIR {
     def lowerIR(node: IR): IR = LowerToCDA.lower(node, typesToLower, ctx, analyses, relationalLetsAbove: Map[String, IR])
 
     bmir match {
-
-      case x@BlockMatrixBroadcast(child, IndexedSeq(axis, axis2), _, _) if (axis == axis2) => // diagonal as row/col vector
-        val nBlocks = java.lang.Math.min(child.typ.nRowBlocks, child.typ.nColBlocks)
-        val idxs = Array.tabulate(nBlocks) { i => (i, i) }
-        val getDiagonal = { (ctx: IR, block: IR) =>
-          bindIR(block)(b => ToArray(mapIR(rangeIR(GetField(ctx, "new")))(i => NDArrayRef(b, FastIndexedSeq(Cast(i, TInt64), Cast(i, TInt64)), ErrorIDs.NO_ERROR))))
-        }
-
-        val loweredWithContext = lower(child).addContext(TInt32){ case (i, j) => {
-          val (rows, cols) = x.typ.blockShape(i, j)
-          I32(math.max(rows.toInt, cols.toInt))
-        } }
-
-        val vector = bindIR(loweredWithContext.collectBlocks(relationalLetsAbove, "block_matrix_broadcast_diagonal")(getDiagonal, idxs.filter(child.typ.hasBlock))) { existing =>
-          var i = -1
-          val vectorBlocks = idxs.map { idx =>
-            if (child.typ.hasBlock(idx)) {
-              i += 1
-              ArrayRef(existing, i)
-            } else {
-              val (i, j) = child.typ.blockShape(idx._1, idx._2)
-              ToArray(mapIR(rangeIR(java.lang.Math.min(i, j)))(_ => zero(x.typ.elementType)))
-            }
-          }
-          MakeNDArray(ToArray(flatten(MakeStream(vectorBlocks, TStream(TArray(x.typ.elementType))))),
-            MakeTuple.ordered(FastSeq(I64(java.lang.Math.min(child.typ.nRows, child.typ.nCols)))), true, ErrorIDs.NO_ERROR)
-        }
-        BlockMatrixStage.broadcastVector(vector, x.typ, asRowVector = axis == 0)
 
       case BlockMatrixBroadcast(child, IndexedSeq(1, 0), _, _) => //transpose
         val lowered = lower(child)
