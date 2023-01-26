@@ -927,12 +927,12 @@ object Interpret {
           }
 
           // creates a region, giving ownership to the caller
-          val read: RegionPool => (WrappedByteArray => RegionValue) = {
+          val read: (HailClassLoader, HailTaskContext) => (WrappedByteArray => RegionValue) = {
             val deserialize = extracted.deserialize(ctx, spec)
-            (pool: RegionPool) => {
+            (hcl: HailClassLoader, htc: HailTaskContext) => {
               (a: WrappedByteArray) => {
-                val r = Region(Region.SMALL, pool)
-                val res = deserialize(r, a.bytes)
+                val r = Region(Region.SMALL, htc.getRegionPool())
+                val res = deserialize(hcl, htc, r, a.bytes)
                 a.clear()
                 RegionValue(r, res)
               }
@@ -940,17 +940,17 @@ object Interpret {
           }
 
           // consumes a region, taking ownership from the caller
-          val write: RegionValue => WrappedByteArray = {
+          val write: (HailClassLoader, HailTaskContext, RegionValue) => WrappedByteArray = {
             val serialize = extracted.serialize(ctx, spec)
-            (rv: RegionValue) => {
-              val a = serialize(rv.region, rv.offset)
+            (hcl: HailClassLoader, htc: HailTaskContext, rv: RegionValue) => {
+              val a = serialize(hcl, htc, rv.region, rv.offset)
               rv.region.invalidate()
               new WrappedByteArray(a)
             }
           }
 
           // takes ownership of both inputs, returns ownership of result
-          val combOpF: (RegionValue, RegionValue) => RegionValue =
+          val combOpF: (HailClassLoader, HailTaskContext, RegionValue, RegionValue) => RegionValue =
             extracted.combOpF(ctx, spec)
 
           // returns ownership of a new region holding the partition aggregation

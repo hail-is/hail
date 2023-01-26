@@ -2524,7 +2524,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         val init = initF(ctx.theHailClassLoader, fsBc.value, ctx.taskContext, fRegion)
         init.newAggState(aggRegion)
         init(fRegion, tv.globals.value.offset)
-        serializeF(aggRegion, init.getAggOffset())
+        serializeF(ctx.theHailClassLoader, ctx.taskContext, aggRegion, init.getAggOffset())
       }
     }
 
@@ -2538,15 +2538,16 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         val globals = if (scanSeqNeedsGlobals) globalsBc.value.readRegionValue(globalRegion, theHailClassLoaderForSparkWorkers) else 0
 
         ctx.r.pool.scopedSmallRegion { aggRegion =>
-          val seq = eltSeqF(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), globalRegion)
+          val tc = SparkTaskContext.get()
+          val seq = eltSeqF(theHailClassLoaderForSparkWorkers, fsBc.value, tc, globalRegion)
 
-          seq.setAggState(aggRegion, read(aggRegion, initAgg))
+          seq.setAggState(aggRegion, read(theHailClassLoaderForSparkWorkers, tc, aggRegion, initAgg))
           it.foreach { ptr =>
             seq(ctx.region, globals, ptr)
             ctx.region.clear()
           }
           using(new DataOutputStream(fsBc.value.create(path))) { os =>
-            val bytes = write(aggRegion, seq.getAggOffset())
+            val bytes = write(theHailClassLoaderForSparkWorkers, tc, aggRegion, seq.getAggOffset())
             os.writeInt(bytes.length)
             os.write(bytes)
           }
@@ -2624,9 +2625,11 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         }
 
         val aggRegion = ctx.freshRegion()
-        val newRow = f(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), globalRegion)
-        val seq = eltSeqF(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), globalRegion)
-        var aggOff = read(aggRegion, partitionAggs)
+        val hcl = theHailClassLoaderForSparkWorkers
+        val tc = SparkTaskContext.get()
+        val newRow = f(hcl, fsBc.value, tc, globalRegion)
+        val seq = eltSeqF(hcl, fsBc.value, tc, globalRegion)
+        var aggOff = read(hcl, tc, aggRegion, partitionAggs)
 
         val res = it.map { ptr =>
           newRow.setAggState(aggRegion, aggOff)
@@ -2651,14 +2654,16 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       val globals = if (scanSeqNeedsGlobals) globalsBc.value.readRegionValue(globalRegion, theHailClassLoaderForSparkWorkers) else 0
 
       SparkTaskContext.get().getRegionPool().scopedSmallRegion { aggRegion =>
-        val seq = eltSeqF(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), globalRegion)
+        val hcl = theHailClassLoaderForSparkWorkers
+        val tc = SparkTaskContext.get()
+        val seq = eltSeqF(hcl, fsBc.value, tc, globalRegion)
 
-        seq.setAggState(aggRegion, read(aggRegion, initAgg))
+        seq.setAggState(aggRegion, read(hcl, tc, aggRegion, initAgg))
         it.foreach { ptr =>
           seq(ctx.region, globals, ptr)
           ctx.region.clear()
         }
-        Iterator.single(write(aggRegion, seq.getAggOffset()))
+        Iterator.single(write(hcl, tc, aggRegion, seq.getAggOffset()))
       }
     }, ctx.getFlag("max_leader_scans").toInt)
 
@@ -2703,9 +2708,11 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       }
 
       val aggRegion = ctx.freshRegion()
-      val newRow = f(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), globalRegion)
-      val seq = eltSeqF(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), globalRegion)
-      var aggOff = read(aggRegion, partitionAggs)
+      val hcl = theHailClassLoaderForSparkWorkers
+      val tc = SparkTaskContext.get()
+      val newRow = f(hcl, fsBc.value, tc, globalRegion)
+      val seq = eltSeqF(hcl, fsBc.value, tc, globalRegion)
+      var aggOff = read(hcl, tc, aggRegion, partitionAggs)
 
       var idx = 0
       it.map { ptr =>
@@ -2998,12 +3005,14 @@ case class TableKeyByAndAggregate(
     val deserialize = extracted.deserialize(ctx, spec)
     val combOp = extracted.combOpFSerializedWorkersOnly(ctx, spec)
 
-    val initF = makeInit(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), ctx.r)
+    val hcl = theHailClassLoaderForSparkWorkers
+    val tc = SparkTaskContext.get()
+    val initF = makeInit(hcl, fsBc.value, tc, ctx.r)
     val globalsOffset = prev.globals.value.offset
     val initAggs = ctx.r.pool.scopedRegion { aggRegion =>
       initF.newAggState(aggRegion)
       initF(ctx.r, globalsOffset)
-      serialize(aggRegion, initF.getAggOffset())
+      serialize(hcl, tc, aggRegion, initF.getAggOffset())
     }
 
     val newRowType = PCanonicalStruct(required = true,
@@ -3014,9 +3023,11 @@ case class TableKeyByAndAggregate(
       .boundary
       .mapPartitionsWithIndex { (i, ctx, it) =>
         val partRegion = ctx.partitionRegion
-        val globals = globalsBc.value.readRegionValue(partRegion, theHailClassLoaderForSparkWorkers)
+        val hcl = theHailClassLoaderForSparkWorkers
+        val tc = SparkTaskContext.get()
+        val globals = globalsBc.value.readRegionValue(partRegion, hcl)
         val makeKey = {
-          val f = makeKeyF(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), partRegion)
+          val f = makeKeyF(hcl, fsBc.value, tc, partRegion)
           ptr: Long => {
             val keyOff = f(ctx.region, ptr, globals)
             SafeRow.read(localKeyPType, keyOff).asInstanceOf[Row]
@@ -3024,11 +3035,11 @@ case class TableKeyByAndAggregate(
         }
         val makeAgg = { () =>
           val aggRegion = ctx.freshRegion()
-          RegionValue(aggRegion, deserialize(aggRegion, initAggs))
+          RegionValue(aggRegion, deserialize(hcl, tc, aggRegion, initAggs))
         }
 
         val seqOp = {
-          val f = makeSeq(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), partRegion)
+          val f = makeSeq(hcl, fsBc.value, SparkTaskContext.get(), partRegion)
           (ptr: Long, agg: RegionValue) => {
             f.setAggState(agg.region, agg.offset)
             f(ctx.region, globals, ptr)
@@ -3037,7 +3048,7 @@ case class TableKeyByAndAggregate(
           }
         }
         val serializeAndCleanupAggs = { rv: RegionValue =>
-          val a = serialize(rv.region, rv.offset)
+          val a = serialize(hcl, tc, rv.region, rv.offset)
           rv.region.close()
           a
         }
@@ -3057,8 +3068,10 @@ case class TableKeyByAndAggregate(
 
         val rvb = new RegionValueBuilder()
         val partRegion = ctx.partitionRegion
-        val globals = globalsBc.value.readRegionValue(partRegion, theHailClassLoaderForSparkWorkers)
-        val annotate = makeAnnotate(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), partRegion)
+        val hcl = theHailClassLoaderForSparkWorkers
+        val tc = SparkTaskContext.get()
+        val globals = globalsBc.value.readRegionValue(partRegion, hcl)
+        val annotate = makeAnnotate(hcl, fsBc.value, tc, partRegion)
 
         it.map { case (key, aggs) =>
           rvb.set(region)
@@ -3070,7 +3083,7 @@ case class TableKeyByAndAggregate(
             i += 1
           }
 
-          val aggOff = deserialize(region, aggs)
+          val aggOff = deserialize(hcl, tc, region, aggs)
           annotate.setAggState(region, aggOff)
           rvb.addAllFields(rTyp, region, annotate(region, globals))
           rvb.endStruct()

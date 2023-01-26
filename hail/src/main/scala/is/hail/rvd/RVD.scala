@@ -651,13 +651,17 @@ class RVD(
      execCtx: ExecuteContext,
      mkZero: (HailClassLoader, HailTaskContext) => T,
      itF: (HailClassLoader, Int, RVDContext, Iterator[Long]) => T,
-     deserialize: RegionPool => (U => T),
-     serialize: T => U,
-     combOp: (T, T) => T,
+     deserialize: (HailClassLoader, HailTaskContext) => (U => T),
+     serialize: (HailClassLoader, HailTaskContext, T) => U,
+     combOp: (HailClassLoader, HailTaskContext, T, T) => T,
      commutative: Boolean,
      tree: Boolean
   ): T = {
-    var reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) => Iterator.single(serialize(itF(theHailClassLoaderForSparkWorkers, i, ctx, it))) }
+    var reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) =>
+      Iterator.single(
+        serialize(theHailClassLoaderForSparkWorkers, SparkTaskContext.get(),
+          itF(theHailClassLoaderForSparkWorkers, i, ctx, it)))
+    }
 
     if (tree) {
       val depth = treeAggDepth(getNumPartitions, HailContext.get.branchingFactor)
@@ -679,18 +683,21 @@ class RVD(
             override def numPartitions: Int = newNParts
           })
           .cmapPartitions { (ctx, it) =>
-            var acc = mkZero(theHailClassLoaderForSparkWorkers, SparkTaskContext.get())
+            val hcl = theHailClassLoaderForSparkWorkers
+            val htc = SparkTaskContext.get()
+            var acc = mkZero(hcl, htc)
             it.foreach { case (newPart, (oldPart, v)) =>
-              acc = combOp(acc, deserialize(ctx.r.pool)(v))
+              acc = combOp(hcl, htc, acc, deserialize(hcl, htc)(v))
             }
-            Iterator.single(serialize(acc))
+            Iterator.single(serialize(hcl, htc, acc))
           }
         i += 1
       }
     }
 
-    val ac = Combiner(mkZero(execCtx.theHailClassLoader, execCtx.taskContext), combOp, commutative, true)
-    sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), (i, x: U) => ac.combine(i, deserialize(execCtx.r.pool)(x)))
+    val ac = Combiner(mkZero(execCtx.theHailClassLoader, execCtx.taskContext), { (acc1: T, acc2: T) => combOp(execCtx.theHailClassLoader, execCtx.taskContext, acc1, acc2) },
+      commutative, true)
+    sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), (i, x: U) => ac.combine(i, deserialize(execCtx.theHailClassLoader, execCtx.taskContext)(x)))
     ac.result()
   }
 
