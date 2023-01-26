@@ -164,7 +164,7 @@ dependencies {
     }
     else if (sparkVersion.startsWith("2.4.")) {
         assert(elasticMajorVersion == "7")
-        bundled 'org.elasticsearch:elasticsearch-spark-20_2.12:8.4.3'
+        bundled 'org.elasticsearch:elasticsearch-spark-20_2.12:8.6.1'
     }
     else {
         throw new UnsupportedOperationException("Couldn't pick a valid elasticsearch.")
