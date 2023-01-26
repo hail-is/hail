@@ -1,9 +1,10 @@
 package is.hail.types
 
-import is.hail.expr.ir.{I64, IR, If}
+import is.hail.expr.ir._
 import is.hail.utils._
-import is.hail.types.virtual.{TFloat64, TInt32, Type}
+import is.hail.types.virtual.{TArray, TFloat64, TInt32, TString, TTuple, Type}
 import is.hail.linalg.BlockMatrix
+import org.apache.spark.sql.Row
 
 object BlockMatrixSparsity {
   private val builder: BoxedArrayBuilder[(Int, Int)] = new BoxedArrayBuilder[(Int, Int)]
@@ -42,10 +43,18 @@ case class BlockMatrixSparsity(definedBlocks: Option[IndexedSeq[(Int, Int)]]) {
     }
   }
 
+  def definedBlocksColMajorIR: Option[IR] = definedBlocksColMajor.map { blocks =>
+    ToStream(Literal(TArray(TTuple(TInt32, TInt32)), blocks.map(Row.fromTuple)))
+  }
+
   lazy val definedBlocksRowMajor: Option[IndexedSeq[(Int, Int)]] = definedBlocks.map { blocks =>
     blocks.sortWith { case ((i1, j1), (i2, j2)) =>
       i1 < i2 || (i1 == i2 && j1 < j2)
     }
+  }
+
+  def definedBlocksRowMajorIR: Option[IR] = definedBlocksRowMajor.map { blocks =>
+    ToStream(Literal(TArray(TTuple(TInt32, TInt32)), blocks.map(Row.fromTuple)))
   }
 
   def isSparse: Boolean = definedBlocks.isDefined
@@ -77,6 +86,14 @@ case class BlockMatrixSparsity(definedBlocks: Option[IndexedSeq[(Int, Int)]]) {
     }
   }
 
+  def allBlocksColMajorIR(nRowBlocks: Int, nColBlocks: Int): IR = definedBlocksColMajorIR.getOrElse {
+    flatMapIR(rangeIR(nColBlocks)) { j =>
+      mapIR(rangeIR(nRowBlocks)) { i =>
+        maketuple(i, j)
+      }
+    }
+  }
+
   def allBlocksRowMajor(nRowBlocks: Int, nColBlocks: Int): IndexedSeq[(Int, Int)] = {
     (definedBlocksRowMajor).getOrElse {
       val foo = Array.fill[(Int, Int)](nRowBlocks * nColBlocks)(null)
@@ -92,6 +109,14 @@ case class BlockMatrixSparsity(definedBlocks: Option[IndexedSeq[(Int, Int)]]) {
         i += 1
       }
       foo
+    }
+  }
+
+  def allBlocksRowMajorIR(nRowBlocks: Int, nColBlocks: Int): IR = definedBlocksRowMajorIR.getOrElse {
+    flatMapIR(rangeIR(nRowBlocks)) { i =>
+      mapIR(rangeIR(nColBlocks)) { j =>
+        maketuple(i, j)
+      }
     }
   }
 
@@ -159,7 +184,9 @@ case class BlockMatrixType(
     if (isSparse) sparsity.hasBlock(idx) else true
   }
   def allBlocksColMajor: IndexedSeq[(Int, Int)] = sparsity.allBlocksColMajor(nRowBlocks, nColBlocks)
+  def allBlocksColMajorIR: IR = sparsity.allBlocksColMajorIR(nRowBlocks, nColBlocks)
   def allBlocksRowMajor: IndexedSeq[(Int, Int)] = sparsity.allBlocksRowMajor(nRowBlocks, nColBlocks)
+  def allBlocksRowMajorIR: IR = sparsity.allBlocksRowMajorIR(nRowBlocks, nColBlocks)
 
   lazy val linearizedDefinedBlocks: Option[IndexedSeq[Int]] = sparsity.definedBlocksColMajor.map { blocks =>
     blocks.map { case (i, j) => i + j * nRowBlocks }

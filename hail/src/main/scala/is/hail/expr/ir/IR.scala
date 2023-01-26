@@ -447,10 +447,15 @@ sealed trait NDArrayIR extends TypedIR[TNDArray] {
 }
 
 object MakeNDArray {
-  def fill(elt: IR, shape: IndexedSeq[Long], rowMajor: IR): MakeNDArray =
+  def fill(elt: IR, shape: IndexedSeq[IR], rowMajor: IR): MakeNDArray = {
+    val flatSize: IR = if (shape.nonEmpty)
+      shape.reduce { (l, r) => l * r }
+    else
+      0L
     MakeNDArray(
-      ToArray(StreamMap(StreamRange(0, shape.product.toInt, 1, errorID = ErrorIDs.NO_ERROR), genUID(), elt)),
-      MakeTuple.ordered(shape.map(I64)), rowMajor, ErrorIDs.NO_ERROR)
+      ToArray(mapIR(rangeIR(flatSize.toI))(_ => elt)),
+      MakeTuple.ordered(shape), rowMajor, ErrorIDs.NO_ERROR)
+  }
 }
 
 final case class MakeNDArray(data: IR, shape: IR, rowMajor: IR, errorId: Int) extends NDArrayIR
