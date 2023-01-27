@@ -64,7 +64,6 @@ class Tests(unittest.TestCase):
         assert gr4.has_sequence()
         self.assertEqual(gr4._sequence_files, (resource("fake_reference.fasta"), resource("fake_reference.fasta.fai")))
 
-    @fails_service_backend()
     def test_reference_genome_liftover(self):
         grch37 = hl.get_reference('GRCh37')
         grch38 = hl.get_reference('GRCh38')
