@@ -263,6 +263,7 @@ async def get_gsa_key(request, instance):  # pylint: disable=unused-argument
     return await asyncio.shield(get_gsa_key_1(instance))
 
 
+# deprecated
 @routes.get('/api/v1alpha/instances/credentials')
 @activating_instances_only
 async def get_credentials(request, instance):  # pylint: disable=unused-argument
@@ -1325,12 +1326,12 @@ SELECT instance_id, internal_token, frozen FROM globals;
     app['cancel_running_state_changed'] = asyncio.Event()
     app['async_worker_pool'] = AsyncWorkerPool(100, queue_size=100)
 
-    credentials_file = '/gsa-key/key.json'
-    fs = get_cloud_async_fs(credentials_file=credentials_file)
+    fs = get_cloud_async_fs()
     app['file_store'] = FileStore(fs, BATCH_STORAGE_URI, instance_id)
 
     inst_coll_configs = await InstanceCollectionConfigs.create(db)
 
+    credentials_file = '/gsa-key/key.json'
     app['driver'] = await get_cloud_driver(
         app, db, MACHINE_NAME_PREFIX, DEFAULT_NAMESPACE, inst_coll_configs, credentials_file, task_manager
     )
