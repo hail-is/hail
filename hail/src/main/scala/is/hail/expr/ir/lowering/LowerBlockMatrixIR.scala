@@ -602,6 +602,15 @@ object LowerBlockMatrixIR {
         val diagVector = MakeNDArray(ToArray(flatten(diagArray)), maketuple(math.min(child.typ.nRows, child.typ.nCols)), true, ErrorIDs.NO_ERROR)
         BlockMatrixStage2.broadcastVector(diagVector, x.typ, asRowVector = axis == 0)
 
+      case x@BlockMatrixBroadcast(child, IndexedSeq(1, 0), _, _) => //transpose
+        val lowered = lower(child)
+        def contextIR(blockRow: IR, blockCol: IR): IR = lowered.contextIR(blockCol, blockRow)
+        def blockIR(ctx: IR): IR = NDArrayReindex(lowered.blockIR(ctx), FastIndexedSeq(1, 0))
+        BlockMatrixStage2(lowered.letBindings, lowered.broadcastVals, x.typ, contextIR, blockIR)
+
+      case BlockMatrixBroadcast(child, IndexedSeq(0, 1), _, _) =>
+        lower(child)
+
       case _ =>
         BlockMatrixStage2.fromOldBMS(lowerNonEmpty(bmir, typesToLower, ctx, analyses, relationalLetsAbove), bmir.typ)
     }
@@ -613,15 +622,6 @@ object LowerBlockMatrixIR {
     def lowerIR(node: IR): IR = LowerToCDA.lower(node, typesToLower, ctx, analyses, relationalLetsAbove: Map[String, IR])
 
     bmir match {
-
-      case BlockMatrixBroadcast(child, IndexedSeq(1, 0), _, _) => //transpose
-        val lowered = lower(child)
-        new BlockMatrixStage(lowered.letBindings, lowered.broadcastVals, lowered.ctxType) {
-          def blockContext(idx: (Int, Int)): IR = lowered.blockContext(idx.swap)
-          def blockBody(ctxRef: Ref): IR = NDArrayReindex(lowered.blockBody(ctxRef), FastIndexedSeq(1, 0))
-        }
-      case BlockMatrixBroadcast(child, IndexedSeq(0, 1), _, _) =>
-        lower(child)
 
       case a@BlockMatrixAgg(child, axesToSumOut) =>
         val loweredChild = lower(child)
