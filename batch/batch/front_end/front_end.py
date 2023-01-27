@@ -1950,8 +1950,8 @@ def plot_resource_usage(
         subplot_titles=(
             'CPU Usage',
             memory_title,
-            'Network Upload Bandwidth (MB/sec)',
             'Network Download Bandwidth (MB/sec)',
+            'Network Upload Bandwidth (MB/sec)',
             non_io_storage_title,
             io_storage_title,
         ),
@@ -1962,8 +1962,8 @@ def plot_resource_usage(
 
     max_cpu_value = 1
     max_memory_value = 1024 * 1024
-    max_upload_network_bandwidth_value = 500
     max_download_network_bandwidth_value = 500
+    max_upload_network_bandwidth_value = 500
     max_io_storage_value = 1024 * 1024 * 1024
     max_non_io_storage_value = 1024 * 1024 * 1024
     n_total_rows = 0
@@ -1984,16 +1984,16 @@ def plot_resource_usage(
                 df[colname] = ResourceUsageMonitor.missing_value
             return df[colname]
 
-        network_upload_df = get_df(df, 'network_bandwidth_upload_in_bytes_per_second')
         network_download_df = get_df(df, 'network_bandwidth_download_in_bytes_per_second')
+        network_upload_df = get_df(df, 'network_bandwidth_upload_in_bytes_per_second')
         non_io_storage_df = get_df(df, 'non_io_storage_in_bytes')
         io_storage_df = get_df(df, 'io_storage_in_bytes')
 
         if n_rows != 0:
             max_cpu_value = max(max_cpu_value, cpu_df.max())
             max_memory_value = max(max_memory_value, mem_df.max())
-            max_upload_network_bandwidth_value = max(max_upload_network_bandwidth_value, network_upload_df.max())
             max_download_network_bandwidth_value = max(max_download_network_bandwidth_value, network_download_df.max())
+            max_upload_network_bandwidth_value = max(max_upload_network_bandwidth_value, network_upload_df.max())
             max_io_storage_value = max(max_io_storage_value, io_storage_df.max())
             max_non_io_storage_value = max(max_non_io_storage_value, non_io_storage_df.max())
 
@@ -2014,8 +2014,8 @@ def plot_resource_usage(
 
         add_trace(time_df, cpu_df, 1, 1, container_name, True)
         add_trace(time_df, mem_df, 1, 2, container_name, False)
-        add_trace(time_df, network_upload_df, 2, 1, container_name, False)
-        add_trace(time_df, network_download_df, 2, 2, container_name, False)
+        add_trace(time_df, network_download_df, 2, 1, container_name, False)
+        add_trace(time_df, network_upload_df, 2, 2, container_name, False)
         add_trace(time_df, non_io_storage_df, 3, 1, container_name, False)
         if io_storage_limit_bytes != 0:
             add_trace(time_df, io_storage_df, 3, 2, container_name, False)
@@ -2036,8 +2036,8 @@ def plot_resource_usage(
         yaxis6_tickformat='s',
         yaxis1_range=[0, 1.25 * max_cpu_value],
         yaxis2_range=[0, 1.25 * max_memory_value],
-        yaxis3_range=[0, 1.25 * max_upload_network_bandwidth_value],
-        yaxis4_range=[0, 1.25 * max_download_network_bandwidth_value],
+        yaxis3_range=[0, 1.25 * max_download_network_bandwidth_value],
+        yaxis4_range=[0, 1.25 * max_upload_network_bandwidth_value],
         yaxis5_range=[0, 1.25 * max_non_io_storage_value],
         yaxis6_range=[0, 1.25 * max_io_storage_value],
     )
