@@ -6,7 +6,7 @@ import is.hail.expr.ir.{EmitMethodBuilder, _}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.primitives.{SFloat64Value, SInt32, SInt64}
+import is.hail.types.physical.stypes.primitives.{SFloat64Value, SInt32, SInt32Value, SInt64}
 import is.hail.types.physical.stypes.{EmitType, SType}
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -112,6 +112,20 @@ object LocusFunctions extends RegistryFunctions {
     registerLocusCode("inYPar") { locus => inY(locus) && inPar(locus) }
     registerLocusCode("inXNonPar") { locus => inX(locus) && !inPar(locus) }
     registerLocusCode("inYNonPar") { locus => inY(locus) && !inPar(locus) }
+
+    registerSCode2("add_on_contig", tlocus("T"), TInt32, tlocus("T"), (tl: Type, _:SType, _: SType) => SCanonicalLocusPointer(PCanonicalLocus(tl.asInstanceOf[TLocus].rg))) {
+      case (r: EmitRegion, cb: EmitCodeBuilder, rt: SCanonicalLocusPointer, inputLocus: SLocusValue, basePairsToAdd: SInt32Value, errorID) =>
+
+        val contig = inputLocus.contig(cb).loadString(cb)
+        val basePos = inputLocus.position(cb)
+        val bps = basePairsToAdd.value
+        val newPos = cb.newLocal[Int]("newPos")
+        cb.ifx(bps <= 0,
+          cb.assign(newPos, (basePos + bps).max(1)),
+          cb.assign(newPos, (basePos + bps).min(cb.emb.getReferenceGenome(rt.rg).invoke[String, Int]("contigLength", contig)))
+        )
+        rt.pType.constructFromPositionAndString(cb, r.region, contig, newPos)
+    }
 
     registerSCode2("min_rep", tlocus("T"), TArray(TString), TStruct("locus" -> tv("T"), "alleles" -> TArray(TString)), {
       (returnType: Type, _: SType, _: SType) => {

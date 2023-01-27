@@ -7,7 +7,7 @@ from hail.matrixtable import MatrixTable
 from hail.methods.misc import require_first_key_field_locus
 from hail.table import Table
 from hail.typecheck import sequenceof, typecheck, nullable, oneof, enumeration
-from hail.utils.java import Env, info
+from hail.utils.java import Env, info, warning
 from hail.utils.misc import divide_null, new_temp_file, wrap_to_list
 from hail.vds.variant_dataset import VariantDataset
 
@@ -581,9 +581,23 @@ def _parameterized_filter_intervals(vds: 'VariantDataset',
         intervals_table = intervals
         intervals = intervals.aggregate(hl.agg.collect(intervals.key[0]))
 
+    if mode == 'unchecked_filter_both':
+        return VariantDataset(hl.filter_intervals(vds.reference_data, intervals, keep),
+                              hl.filter_intervals(vds.variant_data, intervals, keep))
+
+    reference_data = vds.reference_data
+    if keep:
+        if 'ref_block_max_length' in vds.reference_data.globals:
+            max_len = hl.eval(vds.reference_data.index_globals()['ref_block_max_length'])
+            ref_intervals = intervals.map(lambda interval: hl.interval(interval.start - (max_len-1), interval.end, interval.includes_start, interval.includes_end))
+            reference_data = hl.filter_intervals(reference_data, ref_intervals, keep)
+        else:
+            warning("'hl.vds.filter_intervals': filtering intervals when reference blocks have not been truncated"
+                    "\n  (by 'hl.vds.truncate_reference_blocks') requires a full pass over the reference data (expensive!)")
+
     if mode == 'variants_only':
         variant_data = hl.filter_intervals(vds.variant_data, intervals, keep)
-        return VariantDataset(vds.reference_data, variant_data)
+        return VariantDataset(reference_data, variant_data)
     if mode == 'split_at_boundaries':
         if not keep:
             raise ValueError("filter_intervals mode 'split_at_boundaries' not implemented for keep=False")
@@ -591,13 +605,10 @@ def _parameterized_filter_intervals(vds: 'VariantDataset',
             intervals.map(lambda x: hl.struct(interval=x)),
             schema=hl.tstruct(interval=intervals.dtype.element_type),
             key='interval')
-        ref = segment_reference_blocks(vds.reference_data, par_intervals).drop('interval_end',
+        ref = segment_reference_blocks(reference_data, par_intervals).drop('interval_end',
                                                                                list(par_intervals.key)[0])
         return VariantDataset(ref,
                               hl.filter_intervals(vds.variant_data, intervals, keep))
-
-    return VariantDataset(hl.filter_intervals(vds.reference_data, intervals, keep),
-                          hl.filter_intervals(vds.variant_data, intervals, keep))
 
 
 @typecheck(vds=VariantDataset,
@@ -909,3 +920,58 @@ def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0
     per_interval = per_interval.annotate_globals(gq_thresholds=hl.tuple(gq_thresholds))
 
     return per_interval
+
+
+def truncate_reference_blocks(vds: 'hl.vds.VariantDataset', *, max_ref_block_base_pairs=None, ref_block_winsorize_fraction=None):
+    """
+    
+    Parameters
+    ----------
+    vds : :class:`.VariantDataset`
+    max_ref_block_base_pairs
+        Maximum size of reference blocks, in base pairs.
+    ref_block_winsorize_fraction
+        Fraction of reference block length distribution to truncate / winsorize.
+
+    Returns
+    -------
+    :class:`.VariantDataset`
+    """
+    rd = vds.reference_data
+
+    if int(ref_block_winsorize_fraction is None) + int(max_ref_block_base_pairs is None) != 1:
+        raise ValueError(
+            'truncate_reference_blocks: require exactly one of "max_ref_block_base_pairs", "ref_block_winsorize_fraction"')
+
+    if ref_block_winsorize_fraction is not None:
+        assert (ref_block_winsorize_fraction > 0 and ref_block_winsorize_fraction < 1,
+                'truncate_reference_blocks: "ref_block_winsorize_fraction" must be between 0 and 1 (e.g. 0.01 to truncate the top 1% of reference blocks)')
+        max_ref_block_base_pairs = rd.aggregate_entries(
+            hl.agg.approx_quantiles(rd.END - rd.locus.position + 1, 1 - ref_block_winsorize_fraction, k=200))
+
+    assert (max_ref_block_base_pairs > 0,
+            'truncate_reference_blocks: "max_ref_block_base_pairs" must be between greater than zero')
+    info(f"splitting VDS reference blocks at {max_ref_block_base_pairs} base pairs")
+
+    rd_under_limit = (rd.filter_entries(rd.END - rd.locus.position < max_ref_block_base_pairs)
+                      .localize_entries('fixed_blocks', 'cols'))
+
+    rd_over_limit = rd.filter_entries(rd.END - rd.locus.position >= max_ref_block_base_pairs).key_cols_by(
+        col_idx=hl.scan.count())
+    rd_over_limit = rd_over_limit.select_rows().select_cols().key_rows_by().key_cols_by()
+    es = rd_over_limit.entries()
+    es.annotate(new_start=hl.range(es.locus.position, es.END + 1, max_ref_block_base_pairs))
+    es = es.explode('new_start')
+    es = es.annotate(locus=hl.locus(es.locus.contig, es.new_start, reference_genome=es.locus.dtype.reference_genome),
+                     END=hl.min(es.new_start + max_ref_block_base_pairs - 1, es.END))
+    es = es.key_by(es.locus).collect_by_key("new_blocks")
+    es = es.annotate(moved_blocks_dict=hl.dict(es.new_blocks
+                                               .map(lambda x: (x.col_idx, x.drop('col_idx')))))
+
+    joined = rd_under_limit.join(es, how='outer')
+    joined = joined.annotate(merged_blocks=hl.range(hl.len(joined.cols)).map(
+        lambda idx: hl.coalesce(es.moved_blocks_dict.get(idx), es.fixed_blocks[idx])))
+    new_rd = joined._unlocalize_entries(entries_field_name='merged_blocks', cols_field_name='cols',
+                                        col_key=list(rd.col_key))
+    new_rd = new_rd.annotate_globals(ref_block_max_length=max_ref_block_base_pairs).drop('col_idx')
+    return hl.vds.VariantDataset(reference_data=new_rd, variant_data=vds.variant_data)

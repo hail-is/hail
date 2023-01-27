@@ -3520,6 +3520,15 @@ class LocusExpression(Expression):
     >>> locus = hl.locus('1', 1034245)
     """
 
+    @typecheck_method(other=expr_int32)
+    def __add__(self, other):
+        from hail.expr.functions import _func
+        return _func("add_on_contig", self.dtype, self._ir, other._ir)
+
+    @typecheck_method(other=expr_int32)
+    def __sub__(self, other):
+        return self + (-other)
+
     @property
     def contig(self):
         """Returns the chromosome.
