@@ -221,14 +221,15 @@ class Aggs(original: IR, rewriteMap: Memo[IR], bindingNodesReferenced: Memo[Unit
   def combOpFSerializedWorkersOnly(ctx: ExecuteContext, spec: BufferSpec): (Array[Byte], Array[Byte]) => Array[Byte] = {
     combOpFSerializedFromRegionPool(ctx, spec)(() => {
       val htc = SparkTaskContext.get()
+      val hcl = theHailClassLoaderForSparkWorkers
       if (htc == null) {
         throw new UnsupportedOperationException(s"Can't get htc. On worker = ${TaskContext.get != null}")
       }
-      htc.getRegionPool()
+      (htc.getRegionPool(), hcl, htc)
     })
   }
 
-  def combOpFSerializedFromRegionPool(ctx: ExecuteContext, spec: BufferSpec): (() => RegionPool) => ((Array[Byte], Array[Byte]) => Array[Byte]) = {
+  def combOpFSerializedFromRegionPool(ctx: ExecuteContext, spec: BufferSpec): (() => (RegionPool, HailClassLoader, HailTaskContext)) => ((Array[Byte], Array[Byte]) => Array[Byte]) = {
     val (_, f) = ir.CompileWithAggregators[AsmFunction1RegionUnit](ctx,
       states ++ states,
       FastIndexedSeq(),
@@ -241,9 +242,10 @@ class Aggs(original: IR, rewriteMap: Memo[IR], bindingNodesReferenced: Memo[Unit
       )))
 
     val fsBc = ctx.fsBc
-    poolGetter: (() => RegionPool) => { (bytes1: Array[Byte], bytes2: Array[Byte]) =>
-      poolGetter().scopedSmallRegion { r =>
-        val f2 = f(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), r)
+    poolGetter: (() => (RegionPool, HailClassLoader, HailTaskContext)) => { (bytes1: Array[Byte], bytes2: Array[Byte]) =>
+      val (pool, hcl, htc) = poolGetter()
+      pool.scopedSmallRegion { r =>
+        val f2 = f(hcl, fsBc.value, htc, r)
         f2.newAggState(r)
         f2.setSerializedAgg(0, bytes1)
         f2.setSerializedAgg(1, bytes2)
