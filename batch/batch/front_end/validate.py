@@ -79,6 +79,7 @@ job_validator = keyed(
                         {required('type'): oneof('git_revision', 'jar_url'), required('value'): str_type}
                     ),
                     required('command'): listof(str_type),
+                    'profile': bool_type,
                 },
             },
         ),
@@ -199,6 +200,10 @@ def handle_job_backwards_compatibility(job):
         job['absolute_parent_ids'] = job.pop('parent_ids')
     if 'always_copy_output' not in job:
         job['always_copy_output'] = True
+    if 'process' in job:
+        process = job['process']
+        if process['type'] == 'jvm' and process['profile'] is None:
+            process['profile'] = False
 
 
 def validate_batch(batch):

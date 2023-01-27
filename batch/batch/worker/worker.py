@@ -1315,6 +1315,13 @@ class Container:
             return os.path.getsize(self.resource_usage_path)
         return 0
 
+    async def exec(
+        self, cmd: List[str], *, global_options: Optional[List[str]] = None, options: Optional[List[str]] = None
+    ):
+        global_options = global_options or []
+        options = options or []
+        await check_exec_output('crun', *global_options, 'exec', *options, self.name, *cmd)
+
     def __str__(self):
         return f'container {self.name}'
 
@@ -1937,9 +1944,6 @@ class DockerJob(Job):
     async def get_resource_usage(self):
         return {name: await c.get_resource_usage() for name, c in self.containers.items()}
 
-    async def get_resource_usage_file_sizes(self):
-        return {name: await c.get_resource_usage_file_size() for name, c in self.containers.items()}
-
     async def delete(self):
         await super().delete()
         await asyncio.wait([c.remove() for c in self.containers.values()])
@@ -2005,6 +2009,9 @@ class JVMJob(Job):
         self.jvm_name: Optional[str] = None
 
         self.log_file = f'{self.scratch}/log'
+
+        should_profile = job_spec['process']['profile']
+        self.profile_file = f'{self.scratch}/profile.html' if should_profile else None
 
         assert self.worker.fs is not None
 
@@ -2147,7 +2154,9 @@ class JVMJob(Job):
                     local_jar_location = await self.download_jar()
 
                 with self.step('running'):
-                    await self.jvm.execute(local_jar_location, self.scratch, self.log_file, self.jar_url, self.argv)
+                    await self.jvm.execute(
+                        local_jar_location, self.scratch, self.log_file, self.jar_url, self.argv, self.profile_file
+                    )
 
                 self.state = 'succeeded'
             except asyncio.CancelledError:
@@ -2208,6 +2217,21 @@ class JVMJob(Job):
             await self.worker.file_store.write_log_file(
                 self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', log_contents
             )
+
+        if self.profile_file is not None:
+            with self.step('uploading_profile'):
+                if os.path.exists(self.profile_file):
+                    profile_contents = await self.worker.fs.read(self.profile_file)
+                else:
+                    profile_contents = 'profile not available'
+                await self.worker.file_store.write_jvm_profile(
+                    self.format_version,
+                    self.batch_id,
+                    self.job_id,
+                    self.attempt_id,
+                    'main',
+                    profile_contents,
+                )
 
         try:
             await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
@@ -2402,9 +2426,52 @@ class JVMContainer:
     async def remove(self):
         await self.container.remove()
 
+    async def start_profiler(self, output_file: str):
+        await self.container.exec(
+            ['./profiler.sh', 'start', '-o', 'flamegraph', '-e', 'itimer', '-f', output_file, 'jps'],
+            options=['--cwd=/async-profiler-2.9-linux-x64/'],
+        )
+
+    async def stop_profiler(self, output_file: str):
+        await self.container.exec(
+            ['./profiler.sh', 'stop', '-o', 'flamegraph', '-f', output_file, 'jps'],
+            options=['--cwd=/async-profiler-2.9-linux-x64/'],
+        )
+
 
 class JVMUserError(Exception):
     pass
+
+
+class JVMProfiler:
+    def __init__(self, container: JVMContainer, output_file: Optional[str]):
+        self.container = container
+        self.output_file = output_file
+        self._task = None
+
+    async def __aenter__(self):
+        if self.output_file is None:
+            return self
+
+        try:
+            await self.container.start_profiler(self.output_file)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.warning(f'could not start JVM profiling for {self.container.container.name}')
+        finally:
+            return self  # pylint: disable=lost-exception
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self.output_file is None:
+            return
+
+        try:
+            await self.container.stop_profiler(self.output_file)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.warning(f'could not stop JVM profiling for {self.container.container.name}')
 
 
 class JVM:
@@ -2576,7 +2643,15 @@ class JVM:
                 )
                 self.container = container
 
-    async def execute(self, classpath: str, scratch_dir: str, log_file: str, jar_url: str, argv: List[str]):
+    async def execute(
+        self,
+        classpath: str,
+        scratch_dir: str,
+        log_file: str,
+        jar_url: str,
+        argv: List[str],
+        profile_file: Optional[str],
+    ):
         assert worker is not None
 
         with ExitStack() as stack:
@@ -2598,9 +2673,10 @@ class JVM:
             wait_for_interrupt: asyncio.Future = asyncio.create_task(self.should_interrupt.wait())
             stack.callback(wait_for_interrupt.cancel)
 
-            await asyncio.wait(
-                [wait_for_message_from_container, wait_for_interrupt], return_when=asyncio.FIRST_COMPLETED
-            )
+            async with JVMProfiler(self.container, profile_file):
+                await asyncio.wait(
+                    [wait_for_message_from_container, wait_for_interrupt], return_when=asyncio.FIRST_COMPLETED
+                )
 
             if wait_for_interrupt.done():
                 await wait_for_interrupt  # retrieve exceptions

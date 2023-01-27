@@ -49,6 +49,7 @@ class ServiceBackendContext(
   val storageRequirement: String,
   val regions: Array[String],
   val cloudfuseConfig: Array[(String, String, Boolean)]
+  val profile: Boolean
 ) extends BackendContext with Serializable {
   def tokens(): Tokens =
     new Tokens(Map((DeployConfig.get.defaultNamespace, sessionID)))
@@ -177,7 +178,9 @@ class ServiceBackend(
             JString(root),
             JString(s"$i"),
             JString(s"$n"))),
-          "type" -> JString("jvm")),
+          "type" -> JString("jvm"),
+          "profile" -> JBool(backendContext.profile),
+        ),
         "attributes" -> JObject(
           "name" -> JString(s"${ name }_stage${ stageCount }_${ stageIdentifier }_job$i"),
         ),
@@ -630,6 +633,7 @@ class ServiceBackendSocketAPI2(
 
     def withExecuteContext(methodName: String, method: ExecuteContext => Array[Byte]): Array[Byte] = ExecutionTimer.logTime(methodName) { timer =>
       val flags = HailFeatureFlags.fromMap(flagsMap)
+      val shouldProfile = flags.get("profile") != null
       val fs = FS.cloudSpecificCacheableFS(s"${backend.scratchDir}/secrets/gsa-key/key.json", Some(flags))
       ExecuteContext.scoped(
         tmpdir,
@@ -650,7 +654,7 @@ class ServiceBackendSocketAPI2(
         addedSequences.foreach { case (rg, (fastaFile, indexFile)) =>
           ctx.getReference(rg).addSequence(ctx, fastaFile, indexFile)
         }
-        ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir, workerCores, workerMemory, storageRequirement, regions, cloudfuseConfig)
+        ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir, workerCores, workerMemory, storageRequirement, regions, cloudfuseConfig, shouldProfile)
         method(ctx)
       }
     }
