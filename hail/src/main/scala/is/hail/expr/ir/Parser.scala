@@ -143,8 +143,10 @@ case class IRParserEnvironment(
   ctx: ExecuteContext,
   refMap: BindingEnv[Type] = BindingEnv.empty[Type],
   irMap: Map[String, BaseIR] = Map.empty,
-  typEnv: TypeParserEnvironment = TypeParserEnvironment.default
 ) {
+
+  val typEnv: TypeParserEnvironment = TypeParserEnvironment(ctx.referenceGenomes)
+
   def promoteAgg: IRParserEnvironment = copy(refMap = refMap.promoteAgg)
 
   def promoteScan: IRParserEnvironment = copy(refMap = refMap.promoteScan)
@@ -2097,7 +2099,7 @@ object IRParser {
   }
 
   def parse_value_ir(ctx: ExecuteContext, s: String): IR = {
-    parse_value_ir(s, IRParserEnvironment(ctx, typEnv=TypeParserEnvironment(ctx.referenceGenomes)))
+    parse_value_ir(s, IRParserEnvironment(ctx))
   }
 
   def parse_table_ir(ctx: ExecuteContext, s: String): TableIR = parse_table_ir(s, IRParserEnvironment(ctx))
