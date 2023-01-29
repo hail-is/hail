@@ -2,7 +2,7 @@ package is.hail.methods
 
 import is.hail.utils._
 import is.hail.types._
-import is.hail.stats.{LogisticRegressionModel, RegressionUtils, eigSymD}
+import is.hail.stats.{LogisticRegressionModel, RegressionUtils, eigSymD, GeneralizedChiSquaredDistribution}
 import is.hail.annotations.{Annotation, BroadcastRow, Region, UnsafeRow}
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV, _}
 import breeze.numerics._
@@ -131,8 +131,6 @@ object Skat {
     val terms = evals.length
     val noncentrality = Array.fill[Double](terms)(0.0)
     val dof = Array.fill[Int](terms)(1)
-    val trace = Array.fill[Double](7)(0.0)
-    val fault = new IntByReference()
     val s = 0.0
 
     val result = GeneralizedChiSquaredDistribution.cdfReturnExceptions(
