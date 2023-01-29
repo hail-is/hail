@@ -473,14 +473,16 @@ def concatenate(nds, axis=0):
         The concatenated array
     """
     head_nd = nds[0]
-    head_ndim = head_nd.ndim
-    hl.case().when(hl.all(lambda a: a.ndim == head_ndim, nds), True).or_error("Mismatched ndim")
 
     makearr = aarray(nds)
     concat_ir = NDArrayConcat(makearr._ir, axis)
-    indices, aggregations = unify_all(*nds)
+    if isinstance(nds, list):
+        indices, aggregations = unify_all(*nds)
+    else:
+        indices = nds._indices
+        aggregations = nds._aggregations
 
-    return construct_expr(concat_ir, tndarray(head_nd._type.element_type, head_ndim), indices, aggregations)
+    return construct_expr(concat_ir, tndarray(head_nd._type.element_type, head_nd.ndim), indices, aggregations)
 
 
 @typecheck(N=expr_numeric, M=nullable(expr_numeric), dtype=HailType)
