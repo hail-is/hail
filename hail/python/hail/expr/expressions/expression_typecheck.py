@@ -253,9 +253,8 @@ class ArrayCoercer(ExprCoercer):
         return self.ec._requires_conversion(t.element_type)
 
     def can_coerce(self, t: HailType) -> bool:
-        return ((isinstance(t, tndarray) and t.ndim == 1 or
-                 isinstance(t, tarray)) and
-                self.ec.can_coerce(t.element_type))
+        return ((isinstance(t, tndarray) and t.ndim == 1 or isinstance(t, tarray))
+                and self.ec.can_coerce(t.element_type))
 
     def _coerce(self, x: Expression):
         if isinstance(x, hl.expr.NDArrayExpression):
