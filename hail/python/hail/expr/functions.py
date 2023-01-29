@@ -2182,7 +2182,7 @@ def pgenchisq(x, w, k, lam, mu, sigma, *, max_iterations=None, min_accuracy=None
     the introduction of this paper:
 
         `Das, Abhranil; Geisler, Wilson (2020). "A method to integrate and classify normal
-        distributions".<https://arxiv.org/abs/2012.14331>`__
+        distributions". <https://arxiv.org/abs/2012.14331>`__
 
     Parameters
     ----------
