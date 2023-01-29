@@ -328,7 +328,7 @@ def qr(nd, mode="reduced"):
         The tau array contains scaling factors for the reflectors
     """
 
-    assert nd.ndim == 2, "QR decomposition requires 2 dimensional ndarray"
+    assert nd.ndim == 2, f"QR decomposition requires 2 dimensional ndarray, found: {nd.ndim}"
 
     if mode not in ["reduced", "r", "raw", "complete"]:
         raise ValueError(f"Unrecognized mode '{mode}' for QR decomposition")
