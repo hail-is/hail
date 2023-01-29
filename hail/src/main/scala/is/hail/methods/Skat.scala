@@ -142,7 +142,7 @@ object Skat {
     val fault = result.fault
     val pval = 1 - x
 
-    (pval, fault.getValue)
+    (pval, fault)
   }
 }
 
