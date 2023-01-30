@@ -110,13 +110,6 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
 
     require_col_key_str(dataset, 'identity_by_descent')
 
-    if maf is not None:
-        analyze('identity_by_descent/maf', maf, dataset._row_indices)
-        dataset = dataset.select_rows(__maf=maf)
-        dataset = dataset.filter_rows(hl.is_defined(dataset.__maf))
-    else:
-        dataset = dataset.select_rows()
-
     min = min or 0
     max = max or 1
     if not 0 <= min <= max <= 1:
