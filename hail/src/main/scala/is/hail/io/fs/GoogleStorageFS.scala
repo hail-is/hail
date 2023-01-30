@@ -137,12 +137,10 @@ class GoogleStorageFS(
     try {
       makeRequest(Seq())
     } catch {
-      case exc: IOException =>
-        exc.getCause() match {
-          case cause: StorageException =>
-            retryIfRequesterPays(cause, cause.getMessage(), cause.getCode(), makeRequest, makeUserProjectOption, bucket)
-        }
-        throw exc
+      case exc: StorageException =>
+        retryIfRequesterPays(exc, exc.getMessage(), exc.getCode(), makeRequest, makeUserProjectOption, bucket)
+      case exc: GoogleJsonResponseException =>
+        retryIfRequesterPays(exc, exc.getMessage(), exc.getStatusCode(), makeRequest, makeUserProjectOption, bucket)
     }
   }
 
@@ -322,12 +320,10 @@ class GoogleStorageFS(
           .build()
       ).getResult() // getResult is necessary to cause this to go to completion
     } catch {
-      case exc: IOException =>
-        exc.getCause() match {
-          case cause: StorageException =>
-            retryCopyIfRequesterPays(cause, cause.getMessage(), cause.getCode())
-        }
-        throw exc
+      case exc: StorageException =>
+        retryCopyIfRequesterPays(exc, exc.getMessage(), exc.getCode())
+      case exc: GoogleJsonResponseException =>
+        retryCopyIfRequesterPays(exc, exc.getMessage(), exc.getStatusCode())
     }
 
     if (deleteSource)
