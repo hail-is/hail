@@ -1,6 +1,6 @@
 import os
 import unittest
-from subprocess import DEVNULL, call as syscall
+import subprocess as sp
 
 import hail as hl
 import hail.utils as utils
@@ -25,7 +25,7 @@ class Tests(unittest.TestCase):
                         threshold_string)
             result_file = utils.uri_path(plinkpath + ".genome")
 
-            syscall(plink_command, shell=True, stdout=DEVNULL, stderr=DEVNULL)
+            sp.run(plink_command, check=True, capture_output=True, shell=True)
 
             ### format of .genome file is:
             # _, fid1, iid1, fid2, iid2, rt, ez, z0, z1, z2, pihat, phe,
