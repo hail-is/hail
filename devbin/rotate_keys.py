@@ -71,8 +71,8 @@ class KubeSecretManager:
             self.kube_client.replace_namespaced_secret,
             name=name,
             namespace=namespace,
-            body=kube.client.V1Secret(  # type: ignore
-                metadata=kube.client.V1ObjectMeta(name=name),  # type: ignore
+            body=kubernetes_asyncio.client.V1Secret(  # type: ignore
+                metadata=kubernetes_asyncio.client.V1ObjectMeta(name=name),  # type: ignore
                 data={k: base64.b64encode(v.encode('utf-8')).decode('utf-8') for k, v in data.items()},
             ),
         )
