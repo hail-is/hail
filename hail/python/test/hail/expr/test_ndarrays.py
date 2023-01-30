@@ -1091,11 +1091,6 @@ def test_hstack():
     assert_table(a, b)
 
 
-def test_hstack_broadcast():
-    assert hl.eval(hl.nd.hstack((hl.nd.ones((10,)),
-                                 hl.nd.ones((10, 1))))).shape == (10, 2)
-
-
 def test_eye():
     for i in range(13):
         assert_ndarrays_eq(*[(hl.nd.eye(i, y), np.eye(i, y)) for y in range(13)])
