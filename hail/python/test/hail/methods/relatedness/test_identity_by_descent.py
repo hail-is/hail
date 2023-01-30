@@ -13,14 +13,11 @@ class Tests(unittest.TestCase):
         dataset = get_dataset()
 
         def plinkify(ds, min=None, max=None):
-            vcf = utils.new_temp_file(prefix="plink", extension="vcf")
-            plinkpath = utils.new_temp_file(prefix="plink")
-            print(vcf)
-            print(plinkpath)
+            tmpdir = utils.new_local_temp_dir()
+            vcf = f'{tmpdir}/ibd-input.vcf'
+            plinkpath = f'{tmpdir}/plink'
 
             hl.export_vcf(ds, vcf)
-
-            sp.run(f"ls {os.path.dirname(plinkpath)}", check=True, capture_output=True, shell=True)
 
             threshold_string = "{} {}".format("--min {}".format(min) if min else "",
                                               "--max {}".format(max) if max else "")
