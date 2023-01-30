@@ -6,7 +6,7 @@ import sys
 import warnings
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Generator, List, Optional, TextIO, Tuple
+from typing import Generator, List, Optional, TextIO, Tuple, Any
 
 import kubernetes_asyncio.client
 import kubernetes_asyncio.config
@@ -59,6 +59,20 @@ class KubeSecretManager:
     async def get_gsa_key_secrets(self) -> List[GSAKeySecret]:
         secrets = (await retry_transient_errors(self.kube_client.list_secret_for_all_namespaces)).items
         return [GSAKeySecret(s) for s in secrets if s.data is not None and 'key.json' in s.data]
+
+    async def get_secrets(self) -> Tuple[Any, List[GSAKeySecret]]:
+        secrets = (await retry_transient_errors(self.kube_client.list_secret_for_all_namespaces)).items
+        return (
+            [s for s in secrets
+             if (s.data is None or 'key.json' not in s.data)
+             and not s.metadata.name.endswith('-tokens')
+             and not s.metadata.name.startswith('ssl-config-')
+             and not (s.metadata.name.startswith('sql-') and s.metadata.name.endswith('-config'))
+             and s.metadata.name not in ('database-server-config', 'ci-config', 'deploy-config', 'gce-deploy-config')
+             and not s.metadata.name.startswith('default-token-')
+             and not s.metadata.namespace == 'kube-system'],
+            [GSAKeySecret(s) for s in secrets if s.data is not None and 'key.json' in s.data]
+        )
 
     async def update_gsa_key_secret(self, secret: GSAKeySecret, key_data: str) -> GSAKeySecret:
         data = {'key.json': key_data}
@@ -156,7 +170,36 @@ class ServiceAccount:
 
     def active_user_key(self) -> Optional[IAMKey]:
         if len(self.kube_secrets) > 0:
-            kube_key = next(k for k in self.keys if all(s.matches_iam_key(k) for s in self.kube_secrets))
+            try:
+                kube_key = next(k for k in self.keys if all(s.matches_iam_key(k) for s in self.kube_secrets))
+            except StopIteration:
+                keys_in_k8s = {s.private_key_id() for s in self.kube_secrets}
+                keys_to_k8s_secret = {
+                    k: []
+                    for k in keys_in_k8s
+                }
+                for s in self.kube_secrets:
+                    keys_to_k8s_secret[s.private_key_id()].append((s.name, s.namespace))
+                keys_to_k8s_secret_str = "\n".join(
+                    f'{k} ' + ", ".join(str(s) for s in secrets)
+                    for k, secrets in keys_to_k8s_secret.items()
+                )
+                known_iam_keys_str = "\n".join(
+                    f'{k.id} Created: {k.created_readable} Expires: {k.expiration_readable}' for k in self.keys
+                )
+                kube_key = sorted(
+                    [k for k in self.keys
+                     if k.id in keys_in_k8s],
+                    key=lambda k: -k.created.timestamp())[0]
+                print(f'''Found a user ({self.username()}) without a unique active key in Kubernetes.
+The known IAM keys are:
+{known_iam_keys_str}
+
+These keys are present in Kubernetes:
+{keys_to_k8s_secret_str}
+
+We will assume {kube_key.id} is the active key.
+''')
             assert kube_key is not None
             assert kube_key.user_managed
             return kube_key
@@ -282,8 +325,8 @@ async def main():
     k8s_manager = KubeSecretManager(k8s_client)
 
     try:
-        service_accounts = await iam_manager.get_all_service_accounts()
-        gsa_key_secrets = await k8s_manager.get_gsa_key_secrets()
+        service_accounts = [x for x in await iam_manager.get_all_service_accounts()]
+        other_secrets, gsa_key_secrets = await k8s_manager.get_secrets()
         seen_secrets = set()
         for sa in service_accounts:
             for secret in gsa_key_secrets:
@@ -318,6 +361,10 @@ async def main():
         for sa in service_accounts:
             if len(sa.kube_secrets) == 0:
                 print(f'\t{sa}')
+
+        print('Discovered the secrets which we ASSUME have no keys')
+        for secret in other_secrets:
+            print(f'\t{secret.metadata.name} ({secret.metadata.namespace})')
 
         action = input('What action would you like to take?[update/delete]: ')
         if action == 'update':
