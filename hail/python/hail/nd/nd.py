@@ -556,9 +556,16 @@ def vstack(arrs):
     head_ndim = arrs[0].ndim
 
     if head_ndim == 1:
-        return concatenate(hl.map(lambda a: a._broadcast(2), arrs), 0)
+        arrs = arrs.map(lambda a: a._broadcast(2))
 
-    return concatenate(arrs, 0)
+    return hl.case().when(
+        hl.len(arrs) > 0,
+        hl.case().when(
+            hl.all(arrs.map(lambda x: x.ndim == head_ndim)),
+            concatenate(arrs, 0)
+        ).or_error(hl.format('hl.nd.vstack: all matrices must have same number of dimensions, found: %s',
+                             arrs.map(lambda x: x.ndim)))
+    ).or_error('hl.nd.vstack: must provide at least one matrix')
 
 
 @typecheck(arrs=tsequenceof_nd)
@@ -607,7 +614,14 @@ def hstack(arrs):
     else:
         axis = 1
 
-    return concatenate(arrs, axis)
+    return hl.case().when(
+        hl.len(arrs) > 0,
+        hl.case().when(
+            hl.all(arrs.map(lambda x: x.ndim == head_ndim)),
+            concatenate(arrs, axis)
+        ).or_error(hl.format('hl.nd.hstack: all matrices must have same number of dimensions, found: %s',
+                             arrs.map(lambda x: x.ndim)))
+    ).or_error('hl.nd.hstack: must provide at least one matrix')
 
 
 @typecheck(nd1=expr_ndarray(), nd2=oneof(expr_ndarray(), list))

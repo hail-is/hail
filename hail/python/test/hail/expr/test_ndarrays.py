@@ -1190,3 +1190,65 @@ def test_ndarray_broadcasting_with_decorator():
     nd_floor = hl.eval(hl.nd.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]))
     nd = hl.eval(hl.floor(nd))
     assert(np.array_equal(nd, nd_floor))
+
+
+def test_hstack_no_broadcasting_1_2():
+    try:
+        hl.eval(hl.nd.hstack((hl.nd.ones((10,)),
+                              hl.nd.ones((1, 10)))))
+    except Exception as exc:
+        assert exc.args[0] == 'hl.nd.hstack: all matrices must have same number of dimensions, found: [1, 2]'
+
+
+def test_hstack_no_broadcasting_2_1():
+    try:
+        hl.eval(hl.nd.hstack((hl.nd.ones((1, 10)),
+                              hl.nd.ones((10)))))
+    except Exception as exc:
+        assert exc.args[0] == 'hl.nd.hstack: all matrices must have same number of dimensions, found: [2, 1]'
+
+
+def test_hstack_no_broadcasting_2_3():
+    try:
+        hl.eval(hl.nd.hstack((hl.nd.ones((1, 10)),
+                              hl.nd.ones((1, 1, 10)))))
+    except Exception as exc:
+        assert exc.args[0] == 'hl.nd.hstack: all matrices must have same number of dimensions, found: [2, 3]'
+
+
+def test_hstack_length_zero():
+    try:
+        hl.eval(hl.nd.hstack(hl.literal([])))
+    except Exception as exc:
+        assert exc.args[0] == 'hl.nd.hstack: must provide at least one matrix'
+
+
+def test_vstack_no_broadcasting_1_2():
+    try:
+        hl.eval(hl.nd.vstack((hl.nd.ones((10,)),
+                              hl.nd.ones((1, 10)))))
+    except Exception as exc:
+        assert exc.args[0] == 'hl.nd.vstack: all matrices must have same number of dimensions, found: [1, 2]'
+
+
+def test_vstack_no_broadcasting_2_1():
+    try:
+        hl.eval(hl.nd.vstack((hl.nd.ones((1, 10)),
+                              hl.nd.ones((10)))))
+    except Exception as exc:
+        assert exc.args[0] == 'hl.nd.vstack: all matrices must have same number of dimensions, found: [2, 1]'
+
+
+def test_vstack_no_broadcasting_2_3():
+    try:
+        hl.eval(hl.nd.vstack((hl.nd.ones((1, 10)),
+                              hl.nd.ones((1, 1, 10)))))
+    except Exception as exc:
+        assert exc.args[0] == 'hl.nd.vstack: all matrices must have same number of dimensions, found: [2, 3]'
+
+
+def test_vstack_length_zero():
+    try:
+        hl.eval(hl.nd.vstack(hl.literal([])))
+    except Exception as exc:
+        assert exc.args[0] == 'hl.nd.vstack: must provide at least one matrix'
