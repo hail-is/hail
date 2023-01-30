@@ -11,6 +11,7 @@ import com.google.cloud.{ReadChannel, WriteChannel}
 import com.google.cloud.storage.Storage.{BlobListOption, BlobWriteOption, BlobSourceOption}
 import com.google.cloud.storage.{Option => StorageOption, _}
 import com.google.cloud.http.HttpTransportOptions
+import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
 import is.hail.services.retryTransientErrors
 import is.hail.utils.fatal
