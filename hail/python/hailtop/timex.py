@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Optional
 
 import re
 import datetime
@@ -28,6 +28,7 @@ def parse_rfc3339(s: str) -> datetime.datetime:
         raise ValueError(f'Datetime string is not RFC3339 compliant: {s}.')
     year, month, day, hour, minute, second, fractional_second, offset = parts.groups()
 
+    tz: Optional[datetime.timezone]
     if offset in ('z', 'Z'):
         tz = datetime.timezone.utc
     else:

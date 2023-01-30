@@ -258,10 +258,14 @@ class AzureFileStatus(FileStatus):
         return size
 
     def time_created(self) -> datetime.datetime:
-        return self.blob_props.creation_time
+        ct = self.blob_props.creation_time
+        assert isinstance(ct, datetime.datetime)
+        return ct
 
     def time_modified(self) -> datetime.datetime:
-        return self.blob_props.last_modified
+        lm = self.blob_props.last_modified
+        assert isinstance(lm, datetime.datetime)
+        return lm
 
     async def __getitem__(self, key: str) -> Any:
         return self.blob_props.__dict__[key]
