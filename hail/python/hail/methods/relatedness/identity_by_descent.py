@@ -89,6 +89,11 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
     :class:`.Table`
     """
 
+    require_col_key_str(dataset, 'identity_by_descent')
+
+    if not isinstance(dataset.GT, hl.CallExpression):
+        raise Exception('GT field must be of type Call')
+
     if maf is not None:
         analyze('identity_by_descent/maf', maf, dataset._row_indices)
         dataset = dataset.select_rows(__maf=maf)
@@ -108,18 +113,10 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
             'max': max,
         })).persist()
 
-    require_col_key_str(dataset, 'identity_by_descent')
-
     min = min or 0
     max = max or 1
     if not 0 <= min <= max <= 1:
         raise Exception(f"invalid pi hat filters {min} {max}")
-
-    dataset = dataset.select_cols().select_globals().select_entries('GT')
-    dataset = require_biallelic(dataset, 'ibd')
-
-    if not isinstance(dataset.GT, hl.CallExpression):
-        raise Exception('GT field must be of type Call')
 
     sample_ids = dataset.s.collect()
     if len(sample_ids) != len(set(sample_ids)):
@@ -173,7 +170,7 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
     IS_HOM_REF = BlockMatrix.from_entry_expr(dataset.is_hom_ref).checkpoint(hl.utils.new_temp_file())
     IS_HET = BlockMatrix.from_entry_expr(dataset.is_het).checkpoint(hl.utils.new_temp_file())
     IS_HOM_VAR = BlockMatrix.from_entry_expr(dataset.is_hom_var).checkpoint(hl.utils.new_temp_file())
-    NOT_MISSING = BlockMatrix.from_entry_expr(dataset.is_not_missing).checkpoint(hl.utils.new_temp_file())
+    NOT_MISSING = IS_HOM_REF + IS_HET + IS_HOM_VAR
 
     total_possible_ibs = NOT_MISSING.T @ NOT_MISSING
 
