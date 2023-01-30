@@ -189,8 +189,7 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
 
     def convert_to_table(bm, annotation_name):
         t = bm.entries()
-        t = t.annotate(**{annotation_name: t.entry})
-        t = t.drop('entry')
+        t = t.rename({'entry': annotation_name})
         return t
 
     z0 = convert_to_table(Z0, 'Z0')
