@@ -13,17 +13,20 @@ class Tests(unittest.TestCase):
         dataset = get_dataset()
 
         def plinkify(ds, min=None, max=None):
-            tmpdir = utils.new_local_temp_dir()
-            vcf = f'{tmpdir}/ibd-input.vcf'
-            plinkpath = f'{tmpdir}/plink'
-
+            vcf = utils.new_temp_file(prefix="plink", extension="vcf")
             hl.export_vcf(ds, vcf)
+
+            local_tmpdir = utils.new_local_temp_dir()
+            plinkpath = f'{local_tmpdir}/plink-ibd'
+            local_vcf = f'{local_tmpdir}/input.vcf'
+
+            hl.hadoop_copy(vcf, local_vcf)
 
             threshold_string = "{} {}".format("--min {}".format(min) if min else "",
                                               "--max {}".format(max) if max else "")
 
             plink_command = "plink --double-id --allow-extra-chr --vcf {} --genome full --out {} {}" \
-                .format(utils.uri_path(vcf),
+                .format(utils.uri_path(local_vcf),
                         utils.uri_path(plinkpath),
                         threshold_string)
             result_file = utils.uri_path(plinkpath + ".genome")
