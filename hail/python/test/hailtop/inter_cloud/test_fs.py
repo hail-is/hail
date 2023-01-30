@@ -497,7 +497,7 @@ async def test_statfile_creation_and_modified_time(filesystem: Tuple[asyncio.Sem
             assert False
 
         modified_time = status.time_modified()
-        assert modified_time == pytest.approx(now.timestamp(), abs=60)
+        assert modified_time.timestamp() == pytest.approx(now.timestamp(), abs=60)
     else:
         create_time = status.time_created()
         assert create_time.timestamp() == pytest.approx(now.timestamp(), abs=60)
