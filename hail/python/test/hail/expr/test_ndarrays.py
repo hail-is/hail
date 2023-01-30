@@ -1208,5 +1208,5 @@ def test_ndarray_indices_aggregations():
     ht = ht.annotate(d = hl.nd.solve_triangular(hl.nd.eye(2), 2 * ht.g))
     ht = ht.annotate(e = hl.nd.svd(ht.x))
     ht = ht.annotate(f = hl.nd.inv(ht.x))
-    ht = ht.annotate(g = hl.nd.concatenate((ht.x, ht.g)))
-    ht = ht.annotate(g = hl.nd.concatenate((ht.g, ht.x)))
+    ht = ht.annotate(h = hl.nd.concatenate((ht.x, ht.g)))
+    ht = ht.annotate(i = hl.nd.concatenate((ht.g, ht.x)))
