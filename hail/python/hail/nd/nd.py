@@ -555,16 +555,19 @@ def vstack(arrs):
     """
     head_ndim = arrs[0].ndim
 
+    if isinstance(arrs, list):
+        if len(arrs) == 0:
+            raise ValueError(f'hl.nd.vstack: must provide at least one matrix')
+        if any(head_ndim != x.ndim for x in arrs):
+            ndims = [x.ndim for x in arrs]
+            raise ValueError(f'hl.nd.vstack: all matrices must have same number of dimensions, found: {ndims}')
+
     if head_ndim == 1:
         arrs = arrs.map(lambda a: a._broadcast(2))
 
     return hl.case().when(
         hl.len(arrs) > 0,
-        hl.case().when(
-            hl.all(arrs.map(lambda x: x.ndim == head_ndim)),
-            concatenate(arrs, 0)
-        ).or_error(hl.format('hl.nd.vstack: all matrices must have same number of dimensions, found: %s',
-                             arrs.map(lambda x: x.ndim)))
+        concatenate(arrs, 0)
     ).or_error('hl.nd.vstack: must provide at least one matrix')
 
 
@@ -609,6 +612,13 @@ def hstack(arrs):
     """
     head_ndim = arrs[0].ndim
 
+    if isinstance(arrs, list):
+        if len(arrs) == 0:
+            raise ValueError(f'hl.nd.hstack: must provide at least one matrix')
+        if any(head_ndim != x.ndim for x in arrs):
+            ndims = [x.ndim for x in arrs]
+            raise ValueError(f'hl.nd.hstack: all matrices must have same number of dimensions, found: {ndims}')
+
     if head_ndim == 1:
         axis = 0
     else:
@@ -616,11 +626,7 @@ def hstack(arrs):
 
     return hl.case().when(
         hl.len(arrs) > 0,
-        hl.case().when(
-            hl.all(arrs.map(lambda x: x.ndim == head_ndim)),
-            concatenate(arrs, axis)
-        ).or_error(hl.format('hl.nd.hstack: all matrices must have same number of dimensions, found: %s',
-                             arrs.map(lambda x: x.ndim)))
+        concatenate(arrs, axis)
     ).or_error('hl.nd.hstack: must provide at least one matrix')
 
 
