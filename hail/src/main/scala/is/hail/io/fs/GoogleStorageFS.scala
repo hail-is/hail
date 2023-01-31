@@ -327,7 +327,7 @@ class GoogleStorageFS(
       storage.copy(config).getResult() // getResult is necessary to cause this to go to completion
     }
 
-    def retryCopyIfRequesterPays(exc: Throwable): Unit = exc match {
+    def discoverExceptionThenRetryCopyIfRequesterPays(exc: Throwable): Unit = exc match {
       case exc: IOException =>
         retryCopyIfRequesterPays(exc.getCause())
       case exc: StorageException =>
@@ -348,7 +348,7 @@ class GoogleStorageFS(
       ).getResult() // getResult is necessary to cause this to go to completion
     } catch {
       case exc: Throwable =>
-        retryCopyIfRequesterPays(exc)
+        discoverExceptionThenRetryCopyIfRequesterPays(exc)
     }
 
     if (deleteSource)
