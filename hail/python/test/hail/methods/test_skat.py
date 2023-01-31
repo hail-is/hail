@@ -1,35 +1,47 @@
 import hail as hl
 import pytest
 
-from hail.utils import FatalError
+from hail.utils import FatalError, HailUserError
 
 from ..helpers import resource, fails_local_backend, fails_service_backend
 
 
-def test_linear_skat_negative_weights_errors():
+@pytest.mark.parametrize("skat_model", [('hl._linear_skat', hl._linear_skat),
+                                        ('hl._logistic_skat', hl._logistic_skat)])
+def test_skat_negative_weights_errors(skat_model):
+    skat_name, skat = skat_model
     genotypes = [
-        [0, 1, 0, 0, 0],
-        [1, 0, 0, 0, 0],
-        [0, 1, 2, 0, 2],
-        [1, 0, 0, 2, 1]]
+        [2, 1, 1, 1, 0, 1, 1, 2, 1, 1, 2, 1, 0, 0, 1],
+        [1, 0, 1, 1, 1, 2, 0, 2, 1, 1, 0, 1, 1, 0, 0],
+        [0, 2, 0, 0, 2, 1, 1, 2, 2, 1, 1, 1, 0, 1, 1],
+        [1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 0]]
     covariates = [
-        [1, 2],
-        [3, 4],
-        [0, 9],
-        [6, 1],
-        [1, 1]]
-    phenotypes = [3, 4, 6, 4, 1]
+        [1],
+        [1],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [1],
+        [1],
+        [0]]
+    phenotypes = [0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 0]
     weights = [-1, 0, 1, -1]
 
-    mt = hl.utils.range_matrix_table(4, 5)
+    mt = hl.utils.range_matrix_table(4, 15)
     mt = mt.annotate_entries(
         GT = hl.unphased_diploid_gt_index_call(
             hl.literal(genotypes)[mt.row_idx][mt.col_idx])
     )
     mt = mt.annotate_cols(
         phenotype = hl.literal(phenotypes)[mt.col_idx],
-        cov1 = hl.literal(covariates)[mt.col_idx][0],
-        cov2 = hl.literal(covariates)[mt.col_idx][1]
+        cov1 = hl.literal(covariates)[mt.col_idx][0]
     )
     mt = mt.annotate_rows(
         weight = hl.literal(weights)[mt.row_idx]
@@ -37,13 +49,258 @@ def test_linear_skat_negative_weights_errors():
     mt = mt.annotate_globals(
         group = 0
     )
-    ht = hl._linear_skat(mt.group, mt.weight, mt.phenotype, mt.GT.n_alt_alleles(), [1.0, mt.cov1, mt.cov2])
+    ht = skat(mt.group, mt.weight, mt.phenotype, mt.GT.n_alt_alleles(), [1.0, mt.cov1])
     try:
         ht.collect()
     except Exception as exc:
-        assert 'hl._linear_skat: every weight must be positive, in group 0, the weights were: [-1.0,0.0,1.0,-1.0]' in exc.args[0]
+        assert skat_name + ': every weight must be positive, in group 0, the weights were: [-1.0,0.0,1.0,-1.0]' in exc.args[0]
     else:
         assert False
+
+
+def test_logistic_skat_phenotypes_are_binary():
+    genotypes = [
+        [2, 1, 1, 1, 0, 1, 1, 2, 1, 1, 2, 1, 0, 0, 1],
+        [1, 0, 1, 1, 1, 2, 0, 2, 1, 1, 0, 1, 1, 0, 0],
+        [0, 2, 0, 0, 2, 1, 1, 2, 2, 1, 1, 1, 0, 1, 1],
+        [1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 0]]
+    covariates = [
+        [1],
+        [1],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [1],
+        [1],
+        [0]]
+    phenotypes = [0, 0, 0, 3, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 0]
+    weights = [1, 1, 1, 1]
+
+    mt = hl.utils.range_matrix_table(4, 15)
+    mt = mt.annotate_entries(
+        GT = hl.unphased_diploid_gt_index_call(
+            hl.literal(genotypes)[mt.row_idx][mt.col_idx])
+    )
+    mt = mt.annotate_cols(
+        phenotype = hl.literal(phenotypes)[mt.col_idx],
+        cov1 = hl.literal(covariates)[mt.col_idx][0]
+    )
+    mt = mt.annotate_rows(
+        weight = hl.literal(weights)[mt.row_idx]
+    )
+    mt = mt.annotate_globals(
+        group = 0
+    )
+    try:
+        ht = hl._logistic_skat(mt.group, mt.weight, mt.phenotype, mt.GT.n_alt_alleles(), [1.0, mt.cov1])
+        ht.collect()
+    except Exception as exc:
+        assert 'hl._logistic_skat: phenotypes must either be True, False, 0, or 1, found: 3.0 of type float64' in exc.args[0]
+    else:
+        assert False
+
+
+def test_logistic_skat_no_weights_R_truth():
+    # library('SKAT')
+    # dat <- matrix(c(2,1,0,1,
+    #                 1,0,2,0,
+    #                 1,1,0,0,
+    #                 1,1,0,1,
+    #                 0,1,2,1,
+    #                 1,2,1,1,
+    #                 1,0,1,1,
+    #                 2,2nn,2,1,
+    #                 1,1,2,1,
+    #                 1,1,1,1,
+    #                 2,0,1,1,
+    #                 1,1,1,2,
+    #                 0,1,0,2,
+    #                 0,0,1,2,
+    #                 1,0,1,0),
+    #               15,
+    #               4,
+    #               byrow=TRUE)
+    # cov <- data.frame(pheno=c(0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 0),
+    #                   cov1=c(1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0))
+    # weights <- c(1,1,1,1)
+    # null_model <- SKAT_Null_Model(cov$pheno ~ cov$cov1, out_type="D", Adjustment=FALSE)
+    # result <- SKAT(dat, null_model, method="davies", weights=weights)
+    # cat(result$p.value, result$Q)
+    expected_p_value = 0.5819739
+    expected_Q_value = 1.869576
+
+    genotypes = [
+        [2, 1, 1, 1, 0, 1, 1, 2, 1, 1, 2, 1, 0, 0, 1],
+        [1, 0, 1, 1, 1, 2, 0, 2, 1, 1, 0, 1, 1, 0, 0],
+        [0, 2, 0, 0, 2, 1, 1, 2, 2, 1, 1, 1, 0, 1, 1],
+        [1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 0]]
+    covariates = [
+        [1],
+        [1],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [1],
+        [1],
+        [0]]
+    phenotypes = [0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 0]
+    weights = [1, 1, 1, 1]
+
+    mt = hl.utils.range_matrix_table(4, 15)
+    mt = mt.annotate_entries(
+        GT = hl.unphased_diploid_gt_index_call(
+            hl.literal(genotypes)[mt.row_idx][mt.col_idx])
+    )
+    mt = mt.annotate_cols(
+        phenotype = hl.literal(phenotypes)[mt.col_idx],
+        cov1 = hl.literal(covariates)[mt.col_idx][0]
+    )
+    mt = mt.annotate_rows(
+        weight = hl.literal(weights)[mt.row_idx]
+    )
+    mt = mt.annotate_globals(
+        group = 0
+    )
+    ht = hl._logistic_skat(mt.group, mt.weight, mt.phenotype, mt.GT.n_alt_alleles(), [1.0, mt.cov1])
+    results = ht.collect()
+
+    assert len(results) == 1
+    result = results[0]
+    assert result.size == 4
+    assert result.q_stat == pytest.approx(expected_Q_value, abs=5e-7)
+    assert result.p_value == pytest.approx(expected_p_value, abs=5e-8)
+    assert result.fault == 0
+
+
+def test_logistic_skat_R_truth():
+    # library('SKAT')
+    # dat <- matrix(c(2,1,0,1,
+    #                 1,0,2,0,
+    #                 1,1,0,0,
+    #                 1,1,0,1,
+    #                 0,1,2,1,
+    #                 1,2,1,1,
+    #                 1,0,1,1,
+    #                 2,2,2,1,
+    #                 1,1,2,1,
+    #                 1,1,1,1,
+    #                 2,0,1,1,
+    #                 1,1,1,2,
+    #                 0,1,0,2,
+    #                 0,0,1,2,
+    #                 1,0,1,0),
+    #               15,
+    #               4,
+    #               byrow=TRUE)
+    # cov <- data.frame(pheno=c(0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 0),
+    #                   cov1=c(1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0))
+    # # !!NOTA BENE!! In R, the "weights" parameter is actually the square root of the weights
+    # weights <- c(1,sqrt(2),1,1)
+    # null_model <- SKAT_Null_Model(cov$pheno ~ cov$cov1, out_type="D", Adjustment=FALSE)
+    # result <- SKAT(dat, null_model, method="davies", weights=weights)
+    # cat(result$p.value, result$Q)
+    expected_p_value = 0.5335765
+    expected_Q_value = 2.515238
+
+    genotypes = [
+        [2, 1, 1, 1, 0, 1, 1, 2, 1, 1, 2, 1, 0, 0, 1],
+        [1, 0, 1, 1, 1, 2, 0, 2, 1, 1, 0, 1, 1, 0, 0],
+        [0, 2, 0, 0, 2, 1, 1, 2, 2, 1, 1, 1, 0, 1, 1],
+        [1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 0]]
+    covariates = [
+        [1],
+        [1],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [1],
+        [1],
+        [0]]
+    phenotypes = [0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 0]
+    weights = [1, 2, 1, 1]
+
+    mt = hl.utils.range_matrix_table(4, 15)
+    mt = mt.annotate_entries(
+        GT = hl.unphased_diploid_gt_index_call(
+            hl.literal(genotypes)[mt.row_idx][mt.col_idx])
+    )
+    mt = mt.annotate_cols(
+        phenotype = hl.literal(phenotypes)[mt.col_idx],
+        cov1 = hl.literal(covariates)[mt.col_idx][0]
+    )
+    mt = mt.annotate_rows(
+        weight = hl.literal(weights)[mt.row_idx]
+    )
+    mt = mt.annotate_globals(
+        group = 0
+    )
+    ht = hl._logistic_skat(mt.group, mt.weight, mt.phenotype, mt.GT.n_alt_alleles(), [1.0, mt.cov1])
+    results = ht.collect()
+
+    assert len(results) == 1
+    result = results[0]
+    assert result.size == 4
+    assert result.q_stat == pytest.approx(expected_Q_value, abs=5e-7)
+    assert result.p_value == pytest.approx(expected_p_value, abs=5e-8)
+    assert result.fault == 0
+
+
+def test_logistic_skat_on_big_matrix():
+    # dat <- as.matrix(read.csv('hail/src/test/resources/skat_genotype_matrix.csv', header=FALSE))
+    # cov = read.csv('hail/src/test/resources/skat_phenotypes.csv', header=FALSE)
+    # cov$V1 = cov$V1 > 2
+    # weights <- rep(1, 100)
+    # null_model <- SKAT_Null_Model(cov$V1 ~ 1, out_type="D")
+    # result <- SKAT(dat, null_model, method="davies", weights=weights)
+    #
+    # cat(result$p.value, result$Q)
+    #
+    #
+    # SKAT expects rows to be samples, so we transpose from the original input
+    expected_p_value = 2.697155e-24
+    expected_Q_value = 10046.37
+
+    mt = hl.import_matrix_table(resource('skat_genotype_matrix_variants_are_rows.csv'),
+                                delimiter=',',
+                                row_fields={'row_idx': hl.tint64},
+                                row_key=['row_idx'])
+    mt = mt.key_cols_by(col_id=hl.int64(mt.col_id))
+
+    ht = hl.import_table(resource('skat_phenotypes.csv'), no_header=True, types={'f0': hl.tfloat})
+    ht = ht.add_index('idx')
+    ht = ht.key_by('idx')
+    mt = mt.annotate_cols(pheno=ht[mt.col_key].f0 > 2)
+    mt = mt.annotate_globals(group=1)
+    ht = hl._logistic_skat(mt.group, hl.literal(1), mt.pheno, mt.x, [1.0])
+    results = ht.collect()
+
+    assert len(results) == 1
+    result = results[0]
+    assert result.size == 100
+    assert result.q_stat == pytest.approx(expected_Q_value, rel=5e-7)
+    assert result.p_value == pytest.approx(expected_p_value, rel=5e-8)
+    assert result.fault == 0
 
 
 def test_linear_skat_no_weights_R_truth():
@@ -58,7 +315,7 @@ def test_linear_skat_no_weights_R_truth():
     #               byrow=TRUE)
     # cov <- data.frame(pheno=c(3., 4., 6., 4., 1.), cov1=c(1.,3.,0.,6.,1.), cov2=c(2.,4.,9.,1.,1.))
     # weights <- c(1,1,1,1)
-    # null_model <- SKAT_Null_Model(cov$pheno ~ cov$cov1+ cov$cov2, out_type="C", Adjustment=FALSE)
+    # null_model <- SKAT_Null_Model(cov$pheno ~ cov$cov1+ cov$cov2, out_type="D", Adjustment=FALSE)
     # result <- SKAT(dat, null_model, method="davies", weights=weights)
     # cat(result$p.value, result$Q)
     expected_p_value = 0.2700286
@@ -77,66 +334,6 @@ def test_linear_skat_no_weights_R_truth():
         [1, 1]]
     phenotypes = [3, 4, 6, 4, 1]
     weights = [1, 1, 1, 1]
-
-    mt = hl.utils.range_matrix_table(4, 5)
-    mt = mt.annotate_entries(
-        GT = hl.unphased_diploid_gt_index_call(
-            hl.literal(genotypes)[mt.row_idx][mt.col_idx])
-    )
-    mt = mt.annotate_cols(
-        phenotype = hl.literal(phenotypes)[mt.col_idx],
-        cov1 = hl.literal(covariates)[mt.col_idx][0],
-        cov2 = hl.literal(covariates)[mt.col_idx][1]
-    )
-    mt = mt.annotate_rows(
-        weight = hl.literal(weights)[mt.row_idx]
-    )
-    mt = mt.annotate_globals(
-        group = 0
-    )
-    ht = hl._linear_skat(mt.group, mt.weight, mt.phenotype, mt.GT.n_alt_alleles(), [1.0, mt.cov1, mt.cov2])
-    results = ht.collect()
-
-    assert len(results) == 1
-    result = results[0]
-    assert result.size == 4
-    assert result.q_stat == pytest.approx(expected_Q_value, abs=5e-7)
-    assert result.p_value == pytest.approx(expected_p_value, abs=5e-8)
-    assert result.fault == 0
-
-
-def test_linear_skat_R_truth():
-    # library('SKAT')
-    # dat <- matrix(c(0,1,0,1,
-    #                 1,0,1,0,
-    #                 0,0,2,0,
-    #                 0,0,0,2,
-    #                 0,0,2,1),
-    #               5,
-    #               4,
-    #               byrow=TRUE)
-    # cov <- data.frame(pheno=c(3., 4., 6., 4., 1.), cov1=c(1.,3.,0.,6.,1.), cov2=c(2.,4.,9.,1.,1.))
-    # # !!NOTA BENE!! In R, the "weights" parameter is actually the square root of the weights
-    # weights <- c(1,sqrt(2),1,1)
-    # null_model <- SKAT_Null_Model(cov$pheno ~ cov$cov1+ cov$cov2, out_type="C", Adjustment=FALSE)
-    # result <- SKAT(dat, null_model, method="davies", weights=weights)
-    # cat(result$p.value, result$Q)
-    expected_p_value = 0.2497489
-    expected_Q_value = 3.404505
-
-    genotypes = [
-        [0, 1, 0, 0, 0],
-        [1, 0, 0, 0, 0],
-        [0, 1, 2, 0, 2],
-        [1, 0, 0, 2, 1]]
-    covariates = [
-        [1, 2],
-        [3, 4],
-        [0, 9],
-        [6, 1],
-        [1, 1]]
-    phenotypes = [3, 4, 6, 4, 1]
-    weights = [1, 2, 1, 1]
 
     mt = hl.utils.range_matrix_table(4, 5)
     mt = mt.annotate_entries(
@@ -282,8 +479,7 @@ def test_linear_skat_on_big_matrix():
     assert result.fault == 0
 
 
-@fails_service_backend()
-@fails_local_backend()
+
 def test_skat():
     ds2 = hl.import_vcf(resource('sample2.vcf'))
 
@@ -398,8 +594,7 @@ def test_linear_skat_produces_same_results_as_old_scala_method():
     assert skat_results._same(old_scala_results, tolerance=5e-5)  # TSV has 5 sigfigs, so we should match within 5e-5 relative
 
 
-@fails_local_backend()
-@fails_service_backend()
+
 def test_skat_max_iteration_fails_explodes_in_37_steps():
     mt = hl.utils.range_matrix_table(3, 3)
     mt = mt.annotate_cols(y=hl.literal([1, 0, 1])[mt.col_idx])
@@ -424,9 +619,12 @@ def test_skat_max_iteration_fails_explodes_in_37_steps():
         ht.collect()[0]
     except FatalError as err:
         assert 'Failed to fit logistic regression null model (MLE with covariates only): exploded at Newton iteration 37' in err.args[0]
+    except HailUserError as err:
+        assert 'hl._logistic_skat: null model did not converge: {b: null, score: null, fisher: null, mu: null, num_iter: 37, log_lkhd: -0.6931471805599453, converged: false, exploded: true}' in err.args[0]
+    else:
+        assert False
 
-@fails_local_backend()
-@fails_service_backend()
+
 def test_skat_max_iterations_fails_to_converge_in_fewer_than_36_steps():
     mt = hl.utils.range_matrix_table(3, 3)
     mt = mt.annotate_cols(y=hl.literal([1, 0, 1])[mt.col_idx])
@@ -451,3 +649,7 @@ def test_skat_max_iterations_fails_to_converge_in_fewer_than_36_steps():
         ht.collect()[0]
     except FatalError as err:
         assert 'Failed to fit logistic regression null model (MLE with covariates only): Newton iteration failed to converge' in err.args[0]
+    except HailUserError as err:
+        assert 'hl._logistic_skat: null model did not converge: {b: null, score: null, fisher: null, mu: null, num_iter: 36, log_lkhd: -0.6931471805599457, converged: false, exploded: false}' in err.args[0]
+    else:
+        assert False
