@@ -329,7 +329,7 @@ class GoogleStorageFS(
 
     def discoverExceptionThenRetryCopyIfRequesterPays(exc: Throwable): Unit = exc match {
       case exc: IOException =>
-        retryCopyIfRequesterPays(exc.getCause())
+        discoverExceptionThenRetryCopyIfRequesterPays(exc.getCause())
       case exc: StorageException =>
         retryCopyIfRequesterPays(exc, exc.getMessage(), exc.getCode())
       case exc: GoogleJsonResponseException =>
