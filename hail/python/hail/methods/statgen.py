@@ -1577,16 +1577,16 @@ def _linear_skat(group,
     3. Real symmetric matrices have an eigendecomposition consisting of a diagonal matrix of weights
        and an orthogonal matrix.
 
-    4. Multiplying an orthogonal matrix by a vector of independent normal variables produces a new
-       vector of independent normal variables.
+    4. Multiplying an orthogonal matrix by a vector of independent identically distributed (i.i.d.)
+       normal variables produces a new vector of independent normal variables.
 
-    If the residuals are truly independent, normally distributed variables, then we may describe
-    :math:`Q` as a weighted sum of squares of independent normally distributed variables:
+    If the residuals are truly i.i.d. normal variables, then we may describe :math:`Q` as a weighted
+    sum of squares of i.i.d normal variables:
 
     .. math::
 
         \begin{align*}
-        U \Lambda U^T &= G W G^T \quad\quad U \textrm{ orthonormal, } \Lambda \textrm{ diagonal} \\
+        U \Lambda U^T &= G W G^T \quad\quad U \textrm{ orthogonal, } \Lambda \textrm{ diagonal} \\
         \lambda_i &= \Lambda_{ii} \\
         z &= \frac{1}{\sigma} U^T r \\
         z_i &\sim N(0, 1) \\
@@ -1810,8 +1810,8 @@ def _linear_skat(group,
     #            = Q R R^-1 Q^T y
     #            = Q Q^T y
     #
-    Q, _ = hl.nd.qr(mt.covmat)
-    null_mu = Q @ (Q.T @ mt.yvec)
+    covmat_Q, _ = hl.nd.qr(mt.covmat)
+    null_mu = covmat_Q @ (covmat_Q.T @ mt.yvec)
     y_residual = mt.yvec - null_mu
     mt = mt.annotate_globals(
         y_residual=y_residual,
@@ -1837,7 +1837,8 @@ def _linear_skat(group,
         G=hl.nd.array(hl.or_missing(hl.len(ht.G_take) <= max_size, ht.G_take)).T
     )
     ht = ht.annotate(
-        Q=(((ht.y_residual @ ht.G) * ht.weight) @ ht.G.T) @ ht.y_residual.T
+        # y_residual @ ht.G @ diag(ht.weight) @ ht.G.T @ ht.y_residual.T
+        Q=((ht.y_residual @ ht.G).map(lambda x: x**2) * ht.weight).sum(0)
     )
     # The paper's linear model explicitly adds an intercept term. We instead require the user to
     # provide an intercept term, so we set V = \tilde{V} below.
@@ -1908,15 +1909,15 @@ def _linear_skat(group,
     #
     # We avoid the square root in order to avoid complex numbers.
 
-    Q, _ = hl.nd.qr(ht.covmat)
-    C0 = Q.T @ ht.G
-    singular_values = hl.nd.svd(ht.G.T @ (ht.G * ht.weight) - C0.T @ (C0 * ht.weight), compute_uv=False)
+    _, R = hl.nd.qr(ht.G - covmat_Q @ (covmat_Q.T @ ht.G))
+    singular_values = hl.nd.svd(R, compute_uv=False)
+    eigenvalues = singular_values.map(lambda x: x**2)
 
     # The R implementation of SKAT, Function.R, Get_Lambda_Approx filters the eigenvalues,
     # presumably because a good estimate of the Generalized Chi-Sqaured CDF is not significantly
     # affected by chi-squared components with very tiny weights.
-    threshold = 1e-5 * singular_values.sum() / singular_values.shape[0]
-    w = singular_values._data_array().filter(lambda y: y >= threshold)
+    threshold = 1e-5 * eigenvalues.sum() / eigenvalues.shape[0]
+    w = eigenvalues._data_array().filter(lambda y: y >= threshold)
     genchisq_data = hl.pgenchisq(
         # Notes:
         #
