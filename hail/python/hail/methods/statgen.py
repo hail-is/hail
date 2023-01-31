@@ -1768,16 +1768,16 @@ def _linear_skat(group,
     '''
     mt = matrix_table_source('skat/x', x)
     mt = mt._select_all(
-        row_exprs = dict(
-            group = group,
-            weight = weight
+        row_exprs=dict(
+            group=group,
+            weight=weight
         ),
-        col_exprs = dict(
-            y = y,
-            covariates = covariates
+        col_exprs=dict(
+            y=y,
+            covariates=covariates
         ),
-        entry_exprs = dict(
-            x = x
+        entry_exprs=dict(
+            x=x
         )
     )
     k = len(covariates)
@@ -1790,9 +1790,9 @@ def _linear_skat(group,
         hl.agg.count()
     ))
     mt = mt.annotate_globals(
-        yvec = hl.nd.array(yvec),
-        covmat = hl.nd.array(covmat),
-        n_complete_samples = n
+        yvec=hl.nd.array(yvec),
+        covmat=hl.nd.array(covmat),
+        n_complete_samples=n
     )
     # Instead of finding the best-fit beta, we go directly to the best-predicted value using the
     # reduced QR decomposition:
@@ -1814,30 +1814,30 @@ def _linear_skat(group,
     null_mu = Q @ (Q.T @ mt.yvec)
     y_residual = mt.yvec - null_mu
     mt = mt.annotate_globals(
-        y_residual = y_residual,
-        s2 = y_residual @ y_residual.T / (n - k)
+        y_residual=y_residual,
+        s2=y_residual @ y_residual.T / (n - k)
     )
     mt = mt.annotate_rows(
-        G_row_mean = hl.agg.mean(mt.x)
+        G_row_mean=hl.agg.mean(mt.x)
     )
     mt = mt.annotate_rows(
-        G_row = hl.agg.collect(hl.coalesce(mt.x, mt.G_row_mean))
+        G_row=hl.agg.collect(hl.coalesce(mt.x, mt.G_row_mean))
     )
     ht = mt.rows()
     ht = ht.filter(hl.all(hl.is_defined(ht.group), hl.is_defined(ht.weight)))
     ht = ht.group_by(
         'group'
     ).aggregate(
-        weight_take = hl.agg.take(ht.weight, n=max_size + 1),
-        G_take = hl.agg.take(ht.G_row, n=max_size + 1),
-        size = hl.agg.count()
+        weight_take=hl.agg.take(ht.weight, n=max_size + 1),
+        G_take=hl.agg.take(ht.G_row, n=max_size + 1),
+        size=hl.agg.count()
     )
     ht = ht.annotate(
-        weight = hl.nd.array(hl.or_missing(hl.len(ht.weight_take) <= max_size, ht.weight_take)),
-        G = hl.nd.array(hl.or_missing(hl.len(ht.G_take) <= max_size, ht.G_take)).T
+        weight=hl.nd.array(hl.or_missing(hl.len(ht.weight_take) <= max_size, ht.weight_take)),
+        G=hl.nd.array(hl.or_missing(hl.len(ht.G_take) <= max_size, ht.G_take)).T
     )
     ht = ht.annotate(
-        Q = (((ht.y_residual @ ht.G) * ht.weight) @ ht.G.T) @ ht.y_residual.T
+        Q=(((ht.y_residual @ ht.G) * ht.weight) @ ht.G.T) @ ht.y_residual.T
     )
     # The paper's linear model explicitly adds an intercept term. We instead require the user to
     # provide an intercept term, so we set V = \tilde{V} below.
@@ -1945,7 +1945,7 @@ def _linear_skat(group,
         'size',
         # for reasons unknown, the R implementation calls this expression the Q statistic (which is
         # *not* what they write in the paper)
-        q_stat = ht.Q / 2 / ht.s2,
+        q_stat=ht.Q / 2 / ht.s2,
         # I *think* the reasoning for taking the complement of the CDF value is:
         #
         # 1. Q is a measure of variance and thus positive.
@@ -1953,8 +1953,8 @@ def _linear_skat(group,
         # 2. We want to know the probability of obtaining a variance even larger ("more extreme")
         #
         # Ergo, we want to check the right-tail of the distribution.
-        p_value = 1.0 - genchisq_data.value,
-        fault = genchisq_data.fault
+        p_value=1.0 - genchisq_data.value,
+        fault=genchisq_data.fault
     )
     return ht.select_globals('y_residual', 's2', 'n_complete_samples')
 
@@ -2117,7 +2117,7 @@ def skat(key_expr,
 
     """
     if hl.current_backend().requires_lowering and not logistic:
-        return hl._linear_skat(key_expr, weight_expr, y, x, covariate, max_size, accuracy, iterations)
+        return hl._linear_skat(key_expr, weight_expr, y, x, covariates, max_size, accuracy, iterations)
     mt = matrix_table_source('skat/x', x)
     check_entry_indexed('skat/x', x)
 

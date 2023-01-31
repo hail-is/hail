@@ -2,6 +2,7 @@ import hail as hl
 import pytest
 
 from ..helpers import resource, fails_local_backend, fails_service_backend
+from ..utils.java import FatalError
 
 
 def test_skat_linear_no_weights_R_truth():
@@ -307,7 +308,7 @@ def test_linear_skat_produces_same_results_as_old_scala_method():
     phenotypes_ht = hl.import_table(
         resource("skat.pheno"),
         key='Sample',
-        types={"Pheno": hl.tfloat64}, missing="0"
+        types={"Pheno": hl.tfloat64}, missing="0",
         impute=True
     )
     genes = hl.import_locus_intervals(
