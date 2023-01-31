@@ -158,6 +158,8 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
         _e22=(T / 2)
     )
 
+    dataset = dataset.checkpoint(hl.utils.new_temp_file())
+
     expectations = dataset.aggregate_rows(hl.struct(
         e00=hl.agg.sum(dataset._e00),
         e10=hl.agg.sum(dataset._e10),
@@ -170,7 +172,7 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
     IS_HOM_REF = BlockMatrix.from_entry_expr(dataset.is_hom_ref).checkpoint(hl.utils.new_temp_file())
     IS_HET = BlockMatrix.from_entry_expr(dataset.is_het).checkpoint(hl.utils.new_temp_file())
     IS_HOM_VAR = BlockMatrix.from_entry_expr(dataset.is_hom_var).checkpoint(hl.utils.new_temp_file())
-    NOT_MISSING = IS_HOM_REF + IS_HET + IS_HOM_VAR
+    NOT_MISSING = (IS_HOM_REF + IS_HET + IS_HOM_VAR).checkpoint(hl.utils.new_temp_file())
 
     total_possible_ibs = NOT_MISSING.T @ NOT_MISSING
 
@@ -192,12 +194,12 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
         t = t.rename({'entry': annotation_name})
         return t
 
-    z0 = convert_to_table(Z0, 'Z0')
-    z1 = convert_to_table(Z1, 'Z1')
-    z2 = convert_to_table(Z2, 'Z2')
-    ibs0 = convert_to_table(ibs0, 'ibs0')
-    ibs1 = convert_to_table(ibs1, 'ibs1')
-    ibs2 = convert_to_table(ibs2, 'ibs2')
+    z0 = convert_to_table(Z0, 'Z0').checkpoint(hl.utils.new_temp_file())
+    z1 = convert_to_table(Z1, 'Z1').checkpoint(hl.utils.new_temp_file())
+    z2 = convert_to_table(Z2, 'Z2').checkpoint(hl.utils.new_temp_file())
+    ibs0 = convert_to_table(ibs0, 'ibs0').checkpoint(hl.utils.new_temp_file())
+    ibs1 = convert_to_table(ibs1, 'ibs1').checkpoint(hl.utils.new_temp_file())
+    ibs2 = convert_to_table(ibs2, 'ibs2').checkpoint(hl.utils.new_temp_file())
 
     result = z0.join(z1.join(z2).join(ibs0).join(ibs1).join(ibs2))
 
