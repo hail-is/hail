@@ -292,7 +292,7 @@ class GoogleStorageFS(
 
     // There is only one userProject for the whole request, the source takes precedence over the target.
     // https://github.com/googleapis/java-storage/blob/0bd17b1f70e47081941a44f018e3098b37ba2c47/google-cloud-storage/src/main/java/com/google/cloud/storage/spi/v1/HttpStorageRpc.java#L1016-L1019
-    def retryCopyIfRequesterPays(exc: Exception, message: String, code: Int) = {
+    def retryCopyIfRequesterPays(exc: Exception, message: String, code: Int): Unit = {
       if (message == null) {
         throw exc
       }
@@ -327,7 +327,7 @@ class GoogleStorageFS(
       storage.copy(config).getResult() // getResult is necessary to cause this to go to completion
     }
 
-    def retryCopyIfRequesterPays(exc: Throwable) = exc match {
+    def retryCopyIfRequesterPays(exc: Throwable): Unit = exc match {
       case exc: IOException =>
         retryCopyIfRequesterPays(exc.getCause())
       case exc: StorageException =>
