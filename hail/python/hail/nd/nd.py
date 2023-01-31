@@ -557,7 +557,7 @@ def vstack(arrs):
 
     if isinstance(arrs, list):
         if len(arrs) == 0:
-            raise ValueError(f'hl.nd.vstack: must provide at least one matrix')
+            raise ValueError('hl.nd.vstack: must provide at least one matrix')
         if any(head_ndim != x.ndim for x in arrs):
             ndims = [x.ndim for x in arrs]
             raise ValueError(f'hl.nd.vstack: all matrices must have same number of dimensions, found: {ndims}')
@@ -614,7 +614,7 @@ def hstack(arrs):
 
     if isinstance(arrs, list):
         if len(arrs) == 0:
-            raise ValueError(f'hl.nd.hstack: must provide at least one matrix')
+            raise ValueError('hl.nd.hstack: must provide at least one matrix')
         if any(head_ndim != x.ndim for x in arrs):
             ndims = [x.ndim for x in arrs]
             raise ValueError(f'hl.nd.hstack: all matrices must have same number of dimensions, found: {ndims}')
