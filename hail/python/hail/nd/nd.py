@@ -355,7 +355,7 @@ def qr(nd, mode="reduced"):
 
     Parameters
     ----------
-    nd : :class:`.NDArrayExpressoin`
+    nd : :class:`.NDArrayExpression`
         A 2 dimensional ndarray, shape(M, N)
     mode : :class:`.str`
         One of "reduced", "complete", "r", or "raw". Defaults to "reduced".
