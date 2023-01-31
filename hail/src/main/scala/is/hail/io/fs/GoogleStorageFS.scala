@@ -130,6 +130,22 @@ class GoogleStorageFS(
     makeRequest(requesterPaysOptions(bucket, makeUserProjectOption))
   }
 
+  def retryIfRequesterPays[T, U](
+    exc: Throwable,
+    makeRequest: Seq[U] => T,
+    makeUserProjectOption: String => U,
+    bucket: String
+  ): T = exc match {
+    case exc: IOException =>
+      retryIfRequesterPays(exc.getCause(), makeRequest, makeUserProjectOption, bucket)
+    case exc: StorageException =>
+      retryIfRequesterPays(exc, exc.getMessage(), exc.getCode(), makeRequest, makeUserProjectOption, bucket)
+    case exc: GoogleJsonResponseException =>
+      retryIfRequesterPays(exc, exc.getMessage(), exc.getStatusCode(), makeRequest, makeUserProjectOption, bucket)
+    case exc: Throwable =>
+      throw exc
+  }
+
   private[this] def handleRequesterPays[T, U](
     makeRequest: Seq[U] => T,
     makeUserProjectOption: String => U,
@@ -138,10 +154,8 @@ class GoogleStorageFS(
     try {
       makeRequest(Seq())
     } catch {
-      case exc: StorageException =>
-        retryIfRequesterPays(exc, exc.getMessage(), exc.getCode(), makeRequest, makeUserProjectOption, bucket)
-      case exc: GoogleJsonResponseException =>
-        retryIfRequesterPays(exc, exc.getMessage(), exc.getStatusCode(), makeRequest, makeUserProjectOption, bucket)
+      case exc: Throwable =>
+        retryIfRequesterPays(exc, makeRequest, makeUserProjectOption, bucket)
     }
   }
 
@@ -313,6 +327,18 @@ class GoogleStorageFS(
       storage.copy(config).getResult() // getResult is necessary to cause this to go to completion
     }
 
+    def retryCopyIfRequesterPays(exc: Throwable) = exc match {
+      case exc: IOException =>
+        retryCopyIfRequesterPays(exc.getCause())
+      case exc: StorageException =>
+        retryCopyIfRequesterPays(exc, exc.getMessage(), exc.getCode())
+      case exc: GoogleJsonResponseException =>
+        retryCopyIfRequesterPays(exc, exc.getMessage(), exc.getStatusCode())
+      case exc: Throwable =>
+        throw exc
+    }
+
+
     try {
       storage.copy(
         Storage.CopyRequest.newBuilder()
@@ -321,10 +347,8 @@ class GoogleStorageFS(
           .build()
       ).getResult() // getResult is necessary to cause this to go to completion
     } catch {
-      case exc: StorageException =>
-        retryCopyIfRequesterPays(exc, exc.getMessage(), exc.getCode())
-      case exc: GoogleJsonResponseException =>
-        retryCopyIfRequesterPays(exc, exc.getMessage(), exc.getStatusCode())
+      case exc: Throwable =>
+        retryCopyIfRequesterPays(exc)
     }
 
     if (deleteSource)
