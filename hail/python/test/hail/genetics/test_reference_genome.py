@@ -188,7 +188,6 @@ def test_read_custom_reference_genome():
     assert_rg_loaded_correctly('test_rg_2')
 
 
-@fails_service_backend()
 def test_custom_reference_read_write():
     hl.ReferenceGenome("dk", ['hello'], {"hello": 123})
     ht = hl.utils.range_table(5)
