@@ -1565,62 +1565,58 @@ def _linear_skat(group,
         y = \beta_\textrm{null} X + \varepsilon \quad\quad \varepsilon \sim N(0, \sigma^2)
 
     Therefore :math:`r`, the residual phenotype, is the portion of the phenotype unexplained by the
-    covariates alone.
-
-    Notice:
+    covariates alone. Also notice:
 
     1. The residual phenotypes are normally distributed with mean zero and variance
        :math:`\sigma^2`.
 
     2. :math:`G W G^T`, is a symmetric positive-definite matrix when the weights are non-negative.
 
-    3. Real symmetric matrices have an eigendecomposition consisting of a diagonal matrix of weights
-       and an orthogonal matrix.
-
-    4. Multiplying an orthogonal matrix by a vector of independent identically distributed (i.i.d.)
-       `standard normal variables
-       <https://en.wikipedia.org/wiki/Normal_distribution#Standard_normal_distribution>`__ produces
-       a new vector of independent standard normal variables.
-
-    We can transform the residuals into standard normal variables by variance normalization:
+    We can transform the residuals into standard normal variables by normalizing by their
+    variance. Note that the variance is corrected for the degrees of freedom in the null model:
 
     .. math::
 
         \begin{align*}
+        \widehat{\sigma} &= \frac{1}{N - K} r^T r \\
         h &\sim N(0, 1) \\
-        r &= h \sigma
+        h &= \frac{1}{\widehat{\sigma}} r \\
+        r &= h \widehat{\sigma}
         \end{align*}
 
-    We can rewrite Q in terms of a Grammian matrix and these new standard normal random variables:
+    We can rewrite :math:`Q` in terms of a Grammian matrix and these new standard normal random variables:
 
     .. math::
 
         \begin{align*}
-        A &= \sigma G W^{1/2} \\
-        B &= A A.T \\
+        Q &= h^T \widehat{\sigma} G W G^T \widehat{\sigma} h \\
+        A &= \widehat{\sigma} G W^{1/2} \\
+        B &= A A^T \\
         \\
-        Q &= h^T \sigma G W G^T \sigma h \\
-        Q &= h.T B h \\
+        Q &= h^T B h \\
         \end{align*}
 
     This expression is a `"quadratic form" <https://en.wikipedia.org/wiki/Quadratic_form>`__ of the
-    vector :math:`h`. Because B is a real symmetric matrix, we can eigendecompose it into an
+    vector :math:`h`. Because :math:`B` is a real symmetric matrix, we can eigendecompose it into an
     orthogonal matrix and a diagonal matrix of eigenvalues:
 
     .. math::
 
         \begin{align*}
-        U \Lambda U &= B \quad\quad \Lambda \mathrm{ orthogonal } U \mathrm{ diagonal} \\
-        Q &= h.T U \Lambda U h
+        U \Lambda U &= B \quad\quad \Lambda \textrm{ orthogonal } U \textrm{ diagonal} \\
+        Q &= h^T U \Lambda U h
         \end{align*}
 
     An orthogonal matrix transforms a vector of i.i.d. standard normal variables into a new vector
-    of different i.i.d standard normal variables, so we can interpret Q as a weighted sum of
+    of different i.i.d standard normal variables, so we can interpret :math:`Q` as a weighted sum of
     i.i.d. standard normal variables:
 
     .. math::
 
-        Q = \sum_s \Lambda_{ss} h_s^2
+        \begin{align*}
+        \tilde{h} &= U h \\
+        Q &= \sum_s \Lambda_{ss} \tilde{h}_s^2
+        \end{align*}
 
     The distribution of such sums (indeed, any quadratic form of i.i.d. standard normal variables)
     is governed by the generalized chi-squared distribution (the CDF is available in Hail as
@@ -1630,12 +1626,12 @@ def _linear_skat(group,
 
         \begin{align*}
         \lambda_i &= \Lambda_{ii} \\
-        Q &\sim \mathrm{GeneralizedChiSquare}(\vec{\lambda}, \vec{1}, \vec{0}, 0, 0)
+        Q &\sim \mathrm{GeneralizedChiSquare}(\lambda, \vec{1}, \vec{0}, 0, 0)
         \end{align*}
 
     Therefore, we can test the null hypothesis by calculating the probability of receiving values
     larger than :math:`Q`. If that probability is very small, then the residual phenotypes are
-    likely not i.i.d. normal variables with variance \sigma^2.
+    likely not i.i.d. normal variables with variance :math:`\widehat{\sigma}^2`.
 
     The SKAT method was originally described in:
 
@@ -1731,12 +1727,12 @@ def _linear_skat(group,
 
     This method does not perform small sample size correction.
 
-    The `q_stat` return value is *not* the Q statistic from the paper. We match the output of the
-    SKAT R package which returns :math:`\tilde{Q}`:
+    The `q_stat` return value is *not* the :math:`Q` statistic from the paper. We match the output
+    of the SKAT R package which returns :math:`\tilde{Q}`:
 
     .. math::
 
-        \tilde{Q} = \frac{Q}{2 \sigma^2}
+        \tilde{Q} = \frac{Q}{2 \widehat{\sigma}^2}
 
     Parameters
     ----------
@@ -1744,7 +1740,7 @@ def _linear_skat(group,
         Row-indexed expression indicating to which group a variant belongs. This is typically a gene
         name or an interval.
     weight : :class:`.Float64Expression`
-        Row-indexed expression for weights.
+        Row-indexed expression for weights. Must be non-negative.
     y : :class:`.Float64Expression`
         Column-indexed response (dependent variable) expression.
     x : :class:`.Float64Expression`
@@ -1770,7 +1766,7 @@ def _linear_skat(group,
 
         - size : :obj:`.tint64`, the number of variants in this group.
 
-        - q_stat : :obj:`.tfloat64`, the Q statistic, see Notes for why this differs from the paper.
+        - q_stat : :obj:`.tfloat64`, the :math:`Q` statistic, see Notes for why this differs from the paper.
 
         - p_value : :obj:`.tfloat64`, the test p-value for the null hypothesis that the genotypes
           have no linear influence on the phenotypes.
