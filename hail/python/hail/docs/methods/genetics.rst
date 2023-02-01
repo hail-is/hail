@@ -25,7 +25,6 @@ Genetics
     de_novo
     nirvana
     sample_qc
-    _linear_skat
     skat
     lambda_gc
     split_multi
@@ -51,7 +50,6 @@ Genetics
 .. autofunction:: de_novo
 .. autofunction:: nirvana
 .. autofunction:: sample_qc
-.. autofunction:: _linear_skat
 .. autofunction:: skat
 .. autofunction:: lambda_gc
 .. autofunction:: split_multi
