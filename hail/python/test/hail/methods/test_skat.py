@@ -179,9 +179,9 @@ def test_skat_linear_R_truth():
     assert len(results) == 1
     result = results[0]
     assert result.size == 4
-    assert result.q_stat is None
-    assert result.p_value is None
-    assert result.fault is None
+    assert result.q_stat == pytest.approx(expected_Q_value, abs=5e-7)
+    assert result.p_value == pytest.approx(expected_p_value, abs=5e-8)
+    assert result.fault == 0
 
 
 def _generate_skat_big_matrix():
