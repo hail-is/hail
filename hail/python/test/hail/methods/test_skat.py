@@ -1,7 +1,7 @@
 import hail as hl
 import pytest
 
-from hail.utils.java import FatalError
+from hail.utils import FatalError
 
 from ..helpers import resource, fails_local_backend, fails_service_backend
 

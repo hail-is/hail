@@ -1811,7 +1811,10 @@ def _linear_skat(group,
     #            = Q Q^T y
     #
     covmat_Q, _ = hl.nd.qr(mt.covmat)
-    null_mu = covmat_Q @ (covmat_Q.T @ mt.yvec)
+    mt = mt.annotate_rows(
+        covmat_Q = covmat_Q
+    )
+    null_mu = mt.covmat_Q @ (mt.covmat_Q.T @ mt.yvec)
     y_residual = mt.yvec - null_mu
     mt = mt.annotate_globals(
         y_residual=y_residual,
@@ -1909,7 +1912,7 @@ def _linear_skat(group,
     #
     # We avoid the square root in order to avoid complex numbers.
 
-    _, R = hl.nd.qr(ht.G - covmat_Q @ (covmat_Q.T @ ht.G))
+    _, R = hl.nd.qr(ht.G - ht.covmat_Q @ (ht.covmat_Q.T @ ht.G))
     singular_values = hl.nd.svd(R, compute_uv=False)
     eigenvalues = singular_values.map(lambda x: x**2)
 
