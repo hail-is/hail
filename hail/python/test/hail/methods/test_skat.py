@@ -1,8 +1,9 @@
 import hail as hl
 import pytest
 
+from hail.utils.java import FatalError
+
 from ..helpers import resource, fails_local_backend, fails_service_backend
-from ..utils.java import FatalError
 
 
 def test_linear_skat_no_weights_R_truth():
