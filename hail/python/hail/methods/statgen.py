@@ -1858,8 +1858,7 @@ def _linear_skat(group,
         G=hl.nd.array(hl.or_missing(hl.len(ht.G_take) <= max_size, ht.G_take)).T
     )
     ht = ht.annotate(
-        Q=ht.y_residual @ (ht.G * ht.weight) @ ht.G.T @ ht.y_residual.T
-        # Q=((ht.y_residual @ ht.G).map(lambda x: x**2) * ht.weight).sum(0)
+        Q=((ht.y_residual @ ht.G).map(lambda x: x**2) * ht.weight).sum(0)
     )
 
     # Null model:
