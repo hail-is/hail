@@ -1843,77 +1843,91 @@ def _linear_skat(group,
         # y_residual @ ht.G @ diag(ht.weight) @ ht.G.T @ ht.y_residual.T
         Q=((ht.y_residual @ ht.G).map(lambda x: x**2) * ht.weight).sum(0)
     )
-    # The paper's linear model explicitly adds an intercept term. We instead require the user to
-    # provide an intercept term, so we set V = \tilde{V} below.
-    #
-    #     N is number of samples
-    #
-    #     V : NxN, P_0: NxN
-    #
-    #     V = s^2 I
-    #     P_0 = V - V X (X.T V X)^{-1} X.T V
-    #     K = G diag(w) G.T
-    #     A = P_0^{1/2} K P_0^{1/2}
-    #
-    # Notice that P_0 is symmetric so it is its own transpose.
-    #
-    # We can rewrite A in terms of Z:
-    #
-    #     Z = P_0^{1/2} G sqrt(diag(w))
-    #     A = Z Z.T
-    #
-    # The non-zero eigenvalues of Z Z.T and Z.T Z are the same so we can instead consider:
-    #
-    #     Z.T Z = sqrt(diag(w)) G.T P_0 G sqrt(diag(w))
-    #
-    # Which we can split into two summands:
-    #
-    #     B = s^2 * sqrt(diag(w)) G.T G sqrt(diag(w))
-    #     C = s^2 * sqrt(diag(w)) G.T (X (X.T X)^{-1} X.T) G sqrt(diag(w))
-    #
-    # We use the reduced QR decomposition to substantially simplify this expression:
-    #
-    #     Q, R = reduced_qr(X)
-    #
-    #     X (X.T X)^{-1} X.T
-    #         = Q R (R.T Q.T Q R)^{-1} R.T Q.T
-    #
-    # Recall that Q.T Q is 1 for the reduced QR:
-    #
-    #         = Q R (R.T R)^{-1} R.T Q.T
-    #
-    # Notice that R is invertible iff R.T R is invertible, so we can push the inversion through the
-    # product
-    #
-    #         = Q R R^{-1} R.T^{-1} R.T Q.T
-    #         = Q R R^{-1} Q.T
-    #         = Q Q.T
-    #
-    # Notice that this is *not* 1 because we're using the reduced QR. Returning to our matrices
-    # above:
-    #
-    #     B = s^2 * sqrt(diag(w)) G.T G sqrt(diag(w))
-    #     C = s^2 * sqrt(diag(w)) G.T Q Q.T G sqrt(diag(w))
-    #
-    # which we can rewrite as Gram matrices :
-    #
-    #     B0 = G sqrt(diag(w))
-    #     C0 = Q.T G sqrt(diag(w))
-    #
-    #     B = s^2 B0.T B0
-    #     C = s^2 C0.T C0
-    #
-    # Back to Z:
-    #
-    #     Z.T Z = s^2 (B0.T B0 - C0.T C0)
-    #
-    # Which we want the eigenvalues of. Hail lacks an eigenvalues method, but luckily the singular
-    # values of a symmetric semi-positive-definite matrix *are* the eigenvalues.
-    #
-    # We avoid the square root in order to avoid complex numbers.
 
-    _, R = hl.nd.qr(ht.G - ht.covmat_Q @ (ht.covmat_Q.T @ ht.G))
-    singular_values = hl.nd.svd(R, compute_uv=False)
+    # Null model:
+    #
+    #     y = X b + e,    e ~ N(0, \sigma^2)
+    #
+    # We can find a best-fit b, bhat, and a best-fit y, yhat:
+    #
+    #     bhat = (X.T X).inv X.T y
+    #
+    #     Q R = X                     (reduced QR decomposition)
+    #     bhat = R.inv Q.T y
+    #
+    #     yhat = X bhat
+    #          = Q R R.inv Q.T y
+    #          = Q Q.T y
+    #
+    # The residual phenotype not captured by the covariates alone is r:
+    #
+    #     r = y - yhat
+    #       = (I - Q Q.T) y
+    #
+    # We can factor the Q-statistic (note there are two Qs: the Q from the QR decomposition and the
+    # Q-statistic from the paper):
+    #
+    #     Q = r.T G diag(w) G.T r
+    #     Z = r.T G diag(sqrt(w))
+    #     Q = Z Z.T
+    #
+    # Plugging in our expresion for r:
+    #
+    #     Z = y.T (I - Q Q.T) G diag(sqrt(w))
+    #
+    # Notice that I - Q Q.T is symmetric (ergo X = X.T) because each summand is symmetric and sums
+    # of symmetric matrices are symmetric matrices.
+    #
+    # We have asserted that
+    #
+    #     y ~ N(0, \sigma^2)
+    #
+    # It will soon be apparent that the distribution of Q is easier to characterize if our random
+    # variables are standard normals:
+    #
+    #     h ~ N(0, 1)
+    #     y = \sigma^2 h
+    #
+    # We set \sigma^2 to the sample variance of the residual vectors.
+    #
+    # Returning to Z:
+    #
+    #     Z = h.T \sigma^2 (I - Q Q.T) G diag(sqrt(w))
+    #     Q = Z Z.T
+    #
+    # Which we can factor into a symmetric matrix and a standard normal:
+    #
+    #     A = \sigma^2 (I - Q Q.T) G diag(sqrt(w))
+    #     B = A A.T
+    #     Q = h.T B h
+    #
+    # This is called a "quadratic form". It is a weighted sum of the squares of the entries of h,
+    # which we have asserted are i.i.d. standard normal variables. The distribution of such sums is
+    # given by the generalized chi-squared distribution:
+    #
+    #     U L U.T = B                    B is symmetric and thus has an eigendecomposition
+    #     h.T B h = Q ~ GeneralizedChiSquare(L, 1, 0, 0, 0)
+    #
+    # The orthogonal matrix U remixes the vector of i.i.d. normal variables into a new vector of
+    # different i.i.d. normal variables. The L matrix is diagonal and scales each squared normal
+    # variable.
+    #
+    # Since B = A A.T is symmetric, its eigenvalues are the square of the singular values of A or
+    # A.T:
+    #
+    #     W S V = A
+    #     U L U = B
+    #           = A A.T
+    #           = W S V V.T S W
+    #           = W S S W           V is orthogonal so V V.T = I
+    #           = W S^2 W
+    #
+    # Since B is a real symmetric matrix, U is orthogonal. U and W are not necessarily the same
+    # matrix but their determinants are +-1 so the squared singular values and eigenvalues differ by
+    # at most a sign.
+
+    B = (ht.G - ht.covmat_Q @ (ht.covmat_Q.T @ ht.G))
+    singular_values = ht.s2 * ht.weight * hl.nd.svd(B, compute_uv=False)
     eigenvalues = singular_values.map(lambda x: x**2)
 
     # The R implementation of SKAT, Function.R, Get_Lambda_Approx filters the eigenvalues,
