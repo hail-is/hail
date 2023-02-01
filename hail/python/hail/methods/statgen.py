@@ -1812,7 +1812,7 @@ def _linear_skat(group,
     #
     covmat_Q, _ = hl.nd.qr(mt.covmat)
     mt = mt.annotate_globals(
-        covmat_Q = covmat_Q
+        covmat_Q=covmat_Q
     )
     null_mu = mt.covmat_Q @ (mt.covmat_Q.T @ mt.yvec)
     y_residual = mt.yvec - null_mu
