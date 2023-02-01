@@ -1588,7 +1588,7 @@ def _linear_skat(group,
         \begin{align*}
         U \Lambda U^T &= G W G^T \quad\quad U \textrm{ orthogonal, } \Lambda \textrm{ diagonal} \\
         \lambda_i &= \Lambda_{ii} \\
-        z &= \frac{1}{\sigma} U^T r \\
+        z &= \frac{1}{\sigma} r U \\
         z_i &\sim N(0, 1) \\
         Q &= \frac{1}{\sigma^2} \sum_i \lambda_i z_i^2
         \end{align*}
