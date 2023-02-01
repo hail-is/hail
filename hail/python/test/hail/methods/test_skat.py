@@ -221,11 +221,14 @@ def test_linear_skat_on_big_matrix():
     expected_Q_value = 125247
 
     mt = hl.import_matrix_table(resource('skat_genotype_matrix_variants_are_rows.csv'),
-                                delimiter=',')
+                                delimiter=',',
+                                row_fields={'row_idx': hl.tint64},
+                                row_key=['row_idx'])
+    mt = mt.key_cols_by(col_id=hl.int64(mt.col_id))
 
     ht = hl.import_table(resource('skat_phenotypes.csv'), no_header=True, types={'f0': hl.tfloat})
     ht = ht.add_index('idx')
-    ht = ht.key_by(idx=hl.int32(ht.idx))
+    ht = ht.key_by('idx')
     mt = mt.annotate_cols(pheno=ht[mt.col_key].f0)
     mt = mt.annotate_globals(group=1)
     ht = hl._linear_skat(mt.group, hl.literal(1), mt.pheno, mt.x, [1.0])
