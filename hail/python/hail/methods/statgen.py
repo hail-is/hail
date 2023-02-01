@@ -1555,7 +1555,7 @@ def _linear_skat(group,
         r &= y - \widehat{\beta_\textrm{null}} X \\
         W_{ii} &= w_i \\
         \\
-        Q &= r G W G^T r^T
+        Q &= r^T G W G^T r
         \end{align*}
 
     :math:`\widehat{\beta_\textrm{null}}` is the best-fit beta under the null model:
@@ -1578,42 +1578,64 @@ def _linear_skat(group,
        and an orthogonal matrix.
 
     4. Multiplying an orthogonal matrix by a vector of independent identically distributed (i.i.d.)
-       normal variables produces a new vector of independent normal variables.
+       `standard normal variables
+       <https://en.wikipedia.org/wiki/Normal_distribution#Standard_normal_distribution>`__ produces
+       a new vector of independent standard normal variables.
 
-    If the residuals are truly i.i.d. normal variables, then we may describe :math:`Q` as a weighted
-    sum of squares of i.i.d normal variables:
+    We can transform the residuals into standard normal variables by variance normalization:
 
     .. math::
 
         \begin{align*}
-        U \Lambda U^T &= G W G^T \quad\quad U \textrm{ orthogonal, } \Lambda \textrm{ diagonal} \\
+        h &\sim N(0, 1) \\
+        r &= h \sigma
+        \end{align*}
+
+    We can rewrite Q in terms of a Grammian matrix and these new standard normal random variables:
+
+    .. math::
+
+        \begin{align*}
+        A &= \sigma G W^{1/2} \\
+        B &= A A.T \\
+        \\
+        Q &= h^T \sigma G W G^T \sigma h \\
+        Q &= h.T B h \\
+        \end{align*}
+
+    This expression is a `"quadratic form" <https://en.wikipedia.org/wiki/Quadratic_form>`__ of the
+    vector :math:`h`. Because B is a real symmetric matrix, we can eigendecompose it into an
+    orthogonal matrix and a diagonal matrix of eigenvalues:
+
+    .. math::
+
+        \begin{align*}
+        U \Lambda U &= B \quad\quad \Lambda \mathrm{ orthogonal } U \mathrm{ diagonal} \\
+        Q &= h.T U \Lambda U h
+        \end{align*}
+
+    An orthogonal matrix transforms a vector of i.i.d. standard normal variables into a new vector
+    of different i.i.d standard normal variables, so we can interpret Q as a weighted sum of
+    i.i.d. standard normal variables:
+
+    .. math::
+
+        Q = \sum_s \Lambda_{ss} h_s^2
+
+    The distribution of such sums (indeed, any quadratic form of i.i.d. standard normal variables)
+    is governed by the generalized chi-squared distribution (the CDF is available in Hail as
+    :func:`.pgenchisq`):
+
+    .. math::
+
+        \begin{align*}
         \lambda_i &= \Lambda_{ii} \\
-        z &= \frac{1}{\sigma} r U \\
-        z_i &\sim N(0, 1) \\
-        Q &= \frac{1}{\sigma^2} \sum_i \lambda_i z_i^2
+        Q &\sim \mathrm{GeneralizedChiSquare}(\vec{\lambda}, \vec{1}, \vec{0}, 0, 0)
         \end{align*}
 
-    This is a degenerate case of the generalized chi-squared distribution in which:
-
-    1. The component chi-squared variables are central and have one degree of freedom.
-
-    2. The normal component has mean and variance zero.
-
-    FIXME: Somehow that P_0 matrix gets involved. P_0 is something about the sample-variance in the
-    residuals and the variance in the covariates?
-
-    Which we write symbolically as:
-
-    .. math::
-
-        \begin{align*}
-        Q \sim \textrm{GeneralizedChiSquare}(\lambda, \vec{1}, \vec{0}, 0, 0)
-        \end{align*}
-
-    Finally, the p-value is defined as the probability of observing values even larger than
-    :math:`Q`. The intuition is that :math:`Q` is a weighted measure of the correlation between the
-    genotypes and the phenotypes. A large value of :math:`Q` indicates the residual phenotypes are
-    not independent and the dependency is, in fact, characterized by the genotype matrix.
+    Therefore, we can test the null hypothesis by calculating the probability of receiving values
+    larger than :math:`Q`. If that probability is very small, then the residual phenotypes are
+    likely not i.i.d. normal variables with variance \sigma^2.
 
     The SKAT method was originally described in:
 
@@ -1926,8 +1948,14 @@ def _linear_skat(group,
     # matrix but their determinants are +-1 so the squared singular values and eigenvalues differ by
     # at most a sign.
 
-    A = (ht.G - ht.covmat_Q @ (ht.covmat_Q.T @ ht.G)) * hl.sqrt(ht.weight)
+    weights_arr = ht.weight._data_array()
+    A = hl.case().when(
+        hl.all(weights_arr.map(lambda x: x >= 0)),
+        (ht.G - ht.covmat_Q @ (ht.covmat_Q.T @ ht.G)) * hl.sqrt(ht.weight)
+    ).or_error(hl.format('hl._linear_skat: every weight must be positive, in group %s, the weights were: %s',
+                         ht.group, weights_arr))
     singular_values = hl.nd.svd(A, compute_uv=False)
+    # SVD(M) = U S V. U and V are unitary, therefore SVD(k M) = U (k S) V.
     eigenvalues = ht.s2 * singular_values.map(lambda x: x**2)
 
     # The R implementation of SKAT, Function.R, Get_Lambda_Approx filters the eigenvalues,
@@ -1936,21 +1964,6 @@ def _linear_skat(group,
     threshold = 1e-5 * eigenvalues.sum() / eigenvalues.shape[0]
     w = eigenvalues._data_array().filter(lambda y: y >= threshold)
     genchisq_data = hl.pgenchisq(
-        # NOW IRRELEVANT:
-        # Notes:
-        #
-        # 1. The paper takes the eigenvalues of a matrix equal to s^2 (B0.T @ B0 - C0.T @ C0). We
-        #    never multiply by s2.
-        #
-        # 2. SVD(M) = U S V. U and V are unitary, therefore SVD(k M) = U (k S) V.
-        #
-        # 3. Therefore, our weights are the true weights divided by s^2.
-        #
-        # 4. When mu and sigma are zero, we can divide the weights by any scalar if we also divide
-        #    the test point by that scalar. This is apparent from simple algebraic manipulation of
-        #    the random variable definition in the docs above.
-        #
-        # This is why we divide Q by s2 instead of including it in the matrix above.
         ht.Q,
         w=w,
         k=hl.nd.ones(hl.len(w), dtype=hl.tint32),

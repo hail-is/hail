@@ -6,6 +6,46 @@ from hail.utils import FatalError
 from ..helpers import resource, fails_local_backend, fails_service_backend
 
 
+def test_linear_skat_negative_weights_errors():
+    genotypes = [
+        [0, 1, 0, 0, 0],
+        [1, 0, 0, 0, 0],
+        [0, 1, 2, 0, 2],
+        [1, 0, 0, 2, 1]]
+    covariates = [
+        [1, 2],
+        [3, 4],
+        [0, 9],
+        [6, 1],
+        [1, 1]]
+    phenotypes = [3, 4, 6, 4, 1]
+    weights = [-1, 0, 1, -1]
+
+    mt = hl.utils.range_matrix_table(4, 5)
+    mt = mt.annotate_entries(
+        GT = hl.unphased_diploid_gt_index_call(
+            hl.literal(genotypes)[mt.row_idx][mt.col_idx])
+    )
+    mt = mt.annotate_cols(
+        phenotype = hl.literal(phenotypes)[mt.col_idx],
+        cov1 = hl.literal(covariates)[mt.col_idx][0],
+        cov2 = hl.literal(covariates)[mt.col_idx][1]
+    )
+    mt = mt.annotate_rows(
+        weight = hl.literal(weights)[mt.row_idx]
+    )
+    mt = mt.annotate_globals(
+        group = 0
+    )
+    ht = hl._linear_skat(mt.group, mt.weight, mt.phenotype, mt.GT.n_alt_alleles(), [1.0, mt.cov1, mt.cov2])
+    try:
+        ht.collect()
+    except Exception as exc:
+        assert 'hl._linear_skat: every weight must be positive, in group 0, the weights were: [-1.0,0.0,1.0,-1.0]' in exc.args[0]
+    else:
+        assert False
+
+
 def test_linear_skat_no_weights_R_truth():
     # library('SKAT')
     # dat <- matrix(c(0,1,0,1,
