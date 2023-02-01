@@ -193,6 +193,13 @@ def _generate_skat_big_matrix():
         for y in data:
             f.write(','.join([str(int(x)) for x in y]) + '\n')
 
+    mt = hl.import_matrix_table(resource('skat_genotype_matrix.csv'), delimiter=',', no_header=True)
+    bm = hl.linalg.BlockMatrix.from_entry_expr(mt.x)
+    bm = bm.T
+    mt = bm.to_matrix_table_row_major()
+    mt = mt.annotate_entries(element=hl.int(mt.element))
+    mt.element.export('skat_genotype_matrix_variants_are_rows.csv', delimiter=',')
+
     phenos = (data.sum(1) - 50) + np.random.normal(0, 10, 2000)
     with open(resource('skat_phenotypes.csv'), 'w') as f:
         for y in phenos:
@@ -210,16 +217,15 @@ def test_linear_skat_on_big_matrix():
     #
     #
     # SKAT expects rows to be samples, so we transpose from the original input
-    expected_p_value = 1.667519e-69
-    expected_Q_value = 198632.4
+    expected_p_value = 4.072862e-57
+    expected_Q_value = 125247
 
-    mt = hl.import_matrix_table(resource('skat_genotype_matrix.csv'), delimiter=',', no_header=True)
-    bm = hl.linalg.BlockMatrix.from_entry_expr(mt.x)
-    bm = bm.T
-    mt = bm.to_matrix_table_row_major()
-    mt = mt.rename({'element': 'x'})
+    mt = hl.import_matrix_table(resource('skat_genotype_matrix_variants_are_rows.csv'),
+                                delimiter=',')
 
-    ht = hl.import_table(resource('skat_phenotypes.csv'), no_header=True, types={'f0': hl.tfloat}).add_index('idx').key_by('idx')
+    ht = hl.import_table(resource('skat_phenotypes.csv'), no_header=True, types={'f0': hl.tfloat})
+    ht = ht.add_index('idx')
+    ht = ht.key_by(idx=hl.int32(ht.idx))
     mt = mt.annotate_cols(pheno=ht[mt.col_key].f0)
     mt = mt.annotate_globals(group=1)
     ht = hl._linear_skat(mt.group, hl.literal(1), mt.pheno, mt.x, [1.0])
@@ -228,8 +234,8 @@ def test_linear_skat_on_big_matrix():
     assert len(results) == 1
     result = results[0]
     assert result.size == 100
-    assert result.q_stat == pytest.approx(expected_Q_value, abs=5e-7)
-    assert result.p_value == pytest.approx(expected_p_value, abs=5e-8)
+    assert result.q_stat == pytest.approx(expected_Q_value, rel=5e-7)
+    assert result.p_value == pytest.approx(expected_p_value, rel=5e-8)
     assert result.fault == 0
 
 
