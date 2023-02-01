@@ -1886,18 +1886,18 @@ def _linear_skat(group,
     # variables are standard normals:
     #
     #     h ~ N(0, 1)
-    #     y = \sigma^2 h
+    #     y = \sigma h
     #
     # We set \sigma^2 to the sample variance of the residual vectors.
     #
     # Returning to Z:
     #
-    #     Z = h.T \sigma^2 (I - Q Q.T) G diag(sqrt(w))
+    #     Z = h.T \sigma (I - Q Q.T) G diag(sqrt(w))
     #     Q = Z Z.T
     #
     # Which we can factor into a symmetric matrix and a standard normal:
     #
-    #     A = \sigma^2 (I - Q Q.T) G diag(sqrt(w))
+    #     A = \sigma (I - Q Q.T) G diag(sqrt(w))
     #     B = A A.T
     #     Q = h.T B h
     #
@@ -1926,9 +1926,9 @@ def _linear_skat(group,
     # matrix but their determinants are +-1 so the squared singular values and eigenvalues differ by
     # at most a sign.
 
-    B = (ht.G - ht.covmat_Q @ (ht.covmat_Q.T @ ht.G))
-    singular_values = ht.s2 * ht.weight * hl.nd.svd(B, compute_uv=False)
-    eigenvalues = singular_values.map(lambda x: x**2)
+    A = (ht.G - ht.covmat_Q @ (ht.covmat_Q.T @ ht.G)) * hl.sqrt(ht.weight)
+    singular_values = hl.nd.svd(A, compute_uv=False)
+    eigenvalues = ht.s2 * singular_values.map(lambda x: x**2)
 
     # The R implementation of SKAT, Function.R, Get_Lambda_Approx filters the eigenvalues,
     # presumably because a good estimate of the Generalized Chi-Sqaured CDF is not significantly
@@ -1936,6 +1936,7 @@ def _linear_skat(group,
     threshold = 1e-5 * eigenvalues.sum() / eigenvalues.shape[0]
     w = eigenvalues._data_array().filter(lambda y: y >= threshold)
     genchisq_data = hl.pgenchisq(
+        # NOW IRRELEVANT:
         # Notes:
         #
         # 1. The paper takes the eigenvalues of a matrix equal to s^2 (B0.T @ B0 - C0.T @ C0). We
@@ -1950,7 +1951,7 @@ def _linear_skat(group,
         #    the random variable definition in the docs above.
         #
         # This is why we divide Q by s2 instead of including it in the matrix above.
-        ht.Q / ht.s2,
+        ht.Q,
         w=w,
         k=hl.nd.ones(hl.len(w), dtype=hl.tint32),
         lam=hl.nd.zeros(hl.len(w)),
