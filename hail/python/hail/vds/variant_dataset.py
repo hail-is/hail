@@ -243,7 +243,7 @@ class VariantDataset:
         return self.reference_data._same(other.reference_data) and self.variant_data._same(other.variant_data)
 
     def union_rows(*vdses):
-        '''Combine many VDSes with the sample samples but disjoint variants.
+        '''Combine many VDSes with the same samples but disjoint variants.
 
         **Examples**
 
