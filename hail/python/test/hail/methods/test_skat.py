@@ -5,7 +5,7 @@ from ..helpers import resource, fails_local_backend, fails_service_backend
 from ..utils.java import FatalError
 
 
-def test_skat_linear_no_weights_R_truth():
+def test_linear_skat_no_weights_R_truth():
     # library('SKAT')
     # dat <- matrix(c(0,1,0,1,
     #                 1,0,1,0,
@@ -64,7 +64,7 @@ def test_skat_linear_no_weights_R_truth():
     assert result.fault == 0
 
 
-def test_skat_linear_R_truth():
+def test_linear_skat_R_truth():
     # library('SKAT')
     # dat <- matrix(c(0,1,0,1,
     #                 1,0,1,0,
@@ -124,7 +124,7 @@ def test_skat_linear_R_truth():
     assert result.fault == 0
 
 
-def test_skat_linear_R_truth():
+def test_linear_skat_R_truth():
     # library('SKAT')
     # dat <- matrix(c(0,1,0,1,
     #                 1,0,1,0,
@@ -198,7 +198,7 @@ def _generate_skat_big_matrix():
             f.write(str(y) + '\n')
 
 
-def test_skat_linear_on_big_matrix():
+def test_linear_skat_on_big_matrix():
     # dat <- as.matrix(read.csv('hail/src/test/resources/skat_genotype_matrix.csv', header=FALSE))
     # cov = read.csv('hail/src/test/resources/skat_phenotypes.csv', header=FALSE)
     # weights <- rep(1, 100)
@@ -304,6 +304,7 @@ def test_linear_skat_produces_same_results_as_old_scala_method():
     covariates_ht = hl.import_table(
         resource("skat.cov"),
         key='Sample',
+        types={'Cov1': hl.tint, 'Cov2': hl.tint}
     )
     phenotypes_ht = hl.import_table(
         resource("skat.pheno"),
@@ -338,7 +339,7 @@ def test_linear_skat_produces_same_results_as_old_scala_method():
         y=mt.pheno,
         x=mt.GT.n_alt_alleles(),
         covariates=[1, mt.cov.Cov1, mt.cov.Cov2]
-    ).rename({'group': 'id'})
+    ).rename({'group': 'id'}).select_globals()
     old_scala_results = hl.import_table(
         resource('scala-skat-results.tsv'),
         types=dict(id=hl.tstr, size=hl.tint64, q_stat=hl.tfloat, p_value=hl.tfloat, fault=hl.tint),

@@ -2117,7 +2117,9 @@ def skat(key_expr,
 
     """
     if hl.current_backend().requires_lowering and not logistic:
-        return hl._linear_skat(key_expr, weight_expr, y, x, covariates, max_size, accuracy, iterations)
+        ht = hl._linear_skat(key_expr, weight_expr, y, x, covariates, max_size, accuracy, iterations)
+        ht = ht.select_globals()
+        return ht
     mt = matrix_table_source('skat/x', x)
     check_entry_indexed('skat/x', x)
 
