@@ -11,12 +11,11 @@ from hail.utils import FatalError
 from hail.utils.java import choose_backend, Env
 from ..helpers import resource, fails_local_backend, fails_service_backend
 
+import unittest
 
-class Tests:
-    def __init__(self):
-        pass
 
-    @pytest.mark.skipif('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
+class Tests(unittest.TestCase):
+    @pytest.mark.skipif('HAIL_TEST_SKIP_PLINK' in os.environ, reason='Skipping tests requiring plink')
     @fails_service_backend()
     def test_impute_sex_same_as_plink(self):
         ds = hl.import_vcf(resource('x-chromosome.vcf'))
