@@ -91,8 +91,12 @@ async def vm_prices_by_region(
     filter_args.append(machine_type_filter)
 
     filter = ' and '.join(filter_args)
+    log.info(f'filter: {filter}')
     async for data in pricing_client.list_prices(filter=filter):
+        import json
+        log.info(f'data: {json.dumps(data)}')
         if 'Windows' in data['productName'] or data['type'] != 'Consumption' or 'Low Priority' in data['skuName']:
+            log.info(f'filtered data: {json.dumps(data)}')
             continue
         assert data['unitOfMeasure'] == '1 Hour' and data['currencyCode'] == 'USD', data
 
