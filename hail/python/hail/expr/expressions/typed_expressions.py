@@ -3523,7 +3523,7 @@ class LocusExpression(Expression):
     @typecheck_method(other=expr_int32)
     def __add__(self, other):
         from hail.expr.functions import _func
-        return _func("add_on_contig", self.dtype, self._ir, other._ir)
+        return self._method("add_on_contig", self.dtype, other)
 
     @typecheck_method(other=expr_int32)
     def __sub__(self, other):

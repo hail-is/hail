@@ -77,15 +77,18 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
     )
 
     dr = dr._key_by_assert_sorted('locus', 'alleles')
-    fields_to_drop = ['_var_entries', '_ref_entries', 'dense_ref', '_variant_defined', 'ref_allele']
+    fields_to_drop = ['_var_entries', '_ref_entries', 'dense_ref', '_variant_defined']
 
     if 'ref_block_max_length' in dr.globals:
         fields_to_drop.append('ref_block_max_length')
+
+    if 'ref_allele' in dr.row:
+        fields_to_drop.append('ref_allele')
     dr = dr.drop(*fields_to_drop)
     return dr._unlocalize_entries('_dense', '_var_cols', list(var.col_key))
 
 
-@typecheck(vds=VariantDataset, ref_allele_function=func_spec(1, expr_str))
+@typecheck(vds=VariantDataset, ref_allele_function=nullable(func_spec(1, expr_str)))
 def to_merged_sparse_mt(vds: 'VariantDataset', *, ref_allele_function=None) -> 'MatrixTable':
     """Creates a single, merged sparse :class:`.MatrixTable` from the split
     :class:`.VariantDataset` representation.
@@ -150,9 +153,10 @@ def to_merged_sparse_mt(vds: 'VariantDataset', *, ref_allele_function=None) -> '
         elif rg.has_sequence():
             ref_allele_function = lambda ht: ht.locus.sequence_context()
             info("to_merged_sparse_mt: using locus sequence context to fill in reference alleles at monomorphic loci.")
-        raise ValueError("to_merged_sparse_mt: in order to construct a ref allele for reference-only sites, "
-                         "either pass a function to fill in reference alleles (e.g. ref_allele_function=lambda locus: hl.missing('str'))"
-                         " or add a sequence file with 'hl.get_reference(RG_NAME).add_sequence(FASTA_PATH)'.")
+        else:
+            raise ValueError("to_merged_sparse_mt: in order to construct a ref allele for reference-only sites, "
+                             "either pass a function to fill in reference alleles (e.g. ref_allele_function=lambda locus: hl.missing('str'))"
+                             " or add a sequence file with 'hl.get_reference(RG_NAME).add_sequence(FASTA_PATH)'.")
     ht = ht.select(
         alleles=hl.coalesce(ht['alleles'], hl.array([ref_allele_function(ht)])),
         # handle cases where vmt is not keyed by alleles
@@ -940,8 +944,22 @@ def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0
            ref_block_winsorize_fraction=nullable(float))
 def truncate_reference_blocks(ds, *, max_ref_block_base_pairs=None,
                               ref_block_winsorize_fraction=None):
-    """
-    
+    """Cap reference blocks at a maximum length in order to permit faster interval filtering.
+
+    Examples
+    --------
+    Truncate reference blocks to 5 kilobases:
+
+    >>> vds2 = hl.vds.truncate_reference_blocks(vds, max_ref_block_base_pairs=5000) # doctest: +SKIP
+
+    Truncate the longest 1% of reference blocks to the length of the 99th percentile block:
+
+    >>> vds2 = hl.vds.truncate_reference_blocks(vds ref_block_winsorize_fraction=0.01) # doctest: +SKIP
+
+    Notes
+    -----
+    After this function has been run, the
+
     Parameters
     ----------
     vds : :class:`.VariantDataset` or :class:`.MatrixTable`
@@ -993,7 +1011,7 @@ def truncate_reference_blocks(ds, *, max_ref_block_base_pairs=None,
 
     joined = rd_under_limit.join(es, how='outer')
     joined = joined.transmute(merged_blocks=hl.range(hl.len(joined.cols)).map(
-        lambda idx: hl.coalesce(joined.moved_blocks_dict.get(idx).annotate(was_split=True), joined.fixed_blocks[idx].annotate(was_split=False))))
+        lambda idx: hl.coalesce(joined.moved_blocks_dict.get(idx), joined.fixed_blocks[idx])))
     new_rd = joined._unlocalize_entries(entries_field_name='merged_blocks', cols_field_name='cols',
                                         col_key=list(rd.col_key))
     new_rd = new_rd.annotate_globals(ref_block_max_length=max_ref_block_base_pairs)
@@ -1008,6 +1026,17 @@ def truncate_reference_blocks(ds, *, max_ref_block_base_pairs=None,
            merge_functions=nullable(dictof(str, oneof(str, func_spec(1, expr_any)))))
 def merge_reference_blocks(ds, equivalence_function, merge_functions=None):
     """Merge adjacent reference blocks according to user equivalence criteria.
+
+    Examples
+    --------
+    Coarsen GQ granularity into bins of 10 and merges blocks with the same GQ in order to
+    compress reference data.
+
+    >>> rd = vds.reference_data # doctest: +SKIP
+    >>> vds.reference_data = rd.annotate_entries(GQ = rd.GQ - rd.GQ % 10)
+    >>> vds2 = hl.vds.merge_reference_blocks(vds,
+    ...                                      equivalence_function=lambda block1, block2: block1.GQ == block2.GQ),
+    ...                                      merge_functions={'MIN_DP': 'min'}) # doctest: +SKIP
 
     Notes
     -----

@@ -225,6 +225,8 @@ def combine_references(mts: List[MatrixTable]) -> MatrixTable:
     if any_ref_max and not all_ref_max:
         mts = [mt.drop(fd) if fd in mt.globals else mt for mt in mts]
 
+    mts = [mt.drop('ref_allele') if 'ref_allele' in mt.row else mt for mt in mts]
+
     ts = hl.Table.multi_way_zip_join([localize(mt) for mt in mts], 'data', 'g')
     combined = combine_r(ts, fd if all_ref_max else None)
     return unlocalize(combined)

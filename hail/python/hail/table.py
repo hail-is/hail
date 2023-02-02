@@ -3776,11 +3776,14 @@ class Table(ExprContainer):
             raise ValueError('multi_way_zip_join must have at least one table as an argument')
         head = tables[0]
         if any(head.key.dtype != t.key.dtype for t in tables):
-            raise TypeError('All input tables to multi_way_zip_join must have the same key type')
+            raise TypeError('All input tables to multi_way_zip_join must have the same key type:\n  '
+                            + '\n  '.join(str(t.key.dtype) for t in tables))
         if any(head.row.dtype != t.row.dtype for t in tables):
-            raise TypeError('All input tables to multi_way_zip_join must have the same row type')
+            raise TypeError('All input tables to multi_way_zip_join must have the same row type\n  '
+                            + '\n  '.join(str(t.row.dtype) for t in tables))
         if any(head.globals.dtype != t.globals.dtype for t in tables):
-            raise TypeError('All input tables to multi_way_zip_join must have the same global type')
+            raise TypeError('All input tables to multi_way_zip_join must have the same global type\n  '
+                            + '\n  '.join(str(t.globals.dtype) for t in tables))
         return Table(ir.TableMultiWayZipJoin(
             [t._tir for t in tables], data_field_name, global_field_name))
 
