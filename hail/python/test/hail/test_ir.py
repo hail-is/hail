@@ -418,7 +418,7 @@ class CSETests(unittest.TestCase):
         assert expected == CSERenderer()(x)
 
     def test_stream_cse(self):
-        x = ir.StreamRange(ir.I32(0), ir.I32(10), ir.I32(1))
+        x = ir.StreamRange(ir.I32(0), ir.I32(10), ir.I32(1), error_id=27)
         a1 = ir.ToArray(x)
         a2 = ir.ToArray(x)
         t = ir.MakeTuple([a1, a2])
