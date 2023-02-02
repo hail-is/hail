@@ -129,8 +129,7 @@ The :class:`.VariantDataset` is made up of two component matrix tables -- the
 ``reference_data`` and the ``variant_data``.
 
 The ``reference_data`` matrix table is a sparse matrix of reference blocks. The
-``reference_data`` matrix table has row key ``locus``, and has a ``ref_allele``
-field denoting the single reference base at the given genomic coordinate, but
+``reference_data`` matrix table has row key ``locus``, but
 does not have an ``alleles`` key or field. The column key is the sample ID. The
 entries indicate regions of reference calls with similar sequencing metadata
 (depth, quality, etc), starting from ``vds.reference_data.locus.position`` and

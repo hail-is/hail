@@ -374,7 +374,7 @@ class IR(BaseIR):
     def free_agg_vars(self):
         def vars_from_child(i):
             if self.uses_agg_context(i):
-                return self.children[i].free_vars
+                return self.children[i].free_vars.difference(self.bindings(i, 0).keys())
             return self.children[i].free_agg_vars.difference(self.agg_bindings(i, 0).keys())
 
         if self._free_agg_vars is None:
@@ -387,7 +387,7 @@ class IR(BaseIR):
     def free_scan_vars(self):
         def vars_from_child(i):
             if self.uses_scan_context(i):
-                return self.children[i].free_vars
+                return self.children[i].free_vars.difference(self.bindings(i, 0).keys())
             return self.children[i].free_scan_vars.difference(self.scan_bindings(i, 0).keys())
 
         if self._free_scan_vars is None:

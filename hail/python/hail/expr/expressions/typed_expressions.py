@@ -3547,6 +3547,23 @@ class LocusExpression(Expression):
         return self._method("contig", tstr)
 
     @property
+    def contig_idx(self):
+        """Returns the chromosome.
+
+        Examples
+        --------
+
+        >>> hl.eval(locus.contig_idx)
+        0
+
+        Returns
+        -------
+        :class:`.StringExpression`
+            The index of the chromosome for this locus.
+        """
+        return self._method("contig_idx", tint32)
+
+    @property
     def position(self):
         """Returns the position along the chromosome.
 
