@@ -1647,9 +1647,9 @@ def _linear_skat(group,
 
     >>> hl.reset_global_randomness()
     >>> mt = hl.balding_nichols_model(1, n_samples=100, n_variants=20)
-    ... mt = mt.annotate_rows(gene = mt.locus.position // 12)
-    ... mt = mt.annotate_rows(weight = 1)
-    ... mt = mt.annotate_cols(phenotype = hl.agg.sum(mt.GT.n_alt_alleles()) - 20 + hl.rand_norm(0, 1))
+    >>> mt = mt.annotate_rows(gene = mt.locus.position // 12)
+    >>> mt = mt.annotate_rows(weight = 1)
+    >>> mt = mt.annotate_cols(phenotype = hl.agg.sum(mt.GT.n_alt_alleles()) - 20 + hl.rand_norm(0, 1))
 
     Test if the phenotype is significantly associated with the genotype:
 
@@ -1659,7 +1659,7 @@ def _linear_skat(group,
     ...     mt.phenotype,
     ...     mt.GT.n_alt_alleles(),
     ...     covariates=[1.0])
-    ... skat.show()
+    >>> skat.show()
     +-------+-------+----------+-----------+-------+
     | group |  size |   q_stat |   p_value | fault |
     +-------+-------+----------+-----------+-------+
@@ -1679,7 +1679,7 @@ def _linear_skat(group,
     ...     mt.phenotype,
     ...     mt.GT.n_alt_alleles(),
     ...     covariates=[1.0])
-    ... skat.show()
+    >>> skat.show()
     +-------+-------+----------+----------+-------+
     | group |  size |   q_stat |  p_value | fault |
     +-------+-------+----------+----------+-------+
@@ -1706,7 +1706,7 @@ def _linear_skat(group,
     ...     mt.GT.n_alt_alleles(),
     ...     covariates=[1.0],
     ...     max_size=10)
-    ... skat.show()
+    >>> skat.show()
     +-------+-------+----------+-----------+-------+
     | group |  size |   q_stat |   p_value | fault |
     +-------+-------+----------+-----------+-------+
