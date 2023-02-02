@@ -194,7 +194,7 @@ def pca(entry_expr,
     """
     from hail.backend.service_backend import ServiceBackend
 
-    if isinstance(hl.current_backend(), ServiceBackend):
+    if hl.current_backend().requires_lowering:
         return _blanczos_pca(entry_expr, k, compute_loadings, _dimensions=_dimensions)
 
     check_entry_indexed('pca/entry_expr', entry_expr)
