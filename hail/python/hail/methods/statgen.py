@@ -1534,8 +1534,8 @@ def _linear_skat(group,
     .. math::
 
         \begin{align*}
-        X &: R^{N \times K} \\
-        G &: \{0, 1, 2\}^{N \times M} \\
+        X &: R^{N \times K} \quad\quad \textrm{covariates} \\
+        G &: \{0, 1, 2\}^{N \times M} \textrm{genotypes} \\
         \\
         \varepsilon &\sim N(0, \sigma^2) \\
         y &= \beta_0 X + \beta_1 G + \varepsilon
@@ -1579,8 +1579,8 @@ def _linear_skat(group,
 
         \begin{align*}
         \widehat{\sigma} &= \frac{1}{N - K} r^T r \\
-        h &\sim N(0, 1) \\
         h &= \frac{1}{\widehat{\sigma}} r \\
+        h &\sim N(0, 1) \\
         r &= h \widehat{\sigma}
         \end{align*}
 
@@ -1603,7 +1603,7 @@ def _linear_skat(group,
     .. math::
 
         \begin{align*}
-        U \Lambda U &= B \quad\quad \Lambda \textrm{ orthogonal } U \textrm{ diagonal} \\
+        U \Lambda U &= B \quad\quad \Lambda \textrm{ diagonal } U \textrm{ orthogonal} \\
         Q &= h^T U \Lambda U h
         \end{align*}
 
@@ -1918,7 +1918,7 @@ def _linear_skat(group,
     #     B = A A.T
     #     Q = h.T B h
     #
-    # This is called a "quadratic form". It is a weighted sum of the squares of the entries of h,
+    # This is called a "quadratic form". It is a weighted sum of products of pairs of entries of h,
     # which we have asserted are i.i.d. standard normal variables. The distribution of such sums is
     # given by the generalized chi-squared distribution:
     #
@@ -1938,10 +1938,6 @@ def _linear_skat(group,
     #           = W S V V.T S W
     #           = W S S W           V is orthogonal so V V.T = I
     #           = W S^2 W
-    #
-    # Since B is a real symmetric matrix, U is orthogonal. U and W are not necessarily the same
-    # matrix but their determinants are +-1 so the squared singular values and eigenvalues differ by
-    # at most a sign.
 
     weights_arr = ht.weight._data_array()
     A = hl.case().when(
@@ -1950,6 +1946,7 @@ def _linear_skat(group,
     ).or_error(hl.format('hl._linear_skat: every weight must be positive, in group %s, the weights were: %s',
                          ht.group, weights_arr))
     singular_values = hl.nd.svd(A, compute_uv=False)
+
     # SVD(M) = U S V. U and V are unitary, therefore SVD(k M) = U (k S) V.
     eigenvalues = ht.s2 * singular_values.map(lambda x: x**2)
 
@@ -1973,7 +1970,7 @@ def _linear_skat(group,
         # for reasons unknown, the R implementation calls this expression the Q statistic (which is
         # *not* what they write in the paper)
         q_stat=ht.Q / 2 / ht.s2,
-        # I *think* the reasoning for taking the complement of the CDF value is:
+        # The reasoning for taking the complement of the CDF value is:
         #
         # 1. Q is a measure of variance and thus positive.
         #
