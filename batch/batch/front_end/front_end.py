@@ -37,6 +37,7 @@ from gear import (
 )
 from gear.clients import get_cloud_async_fs
 from gear.database import CallError
+from gear.profiling import install_profiler_if_requested
 from hailtop import aiotools, dictfix, httpx, version
 from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
 from hailtop.config import get_deploy_config
@@ -2894,6 +2895,8 @@ async def on_cleanup(app):
 
 
 def run():
+    install_profiler_if_requested('batch')
+
     app = web.Application(
         client_max_size=HTTP_CLIENT_MAX_SIZE, middlewares=[unavailable_if_frozen, monitor_endpoints_middleware]
     )

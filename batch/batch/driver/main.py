@@ -11,7 +11,6 @@ from typing import Any, Dict, Set, Tuple
 
 import aiohttp_session
 import dictdiffer
-import googlecloudprofiler
 import kubernetes_asyncio.client
 import kubernetes_asyncio.config
 import pandas as pd
@@ -32,6 +31,7 @@ from gear import (
     transaction,
 )
 from gear.clients import get_cloud_async_fs
+from gear.profiling import install_profiler_if_requested
 from hailtop import aiotools, httpx
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
@@ -53,7 +53,6 @@ from ..batch_configuration import (
     DEFAULT_NAMESPACE,
     HAIL_SHA,
     HAIL_SHOULD_CHECK_INVARIANTS,
-    HAIL_SHOULD_PROFILE,
     MACHINE_NAME_PREFIX,
     REFRESH_INTERVAL_IN_SECONDS,
 )
@@ -63,7 +62,12 @@ from ..exceptions import BatchUserError
 from ..file_store import FileStore
 from ..globals import HTTP_CLIENT_MAX_SIZE
 from ..inst_coll_config import InstanceCollectionConfigs, PoolConfig
-from ..utils import authorization_token, batch_only, json_to_value, query_billing_projects
+from ..utils import (
+    authorization_token,
+    batch_only,
+    json_to_value,
+    query_billing_projects,
+)
 from .canceller import Canceller
 from .driver import CloudDriver
 from .instance_collection import InstanceCollectionManager, JobPrivateInstanceManager, Pool
@@ -81,16 +85,6 @@ routes = web.RouteTableDef()
 deploy_config = get_deploy_config()
 
 auth = AuthClient()
-
-
-def ignore_failed_to_collect_and_upload_profile(record):
-    if 'Failed to collect and upload profile: [Errno 32] Broken pipe' in record.msg:
-        record.levelno = logging.INFO
-        record.levelname = "INFO"
-    return record
-
-
-googlecloudprofiler.logger.addFilter(ignore_failed_to_collect_and_upload_profile)
 
 
 def instance_name_from_request(request):
@@ -1384,16 +1378,7 @@ async def on_cleanup(app):
 
 
 def run():
-    if HAIL_SHOULD_PROFILE and CLOUD == 'gcp':
-        profiler_tag = f'{DEFAULT_NAMESPACE}'
-        if profiler_tag == 'default':
-            profiler_tag = DEFAULT_NAMESPACE + f'-{HAIL_SHA[0:12]}'
-        googlecloudprofiler.start(
-            service='batch-driver',
-            service_version=profiler_tag,
-            # https://cloud.google.com/profiler/docs/profiling-python#agent_logging
-            verbose=3,
-        )
+    install_profiler_if_requested('batch-driver')
 
     app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE, middlewares=[monitor_endpoints_middleware])
     setup_aiohttp_session(app)

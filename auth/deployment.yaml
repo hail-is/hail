@@ -50,6 +50,10 @@ spec:
               secretKeyRef:
                 name: global-config
                 key: domain
+{% if scope != "test" %}
+          - name: HAIL_SHOULD_PROFILE
+            value: "1"
+{% endif %}
          resources:
            requests:
              cpu: "50m"
@@ -172,6 +176,10 @@ spec:
               secretKeyRef:
                 name: global-config
                 key: organization_domain
+{% if scope != "test" %}
+          - name: HAIL_SHOULD_PROFILE
+            value: "1"
+{% endif %}
          resources:
            requests:
              cpu: "20m"
