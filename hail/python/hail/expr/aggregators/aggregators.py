@@ -250,7 +250,7 @@ def _check_agg_bindings(expr, bindings):
                    and not x.name == '__rng_state'))}
     free_variables = bound_references - expr._ir.bound_variables - bindings
     if free_variables:
-        raise ExpressionException(f"dynamic variables created by 'hl.bind' or lambda methods like 'hl.map' may not be aggregated\n  bound={bound_references}\n  bound_variables={expr._ir.bound_variables}\n  bindings={bindings}\n  ir={expr._ir}")
+        raise ExpressionException("dynamic variables created by 'hl.bind' or lambda methods like 'hl.map' may not be aggregated")
 
 
 @typecheck(expr=expr_numeric, k=int)

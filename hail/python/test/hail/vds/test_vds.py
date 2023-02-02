@@ -84,7 +84,7 @@ def test_conversion_equivalence():
     assert svcr.aggregate_entries(hl.agg.count()) == ref.aggregate_entries(hl.agg.count()) + var.aggregate_entries(
         hl.agg.count())
 
-    svcr_readback = hl.vds.to_merged_sparse_mt(vds, ref_allele_function=lambda locus: svcr.key_rows_by('locus').index_rows(locus).alleles[0])
+    svcr_readback = hl.vds.to_merged_sparse_mt(vds, ref_allele_function=lambda ht: svcr.key_rows_by('locus').index_rows(ht.locus).alleles[0])
 
     assert svcr._same(svcr_readback)
 
@@ -617,3 +617,23 @@ def test_union_rows():
 
     assert 'max_ref_block_length' not in vds1_trunc.union_rows(vds2).reference_data.globals
 
+
+def test_combiner_max_len():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+    all_samples = vds.reference_data.s.collect()
+    samp1 = all_samples[:len(all_samples)//2]
+    samp2 = all_samples[len(all_samples)//2:]
+
+    vds1 = hl.vds.filter_samples(vds, samp1, remove_dead_alleles=True)
+    vds2 = hl.vds.filter_samples(vds, samp2, remove_dead_alleles=True)
+
+    vds1_trunc = hl.vds.truncate_reference_blocks(vds1, max_ref_block_base_pairs=50)
+    vds2_trunc = hl.vds.truncate_reference_blocks(vds2, max_ref_block_base_pairs=75)
+
+    from hail.vds.combiner.combine import combine_references
+
+    combined1 = combine_references([vds1_trunc.reference_data, vds2_trunc.reference_data])
+    assert hl.eval(combined1.index_globals().ref_block_max_length) == 75
+
+    combined2 = combine_references([vds1_trunc.reference_data, vds2.reference_data])
+    assert 'ref_block_max_length' not in combined2.globals

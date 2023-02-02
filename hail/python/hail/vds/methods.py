@@ -145,14 +145,16 @@ def to_merged_sparse_mt(vds: 'VariantDataset', *, ref_allele_function=None) -> '
 
     if ref_allele_function is None:
         rg = ht.locus.dtype.reference_genome
-        if rg.has_sequence():
-            ref_allele_function = lambda locus: locus.sequence_context()
+        if 'ref_allele' in ht.row:
+            ref_allele_function = lambda ht: ht.ref_allele
+        elif rg.has_sequence():
+            ref_allele_function = lambda ht: ht.locus.sequence_context()
             info("to_merged_sparse_mt: using locus sequence context to fill in reference alleles at monomorphic loci.")
         raise ValueError("to_merged_sparse_mt: in order to construct a ref allele for reference-only sites, "
                          "either pass a function to fill in reference alleles (e.g. ref_allele_function=lambda locus: hl.missing('str'))"
                          " or add a sequence file with 'hl.get_reference(RG_NAME).add_sequence(FASTA_PATH)'.")
     ht = ht.select(
-        alleles=hl.coalesce(ht['alleles'], hl.array([ref_allele_function(ht.locus)])),
+        alleles=hl.coalesce(ht['alleles'], hl.array([ref_allele_function(ht)])),
         # handle cases where vmt is not keyed by alleles
         **{k: ht[k] for k in vds.variant_data.row_value if k != 'alleles'},
         _entries=merge_arrays(ht['_ref_entries'], ht['_var_entries'])

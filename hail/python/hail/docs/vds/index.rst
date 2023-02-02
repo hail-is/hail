@@ -45,6 +45,8 @@ large as 955,000 whole exomes. The :class:`.VariantDatasetCombiner` produces a
     impute_sex_chromosome_ploidy
     to_dense_mt
     to_merged_sparse_mt
+    truncate_reference_blocks
+    merge_reference_blocks
     lgt_to_gt
     local_to_global
 
