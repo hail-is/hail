@@ -958,7 +958,10 @@ def truncate_reference_blocks(ds, *, max_ref_block_base_pairs=None,
 
     Notes
     -----
-    After this function has been run, the
+    After this function has been run, the reference blocks have a known maximum length `ref_block_max_length`,
+    stored in the global fields, which permits :func:`.vds.filter_intervals` to filter to intervals of the reference
+    data by reading `ref_block_max_length` bases ahead of each interval. This allows narrow interval queries
+    to run in roughly O(data kept) work rather than O(all reference data) work.
 
     Parameters
     ----------
