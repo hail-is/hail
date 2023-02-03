@@ -1112,7 +1112,7 @@ async def _cancel_batch(app, batch_id):
 async def monitor_billing_limits(app):
     db: Database = app['db']
 
-    sql = f'''
+    sql = '''
 SELECT billing_project, COALESCE(SUM(`usage` * rate), 0) as accrued_cost
 FROM (
   SELECT billing_project, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`, `limit`
