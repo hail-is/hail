@@ -137,17 +137,13 @@ async def query_billing_projects(db, user=None, billing_project=None):
 WITH base_t AS (
 SELECT billing_projects.name as billing_project,
   billing_projects.`status` as `status`,
-  users, `limit`
-FROM (
-  SELECT billing_project, JSON_ARRAYAGG(`user_cs`) as users
-  FROM billing_project_users
-  GROUP BY billing_project
-  LOCK IN SHARE MODE
-) AS t
-RIGHT JOIN billing_projects
-  ON t.billing_project = billing_projects.name
+  `limit`,
+  JSON_ARRAYAGG(`user_cs`)
+FROM billing_projects
+LEFT JOIN billing_project_users
+  on billing_project_users.billing_project = billing_projects.name
 {where_condition}
-GROUP BY billing_projects.name, billing_projects.status, `limit`
+group by billing_projects.name, billing_projects.`status`, `limit`
 LOCK IN SHARE MODE
 )
 SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) as accrued_cost
