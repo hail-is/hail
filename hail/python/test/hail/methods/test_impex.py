@@ -1053,6 +1053,7 @@ class BGENTests(unittest.TestCase):
                       contig_recoding={'01': '1'},
                       reference_genome='GRCh37')
 
+    @fails_service_backend()
     def test_error_if_no_gp(self):
         mt = hl.balding_nichols_model(3, 3, 3)
         mt = mt.key_cols_by(s=hl.str(mt.sample_idx))
