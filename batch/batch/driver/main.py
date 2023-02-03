@@ -1112,7 +1112,22 @@ async def _cancel_batch(app, batch_id):
 async def monitor_billing_limits(app):
     db: Database = app['db']
 
-    records = await query_billing_projects(db)
+    sql = f'''
+SELECT billing_project, COALESCE(SUM(`usage` * rate), 0) as accrued_cost
+FROM (
+  SELECT billing_project, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`, `limit`
+  FROM billing_projects
+  LEFT JOIN aggregated_billing_project_user_resources_v2
+    ON billing_projects.billing_project = aggregated_billing_project_user_resources_v2.billing_project
+  WHERE billing_projects.`status` != 'deleted'
+  GROUP BY billing_projects.billing_project, resource_id
+) AS usage_t
+LEFT JOIN resources
+  ON resources.resource_id = usage_t.resource_id
+GROUP BY billing_project;
+'''
+
+    records = [record async for record in db.execute_and_fetchall(sql)]
     for record in records:
         limit = record['limit']
         accrued_cost = record['accrued_cost']
