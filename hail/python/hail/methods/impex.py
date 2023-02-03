@@ -240,7 +240,7 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None, compr
     for exprs, axis in [(gen_exprs, mt._row_indices),
                         (entry_exprs, mt._entry_indices)]:
         for name, expr in exprs.items():
-            analyze('export_gen/{}'.format(name), expr, axis)
+            analyze('export_bgen/{}'.format(name), expr, axis)
 
     mt = mt._select_all(col_exprs={},
                         row_exprs=gen_exprs,
