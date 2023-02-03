@@ -35,6 +35,7 @@ Methods
     index_bgen
     read_matrix_table
     read_table
+    query_table
 
 
 .. rubric:: Statistics
