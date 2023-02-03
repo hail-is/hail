@@ -458,8 +458,12 @@ class Table(ExprContainer):
                       schema=nullable(hail_type),
                       key=table_key_type,
                       n_partitions=nullable(int),
-                      partial_type=nullable(dict))
-    def parallelize(cls, rows, schema=None, key=None, n_partitions=None, *, partial_type=None) -> 'Table':
+                      partial_type=nullable(dict),
+                      globals=nullable(expr_struct()))
+    def parallelize(cls, rows, schema=None, key=None, n_partitions=None, *,
+                    partial_type=None,
+                    globals=None
+                    ) -> 'Table':
         """Parallelize a local array of structs into a distributed table.
 
         Examples
@@ -537,9 +541,13 @@ class Table(ExprContainer):
         if not isinstance(rows.dtype.element_type, tstruct):
             raise TypeError("'parallelize' expects an array with element type 'struct', found '{}'"
                             .format(rows.dtype))
-        table = Table(ir.TableParallelize(ir.MakeStruct([
-            ('rows', rows._ir),
-            ('global', ir.MakeStruct([]))]), n_partitions))
+        table = Table(ir.TableParallelize(
+            ir.MakeStruct([
+                ('rows', rows._ir),
+                ('global', ir.MakeStruct([]) if globals is None else globals._ir)
+            ]),
+            n_partitions
+        ))
         if key is not None:
             table = table.key_by(*key)
         return table

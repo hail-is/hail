@@ -476,7 +476,7 @@ class GroupedMatrixTable(ExprContainer):
             Aggregation expressions.
 
         Returns
-        -------
+        -------~
         :class:`.MatrixTable`
             Aggregated matrix table.
         """
@@ -538,6 +538,47 @@ class MatrixTable(ExprContainer):
     @staticmethod
     def _from_java(jmir):
         return MatrixTable(ir.JavaMatrix(jmir))
+
+    @staticmethod
+    @typecheck( globals=dictof(str, anytype)
+              , rows=dictof(str, sequenceof(anytype))
+              , cols=dictof(str, sequenceof(anytype))
+              , entries=dictof(str, sequenceof(sequenceof(anytype)))
+              )
+    def from_parts(globals, rows, cols, entries) -> 'MatrixTable':
+        """
+        Example
+        -------
+        >>> hl.MatrixTable.from_parts( globals = { 'hello': 'world' }
+        ...                          , rows = { 'foo': [1, 2] }
+        ...                          , cols = { 'bar': [2, 3] }
+        ...                          , entries = { 'baz': [[1, 2], [3, 4]] }
+        ...                          )
+
+        """
+
+        def invert(kvs):
+            return [dict(zip(kvs, vs)) for vs in zip(*kvs.values())]
+
+        # General idea: build a `Table` representation matching that returned by
+        # `MatrixTable.localize_entries` and then call _unlocalize_entries.
+        cols = invert(cols)
+        for i, column in enumerate(cols):
+            column['col_idx'] = i
+
+        cols_field_name = 'columns'
+        globals[cols_field_name] = cols
+
+        rows = invert(rows)
+        entries = map(invert, invert(entries))
+        entries_field_name = 'entry_structs'
+        for i, (row, row_entries) in enumerate(zip(rows, entries)):
+            row['row_idx'] = i
+            row[entries_field_name] = row_entries
+
+        return Table\
+            .parallelize(rows, key='row_idx', globals = globals) \
+            ._unlocalize_entries(entries_field_name, cols_field_name, col_key=[])
 
     def __init__(self, mir):
         super(MatrixTable, self).__init__()
