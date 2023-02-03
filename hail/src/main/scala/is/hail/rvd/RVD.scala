@@ -812,7 +812,8 @@ class RVD(
     val entriesIndexSpec = IndexSpec.defaultAnnotation("../../index", typ.kType, withOffsetField = true)
     val makeRowsEnc = rowsCodecSpec.buildEncoder(execCtx, fullRowType)
     val makeEntriesEnc = entriesCodecSpec.buildEncoder(execCtx, fullRowType)
-    val makeIndexWriter = IndexWriter.builder(execCtx, typ.kType, +PCanonicalStruct("entries_offset" -> PInt64()))
+    val _makeIndexWriter = IndexWriter.builder(execCtx, typ.kType, +PCanonicalStruct("entries_offset" -> PInt64()))
+    val makeIndexWriter: (String, RegionPool) => IndexWriter = _makeIndexWriter(_, theHailClassLoaderForSparkWorkers, SparkTaskContext.get(), _)
 
     val localTyp = typ
 
@@ -1498,7 +1499,8 @@ object RVD {
     val entriesIndexSpec = IndexSpec.defaultAnnotation("../../index", localTyp.kType, withOffsetField = true)
     val makeRowsEnc = rowsCodecSpec.buildEncoder(execCtx, fullRowType)
     val makeEntriesEnc = entriesCodecSpec.buildEncoder(execCtx, fullRowType)
-    val makeIndexWriter = IndexWriter.builder(execCtx, localTyp.kType, +PCanonicalStruct("entries_offset" -> PInt64()))
+    val _makeIndexWriter = IndexWriter.builder(execCtx, localTyp.kType, +PCanonicalStruct("entries_offset" -> PInt64()))
+    val makeIndexWriter: (String, RegionPool) => IndexWriter = _makeIndexWriter(_, theHailClassLoaderForSparkWorkers, SparkTaskContext.get(), _)
 
     val partDigits = digitsNeeded(nPartitions)
     val fileDigits = digitsNeeded(rvds.length)
