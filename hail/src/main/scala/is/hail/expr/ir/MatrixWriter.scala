@@ -1010,6 +1010,7 @@ case class MatrixBGENWriter(
 }
 
 case class BGENPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHeader: Boolean, compression: Int) extends PartitionWriter {
+  require(typ.entryType.hasField("GP") && typ.entryType.fieldType("GP") == TArray(TFloat64))
   val ctxType: Type = TStruct("cols" -> TArray(typ.colType), "numVariants" -> TInt64, "partFile" -> TString)
   override def returnType: TStruct = TStruct("partFile" -> TString, "numVariants" -> TInt64, "dropped" -> TInt64)
   def unionTypeRequiredness(r: TypeWithRequiredness, ctxType: TypeWithRequiredness, streamType: RIterable): Unit = {
@@ -1126,28 +1127,24 @@ case class BGENPartitionWriter(typ: MatrixType, entriesFieldName: String, writeH
     entries.forEachDefinedOrMissing(cb)({ (cb, j) =>
       emitNullGP(cb)
     }, { case (cb, j, entry: SBaseStructValue) =>
-      if (entry.st.virtualType.fieldIdx.get("GP").isDefined) {
-        entry.loadField(cb, "GP").consume(cb, emitNullGP(cb), { gp =>
-          val gpSum = cb.newLocal[Double]("gpSum", 0d)
-          gp.asIndexable.forEachDefined(cb) { (cb, idx, x) =>
-            val gpv = x.asDouble.value
-            cb.ifx(gpv < 0d,
-              cb._fatal("found GP value less than 0: ", gpv.toS, ", at sample ", j.toS, " of variant", chr, ":", pos.toS))
-            cb.assign(gpSum, gpSum + gpv)
-            cb += (gpResized(idx) = gpv * BgenWriter.totalProb.toDouble)
-          }
-          cb.ifx(gpSum >= 0.999 && gpSum <= 1.001, {
-            cb += uncompBuf.invoke[Int, Byte, Unit]("update", samplePloidyStart + j, BgenWriter.ploidy)
-            cb += Code.invokeScalaObject6[Array[Double], Array[Double], Array[Int], Array[Int], ByteArrayBuilder, Long, Unit](BgenWriter.getClass, "roundWithConstantSum",
-              gpResized, fractional, index, indexInverse, uncompBuf, BgenWriter.totalProb.toLong)
-          }, {
-            cb.assign(dropped, dropped + 1l)
-            emitNullGP(cb)
-          })
+      entry.loadField(cb, "GP").consume(cb, emitNullGP(cb), { gp =>
+        val gpSum = cb.newLocal[Double]("gpSum", 0d)
+        gp.asIndexable.forEachDefined(cb) { (cb, idx, x) =>
+          val gpv = x.asDouble.value
+          cb.ifx(gpv < 0d,
+            cb._fatal("found GP value less than 0: ", gpv.toS, ", at sample ", j.toS, " of variant", chr, ":", pos.toS))
+          cb.assign(gpSum, gpSum + gpv)
+          cb += (gpResized(idx) = gpv * BgenWriter.totalProb.toDouble)
+        }
+        cb.ifx(gpSum >= 0.999 && gpSum <= 1.001, {
+          cb += uncompBuf.invoke[Int, Byte, Unit]("update", samplePloidyStart + j, BgenWriter.ploidy)
+          cb += Code.invokeScalaObject6[Array[Double], Array[Double], Array[Int], Array[Int], ByteArrayBuilder, Long, Unit](BgenWriter.getClass, "roundWithConstantSum",
+            gpResized, fractional, index, indexInverse, uncompBuf, BgenWriter.totalProb.toLong)
+        }, {
+          cb.assign(dropped, dropped + 1l)
+          emitNullGP(cb)
         })
-      } else {
-        emitNullGP(cb)
-      }
+      })
     })
     // end emitGPData
 
