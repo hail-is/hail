@@ -1113,7 +1113,7 @@ async def monitor_billing_limits(app):
     db: Database = app['db']
 
     sql = '''
-SELECT billing_project, COALESCE(SUM(`usage` * rate), 0) as accrued_cost
+SELECT billing_project, COALESCE(SUM(`usage` * rate), 0) as accrued_cost, limit
 FROM (
   SELECT billing_project, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`, `limit`
   FROM billing_projects
