@@ -1118,9 +1118,9 @@ FROM (
   SELECT billing_project, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`, `limit`
   FROM billing_projects
   LEFT JOIN aggregated_billing_project_user_resources_v2
-    ON billing_projects.billing_project = aggregated_billing_project_user_resources_v2.billing_project
+    ON billing_projects.name = aggregated_billing_project_user_resources_v2.billing_project
   WHERE billing_projects.`status` != 'deleted'
-  GROUP BY billing_projects.billing_project, resource_id
+  GROUP BY billing_projects.name, resource_id
 ) AS usage_t
 LEFT JOIN resources
   ON resources.resource_id = usage_t.resource_id
