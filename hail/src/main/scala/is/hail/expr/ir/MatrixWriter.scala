@@ -884,7 +884,9 @@ final case class GenVariantWriter(typ: MatrixType, entriesFieldName: String, pre
     def writeC(code: Code[Int]) = _writeC(cb, code)
     def writeS(code: Code[String]) = _writeS(cb, code)
 
-    val hasGPField = typ.entryType.hasField("GP")
+
+    require(typ.entryType.hasField("GP") && typ.entryType.fieldType("GP") == TArray(TFloat64))
+
     element.toI(cb).consume(cb, cb._fatal("stream element cannot be missing!"), { case sv: SBaseStructValue =>
       val locus = sv.loadField(cb, "locus").get(cb).asLocus
       val contig = locus.contig(cb).loadString(cb)
@@ -911,17 +913,14 @@ final case class GenVariantWriter(typ: MatrixType, entriesFieldName: String, pre
       sv.loadField(cb, entriesFieldName).get(cb).asIndexable.forEachDefinedOrMissing(cb)({ (cb, i) =>
         _writeS(cb, " 0 0 0")
         }, { (cb, i, va) =>
-          if (hasGPField) {
-            va.asBaseStruct.loadField(cb, "GP").consume(cb, _writeS(cb, " 0 0 0"), { case gp: SIndexableValue =>
-              cb.ifx(gp.loadLength().cne(3),
-                cb._fatal("Invalid 'gp' at variant '", locus.contig(cb).loadString(cb), ":", locus.position(cb).toS, ":", a0, ":", a1, "' and sample index ", i.toS, ". The array must have length equal to 3."))
-              gp.forEachDefinedOrMissing(cb)((cb, _) => cb._fatal("GP cannot be missing"), { (cb, _, gp) =>
-                _writeC(cb, ' ')
-                _writeS(cb, Code.invokeScalaObject2[Double, Int, String](utilsPackageClass, "formatDouble", gp.asDouble.value, precision))
-              })
+          va.asBaseStruct.loadField(cb, "GP").consume(cb, _writeS(cb, " 0 0 0"), { case gp: SIndexableValue =>
+            cb.ifx(gp.loadLength().cne(3),
+              cb._fatal("Invalid 'gp' at variant '", locus.contig(cb).loadString(cb), ":", locus.position(cb).toS, ":", a0, ":", a1, "' and sample index ", i.toS, ". The array must have length equal to 3."))
+            gp.forEachDefinedOrMissing(cb)((cb, _) => cb._fatal("GP cannot be missing"), { (cb, _, gp) =>
+              _writeC(cb, ' ')
+              _writeS(cb, Code.invokeScalaObject2[Double, Int, String](utilsPackageClass, "formatDouble", gp.asDouble.value, precision))
             })
-          } else
-            _writeS(cb, " 0 0 0")
+          })
         })
       writeC('\n')
     })

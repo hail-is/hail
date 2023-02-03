@@ -1059,6 +1059,10 @@ class BGENTests(unittest.TestCase):
         with pytest.raises(ValueError, match="BGEN requires a GP"):
             hl.export_bgen(mt, "dummy_path")
 
+        with pytest.raises(ValueError, match="GEN requires a GP"):
+            hl.export_gen(mt, "dummy_path")
+
+
     @fails_service_backend()
     @fails_local_backend()
     def test_import_bgen_dosage_entry(self):
