@@ -3,7 +3,7 @@ package is.hail.backend
 import is.hail.asm4s._
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
-import is.hail.expr.ir.{IR, SortField}
+import is.hail.expr.ir.{CodeCacheKey, CompiledFunction, IR, SortField}
 import is.hail.io.fs._
 import is.hail.linalg.BlockMatrix
 import is.hail.types._
@@ -63,4 +63,23 @@ abstract class Backend {
     relationalLetsAbove: Map[String, IR],
     rowTypeRequiredness: RStruct
   ): TableStage
+
+  def lookupOrCompileCachedFunction[T](k: CodeCacheKey)(f: => CompiledFunction[T]): CompiledFunction[T]
+}
+
+trait BackendWithCodeCache {
+  private[this] val codeCache: Cache[CodeCacheKey, CompiledFunction[_]] = new Cache(50)
+  def lookupOrCompileCachedFunction[T](k: CodeCacheKey)(f: => CompiledFunction[T]): CompiledFunction[T] = {
+    codeCache.get(k) match {
+      case Some(v) => v.asInstanceOf[CompiledFunction[T]]
+      case None =>
+        val compiledFunction = f
+        codeCache += ((k, f))
+        f
+    }
+  }
+}
+
+trait BackendWithNoCodeCache {
+  def lookupOrCompileCachedFunction[T](k: CodeCacheKey)(f: => CompiledFunction[T]): CompiledFunction[T] = f
 }

@@ -8,7 +8,7 @@ import java.util.concurrent._
 import is.hail.{HAIL_REVISION, HailContext, HailFeatureFlags}
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.{Backend, BackendContext, BroadcastValue, ExecuteContext, HailTaskContext}
+import is.hail.backend.{Backend, BackendContext, BackendWithNoCodeCache, BroadcastValue, ExecuteContext, HailTaskContext}
 import is.hail.expr.{JSONAnnotationImpex, Validate}
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{Compile, IR, IRParser, MakeTuple, SortField, TypeCheck}
@@ -66,7 +66,7 @@ class ServiceBackend(
   val batchClient: BatchClient,
   val curBatchId: Option[Long],
   val scratchDir: String = sys.env.get("HAIL_WORKER_SCRATCH_DIR").getOrElse(""),
-) extends Backend {
+) extends Backend with BackendWithNoCodeCache {
   import ServiceBackend.log
 
   private[this] var stageCount = 0
