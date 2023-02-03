@@ -244,12 +244,12 @@ class VariantDataset:
         all_ref_max = n_with_ref_max_len == len(mts)
 
         # if some mts have max ref len but not all, drop it
-        new_ref_block_len_max = None
-        if any_ref_max and not all_ref_max:
-            mts = [mt.drop(fd) if fd in mt.globals else mt for mt in mts]
-            new_ref_mt = hl.MatrixTable.union_rows(*mts)
-        else:
+        if all_ref_max:
             new_ref_mt = hl.MatrixTable.union_rows(*mts).annotate_globals(**{fd: hl.max([mt.index_globals()[fd] for mt in mts])})
+        else:
+            if any_ref_max:
+                mts = [mt.drop(fd) if fd in mt.globals else mt for mt in mts]
+            new_ref_mt = hl.MatrixTable.union_rows(*mts)
 
         new_var_mt = hl.MatrixTable.union_rows(*(vds.variant_data for vds in vdses))
         return hl.vds.VariantDataset(new_ref_mt, new_var_mt)

@@ -613,7 +613,7 @@ def test_union_rows():
     vds2_trunc = hl.vds.truncate_reference_blocks(vds1, max_ref_block_base_pairs=75)
 
     vds_trunc_union = vds1_trunc.union_rows(vds2_trunc)
-    assert hl.eval(vds_trunc_union.reference_data.index_globals().max_ref_block_length) == 75
+    assert hl.eval(vds_trunc_union.reference_data.index_globals().ref_block_max_length) == 75
 
     assert 'max_ref_block_length' not in vds1_trunc.union_rows(vds2).reference_data.globals
 

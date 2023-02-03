@@ -149,9 +149,11 @@ def to_merged_sparse_mt(vds: 'VariantDataset', *, ref_allele_function=None) -> '
     if ref_allele_function is None:
         rg = ht.locus.dtype.reference_genome
         if 'ref_allele' in ht.row:
-            ref_allele_function = lambda ht: ht.ref_allele
+            def ref_allele_function(ht):
+                return ht.ref_allele
         elif rg.has_sequence():
-            ref_allele_function = lambda ht: ht.locus.sequence_context()
+            def ref_allele_function(ht):
+                return ht.locus.sequence_context()
             info("to_merged_sparse_mt: using locus sequence context to fill in reference alleles at monomorphic loci.")
         else:
             raise ValueError("to_merged_sparse_mt: in order to construct a ref allele for reference-only sites, "
@@ -607,7 +609,9 @@ def _parameterized_filter_intervals(vds: 'VariantDataset',
     if keep:
         if 'ref_block_max_length' in vds.reference_data.globals:
             max_len = hl.eval(vds.reference_data.index_globals()['ref_block_max_length'])
-            ref_intervals = intervals.map(lambda interval: hl.interval(interval.start - (max_len-1), interval.end, interval.includes_start, interval.includes_end))
+            ref_intervals = intervals.map(
+                lambda interval: hl.interval(interval.start - (max_len - 1), interval.end, interval.includes_start,
+                                             interval.includes_end))
             reference_data = hl.filter_intervals(reference_data, ref_intervals, keep)
         else:
             warning("'hl.vds.filter_intervals': filtering intervals when reference blocks have not been truncated"
@@ -624,7 +628,7 @@ def _parameterized_filter_intervals(vds: 'VariantDataset',
             schema=hl.tstruct(interval=intervals.dtype.element_type),
             key='interval')
         ref = segment_reference_blocks(reference_data, par_intervals).drop('interval_end',
-                                                                               list(par_intervals.key)[0])
+                                                                           list(par_intervals.key)[0])
         return VariantDataset(ref,
                               hl.filter_intervals(vds.variant_data, intervals, keep))
 
@@ -939,6 +943,7 @@ def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0
 
     return per_interval
 
+
 @typecheck(ds=oneof(MatrixTable, VariantDataset),
            max_ref_block_base_pairs=nullable(int),
            ref_block_winsorize_fraction=nullable(float))
@@ -988,8 +993,9 @@ def truncate_reference_blocks(ds, *, max_ref_block_base_pairs=None,
         assert ref_block_winsorize_fraction > 0 and ref_block_winsorize_fraction < 1, \
             'truncate_reference_blocks: "ref_block_winsorize_fraction" must be between 0 and 1 (e.g. 0.01 to truncate the top 1% of reference blocks)'
         if ref_block_winsorize_fraction > 0.1:
-            warning(f"'truncate_reference_blocks': ref_block_winsorize_fraction of {ref_block_winsorize_fraction} will lead to significant data duplication,"
-                    f" recommended values are <0.05.")
+            warning(
+                f"'truncate_reference_blocks': ref_block_winsorize_fraction of {ref_block_winsorize_fraction} will lead to significant data duplication,"
+                f" recommended values are <0.05.")
         max_ref_block_base_pairs = rd.aggregate_entries(
             hl.agg.approx_quantiles(rd.END - rd.locus.position + 1, 1 - ref_block_winsorize_fraction, k=200))
 
@@ -1007,10 +1013,10 @@ def truncate_reference_blocks(ds, *, max_ref_block_base_pairs=None,
     es = es.annotate(new_start=hl.range(es.locus.position, es.END + 1, max_ref_block_base_pairs))
     es = es.explode('new_start')
     es = es.transmute(locus=hl.locus(es.locus.contig, es.new_start, reference_genome=es.locus.dtype.reference_genome),
-                     END=hl.min(es.new_start + max_ref_block_base_pairs - 1, es.END))
+                      END=hl.min(es.new_start + max_ref_block_base_pairs - 1, es.END))
     es = es.key_by(es.locus).collect_by_key("new_blocks")
     es = es.transmute(moved_blocks_dict=hl.dict(es.new_blocks
-                                               .map(lambda x: (x.col_idx, x.drop('col_idx')))))
+                                                .map(lambda x: (x.col_idx, x.drop('col_idx')))))
 
     joined = rd_under_limit.join(es, how='outer')
     joined = joined.transmute(merged_blocks=hl.range(hl.len(joined.cols)).map(
@@ -1087,6 +1093,7 @@ def merge_reference_blocks(ds, equivalence_function, merge_functions=None):
                                      f'differs from original type {block1[k].dtype!r}')
                 new_fields[k] = new_value
         return block1.annotate(**new_fields)
+
     def keep_last(t1, t2):
         e1 = t1[0]
         e2 = t2[0]
@@ -1097,9 +1104,9 @@ def merge_reference_blocks(ds, equivalence_function, merge_functions=None):
 
     # approximate a scan that merges before result
     ht = ht.annotate(prev_block=hl.zip(hl.scan.array_agg(lambda elt: hl.scan.fold((hl.null(rd.entry.dtype), False),
-                                                                                      lambda acc: keep_last(acc, (
+                                                                                  lambda acc: keep_last(acc, (
                                                                                       elt, False)),
-                                                                          keep_last), ht.entries), ht.entries)
+                                                                                  keep_last), ht.entries), ht.entries)
                      .map(lambda tup: keep_last(tup[0], (tup[1], False))))
     ht_join = ht
 
@@ -1112,12 +1119,12 @@ def merge_reference_blocks(ds, equivalence_function, merge_functions=None):
     ht_shuf = ht.key_by(
         locus=hl.locus(hl.literal(rg.contigs)[ht.entry.contig_idx], ht.entry.start_pos, reference_genome=rg))
 
-
     ht_shuf = ht_shuf.collect_by_key("new_starts")
     # new_starts can contain multiple records for a collapsed ref block, one for each folded block.
     # We want to keep the one with the highest END
     ht_shuf = ht_shuf.select(moved_blocks_dict=hl.group_by(lambda elt: elt.col_idx, ht_shuf.new_starts)
-                             .map_values(lambda arr: arr[hl.argmax(arr.map(lambda x: x.entry.END))].entry.drop('contig_idx', 'start_pos')))
+                             .map_values(
+        lambda arr: arr[hl.argmax(arr.map(lambda x: x.entry.END))].entry.drop('contig_idx', 'start_pos')))
 
     ht_joined = ht_join.join(ht_shuf.select_globals(), 'left')
 
