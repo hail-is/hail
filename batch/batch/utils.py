@@ -143,7 +143,7 @@ FROM billing_projects
 LEFT JOIN billing_project_users
   on billing_project_users.billing_project = billing_projects.name
 {where_condition}
-group by billing_projects.name, billing_projects.`status`, `limit`
+GROUP BY billing_projects.name, billing_projects.`status`, `limit`
 LOCK IN SHARE MODE
 )
 SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) as accrued_cost
