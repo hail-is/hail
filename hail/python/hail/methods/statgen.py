@@ -1603,8 +1603,8 @@ def _linear_skat(group,
     .. math::
 
         \begin{align*}
-        U \Lambda U &= B \quad\quad \Lambda \textrm{ diagonal } U \textrm{ orthogonal} \\
-        Q &= h^T U \Lambda U h
+        U \Lambda U^T &= B \quad\quad \Lambda \textrm{ diagonal } U \textrm{ orthogonal} \\
+        Q &= h^T U \Lambda U^T h
         \end{align*}
 
     An orthogonal matrix transforms a vector of i.i.d. standard normal variables into a new vector
@@ -1614,7 +1614,7 @@ def _linear_skat(group,
     .. math::
 
         \begin{align*}
-        \tilde{h} &= U h \\
+        \tilde{h} &= U^T h \\
         Q &= \sum_s \Lambda_{ss} \tilde{h}_s^2
         \end{align*}
 
@@ -1933,11 +1933,11 @@ def _linear_skat(group,
     # A.T:
     #
     #     W S V = A
-    #     U L U = B
-    #           = A A.T
-    #           = W S V V.T S W
-    #           = W S S W           V is orthogonal so V V.T = I
-    #           = W S^2 W
+    #     U L U.T = B
+    #             = A A.T
+    #             = W S V V.T S W
+    #             = W S S W           V is orthogonal so V V.T = I
+    #             = W S^2 W
 
     weights_arr = ht.weight._data_array()
     A = hl.case().when(
