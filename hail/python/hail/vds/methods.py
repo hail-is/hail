@@ -1079,11 +1079,14 @@ def merge_reference_blocks(ds, equivalence_function, merge_functions=None):
                 if isinstance(f, str):
                     f = f.lower()
                     if f == 'min':
-                        f = lambda b1, b2: hl.min(block1[k], block2[k])
+                        def f(b1, b2):
+                            return hl.min(block1[k], block2[k])
                     elif f == 'max':
-                        f = lambda b1, b2: hl.max(block1[k], block2[k])
+                        def f(b1, b2):
+                            return hl.max(block1[k], block2[k])
                     elif f == 'sum':
-                        f = lambda b1, b2: block1[k] + block2[k]
+                        def f(b1, b2):
+                            return block1[k] + block2[k]
                     else:
                         raise ValueError(f"merge_reference_blocks: unknown merge function {f!r},"
                                          f" support 'min', 'max', and 'sum' in addition to custom lambdas")

@@ -209,7 +209,7 @@ def combine_r(ts, ref_block_max_len_field):
                                            ts.row._ir,
                                            ts.globals._ir)))
 
-    global_fds = {'__cols': hl.flatten(ts.g.map(lambda g: g.__cols)) }
+    global_fds = {'__cols': hl.flatten(ts.g.map(lambda g: g.__cols))}
     if ref_block_max_len_field is not None:
         global_fds[ref_block_max_len_field] = hl.max(ts.g.map(lambda g: g[ref_block_max_len_field]))
     return ts.transmute_globals(**global_fds)
