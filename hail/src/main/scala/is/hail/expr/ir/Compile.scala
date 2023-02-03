@@ -19,7 +19,7 @@ import java.io.PrintWriter
 case class CodeCacheKey(aggSigs: IndexedSeq[AggStateSig], args: Seq[(String, EmitParamType)], body: IR)
 
 case class CompiledFunction[T](typ: Option[SingleCodeType], f: (HailClassLoader, FS, HailTaskContext, Region) => T) {
-  def tuple: (Option[SingleCodeType], (HailClassLoader, FS, Int, Region) => T) = (typ, f)
+  def tuple: (Option[SingleCodeType], (HailClassLoader, FS, HailTaskContext, Region) => T) = (typ, f)
 }
 
 object Compile {
