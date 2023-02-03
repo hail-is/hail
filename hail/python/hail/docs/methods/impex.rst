@@ -75,6 +75,13 @@ Hail has several functions to import genetics-specific file formats into Hail
     import_locus_intervals
     import_gvcfs
 
+Miscellaneous
+~~~~~~~~~~~~~
+
+.. autosummary::
+
+    query_table
+
 Export
 ------
 
