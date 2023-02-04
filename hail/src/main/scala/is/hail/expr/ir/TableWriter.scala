@@ -461,9 +461,10 @@ case class RelationalWriter(path: String, overwrite: Boolean, maybeRefs: Option[
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
 
     maybeRefs.foreach { case (refRelPath, refs) =>
-      cb += cb.emb.getFS.invoke[String, Unit]("mkDir", s"$path/$refRelPath")
+      val referencesFQPath = s"$path/$refRelPath"
+      cb += cb.emb.getFS.invoke[String, Unit]("mkDir", referencesFQPath)
       refs.foreach { rg =>
-        cb += Code.invokeScalaObject3[FS, String, ReferenceGenome, Unit](ReferenceGenome.getClass, "writeReference", cb.emb.getFS, path, cb.emb.getReferenceGenome(rg))
+        cb += Code.invokeScalaObject3[FS, String, ReferenceGenome, Unit](ReferenceGenome.getClass, "writeReference", cb.emb.getFS, referencesFQPath, cb.emb.getReferenceGenome(rg))
       }
     }
 
