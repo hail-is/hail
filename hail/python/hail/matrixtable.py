@@ -540,44 +540,138 @@ class MatrixTable(ExprContainer):
         return MatrixTable(ir.JavaMatrix(jmir))
 
     @staticmethod
-    @typecheck( globals=dictof(str, anytype)
-              , rows=dictof(str, sequenceof(anytype))
-              , cols=dictof(str, sequenceof(anytype))
-              , entries=dictof(str, sequenceof(sequenceof(anytype)))
+    @typecheck( globals=nullable(dictof(str, anytype))
+              , rows=nullable(dictof(str, sequenceof(anytype)))
+              , cols=nullable(dictof(str, sequenceof(anytype)))
+              , entries=nullable(dictof(str, sequenceof(sequenceof(anytype))))
               )
-    def from_parts(globals, rows, cols, entries) -> 'MatrixTable':
-        """
+    def from_parts(globals = None, rows = None, cols = None, entries = None) -> 'MatrixTable':
+        """Create a `MatrixTable` from it's component parts.
+
         Example
         -------
-        >>> hl.MatrixTable.from_parts( globals = { 'hello': 'world' }
-        ...                          , rows = { 'foo': [1, 2] }
-        ...                          , cols = { 'bar': [2, 3] }
-        ...                          , entries = { 'baz': [[1, 2], [3, 4]] }
-        ...                          )
+        >>> mt = hl.MatrixTable.from_parts( globals={'hello':'world'}
+        ...                               , rows={'foo':[1, 2]}
+        ...                               , cols={'bar':[2, 3]}
+        ...                               , entries={'baz':[[1, 2],[3, 4]]}
+        ...                               )
+        >>> mt.describe()
+        ----------------------------------------
+        Global fields:
+            'hello': str
+        ----------------------------------------
+        Column fields:
+            'col_idx': int32
+            'bar': int32
+        ----------------------------------------
+        Row fields:
+            'foo': int32
+            'row_idx': int32
+        ----------------------------------------
+        Entry fields:
+            'baz': int32
+        ----------------------------------------
+        Column key: None
+        Row key: ['row_idx']
+        ----------------------------------------
+        >>> mt.row.show()
+        +-------+---------+
+        |   foo | row_idx |
+        +-------+---------+
+        | int32 |   int32 |
+        +-------+---------+
+        |     1 |       0 |
+        |     2 |       1 |
+        +-------+---------+
+        >>> mt.col.show()
+        +---------+-------+
+        | col_idx |   bar |
+        +---------+-------+
+        |   int32 | int32 |
+        +---------+-------+
+        |       0 |     2 |
+        |       1 |     3 |
+        +---------+-------+
+        >>> mt.entry.show()
+        +---------+-------------+-------------+
+        | row_idx | <col 0>.baz | <col 1>.baz |
+        +---------+-------------+-------------+
+        |   int32 |       int32 |       int32 |
+        +---------+-------------+-------------+
+        |       0 |           1 |           2 |
+        |       1 |           3 |           4 |
+        +---------+-------------+-------------+
+
+        Parameters
+        ----------
+        globals : :class:`Dict[str, Any]`
+            Global fields by name
+
+        rows: :class:`Dict[str, List[Any]]`
+            Row fields by name
+
+        cols: :class:`Dict[str, List[Any]]`
+            Column fields by name
+
+        entries: :class:`Dict[str, List[List[Any]]]`
+            Matrix entries by name in the form `entry[row_idx][col_idx]`
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+            A MatrixTable assembled from inputs keyed by `row_idx`
+
+
+        Notes
+        -----
+        - The number of rows and columns specified in `rows` and `cols` for all
+          fields must match the matrix dimenensions in `entries`.
+        - This method is intended for educational and testing purposes only.
 
         """
-
-        def invert(kvs):
-            return [dict(zip(kvs, vs)) for vs in zip(*kvs.values())]
-
         # General idea: build a `Table` representation matching that returned by
         # `MatrixTable.localize_entries` and then call _unlocalize_entries.
-        cols = invert(cols)
-        for i, column in enumerate(cols):
-            column['col_idx'] = i
+
+        # We'll infer matrix dimensions from (rows, columns) or entries so it's
+        # an error not specify either.
+        assert not ((rows is None or cols is None) and (entries is None))
+
+        def invert(kvs: 'Dict[str, List[Any]]') -> 'List[Dict[str, Any]]':
+            return [dict(zip(kvs, vs)) for vs in zip(*kvs.values())]
+
+        # In the case rows or cols aren't specified, we need to infer the
+        # matrix dimentions from *an* entry. Which one isn't important - we
+        # won't enforce congruence among input dimensions.
+        def first_val(kvs):
+            return next(iter(kvs.values()))
+
+        cols = invert(cols) if cols else [{} for _ in first_val(entries)[0]]
+        for i in range(len(cols)):
+            cols[i] = hl.struct(col_idx = i, **cols[i])
+
+        # While globals aren't required, `MatrixTable._unlocalize_entries`
+        # extracts matrix columns from the the `Table`'s globals.
+        if globals is None:
+            globals = {}
 
         cols_field_name = 'columns'
         globals[cols_field_name] = cols
 
-        rows = invert(rows)
-        entries = map(invert, invert(entries))
+
+        # `MatrixTable._unlocalize_entries` extracts matrix entries from the
+        # rows on the table, so these need to be defined too.
+        rows = invert(rows) if rows else [{} for _ in first_val(entries)]
+        entries = map(invert, invert(entries)) \
+            if entries \
+            else [[{} for _ in cols] for _ in rows]
+
         entries_field_name = 'entry_structs'
         for i, (row, row_entries) in enumerate(zip(rows, entries)):
             row['row_idx'] = i
-            row[entries_field_name] = row_entries
+            row[entries_field_name] = [hl.struct(**kvs) for kvs in row_entries]
 
         return Table\
-            .parallelize(rows, key='row_idx', globals = globals) \
+            .parallelize(rows, key='row_idx', globals=hl.struct(**globals)) \
             ._unlocalize_entries(entries_field_name, cols_field_name, col_key=[])
 
     def __init__(self, mir):

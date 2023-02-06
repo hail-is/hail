@@ -544,7 +544,7 @@ class Table(ExprContainer):
         table = Table(ir.TableParallelize(
             ir.MakeStruct([
                 ('rows', rows._ir),
-                ('global', ir.MakeStruct([]) if globals is None else globals._ir)
+                ('global', (globals or hl.struct())._ir)
             ]),
             n_partitions
         ))
