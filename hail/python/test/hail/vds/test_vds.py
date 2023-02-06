@@ -146,6 +146,7 @@ def test_sampleqc_singleton_r_ti_tv():
 
 def test_filter_samples_and_merge():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+    vds.reference_data = vds.reference_data.drop('ref_allele')
 
     samples = vds.variant_data.cols()
     samples = samples.add_index()

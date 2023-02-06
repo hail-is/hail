@@ -106,9 +106,9 @@ class VariantDataset:
         rmt = rmt.select_entries(*(x for x in rmt.entry if x in used_ref_block_fields))
         rmt = rmt.filter_rows(hl.agg.count() > 0)
 
-        rmt = rmt.key_rows_by(rmt.locus).select_rows()
+        rmt = rmt.key_rows_by(rmt.locus).select_rows().select_cols()
 
-        vmt = mt.filter_entries(hl.is_missing(mt.END))
+        vmt = mt.filter_entries(hl.is_missing(mt.END)).drop('END')._key_rows_by_assert_sorted('locus', 'alleles')
         vmt = vmt.filter_rows(hl.agg.count() > 0)
 
         return VariantDataset(rmt, vmt)
@@ -201,7 +201,7 @@ class VariantDataset:
 
             # check locus distinctness
             n_rd_rows = rd.count_rows()
-            n_distinct = rd.distinct_by_row().count()
+            n_distinct = rd.distinct_by_row().count_rows()
 
             if n_distinct != n_rd_rows:
                 error(f'reference data loci are not distinct: found {n_rd_rows} rows, but {n_distinct} distinct loci')

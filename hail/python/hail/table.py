@@ -3564,9 +3564,25 @@ class Table(ExprContainer):
         new_table = hl.Table.parallelize(data, partial_type=hl_type_hints)
         return new_table if not key else new_table.key_by(*key)
 
-    @typecheck_method(other=table_type, tolerance=nullable(numeric), absolute=bool)
-    def _same(self, other, tolerance=1e-6, absolute=False):
+    @typecheck_method(other=table_type, tolerance=nullable(numeric), absolute=bool, reorder_fields=bool)
+    def _same(self, other, tolerance=1e-6, absolute=False, reorder_fields=False):
         from hail.expr.functions import _values_similar
+
+        fd_f = set if reorder_fields else list
+
+        if fd_f(self.row) != fd_f(other.row):
+            raise ValueError(f'Different row fields: \n  {list(self.row)}\n  {list(other.row)}')
+        if fd_f(self.globals) != fd_f(other.globals):
+            raise ValueError(f'Different globals fields: \n  {list(self.globals)}\n  {list(other.globals)}')
+
+        if reorder_fields:
+            globals_order = list(self.globals)
+            if list(other.globals) != globals_order:
+                other = other.select_globals(*globals_order)
+
+            row_order = list(self.row)
+            if list(other.row) != row_order:
+                other = other.select(*row_order)
 
         if self._type != other._type:
             print(f'Table._same: types differ:\n  {self._type}\n  {other._type}')
