@@ -2065,7 +2065,7 @@ def _logistic_skat(group,
     2. :math:`G W G^T`, is a symmetric positive-definite matrix when the weights are non-negative.
 
     We can transform the residuals into standard normal variables by normalizing by their
-    variance. Note that the variance is corrected for the degrees of freedom in the null model:
+    variance.
 
     .. math::
 
