@@ -625,7 +625,7 @@ class MatrixTable(ExprContainer):
         Notes
         -----
         - The number of rows and columns specified in `rows` and `cols` for all
-          fields must match the matrix dimenensions in `entries`.
+          fields must match the matrix dimensions in `entries`.
         - This method is intended for educational and testing purposes only.
 
         """
@@ -640,7 +640,7 @@ class MatrixTable(ExprContainer):
             return [dict(zip(kvs, vs)) for vs in zip(*kvs.values())]
 
         # In the case rows or cols aren't specified, we need to infer the
-        # matrix dimentions from *an* entry. Which one isn't important - we
+        # matrix dimensions from *an* entry. Which one isn't important - we
         # won't enforce congruence among input dimensions.
         def first_val(kvs):
             return next(iter(kvs.values()))
