@@ -67,7 +67,7 @@ class CloudBillingManager(abc.ABC):
 
             if current_resource_rate is None:
                 resource_updates.append((resource_name, latest_resource_rate))
-            elif current_resource_rate != latest_resource_rate:
+            elif current_product_version == latest_product_version and current_resource_rate != latest_resource_rate:
                 log.error(
                     f'resource {resource_name} does not have the latest rate in the database for '
                     f'version {current_product_version}: {current_resource_rate} vs {latest_resource_rate}; '
@@ -77,7 +77,7 @@ class CloudBillingManager(abc.ABC):
 
             if current_product_version and current_product_version != latest_product_version:
                 # this prevents having too many resources in the database with redundant information
-                if current_resource_rate is not None and current_resource_rate == latest_resource_rate:
+                if current_resource_rate == latest_resource_rate:
                     log.info(
                         f'ignoring price update for product {product} -- the latest rate is equal to the previous rate'
                     )
