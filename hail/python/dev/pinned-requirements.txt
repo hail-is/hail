@@ -214,7 +214,7 @@ jsonschema==4.17.3
     # via nbformat
 jupyter==1.0.0
     # via -r python/dev/requirements.txt
-jupyter-client==7.4.8
+jupyter-client==8.0.2
     # via
     #   ipykernel
     #   jupyter-console
