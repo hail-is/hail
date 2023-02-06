@@ -67,8 +67,7 @@ class CloudBillingManager(abc.ABC):
 
             if current_resource_rate is None:
                 resource_updates.append((resource_name, latest_resource_rate))
-            # we compare to a precision of 1e-20 as there is some loss in precision when going back and forth between MySQL and Python
-            elif abs(current_resource_rate - latest_resource_rate) > 1e-20:
+            elif current_resource_rate != latest_resource_rate:
                 log.error(
                     f'resource {resource_name} does not have the latest rate in the database for '
                     f'version {current_product_version}: {current_resource_rate} vs {latest_resource_rate}; '
@@ -76,10 +75,9 @@ class CloudBillingManager(abc.ABC):
                 )
                 continue
 
-            # this prevents having too many resources in the database with redundant information
             if current_product_version and current_product_version != latest_product_version:
-                # we compare to a precision of 1e-20 as there is some loss in precision when going back and forth between MySQL and Python
-                if current_resource_rate is not None and abs(current_resource_rate - latest_resource_rate) < 1e-20:
+                # this prevents having too many resources in the database with redundant information
+                if current_resource_rate is not None and current_resource_rate == latest_resource_rate:
                     log.info(
                         f'ignoring price update for product {product} -- the latest rate is equal to the previous rate'
                     )
