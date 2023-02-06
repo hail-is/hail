@@ -476,7 +476,7 @@ class GroupedMatrixTable(ExprContainer):
             Aggregation expressions.
 
         Returns
-        -------~
+        -------
         :class:`.MatrixTable`
             Aggregated matrix table.
         """
@@ -621,7 +621,6 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             A MatrixTable assembled from inputs keyed by `row_idx`
 
-
         Notes
         -----
         - The number of rows and columns specified in `rows` and `cols` for all
@@ -656,7 +655,6 @@ class MatrixTable(ExprContainer):
 
         cols_field_name = 'columns'
         globals[cols_field_name] = cols
-
 
         # `MatrixTable._unlocalize_entries` extracts matrix entries from the
         # rows on the table, so these need to be defined too.
