@@ -1135,10 +1135,10 @@ class Emit[C](
 
       case ArrayMaximalIndependentSet(edges, tieBreaker) =>
         emitI(edges).map(cb) { edgesCode =>
-          val jEdges = coerce[UnsafeIndexedSeq](is.hail.expr.ir.functions.ArrayFunctions.svalueToJavaValue(cb, region, edgesCode))
+          val jEdges: Value[UnsafeIndexedSeq] = cb.memoize(Code.checkcast[UnsafeIndexedSeq]((is.hail.expr.ir.functions.ArrayFunctions.svalueToJavaValue(cb, region, edgesCode))))
           val maxSet = tieBreaker match {
             case None =>
-              Code.invokeScalaObject1[UnsafeIndexedSeq, Array[Any]](Graph.getClass, "maximalIndependentSet", jEdges)
+              Code.invokeScalaObject1[UnsafeIndexedSeq, IndexedSeq[Any]](Graph.getClass, "maximalIndependentSet", jEdges)
             case Some((leftName, rightName, tieBreaker)) =>
               val nodeType = tcoerce[TArray](edges.typ).elementType.asInstanceOf[TBaseStruct].types.head
               val wrappedNodeType = PCanonicalTuple(true, PType.canonical(nodeType))
@@ -1149,7 +1149,7 @@ class Emit[C](
                 MakeTuple.ordered(FastSeq(tieBreaker)))
               assert(t.virtualType == TTuple(TFloat64))
               val resultType = t.asInstanceOf[PTuple]
-              Code.invokeScalaObject8[UnsafeIndexedSeq, HailClassLoader, FS, Int, Region, PTuple, PTuple, (HailClassLoader, FS, Int, Region) => AsmFunction3RegionLongLongLong, Array[Any]](
+              Code.invokeScalaObject8[UnsafeIndexedSeq, HailClassLoader, FS, Int, Region, PTuple, PTuple, (HailClassLoader, FS, Int, Region) => AsmFunction3RegionLongLongLong, IndexedSeq[Any]](
                 Graph.getClass, "maximalIndependentSet",
                   jEdges, mb.getHailClassLoader, mb.getFS, mb.getPartitionIndex, region,
                   mb.getPType[PTuple](wrappedNodeType), mb.getPType[PTuple](resultType), mb.getObject(f))

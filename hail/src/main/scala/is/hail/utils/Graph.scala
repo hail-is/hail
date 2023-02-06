@@ -38,12 +38,12 @@ object Graph {
     m
   }
 
-  def maximalIndependentSet(edges: UnsafeIndexedSeq): Array[Any] = {
+  def maximalIndependentSet(edges: UnsafeIndexedSeq): IndexedSeq[Any] = {
     maximalIndependentSet(mkGraph(edges.map { case Row(i, j) => i -> j }))
   }
 
   def maximalIndependentSet(edges: UnsafeIndexedSeq, hcl: HailClassLoader, fs: FS, partIdx: Int, outerRegion: Region,
-      wrappedNodeType: PTuple, resultType: PTuple, tieBreaker: (HailClassLoader, FS, Int, Region) => AsmFunction3RegionLongLongLong): Array[Any] = {
+      wrappedNodeType: PTuple, resultType: PTuple, tieBreaker: (HailClassLoader, FS, Int, Region) => AsmFunction3RegionLongLongLong): IndexedSeq[Any] = {
     val nodeType = wrappedNodeType.types.head.virtualType
     val region = outerRegion.getPool().getRegion()
     val tieBreakerF = tieBreaker(hcl, fs, partIdx, region)
@@ -77,15 +77,15 @@ object Graph {
     maximalIndependentSet(mkGraph(edges.map { case Row(i, j) => i -> j }), Some(tbf))
   }
 
-  def maximalIndependentSet[T: ClassTag](edges: Array[(T, T)]): Array[T] = {
+  def maximalIndependentSet[T: ClassTag](edges: Array[(T, T)]): IndexedSeq[T] = {
     maximalIndependentSet(mkGraph(edges))
   }
 
-  def maximalIndependentSet[T: ClassTag](edges: Array[(T, T)], tieBreaker: (T, T) => Double): Array[T] = {
+  def maximalIndependentSet[T: ClassTag](edges: Array[(T, T)], tieBreaker: (T, T) => Double): IndexedSeq[T] = {
     maximalIndependentSet(mkGraph(edges), Some(tieBreaker))
   }
 
-  def maximalIndependentSet[T: ClassTag](g: mutable.MultiMap[T, T], maybeTieBreaker: Option[(T, T) => Double] = None): Array[T] = {
+  def maximalIndependentSet[T: ClassTag](g: mutable.MultiMap[T, T], maybeTieBreaker: Option[(T, T) => Double] = None): IndexedSeq[T] = {
     val verticesByDegree = new BinaryHeap[T](maybeTieBreaker = maybeTieBreaker.orNull)
 
     g.foreach { case (v, neighbors) =>
