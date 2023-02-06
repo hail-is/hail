@@ -2059,7 +2059,7 @@ def _logistic_skat(group,
     Therefore :math:`r`, the residual phenotype, is the portion of the phenotype unexplained by the
     covariates alone. Also notice:
 
-    1. The residual phenotypes are Bernoulli distributed with mean zero and variance
+    1. The residual phenotypes are Bernoulli distributed with mean :math:`p` and variance
        :math:`\sigma^2 = p(1 - p)` where :math:`p` is the best-fit probability.
 
     2. :math:`G W G^T`, is a symmetric positive-definite matrix when the weights are non-negative.
