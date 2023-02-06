@@ -3579,7 +3579,7 @@ class MatrixTable(ExprContainer):
             raise ValueError(f'Different col fields: \n  {list(self.col)}\n  {list(other.col)}')
         if fd_f(self.entry) != fd_f(other.entry):
             raise ValueError(f'Different row fields: \n  {list(self.entry)}\n  {list(other.entry)}')
-        
+
         if reorder_fields:
             entry_order = list(self.entry)
             if list(other.entry) != entry_order:
