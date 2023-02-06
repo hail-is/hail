@@ -408,47 +408,61 @@ def has_resource_available(record):
     return True
 
 
-def attempt_id_from_spec(record):
+def attempt_id_from_spec(record) -> Optional[str]:
     return record['attempt_id'] or record['last_cancelled_attempt_id']
 
 
-async def _get_job_log(app, batch_id, job_id):
-    record = await _get_job_record(app, batch_id, job_id)
+async def _get_job_container_log_from_worker(client_session, batch_id, job_id, container, ip_address) -> bytes:
+    try:
+        async with await request_retry_transient_errors(
+            client_session,
+            'GET',
+            f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log/{container}',
+        ) as resp:
+            return await resp.read()
+    except aiohttp.ClientResponseError:
+        log.exception(f'while getting log for {(batch_id, job_id)}')
+        return b'ERROR: encountered a problem while fetching the log'
 
-    client_session: httpx.ClientSession = app['client_session']
-    file_store: FileStore = app['file_store']
-    batch_format_version = BatchFormatVersion(record['format_version'])
 
-    state = record['state']
-    ip_address = record['ip_address']
-    tasks = job_tasks_from_spec(record)
-    attempt_id = attempt_id_from_spec(record)
+async def _read_job_container_log_from_cloud_storage(
+    file_store: FileStore, batch_format_version: BatchFormatVersion, batch_id, job_id, container, attempt_id
+) -> bytes:
+    try:
+        return await file_store.read_log_file(batch_format_version, batch_id, job_id, attempt_id, container)
+    except FileNotFoundError:
+        id = (batch_id, job_id)
+        log.exception(f'missing log file for {id} and container {container}')
+        return b'ERROR: could not find log file'
 
-    if not has_resource_available(record):
+
+async def _get_job_container_log(app, batch_id, job_id, container, job_record) -> Optional[bytes]:
+    if not has_resource_available(job_record):
         return None
 
+    state = job_record['state']
     if state == 'Running':
-        try:
-            async with await request_retry_transient_errors(
-                client_session, 'GET', f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log'
-            ) as resp:
-                return await resp.json()
-        except aiohttp.ClientResponseError:
-            log.exception(f'while getting log for {(batch_id, job_id)}')
-            return {task: 'ERROR: encountered a problem while fetching the log' for task in tasks}
+        return await _get_job_container_log_from_worker(
+            app['client_session'], batch_id, job_id, container, job_record['ip_address']
+        )
 
+    attempt_id = attempt_id_from_spec(job_record)
     assert attempt_id is not None and state in complete_states
+    return await _read_job_container_log_from_cloud_storage(
+        app['file_store'],
+        BatchFormatVersion(job_record['format_version']),
+        batch_id,
+        job_id,
+        container,
+        attempt_id,
+    )
 
-    async def _read_log_from_cloud_storage(task):
-        try:
-            data = await file_store.read_log_file(batch_format_version, batch_id, job_id, attempt_id, task)
-        except FileNotFoundError:
-            id = (batch_id, job_id)
-            log.exception(f'missing log file for {id} and task {task}')
-            data = 'ERROR: could not find log file'
-        return task, data
 
-    return dict(await asyncio.gather(*[_read_log_from_cloud_storage(task) for task in tasks]))
+async def _get_job_log(app, batch_id, job_id) -> Dict[str, Optional[bytes]]:
+    record = await _get_job_record(app, batch_id, job_id)
+    containers = job_tasks_from_spec(record)
+    logs = await asyncio.gather(*[_get_job_container_log(app, batch_id, job_id, c, record) for c in containers])
+    return dict(zip(containers, logs))
 
 
 async def _get_job_resource_usage(app, batch_id, job_id):
@@ -586,12 +600,35 @@ async def _get_full_job_status(app, record):
         raise
 
 
+# deprecated
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
 @rest_billing_project_users_only
 async def get_job_log(request, userdata, batch_id):  # pylint: disable=unused-argument
     job_id = int(request.match_info['job_id'])
-    job_log = await _get_job_log(request.app, batch_id, job_id)
-    return web.json_response(job_log)
+    job_log_bytes = await _get_job_log(request.app, batch_id, job_id)
+    job_log_strings: Dict[str, Optional[str]] = dict()
+    for container, log in job_log_bytes.items():
+        try:
+            job_log_strings[container] = log.decode('utf-8') if log else None
+        except UnicodeDecodeError:
+            raise web.HTTPBadRequest(
+                reason=f'log for container {container} is not valid UTF-8, upgrade your hail version to download the log'
+            )
+    return web.json_response(job_log_strings)
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log/{container}')
+@rest_billing_project_users_only
+async def get_job_container_log(request, userdata, batch_id):  # pylint: disable=unused-argument
+    app = request.app
+    job_id = int(request.match_info['job_id'])
+    container = request.match_info['container']
+    record = await _get_job_record(app, batch_id, job_id)
+    containers = job_tasks_from_spec(record)
+    if container not in containers:
+        raise web.HTTPBadRequest(reason=f'unknown container {container}')
+    job_log = await _get_job_container_log(app, batch_id, job_id, container, record)
+    return web.Response(body=job_log)
 
 
 async def _query_batches(request, user, q):
@@ -2059,7 +2096,7 @@ async def ui_get_job(request, userdata, batch_id):
     app = request.app
     job_id = int(request.match_info['job_id'])
 
-    job, attempts, job_log, resource_usage = await asyncio.gather(
+    job, attempts, job_log_bytes, resource_usage = await asyncio.gather(
         _get_job(app, batch_id, job_id),
         _get_attempts(app, batch_id, job_id),
         _get_job_log(app, batch_id, job_id),
@@ -2132,11 +2169,20 @@ async def ui_get_job(request, userdata, batch_id):
         resources['actual_cpu'] = cores
         del resources['cores_mcpu']
 
+    # Not all logs will be proper utf-8 but we attempt to show them as
+    # str or else Jinja will present them surrounded by b''
+    job_log_strings_or_bytes = dict()
+    for container, log in job_log_bytes.items():
+        try:
+            job_log_strings_or_bytes[container] = log.decode('utf-8') if log else None
+        except UnicodeDecodeError:
+            job_log_strings_or_bytes[container] = log
+
     page_context = {
         'batch_id': batch_id,
         'job_id': job_id,
         'job': job,
-        'job_log': job_log,
+        'job_log': job_log_strings_or_bytes,
         'attempts': attempts,
         'container_statuses': container_statuses,
         'job_specification': job_specification,
@@ -2152,6 +2198,7 @@ async def ui_get_job(request, userdata, batch_id):
     return await render_template('batch', request, userdata, 'job.html', page_context)
 
 
+# This should really be the exact same thing as the REST endpoint
 @routes.get('/batches/{batch_id}/jobs/{job_id}/log/{container}')
 @web_billing_project_users_only()
 @catch_ui_error_in_dev
@@ -2159,10 +2206,12 @@ async def ui_get_job_log(request, userdata, batch_id):  # pylint: disable=unused
     app = request.app
     job_id = int(request.match_info['job_id'])
     container = request.match_info['container']
-    job_log = await _get_job_log(app, batch_id, job_id)
-    if container not in job_log:
+    record = await _get_job_record(app, batch_id, job_id)
+    containers = job_tasks_from_spec(record)
+    if container not in containers:
         raise web.HTTPBadRequest(reason=f'unknown container {container}')
-    return web.Response(text=job_log[container])
+    job_log = await _get_job_container_log(app, batch_id, job_id, container, record)
+    return web.Response(body=job_log)
 
 
 @routes.get('/billing_limits')

@@ -1202,13 +1202,6 @@ class Container:
     def container_finished(self):
         return self.process is not None and self.process.returncode is not None
 
-    async def get_log(self, offset: Optional[int] = None):
-        if os.path.exists(self.log_path):
-            if offset is None:
-                return (await self.fs.read(self.log_path)).decode()
-            return (await self.fs.read_from(self.log_path, offset)).decode()
-        return ''
-
     async def get_resource_usage(self) -> bytes:
         if os.path.exists(self.resource_usage_path):
             return await self.fs.read(self.resource_usage_path)
@@ -1457,8 +1450,8 @@ class Job:
     async def run(self):
         pass
 
-    async def get_log(self):
-        pass
+    def get_container_log_path(self, container_name: str) -> str:
+        raise NotImplementedError
 
     async def get_resource_usage(self) -> Dict[str, Optional[bytes]]:
         raise NotImplementedError
@@ -1668,7 +1661,7 @@ class DockerJob(Job):
                     self.job_id,
                     self.attempt_id,
                     task_name,
-                    await container.get_log(),
+                    await self.worker.fs.read(container.log_path),
                 )
 
             with container._step('uploading_resource_usage'):
@@ -1836,14 +1829,8 @@ class DockerJob(Job):
         except Exception:
             log.exception('while deleting volumes')
 
-    async def get_log(self):
-        logs = {}
-        for name, container in self.containers.items():
-            c_log = await container.get_log()
-            if c_log is None:
-                c_log = ''
-            logs[name] = c_log
-        return logs
+    def get_container_log_path(self, container_name: str) -> str:
+        return self.containers[container_name].log_path
 
     async def get_resource_usage(self):
         return {name: await c.get_resource_usage() for name, c in self.containers.items()}
@@ -2017,8 +2004,9 @@ class JVMJob(Job):
             self.jvm = None
 
         with self.step('uploading_log'):
+            log_contents = await self.worker.fs.read(self.log_file)
             await self.worker.file_store.write_log_file(
-                self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', await self._get_log()
+                self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', log_contents
             )
 
         try:
@@ -2029,15 +2017,9 @@ class JVMJob(Job):
         except Exception:
             log.exception('while deleting volumes')
 
-    async def _get_log(self):
-        assert self.worker
-        assert self.worker.fs is not None
-        if os.path.exists(self.log_file):
-            return (await self.worker.fs.read(self.log_file)).decode()
-        return ''
-
-    async def get_log(self):
-        return {'main': await self._get_log()}
+    def get_container_log_path(self, container_name: str) -> str:
+        assert container_name == 'main'
+        return self.log_file
 
     async def get_resource_usage(self):
         return {'main': ResourceUsageMonitor.no_data()}
@@ -2265,7 +2247,8 @@ class JVM:
                 except (FileNotFoundError, ConnectionRefusedError) as err:
                     attempts += 1
                     if attempts == 240:
-                        jvm_output = await container.container.get_log() or ''
+                        # NOTE we assume that the JVM logs hail emits will be valid utf-8
+                        jvm_output = (await fs.read(container.container.log_path)).decode('utf-8')
                         raise ValueError(
                             f'JVM-{index}: failed to establish connection after {240 * delay} seconds. '
                             'JVM output:\n\n' + jvm_output
@@ -2607,11 +2590,15 @@ class Worker:
             raise web.HTTPNotFound()
         return job
 
-    async def get_job_log(self, request):
+    async def get_job_container_log(self, request):
         if not self.active:
             raise web.HTTPServiceUnavailable
         job = self._job_from_request(request)
-        return web.json_response(await job.get_log())
+        container = request.match_info['container']
+        log_path = job.get_container_log_path(container)
+        if os.path.exists(log_path):
+            return web.FileResponse(log_path)
+        return web.Response()
 
     async def get_job_resource_usage(self, request):
         if not self.active:
@@ -2666,7 +2653,7 @@ class Worker:
                 web.post('/api/v1alpha/kill', self.kill),
                 web.post('/api/v1alpha/batches/jobs/create', self.create_job),
                 web.delete('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete', self.delete_job),
-                web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log', self.get_job_log),
+                web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log/{container}', self.get_job_container_log),
                 web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resource_usage', self.get_job_resource_usage),
                 web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status', self.get_job_status),
                 web.get('/healthcheck', self.healthcheck),

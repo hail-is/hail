@@ -218,6 +218,9 @@ class Job:
     async def wait(self):
         return await self._job.wait()
 
+    async def container_log(self, container_name: str):
+        return await self._job.container_log(container_name)
+
     async def log(self):
         return await self._job.log()
 
@@ -269,6 +272,9 @@ class UnsubmittedJob:
 
     async def wait(self):
         raise ValueError("cannot wait on an unsubmitted job")
+
+    async def container_log(self, container_name: str):
+        raise ValueError("cannot get the log of an unsubmitted job")
 
     async def log(self):
         raise ValueError("cannot get the log of an unsubmitted job")
@@ -323,9 +329,19 @@ class SubmittedJob:
             if i < 64:
                 i = i + 1
 
-    async def log(self):
-        resp = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log')
-        return await resp.json()
+    async def container_log(self, container_name: str) -> bytes:
+        async with await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log/{container_name}') as resp:
+            return await resp.read()
+
+    async def log(self) -> Dict[str, bytes]:
+        async def get_container_log(c):
+            async with await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log/{c}') as resp:
+                return await resp.read()
+
+        assert self._status
+        containers = self._status['status']['container_statuses'].keys()
+        logs = await asyncio.gather(*(get_container_log(c) for c in containers))
+        return dict(zip(containers, logs))
 
     async def attempts(self):
         resp = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/attempts')
