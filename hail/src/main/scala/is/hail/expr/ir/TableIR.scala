@@ -2518,6 +2518,12 @@ case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: Strin
   }
 }
 
+object TableMapPartitions {
+  def apply(child: TableIR,
+    globalName: String,
+    partitionStreamName: String,
+    body: IR): TableMapPartitions = TableMapPartitions(child, globalName, partitionStreamName, body, 0, child.typ.key.length)
+}
 case class TableMapPartitions(child: TableIR,
   globalName: String,
   partitionStreamName: String,
