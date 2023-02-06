@@ -3571,9 +3571,11 @@ class Table(ExprContainer):
         fd_f = set if reorder_fields else list
 
         if fd_f(self.row) != fd_f(other.row):
-            raise ValueError(f'Different row fields: \n  {list(self.row)}\n  {list(other.row)}')
+            print(f'Different row fields: \n  {list(self.row)}\n  {list(other.row)}')
+            return False
         if fd_f(self.globals) != fd_f(other.globals):
-            raise ValueError(f'Different globals fields: \n  {list(self.globals)}\n  {list(other.globals)}')
+            print(f'Different globals fields: \n  {list(self.globals)}\n  {list(other.globals)}')
+            return False
 
         if reorder_fields:
             globals_order = list(self.globals)

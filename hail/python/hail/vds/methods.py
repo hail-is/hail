@@ -1042,7 +1042,7 @@ def merge_reference_blocks(ds, equivalence_function, merge_functions=None):
     compress reference data.
 
     >>> rd = vds.reference_data # doctest: +SKIP
-    >>> vds.reference_data = rd.annotate_entries(GQ = rd.GQ - rd.GQ % 10)
+    >>> vds.reference_data = rd.annotate_entries(GQ = rd.GQ - rd.GQ % 10) # doctest: +SKIP
     >>> vds2 = hl.vds.merge_reference_blocks(vds,
     ...                                      equivalence_function=lambda block1, block2: block1.GQ == block2.GQ),
     ...                                      merge_functions={'MIN_DP': 'min'}) # doctest: +SKIP

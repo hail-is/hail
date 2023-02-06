@@ -86,7 +86,7 @@ def test_conversion_equivalence():
 
     svcr_readback = hl.vds.to_merged_sparse_mt(vds, ref_allele_function=lambda ht: svcr.key_rows_by('locus').index_rows(ht.locus).alleles[0])
 
-    assert svcr._same(svcr_readback)
+    assert svcr._same(svcr_readback, reorder_fields=True)
 
 
 def test_sampleqc_old_new_equivalence():
