@@ -792,9 +792,9 @@ case class PartitionNativeIntervalReader(tablePath: String, tableSpec: AbstractT
         override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
 
           val startBound = ctx.loadStart(cb).get(cb)
-          val includesStart = ctx.includesStart()
+          val includesStart = ctx.includesStart
           val endBound = ctx.loadEnd(cb).get(cb)
-          val includesEnd = ctx.includesEnd()
+          val includesEnd = ctx.includesEnd
 
           val (startPart, endPart) = IntervalFunctions.partitionerFindIntervalRange(cb,
             partitionerRuntime,
@@ -840,7 +840,7 @@ case class PartitionNativeIntervalReader(tablePath: String, tableSpec: AbstractT
             cb.ifx(currPartitionIdx ceq lastIncludedPartitionIdx, {
               cb.ifx(currPartitionIdx ceq startPartitionIndex, {
                 // query the full interval
-                val indexResult = index.queryInterval(cb, region, ctx)
+                val indexResult = index.queryInterval(cb, ctx)
                 val startIdx = indexResult.loadField(cb, 0)
                   .get(cb)
                   .asInt64
@@ -865,26 +865,24 @@ case class PartitionNativeIntervalReader(tablePath: String, tableSpec: AbstractT
               }, {
                 // read from start of partition to the end interval
 
-                val idx = index.queryBound(cb, region, ctx.loadEnd(cb).get(cb).asBaseStruct, primitive(ctx.includesEnd()))
+                val indexResult = index.queryBound(cb, ctx.loadEnd(cb).get(cb).asBaseStruct, ctx.includesEnd)
+                val startIdx = indexResult.loadField(cb, 0).get(cb).asInt64.value
                 cb.assign(currIdxInPartition, 0L)
-                cb.assign(stopIdxInPartition, idx)
+                cb.assign(stopIdxInPartition, startIdx)
                 // no need to seek, starting at beginning of partition
               })
             }, {
               cb.ifx(currPartitionIdx ceq startPartitionIndex,
                 {
                   // read from left endpoint until end of partition
-                  val idx = index.queryBound(cb, region, ctx.loadStart(cb).get(cb).asBaseStruct, primitive(cb.memoize(!ctx.includesStart())))
-                  val queryResult = index.queryIndex(cb, elementRegion, idx)
+                  val indexResult = index.queryBound(cb, ctx.loadStart(cb).get(cb).asBaseStruct, cb.memoize(!ctx.includesStart))
+                  val startIdx = indexResult.loadField(cb, 0).get(cb).asInt64.value
 
-                  cb.assign(currIdxInPartition, idx)
+                  cb.assign(currIdxInPartition, startIdx)
                   cb.assign(stopIdxInPartition, index.nKeys(cb))
                   cb.ifx(currIdxInPartition < stopIdxInPartition, {
-                    val firstOffset = queryResult.asBaseStruct
-                      .loadField(cb, "offset")
-                      .get(cb)
-                      .asInt64
-                      .value
+                    val firstOffset = indexResult.loadField(cb, 1).get(cb).asBaseStruct
+                      .loadField(cb, "offset").get(cb).asInt64.value
 
                     cb += ib.seek(firstOffset)
                   })
@@ -996,7 +994,7 @@ case class PartitionNativeReaderIndexed(
             .asInterval
           index.initialize(cb, indexPath)
 
-          val indexResult = index.queryInterval(cb, outerRegion, interval)
+          val indexResult = index.queryInterval(cb, interval)
           val startIndex = indexResult.loadField(cb, 0)
             .get(cb)
             .asInt64
@@ -1254,7 +1252,7 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
             .asInterval
           index.initialize(cb, indexPath)
 
-          val indexResult = index.queryInterval(cb, outerRegion, interval)
+          val indexResult = index.queryInterval(cb, interval)
           val startIndex = indexResult.loadField(cb, 0)
             .get(cb)
             .asInt64
