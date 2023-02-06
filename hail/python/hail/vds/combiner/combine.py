@@ -130,7 +130,6 @@ def make_reference_matrix_table(mt: MatrixTable,
         f = hl.experimental.define_function(
             lambda row: hl.struct(
                 locus=row.locus,
-                ref_allele=row.alleles[0][0],
                 __entries=row.__entries.map(
                     lambda e: make_entry_struct(e, row))),
             mt.row.dtype)
@@ -190,13 +189,12 @@ def transform_gvcf(mt: MatrixTable,
 _merge_function_map = {}
 
 
-def combine_r(ts):
+def combine_r(ts, ref_block_max_len_field):
     if (ts.row.dtype, ts.globals.dtype) not in _merge_function_map:
         f = hl.experimental.define_function(
             lambda row, gbl:
             hl.struct(
                 locus=row.locus,
-                ref_allele=hl.find(hl.is_defined, row.data.map(lambda d: d.ref_allele)),
                 __entries=hl.range(0, hl.len(row.data)).flatmap(
                     lambda i:
                     hl.if_else(hl.is_missing(row.data[i]),
@@ -210,12 +208,27 @@ def combine_r(ts):
                                            merge_function._ret_type,
                                            ts.row._ir,
                                            ts.globals._ir)))
-    return ts.transmute_globals(__cols=hl.flatten(ts.g.map(lambda g: g.__cols)))
+
+    global_fds = {'__cols': hl.flatten(ts.g.map(lambda g: g.__cols))}
+    if ref_block_max_len_field is not None:
+        global_fds[ref_block_max_len_field] = hl.max(ts.g.map(lambda g: g[ref_block_max_len_field]))
+    return ts.transmute_globals(**global_fds)
 
 
 def combine_references(mts: List[MatrixTable]) -> MatrixTable:
+    fd = 'ref_block_max_length'
+    n_with_ref_max_len = len([mt for mt in mts if fd in mt.globals])
+    any_ref_max = n_with_ref_max_len > 0
+    all_ref_max = n_with_ref_max_len == len(mts)
+
+    # if some mts have max ref len but not all, drop it
+    if any_ref_max and not all_ref_max:
+        mts = [mt.drop(fd) if fd in mt.globals else mt for mt in mts]
+
+    mts = [mt.drop('ref_allele') if 'ref_allele' in mt.row else mt for mt in mts]
+
     ts = hl.Table.multi_way_zip_join([localize(mt) for mt in mts], 'data', 'g')
-    combined = combine_r(ts)
+    combined = combine_r(ts, fd if all_ref_max else None)
     return unlocalize(combined)
 
 
