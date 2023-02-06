@@ -978,7 +978,7 @@ def truncate_reference_blocks(ds, *, max_ref_block_base_pairs=None,
 
     Returns
     -------
-    :class:`.VariantDataset` or :class:`.MatrixTable
+    :class:`.VariantDataset` or :class:`.MatrixTable`
     """
     if isinstance(ds, VariantDataset):
         rd = ds.reference_data
