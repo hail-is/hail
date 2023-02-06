@@ -289,7 +289,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         addTableBinding(child)
       case TableAggregateByKey(child, expr) =>
         addTableBinding(child)
-      case TableMapPartitions(child, globalName, partitionStreamName, body, _) =>
+      case TableMapPartitions(child, globalName, partitionStreamName, body, _, _) =>
         if (refMap.contains(globalName))
           refMap(globalName).foreach { u => defs.bind(u, Array[BaseTypeWithRequiredness](lookup(child).globalType)) }
         if (refMap.contains(partitionStreamName))
@@ -438,7 +438,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         rReq.valueFields.foreach(n => joined.field(n).unionFrom(rReq.field(n)))
         joined.union(false)
         requiredness.unionGlobals(lReq.globalType)
-      case TableMapPartitions(child, globalName, partitionStreamName, body, _) =>
+      case TableMapPartitions(child, globalName, partitionStreamName, body, _, _) =>
         requiredness.unionRows(lookupAs[RIterable](body).elementType.asInstanceOf[RStruct])
         requiredness.unionGlobals(lookup(child))
       case TableToTableApply(child, function) => requiredness.maximize() //FIXME: needs implementation
