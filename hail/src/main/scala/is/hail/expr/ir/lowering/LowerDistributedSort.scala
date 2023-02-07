@@ -78,11 +78,11 @@ object LowerDistributedSort {
     override def isDistinctlyKeyed: Boolean = false // FIXME: No default value
 
     def rowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = {
-      VirtualTypeWithReq(requestedType.rowType, rt.rowType)
+      VirtualTypeWithReq.subset(requestedType.rowType, rt.rowType)
     }
 
     def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = {
-      VirtualTypeWithReq(requestedType.globalType, rt.globalType)
+      VirtualTypeWithReq.subset(requestedType.globalType, rt.globalType)
     }
 
     override def toJValue: JValue = JString("LocalSortReader")
@@ -620,11 +620,11 @@ case class DistributionSortReader(key: TStruct, keyed: Boolean, spec: TypedCodec
   override def isDistinctlyKeyed: Boolean = false // FIXME: No default value
 
   def rowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = {
-    VirtualTypeWithReq(requestedType.rowType, rt.rowType)
+    VirtualTypeWithReq.subset(requestedType.rowType, rt.rowType)
   }
 
   def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = {
-    VirtualTypeWithReq(requestedType.globalType, rt.globalType)
+    VirtualTypeWithReq.subset(requestedType.globalType, rt.globalType)
   }
 
   override def toJValue: JValue = JString("DistributionSortReader")
@@ -653,16 +653,17 @@ case class DistributionSortReader(key: TStruct, keyed: Boolean, spec: TypedCodec
 
     val partitioner = defaultPartitioning
 
-    TableStage(globals,
+    TableStage(
+      PruneDeadFields.upcast(ctx, globals, requestedType.globalType),
       partitioner.coarsen(requestedType.key.length),
       TableStageDependency.none,
       contexts,
       { ctxRef =>
         val files = GetField(ctxRef, "files")
         val partitionInputStream = flatMapIR(ToStream(files)) { fileInfo =>
-          ReadPartition(fileInfo, tcoerce[TStruct](spec._vType), PartitionNativeReader(spec, "__dummy_uid"))
+          ReadPartition(fileInfo, requestedType.rowType, PartitionNativeReader(spec, "__dummy_uid"))
         }
         partitionInputStream
-      }).upcast(ctx, requestedType)
+      })
   }
 }

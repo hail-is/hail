@@ -168,6 +168,23 @@ object VirtualTypeWithReq {
     tr.unionFrom(vs.map(_.r))
     VirtualTypeWithReq(t, tr)
   }
+
+  def subset(vt: Type, rt: TypeWithRequiredness): VirtualTypeWithReq = {
+    def subsetRT(vt: Type, rt: TypeWithRequiredness): TypeWithRequiredness = {
+      (vt, rt) match {
+        case (_, t: RPrimitive) => t
+        case (tt: TTuple, rt: RTuple) =>
+          RTuple(tt.fields.map(fd => RField(fd.name, subsetRT(fd.typ, rt.field(fd.index)), fd.index)))
+        case (ts: TStruct, rt: RStruct) =>
+          RStruct(ts.fields.map(fd => RField(fd.name, subsetRT(fd.typ, rt.field(fd.name)), fd.index)))
+        case (ti: TInterval, ri: RInterval) => RInterval(subsetRT(ti.pointType, ri.startType), subsetRT(ti.pointType, ri.endType))
+        case (td: TDict, ri: RDict) => RDict(subsetRT(td.keyType, ri.keyType), subsetRT(td.valueType, ri.valueType))
+        case (tit: TIterable, rit: RIterable) => RIterable(subsetRT(tit.elementType, rit.elementType))
+        case (tnd: TNDArray, rnd: RNDArray) => RNDArray(subsetRT(tnd.elementType, rnd.elementType))
+      }
+    }
+    VirtualTypeWithReq(vt, subsetRT(vt, rt))
+  }
 }
 
 case class VirtualTypeWithReq(t: Type, r: TypeWithRequiredness) {

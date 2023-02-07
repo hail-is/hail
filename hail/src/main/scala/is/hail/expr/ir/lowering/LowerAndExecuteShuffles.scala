@@ -17,7 +17,6 @@ import org.json4s.JsonAST.JString
 object LowerAndExecuteShuffles {
 
   def apply(ir: BaseIR, ctx: ExecuteContext, passesBelow: LoweringPipeline): BaseIR = {
-
     RewriteBottomUp(ir, {
       case t@TableKeyBy(child, key, isSorted) if !t.definitelyDoesNotShuffle =>
         val r = Requiredness(child, ctx)
@@ -33,7 +32,7 @@ object LowerAndExecuteShuffles {
         val newKeyType = newKey.typ.asInstanceOf[TStruct]
         val resultUID = genUID()
 
-        val req = Requiredness(expr, ctx)
+        val req = Requiredness(t, ctx)
 
         val aggs = Extract(expr, resultUID, req)
         val postAggIR = aggs.postAggIR
@@ -43,7 +42,7 @@ object LowerAndExecuteShuffles {
 
         val streamName = genUID()
         val streamTyp = TStream(child.typ.rowType)
-        val partiallyAggregated = TableMapPartitions(child, "global", streamName,
+        val partiallyAggregated = TableMapPartitions(TableKeyBy(child, IndexedSeq()), "global", streamName,
           StreamBufferedAggregate(Ref(streamName, streamTyp), init, newKey, seq, "row", aggSigs, bufferSize),
           0, child.typ.key.length)
 
@@ -79,7 +78,7 @@ object LowerAndExecuteShuffles {
                     InitFromSerializedValue(aIdx, GetTupleElement(GetField(elem, "agg"), aIdx), aggSigsPlusTake(aIdx).state)
                   } ++ IndexedSeq(
                     InitOp(aggSigs.length, IndexedSeq(I32(1)), PhysicalAggSig(Take(), takeVirtualSig)),
-                    SeqOp(aggSigs.length, IndexedSeq(elem), PhysicalAggSig(Take(), takeVirtualSig))
+                    SeqOp(aggSigs.length, IndexedSeq(SelectFields(elem, newKeyType.fieldNames)), PhysicalAggSig(Take(), takeVirtualSig))
                   )),
                   Begin((0 until aggSigs.length).map { aIdx =>
                     CombOpValue(aIdx, GetTupleElement(GetField(elem, "agg"), aIdx), aggSigs(aIdx))
