@@ -1,9 +1,9 @@
-
+import pytest
 import hail as hl
 
 class Inits():
-    globals = {'hello': 'world'}
-    rows = {'foo': ['a', 'b']}
+    globals={'hello': 'world'}
+    rows={'foo': ['a', 'b']}
     cols={'bar': ['c', 'd']}
     entries={'baz': [[1, 2], [3, 4]]}
 
@@ -58,10 +58,10 @@ def assert_matches_entries( mt: 'hl.MatrixTable'
         ]
 
 def test_from_parts():
-    mt = hl.MatrixTable.from_parts( globals = Inits.globals
-                                  , rows = Inits.rows
-                                  , cols = Inits.cols
-                                  , entries = Inits.entries
+    mt = hl.MatrixTable.from_parts( globals=Inits.globals
+                                  , rows=Inits.rows
+                                  , cols=Inits.cols
+                                  , entries=Inits.entries
                                   )
     assert_matches_globals(mt)
     assert_matches_rows(mt)
@@ -69,9 +69,9 @@ def test_from_parts():
     assert_matches_entries(mt)
 
 def test_optional_globals():
-    mt = hl.MatrixTable.from_parts( rows = Inits.rows
-                                  , cols = Inits.cols
-                                  , entries = Inits.entries
+    mt = hl.MatrixTable.from_parts( rows=Inits.rows
+                                  , cols=Inits.cols
+                                  , entries=Inits.entries
                                   )
     assert_matches_globals(mt, no_props=True)
     assert_matches_rows(mt)
@@ -79,9 +79,9 @@ def test_optional_globals():
     assert_matches_entries(mt)
 
 def test_optional_rows():
-    mt = hl.MatrixTable.from_parts( globals = Inits.globals
-                                  , cols = Inits.cols
-                                  , entries = Inits.entries
+    mt = hl.MatrixTable.from_parts( globals=Inits.globals
+                                  , cols=Inits.cols
+                                  , entries=Inits.entries
                                   )
     assert_matches_globals(mt)
     assert_matches_rows(mt, no_props=True)
@@ -89,9 +89,9 @@ def test_optional_rows():
     assert_matches_entries(mt, no_row_props=True)
 
 def test_optional_cols():
-    mt = hl.MatrixTable.from_parts( globals = Inits.globals
-                                  , rows = Inits.rows
-                                  , entries = Inits.entries
+    mt = hl.MatrixTable.from_parts( globals=Inits.globals
+                                  , rows=Inits.rows
+                                  , entries=Inits.entries
                                   )
     assert_matches_globals(mt)
     assert_matches_rows(mt)
@@ -99,8 +99,8 @@ def test_optional_cols():
     assert_matches_entries(mt, no_col_props=True)
 
 def test_optional_globals_and_cols():
-    mt = hl.MatrixTable.from_parts( rows = Inits.rows
-                                  , entries = Inits.entries
+    mt = hl.MatrixTable.from_parts( rows=Inits.rows
+                                  , entries=Inits.entries
                                   )
     assert_matches_globals(mt, no_props=True)
     assert_matches_rows(mt)
@@ -108,15 +108,23 @@ def test_optional_globals_and_cols():
     assert_matches_entries(mt, no_col_props=True)
 
 def test_optional_globals_and_rows_and_cols():
-    mt = hl.MatrixTable.from_parts(entries = Inits.entries)
+    mt = hl.MatrixTable.from_parts(entries=Inits.entries)
     assert_matches_globals(mt, no_props=True)
     assert_matches_rows(mt, no_props=True)
     assert_matches_cols(mt, no_props=True)
     assert_matches_entries(mt, no_row_props=True, no_col_props=True)
 
 def test_optional_entries():
-    mt = hl.MatrixTable.from_parts(rows = Inits.rows, cols = Inits.cols)
+    mt = hl.MatrixTable.from_parts(rows=Inits.rows, cols=Inits.cols)
     assert_matches_globals(mt, no_props=True)
     assert_matches_rows(mt)
     assert_matches_cols(mt)
     assert_matches_entries(mt, no_entry_props=True)
+
+def assert_raises_when_no_rows_and_entries():
+    with pytest.raises(AssertionError):
+        hl.MatrixTable.from_parts(cols=Inits.cols)
+
+def assert_raises_when_no_cols_and_entries():
+    with pytest.raises(AssertionError):
+        hl.MatrixTable.from_parts(rows=Inits.rows)
