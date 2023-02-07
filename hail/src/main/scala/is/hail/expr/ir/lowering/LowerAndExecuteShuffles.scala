@@ -33,7 +33,7 @@ object LowerAndExecuteShuffles {
         val newKeyType = newKey.typ.asInstanceOf[TStruct]
         val resultUID = genUID()
 
-        val req = Requiredness(child, ctx)
+        val req = Requiredness(expr, ctx)
 
         val aggs = Extract(expr, resultUID, req)
         val postAggIR = aggs.postAggIR
@@ -41,7 +41,6 @@ object LowerAndExecuteShuffles {
         val seq = aggs.seqPerElt
         val aggSigs = aggs.aggs
 
-        val globalName = genUID()
         val streamName = genUID()
         val streamTyp = TStream(child.typ.rowType)
         val partiallyAggregated = TableMapPartitions(child, "global", streamName,
