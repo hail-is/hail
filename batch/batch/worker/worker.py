@@ -2722,7 +2722,7 @@ class Worker:
             deploy_config.url('batch-driver', '/api/v1alpha/instances/deactivate'), headers=self.headers
         )
 
-    async def kill(self, request):
+    async def kill(self, request):  # pylint: disable=unused-argument
         if not self.active:
             raise web.HTTPServiceUnavailable
         log.info('killed')
