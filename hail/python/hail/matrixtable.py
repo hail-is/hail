@@ -1,5 +1,5 @@
 import itertools
-from typing import Optional, Dict, Tuple, Any, List
+from typing import Iterable, Optional, Dict, Tuple, Any, List
 from collections import Counter
 import hail as hl
 from hail.expr.expressions import Expression, StructExpression, \
@@ -536,25 +536,23 @@ class MatrixTable(ExprContainer):
     """
 
     @staticmethod
-    def _from_java(jmir):
-        return MatrixTable(ir.JavaMatrix(jmir))
-
-    @staticmethod
-    @typecheck( globals=nullable(dictof(str, anytype))
-              , rows=nullable(dictof(str, sequenceof(anytype)))
-              , cols=nullable(dictof(str, sequenceof(anytype)))
-              , entries=nullable(dictof(str, sequenceof(sequenceof(anytype))))
-              )
-    def from_parts(globals = None, rows = None, cols = None, entries = None) -> 'MatrixTable':
-        """Create a `MatrixTable` from it's component parts.
+    @typecheck(
+        globals=nullable(dictof(str, anytype)),
+        rows=nullable(dictof(str, sequenceof(anytype))),
+        cols=nullable(dictof(str, sequenceof(anytype))),
+        entries=nullable(dictof(str, sequenceof(sequenceof(anytype)))),
+    )
+    def from_parts(globals=None, rows=None, cols=None, entries=None) -> 'MatrixTable':
+        """Create a `MatrixTable` from its component parts.
 
         Example
         -------
-        >>> mt = hl.MatrixTable.from_parts( globals={'hello':'world'}
-        ...                               , rows={'foo':[1, 2]}
-        ...                               , cols={'bar':[2, 3]}
-        ...                               , entries={'baz':[[1, 2],[3, 4]]}
-        ...                               )
+        >>> mt = hl.MatrixTable.from_parts(
+        ...     globals={'hello':'world'},
+        ...     rows={'foo':[1, 2]},
+        ...     cols={'bar':[2, 3]},
+        ...     entries={'baz':[[1, 2],[3, 4]]}
+        ... )
         >>> mt.describe()
         ----------------------------------------
         Global fields:
@@ -626,27 +624,22 @@ class MatrixTable(ExprContainer):
         - The number of rows and columns specified in `rows` and `cols` for all
           fields must match the matrix dimensions in `entries`.
         - This method is intended for educational and testing purposes only.
-
         """
         # General idea: build a `Table` representation matching that returned by
-        # `MatrixTable.localize_entries` and then call _unlocalize_entries.
-
-        # We'll infer matrix dimensions from (rows, columns) or entries so it's
-        # an error not specify either.
-        assert not ((rows is None or cols is None) and (entries is None))
-
-        def invert(kvs: 'Dict[str, List[Any]]') -> 'List[Dict[str, Any]]':
+        # `MatrixTable.localize_entries` and then call `_unlocalize_entries`.
+        def invert(kvs: Dict[str, Iterable[Any]]) -> List[Dict[str, Any]]:
             return [dict(zip(kvs, vs)) for vs in zip(*kvs.values())]
 
-        # In the case rows or cols aren't specified, we need to infer the
-        # matrix dimensions from *an* entry. Which one isn't important - we
-        # won't enforce congruence among input dimensions.
-        def first_val(kvs):
+        def anyval(kvs):
             return next(iter(kvs.values()))
 
-        cols = invert(cols) if cols else [{} for _ in first_val(entries)[0]]
-        for i in range(len(cols)):
-            cols[i] = hl.struct(col_idx = i, **cols[i])
+        # In the case rows or cols aren't specified, we need to infer the
+        # matrix dimensions from *an* entry. Which one isn't important as we
+        # won't enforce congruence among input dimensions.
+        assert not ((rows is None or cols is None) and (entries is None))
+        cols = invert(cols) if cols else [{} for _ in anyval(entries)[0]]
+        for i, _ in enumerate(cols):
+            cols[i] = hl.struct(col_idx=i, **cols[i])
 
         # While globals aren't required, `MatrixTable._unlocalize_entries`
         # extracts matrix columns from the the `Table`'s globals.
@@ -658,7 +651,7 @@ class MatrixTable(ExprContainer):
 
         # `MatrixTable._unlocalize_entries` extracts matrix entries from the
         # rows on the table, so these need to be defined too.
-        rows = invert(rows) if rows else [{} for _ in first_val(entries)]
+        rows = invert(rows) if rows else [{} for _ in anyval(entries)]
         entries = map(invert, invert(entries)) \
             if entries \
             else [[{} for _ in cols] for _ in rows]
