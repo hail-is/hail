@@ -1555,7 +1555,11 @@ class DockerJob(Job):
 
         self.timings: Timings = Timings()
 
-        self.env.append({'name': 'HAIL_REGION', 'value': REGION})
+        hail_extra_env = [
+            {'name': 'HAIL_REGION', 'value': REGION},
+            {'name': 'HAIL_BATCH_ID', 'value': str(batch_id)},
+        ]
+        self.env += hail_extra_env
 
         if self.secrets:
             for secret in self.secrets:
