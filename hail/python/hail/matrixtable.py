@@ -602,16 +602,16 @@ class MatrixTable(ExprContainer):
 
         Parameters
         ----------
-        globals : :class:`Dict[str, Any]`
+        globals : :class:`dict` from :class:`str` to :obj:`any`
             Global fields by name
 
-        rows: :class:`Dict[str, List[Any]]`
+        rows: :class:`dict` from :class:`str` to :class:`list` of :obj:`any`
             Row fields by name
 
-        cols: :class:`Dict[str, List[Any]]`
+        cols: :class:`dict` from :class:`str` to :class:`list` of :obj:`any`
             Column fields by name
 
-        entries: :class:`Dict[str, List[List[Any]]]`
+        entries: :class:`dict` from :class:`str` to :class:`list` of :class:`list` :obj:`any`
             Matrix entries by name in the form `entry[row_idx][col_idx]`
 
         Returns
