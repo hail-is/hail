@@ -611,7 +611,7 @@ class MatrixTable(ExprContainer):
         cols: :class:`dict` from :class:`str` to :class:`list` of :obj:`any`
             Column fields by name
 
-        entries: :class:`dict` from :class:`str` to :class:`list` of :class:`list` :obj:`any`
+        entries: :class:`dict` from :class:`str` to :class:`list` of :class:`list` of :obj:`any`
             Matrix entries by name in the form `entry[row_idx][col_idx]`
 
         Returns
