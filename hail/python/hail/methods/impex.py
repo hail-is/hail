@@ -126,7 +126,9 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
         if 'GP' in dataset.entry and dataset.GP.dtype == tarray(tfloat64):
             entry_exprs = {'GP': dataset.GP}
         else:
-            entry_exprs = {}
+            raise ValueError('exporting to GEN requires a GP (genotype probability) array<float64> field in the entry'
+                             '\n  of the matrix table. If you only have hard calls (GT), BGEN is probably not the'
+                             '\n  right format.')
     else:
         entry_exprs = {'GP': gp}
 
@@ -218,7 +220,9 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None, compr
         if 'GP' in mt.entry and mt.GP.dtype == tarray(tfloat64):
             entry_exprs = {'GP': mt.GP}
         else:
-            entry_exprs = {}
+            raise ValueError('exporting to BGEN requires a GP (genotype probability) array<float64> field in the entry'
+                             '\n  of the matrix table. If you only have hard calls (GT), BGEN is probably not the'
+                             '\n  right format.')
     else:
         entry_exprs = {'GP': gp}
 

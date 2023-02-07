@@ -3696,13 +3696,48 @@ class MatrixTable(ExprContainer):
 
     @typecheck_method(other=matrix_table_type,
                       tolerance=numeric,
-                      absolute=bool)
-    def _same(self, other, tolerance=1e-6, absolute=False) -> bool:
+                      absolute=bool,
+                      reorder_fields=bool)
+    def _same(self, other, tolerance=1e-6, absolute=False, reorder_fields=False) -> bool:
         entries_name = Env.get_uid()
         cols_name = Env.get_uid()
+
+        fd_f = set if reorder_fields else list
+
+        if fd_f(self.row) != fd_f(other.row):
+            print(f'Different row fields: \n  {list(self.row)}\n  {list(other.row)}')
+            return False
+        if fd_f(self.globals) != fd_f(other.globals):
+            print(f'Different globals fields: \n  {list(self.globals)}\n  {list(other.globals)}')
+            return False
+        if fd_f(self.col) != fd_f(other.col):
+            print(f'Different col fields: \n  {list(self.col)}\n  {list(other.col)}')
+            return False
+        if fd_f(self.entry) != fd_f(other.entry):
+            print(f'Different row fields: \n  {list(self.entry)}\n  {list(other.entry)}')
+            return False
+
+        if reorder_fields:
+            entry_order = list(self.entry)
+            if list(other.entry) != entry_order:
+                other = other.select_entries(*entry_order)
+
+            globals_order = list(self.globals)
+            if list(other.globals) != globals_order:
+                other = other.select_globals(*globals_order)
+
+            col_order = list(self.col)
+            if list(other.col) != col_order:
+                other = other.select_cols(*col_order)
+
+            row_order = list(self.row)
+            if list(other.row) != row_order:
+                other = other.select_rows(*row_order)
+
         if list(self.col_key) != list(other.col_key):
             print(f'different col keys:\n  {list(self.col_key)}\n  {list(other.col_key)}')
             return False
+
         return self._localize_entries(entries_name, cols_name)._same(
             other._localize_entries(entries_name, cols_name), tolerance, absolute)
 

@@ -3572,9 +3572,27 @@ class Table(ExprContainer):
         new_table = hl.Table.parallelize(data, partial_type=hl_type_hints)
         return new_table if not key else new_table.key_by(*key)
 
-    @typecheck_method(other=table_type, tolerance=nullable(numeric), absolute=bool)
-    def _same(self, other, tolerance=1e-6, absolute=False):
+    @typecheck_method(other=table_type, tolerance=nullable(numeric), absolute=bool, reorder_fields=bool)
+    def _same(self, other, tolerance=1e-6, absolute=False, reorder_fields=False):
         from hail.expr.functions import _values_similar
+
+        fd_f = set if reorder_fields else list
+
+        if fd_f(self.row) != fd_f(other.row):
+            print(f'Different row fields: \n  {list(self.row)}\n  {list(other.row)}')
+            return False
+        if fd_f(self.globals) != fd_f(other.globals):
+            print(f'Different globals fields: \n  {list(self.globals)}\n  {list(other.globals)}')
+            return False
+
+        if reorder_fields:
+            globals_order = list(self.globals)
+            if list(other.globals) != globals_order:
+                other = other.select_globals(*globals_order)
+
+            row_order = list(self.row)
+            if list(other.row) != row_order:
+                other = other.select(*row_order)
 
         if self._type != other._type:
             print(f'Table._same: types differ:\n  {self._type}\n  {other._type}')
@@ -3784,11 +3802,14 @@ class Table(ExprContainer):
             raise ValueError('multi_way_zip_join must have at least one table as an argument')
         head = tables[0]
         if any(head.key.dtype != t.key.dtype for t in tables):
-            raise TypeError('All input tables to multi_way_zip_join must have the same key type')
+            raise TypeError('All input tables to multi_way_zip_join must have the same key type:\n  '
+                            + '\n  '.join(str(t.key.dtype) for t in tables))
         if any(head.row.dtype != t.row.dtype for t in tables):
-            raise TypeError('All input tables to multi_way_zip_join must have the same row type')
+            raise TypeError('All input tables to multi_way_zip_join must have the same row type\n  '
+                            + '\n  '.join(str(t.row.dtype) for t in tables))
         if any(head.globals.dtype != t.globals.dtype for t in tables):
-            raise TypeError('All input tables to multi_way_zip_join must have the same global type')
+            raise TypeError('All input tables to multi_way_zip_join must have the same global type\n  '
+                            + '\n  '.join(str(t.globals.dtype) for t in tables))
         return Table(ir.TableMultiWayZipJoin(
             [t._tir for t in tables], data_field_name, global_field_name))
 

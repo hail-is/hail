@@ -4060,3 +4060,14 @@ def test_to_relational_row_and_col_refs():
 
     assert mt.col._to_relational_preserving_rows_and_cols('x')[1].row.dtype == hl.tstruct(col_idx=hl.tint32, y=hl.tint32)
     assert mt.col_key._to_relational_preserving_rows_and_cols('x')[1].row.dtype == hl.tstruct(col_idx=hl.tint32)
+
+
+def test_locus_addition():
+
+    rg = hl.get_reference('GRCh37')
+    len_1 = rg.lengths['1']
+    loc = hl.locus('1', 5, reference_genome='GRCh37')
+
+    assert hl.eval((loc + 10) == hl.locus('1', 15, reference_genome='GRCh37'))
+    assert hl.eval((loc - 10) == hl.locus('1', 1, reference_genome='GRCh37'))
+    assert hl.eval((loc + 2_000_000_000) == hl.locus('1', len_1, reference_genome='GRCh37'))
