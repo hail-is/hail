@@ -543,6 +543,19 @@ def test_log_after_failing_job(client: BatchClient):
     assert j.is_complete(), str(b.debug_info())
 
 
+def test_non_utf_8_log(client: BatchClient):
+    bb = client.create_batch()
+    j = bb.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', "echo -n -e 'hello \\x80'"])
+    b = bb.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+
+    job_main_log = j.container_log('main')
+    job_log = j.log()
+    assert job_log['main'] == job_main_log
+    assert job_main_log == b'hello \\x80'
+
+
 def test_long_log_line(client: BatchClient):
     bb = client.create_batch()
     j = bb.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', 'for _ in {0..70000}; do echo -n a; done'])
