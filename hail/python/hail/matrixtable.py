@@ -546,7 +546,12 @@ class MatrixTable(ExprContainer):
         cols=nullable(dictof(str, sequenceof(anytype))),
         entries=nullable(dictof(str, sequenceof(sequenceof(anytype)))),
     )
-    def from_parts(globals=None, rows=None, cols=None, entries=None) -> 'MatrixTable':
+    def from_parts(
+        globals: Optional[Dict[str, Any]] = None,
+        rows: Optional[Dict[str, Iterable[Any]]] = None,
+        cols: Optional[Dict[str, Iterable[Any]]] = None,
+        entries: Optional[Dict[str, Iterable[Iterable[Any]]]] = None
+    ) -> 'MatrixTable':
         """Create a `MatrixTable` from its component parts.
 
         Example
@@ -656,18 +661,15 @@ class MatrixTable(ExprContainer):
         # `MatrixTable._unlocalize_entries` extracts matrix entries from the
         # rows on the table, so these need to be defined too.
         rows = invert(rows) if rows else [{} for _ in anyval(entries)]
-        entries = map(invert, invert(entries)) \
-            if entries \
-            else [[{} for _ in cols] for _ in rows]
+        entries = map(invert, invert(entries)) if entries else [[{} for _ in cols] for _ in rows]
 
         entries_field_name = 'entry_structs'
         for i, (row, row_entries) in enumerate(zip(rows, entries)):
             row['row_idx'] = i
             row[entries_field_name] = [hl.struct(**kvs) for kvs in row_entries]
 
-        return Table\
-            .parallelize(rows, key='row_idx', globals=hl.struct(**globals)) \
-            ._unlocalize_entries(entries_field_name, cols_field_name, col_key=[])
+        ht = Table.parallelize(rows, key='row_idx', globals=hl.struct(**globals))
+        return ht._unlocalize_entries(entries_field_name, cols_field_name, col_key=[])
 
     def __init__(self, mir):
         super(MatrixTable, self).__init__()
