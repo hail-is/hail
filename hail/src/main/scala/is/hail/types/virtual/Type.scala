@@ -2,6 +2,7 @@ package is.hail.types.virtual
 
 import is.hail.annotations._
 import is.hail.asm4s._
+import is.hail.backend.HailStateManager
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.ir._
 import is.hail.types._
@@ -26,7 +27,7 @@ object Type {
 
   def genComplexType(): Gen[Type] = {
     val rgDependents = ReferenceGenome.references.values.toArray.map(rg =>
-      TLocus(rg))
+      TLocus(rg.name))
     val others = Array(TCall)
     Gen.oneOfSeq(rgDependents ++ others)
   }
@@ -197,9 +198,9 @@ abstract class Type extends BaseType with Serializable {
 
   def canCompare(other: Type): Boolean = this == other
 
-  def mkOrdering(missingEqual: Boolean = true): ExtendedOrdering
+  def mkOrdering(sm: HailStateManager, missingEqual: Boolean = true): ExtendedOrdering
 
-  def ordering: ExtendedOrdering = mkOrdering()
+  def ordering(sm: HailStateManager): ExtendedOrdering = mkOrdering(sm)
 
   def jsonReader: JSONReader[Annotation] = new JSONReader[Annotation] {
     def fromJSON(a: JValue): Annotation = JSONAnnotationImpex.importAnnotation(a, self)

@@ -38,7 +38,6 @@ class NonOwningTempFileManager(owner: TempFileManager) extends TempFileManager {
   override def cleanup(): Unit = ()
 }
 
-
 object ExecuteContext {
   def scoped[T]()(f: ExecuteContext => T): T = {
     val (result, _) = ExecutionTimer.time("ExecuteContext.scoped") { timer =>

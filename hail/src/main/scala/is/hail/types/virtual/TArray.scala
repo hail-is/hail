@@ -1,6 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations.{Annotation, ExtendedOrdering}
+import is.hail.backend.HailStateManager
 import is.hail.check.Gen
 import org.json4s.jackson.JsonMethods
 
@@ -46,10 +47,10 @@ final case class TArray(elementType: Type) extends TContainer {
   override def genNonmissingValue: Gen[IndexedSeq[Annotation]] =
     Gen.buildableOf[Array](elementType.genValue).map(x => x: IndexedSeq[Annotation])
 
-  override val ordering: ExtendedOrdering = mkOrdering()
+  override def ordering(sm: HailStateManager): ExtendedOrdering = mkOrdering(sm)
 
-  def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
-    ExtendedOrdering.iterableOrdering(elementType.ordering, missingEqual)
+  def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
+    ExtendedOrdering.iterableOrdering(elementType.ordering(sm), missingEqual)
 
   override def scalaClassTag: ClassTag[IndexedSeq[AnyRef]] = classTag[IndexedSeq[AnyRef]]
 
