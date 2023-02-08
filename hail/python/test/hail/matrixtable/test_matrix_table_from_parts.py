@@ -31,28 +31,28 @@ def assert_matches_entries( mt: 'hl.MatrixTable'
                           , no_entry_props=False
                           ):
     assert mt.entries().order_by('row_idx', 'col_idx').collect() == \
-        [ hl.Struct( **unless(no_row_props, {'foo':'a'})
-                   , row_idx=0
+        [ hl.Struct( row_idx=0
+                   , **unless(no_row_props, {'foo':'a'})
                    , col_idx=0
                    , **unless(no_col_props, {'bar':'c'})
                    , **unless(no_entry_props, {'baz':1})
                    )
-        , hl.Struct( **unless(no_row_props, {'foo':'a'})
-                   , row_idx=0
+        , hl.Struct( row_idx=0
+                   , **unless(no_row_props, {'foo':'a'})
                    , col_idx=1
                    , **unless(no_col_props, {'bar':'d'})
                    , **unless(no_entry_props, {'baz':2})
                    )
-        , hl.Struct( **unless(no_row_props, {'foo':'b'})
-                   , row_idx=1
+        , hl.Struct( row_idx=1
+                   , **unless(no_row_props, {'foo':'b'})
                    , col_idx=0
                    , **unless(no_col_props, {'bar':'c'})
                    , **unless(no_entry_props, {'baz':3})
                    )
-        , hl.Struct( **unless(no_row_props, {'foo':'b'})
-                   , row_idx=1
-                   , col_idx=1
+        , hl.Struct( row_idx=1
                    , **unless(no_col_props, {'bar':'d'})
+                   , col_idx=1
+                   , **unless(no_row_props, {'foo':'b'})
                    , **unless(no_entry_props, {'baz':4})
                    )
         ]

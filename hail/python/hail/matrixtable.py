@@ -559,7 +559,7 @@ class MatrixTable(ExprContainer):
         >>> mt = hl.MatrixTable.from_parts(
         ...     globals={'hello':'world'},
         ...     rows={'foo':[1, 2]},
-        ...     cols={'bar':[2, 3]},
+        ...     cols={'bar':[3, 4]},
         ...     entries={'baz':[[1, 2],[3, 4]]}
         ... )
         >>> mt.describe()
@@ -572,8 +572,8 @@ class MatrixTable(ExprContainer):
             'bar': int32
         ----------------------------------------
         Row fields:
-            'foo': int32
             'row_idx': int32
+            'foo': int32
         ----------------------------------------
         Entry fields:
             'baz': int32
@@ -582,22 +582,22 @@ class MatrixTable(ExprContainer):
         Row key: ['row_idx']
         ----------------------------------------
         >>> mt.row.show()
-        +-------+---------+
-        |   foo | row_idx |
-        +-------+---------+
-        | int32 |   int32 |
-        +-------+---------+
-        |     1 |       0 |
-        |     2 |       1 |
-        +-------+---------+
+        +---------+-------+
+        | row_idx |   foo |
+        +---------+-------+
+        |   int32 | int32 |
+        +---------+-------+
+        |       0 |     1 |
+        |       1 |     2 |
+        +---------+-------+
         >>> mt.col.show()
         +---------+-------+
         | col_idx |   bar |
         +---------+-------+
         |   int32 | int32 |
         +---------+-------+
-        |       0 |     2 |
-        |       1 |     3 |
+        |       0 |     3 |
+        |       1 |     4 |
         +---------+-------+
         >>> mt.entry.show()
         +---------+-------------+-------------+
@@ -664,9 +664,9 @@ class MatrixTable(ExprContainer):
         entries = map(invert, invert(entries)) if entries else [[{} for _ in cols] for _ in rows]
 
         entries_field_name = 'entry_structs'
-        for i, (row, row_entries) in enumerate(zip(rows, entries)):
-            row['row_idx'] = i
-            row[entries_field_name] = [hl.struct(**kvs) for kvs in row_entries]
+        for i, (row_pros, entry_props) in enumerate(zip(rows, entries)):
+            row_entries = [hl.struct(**kvs) for kvs in entry_props]
+            rows[i] = hl.struct(row_idx=i, **row_pros, **{entries_field_name: row_entries})
 
         ht = Table.parallelize(rows, key='row_idx', globals=hl.struct(**globals))
         return ht._unlocalize_entries(entries_field_name, cols_field_name, col_key=[])
