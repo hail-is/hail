@@ -3006,7 +3006,7 @@ case class TableKeyByAndAggregate(
     val combOp = extracted.combOpFSerializedWorkersOnly(ctx, spec)
 
     val hcl = theHailClassLoaderForSparkWorkers
-    val tc = SparkTaskContext.get()
+    val tc = ctx.taskContext
     val initF = makeInit(hcl, fsBc.value, tc, ctx.r)
     val globalsOffset = prev.globals.value.offset
     val initAggs = ctx.r.pool.scopedRegion { aggRegion =>
