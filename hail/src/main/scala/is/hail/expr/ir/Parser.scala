@@ -1604,9 +1604,8 @@ object IRParser {
         } yield TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize)
       case "TableRepartition" =>
         val n = int32_literal(it)
-        val strategy = int32_literal(it)
         table_ir(env.onlyRelational)(it).map { child =>
-          TableRepartition(child, n, strategy)
+          TableRepartition(child, n)
         }
       case "TableHead" =>
         val n = int64_literal(it)
@@ -1870,9 +1869,8 @@ object IRParser {
         matrix_ir(env.onlyRelational)(it).map(MatrixCollectColsByKey)
       case "MatrixRepartition" =>
         val n = int32_literal(it)
-        val strategy = int32_literal(it)
         matrix_ir(env.onlyRelational)(it).map { child =>
-          MatrixRepartition(child, n, strategy)
+          MatrixRepartition(child, n)
         }
       case "MatrixUnionRows" => matrix_ir_children(env.onlyRelational)(it).map(MatrixUnionRows(_))
       case "MatrixDistinctByRow" => matrix_ir(env.onlyRelational)(it).map(MatrixDistinctByRow)

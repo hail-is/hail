@@ -198,7 +198,7 @@ class TableIRTests(unittest.TestCase):
                 ir.MakeStruct([
                     ('foo', ir.NA(hl.tarray(hl.tint32)))])),
             ir.TableRange(100, 10),
-            ir.TableRepartition(table_read, 10, ir.RepartitionStrategy.COALESCE),
+            ir.TableRepartition(table_read, 10),
             ir.TableUnion(
                 [ir.TableRange(100, 10), ir.TableRange(50, 10)]),
             ir.TableExplode(table_read, ['mset']),
@@ -240,7 +240,7 @@ class MatrixIRTests(unittest.TestCase):
 
         matrix_range = ir.MatrixRead(ir.MatrixRangeReader(1, 1, 10))
         matrix_irs = [
-            ir.MatrixRepartition(matrix_range, 100, ir.RepartitionStrategy.SHUFFLE),
+            ir.MatrixRepartition(matrix_range, 100),
             ir.MatrixUnionRows(matrix_range, matrix_range),
             ir.MatrixDistinctByRow(matrix_range),
             ir.MatrixRowsHead(matrix_read, 5),

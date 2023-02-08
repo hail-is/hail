@@ -26,7 +26,7 @@ object DistinctlyKeyed {
       case TableFilter(child, _) => basicChildrenCheck(IndexedSeq(child))
       case TableHead(child, _) => basicChildrenCheck(IndexedSeq(child))
       case TableTail(child, _) => basicChildrenCheck(IndexedSeq(child))
-      case TableRepartition(child, _, _) => basicChildrenCheck(IndexedSeq(child))
+      case TableRepartition(child, _) => basicChildrenCheck(IndexedSeq(child))
       case TableJoin(left, right, _, _) => basicChildrenCheck(IndexedSeq(left, right))
       case TableIntervalJoin(left, right, _, _) => basicChildrenCheck(IndexedSeq(left, right))
       case TableMultiWayZipJoin(children, _, _) => basicChildrenCheck(children)

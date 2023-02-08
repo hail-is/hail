@@ -1660,7 +1660,7 @@ object LowerTableIR {
           }
         }
 
-      case TableRepartition(child, n, RepartitionStrategy.NAIVE_COALESCE) =>
+      case TableRepartition(child, n) =>
         val lc = lower(child)
         val groupSize = (lc.numPartitions + n - 1) / n
 

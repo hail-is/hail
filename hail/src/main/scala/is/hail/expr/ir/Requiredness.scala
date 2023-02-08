@@ -319,7 +319,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case TableFilter(child, _) => requiredness.unionFrom(lookup(child))
       case TableHead(child, _) => requiredness.unionFrom(lookup(child))
       case TableTail(child, _) => requiredness.unionFrom(lookup(child))
-      case TableRepartition(child, n, strategy) => requiredness.unionFrom(lookup(child))
+      case TableRepartition(child, n) => requiredness.unionFrom(lookup(child))
       case TableDistinct(child) => requiredness.unionFrom(lookup(child))
       case TableOrderBy(child, sortFields) => requiredness.unionFrom(lookup(child))
       case TableRename(child, rMap, gMap) => requiredness.unionFrom(lookup(child))

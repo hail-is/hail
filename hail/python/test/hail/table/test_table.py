@@ -2214,14 +2214,6 @@ def test_table_randomness():
     assert_contains_node(t, ir.TableDistinct)
     assert_unique_uids(t)
 
-    # test TableRepartition
-    if not hl.current_backend().requires_lowering:
-        rt = hl.utils.range_table(20, 3)
-        t = rt.repartition(5)
-        print(t._tir)
-        assert_contains_node(t, ir.TableRepartition)
-        assert_unique_uids(t)
-
     # test CastMatrixToTable
     mt = hl.utils.range_matrix_table(10, 10, 3)
     t = mt._localize_entries("entries", "cols")

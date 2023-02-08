@@ -735,27 +735,20 @@ class TableDistinct(TableIR):
         return self.child.typ
 
 
-class RepartitionStrategy:
-    SHUFFLE = 0
-    COALESCE = 1
-    NAIVE_COALESCE = 2
-
-
 class TableRepartition(TableIR):
-    def __init__(self, child, n, strategy):
+    def __init__(self, child, n):
         super().__init__(child)
         self.child = child
         self.n = n
-        self.strategy = strategy
 
     def _handle_randomness(self, uid_field_name):
-        return TableRepartition(self.child.handle_randomness(uid_field_name), self.n, self.strategy)
+        return TableRepartition(self.child.handle_randomness(uid_field_name), self.n)
 
     def head_str(self):
-        return f'{self.n} {self.strategy}'
+        return f'{self.n}'
 
     def _eq(self, other):
-        return self.n == other.n and self.strategy == other.strategy
+        return self.n == other.n
 
     def _compute_type(self, deep_typecheck):
         self.child.compute_type(deep_typecheck)

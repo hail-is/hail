@@ -2868,7 +2868,7 @@ class IRSuite extends HailSuite {
         TableMultiWayZipJoin(FastIndexedSeq(read, read), " * data * ", "globals"),
         MatrixEntriesTable(mtRead),
         MatrixRowsTable(mtRead),
-        TableRepartition(read, 10, RepartitionStrategy.COALESCE),
+        TableRepartition(read, 10),
         TableHead(read, 10),
         TableTail(read, 10),
         TableParallelize(
@@ -2959,7 +2959,7 @@ class IRSuite extends HailSuite {
         MatrixMapCols(read, newCol, None),
         MatrixKeyRowsBy(read, FastIndexedSeq("row_m", "row_d"), false),
         MatrixMapRows(read, newRow),
-        MatrixRepartition(read, 10, 0),
+        MatrixRepartition(read, 10),
         MatrixMapEntries(read, MakeStruct(FastIndexedSeq(
           "global_f32" -> ApplyBinaryPrimOp(Add(),
             GetField(Ref("global", read.typ.globalType), "global_f32"),

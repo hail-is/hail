@@ -1910,13 +1910,8 @@ case class TableTail(child: TableIR, n: Long) extends TableSubset {
   }
 }
 
-object RepartitionStrategy {
-  val SHUFFLE: Int = 0
-  val COALESCE: Int = 1
-  val NAIVE_COALESCE: Int = 2
-}
-
-case class TableRepartition(child: TableIR, n: Int, strategy: Int) extends TableIR {
+// only does naive coalesce
+case class TableRepartition(child: TableIR, n: Int) extends TableIR {
   def typ: TableType = child.typ
 
   lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
@@ -1925,17 +1920,12 @@ case class TableRepartition(child: TableIR, n: Int, strategy: Int) extends Table
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableRepartition = {
     val IndexedSeq(newChild: TableIR) = newChildren
-    TableRepartition(newChild, n, strategy)
+    TableRepartition(newChild, n)
   }
 
   protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
     val prev = child.execute(ctx, r).asTableValue(ctx)
-    val rvd = strategy match {
-      case RepartitionStrategy.SHUFFLE => prev.rvd.coalesce(ctx, n, shuffle = true)
-      case RepartitionStrategy.COALESCE => prev.rvd.coalesce(ctx, n, shuffle = false)
-      case RepartitionStrategy.NAIVE_COALESCE => prev.rvd.naiveCoalesce(n, ctx)
-    }
-
+    val rvd = prev.rvd.naiveCoalesce(n, ctx)
     new TableValueIntermediate(prev.copy(rvd = rvd))
   }
 }

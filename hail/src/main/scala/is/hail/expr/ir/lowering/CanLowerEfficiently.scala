@@ -38,8 +38,7 @@ object CanLowerEfficiently {
           fail(s"no lowering for TableFromBlockMatrixNativeReader")
 
         case t: TableLiteral =>
-        case TableRepartition(_, _, RepartitionStrategy.NAIVE_COALESCE) =>
-        case t: TableRepartition => fail(s"TableRepartition has no lowered implementation")
+        case TableRepartition(_, _) =>
         case t: TableParallelize =>
         case t: TableRange =>
         case TableKeyBy(child, keys, isSorted) =>

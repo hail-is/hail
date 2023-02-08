@@ -513,7 +513,7 @@ class PruneSuite extends HailSuite {
 
   @Test def testMatrixRepartitionMemo() {
     checkMemo(
-      MatrixRepartition(mat, 10, RepartitionStrategy.SHUFFLE),
+      MatrixRepartition(mat, 10),
       subsetMatrixTable(mat.typ, "va.r2", "global.g1"),
       Array(subsetMatrixTable(mat.typ, "va.r2", "global.g1"),
         subsetMatrixTable(mat.typ, "va.r2", "global.g1"))
