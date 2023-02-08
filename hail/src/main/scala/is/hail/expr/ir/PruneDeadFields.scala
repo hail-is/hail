@@ -500,13 +500,13 @@ object PruneDeadFields {
           globalType = requestedType.globalType)
         memoizeTableIR(ctx, child, dep, memo)
       case TableMapPartitions(child, gName, pName, body, requestedKey, _) =>
-        val reqRowsType = TStream(requestedType.rowType)
+        val requestedKeyStruct = child.typ.keyType.truncate(math.max(requestedType.key.length, requestedKey))
+        val reqRowsType = unify(body.typ, TStream(requestedType.rowType), TStream(requestedKeyStruct))
         val bodyDep = memoizeValueIR(ctx, body, reqRowsType, memo)
         val depGlobalType = unifySeq(
           child.typ.globalType,
           uses(gName, bodyDep.eval) :+ requestedType.globalType
         )
-        val requestedKeyStruct = child.typ.keyType.truncate(math.max(requestedType.key.length, requestedKey))
         val depRowType = unifySeq(
           child.typ.rowType,
           uses(pName, bodyDep.eval).map(TIterable.elementType) :+ requestedKeyStruct)
