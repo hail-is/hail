@@ -44,7 +44,7 @@ object LowerAndExecuteShuffles {
         val streamTyp = TStream(child.typ.rowType)
         val partiallyAggregated = TableMapPartitions(TableKeyBy(child, IndexedSeq()), "global", streamName,
           StreamBufferedAggregate(Ref(streamName, streamTyp), init, newKey, seq, "row", aggSigs, bufferSize),
-          0, child.typ.key.length)
+          0, 0)
 
         // annoying but no better alternative right now
         val req2 = Requiredness(partiallyAggregated, ctx)
