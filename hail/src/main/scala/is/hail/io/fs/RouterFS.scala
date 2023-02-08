@@ -27,8 +27,8 @@ class RouterFS(schemes: Map[String, FS], default: String) extends FS {
 
   def setConfiguration(config: Any): Unit = {
     config match {
-      case (m: Map[String, Any], d: Any) =>
-        m.foreach { case (k, v) => schemes(k).setConfiguration(v) }
+      case (m: Map[_, _], d: Any) =>
+        m.foreach { case (k: String, v: Any) => schemes(k).setConfiguration(v) }
     }
   }
 }
