@@ -210,8 +210,8 @@ object FS {
   def cloudSpecificCacheableFS(
     credentialsPath: String,
     flags: Option[HailFeatureFlags]
-  ): ServiceCacheableFS = retryTransientErrors {
-    using(new FileInputStream(credentialsPath)) { is =>
+  ): FS = retryTransientErrors {
+    val (scheme, cloudSpecificFS) = using(new FileInputStream(credentialsPath)) { is =>
       val credentialsStr = Some(IOUtils.toString(is, Charset.defaultCharset()))
       sys.env.get("HAIL_CLOUD") match {
         case Some("gcp") =>
@@ -220,19 +220,26 @@ object FS {
               flags.get("gcs_requester_pays_project"), flags.get("gcs_requester_pays_buckets")
             )
           }
-          new GoogleStorageFS(credentialsStr, requesterPaysConfiguration).asCacheable()
+          ("gs", new GoogleStorageFS(credentialsStr, requesterPaysConfiguration).asCacheable())
         case Some("azure") =>
-          new AzureStorageFS(credentialsStr).asCacheable()
-        case Some(cloud) =>
+          ("hail-az", new AzureStorageFS(credentialsStr).asCacheable())
+        case cloud =>
           throw new IllegalArgumentException(s"Bad cloud: $cloud")
         case None =>
           throw new IllegalArgumentException(s"HAIL_CLOUD must be set.")
       }
     }
+
+    new RouterFS(Map(scheme -> cloudSpecificFS, "file" -> new HadoopFS(new SerializableHadoopConfiguration(new hadoop.conf.Configuration()))), "file")
   }
 }
 
 trait FS extends Serializable {
+
+  def openCachedNoCompression(filename: String): SeekableDataInputStream = openNoCompression(filename)
+
+  def createCachedNoCompression(filename: String): PositionedDataOutputStream = createNoCompression(filename)
+
   def getCodecFromExtension(extension: String, gzAsBGZ: Boolean = false): CompressionCodec = {
     extension match {
       case ".gz" =>
