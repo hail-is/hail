@@ -551,8 +551,6 @@ def test_non_utf_8_log(client: BatchClient):
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
     job_main_log = j.container_log('main')
-    job_log = j.log()
-    assert job_log['main'] == job_main_log
     assert job_main_log == b'hello \\x80'
 
 

@@ -333,11 +333,9 @@ class SubmittedJob:
         async with await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log/{container_name}') as resp:
             return await resp.read()
 
-    async def log(self) -> Dict[str, bytes]:
-        assert self._status
-        containers = self._status['status']['container_statuses'].keys()
-        logs = await asyncio.gather(*(self.container_log(c) for c in containers))
-        return dict(zip(containers, logs))
+    async def log(self):
+        resp = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log')
+        return await resp.json()
 
     async def attempts(self):
         resp = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/attempts')
