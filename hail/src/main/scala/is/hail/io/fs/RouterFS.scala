@@ -7,6 +7,10 @@ class RouterFS(schemes: Map[String, FS], default: String) extends FS {
     schemes.getOrElse(uri.getScheme, schemes(default))
   }
 
+  override def openCachedNoCompression(filename: String): SeekableDataInputStream = lookupFS(filename).openCachedNoCompression(filename)
+
+  override def createCachedNoCompression(filename: String): PositionedDataOutputStream = lookupFS(filename).createCachedNoCompression(filename)
+
   def openNoCompression(filename: String, _debug: Boolean = false): SeekableDataInputStream = lookupFS(filename).openNoCompression(filename, _debug)
 
   def createNoCompression(filename: String): PositionedDataOutputStream = lookupFS(filename).createNoCompression(filename)

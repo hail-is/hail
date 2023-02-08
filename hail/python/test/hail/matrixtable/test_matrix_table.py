@@ -1808,7 +1808,7 @@ def test_matrix_randomness():
         .aggregate_entries(e=hl.rand_int64())
         .result())
     assert_contains_node(mt, ir.MatrixAggregateRowsByKey)
-    x = mt.aggregate_rows(hl.struct(r=hl.agg.collect_asz_set(mt.r), n=hl.agg.count()))
+    x = mt.aggregate_rows(hl.struct(r=hl.agg.collect_as_set(mt.r), n=hl.agg.count()))
     assert(len(x.r) == x.n)
     x = mt.aggregate_entries(hl.struct(r=hl.agg.collect_as_set(mt.e), n=hl.agg.count()))
     assert(len(x.r) == x.n)
