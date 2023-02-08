@@ -637,7 +637,6 @@ case class DistributionSortReader(key: TStruct, keyed: Boolean, spec: TypedCodec
     PruneDeadFields.upcast(ctx, globals, requestedGlobalsType)
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
-    assert(requestedType.key == fullType.key)
 
     val contextData = {
       var filesCount: Long = 0

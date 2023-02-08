@@ -30,13 +30,23 @@ case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader
 
   def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
     assert(!dropRows)
-    assert(requestedType == fullType)
     val (Some(PTypeReferenceSingleCodeType(globType: PStruct)), f) = Compile[AsmFunction1RegionLong](
-      ctx, FastIndexedSeq(), FastIndexedSeq(classInfo[Region]), LongInfo, globals)
+      ctx, FastIndexedSeq(), FastIndexedSeq(classInfo[Region]), LongInfo, PruneDeadFields.upcast(ctx, globals, requestedType.globalType))
     val gbAddr = f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
 
     val globRow = BroadcastRow(ctx, RegionValue(ctx.r, gbAddr), globType)
-    TableValue(ctx, fullType, globRow, rvd)
+
+    val rowEmitType = SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(rvd.rowPType))
+    val (Some(PTypeReferenceSingleCodeType(newRowType: PStruct)), rowF) = Compile[AsmFunction2RegionLongLong](
+      ctx, FastIndexedSeq(("row", rowEmitType)), FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
+      PruneDeadFields.upcast(ctx, In(0, rowEmitType),
+        requestedType.rowType))
+
+    val fsBc = ctx.fsBc
+    TableValue(ctx, requestedType, globRow, rvd.mapPartitionsWithIndex(RVDType(newRowType, requestedType.key)) { case (i, ctx, it) =>
+      val partF = rowF(theHailClassLoaderForSparkWorkers, fsBc.value, i, ctx.partitionRegion)
+      it.map { elt => partF(ctx.r, elt) }
+    })
   }
 
   override def isDistinctlyKeyed: Boolean = false
