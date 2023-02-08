@@ -959,7 +959,7 @@ def truncate_reference_blocks(ds, *, max_ref_block_base_pairs=None,
 
     Truncate the longest 1% of reference blocks to the length of the 99th percentile block:
 
-    >>> vds2 = hl.vds.truncate_reference_blocks(vds ref_block_winsorize_fraction=0.01) # doctest: +SKIP
+    >>> vds2 = hl.vds.truncate_reference_blocks(vds, ref_block_winsorize_fraction=0.01) # doctest: +SKIP
 
     Notes
     -----
