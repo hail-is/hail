@@ -109,7 +109,12 @@ class Job:
         self._dirname = f'{safe_str(name)}-{self._token}' if name else self._token
 
     def _get_resource(self, item: str) -> '_resource.Resource':
-        raise NotImplementedError
+        if item not in self._resources:
+            r = self._batch._new_job_resource_file(self, value=item)
+            self._resources[item] = r
+            self._resources_inverse[r] = item
+
+        return self._resources[item]
 
     def __getitem__(self, item: str) -> '_resource.Resource':
         return self._get_resource(item)
@@ -663,14 +668,6 @@ class BashJob(Job):
         super().__init__(batch, token, name=name, attributes=attributes, shell=shell)
         self._command: List[str] = []
 
-    def _get_resource(self, item: str) -> '_resource.Resource':
-        if item not in self._resources:
-            r = self._batch._new_job_resource_file(self, value=item)
-            self._resources[item] = r
-            self._resources_inverse[r] = item
-
-        return self._resources[item]
-
     def declare_resource_group(self, **mappings: Dict[str, Any]) -> 'BashJob':
         """Declare a resource group for a job.
 
@@ -907,7 +904,7 @@ class PythonJob(Job):
         self._function_calls: List[Tuple[_resource.PythonResult, int, Tuple[Any, ...], Dict[str, Any]]] = []
         self.n_results = 0
 
-    def _get_resource(self, item: str) -> '_resource.PythonResult':
+    def _get_python_resource(self, item: str) -> '_resource.PythonResult':
         if item not in self._resources:
             r = self._batch._new_python_result(self, value=item)
             self._resources[item] = r
@@ -1103,7 +1100,7 @@ class PythonJob(Job):
                 handle_arg(value)
 
         self.n_results += 1
-        result = self._get_resource(f'result{self.n_results}')
+        result = self._get_python_resource(f'result{self.n_results}')
         handle_arg(result)
 
         unapplied_id = self._batch._register_python_function(unapplied)
