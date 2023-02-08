@@ -545,7 +545,7 @@ def test_log_after_failing_job(client: BatchClient):
 
 def test_non_utf_8_log(client: BatchClient):
     bb = client.create_batch()
-    j = bb.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', "echo -n -e 'hello \\x80'"])
+    j = bb.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', "echo -n 'hello \\x80'"])
     b = bb.submit()
     status = j.wait()
     assert status['state'] == 'Success', str((status, b.debug_info()))
