@@ -23,7 +23,7 @@ class RouterFS(schemes: Map[String, FS], default: String) extends FS {
 
   def makeQualified(path: String): String = lookupFS(path).makeQualified(path)
 
-  def getConfiguration(): Any = schemes.mapValues(_.getConfiguration())
+  def getConfiguration(): Any = schemes.map { case (k, v) => (k, v.getConfiguration()) }
 
   def setConfiguration(config: Any): Unit = {
     config match {
