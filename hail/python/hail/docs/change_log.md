@@ -24,6 +24,25 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.109
+
+Released 2023-02-08
+
+### New Features
+
+- (hail#12605) Add `hl.pgenchisq` the cumulative distribution function of the generalized chi-squared distribution.
+- (hail#12637) Query-on-Batch now supports `hl.skat(..., logistic=False)`.
+- (hail#12645) Added `hl.vds.truncate_reference_blocks` to transform a VDS to checkpoint reference blocks in order to drastically improve interval filtering performance. Also added `hl.vds.merge_reference_blocks` to merge adjacent reference blocks according to user criteria to better compress reference data.
+
+### Bug Fixes
+
+- (hail#12650) Hail will now throw an exception on `hl.export_bgen` when there is no GP field, instead of exporting null records.
+- (hail#12635) Fix bug where `hl.skat` did not work on Apple M1 machines.
+- (hail#12571) When using Query-on-Batch, hl.hadoop* methods now properly support creation and modification time.
+- (hail#12566) Improve error message when combining incompatibly indexed fields in certain operations including array indexing.
+
+---
+
 ## Version 0.2.108
 
 Released 2023-1-12
