@@ -362,6 +362,20 @@ abstract class RegistryFunctions {
       val addr = cb.memoize(Code.invokeScalaObject3[Region, Row, PType, Long](
         RegistryHelpers.getClass, "stupidUnwrapStruct", r.region, coerce[Row](value), cb.emb.ecb.getPType(pt)))
       new SBaseStructPointerValue(SBaseStructPointer(pt.setRequired(false).asInstanceOf[PBaseStruct]), addr)
+    case TArray(t: TBaseStruct) =>
+      val ast = st.asInstanceOf[SIndexablePointer]
+      val pca = ast.pType.asInstanceOf[PCanonicalArray]
+      val ept = pca.elementType
+      val arr = cb.newLocal[IndexedSeq[Row]]("unrwrap_return_array_row_arr", coerce[IndexedSeq[Row]](value))
+      val len = cb.newLocal[Int]("unwrap_return_array_len", arr.invoke[Int]("length"))
+      pca.constructFromElements(cb, r, len, deepCopy = false) { (cb, idx) =>
+        val elt = cb.newLocal[Row]("unwrap_return_array_row_arr",
+          Code.checkcast[Row](arr.invoke[Int, java.lang.Object]("apply", idx)))
+        val addr = cb.memoize(Code.invokeScalaObject3[Region, Row, PType, Long](
+          RegistryHelpers.getClass, "stupidUnwrapStruct", r.region, elt, cb.emb.ecb.getPType(ept)))
+        val svalue = new SBaseStructPointerValue(SBaseStructPointer(ept.setRequired(false).asInstanceOf[PBaseStruct]), addr)
+        IEmitCode.present(cb, svalue)
+      }
   }
 
   def registerSCode(
