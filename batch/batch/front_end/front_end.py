@@ -606,14 +606,14 @@ async def _get_full_job_status(app, record):
 async def get_job_log(request, userdata, batch_id):  # pylint: disable=unused-argument
     job_id = int(request.match_info['job_id'])
     job_log_bytes = await _get_job_log(request.app, batch_id, job_id)
-    job_log_strings: Dict[str, Optional[str]] = dict()
+    job_log_strings: Dict[str, Optional[str]] = {}
     for container, log in job_log_bytes.items():
         try:
             job_log_strings[container] = log.decode('utf-8') if log else None
-        except UnicodeDecodeError:
+        except UnicodeDecodeError as e:
             raise web.HTTPBadRequest(
                 reason=f'log for container {container} is not valid UTF-8, upgrade your hail version to download the log'
-            )
+            ) from e
     return web.json_response(job_log_strings)
 
 
@@ -2171,7 +2171,7 @@ async def ui_get_job(request, userdata, batch_id):
 
     # Not all logs will be proper utf-8 but we attempt to show them as
     # str or else Jinja will present them surrounded by b''
-    job_log_strings_or_bytes = dict()
+    job_log_strings_or_bytes = {}
     for container, log in job_log_bytes.items():
         try:
             job_log_strings_or_bytes[container] = log.decode('utf-8') if log else None
