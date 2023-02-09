@@ -426,7 +426,7 @@ object Simplify {
     case TableCount(CastMatrixToTable(child, _, _)) => TableCount(MatrixRowsTable(child))
     case TableCount(TableMapGlobals(child, _)) => TableCount(child)
     case TableCount(TableMapRows(child, _)) => TableCount(child)
-    case TableCount(TableRepartition(child, _, _)) => TableCount(child)
+    case TableCount(TableRepartition(child, _)) => TableCount(child)
     case TableCount(TableUnion(children)) =>
       children.map(TableCount(_): IR).treeReduce(ApplyBinaryPrimOp(Add(), _, _))
     case TableCount(TableKeyBy(child, _, _)) => TableCount(child)
@@ -460,7 +460,7 @@ object Simplify {
     case MatrixCount(MatrixFilterEntries(child,_)) => MatrixCount(child)
     case MatrixCount(MatrixAnnotateColsTable(child, _, _)) => MatrixCount(child)
     case MatrixCount(MatrixAnnotateRowsTable(child, _, _, _)) => MatrixCount(child)
-    case MatrixCount(MatrixRepartition(child, _, _)) => MatrixCount(child)
+    case MatrixCount(MatrixRepartition(child, _)) => MatrixCount(child)
     case MatrixCount(MatrixRename(child, _, _, _, _)) => MatrixCount(child)
     case TableCount(TableRead(_, false, r: MatrixBGENReader)) if r.params.includedVariants.isEmpty =>
       I64(r.nVariants)
@@ -470,7 +470,7 @@ object Simplify {
     case TableGetGlobals(TableKeyBy(child, _, _)) => TableGetGlobals(child)
     case TableGetGlobals(TableFilter(child, _)) => TableGetGlobals(child)
     case TableGetGlobals(TableHead(child, _)) => TableGetGlobals(child)
-    case TableGetGlobals(TableRepartition(child, _, _)) => TableGetGlobals(child)
+    case TableGetGlobals(TableRepartition(child, _)) => TableGetGlobals(child)
     case TableGetGlobals(TableJoin(child1, child2, _, _)) =>
       val g1 = TableGetGlobals(child1)
       val g2 = TableGetGlobals(child2)
@@ -633,7 +633,7 @@ object Simplify {
         ApplySpecial("land", Array.empty[Type], Array(p1, p2), TBoolean, ErrorIDs.NO_ERROR))
 
     case TableFilter(TableKeyBy(child, key, isSorted), p) if canRepartition => TableKeyBy(TableFilter(child, p), key, isSorted)
-    case TableFilter(TableRepartition(child, n, strategy), p) => TableRepartition(TableFilter(child, p), n, strategy)
+    case TableFilter(TableRepartition(child, n), p) => TableRepartition(TableFilter(child, p), n)
 
     case TableOrderBy(TableKeyBy(child, _, false), sortFields) => TableOrderBy(child, sortFields)
 
@@ -742,7 +742,7 @@ object Simplify {
     case MatrixColsTable(MatrixAggregateRowsByKey(child, _, _)) => MatrixColsTable(child)
     case MatrixColsTable(MatrixKeyRowsBy(child, _, _)) => MatrixColsTable(child)
 
-    case TableRepartition(TableRange(nRows, _), nParts, _) => TableRange(nRows, nParts)
+    case TableRepartition(TableRange(nRows, _), nParts) => TableRange(nRows, nParts)
 
     case TableMapGlobals(TableMapGlobals(child, ng1), ng2) =>
       val uid = genUID()
@@ -754,8 +754,8 @@ object Simplify {
     case TableHead(TableMapRows(child, newRow), n) =>
       TableMapRows(TableHead(child, n), newRow)
 
-    case TableHead(TableRepartition(child, nPar, shuffle), n) if canRepartition =>
-      TableRepartition(TableHead(child, n), nPar, shuffle)
+    case TableHead(TableRepartition(child, nPar), n) if canRepartition =>
+      TableRepartition(TableHead(child, n), nPar)
 
     case TableHead(tr@TableRange(nRows, nPar), n) if canRepartition =>
       if (n < nRows)
@@ -791,7 +791,7 @@ object Simplify {
     case TableDistinct(TableAggregateByKey(child, expr)) => TableAggregateByKey(child, expr)
     case TableDistinct(TableMapRows(child, newRow)) => TableMapRows(TableDistinct(child), newRow)
     case TableDistinct(TableLeftJoinRightDistinct(child, right, root)) => TableLeftJoinRightDistinct(TableDistinct(child), right, root)
-    case TableDistinct(TableRepartition(child, n, strategy)) if canRepartition => TableRepartition(TableDistinct(child), n, strategy)
+    case TableDistinct(TableRepartition(child, n)) if canRepartition => TableRepartition(TableDistinct(child), n)
 
     case TableKeyByAndAggregate(child, MakeStruct(Seq()), k@MakeStruct(keyFields), _, _) if canRepartition =>
       TableDistinct(TableKeyBy(TableMapRows(TableKeyBy(child, FastIndexedSeq()), k), k.typ.asInstanceOf[TStruct].fieldNames))
@@ -822,8 +822,8 @@ object Simplify {
       TableMapGlobals(TableFilterIntervals(child, intervals, keep), newRow)
     case TableFilterIntervals(TableRename(child, rowMap, globalMap), intervals, keep) =>
       TableRename(TableFilterIntervals(child, intervals, keep), rowMap, globalMap)
-    case TableFilterIntervals(TableRepartition(child, n, strategy), intervals, keep) =>
-      TableRepartition(TableFilterIntervals(child, intervals, keep), n, strategy)
+    case TableFilterIntervals(TableRepartition(child, n), intervals, keep) =>
+      TableRepartition(TableFilterIntervals(child, intervals, keep), n)
     case TableFilterIntervals(TableLeftJoinRightDistinct(child, right, root), intervals, true) =>
       TableLeftJoinRightDistinct(TableFilterIntervals(child, intervals, true), TableFilterIntervals(right, intervals, true), root)
     case TableFilterIntervals(TableIntervalJoin(child, right, root, product), intervals, keep) =>
@@ -980,7 +980,7 @@ object Simplify {
     case MatrixColsHead(MatrixMapGlobals(child, newGlobals), n) => MatrixMapGlobals(MatrixColsHead(child, n), newGlobals)
     case MatrixColsHead(MatrixAnnotateColsTable(child, table, root), n) => MatrixAnnotateColsTable(MatrixColsHead(child, n), table, root)
     case MatrixColsHead(MatrixAnnotateRowsTable(child, table, root, product), n) => MatrixAnnotateRowsTable(MatrixColsHead(child, n), table, root, product)
-    case MatrixColsHead(MatrixRepartition(child, nPar, strategy), n) => MatrixRepartition(MatrixColsHead(child, n), nPar, strategy)
+    case MatrixColsHead(MatrixRepartition(child, nPar), n) => MatrixRepartition(MatrixColsHead(child, n), nPar)
     case MatrixColsHead(MatrixExplodeRows(child, path), n) => MatrixExplodeRows(MatrixColsHead(child, n), path)
     case MatrixColsHead(MatrixUnionRows(children), n) =>
       // could prevent a dimension mismatch error, but we view errors as undefined behavior, so this seems OK.

@@ -27,7 +27,7 @@ from .table_ir import MatrixRowsTable, TableJoin, TableLeftJoinRightDistinct, \
     TableKeyBy, TableMapRows, TableRead, MatrixEntriesTable, \
     TableFilter, TableKeyByAndAggregate, \
     TableAggregateByKey, MatrixColsTable, TableParallelize, TableHead, \
-    TableTail, TableOrderBy, TableDistinct, RepartitionStrategy, \
+    TableTail, TableOrderBy, TableDistinct, \
     TableRepartition, CastMatrixToTable, TableRename, TableMultiWayZipJoin, \
     TableFilterIntervals, TableToTableApply, MatrixToTableApply, \
     BlockMatrixToTableApply, BlockMatrixToTable, JavaTable, TableMapPartitions
@@ -296,7 +296,6 @@ __all__ = [
     'TableTail',
     'TableOrderBy',
     'TableDistinct',
-    'RepartitionStrategy',
     'TableRepartition',
     'CastMatrixToTable',
     'TableRename',

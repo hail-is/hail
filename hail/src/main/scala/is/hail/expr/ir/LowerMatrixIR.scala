@@ -552,7 +552,7 @@ object LowerMatrixIR {
             )))))
         )
 
-      case MatrixRepartition(child, n, shuffle) => TableRepartition(lower(ctx, child, ab), n, shuffle)
+      case MatrixRepartition(child, n) => TableRepartition(lower(ctx, child, ab), n)
 
       case MatrixFilterIntervals(child, intervals, keep) => TableFilterIntervals(lower(ctx, child, ab), intervals, keep)
 

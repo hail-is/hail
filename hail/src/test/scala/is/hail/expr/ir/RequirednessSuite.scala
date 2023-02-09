@@ -295,7 +295,7 @@ class RequirednessSuite extends HailSuite {
     nodes += Array(TableFilter(table, GetField(global, "y") < 0), rowType, globalType)
     nodes += Array(TableHead(table, 5), rowType, globalType)
     nodes += Array(TableTail(table, 5), rowType, globalType)
-    nodes += Array(TableRepartition(table, 5, RepartitionStrategy.SHUFFLE), rowType, globalType)
+    nodes += Array(TableRepartition(table, 5), rowType, globalType)
     nodes += Array(TableDistinct(table), rowType, globalType)
     nodes += Array(TableOrderBy(table, FastIndexedSeq()), rowType, globalType)
     nodes += Array(TableFilterIntervals(table, FastIndexedSeq(), true), rowType, globalType)

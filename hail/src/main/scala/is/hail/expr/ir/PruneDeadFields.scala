@@ -334,7 +334,7 @@ object PruneDeadFields {
       case TableParallelize(rowsAndGlobal, _) =>
         memoizeValueIR(ctx, rowsAndGlobal, TStruct("rows" -> TArray(requestedType.rowType), "global" -> requestedType.globalType), memo)
       case TableRange(_, _) =>
-      case TableRepartition(child, _, _) => memoizeTableIR(ctx, child, requestedType, memo)
+      case TableRepartition(child, _) => memoizeTableIR(ctx, child, requestedType, memo)
       case TableHead(child, _) => memoizeTableIR(ctx, child, TableType(
         key = child.typ.key,
         rowType = unify(child.typ.rowType, selectKey(child.typ.rowType, child.typ.key), requestedType.rowType),
@@ -794,7 +794,7 @@ object PruneDeadFields {
         val dep = requestedType.copy(colType = unify(child.typ.colType,
           requestedType.colType.insert(prunedPreExplosionFieldType, path.toList)._1.asInstanceOf[TStruct]))
         memoizeMatrixIR(ctx, child, dep, memo)
-      case MatrixRepartition(child, _, _) =>
+      case MatrixRepartition(child, _) =>
         memoizeMatrixIR(ctx, child, requestedType, memo)
       case MatrixUnionRows(children) =>
         memoizeMatrixIR(ctx, children.head, requestedType, memo)

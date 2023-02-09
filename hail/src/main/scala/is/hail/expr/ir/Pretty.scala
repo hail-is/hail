@@ -329,7 +329,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     case MatrixAnnotateColsTable(_, _, uid) => single(prettyStringLiteral(uid))
     case MatrixExplodeRows(_, path) => single(prettyIdentifiers(path))
     case MatrixExplodeCols(_, path) => single(prettyIdentifiers(path))
-    case MatrixRepartition(_, n, strategy) => single(s"$n $strategy")
+    case MatrixRepartition(_, n) => single(n.toString)
     case MatrixChooseCols(_, oldIndices) => single(prettyInts(oldIndices, elideLiterals))
     case MatrixMapCols(_, _, newKey) => single(prettyStringsOpt(newKey))
     case MatrixUnionCols(l, r, joinType) => single(joinType)
@@ -346,7 +346,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     case TableKeyBy(_, keys, isSorted) =>
       FastSeq(prettyIdentifiers(keys), Pretty.prettyBooleanLiteral(isSorted))
     case TableRange(n, nPartitions) => FastSeq(n.toString, nPartitions.toString)
-    case TableRepartition(_, n, strategy) => FastSeq(n.toString, strategy.toString)
+    case TableRepartition(_, n) => FastSeq(n.toString)
     case TableHead(_, n) => single(n.toString)
     case TableTail(_, n) => single(n.toString)
     case TableJoin(_, _, joinType, joinKey) => FastSeq(joinType, joinKey.toString)

@@ -3358,44 +3358,37 @@ class MatrixTable(ExprContainer):
         <http://spark.apache.org/docs/latest/programming-guide.html#resilient-distributed-datasets-rdds>`__
         for details.
 
-        When ``shuffle=True``, Hail does a full shuffle of the data
-        and creates equal sized partitions.  When ``shuffle=False``,
-        Hail combines existing partitions to avoid a full
-        shuffle. These algorithms correspond to the `repartition` and
-        `coalesce` commands in Spark, respectively. In particular,
-        when ``shuffle=False``, ``n_partitions`` cannot exceed current
-        number of partitions.
+        See Also
+        --------
+        :meth:`.naive_coalesce`
 
         Parameters
         ----------
         n_partitions : int
             Desired number of partitions.
-        shuffle : bool
-            If ``True``, use full shuffle to repartition.
 
         Returns
         -------
         :class:`.MatrixTable`
             Repartitioned dataset.
         """
-        if hl.current_backend().requires_lowering:
-            tmp = hl.utils.new_temp_file()
+        if shuffle:
+            warning("'repartition': the 'shuffle' flag is deprecated, and repartition always writes"
+                    " data to disk in the temp dir and reads it back with requested partitioning.")
 
-            if len(self.row_key) == 0:
-                uid = Env.get_uid()
-                tmp2 = hl.utils.new_temp_file()
-                self.checkpoint(tmp2)
-                ht = hl.read_matrix_table(tmp2).add_row_index(uid).key_rows_by(uid)
-                ht.checkpoint(tmp)
-                return hl.read_matrix_table(tmp, _n_partitions=n_partitions).drop(uid)
-            else:
-                # checkpoint rather than write to use fast codec
-                self.checkpoint(tmp)
-                return hl.read_matrix_table(tmp, _n_partitions=n_partitions)
+        tmp = hl.utils.new_temp_file()
 
-        return MatrixTable(ir.MatrixRepartition(
-            self._mir, n_partitions,
-            ir.RepartitionStrategy.SHUFFLE if shuffle else ir.RepartitionStrategy.COALESCE))
+        if len(self.row_key) == 0:
+            uid = Env.get_uid()
+            tmp2 = hl.utils.new_temp_file()
+            self.checkpoint(tmp2)
+            ht = hl.read_matrix_table(tmp2).add_row_index(uid).key_rows_by(uid)
+            ht.checkpoint(tmp)
+            return hl.read_matrix_table(tmp, _n_partitions=n_partitions).drop(uid)
+        else:
+            # checkpoint rather than write to use fast codec
+            self.checkpoint(tmp)
+            return hl.read_matrix_table(tmp, _n_partitions=n_partitions)
 
     @typecheck_method(max_partitions=int)
     def naive_coalesce(self, max_partitions: int) -> 'MatrixTable':
@@ -3415,6 +3408,10 @@ class MatrixTable(ExprContainer):
         unbalanced dataset can be inefficient to operate on because the work is
         not evenly distributed across partitions.
 
+        See Also
+        --------
+        :meth:`.repartition`
+
         Parameters
         ----------
         max_partitions : int
@@ -3426,8 +3423,7 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Matrix table with at most `max_partitions` partitions.
         """
-        return MatrixTable(ir.MatrixRepartition(
-            self._mir, max_partitions, ir.RepartitionStrategy.NAIVE_COALESCE))
+        return MatrixTable(ir.MatrixRepartition(self._mir, max_partitions))
 
     def cache(self) -> 'MatrixTable':
         """Persist the dataset in memory.

@@ -2440,43 +2440,37 @@ class Table(ExprContainer):
         <http://spark.apache.org/docs/latest/programming-guide.html#resilient-distributed-datasets-rdds>`__
         for details.
 
-        When ``shuffle=True``, Hail does a full shuffle of the data
-        and creates equal sized partitions.  When ``shuffle=False``,
-        Hail combines existing partitions to avoid a full shuffle.
-        These algorithms correspond to the `repartition` and
-        `coalesce` commands in Spark, respectively. In particular,
-        when ``shuffle=False``, ``n_partitions`` cannot exceed current
-        number of partitions.
+        See Also
+        --------
+        :meth:`.naive_coalesce`
 
         Parameters
         ----------
         n : int
             Desired number of partitions.
-        shuffle : bool
-            If ``True``, use full shuffle to repartition.
 
         Returns
         -------
         :class:`.Table`
             Repartitioned table.
         """
-        if hl.current_backend().requires_lowering:
-            tmp = hl.utils.new_temp_file()
+        if shuffle:
+            warning("'repartition': the 'shuffle' flag is deprecated, and repartition always writes"
+                    " data to disk in the temp dir and reads it back with requested partitioning.")
 
-            if len(self.key) == 0:
-                uid = Env.get_uid()
-                tmp2 = hl.utils.new_temp_file()
-                self.checkpoint(tmp2)
-                ht = hl.read_table(tmp2).add_index(uid).key_by(uid)
-                ht.checkpoint(tmp)
-                return hl.read_table(tmp, _n_partitions=n).key_by().drop(uid)
-            else:
-                # checkpoint rather than write to use fast codec
-                self.checkpoint(tmp)
-                return hl.read_table(tmp, _n_partitions=n)
+        tmp = hl.utils.new_temp_file()
 
-        return Table(ir.TableRepartition(
-            self._tir, n, ir.RepartitionStrategy.SHUFFLE if shuffle else ir.RepartitionStrategy.COALESCE))
+        if len(self.key) == 0:
+            uid = Env.get_uid()
+            tmp2 = hl.utils.new_temp_file()
+            self.checkpoint(tmp2)
+            ht = hl.read_table(tmp2).add_index(uid).key_by(uid)
+            ht.checkpoint(tmp)
+            return hl.read_table(tmp, _n_partitions=n).key_by().drop(uid)
+        else:
+            # checkpoint rather than write to use fast codec
+            self.checkpoint(tmp)
+            return hl.read_table(tmp, _n_partitions=n)
 
     @typecheck_method(max_partitions=int)
     def naive_coalesce(self, max_partitions: int) -> 'Table':
@@ -2496,6 +2490,10 @@ class Table(ExprContainer):
         unbalanced dataset can be inefficient to operate on because the work is
         not evenly distributed across partitions.
 
+        See Also
+        --------
+        :meth:`.repartition`
+
         Parameters
         ----------
         max_partitions : int
@@ -2507,11 +2505,8 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with at most `max_partitions` partitions.
         """
-        if hl.current_backend().requires_lowering:
-            return self.repartition(max_partitions)
-
         return Table(ir.TableRepartition(
-            self._tir, max_partitions, ir.RepartitionStrategy.NAIVE_COALESCE))
+            self._tir, max_partitions))
 
     @typecheck_method(other=table_type)
     def semi_join(self, other: 'Table') -> 'Table':

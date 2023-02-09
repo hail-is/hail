@@ -827,14 +827,14 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
   val typ: MatrixType = child.typ.copy(rowType = newRow.typ)
 }
 
-case class MatrixRepartition(child: MatrixIR, n: Int, strategy: Int) extends MatrixIR {
+case class MatrixRepartition(child: MatrixIR, n: Int) extends MatrixIR {
   val typ: MatrixType = child.typ
 
   lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixRepartition = {
     val IndexedSeq(newChild: MatrixIR) = newChildren
-    MatrixRepartition(newChild, n, strategy)
+    MatrixRepartition(newChild, n)
   }
 
   override def columnCount: Option[Int] = child.columnCount

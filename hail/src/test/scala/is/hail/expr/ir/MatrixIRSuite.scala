@@ -302,18 +302,14 @@ class MatrixIRSuite extends HailSuite {
     val range = rangeMatrix(11, 3, Some(10))
 
     val params = Array(
-      1 -> RepartitionStrategy.SHUFFLE,
-      1 -> RepartitionStrategy.COALESCE,
-      5 -> RepartitionStrategy.SHUFFLE,
-      5 -> RepartitionStrategy.NAIVE_COALESCE,
-      10 -> RepartitionStrategy.SHUFFLE,
-      10 -> RepartitionStrategy.COALESCE
+      5,
+      7,
     )
-    params.foreach { case (n, strat) =>
-      val rvd = Interpret(MatrixRepartition(range, n, strat), ctx, optimize = false).rvd
-      assert(rvd.getNumPartitions == n, n -> strat)
+    params.foreach { n =>
+      val rvd = Interpret(MatrixRepartition(range, n), ctx, optimize = false).rvd
+      assert(rvd.getNumPartitions == n, n)
       val values = rvd.collect(ctx).map(r => r.getAs[Int](0))
-      assert(values.isSorted && values.length == 11, n -> strat)
+      assert(values.isSorted && values.length == 11, n)
     }
   }
 
