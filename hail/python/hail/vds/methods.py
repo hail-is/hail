@@ -865,7 +865,7 @@ def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0
         by *interval_size*.
      -  ``sum_dp`` (*int64*): Sum of depth values by base across the interval.
      -  ``mean_dp`` (*float64*): Mean depth of bases across the interval. Computed by dividing
-        *mean_dp* by *interval_size*.
+        *sum_dp* by *interval_size*.
 
     If the `dp_field` parameter is not specified, the ``DP`` is used for depth
     if present. If no ``DP`` field is present, the ``MIN_DP`` field is used. If no ``DP``
