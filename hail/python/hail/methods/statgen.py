@@ -920,7 +920,7 @@ def nd_max(hl_nd):
 
 
 def logreg_fit(X, y, null_fit, max_iter: int, tol: float):
-    assert max_iter > 0
+    assert max_iter >= 0
     assert X.ndim == 2
     assert y.ndim == 1
     # X is samples by covs.
@@ -1000,9 +1000,9 @@ def logreg_fit(X, y, null_fit, max_iter: int, tol: float):
                       hl.struct(b=b, score=score, fisher=fisher, mu=mu, num_iter=cur_iter, log_lkhd=log_lkhd, converged=True, exploded=False))
                 .default(compute_next_iter(cur_iter, b, mu, score, fisher)))
 
-    res_struct = hl.experimental.loop(search, search_return_type, 1, b, mu, score, fisher)
-
-    return res_struct
+    if max_iter == 0:
+        return hl.struct(b=na('b'), score=na('score'), fisher=na('fisher'), mu=na('mu'), num_iter=0, log_lkhd=0, converged=False, exploded=False)
+    return hl.experimental.loop(search, search_return_type, 1, b, mu, score, fisher)
 
 
 def wald_test(X, y, null_fit, link, max_iter: int, tol: float):
