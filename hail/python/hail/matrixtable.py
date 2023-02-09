@@ -578,7 +578,7 @@ class MatrixTable(ExprContainer):
         Entry fields:
             'baz': int32
         ----------------------------------------
-        Column key: None
+        Column key: ['col_idx']
         Row key: ['row_idx']
         ----------------------------------------
         >>> mt.row.show()
