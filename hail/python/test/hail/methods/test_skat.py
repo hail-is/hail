@@ -513,14 +513,14 @@ def test_skat():
             weight_expr=ds.weight,
             y=ds.pheno,
             x=ds.GT.n_alt_alleles(),
-            covariates=[],
+            covariates=[1.0],
             logistic=False)._force_count()
 
     hl.skat(key_expr=ds.gene,
             weight_expr=ds.weight,
             y=ds.pheno,
             x=ds.GT.n_alt_alleles(),
-            covariates=[],
+            covariates=[1.0],
             logistic=True)._force_count()
 
     hl.skat(key_expr=ds.gene,
