@@ -34,9 +34,7 @@ case class TInterval(pointType: Type) extends Type {
 
   override def scalaClassTag: ClassTag[Interval] = classTag[Interval]
 
-  override lazy val ordering: ExtendedOrdering = mkOrdering()
-
-  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
+  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
     Interval.ordering(pointType.ordering, startPrimary=true, missingEqual)
 
   lazy val structRepresentation: TStruct = {

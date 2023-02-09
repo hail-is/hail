@@ -4,7 +4,7 @@ import java.io.InputStream
 import htsjdk.samtools.reference.FastaSequenceIndex
 import is.hail.HailContext
 import is.hail.asm4s.Code
-import is.hail.backend.{BroadcastValue, ExecuteContext}
+import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
 import is.hail.check.Gen
 import is.hail.expr.ir.{EmitClassBuilder, RelationalSpec}
 import is.hail.expr.{JSONExtractContig, JSONExtractIntervalLocus, JSONExtractReferenceGenome, Parser}
@@ -120,7 +120,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     if (_locusType == null) {
       synchronized {
         if (_locusType == null)
-          _locusType = TLocus(this)
+          _locusType = TLocus(this.name)
       }
     }
     _locusType
@@ -211,7 +211,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     }
   }
 
-  def toLocusInterval(i: Interval, invalidMissing: Boolean): Interval = {
+  def toLocusInterval(sm: HailStateManager, i: Interval, invalidMissing: Boolean): Interval = {
     var start = i.start.asInstanceOf[Locus]
     var end = i.end.asInstanceOf[Locus]
     var includesStart = i.includesStart
@@ -268,7 +268,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
       }
     }
 
-    if (!Interval.isValid(locusType.ordering, start, end, includesStart, includesEnd))
+    if (!Interval.isValid(locusType.ordering(sm), start, end, includesStart, includesEnd))
       if (invalidMissing)
         return null
       else
@@ -289,9 +289,9 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   def isMitochondrial(contig: String): Boolean = mtContigs.contains(contig)
 
-  def inXPar(l: Locus): Boolean = inX(l.contig) && par.exists(_.contains(locusType.ordering, l))
+  def inXPar(l: Locus, sm: HailStateManager): Boolean = inX(l.contig) && par.exists(_.contains(locusType.ordering(sm), l))
 
-  def inYPar(l: Locus): Boolean = inY(l.contig) && par.exists(_.contains(locusType.ordering, l))
+  def inYPar(l: Locus, sm: HailStateManager): Boolean = inY(l.contig) && par.exists(_.contains(locusType.ordering(sm), l))
 
   def compare(contig1: String, contig2: String): Int = ReferenceGenome.compare(contigsIndex, contig1, contig2)
 
@@ -668,24 +668,23 @@ object ReferenceGenome {
     }
   }
 
-  def writeReference(fs: is.hail.io.fs.FS, path: String, rg: ReferenceGenome) {
+  def writeReference(fs: FS, path: String, rg: ReferenceGenome) {
     val rgPath = path + "/" + rg.name + ".json.gz"
     if (!hailReferences.contains(rg.name) && !fs.exists(rgPath))
       rg.asInstanceOf[ReferenceGenome].write(fs, rgPath)
   }
 
-  def getReferences(t: Type): Set[ReferenceGenome] = {
-    var rgs = Set[ReferenceGenome]()
+  def getReferences(t: Type): Set[String] = {
+    var rgs = Set[String]()
     MapTypes.foreach {
       case tl: TLocus =>
-        rgs += tl.rg.asInstanceOf[ReferenceGenome]
+        rgs += tl.rg
       case _ =>
     }(t)
     rgs
   }
 
-  def exportReferences(fs: is.hail.io.fs.FS, path: String, t: Type) {
-    val rgs = getReferences(t)
+  def exportReferences(fs: FS, path: String, rgs: Set[ReferenceGenome]) {
     rgs.foreach(writeReference(fs, path, _))
   }
 

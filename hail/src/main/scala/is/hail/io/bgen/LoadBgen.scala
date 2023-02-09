@@ -181,7 +181,7 @@ object LoadBgen {
     headers.zip(indexFiles).map { case (h, indexFile) =>
       val (keyType, _) = IndexReader.readTypes(fs, indexFile)
       val rg = keyType.asInstanceOf[TStruct].field("locus").typ match {
-        case TLocus(rg) => Some(rg.value)
+        case TLocus(rgName) => Some(ctx.getReference(rgName))
         case _ => None
       }
       val indexReaderBuilder = {

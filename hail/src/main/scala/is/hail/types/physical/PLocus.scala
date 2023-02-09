@@ -6,11 +6,9 @@ import is.hail.types.virtual.TLocus
 import is.hail.variant._
 
 abstract class PLocus extends PType {
-  def rgBc: BroadcastRG
+  lazy val virtualType: TLocus = TLocus(rg)
 
-  lazy val virtualType: TLocus = TLocus(rgBc)
-
-  def rg: ReferenceGenome
+  def rg: String
 
   def contig(value: Long): String
 

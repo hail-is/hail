@@ -3238,7 +3238,7 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
     val sortColIndexOrd = sortFields.map { case SortField(n, so) =>
       val i = rowType.fieldIdx(n)
       val f = rowType.fields(i)
-      val fo = f.typ.ordering
+      val fo = f.typ.ordering(ctx.stateManager)
       if (so == Ascending) fo else fo.reverse
     }.toArray
 

@@ -38,10 +38,10 @@ final case class TSet(elementType: Type) extends TContainer {
     sb.append("]")
   }
 
-  override lazy val ordering: ExtendedOrdering = mkOrdering()
+  override lazy val ordering(sm: HailStateManager): ExtendedOrdering = mkOrdering(sm)
 
-  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
-    ExtendedOrdering.setOrdering(elementType.ordering, missingEqual)
+  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
+    ExtendedOrdering.setOrdering(elementType.ordering(sm), missingEqual)
 
   override def _showStr(a: Annotation): String =
     a.asInstanceOf[Set[Annotation]]

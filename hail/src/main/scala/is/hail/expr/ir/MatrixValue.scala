@@ -83,8 +83,6 @@ case class MatrixValue(
         s"\n  @1", dups.sortBy(-_._2).map { case (id, count) => s"""($count) "$id"""" }.truncatable("\n  "))
   }
 
-  def referenceGenome: ReferenceGenome = typ.referenceGenome
-
   def colsTableValue(ctx: ExecuteContext): TableValue =
     TableValue(ctx, typ.colsTableType, globals, colsRVD(ctx))
 
@@ -173,7 +171,7 @@ case class MatrixValue(
     val refPath = path + "/references"
     fs.mkDir(refPath)
     Array(typ.colType, typ.rowType, entryType, typ.globalType).foreach { t =>
-      ReferenceGenome.exportReferences(fs, refPath, t)
+      ReferenceGenome.exportReferences(fs, refPath, ReferenceGenome.getReferences(t).map(ctx.getReference(_)))
     }
 
     val spec = MatrixTableSpecParameters(

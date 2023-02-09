@@ -453,7 +453,7 @@ object IRParser {
         punctuation(it, "(")
         val rg = identifier(it)
         punctuation(it, ")")
-        PCanonicalLocus(env.getReferenceGenome(rg), req)
+        PCanonicalLocus(rg, req)
       case "PCCall" => PCanonicalCall(req)
       case "PCArray" =>
         punctuation(it, "[")

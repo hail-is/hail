@@ -224,7 +224,7 @@ object MatrixPLINKReader {
 
     var p = 0
     var prevEnd = 0
-    val lOrd = locusType.ordering
+    val lOrd = locusType.ordering(ctx.stateManager)
     while (p < nPartitions && prevEnd < nVariants) {
       val start = prevEnd
 

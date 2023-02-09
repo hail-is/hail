@@ -526,7 +526,7 @@ case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHe
         val headerStr = Code.invokeScalaObject6[TStruct, TStruct, ReferenceGenome, Option[String], Option[VCFMetadata], Array[String], String](
           ExportVCF.getClass, "makeHeader",
           mb.getType[TStruct](typ.rowType), mb.getType[TStruct](typ.entryType),
-          mb.getReferenceGenome(typ.referenceGenome), mb.getObject(append),
+          mb.getReferenceGenome(typ.referenceGenomeName), mb.getObject(append),
           mb.getObject(metadata), stringSampleIds)
         cb += os.invoke[Array[Byte], Unit]("write", headerStr.invoke[Array[Byte]]("getBytes"))
         cb += os.invoke[Int, Unit]("write", '\n')
@@ -759,7 +759,7 @@ case class VCFExportFinalizer(typ: MatrixType, outputPath: String, append: Optio
     Code.invokeScalaObject6[TStruct, TStruct, ReferenceGenome, Option[String], Option[VCFMetadata], Array[String], String](
       ExportVCF.getClass, "makeHeader",
       mb.getType[TStruct](typ.rowType), mb.getType[TStruct](typ.entryType),
-      mb.getReferenceGenome(typ.referenceGenome), mb.getObject(append),
+      mb.getReferenceGenome(typ.referenceGenomeName), mb.getObject(append),
       mb.getObject(metadata), stringSampleIds)
   }
 

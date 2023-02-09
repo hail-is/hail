@@ -41,9 +41,8 @@ final case class TStream(elementType: Type) extends TIterable {
   override def genNonmissingValue: Gen[Annotation] =
     throw new UnsupportedOperationException("Streams don't have associated annotations.")
 
-  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
+  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
     throw new UnsupportedOperationException("Stream comparison is currently undefined.")
 
   override def scalaClassTag: ClassTag[Iterator[AnyRef]] = classTag[Iterator[AnyRef]]
 }
-

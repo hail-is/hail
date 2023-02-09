@@ -15,8 +15,8 @@ object TBaseStruct {
     * of types of r is a prefix of types, or types is a prefix of the list of
     * types of r.
     */
-  def getOrdering(types: Array[Type], missingEqual: Boolean = true): ExtendedOrdering =
-    ExtendedOrdering.rowOrdering(types.map(_.ordering), missingEqual)
+  def getOrdering(sm: HailStateManager, types: Array[Type], missingEqual: Boolean = true): ExtendedOrdering =
+    ExtendedOrdering.rowOrdering(types.map(_.ordering(sm)), missingEqual)
 
   def getJoinOrdering(types: Array[Type], missingEqual: Boolean = false): ExtendedOrdering =
     ExtendedOrdering.rowOrdering(types.map(_.mkOrdering(missingEqual = missingEqual)), _missingEqual = missingEqual)

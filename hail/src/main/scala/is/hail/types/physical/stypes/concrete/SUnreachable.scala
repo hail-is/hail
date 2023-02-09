@@ -131,7 +131,7 @@ case class SUnreachableLocus(virtualType: TLocus) extends SUnreachable with SLoc
 
   override def contigType: SString = SUnreachableString
 
-  override def rg: ReferenceGenome = virtualType.rg
+  override def rg: String = virtualType.rg
 }
 
 class SUnreachableLocusValue(override val st: SUnreachableLocus) extends SUnreachableValue with SLocusValue {

@@ -1,6 +1,7 @@
 package is.hail.types.physical
 
 import is.hail.annotations._
+import is.hail.backend.HailStateManager
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.physical.stypes.SValue
@@ -10,9 +11,9 @@ import is.hail.utils.FastIndexedSeq
 import is.hail.variant._
 
 object PCanonicalLocus {
-  def apply(rg: ReferenceGenome): PCanonicalLocus = PCanonicalLocus(rg.broadcastRG)
+  def apply(rgName: String): PCanonicalLocus = PCanonicalLocus(rgName)
 
-  def apply(rg: ReferenceGenome, required: Boolean): PCanonicalLocus = PCanonicalLocus(rg.broadcastRG, required)
+  def apply(rgName: String, required: Boolean): PCanonicalLocus = PCanonicalLocus(rgName, required)
 
   private def representation(required: Boolean = false): PCanonicalStruct = PCanonicalStruct(
     required,
@@ -20,26 +21,26 @@ object PCanonicalLocus {
     "position" -> PInt32(required = true))
 
   def schemaFromRG(rg: Option[ReferenceGenome], required: Boolean = false): PType = rg match {
-    case Some(ref) => PCanonicalLocus(ref, required)
+    case Some(ref) => PCanonicalLocus(ref.name, required)
     case None => representation(required)
   }
 }
 
-final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) extends PLocus {
+final case class PCanonicalLocus(rgName: String, required: Boolean = false) extends PLocus {
 
   def byteSize: Long = representation.byteSize
   override def alignment: Long = representation.alignment
 
   override def copiedType: PType = this
 
-  def rg: ReferenceGenome = rgBc.value
+  def rg: String = rgName
 
   def _asIdent = "locus"
 
-  override def _pretty(sb: StringBuilder, indent: Call, compact: Boolean): Unit = sb.append(s"PCLocus($rg)")
+  override def _pretty(sb: StringBuilder, indent: Call, compact: Boolean): Unit = sb.append(s"PCLocus($rgName)")
 
   def setRequired(required: Boolean): PCanonicalLocus =
-    if (required == this.required) this else PCanonicalLocus(this.rgBc, required)
+    if (required == this.required) this else PCanonicalLocus(this.rgName, required)
 
   val representation: PCanonicalStruct = PCanonicalLocus.representation(required)
 
@@ -57,8 +58,8 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
   lazy val positionType: PInt32 = representation.field("position").typ.asInstanceOf[PInt32]
 
   // FIXME: Remove when representation of contig/position is a naturally-ordered Long
-  override def unsafeOrdering(): UnsafeOrdering = {
-    val localRGBc = rgBc
+  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = {
+    val localRg = sm.referenceGenomes(rgName)
     val binaryOrd = representation.fieldType("contig").unsafeOrdering()
 
     new UnsafeOrdering {
@@ -73,7 +74,7 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
         } else {
           val contig1 = contigType.loadString(cOff1)
           val contig2 = contigType.loadString(cOff2)
-          localRGBc.value.compare(contig1, contig2)
+          localRg.compare(contig1, contig2)
         }
       }
     }

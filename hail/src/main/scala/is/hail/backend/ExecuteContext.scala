@@ -114,6 +114,8 @@ class ExecuteContext(
 
   val rngNonce: Long = java.lang.Long.decode(getFlag("rng_nonce"))
 
+  val stateManager = HailStateManager(referenceGenomes)
+
   private val tempFileManager: TempFileManager = if (_tempFileManager != null)
     _tempFileManager
   else

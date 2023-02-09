@@ -47,8 +47,6 @@ final case class TArray(elementType: Type) extends TContainer {
   override def genNonmissingValue: Gen[IndexedSeq[Annotation]] =
     Gen.buildableOf[Array](elementType.genValue).map(x => x: IndexedSeq[Annotation])
 
-  override def ordering(sm: HailStateManager): ExtendedOrdering = mkOrdering(sm)
-
   def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
     ExtendedOrdering.iterableOrdering(elementType.ordering(sm), missingEqual)
 

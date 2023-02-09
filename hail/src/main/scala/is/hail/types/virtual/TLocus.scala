@@ -29,6 +29,8 @@ case class TLocus(rgName: String) extends Type {
 
   def _toPretty = s"Locus($rgName)"
 
+  def rg: String = rgName
+
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("locus<")
     sb.append(prettyIdentifier(rgName))
@@ -39,8 +41,6 @@ case class TLocus(rgName: String) extends Type {
   override def genNonmissingValue: Gen[Annotation] = Locus.gen(null)  // FIXME
 
   override def scalaClassTag: ClassTag[Locus] = classTag[Locus]
-
-  override def ordering(sm: HailStateManager): ExtendedOrdering = mkOrdering(sm)
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean = true): ExtendedOrdering =
     ExtendedOrdering.extendToNull(sm.referenceGenomes(rgName).locusOrdering, missingEqual)

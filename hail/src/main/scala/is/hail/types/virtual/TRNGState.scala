@@ -7,6 +7,6 @@ case object TRNGState extends Type {
     sb.append("rng_state")
   }
   def _typeCheck(a: Any): Boolean = ???
-  def mkOrdering(missingEqual: Boolean): is.hail.annotations.ExtendedOrdering = ???
+  def mkOrdering(sm: HailStateManager, missingEqual: Boolean): is.hail.annotations.ExtendedOrdering = ???
   def scalaClassTag: scala.reflect.ClassTag[_ <: AnyRef] = ???
 }

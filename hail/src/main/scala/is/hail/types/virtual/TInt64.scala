@@ -20,9 +20,6 @@ case object TInt64 extends TIntegral {
 
   override def scalaClassTag: ClassTag[java.lang.Long] = classTag[java.lang.Long]
 
-  override val ordering: ExtendedOrdering = mkOrdering()
-
-  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
+  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Long]], missingEqual)
 }
-

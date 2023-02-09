@@ -47,20 +47,20 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
 
   def getFS: Value[FS] = new StaticFieldRef(_staticFS)
 
-  private val rgContainers: mutable.Map[ReferenceGenome, StaticField[ReferenceGenome]] = mutable.Map.empty
+  private val rgContainers: mutable.Map[String, StaticField[ReferenceGenome]] = mutable.Map.empty
 
   def hasReferences: Boolean = rgContainers.nonEmpty
 
-  def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] = {
+  def getReferenceGenome(rg: String): Value[ReferenceGenome] = {
     val rgField = rgContainers.getOrElseUpdate(rg, {
-      val cls = genEmitClass[Unit](s"RGContainer_${rg.name}")
+      val cls = genEmitClass[Unit](s"RGContainer_${rg}")
       cls.newStaticField("reference_genome", Code._null[ReferenceGenome])
     })
     new StaticFieldRef(rgField)
   }
 
-  def referenceGenomes(): IndexedSeq[ReferenceGenome] = rgContainers.keys.toFastIndexedSeq.sortBy(_.name)
-  def referenceGenomeFields(): IndexedSeq[StaticField[ReferenceGenome]] = rgContainers.toFastIndexedSeq.sortBy(_._1.name).map(_._2)
+  def referenceGenomes(): IndexedSeq[ReferenceGenome] = rgContainers.keys.map(ctx.getReference(_)).toIndexedSeq.sortBy(_.name)
+  def referenceGenomeFields(): IndexedSeq[StaticField[ReferenceGenome]] = rgContainers.toFastIndexedSeq.sortBy(_._1).map(_._2)
 
   var _rgMapField: StaticFieldRef[Map[String, ReferenceGenome]] = null
 
@@ -88,7 +88,7 @@ trait WrappedEmitModuleBuilder {
 
   def genEmitClass[C](baseName: String)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] = emodb.genEmitClass[C](baseName)
 
-  def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] = emodb.getReferenceGenome(rg)
+  def getReferenceGenome(rg: String): Value[ReferenceGenome] = emodb.getReferenceGenome(rg)
 }
 
 trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {

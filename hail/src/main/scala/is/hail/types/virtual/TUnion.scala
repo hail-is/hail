@@ -123,5 +123,5 @@ final case class TUnion(cases: IndexedSeq[Case]) extends Type {
 
   override def scalaClassTag: ClassTag[AnyRef] = ???
 
-  def mkOrdering(missingEqual: Boolean): ExtendedOrdering = ???
+  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering = ???
 }

@@ -24,8 +24,8 @@ case object TCall extends Type {
 
   override def str(a: Annotation): String = if (a == null) "NA" else Call.toString(a.asInstanceOf[Call])
 
-  override val ordering: ExtendedOrdering = mkOrdering()
+  override val ordering(sm: HailStateManager): ExtendedOrdering = mkOrdering(sm)
 
-  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
+  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Int]], missingEqual)
 }
