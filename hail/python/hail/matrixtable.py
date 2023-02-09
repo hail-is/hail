@@ -609,34 +609,50 @@ class MatrixTable(ExprContainer):
         |       1 |           3 |           4 |
         +---------+-------------+-------------+
 
+        Notes
+        -----
+        - Matrix dimensions are inferred from input data.
+        - You must provide row and column dimensions by specifying rows or
+          entries (inclusive) and cols or entries (inclusive).
+        - The respective dimensions of rows, cols and entries must match should
+          you provide rows and entries or cols and entries (inclusive).
+
         Parameters
         ----------
         globals : :class:`dict` from :class:`str` to :obj:`any`
-            Global fields by name
+            Global fields by name.
 
         rows: :class:`dict` from :class:`str` to :class:`list` of :obj:`any`
-            Row fields by name
+            Row fields by name.
 
         cols: :class:`dict` from :class:`str` to :class:`list` of :obj:`any`
-            Column fields by name
+            Column fields by name.
 
         entries: :class:`dict` from :class:`str` to :class:`list` of :class:`list` of :obj:`any`
-            Matrix entries by name in the form `entry[row_idx][col_idx]`
+            Matrix entries by name in the form `entry[row_idx][col_idx]`.
 
         Returns
         -------
         :class:`.MatrixTable`
-            A MatrixTable assembled from inputs keyed by `row_idx`
-
-        Notes
-        -----
-        - The number of rows and columns specified in `rows` and `cols` for all
-          fields must match the matrix dimensions in `entries`.
-        - This method is intended for educational and testing purposes only.
+            A MatrixTable assembled from inputs whose rows are keyed by `row_idx`
+            and columns are keyed by `col_idx`.
         """
         # General idea: build a `Table` representation matching that returned by
-        # `MatrixTable.localize_entries` and then call `_unlocalize_entries`.
-        def invert(kvs: Dict[str, Iterable[Any]]) -> List[Dict[str, Any]]:
+        # `MatrixTable.localize_entries` and then call `_unlocalize_entries`. In
+        # this form, the column table is bundled with the globals and the entries
+        # for each row is stored on the row.
+        def raise_when_mismatched_property_dimensions(kvs: Dict[str, Iterable[Any]]):
+            def value_len(entry):
+                return len(entry[1])
+
+            kvs = sorted(kvs.items(), key=value_len)
+            dims = itertools.groupby(kvs, value_len)
+            dims = {size: [k for k, _ in group] for size, group in dims}
+            if len(dims) > 1:
+                raise ValueError(f"property matrix dimensions do not match: {dims}.")
+
+        def transpose(kvs: Dict[str, Iterable[Any]]) -> List[Dict[str, Any]]:
+            raise_when_mismatched_property_dimensions(kvs)
             return [dict(zip(kvs, vs)) for vs in zip(*kvs.values())]
 
         def anyval(kvs):
@@ -644,32 +660,35 @@ class MatrixTable(ExprContainer):
 
         # In the case rows or cols aren't specified, we need to infer the
         # matrix dimensions from *an* entry. Which one isn't important as we
-        # won't enforce congruence among input dimensions.
+        # enforce congruence among input dimensions.
         assert not ((rows is None or cols is None) and (entries is None))
-        cols = invert(cols) if cols else [{} for _ in anyval(entries)[0]]
+        cols = transpose(cols) if cols else [{} for _ in anyval(entries)[0]]
         for i, _ in enumerate(cols):
             cols[i] = hl.struct(col_idx=i, **cols[i])
 
-        # While globals aren't required, `MatrixTable._unlocalize_entries`
-        # extracts matrix columns from the the `Table`'s globals.
         if globals is None:
             globals = {}
 
-        cols_field_name = 'columns'
+        cols_field_name = Env.get_uid()
         globals[cols_field_name] = cols
 
-        # `MatrixTable._unlocalize_entries` extracts matrix entries from the
-        # rows on the table, so these need to be defined too.
-        rows = invert(rows) if rows else [{} for _ in anyval(entries)]
-        entries = map(invert, invert(entries)) if entries else [[{} for _ in cols] for _ in rows]
+        rows = transpose(rows) if rows else [{} for _ in anyval(entries)]
+        entries = [transpose(e) for e in transpose(entries)
+                   ] if entries else [[{} for _ in cols] for _ in rows]
 
-        entries_field_name = 'entry_structs'
-        for i, (row_pros, entry_props) in enumerate(zip(rows, entries)):
+        if len(rows) != len(entries) or len(cols) != len(entries[0]):
+            raise ValueError((
+                "mismatched matrix dimensions: "
+                "number of rows and cols does not match entry dimensions."
+            ))
+
+        entries_field_name = Env.get_uid()
+        for i, (row_props, entry_props) in enumerate(zip(rows, entries)):
             row_entries = [hl.struct(**kvs) for kvs in entry_props]
-            rows[i] = hl.struct(row_idx=i, **row_pros, **{entries_field_name: row_entries})
+            rows[i] = hl.Struct(row_idx=i, **row_props, **{entries_field_name: row_entries})
 
         ht = Table.parallelize(rows, key='row_idx', globals=hl.struct(**globals))
-        return ht._unlocalize_entries(entries_field_name, cols_field_name, col_key=[])
+        return ht._unlocalize_entries(entries_field_name, cols_field_name, col_key=['col_idx'])
 
     def __init__(self, mir):
         super(MatrixTable, self).__init__()
