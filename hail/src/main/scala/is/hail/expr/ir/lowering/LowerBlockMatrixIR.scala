@@ -258,11 +258,11 @@ object BMSContexts {
   }
 
   def tabulate(typ: BlockMatrixType)(f: (IR, IR) => IR): BMSContexts = {
-    val contexts = mapIR(typ.sparsity.allBlocksColMajorIR(typ.nRowBlocks, typ.nColBlocks)) { coords =>
+    val contexts = ToArray(mapIR(typ.sparsity.allBlocksColMajorIR(typ.nRowBlocks, typ.nColBlocks)) { coords =>
       bindIRs(GetTupleElement(coords, 0), GetTupleElement(coords, 1)) { case Seq(i, j) =>
         f(i, j)
       }
-    }
+    })
     typ.sparsity.definedBlocksCSC(typ.nColBlocks) match {
       case Some((pos, idx)) =>
         val t = TArray(TInt32)
@@ -315,7 +315,7 @@ case class DenseContexts(nRows: Int, nCols: Int, contexts: IR) extends BMSContex
 
   def map(f: (IR, IR, IR, IR) => IR): DenseContexts = {
     DenseContexts(nRows, nCols,
-      flatMapIR(rangeIR(nCols)) { j =>
+      ToArray(flatMapIR(rangeIR(nCols)) { j =>
         mapIR(rangeIR(nRows)) { i =>
           bindIR((j * nRows) + i) { pos =>
             bindIR(ArrayRef(contexts, pos)) { old =>
@@ -323,13 +323,13 @@ case class DenseContexts(nRows: Int, nCols: Int, contexts: IR) extends BMSContex
             }
           }
         }
-      })
+      }))
   }
 
   def zip(other: BMSContexts): BMSContexts = {
-    val newContexts = zip2(
-      this.contexts, other.contexts, ArrayZipBehavior.AssertSameLength
-    ) { (l, r) => maketuple(l, r) }
+    val newContexts = ToArray(zip2(
+      ToStream(this.contexts), ToStream(other.contexts), ArrayZipBehavior.AssertSameLength
+    ) { (l, r) => maketuple(l, r) })
     DenseContexts(nRows, nCols, newContexts)
   }
 
@@ -577,12 +577,12 @@ class BlockMatrixStage2 private (
   }
 
   private def mapBody2Aligned(other: BlockMatrixStage2)(f: (IR, IR) => IR): BlockMatrixStage2 = {
-    val ctxRef = Ref(genUID(), contexts.elementType)
+    val newContexts = contexts.zip(other.contexts)
+    val ctxRef = Ref(genUID(), newContexts.elementType)
     val newBlockIR =
       bindIRs(GetTupleElement(ctxRef, 0), GetTupleElement(ctxRef, 1)) { case Seq(l, r) =>
         f(this.blockIR(l), other.blockIR(r))
       }
-    val newContexts = contexts.zip(other.contexts)
     val newType = typ.copy(elementType = newBlockIR.typ.asInstanceOf[TNDArray].elementType)
     new BlockMatrixStage2(
       letBindings ++ other.letBindings,
@@ -609,9 +609,9 @@ class BlockMatrixStage2 private (
       Let(f, GetField(bcRef, f), accum)
     }
 
-    val cdaContexts = contexts.map { (rowIdx, colIdx, pos, oldContext) =>
+    val cdaContexts = ToStream(contexts.map { (rowIdx, colIdx, pos, oldContext) =>
       maketuple(pos, oldContext)
-    }.contexts
+    }.contexts)
 
     val collect = wrapLetsAndBroadcasts(CollectDistributedArray(cdaContexts, bcVals, newCtxRef.name, bcRef.name, wrappedBody, dynamicID, staticID))
     LowerToCDA.substLets(collect, relationalBindings)
