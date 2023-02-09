@@ -1,33 +1,37 @@
 import os
 import unittest
-from subprocess import DEVNULL, call as syscall
+import subprocess as sp
 
 import hail as hl
 import hail.utils as utils
-from ...helpers import get_dataset, fails_service_backend, fails_local_backend
+from ...helpers import get_dataset
 
 
 class Tests(unittest.TestCase):
-    @fails_service_backend()
-    @fails_local_backend()
     @unittest.skipIf('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
     def test_ibd(self):
         dataset = get_dataset()
 
         def plinkify(ds, min=None, max=None):
             vcf = utils.new_temp_file(prefix="plink", extension="vcf")
-            plinkpath = utils.new_temp_file(prefix="plink")
             hl.export_vcf(ds, vcf)
+
+            local_tmpdir = utils.new_local_temp_dir()
+            plinkpath = f'{local_tmpdir}/plink-ibd'
+            local_vcf = f'{local_tmpdir}/input.vcf'
+
+            hl.hadoop_copy(vcf, local_vcf)
+
             threshold_string = "{} {}".format("--min {}".format(min) if min else "",
                                               "--max {}".format(max) if max else "")
 
             plink_command = "plink --double-id --allow-extra-chr --vcf {} --genome full --out {} {}" \
-                .format(utils.uri_path(vcf),
+                .format(utils.uri_path(local_vcf),
                         utils.uri_path(plinkpath),
                         threshold_string)
             result_file = utils.uri_path(plinkpath + ".genome")
 
-            syscall(plink_command, shell=True, stdout=DEVNULL, stderr=DEVNULL)
+            sp.run(plink_command, check=True, capture_output=True, shell=True)
 
             ### format of .genome file is:
             # _, fid1, iid1, fid2, iid2, rt, ez, z0, z1, z2, pihat, phe,
