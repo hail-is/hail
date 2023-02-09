@@ -1,9 +1,9 @@
 package is.hail.types
 
 import is.hail.expr.ir._
-import is.hail.utils._
-import is.hail.types.virtual.{TArray, TFloat64, TInt32, TString, TTuple, Type}
 import is.hail.linalg.BlockMatrix
+import is.hail.types.virtual._
+import is.hail.utils._
 import org.apache.spark.sql.Row
 
 object BlockMatrixSparsity {
@@ -34,6 +34,55 @@ object BlockMatrixSparsity {
       BlockMatrixSparsity(blocks.map { linearIdx => java.lang.Math.floorDiv(linearIdx, nColBlocks) -> linearIdx % nColBlocks })
     }.getOrElse(dense)
   }
+  def transposeCSCSparsity(
+    nRows: Int, nCols: Int, rowPos: IndexedSeq[Int], rowIdx: IndexedSeq[Int]
+  ): (IndexedSeq[Int], IndexedSeq[Int], IndexedSeq[Int]) = {
+    val newRowPos = Array[Int](nRows + 1)
+    val newRowIdx = Array[Int](rowIdx.length)
+    val newToOldPos = Array[Int](rowIdx.length)
+
+    // count size of each row
+    var curPos = 0
+    while (curPos < rowIdx.length) {
+      newRowPos(rowIdx(curPos)) += 1
+      curPos += 1
+    }
+
+    // compute prefix sum over row sizes
+    var i = 0
+    var prefixSum = 0
+    while (i < nRows) {
+      prefixSum += newRowPos(i)
+      newRowPos(i + 1) = prefixSum
+      i += 1
+    }
+
+    // fill in newRowIdx and newToOldPos
+    val curRowPositions = newRowPos.clone()
+    var j = 0
+    while (j < nCols) {
+      curPos = rowPos(j)
+      val endPos = rowPos(j + 1)
+      while (curPos < endPos) {
+        val i = rowIdx(curPos)
+        val newPos = curRowPositions(i)
+        newRowIdx(newPos) = j
+        newToOldPos(newPos) = curPos
+        curPos += 1
+      }
+      j += 1
+    }
+
+    (newRowPos, newRowIdx, newToOldPos)
+  }
+
+  def transposeCSCSparsityIR(
+    nRows: Int, nCols: Int, rowPos: IndexedSeq[Int], rowIdx: IndexedSeq[Int]
+  ): (IR, IR, IR) = {
+    val (newRowPos, newRowIdx, newToOldPos) = transposeCSCSparsity(nRows, nCols, rowPos, rowIdx)
+    val t = TArray(TInt32)
+    (Literal(t, newRowPos), Literal(t, newRowIdx), Literal(t, newToOldPos))
+  }
 }
 
 case class BlockMatrixSparsity(definedBlocks: Option[IndexedSeq[(Int, Int)]]) {
@@ -41,6 +90,33 @@ case class BlockMatrixSparsity(definedBlocks: Option[IndexedSeq[(Int, Int)]]) {
     blocks.sortWith { case ((i1, j1), (i2, j2)) =>
         j1 < j2 || (j1 == j2 && i1 < i2)
     }
+  }
+
+  def definedBlocksCSC(nCols: Int): Option[(IndexedSeq[Int], IndexedSeq[Int])] = definedBlocksColMajor.map { blocks =>
+    var curColIdx = 0
+    var curPos = 0
+    val pos = new Array[Int](nCols + 1)
+    val rowIdx = new IntArrayBuilder()
+
+    pos(0) = 0
+    for ((i, j) <- blocks) {
+      while (curColIdx < j) {
+        pos(curColIdx + 1) = curPos
+        curColIdx += 1
+      }
+      rowIdx += i
+      curPos += 1
+    }
+    while (curColIdx < nCols) {
+      pos(curColIdx + 1) = curPos
+      curColIdx += 1
+    }
+    (pos, rowIdx.result())
+  }
+
+  def definedBlocksCSCIR(nCols: Int): Option[(IR, IR)] = definedBlocksCSC(nCols).map { case (rowPos, rowIdx) =>
+    val t = TArray(TInt32)
+    (Literal(t, rowPos), Literal(t, rowIdx))
   }
 
   def definedBlocksColMajorIR: Option[IR] = definedBlocksColMajor.map { blocks =>
@@ -120,6 +196,9 @@ case class BlockMatrixSparsity(definedBlocks: Option[IndexedSeq[(Int, Int)]]) {
     }
   }
 
+  def transpose: BlockMatrixSparsity =
+    BlockMatrixSparsity(definedBlocks.map(_.map { case (i, j) => (j, i) }))
+
   override def toString: String =
     definedBlocks.map { blocks =>
       blocks.map { case (i, j) => s"($i,$j)" }.mkString("[", ",", "]")
@@ -176,13 +255,25 @@ case class BlockMatrixType(
   lazy val nColBlocks: Int = BlockMatrixType.numBlocks(nCols, blockSize)
   lazy val defaultBlockShape: (Int, Int) = (nRowBlocks, nColBlocks)
 
+  def densify: BlockMatrixType = copy(sparsity = BlockMatrixSparsity(None))
+
   def getBlockIdx(i: Long): Int = java.lang.Math.floorDiv(i, blockSize).toInt
   def isSparse: Boolean = sparsity.isSparse
   def nDefinedBlocks: Int =
     if (isSparse) sparsity.definedBlocks.get.length else nRowBlocks * nColBlocks
-  def hasBlock(idx: (Int, Int)): Boolean = {
+  def hasBlock(idx: (Int, Int)): Boolean =
     if (isSparse) sparsity.hasBlock(idx) else true
+
+  def transpose: BlockMatrixType = {
+    val newShape = shape match {
+      case Seq() => IndexedSeq()
+      case Seq(m) => IndexedSeq(m)
+      case Seq(m, n) => IndexedSeq(n, m)
+    }
+    val newIsRowVector = (shape.length == 1) && !isRowVector
+    BlockMatrixType(elementType, newShape, newIsRowVector, blockSize, sparsity.transpose)
   }
+
   def allBlocksColMajor: IndexedSeq[(Int, Int)] = sparsity.allBlocksColMajor(nRowBlocks, nColBlocks)
   def allBlocksColMajorIR: IR = sparsity.allBlocksColMajorIR(nRowBlocks, nColBlocks)
   def allBlocksRowMajor: IndexedSeq[(Int, Int)] = sparsity.allBlocksRowMajor(nRowBlocks, nColBlocks)
@@ -205,6 +296,18 @@ case class BlockMatrixType(
     val c = If(j.ceq(nColBlocks - 1), I64(nCols) - (j.toL * blockSize.toLong), blockSize.toLong)
     r -> c
   }
+
+  private[this] def getBlockDependencies(keep: Array[Array[Long]]): Array[Array[Int]] =
+    keep.map(keeps => Array.range(BlockMatrixType.getBlockIdx(keeps.head, blockSize), BlockMatrixType.getBlockIdx(keeps.last, blockSize) + 1)).toArray
+
+  def rowBlockDependents(keepRows: Array[Array[Long]]): Array[Array[Int]] = if (keepRows.isEmpty)
+    Array.tabulate(nRowBlocks)(i => Array(i))
+  else
+    getBlockDependencies(keepRows)
+  def colBlockDependents(keepCols: Array[Array[Long]]): Array[Array[Int]] = if (keepCols.isEmpty)
+    Array.tabulate(nColBlocks)(i => Array(i))
+  else
+    getBlockDependencies(keepCols)
 
   override def pretty(sb: StringBuilder, indent0: Int, compact: Boolean): Unit = {
     var indent = indent0

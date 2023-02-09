@@ -6,7 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations.NDArray
 import is.hail.backend.{BackendContext, ExecuteContext}
 import is.hail.expr.Nat
-import is.hail.expr.ir.lowering.{BlockMatrixStage2, LowererUnsupportedOperation}
+import is.hail.expr.ir.lowering.{BlockMatrixStage2, DenseContexts, LowererUnsupportedOperation, SparseContexts}
 import is.hail.io.fs.FS
 import is.hail.io.{StreamBufferSpec, TypedCodecSpec}
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata}
@@ -158,9 +158,14 @@ class BlockMatrixNativeReader(
 
   override def lower(ctx: ExecuteContext): BlockMatrixStage2 = {
     val fileNames = Literal(TArray(TString), metadata.partFiles)
-    val fileNamesRef = Ref(genUID(), fileNames.typ)
-    def contextIR(blockRow: IR, blockCol: IR): IR =
-      ArrayRef(fileNamesRef, (blockCol * fullType.nRowBlocks) + blockRow)
+
+    val contexts = if (fullType.isSparse) {
+      val (rowPos, rowIdx) = fullType.sparsity.definedBlocksCSC(fullType.nColBlocks).get
+      val t = TArray(TInt32)
+      SparseContexts(fullType, Literal(t, rowPos), Literal(t, rowIdx), fileNames)
+    } else {
+      DenseContexts(fullType, fileNames)
+    }
 
     val vType = TNDArray(fullType.elementType, Nat(2))
     val spec = TypedCodecSpec(EBlockMatrixNDArray(EFloat64(required = true), required = true), vType, BlockMatrix.bufferSpec)
@@ -174,10 +179,9 @@ class BlockMatrixNativeReader(
     }
 
     BlockMatrixStage2(
-      FastIndexedSeq(fileNamesRef.name -> fileNames),
       FastIndexedSeq(),
-      fullType,
-      contextIR,
+      FastIndexedSeq(),
+      contexts,
       blockIR)
   }
 
@@ -215,13 +219,17 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
     val ndRef = Ref(genUID(), nd.typ)
 
     val typ = fullType
-    def contextIR(blockRow: IR, blockCol: IR): IR =
-      NDArraySlice(ndRef, MakeTuple.ordered(FastSeq(
-        MakeTuple.ordered(FastSeq(blockRow.toL * blockSize.toLong, minIR((blockRow + 1).toL * blockSize.toLong, nRows), 1L)),
-        MakeTuple.ordered(FastSeq(blockCol.toL * blockSize.toLong, minIR((blockCol + 1).toL * blockSize.toLong, nCols), 1L)))))
+    val contexts = ToArray(flatMapIR(rangeIR(typ.nColBlocks)) { blockCol =>
+      mapIR(rangeIR(typ.nRowBlocks)) { blockRow =>
+        NDArraySlice(ndRef, MakeTuple.ordered(FastSeq(
+          MakeTuple.ordered(FastSeq(blockRow.toL * blockSize.toLong, minIR((blockRow + 1).toL * blockSize.toLong, nRows), 1L)),
+          MakeTuple.ordered(FastSeq(blockCol.toL * blockSize.toLong, minIR((blockCol + 1).toL * blockSize.toLong, nCols), 1L)))))
+      }
+    })
 
     def blockIR(ctx: IR) = ctx
-    BlockMatrixStage2(FastIndexedSeq(ndRef.name -> nd), FastIndexedSeq(), typ, contextIR, blockIR)
+
+    BlockMatrixStage2(FastIndexedSeq(ndRef.name -> nd), FastIndexedSeq(), DenseContexts(typ, contexts), blockIR)
   }
 }
 
@@ -674,11 +682,8 @@ case class BlockMatrixFilter(
   lazy val keepRowPartitioned: Array[Array[Long]] = keepRow.grouped(blockSize).toArray
   lazy val keepColPartitioned: Array[Array[Long]] = keepCol.grouped(blockSize).toArray
 
-  private[this] def packOverlap(keep: Array[Array[Long]]): Array[Array[Int]] =
-    keep.map(keeps => Array.range(BlockMatrixType.getBlockIdx(keeps.head, blockSize), BlockMatrixType.getBlockIdx(keeps.last, blockSize) + 1)).toArray
-
-  lazy val rowBlockDependents: Array[Array[Int]] = if (keepRow.isEmpty) Array.tabulate(child.typ.nRowBlocks)(i => Array(i)) else packOverlap(keepRowPartitioned)
-  lazy val colBlockDependents: Array[Array[Int]] = if (keepCol.isEmpty) Array.tabulate(child.typ.nColBlocks)(i => Array(i)) else packOverlap(keepColPartitioned)
+  lazy val rowBlockDependents: Array[Array[Int]] = child.typ.rowBlockDependents(keepRowPartitioned)
+  lazy val colBlockDependents: Array[Array[Int]] = child.typ.colBlockDependents(keepColPartitioned)
 
   override lazy val typ: BlockMatrixType = {
     val childTensorShape = child.typ.shape
