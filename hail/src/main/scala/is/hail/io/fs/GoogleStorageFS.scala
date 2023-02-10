@@ -264,7 +264,6 @@ class GoogleStorageFS(
       private[this] val write: WriteChannel = storage.writer(blobInfo)
 
       override def flush(): Unit = {
-        log.info(f"flush: ${filename}")
         bb.flip()
 
         while (bb.remaining() > 0)
@@ -282,6 +281,7 @@ class GoogleStorageFS(
           }
           closed = true
         }
+        log.info(f"closed: ${filename}")
       }
     }
 
