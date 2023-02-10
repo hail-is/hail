@@ -6,7 +6,7 @@ from hailtop import httpx
 from hailtop.aiocloud.common.credentials import CloudCredentials
 from hailtop.aiocloud.common import Session
 from hailtop.config import get_deploy_config, DeployConfig
-from hailtop.utils import async_to_blocking, retry_transient_errors
+from hailtop.utils import async_to_blocking, retry_transient_errors, sleep_and_backoff
 
 from .tokens import Tokens, get_tokens
 
@@ -45,6 +45,14 @@ def hail_credentials(*, credentials_file: Optional[str] = None, namespace: Optio
         namespace=namespace,
         authorize_target=authorize_target
     )
+
+
+class CreateUserException(Exception):
+    pass
+
+
+class DeleteUserException(Exception):
+    pass
 
 
 def namespace_auth_headers(deploy_config: DeployConfig,
@@ -137,35 +145,60 @@ def create_user(username: str, login_id: str, is_developer: bool, is_service_acc
     return async_to_blocking(async_create_user(username, login_id, is_developer, is_service_account, namespace=namespace))
 
 
-async def async_create_user(username: str, login_id: str, is_developer: bool, is_service_account: bool, namespace: Optional[str] = None):
+async def async_create_user(username: str, login_id: str, is_developer: bool, is_service_account: bool, namespace: Optional[str] = None, *, wait: bool = False):
     deploy_config, headers, _ = deploy_config_and_headers_from_namespace(namespace)
 
-    body = {
-        'login_id': login_id,
-        'is_developer': is_developer,
-        'is_service_account': is_service_account,
-    }
+    try:
+        body = {
+            'login_id': login_id,
+            'is_developer': is_developer,
+            'is_service_account': is_service_account,
+        }
 
-    async with httpx.client_session(
-            timeout=aiohttp.ClientTimeout(total=30),
-            headers=headers) as session:
-        await retry_transient_errors(
-            session.post,
-            deploy_config.url('auth', f'/api/v1alpha/users/{username}/create'),
-            json=body
-        )
+        async with httpx.client_session(
+                timeout=aiohttp.ClientTimeout(total=30),
+                headers=headers) as session:
+            await retry_transient_errors(
+                session.post,
+                deploy_config.url('auth', f'/api/v1alpha/users/{username}/create'),
+                json=body
+            )
+
+        if wait:
+            await _wait_user_state_transition(username, namespace, 'creating', 'active')
+            print(f'Created user {username}')
+    except Exception as e:
+        raise CreateUserException(f"Error while creating user '{username}'") from e
 
 
 def delete_user(username: str, namespace: Optional[str] = None):
     return async_to_blocking(async_delete_user(username, namespace=namespace))
 
 
-async def async_delete_user(username: str, namespace: Optional[str] = None):
+async def async_delete_user(username: str, namespace: Optional[str] = None, *, wait: bool = False):
     deploy_config, headers, _ = deploy_config_and_headers_from_namespace(namespace)
-    async with httpx.client_session(
-            timeout=aiohttp.ClientTimeout(total=300),
-            headers=headers) as session:
-        await retry_transient_errors(
-            session.delete,
-            deploy_config.url('auth', f'/api/v1alpha/users/{username}')
-        )
+
+    try:
+        async with httpx.client_session(
+                timeout=aiohttp.ClientTimeout(total=300),
+                headers=headers) as session:
+            await retry_transient_errors(
+                session.delete,
+                deploy_config.url('auth', f'/api/v1alpha/users/{username}')
+            )
+
+        if wait:
+            await _wait_user_state_transition(username, namespace, 'deleting', 'deleted')
+            print(f'Deleted user {username}')
+    except Exception as e:
+        raise DeleteUserException(f"Error while deleting user '{username}'") from e
+
+
+async def _wait_user_state_transition(username: str, namespace: Optional[str], transitory_state: str, final_state: str):
+    delay = 5
+    while True:
+        user = await async_get_user(username, namespace)
+        if user['state'] == final_state:
+            return
+        assert user['state'] == transitory_state
+        delay = await sleep_and_backoff(delay)

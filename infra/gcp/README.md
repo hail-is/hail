@@ -41,6 +41,9 @@ Instructions:
    - https://auth.<domain>/oauth2callback
    - http://127.0.0.1/oauth2callback
 
+  as well as any number of test oauth2callbacks under `https://internal.<domain>/` to be used
+  by test namespaces if you are deploying CI (see ci_config.json below).
+
   Download the client secret as `/tmp/auth_oauth2_client_secret.json`.
 
 - Create `infra/gcp/$GITHUB_ORGANIZATION/global.tfvars` based on the template below, where `$GITHUB_ORGANIZATION` corresponds to the GitHub organization used for your Hail Batch deployment (e.g. [`hail-is`](https://github.com/hail-is/hail)). This avoids collisions between configuration files from different Hail deployments.
@@ -109,6 +112,10 @@ Instructions:
               true,
               false
           ]
+      ],
+      "test_oauth2_callback_urls": [
+        "https://internal.hail.is/alpha/oauth2callback",
+        "https://internal.hail.is/beta/oauth2callback"
       ]
   }
   ```
@@ -228,14 +235,16 @@ You can now install Hail:
 - Create the batch worker VM image. Run:
 
   ```
-  $HAIL/batch/gcp-create-worker-image.sh
+  cd $HAIL/batch
+  ./gcp-create-worker-image.sh
+  cd -
   ```
 
 - Download the global-config to be used by `bootstrap.py`.
 
   ```
-  mkdir /global-config
-  kubectl -n default get secret global-config -o json | jq -r '.data | map_values(@base64d) | to_entries|map("echo -n \(.value) > /global-config/\(.key)") | .[]' | bash
+  download-secret global-config && sudo cp -r contents /global-config
+  download-secret database-server-config && sudo cp -r contents /sql-config
   ```
 
 - Bootstrap the cluster.

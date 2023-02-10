@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS `active_namespaces` (
   `namespace` VARCHAR(100) NOT NULL,
   `creation_time` TIMESTAMP NOT NULL DEFAULT (UTC_TIMESTAMP),
   `expiration_time` TIMESTAMP,
+  `oauth2_callback_url` VARCHAR(100),
   PRIMARY KEY (`namespace`)
 ) ENGINE = InnoDB;
 

@@ -85,11 +85,13 @@ class Code(abc.ABC):
 
 
 class StepParameters:
-    def __init__(self, code, scope, json, name_step):
+    def __init__(self, code, scope, json, name_step, namespace, token):
         self.code = code
         self.scope = scope
         self.json = json
         self.name_step = name_step
+        self.namespace = namespace
+        self.token = token
 
 
 class BuildConfigurationError(Exception):
@@ -97,7 +99,7 @@ class BuildConfigurationError(Exception):
 
 
 class BuildConfiguration:
-    def __init__(self, code, config_str, scope, *, requested_step_names=(), excluded_step_names=()):
+    def __init__(self, code, config_str, namespace, token, scope, *, requested_step_names=(), excluded_step_names=()):
         if len(excluded_step_names) > 0 and scope != 'dev':
             raise BuildConfigurationError('Excluding build steps is only permitted in a dev scope')
 
@@ -108,7 +110,7 @@ class BuildConfiguration:
         runnable_steps: List[Step] = []
         name_step: Dict[str, Step] = {}
         for step_config in config['steps']:
-            step = Step.from_json(StepParameters(code, scope, step_config, name_step))
+            step = Step.from_json(StepParameters(code, scope, step_config, name_step, namespace, token))
             if step.name not in excluded_step_names and step.can_run_in_current_cloud():
                 name_step[step.name] = step
                 runnable_steps.append(step)
@@ -158,14 +160,6 @@ class BuildConfiguration:
             if step.can_run_in_scope(scope):
                 step.cleanup(batch, scope, parent_jobs)
 
-    def namespace(self) -> Optional[str]:
-        # build.yaml allows for multiple namespaces, but
-        # in actuality we only ever use 1 and make many assumptions
-        # around there being a 1:1 correspondence between builds and namespaces
-        namespaces = {s.namespace for s in self.steps if isinstance(s, DeployStep)}
-        assert len(namespaces) <= 1
-        return namespaces.pop() if len(namespaces) == 1 else None
-
     def deployed_services(self) -> List[str]:
         services = []
         for s in self.steps:
@@ -190,7 +184,7 @@ class Step(abc.ABC):
         self.clouds = json.get('clouds')
         self.run_if_requested = json.get('runIfRequested', False)
 
-        self.token = generate_token()
+        self.token = params.token
 
     def input_config(self, code, scope):
         config = {}
@@ -621,20 +615,7 @@ class CreateNamespaceStep(Step):
         self.public = public
         self.secrets = secrets
         self.job = None
-
-        if is_test_deployment:
-            assert self.namespace_name == 'default'
-            self._name = DEFAULT_NAMESPACE
-            return
-
-        if params.scope == 'deploy':
-            self._name = namespace_name
-        elif params.scope == 'test':
-            self._name = f'{params.code.short_str()}-{namespace_name}-{self.token}'
-        elif params.scope == 'dev':
-            self._name = params.code.namespace
-        else:
-            raise BuildConfigurationError(f"{params.scope} is not a valid scope for creating namespace")
+        self._name = params.namespace
 
     def wrapped_job(self):
         if self.job:

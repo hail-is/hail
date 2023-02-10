@@ -85,6 +85,7 @@ module "auth" {
   resource_group_name  = data.azurerm_resource_group.rg.name
   oauth2_redirect_uris = concat(
     var.oauth2_developer_redirect_uris,
+    var.ci_config != null ? var.ci_config.test_oauth2_callback_urls : [],
     ["https://auth.${var.domain}/oauth2callback", "http://127.0.0.1/oauth2callback"])
 }
 
@@ -130,6 +131,7 @@ module "ci" {
 
   deploy_steps                            = var.ci_config.deploy_steps
   watched_branches                        = var.ci_config.watched_branches
+  test_oauth2_callback_urls               = var.ci_config.test_oauth2_callback_urls
   github_context                          = var.ci_config.github_context
   ci_and_deploy_github_oauth_token        = var.ci_config.ci_and_deploy_github_oauth_token
   ci_test_repo_creator_github_oauth_token = var.ci_config.ci_test_repo_creator_github_oauth_token

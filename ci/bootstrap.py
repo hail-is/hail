@@ -364,14 +364,15 @@ async def main():
     extra_code_config = json.loads(args.extra_code_config)
 
     scope = 'deploy'
+    namespace = 'default'
+    token = generate_token()
     code = Branch(owner, repo_name, branch_name, args.sha, extra_code_config)
 
     steps = [s.strip() for s in args.steps.split(',')]
 
     with open('build.yaml', 'r', encoding='utf-8') as f:
-        config = BuildConfiguration(code, f.read(), scope, requested_step_names=steps)
+        config = BuildConfiguration(code, f.read(), namespace, token, scope, requested_step_names=steps)
 
-    token = generate_token()
     batch = LocalBatchBuilder(attributes={'token': token}, callback=None)
     config.build(batch, code, scope)
 

@@ -491,7 +491,8 @@ module "test_gsa_secret" {
   project = var.gcp_project
   iam_roles = [
     "compute.instanceAdmin.v1",
-    "iam.serviceAccountUser",
+    "iam.serviceAccountAdmin",
+    "iam.serviceAccountKeyAdmin",
     "logging.viewer",
     "serviceusage.serviceUsageConsumer",
   ]
@@ -679,6 +680,7 @@ module "ci" {
   github_user1_oauth_token = local.ci_config.data["github_user1_oauth_token"]
   watched_branches = jsondecode(local.ci_config.raw).watched_branches
   deploy_steps = jsondecode(local.ci_config.raw).deploy_steps
+  test_oauth2_callback_urls = jsondecode(local.ci_config.raw).test_oauth2_callback_urls
   bucket_location = local.ci_config.data["bucket_location"]
   bucket_storage_class = local.ci_config.data["bucket_storage_class"]
 

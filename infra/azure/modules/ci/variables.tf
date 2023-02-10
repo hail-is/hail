@@ -29,6 +29,10 @@ variable "watched_branches" {
   type = list(tuple([string, bool, bool]))
 }
 
+variable "test_oauth2_callback_urls" {
+  type = list(string)
+}
+
 variable "deploy_steps" {
   type = list(string)
 }

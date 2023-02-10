@@ -1,15 +1,26 @@
 import os
 import sys
-from typing import Dict, List
+from typing import List, NamedTuple, Optional
+from urllib.parse import urlparse
 
 import yaml
 
 DOMAIN = os.environ['HAIL_DOMAIN']
 
 
+class NamespaceRoutingConfig(NamedTuple):
+    name: str
+    deployed_services: List[str]
+    oauth2_callback_url: str
+
+
 def create_rds_response(
-    default_services: List[str], internal_services_per_namespace: Dict[str, List[str]], proxy: str
+    proxy: str,
+    default_services: List[str],
+    internal_namespaces: Optional[List[NamespaceRoutingConfig]] = None,
 ) -> dict:
+    internal_namespaces = internal_namespaces or []
+
     if proxy == 'gateway':
         default_host = gateway_default_host
         internal_host = gateway_internal_host
@@ -19,8 +30,8 @@ def create_rds_response(
         internal_host = internal_gateway_internal_host
 
     hosts = [default_host(service) for service in default_services]
-    if len(internal_services_per_namespace) > 0:
-        hosts.append(internal_host(internal_services_per_namespace))
+    if len(internal_namespaces) > 0:
+        hosts.append(internal_host(internal_namespaces))
     return {
         'version_info': 'dummy',
         'type_url': 'type.googleapis.com/envoy.config.route.v3.RouteConfiguration',
@@ -44,12 +55,15 @@ def create_rds_response(
 
 
 def create_cds_response(
-    default_services: List[str], internal_services_per_namespace: Dict[str, List[str]], proxy: str
+    proxy: str,
+    default_services: List[str],
+    internal_namespaces: Optional[List[NamespaceRoutingConfig]] = None,
 ) -> dict:
+    internal_namespaces = internal_namespaces or []
     return {
         'version_info': 'dummy',
         'type_url': 'type.googleapis.com/envoy.config.cluster.v3.Cluster',
-        'resources': clusters(default_services, internal_services_per_namespace, proxy),
+        'resources': clusters(default_services, internal_namespaces, proxy),
         'control_plane': {
             'identifier': 'ci',
         },
@@ -101,22 +115,35 @@ def gateway_default_host(service: str) -> dict:
     }
 
 
-def gateway_internal_host(services_per_namespace: Dict[str, List[str]]) -> dict:
+def gateway_internal_host(
+    internal_namespaces: List[NamespaceRoutingConfig],
+) -> dict:
+    routes = [
+        {
+            'match': {'path_separated_prefix': f'/{namespace.name}/{service}'},
+            'route': route_to_cluster(f'{namespace.name}-{service}'),
+            'typed_per_filter_config': {
+                'envoy.filters.http.local_ratelimit': rate_limit_config(service),
+            },
+        }
+        for namespace in internal_namespaces
+        for service in namespace.deployed_services
+    ]
+
+    oauth_callback_rewrites = [
+        {
+            'match': {'prefix': urlparse(namespace.oauth2_callback_url).path},
+            'route': {'cluster': f'{namespace.name}-auth', 'prefix_rewrite': f'/{namespace.name}/auth/oauth2callback'},
+        }
+        for namespace in internal_namespaces
+    ]
+    routes.extend(oauth_callback_rewrites)
+
     return {
         '@type': 'type.googleapis.com/envoy.config.route.v3.VirtualHost',
         'name': 'internal',
         'domains': [f'internal.{DOMAIN}'],
-        'routes': [
-            {
-                'match': {'path_separated_prefix': f'/{namespace}/{service}'},
-                'route': route_to_cluster(f'{namespace}-{service}'),
-                'typed_per_filter_config': {
-                    'envoy.filters.http.local_ratelimit': rate_limit_config(service),
-                },
-            }
-            for namespace, services in services_per_namespace.items()
-            for service in services
-        ],
+        'routes': routes,
     }
 
 
@@ -137,21 +164,24 @@ def internal_gateway_default_host(service: str) -> dict:
     }
 
 
-def internal_gateway_internal_host(services_per_namespace: Dict[str, List[str]]) -> dict:
+# No oauth2 requests go through internal-gateway so the oauthcallbacks are unused
+def internal_gateway_internal_host(
+    internal_namespaces: List[NamespaceRoutingConfig],
+) -> dict:  # pylint: disable=unused-argument
     return {
         '@type': 'type.googleapis.com/envoy.config.route.v3.VirtualHost',
         'name': 'internal',
         'domains': ['internal.hail'],
         'routes': [
             {
-                'match': {'path_separated_prefix': f'/{namespace}/{service}'},
-                'route': route_to_cluster(f'{namespace}-{service}'),
+                'match': {'path_separated_prefix': f'/{namespace.name}/{service}'},
+                'route': route_to_cluster(f'{namespace.name}-{service}'),
                 'typed_per_filter_config': {
                     'envoy.filters.http.local_ratelimit': rate_limit_config(service),
                 },
             }
-            for namespace, services in services_per_namespace.items()
-            for service in services
+            for namespace in internal_namespaces
+            for service in namespace.deployed_services
         ],
     }
 
@@ -200,9 +230,7 @@ def rate_limit_config(service: str) -> dict:
     }
 
 
-def clusters(
-    default_services: List[str], internal_services_per_namespace: Dict[str, List[str]], proxy: str
-) -> List[dict]:
+def clusters(default_services: List[str], internal_namespaces: List[NamespaceRoutingConfig], proxy: str) -> List[dict]:
     clusters = []
     for service in default_services:
         if service == 'ukbb-rg':
@@ -213,11 +241,14 @@ def clusters(
         else:
             clusters.append(make_cluster(service, f'{service}.default.svc.cluster.local', proxy, verify_ca=True))
 
-    for namespace, services in internal_services_per_namespace.items():
-        for service in services:
+    for namespace in internal_namespaces:
+        for service in namespace.deployed_services:
             clusters.append(
                 make_cluster(
-                    f'{namespace}-{service}', f'{service}.{namespace}.svc.cluster.local', proxy, verify_ca=False
+                    f'{namespace.name}-{service}',
+                    f'{service}.{namespace.name}.svc.cluster.local',
+                    proxy,
+                    verify_ca=False,
                 )
             )
 
@@ -291,6 +322,6 @@ if __name__ == '__main__':
         services = [service.rstrip() for service in services_file.readlines()]
 
     with open(sys.argv[3], 'w', encoding='utf-8') as cds_file:
-        cds_file.write(yaml.dump(create_cds_response(services, {}, proxy)))
+        cds_file.write(yaml.dump(create_cds_response(proxy, services)))
     with open(sys.argv[4], 'w', encoding='utf-8') as rds_file:
-        rds_file.write(yaml.dump(create_rds_response(services, {}, proxy)))
+        rds_file.write(yaml.dump(create_rds_response(proxy, services)))

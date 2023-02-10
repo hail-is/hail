@@ -65,6 +65,11 @@ spec:
                secretKeyRef:
                  name: ci-config
                  key: deploy_steps
+           - name: HAIL_TEST_OAUTH2_CALLBACK_URLS
+             valueFrom:
+               secretKeyRef:
+                 name: ci-config
+                 key: test_oauth2_callback_urls
            - name: HAIL_CI_STORAGE_URI
              valueFrom:
                secretKeyRef:

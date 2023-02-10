@@ -183,6 +183,11 @@ spec:
               secretKeyRef:
                 name: global-config
                 key: organization_domain
+          - name: HAIL_OAUTH2_CALLBACK_URL
+            valueFrom:
+              secretKeyRef:
+                name: auth-config
+                key: oauth2_callback_url
           - name: CLOUD
             valueFrom:
               secretKeyRef:

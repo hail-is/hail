@@ -18,11 +18,7 @@ create_build_image_instance() {
     python3 ../ci/jinja2_render.py '{"global":{"docker_root_image":"'${DOCKER_ROOT_IMAGE}'"}}' \
         build-batch-worker-image-startup-gcp.sh build-batch-worker-image-startup-gcp.sh.out
 
-    UBUNTU_IMAGE=$(gcloud compute images list \
-        --standard-images \
-        --filter 'family="ubuntu-minimal-2004-lts"' \
-        --format='value(name)')
-
+    UBUNTU_IMAGE=ubuntu-minimal-2004-focal-v20230216
     gcloud -q compute instances create ${BUILDER} \
         --project ${PROJECT}  \
         --zone=${ZONE} \

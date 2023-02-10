@@ -5,7 +5,6 @@ import json
 import logging
 import os
 import random
-import secrets
 from enum import Enum
 from shlex import quote as shq
 from typing import Dict, Optional, Set, Union
@@ -22,9 +21,9 @@ from hailtop.utils import RETRY_FUNCTION_SCRIPT, check_shell, check_shell_output
 
 from .build import BuildConfiguration, Code
 from .constants import AUTHORIZED_USERS, COMPILER_TEAM, GITHUB_CLONE_URL, GITHUB_STATUS_CONTEXT, SERVICES_TEAM
-from .environment import DEPLOY_STEPS
+from .environment import DEFAULT_NAMESPACE, DEPLOY_STEPS
 from .globals import is_test_deployment
-from .utils import add_deployed_services
+from .utils import add_deployed_services, generate_token, release_namespace, reserve_namespace
 
 repos_lock = asyncio.Lock()
 
@@ -201,7 +200,18 @@ fi
 
 class PR(Code):
     def __init__(
-        self, number, title, body, source_branch, source_sha, target_branch, author, assignees, reviewers, labels
+        self,
+        number,
+        title,
+        body,
+        source_branch,
+        source_sha,
+        target_branch,
+        author,
+        assignees,
+        reviewers,
+        labels,
+        developers,
     ):
         self.number: int = number
         self.title: str = title
@@ -230,6 +240,9 @@ class PR(Code):
         # don't need to set github_changed because we are refreshing github
         self.target_branch.batch_changed = True
         self.target_branch.state_changed = True
+
+        self.developers = developers
+        self.oauth2_callback_url: Optional[str] = None
 
     def set_build_state(self, build_state):
         log.info(f'{self.short_str()}: Build state changing from {self.build_state} => {build_state}')
@@ -315,7 +328,7 @@ class PR(Code):
         self.source_branch = FQBranch.from_gh_json(head)
 
     @staticmethod
-    def from_gh_json(gh_json, target_branch):
+    def from_gh_json(gh_json, app, target_branch):
         head = gh_json['head']
         pr = PR(
             gh_json['number'],
@@ -328,6 +341,7 @@ class PR(Code):
             {user['login'] for user in gh_json['assignees']},
             {user['login'] for user in gh_json['requested_reviewers']},
             {label['name'] for label in gh_json['labels']},
+            app['developers'],
         )
         pr.increment_pr_metric()
         return pr
@@ -337,6 +351,7 @@ class PR(Code):
 
     def config(self):
         assert self.sha is not None
+        assert self.oauth2_callback_url is not None
         source_repo = self.source_branch.repo
         target_repo = self.target_branch.branch.repo
         return {
@@ -349,6 +364,8 @@ class PR(Code):
             'target_repo_url': target_repo.url,
             'target_sha': self.target_branch.sha,
             'sha': self.sha,
+            'oauth2_callback_url': self.oauth2_callback_url,
+            'users': self.developers,
         }
 
     def github_status_from_build_state(self) -> GithubStatus:
@@ -484,22 +501,24 @@ mkdir -p {shq(repo_dir)}
             sha_out, _ = await check_shell_output(f'git -C {shq(repo_dir)} rev-parse HEAD')
             self.sha = sha_out.decode('utf-8').strip()
 
+            token = generate_token()
+            tomorrow = datetime.datetime.utcnow() + datetime.timedelta(days=1)
+            namespace = f'{self.short_str()}-{token}'
+            self.oauth2_callback_url = await reserve_namespace(db, namespace, tomorrow)
+
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
-                config = BuildConfiguration(self, f.read(), scope='test')
-                namespace = config.namespace()
+                config = BuildConfiguration(self, f.read(), namespace, token, scope='test')
                 services = config.deployed_services()
             with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:
-                test_services = BuildConfiguration(self, f.read(), scope='test').deployed_services()
+                test_services = BuildConfiguration(self, f.read(), namespace, token, scope='test').deployed_services()
 
             services.extend(test_services)
-            tomorrow = datetime.datetime.utcnow() + datetime.timedelta(days=1)
-            assert namespace is not None
-            await add_deployed_services(db, namespace, services, tomorrow)
+            await add_deployed_services(db, namespace, services)
 
             log.info(f'creating test batch for {self.number}')
             batch = batch_client.create_batch(
                 attributes={
-                    'token': secrets.token_hex(16),
+                    'token': token,
                     'test': '1',
                     'source_branch': self.source_branch.short_str(),
                     'target_branch': self.target_branch.branch.short_str(),
@@ -531,6 +550,7 @@ mkdir -p {shq(repo_dir)}
             self.set_build_state('error')
             self.source_sha_failed = True
             self.target_branch.state_changed = True
+            await release_namespace(db, namespace)
         finally:
             if batch and not self.batch:
                 log.info(f'cancelling partial test batch {batch.id}')
@@ -684,6 +704,7 @@ class WatchedBranch(Code):
             'repo': self.branch.repo.short_str(),
             'repo_url': self.branch.repo.url,
             'sha': self.sha,
+            'oauth2_callback_url': deploy_config.external_url('auth', '/oauth2callback'),
         }
 
     async def notify_github_changed(self, app):
@@ -716,7 +737,7 @@ class WatchedBranch(Code):
             while self.github_changed or self.batch_changed or self.state_changed:
                 if self.github_changed:
                     self.github_changed = False
-                    await self._update_github(gh)
+                    await self._update_github(app, gh)
 
                 if self.batch_changed:
                     self.batch_changed = False
@@ -745,7 +766,7 @@ class WatchedBranch(Code):
                     self.state_changed = True
                     return
 
-    async def _update_github(self, gh):
+    async def _update_github(self, app, gh):
         log.info(f'update github {self.short_str()}')
 
         repo_ss = self.branch.repo.short_str()
@@ -764,7 +785,7 @@ class WatchedBranch(Code):
                 pr = self.prs[number]
                 pr.update_from_gh_json(gh_json_pr)
             else:
-                pr = PR.from_gh_json(gh_json_pr, self)
+                pr = PR.from_gh_json(gh_json_pr, app, self)
             new_prs[number] = pr
         for number, pr in self.prs.items():
             if number not in new_prs:
@@ -901,21 +922,25 @@ mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
 '''
             )
+
+            token = generate_token()
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
-                config = BuildConfiguration(self, f.read(), requested_step_names=DEPLOY_STEPS, scope='deploy')
-                namespace = config.namespace()
+                config = BuildConfiguration(
+                    self, f.read(), DEFAULT_NAMESPACE, token, requested_step_names=DEPLOY_STEPS, scope='deploy'
+                )
                 services = config.deployed_services()
             with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:
-                test_services = BuildConfiguration(self, f.read(), scope='deploy').deployed_services()
+                test_services = BuildConfiguration(
+                    self, f.read(), DEFAULT_NAMESPACE, token, scope='deploy'
+                ).deployed_services()
 
             services.extend(test_services)
-            assert namespace is not None
-            await add_deployed_services(db, namespace, services, None)
+            await add_deployed_services(db, DEFAULT_NAMESPACE, services)
 
             log.info(f'creating deploy batch for {self.branch.short_str()}')
             deploy_batch = batch_client.create_batch(
                 attributes={
-                    'token': secrets.token_hex(16),
+                    'token': token,
                     'deploy': '1',
                     'target_branch': self.branch.short_str(),
                     'sha': self.sha,
@@ -960,10 +985,12 @@ git checkout {shq(self.sha)}
 
 
 class UnwatchedBranch(Code):
-    def __init__(self, branch, sha, userdata, extra_config=None):
+    def __init__(self, branch, sha, userdata, namespace: str, oauth2_callback_url: str, users, *, extra_config=None):
         self.branch = branch
         self.user = userdata['username']
-        self.namespace = userdata['namespace_name']
+        self.namespace = namespace
+        self.oauth2_callback_url = oauth2_callback_url
+        self.users = users
         self.sha = sha
         self.extra_config = extra_config
 
@@ -983,6 +1010,8 @@ class UnwatchedBranch(Code):
             'repo_url': self.branch.repo.url,
             'sha': self.sha,
             'user': self.user,
+            'users': self.users,
+            'oauth2_callback_url': self.oauth2_callback_url,
         }
         if self.extra_config is not None:
             config.update(self.extra_config)
@@ -1001,23 +1030,30 @@ mkdir -p {shq(repo_dir)}
 '''
             )
             log.info(f'User {self.user} requested these steps for dev deploy: {steps}')
+            token = generate_token()
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
                 config = BuildConfiguration(
-                    self, f.read(), scope='dev', requested_step_names=steps, excluded_step_names=excluded_steps
+                    self,
+                    f.read(),
+                    self.namespace,
+                    token,
+                    scope='dev',
+                    requested_step_names=steps,
+                    excluded_step_names=excluded_steps,
                 )
-                namespace = config.namespace()
                 services = config.deployed_services()
             with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:
-                test_services = BuildConfiguration(self, f.read(), scope='dev').deployed_services()
-            if namespace is not None:
-                services.extend(test_services)
-                await add_deployed_services(db, namespace, services, None)
+                test_services = BuildConfiguration(
+                    self, f.read(), self.namespace, token, scope='dev'
+                ).deployed_services()
+            services.extend(test_services)
+            await add_deployed_services(db, self.namespace, services)
 
             log.info(f'creating dev deploy batch for {self.branch.short_str()} and user {self.user}')
 
             deploy_batch = batch_client.create_batch(
                 attributes={
-                    'token': secrets.token_hex(16),
+                    'token': token,
                     'target_branch': self.branch.short_str(),
                     'sha': self.sha,
                     'user': self.user,

@@ -52,6 +52,7 @@ module "k8s_resources" {
   storage_uri                             = "hail-az://${azurerm_storage_account.ci.name}/${azurerm_storage_container.ci_artifacts.name}"
   deploy_steps                            = var.deploy_steps
   watched_branches                        = var.watched_branches
+  test_oauth2_callback_urls               = var.test_oauth2_callback_urls
   github_context                          = var.github_context
   ci_and_deploy_github_oauth_token        = var.ci_and_deploy_github_oauth_token
   ci_test_repo_creator_github_oauth_token = var.ci_test_repo_creator_github_oauth_token

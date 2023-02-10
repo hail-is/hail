@@ -49,12 +49,14 @@ variable "ci_config" {
     ci_and_deploy_github_oauth_token = string
     ci_test_repo_creator_github_oauth_token = string
     watched_branches = list(tuple([string, bool, bool]))
+    test_oauth2_callback_urls = list(string)
     deploy_steps = list(string)
     github_context = string
   })
   default = null
 }
 
+# Deprecated
 variable oauth2_developer_redirect_uris {
   type    = list(string)
   default = []

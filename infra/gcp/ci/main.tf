@@ -23,10 +23,11 @@ resource "kubernetes_secret" "ci_config" {
   }
 
   data = {
-    storage_uri      = "gs://${module.bucket.name}"
-    deploy_steps     = jsonencode(var.deploy_steps)
-    watched_branches = jsonencode(var.watched_branches)
-    github_context   = var.github_context
+    storage_uri               = "gs://${module.bucket.name}"
+    deploy_steps              = jsonencode(var.deploy_steps)
+    watched_branches          = jsonencode(var.watched_branches)
+    test_oauth2_callback_urls = jsonencode(var.test_oauth2_callback_urls)
+    github_context            = var.github_context
   }
 }
 

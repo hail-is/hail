@@ -51,10 +51,13 @@ log = logging.getLogger('auth')
 
 uvloop.install()
 
-CLOUD = get_global_config()['cloud']
-ORGANIZATION_DOMAIN = os.environ['HAIL_ORGANIZATION_DOMAIN']
 
 deploy_config = get_deploy_config()
+
+
+CLOUD = get_global_config()['cloud']
+ORGANIZATION_DOMAIN = os.environ['HAIL_ORGANIZATION_DOMAIN']
+OAUTH2_CALLBACK_URL = os.environ['HAIL_OAUTH2_CALLBACK_URL']
 
 routes = web.RouteTableDef()
 
@@ -257,7 +260,7 @@ async def _wait_websocket(request, login_id):
 async def signup(request):
     next_page = request.query.get('next', deploy_config.external_url('auth', '/user'))
 
-    flow_data = request.app['flow_client'].initiate_flow(deploy_config.external_url('auth', '/oauth2callback'))
+    flow_data = request.app['flow_client'].initiate_flow(OAUTH2_CALLBACK_URL)
 
     session = await aiohttp_session.new_session(request)
     cleanup_session(session)
@@ -272,7 +275,7 @@ async def signup(request):
 async def login(request):
     next_page = request.query.get('next', deploy_config.external_url('auth', '/user'))
 
-    flow_data = request.app['flow_client'].initiate_flow(deploy_config.external_url('auth', '/oauth2callback'))
+    flow_data = request.app['flow_client'].initiate_flow(OAUTH2_CALLBACK_URL)
 
     session = await aiohttp_session.new_session(request)
     cleanup_session(session)
@@ -295,7 +298,7 @@ async def callback(request):
     caller = session['caller']
     next_page = session.pop('next', next_url)
     flow_dict = session['flow']
-    flow_dict['callback_uri'] = deploy_config.external_url('auth', '/oauth2callback')
+    flow_dict['callback_uri'] = OAUTH2_CALLBACK_URL
     cleanup_session(session)
 
     try:
@@ -510,10 +513,16 @@ async def post_create_user(request, userdata):  # pylint: disable=unused-argumen
 
 
 @routes.get('/api/v1alpha/users')
-@auth.rest_authenticated_developers_only
-async def rest_get_users(request, userdata):  # pylint: disable=unused-argument
+async def rest_get_users(request):  # pylint: disable=unused-argument
     db: Database = request.app['db']
-    users = await db.select_and_fetchall(
+    session_id = await get_session_id(request)
+    if not session_id:
+        raise web.HTTPUnauthorized()
+    userdata = await get_userinfo(request, session_id)
+    is_developer_or_sa = userdata is not None and (userdata['is_developer'] == 1 or userdata['is_service_account'] == 1)
+    if not is_developer_or_sa:
+        raise web.HTTPUnauthorized()
+    users = db.select_and_fetchall(
         '''
 SELECT id, username, login_id, state, is_developer, is_service_account FROM users;
 '''

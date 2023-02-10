@@ -1652,15 +1652,26 @@ steps:
       - create_certs
       - copy_third_party_images
   - kind: runImage
-    name: create_dummy_oauth2_client_secret
+    name: create_auth_config
     image:
       valueFrom: ci_utils_image.image
     script: |
-      set -ex
-      kubectl -n {{ default_ns.name }} create secret generic auth-oauth2-client-secret || true
-    scopes:
-      - test
-      - dev
+      {% if deploy %}
+      OAUTH2_CALLBACK_URL="https://auth.{{ global.domain }}/oauth2callback"
+      {% elif 'oauth2_callback_url' in code %}
+      OAUTH2_CALLBACK_URL="{{ code['oauth2_callback_url'] }}"
+      {% else %}
+      OAUTH2_CALLBACK_URL="https://internal.{{ global.domain }}/{{ default_ns.name }}/auth/oauth2callback"
+      {% endif %}
+
+      kubectl -n {{ default_ns.name }} create secret generic auth-config \
+          --from-literal=oauth2_callback_url="$OAUTH2_CALLBACK_URL" \
+          --save-config --dry-run=client -o yaml \
+        | kubectl -n {{ default_ns.name }} apply -f -
+    serviceAccount:
+      name: admin
+      namespace:
+        valueFrom: default_ns.name
     dependsOn:
       - default_ns
       - ci_utils_image
@@ -1682,7 +1693,7 @@ steps:
       - create_session_key
       - auth_database
       - auth_image
-      - create_dummy_oauth2_client_secret
+      - create_auth_config
       - create_certs
       - create_accounts
   - kind: runImage
@@ -1962,6 +1973,8 @@ steps:
         online: true
       - name: fix-default-namespace-record
         script: /io/sql/fix-default-namespace.py
+      - name: test-oauth2-callback-urls
+        script: /io/sql/add-oauth2-callback-urls-to-namespaces.sql
         online: true
     inputs:
       - from: /repo/ci/sql
@@ -2240,6 +2253,59 @@ steps:
       - batch_database
       - deploy_auth
       - create_certs
+  - kind: runImage
+    name: add_users
+    image:
+      valueFrom: hailgenetics_hailtop_image.image
+    script: |
+      set -ex
+      cat >add_users.py <<EOF
+      import asyncio
+      from hailtop.auth import async_create_user
+      from hailtop.batch_client.aioclient import BatchClient
+
+      async def main():
+          bc = await BatchClient.create('test')
+          namespace = '{{ default_ns.name }}'
+
+          users = [
+            {% for user in code.get("users", []) %}
+              ('{{ user["username"] }}', '{{ user["login_id"] }}'),
+            {% endfor %}
+          ]
+
+          await asyncio.gather(*(
+              async_create_user(username, login_id, True, False, namespace, wait=True)
+              for username, login_id in users
+          ))
+          print('Added all users')
+
+          await bc.create_billing_project('hail')
+          for username, _ in users:
+              await bc.add_user(username, 'test')
+              print(f'Added {username} to test billing project')
+              await bc.add_user(username, 'hail')
+              print(f'Added {username} to hail billing project')
+
+      asyncio.get_event_loop().run_until_complete(main())
+      EOF
+      python3 add_users.py
+    secrets:
+      - name: worker-deploy-config
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /deploy-config
+      - name: test-dev-tokens
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /user-tokens
+    scopes:
+      - dev
+      - test
+    dependsOn:
+      - default_ns
+      - hailgenetics_hailtop_image
+      - deploy_batch
   - kind: runImage
     name: create_billing_projects
     image:
@@ -2718,11 +2784,18 @@ steps:
     image:
       valueFrom: ci_utils_image.image
     script: |
+      {% if 'oauth2_callback_url' in code %}
+      OAUTH2_CALLBACK_URL="{{ code['oauth2_callback_url'] }}"
+      {% else %}
+      OAUTH2_CALLBACK_URL="https://internal.{{ global.domain }}/{{ default_ns.name }}/auth/oauth2callback"
+      {% endif %}
+
       kubectl -n {{ default_ns.name }} create secret generic ci-config \
           --from-literal=github_context="ci-test" \
           --from-literal=storage_uri="{{ global.test_storage_uri }}" \
           --from-literal=deploy_steps="[]" \
           --from-literal=watched_branches="[[\"hail-ci-test/ci-test-{{create_ci_test_repo.token}}:master\", true, true]]" \
+          --from-literal=test_oauth2_callback_urls="[\"$OAUTH2_CALLBACK_URL\"]" \
           --save-config --dry-run=client -o yaml \
         | kubectl -n {{ default_ns.name }} apply -f -
     serviceAccount:
@@ -3718,4 +3791,48 @@ steps:
       - test_batch
       - test_ci
       - test_hailtop_batch
+      - test_hail_python_service_backend
+      - cancel_all_running_test_batches
+  - kind: runImage
+    name: delete_users
+    image:
+      valueFrom: hailgenetics_hailtop_image.image
+    alwaysRun: true
+    script: |
+      set -ex
+      cat >delete_users.py <<EOF
+      import asyncio
+      from hailtop.auth import async_delete_user
+
+      async def main():
+          namespace = '{{ default_ns.name }}'
+          assert namespace != 'default'
+          await asyncio.gather(
+          {% for user in code.get("users", []) %}
+            async_delete_user('{{ user["username"] }}', namespace, wait=True),
+          {% endfor %}
+          )
+      asyncio.get_event_loop().run_until_complete(main())
+      EOF
+      python3 delete_users.py
+    secrets:
+      - name: worker-deploy-config
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /deploy-config
+      - name: test-dev-tokens
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /user-tokens
+    scopes:
+      - dev
+      - test
+    dependsOn:
+      - default_ns
+      - hailgenetics_hailtop_image
+      - test_batch_invariants
+      - test_batch
+      - test_ci
+      - test_hailtop_batch
+      - test_hail_python_service_backend
       - cancel_all_running_test_batches

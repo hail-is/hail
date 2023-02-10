@@ -24,6 +24,10 @@ variable "deploy_steps" {
   type = list(string)
 }
 
+variable "test_oauth2_callback_urls" {
+  type = list(string)
+}
+
 variable "ci_email" {
   type = string
 }
