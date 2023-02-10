@@ -47,7 +47,7 @@ def test_pc_relate_simple_example():
 
 def test_pc_relate_paths():
     mt = hl.balding_nichols_model(3, 50, 100)
-    _, scores3, _ = hl._hwe_normalized_blanczos(mt.GT, k=3, compute_loadings=False, q_iterations=10)
+    _, scores3, _ = hl.hwe_normalized_pca(mt.GT, k=3, compute_loadings=False, q_iterations=10)
 
     kin1 = hl.pc_relate(mt.GT, 0.10, k=2, statistics='kin', block_size=64)
     kin2 = hl.pc_relate(mt.GT, 0.05, k=2, min_kinship=0.01, statistics='kin2', block_size=128).cache()
