@@ -609,7 +609,7 @@ async def get_job_log(request, userdata, batch_id):  # pylint: disable=unused-ar
     job_log_strings: Dict[str, Optional[str]] = {}
     for container, log in job_log_bytes.items():
         try:
-            job_log_strings[container] = log.decode('utf-8') if log else None
+            job_log_strings[container] = log.decode('utf-8') if log is not None else None
         except UnicodeDecodeError as e:
             raise web.HTTPBadRequest(
                 reason=f'log for container {container} is not valid UTF-8, upgrade your hail version to download the log'
@@ -617,9 +617,7 @@ async def get_job_log(request, userdata, batch_id):  # pylint: disable=unused-ar
     return web.json_response(job_log_strings)
 
 
-@routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log/{container}')
-@rest_billing_project_users_only
-async def get_job_container_log(request, userdata, batch_id):  # pylint: disable=unused-argument
+async def get_job_container_log(request, userdata, batch_id):
     app = request.app
     job_id = int(request.match_info['job_id'])
     container = request.match_info['container']
@@ -629,6 +627,12 @@ async def get_job_container_log(request, userdata, batch_id):  # pylint: disable
         raise web.HTTPBadRequest(reason=f'unknown container {container}')
     job_log = await _get_job_container_log(app, batch_id, job_id, container, record)
     return web.Response(body=job_log)
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log/{container}')
+@rest_billing_project_users_only
+async def rest_get_job_container_log(request, userdata, batch_id):  # pylint: disable=unused-argument
+    return await get_job_container_log(request, userdata, batch_id)
 
 
 async def _query_batches(request, user, q):
@@ -2174,7 +2178,7 @@ async def ui_get_job(request, userdata, batch_id):
     job_log_strings_or_bytes = {}
     for container, log in job_log_bytes.items():
         try:
-            job_log_strings_or_bytes[container] = log.decode('utf-8') if log else None
+            job_log_strings_or_bytes[container] = log.decode('utf-8') if log is not None else None
         except UnicodeDecodeError:
             job_log_strings_or_bytes[container] = log
 
@@ -2203,15 +2207,7 @@ async def ui_get_job(request, userdata, batch_id):
 @web_billing_project_users_only()
 @catch_ui_error_in_dev
 async def ui_get_job_log(request, userdata, batch_id):  # pylint: disable=unused-argument
-    app = request.app
-    job_id = int(request.match_info['job_id'])
-    container = request.match_info['container']
-    record = await _get_job_record(app, batch_id, job_id)
-    containers = job_tasks_from_spec(record)
-    if container not in containers:
-        raise web.HTTPBadRequest(reason=f'unknown container {container}')
-    job_log = await _get_job_container_log(app, batch_id, job_id, container, record)
-    return web.Response(body=job_log)
+    return await get_job_container_log(request, userdata, batch_id)
 
 
 @routes.get('/billing_limits')

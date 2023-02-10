@@ -2248,7 +2248,10 @@ class JVM:
                     attempts += 1
                     if attempts == 240:
                         # NOTE we assume that the JVM logs hail emits will be valid utf-8
-                        jvm_output = (await fs.read(container.container.log_path)).decode('utf-8')
+                        if os.path.exists(container.container.log_path):
+                            jvm_output = (await fs.read(container.container.log_path)).decode('utf-8')
+                        else:
+                            jvm_output = ''
                         raise ValueError(
                             f'JVM-{index}: failed to establish connection after {240 * delay} seconds. '
                             'JVM output:\n\n' + jvm_output
