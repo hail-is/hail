@@ -168,6 +168,7 @@ class GoogleStorageFS(
       case None =>
         log.info("Initializing google storage client from latent credentials")
         StorageOptions.newBuilder()
+          .setTransportOptions(transportOptions)
           .build()
           .getService
       case Some(keyData) =>
@@ -252,6 +253,7 @@ class GoogleStorageFS(
   }
 
   def createNoCompression(filename: String): PositionedDataOutputStream = retryTransientErrors {
+    log.info(f"createNoCompression: ${filename}")
     val (bucket, path) = getBucketPath(filename)
 
     val blobId = BlobId.of(bucket, path)
@@ -271,6 +273,7 @@ class GoogleStorageFS(
       }
 
       override def close(): Unit = {
+        log.info(f"close: ${filename}")
         if (!closed) {
           flush()
           retryTransientErrors {
@@ -278,6 +281,7 @@ class GoogleStorageFS(
           }
           closed = true
         }
+        log.info(f"closed: ${filename}")
       }
     }
 

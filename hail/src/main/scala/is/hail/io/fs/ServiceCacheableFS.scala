@@ -49,6 +49,7 @@ trait ServiceCacheableFS extends FS {
             using(createNoCompression(filename)) { os =>
               os.write(data)
             }
+            log.info(s"Successfully fell back to GCS")
           }
           closed = true
         }
