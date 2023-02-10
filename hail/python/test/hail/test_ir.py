@@ -1,3 +1,4 @@
+import re
 import unittest
 import hail as hl
 import hail.ir as ir
@@ -422,15 +423,16 @@ class CSETests(unittest.TestCase):
         a1 = ir.ToArray(x)
         a2 = ir.ToArray(x)
         t = ir.MakeTuple([a1, a2])
-        expected = (
+        expected_re = (
             '(Let __cse_1 (I32 0)'
             ' (Let __cse_2 (I32 10)'
             ' (Let __cse_3 (I32 1)'
             ' (MakeTuple (0 1)'
-                ' (ToArray (StreamRange 1 False (Ref __cse_1) (Ref __cse_2) (Ref __cse_3)))'
-                ' (ToArray (StreamRange 1 False (Ref __cse_1) (Ref __cse_2) (Ref __cse_3)))))))'
+                ' (ToArray (StreamRange [0-9]+ False (Ref __cse_1) (Ref __cse_2) (Ref __cse_3)))'
+                ' (ToArray (StreamRange [0-9]+ False (Ref __cse_1) (Ref __cse_2) (Ref __cse_3)))))))'
         )
-        assert expected == CSERenderer()(t)
+        expected_re = expected_re.replace('(', '\\(').replace(')', '\\)')
+        assert re.match(expected_re, CSERenderer()(t))
 
     def test_cse2(self):
         x = ir.I32(5)

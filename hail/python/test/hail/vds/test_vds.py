@@ -84,9 +84,9 @@ def test_conversion_equivalence():
     assert svcr.aggregate_entries(hl.agg.count()) == ref.aggregate_entries(hl.agg.count()) + var.aggregate_entries(
         hl.agg.count())
 
-    svcr_readback = hl.vds.to_merged_sparse_mt(vds)
+    svcr_readback = hl.vds.to_merged_sparse_mt(vds, ref_allele_function=lambda ht: svcr.key_rows_by('locus').index_rows(ht.locus).alleles[0])
 
-    assert svcr._same(svcr_readback)
+    assert svcr._same(svcr_readback, reorder_fields=True)
 
 
 def test_sampleqc_old_new_equivalence():
@@ -146,6 +146,7 @@ def test_sampleqc_singleton_r_ti_tv():
 
 def test_filter_samples_and_merge():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+    vds.reference_data = vds.reference_data.drop('ref_allele')
 
     samples = vds.variant_data.cols()
     samples = samples.add_index()
@@ -316,14 +317,14 @@ def test_impute_sex_chromosome_ploidy():
     y_par_end = 2649521
     rg = hl.get_reference('GRCh37')
     ref_blocks = [
-        hl.Struct(s='sample_xx', ref_allele='A', locus=hl.Locus('22', 1000000, rg), END=2000000, GQ=15, DP=5),
-        hl.Struct(s='sample_xx', ref_allele='A', locus=hl.Locus('X', x_par_end-10, rg), END=x_par_end+9, GQ=18, DP=6),
-        hl.Struct(s='sample_xx', ref_allele='A', locus=hl.Locus('X', x_par_end+10, rg), END=x_par_end+29, GQ=15, DP=5),
-        hl.Struct(s='sample_xy', ref_allele='A', locus=hl.Locus('22', 1000000, rg), END=2000000, GQ=15, DP=5),
-        hl.Struct(s='sample_xy', ref_allele='A', locus=hl.Locus('X', x_par_end-10, rg), END=x_par_end+9, GQ=9, DP=3),
-        hl.Struct(s='sample_xy', ref_allele='A', locus=hl.Locus('X', x_par_end+10, rg), END=x_par_end+29, GQ=6, DP=2),
-        hl.Struct(s='sample_xy', ref_allele='A', locus=hl.Locus('Y', y_par_end-10, rg), END=y_par_end+9, GQ=12, DP=4),
-        hl.Struct(s='sample_xy', ref_allele='A', locus=hl.Locus('Y', y_par_end+10, rg), END=y_par_end+29, GQ=9, DP=3),
+        hl.Struct(s='sample_xx', locus=hl.Locus('22', 1000000, rg), END=2000000, GQ=15, DP=5),
+        hl.Struct(s='sample_xx', locus=hl.Locus('X', x_par_end-10, rg), END=x_par_end+9, GQ=18, DP=6),
+        hl.Struct(s='sample_xx', locus=hl.Locus('X', x_par_end+10, rg), END=x_par_end+29, GQ=15, DP=5),
+        hl.Struct(s='sample_xy', locus=hl.Locus('22', 1000000, rg), END=2000000, GQ=15, DP=5),
+        hl.Struct(s='sample_xy', locus=hl.Locus('X', x_par_end-10, rg), END=x_par_end+9, GQ=9, DP=3),
+        hl.Struct(s='sample_xy', locus=hl.Locus('X', x_par_end+10, rg), END=x_par_end+29, GQ=6, DP=2),
+        hl.Struct(s='sample_xy', locus=hl.Locus('Y', y_par_end-10, rg), END=y_par_end+9, GQ=12, DP=4),
+        hl.Struct(s='sample_xy', locus=hl.Locus('Y', y_par_end+10, rg), END=y_par_end+29, GQ=9, DP=3),
     ]
     var = [
         hl.Struct(locus=hl.Locus('22', 2000021, rg), alleles=hl.array(["A", "C"]), s="sample_xx", LA=hl.array([0, 1]),
@@ -357,8 +358,8 @@ def test_impute_sex_chromosome_ploidy():
     ]
 
     ref_mt = hl.Table.parallelize(ref_blocks,
-                                  schema=hl.dtype('struct{s:str,locus:locus<GRCh37>,ref_allele:str,END:int32,GQ:int32,DP:int32}')) \
-        .to_matrix_table(row_key=['locus'], row_fields=['ref_allele'], col_key=['s'])
+                                  schema=hl.dtype('struct{s:str,locus:locus<GRCh37>,END:int32,GQ:int32,DP:int32}')) \
+        .to_matrix_table(row_key=['locus'], row_fields=[], col_key=['s'])
     var_mt = hl.Table.parallelize([],
                                   schema=hl.dtype('struct{locus:locus<GRCh37>,alleles:array<str>,s:str,LA:array<int32>,LGT:call,GQ:int32,DP:int32}'))\
         .to_matrix_table(row_key=['locus', 'alleles'], col_key=['s'])
@@ -546,3 +547,94 @@ def test_to_dense_mt():
 
     assert as_dict.get(('chr22:10562436', 'NA12891')) == hl.Struct(LGT=hl.Call([0, 1]), LA=[0, 1], GQ=99, DP=15)
     assert as_dict.get(('chr22:10562436', 'NA12878')) == hl.Struct(LGT=hl.Call([0, 0]), LA=None, GQ=21, DP=9)
+
+
+def test_merge_reference_blocks():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+    vds = hl.vds.filter_samples(vds, ['HG00187'])
+    rd = vds.reference_data
+    vds.reference_data = rd.annotate_entries(GQ=rd.GQ - rd.GQ % 10)
+    vds.reference_data = vds.reference_data.annotate_entries(
+        LEN=vds.reference_data.END - vds.reference_data.locus.position + 1, N_BLOCKS=1)
+    sampqc_1 = hl.vds.sample_qc(vds, gq_bins=(0, 10, 20, 30), dp_bins=()).select('bases_over_gq_threshold')
+
+    merged = hl.vds.merge_reference_blocks(vds,
+                                           equivalence_function=lambda b1, b2: b1.GQ == b2.GQ,
+                                           merge_functions={'LEN': 'sum',
+                                                            'MIN_DP': 'min',
+                                                            'N_BLOCKS': 'sum'}
+                                           ).checkpoint(new_temp_file(extension='vds'))
+    sampqc_2 = hl.vds.sample_qc(merged, gq_bins=(0, 10, 20, 30), dp_bins=()).select('bases_over_gq_threshold')
+
+    assert sampqc_1._same(sampqc_2), "gq bins aren't the same"
+
+    mrd = merged.reference_data
+    n_blocks_original = vds.reference_data.entries().count()
+    (n_blocks_merged, sum_n) = mrd.aggregate_entries((hl.agg.count(), hl.agg.sum(mrd.N_BLOCKS)))
+
+    assert n_blocks_original == sum_n
+    assert mrd.aggregate_entries(hl.agg.all(mrd.LEN == mrd.END - mrd.locus.position + 1))
+    assert hl.vds.to_dense_mt(vds)._same(hl.vds.to_dense_mt(merged))
+
+
+def test_truncate_reference_blocks():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+    rd = vds.reference_data
+    rd = rd.filter_entries(rd.GQ > 0)
+    vds.reference_data = rd
+
+    sampqc_1 = hl.vds.sample_qc(vds, gq_bins=(0, 10, 20, 30), dp_bins=()).select('bases_over_gq_threshold')
+
+    max_bases = 20
+    vds_trunc = hl.vds.truncate_reference_blocks(vds, max_ref_block_base_pairs=max_bases)
+    sampqc_2 = hl.vds.sample_qc(vds_trunc, gq_bins=(0, 10, 20, 30), dp_bins=()).select('bases_over_gq_threshold')
+
+    rd2 = vds_trunc.reference_data
+
+    assert rd2.aggregate_entries(hl.agg.all(rd2.END - rd2.locus.position + 1 <= max_bases)), "long ref blocks remain"
+    assert sampqc_1._same(sampqc_2), "gq bins aren't the same"
+    assert hl.vds.to_dense_mt(vds)._same(hl.vds.to_dense_mt(vds_trunc))
+
+
+def test_union_rows():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+
+    vds1 = hl.vds.filter_intervals(vds,
+                                   [hl.parse_locus_interval('chr22:start-10754094', reference_genome='GRCh38')],
+                                   split_reference_blocks=True)
+    vds2 = hl.vds.filter_intervals(vds,
+                                   [hl.parse_locus_interval('chr22:10754094-end', reference_genome='GRCh38')],
+                                   split_reference_blocks=True)
+
+
+    vds_union = vds1.union_rows(vds2)
+    assert hl.vds.to_dense_mt(vds)._same(hl.vds.to_dense_mt(vds_union))
+
+    vds1_trunc = hl.vds.truncate_reference_blocks(vds1, max_ref_block_base_pairs=50)
+    vds2_trunc = hl.vds.truncate_reference_blocks(vds1, max_ref_block_base_pairs=75)
+
+    vds_trunc_union = vds1_trunc.union_rows(vds2_trunc)
+    assert hl.eval(vds_trunc_union.reference_data.index_globals().ref_block_max_length) == 75
+
+    assert 'max_ref_block_length' not in vds1_trunc.union_rows(vds2).reference_data.globals
+
+
+def test_combiner_max_len():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+    all_samples = vds.reference_data.s.collect()
+    samp1 = all_samples[:len(all_samples)//2]
+    samp2 = all_samples[len(all_samples)//2:]
+
+    vds1 = hl.vds.filter_samples(vds, samp1, remove_dead_alleles=True)
+    vds2 = hl.vds.filter_samples(vds, samp2, remove_dead_alleles=True)
+
+    vds1_trunc = hl.vds.truncate_reference_blocks(vds1, max_ref_block_base_pairs=50)
+    vds2_trunc = hl.vds.truncate_reference_blocks(vds2, max_ref_block_base_pairs=75)
+
+    from hail.vds.combiner.combine import combine_references
+
+    combined1 = combine_references([vds1_trunc.reference_data, vds2_trunc.reference_data])
+    assert hl.eval(combined1.index_globals().ref_block_max_length) == 75
+
+    combined2 = combine_references([vds1_trunc.reference_data, vds2.reference_data])
+    assert 'ref_block_max_length' not in combined2.globals

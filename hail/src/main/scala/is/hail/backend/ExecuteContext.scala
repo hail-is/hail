@@ -6,6 +6,7 @@ import is.hail.annotations.{Region, RegionPool}
 import is.hail.expr.ir.Threefry
 import is.hail.io.fs.FS
 import is.hail.utils.{ExecutionTimer, using}
+import is.hail.variant.ReferenceGenome
 
 import java.io._
 import java.security.SecureRandom
@@ -52,6 +53,7 @@ object ExecuteContext {
     timer: ExecutionTimer,
     tempFileManager: TempFileManager,
     theHailClassLoader: HailClassLoader,
+    referenceGenomes: Map[String, ReferenceGenome],
     flags: HailFeatureFlags,
   )(
     f: ExecuteContext => T
@@ -66,6 +68,7 @@ object ExecuteContext {
         timer,
         tempFileManager,
         theHailClassLoader,
+        referenceGenomes,
         flags
       ))(f(_))
     }
@@ -103,6 +106,7 @@ class ExecuteContext(
   val timer: ExecutionTimer,
   _tempFileManager: TempFileManager,
   val theHailClassLoader: HailClassLoader,
+  private[this] val referenceGenomes: Map[String, ReferenceGenome],
   private[this] val flags: HailFeatureFlags
 ) extends Closeable {
   var backendContext: BackendContext = _
@@ -137,6 +141,8 @@ class ExecuteContext(
   }
 
   def getFlag(name: String): String = flags.get(name)
+
+  def getReference(name: String): ReferenceGenome = referenceGenomes(name)
 
   def shouldWriteIRFiles(): Boolean = getFlag("write_ir_files") != null
 

@@ -67,7 +67,7 @@ class LocalBackend(
   val tmpdir: String,
   gcsRequesterPaysProject: String,
   gcsRequesterPaysBuckets: String
-) extends Backend {
+) extends Backend with BackendWithCodeCache {
   // FIXME don't rely on hadoop
   val hadoopConf = new hadoop.conf.Configuration()
   if (gcsRequesterPaysProject != null) {
@@ -99,7 +99,7 @@ class LocalBackend(
   val fs: FS = new HadoopFS(new SerializableHadoopConfiguration(hadoopConf))
 
   def withExecuteContext[T](timer: ExecutionTimer)(f: ExecuteContext => T): T = {
-    ExecuteContext.scoped(tmpdir, tmpdir, this, fs, timer, null, theHailClassLoader, flags)(f)
+    ExecuteContext.scoped(tmpdir, tmpdir, this, fs, timer, null, theHailClassLoader, ReferenceGenome.references, flags)(f)
   }
 
   def broadcast[T: ClassTag](value: T): BroadcastValue[T] = new LocalBroadcastValue[T](value)

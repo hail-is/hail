@@ -502,8 +502,7 @@ resource "google_project_iam_member" "batch_agent_iam_member" {
     "compute.instanceAdmin.v1",
     "iam.serviceAccountUser",
     "logging.logWriter",
-    "storage.objectCreator",
-    "storage.objectViewer",
+    "storage.objectAdmin",
   ])
 
   project = var.gcp_project
