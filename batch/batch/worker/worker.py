@@ -1433,11 +1433,6 @@ class Job:
 
         self.mjs_fut: Optional[asyncio.Future] = None
 
-    def write_batch_config(self):
-        os.makedirs(f'{self.scratch}/batch-config')
-        with open(f'{self.scratch}/batch-config/batch-config.json', 'wb') as config:
-            config.write(orjson.dumps({'version': 1, 'batch_id': self.batch_id}))
-
     @property
     def job_id(self):
         return self.job_spec['job_id']
@@ -1555,7 +1550,11 @@ class DockerJob(Job):
 
         self.timings: Timings = Timings()
 
-        self.env.append({'name': 'HAIL_REGION', 'value': REGION})
+        hail_extra_env = [
+            {'name': 'HAIL_REGION', 'value': REGION},
+            {'name': 'HAIL_BATCH_ID', 'value': str(batch_id)},
+        ]
+        self.env += hail_extra_env
 
         if self.secrets:
             for secret in self.secrets:
@@ -1698,7 +1697,6 @@ class DockerJob(Job):
                 self.state = 'initializing'
 
                 os.makedirs(f'{self.scratch}/')
-                self.write_batch_config()
 
                 with self.step('setup_io'):
                     await self.setup_io()
@@ -1901,6 +1899,11 @@ class JVMJob(Job):
 
         assert self.worker.fs is not None
 
+    def write_batch_config(self):
+        os.makedirs(f'{self.scratch}/batch-config')
+        with open(f'{self.scratch}/batch-config/batch-config.json', 'wb') as config:
+            config.write(orjson.dumps({'version': 1, 'batch_id': self.batch_id}))
+
     def step(self, name):
         return self.timings.step(name)
 
@@ -1952,6 +1955,13 @@ class JVMJob(Job):
         async with self.worker.cpu_sem(self.cpu_in_mcpu):
             self.start_time = time_msecs()
             os.makedirs(f'{self.scratch}/')
+
+            # We use a configuration file (instead of environment variables) to pass job-specific
+            # configuration options for a JVMJob because we cannot alter the JVM container's
+            # environment variables after it has been started and it is difficult to make
+            # passing additional command line arguments to the job backwards compatible. In anticipation
+            # of future additional job parameters, we decided to write the batch configuration to a
+            # file with explicit versioning to make sure we maintain backwards compatibility.
             self.write_batch_config()
 
             try:
