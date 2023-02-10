@@ -14,6 +14,7 @@ Statistical functions
     hardy_weinberg_test
     binom_test
     pchisqtail
+    pgenchisq
     pnorm
     pT
     pF
@@ -32,6 +33,7 @@ Statistical functions
 .. autofunction:: hardy_weinberg_test
 .. autofunction:: binom_test
 .. autofunction:: pchisqtail
+.. autofunction:: pgenchisq
 .. autofunction:: pnorm
 .. autofunction:: pT
 .. autofunction:: pF

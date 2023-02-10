@@ -34,6 +34,8 @@ src/main/java/is/hail/JVMEntryway.class: src/main/java/is/hail/JVMEntryway.java 
 
 .PHONY: build-worker
 build-worker: src/main/java/is/hail/JVMEntryway.class
+	$(MAKE) -C ../hail python/hail/hail_version
+	cp ../hail/python/hail/hail_version ../hail_version
 	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat ../docker/hail-ubuntu-image-ref)'"},"global":{"cloud":"$(CLOUD)"}}' Dockerfile.worker Dockerfile.worker.out
 	../docker-build.sh .. batch/Dockerfile.worker.out $(BATCH_WORKER_IMAGE)
 

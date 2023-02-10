@@ -5,13 +5,12 @@ import is.hail.expr.ir.streams.StreamUtils
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.utils._
-
-import scala.annotation.tailrec
+import is.hail.utils.StackSafe._
 
 object TypeCheck {
   def apply(ctx: ExecuteContext, ir: BaseIR): Unit = {
     try {
-      check(ctx, ir, BindingEnv.empty)
+      check(ctx, ir, BindingEnv.empty).run()
     } catch {
       case e: Throwable => fatal(s"Error while typechecking IR:\n${ Pretty(ctx, ir) }", e)
     }
@@ -19,40 +18,47 @@ object TypeCheck {
 
   def apply(ctx: ExecuteContext, ir: IR, env: BindingEnv[Type]): Unit = {
     try {
-      check(ctx, ir, env)
+      check(ctx, ir, env).run()
     } catch {
       case e: Throwable => fatal(s"Error while typechecking IR:\n${ Pretty(ctx, ir) }", e)
     }
   }
 
-  private def check(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): Unit = {
-    ir.children
-      .iterator
-      .zipWithIndex
-      .foreach { case (child, i) =>
-
-        check(ctx, child, ChildBindings(ir, i, env))
-
-        if (child.typ == TVoid) {
-          ir match {
-            case _: Let if i == 1 =>
-            case _: StreamFor if i == 1 =>
-            case _: RunAggScan if (i == 1 || i == 2) =>
-            case _: StreamBufferedAggregate if (i == 1 || i == 3) =>
-            case _: RunAgg if i == 0 =>
-            case _: SeqOp => // let seqop checking below catch bad void arguments
-            case _: InitOp => // let initop checking below catch bad void arguments
-            case _: If if i != 0 =>
-            case _: RelationalLet if i == 1 =>
-            case _: Begin =>
-            case _: WriteMetadata =>
-            case _ =>
-              throw new RuntimeException(s"unexpected void-typed IR at child $i of ${ ir.getClass.getSimpleName }" +
-                s"\n  IR: ${ Pretty(ctx, ir) }")
+  def check(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): StackFrame[Unit] = {
+    for {
+      _ <- ir.children
+        .iterator
+        .zipWithIndex
+        .foreachRecur { case (child, i) =>
+          for {
+            _ <- check(ctx, child, ChildBindings(ir, i, env))
+          } yield {
+            if (child.typ == TVoid) {
+              checkVoidTypedChild(ctx, ir, i, env)
+            } else ()
           }
         }
-      }
+    } yield checkSingleNode(ctx, ir, env)
+  }
 
+  private def checkVoidTypedChild(ctx: ExecuteContext, ir: BaseIR, i: Int, env: BindingEnv[Type]): Unit = ir match {
+    case _: Let if i == 1 =>
+    case _: StreamFor if i == 1 =>
+    case _: RunAggScan if (i == 1 || i == 2) =>
+    case _: StreamBufferedAggregate if (i == 1 || i == 3) =>
+    case _: RunAgg if i == 0 =>
+    case _: SeqOp => // let seqop checking below catch bad void arguments
+    case _: InitOp => // let initop checking below catch bad void arguments
+    case _: If if i != 0 =>
+    case _: RelationalLet if i == 1 =>
+    case _: Begin =>
+    case _: WriteMetadata =>
+    case _ =>
+      throw new RuntimeException(s"unexpected void-typed IR at child $i of ${ ir.getClass.getSimpleName }" +
+        s"\n  IR: ${ Pretty(ctx, ir) }")
+  }
+
+  private def checkSingleNode(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): Unit = {
     ir match {
       case I32(x) =>
       case I64(x) =>
@@ -105,7 +111,7 @@ object TypeCheck {
             if (t != t2)
               throw new RuntimeException(s"RelationalRef type mismatch:\n  node=${t}\n   env=${t2}")
           case None =>
-              throw new RuntimeException(s"RelationalRef not found in env: $name")
+            throw new RuntimeException(s"RelationalRef not found in env: $name")
         }
       case x@TailLoop(name, _, body) =>
         assert(x.typ == body.typ)
@@ -193,7 +199,7 @@ object TypeCheck {
         assert(idxs.forall(_.typ == TInt64))
       case x@NDArraySlice(nd, slices) =>
         assert(nd.typ.isInstanceOf[TNDArray])
-        val childTyp =nd.typ.asInstanceOf[TNDArray]
+        val childTyp = nd.typ.asInstanceOf[TNDArray]
         val slicesTuple = slices.typ.asInstanceOf[TTuple]
         assert(slicesTuple.size == childTyp.nDims)
         assert(slicesTuple.types.forall { t =>
@@ -373,7 +379,7 @@ object TypeCheck {
       case x@StreamAggScan(a, name, query) =>
         assert(a.typ.isInstanceOf[TStream])
         assert(x.typ.asInstanceOf[TStream].elementType == query.typ)
-      case x@StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, _, _,_) =>
+      case x@StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, _, _, _) =>
         assert(streamChild.typ.isInstanceOf[TStream])
         assert(initAggs.typ == TVoid)
         assert(seqOps.typ == TVoid)

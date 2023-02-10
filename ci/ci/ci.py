@@ -421,7 +421,7 @@ async def batch_callback_handler(request):
                     if 'test' in attrs and params['complete']:
                         assert 'deploy' not in attrs
                         assert 'dev' not in attrs
-                        namespace = json.loads(attrs['namespace'])
+                        namespace = attrs['namespace']
                         if DEFAULT_NAMESPACE == 'default':
                             await remove_namespace_from_db(db, namespace)
 

@@ -765,8 +765,9 @@ class EmitClassBuilder[C](
   def getOrGenEmitMethod(
     baseName: String, key: Any, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType
   )(body: EmitMethodBuilder[C] => Unit): EmitMethodBuilder[C] = {
-    methodMemo.getOrElseUpdate(key, {
+    methodMemo.getOrElse(key, {
       val mb = genEmitMethod(baseName, argsInfo, returnInfo)
+      methodMemo(key) = mb
       body(mb)
       mb
     })

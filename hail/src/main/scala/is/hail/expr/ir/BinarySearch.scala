@@ -160,7 +160,14 @@ object BinarySearch {
     start: Value[Int],
     end: Value[Int]
   ): Value[Int] =
-    partitionPoint(cb, haystack, x => gtNeedle(x), start, end)
+    partitionPoint(cb, haystack, gtNeedle, start, end)
+
+  def upperBound(
+    cb: EmitCodeBuilder,
+    haystack: SIndexableValue,
+    gtNeedle: IEmitCode => Code[Boolean]
+  ): Value[Int] =
+    lowerBound(cb, haystack, gtNeedle, 0, haystack.loadLength())
 
   /** Returns 'start' <= i <= 'end' such that
     * - pred is false on range [start, i), and
@@ -283,8 +290,7 @@ class BinarySearch[C](mb: EmitMethodBuilder[C],
   containerType: SContainer,
   eltType: EmitType,
   getKey: (EmitCodeBuilder, EmitValue) => EmitValue,
-  bound: String = "lower",
-  ltF: CodeOrdering.F[Boolean] = null) {
+  bound: String = "lower") {
   val containerElementType: EmitType = containerType.elementEmitType
   val findElt = mb.genEmitMethod("findElt", FastIndexedSeq[ParamType](containerType.paramType, eltType.paramType), typeInfo[Int])
 
@@ -295,11 +301,9 @@ class BinarySearch[C](mb: EmitMethodBuilder[C],
     val needle = findElt.getEmitParam(cb, 2)
 
     val f: (
-      EmitCodeBuilder,
+     EmitCodeBuilder,
      SIndexableValue,
-     IEmitCode => Code[Boolean],
-     Value[Int],
-     Value[Int]
+     IEmitCode => Code[Boolean]
     ) => Value[Int] = bound match {
       case "upper" => BinarySearch.upperBound
       case "lower" => BinarySearch.lowerBound
@@ -308,9 +312,15 @@ class BinarySearch[C](mb: EmitMethodBuilder[C],
     f(cb, haystack, { containerElement =>
       val elementVal = cb.memoize(containerElement, "binary_search_elt")
       val compareVal = getKey(cb, elementVal)
-      val lt = Option(ltF).getOrElse(mb.ecb.getOrderingFunction(compareVal.st, eltType.st, CodeOrdering.Lt()))
-      lt(cb, compareVal, needle)
-    }, 0, haystack.loadLength())
+      bound match {
+        case "upper" =>
+          val gt = mb.ecb.getOrderingFunction(compareVal.st, eltType.st, CodeOrdering.Gt())
+          gt(cb, compareVal, needle)
+        case "lower" =>
+          val lt = mb.ecb.getOrderingFunction(compareVal.st, eltType.st, CodeOrdering.Lt())
+          lt(cb, compareVal, needle)
+      }
+    })
   }
 
   // check missingness of v before calling

@@ -2046,6 +2046,7 @@ def pchisqtail(x, df, ncp=None, lower_tail=False, log_p=False) -> Float64Express
     Parameters
     ----------
     x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        The value at which to evaluate the CDF.
     df : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Degrees of freedom.
     ncp: float or :class:`.Expression` of type :py:data:`.tfloat64`
@@ -2064,6 +2065,171 @@ def pchisqtail(x, df, ncp=None, lower_tail=False, log_p=False) -> Float64Express
         return _func("pchisqtail", tfloat64, x, df, lower_tail, log_p)
     else:
         return _func("pnchisqtail", tfloat64, x, df, ncp, lower_tail, log_p)
+
+
+PGENCHISQ_RETURN_TYPE = tstruct(value=tfloat64, n_iterations=tint32, converged=tbool, fault=tint32)
+
+
+@typecheck(x=expr_float64,
+           w=expr_array(expr_float64),
+           k=expr_array(expr_int32),
+           lam=expr_array(expr_float64),
+           mu=expr_float64,
+           sigma=expr_float64,
+           max_iterations=nullable(expr_int32),
+           min_accuracy=nullable(expr_float64))
+def pgenchisq(x, w, k, lam, mu, sigma, *, max_iterations=None, min_accuracy=None) -> Float64Expression:
+    r"""The cumulative probability function of a `generalized chi-squared distribution
+    <https://en.wikipedia.org/wiki/Generalized_chi-squared_distribution>`__.
+
+    The generalized chi-squared distribution has many interpretations. We share here four
+    interpretations of the values of this distribution:
+
+    1. A linear combination of normal variables and squares of normal variables.
+
+    2. A weighted sum of sums of squares of normally distributed values plus a normally distributed
+       value.
+
+    3. A weighted sum of chi-squared distributed values plus a normally distributed value.
+
+    4. A `"quadratic form" <https://en.wikipedia.org/wiki/Quadratic_form_(statistics)>`__ in a vector
+       of uncorrelated `standard normal
+       <https://en.wikipedia.org/wiki/Normal_distribution#Standard_normal_distribution>`__ values.
+
+    The parameters of this function correspond to the parameters of the third interpretation.
+
+    .. math::
+
+        \begin{aligned}
+        w &: R^n \quad k : Z^n \quad lam : R^n \quad mu : R \quad sigma : R \\
+        \\
+        x   &\sim N(mu, sigma^2) \\
+        y_i &\sim \mathrm{NonCentralChiSquared}(k_i, lam_i) \\
+        \\
+        Z &= x + w y^T \\
+          &= x + \sum_i w_i y_i \\
+        Z &\sim \mathrm{GeneralizedNonCentralChiSquared}(w, k, lam, mu, sigma)
+        \end{aligned}
+
+    The generalized chi-squared distribution often arises when working on linear models with standard
+    normal noise because the sum of the squares of the residuals should follow a generalized
+    chi-squared distribution.
+
+    Examples
+    --------
+
+    The following plot shows three examples of the generalized chi-squared cumulative distribution
+    function.
+
+    .. image:: https://upload.wikimedia.org/wikipedia/commons/thumb/c/cd/Generalized_chi-square_cumulative_distribution_function.svg/1280px-Generalized_chi-square_cumulative_distribution_function.svg.png
+        :alt: Plots of examples of the generalized chi-square cumulative distribution function. Created by Dvidby0.
+        :target: https://commons.wikimedia.org/wiki/File:Generalized_chi-square_cumulative_distribution_function.svg
+        :width: 640px
+
+    The following examples are chosen from the three instances shown above. The curves appear in the
+    same order as the legend of the plot: blue, red, yellow.
+
+    >>> hl.eval(hl.pgenchisq(-80, w=[1, 2], k=[1, 4], lam=[1, 1], mu=0, sigma=0).value)
+    0.0
+    >>> hl.eval(hl.pgenchisq(-20, w=[1, 2], k=[1, 4], lam=[1, 1], mu=0, sigma=0).value)
+    0.0
+    >>> hl.eval(hl.pgenchisq(10 , w=[1, 2], k=[1, 4], lam=[1, 1], mu=0, sigma=0).value)
+    0.4670012373599629
+    >>> hl.eval(hl.pgenchisq(40 , w=[1, 2], k=[1, 4], lam=[1, 1], mu=0, sigma=0).value)
+    0.9958803111156718
+
+    >>> hl.eval(hl.pgenchisq(-80, w=[-2, -1], k=[5, 2], lam=[3, 1], mu=-3, sigma=0).value)
+    9.227056966837344e-05
+    >>> hl.eval(hl.pgenchisq(-20, w=[-2, -1], k=[5, 2], lam=[3, 1], mu=-3, sigma=0).value)
+    0.516439358616939
+    >>> hl.eval(hl.pgenchisq(10 , w=[-2, -1], k=[5, 2], lam=[3, 1], mu=-3, sigma=0).value)
+    1.0
+    >>> hl.eval(hl.pgenchisq(40 , w=[-2, -1], k=[5, 2], lam=[3, 1], mu=-3, sigma=0).value)
+    1.0
+
+    >>> hl.eval(hl.pgenchisq(-80, w=[1, -10, 2], k=[1, 2, 3], lam=[2, 3, 7], mu=-10, sigma=0).value)
+    0.14284718767288906
+    >>> hl.eval(hl.pgenchisq(-20, w=[1, -10, 2], k=[1, 2, 3], lam=[2, 3, 7], mu=-10, sigma=0).value)
+    0.5950150356303258
+    >>> hl.eval(hl.pgenchisq(10 , w=[1, -10, 2], k=[1, 2, 3], lam=[2, 3, 7], mu=-10, sigma=0).value)
+    0.923219534175858
+    >>> hl.eval(hl.pgenchisq(40 , w=[1, -10, 2], k=[1, 2, 3], lam=[2, 3, 7], mu=-10, sigma=0).value)
+    0.9971746768781656
+
+    Notes
+    -----
+
+    We follow Wikipedia's notational conventions. Some texts refer to the weight vector (our `w`) as
+    :math:`\lambda` or `lb` and the non-centrality vector (our `lam`) as `nc`.
+
+    We use the Davies' algorithm which was published as:
+
+        `Davies, Robert. "The distribution of a linear combination of chi-squared random variables."
+        Applied Statistics 29 323-333. 1980. <http://www.robertnz.net/pdf/lc_chisq.pdf>`__
+
+    Davies included Fortran source code in the original publication. Davies also released a `C
+    language port <http://www.robertnz.net/QF.htm>`__. Hail's implementation is a fairly direct port
+    of the C implementation to Scala. Davies provides 39 test cases with the source code. The Hail
+    tests include all 39 test cases as well as a few additional tests.
+
+    Davies' website cautions:
+
+        The method works well in most situations if you want only modest accuracy, say 0.0001. But
+        problems may arise if the sum is dominated by one or two terms with a total of only one or
+        two degrees of freedom and x is small.
+
+    For an accessible introduction the Generalized Chi-Squared Distribution, we strongly recommend
+    the introduction of this paper:
+
+        `Das, Abhranil; Geisler, Wilson (2020). "A method to integrate and classify normal
+        distributions". <https://arxiv.org/abs/2012.14331>`__
+
+    Parameters
+    ----------
+    x : :obj:`float` or :class:`.Expression` of type :py:data:`.tfloat64`
+        The value at which to evaluate the cumulative distribution function (CDF).
+    w : :obj:`list` of :obj:`float` or :class:`.Expression` of type :py:class:`.tarray` of :py:data:`.tfloat64`
+        A weight for each non-central chi-square term.
+    k : :obj:`list` of :obj:`int` or :class:`.Expression` of type :py:class:`.tarray` of :py:data:`.tint32`
+        A degrees of freedom parameter for each non-central chi-square term.
+    lam : :obj:`list` of :obj:`float` or :class:`.Expression` of type :py:class:`.tarray` of :py:data:`.tfloat64`
+        A non-centrality parameter for each non-central chi-square term. We use `lam` instead
+        of `lambda` because the latter is a reserved word in Python.
+    mu : :obj:`float` or :class:`.Expression` of type :py:data:`.tfloat64`
+        The standard deviation of the normal term.
+    sigma : :obj:`float` or :class:`.Expression` of type :py:data:`.tfloat64`
+        The standard deviation of the normal term.
+    max_iterations : :obj:`int` or :class:`.Expression` of type :py:data:`.tint32`
+        The maximum number of iterations of the numerical integration before raising an error. The
+        default maximum number of iterations is ``1e5``.
+    min_accuracy : :obj:`int` or :class:`.Expression` of type :py:data:`.tint32`
+        The minimum accuracy of the returned value. If the minimum accuracy is not achieved, this
+        function will raise an error. The default minimum accuracy is ``1e-5``.
+
+    Returns
+    -------
+    :class:`.StructExpression`
+        This method returns a structure with the value as well as information about the numerical
+        integration.
+
+        - value : :class:`.Float64Expression`. If converged is true, the value of the CDF evaluated
+          at `x`. Otherwise, this is the last value the integration evaluated before aborting.
+
+        - n_iterations : :class:`.Int32Expression`. The number of iterations before stopping.
+
+        - converged : :class:`.BooleanExpression`. True if the `min_accuracy` was achieved and round
+          off error is not likely significant.
+
+        - fault : :class:`.Int32Expression`. If converged is true, fault is zero. If converged is
+          false, fault is either one or two. One indicates that the requried accuracy was not
+          achieved. Two indicates the round-off error is possibly significant.
+
+    """
+    if max_iterations is None:
+        max_iterations = hl.literal(10_000)
+    if min_accuracy is None:
+        min_accuracy = hl.literal(1e-5)
+    return _func("pgenchisq", PGENCHISQ_RETURN_TYPE, x - mu, w, k, lam, sigma, max_iterations, min_accuracy)
 
 
 @typecheck(x=expr_float64, mu=expr_float64, sigma=expr_float64, lower_tail=expr_bool, log_p=expr_bool)

@@ -449,6 +449,9 @@ class ArrayExpression(CollectionExpression):
 
     @typecheck_method(start=nullable(expr_int32), stop=nullable(expr_int32), step=nullable(expr_int32))
     def _slice(self, start=None, stop=None, step=None):
+        indices, aggregations = unify_all(
+            self,
+            *(x for x in (start, stop, step) if x is not None))
         if step is None:
             step = hl.int(1)
         if start is None:
@@ -458,7 +461,7 @@ class ArrayExpression(CollectionExpression):
         else:
             slice_ir = ir.ArraySlice(self._ir, start._ir, stop, step._ir)
 
-        return construct_expr(slice_ir, self.dtype, self._indices, self._aggregations)
+        return construct_expr(slice_ir, self.dtype, indices, aggregations)
 
     @typecheck_method(item=expr_any)
     def contains(self, item):
@@ -3517,6 +3520,14 @@ class LocusExpression(Expression):
     >>> locus = hl.locus('1', 1034245)
     """
 
+    @typecheck_method(other=expr_int32)
+    def __add__(self, other):
+        return self._method("add_on_contig", self.dtype, other)
+
+    @typecheck_method(other=expr_int32)
+    def __sub__(self, other):
+        return self + (-other)
+
     @property
     def contig(self):
         """Returns the chromosome.
@@ -3533,6 +3544,23 @@ class LocusExpression(Expression):
             The chromosome for this locus.
         """
         return self._method("contig", tstr)
+
+    @property
+    def contig_idx(self):
+        """Returns the chromosome.
+
+        Examples
+        --------
+
+        >>> hl.eval(locus.contig_idx)
+        0
+
+        Returns
+        -------
+        :class:`.StringExpression`
+            The index of the chromosome for this locus.
+        """
+        return self._method("contig_idx", tint32)
 
     @property
     def position(self):
@@ -4105,10 +4133,11 @@ class NDArrayExpression(Expression):
                         hl.str("Index ") + hl.str(s) + hl.str(f" is out of bounds for axis {i} with size ") + hl.str(dlen)
                     )
                     slices.append(checked_int)
+            indices, aggregations = unify_all(self, *slices)
             product = construct_expr(ir.NDArraySlice(self._ir, hl.tuple(slices)._ir),
                                      tndarray(self._type.element_type, n_sliced_dims),
-                                     self._indices,
-                                     self._aggregations)
+                                     indices,
+                                     aggregations)
 
             if len(indices_nones) > 0:
                 reshape_arg = []
@@ -4122,10 +4151,11 @@ class NDArrayExpression(Expression):
                 product = product.reshape(tuple(reshape_arg))
 
         else:
+            indices, aggregations = unify_all(self, *formatted_item)
             product = construct_expr(ir.NDArrayRef(self._ir, [idx._ir for idx in formatted_item]),
                                      self._type.element_type,
-                                     self._indices,
-                                     self._aggregations)
+                                     indices,
+                                     aggregations)
 
             if len(indices_nones) > 0:
                 reshape_arg = []
@@ -4163,6 +4193,11 @@ class NDArrayExpression(Expression):
         else:
             shape = shape[0]
 
+        if isinstance(shape, tuple):
+            indices, aggregations = unify_all(self, *shape)
+        else:
+            indices, aggregations = unify_all(self, shape)
+
         if isinstance(shape, TupleExpression):
             for i, tuple_field_type in enumerate(shape.dtype.types):
                 if tuple_field_type not in [hl.tint32, hl.tint64]:
@@ -4176,8 +4211,8 @@ class NDArrayExpression(Expression):
 
         return construct_expr(ir.NDArrayReshape(self._ir, shape_ir),
                               tndarray(self._type.element_type, ndim),
-                              self._indices,
-                              self._aggregations)
+                              indices,
+                              aggregations)
 
     @typecheck_method(f=func_spec(1, expr_any))
     def map(self, f):
@@ -4413,6 +4448,8 @@ class NDArrayNumericExpression(NDArrayExpression):
         if not isinstance(other, NDArrayNumericExpression):
             other = hl.nd.array(other)
 
+        indices, aggregations = unify_all(self, other)
+
         if self.ndim == 0 or other.ndim == 0:
             raise ValueError('MatMul must be between objects of 1 dimension or more. Try * instead')
 
@@ -4428,7 +4465,7 @@ class NDArrayNumericExpression(NDArrayExpression):
         left = left._promote_numeric(ret_type)
         right = right._promote_numeric(ret_type)
 
-        res = construct_expr(ir.NDArrayMatMul(left._ir, right._ir), ret_type, self._indices, self._aggregations)
+        res = construct_expr(ir.NDArrayMatMul(left._ir, right._ir), ret_type, indices, aggregations)
 
         return res if result_ndim > 0 else res[()]
 

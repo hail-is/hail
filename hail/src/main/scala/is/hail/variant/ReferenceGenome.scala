@@ -49,6 +49,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   mtContigs: Set[String] = Set.empty[String], parInput: Array[(Locus, Locus)] = Array.empty[(Locus, Locus)]) extends Serializable {
 
   @transient lazy val broadcastRG: BroadcastRG = new BroadcastRG(this)
+  val contigIdx = contigs.zipWithIndex.toMap
 
   val nContigs = contigs.length
 
@@ -175,6 +176,8 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     val contig = globalPosToContig(idx)
     Locus(contig, (idx - globalPosContigStarts(contig) + 1).toInt)
   }
+
+  def getContigIndex(contig: String): Int = contigIdx(contig)
 
   def contigLength(contig: String): Int = {
     val r = jLengths.get(contig)
@@ -399,7 +402,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
     val chainFilePath = fs.fileStatus(chainFile).getPath
     val lo = LiftOver(tmpdir, fs, chainFilePath)
-    val destRG = ReferenceGenome.getReference(destRGName)
+    val destRG = ctx.getReference(destRGName)
     lo.checkChainFile(this, destRG)
 
     chainFiles += destRGName -> chainFile

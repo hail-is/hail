@@ -178,9 +178,9 @@ case class SUnreachableInterval(virtualType: TInterval) extends SUnreachable wit
 }
 
 class SUnreachableIntervalValue(override val st: SUnreachableInterval) extends SUnreachableValue with SIntervalValue {
-  override def includesStart(): Value[Boolean] = const(false)
+  override def includesStart: Value[Boolean] = const(false)
 
-  override def includesEnd(): Value[Boolean] = const(false)
+  override def includesEnd: Value[Boolean] = const(false)
 
   override def loadStart(cb: EmitCodeBuilder): IEmitCode = IEmitCode.present(cb, SUnreachable.fromVirtualType(st.virtualType.pointType).defaultValue)
 

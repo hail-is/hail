@@ -2,7 +2,8 @@ from . import combiner
 from .functions import lgt_to_gt, local_to_global
 from .methods import filter_intervals, filter_samples, filter_variants, sample_qc, split_multi, to_dense_mt, \
     to_merged_sparse_mt, segment_reference_blocks, write_variant_datasets, interval_coverage, \
-    impute_sex_chr_ploidy_from_interval_coverage, impute_sex_chromosome_ploidy, filter_chromosomes
+    impute_sex_chr_ploidy_from_interval_coverage, impute_sex_chromosome_ploidy, filter_chromosomes, \
+    truncate_reference_blocks, merge_reference_blocks
 from .variant_dataset import VariantDataset, read_vds
 from .combiner import load_combiner, new_combiner
 
@@ -25,6 +26,8 @@ __all__ = [
     'interval_coverage',
     'impute_sex_chr_ploidy_from_interval_coverage',
     'impute_sex_chromosome_ploidy',
+    'truncate_reference_blocks',
+    'merge_reference_blocks',
     'lgt_to_gt',
     'local_to_global'
 ]
