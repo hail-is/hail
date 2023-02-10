@@ -21,10 +21,10 @@ def install_profiler_if_requested(service: str):
             verbose=3,
         )
 
-    def ignore_failed_to_collect_and_upload_profile(record):
-        if 'Failed to collect and upload profile: [Errno 32] Broken pipe' in record.msg:
-            record.levelno = logging.INFO
-            record.levelname = "INFO"
-        return record
+        def ignore_failed_to_collect_and_upload_profile(record):
+            if 'Failed to collect and upload profile: [Errno 32] Broken pipe' in record.msg:
+                record.levelno = logging.INFO
+                record.levelname = "INFO"
+            return record
 
-    googlecloudprofiler.logger.addFilter(ignore_failed_to_collect_and_upload_profile)
+        googlecloudprofiler.logger.addFilter(ignore_failed_to_collect_and_upload_profile)
