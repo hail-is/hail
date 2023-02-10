@@ -353,7 +353,6 @@ object SparseContexts {
 }
 
 case class SparseContexts(nRows: Int, nCols: Int, sparsity: IR) extends BMSContexts {
-  assert(sparsity.isInstanceOf[Ref] || sparsity.isInstanceOf[Literal])
   def rowPos: IR = GetField(sparsity, "rowPos")
   def rowIdx: IR = GetField(sparsity, "rowIdx")
   def contexts: IR = GetField(sparsity, "contexts")
@@ -440,6 +439,14 @@ class BlockMatrixStage2 private (
   private val ctxRefName: String,
   private val _blockIR: IR
 ) {
+  assert {
+    def literalOrRef(x: IR) = x.isInstanceOf[Literal] || x.isInstanceOf[Ref]
+    contexts.contexts match {
+      case x: MakeStruct => x.fields.forall(f => literalOrRef(f._2))
+      case x => literalOrRef(x)
+    }
+  }
+
   def blockIR(ctx: Ref): IR = {
     if (ctx.name == ctxRefName)
       _blockIR
