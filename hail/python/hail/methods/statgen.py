@@ -3076,7 +3076,7 @@ def balding_nichols_model(n_populations: int,
                           n_variants: int,
                           n_partitions: Optional[int] = None,
                           pop_dist: Optional[List[int]] = None,
-                          fst: Optional[List[int]] = None,
+                          fst: Optional[List[Union[float, int]]] = None,
                           af_dist: Optional[hl.Expression] = None,
                           reference_genome: str = 'default',
                           mixture: bool = False,
@@ -3316,7 +3316,10 @@ def balding_nichols_model(n_populations: int,
 
     # generate matrix table
 
-    bn = hl.utils.range_matrix_table(n_variants, n_samples, n_partitions)
+    bn = hl.utils.genomic_range_table(n_variants, n_partitions, reference_genome=reference_genome)
+    bn = bn.annotate(alleles=['A', 'C'])
+    bn = bn._key_by_assert_sorted('locus', 'alleles')
+
     bn = bn.annotate_globals(
         bn=hl.struct(n_populations=n_populations,
                      n_samples=n_samples,
@@ -3327,12 +3330,15 @@ def balding_nichols_model(n_populations: int,
                      mixture=mixture))
     # col info
     pop_f = hl.rand_dirichlet if mixture else hl.rand_cat
-    bn = bn.key_cols_by(sample_idx=bn.col_idx)
-    bn = bn.select_cols(pop=pop_f(pop_dist))
-
+    bn = bn.annotate_globals(cols = hl.range(n_samples).map(
+        lambda idx: hl.struct(
+            sample_idx=idx,
+            pop=pop_f(pop_dist)
+        )
+    ))
+    bn = bn.annotate(entries = hl.range(n_samples).map(lambda _: hl.struct()))
+    bn = bn._unlocalize_entries('entries', 'cols', ['sample_idx'])
     # row info
-    bn = bn.key_rows_by(locus=hl.locus_from_global_position(bn.row_idx, reference_genome=reference_genome),
-                        alleles=['A', 'C'])
     bn = bn.select_rows(ancestral_af=af_dist,
                         af=hl.bind(lambda ancestral:
                                    hl.array([(1 - x) / x for x in fst])

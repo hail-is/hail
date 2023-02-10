@@ -1663,6 +1663,12 @@ object IRParser {
         val n = int32_literal(it)
         val nPartitions = opt(it, int32_literal)
         done(TableRange(n, nPartitions.getOrElse(HailContext.backend.defaultParallelism)))
+      case "TableGenomicRange" =>
+        val n = int32_literal(it)
+        val nPartitions = opt(it, int32_literal)
+        val optRgStr = opt(it, identifier)
+        val optRg = optRgStr.map(env.typEnv.getReferenceGenome)
+        done(TableGenomicRange(n, nPartitions.getOrElse(HailContext.backend.defaultParallelism), optRg))
       case "TableUnion" => table_ir_children(env.onlyRelational)(it).map(TableUnion(_))
       case "TableOrderBy" =>
         val sortFields = sort_fields(it)

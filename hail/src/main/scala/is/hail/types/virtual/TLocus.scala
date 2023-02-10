@@ -20,6 +20,7 @@ object TLocus {
   }
 
   def schemaFromRG(rg: Option[ReferenceGenome], required: Boolean = false): Type = rg match {
+    // must match tlocus.schema_from_rg
     case Some(ref) => TLocus(ref)
     case None => TLocus.representation
   }
