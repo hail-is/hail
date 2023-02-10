@@ -4,7 +4,7 @@ import os
 import googlecloudprofiler
 
 HAIL_SHA = os.environ['HAIL_SHA']
-HAIL_SHOULD_PROFILE = os.environ.get('HAIL_SHOULD_PROFILE', False)
+HAIL_SHOULD_PROFILE = 'HAIL_SHOULD_PROFILE' in os.environ
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 CLOUD = os.environ['CLOUD']
 
