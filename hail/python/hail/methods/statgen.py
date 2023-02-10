@@ -1800,7 +1800,7 @@ def _linear_skat(group,
     k = len(covariates)
     if k == 0:
         raise ValueError('_linear_skat: at least one covariate is required.')
-    _warn_if_no_intercept'_linear_skat', covariates)
+    _warn_if_no_intercept('_linear_skat', covariates)
     mt = mt._select_all(
         row_exprs=dict(
             group=group,
@@ -2304,7 +2304,7 @@ def _logistic_skat(group,
     k = len(covariates)
     if k == 0:
         raise ValueError('_logistic_skat: at least one covariate is required.')
-    _warn_if_no_intercept'_logistic_skat', covariates)
+    _warn_if_no_intercept('_logistic_skat', covariates)
     mt = mt._select_all(
         row_exprs=dict(
             group=group,
