@@ -1,6 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations._
+import is.hail.backend.HailStateManager
 import is.hail.check.Gen
 import is.hail.types.physical.PBaseStruct
 import is.hail.utils._
@@ -18,8 +19,8 @@ object TBaseStruct {
   def getOrdering(sm: HailStateManager, types: Array[Type], missingEqual: Boolean = true): ExtendedOrdering =
     ExtendedOrdering.rowOrdering(types.map(_.ordering(sm)), missingEqual)
 
-  def getJoinOrdering(types: Array[Type], missingEqual: Boolean = false): ExtendedOrdering =
-    ExtendedOrdering.rowOrdering(types.map(_.mkOrdering(missingEqual = missingEqual)), _missingEqual = missingEqual)
+  def getJoinOrdering(sm: HailStateManager, types: Array[Type], missingEqual: Boolean = false): ExtendedOrdering =
+    ExtendedOrdering.rowOrdering(types.map(_.mkOrdering(sm, missingEqual = missingEqual)), _missingEqual = missingEqual)
 }
 
 abstract class TBaseStruct extends Type {

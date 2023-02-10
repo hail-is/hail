@@ -2,7 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.ExecuteContext
+import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.ir._
 import is.hail.types.physical.stypes.concrete.SRNGState
@@ -34,7 +34,7 @@ object PType {
 
   def genComplexType(required: Boolean): Gen[PType] = {
     val rgDependents = ReferenceGenome.references.values.toArray.map(rg =>
-      PCanonicalLocus(rg, required))
+      PCanonicalLocus(rg.name, required))
     val others = Array(PCanonicalCall(required))
     Gen.oneOfSeq(rgDependents ++ others)
   }
@@ -359,13 +359,13 @@ abstract class PType extends Serializable with Requiredness {
     sb.result()
   }
 
-  def unsafeOrdering(): UnsafeOrdering
+  def unsafeOrdering(sm: HailStateManager): UnsafeOrdering
 
   def isCanonical: Boolean = PType.canonical(this) == this // will recons, may need to rewrite this method
 
-  def unsafeOrdering(rightType: PType): UnsafeOrdering = {
+  def unsafeOrdering(sm: HailStateManager, rightType: PType): UnsafeOrdering = {
     require(virtualType == rightType.virtualType, s"$this, $rightType")
-    unsafeOrdering()
+    unsafeOrdering(sm)
   }
 
   def asIdent: String = (if (required) "r_" else "o_") + _asIdent

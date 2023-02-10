@@ -27,7 +27,7 @@ case class FamFileConfig(isQuantPheno: Boolean = false,
 object LoadPlink {
   def expectedBedSize(nSamples: Int, nVariants: Long): Long = 3 + nVariants * ((nSamples + 3) / 4)
 
-  def parseBim(fs: FS, bimPath: String, a2Reference: Boolean,
+  def parseBim(ctx: ExecuteContext, fs: FS, bimPath: String, a2Reference: Boolean,
     contigRecoding: Map[String, String], rg: Option[ReferenceGenome], locusAllelesType: TStruct,
     skipInvalidLoci: Boolean): (Int, Array[PlinkVariant]) = {
     val vs = new BoxedArrayBuilder[PlinkVariant]()
@@ -58,7 +58,7 @@ object LoadPlink {
       }
     }
     val variants = vs.result()
-    (n, variants.sortBy(_.locusAlleles)(locusAllelesType.ordering.toOrdering))
+    (n, variants.sortBy(_.locusAlleles)(locusAllelesType.ordering(ctx.stateManager).toOrdering))
   }
 
   val numericRegex =
@@ -175,7 +175,7 @@ object MatrixPLINKReader {
     if (nSamples <= 0)
       fatal("FAM file does not contain any samples")
 
-    val (nTotalVariants, variants) = LoadPlink.parseBim(fs, params.bim, params.a2Reference, params.contigRecoding,
+    val (nTotalVariants, variants) = LoadPlink.parseBim(ctx, fs, params.bim, params.a2Reference, params.contigRecoding,
       referenceGenome, locusAllelesType, params.skipInvalidLoci)
     val nVariants = variants.length
     if (nTotalVariants <= 0)

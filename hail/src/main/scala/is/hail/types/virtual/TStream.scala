@@ -1,6 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations.{Annotation, ExtendedOrdering}
+import is.hail.backend.HailStateManager
 import is.hail.check.Gen
 import org.json4s.jackson.JsonMethods
 

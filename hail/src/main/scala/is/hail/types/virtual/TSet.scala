@@ -1,6 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations.{Annotation, ExtendedOrdering}
+import is.hail.backend.HailStateManager
 import is.hail.check.Gen
 import is.hail.types.physical.PSet
 import is.hail.utils._
@@ -37,8 +38,6 @@ final case class TSet(elementType: Type) extends TContainer {
     elementType.pretty(sb, indent, compact)
     sb.append("]")
   }
-
-  override lazy val ordering(sm: HailStateManager): ExtendedOrdering = mkOrdering(sm)
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
     ExtendedOrdering.setOrdering(elementType.ordering(sm), missingEqual)

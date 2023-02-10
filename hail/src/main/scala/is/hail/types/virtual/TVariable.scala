@@ -1,6 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations.ExtendedOrdering
+import is.hail.backend.HailStateManager
 import is.hail.types.Box
 import is.hail.types.physical.PType
 

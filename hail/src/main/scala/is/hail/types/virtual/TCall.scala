@@ -1,6 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations._
+import is.hail.backend.HailStateManager
 import is.hail.check.Gen
 import is.hail.types._
 import is.hail.types.physical.PCall
@@ -23,8 +24,6 @@ case object TCall extends Type {
   override def scalaClassTag: ClassTag[java.lang.Integer] = classTag[java.lang.Integer]
 
   override def str(a: Annotation): String = if (a == null) "NA" else Call.toString(a.asInstanceOf[Call])
-
-  override val ordering(sm: HailStateManager): ExtendedOrdering = mkOrdering(sm)
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Int]], missingEqual)

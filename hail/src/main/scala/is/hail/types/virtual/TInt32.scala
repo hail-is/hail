@@ -1,6 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations.{Region, _}
+import is.hail.backend.HailStateManager
 import is.hail.asm4s.Code
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen

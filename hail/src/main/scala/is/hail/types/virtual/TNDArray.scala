@@ -1,6 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations.{Annotation, ExtendedOrdering, NDArray, UnsafeIndexedSeq}
+import is.hail.backend.HailStateManager
 import is.hail.expr.{Nat, NatBase}
 import is.hail.types.physical.PNDArray
 import org.apache.spark.sql.Row

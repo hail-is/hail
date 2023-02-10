@@ -1,6 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations.{Annotation, ExtendedOrdering}
+import is.hail.backend.HailStateManager
 import is.hail.check.Gen
 import is.hail.types.physical.PDict
 import is.hail.utils._
@@ -69,8 +70,6 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
         })
 
   override def scalaClassTag: ClassTag[Map[_, _]] = classTag[Map[_, _]]
-
-  override lazy val ordering(sm: HailStateManager: ExtendedOrdering = mkOrdering(sm)
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
     ExtendedOrdering.mapOrdering(elementType.ordering(sm), missingEqual)

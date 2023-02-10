@@ -1,6 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations.ExtendedOrdering
+import is.hail.backend.HailStateManager
 import is.hail.utils._
 import org.apache.spark.sql.Row
 

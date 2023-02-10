@@ -14,7 +14,7 @@ import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
-import is.hail.variant.Locus
+import is.hail.variant.{Locus, ReferenceGenome}
 import org.apache.spark.sql.Row
 
 import scala.collection.JavaConverters._
@@ -33,7 +33,11 @@ object IRFunctionRegistry {
   type IRFunctionSignature = (Seq[Type], Seq[Type], Type, Boolean)
   type IRFunctionImplementation = (Seq[Type], Seq[IR], Int) => IR
 
+  type IRWithRGFunctionImplementation = (Seq[Type], Seq[IR], ReferenceGenome, Int) => IR
+
   val irRegistry: mutable.Map[String, mutable.Map[IRFunctionSignature, IRFunctionImplementation]] = new mutable.HashMap()
+
+  val irWithRgRegistry: mutable.Map[String, mutable.Map[IRFunctionSignature, IRWithRGFunctionImplementation]] = new mutable.HashMap()
 
   val jvmRegistry: mutable.MultiMap[String, JVMFunction] =
     new mutable.HashMap[String, mutable.Set[JVMFunction]] with mutable.MultiMap[String, JVMFunction]
@@ -59,6 +63,20 @@ object IRFunctionRegistry {
     requireJavaIdentifier(name)
 
     val m = irRegistry.getOrElseUpdate(name, new mutable.HashMap())
+    m.update((typeParameters, valueParameterTypes, returnType, alwaysInline), f)
+  }
+
+  def addIRWithReferenceGenome(
+    name: String,
+    typeParameters: Seq[Type],
+    valueParameterTypes: Seq[Type],
+    returnType: Type,
+    alwaysInline: Boolean,
+    f: IRWithRGFunctionImplementation,
+  ): Unit = {
+    requireJavaIdentifier(name)
+
+    val m = irWithRgRegistry.getOrElseUpdate(name, new mutable.HashMap())
     m.update((typeParameters, valueParameterTypes, returnType, alwaysInline), f)
   }
 
@@ -533,6 +551,10 @@ abstract class RegistryFunctions {
   def registerIR(name: String, valueParameterTypes: Array[Type], returnType: Type, inline: Boolean = false, typeParameters: Array[Type] = Array.empty)(f: (Seq[Type], Seq[IR], Int) => IR): Unit =
     IRFunctionRegistry.addIR(name, typeParameters, valueParameterTypes, returnType, inline, f)
 
+  def registerIRAndRg(name: String, valueParameterTypes: Array[Type], returnType: Type, inline: Boolean = false, typeParameters: Array[Type] = Array.empty)(f: (Seq[Type], Seq[IR], ReferenceGenome, Int) => IR): Unit =
+    IRFunctionRegistry.addIRWithReferenceGenome(name, typeParameters, valueParameterTypes, returnType, inline, f)
+
+
   def registerSCode1(name: String, mt1: Type, rt: Type, pt: (Type, SType) => SType)(impl: (EmitRegion, EmitCodeBuilder, SType, SValue, Value[Int]) => SValue): Unit =
     registerSCode(name, Array(mt1), rt, unwrappedApply(pt)) {
       case (r, cb, _, rt, Array(a1), errorID) => impl(r, cb, rt, a1, errorID)
@@ -638,6 +660,9 @@ abstract class RegistryFunctions {
   def registerEmitCode2(name: String, mt1: Type, mt2: Type, rt: Type, pt: (Type, EmitType, EmitType) => EmitType)
     (impl: (EmitRegion, SType, Value[Int], EmitCode, EmitCode) => EmitCode): Unit =
     registerEmitCode(name, Array(mt1, mt2), rt, unwrappedApply(pt)) { case (r, rt, errorID, Array(a1, a2)) => impl(r, rt, errorID, a1, a2) }
+
+  def registerIR1AndRg(name: String, mt1: Type, returnType: Type, typeParameters: Array[Type] = Array.empty)(f: (Seq[Type], IR, ReferenceGenome, Int) => IR): Unit =
+    registerIRAndRg(name, Array(mt1), returnType, typeParameters = typeParameters) { case (t, Seq(a1), rg, errorID) => f(t, a1, rg, errorID) }
 
   def registerIR1(name: String, mt1: Type, returnType: Type, typeParameters: Array[Type] = Array.empty)(f: (Seq[Type], IR, Int) => IR): Unit =
     registerIR(name, Array(mt1), returnType, typeParameters = typeParameters) { case (t, Seq(a1), errorID) => f(t, a1, errorID) }

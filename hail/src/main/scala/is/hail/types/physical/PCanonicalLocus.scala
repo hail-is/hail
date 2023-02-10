@@ -60,7 +60,7 @@ final case class PCanonicalLocus(rgName: String, required: Boolean = false) exte
   // FIXME: Remove when representation of contig/position is a naturally-ordered Long
   override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = {
     val localRg = sm.referenceGenomes(rgName)
-    val binaryOrd = representation.fieldType("contig").unsafeOrdering()
+    val binaryOrd = representation.fieldType("contig").unsafeOrdering(sm)
 
     new UnsafeOrdering {
       def compare(o1: Long, o2: Long): Int = {

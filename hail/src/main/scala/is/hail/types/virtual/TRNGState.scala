@@ -1,5 +1,7 @@
 package is.hail.types.virtual
 
+import is.hail.backend.HailStateManager
+
 case object TRNGState extends Type {
   override def _toPretty = "RNGState"
 

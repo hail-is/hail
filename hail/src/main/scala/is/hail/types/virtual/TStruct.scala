@@ -1,6 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations.{Annotation, AnnotationPathException, _}
+import is.hail.backend.HailStateManager
 import is.hail.expr.ir.{Env, IRParser, IntArrayBuilder}
 import is.hail.types.physical.{PField, PStruct}
 import is.hail.utils._

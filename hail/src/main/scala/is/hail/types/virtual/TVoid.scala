@@ -1,6 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations.ExtendedOrdering
+import is.hail.backend.HailStateManager
 import is.hail.types.physical.PVoid
 
 case object TVoid extends Type {
