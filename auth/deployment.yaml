@@ -50,6 +50,8 @@ spec:
               secretKeyRef:
                 name: global-config
                 key: domain
+          - name: HAIL_SHA
+            value: "{{ code.sha }}"
 {% if scope != "test" %}
           - name: HAIL_SHOULD_PROFILE
             value: "1"
@@ -176,6 +178,8 @@ spec:
               secretKeyRef:
                 name: global-config
                 key: organization_domain
+          - name: HAIL_SHA
+            value: "{{ code.sha }}"
 {% if scope != "test" %}
           - name: HAIL_SHOULD_PROFILE
             value: "1"

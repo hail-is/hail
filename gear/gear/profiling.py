@@ -1,8 +1,7 @@
-import os
 import logging
+import os
 
 import googlecloudprofiler
-
 
 HAIL_SHA = os.environ['HAIL_SHA']
 HAIL_SHOULD_PROFILE = os.environ.get('HAIL_SHOULD_PROFILE', False)
