@@ -2694,7 +2694,7 @@ steps:
       EOF
 
       BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit --files=foo -o json hail_with_args.py 100 | jq '.id')
-      STATUS=$(hailctl batch wait -o json $BATCH_ID | jq -jr '.state')
+      STATUS=$(hailctl batch wait -o json $BATCH_ID)
       STATE=$(echo $STATUS | jq -jr '.state')
       if [ "$STATE" == "success" ]; then
           exit 0;
