@@ -5,7 +5,7 @@ azure-storage-blob>=12.11.0,<13
 boto3>=1.17,<2.0
 botocore>=1.20,<2.0
 google-auth==2.14.1
-google-cloud-storage>=1.25.*
+google-cloud-storage>=1.25.0
 humanize>=1.0.0,<2
 janus>=0.6,<1.1
 orjson>=3.6.4,<4
