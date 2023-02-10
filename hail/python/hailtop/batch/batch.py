@@ -342,6 +342,9 @@ class Batch:
         if self._default_timeout is not None:
             j.timeout(self._default_timeout)
 
+        if isinstance(self._backend, _backend.ServiceBackend):
+            j.regions(self._backend.regions)
+
         self._jobs.append(j)
         return j
 
