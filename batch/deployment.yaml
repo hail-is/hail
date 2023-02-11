@@ -408,6 +408,10 @@ spec:
                key: internal_ip
          - name: HAIL_SHA
            value: "{{ code.sha }}"
+{% if scope != "test" %}
+         - name: HAIL_SHOULD_PROFILE
+           value: "1"
+{% endif %}
          - name: HAIL_SCOPE
            value: "{{ scope }}"
 {% if deploy %}
