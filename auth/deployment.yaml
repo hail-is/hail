@@ -50,6 +50,11 @@ spec:
               secretKeyRef:
                 name: global-config
                 key: domain
+          - name: CLOUD
+            valueFrom:
+              secretKeyRef:
+                name: global-config
+                key: cloud
           - name: HAIL_SHA
             value: "{{ code.sha }}"
 {% if scope != "test" %}
@@ -178,6 +183,11 @@ spec:
               secretKeyRef:
                 name: global-config
                 key: organization_domain
+          - name: CLOUD
+            valueFrom:
+              secretKeyRef:
+                name: global-config
+                key: cloud
           - name: HAIL_SHA
             value: "{{ code.sha }}"
 {% if scope != "test" %}
