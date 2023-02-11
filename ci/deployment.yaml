@@ -90,6 +90,11 @@ spec:
                secretKeyRef:
                  name: global-config
                  key: kubernetes_server_url
+           - name: CLOUD
+             valueFrom:
+               secretKeyRef:
+                 name: global-config
+                 key: cloud
            - name: HAIL_SHA
              value: "{{ code.sha }}"
 {% if scope != "test" %}
