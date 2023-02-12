@@ -16,7 +16,19 @@ import uuid
 import warnings
 from collections import defaultdict
 from contextlib import AsyncExitStack, ExitStack
-from typing import Any, Awaitable, Callable, ContextManager, Dict, List, MutableMapping, Optional, Tuple, Union
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    ContextManager,
+    Coroutine,
+    Dict,
+    List,
+    MutableMapping,
+    Optional,
+    Tuple,
+    Union,
+)
 
 import aiodocker  # type: ignore
 import aiodocker.images
@@ -539,14 +551,13 @@ class StepInterruptedError(Exception):
 
 
 async def run_until_done_or_deleted(
-    task_manager: aiotools.BackgroundTaskManager,
     event: asyncio.Event,
-    f: Callable[..., Awaitable[Any]],
+    f: Callable[..., Coroutine[Any, Any, Any]],
     *args,
     **kwargs,
 ):
-    step = task_manager.ensure_future(f(*args, **kwargs))
-    deleted = task_manager.ensure_future(event.wait())
+    step = asyncio.create_task(f(*args, **kwargs))
+    deleted = asyncio.create_task(event.wait())
     try:
         await asyncio.wait([deleted, step], return_when=asyncio.FIRST_COMPLETED)
         if deleted.done():
@@ -752,7 +763,7 @@ class Container:
                     raise ContainerStartError from e
                 raise
 
-        self._run_fut = self.task_manager.ensure_future(self._run_until_done_or_deleted(_run))
+        self._run_fut = asyncio.create_task(self._run_until_done_or_deleted(_run))
 
     async def wait(self):
         assert self._run_fut
@@ -819,6 +830,8 @@ class Container:
                         finally:
                             self.process = None
             finally:
+                if self._run_fut is not None and not self._run_fut.done():
+                    self._run_fut.cancel()
                 self._run_fut = None
                 self._killed = True
 
@@ -860,9 +873,9 @@ class Container:
             finally:
                 await self._cleanup()
 
-    async def _run_until_done_or_deleted(self, f: Callable[..., Awaitable[Any]], *args, **kwargs):
+    async def _run_until_done_or_deleted(self, f: Callable[..., Coroutine[Any, Any, Any]], *args, **kwargs):
         try:
-            return await run_until_done_or_deleted(self.task_manager, self.deleted_event, f, *args, **kwargs)
+            return await run_until_done_or_deleted(self.deleted_event, f, *args, **kwargs)
         except StepInterruptedError as e:
             raise ContainerDeletedError from e
 
@@ -1431,8 +1444,6 @@ class Job:
 
         self.project_id = Job.get_next_xfsquota_project_id()
 
-        self.mjs_fut: Optional[asyncio.Future] = None
-
     @property
     def job_id(self):
         return self.job_spec['job_id']
@@ -1462,10 +1473,10 @@ class Job:
         log.info(f'deleting {self}')
         self.deleted_event.set()
 
-    def mark_started(self):
-        self.mjs_fut = self.task_manager.ensure_future(self.worker.post_job_started(self))
+    def mark_started(self) -> asyncio.Task:
+        return asyncio.create_task(self.worker.post_job_started(self))
 
-    async def mark_complete(self):
+    async def mark_complete(self, mjs_fut: asyncio.Task):
         self.end_time = time_msecs()
 
         full_status = self.status()
@@ -1481,7 +1492,7 @@ class Job:
             )
 
         if not self.deleted:
-            self.task_manager.ensure_future(self.worker.post_job_complete(self, full_status))
+            self.task_manager.ensure_future(self.worker.post_job_complete(self, mjs_fut, full_status))
 
     # {
     #   version: int,
@@ -1691,9 +1702,8 @@ class DockerJob(Job):
         async with self.worker.cpu_sem(self.cpu_in_mcpu):
             self.start_time = time_msecs()
 
+            mjs_fut = self.mark_started()
             try:
-                self.mark_started()
-
                 self.state = 'initializing'
 
                 os.makedirs(f'{self.scratch}/')
@@ -1793,8 +1803,16 @@ class DockerJob(Job):
                         await self.cleanup()
                     finally:
                         _, exc, _ = sys.exc_info()
+                        # mark_complete moves ownership of `mjs_fut` into another task
+                        # but if it either is not run or is cancelled then we need
+                        # to cancel MJS
                         if not isinstance(exc, asyncio.CancelledError):
-                            await self.mark_complete()
+                            try:
+                                await self.mark_complete(mjs_fut)
+                            except asyncio.CancelledError:
+                                mjs_fut.cancel()
+                        else:
+                            mjs_fut.cancel()
 
     async def cleanup(self):
         if self.disk:
@@ -1907,9 +1925,9 @@ class JVMJob(Job):
     def step(self, name):
         return self.timings.step(name)
 
-    async def run_until_done_or_deleted(self, f: Callable[..., Awaitable[Any]], *args, **kwargs):
+    async def run_until_done_or_deleted(self, f: Callable[..., Coroutine[Any, Any, Any]], *args, **kwargs):
         try:
-            return await run_until_done_or_deleted(self.worker.task_manager, self.deleted_event, f, *args, **kwargs)
+            return await run_until_done_or_deleted(self.deleted_event, f, *args, **kwargs)
         except StepInterruptedError as e:
             raise JobDeletedError from e
 
@@ -1964,12 +1982,11 @@ class JVMJob(Job):
             # file with explicit versioning to make sure we maintain backwards compatibility.
             self.write_batch_config()
 
+            mjs_fut = self.mark_started()
             try:
                 with self.step('connecting_to_jvm'):
                     self.jvm = await self.worker.borrow_jvm(self.cpu_in_mcpu // 1000)
                     self.jvm_name = str(self.jvm)
-
-                self.mark_started()
 
                 self.state = 'initializing'
 
@@ -2014,8 +2031,16 @@ class JVMJob(Job):
                 await self.cleanup()
             finally:
                 _, exc, _ = sys.exc_info()
+                # mark_complete moves ownership of `mjs_fut` into another task
+                # but if it either is not run or is cancelled then we need
+                # to cancel MJS
                 if not isinstance(exc, asyncio.CancelledError):
-                    await self.mark_complete()
+                    try:
+                        await self.mark_complete(mjs_fut)
+                    except asyncio.CancelledError:
+                        mjs_fut.cancel()
+                else:
+                    mjs_fut.cancel()
 
     async def cleanup(self):
         assert self.worker
@@ -2399,9 +2424,9 @@ class JVM:
                 write_str(writer, part)
             await writer.drain()
 
-            wait_for_message_from_container: asyncio.Future = self.task_manager.ensure_future(read_int(reader))
+            wait_for_message_from_container: asyncio.Future = asyncio.create_task(read_int(reader))
             stack.callback(wait_for_message_from_container.cancel)
-            wait_for_interrupt: asyncio.Future = self.task_manager.ensure_future(self.should_interrupt.wait())
+            wait_for_interrupt: asyncio.Future = asyncio.create_task(self.should_interrupt.wait())
             stack.callback(wait_for_interrupt.cancel)
 
             await asyncio.wait(
@@ -2475,7 +2500,7 @@ class Worker:
 
         self.headers: Optional[Dict[str, str]] = None
 
-        self._jvm_initializer_task = self.task_manager.ensure_future(self._initialize_jvms())
+        self._jvm_initializer_task = asyncio.create_task(self._initialize_jvms())
         self._jvms: SortedSet[JVM] = SortedSet([], key=lambda jvm: jvm.n_cores)
 
     async def _initialize_jvms(self):
@@ -2504,6 +2529,7 @@ class Worker:
 
     async def shutdown(self):
         log.info('Worker.shutdown')
+        self._jvm_initializer_task.cancel()
         try:
             async with AsyncExitStack() as cleanup:
                 for jvm in self._jvms:
@@ -2794,9 +2820,8 @@ class Worker:
             # exponentially back off, up to (expected) max of 2m
             delay_secs = min(delay_secs * 2, 2 * 60.0)
 
-    async def post_job_complete(self, job, full_status):
-        if job.mjs_fut is not None:
-            await job.mjs_fut
+    async def post_job_complete(self, job, mjs_fut: asyncio.Task, full_status):
+        await mjs_fut
         try:
             await self.post_job_complete_1(job, full_status)
         except asyncio.CancelledError:
