@@ -111,7 +111,12 @@ class ExecuteContext(
 ) extends Closeable {
   var backendContext: BackendContext = _
 
-  val rngNonce: Long = java.lang.Long.decode(getFlag("rng_nonce"))
+  val rngNonce: Long = try {
+    java.lang.Long.decode(getFlag("rng_nonce"))
+  } catch {
+    case exc: NumberFormatException =>
+      fatal(s"Could not parse flag rng_nonce as a 64-bit signed integer: ${getFlag("rng_nonce")}", exc)
+  }
 
   private val tempFileManager: TempFileManager = if (_tempFileManager != null)
     _tempFileManager
