@@ -119,8 +119,8 @@ def mt_to_tsm(entry_expr,
               rows_per_block: Optional[int],
               dimensions: Optional[Tuple[int, int]],
               ) -> TallSkinnyMatrix:
-    check_entry_indexed('mt_to_table_of_ndarray/entry_expr', entry_expr)
-    mt = matrix_table_source('mt_to_table_of_ndarray/entry_expr', entry_expr)
+    check_entry_indexed('mt_to_tsm/entry_expr', entry_expr)
+    mt = matrix_table_source('mt_to_tsm/entry_expr', entry_expr)
 
     n_rows, n_cols = dimensions or mt.count()
     rows_per_block = reasonable_block_size(entry_expr.dtype, n_rows, n_cols)
@@ -129,7 +129,7 @@ def mt_to_tsm(entry_expr,
     mt = mt.select_globals()
     mt = mt.select_cols()
     mt = mt.select_rows()
-    first_checkpoint = hl.utils.new_temp_file('mt_to_table_of_ndarray', 'mt')
+    first_checkpoint = hl.utils.new_temp_file('mt_to_tsm', 'mt')
     source_mt = mt.checkpoint(first_checkpoint)
 
     new_partitions = key_intervals(mt.rows(), rows_per_block, n_rows)
@@ -140,7 +140,7 @@ def mt_to_tsm(entry_expr,
     ht = ht.annotate(row_keys = ht.groups.map(lambda g: g.select(*mt.row_key)))
     ht = ht.annotate(block = hl.nd.array(ht.groups.row_vector))
     ht = ht.select('row_keys', 'block')
-    ht = ht.checkpoint(hl.utils.new_temp_file('mt_to_table_of_ndarray', 'A'))
+    ht = ht.checkpoint(hl.utils.new_temp_file('mt_to_tsm', 'A'))
     ht = ht.annotate_globals(fake_cols = [hl.struct()])
     ht = ht.annotate(fake_entries = [hl.struct()])
     mt = ht._unlocalize_entries('fake_entries', 'fake_cols', col_key=[])
