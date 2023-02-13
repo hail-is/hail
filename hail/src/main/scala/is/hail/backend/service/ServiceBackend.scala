@@ -50,7 +50,7 @@ class ServiceBackendContext(
   val remoteTmpDir: String,
   val workerCores: String,
   val workerMemory: String,
-  val regions: Option[Array[String]]
+  val regions: Array[String]
 ) extends BackendContext with Serializable {
   def tokens(): Tokens =
     new Tokens(Map((DeployConfig.get.defaultNamespace, sessionID)))
@@ -164,10 +164,6 @@ class ServiceBackend(
       if (backendContext.workerMemory != "None") {
         resources = resources.merge(JObject(("memory" -> JString(backendContext.workerMemory))))
       }
-      val regions = backendContext.regions match {
-        case Some(regions) => JArray(regions.map(JString).toList)
-        case None => JNull
-      }
       jobs(i) = JObject(
         "always_run" -> JBool(false),
         "job_id" -> JInt(i + 1),
@@ -188,7 +184,7 @@ class ServiceBackend(
         ),
         "mount_tokens" -> JBool(true),
         "resources" -> resources,
-        "regions" -> regions
+        "regions" -> JArray(backendContext.regions.map(JString).toList)
       )
       i += 1
     }
@@ -564,16 +560,14 @@ class ServiceBackendSocketAPI2(
     val workerMemory = readString()
 
     var nRegions = readInt()
-    val regions = if (nRegions > 0) {
+    val regions = {
       val regionsArrayBuffer = mutable.ArrayBuffer[String]()
       while (nRegions > 0) {
         val region = readString()
         regionsArrayBuffer += region
         nRegions -= 1
       }
-      Some(regionsArrayBuffer.toArray)
-    } else {
-      None
+      regionsArrayBuffer.toArray
     }
 
     val cmd = readInt()

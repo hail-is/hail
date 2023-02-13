@@ -31,6 +31,7 @@ from ..builtin_references import BUILTIN_REFERENCES
 from ..fs.fs import FS
 from ..fs.router_fs import RouterFS
 from ..ir import BaseIR
+from ..utils import ANY_REGION
 
 
 ReferenceGenomeConfig = Dict[str, Any]
@@ -216,11 +217,16 @@ class ServiceBackend(Backend):
         worker_memory = configuration_of('query', 'batch_worker_memory', worker_memory, None)
         name_prefix = configuration_of('query', 'name_prefix', name_prefix, '')
 
-        regions_str = configuration_of('batch', 'regions', regions, None)
-        if regions_str is not None:
-            regions = regions_str.split(',')
-        else:
+        if regions is None:
+            regions_from_conf = user_config.get('batch', 'regions', regions, None)
+            if regions_from_conf is not None:
+                assert isinstance(regions_from_conf, str)
+                regions = regions_from_conf.split(',')
+
+        if regions is None or regions == ANY_REGION:
             regions = bc.supported_regions()
+
+        assert len(regions) > 0, regions
 
         if disable_progress_bar is None:
             disable_progress_bar_str = configuration_of('query', 'disable_progress_bar', None, None)
@@ -265,7 +271,7 @@ class ServiceBackend(Backend):
                  worker_cores: Optional[Union[int, str]],
                  worker_memory: Optional[str],
                  name_prefix: str,
-                 regions: Optional[List[str]]):
+                 regions: List[str]):
         super(ServiceBackend, self).__init__()
         self.billing_project = billing_project
         self._sync_fs = sync_fs
