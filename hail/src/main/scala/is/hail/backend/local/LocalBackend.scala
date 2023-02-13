@@ -351,4 +351,11 @@ class LocalBackend(
   def getPersistedBlockMatrix(backendContext: BackendContext, id: String): BlockMatrix = ???
 
   def getPersistedBlockMatrixType(backendContext: BackendContext, id: String): BlockMatrixType = ???
+
+  def tableToTableStage(ctx: ExecuteContext,
+    inputIR: TableIR,
+  ): TableStage = {
+    val analyses = LoweringAnalyses.apply(inputIR, ctx)
+    LowerTableIR.applyTable(inputIR, DArrayLowering.TableOnly, ctx, analyses)
+  }
 }

@@ -92,6 +92,10 @@ abstract class Backend {
     val inputStage = LowerTableIR.applyTable(inputIR, DArrayLowering.TableOnly, ctx, analyses)
     lowerDistributedSort(ctx, inputStage, sortFields, rt)
   }
+
+  def tableToTableStage(ctx: ExecuteContext,
+    inputIR: TableIR,
+  ): TableStage
 }
 
 trait BackendWithCodeCache {

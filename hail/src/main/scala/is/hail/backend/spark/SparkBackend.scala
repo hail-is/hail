@@ -765,6 +765,19 @@ class SparkBackend(
   def close(): Unit = {
     longLifeTempFileManager.cleanup()
   }
+
+  def tableToTableStage(ctx: ExecuteContext,
+    inputIR: TableIR,
+  ): TableStage = {
+    CanLowerEfficiently(ctx, inputIR) match {
+      case Some(failReason) =>
+        log.info(s"SparkBackend: could not lower IR to table stage: $failReason")
+        inputIR.analyzeAndExecute(ctx).asTableStage(ctx)
+      case None =>
+        val analyses = LoweringAnalyses.apply(inputIR, ctx)
+        LowerTableIR.applyTable(inputIR, DArrayLowering.TableOnly, ctx, analyses)
+    }
+  }
 }
 
 case class SparkBackendComputeRDDPartition(data: Array[Byte], index: Int) extends Partition

@@ -11,7 +11,7 @@ import is.hail.asm4s._
 import is.hail.backend.{Backend, BackendContext, BackendWithNoCodeCache, BroadcastValue, ExecuteContext, HailTaskContext}
 import is.hail.expr.{JSONAnnotationImpex, Validate}
 import is.hail.expr.ir.lowering._
-import is.hail.expr.ir.{Compile, IR, IRParser, MakeTuple, SortField, TableIR, TableReader, TypeCheck}
+import is.hail.expr.ir.{Compile, IR, IRParser, LoweringAnalyses, MakeTuple, SortField, TableIR, TableReader, TypeCheck}
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.bgen.IndexBgen
@@ -392,6 +392,13 @@ class ServiceBackend(
     IndexBgen(ctx, files, indexFileMap, referenceGenomeName, contigRecoding, skipInvalidLoci)
     info(s"Number of BGEN files indexed: ${ files.size }")
     "null"
+  }
+
+  def tableToTableStage(ctx: ExecuteContext,
+    inputIR: TableIR,
+  ): TableStage = {
+    val analyses = LoweringAnalyses.apply(inputIR, ctx)
+    LowerTableIR.applyTable(inputIR, DArrayLowering.TableOnly, ctx, analyses)
   }
 }
 
