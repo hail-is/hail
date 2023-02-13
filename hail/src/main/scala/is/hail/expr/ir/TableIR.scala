@@ -29,6 +29,7 @@ import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SIntervalValu
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
+import is.hail.variant._
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
 import org.json4s.JsonAST.JString
