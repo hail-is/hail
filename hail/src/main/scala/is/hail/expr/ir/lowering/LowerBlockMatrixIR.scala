@@ -846,36 +846,16 @@ object LowerBlockMatrixIR {
         else
           ToArray(rangeIR(child.typ.nColBlocks + 1))
 
-        val diagArray = bindIR(
-          lower(child)
-            .withSparsity(rowPos, ToArray(rangeIR(diagLen)), diagType)
-            .collectBlocks(relationalLetsAbove, "block_matrix_broadcast_diagonal") { (ctx, idx, block) =>
-              bindIR(NDArrayShape(block)) { shape =>
-                val blockDiagLen = minIR(GetTupleElement(shape, 0), GetTupleElement(shape, 1))
-                ToArray(mapIR(rangeIR(blockDiagLen.toI)) { i =>
-                  NDArrayRef(block, FastIndexedSeq(Cast(i, TInt64), Cast(i, TInt64)), ErrorIDs.NO_ERROR)
-                })
-              }
-            }
-        ) { existingDiags =>
-          if (!child.typ.isSparse) {
-            ToStream(existingDiags)
-          } else {
-            val nBlocks = java.lang.Math.min(child.typ.nRowBlocks, child.typ.nColBlocks)
-            val allIdxs = mapIR(rangeIR(nBlocks)) { i => makestruct("idx" -> i) }
-            val idxedExisting = zip2(ToStream(existingDiags), blocks, ArrayZipBehavior.AssertSameLength) { (vec, idx) =>
-              makestruct("idx" -> GetTupleElement(idx, 0), "vec" -> vec)
-            }
-            joinRightDistinctIR(allIdxs, idxedExisting, FastIndexedSeq("idx"), FastIndexedSeq("idx"), "left") { (_, struct) =>
-              val idx = GetField(struct, "idx")
-              val vec = GetField(struct, "vec")
-              val (m, n) = child.typ.blockShapeIR(idx, idx)
-              If(IsNA(vec),
-                mapIR(rangeIR(minIR(m, n).toI))(_ => zero(child.typ.elementType)),
-                ToStream(vec))
+        val diagArray = lower(child)
+          .withSparsity(rowPos, ToArray(rangeIR(diagLen)), diagType)
+          .collectBlocks(relationalLetsAbove, "block_matrix_broadcast_diagonal") { (ctx, idx, block) =>
+            bindIR(NDArrayShape(block)) { shape =>
+              val blockDiagLen = minIR(GetTupleElement(shape, 0), GetTupleElement(shape, 1))
+              ToArray(mapIR(rangeIR(blockDiagLen.toI)) { i =>
+                NDArrayRef(block, FastIndexedSeq(Cast(i, TInt64), Cast(i, TInt64)), ErrorIDs.NO_ERROR)
+              })
             }
           }
-        }
 
         val diagVector = MakeNDArray(ToArray(flatten(diagArray)), maketuple(math.min(child.typ.nRows, child.typ.nCols)), true, ErrorIDs.NO_ERROR)
         BlockMatrixStage2.broadcastVector(diagVector, x.typ, asRowVector = axis == 0)

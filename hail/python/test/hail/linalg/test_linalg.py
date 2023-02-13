@@ -1000,7 +1000,6 @@ class Tests(unittest.TestCase):
             self._assert_eq(expected, BlockMatrix.rectangles_to_numpy(rect_bytes_uri, binary=True))
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_to_ndarray(self):
         np_mat = np.arange(12).reshape((4, 3)).astype(np.float64)
         mat = BlockMatrix.from_ndarray(hl.nd.array(np_mat)).to_ndarray()
@@ -1244,7 +1243,6 @@ class Tests(unittest.TestCase):
         assert "index" in str(exc.value)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_sparsify_blocks(self):
         block_list = [1, 2]
         np_square = np.arange(16, dtype=np.float64).reshape((4, 4))
