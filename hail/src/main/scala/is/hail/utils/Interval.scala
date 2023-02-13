@@ -25,6 +25,8 @@ case class IntervalEndpoint(point: Any, sign: Int) extends Serializable {
     else
       this
   }
+
+  def flipSign: IntervalEndpoint = copy(sign = -sign)
 }
 
 /** 'Interval' has an implicit precondition that 'start' and 'end' either have

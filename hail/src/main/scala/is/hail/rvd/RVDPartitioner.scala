@@ -3,6 +3,7 @@ package is.hail.rvd
 import is.hail.annotations._
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.expr.ir.Literal
+import is.hail.expr.ir.lowering.PartitionSparsity
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.commons.lang.builder.HashCodeBuilder
@@ -16,7 +17,7 @@ class RVDPartitioner(
   // rangeBounds: Array[Interval[kType]]
   // rangeBounds is interval containing all keys within a partition
   val rangeBounds: Array[Interval],
-  allowedOverlap: Int
+  val allowedOverlap: Int
 ) {
   // expensive, for debugging
   // assert(rangeBounds.forall(SafeRow.isSafe))
@@ -61,6 +62,21 @@ class RVDPartitioner(
   val intervalKeyLT: (Interval, Any) => Boolean = (i, k) => i.isBelowPosition(kord, k)
   val keyIntervalLT: (Any, Interval) => Boolean = (k, i) => i.isAbovePosition(kord, k)
   val intervalLT: (Interval, Interval) => Boolean = (i1, i2) => i1.isBelow(kord, i2)
+
+
+  def naiveCoalesce(groupSize: Int): RVDPartitioner = {
+    require(groupSize > 1)
+    val newRangeBounds = new BoxedArrayBuilder[Interval]()
+    var i = 0
+    val nParts = numPartitions
+    while(i < nParts) {
+      val startInterval = rangeBounds(i)
+     val endInterval = rangeBounds(math.min(i + groupSize, nParts) - 1)
+      newRangeBounds += Interval(startInterval.left, endInterval.right)
+     i += groupSize
+    }
+    new RVDPartitioner(sm, kType, newRangeBounds.result(), allowedOverlap)
+  }
 
   def range: Option[Interval] =
     if (rangeBounds.isEmpty)
@@ -302,6 +318,27 @@ class RVDPartitioner(
   def partitionBoundsIRRepresentation: Literal = {
     Literal(TArray(RVDPartitioner.intervalIRRepresentation(kType)),
       rangeBounds.map(i => RVDPartitioner.intervalToIRRepresentation(i, kType.size)).toFastIndexedSeq)
+  }
+  def diff(other: RVDPartitioner): RVDPartitioner = {
+    val ord = kord.intervalEndpointOrdering
+
+    val ab = new BoxedArrayBuilder[Interval]()
+    rangeBounds.foreach { bound =>
+      val (lb, ub) = other.intervalRange(bound)
+      if (lb == ub)
+        ab += bound
+      else {
+        val otherRangeStart = other.rangeBounds(lb).left.flipSign
+        val otherRangeEnd = other.rangeBounds(ub-1).right.flipSign
+        if(ord.lt(bound.left, otherRangeStart))
+          ab += Interval(bound.left, other.rangeBounds(lb).left.flipSign)
+
+        if (ord.lt(otherRangeEnd, bound.right))
+          ab += Interval(otherRangeEnd, bound.right)
+      }
+    }
+
+    RVDPartitioner.generate(sm, kType, ab.result())
   }
 }
 

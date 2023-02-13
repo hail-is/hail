@@ -7,7 +7,7 @@ import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext, TaskFinalizer}
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, IntervalFunctions, MatrixToTableFunction, TableToTableFunction}
-import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR, LowererUnsupportedOperation, TableStage, TableStageDependency}
+import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io._
 import is.hail.io.avro.AvroTableReader
@@ -359,7 +359,7 @@ object LoweredTableReader {
                 },
                 key.length)
 
-              TableStage(globals, partitioner, TableStageDependency.none,
+              TableStage(globals, partitioner, PartitionSparsity.Dense, TableStageDependency.none,
                 ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
                 body)
             }
@@ -390,7 +390,7 @@ object LoweredTableReader {
                   Interval(selectPK(partData.getAs[Row](1)), selectPK(partData.getAs[Row](2)), includesStart = true, includesEnd = true)
                 }, pkType.size)
 
-              val pkPartitioned = TableStage(globals, partitioner, TableStageDependency.none,
+              val pkPartitioned = TableStage(globals, partitioner, PartitionSparsity.Dense, TableStageDependency.none,
                 ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
                 body)
 
@@ -417,7 +417,7 @@ object LoweredTableReader {
 
               val partitioner = RVDPartitioner.unkeyed(ctx.stateManager, sortedPartData.length)
 
-              val tableStage = TableStage(globals, partitioner, TableStageDependency.none,
+              val tableStage = TableStage(globals, partitioner, PartitionSparsity.Dense, TableStageDependency.none,
                 ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
                 body)
 
@@ -506,8 +506,17 @@ abstract class TableReader {
   def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
     throw new LowererUnsupportedOperation(s"${ getClass.getSimpleName }.lowerGlobals not implemented")
 
+  def lowerPartitioned(ctx: ExecuteContext, requestedType: TableType, partitioner: RequestedPartitioning) = {
+    val stage = lower(ctx, requestedType)
+    partitioner match {
+      case UseThisPartitioning(partitioner) => stage.repartitionNoShuffle(partitioner)
+      case _ => stage
+    }
+  }
   def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
     throw new LowererUnsupportedOperation(s"${ getClass.getSimpleName }.lower not implemented")
+
+  def partitionProposal: PartitionProposal = ???
 }
 
 object TableNativeReader {
@@ -1380,7 +1389,9 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
 
 case class TableNativeReaderParameters(
   path: String,
-  options: Option[NativeReaderOptions])
+  options: Option[NativeReaderOptions]) {
+  def filterIntervals = options.map(_.filterIntervals).getOrElse(false)
+}
 
 class TableNativeReader(
   val params: TableNativeReaderParameters,
@@ -1440,7 +1451,25 @@ class TableNativeReader(
       0)
   }
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
+  override def lowerPartitioned(ctx: ExecuteContext, requestedType: TableType, partitioner: RequestedPartitioning): TableStage = {
+    partitioner match {
+      case UseThisPartitioning(p) =>
+        val opts = params.options
+        opts match {
+          case Some(o) =>
+              val newIntervals = Interval.intersection(p.rangeBounds, o.intervals.toArray, p.kord.intervalEndpointOrdering)
+            lowerWithNewParams(ctx, requestedType, params.copy(options = Some(NativeReaderOptions(newIntervals, p.kType, false))))
+              .repartitionNoShuffle(p)
+          case None =>
+            lowerWithNewParams(ctx, requestedType, params.copy(options = Some(NativeReaderOptions(p.rangeBounds, p.kType, false))))
+        }
+      case UseTheDefaultPartitioning =>
+        lowerWithNewParams(ctx, requestedType, params)
+    }
+  }
+
+
+  def lowerWithNewParams(ctx: ExecuteContext, requestedType: TableType, params: TableNativeReaderParameters): TableStage = {
     val globals = lowerGlobals(ctx, requestedType.globalType)
     val rowsSpec = spec.rowsSpec
     val specPart = rowsSpec.partitioner(ctx.stateManager)
@@ -1458,6 +1487,10 @@ class TableNativeReader(
       uidFieldName
 
     spec.rowsSpec.readTableStage(ctx, spec.rowsComponent.absolutePath(params.path), requestedType, requestedUIDFieldName, partitioner, filterIntervals).apply(globals)
+  }
+
+  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
+    lowerWithNewParams(ctx, requestedType, params)
   }
 }
 
@@ -1854,7 +1887,7 @@ case class TableGen(contexts: IR,
     FastSeq(contexts, globals, body)
 
   override protected[ir] def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate =
-    new TableStageIntermediate(LowerTableIR.applyTable(this, DArrayLowering.All, ctx, LoweringAnalyses(this, ctx)))
+    new TableStageIntermediate(LowerTableIR.lowerTable(this, UseTheDefaultPartitioning, DArrayLowering.All, ctx, LoweringAnalyses(this, ctx)))
 }
 
 case class TableRange(n: Int, nPartitions: Int) extends TableIR {
@@ -1873,6 +1906,15 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
   override val partitionCounts = Some(partCounts.map(_.toLong).toFastIndexedSeq)
 
   lazy val rowCountUpperBound: Option[Long] = Some(n.toLong)
+
+  def defaultPartitionRanges(): IndexedSeq[(Int, Int)] = {
+    val nPartitionsAdj = math.max(math.min(n, nPartitions), 1)
+    val partCounts = partition(n, nPartitionsAdj)
+    val partStarts = partCounts.scanLeft(0)(_ + _)
+    Array.tabulate(nPartitionsAdj) { i =>
+      partStarts(i) -> (partStarts(i + 1) - 1)
+    }
+  }
 
   val typ: TableType = TableType(
     TStruct("idx" -> TInt32),

@@ -362,6 +362,6 @@ class LocalBackend(
     inputIR: TableIR,
     analyses: LoweringAnalyses
   ): TableStage = {
-    LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
+    LowerTableIR.choosePartitioningAndLowerTable(inputIR, DArrayLowering.All, ctx, analyses)
   }
 }

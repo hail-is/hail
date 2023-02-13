@@ -3,7 +3,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.StringFunctions
-import is.hail.expr.ir.lowering.{TableStage, TableStageDependency, TableStageToRVD}
+import is.hail.expr.ir.lowering.{PartitionSparsity, TableStage, TableStageDependency, TableStageToRVD}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.fs.{FS, FileStatus}
 import is.hail.rvd.RVDPartitioner
@@ -160,6 +160,7 @@ class StringTableReader(
       params.filePerPartition)
     TableStage(globals = MakeStruct(FastSeq()),
       partitioner = RVDPartitioner.unkeyed(ctx.stateManager, lines.nPartitions),
+      partitionSparsity = PartitionSparsity.Dense,
       dependency = TableStageDependency.none,
       contexts = ToStream(Literal.coerce(TArray(lines.contextType), lines.contexts)),
       body = { partitionContext: Ref => ReadPartition(partitionContext, requestedType.rowType, StringTablePartitionReader(lines, uidFieldName))

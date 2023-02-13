@@ -2,7 +2,7 @@ package is.hail.io.avro
 
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
-import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
+import is.hail.expr.ir.lowering.{PartitionSparsity, TableStage, TableStageDependency}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.physical.{PCanonicalStruct, PCanonicalTuple, PInt64Required}
 import is.hail.types.virtual._
@@ -57,6 +57,7 @@ class AvroTableReader(
     TableStage(
       globals,
       partitioner,
+      PartitionSparsity.Dense,
       TableStageDependency.none,
       contexts,
       { ctx =>

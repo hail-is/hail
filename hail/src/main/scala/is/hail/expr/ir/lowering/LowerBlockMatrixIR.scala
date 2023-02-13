@@ -890,7 +890,7 @@ object LowerBlockMatrixIR {
       val s = MakeStruct(FastIndexedSeq("blockRow" -> GetTupleElement(GetField(ctxRef, "new"), 0), "blockCol" -> GetTupleElement(GetField(ctxRef, "new"), 1), "block" -> bmsWithCtx.blockBody(ctxRef)))
       MakeStream(FastIndexedSeq(s), TStream(s.typ))
     }
-    val ts = TableStage(letBindings, bcFields, Ref(globalsId, emptyGlobals.typ), RVDPartitioner.unkeyed(ctx.stateManager, blocksRowMajor.size), TableStageDependency.none, contextsIR, tsPartitionFunction)
+    val ts = TableStage(letBindings, bcFields, Ref(globalsId, emptyGlobals.typ), RVDPartitioner.unkeyed(ctx.stateManager, blocksRowMajor.size), PartitionSparsity.Dense, TableStageDependency.none, contextsIR, tsPartitionFunction)
     ts
   }
 

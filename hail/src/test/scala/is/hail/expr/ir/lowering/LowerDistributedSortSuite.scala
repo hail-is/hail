@@ -39,7 +39,7 @@ class LowerDistributedSortSuite extends HailSuite {
       backend.setFlag("shuffle_cutoff_to_local_sort", "40")
       val analyses: LoweringAnalyses = LoweringAnalyses.apply(myTable, ctx)
       val rt = analyses.requirednessAnalysis.lookup(myTable).asInstanceOf[RTable]
-      val stage = LowerTableIR.applyTable(myTable, DArrayLowering.All, ctx, analyses)
+      val stage = LowerTableIR.choosePartitioningAndLowerTable(myTable, DArrayLowering.All, ctx, analyses)
 
       val sortedTs = LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt)
         .lower(ctx, myTable.typ.copy(key = FastIndexedSeq()))
