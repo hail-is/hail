@@ -3330,13 +3330,13 @@ def balding_nichols_model(n_populations: int,
                      mixture=mixture))
     # col info
     pop_f = hl.rand_dirichlet if mixture else hl.rand_cat
-    bn = bn.annotate_globals(cols = hl.range(n_samples).map(
+    bn = bn.annotate_globals(cols=hl.range(n_samples).map(
         lambda idx: hl.struct(
             sample_idx=idx,
             pop=pop_f(pop_dist)
         )
     ))
-    bn = bn.annotate(entries = hl.range(n_samples).map(lambda _: hl.struct()))
+    bn = bn.annotate(entries=hl.range(n_samples).map(lambda _: hl.struct()))
     bn = bn._unlocalize_entries('entries', 'cols', ['sample_idx'])
     # row info
     bn = bn.select_rows(ancestral_af=af_dist,
