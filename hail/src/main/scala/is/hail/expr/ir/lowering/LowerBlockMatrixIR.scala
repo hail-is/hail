@@ -191,7 +191,7 @@ object BlockMatrixStage2 {
     val blocks = typ.allBlocksColMajor
     val ctxsArray = MakeArray(blocks.map(idx => bms.blockContext(idx)), TArray(bms.ctxType))
 
-    BlockMatrixStage2(bms.letBindings, bms.broadcastVals, typ, DenseContexts(typ.nRowBlocks, typ.nColBlocks, ctxsArray), bms.blockBody)
+    BlockMatrixStage2(bms.letBindings, bms.broadcastVals, typ, BMSContexts(typ, ctxsArray), bms.blockBody)
   }
 
   def empty(eltType: Type) = BlockMatrixStage2(
@@ -306,6 +306,8 @@ abstract class BMSContexts {
   def map(f: (IR, IR, IR, IR) => IR): BMSContexts
 
   def zip(other: BMSContexts): BMSContexts
+
+  def memo: ((String, IR), BMSContexts)
 }
 
 case class DenseContexts(nRows: Int, nCols: Int, contexts: IR) extends BMSContexts {
@@ -333,8 +335,8 @@ case class DenseContexts(nRows: Int, nCols: Int, contexts: IR) extends BMSContex
     DenseContexts(nRows, nCols, newContexts)
   }
 
-  def sparsify(rowPos: IR, rowIdx: IR): BMSContexts = {
-    val newContexts = flatMapIR(rangeIR(nCols)) { j =>
+  def sparsify(rowPos: Ref, rowIdx: Ref): BMSContexts = {
+    val newContexts = ToArray(flatMapIR(rangeIR(nCols)) { j =>
       bindIRs(ArrayRef(rowPos, j), ArrayRef(rowPos, j + 1), j * nRows) { case Seq(start, end, basePos) =>
         mapIR(rangeIR(start, end)) { pos =>
           bindIR(ArrayRef(rowIdx, pos)) { i =>
@@ -342,8 +344,13 @@ case class DenseContexts(nRows: Int, nCols: Int, contexts: IR) extends BMSContex
           }
         }
       }
-    }
+    })
     SparseContexts(nRows, nCols, rowPos, rowIdx, newContexts)
+  }
+
+  def memo: ((String, IR), DenseContexts) = {
+    val refName = genUID()
+    (refName -> contexts, DenseContexts(nRows, nCols, Ref(refName, contexts.typ)))
   }
 }
 
@@ -373,7 +380,7 @@ case class SparseContexts(nRows: Int, nCols: Int, sparsity: IR) extends BMSConte
 
   def map(f: (IR, IR, IR, IR) => IR): SparseContexts = {
     SparseContexts(nRows, nCols, rowPos, rowIdx,
-      flatMapIR(rangeIR(nCols)) { j =>
+      ToArray(flatMapIR(rangeIR(nCols)) { j =>
         bindIRs(ArrayRef(rowPos, j), ArrayRef(rowPos, j + 1)) { case Seq(start, end) =>
           mapIR(rangeIR(start, end)) { pos =>
             bindIRs(ArrayRef(rowIdx, pos), ArrayRef(contexts, pos)) { case Seq(i, old) =>
@@ -381,18 +388,18 @@ case class SparseContexts(nRows: Int, nCols: Int, sparsity: IR) extends BMSConte
             }
           }
         }
-      })
+      }))
   }
 
   def mapDense(f: (IR, IR, IR) => IR): DenseContexts = {
     val newContexts = flatMapIR(rangeIR(nCols)) { j =>
       bindIRs(ArrayRef(rowPos, j), ArrayRef(rowPos, j + 1)) { case Seq(start, end) =>
-        val allIdxs = mapIR(rangeIR(nRows)) { i => makestruct("i" -> i) }
+        val allIdxs = mapIR(rangeIR(nRows)) { i => makestruct("idx" -> i) }
         val idxedExisting = mapIR(rangeIR(start, end)) { pos =>
-          makestruct("i" -> ArrayRef(rowIdx, pos), "context" -> ArrayRef(contexts, pos))
+          makestruct("idx" -> ArrayRef(rowIdx, pos), "context" -> ArrayRef(contexts, pos))
         }
         joinRightDistinctIR(allIdxs, idxedExisting, FastIndexedSeq("idx"), FastIndexedSeq("idx"), "left") { (idx, struct) =>
-          val i = GetField(idx, "i")
+          val i = GetField(idx, "idx")
           val context = GetField(struct, "context")
           f(i, j, context)
         }
@@ -401,25 +408,25 @@ case class SparseContexts(nRows: Int, nCols: Int, sparsity: IR) extends BMSConte
     DenseContexts(nRows, nCols, newContexts)
   }
 
-  def mapWithNewSparsity(newRowPos: IR, newRowIdx: IR)(f: (IR, IR, IR) => IR): SparseContexts = {
-    val newContexts = flatMapIR(rangeIR(nCols)) { j =>
+  def mapWithNewSparsity(newRowPos: Ref, newRowIdx: Ref)(f: (IR, IR, IR) => IR): SparseContexts = {
+    val newContexts = ToArray(flatMapIR(rangeIR(nCols)) { j =>
       bindIRs(
         ArrayRef(rowPos, j), ArrayRef(rowPos, j + 1),
         ArrayRef(newRowPos, j), ArrayRef(newRowPos, j + 1)
       ) { case Seq(oldStart, oldEnd, newStart, newEnd) =>
         val newIdxs = mapIR(rangeIR(newStart, newEnd)) { pos =>
-          makestruct("i" -> ArrayRef(newRowIdx, pos))
+          makestruct("idx" -> ArrayRef(newRowIdx, pos))
         }
         val idxedExisting = mapIR(rangeIR(oldStart, oldEnd)) { pos =>
-          makestruct("i" -> ArrayRef(rowIdx, pos), "context" -> ArrayRef(contexts, pos))
+          makestruct("idx" -> ArrayRef(rowIdx, pos), "context" -> ArrayRef(contexts, pos))
         }
         joinRightDistinctIR(newIdxs, idxedExisting, FastIndexedSeq("idx"), FastIndexedSeq("idx"), "left") { (idx, struct) =>
-          val i = GetField(idx, "i")
+          val i = GetField(idx, "idx")
           val context = GetField(struct, "context")
           f(i, j, context)
         }
       }
-    }
+    })
     SparseContexts(nRows, nCols, newRowPos, newRowIdx, newContexts)
   }
 
@@ -429,21 +436,34 @@ case class SparseContexts(nRows: Int, nCols: Int, sparsity: IR) extends BMSConte
     ) { (l, r) => maketuple(l, r) }
     SparseContexts(nRows, nCols, rowPos, rowIdx, newContexts)
   }
+
+  def memo: ((String, IR), SparseContexts) = {
+    val refName = genUID()
+    (refName -> sparsity, SparseContexts(nRows, nCols, Ref(refName, sparsity.typ)))
+  }
 }
 
 class BlockMatrixStage2 private (
-  val letBindings: IndexedSeq[(String, IR)],
+  _letBindings: IndexedSeq[(String, IR)],
   val broadcastVals: IndexedSeq[(String, IR)],
   val typ: BlockMatrixType,
-  private val contexts: BMSContexts,
+  _contexts: BMSContexts,
   private val ctxRefName: String,
   private val _blockIR: IR
 ) {
-  assert {
+  private val (letBindings, contexts) = {
     def literalOrRef(x: IR) = x.isInstanceOf[Literal] || x.isInstanceOf[Ref]
-    contexts.contexts match {
+
+    val trivialCtxs = _contexts.contexts match {
       case x: MakeStruct => x.fields.forall(f => literalOrRef(f._2))
       case x => literalOrRef(x)
+    }
+
+    if (!trivialCtxs) {
+      val (binding, contexts) = _contexts.memo
+      (_letBindings :+ binding, contexts)
+    } else {
+      (_letBindings, _contexts)
     }
   }
 
@@ -514,36 +534,52 @@ class BlockMatrixStage2 private (
       BlockMatrixStage2(letBindings, broadcastVals, typ, newContexts, newBlock)
   }
 
-  def withSparsity(rowPos: IR, rowIdx: IR, newType: BlockMatrixType, isSubset: Boolean = false): BlockMatrixStage2 = contexts match {
-    case contexts: SparseContexts =>
-      if (isSubset) {
-        val newContexts = contexts.mapWithNewSparsity(rowPos, rowIdx) { (i, j, oldContext) =>
-          oldContext
-        }
-        BlockMatrixStage2(letBindings, broadcastVals, newType, newContexts, blockIR)
-      } else {
-        val newContexts = contexts.mapWithNewSparsity(rowPos, rowIdx) { (i, j, oldContext) =>
-          val (m, n) = typ.blockShapeIR(i, j)
-          makestruct("oldContext" -> oldContext, "nRows" -> m, "nCols" -> n)
-        }
-
-        def newBlock(context: Ref): IR = {
-          bindIR(GetField(context, "oldContext")) { oldContext =>
-            If(IsNA(oldContext),
-              MakeNDArray.fill(
-                zero(typ.elementType),
-                FastIndexedSeq(GetField(oldContext, "nRows"), GetField(oldContext, "nCols")),
-                False()),
-              blockIR(oldContext))
-          }
-        }
-
-        BlockMatrixStage2(letBindings, broadcastVals, newType, newContexts, newBlock)
+  def withSparsity(rowPos: IR, rowIdx: IR, newType: BlockMatrixType, isSubset: Boolean = false): BlockMatrixStage2 = {
+    val (newLetBindings, rowPosRef, rowIdxRef) = {
+      var newLetBindings = letBindings
+      def memo(ir: IR): Ref = ir match {
+        case ref: Ref => ref
+        case _ =>
+          val ref = Ref(genUID(), ir.typ)
+          newLetBindings = newLetBindings :+ (ref.name -> ir)
+          ref
       }
+      val rowPosRef = memo(rowPos)
+      val rowIdxRef = memo(rowIdx)
+      (newLetBindings, rowPosRef, rowIdxRef)
+    }
 
-    case contexts: DenseContexts =>
-      val newContexts = contexts.sparsify(rowPos, rowIdx)
-      BlockMatrixStage2(letBindings, broadcastVals, newType, newContexts, blockIR)
+    contexts match {
+      case contexts: SparseContexts =>
+        if (isSubset) {
+          val newContexts = contexts.mapWithNewSparsity(rowPosRef, rowIdxRef) { (i, j, oldContext) =>
+            oldContext
+          }
+          BlockMatrixStage2(letBindings, broadcastVals, newType, newContexts, blockIR)
+        } else {
+          val newContexts = contexts.mapWithNewSparsity(rowPosRef, rowIdxRef) { (i, j, oldContext) =>
+            val (m, n) = typ.blockShapeIR(i, j)
+            makestruct("oldContext" -> oldContext, "nRows" -> m, "nCols" -> n)
+          }
+
+          def newBlock(context: Ref): IR = {
+            bindIR(GetField(context, "oldContext")) { oldContext =>
+              If(IsNA(oldContext),
+                MakeNDArray.fill(
+                  zero(typ.elementType),
+                  FastIndexedSeq(GetField(context, "nRows"), GetField(context, "nCols")),
+                  False()),
+                blockIR(oldContext))
+            }
+          }
+
+          BlockMatrixStage2(newLetBindings, broadcastVals, newType, newContexts, newBlock)
+        }
+
+      case contexts: DenseContexts =>
+        val newContexts = contexts.sparsify(rowPosRef, rowIdxRef)
+        BlockMatrixStage2(newLetBindings, broadcastVals, newType, newContexts, blockIR)
+    }
   }
 
   def mapBody(f: IR => IR): BlockMatrixStage2 = {
@@ -803,17 +839,20 @@ object LowerBlockMatrixIR {
             }
         }
 
-        val diagLen = math.min(x.typ.nRowBlocks, x.typ.nColBlocks)
+        val diagLen = math.min(child.typ.nRowBlocks, child.typ.nColBlocks)
         val diagType = x.typ.copy(sparsity = BlockMatrixSparsity(Some(IndexedSeq.tabulate(diagLen)(i => (i, i)))))
-
+        val rowPos = if (child.typ.nColBlocks > diagLen)
+          ToArray(mapIR(rangeIR(child.typ.nColBlocks + 1))(i => minIR(i, diagLen)))
+        else
+          ToArray(rangeIR(child.typ.nColBlocks + 1))
 
         val diagArray = bindIR(
           lower(child)
-            .withSparsity(ToArray(rangeIR(diagLen + 1)), ToArray(rangeIR(diagLen)), diagType)
+            .withSparsity(rowPos, ToArray(rangeIR(diagLen)), diagType)
             .collectBlocks(relationalLetsAbove, "block_matrix_broadcast_diagonal") { (ctx, idx, block) =>
               bindIR(NDArrayShape(block)) { shape =>
                 val blockDiagLen = minIR(GetTupleElement(shape, 0), GetTupleElement(shape, 1))
-                ToArray(mapIR(rangeIR(blockDiagLen)) { i =>
+                ToArray(mapIR(rangeIR(blockDiagLen.toI)) { i =>
                   NDArrayRef(block, FastIndexedSeq(Cast(i, TInt64), Cast(i, TInt64)), ErrorIDs.NO_ERROR)
                 })
               }

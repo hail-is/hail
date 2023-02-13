@@ -250,6 +250,8 @@ package object ir {
     s
   }
 
+  def logIR(result: IR, messages: AnyRef*): IR = ConsoleLog(strConcat(messages: _*), result)
+
   implicit def toRichIndexedSeqEmitSettable(s: IndexedSeq[EmitSettable]): RichIndexedSeqEmitSettable = new RichIndexedSeqEmitSettable(s)
 
   implicit def emitValueToCode(ev: EmitValue): EmitCode = ev.load
