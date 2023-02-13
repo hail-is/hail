@@ -393,6 +393,7 @@ class ServiceBackend(
     inputIR: TableIR,
     analyses: LoweringAnalyses
   ): TableStage = {
+    val analyses = LoweringAnalyses.apply(inputIR, ctx)
     LowerTableIR.choosePartitioningAndLowerTable(inputIR, DArrayLowering.All, ctx, analyses)
   }
 }

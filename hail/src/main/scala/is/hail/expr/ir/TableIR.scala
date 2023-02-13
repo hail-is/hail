@@ -1399,8 +1399,6 @@ class TableNativeReader(
 ) extends TableReaderWithExtraUID {
   def pathsUsed: Seq[String] = Array(params.path)
 
-  val filterIntervals: Boolean = params.options.map(_.filterIntervals).getOrElse(false)
-
   def partitionCounts: Option[IndexedSeq[Long]] = if (params.options.isDefined) None else Some(spec.partitionCounts)
 
   override def isDistinctlyKeyed: Boolean = spec.isDistinctlyKeyed
@@ -1457,11 +1455,13 @@ class TableNativeReader(
         val opts = params.options
         opts match {
           case Some(o) =>
-              val newIntervals = Interval.intersection(p.rangeBounds, o.intervals.toArray, p.kord.intervalEndpointOrdering)
+            val newIntervals = Interval.intersection(p.rangeBounds, o.intervals.toArray, p.kord.intervalEndpointOrdering)
             lowerWithNewParams(ctx, requestedType, params.copy(options = Some(NativeReaderOptions(newIntervals, p.kType, false))))
               .repartitionNoShuffle(p)
           case None =>
-            lowerWithNewParams(ctx, requestedType, params.copy(options = Some(NativeReaderOptions(p.rangeBounds, p.kType, false))))
+            val lowered = lowerWithNewParams(ctx, requestedType, params.copy(options = Some(NativeReaderOptions(p.rangeBounds, p.kType, false))))
+            println(s"for params $params - lowered part is ${lowered.partitioner}")
+            lowered
         }
       case UseTheDefaultPartitioning =>
         lowerWithNewParams(ctx, requestedType, params)
@@ -1486,12 +1486,17 @@ class TableNativeReader(
     else
       uidFieldName
 
-    spec.rowsSpec.readTableStage(ctx, spec.rowsComponent.absolutePath(params.path), requestedType, requestedUIDFieldName, partitioner, filterIntervals).apply(globals)
+    spec.rowsSpec.readTableStage(ctx, spec.rowsComponent.absolutePath(params.path), requestedType, requestedUIDFieldName, partitioner, params.filterIntervals).apply(globals)
   }
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
     lowerWithNewParams(ctx, requestedType, params)
   }
+
+  override def partitionProposal: PartitionProposal =
+    PartitionProposal(Some(spec.rowsSpec.partitioner),
+      fullTypeWithoutUIDs.keyType.size,
+      PlanPartitioning.NO_AFFINITY)
 }
 
 case class TableNativeZippedReader(

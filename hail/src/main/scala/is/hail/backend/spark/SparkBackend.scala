@@ -785,6 +785,7 @@ class SparkBackend(
         log.info(s"SparkBackend: could not lower IR to table stage: $failReason")
         inputIR.analyzeAndExecute(ctx).asTableStage(ctx)
       case None =>
+        val analyses = LoweringAnalyses.apply(inputIR, ctx)
         LowerTableIR.choosePartitioningAndLowerTable(inputIR, DArrayLowering.All, ctx, analyses)
     }
   }

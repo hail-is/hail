@@ -1905,7 +1905,7 @@ object LowerTableIR {
 
     requestedPartitioner match {
       case UseThisPartitioning(p) =>
-        assert(p eq lowered.partitioner, tir.getClass.getName)
+        assert(p == lowered.partitioner, tir.getClass.getName)
       case UseTheDefaultPartitioning =>
         assert(lowered.partitionSparsity == PartitionSparsity.Dense)
     }

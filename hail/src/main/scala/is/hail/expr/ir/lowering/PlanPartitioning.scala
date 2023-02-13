@@ -49,9 +49,13 @@ case class PartitionProposal(
     partitioner.map(_.strictify(requestedAllowedOverlap))
   }
 
-  def chooseBest(): RequestedPartitioning = partitioner match {
-    case Some(p) => UseThisPartitioning(p)
-    case None => UseTheDefaultPartitioning
+  def chooseBest(): RequestedPartitioning = {
+    val p = partitioner match {
+      case Some(p) => UseThisPartitioning(p)
+      case None => UseTheDefaultPartitioning
+    }
+
+    p
   }
 }
 
@@ -85,8 +89,8 @@ object PlanPartitioning {
   def joinedPlan(ctx: ExecuteContext, left: PartitionProposal, right: PartitionProposal, joinKey: Int, joinType: String, resultKey: TStruct): PartitionProposal = {
 
     val allowedOverlap = joinKey - 1
-    val newPart = left.getPartitioner(allowedOverlap).liftedZip(right.getPartitioner(allowedOverlap)).map { case (leftPart, rightPart) =>
-      def rightPart: RVDPartitioner = rightPart.coarsen(joinKey).extendKey(resultKey)
+    val newPart = left.getPartitioner(allowedOverlap).liftedZip(right.getPartitioner(allowedOverlap)).map { case (leftPart, right) =>
+      def rightPart: RVDPartitioner = right.coarsen(joinKey).extendKey(resultKey)
 
       (joinType: @unchecked) match {
         case "left" => leftPart
