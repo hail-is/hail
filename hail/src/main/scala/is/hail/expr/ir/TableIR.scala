@@ -1460,7 +1460,6 @@ class TableNativeReader(
               .repartitionNoShuffle(p)
           case None =>
             val lowered = lowerWithNewParams(ctx, requestedType, params.copy(options = Some(NativeReaderOptions(p.rangeBounds, p.kType, false))))
-            println(s"for params $params - lowered part is ${lowered.partitioner}")
             lowered
         }
       case UseTheDefaultPartitioning =>
