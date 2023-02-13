@@ -5,7 +5,7 @@ import is.hail.{HailContext, HailFeatureFlags}
 import is.hail.annotations.{Region, RegionPool}
 import is.hail.expr.ir.Threefry
 import is.hail.io.fs.FS
-import is.hail.utils.{ExecutionTimer, using}
+import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
 import java.io._
