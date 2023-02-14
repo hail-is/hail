@@ -213,18 +213,20 @@ object FS {
   ): ServiceCacheableFS = retryTransientErrors {
     using(new FileInputStream(credentialsPath)) { is =>
       val credentialsStr = Some(IOUtils.toString(is, Charset.defaultCharset()))
-      sys.env.get("HAIL_CLOUD").get match {
-        case "gcp" =>
+      sys.env.get("HAIL_CLOUD") match {
+        case Some("gcp") =>
           val requesterPaysConfiguration = flags.flatMap { flags =>
             RequesterPaysConfiguration.fromFlags(
               flags.get("gcs_requester_pays_project"), flags.get("gcs_requester_pays_buckets")
             )
           }
           new GoogleStorageFS(credentialsStr, requesterPaysConfiguration).asCacheable()
-        case "azure" =>
+        case Some("azure") =>
           new AzureStorageFS(credentialsStr).asCacheable()
-        case cloud =>
+        case Some(cloud) =>
           throw new IllegalArgumentException(s"Bad cloud: $cloud")
+        case None =>
+          throw new IllegalArgumentException(s"HAIL_CLOUD must be set.")
       }
     }
   }
