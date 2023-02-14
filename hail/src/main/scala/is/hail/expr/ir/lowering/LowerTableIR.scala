@@ -192,7 +192,7 @@ case class TableStage private(
     copy(partitionIR = f(partitionIR), partitioner = part)
   }
 
-  def forceToDense(): TableStage = partitionSparsity match {
+  def dropEmptyPartitionsToMakeDense(): TableStage = partitionSparsity match {
     case PartitionSparsity.Dense =>
       this
     case PartitionSparsity.Sparse(inds) =>
@@ -1565,7 +1565,7 @@ object LowerTableIR {
 
         require(t.definitelyDoesNotShuffle)
         val loweredChild = if (newKey.isEmpty)
-          choosePartitioningAndLowerTable(child, typesToLower, ctx, analyses)
+          choosePartitioningAndLowerTable(child, typesToLower, ctx, analyses).dropEmptyPartitionsToMakeDense()
         else
           lower(child)
 
@@ -1778,7 +1778,7 @@ object LowerTableIR {
         require(t.definitelyDoesNotShuffle)
         assert(requestedPartitioner == UseTheDefaultPartitioning)
 
-        val loweredChild = lower(child, requestedPartitioner = PlanPartitioning.analyze(ctx, child).chooseBest()).forceToDense()
+        val loweredChild = lower(child, requestedPartitioner = PlanPartitioning.analyze(ctx, child).chooseBest()).dropEmptyPartitionsToMakeDense()
         loweredChild.changePartitionerNoRepartition(RVDPartitioner.unkeyed(ctx.stateManager, loweredChild.partitioner.numPartitions))
 
       case TableExplode(child, path) =>
@@ -1894,7 +1894,7 @@ object LowerTableIR {
 
         requestedPartitioner match {
           case UseThisPartitioning(p) => filtered
-          case UseTheDefaultPartitioning => filtered.forceToDense()
+          case UseTheDefaultPartitioning => filtered.dropEmptyPartitionsToMakeDense()
         }
 
       case bmtt@BlockMatrixToTable(bmir) =>
