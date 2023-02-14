@@ -100,7 +100,7 @@ object LowerAndExecuteShuffles {
                 )
               ),
               aggStateSigsPlusTake)
-          }, newKeyType.size, newKeyType.size - 1)
+          }, newKeyType.size, math.max(0, newKeyType.size - 1))
         Some(tmp )
       case _ => None
     })

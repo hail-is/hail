@@ -380,7 +380,7 @@ class TableMapPartitions(TableIR):
     def _handle_randomness(self, uid_field_name):
         if uid_field_name is not None:
             raise FatalError('TableMapPartitions does not support randomness, in its body or in consumers')
-        return TableMapPartitions(self.child.handle_randomness(None), self.global_name, self.partition_stream_name, self.body, self.allowed_overlap)
+        return TableMapPartitions(self.child.handle_randomness(None), self.global_name, self.partition_stream_name, self.body, self.requested_key, self.allowed_overlap)
 
     def _compute_type(self, deep_typecheck):
         self.child.compute_type(deep_typecheck)
