@@ -114,10 +114,10 @@ object PlanPartitioning {
     def recur(tir: TableIR): PartitionProposal = analyze(ctx, tir)
 
     val part = x match {
+      case t if t.typ.key.isEmpty =>
+        noInformation()
       case TableRead(t, _, tr) =>
         tr.partitionProposal
-      case TableParallelize(rowsAndGlobal, nPartitions) =>
-        noInformation()
       case t: TableLiteral =>
         PartitionProposal(Some(t.rvd.partitioner), t.rvd.typ.key.length, REPARTITION_REQUIRES_EXTRA_READ)
       case TableRepartition(child, n, RepartitionStrategy.NAIVE_COALESCE) =>
@@ -133,12 +133,7 @@ object PlanPartitioning {
         val pc = recur(child)
 
         val preservedKey = (child.typ.key, keys).zipped.takeWhile { case (s1, s2) => s1 == s2 }.size
-        if (keys.isEmpty)
-          noInformation()
-        else
-          pc.copy(partitioner = pc.partitioner.map(p => p.coarsen(preservedKey).extendKey(tk.typ.keyType)))
-      case TableOrderBy(child, _) =>
-        noInformation()
+        pc.copy(partitioner = pc.partitioner.map(p => p.coarsen(preservedKey).extendKey(tk.typ.keyType)))
       case TableFilter(child, _) =>
         recur(child)
       case TableHead(child, _) =>

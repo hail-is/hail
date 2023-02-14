@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.types.virtual._
 import is.hail.expr.JSONAnnotationImpex
+import is.hail.rvd.RVDPartitioner
 import is.hail.utils._
 import org.json4s.{CustomSerializer, DefaultFormats, Formats, JObject, JValue}
 import org.json4s.JsonDSL._
@@ -11,7 +12,7 @@ class NativeReaderOptionsSerializer() extends CustomSerializer[NativeReaderOptio
     ({ case jObj: JObject =>
       implicit val fmt = format
       val filterIntervals = (jObj \ "filterIntervals").extract[Boolean]
-      val intervalPointType = IRParser.parseType((jObj \ "intervalPointType").extract[String])
+      val intervalPointType = IRParser.parseStructType((jObj \ "intervalPointType").extract[String])
       val intervals = {
         val jv = jObj \ "intervals"
         val ty = TArray(TInterval(intervalPointType))
@@ -33,7 +34,7 @@ object NativeReaderOptions {
     implicit val formats: Formats = DefaultFormats
 
     val filterIntervals = (jv \ "filterIntervals").extract[Boolean]
-    val intervalPointType = IRParser.parseType((jv \ "intervalPointType").extract[String])
+    val intervalPointType = IRParser.parseStructType((jv \ "intervalPointType").extract[String])
     val intervals = {
       val jvIntervals = jv \ "intervals"
       val ty = TArray(TInterval(intervalPointType))
@@ -45,7 +46,7 @@ object NativeReaderOptions {
 
 case class NativeReaderOptions(
   intervals: IndexedSeq[Interval],
-  intervalPointType: Type,
+  intervalPointType: TStruct,
   filterIntervals: Boolean = false) {
   def toJson: JValue = {
     val ty = TArray(TInterval(intervalPointType))
@@ -57,4 +58,8 @@ case class NativeReaderOptions(
   }
 
   def renderShort(): String = s"(IntervalRead: ${intervals.length} intervals, filter=${filterIntervals})"
+
+  @transient lazy val partitioner: RVDPartitioner = {
+    RVDPartitioner.generate(intervalPointType, intervals)
+  }
 }

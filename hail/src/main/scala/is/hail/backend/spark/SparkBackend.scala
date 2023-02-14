@@ -12,7 +12,7 @@ import is.hail.expr.ir._
 import is.hail.types.physical.{PStruct, PTuple, PType}
 import is.hail.types.virtual.{TArray, TInterval, TStruct, TVoid, Type}
 import is.hail.backend._
-import is.hail.expr.ir.IRParser.parseType
+import is.hail.expr.ir.IRParser.{parseStructType, parseType}
 import is.hail.io.fs._
 import is.hail.utils._
 import is.hail.io.bgen.IndexBgen
@@ -615,7 +615,7 @@ class SparkBackend(
 
     val paths = kvs("paths").asInstanceOf[json4s.JArray].arr.toArray.map { case json4s.JString(s) => s }
 
-    val intervalPointType = parseType(kvs("intervalPointType").asInstanceOf[json4s.JString].s)
+    val intervalPointType = parseStructType(kvs("intervalPointType").asInstanceOf[json4s.JString].s)
     val intervalObjects = JSONAnnotationImpex.importAnnotation(kvs("intervals"), TArray(TInterval(intervalPointType)))
       .asInstanceOf[IndexedSeq[Interval]]
 

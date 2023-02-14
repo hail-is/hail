@@ -1493,7 +1493,7 @@ class TableNativeReader(
   }
 
   override def partitionProposal: PartitionProposal =
-    PartitionProposal(Some(spec.rowsSpec.partitioner),
+    PartitionProposal(Some(params.options.filter(o => !o.filterIntervals).map(_.partitioner).getOrElse(spec.rowsSpec.partitioner)),
       fullType.keyType.size,
       PlanPartitioning.NO_AFFINITY)
 }
@@ -1611,7 +1611,7 @@ case class TableNativeZippedReader(
   }
 
   override def partitionProposal: PartitionProposal =
-    PartitionProposal(Some(specLeft.rowsSpec.partitioner),
+    PartitionProposal(Some(options.filter(o => !o.filterIntervals).map(_.partitioner).getOrElse(specLeft.rowsSpec.partitioner)),
       fullType.keyType.size,
       PlanPartitioning.NO_AFFINITY)
 }

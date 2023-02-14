@@ -192,6 +192,15 @@ case class TableStage private(
     copy(partitionIR = f(partitionIR), partitioner = part)
   }
 
+  def forceToDense(): TableStage = partitionSparsity match {
+    case PartitionSparsity.Dense =>
+      this
+    case PartitionSparsity.Sparse(inds) =>
+      copy(
+        partitionSparsity = PartitionSparsity.Dense,
+        partitioner = partitioner.copy(rangeBounds = inds.map(partitioner.rangeBounds(_)).toArray[Interval]))
+  }
+
   def changeSparsity(newSparsity: PartitionSparsity): TableStage = {
     if (newSparsity == partitionSparsity)
       return this
@@ -1575,7 +1584,9 @@ object LowerTableIR {
           case UseThisPartitioning(p) => (lower(left), lower(right, UseThisPartitioning(p.coarsen(commonKeyLength))))
           case UseTheDefaultPartitioning =>
             val loweredLeft = lower(left)
-            (loweredLeft, lower(right).repartitionNoShuffle(loweredLeft.partitioner))
+            (loweredLeft, lower(right).repartitionNoShuffle(loweredLeft.partitioner
+              .coarsen(commonKeyLength)
+              .rename(left.typ.key.zip(right.typ.key).toMap)))
         }
 
         alignedLeft.zipPartitionsLeftJoin(
@@ -1767,7 +1778,7 @@ object LowerTableIR {
         require(t.definitelyDoesNotShuffle)
         assert(requestedPartitioner == UseTheDefaultPartitioning)
 
-        val loweredChild = lower(child, requestedPartitioner = PlanPartitioning.analyze(ctx, child).chooseBest())
+        val loweredChild = lower(child, requestedPartitioner = PlanPartitioning.analyze(ctx, child).chooseBest()).forceToDense()
         loweredChild.changePartitionerNoRepartition(RVDPartitioner.unkeyed(ctx.stateManager, loweredChild.partitioner.numPartitions))
 
       case TableExplode(child, path) =>
@@ -1863,7 +1874,6 @@ object LowerTableIR {
       case TableToTableApply(child, TableFilterPartitions(seq, keep)) =>
 
         val lc = lower(child)
-
         val filterSet = seq.toSet
 
         // TODO: implement the below in a way that makes it clear that we're doing set intersection and diff operations
@@ -1880,7 +1890,12 @@ object LowerTableIR {
               (0 until lc.numPartitions).filter(!filterSet.contains(_))
         })
 
-        lc.changeSparsity(filterSparsity)
+        val filtered = lc.changeSparsity(filterSparsity)
+
+        requestedPartitioner match {
+          case UseThisPartitioning(p) => filtered
+          case UseTheDefaultPartitioning => filtered.forceToDense()
+        }
 
       case bmtt@BlockMatrixToTable(bmir) =>
         val ts = LowerBlockMatrixIR.lowerToTableStage(bmir, typesToLower, ctx, analyses)
@@ -1910,7 +1925,7 @@ object LowerTableIR {
       case UseThisPartitioning(p) =>
         assert(p == lowered.partitioner, tir.getClass.getName)
       case UseTheDefaultPartitioning =>
-        assert(lowered.partitionSparsity == PartitionSparsity.Dense)
+        assert(lowered.partitionSparsity == PartitionSparsity.Dense, tir.getClass.getName)
     }
 
     assert(tir.typ.globalType == lowered.globalType, s"\n  ir global: ${tir.typ.globalType}\n  lowered global: ${lowered.globalType}")
