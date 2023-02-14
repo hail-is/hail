@@ -795,6 +795,15 @@ object LowerTableIR {
           context,
           ctxRef => ToStream(ctxRef, true))
 
+      case TableGen(contexts, globals, cname, gname, body, key, pIntervals) =>
+        TableStage(
+          globals,
+          partitioner = ???,
+          dependency = ???,
+          contexts = contexts,
+          body = ref =>
+        )
+
       case TableRange(n, nPartitions) =>
         val nPartitionsAdj = math.max(math.min(n, nPartitions), 1)
         val partCounts = partition(n, nPartitionsAdj)

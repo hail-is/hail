@@ -1796,31 +1796,39 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolea
  * we need to know about the key into the IR directly. This means passing the key that's sorted and the partition intervals.
  */
 case class TableGen(contexts: IR,
-                    globals: MakeStruct,
+                    globals: IR,
                     cname: String,
                     gname: String,
                     body: IR, // IR that references free variables Ref(cname) and Ref(gname) and produces a TStream[TStruct]
                     key: IndexedSeq[String],
                     partitionIntervals: Option[IndexedSeq[Interval]]
                    ) extends TableIR {
-  private def requireNoFreeVariables(expr: IR): Unit = {
-    val freevars = FreeVariables(expr, supportsAgg = false, supportsScan = false)
-    require(freevars.allEmpty, s"Free variables: $freevars")
-  }
+  private def requireType[A: ClassTag](varname: String, typ: Type): Option[A] =
+    typ match {
+      case a: A => Some(a)
+      case _ => throw new IllegalArgumentException(
+        s"[${getClass.getName}] Expected $varname: ${classOf[A].getName}, got $typ."
+      )
+    }
 
-  requireNoFreeVariables(contexts)
-  requireNoFreeVariables(globals)
+  private val (globalType, rowType) =
+    (for {
+      _ <- requireType[TStream]("contexts", contexts.typ)
+      globalType <- requireType[TStruct]("globals", globals.typ)
+      bodyType <- requireType[TStream]("body", body.typ)
+      rowType <- requireType[TStruct]("body.elementType", bodyType.elementType)
+    } yield (globalType, rowType)).get
 
   override def typ: TableType =
-    TableType(rowType = ???, key = key, globalType = globals.typ.asInstanceOf[TStruct])
+    TableType(rowType, key = key, globalType)
 
   override val rowCountUpperBound: Option[Long] =
     None
 
   override def copy(newChildren: IndexedSeq[BaseIR]): TableIR =
     newChildren match {
-      case IndexedSeq(ctx: IR, glbs: MakeStruct, bdy: IR) =>
-        TableGen(contexts = ctx, globals = glbs, cname, gname, body = bdy, key, partitionIntervals)
+      case IndexedSeq(contexts: IR, globals: IR, body: IR) =>
+        TableGen(contexts, globals, cname, gname, body, key, partitionIntervals)
 
       case _ =>
         throw new IllegalArgumentException(
@@ -1830,7 +1838,6 @@ case class TableGen(contexts: IR,
 
   override def children: IndexedSeq[BaseIR] =
     FastSeq(contexts, globals, body)
-
 }
 
 case class TableRange(n: Int, nPartitions: Int) extends TableIR {
