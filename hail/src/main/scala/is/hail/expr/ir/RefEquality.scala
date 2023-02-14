@@ -31,7 +31,7 @@ class Memo[T] private(val m: mutable.HashMap[RefEquality[BaseIR], T]) {
     this
   }
 
-  def bindIf(test: Boolean, ir: BaseIR, t: T): Memo[T] =
+  def bindIf(test: Boolean, ir: BaseIR, t: => T): Memo[T] =
     if (test) bind(ir, t) else this
 
   def contains(ir: BaseIR): Boolean = contains(RefEquality(ir))
