@@ -1772,6 +1772,67 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolea
   }
 }
 
+/**
+ * contexts are the inputs to the body functions.
+ *
+ * Invariant -- if partitionIntervals are present, the static length of the partition intervals
+ * indexed seq must match the dynamic length of the contexts IR. We will add a runtime check in
+ * the lowering implementation for this.
+ *
+ * first place to start -- add a rule to LowerTableIR
+ *
+ * why are we adding this node?
+ * the hl.balding_nichols_model node is implemented as
+ * ht = hl.utils.range_table(N)
+ * ht = ht.key_by(locus = hl.locus('chr1', ht.idx + 1) // or something
+ *
+ * This requires us to do an extra pass over the data in order to key `ht` by this new key 'locus'
+ * we track information about keys statically -- need to know that tables are sorted by their key
+ * we also need to know partition intervals statically. So, when we implement key_by, we have to do
+ * extra work to compute this information before generating the rest of the query
+ *
+ * This is a super common tutorial example and it's currently slow because it an extra pass over the data!
+ * We need to implmement balding_nichols_model without a key_by, which means we need to inject the information
+ * we need to know about the key into the IR directly. This means passing the key that's sorted and the partition intervals.
+ */
+case class TableGen(contexts: IR,
+                    globals: MakeStruct,
+                    cname: String,
+                    gname: String,
+                    body: IR, // IR that references free variables Ref(cname) and Ref(gname) and produces a TStream[TStruct]
+                    key: IndexedSeq[String],
+                    partitionIntervals: Option[IndexedSeq[Interval]]
+                   ) extends TableIR {
+  private def requireNoFreeVariables(expr: IR): Unit = {
+    val freevars = FreeVariables(expr, supportsAgg = false, supportsScan = false)
+    require(freevars.allEmpty, s"Free variables: $freevars")
+  }
+
+  requireNoFreeVariables(contexts)
+  requireNoFreeVariables(globals)
+
+  override def typ: TableType =
+    TableType(rowType = ???, key = key, globalType = globals.typ.asInstanceOf[TStruct])
+
+  override val rowCountUpperBound: Option[Long] =
+    None
+
+  override def copy(newChildren: IndexedSeq[BaseIR]): TableIR =
+    newChildren match {
+      case IndexedSeq(ctx: IR, glbs: MakeStruct, bdy: IR) =>
+        TableGen(contexts = ctx, globals = glbs, cname, gname, body = bdy, key, partitionIntervals)
+
+      case _ =>
+        throw new IllegalArgumentException(
+          s"'${getClass.getName}' requires 3 children of type '${classOf[IR].getName}'."
+        )
+    }
+
+  override def children: IndexedSeq[BaseIR] =
+    FastSeq(contexts, globals, body)
+
+}
+
 case class TableRange(n: Int, nPartitions: Int) extends TableIR {
   require(n >= 0)
   require(nPartitions > 0)
