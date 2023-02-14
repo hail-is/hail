@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.{Region, RegionPool, RegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.backend.{BackendUtils, BroadcastValue, ExecuteContext}
+import is.hail.backend.{BackendUtils, BroadcastValue, ExecuteContext, HailTaskContext}
 import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.ir.orderings.{CodeOrdering, StructOrdering}
 import is.hail.io.fs.FS
@@ -139,7 +139,7 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def backend(): Code[BackendUtils] = ecb.backend()
 
-  def addModule(name: String, mod: (HailClassLoader, FS, Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit =
+  def addModule(name: String, mod: (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit =
     ecb.addModule(name, mod)
 
   def partitionRegion: Settable[Region] = ecb.partitionRegion
@@ -173,7 +173,7 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def getThreefryRNG(): Value[ThreefryRandomEngine] = ecb.getThreefryRNG()
 
-  def resultWithIndex(writeIRs: Boolean = false, print: Option[PrintWriter] = None): (HailClassLoader, FS, Int, Region) => C = ecb.resultWithIndex(writeIRs, print)
+  def resultWithIndex(writeIRs: Boolean = false, print: Option[PrintWriter] = None): (HailClassLoader, FS, HailTaskContext, Region) => C = ecb.resultWithIndex(writeIRs, print)
 
   def getOrGenEmitMethod(
     baseName: String, key: Any, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType
@@ -270,6 +270,7 @@ class EmitClassBuilder[C](
   private[this] lazy val encLitField: Settable[Array[Byte]] = genFieldThisRef[Array[Byte]]("encodedLiterals")
 
   lazy val partitionRegion: Settable[Region] = genFieldThisRef[Region]("partitionRegion")
+  private[this] lazy val _taskContext: Settable[HailTaskContext] = genFieldThisRef[HailTaskContext]("taskContext")
   private[this] lazy val poolField: Settable[RegionPool] = genFieldThisRef[RegionPool]()
 
   def addLiteral(v: Any, t: VirtualTypeWithReq): SValue = {
@@ -335,7 +336,7 @@ class EmitClassBuilder[C](
     Array(baos.toByteArray) ++ preEncodedLiterals.map(_._1.value.ba)
   }
 
-  private[this] var _mods: BoxedArrayBuilder[(String, (HailClassLoader, FS, Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new BoxedArrayBuilder()
+  private[this] var _mods: BoxedArrayBuilder[(String, (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new BoxedArrayBuilder()
   private[this] var _backendField: Settable[BackendUtils] = _
 
   private[this] var _aggSigs: Array[agg.AggStateSig] = _
@@ -443,13 +444,15 @@ class EmitClassBuilder[C](
     poolField
   }
 
-  def addModule(name: String, mod: (HailClassLoader, FS, Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit = {
+  def addModule(name: String, mod: (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit = {
     _mods += name -> mod
   }
 
   def getHailClassLoader: Code[HailClassLoader] = emodb.getHailClassLoader
 
   def getFS: Code[FS] = emodb.getFS
+
+  def getTaskContext: Value[HailTaskContext] = _taskContext
 
   def setObjects(cb: EmitCodeBuilder, objects: Code[Array[AnyRef]]): Unit = modb.setObjects(cb, objects)
 
@@ -628,6 +631,14 @@ class EmitClassBuilder[C](
     }
   }
 
+  def makeAddTaskContext(): Unit = {
+    cb.addInterface(typeInfo[FunctionWithTaskContext].iname)
+    val mb = newEmitMethod("addTaskContext", FastIndexedSeq[ParamType](typeInfo[HailTaskContext]), typeInfo[Unit])
+    mb.voidWithBuilder { cb =>
+      cb.assign(_taskContext, mb.getCodeParam[HailTaskContext](1))
+    }
+  }
+
   def makeAddReferenceGenomes(): Unit = {
     cb.addInterface(typeInfo[FunctionWithReferences].iname)
     val mb = newEmitMethod("addReferenceGenomes", FastIndexedSeq[ParamType](typeInfo[Array[ReferenceGenome]]), typeInfo[Unit])
@@ -691,11 +702,12 @@ class EmitClassBuilder[C](
   def resultWithIndex(
     writeIRs: Boolean,
     print: Option[PrintWriter] = None
-  ): (HailClassLoader, FS, Int, Region) => C = {
+  ): (HailClassLoader, FS, HailTaskContext, Region) => C = {
     makeRNGs()
     makeAddPartitionRegion()
     makeAddHailClassLoader()
     makeAddFS()
+    makeAddTaskContext()
 
     val hasLiterals: Boolean = literalsMap.nonEmpty || encodedLiteralsMap.nonEmpty
     val hasReferences: Boolean = emodb.hasReferences
@@ -727,10 +739,10 @@ class EmitClassBuilder[C](
     val n = cb.className.replace("/", ".")
     val classesBytes = modb.classesBytes(writeIRs, print)
 
-    new ((HailClassLoader, FS, Int, Region) => C) with java.io.Serializable {
+    new ((HailClassLoader, FS, HailTaskContext, Region) => C) with java.io.Serializable {
       @transient @volatile private var theClass: Class[_] = null
 
-      def apply(hcl: HailClassLoader, fs: FS, idx: Int, region: Region): C = {
+      def apply(hcl: HailClassLoader, fs: FS, htc: HailTaskContext, region: Region): C = {
         if (theClass == null) {
           this.synchronized {
             if (theClass == null) {
@@ -739,9 +751,12 @@ class EmitClassBuilder[C](
             }
           }
         }
+        val idx = htc.partitionId()
+
         val f = theClass.getDeclaredConstructor().newInstance().asInstanceOf[C]
         f.asInstanceOf[FunctionWithHailClassLoader].addHailClassLoader(hcl)
         f.asInstanceOf[FunctionWithFS].addFS(fs)
+        f.asInstanceOf[FunctionWithTaskContext].addTaskContext(htc)
         f.asInstanceOf[FunctionWithPartitionRegion].addPartitionRegion(region)
         f.asInstanceOf[FunctionWithPartitionRegion].setPool(region.pool)
         if (useBackend)
@@ -877,6 +892,10 @@ trait FunctionWithHailClassLoader {
 
 trait FunctionWithFS {
   def addFS(fs: FS): Unit
+}
+
+trait FunctionWithTaskContext {
+  def addTaskContext(htc: HailTaskContext): Unit
 }
 
 trait FunctionWithReferences {

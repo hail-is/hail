@@ -140,7 +140,7 @@ object Worker {
     } catch {
       case err: HailException => userError = err
     }
-    htc.finish()
+    htc.close()
 
     timer.end("executeFunction")
     timer.start("writeOutputs")

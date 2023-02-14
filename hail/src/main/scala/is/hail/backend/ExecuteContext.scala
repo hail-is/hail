@@ -3,6 +3,7 @@ package is.hail.backend
 import is.hail.asm4s.HailClassLoader
 import is.hail.{HailContext, HailFeatureFlags}
 import is.hail.annotations.{Region, RegionPool}
+import is.hail.backend.local.LocalTaskContext
 import is.hail.expr.ir.Threefry
 import is.hail.io.fs.FS
 import is.hail.utils._
@@ -131,6 +132,11 @@ class ExecuteContext(
 
   val memo: mutable.Map[Any, Any] = new mutable.HashMap[Any, Any]()
 
+  val taskContext: HailTaskContext = new LocalTaskContext(0, 0)
+  def scopedExecution[T](f: (HailClassLoader, FS, HailTaskContext, Region) => T): T = {
+    using(new LocalTaskContext(0, 0))(f(theHailClassLoader, fs, _, r))
+  }
+
   def createTmpPath(prefix: String, extension: String = null): String = {
     val path = ExecuteContext.createTmpPathNoCleanup(tmpdir, prefix, extension)
     tempFileManager.own(path)
@@ -157,6 +163,7 @@ class ExecuteContext(
 
   def close(): Unit = {
     tempFileManager.cleanup()
+    taskContext.close()
 
     var exception: Exception = null
     for (cleanupFunction <- cleanupFunctions) {

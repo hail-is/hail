@@ -3,7 +3,7 @@ package is.hail.backend
 import is.hail.annotations.RegionPool
 import is.hail.utils._
 
-abstract class HailTaskContext {
+abstract class HailTaskContext extends AutoCloseable {
   def stageId(): Int
 
   def partitionId(): Int
@@ -20,7 +20,7 @@ abstract class HailTaskContext {
     s"${ stageId() }-${ partitionId() }-${ attemptNumber() }-$fileUUID"
   }
 
-  def finish(): Unit = {
+  def close(): Unit = {
     log.info(s"TaskReport: stage=${ stageId() }, partition=${ partitionId() }, attempt=${ attemptNumber() }, " +
       s"peakBytes=${ thePool.getHighestTotalUsage }, peakBytesReadable=${ formatSpace(thePool.getHighestTotalUsage) }, "+
       s"chunks requested=${thePool.getUsage._1}, cache hits=${thePool.getUsage._2}")

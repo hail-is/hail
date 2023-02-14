@@ -4,6 +4,7 @@ import java.io._
 import is.hail.asm4s.{HailClassLoader, theHailClassLoaderForSparkWorkers}
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
+import is.hail.backend.spark.SparkTaskContext
 import is.hail.types.physical._
 import is.hail.io.fs.FS
 import is.hail.io.index.IndexWriter
@@ -226,7 +227,10 @@ class RichContextRDDLong(val crdd: ContextRDD[Long]) extends AnyVal {
       path,
       idxRelPath,
       stageLocally,
-      IndexWriter.builder(ctx, t.kType, +PCanonicalStruct()),
+      {
+        val f1= IndexWriter.builder(ctx, t.kType, +PCanonicalStruct())
+        f1(_, theHailClassLoaderForSparkWorkers, SparkTaskContext.get(), _)
+      },
       RichContextRDDRegionValue.writeRowsPartition(
         encoding.buildEncoder(ctx, t.rowType),
         t.kFieldIdx,
