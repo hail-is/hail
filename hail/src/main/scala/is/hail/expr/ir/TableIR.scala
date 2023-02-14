@@ -516,7 +516,7 @@ abstract class TableReader {
   def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
     throw new LowererUnsupportedOperation(s"${ getClass.getSimpleName }.lower not implemented")
 
-  def partitionProposal: PartitionProposal = ???
+  def partitionProposal: PartitionProposal = PartitionProposal(None, fullType.key.size, PlanPartitioning.REPARTITION_REQUIRES_EXTRA_READ)
 }
 
 object TableNativeReader {
@@ -1494,7 +1494,7 @@ class TableNativeReader(
 
   override def partitionProposal: PartitionProposal =
     PartitionProposal(Some(spec.rowsSpec.partitioner),
-      fullTypeWithoutUIDs.keyType.size,
+      fullType.keyType.size,
       PlanPartitioning.NO_AFFINITY)
 }
 
@@ -1508,8 +1508,6 @@ case class TableNativeZippedReader(
   def pathsUsed: Seq[String] = FastSeq(pathLeft, pathRight)
 
   override def renderShort(): String = s"(TableNativeZippedReader $pathLeft $pathRight ${ options.map(_.renderShort()).getOrElse("") })"
-
-  private lazy val filterIntervals = options.exists(_.filterIntervals)
 
   private def intervals = options.map(_.intervals)
 
@@ -1576,10 +1574,29 @@ case class TableNativeZippedReader(
       0)
   }
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
+  override def lowerPartitioned(ctx: ExecuteContext, requestedType: TableType, partitioner: RequestedPartitioning): TableStage = {
+    partitioner match {
+      case UseThisPartitioning(p) =>
+        options match {
+          case Some(o) =>
+            val newIntervals = Interval.intersection(p.rangeBounds, o.intervals.toArray, p.kord.intervalEndpointOrdering)
+            lowerWithNewOpts(ctx, requestedType, options = Some(NativeReaderOptions(newIntervals, p.kType, false)))
+              .repartitionNoShuffle(p)
+          case None =>
+            val lowered = lowerWithNewOpts(ctx, requestedType, options = Some(NativeReaderOptions(p.rangeBounds, p.kType, false)))
+            lowered
+        }
+      case UseTheDefaultPartitioning =>
+        lowerWithNewOpts(ctx, requestedType, options)
+    }
+  }
+
+
+  def lowerWithNewOpts(ctx: ExecuteContext, requestedType: TableType, options: Option[NativeReaderOptions]): TableStage = {
     val globals = lowerGlobals(ctx, requestedType.globalType)
     val rowsSpec = specLeft.rowsSpec
     val specPart = rowsSpec.partitioner(ctx.stateManager)
+    val filterIntervals = options.map(_.filterIntervals).getOrElse(false)
     val partitioner = if (filterIntervals)
       options.map(opts => RVDPartitioner.union(ctx.stateManager, specPart.kType, opts.intervals, specPart.kType.size - 1))
     else
@@ -1593,6 +1610,10 @@ case class TableNativeZippedReader(
     ).apply(globals)
   }
 
+  override def partitionProposal: PartitionProposal =
+    PartitionProposal(Some(specLeft.rowsSpec.partitioner),
+      fullType.keyType.size,
+      PlanPartitioning.NO_AFFINITY)
 }
 
 object TableFromBlockMatrixNativeReader {

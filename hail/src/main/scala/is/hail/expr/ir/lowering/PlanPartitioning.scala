@@ -44,7 +44,8 @@ case class PartitionProposal(
   partitioner: Option[RVDPartitioner],
   allowedOverlap: Int,
   defaultPartitioningAffinity: Int) {
-  // going to be the hint partitioner if it exists, otherwise the default partitioner but strict
+  require(partitioner.forall(_.kType.size > 0))
+
   def getPartitioner(requestedAllowedOverlap: Int): Option[RVDPartitioner] = {
     partitioner.map(_.strictify(requestedAllowedOverlap))
   }
@@ -132,7 +133,10 @@ object PlanPartitioning {
         val pc = recur(child)
 
         val preservedKey = (child.typ.key, keys).zipped.takeWhile { case (s1, s2) => s1 == s2 }.size
-        pc.copy(partitioner = pc.partitioner.map(p => p.coarsen(preservedKey).extendKey(tk.typ.keyType)))
+        if (keys.isEmpty)
+          noInformation()
+        else
+          pc.copy(partitioner = pc.partitioner.map(p => p.coarsen(preservedKey).extendKey(tk.typ.keyType)))
       case TableOrderBy(child, _) =>
         noInformation()
       case TableFilter(child, _) =>

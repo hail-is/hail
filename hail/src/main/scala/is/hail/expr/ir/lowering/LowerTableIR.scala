@@ -1555,7 +1555,10 @@ object LowerTableIR {
           .length
 
         require(t.definitelyDoesNotShuffle)
-        val loweredChild = lower(child)
+        val loweredChild = if (newKey.isEmpty)
+          choosePartitioningAndLowerTable(child, typesToLower, ctx, analyses)
+        else
+          lower(child)
 
 
         requestedPartitioner match {
