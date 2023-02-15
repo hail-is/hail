@@ -20,11 +20,11 @@ trait ServiceCacheableFS extends FS {
     else MemoryClient.get
   }
 
-  def openCachedNoCompression(filename: String): SeekableDataInputStream = {
+  override def openCachedNoCompression(filename: String): SeekableDataInputStream = {
     client.open(filename).map(new WrappedSeekableDataInputStream(_)).getOrElse(openNoCompression(filename))
   }
 
-  def createCachedNoCompression(filename: String): PositionedDataOutputStream = {
+  override def createCachedNoCompression(filename: String): PositionedDataOutputStream = {
     val os: PositionedOutputStream = new OutputStream with Positioned {
       private[this] var closed: Boolean = false
       private[this] val bb: ArrayBuffer[Byte] = new ArrayBuffer()
