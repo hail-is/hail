@@ -2081,6 +2081,24 @@ steps:
       - name: cleanup-old-billing-tables
         script: /io/sql/cleanup-old-billing-tables.sql
         online: true
+      - name: create-resource-dedup-mapping
+        script: /io/sql/create_resource_dedup_mapping.py
+        online: true
+      - name: setup-dedup-resources
+        script: /io/sql/setup-dedup-resources.sql
+        online: true
+      - name: create-resource-dedup-mapping
+        script: /io/sql/create_resource_dedup_mapping.py
+        online: true
+      - name: add-dedup-resources-triggers
+        script: /io/sql/add-dedup-resources-triggers.sql
+        online: true
+      - name: dedup-resources
+        script: /io/sql/dedup_resources.py
+        online: true
+      - name: cleanup-dedup-resources
+        script: /io/sql/cleanup-dedup-resources.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
