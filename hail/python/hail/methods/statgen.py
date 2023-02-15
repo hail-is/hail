@@ -1638,7 +1638,7 @@ def _linear_skat(group,
 
         \begin{align*}
         \lambda_i &= \Lambda_{ii} \\
-        Q &\sim \mathrm{GeneralizedChiSquare}(\lambda, \vec{1}, \vec{0}, 0, 0)
+        Q &\sim \mathrm{GeneralizedChiSquared}(\lambda, \vec{1}, \vec{0}, 0, 0)
         \end{align*}
 
     Therefore, we can test the null hypothesis by calculating the probability of receiving values
@@ -2113,7 +2113,6 @@ def _logistic_skat(group,
             &= V^{1/2} (I - Q (R^T)^{-1} X^T V^{1/2}) V^{1/2} \\
             &= V^{1/2} (I - V^{1/2} Q Q^T) V^{1/2} \\
             &= V^{1/2} (I - Q Q^T) V^{1/2} \\
-            &= V (I - Q Q^T) \quad\quad \textrm{By the diagonality of } V \\
         \end{align*}
 
     Substitute this simplified expression into :math:`Z`:
@@ -2121,69 +2120,33 @@ def _logistic_skat(group,
     .. math::
 
         \begin{align*}
-        Z^T Z &= W^{1/2} G^T (V (I - Q Q^T)) G W^{1/2} \\
-              &= W^{1/2} V (G^T G - G^T Q Q^T G) W^{1/2} \\
+        Z^T Z &= W^{1/2} G^T (V (I - Q Q^T) V^{1/2}) G W^{1/2} \\
         \end{align*}
 
-    We can transform the residuals into standard normal variables by normalizing by their
-    variance.
+    We can split this symmetric matrix by observing that :math:`I - Q Q^T` is idempotent:
 
     .. math::
 
         \begin{align*}
-        \widehat{\Sigma}_{ii} &= r_i (1 - r_i) \quad\quad \Sigma \textrm{ diagonal}\\
-        h_i &\sim N(0, 1) \\
-        r &= h \widehat{\Sigma}
-        \end{align*}
-
-    We can rewrite :math:`Q` in terms of a Grammian matrix and these new standard normal random variables:
-
-    .. math::
-
-        \begin{align*}
-        Q &= h^T \widehat{\Sigma} G W G^T \widehat{\Sigma} h \\
-        A &= \widehat{\Sigma} G W^{1/2} \\
-        B &= A A^T \\
+        I - Q Q^T &= (I - Q Q^T)(I - Q Q^T)^T \\
         \\
-        Q &= h^T B h \\
+        Z &= (I - Q Q^T) V^{1/2} G W^{1/2} \\
+        Z &= (G - Q Q^T G) V^{1/2} W^{1/2}
         \end{align*}
 
-    This expression is a `"quadratic form" <https://en.wikipedia.org/wiki/Quadratic_form>`__ of the
-    vector :math:`h`. Because :math:`B` is a real symmetric matrix, we can eigendecompose it into an
-    orthogonal matrix and a diagonal matrix of eigenvalues:
+    Finally, we observe that the squared singular values of :math:`Z` are the eigenvalues of
+    :math:`Z Z^T = Z^T Z`, so :math:`Q` should be distributed as follows:
 
     .. math::
 
         \begin{align*}
-        U \Lambda U &= B \quad\quad \Lambda \textrm{ orthogonal } U \textrm{ diagonal} \\
-        Q &= h^T U \Lambda U h
+        U S V^T &= Z \quad\quad \textrm{the singular value decomposition} \\
+        \lambda_s &= S_{ss}^2 \\
+        \\
+        Q &\sim \textrm{GeneralizedChiSquared}(\lambda, \vec{1}, \vec{0}, 0, 0)
         \end{align*}
 
-    An orthogonal matrix transforms a vector of i.i.d. standard normal variables into a new vector
-    of different i.i.d standard normal variables, so we can interpret :math:`Q` as a weighted sum of
-    i.i.d. standard normal variables:
-
-    .. math::
-
-        \begin{align*}
-        \tilde{h} &= U h \\
-        Q &= \sum_s \Lambda_{ss} \tilde{h}_s^2
-        \end{align*}
-
-    The distribution of such sums (indeed, any quadratic form of i.i.d. standard normal variables)
-    is governed by the generalized chi-squared distribution (the CDF is available in Hail as
-    :func:`.pgenchisq`):
-
-    .. math::
-
-        \begin{align*}
-        \lambda_i &= \Lambda_{ii} \\
-        Q &\sim \mathrm{GeneralizedChiSquare}(\lambda, \vec{1}, \vec{0}, 0, 0)
-        \end{align*}
-
-    Therefore, we can test the null hypothesis by calculating the probability of receiving values
-    larger than :math:`Q`. If that probability is very small, then the residual phenotypes are
-    likely not i.i.d. normal variables with variance :math:`\widehat{\Sigma}^2`.
+    The null hypothesis test tests for the probability of observing even larger values of :math:`Q`.
 
     The SKAT method was originally described in:
 
