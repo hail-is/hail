@@ -675,6 +675,12 @@ class EmitClassBuilder[C](
     val reseed = Code(rngFields.map { case (field, _) =>
       field.invoke[Int, Unit]("reset", mb.getCodeParam[Int](1))
     })
+
+    mb.emit(Code(
+      initialized.mux(
+        Code._empty,
+        Code(initialize, initialized := true)),
+      reseed))
   }
 
   def newRNG(seed: Long): Value[IRRandomness] = {
