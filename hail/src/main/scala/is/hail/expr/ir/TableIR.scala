@@ -2532,7 +2532,7 @@ case class TableMapPartitions(child: TableIR,
   allowedOverlap: Int
 ) extends TableIR {
   assert(body.typ.isInstanceOf[TStream], s"${ body.typ }")
-  assert(allowedOverlap >= 0 && allowedOverlap <= child.typ.key.size)
+  assert(allowedOverlap >= -1 && allowedOverlap <= child.typ.key.size)
   assert(requestedKey >= 0 && requestedKey <= child.typ.key.size)
 
   lazy val typ = child.typ.copy(
