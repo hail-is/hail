@@ -86,6 +86,79 @@ object BlockMatrixSparsity {
     val t = TArray(TInt32)
     (Literal(t, newRowPos), Literal(t, newRowIdx), Literal(t, newToOldPos))
   }
+
+  def filterCSCSparsity(
+    rowPos: IndexedSeq[Int], rowIdx: IndexedSeq[Int],
+    rowDeps: IndexedSeq[Int], colDeps: IndexedSeq[Int]
+  ): (IndexedSeq[Int], IndexedSeq[Int], IndexedSeq[Int]) = {
+    val newRowPos = new IntArrayBuilder()
+    val newRowIdx = new IntArrayBuilder()
+    val newToOldPos = new IntArrayBuilder()
+
+    var curOutPos = 0
+    for (j <- colDeps) {
+      newRowPos += curOutPos
+      var curLPos = rowPos(j)
+      val endLPos = rowPos(j + 1)
+      var curRPos = 0
+      while (curLPos < endLPos && curRPos < rowDeps.length) {
+        val curLIdx = rowIdx(curLPos)
+        val curRIdx = rowDeps(curRPos)
+        if (curLIdx == curRIdx) {
+          newRowIdx += curLIdx
+          newToOldPos += curOutPos
+          curLPos += 1
+          curRPos += 1
+          curOutPos += 1
+        } else {
+          val c = curLIdx < curRIdx
+          curLPos += c.toInt
+          curRPos += (!c).toInt
+        }
+      }
+    }
+    newRowPos += curOutPos
+
+    (newRowPos.result(), newRowIdx.result(), newToOldPos.result())
+  }
+
+  def groupedCSCSparsity(
+    rowPos: IndexedSeq[Int], rowIdx: IndexedSeq[Int],
+    rowDeps: IndexedSeq[IndexedSeq[Int]], colDeps: IndexedSeq[IndexedSeq[Int]]
+  ): (IndexedSeq[Int], IndexedSeq[Int], IndexedSeq[(IndexedSeq[Int], IndexedSeq[Int], IndexedSeq[Int])]) = {
+    val newRowPos = new IntArrayBuilder()
+    val newRowIdx = new IntArrayBuilder()
+    val nestedSparsities = new AnyRefArrayBuilder[(IndexedSeq[Int], IndexedSeq[Int], IndexedSeq[Int])]()
+
+    var curOutPos = 0
+    var j = 0
+    while (j < colDeps.length) {
+      newRowPos += curOutPos
+      var i = 0
+      while (i < rowDeps.length) {
+        val nested = filterCSCSparsity(rowPos, rowIdx, rowDeps(i), colDeps(j))
+        if (nested._2.nonEmpty) {
+          newRowIdx += i
+          nestedSparsities += nested
+          curOutPos += 1
+        }
+        i += 1
+      }
+      j += 1
+    }
+    newRowPos += curOutPos
+
+    (newRowPos.result(), newRowIdx.result(), nestedSparsities.result())
+  }
+
+  def groupedCSCSparsityIR(
+    rowPos: IndexedSeq[Int], rowIdx: IndexedSeq[Int],
+    rowDeps: IndexedSeq[IndexedSeq[Int]], colDeps: IndexedSeq[IndexedSeq[Int]]
+  ): (IR, IR, IR) = {
+    val (newRowPos, newRowIdx, nestedSparsities) = groupedCSCSparsity(rowPos, rowIdx, rowDeps, colDeps)
+    val t = TArray(TInt32)
+    (Literal(t, newRowPos), Literal(t, newRowIdx), Literal(TArray(TTuple(t, t, t)), nestedSparsities.map(Row.fromTuple)))
+  }
 }
 
 case class BlockMatrixSparsity(definedBlocks: Option[IndexedSeq[(Int, Int)]]) {
