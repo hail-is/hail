@@ -41,7 +41,7 @@ class NonOwningTempFileManager(owner: TempFileManager) extends TempFileManager {
 object ExecuteContext {
   def scoped[T]()(f: ExecuteContext => T): T = {
     val (result, _) = ExecutionTimer.time("ExecuteContext.scoped") { timer =>
-      HailContext.backend.withExecuteContext(timer, selfContainedExecution = false)(f)
+      HailContext.sparkBackend("ExecuteContext.scoped").withExecuteContext(timer, selfContainedExecution = false)(f)
     }
     result
   }

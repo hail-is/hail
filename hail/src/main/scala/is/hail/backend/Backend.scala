@@ -39,8 +39,6 @@ abstract class Backend {
 
   def getPersistedBlockMatrixType(backendContext: BackendContext, id: String): BlockMatrixType
 
-  def withExecuteContext[T](timer: ExecutionTimer, selfContainedExecution: Boolean = true)(f: ExecuteContext => T): T
-
   def parallelizeAndComputeWithIndex(
     backendContext: BackendContext,
     fs: FS,

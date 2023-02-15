@@ -98,7 +98,7 @@ class LocalBackend(
 
   val fs: FS = new HadoopFS(new SerializableHadoopConfiguration(hadoopConf))
 
-  def withExecuteContext[T](timer: ExecutionTimer, selfContainedExecution: Boolean = true)(f: ExecuteContext => T): T = {
+  def withExecuteContext[T](timer: ExecutionTimer)(f: ExecuteContext => T): T = {
     ExecuteContext.scoped(tmpdir, tmpdir, this, fs, timer, null, theHailClassLoader, ReferenceGenome.references, flags)(f)
   }
 

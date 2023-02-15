@@ -100,8 +100,6 @@ class ServiceBackend(
     new String(bytes, StandardCharsets.UTF_8)
   }
 
-  def withExecuteContext[T](timer: ExecutionTimer, selfContainedExecution: Boolean = true)(f: ExecuteContext => T): T = ???
-
   def parallelizeAndComputeWithIndex(
     _backendContext: BackendContext,
     _fs: FS,
