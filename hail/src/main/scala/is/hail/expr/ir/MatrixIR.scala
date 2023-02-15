@@ -220,7 +220,10 @@ object MatrixNativeReader {
               |This matrix table was written using an older version of hail
               |rewrite the matrix in order to create an index to proceed""".stripMargin)
 
-    new MatrixNativeReader(params, spec)
+    val params2 = params.copy(
+      options = params.options.map(o => o.copy(
+        intervalPointType = spec.matrix_type.rowKeyStruct.truncate(o.intervalPointType.size))))
+    new MatrixNativeReader(params2, spec)
   }
 
   def fromJValue(fs: FS, jv: JValue): MatrixNativeReader = {

@@ -537,7 +537,10 @@ object TableNativeReader {
           |This table was written using an older version of hail
           |rewrite the table in order to create an index to proceed""".stripMargin)
 
-    new TableNativeReader(params, spec)
+    val params2 = params.copy(
+      options = params.options.map(o => o.copy(
+        intervalPointType = spec.table_type.keyType.truncate(o.intervalPointType.size))))
+    new TableNativeReader(params2, spec)
   }
 
   def fromJValue(fs: FS, jv: JValue): TableNativeReader = {
