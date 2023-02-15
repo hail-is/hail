@@ -2030,8 +2030,7 @@ def _logistic_skat(group,
         X &: R^{N \times K} \\
         G &: \{0, 1, 2\}^{N \times M} \\
         \\
-        \varepsilon &\sim N(0, \sigma^2) \\
-        \textrm{logit}(P(y=1)) &= \beta_0 X + \beta_1 G + \varepsilon
+        \textrm{logit}(P(y=1)) &= \beta_0 X + \beta_1 G + \varepsilon \quad\quad \varepsilon \sim N(0, \sigma^2)
         \end{align*}
 
     The usual null hypothesis is :math:`\beta_1 = 0`. SKAT tests for an association, but does not
@@ -2040,7 +2039,14 @@ def _logistic_skat(group,
     Wu et al. argue that, under the null hypothesis, a particular value, :math:`Q`, is distributed
     according to a generalized chi-squared distribution with parameters determined by the genotypes,
     weights, and residual phenotypes. The SKAT p-value is the probability of drawing even larger
-    values of :math:`Q`. :math:`Q` is defined by Wu et al. as:
+    values of :math:`Q`. If :math:`\widehat{\beta_\textrm{null}}` is the best-fit beta under the
+    null model:
+
+    .. math::
+
+        \textrm{logit}(P(y=1)) = \beta_\textrm{null} X + \varepsilon \quad\quad \varepsilon \sim N(0, \sigma^2)
+
+    Then :math:`Q` is defined by Wu et al. as:
 
     .. math::
 
@@ -2051,67 +2057,56 @@ def _logistic_skat(group,
         Q &= r^T G W G^T r
         \end{align*}
 
-    :math:`\widehat{\beta_\textrm{null}}` is the best-fit beta under the null model:
-
-    .. math::
-
-        \textrm{logit}(P(y=1)) = \beta_\textrm{null} X + \varepsilon \quad\quad \varepsilon \sim N(0, \sigma^2)
-
     Therefore :math:`r`, the residual phenotype, is the portion of the phenotype unexplained by the
     covariates alone. Also notice:
 
-    1. The phenotypes are Bernoulli distributed with mean :math:`p` and variance :math:`\sigma^2 =
-       p(1 - p)` where :math:`p` is the best-fit probability.
+    1. Each sample's phenotype is Bernoulli distributed with mean :math:`p_i` and variance
+       :math:`\sigma^2_i = p_i(1 - p_i)` where :math:`p_i` is the predicted probability under the
+       null model for sample :math:`i`.
 
     2. :math:`G W G^T`, is a symmetric positive-definite matrix when the weights are non-negative.
 
-    We follow the mathematics as described in the main body and appendex of Wu, et al. The
-    distribution of :math:`Q` is given by a generalized chi-squared distribution whose weights are
-    the eigenvalues of this matrix:
+    We describe below our interpretation of the mathematics as described in the main body and
+    appendix of Wu, et al. According to the paper, the distribution of :math:`Q` is given by a
+    generalized chi-squared distribution whose weights are the eigenvalues of a symmetric matrix
+    which we call :math:`Z Z^T`:
 
     .. math::
 
         \begin{align*}
-        G &: \{0, 1, 2\}^{N \times M} \\
-        X &: R^{N \times K} \\
-        V_{ii} &= \sigma^2 \\
+        V_{ii} &= \sigma^2_i \\
         W_{ii} &= w_i \quad\quad \textrm{the weight for variant } i \\
         \\
         P_0 &= V - V X (X^T V X)^{-1} X^T V \\
-        P_0^{1/2} G W G^T P_0^{1/2}
+        Z Z^T &= P_0^{1/2} G W G^T P_0^{1/2}
         \end{align*}
 
-    Notice that this is a symmetric matrix:
+    Recall that the eigenvalues of a symmetric matrix and its transpose are the same, so we can
+    instead consider :math:`Z^T Z` (note that we elide transpositions of symmetric matrices):
 
     .. math::
 
         \begin{align*}
         Z Z^T &= P_0^{1/2} G W G^T P_0^{1/2} \\
-        Z &= P_0^{1/2} G W^{1/2}
+        Z &= P_0^{1/2} G W^{1/2} \\
+        Z^T Z &= W^{1/2} G^T P_0 G W^{1/2}
         \end{align*}
 
-    Recall that the eigenvalues of a symmetric matrix and its transpose are the same, so we can
-    instead consider (note that we elide trivial transposes of symmetric matrices):
-
-    .. math::
-
-        Z^T Z = W^{1/2} G^T P_0 G^T W^{1/2}
-
-    Before substituting the definition of :math:`P_0`, let's simplify it a bit using the reduced QR
+    Before substituting the definition of :math:`P_0`, simplify it using the reduced QR
     decomposition:
 
     .. math::
 
         \begin{align*}
-        Q R = V^{1/2} X \\
+        Q R &= V^{1/2} X \\
+        R^T Q^T &= X^T V^{1/2} \\
         \\
         P_0 &= V - V X (X^T V X)^{-1} X^T V \\
-            &= V^{1/2} (I - V^{1/2} X (X^T V X)^{-1} X^T V^{1/2}) V^{1/2} \\
-            &= V^{1/2} (I - V^{1/2} X (R^T Q^T Q R)^{-1} X^T V^{1/2}) V^{1/2} \\
-            &= V^{1/2} (I - V^{1/2} X (R^T R)^{-1} X^T V^{1/2}) V^{1/2} \\
-            &= V^{1/2} (I - V^{1/2} X R^{-1} (R^T)^{-1} X^T V^{1/2}) V^{1/2} \\
-            &= V^{1/2} (I - Q (R^T)^{-1} X^T V^{1/2}) V^{1/2} \\
-            &= V^{1/2} (I - V^{1/2} Q Q^T) V^{1/2} \\
+            &= V - V X (R^T Q^T Q R)^{-1} X^T V \\
+            &= V - V X (R^T R)^{-1} X^T V \\
+            &= V - V X R^{-1} (R^T)^{-1} X^T V \\
+            &= V - V^{1/2} Q (R^T)^{-1} X^T V^{1/2} \\
+            &= V - V^{1/2} Q Q^T V^{1/2} \\
             &= V^{1/2} (I - Q Q^T) V^{1/2} \\
         \end{align*}
 
@@ -2120,10 +2115,10 @@ def _logistic_skat(group,
     .. math::
 
         \begin{align*}
-        Z^T Z &= W^{1/2} G^T (V (I - Q Q^T) V^{1/2}) G W^{1/2} \\
+        Z^T Z &= W^{1/2} G^T V^{1/2} (I - Q Q^T) V^{1/2} G W^{1/2} \\
         \end{align*}
 
-    We can split this symmetric matrix by observing that :math:`I - Q Q^T` is idempotent:
+    Split this symmetric matrix by observing that :math:`I - Q Q^T` is idempotent:
 
     .. math::
 
@@ -2134,8 +2129,8 @@ def _logistic_skat(group,
         Z &= (G - Q Q^T G) V^{1/2} W^{1/2}
         \end{align*}
 
-    Finally, we observe that the squared singular values of :math:`Z` are the eigenvalues of
-    :math:`Z Z^T = Z^T Z`, so :math:`Q` should be distributed as follows:
+    Finally, observe that the squared singular values of :math:`Z` are the eigenvalues of
+    :math:`Z^T Z`, so :math:`Q` should be distributed as follows:
 
     .. math::
 
