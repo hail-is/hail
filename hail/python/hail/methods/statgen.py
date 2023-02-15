@@ -2060,10 +2060,70 @@ def _logistic_skat(group,
     Therefore :math:`r`, the residual phenotype, is the portion of the phenotype unexplained by the
     covariates alone. Also notice:
 
-    1. The residual phenotypes are Bernoulli distributed with mean :math:`p` and variance
-       :math:`\sigma^2 = p(1 - p)` where :math:`p` is the best-fit probability.
+    1. The phenotypes are Bernoulli distributed with mean :math:`p` and variance :math:`\sigma^2 =
+       p(1 - p)` where :math:`p` is the best-fit probability.
 
     2. :math:`G W G^T`, is a symmetric positive-definite matrix when the weights are non-negative.
+
+    We follow the mathematics as described in the main body and appendex of Wu, et al. The
+    distribution of :math:`Q` is given by a generalized chi-squared distribution whose weights are
+    the eigenvalues of this matrix:
+
+    .. math::
+
+        \begin{align*}
+        G &: \{0, 1, 2\}^{N \times M} \\
+        X &: R^{N \times K} \\
+        V_{ii} &= \sigma^2 \\
+        W_{ii} &= w_i \quad\quad \textrm{the weight for variant } i \\
+        \\
+        P_0 &= V - V X (X^T V X)^{-1} X^T V \\
+        P_0^{1/2} G W G^T P_0^{1/2}
+        \end{align*}
+
+    Notice that this is a symmetric matrix:
+
+    .. math::
+
+        \begin{align*}
+        Z Z^T &= P_0^{1/2} G W G^T P_0^{1/2} \\
+        Z &= P_0^{1/2} G W^{1/2}
+        \end{align*}
+
+    Recall that the eigenvalues of a symmetric matrix and its transpose are the same, so we can
+    instead consider (note that we elide trivial transposes of symmetric matrices):
+
+    .. math::
+
+        Z^T Z = W^{1/2} G^T P_0 G^T W^{1/2}
+
+    Before substituting the definition of :math:`P_0`, let's simplify it a bit using the reduced QR
+    decomposition:
+
+    .. math::
+
+        \begin{align*}
+        Q R = V^{1/2} X \\
+        \\
+        P_0 &= V - V X (X^T V X)^{-1} X^T V \\
+            &= V^{1/2} (I - V^{1/2} X (X^T V X)^{-1} X^T V^{1/2}) V^{1/2} \\
+            &= V^{1/2} (I - V^{1/2} X (R^T Q^T Q R)^{-1} X^T V^{1/2}) V^{1/2} \\
+            &= V^{1/2} (I - V^{1/2} X (R^T R)^{-1} X^T V^{1/2}) V^{1/2} \\
+            &= V^{1/2} (I - V^{1/2} X R^{-1} (R^T)^{-1} X^T V^{1/2}) V^{1/2} \\
+            &= V^{1/2} (I - Q (R^T)^{-1} X^T V^{1/2}) V^{1/2} \\
+            &= V^{1/2} (I - V^{1/2} Q Q^T) V^{1/2} \\
+            &= V^{1/2} (I - Q Q^T) V^{1/2} \\
+            &= V (I - Q Q^T) \quad\quad \textrm{By the diagonality of } V \\
+        \end{align*}
+
+    Substitute this simplified expression into :math:`Z`:
+
+    .. math::
+
+        \begin{align*}
+        Z^T Z &= W^{1/2} G^T (V (I - Q Q^T)) G W^{1/2} \\
+              &= W^{1/2} V (G^T G - G^T Q Q^T G) W^{1/2} \\
+        \end{align*}
 
     We can transform the residuals into standard normal variables by normalizing by their
     variance.
@@ -2376,9 +2436,9 @@ def _logistic_skat(group,
     # See linear SKAT code comment for an extensive description of the mathematics here.
 
     sqrtv = hl.sqrt(ht.s2)
-    Q, _ = hl.nd.qr((ht.covmat.T * sqrtv).T)
+    Q, _ = hl.nd.qr(ht.covmat * sqrtv.reshape(-1, 1))
     weights_arr = ht.weight._data_array()
-    G_scaled = (ht.G.T * sqrtv).T
+    G_scaled = ht.G * sqrtv.reshape(-1, 1)
     A = hl.case().when(
         hl.all(weights_arr.map(lambda x: x >= 0)),
         (G_scaled - Q @ (Q.T @ G_scaled)) * hl.sqrt(ht.weight)
