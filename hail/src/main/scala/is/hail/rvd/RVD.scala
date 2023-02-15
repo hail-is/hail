@@ -237,11 +237,11 @@ class RVD(
     shuffle: Boolean = false,
     filter: Boolean = true
   ): RVD = {
-    require(newPartitioner.satisfiesAllowedOverlap(newPartitioner.kType.size - 1))
-    require(shuffle || newPartitioner.kType.isPrefixOf(typ.kType.virtualType))
-
     if (newPartitioner == this.partitioner)
       return this
+
+    require(newPartitioner.satisfiesAllowedOverlap(newPartitioner.kType.size - 1))
+    require(shuffle || newPartitioner.kType.isPrefixOf(typ.kType.virtualType))
 
     if (shuffle) {
       val newType = typ.copy(key = newPartitioner.kType.fieldNames)
