@@ -82,6 +82,11 @@ class CloudBillingManager(abc.ABC):
                         f'ignoring price update for product {product} -- the latest rate is equal to the previous rate'
                     )
                     continue
+                else:
+                    log.info(
+                        f'resource {resource_name} changed from {current_product_version} to {latest_product_version} with rate change of '
+                        f'({current_resource_rate}) => ({latest_resource_rate})'
+                    )
 
             if price.is_current_price() and (
                 current_product_version is None or current_product_version != latest_product_version
