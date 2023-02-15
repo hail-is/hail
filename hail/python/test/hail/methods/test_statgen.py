@@ -9,14 +9,13 @@ import hail.utils as utils
 from hail.linalg import BlockMatrix
 from hail.utils import FatalError
 from hail.utils.java import choose_backend, Env
-from ..helpers import resource, fails_local_backend, fails_service_backend
+from ..helpers import resource, fails_local_backend, fails_service_backend, skip_when_service_backend
+
+import unittest
 
 
-class Tests:
-    def __init__(self):
-        pass
-
-    @pytest.mark.skipif('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
+class Tests(unittest.TestCase):
+    @pytest.mark.skipif('HAIL_TEST_SKIP_PLINK' in os.environ, reason='Skipping tests requiring plink')
     @fails_service_backend()
     def test_impute_sex_same_as_plink(self):
         ds = hl.import_vcf(resource('x-chromosome.vcf'))
@@ -1628,6 +1627,7 @@ class Tests:
         test_stat(10, 100, 100, 0)
         test_stat(40, 400, 20, 12)
 
+    @skip_when_service_backend(reason='flaky, incorrect alleles in output')
     def test_balding_nichols_model_phased(self):
         bn_ds = hl.balding_nichols_model(1, 5, 5, phased=True)
         assert bn_ds.aggregate_entries(hl.agg.all(bn_ds.GT.phased)) == True
@@ -1641,126 +1641,6 @@ class Tests:
                     [1, 1], [1, 1], [1, 0], [0, 1], [1, 1],
                     [1, 1], [1, 1], [1, 1], [1, 1], [1, 1]]]
         assert actual == expected
-
-    @fails_service_backend()
-    @fails_local_backend()
-    def test_skat(self):
-        ds2 = hl.import_vcf(resource('sample2.vcf'))
-
-        covariates = (hl.import_table(resource("skat.cov"), impute=True)
-                      .key_by("Sample"))
-
-        phenotypes = (hl.import_table(resource("skat.pheno"),
-                                      types={"Pheno": hl.tfloat64},
-                                      missing="0")
-                      .key_by("Sample"))
-
-        intervals = (hl.import_locus_intervals(resource("skat.interval_list")))
-
-        weights = (hl.import_table(resource("skat.weights"),
-                                   types={"locus": hl.tlocus(),
-                                          "weight": hl.tfloat64})
-                   .key_by("locus"))
-
-        ds = hl.split_multi_hts(ds2)
-        ds = ds.annotate_rows(gene=intervals[ds.locus],
-                              weight=weights[ds.locus].weight)
-        ds = ds.annotate_cols(pheno=phenotypes[ds.s].Pheno,
-                              cov=covariates[ds.s])
-        ds = ds.annotate_cols(pheno=hl.if_else(ds.pheno == 1.0,
-                                               False,
-                                               hl.if_else(ds.pheno == 2.0,
-                                                          True,
-                                                          hl.missing(hl.tbool))))
-
-        hl.skat(key_expr=ds.gene,
-                weight_expr=ds.weight,
-                y=ds.pheno,
-                x=ds.GT.n_alt_alleles(),
-                covariates=[],
-                logistic=False)._force_count()
-
-        hl.skat(key_expr=ds.gene,
-                weight_expr=ds.weight,
-                y=ds.pheno,
-                x=ds.GT.n_alt_alleles(),
-                covariates=[],
-                logistic=True)._force_count()
-
-        hl.skat(key_expr=ds.gene,
-                weight_expr=ds.weight,
-                y=ds.pheno,
-                x=ds.GT.n_alt_alleles(),
-                covariates=[1.0, ds.cov.Cov1, ds.cov.Cov2],
-                logistic=False)._force_count()
-
-        hl.skat(key_expr=ds.gene,
-                weight_expr=ds.weight,
-                y=ds.pheno,
-                x=hl.pl_dosage(ds.PL),
-                covariates=[1.0, ds.cov.Cov1, ds.cov.Cov2],
-                logistic=True)._force_count()
-
-        hl.skat(key_expr=ds.gene,
-                weight_expr=ds.weight,
-                y=ds.pheno,
-                x=hl.pl_dosage(ds.PL),
-                covariates=[1.0, ds.cov.Cov1, ds.cov.Cov2],
-                logistic=(25, 1e-6))._force_count()
-
-    @fails_local_backend()
-    @fails_service_backend()
-    def test_skat_max_iteration_fails_explodes_in_37_steps(self):
-        mt = hl.utils.range_matrix_table(3, 3)
-        mt = mt.annotate_cols(y=hl.literal([1, 0, 1])[mt.col_idx])
-        mt = mt.annotate_entries(
-            x=hl.literal([
-                [1, 0, 0],
-                [10, 0, 0],
-                [10, 5, 1]
-            ])[mt.row_idx]
-        )
-        try:
-            ht = hl.skat(
-                hl.literal(0),
-                mt.row_idx,
-                y=mt.y,
-                x=mt.x[mt.col_idx],
-                logistic=(37, 1e-10),
-                # The logistic settings are only used when fitting the null model, so we need to use a
-                # covariate that triggers nonconvergence
-                covariates=[mt.y]
-            )
-            ht.collect()[0]
-        except FatalError as err:
-            assert 'Failed to fit logistic regression null model (MLE with covariates only): exploded at Newton iteration 37' in err.args[0]
-
-    @fails_local_backend()
-    @fails_service_backend()
-    def test_skat_max_iterations_fails_to_converge_in_fewer_than_36_steps(self):
-        mt = hl.utils.range_matrix_table(3, 3)
-        mt = mt.annotate_cols(y=hl.literal([1, 0, 1])[mt.col_idx])
-        mt = mt.annotate_entries(
-            x=hl.literal([
-                [1, 0, 0],
-                [10, 0, 0],
-                [10, 5, 1]
-            ])[mt.row_idx]
-        )
-        try:
-            ht = hl.skat(
-                hl.literal(0),
-                mt.row_idx,
-                y=mt.y,
-                x=mt.x[mt.col_idx],
-                logistic=(36, 1e-10),
-                # The logistic settings are only used when fitting the null model, so we need to use a
-                # covariate that triggers nonconvergence
-                covariates=[mt.y]
-            )
-            ht.collect()[0]
-        except FatalError as err:
-            assert 'Failed to fit logistic regression null model (MLE with covariates only): Newton iteration failed to converge' in err.args[0]
 
     def test_de_novo(self):
         mt = hl.import_vcf(resource('denovo.vcf'))

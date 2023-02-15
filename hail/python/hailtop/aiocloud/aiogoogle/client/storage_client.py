@@ -8,6 +8,8 @@ import logging
 import asyncio
 import urllib.parse
 import aiohttp
+import datetime
+from hailtop import timex
 from hailtop.utils import (
     secret_alnum_string, OnlineBoundedGather2,
     TransientError, retry_transient_errors)
@@ -402,6 +404,12 @@ class GetObjectFileStatus(FileStatus):
 
     async def size(self) -> int:
         return int(self._items['size'])
+
+    def time_created(self) -> datetime.datetime:
+        return timex.parse_rfc3339(self._items['timeCreated'])
+
+    def time_modified(self) -> datetime.datetime:
+        return timex.parse_rfc3339(self._items['updated'])
 
     async def __getitem__(self, key: str) -> str:
         return self._items[key]

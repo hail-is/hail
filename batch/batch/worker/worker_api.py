@@ -2,6 +2,7 @@ import abc
 from typing import Dict
 
 from hailtop import httpx
+from hailtop.aiotools.fs import AsyncFS
 from hailtop.utils import CalledProcessError, check_shell, sleep_and_backoff
 
 from ..instance_config import InstanceConfig
@@ -10,13 +11,18 @@ from .disk import CloudDisk
 
 
 class CloudWorkerAPI(abc.ABC):
-    @property
+    nameserver_ip: str
+
     @abc.abstractmethod
-    def nameserver_ip(self):
+    def get_compute_client(self):
         raise NotImplementedError
 
     @abc.abstractmethod
     def create_disk(self, instance_name: str, disk_name: str, size_in_gb: int, mount_path: str) -> CloudDisk:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_cloud_async_fs(self) -> AsyncFS:
         raise NotImplementedError
 
     @abc.abstractmethod

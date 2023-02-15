@@ -95,6 +95,12 @@ trait SBaseStructValue extends SValue {
     new SInt64Value(sizeSoFar)
   }
 
+  def toStackStruct(cb: EmitCodeBuilder): SStackStructValue = {
+    new SStackStructValue(
+      SStackStruct(st.virtualType, st.fieldEmitTypes),
+      Array.tabulate(st.size)( i => cb.memoize(loadField(cb, i))))
+  }
+
   def _insert(newType: TStruct, fields: (String, EmitValue)*): SBaseStructValue = {
     new SInsertFieldsStructValue(
       SInsertFieldsStruct(newType, st, fields.map { case (name, ec) => (name, ec.emitType) }.toFastIndexedSeq),

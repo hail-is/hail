@@ -10,7 +10,8 @@ import is.hail.linalg.BlockMatrix
 import is.hail.rvd.RVDContext
 import is.hail.utils._
 import is.hail.HailContext
-import is.hail.backend.ExecuteContext
+import is.hail.backend.{ExecuteContext, HailTaskContext}
+import is.hail.backend.spark.SparkTaskContext
 import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeType}
 import is.hail.types.tcoerce
 import org.apache.spark.sql.Row
@@ -827,7 +828,7 @@ object Interpret {
               FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
               MakeTuple.ordered(FastSeq(wrappedIR)),
               optimize = false)
-            (rt.get, makeFunction(ctx.theHailClassLoader, ctx.fs, 0, region))
+            (rt.get, makeFunction(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, region))
           })
           val rvb = new RegionValueBuilder()
           rvb.set(region)
@@ -894,9 +895,7 @@ object Interpret {
             MakeTuple.ordered(FastSeq(extracted.postAggIR)))
 
           // TODO Is this right? where does wrapped run?
-          ctx.r.pool.scopedRegion { region =>
-            SafeRow(rt, f(ctx.theHailClassLoader, ctx.fs, 0, region)(region, globalsOffset))
-          }
+          ctx.scopedExecution((hcl, fs, htc, r) => SafeRow(rt, f(hcl, fs, htc, r).apply(r, globalsOffset)))
         } else {
           val spec = BufferSpec.defaultUncompressed
 
@@ -928,12 +927,12 @@ object Interpret {
           }
 
           // creates a region, giving ownership to the caller
-          val read: RegionPool => (WrappedByteArray => RegionValue) = {
+          val read: (HailClassLoader, HailTaskContext) => (WrappedByteArray => RegionValue) = {
             val deserialize = extracted.deserialize(ctx, spec)
-            (pool: RegionPool) => {
+            (hcl: HailClassLoader, htc: HailTaskContext) => {
               (a: WrappedByteArray) => {
-                val r = Region(Region.SMALL, pool)
-                val res = deserialize(r, a.bytes)
+                val r = Region(Region.SMALL, htc.getRegionPool())
+                val res = deserialize(hcl, htc, r, a.bytes)
                 a.clear()
                 RegionValue(r, res)
               }
@@ -941,17 +940,17 @@ object Interpret {
           }
 
           // consumes a region, taking ownership from the caller
-          val write: RegionValue => WrappedByteArray = {
+          val write: (HailClassLoader, HailTaskContext, RegionValue) => WrappedByteArray = {
             val serialize = extracted.serialize(ctx, spec)
-            (rv: RegionValue) => {
-              val a = serialize(rv.region, rv.offset)
+            (hcl: HailClassLoader, htc: HailTaskContext, rv: RegionValue) => {
+              val a = serialize(hcl, htc, rv.region, rv.offset)
               rv.region.invalidate()
               new WrappedByteArray(a)
             }
           }
 
           // takes ownership of both inputs, returns ownership of result
-          val combOpF: (RegionValue, RegionValue) => RegionValue =
+          val combOpF: (HailClassLoader, HailTaskContext, RegionValue, RegionValue) => RegionValue =
             extracted.combOpF(ctx, spec)
 
           // returns ownership of a new region holding the partition aggregation
@@ -959,8 +958,8 @@ object Interpret {
           def itF(theHailClassLoader: HailClassLoader, i: Int, ctx: RVDContext, it: Iterator[Long]): RegionValue = {
             val partRegion = ctx.partitionRegion
             val globalsOffset = globalsBc.value.readRegionValue(partRegion, theHailClassLoader)
-            val init = initOp(theHailClassLoader, fsBc.value, i, partRegion)
-            val seqOps = partitionOpSeq(theHailClassLoader, fsBc.value, i, partRegion)
+            val init = initOp(theHailClassLoader, fsBc.value, SparkTaskContext.get(), partRegion)
+            val seqOps = partitionOpSeq(theHailClassLoader, fsBc.value, SparkTaskContext.get(), partRegion)
             val aggRegion = ctx.freshRegion(Region.SMALL)
 
             init.newAggState(aggRegion)
@@ -976,9 +975,9 @@ object Interpret {
 
           // creates a new region holding the zero value, giving ownership to
           // the caller
-          val mkZero = (theHailClassLoader: HailClassLoader, pool: RegionPool) => {
-            val region = Region(Region.SMALL, pool)
-            val initF = initOp(theHailClassLoader, fsBc.value, 0, region)
+          val mkZero = (theHailClassLoader: HailClassLoader, tc: HailTaskContext) => {
+            val region = Region(Region.SMALL, tc.getRegionPool())
+            val initF = initOp(theHailClassLoader, fsBc.value, tc, region)
             initF.newAggState(region)
             initF(region, globalsBc.value.readRegionValue(region, theHailClassLoader))
             RegionValue(region, initF.getAggOffset())
@@ -996,7 +995,7 @@ object Interpret {
           assert(rTyp.types(0).virtualType == query.typ)
 
           ctx.r.pool.scopedRegion { r =>
-            val resF = f(ctx.theHailClassLoader, fsBc.value, 0, r)
+            val resF = f(ctx.theHailClassLoader, fsBc.value, ctx.taskContext, r)
             resF.setAggState(rv.region, rv.offset)
             val resAddr = resF(r, globalsOffset)
             val res = SafeRow(rTyp, resAddr)
@@ -1013,8 +1012,8 @@ object Interpret {
           FastIndexedSeq(classInfo[Region]), LongInfo,
           MakeTuple.ordered(FastSeq(child)),
           optimize = false)
-        ctx.r.pool.scopedRegion { r =>
-          SafeRow.read(rt, makeFunction(ctx.theHailClassLoader, ctx.fs, 0, r)(r)).asInstanceOf[Row](0)
+        ctx.scopedExecution { (hcl, fs, htc, r) =>
+          SafeRow.read(rt, makeFunction(hcl, fs, htc, r)(r)).asInstanceOf[Row](0)
         }
       case UUID4(_) =>
          uuid4()

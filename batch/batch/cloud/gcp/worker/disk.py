@@ -11,22 +11,29 @@ log = logging.getLogger('disk')
 
 
 class GCPDisk(CloudDisk):
-    def __init__(self, name: str, zone: str, project: str, instance_name: str, size_in_gb: int, mount_path: str):
+    def __init__(
+        self,
+        name: str,
+        zone: str,
+        project: str,
+        instance_name: str,
+        size_in_gb: int,
+        mount_path: str,
+        compute_client: aiogoogle.GoogleComputeClient,  # BORROWED
+    ):
         assert size_in_gb >= 10
         # disk name must be 63 characters or less
         # https://cloud.google.com/compute/docs/reference/rest/v1/disks#resource:-disk
         # under the information for the name field
         assert len(name) <= 63
 
-        self.compute_client = aiogoogle.GoogleComputeClient(
-            project, credentials=aiogoogle.GoogleCredentials.from_file('/worker-key.json')
-        )
         self.name = name
         self.zone = zone
         self.project = project
         self.instance_name = instance_name
         self.size_in_gb = size_in_gb
         self.mount_path = mount_path
+        self.compute_client = compute_client
 
         self._created = False
         self._attached = False
@@ -48,9 +55,6 @@ class GCPDisk(CloudDisk):
                 await self._detach()
             finally:
                 await self._delete()
-
-    async def close(self):
-        await self.compute_client.close()
 
     async def _unmount(self):
         if self._attached:

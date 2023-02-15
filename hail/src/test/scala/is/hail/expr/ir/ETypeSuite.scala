@@ -62,7 +62,7 @@ class ETypeSuite extends HailSuite {
     val buffer = new MemoryBuffer
     val ob = new MemoryOutputBuffer(buffer)
 
-    fb.resultWithIndex()(theHailClassLoader, ctx.fs, 0, ctx.r).apply(x, ob)
+    fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r).apply(x, ob)
     ob.flush()
     buffer.clearPos()
 
@@ -75,7 +75,7 @@ class ETypeSuite extends HailSuite {
       outPType.store(cb, regArg, decoded, deepCopy = false)
     }
 
-    val result = fb2.resultWithIndex()(theHailClassLoader, ctx.fs, 0, ctx.r).apply(ctx.r, new MemoryInputBuffer(buffer))
+    val result = fb2.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r).apply(ctx.r, new MemoryInputBuffer(buffer))
     SafeRow.read(outPType, result)
   }
 

@@ -3520,6 +3520,14 @@ class LocusExpression(Expression):
     >>> locus = hl.locus('1', 1034245)
     """
 
+    @typecheck_method(other=expr_int32)
+    def __add__(self, other):
+        return self._method("add_on_contig", self.dtype, other)
+
+    @typecheck_method(other=expr_int32)
+    def __sub__(self, other):
+        return self + (-other)
+
     @property
     def contig(self):
         """Returns the chromosome.
@@ -3536,6 +3544,23 @@ class LocusExpression(Expression):
             The chromosome for this locus.
         """
         return self._method("contig", tstr)
+
+    @property
+    def contig_idx(self):
+        """Returns the chromosome.
+
+        Examples
+        --------
+
+        >>> hl.eval(locus.contig_idx)
+        0
+
+        Returns
+        -------
+        :class:`.StringExpression`
+            The index of the chromosome for this locus.
+        """
+        return self._method("contig_idx", tint32)
 
     @property
     def position(self):

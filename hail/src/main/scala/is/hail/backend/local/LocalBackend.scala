@@ -67,7 +67,7 @@ class LocalBackend(
   val tmpdir: String,
   gcsRequesterPaysProject: String,
   gcsRequesterPaysBuckets: String
-) extends Backend {
+) extends Backend with BackendWithCodeCache {
   // FIXME don't rely on hadoop
   val hadoopConf = new hadoop.conf.Configuration()
   if (gcsRequesterPaysProject != null) {
@@ -125,7 +125,7 @@ class LocalBackend(
     collection.zipWithIndex.map { case (c, i) =>
       val htc = new LocalTaskContext(i, stageId)
       val bytes = f(c, htc, theHailClassLoader, fs)
-      htc.finish()
+      htc.close()
       bytes
     }
   }
@@ -150,7 +150,7 @@ class LocalBackend(
       }
 
       ctx.timer.time("Run") {
-        f(ctx.theHailClassLoader, fs, 0, ctx.r).apply(ctx.r)
+        ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r))
         (pt, 0)
       }
     } else {
@@ -163,7 +163,7 @@ class LocalBackend(
       }
 
       ctx.timer.time("Run") {
-        (pt, f(ctx.theHailClassLoader, fs, 0, ctx.r).apply(ctx.r))
+        (pt, ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r)))
       }
     }
   }

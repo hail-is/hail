@@ -444,7 +444,7 @@ class StagedConstructorSuite extends HailSuite {
             fb.apply_method.getCodeParam[Region](1),
             t.loadCheapSCode(cb, fb.apply_method.getCodeParam[Long](2)),
               deepCopy = true))
-          val copyF = fb.resultWithIndex()(theHailClassLoader, ctx.fs, 0, region)
+          val copyF = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, region)
           val newOff = copyF(region, src)
 
 
@@ -513,7 +513,7 @@ class StagedConstructorSuite extends HailSuite {
         val region = f1.partitionRegion
         t2.constructFromFields(cb, region, FastIndexedSeq(EmitCode.present(cb.emb, t2.types(0).loadCheapSCode(cb, v1))), deepCopy = false).a
       }
-      val cp1 = f1.resultWithIndex()(theHailClassLoader, ctx.fs, 0, r)()
+      val cp1 = f1.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)()
       assert(SafeRow.read(t2, cp1) == Row(value))
 
       val f2 = EmitFunctionBuilder[Long](ctx, "stagedCopy2")
@@ -521,7 +521,7 @@ class StagedConstructorSuite extends HailSuite {
         val region = f2.partitionRegion
         t1.constructFromFields(cb, region, FastIndexedSeq(EmitCode.present(cb.emb, t2.types(0).loadCheapSCode(cb, v1))), deepCopy = false).a
       }
-      val cp2 = f2.resultWithIndex()(theHailClassLoader, ctx.fs, 0, r)()
+      val cp2 = f2.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)()
       assert(SafeRow.read(t1, cp2) == Row(value))
     }
   }

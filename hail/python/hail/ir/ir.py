@@ -2178,17 +2178,22 @@ class AggArrayPerElement(IR):
             return {}
 
     def renderable_agg_bindings(self, i, default_value=None):
-        if i == 1:
+        if i == 1 and not self.is_scan:
             if default_value is None:
                 value = self.array.typ.element_type
             else:
                 value = default_value
             return {self.element_name: value}
-        else:
-            return {}
+        return {}
 
     def renderable_scan_bindings(self, i, default_value=None):
-        return self.renderable_agg_bindings(i, default_value)
+        if i == 1 and self.is_scan:
+            if default_value is None:
+                value = self.array.typ.element_type
+            else:
+                value = default_value
+            return {self.element_name: value}
+        return {}
 
 
 def _register(registry, name, f):
@@ -2357,6 +2362,16 @@ class AggFold(IR):
 
     def renderable_new_block(self, i: int) -> bool:
         return i > 0
+
+    @property
+    def bound_variables(self):
+        return {self.accum_name, self.other_accum_name} | super().bound_variables
+
+    def renderable_uses_agg_context(self, i: int) -> bool:
+        return (i == 1 or i == 2) and not self.is_scan
+
+    def renderable_uses_scan_context(self, i: int) -> bool:
+        return (i == 1 or i == 2) and self.is_scan
 
 
 class Begin(IR):

@@ -8,7 +8,7 @@ import java.util.concurrent._
 import is.hail.{HAIL_REVISION, HailContext, HailFeatureFlags}
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.{Backend, BackendContext, BroadcastValue, ExecuteContext, HailTaskContext}
+import is.hail.backend.{Backend, BackendContext, BackendWithNoCodeCache, BroadcastValue, ExecuteContext, HailTaskContext}
 import is.hail.expr.{JSONAnnotationImpex, Validate}
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{Compile, IR, IRParser, MakeTuple, SortField, TypeCheck}
@@ -66,7 +66,7 @@ class ServiceBackend(
   val batchClient: BatchClient,
   val curBatchId: Option[Long],
   val scratchDir: String = sys.env.get("HAIL_WORKER_SCRATCH_DIR").getOrElse(""),
-) extends Backend {
+) extends Backend with BackendWithNoCodeCache {
   import ServiceBackend.log
 
   private[this] var stageCount = 0
@@ -308,7 +308,7 @@ class ServiceBackend(
         x,
         optimize = true)
 
-      f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
+      ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r))
       Array()
     } else {
       val (Some(PTypeReferenceSingleCodeType(pt)), f) = Compile[AsmFunction1RegionLong](ctx,
@@ -317,7 +317,7 @@ class ServiceBackend(
         MakeTuple.ordered(FastIndexedSeq(x)),
         optimize = true)
       val retPType = pt.asInstanceOf[PBaseStruct]
-      val off = f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
+      val off = ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r))
       val codec = TypedCodecSpec(
         EType.fromTypeAllOptional(retPType.virtualType),
         retPType.virtualType,

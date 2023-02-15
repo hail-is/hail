@@ -2,12 +2,12 @@ from typing import Sequence
 
 import hail as hl
 from hail import ir
-from hail.expr import expr_any, expr_array, expr_interval, expr_locus, expr_str
+from hail.expr import expr_any, expr_array, expr_interval, expr_locus, expr_str, expr_bool
 from hail.matrixtable import MatrixTable
 from hail.methods.misc import require_first_key_field_locus
 from hail.table import Table
-from hail.typecheck import sequenceof, typecheck, nullable, oneof, enumeration
-from hail.utils.java import Env, info
+from hail.typecheck import sequenceof, typecheck, nullable, oneof, enumeration, func_spec, dictof
+from hail.utils.java import Env, info, warning
 from hail.utils.misc import divide_null, new_temp_file, wrap_to_list
 from hail.vds.variant_dataset import VariantDataset
 
@@ -39,7 +39,7 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
         Dataset in dense MatrixTable representation.
     """
     ref = vds.reference_data
-    ref = ref.drop(*(x for x in ('alleles', 'rsid') if x in ref.row))
+    ref = ref.drop(*(x for x in ('alleles', 'rsid', 'ref_allele') if x in ref.row))
     var = vds.variant_data
     refl = ref.localize_entries('_ref_entries')
     varl = var.localize_entries('_var_entries', '_var_cols')
@@ -77,12 +77,19 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
     )
 
     dr = dr._key_by_assert_sorted('locus', 'alleles')
-    dr = dr.drop('_var_entries', '_ref_entries', 'dense_ref', '_variant_defined', 'ref_allele')
+    fields_to_drop = ['_var_entries', '_ref_entries', 'dense_ref', '_variant_defined']
+
+    if 'ref_block_max_length' in dr.globals:
+        fields_to_drop.append('ref_block_max_length')
+
+    if 'ref_allele' in dr.row:
+        fields_to_drop.append('ref_allele')
+    dr = dr.drop(*fields_to_drop)
     return dr._unlocalize_entries('_dense', '_var_cols', list(var.col_key))
 
 
-@typecheck(vds=VariantDataset)
-def to_merged_sparse_mt(vds: 'VariantDataset') -> 'MatrixTable':
+@typecheck(vds=VariantDataset, ref_allele_function=nullable(func_spec(1, expr_str)))
+def to_merged_sparse_mt(vds: 'VariantDataset', *, ref_allele_function=None) -> 'MatrixTable':
     """Creates a single, merged sparse :class:`.MatrixTable` from the split
     :class:`.VariantDataset` representation.
 
@@ -139,8 +146,21 @@ def to_merged_sparse_mt(vds: 'VariantDataset') -> 'MatrixTable':
             .when(hl.is_missing(v_array), r_array.map(rewrite_ref)) \
             .default(hl.zip(r_array, v_array).map(lambda t: hl.coalesce(rewrite_var(t[1]), rewrite_ref(t[0]))))
 
+    if ref_allele_function is None:
+        rg = ht.locus.dtype.reference_genome
+        if 'ref_allele' in ht.row:
+            def ref_allele_function(ht):
+                return ht.ref_allele
+        elif rg.has_sequence():
+            def ref_allele_function(ht):
+                return ht.locus.sequence_context()
+            info("to_merged_sparse_mt: using locus sequence context to fill in reference alleles at monomorphic loci.")
+        else:
+            raise ValueError("to_merged_sparse_mt: in order to construct a ref allele for reference-only sites, "
+                             "either pass a function to fill in reference alleles (e.g. ref_allele_function=lambda locus: hl.missing('str'))"
+                             " or add a sequence file with 'hl.get_reference(RG_NAME).add_sequence(FASTA_PATH)'.")
     ht = ht.select(
-        alleles=hl.coalesce(ht['alleles'], hl.array([ht['ref_allele']])),
+        alleles=hl.coalesce(ht['alleles'], hl.array([ref_allele_function(ht)])),
         # handle cases where vmt is not keyed by alleles
         **{k: ht[k] for k in vds.variant_data.row_value if k != 'alleles'},
         _entries=merge_arrays(ht['_ref_entries'], ht['_var_entries'])
@@ -581,9 +601,25 @@ def _parameterized_filter_intervals(vds: 'VariantDataset',
         intervals_table = intervals
         intervals = intervals.aggregate(hl.agg.collect(intervals.key[0]))
 
+    if mode == 'unchecked_filter_both':
+        return VariantDataset(hl.filter_intervals(vds.reference_data, intervals, keep),
+                              hl.filter_intervals(vds.variant_data, intervals, keep))
+
+    reference_data = vds.reference_data
+    if keep:
+        if 'ref_block_max_length' in vds.reference_data.globals:
+            max_len = hl.eval(vds.reference_data.index_globals()['ref_block_max_length'])
+            ref_intervals = intervals.map(
+                lambda interval: hl.interval(interval.start - (max_len - 1), interval.end, interval.includes_start,
+                                             interval.includes_end))
+            reference_data = hl.filter_intervals(reference_data, ref_intervals, keep)
+        else:
+            warning("'hl.vds.filter_intervals': filtering intervals when reference blocks have not been truncated"
+                    "\n  (by 'hl.vds.truncate_reference_blocks') requires a full pass over the reference data (expensive!)")
+
     if mode == 'variants_only':
         variant_data = hl.filter_intervals(vds.variant_data, intervals, keep)
-        return VariantDataset(vds.reference_data, variant_data)
+        return VariantDataset(reference_data, variant_data)
     if mode == 'split_at_boundaries':
         if not keep:
             raise ValueError("filter_intervals mode 'split_at_boundaries' not implemented for keep=False")
@@ -591,13 +627,10 @@ def _parameterized_filter_intervals(vds: 'VariantDataset',
             intervals.map(lambda x: hl.struct(interval=x)),
             schema=hl.tstruct(interval=intervals.dtype.element_type),
             key='interval')
-        ref = segment_reference_blocks(vds.reference_data, par_intervals).drop('interval_end',
-                                                                               list(par_intervals.key)[0])
+        ref = segment_reference_blocks(reference_data, par_intervals).drop('interval_end',
+                                                                           list(par_intervals.key)[0])
         return VariantDataset(ref,
                               hl.filter_intervals(vds.variant_data, intervals, keep))
-
-    return VariantDataset(hl.filter_intervals(vds.reference_data, intervals, keep),
-                          hl.filter_intervals(vds.variant_data, intervals, keep))
 
 
 @typecheck(vds=VariantDataset,
@@ -832,7 +865,7 @@ def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0
         by *interval_size*.
      -  ``sum_dp`` (*int64*): Sum of depth values by base across the interval.
      -  ``mean_dp`` (*float64*): Mean depth of bases across the interval. Computed by dividing
-        *mean_dp* by *interval_size*.
+        *sum_dp* by *interval_size*.
 
     If the `dp_field` parameter is not specified, the ``DP`` is used for depth
     if present. If no ``DP`` field is present, the ``MIN_DP`` field is used. If no ``DP``
@@ -909,3 +942,212 @@ def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0
     per_interval = per_interval.annotate_globals(gq_thresholds=hl.tuple(gq_thresholds))
 
     return per_interval
+
+
+@typecheck(ds=oneof(MatrixTable, VariantDataset),
+           max_ref_block_base_pairs=nullable(int),
+           ref_block_winsorize_fraction=nullable(float))
+def truncate_reference_blocks(ds, *, max_ref_block_base_pairs=None,
+                              ref_block_winsorize_fraction=None):
+    """Cap reference blocks at a maximum length in order to permit faster interval filtering.
+
+    Examples
+    --------
+    Truncate reference blocks to 5 kilobases:
+
+    >>> vds2 = hl.vds.truncate_reference_blocks(vds, max_ref_block_base_pairs=5000) # doctest: +SKIP
+
+    Truncate the longest 1% of reference blocks to the length of the 99th percentile block:
+
+    >>> vds2 = hl.vds.truncate_reference_blocks(vds, ref_block_winsorize_fraction=0.01) # doctest: +SKIP
+
+    Notes
+    -----
+    After this function has been run, the reference blocks have a known maximum length `ref_block_max_length`,
+    stored in the global fields, which permits :func:`.vds.filter_intervals` to filter to intervals of the reference
+    data by reading `ref_block_max_length` bases ahead of each interval. This allows narrow interval queries
+    to run in roughly O(data kept) work rather than O(all reference data) work.
+
+    Parameters
+    ----------
+    vds : :class:`.VariantDataset` or :class:`.MatrixTable`
+    max_ref_block_base_pairs
+        Maximum size of reference blocks, in base pairs.
+    ref_block_winsorize_fraction
+        Fraction of reference block length distribution to truncate / winsorize.
+
+    Returns
+    -------
+    :class:`.VariantDataset` or :class:`.MatrixTable`
+    """
+    if isinstance(ds, VariantDataset):
+        rd = ds.reference_data
+    else:
+        rd = ds
+
+    if int(ref_block_winsorize_fraction is None) + int(max_ref_block_base_pairs is None) != 1:
+        raise ValueError(
+            'truncate_reference_blocks: require exactly one of "max_ref_block_base_pairs", "ref_block_winsorize_fraction"')
+
+    if ref_block_winsorize_fraction is not None:
+        assert ref_block_winsorize_fraction > 0 and ref_block_winsorize_fraction < 1, \
+            'truncate_reference_blocks: "ref_block_winsorize_fraction" must be between 0 and 1 (e.g. 0.01 to truncate the top 1% of reference blocks)'
+        if ref_block_winsorize_fraction > 0.1:
+            warning(
+                f"'truncate_reference_blocks': ref_block_winsorize_fraction of {ref_block_winsorize_fraction} will lead to significant data duplication,"
+                f" recommended values are <0.05.")
+        max_ref_block_base_pairs = rd.aggregate_entries(
+            hl.agg.approx_quantiles(rd.END - rd.locus.position + 1, 1 - ref_block_winsorize_fraction, k=200))
+
+    assert max_ref_block_base_pairs > 0, \
+        'truncate_reference_blocks: "max_ref_block_base_pairs" must be between greater than zero'
+    info(f"splitting VDS reference blocks at {max_ref_block_base_pairs} base pairs")
+
+    rd_under_limit = (rd.filter_entries(rd.END - rd.locus.position < max_ref_block_base_pairs)
+                      .localize_entries('fixed_blocks', 'cols'))
+
+    rd_over_limit = rd.filter_entries(rd.END - rd.locus.position >= max_ref_block_base_pairs).key_cols_by(
+        col_idx=hl.scan.count())
+    rd_over_limit = rd_over_limit.select_rows().select_cols().key_rows_by().key_cols_by()
+    es = rd_over_limit.entries()
+    es = es.annotate(new_start=hl.range(es.locus.position, es.END + 1, max_ref_block_base_pairs))
+    es = es.explode('new_start')
+    es = es.transmute(locus=hl.locus(es.locus.contig, es.new_start, reference_genome=es.locus.dtype.reference_genome),
+                      END=hl.min(es.new_start + max_ref_block_base_pairs - 1, es.END))
+    es = es.key_by(es.locus).collect_by_key("new_blocks")
+    es = es.transmute(moved_blocks_dict=hl.dict(es.new_blocks
+                                                .map(lambda x: (x.col_idx, x.drop('col_idx')))))
+
+    joined = rd_under_limit.join(es, how='outer')
+    joined = joined.transmute(merged_blocks=hl.range(hl.len(joined.cols)).map(
+        lambda idx: hl.coalesce(joined.moved_blocks_dict.get(idx), joined.fixed_blocks[idx])))
+    new_rd = joined._unlocalize_entries(entries_field_name='merged_blocks', cols_field_name='cols',
+                                        col_key=list(rd.col_key))
+    new_rd = new_rd.annotate_globals(ref_block_max_length=max_ref_block_base_pairs)
+
+    if isinstance(ds, hl.vds.VariantDataset):
+        return VariantDataset(reference_data=new_rd, variant_data=ds.variant_data)
+    return new_rd
+
+
+@typecheck(ds=oneof(MatrixTable, VariantDataset),
+           equivalence_function=func_spec(2, expr_bool),
+           merge_functions=nullable(dictof(str, oneof(str, func_spec(1, expr_any)))))
+def merge_reference_blocks(ds, equivalence_function, merge_functions=None):
+    """Merge adjacent reference blocks according to user equivalence criteria.
+
+    Examples
+    --------
+    Coarsen GQ granularity into bins of 10 and merges blocks with the same GQ in order to
+    compress reference data.
+
+    >>> rd = vds.reference_data # doctest: +SKIP
+    >>> vds.reference_data = rd.annotate_entries(GQ = rd.GQ - rd.GQ % 10) # doctest: +SKIP
+    >>> vds2 = hl.vds.merge_reference_blocks(vds,
+    ...                                      equivalence_function=lambda block1, block2: block1.GQ == block2.GQ),
+    ...                                      merge_functions={'MIN_DP': 'min'}) # doctest: +SKIP
+
+    Notes
+    -----
+    The `equivalence_function` argument expects a function from two reference blocks to a
+    boolean value indicating whether they should be combined. Adjacency checks are builtin
+    to the method (two reference blocks are 'adjacent' if the END of one block is one base
+    before the beginning of the next).
+
+    The `merge_functions`
+
+    Parameters
+    ----------
+    ds : :class:`.VariantDataset` or :class:`.MatrixTable`
+        Variant dataset or reference block matrix table.
+    Returns
+    -------
+    :class:`.VariantDataset` or :class:`.MatrixTable`
+    """
+    if isinstance(ds, VariantDataset):
+        rd = ds.reference_data
+    else:
+        rd = ds
+    rd = rd.annotate_rows(contig_idx_row=rd.locus.contig_idx, start_pos_row=rd.locus.position)
+    rd = rd.annotate_entries(contig_idx=rd.contig_idx_row, start_pos=rd.start_pos_row)
+    ht = rd.localize_entries('entries', 'cols')
+
+    def merge(block1, block2):
+        new_fields = {'END': block2.END}
+        if merge_functions:
+            for k, f in merge_functions.items():
+                if isinstance(f, str):
+                    f = f.lower()
+                    if f == 'min':
+                        def f(b1, b2):
+                            return hl.min(block1[k], block2[k])
+                    elif f == 'max':
+                        def f(b1, b2):
+                            return hl.max(block1[k], block2[k])
+                    elif f == 'sum':
+                        def f(b1, b2):
+                            return block1[k] + block2[k]
+                    else:
+                        raise ValueError(f"merge_reference_blocks: unknown merge function {f!r},"
+                                         f" support 'min', 'max', and 'sum' in addition to custom lambdas")
+                new_value = f(block1, block2)
+                if new_value.dtype != block1[k].dtype:
+                    raise ValueError(f'merge_reference_blocks: merge_function for {k!r}: new type {new_value.dtype!r} '
+                                     f'differs from original type {block1[k].dtype!r}')
+                new_fields[k] = new_value
+        return block1.annotate(**new_fields)
+
+    def keep_last(t1, t2):
+        e1 = t1[0]
+        e2 = t2[0]
+        are_adjacent = (e1.contig_idx == e2.contig_idx) & (e1.END + 1 == e2.start_pos)
+        return hl.if_else(hl.is_defined(e1) & hl.is_defined(e2) & are_adjacent & equivalence_function(e1, e2),
+                          (merge(e1, e2), True),
+                          t2)
+
+    # approximate a scan that merges before result
+    ht = ht.annotate(prev_block=hl.zip(hl.scan.array_agg(lambda elt: hl.scan.fold((hl.null(rd.entry.dtype), False),
+                                                                                  lambda acc: keep_last(acc, (
+                                                                                      elt, False)),
+                                                                                  keep_last), ht.entries), ht.entries)
+                     .map(lambda tup: keep_last(tup[0], (tup[1], False))))
+    ht_join = ht
+
+    ht = ht.key_by()
+    ht = ht.select(to_shuffle=hl.enumerate(ht.prev_block)
+                   .filter(lambda idx_and_elt: hl.is_defined(idx_and_elt[1]) & idx_and_elt[1][1]))
+    ht = ht.explode('to_shuffle')
+    rg = rd.locus.dtype.reference_genome
+    ht = ht.transmute(col_idx=ht.to_shuffle[0], entry=ht.to_shuffle[1][0])
+    ht_shuf = ht.key_by(
+        locus=hl.locus(hl.literal(rg.contigs)[ht.entry.contig_idx], ht.entry.start_pos, reference_genome=rg))
+
+    ht_shuf = ht_shuf.collect_by_key("new_starts")
+    # new_starts can contain multiple records for a collapsed ref block, one for each folded block.
+    # We want to keep the one with the highest END
+    ht_shuf = ht_shuf.select(moved_blocks_dict=hl.group_by(lambda elt: elt.col_idx, ht_shuf.new_starts)
+                             .map_values(
+        lambda arr: arr[hl.argmax(arr.map(lambda x: x.entry.END))].entry.drop('contig_idx', 'start_pos')))
+
+    ht_joined = ht_join.join(ht_shuf.select_globals(), 'left')
+
+    def merge_f(tup):
+        (idx, original_entry) = tup
+
+        return (hl.case()
+                .when(~(hl.coalesce(ht_joined.prev_block[idx][1], False)),
+                      hl.coalesce(ht_joined.moved_blocks_dict.get(idx), original_entry.drop('contig_idx', 'start_pos')))
+                .or_missing())
+
+    ht_joined = ht_joined.annotate(new_entries=hl.enumerate(ht_joined.entries)
+                                   .map(lambda tup: merge_f(tup)))
+    ht_joined = ht_joined.drop('moved_blocks_dict', 'entries', 'prev_block', 'contig_idx_row', 'start_pos_row')
+    new_rd = ht_joined._unlocalize_entries(entries_field_name='new_entries', cols_field_name='cols',
+                                           col_key=list(rd.col_key))
+
+    if 'ref_block_max_length' in new_rd.globals:
+        new_rd = new_rd.drop('ref_block_max_length')
+
+    if isinstance(ds, VariantDataset):
+        return VariantDataset(reference_data=new_rd, variant_data=ds.variant_data)
+    return new_rd

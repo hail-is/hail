@@ -2,7 +2,7 @@ package is.hail.io.bgen
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.backend.{BroadcastValue, ExecuteContext}
+import is.hail.backend.{BroadcastValue, ExecuteContext, HailTaskContext}
 import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder, IEmitCode, ParamType, TableReader}
 import is.hail.io.fs.FS
 import is.hail.io.index.IndexReaderBuilder
@@ -178,7 +178,7 @@ object CompileDecoder {
   def apply(
     ctx: ExecuteContext,
     settings: BgenSettings
-  ): (HailClassLoader, FS, Int, Region) => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long] = {
+  ): (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long] = {
     val fb = EmitFunctionBuilder[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long](ctx, "bgen_rdd_decoder")
     val mb = fb.apply_method
     val rowType = settings.rowPType

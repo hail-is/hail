@@ -2162,19 +2162,27 @@ def pgenchisq(x, w, k, lam, mu, sigma, *, max_iterations=None, min_accuracy=None
     We follow Wikipedia's notational conventions. Some texts refer to the weight vector (our `w`) as
     :math:`\lambda` or `lb` and the non-centrality vector (our `lam`) as `nc`.
 
-    We use the Davies' algorithm which was published as: `Davies, Robert. "The distribution of a
-    linear combination of chi-squared random variables." Applied Statistics 29
-    323-333. 1980. <http://www.robertnz.net/pdf/lc_chisq.pdf>`__ Davies included Fortran source code
-    in the original publication. Davies also released a `C language port
-    <http://www.robertnz.net/QF.htm>`__. Hail's implementation is a fairly direct port of the C
-    implementation to Scala. Davies provides 39 test cases with the source code. The Hail tests
-    include all 39 test cases as well as a few additional tests.
+    We use the Davies' algorithm which was published as:
+
+        `Davies, Robert. "The distribution of a linear combination of chi-squared random variables."
+        Applied Statistics 29 323-333. 1980. <http://www.robertnz.net/pdf/lc_chisq.pdf>`__
+
+    Davies included Fortran source code in the original publication. Davies also released a `C
+    language port <http://www.robertnz.net/QF.htm>`__. Hail's implementation is a fairly direct port
+    of the C implementation to Scala. Davies provides 39 test cases with the source code. The Hail
+    tests include all 39 test cases as well as a few additional tests.
 
     Davies' website cautions:
 
         The method works well in most situations if you want only modest accuracy, say 0.0001. But
         problems may arise if the sum is dominated by one or two terms with a total of only one or
         two degrees of freedom and x is small.
+
+    For an accessible introduction the Generalized Chi-Squared Distribution, we strongly recommend
+    the introduction of this paper:
+
+        `Das, Abhranil; Geisler, Wilson (2020). "A method to integrate and classify normal
+        distributions". <https://arxiv.org/abs/2012.14331>`__
 
     Parameters
     ----------
@@ -2192,10 +2200,11 @@ def pgenchisq(x, w, k, lam, mu, sigma, *, max_iterations=None, min_accuracy=None
     sigma : :obj:`float` or :class:`.Expression` of type :py:data:`.tfloat64`
         The standard deviation of the normal term.
     max_iterations : :obj:`int` or :class:`.Expression` of type :py:data:`.tint32`
-        The maximum number of iterations of the numerical integration before raising an error.
+        The maximum number of iterations of the numerical integration before raising an error. The
+        default maximum number of iterations is ``1e5``.
     min_accuracy : :obj:`int` or :class:`.Expression` of type :py:data:`.tint32`
         The minimum accuracy of the returned value. If the minimum accuracy is not achieved, this
-        function will raise an error.
+        function will raise an error. The default minimum accuracy is ``1e-5``.
 
     Returns
     -------
@@ -2219,7 +2228,7 @@ def pgenchisq(x, w, k, lam, mu, sigma, *, max_iterations=None, min_accuracy=None
     if max_iterations is None:
         max_iterations = hl.literal(10_000)
     if min_accuracy is None:
-        min_accuracy = hl.literal(0.00001)
+        min_accuracy = hl.literal(1e-5)
     return _func("pgenchisq", PGENCHISQ_RETURN_TYPE, x - mu, w, k, lam, sigma, max_iterations, min_accuracy)
 
 
