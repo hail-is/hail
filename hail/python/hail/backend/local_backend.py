@@ -134,7 +134,7 @@ class LocalBackend(Py4JBackend):
         port = launch_gateway(
             redirect_stdout=sys.stdout,
             redirect_stderr=sys.stderr,
-            jarpath=f'{spark_home}/jars/py4j-0.10.9.jar',
+            jarpath=f'{spark_home}/jars/py4j-0.10.9.5.jar',
             classpath=f'{spark_home}/jars/*:{hail_jar_path}',
             die_on_exit=True)
         self._gateway = JavaGateway(

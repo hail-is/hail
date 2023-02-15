@@ -7,6 +7,7 @@ import socketserver
 from threading import Thread
 import py4j
 import pyspark
+import pyspark.sql
 
 from typing import List, Optional
 
@@ -314,8 +315,7 @@ class SparkBackend(Py4JBackend):
         t = t.expand_types()
         if flatten:
             t = t.flatten()
-        return pyspark.sql.DataFrame(self._jbackend.pyToDF(self._to_java_table_ir(t._tir)),
-                                     Env.spark_session()._wrapped)
+        return pyspark.sql.DataFrame(self._jbackend.pyToDF(self._to_java_table_ir(t._tir)), self._spark_session)
 
     def add_reference(self, config):
         self.hail_package().variant.ReferenceGenome.fromJSON(json.dumps(config))
