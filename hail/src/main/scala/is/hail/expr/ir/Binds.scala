@@ -190,6 +190,7 @@ object NewBindings {
 object ChildEnvWithoutBindings {
   def apply[T](ir: BaseIR, i: Int, env: BindingEnv[T]): BindingEnv[T] = {
     ir match {
+      case ArrayMaximalIndependentSet(_, Some(_)) if (i == 1) => env.copy(eval = Env.empty)
       case StreamAgg(_, _, _) => if (i == 1) env.createAgg else env
       case StreamAggScan(_, _, _) => if (i == 1) env.createScan else env
       case ApplyAggOp(init, _, _) => if (i < init.length) env.copy(agg = None) else env.promoteAgg
