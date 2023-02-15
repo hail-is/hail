@@ -1267,7 +1267,6 @@ class Tests(unittest.TestCase):
         assert np.array_equal(bm.to_numpy(), sparse_numpy)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_sparse_transposition(self):
         block_list = [1, 2]
         np_square = np.arange(16, dtype=np.float64).reshape((4, 4))

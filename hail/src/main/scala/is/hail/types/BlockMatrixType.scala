@@ -37,9 +37,9 @@ object BlockMatrixSparsity {
   def transposeCSCSparsity(
     nRows: Int, nCols: Int, rowPos: IndexedSeq[Int], rowIdx: IndexedSeq[Int]
   ): (IndexedSeq[Int], IndexedSeq[Int], IndexedSeq[Int]) = {
-    val newRowPos = Array[Int](nRows + 1)
-    val newRowIdx = Array[Int](rowIdx.length)
-    val newToOldPos = Array[Int](rowIdx.length)
+    val newRowPos = Array.ofDim[Int](nRows + 1)
+    val newRowIdx = Array.ofDim[Int](rowIdx.length)
+    val newToOldPos = Array.ofDim[Int](rowIdx.length)
 
     // count size of each row
     var curPos = 0
@@ -52,10 +52,12 @@ object BlockMatrixSparsity {
     var i = 0
     var prefixSum = 0
     while (i < nRows) {
+      val curSum = prefixSum
       prefixSum += newRowPos(i)
-      newRowPos(i + 1) = prefixSum
+      newRowPos(i) = curSum
       i += 1
     }
+    newRowPos(i) = prefixSum
 
     // fill in newRowIdx and newToOldPos
     val curRowPositions = newRowPos.clone()
@@ -66,6 +68,7 @@ object BlockMatrixSparsity {
       while (curPos < endPos) {
         val i = rowIdx(curPos)
         val newPos = curRowPositions(i)
+        curRowPositions(i) += 1
         newRowIdx(newPos) = j
         newToOldPos(newPos) = curPos
         curPos += 1
