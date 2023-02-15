@@ -814,7 +814,7 @@ case class PartitionNativeIntervalReader(tablePath: String, tableSpec: AbstractT
           cb.assign(currPartitionIdx, startPartitionIndex)
 
 
-          cb.assign(streamFirst, true) // basically "!first"
+          cb.assign(streamFirst, true)
           cb.assign(currIdxInPartition, 0L)
           cb.assign(stopIdxInPartition, 0L)
 
