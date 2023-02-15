@@ -32,7 +32,7 @@ case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader
     assert(!dropRows)
     val (Some(PTypeReferenceSingleCodeType(globType: PStruct)), f) = Compile[AsmFunction1RegionLong](
       ctx, FastIndexedSeq(), FastIndexedSeq(classInfo[Region]), LongInfo, PruneDeadFields.upcast(ctx, globals, requestedType.globalType))
-    val gbAddr = f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
+    val gbAddr = f(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)(ctx.r)
 
     val globRow = BroadcastRow(ctx, RegionValue(ctx.r, gbAddr), globType)
 
@@ -44,7 +44,7 @@ case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader
 
     val fsBc = ctx.fsBc
     TableValue(ctx, requestedType, globRow, rvd.mapPartitionsWithIndex(RVDType(newRowType, requestedType.key)) { case (i, ctx, it) =>
-      val partF = rowF(theHailClassLoaderForSparkWorkers, fsBc.value, i, ctx.partitionRegion)
+      val partF = rowF(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), ctx.partitionRegion)
       it.map { elt => partF(ctx.r, elt) }
     })
   }
