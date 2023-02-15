@@ -1039,17 +1039,21 @@ class Tests(unittest.TestCase):
         self.assertTrue(t1.key_by().union(t2.key_by(), t3.key_by())
                         ._same(hl.utils.range_table(15).key_by()))
 
-    @skip_unless_spark_backend('intermittent failure due to too large code')
-    def test_nested_union(self):
-        N = 10
-        M = 200
+    def nested_union(self, N, M):
         t = hl.utils.range_table(N, n_partitions=1)
-        t = t.filter(hl.rand_bool(1)) # prevent count optimization
+        t = t.filter(hl.rand_bool(1))  # prevent count optimization
 
         union = hl.Table.union(*[t for _ in range(M)])
 
         assert union._force_count() == N * M
         assert union.count() == N * M
+
+    def test_nested_union_100(self):
+        self.nested_union(10, 100)
+
+    @pytest.mark.skip('causes intermitted stack overflow in compiler due ')
+    def test_nested_union_200(self):
+        self.nested_union(10, 200)
 
     def test_union_unify(self):
         t1 = hl.utils.range_table(2)

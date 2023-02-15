@@ -139,6 +139,8 @@ def register_functions():
     register_function("ppois", (dtype("float64"), dtype("float64"),), dtype("float64"))
     register_function("log10", (dtype("float64"),), dtype("float64"))
     register_function("isHet", (dtype("call"),), dtype("bool"))
+    register_function("add_on_contig", (dtype("?T:locus"), dtype("int32")), dtype("?T:locus"))
+    register_function("contig_idx", (dtype("?T:locus")), dtype("int32"))
     register_function("isAutosomalOrPseudoAutosomal", (dtype("?T:locus"),), dtype("bool"))
     register_function("testCodeUnification", (dtype("?x:numeric"), dtype("?x:int32"),), dtype("?x"))
     register_seeded_function("rand_pois", (dtype("float64"),), dtype("float64"))

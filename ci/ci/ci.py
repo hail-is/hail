@@ -18,6 +18,7 @@ from prometheus_async.aio.web import server_stats  # type: ignore
 from typing_extensions import TypedDict
 
 from gear import AuthClient, Database, check_csrf_token, monitor_endpoints_middleware, setup_aiohttp_session
+from gear.profiling import install_profiler_if_requested
 from hailtop import aiotools, httpx
 from hailtop.batch_client.aioclient import Batch, BatchClient
 from hailtop.config import get_deploy_config
@@ -411,7 +412,7 @@ async def batch_callback_handler(request):
                     if 'test' in attrs and params['complete']:
                         assert 'deploy' not in attrs
                         assert 'dev' not in attrs
-                        namespace = json.loads(attrs['namespace'])
+                        namespace = attrs['namespace']
                         if DEFAULT_NAMESPACE == 'default':
                             await remove_namespace_from_db(db, namespace)
 
@@ -754,6 +755,8 @@ async def on_cleanup(app):
 
 
 def run():
+    install_profiler_if_requested('ci')
+
     app = web.Application(middlewares=[monitor_endpoints_middleware])
     setup_aiohttp_jinja2(app, 'ci')
     setup_aiohttp_session(app)

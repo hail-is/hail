@@ -2,6 +2,7 @@ import asyncio
 import copy
 import json
 import logging
+import os
 import re
 import signal
 from collections import defaultdict
@@ -10,7 +11,6 @@ from typing import Any, Dict, Set, Tuple
 
 import aiohttp_session
 import dictdiffer
-import googlecloudprofiler
 import kubernetes_asyncio.client
 import kubernetes_asyncio.config
 import pandas as pd
@@ -31,6 +31,7 @@ from gear import (
     transaction,
 )
 from gear.clients import get_cloud_async_fs
+from gear.profiling import install_profiler_if_requested
 from hailtop import aiotools, httpx
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
@@ -50,9 +51,7 @@ from ..batch_configuration import (
     BATCH_STORAGE_URI,
     CLOUD,
     DEFAULT_NAMESPACE,
-    HAIL_SHA,
     HAIL_SHOULD_CHECK_INVARIANTS,
-    HAIL_SHOULD_PROFILE,
     MACHINE_NAME_PREFIX,
     REFRESH_INTERVAL_IN_SECONDS,
 )
@@ -80,16 +79,6 @@ routes = web.RouteTableDef()
 deploy_config = get_deploy_config()
 
 auth = AuthClient()
-
-
-def ignore_failed_to_collect_and_upload_profile(record):
-    if 'Failed to collect and upload profile: [Errno 32] Broken pipe' in record.msg:
-        record.levelno = logging.INFO
-        record.levelname = "INFO"
-    return record
-
-
-googlecloudprofiler.logger.addFilter(ignore_failed_to_collect_and_upload_profile)
 
 
 def instance_name_from_request(request):
@@ -262,6 +251,7 @@ async def get_gsa_key(request, instance):  # pylint: disable=unused-argument
     return await asyncio.shield(get_gsa_key_1(instance))
 
 
+# deprecated
 @routes.get('/api/v1alpha/instances/credentials')
 @activating_instances_only
 async def get_credentials(request, instance):  # pylint: disable=unused-argument
@@ -1324,12 +1314,12 @@ SELECT instance_id, internal_token, frozen FROM globals;
     app['cancel_running_state_changed'] = asyncio.Event()
     app['async_worker_pool'] = AsyncWorkerPool(100, queue_size=100)
 
-    credentials_file = '/gsa-key/key.json'
-    fs = get_cloud_async_fs(credentials_file=credentials_file)
+    fs = get_cloud_async_fs()
     app['file_store'] = FileStore(fs, BATCH_STORAGE_URI, instance_id)
 
     inst_coll_configs = await InstanceCollectionConfigs.create(db)
 
+    credentials_file = '/gsa-key/key.json'
     app['driver'] = await get_cloud_driver(
         app, db, MACHINE_NAME_PREFIX, DEFAULT_NAMESPACE, inst_coll_configs, credentials_file, task_manager
     )
@@ -1382,16 +1372,7 @@ async def on_cleanup(app):
 
 
 def run():
-    if HAIL_SHOULD_PROFILE and CLOUD == 'gcp':
-        profiler_tag = f'{DEFAULT_NAMESPACE}'
-        if profiler_tag == 'default':
-            profiler_tag = DEFAULT_NAMESPACE + f'-{HAIL_SHA[0:12]}'
-        googlecloudprofiler.start(
-            service='batch-driver',
-            service_version=profiler_tag,
-            # https://cloud.google.com/profiler/docs/profiling-python#agent_logging
-            verbose=3,
-        )
+    install_profiler_if_requested('batch-driver')
 
     app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE, middlewares=[monitor_endpoints_middleware])
     setup_aiohttp_session(app)
@@ -1409,6 +1390,6 @@ def run():
     web.run_app(
         deploy_config.prefix_application(app, 'batch-driver', client_max_size=HTTP_CLIENT_MAX_SIZE),
         host='0.0.0.0',
-        port=5000,
+        port=int(os.environ['PORT']),
         access_log_class=BatchDriverAccessLogger,
     )

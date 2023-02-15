@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.{BackendContext, ExecuteContext}
+import is.hail.backend.{BackendContext, ExecuteContext, HailTaskContext}
 import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
 import is.hail.expr.ir.analyses.{ComputeMethodSplits, ControlFlowPreventsSplit, ParentPointers}
 import is.hail.expr.ir.lowering.TableStageDependency
@@ -1149,9 +1149,9 @@ class Emit[C](
                 MakeTuple.ordered(FastSeq(tieBreaker)))
               assert(t.virtualType == TTuple(TFloat64))
               val resultType = t.asInstanceOf[PTuple]
-              Code.invokeScalaObject8[UnsafeIndexedSeq, HailClassLoader, FS, Int, Region, PTuple, PTuple, (HailClassLoader, FS, Int, Region) => AsmFunction3RegionLongLongLong, IndexedSeq[Any]](
+              Code.invokeScalaObject8[UnsafeIndexedSeq, HailClassLoader, FS, HailTaskContext, Region, PTuple, PTuple, (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3RegionLongLongLong, IndexedSeq[Any]](
                 Graph.getClass, "maximalIndependentSet",
-                  jEdges, mb.getHailClassLoader, mb.getFS, mb.getPartitionIndex, region,
+                  jEdges, mb.getHailClassLoader, mb.getFS, mb.getTaskContext, region,
                   mb.getPType[PTuple](wrappedNodeType), mb.getPType[PTuple](resultType), mb.getObject(f))
           }
           is.hail.expr.ir.functions.ArrayFunctions.unwrapReturn(cb, region, typeWithReq.canonicalEmitType.st, maxSet)
@@ -2472,7 +2472,7 @@ class Emit[C](
           emitI(dynamicID).consume(cb,
             (),
             { dynamicID =>
-              cb.assign(stageName, stageName.concat(": ").concat(dynamicID.asString.loadString(cb)))
+              cb.assign(stageName, stageName.concat("|").concat(dynamicID.asString.loadString(cb)))
             })
 
           cb.assign(encRes, spark.invoke[BackendContext, HailClassLoader, FS, String, Array[Array[Byte]], Array[Byte], String, Option[TableStageDependency], Array[Array[Byte]]](

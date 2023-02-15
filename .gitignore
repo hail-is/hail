@@ -39,3 +39,4 @@ website/website/static/css/
 infra/.terraform.lock.hcl
 .dist/
 .cache/
+wheel-container.tar

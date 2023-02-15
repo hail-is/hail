@@ -19,7 +19,7 @@ class StatResult(NamedTuple):
     size: int
     typ: FileType
     # common point between unix, google, and hadoop filesystems, represented as a unix timestamp
-    modification_time: Optional[float] = None
+    modification_time: Optional[float]
 
     def is_dir(self) -> bool:
         return self.typ is FileType.DIRECTORY

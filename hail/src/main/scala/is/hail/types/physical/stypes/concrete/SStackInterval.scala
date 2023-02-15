@@ -30,8 +30,8 @@ final case class SStackInterval(pointEmitType: EmitType) extends SInterval {
         new SStackIntervalValue(this,
           pointEmitType.coerceOrCopy(cb, region, cb.memoize(value.loadStart(cb)), deepCopy),
           pointEmitType.coerceOrCopy(cb, region, cb.memoize(value.loadEnd(cb)), deepCopy),
-          value.includesStart(),
-          value.includesEnd()
+          value.includesStart,
+          value.includesEnd
         ) 
     }
 

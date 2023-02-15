@@ -1585,7 +1585,7 @@ object MatrixVCFReader {
     val backend = ctx.backend
     val fs = ctx.fs
 
-    val referenceGenome = params.rg.map(ReferenceGenome.getReference)
+    val referenceGenome = params.rg.map(ctx.getReference)
 
     referenceGenome.foreach(_.validateContigRemap(params.contigRecoding))
 
@@ -1607,7 +1607,7 @@ object MatrixVCFReader {
         val localFilterAndReplace = params.filterAndReplace
 
         val fsConfigBC = backend.broadcast(fs.getConfiguration())
-        backend.parallelizeAndComputeWithIndex(ctx.backendContext, fs, files.tail.map(_.getBytes), None) { (bytes, htc, _, fs) =>
+        backend.parallelizeAndComputeWithIndex(ctx.backendContext, fs, files.tail.map(_.getBytes), "load_vcf_parse_header", None) { (bytes, htc, _, fs) =>
           val fsConfig = fsConfigBC.value
           fs.setConfiguration(fsConfig)
           val file = new String(bytes)
@@ -1896,7 +1896,7 @@ class VCFsReader(
   private val fs = ctx.fs
   private val fsBc = fs.broadcast
 
-  private val referenceGenome = rg.map(ReferenceGenome.getReference)
+  private val referenceGenome = rg.map(ctx.getReference)
 
   referenceGenome.foreach(_.validateContigRemap(contigRecoding))
 

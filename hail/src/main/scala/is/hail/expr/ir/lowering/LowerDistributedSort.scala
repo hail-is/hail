@@ -28,9 +28,11 @@ object LowerDistributedSort {
       print = None,
       optimize = true))
 
-    val fRunnable = ctx.timer.time("LowerDistributedSort.localSort.initialize")(f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r))
-    val resultAddress = ctx.timer.time("LowerDistributedSort.localSort.run")(fRunnable(ctx.r))
-    val rowsAndGlobal = ctx.timer.time("LowerDistributedSort.localSort.toJavaObject")(SafeRow.read(resultPType, resultAddress)).asInstanceOf[Row]
+    val rowsAndGlobal = ctx.scopedExecution{ (hcl, fs, htc, r) =>
+      val fRunnable = ctx.timer.time("LowerDistributedSort.localSort.initialize")(f(hcl, fs, htc, r))
+      val resultAddress = ctx.timer.time("LowerDistributedSort.localSort.run")(fRunnable(ctx.r))
+      ctx.timer.time("LowerDistributedSort.localSort.toJavaObject")(SafeRow.read(resultPType, resultAddress)).asInstanceOf[Row]
+    }
 
     val rowsType = resultPType.fieldType("rows").asInstanceOf[PArray]
     val rowType = rowsType.elementType.asInstanceOf[PStruct]

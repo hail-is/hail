@@ -420,7 +420,6 @@ class VCFTests(unittest.TestCase):
     def test_vcf_parser_golden_master__sample_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('sample.vcf'), 'GRCh37')
 
-    @skip_when_service_backend(reason='As of 2022-03-16 hangs')
     def test_vcf_parser_golden_master__gvcf_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('gvcfs/HG00096.g.vcf.gz'), 'GRCh38')
 
@@ -583,7 +582,6 @@ class VCFTests(unittest.TestCase):
 
         assert hl.import_vcf(nf)._same(mt)
 
-    @fails_service_backend()
     def test_custom_rg_import(self):
         rg = hl.ReferenceGenome.read(resource('deid_ref_genome.json'))
         mt = hl.import_vcf(resource('custom_rg.vcf'), reference_genome=rg)
@@ -972,7 +970,6 @@ class PLINKTests(unittest.TestCase):
         with self.assertRaisesRegex(FatalError, "no white space allowed:"):
             hl.export_plink(ds, new_temp_file(), varid="hello world")
 
-    @fails_service_backend()
     def test_contig_recoding_defaults(self):
         hl.import_plink(resource('sex_mt_contigs.bed'),
                         resource('sex_mt_contigs.bim'),
@@ -1055,6 +1052,17 @@ class BGENTests(unittest.TestCase):
         hl.index_bgen(resource('example.8bits.bgen'),
                       contig_recoding={'01': '1'},
                       reference_genome='GRCh37')
+
+    @fails_service_backend()
+    def test_error_if_no_gp(self):
+        mt = hl.balding_nichols_model(3, 3, 3)
+        mt = mt.key_cols_by(s=hl.str(mt.sample_idx))
+        with pytest.raises(ValueError, match="BGEN requires a GP"):
+            hl.export_bgen(mt, "dummy_path")
+
+        with pytest.raises(ValueError, match="GEN requires a GP"):
+            hl.export_gen(mt, "dummy_path")
+
 
     @fails_service_backend()
     @fails_local_backend()
@@ -2111,17 +2119,21 @@ class ImportTableTests(unittest.TestCase):
 
 
 class GrepTests(unittest.TestCase):
-    @fails_service_backend()
     @fails_local_backend()
     def test_grep_show_false(self):
-        expected = {'sampleAnnotations.tsv': ['HG00120\tCASE\t19599', 'HG00121\tCASE\t4832'],
-                    'sample2_rename.tsv': ['HG00120\tB_HG00120', 'HG00121\tB_HG00121'],
-                    'sampleAnnotations2.tsv': ['HG00120\t3919.8\t19589',
-                                               'HG00121\t966.4\t4822',
-                                               'HG00120_B\t3919.8\t19589',
-                                               'HG00121_B\t966.4\t4822',
-                                               'HG00120_B_B\t3919.8\t19589',
-                                               'HG00121_B_B\t966.4\t4822']}
+        from hail.backend.service_backend import ServiceBackend
+        if isinstance(hl.current_backend(), ServiceBackend):
+            prefix = resource('')
+        else:
+            prefix = ''
+        expected = {prefix + 'sampleAnnotations.tsv': ['HG00120\tCASE\t19599', 'HG00121\tCASE\t4832'],
+                    prefix + 'sample2_rename.tsv': ['HG00120\tB_HG00120', 'HG00121\tB_HG00121'],
+                    prefix + 'sampleAnnotations2.tsv': ['HG00120\t3919.8\t19589',
+                                                        'HG00121\t966.4\t4822',
+                                                        'HG00120_B\t3919.8\t19589',
+                                                        'HG00121_B\t966.4\t4822',
+                                                        'HG00120_B_B\t3919.8\t19589',
+                                                        'HG00121_B_B\t966.4\t4822']}
 
         assert hl.grep('HG0012[0-1]', resource('*.tsv'), show=False) == expected
 

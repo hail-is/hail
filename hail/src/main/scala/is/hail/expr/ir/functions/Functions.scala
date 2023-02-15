@@ -602,6 +602,18 @@ abstract class RegistryFunctions {
       case (r, cb, _, rt, Array(a1, a2, a3, a4, a5), errorID) => impl(r, cb, rt, a1, a2, a3, a4, a5, errorID)
     }
 
+  def registerSCode6(name: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, mt5: Type, mt6: Type, rt: Type, pt: (Type, SType, SType, SType, SType, SType, SType) => SType)
+    (impl: (EmitRegion, EmitCodeBuilder, SType, SValue, SValue, SValue, SValue, SValue, SValue, Value[Int]) => SValue): Unit =
+    registerSCode(name, Array(mt1, mt2, mt3, mt4, mt5, mt6), rt, unwrappedApply(pt)) {
+      case (r, cb, _, rt, Array(a1, a2, a3, a4, a5, a6), errorID) => impl(r, cb, rt, a1, a2, a3, a4, a5, a6, errorID)
+    }
+
+  def registerSCode7(name: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, mt5: Type, mt6: Type, mt7: Type, rt: Type, pt: (Type, SType, SType, SType, SType, SType, SType, SType) => SType)
+    (impl: (EmitRegion, EmitCodeBuilder, SType, SValue, SValue, SValue, SValue, SValue, SValue, SValue, Value[Int]) => SValue): Unit =
+    registerSCode(name, Array(mt1, mt2, mt3, mt4, mt5, mt6, mt7), rt, unwrappedApply(pt)) {
+      case (r, cb, _, rt, Array(a1, a2, a3, a4, a5, a6, a7), errorID) => impl(r, cb, rt, a1, a2, a3, a4, a5, a6, a7, errorID)
+    }
+
   def registerCode1(name: String, mt1: Type, rt: Type, pt: (Type, SType) => SType)(impl: (EmitCodeBuilder, EmitRegion, SType, SValue) => Value[_]): Unit =
     registerCode(name, Array(mt1), rt, unwrappedApply(pt)) {
       case (r, cb, rt, _, Array(a1)) => impl(cb, r, rt, a1)

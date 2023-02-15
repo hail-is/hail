@@ -7,7 +7,8 @@ from hail.utils.java import info
 from hail.genetics import ReferenceGenome
 
 
-def read_vds(path, *, intervals=None, n_partitions=None) -> 'VariantDataset':
+def read_vds(path, *, intervals=None, n_partitions=None,
+             _assert_reference_type=None, _assert_variant_type=None) -> 'VariantDataset':
     """Read in a :class:`.VariantDataset` written with :meth:`.VariantDataset.write`.
 
     Parameters
@@ -105,11 +106,9 @@ class VariantDataset:
         rmt = rmt.select_entries(*(x for x in rmt.entry if x in used_ref_block_fields))
         rmt = rmt.filter_rows(hl.agg.count() > 0)
 
-        # drop other alleles
-        rmt = rmt.key_rows_by(rmt.locus)
-        rmt = rmt.select_rows(ref_allele=rmt.alleles[0][0])
+        rmt = rmt.key_rows_by(rmt.locus).select_rows().select_cols()
 
-        vmt = mt.filter_entries(hl.is_missing(mt.END))
+        vmt = mt.filter_entries(hl.is_missing(mt.END)).drop('END')._key_rows_by_assert_sorted('locus', 'alleles')
         vmt = vmt.filter_rows(hl.agg.count() > 0)
 
         return VariantDataset(rmt, vmt)
@@ -182,10 +181,6 @@ class VariantDataset:
                 or vd_col_key.types[0] != hl.tstr):
             error(f"expect variant data to have a single col key of type string, found {vd_col_key}")
 
-        # check ref_allele field:
-        if 'ref_allele' not in rd.row or rd.ref_allele.dtype != hl.tstr:
-            error("expect reference data to have field 'ref_allele' of type string")
-
         if 'END' not in rd.entry or rd.END.dtype != hl.tint32:
             error("expect field 'END' in entry of reference data with type int32")
 
@@ -206,23 +201,10 @@ class VariantDataset:
 
             # check locus distinctness
             n_rd_rows = rd.count_rows()
-            n_rd_distinct_rows = rd.distinct_by_row()
-
-            (n_distinct, bad_ref_alleles) = n_rd_distinct_rows.aggregate_rows(
-                (
-                    hl.agg.count(),
-                    hl.agg.filter(n_rd_distinct_rows.ref_allele.length() != 1,
-                                  hl.agg.take((n_rd_distinct_rows.locus, n_rd_distinct_rows.ref_allele), 5))
-                )
-            )
+            n_distinct = rd.distinct_by_row().count_rows()
 
             if n_distinct != n_rd_rows:
                 error(f'reference data loci are not distinct: found {n_rd_rows} rows, but {n_distinct} distinct loci')
-
-            # check bad ref_allele field lengths
-            if bad_ref_alleles:
-                error("found invalid values for 'ref_allele' field in reference_data: "
-                      "expect single base strings:\n  " + '\n  '.join(str(x) for x in bad_ref_alleles))
 
             # check END field
             (missing_end, end_before_position) = rd.aggregate_entries((
@@ -242,7 +224,7 @@ class VariantDataset:
         return self.reference_data._same(other.reference_data) and self.variant_data._same(other.variant_data)
 
     def union_rows(*vdses):
-        '''Combine many VDSes with the sample samples but disjoint variants.
+        '''Combine many VDSes with the same samples but disjoint variants.
 
         **Examples**
 
@@ -254,6 +236,20 @@ class VariantDataset:
         ... hl.vds.VariantDataset.union_rows(*vds_per_chrom)  # doctest: +SKIP
 
         '''
-        new_ref_mt = hl.MatrixTable.union_rows(*(vds.reference_data for vds in vdses))
+
+        fd = 'ref_block_max_length'
+        mts = [vds.reference_data for vds in vdses]
+        n_with_ref_max_len = len([mt for mt in mts if fd in mt.globals])
+        any_ref_max = n_with_ref_max_len > 0
+        all_ref_max = n_with_ref_max_len == len(mts)
+
+        # if some mts have max ref len but not all, drop it
+        if all_ref_max:
+            new_ref_mt = hl.MatrixTable.union_rows(*mts).annotate_globals(**{fd: hl.max([mt.index_globals()[fd] for mt in mts])})
+        else:
+            if any_ref_max:
+                mts = [mt.drop(fd) if fd in mt.globals else mt for mt in mts]
+            new_ref_mt = hl.MatrixTable.union_rows(*mts)
+
         new_var_mt = hl.MatrixTable.union_rows(*(vds.variant_data for vds in vdses))
         return hl.vds.VariantDataset(new_ref_mt, new_var_mt)

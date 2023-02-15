@@ -1,10 +1,8 @@
-from typing import List, Tuple, Dict
-import random
+from typing import Dict
 import os
 import json
 import logging
-from ..utils import retry_transient_errors, first_extant_file
-from ..tls import internal_client_ssl_context
+from ..utils import first_extant_file
 
 from .user_config import get_user_config
 
@@ -127,28 +125,6 @@ class DeployConfig:
 
         log.info(f'serving paths at {base_path}')
         return root_app
-
-    async def addresses(self, service: str) -> List[Tuple[str, int]]:
-        from ..auth import service_auth_headers  # pylint: disable=cyclic-import,import-outside-toplevel
-        import aiohttp  # pylint: disable=import-outside-toplevel
-        namespace = self.service_ns(service)
-        headers = service_auth_headers(self, namespace)
-        async with aiohttp.ClientSession(
-                connector=aiohttp.TCPConnector(ssl=internal_client_ssl_context()),
-                raise_for_status=True,
-                timeout=aiohttp.ClientTimeout(total=5),
-                headers=headers) as session:
-            async with await retry_transient_errors(
-                    session.get,
-                    self.url('address', f'/api/{service}')) as resp:
-                dicts = await resp.json()
-                return [(d['address'], d['port']) for d in dicts]
-
-    async def address(self, service: str) -> Tuple[str, int]:
-        service_addresses = await self.addresses(service)
-        n = len(service_addresses)
-        assert n > 0
-        return service_addresses[random.randrange(0, n)]
 
 
 deploy_config = None

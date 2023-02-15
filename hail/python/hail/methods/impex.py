@@ -2,6 +2,7 @@ import json
 import os
 import re
 from typing import List
+from collections import defaultdict
 
 import avro.schema
 from avro.datafile import DataFileReader
@@ -125,7 +126,9 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
         if 'GP' in dataset.entry and dataset.GP.dtype == tarray(tfloat64):
             entry_exprs = {'GP': dataset.GP}
         else:
-            entry_exprs = {}
+            raise ValueError('exporting to GEN requires a GP (genotype probability) array<float64> field in the entry'
+                             '\n  of the matrix table. If you only have hard calls (GT), BGEN is probably not the'
+                             '\n  right format.')
     else:
         entry_exprs = {'GP': gp}
 
@@ -182,6 +185,15 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None, compr
     """Export MatrixTable as :class:`.MatrixTable` as BGEN 1.2 file with 8
     bits of per probability.  Also writes SAMPLE file.
 
+    Notes
+    -----
+    The :func:`export_bgen` function requires genotype probabilities, either as an entry
+    field of `mt` (of type ``array<float64>``), or an entry expression passed in the `gp`
+    argument.
+
+    If `output` is ``"/path/to/myfile"``, this function will write a BGEN file at
+    ``"/path/to/myfile.bgen"`` and a sample file at ``"/path/to/myfile.sample"``.
+
     Parameters
     ----------
     mt : :class:`.MatrixTable`
@@ -217,7 +229,9 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None, compr
         if 'GP' in mt.entry and mt.GP.dtype == tarray(tfloat64):
             entry_exprs = {'GP': mt.GP}
         else:
-            entry_exprs = {}
+            raise ValueError('exporting to BGEN requires a GP (genotype probability) array<float64> field in the entry'
+                             '\n  of the matrix table. If you only have hard calls (GT), BGEN is probably not the'
+                             '\n  right format.')
     else:
         entry_exprs = {'GP': gp}
 
@@ -239,7 +253,7 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None, compr
     for exprs, axis in [(gen_exprs, mt._row_indices),
                         (entry_exprs, mt._entry_indices)]:
         for name, expr in exprs.items():
-            analyze('export_gen/{}'.format(name), expr, axis)
+            analyze('export_bgen/{}'.format(name), expr, axis)
 
     mt = mt._select_all(col_exprs={},
                         row_exprs=gen_exprs,
@@ -934,8 +948,10 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA') -> Tabl
 @typecheck(regex=str,
            path=oneof(str, sequenceof(str)),
            max_count=int,
-           show=bool)
-def grep(regex, path, max_count=100, *, show=True):
+           show=bool,
+           force=bool,
+           force_bgz=bool)
+def grep(regex, path, max_count=100, *, show: bool = True, force: bool = False, force_bgz: bool = False):
     r"""Searches given paths for all lines containing regex matches.
 
     Examples
@@ -970,17 +986,44 @@ def grep(regex, path, max_count=100, *, show=True):
     show : :obj:`bool`
         When `True`, show the values on stdout. When `False`, return a
         dictionary mapping file names to lines.
+    force_bgz : :obj:`bool`
+        If ``True``, read files as blocked gzip files, assuming
+        that they were actually compressed using the BGZ codec. This option is
+        useful when the file extension is not ``'.bgz'``, but the file is
+        blocked gzip, so that the file can be read in parallel and not on a
+        single node.
+    force : :obj:`bool`
+        If ``True``, read gzipped files serially on one core. This should
+        be used only when absolutely necessary, as processing time will be
+        increased due to lack of parallelism.
 
     Returns
     ---
     :obj:`dict` of :class:`str` to :obj:`list` of :obj:`str`
     """
-    jfs = Env.spark_backend('grep').fs._jfs
+    from hail.backend.spark_backend import SparkBackend
+
+    if isinstance(hl.current_backend(), SparkBackend):
+        jfs = Env.spark_backend('grep').fs._jfs
+        if show:
+            Env.backend()._jhc.grepPrint(jfs, regex, jindexed_seq_args(path), max_count)
+            return
+        else:
+            jarr = Env.backend()._jhc.grepReturn(jfs, regex, jindexed_seq_args(path), max_count)
+            return {x._1(): list(x._2()) for x in jarr}
+
+    ht = hl.import_lines(path, force=force, force_bgz=force_bgz)
+    ht = ht.filter(ht.text.matches(regex))
+    ht = ht.head(max_count)
+    lines = ht.collect()
     if show:
-        Env.backend()._jhc.grepPrint(jfs, regex, jindexed_seq_args(path), max_count)
-    else:
-        jarr = Env.backend()._jhc.grepReturn(jfs, regex, jindexed_seq_args(path), max_count)
-        return {x._1(): list(x._2()) for x in jarr}
+        print('\n'.join(line.file + ': ' + line.text for line in lines))
+        return
+
+    results = defaultdict(list)
+    for line in lines:
+        results[line.file].append(line.text)
+    return results
 
 
 @typecheck(path=oneof(str, sequenceof(str)),
@@ -2786,7 +2829,7 @@ def import_gvcfs(path,
     :func:`.import_gvcfs` only keys the resulting matrix tables by ``locus``
     rather than ``locus, alleles``.
     """
-
+    hl.utils.no_service_backend('import_gvcfs')
     rg = reference_genome.name if reference_genome else None
 
     partitions, partitions_type = hl.utils._dumps_partitions(partitions, hl.tstruct(locus=hl.tlocus(rg),

@@ -1175,6 +1175,7 @@ def test_maximum_minimuim():
     assert(nan_max.size == max_matches)
     assert(nan_min.size == min_matches)
 
+
 def test_ndarray_broadcasting_with_decorator():
     nd = hl.nd.array([[1, 4, 9], [16, 25, 36]])
     nd_sqrt = hl.eval(hl.nd.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]))
@@ -1190,3 +1191,17 @@ def test_ndarray_broadcasting_with_decorator():
     nd_floor = hl.eval(hl.nd.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]))
     nd = hl.eval(hl.floor(nd))
     assert(np.array_equal(nd, nd_floor))
+
+
+def test_ndarray_indices_aggregations():
+    ht = hl.utils.range_table(1)
+    ht = ht.annotate_globals(g = hl.nd.ones((2, 2)))
+    ht = ht.annotate(x = hl.nd.ones((2, 2)))
+    ht = ht.annotate(a = hl.nd.solve(ht.x, 2 * ht.g))
+    ht = ht.annotate(b = hl.nd.solve(2 * ht.g, ht.x))
+    ht = ht.annotate(c = hl.nd.solve_triangular(2 * ht.g, hl.nd.eye(2)))
+    ht = ht.annotate(d = hl.nd.solve_triangular(hl.nd.eye(2), 2 * ht.g))
+    ht = ht.annotate(e = hl.nd.svd(ht.x))
+    ht = ht.annotate(f = hl.nd.inv(ht.x))
+    ht = ht.annotate(h = hl.nd.concatenate((ht.x, ht.g)))
+    ht = ht.annotate(i = hl.nd.concatenate((ht.g, ht.x)))

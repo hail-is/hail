@@ -64,14 +64,14 @@ object SparkTaskContext {
   }
 
   def finish(): Unit = {
-    taskContext.get().finish()
+    taskContext.get().close()
     taskContext.remove()
   }
 }
 
 
 class SparkTaskContext private[spark](ctx: TaskContext) extends HailTaskContext {
-  self=>
+  self =>
   override def stageId(): Int = ctx.stageId()
   override def partitionId(): Int = ctx.partitionId()
   override def attemptNumber(): Int = ctx.attemptNumber()
@@ -267,7 +267,7 @@ class SparkBackend(
   val sc: SparkContext,
   gcsRequesterPaysProject: String,
   gcsRequesterPaysBuckets: String
-) extends Backend with Closeable {
+) extends Backend with Closeable with BackendWithCodeCache {
   assert(gcsRequesterPaysProject != null || gcsRequesterPaysBuckets == null)
   lazy val sparkSession: SparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
   private[this] val theHailClassLoader: HailClassLoader = new HailClassLoader(getClass().getClassLoader())
@@ -323,6 +323,7 @@ class SparkBackend(
     timer,
     if (selfContainedExecution) null else new NonOwningTempFileManager(longLifeTempFileManager),
     theHailClassLoader,
+    ReferenceGenome.references,
     flags
   )
 
@@ -335,6 +336,7 @@ class SparkBackend(
       timer,
       if (selfContainedExecution) null else new NonOwningTempFileManager(longLifeTempFileManager),
       theHailClassLoader,
+      ReferenceGenome.references,
       flags
     )(f)
   }
@@ -345,6 +347,7 @@ class SparkBackend(
     backendContext: BackendContext,
     fs: FS,
     collection: Array[Array[Byte]],
+    stageIdentifier: String,
     dependency: Option[TableStageDependency] = None
   )(
     f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
@@ -411,7 +414,7 @@ class SparkBackend(
             ir,
             print = print)
         }
-        ctx.timer.time("Run")(Left(f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)))
+        ctx.timer.time("Run")(Left(ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r))))
 
       case _ =>
         val (Some(PTypeReferenceSingleCodeType(pt: PTuple)), f) = ctx.timer.time("Compile") {
@@ -421,7 +424,7 @@ class SparkBackend(
             MakeTuple.ordered(FastSeq(ir)),
             print = print)
         }
-        ctx.timer.time("Run")(Right((pt, f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r).apply(ctx.r))))
+        ctx.timer.time("Run")(Right((pt, ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r)))))
     }
 
     res

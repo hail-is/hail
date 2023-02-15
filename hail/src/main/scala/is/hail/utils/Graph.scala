@@ -2,7 +2,7 @@ package is.hail.utils
 
 import is.hail.annotations.{Region, RegionValueBuilder, UnsafeIndexedSeq}
 import is.hail.asm4s._
-import is.hail.backend.ExecuteContext
+import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.types.physical.{PCanonicalTuple, PTuple, PType, stypes}
 import is.hail.expr.ir.{Compile, IR, IRParser, IRParserEnvironment, Interpret, Literal, MakeTuple, SingleCodeEmitParamType}
 import is.hail.expr.ir.{Compile, IR, IRParser, IRParserEnvironment, Interpret, Literal, MakeTuple, SingleCodeEmitParamType}
@@ -42,11 +42,11 @@ object Graph {
     maximalIndependentSet(mkGraph(edges.map { case Row(i, j) => i -> j }))
   }
 
-  def maximalIndependentSet(edges: UnsafeIndexedSeq, hcl: HailClassLoader, fs: FS, partIdx: Int, outerRegion: Region,
-      wrappedNodeType: PTuple, resultType: PTuple, tieBreaker: (HailClassLoader, FS, Int, Region) => AsmFunction3RegionLongLongLong): IndexedSeq[Any] = {
+  def maximalIndependentSet(edges: UnsafeIndexedSeq, hcl: HailClassLoader, fs: FS, htc: HailTaskContext, outerRegion: Region,
+      wrappedNodeType: PTuple, resultType: PTuple, tieBreaker: (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3RegionLongLongLong): IndexedSeq[Any] = {
     val nodeType = wrappedNodeType.types.head.virtualType
     val region = outerRegion.getPool().getRegion()
-    val tieBreakerF = tieBreaker(hcl, fs, partIdx, region)
+    val tieBreakerF = tieBreaker(hcl, fs, htc, region)
     val rvb = new RegionValueBuilder()
     val tbf = (l: Any, r: Any) => {
       region.clear()
