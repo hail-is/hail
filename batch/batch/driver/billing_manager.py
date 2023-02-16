@@ -98,11 +98,10 @@ class CloudBillingManager(abc.ABC):
                         f'({current_resource_rate}) => ({latest_resource_rate})'
                     )
                     continue
-                else:
-                    log.error(
-                        f'price changed but the price is not current {product} ({current_product_version}) => ({latest_product_version}) ({current_resource_rate}) => ({latest_resource_rate}) '
-                        f'{price.effective_start_date} {price.effective_end_date}'
-                    )
+                log.error(
+                    f'price changed but the price is not current {product} ({current_product_version}) => ({latest_product_version}) ({current_resource_rate}) => ({latest_resource_rate}) '
+                    f'{price.effective_start_date} {price.effective_end_date}'
+                )
 
             assert (
                 current_product_version == latest_product_version and current_resource_rate == latest_resource_rate
