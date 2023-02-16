@@ -14,25 +14,22 @@ def init_parser(parser):
 
 
 async def async_main(args):
-    try:
-        await async_delete_user(args.username, args.namespace)
+    await async_delete_user(args.username, args.namespace)
 
-        if not args.wait:
-            return
+    if not args.wait:
+        return
 
-        async def _poll():
-            delay = 5
-            while True:
-                user = await async_get_user(args.username, args.namespace)
-                if user['state'] == 'deleted':
-                    print(f"Deleted user '{args.username}'")
-                    return
-                assert user['state'] == 'deleting'
-                delay = await sleep_and_backoff(delay)
+    async def _poll():
+        delay = 5
+        while True:
+            user = await async_get_user(args.username, args.namespace)
+            if user['state'] == 'deleted':
+                print(f"Deleted user '{args.username}'")
+                return
+            assert user['state'] == 'deleting'
+            delay = await sleep_and_backoff(delay)
 
-        await _poll()
-    except Exception as e:
-        raise Exception(f"Error while deleting user '{args.username}'") from e
+    await _poll()
 
 
 def main(args, pass_through_args):  # pylint: disable=unused-argument

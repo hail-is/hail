@@ -281,8 +281,7 @@ class AsyncFS(abc.ABC):
             await self.statfile(url)
         except FileNotFoundError:
             return False
-        else:
-            return True
+        return True
 
     async def close(self) -> None:
         pass

@@ -20,25 +20,22 @@ def init_parser(parser):
 
 
 async def async_main(args):
-    try:
-        await async_create_user(args.username, args.login_id, args.developer, args.service_account, args.namespace)
+    await async_create_user(args.username, args.login_id, args.developer, args.service_account, args.namespace)
 
-        if not args.wait:
-            return
+    if not args.wait:
+        return
 
-        async def _poll():
-            delay = 5
-            while True:
-                user = await async_get_user(args.username, args.namespace)
-                if user['state'] == 'active':
-                    print(f"Created user '{args.username}'")
-                    return
-                assert user['state'] == 'creating'
-                delay = await sleep_and_backoff(delay)
+    async def _poll():
+        delay = 5
+        while True:
+            user = await async_get_user(args.username, args.namespace)
+            if user['state'] == 'active':
+                print(f"Created user '{args.username}'")
+                return
+            assert user['state'] == 'creating'
+            delay = await sleep_and_backoff(delay)
 
-        await _poll()
-    except Exception as e:
-        raise Exception(f"Error while creating user '{args.username}'") from e
+    await _poll()
 
 
 def main(args, pass_through_args):  # pylint: disable=unused-argument
