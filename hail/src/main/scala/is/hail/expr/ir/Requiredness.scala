@@ -181,7 +181,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case ArrayMaximalIndependentSet(a, tiebreaker) =>
         tiebreaker.foreach { case (left, right, _) =>
           val eltReq = tcoerce[TypeWithRequiredness](tcoerce[RIterable](lookup(a)).elementType.children.head)
-          val req = RTuple(Seq(eltReq))
+          val req = RTuple(Seq(0 -> eltReq))
           req.union(true)
           refMap(left).foreach { u => defs.bind(u, Array(req)) }
           refMap(right).foreach { u => defs.bind(u, Array(req)) }

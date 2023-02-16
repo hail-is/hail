@@ -51,7 +51,7 @@ object LowerAndExecuteShuffles {
         val rt = req2.lookup(partiallyAggregated).asInstanceOf[RTable]
 
         val partiallyAggregatedReader = ctx.backend.lowerDistributedSort(ctx,
-          ctx.backend.tableToTableStage(ctx, partiallyAggregated),
+          ctx.backend.tableToTableStage(ctx, partiallyAggregated, LoweringAnalyses(partiallyAggregated, ctx)),
           newKeyType.fieldNames.map(k => SortField(k, Ascending)),
           rt)
 
