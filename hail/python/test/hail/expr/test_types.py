@@ -1,3 +1,4 @@
+from typing import Optional
 import unittest
 
 from hail.expr import coercer_from_dtype
@@ -142,8 +143,8 @@ class Tests(unittest.TestCase):
                 self.assertEqual(t.get_context().references, rgs)
 
     def test_tlocus_schema_from_rg_matches_scala(self):
-        def locus_from_import_vcf(rg: str) -> HailType:
-            return hl.import_vcf(resource('sample2.vcf'), reference_genome=None).locus.dtype
+        def locus_from_import_vcf(rg: Optional[str]) -> HailType:
+            return hl.import_vcf(resource('sample2.vcf'), reference_genome=rg).locus.dtype
 
         assert tlocus._schema_from_rg(None) == locus_from_import_vcf(None)
         assert tlocus._schema_from_rg('GRCh37') == locus_from_import_vcf('GRCh38')
