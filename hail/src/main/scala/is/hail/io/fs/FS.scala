@@ -261,6 +261,8 @@ trait FS extends Serializable {
 
   def createCachedNoCompression(filename: String): PositionedDataOutputStream = createNoCompression(filename)
 
+  def writeCached(filename: String)(writer: PositionedDataOutputStream => Unit) = writePDOS(filename)
+
   def getCodecFromExtension(extension: String, gzAsBGZ: Boolean = false): CompressionCodec = {
     extension match {
       case ".gz" =>
