@@ -2030,7 +2030,7 @@ def _logistic_skat(group,
         X &: R^{N \times K} \\
         G &: \{0, 1, 2\}^{N \times M} \\
         \\
-        \textrm{logit}(P(y=1)) &= \beta_0 X + \beta_1 G + \varepsilon \quad\quad \varepsilon \sim N(0, \sigma^2)
+        Y &\sim \textrm{Bernoulli}(\textrm{logit}^{-1}(\beta_0 X + \beta_1 G))
         \end{align*}
 
     The usual null hypothesis is :math:`\beta_1 = 0`. SKAT tests for an association, but does not
@@ -2044,25 +2044,25 @@ def _logistic_skat(group,
 
     .. math::
 
-        \textrm{logit}(P(y=1)) = \beta_\textrm{null} X + \varepsilon \quad\quad \varepsilon \sim N(0, \sigma^2)
+        Y \sim \textrm{Bernoulli}(\textrm{logit}^{-1}(\beta_\textrm{null} X))
 
     Then :math:`Q` is defined by Wu et al. as:
 
     .. math::
 
         \begin{align*}
-        r &= y - \textrm{logit}^{-1}(\widehat{\beta_\textrm{null}} X) \\
+        p_i &= \textrm{logit}^{-1}(\widehat{\beta_\textrm{null}} X) \\
+        r_i &= y_i - p_i \\
         W_{ii} &= w_i \\
         \\
         Q &= r^T G W G^T r
         \end{align*}
 
-    Therefore :math:`r`, the residual phenotype, is the portion of the phenotype unexplained by the
-    covariates alone. Also notice:
+    Therefore :math:`r_i`, the residual phenotype, is the portion of the phenotype unexplained by
+    the covariates alone. Also notice:
 
     1. Each sample's phenotype is Bernoulli distributed with mean :math:`p_i` and variance
-       :math:`\sigma^2_i = p_i(1 - p_i)` where :math:`p_i` is the predicted probability under the
-       null model for sample :math:`i`.
+       :math:`\sigma^2_i = p_i(1 - p_i)`, the binomial variance.
 
     2. :math:`G W G^T`, is a symmetric positive-definite matrix when the weights are non-negative.
 
@@ -2081,8 +2081,9 @@ def _logistic_skat(group,
         Z Z^T &= P_0^{1/2} G W G^T P_0^{1/2}
         \end{align*}
 
-    Recall that the eigenvalues of a symmetric matrix and its transpose are the same, so we can
-    instead consider :math:`Z^T Z` (note that we elide transpositions of symmetric matrices):
+    The eigenvalues of :math:`Z Z^T` and :math:`Z^T Z` are the squared singular values of :math:`Z`;
+    therefore, we instead focus on :math:`Z^T Z`. In the expressions below, we elide transpositions
+    of symmetric matrices:
 
     .. math::
 
@@ -2129,8 +2130,8 @@ def _logistic_skat(group,
         Z &= (G - Q Q^T G) V^{1/2} W^{1/2}
         \end{align*}
 
-    Finally, observe that the squared singular values of :math:`Z` are the eigenvalues of
-    :math:`Z^T Z`, so :math:`Q` should be distributed as follows:
+    Finally, the squared singular values of :math:`Z` are the eigenvalues of :math:`Z^T Z`, so
+    :math:`Q` should be distributed as follows:
 
     .. math::
 
