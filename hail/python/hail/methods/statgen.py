@@ -1523,7 +1523,7 @@ def _linear_skat(group,
                  x,
                  covariates,
                  max_size: int = 46340,
-                 accuracy: float = 1e-6,
+                 accuracy: float = 1e-14,
                  iterations: int = 10000):
     r'''The linear sequence kernel association test (SKAT).
 
@@ -1694,7 +1694,7 @@ def _linear_skat(group,
 
     Notice that, in the second group, the fault flag is set to 1. This indicates that the numerical
     integration to calculate the p-value failed to achieve the required accuracy (by default,
-    1e-6). In this particular case, the null hypothesis is likely true and the numerical integration
+    1e-14). In this particular case, the null hypothesis is likely true and the numerical integration
     returned a (nonsensical) value greater than one.
 
     The `max_size` parameter allows us to skip large genes that would cause "out of memory" errors:
@@ -1752,7 +1752,7 @@ def _linear_skat(group,
         Maximum size of group on which to run the test. Groups which exceed this size will have a
         missing p-value and missing q statistic. Defaults to 46340.
     accuracy : :obj:`float`
-        The accuracy of the p-value if fault value is zero. Defaults to 1e-6.
+        The accuracy of the p-value if fault value is zero. Defaults to 1e-14.
     iterations : :obj:`int`
         The maximum number of iterations used to calculate the p-value (which has no closed
         form). Defaults to 1e5.
