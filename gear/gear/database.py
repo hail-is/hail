@@ -10,9 +10,9 @@ import aiomysql
 import pymysql
 
 from gear.metrics import DB_CONNECTION_QUEUE_SIZE, SQL_TRANSACTIONS, PrometheusSQLTimer
+from hailtop.aiotools import BackgroundTaskManager
 from hailtop.auth.sql_config import SQLConfig
 from hailtop.utils import sleep_and_backoff
-from hailtop.aiotools import BackgroundTaskManager
 
 log = logging.getLogger('gear.database')
 
