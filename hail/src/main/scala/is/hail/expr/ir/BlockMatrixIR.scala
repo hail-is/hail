@@ -830,7 +830,7 @@ case class PerBlockSparsifier(blocks: IndexedSeq[Int]) extends BlockMatrixSparsi
 
   override def sparsify(bm: BlockMatrix): BlockMatrix = bm.filterBlocks(blocks.toArray)
 
-  override def pretty(): String = s"(PerBlockSparsifier with blocks $blocks"
+  override def pretty(): String = s"(PerBlockSparsifier with blocks $blocks)"
 }
 
 case class BlockMatrixSparsify(

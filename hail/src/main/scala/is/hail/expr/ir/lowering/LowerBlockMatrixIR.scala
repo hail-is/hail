@@ -960,6 +960,19 @@ object LowerBlockMatrixIR {
         val Array(keepRow, keepCol) = keep
         lower(child).filter(keepRow, keepCol, x.typ, ib)
 
+      case x@BlockMatrixSparsify(child, sparsifier) =>
+        val Some((rowPos, rowIdx)) = x.typ.sparsity.definedBlocksCSCIR(x.typ.nColBlocks)
+        val loweredChild = lower(child).withSparsity(ib.memoize(rowPos), ib.memoize(rowIdx), ib, x.typ, isSubset = true)
+        sparsifier match {
+          // these cases are all handled at the type level
+          case BandSparsifier(blocksOnly, _, _) if (blocksOnly) => loweredChild
+          case RowIntervalSparsifier(blocksOnly, _, _) if (blocksOnly) => loweredChild
+          case PerBlockSparsifier(_) => loweredChild
+
+          case BandSparsifier(_, l, u) => ???
+          case RowIntervalSparsifier(_, starts, stops) => ???
+          case RectangleSparsifier(rectangles) => ???
+        }
       case _ =>
         BlockMatrixStage2.fromOldBMS(lowerNonEmpty(bmir, ib, typesToLower, ctx, analyses), bmir.typ, ib)
     }
@@ -1065,7 +1078,6 @@ object LowerBlockMatrixIR {
 
       // Both densify and sparsify change the sparsity pattern tracked on the BlockMatrixType.
       case BlockMatrixDensify(child) => lower(child)
-      case BlockMatrixSparsify(child, sparsifier) => lower(child)
 
       case RelationalLetBlockMatrix(name, value, body) => unimplemented(ctx, bmir)
 
