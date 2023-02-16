@@ -1524,7 +1524,7 @@ def _linear_skat(group,
                  covariates,
                  max_size: int = 46340,
                  accuracy: float = 1e-14,
-                 iterations: int = 10000):
+                 iterations: int = 100_000):
     r'''The linear sequence kernel association test (SKAT).
 
     Linear SKAT tests if the phenotype, `y`, is significantly associated with the genotype, `x`. For
