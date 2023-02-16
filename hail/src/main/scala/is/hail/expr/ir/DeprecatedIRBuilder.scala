@@ -6,7 +6,7 @@ import is.hail.utils.FastIndexedSeq
 
 import scala.language.{dynamics, implicitConversions}
 
-object IRBuilder {
+object DeprecatedIRBuilder {
   type E = Env[Type]
 
   implicit def funcToIRProxy(ir: E => IR): IRProxy = new IRProxy(ir)

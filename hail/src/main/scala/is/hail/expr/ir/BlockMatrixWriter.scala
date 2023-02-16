@@ -5,12 +5,12 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
-import is.hail.expr.ir.lowering.{BlockMatrixStage, BlockMatrixStage2, EvalContext, LowererUnsupportedOperation}
-import is.hail.io.{StreamBufferSpec, TypedCodecSpec}
+import is.hail.expr.ir.lowering.{BlockMatrixStage2, LowererUnsupportedOperation}
 import is.hail.io.fs.FS
+import is.hail.io.{StreamBufferSpec, TypedCodecSpec}
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata}
 import is.hail.types.encoded.{EBlockMatrixNDArray, ENumpyBinaryNDArray, EType}
-import is.hail.types.virtual.{TArray, TNDArray, TString, TVoid, Type}
+import is.hail.types.virtual._
 import is.hail.types.{BlockMatrixType, TypeWithRequiredness}
 import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
@@ -32,7 +32,7 @@ abstract class BlockMatrixWriter {
   def pathOpt: Option[String]
   def apply(ctx: ExecuteContext, bm: BlockMatrix): Any
   def loweredTyp: Type
-  def lower(ctx: ExecuteContext, s: BlockMatrixStage2, evalCtx: EvalContext, relationalBindings: Map[String, IR], eltR: TypeWithRequiredness): IR =
+  def lower(ctx: ExecuteContext, s: BlockMatrixStage2, evalCtx: IRBuilder, relationalBindings: Map[String, IR], eltR: TypeWithRequiredness): IR =
     throw new LowererUnsupportedOperation(s"unimplemented writer: \n${ this.getClass }")
 }
 
@@ -47,7 +47,7 @@ case class BlockMatrixNativeWriter(
 
   def loweredTyp: Type = TVoid
 
-  override def lower(ctx: ExecuteContext, s: BlockMatrixStage2, evalCtx: EvalContext, relationalBindings: Map[String, IR], eltR: TypeWithRequiredness): IR = {
+  override def lower(ctx: ExecuteContext, s: BlockMatrixStage2, evalCtx: IRBuilder, relationalBindings: Map[String, IR], eltR: TypeWithRequiredness): IR = {
     if (stageLocally)
       throw new LowererUnsupportedOperation(s"stageLocally not supported in BlockMatrixWrite lowering")
     val etype = EBlockMatrixNDArray(EType.fromTypeAndAnalysis(s.typ.elementType, eltR), encodeRowMajor = forceRowMajor, required = true)
@@ -119,7 +119,7 @@ case class BlockMatrixBinaryWriter(path: String) extends BlockMatrixWriter {
 
   def loweredTyp: Type = TString
 
-  override def lower(ctx: ExecuteContext, s: BlockMatrixStage2, evalCtx: EvalContext, relationalBindings: Map[String, IR], eltR: TypeWithRequiredness): IR = {
+  override def lower(ctx: ExecuteContext, s: BlockMatrixStage2, evalCtx: IRBuilder, relationalBindings: Map[String, IR], eltR: TypeWithRequiredness): IR = {
     val nd = s.collectLocal(relationalBindings, evalCtx, "block_matrix_binary_writer")
 
     val etype = ENumpyBinaryNDArray(s.typ.nRows, s.typ.nCols, true)

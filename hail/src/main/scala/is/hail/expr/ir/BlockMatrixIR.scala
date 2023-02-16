@@ -6,7 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations.NDArray
 import is.hail.backend.{BackendContext, ExecuteContext}
 import is.hail.expr.Nat
-import is.hail.expr.ir.lowering.{BMSContexts, BlockMatrixStage2, DenseContexts, EvalContext, LowererUnsupportedOperation, SparseContexts}
+import is.hail.expr.ir.lowering.{BMSContexts, BlockMatrixStage2, LowererUnsupportedOperation}
 import is.hail.io.fs.FS
 import is.hail.io.{StreamBufferSpec, TypedCodecSpec}
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata}
@@ -105,7 +105,7 @@ object BlockMatrixReader {
 abstract class BlockMatrixReader {
   def pathsUsed: Seq[String]
   def apply(ctx: ExecuteContext): BlockMatrix
-  def lower(ctx: ExecuteContext, evalCtx: EvalContext): BlockMatrixStage2 =
+  def lower(ctx: ExecuteContext, evalCtx: IRBuilder): BlockMatrixStage2 =
     throw new LowererUnsupportedOperation(s"BlockMatrixReader not implemented: ${ this.getClass }")
   def fullType: BlockMatrixType
   def toJValue: JValue = {
@@ -156,7 +156,7 @@ class BlockMatrixNativeReader(
 
   }
 
-  override def lower(ctx: ExecuteContext, evalCtx: EvalContext): BlockMatrixStage2 = {
+  override def lower(ctx: ExecuteContext, evalCtx: IRBuilder): BlockMatrixStage2 = {
     val fileNames = Literal(TArray(TString), metadata.partFiles)
 
     val contexts = BMSContexts(fullType, fileNames, evalCtx)
@@ -206,7 +206,7 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
     BlockMatrix.fromBreezeMatrix(breezeMatrix, blockSize)
   }
 
-  override def lower(ctx: ExecuteContext, evalCtx: EvalContext): BlockMatrixStage2 = {
+  override def lower(ctx: ExecuteContext, evalCtx: IRBuilder): BlockMatrixStage2 = {
     val readFromNumpyEType = ENumpyBinaryNDArray(nRows, nCols, true)
     val readFromNumpySpec = TypedCodecSpec(readFromNumpyEType, TNDArray(TFloat64, Nat(2)), new StreamBufferSpec())
     val nd = evalCtx.memoize(ReadValue(Str(path), readFromNumpySpec, TNDArray(TFloat64, nDimsBase = Nat(2))))
