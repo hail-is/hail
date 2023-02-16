@@ -124,8 +124,10 @@ class ServiceBackend(
     log.info(s"parallelizeAndComputeWithIndex: $token: writing f and contexts")
 
     val uploadFunction = scalaConcurrent.Future {
-      write(s"$root/f") { fos =>
-        using(new ObjectOutputStream(fos)) { oos => oos.writeObject(f) }
+      retryTransientErrors {
+        write(s"$root/f") { fos =>
+          using(new ObjectOutputStream(fos)) { oos => oos.writeObject(f) }
+        }
       }
     }
 
