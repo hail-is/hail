@@ -33,9 +33,9 @@ azure-storage-blob==12.14.1
     # via -r python/hailtop/requirements.txt
 bokeh==1.4.0
     # via -r python/requirements.txt
-boto3==1.26.72
+boto3==1.26.73
     # via -r python/hailtop/requirements.txt
-botocore==1.29.72
+botocore==1.29.73
     # via
     #   -r python/hailtop/requirements.txt
     #   boto3
@@ -170,7 +170,7 @@ pyjwt[crypto]==2.6.0
     # via
     #   -r python/requirements.txt
     #   msal
-pyspark==3.3.0
+pyspark==3.3.2
     # via -r python/requirements.txt
 python-dateutil==2.8.2
     # via
