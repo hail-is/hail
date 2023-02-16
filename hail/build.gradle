@@ -222,7 +222,7 @@ dependencies {
 
     bundled 'com.kohlschutter.junixsocket:junixsocket-core:2.6.1'
 
-    bundled 'com.github.luben:zstd-jni:1.4.8-1'
+    bundled 'com.github.luben:zstd-jni:1.5.2-1'
 }
 
 task(checkSettings) doLast {
