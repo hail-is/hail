@@ -218,7 +218,7 @@ class ServiceBackend(Backend):
         name_prefix = configuration_of('query', 'name_prefix', name_prefix, '')
 
         if regions is None:
-            regions_from_conf = user_config.get('batch', 'regions', regions, None)
+            regions_from_conf = configuration_of('batch', 'regions', regions, None)
             if regions_from_conf is not None:
                 assert isinstance(regions_from_conf, str)
                 regions = regions_from_conf.split(',')
