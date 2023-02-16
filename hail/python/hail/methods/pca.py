@@ -9,7 +9,7 @@ from hail.table import Table
 from hail.typecheck import typecheck, oneof, nullable, sized_tupleof
 from hail.utils import FatalError
 from hail.utils.java import Env, info
-from hail.experimental import mt_to_tsm, TallSkinnyMatrix
+from hail.experimental.table_ndarray_utils import mt_to_tsm, TallSkinnyMatrix
 
 
 def hwe_normalize(mt: hl.MatrixTable,
@@ -192,8 +192,6 @@ def pca(entry_expr,
     (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
         List of eigenvalues, table with column scores, table with row loadings.
     """
-    from hail.backend.service_backend import ServiceBackend
-
     if hl.current_backend().requires_lowering:
         return _blanczos_pca(entry_expr, k, compute_loadings, _dimensions=_dimensions)
 
