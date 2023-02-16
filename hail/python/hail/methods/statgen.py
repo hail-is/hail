@@ -1755,7 +1755,7 @@ def _linear_skat(group,
         The accuracy of the p-value if fault value is zero. Defaults to 1e-14.
     iterations : :obj:`int`
         The maximum number of iterations used to calculate the p-value (which has no closed
-        form). Defaults to 1e5.
+        form). Defaults to 1e6.
 
     Returns
     -------
