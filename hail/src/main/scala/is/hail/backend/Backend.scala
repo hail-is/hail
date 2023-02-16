@@ -89,12 +89,13 @@ abstract class Backend {
     rt: RTable
   ): TableReader = {
     val analyses = LoweringAnalyses.apply(inputIR, ctx)
-    val inputStage = LowerTableIR.applyTable(inputIR, DArrayLowering.TableOnly, ctx, analyses)
+    val inputStage = tableToTableStage(ctx, inputIR, analyses)
     lowerDistributedSort(ctx, inputStage, sortFields, rt)
   }
 
   def tableToTableStage(ctx: ExecuteContext,
     inputIR: TableIR,
+    analyses: LoweringAnalyses
   ): TableStage
 }
 

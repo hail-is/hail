@@ -396,8 +396,8 @@ class ServiceBackend(
 
   def tableToTableStage(ctx: ExecuteContext,
     inputIR: TableIR,
+    analyses: LoweringAnalyses
   ): TableStage = {
-    val analyses = LoweringAnalyses.apply(inputIR, ctx)
     LowerTableIR.applyTable(inputIR, DArrayLowering.TableOnly, ctx, analyses)
   }
 }

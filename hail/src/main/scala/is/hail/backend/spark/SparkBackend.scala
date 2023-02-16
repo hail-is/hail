@@ -768,13 +768,13 @@ class SparkBackend(
 
   def tableToTableStage(ctx: ExecuteContext,
     inputIR: TableIR,
+    analyses: LoweringAnalyses
   ): TableStage = {
     CanLowerEfficiently(ctx, inputIR) match {
       case Some(failReason) =>
         log.info(s"SparkBackend: could not lower IR to table stage: $failReason")
         inputIR.analyzeAndExecute(ctx).asTableStage(ctx)
       case None =>
-        val analyses = LoweringAnalyses.apply(inputIR, ctx)
         LowerTableIR.applyTable(inputIR, DArrayLowering.TableOnly, ctx, analyses)
     }
   }
