@@ -658,6 +658,8 @@ class BlockMatrixStage2 private (
   }
 
   def withSparsity(rowPos: IR, rowIdx: IR, newType: BlockMatrixType, isSubset: Boolean = false): BlockMatrixStage2 = {
+    if (newType.sparsity.definedBlocksColMajor == typ.sparsity.definedBlocksColMajor) return this
+
     val (newLetBindings, rowPosRef, rowIdxRef) = {
       var newLetBindings = letBindings
       def memo(ir: IR): Ref = ir match {
@@ -1091,26 +1093,6 @@ object LowerBlockMatrixIR {
           }
         }
 
-      case x@BlockMatrixFilter(child, keep) =>
-        val rowDependents = x.rowBlockDependents
-        val colDependents = x.colBlockDependents
-
-        lower(child).condenseBlocks(child.typ, rowDependents, colDependents)
-          .addContext(TStruct("rows" -> TArray(TInt64), "cols" -> TArray(TInt64))) { idx =>
-            val i = idx._1
-            val j = idx._2
-            val rowStartIdx = rowDependents(i).head.toLong * x.typ.blockSize
-            val colStartIdx = colDependents(j).head.toLong * x.typ.blockSize
-            val rows = if (keep(0).isEmpty) null else x.keepRowPartitioned(i).map(k => k - rowStartIdx).toFastIndexedSeq
-            val cols = if (keep(1).isEmpty) null else x.keepColPartitioned(j).map(k => k - colStartIdx).toFastIndexedSeq
-            makestruct("rows" -> Literal.coerce(TArray(TInt64), rows), "cols" -> Literal.coerce(TArray(TInt64), cols))
-          }.mapBody { (ctx, body) =>
-          bindIR(GetField(GetField(ctx, "new"), "rows")) { rows =>
-            bindIR(GetField(GetField(ctx, "new"), "cols")) { cols =>
-              NDArrayFilter(body, FastIndexedSeq(rows, cols))
-            }
-          }
-        }
       case x@BlockMatrixSlice(child, IndexedSeq(IndexedSeq(rStart, rEnd, rStep), IndexedSeq(cStart, cEnd, cStep))) =>
         val rowDependents = x.rowBlockDependents
         val colDependents = x.colBlockDependents
