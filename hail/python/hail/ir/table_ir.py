@@ -934,8 +934,9 @@ class TableToTableApply(TableIR):
 
     def _handle_randomness(self, uid_field_name):
         if uid_field_name is not None:
-            raise FatalError('TableToTableApply does not support randomness in consumers')
-        child = self.child.handle_randomness(None)
+            if self.config['name'] != 'TableFilterPartitions':
+                raise FatalError(f'TableToTableApply({self.config["name"]}) does not support randomness in consumers')
+        child = self.child.handle_randomness(uid_field_name)
         return TableToTableApply(child, self.config)
 
     def head_str(self):
