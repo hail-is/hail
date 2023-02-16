@@ -1251,8 +1251,6 @@ class Tests(unittest.TestCase):
             violations.show()
             self.fail("disagreement between computed info score and truth")
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_aggregator_info_score_works_with_bgen_import(self):
         bgenmt = hl.import_bgen(resource('random.bgen'), ['GT', 'GP'], resource('random.sample'))
         result = bgenmt.annotate_rows(info=hl.agg.info_score(bgenmt.GP)).rows().take(1)
