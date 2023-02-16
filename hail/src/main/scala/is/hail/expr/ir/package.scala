@@ -60,15 +60,15 @@ package object ir {
 
   implicit def irToPrimitiveIR(ir: IR): PrimitiveIR = new PrimitiveIR(ir)
 
-  implicit def intToIR(i: Int): IR = I32(i)
+  implicit def intToIR(i: Int): I32 = I32(i)
 
-  implicit def longToIR(l: Long): IR = I64(l)
+  implicit def longToIR(l: Long): I64 = I64(l)
 
-  implicit def floatToIR(f: Float): IR = F32(f)
+  implicit def floatToIR(f: Float): F32 = F32(f)
 
-  implicit def doubleToIR(d: Double): IR = F64(d)
+  implicit def doubleToIR(d: Double): F64 = F64(d)
 
-  implicit def booleanToIR(b: Boolean): IR = if (b) True() else False()
+  implicit def booleanToIR(b: Boolean): TrivialIR = if (b) True() else False()
 
   def zero(t: Type): IR = t match {
     case TInt32 => I32(0)
