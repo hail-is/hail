@@ -31,7 +31,7 @@ object TypeCheck {
         .zipWithIndex
         .foreachRecur { case (child, i) =>
           for {
-            _ <- check(ctx, child, ChildBindings(ir, i, env))
+            _ <- call(check(ctx, child, ChildBindings(ir, i, env)))
           } yield {
             if (child.typ == TVoid) {
               checkVoidTypedChild(ctx, ir, i, env)
