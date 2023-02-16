@@ -1244,6 +1244,9 @@ object PruneDeadFields {
           compEnv.deleteEval(left).deleteEval(right),
           aEnv
         )
+      case ArrayMaximalIndependentSet(a, tiebreaker) =>
+        tiebreaker.foreach { case (_, _, tb) => memoizeValueIR(ctx, tb, tb.typ, memo) }
+        memoizeValueIR(ctx, a, a.typ, memo)
       case StreamFor(a, valueName, body) =>
         assert(requestedType == TVoid)
         val aType = a.typ.asInstanceOf[TStream]
@@ -1945,7 +1948,7 @@ object PruneDeadFields {
       case StreamZipJoin(as, key, curKey, curVals, joinF) =>
         val newAs = as.map(a => rebuildIR(ctx, a, env, memo))
         val newEltType = as.head.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
-        val newJoinF = rebuildIR(ctx, 
+        val newJoinF = rebuildIR(ctx,
           joinF,
           env.bindEval(curKey -> selectKey(newEltType, key), curVals -> TArray(newEltType)),
           memo)
@@ -2298,4 +2301,3 @@ object PruneDeadFields {
     }
   }
 }
-

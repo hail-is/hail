@@ -129,6 +129,8 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def getFS: Code[FS] = ecb.getFS
 
+  def getTaskContext: Value[HailTaskContext] = ecb.getTaskContext
+
   def getObject[T <: AnyRef : TypeInfo](obj: T): Code[T] = ecb.getObject(obj)
 
   def getSerializedAgg(i: Int): Code[Array[Byte]] = ecb.getSerializedAgg(i)

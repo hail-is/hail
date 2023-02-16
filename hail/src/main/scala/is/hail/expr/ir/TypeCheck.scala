@@ -163,6 +163,13 @@ object TypeCheck {
         assert(x.typ == tcoerce[TArray](a.typ))
       case ArrayLen(a) =>
         assert(a.typ.isInstanceOf[TArray])
+      case ArrayMaximalIndependentSet(edges, tieBreaker) =>
+        assert(edges.typ.isInstanceOf[TArray])
+        val edgeType = tcoerce[TArray](edges.typ).elementType
+        assert(edgeType.isInstanceOf[TBaseStruct])
+        val Array(leftType, rightType) = edgeType.asInstanceOf[TBaseStruct].types
+        assert(leftType == rightType)
+        tieBreaker.foreach { case (_, _, tb) => assert(tb.typ == TFloat64) }
       case StreamIota(start, step, _) =>
         assert(start.typ == TInt32)
         assert(step.typ == TInt32)

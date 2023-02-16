@@ -10,15 +10,14 @@ from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
     MakeArray, ArrayRef, ArraySlice, ArrayLen, ArrayZeros, StreamIota, StreamRange, StreamGrouped, MakeNDArray, \
     NDArrayShape, NDArrayReshape, NDArrayMap, NDArrayMap2, NDArrayRef, NDArraySlice, NDArraySVD, \
     NDArrayReindex, NDArrayAgg, NDArrayMatMul, NDArrayQR, NDArrayInv, NDArrayConcat, NDArrayWrite, \
-    ArraySort, ToSet, ToDict, toArray, ToArray, CastToArray, toStream, ToStream, \
-    LowerBoundOnOrderedCollection, GroupByKey, StreamTake, StreamMap, StreamZip, \
-    StreamFilter, StreamFlatMap, StreamFold, StreamScan, \
-    StreamJoinRightDistinct, StreamFor, AggFilter, AggExplode, AggGroupBy, \
-    AggArrayPerElement, BaseApplyAggOp, ApplyAggOp, ApplyScanOp, AggFold, Begin, \
-    MakeStruct, SelectFields, InsertFields, GetField, MakeTuple, \
+    ArraySort, ArrayMaximalIndependentSet, ToSet, ToDict, toArray, ToArray, CastToArray, \
+    ToStream, toStream, LowerBoundOnOrderedCollection, GroupByKey, StreamMap, StreamZip, StreamTake, \
+    StreamFilter, StreamFlatMap, StreamFold, StreamScan, StreamJoinRightDistinct, StreamFor, \
+    AggFilter, AggExplode, AggGroupBy, AggArrayPerElement, BaseApplyAggOp, ApplyAggOp, ApplyScanOp, \
+    AggFold, Begin, MakeStruct, SelectFields, InsertFields, GetField, MakeTuple, \
     GetTupleElement, Die, ConsoleLog, Apply, ApplySeeded, RNGStateLiteral, RNGSplit,\
-    TableCount, TableGetGlobals, TableCollect, TableAggregate, MatrixCount,\
-    MatrixAggregate, TableWrite, udf, subst, clear_session_functions, ReadPartition,\
+    TableCount, TableGetGlobals, TableCollect, TableAggregate, MatrixCount, \
+    MatrixAggregate, TableWrite, udf, subst, clear_session_functions, ReadPartition, \
     PartitionNativeIntervalReader, StreamMultiMerge, StreamZipJoin
 from .register_functions import register_functions
 from .register_aggregators import register_aggregators
@@ -166,6 +165,7 @@ __all__ = [
     'NDArrayConcat',
     'NDArrayWrite',
     'ArraySort',
+    'ArrayMaximalIndependentSet',
     'ToSet',
     'ToDict',
     'toArray',

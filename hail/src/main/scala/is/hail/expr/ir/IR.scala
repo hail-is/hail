@@ -248,6 +248,7 @@ final case class ArrayRef(a: IR, i: IR, errorID: Int) extends IR
 final case class ArraySlice(a: IR, start: IR, stop: Option[IR], step:IR = I32(1), errorID: Int = ErrorIDs.NO_ERROR) extends IR
 final case class ArrayLen(a: IR) extends IR
 final case class ArrayZeros(length: IR) extends IR
+final case class ArrayMaximalIndependentSet(edges: IR, tieBreaker: Option[(String, String, IR)]) extends IR
 
 /**
   * [[StreamIota]] is an infinite stream producer, whose element is an integer starting at `start`, updated by

@@ -178,6 +178,14 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case ArraySort(a, l, r, c) =>
         addElementBinding(l, a, makeRequired = true)
         addElementBinding(r, a, makeRequired = true)
+      case ArrayMaximalIndependentSet(a, tiebreaker) =>
+        tiebreaker.foreach { case (left, right, _) =>
+          val eltReq = tcoerce[TypeWithRequiredness](tcoerce[RIterable](lookup(a)).elementType.children.head)
+          val req = RTuple(Seq(eltReq))
+          req.union(true)
+          refMap(left).foreach { u => defs.bind(u, Array(req)) }
+          refMap(right).foreach { u => defs.bind(u, Array(req)) }
+        }
       case StreamMap(a, name, body) =>
         addElementBinding(name, a)
       case x@StreamZip(as, names, body, behavior, _) =>
@@ -288,7 +296,6 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           refMap(partitionStreamName).foreach { u => defs.bind(u, Array[BaseTypeWithRequiredness](RIterable(lookup(child).rowType))) }
         val refs = refMap.getOrElse(globalName, FastIndexedSeq()) ++ refMap.getOrElse(partitionStreamName, FastIndexedSeq())
         dependents.getOrElseUpdate(child, mutable.Set[RefEquality[BaseIR]]()) ++= refs
-      case _ => fatal(Pretty(ctx, node))
     }
   }
 
@@ -522,6 +529,11 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.union(aReq.required && stopReq && lookup(start).required && lookup(step).required)
       case ArraySort(a, l, r, c) =>
         requiredness.unionFrom(lookup(a))
+      case ArrayMaximalIndependentSet(a, _) =>
+        val aReq = lookupAs[RIterable](a)
+        val Seq(childA, _) = tcoerce[RBaseStruct](aReq.elementType).children
+        tcoerce[RIterable](requiredness).elementType.unionFrom(childA)
+        requiredness.union(aReq.required)
       case ToDict(a) =>
         val aReq = lookupAs[RIterable](a)
         val Seq(keyType, valueType) = tcoerce[RBaseStruct](aReq.elementType).children

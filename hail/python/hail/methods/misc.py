@@ -4,7 +4,7 @@ import hail as hl
 from hail.expr import Expression, \
     expr_numeric, expr_array, expr_interval, expr_any, \
     construct_expr, construct_variable
-from hail.expr.types import ttuple, tlocus, tarray, tstr, tstruct
+from hail.expr.types import tlocus, tarray, tstr, tstruct, ttuple
 from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.typecheck import typecheck, nullable, func_spec, oneof
@@ -137,26 +137,23 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None, keyed=True) -> Ta
 
     if tie_breaker:
         wrapped_node_t = ttuple(node_t)
-        left = construct_variable('l', wrapped_node_t)
-        right = construct_variable('r', wrapped_node_t)
+        left_id = Env.get_uid()
+        right_id = Env.get_uid()
+        left = construct_variable(left_id, wrapped_node_t)
+        right = construct_variable(right_id, wrapped_node_t)
         tie_breaker_expr = hl.float64(tie_breaker(left[0], right[0]))
+        tie_breaker_ir = tie_breaker_expr._ir
         t, _ = source._process_joins(i, j, tie_breaker_expr)
-        tie_breaker_str = str(tie_breaker_expr._ir)
     else:
+        left_id, right_id, tie_breaker_ir = None, None, None
         t, _ = source._process_joins(i, j)
-        tie_breaker_str = None
 
     edges = t.select(__i=i, __j=j).key_by().select('__i', '__j')
-    edges_path = new_temp_file()
-    edges.write(edges_path)
-    edges = hl.read_table(edges_path)
+    edges = edges.checkpoint(new_temp_file())
 
-    mis_nodes = construct_expr(
-        ir.JavaIR(Env.hail().utils.Graph.pyMaximalIndependentSet(
-            Env.spark_backend('maximal_independent_set')._to_java_value_ir(edges.collect(_localize=False)._ir),
-            node_t._parsable_string(),
-            tie_breaker_str)),
-        hl.tset(node_t))
+    mis_nodes = hl.set(construct_expr(
+        ir.ArrayMaximalIndependentSet(edges.collect(_localize=False)._ir, left_id, right_id, tie_breaker_ir),
+        hl.tarray(node_t)))
 
     nodes = edges.select(node=[edges.__i, edges.__j])
     nodes = nodes.explode(nodes.node)
