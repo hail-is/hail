@@ -617,7 +617,7 @@ async def get_job_log(request, userdata, batch_id):  # pylint: disable=unused-ar
     return web.json_response(job_log_strings)
 
 
-async def get_job_container_log(request, userdata, batch_id):
+async def get_job_container_log(request, batch_id):
     app = request.app
     job_id = int(request.match_info['job_id'])
     container = request.match_info['container']
@@ -632,7 +632,7 @@ async def get_job_container_log(request, userdata, batch_id):
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log/{container}')
 @rest_billing_project_users_only
 async def rest_get_job_container_log(request, userdata, batch_id):  # pylint: disable=unused-argument
-    return await get_job_container_log(request, userdata, batch_id)
+    return await get_job_container_log(request, batch_id)
 
 
 async def _query_batches(request, user, q):
@@ -2207,7 +2207,7 @@ async def ui_get_job(request, userdata, batch_id):
 @web_billing_project_users_only()
 @catch_ui_error_in_dev
 async def ui_get_job_log(request, userdata, batch_id):  # pylint: disable=unused-argument
-    return await get_job_container_log(request, userdata, batch_id)
+    return await get_job_container_log(request, batch_id)
 
 
 @routes.get('/billing_limits')
