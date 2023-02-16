@@ -147,7 +147,7 @@ class Tests(unittest.TestCase):
             return hl.import_vcf(resource('sample2.vcf'), reference_genome=rg).locus.dtype
 
         assert tlocus._schema_from_rg(None) == locus_from_import_vcf(None)
-        assert tlocus._schema_from_rg('GRCh37') == locus_from_import_vcf('GRCh38')
+        assert tlocus._schema_from_rg('GRCh37') == locus_from_import_vcf('GRCh37')
         assert tlocus._schema_from_rg('GRCh38') == locus_from_import_vcf('GRCh38')
         assert tlocus._schema_from_rg('GRCm38') == locus_from_import_vcf('GRCm38')
         assert tlocus._schema_from_rg('CanFam3') == locus_from_import_vcf('CanFam3')
