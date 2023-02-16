@@ -2078,6 +2078,9 @@ steps:
       - name: case-sensitive-billing-project
         script: /io/sql/case-sensitive-billing-project.sql
         online: true
+      - name: cleanup-old-billing-tables
+        script: /io/sql/cleanup-old-billing-tables.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
