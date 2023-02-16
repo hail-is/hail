@@ -31,7 +31,7 @@ trait ServiceCacheableFS extends FS {
     client.open(filename).map(new WrappedSeekableDataInputStream(_)).getOrElse(openNoCompression(filename))
   }
 
-  def writeCached(filename: String)(writer: PositionedDataOutputStream => Unit) = {
+  override def writeCached(filename: String)(writer: PositionedDataOutputStream => Unit) = {
     try {
       client.writeToStream(filename) { os =>
         writer(outputStreamToPositionedDataOutputStream(os))
