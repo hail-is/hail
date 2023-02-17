@@ -72,6 +72,7 @@ class CloudBillingManager(abc.ABC):
                     f'adding new resource {resource_name} {latest_product_version} with rate change of {latest_resource_rate}'
                 )
             else:
+                assert current_product_version
                 resource_name = product_version_to_resource(product, current_product_version)
                 current_resource_rate = self.resource_rates.get(resource_name)
 
