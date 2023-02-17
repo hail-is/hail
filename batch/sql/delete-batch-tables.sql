@@ -22,12 +22,12 @@ DROP TRIGGER IF EXISTS attempts_after_update;
 DROP TRIGGER IF EXISTS jobs_after_update;
 DROP TRIGGER IF EXISTS attempt_resources_after_insert;
 DROP TRIGGER IF EXISTS attempt_resources_before_insert;  # deprecated
-DROP TRIGGER IF EXISTS aggregated_billing_project_user_resources_v2_before_insert;
-DROP TRIGGER IF EXISTS aggregated_billing_project_user_resources_by_date_v2_before_insert;
+DROP TRIGGER IF EXISTS aggregated_bp_user_resources_v2_before_insert;
+DROP TRIGGER IF EXISTS aggregated_bp_user_resources_by_date_v2_before_insert;
 DROP TRIGGER IF EXISTS aggregated_batch_resources_v2_before_insert;
 DROP TRIGGER IF EXISTS aggregated_job_resources_v2_before_insert;
-DROP TRIGGER IF EXISTS aggregated_billing_project_user_resources_v2_after_update;
-DROP TRIGGER IF EXISTS aggregated_billing_project_user_resources_by_date_v2_after_update;
+DROP TRIGGER IF EXISTS aggregated_bp_user_resources_v2_after_update;
+DROP TRIGGER IF EXISTS aggregated_bp_user_resources_by_date_v2_after_update;
 DROP TRIGGER IF EXISTS aggregated_batch_resources_v2_after_update;
 DROP TRIGGER IF EXISTS aggregated_job_resources_v2_after_update;
 DROP TRIGGER IF EXISTS resources_before_insert;

@@ -232,15 +232,15 @@ BEGIN
   END IF;
 END $$
 
-DROP TRIGGER IF EXISTS aggregated_billing_project_user_resources_v2_before_insert $$
-CREATE TRIGGER aggregated_billing_project_user_resources_v2_before_insert BEFORE INSERT ON aggregated_billing_project_user_resources_v2
+DROP TRIGGER IF EXISTS aggregated_bp_user_resources_v2_before_insert $$
+CREATE TRIGGER aggregated_bp_user_resources_v2_before_insert BEFORE INSERT ON aggregated_billing_project_user_resources_v2
 FOR EACH ROW
 BEGIN
   SET NEW.migrated = 1;
 END $$
 
-DROP TRIGGER IF EXISTS aggregated_billing_project_user_resources_by_date_v2_before_insert $$
-CREATE TRIGGER aggregated_billing_project_user_resources_by_date_v2_before_insert BEFORE INSERT ON aggregated_billing_project_user_resources_by_date_v2
+DROP TRIGGER IF EXISTS aggregated_bp_user_resources_by_date_v2_before_insert $$
+CREATE TRIGGER aggregated_bp_user_resources_by_date_v2_before_insert BEFORE INSERT ON aggregated_billing_project_user_resources_by_date_v2
 FOR EACH ROW
 BEGIN
   SET NEW.migrated = 1;
@@ -260,8 +260,8 @@ BEGIN
   SET NEW.migrated = 1;
 END $$
 
-DROP TRIGGER IF EXISTS aggregated_billing_project_user_resources_v2_after_update $$
-CREATE TRIGGER aggregated_billing_project_user_resources_v2_after_update AFTER UPDATE ON aggregated_billing_project_user_resources_v2
+DROP TRIGGER IF EXISTS aggregated_bp_user_resources_v2_after_update $$
+CREATE TRIGGER aggregated_bp_user_resources_v2_after_update AFTER UPDATE ON aggregated_billing_project_user_resources_v2
 FOR EACH ROW
 BEGIN
   DECLARE new_resource_id INT;
@@ -279,8 +279,8 @@ BEGIN
   END IF;
 END $$
 
-DROP TRIGGER IF EXISTS aggregated_billing_project_user_resources_by_date_v2_after_update $$
-CREATE TRIGGER aggregated_billing_project_user_resources_by_date_v2_after_update AFTER UPDATE ON aggregated_billing_project_user_resources_by_date_v2
+DROP TRIGGER IF EXISTS aggregated_bp_user_resources_by_date_v2_after_update $$
+CREATE TRIGGER aggregated_bp_user_resources_by_date_v2_after_update AFTER UPDATE ON aggregated_billing_project_user_resources_by_date_v2
 FOR EACH ROW
 BEGIN
   DECLARE new_resource_id INT;
