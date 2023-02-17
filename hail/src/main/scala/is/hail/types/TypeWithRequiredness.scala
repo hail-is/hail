@@ -6,7 +6,7 @@ import is.hail.types.physical.stypes.concrete.SIndexablePointer
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SInterval, SNDArray, SStream}
 import is.hail.types.physical.stypes.{EmitType, SType}
 import is.hail.types.virtual._
-import is.hail.utils.{FastSeq, Interval, rowIterator, toMapFast}
+import is.hail.utils.{FastIndexedSeq, FastSeq, Interval, rowIterator, toMapFast}
 import org.apache.spark.sql.Row
 
 object BaseTypeWithRequiredness {
@@ -170,9 +170,10 @@ object VirtualTypeWithReq {
   }
 
   def subset(vt: Type, rt: TypeWithRequiredness): VirtualTypeWithReq = {
+    val empty = FastIndexedSeq()
     def subsetRT(vt: Type, rt: TypeWithRequiredness): TypeWithRequiredness = {
-      (vt, rt) match {
-        case (_, t: RPrimitive) => t
+      val r = (vt, rt) match {
+        case (_, t: RPrimitive) => t.copy(empty)
         case (tt: TTuple, rt: RTuple) =>
           RTuple(tt.fields.map(fd => RField(fd.name, subsetRT(fd.typ, rt.fieldType(fd.name)), fd.index)))
         case (ts: TStruct, rt: RStruct) =>
@@ -182,6 +183,8 @@ object VirtualTypeWithReq {
         case (tit: TIterable, rit: RIterable) => RIterable(subsetRT(tit.elementType, rit.elementType))
         case (tnd: TNDArray, rnd: RNDArray) => RNDArray(subsetRT(tnd.elementType, rnd.elementType))
       }
+      r.union(rt.required)
+      r
     }
     VirtualTypeWithReq(vt, subsetRT(vt, rt))
   }

@@ -61,11 +61,11 @@ object LowerAndExecuteShuffles {
           }, newKey, seq, "row", aggSigs, bufferSize)),
           0, 0).noSharing
 
-        // annoying but no better alternative right now
-        val req2 = Requiredness(partiallyAggregated, ctx)
-        val rt = req2.lookup(partiallyAggregated).asInstanceOf[RTable]
 
-        val preShuffleStage = ctx.backend.tableToTableStage(ctx, partiallyAggregated, LoweringAnalyses(partiallyAggregated, ctx))
+        val analyses = LoweringAnalyses(partiallyAggregated, ctx)
+        val preShuffleStage = ctx.backend.tableToTableStage(ctx, partiallyAggregated, analyses)
+        // annoying but no better alternative right now
+        val rt = analyses.requirednessAnalysis.lookup(partiallyAggregated).asInstanceOf[RTable]
         val partiallyAggregatedReader = ctx.backend.lowerDistributedSort(ctx,
           preShuffleStage,
           newKeyType.fieldNames.map(k => SortField(k, Ascending)),
