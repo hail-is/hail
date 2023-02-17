@@ -69,6 +69,9 @@ sealed trait TypedIR[T <: Type] extends IR {
   override def typ: T = tcoerce[T](super.typ)
 }
 
+// Mark Refs and constants as IRs that are safe to duplicate
+sealed trait TrivialIR extends IR
+
 object Literal {
   def coerce(t: Type, x: Any): IR = {
     if (x == null)
@@ -138,16 +141,16 @@ class WrappedByteArrays(val ba: Array[Array[Byte]]) {
   }
 }
 
-final case class I32(x: Int) extends IR
-final case class I64(x: Long) extends IR
-final case class F32(x: Float) extends IR
-final case class F64(x: Double) extends IR
-final case class Str(x: String) extends IR {
+final case class I32(x: Int) extends IR with TrivialIR
+final case class I64(x: Long) extends IR with TrivialIR
+final case class F32(x: Float) extends IR with TrivialIR
+final case class F64(x: Double) extends IR with TrivialIR
+final case class Str(x: String) extends IR with TrivialIR {
   override def toString(): String = s"""Str("${StringEscapeUtils.escapeString(x)}")"""
 }
-final case class True() extends IR
-final case class False() extends IR
-final case class Void() extends IR
+final case class True() extends IR with TrivialIR
+final case class False() extends IR with TrivialIR
+final case class Void() extends IR with TrivialIR
 
 object UUID4 {
   def apply(): UUID4 = UUID4(genUID())
@@ -163,7 +166,7 @@ final case class UUID4(id: String) extends IR
 final case class Cast(v: IR, _typ: Type) extends IR
 final case class CastRename(v: IR, _typ: Type) extends IR
 
-final case class NA(_typ: Type) extends IR
+final case class NA(_typ: Type) extends IR with TrivialIR
 final case class IsNA(value: IR) extends IR
 
 final case class Coalesce(values: Seq[IR]) extends IR {
@@ -177,7 +180,7 @@ final case class If(cond: IR, cnsq: IR, altr: IR) extends IR
 final case class AggLet(name: String, value: IR, body: IR, isScan: Boolean) extends IR
 final case class Let(name: String, value: IR, body: IR) extends IR
 
-sealed abstract class BaseRef extends IR {
+sealed abstract class BaseRef extends IR with TrivialIR {
   def name: String
   def _typ: Type
 }
@@ -448,10 +451,15 @@ sealed trait NDArrayIR extends TypedIR[TNDArray] {
 }
 
 object MakeNDArray {
-  def fill(elt: IR, shape: IndexedSeq[Long], rowMajor: IR): MakeNDArray =
+  def fill(elt: IR, shape: IndexedSeq[IR], rowMajor: IR): MakeNDArray = {
+    val flatSize: IR = if (shape.nonEmpty)
+      shape.reduce { (l, r) => l * r }
+    else
+      0L
     MakeNDArray(
-      ToArray(StreamMap(StreamRange(0, shape.product.toInt, 1, errorID = ErrorIDs.NO_ERROR), genUID(), elt)),
-      MakeTuple.ordered(shape.map(I64)), rowMajor, ErrorIDs.NO_ERROR)
+      ToArray(mapIR(rangeIR(flatSize.toI))(_ => elt)),
+      MakeTuple.ordered(shape), rowMajor, ErrorIDs.NO_ERROR)
+  }
 }
 
 final case class MakeNDArray(data: IR, shape: IR, rowMajor: IR, errorId: Int) extends NDArrayIR

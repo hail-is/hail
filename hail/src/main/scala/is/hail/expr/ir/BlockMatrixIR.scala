@@ -1,25 +1,24 @@
 package is.hail.expr.ir
 
-import is.hail.HailContext
-import is.hail.types.{BlockMatrixSparsity, BlockMatrixType}
-import is.hail.types.virtual.{TArray, TBaseStruct, TFloat64, TInt32, TInt64, TNDArray, TString, TTuple, Type}
-import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata}
-import is.hail.utils._
 import breeze.linalg.DenseMatrix
 import breeze.numerics
-import is.hail.annotations.{NDArray, Region}
+import is.hail.HailContext
+import is.hail.annotations.NDArray
 import is.hail.backend.{BackendContext, ExecuteContext}
 import is.hail.expr.Nat
-import is.hail.expr.ir.lowering.{BlockMatrixStage, LowererUnsupportedOperation}
-import is.hail.io.{StreamBufferSpec, TypedCodecSpec}
+import is.hail.expr.ir.lowering.{BMSContexts, BlockMatrixStage2, LowererUnsupportedOperation}
 import is.hail.io.fs.FS
+import is.hail.io.{StreamBufferSpec, TypedCodecSpec}
+import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata}
 import is.hail.types.encoded.{EBlockMatrixNDArray, EFloat64, ENumpyBinaryNDArray}
-
-import scala.collection.mutable.ArrayBuffer
+import is.hail.types.virtual._
+import is.hail.types.{BlockMatrixSparsity, BlockMatrixType}
+import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
 import scala.collection.immutable.NumericRange
+import scala.collection.mutable.ArrayBuffer
 
 object BlockMatrixIR {
   def checkFitsIntoArray(nRows: Long, nCols: Long) {
@@ -106,7 +105,7 @@ object BlockMatrixReader {
 abstract class BlockMatrixReader {
   def pathsUsed: Seq[String]
   def apply(ctx: ExecuteContext): BlockMatrix
-  def lower(ctx: ExecuteContext): BlockMatrixStage =
+  def lower(ctx: ExecuteContext, evalCtx: IRBuilder): BlockMatrixStage2 =
     throw new LowererUnsupportedOperation(s"BlockMatrixReader not implemented: ${ this.getClass }")
   def fullType: BlockMatrixType
   def toJValue: JValue = {
@@ -157,24 +156,27 @@ class BlockMatrixNativeReader(
 
   }
 
-  override def lower(ctx: ExecuteContext): BlockMatrixStage = {
-    val blockFiles = fullType.sparsity.definedBlocksColMajor.map { blocks =>
-      blocks.zipWithIndex.toMap.mapValues { i => metadata.partFiles(i) }
-    }
+  override def lower(ctx: ExecuteContext, evalCtx: IRBuilder): BlockMatrixStage2 = {
+    val fileNames = Literal(TArray(TString), metadata.partFiles)
+
+    val contexts = BMSContexts(fullType, fileNames, evalCtx)
+
     val vType = TNDArray(fullType.elementType, Nat(2))
     val spec = TypedCodecSpec(EBlockMatrixNDArray(EFloat64(required = true), required = true), vType, BlockMatrix.bufferSpec)
 
+    def blockIR(ctx: IR): IR = {
+      val path = Apply("concat", FastSeq(),
+        FastSeq(Str(s"${ params.path }/parts/"), ctx),
+        TString, ErrorIDs.NO_ERROR)
 
-    new BlockMatrixStage(IndexedSeq(), Array(), TString) {
-      def blockContext(idx: (Int, Int)): IR = {
-        if (!fullType.hasBlock(idx))
-          fatal(s"trying to read nonexistent block $idx from path ${ params.path }")
-        val filename = blockFiles.map(_(idx)).getOrElse(metadata.partFiles(idx._1 + idx._2 * fullType.nRowBlocks))
-        Str(s"${params.path}/parts/$filename")
-      }
-
-      def blockBody(ctxRef: Ref): IR = ReadValue(ctxRef, spec, vType)
+      ReadValue(path, spec, vType)
     }
+
+    BlockMatrixStage2(
+      FastIndexedSeq(),
+      fullType,
+      contexts,
+      blockIR)
   }
 
   override def toJValue: JValue = {
@@ -204,22 +206,21 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
     BlockMatrix.fromBreezeMatrix(breezeMatrix, blockSize)
   }
 
-  override def lower(ctx: ExecuteContext): BlockMatrixStage = {
+  override def lower(ctx: ExecuteContext, evalCtx: IRBuilder): BlockMatrixStage2 = {
     val readFromNumpyEType = ENumpyBinaryNDArray(nRows, nCols, true)
     val readFromNumpySpec = TypedCodecSpec(readFromNumpyEType, TNDArray(TFloat64, Nat(2)), new StreamBufferSpec())
-    val nd = ReadValue(Str(path), readFromNumpySpec, TNDArray(TFloat64, nDimsBase = Nat(2)))
-    val ndRef = Ref(genUID(), nd.typ)
+    val nd = evalCtx.memoize(ReadValue(Str(path), readFromNumpySpec, TNDArray(TFloat64, nDimsBase = Nat(2))))
 
-    new BlockMatrixStage(IndexedSeq(ndRef.name -> nd), Array(), nd.typ) {
-      def blockContext(idx: (Int, Int)): IR = {
-        val (r, c) = idx
-        NDArraySlice(ndRef, MakeTuple.ordered(FastSeq(
-          MakeTuple.ordered(FastSeq(I64(r.toLong * blockSize), I64(java.lang.Math.min((r.toLong + 1) * blockSize, nRows)), I64(1))),
-          MakeTuple.ordered(FastSeq(I64(c.toLong * blockSize), I64(java.lang.Math.min((c.toLong + 1) * blockSize, nCols)), I64(1))))))
-      }
-
-      def blockBody(ctxRef: Ref): IR = ctxRef
+    val typ = fullType
+    val contexts = BMSContexts.tabulate(typ, evalCtx) { (blockRow, blockCol) =>
+      NDArraySlice(nd, MakeTuple.ordered(FastSeq(
+        MakeTuple.ordered(FastSeq(blockRow.toL * blockSize.toLong, minIR((blockRow + 1).toL * blockSize.toLong, nRows), 1L)),
+        MakeTuple.ordered(FastSeq(blockCol.toL * blockSize.toLong, minIR((blockCol + 1).toL * blockSize.toLong, nCols), 1L)))))
     }
+
+    def blockIR(ctx: IR) = ctx
+
+    BlockMatrixStage2(FastIndexedSeq(), typ, contexts, blockIR)
   }
 }
 
@@ -672,11 +673,8 @@ case class BlockMatrixFilter(
   lazy val keepRowPartitioned: Array[Array[Long]] = keepRow.grouped(blockSize).toArray
   lazy val keepColPartitioned: Array[Array[Long]] = keepCol.grouped(blockSize).toArray
 
-  private[this] def packOverlap(keep: Array[Array[Long]]): Array[Array[Int]] =
-    keep.map(keeps => Array.range(BlockMatrixType.getBlockIdx(keeps.head, blockSize), BlockMatrixType.getBlockIdx(keeps.last, blockSize) + 1)).toArray
-
-  lazy val rowBlockDependents: Array[Array[Int]] = if (keepRow.isEmpty) Array.tabulate(child.typ.nRowBlocks)(i => Array(i)) else packOverlap(keepRowPartitioned)
-  lazy val colBlockDependents: Array[Array[Int]] = if (keepCol.isEmpty) Array.tabulate(child.typ.nColBlocks)(i => Array(i)) else packOverlap(keepColPartitioned)
+  lazy val rowBlockDependents: Array[Array[Int]] = child.typ.rowBlockDependents(keepRowPartitioned)
+  lazy val colBlockDependents: Array[Array[Int]] = child.typ.colBlockDependents(keepColPartitioned)
 
   override lazy val typ: BlockMatrixType = {
     val childTensorShape = child.typ.shape

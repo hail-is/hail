@@ -6,7 +6,7 @@ import is.hail.annotations.{BroadcastRow, ExtendedOrdering, SafeNDArray}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
-import is.hail.expr.ir.IRBuilder._
+import is.hail.expr.ir.DeprecatedIRBuilder._
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.functions._
 import is.hail.io.bgen.{IndexBgen, MatrixBGENReader}
@@ -19,7 +19,7 @@ import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.primitives.SInt32
 import is.hail.types.virtual._
 import is.hail.types.{BlockMatrixType, TableType, VirtualTypeWithReq, tcoerce}
-import is.hail.utils.{FastIndexedSeq, _}
+import is.hail.utils._
 import is.hail.variant.{Call2, Locus}
 import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
