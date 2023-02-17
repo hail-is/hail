@@ -3,6 +3,7 @@ from typing import (Any, Callable, TypeVar, Awaitable, Mapping, Optional, Type, 
 from typing_extensions import Literal
 from types import TracebackType
 import concurrent
+import concurrent.futures
 import contextlib
 import subprocess
 import traceback
@@ -695,14 +696,6 @@ def is_transient_error(e):
     return False
 
 
-def is_delayed_warning_error(e):
-    if isinstance(e, aiohttp.ClientResponseError) and e.status in (503, 429):
-        # 503 service unavailable
-        # 429 "Temporarily throttled, too many requests"
-        return True
-    return False
-
-
 async def sleep_and_backoff(delay, max_delay=30.0):
     # exponentially back off, up to (expected) max_delay
     t = delay * random.uniform(0.9, 1.1)
@@ -758,15 +751,10 @@ def retry_all_errors_n_times(max_errors=10, msg=None, error_logging_interval=10)
 
 
 async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
-    return await retry_transient_errors_with_debug_string('', 0, f, *args, **kwargs)
+    return await retry_transient_errors_with_debug_string('', f, *args, **kwargs)
 
 
-async def retry_transient_errors_with_delayed_warnings(warning_delay_msecs: int, f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
-    return await retry_transient_errors_with_debug_string('', warning_delay_msecs, f, *args, **kwargs)
-
-
-async def retry_transient_errors_with_debug_string(debug_string: str, warning_delay_msecs: int, f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
-    start_time = time_msecs()
+async def retry_transient_errors_with_debug_string(debug_string: str, f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
     delay = 0.1
     errors = 0
     while True:
@@ -780,12 +768,11 @@ async def retry_transient_errors_with_debug_string(debug_string: str, warning_de
                 return await f(*args, **kwargs)
             if not is_transient_error(e):
                 raise
-            log_warnings = (time_msecs() - start_time >= warning_delay_msecs) or not is_delayed_warning_error(e)
-            if log_warnings and errors == 2:
+            if errors == 2:
                 log.warning(f'A transient error occured. We will automatically retry. Do not be alarmed. '
                             f'We have thus far seen {errors} transient errors (current delay: '
                             f'{delay}). The most recent error was {type(e)} {e}. {debug_string}')
-            elif log_warnings and errors % 10 == 0:
+            elif errors % 10 == 0:
                 st = ''.join(traceback.format_stack())
                 log.warning(f'A transient error occured. We will automatically retry. '
                             f'We have thus far seen {errors} transient errors (current delay: '
