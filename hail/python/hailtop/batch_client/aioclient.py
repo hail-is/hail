@@ -218,6 +218,9 @@ class Job:
     async def wait(self):
         return await self._job.wait()
 
+    async def container_log(self, container_name: str):
+        return await self._job.container_log(container_name)
+
     async def log(self):
         return await self._job.log()
 
@@ -269,6 +272,9 @@ class UnsubmittedJob:
 
     async def wait(self):
         raise ValueError("cannot wait on an unsubmitted job")
+
+    async def container_log(self, container_name: str):
+        raise ValueError("cannot get the log of an unsubmitted job")
 
     async def log(self):
         raise ValueError("cannot get the log of an unsubmitted job")
@@ -322,6 +328,10 @@ class SubmittedJob:
             # max 44.5s
             if i < 64:
                 i = i + 1
+
+    async def container_log(self, container_name: str) -> bytes:
+        async with await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log/{container_name}') as resp:
+            return await resp.read()
 
     async def log(self):
         resp = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log')
