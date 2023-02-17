@@ -1307,12 +1307,9 @@ steps:
       - gcp
   - kind: runImage
     name: test_hail_python_local_backend
-    numSplits: 7
+    numSplits: 14
     image:
       valueFrom: hail_run_image.image
-    resources:
-      memory: standard
-      cpu: '2'
     script: |
       set -ex
       cd /io
