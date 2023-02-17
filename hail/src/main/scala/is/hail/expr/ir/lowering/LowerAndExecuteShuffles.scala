@@ -51,13 +51,15 @@ object LowerAndExecuteShuffles {
           ("__initState",
           RunAgg(init, MakeTuple.ordered(aggSigs.indices.map { aIdx => AggStateValue(aIdx, aggSigs(aIdx).state) }),
             aggSigs.map(_.state))))))
-        val insGlob = Ref(genUID(), ts.typ.globalType)
+
+        val insGlobName = genUID()
+        def insGlob = Ref(insGlobName, ts.typ.globalType)
         val partiallyAggregated = TableMapPartitions(ts, insGlob.name, streamName, Let("global",
           GetField(insGlob, "oldGlobals"),
           StreamBufferedAggregate(Ref(streamName, streamTyp), bindIR(GetField(insGlob, "__initState")) { states =>
             Begin(aggSigs.indices.map { aIdx => InitFromSerializedValue(aIdx, GetTupleElement(states, aIdx), aggSigs(aIdx).state) })
           }, newKey, seq, "row", aggSigs, bufferSize)),
-          0, 0)
+          0, 0).noSharing
 
         // annoying but no better alternative right now
         val req2 = Requiredness(partiallyAggregated, ctx)
