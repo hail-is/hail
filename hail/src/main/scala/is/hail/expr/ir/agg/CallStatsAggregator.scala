@@ -118,7 +118,7 @@ class CallStatsAggregator extends StagedAggregator {
 
     nAlleles.toI(cb)
       .consume(cb,
-        cb += Code._fatal[Unit]("call_stats: n_alleles may not be missing"),
+        cb += Code._fatal[Unit]("hl.agg.call_stats: n_alleles may not be missing"),
         { sc =>
           cb.assign(n, sc.asInt.value)
           cb.assign(state.nAlleles, n)
@@ -150,7 +150,7 @@ class CallStatsAggregator extends StagedAggregator {
       val i = cb.newLocal[Int]("i", 0)
       call.forEachAllele(cb) { allele: Value[Int] =>
         cb.ifx(allele > state.nAlleles,
-          cb._fatal(const("found allele outside of expected range [0, ")
+          cb._fatal(const("hl.agg.call_stats: found allele outside of expected range [0, ")
             .concat(state.nAlleles.toS).concat("]: ").concat(allele.toS)))
         state.updateAlleleCountAtIndex(cb, allele, state.nAlleles, _ + 1)
         cb.ifx(i > 0, cb.assign(hom, hom && allele.ceq(lastAllele)))
@@ -167,7 +167,7 @@ class CallStatsAggregator extends StagedAggregator {
   protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: CallStatsState, other: CallStatsState): Unit = {
     val i = state.kb.genFieldThisRef[Int]()
     cb.ifx(other.nAlleles.cne(state.nAlleles),
-      cb += Code._fatal[Unit]("length mismatch"),
+      cb += Code._fatal[Unit]("hl.agg.call_stats: length mismatch"),
       {
         cb.assign(i, 0)
         cb.whileLoop(i < state.nAlleles,

@@ -48,12 +48,15 @@ object LowerToCDA {
           print = None)
       }
 
-      val addr = ctx.timer.time("Run")(f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r).apply(ctx.r))
+      val lit = ctx.scopedExecution { (hcl, fs, htc, r) =>
 
-      val lit = if (pt.isFieldMissing(addr, 0))
-        NA(pt.types(0).virtualType)
-      else
-        EncodedLiteral.fromPTypeAndAddress(pt.types(0), pt.loadField(addr, 0), ctx)
+        val addr = ctx.timer.time("Run")(f(hcl, fs, htc, r).apply(r))
+
+        if (pt.isFieldMissing(addr, 0))
+          NA(pt.types(0).virtualType)
+        else
+          EncodedLiteral.fromPTypeAndAddress(pt.types(0), pt.loadField(addr, 0), ctx)
+      }
 
       lower(body, typesToLower, ctx, analyses, relationalLetsAbove + ((name, lit)))
 

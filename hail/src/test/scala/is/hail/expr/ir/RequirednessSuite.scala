@@ -52,7 +52,7 @@ class RequirednessSuite extends HailSuite {
   }
 
   def nd(r: Boolean): IR =
-    if (r) MakeNDArray.fill(int(optional), FastIndexedSeq(1, 2), True()) else NA(tnd)
+    if (r) MakeNDArray.fill(int(optional), FastIndexedSeq(1L, 2L), True()) else NA(tnd)
 
 // FIXME: Currently ndarrays don't support elements that have pointers.
 //  def nestednd(r: Boolean, aelt: Boolean): IR = {

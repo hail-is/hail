@@ -7,11 +7,12 @@ import socketserver
 from threading import Thread
 import py4j
 import pyspark
+import pyspark.sql
 
 from typing import List, Optional
 
 import hail as hl
-from hail.utils.java import Env, scala_package_object, scala_object
+from hail.utils.java import scala_package_object, scala_object
 from hail.expr.types import dtype
 from hail.expr.table_type import ttable
 from hail.expr.matrix_type import tmatrix
@@ -314,8 +315,7 @@ class SparkBackend(Py4JBackend):
         t = t.expand_types()
         if flatten:
             t = t.flatten()
-        return pyspark.sql.DataFrame(self._jbackend.pyToDF(self._to_java_table_ir(t._tir)),
-                                     Env.spark_session()._wrapped)
+        return pyspark.sql.DataFrame(self._jbackend.pyToDF(self._to_java_table_ir(t._tir)), self._spark_session)
 
     def add_reference(self, config):
         self.hail_package().variant.ReferenceGenome.fromJSON(json.dumps(config))

@@ -12,6 +12,7 @@ from .java import error, warning, info, FatalError, HailUserError
 from .tutorial import get_1kg, get_hgdp, get_movie_lens
 from .deduplicate import deduplicate
 from .jsonx import JSONEncoder
+from .genomic_range_table import genomic_range_table
 
 __all__ = ['hadoop_open',
            'hadoop_copy',
@@ -53,4 +54,5 @@ __all__ = ['hadoop_open',
            'guess_cloud_spark_provider',
            'no_service_backend',
            'JSONEncoder',
+           'genomic_range_table',
            ]

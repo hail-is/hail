@@ -973,6 +973,20 @@ object IRParser {
           elt = tcoerce[TStream](a.typ).elementType
           lessThan <- ir_value_expr(env.bindEval(l -> elt, r -> elt))(it)
         } yield ArraySort(a, l, r, lessThan)
+      case "ArrayMaximalIndependentSet" =>
+        val hasTieBreaker = boolean_literal(it)
+        val bindings = if (hasTieBreaker) Some(identifier(it) -> identifier(it)) else None
+        for {
+          edges <- ir_value_expr(env)(it)
+          tieBreaker <- if (hasTieBreaker) {
+            val eltType = tcoerce[TArray](edges.typ).elementType.asInstanceOf[TBaseStruct].types.head
+            val tbType = TTuple(eltType)
+            val Some((left, right)) = bindings
+            ir_value_expr(IRParserEnvironment(env.ctx, BindingEnv.eval(left -> tbType, right -> tbType)))(it).map(tbf => Some((left, right, tbf)))
+          } else {
+            done(None)
+          }
+        } yield ArrayMaximalIndependentSet(edges, tieBreaker)
       case "MakeNDArray" =>
         val errorID = int32_literal(it)
         for {
@@ -1663,6 +1677,12 @@ object IRParser {
         val n = int32_literal(it)
         val nPartitions = opt(it, int32_literal)
         done(TableRange(n, nPartitions.getOrElse(HailContext.backend.defaultParallelism)))
+      case "TableGenomicRange" =>
+        val n = int32_literal(it)
+        val nPartitions = opt(it, int32_literal)
+        val optRgStr = opt(it, identifier)
+        val optRg = optRgStr.map(env.typEnv.getReferenceGenome)
+        done(TableGenomicRange(n, nPartitions.getOrElse(HailContext.backend.defaultParallelism), optRg))
       case "TableUnion" => table_ir_children(env.onlyRelational)(it).map(TableUnion(_))
       case "TableOrderBy" =>
         val sortFields = sort_fields(it)
@@ -1954,29 +1974,28 @@ object IRParser {
         punctuation(it, ")")
         ir_value_expr(env)(it).map { ir =>
           val Row(starts: IndexedSeq[Long @unchecked], stops: IndexedSeq[Long @unchecked]) =
-            ExecuteContext.scoped() { ctx => CompileAndEvaluate[Row](ctx, ir) }
+            CompileAndEvaluate[Row](env.ctx, ir)
           RowIntervalSparsifier(blocksOnly, starts, stops)
         }
       case "PyBandSparsifier" =>
         val blocksOnly = boolean_literal(it)
         punctuation(it, ")")
         ir_value_expr(env)(it).map { ir =>
-          val Row(l: Long, u: Long) =
-            ExecuteContext.scoped() { ctx => CompileAndEvaluate[Row](ctx, ir) }
+          val Row(l: Long, u: Long) = CompileAndEvaluate[Row](env.ctx, ir)
           BandSparsifier(blocksOnly, l, u)
         }
       case "PyPerBlockSparsifier" =>
         punctuation(it, ")")
         ir_value_expr(env)(it).map { ir =>
           val indices: IndexedSeq[Int] =
-            ExecuteContext.scoped() { ctx => CompileAndEvaluate[IndexedSeq[Int]](ctx, ir) }
+            CompileAndEvaluate[IndexedSeq[Int]](env.ctx, ir)
           PerBlockSparsifier(indices)
         }
       case "PyRectangleSparsifier" =>
         punctuation(it, ")")
         ir_value_expr(env)(it).map { ir =>
           val rectangles: IndexedSeq[Long] =
-            ExecuteContext.scoped() { ctx => CompileAndEvaluate[IndexedSeq[Long]](ctx, ir) }
+            CompileAndEvaluate[IndexedSeq[Long]](env.ctx, ir)
           RectangleSparsifier(rectangles.grouped(4).toIndexedSeq)
         }
       case "RowIntervalSparsifier" =>
@@ -2142,4 +2161,3 @@ object IRParser {
 
   def parseMatrixType(code: String): MatrixType = parseMatrixType(code, TypeParserEnvironment.default)
 }
-

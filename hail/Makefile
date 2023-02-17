@@ -12,7 +12,7 @@ REVISION := $(shell git rev-parse HEAD)
 SHORT_REVISION := $(shell git rev-parse --short=12 HEAD)
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 SCALA_VERSION ?= 2.12.13
-SPARK_VERSION ?= 3.1.3
+SPARK_VERSION ?= 3.3.0
 HAIL_MAJOR_MINOR_VERSION := 0.2
 HAIL_PATCH_VERSION := 109
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
@@ -314,7 +314,6 @@ upload-qob-test-resources: $(JAR_TEST_SOURCES)
 # target must be run at least once a day if using a dev NAMESPACE.
 # To trigger this target to re-run,
 # > rm upload-qob-jar
-upload-qob-jar: SPARK_VERSION := 3.2.1
 upload-qob-jar: $(SHADOW_JAR)
 	! [ -z $(NAMESPACE) ]  # call this like: make upload-qob-jar NAMESPACE=default
 	gsutil -m cp $(SHADOW_JAR) $(JAR_LOCATION)

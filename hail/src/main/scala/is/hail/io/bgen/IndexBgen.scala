@@ -10,6 +10,7 @@ import is.hail.types.TableType
 import is.hail.types.physical.{PCanonicalStruct, PStruct}
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.asm4s.theHailClassLoaderForSparkWorkers
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.Row
 import org.apache.spark.{Partition, TaskContext}
@@ -119,7 +120,7 @@ object IndexBgen {
         val htc = SparkTaskContext.get()
 
         htc.getRegionPool().scopedRegion { r =>
-          using(makeIW(idxPath, r.pool)) { iw =>
+          using(makeIW(idxPath, theHailClassLoaderForSparkWorkers, htc, r.pool)) { iw =>
             it.foreach { r =>
               assert(r.getInt(fileIdxIdx) == partIdx)
               iw.appendRow(Row(r(locusIdx), r(allelesIdx)), r.getLong(offsetIdx), Row())

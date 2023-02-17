@@ -60,14 +60,21 @@ class CloudBillingManager(abc.ABC):
             latest_product_version = price.version
             latest_resource_rate = price.rate
 
-            resource_name = product_version_to_resource(product, latest_product_version)
-
             current_product_version = self.product_versions.latest_version(product)
+
+            if current_product_version is None:
+                resource_name = product_version_to_resource(product, latest_product_version)
+                resource_updates.append((resource_name, latest_resource_rate))
+                product_version_updates.append((product, latest_product_version))
+                log.info(
+                    f'adding new resource {resource_name} {latest_product_version} with rate change of {latest_resource_rate}'
+                )
+                continue
+
+            resource_name = product_version_to_resource(product, current_product_version)
             current_resource_rate = self.resource_rates.get(resource_name)
 
-            if current_resource_rate is None:
-                resource_updates.append((resource_name, latest_resource_rate))
-            elif abs(current_resource_rate - latest_resource_rate) > 1e-20:
+            if current_product_version == latest_product_version and current_resource_rate != latest_resource_rate:
                 log.error(
                     f'resource {resource_name} does not have the latest rate in the database for '
                     f'version {current_product_version}: {current_resource_rate} vs {latest_resource_rate}; '
@@ -75,10 +82,30 @@ class CloudBillingManager(abc.ABC):
                 )
                 continue
 
-            if price.is_current_price() and (
-                current_product_version is None or current_product_version != latest_product_version
-            ):
-                product_version_updates.append((product, latest_product_version))
+            if current_product_version != latest_product_version and current_resource_rate == latest_resource_rate:
+                # this prevents having too many resources in the database with redundant information
+                log.info(
+                    f'ignoring price update for product {product} -- the latest rate is equal to the previous rate'
+                )
+                continue
+
+            if current_product_version != latest_product_version and current_resource_rate != latest_resource_rate:
+                if price.is_current_price():
+                    resource_updates.append((resource_name, latest_resource_rate))
+                    product_version_updates.append((product, latest_product_version))
+                    log.info(
+                        f'resource {resource_name} changed from {current_product_version} to {latest_product_version} with rate change of '
+                        f'({current_resource_rate}) => ({latest_resource_rate})'
+                    )
+                    continue
+                log.error(
+                    f'price changed but the price is not current {product} ({current_product_version}) => ({latest_product_version}) ({current_resource_rate}) => ({latest_resource_rate}) '
+                    f'{price.effective_start_date} {price.effective_end_date}'
+                )
+
+            assert (
+                current_product_version == latest_product_version and current_resource_rate == latest_resource_rate
+            ), f'{current_product_version} {latest_product_version} {current_resource_rate} {latest_resource_rate}'
 
         @transaction(self.db)
         async def insert_or_update(tx):

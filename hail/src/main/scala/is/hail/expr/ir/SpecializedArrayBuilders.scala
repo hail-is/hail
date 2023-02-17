@@ -905,6 +905,8 @@ final class AnyRefArrayBuilder[T <: AnyRef](initialCapacity: Int = 16)(implicit 
     size_ += 1
   }
 
+  def +=(x: T): Unit = add(x)
+
   def update(i: Int, x: T): Unit = {
     require(i >= 0 && i < size)
     b(i) = x

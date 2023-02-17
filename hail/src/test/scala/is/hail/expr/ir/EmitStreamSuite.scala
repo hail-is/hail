@@ -79,7 +79,7 @@ class EmitStreamSuite extends HailSuite {
     val f = fb.resultWithIndex()
     (arg: T) =>
       pool.scopedRegion { r =>
-        val off = call(f(theHailClassLoader, ctx.fs, 0, r), r, arg)
+        val off = call(f(theHailClassLoader, ctx.fs, ctx.taskContext, r), r, arg)
         if (off == 0L)
           null
         else
@@ -155,7 +155,7 @@ class EmitStreamSuite extends HailSuite {
     }
     val f = fb.resultWithIndex()
     pool.scopedRegion { r =>
-      val len = f(theHailClassLoader, ctx.fs, 0, r)(r)
+      val len = f(theHailClassLoader, ctx.fs, ctx.taskContext, r)(r)
       if (len < 0) None else Some(len)
     }
   }
@@ -758,7 +758,7 @@ class EmitStreamSuite extends HailSuite {
     pool.scopedSmallRegion { r =>
       val input = t.unstagedStoreJavaObject(Row(null, IndexedSeq(1d, 2d), IndexedSeq(3d, 4d)), r)
 
-      assert(SafeRow.read(pt, f(theHailClassLoader, ctx.fs, 0, r)(r, input)) == Row(null))
+      assert(SafeRow.read(pt, f(theHailClassLoader, ctx.fs, ctx.taskContext, r)(r, input)) == Row(null))
     }
   }
 
