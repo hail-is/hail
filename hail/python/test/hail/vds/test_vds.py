@@ -86,7 +86,7 @@ def test_conversion_equivalence():
 
     svcr_readback = hl.vds.to_merged_sparse_mt(vds)
 
-    assert svcr._same(svcr_readback)
+    assert svcr._same(svcr_readback.select_entries(*list(svcr.entry)))
 
 
 def test_sampleqc_old_new_equivalence():

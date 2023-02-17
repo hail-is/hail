@@ -120,7 +120,9 @@ def to_merged_sparse_mt(vds: 'VariantDataset') -> 'MatrixTable':
         def rewrite_ref(r):
             ref_block_selector = {}
             for k, t in merged_schema.items():
-                if k in ('LGT', 'GT'):
+                if k == 'LA':
+                    ref_block_selector[k] = hl.literal([0])
+                elif k in ('LGT', 'GT'):
                     ref_block_selector[k] = hl.call(0, 0)
                 else:
                     ref_block_selector[k] = r[k] if k in r else hl.missing(t)
