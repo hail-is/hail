@@ -1,6 +1,5 @@
 import asyncio
 from gear import Database
-from collections import defaultdict
 
 
 class Resource:
@@ -38,8 +37,10 @@ async def main():
 
         resources = [Resource.from_record(record) async for record in db.execute_and_fetchall('SELECT * FROM resources ORDER BY resource_id ASC')]
 
-        products = defaultdict(lambda name: Product(name))
+        products = {}
         for resource in resources:
+            if resource.product not in products:
+                products[resource.product] = Product(resource.product)
             product = products[resource.product]
             product.add_resource(resource)
 
