@@ -64,14 +64,14 @@ DROP TRIGGER IF EXISTS resources_before_insert $$
 CREATE TRIGGER resources_before_insert BEFORE INSERT ON resources
 FOR EACH ROW
 BEGIN
-  SET NEW.deduped_resource_id = OLD.resource_id;
+  SET NEW.deduped_resource_id = NEW.resource_id;
 END $$
 
 -- This is okay here because the deduplication mitigation in batch will have already merged
 CREATE TRIGGER attempt_resources_before_insert BEFORE INSERT ON attempt_resources
 FOR EACH ROW
 BEGIN
-  SET NEW.deduped_resource_id = OLD.resource_id;
+  SET NEW.deduped_resource_id = NEW.resource_id;
 END $$
 
 DELIMITER ;
