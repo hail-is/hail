@@ -89,10 +89,10 @@ object Worker {
     val fs = FS.cloudSpecificCacheableFS(s"$scratchDir/secrets/gsa-key/key.json", None)
 
     // FIXME: HACK
-    val (open, create) = if (n <= 50) {
-      (fs.openCachedNoCompression _, fs.createCachedNoCompression _)
+    val (open, write) = if (n <= 50) {
+      (fs.openCachedNoCompression _, fs.writeCached _)
     } else {
-      ((x: String) => fs.openNoCompression(x), fs.createNoCompression _)
+      ((x: String) => fs.openNoCompression(x), fs.writePDOS _)
     }
 
     val fFuture = Future {
@@ -145,23 +145,25 @@ object Worker {
     timer.end("executeFunction")
     timer.start("writeOutputs")
 
-    using(create(s"$root/result.$i")) { os =>
-      val dos = new DataOutputStream(os)
-      if (result != null) {
-        assert(userError == null)
+    retryTransientErrors {
+      write(s"$root/result.$i") { dos =>
+        if (result != null) {
+          assert(userError == null)
 
-        dos.writeBoolean(true)
-        dos.write(result)
-      } else {
-        assert(userError != null)
-        val (shortMessage, expandedMessage, errorId) = handleForPython(userError)
+          dos.writeBoolean(true)
+          dos.write(result)
+        } else {
+          assert(userError != null)
+          val (shortMessage, expandedMessage, errorId) = handleForPython(userError)
 
-        dos.writeBoolean(false)
-        writeString(dos, shortMessage)
-        writeString(dos, expandedMessage)
-        dos.writeInt(errorId)
+          dos.writeBoolean(false)
+          writeString(dos, shortMessage)
+          writeString(dos, expandedMessage)
+          dos.writeInt(errorId)
+        }
       }
     }
+
     timer.end("writeOutputs")
     timer.end(s"Job $i")
     log.info(s"finished job $i at root $root")

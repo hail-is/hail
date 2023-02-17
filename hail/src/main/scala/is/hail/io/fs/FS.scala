@@ -36,6 +36,27 @@ class WrappedPositionedDataOutputStream(os: PositionedOutputStream) extends Data
   def getPosition: Long = os.getPosition
 }
 
+class WrappedPositionOutputStream(os: OutputStream) extends OutputStream with Positioned {
+  private[this] var count: Long = 0L
+
+  override def flush(): Unit = os.flush()
+
+  override def write(i: Int): Unit = {
+    os.write(i)
+    count += 1
+  }
+
+  override def write(bytes: Array[Byte], off: Int, len: Int): Unit = {
+    os.write(bytes, off, len)
+  }
+
+  override def close(): Unit = {
+    os.close()
+  }
+
+  def getPosition: Long = count
+}
+
 trait FileStatus {
   def getPath: String
   def getModificationTime: java.lang.Long
@@ -240,6 +261,8 @@ trait FS extends Serializable {
 
   def createCachedNoCompression(filename: String): PositionedDataOutputStream = createNoCompression(filename)
 
+  def writeCached(filename: String)(writer: PositionedDataOutputStream => Unit) = writePDOS(filename)(writer)
+
   def getCodecFromExtension(extension: String, gzAsBGZ: Boolean = false): CompressionCodec = {
     extension match {
       case ".gz" =>
@@ -389,6 +412,12 @@ trait FS extends Serializable {
     else
       os
   }
+
+  def write(filename: String)(writer: OutputStream => Unit) =
+    using(create(filename))(writer)
+
+  def writePDOS(filename: String)(writer: PositionedDataOutputStream => Unit) =
+    using(create(filename))(os => writer(outputStreamToPositionedDataOutputStream(os)))
 
   def getFileSize(filename: String): Long = fileStatus(filename).getLen
 
