@@ -4,6 +4,10 @@ from hailtop.utils import sleep_and_backoff
 from hailtop.auth import async_create_user, async_get_user
 
 
+class CreateUserException(Exception):
+    pass
+
+
 def init_parser(parser):
     parser.add_argument("username", type=str,
                         help="User name to create.")
@@ -38,7 +42,7 @@ async def async_main(args):
 
         await _poll()
     except Exception as e:
-        raise Exception(f"Error while creating user '{args.username}'") from e
+        raise CreateUserException(f"Error while creating user '{args.username}'") from e
 
 
 def main(args, pass_through_args):  # pylint: disable=unused-argument

@@ -4,7 +4,7 @@
 #
 #    pip-compile --output-file=python/dev/pinned-requirements.txt python/dev/requirements.txt
 #
-aiohttp==3.8.3
+aiohttp==3.8.4
     # via
     #   -r python/dev/../hailtop/requirements.txt
     #   aiohttp-session
@@ -12,7 +12,7 @@ aiohttp-session==2.12.0
     # via -r python/dev/../hailtop/requirements.txt
 aiosignal==1.3.1
     # via aiohttp
-alabaster==0.7.12
+alabaster==0.7.13
     # via sphinx
 anyio==3.6.2
     # via jupyter-server
@@ -23,19 +23,19 @@ argon2-cffi==21.3.0
     #   notebook
 argon2-cffi-bindings==21.2.0
     # via argon2-cffi
-astroid==2.12.13
+astroid==2.14.2
     # via pylint
 async-timeout==4.0.2
     # via aiohttp
 asynctest==0.13.0
     # via aiohttp
-attrs==22.1.0
+attrs==22.2.0
     # via
     #   aiohttp
     #   curlylint
     #   jsonschema
     #   pytest
-azure-core==1.26.1
+azure-core==1.26.3
     # via
     #   azure-identity
     #   azure-storage-blob
@@ -48,20 +48,20 @@ babel==2.11.0
     # via sphinx
 backcall==0.2.0
     # via ipython
-beautifulsoup4==4.11.1
+beautifulsoup4==4.11.2
     # via nbconvert
 black==22.12.0
     # via -r python/dev/requirements.txt
-bleach==5.0.1
+bleach==6.0.0
     # via nbconvert
-boto3==1.26.26
+boto3==1.26.73
     # via -r python/dev/../hailtop/requirements.txt
-botocore==1.29.26
+botocore==1.29.73
     # via
     #   -r python/dev/../hailtop/requirements.txt
     #   boto3
     #   s3transfer
-cachetools==5.2.0
+cachetools==5.3.0
     # via google-auth
 certifi==2022.12.7
     # via
@@ -71,7 +71,7 @@ cffi==1.15.1
     # via
     #   argon2-cffi-bindings
     #   cryptography
-charset-normalizer==2.1.1
+charset-normalizer==3.0.1
     # via
     #   aiohttp
     #   requests
@@ -82,7 +82,7 @@ click==8.1.3
     #   curlylint
 commonmark==0.9.1
     # via rich
-cryptography==38.0.4
+cryptography==39.0.1
     # via
     #   azure-identity
     #   azure-storage-blob
@@ -90,7 +90,7 @@ cryptography==38.0.4
     #   pyjwt
 curlylint==0.13.1
     # via -r python/dev/requirements.txt
-debugpy==1.6.4
+debugpy==1.6.6
     # via ipykernel
 decorator==4.4.2
     # via
@@ -109,7 +109,7 @@ docutils==0.16
     #   sphinx-rtd-theme
 entrypoints==0.4
     # via jupyter-client
-exceptiongroup==1.0.4
+exceptiongroup==1.1.0
     # via pytest
 execnet==1.9.0
     # via pytest-xdist
@@ -140,9 +140,9 @@ google-cloud-storage==2.7.0
     # via -r python/dev/../hailtop/requirements.txt
 google-crc32c==1.5.0
     # via google-resumable-media
-google-resumable-media==2.4.0
+google-resumable-media==2.4.1
     # via google-cloud-storage
-googleapis-common-protos==1.57.0
+googleapis-common-protos==1.58.0
     # via google-api-core
 humanize==1.1.0
     # via -r python/dev/../hailtop/requirements.txt
@@ -163,9 +163,9 @@ importlib-metadata==3.10.1
     #   nbformat
     #   pluggy
     #   pytest
-importlib-resources==5.10.1
+importlib-resources==5.10.2
     # via jsonschema
-iniconfig==1.1.1
+iniconfig==2.0.0
     # via pytest
 ipykernel==6.16.2
     # via
@@ -185,11 +185,11 @@ ipython-genutils==0.2.0
     #   nbclassic
     #   notebook
     #   qtconsole
-ipywidgets==8.0.3
+ipywidgets==8.0.4
     # via jupyter
 isodate==0.6.1
     # via msrest
-isort==5.10.1
+isort==5.11.5
     # via
     #   -r python/dev/requirements.txt
     #   pylint
@@ -214,7 +214,7 @@ jsonschema==4.17.3
     # via nbformat
 jupyter==1.0.0
     # via -r python/dev/requirements.txt
-jupyter-client==7.4.8
+jupyter-client==7.4.9
     # via
     #   ipykernel
     #   jupyter-console
@@ -223,11 +223,12 @@ jupyter-client==7.4.8
     #   nbclient
     #   notebook
     #   qtconsole
-jupyter-console==6.4.4
+jupyter-console==6.5.1
     # via jupyter
 jupyter-core==4.12.0
     # via
     #   jupyter-client
+    #   jupyter-console
     #   jupyter-server
     #   nbclassic
     #   nbclient
@@ -235,17 +236,17 @@ jupyter-core==4.12.0
     #   nbformat
     #   notebook
     #   qtconsole
-jupyter-server==1.23.3
+jupyter-server==1.23.6
     # via
     #   nbclassic
     #   notebook-shim
 jupyterlab-pygments==0.2.2
     # via nbconvert
-jupyterlab-widgets==3.0.4
+jupyterlab-widgets==3.0.5
     # via ipywidgets
-lazy-object-proxy==1.8.0
+lazy-object-proxy==1.9.0
     # via astroid
-markupsafe==2.1.1
+markupsafe==2.1.2
     # via
     #   jinja2
     #   nbconvert
@@ -257,9 +258,9 @@ mccabe==0.6.1
     # via
     #   flake8
     #   pylint
-mistune==2.0.4
+mistune==2.0.5
     # via nbconvert
-msal==1.20.0
+msal==1.21.0
     # via
     #   azure-identity
     #   msal-extensions
@@ -267,28 +268,28 @@ msal-extensions==1.0.0
     # via azure-identity
 msrest==0.7.1
     # via azure-storage-blob
-multidict==6.0.3
+multidict==6.0.4
     # via
     #   aiohttp
     #   yarl
 mypy==0.990
     # via -r python/dev/requirements.txt
-mypy-extensions==0.4.3
+mypy-extensions==1.0.0
     # via
     #   black
     #   mypy
-nbclassic==0.4.8
+nbclassic==0.5.1
     # via notebook
 nbclient==0.7.2
     # via nbconvert
-nbconvert==7.2.6
+nbconvert==7.2.9
     # via
     #   jupyter
     #   jupyter-server
     #   nbclassic
     #   nbsphinx
     #   notebook
-nbformat==5.7.0
+nbformat==5.7.3
     # via
     #   jupyter-server
     #   nbclassic
@@ -296,7 +297,7 @@ nbformat==5.7.0
     #   nbconvert
     #   nbsphinx
     #   notebook
-nbsphinx==0.8.10
+nbsphinx==0.8.12
     # via -r python/dev/requirements.txt
 nest-asyncio==1.5.6
     # via
@@ -311,9 +312,9 @@ notebook-shim==0.2.2
     # via nbclassic
 oauthlib==3.2.2
     # via requests-oauthlib
-orjson==3.8.3
+orjson==3.8.6
     # via -r python/dev/../hailtop/requirements.txt
-packaging==22.0
+packaging==23.0
     # via
     #   ipykernel
     #   jupyter-server
@@ -327,7 +328,7 @@ parso==0.8.3
     # via jedi
 parsy==1.1.0
     # via curlylint
-pathspec==0.10.2
+pathspec==0.11.0
     # via
     #   black
     #   curlylint
@@ -337,15 +338,15 @@ pickleshare==0.7.5
     # via ipython
 pkgutil-resolve-name==1.3.10
     # via jsonschema
-platformdirs==2.6.0
+platformdirs==3.0.0
     # via
     #   black
     #   pylint
 pluggy==1.0.0
     # via pytest
-portalocker==2.6.0
+portalocker==2.7.0
     # via msal-extensions
-prometheus-client==0.15.0
+prometheus-client==0.16.0
     # via
     #   jupyter-server
     #   nbclassic
@@ -379,7 +380,7 @@ pycparser==2.21
     # via cffi
 pyflakes==2.4.0
     # via flake8
-pygments==2.13.0
+pygments==2.14.0
     # via
     #   ipython
     #   jupyter-console
@@ -391,11 +392,11 @@ pyjwt[crypto]==2.6.0
     # via
     #   -c python/dev/../requirements.txt
     #   msal
-pylint==2.15.8
+pylint==2.16.2
     # via -r python/dev/requirements.txt
-pyrsistent==0.19.2
+pyrsistent==0.19.3
     # via jsonschema
-pytest==7.2.0
+pytest==7.2.1
     # via
     #   -r python/dev/requirements.txt
     #   pytest-asyncio
@@ -406,7 +407,7 @@ pytest==7.2.0
     #   pytest-xdist
 pytest-asyncio==0.20.3
     # via -r python/dev/requirements.txt
-pytest-forked==1.4.0
+pytest-forked==1.6.0
     # via pytest-xdist
 pytest-html==1.22.1
     # via -r python/dev/requirements.txt
@@ -420,14 +421,15 @@ python-dateutil==2.8.2
     # via
     #   botocore
     #   jupyter-client
-python-json-logger==2.0.4
+python-json-logger==2.0.6
     # via -r python/dev/../hailtop/requirements.txt
-pytz==2022.6
+pytz==2022.7.1
     # via babel
-pyzmq==24.0.1
+pyzmq==25.0.0
     # via
     #   ipykernel
     #   jupyter-client
+    #   jupyter-console
     #   jupyter-server
     #   nbclassic
     #   notebook
@@ -436,7 +438,7 @@ qtconsole==5.4.0
     # via jupyter
 qtpy==2.3.0
     # via qtconsole
-requests==2.28.1
+requests==2.28.2
     # via
     #   -c python/dev/../requirements.txt
     #   azure-core
@@ -473,7 +475,7 @@ snowballstemmer==2.2.0
     # via sphinx
 sortedcontainers==2.4.0
     # via -r python/dev/../hailtop/requirements.txt
-soupsieve==2.3.2.post1
+soupsieve==2.4
     # via beautifulsoup4
 sphinx==3.5.4
     # via
@@ -484,7 +486,7 @@ sphinx==3.5.4
     #   sphinxcontrib-katex
 sphinx-autodoc-typehints==1.11.1
     # via -r python/dev/requirements.txt
-sphinx-rtd-theme==1.1.1
+sphinx-rtd-theme==1.2.0
     # via -r python/dev/requirements.txt
 sphinxcontrib-applehelp==1.0.2
     # via sphinx
@@ -492,9 +494,11 @@ sphinxcontrib-devhelp==1.0.2
     # via sphinx
 sphinxcontrib-htmlhelp==2.0.0
     # via sphinx
+sphinxcontrib-jquery==2.0.0
+    # via sphinx-rtd-theme
 sphinxcontrib-jsmath==1.0.1
     # via sphinx
-sphinxcontrib-katex==0.9.3
+sphinxcontrib-katex==0.9.4
     # via -r python/dev/requirements.txt
 sphinxcontrib-qthelp==1.0.3
     # via sphinx
@@ -527,12 +531,13 @@ tornado==6.2
     #   nbclassic
     #   notebook
     #   terminado
-traitlets==5.7.0
+traitlets==5.9.0
     # via
     #   ipykernel
     #   ipython
     #   ipywidgets
     #   jupyter-client
+    #   jupyter-console
     #   jupyter-core
     #   jupyter-server
     #   matplotlib-inline
@@ -550,29 +555,31 @@ typed-ast==1.5.4
     #   mypy
 types-chardet==5.0.4.1
     # via -r python/dev/requirements.txt
-types-decorator==5.1.8.1
+types-decorator==5.1.8.2
     # via -r python/dev/requirements.txt
 types-deprecated==1.2.9
     # via -r python/dev/requirements.txt
-types-pymysql==1.0.19.1
+types-docutils==0.19.1.4
+    # via types-setuptools
+types-pymysql==1.0.19.3
     # via -r python/dev/requirements.txt
-types-python-dateutil==2.8.19.4
+types-python-dateutil==2.8.19.7
     # via -r python/dev/requirements.txt
-types-pyyaml==6.0.12.2
+types-pyyaml==6.0.12.6
     # via -r python/dev/requirements.txt
-types-requests==2.28.11.5
+types-requests==2.28.11.13
     # via -r python/dev/requirements.txt
-types-setuptools==65.6.0.2
+types-setuptools==67.3.0.1
     # via -r python/dev/requirements.txt
 types-six==1.16.21.4
     # via -r python/dev/requirements.txt
 types-tabulate==0.9.0.0
     # via -r python/dev/requirements.txt
-types-urllib3==1.26.25.4
+types-urllib3==1.26.25.6
     # via
     #   -r python/dev/requirements.txt
     #   types-requests
-typing-extensions==4.4.0
+typing-extensions==4.5.0
     # via
     #   aiohttp
     #   aiohttp-session
@@ -586,31 +593,32 @@ typing-extensions==4.4.0
     #   janus
     #   jsonschema
     #   mypy
+    #   platformdirs
     #   pylint
     #   pytest-asyncio
     #   rich
     #   yarl
-urllib3==1.26.13
+urllib3==1.26.14
     # via
     #   botocore
     #   requests
 uvloop==0.17.0 ; sys_platform != "win32"
     # via -r python/dev/../hailtop/requirements.txt
-wcwidth==0.2.5
+wcwidth==0.2.6
     # via prompt-toolkit
 webencodings==0.5.1
     # via
     #   bleach
     #   tinycss2
-websocket-client==1.4.2
+websocket-client==1.5.1
     # via jupyter-server
-widgetsnbextension==4.0.4
+widgetsnbextension==4.0.5
     # via ipywidgets
 wrapt==1.14.1
     # via astroid
 yarl==1.8.2
     # via aiohttp
-zipp==3.11.0
+zipp==3.13.0
     # via
     #   importlib-metadata
     #   importlib-resources
