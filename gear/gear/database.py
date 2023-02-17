@@ -268,12 +268,14 @@ class CallError(Exception):
 class Database:
     def __init__(self):
         self.pool = None
+        self.connection_release_task_manager = None
 
     async def async_init(self, config_file=None, maxsize=10):
         self.pool = await create_database_pool(config_file=config_file, autocommit=False, maxsize=maxsize)
         self.connection_release_task_manager = BackgroundTaskManager()
 
     def start(self, read_only=False):
+        assert self.connection_release_task_manager
         return TransactionAsyncContextManager(self.pool, read_only, self.connection_release_task_manager)
 
     @retry_transient_mysql_errors
@@ -325,6 +327,7 @@ class Database:
 
     async def async_close(self):
         assert self.pool
+        assert self.connection_release_task_manager
         self.connection_release_task_manager.shutdown()
         self.pool.close()
         await self.pool.wait_closed()
