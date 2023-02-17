@@ -775,7 +775,7 @@ class SparkBackend(
         log.info(s"SparkBackend: could not lower IR to table stage: $failReason")
         inputIR.analyzeAndExecute(ctx).asTableStage(ctx)
       case None =>
-        LowerTableIR.applyTable(inputIR, DArrayLowering.TableOnly, ctx, analyses)
+        LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
     }
   }
 }

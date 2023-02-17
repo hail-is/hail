@@ -398,7 +398,7 @@ class ServiceBackend(
     inputIR: TableIR,
     analyses: LoweringAnalyses
   ): TableStage = {
-    LowerTableIR.applyTable(inputIR, DArrayLowering.TableOnly, ctx, analyses)
+    LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
   }
 }
 
