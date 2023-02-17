@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import com.google.api.gax.rpc.InvalidArgumentException
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.annotations.SafeNDArray
@@ -8,13 +9,17 @@ import is.hail.expr.Nat
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import is.hail.methods.ForceCountTable
+import is.hail.rvd.RVDPartitioner
 import is.hail.types._
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
+import org.scalatest.Matchers.{convertToAnyShouldWrapper, include}
 import org.testng.annotations.{DataProvider, Test}
+
+import scala.reflect.ClassTag
 
 class TableIRSuite extends HailSuite {
 
@@ -1159,5 +1164,67 @@ class TableIRSuite extends HailSuite {
       ctx,
       collect(TableMapPartitions(table, "g", "part", StreamFlatMap(StreamRange(0, 2, 1), "_", part)))))
     assert("must iterate over the partition exactly once".r.findFirstIn(e.getCause.getMessage).isDefined)
+  }
+
+  def mkTableGen(contexts: Option[IR] = None,
+                 globals: Option[IR] = None,
+                 cname: Option[String] = None,
+                 gname: Option[String] = None,
+                 body: Option[IR] = None,
+                 partitioner: Option[RVDPartitioner] = None
+                ): TableGen = {
+    val glbls = globals.getOrElse(MakeStruct(Seq("g" -> 0)))
+    val cntxtsName = cname.getOrElse(genUID())
+    val glblsName = gname.getOrElse(genUID())
+
+    TableGen(
+      contexts.getOrElse(StreamRange(0, 2, 1)),
+      glbls,
+      cntxtsName,
+      glblsName,
+      body.getOrElse(
+        StreamMap(Ref(cntxtsName, TStream(TInt32)), "x", MakeStruct(
+          Seq("a" -> ApplyBinaryPrimOp(
+            Multiply(),
+            Ref("x", TInt32),
+            GetField(glbls, "g")
+          )))
+        )),
+      partitioner.getOrElse(RVDPartitioner.unkeyed(2))
+    )
+  }
+
+  @Test def testTableGenWithInvalidContextsType: Unit = {
+    val ex = intercept[IllegalArgumentException] {
+      mkTableGen(contexts = Some(Str("oh noes :'(")))
+    }
+    ex.getMessage should include(s"Expected contexts: ${classOf[TStream].getSimpleName}")
+  }
+
+  @Test def testTableGenWithInvalidGlobalsType: Unit = {
+    val ex = intercept[IllegalArgumentException] {
+      mkTableGen(globals = Some(Str("oh noes :'(")))
+    }
+    ex.getMessage should include(s"Expected globals: ${classOf[TStruct].getSimpleName}")
+  }
+
+  @Test def testTableGenWithInvalidBodyType: Unit = {
+    val ex = intercept[IllegalArgumentException] {
+      mkTableGen(body = Some(Str("oh noes :'(")))
+    }
+    ex.getMessage should include(s"Expected body: ${classOf[TStream].getSimpleName}")
+  }
+
+  @Test def testTableGenWithInvalidBodyElementType: Unit = {
+    val ex = intercept[IllegalArgumentException] {
+      mkTableGen(body = Some(MakeStream(Seq(Str("oh noes :'(")), TStream(TString))))
+    }
+    ex.getMessage should include(s"Expected body.elementType: ${classOf[TStruct].getSimpleName}")
+  }
+
+  @Test def testLoweringTableGen: Unit = {
+    val table = mkTableGen()
+    val lowered = LowerTableIR(collect(table), DArrayLowering.All, ctx, Analyses(table, ctx), Map.empty)
+    assertEvalsTo(lowered, Row(0, 0))
   }
 }

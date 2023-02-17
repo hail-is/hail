@@ -36,7 +36,7 @@ import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
 import java.io.{DataInputStream, DataOutputStream, InputStream}
-import scala.reflect.ClassTag
+import scala.reflect.{ClassTag, classTag}
 
 object TableIR {
   def read(fs: FS, path: String, dropRows: Boolean = false, requestedType: Option[TableType] = None): TableRead = {
@@ -1800,16 +1800,15 @@ case class TableGen(contexts: IR,
                     cname: String,
                     gname: String,
                     body: IR, // IR that references free variables Ref(cname) and Ref(gname) and produces a TStream[TStruct]
-                    key: IndexedSeq[String],
-                    partitionIntervals: Option[IndexedSeq[Interval]]
+                    partitioner: RVDPartitioner,
+                    errId: Int = ErrorIDs.NO_ERROR
                    ) extends TableIR {
-  private def requireType[A: ClassTag](varname: String, typ: Type): Option[A] =
-    typ match {
-      case a: A => Some(a)
-      case _ => throw new IllegalArgumentException(
-        s"[${getClass.getName}] Expected $varname: ${classOf[A].getName}, got $typ."
+  private def requireType[A](varname: String, typ: Type)(implicit tag: ClassTag[A]): Option[A] =
+    tag.unapply(typ).orElse(
+      throw new IllegalArgumentException(
+        s"[${getClass.getSimpleName}] Expected $varname: ${tag.runtimeClass.getSimpleName}, got $typ."
       )
-    }
+    )
 
   private val (globalType, rowType) =
     (for {
@@ -1820,7 +1819,7 @@ case class TableGen(contexts: IR,
     } yield (globalType, rowType)).get
 
   override def typ: TableType =
-    TableType(rowType, key = key, globalType)
+    TableType(rowType, partitioner.kType.fieldNames, globalType)
 
   override val rowCountUpperBound: Option[Long] =
     None
@@ -1828,7 +1827,7 @@ case class TableGen(contexts: IR,
   override def copy(newChildren: IndexedSeq[BaseIR]): TableIR =
     newChildren match {
       case IndexedSeq(contexts: IR, globals: IR, body: IR) =>
-        TableGen(contexts, globals, cname, gname, body, key, partitionIntervals)
+        TableGen(contexts, globals, cname, gname, body, partitioner, errId)
 
       case _ =>
         throw new IllegalArgumentException(

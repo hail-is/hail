@@ -795,13 +795,24 @@ object LowerTableIR {
           context,
           ctxRef => ToStream(ctxRef, true))
 
-      case TableGen(contexts, globals, cname, gname, body, key, pIntervals) =>
+      case t@TableGen(_, _, cname, gname, _, partitioner, traceId) =>
+        val Seq(contexts, globals, body) = t.children.map(ir => lowerIR(ir.asInstanceOf[IR]))
         TableStage(
           globals,
-          partitioner = ???,
-          dependency = ???,
-          contexts = contexts,
-          body = ref =>
+          partitioner = partitioner,
+          dependency = TableStageDependency.none,
+          contexts = bindIR(ToArray(contexts)) { ref =>
+            val dieMsg = strConcat(
+              s"${getClass.getName}: expected ${partitioner.numPartitions}, got ",
+              invoke("str", TString, ArrayLen(ref))
+            )
+            ToStream(If(ArrayLen(ref) ceq partitioner.numPartitions, ref,
+              Die(dieMsg, ref.typ, traceId)
+            ))
+          },
+          body = cref => Let(cname, cref,
+            Let(gname, globals, body)
+          )
         )
 
       case TableRange(n, nPartitions) =>
