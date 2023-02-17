@@ -42,16 +42,30 @@ object LowerAndExecuteShuffles {
 
         val streamName = genUID()
         val streamTyp = TStream(child.typ.rowType)
-        val partiallyAggregated = TableMapPartitions(TableKeyBy(child, IndexedSeq()), "global", streamName,
-          StreamBufferedAggregate(Ref(streamName, streamTyp), init, newKey, seq, "row", aggSigs, bufferSize),
+        var ts = child
+
+        val origGlobalTyp = ts.typ.globalType
+        ts = TableKeyBy(child, IndexedSeq())
+        ts = TableMapGlobals(ts, MakeStruct(FastIndexedSeq(
+          ("oldGlobals", Ref("global", origGlobalTyp)),
+          ("__initState",
+          RunAgg(init, MakeTuple.ordered(aggSigs.indices.map { aIdx => AggStateValue(aIdx, aggSigs(aIdx).state) }),
+            aggSigs.map(_.state))))))
+        val insGlob = Ref(genUID(), ts.typ.globalType)
+        val partiallyAggregated = TableMapPartitions(ts, insGlob.name, streamName, Let("global",
+          GetField(insGlob, "oldGlobals"),
+          StreamBufferedAggregate(Ref(streamName, streamTyp), bindIR(GetField(insGlob, "__initState")) { states =>
+            Begin(aggSigs.indices.map { aIdx => InitFromSerializedValue(aIdx, GetTupleElement(states, aIdx), aggSigs(aIdx).state) })
+          }, newKey, seq, "row", aggSigs, bufferSize)),
           0, 0)
 
         // annoying but no better alternative right now
         val req2 = Requiredness(partiallyAggregated, ctx)
         val rt = req2.lookup(partiallyAggregated).asInstanceOf[RTable]
 
+        val preShuffleStage = ctx.backend.tableToTableStage(ctx, partiallyAggregated, LoweringAnalyses(partiallyAggregated, ctx))
         val partiallyAggregatedReader = ctx.backend.lowerDistributedSort(ctx,
-          ctx.backend.tableToTableStage(ctx, partiallyAggregated, LoweringAnalyses(partiallyAggregated, ctx)),
+          preShuffleStage,
           newKeyType.fieldNames.map(k => SortField(k, Ascending)),
           rt)
 
@@ -63,45 +77,40 @@ object LowerAndExecuteShuffles {
         val resultFromTakeUID = genUID()
         val result = ResultOp(aggs.aggs.length, takeAggSig)
 
-        val aggSigsPlusTake = aggSigs ++ IndexedSeq(takeAggSig)
-
         val shuffleRead = TableRead(partiallyAggregatedReader.fullType, false, partiallyAggregatedReader)
 
         val partStream = Ref(genUID(), TStream(shuffleRead.typ.rowType))
-        val tmp = TableMapPartitions(shuffleRead, "global", partStream.name,
-          mapIR(StreamGroupByKey(partStream, newKeyType.fieldNames.toIndexedSeq, missingEqual = true)) { groupRef =>
-            RunAgg(
-              forIR(zipWithIndex(groupRef)) { elemWithID =>
-                val idx = GetField(elemWithID, "idx")
-                val elem = GetField(elemWithID, "elt")
-                If(ApplyComparisonOp(EQ(TInt32, TInt32), idx, 0),
-                  Begin((0 until aggSigs.length).map { aIdx =>
-                    InitFromSerializedValue(aIdx, GetTupleElement(GetField(elem, "agg"), aIdx), aggSigsPlusTake(aIdx).state)
-                  } ++ IndexedSeq(
-                    InitOp(aggSigs.length, IndexedSeq(I32(1)), PhysicalAggSig(Take(), takeVirtualSig)),
-                    SeqOp(aggSigs.length, IndexedSeq(SelectFields(elem, newKeyType.fieldNames)), PhysicalAggSig(Take(), takeVirtualSig))
-                  )),
-                  Begin((0 until aggSigs.length).map { aIdx =>
-                    CombOpValue(aIdx, GetTupleElement(GetField(elem, "agg"), aIdx), aggSigs(aIdx))
-                  }))
-              },
-
-              Let(
-                resultUID,
-                ResultOp.makeTuple(aggs.aggs),
-                Let(postAggUID, postAggIR,
-                  Let(resultFromTakeUID,
-                    result, {
-                      val keyIRs: IndexedSeq[(String, IR)] = newKeyType.fieldNames.map(keyName => keyName -> GetField(ArrayRef(Ref(resultFromTakeUID, result.typ), 0), keyName))
-                      MakeStruct(keyIRs ++ expr.typ.asInstanceOf[TStruct].fieldNames.map { f => (f, GetField(Ref(postAggUID, postAggIR.typ), f))
-                      })
-                    }
+        val tmp = TableMapPartitions(shuffleRead, insGlob.name, partStream.name,
+          Let("global", GetField(insGlob, "oldGlobals"),
+            mapIR(StreamGroupByKey(partStream, newKeyType.fieldNames.toIndexedSeq, missingEqual = true)) { groupRef =>
+              RunAgg(Begin(FastIndexedSeq(
+                bindIR(GetField(insGlob, "__initState")) { states =>
+                  Begin(aggSigs.indices.map { aIdx => InitFromSerializedValue(aIdx, GetTupleElement(states, aIdx), aggSigs(aIdx).state) })
+                },
+                InitOp(aggSigs.length, IndexedSeq(I32(1)), PhysicalAggSig(Take(), takeVirtualSig)),
+                forIR(groupRef) { elem =>
+                  Begin(FastIndexedSeq(
+                    SeqOp(aggSigs.length, IndexedSeq(SelectFields(elem, newKeyType.fieldNames)), PhysicalAggSig(Take(), takeVirtualSig)),
+                    Begin((0 until aggSigs.length).map { aIdx =>
+                      CombOpValue(aIdx, GetTupleElement(GetField(elem, "agg"), aIdx), aggSigs(aIdx))
+                    })))
+                })),
+                Let(
+                  resultUID,
+                  ResultOp.makeTuple(aggs.aggs),
+                  Let(postAggUID, postAggIR,
+                    Let(resultFromTakeUID,
+                      result, {
+                        val keyIRs: IndexedSeq[(String, IR)] = newKeyType.fieldNames.map(keyName => keyName -> GetField(ArrayRef(Ref(resultFromTakeUID, result.typ), 0), keyName))
+                        MakeStruct(keyIRs ++ expr.typ.asInstanceOf[TStruct].fieldNames.map { f => (f, GetField(Ref(postAggUID, postAggIR.typ), f))
+                        })
+                      }
+                    )
                   )
-                )
-              ),
-              aggStateSigsPlusTake)
-          }, newKeyType.size, newKeyType.size - 1)
-        Some(tmp )
+                ),
+                aggStateSigsPlusTake)
+            }), newKeyType.size, newKeyType.size - 1)
+        Some(TableMapGlobals(tmp, GetField(Ref("global", insGlob.typ), "oldGlobals")))
       case _ => None
     })
   }

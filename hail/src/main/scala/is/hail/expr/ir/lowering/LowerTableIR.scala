@@ -770,28 +770,15 @@ object LowerTableIR {
         val loweredRowsAndGlobalRef = Ref(genUID(), loweredRowsAndGlobal.typ)
 
         val context = bindIR(ArrayLen(GetField(loweredRowsAndGlobalRef, "rows"))) { numRowsRef =>
-          bindIR(If(numRowsRef < nPartitionsAdj, maxIR(numRowsRef, I32(1)), nPartitionsAdj)) { numNonEmptyPartitionsRef =>
-            bindIR(numRowsRef floorDiv numNonEmptyPartitionsRef) { qRef =>
-              bindIR(numRowsRef - qRef * numNonEmptyPartitionsRef) { remainderRef =>
-                mapIR(rangeIR(0, nPartitionsAdj)) { partIdx =>
-                  val length =
-                    (numRowsRef - partIdx + nPartitionsAdj - 1) floorDiv nPartitionsAdj
-
-                  val start =
-                    If(numNonEmptyPartitionsRef >= partIdx,
-                      If(remainderRef > 0,
-                        If(remainderRef < partIdx,
-                          qRef * partIdx + remainderRef,
-                          (qRef + 1) * partIdx),
-                        qRef * partIdx),
-                      0)
-
-                  bindIR(start) { startRef =>
-                    ToArray(mapIR(rangeIR(startRef, startRef + length)) { elt =>
-                      ArrayRef(GetField(loweredRowsAndGlobalRef, "rows"), elt)
-                    })
-                  }
-                }
+          bindIR(invoke("extend", TArray(TInt32), ToArray(mapIR(rangeIR(nPartitionsAdj)) { partIdx =>
+            invoke("ceil", TFloat64, partIdx.toD * numRowsRef.toD / nPartitionsAdj.toDouble).toI
+          }),
+            MakeArray((numRowsRef)))) { indicesArray =>
+            bindIR(GetField(loweredRowsAndGlobalRef, "rows")) { rows =>
+              mapIR(rangeIR(nPartitionsAdj)) { partIdx =>
+                ToArray(mapIR(rangeIR(ArrayRef(indicesArray, partIdx), ArrayRef(indicesArray, partIdx + 1))) { rowIdx =>
+                  ArrayRef(rows, rowIdx)
+                })
               }
             }
           }
