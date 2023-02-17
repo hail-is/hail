@@ -862,12 +862,11 @@ object LowerBlockMatrixIR {
     ib: IRBuilder,
     typesToLower: DArrayLowering.Type,
     ctx: ExecuteContext,
-    analyses: LoweringAnalyses,
-    relationalLetsAbove: Map[String, IR]
+    analyses: LoweringAnalyses
   ): BlockMatrixStage2 = {
 
     def lower(ir: BlockMatrixIR, ib: IRBuilder = ib): BlockMatrixStage2 =
-      LowerBlockMatrixIR.lower(ir, ib, typesToLower, ctx, analyses, relationalLetsAbove)
+      LowerBlockMatrixIR.lower(ir, ib, typesToLower, ctx, analyses)
 
     bmir match {
       case BlockMatrixRead(reader) => reader.lower(ctx, ib)
@@ -923,7 +922,7 @@ object LowerBlockMatrixIR {
         val len = child.typ.shape.max
         val vector = NDArrayReshape(
           IRBuilder.scoped { ib =>
-            lower(child, ib).collectLocal(relationalLetsAbove, ib, "block_matrix_broadcast_single_axis")
+            lower(child, ib).collectLocal(ib, "block_matrix_broadcast_single_axis")
           },
           MakeTuple.ordered(FastSeq(I64(len))),
           ErrorIDs.NO_ERROR)
@@ -940,7 +939,7 @@ object LowerBlockMatrixIR {
         val diagArray = IRBuilder.scoped { ib =>
           lower(child, ib)
             .withSparsity(ib.memoize(rowPos), ib.memoize(ToArray(rangeIR(diagLen))), ib, diagType)
-            .collectBlocks(relationalLetsAbove, ib, "block_matrix_broadcast_diagonal") { (ctx, idx, block) =>
+            .collectBlocks(ib, "block_matrix_broadcast_diagonal") { (ctx, idx, block) =>
               bindIR(NDArrayShape(block)) { shape =>
                 val blockDiagLen = minIR(GetTupleElement(shape, 0), GetTupleElement(shape, 1))
                 ToArray(mapIR(rangeIR(blockDiagLen.toI)) { i =>
@@ -964,13 +963,13 @@ object LowerBlockMatrixIR {
         lower(child).filter(keepRow, keepCol, x.typ, ib)
 
       case _ =>
-        BlockMatrixStage2.fromOldBMS(lowerNonEmpty(bmir, ib, typesToLower, ctx, analyses, relationalLetsAbove), bmir.typ, ib)
+        BlockMatrixStage2.fromOldBMS(lowerNonEmpty(bmir, ib, typesToLower, ctx, analyses), bmir.typ, ib)
     }
   }
 
-  def lowerNonEmpty(bmir: BlockMatrixIR, ib: IRBuilder, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: LoweringAnalyses, relationalLetsAbove: Map[String, IR]): BlockMatrixStage = {
+  def lowerNonEmpty(bmir: BlockMatrixIR, ib: IRBuilder, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: LoweringAnalyses): BlockMatrixStage = {
     def lower(ir: BlockMatrixIR, ib: IRBuilder = ib) =
-      LowerBlockMatrixIR.lower(ir, ib, typesToLower, ctx, analyses, relationalLetsAbove).toOldBMS
+      LowerBlockMatrixIR.lower(ir, ib, typesToLower, ctx, analyses).toOldBMS
 
     def lowerIR(node: IR): IR = LowerToCDA.lower(node, typesToLower, ctx, analyses)
 
