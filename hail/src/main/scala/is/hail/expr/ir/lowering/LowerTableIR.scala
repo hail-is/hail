@@ -792,7 +792,7 @@ object LowerTableIR {
           globalsRef,
           RVDPartitioner.unkeyed(ctx.stateManager, nPartitionsAdj),
           TableStageDependency.none,
-          context,
+          bindIR(ToArray(context)) { xs => bindIR(ConsoleLog(strConcat("contexts are ", invoke("str", TString, xs)), xs)) { xs => ToStream(xs)}},
           ctxRef => ToStream(ctxRef, true))
 
       case TableGen(contexts, globals, cname, gname, body, partitioner, errorId) =>
@@ -1164,27 +1164,27 @@ object LowerTableIR {
           }
         }
 
-        // First element is how many partitions to drop from partitionSizeArrayRef, second is how many to keep from first kept element.
+        // First element is how many partitions to keep from the right partitionSizeArrayRef, second is how many to keep from first kept element.
         def answerTuple(partitionSizeArrayRef: Ref): IR = {
           bindIR(ArrayLen(partitionSizeArrayRef)) { numPartitions =>
             val howManyPartsToDrop = genUID()
             val i = Ref(genUID(), TInt32)
-            val numLeft = Ref(genUID(), TInt64)
-            def makeAnswer(howManyParts: IR, howManyFromLast: IR) = MakeTuple(FastIndexedSeq((0, howManyParts), (1, howManyFromLast)))
+            val nRowsToRight = Ref(genUID(), TInt64)
+            def makeAnswer(howManyParts: IR, howManyFromLast: IR) = MakeTuple.ordered(FastIndexedSeq(howManyParts, howManyFromLast))
 
             If(numPartitions ceq 0,
-              makeAnswer(0, 0L),
+              makeAnswer(0, 0),
               TailLoop(
                 howManyPartsToDrop,
-                FastIndexedSeq(i.name -> numPartitions, numLeft.name -> targetNumRows),
-                If((i ceq 1) || ((numLeft - Cast(ArrayRef(partitionSizeArrayRef, i - 1), TInt64)) <= 0L),
-                  makeAnswer(i - 1, numLeft),
+                FastIndexedSeq(i.name -> 1, nRowsToRight.name -> 0L),
+                If((i ceq numPartitions) || ((nRowsToRight + Cast(ArrayRef(partitionSizeArrayRef, numPartitions - i), TInt64)) >= targetNumRows),
+                  makeAnswer(i, maxIR(0L, Cast(ArrayRef(partitionSizeArrayRef, numPartitions - i), TInt64) - (I64(targetNumRows) - nRowsToRight)).toI),
                   Recur(
                     howManyPartsToDrop,
                     FastIndexedSeq(
-                      i - 1,
-                      numLeft - Cast(ArrayRef(partitionSizeArrayRef, i - 1), TInt64)),
-                    TTuple(TInt32, TInt64)))))
+                      i + 1,
+                      nRowsToRight + Cast(ArrayRef(partitionSizeArrayRef, numPartitions - i), TInt64)),
+                    TTuple(TInt32, TInt32)))))
           }
         }
 
@@ -1192,24 +1192,15 @@ object LowerTableIR {
           bindIR(ArrayLen(childContexts)) { totalNumPartitions =>
             bindIR(partitionSizeArray(childContexts, totalNumPartitions)) { partitionSizeArrayRef =>
               bindIR(answerTuple(partitionSizeArrayRef)) { answerTupleRef =>
-                val numPartsToDropFromPartitionSizeArray = GetTupleElement(answerTupleRef, 0)
-                val numElementsFromFirstPart = GetTupleElement(answerTupleRef, 1)
-                val numPartsToDropFromTotal = numPartsToDropFromPartitionSizeArray + (totalNumPartitions - ArrayLen(partitionSizeArrayRef))
-                val onlyNeededPartitions = StreamDrop(ToStream(childContexts), numPartsToDropFromTotal)
-                val howManyFromEachPart = mapIR(rangeIR(StreamLen(onlyNeededPartitions))) { idxRef =>
-                  If(idxRef ceq 0,
-                    Cast(numElementsFromFirstPart, TInt32),
-                    ArrayRef(partitionSizeArrayRef, idxRef))
+                val numPartsToKeepFromRight = GetTupleElement(answerTupleRef, 0)
+                val nToDropFromFirst = GetTupleElement(answerTupleRef, 1)
+                bindIR(totalNumPartitions - numPartsToKeepFromRight) { startIdx =>
+                  mapIR(rangeIR(numPartsToKeepFromRight)) { idx =>
+                    MakeStruct(FastIndexedSeq(
+                      "numberToDrop" -> If(idx ceq 0, nToDropFromFirst, 0),
+                      "old" -> ArrayRef(childContexts, idx + startIdx)))
+                  }
                 }
-                StreamZip(
-                  FastIndexedSeq(onlyNeededPartitions,
-                    howManyFromEachPart,
-                    StreamDrop(ToStream(partitionSizeArrayRef), numPartsToDropFromPartitionSizeArray)),
-                  FastIndexedSeq("part", "howMany", "partLength"),
-                  MakeStruct(FastIndexedSeq(
-                    "numberToDrop" -> maxIR(0, Ref("partLength", TInt32) - Ref("howMany", TInt32)),
-                    "old" -> Ref("part", loweredChild.ctxType))),
-                  ArrayZipBehavior.AssertSameLength)
               }
             }
           }
