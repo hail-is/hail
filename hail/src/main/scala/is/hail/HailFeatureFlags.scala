@@ -6,7 +6,11 @@ import org.json4s.JsonAST.{JArray, JObject, JString}
 import scala.collection.mutable
 
 object HailFeatureFlags {
-  val defaults: Map[String, (String, String)] = Map[String, (String, String)](
+  val defaults = Map[String, (String, String)](
+    // Must match __flags_env_vars_and_defaults in hail/backend/backend.py
+    //
+    // The default values and envvars here are only used in the Scala tests. In all other
+    // conditions, Python initializes the flags, see HailContext._initialize_flags in context.py.
     ("no_whole_stage_codegen", ("HAIL_DEV_NO_WHOLE_STAGE_CODEGEN" -> null)),
     ("no_ir_logging", ("HAIL_DEV_NO_IR_LOG" -> null)),
     ("lower", ("HAIL_DEV_LOWER" -> null)),
@@ -17,11 +21,6 @@ object HailFeatureFlags {
     ("max_leader_scans", ("HAIL_DEV_MAX_LEADER_SCANS" -> "1000")),
     ("distributed_scan_comb_op", ("HAIL_DEV_DISTRIBUTED_SCAN_COMB_OP" -> null)),
     ("jvm_bytecode_dump", ("HAIL_DEV_JVM_BYTECODE_DUMP" -> null)),
-    ("use_packed_int_encoding", ("HAIL_DEV_USE_PACKED_INT_ENCODING" -> null)),
-    ("use_column_encoding", ("HAIL_DEV_USE_COLUMN_ENCODING" -> null)),
-    ("use_spicy_ptypes", ("HAIL_USE_SPICY_PTYPES" -> null)),
-    ("log_service_timing", ("HAIL_DEV_LOG_SERVICE_TIMING" -> null)),
-    ("cache_service_input", ("HAIL_DEV_CACHE_SERVICE_INPUT" -> null)),
     ("write_ir_files", ("HAIL_WRITE_IR_FILES" -> null)),
     ("method_split_ir_limit", ("HAIL_DEV_METHOD_SPLIT_LIMIT" -> "16")),
     ("use_new_shuffle", ("HAIL_USE_NEW_SHUFFLE" -> null)),
@@ -54,13 +53,14 @@ object HailFeatureFlags {
     )
 }
 
-class HailFeatureFlags(
+class HailFeatureFlags private (
   val flags: mutable.Map[String, String]
 ) extends Serializable {
   val available: java.util.ArrayList[String] =
     new java.util.ArrayList[String](java.util.Arrays.asList[String](flags.keys.toSeq: _*))
 
   def set(flag: String, value: String): Unit = {
+    assert(exists(flag))
     flags.update(flag, value)
   }
 

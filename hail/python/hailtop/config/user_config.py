@@ -39,16 +39,31 @@ VALID_SECTION_AND_OPTION_RE = re.compile('[a-z0-9_]+')
 T = TypeVar('T')
 
 
-def configuration_of(section: str, option: str, explicit_argument: Optional[str], fallback: T) -> Union[str, T]:
+def configuration_of(section: str,
+                     option: str,
+                     explicit_argument: Optional[T],
+                     fallback: T,
+                     *,
+                     deprecated_envvar: Optional[str] = None) -> Union[str, T]:
     assert VALID_SECTION_AND_OPTION_RE.fullmatch(section), (section, option)
     assert VALID_SECTION_AND_OPTION_RE.fullmatch(option), (section, option)
 
     if explicit_argument is not None:
         return explicit_argument
 
-    envval = os.environ.get('HAIL_' + section.upper() + '_' + option.upper(), None)
+    envvar = 'HAIL_' + section.upper() + '_' + option.upper()
+    envval = os.environ.get(envvar, None)
+    deprecated_envval = None if deprecated_envvar is None else os.environ.get(deprecated_envvar)
     if envval is not None:
+        if deprecated_envval is not None:
+            raise ValueError(f'Value for configuration variable {section}/{option} is ambiguous '
+                             f'because both {envvar} and {deprecated_envvar} are set (respectively '
+                             f'to: {envval} and {deprecated_envval}.')
         return envval
+    if deprecated_envval is not None:
+        warnings.warn(f'Use of deprecated envvar {deprecated_envvar} for configuration variable '
+                      f'{section}/{option}. Please use {envvar} instead.')
+        return deprecated_envval
 
     from_user_config = get_user_config().get(section, option, fallback=None)
     if from_user_config is not None:

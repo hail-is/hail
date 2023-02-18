@@ -224,6 +224,7 @@ class SparkBackend(Py4JBackend):
             connect_logger(self._utils_package_object, 'localhost', 12888)
 
             self._jbackend.startProgressBar()
+        self._initialize_flags()
 
     def jvm(self):
         return self._jvm
