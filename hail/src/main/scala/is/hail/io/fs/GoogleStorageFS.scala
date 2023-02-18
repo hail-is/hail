@@ -136,7 +136,7 @@ class GoogleStorageFS(
     makeUserProjectOption: String => U,
     bucket: String
   ): T = exc match {
-    case exc: IOException =>
+    case exc: IOException if exc.getCause() != null =>
       retryIfRequesterPays(exc.getCause(), makeRequest, makeUserProjectOption, bucket)
     case exc: StorageException =>
       retryIfRequesterPays(exc, exc.getMessage(), exc.getCode(), makeRequest, makeUserProjectOption, bucket)
@@ -328,7 +328,7 @@ class GoogleStorageFS(
     }
 
     def discoverExceptionThenRetryCopyIfRequesterPays(exc: Throwable): Unit = exc match {
-      case exc: IOException =>
+      case exc: IOException if exc.getCause() != null =>
         discoverExceptionThenRetryCopyIfRequesterPays(exc.getCause())
       case exc: StorageException =>
         retryCopyIfRequesterPays(exc, exc.getMessage(), exc.getCode())
