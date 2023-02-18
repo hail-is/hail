@@ -24,7 +24,6 @@ import google.auth.exceptions
 import google.api_core.exceptions
 import botocore.exceptions
 import time
-import weakref
 from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
 
@@ -236,9 +235,7 @@ class AsyncThrottledGather(Generic[T]):
 class AsyncWorkerPool:
     def __init__(self, parallelism, queue_size=1000):
         self._queue: asyncio.Queue[Tuple[Callable, Tuple[Any, ...], Mapping[str, Any]]] = asyncio.Queue(maxsize=queue_size)
-        self.workers = weakref.WeakSet([
-            asyncio.ensure_future(self._worker())
-            for _ in range(parallelism)])
+        self.workers = {asyncio.ensure_future(self._worker()) for _ in range(parallelism)}
 
     async def _worker(self):
         while True:
