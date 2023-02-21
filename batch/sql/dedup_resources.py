@@ -156,8 +156,8 @@ FROM (
     SELECT batch_id, job_id, resource_id, COALESCE(SUM(`usage`), 0) AS `usage`
     FROM aggregated_job_resources_v2
     GROUP BY batch_id, job_id, resource_id
-  ) AS usage
-  LEFT JOIN resources ON usage.resource_id = resources.resource_id
+  ) AS usage_t
+  LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
   GROUP BY batch_id, job_id
 ) AS old
 LEFT JOIN (
@@ -166,8 +166,8 @@ LEFT JOIN (
     SELECT batch_id, job_id, resource_id, COALESCE(SUM(`usage`), 0) AS `usage`
     FROM aggregated_job_resources_v3
     GROUP BY batch_id, job_id, resource_id
-  ) AS usage
-  LEFT JOIN resources ON usage.resource_id = resources.resource_id
+  ) AS usage_t
+  LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
   GROUP BY batch_id, job_id
 ) AS new ON old.batch_id = new.batch_id AND old.job_id = new.job_id
 WHERE ABS(new.cost - old.cost) >= 0.00001
@@ -194,8 +194,8 @@ FROM (
     SELECT batch_id, resource_id, COALESCE(SUM(`usage`), 0) AS `usage`
     FROM aggregated_batch_resources_v2
     GROUP BY batch_id, resource_id
-  ) AS usage
-  LEFT JOIN resources ON usage.resource_id = resources.resource_id
+  ) AS usage_t
+  LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
   GROUP BY batch_id
 ) AS old
 LEFT JOIN (
@@ -204,8 +204,8 @@ LEFT JOIN (
     SELECT batch_id, resource_id, COALESCE(SUM(`usage`), 0) AS `usage`
     FROM aggregated_batch_resources_v3
     GROUP BY batch_id, resource_id
-  ) AS usage
-  LEFT JOIN resources ON usage.resource_id = resources.resource_id
+  ) AS usage_t
+  LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
   GROUP BY batch_id
 ) AS new ON old.batch_id = new.batch_id
 WHERE ABS(new.cost - old.cost) >= 0.00001
@@ -232,8 +232,8 @@ FROM (
     SELECT billing_project, user, resource_id, COALESCE(SUM(`usage`), 0) AS `usage`
     FROM aggregated_billing_project_user_resources_by_date_v2
     GROUP BY billing_project, user, resource_id
-  ) AS usage
-  LEFT JOIN resources ON usage.resource_id = resources.resource_id
+  ) AS usage_t
+  LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
   GROUP BY billing_project, user
 ) AS old
 LEFT JOIN (
@@ -242,8 +242,8 @@ LEFT JOIN (
     SELECT billing_project, user, resource_id, COALESCE(SUM(`usage`), 0) AS `usage`
     FROM aggregated_billing_project_user_resources_by_date_v3
     GROUP BY billing_project, user, resource_id
-  ) AS usage
-  LEFT JOIN resources ON usage.resource_id = resources.resource_id
+  ) AS usage_t
+  LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
   GROUP BY billing_project, user
 ) AS new ON old.billing_project = new.billing_project AND old.user = new.user
 WHERE ABS(new.cost - old.cost) >= 0.00001
@@ -270,8 +270,8 @@ FROM (
     SELECT billing_date, billing_project, user, resource_id, COALESCE(SUM(`usage`), 0) AS `usage`
     FROM aggregated_billing_project_user_resources_by_date_v2
     GROUP BY billing_date, billing_project, user, resource_id
-  ) AS usage
-  LEFT JOIN resources ON usage.resource_id = resources.resource_id
+  ) AS usage_t
+  LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
   GROUP BY billing_date, billing_project, user
 ) AS old
 LEFT JOIN (
@@ -280,8 +280,8 @@ LEFT JOIN (
     SELECT billing_date, billing_project, user, resource_id, COALESCE(SUM(`usage`), 0) AS `usage`
     FROM aggregated_billing_project_user_resources_by_date_v3
     GROUP BY billing_date, billing_project, user, resource_id
-  ) AS usage
-  LEFT JOIN resources ON usage.resource_id = resources.resource_id
+  ) AS usage_t
+  LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
   GROUP BY billing_date, billing_project, user
 ) AS new ON old.billing_project = new.billing_project AND old.user = new.user
 WHERE ABS(new.cost - old.cost) >= 0.00001
