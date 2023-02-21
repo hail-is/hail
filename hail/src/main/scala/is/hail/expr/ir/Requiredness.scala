@@ -297,7 +297,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         val refs = refMap.getOrElse(globalName, FastIndexedSeq()) ++ refMap.getOrElse(partitionStreamName, FastIndexedSeq())
         dependents.getOrElseUpdate(child, mutable.Set[RefEquality[BaseIR]]()) ++= refs
       case TableGen(contexts, globals, cname, gname, _, _, _) =>
-        addBinding(cname, contexts)
+        addElementBinding(cname, contexts)
         addBinding(gname, globals)
       case _ => fatal(Pretty(ctx, node))
     }
@@ -337,11 +337,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case TableRename(child, rMap, gMap) => requiredness.unionFrom(lookup(child))
       case TableFilterIntervals(child, intervals, keep) => requiredness.unionFrom(lookup(child))
       case RelationalLetTable(name, value, body) => requiredness.unionFrom(lookup(body))
-
       case TableGen(_, globals, _, _, body, _, _) =>
         requiredness.unionGlobals(lookupAs[RStruct](globals))
         requiredness.unionRows(lookupAs[RIterable](body).elementType.asInstanceOf[RStruct])
-
       case TableParallelize(rowsAndGlobal, _) =>
         val Seq(rowsReq: RIterable, globalReq: RStruct) = lookupAs[RBaseStruct](rowsAndGlobal).children
         requiredness.unionRows(tcoerce[RStruct](rowsReq.elementType))

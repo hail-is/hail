@@ -1173,23 +1173,21 @@ class TableIRSuite extends HailSuite {
                  body: Option[IR] = None,
                  partitioner: Option[RVDPartitioner] = None
                 ): TableGen = {
-    val glbls = globals.getOrElse(MakeStruct(Seq("g" -> 0)))
-    val cntxtsName = cname.getOrElse(genUID())
-    val glblsName = gname.getOrElse(genUID())
+    val theGlobals = globals.getOrElse(MakeStruct(Seq("g" -> 0)))
+    val contextName = cname.getOrElse(genUID())
+    val globalsName = gname.getOrElse(genUID())
 
     TableGen(
       contexts.getOrElse(StreamRange(0, 2, 1)),
-      glbls,
-      cntxtsName,
-      glblsName,
-      body.getOrElse(
-        StreamMap(Ref(cntxtsName, TStream(TInt32)), "x", MakeStruct(
-          Seq("a" -> ApplyBinaryPrimOp(
-            Multiply(),
-            Ref("x", TInt32),
-            GetField(glbls, "g")
-          )))
-        )),
+      theGlobals,
+      contextName,
+      globalsName,
+      body.getOrElse {
+        val elem = MakeStruct(Seq(
+          "a" -> ApplyBinaryPrimOp(Multiply(), Ref(contextName, TInt32), GetField(theGlobals, "g"))
+        ))
+        MakeStream(Seq(elem), TStream(elem.typ))
+      },
       partitioner.getOrElse(RVDPartitioner.unkeyed(2))
     )
   }
@@ -1198,33 +1196,55 @@ class TableIRSuite extends HailSuite {
     val ex = intercept[IllegalArgumentException] {
       mkTableGen(contexts = Some(Str("oh noes :'(")))
     }
-    ex.getMessage should include(s"Expected contexts: ${classOf[TStream].getSimpleName}")
+
+    ex.getMessage should include("contexts")
+    ex.getMessage should include(s"Expected: ${classOf[TStream].getName}")
+    ex.getMessage should include(s"Actual: ${TString.getClass.getName}")
   }
 
   @Test def testTableGenWithInvalidGlobalsType: Unit = {
     val ex = intercept[IllegalArgumentException] {
       mkTableGen(globals = Some(Str("oh noes :'(")))
     }
-    ex.getMessage should include(s"Expected globals: ${classOf[TStruct].getSimpleName}")
+    ex.getMessage should include("globals")
+    ex.getMessage should include(s"Expected: ${classOf[TStruct].getName}")
+    ex.getMessage should include(s"Actual: ${TString.getClass.getName}")
   }
 
   @Test def testTableGenWithInvalidBodyType: Unit = {
     val ex = intercept[IllegalArgumentException] {
       mkTableGen(body = Some(Str("oh noes :'(")))
     }
-    ex.getMessage should include(s"Expected body: ${classOf[TStream].getSimpleName}")
+    ex.getMessage should include("body")
+    ex.getMessage should include(s"Expected: ${classOf[TStream].getName}")
+    ex.getMessage should include(s"Actual: ${TString.getClass.getName}")
   }
 
   @Test def testTableGenWithInvalidBodyElementType: Unit = {
     val ex = intercept[IllegalArgumentException] {
       mkTableGen(body = Some(MakeStream(Seq(Str("oh noes :'(")), TStream(TString))))
     }
-    ex.getMessage should include(s"Expected body.elementType: ${classOf[TStruct].getSimpleName}")
+    ex.getMessage should include("body.elementType")
+    ex.getMessage should include(s"Expected: ${classOf[TStruct].getName}")
+    ex.getMessage should include(s"Actual: ${TString.getClass.getName}")
+  }
+
+  @Test def testTableGenRequiredness: Unit = {
+    val table = mkTableGen()
+    val analysis = Requiredness(table, ctx)
+    analysis.lookup(table).required shouldBe true
+    analysis.states.m.isEmpty shouldBe true
+  }
+
+  @Test def testTableDistinctlyKeyed: Unit = {
+    val table = mkTableGen()
+    val analysis = DistinctlyKeyed(table)
+    analysis.contains(table) shouldBe false
   }
 
   @Test def testLoweringTableGen: Unit = {
-    val table = mkTableGen()
-    val lowered = LowerTableIR(collect(table), DArrayLowering.All, ctx, Analyses(table, ctx), Map.empty)
-    assertEvalsTo(lowered, Row(0, 0))
+    val table = collect(mkTableGen())
+    val lowered = LowerTableIR(table, DArrayLowering.All, ctx, Analyses(table, ctx), Map.empty)
+    assertEvalsTo(lowered, Row(FastIndexedSeq(0, 0).map(Row(_)), Row(0)))(ExecStrategy.lowering)
   }
 }

@@ -801,18 +801,17 @@ object LowerTableIR {
           globals,
           partitioner = partitioner,
           dependency = TableStageDependency.none,
+          // Insert runtime check into contexts to assert that the number of con
           contexts = bindIR(ToArray(contexts)) { ref =>
             val dieMsg = strConcat(
               s"${getClass.getName}: expected ${partitioner.numPartitions}, got ",
               invoke("str", TString, ArrayLen(ref))
             )
-            ToStream(If(ArrayLen(ref) ceq partitioner.numPartitions, ref,
-              Die(dieMsg, ref.typ, traceId)
-            ))
+            ToStream(
+              If(ArrayLen(ref) ceq partitioner.numPartitions, ref, Die(dieMsg, ref.typ, traceId))
+            )
           },
-          body = cref => Let(cname, cref,
-            Let(gname, globals, body)
-          )
+          body = Let(cname, _, Let(gname, globals, body))
         )
 
       case TableRange(n, nPartitions) =>

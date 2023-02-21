@@ -1792,49 +1792,41 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolea
 }
 
 /**
- * contexts are the inputs to the body functions.
+ * Generate a table from the elementwise application of a body IR to a stream of `contexts`.
  *
- * Invariant -- if partitionIntervals are present, the static length of the partition intervals
- * indexed seq must match the dynamic length of the contexts IR. We will add a runtime check in
- * the lowering implementation for this.
- *
- * first place to start -- add a rule to LowerTableIR
- *
- * why are we adding this node?
- * the hl.balding_nichols_model node is implemented as
- * ht = hl.utils.range_table(N)
- * ht = ht.key_by(locus = hl.locus('chr1', ht.idx + 1) // or something
- *
- * This requires us to do an extra pass over the data in order to key `ht` by this new key 'locus'
- * we track information about keys statically -- need to know that tables are sorted by their key
- * we also need to know partition intervals statically. So, when we implement key_by, we have to do
- * extra work to compute this information before generating the rest of the query
- *
- * This is a super common tutorial example and it's currently slow because it an extra pass over the data!
- * We need to implmement balding_nichols_model without a key_by, which means we need to inject the information
- * we need to know about the key into the IR directly. This means passing the key that's sorted and the partition intervals.
+ * @param contexts IR of type TStream[Any] whose elements are downwardly exposed to `body` as `cname`.
+ * @param globals  IR of type TStruct, downwardly exposed to `body` as `gname`.
+ * @param cname    Name of free variable in `body` referencing elements of `contexts`.
+ * @param gname    Name of free variable in `body` referencing `globals`.
+ * @param body     IR of type TStream[TStruct] that generates the rows of the table for each
+ *                 element in `contexts`, optionally referencing free variables Ref(cname) and
+ *                 Ref(gname).
+ * @param partitioner
+ * @param errorId  Identifier tracing location in Python source that created this node
  */
 case class TableGen(contexts: IR,
                     globals: IR,
                     cname: String,
                     gname: String,
-                    body: IR, // IR that references free variables Ref(cname) and Ref(gname) and produces a TStream[TStruct]
+                    body: IR,
                     partitioner: RVDPartitioner,
-                    errId: Int = ErrorIDs.NO_ERROR
+                    errorId: Int = ErrorIDs.NO_ERROR
                    ) extends TableIR {
-  private def requireType[A](varname: String, typ: Type)(implicit tag: ClassTag[A]): Option[A] =
+  private def typeCheck[A <: Type](varname: String, typ: Type)(implicit tag: ClassTag[A]): Option[A] =
     tag.unapply(typ).orElse(
       throw new IllegalArgumentException(
-        s"[${getClass.getSimpleName}] Expected $varname: ${tag.runtimeClass.getSimpleName}, got $typ."
+        s"""Error while type-checking argument for '$varname' in '${getClass.getName}'.
+            |  Expected: ${tag.runtimeClass.getName}
+            |    Actual: ${typ.getClass.getName}""".stripMargin
       )
     )
 
   private val (globalType, rowType) =
     (for {
-      _ <- requireType[TStream]("contexts", contexts.typ)
-      globalType <- requireType[TStruct]("globals", globals.typ)
-      bodyType <- requireType[TStream]("body", body.typ)
-      rowType <- requireType[TStruct]("body.elementType", bodyType.elementType)
+      _ <- typeCheck[TStream]("contexts", contexts.typ)
+      globalType <- typeCheck[TStruct]("globals", globals.typ)
+      bodyType <- typeCheck[TStream]("body", body.typ)
+      rowType <- typeCheck[TStruct]("body.elementType", bodyType.elementType)
     } yield (globalType, rowType)).get
 
   override def typ: TableType =
@@ -1846,7 +1838,7 @@ case class TableGen(contexts: IR,
   override def copy(newChildren: IndexedSeq[BaseIR]): TableIR =
     newChildren match {
       case IndexedSeq(contexts: IR, globals: IR, body: IR) =>
-        TableGen(contexts, globals, cname, gname, body, partitioner, errId)
+        TableGen(contexts, globals, cname, gname, body, partitioner, errorId)
 
       case _ =>
         throw new IllegalArgumentException(
