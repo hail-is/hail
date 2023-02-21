@@ -2,8 +2,7 @@ CREATE TABLE IF NOT EXISTS `globals` (
   `instance_id` VARCHAR(100) NOT NULL,
   `internal_token` VARCHAR(100) NOT NULL,
   `n_tokens` INT NOT NULL,
-  `frozen` BOOLEAN NOT NULL DEFAULT FALSE,
-  `cancellation_op_id` BIGINT NOT NULL DEFAULT 1
+  `frozen` BOOLEAN NOT NULL DEFAULT FALSE
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `resources` (
@@ -244,7 +243,6 @@ CREATE TABLE IF NOT EXISTS `job_groups` (
   `batch_id` BIGINT NOT NULL,
   `job_group_id` INT NOT NULL,
   `cancel_after_n_failures` INT DEFAULT NULL,
-  `cancellation_op_id` BIGINT DEFAULT NULL,
   `path` FULLTEXT DEFAULT '/',  # FIXME: check the collation here
   `state` ENUM('running', 'complete') NOT NULL,
   `n_jobs` INT NOT NULL,
@@ -255,8 +253,7 @@ CREATE TABLE IF NOT EXISTS `job_groups` (
   UNIQUE (`batch_id`, `path`)
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
-CREATE INDEX `job_groups_cancellation_op_id` ON `job_groups` (`batch_id`, `job_group_id`, `cancellation_op_id`);
-CREAT FULLTEXT INDEX `job_groups_path` ON `job_groups` (`batch_id`, `path`);
+CREATE FULLTEXT INDEX `job_groups_path` ON `job_groups` (`batch_id`, `path`);
 CREATE INDEX `job_groups_state` ON `job_groups` (`state`);
 CREATE INDEX `job_groups_job_group_id` ON `job_groups` (`job_group_id`);
 
@@ -345,19 +342,18 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `inst_coll` VARCHAR(255),
   `n_regions` INT DEFAULT NULL,
   `regions_bits_rep` BIGINT DEFAULT NULL,
-  `cancellation_op_id` BIGINT,
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `update_id`) REFERENCES batch_updates(batch_id, update_id) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups(batch_id, job_group_id) ON DELETE CASCADE,
   FOREIGN KEY (`inst_coll`) REFERENCES inst_colls(name) ON DELETE CASCADE
 ) ENGINE = InnoDB;
-CREATE INDEX `jobs_batch_id_state_always_run_inst_coll_cancelled` ON `jobs` (`batch_id`, `state`, `always_run`, `inst_coll`, `cancelled`);
-CREATE INDEX `jobs_batch_id_state_always_run_cancelled` ON `jobs` (`batch_id`, `state`, `always_run`, `cancelled`);
+CREATE INDEX `jobs_batch_id_jg_id_state_always_run_inst_coll_cancelled` ON `jobs` (`batch_id`, `job_group_id`, `state`, `always_run`, `inst_coll`, `cancelled`);
+CREATE INDEX `jobs_batch_id_jg_id_state_always_run_cancelled` ON `jobs` (`batch_id`, `job_group_id`, `state`, `always_run`, `cancelled`);
 CREATE INDEX `jobs_batch_id_update_id` ON `jobs` (`batch_id`, `update_id`);
 CREATE INDEX `jobs_batch_id_always_run_n_regions_regions_bits_rep_job_id` ON `jobs` (`batch_id`, `always_run`, `n_regions`, `regions_bits_rep`, `job_id`);
 CREATE INDEX `jobs_batch_id_ic_state_ar_n_regions_bits_rep_job_id` ON `jobs` (`batch_id`, `inst_coll`, `state`, `always_run`, `n_regions`, `regions_bits_rep`, `job_id`);
-CREATE INDEX `jobs_batch_id_cancellation_op_id` ON `jobs` (`batch_id`, `job_id`, `cancellation_op_id`);
+CREATE INDEX `jobs_job_batch_id_group_id` ON `jobs` (`batch_id`, `job_group_id`);
 
 CREATE TABLE IF NOT EXISTS `batch_bunches` (
   `batch_id` BIGINT NOT NULL,
@@ -989,13 +985,13 @@ CREATE PROCEDURE recompute_incremental(
         jobs.inst_coll as job_inst_coll,
         jobs.state as job_state,
         jobs.cores_mcpu,
-        NOT (jobs.always_run OR jobs.cancelled OR jobs.cancellation_op_id < job_groups.cancellation_op_id) AS cancellable,
-        (jobs.always_run OR NOT (jobs.cancelled OR jobs.cancellation_op_id < job_groups.cancellation_op_id)) AS runnable,
-        (NOT jobs.always_run AND (jobs.cancelled OR jobs.cancellation_op_id < job_groups.cancellation_op_id)) AS cancelled
+        NOT (jobs.always_run OR jobs.cancelled OR job_groups_cancelled.batch_id IS NOT NULL) AS cancellable,
+        (jobs.always_run OR NOT (jobs.cancelled OR job_groups_cancelled.batch_id IS NOT NULL)) AS runnable,
+        (NOT jobs.always_run AND (jobs.cancelled OR job_groups_cancelled.batch_id IS NOT NULL)) AS cancelled
       FROM jobs
       INNER JOIN batches
         ON batches.id = jobs.batch_id
-      LEFT JOIN job_groups ON jobs.batch_id = job_groups.batch_id AND jobs.job_group_id = job_groups.job_group_id
+      LEFT JOIN job_groups_cancelled ON jobs.batch_id = job_groups_cancelled.batch_id AND jobs.job_group_id = job_groups_cancelled.job_group_id
       LOCK IN SHARE MODE) as t
     GROUP BY batch_id, job_group_id, batch_state, user, job_inst_coll
   );
@@ -1140,13 +1136,8 @@ BEGIN
   DECLARE expected_n_jobs INT;
   DECLARE staging_n_jobs INT;
   DECLARE cur_update_start_job_id INT;
-  DECLARE cur_cancellation_op_id BIGINT;
 
   START TRANSACTION;
-
-  SELECT cancellation_op_id INTO cur_cancellation_op_id
-  FROM globals
-  LOCK IN SHARE MODE;
 
   SELECT committed, n_jobs INTO cur_update_committed, expected_n_jobs
   FROM batch_updates
@@ -1214,8 +1205,7 @@ BEGIN
                jobs.job_id = t.job_id
           SET jobs.state = IF(COALESCE(t.n_pending_parents, 0) = 0, 'Ready', 'Pending'),
               jobs.n_pending_parents = COALESCE(t.n_pending_parents, 0),
-              jobs.cancelled = IF(COALESCE(t.n_succeeded, 0) = COALESCE(t.n_parents - t.n_pending_parents, 0), jobs.cancelled, 1),
-              jobs.cancellation_op_id = cur_cancellation_op_id
+              jobs.cancelled = IF(COALESCE(t.n_succeeded, 0) = COALESCE(t.n_parents - t.n_pending_parents, 0), jobs.cancelled, 1)
           WHERE jobs.batch_id = in_batch_id AND jobs.job_id >= cur_update_start_job_id AND
               jobs.job_id < cur_update_start_job_id + staging_n_jobs;
       END IF;
@@ -1296,14 +1286,7 @@ CREATE PROCEDURE cancel_job_group(
   IN in_job_group_id INT
 )
 BEGIN
-  DECLARE cur_cancellation_op_id BIGINT;
-  DECLARE new_cancellation_op_id BIGINT;
-
   START TRANSACTION;
-
-  SELECT cancellation_op_id INTO cur_cancellation_op_id
-  FROM globals
-  FOR UPDATE;
 
   INSERT INTO user_inst_coll_resources (user, inst_coll, token,
     n_ready_jobs, ready_cores_mcpu,
@@ -1370,15 +1353,6 @@ BEGIN
   INNER JOIN job_group_parents ON job_groups_inst_coll_cancellable_resources.batch_id = job_group_parents.batch_id AND
     job_groups_inst_coll_cancellable_resources.job_group_id = job_group_parents.parent_id
   WHERE batch_id = in_batch_id AND parent_id = in_job_group_id AND batch_updates.committed;
-
-  UPDATE globals
-  SET cancellation_op_id = cur_cancellation_op_id + 1;
-
-  UPDATE job_groups
-  LEFT JOIN job_group_parents ON job_groups.batch_id = job_group_parents.batch_id AND
-    job_groups.job_group_id = job_groups.job_group_id
-  SET cancellation_op_id = cur_cancellation_op_id + 1
-  WHERE batch_id = in_batch_id AND parent_id = in_job_group_id;
 
   INSERT INTO job_groups_cancelled
   SELECT batch_id, job_group_id

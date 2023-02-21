@@ -93,39 +93,38 @@ HAVING n_cancelled_ready_jobs > 0;
         }
 
         async def user_cancelled_ready_jobs(user, remaining):
-            async for batch in self.db.select_and_fetchall(
+            async for job_group in self.db.select_and_fetchall(
                 '''
-SELECT batches.id
-FROM batches
-WHERE user = %s AND `state` = 'running';
+SELECT job_groups.batch_id, job_groups.job_group_id
+FROM job_groups
+INNER JOIN job_groups_cancelled ON job_groups.batch_id = job_groups_cancelled.batch_id AND
+  job_groups.job_group_id = job_groups_cancelled.job_group_id
+INNER JOIN batches ON batches.id = job_groups.batch_id
+WHERE user = %s AND `state` = 'running'
+ORDER BY job_groups.batch_id ASC, job_groups.job_group_id ASC;
 ''',
                 (user,),
             ):
                 async for record in self.db.select_and_fetchall(
                     '''
-SELECT jobs.job_id, jobs.job_group_id
+SELECT jobs.batch_id, jobs.job_id, jobs.job_group_id
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
-INNER JOIN job_groups ON jobs.batch_id = job_groups.batch_id AND
-  jobs.job_group_id = job_groups.job_group_id AND
-  jobs.cancellation_op_id < job_groups.cancellation_op_id
-WHERE batch_id = %s AND state = 'Ready' AND always_run = 0
+WHERE batch_id = %s AND job_group_id = %s AND state = 'Ready' AND always_run = 0
 LIMIT %s;
 ''',
-                    (batch['id'], remaining.value),
+                    (job_group['batch_id'], job_group['job_group_id'], remaining.value),
                 ):
-                    record['batch_id'] = batch['id']
                     yield record
 
                 async for record in self.db.select_and_fetchall(
                     '''
 SELECT jobs.job_id, jobs.job_group_id
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
-WHERE batch_id = %s AND state = 'Ready' AND always_run = 0 AND cancelled = 1
+WHERE batch_id = %s AND job_group_id = %s AND state = 'Ready' AND always_run = 0 AND cancelled = 1
 LIMIT %s;
 ''',
-                    (batch['id'], remaining.value),
+                    (job_group['batch_id'], job_group['job_group_id'], remaining.value),
                 ):
-                    record['batch_id'] = batch['id']
                     yield record
 
         waitable_pool = WaitableSharedPool(self.async_worker_pool)
@@ -182,11 +181,15 @@ HAVING n_cancelled_creating_jobs > 0;
         }
 
         async def user_cancelled_creating_jobs(user, remaining):
-            async for batch in self.db.select_and_fetchall(
+            async for job_group in self.db.select_and_fetchall(
                 '''
-SELECT batches.id
-FROM batches
-WHERE user = %s AND `state` = 'running';
+SELECT job_groups.batch_id, job_groups.job_group_id
+FROM job_groups
+INNER JOIN job_groups_cancelled ON job_groups.batch_id = job_groups_cancelled.batch_id AND
+  job_groups.job_group_id = job_groups_cancelled.job_group_id
+INNER JOIN batches ON batches.id = job_groups.batch_id
+WHERE user = %s AND `state` = 'running'
+ORDER BY job_groups.batch_id ASC, job_groups.job_group_id ASC;
 ''',
                 (user,),
             ):
@@ -196,15 +199,11 @@ SELECT jobs.job_id, jobs.job_group_id, attempts.attempt_id, attempts.instance_na
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 STRAIGHT_JOIN attempts
   ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
-INNER JOIN job_groups ON jobs.batch_id = job_groups.batch_id AND
-  jobs.job_group_id = job_groups.job_group_id AND
-  jobs.cancellation_op_id < job_groups.cancellation_op_id
-WHERE jobs.batch_id = %s AND state = 'Creating' AND always_run = 0 AND cancelled = 0
+WHERE jobs.batch_id = %s AND jobs.job_group_id = %s AND state = 'Creating' AND always_run = 0 AND cancelled = 0
 LIMIT %s;
 ''',
-                    (batch['id'], remaining.value),
+                    (job_group['batch_id'], job_group['job_group_id'], remaining.value),
                 ):
-                    record['batch_id'] = batch['id']
                     yield record
 
         waitable_pool = WaitableSharedPool(self.async_worker_pool)
@@ -282,11 +281,15 @@ HAVING n_cancelled_running_jobs > 0;
         }
 
         async def user_cancelled_running_jobs(user, remaining):
-            async for batch in self.db.select_and_fetchall(
+            async for job_group in self.db.select_and_fetchall(
                 '''
-SELECT batches.id
-FROM batches
-WHERE user = %s AND `state` = 'running';
+SELECT job_groups.batch_id, job_groups.job_group_id
+FROM job_groups
+INNER JOIN job_groups_cancelled ON job_groups.batch_id = job_groups_cancelled.batch_id AND
+  job_groups.job_group_id = job_groups_cancelled.job_group_id
+INNER JOIN batches ON batches.id = job_groups.batch_id
+WHERE user = %s AND `state` = 'running'
+ORDER BY job_groups.batch_id ASC, job_groups.job_group_id ASC;
 ''',
                 (user,),
             ):
@@ -296,15 +299,11 @@ SELECT jobs.job_id, attempts.attempt_id, attempts.instance_name
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 STRAIGHT_JOIN attempts
   ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
-INNER JOIN job_groups ON jobs.batch_id = job_groups.batch_id AND
-  jobs.job_group_id = job_groups.job_group_id AND
-  jobs.cancellation_op_id < job_groups.cancellation_op_id  
-WHERE jobs.batch_id = %s AND state = 'Running' AND always_run = 0 AND cancelled = 0
+WHERE jobs.batch_id = %s AND jobs.job_group_id = %s AND state = 'Running' AND always_run = 0 AND cancelled = 0
 LIMIT %s;
 ''',
-                    (batch['id'], remaining.value),
+                    (job_group['batch_id'], job_group['job_group_id'], remaining.value),
                 ):
-                    record['batch_id'] = batch['id']
                     yield record
 
         waitable_pool = WaitableSharedPool(self.async_worker_pool)

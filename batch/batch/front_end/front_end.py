@@ -1029,7 +1029,6 @@ async def _create_job_group(
     async def _insert_job_group(
         tx: Transaction,
         path: List[str],
-        cancellation_op_id: int,
         parent_ids: List[int],
         cancel_after_n_failures: Optional[int],
     ) -> JobGroup:
@@ -1059,10 +1058,10 @@ FOR UPDATE;
 
             await tx.execute_insertone(
                 '''
-INSERT INTO job_groups (batch_id, job_group_id, cancellation_op_id, path, cancel_after_n_failures)
-VALUES (%s, %s, %s, %s, %s, %s, %s);
+INSERT INTO job_groups (batch_id, job_group_id, path, cancel_after_n_failures)
+VALUES (%s, %s, %s, %s, %s, %s);
 ''',
-                (batch_id, job_group_id, cancellation_op_id, path_str, cancel_after_n_failures),
+                (batch_id, job_group_id, path_str, cancel_after_n_failures),
                 query_name='insert_job_groups',
             )
 
@@ -1095,16 +1094,6 @@ INSERT INTO job_groups_n_jobs_in_complete_states (batch_id, job_group_id) VALUES
 
     @transaction(db)
     async def _insert(tx) -> JobGroup:
-        record = await tx.execute_and_fetchone(
-            '''
-SELECT cancellation_op_id
-FROM globals
-LIMIT 1
-LOCK IN SHARE MODE;
-'''
-        )
-        cancellation_op_id = record['cancellation_op_id']
-
         job_group = None
         for i in range(len(path)):
             is_last_path_segment = len(path) - 1
@@ -1113,7 +1102,6 @@ LOCK IN SHARE MODE;
             job_group = await _insert_job_group(
                 tx,
                 path[: i + 1],
-                cancellation_op_id,
                 job_group.parent_ids + [job_group.job_group_id],
                 cancel_after_n_failures=_cancel_after_n_failures,
             )

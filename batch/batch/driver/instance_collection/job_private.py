@@ -313,11 +313,15 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
         }
 
         async def user_runnable_jobs(user, remaining):
-            async for batch in self.db.select_and_fetchall(
+            async for job_group in self.db.select_and_fetchall(
                 '''
-SELECT batches.id, userdata, user, format_version
-FROM batches
-WHERE user = %s AND `state` = 'running';
+SELECT job_groups.batch_id, job_groups.job_group_id, userdata, user, format_version, job_groups_cancelled.batch_id IS NOT NULL AS cancelled
+FROM job_groups
+LEFT JOIN batches ON batches.id = job_groups.batch_id
+LEFT JOIN job_groups_cancelled ON job_groups.batch_id = job_groups_cancelled.batch_id AND
+  job_groups.job_group_id = job_groups_cancelled.job_group_id
+WHERE user = %s AND job_groups.`state` = 'running'
+ORDER BY job_groups.batch_id ASC, job_groups.job_group_id ASC;
 ''',
                 (user,),
             ):
@@ -326,45 +330,37 @@ WHERE user = %s AND `state` = 'running';
 SELECT jobs.batch_id, jobs.job_id, jobs.job_group_id, jobs.spec, jobs.cores_mcpu, regions_bits_rep, COALESCE(SUM(instances.state IS NOT NULL AND
   (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
-INNER JOIN job_groups ON jobs.batch_id = job_groups.batch_id AND
-  jobs.job_group_id = job_groups.job_group_id AND
-  jobs.cancellation_op_id >= job_groups.cancellation_op_id
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
 LEFT JOIN instances ON attempts.instance_name = instances.name
-WHERE jobs.batch_id = %s AND jobs.state = 'Ready' AND always_run = 1 AND jobs.inst_coll = %s
+WHERE jobs.batch_id = %s AND jobs.job_group_id = %s AND jobs.state = 'Ready' AND always_run = 1 AND jobs.inst_coll = %s
 GROUP BY jobs.job_id, jobs.spec, jobs.cores_mcpu
 HAVING live_attempts = 0
 LIMIT %s;
 ''',
-                    (batch['id'], self.name, remaining.value),
+                    (job_group['batch_id'], job_group['job_group_id'], self.name, remaining.value),
                 ):
-                    record['batch_id'] = batch['id']
-                    record['userdata'] = batch['userdata']
-                    record['user'] = batch['user']
-                    record['format_version'] = batch['format_version']
+                    record['userdata'] = job_group['userdata']
+                    record['user'] = job_group['user']
+                    record['format_version'] = job_group['format_version']
                     yield record
-                if not batch['cancelled']:
+                if not job_group['cancelled']:
                     async for record in self.db.select_and_fetchall(
                         '''
 SELECT jobs.batch_id, jobs.job_id, jobs.job_group_id, jobs.spec, jobs.cores_mcpu, regions_bits_rep, COALESCE(SUM(instances.state IS NOT NULL AND
   (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
-INNER JOIN job_groups ON jobs.batch_id = job_groups.batch_id AND
-  jobs.job_group_id = job_groups.job_group_id AND
-  jobs.cancellation_op_id >= job_groups.cancellation_op_id
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
 LEFT JOIN instances ON attempts.instance_name = instances.name
-WHERE jobs.batch_id = %s AND jobs.state = 'Ready' AND always_run = 0 AND jobs.inst_coll = %s AND cancelled = 0
+WHERE jobs.batch_id = %s AND jobs.job_group_id = %s AND jobs.state = 'Ready' AND always_run = 0 AND jobs.inst_coll = %s AND cancelled = 0
 GROUP BY jobs.job_id, jobs.spec, jobs.cores_mcpu
 HAVING live_attempts = 0
 LIMIT %s
 ''',
-                        (batch['id'], self.name, remaining.value),
+                        (job_group['batch_id'], job_group['job_group_id'], self.name, remaining.value),
                     ):
-                        record['batch_id'] = batch['id']
-                        record['userdata'] = batch['userdata']
-                        record['user'] = batch['user']
-                        record['format_version'] = batch['format_version']
+                        record['userdata'] = job_group['userdata']
+                        record['user'] = job_group['user']
+                        record['format_version'] = job_group['format_version']
                         yield record
 
         waitable_pool = WaitableSharedPool(self.async_worker_pool)

@@ -307,7 +307,8 @@ WHERE removed = 0 AND inst_coll = %s;
         SELECT jobs.batch_id, jobs.job_id, cores_mcpu, always_run, n_regions, regions_bits_rep
         FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
         LEFT JOIN batches ON jobs.batch_id = batches.id
-        WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND always_run AND inst_coll = %s
+        LEFT JOIN job_groups ON jobs.batch_id = job_groups.batch_id AND jobs.job_group_id = job_groups.job_group_id
+        WHERE user = %s AND job_groups.`state` = 'running' AND jobs.state = 'Ready' AND always_run AND inst_coll = %s
         ORDER BY jobs.batch_id ASC, jobs.job_id ASC
         LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
       )
@@ -315,11 +316,9 @@ WHERE removed = 0 AND inst_coll = %s;
       (
         SELECT jobs.batch_id, jobs.job_id, cores_mcpu, always_run, n_regions, regions_bits_rep
         FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
+        LEFT JOIN job_groups ON jobs.batch_id = job_groups.batch_id AND jobs.job_group_id = job_groups.job_group_id
         LEFT JOIN batches ON jobs.batch_id = batches.id
-        INNER JOIN job_groups ON jobs.batch_id = job_groups.batch_id AND
-          jobs.job_group_id = job_groups.job_group_id AND
-          jobs.cancellation_op_id < job_groups.cancellation_op_id
-        WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND NOT always_run AND inst_coll = %s
+        WHERE user = %s AND job_groups.`state` = 'running' AND jobs.state = 'Ready' AND NOT always_run AND inst_coll = %s
         ORDER BY jobs.batch_id ASC, jobs.job_id ASC
         LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
       )
@@ -565,51 +564,49 @@ HAVING n_ready_jobs + n_running_jobs > 0;
         }
 
         async def user_runnable_jobs(user):
-            async for batch in self.db.select_and_fetchall(
+            async for job_group in self.db.select_and_fetchall(
                 '''
-SELECT job_groups.batch_id, userdata, user, format_version
+SELECT job_groups.batch_id, job_groups.job_group_id, userdata, user, format_version, job_groups_cancelled.batch_id IS NOT NULL AS cancelled
 FROM job_groups
-INNER JOIN batches ON batches.id = job_groups.batch_id
-WHERE user = %s AND job_group_id = 1 AND `state` = 'running';
+LEFT JOIN batches ON batches.id = job_groups.batch_id
+LEFT JOIN job_groups_cancelled ON job_groups.batch_id = job_groups_cancelled.batch_id AND
+  job_groups.job_group_id = job_groups_cancelled.job_group_id
+WHERE user = %s AND job_groups.`state` = 'running'
+ORDER BY job_groups.batch_id ASC, job_groups.job_group_id ASC;
 ''',
                 (user,),
                 "user_runnable_jobs__select_running_batches",
             ):
                 async for record in self.db.select_and_fetchall(
                     '''
-SELECT jobs.job_id, jobs.job_group_id, spec, cores_mcpu, regions_bits_rep
+SELECT jobs.batch_id, jobs.job_id, jobs.job_group_id, spec, cores_mcpu, regions_bits_rep
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
-WHERE jobs.batch_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 1
+WHERE jobs.batch_id = %s AND jobs.job_group_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 1
 ORDER BY jobs.batch_id, inst_coll, state, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
 LIMIT 300;
 ''',
-                    (batch['id'], self.pool.name),
+                    (job_group['batch_id'], job_group['job_group_id'], self.pool.name),
                     "user_runnable_jobs__select_ready_always_run_jobs",
                 ):
-                    record['batch_id'] = batch['id']
-                    record['userdata'] = batch['userdata']
-                    record['user'] = batch['user']
-                    record['format_version'] = batch['format_version']
+                    record['userdata'] = job_group['userdata']
+                    record['user'] = job_group['user']
+                    record['format_version'] = job_group['format_version']
                     yield record
-                if not batch['cancelled']:
+                if not job_group['cancelled']:
                     async for record in self.db.select_and_fetchall(
                         '''
-SELECT jobs.job_id, jobs.job_group_id, spec, cores_mcpu, regions_bits_rep
+SELECT jobs.batch_id, jobs.job_id, jobs.job_group_id, spec, cores_mcpu, regions_bits_rep
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
-INNER JOIN job_groups ON jobs.batch_id = job_groups.batch_id AND
-  jobs.job_group_id = job_groups.job_group_id AND
-  jobs.cancellation_op_id >= job_groups.cancellation_op_id
-WHERE jobs.batch_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 0 AND cancelled = 0
+WHERE jobs.batch_id = %s AND jobs.job_group_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 0 AND cancelled = 0
 ORDER BY jobs.batch_id, inst_coll, state, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
 LIMIT 300;
 ''',
-                        (batch['id'], self.pool.name),
+                        (job_group['batch_id'], job_group['job_group_id'], self.pool.name),
                         "user_runnable_jobs__select_ready_jobs_batch_not_cancelled",
                     ):
-                        record['batch_id'] = batch['id']
-                        record['userdata'] = batch['userdata']
-                        record['user'] = batch['user']
-                        record['format_version'] = batch['format_version']
+                        record['userdata'] = job_group['userdata']
+                        record['user'] = job_group['user']
+                        record['format_version'] = job_group['format_version']
                         yield record
 
         waitable_pool = WaitableSharedPool(self.async_worker_pool)

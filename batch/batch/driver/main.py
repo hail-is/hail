@@ -906,11 +906,12 @@ FROM
   FROM
   (
     SELECT batches.user, jobs.state, jobs.cores_mcpu, jobs.inst_coll,
-      (jobs.always_run OR NOT (jobs.cancelled OR jobs.cancellation_op_id >= job_groups.cancellation_op_id)) AS runnable,
-      (NOT jobs.always_run AND (jobs.cancelled OR jobs.cancellation_op_id < job_groups.cancellation_op_id)) AS cancelled
+      (jobs.always_run OR NOT (jobs.cancelled OR job_groups_cancelled.batch_id IS NOT NULL)) AS runnable,
+      (NOT jobs.always_run AND (jobs.cancelled OR job_groups_cancelled.batch_id IS NOT NULL)) AS cancelled
     FROM batches
     INNER JOIN jobs ON batches.id = jobs.batch_id
     INNER JOIN job_groups ON job_groups.batch_id = jobs.batch_id AND job_groups.job_group_id = jobs.job_group_id
+    LEFT JOIN job_groups_cancelled ON job_groups.batch_id = job_groups_cancelled.batch_id AND job_groups.job_group_id = job_groups_cancelled.job_group_id
     WHERE batches.`state` = 'running'
   ) as v
   GROUP BY user, inst_coll
