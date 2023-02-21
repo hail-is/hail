@@ -2093,6 +2093,9 @@ steps:
       - name: dedup-resources
         script: /io/sql/dedup_resources.py
         online: true
+      - name: dedup-resource-ids-rm-foreign-key
+        script: /io/sql/dedup_resource_ids_rm_foreign_key.py
+        online: true
       - name: cleanup-dedup-resources
         script: /io/sql/cleanup-dedup-resources.sql
         online: true
