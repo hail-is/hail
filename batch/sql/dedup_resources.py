@@ -153,7 +153,7 @@ SELECT old.batch_id, old.job_id, old.cost, new.cost, ABS(new.cost - old.cost) AS
 FROM (
   SELECT batch_id, job_id, CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) AS cost
   FROM (
-    SELECT batch_id, job_id, resource_id, COALESCE(SUM(`usage`), 0) AS cost
+    SELECT batch_id, job_id, resource_id, COALESCE(SUM(`usage`), 0) AS usage
     FROM aggregated_job_resources_v2
     GROUP BY batch_id, job_id, resource_id
   ) AS usage
@@ -163,7 +163,7 @@ FROM (
 LEFT JOIN (
   SELECT batch_id, job_id, CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) AS cost
   FROM (
-    SELECT batch_id, job_id, resource_id, COALESCE(SUM(`usage`), 0) AS cost
+    SELECT batch_id, job_id, resource_id, COALESCE(SUM(`usage`), 0) AS usage
     FROM aggregated_job_resources_v3
     GROUP BY batch_id, job_id, resource_id
   ) AS usage
@@ -191,7 +191,7 @@ SELECT old.batch_id, old.cost, new.cost, ABS(new.cost - old.cost) AS cost_diff
 FROM (
   SELECT batch_id, CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) AS cost
   FROM (
-    SELECT batch_id, resource_id, COALESCE(SUM(`usage`), 0) AS cost
+    SELECT batch_id, resource_id, COALESCE(SUM(`usage`), 0) AS usage
     FROM aggregated_batch_resources_v2
     GROUP BY batch_id, resource_id
   ) AS usage
@@ -201,7 +201,7 @@ FROM (
 LEFT JOIN (
   SELECT batch_id, CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) AS cost
   FROM (
-    SELECT batch_id, resource_id, COALESCE(SUM(`usage`), 0) AS cost
+    SELECT batch_id, resource_id, COALESCE(SUM(`usage`), 0) AS usage
     FROM aggregated_batch_resources_v3
     GROUP BY batch_id, resource_id
   ) AS usage
@@ -229,7 +229,7 @@ SELECT old.billing_project, old.user, old.cost, new.cost, ABS(new.cost - old.cos
 FROM (
   SELECT billing_project, user, CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) AS cost
   FROM (
-    SELECT billing_project, user, resource_id, COALESCE(SUM(`usage`), 0) AS cost
+    SELECT billing_project, user, resource_id, COALESCE(SUM(`usage`), 0) AS usage
     FROM aggregated_billing_project_user_resources_by_date_v2
     GROUP BY billing_project, user, resource_id
   ) AS usage
@@ -239,7 +239,7 @@ FROM (
 LEFT JOIN (
   SELECT billing_project, user, CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) AS cost
   FROM (
-    SELECT billing_project, user, resource_id, COALESCE(SUM(`usage`), 0) AS cost
+    SELECT billing_project, user, resource_id, COALESCE(SUM(`usage`), 0) AS usage
     FROM aggregated_billing_project_user_resources_by_date_v3
     GROUP BY billing_project, user, resource_id
   ) AS usage
@@ -267,7 +267,7 @@ SELECT old.billing_project, old.user, old.cost, new.cost, ABS(new.cost - old.cos
 FROM (
   SELECT billing_date, billing_project, user, CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) AS cost
   FROM (
-    SELECT billing_date, billing_project, user, resource_id, COALESCE(SUM(`usage`), 0) AS cost
+    SELECT billing_date, billing_project, user, resource_id, COALESCE(SUM(`usage`), 0) AS usage
     FROM aggregated_billing_project_user_resources_by_date_v2
     GROUP BY billing_date, billing_project, user, resource_id
   ) AS usage
@@ -277,7 +277,7 @@ FROM (
 LEFT JOIN (
   SELECT billing_date, billing_project, user, CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) AS cost
   FROM (
-    SELECT billing_date, billing_project, user, resource_id, COALESCE(SUM(`usage`), 0) AS cost
+    SELECT billing_date, billing_project, user, resource_id, COALESCE(SUM(`usage`), 0) AS usage
     FROM aggregated_billing_project_user_resources_by_date_v3
     GROUP BY billing_date, billing_project, user, resource_id
   ) AS usage
