@@ -202,7 +202,7 @@ ALTER TABLE attempt_resources DROP PRIMARY KEY,
                               RENAME COLUMN resource_id TO deduped_resource_id,
                               RENAME COLUMN deduped_resource_id TO resource_id,
                               ADD PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`, `resource_id`),
-                              ADD FOREIGN KEY `resource_id` REFERENCES resources(`resource_id`),
+                              ADD FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`),
                               ALGORITHM=INPLACE, LOCK=NONE;
 
 DROP TRIGGER IF EXISTS attempt_resources_before_insert;
