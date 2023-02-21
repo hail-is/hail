@@ -272,27 +272,32 @@ async def _query_batch_jobs_for_billing(request, batch_id):
     WHERE batch_id = %s AND {job_condition};
     '''
 
-    job_resources_sql = f'''
-    SELECT job_id, resource, `usage`
-    FROM aggregated_job_resources
-    WHERE batch_id = %s AND {job_condition}
+    job_resources_cost_sql = f'''
+    SELECT agg.job_id, r.resource, agg.`usage`, r.rate * agg.`usage` as total
+    FROM aggregated_job_resources_v2 agg
+    INNER JOIN resources r ON r.resource_id = agg.resource_id
+    WHERE agg.batch_id = %s AND agg.{job_condition}
     '''
 
     attributes_by_job = collections.defaultdict(dict)
     async for record in db.select_and_fetchall(job_attributes_sql, (batch_id, *job_ids)):
         attributes_by_job[record['job_id']][record['key']] = record['value']
 
-    resources_by_job = collections.defaultdict(dict)
-    async for record in db.select_and_fetchall(job_resources_sql, (batch_id, *job_ids)):
-        resources_by_job[record['job_id']][record['resource']] = record['usage']
+    resources_by_job = collections.defaultdict(lambda: collections.defaultdict(float))
+    totals_by_job = collections.defaultdict(lambda: collections.defaultdict(float))
+    async for record in db.select_and_fetchall(job_resources_cost_sql, (batch_id, *job_ids)):
+        resource = record['resource']
+        job_id = record['job_id']
+        # Add, in case there are multiple instances of resources with the same name
+        resources_by_job[job_id][resource] += record['usage']
+        totals_by_job[job_id][resource] += record['total']
 
     for j in jobs:
         job_id = j['job_id']
-        j['resources'] = resources_by_job.get(job_id, [])
+        j['resources'] = resources_by_job.get(job_id, {})
+        # override cost if it already exists
+        j['cost'] = totals_by_job.get(job_id, {})
         j['attributes'] = attributes_by_job.get(job_id, {})
-
-        if j.get('cost'):
-            del j['cost']
 
     last_job_id = None
     if len(jobs) == limit:
@@ -455,6 +460,14 @@ async def get_jobs_for_billing(request, userdata, batch_id):
                 "ip-fee/1024/1": 0,
                 "memory/n1-preemptible/1": 0,
                 "service-fee/1": 0
+            },
+            "cost": {
+                "compute/n1-preemptible": 0.0,
+                "disk/local-ssd/1": 0.0,
+                "disk/pd-ssd/1": 0.0,
+                "ip-fee/1024/1": 0.0,
+                "memory/n1-preemptible/1": 0.0,
+                "service-fee/1": 0.0
             },
             "attributes": {
                 "name": "<name of job>"
