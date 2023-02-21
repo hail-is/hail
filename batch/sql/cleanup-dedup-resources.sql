@@ -207,5 +207,3 @@ ALTER TABLE attempt_resources DROP PRIMARY KEY,
 DROP TRIGGER IF EXISTS attempt_resources_before_insert;
 
 ALTER TABLE attempt_resources DROP COLUMN deduped_resource_id, ALGORITHM=INPLACE, LOCK=NONE;
-
-ALTER TABLE resources DROP COLUMN deduped_resource_id, ALGORITHM=INPLACE, LOCK=NONE;
