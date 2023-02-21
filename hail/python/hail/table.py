@@ -3839,7 +3839,7 @@ class Table(ExprContainer):
     def _calculate_new_partitions(self, n_partitions):
         """returns a set of range bounds that can be passed to write"""
         return Env.backend().execute(ir.TableToValueApply(
-            self._tir,
+            self.select().select_globals()._tir,
             {'name': 'TableCalculateNewPartitions',
              'nPartitions': n_partitions}))
 
