@@ -220,8 +220,6 @@ class ServiceBackend(Backend):
             else:
                 disable_progress_bar = len(disable_progress_bar_str) > 0
 
-        flags = {"use_new_shuffle": "1", **(flags or {})}
-
         sb = ServiceBackend(
             billing_project=billing_project,
             sync_fs=sync_fs,
