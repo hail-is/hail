@@ -178,12 +178,12 @@ END $$
 
 DELIMITER ;
 
-DROP TRIGGER IF EXISTS aggregated_billing_project_user_resources_v2_before_insert;
-DROP TRIGGER IF EXISTS aggregated_billing_project_user_resources_by_date_v2_before_insert;
+DROP TRIGGER IF EXISTS aggregated_bp_user_resources_v2_before_insert;
+DROP TRIGGER IF EXISTS aggregated_bp_user_resources_by_date_v2_before_insert;
 DROP TRIGGER IF EXISTS aggregated_batch_resources_v2_before_insert;
 DROP TRIGGER IF EXISTS aggregated_job_resources_v2_before_insert;
-DROP TRIGGER IF EXISTS aggregated_billing_project_user_resources_v2_after_update;
-DROP TRIGGER IF EXISTS aggregated_billing_project_user_resources_by_date_v2_after_update;
+DROP TRIGGER IF EXISTS aggregated_bp_user_resources_v2_after_update;
+DROP TRIGGER IF EXISTS aggregated_bp_user_resources_by_date_v2_after_update;
 DROP TRIGGER IF EXISTS aggregated_batch_resources_v2_after_update;
 DROP TRIGGER IF EXISTS aggregated_job_resources_v2_after_update;
 
