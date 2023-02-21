@@ -536,12 +536,12 @@ object LowerTableIR {
 
 
         bindIR(flatten(stage.mapCollect("table_calculate_new_partitions") { rows =>
-          streamAggIR(rows) { elt =>
+          streamAggIR(mapIR(rows) { row => SelectFields(row, keyType.fieldNames)}) { elt =>
             ToArray(flatMapIR(ToStream(
               MakeArray(
                 ApplyAggOp(
                   FastIndexedSeq(I32(samplesPerPartition)),
-                  FastIndexedSeq(SelectFields(elt, keyType.fieldNames), invokeSeeded("rand_unif", 1, TFloat64, RNGStateLiteral(), F64(0.0), F64(1.0))),
+                  FastIndexedSeq(elt, invokeSeeded("rand_unif", 1, TFloat64, RNGStateLiteral(), F64(0.0), F64(1.0))),
                   samplekey),
                 ApplyAggOp(
                   FastIndexedSeq(I32(1)),
