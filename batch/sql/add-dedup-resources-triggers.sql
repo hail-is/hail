@@ -326,7 +326,7 @@ FOR EACH ROW
 BEGIN
   DECLARE new_resource_id INT;
   DECLARE cur_n_tokens INT;
-  
+
   IF OLD.migrated = 0 AND NEW.migrated = 1 THEN
     SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
     SET rand_token = FLOOR(RAND() * cur_n_tokens);
