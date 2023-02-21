@@ -45,7 +45,7 @@ object LowerDistributedSort {
     val sortedRows = localAnnotationSort(ctx, rows, sortFields, rowType.virtualType)
 
     val nPartitionsAdj = math.max(math.min(sortedRows.length, numPartitions), 1)
-    val itemsPerPartition = (sortedRows.length.toDouble / nPartitionsAdj).ceil.toInt
+    val itemsPerPartition = math.max((sortedRows.length.toDouble / nPartitionsAdj).ceil.toInt, 1)
 
     // partitioner needs keys to be ascending
     val partitionerKeyType = TStruct(sortFields.takeWhile(_.sortOrder == Ascending).map(f => (f.field, rowType.virtualType.fieldType(f.field))): _*)
