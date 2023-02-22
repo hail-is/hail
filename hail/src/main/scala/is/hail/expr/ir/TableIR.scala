@@ -1661,8 +1661,12 @@ object TableRead {
 }
 
 case class TableRead(typ: TableType, dropRows: Boolean, tr: TableReader) extends TableIR {
-  assert(PruneDeadFields.isSupertype(typ, tr.fullType),
-    s"\n  original:  ${ tr.fullType }\n  requested: $typ")
+  try {
+    assert(PruneDeadFields.isSupertype(typ, tr.fullType))
+  } catch {
+    case e: Throwable =>
+      fatal(s"bad type:\n  full type: ${tr.fullType}\n  requested: $typ\n  reader: $tr", e)
+  }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = if (dropRows) Some(FastIndexedSeq(0L)) else tr.partitionCounts
 
