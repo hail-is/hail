@@ -741,7 +741,7 @@ class BlockMatrixStage2 private (
     BlockMatrixStage2(broadcastVals, typ, groupedContextsWithIndices, newBody)
   }
 
-  def zeroBand(lower: Long, upper: Long, typ: BlockMatrixTyp, ib: IRBuilder): BlockMatrixStage2 = {
+  def zeroBand(lower: Long, upper: Long, typ: BlockMatrixType, ib: IRBuilder): BlockMatrixStage2 = {
     ???
   }
 
