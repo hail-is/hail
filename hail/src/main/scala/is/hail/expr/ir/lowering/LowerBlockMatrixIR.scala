@@ -741,6 +741,10 @@ class BlockMatrixStage2 private (
     BlockMatrixStage2(broadcastVals, typ, groupedContextsWithIndices, newBody)
   }
 
+  def zeroBand(lower: Long, upper: Long, typ: BlockMatrixTyp, ib: IRBuilder): BlockMatrixStage2 = {
+    ???
+  }
+
   def collectBlocks(
     ib: IRBuilder,
     staticID: String,
@@ -960,10 +964,8 @@ object LowerBlockMatrixIR {
         val Array(keepRow, keepCol) = keep
         lower(child).filter(keepRow, keepCol, x.typ, ib)
 
-      case x@BlockMatrixDensify(child) =>
-        val Some((rowPos, rowIdx)) = x.typ.sparsity.definedBlocksCSCIR(x.typ.nColBlocks)
-        lower(child).withSparsity(ib.memoize(rowPos), ib.memoize(rowIdx), ib, x.typ)
-        /*
+      case BlockMatrixDensify(child) =>
+        lower(child).densify(ib)
       case x@BlockMatrixSparsify(child, sparsifier) =>
         val Some((rowPos, rowIdx)) = x.typ.sparsity.definedBlocksCSCIR(x.typ.nColBlocks)
         val loweredChild = lower(child).withSparsity(ib.memoize(rowPos), ib.memoize(rowIdx), ib, x.typ, isSubset = true)
@@ -973,11 +975,10 @@ object LowerBlockMatrixIR {
           case RowIntervalSparsifier(blocksOnly, _, _) if (blocksOnly) => loweredChild
           case PerBlockSparsifier(_) => loweredChild
 
-          case BandSparsifier(_, l, u) => ???
+          case BandSparsifier(_, l, u) => loweredChild.zeroBand(l, u, x.typ, ib)
           case RowIntervalSparsifier(_, starts, stops) => ???
           case RectangleSparsifier(rectangles) => ???
         }
-        */
       case _ =>
         BlockMatrixStage2.fromOldBMS(lowerNonEmpty(bmir, ib, typesToLower, ctx, analyses), bmir.typ, ib)
     }
