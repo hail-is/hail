@@ -1362,7 +1362,6 @@ class BGENTests(unittest.TestCase):
 
     def test_multiple_files_variant_filtering(self):
         bgen_file = [resource('random-b.bgen'), resource('random-c.bgen'), resource('random-a.bgen')]
-
         alleles = ['A', 'G']
 
         desired_variants = [
