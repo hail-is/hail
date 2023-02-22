@@ -249,21 +249,11 @@ class LocalBackend(Py4JBackend):
         jir = self._to_java_blockmatrix_ir(bmir)
         return tblockmatrix._from_java(jir.typ())
 
-    def add_reference(self, config):
-        self._jbackend.pyAddReference(json.dumps(config))
-
     def load_references_from_dataset(self, path):
         return json.loads(self._jbackend.pyLoadReferencesFromDataset(path))
 
     def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
         return json.loads(self._jbackend.pyFromFASTAFile(name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par))
-
-    def remove_reference(self, name):
-        self._jbackend.pyRemoveReference(name)
-
-    def _get_non_builtin_reference(self, name):
-        from hail.genetics.reference_genome import ReferenceGenome
-        return ReferenceGenome._references[name]._config
 
     def add_sequence(self, name, fasta_file, index_file):
         self._jbackend.pyAddSequence(name, fasta_file, index_file)

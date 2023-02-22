@@ -10,7 +10,7 @@ rg_type = lazy()
 reference_genome_type = oneof(transformed((str, lambda x: hl.get_reference(x))), rg_type)
 
 
-class ReferenceGenome(object):
+class ReferenceGenome:
     """An object that represents a `reference genome <https://en.wikipedia.org/wiki/Reference_genome>`__.
 
     Examples
@@ -67,8 +67,6 @@ class ReferenceGenome(object):
         List of tuples with (contig, start, end)
     """
 
-    _references = {}
-
     @classmethod
     def _from_config(cls, config, _builtin=False):
         def par_tuple(p):
@@ -114,10 +112,8 @@ class ReferenceGenome(object):
         self._par = [hl.Interval(hl.Locus(c, s, self), hl.Locus(c, e, self)) for (c, s, e) in par]
         self._global_positions = None
 
-        ReferenceGenome._references[name] = self
-
         if not _builtin:
-            Env.backend().add_reference(self._config)
+            Env.backend().add_reference(self)
 
         self._sequence_files = None
         self._liftovers = dict()

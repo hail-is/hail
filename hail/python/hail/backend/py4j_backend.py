@@ -128,6 +128,13 @@ class Py4JBackend(Backend):
     def get_flags(self, *flags) -> Mapping[str, str]:
         return {flag: self._jbackend.getFlag(flag) for flag in flags}
 
+    def _add_reference_to_scala_backend(self, rg):
+        self._jbackend.pyAddReference(json.dumps(rg._config))
+
+    def _remove_reference_from_scala_backend(self, name):
+        self._jbackend.pyRemoveReference(name)
+
+
     @property
     def requires_lowering(self):
         return True

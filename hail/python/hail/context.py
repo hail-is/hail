@@ -75,8 +75,7 @@ class HailContext(object):
                          local_tmpdir=local_tmpdir,
                          global_seed=global_seed,
                          backend=backend)
-        references = backend.get_references(BUILTIN_REFERENCES)
-        hc.initialize_references(references, default_reference)
+        hc.initialize_references(default_reference)
         return hc
 
     @typecheck_method(log=str,
@@ -125,12 +124,11 @@ class HailContext(object):
             backend.set_flags(rng_nonce=hex(global_seed))
         Env._hc = self
 
-    def initialize_references(self, references, default_reference):
-        for ref in references:
-            ReferenceGenome._from_config(ref, True)
-
-        if default_reference in ReferenceGenome._references:
-            self._default_ref = ReferenceGenome._references[default_reference]
+    def initialize_references(self, default_reference):
+        assert self._backend
+        self._backend.initialize_references()
+        if default_reference in BUILTIN_REFERENCES:
+            self._default_ref = self._backend.get_reference(default_reference)
         else:
             self._default_ref = ReferenceGenome.read(default_reference)
 
@@ -146,7 +144,6 @@ class HailContext(object):
         Env._dummy_table = None
         Env._seed_generator = None
         hail.ir.clear_session_functions()
-        ReferenceGenome._references = {}
 
 
 @typecheck(sc=nullable(SparkContext),
@@ -800,7 +797,7 @@ def get_reference(name) -> ReferenceGenome:
     if name == 'default':
         return default_reference()
     else:
-        return ReferenceGenome._references[name]
+        return Env.backend().get_reference(name)
 
 
 @typecheck(seed=int)

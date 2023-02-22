@@ -27,6 +27,7 @@ from hailtop.aiotools.router_fs import RouterAsyncFS
 import hailtop.aiotools.fs as afs
 
 from .backend import Backend, fatal_error_from_java_error_triplet
+from ..builtin_references import BUILTIN_REFERENCES
 from ..fs.fs import FS
 from ..fs.router_fs import RouterFS
 from ..ir import BaseIR
@@ -276,7 +277,6 @@ class ServiceBackend(Backend):
         self.worker_cores = worker_cores
         self.worker_memory = worker_memory
         self.name_prefix = name_prefix
-        self._custom_reference_configs = dict()
         # Source genome -> [Destination Genome -> Chain file]
         self._liftovers: Dict[str, Dict[str, str]] = collections.defaultdict(dict)
 
@@ -328,9 +328,10 @@ class ServiceBackend(Backend):
                         if v is not None:
                             await write_str(infile, k)
                             await write_str(infile, v)
-                    await write_int(infile, len(self._custom_reference_configs))
-                    for reference_config in self._custom_reference_configs.values():
-                        await write_str(infile, orjson.dumps(reference_config).decode('utf-8'))
+                    custom_references = [rg for rg in self._references.values() if rg.name not in BUILTIN_REFERENCES]
+                    await write_int(infile, len(custom_references))
+                    for reference_config in custom_references:
+                        await write_str(infile, orjson.dumps(reference_config._config).decode('utf-8'))
                     non_empty_liftovers = {name: liftovers for name, liftovers in self._liftovers.items() if len(liftovers) > 0}
                     await write_int(infile, len(non_empty_liftovers))
                     for source_genome_name, liftovers in non_empty_liftovers.items():
@@ -502,15 +503,6 @@ class ServiceBackend(Backend):
 
     def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
         raise NotImplementedError("ServiceBackend does not support 'from_fasta_file'")
-
-    def add_reference(self, config: ReferenceGenomeConfig):
-        self._custom_reference_configs[config['name']] = config
-
-    def remove_reference(self, name):
-        self._custom_reference_configs.pop(name)
-
-    def _get_non_builtin_reference(self, name) -> ReferenceGenomeConfig:
-        return self._custom_reference_configs[name]
 
     def load_references_from_dataset(self, path):
         return async_to_blocking(self._async_load_references_from_dataset(path))
