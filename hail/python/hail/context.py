@@ -304,7 +304,7 @@ def init(sc=None,
         Storage file system to bill usage to the specified project for buckets specified in the
         list. See examples above.
     regions : :obj:`list` of :class:`str`, optional
-        List of regions to run jobs in when using the Batch backend. Use :obj:`.ANY_REGION` to specify any region is allowed
+        List of regions to run jobs in when using the Batch backend. Use :data:`.ANY_REGION` to specify any region is allowed
         or use `None` to use the underlying default regions from the hailctl environment configuration. For example, use
         `hailctl config set batch/regions region1,region2` to set the default regions to use.
     """
