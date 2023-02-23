@@ -772,7 +772,7 @@ class ServiceBackend(Backend[bc.Batch]):
             batch._batch_handle = batch_handle
         else:
             new_batch_handle = bc_batch_builder.submit(disable_progress_bar=disable_progress_bar)
-            assert batch_handle.id == new_batch_handle.id
+            assert batch._batch_handle.id == new_batch_handle.id
             batch_handle = batch._batch_handle
 
         for job in batch._unsubmitted_jobs:
