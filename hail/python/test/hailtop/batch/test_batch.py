@@ -1114,3 +1114,19 @@ class ServiceTests(unittest.TestCase):
         batch = b.run()
         batch_status = batch.status()
         assert batch_status['state'] == 'success', str((batch_status, batch.debug_info()))
+
+    def test_update_batch_from_batch_id(self):
+        b = self.batch()
+        j = b.new_job()
+        j.command('true')
+        res = b.run()
+
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+
+        b2 = Batch.from_batch_id(b._batch_handle.id)
+        j2 = b2.new_job()
+        j2.command('true')
+        res = b2.run()
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))

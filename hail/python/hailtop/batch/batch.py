@@ -108,6 +108,13 @@ class Batch:
         cls._counter += 1
         return uid
 
+    @staticmethod
+    def from_batch_id(batch_id: int, *args, **kwargs):
+        b = Batch(*args, **kwargs)
+        assert isinstance(b._backend, _backend.ServiceBackend)
+        b._batch_handle = b._backend._batch_client.get_batch(batch_id)
+        return b
+
     def __init__(self,
                  name: Optional[str] = None,
                  backend: Optional[_backend.Backend] = None,
@@ -169,7 +176,6 @@ class Batch:
         self._python_function_defs: Dict[int, Callable] = {}
         self._python_function_files: Dict[int, _resource.InputResourceFile] = {}
 
-        self._batch_id: Optional[int] = None
         self._batch_handle: Optional[_bc.Batch] = None
 
     @property
