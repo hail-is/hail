@@ -8,6 +8,7 @@ import dill
 from hailtop.utils import secret_alnum_string, url_scheme, async_to_blocking
 from hailtop.aiotools import AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
+import hailtop.batch_client.client as _bc
 from hailtop.config import configuration_of
 
 from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
@@ -169,6 +170,7 @@ class Batch:
         self._python_function_files: Dict[int, _resource.InputResourceFile] = {}
 
         self._batch_id: Optional[int] = None
+        self._batch_handle: Optional[_bc.Batch] = None
 
     @property
     def _unsubmitted_jobs(self):
@@ -204,11 +206,10 @@ class Batch:
         self, path: str, dry_run: bool = False
     ) -> None:
         for function_id, function in self._python_function_defs.items():
-            if function_id not in self._python_function_files:
-                file = await self._serialize_python_to_input_file(
-                    path, "functions", function_id, function, dry_run
-                )
-                self._python_function_files[function_id] = file
+            file = await self._serialize_python_to_input_file(
+                path, "functions", function_id, function, dry_run
+            )
+            self._python_function_files[function_id] = file
 
     def _unique_job_token(self, n=5):
         token = secret_alnum_string(n)

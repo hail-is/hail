@@ -768,8 +768,14 @@ class ServiceBackend(Backend[bc.Batch]):
             print(f'Built DAG with {n_jobs_submitted} jobs in {round(time.time() - build_dag_start, 3)} seconds.')
 
         submit_batch_start = time.time()
-        batch_handle = bc_batch_builder.submit(disable_progress_bar=disable_progress_bar)
-        batch._batch_id = batch_handle.id
+        if batch._batch_handle is None:
+            batch_handle = bc_batch_builder.submit(disable_progress_bar=disable_progress_bar)
+            batch._batch_handle = batch_handle
+            batch._batch_id = batch_handle.id
+        else:
+            assert batch._batch_id == batch._batch_handle.id
+            bc_batch_builder.submit(disable_progress_bar=disable_progress_bar)
+            batch_handle = batch._batch_handle
 
         for job in batch._unsubmitted_jobs:
             job._submitted = True
