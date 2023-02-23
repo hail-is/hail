@@ -46,6 +46,11 @@ class WorkerTimer() {
   }
 }
 
+// Java's ObjectInputStream does not properly use the context classloader that
+// we set on the thread and knows about the hail jar. We need to explicitly force
+// the ObjectInputStream to use the correct classloader, but it is not configurable
+// so we override the behavior ourselves.
+// For more context, see: https://github.com/scala/bug/issues/9237#issuecomment-292436652
 object ExplicitClassLoaderInputStream {
   val primClasses: util.HashMap[String, Class[_]] = {
     val m = new util.HashMap[String, Class[_]](8, 1.0F)
@@ -72,7 +77,6 @@ class ExplicitClassLoaderInputStream(is: InputStream, cl: ClassLoader) extends O
         if (cl != null) return cl
         else throw ex
     }
-
   }
 }
 

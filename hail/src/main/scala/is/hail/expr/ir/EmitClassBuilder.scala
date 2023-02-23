@@ -475,23 +475,9 @@ class EmitClassBuilder[C](
     }
   }
 
-  def getPType[T <: PType : TypeInfo](t: T): Code[T] = {
-    ReferenceGenome.getReferences(t.virtualType).toArray.map(getReferenceGenome)
-    val setup = Code.checkcast[T](
-        Code.invokeScalaObject1[String, PType](
-          IRParser.getClass, "parsePType", t.toString))
-    Code.checkcast[T](pTypeMap.getOrElseUpdate(t,
-      genLazyFieldThisRef[T](setup)).get)
-  }
+  def getPType[T <: PType : TypeInfo](t: T): Code[T] = mb.getObject(t)
 
-  def getType[T <: Type : TypeInfo](t: T): Code[T] = {
-    ReferenceGenome.getReferences(t).toArray.map(getReferenceGenome)
-    val setup = Code.checkcast[T](
-        Code.invokeScalaObject1[String, Type](
-          IRParser.getClass, "parseType", t.parsableString()))
-    Code.checkcast[T](typMap.getOrElseUpdate(t,
-      genLazyFieldThisRef[T](setup)).get)
-  }
+  def getType[T <: Type : TypeInfo](t: T): Code[T] = mb.getObject(t)
 
   def getOrdering(t1: SType,
     t2: SType,
