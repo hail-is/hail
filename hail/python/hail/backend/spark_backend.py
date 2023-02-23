@@ -13,12 +13,7 @@ from typing import List, Optional
 
 import hail as hl
 from hail.utils.java import scala_package_object
-from hail.expr.types import dtype
-from hail.expr.table_type import ttable
-from hail.expr.matrix_type import tmatrix
-from hail.expr.blockmatrix_type import tblockmatrix
 from hail.ir.renderer import CSERenderer
-from hail.ir import finalize_randomness
 from hail.table import Table
 from hail.matrixtable import MatrixTable
 
@@ -243,21 +238,6 @@ class SparkBackend(Py4JBackend):
         self.sc = None
         uninstall_exception_handler()
 
-    def _parse_value_ir(self, code, ref_map={}, ir_map={}):
-        return self._jbackend.parse_value_ir(
-            code,
-            {k: t._parsable_string() for k, t in ref_map.items()},
-            ir_map)
-
-    def _parse_table_ir(self, code, ir_map={}):
-        return self._jbackend.parse_table_ir(code, ir_map)
-
-    def _parse_matrix_ir(self, code, ir_map={}):
-        return self._jbackend.parse_matrix_ir(code, ir_map)
-
-    def _parse_blockmatrix_ir(self, code, ir_map={}):
-        return self._jbackend.parse_blockmatrix_ir(code, ir_map)
-
     @property
     def logger(self):
         if self._logger is None:
@@ -271,44 +251,6 @@ class SparkBackend(Py4JBackend):
             self._fs = HadoopFS(self._utils_package_object, self._jbackend.fs())
         return self._fs
 
-    def _to_java_ir(self, ir, parse):
-        if not hasattr(ir, '_jir'):
-            r = CSERenderer(stop_at_jir=True)
-            # FIXME parse should be static
-            ir._jir = parse(r(finalize_randomness(ir)), ir_map=r.jirs)
-        return ir._jir
-
-    def _to_java_value_ir(self, ir):
-        return self._to_java_ir(ir, self._parse_value_ir)
-
-    def _to_java_table_ir(self, ir):
-        return self._to_java_ir(ir, self._parse_table_ir)
-
-    def _to_java_matrix_ir(self, ir):
-        return self._to_java_ir(ir, self._parse_matrix_ir)
-
-    def _to_java_blockmatrix_ir(self, ir):
-        return self._to_java_ir(ir, self._parse_blockmatrix_ir)
-
-    def value_type(self, ir):
-        jir = self._to_java_value_ir(ir)
-        return dtype(jir.typ().toString())
-
-    def table_type(self, tir):
-        jir = self._to_java_table_ir(tir)
-        return ttable._from_java(jir.typ())
-
-    def matrix_type(self, mir):
-        jir = self._to_java_matrix_ir(mir)
-        return tmatrix._from_java(jir.typ())
-
-    def unpersist_block_matrix(self, id):
-        self._jhc.backend().unpersist(id)
-
-    def blockmatrix_type(self, bmir):
-        jir = self._to_java_blockmatrix_ir(bmir)
-        return tblockmatrix._from_java(jir.typ())
-
     def from_spark(self, df, key):
         return Table._from_java(self._jbackend.pyFromDF(df._jdf, key))
 
@@ -318,17 +260,7 @@ class SparkBackend(Py4JBackend):
             t = t.flatten()
         return pyspark.sql.DataFrame(self._jbackend.pyToDF(self._to_java_table_ir(t._tir)), self._spark_session)
 
-    def parse_vcf_metadata(self, path):
-        return json.loads(self._jhc.pyParseVCFMetadataJSON(self.fs._jfs, path))
-
-    def index_bgen(self, files, index_file_map, referenceGenomeName, contig_recoding, skip_invalid_loci):
-        self._jbackend.pyIndexBgen(files, index_file_map, referenceGenomeName, contig_recoding, skip_invalid_loci)
-
-    def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
-        return json.loads(self._jbackend.pyImportFam(path, quant_pheno, delimiter, missing))
-
     def register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, body):
-
         r = CSERenderer(stop_at_jir=True)
         assert not body._ir.uses_randomness
         code = r(body._ir)
