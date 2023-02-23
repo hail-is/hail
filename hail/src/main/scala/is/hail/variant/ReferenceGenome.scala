@@ -115,7 +115,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     }
   }
 
-  lazy val extendedLocusOrdering = ExtendedOrdering.extendToNull(locusOrdering)
+  val extendedLocusOrdering = ExtendedOrdering.extendToNull(locusOrdering)
 
   // must be constructed after orderings
   @transient @volatile var _locusType: TLocus = _

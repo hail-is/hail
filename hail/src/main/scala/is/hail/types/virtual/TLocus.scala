@@ -42,10 +42,7 @@ case class TLocus(rgName: String) extends Type {
   override def scalaClassTag: ClassTag[Locus] = classTag[Locus]
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean = true): ExtendedOrdering =
-    ExtendedOrdering.extendToNull(sm.referenceGenomes(rgName).locusOrdering, missingEqual)
-
-  override def mkOrdering(rg: ReferenceGenome, missingEqual: Boolean = true): ExtendedOrdering =
-    ExtendedOrdering.extendToNull(rg.locusOrdering, missingEqual)
+    sm.referenceGenomes(rgName).extendedLocusOrdering
 
   lazy val representation: TStruct = TLocus.representation
 
