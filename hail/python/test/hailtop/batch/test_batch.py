@@ -1124,7 +1124,7 @@ class ServiceTests(unittest.TestCase):
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
-        b2 = Batch.from_batch_id(b._batch_handle.id)
+        b2 = Batch.from_batch_id(b._batch_handle.id, backend=b._backend)
         j2 = b2.new_job()
         j2.command('true')
         res = b2.run()
