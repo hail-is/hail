@@ -44,6 +44,9 @@ case class TLocus(rgName: String) extends Type {
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean = true): ExtendedOrdering =
     ExtendedOrdering.extendToNull(sm.referenceGenomes(rgName).locusOrdering, missingEqual)
 
+  override def mkOrdering(rg: ReferenceGenome, missingEqual: Boolean = true): ExtendedOrdering =
+    ExtendedOrdering.extendToNull(rg.locusOrdering, missingEqual)
+
   lazy val representation: TStruct = TLocus.representation
 
   def locusOrdering(sm: HailStateManager): Ordering[Locus] = sm.referenceGenomes(rgName).locusOrdering

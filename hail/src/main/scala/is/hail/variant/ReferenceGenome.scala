@@ -23,6 +23,7 @@ import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 import java.lang.ThreadLocal
+import is.hail.annotations.ExtendedOrdering
 
 
 class BroadcastRG(rgParam: ReferenceGenome) extends Serializable {
@@ -113,6 +114,8 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
       def compare(x: Locus, y: Locus): Int = ReferenceGenome.compare(localContigsIndex, x, y)
     }
   }
+
+  lazy val extendedLocusOrdering = ExtendedOrdering.extendToNull(locusOrdering)
 
   // must be constructed after orderings
   @transient @volatile var _locusType: TLocus = _
@@ -269,7 +272,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
       }
     }
 
-    if (!Interval.isValid(locusType.ordering(HailStateManager(Map(this.name -> this))), start, end, includesStart, includesEnd))
+    if (!Interval.isValid(extendedLocusOrdering, start, end, includesStart, includesEnd))
       if (invalidMissing)
         return null
       else
@@ -292,7 +295,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   def isAutosomal(contig: String): Boolean = !(inX(contig) || inY(contig) || isMitochondrial(contig))
 
-  def inPar(l: Locus): Boolean = par.exists(_.contains(locusType.ordering(HailStateManager(Map(this.name -> this))), l))
+  def inPar(l: Locus): Boolean = par.exists(_.contains(extendedLocusOrdering, l))
 
   def inXPar(l: Locus): Boolean = inX(l.contig) && inPar(l)
 
@@ -602,8 +605,6 @@ object ReferenceGenome {
         val rgPath = fileSystem.getPath.toString
         val rg = using(fs.open(rgPath))(read)
         val name = rg.name
-        // if (ReferenceGenome.hasReference(name) && ReferenceGenome.getReference(name) != rg)
-        //   fatal(s"'$name' already exists and is not identical to the imported reference from '$rgPath'.")
         if (!rgs.contains(rg) && !hailReferences.contains(name))
           rgs += rg
       }

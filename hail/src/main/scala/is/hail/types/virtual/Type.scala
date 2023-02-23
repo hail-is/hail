@@ -199,7 +199,11 @@ abstract class Type extends BaseType with Serializable {
 
   def mkOrdering(sm: HailStateManager, missingEqual: Boolean = true): ExtendedOrdering
 
-  def ordering(sm: HailStateManager): ExtendedOrdering = mkOrdering(sm)
+  @transient protected var ord: ExtendedOrdering = _
+  def ordering(sm: HailStateManager): ExtendedOrdering = {
+    if (ord == null) ord = mkOrdering(sm)
+    ord
+  }
 
   def jsonReader: JSONReader[Annotation] = new JSONReader[Annotation] {
     def fromJSON(a: JValue): Annotation = JSONAnnotationImpex.importAnnotation(a, self)

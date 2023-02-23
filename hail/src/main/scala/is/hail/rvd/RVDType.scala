@@ -29,12 +29,23 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String])
     .filter(i => !keySet.contains(rowType.fields(i).name))
     .toArray
 
-  def kInRowOrd(sm: HailStateManager): UnsafeOrdering =
-    RVDType.selectUnsafeOrdering(sm, rowType, kFieldIdx, rowType, kFieldIdx)
-  def kRowOrd(sm: HailStateManager): UnsafeOrdering =
-    RVDType.selectUnsafeOrdering(sm, kType, Array.range(0, kType.size), rowType, kFieldIdx)
+  @transient private var _kInRowOrd: UnsafeOrdering = _
+  @transient private var _kRowOrd: UnsafeOrdering = _
+  @transient private var _kOrd: UnsafeOrdering = _
 
-  def kOrd(sm: HailStateManager): UnsafeOrdering = kType.unsafeOrdering(sm)
+  def kInRowOrd(sm: HailStateManager): UnsafeOrdering = {
+    if (_kInRowOrd == null) _kInRowOrd = RVDType.selectUnsafeOrdering(sm, rowType, kFieldIdx, rowType, kFieldIdx)
+    _kInRowOrd
+  }
+  def kRowOrd(sm: HailStateManager): UnsafeOrdering = {
+    if (_kRowOrd == null) _kRowOrd = RVDType.selectUnsafeOrdering(sm, kType, Array.range(0, kType.size), rowType, kFieldIdx)
+    _kRowOrd
+  }
+
+  def kOrd(sm: HailStateManager): UnsafeOrdering = {
+    if (_kOrd == null) _kOrd = kType.unsafeOrdering(sm)
+    _kOrd
+  }
 
   def kComp(sm: HailStateManager, other: RVDType): UnsafeOrdering =
     RVDType.selectUnsafeOrdering(
