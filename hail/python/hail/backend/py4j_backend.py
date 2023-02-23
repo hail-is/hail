@@ -1,5 +1,6 @@
 from typing import Mapping, Union, Tuple, List
 import abc
+import json
 
 import py4j
 import py4j.java_gateway
@@ -133,7 +134,6 @@ class Py4JBackend(Backend):
 
     def _remove_reference_from_scala_backend(self, name):
         self._jbackend.pyRemoveReference(name)
-
 
     @property
     def requires_lowering(self):

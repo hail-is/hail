@@ -59,7 +59,7 @@ class Backend(abc.ABC):
     @abc.abstractmethod
     def __init__(self):
         self._persisted_locations = dict()
-        self._references: Dict[str, 'ReferenceGenome'] = {}
+        self._references = {}
 
     @abc.abstractmethod
     def stop(self):
