@@ -29,7 +29,6 @@ from .backend import Backend, fatal_error_from_java_error_triplet
 from ..fs.fs import FS
 from ..fs.router_fs import RouterFS
 from ..ir import BaseIR
-from ..utils import frozendict
 
 
 ReferenceGenomeConfig = Dict[str, Any]
@@ -223,7 +222,7 @@ class ServiceBackend(Backend):
 
         flags = {"use_new_shuffle": "1", **(flags or {})}
 
-        return ServiceBackend(
+        sb = ServiceBackend(
             billing_project=billing_project,
             sync_fs=sync_fs,
             async_fs=async_fs,
@@ -239,6 +238,8 @@ class ServiceBackend(Backend):
             worker_memory=worker_memory,
             name_prefix=name_prefix or '',
         )
+        sb._initialize_flags()
+        return sb
 
     def __init__(self,
                  *,
@@ -632,10 +633,16 @@ class ServiceBackend(Backend):
         return read_expression(fname, _assert_type=expr.dtype)
 
     def set_flags(self, **flags: str):
+        unknown_flags = set(flags) - self._valid_flags()
+        if unknown_flags:
+            raise ValueError(f'unknown flags: {", ".join(unknown_flags)}')
         self.flags.update(flags)
 
-    def get_flags(self, *flags) -> Mapping[str, str]:
-        return frozendict(self.flags)
+    def get_flags(self, *flags: str) -> Mapping[str, str]:
+        unknown_flags = set(flags) - self._valid_flags()
+        if unknown_flags:
+            raise ValueError(f'unknown flags: {", ".join(unknown_flags)}')
+        return {flag: self.flags[flag] for flag in flags if flag in self.flags}
 
     @property
     def requires_lowering(self):

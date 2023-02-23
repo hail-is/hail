@@ -114,10 +114,10 @@ class ServiceBackend(
     val root = s"${ backendContext.remoteTmpDir }parallelizeAndComputeWithIndex/$token"
 
     // FIXME: HACK
-    val (open, create) = if (n <= 50) {
-      (fs.openCachedNoCompression _, fs.createCachedNoCompression _)
+    val (open, write) = if (n <= 50) {
+      (fs.openCachedNoCompression _, fs.writeCached _)
     } else {
-      ((x: String) => fs.openNoCompression(x), fs.createNoCompression _)
+      ((x: String) => fs.openNoCompression(x), fs.writePDOS _)
     }
 
     log.info(s"parallelizeAndComputeWithIndex: $token: nPartitions $n")
@@ -125,15 +125,15 @@ class ServiceBackend(
 
     val uploadFunction = scalaConcurrent.Future {
       retryTransientErrors {
-        using(new ObjectOutputStream(create(s"$root/f"))) { os =>
-          os.writeObject(f)
+        write(s"$root/f") { fos =>
+          using(new ObjectOutputStream(fos)) { oos => oos.writeObject(f) }
         }
       }
     }
 
     val uploadContexts = scalaConcurrent.Future {
       retryTransientErrors {
-        using(create(s"$root/contexts")) { os =>
+        write(s"$root/contexts") { os =>
           var o = 12L * n
           var i = 0
           while (i < n) {
@@ -143,7 +143,6 @@ class ServiceBackend(
             i += 1
             o += len
           }
-          log.info(s"parallelizeAndComputeWithIndex: $token: writing contexts")
           collection.foreach { context =>
             os.write(context)
           }

@@ -172,6 +172,7 @@ class LocalBackend(Py4JBackend):
 
         if not quiet:
             connect_logger(self._utils_package_object, 'localhost', 12888)
+        self._initialize_flags()
 
     def jvm(self):
         return self._jvm
