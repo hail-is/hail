@@ -475,9 +475,9 @@ class EmitClassBuilder[C](
     }
   }
 
-  def getPType[T <: PType : TypeInfo](t: T): Code[T] = mb.getObject(t)
+  def getPType[T <: PType : TypeInfo](t: T): Code[T] = emodb.getObject(t)
 
-  def getType[T <: Type : TypeInfo](t: T): Code[T] = mb.getObject(t)
+  def getType[T <: Type : TypeInfo](t: T): Code[T] = emodb.getObject(t)
 
   def getOrdering(t1: SType,
     t2: SType,
