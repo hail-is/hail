@@ -149,7 +149,7 @@ def test_liftover_strand():
 
 def test_read_custom_reference_genome():
     # this test doesn't behave properly if these reference genomes are already defined in scope.
-    available_rgs = set(hl.ReferenceGenome._references.keys())
+    available_rgs = set(hl.current_backend()._references.keys())
     assert 'test_rg_0' not in available_rgs
     assert 'test_rg_1' not in available_rgs
     assert 'test_rg_2' not in available_rgs

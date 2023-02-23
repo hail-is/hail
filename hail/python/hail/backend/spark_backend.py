@@ -318,34 +318,6 @@ class SparkBackend(Py4JBackend):
             t = t.flatten()
         return pyspark.sql.DataFrame(self._jbackend.pyToDF(self._to_java_table_ir(t._tir)), self._spark_session)
 
-    def add_reference(self, config):
-        self._jbackend.pyAddReference(json.dumps(config))
-
-    def load_references_from_dataset(self, path):
-        return json.loads(self._jbackend.pyLoadReferencesFromDataset(path))
-
-    def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
-        return json.loads(self._jbackend.pyFromFASTAFile(name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par))
-
-    def remove_reference(self, name):
-        self._jbackend.pyRemoveReference(name)
-
-    def _get_non_builtin_reference(self, name):
-        from hail.genetics.reference_genome import ReferenceGenome
-        return ReferenceGenome._references[name]._config
-
-    def add_sequence(self, name, fasta_file, index_file):
-        self._jbackend.pyAddSequence(name, fasta_file, index_file)
-
-    def remove_sequence(self, name):
-        self._jbackend.pyRemoveSequence(name)
-
-    def add_liftover(self, name, chain_file, dest_reference_genome):
-        self._jbackend.pyAddLiftover(name, chain_file, dest_reference_genome)
-
-    def remove_liftover(self, name, dest_reference_genome):
-        self._jbackend.pyRemoveLiftover(name, dest_reference_genome)
-
     def parse_vcf_metadata(self, path):
         return json.loads(self._jhc.pyParseVCFMetadataJSON(self.fs._jfs, path))
 

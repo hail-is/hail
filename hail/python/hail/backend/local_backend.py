@@ -249,24 +249,6 @@ class LocalBackend(Py4JBackend):
         jir = self._to_java_blockmatrix_ir(bmir)
         return tblockmatrix._from_java(jir.typ())
 
-    def load_references_from_dataset(self, path):
-        return json.loads(self._jbackend.pyLoadReferencesFromDataset(path))
-
-    def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
-        return json.loads(self._jbackend.pyFromFASTAFile(name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par))
-
-    def add_sequence(self, name, fasta_file, index_file):
-        self._jbackend.pyAddSequence(name, fasta_file, index_file)
-
-    def remove_sequence(self, name):
-        self._jbackend.pyRemoveSequence(name)
-
-    def add_liftover(self, name, chain_file, dest_reference_genome):
-        self._jbackend.pyAddLiftover(name, chain_file, dest_reference_genome)
-
-    def remove_liftover(self, name, dest_reference_genome):
-        self._jbackend.pyRemoveLiftover(name, dest_reference_genome)
-
     def parse_vcf_metadata(self, path):
         return json.loads(self._jhc.pyParseVCFMetadataJSON(self._jbackend.fs(), path))
 
