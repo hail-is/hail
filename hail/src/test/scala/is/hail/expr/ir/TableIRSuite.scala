@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import com.google.api.gax.rpc.InvalidArgumentException
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.annotations.SafeNDArray
@@ -9,17 +8,12 @@ import is.hail.expr.Nat
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import is.hail.methods.ForceCountTable
-import is.hail.rvd.RVDPartitioner
 import is.hail.types._
-import is.hail.types.physical.PStruct
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
-import org.scalatest.Matchers.{convertToAnyShouldWrapper, include}
 import org.testng.annotations.{DataProvider, Test}
-
-import scala.reflect.ClassTag
 
 class TableIRSuite extends HailSuite {
 
@@ -1166,85 +1160,4 @@ class TableIRSuite extends HailSuite {
     assert("must iterate over the partition exactly once".r.findFirstIn(e.getCause.getMessage).isDefined)
   }
 
-  def mkTableGen(contexts: Option[IR] = None,
-                 globals: Option[IR] = None,
-                 cname: Option[String] = None,
-                 gname: Option[String] = None,
-                 body: Option[IR] = None,
-                 partitioner: Option[RVDPartitioner] = None
-                ): TableGen = {
-    val theGlobals = globals.getOrElse(MakeStruct(Seq("g" -> 0)))
-    val contextName = cname.getOrElse(genUID())
-    val globalsName = gname.getOrElse(genUID())
-
-    TableGen(
-      contexts.getOrElse(StreamRange(0, 2, 1)),
-      theGlobals,
-      contextName,
-      globalsName,
-      body.getOrElse {
-        val elem = MakeStruct(Seq(
-          "a" -> ApplyBinaryPrimOp(Multiply(), Ref(contextName, TInt32), GetField(theGlobals, "g"))
-        ))
-        MakeStream(Seq(elem), TStream(elem.typ))
-      },
-      partitioner.getOrElse(RVDPartitioner.unkeyed(2))
-    )
-  }
-
-  @Test def testTableGenWithInvalidContextsType: Unit = {
-    val ex = intercept[IllegalArgumentException] {
-      mkTableGen(contexts = Some(Str("oh noes :'(")))
-    }
-
-    ex.getMessage should include("contexts")
-    ex.getMessage should include(s"Expected: ${classOf[TStream].getName}")
-    ex.getMessage should include(s"Actual: ${TString.getClass.getName}")
-  }
-
-  @Test def testTableGenWithInvalidGlobalsType: Unit = {
-    val ex = intercept[IllegalArgumentException] {
-      mkTableGen(globals = Some(Str("oh noes :'(")))
-    }
-    ex.getMessage should include("globals")
-    ex.getMessage should include(s"Expected: ${classOf[TStruct].getName}")
-    ex.getMessage should include(s"Actual: ${TString.getClass.getName}")
-  }
-
-  @Test def testTableGenWithInvalidBodyType: Unit = {
-    val ex = intercept[IllegalArgumentException] {
-      mkTableGen(body = Some(Str("oh noes :'(")))
-    }
-    ex.getMessage should include("body")
-    ex.getMessage should include(s"Expected: ${classOf[TStream].getName}")
-    ex.getMessage should include(s"Actual: ${TString.getClass.getName}")
-  }
-
-  @Test def testTableGenWithInvalidBodyElementType: Unit = {
-    val ex = intercept[IllegalArgumentException] {
-      mkTableGen(body = Some(MakeStream(Seq(Str("oh noes :'(")), TStream(TString))))
-    }
-    ex.getMessage should include("body.elementType")
-    ex.getMessage should include(s"Expected: ${classOf[TStruct].getName}")
-    ex.getMessage should include(s"Actual: ${TString.getClass.getName}")
-  }
-
-  @Test def testTableGenRequiredness: Unit = {
-    val table = mkTableGen()
-    val analysis = Requiredness(table, ctx)
-    analysis.lookup(table).required shouldBe true
-    analysis.states.m.isEmpty shouldBe true
-  }
-
-  @Test def testTableDistinctlyKeyed: Unit = {
-    val table = mkTableGen()
-    val analysis = DistinctlyKeyed(table)
-    analysis.contains(table) shouldBe false
-  }
-
-  @Test def testLoweringTableGen: Unit = {
-    val table = collect(mkTableGen())
-    val lowered = LowerTableIR(table, DArrayLowering.All, ctx, Analyses(table, ctx), Map.empty)
-    assertEvalsTo(lowered, Row(FastIndexedSeq(0, 0).map(Row(_)), Row(0)))(ExecStrategy.lowering)
-  }
 }
