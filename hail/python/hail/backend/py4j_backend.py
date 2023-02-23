@@ -1,4 +1,4 @@
-from typing import Mapping, Union, Tuple, List
+from typing import Mapping
 import abc
 import json
 
@@ -14,8 +14,6 @@ from hail.expr.blockmatrix_type import tblockmatrix
 from hail.expr.matrix_type import tmatrix
 from hail.expr.table_type import ttable
 from hail.expr.types import dtype
-from hail.ir import finalize_randomness
-from hail.ir.renderer import CSERenderer
 
 from .backend import Backend, fatal_error_from_java_error_triplet
 
