@@ -25,11 +25,11 @@ from hailtop.batch_client import aioclient as aiohb
 from hailtop.aiotools.fs import AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 import hailtop.aiotools.fs as afs
+from hailtop.fs.fs import FS
+from hailtop.fs.router_fs import RouterFS
 
 from .backend import Backend, fatal_error_from_java_error_triplet
 from ..builtin_references import BUILTIN_REFERENCES
-from ..fs.fs import FS
-from ..fs.router_fs import RouterFS
 from ..ir import BaseIR
 from ..utils import ANY_REGION
 
@@ -210,9 +210,9 @@ class ServiceBackend(Backend):
                 "MY_BILLING_PROJECT'"
             )
 
-        if not isinstance(gcs_requester_pays_configuration, str):
+        if gcs_requester_pays_configuration is not None and not isinstance(gcs_requester_pays_configuration, str):
             raise ValueError("gcs_requester_pays_configuration must be a str when using the Batch backend")
-        async_fs = RouterAsyncFS('file', gcs_kwargs={'project': gcs_requester_pays_configuration} if gcs_requester_pays_configuration else None)
+        async_fs = RouterAsyncFS(gcs_kwargs={'project': gcs_requester_pays_configuration} if gcs_requester_pays_configuration else None)
         sync_fs = RouterFS(async_fs)
         if batch_client is None:
             batch_client = await aiohb.BatchClient.create(billing_project, _token=token)

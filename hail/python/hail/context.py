@@ -17,8 +17,8 @@ from hail.utils import get_env_or_default
 from hail.utils.java import Env, warning, choose_backend
 from hail.backend import Backend
 from hailtop.utils import secret_alnum_string
+from hailtop.fs.fs import FS
 from .builtin_references import BUILTIN_REFERENCES
-from .fs.fs import FS
 
 
 def _get_tmpdir(tmpdir):

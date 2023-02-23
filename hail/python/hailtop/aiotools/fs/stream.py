@@ -18,12 +18,24 @@ class ReadableStream(abc.ABC):
 
     # Read at most up to n bytes. If n == -1, then
     # return all bytes up to the end of the file
+    @abc.abstractmethod
     async def read(self, n: int = -1) -> bytes:
         raise NotImplementedError
 
     # Read exactly n bytes. If there is an EOF before
     # n bytes have been read, raise an UnexpectedEOFError.
+    @abc.abstractmethod
     async def readexactly(self, n: int) -> bytes:
+        raise NotImplementedError
+
+    async def seek(self, offset, whence):
+        raise OSError
+
+    def seekable(self):
+        return False
+
+    @abc.abstractmethod
+    def tell(self) -> int:
         raise NotImplementedError
 
     def close(self) -> None:
@@ -124,6 +136,15 @@ class _ReadableStreamFromBlocking(ReadableStream):
         if n == -1:
             return await blocking_to_async(self._thread_pool, self._f.read)
         return await blocking_to_async(self._thread_pool, self._f.read, n)
+
+    async def seek(self, offset, whence):
+        self._f.seek(offset, whence)
+
+    def seekable(self):
+        return True
+
+    def tell(self):
+        return self._f.tell()
 
     def _readexactly(self, n: int) -> bytes:
         assert n >= 0

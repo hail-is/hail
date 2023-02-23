@@ -251,7 +251,7 @@ class Batch:
         if self._DEPRECATED_project is not None:
             if self._DEPRECATED_fs is None:
                 gcs_kwargs = {'project': self._DEPRECATED_project}
-                self._DEPRECATED_fs = RouterAsyncFS('file', gcs_kwargs=gcs_kwargs)
+                self._DEPRECATED_fs = RouterAsyncFS(gcs_kwargs=gcs_kwargs)
             return self._DEPRECATED_fs
         return self._backend._fs
 

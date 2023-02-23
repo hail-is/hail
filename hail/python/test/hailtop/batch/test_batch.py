@@ -476,8 +476,7 @@ class ServiceTests(unittest.TestCase):
         if not os.path.exists(in_cluster_key_file):
             in_cluster_key_file = None
 
-        router_fs = RouterAsyncFS('gs',
-                                  gcs_kwargs={'project': 'hail-vdc', 'credentials_file': in_cluster_key_file},
+        router_fs = RouterAsyncFS(gcs_kwargs={'project': 'hail-vdc', 'credentials_file': in_cluster_key_file},
                                   azure_kwargs={'credential_file': in_cluster_key_file})
 
         def sync_exists(url):

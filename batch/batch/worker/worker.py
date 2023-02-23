@@ -2658,7 +2658,6 @@ class Worker:
         assert CLOUD_WORKER_API
         fs = CLOUD_WORKER_API.get_cloud_async_fs()
         self.fs = RouterAsyncFS(
-            'file',
             filesystems=[
                 LocalAsyncFS(self.pool),
                 fs,

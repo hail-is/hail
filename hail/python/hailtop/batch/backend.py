@@ -137,7 +137,7 @@ class LocalBackend(Backend[None]):
             flags += f' -v {gsa_key_file}:/gsa-key/key.json'
 
         self._extra_docker_run_flags = flags
-        self.__fs: AsyncFS = RouterAsyncFS(default_scheme='file')
+        self.__fs: AsyncFS = RouterAsyncFS()
 
     @property
     def _fs(self):
@@ -478,7 +478,7 @@ class ServiceBackend(Backend[bc.Batch]):
         self.remote_tmpdir = get_remote_tmpdir('ServiceBackend', bucket=bucket, remote_tmpdir=remote_tmpdir, user_config=user_config)
 
         gcs_kwargs = {'project': google_project}
-        self.__fs: RouterAsyncFS = RouterAsyncFS(default_scheme='file', gcs_kwargs=gcs_kwargs)
+        self.__fs: RouterAsyncFS = RouterAsyncFS(gcs_kwargs=gcs_kwargs)
 
         if regions is None:
             regions_from_conf = user_config.get('batch', 'regions', fallback=None)

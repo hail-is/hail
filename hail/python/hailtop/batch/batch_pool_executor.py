@@ -132,7 +132,7 @@ class BatchPoolExecutor:
         self.directory = self.backend.remote_tmpdir + f'batch-pool-executor/{self.name}/'
         self.inputs = self.directory + 'inputs/'
         self.outputs = self.directory + 'outputs/'
-        self.fs = RouterAsyncFS('file', gcs_kwargs={'project': project})
+        self.fs = RouterAsyncFS(gcs_kwargs={'project': project})
         self.futures: List[BatchPoolFuture] = []
         self.finished_future_count = 0
         self._shutdown = False

@@ -14,6 +14,7 @@ from typing import List, Optional
 
 import hail as hl
 from hail.utils.java import scala_package_object
+from hail.fs.hadoop_fs import HadoopFS
 from hail.ir.renderer import CSERenderer
 from hail.table import Table
 from hail.matrixtable import MatrixTable
@@ -252,7 +253,6 @@ class SparkBackend(Py4JBackend):
     @property
     def fs(self):
         if self._fs is None:
-            from hail.fs.hadoop_fs import HadoopFS
             self._fs = HadoopFS(self._utils_package_object, self._jbackend.fs())
         return self._fs
 
