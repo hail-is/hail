@@ -65,7 +65,8 @@ object Bindings {
     case MatrixAggregate(child, _) => if (i == 1) child.typ.globalEnv.m else empty
     case TableFilter(child, _) => if (i == 1) child.typ.rowEnv.m else empty
     case TableGen(contexts, globals, cname, gname, _, _, _) =>
-      if (i == 2) Array(cname -> contexts.typ.asInstanceOf[TStream].elementType, gname -> globals.typ) else empty
+      if (i == 2) Array(cname -> TIterable.elementType(contexts.typ), gname -> globals.typ)
+      else empty
     case TableMapGlobals(child, _) => if (i == 1) child.typ.globalEnv.m else empty
     case TableMapRows(child, _) => if (i == 1) child.typ.rowEnv.m else empty
     case TableAggregateByKey(child, _) => if (i == 1) child.typ.globalEnv.m else empty
