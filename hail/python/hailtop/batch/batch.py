@@ -110,6 +110,29 @@ class Batch:
 
     @staticmethod
     def from_batch_id(batch_id: int, *args, **kwargs):
+        """
+        Create a Batch from an existing batch id.
+
+        Notes
+        -----
+        Can only be used with the :class:`.ServiceBackend`.
+
+        Examples
+        --------
+
+        Create a batch object from an existing batch id:
+
+        >>> b = Batch.from_batch_id(1)  # doctest: +SKIP
+
+        Parameters
+        ----------
+        batch_id:
+            ID of an existing Batch
+
+        Returns
+        -------
+        A Batch object that can append jobs to an existing batch.
+        """
         b = Batch(*args, **kwargs)
         assert isinstance(b._backend, _backend.ServiceBackend)
         b._batch_handle = b._backend._batch_client.get_batch(batch_id)
