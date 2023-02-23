@@ -2396,7 +2396,7 @@ steps:
       export HAIL_SCOPE="{{ scope }}"
       export HAIL_CLOUD="{{ global.cloud }}"
       export HAIL_DOMAIN="{{ global.domain }}"
-      hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }/test_batch/{{ token }}/
+      hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/test_batch/{{ token }}/
       python3 -m pytest \
               --asyncio-mode=auto \
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
