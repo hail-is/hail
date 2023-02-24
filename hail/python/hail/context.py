@@ -855,12 +855,12 @@ def _get_flags(*flags):
 
 @contextmanager
 def _with_flags(**flags):
-    before = _get_flags(*flags)
+    before = _get_flags(**flags)
     try:
         _set_flags(**flags)
         yield
     finally:
-        Env.backend().flags = before.d
+        _set_flags(**before)
 
 
 def debug_info():
