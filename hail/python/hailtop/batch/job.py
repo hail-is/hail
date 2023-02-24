@@ -1077,6 +1077,11 @@ class PythonJob(Job):
             if isinstance(value, Job):
                 raise BatchException('arguments to a PythonJob cannot be other job objects.')
 
+        try:
+            inspect.signature(unapplied).bind(*args, **kwargs)
+        except TypeError as e:
+            raise BatchException(f'Cannot call {unapplied.__name__} with the supplied arguments') from e
+
         def handle_arg(r):
             if r._source != self:
                 self._add_inputs(r)
