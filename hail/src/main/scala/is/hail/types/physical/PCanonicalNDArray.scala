@@ -159,7 +159,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     region.allocateSharedChunk(sizeOfArray)
   }
 
-  def constructUnintialized(
+  def constructUninitialized(
     shape: IndexedSeq[SizeValue],
     strides: IndexedSeq[Value[Long]],
     cb: EmitCodeBuilder,
@@ -168,7 +168,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     constructByCopyingDataPointer(shape, strides, this.allocateData(shape, region), cb, region)
   }
 
-  def constructUnintialized(
+  def constructUninitialized(
     shape: IndexedSeq[SizeValue],
     cb: EmitCodeBuilder,
     region: Value[Region]
@@ -197,7 +197,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
         val shape = (0 until nDims).map(i => SizeValueDyn(mb.getCodeParam[Long](3 + i)))
         val strides = (0 until nDims).map(i => mb.getCodeParam[Long](3 + nDims + i))
 
-        val result = constructUnintialized(shape, strides, cb, region)
+        val result = constructUninitialized(shape, strides, cb, region)
 
         dataValue.st match {
           case SIndexablePointer(PCanonicalArray(otherElementType, _)) if otherElementType == elementType =>
@@ -233,7 +233,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       case s: SizeValue => s
       case s => SizeValueDyn(s)
     }
-    val result = constructUnintialized(newShape, strides, cb, region)
+    val result = constructUninitialized(newShape, strides, cb, region)
 
     (result.firstDataAddress, (cb: EmitCodeBuilder) => result)
   }

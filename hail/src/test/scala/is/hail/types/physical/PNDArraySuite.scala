@@ -38,16 +38,16 @@ class PNDArraySuite extends PhysicalTestUtils {
     this.pool.scopedRegion { region =>
       fb.emitWithBuilder { cb =>
         val region = fb.getCodeParam[Region](1)
-        val A = matType.constructUnintialized(FastIndexedSeq(m, wpn), cb, region)
-        val Acopy = matType.constructUnintialized(FastIndexedSeq(m, wpn), cb, region)
-        val Q = matType.constructUnintialized(FastIndexedSeq(m, wpn), cb, region)
-        val R = matType.constructUnintialized(FastIndexedSeq(wpn, wpn), cb, region)
-        val Qout = matType.constructUnintialized(FastIndexedSeq(m, w), cb, region)
-        val W = matType.constructUnintialized(FastIndexedSeq(m, n), cb, region)
-        val work1 = matType.constructUnintialized(FastIndexedSeq(wpn, wpn), cb, region)
-        val work2 = matType.constructUnintialized(FastIndexedSeq(wpn, n), cb, region)
-        val work3 = vecType.constructUnintialized(FastIndexedSeq(btwpn), cb, region)
-        val T = vecType.constructUnintialized(FastIndexedSeq(btwpn), cb, region)
+        val A = matType.constructUninitialized(FastIndexedSeq(m, wpn), cb, region)
+        val Acopy = matType.constructUninitialized(FastIndexedSeq(m, wpn), cb, region)
+        val Q = matType.constructUninitialized(FastIndexedSeq(m, wpn), cb, region)
+        val R = matType.constructUninitialized(FastIndexedSeq(wpn, wpn), cb, region)
+        val Qout = matType.constructUninitialized(FastIndexedSeq(m, w), cb, region)
+        val W = matType.constructUninitialized(FastIndexedSeq(m, n), cb, region)
+        val work1 = matType.constructUninitialized(FastIndexedSeq(wpn, wpn), cb, region)
+        val work2 = matType.constructUninitialized(FastIndexedSeq(wpn, n), cb, region)
+        val work3 = vecType.constructUninitialized(FastIndexedSeq(btwpn), cb, region)
+        val T = vecType.constructUninitialized(FastIndexedSeq(btwpn), cb, region)
 
         A.coiterateMutate(cb, region) { case Seq(a) =>
           primitive(cb.memoize(cb.emb.newRNG(0L).invoke[Double]("rnorm")))
@@ -74,7 +74,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         Code.invokeStatic1[java.lang.Math, Double, Double]("sqrt", normDiff / normA)
       }
 
-      val f = fb.resultWithIndex()(theHailClassLoader, null, 0, region)
+      val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, region)
 
       assert(f(region) < 1e-14)
     }
@@ -95,12 +95,12 @@ class PNDArraySuite extends PhysicalTestUtils {
     this.pool.scopedRegion { region =>
       fb.emitWithBuilder { cb =>
         val region = fb.getCodeParam[Region](1)
-        val A = matType.constructUnintialized(FastIndexedSeq(m, n), FastIndexedSeq(8, 8*m.v), cb, region)
-        val Acopy = matType.constructUnintialized(FastIndexedSeq(m, n), FastIndexedSeq(8, 8*m.v), cb, region)
-        val Q = matType.constructUnintialized(FastIndexedSeq(m, n), FastIndexedSeq(8, 8*m.v), cb, region)
-        val R = matType.constructUnintialized(FastIndexedSeq(n, n), FastIndexedSeq(8, 8*n.v), cb, region)
-        val work = vecType.constructUnintialized(FastIndexedSeq(btm), FastIndexedSeq(8), cb, region)
-        val T = vecType.constructUnintialized(FastIndexedSeq(btn), FastIndexedSeq(8), cb, region)
+        val A = matType.constructUninitialized(FastIndexedSeq(m, n), FastIndexedSeq(8, 8*m.v), cb, region)
+        val Acopy = matType.constructUninitialized(FastIndexedSeq(m, n), FastIndexedSeq(8, 8*m.v), cb, region)
+        val Q = matType.constructUninitialized(FastIndexedSeq(m, n), FastIndexedSeq(8, 8*m.v), cb, region)
+        val R = matType.constructUninitialized(FastIndexedSeq(n, n), FastIndexedSeq(8, 8*n.v), cb, region)
+        val work = vecType.constructUninitialized(FastIndexedSeq(btm), FastIndexedSeq(8), cb, region)
+        val T = vecType.constructUninitialized(FastIndexedSeq(btn), FastIndexedSeq(8), cb, region)
 
         A.coiterateMutate(cb, region) { case Seq(a) =>
           primitive(cb.memoize(cb.emb.newRNG(0L).invoke[Double]("rnorm")))
@@ -128,7 +128,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         Code.invokeStatic1[java.lang.Math, Double, Double]("sqrt", normDiff / normA)
       }
 
-      val f = fb.resultWithIndex()(theHailClassLoader, null, 0, region)
+      val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, region)
 
       assert(f(region) < 1e-14)
     }
@@ -138,13 +138,13 @@ class PNDArraySuite extends PhysicalTestUtils {
     val Seq(m, n) = X.shapes
     val vecType = PCanonicalNDArray(PFloat64Required, 1)
     val matType = PCanonicalNDArray(PFloat64Required, 2)
-    val Xw = matType.constructUnintialized(X.shapes, cb, region)
+    val Xw = matType.constructUninitialized(X.shapes, cb, region)
     Xw.coiterateMutate(cb, region, (X, "X")) { case Seq(_, v) => v }
-    val curWindow = matType.constructUnintialized(FastIndexedSeq(m, SizeValueStatic(w)), cb, region)
+    val curWindow = matType.constructUninitialized(FastIndexedSeq(m, SizeValueStatic(w)), cb, region)
     val btm = SizeValueDyn(cb.memoize(m * blocksize))
     val btn = SizeValueDyn(cb.memoize(n * blocksize))
-    val work = vecType.constructUnintialized(FastIndexedSeq(btm), cb, region)
-    val T = vecType.constructUnintialized(FastIndexedSeq(btn), cb, region)
+    val work = vecType.constructUninitialized(FastIndexedSeq(btm), cb, region)
+    val T = vecType.constructUninitialized(FastIndexedSeq(btn), cb, region)
 
     val j = cb.newLocal[Long]("j")
     cb.forLoop(cb.assign(j, 0L), j < n, cb.assign(j, j+1), {
@@ -175,8 +175,8 @@ class PNDArraySuite extends PhysicalTestUtils {
     this.pool.scopedRegion { region =>
       fb.emitWithBuilder { cb =>
         val region = fb.getCodeParam[Region](1)
-        val Aorig = matType.constructUnintialized(FastIndexedSeq(m, wpn), cb, region)
-        val A = matType.constructUnintialized(FastIndexedSeq(m, n), cb, region)
+        val Aorig = matType.constructUninitialized(FastIndexedSeq(m, wpn), cb, region)
+        val A = matType.constructUninitialized(FastIndexedSeq(m, n), cb, region)
         val state = new LocalWhitening(cb, m, w, n, blocksize, region, false)
 
         Aorig.coiterateMutate(cb, region) { case Seq(_) =>
@@ -232,7 +232,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         Code._empty
       }
 
-      val f = fb.resultWithIndex()(theHailClassLoader, null, 0, region)
+      val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, region)
 
       f(region)
     }
@@ -250,8 +250,8 @@ class PNDArraySuite extends PhysicalTestUtils {
     this.pool.scopedRegion { region =>
       fb.emitWithBuilder { cb =>
         val region = fb.getCodeParam[Region](1)
-        val Aorig = matType.constructUnintialized(FastIndexedSeq(m, n), cb, region)
-        val A = matType.constructUnintialized(FastIndexedSeq(m, n), cb, region)
+        val Aorig = matType.constructUninitialized(FastIndexedSeq(m, n), cb, region)
+        val A = matType.constructUninitialized(FastIndexedSeq(m, n), cb, region)
 
         Aorig.coiterateMutate(cb, region) { case Seq(_) =>
           primitive(cb.memoize(cb.emb.newRNG(0L).invoke[Double]("rnorm")))
@@ -288,7 +288,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         Code._empty
       }
 
-      val f = fb.resultWithIndex()(theHailClassLoader, null, 0, region)
+      val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, region)
 
       f(region)
     }

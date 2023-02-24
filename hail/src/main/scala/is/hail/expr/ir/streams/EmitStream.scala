@@ -1172,17 +1172,19 @@ object EmitStream {
           val eltType = blocks.st.elementType.asInstanceOf[SBaseStruct]
           val resultField = mb.newPField("StreamWhiten_result", eltType)
 
-          val blocksProducer = blocks.producer
+          val blocksProducer = blocks.getProducer(cb.emb)
           val producer: StreamProducer = new StreamProducer {
+            override def method: EmitMethodBuilder[_] = mb
+
             override val length: Option[EmitCodeBuilder => Code[Int]] =
               blocksProducer.length.map { l => (cb: EmitCodeBuilder) =>
                 val len = cb.memoize(l(cb))
                 len
               }
 
-            override def initialize(cb: EmitCodeBuilder): Unit = {
+            override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
               state.reset(cb)
-              blocksProducer.initialize(cb)
+              blocksProducer.initialize(cb, outerRegion)
             }
 
             override val elementRegion: Settable[Region] = blocksProducer.elementRegion
