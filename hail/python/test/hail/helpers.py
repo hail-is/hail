@@ -200,7 +200,7 @@ def set_gcs_requester_pays_configuration(gcs_project):
     @decorator
     def wrapper(func, *args, **kwargs):
         if gcs_project is not None:
-            with hl._with_flags(gcs_requester_pays_configuration=gcs_project):
+            with hl._with_flags(gcs_requester_pays_project=gcs_project):
                 return func(*args, **kwargs)
         else:
             return func(*args, **kwargs)
