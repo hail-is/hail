@@ -9,7 +9,7 @@ import is.hail.types.tcoerce
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SNDArrayPointer}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.primitives.SBooleanValue
+import is.hail.types.physical.stypes.primitives._
 import is.hail.types.physical._
 import is.hail.types.virtual._
 
@@ -144,6 +144,58 @@ object  NDArrayFunctions extends RegistryFunctions {
         val (resPCode, info) = linear_triangular_solve(apc.asNDArray, bpc.asNDArray, lower.asBoolean, pt, cb, er.region, errorID)
         cb.ifx(info cne 0, cb._fatalWithError(errorID,s"hl.nd.solve: Could not solve, matrix was singular. dtrtrs error code ", info.toS))
         resPCode
+    }
+
+    /* block, lower, upper, diagIndex, nRows, nCols */
+    registerSCode6("zero_band", TNDArray(TFloat64, Nat(2)), TInt64, TInt64, TInt64, TInt64, TInt64, TNDArray(TFloat64, Nat(2)),
+      { (_, _, _, _, _, _, _) => PCanonicalNDArray(PFloat64Required, 2, true).sType }) {
+      case (er, cb, rst@SNDArrayPointer(rpt),
+            block: SNDArrayValue,
+            lower: SInt64Value, upper: SInt64Value, diagIndex: SInt64Value,
+            nRows: SInt64Value, nCols: SInt64Value, errorID) =>
+        val newBlock = rst.coerceOrCopy(cb, er.region, block, deepCopy = false).asNDArray
+        val lowestDiagIndex = cb.memoize(diagIndex.value - (nRows.value - 1L))
+        val highestDiagIndex = cb.memoize(diagIndex.value + (nCols.value - 1L))
+        val iLeft = cb.newLocal[Long]("iLeft")
+        val iRight = cb.newLocal[Long]("iRight")
+        val i = cb.newLocal[Long]("i")
+        val j = cb.newLocal[Long]("j")
+
+        cb.ifx(lower.value > lowestDiagIndex, {
+          cb.assign(iLeft, (diagIndex.value - lower.value).max(0L))
+          cb.assign(iRight, (diagIndex.value - lower.value + nCols.value).max(nRows.value))
+
+          cb.forLoop({
+            cb.assign(i, iLeft)
+            cb.assign(j, (lower.value - diagIndex.value).max(0L))
+          }, i < iRight, {
+            cb.assign(i, i + 1)
+            cb.assign(j, j + 1)
+          }, {
+            // block(i to i, 0 until j) := 0.0
+          })
+
+          // block(iRight until nRows, ::) := 0.0
+        })
+
+        cb.ifx(upper.value < highestDiagIndex, {
+          cb.assign(iLeft, (diagIndex.value - upper.value).max(0L))
+          cb.assign(iRight, (diagIndex.value - upper.value + nCols.value).max(nRows.value))
+
+          // block(0 util iLeft, ::) := 0.0
+
+          cb.forLoop({
+            cb.assign(i, iLeft)
+            cb.assign(j, (upper.value - diagIndex.value).max(0L))
+          }, i < iRight, {
+            cb.assign(i, i + 1)
+            cb.assign(j, j + 1)
+          }, {
+            // block(i to i, j to nCols) := 0.0
+          })
+        })
+
+        newBlock
     }
   }
 }

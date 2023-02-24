@@ -742,7 +742,33 @@ class BlockMatrixStage2 private (
   }
 
   def zeroBand(lower: Long, upper: Long, typ: BlockMatrixType, ib: IRBuilder): BlockMatrixStage2 = {
-    ???
+    val ctxs = contexts.map(ib) { (_, _, _, context) =>
+      maketuple(context, I64(lower), I64(upper))
+    }
+
+    def newBody(ctx: Ref): IR = IRBuilder.scoped { ib =>
+      val localContexts = contexts match {
+        case _: DenseContexts => DenseContexts(GetTupleElement(ctx, 0), ib)
+        case _: SparseContexts => SparseContexts(GetTupleElement(ctx, 0), ib)
+      }
+
+      val lower = GetTupleElement(ctx, 1)
+      val upper = GetTupleElement(ctx, 2)
+
+      localContexts.collect { (i, j, localContext) => bindIRs(lower, upper, blockIR(localContext)) { case Seq(lower, upper, block) =>
+        val (nRowsInBlock, nColsInBlock) = typ.blockShapeIR(i, j)
+        val diagIndex = (j - i).toL * typ.blockSize
+        val lowestDiagIndex = diagIndex - (nRowsInBlock - 1)
+        val highestDiagIndex = diagIndex + (nColsInBlock - 1)
+
+        If(lowestDiagIndex >= lower && highestDiagIndex <= upper,
+          block,
+          invoke("zero_band", TNDArray(TFloat64, Nat(2)), block, lower, upper, diagIndex, nRowsInBlock, nColsInBlock)
+        )
+      }}
+    }
+
+    BlockMatrixStage2(broadcastVals, typ, ctxs, newBody)
   }
 
   def collectBlocks(
