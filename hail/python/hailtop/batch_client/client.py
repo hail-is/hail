@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 import asyncio
 
 from ..config import DeployConfig
@@ -314,8 +314,8 @@ class BatchClient:
                                                   cancel_after_n_failures=cancel_after_n_failures)
         return BatchBuilder.from_async_builder(builder)
 
-    def update_batch(self, batch_id: int) -> 'BatchBuilder':
-        builder = async_to_blocking(self._async_client.update_batch(batch_id))
+    def update_batch(self, batch: Union[int, Batch]) -> 'BatchBuilder':
+        builder = async_to_blocking(self._async_client.update_batch(batch))
         return BatchBuilder.from_async_builder(builder)
 
     def get_billing_project(self, billing_project):

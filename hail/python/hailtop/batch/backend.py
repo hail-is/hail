@@ -577,7 +577,7 @@ class ServiceBackend(Backend[bc.Batch]):
                 attributes=attributes, callback=callback, token=token, cancel_after_n_failures=batch._cancel_after_n_failures
             )
         else:
-            bc_batch_builder = self._batch_client.update_batch(batch._batch_handle.id)
+            bc_batch_builder = self._batch_client.update_batch(batch._batch_handle)
 
         n_jobs_submitted = 0
         used_remote_tmpdir = False
@@ -767,13 +767,12 @@ class ServiceBackend(Backend[bc.Batch]):
             print(f'Built DAG with {n_jobs_submitted} jobs in {round(time.time() - build_dag_start, 3)} seconds.')
 
         submit_batch_start = time.time()
+        batch_handle = bc_batch_builder.submit(disable_progress_bar=disable_progress_bar)
+
         if batch._batch_handle is None:
-            batch_handle = bc_batch_builder.submit(disable_progress_bar=disable_progress_bar)
             batch._batch_handle = batch_handle
         else:
-            new_batch_handle = bc_batch_builder.submit(disable_progress_bar=disable_progress_bar)
-            assert batch._batch_handle.id == new_batch_handle.id
-            batch_handle = batch._batch_handle
+            assert batch._batch_handle == batch_handle
 
         for job in batch._unsubmitted_jobs:
             job._submitted = True
