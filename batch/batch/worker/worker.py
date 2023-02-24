@@ -2222,16 +2222,16 @@ class JVMJob(Job):
             with self.step('uploading_profile'):
                 if os.path.exists(self.profile_file):
                     profile_contents = await self.worker.fs.read(self.profile_file)
+                    await self.worker.file_store.write_jvm_profile(
+                        self.format_version,
+                        self.batch_id,
+                        self.job_id,
+                        self.attempt_id,
+                        'main',
+                        profile_contents,
+                    )
                 else:
-                    profile_contents = b'profile not available'
-                await self.worker.file_store.write_jvm_profile(
-                    self.format_version,
-                    self.batch_id,
-                    self.job_id,
-                    self.attempt_id,
-                    'main',
-                    profile_contents,
-                )
+                    log.error(f'jvm profile not available for {self}')
 
         try:
             await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')

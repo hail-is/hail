@@ -202,7 +202,7 @@ def handle_job_backwards_compatibility(job):
         job['always_copy_output'] = True
     if 'process' in job:
         process = job['process']
-        if process['type'] == 'jvm' and process['profile'] is None:
+        if process['type'] == 'jvm' and 'profile' not in process:
             process['profile'] = False
 
 

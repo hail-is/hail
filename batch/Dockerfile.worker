@@ -46,8 +46,7 @@ ENV PYSPARK_PYTHON python3
 
 COPY docker/core-site.xml ${SPARK_HOME}/conf/core-site.xml
 
-RUN wget https://github.com/jvm-profiling-tools/async-profiler/releases/download/v2.9/async-profiler-2.9-linux-x64.tar.gz && \
-    tar -xvf async-profiler-2.9-linux-x64.tar.gz
+RUN wget https://github.com/jvm-profiling-tools/async-profiler/releases/download/v2.9/async-profiler-2.9-linux-x64.tar.gz -qO- | tar -xvf -
 
 # Build crun in separate build step
 FROM base AS crun_builder

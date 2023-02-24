@@ -41,8 +41,8 @@ class FileStore:
 
     def jvm_profile_path(self, format_version, batch_id, job_id, attempt_id, task):
         if not format_version.has_attempt_in_log_path():
-            return f'{self.batch_log_dir(batch_id)}/{job_id}/{task}/jvm_profile'
-        return f'{self.batch_log_dir(batch_id)}/{job_id}/{attempt_id}/{task}/jvm_profile'
+            return f'{self.batch_log_dir(batch_id)}/{job_id}/{task}/jvm_profile.html'
+        return f'{self.batch_log_dir(batch_id)}/{job_id}/{attempt_id}/{task}/jvm_profile.html'
 
     async def read_log_file(self, format_version, batch_id, job_id, attempt_id, task) -> bytes:
         url = self.log_path(format_version, batch_id, job_id, attempt_id, task)
