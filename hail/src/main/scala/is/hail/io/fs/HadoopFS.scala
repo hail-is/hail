@@ -79,7 +79,7 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
   def createNoCompression(filename: String): PositionedDataOutputStream = {
     val fs = getFileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
-    val os = fs.create(hPath, true, 8 * 1024 * 1024)
+    val os = fs.create(hPath)
     new WrappedPositionedDataOutputStream(
       HadoopFS.toPositionedOutputStream(os))
   }
@@ -89,7 +89,7 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     val fs = getFileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
     val is = try {
-      fs.open(hPath, 8 * 1024 * 1024)
+      fs.open(hPath)
     } catch {
       case e: FileNotFoundException =>
         if (isDir(filename))

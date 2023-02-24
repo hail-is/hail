@@ -512,7 +512,7 @@ case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHe
       val formatFieldUTF8 = cb.memoize(const(formatFieldStr).invoke[Array[Byte]]("getBytes"))
       val filename = ctx.loadField(cb, "partFile").get(cb, "partFile can't be missing").asString.loadString(cb)
 
-      val os = cb.memoize(Code.newInstance[java.io.BufferedOutputStream, OutputStream](cb.emb.create(filename)))
+      val os = cb.memoize(cb.emb.create(filename))
       if (writeHeader) {
         val sampleIds = ctx.loadField(cb, "cols").get(cb).asIndexable
         val stringSampleIds = cb.memoize(Code.newArray[String](sampleIds.loadLength()))
