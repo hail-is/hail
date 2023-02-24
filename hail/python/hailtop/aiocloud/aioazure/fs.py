@@ -1,12 +1,11 @@
 from typing import Any, AsyncContextManager, AsyncIterator, Dict, List, Optional, Set, Tuple, Type
 from types import TracebackType
 
-import os
 import re
 import asyncio
-import urllib
 import secrets
 import logging
+import datetime
 
 from azure.storage.blob import BlobProperties
 from azure.storage.blob.aio import BlobClient, ContainerClient, BlobServiceClient, StorageStreamDownloader
@@ -47,7 +46,8 @@ class AzureWritableStream(WritableStream):
             n = self._chunk_size
 
         block_id = secrets.token_urlsafe(32)
-        await self.client.stage_block(block_id, self._write_buffer.chunks(n))
+        with self._write_buffer.chunks(n) as chunks:
+            await self.client.stage_block(block_id, chunks)
         self.block_ids.append(block_id)
 
         new_offset = self._write_buffer.offset() + n
@@ -142,7 +142,7 @@ class AzureCreateManager(AsyncContextManager[WritableStream]):
 
 
 class AzureReadableStream(ReadableStream):
-    def __init__(self, client: BlobClient, url: str, offset: Optional[int] = None):
+    def __init__(self, client: BlobClient, url: str, offset: Optional[int] = None, length: Optional[int] = None):
         super().__init__()
         self._client = client
         self._buffer = bytearray()
@@ -151,6 +151,7 @@ class AzureReadableStream(ReadableStream):
         # cannot set the default to 0 because this will fail on an empty file
         # offset means to start at the first byte
         self._offset = offset
+        self._length = length
 
         self._eof = False
         self._downloader: Optional[StorageStreamDownloader] = None
@@ -162,7 +163,7 @@ class AzureReadableStream(ReadableStream):
 
         if n == -1:
             try:
-                downloader = await self._client.download_blob(offset=self._offset)
+                downloader = await self._client.download_blob(offset=self._offset, length=self._length)  # type: ignore
             except azure.core.exceptions.ResourceNotFoundError as e:
                 raise FileNotFoundError(self._url) from e
             data = await downloader.readall()
@@ -171,9 +172,13 @@ class AzureReadableStream(ReadableStream):
 
         if self._downloader is None:
             try:
-                self._downloader = await self._client.download_blob(offset=self._offset)
+                self._downloader = await self._client.download_blob(offset=self._offset)  # type: ignore
             except azure.core.exceptions.ResourceNotFoundError as e:
                 raise FileNotFoundError(self._url) from e
+            except azure.core.exceptions.HttpResponseError as e:
+                if e.status_code == 416:
+                    raise UnexpectedEOFError from e
+                raise
 
         if self._chunk_it is None:
             self._chunk_it = self._downloader.chunks()
@@ -213,20 +218,21 @@ class AzureReadableStream(ReadableStream):
 
 
 class AzureFileListEntry(FileListEntry):
-    def __init__(self, url: str, blob_props: Optional[BlobProperties]):
-        self._url = url
+    def __init__(self, account: str, container: str, name: str, blob_props: Optional[BlobProperties]):
+        self._account = account
+        self._container = container
+        self._name = name
         self._blob_props = blob_props
         self._status: Optional[AzureFileStatus] = None
 
     def name(self) -> str:
-        parsed = urllib.parse.urlparse(self._url)
-        return os.path.basename(parsed.path)
+        return self._name
 
     async def url(self) -> str:
-        return self._url
+        return f'hail-az://{self._account}/{self._container}/{self._name}'
 
     def url_maybe_trailing_slash(self) -> str:
-        return self._url
+        return f'hail-az://{self._account}/{self._container}/{self._name}'
 
     async def is_file(self) -> bool:
         return self._blob_props is not None
@@ -237,7 +243,7 @@ class AzureFileListEntry(FileListEntry):
     async def status(self) -> FileStatus:
         if self._status is None:
             if self._blob_props is None:
-                raise IsADirectoryError(self._url)
+                raise IsADirectoryError(await self.url())
             self._status = AzureFileStatus(self._blob_props)
         return self._status
 
@@ -247,7 +253,19 @@ class AzureFileStatus(FileStatus):
         self.blob_props = blob_props
 
     async def size(self) -> int:
-        return self.blob_props.size
+        size = self.blob_props.size
+        assert isinstance(size, int)
+        return size
+
+    def time_created(self) -> datetime.datetime:
+        ct = self.blob_props.creation_time
+        assert isinstance(ct, datetime.datetime)
+        return ct
+
+    def time_modified(self) -> datetime.datetime:
+        lm = self.blob_props.last_modified
+        assert isinstance(lm, datetime.datetime)
+        return lm
 
     async def __getitem__(self, key: str) -> Any:
         return self.blob_props.__dict__[key]
@@ -301,16 +319,25 @@ class AzureAsyncFS(AsyncFS):
 
     @staticmethod
     def get_account_container_and_name(url: str) -> Tuple[str, str, str]:
-        parsed = urllib.parse.urlparse(url)
+        colon_index = url.find(':')
+        if colon_index == -1:
+            raise ValueError(f'invalid URL: {url}')
 
-        if parsed.scheme != 'hail-az':
-            raise ValueError(f'invalid scheme, expected hail-az: {parsed.scheme}')
+        scheme = url[:colon_index]
+        if scheme != 'hail-az':
+            raise ValueError(f'invalid scheme, expected hail-az: {scheme}')
 
-        account = parsed.netloc
+        rest = url[(colon_index + 1):]
+        if not rest.startswith('//'):
+            raise ValueError(f'invalid path name, expected hail-az://account/container/blob_name: {url}')
 
-        match = AzureAsyncFS.PATH_REGEX.fullmatch(parsed.path)
+        end_of_account = rest.find('/', 2)
+        account = rest[2:end_of_account]
+        container_and_name = rest[end_of_account:]
+
+        match = AzureAsyncFS.PATH_REGEX.fullmatch(container_and_name)
         if match is None:
-            raise ValueError(f'invalid path name, expected hail-az://account/container/blob_name: {parsed.path}')
+            raise ValueError(f'invalid path name, expected hail-az://account/container/blob_name: {container_and_name}')
 
         container = match.groupdict()['container']
 
@@ -337,14 +364,17 @@ class AzureAsyncFS(AsyncFS):
         return blob_service_client.get_container_client(container)
 
     async def open(self, url: str) -> ReadableStream:
+        if not await self.exists(url):
+            raise FileNotFoundError
         client = self.get_blob_client(url)
-        stream = AzureReadableStream(client, url)
-        return stream
+        return AzureReadableStream(client, url)
 
-    async def open_from(self, url: str, start: int) -> ReadableStream:
+    async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
+        assert length is None or length >= 1
+        if not await self.exists(url):
+            raise FileNotFoundError
         client = self.get_blob_client(url)
-        stream = AzureReadableStream(client, url, offset=start)
-        return stream
+        return AzureReadableStream(client, url, offset=start, length=length)
 
     async def create(self, url: str, *, retry_writes: bool = True) -> AsyncContextManager[WritableStream]:  # pylint: disable=unused-argument
         client = self.get_blob_client(url)
@@ -395,8 +425,7 @@ class AzureAsyncFS(AsyncFS):
         assert not name or name.endswith('/')
         async for blob_props in client.list_blobs(name_starts_with=name,
                                                   include=['metadata']):
-            url = f'hail-az://{client.account_name}/{client.container_name}/{blob_props.name}'
-            yield AzureFileListEntry(url, blob_props)
+            yield AzureFileListEntry(client.account_name, client.container_name, blob_props.name, blob_props)  # type: ignore
 
     @staticmethod
     async def _listfiles_flat(client: ContainerClient, name: str) -> AsyncIterator[FileListEntry]:
@@ -405,12 +434,10 @@ class AzureAsyncFS(AsyncFS):
                                             include=['metadata'],
                                             delimiter='/'):
             if isinstance(item, BlobPrefix):
-                url = f'hail-az://{client.account_name}/{client.container_name}/{item.prefix}'
-                yield AzureFileListEntry(url, None)
+                yield AzureFileListEntry(client.account_name, client.container_name, item.prefix, None)  # type: ignore
             else:
                 assert isinstance(item, BlobProperties)
-                url = f'hail-az://{client.account_name}/{client.container_name}/{item.name}'
-                yield AzureFileListEntry(url, item)
+                yield AzureFileListEntry(client.account_name, client.container_name, item.name, item)  # type: ignore
 
     async def listfiles(self,
                         url: str,
@@ -477,14 +504,14 @@ class AzureAsyncFS(AsyncFS):
 
 
 class AzureAsyncFSFactory(AsyncFSFactory[AzureAsyncFS]):
-    def from_credentials_data(self, credentials_data: dict) -> AzureAsyncFS:  # pylint: disable=no-self-use
+    def from_credentials_data(self, credentials_data: dict) -> AzureAsyncFS:
         return AzureAsyncFS(
             credentials=AzureCredentials.from_credentials_data(credentials_data))
 
-    def from_credentials_file(self, credentials_file: str) -> AzureAsyncFS:  # pylint: disable=no-self-use
+    def from_credentials_file(self, credentials_file: str) -> AzureAsyncFS:
         return AzureAsyncFS(
             credentials=AzureCredentials.from_file(credentials_file))
 
-    def from_default_credentials(self) -> AzureAsyncFS:  # pylint: disable=no-self-use
+    def from_default_credentials(self) -> AzureAsyncFS:
         return AzureAsyncFS(
             credentials=AzureCredentials.default_credentials())

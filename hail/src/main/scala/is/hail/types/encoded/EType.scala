@@ -35,7 +35,9 @@ abstract class EType extends BaseType with Serializable with Requiredness {
 
   final def buildDecoder(ctx: ExecuteContext, requestedType: Type): (PType, (InputBuffer, HailClassLoader) => Decoder) = {
     val (rt, f) = EType.buildDecoderToRegionValue(ctx, this, requestedType)
-    (rt, (in: InputBuffer, theHailClassLoader: HailClassLoader) => new CompiledDecoder(in, theHailClassLoader, f))
+    val makeDec = (in: InputBuffer, theHailClassLoader: HailClassLoader) =>
+      new CompiledDecoder(in, rt, theHailClassLoader, f)
+    (rt, makeDec)
   }
 
   final def buildStructDecoder(ctx: ExecuteContext, requestedType: TStruct): (PStruct, (InputBuffer, HailClassLoader) => Decoder) = {
@@ -272,6 +274,7 @@ object EType {
         EField("position", EInt32(true), 1)),
         required = r.required)
     case TCall => EInt32(r.required)
+    case TRNGState => ERNGState(r.required, None)
     case t: TInterval =>
       val rinterval = r.asInstanceOf[RInterval]
       EBaseStruct(
@@ -281,9 +284,9 @@ object EType {
           EField("includesStart", EBoolean(true), 2),
           EField("includesEnd", EBoolean(true), 3)),
         required = rinterval.required)
-    case t: TIterable => EArray(fromTypeAndAnalysis(t.elementType, coerce[RIterable](r).elementType), r.required)
+    case t: TIterable => EArray(fromTypeAndAnalysis(t.elementType, tcoerce[RIterable](r).elementType), r.required)
     case t: TBaseStruct =>
-      val rstruct = coerce[RBaseStruct](r)
+      val rstruct = tcoerce[RBaseStruct](r)
       assert(t.size == rstruct.size, s"different number of fields: ${t} ${r}")
       EBaseStruct(Array.tabulate(t.size) { i =>
         val f = rstruct.fields(i)

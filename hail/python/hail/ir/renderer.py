@@ -120,6 +120,8 @@ class PlainRenderer(Renderer):
                         builder.append(f'(JavaMatrix {jir_id})')
                     elif isinstance(x, ir.TableIR):
                         builder.append(f'(JavaTable {jir_id})')
+                    elif isinstance(x, ir.BlockMatrixIR):
+                        builder.append(f'(JavaBlockMatrix {jir_id})')
                     else:
                         assert isinstance(x, ir.IR)
                         builder.append(f'(JavaIR {jir_id})')
@@ -218,7 +220,7 @@ class CSEAnalysisPass:
 
             if child_idx >= len(node.children):
                 # mark node as visited at potential let insertion site
-                if not node.is_effectful():
+                if not (node.is_effectful() or node.is_stream):
                     bind_depth = frame.bind_depth()
                     if bind_depth < frame.min_value_binding_depth:
                         if frame.scan_scope:

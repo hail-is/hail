@@ -6,7 +6,7 @@ import py4j.java_gateway
 
 import hail
 from hail.expr import construct_expr
-from hail.ir import JavaIR
+from hail.ir import JavaIR, finalize_randomness
 from hail.ir.renderer import CSERenderer
 from hail.utils.java import FatalError, Env
 from .backend import Backend, fatal_error_from_java_error_triplet
@@ -42,6 +42,7 @@ class Py4JBackend(Backend):
 
     @abc.abstractmethod
     def __init__(self):
+        super(Py4JBackend, self).__init__()
         import base64
 
         def decode_bytearray(encoded):
@@ -79,7 +80,7 @@ class Py4JBackend(Backend):
                              return_type: HailType,
                              body: Expression):
         r = CSERenderer(stop_at_jir=True)
-        code = r(body._ir)
+        code = r(finalize_randomness(body._ir))
         jbody = (self._parse_value_ir(code, ref_map=dict(zip(value_parameter_names, value_parameter_types)), ir_map=r.jirs))
 
         Env.hail().expr.ir.functions.IRFunctionRegistry.pyRegisterIR(
@@ -95,24 +96,15 @@ class Py4JBackend(Backend):
         stream_codec = '{"name":"StreamBufferSpec"}'
         # print(self._hail_package.expr.ir.Pretty.apply(jir, True, -1))
         try:
-            result_tuple = self._jbackend.executeEncode(jir, stream_codec)
+            result_tuple = self._jbackend.executeEncode(jir, stream_codec, timed)
             (result, timings) = (result_tuple._1(), result_tuple._2())
             value = ir.typ._from_encoding(result)
 
             return (value, timings) if timed else value
         except FatalError as e:
-            self._handle_fatal_error_from_backend(e, ir)
+            raise e.maybe_user_error(ir) from None
 
     async def _async_execute(self, ir, timed=False):
-        raise NotImplementedError('no async available in Py4JBackend')
-
-    async def _async_execute_many(self, *irs, timed=False):
-        raise NotImplementedError('no async available in Py4JBackend')
-
-    async def _async_get_reference(self, name):
-        raise NotImplementedError('no async available in Py4JBackend')
-
-    async def _async_get_references(self, names):
         raise NotImplementedError('no async available in Py4JBackend')
 
     def persist_expression(self, expr):

@@ -1,7 +1,5 @@
 include ../config.mk
 
-TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
-
 UKBB_RG_STATIC_IMAGE := $(DOCKER_PREFIX)/ukbb-rg-static:$(TOKEN)
 UKBB_RG_BROWSER_IMAGE := $(DOCKER_PREFIX)/ukbb-rg-browser:$(TOKEN)
 
@@ -17,8 +15,8 @@ build:
 
 .PHONY: deploy
 deploy: build
-	python3 ../ci/jinja2_render.py '{"docker_prefix":"$(DOCKER_PREFIX)"}' deployment.yaml deployment.yaml.out
-	kubectl apply -f deployment.yaml.out
+	python3 ../ci/jinja2_render.py '{"docker_prefix":"$(DOCKER_PREFIX)","static_image":"$(UKBB_RG_STATIC_IMAGE)","browser_image":"$(UKBB_RG_BROWSER_IMAGE)"}' deployment.yaml deployment.yaml.out
+	kubectl apply -n ukbb-rg -f deployment.yaml.out
 
 update-ukbb-rg-browser-files:
 	mkdir -p data

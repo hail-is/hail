@@ -17,12 +17,12 @@ import is.hail.rvd.{AbstractRVDSpec, IndexSpec, RVDPartitioner, RVDSpecMaker}
 import is.hail.types.encoded.EType
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SContainer, SStringValue, SVoidValue}
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.EmitType
-import is.hail.types.physical.stypes.concrete.{SStackStruct, SJavaArrayString, SJavaArrayStringValue}
+import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SValue}
+import is.hail.types.physical.stypes.concrete.{SJavaArrayString, SJavaArrayStringValue, SStackStruct, SSubsetStruct, SSubsetStructValue}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.primitives.{SBooleanValue, SInt64Value}
+import is.hail.types.physical.stypes.primitives.{SBooleanValue, SInt64, SInt64Value}
 import is.hail.types.virtual._
-import is.hail.types.{RIterable, RStruct, RTable, TableType, TypeWithRequiredness}
+import is.hail.types.{RIterable, RStruct, RTable, RTuple, TableType, TypeWithRequiredness, tcoerce}
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 import is.hail.variant.ReferenceGenome
@@ -32,7 +32,7 @@ import org.json4s.{DefaultFormats, Formats, JBool, JObject, ShortTypeHints}
 object TableWriter {
   implicit val formats: Formats = new DefaultFormats()  {
     override val typeHints = ShortTypeHints(
-      List(classOf[TableNativeWriter], classOf[TableTextWriter]), typeHintFieldName = "name")
+      List(classOf[TableNativeFanoutWriter], classOf[TableNativeWriter], classOf[TableTextWriter]), typeHintFieldName = "name")
   }
 }
 
@@ -50,7 +50,7 @@ object TableNativeWriter {
     rowSpec: TypedCodecSpec, globalSpec: TypedCodecSpec, relationalLetsAbove: Map[String, IR]): IR = {
     // write out partitioner key, which may be stricter than table key
     val partitioner = ts.partitioner
-    val pKey: PStruct = coerce[PStruct](rowSpec.decodedPType(partitioner.kType))
+    val pKey: PStruct = tcoerce[PStruct](rowSpec.decodedPType(partitioner.kType))
     val rowWriter = PartitionNativeWriter(rowSpec, pKey.fieldNames, s"$path/rows/parts/", Some(s"$path/index/" -> pKey), if (stageLocally) Some(ctx.localTmpdir) else None)
     val globalWriter = PartitionNativeWriter(globalSpec, IndexedSeq(), s"$path/globals/parts/", None, None)
 
@@ -64,7 +64,7 @@ object TableNativeWriter {
             "oldCtx" -> ctxElt,
             "writeCtx" -> pf))
         }
-      }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(relationalLetsAbove) { (rows, ctxRef) =>
+      }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(relationalLetsAbove, "table_native_writer") { (rows, ctxRef) =>
         val file = GetField(ctxRef, "writeCtx")
         WritePartition(rows, file + UUID4(), rowWriter)
       } { (parts, globals) =>
@@ -76,7 +76,7 @@ object TableNativeWriter {
             WriteMetadata(MakeArray(GetField(writeGlobals, "filePath")),
               RVDSpecWriter(s"$path/globals", RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(1)))),
             WriteMetadata(ToArray(mapIR(ToStream(fileCountAndDistinct)) { fc => GetField(fc, "filePath") }),
-              RVDSpecWriter(s"$path/rows", RVDSpecMaker(rowSpec, partitioner, IndexSpec.emptyAnnotation("../index", coerce[PStruct](pKey))))),
+              RVDSpecWriter(s"$path/rows", RVDSpecMaker(rowSpec, partitioner, IndexSpec.emptyAnnotation("../index", tcoerce[PStruct](pKey))))),
             WriteMetadata(ToArray(mapIR(ToStream(fileCountAndDistinct)) { fc =>
               SelectFields(fc, Seq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey"))
             }),
@@ -169,7 +169,26 @@ case class TableNativeWriter(
   }
 }
 
-case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, keyFields: IndexedSeq[String], partPrefix: String, index: Option[(String, PStruct)], localDir: Option[String]) extends PartitionWriter {
+object PartitionNativeWriter {
+  val ctxType = TString
+  def fullReturnType(keyType: TStruct): TStruct = TStruct(
+    "filePath" -> TString,
+    "partitionCounts" -> TInt64,
+    "distinctlyKeyed" -> TBoolean,
+    "firstKey" -> keyType,
+    "lastKey" -> keyType,
+    "partitionByteSize" -> TInt64
+  )
+
+  def returnType(keyType: TStruct, trackTotalBytes: Boolean): TStruct = {
+    val t = PartitionNativeWriter.fullReturnType(keyType)
+    if (trackTotalBytes) t else t.filterSet(Set("partitionByteSize"), include=false)._1
+  }
+}
+
+case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, keyFields: IndexedSeq[String],
+    partPrefix: String, index: Option[(String, PStruct)] = None,
+    localDir: Option[String] = None, trackTotalBytes: Boolean = false) extends PartitionWriter {
   def stageLocally: Boolean = localDir.isDefined
   def hasIndex: Boolean = index.isDefined
   val filenameType = PCanonicalString(required = true)
@@ -177,8 +196,9 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, keyFields: Indexe
 
   val keyType = spec.encodedVirtualType.asInstanceOf[TStruct].select(keyFields)._1
 
-  def ctxType: Type = TString
-  def returnType: Type = TStruct("filePath" -> TString, "partitionCounts" -> TInt64, "distinctlyKeyed" -> TBoolean, "firstKey" -> keyType, "lastKey" -> keyType)
+  def ctxType = PartitionNativeWriter.ctxType
+  val returnType = PartitionNativeWriter.returnType(keyType, trackTotalBytes)
+
   def unionTypeRequiredness(r: TypeWithRequiredness, ctxType: TypeWithRequiredness, streamType: RIterable): Unit = {
     val rs = r.asInstanceOf[RStruct]
     val rKeyType = streamType.elementType.asInstanceOf[RStruct].select(keyFields.toArray)
@@ -194,79 +214,33 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, keyFields: Indexe
     throw new LowererUnsupportedOperation("stageLocally option not yet implemented")
   def ifIndexed[T >: Null](obj: => T): T = if (hasIndex) obj else null
 
-  def consumeStream(
-    ctx: ExecuteContext,
-    cb: EmitCodeBuilder,
-    stream: StreamProducer,
-    context: EmitCode,
-    region: Value[Region]): IEmitCode = {
+  class StreamConsumer(
+    _ctx: SValue,
+    private[this] val cb: EmitCodeBuilder,
+    private[this] val region: Value[Region]
+  ) {
+    private[this] val ctx = _ctx.asString
+    private[this] val mb = cb.emb
+    private[this] val indexKeyType = ifIndexed { index.get._2 }
+    private[this] val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(indexKeyType, mb.ecb,
+      branchingFactor = Option(mb.ctx.getFlag("index_branching_factor")).map(_.toInt).getOrElse(4096)) }
+    private[this] val filename = mb.newLocal[String]("filename")
+    private[this] val os = mb.newLocal[ByteTrackingOutputStream]("write_os")
+    private[this] val ob = mb.newLocal[OutputBuffer]("write_ob")
+    private[this] val n = mb.newLocal[Long]("partition_count")
+    private[this] val byteCount = if (trackTotalBytes) Some(mb.newPLocal("partition_byte_count", SInt64)) else None
+    private[this] val distinctlyKeyed = mb.newLocal[Boolean]("distinctlyKeyed")
+    private[this] val keyEmitType = EmitType(spec.decodedPType(keyType).sType, false)
+    private[this] val firstSeenSettable = mb.newEmitLocal("pnw_firstSeen", keyEmitType)
+    private[this] val lastSeenSettable = mb.newEmitLocal("pnw_lastSeen", keyEmitType)
+    private[this] val lastSeenRegion = mb.newLocal[Region]("last_key_region")
 
-    val mb = cb.emb
-
-    val indexKeyType = ifIndexed { index.get._2 }
-    val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(indexKeyType, mb.ecb) }
-
-    context.toI(cb).map(cb) { case ctx: SStringValue =>
-      val filename = mb.newLocal[String]("filename")
-      val os = mb.newLocal[ByteTrackingOutputStream]("write_os")
-      val ob = mb.newLocal[OutputBuffer]("write_ob")
-      val n = mb.newLocal[Long]("partition_count")
-      val distinctlyKeyed = mb.newLocal[Boolean]("distinctlyKeyed")
+    def setup(): Unit = {
       cb.assign(distinctlyKeyed, !keyFields.isEmpty) // True until proven otherwise, if there's a key to care about at all.
-
-      val keyEmitType = EmitType(spec.decodedPType(keyType).sType, false)
-
-      val firstSeenSettable =  mb.newEmitLocal("pnw_firstSeen", keyEmitType)
-      val lastSeenSettable =  mb.newEmitLocal("pnw_lastSeen", keyEmitType)
       // Start off missing, we will use this to determine if we haven't processed any rows yet.
       cb.assign(firstSeenSettable, EmitCode.missing(cb.emb, keyEmitType.st))
       cb.assign(lastSeenSettable, EmitCode.missing(cb.emb, keyEmitType.st))
-
-
-      def writeFile(cb: EmitCodeBuilder, codeRow: EmitCode): Unit = {
-        val row = codeRow.toI(cb).get(cb, "row can't be missing").asBaseStruct
-
-        if (hasIndex) {
-          indexWriter.add(cb, {
-            val indexKeyPType = index.get._2
-            IEmitCode.present(cb, indexKeyPType.asInstanceOf[PCanonicalBaseStruct]
-              .constructFromFields(cb, stream.elementRegion,
-                indexKeyPType.fields.map{ f =>
-                  EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name))
-                },
-                deepCopy = true))
-          },
-            ob.invoke[Long]("indexOffset"),
-            IEmitCode.present(cb, PCanonicalStruct().loadCheapSCode(cb, 0L)))
-        }
-
-        val key = SStackStruct.constructFromArgs(cb, stream.elementRegion, keyType, keyType.fields.map { f =>
-          EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name))
-        }:_*)
-
-        if (!keyFields.isEmpty) {
-          cb.ifx(distinctlyKeyed, {
-            lastSeenSettable.loadI(cb).consume(cb, {
-              // If there's no last seen, we are in the first row.
-              cb.assign(firstSeenSettable, EmitValue.present(key.copyToRegion(cb, region, firstSeenSettable.st)))
-            }, { lastSeen =>
-              val comparator = EQ(lastSeenSettable.emitType.virtualType).codeOrdering(cb.emb.ecb, lastSeenSettable.st, key.st)
-              val equalToLast = comparator(cb, lastSeenSettable, EmitValue.present(key))
-              cb.ifx(equalToLast.asInstanceOf[Value[Boolean]], {
-                cb.assign(distinctlyKeyed, false)
-              })
-            })
-          })
-          cb.assign(lastSeenSettable, IEmitCode.present(cb, key.copyToRegion(cb, region, lastSeenSettable.st)))
-        }
-
-        cb += ob.writeByte(1.asInstanceOf[Byte])
-
-        spec.encodedType.buildEncoder(row.st, cb.emb.ecb)
-          .apply(cb, row, ob)
-
-        cb.assign(n, n + 1L)
-      }
+      cb.assign(lastSeenRegion, Region.stagedCreate(Region.TINY, region.getPool()))
 
       cb.assign(filename, ctx.loadString(cb))
       if (hasIndex) {
@@ -278,25 +252,95 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, keyFields: Indexe
       cb.assign(os, Code.newInstance[ByteTrackingOutputStream, OutputStream](mb.create(filename)))
       cb.assign(ob, spec.buildCodeOutputBuffer(Code.checkcast[OutputStream](os)))
       cb.assign(n, 0L)
+    }
 
-      stream.memoryManagedConsume(region, cb) { cb =>
-        writeFile(cb, stream.element)
+    def consumeElement(cb: EmitCodeBuilder, codeRow: SValue, elementRegion: Settable[Region]): Unit = {
+      val row = codeRow.asBaseStruct
+
+      if (hasIndex) {
+        indexWriter.add(cb, {
+          val indexKeyPType = index.get._2
+          IEmitCode.present(cb, indexKeyPType.asInstanceOf[PCanonicalBaseStruct]
+            .constructFromFields(cb, elementRegion,
+              indexKeyPType.fields.map{ f =>
+                EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name))
+              },
+              deepCopy = true))
+        },
+          ob.invoke[Long]("indexOffset"),
+          IEmitCode.present(cb, PCanonicalStruct().loadCheapSCode(cb, 0L)))
       }
 
+      val key = SStackStruct.constructFromArgs(cb, elementRegion, keyType, keyType.fields.map { f =>
+        EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name))
+      }:_*)
+
+      if (!keyFields.isEmpty) {
+        cb.ifx(distinctlyKeyed, {
+          lastSeenSettable.loadI(cb).consume(cb, {
+            // If there's no last seen, we are in the first row.
+            cb.assign(firstSeenSettable, EmitValue.present(key.copyToRegion(cb, region, firstSeenSettable.st)))
+          }, { lastSeen =>
+            val comparator = EQ(lastSeenSettable.emitType.virtualType).codeOrdering(cb.emb.ecb, lastSeenSettable.st, key.st)
+            val equalToLast = comparator(cb, lastSeenSettable, EmitValue.present(key))
+            cb.ifx(equalToLast.asInstanceOf[Value[Boolean]], {
+              cb.assign(distinctlyKeyed, false)
+            })
+          })
+        })
+        cb += lastSeenRegion.clearRegion()
+        cb.assign(lastSeenSettable, IEmitCode.present(cb, key.copyToRegion(cb, lastSeenRegion, lastSeenSettable.st)))
+      }
+
+      cb += ob.writeByte(1.asInstanceOf[Byte])
+
+      spec.encodedType.buildEncoder(row.st, cb.emb.ecb)
+        .apply(cb, row, ob)
+
+      cb.assign(n, n + 1L)
+      byteCount.foreach { bc =>
+        cb.assign(bc, SCode.add(cb, bc, row.sizeToStoreInBytes(cb), true))
+      }
+    }
+
+    def result(): SValue = {
       cb += ob.writeByte(0.asInstanceOf[Byte])
       if (hasIndex)
         indexWriter.close(cb)
       cb += ob.flush()
       cb += os.invoke[Unit]("close")
 
-      SStackStruct.constructFromArgs(cb, region, returnType.asInstanceOf[TBaseStruct],
+      lastSeenSettable.loadI(cb).consume(cb, { /* do nothing */ }, { lastSeen =>
+        cb.assign(lastSeenSettable, IEmitCode.present(cb, lastSeen.copyToRegion(cb, region, lastSeenSettable.st)))
+      })
+      cb += lastSeenRegion.invalidate()
+      val values = Seq[EmitCode](
         EmitCode.present(mb, ctx),
         EmitCode.present(mb, new SInt64Value(n)),
         EmitCode.present(mb, new SBooleanValue(distinctlyKeyed)),
         firstSeenSettable,
         lastSeenSettable
-      )
+      ) ++ byteCount.map(EmitCode.present(mb, _))
+
+      SStackStruct.constructFromArgs(cb, region, returnType.asInstanceOf[TBaseStruct], values: _*)
     }
+  }
+
+  def consumeStream(
+    ctx: ExecuteContext,
+    cb: EmitCodeBuilder,
+    stream: StreamProducer,
+    context: EmitCode,
+    region: Value[Region]
+  ): IEmitCode = {
+    val ctx = context.toI(cb).get(cb)
+    val consumer = new StreamConsumer(ctx, cb, region)
+    consumer.setup()
+    stream.memoryManagedConsume(region, cb) { cb =>
+      val element = stream.element.toI(cb).get(cb, "row can't be missing")
+      consumer.consumeElement(cb, element, stream.elementRegion)
+    }
+    IEmitCode.present(cb, consumer.result())
   }
 }
 
@@ -417,9 +461,10 @@ case class RelationalWriter(path: String, overwrite: Boolean, maybeRefs: Option[
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
 
     maybeRefs.foreach { case (refRelPath, refs) =>
-      cb += cb.emb.getFS.invoke[String, Unit]("mkDir", s"$path/$refRelPath")
+      val referencesFQPath = s"$path/$refRelPath"
+      cb += cb.emb.getFS.invoke[String, Unit]("mkDir", referencesFQPath)
       refs.foreach { rg =>
-        cb += Code.invokeScalaObject3[FS, String, ReferenceGenome, Unit](ReferenceGenome.getClass, "writeReference", cb.emb.getFS, path, cb.emb.getReferenceGenome(rg))
+        cb += Code.invokeScalaObject3[FS, String, ReferenceGenome, Unit](ReferenceGenome.getClass, "writeReference", cb.emb.getFS, referencesFQPath, cb.emb.getReferenceGenome(rg))
       }
     }
 
@@ -454,15 +499,15 @@ case class TableTextWriter(
 
     ts.mapContexts { oldCtx =>
       val d = digitsNeeded(ts.numPartitions)
-      val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"$folder/${ partFile(d, i) }$ext").toFastIndexedSeq)
+      val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"$folder/${ partFile(d, i) }-").toFastIndexedSeq)
 
       zip2(oldCtx, ToStream(partFiles), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
         MakeStruct(FastSeq(
           "oldCtx" -> ctxElt,
           "partFile" -> pf))
       }
-    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(relationalLetsAbove) { (rows, ctxRef) =>
-      val file = GetField(ctxRef, "partFile")
+    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(relationalLetsAbove, "table_text_writer") { (rows, ctxRef) =>
+      val file = GetField(ctxRef, "partFile") + UUID4() + Str(ext)
       WritePartition(rows, file, lineWriter)
     } { (parts, _) =>
       val commit = TableTextFinalizer(path, ts.rowType, delimiter, header, exportType)
@@ -498,6 +543,14 @@ case class TableTextPartitionWriter(rowType: TStruct, delimiter: String, writeHe
   }
 }
 
+object TableTextFinalizer {
+  def cleanup(fs: FS, outputPath: String, files: Array[String]): Unit = {
+    val outputFiles = fs.listStatus(fs.makeQualified(outputPath)).map(_.getPath).toSet
+    val fileSet = files.map(fs.makeQualified(_)).toSet
+    outputFiles.diff(fileSet).foreach(fs.delete(_, false))
+  }
+}
+
 case class TableTextFinalizer(outputPath: String, rowType: TStruct, delimiter: String,
     header: Boolean = true, exportType: String = ExportType.CONCATENATED) extends MetadataWriter {
   def annotationType: Type = TArray(TString)
@@ -505,9 +558,9 @@ case class TableTextFinalizer(outputPath: String, rowType: TStruct, delimiter: S
     val ctx: ExecuteContext = cb.emb.ctx
     val ext = ctx.fs.getCodecExtension(outputPath)
     val partPaths = writeAnnotations.get(cb, "write annotations cannot be missing!")
+    val files = partPaths.castTo(cb, region, SJavaArrayString(true), false).asInstanceOf[SJavaArrayStringValue].array
     exportType match {
       case ExportType.CONCATENATED =>
-        val files = partPaths.castTo(cb, region, SJavaArrayString(true), false)
         val jFiles = if (header) {
           val headerFilePath = ctx.createTmpPath("header", ext)
           val headerStr = rowType.fields.map(_.name).mkString(delimiter)
@@ -516,14 +569,13 @@ case class TableTextFinalizer(outputPath: String, rowType: TStruct, delimiter: S
           cb += os.invoke[Int, Unit]("write", '\n')
           cb += os.invoke[Unit]("close")
 
-          val jFiles = files.asInstanceOf[SJavaArrayStringValue].array
-          val allFiles = cb.memoize(Code.newArray[String](jFiles.length + 1))
+          val allFiles = cb.memoize(Code.newArray[String](files.length + 1))
           cb += (allFiles(0) = const(headerFilePath))
           cb += Code.invokeStatic5[System, Any, Int, Any, Int, Int, Unit](
-            "arraycopy", jFiles /*src*/, 0 /*srcPos*/, allFiles /*dest*/, 1 /*destPos*/, jFiles.length /*len*/)
+            "arraycopy", files /*src*/, 0 /*srcPos*/, allFiles /*dest*/, 1 /*destPos*/, files.length /*len*/)
           allFiles
         } else {
-          files.asInstanceOf[SJavaArrayStringValue].array
+          files
         }
 
         cb += cb.emb.getFS.invoke[Array[String], String, Unit]("concatenateFiles", jFiles, const(outputPath))
@@ -534,9 +586,11 @@ case class TableTextFinalizer(outputPath: String, rowType: TStruct, delimiter: S
         })
 
       case ExportType.PARALLEL_HEADER_IN_SHARD =>
+        cb += Code.invokeScalaObject3[FS, String, Array[String], Unit](TableTextFinalizer.getClass, "cleanup", cb.emb.getFS, outputPath, files)
         cb += cb.emb.getFS.invoke[String, Unit]("touch", const(outputPath).concat("/_SUCCESS"))
 
       case ExportType.PARALLEL_SEPARATE_HEADER =>
+        cb += Code.invokeScalaObject3[FS, String, Array[String], Unit](TableTextFinalizer.getClass, "cleanup", cb.emb.getFS, outputPath, files)
         if (header) {
           val headerFilePath = s"$outputPath/header$ext"
           val headerStr = rowType.fields.map(_.name).mkString(delimiter)
@@ -547,6 +601,182 @@ case class TableTextFinalizer(outputPath: String, rowType: TStruct, delimiter: S
         }
 
         cb += cb.emb.getFS.invoke[String, Unit]("touch", const(outputPath).concat("/_SUCCESS"))
+    }
+  }
+}
+
+class FanoutWriterTarget(
+  val field: String,
+  val path: String,
+  val rowSpec: TypedCodecSpec,
+  val keyPType: PStruct,
+  val tableType: TableType,
+  val rowWriter: PartitionNativeWriter,
+  val globalWriter: PartitionNativeWriter
+)
+
+case class TableNativeFanoutWriter(
+  val path: String,
+  val fields: IndexedSeq[String],
+  overwrite: Boolean = true,
+  stageLocally: Boolean = false,
+  codecSpecJSONStr: String = null
+) extends TableWriter {
+  override def apply(ctx: ExecuteContext, mv: TableValue): Unit =
+    throw new UnsupportedOperationException("TableNativeFanoutWriter only supports lowered execution")
+
+  override def lower(
+    ctx: ExecuteContext,
+    ts: TableStage,
+    t: TableIR,
+    r: RTable,
+    relationalLetsAbove: Map[String, IR]
+  ): IR = {
+    val partitioner = ts.partitioner
+    val bufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
+    val globalSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(t.typ.globalType, r.globalType), t.typ.globalType, bufferSpec)
+    val targets = {
+      val rowType = t.typ.rowType
+      val rowRType = r.rowType
+      val keyType = partitioner.kType
+      val keyFields = keyType.fieldNames
+
+      fields.map { field =>
+        val targetPath = path + "/" + field
+        val fieldAndKey = (field +: keyFields)
+        val targetRowType = rowType.typeAfterSelectNames(fieldAndKey)
+        val targetRowRType = rowRType.select(fieldAndKey)
+        val rowSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(targetRowType, targetRowRType), targetRowType, bufferSpec)
+        val keyPType = tcoerce[PStruct](rowSpec.decodedPType(keyType))
+        val tableType = TableType(targetRowType, keyFields, t.typ.globalType)
+        val rowWriter = PartitionNativeWriter(
+          rowSpec,
+          keyFields,
+          s"$targetPath/rows/parts/",
+          Some(s"$targetPath/index/" -> keyPType),
+          if (stageLocally) Some(ctx.localTmpdir) else None
+        )
+        val globalWriter = PartitionNativeWriter(globalSpec, IndexedSeq(), s"$targetPath/globals/parts/", None, None)
+        new FanoutWriterTarget(field, targetPath, rowSpec, keyPType, tableType, rowWriter, globalWriter)
+      }.toFastIndexedSeq
+    }
+
+    val writeTables = ts.mapContexts { oldCtx =>
+      val d = digitsNeeded(ts.numPartitions)
+      val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"${ partFile(d, i) }-").toFastIndexedSeq)
+
+      zip2(oldCtx, ToStream(partFiles), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
+        MakeStruct(FastSeq(
+          "oldCtx" -> ctxElt,
+          "writeCtx" -> pf)
+        )
+      }
+    }(
+      GetField(_, "oldCtx")
+    ).mapCollectWithContextsAndGlobals(relationalLetsAbove, "table_native_fanout_writer") { (rows, ctxRef) =>
+      val file = GetField(ctxRef, "writeCtx")
+      WritePartition(rows, file + UUID4(), new PartitionNativeFanoutWriter(targets))
+    } { (parts, globals) =>
+      bindIR(parts) { fileCountAndDistinct =>
+        Begin(targets.zipWithIndex.map { case (target, index) =>
+          Begin(FastIndexedSeq(
+            WriteMetadata(
+              MakeArray(
+                GetField(
+                  WritePartition(
+                    MakeStream(FastSeq(globals), TStream(globals.typ)),
+                    Str(partFile(1, 0)),
+                    target.globalWriter
+                  ),
+                  "filePath"
+                )
+              ),
+              RVDSpecWriter(s"${target.path}/globals", RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(1)))
+            ),
+            WriteMetadata(
+              ToArray(mapIR(ToStream(fileCountAndDistinct)) { fc => GetField(GetTupleElement(fc, index), "filePath") }),
+              RVDSpecWriter(
+                s"${target.path}/rows",
+                RVDSpecMaker(
+                  target.rowSpec,
+                  partitioner,
+                  IndexSpec.emptyAnnotation("../index", tcoerce[PStruct](target.keyPType))
+                )
+              )
+            ),
+            WriteMetadata(
+              ToArray(mapIR(ToStream(fileCountAndDistinct)) { fc =>
+                SelectFields(
+                  GetTupleElement(fc, index),
+                  Seq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey")
+                )
+              }),
+              TableSpecWriter(target.path, target.tableType, "rows", "globals", "references", log = true)
+            )
+          ))
+        }.toFastIndexedSeq)
+      }
+    }
+
+    targets.foldLeft(writeTables) { (rest: IR, target: FanoutWriterTarget) =>
+      RelationalWriter.scoped(
+        target.path, overwrite, Some(target.tableType)
+      )(
+        rest
+      )
+    }
+  }
+
+  override def canLowerEfficiently: Boolean = true
+}
+
+class PartitionNativeFanoutWriter(
+  targets: IndexedSeq[FanoutWriterTarget]
+) extends PartitionWriter {
+  def consumeStream(
+    ctx: ExecuteContext,
+    cb: EmitCodeBuilder,
+    stream: StreamProducer,
+    context: EmitCode,
+    region: Value[Region]
+  ): IEmitCode = {
+    val ctx = context.toI(cb).get(cb)
+    val consumers = targets.map { target =>
+      new target.rowWriter.StreamConsumer(ctx, cb, region)
+    }
+
+    consumers.foreach(_.setup())
+    stream.memoryManagedConsume(region, cb) { cb =>
+      val row = stream.element.toI(cb).get(cb, "row can't be missing")
+
+      (consumers zip targets).foreach { case (consumer, target) =>
+        consumer.consumeElement(
+          cb,
+          row.asBaseStruct.subset((target.keyPType.fieldNames :+ target.field):_*),
+          stream.elementRegion)
+      }
+    }
+    IEmitCode.present(
+      cb,
+      SStackStruct.constructFromArgs(
+        cb,
+        region,
+        returnType,
+        consumers.map(consumer => EmitCode.present(cb.emb, consumer.result())): _*
+      )
+    )
+  }
+
+  def ctxType = TString
+
+  def returnType: TTuple =
+    TTuple(targets.map(target => target.rowWriter.returnType):_*)
+
+  def unionTypeRequiredness(returnType: TypeWithRequiredness, ctxType: TypeWithRequiredness, streamType: RIterable): Unit = {
+    val targetReturnTypes = returnType.asInstanceOf[RTuple].fields.map(_.typ)
+
+    ((targetReturnTypes) zip targets).foreach { case (returnType, target) =>
+      target.rowWriter.unionTypeRequiredness(returnType, ctxType, streamType)
     }
   }
 }

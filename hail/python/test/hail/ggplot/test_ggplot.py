@@ -107,3 +107,19 @@ def test_faceting():
     pfig = (ggplot(ht) + geom_point(aes(x=ht.idx, y=ht.idx)) + facet_wrap(vars(ht.x))).to_plotly()
 
     assert(len(pfig.layout.annotations) == 2)
+
+
+def test_matrix_tables():
+    mt = hl.utils.range_matrix_table(3, 3)
+    mt = mt.annotate_rows(row_doubled=mt.row_idx * 2)
+    mt = mt.annotate_entries(entry_idx=mt.row_idx + mt.col_idx)
+    for field, expected in [
+            (mt.row_doubled, [(0, 0), (1, 2), (2, 4)]),
+            (mt.entry_idx, [(0, 0), (0, 1), (0, 2), (1, 1), (1, 2), (1, 3), (2, 2), (2, 3), (2, 4)])
+    ]:
+        data = (ggplot(mt, aes(x=mt.row_idx, y=field)) + geom_point()).to_plotly().data[0]
+        assert len(data.x) == len(expected)
+        assert len(data.y) == len(expected)
+        for idx, (x, y) in enumerate(zip(data.x, data.y)):
+            assert(x == expected[idx][0])
+            assert(y == expected[idx][1])

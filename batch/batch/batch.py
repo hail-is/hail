@@ -6,13 +6,12 @@ from hailtop.utils import humanize_timedelta_msecs, time_msecs_str
 
 from .batch_format_version import BatchFormatVersion
 from .exceptions import NonExistentBatchError, OpenBatchError
+from .utils import coalesce
 
 log = logging.getLogger('batch')
 
 
 def batch_record_to_dict(record):
-    format_version = BatchFormatVersion(record['format_version'])
-
     if record['state'] == 'open':
         state = 'open'
     elif record['n_failed'] > 0:
@@ -34,8 +33,8 @@ def batch_record_to_dict(record):
     time_closed = _time_msecs_str(record['time_closed'])
     time_completed = _time_msecs_str(record['time_completed'])
 
-    if record['time_closed'] and record['time_completed']:
-        duration = humanize_timedelta_msecs(record['time_completed'] - record['time_closed'])
+    if record['time_created'] and record['time_completed']:
+        duration = humanize_timedelta_msecs(record['time_completed'] - record['time_created'])
     else:
         duration = None
 
@@ -56,17 +55,13 @@ def batch_record_to_dict(record):
         'time_closed': time_closed,
         'time_completed': time_completed,
         'duration': duration,
+        'msec_mcpu': record['msec_mcpu'],
+        'cost': coalesce(record['cost'], 0),
     }
 
     attributes = json.loads(record['attributes'])
     if attributes:
         d['attributes'] = attributes
-
-    msec_mcpu = record['msec_mcpu']
-    d['msec_mcpu'] = msec_mcpu
-
-    cost = format_version.cost(record['msec_mcpu'], record['cost'])
-    d['cost'] = cost
 
     return d
 
@@ -91,13 +86,9 @@ def job_record_to_dict(record, name):
         'state': record['state'],
         'exit_code': exit_code,
         'duration': duration,
+        'cost': coalesce(record['cost'], 0),
+        'msec_mcpu': record['msec_mcpu'],
     }
-
-    msec_mcpu = record['msec_mcpu']
-    result['msec_mcpu'] = msec_mcpu
-
-    cost = format_version.cost(record['msec_mcpu'], record['cost'])
-    result['cost'] = cost
 
     return result
 

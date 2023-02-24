@@ -11,7 +11,14 @@ object LogisticRegressionTest {
 }
 
 abstract class GLMTest extends Serializable {
-  def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: GLMFit, link: String): GLMTestResult[GLMStats]
+  def test(
+    X: DenseMatrix[Double],
+    y: DenseVector[Double],
+    nullFit: GLMFit,
+    link: String,
+    maxIter: Int,
+    tol: Double
+  ): GLMTestResult[GLMStats]
 
   val schema: TStruct
 }
@@ -45,7 +52,14 @@ object WaldTest extends GLMTest {
     ("p_value", TFloat64),
     ("fit", GLMFit.schema))
 
-  def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: GLMFit, link: String): GLMTestResultWithFit[WaldStats] = {
+  def test(
+    X: DenseMatrix[Double],
+    y: DenseVector[Double],
+    nullFit: GLMFit,
+    link: String,
+    maxIter: Int,
+    tol: Double
+  ): GLMTestResultWithFit[WaldStats] = {
     require(nullFit.fisher.isDefined)
 
     val model = link match {
@@ -53,7 +67,7 @@ object WaldTest extends GLMTest {
       case "poisson" => new PoissonRegressionModel(X, y)
       case _ => fatal("link must be logistic or poisson")
     }
-    val fit = model.fit(Some(nullFit))
+    val fit = model.fit(Some(nullFit), maxIter=maxIter, tol=tol)
 
     val waldStats = if (fit.converged) {
       try {
@@ -90,8 +104,14 @@ object LikelihoodRatioTest extends GLMTest {
     ("p_value", TFloat64),
     ("fit", GLMFit.schema))
 
-  def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: GLMFit, link: String):
-  GLMTestResultWithFit[LikelihoodRatioStats] = {
+  def test(
+    X: DenseMatrix[Double],
+    y: DenseVector[Double],
+    nullFit: GLMFit,
+    link: String,
+    maxIter: Int,
+    tol: Double
+  ): GLMTestResultWithFit[LikelihoodRatioStats] = {
     val m = X.cols
     val m0 = nullFit.b.length
     val model = link match {
@@ -99,7 +119,7 @@ object LikelihoodRatioTest extends GLMTest {
       case "poisson" => new PoissonRegressionModel(X, y)
       case _ => fatal("link must be logistic or poisson")
     }
-    val fit = model.fit(Some(nullFit))
+    val fit = model.fit(Some(nullFit), maxIter=maxIter, tol=tol)
 
     val lrStats =
       if (fit.converged) {
@@ -129,20 +149,26 @@ object LogisticFirthTest extends GLMTest {
     ("p_value", TFloat64),
     ("fit", GLMFit.schema))
 
-  def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: GLMFit, link: String):
-  GLMTestResultWithFit[FirthStats] = {
+  def test(
+    X: DenseMatrix[Double],
+    y: DenseVector[Double],
+    nullFit: GLMFit,
+    link: String,
+    maxIter: Int,
+    tol: Double
+  ): GLMTestResultWithFit[FirthStats] = {
     require(link == "logistic")
 
     val m = X.cols
     val m0 = nullFit.b.length
     val model = new LogisticRegressionModel(X, y)
-    val nullFitFirth = model.fitFirth(nullFit.b)
+    val nullFitFirth = model.fitFirth(nullFit.b, maxIter=maxIter, tol=tol)
 
     if (nullFitFirth.converged) {
       val nullFitFirthb = DenseVector.zeros[Double](m)
       nullFitFirthb(0 until m0) := nullFitFirth.b
 
-      val fitFirth = model.fitFirth(nullFitFirthb)
+      val fitFirth = model.fitFirth(nullFitFirthb, maxIter=maxIter, tol=tol)
 
       val firthStats =
         if (fitFirth.converged) {
@@ -175,8 +201,14 @@ object LogisticScoreTest extends GLMTest {
     ("p_value", TFloat64))
 
 
-  def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: GLMFit, link: String):
-  GLMTestResult[ScoreStats] = {
+  def test(
+    X: DenseMatrix[Double],
+    y: DenseVector[Double],
+    nullFit: GLMFit,
+    link: String,
+    maxIter: Int,
+    tol: Double
+  ): GLMTestResult[ScoreStats] = {
     require(link == "logistic")
     require(nullFit.score.isDefined && nullFit.fisher.isDefined)
 
@@ -230,7 +262,7 @@ case class ScoreStats(chi2: Double, p: Double) extends GLMStats {
 abstract class GeneralLinearModel {
   def bInterceptOnly(): DenseVector[Double]
 
-  def fit(optNullFit: Option[GLMFit], maxIter: Int = 25, tol: Double = 1e-6): GLMFit
+  def fit(optNullFit: Option[GLMFit], maxIter: Int, tol: Double): GLMFit
 }
 
 
@@ -280,13 +312,14 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) ex
         fisher(r1, r1) := X1.t * (X1(::, *) *:* (mu *:* (1d - mu)))
     }
 
-    var iter = 1
+    var iter = 0
     var converged = false
     var exploded = false
 
     val deltaB = DenseVector.zeros[Double](m)
 
-    while (!converged && !exploded && iter <= maxIter) {
+    while (!converged && !exploded && iter < maxIter) {
+      iter += 1
       try {
         deltaB := fisher \ score
 
@@ -295,7 +328,6 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) ex
         } else if (max(abs(deltaB)) < tol) {
           converged = true
         } else {
-          iter += 1
           b += deltaB
           mu := sigmoid(X * b)
           score := X.t * (y - mu)
@@ -312,17 +344,18 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) ex
     GLMFit(b, Some(score), Some(fisher), logLkhd, iter, converged, exploded)
   }
 
-  def fitFirth(b0: DenseVector[Double], maxIter: Int = 100, tol: Double = 1E-6): GLMFit = {
+  def fitFirth(b0: DenseVector[Double], maxIter: Int, tol: Double): GLMFit = {
     require(b0.length <= m)
 
     val b = b0.copy
     val m0 = b0.length
     var logLkhd = 0d
-    var iter = 1
+    var iter = 0
     var converged = false
     var exploded = false
 
-    while (!converged && !exploded && iter <= maxIter) {
+    while (!converged && !exploded && iter < maxIter) {
+      iter += 1
       try {
         val mu = sigmoid(X(::, 0 until m0) * b)
         val sqrtW = sqrt(mu *:* (1d - mu))
@@ -336,7 +369,6 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) ex
           converged = true
           logLkhd = sum(breeze.numerics.log((y *:* mu) + ((1d - y) *:* (1d - mu)))) + sum(log(abs(diag(QR.r))))
         } else {
-          iter += 1
           b += deltaB
         }
       } catch {

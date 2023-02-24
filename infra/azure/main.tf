@@ -91,6 +91,7 @@ module "auth" {
 module "batch" {
   source = "./modules/batch"
 
+  batch_test_user_storage_account_name = var.batch_test_user_storage_account_name
   resource_group        = data.azurerm_resource_group.rg
   container_registry_id = azurerm_container_registry.acr.id
 }

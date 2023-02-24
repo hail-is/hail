@@ -4,8 +4,8 @@ import java.util
 import is.hail.asm4s.{HailClassLoader, theHailClassLoaderForSparkWorkers}
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.backend.ExecuteContext
-import is.hail.backend.spark.SparkBackend
+import is.hail.backend.{ExecuteContext, HailTaskContext}
+import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.expr.ir.PruneDeadFields.isSupertype
 import is.hail.types._
 import is.hail.types.physical.{PCanonicalStruct, PInt64, PStruct, PType}
@@ -649,15 +649,19 @@ class RVD(
 
   def combine[U: ClassTag, T: ClassTag](
      execCtx: ExecuteContext,
-     mkZero: (HailClassLoader, RegionPool) => T,
+     mkZero: (HailClassLoader, HailTaskContext) => T,
      itF: (HailClassLoader, Int, RVDContext, Iterator[Long]) => T,
-     deserialize: RegionPool => (U => T),
-     serialize: T => U,
-     combOp: (T, T) => T,
+     deserialize: (HailClassLoader, HailTaskContext) => (U => T),
+     serialize: (HailClassLoader, HailTaskContext, T) => U,
+     combOp: (HailClassLoader, HailTaskContext, T, T) => T,
      commutative: Boolean,
      tree: Boolean
   ): T = {
-    var reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) => Iterator.single(serialize(itF(theHailClassLoaderForSparkWorkers, i, ctx, it))) }
+    var reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) =>
+      Iterator.single(
+        serialize(theHailClassLoaderForSparkWorkers, SparkTaskContext.get(),
+          itF(theHailClassLoaderForSparkWorkers, i, ctx, it)))
+    }
 
     if (tree) {
       val depth = treeAggDepth(getNumPartitions, HailContext.get.branchingFactor)
@@ -679,22 +683,25 @@ class RVD(
             override def numPartitions: Int = newNParts
           })
           .cmapPartitions { (ctx, it) =>
-            var acc = mkZero(theHailClassLoaderForSparkWorkers, ctx.r.pool)
+            val hcl = theHailClassLoaderForSparkWorkers
+            val htc = SparkTaskContext.get()
+            var acc = mkZero(hcl, htc)
             it.foreach { case (newPart, (oldPart, v)) =>
-              acc = combOp(acc, deserialize(ctx.r.pool)(v))
+              acc = combOp(hcl, htc, acc, deserialize(hcl, htc)(v))
             }
-            Iterator.single(serialize(acc))
+            Iterator.single(serialize(hcl, htc, acc))
           }
         i += 1
       }
     }
 
-    val ac = Combiner(mkZero(execCtx.theHailClassLoader, execCtx.r.pool), combOp, commutative, true)
-    sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), (i, x: U) => ac.combine(i, deserialize(execCtx.r.pool)(x)))
+    val ac = Combiner(mkZero(execCtx.theHailClassLoader, execCtx.taskContext), { (acc1: T, acc2: T) => combOp(execCtx.theHailClassLoader, execCtx.taskContext, acc1, acc2) },
+      commutative, true)
+    sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), (i, x: U) => ac.combine(i, deserialize(execCtx.theHailClassLoader, execCtx.taskContext)(x)))
     ac.result()
   }
 
-  def count(): Long =
+  def count(): Long = {
     crdd.boundary.cmapPartitions { (ctx, it) =>
       var count = 0L
       it.foreach { _ =>
@@ -702,6 +709,7 @@ class RVD(
       }
       Iterator.single(count)
     }.run.fold(0L)(_ + _)
+  }
 
   def countPerPartition(): Array[Long] =
     crdd.boundary.cmapPartitions { (ctx, it) =>
@@ -804,7 +812,8 @@ class RVD(
     val entriesIndexSpec = IndexSpec.defaultAnnotation("../../index", typ.kType, withOffsetField = true)
     val makeRowsEnc = rowsCodecSpec.buildEncoder(execCtx, fullRowType)
     val makeEntriesEnc = entriesCodecSpec.buildEncoder(execCtx, fullRowType)
-    val makeIndexWriter = IndexWriter.builder(execCtx, typ.kType, +PCanonicalStruct("entries_offset" -> PInt64()))
+    val _makeIndexWriter = IndexWriter.builder(execCtx, typ.kType, +PCanonicalStruct("entries_offset" -> PInt64()))
+    val makeIndexWriter: (String, RegionPool) => IndexWriter = _makeIndexWriter(_, theHailClassLoaderForSparkWorkers, SparkTaskContext.get(), _)
 
     val localTyp = typ
 
@@ -1222,7 +1231,7 @@ object RVD {
       return Array()
 
     val rng = new java.util.Random(1)
-    val partitionSeed = Array.fill[Int](nPartitions)(rng.nextInt())
+    val partitionSeed = Array.fill[Long](nPartitions)(rng.nextLong())
 
     val sampleSize = math.min(nPartitions * 20, 1000000)
     val samplesPerPartition = sampleSize / nPartitions
@@ -1490,7 +1499,8 @@ object RVD {
     val entriesIndexSpec = IndexSpec.defaultAnnotation("../../index", localTyp.kType, withOffsetField = true)
     val makeRowsEnc = rowsCodecSpec.buildEncoder(execCtx, fullRowType)
     val makeEntriesEnc = entriesCodecSpec.buildEncoder(execCtx, fullRowType)
-    val makeIndexWriter = IndexWriter.builder(execCtx, localTyp.kType, +PCanonicalStruct("entries_offset" -> PInt64()))
+    val _makeIndexWriter = IndexWriter.builder(execCtx, localTyp.kType, +PCanonicalStruct("entries_offset" -> PInt64()))
+    val makeIndexWriter: (String, RegionPool) => IndexWriter = _makeIndexWriter(_, theHailClassLoaderForSparkWorkers, SparkTaskContext.get(), _)
 
     val partDigits = digitsNeeded(nPartitions)
     val fileDigits = digitsNeeded(rvds.length)

@@ -10,6 +10,7 @@ import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.rvd.RVDType
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.EmitType
+import is.hail.types.physical.stypes.interfaces.SBaseStructValue
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -44,7 +45,7 @@ class OrderingSuite extends HailSuite {
       fb.ecb.getOrderingFunction(cv1.st, cv2.st, op)
           .apply(cb, EmitValue.present(cv1), EmitValue.present(cv2))
     }
-    fb.resultWithIndex()(theHailClassLoader, ctx.fs, 0, r)
+    fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)
   }
 
   @Test def testMissingNonequalComparisons() {
@@ -66,7 +67,7 @@ class OrderingSuite extends HailSuite {
         fb.ecb.getOrderingFunction(ev1.st, ev2.st, op)
           .apply(cb, ev1, ev2)
       }
-      fb.resultWithIndex()(theHailClassLoader, ctx.fs, 0, r)
+      fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)
     }
 
     val compareGen = for {
@@ -458,14 +459,16 @@ class OrderingSuite extends HailSuite {
         val cset = fb.getCodeParam[Long](2)
         val cetuple = fb.getCodeParam[Long](3)
 
-        val bs = new BinarySearch(fb.apply_method, pset.sType, EmitType(pset.elementType.sType, true), keyOnly = false)
+        val bs = new BinarySearch(fb.apply_method, pset.sType, EmitType(pset.elementType.sType, true), {
+          (cb, elt) => elt
+        })
         fb.emitWithBuilder(cb =>
-          bs.lowerBound(cb, pset.loadCheapSCode(cb, cset),
+          bs.search(cb, pset.loadCheapSCode(cb, cset),
             EmitCode.fromI(fb.apply_method)(cb => IEmitCode.present(cb, pt.loadCheapSCode(cb, pTuple.loadField(cetuple, 0))))))
 
         val asArray = SafeIndexedSeq(pArray, soff)
 
-        val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, 0, region)
+        val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, region)
         val closestI = f(region, soff, eoff)
         val maybeEqual = asArray(closestI)
 
@@ -493,15 +496,20 @@ class OrderingSuite extends HailSuite {
         val cdict = fb.getCodeParam[Long](2)
         val cktuple = fb.getCodeParam[Long](3)
 
-        val bs = new BinarySearch(fb.apply_method, pDict.sType, EmitType(pDict.keyType.sType, false), keyOnly = true)
+        val bs = new BinarySearch(fb.apply_method, pDict.sType, EmitType(pDict.keyType.sType, false), { (cb, elt) =>
+          cb.memoize(elt.toI(cb).flatMap(cb) {
+            case x: SBaseStructValue =>
+              x.loadField(cb, 0)
+          })
+        })
 
         fb.emitWithBuilder(cb =>
-          bs.lowerBound(cb, pDict.loadCheapSCode(cb, cdict),
+          bs.search(cb, pDict.loadCheapSCode(cb, cdict),
             EmitCode.fromI(fb.apply_method)(cb => IEmitCode.present(cb, pDict.keyType.loadCheapSCode(cb, ptuple.loadField(cktuple, 0))))))
 
         val asArray = SafeIndexedSeq(PCanonicalArray(pDict.elementType), soff)
 
-        val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, 0, region)
+        val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, region)
         val closestI = f(region, soff, eoff)
 
         if (closestI == asArray.length) {

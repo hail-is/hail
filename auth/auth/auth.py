@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 from typing import List, Optional
 
 import aiohttp
@@ -11,21 +12,18 @@ from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
 
 from gear import (
+    AuthClient,
     Database,
     Transaction,
     check_csrf_token,
     create_session,
     maybe_parse_bearer_header,
     monitor_endpoints_middleware,
-    rest_authenticated_developers_only,
-    rest_authenticated_users_only,
     setup_aiohttp_session,
     transaction,
-    web_authenticated_developers_only,
-    web_authenticated_users_only,
-    web_maybe_authenticated_user,
 )
 from gear.cloud_config import get_global_config
+from gear.profiling import install_profiler_if_requested
 from hailtop import httpx
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
@@ -57,6 +55,8 @@ ORGANIZATION_DOMAIN = os.environ['HAIL_ORGANIZATION_DOMAIN']
 deploy_config = get_deploy_config()
 
 routes = web.RouteTableDef()
+
+auth = AuthClient()
 
 
 async def user_from_login_id(db, login_id):
@@ -162,13 +162,13 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 
 @routes.get('')
 @routes.get('/')
-@web_maybe_authenticated_user
+@auth.web_maybe_authenticated_user
 async def get_index(request, userdata):  # pylint: disable=unused-argument
     return await render_template('auth', request, userdata, 'index.html', {})
 
 
 @routes.get('/creating')
-@web_maybe_authenticated_user
+@auth.web_maybe_authenticated_user
 async def creating_account(request, userdata):
     db = request.app['db']
     session = await aiohttp_session.get_session(request)
@@ -312,7 +312,7 @@ async def callback(request):
     if user is None:
         if caller == 'login':
             set_message(session, f'Account does not exist for login id {login_id}', 'error')
-            return aiohttp.web.HTTPFound(next_url)
+            return aiohttp.web.HTTPFound(deploy_config.external_url('auth', ''))
 
         assert caller == 'signup'
 
@@ -355,7 +355,7 @@ async def callback(request):
 
 
 @routes.post('/api/v1alpha/users/{user}/create')
-@rest_authenticated_developers_only
+@auth.rest_authenticated_developers_only
 async def create_user(request: web.Request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
     username = request.match_info['user']
@@ -374,7 +374,7 @@ async def create_user(request: web.Request, userdata):  # pylint: disable=unused
 
 
 @routes.get('/user')
-@web_authenticated_users_only()
+@auth.web_authenticated_users_only()
 async def user_page(request, userdata):
     return await render_template('auth', request, userdata, 'user.html', {'cloud': CLOUD})
 
@@ -390,7 +390,7 @@ async def create_copy_paste_token(db, session_id, max_age_secs=300):
 
 @routes.post('/copy-paste-token')
 @check_csrf_token
-@web_authenticated_users_only()
+@auth.web_authenticated_users_only()
 async def get_copy_paste_token(request, userdata):
     session = await aiohttp_session.get_session(request)
     session_id = session['session_id']
@@ -401,7 +401,7 @@ async def get_copy_paste_token(request, userdata):
 
 
 @routes.post('/api/v1alpha/copy-paste-token')
-@rest_authenticated_users_only
+@auth.rest_authenticated_users_only
 async def get_copy_paste_token_api(request, userdata):
     session_id = userdata['session_id']
     db = request.app['db']
@@ -411,7 +411,7 @@ async def get_copy_paste_token_api(request, userdata):
 
 @routes.post('/logout')
 @check_csrf_token
-@web_maybe_authenticated_user
+@auth.web_maybe_authenticated_user
 async def logout(request, userdata):
     if not userdata:
         return web.HTTPFound(deploy_config.external_url('auth', ''))
@@ -440,7 +440,7 @@ async def rest_login(request):
 
 
 @routes.get('/roles')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def get_roles(request, userdata):
     db = request.app['db']
     roles = [x async for x in db.select_and_fetchall('SELECT * FROM roles;')]
@@ -450,7 +450,7 @@ async def get_roles(request, userdata):
 
 @routes.post('/roles')
 @check_csrf_token
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def post_create_role(request, userdata):  # pylint: disable=unused-argument
     session = await aiohttp_session.get_session(request)
     db = request.app['db']
@@ -471,7 +471,7 @@ VALUES (%s);
 
 
 @routes.get('/users')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def get_users(request, userdata):
     db = request.app['db']
     users = [x async for x in db.select_and_fetchall('SELECT * FROM users;')]
@@ -481,7 +481,7 @@ async def get_users(request, userdata):
 
 @routes.post('/users')
 @check_csrf_token
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def post_create_user(request, userdata):  # pylint: disable=unused-argument
     session = await aiohttp_session.get_session(request)
     db = request.app['db']
@@ -508,7 +508,7 @@ async def post_create_user(request, userdata):  # pylint: disable=unused-argumen
 
 
 @routes.get('/api/v1alpha/users')
-@rest_authenticated_developers_only
+@auth.rest_authenticated_developers_only
 async def rest_get_users(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
     users = await db.select_and_fetchall(
@@ -520,7 +520,7 @@ SELECT id, username, login_id, state, is_developer, is_service_account FROM user
 
 
 @routes.get('/api/v1alpha/users/{user}')
-@rest_authenticated_developers_only
+@auth.rest_authenticated_developers_only
 async def rest_get_user(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
     username = request.match_info['user']
@@ -560,7 +560,7 @@ WHERE {' AND '.join(where_conditions)};
 
 @routes.post('/users/delete')
 @check_csrf_token
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def delete_user(request, userdata):  # pylint: disable=unused-argument
     session = await aiohttp_session.get_session(request)
     db = request.app['db']
@@ -578,7 +578,7 @@ async def delete_user(request, userdata):  # pylint: disable=unused-argument
 
 
 @routes.delete('/api/v1alpha/users/{user}')
-@rest_authenticated_developers_only
+@auth.rest_authenticated_developers_only
 async def rest_delete_user(request: web.Request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     username = request.match_info['user']
@@ -656,7 +656,7 @@ WHERE copy_paste_tokens.id = %s
 
 
 @routes.post('/api/v1alpha/logout')
-@rest_authenticated_users_only
+@auth.rest_authenticated_users_only
 async def rest_logout(request, userdata):
     session_id = userdata['session_id']
     db = request.app['db']
@@ -681,6 +681,7 @@ INNER JOIN sessions ON users.id = sessions.user_id
 WHERE users.state = 'active' AND (sessions.session_id = %s) AND (ISNULL(sessions.max_age_secs) OR (NOW() < TIMESTAMPADD(SECOND, sessions.max_age_secs, sessions.created)));
 ''',
             session_id,
+            'get_userinfo',
         )
     ]
 
@@ -716,7 +717,7 @@ async def get_session_id(request):
     return session.get('session_id')
 
 
-@routes.get('/api/v1alpha/verify_dev_credentials')
+@routes.route('*', '/api/v1alpha/verify_dev_credentials')
 async def verify_dev_credentials(request):
     session_id = await get_session_id(request)
     if not session_id:
@@ -728,7 +729,7 @@ async def verify_dev_credentials(request):
     return web.Response(status=200)
 
 
-@routes.get('/api/v1alpha/verify_dev_or_sa_credentials')
+@routes.route('*', '/api/v1alpha/verify_dev_or_sa_credentials')
 async def verify_dev_or_sa_credentials(request):
     session_id = await get_session_id(request)
     if not session_id:
@@ -755,7 +756,27 @@ async def on_cleanup(app):
         await app['client_session'].close()
 
 
+class AuthAccessLogger(AccessLogger):
+    def __init__(self, logger: logging.Logger, log_format: str):
+        super().__init__(logger, log_format)
+        self.exclude = [
+            (endpoint[0], re.compile(deploy_config.base_path('auth') + endpoint[1]))
+            for endpoint in [
+                ('GET', '/api/v1alpha/userinfo'),
+            ]
+        ]
+
+    def log(self, request, response, time):
+        for method, path_expr in self.exclude:
+            if path_expr.fullmatch(request.path) and method == request.method:
+                return
+
+        super().log(request, response, time)
+
+
 def run():
+    install_profiler_if_requested('auth')
+
     app = web.Application(middlewares=[monitor_endpoints_middleware])
 
     setup_aiohttp_jinja2(app, 'auth')
@@ -771,7 +792,7 @@ def run():
     web.run_app(
         deploy_config.prefix_application(app, 'auth'),
         host='0.0.0.0',
-        port=5000,
-        access_log_class=AccessLogger,
+        port=443,
+        access_log_class=AuthAccessLogger,
         ssl_context=internal_server_ssl_context(),
     )

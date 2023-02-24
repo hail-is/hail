@@ -1,7 +1,7 @@
 package is.hail.io
 
 import is.hail.ExecStrategy.ExecStrategy
-import is.hail.expr.ir.{ReadPartition, Str, ToArray}
+import is.hail.expr.ir.{I64, MakeStruct, ReadPartition, Str, ToArray}
 import is.hail.io.avro.AvroPartitionReader
 import is.hail.utils.{FastIndexedSeq, fatal, using}
 import is.hail.{ExecStrategy, HailSuite}
@@ -31,7 +31,7 @@ class AvroReaderSuite extends HailSuite {
     Row(Int.MinValue, null, Float.MinPositiveValue, Double.MinPositiveValue, "MINIMUM STRING")
   )
 
-  private val partitionReader = AvroPartitionReader(testSchema)
+  private val partitionReader = AvroPartitionReader(testSchema, "rowUID")
 
   def makeRecord(row: Row): GenericRecord = row match {
     case Row(int, long, float, double, string) => new GenericRecordBuilder(testSchema)
@@ -60,13 +60,22 @@ class AvroReaderSuite extends HailSuite {
 
   @Test def avroReaderWorks(): Unit = {
     val avroFile = makeTestFile()
-    val ir = ToArray(ReadPartition(Str(avroFile), partitionReader.fullRowType, partitionReader))
-    assertEvalsTo(ir, testValue)
+    val ir = ToArray(ReadPartition(
+      MakeStruct(Array("partitionPath" -> Str(avroFile), "partitionIndex" -> I64(0))),
+      partitionReader.fullRowType,
+      partitionReader))
+    val testValueWithUIDs = testValue.zipWithIndex.map { case(x, i) =>
+      Row(x(0), x(1), x(2), x(3), x(4), Row(0L, i.toLong))
+    }
+    assertEvalsTo(ir, testValueWithUIDs)
   }
 
   @Test def testSmallerRequestedType(): Unit = {
     val avroFile = makeTestFile()
-    val ir = ToArray(ReadPartition(Str(avroFile), partitionReader.fullRowType.typeAfterSelect(FastIndexedSeq(0, 2, 4)), partitionReader))
+    val ir = ToArray(ReadPartition(
+      MakeStruct(Array("partitionPath" -> Str(avroFile), "partitionIndex" -> I64(0))),
+      partitionReader.fullRowType.typeAfterSelect(FastIndexedSeq(0, 2, 4)),
+      partitionReader))
     val expected = testValue.map { case Row(int, _, float, _, string) => Row(int, float, string) }
     assertEvalsTo(ir, expected)
   }

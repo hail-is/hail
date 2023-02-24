@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import asyncio
+import concurrent.futures
 import logging
 import os
 import re
@@ -131,7 +132,7 @@ if __name__ == '__main__':
 
     with closing(asyncio.get_event_loop()) as loop:
         monitor = Monitor()
-        task_manager = BackgroundTaskManager()
+        sync_futs: Set[concurrent.futures.Future] = set()
         try:
             sync = Sync(args.path)
 
@@ -142,7 +143,7 @@ if __name__ == '__main__':
 
             def callback(path: bytes, evt_time, flags, flags_num, event_num):
                 if not ignore_re.fullmatch(os.path.basename(path.decode())):
-                    task_manager.ensure_future_threadsafe(sync.should_sync())
+                    sync_futs.add(asyncio.run_coroutine_threadsafe(sync.should_sync(), loop))
 
             monitor.set_callback(callback)
 
@@ -155,6 +156,7 @@ if __name__ == '__main__':
                 sync.close()
             finally:
                 try:
-                    task_manager.shutdown()
+                    for f in sync_futs:
+                        f.cancel()
                 finally:
                     thread.join()

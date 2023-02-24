@@ -2,7 +2,7 @@ package is.hail.io.bgen
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.{BroadcastValue, ExecuteContext}
+import is.hail.backend.{BroadcastValue, ExecuteContext, HailTaskContext}
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.expr.ir.PruneDeadFields
 import is.hail.io.fs.FS
@@ -23,6 +23,10 @@ import org.apache.spark.{OneToOneDependency, Partition, TaskContext}
 import scala.language.reflectiveCalls
 
 object BgenSettings {
+  val UNCOMPRESSED = 0x0
+  val ZLIB_COMPRESSION = 0x1
+  val ZSTD_COMPRESSION = 0x2
+
   def indexKeyType(rg: Option[ReferenceGenome]): TStruct = TStruct(
     "locus" -> rg.map(TLocus(_)).getOrElse(TLocus.representation),
     "alleles" -> TArray(TString))
@@ -140,16 +144,11 @@ object BgenRDD {
 
     ContextRDD(new BgenRDD(ctx.fsBc, f, indexBuilder, partitions, settings, keys))
   }
-
-  private[bgen] def decompress(
-    input: Array[Byte],
-    uncompressedSize: Int
-  ): Array[Byte] = is.hail.utils.decompress(input, uncompressedSize)
 }
 
 private class BgenRDD(
   fsBc: BroadcastValue[FS],
-  f: (HailClassLoader, FS, Int, Region) => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long],
+  f: (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long],
   indexBuilder: (HailClassLoader, FS, String, Int, RegionPool) => IndexReader,
   parts: Array[Partition],
   settings: BgenSettings,
@@ -163,17 +162,17 @@ private class BgenRDD(
       split match {
         case p: IndexBgenPartition =>
           assert(keys == null)
-          new IndexBgenRecordIterator(ctx, p, settings, f(theHailClassLoaderForSparkWorkers, fsBc.value, p.partitionIndex, ctx.partitionRegion)).flatten
+          new IndexBgenRecordIterator(ctx, p, settings, f(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), ctx.partitionRegion)).flatten
         case p: LoadBgenPartition =>
           val index: IndexReader = indexBuilder(theHailClassLoaderForSparkWorkers, p.fsBc.value, p.indexPath, 8, SparkTaskContext.get().getRegionPool())
           context.addTaskCompletionListener[Unit] { (context: TaskContext) =>
             index.close()
           }
           if (keys == null)
-            new BgenRecordIteratorWithoutFilter(ctx, p, settings, f(theHailClassLoaderForSparkWorkers, fsBc.value, p.partitionIndex, ctx.partitionRegion), index).flatten
+            new BgenRecordIteratorWithoutFilter(ctx, p, settings, f(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), ctx.partitionRegion), index).flatten
           else {
             val keyIterator = keys.iterator(p.filterPartition, context)
-            new BgenRecordIteratorWithFilter(ctx, p, settings, f(theHailClassLoaderForSparkWorkers, fsBc.value, p.partitionIndex, ctx.partitionRegion), index, keyIterator).flatten
+            new BgenRecordIteratorWithFilter(ctx, p, settings, f(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), ctx.partitionRegion), index, keyIterator).flatten
           }
       }
     }

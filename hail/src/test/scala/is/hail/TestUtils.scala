@@ -95,62 +95,6 @@ object TestUtils {
     m.map(g => if (g == -1) null: BoxedCall else Call2.fromUnphasedDiploidGtIndex(g): BoxedCall)
   }
 
-  // !useHWE: mean 0, norm exactly sqrt(n), variance 1
-  // useHWE: mean 0, norm approximately sqrt(m), variance approx. m / n
-  // missing gt are mean imputed, constant variants return None, only HWE uses nVariants
-  def normalizedHardCalls(view: HardCallView, nSamples: Int, useHWE: Boolean = false, nVariants: Int = -1): Option[Array[Double]] = {
-    require(!(useHWE && nVariants == -1))
-    val vals = Array.ofDim[Double](nSamples)
-    var nMissing = 0
-    var sum = 0
-    var sumSq = 0
-
-    var row = 0
-    while (row < nSamples) {
-      view.setGenotype(row)
-      if (view.hasGT) {
-        val gt = Call.unphasedDiploidGtIndex(view.getGT)
-        vals(row) = gt
-        (gt: @unchecked) match {
-          case 0 =>
-          case 1 =>
-            sum += 1
-            sumSq += 1
-          case 2 =>
-            sum += 2
-            sumSq += 4
-        }
-      } else {
-        vals(row) = -1
-        nMissing += 1
-      }
-      row += 1
-    }
-
-    val nPresent = nSamples - nMissing
-    val nonConstant = !(sum == 0 || sum == 2 * nPresent || sum == nPresent && sumSq == nPresent)
-
-    if (nonConstant) {
-      val mean = sum.toDouble / nPresent
-      val stdDev = math.sqrt(
-        if (useHWE)
-          mean * (2 - mean) * nVariants / 2
-        else {
-          val meanSq = (sumSq + nMissing * mean * mean) / nSamples
-          meanSq - mean * mean
-        })
-
-      val gtDict = Array(0, -mean / stdDev, (1 - mean) / stdDev, (2 - mean) / stdDev)
-      var i = 0
-      while (i < nSamples) {
-        vals(i) = gtDict(vals(i).toInt + 1)
-        i += 1
-      }
-
-      Some(vals)
-    } else
-      None
-  }
 
   def loweredExecute(ctx: ExecuteContext, x: IR, env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
@@ -252,7 +196,7 @@ object TestUtils {
             rvb.endArray()
             val aggOff = rvb.end()
 
-            val resultOff = f(theHailClassLoader, ctx.fs, 0, region)(region, argsOff, aggOff)
+            val resultOff = f(theHailClassLoader, ctx.fs, ctx.taskContext, region)(region, argsOff, aggOff)
             SafeRow(resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
           }
 
@@ -277,7 +221,7 @@ object TestUtils {
             rvb.endTuple()
             val argsOff = rvb.end()
 
-            val resultOff = f(theHailClassLoader, ctx.fs, 0, region)(region, argsOff)
+            val resultOff = f(theHailClassLoader, ctx.fs, ctx.taskContext, region)(region, argsOff)
             SafeRow(resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
           }
       }
@@ -359,7 +303,8 @@ object TestUtils {
     contigRecoding: Option[Map[String, String]] = None,
     arrayElementsRequired: Boolean = true,
     skipInvalidLoci: Boolean = false,
-    partitionsJSON: String = null): MatrixIR = {
+    partitionsJSON: Option[String] = None,
+    partitionsTypeStr: Option[String] = None): MatrixIR = {
     rg.foreach { referenceGenome =>
       ReferenceGenome.addReference(referenceGenome)
     }
@@ -370,6 +315,7 @@ object TestUtils {
       callFields,
       entryFloatType,
       headerFile,
+      /*sampleIDs=*/None,
       nPartitions,
       blockSizeInMB,
       minPartitions,
@@ -380,7 +326,8 @@ object TestUtils {
       forceBGZ,
       force,
       TextInputFilterAndReplace(),
-      partitionsJSON)
-    MatrixRead(reader.fullMatrixType, dropSamples, false, reader)
+      partitionsJSON,
+      partitionsTypeStr)
+    MatrixRead(reader.fullMatrixTypeWithoutUIDs, dropSamples, false, reader)
   }
 }

@@ -1,4 +1,4 @@
-from typing import List, AsyncContextManager, BinaryIO, Optional
+from typing import List, AsyncContextManager, BinaryIO, Optional, Tuple
 import asyncio
 import io
 from hailtop.aiotools.local_fs import LocalAsyncFSURL
@@ -101,7 +101,7 @@ class SyncWritableStream(io.RawIOBase, BinaryIO):  # type: ignore # https://gith
 
     def close(self):
         self.aws.close()
-        async_to_blocking(self.cm.__aexit__())
+        async_to_blocking(self.cm.__aexit__(None, None, None))
 
     @property
     def closed(self) -> bool:
@@ -153,13 +153,18 @@ class SyncWritableStream(io.RawIOBase, BinaryIO):  # type: ignore # https://gith
         return async_to_blocking(self.aws.write(b))
 
 
-def _stat_result(is_dir: bool, size_bytes: int, path: str) -> StatResult:
+def _stat_result(is_dir: bool, size_bytes_and_time_modified: Optional[Tuple[int, float]], path: str) -> StatResult:
+    if size_bytes_and_time_modified:
+        size_bytes, time_modified = size_bytes_and_time_modified
+    else:
+        size_bytes = 0
+        time_modified = None
     return StatResult(
         path=path.rstrip('/'),
         size=size_bytes,
         typ=FileType.DIRECTORY if is_dir else FileType.FILE,
         owner=None,
-        modification_time=None)
+        modification_time=time_modified)
 
 
 class RouterFS(FS):
@@ -214,28 +219,31 @@ class RouterFS(FS):
         return async_to_blocking(self._async_is_dir(path))
 
     def stat(self, path: str) -> StatResult:
-        size_bytes, is_dir = async_to_blocking(asyncio.gather(
-            self._size_bytes_or_none(path), self._async_is_dir(path)))
-        if size_bytes is None:
+        maybe_sb_and_t, is_dir = async_to_blocking(asyncio.gather(
+            self._size_bytes_and_time_modified_or_none(path), self._async_is_dir(path)))
+        if maybe_sb_and_t is None:
             if not is_dir:
                 raise FileNotFoundError(path)
-            return _stat_result(True, 0, path)
-        return _stat_result(is_dir, size_bytes, path)
+            return _stat_result(True, None, path)
+        return _stat_result(is_dir, maybe_sb_and_t, path)
 
-    async def _size_bytes_or_none(self, path: str):
+    async def _size_bytes_and_time_modified_or_none(self, path: str) -> Optional[Tuple[int, float]]:
         try:
-            return await (await self.afs.statfile(path)).size()
+            # Hadoop semantics: creation time is used if the object has no notion of last modification time.
+            file_status = await self.afs.statfile(path)
+            return (await file_status.size(), file_status.time_modified().timestamp())
         except FileNotFoundError:
             return None
 
     async def _fle_to_dict(self, fle: FileListEntry) -> StatResult:
-        async def size():
+        async def maybe_status() -> Optional[Tuple[int, float]]:
             try:
-                return await (await fle.status()).size()
+                file_status = await fle.status()
+                return (await file_status.size(), file_status.time_modified().timestamp())
             except IsADirectoryError:
-                return 0
+                return None
         return _stat_result(
-            *await asyncio.gather(fle.is_dir(), size(), fle.url()))
+            *await asyncio.gather(fle.is_dir(), maybe_status(), fle.url()))
 
     def ls(self,
            path: str,
@@ -253,9 +261,13 @@ class RouterFS(FS):
                         error_when_file_and_directory: bool = True,
                         _max_simultaneous_files: int = 50) -> List[StatResult]:
         async def ls_no_glob(path) -> List[StatResult]:
-            return await self._ls_no_glob(path,
-                                          error_when_file_and_directory=error_when_file_and_directory,
-                                          _max_simultaneous_files=_max_simultaneous_files)
+            try:
+                return await self._ls_no_glob(path,
+                                              error_when_file_and_directory=error_when_file_and_directory,
+                                              _max_simultaneous_files=_max_simultaneous_files)
+            except FileNotFoundError:
+                return []
+
         url = self.afs.parse_url(path)
         if any(glob.escape(bucket_part) != bucket_part
                for bucket_part in url.bucket_parts):
@@ -295,9 +307,16 @@ class RouterFS(FS):
                                    '/'.join([cumulative_prefix, *intervening_components, single_component_glob_pattern]))
             ]
 
-        return [stat
-                for cumulative_prefix in cumulative_prefixes
-                for stat in await ls_no_glob('/'.join([cumulative_prefix, *suffix_components]))]
+        found_stats = [
+            stat
+            for cumulative_prefix in cumulative_prefixes
+            for stat in await ls_no_glob('/'.join([cumulative_prefix, *suffix_components]))
+        ]
+
+        if len(glob_components) == 0 and len(found_stats) == 0:
+            # Unless we are using a glob pattern, a path referring to no files should error
+            raise FileNotFoundError(path)
+        return found_stats
 
     async def _ls_no_glob(self,
                           path: str,
@@ -312,11 +331,11 @@ class RouterFS(FS):
                     parallelism=_max_simultaneous_files)
             except (FileNotFoundError, NotADirectoryError):
                 return None
-        maybe_size, maybe_contents = await asyncio.gather(
-            self._size_bytes_or_none(path), ls_as_dir())
+        maybe_sb_and_t, maybe_contents = await asyncio.gather(
+            self._size_bytes_and_time_modified_or_none(path), ls_as_dir())
 
-        if maybe_size is not None:
-            file_stat = _stat_result(False, maybe_size, path)
+        if maybe_sb_and_t is not None:
+            file_stat = _stat_result(False, maybe_sb_and_t, path)
             if maybe_contents is not None:
                 if error_when_file_and_directory:
                     raise ValueError(f'{path} is both a file and a directory')

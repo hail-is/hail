@@ -6,12 +6,12 @@ repos:
       - id: end-of-file-fixer
       - id: trailing-whitespace
   - repo: https://github.com/psf/black
-    rev: 20.8b1
+    rev: 22.3.0
     hooks:
       - id: black
         language_version: python3
   - repo: https://github.com/thibaudcolas/curlylint
-    rev: v0.12.0
+    rev: v0.13.1
     hooks:
       - id: curlylint
         types: [file] # By default only runs on .jinja files, this disables that

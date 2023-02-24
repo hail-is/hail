@@ -1,20 +1,20 @@
 package is.hail.io.plink
 
-import is.hail.asm4s.HailClassLoader
 import is.hail.annotations.{Region, RegionValueBuilder}
+import is.hail.asm4s.HailClassLoader
 import is.hail.backend.ExecuteContext
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
 import is.hail.expr.ir.lowering.TableStage
-import is.hail.types._
-import is.hail.types.physical.{PBoolean, PCanonicalArray, PCanonicalCall, PCanonicalLocus, PCanonicalString, PCanonicalStruct, PFloat64, PStruct, PType}
-import is.hail.types.virtual._
+import is.hail.io.fs.{FS, Seekable}
 import is.hail.io.vcf.LoadVCF
+import is.hail.rvd.RVDPartitioner
+import is.hail.types._
+import is.hail.types.physical._
+import is.hail.types.virtual._
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant._
-import is.hail.io.fs.{FS, Seekable}
-import is.hail.rvd.RVDPartitioner
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
@@ -295,12 +295,16 @@ class PlinkVariant(
 class MatrixPLINKReader(
   val params: MatrixPLINKReaderParameters,
   referenceGenome: Option[ReferenceGenome],
-  val fullMatrixType: MatrixType,
+  val fullMatrixTypeWithoutUIDs: MatrixType,
   sampleInfo: IndexedSeq[Row],
   variants: Array[PlinkVariant],
   contexts: Array[Any],
   partitioner: RVDPartitioner
 ) extends MatrixHybridReader {
+
+  def rowUIDType = TInt64
+  def colUIDType = TInt64
+
   def pathsUsed: Seq[String] = FastSeq(params.bed, params.bim, params.fam)
 
   def nSamples: Int = sampleInfo.length
@@ -311,9 +315,18 @@ class MatrixPLINKReader(
 
   val partitionCounts: Option[IndexedSeq[Long]] = None
 
-  def rowAndGlobalPTypes(context: ExecuteContext, requestedType: TableType): (PStruct, PStruct) = {
-    requestedType.canonicalRowPType -> PType.canonical(requestedType.globalType).asInstanceOf[PStruct]
-  }
+  val globals = Row(sampleInfo.zipWithIndex.map { case (s, idx) =>
+    Row((0 until s.length).map(s.apply) :+ idx.toLong :_*)
+  })
+
+  override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+    VirtualTypeWithReq(PType.canonical(requestedType.rowType).setRequired(true))
+
+  override def uidRequiredness: VirtualTypeWithReq =
+    VirtualTypeWithReq(PInt64Required)
+
+  override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+    VirtualTypeWithReq(PType.canonical(requestedType.globalType))
 
   def executeGeneric(ctx: ExecuteContext): GenericTableValue = {
     val localA2Reference = params.a2Reference
@@ -322,19 +335,23 @@ class MatrixPLINKReader(
 
     val localLocusType = TLocus.schemaFromRG(referenceGenome)
 
-    val globals = Row(sampleInfo)
-
     val contextType = TStruct(
       "bed" -> TString,
       "start" -> TInt32,
-      "end" -> TInt32)
+      "end" -> TInt32,
+      "partitionIndex" -> TInt32)
+
+    val contextsWithPartIdx = contexts.zipWithIndex.map { case (row: Row, partIdx: Int) =>
+      Row(row(0), row(1), row(2), partIdx)
+    }
 
     val fullRowPType = PCanonicalStruct(true,
       "locus" -> PCanonicalLocus.schemaFromRG(referenceGenome, true),
       "alleles" -> PCanonicalArray(PCanonicalString(true), true),
       "rsid" -> PCanonicalString(true),
       "cm_position" -> PFloat64(true),
-      LowerMatrixIR.entriesFieldName -> PCanonicalArray(PCanonicalStruct(true, "GT" -> PCanonicalCall()), true))
+      LowerMatrixIR.entriesFieldName -> PCanonicalArray(PCanonicalStruct(true, "GT" -> PCanonicalCall()), true),
+      rowUIDFieldName -> PInt64Required)
 
     val bodyPType = (requestedRowType: TStruct) => fullRowPType.subsetTo(requestedRowType).asInstanceOf[PStruct]
 
@@ -343,6 +360,7 @@ class MatrixPLINKReader(
       val hasAlleles = requestedType.hasField("alleles")
       val hasRsid = requestedType.hasField("rsid")
       val hasCmPos = requestedType.hasField("cm_position")
+      val hasRowUID = requestedType.hasField(rowUIDFieldName)
 
       val hasEntries = requestedType.hasField(LowerMatrixIR.entriesFieldName)
       val hasGT = hasEntries && (requestedType.fieldType(LowerMatrixIR.entriesFieldName).asInstanceOf[TArray]
@@ -439,6 +457,10 @@ class MatrixPLINKReader(
 
             rvb.endArray()
           }
+
+          if (hasRowUID)
+            rvb.addLong(i)
+
           rvb.endStruct()
 
           Some(rvb.end())
@@ -450,29 +472,29 @@ class MatrixPLINKReader(
 
     new GenericTableValue(
       tt,
+      rowUIDFieldName,
       Some(partitioner),
       { (requestedGlobalsType: Type) =>
         val subset = tt.globalType.valueSubsetter(requestedGlobalsType)
         subset(globals).asInstanceOf[Row]
       },
       contextType,
-      contexts,
+      contextsWithPartIdx,
       bodyPType,
       body)
   }
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue =
-    executeGeneric(ctx).toTableValue(ctx, tr.typ)
+  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue =
+    executeGeneric(ctx).toTableValue(ctx, requestedType)
 
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
     val tt = fullMatrixType.toTableType(LowerMatrixIR.entriesFieldName, LowerMatrixIR.colsFieldName)
     val subset = tt.globalType.valueSubsetter(requestedGlobalsType)
-    val globals = Row(sampleInfo)
     Literal(requestedGlobalsType, subset(globals).asInstanceOf[Row])
   }
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
-    executeGeneric(ctx).toTableStage(ctx, requestedType)
+    executeGeneric(ctx).toTableStage(ctx, requestedType, "PLINK file", params)
 
   override def toJValue: JValue = {
     implicit val formats: Formats = DefaultFormats

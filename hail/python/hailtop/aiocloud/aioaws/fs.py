@@ -4,16 +4,18 @@ from types import TracebackType
 import sys
 from concurrent.futures import ThreadPoolExecutor
 import os.path
-import urllib
 import threading
 import asyncio
 import logging
+import datetime
 
+import botocore.config
 import botocore.exceptions
 import boto3
 from hailtop.utils import blocking_to_async
 from hailtop.aiotools.fs import (FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
                                  AsyncFSURL, MultiPartCreate, FileAndDirectoryError)
+from hailtop.aiotools.fs.exceptions import UnexpectedEOFError
 from hailtop.aiotools.fs.stream import (
     AsyncQueueWritableStream,
     async_writable_blocking_readable_stream_pair,
@@ -39,7 +41,7 @@ class PageIterator:
 
     async def __anext__(self):
         if self._page is None:
-            self._page = await blocking_to_async(self._fs._thread_pool, self._fs._s3.list_objects_v2,
+            self._page = await blocking_to_async(self._fs._thread_pool, self._fs._s3.list_objects_v2,  # type: ignore
                                                  Bucket=self._bucket,
                                                  Prefix=self._prefix,
                                                  **self._kwargs)
@@ -64,6 +66,16 @@ class S3HeadObjectFileStatus(FileStatus):
     async def size(self) -> int:
         return self.head_object_resp['ContentLength']
 
+    def time_created(self) -> datetime.datetime:
+        # https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadObject.html#API_HeadObject_ResponseSyntax
+        # Misleading name: LastModified is creation time.
+        # S3 Python library strips dashes from header names
+        return self.head_object_resp['LastModified']
+
+    def time_modified(self) -> datetime.datetime:
+        # S3 objects are immutable, so creation == modified
+        return self.head_object_resp['LastModified']
+
     async def __getitem__(self, key: str) -> Any:
         return self.head_object_resp[key]
 
@@ -74,6 +86,17 @@ class S3ListFilesFileStatus(FileStatus):
 
     async def size(self) -> int:
         return self._item['Size']
+
+    def time_created(self) -> datetime.datetime:
+        # https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html#API_GetObject_ResponseSyntax
+        # Misleading name: LastModified is creation time.
+        # S3 Python library strips dashes from header names
+        return self._item['LastModified']
+
+    def time_modified(self) -> datetime.datetime:
+        # S3 objects are immutable, so creation == modified
+        print(repr(self._item))
+        return self._item['LastModified']
 
     async def __getitem__(self, key: str) -> Any:
         return self._item[key]
@@ -275,27 +298,37 @@ class S3AsyncFSURL(AsyncFSURL):
 class S3AsyncFS(AsyncFS):
     schemes: Set[str] = {'s3'}
 
-    def __init__(self, thread_pool: Optional[ThreadPoolExecutor] = None, max_workers: Optional[int] = None):
+    def __init__(self, thread_pool: Optional[ThreadPoolExecutor] = None, max_workers: Optional[int] = None, *, max_pool_connections: int = 10):
         if not thread_pool:
             thread_pool = ThreadPoolExecutor(max_workers=max_workers)
         self._thread_pool = thread_pool
-        self._s3 = boto3.client('s3')
+        config = botocore.config.Config(
+            max_pool_connections=max_pool_connections,
+        )
+        self._s3 = boto3.client('s3', config=config)
 
     def parse_url(self, url: str) -> S3AsyncFSURL:
         return S3AsyncFSURL(*self.get_bucket_and_name(url))
 
     @staticmethod
     def get_bucket_and_name(url: str) -> Tuple[str, str]:
-        parsed = urllib.parse.urlparse(url)
-        if parsed.scheme != 's3':
-            raise ValueError(f"invalid scheme, expected s3: {parsed.scheme}")
+        colon_index = url.find(':')
+        if colon_index == -1:
+            raise ValueError(f'invalid URL: {url}')
 
-        name = parsed.path
-        if name:
-            assert name[0] == '/'
-            name = name[1:]
+        scheme = url[:colon_index]
+        if scheme != 's3':
+            raise ValueError(f'invalid scheme, expected s3: {scheme}')
 
-        return (parsed.netloc, name)
+        rest = url[(colon_index + 1):]
+        if not rest.startswith('//'):
+            raise ValueError(f's3 URI must be of the form: s3://bucket/key, found: {url}')
+
+        end_of_bucket = rest.find('/', 2)
+        bucket = rest[2:end_of_bucket]
+        name = rest[(end_of_bucket + 1):]
+
+        return (bucket, name)
 
     async def open(self, url: str) -> ReadableStream:
         bucket, name = self.get_bucket_and_name(url)
@@ -307,16 +340,24 @@ class S3AsyncFS(AsyncFS):
         except self._s3.exceptions.NoSuchKey as e:
             raise FileNotFoundError(url) from e
 
-    async def open_from(self, url: str, start: int) -> ReadableStream:
+    async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
         bucket, name = self.get_bucket_and_name(url)
+        range_str = f'bytes={start}-'
+        if length is not None:
+            assert length >= 1
+            range_str += str(start + length - 1)
         try:
             resp = await blocking_to_async(self._thread_pool, self._s3.get_object,
                                            Bucket=bucket,
                                            Key=name,
-                                           Range=f'bytes={start}-')
+                                           Range=range_str)
             return blocking_readable_stream_to_async(self._thread_pool, cast(BinaryIO, resp['Body']))
         except self._s3.exceptions.NoSuchKey as e:
             raise FileNotFoundError(url) from e
+        except botocore.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == 'InvalidRange':
+                raise UnexpectedEOFError from e
+            raise
 
     async def create(self, url: str, *, retry_writes: bool = True) -> S3CreateManager:  # pylint: disable=unused-argument
         # It may be possible to write a more efficient version of this
@@ -486,7 +527,7 @@ class S3AsyncFS(AsyncFS):
             raise FileNotFoundError(url) from e
 
     async def close(self) -> None:
-        pass
+        del self._s3
 
     def copy_part_size(self, url: str) -> int:  # pylint: disable=unused-argument
         # Because the S3 upload_part API call requires the entire part

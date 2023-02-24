@@ -1,5 +1,7 @@
 from . import set_property
-from . import show
+from . import list_properties
+
+import warnings
 
 
 def init_parser(config_parser):
@@ -15,11 +17,19 @@ def init_parser(config_parser):
 
     show_parser = subparsers.add_parser(
         'show',
-        help='Set deploy configuration property.',
+        help='List all dev configuration properties. Note: This subcommand is deprecated. Use `list` instead',
         description='Set deploy configuration property.')
 
     show_parser.set_defaults(module='hailctl dev config show')
-    show.init_parser(show_parser)
+    list_properties.init_parser(show_parser)
+
+    list_parser = subparsers.add_parser(
+        'list',
+        help='List all dev configuration properties.',
+        description='List all dev configuration properties.')
+
+    list_parser.set_defaults(module='hailctl dev config list')
+    list_properties.init_parser(list_parser)
 
 
 def main(args):
@@ -27,5 +37,9 @@ def main(args):
         set_property.main(args)
         return
 
-    assert args.module == 'hailctl dev config show'
-    show.main(args)
+    if args.module == 'hailctl dev config show':
+        warnings.warn('The `show` subcommand is deprecated. Use `list` instead.', stacklevel=2)
+    else:
+        assert args.module == 'hailctl dev config list'
+
+    list_properties.main(args)

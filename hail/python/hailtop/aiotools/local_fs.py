@@ -5,6 +5,7 @@ import os.path
 import io
 import stat
 import asyncio
+import datetime
 from concurrent.futures import ThreadPoolExecutor
 import urllib.parse
 
@@ -15,12 +16,19 @@ from .fs import (FileStatus, FileListEntry, MultiPartCreate, AsyncFS, AsyncFSURL
 
 
 class LocalStatFileStatus(FileStatus):
-    def __init__(self, stat_result):
+    def __init__(self, stat_result: os.stat_result):
         self._stat_result = stat_result
         self._items = None
 
     async def size(self) -> int:
         return self._stat_result.st_size
+
+    def time_created(self) -> datetime.datetime:
+        raise ValueError('LocalFS does not support time created.')
+
+    def time_modified(self) -> datetime.datetime:
+        return datetime.datetime.fromtimestamp(self._stat_result.st_mtime,
+                                               tz=datetime.timezone.utc)
 
     async def __getitem__(self, key: str) -> Any:
         raise KeyError(key)
@@ -110,6 +118,90 @@ class LocalAsyncFSURL(AsyncFSURL):
         return 'file:' + self._path
 
 
+class TruncatedReadableBinaryIO(BinaryIO):
+    def __init__(self, bio: BinaryIO, limit: int):
+        self.bio = bio
+        self.offset = 0
+        self.limit = limit
+
+    def write(self, s) -> int:  # pylint: disable=unused-argument
+        raise NotImplementedError
+
+    def __enter__(self) -> 'BinaryIO':
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.close()
+
+    @property
+    def mode(self) -> str:
+        return self.bio.mode
+
+    @property
+    def name(self) -> str:
+        return self.bio.name
+
+    def close(self) -> None:
+        return self.bio.close()
+
+    @property
+    def closed(self) -> bool:
+        return self.bio.closed
+
+    def fileno(self) -> int:
+        return self.bio.fileno()
+
+    def flush(self) -> None:
+        raise NotImplementedError
+
+    def isatty(self) -> bool:
+        return self.bio.isatty()
+
+    def read(self, n: int = -1):
+        assert self.offset <= self.limit
+
+        if n == -1:
+            n = self.limit - self.offset
+        else:
+            n = min(self.limit - self.offset, n)
+        b = self.bio.read(n)
+        self.offset += len(b)
+        return b
+
+    def readable(self) -> bool:
+        return True
+
+    def readline(self, limit: int = -1):  # pylint: disable=unused-argument
+        raise NotImplementedError
+
+    def readlines(self, hint: int = -1):  # pylint: disable=unused-argument
+        raise NotImplementedError
+
+    def seek(self, offset: int, whence: int = 0) -> int:  # pylint: disable=unused-argument
+        raise NotImplementedError
+
+    def seekable(self) -> bool:
+        return False
+
+    def tell(self) -> int:
+        return self.bio.tell()
+
+    def truncate(self, size: Optional[int] = None):
+        raise NotImplementedError
+
+    def writable(self) -> bool:
+        return False
+
+    def writelines(self, lines) -> None:  # pylint: disable=unused-argument
+        raise NotImplementedError
+
+    def __iter__(self):
+        raise NotImplementedError
+
+    def __next__(self):
+        raise NotImplementedError
+
+
 class LocalAsyncFS(AsyncFS):
     schemes: Set[str] = {'file'}
 
@@ -124,27 +216,30 @@ class LocalAsyncFS(AsyncFS):
     @staticmethod
     def _get_path(url):
         parsed = urllib.parse.urlparse(url)
-        if parsed.scheme and parsed.scheme != 'file':
-            raise ValueError(f"invalid file URL: {url}, invalid scheme: expected file, got {parsed.scheme}")
-        if parsed.netloc and parsed.netloc != 'localhost':
-            raise ValueError(
-                f"invalid file URL: {url}, invalid netloc: expected localhost or empty, got {parsed.netloc}")
-        if parsed.params:
-            raise ValueError(f"invalid file URL: params not allowed: {url}")
-        if parsed.query:
-            raise ValueError(f"invalid file URL: query not allowed: {url}")
-        if parsed.fragment:
-            raise ValueError(f"invalid file URL: fragment not allowed: {url}")
-        return parsed.path
+        prefix = ''
+        if parsed.scheme:
+            if parsed.scheme != 'file':
+                raise ValueError(f"invalid file URL: {url}, invalid scheme: expected file, got {parsed.scheme}")
+            prefix += f'{parsed.scheme}://'
+        if parsed.netloc:
+            if parsed.netloc != 'localhost':
+                raise ValueError(
+                    f"invalid file URL: {url}, invalid netloc: expected localhost or empty, got {parsed.netloc}")
+            prefix += parsed.netloc
+        return url[len(prefix):]
 
     async def open(self, url: str) -> ReadableStream:
         f = await blocking_to_async(self._thread_pool, open, self._get_path(url), 'rb')
         return blocking_readable_stream_to_async(self._thread_pool, cast(BinaryIO, f))
 
-    async def open_from(self, url: str, start: int) -> ReadableStream:
+    async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
         f = await blocking_to_async(self._thread_pool, open, self._get_path(url), 'rb')
         f.seek(start, io.SEEK_SET)
-        return blocking_readable_stream_to_async(self._thread_pool, cast(BinaryIO, f))
+        bio = cast(BinaryIO, f)
+        if length is not None:
+            assert length >= 1
+            bio = TruncatedReadableBinaryIO(bio, length)
+        return blocking_readable_stream_to_async(self._thread_pool, bio)
 
     async def create(self, url: str, *, retry_writes: bool = True) -> WritableStream:  # pylint: disable=unused-argument
         f = await blocking_to_async(self._thread_pool, open, self._get_path(url), 'wb')

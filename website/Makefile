@@ -2,8 +2,6 @@ include ../config.mk
 
 .PHONY: docs build run run-docker deploy clean
 
-TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
-
 WEBSITE_IMAGE := $(DOCKER_PREFIX)/website:$(TOKEN)
 
 EXTRA_PYTHONPATH := ../hail/python:../gear:../web_common
@@ -39,7 +37,7 @@ run-docker: build
 deploy: build
 	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
 	$(MAKE) -C ../docker hail-ubuntu
-	python3 ../ci/jinja2_render.py '{"default_ns":{"name":"$(NAMESPACE)"},"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"website_image":{"image":"$(WEBSITE_IMAGE)"}}' deployment.yaml deployment.yaml.out
+	python3 ../ci/jinja2_render.py '{"default_ns":{"name":"$(NAMESPACE)"},"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"scope":"$(SCOPE)","website_image":{"image":"$(WEBSITE_IMAGE)"}}' deployment.yaml deployment.yaml.out
 	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out
 
 clean:

@@ -40,7 +40,8 @@ object Interpretable {
         _: WriteMetadata |
         _: ReadValue |
         _: WriteValue |
-        _: NDArrayWrite  => false
+        _: NDArrayWrite |
+        _: RNGStateLiteral => false
       case x: ApplyIR =>
         !Exists(x.body, {
           case n: IR => !Interpretable(n)

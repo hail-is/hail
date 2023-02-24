@@ -1,6 +1,6 @@
 import os
 from typing import (Tuple, Any, Set, Optional, MutableMapping, Dict, AsyncIterator, cast, Type,
-                    List)
+                    List, Coroutine)
 from types import TracebackType
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import
 import sys
@@ -8,6 +8,8 @@ import logging
 import asyncio
 import urllib.parse
 import aiohttp
+import datetime
+from hailtop import timex
 from hailtop.utils import (
     secret_alnum_string, OnlineBoundedGather2,
     TransientError, retry_transient_errors)
@@ -55,7 +57,9 @@ class PageIterator:
 
 
 class InsertObjectStream(WritableStream):
-    def __init__(self, it, request_task):
+    def __init__(self,
+                 it: FeedableAsyncIterable[bytes],
+                 request_task: asyncio.Future):  # in Python 3.9: asyncio.Future[aiohttp.ClientResponse]
         super().__init__()
         self._it = it
         self._request_task = request_task
@@ -63,24 +67,31 @@ class InsertObjectStream(WritableStream):
 
     async def write(self, b):
         assert not self.closed
-        await self._it.feed(b)
-        return len(b)
+
+        fut = asyncio.ensure_future(self._it.feed(b))
+        try:
+            await asyncio.wait([fut, self._request_task], return_when=asyncio.FIRST_COMPLETED)
+            if fut.done():
+                return len(b)
+            raise ValueError('request task finished early')
+        finally:
+            fut.cancel()
 
     async def _wait_closed(self):
+        fut = asyncio.ensure_future(self._it.stop())
         try:
-            await self._it.stop()
-        except:
-            await self._request_task  # retrieve exceptions
-            raise
-        else:
+            await asyncio.wait([fut, self._request_task], return_when=asyncio.FIRST_COMPLETED)
             async with await self._request_task as resp:
                 self._value = await resp.json()
+        finally:
+            fut.cancel()
 
 
 class _TaskManager:
-    def __init__(self, coro):
+    def __init__(self, coro: Coroutine[Any, Any, Any], closable: bool = False):
         self._coro = coro
-        self._task = None
+        self._task: Optional[asyncio.Task[Any]] = None
+        self._closable = closable
 
     async def __aenter__(self) -> asyncio.Task:
         self._task = asyncio.create_task(self._coro)
@@ -90,17 +101,27 @@ class _TaskManager:
                         exc_type: Optional[Type[BaseException]],
                         exc_val: Optional[BaseException],
                         exc_tb: Optional[TracebackType]) -> None:
+        assert self._task is not None
+
         if not self._task.done():
             if exc_val:
                 self._task.cancel()
                 try:
-                    await self._task
+                    value = await self._task
+                    if self._closable:
+                        value.close()
                 except:
                     _, exc, _ = sys.exc_info()
                     if exc is not exc_val:
                         log.warning('dropping preempted task exception', exc_info=True)
             else:
-                await self._task
+                value = await self._task
+                if self._closable:
+                    value.close()
+        else:
+            value = await self._task
+            if self._closable:
+                value.close()
 
 
 class ResumableInsertObjectStream(WritableStream):
@@ -138,31 +159,31 @@ class ResumableInsertObjectStream(WritableStream):
             # https://cloud.google.com/storage/docs/performing-resumable-uploads#status-check
 
             # note: this retries
-            resp = await self._session.put(self._session_url,
-                                           headers={
-                                               'Content-Length': '0',
-                                               'Content-Range': f'bytes */{total_size_str}'
-                                           },
-                                           raise_for_status=False)
-            if resp.status >= 200 and resp.status < 300:
-                assert self._closed
-                assert total_size is not None
-                self._write_buffer.advance_offset(total_size)
-                assert self._write_buffer.size() == 0
-                self._done = True
-                return
-            if resp.status == 308:
-                range = resp.headers.get('Range')
-                if range is not None:
-                    new_offset = self._range_upper(range) + 1
+            async with await self._session.put(self._session_url,
+                                               headers={
+                                                   'Content-Length': '0',
+                                                   'Content-Range': f'bytes */{total_size_str}'
+                                               },
+                                               raise_for_status=False) as resp:
+                if resp.status >= 200 and resp.status < 300:
+                    assert self._closed
+                    assert total_size is not None
+                    self._write_buffer.advance_offset(total_size)
+                    assert self._write_buffer.size() == 0
+                    self._done = True
+                    return
+                if resp.status == 308:
+                    range = resp.headers.get('Range')
+                    if range is not None:
+                        new_offset = self._range_upper(range) + 1
+                    else:
+                        new_offset = 0
+                    self._write_buffer.advance_offset(new_offset)
+                    self._broken = False
                 else:
-                    new_offset = 0
-                self._write_buffer.advance_offset(new_offset)
-                self._broken = False
-            else:
-                assert resp.status >= 400
-                resp.raise_for_status()
-                assert False
+                    assert resp.status >= 400
+                    resp.raise_for_status()
+                    assert False
 
         assert not self._broken
         self._broken = True
@@ -192,14 +213,16 @@ class ResumableInsertObjectStream(WritableStream):
                                       'Content-Range': range
                                   },
                                   raise_for_status=False,
-                                  retry=False)) as put_task:
-            for chunk in self._write_buffer.chunks(n):
-                async with _TaskManager(it.feed(chunk)) as feed_task:
-                    done, _ = await asyncio.wait([put_task, feed_task], return_when=asyncio.FIRST_COMPLETED)
-                    if feed_task not in done:
-                        msg = 'resumable upload chunk PUT request finished before writing data'
-                        log.warning(msg)
-                        raise TransientError(msg)
+                                  retry=False),
+                closable=True) as put_task:
+            with self._write_buffer.chunks(n) as chunks:
+                for chunk in chunks:
+                    async with _TaskManager(it.feed(chunk)) as feed_task:
+                        done, _ = await asyncio.wait([put_task, feed_task], return_when=asyncio.FIRST_COMPLETED)
+                        if feed_task not in done:
+                            msg = 'resumable upload chunk PUT request finished before writing data'
+                            log.warning(msg)
+                            raise TransientError(msg)
 
             await it.stop()
 
@@ -243,36 +266,44 @@ class ResumableInsertObjectStream(WritableStream):
 
 
 class GetObjectStream(ReadableStream):
-    def __init__(self, resp):
+    def __init__(self, resp: aiohttp.ClientResponse):
         super().__init__()
-        self._resp = resp
-        self._content = resp.content
+        self._resp: Optional[aiohttp.ClientResponse] = resp
+        self._content: Optional[aiohttp.StreamReader] = resp.content
 
     # https://docs.aiohttp.org/en/stable/streams.html#aiohttp.StreamReader.read
     # Read up to n bytes. If n is not provided, or set to -1, read until EOF
     # and return all read bytes.
     async def read(self, n: int = -1) -> bytes:
-        assert not self._closed
+        assert not self._closed and self._content is not None
         return await self._content.read(n)
 
     async def readexactly(self, n: int) -> bytes:
-        assert not self._closed and n >= 0
+        assert not self._closed and n >= 0 and self._content is not None
         try:
             return await self._content.readexactly(n)
         except asyncio.IncompleteReadError as e:
             raise UnexpectedEOFError() from e
 
     def headers(self) -> 'CIMultiDictProxy[str]':
+        assert self._resp is not None
+
         return self._resp.headers
 
     async def _wait_closed(self) -> None:
+        assert self._resp is not None
+        assert self._content is not None
+
         self._content = None
-        self._resp.release()
+        self._resp.close()
         self._resp = None
 
 
 class GoogleStorageClient(GoogleBaseClient):
     def __init__(self, **kwargs):
+        if 'timeout' not in kwargs and 'http_session' not in kwargs:
+            # Around May 2022, GCS started timing out a lot with our default 5s timeout
+            kwargs['timeout'] = aiohttp.ClientTimeout(total=20)
         super().__init__('https://storage.googleapis.com/storage/v1', **kwargs)
 
     # docs:
@@ -290,10 +321,7 @@ class GoogleStorageClient(GoogleBaseClient):
         assert 'name' not in params
         params['name'] = name
 
-        if 'data' in params:
-            return await self._session.post(
-                f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o',
-                **kwargs)
+        assert 'data' not in params
 
         upload_type = params.get('uploadType')
         if not upload_type:
@@ -303,7 +331,7 @@ class GoogleStorageClient(GoogleBaseClient):
         if upload_type == 'media':
             it: FeedableAsyncIterable[bytes] = FeedableAsyncIterable()
             kwargs['data'] = aiohttp.AsyncIterablePayload(it)
-            request_task = asyncio.ensure_future(self._session.post(
+            request_task: asyncio.Future = asyncio.ensure_future(self._session.post(
                 f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o',
                 retry=False,
                 **kwargs))
@@ -312,12 +340,13 @@ class GoogleStorageClient(GoogleBaseClient):
         # Write using resumable uploads.  See:
         # https://cloud.google.com/storage/docs/performing-resumable-uploads
         assert upload_type == 'resumable'
-        chunk_size = kwargs.get('bufsize', 256 * 1024)
+        chunk_size = kwargs.get('bufsize', 8 * 1024 * 1024)
 
-        resp = await self._session.post(
+        async with await self._session.post(
             f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o',
-            **kwargs)
-        session_url = resp.headers['Location']
+            **kwargs
+        ) as resp:
+            session_url = resp.headers['Location']
         return ResumableInsertObjectStream(self._session, session_url, chunk_size)
 
     async def get_object(self, bucket: str, name: str, **kwargs) -> GetObjectStream:
@@ -337,6 +366,8 @@ class GoogleStorageClient(GoogleBaseClient):
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
                 raise FileNotFoundError from e
+            if e.status == 416:
+                raise UnexpectedEOFError from e
             raise
 
     async def get_object_metadata(self, bucket: str, name: str, **kwargs) -> Dict[str, str]:
@@ -374,25 +405,31 @@ class GetObjectFileStatus(FileStatus):
     async def size(self) -> int:
         return int(self._items['size'])
 
+    def time_created(self) -> datetime.datetime:
+        return timex.parse_rfc3339(self._items['timeCreated'])
+
+    def time_modified(self) -> datetime.datetime:
+        return timex.parse_rfc3339(self._items['updated'])
+
     async def __getitem__(self, key: str) -> str:
         return self._items[key]
 
 
 class GoogleStorageFileListEntry(FileListEntry):
-    def __init__(self, url: str, items: Optional[Dict[str, Any]]):
-        self._url = url
+    def __init__(self, bucket: str, name: str, items: Optional[Dict[str, Any]]):
+        self._bucket = bucket
+        self._name = name
         self._items = items
         self._status: Optional[GetObjectFileStatus] = None
 
     def name(self) -> str:
-        parsed = urllib.parse.urlparse(self._url)
-        return os.path.basename(parsed.path)
+        return os.path.basename(self._name)
 
     async def url(self) -> str:
-        return self._url
+        return f'gs://{self._bucket}/{self._name}'
 
     def url_maybe_trailing_slash(self) -> str:
-        return self._url
+        return f'gs://{self._bucket}/{self._name}'
 
     async def is_file(self) -> bool:
         return self._items is not None
@@ -403,7 +440,7 @@ class GoogleStorageFileListEntry(FileListEntry):
     async def status(self) -> FileStatus:
         if self._status is None:
             if self._items is None:
-                raise IsADirectoryError(self._url)
+                raise IsADirectoryError(await self.url())
             self._status = GetObjectFileStatus(self._items)
         return self._status
 
@@ -488,8 +525,8 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
 
                     await self._compose(chunk_names, dest_name)
 
-                    for n in chunk_names:
-                        await pool.call(self._fs._remove_doesnt_exist_ok, f'gs://{self._bucket}/{n}')
+                    for name in chunk_names:
+                        await pool.call(self._fs._remove_doesnt_exist_ok, f'gs://{self._bucket}/{name}')
 
                 await tree_compose(
                     [self._part_name(i) for i in range(self._num_parts)],
@@ -564,10 +601,14 @@ class GoogleStorageAsyncFS(AsyncFS):
         bucket, name = self.get_bucket_and_name(url)
         return await self._storage_client.get_object(bucket, name)
 
-    async def open_from(self, url: str, start: int) -> ReadableStream:
+    async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
         bucket, name = self.get_bucket_and_name(url)
+        range_str = f'bytes={start}-'
+        if length is not None:
+            assert length >= 1
+            range_str += str(start + length - 1)
         return await self._storage_client.get_object(
-            bucket, name, headers={'Range': f'bytes={start}-'})
+            bucket, name, headers={'Range': range_str})
 
     async def create(self, url: str, *, retry_writes: bool = True) -> WritableStream:
         bucket, name = self.get_bucket_and_name(url)
@@ -613,7 +654,7 @@ class GoogleStorageAsyncFS(AsyncFS):
             items = page.get('items')
             if items is not None:
                 for item in page['items']:
-                    yield GoogleStorageFileListEntry(f'gs://{bucket}/{item["name"]}', item)
+                    yield GoogleStorageFileListEntry(bucket, item['name'], item)
 
     async def _listfiles_flat(self, bucket: str, name: str) -> AsyncIterator[FileListEntry]:
         assert not name or name.endswith('/')
@@ -627,12 +668,12 @@ class GoogleStorageAsyncFS(AsyncFS):
             if prefixes:
                 for prefix in prefixes:
                     assert prefix.endswith('/')
-                    yield GoogleStorageFileListEntry(f'gs://{bucket}/{prefix}', None)
+                    yield GoogleStorageFileListEntry(bucket, prefix, None)
 
             items = page.get('items')
             if items:
                 for item in page['items']:
-                    yield GoogleStorageFileListEntry(f'gs://{bucket}/{item["name"]}', item)
+                    yield GoogleStorageFileListEntry(bucket, item['name'], item)
 
     async def listfiles(self,
                         url: str,
@@ -724,14 +765,14 @@ class GoogleStorageAsyncFS(AsyncFS):
 
 
 class GoogleStorageAsyncFSFactory(AsyncFSFactory[GoogleStorageAsyncFS]):
-    def from_credentials_data(self, credentials_data: dict) -> GoogleStorageAsyncFS:  # pylint: disable=no-self-use
+    def from_credentials_data(self, credentials_data: dict) -> GoogleStorageAsyncFS:
         return GoogleStorageAsyncFS(
             credentials=GoogleCredentials.from_credentials_data(credentials_data))
 
-    def from_credentials_file(self, credentials_file: str) -> GoogleStorageAsyncFS:  # pylint: disable=no-self-use
+    def from_credentials_file(self, credentials_file: str) -> GoogleStorageAsyncFS:
         return GoogleStorageAsyncFS(
             credentials=GoogleCredentials.from_file(credentials_file))
 
-    def from_default_credentials(self) -> GoogleStorageAsyncFS:  # pylint: disable=no-self-use
+    def from_default_credentials(self) -> GoogleStorageAsyncFS:
         return GoogleStorageAsyncFS(
             credentials=GoogleCredentials.default_credentials())

@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Set, Tuple
 from hailtop.aiocloud import aiogoogle
 from hailtop.utils import url_basename
 
+from ....driver.exceptions import RegionsNotSupportedError
 from ....driver.location import CloudLocationMonitor
 from ....utils import WindowFractionCounter
 
@@ -74,13 +75,27 @@ class ZoneMonitor(CloudLocationMonitor):
 
         self.zone_success_rate = ZoneSuccessRate()
 
+    @property
+    def region_quotas(self):
+        return self._region_info
+
     def default_location(self) -> str:
         return self._default_zone
 
-    def choose_location(self, cores: int, local_ssd_data_disk: bool, data_disk_size_gb: int) -> str:
-        zone_weights = self.compute_zone_weights(cores, local_ssd_data_disk, data_disk_size_gb)
+    def choose_location(
+        self,
+        cores: int,
+        local_ssd_data_disk: bool,
+        data_disk_size_gb: int,
+        preemptible: bool,
+        regions: List[str],
+    ) -> str:
+        zone_weights = self.compute_zone_weights(cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions)
 
         zones = [zw.zone for zw in zone_weights]
+
+        if len(zones) == 0:
+            raise RegionsNotSupportedError(regions, self._regions)
 
         zone_prob_weights = [
             min(zw.weight, 10) * self.zone_success_rate.zone_success_rate(zw.zone) for zw in zone_weights
@@ -93,13 +108,23 @@ class ZoneMonitor(CloudLocationMonitor):
         return zone
 
     def compute_zone_weights(
-        self, worker_cores: int, local_ssd_data_disk: bool, data_disk_size_gb: int
+        self,
+        worker_cores: int,
+        local_ssd_data_disk: bool,
+        data_disk_size_gb: int,
+        preemptible: bool,
+        regions: List[str],
     ) -> List[ZoneWeight]:
         weights = []
-        for r in self._region_info.values():
+        for region_name, r in self._region_info.items():
+            if region_name not in regions:
+                continue
+
             quota_remaining = {q['metric']: q['limit'] - q['usage'] for q in r['quotas']}
 
-            remaining = quota_remaining['PREEMPTIBLE_CPUS'] / worker_cores
+            cpu_label = 'PREEMPTIBLE_CPUS' if preemptible else 'CPUS'
+            remaining = quota_remaining[cpu_label] / worker_cores
+
             if local_ssd_data_disk:
                 specific_disk_type_quota = quota_remaining['LOCAL_SSD_TOTAL_GB']
             else:

@@ -84,14 +84,6 @@ trait ShimRVDSpec extends AbstractRVDSpec {
 
   override def partitioner: RVDPartitioner = shim.partitioner
 
-  override def read(
-    ctx: ExecuteContext,
-    path: String,
-    requestedType: TStruct,
-    newPartitioner: Option[RVDPartitioner],
-    filterIntervals: Boolean
-  ): RVD = shim.read(ctx, path, requestedType, newPartitioner, filterIntervals)
-
   override def typedCodecSpec: AbstractTypedCodecSpec = shim.typedCodecSpec
 
   override def partFiles: Array[String] = shim.partFiles

@@ -10,7 +10,7 @@ from .geoms import Geom, FigureAttribute
 from .labels import Labels
 from .scale import Scale, ScaleContinuous, ScaleDiscrete, scale_x_continuous, scale_x_genomic, scale_y_continuous, \
     scale_x_discrete, scale_y_discrete, scale_color_discrete, scale_color_continuous, scale_fill_discrete, \
-    scale_fill_continuous
+    scale_fill_continuous, scale_shape_auto
 from .aes import Aesthetic, aes
 from .facets import Faceter
 from .utils import is_continuous_type, is_genomic_type, check_scale_continuity
@@ -91,6 +91,13 @@ class GGPlot:
                     self.scales["fill"] = scale_fill_discrete()
                 elif aesthetic_str == "fill" and is_continuous:
                     self.scales["fill"] = scale_fill_continuous()
+                elif aesthetic_str == "shape" and not is_continuous:
+                    self.scales["shape"] = scale_shape_auto()
+                elif aesthetic_str == "shape" and is_continuous:
+                    raise ValueError(
+                        "The 'shape' aesthetic does not support continuous "
+                        "types. Specify values of a discrete type instead."
+                    )
                 else:
                     if is_continuous:
                         self.scales[aesthetic_str] = ScaleContinuous(aesthetic_str)
@@ -101,7 +108,9 @@ class GGPlot:
         return GGPlot(self.ht, self.aes, self.geoms[:], self.labels, self.coord_cartesian, self.scales, self.facet)
 
     def verify_scales(self):
-        for geom_idx, geom in enumerate(self.geoms):
+        for aes_key in self.aes.keys():
+            check_scale_continuity(self.scales[aes_key], self.aes[aes_key].dtype, aes_key)
+        for geom in self.geoms:
             aesthetic_dict = geom.aes.properties
             for aes_key in aesthetic_dict.keys():
                 check_scale_continuity(self.scales[aes_key], aesthetic_dict[aes_key].dtype, aes_key)
@@ -126,7 +135,8 @@ class GGPlot:
                 geom_label = make_geom_label(geom_idx)
                 fields_to_select[geom_label] = hl.struct(**geom.aes.properties)
 
-            return self.ht.select(**fields_to_select)
+            name, ht = hl.struct(**fields_to_select)._to_table('__fallback')
+            return ht.select(**{field: ht[name][field] for field in fields_to_select})
 
         def collect_mappings_and_precomputed(selected):
             mapping_per_geom = []
@@ -160,9 +170,9 @@ class GGPlot:
                 stat = self.geoms[geom_idx].get_stat()
                 geom_label = make_geom_label(geom_idx)
                 if use_faceting:
-                    agg = hl.agg.group_by(selected.facet, stat.make_agg(combined_mapping, precomputed[geom_label]))
+                    agg = hl.agg.group_by(selected.facet, stat.make_agg(combined_mapping, precomputed[geom_label], self.scales))
                 else:
-                    agg = stat.make_agg(combined_mapping, precomputed[geom_label])
+                    agg = stat.make_agg(combined_mapping, precomputed[geom_label], self.scales)
                 aggregators[geom_label] = agg
                 labels_to_stats[geom_label] = stat
 
@@ -196,15 +206,17 @@ class GGPlot:
             all_dfs = list(itertools.chain(*[facet_to_dfs_dict.values() for _, _, facet_to_dfs_dict in geoms_and_grouped_dfs_by_facet_idx]))
             transformers[scale.aesthetic_name] = scale.create_local_transformer(all_dfs)
 
-        if self.facet is not None:
+        is_faceted = self.facet is not None
+        if is_faceted:
             n_facet_rows, n_facet_cols = self.facet.get_facet_nrows_and_ncols(num_facets)
             subplot_args = {
                 "rows": n_facet_rows,
                 "cols": n_facet_cols,
-                "shared_yaxes": True,
-                "subplot_titles": [", ".join([str(fs_value) for fs_value in facet_struct.values()]) for facet_struct in facet_list]
+                "subplot_titles": [", ".join([str(fs_value) for fs_value in facet_struct.values()]) for facet_struct in facet_list],
+                **self.facet.get_shared_axis_kwargs()
             }
         else:
+            n_facet_rows = 1
             n_facet_cols = 1
             subplot_args = {
                 "rows": 1,
@@ -213,7 +225,7 @@ class GGPlot:
         fig = make_subplots(**subplot_args)
 
         # Need to know what I've added to legend already so we don't do it more than once.
-        legend_cache = set()
+        legend_cache = {}
 
         for geom, geom_label, facet_to_grouped_dfs in geoms_and_grouped_dfs_by_facet_idx:
             for facet_idx, grouped_dfs in facet_to_grouped_dfs.items():
@@ -228,7 +240,7 @@ class GGPlot:
 
                 facet_row = facet_idx // n_facet_cols + 1
                 facet_col = facet_idx % n_facet_cols + 1
-                geom.apply_to_fig(self, scaled_grouped_dfs, fig, precomputed[geom_label], facet_row, facet_col, legend_cache)
+                geom.apply_to_fig(scaled_grouped_dfs, fig, precomputed[geom_label], facet_row, facet_col, legend_cache, is_faceted)
 
         # Important to update axes after labels, axes names take precedence.
         self.labels.apply_to_fig(fig)
@@ -243,10 +255,16 @@ class GGPlot:
         fig = fig.update_yaxes(title_font_size=18, ticks="outside")
         fig.update_layout(
             plot_bgcolor="white",
-            xaxis=dict(linecolor="black"),
-            yaxis=dict(linecolor="black"),
             font_family='Arial, "Open Sans", verdana, sans-serif',
-            title_font_size=26
+            title_font_size=26,
+            xaxis=dict(linecolor="black", showticklabels=True),
+            yaxis=dict(linecolor="black", showticklabels=True),
+            # axes for plotly subplots are numbered following the pattern [xaxis, xaxis2, xaxis3, ...]
+            **{
+                f"{var}axis{idx}": {"linecolor": "black", "showticklabels": True}
+                for idx in range(2, n_facet_rows + n_facet_cols + 1)
+                for var in ["x", "y"]
+            },
         )
 
         return fig

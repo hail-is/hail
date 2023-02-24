@@ -2,7 +2,7 @@ from typing import Collection, List, Optional, Set
 
 import hail as hl
 from hail import MatrixTable, Table
-from hail.ir import Apply, TableMapRows, TopLevelReference
+from hail.ir import Apply, TableMapRows
 from hail.experimental.vcf_combiner.vcf_combiner import combine_gvcfs, localize, parse_as_fields, unlocalize
 from ..variant_dataset import VariantDataset
 
@@ -89,7 +89,7 @@ def make_variants_matrix_table(mt: MatrixTable,
             mt.row.dtype)
         _transform_variant_function_map[mt.row.dtype, info_key] = f
     transform_row = _transform_variant_function_map[mt.row.dtype, info_key]
-    return unlocalize(Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, TopLevelReference('row')))))
+    return unlocalize(Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, mt.row._ir))))
 
 
 def defined_entry_fields(mt: MatrixTable, sample=None) -> Set[str]:
@@ -130,20 +130,19 @@ def make_reference_matrix_table(mt: MatrixTable,
         f = hl.experimental.define_function(
             lambda row: hl.struct(
                 locus=row.locus,
-                ref_allele=row.alleles[0][0],
                 __entries=row.__entries.map(
                     lambda e: make_entry_struct(e, row))),
             mt.row.dtype)
         _transform_reference_fuction_map[mt.row.dtype, entry_key] = f
 
     transform_row = _transform_reference_fuction_map[mt.row.dtype, entry_key]
-    return unlocalize(Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, TopLevelReference('row')))))
+    return unlocalize(Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, mt.row._ir))))
 
 
 def transform_gvcf(mt: MatrixTable,
                    reference_entry_fields_to_keep: Collection[str],
                    info_to_keep: Optional[Collection[str]] = None) -> VariantDataset:
-    """Transforms a gvcf into a sparse matrix table
+    """Transforms a GVCF into a sparse matrix table
 
     The input to this should be some result of either :func:`.import_vcf` or
     :func:`.import_gvcfs` with ``array_elements_required=False``.
@@ -154,14 +153,14 @@ def transform_gvcf(mt: MatrixTable,
     Parameters
     ----------
     mt : :class:`.MatrixTable`
-        The gvcf being transformed.
+        The GVCF being transformed.
     reference_entry_fields_to_keep : :class:`list` of :class:`str`
         Genotype fields to keep in the reference table. If empty, the first
         10,000 reference block rows of ``mt`` will be sampled and all fields
         found to be defined other than ``GT``, ``AD``, and ``PL`` will be entry
         fields in the resulting reference matrix in the dataset.
     info_to_keep : :class:`list` of :class:`str`
-        Any ``INFO`` fields in the gvcf that are to be kept and put in the ``gvcf_info`` entry
+        Any ``INFO`` fields in the GVCF that are to be kept and put in the ``gvcf_info`` entry
         field. By default, all ``INFO`` fields except ``END`` and ``DP`` are kept.
 
     Returns
@@ -190,13 +189,12 @@ def transform_gvcf(mt: MatrixTable,
 _merge_function_map = {}
 
 
-def combine_r(ts):
+def combine_r(ts, ref_block_max_len_field):
     if (ts.row.dtype, ts.globals.dtype) not in _merge_function_map:
         f = hl.experimental.define_function(
             lambda row, gbl:
             hl.struct(
                 locus=row.locus,
-                ref_allele=hl.find(hl.is_defined, row.data.map(lambda d: d.ref_allele)),
                 __entries=hl.range(0, hl.len(row.data)).flatmap(
                     lambda i:
                     hl.if_else(hl.is_missing(row.data[i]),
@@ -208,14 +206,29 @@ def combine_r(ts):
     merge_function = _merge_function_map[(ts.row.dtype, ts.globals.dtype)]
     ts = Table(TableMapRows(ts._tir, Apply(merge_function._name,
                                            merge_function._ret_type,
-                                           TopLevelReference('row'),
-                                           TopLevelReference('global'))))
-    return ts.transmute_globals(__cols=hl.flatten(ts.g.map(lambda g: g.__cols)))
+                                           ts.row._ir,
+                                           ts.globals._ir)))
+
+    global_fds = {'__cols': hl.flatten(ts.g.map(lambda g: g.__cols))}
+    if ref_block_max_len_field is not None:
+        global_fds[ref_block_max_len_field] = hl.max(ts.g.map(lambda g: g[ref_block_max_len_field]))
+    return ts.transmute_globals(**global_fds)
 
 
 def combine_references(mts: List[MatrixTable]) -> MatrixTable:
+    fd = 'ref_block_max_length'
+    n_with_ref_max_len = len([mt for mt in mts if fd in mt.globals])
+    any_ref_max = n_with_ref_max_len > 0
+    all_ref_max = n_with_ref_max_len == len(mts)
+
+    # if some mts have max ref len but not all, drop it
+    if any_ref_max and not all_ref_max:
+        mts = [mt.drop(fd) if fd in mt.globals else mt for mt in mts]
+
+    mts = [mt.drop('ref_allele') if 'ref_allele' in mt.row else mt for mt in mts]
+
     ts = hl.Table.multi_way_zip_join([localize(mt) for mt in mts], 'data', 'g')
-    combined = combine_r(ts)
+    combined = combine_r(ts, fd if all_ref_max else None)
     return unlocalize(combined)
 
 

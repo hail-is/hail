@@ -90,8 +90,8 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
         val interval = value.asInterval
         val start = EmitCode.fromI(cb.emb)(cb => interval.loadStart(cb))
         val stop = EmitCode.fromI(cb.emb)(cb => interval.loadEnd(cb))
-        val includesStart = EmitCode.present(cb.emb, new SBooleanValue(interval.includesStart()))
-        val includesStop = EmitCode.present(cb.emb, new SBooleanValue(interval.includesEnd()))
+        val includesStart = EmitCode.present(cb.emb, new SBooleanValue(interval.includesStart))
+        val includesStop = EmitCode.present(cb.emb, new SBooleanValue(interval.includesEnd))
         representation.store(cb, region,
           SStackStruct.constructFromArgs(cb, region, representation.virtualType,
             start, stop, includesStart, includesStop), deepCopy)
@@ -106,8 +106,8 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
         val interval = value.asInterval
         val start = EmitCode.fromI(cb.emb)(cb => interval.loadStart(cb))
         val stop = EmitCode.fromI(cb.emb)(cb => interval.loadEnd(cb))
-        val includesStart = EmitCode.present(cb.emb, new SBooleanValue(interval.includesStart()))
-        val includesStop = EmitCode.present(cb.emb, new SBooleanValue(interval.includesEnd()))
+        val includesStart = EmitCode.present(cb.emb, new SBooleanValue(interval.includesStart))
+        val includesStop = EmitCode.present(cb.emb, new SBooleanValue(interval.includesEnd))
         representation.storeAtAddress(cb, addr, region,
           SStackStruct.constructFromArgs(cb, region, representation.virtualType,
             start, stop, includesStart, includesStop),

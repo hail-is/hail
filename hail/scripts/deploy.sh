@@ -8,16 +8,7 @@ retry() {
         (sleep 5 && "$@");
 }
 
-[[ $1 ]] || (echo "./deploy.sh HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE HAIL_GENETICS_HAIL_IMAGE WHEEL_FOR_AZURE WEBSITE_TAR" ; exit 1)
-[[ $2 ]] || (echo "./deploy.sh HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE HAIL_GENETICS_HAIL_IMAGE WHEEL_FOR_AZURE WEBSITE_TAR" ; exit 1)
-[[ $3 ]] || (echo "./deploy.sh HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE HAIL_GENETICS_HAIL_IMAGE WHEEL_FOR_AZURE WEBSITE_TAR" ; exit 1)
-git cat-file -e $3^{commit} || (echo "bad sha $3" ; exit 1)
-[[ $4 ]] || (echo "./deploy.sh HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE HAIL_GENETICS_HAIL_IMAGE WHEEL_FOR_AZURE WEBSITE_TAR" ; exit 1)
-[[ $5 ]] || (echo "./deploy.sh HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE HAIL_GENETICS_HAIL_IMAGE WHEEL_FOR_AZURE WEBSITE_TAR" ; exit 1)
-[[ $6 ]] || (echo "./deploy.sh HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE HAIL_GENETICS_HAIL_IMAGE WHEEL_FOR_AZURE WEBSITE_TAR" ; exit 1)
-[[ $7 ]] || (echo "./deploy.sh HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE HAIL_GENETICS_HAIL_IMAGE WHEEL_FOR_AZURE WEBSITE_TAR" ; exit 1)
-[[ $8 ]] || (echo "./deploy.sh HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE HAIL_GENETICS_HAIL_IMAGE WHEEL_FOR_AZURE WEBSITE_TAR" ; exit 1)
-[[ $9 ]] || (echo "./deploy.sh HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE HAIL_GENETICS_HAIL_IMAGE WHEEL_FOR_AZURE WEBSITE_TAR" ; exit 1)
+[[ $# -eq 10 ]] || (echo "./deploy.sh HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE HAIL_GENETICS_HAIL_IMAGE HAIL_GENETICS_HAILTOP_IMAGE WHEEL_FOR_AZURE WEBSITE_TAR" ; exit 1)
 
 HAIL_PIP_VERSION=$1
 HAIL_VERSION=$2
@@ -26,10 +17,12 @@ REMOTE=$4
 WHEEL=$5
 GITHUB_OAUTH_HEADER_FILE=$6
 HAIL_GENETICS_HAIL_IMAGE=$7
-WHEEL_FOR_AZURE=$8
-WEBSITE_TAR=$9
+HAIL_GENETICS_HAILTOP_IMAGE=$8
+WHEEL_FOR_AZURE=$9
+WEBSITE_TAR=${10}
 
 retry skopeo inspect $HAIL_GENETICS_HAIL_IMAGE || (echo "could not pull $HAIL_GENETICS_HAIL_IMAGE" ; exit 1)
+retry skopeo inspect $HAIL_GENETICS_HAILTOP_IMAGE || (echo "could not pull $HAIL_GENETICS_HAILTOP_IMAGE" ; exit 1)
 
 if git ls-remote --exit-code --tags $REMOTE $HAIL_PIP_VERSION
 then
@@ -79,7 +72,9 @@ curl -XPOST -H @$GITHUB_OAUTH_HEADER_FILE https://api.github.com/repos/hail-is/h
 }'
 
 retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE docker://docker.io/hailgenetics/hail:$HAIL_PIP_VERSION
-retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE docker://gcr.io/hail-vdc/hailgenetics/hail:$HAIL_PIP_VERSION
+retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hail:$HAIL_PIP_VERSION
+retry skopeo copy $HAIL_GENETICS_HAILTOP_IMAGE docker://docker.io/hailgenetics/hailtop:$HAIL_PIP_VERSION
+retry skopeo copy $HAIL_GENETICS_HAILTOP_IMAGE docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hailtop:$HAIL_PIP_VERSION
 
 # deploy to PyPI
 twine upload $WHEEL
@@ -104,45 +99,33 @@ website_url=gs://hail-common/website/$HAIL_PIP_VERSION/www.tar.gz
 gsutil cp $WEBSITE_TAR $website_url
 gsutil -m retention temp set $website_url
 
-# Create pull request to update Terra version
+# Create pull request to update Terra and AoU Hail versions
 terra_docker_dir=$(mktemp -d)
+update_terra_image_py="$(cd "$(dirname "$0")" && pwd)/update-terra-image.py"
 git clone https://github.com/DataBiosphere/terra-docker $terra_docker_dir
 pushd $terra_docker_dir
 git config user.name hail
 git config user.email hail@broadinstitute.org
 
-branch_name=update-to-hail-$HAIL_PIP_VERSION
-git checkout -B $branch_name
-
-terra_jupyter_hail_version=$(python3 -c 'import json
-with open("config/conf.json") as conf_f:
-    conf = json.load(conf_f)
-[hail_data] = [data for data in conf["image_data"] if data.get("name") == "terra-jupyter-hail"]
-hail_image_version = hail_data["version"]
-hail_image_version = [int(n) for n in hail_image_version.split(".")]
-hail_image_version[-1] += 1
-hail_data["version"] = ".".join(str(i) for i in hail_image_version)
-with open("config/conf.json", "w") as conf_f:
-    json.dump(conf, conf_f, indent=4, separators=(",", " : "))
-    print(file=conf_f)  # newline at end of file
-print(hail_data["version"])
-')
-
-temp_changelog=$(mktemp)
-cat - terra-jupyter-hail/CHANGELOG.md > $temp_changelog <<EOF
-## $terra_jupyter_hail_version - $(date '+%Y-%m-%d')
-- Update \`hail\` to \`$HAIL_PIP_VERSION\`
-  - See https://hail.is/docs/0.2/change_log.html#version-$(tr '.' '-' <<<$HAIL_PIP_VERSION) for details
-
-Image URL: \`us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:$terra_jupyter_hail_version\`
-
-EOF
-mv $temp_changelog terra-jupyter-hail/CHANGELOG.md
-sed -Ei "/ENV HAIL_VERSION/s/[0-9]+\.[0-9]+\.[0-9]+/${HAIL_PIP_VERSION}/" terra-jupyter-hail/Dockerfile
-git commit -m "Update hail to version $HAIL_PIP_VERSION" -- config/conf.json terra-jupyter-hail
-git push -f origin HEAD
-curl -XPOST -H @$GITHUB_OAUTH_HEADER_FILE https://api.github.com/repos/DataBiosphere/terra-docker/pulls -d "{
+make_pr_for() {
+    branch_name=update-$1-to-hail-$HAIL_PIP_VERSION
+    git checkout -B $branch_name
+    python3 $update_terra_image_py $HAIL_PIP_VERSION $1
+    git commit -m "Update $1 to Hail version $HAIL_PIP_VERSION" -- config/conf.json $1
+    git push -f origin HEAD
+    echo "{
   \"head\": \"$branch_name\",
   \"base\": \"master\",
-  \"title\": \"$(tr '-' ' ' <<<$branch_name)\"
+  \"title\": \"Update $1 to Hail $HAIL_PIP_VERSION\"
 }"
+    curl -XPOST -H @$GITHUB_OAUTH_HEADER_FILE https://api.github.com/repos/DataBiosphere/terra-docker/pulls -d "{
+  \"head\": \"$branch_name\",
+  \"base\": \"master\",
+  \"title\": \"Update $1 to Hail $HAIL_PIP_VERSION\"
+}"
+    git reset --hard HEAD
+    git checkout master
+}
+
+make_pr_for terra-jupyter-hail
+make_pr_for terra-jupyter-aou

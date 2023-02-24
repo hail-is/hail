@@ -3,11 +3,11 @@ package is.hail.expr.ir
 import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
+import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
+import is.hail.rvd.RVD
 import is.hail.types._
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual._
-import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
-import is.hail.rvd.RVD
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.json4s.JValue
@@ -114,13 +114,17 @@ class PruneSuite extends HailSuite {
 
     def pathsUsed: Seq[String] = FastSeq()
 
-    def apply(tr: TableRead, ctx: ExecuteContext): TableValue = ???
+    override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = ???
 
     def partitionCounts: Option[IndexedSeq[Long]] = ???
 
-    def rowAndGlobalPTypes(ctx: ExecuteContext, requestedType: TableType): (PStruct, PStruct) = ???
+    override def rowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+      ???
 
-    def fullType: TableType = tab.typ
+    override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+      ???
+
+    override def fullType: TableType = tab.typ
   })
 
   lazy val mType = MatrixType(
@@ -143,9 +147,12 @@ class PruneSuite extends HailSuite {
 
     def partitionCounts: Option[IndexedSeq[Long]] = None
 
-    def fullMatrixType: MatrixType = mat.typ
+    def rowUIDType = TTuple(TInt64, TInt64)
+    def colUIDType = TTuple(TInt64, TInt64)
 
-    def lower(mr: MatrixRead): TableIR = ???
+    def fullMatrixTypeWithoutUIDs: MatrixType = mat.typ
+
+    def lower(requestedType: MatrixType, dropCols: Boolean, dropRows: Boolean): TableIR = ???
 
     def toJValue: JValue = ???
 
@@ -464,6 +471,11 @@ class PruneSuite extends HailSuite {
       Array(subsetMatrixTable(mat.typ, "global.g1", "sa.c2", "va.r2", "g.e2", "va.r3"), null))
   }
 
+  @Test def testMatrixKeyRowsByMemo() {
+    val mkr = MatrixKeyRowsBy(mat, FastIndexedSeq("rk"))
+    checkMemo(mkr, subsetMatrixTable(mkr.typ, "va.rk"), Array(subsetMatrixTable(mat.typ, "va.rk")))
+  }
+
   @Test def testMatrixMapRowsMemo() {
     val mmr = MatrixMapRows(
       MatrixKeyRowsBy(mat, IndexedSeq.empty),
@@ -630,7 +642,7 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testStreamGroupByKeyMemo() {
-    checkMemo(StreamGroupByKey(st, FastIndexedSeq("a")),
+    checkMemo(StreamGroupByKey(st, FastIndexedSeq("a"), false),
               TStream(TStream(justB)), Array(TStream(TStruct("a" -> TInt32, "b" -> TInt32)), null))
   }
 
@@ -827,10 +839,10 @@ class PruneSuite extends HailSuite {
       NA(globT),
       "ctx",
       "glob",
-      MakeTuple.ordered(FastSeq(Ref("ctx", ctxT), Ref("glob", globT))))
+      MakeTuple.ordered(FastSeq(Ref("ctx", ctxT), Ref("glob", globT))), NA(TString), "test")
 
     checkMemo(x, TArray(TTuple(ctxT.typeAfterSelectNames(Array("a")), globT.typeAfterSelectNames(Array("c")))),
-      Array(TStream(ctxT.typeAfterSelectNames(Array("a"))), globT.typeAfterSelectNames(Array("c")), null))
+      Array(TStream(ctxT.typeAfterSelectNames(Array("a"))), globT.typeAfterSelectNames(Array("c")), null, TString))
   }
 
   @Test def testTableCountMemo() {
@@ -1104,7 +1116,14 @@ class PruneSuite extends HailSuite {
       MakeStruct(Seq(("ck", getColField("ck")), ("c2", getColField("c2")), ("c3", getColField("c3")))), Some(FastIndexedSeq("ck"))
     )
 
-    val mucBothSame = MatrixUnionCols(wrappedMat, wrappedMat, "inner")
+    val wrappedMat2 = MatrixRename(
+        wrappedMat,
+        Map.empty,
+        Map.empty,
+        wrappedMat.typ.rowType.fieldNames.map(x => x -> (x + "_")).toMap,
+        Map.empty)
+
+    val mucBothSame = MatrixUnionCols(wrappedMat, wrappedMat2, "inner")
     checkRebuild(mucBothSame, mucBothSame.typ)
     checkRebuild[MatrixUnionCols](mucBothSame, mucBothSame.typ.copy(colType = TStruct(("ck", TString), ("c2", TInt32))), (old, rebuilt) =>
       (old.typ.rowType == rebuilt.typ.rowType) &&
@@ -1115,7 +1134,7 @@ class PruneSuite extends HailSuite {
 
     // Since `mat` is a MatrixLiteral, it won't be rebuilt, will keep all fields. But wrappedMat is a MatrixMapCols, so it will drop
     // unrequested fields. This test would fail without upcasting in the MatrixUnionCols rebuild rule.
-    val muc2 = MatrixUnionCols(mat, wrappedMat, "inner")
+    val muc2 = MatrixUnionCols(mat, wrappedMat2, "inner")
     checkRebuild[MatrixUnionCols](muc2, muc2.typ.copy(colType = TStruct(("ck", TString))), (old, rebuilt) =>
       childrenMatch(rebuilt)
     )
@@ -1222,7 +1241,7 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testStreamGroupByKeyRebuild() {
-    checkRebuild(StreamGroupByKey(MakeStream(Seq(NA(ts)), TStream(ts)), FastIndexedSeq("a")), TStream(TStream(subsetTS("b"))),
+    checkRebuild(StreamGroupByKey(MakeStream(Seq(NA(ts)), TStream(ts)), FastIndexedSeq("a"), false), TStream(TStream(subsetTS("b"))),
                  (_: BaseIR, r: BaseIR) => {
                    val ir = r.asInstanceOf[StreamGroupByKey]
                    ir.a.typ == TStream(subsetTS("a", "b"))
@@ -1355,7 +1374,7 @@ class PruneSuite extends HailSuite {
       NA(globT),
       "ctx",
       "glob",
-      MakeTuple.ordered(FastSeq(Ref("ctx", ctxT), Ref("glob", globT))))
+      MakeTuple.ordered(FastSeq(Ref("ctx", ctxT), Ref("glob", globT))), NA(TString), "test")
 
     val selectedCtxT = ctxT.typeAfterSelectNames(Array("a"))
     val selectedGlobT = globT.typeAfterSelectNames(Array("c"))
@@ -1365,7 +1384,7 @@ class PruneSuite extends HailSuite {
         NA(selectedGlobT),
         "ctx",
         "glob",
-        MakeTuple.ordered(FastSeq(Ref("ctx", selectedCtxT), Ref("glob", selectedGlobT))))
+        MakeTuple.ordered(FastSeq(Ref("ctx", selectedCtxT), Ref("glob", selectedGlobT))), NA(TString), "test")
     })
   }
 

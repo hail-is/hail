@@ -5,31 +5,29 @@ from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
     BlockMatrixMultiWrite, TableToValueApply, \
     MatrixToValueApply, BlockMatrixToValueApply, BlockMatrixCollect, \
     Literal, LiftMeOut, Join, JavaIR, I32, I64, F32, F64, Str, FalseIR, TrueIR, \
-    Void, Cast, NA, IsNA, If, Coalesce, Let, AggLet, Ref, TopLevelReference, \
+    Void, Cast, NA, IsNA, If, Coalesce, Let, AggLet, Ref, TopLevelReference, ProjectedTopLevelReference, SelectedTopLevelReference, \
     TailLoop, Recur, ApplyBinaryPrimOp, ApplyUnaryPrimOp, ApplyComparisonOp, \
     MakeArray, ArrayRef, ArraySlice, ArrayLen, ArrayZeros, StreamIota, StreamRange, StreamGrouped, MakeNDArray, \
     NDArrayShape, NDArrayReshape, NDArrayMap, NDArrayMap2, NDArrayRef, NDArraySlice, NDArraySVD, \
     NDArrayReindex, NDArrayAgg, NDArrayMatMul, NDArrayQR, NDArrayInv, NDArrayConcat, NDArrayWrite, \
-    ArraySort, ToSet, ToDict, ToArray, CastToArray, ToStream, \
-    LowerBoundOnOrderedCollection, GroupByKey, StreamMap, StreamZip, \
-    StreamFilter, StreamFlatMap, StreamFold, StreamScan, StreamWhiten, \
-    StreamJoinRightDistinct, StreamFor, AggFilter, AggExplode, AggGroupBy, \
-    AggArrayPerElement, BaseApplyAggOp, ApplyAggOp, ApplyScanOp, AggFold, Begin, \
-    MakeStruct, SelectFields, InsertFields, GetField, MakeTuple, \
-    GetTupleElement, Die, ConsoleLog, Apply, ApplySeeded, TableCount, TableGetGlobals, \
-    TableCollect, TableAggregate, MatrixCount, MatrixAggregate, TableWrite, \
-    udf, subst, clear_session_functions
+    ArraySort, ArrayMaximalIndependentSet, ToSet, ToDict, toArray, ToArray, CastToArray, \
+    ToStream, toStream, LowerBoundOnOrderedCollection, GroupByKey, StreamMap, StreamZip, StreamTake, \
+    StreamFilter, StreamFlatMap, StreamFold, StreamScan, StreamJoinRightDistinct, StreamFor, StreamWhiten, \
+    AggFilter, AggExplode, AggGroupBy, AggArrayPerElement, BaseApplyAggOp, ApplyAggOp, ApplyScanOp, \
+    AggFold, Begin, MakeStruct, SelectFields, InsertFields, GetField, MakeTuple, \
+    GetTupleElement, Die, ConsoleLog, Apply, ApplySeeded, RNGStateLiteral, RNGSplit,\
+    TableCount, TableGetGlobals, TableCollect, TableAggregate, MatrixCount, \
+    MatrixAggregate, TableWrite, udf, subst, clear_session_functions, ReadPartition, \
+    PartitionNativeIntervalReader, StreamMultiMerge, StreamZipJoin
 from .register_functions import register_functions
 from .register_aggregators import register_aggregators
-from .table_ir import MatrixRowsTable, TableJoin, TableLeftJoinRightDistinct, \
-    TableIntervalJoin, TableUnion, TableRange, TableMapGlobals, TableExplode, \
-    TableKeyBy, TableMapRows, TableRead, MatrixEntriesTable, \
-    TableFilter, TableKeyByAndAggregate, \
-    TableAggregateByKey, MatrixColsTable, TableParallelize, TableHead, \
-    TableTail, TableOrderBy, TableDistinct, RepartitionStrategy, \
-    TableRepartition, CastMatrixToTable, TableRename, TableMultiWayZipJoin, \
-    TableFilterIntervals, TableToTableApply, MatrixToTableApply, \
-    BlockMatrixToTableApply, BlockMatrixToTable, JavaTable, TableMapPartitions
+from .table_ir import (MatrixRowsTable, TableJoin, TableLeftJoinRightDistinct, TableIntervalJoin,
+                       TableUnion, TableRange, TableMapGlobals, TableExplode, TableKeyBy, TableMapRows, TableRead,
+                       MatrixEntriesTable, TableFilter, TableKeyByAndAggregate, TableAggregateByKey, MatrixColsTable,
+                       TableParallelize, TableHead, TableTail, TableOrderBy, TableDistinct, RepartitionStrategy,
+                       TableRepartition, CastMatrixToTable, TableRename, TableMultiWayZipJoin, TableFilterIntervals,
+                       TableToTableApply, MatrixToTableApply, BlockMatrixToTableApply, BlockMatrixToTable, JavaTable,
+                       TableMapPartitions, TableGenomicRange)
 from .matrix_ir import MatrixAggregateRowsByKey, MatrixRead, MatrixFilterRows, \
     MatrixChooseCols, MatrixMapCols, MatrixUnionCols, MatrixMapEntries, \
     MatrixFilterEntries, MatrixKeyRowsBy, MatrixMapRows, MatrixMapGlobals, \
@@ -45,7 +43,7 @@ from .blockmatrix_ir import BlockMatrixRead, BlockMatrixMap, BlockMatrixMap2, \
     RowIntervalSparsifier, RectangleSparsifier, PerBlockSparsifier, BlockMatrixSparsify, \
     BlockMatrixSlice, ValueToBlockMatrix, BlockMatrixRandom, \
     tensor_shape_to_matrix_shape
-from .utils import filter_predicate_with_keep, make_filter_and_replace
+from .utils import filter_predicate_with_keep, make_filter_and_replace, finalize_randomness
 from .matrix_reader import MatrixReader, MatrixNativeReader, MatrixRangeReader, \
     MatrixVCFReader, MatrixBGENReader, MatrixPLINKReader
 from .table_reader import AvroTableReader, TableReader, TableNativeReader, \
@@ -54,7 +52,7 @@ from .blockmatrix_reader import BlockMatrixReader, BlockMatrixNativeReader, \
     BlockMatrixBinaryReader, BlockMatrixPersistReader
 from .matrix_writer import MatrixWriter, MatrixNativeWriter, MatrixVCFWriter, \
     MatrixGENWriter, MatrixBGENWriter, MatrixPLINKWriter, MatrixNativeMultiWriter, MatrixBlockMatrixWriter
-from .table_writer import TableWriter, TableNativeWriter, TableTextWriter
+from .table_writer import (TableWriter, TableNativeWriter, TableTextWriter, TableNativeFanoutWriter)
 from .blockmatrix_writer import BlockMatrixWriter, BlockMatrixNativeWriter, \
     BlockMatrixBinaryWriter, BlockMatrixRectanglesWriter, \
     BlockMatrixMultiWriter, BlockMatrixBinaryMultiWriter, \
@@ -74,6 +72,7 @@ __all__ = [
     'register_aggregators',
     'filter_predicate_with_keep',
     'make_filter_and_replace',
+    'finalize_randomness',
     'Renderable',
     'RenderableStr',
     'ParensRenderer',
@@ -134,6 +133,8 @@ __all__ = [
     'AggLet',
     'Ref',
     'TopLevelReference',
+    'ProjectedTopLevelReference',
+    'SelectedTopLevelReference',
     'TailLoop',
     'Recur',
     'ApplyBinaryPrimOp',
@@ -162,13 +163,19 @@ __all__ = [
     'NDArrayConcat',
     'NDArrayWrite',
     'ArraySort',
+    'ArrayMaximalIndependentSet',
     'ToSet',
     'ToDict',
+    'toArray',
     'ToArray',
     'CastToArray',
+    'toStream',
     'ToStream',
+    'StreamZipJoin',
+    'StreamMultiMerge',
     'LowerBoundOnOrderedCollection',
     'GroupByKey',
+    'StreamTake',
     'StreamMap',
     'StreamZip',
     'StreamFilter',
@@ -198,6 +205,8 @@ __all__ = [
     'ConsoleLog',
     'Apply',
     'ApplySeeded',
+    'RNGStateLiteral',
+    'RNGSplit',
     'TableCount',
     'TableGetGlobals',
     'TableCollect',
@@ -275,6 +284,7 @@ __all__ = [
     'TableKeyBy',
     'TableMapRows',
     'TableMapPartitions',
+    'TableGenomicRange',
     'TableRead',
     'MatrixEntriesTable',
     'TableFilter',
@@ -305,5 +315,8 @@ __all__ = [
     'AvroTableReader',
     'TableWriter',
     'TableNativeWriter',
-    'TableTextWriter'
+    'TableTextWriter',
+    'TableNativeFanoutWriter',
+    'ReadPartition',
+    'PartitionNativeIntervalReader',
 ]

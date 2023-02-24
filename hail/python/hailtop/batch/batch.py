@@ -1,11 +1,14 @@
 import os
 import warnings
 import re
-from typing import Optional, Dict, Union, List, Any, Set
+from typing import Callable, Optional, Dict, Union, List, Any, Set
+from io import BytesIO
+import dill
 
 from hailtop.utils import secret_alnum_string, url_scheme, async_to_blocking
 from hailtop.aiotools import AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.config import configuration_of
 
 from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
 from .exceptions import BatchException
@@ -46,7 +49,13 @@ class Batch:
     name:
         Name of the batch.
     backend:
-        Backend used to execute the jobs. Default is :class:`.LocalBackend`.
+        Backend used to execute the jobs. If no backend is specified, a backend
+        will be created by first looking at the environment variable HAIL_BATCH_BACKEND,
+        then the hailctl config variable batch/backend. These configurations, if set,
+        can be either `local` or `service`, and will result in the use of a
+        :class:`.LocalBackend` and :class:`.ServiceBackend` respectively. If no
+        argument is given and no configurations are set, the default is
+        :class:`.LocalBackend`.
     attributes:
         Key-value pairs of additional attributes. 'name' is not a valid keyword.
         Use the name argument instead.
@@ -86,7 +95,6 @@ class Batch:
         Automatically cancel the batch after N failures have occurred. The default
         behavior is there is no limit on the number of failures. Only
         applicable for the :class:`.ServiceBackend`. Must be greater than 0.
-
     """
 
     _counter = 0
@@ -120,7 +128,15 @@ class Batch:
         self._uid = Batch._get_uid()
         self._job_tokens: Set[str] = set()
 
-        self._backend = backend if backend else _backend.LocalBackend()
+        if backend:
+            self._backend = backend
+        else:
+            backend_config = configuration_of('batch', 'backend', None, 'local')
+            if backend_config == 'service':
+                self._backend = _backend.ServiceBackend()
+            else:
+                assert backend_config == 'local'
+                self._backend = _backend.LocalBackend()
 
         self.name = name
 
@@ -148,6 +164,40 @@ class Batch:
         self._DEPRECATED_fs: Optional[RouterAsyncFS] = None
 
         self._cancel_after_n_failures = cancel_after_n_failures
+
+        self._python_function_defs: Dict[int, Callable] = {}
+        self._python_function_files: Dict[int, _resource.InputResourceFile] = {}
+
+    def _register_python_function(self, function: Callable) -> int:
+        function_id = id(function)
+        self._python_function_defs[function_id] = function
+        return function_id
+
+    async def _serialize_python_to_input_file(
+        self, path: str, subdir: str, file_id: int, code: Any, dry_run: bool = False
+    ) -> _resource.InputResourceFile:
+        pipe = BytesIO()
+        dill.dump(code, pipe, recurse=True)
+        pipe.seek(0)
+
+        code_path = f"{path}/{subdir}/code{file_id}.p"
+
+        if not dry_run:
+            await self._fs.makedirs(os.path.dirname(code_path), exist_ok=True)
+            await self._fs.write(code_path, pipe.getvalue())
+
+        code_input_file = self.read_input(code_path)
+
+        return code_input_file
+
+    async def _serialize_python_functions_to_input_files(
+        self, path: str, dry_run: bool = False
+    ) -> None:
+        for function_id, function in self._python_function_defs.items():
+            file = await self._serialize_python_to_input_file(
+                path, "functions", function_id, function, dry_run
+            )
+            self._python_function_files[function_id] = file
 
     def _unique_job_token(self, n=5):
         token = secret_alnum_string(n)
@@ -220,6 +270,9 @@ class Batch:
         if self._default_timeout is not None:
             j.timeout(self._default_timeout)
 
+        if isinstance(self._backend, _backend.ServiceBackend):
+            j.regions(self._backend.regions)
+
         self._jobs.append(j)
         return j
 
@@ -237,7 +290,7 @@ class Batch:
 
         .. code-block:: python
 
-            b = Batch(default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
+            b = Batch(default_python_image='hailgenetics/python-dill:3.7-slim')
 
             def hello(name):
                 return f'hello {name}'
@@ -289,6 +342,9 @@ class Batch:
         if self._default_timeout is not None:
             j.timeout(self._default_timeout)
 
+        if isinstance(self._backend, _backend.ServiceBackend):
+            j.regions(self._backend.regions)
+
         self._jobs.append(j)
         return j
 
@@ -300,6 +356,7 @@ class Batch:
         return jrf
 
     def _new_input_resource_file(self, input_path, value=None):
+        self._backend.validate_file_scheme(input_path)
         if value is None:
             value = f'{secret_alnum_string(5)}/{os.path.basename(input_path.rstrip("/"))}'
         irf = _resource.InputResourceFile(value)
@@ -431,7 +488,7 @@ class Batch:
         self._resource_map.update({rg._uid: rg})
         return rg
 
-    def write_output(self, resource: _resource.Resource, dest: str):  # pylint: disable=R0201
+    def write_output(self, resource: _resource.Resource, dest: str):
         """
         Write resource file or resource file group to an output destination.
 

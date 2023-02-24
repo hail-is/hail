@@ -23,7 +23,7 @@ def build_python_image(fullname: str,
     Examples
     --------
 
-    >>> image = build_python_image('gcr.io/hail-vdc/batch-python',
+    >>> image = build_python_image('us-docker.pkg.dev/<MY_GCP_PROJECT>/hail/batch-python',
     ...                            requirements=['pandas']) # doctest: +SKIP
 
     Parameters
@@ -82,15 +82,15 @@ RUN pip install --upgrade --no-cache-dir -r requirements.txt && \
     python3 -m pip check
 ''')
 
-            sync_check_exec('docker', 'build', '-t', fullname, docker_path, capture_output=(not show_docker_output))
+            sync_check_exec('docker', 'build', '-t', fullname, docker_path, capture_output=not show_docker_output)
             print(f'finished building image {fullname}')
         else:
-            sync_check_exec('docker', 'pull', base_image, capture_output=(not show_docker_output))
-            sync_check_exec('docker', 'tag', base_image, fullname, capture_output=(not show_docker_output))
+            sync_check_exec('docker', 'pull', base_image, capture_output=not show_docker_output)
+            sync_check_exec('docker', 'tag', base_image, fullname, capture_output=not show_docker_output)
             print(f'finished pulling image {fullname}')
 
         if '/' in fullname:
-            sync_check_exec('docker', 'push', fullname, capture_output=(not show_docker_output))
+            sync_check_exec('docker', 'push', fullname, capture_output=not show_docker_output)
             print(f'finished pushing image {fullname}')
     finally:
         shutil.rmtree(docker_path, ignore_errors=True)

@@ -1,3 +1,5 @@
+import traceback
+
 import pytest
 
 import hail as hl
@@ -7,9 +9,6 @@ from ..helpers import *
 import numpy as np
 import math
 from hail.expr.expressions import ExpressionException
-
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
 
 
 def sparsify_numpy(np_mat, block_size, blocks_to_sparsify):
@@ -35,6 +34,89 @@ def sparsify_numpy(np_mat, block_size, blocks_to_sparsify):
         target_mat[a:b, c:d] = np_mat[a:b, c:d]
 
     return target_mat
+
+
+class BatchedAsserts():
+
+    def __init__(self, batch_size=32):
+        self._batch_size = batch_size
+
+    def __enter__(self):
+        self._a_list = []
+        self._b_list = []
+        self._comparison_funcs = []
+        self._tbs = []
+        return self
+
+    def _assert_agree(self, a, b, f):
+        self._a_list.append(a)
+        self._b_list.append(b)
+        self._comparison_funcs.append(f)
+        self._tbs.append(traceback.format_stack())
+
+    def assert_eq(self, a, b):
+        self._assert_agree(a, b, np.testing.assert_equal)
+
+    def assert_close(self, a, b):
+        self._assert_agree(a, b, np.testing.assert_allclose)
+
+    def __exit__(self, *exc):
+        a_list = self._a_list
+        b_list = self._b_list
+        comparisons = self._comparison_funcs
+        tb = self._tbs
+        assert len(a_list) == len(b_list)
+        assert len(a_list) == len(comparisons)
+        assert len(a_list) == len(tb)
+
+        all_bms = {}
+
+        a_results = []
+        for i, a in enumerate(a_list):
+            if isinstance(a, BlockMatrix):
+                all_bms[(0, i)] = a.to_ndarray()
+                a_results.append(None)
+            else:
+                a_results.append(np.array(a))
+
+        b_results = []
+        for i, b in enumerate(b_list):
+            if isinstance(b, BlockMatrix):
+                all_bms[(1, i)] = b.to_ndarray()
+                b_results.append(None)
+            else:
+                b_results.append(np.array(b))
+
+        bm_keys = list(all_bms.keys())
+
+        vals = []
+        batch_size = self._batch_size
+        n_bms = len(bm_keys)
+        for batch_start in range(0, n_bms, batch_size):
+            vals.extend(list(hl.eval(tuple([all_bms[k] for k in bm_keys[batch_start:batch_start + batch_size]]))))
+
+        for (a_or_b, idx), v in zip(bm_keys, vals):
+            if a_or_b == 0:
+                a_results[idx] = v
+            else:
+                b_results[idx] = v
+
+        for i, x in enumerate(a_results):
+            assert x is not None, i
+        for i, x in enumerate(b_results):
+            assert x is not None, i
+
+        for a_res, b_res, comp_func, tb in zip(a_results, b_results, comparisons, tb):
+            try:
+                comp_func(a_res, b_res)
+            except AssertionError as e:
+                i = 0
+                while i < len(tb):
+                    if 'test/hail' in tb[i]:
+                        break
+                    i += 1
+                raise AssertionError(
+                    f'test failure:\n  left={a_res}\n right={b_res}\n f={comp_func.__name__}\n  failure at:\n{"".join(x for x in tb[i:])}') from e
 
 
 class Tests(unittest.TestCase):
@@ -71,7 +153,6 @@ class Tests(unittest.TestCase):
         self._assert_close(bm.sum(axis=0), np.sum(nd, axis=0, keepdims=True))
         self._assert_close(bm.sum(axis=1), np.sum(nd, axis=1, keepdims=True))
 
-    @skip_when_service_backend('very slow / nonterminating')
     def test_from_entry_expr_simple(self):
         mt = get_dataset()
         mt = mt.annotate_entries(x=hl.or_else(mt.GT.n_alt_alleles(), 0)).cache()
@@ -88,7 +169,6 @@ class Tests(unittest.TestCase):
             a4 = hl.eval(BlockMatrix.read(path).to_ndarray())
             self._assert_eq(a1, a4)
 
-    @skip_when_service_backend('hangs')
     def test_from_entry_expr_options(self):
         def build_mt(a):
             data = [{'v': 0, 's': 0, 'x': a[0]},
@@ -123,19 +203,6 @@ class Tests(unittest.TestCase):
         with self.assertRaises(Exception):
             BlockMatrix.from_entry_expr(mt.x)
 
-    @skip_when_service_backend('''
-Caused by: is.hail.utils.HailException: bad shuffle close
-	at __C230collect_distributed_array.__m245split_StreamLen(Unknown Source)
-	at __C230collect_distributed_array.apply(Unknown Source)
-	at __C230collect_distributed_array.apply(Unknown Source)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:140)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-	... 12 more
-''')
     def test_write_from_entry_expr_overwrite(self):
         mt = hl.balding_nichols_model(1, 1, 1)
         mt = mt.select_entries(x=mt.GT.n_alt_alleles())
@@ -189,11 +256,12 @@ Caused by: is.hail.utils.HailException: bad shuffle close
             a4 = BlockMatrix.fromfile(a_f, n_rows, n_cols, block_size=3).to_numpy()
             a5 = BlockMatrix.fromfile(bm_f, n_rows, n_cols).to_numpy()
 
-            self._assert_eq(a1, a)
-            self._assert_eq(a2, a)
-            self._assert_eq(a3, a)
-            self._assert_eq(a4, a)
-            self._assert_eq(a5, a)
+            with BatchedAsserts() as b:
+                b.assert_eq(a1, a)
+                b.assert_eq(a2, a)
+                b.assert_eq(a3, a)
+                b.assert_eq(a4, a)
+                b.assert_eq(a5, a)
 
         bmt = bm.T
         at = a.T
@@ -210,11 +278,12 @@ Caused by: is.hail.utils.HailException: bad shuffle close
             at4 = BlockMatrix.fromfile(at_f, n_cols, n_rows).to_numpy()
             at5 = BlockMatrix.fromfile(bmt_f, n_cols, n_rows).to_numpy()
 
-            self._assert_eq(at1, at)
-            self._assert_eq(at2, at)
-            self._assert_eq(at3, at)
-            self._assert_eq(at4, at)
-            self._assert_eq(at5, at)
+            with BatchedAsserts() as b:
+                b.assert_eq(at1, at)
+                b.assert_eq(at2, at)
+                b.assert_eq(at3, at)
+                b.assert_eq(at4, at)
+                b.assert_eq(at5, at)
 
     @fails_service_backend()
     @fails_local_backend()
@@ -277,7 +346,6 @@ Caused by: is.hail.utils.HailException: bad shuffle close
         mt_round_trip = BlockMatrix.from_entry_expr(mt.element).to_matrix_table_row_major()
         assert mt._same(mt_round_trip)
 
-    @skip_when_service_backend('slow >800s')
     def test_paired_elementwise_ops(self):
         nx = np.array([[2.0]])
         nc = np.array([[1.0], [2.0]])
@@ -296,176 +364,179 @@ Caused by: is.hail.utils.HailException: bad shuffle close
         self.assertRaises(TypeError,
                           lambda: x + np.array(['one'], dtype=str))
 
-        self._assert_eq(+m, 0 + m)
-        self._assert_eq(-m, 0 - m)
+        with BatchedAsserts() as b:
+    
+            b.assert_eq(+m, 0 + m)
+            b.assert_eq(-m, 0 - m)
+    
+            # addition
+            b.assert_eq(x + e, nx + e)
+            b.assert_eq(c + e, nc + e)
+            b.assert_eq(r + e, nr + e)
+            b.assert_eq(m + e, nm + e)
+    
+            b.assert_eq(x + e, e + x)
+            b.assert_eq(c + e, e + c)
+            b.assert_eq(r + e, e + r)
+            b.assert_eq(m + e, e + m)
 
-        # addition
-        self._assert_eq(x + e, nx + e)
-        self._assert_eq(c + e, nc + e)
-        self._assert_eq(r + e, nr + e)
-        self._assert_eq(m + e, nm + e)
-
-        self._assert_eq(x + e, e + x)
-        self._assert_eq(c + e, e + c)
-        self._assert_eq(r + e, e + r)
-        self._assert_eq(m + e, e + m)
-
-        self._assert_eq(x + x, 2 * x)
-        self._assert_eq(c + c, 2 * c)
-        self._assert_eq(r + r, 2 * r)
-        self._assert_eq(m + m, 2 * m)
-
-        self._assert_eq(x + c, np.array([[3.0], [4.0]]))
-        self._assert_eq(x + r, np.array([[3.0, 4.0, 5.0]]))
-        self._assert_eq(x + m, np.array([[3.0, 4.0, 5.0], [6.0, 7.0, 8.0]]))
-        self._assert_eq(c + m, np.array([[2.0, 3.0, 4.0], [6.0, 7.0, 8.0]]))
-        self._assert_eq(r + m, np.array([[2.0, 4.0, 6.0], [5.0, 7.0, 9.0]]))
-        self._assert_eq(x + c, c + x)
-        self._assert_eq(x + r, r + x)
-        self._assert_eq(x + m, m + x)
-        self._assert_eq(c + m, m + c)
-        self._assert_eq(r + m, m + r)
-
-        self._assert_eq(x + nx, x + x)
-        self._assert_eq(x + nc, x + c)
-        self._assert_eq(x + nr, x + r)
-        self._assert_eq(x + nm, x + m)
-        self._assert_eq(c + nx, c + x)
-        self._assert_eq(c + nc, c + c)
-        self._assert_eq(c + nm, c + m)
-        self._assert_eq(r + nx, r + x)
-        self._assert_eq(r + nr, r + r)
-        self._assert_eq(r + nm, r + m)
-        self._assert_eq(m + nx, m + x)
-        self._assert_eq(m + nc, m + c)
-        self._assert_eq(m + nr, m + r)
-        self._assert_eq(m + nm, m + m)
-
-        # subtraction
-        self._assert_eq(x - e, nx - e)
-        self._assert_eq(c - e, nc - e)
-        self._assert_eq(r - e, nr - e)
-        self._assert_eq(m - e, nm - e)
-
-        self._assert_eq(x - e, -(e - x))
-        self._assert_eq(c - e, -(e - c))
-        self._assert_eq(r - e, -(e - r))
-        self._assert_eq(m - e, -(e - m))
-
-        self._assert_eq(x - x, np.zeros((1, 1)))
-        self._assert_eq(c - c, np.zeros((2, 1)))
-        self._assert_eq(r - r, np.zeros((1, 3)))
-        self._assert_eq(m - m, np.zeros((2, 3)))
-
-        self._assert_eq(x - c, np.array([[1.0], [0.0]]))
-        self._assert_eq(x - r, np.array([[1.0, 0.0, -1.0]]))
-        self._assert_eq(x - m, np.array([[1.0, 0.0, -1.0], [-2.0, -3.0, -4.0]]))
-        self._assert_eq(c - m, np.array([[0.0, -1.0, -2.0], [-2.0, -3.0, -4.0]]))
-        self._assert_eq(r - m, np.array([[0.0, 0.0, 0.0], [-3.0, -3.0, -3.0]]))
-        self._assert_eq(x - c, -(c - x))
-        self._assert_eq(x - r, -(r - x))
-        self._assert_eq(x - m, -(m - x))
-        self._assert_eq(c - m, -(m - c))
-        self._assert_eq(r - m, -(m - r))
-
-        self._assert_eq(x - nx, x - x)
-        self._assert_eq(x - nc, x - c)
-        self._assert_eq(x - nr, x - r)
-        self._assert_eq(x - nm, x - m)
-        self._assert_eq(c - nx, c - x)
-        self._assert_eq(c - nc, c - c)
-        self._assert_eq(c - nm, c - m)
-        self._assert_eq(r - nx, r - x)
-        self._assert_eq(r - nr, r - r)
-        self._assert_eq(r - nm, r - m)
-        self._assert_eq(m - nx, m - x)
-        self._assert_eq(m - nc, m - c)
-        self._assert_eq(m - nr, m - r)
-        self._assert_eq(m - nm, m - m)
-
-        # multiplication
-        self._assert_eq(x * e, nx * e)
-        self._assert_eq(c * e, nc * e)
-        self._assert_eq(r * e, nr * e)
-        self._assert_eq(m * e, nm * e)
-
-        self._assert_eq(x * e, e * x)
-        self._assert_eq(c * e, e * c)
-        self._assert_eq(r * e, e * r)
-        self._assert_eq(m * e, e * m)
-
-        self._assert_eq(x * x, x ** 2)
-        self._assert_eq(c * c, c ** 2)
-        self._assert_eq(r * r, r ** 2)
-        self._assert_eq(m * m, m ** 2)
-
-        self._assert_eq(x * c, np.array([[2.0], [4.0]]))
-        self._assert_eq(x * r, np.array([[2.0, 4.0, 6.0]]))
-        self._assert_eq(x * m, np.array([[2.0, 4.0, 6.0], [8.0, 10.0, 12.0]]))
-        self._assert_eq(c * m, np.array([[1.0, 2.0, 3.0], [8.0, 10.0, 12.0]]))
-        self._assert_eq(r * m, np.array([[1.0, 4.0, 9.0], [4.0, 10.0, 18.0]]))
-        self._assert_eq(x * c, c * x)
-        self._assert_eq(x * r, r * x)
-        self._assert_eq(x * m, m * x)
-        self._assert_eq(c * m, m * c)
-        self._assert_eq(r * m, m * r)
-
-        self._assert_eq(x * nx, x * x)
-        self._assert_eq(x * nc, x * c)
-        self._assert_eq(x * nr, x * r)
-        self._assert_eq(x * nm, x * m)
-        self._assert_eq(c * nx, c * x)
-        self._assert_eq(c * nc, c * c)
-        self._assert_eq(c * nm, c * m)
-        self._assert_eq(r * nx, r * x)
-        self._assert_eq(r * nr, r * r)
-        self._assert_eq(r * nm, r * m)
-        self._assert_eq(m * nx, m * x)
-        self._assert_eq(m * nc, m * c)
-        self._assert_eq(m * nr, m * r)
-        self._assert_eq(m * nm, m * m)
-
-        # division
-        self._assert_close(x / e, nx / e)
-        self._assert_close(c / e, nc / e)
-        self._assert_close(r / e, nr / e)
-        self._assert_close(m / e, nm / e)
-
-        self._assert_close(x / e, 1 / (e / x))
-        self._assert_close(c / e, 1 / (e / c))
-        self._assert_close(r / e, 1 / (e / r))
-        self._assert_close(m / e, 1 / (e / m))
-
-        self._assert_close(x / x, np.ones((1, 1)))
-        self._assert_close(c / c, np.ones((2, 1)))
-        self._assert_close(r / r, np.ones((1, 3)))
-        self._assert_close(m / m, np.ones((2, 3)))
-
-        self._assert_close(x / c, np.array([[2 / 1.0], [2 / 2.0]]))
-        self._assert_close(x / r, np.array([[2 / 1.0, 2 / 2.0, 2 / 3.0]]))
-        self._assert_close(x / m, np.array([[2 / 1.0, 2 / 2.0, 2 / 3.0], [2 / 4.0, 2 / 5.0, 2 / 6.0]]))
-        self._assert_close(c / m, np.array([[1 / 1.0, 1 / 2.0, 1 / 3.0], [2 / 4.0, 2 / 5.0, 2 / 6.0]]))
-        self._assert_close(r / m, np.array([[1 / 1.0, 2 / 2.0, 3 / 3.0], [1 / 4.0, 2 / 5.0, 3 / 6.0]]))
-        self._assert_close(x / c, 1 / (c / x))
-        self._assert_close(x / r, 1 / (r / x))
-        self._assert_close(x / m, 1 / (m / x))
-        self._assert_close(c / m, 1 / (m / c))
-        self._assert_close(r / m, 1 / (m / r))
-
-        self._assert_close(x / nx, x / x)
-        self._assert_close(x / nc, x / c)
-        self._assert_close(x / nr, x / r)
-        self._assert_close(x / nm, x / m)
-        self._assert_close(c / nx, c / x)
-        self._assert_close(c / nc, c / c)
-        self._assert_close(c / nm, c / m)
-        self._assert_close(r / nx, r / x)
-        self._assert_close(r / nr, r / r)
-        self._assert_close(r / nm, r / m)
-        self._assert_close(m / nx, m / x)
-        self._assert_close(m / nc, m / c)
-        self._assert_close(m / nr, m / r)
-        self._assert_close(m / nm, m / m)
+            b.assert_eq(x + x, 2 * x)
+            b.assert_eq(c + c, 2 * c)
+            b.assert_eq(r + r, 2 * r)
+            b.assert_eq(m + m, 2 * m)
+    
+            b.assert_eq(x + c, np.array([[3.0], [4.0]]))
+            b.assert_eq(x + r, np.array([[3.0, 4.0, 5.0]]))
+            b.assert_eq(x + m, np.array([[3.0, 4.0, 5.0], [6.0, 7.0, 8.0]]))
+            b.assert_eq(c + m, np.array([[2.0, 3.0, 4.0], [6.0, 7.0, 8.0]]))
+            b.assert_eq(r + m, np.array([[2.0, 4.0, 6.0], [5.0, 7.0, 9.0]]))
+            b.assert_eq(x + c, c + x)
+            b.assert_eq(x + r, r + x)
+            b.assert_eq(x + m, m + x)
+            b.assert_eq(c + m, m + c)
+            b.assert_eq(r + m, m + r)
+    
+            b.assert_eq(x + nx, x + x)
+            b.assert_eq(x + nc, x + c)
+            b.assert_eq(x + nr, x + r)
+            b.assert_eq(x + nm, x + m)
+            b.assert_eq(c + nx, c + x)
+            b.assert_eq(c + nc, c + c)
+            b.assert_eq(c + nm, c + m)
+            b.assert_eq(r + nx, r + x)
+            b.assert_eq(r + nr, r + r)
+            b.assert_eq(r + nm, r + m)
+            b.assert_eq(m + nx, m + x)
+            b.assert_eq(m + nc, m + c)
+            b.assert_eq(m + nr, m + r)
+            b.assert_eq(m + nm, m + m)
+    
+            # subtraction
+            b.assert_eq(x - e, nx - e)
+            b.assert_eq(c - e, nc - e)
+            b.assert_eq(r - e, nr - e)
+            b.assert_eq(m - e, nm - e)
+    
+            b.assert_eq(x - e, -(e - x))
+            b.assert_eq(c - e, -(e - c))
+            b.assert_eq(r - e, -(e - r))
+            b.assert_eq(m - e, -(e - m))
+    
+            b.assert_eq(x - x, np.zeros((1, 1)))
+            b.assert_eq(c - c, np.zeros((2, 1)))
+            b.assert_eq(r - r, np.zeros((1, 3)))
+            b.assert_eq(m - m, np.zeros((2, 3)))
+    
+            b.assert_eq(x - c, np.array([[1.0], [0.0]]))
+            b.assert_eq(x - r, np.array([[1.0, 0.0, -1.0]]))
+            b.assert_eq(x - m, np.array([[1.0, 0.0, -1.0], [-2.0, -3.0, -4.0]]))
+            b.assert_eq(c - m, np.array([[0.0, -1.0, -2.0], [-2.0, -3.0, -4.0]]))
+            b.assert_eq(r - m, np.array([[0.0, 0.0, 0.0], [-3.0, -3.0, -3.0]]))
+            b.assert_eq(x - c, -(c - x))
+            b.assert_eq(x - r, -(r - x))
+            b.assert_eq(x - m, -(m - x))
+            b.assert_eq(c - m, -(m - c))
+            b.assert_eq(r - m, -(m - r))
+    
+            b.assert_eq(x - nx, x - x)
+            b.assert_eq(x - nc, x - c)
+            b.assert_eq(x - nr, x - r)
+            b.assert_eq(x - nm, x - m)
+            b.assert_eq(c - nx, c - x)
+            b.assert_eq(c - nc, c - c)
+            b.assert_eq(c - nm, c - m)
+            b.assert_eq(r - nx, r - x)
+            b.assert_eq(r - nr, r - r)
+            b.assert_eq(r - nm, r - m)
+            b.assert_eq(m - nx, m - x)
+            b.assert_eq(m - nc, m - c)
+            b.assert_eq(m - nr, m - r)
+            b.assert_eq(m - nm, m - m)
+    
+            # multiplication
+            b.assert_eq(x * e, nx * e)
+            b.assert_eq(c * e, nc * e)
+            b.assert_eq(r * e, nr * e)
+            b.assert_eq(m * e, nm * e)
+    
+            b.assert_eq(x * e, e * x)
+            b.assert_eq(c * e, e * c)
+            b.assert_eq(r * e, e * r)
+            b.assert_eq(m * e, e * m)
+    
+            b.assert_eq(x * x, x ** 2)
+            b.assert_eq(c * c, c ** 2)
+            b.assert_eq(r * r, r ** 2)
+            b.assert_eq(m * m, m ** 2)
+    
+            b.assert_eq(x * c, np.array([[2.0], [4.0]]))
+            b.assert_eq(x * r, np.array([[2.0, 4.0, 6.0]]))
+            b.assert_eq(x * m, np.array([[2.0, 4.0, 6.0], [8.0, 10.0, 12.0]]))
+            b.assert_eq(c * m, np.array([[1.0, 2.0, 3.0], [8.0, 10.0, 12.0]]))
+            b.assert_eq(r * m, np.array([[1.0, 4.0, 9.0], [4.0, 10.0, 18.0]]))
+            b.assert_eq(x * c, c * x)
+            b.assert_eq(x * r, r * x)
+            b.assert_eq(x * m, m * x)
+            b.assert_eq(c * m, m * c)
+            b.assert_eq(r * m, m * r)
+    
+            b.assert_eq(x * nx, x * x)
+            b.assert_eq(x * nc, x * c)
+            b.assert_eq(x * nr, x * r)
+            b.assert_eq(x * nm, x * m)
+            b.assert_eq(c * nx, c * x)
+            b.assert_eq(c * nc, c * c)
+            b.assert_eq(c * nm, c * m)
+            b.assert_eq(r * nx, r * x)
+            b.assert_eq(r * nr, r * r)
+            b.assert_eq(r * nm, r * m)
+            b.assert_eq(m * nx, m * x)
+            b.assert_eq(m * nc, m * c)
+            b.assert_eq(m * nr, m * r)
+            b.assert_eq(m * nm, m * m)
+    
+            # division
+            b.assert_close(x / e, nx / e)
+            b.assert_close(c / e, nc / e)
+            b.assert_close(r / e, nr / e)
+            b.assert_close(m / e, nm / e)
+    
+            b.assert_close(x / e, 1 / (e / x))
+            b.assert_close(c / e, 1 / (e / c))
+            b.assert_close(r / e, 1 / (e / r))
+            b.assert_close(m / e, 1 / (e / m))
+    
+            b.assert_close(x / x, np.ones((1, 1)))
+            b.assert_close(c / c, np.ones((2, 1)))
+            b.assert_close(r / r, np.ones((1, 3)))
+            b.assert_close(m / m, np.ones((2, 3)))
+    
+            b.assert_close(x / c, np.array([[2 / 1.0], [2 / 2.0]]))
+            b.assert_close(x / r, np.array([[2 / 1.0, 2 / 2.0, 2 / 3.0]]))
+            b.assert_close(x / m, np.array([[2 / 1.0, 2 / 2.0, 2 / 3.0], [2 / 4.0, 2 / 5.0, 2 / 6.0]]))
+            b.assert_close(c / m, np.array([[1 / 1.0, 1 / 2.0, 1 / 3.0], [2 / 4.0, 2 / 5.0, 2 / 6.0]]))
+            b.assert_close(r / m, np.array([[1 / 1.0, 2 / 2.0, 3 / 3.0], [1 / 4.0, 2 / 5.0, 3 / 6.0]]))
+            b.assert_close(x / c, 1 / (c / x))
+            b.assert_close(x / r, 1 / (r / x))
+            b.assert_close(x / m, 1 / (m / x))
+            b.assert_close(c / m, 1 / (m / c))
+            b.assert_close(r / m, 1 / (m / r))
+    
+            b.assert_close(x / nx, x / x)
+            b.assert_close(x / nc, x / c)
+            b.assert_close(x / nr, x / r)
+            b.assert_close(x / nm, x / m)
+            b.assert_close(c / nx, c / x)
+            b.assert_close(c / nc, c / c)
+            b.assert_close(c / nm, c / m)
+            b.assert_close(r / nx, r / x)
+            b.assert_close(r / nr, r / r)
+            b.assert_close(r / nm, r / m)
+            b.assert_close(m / nx, m / x)
+            b.assert_close(m / nc, m / c)
+            b.assert_close(m / nr, m / r)
+            b.assert_close(m / nm, m / m)
+        
 
     def test_special_elementwise_ops(self):
         nm = np.array([[1.0, 2.0, 3.0, 3.14], [4.0, 5.0, 6.0, 12.12]])
@@ -478,33 +549,6 @@ Caused by: is.hail.utils.HailException: bad shuffle close
         self._assert_close(m.log(), np.log(nm))
         self._assert_close((m - 4).abs(), np.abs(nm - 4))
 
-    @skip_when_service_backend('''intermittent driver error, on this line:
->       self._assert_eq(m @ m.T, nm @ nm.T)
-
-Caused by: java.lang.AssertionError: assertion failed
-	at scala.Predef$.assert(Predef.scala:208)
-	at is.hail.io.BlockingInputBuffer.ensure(InputBuffers.scala:389)
-	at is.hail.io.BlockingInputBuffer.readInt(InputBuffers.scala:412)
-	at __C610collect_distributed_array.__m617INPLACE_DECODE_r_int32_TO_r_int32(Unknown Source)
-	at __C610collect_distributed_array.__m624INPLACE_DECODE_r_array_of_r_int32_TO_r_array_of_r_int32(Unknown Source)
-	at __C610collect_distributed_array.__m622INPLACE_DECODE_r_struct_of_r_int64ANDr_int32ANDr_array_of_r_int32ANDr_int32END_TO_r_struct_of_r_int64ANDr_int32ANDr_array_of_r_int32ANDr_int32END(Unknown Source)
-	at __C610collect_distributed_array.__m621INPLACE_DECODE_r_struct_of_r_int32ANDr_int32ANDr_struct_of_r_int64ANDr_int32ANDr_array_of_r_int32ANDr_int32ENDEND_TO_r_struct_of_r_int32ANDr_int32ANDr_struct_of_r_int64ANDr_int32ANDr_array_of_r_int32ANDr_int32ENDEND(Unknown Source)
-	at __C610collect_distributed_array.__m620INPLACE_DECODE_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_struct_of_r_int64ANDr_int32ANDr_array_of_r_int32ANDr_int32ENDEND_TO_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_struct_of_r_int64ANDr_int32ANDr_array_of_r_int32ANDr_int32ENDEND(Unknown Source)
-	at __C610collect_distributed_array.__m619INPLACE_DECODE_r_array_of_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_struct_of_r_int64ANDr_int32ANDr_array_of_r_int32ANDr_int32ENDEND_TO_r_array_of_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_struct_of_r_int64ANDr_int32ANDr_array_of_r_int32ANDr_int32ENDEND(Unknown Source)
-	at __C610collect_distributed_array.__m613INPLACE_DECODE_r_struct_of_r_struct_of_r_struct_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_struct_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_boolANDr_boolENDANDr_array_of_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_struct_of_r_int64ANDr_int32ANDr_array_of_r_int32ANDr_int32ENDENDEND_TO_r_struct_of_r_struct_of_r_tuple_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_tuple_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_boolANDr_boolENDANDr_array_of_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_struct_of_r_int64ANDr_int32ANDr_array_of_r_int32ANDr_int32ENDENDEND(Unknown Source)
-	at __C610collect_distributed_array.__m612INPLACE_DECODE_r_struct_of_r_struct_of_r_struct_of_r_struct_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_struct_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_boolANDr_boolENDANDr_array_of_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_struct_of_r_int64ANDr_int32ANDr_array_of_r_int32ANDr_int32ENDENDENDANDr_binaryEND_TO_r_struct_of_r_struct_of_r_struct_of_r_tuple_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_tuple_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_boolANDr_boolENDANDr_array_of_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_struct_of_r_int64ANDr_int32ANDr_array_of_r_int32ANDr_int32ENDENDENDANDr_stringEND(Unknown Source)
-	at __C610collect_distributed_array.__m611DECODE_r_struct_of_r_struct_of_r_struct_of_r_struct_of_r_struct_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_struct_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_boolANDr_boolENDANDr_array_of_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_struct_of_r_int64ANDr_int32ANDr_array_of_r_int32ANDr_int32ENDENDENDANDr_binaryENDEND_TO_SBaseStructPointer(Unknown Source)
-	at __C610collect_distributed_array.applyregion0_0(Unknown Source)
-	at __C610collect_distributed_array.apply(Unknown Source)
-	at __C610collect_distributed_array.apply(Unknown Source)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-	... 11 more
-''')
     def test_matrix_ops(self):
         nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         m = BlockMatrix.from_ndarray(hl.nd.array(nm), block_size=2)
@@ -514,26 +558,27 @@ Caused by: java.lang.AssertionError: assertion failed
         nrow = np.array([[7.0, 8.0, 9.0]])
         row = BlockMatrix.from_ndarray(hl.nd.array(nrow), block_size=2)
 
-        self._assert_eq(m.T, nm.T)
-        self._assert_eq(m.T, nm.T)
-        self._assert_eq(row.T, nrow.T)
+        with BatchedAsserts() as b:
+            b.assert_eq(m.T, nm.T)
+            b.assert_eq(m.T, nm.T)
+            b.assert_eq(row.T, nrow.T)
 
-        self._assert_eq(m @ m.T, nm @ nm.T)
-        self._assert_eq(m @ nm.T, nm @ nm.T)
-        self._assert_eq(row @ row.T, nrow @ nrow.T)
-        self._assert_eq(row @ nrow.T, nrow @ nrow.T)
+            b.assert_eq(m @ m.T, nm @ nm.T)
+            b.assert_eq(m @ nm.T, nm @ nm.T)
+            b.assert_eq(row @ row.T, nrow @ nrow.T)
+            b.assert_eq(row @ nrow.T, nrow @ nrow.T)
 
-        self._assert_eq(m.T @ m, nm.T @ nm)
-        self._assert_eq(m.T @ nm, nm.T @ nm)
-        self._assert_eq(row.T @ row, nrow.T @ nrow)
-        self._assert_eq(row.T @ nrow, nrow.T @ nrow)
+            b.assert_eq(m.T @ m, nm.T @ nm)
+            b.assert_eq(m.T @ nm, nm.T @ nm)
+            b.assert_eq(row.T @ row, nrow.T @ nrow)
+            b.assert_eq(row.T @ nrow, nrow.T @ nrow)
 
-        self.assertRaises(ValueError, lambda: m @ m)
-        self.assertRaises(ValueError, lambda: m @ nm)
+            self.assertRaises(ValueError, lambda: m @ m)
+            self.assertRaises(ValueError, lambda: m @ nm)
 
-        self._assert_eq(m.diagonal(), np.array([[1.0, 5.0]]))
-        self._assert_eq(m.T.diagonal(), np.array([[1.0, 5.0]]))
-        self._assert_eq((m @ m.T).diagonal(), np.array([[14.0, 77.0]]))
+            b.assert_eq(m.diagonal(), np.array([[1.0, 5.0]]))
+            b.assert_eq(m.T.diagonal(), np.array([[1.0, 5.0]]))
+            b.assert_eq((m @ m.T).diagonal(), np.array([[14.0, 77.0]]))
 
     def test_matrix_sums(self):
         nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
@@ -544,15 +589,17 @@ Caused by: java.lang.AssertionError: assertion failed
         nrow = np.array([[7.0, 8.0, 9.0]])
         row = BlockMatrix.from_ndarray(hl.nd.array(nrow), block_size=2)
 
-        self._assert_eq(m.sum(axis=0).T, np.array([[5.0], [7.0], [9.0]]))
-        self._assert_eq(m.sum(axis=1).T, np.array([[6.0, 15.0]]))
-        self._assert_eq(m.sum(axis=0).T + row, np.array([[12.0, 13.0, 14.0],
-                                                         [14.0, 15.0, 16.0],
-                                                         [16.0, 17.0, 18.0]]))
-        self._assert_eq(m.sum(axis=0) + row.T, np.array([[12.0, 14.0, 16.0],
-                                                         [13.0, 15.0, 17.0],
-                                                         [14.0, 16.0, 18.0]]))
-        self._assert_eq(square.sum(axis=0).T + square.sum(axis=1), np.array([[18.0], [30.0], [42.0]]))
+        with BatchedAsserts() as b:
+
+            b.assert_eq(m.sum(axis=0).T, np.array([[5.0], [7.0], [9.0]]))
+            b.assert_eq(m.sum(axis=1).T, np.array([[6.0, 15.0]]))
+            b.assert_eq(m.sum(axis=0).T + row, np.array([[12.0, 13.0, 14.0],
+                                                             [14.0, 15.0, 16.0],
+                                                             [16.0, 17.0, 18.0]]))
+            b.assert_eq(m.sum(axis=0) + row.T, np.array([[12.0, 14.0, 16.0],
+                                                             [13.0, 15.0, 17.0],
+                                                             [14.0, 16.0, 18.0]]))
+            b.assert_eq(square.sum(axis=0).T + square.sum(axis=1), np.array([[18.0], [30.0], [42.0]]))
 
     @fails_service_backend()
     @fails_local_backend()
@@ -562,62 +609,42 @@ Caused by: java.lang.AssertionError: assertion failed
         nrow = np.array([[7.0, 8.0, 9.0]])
         row = BlockMatrix.from_numpy(nrow, block_size=2)
 
-        self._assert_eq(m.tree_matmul(m.T, splits=2), nm @ nm.T)
-        self._assert_eq(m.tree_matmul(nm.T, splits=2), nm @ nm.T)
-        self._assert_eq(row.tree_matmul(row.T, splits=2), nrow @ nrow.T)
-        self._assert_eq(row.tree_matmul(nrow.T, splits=2), nrow @ nrow.T)
+        with BatchedAsserts() as b:
 
-        self._assert_eq(m.T.tree_matmul(m, splits=2), nm.T @ nm)
-        self._assert_eq(m.T.tree_matmul(nm, splits=2), nm.T @ nm)
-        self._assert_eq(row.T.tree_matmul(row, splits=2), nrow.T @ nrow)
-        self._assert_eq(row.T.tree_matmul(nrow, splits=2), nrow.T @ nrow)
+            b.assert_eq(m.tree_matmul(m.T, splits=2), nm @ nm.T)
+            b.assert_eq(m.tree_matmul(nm.T, splits=2), nm @ nm.T)
+            b.assert_eq(row.tree_matmul(row.T, splits=2), nrow @ nrow.T)
+            b.assert_eq(row.tree_matmul(nrow.T, splits=2), nrow @ nrow.T)
 
-        # Variety of block sizes and splits
-        fifty_by_sixty = np.arange(50 * 60).reshape((50, 60))
-        sixty_by_twenty_five = np.arange(60 * 25).reshape((60, 25))
-        block_sizes = [7, 10]
-        split_sizes = [2, 9]
-        for block_size in block_sizes:
-            bm_fifty_by_sixty = BlockMatrix.from_numpy(fifty_by_sixty, block_size)
-            bm_sixty_by_twenty_five = BlockMatrix.from_numpy(sixty_by_twenty_five, block_size)
-            for split_size in split_sizes:
-                self._assert_eq(bm_fifty_by_sixty.tree_matmul(bm_fifty_by_sixty.T, splits=split_size), fifty_by_sixty @ fifty_by_sixty.T)
-                self._assert_eq(bm_fifty_by_sixty.tree_matmul(bm_sixty_by_twenty_five, splits=split_size), fifty_by_sixty @ sixty_by_twenty_five)
+            b.assert_eq(m.T.tree_matmul(m, splits=2), nm.T @ nm)
+            b.assert_eq(m.T.tree_matmul(nm, splits=2), nm.T @ nm)
+            b.assert_eq(row.T.tree_matmul(row, splits=2), nrow.T @ nrow)
+            b.assert_eq(row.T.tree_matmul(nrow, splits=2), nrow.T @ nrow)
+
+            # Variety of block sizes and splits
+            fifty_by_sixty = np.arange(50 * 60).reshape((50, 60))
+            sixty_by_twenty_five = np.arange(60 * 25).reshape((60, 25))
+            block_sizes = [7, 10]
+            split_sizes = [2, 9]
+            for block_size in block_sizes:
+                bm_fifty_by_sixty = BlockMatrix.from_numpy(fifty_by_sixty, block_size)
+                bm_sixty_by_twenty_five = BlockMatrix.from_numpy(sixty_by_twenty_five, block_size)
+                for split_size in split_sizes:
+                    b.assert_eq(bm_fifty_by_sixty.tree_matmul(bm_fifty_by_sixty.T, splits=split_size), fifty_by_sixty @ fifty_by_sixty.T)
+                    b.assert_eq(bm_fifty_by_sixty.tree_matmul(bm_sixty_by_twenty_five, splits=split_size), fifty_by_sixty @ sixty_by_twenty_five)
 
     def test_fill(self):
         nd = np.ones((3, 5))
         bm = BlockMatrix.fill(3, 5, 1.0)
         bm2 = BlockMatrix.fill(3, 5, 1.0, block_size=2)
 
-        self.assertTrue(bm.block_size == BlockMatrix.default_block_size())
-        self.assertTrue(bm2.block_size == 2)
-        self._assert_eq(bm, nd)
-        self._assert_eq(bm2, nd)
+        with BatchedAsserts() as b:
 
-    @skip_when_service_backend('''intermittent worker failure:
->       self.assert_sums_agree(bm, nd)
+            self.assertTrue(bm.block_size == BlockMatrix.default_block_size())
+            self.assertTrue(bm2.block_size == 2)
+            b.assert_eq(bm, nd)
+            b.assert_eq(bm2, nd)
 
-Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes, found 0
-	at is.hail.utils.ErrorHandling.fatal(ErrorHandling.scala:11)
-	at is.hail.utils.ErrorHandling.fatal$(ErrorHandling.scala:11)
-	at is.hail.utils.package$.fatal(package.scala:77)
-	at is.hail.utils.richUtils.RichInputStream$.readFully$extension1(RichInputStream.scala:13)
-	at is.hail.io.StreamBlockInputBuffer.readBlock(InputBuffers.scala:546)
-	at is.hail.io.BlockingInputBuffer.readBlock(InputBuffers.scala:382)
-	at is.hail.io.BlockingInputBuffer.readBytes(InputBuffers.scala:446)
-	at __C1560collect_distributed_array.__m1565INPLACE_DECODE_r_binary_TO_r_string(Unknown Source)
-	at __C1560collect_distributed_array.__m1563INPLACE_DECODE_r_struct_of_r_int32ANDr_int32ANDr_binaryANDr_binaryEND_TO_r_struct_of_r_int32ANDr_int32ANDr_stringANDr_stringEND(Unknown Source)
-	at __C1560collect_distributed_array.__m1562INPLACE_DECODE_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_binaryANDr_binaryEND_TO_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_stringANDr_stringEND(Unknown Source)
-	at __C1560collect_distributed_array.__m1561DECODE_r_struct_of_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_binaryANDr_binaryENDEND_TO_SBaseStructPointer(Unknown Source)
-	at __C1560collect_distributed_array.apply(Unknown Source)
-	at __C1560collect_distributed_array.apply(Unknown Source)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-''')
     def test_sum(self):
         nd = np.arange(11 * 13, dtype=np.float64).reshape((11, 13))
         bm = BlockMatrix.from_ndarray(hl.literal(nd), block_size=3)
@@ -648,37 +675,6 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
         self.assert_sums_agree(bm3, nd)
         self.assert_sums_agree(bm4, nd4)
 
-    @skip_when_service_backend('''intermittent worker failure:
->           self._assert_eq(bm[indices], nd[indices])
-
-Caused by: java.lang.OutOfMemoryError
-	at sun.misc.Unsafe.allocateMemory(Native Method)
-	at is.hail.annotations.Memory.malloc(Memory.java:157)
-	at is.hail.annotations.RegionPool.$anonfun$chunkCache$1(RegionPool.scala:30)
-	at is.hail.annotations.ChunkCache.newChunk(ChunkCache.scala:75)
-	at is.hail.annotations.ChunkCache.getChunk(ChunkCache.scala:130)
-	at is.hail.annotations.RegionPool.getChunk(RegionPool.scala:73)
-	at is.hail.annotations.RegionMemory.allocateSharedChunk(RegionMemory.scala:293)
-	at is.hail.annotations.Region.allocateSharedChunk(Region.scala:353)
-	at __C3948collect_distributed_array.__m3960INPLACE_DECODE_r_ndarray_of_r_float64_TO_r_ndarray_of_r_float64(Unknown Source)
-	at __C3948collect_distributed_array.__m3959INPLACE_DECODE_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64END_TO_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64END(Unknown Source)
-	at __C3948collect_distributed_array.__m3958INPLACE_DECODE_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64END_TO_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64END(Unknown Source)
-	at __C3948collect_distributed_array.__m3957INPLACE_DECODE_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64END_TO_r_array_of_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64END(Unknown Source)
-	at __C3948collect_distributed_array.__m3956INPLACE_DECODE_r_struct_of_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_struct_of_r_struct_of_r_int64ANDr_int64ANDr_int64ENDANDr_struct_of_r_int64ANDr_int64ANDr_int64ENDENDEND_TO_r_struct_of_r_array_of_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_tuple_of_r_tuple_of_r_int64ANDr_int64ANDr_int64ENDANDr_tuple_of_r_int64ANDr_int64ANDr_int64ENDENDEND(Unknown Source)
-	at __C3948collect_distributed_array.__m3953INPLACE_DECODE_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_struct_of_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_struct_of_r_struct_of_r_int64ANDr_int64ANDr_int64ENDANDr_struct_of_r_int64ANDr_int64ANDr_int64ENDENDENDEND_TO_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_struct_of_r_array_of_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_tuple_of_r_tuple_of_r_int64ANDr_int64ANDr_int64ENDANDr_tuple_of_r_int64ANDr_int64ANDr_int64ENDENDENDEND(Unknown Source)
-	at __C3948collect_distributed_array.__m3952INPLACE_DECODE_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_struct_of_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_struct_of_r_struct_of_r_int64ANDr_int64ANDr_int64ENDANDr_struct_of_r_int64ANDr_int64ANDr_int64ENDENDENDEND_TO_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_struct_of_r_array_of_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_tuple_of_r_tuple_of_r_int64ANDr_int64ANDr_int64ENDANDr_tuple_of_r_int64ANDr_int64ANDr_int64ENDENDENDEND(Unknown Source)
-	at __C3948collect_distributed_array.__m3951INPLACE_DECODE_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_struct_of_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_struct_of_r_struct_of_r_int64ANDr_int64ANDr_int64ENDANDr_struct_of_r_int64ANDr_int64ANDr_int64ENDENDENDEND_TO_r_array_of_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_struct_of_r_array_of_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_tuple_of_r_tuple_of_r_int64ANDr_int64ANDr_int64ENDANDr_tuple_of_r_int64ANDr_int64ANDr_int64ENDENDENDEND(Unknown Source)
-	at __C3948collect_distributed_array.__m3950INPLACE_DECODE_r_struct_of_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_struct_of_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_struct_of_r_struct_of_r_int64ANDr_int64ANDr_int64ENDANDr_struct_of_r_int64ANDr_int64ANDr_int64ENDENDENDENDANDr_struct_of_r_struct_of_r_int64ANDr_int64ANDr_int64ENDANDr_struct_of_r_int64ANDr_int64ANDr_int64ENDENDEND_TO_r_struct_of_r_array_of_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_struct_of_r_array_of_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_tuple_of_r_tuple_of_r_int64ANDr_int64ANDr_int64ENDANDr_tuple_of_r_int64ANDr_int64ANDr_int64ENDENDENDENDANDr_tuple_of_r_tuple_of_r_int64ANDr_int64ANDr_int64ENDANDr_tuple_of_r_int64ANDr_int64ANDr_int64ENDENDEND(Unknown Source)
-	at __C3948collect_distributed_array.__m3949DECODE_r_struct_of_r_struct_of_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_struct_of_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_struct_of_r_struct_of_r_int64ANDr_int64ANDr_int64ENDANDr_struct_of_r_int64ANDr_int64ANDr_int64ENDENDENDENDANDr_struct_of_r_struct_of_r_int64ANDr_int64ANDr_int64ENDANDr_struct_of_r_int64ANDr_int64ANDr_int64ENDENDENDEND_TO_SBaseStructPointer(Unknown Source)
-	at __C3948collect_distributed_array.apply(Unknown Source)
-	at __C3948collect_distributed_array.apply(Unknown Source)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-	... 11 more''')
     def test_slicing(self):
         nd = np.array(np.arange(0, 80, dtype=float)).reshape(8, 10)
         bm = BlockMatrix.from_ndarray(hl.literal(nd), block_size=3)
@@ -686,35 +682,37 @@ Caused by: java.lang.OutOfMemoryError
         for indices in [(0, 0), (5, 7), (-3, 9), (-8, -10)]:
             self._assert_eq(bm[indices], nd[indices])
 
-        for indices in [(0, slice(3, 4)),
-                        (1, slice(3, 4)),
-                        (-8, slice(3, 4)),
-                        (-1, slice(3, 4))]:
-            self._assert_eq(bm[indices], np.expand_dims(nd[indices], 0))
-            self._assert_eq(bm[indices] - bm, nd[indices] - nd)
-            self._assert_eq(bm - bm[indices], nd - nd[indices])
+        with BatchedAsserts() as b:
 
-        for indices in [(slice(3, 4), 0),
-                        (slice(3, 4), 1),
-                        (slice(3, 4), -8),
-                        (slice(3, 4), -1)]:
-            self._assert_eq(bm[indices], np.expand_dims(nd[indices], 1))
-            self._assert_eq(bm[indices] - bm, nd[indices] - nd)
-            self._assert_eq(bm - bm[indices], nd - nd[indices])
+            for indices in [(0, slice(3, 4)),
+                            (1, slice(3, 4)),
+                            (-8, slice(3, 4)),
+                            (-1, slice(3, 4))]:
+                b.assert_eq(bm[indices], np.expand_dims(nd[indices], 0))
+                b.assert_eq(bm[indices] - bm, nd[indices] - nd)
+                b.assert_eq(bm - bm[indices], nd - nd[indices])
 
-        for indices in [
-            (slice(0, 8), slice(0, 10)),
-            (slice(0, 8, 2), slice(0, 10, 2)),
-            (slice(2, 4), slice(5, 7)),
-            (slice(-8, -1), slice(-10, -1)),
-            (slice(-8, -1, 2), slice(-10, -1, 2)),
-            (slice(None, 4, 1), slice(None, 4, 1)),
-            (slice(4, None), slice(4, None)),
-            (slice(None, None), slice(None, None))
-        ]:
-            self._assert_eq(bm[indices], nd[indices])
-            self._assert_eq(bm[indices][:, :2], nd[indices][:, :2])
-            self._assert_eq(bm[indices][:2, :], nd[indices][:2, :])
+            for indices in [(slice(3, 4), 0),
+                            (slice(3, 4), 1),
+                            (slice(3, 4), -8),
+                            (slice(3, 4), -1)]:
+                b.assert_eq(bm[indices], np.expand_dims(nd[indices], 1))
+                b.assert_eq(bm[indices] - bm, nd[indices] - nd)
+                b.assert_eq(bm - bm[indices], nd - nd[indices])
+
+            for indices in [
+                (slice(0, 8), slice(0, 10)),
+                (slice(0, 8, 2), slice(0, 10, 2)),
+                (slice(2, 4), slice(5, 7)),
+                (slice(-8, -1), slice(-10, -1)),
+                (slice(-8, -1, 2), slice(-10, -1, 2)),
+                (slice(None, 4, 1), slice(None, 4, 1)),
+                (slice(4, None), slice(4, None)),
+                (slice(None, None), slice(None, None))
+            ]:
+                b.assert_eq(bm[indices], nd[indices])
+                b.assert_eq(bm[indices][:, :2], nd[indices][:, :2])
+                b.assert_eq(bm[indices][:2, :], nd[indices][:2, :])
 
         self.assertRaises(ValueError, lambda: bm[0, ])
 
@@ -738,6 +736,19 @@ Caused by: java.lang.OutOfMemoryError
         self.assertRaises(ValueError, lambda: bm[0, :-11])
 
     @fails_service_backend()
+    def test_diagonal_sparse(self):
+        nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
+                       [ 5.0,  6.0,  7.0,  8.0],
+                       [ 9.0, 10.0, 11.0, 12.0],
+                       [13.0, 14.0, 15.0, 16.0],
+                       [17.0, 18.0, 19.0, 20.0]])
+        bm = BlockMatrix.from_numpy(nd, block_size=2)
+        bm = bm.sparsify_row_intervals([0, 0, 0, 0, 0], [2, 2, 2, 2, 2])
+
+        self.assertTrue(bm.is_sparse)
+        self._assert_eq(bm.diagonal(), np.array([[1.0, 6.0, 0.0, 0.0]]))
+
+    @fails_service_backend()
     @fails_local_backend()
     def test_slices_with_sparsify(self):
         nd = np.array(np.arange(0, 80, dtype=float)).reshape(8, 10)
@@ -749,11 +760,14 @@ Caused by: java.lang.OutOfMemoryError
 
         nd2 = np.zeros(shape=(8, 10))
         nd2[0, 1] = 1.0
-        self._assert_eq(bm2[:, :], nd2)
 
-        self._assert_eq(bm2[:, 1], nd2[:, 1:2])
-        self._assert_eq(bm2[1, :], nd2[1:2, :])
-        self._assert_eq(bm2[0:5, 0:5], nd2[0:5, 0:5])
+        with BatchedAsserts() as b:
+
+            b.assert_eq(bm2[:, :], nd2)
+
+            b.assert_eq(bm2[:, 1], nd2[:, 1:2])
+            b.assert_eq(bm2[1, :], nd2[1:2, :])
+            b.assert_eq(bm2[0:5, 0:5], nd2[0:5, 0:5])
 
     @fails_service_backend()
     @fails_local_backend()
@@ -764,43 +778,45 @@ Caused by: java.lang.OutOfMemoryError
                        [13.0, 14.0, 15.0, 16.0]])
         bm = BlockMatrix.from_numpy(nd, block_size=2)
 
-        self._assert_eq(
-            bm.sparsify_row_intervals(
-                starts=[1, 0, 2, 2],
-                stops= [2, 0, 3, 4]),
-            np.array([[ 0.,  2.,  0.,  0.],
-                      [ 0.,  0.,  0.,  0.],
-                      [ 0.,  0., 11.,  0.],
-                      [ 0.,  0., 15., 16.]]))
+        with BatchedAsserts() as b:
 
-        self._assert_eq(
-            bm.sparsify_row_intervals(
-                starts=[1, 0, 2, 2],
-                stops= [2, 0, 3, 4],
-                blocks_only=True),
-            np.array([[ 1.,  2.,  0.,  0.],
-                      [ 5.,  6.,  0.,  0.],
-                      [ 0.,  0., 11., 12.],
-                      [ 0.,  0., 15., 16.]]))
+            b.assert_eq(
+                bm.sparsify_row_intervals(
+                    starts=[1, 0, 2, 2],
+                    stops= [2, 0, 3, 4]),
+                np.array([[ 0.,  2.,  0.,  0.],
+                          [ 0.,  0.,  0.,  0.],
+                          [ 0.,  0., 11.,  0.],
+                          [ 0.,  0., 15., 16.]]))
 
-        nd2 = np.random.normal(size=(8, 10))
-        bm2 = BlockMatrix.from_numpy(nd2, block_size=3)
+            b.assert_eq(
+                bm.sparsify_row_intervals(
+                    starts=[1, 0, 2, 2],
+                    stops= [2, 0, 3, 4],
+                    blocks_only=True),
+                np.array([[ 1.,  2.,  0.,  0.],
+                          [ 5.,  6.,  0.,  0.],
+                          [ 0.,  0., 11., 12.],
+                          [ 0.,  0., 15., 16.]]))
 
-        for bounds in [[[0, 1, 2, 3, 4, 5, 6, 7],
-                        [1, 2, 3, 4, 5, 6, 7, 8]],
-                       [[0, 0, 5, 3, 4, 5, 8, 2],
-                        [9, 0, 5, 3, 4, 5, 9, 5]],
-                       [[0, 5, 10, 8, 7, 6, 5, 4],
-                        [0, 5, 10, 9, 8, 7, 6, 5]]]:
-            starts, stops = bounds
-            actual = bm2.sparsify_row_intervals(starts, stops, blocks_only=False).to_numpy()
-            expected = nd2.copy()
-            for i in range(0, 8):
-                for j in range(0, starts[i]):
-                    expected[i, j] = 0.0
-                for j in range(stops[i], 10):
-                    expected[i, j] = 0.0
-            self._assert_eq(actual, expected)
+            nd2 = np.random.normal(size=(8, 10))
+            bm2 = BlockMatrix.from_numpy(nd2, block_size=3)
+
+            for bounds in [[[0, 1, 2, 3, 4, 5, 6, 7],
+                            [1, 2, 3, 4, 5, 6, 7, 8]],
+                           [[0, 0, 5, 3, 4, 5, 8, 2],
+                            [9, 0, 5, 3, 4, 5, 9, 5]],
+                           [[0, 5, 10, 8, 7, 6, 5, 4],
+                            [0, 5, 10, 9, 8, 7, 6, 5]]]:
+                starts, stops = bounds
+                actual = bm2.sparsify_row_intervals(starts, stops, blocks_only=False).to_numpy()
+                expected = nd2.copy()
+                for i in range(0, 8):
+                    for j in range(0, starts[i]):
+                        expected[i, j] = 0.0
+                    for j in range(stops[i], 10):
+                        expected[i, j] = 0.0
+                b.assert_eq(actual, expected)
 
     @fails_service_backend()
     @fails_local_backend()
@@ -811,28 +827,30 @@ Caused by: java.lang.OutOfMemoryError
                        [13.0, 14.0, 15.0, 16.0]])
         bm = BlockMatrix.from_numpy(nd, block_size=2)
 
-        self._assert_eq(
-            bm.sparsify_band(lower=-1, upper=2),
-            np.array([[ 1.,  2.,  3.,  0.],
-                      [ 5.,  6.,  7.,  8.],
-                      [ 0., 10., 11., 12.],
-                      [ 0.,  0., 15., 16.]]))
+        with BatchedAsserts() as b:
 
-        self._assert_eq(
-            bm.sparsify_band(lower=0, upper=0, blocks_only=True),
-            np.array([[ 1.,  2.,  0.,  0.],
-                      [ 5.,  6.,  0.,  0.],
-                      [ 0.,  0., 11., 12.],
-                      [ 0.,  0., 15., 16.]]))
+            b.assert_eq(
+                bm.sparsify_band(lower=-1, upper=2),
+                np.array([[ 1.,  2.,  3.,  0.],
+                          [ 5.,  6.,  7.,  8.],
+                          [ 0., 10., 11., 12.],
+                          [ 0.,  0., 15., 16.]]))
 
-        nd2 = np.arange(0, 80, dtype=float).reshape(8, 10)
-        bm2 = BlockMatrix.from_numpy(nd2, block_size=3)
+            b.assert_eq(
+                bm.sparsify_band(lower=0, upper=0, blocks_only=True),
+                np.array([[ 1.,  2.,  0.,  0.],
+                          [ 5.,  6.,  0.,  0.],
+                          [ 0.,  0., 11., 12.],
+                          [ 0.,  0., 15., 16.]]))
 
-        for bounds in [[0, 0], [1, 1], [2, 2], [-5, 5], [-7, 0], [0, 9], [-100, 100]]:
-            lower, upper = bounds
-            actual = bm2.sparsify_band(lower, upper, blocks_only=False).to_numpy()
-            mask = np.fromfunction(lambda i, j: (lower <= j - i) * (j - i <= upper), (8, 10))
-            self._assert_eq(actual, nd2 * mask)
+            nd2 = np.arange(0, 80, dtype=float).reshape(8, 10)
+            bm2 = BlockMatrix.from_numpy(nd2, block_size=3)
+
+            for bounds in [[0, 0], [1, 1], [2, 2], [-5, 5], [-7, 0], [0, 9], [-100, 100]]:
+                lower, upper = bounds
+                actual = bm2.sparsify_band(lower, upper, blocks_only=False).to_numpy()
+                mask = np.fromfunction(lambda i, j: (lower <= j - i) * (j - i <= upper), (8, 10))
+                b.assert_eq(actual, nd2 * mask)
 
     @fails_service_backend()
     @fails_local_backend()
@@ -846,26 +864,28 @@ Caused by: java.lang.OutOfMemoryError
         self.assertFalse(bm.is_sparse)
         self.assertTrue(bm.sparsify_triangle().is_sparse)
 
-        self._assert_eq(
-            bm.sparsify_triangle(),
-            np.array([[ 1.,  2.,  3.,  4.],
-                      [ 0.,  6.,  7.,  8.],
-                      [ 0.,  0., 11., 12.],
-                      [ 0.,  0.,  0., 16.]]))
+        with BatchedAsserts() as b:
 
-        self._assert_eq(
-            bm.sparsify_triangle(lower=True),
-            np.array([[ 1.,  0.,  0.,  0.],
-                      [ 5.,  6.,  0.,  0.],
-                      [ 9., 10., 11.,  0.],
-                      [13., 14., 15., 16.]]))
+            b.assert_eq(
+                bm.sparsify_triangle(),
+                np.array([[ 1.,  2.,  3.,  4.],
+                          [ 0.,  6.,  7.,  8.],
+                          [ 0.,  0., 11., 12.],
+                          [ 0.,  0.,  0., 16.]]))
 
-        self._assert_eq(
-            bm.sparsify_triangle(blocks_only=True),
-            np.array([[ 1.,  2.,  3.,  4.],
-                      [ 5.,  6.,  7.,  8.],
-                      [ 0.,  0., 11., 12.],
-                      [ 0.,  0., 15., 16.]]))
+            b.assert_eq(
+                bm.sparsify_triangle(lower=True),
+                np.array([[ 1.,  0.,  0.,  0.],
+                          [ 5.,  6.,  0.,  0.],
+                          [ 9., 10., 11.,  0.],
+                          [13., 14., 15., 16.]]))
+
+            b.assert_eq(
+                bm.sparsify_triangle(blocks_only=True),
+                np.array([[ 1.,  2.,  3.,  4.],
+                          [ 5.,  6.,  7.,  8.],
+                          [ 0.,  0., 11., 12.],
+                          [ 0.,  0., 15., 16.]]))
 
     @fails_service_backend()
     @fails_local_backend()
@@ -876,14 +896,16 @@ Caused by: java.lang.OutOfMemoryError
                        [13.0, 14.0, 15.0, 16.0]])
         bm = BlockMatrix.from_numpy(nd, block_size=2)
 
-        self._assert_eq(
-            bm.sparsify_rectangles([[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]),
-            np.array([[ 1.,  2.,  3.,  4.],
-                      [ 5.,  6.,  7.,  8.],
-                      [ 9., 10.,  0.,  0.],
-                      [13., 14.,  0.,  0.]]))
+        with BatchedAsserts() as b:
 
-        self._assert_eq(bm.sparsify_rectangles([]), np.zeros(shape=(4, 4)))
+            b.assert_eq(
+                bm.sparsify_rectangles([[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]),
+                np.array([[ 1.,  2.,  3.,  4.],
+                          [ 5.,  6.,  7.,  8.],
+                          [ 9., 10.,  0.,  0.],
+                          [13., 14.,  0.,  0.]]))
+
+            b.assert_eq(bm.sparsify_rectangles([]), np.zeros(shape=(4, 4)))
 
     @fails_service_backend()
     @fails_local_backend()
@@ -977,8 +999,6 @@ Caused by: java.lang.OutOfMemoryError
             self._assert_eq(expected, BlockMatrix.rectangles_to_numpy(rect_uri))
             self._assert_eq(expected, BlockMatrix.rectangles_to_numpy(rect_bytes_uri, binary=True))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_to_ndarray(self):
         np_mat = np.arange(12).reshape((4, 3)).astype(np.float64)
         mat = BlockMatrix.from_ndarray(hl.nd.array(np_mat)).to_ndarray()
@@ -989,26 +1009,6 @@ Caused by: java.lang.OutOfMemoryError
         sparsed = BlockMatrix.from_ndarray(hl.nd.array(sparsed_numpy), block_size=4)._sparsify_blocks(blocks_to_sparsify).to_ndarray()
         self.assertTrue(np.array_equal(sparsed_numpy, hl.eval(sparsed)))
 
-    @skip_when_service_backend('''intermittent worker failure:
->           self.assertTrue(table._same(entries_table))
-
-Caused by: java.lang.AssertionError: assertion failed
-	at scala.Predef$.assert(Predef.scala:208)
-	at is.hail.io.BlockingInputBuffer.ensure(InputBuffers.scala:389)
-	at is.hail.io.BlockingInputBuffer.readInt(InputBuffers.scala:412)
-	at __C390collect_distributed_array.__m398INPLACE_DECODE_r_binary_TO_r_binary(Unknown Source)
-	at __C390collect_distributed_array.__m397INPLACE_DECODE_r_struct_of_r_binaryEND_TO_r_tuple_of_r_binaryEND(Unknown Source)
-	at __C390collect_distributed_array.__m396INPLACE_DECODE_r_struct_of_r_struct_of_r_binaryENDEND_TO_r_struct_of_r_tuple_of_r_binaryENDEND(Unknown Source)
-	at __C390collect_distributed_array.__m395DECODE_r_struct_of_r_struct_of_r_struct_of_r_binaryENDENDEND_TO_SBaseStructPointer(Unknown Source)
-	at __C390collect_distributed_array.apply(Unknown Source)
-	at __C390collect_distributed_array.apply(Unknown Source)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-	... 12 more''')
     def test_block_matrix_entries(self):
         n_rows, n_cols = 5, 3
         rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(n_rows) for j in range(n_cols)]
@@ -1166,8 +1166,6 @@ Caused by: java.lang.AssertionError: assertion failed
             bm = BlockMatrix.read(bm_uri)
             self._assert_eq(nd, bm)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_svd(self):
         def assert_same_columns_up_to_sign(a, b):
             for j in range(a.shape[1]):
@@ -1219,7 +1217,7 @@ Caused by: java.lang.AssertionError: assertion failed
         e, _ = np.linalg.eigh(x0 @ x0.T)
 
         x = BlockMatrix.from_numpy(x0)
-        _, s, _ = x.svd(complexity_bound=0)
+        s = x.svd(complexity_bound=0, compute_uv=False)
         assert np.all(s >= 0.0)
 
         s = x.svd(compute_uv=False, complexity_bound=0)
@@ -1242,8 +1240,6 @@ Caused by: java.lang.AssertionError: assertion failed
             bm.filter_rows([0]).filter_rows([3]).to_numpy()
         assert "index" in str(exc.value)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_sparsify_blocks(self):
         block_list = [1, 2]
         np_square = np.arange(16, dtype=np.float64).reshape((4, 4))
@@ -1267,8 +1263,6 @@ Caused by: java.lang.AssertionError: assertion failed
         sparse_numpy = sparsify_numpy(np_square, block_size, block_list)
         assert np.array_equal(bm.to_numpy(), sparse_numpy)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_sparse_transposition(self):
         block_list = [1, 2]
         np_square = np.arange(16, dtype=np.float64).reshape((4, 4))
@@ -1334,4 +1328,3 @@ Caused by: java.lang.AssertionError: assertion failed
         np_if = np_mat.copy()
         np_if[0, 0] = -8.0
         self._assert_eq(bm_mapped_if, np_if)
-

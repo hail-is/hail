@@ -4,19 +4,18 @@ import is.hail.TestUtils._
 import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue}
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.agg.{CollectStateSig, PhysicalAggSig, TypedStateSig}
 import is.hail.expr.ir.lowering.LoweringPipeline
-import is.hail.expr.ir.streams.{EmitStream, StreamArgType, StreamUtils}
+import is.hail.expr.ir.streams.{EmitStream, StreamUtils}
+import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.interfaces.SStreamValue
+import is.hail.types.physical.stypes.interfaces.{NoBoxLongIterator, SStreamValue}
+import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeSCode, StreamSingleCodeType}
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Call2
 import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
-import is.hail.TestUtils._
-import is.hail.expr.ir.agg.{CollectStateSig, PhysicalAggSig, TypedStateSig}
-import is.hail.types.VirtualTypeWithReq
-import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeSCode, StreamSingleCodeType}
 import org.testng.annotations.Test
 
 class EmitStreamSuite extends HailSuite {
@@ -68,9 +67,9 @@ class EmitStreamSuite extends HailSuite {
         case s => s
       }
       TypeCheck(ctx, s)
-      EmitStream.produce(new Emit(emitContext, fb.ecb), s, cb, region, EmitEnv(Env.empty, inputTypes.indices.map(i => mb.storeEmitParam(i + 2, cb))), None)
+      EmitStream.produce(new Emit(emitContext, fb.ecb), s, cb, region, EmitEnv(Env.empty, inputTypes.indices.map(i => mb.storeEmitParamAsField(cb, i + 2))), None)
         .consumeCode[Long](cb, 0L, { s =>
-          val arr = StreamUtils.toArray(cb, s.asStream.producer, region)
+          val arr = StreamUtils.toArray(cb, s.asStream.getProducer(mb), region)
           val scp = SingleCodeSCode.fromSCode(cb, arr, region, false)
           arrayType = scp.typ.asInstanceOf[PTypeReferenceSingleCodeType].pt
 
@@ -80,7 +79,7 @@ class EmitStreamSuite extends HailSuite {
     val f = fb.resultWithIndex()
     (arg: T) =>
       pool.scopedRegion { r =>
-        val off = call(f(theHailClassLoader, ctx.fs, 0, r), r, arg)
+        val off = call(f(theHailClassLoader, ctx.fs, ctx.taskContext, r), r, arg)
         if (off == 0L)
           null
         else
@@ -100,19 +99,24 @@ class EmitStreamSuite extends HailSuite {
 
   private def compileStreamWithIter(ir: IR, requiresMemoryManagementPerElement: Boolean, elementType: PType): Iterator[Any] => IndexedSeq[Any] = {
     trait F {
-      def apply(o: Region, a: StreamArgType): Long
+      def apply(o: Region, a: NoBoxLongIterator): Long
     }
     compileStream[F, Iterator[Any]](ir,
-      IndexedSeq(SingleCodeEmitParamType(true, StreamSingleCodeType(requiresMemoryManagementPerElement, elementType)))) { (f: F, r: Region, it: Iterator[Any]) =>
-      val rvi = new StreamArgType {
-        def apply(outerRegion: Region, eltRegion: Region): Iterator[java.lang.Long] =
-          new Iterator[java.lang.Long] {
-            def hasNext: Boolean = it.hasNext
+      IndexedSeq(SingleCodeEmitParamType(true, StreamSingleCodeType(requiresMemoryManagementPerElement, elementType, true)))) { (f: F, r: Region, it: Iterator[Any]) =>
+      val rvi = new NoBoxLongIterator  {
+        var _eltRegion: Region = _
+        var eos: Boolean = _
 
-            def next(): java.lang.Long = {
-              ScalaToRegionValue(eltRegion, elementType, it.next())
-            }
-          }
+        def init(outerRegion: Region, eltRegion: Region): Unit = _eltRegion = eltRegion
+
+        override def next(): Long = {
+          if (eos || !it.hasNext) {
+            eos = true
+            0L
+          } else
+            ScalaToRegionValue(_eltRegion, elementType, it.next())
+        }
+        override def close(): Unit = ()
       }
       assert(it != null, "null iterators not supported")
       f(r, rvi)
@@ -139,7 +143,8 @@ class EmitStreamSuite extends HailSuite {
         .consume(cb,
           {},
           { case stream: SStreamValue =>
-            stream.producer.memoryManagedConsume(region, cb, { cb => stream.producer.length.foreach(computeLen => cb.assign(len2, computeLen(cb))) }) { cb =>
+            val producer = stream.getProducer(cb.emb)
+            producer.memoryManagedConsume(region, cb, { cb => producer.length.foreach(computeLen => cb.assign(len2, computeLen(cb))) }) { cb =>
               cb.assign(len, len + 1)
             }
           })
@@ -150,7 +155,7 @@ class EmitStreamSuite extends HailSuite {
     }
     val f = fb.resultWithIndex()
     pool.scopedRegion { r =>
-      val len = f(theHailClassLoader, ctx.fs, 0, r)(r)
+      val len = f(theHailClassLoader, ctx.fs, ctx.taskContext, r)(r)
       if (len < 0) None else Some(len)
     }
   }
@@ -204,6 +209,7 @@ class EmitStreamSuite extends HailSuite {
     val seqIr = SeqSample(
         I32(N),
         I32(n),
+        RNGStateLiteral(),
         false
       )
 
@@ -334,7 +340,7 @@ class EmitStreamSuite extends HailSuite {
     val initOps = InitOp(0, FastIndexedSeq(), countAggSig)
     val seqOps = SeqOp(0, FastIndexedSeq(), countAggSig)
     val newKey = MakeStruct(Seq("count" -> SelectFields(Ref("foo", streamType.elementType), Seq("a", "b"))))
-    val streamBuffAggCount = StreamBufferedAggregate(countStructStream, initOps, newKey, seqOps, "foo",  IndexedSeq(countAggSig))
+    val streamBuffAggCount = StreamBufferedAggregate(countStructStream, initOps, newKey, seqOps, "foo",  IndexedSeq(countAggSig), 8)
     val result = mapIR(streamBuffAggCount) { elem =>
       MakeStruct(Seq(
         "key" -> GetField(elem, "count"),
@@ -354,7 +360,7 @@ class EmitStreamSuite extends HailSuite {
     val initOps = InitOp(0, FastIndexedSeq(), countAggSig)
     val seqOps = SeqOp(0, FastIndexedSeq(), countAggSig)
     val newKey = MakeStruct(Seq("count" -> SelectFields(Ref("foo", streamType.elementType), Seq("a"))))
-    val streamBuffAggCount = StreamBufferedAggregate(countStructStream, initOps, newKey, seqOps, "foo",  IndexedSeq(countAggSig))
+    val streamBuffAggCount = StreamBufferedAggregate(countStructStream, initOps, newKey, seqOps, "foo",  IndexedSeq(countAggSig), 8)
     val result = mapIR(streamBuffAggCount) { elem =>
       MakeStruct(Seq(
         "key" -> GetField(elem, "count"),
@@ -376,7 +382,7 @@ class EmitStreamSuite extends HailSuite {
     val initOps = InitOp(0, FastIndexedSeq(), collectAggSig)
     val seqOps = SeqOp(0, FastIndexedSeq(GetField(Ref("foo", streamType.elementType), "b")), collectAggSig)
     val newKey = MakeStruct(Seq("collect" -> SelectFields(Ref("foo", streamType.elementType), Seq("a"))))
-    val streamBuffAggCollect = StreamBufferedAggregate(collectStructStream, initOps, newKey, seqOps, "foo",  IndexedSeq(collectAggSig))
+    val streamBuffAggCollect = StreamBufferedAggregate(collectStructStream, initOps, newKey, seqOps, "foo",  IndexedSeq(collectAggSig), 8)
     val result = mapIR(streamBuffAggCollect) { elem =>
       MakeStruct(Seq(
         "key" -> GetField(elem, "collect"),
@@ -426,7 +432,7 @@ class EmitStreamSuite extends HailSuite {
     ))
     val newKey = MakeStruct(Seq("collect" -> SelectFields(Ref("foo", streamType.elementType), Seq("a"))))
     val streamBuffAggCollect = StreamBufferedAggregate(collectStructStream, initOps, newKey, seqOps, "foo",
-                                IndexedSeq(countAggSig, collectAggSig))
+                                IndexedSeq(countAggSig, collectAggSig), 8)
     val result = mapIR(streamBuffAggCollect) { elem =>
       MakeStruct(Seq(
         "key" -> GetField(elem, "collect"),
@@ -677,7 +683,7 @@ class EmitStreamSuite extends HailSuite {
     val intsPType = PInt32(true)
 
     val f1 = compileStreamWithIter(
-      StreamScan(In(0, SingleCodeEmitParamType(true, StreamSingleCodeType(true, PInt32(true)))),
+      StreamScan(In(0, SingleCodeEmitParamType(true, StreamSingleCodeType(true, PInt32(true), true))),
         zero = 0,
         "a", "x", Ref("a", TInt32) + Ref("x", TInt32) * Ref("x", TInt32)
       ), false, intsPType)
@@ -686,13 +692,13 @@ class EmitStreamSuite extends HailSuite {
 
     val f2 = compileStreamWithIter(
       StreamFlatMap(
-        In(0, SingleCodeEmitParamType(true, StreamSingleCodeType(false, PInt32(true)))),
+        In(0, SingleCodeEmitParamType(true, StreamSingleCodeType(false, PInt32(true), true))),
         "n", StreamRange(0, Ref("n", TInt32), 1)
       ), false, intsPType)
     assert(f2(Seq(1, 5, 2, 9).iterator) == IndexedSeq(1, 5, 2, 9).flatMap(0 until _))
 
     val f3 = compileStreamWithIter(
-      StreamRange(0, StreamLen(In(0, SingleCodeEmitParamType(true, StreamSingleCodeType(false, PInt32(true))))), 1), false, intsPType)
+      StreamRange(0, StreamLen(In(0, SingleCodeEmitParamType(true, StreamSingleCodeType(false, PInt32(true), true)))), 1), false, intsPType)
     assert(f3(Seq(1, 5, 2, 9).iterator) == IndexedSeq(0, 1, 2, 3))
     assert(f3(Seq().iterator) == IndexedSeq())
   }
@@ -752,7 +758,7 @@ class EmitStreamSuite extends HailSuite {
     pool.scopedSmallRegion { r =>
       val input = t.unstagedStoreJavaObject(Row(null, IndexedSeq(1d, 2d), IndexedSeq(3d, 4d)), r)
 
-      assert(SafeRow.read(pt, f(theHailClassLoader, ctx.fs, 0, r)(r, input)) == Row(null))
+      assert(SafeRow.read(pt, f(theHailClassLoader, ctx.fs, ctx.taskContext, r)(r, input)) == Row(null))
     }
   }
 

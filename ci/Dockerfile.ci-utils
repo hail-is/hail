@@ -1,12 +1,18 @@
+FROM golang:1.18 AS skopeo-build
+
+WORKDIR /usr/src/skopeo
+
+ARG SKOPEO_VERSION="1.8.0"
+RUN curl -fsSL "https://github.com/containers/skopeo/archive/v${SKOPEO_VERSION}.tar.gz" \
+  | tar -xzf - --strip-components=1
+
+RUN CGO_ENABLED=0 DISABLE_DOCS=1 make BUILDTAGS=containers_image_openpgp GO_DYN_FLAGS=
+
 FROM {{ service_base_image.image }}
 
-RUN hail-pip-install twine
+COPY --from=skopeo-build /usr/src/skopeo/bin/skopeo /usr/local/bin/
+COPY --from=skopeo-build /usr/src/skopeo/default-policy.json /etc/containers/policy.json
+
 COPY jinja2_render.py .
 COPY wait-for.py .
 COPY create_database.py .
-
-RUN . /etc/os-release && \
-    echo "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/ /" | tee /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list && \
-    curl https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/Release.key | apt-key add - && \
-    apt-get update && \
-    apt-get -y install skopeo

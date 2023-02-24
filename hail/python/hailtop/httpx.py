@@ -38,8 +38,8 @@ class ClientResponse:
     def __init__(self, client_response: aiohttp.ClientResponse):
         self.client_response = client_response
 
-    def release(self) -> None:
-        return self.client_response.release()
+    async def release(self) -> None:
+        return await self.client_response.release()
 
     @property
     def closed(self) -> bool:
@@ -79,14 +79,14 @@ class ClientResponse:
         exc_val: Optional[BaseException],
         exc_tb: Optional[TracebackType],
     ) -> None:
-        self.release()
+        await self.release()
 
 
 class ClientSession:
     def __init__(self,
                  *args,
                  raise_for_status: bool = True,
-                 timeout: Union[aiohttp.ClientTimeout, float] = None,
+                 timeout: Union[aiohttp.ClientTimeout, float, None] = None,
                  **kwargs):
         location = get_deploy_config().location()
         if location == 'external':
@@ -137,7 +137,7 @@ class ClientSession:
                     # reason should always be not None for a started response
                     assert resp.reason is not None
                     body = (await resp.read()).decode()
-                    resp.release()
+                    await resp.release()
                     raise ClientResponseError(
                         resp.request_info,
                         resp.history,
@@ -236,7 +236,7 @@ class BlockingClientResponse:
             encoding=encoding, errors=errors))
 
     def json(self, *,
-             encoding: str = None,
+             encoding: Optional[str] = None,
              loads: aiohttp.typedefs.JSONDecoder = aiohttp.typedefs.DEFAULT_JSON_DECODER,
              content_type: Optional[str] = 'application/json') -> Any:
         return async_to_blocking(self.client_response.json(

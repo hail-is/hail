@@ -10,6 +10,7 @@ import aiomysql
 import pymysql
 
 from gear.metrics import DB_CONNECTION_QUEUE_SIZE, SQL_TRANSACTIONS, PrometheusSQLTimer
+from hailtop.aiotools import BackgroundTaskManager
 from hailtop.auth.sql_config import SQLConfig
 from hailtop.utils import sleep_and_backoff
 
@@ -69,7 +70,7 @@ def transaction(db, **transaction_kwargs):
 
 
 async def aenter(acontext_manager):
-    return await acontext_manager.__aenter__()
+    return await acontext_manager.__aenter__()  # pylint: disable=unnecessary-dunder-call
 
 
 async def aexit(acontext_manager, exc_type=None, exc_val=None, exc_tb=None):
@@ -121,17 +122,20 @@ async def create_database_pool(config_file: str = None, autocommit: bool = True,
         ssl=ssl_context,
         cursorclass=aiomysql.cursors.DictCursor,
         autocommit=autocommit,
+        # Discard stale connections, see https://stackoverflow.com/questions/69373128/db-connection-issue-with-encode-databases-library.
+        pool_recycle=3600,
     )
 
 
 class TransactionAsyncContextManager:
-    def __init__(self, db_pool, read_only):
+    def __init__(self, db_pool, read_only, task_manager: BackgroundTaskManager):
         self.db_pool = db_pool
         self.read_only = read_only
         self.tx = None
+        self.task_manager = task_manager
 
     async def __aenter__(self):
-        tx = Transaction()
+        tx = Transaction(self.task_manager)
         await tx.async_init(self.db_pool, self.read_only)
         self.tx = tx
         return tx
@@ -151,9 +155,10 @@ async def _release_connection(conn_context_manager):
 
 
 class Transaction:
-    def __init__(self):
+    def __init__(self, task_manager: BackgroundTaskManager):
         self.conn_context_manager = None
         self.conn = None
+        self._task_manager = task_manager
 
     async def async_init(self, db_pool, read_only):
         try:
@@ -171,7 +176,7 @@ class Transaction:
             self.conn = None
             conn_context_manager = self.conn_context_manager
             self.conn_context_manager = None
-            asyncio.ensure_future(_release_connection(conn_context_manager))
+            self._task_manager.ensure_future(_release_connection(conn_context_manager))
             raise
 
     async def _aexit_1(self, exc_type):
@@ -188,7 +193,7 @@ class Transaction:
             self.conn = None
             conn_context_manager = self.conn_context_manager
             self.conn_context_manager = None
-            asyncio.ensure_future(_release_connection(conn_context_manager))
+            self._task_manager.ensure_future(_release_connection(conn_context_manager))
 
     async def _aexit(self, exc_type, exc_val, exc_tb):  # pylint: disable=unused-argument
         # cancelling cleanup could leak a connection
@@ -225,16 +230,23 @@ class Transaction:
                 for row in rows:
                     yield row
 
-    async def execute_insertone(self, sql, args=None):
+    async def execute_insertone(self, sql, args=None, *, query_name=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
-            await cursor.execute(sql, args)
+            if query_name is None:
+                await cursor.execute(sql, args)
+            else:
+                async with PrometheusSQLTimer(query_name):
+                    await cursor.execute(sql, args)
             return cursor.lastrowid
 
-    async def execute_update(self, sql, args=None):
+    async def execute_update(self, sql, args=None, query_name=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
-            return await cursor.execute(sql, args)
+            if query_name is None:
+                return await cursor.execute(sql, args)
+            async with PrometheusSQLTimer(query_name):
+                return await cursor.execute(sql, args)
 
     async def execute_many(self, sql, args_array, query_name=None):
         assert self.conn
@@ -256,12 +268,15 @@ class CallError(Exception):
 class Database:
     def __init__(self):
         self.pool = None
+        self.connection_release_task_manager = None
 
     async def async_init(self, config_file=None, maxsize=10):
         self.pool = await create_database_pool(config_file=config_file, autocommit=False, maxsize=maxsize)
+        self.connection_release_task_manager = BackgroundTaskManager()
 
     def start(self, read_only=False):
-        return TransactionAsyncContextManager(self.pool, read_only)
+        assert self.connection_release_task_manager
+        return TransactionAsyncContextManager(self.pool, read_only, self.connection_release_task_manager)
 
     @retry_transient_mysql_errors
     async def just_execute(self, sql, args=None):
@@ -294,9 +309,9 @@ class Database:
             return await tx.execute_insertone(sql, args)
 
     @retry_transient_mysql_errors
-    async def execute_update(self, sql, args=None):
+    async def execute_update(self, sql, args=None, query_name=None):
         async with self.start() as tx:
-            return await tx.execute_update(sql, args)
+            return await tx.execute_update(sql, args, query_name)
 
     @retry_transient_mysql_errors
     async def execute_many(self, sql, args_array, query_name=None):
@@ -311,5 +326,8 @@ class Database:
         return rv
 
     async def async_close(self):
+        assert self.pool
+        assert self.connection_release_task_manager
+        self.connection_release_task_manager.shutdown()
         self.pool.close()
         await self.pool.wait_closed()

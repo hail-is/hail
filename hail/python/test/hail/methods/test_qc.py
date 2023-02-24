@@ -4,9 +4,6 @@ import hail as hl
 import hail.expr.aggregators as agg
 from ..helpers import *
 
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
-
 
 class Tests(unittest.TestCase):
     def test_sample_qc(self):
@@ -110,7 +107,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(r[1].vqc.gq_stats.mean, 10)
         self.assertEqual(r[1].vqc.gq_stats.stdev, 0)
 
-    @skip_when_service_backend('very slow / nonterminating')
     def test_concordance(self):
         dataset = get_dataset()
         glob_conc, cols_conc, rows_conc = hl.concordance(dataset, dataset)
@@ -135,10 +131,10 @@ class Tests(unittest.TestCase):
         self.assertTrue(cols_conc.all(hl.sum(hl.flatten(cols_conc.concordance)) == dataset.count_rows()))
         self.assertTrue(rows_conc.all(hl.sum(hl.flatten(rows_conc.concordance)) == dataset.count_cols()))
 
-        cols_conc.write('/tmp/foo.kt', overwrite=True)
-        rows_conc.write('/tmp/foo.kt', overwrite=True)
+        with hl.TemporaryDirectory(ensure_exists=False) as outfile:
+            cols_conc.write(outfile, overwrite=True)
+            rows_conc.write(outfile, overwrite=True)
 
-    @skip_when_service_backend('very slow / nonterminating')
     def test_concordance_n_discordant(self):
         dataset = get_dataset()
         _, cols_conc, rows_conc = hl.concordance(dataset, dataset)
@@ -216,26 +212,12 @@ class Tests(unittest.TestCase):
                       n_discordant=0),
         ]
 
-    @skip_when_service_backend('very slow / nonterminating')
     def test_concordance_no_values_doesnt_error(self):
         dataset = get_dataset().filter_rows(False)
         _, cols_conc, rows_conc = hl.concordance(dataset, dataset)
         cols_conc._force_count()
         rows_conc._force_count()
 
-    @skip_when_service_backend('''intermittent worker failure:
->           self.assertEqual(hl.filter_alleles(ds, lambda a, i: True).count_rows(), ds.count_rows())
-
-Caused by: java.lang.ClassCastException: __C2860collect_distributed_array cannot be cast to is.hail.expr.ir.FunctionWithObjects
-	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:689)
-	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:670)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-	... 11 more''')
     def test_filter_alleles(self):
         # poor man's Gen
         paths = [resource('sample.vcf'),
@@ -247,7 +229,6 @@ Caused by: java.lang.ClassCastException: __C2860collect_distributed_array cannot
                 hl.filter_alleles(ds, lambda a, i: False).count_rows(), 0)
             self.assertEqual(hl.filter_alleles(ds, lambda a, i: True).count_rows(), ds.count_rows())
 
-    @skip_when_service_backend('slow (at least 45 minutes)')
     def test_filter_alleles_hts(self):
         # 1 variant: A:T,G
         ds = hl.import_vcf(resource('filter_alleles/input.vcf'))
@@ -295,3 +276,12 @@ Caused by: java.lang.ClassCastException: __C2860collect_distributed_array cannot
         assert r['n_variants'] == 346
         assert r['r_ti_tv'] == 2.5
         assert r['allele_counts'] == {2: 346}
+
+    def test_charr(self):
+        mt = hl.import_vcf(resource('sample.vcf'))
+        es = mt.select_rows().entries()
+        charr = hl.compute_charr(mt, ref_AF=0.9)
+        d = charr.aggregate(hl.dict(hl.agg.collect((charr.s, charr.charr))))
+
+        assert pytest.approx(d['C1046::HG02024'], abs=0.0001) == .00126
+        assert pytest.approx(d['C1046::HG02025'], abs=0.0001) == .00124

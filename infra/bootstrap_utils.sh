@@ -10,12 +10,10 @@ fi
 source $HAIL/devbin/functions.sh
 
 copy_images() {
-    cd $HAIL/docker/third-party
-    DOCKER_PREFIX=$(get_global_config_field docker_prefix)
-    DOCKER_PREFIX=$DOCKER_PREFIX ./copy_images.sh
-    cd -
+    make -C $HAIL/docker/third-party copy
 
-    make -C $HAIL/docker/python-dill push DOCKER_PREFIX=$DOCKER_PREFIX
+    make -C $HAIL/hail python/hail/hail_pip_version
+    make -C $HAIL/docker/hailgenetics mirror-dockerhub-images
 }
 
 generate_ssl_certs() {
@@ -54,10 +52,11 @@ deploy_unmanaged() {
     copy_images
     generate_ssl_certs
 
+    export NAMESPACE=default
     kubectl -n default apply -f $HAIL/ci/bootstrap.yaml
     make -C $HAIL/ci build-ci-utils build-hail-buildkit
     make -C $HAIL/batch build-worker
-    make -C $HAIL/internal-gateway deploy
+    make -C $HAIL/internal-gateway envoy-xds-config deploy
     make -C $HAIL/bootstrap-gateway deploy
     make -C $HAIL/letsencrypt run
 }

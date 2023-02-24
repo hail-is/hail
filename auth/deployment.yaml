@@ -50,9 +50,20 @@ spec:
               secretKeyRef:
                 name: global-config
                 key: domain
+          - name: CLOUD
+            valueFrom:
+              secretKeyRef:
+                name: global-config
+                key: cloud
+          - name: HAIL_SHA
+            value: "{{ code.sha }}"
+{% if scope != "test" %}
+          - name: HAIL_SHOULD_PROFILE
+            value: "1"
+{% endif %}
          resources:
            requests:
-             cpu: "20m"
+             cpu: "50m"
              memory: "20M"
            limits:
              cpu: "1"
@@ -80,7 +91,7 @@ spec:
             mountPath: /ssl-config
             readOnly: true
          ports:
-          - containerPort: 5000
+          - containerPort: 443
       volumes:
        - name: deploy-config
          secret:
@@ -115,12 +126,17 @@ spec:
   selector:
     matchLabels:
       app: auth
+{% if deploy %}
   replicas: 3
+{% else %}
+  replicas: 1
+{% endif %}
   template:
     metadata:
       labels:
         app: auth
         hail.is/sha: "{{ code.sha }}"
+        grafanak8sapp: "true"
     spec:
 {% if deploy %}
       priorityClassName: production
@@ -167,6 +183,17 @@ spec:
               secretKeyRef:
                 name: global-config
                 key: organization_domain
+          - name: CLOUD
+            valueFrom:
+              secretKeyRef:
+                name: global-config
+                key: cloud
+          - name: HAIL_SHA
+            value: "{{ code.sha }}"
+{% if scope != "test" %}
+          - name: HAIL_SHOULD_PROFILE
+            value: "1"
+{% endif %}
          resources:
            requests:
              cpu: "20m"
@@ -197,10 +224,10 @@ spec:
             mountPath: /ssl-config
             readOnly: true
          ports:
-          - containerPort: 5000
+          - containerPort: 443
          readinessProbe:
            tcpSocket:
-             port: 5000
+             port: 443
            initialDelaySeconds: 5
            periodSeconds: 5
       volumes:
@@ -236,8 +263,13 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: auth
+{% if deploy %}
   minReplicas: 3
   maxReplicas: 10
+{% else %}
+  minReplicas: 1
+  maxReplicas: 3
+{% endif %}
   metrics:
    - type: Resource
      resource:
@@ -249,7 +281,11 @@ kind: PodDisruptionBudget
 metadata:
   name: auth
 spec:
+{% if deploy %}
   minAvailable: 2
+{% else %}
+  minAvailable: 0
+{% endif %}
   selector:
     matchLabels:
       app: auth
@@ -261,9 +297,6 @@ metadata:
   labels:
     app: auth
 spec:
-  ports:
-   - port: 443
-     protocol: TCP
-     targetPort: 5000
+  clusterIP: None
   selector:
     app: auth

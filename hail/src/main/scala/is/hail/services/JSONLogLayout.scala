@@ -12,7 +12,7 @@ import org.json4s.jackson.JsonMethods
 import scala.collection.mutable.ArrayBuffer
 
 class DateFormatter {
-  private[this] val fmt = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS")
+  private[this] val fmt = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS")
   private[this] val buffer = new StringBuffer()
   private[this] val fp = new FieldPosition(0)
 

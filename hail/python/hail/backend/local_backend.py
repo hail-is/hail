@@ -1,3 +1,4 @@
+from typing import Optional
 import json
 import os
 import socket
@@ -13,6 +14,7 @@ from hail.expr.blockmatrix_type import tblockmatrix
 from hail.expr.matrix_type import tmatrix
 from hail.expr.table_type import ttable
 from hail.expr.types import dtype
+from hail.ir import finalize_randomness
 from hail.ir.renderer import CSERenderer
 from hail.utils.java import scala_package_object, scala_object
 from .py4j_backend import Py4JBackend, handle_java_exception
@@ -113,8 +115,13 @@ class Log4jLogger(Logger):
 
 class LocalBackend(Py4JBackend):
     def __init__(self, tmpdir, log, quiet, append, branching_factor,
-                 skip_logging_configuration, optimizer_iterations):
+                 skip_logging_configuration, optimizer_iterations,
+                 *,
+                 gcs_requester_pays_project: Optional[str] = None,
+                 gcs_requester_pays_buckets: Optional[str] = None
+                 ):
         super(LocalBackend, self).__init__()
+        assert gcs_requester_pays_project is not None or gcs_requester_pays_buckets is None
 
         spark_home = find_spark_home()
         hail_jar_path = os.environ.get('HAIL_JAR')
@@ -127,7 +134,7 @@ class LocalBackend(Py4JBackend):
         port = launch_gateway(
             redirect_stdout=sys.stdout,
             redirect_stderr=sys.stderr,
-            jarpath=f'{spark_home}/jars/py4j-0.10.9.jar',
+            jarpath=f'{spark_home}/jars/py4j-0.10.9.5.jar',
             classpath=f'{spark_home}/jars/*:{hail_jar_path}',
             die_on_exit=True)
         self._gateway = JavaGateway(
@@ -139,7 +146,11 @@ class LocalBackend(Py4JBackend):
         self._hail_package = hail_package
         self._utils_package_object = scala_package_object(hail_package.utils)
 
-        self._jbackend = hail_package.backend.local.LocalBackend.apply(tmpdir)
+        self._jbackend = hail_package.backend.local.LocalBackend.apply(
+            tmpdir,
+            gcs_requester_pays_project,
+            gcs_requester_pays_buckets
+        )
         self._jhc = hail_package.HailContext.apply(
             self._jbackend, log, True, append, branching_factor, skip_logging_configuration, optimizer_iterations)
 
@@ -161,6 +172,7 @@ class LocalBackend(Py4JBackend):
 
         if not quiet:
             connect_logger(self._utils_package_object, 'localhost', 12888)
+        self._initialize_flags()
 
     def jvm(self):
         return self._jvm
@@ -183,14 +195,14 @@ class LocalBackend(Py4JBackend):
             {k: t._parsable_string() for k, t in ref_map.items()},
             ir_map)
 
-    def _parse_table_ir(self, code, ref_map={}, ir_map={}):
-        return self._jbackend.parse_table_ir(code, ref_map, ir_map)
+    def _parse_table_ir(self, code, ir_map={}):
+        return self._jbackend.parse_table_ir(code, ir_map)
 
-    def _parse_matrix_ir(self, code, ref_map={}, ir_map={}):
-        return self._jbackend.parse_matrix_ir(code, ref_map, ir_map)
+    def _parse_matrix_ir(self, code, ir_map={}):
+        return self._jbackend.parse_matrix_ir(code, ir_map)
 
-    def _parse_blockmatrix_ir(self, code, ref_map={}, ir_map={}):
-        return self._jbackend.parse_blockmatrix_ir(code, ref_map, ir_map)
+    def _parse_blockmatrix_ir(self, code, ir_map={}):
+        return self._jbackend.parse_blockmatrix_ir(code, ir_map)
 
     @property
     def logger(self):
@@ -206,7 +218,7 @@ class LocalBackend(Py4JBackend):
         if not hasattr(ir, '_jir'):
             r = CSERenderer(stop_at_jir=True)
             # FIXME parse should be static
-            ir._jir = parse(r(ir), ir_map=r.jirs)
+            ir._jir = parse(r(finalize_randomness(ir)), ir_map=r.jirs)
         return ir._jir
 
     def _to_java_value_ir(self, ir):
@@ -250,7 +262,7 @@ class LocalBackend(Py4JBackend):
     def remove_reference(self, name):
         self._hail_package.variant.ReferenceGenome.removeReference(name)
 
-    def get_reference(self, name):
+    def _get_non_builtin_reference(self, name):
         return json.loads(self._hail_package.variant.ReferenceGenome.getReference(name).toJSONString())
 
     def add_sequence(self, name, fasta_file, index_file):

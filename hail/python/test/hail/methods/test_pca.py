@@ -4,13 +4,9 @@ import numpy as np
 
 import hail as hl
 from hail.methods.pca import _make_tsm
-from ..helpers import resource, startTestHailContext, stopTestHailContext, fails_local_backend, fails_service_backend, skip_when_service_backend
-
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
+from ..helpers import resource, fails_local_backend, fails_service_backend, skip_when_service_backend
 
 
-@fails_service_backend()
 @fails_local_backend()
 def test_hwe_normalized_pca():
     mt = hl.balding_nichols_model(3, 100, 50)
@@ -25,7 +21,6 @@ def test_hwe_normalized_pca():
     assert loadings is None
 
 
-@fails_service_backend()
 @fails_local_backend()
 def test_pca_against_numpy():
     mt = hl.import_vcf(resource('tiny_m.vcf'))
@@ -139,6 +134,26 @@ def matrix_table_from_numpy(np_mat):
 # k, m, n
 dim_triplets = [(20, 1000, 1000), (10, 100, 200)]
 
+
+def test_blanczos_T():
+    k, m, n = 10, 100, 200
+    sigma = np.diag([spec1(i + 1, k) for i in range(m)])
+    seed = 1025
+    np.random.seed(seed)
+    U = np.linalg.qr(np.random.normal(0, 1, (m, m)))[0]
+    V = np.linalg.qr(np.random.normal(0, 1, (n, m)))[0]
+    A = U @ sigma @ V.T
+    mt_A_T = matrix_table_from_numpy(A.T)
+
+    eigenvalues, scores, loadings = hl._blanczos_pca(mt_A_T.ent, k=k, oversampling_param=k, q_iterations=4, compute_loadings=True, transpose=True)
+    singulars = np.sqrt(eigenvalues)
+    hail_V = (np.array(scores.scores.collect()) / singulars).T
+    hail_U = np.array(loadings.loadings.collect())
+    approx_A = hail_U @ np.diag(singulars) @ hail_V
+    norm_of_diff = np.linalg.norm(A - approx_A, 2)
+    np.testing.assert_allclose(norm_of_diff, spec1(k + 1, k), rtol=1e-02)
+    np.testing.assert_allclose(singulars, np.diag(sigma)[:k], rtol=1e-01)
+
 def spectra_helper(spec_func):
 
     for triplet in dim_triplets:
@@ -235,27 +250,27 @@ def spectral_moments_helper(spec_func):
         np.testing.assert_allclose(moments, true_moments, rtol=2e-01)
 
 
-@skip_when_service_backend(message='v slow & OOms')
+@skip_when_service_backend(reason='v slow & OOms')
 def test_spectral_moments_1():
     spectral_moments_helper(spec1)
 
 
-@skip_when_service_backend(message='v slow & OOms')
+@skip_when_service_backend(reason='v slow & OOms')
 def test_spectral_moments_2():
     spectral_moments_helper(spec2)
 
 
-@skip_when_service_backend(message='v slow & OOms')
+@skip_when_service_backend(reason='v slow & OOms')
 def test_spectral_moments_3():
     spectral_moments_helper(spec3)
 
 
-@skip_when_service_backend(message='v slow & OOms')
+@skip_when_service_backend(reason='v slow & OOms')
 def test_spectral_moments_4():
     spectral_moments_helper(spec4)
 
 
-@skip_when_service_backend(message='v slow & OOms')
+@skip_when_service_backend(reason='v slow & OOms')
 def test_spectral_moments_5():
     spectral_moments_helper(spec5)
 

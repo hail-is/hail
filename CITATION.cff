@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+title: Hail
+abstract: An integrated, open-source, multi-tenant, compute-system for scalable science.
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Hail Team
+    name-particle: Hail Team
+    email: hail-team@broadinstitute.org
+    affiliation: The Broad Institute of MIT & Harvard
+license: MIT
+repository-code: "https://github.com/hail-is/hail"
+url: "https://hail.is"

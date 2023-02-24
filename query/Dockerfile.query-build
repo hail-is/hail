@@ -1,0 +1,14 @@
+FROM {{ hail_ubuntu_image.image }}
+
+RUN curl 'https://apt.llvm.org/llvm-snapshot.gpg.key' \
+        | gpg --dearmor >> /usr/share/keyrings/llvm-snapshot-keyring.gpg && \
+    echo 'deb [signed-by=/usr/share/keyrings/llvm-snapshot-keyring.gpg] http://apt.llvm.org/focal/ llvm-toolchain-focal-15 main' \
+         >> /etc/apt/sources.list && \
+    hail-apt-get-install \
+        build-essential \
+        cmake ninja-build \
+        llvm-15-dev \
+        clang-15 clang-tools-15 clang-format-15 clang-tidy-15 \
+        libmlir-15-dev mlir-15-tools \
+        python3-pip && \
+    hail-pip-install lit

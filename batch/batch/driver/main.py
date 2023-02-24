@@ -2,35 +2,48 @@ import asyncio
 import copy
 import json
 import logging
+import os
+import re
 import signal
-from collections import defaultdict, namedtuple
+from collections import defaultdict
 from functools import wraps
-from typing import Dict, List
+from typing import Any, Dict, Set, Tuple
 
 import aiohttp_session
 import dictdiffer
-import googlecloudprofiler
 import kubernetes_asyncio.client
 import kubernetes_asyncio.config
+import pandas as pd
+import plotly
+import plotly.graph_objects as go
 import prometheus_client as pc  # type: ignore
 import uvloop
 from aiohttp import web
+from plotly.subplots import make_subplots
 from prometheus_async.aio.web import server_stats
 
 from gear import (
+    AuthClient,
     Database,
     check_csrf_token,
     monitor_endpoints_middleware,
-    rest_authenticated_developers_only,
     setup_aiohttp_session,
     transaction,
-    web_authenticated_developers_only,
 )
 from gear.clients import get_cloud_async_fs
+from gear.profiling import install_profiler_if_requested
 from hailtop import aiotools, httpx
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
-from hailtop.utils import AsyncWorkerPool, Notice, dump_all_stacktraces, periodically_call, serialization, time_msecs
+from hailtop.utils import (
+    AsyncWorkerPool,
+    Notice,
+    dump_all_stacktraces,
+    flatten,
+    periodically_call,
+    serialization,
+    time_msecs,
+)
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
 from ..batch import cancel_batch_in_db
@@ -38,9 +51,7 @@ from ..batch_configuration import (
     BATCH_STORAGE_URI,
     CLOUD,
     DEFAULT_NAMESPACE,
-    HAIL_SHA,
     HAIL_SHOULD_CHECK_INVARIANTS,
-    HAIL_SHOULD_PROFILE,
     MACHINE_NAME_PREFIX,
     REFRESH_INTERVAL_IN_SECONDS,
 )
@@ -50,7 +61,7 @@ from ..exceptions import BatchUserError
 from ..file_store import FileStore
 from ..globals import HTTP_CLIENT_MAX_SIZE
 from ..inst_coll_config import InstanceCollectionConfigs, PoolConfig
-from ..utils import authorization_token, batch_only, query_billing_projects
+from ..utils import authorization_token, batch_only, json_to_value, query_billing_projects
 from .canceller import Canceller
 from .driver import CloudDriver
 from .instance_collection import InstanceCollectionManager, JobPrivateInstanceManager, Pool
@@ -67,15 +78,7 @@ routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
 
-
-def ignore_failed_to_collect_and_upload_profile(record):
-    if 'Failed to collect and upload profile: [Errno 32] Broken pipe' in record.msg:
-        record.levelno = logging.INFO
-        record.levelname = "INFO"
-    return record
-
-
-googlecloudprofiler.logger.addFilter(ignore_failed_to_collect_and_upload_profile)
+auth = AuthClient()
 
 
 def instance_name_from_request(request):
@@ -161,7 +164,7 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 
 
 @routes.get('/check_invariants')
-@rest_authenticated_developers_only
+@auth.rest_authenticated_developers_only
 async def get_check_invariants(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     data = {
@@ -171,9 +174,9 @@ async def get_check_invariants(request, userdata):  # pylint: disable=unused-arg
     return web.json_response(data=data)
 
 
-@routes.patch('/api/v1alpha/batches/{user}/{batch_id}/close')
+@routes.patch('/api/v1alpha/batches/{user}/{batch_id}/update')
 @batch_only
-async def close_batch(request):
+async def update_batch(request):
     db = request.app['db']
 
     user = request.match_info['user']
@@ -248,6 +251,7 @@ async def get_gsa_key(request, instance):  # pylint: disable=unused-argument
     return await asyncio.shield(get_gsa_key_1(instance))
 
 
+# deprecated
 @routes.get('/api/v1alpha/instances/credentials')
 @activating_instances_only
 async def get_credentials(request, instance):  # pylint: disable=unused-argument
@@ -275,7 +279,7 @@ async def deactivate_instance(request, instance):  # pylint: disable=unused-argu
 
 @routes.post('/instances/{instance_name}/kill')
 @check_csrf_token
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def kill_instance(request, userdata):  # pylint: disable=unused-argument
     instance_name = request.match_info['instance_name']
 
@@ -300,6 +304,7 @@ async def kill_instance(request, userdata):  # pylint: disable=unused-argument
 async def job_complete_1(request, instance):
     body = await request.json()
     job_status = body['status']
+    marked_job_started = body.get('marked_job_started', False)
 
     batch_id = job_status['batch_id']
     job_id = job_status['job_id']
@@ -331,6 +336,7 @@ async def job_complete_1(request, instance):
         end_time,
         'completed',
         resources,
+        marked_job_started=marked_job_started,
     )
 
     await instance.mark_healthy()
@@ -367,9 +373,46 @@ async def job_started(request, instance):
     return await asyncio.shield(job_started_1(request, instance))
 
 
+async def billing_update_1(request, instance):
+    db: Database = request.app['db']
+
+    body = await request.json()
+    update_timestamp = body['timestamp']
+    running_attempts = body['attempts']
+
+    if running_attempts:
+        where_attempt_query = []
+        where_attempt_args = []
+        for attempt in running_attempts:
+            where_attempt_query.append('(batch_id = %s AND job_id = %s AND attempt_id = %s)')
+            where_attempt_args.append([attempt['batch_id'], attempt['job_id'], attempt['attempt_id']])
+
+        where_query = f'WHERE {" OR ".join(where_attempt_query)}'
+        where_args = [update_timestamp] + flatten(where_attempt_args)
+
+        await db.execute_update(
+            f'''
+UPDATE attempts
+SET rollup_time = %s
+{where_query};
+''',
+            where_args,
+        )
+
+    await instance.mark_healthy()
+
+    return web.Response()
+
+
+@routes.post('/api/v1alpha/billing_update')
+@active_instances_only
+async def billing_update(request, instance):
+    return await asyncio.shield(billing_update_1(request, instance))
+
+
 @routes.get('/')
 @routes.get('')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def get_index(request, userdata):
     app = request.app
     db: Database = app['db']
@@ -398,6 +441,75 @@ FROM user_inst_coll_resources;
     return await render_template('batch-driver', request, userdata, 'index.html', page_context)
 
 
+@routes.get('/quotas')
+@auth.web_authenticated_developers_only()
+async def get_quotas(request, userdata):
+    if CLOUD != 'gcp':
+        return await render_template('batch-driver', request, userdata, 'quotas.html', {"plot_json": None})
+
+    data = request.app['driver'].get_quotas()
+
+    regions = list(data.keys())
+    new_data = []
+    for region in regions:
+        region_data = {'region': region}
+        quotas_region_data = data[region]['quotas']
+        for quota in quotas_region_data:
+            if quota['metric'] in ['PREEMPTIBLE_CPUS', 'CPUS', 'SSD_TOTAL_GB', 'LOCAL_SSD_TOTAL_GB', 'DISKS_TOTAL_GB']:
+                region_data.update({quota['metric']: {'limit': quota['limit'], 'usage': quota['usage']}})
+        new_data.append(region_data)
+
+    df = pd.DataFrame(new_data).set_index("region")
+
+    fig = make_subplots(
+        rows=len(df),
+        cols=len(df.columns),
+        specs=[[{"type": "indicator"} for _ in df.columns] for _ in df.index],
+    )
+    for r, (region, row) in enumerate(df.iterrows()):
+        for c, measure in enumerate(row):
+            fig.add_trace(
+                go.Indicator(
+                    mode="gauge+number",
+                    value=measure['usage'],
+                    title={"text": f"{region}--{df.columns[c]}"},
+                    title_font_size=15,
+                    gauge={
+                        'axis': {
+                            'range': [None, measure['limit']],
+                            'tickwidth': 1,
+                            'tickcolor': "darkblue",
+                        },
+                        'bar': {'color': "darkblue"},
+                        'bgcolor': "white",
+                        'borderwidth': 2,
+                        'bordercolor': "gray",
+                        'threshold': {
+                            'line': {'color': "red", 'width': 4},
+                            'thickness': 0.75,
+                            'value': measure['limit'],
+                        },
+                    },
+                ),
+                row=r + 1,
+                col=c + 1,
+            )
+
+    fig.update_layout(
+        paper_bgcolor="lavender",
+        font={'color': "darkblue", 'family': "Arial"},
+        margin={"l": 0, "r": 0, "t": 50, "b": 20},
+        height=1150,
+        width=2200,
+        autosize=True,
+        title_font_size=40,
+        title_x=0.5,
+    )
+
+    plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    return await render_template('batch-driver', request, userdata, 'quotas.html', {"plot_json": plot_json})
+
+
 class ConfigError(Exception):
     pass
 
@@ -420,7 +532,7 @@ def validate_int(session, name, value, predicate, description):
 
 @routes.post('/config-update/pool/{pool}')
 @check_csrf_token
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def pool_config_update(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     db: Database = app['db']
@@ -524,7 +636,7 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
                 set_message(session, f'External SSD must be at least {min_disk_storage} GB', 'error')
                 raise ConfigError()
 
-        pool_config = PoolConfig(
+        proposed_pool_config = PoolConfig(
             pool_name,
             pool.cloud,
             worker_type,
@@ -538,8 +650,24 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
             max_live_instances,
             pool.preemptible,
         )
-        await pool_config.update_database(db)
-        pool.configure(pool_config)
+
+        current_client_pool_config = json.loads(post['_pool_config_json'])
+        current_server_pool_config = pool.config()
+
+        client_items = current_client_pool_config.items()
+        server_items = current_server_pool_config.items()
+
+        match = client_items == server_items
+        if not match:
+            set_message(
+                session,
+                'The pool config was stale; please re-enter config updates and try again',
+                'error',
+            )
+            raise ConfigError()
+
+        await proposed_pool_config.update_database(db)
+        pool.configure(proposed_pool_config)
 
         set_message(session, f'Updated configuration for {pool}.', 'info')
     except ConfigError:
@@ -555,7 +683,7 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
 
 @routes.post('/config-update/jpim')
 @check_csrf_token
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def job_private_config_update(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
@@ -602,7 +730,7 @@ async def job_private_config_update(request, userdata):  # pylint: disable=unuse
 
 
 @routes.get('/inst_coll/pool/{pool}')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def get_pool(request, userdata):
     app = request.app
     inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
@@ -623,10 +751,13 @@ async def get_pool(request, userdata):
         reverse=True,
     )
 
-    ready_cores_mcpu = sum([record['ready_cores_mcpu'] for record in user_resources])
+    ready_cores_mcpu = sum(record['ready_cores_mcpu'] for record in user_resources)
+
+    pool_config_json = json.dumps(pool.config())
 
     page_context = {
         'pool': pool,
+        'pool_config_json': pool_config_json,
         'instances': pool.name_instance.values(),
         'user_resources': user_resources,
         'ready_cores_mcpu': ready_cores_mcpu,
@@ -636,7 +767,7 @@ async def get_pool(request, userdata):
 
 
 @routes.get('/inst_coll/jpim')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def get_job_private_inst_manager(request, userdata):
     app = request.app
     jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
@@ -648,9 +779,9 @@ async def get_job_private_inst_manager(request, userdata):
         reverse=True,
     )
 
-    n_ready_jobs = sum([record['n_ready_jobs'] for record in user_resources])
-    n_creating_jobs = sum([record['n_creating_jobs'] for record in user_resources])
-    n_running_jobs = sum([record['n_running_jobs'] for record in user_resources])
+    n_ready_jobs = sum(record['n_ready_jobs'] for record in user_resources)
+    n_creating_jobs = sum(record['n_creating_jobs'] for record in user_resources)
+    n_running_jobs = sum(record['n_running_jobs'] for record in user_resources)
 
     page_context = {
         'jpim': jpim,
@@ -666,7 +797,7 @@ async def get_job_private_inst_manager(request, userdata):
 
 @routes.post('/freeze')
 @check_csrf_token
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def freeze_batch(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     db: Database = app['db']
@@ -691,7 +822,7 @@ UPDATE globals SET frozen = 1;
 
 @routes.post('/unfreeze')
 @check_csrf_token
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def unfreeze_batch(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     db: Database = app['db']
@@ -715,7 +846,7 @@ UPDATE globals SET frozen = 0;
 
 
 @routes.get('/user_resources')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def get_user_resources(request, userdata):
     app = request.app
     db: Database = app['db']
@@ -813,11 +944,6 @@ LOCK IN SHARE MODE;
 
 
 async def check_resource_aggregation(app, db):
-    def json_to_value(x):
-        if x is None:
-            return x
-        return json.loads(x)
-
     def merge(r1, r2):
         if r1 is None:
             r1 = {}
@@ -847,7 +973,7 @@ async def check_resource_aggregation(app, db):
         if d is None:
             d = {}
         d = copy.deepcopy(d)
-        result = {}
+        result: Dict[str, Any] = {}
         for k, v in d.items():
             seqop(result, key_f(k), v)
         return result
@@ -857,12 +983,14 @@ async def check_resource_aggregation(app, db):
         attempt_resources = tx.execute_and_fetchall(
             '''
 SELECT attempt_resources.batch_id, attempt_resources.job_id, attempt_resources.attempt_id,
-  JSON_OBJECTAGG(resource, quantity * GREATEST(COALESCE(end_time - start_time, 0), 0)) as resources
+  JSON_OBJECTAGG(resources.resource, quantity * GREATEST(COALESCE(rollup_time - start_time, 0), 0)) as resources
 FROM attempt_resources
 INNER JOIN attempts
 ON attempts.batch_id = attempt_resources.batch_id AND
   attempts.job_id = attempt_resources.job_id AND
   attempts.attempt_id = attempt_resources.attempt_id
+LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
+WHERE GREATEST(COALESCE(rollup_time - start_time, 0), 0) != 0
 GROUP BY batch_id, job_id, attempt_id
 LOCK IN SHARE MODE;
 '''
@@ -871,7 +999,8 @@ LOCK IN SHARE MODE;
         agg_job_resources = tx.execute_and_fetchall(
             '''
 SELECT batch_id, job_id, JSON_OBJECTAGG(resource, `usage`) as resources
-FROM aggregated_job_resources
+FROM aggregated_job_resources_v2
+LEFT JOIN resources ON aggregated_job_resources_v2.resource_id = resources.resource_id
 GROUP BY batch_id, job_id
 LOCK IN SHARE MODE;
 '''
@@ -881,9 +1010,10 @@ LOCK IN SHARE MODE;
             '''
 SELECT batch_id, billing_project, JSON_OBJECTAGG(resource, `usage`) as resources
 FROM (
-  SELECT batch_id, resource, SUM(`usage`) AS `usage`
-  FROM aggregated_batch_resources
-  GROUP BY batch_id, resource) AS t
+  SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM aggregated_batch_resources_v2
+  GROUP BY batch_id, resource_id) AS t
+LEFT JOIN resources ON t.resource_id = resources.resource_id
 JOIN batches ON batches.id = t.batch_id
 GROUP BY t.batch_id, billing_project
 LOCK IN SHARE MODE;
@@ -894,9 +1024,10 @@ LOCK IN SHARE MODE;
             '''
 SELECT billing_project, JSON_OBJECTAGG(resource, `usage`) as resources
 FROM (
-  SELECT billing_project, resource, SUM(`usage`) AS `usage`
-  FROM aggregated_billing_project_resources
-  GROUP BY billing_project, resource) AS t
+  SELECT billing_project, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM aggregated_billing_project_user_resources_v2
+  GROUP BY billing_project, resource_id) AS t
+LEFT JOIN resources ON t.resource_id = resources.resource_id
 GROUP BY t.billing_project
 LOCK IN SHARE MODE;
 '''
@@ -1002,31 +1133,41 @@ WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= 
         await _cancel_batch(app, batch['id'])
 
 
-USER_CORES = pc.Gauge('batch_user_cores', 'Batch user cores', ['state', 'user', 'inst_coll'])
+USER_CORES = pc.Gauge('batch_user_cores', 'Batch user cores (i.e. total in-use cores)', ['state', 'user', 'inst_coll'])
 USER_JOBS = pc.Gauge('batch_user_jobs', 'Batch user jobs', ['state', 'user', 'inst_coll'])
-FREE_CORES = pc.Summary('batch_free_cores', 'Batch instance free cores', ['inst_coll'])
-UTILIZATION = pc.Summary('batch_utilization', 'Batch utilization rates', ['inst_coll'])
-COST_PER_HOUR = pc.Summary('batch_cost_per_hour', 'Batch cost ($/hr)', ['measure', 'inst_coll'])
-INSTANCES = pc.Gauge('batch_instances', 'Batch instances', ['inst_coll', 'state'])
+ACTIVE_USER_INST_COLL_PAIRS: Set[Tuple[str, str]] = set()
 
-StateUserInstCollLabels = namedtuple('StateUserInstCollLabels', ['state', 'user', 'inst_coll'])
-InstCollLabels = namedtuple('InstCollLabels', ['inst_coll'])
-CostPerHourLabels = namedtuple('CostPerHourLabels', ['measure', 'inst_coll'])
-InstanceLabels = namedtuple('InstanceLabels', ['inst_coll', 'state'])
+FREE_CORES = pc.Gauge('batch_free_cores', 'Batch total free cores', ['inst_coll'])
+TOTAL_CORES = pc.Gauge('batch_total_cores', 'Batch total cores', ['inst_coll'])
+COST_PER_HOUR = pc.Gauge('batch_cost_per_hour', 'Batch cost ($/hr)', ['measure', 'inst_coll'])
+INSTANCES = pc.Gauge('batch_instances', 'Batch instances', ['inst_coll', 'state'])
+INSTANCE_CORE_UTILIZATION = pc.Histogram(
+    'batch_instance_core_utilization',
+    'Batch per-instance percentage of revenue generating cores',
+    ['inst_coll'],
+    # Buckets were chosen to distinguish instances with:
+    # - no jobs (<= 1/8 core in use)
+    # - 1 1/4 core job
+    # - 1 1/2 core job
+    # - 1 core in use
+    # - 2 cores in use,
+    # - etc.
+    #
+    # NB: we conflate some utilizations, for example, using 1.25 cores and using 2 cores.
+    buckets=[c / 16 for c in [1 / 8, 1 / 4, 1 / 2, 1, 2, 3, 4, 6, 8, 10, 12, 14, 16]],
+)
 
 
 async def monitor_user_resources(app):
+    global ACTIVE_USER_INST_COLL_PAIRS
     db: Database = app['db']
-
-    user_cores = defaultdict(int)
-    user_jobs = defaultdict(int)
 
     records = db.select_and_fetchall(
         '''
 SELECT user, inst_coll,
   CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu,
-  CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED) AS n_ready_jobs,
   CAST(COALESCE(SUM(running_cores_mcpu), 0) AS SIGNED) AS running_cores_mcpu,
+  CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED) AS n_ready_jobs,
   CAST(COALESCE(SUM(n_running_jobs), 0) AS SIGNED) AS n_running_jobs,
   CAST(COALESCE(SUM(n_creating_jobs), 0) AS SIGNED) AS n_creating_jobs
 FROM user_inst_coll_resources
@@ -1034,85 +1175,59 @@ GROUP BY user, inst_coll;
 '''
     )
 
+    current_user_inst_coll_pairs: Set[Tuple[str, str]] = set()
+
     async for record in records:
-        ready_user_cores_labels = StateUserInstCollLabels(
-            state='ready', user=record['user'], inst_coll=record['inst_coll']
-        )
-        user_cores[ready_user_cores_labels] += record['ready_cores_mcpu'] / 1000
+        user = record['user']
+        inst_coll = record['inst_coll']
 
-        running_user_cores_labels = StateUserInstCollLabels(
-            state='running', user=record['user'], inst_coll=record['inst_coll']
-        )
-        user_cores[running_user_cores_labels] += record['running_cores_mcpu'] / 1000
+        current_user_inst_coll_pairs.add((user, inst_coll))
+        labels = {'user': user, 'inst_coll': inst_coll}
 
-        ready_jobs_labels = StateUserInstCollLabels(state='ready', user=record['user'], inst_coll=record['inst_coll'])
-        user_jobs[ready_jobs_labels] += record['n_ready_jobs']
+        USER_CORES.labels(state='ready', **labels).set(record['ready_cores_mcpu'] / 1000)
+        USER_CORES.labels(state='running', **labels).set(record['running_cores_mcpu'] / 1000)
+        USER_JOBS.labels(state='ready', **labels).set(record['n_ready_jobs'])
+        USER_JOBS.labels(state='running', **labels).set(record['n_running_jobs'])
+        USER_JOBS.labels(state='creating', **labels).set(record['n_creating_jobs'])
 
-        running_jobs_labels = StateUserInstCollLabels(
-            state='running', user=record['user'], inst_coll=record['inst_coll']
-        )
-        user_jobs[running_jobs_labels] += record['n_running_jobs']
+    for user, inst_coll in ACTIVE_USER_INST_COLL_PAIRS - current_user_inst_coll_pairs:
+        USER_CORES.remove('ready', user, inst_coll)
+        USER_CORES.remove('running', user, inst_coll)
+        USER_JOBS.remove('ready', user, inst_coll)
+        USER_JOBS.remove('running', user, inst_coll)
+        USER_JOBS.remove('creating', user, inst_coll)
 
-        creating_jobs_labels = StateUserInstCollLabels(
-            state='creating', user=record['user'], inst_coll=record['inst_coll']
-        )
-        user_jobs[creating_jobs_labels] += record['n_creating_jobs']
-
-    def set_value(gauge, data):
-        gauge.clear()
-        for labels, count in data.items():
-            if count > 0:
-                gauge.labels(**labels._asdict()).set(count)
-
-    set_value(USER_CORES, user_cores)
-    set_value(USER_JOBS, user_jobs)
+    ACTIVE_USER_INST_COLL_PAIRS = current_user_inst_coll_pairs
 
 
 def monitor_instances(app) -> None:
     driver: CloudDriver = app['driver']
     inst_coll_manager = driver.inst_coll_manager
-
-    cost_per_hour: Dict[CostPerHourLabels, List[float]] = defaultdict(list)
-    free_cores: Dict[InstCollLabels, List[float]] = defaultdict(list)
-    utilization: Dict[InstCollLabels, List[float]] = defaultdict(list)
-    instances: Dict[InstanceLabels, int] = defaultdict(int)
+    resource_rates = driver.billing_manager.resource_rates
 
     for inst_coll in inst_coll_manager.name_inst_coll.values():
+        total_free_cores = 0.0
+        total_cores = 0.0
+        total_cost_per_hour = 0.0
+        total_revenue_per_hour = 0.0
+        instances_by_state: Dict[str, int] = defaultdict(int)
+
         for instance in inst_coll.name_instance.values():
-            # free cores mcpu can be negatively temporarily if the worker is oversubscribed
-            utilized_cores_mcpu = instance.cores_mcpu - max(0, instance.free_cores_mcpu)
-
             if instance.state != 'deleted':
-                actual_cost_per_hour_labels = CostPerHourLabels(measure='actual', inst_coll=instance.inst_coll.name)
-                actual_rate = instance.instance_config.actual_cost_per_hour(driver.billing_manager.resource_rates)
-                cost_per_hour[actual_cost_per_hour_labels].append(actual_rate)
+                total_free_cores += instance.free_cores_mcpu_nonnegative / 1000
+                total_cores += instance.cores_mcpu / 1000
+                total_cost_per_hour += instance.cost_per_hour(resource_rates)
+                total_revenue_per_hour += instance.revenue_per_hour(resource_rates)
+                INSTANCE_CORE_UTILIZATION.labels(inst_coll=inst_coll.name).observe(instance.percent_cores_used)
 
-                billed_cost_per_hour_labels = CostPerHourLabels(measure='billed', inst_coll=instance.inst_coll.name)
-                billed_rate = instance.instance_config.cost_per_hour_from_cores(
-                    driver.billing_manager.resource_rates, utilized_cores_mcpu
-                )
-                cost_per_hour[billed_cost_per_hour_labels].append(billed_rate)
+            instances_by_state[instance.state] += 1
 
-                inst_coll_labels = InstCollLabels(inst_coll=instance.inst_coll.name)
-                free_cores[inst_coll_labels].append(instance.free_cores_mcpu / 1000)
-                utilization[inst_coll_labels].append(utilized_cores_mcpu / instance.cores_mcpu)
-
-            inst_labels = InstanceLabels(inst_coll=instance.inst_coll.name, state=instance.state)
-            instances[inst_labels] += 1
-
-    def observe(summary, data):
-        summary.clear()
-        for labels, items in data.items():
-            for item in items:
-                summary.labels(**labels._asdict()).observe(item)
-
-    observe(COST_PER_HOUR, cost_per_hour)
-    observe(FREE_CORES, free_cores)
-    observe(UTILIZATION, utilization)
-
-    INSTANCES.clear()
-    for labels, count in instances.items():
-        INSTANCES.labels(**labels._asdict()).set(count)
+        FREE_CORES.labels(inst_coll=inst_coll.name).set(total_free_cores)
+        TOTAL_CORES.labels(inst_coll=inst_coll.name).set(total_cores)
+        COST_PER_HOUR.labels(inst_coll=inst_coll.name, measure='actual').set(total_cost_per_hour)
+        COST_PER_HOUR.labels(inst_coll=inst_coll.name, measure='billed').set(total_revenue_per_hour)
+        for state, count in instances_by_state.items():
+            INSTANCES.labels(inst_coll=inst_coll.name, state=state).set(count)
 
 
 async def monitor_system(app):
@@ -1126,6 +1241,43 @@ async def scheduling_cancelling_bump(app):
     app['cancel_ready_state_changed'].set()
     app['cancel_creating_state_changed'].set()
     app['cancel_running_state_changed'].set()
+
+
+async def refresh_globals_from_db(app, db):
+    resource_ids = {
+        record['resource']: record['resource_id']
+        async for record in db.select_and_fetchall(
+            '''
+SELECT resource, resource_id FROM resources;
+'''
+        )
+    }
+
+    app['resource_name_to_id'] = resource_ids
+
+
+class BatchDriverAccessLogger(AccessLogger):
+    def __init__(self, logger: logging.Logger, log_format: str):
+        super().__init__(logger, log_format)
+        self.exclude = [
+            (endpoint[0], re.compile(deploy_config.base_path('batch-driver') + endpoint[1]))
+            for endpoint in [
+                ('POST', '/api/v1alpha/instances/billing_update'),
+                ('POST', '/api/v1alpha/instances/job_complete'),
+                ('POST', '/api/v1alpha/instances/job_started'),
+                ('PATCH', '/api/v1alpha/batches/.*/.*/close'),
+                ('POST', '/api/v1alpha/batches/cancel'),
+                ('PATCH', '/api/v1alpha/batches/.*/.*/update'),
+                ('GET', '/metrics'),
+            ]
+        ]
+
+    def log(self, request, response, time):
+        for method, path_expr in self.exclude:
+            if path_expr.fullmatch(request.path) and method == request.method:
+                return
+
+        super().log(request, response, time)
 
 
 async def on_startup(app):
@@ -1154,18 +1306,20 @@ SELECT instance_id, internal_token, frozen FROM globals;
     app['batch_headers'] = {'Authorization': f'Bearer {row["internal_token"]}'}
     app['frozen'] = row['frozen']
 
+    await refresh_globals_from_db(app, db)
+
     app['scheduler_state_changed'] = Notice()
     app['cancel_ready_state_changed'] = asyncio.Event()
     app['cancel_creating_state_changed'] = asyncio.Event()
     app['cancel_running_state_changed'] = asyncio.Event()
     app['async_worker_pool'] = AsyncWorkerPool(100, queue_size=100)
 
-    credentials_file = '/gsa-key/key.json'
-    fs = get_cloud_async_fs(credentials_file=credentials_file)
+    fs = get_cloud_async_fs()
     app['file_store'] = FileStore(fs, BATCH_STORAGE_URI, instance_id)
 
     inst_coll_configs = await InstanceCollectionConfigs.create(db)
 
+    credentials_file = '/gsa-key/key.json'
     app['driver'] = await get_cloud_driver(
         app, db, MACHINE_NAME_PREFIX, DEFAULT_NAMESPACE, inst_coll_configs, credentials_file, task_manager
     )
@@ -1183,6 +1337,7 @@ SELECT instance_id, internal_token, frozen FROM globals;
     task_manager.ensure_future(periodically_call(10, cancel_fast_failing_batches, app))
     task_manager.ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
     task_manager.ensure_future(periodically_call(15, monitor_system, app))
+    task_manager.ensure_future(periodically_call(5, refresh_globals_from_db, app, db))
 
 
 async def on_cleanup(app):
@@ -1217,16 +1372,7 @@ async def on_cleanup(app):
 
 
 def run():
-    if HAIL_SHOULD_PROFILE and CLOUD == 'gcp':
-        profiler_tag = f'{DEFAULT_NAMESPACE}'
-        if profiler_tag == 'default':
-            profiler_tag = DEFAULT_NAMESPACE + f'-{HAIL_SHA[0:12]}'
-        googlecloudprofiler.start(
-            service='batch-driver',
-            service_version=profiler_tag,
-            # https://cloud.google.com/profiler/docs/profiling-python#agent_logging
-            verbose=3,
-        )
+    install_profiler_if_requested('batch-driver')
 
     app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE, middlewares=[monitor_endpoints_middleware])
     setup_aiohttp_session(app)
@@ -1244,6 +1390,6 @@ def run():
     web.run_app(
         deploy_config.prefix_application(app, 'batch-driver', client_max_size=HTTP_CLIENT_MAX_SIZE),
         host='0.0.0.0',
-        port=5000,
-        access_log_class=AccessLogger,
+        port=int(os.environ['PORT']),
+        access_log_class=BatchDriverAccessLogger,
     )

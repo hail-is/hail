@@ -1,14 +1,14 @@
 package is.hail.expr.ir
 
 import is.hail.HailSuite
-import is.hail.types.virtual.{TFloat64, TInt32, TTuple}
+import is.hail.types.virtual.{TFloat64, TInt32, TRNGState, TTuple}
 import org.apache.spark.sql.Row
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.{DataProvider, Test}
 
 class FoldConstantsSuite extends HailSuite {
   @Test def testRandomBlocksFolding() {
-    val x = ApplySeeded("rand_norm", Seq(F64(0d), F64(0d)), 0L, TFloat64)
+    val x = ApplySeeded("rand_norm", Seq(F64(0d), F64(0d)), RNGStateLiteral(), 0L, TFloat64)
     assert(FoldConstants(ctx, x) == x)
   }
 

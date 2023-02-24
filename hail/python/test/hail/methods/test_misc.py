@@ -3,9 +3,6 @@ import unittest
 import hail as hl
 from ..helpers import *
 
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
-
 
 class Tests(unittest.TestCase):
     def test_rename_duplicates(self):
@@ -61,8 +58,6 @@ class Tests(unittest.TestCase):
         self.assertTrue(ds.annotate_rows(target=interval_list2[ds.locus].target).rows()
                         ._same(ds.annotate_rows(target=bed2[ds.locus].target).rows()))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_maximal_independent_set(self):
         # prefer to remove nodes with higher index
         t = hl.utils.range_table(10)
@@ -78,8 +73,6 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: hl.maximal_independent_set(graph.i, hl.utils.range_table(10).idx, True))
         self.assertRaises(ValueError, lambda: hl.maximal_independent_set(hl.literal(1), hl.literal(2), True))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_maximal_independent_set2(self):
         edges = [(0, 4), (0, 1), (0, 2), (1, 5), (1, 3), (2, 3), (2, 6),
                  (3, 7), (4, 5), (4, 6), (5, 7), (6, 7)]
@@ -95,8 +88,6 @@ class Tests(unittest.TestCase):
         non_maximal_indep_sets = [{0, 7}, {6, 1}]
         self.assertTrue(mis in non_maximal_indep_sets or mis in maximal_indep_sets)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_maximal_independent_set3(self):
         is_case = {"A", "C", "E", "G", "H"}
         edges = [("A", "B"), ("C", "D"), ("E", "F"), ("G", "H")]
@@ -118,8 +109,6 @@ class Tests(unittest.TestCase):
         self.assertTrue(mis.all(mis.node.is_case))
         self.assertTrue(set([row.id for row in mis.select(mis.node.id).collect()]) in expected_sets)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_maximal_independent_set_types(self):
         ht = hl.utils.range_table(10)
         ht = ht.annotate(i=hl.struct(a='1', b=hl.rand_norm(0, 1)),
@@ -128,15 +117,12 @@ class Tests(unittest.TestCase):
                          jj=hl.struct(id=ht.j, rank=hl.rand_norm(0, 1)))
         hl.maximal_independent_set(ht.ii, ht.jj).count()
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_maximal_independent_set_on_floats(self):
         t = hl.utils.range_table(1).annotate(l = hl.struct(s="a", x=3.0), r = hl.struct(s="b", x=2.82))
         expected = [hl.Struct(node=hl.Struct(s="a", x=3.0))]
         actual = hl.maximal_independent_set(t.l, t.r, keep=False, tie_breaker=lambda l,r: l.x - r.x).collect()
         assert actual == expected
 
-    @skip_when_service_backend(message='hangs')
     def test_matrix_filter_intervals(self):
         ds = hl.import_vcf(resource('sample.vcf'), min_partitions=20)
 
@@ -159,75 +145,6 @@ class Tests(unittest.TestCase):
                      hl.eval(hl.parse_locus_interval('[20:17705793-17716416]'))]
         self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 4)
 
-    @skip_when_service_backend('''intermittent worker failure:
->       self.assertEqual(hl.filter_intervals(ds, intervals).count(), 4)
-
-E                   hail.utils.java.FatalError: java.lang.RuntimeException: batch 3402 failed: failure
-E                   	at is.hail.backend.service.ServiceBackend.parallelizeAndComputeWithIndex(ServiceBackend.scala:186)
-E                   	at is.hail.backend.BackendUtils.collectDArray(BackendUtils.scala:28)
-E                   	at __C13834Compiled.apply(Emit.scala)
-E                   	at is.hail.expr.ir.LoweredTableReader$.makeCoercer(TableIR.scala:312)
-E                   	at is.hail.expr.ir.GenericTableValue.getLTVCoercer(GenericTableValue.scala:133)
-E                   	at is.hail.expr.ir.GenericTableValue.toTableStage(GenericTableValue.scala:158)
-E                   	at is.hail.io.vcf.MatrixVCFReader.lower(LoadVCF.scala:1792)
-E                   	at is.hail.expr.ir.lowering.LowerTableIR$.lower$1(LowerTableIR.scala:401)
-E                   	at is.hail.expr.ir.lowering.LowerTableIR$.lower$1(LowerTableIR.scala:569)
-E                   	at is.hail.expr.ir.lowering.LowerTableIR$.apply(LowerTableIR.scala:1143)
-E                   	at is.hail.expr.ir.lowering.LowerToCDA$.lower(LowerToCDA.scala:68)
-E                   	at is.hail.expr.ir.lowering.LowerToCDA$.lower(LowerToCDA.scala:37)
-E                   	at is.hail.expr.ir.lowering.LowerToCDA$.apply(LowerToCDA.scala:17)
-E                   	at is.hail.expr.ir.lowering.LowerToDistributedArrayPass.transform(LoweringPass.scala:75)
-E                   	at is.hail.expr.ir.lowering.LoweringPass.$anonfun$apply$3(LoweringPass.scala:15)
-E                   	at is.hail.utils.ExecutionTimer.time(ExecutionTimer.scala:81)
-E                   	at is.hail.expr.ir.lowering.LoweringPass.$anonfun$apply$1(LoweringPass.scala:15)
-E                   	at is.hail.utils.ExecutionTimer.time(ExecutionTimer.scala:81)
-E                   	at is.hail.expr.ir.lowering.LoweringPass.apply(LoweringPass.scala:13)
-E                   	at is.hail.expr.ir.lowering.LoweringPass.apply$(LoweringPass.scala:12)
-E                   	at is.hail.expr.ir.lowering.LowerToDistributedArrayPass.apply(LoweringPass.scala:70)
-E                   	at is.hail.expr.ir.lowering.LoweringPipeline.$anonfun$apply$1(LoweringPipeline.scala:14)
-E                   	at is.hail.expr.ir.lowering.LoweringPipeline.$anonfun$apply$1$adapted(LoweringPipeline.scala:12)
-E                   	at scala.collection.IndexedSeqOptimized.foreach(IndexedSeqOptimized.scala:36)
-E                   	at scala.collection.IndexedSeqOptimized.foreach$(IndexedSeqOptimized.scala:33)
-E                   	at scala.collection.mutable.WrappedArray.foreach(WrappedArray.scala:38)
-E                   	at is.hail.expr.ir.lowering.LoweringPipeline.apply(LoweringPipeline.scala:12)
-E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBackend.scala:289)
-E                   	at is.hail.backend.service.ServiceBackend.$anonfun$execute$4(ServiceBackend.scala:324)
-E                   	at is.hail.expr.ir.ExecuteContext$.$anonfun$scoped$3(ExecuteContext.scala:47)
-E                   	at is.hail.utils.package$.using(package.scala:627)
-E                   	at is.hail.expr.ir.ExecuteContext$.$anonfun$scoped$2(ExecuteContext.scala:47)
-E                   	at is.hail.utils.package$.using(package.scala:627)
-E                   	at is.hail.annotations.RegionPool$.scoped(RegionPool.scala:17)
-E                   	at is.hail.expr.ir.ExecuteContext$.scoped(ExecuteContext.scala:46)
-E                   	at is.hail.backend.service.ServiceBackend.$anonfun$execute$1(ServiceBackend.scala:320)
-E                   	at is.hail.utils.ExecutionTimer$.time(ExecutionTimer.scala:52)
-E                   	at is.hail.utils.ExecutionTimer$.logTime(ExecutionTimer.scala:59)
-E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBackend.scala:314)
-E                   	at is.hail.backend.service.ServiceBackendSocketAPI2.executeOneCommand(ServiceBackend.scala:873)
-E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$7(ServiceBackend.scala:696)
-E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$7$adapted(ServiceBackend.scala:695)
-E                   	at is.hail.utils.package$.using(package.scala:627)
-E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$6(ServiceBackend.scala:695)
-E                   	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:23)
-E                   	at is.hail.services.package$.retryTransientErrors(package.scala:69)
-E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$5(ServiceBackend.scala:699)
-E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$5$adapted(ServiceBackend.scala:693)
-E                   	at is.hail.utils.package$.using(package.scala:627)
-E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$4(ServiceBackend.scala:693)
-E                   	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:23)
-E                   	at is.hail.services.package$.retryTransientErrors(package.scala:69)
-E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.main(ServiceBackend.scala:701)
-E                   	at is.hail.backend.service.ServiceBackendSocketAPI2.main(ServiceBackend.scala)
-E                   	at sun.reflect.GeneratedMethodAccessor48.invoke(Unknown Source)
-E                   	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
-E                   	at java.lang.reflect.Method.invoke(Method.java:498)
-E                   	at is.hail.JVMEntryway$1.run(JVMEntryway.java:88)
-E                   	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
-E                   	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
-E                   	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
-E                   	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
-E                   	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
-E                   	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
-E                   	at java.lang.Thread.run(Thread.java:748)''')
     def test_table_filter_intervals(self):
         ds = hl.import_vcf(resource('sample.vcf'), min_partitions=20).rows()
 
@@ -276,17 +193,6 @@ E                   	at java.lang.Thread.run(Thread.java:748)''')
         with self.assertRaises(hl.utils.HailUserError):
             hl.methods.misc.require_biallelic(mt, '')._force_count_rows()
 
-    @skip_when_service_backend('''intermittent worker failure:
-Caused by: java.lang.ClassCastException: __C5322collect_distributed_array cannot be cast to is.hail.expr.ir.FunctionWithLiterals
-	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:691)
-	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:670)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-	... 11 more''')
     def test_lambda_gc(self):
         N = 5000000
         ht = hl.utils.range_table(N).annotate(x = hl.scan.count() / N, x2 = (hl.scan.count() / N) ** 1.5)

@@ -2,6 +2,7 @@ import json
 import os
 import re
 from typing import List
+from collections import defaultdict
 
 import avro.schema
 from avro.datafile import DataFileReader
@@ -125,7 +126,9 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
         if 'GP' in dataset.entry and dataset.GP.dtype == tarray(tfloat64):
             entry_exprs = {'GP': dataset.GP}
         else:
-            entry_exprs = {}
+            raise ValueError('exporting to GEN requires a GP (genotype probability) array<float64> field in the entry'
+                             '\n  of the matrix table. If you only have hard calls (GT), BGEN is probably not the'
+                             '\n  right format.')
     else:
         entry_exprs = {'GP': gp}
 
@@ -176,10 +179,20 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
            gp=nullable(expr_array(expr_float64)),
            varid=nullable(expr_str),
            rsid=nullable(expr_str),
-           parallel=nullable(ir.ExportType.checker))
-def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None):
+           parallel=nullable(ir.ExportType.checker),
+           compression_codec=enumeration('zlib', 'zstd'))
+def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None, compression_codec='zlib'):
     """Export MatrixTable as :class:`.MatrixTable` as BGEN 1.2 file with 8
     bits of per probability.  Also writes SAMPLE file.
+
+    Notes
+    -----
+    The :func:`export_bgen` function requires genotype probabilities, either as an entry
+    field of `mt` (of type ``array<float64>``), or an entry expression passed in the `gp`
+    argument.
+
+    If `output` is ``"/path/to/myfile"``, this function will write a BGEN file at
+    ``"/path/to/myfile.bgen"`` and a sample file at ``"/path/to/myfile.sample"``.
 
     Parameters
     ----------
@@ -206,6 +219,8 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None):
         per partition), each with its own header.  If
         ``'separate_header'``, write a file for each partition,
         without header, and a header file for the combined dataset.
+    compresssion_codec : str, optional
+        Compression codec. One of 'zlib', 'zstd'.
     """
     require_row_key_variant(mt, 'export_bgen')
     require_col_key_str(mt, 'export_bgen')
@@ -214,7 +229,9 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None):
         if 'GP' in mt.entry and mt.GP.dtype == tarray(tfloat64):
             entry_exprs = {'GP': mt.GP}
         else:
-            entry_exprs = {}
+            raise ValueError('exporting to BGEN requires a GP (genotype probability) array<float64> field in the entry'
+                             '\n  of the matrix table. If you only have hard calls (GT), BGEN is probably not the'
+                             '\n  right format.')
     else:
         entry_exprs = {'GP': gp}
 
@@ -236,7 +253,7 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None):
     for exprs, axis in [(gen_exprs, mt._row_indices),
                         (entry_exprs, mt._entry_indices)]:
         for name, expr in exprs.items():
-            analyze('export_gen/{}'.format(name), expr, axis)
+            analyze('export_bgen/{}'.format(name), expr, axis)
 
     mt = mt._select_all(col_exprs={},
                         row_exprs=gen_exprs,
@@ -244,7 +261,8 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None):
 
     Env.backend().execute(ir.MatrixWrite(mt._mir, ir.MatrixBGENWriter(
         output,
-        parallel)))
+        parallel,
+        compression_codec)))
 
 
 @typecheck(dataset=MatrixTable,
@@ -930,8 +948,10 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA') -> Tabl
 @typecheck(regex=str,
            path=oneof(str, sequenceof(str)),
            max_count=int,
-           show=bool)
-def grep(regex, path, max_count=100, *, show=True):
+           show=bool,
+           force=bool,
+           force_bgz=bool)
+def grep(regex, path, max_count=100, *, show: bool = True, force: bool = False, force_bgz: bool = False):
     r"""Searches given paths for all lines containing regex matches.
 
     Examples
@@ -966,17 +986,44 @@ def grep(regex, path, max_count=100, *, show=True):
     show : :obj:`bool`
         When `True`, show the values on stdout. When `False`, return a
         dictionary mapping file names to lines.
+    force_bgz : :obj:`bool`
+        If ``True``, read files as blocked gzip files, assuming
+        that they were actually compressed using the BGZ codec. This option is
+        useful when the file extension is not ``'.bgz'``, but the file is
+        blocked gzip, so that the file can be read in parallel and not on a
+        single node.
+    force : :obj:`bool`
+        If ``True``, read gzipped files serially on one core. This should
+        be used only when absolutely necessary, as processing time will be
+        increased due to lack of parallelism.
 
     Returns
     ---
     :obj:`dict` of :class:`str` to :obj:`list` of :obj:`str`
     """
-    jfs = Env.spark_backend('grep').fs._jfs
+    from hail.backend.spark_backend import SparkBackend
+
+    if isinstance(hl.current_backend(), SparkBackend):
+        jfs = Env.spark_backend('grep').fs._jfs
+        if show:
+            Env.backend()._jhc.grepPrint(jfs, regex, jindexed_seq_args(path), max_count)
+            return
+        else:
+            jarr = Env.backend()._jhc.grepReturn(jfs, regex, jindexed_seq_args(path), max_count)
+            return {x._1(): list(x._2()) for x in jarr}
+
+    ht = hl.import_lines(path, force=force, force_bgz=force_bgz)
+    ht = ht.filter(ht.text.matches(regex))
+    ht = ht.head(max_count)
+    lines = ht.collect()
     if show:
-        Env.backend()._jhc.grepPrint(jfs, regex, jindexed_seq_args(path), max_count)
-    else:
-        jarr = Env.backend()._jhc.grepReturn(jfs, regex, jindexed_seq_args(path), max_count)
-        return {x._1(): list(x._2()) for x in jarr}
+        print('\n'.join(line.file + ': ' + line.text for line in lines))
+        return
+
+    results = defaultdict(list)
+    for line in lines:
+        results[line.file].append(line.text)
+    return results
 
 
 @typecheck(path=oneof(str, sequenceof(str)),
@@ -1625,17 +1672,17 @@ def import_table(paths,
     if should_remove_line_expr is not None:
         ht = ht.filter(should_remove_line_expr, keep=False)
 
-    if len(paths) <= 1:
-        # With zero or one files and no filters, the first row, if it exists must be in the first
-        # partition, so we take this one-pass fast-path.
-        first_row_ht = ht._filter_partitions([0]).head(1)
-    else:
-        first_row_ht = ht.head(1)
-
-    if find_replace is not None:
-        ht = ht.annotate(text=ht['text'].replace(*find_replace))
-
     try:
+        if len(paths) <= 1:
+            # With zero or one files and no filters, the first row, if it exists must be in the first
+            # partition, so we take this one-pass fast-path.
+            first_row_ht = ht._filter_partitions([0]).head(1)
+        else:
+            first_row_ht = ht.head(1)
+
+        if find_replace is not None:
+            ht = ht.annotate(text=ht['text'].replace(*find_replace))
+
         first_rows = first_row_ht.annotate(
             header=first_row_ht.text._split_line(
                 delimiter, missing=hl.empty_array(hl.tstr), quote=quote, regex=len(delimiter) > 1)
@@ -2016,14 +2063,17 @@ def import_matrix_table(paths,
             return "/".join(file_name.split('/')[-3:]) if len(file_name) <= 4 else \
                 "/" + "/".join(file_name.split('/')[-3:])
 
+    file_start_array = None
+
     def get_file_start(row):
-        first_lines = first_lines_table.collect()
-        if first_lines:
-            file_start_array = hl.array(list(map(lambda line: (line.file, line.idx), first_lines)))
-            match_file_idx = file_start_array.index(lambda line_tuple: line_tuple[0] == row.file)
-            return file_start_array[match_file_idx][1]
-        else:
-            return 0
+        nonlocal file_start_array
+        if file_start_array is None:
+            collect_expr = first_lines_table.collect(_localize=False).map(lambda line: (line.file, line.idx))
+            file_start_array = hl.literal(hl.eval(collect_expr), dtype=collect_expr.dtype)
+        return hl.coalesce(
+            file_start_array.filter(lambda line_tuple: line_tuple[0] == row.file).map(
+                lambda line_tuple: line_tuple[1]).first(),
+            0)
 
     def validate_row_fields():
         unique_fields = {}
@@ -2128,7 +2178,7 @@ def import_matrix_table(paths,
     file_per_partition = import_lines(paths, force_bgz=force_bgz, file_per_partition=True)
     file_per_partition = file_per_partition.filter(hl.bool(hl.len(file_per_partition.text) == 0)
                                                    | comment_filter(file_per_partition), False)
-    first_lines_table = file_per_partition._map_partitions(lambda rows: rows[:1])
+    first_lines_table = file_per_partition._map_partitions(lambda rows: rows.take(1))
     first_lines_table = first_lines_table.annotate(split_array=first_lines_table.text.split(delimiter)).add_index()
 
     if not no_header:
@@ -2443,11 +2493,14 @@ def import_plink(bed, bim, fam,
            _filter_intervals=bool,
            _drop_cols=bool,
            _drop_rows=bool,
+           _create_row_uids=bool,
+           _create_col_uids=bool,
            _n_partitions=nullable(int),
            _assert_type=nullable(hl.tmatrix),
            _load_refs=bool)
 def read_matrix_table(path, *, _intervals=None, _filter_intervals=False, _drop_cols=False,
-                      _drop_rows=False, _n_partitions=None, _assert_type=None, _load_refs=True) -> MatrixTable:
+                      _drop_rows=False, _create_row_uids=False, _create_col_uids=False,
+                      _n_partitions=None, _assert_type=None, _load_refs=True) -> MatrixTable:
     """Read in a :class:`.MatrixTable` written with :meth:`.MatrixTable.write`.
 
     Parameters
@@ -2469,6 +2522,8 @@ def read_matrix_table(path, *, _intervals=None, _filter_intervals=False, _drop_c
     mt = MatrixTable(ir.MatrixRead(ir.MatrixNativeReader(path, _intervals, _filter_intervals),
                                    _drop_cols,
                                    _drop_rows,
+                                   drop_row_uids=not _create_row_uids,
+                                   drop_col_uids=not _create_col_uids,
                                    _assert_type=_assert_type))
     if _n_partitions:
         intervals = mt._calculate_new_partitions(_n_partitions)
@@ -2556,9 +2611,7 @@ def get_vcf_metadata(path):
            filter=nullable(str),
            find_replace=nullable(sized_tupleof(str, str)),
            n_partitions=nullable(int),
-           block_size=nullable(int),
-           # json
-           _partitions=nullable(str))
+           block_size=nullable(int))
 def import_vcf(path,
                force=False,
                force_bgz=False,
@@ -2574,8 +2627,7 @@ def import_vcf(path,
                filter=None,
                find_replace=None,
                n_partitions=None,
-               block_size=None,
-               _partitions=None) -> MatrixTable:
+               block_size=None) -> MatrixTable:
     """Import VCF file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -2724,8 +2776,7 @@ def import_vcf(path,
     reader = ir.MatrixVCFReader(path, call_fields, entry_float_type, header_file,
                                 n_partitions, block_size, min_partitions,
                                 reference_genome, contig_recoding, array_elements_required,
-                                skip_invalid_loci, force_bgz, force, filter, find_replace,
-                                _partitions)
+                                skip_invalid_loci, force_bgz, force, filter, find_replace)
     return MatrixTable(ir.MatrixRead(reader, drop_cols=drop_samples))
 
 
@@ -2778,14 +2829,11 @@ def import_gvcfs(path,
     :func:`.import_gvcfs` only keys the resulting matrix tables by ``locus``
     rather than ``locus, alleles``.
     """
-
+    hl.utils.no_service_backend('import_gvcfs')
     rg = reference_genome.name if reference_genome else None
 
-    if partitions is not None:
-        partitions, partitions_type = hl.utils._dumps_partitions(partitions, hl.tstruct(locus=hl.tlocus(rg),
-                                                                                        alleles=hl.tarray(hl.tstr)))
-    else:
-        partitions_type = None
+    partitions, partitions_type = hl.utils._dumps_partitions(partitions, hl.tstruct(locus=hl.tlocus(rg),
+                                                                                    alleles=hl.tarray(hl.tstr)))
 
     vector_ref_s = Env.spark_backend('import_vcfs')._jbackend.pyImportVCFs(
         wrap_to_list(path),
@@ -2811,8 +2859,6 @@ def import_gvcfs(path,
 
 def import_vcfs(path,
                 partitions,
-                force=False,
-                force_bgz=False,
                 call_fields=['PGT'],
                 entry_float_type=tfloat64,
                 reference_genome='default',
@@ -2826,8 +2872,6 @@ def import_vcfs(path,
     """This function is deprecated, use :func:`.import_gvcfs` instead"""
     return import_gvcfs(path,
                         partitions,
-                        force,
-                        force_bgz,
                         call_fields,
                         entry_float_type,
                         reference_genome,
@@ -2903,14 +2947,16 @@ def index_bgen(path,
            _filter_intervals=bool,
            _n_partitions=nullable(int),
            _assert_type=nullable(hl.ttable),
-           _load_refs=bool)
+           _load_refs=bool,
+           _create_row_uids=bool)
 def read_table(path,
                *,
                _intervals=None,
                _filter_intervals=False,
                _n_partitions=None,
                _assert_type=None,
-               _load_refs=True) -> Table:
+               _load_refs=True,
+               _create_row_uids=False) -> Table:
     """Read in a :class:`.Table` written with :meth:`.Table.write`.
 
     Parameters
@@ -2929,11 +2975,11 @@ def read_table(path,
     if _intervals is not None and _n_partitions is not None:
         raise ValueError("'read_table' does not support both _intervals and _n_partitions")
     tr = ir.TableNativeReader(path, _intervals, _filter_intervals)
-    ht = Table(ir.TableRead(tr, False, _assert_type=_assert_type))
+    ht = Table(ir.TableRead(tr, False, drop_row_uids=not _create_row_uids, _assert_type=_assert_type))
 
     if _n_partitions:
         intervals = ht._calculate_new_partitions(_n_partitions)
-        return read_table(path, _intervals=intervals, _assert_type=_assert_type, _load_refs=_load_refs)
+        return read_table(path, _intervals=intervals, _assert_type=_assert_type, _load_refs=_load_refs, _create_row_uids=_create_row_uids)
     return ht
 
 

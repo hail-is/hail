@@ -191,7 +191,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
       }
       val res = f(ev)
       ec.pv match {
-        case SStreamValue(_, producer) => StreamProducer.defineUnusedLabels(producer, emb)
+        case ss: SStreamValue => ss.defineUnusedLabels(emb)
       }
       res
     }
@@ -292,6 +292,10 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
 
   def logInfo(cs: Code[String]*): Unit = {
     this += Code.invokeScalaObject1[String, Unit](LogHelper.getClass, "logInfo", cs.reduce[Code[String]] { case (l, r) => (l.concat(r)) })
+  }
+
+  def warning(cs: Code[String]*): Unit = {
+    this += Code.invokeScalaObject1[String, Unit](LogHelper.getClass, "warning", cs.reduce[Code[String]] { case (l, r) => (l.concat(r)) })
   }
 
   def consoleInfo(cs: Code[String]*): Unit = {

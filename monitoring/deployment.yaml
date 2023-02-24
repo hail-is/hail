@@ -67,7 +67,7 @@ spec:
             - containerPort: 5000
           resources:
             requests:
-              cpu: "20m"
+              cpu: "5m"
               memory: "20M"
             limits:
               cpu: "1"
@@ -78,6 +78,9 @@ spec:
               readOnly: true
             - name: deploy-config
               mountPath: /deploy-config
+              readOnly: true
+            - name: global-config
+              mountPath: /global-config
               readOnly: true
             - name: ssl-config-monitoring
               mountPath: /ssl-config
@@ -100,6 +103,9 @@ spec:
         - name: deploy-config
           secret:
             secretName: deploy-config
+        - name: global-config
+          secret:
+            secretName: global-config
         - name: ssl-config-monitoring
           secret:
             secretName: ssl-config-monitoring

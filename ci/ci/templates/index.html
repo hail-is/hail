@@ -24,9 +24,27 @@
       </div>
       <div>Deploy Batch:
 	{% if wb.deploy_batch_id is not none %}
-	<a href="{{ base_path }}/batches/{{ wb.deploy_batch_id }}">{{ wb.deploy_batch_id }}</a>
+	<a rel="noopener" href="{{ base_path }}/batches/{{ wb.deploy_batch_id }}">{{ wb.deploy_batch_id }}</a>
 	{% endif %}
       </div>
+    </div>
+
+    <div>
+      {% if not frozen_merge_deploy %}
+      <form action="{{ base_path }}/freeze_merge_deploy" method="POST">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+        <button class="dangerous">
+          Freeze Merges & Deploys
+        </button>
+      </form>
+      {% else %}
+      <form action="{{ base_path }}/unfreeze_merge_deploy" method="POST">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+        <button class="dangerous">
+          Unfreeze Merges & Deploys
+        </button>
+      </form>
+      {% endif %}
     </div>
 
     <h2>PRs</h2>

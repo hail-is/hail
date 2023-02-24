@@ -1,0 +1,7 @@
+import os
+
+config.hail_src_root = r'@CMAKE_SOURCE_DIR@'
+config.hail_bin_root = r'@CMAKE_BINARY_DIR@'
+config.file_check_path = r'@FILE_CHECK@'
+
+lit_config.load_config(config, os.path.join(config.hail_src_root, 'test/lit.cfg.py'))

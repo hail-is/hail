@@ -1,12 +1,15 @@
 import abc
-from .geoms import FigureAttribute
 
-from hail.context import get_reference
-
-from .utils import categorical_strings_to_colors, continuous_nums_to_colors
+from collections.abc import Mapping
 
 import plotly.express as px
 import plotly
+
+from hail.context import get_reference
+from hail import tstr
+
+from .geoms import FigureAttribute
+from .utils import continuous_nums_to_colors, is_continuous_type, is_discrete_type
 
 
 class Scale(FigureAttribute):
@@ -26,6 +29,9 @@ class Scale(FigureAttribute):
 
     @abc.abstractmethod
     def is_continuous(self):
+        pass
+
+    def valid_dtype(self, dtype):
         pass
 
 
@@ -52,6 +58,9 @@ class PositionScale(Scale):
 
         if self.labels is not None:
             self.update_axis(fig_so_far)(ticktext=self.labels)
+
+    def valid_dtype(self, dtype):
+        return True
 
 
 class PositionScaleGenomic(PositionScale):
@@ -135,10 +144,16 @@ class ScaleContinuous(Scale):
     def is_continuous(self):
         return True
 
+    def valid_dtype(self, dtype):
+        return is_continuous_type(dtype)
+
 
 class ScaleDiscrete(Scale):
     def __init__(self, aesthetic_name):
         super().__init__(aesthetic_name)
+
+    def get_values(self, categories):
+        return None
 
     def transform_data(self, field_expr):
         return field_expr
@@ -149,28 +164,51 @@ class ScaleDiscrete(Scale):
     def is_continuous(self):
         return False
 
+    def valid_dtype(self, dtype):
+        return is_discrete_type(dtype)
 
-class ScaleColorManual(ScaleDiscrete):
+    def create_local_transformer(self, groups_of_dfs):
+        categories = set()
+        for group_of_dfs in groups_of_dfs:
+            for df in group_of_dfs:
+                if self.aesthetic_name in df.attrs:
+                    categories.add(df.attrs[self.aesthetic_name])
 
+        values = self.get_values(categories)
+
+        if values is None:
+            return super().create_local_transformer(groups_of_dfs)
+        elif isinstance(values, Mapping):
+            mapping = values
+        elif isinstance(values, list):
+            if len(categories) > len(values):
+                raise ValueError(
+                    f"Not enough scale values specified. Found {len(categories)} "
+                    f"distinct categories in {categories} and only {len(values)} "
+                    f"scale values were provided in {values}."
+                )
+            mapping = dict(zip(categories, values))
+        else:
+            raise TypeError(
+                "Expected scale values to be a Mapping or list, but received a(n) "
+                f"{type(values)}: {values}."
+            )
+
+        def transform(df):
+            df.attrs[f"{self.aesthetic_name}_legend"] = df.attrs[self.aesthetic_name]
+            df.attrs[self.aesthetic_name] = mapping[df.attrs[self.aesthetic_name]]
+            return df
+
+        return transform
+
+
+class ScaleDiscreteManual(ScaleDiscrete):
     def __init__(self, aesthetic_name, values):
         super().__init__(aesthetic_name)
         self.values = values
 
-    def create_local_transformer(self, groups_of_dfs):
-        categorical_strings = set()
-        for group_of_dfs in groups_of_dfs:
-            for df in group_of_dfs:
-                if self.aesthetic_name in df.attrs:
-                    categorical_strings.add(df.attrs[self.aesthetic_name])
-
-        unique_color_mapping = categorical_strings_to_colors(categorical_strings, self.values)
-
-        def transform(df):
-            df.attrs[f"{self.aesthetic_name}_legend"] = df.attrs[self.aesthetic_name]
-            df.attrs[self.aesthetic_name] = unique_color_mapping[df.attrs[self.aesthetic_name]]
-            return df
-
-        return transform
+    def get_values(self, categories):
+        return self.values
 
 
 class ScaleColorContinuous(ScaleContinuous):
@@ -204,31 +242,76 @@ class ScaleColorContinuous(ScaleContinuous):
 
 
 class ScaleColorHue(ScaleDiscrete):
-    def create_local_transformer(self, groups_of_dfs):
-        categorical_strings = set()
-        for group_of_dfs in groups_of_dfs:
-            for df in group_of_dfs:
-                if self.aesthetic_name in df.attrs:
-                    categorical_strings.add(df.attrs[self.aesthetic_name])
-
-        num_categories = len(categorical_strings)
+    def get_values(self, categories):
+        num_categories = len(categories)
         step = 1.0 / num_categories
         interpolation_values = [step * i for i in range(num_categories)]
         hsv_scale = px.colors.get_colorscale("HSV")
-        colors = px.colors.sample_colorscale(hsv_scale, interpolation_values)
-        unique_color_mapping = dict(zip(categorical_strings, colors))
-
-        def transform(df):
-            df.attrs[f"{self.aesthetic_name}_legend"] = df.attrs[self.aesthetic_name]
-            df.attrs[self.aesthetic_name] = unique_color_mapping[df.attrs[self.aesthetic_name]]
-            return df
-
-        return transform
+        return px.colors.sample_colorscale(hsv_scale, interpolation_values)
 
 
-# Legend names messed up for scale color identity
-class ScaleColorDiscreteIdentity(ScaleDiscrete):
-    pass
+class ScaleShapeAuto(ScaleDiscrete):
+    def get_values(self, categories):
+        return [
+            "circle",
+            "square",
+            "diamond",
+            "cross",
+            "x",
+            "triangle-up",
+            "triangle-down",
+            "triangle-left",
+            "triangle-right",
+            "triangle-ne",
+            "triangle-se",
+            "triangle-sw",
+            "triangle-nw",
+            "pentagon",
+            "hexagon",
+            "hexagon2",
+            "octagon",
+            "star",
+            "hexagram",
+            "star-triangle-up",
+            "star-triangle-down",
+            "star-square",
+            "star-diamond",
+            "diamond-tall",
+            "diamond-wide",
+            "hourglass",
+            "bowtie",
+            "circle-cross",
+            "circle-x",
+            "square-cross",
+            "square-x",
+            "diamond-cross",
+            "diamond-x",
+            "cross-thin",
+            "x-thin",
+            "asterisk",
+            "hash",
+            "y-up",
+            "y-down",
+            "y-left",
+            "y-right",
+            "line-ew",
+            "line-ns",
+            "line-ne",
+            "line-nw",
+            "arrow-up",
+            "arrow-down",
+            "arrow-left",
+            "arrow-right",
+            "arrow-bar-up",
+            "arrow-bar-down",
+            "arrow-bar-left",
+            "arrow-bar-right",
+        ]
+
+
+class ScaleColorContinuousIdentity(ScaleContinuous):
+    def valid_dtype(self, dtype):
+        return dtype == tstr
 
 
 def scale_x_log10(name=None):
@@ -439,7 +522,7 @@ def scale_color_identity():
     :class:`.FigureAttribute`
         The scale to be applied.
     """
-    return ScaleColorDiscreteIdentity("color")
+    return ScaleColorContinuousIdentity("color")
 
 
 def scale_color_manual(*, values):
@@ -456,7 +539,7 @@ def scale_color_manual(*, values):
     :class:`.FigureAttribute`
         The scale to be applied.
     """
-    return ScaleColorManual("color", values=values)
+    return ScaleDiscreteManual("color", values=values)
 
 
 def scale_fill_discrete():
@@ -471,7 +554,7 @@ def scale_fill_discrete():
 
 
 def scale_fill_continuous():
-    """The default discrete fill scale. This linearly interpolates colors between the min and max observed values.
+    """The default continuous fill scale. This linearly interpolates colors between the min and max observed values.
 
     Returns
     -------
@@ -489,7 +572,7 @@ def scale_fill_identity():
     :class:`.FigureAttribute`
         The scale to be applied.
     """
-    return ScaleColorDiscreteIdentity("fill")
+    return ScaleColorContinuousIdentity("fill")
 
 
 def scale_fill_hue():
@@ -518,4 +601,31 @@ def scale_fill_manual(*, values):
     :class:`.FigureAttribute`
         The scale to be applied.
     """
-    return ScaleColorManual("fill", values=values)
+    return ScaleDiscreteManual("fill", values=values)
+
+
+def scale_shape_manual(*, values):
+    """A scale that assigns shapes to discrete aesthetics. See `the plotly documentation <https://plotly.com/python-api-reference/generated/plotly.graph_objects.scatter.html#plotly.graph_objects.scatter.Marker.symbol>`__ for a list of supported shapes.
+
+    Parameters
+    ----------
+    values: :class:`list` of :class:`str`
+        The shapes from which to choose.
+
+    Returns
+    -------
+    :class:`.FigureAttribute`
+        The scale to be applied.
+    """
+    return ScaleDiscreteManual("shape", values=values)
+
+
+def scale_shape_auto():
+    """A scale that automatically assigns shapes to discrete aesthetics.
+
+    Returns
+    -------
+    :class:`.FigureAttribute`
+        The scale to be applied.
+    """
+    return ScaleShapeAuto("shape")

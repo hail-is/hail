@@ -58,6 +58,8 @@ def mt_to_table_of_ndarray(entry_expr, block_size=16, *, partition_size=None, wi
 
     grouped = new_part_ht._group_within_partitions("groups", block_size)
     A = grouped.select(ndarray=hl.nd.array(grouped.groups.map(lambda group: group.xs)))
+    temp_file_name2 = hl.utils.new_temp_file("mt_to_table_of_ndarray", "A")
+    A = A.checkpoint(temp_file_name2)
 
     if window_size is None:
         if return_checkpointed_table_also:

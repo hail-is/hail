@@ -367,6 +367,10 @@ package object stats {
 
   def qnchisqtail(p: Double, df: Double, ncp: Double): Double = qnchisqtail(p, df, ncp, lowerTail = false, logP = false)
 
+  def pgenchisq(x: Double, w: IndexedSeq[Double], k: IndexedSeq[Int], lam: IndexedSeq[Double], sigma: Double, lim: Int, acc: Double): DaviesResultForPython = {
+    GeneralizedChiSquaredDistribution.cdfReturnExceptions(x, k.toArray, w.toArray, lam.toArray, sigma, lim, acc)
+  }
+
   def dbeta(x: Double, a: Double, b: Double): Double = Beta.density(x, a, b, false)
 
   def dpois(x: Double, lambda: Double, logP: Boolean): Double = new Poisson(lambda).density(x, logP)

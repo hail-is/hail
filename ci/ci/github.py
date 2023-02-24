@@ -1,5 +1,6 @@
 import asyncio
 import concurrent.futures
+import datetime
 import json
 import logging
 import os
@@ -23,6 +24,7 @@ from .build import BuildConfiguration, Code
 from .constants import AUTHORIZED_USERS, COMPILER_TEAM, GITHUB_CLONE_URL, GITHUB_STATUS_CONTEXT, SERVICES_TEAM
 from .environment import DEPLOY_STEPS
 from .globals import is_test_deployment
+from .utils import add_deployed_services
 
 repos_lock = asyncio.Lock()
 
@@ -414,7 +416,7 @@ class PR(Code):
         hail_statuses = {}
         for s in statuses:
             context = s['context']
-            if context == GITHUB_STATUS_CONTEXT or context.startswith('hail-ci'):
+            if context == 'ci-test' or context.startswith('hail-ci'):
                 if context in hail_statuses:
                     raise ValueError(
                         f'github sent multiple status summaries for context {context}: {s}\n\n{statuses_json}'
@@ -481,6 +483,15 @@ mkdir -p {shq(repo_dir)}
 
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
                 config = BuildConfiguration(self, f.read(), scope='test')
+                namespace = config.namespace()
+                services = config.deployed_services()
+            with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:
+                test_services = BuildConfiguration(self, f.read(), scope='test').deployed_services()
+
+            services.extend(test_services)
+            tomorrow = datetime.datetime.utcnow() + datetime.timedelta(days=1)
+            assert namespace is not None
+            await add_deployed_services(db, namespace, services, tomorrow)
 
             log.info(f'creating test batch for {self.number}')
             batch = batch_client.create_batch(
@@ -490,6 +501,7 @@ mkdir -p {shq(repo_dir)}
                     'source_branch': self.source_branch.short_str(),
                     'target_branch': self.target_branch.branch.short_str(),
                     'pr': str(self.number),
+                    'namespace': namespace,
                     'source_sha': self.source_sha,
                     'target_sha': self.target_branch.sha,
                 },
@@ -613,6 +625,7 @@ mkdir -p {shq(repo_dir)}
         return False
 
     def checkout_script(self):
+        assert self.target_branch.sha
         return f'''
 {clone_or_fetch_script(self.target_branch.branch.repo.url)}
 
@@ -631,10 +644,10 @@ class WatchedBranch(Code):
         self.deployable: bool = deployable
         self.mergeable: bool = mergeable
 
-        self.prs: Dict[str, PR] = {}
+        self.prs: Dict[int, PR] = {}
         self.sha: Optional[str] = None
 
-        self.deploy_batch: Optional[Batch] = None
+        self.deploy_batch: Union[Batch, MergeFailureBatch, None] = None
         # success, failure, pending
         self._deploy_state: Optional[str] = None
 
@@ -707,8 +720,12 @@ class WatchedBranch(Code):
 
                 if self.state_changed:
                     self.state_changed = False
-                    await self._heal(batch_client, db, gh)
-                    if self.mergeable:
+                    await self._heal(app, batch_client, gh)
+                    if (
+                        (self.deploy_batch is None or self.deploy_state is not None)
+                        and not app['frozen_merge_deploy']
+                        and self.mergeable
+                    ):
                         await self.try_to_merge(gh)
         finally:
             log.info(f'update done {self.short_str()}')
@@ -736,7 +753,7 @@ class WatchedBranch(Code):
             self.sha = new_sha
             self.state_changed = True
 
-        new_prs: Dict[str, PR] = {}
+        new_prs: Dict[int, PR] = {}
         async for gh_json_pr in gh.getiter(f'/repos/{repo_ss}/pulls?state=open&base={self.branch.name}'):
             number = gh_json_pr['number']
             if number in self.prs:
@@ -805,15 +822,17 @@ url: {url}
                     send_zulip_deploy_failure_message(deploy_failure_message)
                 self.state_changed = True
 
-    async def _heal_deploy(self, batch_client):
+    async def _heal_deploy(self, app, batch_client):
         assert self.deployable
 
         if not self.sha:
             return
 
-        if self.deploy_batch is None or (self.deploy_state and self.deploy_batch.attributes['sha'] != self.sha):
+        if not app['frozen_merge_deploy'] and (
+            self.deploy_batch is None or (self.deploy_state and self.deploy_batch.attributes['sha'] != self.sha)
+        ):
             async with repos_lock:
-                await self._start_deploy(batch_client)
+                await self._start_deploy(app['db'], batch_client)
 
     async def _update_batch(self, batch_client, db: Database):
         log.info(f'update batch {self.short_str()}')
@@ -824,11 +843,12 @@ url: {url}
         for pr in self.prs.values():
             await pr._update_batch(batch_client, db)
 
-    async def _heal(self, batch_client, db: Database, gh):
+    async def _heal(self, app, batch_client, gh):
         log.info(f'heal {self.short_str()}')
+        db: Database = app['db']
 
         if self.deployable:
-            await self._heal_deploy(batch_client)
+            await self._heal_deploy(app, batch_client)
 
         merge_candidate = None
         merge_candidate_pri = None
@@ -860,7 +880,7 @@ url: {url}
                 log.info(f'cancel batch {batch.id} for {attrs["pr"]} {attrs["source_sha"]} => {attrs["target_sha"]}')
                 await batch.cancel()
 
-    async def _start_deploy(self, batch_client):
+    async def _start_deploy(self, db: Database, batch_client):
         # not deploying
         assert not self.deploy_batch or self.deploy_state
 
@@ -878,6 +898,14 @@ mkdir -p {shq(repo_dir)}
             )
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
                 config = BuildConfiguration(self, f.read(), requested_step_names=DEPLOY_STEPS, scope='deploy')
+                namespace = config.namespace()
+                services = config.deployed_services()
+            with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:
+                test_services = BuildConfiguration(self, f.read(), scope='deploy').deployed_services()
+
+            services.extend(test_services)
+            assert namespace is not None
+            await add_deployed_services(db, namespace, services, None)
 
             log.info(f'creating deploy batch for {self.branch.short_str()}')
             deploy_batch = batch_client.create_batch(
@@ -918,6 +946,7 @@ Deploy config failed to build with exception:
                 await deploy_batch.delete()
 
     def checkout_script(self):
+        assert self.sha
         return f'''
 {clone_or_fetch_script(self.branch.repo.url)}
 
@@ -954,7 +983,7 @@ class UnwatchedBranch(Code):
             config.update(self.extra_config)
         return config
 
-    async def deploy(self, batch_client, steps, excluded_steps=()):
+    async def deploy(self, db: Database, batch_client, steps, excluded_steps=()):
         assert not self.deploy_batch
 
         deploy_batch = None
@@ -971,6 +1000,13 @@ mkdir -p {shq(repo_dir)}
                 config = BuildConfiguration(
                     self, f.read(), scope='dev', requested_step_names=steps, excluded_step_names=excluded_steps
                 )
+                namespace = config.namespace()
+                services = config.deployed_services()
+            with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:
+                test_services = BuildConfiguration(self, f.read(), scope='dev').deployed_services()
+            if namespace is not None:
+                services.extend(test_services)
+                await add_deployed_services(db, namespace, services, None)
 
             log.info(f'creating dev deploy batch for {self.branch.short_str()} and user {self.user}')
 

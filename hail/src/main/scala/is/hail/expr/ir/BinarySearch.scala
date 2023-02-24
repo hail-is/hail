@@ -160,7 +160,14 @@ object BinarySearch {
     start: Value[Int],
     end: Value[Int]
   ): Value[Int] =
-    partitionPoint(cb, haystack, x => gtNeedle(x), start, end)
+    partitionPoint(cb, haystack, gtNeedle, start, end)
+
+  def upperBound(
+    cb: EmitCodeBuilder,
+    haystack: SIndexableValue,
+    gtNeedle: IEmitCode => Code[Boolean]
+  ): Value[Int] =
+    lowerBound(cb, haystack, gtNeedle, 0, haystack.loadLength())
 
   /** Returns 'start' <= i <= 'end' such that
     * - pred is false on range [start, i), and
@@ -279,7 +286,11 @@ object BinarySearch {
     runSearchBounded[T](cb, haystack, compare, 0, haystack.loadLength(), found, notFound)
 }
 
-class BinarySearch[C](mb: EmitMethodBuilder[C], containerType: SContainer, eltType: EmitType, keyOnly: Boolean) {
+class BinarySearch[C](mb: EmitMethodBuilder[C],
+  containerType: SContainer,
+  eltType: EmitType,
+  getKey: (EmitCodeBuilder, EmitValue) => EmitValue,
+  bound: String = "lower") {
   val containerElementType: EmitType = containerType.elementEmitType
   val findElt = mb.genEmitMethod("findElt", FastIndexedSeq[ParamType](containerType.paramType, eltType.paramType), typeInfo[Int])
 
@@ -287,37 +298,33 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], containerType: SContainer, eltTy
   // for j in [i, n)
   findElt.emitWithBuilder[Int] { cb =>
     val haystack = findElt.getSCodeParam(1).asIndexable
-    val needle = findElt.getEmitParam(cb, 2, null) // no streams
+    val needle = findElt.getEmitParam(cb, 2)
 
-    def ltNeedle(x: IEmitCode): Code[Boolean] = if (keyOnly) {
-      val kt: EmitType = containerElementType.st match {
-        case s: SBaseStruct =>
-          require(s.size == 2)
-          s.fieldEmitTypes(0)
-        case interval: SInterval =>
-          interval.pointEmitType
-      }
-
-      val keyLT = mb.ecb.getOrderingFunction(kt.st, eltType.st, CodeOrdering.Lt())
-
-      val key = cb.memoize(x.flatMap(cb) {
-        case x: SBaseStructValue =>
-          x.loadField(cb, 0)
-        case x: SIntervalValue =>
-          x.loadStart(cb)
-      })
-
-      keyLT(cb, key, needle)
-    } else {
-      val lt = mb.ecb.getOrderingFunction(containerElementType.st, eltType.st, CodeOrdering.Lt())
-      lt(cb, cb.memoize(x), needle)
+    val f: (
+     EmitCodeBuilder,
+     SIndexableValue,
+     IEmitCode => Code[Boolean]
+    ) => Value[Int] = bound match {
+      case "upper" => BinarySearch.upperBound
+      case "lower" => BinarySearch.lowerBound
     }
 
-    BinarySearch.lowerBound(cb, haystack, ltNeedle)
+    f(cb, haystack, { containerElement =>
+      val elementVal = cb.memoize(containerElement, "binary_search_elt")
+      val compareVal = getKey(cb, elementVal)
+      bound match {
+        case "upper" =>
+          val gt = mb.ecb.getOrderingFunction(compareVal.st, eltType.st, CodeOrdering.Gt())
+          gt(cb, compareVal, needle)
+        case "lower" =>
+          val lt = mb.ecb.getOrderingFunction(compareVal.st, eltType.st, CodeOrdering.Lt())
+          lt(cb, compareVal, needle)
+      }
+    })
   }
 
   // check missingness of v before calling
-  def lowerBound(cb: EmitCodeBuilder, array: SValue, v: EmitCode): Value[Int] = {
+  def search(cb: EmitCodeBuilder, array: SValue, v: EmitCode): Value[Int] = {
     cb.memoize(cb.invokeCode[Int](findElt, array, v))
   }
 }

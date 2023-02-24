@@ -33,6 +33,7 @@
 
         {% if userdata['is_developer'] == 1 %}
         <a class="header-dropdown-menu-link" href="{{ batch_driver_base_url }}/user_resources">User Resources</a>
+        <a class="header-dropdown-menu-link" href="{{ batch_driver_base_url }}/quotas">Quotas</a>
         {% endif %}
         <a class="header-dropdown-menu-link" href="{{ www_base_url }}/docs/batch/">Docs</a>
       </div>
@@ -46,6 +47,7 @@
       <div class="header-dropdown-menu">
         <div class="ci-caret header-dropdown-menu-caret"></div>
         <a class="header-dropdown-menu-link" href="{{ ci_base_url }}/me">Me</a>
+        <a class="header-dropdown-menu-link" href="{{ ci_base_url }}/namespaces">Namespaces</a>
       </div>
     </div>
   </div>
@@ -74,22 +76,8 @@
         <div class="monitoring-caret header-dropdown-menu-caret"></div>
         <a class="header-dropdown-menu-link" href="{{ grafana_base_url }}">Grafana</a>
         <a target="_blank" class="header-dropdown-menu-link" href="https://console.cloud.google.com/logs">
-          Log Viewer<i class="material-icons text-icon">open_in_new</i>
-	      </a>
+          Log Viewer<i class="material-icons text-icon">open_in_new</i></a>
         <a class="header-dropdown-menu-link" href="{{ monitoring_base_url }}/billing">Billing</a>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  {% if userdata['is_developer'] == 1 %}
-  <div class="header-dropdown">
-    <div class="header-dropdown-item-margin">
-      <a href="{{ benchmark_base_url }}" class="header-dropdown-link">Benchmark</a>
-      <div class="header-dropdown-menu">
-        <div class="benchmark-caret header-dropdown-menu-caret"></div>
-        <a class="header-dropdown-menu-link" href="{{ benchmark_base_url }}/lookup">Lookup</a>
-        <a class="header-dropdown-menu-link" href="{{ benchmark_base_url }}/compare">Compare</a>
       </div>
     </div>
   </div>

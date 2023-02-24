@@ -3,14 +3,14 @@ import itertools
 import pandas
 import numpy as np
 import pyspark
-from typing import Optional, Dict, Callable
+from typing import Optional, Dict, Callable, Sequence
 
 from hail.expr.expressions import Expression, StructExpression, \
     BooleanExpression, expr_struct, expr_any, expr_bool, analyze, Indices, \
     construct_reference, to_expr, construct_expr, extract_refs_by_indices, \
     ExpressionException, TupleExpression, unify_all, NumericExpression, \
     StringExpression, CallExpression, CollectionExpression, DictExpression, \
-    IntervalExpression, LocusExpression, NDArrayExpression, expr_array
+    IntervalExpression, LocusExpression, NDArrayExpression, expr_stream
 from hail.expr.types import hail_type, tstruct, types_match, tarray, tset, dtypes_from_pandas
 from hail.expr.table_type import ttable
 import hail.ir as ir
@@ -458,8 +458,12 @@ class Table(ExprContainer):
                       schema=nullable(hail_type),
                       key=table_key_type,
                       n_partitions=nullable(int),
-                      partial_type=nullable(dict))
-    def parallelize(cls, rows, schema=None, key=None, n_partitions=None, *, partial_type=None) -> 'Table':
+                      partial_type=nullable(dict),
+                      globals=nullable(expr_struct()))
+    def parallelize(cls, rows, schema=None, key=None, n_partitions=None, *,
+                    partial_type=None,
+                    globals=None
+                    ) -> 'Table':
         """Parallelize a local array of structs into a distributed table.
 
         Examples
@@ -519,6 +523,8 @@ class Table(ExprContainer):
         partial_type : :obj:`dict`, optional
             A value type which may elide fields or have ``None`` in arbitrary places. The partial
             type is used by hail where the type cannot be imputed.
+        globals: :class:`dict` of :class:`str` to :obj:`any` or :class:`.StructExpression`, optional
+            A `dict` or `struct{..}` containing supplementary global data.
 
         Returns
         -------
@@ -537,9 +543,13 @@ class Table(ExprContainer):
         if not isinstance(rows.dtype.element_type, tstruct):
             raise TypeError("'parallelize' expects an array with element type 'struct', found '{}'"
                             .format(rows.dtype))
-        table = Table(ir.TableParallelize(ir.MakeStruct([
-            ('rows', rows._ir),
-            ('global', ir.MakeStruct([]))]), n_partitions))
+        table = Table(ir.TableParallelize(
+            ir.MakeStruct([
+                ('rows', rows._ir),
+                ('global', (globals or hl.struct())._ir)
+            ]),
+            n_partitions
+        ))
         if key is not None:
             table = table.key_by(*key)
         return table
@@ -1334,6 +1344,137 @@ class Table(ExprContainer):
 
         Env.backend().execute(ir.TableWrite(self._tir, ir.TableNativeWriter(output, overwrite, stage_locally, _codec_spec)))
 
+    @typecheck_method(output=str,
+                      fields=sequenceof(str),
+                      overwrite=bool,
+                      stage_locally=bool,
+                      _codec_spec=nullable(str))
+    def write_many(self,
+                   output: str,
+                   fields: Sequence[str],
+                   *,
+                   overwrite: bool = False,
+                   stage_locally: bool = False,
+                   _codec_spec: Optional[str] = None):
+        """Write fields to distinct tables.
+
+        Examples
+        --------
+
+        >>> t = hl.utils.range_table(10)
+        >>> t = t.annotate(a = t.idx, b = t.idx * t.idx, c = hl.str(t.idx))
+        >>> t.write_many('output', fields=('a', 'b', 'c'))
+        >>> hl.read_table('output/a').describe()
+        ----------------------------------------
+        Global fields:
+            None
+        ----------------------------------------
+        Row fields:
+            'a': int32
+            'idx': int32
+        ----------------------------------------
+        Key: ['idx']
+        ----------------------------------------
+        >>> hl.read_table('output/a').show()
+        +-------+-------+
+        |     a |   idx |
+        +-------+-------+
+        | int32 | int32 |
+        +-------+-------+
+        |     0 |     0 |
+        |     1 |     1 |
+        |     2 |     2 |
+        |     3 |     3 |
+        |     4 |     4 |
+        |     5 |     5 |
+        |     6 |     6 |
+        |     7 |     7 |
+        |     8 |     8 |
+        |     9 |     9 |
+        +-------+-------+
+        >>> hl.read_table('output/b').describe()
+        ----------------------------------------
+        Global fields:
+            None
+        ----------------------------------------
+        Row fields:
+            'b': int32
+            'idx': int32
+        ----------------------------------------
+        Key: ['idx']
+        ----------------------------------------
+        >>> hl.read_table('output/b').show()
+        +-------+-------+
+        |     b |   idx |
+        +-------+-------+
+        | int32 | int32 |
+        +-------+-------+
+        |     0 |     0 |
+        |     1 |     1 |
+        |     4 |     2 |
+        |     9 |     3 |
+        |    16 |     4 |
+        |    25 |     5 |
+        |    36 |     6 |
+        |    49 |     7 |
+        |    64 |     8 |
+        |    81 |     9 |
+        +-------+-------+
+        >>> hl.read_table('output/c').describe()
+        ----------------------------------------
+        Global fields:
+            None
+        ----------------------------------------
+        Row fields:
+            'c': str
+            'idx': int32
+        ----------------------------------------
+        Key: ['idx']
+        ----------------------------------------
+        >>> hl.read_table('output/c').show()
+        +-----+-------+
+        | c   |   idx |
+        +-----+-------+
+        | str | int32 |
+        +-----+-------+
+        | "0" |     0 |
+        | "1" |     1 |
+        | "2" |     2 |
+        | "3" |     3 |
+        | "4" |     4 |
+        | "5" |     5 |
+        | "6" |     6 |
+        | "7" |     7 |
+        | "8" |     8 |
+        | "9" |     9 |
+        +-----+-------+
+
+        .. include:: _templates/write_warning.rst
+
+        See Also
+        --------
+        :func:`.read_table`
+
+        Parameters
+        ----------
+        output : str
+            Path at which to write.
+        fields : list of str
+            The fields to write.
+        stage_locally: bool
+            If ``True``, major output will be written to temporary local storage
+            before being copied to ``output``.
+        overwrite : bool
+            If ``True``, overwrite an existing file at the destination.
+        """
+
+        Env.backend().execute(
+            ir.TableWrite(
+                self._tir,
+                ir.TableNativeFanoutWriter(output, fields, overwrite, stage_locally, _codec_spec)
+            )
+        )
+
     def _show(self, n, width, truncate, types):
         return Table._Show(self, n, width, truncate, types)
 
@@ -1485,7 +1626,7 @@ class Table(ExprContainer):
                     s += f'<td style="{default_td_style}" colspan="{width}">'
                     if text is not None:
                         s += f'<div style="{div_style}{non_empty_div_style}">'
-                        s += text
+                        s += html.escape(text)
                         s += '</div>'
                     else:
                         s += f'<div style="{div_style}"></div>'
@@ -1764,7 +1905,7 @@ class Table(ExprContainer):
                 return rekey_f(left)
 
             all_uids.append(uid)
-            join_ir = ir.Join(ir.GetField(ir.TopLevelReference('row'), uid),
+            join_ir = ir.Join(ir.ProjectedTopLevelReference('row', uid, new_schema),
                               all_uids,
                               exprs,
                               joiner)
@@ -1800,19 +1941,20 @@ class Table(ExprContainer):
                                                             join_table[value_uid]])))})
 
                     def joiner(left: MatrixTable):
+                        mart = ir.MatrixAnnotateRowsTable(left._mir, join_table._tir, uid)
                         return MatrixTable(
                             ir.MatrixMapRows(
-                                ir.MatrixAnnotateRowsTable(left._mir, join_table._tir, uid),
+                                mart,
                                 ir.InsertFields(
-                                    ir.Ref('va'),
+                                    ir.Ref('va', mart.typ.row_type),
                                     [(uid, ir.Apply('get', join_table._row_type[uid].value_type,
-                                                    ir.GetField(ir.GetField(ir.Ref('va'), uid), uid),
+                                                    ir.GetField(ir.GetField(ir.Ref('va', mart.typ.row_type), uid), uid),
                                                     ir.MakeTuple([e._ir for e in exprs])))],
                                     None)))
                 else:
                     def joiner(left: MatrixTable):
                         return MatrixTable(ir.MatrixAnnotateRowsTable(left._mir, right._tir, uid, all_matches))
-                ast = ir.Join(ir.GetField(ir.TopLevelReference('va'), uid),
+                ast = ir.Join(ir.ProjectedTopLevelReference('va', uid, new_schema),
                               [uid],
                               exprs,
                               joiner)
@@ -1849,7 +1991,7 @@ class Table(ExprContainer):
                             joined._tir,
                             uid)).key_cols_by(*prev_key)
                         return result
-                join_ir = ir.Join(ir.GetField(ir.TopLevelReference('sa'), uid),
+                join_ir = ir.Join(ir.ProjectedTopLevelReference('sa', uid, new_schema),
                                   all_uids,
                                   exprs,
                                   joiner)
@@ -1933,7 +2075,7 @@ class Table(ExprContainer):
         :class:`.Table`
             Persisted table.
         """
-        return Env.backend().persist_table(self, storage_level)
+        return Env.backend().persist_table(self)
 
     def unpersist(self) -> 'Table':
         """
@@ -2417,7 +2559,14 @@ class Table(ExprContainer):
         --------
         :meth:`.anti_join`
         """
-        return self.filter(hl.is_defined(other.index(self.key)))
+        if len(other.key) == 0:
+            raise ValueError('semi_join: cannot join with a table with no key')
+        if len(other.key) > len(self.key) or any(t[0].dtype != t[1].dtype for t in zip(self.key.values(), other.key.values())):
+            raise ValueError('semi_join: cannot join: table must have a key of the same type(s) and be the same length or shorter:'
+                             f'\n   Left key: {", ".join(str(x.dtype) for x in self.key.values())}'
+                             f'\n  Right key: {", ".join(str(x.dtype) for x in other.key.values())}')
+
+        return self.filter(hl.is_defined(other.index(*(self.key[i] for i in range(len(other.key))))))
 
     @typecheck_method(other=table_type)
     def anti_join(self, other: 'Table') -> 'Table':
@@ -2455,7 +2604,14 @@ class Table(ExprContainer):
         --------
         :meth:`.semi_join`, :meth:`.filter`
         """
-        return self.filter(hl.is_missing(other.index(self.key)))
+        if len(other.key) == 0:
+            raise ValueError('anti_join: cannot join with a table with no key')
+        if len(other.key) > len(self.key) or any(t[0].dtype != t[1].dtype for t in zip(self.key.values(), other.key.values())):
+            raise ValueError('anti_join: cannot join: table must have a key of the same type(s) and be the same length or shorter:'
+                             f'\n   Left key: {", ".join(str(x.dtype) for x in self.key.values())}'
+                             f'\n  Right key: {", ".join(str(x.dtype) for x in other.key.values())}')
+
+        return self.filter(hl.is_missing(other.index(*(self.key[i] for i in range(len(other.key))))))
 
     @typecheck_method(right=table_type,
                       how=enumeration('inner', 'outer', 'left', 'right'),
@@ -3344,6 +3500,16 @@ class Table(ExprContainer):
             hl_dtype = dtypes_struct[column]
             if hl_dtype == hl.tstr:
                 pd_dtype = 'string'
+            elif hl_dtype == hl.tint32:
+                pd_dtype = 'Int32'
+            elif hl_dtype == hl.tint64:
+                pd_dtype = 'Int64'
+            elif hl_dtype == hl.tfloat32:
+                pd_dtype = 'Float32'
+            elif hl_dtype == hl.tfloat64:
+                pd_dtype = 'Float64'
+            elif hl_dtype == hl.tbool:
+                pd_dtype = 'boolean'
             else:
                 pd_dtype = hl_dtype.to_numpy()
             data_dict[column] = pandas.Series(column_struct_array[column], dtype=pd_dtype)
@@ -3408,9 +3574,27 @@ class Table(ExprContainer):
         new_table = hl.Table.parallelize(data, partial_type=hl_type_hints)
         return new_table if not key else new_table.key_by(*key)
 
-    @typecheck_method(other=table_type, tolerance=nullable(numeric), absolute=bool)
-    def _same(self, other, tolerance=1e-6, absolute=False):
+    @typecheck_method(other=table_type, tolerance=nullable(numeric), absolute=bool, reorder_fields=bool)
+    def _same(self, other, tolerance=1e-6, absolute=False, reorder_fields=False):
         from hail.expr.functions import _values_similar
+
+        fd_f = set if reorder_fields else list
+
+        if fd_f(self.row) != fd_f(other.row):
+            print(f'Different row fields: \n  {list(self.row)}\n  {list(other.row)}')
+            return False
+        if fd_f(self.globals) != fd_f(other.globals):
+            print(f'Different globals fields: \n  {list(self.globals)}\n  {list(other.globals)}')
+            return False
+
+        if reorder_fields:
+            globals_order = list(self.globals)
+            if list(other.globals) != globals_order:
+                other = other.select_globals(*globals_order)
+
+            row_order = list(self.row)
+            if list(other.row) != row_order:
+                other = other.select(*row_order)
 
         if self._type != other._type:
             print(f'Table._same: types differ:\n  {self._type}\n  {other._type}')
@@ -3620,11 +3804,14 @@ class Table(ExprContainer):
             raise ValueError('multi_way_zip_join must have at least one table as an argument')
         head = tables[0]
         if any(head.key.dtype != t.key.dtype for t in tables):
-            raise TypeError('All input tables to multi_way_zip_join must have the same key type')
+            raise TypeError('All input tables to multi_way_zip_join must have the same key type:\n  '
+                            + '\n  '.join(str(t.key.dtype) for t in tables))
         if any(head.row.dtype != t.row.dtype for t in tables):
-            raise TypeError('All input tables to multi_way_zip_join must have the same row type')
+            raise TypeError('All input tables to multi_way_zip_join must have the same row type\n  '
+                            + '\n  '.join(str(t.row.dtype) for t in tables))
         if any(head.globals.dtype != t.globals.dtype for t in tables):
-            raise TypeError('All input tables to multi_way_zip_join must have the same global type')
+            raise TypeError('All input tables to multi_way_zip_join must have the same global type\n  '
+                            + '\n  '.join(str(t.globals.dtype) for t in tables))
         return Table(ir.TableMultiWayZipJoin(
             [t._tir for t in tables], data_field_name, global_field_name))
 
@@ -3632,28 +3819,27 @@ class Table(ExprContainer):
         def grouping_func(part):
             groups = part.grouped(n)
             key_names = list(self.key)
-            return groups.map(lambda group:
-                              group[0].select(*key_names, **{name: group}))
+            return groups.map(lambda group: group[0].select(*key_names, **{name: group}))
 
         return self._map_partitions(grouping_func)
 
-    @typecheck_method(f=func_spec(1, expr_array(expr_struct())))
+    @typecheck_method(f=func_spec(1, expr_stream(expr_struct())))
     def _map_partitions(self, f):
         rows_uid = 'tmp_rows_' + Env.get_uid()
         globals_uid = 'tmp_globals_' + Env.get_uid()
-        expr = construct_expr(ir.ToArray(ir.Ref(rows_uid)), hl.tarray(self.row.dtype), self._row_indices)
+        expr = construct_expr(ir.Ref(rows_uid, hl.tstream(self.row.dtype)), hl.tstream(self.row.dtype), self._row_indices)
         body = f(expr)
         result_t = body.dtype
         if any(k not in result_t.element_type for k in self.key):
             raise ValueError('Table._map_partitions must preserve key fields')
 
-        body_ir = ir.Let('global', ir.Ref(globals_uid), ir.ToStream(body._ir))
+        body_ir = ir.Let('global', ir.Ref(globals_uid, self._global_type), body._ir)
         return Table(ir.TableMapPartitions(self._tir, globals_uid, rows_uid, body_ir))
 
     def _calculate_new_partitions(self, n_partitions):
         """returns a set of range bounds that can be passed to write"""
         return Env.backend().execute(ir.TableToValueApply(
-            self._tir,
+            self.select().select_globals()._tir,
             {'name': 'TableCalculateNewPartitions',
              'nPartitions': n_partitions}))
 

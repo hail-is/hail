@@ -13,7 +13,6 @@ out/
 target
 .classpath
 .DS_Store
-*-stmp
 __pycache__/
 *.pyc
 *.egg-info/
@@ -29,6 +28,8 @@ GRTAGS
 GTAGS
 hail/python/hail/docs/experimental/hail.experimental.DB.rst
 hail/python/hailtop/batch/docs/api/
+hail/upload-qob-jar
+hail/upload-qob-test-resources
 **/hail_version
 web_common/web_common/static/css/
 website/docs.tar.gz
@@ -36,3 +37,6 @@ website/website/static/css/
 *.dylib  # macOS dynamic libraries
 */hail.jar
 infra/.terraform.lock.hcl
+.dist/
+.cache/
+wheel-container.tar

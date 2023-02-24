@@ -1,7 +1,7 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.{BaseIR, TypeCheck}
+import is.hail.expr.ir.{BaseIR, IRSize, Pretty, TypeCheck}
 import is.hail.utils._
 
 case class LoweringPipeline(lowerings: LoweringPass*) {
@@ -10,9 +10,17 @@ case class LoweringPipeline(lowerings: LoweringPass*) {
   final def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
     var x = ir
 
+    def render(context: String): Unit = {
+      if (ctx.shouldLogIR())
+        log.info(s"$context: IR size ${ IRSize(x) }: \n" + Pretty(ctx, x, elideLiterals = true))
+    }
+
+    render(s"initial IR")
+
     lowerings.foreach { l =>
       try {
         x = l.apply(ctx, x)
+        render(s"after ${ l.context }")
       } catch {
         case e: Throwable =>
           log.error(s"error while applying lowering '${ l.context }'")

@@ -9,7 +9,7 @@ plugins {
   id 'scala'
   id 'idea'
   id 'com.github.johnrengelman.shadow' version '6.1.0'
-  id "de.undercouch.download" version "3.2.0"
+  id "de.undercouch.download" version "5.3.1"
   id 'eclipse'
 }
 
@@ -33,7 +33,7 @@ sourceSets {
 }
 
 compileJava {
-    options.compilerArgs << "-Xlint:all" << "-Werror" << "-XDenableSunApiLintControl" << "-Xlint:-sunapi"
+    options.compilerArgs << "-Xlint:all" << "-Werror" << "-XDenableSunApiLintControl" << "-XDignore.symbol.file"
 }
 tasks.withType(JavaCompile) {
     options.fork = true // necessary to make -XDenableSunApiLintControl work
@@ -42,10 +42,10 @@ tasks.withType(JavaCompile) {
 project.ext {
     breezeVersion = "1.1"
 
-    sparkVersion = System.getProperty("spark.version", "3.1.2")
+    sparkVersion = System.getProperty("spark.version", "3.3.0")
 
-    if (sparkVersion != "3.1.2") {
-        project.logger.lifecycle("WARNING: Hail primarily tested with Spark 3.1.2, use other versions at your own risk.")
+    if (sparkVersion != "3.3.0") {
+        project.logger.lifecycle("WARNING: Hail primarily tested with Spark 3.3.0, use other versions at your own risk.")
     }
     scalaVersion = System.getProperty("scala.version", "2.12.13")
     scalaMajorVersion = (scalaVersion =~ /^\d+.\d+/)[0]
@@ -57,7 +57,7 @@ compileScala {
         "-Xlint:all" <<
         "-Werror" <<
         "-XDenableSunApiLintControl" <<
-        "-Xlint:-sunapi" <<
+        "-XDignore.symbol.file" <<
         "-Xlint:-path" // Apparently we try to find some libraries that aren't always installed
 
     scalaCompileOptions.additionalParameters = [
@@ -122,7 +122,7 @@ dependencies {
     unbundled('org.apache.spark:spark-core_' + scalaMajorVersion + ':' + sparkVersion) {
         exclude module: 'hadoop-client'
     }
-    unbundled('org.apache.hadoop:hadoop-client:2.7.1') {
+    unbundled('org.apache.hadoop:hadoop-client:3.3.4') {
         exclude module: 'servlet-api'
         exclude module: 'asm'
     }
@@ -143,7 +143,7 @@ dependencies {
     bundled 'org.scalanlp:breeze_' + scalaMajorVersion + ':' + breezeVersion
 
     bundled 'com.github.fommil.netlib:all:1.1.2'
-    bundled('com.github.samtools:htsjdk:2.24.1') {
+    bundled('com.github.samtools:htsjdk:3.0.4') {
         transitive = false
     }
 
@@ -156,21 +156,21 @@ dependencies {
 
     if (sparkVersion.startsWith("3.")) {
         if (elasticMajorVersion == "8") {
-            bundled 'org.elasticsearch:elasticsearch-spark-30_2.12:8.0.0'
+            bundled 'org.elasticsearch:elasticsearch-spark-30_2.12:8.4.3'
         }
         else if (elasticMajorVersion == "7") {
-            bundled 'org.elasticsearch:elasticsearch-spark-30_2.12:7.17.0'
+            bundled 'org.elasticsearch:elasticsearch-spark-30_2.12:8.4.3'
         }
     }
     else if (sparkVersion.startsWith("2.4.")) {
         assert(elasticMajorVersion == "7")
-        bundled 'org.elasticsearch:elasticsearch-spark-20_2.12:7.17.1'
+        bundled 'org.elasticsearch:elasticsearch-spark-20_2.12:8.6.1'
     }
     else {
         throw new UnsupportedOperationException("Couldn't pick a valid elasticsearch.")
     }
 
-    bundled(group: 'com.google.cloud', name: 'google-cloud-storage', version: '1.106.0') {
+    bundled(group: 'com.google.cloud', name: 'google-cloud-storage', version: '2.17.1') {
         exclude group: 'com.fasterxml.jackson.core'
     }
 
@@ -183,7 +183,7 @@ dependencies {
     bundled group: 'org.ow2.asm', name: 'asm-util', version: '7.3.1'
     bundled group: 'org.ow2.asm', name: 'asm-analysis', version: '7.3.1'
 
-    bundled 'net.java.dev.jna:jna:5.6.0'
+    bundled 'net.java.dev.jna:jna:5.12.1'
     bundled('net.sourceforge.jdistlib:jdistlib:0.4.5') {
         transitive = false
     }
@@ -192,17 +192,37 @@ dependencies {
     hailTest 'org.scalatest:scalatest_' + scalaMajorVersion + ':3.0.5'
 
     unbundled group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
-    bundled group: 'commons-codec', name: 'commons-codec', version: '1.11'
-    bundled group: 'org.apache.commons', name: 'commons-lang3', version: '3.5'
+    bundled group: 'commons-codec', name: 'commons-codec', version: '1.15'
+    bundled group: 'org.apache.commons', name: 'commons-lang3', version: '3.12.0'
     bundled(group: 'org.apache.avro', name: 'avro', version: '1.10.2') {
         exclude group: 'com.fasterxml.jackson.core'
     }
 
-    bundled 'commons-io:commons-io:2.5'
+    bundled 'commons-io:commons-io:2.11.0'
+    bundled(group: 'com.azure', name: 'azure-storage-blob', version: '12.13.0') {
+        exclude group: 'com.fasterxml.jackson'
+        exclude group: 'com.fasterxml.jackson.core'
+        exclude group: 'com.fasterxml.jackson.databind'
+    }
 
-    bundled group: 'org.freemarker', name: 'freemarker', version: '2.3.14'
+    bundled(group: 'com.azure', name: 'azure-core-http-netty', version: '1.10.0') {
+        exclude group: 'com.fasterxml.jackson'
+        exclude group: 'com.fasterxml.jackson.core'
+        exclude group: 'com.fasterxml.jackson.databind'
+    }
 
-    bundled 'com.kohlschutter.junixsocket:junixsocket-core:2.3.2'
+
+    bundled(group: 'com.azure', name: 'azure-identity', version:'1.2.1') {
+        exclude group: 'com.fasterxml.jackson'
+        exclude group: 'com.fasterxml.jackson.core'
+        exclude group: 'com.fasterxml.jackson.databind'
+    }
+
+    bundled group: 'org.freemarker', name: 'freemarker', version: '2.3.31'
+
+    bundled 'com.kohlschutter.junixsocket:junixsocket-core:2.6.1'
+
+    bundled 'com.github.luben:zstd-jni:1.5.2-1'
 }
 
 task(checkSettings) doLast {
@@ -319,6 +339,7 @@ tasks.withType(ShadowJar) {
     relocate 'com.google.common', 'is.hail.relocated.com.google.common'
     relocate 'org.objectweb', 'is.hail.relocated.org.objectweb'
     relocate 'org.codehaus.jackson', 'is.hail.relocated.org.codehaus.jackson'
+    relocate 'org.codehaus.stax2', 'org.apache.hadoop.shaded.org.codehaus.stax2'
     relocate 'org.apache.commons.lang3', 'is.hail.relocated.org.apache.commons.lang3'
     relocate 'org.apache.commons.io', 'is.hail.relocated.org.apache.commons.io'
     relocate 'com.google.cloud', 'is.hail.relocated.com.google.cloud'

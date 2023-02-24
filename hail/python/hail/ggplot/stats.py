@@ -1,19 +1,24 @@
+from typing import List
+
 import abc
 
+from pandas import DataFrame
+
 import pandas as pd
+import numpy as np
 
 import hail as hl
 from hail.utils.java import warning
-from .utils import should_use_for_grouping
+from .utils import should_use_scale_for_grouping
 
 
 class Stat:
     @abc.abstractmethod
-    def make_agg(self, mapping, precomputed):
+    def make_agg(self, mapping, precomputed, scales):
         return
 
     @abc.abstractmethod
-    def listify(self, agg_result):
+    def listify(self, agg_result) -> List[DataFrame]:
         # Turns the agg result into a list of data frames to be plotted.
         return
 
@@ -22,14 +27,13 @@ class Stat:
 
 
 class StatIdentity(Stat):
-
-    def make_agg(self, mapping, precomputed):
+    def make_agg(self, mapping, precomputed, scales):
         grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
-                              if should_use_for_grouping(aes_key, mapping[aes_key].dtype)}
+                              if should_use_scale_for_grouping(scales[aes_key])}
         non_grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys() if aes_key not in grouping_variables}
         return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.collect(hl.struct(**non_grouping_variables)))
 
-    def listify(self, agg_result):
+    def listify(self, agg_result) -> List[DataFrame]:
         result = []
         for grouped_struct, collected in agg_result.items():
             columns = list(collected[0].keys())
@@ -46,32 +50,31 @@ class StatIdentity(Stat):
 
 
 class StatFunction(StatIdentity):
-
     def __init__(self, fun):
         self.fun = fun
 
-    def make_agg(self, mapping, precomputed):
+    def make_agg(self, mapping, precomputed, scales):
         with_y_value = mapping.annotate(y=self.fun(mapping.x))
-        return super().make_agg(with_y_value, precomputed)
+        return super().make_agg(with_y_value, precomputed, scales)
 
 
 class StatNone(Stat):
-    def make_agg(self, mapping, precomputed):
+    def make_agg(self, mapping, precomputed, scales):
         return hl.agg.take(hl.struct(), 0)
 
-    def listify(self, agg_result):
-        return pd.DataFrame({})
+    def listify(self, agg_result) -> List[DataFrame]:
+        return [pd.DataFrame({})]
 
 
 class StatCount(Stat):
-    def make_agg(self, mapping, precomputed):
+    def make_agg(self, mapping, precomputed, scales):
         grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
-                              if should_use_for_grouping(aes_key, mapping[aes_key].dtype)}
+                              if should_use_scale_for_grouping(scales[aes_key])}
         if "weight" in mapping:
             return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.counter(mapping["x"], weight=mapping["weight"]))
         return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.group_by(mapping["x"], hl.agg.count()))
 
-    def listify(self, agg_result):
+    def listify(self, agg_result) -> List[DataFrame]:
         result = []
         for grouped_struct, count_by_x in agg_result.items():
             data_dict = {}
@@ -103,9 +106,9 @@ class StatBin(Stat):
             precomputes["max_val"] = hl.agg.max(mapping.x)
         return hl.struct(**precomputes)
 
-    def make_agg(self, mapping, precomputed):
+    def make_agg(self, mapping, precomputed, scales):
         grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
-                              if should_use_for_grouping(aes_key, mapping[aes_key].dtype)}
+                              if should_use_scale_for_grouping(scales[aes_key])}
 
         start = self.min_val if self.min_val is not None else precomputed.min_val
         end = self.max_val if self.max_val is not None else precomputed.max_val
@@ -116,7 +119,7 @@ class StatBin(Stat):
             bins = self.bins
         return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.hist(mapping["x"], start, end, bins))
 
-    def listify(self, agg_result):
+    def listify(self, agg_result) -> List[DataFrame]:
         items = list(agg_result.items())
         x_edges = items[0][1].bin_edges
         num_edges = len(x_edges)
@@ -130,5 +133,31 @@ class StatBin(Stat):
                 data_rows.append({"x": x, "y": y_values[i]})
             df = pd.DataFrame.from_records(data_rows)
             df.attrs.update(**grouped_struct)
+            result.append(df)
+        return result
+
+
+class StatCDF(Stat):
+    def __init__(self, k):
+        self.k = k
+
+    def make_agg(self, mapping, precomputed, scales):
+        grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
+                              if should_use_scale_for_grouping(scales[aes_key])}
+        return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.approx_cdf(mapping["x"], self.k))
+
+    def listify(self, agg_result) -> List[DataFrame]:
+        result = []
+
+        for grouped_struct, data in agg_result.items():
+            n = data['ranks'][-1]
+            weights = np.diff(data['ranks'][1:-1])
+            min = data['values'][0]
+            max = data['values'][-1]
+            values = np.array(data['values'][1:-1])
+            df = pd.DataFrame({'value': values, 'weight': weights})
+            df.attrs.update(**grouped_struct)
+            df.attrs.update({'min': min, 'max': max, 'n': n})
+
             result.append(df)
         return result

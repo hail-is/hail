@@ -65,7 +65,7 @@ class StagedArrayBuilder(val elt: SingleCodeType, val eltRequired: Boolean, mb: 
 
   def loadFromIndex(cb: EmitCodeBuilder, r: Value[Region], i: Code[Int]): IEmitCode = {
     val idx = cb.newLocal[Int]("loadFromIndex_idx", i)
-    IEmitCode(cb, isMissing(idx), elt.loadToSValue(cb, r, cb.memoizeAny(apply(idx), ti)))
+    IEmitCode(cb, isMissing(idx), elt.loadToSValue(cb, cb.memoizeAny(apply(idx), ti)))
   }
 }
 
@@ -684,6 +684,10 @@ final class ByteArrayBuilder(initialCapacity: Int = 16) {
     size_ = n
   }
 
+  def setSizeUnchecked(n: Int) {
+    size_ = n
+  }
+
   def apply(i: Int): Byte = {
     require(i >= 0 && i < size)
     b(i)
@@ -900,6 +904,8 @@ final class AnyRefArrayBuilder[T <: AnyRef](initialCapacity: Int = 16)(implicit 
     b(size_) = x
     size_ += 1
   }
+
+  def +=(x: T): Unit = add(x)
 
   def update(i: Int, x: T): Unit = {
     require(i >= 0 && i < size)

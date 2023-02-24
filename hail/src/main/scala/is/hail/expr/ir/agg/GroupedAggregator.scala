@@ -31,7 +31,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
       mb.emitWithBuilder { cb =>
         val off = mb.getCodeParam[Long](1)
         val ev1 = cb.memoize(loadCompKey(cb, off))
-        val ev2 = mb.getEmitParam(cb, 2, null) // don't need region
+        val ev2 = mb.getEmitParam(cb, 2) // don't need region
         comp(cb, ev1, ev2)
       }
     }

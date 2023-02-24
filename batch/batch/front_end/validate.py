@@ -43,6 +43,7 @@ image_str = str_type
 
 job_validator = keyed(
     {
+        'always_copy_output': bool_type,
         'always_run': bool_type,
         'attributes': dictof(str_type),
         'env': listof(keyed({'name': str_type, 'value': str_type})),
@@ -61,7 +62,9 @@ job_validator = keyed(
         'network': oneof('public', 'private'),
         'unconfined': bool_type,
         'output_files': listof(keyed({required('from'): str_type, required('to'): str_type})),
-        required('parent_ids'): listof(int_type),
+        'parent_ids': listof(int_type),
+        'absolute_parent_ids': listof(int_type),
+        'in_update_parent_ids': listof(int_type),
         'port': int_type,
         required('process'): switch(
             'type',
@@ -79,6 +82,7 @@ job_validator = keyed(
                 },
             },
         ),
+        'regions': listof(str_type),
         'requester_pays_project': str_type,
         'resources': keyed(
             {
@@ -106,6 +110,13 @@ batch_validator = keyed(
         required('n_jobs'): int_type,
         required('token'): str_type,
         'cancel_after_n_failures': nullable(numeric(**{"x > 0": lambda x: isinstance(x, int) and x > 0})),
+    }
+)
+
+batch_update_validator = keyed(
+    {
+        required('token'): str_type,
+        required('n_jobs'): numeric(**{"x > 0": lambda x: isinstance(x, int) and x > 0}),
     }
 )
 
@@ -184,7 +195,15 @@ def handle_deprecated_job_keys(i, job):
 def handle_job_backwards_compatibility(job):
     if 'cloudfuse' in job:
         job['gcsfuse'] = job.pop('cloudfuse')
+    if 'parent_ids' in job:
+        job['absolute_parent_ids'] = job.pop('parent_ids')
+    if 'always_copy_output' not in job:
+        job['always_copy_output'] = True
 
 
 def validate_batch(batch):
     batch_validator.validate('batch', batch)
+
+
+def validate_batch_update(update):
+    batch_update_validator.validate('batch_update', update)

@@ -1,6 +1,6 @@
 # Hail
 
-[![Zulip](https://img.shields.io/badge/zulip-join_chat-brightgreen.svg)](https://hail.zulipchat.com?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+[![Zulip](https://img.shields.io/badge/zulip-join_chat-brightgreen.svg)](https://hail.zulipchat.com?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) [![DOI](https://zenodo.org/badge/45069467.svg)](https://zenodo.org/badge/latestdoi/45069467) [![PyPI version](https://badge.fury.io/py/hail.svg)](https://badge.fury.io/py/hail)
 
 [Hail](https://hail.is) is an open-source, general-purpose, Python-based data analysis tool with additional data types and methods for working with genomic data.
 

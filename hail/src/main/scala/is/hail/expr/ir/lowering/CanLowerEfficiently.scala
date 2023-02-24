@@ -3,12 +3,12 @@ package is.hail.expr.ir.lowering
 import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
-import is.hail.expr.ir.functions.{TableCalculateNewPartitions, TableToValueFunction}
+import is.hail.expr.ir.functions.{TableCalculateNewPartitions, TableToValueFunction, WrappedMatrixToTableFunction}
 import is.hail.io.avro.AvroTableReader
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
-import is.hail.methods.{ForceCountTable, NPartitionsTable, TableFilterPartitions}
+import is.hail.methods.{ForceCountTable, LocalLDPrune, NPartitionsTable, TableFilterPartitions}
 
 object CanLowerEfficiently {
   def apply(ctx: ExecuteContext, ir0: BaseIR): Option[String] = {
@@ -38,9 +38,11 @@ object CanLowerEfficiently {
           fail(s"no lowering for TableFromBlockMatrixNativeReader")
 
         case t: TableLiteral =>
+        case TableRepartition(_, _, RepartitionStrategy.NAIVE_COALESCE) =>
         case t: TableRepartition => fail(s"TableRepartition has no lowered implementation")
         case t: TableParallelize =>
         case t: TableRange =>
+        case t: TableGenomicRange =>
         case TableKeyBy(child, keys, isSorted) =>
         case t: TableOrderBy =>
         case t: TableFilter =>
@@ -58,11 +60,12 @@ object CanLowerEfficiently {
         case t: TableUnion =>
         case t: TableMultiWayZipJoin => fail(s"TableMultiWayZipJoin is not passing tests due to problems in ptype inference in StreamZipJoin")
         case t: TableDistinct =>
-        case t: TableKeyByAndAggregate => fail("TableKeyByAndAggregate has no map-side combine")
+        case t: TableKeyByAndAggregate =>
         case t: TableAggregateByKey =>
         case t: TableRename =>
         case t: TableFilterIntervals =>
         case TableToTableApply(_, TableFilterPartitions(_, _)) =>
+        case TableToTableApply(_, WrappedMatrixToTableFunction(_: LocalLDPrune, _, _, _)) =>
         case t: TableToTableApply => fail(s"TableToTableApply")
         case t: BlockMatrixToTableApply => fail(s"BlockMatrixToTableApply")
         case t: BlockMatrixToTable => fail(s"BlockMatrixToTable has no lowered implementation")

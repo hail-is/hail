@@ -5,6 +5,7 @@ import is.hail.backend.ExecuteContext
 import is.hail.types.virtual._
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.rvd.{PartitionBoundOrdering, RVDPartitionInfo}
+import is.hail.types.tcoerce
 import is.hail.utils._
 
 object Simplify {
@@ -78,6 +79,7 @@ object Simplify {
   private[this] def isStrict(x: IR): Boolean = {
     x match {
       case _: Apply |
+           _: ApplySeeded |
            _: ApplyUnaryPrimOp |
            _: ApplyBinaryPrimOp |
            _: ArrayRef |
@@ -85,7 +87,25 @@ object Simplify {
            _: GetField |
            _: GetTupleElement => true
       case ApplyComparisonOp(op, _, _) => op.strict
-      case f: ApplySeeded => f.implementation.isStrict
+      case _ => false
+    }
+  }
+
+  /**
+    * Returns true if any strict child of 'x' is NA.
+    * A child is strict if 'x' evaluates to missing whenever the child does.
+    */
+  private[this] def hasMissingStrictChild(x: IR): Boolean = {
+    x match {
+      case _: Apply |
+           _: ApplySeeded |
+           _: ApplyUnaryPrimOp |
+           _: ApplyBinaryPrimOp |
+           _: ArrayRef |
+           _: ArrayLen |
+           _: GetField |
+           _: GetTupleElement => Children(x).exists(_.isInstanceOf[NA])
+      case ApplyComparisonOp(op, _, _) if op.strict => Children(x).exists(_.isInstanceOf[NA])
       case _ => false
     }
   }
@@ -128,7 +148,7 @@ object Simplify {
 
   private[this] def valueRules: PartialFunction[IR, IR] = {
     // propagate NA
-    case x: IR if isStrict(x) && Children(x).exists(_.isInstanceOf[NA]) =>
+    case x: IR if hasMissingStrictChild(x) =>
       NA(x.typ)
 
     case x@If(NA(_), _, _) => NA(x.typ)
@@ -370,7 +390,7 @@ object Simplify {
       }
       ForwardLets[IR](rw)
 
-    case SelectFields(old, fields) if coerce[TStruct](old.typ).fieldNames sameElements fields =>
+    case SelectFields(old, fields) if tcoerce[TStruct](old.typ).fieldNames sameElements fields =>
       old
 
     case SelectFields(SelectFields(old, _), fields) =>
@@ -414,6 +434,7 @@ object Simplify {
     case TableCount(TableLeftJoinRightDistinct(child, _, _)) => TableCount(child)
     case TableCount(TableIntervalJoin(child, _, _, _)) => TableCount(child)
     case TableCount(TableRange(n, _)) => I64(n)
+    case TableCount(TableGenomicRange(n, _, _)) => I64(n)
     case TableCount(TableParallelize(rowsAndGlobal, _)) => Cast(ArrayLen(GetField(rowsAndGlobal, "rows")), TInt64)
     case TableCount(TableRename(child, _, _)) => TableCount(child)
     case TableCount(TableAggregateByKey(child, _)) => TableCount(TableDistinct(child))
@@ -723,6 +744,7 @@ object Simplify {
     case MatrixColsTable(MatrixKeyRowsBy(child, _, _)) => MatrixColsTable(child)
 
     case TableRepartition(TableRange(nRows, _), nParts, _) => TableRange(nRows, nParts)
+    case TableRepartition(TableGenomicRange(nRows, _, referenceGenome), nParts, _) => TableGenomicRange(nRows, nParts, referenceGenome)
 
     case TableMapGlobals(TableMapGlobals(child, ng1), ng2) =>
       val uid = genUID()
@@ -740,6 +762,12 @@ object Simplify {
     case TableHead(tr@TableRange(nRows, nPar), n) if canRepartition =>
       if (n < nRows)
         TableRange(n.toInt, (nPar.toFloat * n / nRows).toInt.max(1))
+      else
+        tr
+
+    case TableHead(tr@TableGenomicRange(nRows, nPar, referenceGenome), n) if canRepartition =>
+      if (n < nRows)
+        TableGenomicRange(n.toInt, (nPar.toFloat * n / nRows).toInt.max(1), referenceGenome)
       else
         tr
 
@@ -814,14 +842,16 @@ object Simplify {
       TableExplode(TableFilterIntervals(child, intervals, keep), path)
     case TableFilterIntervals(TableAggregateByKey(child, expr), intervals, keep) =>
       TableAggregateByKey(TableFilterIntervals(child, intervals, keep), expr)
-    case TableFilterIntervals(TableFilterIntervals(child, i1, keep1), i2, keep2) if keep1 == keep2 =>
+    case TableFilterIntervals(TableFilterIntervals(child, _i1, keep1), _i2, keep2) if keep1 == keep2 =>
       val ord = PartitionBoundOrdering(child.typ.keyType).intervalEndpointOrdering
+      val i1 = Interval.union(_i1.toArray[Interval], ord)
+      val i2 = Interval.union(_i2.toArray[Interval], ord)
       val intervals = if (keep1)
       // keep means intersect intervals
-        Interval.intersection(i1.toArray[Interval], i2.toArray[Interval], ord)
+        Interval.intersection(i1, i2, ord)
       else
       // remove means union intervals
-        Interval.union(i1.toArray[Interval] ++ i2.toArray[Interval], ord)
+        Interval.union(i1 ++ i2, ord)
       TableFilterIntervals(child, intervals.toFastIndexedSeq, keep1)
 
       // FIXME: Can try to serialize intervals shorter than the key

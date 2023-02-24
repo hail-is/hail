@@ -3,6 +3,7 @@ from types import TracebackType
 import abc
 import io
 import os
+import sys
 from concurrent.futures import ThreadPoolExecutor
 import janus
 from hailtop.utils import blocking_to_async
@@ -54,12 +55,25 @@ class ReadableStream(abc.ABC):
         await self.wait_closed()
 
 
+class EmptyReadableStream(ReadableStream):
+    async def read(self, n: int = -1) -> bytes:
+        return b''
+
+    async def readexactly(self, n: int) -> bytes:
+        if n == 0:
+            return b''
+        raise UnexpectedEOFError
+
+    async def _wait_closed(self) -> None:
+        return
+
+
 class WritableStream(abc.ABC):
     def __init__(self):
         self._closed = False
         self._waited_closed = False
 
-    def writable(self) -> bool:  # pylint: disable=no-self-use
+    def writable(self) -> bool:
         return False
 
     async def write(self, b: bytes) -> int:
@@ -138,6 +152,7 @@ class _WritableStreamFromBlocking(WritableStream):
         super().__init__()
         self._thread_pool = thread_pool
         self._f = f
+        self._start = f.tell()
 
     def writable(self) -> bool:
         return self._f.writable()
@@ -148,6 +163,8 @@ class _WritableStreamFromBlocking(WritableStream):
     async def _wait_closed(self) -> None:
         await blocking_to_async(self._thread_pool, self._f.flush)
         await blocking_to_async(self._thread_pool, os.fsync, self._f.fileno())
+        if sys.platform == 'linux':
+            os.posix_fadvise(self._f.fileno(), self._start, self._f.tell() - self._start, os.POSIX_FADV_DONTNEED)
         await blocking_to_async(self._thread_pool, self._f.close)
         del self._f
 

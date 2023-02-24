@@ -5,6 +5,7 @@ import org.apache.log4j.{LogManager, Logger}
 object LogHelper {
   // exposed more directly for generated code
   def logInfo(msg: String): Unit = log.info(msg)
+  def warning(msg: String): Unit = consoleLog.warn(msg)
   def consoleInfo(msg: String): Unit = info(msg)
 }
 

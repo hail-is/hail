@@ -1,8 +1,8 @@
 package is.hail
 
 import java.io.{PrintWriter, StringWriter}
-
 import is.hail.utils._
+import org.apache.log4j.{ConsoleAppender, PatternLayout}
 import org.testng.{ITestContext, ITestListener, ITestResult}
 
 class LogTestListener extends ITestListener {
@@ -38,7 +38,7 @@ class LogTestListener extends ITestListener {
   }
 
   def onStart(context: ITestContext) {
-
+    consoleLog.addAppender(new ConsoleAppender(new PatternLayout(HailContext.logFormat), "System.err"))
   }
 
   def onFinish(context: ITestContext) {

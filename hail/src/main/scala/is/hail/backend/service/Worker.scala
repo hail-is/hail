@@ -86,17 +86,13 @@ object Worker {
     timer.start(s"Job $i/$n")
 
     timer.start("readInputs")
-    val fs = retryTransientErrors {
-      using(new FileInputStream(s"$scratchDir/secrets/gsa-key/key.json")) { is =>
-        new GoogleStorageFS(Some(IOUtils.toString(is, Charset.defaultCharset().toString()))).asCacheable()
-      }
-    }
+    val fs = FS.cloudSpecificCacheableFS(s"$scratchDir/secrets/gsa-key/key.json", None)
 
     // FIXME: HACK
-    val (open, create) = if (n <= 50) {
-      (fs.openCachedNoCompression _, fs.createCachedNoCompression _)
+    val (open, write) = if (n <= 50) {
+      (fs.openCachedNoCompression _, fs.writeCached _)
     } else {
-      (fs.openNoCompression _, fs.createNoCompression _)
+      ((x: String) => fs.openNoCompression(x), fs.writePDOS _)
     }
 
     val fFuture = Future {
@@ -128,11 +124,11 @@ object Worker {
     timer.start("executeFunction")
 
     if (HailContext.isInitialized) {
-      HailContext.get.backend = new ServiceBackend(null, null, new HailClassLoader(getClass().getClassLoader()))
+      HailContext.get.backend = new ServiceBackend(null, null, new HailClassLoader(getClass().getClassLoader()), null, None)
     } else {
       HailContext(
         // FIXME: workers should not have backends, but some things do need hail contexts
-        new ServiceBackend(null, null, new HailClassLoader(getClass().getClassLoader())), skipLoggingConfiguration = true, quiet = true)
+        new ServiceBackend(null, null, new HailClassLoader(getClass().getClassLoader()), null, None), skipLoggingConfiguration = true, quiet = true)
     }
     val htc = new ServiceTaskContext(i)
     var result: Array[Byte] = null
@@ -144,28 +140,30 @@ object Worker {
     } catch {
       case err: HailException => userError = err
     }
-    htc.finish()
+    htc.close()
 
     timer.end("executeFunction")
     timer.start("writeOutputs")
 
-    using(create(s"$root/result.$i")) { os =>
-      val dos = new DataOutputStream(os)
-      if (result != null) {
-        assert(userError == null)
+    retryTransientErrors {
+      write(s"$root/result.$i") { dos =>
+        if (result != null) {
+          assert(userError == null)
 
-        dos.writeBoolean(true)
-        dos.write(result)
-      } else {
-        assert(userError != null)
-        val (shortMessage, expandedMessage, errorId) = handleForPython(userError)
+          dos.writeBoolean(true)
+          dos.write(result)
+        } else {
+          assert(userError != null)
+          val (shortMessage, expandedMessage, errorId) = handleForPython(userError)
 
-        dos.writeBoolean(false)
-        writeString(dos, shortMessage)
-        writeString(dos, expandedMessage)
-        dos.writeInt(errorId)
+          dos.writeBoolean(false)
+          writeString(dos, shortMessage)
+          writeString(dos, expandedMessage)
+          dos.writeInt(errorId)
+        }
       }
     }
+
     timer.end("writeOutputs")
     timer.end(s"Job $i")
     log.info(s"finished job $i at root $root")

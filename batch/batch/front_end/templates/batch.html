@@ -12,7 +12,6 @@
   <li>User: {{ batch['user'] }}</li>
   <li>Billing Project: {{ batch['billing_project'] }}</li>
   <li>Time Created: {% if 'time_created' in batch and batch['time_created'] is not none %}{{ batch['time_created'] }}{% endif %}</li>
-  <li>Time Closed: {% if 'time_closed' in batch and batch['time_closed'] is not none %}{{ batch['time_closed'] }}{% endif %}</li>
   <li>Time Completed: {% if 'time_completed' in batch and batch['time_completed'] is not none %}{{ batch['time_completed'] }}{% endif %}</li>
   <li>Total Jobs: {{ batch['n_jobs'] }}</li>
   <ul>
@@ -61,6 +60,7 @@
       <p>Search jobs with the given search terms.  Return jobs
         that match all terms.  Terms:</p>
       <ul>
+        <li>job_id=JOB_ID - jobs with an id equal to JOB_ID</li>
         <li>k=v - jobs with an attribute with key k and value v</li>
         <li>has:k - jobs that have an attribute with key k</li>
         <li>state - jobs in the given state, one of:

@@ -1,29 +1,37 @@
-from typing import Optional
+from typing import Set
 import asyncio
 import logging
-import weakref
 
 
 log = logging.getLogger('aiotools.tasks')
 
 
-class BackgroundTaskManager:
-    def __init__(self, loop: Optional[asyncio.AbstractEventLoop] = None):
-        if loop is None:
-            loop = asyncio.get_event_loop()
+class TaskManagerClosedError(Exception):
+    pass
 
-        self.tasks: weakref.WeakSet = weakref.WeakSet()
-        self.loop = loop
+
+class BackgroundTaskManager:
+    def __init__(self):
+        # These must be strong references so that tasks do not get GC'd
+        # The event loop only keeps weak references to tasks
+        self.tasks: Set[asyncio.Task] = set()
+        self._closed = False
 
     def ensure_future(self, coroutine):
-        self.tasks.add(asyncio.ensure_future(coroutine))
-
-    def ensure_future_threadsafe(self, coroutine):
-        self.tasks.add(asyncio.run_coroutine_threadsafe(coroutine, self.loop))
+        if self._closed:
+            raise TaskManagerClosedError
+        t = asyncio.create_task(coroutine)
+        t.add_done_callback(lambda _: self.tasks.remove(t))
+        self.tasks.add(t)
 
     def shutdown(self):
+        self._closed = True
         for task in self.tasks:
             try:
                 task.cancel()
             except Exception:
                 log.warning(f'encountered an exception while cancelling background task: {task}', exc_info=True)
+
+    async def shutdown_and_wait(self):
+        self.shutdown()
+        await asyncio.wait(self.tasks, return_when=asyncio.ALL_COMPLETED)

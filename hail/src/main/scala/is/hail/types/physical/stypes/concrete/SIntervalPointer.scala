@@ -17,7 +17,7 @@ final case class SIntervalPointer(pType: PInterval) extends SInterval {
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue =
     value match {
       case value: SIntervalValue =>
-        new SIntervalPointerValue(this, pType.store(cb, region, value, deepCopy), value.includesStart(), value.includesEnd())
+        new SIntervalPointerValue(this, pType.store(cb, region, value, deepCopy), value.includesStart, value.includesEnd)
     }
 
 
@@ -78,19 +78,6 @@ class SIntervalPointerValue(
 
   override def endDefined(cb: EmitCodeBuilder): Value[Boolean] =
     pt.endDefined(cb, a)
-
-  override def isEmpty(cb: EmitCodeBuilder): Value[Boolean] = {
-    val gt = cb.emb.ecb.getOrderingFunction(st.pointType, CodeOrdering.Gt())
-    val gteq = cb.emb.ecb.getOrderingFunction(st.pointType, CodeOrdering.Gteq())
-
-    val start = cb.memoize(loadStart(cb), "start")
-    val end = cb.memoize(loadEnd(cb), "end")
-    val empty = cb.newLocal[Boolean]("is_empty")
-    cb.ifx(includesStart && includesEnd,
-      cb.assign(empty, gt(cb, start, end)),
-      cb.assign(empty, gteq(cb, start, end)))
-    empty
-  }
 }
 
 object SIntervalPointerSettable {

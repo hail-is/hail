@@ -44,3 +44,7 @@ class CloudDriver(abc.ABC):
     @abc.abstractmethod
     async def shutdown(self):
         raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_quotas(self):
+        raise NotImplementedError

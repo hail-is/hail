@@ -2,7 +2,7 @@ import asyncio
 import logging
 import urllib.parse
 from functools import wraps
-from typing import Optional
+from typing import Optional, Tuple
 
 import aiohttp
 import aiohttp_session
@@ -12,11 +12,15 @@ from hailtop import httpx
 from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
 
+from .time_limited_max_size_cache import TimeLimitedMaxSizeCache
+
 log = logging.getLogger('gear.auth')
 
 deploy_config = get_deploy_config()
 
 BEARER = 'Bearer '
+
+TEN_SECONDS_IN_NANOSECONDS = int(1e10)
 
 
 def maybe_parse_bearer_header(value: str) -> Optional[str]:
@@ -25,52 +29,105 @@ def maybe_parse_bearer_header(value: str) -> Optional[str]:
     return None
 
 
-async def _userdata_from_session_id(session_id: str, client_session: httpx.ClientSession):
-    try:
-        return await async_get_userinfo(
-            deploy_config=deploy_config, session_id=session_id, client_session=client_session
+class AuthClient:
+    def __init__(self):
+        self._userdata_cache = TimeLimitedMaxSizeCache(
+            self._load_userdata, TEN_SECONDS_IN_NANOSECONDS, 100, 'session_userdata_cache'
         )
-    except asyncio.CancelledError:
-        raise
-    except aiohttp.ClientResponseError as e:
-        log.exception('unknown exception getting userinfo')
-        raise web.HTTPInternalServerError() from e
-    except Exception as e:  # pylint: disable=broad-except
-        log.exception('unknown exception getting userinfo')
-        raise web.HTTPInternalServerError() from e
 
+    def rest_authenticated_users_only(self, fun):
+        async def wrapped(request, *args, **kwargs):
+            userdata = await self._userdata_from_rest_request(request)
+            if not userdata:
+                web_userdata = await self._userdata_from_web_request(request)
+                if web_userdata:
+                    return web.HTTPUnauthorized(reason="provided web auth to REST endpoint")
+                raise web.HTTPUnauthorized()
+            return await fun(request, userdata, *args, **kwargs)
 
-async def userdata_from_web_request(request):
-    session = await aiohttp_session.get_session(request)
-    if 'session_id' not in session:
-        return None
-    return await _userdata_from_session_id(session['session_id'], request.app['client_session'])
+        return wrapped
 
+    def web_authenticated_users_only(self, redirect=True):
+        def wrap(fun):
+            @wraps(fun)
+            async def wrapped(request, *args, **kwargs):
+                userdata = await self._userdata_from_web_request(request)
+                if not userdata:
+                    rest_userdata = await self._userdata_from_rest_request(request)
+                    if rest_userdata:
+                        return web.HTTPUnauthorized(reason="provided REST auth to web endpoint")
+                    raise _web_unauthenticated(request, redirect)
+                return await fun(request, userdata, *args, **kwargs)
 
-async def userdata_from_rest_request(request):
-    if 'Authorization' not in request.headers:
-        return None
-    auth_header = request.headers['Authorization']
-    session_id = maybe_parse_bearer_header(auth_header)
-    if not session_id:
-        return session_id
-    return await _userdata_from_session_id(auth_header[7:], request.app['client_session'])
+            return wrapped
 
+        return wrap
 
-def rest_authenticated_users_only(fun):
-    async def wrapped(request, *args, **kwargs):
-        userdata = await userdata_from_rest_request(request)
-        if not userdata:
-            web_userdata = await userdata_from_web_request(request)
-            if web_userdata:
-                return web.HTTPUnauthorized(reason="provided web auth to REST endpoint")
+    def web_maybe_authenticated_user(self, fun):
+        @wraps(fun)
+        async def wrapped(request, *args, **kwargs):
+            return await fun(request, await self._userdata_from_web_request(request), *args, **kwargs)
+
+        return wrapped
+
+    def web_authenticated_developers_only(self, redirect=True):
+        def wrap(fun):
+            @self.web_authenticated_users_only(redirect)
+            @wraps(fun)
+            async def wrapped(request, userdata, *args, **kwargs):
+                if userdata['is_developer'] == 1:
+                    return await fun(request, userdata, *args, **kwargs)
+                raise web.HTTPUnauthorized()
+
+            return wrapped
+
+        return wrap
+
+    def rest_authenticated_developers_only(self, fun):
+        @self.rest_authenticated_users_only
+        @wraps(fun)
+        async def wrapped(request, userdata, *args, **kwargs):
+            if userdata['is_developer'] == 1:
+                return await fun(request, userdata, *args, **kwargs)
             raise web.HTTPUnauthorized()
-        return await fun(request, userdata, *args, **kwargs)
 
-    return wrapped
+        return wrapped
+
+    async def _userdata_from_web_request(self, request):
+        session = await aiohttp_session.get_session(request)
+        if 'session_id' not in session:
+            return None
+
+        return await self._userdata_cache.lookup((session['session_id'], request.app['client_session']))
+
+    async def _userdata_from_rest_request(self, request):
+        if 'Authorization' not in request.headers:
+            return None
+        auth_header = request.headers['Authorization']
+        session_id = maybe_parse_bearer_header(auth_header)
+        if not session_id:
+            return None
+
+        return await self._userdata_cache.lookup((session_id, request.app['client_session']))
+
+    @staticmethod
+    async def _load_userdata(session_id_and_session: Tuple[str, httpx.ClientSession]):
+        session_id, client_session = session_id_and_session
+        try:
+            return await async_get_userinfo(
+                deploy_config=deploy_config, session_id=session_id, client_session=client_session
+            )
+        except asyncio.CancelledError:
+            raise
+        except aiohttp.ClientResponseError as e:
+            log.exception('unknown exception getting userinfo')
+            raise web.HTTPInternalServerError() from e
+        except Exception as e:  # pylint: disable=broad-except
+            log.exception('unknown exception getting userinfo')
+            raise web.HTTPInternalServerError() from e
 
 
-def _web_unauthorized(request, redirect):
+def _web_unauthenticated(request, redirect):
     if not redirect:
         return web.HTTPUnauthorized()
 
@@ -86,53 +143,3 @@ def _web_unauthorized(request, redirect):
         request_url = request_url.with_scheme(x_forwarded_proto)
 
     return web.HTTPFound(f'{login_url}?next={urllib.parse.quote(str(request_url))}')
-
-
-def web_authenticated_users_only(redirect=True):
-    def wrap(fun):
-        @wraps(fun)
-        async def wrapped(request, *args, **kwargs):
-            userdata = await userdata_from_web_request(request)
-            if not userdata:
-                rest_userdata = await userdata_from_rest_request(request)
-                if rest_userdata:
-                    return web.HTTPUnauthorized(reason="provided REST auth to web endpoint")
-                raise _web_unauthorized(request, redirect)
-            return await fun(request, userdata, *args, **kwargs)
-
-        return wrapped
-
-    return wrap
-
-
-def web_maybe_authenticated_user(fun):
-    @wraps(fun)
-    async def wrapped(request, *args, **kwargs):
-        return await fun(request, await userdata_from_web_request(request), *args, **kwargs)
-
-    return wrapped
-
-
-def web_authenticated_developers_only(redirect=True):
-    def wrap(fun):
-        @web_authenticated_users_only(redirect)
-        @wraps(fun)
-        async def wrapped(request, userdata, *args, **kwargs):
-            if userdata['is_developer'] == 1:
-                return await fun(request, userdata, *args, **kwargs)
-            raise _web_unauthorized(request, redirect)
-
-        return wrapped
-
-    return wrap
-
-
-def rest_authenticated_developers_only(fun):
-    @rest_authenticated_users_only
-    @wraps(fun)
-    async def wrapped(request, userdata, *args, **kwargs):
-        if userdata['is_developer'] == 1:
-            return await fun(request, userdata, *args, **kwargs)
-        raise web.HTTPUnauthorized()
-
-    return wrapped

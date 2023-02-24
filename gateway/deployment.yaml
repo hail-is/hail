@@ -15,6 +15,7 @@ spec:
       labels:
         app: gateway
         hail.is/sha: "{{ code.sha }}"
+        envoy: "true"
     spec:
       priorityClassName: infrastructure
       nodeSelector:
@@ -36,7 +37,17 @@ spec:
               topologyKey: "kubernetes.io/hostname"
       containers:
        - name: gateway
-         image: "{{ gateway_image.image }}"
+         image: "{{ global.docker_prefix }}/envoyproxy/envoy:v1.22.3"
+         command:
+           - /usr/local/bin/envoy
+           - --config-path
+           - /etc/envoy/envoy.yaml
+           - --concurrency
+           - "2"
+           - --service-cluster
+           - gateway
+           - --service-node
+           - $(hostname)
          resources:
            requests:
              cpu: "20m"
@@ -45,13 +56,20 @@ spec:
              cpu: "1"
              memory: "1G"
          ports:
-          - containerPort: 80
-          - containerPort: 443
+          - containerPort: 8080
+          - containerPort: 8443
+          - containerPort: 8001
          volumeMounts:
           - mountPath: /etc/letsencrypt
             name: letsencrypt-config
           - name: ssl-config-gateway
             mountPath: /ssl-config
+            readOnly: true
+          - name: gateway-envoy-config
+            mountPath: /etc/envoy
+            readOnly: true
+          - name: gateway-xds-config
+            mountPath: /config_map/xds
             readOnly: true
       volumes:
         - name: letsencrypt-config
@@ -61,6 +79,12 @@ spec:
           secret:
             optional: false
             secretName: ssl-config-gateway
+        - name: gateway-envoy-config
+          configMap:
+            name: gateway-envoy-config
+        - name: gateway-xds-config
+          configMap:
+            name: gateway-xds-config
 ---
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler

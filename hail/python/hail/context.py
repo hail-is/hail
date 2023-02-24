@@ -1,15 +1,18 @@
-from typing import Optional, Union
+from typing import Optional, Union, Tuple, List
 import warnings
 import sys
 import os
+from contextlib import contextmanager
 from urllib.parse import urlparse, urlunparse
+from random import Random
 
 import pkg_resources
 from pyspark import SparkContext
 
 import hail
 from hail.genetics.reference_genome import ReferenceGenome
-from hail.typecheck import nullable, typecheck, typecheck_method, enumeration, dictof, oneof
+from hail.typecheck import (nullable, typecheck, typecheck_method, enumeration, dictof, oneof,
+                            sized_tupleof, sequenceof)
 from hail.utils import get_env_or_default
 from hail.utils.java import Env, warning, choose_backend
 from hail.backend import Backend
@@ -45,27 +48,17 @@ def _get_log(log):
     return log
 
 
-class HailContext(object):
-    @staticmethod
-    async def async_create(log: str,
-                           quiet: bool,
-                           append: bool,
-                           tmpdir: str,
-                           local_tmpdir: str,
-                           default_reference: str,
-                           global_seed: Optional[str],
-                           backend: Backend):
-        hc = HailContext(log=log,
-                         quiet=quiet,
-                         append=append,
-                         tmpdir=tmpdir,
-                         local_tmpdir=local_tmpdir,
-                         global_seed=global_seed,
-                         backend=backend)
-        references = await backend._async_get_references(BUILTIN_REFERENCES)
-        hc.initialize_references(references, default_reference)
-        return hc
+def convert_gcs_requester_pays_configuration_to_hadoop_conf_style(
+    x: Optional[Union[str, Tuple[str, List[str]]]]
+) -> Tuple[Optional[str], Optional[str]]:
+    if isinstance(x, str):
+        return x, None
+    if isinstance(x, tuple):
+        return x[0], ",".join(x[1])
+    return None, None
 
+
+class HailContext(object):
     @staticmethod
     def create(log: str,
                quiet: bool,
@@ -73,7 +66,7 @@ class HailContext(object):
                tmpdir: str,
                local_tmpdir: str,
                default_reference: str,
-               global_seed: Optional[str],
+               global_seed: Optional[int],
                backend: Backend):
         hc = HailContext(log=log,
                          quiet=quiet,
@@ -123,9 +116,13 @@ class HailContext(object):
                                  '  the latest changes weekly.\n')
             sys.stderr.write(f'LOGGING: writing to {log}\n')
 
+        self._user_specified_rng_nonce = True
         if global_seed is None:
-            global_seed = 6348563392232659379
-        Env.set_seed(global_seed)
+            if 'rng_nonce' not in backend.get_flags('rng_nonce'):
+                backend.set_flags(rng_nonce=hex(Random().randrange(-2**63, 2**63 - 1)))
+                self._user_specified_rng_nonce = False
+        else:
+            backend.set_flags(rng_nonce=hex(global_seed))
         Env._hc = self
 
     def initialize_references(self, references, default_reference):
@@ -171,12 +168,23 @@ class HailContext(object):
            _optimizer_iterations=nullable(int),
            backend=nullable(str),
            driver_cores=nullable(oneof(str, int)),
-           driver_memory=nullable(str))
-def init(sc=None, app_name=None, master=None, local='local[*]',
-         log=None, quiet=False, append=False,
-         min_block_size=0, branching_factor=50, tmp_dir=None,
-         default_reference='GRCh37', idempotent=False,
-         global_seed=6348563392232659379,
+           driver_memory=nullable(str),
+           worker_cores=nullable(oneof(str, int)),
+           worker_memory=nullable(str),
+           gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))))
+def init(sc=None,
+         app_name=None,
+         master=None,
+         local='local[*]',
+         log=None,
+         quiet=False,
+         append=False,
+         min_block_size=0,
+         branching_factor=50,
+         tmp_dir=None,
+         default_reference='GRCh37',
+         idempotent=False,
+         global_seed=None,
          spark_conf=None,
          skip_logging_configuration=False,
          local_tmpdir=None,
@@ -184,7 +192,10 @@ def init(sc=None, app_name=None, master=None, local='local[*]',
          *,
          backend=None,
          driver_cores=None,
-         driver_memory=None):
+         driver_memory=None,
+         worker_cores=None,
+         worker_memory=None,
+         gcs_requester_pays_configuration: Optional[Union[str, Tuple[str, List[str]]]] = None):
     """Initialize and configure Hail.
 
     This function will be called with default arguments if any Hail functionality is used. If you
@@ -215,6 +226,18 @@ def init(sc=None, app_name=None, master=None, local='local[*]',
     initialized with it as an argument:
 
     >>> hl.init(sc=sc)  # doctest: +SKIP
+
+    Configure Hail to bill to `my_project` when accessing any Google Cloud Storage bucket that has
+    requester pays enabled:
+
+    >>> hl.init(gcs_requester_pays_configuration='my-project')  # doctest: +SKIP
+
+    Configure Hail to bill to `my_project` when accessing the Google Cloud Storage buckets named
+    `bucket_of_fish` and `bucket_of_eels`:
+
+    >>> hl.init(
+    ...     gcs_requester_pays_configuration=('my-project', ['bucket_of_fish', 'bucket_of_eels'])
+    ... )  # doctest: +SKIP
 
     See Also
     --------
@@ -265,11 +288,22 @@ def init(sc=None, app_name=None, master=None, local='local[*]',
         Local temporary directory.  Used on driver and executor nodes.
         Must use the file scheme.  Defaults to TMPDIR, or /tmp.
     driver_cores : :class:`str` or :class:`int`, optional
-        Batch backend only. Number of cores to use for the driver process. May be 1 or 8. Default is
+        Batch backend only. Number of cores to use for the driver process. May be 1, 2, 4, or 8. Default is
         1.
     driver_memory : :class:`str`, optional
-        Batch backend only. Number of cores to use for the driver process. May be standard or
+        Batch backend only. Memory tier to use for the driver process. May be standard or
         highmem. Default is standard.
+    worker_cores : :class:`str` or :class:`int`, optional
+        Batch backend only. Number of cores to use for the worker processes. May be 1, 2, 4, or 8. Default is
+        1.
+    worker_memory : :class:`str`, optional
+        Batch backend only. Memory tier to use for the worker processes. May be standard or
+        highmem. Default is standard.
+    gcs_requester_pays_configuration : either :class:`str` or :class:`tuple` of :class:`str` and :class:`list` of :class:`str`, optional
+        If a string is provided, configure the Google Cloud Storage file system to bill usage to the
+        project identified by that string. If a tuple is provided, configure the Google Cloud
+        Storage file system to bill usage to the specified project for buckets specified in the
+        list. See examples above.
 
     """
     if Env._hc:
@@ -289,27 +323,27 @@ def init(sc=None, app_name=None, master=None, local='local[*]',
         backend = 'batch'
 
     if backend == 'batch':
+        import nest_asyncio
+        nest_asyncio.apply()
         import asyncio
-        try:
-            asyncio.get_running_loop()
-            raise ValueError(
-                'When using Hail Query in async code, initialize the ServiceBackend with `await hl.init_batch()`'
-            )
-        except RuntimeError:  # RuntimeError implies there is no running loop, so we may start one
-            return asyncio.get_event_loop().run_until_complete(init_batch(
-                log=log,
-                quiet=quiet,
-                append=append,
-                tmpdir=tmp_dir,
-                local_tmpdir=local_tmpdir,
-                default_reference=default_reference,
-                global_seed=global_seed,
-                driver_cores=driver_cores,
-                driver_memory=driver_memory,
-                name_prefix=app_name
-            ))
+        return asyncio.get_event_loop().run_until_complete(init_batch(
+            log=log,
+            quiet=quiet,
+            append=append,
+            tmpdir=tmp_dir,
+            local_tmpdir=local_tmpdir,
+            default_reference=default_reference,
+            global_seed=global_seed,
+            driver_cores=driver_cores,
+            driver_memory=driver_memory,
+            worker_cores=worker_cores,
+            worker_memory=worker_memory,
+            name_prefix=app_name,
+            gcs_requester_pays_configuration=gcs_requester_pays_configuration
+        ))
     if backend == 'spark':
         return init_spark(
+            sc=sc,
             app_name=app_name,
             master=master,
             local=local,
@@ -324,7 +358,8 @@ def init(sc=None, app_name=None, master=None, local='local[*]',
             local_tmpdir=local_tmpdir,
             default_reference=default_reference,
             global_seed=global_seed,
-            skip_logging_configuration=skip_logging_configuration
+            skip_logging_configuration=skip_logging_configuration,
+            gcs_requester_pays_configuration=gcs_requester_pays_configuration
         )
     if backend == 'local':
         return init_local(
@@ -334,7 +369,8 @@ def init(sc=None, app_name=None, master=None, local='local[*]',
             tmpdir=tmp_dir,
             default_reference=default_reference,
             global_seed=global_seed,
-            skip_logging_configuration=skip_logging_configuration
+            skip_logging_configuration=skip_logging_configuration,
+            gcs_requester_pays_configuration=gcs_requester_pays_configuration
         )
     raise ValueError(f'unknown Hail Query backend: {backend}')
 
@@ -355,7 +391,8 @@ def init(sc=None, app_name=None, master=None, local='local[*]',
            spark_conf=nullable(dictof(str, str)),
            skip_logging_configuration=bool,
            local_tmpdir=nullable(str),
-           _optimizer_iterations=nullable(int))
+           _optimizer_iterations=nullable(int),
+           gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))))
 def init_spark(sc=None,
                app_name=None,
                master=None,
@@ -368,11 +405,13 @@ def init_spark(sc=None,
                tmp_dir=None,
                default_reference='GRCh37',
                idempotent=False,
-               global_seed=6348563392232659379,
+               global_seed=None,
                spark_conf=None,
                skip_logging_configuration=False,
                local_tmpdir=None,
-               _optimizer_iterations=None):
+               _optimizer_iterations=None,
+               gcs_requester_pays_configuration: Optional[Union[str, Tuple[str, List[str]]]] = None
+               ):
     from hail.backend.spark_backend import SparkBackend
 
     log = _get_log(log)
@@ -381,10 +420,14 @@ def init_spark(sc=None,
     optimizer_iterations = get_env_or_default(_optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
 
     app_name = app_name or 'Hail'
+    gcs_requester_pays_project, gcs_requester_pays_buckets = convert_gcs_requester_pays_configuration_to_hadoop_conf_style(gcs_requester_pays_configuration)
     backend = SparkBackend(
         idempotent, sc, spark_conf, app_name, master, local, log,
         quiet, append, min_block_size, branching_factor, tmpdir, local_tmpdir,
-        skip_logging_configuration, optimizer_iterations)
+        skip_logging_configuration, optimizer_iterations,
+        gcs_requester_pays_project=gcs_requester_pays_project,
+        gcs_requester_pays_buckets=gcs_requester_pays_buckets
+    )
     if not backend.fs.exists(tmpdir):
         backend.fs.mkdir(tmpdir)
 
@@ -396,6 +439,7 @@ def init_spark(sc=None,
 @typecheck(
     billing_project=nullable(str),
     remote_tmpdir=nullable(str),
+    jar_url=nullable(str),
     log=nullable(str),
     quiet=bool,
     append=bool,
@@ -403,45 +447,67 @@ def init_spark(sc=None,
     local_tmpdir=nullable(str),
     default_reference=enumeration(*BUILTIN_REFERENCES),
     global_seed=nullable(int),
-    disable_progress_bar=bool,
+    disable_progress_bar=nullable(bool),
     driver_cores=nullable(oneof(str, int)),
     driver_memory=nullable(str),
+    worker_cores=nullable(oneof(str, int)),
+    worker_memory=nullable(str),
     name_prefix=nullable(str),
-    token=nullable(str)
+    token=nullable(str),
+    gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str))))
 )
 async def init_batch(
         *,
         billing_project: Optional[str] = None,
         remote_tmpdir: Optional[str] = None,
+        jar_url: Optional[str] = None,
         log: Optional[str] = None,
         quiet: bool = False,
         append: bool = False,
         tmpdir: Optional[str] = None,
         local_tmpdir: Optional[str] = None,
         default_reference: str = 'GRCh37',
-        global_seed: int = 6348563392232659379,
-        disable_progress_bar: bool = True,
+        global_seed: Optional[int] = None,
+        disable_progress_bar: Optional[bool] = None,
         driver_cores: Optional[Union[str, int]] = None,
         driver_memory: Optional[str] = None,
+        worker_cores: Optional[Union[str, int]] = None,
+        worker_memory: Optional[str] = None,
         name_prefix: Optional[str] = None,
         token: Optional[str] = None,
+        gcs_requester_pays_configuration: Optional[Union[str, Tuple[str, List[str]]]] = None
 ):
     from hail.backend.service_backend import ServiceBackend
     # FIXME: pass local_tmpdir and use on worker and driver
     backend = await ServiceBackend.create(billing_project=billing_project,
                                           remote_tmpdir=remote_tmpdir,
                                           disable_progress_bar=disable_progress_bar,
+                                          jar_url=jar_url,
                                           driver_cores=driver_cores,
                                           driver_memory=driver_memory,
+                                          worker_cores=worker_cores,
+                                          worker_memory=worker_memory,
                                           name_prefix=name_prefix,
                                           token=token)
+
+    if gcs_requester_pays_configuration:
+        if isinstance(gcs_requester_pays_configuration, str):
+            backend.set_flags(
+                gcs_requester_pays_project=gcs_requester_pays_configuration
+            )
+        else:
+            assert isinstance(gcs_requester_pays_configuration, tuple)
+            backend.set_flags(
+                gcs_requester_pays_project=gcs_requester_pays_configuration[0],
+                gcs_requester_pays_buckets=",".join(gcs_requester_pays_configuration[1])
+            )
 
     log = _get_log(log)
     if tmpdir is None:
         tmpdir = backend.remote_tmpdir + 'tmp/hail/' + secret_alnum_string()
     local_tmpdir = _get_local_tmpdir(local_tmpdir)
 
-    await HailContext.async_create(
+    HailContext.create(
         log, quiet, append, tmpdir, local_tmpdir, default_reference,
         global_seed, backend)
 
@@ -455,7 +521,9 @@ async def init_batch(
     default_reference=enumeration(*BUILTIN_REFERENCES),
     global_seed=nullable(int),
     skip_logging_configuration=bool,
-    _optimizer_iterations=nullable(int))
+    _optimizer_iterations=nullable(int),
+    gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str))))
+)
 def init_local(
         log=None,
         quiet=False,
@@ -463,18 +531,24 @@ def init_local(
         branching_factor=50,
         tmpdir=None,
         default_reference='GRCh37',
-        global_seed=6348563392232659379,
+        global_seed=None,
         skip_logging_configuration=False,
-        _optimizer_iterations=None):
+        _optimizer_iterations=None,
+        gcs_requester_pays_configuration: Optional[Union[str, Tuple[str, List[str]]]] = None
+):
     from hail.backend.local_backend import LocalBackend
 
     log = _get_log(log)
     tmpdir = _get_tmpdir(tmpdir)
     optimizer_iterations = get_env_or_default(_optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
 
+    gcs_requester_pays_project, gcs_requester_pays_buckets = convert_gcs_requester_pays_configuration_to_hadoop_conf_style(gcs_requester_pays_configuration)
     backend = LocalBackend(
         tmpdir, log, quiet, append, branching_factor,
-        skip_logging_configuration, optimizer_iterations)
+        skip_logging_configuration, optimizer_iterations,
+        gcs_requester_pays_project=gcs_requester_pays_project,
+        gcs_requester_pays_buckets=gcs_requester_pays_buckets
+    )
 
     if not backend.fs.exists(tmpdir):
         backend.fs.mkdir(tmpdir)
@@ -731,7 +805,12 @@ def get_reference(name) -> ReferenceGenome:
 
 @typecheck(seed=int)
 def set_global_seed(seed):
-    """Sets Hail's global seed to `seed`.
+    """Deprecated.
+
+    Has no effect. To ensure reproducible randomness, use the `global_seed`
+    argument to :func:`.init` and :func:`.reset_global_randomness`.
+
+    See the :ref:`random functions <sec-random-functions>` reference docs for more.
 
     Parameters
     ----------
@@ -739,7 +818,18 @@ def set_global_seed(seed):
         Integer used to seed Hail's random number generator
     """
 
-    Env.set_seed(seed)
+    warning('hl.set_global_seed has no effect. See '
+            'https://hail.is/docs/0.2/functions/random.html for details on '
+            'ensuring reproducibility of randomness.')
+    pass
+
+
+@typecheck()
+def reset_global_randomness():
+    """Restore global randomness to initial state for test reproducibility.
+    """
+
+    Env.reset_global_randomness()
 
 
 def _set_flags(**flags):
@@ -748,6 +838,16 @@ def _set_flags(**flags):
 
 def _get_flags(*flags):
     return Env.backend().get_flags(*flags)
+
+
+@contextmanager
+def _with_flags(**flags):
+    before = _get_flags(*flags)
+    try:
+        _set_flags(**flags)
+        yield
+    finally:
+        _set_flags(**before)
 
 
 def debug_info():

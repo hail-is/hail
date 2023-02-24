@@ -930,6 +930,8 @@ class CodeInt(val lhs: Code[Int]) extends AnyVal {
   def toZ: Code[Boolean] = lhs.cne(0)
 
   def toS: Code[String] = Code.invokeStatic1[java.lang.Integer, Int, String]("toString", lhs)
+
+  def bitCount: Code[Int] = Code.invokeStatic1[java.lang.Integer, Int, Int]("bitCount", lhs)
 }
 
 class CodeLong(val lhs: Code[Long]) extends AnyVal {
@@ -990,6 +992,12 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
   def toS: Code[String] = Code.invokeStatic1[java.lang.Long, Long, String]("toString", lhs)
 
   def hexString: Code[String] = Code.invokeStatic1[java.lang.Long, Long, String]("toHexString", lhs)
+
+  def numberOfLeadingZeros: Code[Int] = Code.invokeStatic1[java.lang.Long, Long, Int]("numberOfLeadingZeros", lhs)
+
+  def numberOfTrailingZeros: Code[Int] = Code.invokeStatic1[java.lang.Long, Long, Int]("numberOfTrailingZeros", lhs)
+
+  def bitCount: Code[Int] = Code.invokeStatic1[java.lang.Long, Long, Int]("bitCount", lhs)
 }
 
 class CodeFloat(val lhs: Code[Float]) extends AnyVal {
@@ -1139,6 +1147,10 @@ object CodeLabel {
 class CodeLabel(val L: lir.Block) extends Code[Unit] {
   private var _start: lir.Block = L
 
+//  // for debugging
+//  val stack = Thread.currentThread().getStackTrace
+//  var clearStack: Array[StackTraceElement] = _
+
   def isImplemented: Boolean = L.wellFormed
 
   def start: lir.Block = {
@@ -1157,10 +1169,24 @@ class CodeLabel(val L: lir.Block) extends Code[Unit] {
   }
 
   def check(): Unit = {
+    /*
+    if (_start == null) {
+      println(clearStack.mkString("\n"))
+      println("-----")
+      println(stack.mkString("\n"))
+    }
+    */
     assert(_start != null)
   }
 
   def clear(): Unit = {
+    /*
+    if (clearStack != null) {
+      println(clearStack.mkString("\n"))
+    }
+    assert(clearStack == null)
+    clearStack = Thread.currentThread().getStackTrace
+    */
     _start = null
   }
 

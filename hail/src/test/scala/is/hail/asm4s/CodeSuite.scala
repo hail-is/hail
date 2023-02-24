@@ -24,7 +24,7 @@ class CodeSuite extends HailSuite {
       sum.load()
     )
     fb.emit(code)
-    val result = fb.resultWithIndex()(theHailClassLoader, ctx.fs, 0, ctx.r)()
+    val result = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)()
     assert(result == 10)
   }
 

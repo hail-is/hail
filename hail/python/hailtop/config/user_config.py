@@ -16,13 +16,6 @@ def xdg_config_home() -> Path:
     return Path(value)
 
 
-def get_user_local_cache_dir(ensure_exists: bool = False) -> Path:
-    cache_dir = Path(xdg_config_home(), 'hail', 'cache')
-    if ensure_exists:
-        os.makedirs(cache_dir, exist_ok=True)
-    return cache_dir
-
-
 def get_user_config_path() -> Path:
     return Path(xdg_config_home(), 'hail', 'config.ini')
 
@@ -46,15 +39,37 @@ VALID_SECTION_AND_OPTION_RE = re.compile('[a-z0-9_]+')
 T = TypeVar('T')
 
 
-def configuration_of(section: str, option: str, explicit_argument: Optional[str], fallback: T) -> Union[str, T]:
+def configuration_of(section: str,
+                     option: str,
+                     explicit_argument: Optional[T],
+                     fallback: T,
+                     *,
+                     deprecated_envvar: Optional[str] = None) -> Union[str, T]:
     assert VALID_SECTION_AND_OPTION_RE.fullmatch(section), (section, option)
     assert VALID_SECTION_AND_OPTION_RE.fullmatch(option), (section, option)
-    return (
-        explicit_argument
-        or os.environ.get('HAIL_' + section.upper() + '_' + option.upper(), None)
-        or get_user_config().get(section, option, fallback=None)
-        or fallback
-    )
+
+    if explicit_argument is not None:
+        return explicit_argument
+
+    envvar = 'HAIL_' + section.upper() + '_' + option.upper()
+    envval = os.environ.get(envvar, None)
+    deprecated_envval = None if deprecated_envvar is None else os.environ.get(deprecated_envvar)
+    if envval is not None:
+        if deprecated_envval is not None:
+            raise ValueError(f'Value for configuration variable {section}/{option} is ambiguous '
+                             f'because both {envvar} and {deprecated_envvar} are set (respectively '
+                             f'to: {envval} and {deprecated_envval}.')
+        return envval
+    if deprecated_envval is not None:
+        warnings.warn(f'Use of deprecated envvar {deprecated_envvar} for configuration variable '
+                      f'{section}/{option}. Please use {envvar} instead.')
+        return deprecated_envval
+
+    from_user_config = get_user_config().get(section, option, fallback=None)
+    if from_user_config is not None:
+        return from_user_config
+
+    return fallback
 
 
 def get_remote_tmpdir(caller_name: str,
@@ -98,7 +113,7 @@ def get_remote_tmpdir(caller_name: str,
         found_scheme = any(remote_tmpdir.startswith(f'{scheme}://') for scheme in schemes)
         if not found_scheme:
             raise ValueError(
-                f'remote_tmpdir must be a storage uri path like gs://bucket/folder. Possible schemes include {schemes}')
+                f'remote_tmpdir must be a storage uri path like gs://bucket/folder. Received: {remote_tmpdir}. Possible schemes include {schemes}')
     if remote_tmpdir[-1] != '/':
         remote_tmpdir += '/'
     return remote_tmpdir

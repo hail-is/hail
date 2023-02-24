@@ -10,6 +10,7 @@ from . import wait
 from . import log
 from . import job
 from . import billing
+from . import submit
 
 
 def parser():
@@ -38,6 +39,11 @@ def parser():
         'delete',
         help='Delete a batch',
         description='Delete a batch'
+    )
+    submit_parser = subparsers.add_parser(
+        'submit',
+        help='Submit a batch',
+        description='Submit a batch',
     )
     log_parser = subparsers.add_parser(
         'log',
@@ -69,6 +75,9 @@ def parser():
     delete_parser.set_defaults(module='delete')
     delete.init_parser(delete_parser)
 
+    submit_parser.set_defaults(module='submit')
+    submit.init_parser(submit_parser)
+
     log_parser.set_defaults(module='log')
     log.init_parser(log_parser)
 
@@ -93,13 +102,14 @@ def main(args):
         'cancel': cancel,
         'log': log,
         'job': job,
-        'wait': wait
+        'wait': wait,
+        'submit': submit,
     }
 
     args, pass_through_args = parser().parse_known_args(args=args)
 
     # hailctl batch doesn't create batches
-    client = BatchClient(None)
+    client = BatchClient(None)  # type: ignore
 
     try:
         if args.module == 'billing':

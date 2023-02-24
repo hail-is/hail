@@ -63,12 +63,12 @@
 
 <h2>Step Status</h2>
 
-{% if plot_json is not none %}
+{% if plot_job_durations is not none %}
 <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-<div id="plotly-timeseries"></div>
+<div id="plotly-job-durations"></div>
 <script>
-  var graph = {{ plot_json | safe }};
-  Plotly.plot('plotly-timeseries', graph, {});
+  var graph = {{ plot_job_durations | safe }};
+  Plotly.plot('plotly-job-durations', graph, {});
 </script>
 {% endif %}
 
@@ -111,6 +111,16 @@
   </tbody>
 </table>
 
+{% if plot_resource_usage is not none %}
+<h2>Resource Usage</h2>
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<div id="plotly-job-resource-usage"></div>
+<script>
+  var graph = {{ plot_resource_usage | safe }};
+  Plotly.plot('plotly-job-resource-usage', graph, {});
+</script>
+{% endif %}
+
 {% if error is not none %}
 <h2>Error</h2>
 <pre>{{ error }}</pre>
@@ -122,7 +132,7 @@
 {% if 'input' in job_log or 'input' in step_errors %}
 <h3>Input</h3>
 {% if 'input' in job_log %}
-<h4>Log</h4>
+<h4>Log <a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/log/input" download="batch-{{ batch_id }}-{{ job_id }}-input.log"><i class="fa fa-download" aria-hidden="true"></i></a></h4>
 <pre>{{ job_log['input'] }}</pre>
 {% endif %}
 {% if 'input' in step_errors and step_errors['input'] is not none %}
@@ -134,7 +144,7 @@
 {% if 'main' in job_log or 'main' in step_errors %}
 <h3>Main</h3>
 {% if 'main' in job_log %}
-<h4>Log</h4>
+<h4>Log <a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/log/main" download="batch-{{ batch_id }}-{{ job_id }}-main.log"><i class="fa fa-download" aria-hidden="true"></i></a></h4>
 <pre>{{ job_log['main'] }}</pre>
 {% endif %}
 {% if 'main' in step_errors and step_errors['main'] is not none %}
@@ -146,7 +156,7 @@
 {% if 'output' in job_log or 'output' in step_errors %}
 <h3>Output</h3>
 {% if 'output' in job_log %}
-<h4>Log</h4>
+<h4>Log <a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/log/output" download="batch-{{ batch_id }}-{{ job_id }}-output.log"><i class="fa fa-download" aria-hidden="true"></i></a></h4>
 <pre>{{ job_log['output'] }}</pre>
 {% endif %}
 {% if 'output' in step_errors and step_errors['output'] is not none %}

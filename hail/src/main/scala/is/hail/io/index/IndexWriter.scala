@@ -3,7 +3,8 @@ package is.hail.io.index
 import java.io.OutputStream
 import is.hail.annotations.{Annotation, Region, RegionPool, RegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.backend.ExecuteContext
+import is.hail.backend.{ExecuteContext, HailTaskContext}
+import is.hail.backend.spark.SparkTaskContext
 import is.hail.expr.ir.{CodeParam, EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, IEmitCode, IntArrayBuilder, LongArrayBuilder, ParamType}
 import is.hail.io._
 import is.hail.io.fs.FS
@@ -51,6 +52,10 @@ case class IndexMetadataUntypedJSON(
     fileVersion, branchingFactor,
     height, keyType, annotationType,
     nKeys, indexPath, rootOffset, attributes)
+
+  def toFileMetadata: VariableMetadata = VariableMetadata(
+    branchingFactor, height, nKeys, rootOffset, attributes
+  )
 }
 
 case class IndexMetadata(
@@ -75,10 +80,10 @@ object IndexWriter {
     annotationType: PType,
     branchingFactor: Int = 4096,
     attributes: Map[String, Any] = Map.empty[String, Any]
-  ): (String, RegionPool) => IndexWriter = {
+  ): (String, HailClassLoader, HailTaskContext, RegionPool) => IndexWriter = {
     val f = StagedIndexWriter.build(ctx, keyType, annotationType, branchingFactor, attributes);
-    { (path: String, pool: RegionPool) =>
-      new IndexWriter(keyType, annotationType, f(path, pool), pool)
+    { (path: String, hcl: HailClassLoader, htc: HailTaskContext, pool: RegionPool) =>
+      new IndexWriter(keyType, annotationType, f(path, hcl, htc, pool), pool)
     }
   }
 }
@@ -104,7 +109,7 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
   private val aoff = sb.newSettable[Long](s"${name}_aoff")
   private val len = sb.newSettable[Int](s"${name}_len")
 
-  val eltType: PCanonicalStruct = types.coerce[PCanonicalStruct](arrayType.elementType.setRequired((false)))
+  val eltType: PCanonicalStruct = types.tcoerce[PCanonicalStruct](arrayType.elementType.setRequired((false)))
   private val elt = new SBaseStructPointerSettable(SBaseStructPointer(eltType), sb.newSettable[Long](s"${name}_elt_off"))
 
   def length: Code[Int] = len
@@ -234,7 +239,7 @@ object StagedIndexWriter {
     annotationType: PType,
     branchingFactor: Int = 4096,
     attributes: Map[String, Any] = Map.empty[String, Any]
-  ): (String, RegionPool) => CompiledIndexWriter = {
+  ): (String, HailClassLoader, HailTaskContext, RegionPool) => CompiledIndexWriter = {
     val fb = EmitFunctionBuilder[CompiledIndexWriter](ctx, "indexwriter",
       FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Long], typeInfo[Long]),
       typeInfo[Unit])
@@ -259,10 +264,10 @@ object StagedIndexWriter {
 
     val fsBc = ctx.fsBc
 
-    { (path: String, pool: RegionPool) =>
+    { (path: String, hcl: HailClassLoader, htc: HailTaskContext, pool: RegionPool) =>
       pool.scopedRegion { r =>
         // FIXME: This seems wrong? But also, anywhere we use broadcasting for the FS is wrong.
-        val f = makeFB(theHailClassLoaderForSparkWorkers, fsBc.value, 0, r)
+        val f = makeFB(hcl, fsBc.value, htc, r)
         f.init(path)
         f
       }
@@ -325,7 +330,7 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
     val m = cb.genEmitMethod[Unit]("writeLeafNode")
 
     val parentBuilder = new StagedInternalNodeBuilder(branchingFactor, keyType, annotationType, m.localBuilder)
-    m.emitWithBuilder { cb =>
+    m.voidWithBuilder { cb =>
       val idxOff = cb.newLocal[Long]("indexOff")
       cb.assign(idxOff, utils.bytesWritten)
       cb += ob.writeByte(0.toByte)
@@ -340,7 +345,6 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
       parentBuilder.add(cb, idxOff, leafBuilder.firstIdx(cb).asLong.value, leafBuilder.getLoadedChild)
       parentBuilder.store(cb, utils, 0)
       leafBuilder.reset(cb, elementIdx)
-      Code._empty
     }
     m
   }

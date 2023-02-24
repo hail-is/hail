@@ -4,7 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.UtilFunctions
-import is.hail.expr.ir.{coerce => _, _}
+import is.hail.expr.ir._
 import is.hail.types.physical.stypes.{EmitType, SType}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.{PType, typeToTypeInfo}

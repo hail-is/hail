@@ -10,8 +10,10 @@ import is.hail.linalg.BlockMatrix
 import is.hail.rvd.RVDContext
 import is.hail.utils._
 import is.hail.HailContext
-import is.hail.backend.ExecuteContext
+import is.hail.backend.{ExecuteContext, HailTaskContext}
+import is.hail.backend.spark.SparkTaskContext
 import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeType}
+import is.hail.types.tcoerce
 import org.apache.spark.sql.Row
 
 import scala.collection.mutable
@@ -23,7 +25,7 @@ object Interpret {
     apply(tir, ctx, optimize = true)
 
   def apply(tir: TableIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
-    val lowered = LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, tir).asInstanceOf[TableIR]
+    val lowered = LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, tir).asInstanceOf[TableIR].noSharing
     lowered.analyzeAndExecute(ctx).asTableValue(ctx)
   }
 
@@ -209,9 +211,16 @@ object Interpret {
               case TFloat64 => -xValue.asInstanceOf[Double]
             }
           case BitNot() =>
+            assert(x.typ.isInstanceOf[TIntegral])
             x.typ match {
               case TInt32 => ~xValue.asInstanceOf[Int]
               case TInt64 => ~xValue.asInstanceOf[Long]
+            }
+          case BitCount() =>
+            assert(x.typ.isInstanceOf[TIntegral])
+            x.typ match {
+              case TInt32 => Integer.bitCount(xValue.asInstanceOf[Int])
+              case TInt64 => java.lang.Long.bitCount(xValue.asInstanceOf[Long])
             }
         }
       case ApplyComparisonOp(op, l, r) =>
@@ -336,7 +345,7 @@ object Interpret {
         if (cValue == null)
           null
         else {
-          val ordering = coerce[TIterable](c.typ).elementType.ordering.toOrdering
+          val ordering = tcoerce[TIterable](c.typ).elementType.ordering.toOrdering
           cValue match {
             case s: Set[_] =>
               s.asInstanceOf[Set[Any]].toFastIndexedSeq.sorted(ordering)
@@ -412,12 +421,12 @@ object Interpret {
           if (size <= 0) fatal("stream grouped: non-positive size")
           aValue.asInstanceOf[IndexedSeq[Any]].grouped(size).toFastIndexedSeq
         }
-      case StreamGroupByKey(a, key) =>
+      case StreamGroupByKey(a, key, missingEqual) =>
         val aValue = interpret(a, env, args)
         if (aValue == null)
           null
         else {
-          val structType = coerce[TStruct](coerce[TStream](a.typ).elementType)
+          val structType = tcoerce[TStruct](tcoerce[TStream](a.typ).elementType)
           val seq = aValue.asInstanceOf[IndexedSeq[Row]]
           if (seq.isEmpty)
             FastIndexedSeq[IndexedSeq[Row]]()
@@ -425,7 +434,7 @@ object Interpret {
             val outer = new BoxedArrayBuilder[IndexedSeq[Row]]()
             val inner = new BoxedArrayBuilder[Row]()
             val (kType, getKey) = structType.select(key)
-            val keyOrd = TBaseStruct.getJoinOrdering(kType.types)
+            val keyOrd = TBaseStruct.getJoinOrdering(kType.types, missingEqual)
             var curKey: Row = getKey(seq.head)
 
             seq.foreach { elt =>
@@ -479,7 +488,7 @@ object Interpret {
         else {
           val k = as.length
           val tournament = Array.fill[Int](k)(-1)
-          val structType = coerce[TStruct](coerce[TStream](as.head.typ).elementType)
+          val structType = tcoerce[TStruct](tcoerce[TStream](as.head.typ).elementType)
           val (kType, getKey) = structType.select(key)
           val heads = Array.fill[Int](k)(-1)
           val ordering = kType.ordering.toOrdering.on[Row](getKey)
@@ -523,7 +532,7 @@ object Interpret {
         else {
           val k = as.length
           val tournament = Array.fill[Int](k)(-1)
-          val structType = coerce[TStruct](coerce[TStream](as.head.typ).elementType)
+          val structType = tcoerce[TStruct](tcoerce[TStream](as.head.typ).elementType)
           val (kType, getKey) = structType.select(key)
           val heads = Array.fill[Int](k)(-1)
           val ordering = kType.ordering.toOrdering.on[Row](getKey)
@@ -652,8 +661,8 @@ object Interpret {
         if (lValue == null || rValue == null)
           null
         else {
-          val (lKeyTyp, lGetKey) = coerce[TStruct](coerce[TStream](left.typ).elementType).select(lKey)
-          val (rKeyTyp, rGetKey) = coerce[TStruct](coerce[TStream](right.typ).elementType).select(rKey)
+          val (lKeyTyp, lGetKey) = tcoerce[TStruct](tcoerce[TStream](left.typ).elementType).select(lKey)
+          val (rKeyTyp, rGetKey) = tcoerce[TStruct](tcoerce[TStream](right.typ).elementType).select(rKey)
           assert(lKeyTyp isIsomorphicTo rKeyTyp)
           val keyOrd = TBaseStruct.getJoinOrdering(lKeyTyp.types)
 
@@ -716,7 +725,7 @@ object Interpret {
       case MakeStruct(fields) =>
         Row.fromSeq(fields.map { case (name, fieldIR) => interpret(fieldIR, env, args) })
       case SelectFields(old, fields) =>
-        val oldt = coerce[TStruct](old.typ)
+        val oldt = tcoerce[TStruct](old.typ)
         val oldRow = interpret(old, env, args).asInstanceOf[Row]
         if (oldRow == null)
           null
@@ -808,14 +817,18 @@ object Interpret {
             val wrappedArgs: IndexedSeq[BaseIR] = ir.args.zipWithIndex.map { case (x, i) =>
               GetTupleElement(Ref("in", argTuple.virtualType), i)
             }.toFastIndexedSeq
-            val wrappedIR = Copy(ir, wrappedArgs)
+            val newChildren = ir match {
+              case ir: ApplySeeded => wrappedArgs :+ NA(TRNGState)
+              case _ => wrappedArgs
+            }
+            val wrappedIR = Copy(ir, newChildren)
 
             val (rt, makeFunction) = Compile[AsmFunction2RegionLongLong](ctx,
               FastIndexedSeq(("in", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argTuple)))),
               FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
               MakeTuple.ordered(FastSeq(wrappedIR)),
               optimize = false)
-            (rt.get, makeFunction(ctx.theHailClassLoader, ctx.fs, 0, region))
+            (rt.get, makeFunction(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, region))
           })
           val rvb = new RegionValueBuilder()
           rvb.set(region)
@@ -882,9 +895,7 @@ object Interpret {
             MakeTuple.ordered(FastSeq(extracted.postAggIR)))
 
           // TODO Is this right? where does wrapped run?
-          ctx.r.pool.scopedRegion { region =>
-            SafeRow(rt, f(ctx.theHailClassLoader, ctx.fs, 0, region)(region, globalsOffset))
-          }
+          ctx.scopedExecution((hcl, fs, htc, r) => SafeRow(rt, f(hcl, fs, htc, r).apply(r, globalsOffset)))
         } else {
           val spec = BufferSpec.defaultUncompressed
 
@@ -916,12 +927,12 @@ object Interpret {
           }
 
           // creates a region, giving ownership to the caller
-          val read: RegionPool => (WrappedByteArray => RegionValue) = {
+          val read: (HailClassLoader, HailTaskContext) => (WrappedByteArray => RegionValue) = {
             val deserialize = extracted.deserialize(ctx, spec)
-            (pool: RegionPool) => {
+            (hcl: HailClassLoader, htc: HailTaskContext) => {
               (a: WrappedByteArray) => {
-                val r = Region(Region.SMALL, pool)
-                val res = deserialize(r, a.bytes)
+                val r = Region(Region.SMALL, htc.getRegionPool())
+                val res = deserialize(hcl, htc, r, a.bytes)
                 a.clear()
                 RegionValue(r, res)
               }
@@ -929,17 +940,17 @@ object Interpret {
           }
 
           // consumes a region, taking ownership from the caller
-          val write: RegionValue => WrappedByteArray = {
+          val write: (HailClassLoader, HailTaskContext, RegionValue) => WrappedByteArray = {
             val serialize = extracted.serialize(ctx, spec)
-            (rv: RegionValue) => {
-              val a = serialize(rv.region, rv.offset)
+            (hcl: HailClassLoader, htc: HailTaskContext, rv: RegionValue) => {
+              val a = serialize(hcl, htc, rv.region, rv.offset)
               rv.region.invalidate()
               new WrappedByteArray(a)
             }
           }
 
           // takes ownership of both inputs, returns ownership of result
-          val combOpF: (RegionValue, RegionValue) => RegionValue =
+          val combOpF: (HailClassLoader, HailTaskContext, RegionValue, RegionValue) => RegionValue =
             extracted.combOpF(ctx, spec)
 
           // returns ownership of a new region holding the partition aggregation
@@ -947,8 +958,8 @@ object Interpret {
           def itF(theHailClassLoader: HailClassLoader, i: Int, ctx: RVDContext, it: Iterator[Long]): RegionValue = {
             val partRegion = ctx.partitionRegion
             val globalsOffset = globalsBc.value.readRegionValue(partRegion, theHailClassLoader)
-            val init = initOp(theHailClassLoader, fsBc.value, i, partRegion)
-            val seqOps = partitionOpSeq(theHailClassLoader, fsBc.value, i, partRegion)
+            val init = initOp(theHailClassLoader, fsBc.value, SparkTaskContext.get(), partRegion)
+            val seqOps = partitionOpSeq(theHailClassLoader, fsBc.value, SparkTaskContext.get(), partRegion)
             val aggRegion = ctx.freshRegion(Region.SMALL)
 
             init.newAggState(aggRegion)
@@ -964,9 +975,9 @@ object Interpret {
 
           // creates a new region holding the zero value, giving ownership to
           // the caller
-          val mkZero = (theHailClassLoader: HailClassLoader, pool: RegionPool) => {
-            val region = Region(Region.SMALL, pool)
-            val initF = initOp(theHailClassLoader, fsBc.value, 0, region)
+          val mkZero = (theHailClassLoader: HailClassLoader, tc: HailTaskContext) => {
+            val region = Region(Region.SMALL, tc.getRegionPool())
+            val initF = initOp(theHailClassLoader, fsBc.value, tc, region)
             initF.newAggState(region)
             initF(region, globalsBc.value.readRegionValue(region, theHailClassLoader))
             RegionValue(region, initF.getAggOffset())
@@ -984,7 +995,7 @@ object Interpret {
           assert(rTyp.types(0).virtualType == query.typ)
 
           ctx.r.pool.scopedRegion { r =>
-            val resF = f(ctx.theHailClassLoader, fsBc.value, 0, r)
+            val resF = f(ctx.theHailClassLoader, fsBc.value, ctx.taskContext, r)
             resF.setAggState(rv.region, rv.offset)
             val resAddr = resF(r, globalsOffset)
             val res = SafeRow(rTyp, resAddr)
@@ -1001,8 +1012,8 @@ object Interpret {
           FastIndexedSeq(classInfo[Region]), LongInfo,
           MakeTuple.ordered(FastSeq(child)),
           optimize = false)
-        ctx.r.pool.scopedRegion { r =>
-          SafeRow.read(rt, makeFunction(ctx.theHailClassLoader, ctx.fs, 0, r)(r)).asInstanceOf[Row](0)
+        ctx.scopedExecution { (hcl, fs, htc, r) =>
+          SafeRow.read(rt, makeFunction(hcl, fs, htc, r)(r)).asInstanceOf[Row](0)
         }
       case UUID4(_) =>
          uuid4()

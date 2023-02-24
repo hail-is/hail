@@ -4,7 +4,7 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.{WrappedMatrixToTableFunction, WrappedMatrixToValueFunction}
 import is.hail.expr.ir._
 import is.hail.types._
-import is.hail.types.virtual.{TArray, TBaseStruct, TDict, TInt32, TInterval, TStruct}
+import is.hail.types.virtual.{TArray, TBaseStruct, TDict, TInt32, TInterval, TString, TStruct}
 import is.hail.utils._
 
 object LowerMatrixIR {
@@ -71,7 +71,7 @@ object LowerMatrixIR {
   def entries(tir: TableIR): IR =
     GetField(Ref("row", tir.typ.rowType), entriesFieldName)
 
-  import is.hail.expr.ir.IRBuilder._
+  import is.hail.expr.ir.DeprecatedIRBuilder._
 
   def matrixSubstEnv(child: MatrixIR): BindingEnv[IRProxy] = {
     val e = Env[IRProxy]("global" -> 'global.selectFields(child.typ.globalType.fieldNames: _*),
@@ -102,15 +102,28 @@ object LowerMatrixIR {
 
       case CastTableToMatrix(child, entries, cols, colKey) =>
         val lc = lower(ctx, child, ab)
-        lc.mapRows(
-          irIf('row (Symbol(entries)).isNA) {
-            irDie("missing entry array unsupported in 'to_matrix_table_row_major'", lc.typ.rowType)
-          } {
-            irIf('row (Symbol(entries)).len.cne('global (Symbol(cols)).len)) {
-              irDie("length mismatch between entry array and column array in 'to_matrix_table_row_major'", lc.typ.rowType)
-            } {
-              'row
-            }
+        val row = Ref("row", lc.typ.rowType)
+        val glob = Ref("global", lc.typ.globalType)
+        TableMapRows(
+          lc,
+          bindIR(GetField(row, entries)) { entries =>
+            If(IsNA(entries),
+              Die("missing entry array unsupported in 'to_matrix_table_row_major'", row.typ),
+              bindIRs(ArrayLen(entries), ArrayLen(GetField(glob, cols))) { case Seq(entriesLen, colsLen) =>
+                If(entriesLen cne colsLen,
+                  Die(
+                    strConcat(
+                      Str("length mismatch between entry array and column array in 'to_matrix_table_row_major': "),
+                      invoke("str", TString, entriesLen),
+                      Str(" entries, "),
+                      invoke("str", TString, colsLen),
+                      Str(" cols, at "),
+                      invoke("str", TString, SelectFields(row, child.typ.key))
+                    ), row.typ, -1),
+                  row
+                )
+              }
+            )
           }
         ).rename(Map(entries -> entriesFieldName), Map(cols -> colsFieldName))
 
@@ -499,12 +512,10 @@ object LowerMatrixIR {
             } {
               'row(entries)
             }
+        val rr = lower(ctx, right, ab).distinct()
         TableJoin(
           ll,
-          lower(ctx, right, ab).distinct()
-            .mapRows('row
-              .insertFields(Symbol(rightEntries) -> 'row(entriesField))
-              .selectFields(right.typ.rowKey :+ rightEntries: _*))
+          rr.mapRows('row.castRename(rr.typ.rowType.rename(Map(entriesFieldName -> rightEntries))))
             .mapGlobals('global
               .insertFields(Symbol(rightCols) -> 'global(colsField))
               .selectFields(rightCols)),
@@ -515,8 +526,7 @@ object LowerMatrixIR {
                 handleMissingEntriesArray(entriesField, colsField),
                 handleMissingEntriesArray(Symbol(rightEntries), Symbol(rightCols)))
                 .flatMap('a ~> 'a))
-            // TableJoin puts keys first; drop rightEntries, but also restore left row field order
-            .selectFields(ll.typ.rowType.fieldNames: _*))
+            .dropFields(Symbol(rightEntries)))
           .mapGlobals('global
             .insertFields(colsField ->
               makeArray('global(colsField), 'global(Symbol(rightCols))).flatMap('a ~> 'a))
@@ -663,10 +673,11 @@ object LowerMatrixIR {
         val keyMap = Symbol(genUID())
         val aggElementIdx = Symbol(genUID())
 
-        val substEnv = matrixSubstEnv(child)
-        val ceSub = subst(lower(ctx, colExpr, ab), substEnv)
-        val vaBinding = 'row.selectFields(child.typ.rowType.fieldNames: _*)
-        val eeSub = subst(lower(ctx, entryExpr, ab), substEnv.bindEval("va", vaBinding).bindAgg("va", vaBinding))
+        val e1 = Env[IRProxy]("global" -> 'global.selectFields(child.typ.globalType.fieldNames: _*),
+          "va" -> 'row.selectFields(child.typ.rowType.fieldNames: _*))
+        val e2 = Env[IRProxy]("global" -> 'global.selectFields(child.typ.globalType.fieldNames: _*))
+        val ceSub = subst(lower(ctx, colExpr, ab), BindingEnv(e2, agg = Some(e1)))
+        val eeSub = subst(lower(ctx, entryExpr, ab), BindingEnv(e1, agg = Some(e1)))
 
         lower(ctx, child, ab)
           .mapGlobals('global.insertFields(keyMap ->

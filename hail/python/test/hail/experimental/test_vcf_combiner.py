@@ -4,10 +4,7 @@ import hail as hl
 from hail.experimental.vcf_combiner import vcf_combiner as vc
 from hail.utils.java import Env
 from hail.utils.misc import new_temp_file
-from ..helpers import resource, startTestHailContext, stopTestHailContext, fails_local_backend, fails_service_backend
-
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
+from ..helpers import resource, fails_local_backend, fails_service_backend
 
 
 all_samples = ['HG00308', 'HG00592', 'HG02230', 'NA18534', 'NA20760',
@@ -63,6 +60,13 @@ def default_exome_intervals(rg):
 def test_gvcf_1k_same_as_import_vcf():
     path = os.path.join(resource('gvcfs'), '1kg_chr22', f'HG00308.hg38.g.vcf.gz')
     [mt] = hl.import_gvcfs([path], default_exome_intervals('GRCh38'), reference_genome='GRCh38')
+    assert mt._same(hl.import_vcf(path, force_bgz=True, reference_genome='GRCh38').key_rows_by('locus'))
+
+@fails_service_backend()
+@fails_local_backend()
+def test_import_vcfs_still_works():
+    path = os.path.join(resource('gvcfs'), '1kg_chr22', f'HG00308.hg38.g.vcf.gz')
+    [mt] = hl.import_vcfs([path], default_exome_intervals('GRCh38'), reference_genome='GRCh38')
     assert mt._same(hl.import_vcf(path, force_bgz=True, reference_genome='GRCh38').key_rows_by('locus'))
 
 @fails_service_backend()

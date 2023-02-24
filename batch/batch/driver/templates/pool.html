@@ -32,6 +32,7 @@
     <div>Max instances: <input name="max_instances" value="{{ pool.max_instances }}" /></div>
     <div>Max live instances: <input name="max_live_instances" value="{{ pool.max_live_instances }}" /></div>
     <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
+    <input type="hidden" name="_pool_config_json" value="{{ pool_config_json }}"/>
     <button>
       Update
     </button>

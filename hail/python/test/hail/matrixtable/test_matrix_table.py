@@ -4,13 +4,11 @@ import random
 import pytest
 
 import hail as hl
+import hail.ir as ir
 import hail.expr.aggregators as agg
 from hail.utils.java import Env
 from hail.utils.misc import new_temp_file
 from ..helpers import *
-
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
@@ -20,19 +18,6 @@ class Tests(unittest.TestCase):
     def test_range_count(self):
         self.assertEqual(hl.utils.range_matrix_table(7, 13).count(), (7, 13))
 
-    @skip_when_service_backend('''intermittent worker error:
->       ds.locus.show()
-
-Caused by: java.lang.ClassCastException: __C1914collect_distributed_array cannot be cast to is.hail.expr.ir.FunctionWithObjects
-	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:689)
-	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:670)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-	... 11 more''')
     def test_row_key_field_show_runs(self):
         ds = self.get_mt()
         ds.locus.show()
@@ -86,19 +71,6 @@ Caused by: java.lang.ClassCastException: __C1914collect_distributed_array cannot
             self.assertTrue(f(hl.eval(mt.annotate_globals(foo=hl.literal(x, t)).foo), x), f"{x}, {t}")
             self.assertTrue(f(hl.eval(ht.annotate_globals(foo=hl.literal(x, t)).foo), x), f"{x}, {t}")
 
-    @skip_when_service_backend('''intermittent error:
-
-Caused by: java.lang.ClassCastException: __C136collect_distributed_array cannot be cast to is.hail.expr.ir.FunctionWithLiterals
-	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:662)
-	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:641)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:140)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-	... 12 more
-''')
     def test_head(self):
         # no empty partitions
         mt1 = hl.utils.range_matrix_table(10, 10)
@@ -125,23 +97,6 @@ Caused by: java.lang.ClassCastException: __C136collect_distributed_array cannot 
         assert mt1.head(1, None).count() == (1, 10)
         assert mt1.head(None, 1).count() == (10, 1)
 
-    @skip_when_service_backend('''
-E                   hail.utils.java.FatalError: java.lang.ClassCastException: __C2Compiled cannot be cast to is.hail.expr.ir.FunctionWithLiterals
-E                   	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:662)
-E                   	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:641)
-E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBackend.scala:307)
-E                   	at is.hail.backend.service.ServiceBackend.$anonfun$execute$4(ServiceBackend.scala:324)
-E                   	at is.hail.expr.ir.ExecuteContext$.$anonfun$scoped$3(ExecuteContext.scala:47)
-E                   	at is.hail.utils.package$.using(package.scala:627)
-E                   	at is.hail.expr.ir.ExecuteContext$.$anonfun$scoped$2(ExecuteContext.scala:47)
-E                   	at is.hail.utils.package$.using(package.scala:627)
-E                   	at is.hail.annotations.RegionPool$.scoped(RegionPool.scala:13)
-E                   	at is.hail.expr.ir.ExecuteContext$.scoped(ExecuteContext.scala:46)
-E                   	at is.hail.backend.service.ServiceBackend.$anonfun$execute$1(ServiceBackend.scala:320)
-E                   	at is.hail.utils.ExecutionTimer$.time(ExecutionTimer.scala:52)
-E                   	at is.hail.utils.ExecutionTimer$.logTime(ExecutionTimer.scala:59)
-E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBackend.scala:314)
-''')
     def test_tail(self):
         # no empty partitions
         mt1 = hl.utils.range_matrix_table(10, 10)
@@ -168,73 +123,6 @@ E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBa
         assert mt1.tail(1, None).count() == (1, 10)
         assert mt1.tail(None, 1).count() == (10, 1)
 
-    @skip_when_service_backend('''intermittent failure:
->       assert tail(30, None) == expected(30, 29)
-
-E                   hail.utils.java.FatalError: is.hail.utils.HailException: array index out of bounds: index=3, length=3
-E                   	at __C4016Compiled.__m4046arrayref_bounds_check(Emit.scala)
-E                   	at __C4016Compiled.__m4276split_ToArray(Emit.scala)
-E                   	at __C4016Compiled.__m4111split_CollectDistributedArray(Emit.scala)
-E                   	at __C4016Compiled.__m4109split_StreamFor(Emit.scala)
-E                   	at __C4016Compiled.__m4017split_Let(Emit.scala)
-E                   	at __C4016Compiled.apply(Emit.scala)
-E                   	at is.hail.expr.ir.lowering.LowerToCDA$.$anonfun$lower$2(LowerToCDA.scala:50)
-E                   	at scala.runtime.java8.JFunction0$mcJ$sp.apply(JFunction0$mcJ$sp.java:23)
-E                   	at is.hail.utils.ExecutionTimer.time(ExecutionTimer.scala:81)
-E                   	at is.hail.expr.ir.lowering.LowerToCDA$.lower(LowerToCDA.scala:50)
-E                   	at is.hail.expr.ir.lowering.LowerToCDA$.apply(LowerToCDA.scala:17)
-E                   	at is.hail.expr.ir.lowering.LowerToDistributedArrayPass.transform(LoweringPass.scala:75)
-E                   	at is.hail.expr.ir.lowering.LoweringPass.$anonfun$apply$3(LoweringPass.scala:15)
-E                   	at is.hail.utils.ExecutionTimer.time(ExecutionTimer.scala:81)
-E                   	at is.hail.expr.ir.lowering.LoweringPass.$anonfun$apply$1(LoweringPass.scala:15)
-E                   	at is.hail.utils.ExecutionTimer.time(ExecutionTimer.scala:81)
-E                   	at is.hail.expr.ir.lowering.LoweringPass.apply(LoweringPass.scala:13)
-E                   	at is.hail.expr.ir.lowering.LoweringPass.apply$(LoweringPass.scala:12)
-E                   	at is.hail.expr.ir.lowering.LowerToDistributedArrayPass.apply(LoweringPass.scala:70)
-E                   	at is.hail.expr.ir.lowering.LoweringPipeline.$anonfun$apply$1(LoweringPipeline.scala:14)
-E                   	at is.hail.expr.ir.lowering.LoweringPipeline.$anonfun$apply$1$adapted(LoweringPipeline.scala:12)
-E                   	at scala.collection.IndexedSeqOptimized.foreach(IndexedSeqOptimized.scala:36)
-E                   	at scala.collection.IndexedSeqOptimized.foreach$(IndexedSeqOptimized.scala:33)
-E                   	at scala.collection.mutable.WrappedArray.foreach(WrappedArray.scala:38)
-E                   	at is.hail.expr.ir.lowering.LoweringPipeline.apply(LoweringPipeline.scala:12)
-E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBackend.scala:289)
-E                   	at is.hail.backend.service.ServiceBackend.$anonfun$execute$4(ServiceBackend.scala:324)
-E                   	at is.hail.expr.ir.ExecuteContext$.$anonfun$scoped$3(ExecuteContext.scala:47)
-E                   	at is.hail.utils.package$.using(package.scala:627)
-E                   	at is.hail.expr.ir.ExecuteContext$.$anonfun$scoped$2(ExecuteContext.scala:47)
-E                   	at is.hail.utils.package$.using(package.scala:627)
-E                   	at is.hail.annotations.RegionPool$.scoped(RegionPool.scala:17)
-E                   	at is.hail.expr.ir.ExecuteContext$.scoped(ExecuteContext.scala:46)
-E                   	at is.hail.backend.service.ServiceBackend.$anonfun$execute$1(ServiceBackend.scala:320)
-E                   	at is.hail.utils.ExecutionTimer$.time(ExecutionTimer.scala:52)
-E                   	at is.hail.utils.ExecutionTimer$.logTime(ExecutionTimer.scala:59)
-E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBackend.scala:314)
-E                   	at is.hail.backend.service.ServiceBackendSocketAPI2.executeOneCommand(ServiceBackend.scala:873)
-E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$7(ServiceBackend.scala:696)
-E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$7$adapted(ServiceBackend.scala:695)
-E                   	at is.hail.utils.package$.using(package.scala:627)
-E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$6(ServiceBackend.scala:695)
-E                   	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:23)
-E                   	at is.hail.services.package$.retryTransientErrors(package.scala:69)
-E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$5(ServiceBackend.scala:699)
-E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$5$adapted(ServiceBackend.scala:693)
-E                   	at is.hail.utils.package$.using(package.scala:627)
-E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$4(ServiceBackend.scala:693)
-E                   	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:23)
-E                   	at is.hail.services.package$.retryTransientErrors(package.scala:69)
-E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.main(ServiceBackend.scala:701)
-E                   	at is.hail.backend.service.ServiceBackendSocketAPI2.main(ServiceBackend.scala)
-E                   	at sun.reflect.GeneratedMethodAccessor39.invoke(Unknown Source)
-E                   	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
-E                   	at java.lang.reflect.Method.invoke(Method.java:498)
-E                   	at is.hail.JVMEntryway$1.run(JVMEntryway.java:88)
-E                   	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
-E                   	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
-E                   	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
-E                   	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
-E                   	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
-E                   	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
-E                   	at java.lang.Thread.run(Thread.java:748)''')
     def test_tail_entries(self):
         mt = hl.utils.range_matrix_table(100, 30)
         mt = mt.filter_cols(mt.col_idx != 29)
@@ -250,7 +138,6 @@ E                   	at java.lang.Thread.run(Thread.java:748)''')
         assert tail(30, None) == expected(30, 29)
         assert tail(30, 10) == expected(30, 10)
 
-    @skip_when_service_backend('slow >800s')
     def test_tail_scan(self):
         mt = hl.utils.range_matrix_table(30, 40)
         mt = mt.annotate_rows(i = hl.scan.count())
@@ -384,25 +271,6 @@ E                   	at java.lang.Thread.run(Thread.java:748)''')
         self.assertTrue('GT' not in mt2.entry)
         mt2._force_count_rows()
 
-    @skip_when_service_backend('''intermittent worker failure
->       self.assertTrue(mt.annotate_rows(x=[1]).explode_rows('x').drop('x')._same(mt))
-
-Caused by: java.lang.AssertionError: assertion failed
-	at scala.Predef$.assert(Predef.scala:208)
-	at is.hail.io.BlockingInputBuffer.ensure(InputBuffers.scala:389)
-	at is.hail.io.BlockingInputBuffer.readInt(InputBuffers.scala:412)
-	at __C962collect_distributed_array.__m1141INPLACE_DECODE_r_array_of_o_int32_TO_r_array_of_o_int32(Unknown Source)
-	at __C962collect_distributed_array.__m1139DECODE_r_struct_of_r_binaryANDr_array_of_o_int32END_TO_SBaseStructPointer(Unknown Source)
-	at __C962collect_distributed_array.addLiterals(Unknown Source)
-	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:691)
-	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:670)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-	... 11 more''')
     def test_explode_rows(self):
         mt = hl.utils.range_matrix_table(4, 4)
         mt = mt.annotate_entries(e=mt.row_idx * 10 + mt.col_idx)
@@ -415,32 +283,6 @@ Caused by: java.lang.AssertionError: assertion failed
         mt = mt.annotate_rows(x=hl.struct(y=hl.range(0, mt.row_idx)))
         self.assertEqual(mt.explode_rows(mt.x.y).count_rows(), 6)
 
-    @skip_when_service_backend('''intermittent worker error, on this line:
->       self.assertTrue(mt.annotate_cols(x=[1]).explode_cols('x').drop('x')._same(mt))
-
-Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes, found 0
-	at is.hail.utils.ErrorHandling.fatal(ErrorHandling.scala:11)
-	at is.hail.utils.ErrorHandling.fatal$(ErrorHandling.scala:11)
-	at is.hail.utils.package$.fatal(package.scala:77)
-	at is.hail.utils.richUtils.RichInputStream$.readFully$extension1(RichInputStream.scala:13)
-	at is.hail.io.StreamBlockInputBuffer.readBlock(InputBuffers.scala:546)
-	at is.hail.io.BlockingInputBuffer.readBlock(InputBuffers.scala:382)
-	at is.hail.io.BlockingInputBuffer.readBytes(InputBuffers.scala:446)
-	at __C535collect_distributed_array.__m540INPLACE_DECODE_r_binary_TO_r_string(Unknown Source)
-	at __C535collect_distributed_array.__m542INPLACE_DECODE_r_array_of_r_binary_TO_r_array_of_r_string(Unknown Source)
-	at __C535collect_distributed_array.__m538INPLACE_DECODE_r_struct_of_r_struct_of_r_binaryANDr_int32ENDANDr_array_of_r_binaryEND_TO_r_struct_of_r_locusANDr_array_of_r_stringEND(Unknown Source)
-	at __C535collect_distributed_array.__m537INPLACE_DECODE_r_array_of_r_struct_of_r_struct_of_r_binaryANDr_int32ENDANDr_array_of_r_binaryEND_TO_r_array_of_r_struct_of_r_locusANDr_array_of_r_stringEND(Unknown Source)
-	at __C535collect_distributed_array.__m536DECODE_r_struct_of_r_array_of_r_struct_of_r_struct_of_r_binaryANDr_int32ENDANDr_array_of_r_binaryENDEND_TO_SBaseStructPointer(Unknown Source)
-	at __C535collect_distributed_array.apply(Unknown Source)
-	at __C535collect_distributed_array.apply(Unknown Source)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-	... 11 more
-''')
     def test_explode_cols(self):
         mt = hl.utils.range_matrix_table(4, 4)
         mt = mt.annotate_entries(e=mt.row_idx * 10 + mt.col_idx)
@@ -541,6 +383,13 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
              hl.Struct(row_idx=2, col_idx=1, bar=[4, 6]),
              hl.Struct(row_idx=2, col_idx=2, bar=[8, 10, 12])])
 
+    def test_collect_cols_by_key_with_rand(self):
+        mt = hl.utils.range_matrix_table(3, 3)
+        mt = mt.annotate_cols(x = hl.rand_norm())
+        mt = mt.collect_cols_by_key()
+        mt = mt.annotate_cols(x = hl.rand_norm())
+        mt.cols().collect()
+
     def test_weird_names(self):
         ds = self.get_mt()
         exprs = {'a': 5, '   a    ': 5, r'\%!^!@#&#&$%#$%': [5], '$': 5, 'ß': 5}
@@ -571,16 +420,48 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
     def test_semi_anti_join_rows(self):
         mt = hl.utils.range_matrix_table(10, 3)
         ht = hl.utils.range_table(3)
+        mt2 = mt.key_rows_by(k1 = mt.row_idx, k2 = hl.str(mt.row_idx * 2))
+        ht2 = ht.key_by(k1 = ht.idx, k2 = hl.str(ht.idx * 2))
 
         assert mt.semi_join_rows(ht).count() == (3, 3)
         assert mt.anti_join_rows(ht).count() == (7, 3)
+        assert mt2.semi_join_rows(ht).count() == (3, 3)
+        assert mt2.anti_join_rows(ht).count() == (7, 3)
+        assert mt2.semi_join_rows(ht2).count() == (3, 3)
+        assert mt2.anti_join_rows(ht2).count() == (7, 3)
+
+        with pytest.raises(ValueError, match='semi_join_rows: cannot join'):
+            mt.semi_join_rows(ht2)
+        with pytest.raises(ValueError, match='semi_join_rows: cannot join'):
+            mt.semi_join_rows(ht.key_by())
+
+        with pytest.raises(ValueError, match='anti_join_rows: cannot join'):
+            mt.anti_join_rows(ht2)
+        with pytest.raises(ValueError, match='anti_join_rows: cannot join'):
+            mt.anti_join_rows(ht.key_by())
 
     def test_semi_anti_join_cols(self):
         mt = hl.utils.range_matrix_table(3, 10)
         ht = hl.utils.range_table(3)
+        mt2 = mt.key_cols_by(k1 = mt.col_idx, k2 = hl.str(mt.col_idx * 2))
+        ht2 = ht.key_by(k1 = ht.idx, k2 = hl.str(ht.idx * 2))
 
         assert mt.semi_join_cols(ht).count() == (3, 3)
         assert mt.anti_join_cols(ht).count() == (3, 7)
+        assert mt2.semi_join_cols(ht).count() == (3, 3)
+        assert mt2.anti_join_cols(ht).count() == (3, 7)
+        assert mt2.semi_join_cols(ht2).count() == (3, 3)
+        assert mt2.anti_join_cols(ht2).count() == (3, 7)
+
+        with pytest.raises(ValueError, match='semi_join_cols: cannot join'):
+            mt.semi_join_cols(ht2)
+        with pytest.raises(ValueError, match='semi_join_cols: cannot join'):
+            mt.semi_join_cols(ht.key_by())
+
+        with pytest.raises(ValueError, match='anti_join_cols: cannot join'):
+            mt.anti_join_cols(ht2)
+        with pytest.raises(ValueError, match='anti_join_cols: cannot join'):
+            mt.anti_join_cols(ht.key_by())
 
     def test_joins(self):
         mt = self.get_mt().select_rows(x1=1, y1=1)
@@ -600,7 +481,6 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
         self.assertTrue(rt.all(rt.y2 == 2))
         self.assertTrue(ct.all(ct.c2 == 2))
 
-    @skip_when_service_backend('hangs')
     def test_joins_with_key_structs(self):
         mt = self.get_mt()
 
@@ -627,10 +507,6 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
         self.assertTrue(ds.union_cols(ds.drop(ds.info))
                         .count_rows(), 346)
 
-    @skip_when_service_backend('''The Service and Shuffler have no way of knowing the order in which rows appear in the original
-dataset, as such it is impossible to guarantee the ordering in `matches`.
-
-https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/235425714''')
     def test_table_product_join(self):
         left = hl.utils.range_matrix_table(5, 1)
         right = hl.utils.range_table(5)
@@ -672,7 +548,6 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
          .aggregate(bar=hl.agg.collect(mt.globals == lit))
          ._force_count_rows())
 
-    @skip_when_service_backend('ShuffleRead non-deterministically causes segfaults')
     def test_unions(self):
         dataset = hl.import_vcf(resource('sample2.vcf'))
 
@@ -694,7 +569,6 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         for s, count in ds.aggregate_cols(agg.counter(ds.s)).items():
             self.assertEqual(count, 3)
 
-    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_union_cols_example(self):
         joined = hl.import_vcf(resource('joined.vcf'))
 
@@ -708,22 +582,27 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         mt = mt.key_rows_by(x = mt.row_idx // 2)
         assert mt.union_cols(mt).count_rows() == 5
 
-    @skip_when_service_backend('flaky https://hail.zulipchat.com/#narrow/stream/127527-team/topic/CI.20Deploy.20Failure/near/237593731')
     def test_union_cols_outer(self):
         r, c = 10, 10
         mt = hl.utils.range_matrix_table(2*r, c)
         mt = mt.annotate_entries(entry=hl.tuple([mt.row_idx, mt.col_idx]))
+        mt = mt.annotate_rows(left=mt.row_idx)
         mt2 = hl.utils.range_matrix_table(2*r, c)
         mt2 = mt2.key_rows_by(row_idx=mt2.row_idx + r)
         mt2 = mt2.key_cols_by(col_idx=mt2.col_idx + c)
         mt2 = mt2.annotate_entries(entry=hl.tuple([mt2.row_idx, mt2.col_idx]))
+        mt2 = mt2.annotate_rows(right=mt2.row_idx)
         expected = hl.utils.range_matrix_table(3*r, 2*c)
         missing = hl.missing(hl.ttuple(hl.tint, hl.tint))
         expected = expected.annotate_entries(entry=hl.if_else(
             expected.col_idx < c,
             hl.if_else(expected.row_idx < 2*r, hl.tuple([expected.row_idx, expected.col_idx]), missing),
             hl.if_else(expected.row_idx >= r, hl.tuple([expected.row_idx, expected.col_idx]), missing)))
-        assert mt.union_cols(mt2, row_join_type='outer')._same(expected)
+        expected = expected.annotate_rows(
+            left=hl.if_else(expected.row_idx < 2*r, expected.row_idx, hl.missing(hl.tint)),
+            right=hl.if_else(expected.row_idx >= r, expected.row_idx, hl.missing(hl.tint)),
+        )
+        assert mt.union_cols(mt2, row_join_type='outer', drop_right_row_fields=False)._same(expected)
 
     def test_union_rows_different_col_schema(self):
         mt = hl.utils.range_matrix_table(10, 10)
@@ -734,19 +613,6 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
 
         self.assertEqual(mt.union_rows(mt2).count_rows(), 20)
 
-    @skip_when_service_backend('''intermittent worker failure:
->       self.assertEqual(ds.n_partitions(), 8)
-
-Caused by: java.lang.ClassCastException: __C2062collect_distributed_array cannot be cast to is.hail.expr.ir.FunctionWithObjects
-	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:689)
-	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:670)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-	... 11 more''')
     def test_index(self):
         ds = self.get_mt(min_partitions=8)
         self.assertEqual(ds.n_partitions(), 8)
@@ -769,7 +635,6 @@ Caused by: java.lang.ClassCastException: __C2062collect_distributed_array cannot
         self.assertEqual(ds.choose_cols(list(range(10))).s.collect(),
                          old_order[:10])
 
-    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_choose_cols_vs_explode(self):
         ds = self.get_mt()
 
@@ -777,19 +642,6 @@ Caused by: java.lang.ClassCastException: __C2062collect_distributed_array cannot
 
         self.assertTrue(ds.choose_cols(sorted(list(range(ds.count_cols())) * 2))._same(ds2))
 
-    @skip_when_service_backend('''intermittent worker failure:
->       self.assertTrue(orig_mt.union_rows(orig_mt).distinct_by_row()._same(orig_mt))
-
-Caused by: java.lang.ClassCastException: __C2308collect_distributed_array cannot be cast to is.hail.expr.ir.FunctionWithLiterals
-	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:691)
-	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:670)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-	... 11 more''')
     def test_distinct_by_row(self):
         orig_mt = hl.utils.range_matrix_table(10, 10)
         mt = orig_mt.key_rows_by(row_idx=orig_mt.row_idx // 2)
@@ -797,7 +649,6 @@ Caused by: java.lang.ClassCastException: __C2308collect_distributed_array cannot
 
         self.assertTrue(orig_mt.union_rows(orig_mt).distinct_by_row()._same(orig_mt))
 
-    @skip_when_service_backend('hangs >40 minutes; hangs after optimize optimize: darrayLowerer')
     def test_distinct_by_col(self):
         orig_mt = hl.utils.range_matrix_table(10, 10)
         mt = orig_mt.key_cols_by(col_idx=orig_mt.col_idx // 2)
@@ -882,7 +733,6 @@ Caused by: java.lang.ClassCastException: __C2308collect_distributed_array cannot
         self.assertTrue(rows.all(hl.sorted(rows.interval_matches.map(lambda x: x.i))
                                  == hl.range(0, hl.min(rows.row_idx % 10, 10 - rows.row_idx % 10))))
 
-    @skip_when_service_backend('slow >800s')
     def test_entry_join_self(self):
         mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4).choose_cols([9, 8, 7, 6, 5, 4, 3, 2, 1, 0])
         mt1 = mt1.annotate_entries(x=10 * mt1.row_idx + mt1.col_idx)
@@ -894,7 +744,6 @@ Caused by: java.lang.ClassCastException: __C2308collect_distributed_array cannot
 
         self.assertTrue(mt_join_entries.all(mt_join_entries.x == mt_join_entries.x2))
 
-    @skip_when_service_backend('slow >800s')
     def test_entry_join_const(self):
         mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4)
         mt1 = mt1.annotate_entries(x=mt1.row_idx + mt1.col_idx)
@@ -906,7 +755,6 @@ Caused by: java.lang.ClassCastException: __C2308collect_distributed_array cannot
         mt_join_entries = mt_join.entries()
         self.assertTrue(mt_join_entries.all(mt_join_entries['foo'] == 10101))
 
-    @skip_when_service_backend('slow >800s')
     def test_entry_join_missingness(self):
         mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4)
         mt1 = mt1.annotate_entries(x=mt1.row_idx + mt1.col_idx)
@@ -951,25 +799,6 @@ Caused by: java.lang.ClassCastException: __C2308collect_distributed_array cannot
         mt = mt.key_rows_by(mt.key1, mt.key2)
         mt.entries()._force_count()
 
-    @skip_when_service_backend('''intermittent worker failure:
->       self.assertEqual(len(mt1.entries().collect()), 30)
-
-Caused by: java.lang.AssertionError: assertion failed
-	at scala.Predef$.assert(Predef.scala:208)
-	at is.hail.io.BlockingInputBuffer.ensure(InputBuffers.scala:389)
-	at is.hail.io.BlockingInputBuffer.readInt(InputBuffers.scala:412)
-	at __C2523collect_distributed_array.__m2528INPLACE_DECODE_r_binary_TO_r_string(Unknown Source)
-	at __C2523collect_distributed_array.__m2660DECODE_r_struct_of_r_binaryEND_TO_SBaseStructPointer(Unknown Source)
-	at __C2523collect_distributed_array.addLiterals(Unknown Source)
-	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:691)
-	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:670)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-	... 11 more''')
     def test_filter_cols_required_entries(self):
         mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4)
         mt1 = mt1.filter_cols(mt1.col_idx < 3)
@@ -1016,7 +845,6 @@ Caused by: java.lang.AssertionError: assertion failed
                 ds._filter_partitions([0, 3, 7]),
                 ds._filter_partitions([0, 3, 7], keep=False))))
 
-    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_from_rows_table(self):
         mt = hl.import_vcf(resource('sample.vcf'))
         mt = mt.annotate_globals(foo='bar')
@@ -1037,7 +865,6 @@ Caused by: java.lang.AssertionError: assertion failed
         t = hl.read_table(f + '/cols')
         self.assertTrue(ds.cols().key_by()._same(t))
 
-    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_read_stored_rows(self):
         ds = self.get_mt()
         ds = ds.annotate_globals(x='foo')
@@ -1058,19 +885,20 @@ Caused by: java.lang.AssertionError: assertion failed
         mt = hl.utils.range_matrix_table(2000, 100, 10)
         f = new_temp_file(extension='mt')
         mt.write(f)
+        mt1 = hl.read_matrix_table(f)
         mt2 = hl.read_matrix_table(f, _intervals=[
             hl.Interval(start=150, end=250, includes_start=True, includes_end=False),
             hl.Interval(start=250, end=500, includes_start=True, includes_end=False),
         ])
         self.assertEqual(mt2.n_partitions(), 2)
-        self.assertTrue(mt.filter_rows((mt.row_idx >= 150) & (mt.row_idx < 500))._same(mt2))
+        self.assertTrue(mt1.filter_rows((mt1.row_idx >= 150) & (mt1.row_idx < 500))._same(mt2))
 
         mt2 = hl.read_matrix_table(f, _intervals=[
             hl.Interval(start=150, end=250, includes_start=True, includes_end=False),
             hl.Interval(start=250, end=500, includes_start=True, includes_end=False),
         ], _filter_intervals=True)
         self.assertEqual(mt2.n_partitions(), 3)
-        self.assertTrue(mt.filter_rows((mt.row_idx >= 150) & (mt.row_idx < 500))._same(mt2))
+        self.assertTrue(mt1.filter_rows((mt1.row_idx >= 150) & (mt1.row_idx < 500))._same(mt2))
 
     def test_indexed_read_vcf(self):
         vcf = self.get_mt(10)
@@ -1085,6 +913,34 @@ Caused by: java.lang.AssertionError: assertion failed
         p = (vcf.locus >= l1) & (vcf.locus < l2)
         q = (vcf.locus >= l3) & (vcf.locus < l4)
         self.assertTrue(vcf.filter_rows(p | q)._same(mt))
+
+    def test_interval_filter_partitions(self):
+        mt = hl.utils.range_matrix_table(100, 3, 3)
+        path = new_temp_file()
+        mt.write(path)
+        intervals = [
+            hl.Interval(hl.Struct(idx=5), hl.Struct(idx=10)),
+            hl.Interval(hl.Struct(idx=12), hl.Struct(idx=13)),
+            hl.Interval(hl.Struct(idx=15), hl.Struct(idx=17)),
+            hl.Interval(hl.Struct(idx=19), hl.Struct(idx=20))
+        ]
+        assert hl.read_matrix_table(path, _intervals=intervals, _filter_intervals = True).n_partitions() == 1
+
+        intervals = [
+            hl.Interval(hl.Struct(idx=5), hl.Struct(idx=10)),
+            hl.Interval(hl.Struct(idx=12), hl.Struct(idx=13)),
+            hl.Interval(hl.Struct(idx=15), hl.Struct(idx=17)),
+
+            hl.Interval(hl.Struct(idx=45), hl.Struct(idx=50)),
+            hl.Interval(hl.Struct(idx=52), hl.Struct(idx=53)),
+            hl.Interval(hl.Struct(idx=55), hl.Struct(idx=57)),
+
+            hl.Interval(hl.Struct(idx=75), hl.Struct(idx=80)),
+            hl.Interval(hl.Struct(idx=82), hl.Struct(idx=83)),
+            hl.Interval(hl.Struct(idx=85), hl.Struct(idx=87)),
+        ]
+
+        assert hl.read_matrix_table(path, _intervals=intervals, _filter_intervals = True).n_partitions() == 3
 
     @fails_service_backend()
     def test_codecs_matrix(self):
@@ -1141,7 +997,6 @@ Caused by: java.lang.AssertionError: assertion failed
         with self.assertRaises(LookupError):
             dataset.rename({'foo': 'a'})
 
-    @skip_when_service_backend('slow >800s')
     def test_range(self):
         ds = hl.utils.range_matrix_table(100, 10)
         self.assertEqual(ds.count_rows(), 100)
@@ -1165,21 +1020,6 @@ Caused by: java.lang.AssertionError: assertion failed
         self.assertEqual(mt.filter_cols(hl.missing(hl.tbool)).count_cols(), 0)
         self.assertEqual(mt.filter_entries(hl.missing(hl.tbool)).entries().count(), 0)
 
-    @skip_when_service_backend('''intermittent worker failure:
->       self.assertEqual(mt.row.collect(),
-                         sorted([hl.Struct(r=r, row_idx=i) for i, r in enumerate(rows)],
-                                key=lambda x: x.r))
-
-Caused by: java.lang.ClassCastException: __C364collect_distributed_array cannot be cast to is.hail.expr.ir.FunctionWithLiterals
-	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:691)
-	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:670)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-	... 11 more''')
     def test_to_table_on_various_fields(self):
         mt = hl.utils.range_matrix_table(3, 4)
 
@@ -1228,31 +1068,6 @@ Caused by: java.lang.ClassCastException: __C364collect_distributed_array cannot 
         self.assertEqual(mt.rows().r.collect(), sorted_rows)
         self.assertEqual(mt.rows().r.take(1), [sorted_rows[0]])
 
-    @skip_when_service_backend('''
->       self.assertEqual(ht.order_by(hl.desc('idx')).idx.collect(), list(range(10))[::-1])
-
-Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes, found 0
-	at is.hail.utils.ErrorHandling.fatal(ErrorHandling.scala:11)
-	at is.hail.utils.ErrorHandling.fatal$(ErrorHandling.scala:11)
-	at is.hail.utils.package$.fatal(package.scala:77)
-	at is.hail.utils.richUtils.RichInputStream$.readFully$extension1(RichInputStream.scala:13)
-	at is.hail.io.StreamBlockInputBuffer.readBlock(InputBuffers.scala:546)
-	at is.hail.io.BlockingInputBuffer.readBlock(InputBuffers.scala:382)
-	at is.hail.io.BlockingInputBuffer.ensure(InputBuffers.scala:388)
-	at is.hail.io.BlockingInputBuffer.readInt(InputBuffers.scala:412)
-	at __C4304collect_distributed_array.__m4308INPLACE_DECODE_r_int32_TO_r_int32(Unknown Source)
-	at __C4304collect_distributed_array.__m4307INPLACE_DECODE_r_struct_of_r_int32ANDr_int32ANDr_int32END_TO_r_struct_of_r_int32ANDr_int32ANDr_int32END(Unknown Source)
-	at __C4304collect_distributed_array.__m4306INPLACE_DECODE_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_int32END_TO_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_int32END(Unknown Source)
-	at __C4304collect_distributed_array.__m4305DECODE_r_struct_of_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_int32ENDEND_TO_SBaseStructPointer(Unknown Source)
-	at __C4304collect_distributed_array.apply(Unknown Source)
-	at __C4304collect_distributed_array.apply(Unknown Source)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-	... 11 more''')
     def test_order_by(self):
         ht = hl.utils.range_table(10)
         self.assertEqual(ht.order_by('idx').idx.collect(), list(range(10)))
@@ -1482,7 +1297,6 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
         mt2 = hl.read_matrix_table(f)
         self.assertTrue(mt._same(mt2))
 
-    @skip_when_service_backend('ShuffleRead non-deterministically causes segfaults')
     def test_write_checkpoint_file(self):
         mt = self.get_mt()
         f = new_temp_file(extension='mt')
@@ -1797,23 +1611,6 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
         actual = mt.show(handler=str)
         assert actual == expected
 
-    @skip_when_service_backend('''intermittent worker failure:
->                  mt.filter_rows((mt.row_idx < 5) | (mt.row_idx >= 35)))
-
-Caused by: java.lang.NullPointerException
-	at __C3022collect_distributed_array.__m3105split_StreamFor(Unknown Source)
-	at __C3022collect_distributed_array.__m3033split_Letregion13_18(Unknown Source)
-	at __C3022collect_distributed_array.__m3033split_Letregion12_25(Unknown Source)
-	at __C3022collect_distributed_array.__m3033split_Let(Unknown Source)
-	at __C3022collect_distributed_array.apply(Unknown Source)
-	at __C3022collect_distributed_array.apply(Unknown Source)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-	... 11 more''')
     def test_partitioned_write(self):
         mt = hl.utils.range_matrix_table(40, 3, 5)
 
@@ -1853,7 +1650,6 @@ Caused by: java.lang.NullPointerException
         ],
                    mt.filter_rows((mt.row_idx >= 5) & (mt.row_idx < 35)))
 
-    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_partitioned_write_coerce(self):
         mt = hl.import_vcf(resource('sample.vcf'))
         parts = [
@@ -1863,6 +1659,7 @@ Caused by: java.lang.NullPointerException
         mt.write(tmp, _partitions=parts)
 
         mt2 = hl.read_matrix_table(tmp)
+        assert mt2.aggregate_rows(hl.agg.all(hl.literal(hl.Interval(hl.Locus('20', 10277621), hl.Locus('20', 11898992))).contains(mt2.locus)))
         assert mt2.n_partitions() == len(parts)
         assert hl.filter_intervals(mt, parts)._same(mt2)
 
@@ -1938,8 +1735,27 @@ Caused by: java.lang.NullPointerException
         assert t.filter(t.locus.position >= 1).collect() == [
             hl.utils.Struct(idx=0, locus=hl.genetics.Locus(contig='2', position=1, reference_genome='GRCh37'))]
 
+    @fails_local_backend()
+    def test_lower_row_agg_init_arg(self):
+        mt = hl.balding_nichols_model(5, 200, 200)
+        mt2 = hl.variant_qc(mt)
+        mt2 = mt2.filter_rows((mt2.variant_qc.AF[0] > 0.05) & (mt2.variant_qc.AF[0] < 0.95))
+        mt2 = mt2.sample_rows(.99)
+        rows = mt2.rows()
+        mt = mt.semi_join_rows(rows)
+        hl.hwe_normalized_pca(mt.GT)
 
-@skip_when_service_backend('slow >800s')
+def test_keys_before_scans():
+    mt = hl.utils.range_matrix_table(6, 6)
+    mt = mt.annotate_rows(rev_idx = -mt.row_idx)
+    mt = mt.key_rows_by(mt.rev_idx)
+
+    mt = mt.annotate_rows(idx_scan = hl.scan.collect(mt.row_idx))
+
+    mt = mt.key_rows_by(mt.row_idx)
+    assert mt.rows().idx_scan.collect() == [[5, 4, 3, 2, 1], [5, 4, 3, 2], [5, 4, 3], [5, 4], [5], []]
+
+
 def test_read_write_all_types():
     mt = create_all_values_matrix_table()
     tmp_file = new_temp_file()
@@ -1947,8 +1763,6 @@ def test_read_write_all_types():
     assert hl.read_matrix_table(tmp_file)._same(mt)
 
 
-@fails_local_backend()
-@skip_when_service_backend('very slow / nonterminating')
 def test_read_write_balding_nichols_model():
     mt = hl.balding_nichols_model(3, 10, 10)
     tmp_file = new_temp_file()
@@ -1967,3 +1781,340 @@ def test_filter_against_invalid_contig():
     mt = hl.balding_nichols_model(3, 5, 20)
     fmt = mt.filter_rows(mt.locus.contig == "chr1")
     assert fmt.rows()._force_count() == 0
+
+
+def test_matrix_randomness():
+    def assert_unique_uids(mt):
+        x = mt.aggregate_rows(hl.struct(r=hl.agg.collect_as_set(hl.rand_int64()), n=hl.agg.count()))
+        assert(len(x.r) == x.n)
+        x = mt.aggregate_cols(hl.struct(r=hl.agg.collect_as_set(hl.rand_int64()), n=hl.agg.count()))
+        assert(len(x.r) == x.n)
+        x = mt.aggregate_entries(hl.struct(r=hl.agg.collect_as_set(hl.rand_int64()), n=hl.agg.count()))
+        assert(len(x.r) == x.n)
+
+    def assert_contains_node(t, node):
+        assert(t._mir.base_search(lambda x: isinstance(x, node)))
+
+    # test MatrixRead
+    mt = hl.utils.range_matrix_table(10, 10, 3)
+    assert_contains_node(mt, ir.MatrixRead)
+    assert_unique_uids(mt)
+
+    # test MatrixAggregateRowsByKey
+    rmt = hl.utils.range_matrix_table(20, 10, 3)
+    # with body randomness
+    mt = (rmt.group_rows_by(k=rmt.row_idx % 5)
+        .aggregate_rows(r=hl.rand_int64())
+        .aggregate_entries(e=hl.rand_int64())
+        .result())
+    assert_contains_node(mt, ir.MatrixAggregateRowsByKey)
+    x = mt.aggregate_rows(hl.struct(r=hl.agg.collect_as_set(mt.r), n=hl.agg.count()))
+    assert(len(x.r) == x.n)
+    x = mt.aggregate_entries(hl.struct(r=hl.agg.collect_as_set(mt.e), n=hl.agg.count()))
+    assert(len(x.r) == x.n)
+    assert_unique_uids(mt)
+    # with agg randomness
+    mt = (rmt.group_rows_by(k=rmt.row_idx % 5)
+          .aggregate_rows(r=hl.agg.collect(hl.rand_int64()))
+          .aggregate_entries(e=hl.agg.collect(hl.rand_int64()))
+          .result())
+    assert_contains_node(mt, ir.MatrixAggregateRowsByKey)
+    x = mt.aggregate_rows(hl.agg.explode(lambda r: hl.struct(r=hl.agg.collect_as_set(r), n=hl.agg.count()), mt.r))
+    assert(len(x.r) == x.n)
+    x = mt.aggregate_entries(hl.agg.explode(lambda r: hl.struct(r=hl.agg.collect_as_set(r), n=hl.agg.count()), mt.e))
+    assert(len(x.r) == x.n)
+    assert_unique_uids(mt)
+    # w/o body randomness
+    mt = (rmt.group_rows_by(k=rmt.row_idx % 5)
+          .aggregate_rows(row_agg=hl.agg.sum(rmt.row_idx))
+          .aggregate_entries(entry_agg=hl.agg.sum(rmt.row_idx + rmt.col_idx))
+          .result())
+    assert_contains_node(mt, ir.MatrixAggregateRowsByKey)
+    assert_unique_uids(mt)
+
+    # test MatrixFilterRows
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
+    # with cond randomness
+    mt = rmt.filter_rows(hl.rand_int64() % 2 == 0)
+    assert_contains_node(mt, ir.MatrixFilterRows)
+    mt.entries()._force_count() # test with no consumer randomness
+    assert_unique_uids(mt)
+    # w/o cond randomness
+    mt = rmt.filter_rows(rmt.row_idx < 5)
+    assert_contains_node(mt, ir.MatrixFilterRows)
+    assert_unique_uids(mt)
+
+    # test MatrixChooseCols
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
+    mt = rmt.choose_cols([2, 3, 7])
+    assert_contains_node(mt, ir.MatrixChooseCols)
+    assert_unique_uids(mt)
+
+    # test MatrixMapCols
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
+    # with body randomness
+    mt = rmt.annotate_cols(r=hl.rand_int64())
+    assert_contains_node(mt, ir.MatrixMapCols)
+    x = mt.aggregate_cols(hl.struct(r=hl.agg.collect_as_set(mt.r), n=hl.agg.count()))
+    assert(len(x.r) == x.n)
+    assert_unique_uids(mt)
+    # with agg randomness
+    mt = rmt.annotate_cols(r=hl.agg.collect(hl.rand_int64()))
+    assert_contains_node(mt, ir.MatrixMapCols)
+    x = mt.aggregate_cols(hl.agg.explode(lambda r: hl.struct(r=hl.agg.collect_as_set(r), n=hl.agg.count()), mt.r))
+    assert(len(x.r) == x.n)
+    assert_unique_uids(mt)
+    # with scan randomness
+    mt = rmt.annotate_cols(r=hl.scan.collect(hl.rand_int64()))
+    assert_contains_node(mt, ir.MatrixMapCols)
+    x = mt.aggregate_cols(hl.struct(r=hl.agg.explode(lambda r: hl.agg.collect_as_set(r), mt.r), n=hl.agg.count()))
+    assert(len(x.r) == x.n - 1)
+    assert_unique_uids(mt)
+    # w/o body randomness
+    mt = rmt.annotate_cols(x=2*rmt.col_idx)
+    assert_contains_node(mt, ir.MatrixMapCols)
+    assert_unique_uids(mt)
+
+    # test MatrixUnionCols
+    r, c = 5, 5
+    mt = hl.utils.range_matrix_table(2*r, c)
+    mt2 = hl.utils.range_matrix_table(2*r, c)
+    mt2 = mt2.key_rows_by(row_idx=mt2.row_idx + r)
+    mt2 = mt2.key_cols_by(col_idx=mt2.col_idx + c)
+    mt = mt.union_cols(mt2)
+    assert_contains_node(mt, ir.MatrixUnionCols)
+    assert_unique_uids(mt)
+
+    # test MatrixMapEntries
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
+    # with body randomness
+    mt = rmt.annotate_entries(r=hl.rand_int64())
+    assert_contains_node(mt, ir.MatrixMapEntries)
+    x = mt.aggregate_entries(hl.struct(r=hl.agg.collect_as_set(mt.r), n=hl.agg.count()))
+    assert(len(x.r) == x.n)
+    assert_unique_uids(mt)
+    # w/o body randomness
+    mt = rmt.annotate_entries(x=rmt.row_idx + rmt.col_idx)
+    assert_contains_node(mt, ir.MatrixMapEntries)
+    assert_unique_uids(mt)
+
+    # test MatrixFilterEntries
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
+    # with cond randomness
+    mt = rmt.filter_entries(hl.rand_int64() % 2 == 0)
+    assert_contains_node(mt, ir.MatrixFilterEntries)
+    mt.entries()._force_count() # test with no consumer randomness
+    assert_unique_uids(mt)
+    # w/o cond randomness
+    mt = rmt.filter_entries(rmt.row_idx + rmt.col_idx < 10)
+    assert_contains_node(mt, ir.MatrixFilterEntries)
+    assert_unique_uids(mt)
+
+    # test MatrixKeyRowsBy
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
+    mt = rmt.key_rows_by(k=rmt.row_idx // 4)
+    assert_contains_node(mt, ir.MatrixKeyRowsBy)
+    assert_unique_uids(mt)
+
+    # test MatrixMapRows
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
+    # with body randomness
+    mt = rmt.annotate_rows(r=hl.rand_int64())
+    assert_contains_node(mt, ir.MatrixMapRows)
+    x = mt.aggregate_rows(hl.struct(r=hl.agg.collect_as_set(mt.r), n=hl.agg.count()))
+    assert(len(x.r) == x.n)
+    assert_unique_uids(mt)
+    # with agg randomness
+    mt = rmt.annotate_rows(r=hl.agg.collect(hl.rand_int64()))
+    assert_contains_node(mt, ir.MatrixMapRows)
+    x = mt.aggregate_rows(hl.agg.explode(lambda r: hl.struct(r=hl.agg.collect_as_set(r), n=hl.agg.count()), mt.r))
+    assert(len(x.r) == x.n)
+    assert_unique_uids(mt)
+    # with scan randomness
+    mt = rmt.annotate_rows(r=hl.scan.collect(hl.rand_int64()))
+    assert_contains_node(mt, ir.MatrixMapRows)
+    x = mt.aggregate_rows(hl.struct(r=hl.agg.explode(lambda r: hl.agg.collect_as_set(r), mt.r), n=hl.agg.count()))
+    assert(len(x.r) == x.n - 1)
+    assert_unique_uids(mt)
+    # w/o body randomness
+    mt = rmt.annotate_rows(x=2*rmt.row_idx)
+    assert_contains_node(mt, ir.MatrixMapRows)
+    assert_unique_uids(mt)
+
+    # test MatrixMapGlobals
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
+    # with body randomness
+    mt = rmt.annotate_globals(x=hl.rand_int64())
+    assert_contains_node(mt, ir.MatrixMapGlobals)
+    mt.entries()._force_count() # test with no consumer randomness
+    assert_unique_uids(mt)
+    # w/o body randomness
+    mt = rmt.annotate_globals(x=1)
+    assert_contains_node(mt, ir.MatrixMapGlobals)
+    assert_unique_uids(mt)
+
+    # test MatrixFilterCols
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
+    # with cond randomness
+    mt = rmt.filter_cols(hl.rand_int64() % 2 == 0)
+    assert_contains_node(mt, ir.MatrixFilterCols)
+    mt.entries()._force_count() # test with no consumer randomness
+    assert_unique_uids(mt)
+    # w/o cond randomness
+    mt = rmt.filter_cols(rmt.col_idx < 5)
+    assert_contains_node(mt, ir.MatrixFilterCols)
+    assert_unique_uids(mt)
+
+    # test MatrixCollectColsByKey
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
+    mt = rmt.key_cols_by(k=rmt.col_idx % 5)
+    mt = mt.collect_cols_by_key()
+    assert_contains_node(mt, ir.MatrixCollectColsByKey)
+    assert_unique_uids(mt)
+
+    # test MatrixAggregateColsByKey
+    rmt = hl.utils.range_matrix_table(20, 10, 3)
+    # with body randomness
+    mt = (rmt.group_cols_by(k=rmt.col_idx % 5)
+          .aggregate_cols(r=hl.rand_int64())
+          .aggregate_entries(e=hl.rand_int64())
+          .result())
+    assert_contains_node(mt, ir.MatrixAggregateColsByKey)
+    x = mt.aggregate_cols(hl.struct(r=hl.agg.collect_as_set(mt.r), n=hl.agg.count()))
+    assert(len(x.r) == x.n)
+    x = mt.aggregate_entries(hl.struct(r=hl.agg.collect_as_set(mt.e), n=hl.agg.count()))
+    assert(len(x.r) == x.n)
+    assert_unique_uids(mt)
+    # with agg randomness
+    mt = (rmt.group_cols_by(k=rmt.col_idx % 5)
+          .aggregate_cols(r=hl.agg.collect(hl.rand_int64()))
+          .aggregate_entries(e=hl.agg.collect(hl.rand_int64()))
+          .result())
+    assert_contains_node(mt, ir.MatrixAggregateColsByKey)
+    x = mt.aggregate_cols(hl.agg.explode(lambda r: hl.struct(r=hl.agg.collect_as_set(r), n=hl.agg.count()), mt.r))
+    assert(len(x.r) == x.n)
+    x = mt.aggregate_entries(hl.agg.explode(lambda r: hl.struct(r=hl.agg.collect_as_set(r), n=hl.agg.count()), mt.e))
+    assert(len(x.r) == x.n)
+    assert_unique_uids(mt)
+    # w/o body randomness
+    mt = (rmt.group_cols_by(k=rmt.col_idx % 5)
+          .aggregate_cols(row_agg=hl.agg.sum(rmt.col_idx))
+          .aggregate_entries(entry_agg=hl.agg.sum(rmt.row_idx + rmt.col_idx))
+          .result())
+    assert_contains_node(mt, ir.MatrixAggregateColsByKey)
+    assert_unique_uids(mt)
+
+    # test MatrixExplodeRows
+    rmt = hl.utils.range_matrix_table(20, 10, 3)
+    mt = rmt.annotate_rows(s=hl.struct(a=hl.range(rmt.row_idx)))
+    mt = mt.explode_rows(mt.s.a)
+    assert_contains_node(mt, ir.MatrixExplodeRows)
+    assert_unique_uids(mt)
+
+    # test MatrixRepartition
+    if not hl.current_backend().requires_lowering:
+        rmt = hl.utils.range_matrix_table(20, 10, 3)
+        mt = rmt.repartition(5)
+        assert_contains_node(mt, ir.MatrixRepartition)
+        assert_unique_uids(mt)
+
+    # test MatrixUnionRows
+    r, c = 5, 5
+    mt = hl.utils.range_matrix_table(2*r, c)
+    mt2 = hl.utils.range_matrix_table(2*r, c)
+    mt2 = mt2.key_rows_by(row_idx=mt2.row_idx + r)
+    mt = mt.union_rows(mt2)
+    assert_contains_node(mt, ir.MatrixUnionRows)
+    assert_unique_uids(mt)
+
+    # test MatrixDistinctByRow
+    rmt = hl.utils.range_matrix_table(20, 10, 3)
+    mt = rmt.key_rows_by(k=rmt.row_idx % 5)
+    mt = mt.distinct_by_row()
+    assert_contains_node(mt, ir.MatrixDistinctByRow)
+    assert_unique_uids(mt)
+
+    # test MatrixRowsHead
+    rmt = hl.utils.range_matrix_table(20, 10, 3)
+    mt = rmt.head(10)
+    assert_contains_node(mt, ir.MatrixRowsHead)
+    assert_unique_uids(mt)
+
+    # test MatrixColsHead
+    rmt = hl.utils.range_matrix_table(10, 20, 3)
+    mt = rmt.head(None, 10)
+    assert_contains_node(mt, ir.MatrixColsHead)
+    assert_unique_uids(mt)
+
+    # test MatrixRowsTail
+    rmt = hl.utils.range_matrix_table(20, 10, 3)
+    mt = rmt.tail(10)
+    assert_contains_node(mt, ir.MatrixRowsTail)
+    assert_unique_uids(mt)
+
+    # test MatrixColsTail
+    rmt = hl.utils.range_matrix_table(10, 20, 3)
+    mt = rmt.tail(None, 10)
+    assert_contains_node(mt, ir.MatrixColsTail)
+    assert_unique_uids(mt)
+
+    # test MatrixExplodeCols
+    rmt = hl.utils.range_matrix_table(10, 20, 3)
+    mt = rmt.annotate_cols(s=hl.struct(a=hl.range(rmt.col_idx)))
+    mt = mt.explode_cols(mt.s.a)
+    assert_contains_node(mt, ir.MatrixExplodeCols)
+    assert_unique_uids(mt)
+
+    # test CastTableToMatrix
+    rt = hl.utils.range_table(10, 3)
+    t = rt.annotate(e=hl.range(10).map(lambda i: hl.struct(x=i)))
+    t = t.annotate_globals(c=hl.range(10).map(lambda i: hl.struct(y=i)))
+    mt = t._unlocalize_entries('e', 'c', [])
+    assert_contains_node(mt, ir.CastTableToMatrix)
+    assert_unique_uids(mt)
+
+    # test MatrixAnnotateRowsTable
+    t = hl.utils.range_table(12, 3)
+    t = t.key_by(k=(t.idx // 2) * 2)
+    mt = hl.utils.range_matrix_table(8, 10, 3)
+    mt = mt.key_rows_by(k=(mt.row_idx // 2) * 3)
+    joined = mt.annotate_rows(x=t[mt.k].idx)
+    assert_contains_node(joined, ir.MatrixAnnotateRowsTable)
+    assert_unique_uids(joined)
+
+    # test MatrixAnnotateColsTable
+    t = hl.utils.range_table(12, 3)
+    t = t.key_by(k=(t.idx // 2) * 2)
+    mt = hl.utils.range_matrix_table(10, 8, 3)
+    mt = mt.key_cols_by(k=(mt.col_idx // 2) * 3)
+    joined = mt.annotate_cols(x=t[mt.k].idx)
+    assert_contains_node(joined, ir.MatrixAnnotateColsTable)
+    assert_unique_uids(joined)
+
+    # test MatrixToMatrixApply
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
+    mt = rmt._filter_partitions([0, 2])
+    assert_contains_node(mt, ir.MatrixToMatrixApply)
+    assert_unique_uids(mt)
+
+    # test MatrixRename
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
+    mt = rmt.rename({'row_idx': 'row_index'})
+    assert_contains_node(mt, ir.MatrixRename)
+    assert_unique_uids(mt)
+
+    # test MatrixFilterIntervals
+    rmt = hl.utils.range_matrix_table(20, 10, 3)
+    intervals = [hl.interval(0, 5), hl.interval(10, 15)]
+    mt = hl.filter_intervals(rmt, intervals)
+    assert_contains_node(mt, ir.MatrixFilterIntervals)
+    assert_unique_uids(mt)
+
+
+def test_upcast_tuples():
+    t = hl.utils.range_matrix_table(1,1)
+    t = t.annotate_cols(foo=[('0', 1)])
+    t = t.explode_cols(t.foo)
+    t = t.annotate_cols(x=t.foo[1])
+    t = t.drop('foo')
+    t.cols().collect()

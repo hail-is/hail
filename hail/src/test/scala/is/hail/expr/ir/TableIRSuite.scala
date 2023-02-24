@@ -11,7 +11,6 @@ import is.hail.methods.ForceCountTable
 import is.hail.types._
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual._
-import is.hail.rvd.RVDPartitioner
 import is.hail.utils._
 import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
@@ -47,7 +46,11 @@ class TableIRSuite extends HailSuite {
     val read = TableIR.read(fs, path, false, None)
     val droppedRows = TableIR.read(fs, path, true, None)
 
-    val expectedRows = Array.tabulate(10)(i => Row(i)).toFastIndexedSeq
+    val uids = for {
+      (partSize, partIndex) <- partition(10, 3).zipWithIndex
+      i <- 0 until partSize
+    } yield Row(partIndex.toLong, i.toLong)
+    val expectedRows = (0 until 10, uids).zipped.map { (i, uid) => Row(i, uid) }
     val expectedGlobals = Row(57)
 
     assertEvalsTo(TableCollect(read), Row(expectedRows, expectedGlobals))
@@ -759,7 +762,7 @@ class TableIRSuite extends HailSuite {
     val path = ctx.createTmpPath("test-table-write", "ht")
     Interpret[Unit](ctx, TableWrite(table, TableNativeWriter(path)))
     val before = table.analyzeAndExecute(ctx).asTableValue(ctx)
-    val read = TableIR.read(fs, path)
+    val read = TableIR.read(fs, path, requestedType = Some(table.typ))
     assert(read.isDistinctlyKeyed)
     val after = Interpret(read, ctx, false)
     assert(before.globals.javaValue == after.globals.javaValue)
@@ -821,13 +824,15 @@ class TableIRSuite extends HailSuite {
 
       def pathsUsed: Seq[String] = FastSeq()
 
-      override def apply(tr: TableRead, ctx: ExecuteContext): TableValue = ???
+      override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = ???
 
       override def partitionCounts: Option[IndexedSeq[Long]] = Some(FastIndexedSeq(1, 2, 3, 4))
 
-      def rowAndGlobalPTypes(ctx: ExecuteContext, requestedType: TableType): (PStruct, PStruct) = ???
+      override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = ???
 
-      override def fullType: TableType = TableType(TStruct.empty, FastIndexedSeq(), TStruct.empty)
+      override def rowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = ???
+
+      override def fullType: TableType = TableType(TStruct(), FastIndexedSeq(), TStruct.empty)
     }
     val tir = TableRead(tr.fullType, true, tr)
     assert(tir.partitionCounts.forall(_.sum == 0))
@@ -975,7 +980,6 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testTableKeyByAndAggregate(): Unit = {
-    implicit val execStrats = ExecStrategy.interpretOnly //FIXME: Lowering is implemented, will work when method splitting is fixed.
     val tir: TableIR = TableRead.native(fs, "src/test/resources/three_key.ht")
     val unkeyed = TableKeyBy(tir, IndexedSeq[String]())
     val rowRef = Ref("row", unkeyed.typ.rowType)
@@ -1073,7 +1077,7 @@ class TableIRSuite extends HailSuite {
     val mnrSpec = mnr.getSpec()
 
     val reader = TableNativeZippedReader(rowsPath, entriesPath, None, mnrSpec.rowsSpec, mnrSpec.entriesSpec)
-    val tableType = mnr.fullMatrixType.canonicalTableType.copy(globalType = TStruct(), key=IndexedSeq("locus"))
+    val tableType = mnr.matrixToTableType(mnr.fullMatrixType).copy(globalType = TStruct(), key=IndexedSeq("locus"))
     val irToLower = TableAggregate(TableRead(tableType, false, reader),
       MakeTuple.ordered(FastSeq(
         ApplyAggOp(Collect())(GetField(Ref("row", tableType.rowType), "rsid"))

@@ -1,15 +1,14 @@
 package is.hail.types.physical
 
 import is.hail.annotations._
-import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.check.{Arbitrary, Gen}
-import is.hail.expr.ir
 import is.hail.expr.ir._
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
+import is.hail.types.physical.stypes.concrete.SRNGState
+import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.virtual._
-import is.hail.types.{Requiredness, coerce}
+import is.hail.types.{Requiredness, tcoerce}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.Row
@@ -21,7 +20,7 @@ class PTypeSerializer extends CustomSerializer[PType](format => (
   { case t: PType => JString(t.toString) }))
 
 class PStructSerializer extends CustomSerializer[PStruct](format => (
-  { case JString(s) => coerce[PStruct](IRParser.parsePType(s)) },
+  { case JString(s) => tcoerce[PStruct](IRParser.parsePType(s)) },
   { case t: PStruct => JString(t.toString) }))
 
 object PType {
@@ -121,6 +120,7 @@ object PType {
       case TBinary => PCanonicalBinary(required)
       case TString => PCanonicalString(required)
       case TCall => PCanonicalCall(required)
+      case TRNGState => StoredSTypePType(SRNGState(None), required)
       case t: TLocus => PCanonicalLocus(t.rg, required)
       case t: TInterval => PCanonicalInterval(canonical(t.pointType, innerRequired, innerRequired), required)
       case t: TArray => PCanonicalArray(canonical(t.elementType, innerRequired, innerRequired), required)
@@ -416,12 +416,13 @@ abstract class PType extends Serializable with Requiredness {
 
   def subsetTo(t: Type): PType = {
     this match {
-      case PCanonicalStruct(fields, r) =>
+      case x@PCanonicalStruct(fields, r) =>
         val ts = t.asInstanceOf[TStruct]
+        assert(ts.fieldNames.forall(x.fieldNames.contains))
         PCanonicalStruct(r, fields.flatMap { pf => ts.fieldOption(pf.name).map { vf => (pf.name, pf.typ.subsetTo(vf.typ)) } }: _*)
       case PCanonicalTuple(fields, r) =>
         val tt = t.asInstanceOf[TTuple]
-        PCanonicalTuple(fields.flatMap { pf => tt.fieldIndex.get(pf.index).map(vi => PTupleField(vi, pf.typ.subsetTo(tt.types(vi)))) }, r)
+        PCanonicalTuple(fields.flatMap { pf => tt.fieldIndex.get(pf.index).map(vi => PTupleField(pf.index, pf.typ.subsetTo(tt.types(vi)))) }, r)
       case PCanonicalArray(e, r) =>
         val ta = t.asInstanceOf[TArray]
         PCanonicalArray(e.subsetTo(ta.elementType), r)

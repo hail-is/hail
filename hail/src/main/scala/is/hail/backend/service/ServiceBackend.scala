@@ -5,14 +5,13 @@ import java.nio.charset._
 import java.net._
 import java.nio.charset.StandardCharsets
 import java.util.concurrent._
-
 import is.hail.{HAIL_REVISION, HailContext, HailFeatureFlags}
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.{Backend, BackendContext, BroadcastValue, ExecuteContext, HailTaskContext}
-import is.hail.expr.JSONAnnotationImpex
+import is.hail.backend.{Backend, BackendContext, BackendWithNoCodeCache, BroadcastValue, ExecuteContext, HailTaskContext}
+import is.hail.expr.{JSONAnnotationImpex, Validate}
 import is.hail.expr.ir.lowering._
-import is.hail.expr.ir.{Compile, IR, IRParser, MakeTuple, SortField}
+import is.hail.expr.ir.{Compile, IR, IRParser, MakeTuple, SortField, TypeCheck}
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.bgen.IndexBgen
@@ -42,12 +41,15 @@ import scala.annotation.switch
 import scala.reflect.ClassTag
 import scala.{concurrent => scalaConcurrent}
 import scala.collection.mutable
+import scala.collection.parallel.ExecutionContextTaskSupport
 
 
 class ServiceBackendContext(
   @transient val sessionID: String,
   val billingProject: String,
-  val remoteTmpDir: String
+  val remoteTmpDir: String,
+  val workerCores: String,
+  val workerMemory: String,
 ) extends BackendContext with Serializable {
   def tokens(): Tokens =
     new Tokens(Map((DeployConfig.get.defaultNamespace, sessionID)))
@@ -61,17 +63,21 @@ class ServiceBackend(
   val jarLocation: String,
   var name: String,
   val theHailClassLoader: HailClassLoader,
-  val scratchDir: String = sys.env.get("HAIL_WORKER_SCRATCH_DIR").getOrElse("")
-) extends Backend {
+  val batchClient: BatchClient,
+  val curBatchId: Option[Long],
+  val scratchDir: String = sys.env.get("HAIL_WORKER_SCRATCH_DIR").getOrElse(""),
+) extends Backend with BackendWithNoCodeCache {
   import ServiceBackend.log
 
-  private[this] var batchCount = 0
+  private[this] var stageCount = 0
   private[this] implicit val ec = scalaConcurrent.ExecutionContext.fromExecutorService(
     Executors.newCachedThreadPool())
   private[this] val MAX_AVAILABLE_GCS_CONNECTIONS = 100
   private[this] val availableGCSConnections = new Semaphore(MAX_AVAILABLE_GCS_CONNECTIONS, true)
 
-  def defaultParallelism: Int = 10
+  override def shouldCacheQueryInfo: Boolean = false
+
+  def defaultParallelism: Int = 4
 
   def broadcast[T: ClassTag](_value: T): BroadcastValue[T] = {
     using(new ObjectOutputStream(new ByteArrayOutputStream())) { os =>
@@ -96,22 +102,22 @@ class ServiceBackend(
 
   def parallelizeAndComputeWithIndex(
     _backendContext: BackendContext,
-    _fs: FS,
+    fs: FS,
     collection: Array[Array[Byte]],
+    stageIdentifier: String,
     dependency: Option[TableStageDependency] = None
   )(f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
   ): Array[Array[Byte]] = {
     val backendContext = _backendContext.asInstanceOf[ServiceBackendContext]
-    val fs = _fs.asInstanceOf[ServiceCacheableFS]
     val n = collection.length
     val token = tokenUrlSafe(32)
     val root = s"${ backendContext.remoteTmpDir }parallelizeAndComputeWithIndex/$token"
 
     // FIXME: HACK
-    val (open, create) = if (n <= 50) {
-      (fs.openCachedNoCompression _, fs.createCachedNoCompression _)
+    val (open, write) = if (n <= 50) {
+      (fs.openCachedNoCompression _, fs.writeCached _)
     } else {
-      (fs.openNoCompression _, fs.createNoCompression _)
+      ((x: String) => fs.openNoCompression(x), fs.writePDOS _)
     }
 
     log.info(s"parallelizeAndComputeWithIndex: $token: nPartitions $n")
@@ -119,15 +125,15 @@ class ServiceBackend(
 
     val uploadFunction = scalaConcurrent.Future {
       retryTransientErrors {
-        using(new ObjectOutputStream(create(s"$root/f"))) { os =>
-          os.writeObject(f)
+        write(s"$root/f") { fos =>
+          using(new ObjectOutputStream(fos)) { oos => oos.writeObject(f) }
         }
       }
     }
 
     val uploadContexts = scalaConcurrent.Future {
       retryTransientErrors {
-        using(create(s"$root/contexts")) { os =>
+        write(s"$root/contexts") { os =>
           var o = 12L * n
           var i = 0
           while (i < n) {
@@ -137,7 +143,6 @@ class ServiceBackend(
             i += 1
             o += len
           }
-          log.info(s"parallelizeAndComputeWithIndex: $token: writing contexts")
           collection.foreach { context =>
             os.write(context)
           }
@@ -148,14 +153,20 @@ class ServiceBackend(
     scalaConcurrent.Await.result(uploadFunction, scalaConcurrent.duration.Duration.Inf)
     scalaConcurrent.Await.result(uploadContexts, scalaConcurrent.duration.Duration.Inf)
 
-    val batchClient = BatchClient.fromSessionID(backendContext.sessionID)
     val jobs = new Array[JObject](n)
     var i = 0
     while (i < n) {
+      var resources = JObject("preemptible" -> JBool(true))
+      if (backendContext.workerCores != "None") {
+        resources = resources.merge(JObject(("cpu" -> JString(backendContext.workerCores))))
+      }
+      if (backendContext.workerMemory != "None") {
+        resources = resources.merge(JObject(("memory" -> JString(backendContext.workerMemory))))
+      }
       jobs(i) = JObject(
         "always_run" -> JBool(false),
         "job_id" -> JInt(i + 1),
-        "parent_ids" -> JArray(List()),
+        "in_update_parent_ids" -> JArray(List()),
         "process" -> JObject(
           "jar_spec" -> JObject(
             "type" -> JString("jar_url"),
@@ -167,34 +178,44 @@ class ServiceBackend(
             JString(s"$i"),
             JString(s"$n"))),
           "type" -> JString("jvm")),
+        "attributes" -> JObject(
+          "name" -> JString(s"${ name }_stage${ stageCount }_${ stageIdentifier }_job$i"),
+        ),
         "mount_tokens" -> JBool(true),
-        "resources" -> JObject("preemptible" -> JBool(true))
+        "resources" -> resources,
       )
       i += 1
     }
 
     log.info(s"parallelizeAndComputeWithIndex: $token: running job")
 
-    val batchId = batchClient.create(
-      JObject(
-        "billing_project" -> JString(backendContext.billingProject),
-        "n_jobs" -> JInt(n),
-        "token" -> JString(token),
-        "attributes" -> JObject("name" -> JString(name + "_" + batchCount))),
-      jobs)
+    val (batchId, updateId) = curBatchId match {
+      case Some(id) => {
+        val updateId = batchClient.update(id, token, jobs)
+        (id, updateId)
+      }
+      case None => {
+        val batchId = batchClient.create(
+          JObject(
+            "billing_project" -> JString(backendContext.billingProject),
+            "n_jobs" -> JInt(n),
+            "token" -> JString(token),
+            "attributes" -> JObject("name" -> JString(name + "_" + stageCount))),
+          jobs)
+        (batchId, 1L)
+      }
+    }
 
-    val batch = batchClient.waitForBatch(batchId)
-    batchCount += 1
+    val batch = batchClient.waitForBatch(batchId, true)
+
+    stageCount += 1
     implicit val formats: Formats = DefaultFormats
-    val batchID = (batch \ "id").extract[Int]
     val batchState = (batch \ "state").extract[String]
-    if (batchState != "success") {
-      throw new HailBatchFailure(s"$batchID")
+    if (batchState == "failed") {
+      throw new HailBatchFailure(s"Update $updateId for batch $batchId failed")
     }
 
     log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
-
-    val r = new Array[Array[Byte]](n)
 
     def resultOrHailException(is: DataInputStream): Array[Byte] = {
       val success = is.readBoolean()
@@ -208,27 +229,24 @@ class ServiceBackend(
       }
     }
 
-    def readResult(i: Int): scalaConcurrent.Future[Unit] = scalaConcurrent.Future {
+
+    val results = Array.range(0, n).par.map { i =>
       availableGCSConnections.acquire()
       try {
-        r(i) = retryTransientErrors {
+        val bytes = retryTransientErrors {
           using(open(s"$root/result.$i")) { is =>
             resultOrHailException(new DataInputStream(is))
           }
         }
-        log.info(s"result $i complete")
+        log.info(s"result $i complete - ${bytes.length} bytes")
+        bytes
       } finally {
         availableGCSConnections.release()
       }
     }
 
-    scalaConcurrent.Await.result(
-      scalaConcurrent.Future.sequence(
-        Array.tabulate(n)(readResult).toFastIndexedSeq),
-      scalaConcurrent.duration.Duration.Inf)
-
     log.info(s"all results complete")
-    r
+    results.toArray[Array[Byte]]
   }
 
   def stop(): Unit = ()
@@ -247,8 +265,8 @@ class ServiceBackend(
   ): String =  {
     val x = IRParser.parse_table_ir(ctx, s)
     val t = x.typ
-    val jv = JObject("global" -> JString(t.globalType.toString),
-      "row" -> JString(t.rowType.toString),
+    val jv = JObject("global_type" -> JString(t.globalType.toString),
+      "row_type" -> JString(t.rowType.toString),
       "row_key" -> JArray(t.key.map(f => JString(f)).toList))
     JsonMethods.compact(jv)
   }
@@ -258,14 +276,7 @@ class ServiceBackend(
     s: String
   ): String = {
     val x = IRParser.parse_matrix_ir(ctx, s)
-    val t = x.typ
-    val jv = JObject("global" -> JString(t.globalType.toString),
-      "col" -> JString(t.colType.toString),
-      "col_key" -> JArray(t.colKey.map(f => JString(f)).toList),
-      "row" -> JString(t.rowType.toString),
-      "row_key" -> JArray(t.rowKey.map(f => JString(f)).toList),
-      "entry" -> JString(t.entryType.toString))
-    JsonMethods.compact(jv)
+    JsonMethods.compact(x.typ.pyJson)
   }
 
   def blockMatrixType(
@@ -281,15 +292,9 @@ class ServiceBackend(
     JsonMethods.compact(jv)
   }
 
-  def referenceGenome(
-    ctx: ExecuteContext,
-    name: String
-  ): String = {
-    ReferenceGenome.getReference(name).toJSONString
-  }
-
   private[this] def execute(ctx: ExecuteContext, _x: IR, bufferSpecString: String): Array[Byte] = {
-    // FIXME: do we need Validate(_x)?
+    TypeCheck(ctx, _x)
+    Validate(_x)
     val x = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All).apply(ctx, _x)
       .asInstanceOf[IR]
     if (x.typ == TVoid) {
@@ -299,7 +304,7 @@ class ServiceBackend(
         x,
         optimize = true)
 
-      f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
+      ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r))
       Array()
     } else {
       val (Some(PTypeReferenceSingleCodeType(pt)), f) = Compile[AsmFunction1RegionLong](ctx,
@@ -308,7 +313,7 @@ class ServiceBackend(
         MakeTuple.ordered(FastIndexedSeq(x)),
         optimize = true)
       val retPType = pt.asInstanceOf[PBaseStruct]
-      val off = f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
+      val off = ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r))
       val codec = TypedCodecSpec(
         EType.fromTypeAllOptional(retPType.virtualType),
         retPType.virtualType,
@@ -324,7 +329,7 @@ class ServiceBackend(
     token: String,
     bufferSpecString: String
   ): Array[Byte] = {
-    log.info(s"executing: ${token}")
+    log.info(s"executing: ${token} ${ctx.fs.getConfiguration()}")
 
     execute(ctx, IRParser.parse_value_ir(ctx, code), bufferSpecString)
   }
@@ -335,13 +340,8 @@ class ServiceBackend(
     sortFields: IndexedSeq[SortField],
     relationalLetsAbove: Map[String, IR],
     rowTypeRequiredness: RStruct
-  ): TableStage = {
-    if (ctx.getFlag("use_new_shuffle") != null) {
-      LowerDistributedSort.distributedSort(ctx, stage, sortFields, relationalLetsAbove, rowTypeRequiredness)
-    } else {
-      LowerDistributedSort.localSort(ctx, stage, sortFields, relationalLetsAbove)
-    }
-  }
+  ): TableStage = LowerDistributedSort.distributedSort(ctx, stage, sortFields, relationalLetsAbove, rowTypeRequiredness)
+
 
   def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String): Unit = ???
 
@@ -405,19 +405,7 @@ object ServiceBackendSocketAPI2 {
     val input = argv(5)
     val output = argv(6)
 
-    // FIXME: when can the classloader be shared? (optimizer benefits!)
-    val backend = new ServiceBackend(
-      jarLocation, name, new HailClassLoader(getClass().getClassLoader()), scratchDir)
-    if (HailContext.isInitialized) {
-      HailContext.get.backend = backend
-    } else {
-      HailContext(backend, "hail.log", false, false, 50, skipLoggingConfiguration = true, 3)
-    }
-    val fs = retryTransientErrors {
-      using(new FileInputStream(s"$scratchDir/secrets/gsa-key/key.json")) { is =>
-        new GoogleStorageFS(Some(IOUtils.toString(is, Charset.defaultCharset().toString()))).asCacheable()
-      }
-    }
+    val fs = FS.cloudSpecificCacheableFS(s"$scratchDir/secrets/gsa-key/key.json", None)
     val deployConfig = DeployConfig.fromConfigFile(
       s"$scratchDir/secrets/deploy-config/deploy-config.json")
     DeployConfig.set(deployConfig)
@@ -426,6 +414,18 @@ object ServiceBackendSocketAPI2 {
     tls.setSSLConfigFromDir(s"$scratchDir/secrets/ssl-config")
 
     val sessionId = userTokens.namespaceToken(deployConfig.defaultNamespace)
+    val batchClient = BatchClient.fromSessionID(sessionId)
+
+    var batchId = BatchConfig.fromConfigFile(s"$scratchDir/batch-config/batch-config.json").map(_.batchId)
+
+    // FIXME: when can the classloader be shared? (optimizer benefits!)
+    val backend = new ServiceBackend(
+      jarLocation, name, new HailClassLoader(getClass().getClassLoader()), batchClient, batchId, scratchDir)
+    if (HailContext.isInitialized) {
+      HailContext.get.backend = backend
+    } else {
+      HailContext(backend, "hail.log", false, false, 50, skipLoggingConfiguration = true, 3)
+    }
     retryTransientErrors {
       using(fs.openNoCompression(input)) { in =>
         retryTransientErrors {
@@ -443,18 +443,17 @@ class ServiceBackendSocketAPI2(
   private[this] val backend: ServiceBackend,
   private[this] val in: InputStream,
   private[this] val out: OutputStream,
-  private[this] val sessionId: String
+  private[this] val sessionId: String,
 ) extends Thread {
   private[this] val LOAD_REFERENCES_FROM_DATASET = 1
   private[this] val VALUE_TYPE = 2
   private[this] val TABLE_TYPE = 3
   private[this] val MATRIX_TABLE_TYPE = 4
   private[this] val BLOCK_MATRIX_TYPE = 5
-  private[this] val REFERENCE_GENOME = 6
-  private[this] val EXECUTE = 7
-  private[this] val PARSE_VCF_METADATA = 8
-  private[this] val INDEX_BGEN = 9
-  private[this] val IMPORT_FAM = 10
+  private[this] val EXECUTE = 6
+  private[this] val PARSE_VCF_METADATA = 7
+  private[this] val INDEX_BGEN = 8
+  private[this] val IMPORT_FAM = 9
 
   private[this] val dummy = new Array[Byte](8)
 
@@ -518,13 +517,23 @@ class ServiceBackendSocketAPI2(
 
   def executeOneCommand(): Unit = {
     var nFlagsRemaining = readInt()
-    val flags = mutable.Map[String, String]()
+    val flagsMap = mutable.Map[String, String]()
     while (nFlagsRemaining > 0) {
       val flagName = readString()
       val flagValue = readString()
-      flags.update(flagName, flagValue)
+      flagsMap.update(flagName, flagValue)
       nFlagsRemaining -= 1
     }
+    val nCustomReferences = readInt()
+    val customReferences = mutable.Map[String, ReferenceGenome](ReferenceGenome.references.toSeq: _*)
+    var i = 0
+    while (i < nCustomReferences) {
+      val reference = ReferenceGenome.fromJSON(readString())
+      customReferences(reference.name) = reference
+      i += 1
+    }
+    val workerCores = readString()
+    val workerMemory = readString()
 
     val cmd = readInt()
 
@@ -533,11 +542,8 @@ class ServiceBackendSocketAPI2(
     val remoteTmpDir = readString()
 
     def withExecuteContext(methodName: String, method: ExecuteContext => Array[Byte]): Array[Byte] = ExecutionTimer.logTime(methodName) { timer =>
-      val fs = retryTransientErrors {
-        using(new FileInputStream(s"${backend.scratchDir}/secrets/gsa-key/key.json")) { is =>
-          new GoogleStorageFS(Some(IOUtils.toString(is, Charset.defaultCharset().toString()))).asCacheable()
-        }
-      }
+      val flags = HailFeatureFlags.fromMap(flagsMap)
+      val fs = FS.cloudSpecificCacheableFS(s"${backend.scratchDir}/secrets/gsa-key/key.json", Some(flags))
       ExecuteContext.scoped(
         tmpdir,
         "file:///tmp",
@@ -546,9 +552,10 @@ class ServiceBackendSocketAPI2(
         timer,
         null,
         backend.theHailClassLoader,
-        HailFeatureFlags.fromMap(flags)
+        customReferences.toMap,
+        flags
       ) { ctx =>
-        ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir)
+        ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir, workerCores, workerMemory)
         method(ctx)
       }
     }
@@ -584,12 +591,6 @@ class ServiceBackendSocketAPI2(
           withExecuteContext(
             "ServiceBackend.blockMatrixType",
             backend.blockMatrixType(_, s).getBytes(StandardCharsets.UTF_8)
-          )
-        case REFERENCE_GENOME =>
-          val name = readString()
-          withExecuteContext(
-            "ServiceBackend.referenceGenome",
-            backend.referenceGenome(_, name).getBytes(StandardCharsets.UTF_8)
           )
         case EXECUTE =>
           val code = readString()

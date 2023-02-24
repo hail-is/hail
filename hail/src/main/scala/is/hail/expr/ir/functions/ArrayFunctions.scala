@@ -3,9 +3,12 @@ package is.hail.expr.ir.functions
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir._
-import is.hail.types.coerce
-import is.hail.types.physical.stypes.EmitType
-import is.hail.types.physical.stypes.primitives.SFloat64
+import is.hail.expr.ir.orderings.CodeOrdering
+import is.hail.types.tcoerce
+import is.hail.types.physical.{PCanonicalArray, PInt32, PType}
+import is.hail.types.physical.stypes.{EmitType, SType}
+import is.hail.types.physical.stypes.concrete.SIndexablePointer
+import is.hail.types.physical.stypes.primitives.{SBooleanValue, SFloat64, SInt32, SInt32Value}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -29,7 +32,7 @@ object ArrayFunctions extends RegistryFunctions {
 
   def mean(args: Seq[IR]): IR = {
     val Seq(a) = args
-    val t = coerce[TArray](a.typ).elementType
+    val t = tcoerce[TArray](a.typ).elementType
     val elt = genUID()
     val n = genUID()
     val sum = genUID()
@@ -58,7 +61,7 @@ object ArrayFunctions extends RegistryFunctions {
   }
 
   def exists(a: IR, cond: IR => IR): IR = {
-    val t = coerce[TArray](a.typ).elementType
+    val t = tcoerce[TArray](a.typ).elementType
     StreamFold(
       ToStream(a),
       False(),
@@ -77,7 +80,7 @@ object ArrayFunctions extends RegistryFunctions {
   }
 
   def sum(a: IR): IR = {
-    val t = coerce[TArray](a.typ).elementType
+    val t = tcoerce[TArray](a.typ).elementType
     val sum = genUID()
     val v = genUID()
     val zero = Cast(I64(0), t)
@@ -85,7 +88,7 @@ object ArrayFunctions extends RegistryFunctions {
   }
 
   def product(a: IR): IR = {
-    val t = coerce[TArray](a.typ).elementType
+    val t = tcoerce[TArray](a.typ).elementType
     val product = genUID()
     val v = genUID()
     val one = Cast(I64(1), t)
@@ -116,9 +119,9 @@ object ArrayFunctions extends RegistryFunctions {
 
       registerIR2(stringOp, TArray(argType), TArray(argType), TArray(retType)) { (_, array1, array2, errorID) =>
         val a1id = genUID()
-        val e1 = Ref(a1id, coerce[TArray](array1.typ).elementType)
+        val e1 = Ref(a1id, tcoerce[TArray](array1.typ).elementType)
         val a2id = genUID()
-        val e2 = Ref(a2id, coerce[TArray](array2.typ).elementType)
+        val e2 = Ref(a2id, tcoerce[TArray](array2.typ).elementType)
         ToArray(StreamZip(FastIndexedSeq(ToStream(array1), ToStream(array2)), FastIndexedSeq(a1id, a2id),
                                         irOp(e1, e2, errorID), ArrayZipBehavior.AssertSameLength))
       }
@@ -130,7 +133,7 @@ object ArrayFunctions extends RegistryFunctions {
 
     def makeMinMaxOp(op: String): Seq[IR] => IR = {
       { case Seq(a) =>
-        val t = coerce[TArray](a.typ).elementType
+        val t = tcoerce[TArray](a.typ).elementType
         val value = genUID()
         val first = genUID()
         val acc = genUID()
@@ -175,7 +178,7 @@ object ArrayFunctions extends RegistryFunctions {
     }
 
     def argF(a: IR, op: (Type) => ComparisonOp[Boolean], errorID: Int): IR = {
-      val t = coerce[TArray](a.typ).elementType
+      val t = tcoerce[TArray](a.typ).elementType
       val tAccum = TStruct("m" -> t, "midx" -> TInt32)
       val accum = genUID()
       val value = genUID()
@@ -209,7 +212,7 @@ object ArrayFunctions extends RegistryFunctions {
     registerIR1("argmax", TArray(tv("T")), TInt32)((_, a, errorID) => argF(a, GT(_), errorID))
 
     def uniqueIndex(a: IR, op: (Type) => ComparisonOp[Boolean], errorID: Int): IR = {
-      val t = coerce[TArray](a.typ).elementType
+      val t = tcoerce[TArray](a.typ).elementType
       val tAccum = TStruct("m" -> t, "midx" -> TInt32, "count" -> TInt32)
       val accum = genUID()
       val value = genUID()
@@ -260,8 +263,17 @@ object ArrayFunctions extends RegistryFunctions {
     }
 
     registerIR1("flatten", TArray(TArray(tv("T"))), TArray(tv("T"))) { (_, a, _) =>
-      val elt = Ref(genUID(), coerce[TArray](a.typ).elementType)
+      val elt = Ref(genUID(), tcoerce[TArray](a.typ).elementType)
       ToArray(StreamFlatMap(ToStream(a), elt.name, ToStream(elt)))
+    }
+
+    registerSCode4("lowerBound", TArray(tv("T")), tv("T"), TInt32, TInt32, TInt32, {
+      (_, _, _, _, _) => SInt32
+    }) { case (r, cb, rt, array, key, begin, end, _) =>
+      val lt = cb.emb.ecb.getOrderingFunction(key.st, array.asIndexable.st.elementType, CodeOrdering.Lt())
+      primitive(BinarySearch.lowerBound(cb, array.asIndexable, { elt =>
+        lt(cb, cb.memoize(elt), EmitValue.present(key))
+      }, begin.asInt.value, end.asInt.value))
     }
 
     registerIEmitCode2("corr", TArray(TFloat64), TArray(TFloat64), TFloat64, {
@@ -309,5 +321,106 @@ object ArrayFunctions extends RegistryFunctions {
         }
       }
     }
+
+    registerIEmitCode4("local_to_global_g", TArray(TVariable("T")), TArray(TInt32), TInt32, TVariable("T"), TArray(TVariable("T")),
+      { case (rt, inArrayET, la, n, _) => EmitType(PCanonicalArray(PType.canonical(inArrayET.st.asInstanceOf[SContainer].elementType.storageType())).sType, inArrayET.required && la.required && n.required) })(
+      { case (cb, region, rt: SIndexablePointer, err, array, localAlleles, nTotalAlleles, fillInValue) =>
+
+        IEmitCode.multiMapEmitCodes(cb, FastIndexedSeq(array, localAlleles, nTotalAlleles)) {
+          case IndexedSeq(array: SIndexableValue, localAlleles: SIndexableValue, _nTotalAlleles: SInt32Value) =>
+            def triangle(x: Value[Int]): Code[Int] = (x * (x + 1)) / 2
+            val nTotalAlleles =_nTotalAlleles.value
+            val nGenotypes = cb.memoize(triangle(nTotalAlleles))
+            val pt = rt.pType.asInstanceOf[PCanonicalArray]
+            cb.ifx(nTotalAlleles < 0, cb._fatalWithError(err, "local_to_global: n_total_alleles less than 0: ", nGenotypes.toS))
+            val localLen = array.loadLength()
+            val laLen = localAlleles.loadLength()
+            cb.ifx(localLen cne triangle(laLen), cb._fatalWithError(err, "local_to_global: array should be the triangle number of local alleles: found: ", localLen.toS, " elements, and", laLen.toS, " alleles"))
+
+            val fillIn = cb.memoize(fillInValue)
+
+            val (push, finish) = pt.constructFromIndicesUnsafe(cb, region, nGenotypes, false)
+
+            // fill in if necessary
+            cb.ifx(localLen cne nGenotypes, {
+              val i = cb.newLocal[Int]("i", 0)
+              cb.whileLoop(i < nGenotypes, {
+                push(cb, i, fillIn.toI(cb))
+                cb.assign(i, i + 1)
+              })
+            })
+
+
+            val i = cb.newLocal[Int]("la_i", 0)
+            val laGIndexer = cb.newLocal[Int]("g_indexer", 0)
+            cb.whileLoop(i < laLen, {
+              val lai = localAlleles.loadElement(cb, i).get(cb, "local_to_global: local alleles elements cannot be missing", err).asInt32.value
+
+              val j = cb.newLocal[Int]("la_j", 0)
+              cb.whileLoop(j <= i, {
+                val laj = localAlleles.loadElement(cb, j).get(cb, "local_to_global: local alleles elements cannot be missing", err).asInt32.value
+
+                val dest = cb.newLocal[Int]("dest")
+                cb.ifx(lai >= laj, {
+                  cb.assign(dest, triangle(lai) + laj)
+                }, {
+                  cb.assign(dest, triangle(laj) + lai)
+                })
+
+                push(cb, dest, array.loadElement(cb, laGIndexer))
+                cb.assign(laGIndexer, laGIndexer + 1)
+                cb.assign(j, j+1)
+              })
+
+              cb.assign(i, i+1)
+            })
+
+            finish(cb)
+        }
+      })
+
+    registerIEmitCode5("local_to_global_a_r", TArray(TVariable("T")), TArray(TInt32), TInt32, TVariable("T"), TBoolean, TArray(TVariable("T")),
+    {case (rt, inArrayET, la, n, _, omitFirst) => EmitType(PCanonicalArray(PType.canonical(inArrayET.st.asInstanceOf[SContainer].elementType.storageType())).sType, inArrayET.required && la.required && n.required && omitFirst.required)})(
+      { case (cb, region, rt: SIndexablePointer, err, array, localAlleles, nTotalAlleles, fillInValue, omitFirstElement) =>
+
+        IEmitCode.multiMapEmitCodes(cb, FastIndexedSeq(array, localAlleles, nTotalAlleles, omitFirstElement)) {
+          case IndexedSeq(array: SIndexableValue, localAlleles: SIndexableValue, _nTotalAlleles: SInt32Value, omitFirst: SBooleanValue) =>
+            val nTotalAlleles = _nTotalAlleles.value
+            val pt = rt.pType.asInstanceOf[PCanonicalArray]
+            cb.ifx(nTotalAlleles < 0, cb._fatalWithError(err, "local_to_global: n_total_alleles less than 0: ", nTotalAlleles.toS))
+            val localLen = array.loadLength()
+            cb.ifx(localLen cne localAlleles.loadLength(), cb._fatalWithError(err,"local_to_global: array and local alleles lengths differ: ", localLen.toS, ", ", localAlleles.loadLength().toS))
+
+            val fillIn = cb.memoize(fillInValue)
+
+            val idxAdjustmentForOmitFirst = cb.newLocal[Int]("idxAdj")
+            cb.ifx(omitFirst.value,
+              cb.assign(idxAdjustmentForOmitFirst, 1),
+              cb.assign(idxAdjustmentForOmitFirst, 0))
+
+            val globalLen = cb.memoize(nTotalAlleles - idxAdjustmentForOmitFirst)
+
+            val (push, finish) = pt.constructFromIndicesUnsafe(cb, region, globalLen, false)
+
+            // fill in if necessary
+            cb.ifx(localLen cne globalLen, {
+              val i = cb.newLocal[Int]("i", 0)
+              cb.whileLoop(i < globalLen, {
+                push(cb, i, fillIn.toI(cb))
+                cb.assign(i, i + 1)
+              })
+            })
+
+            val i = cb.newLocal[Int]("la_i", 0)
+            cb.whileLoop(i < localLen, {
+              val lai = localAlleles.loadElement(cb, i + idxAdjustmentForOmitFirst).get(cb, "local_to_global: local alleles elements cannot be missing", err).asInt32.value
+              push(cb, cb.memoize(lai - idxAdjustmentForOmitFirst), array.loadElement(cb, i))
+
+              cb.assign(i, i + 1)
+            })
+
+            finish(cb)
+        }
+      })
   }
 }

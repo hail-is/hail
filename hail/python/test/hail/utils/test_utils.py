@@ -9,9 +9,6 @@ from hail.utils.linkedlist import LinkedList
 
 from ..helpers import *
 
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
-
 
 def normalize_path(path: str) -> str:
     return hl.hadoop_stat(path)['path']
@@ -91,7 +88,7 @@ class Tests(unittest.TestCase):
 
         self.assertFalse(hl.hadoop_exists(resource('./some2')))
 
-    @skip_when_service_backend('service backend logs are not sent to a user-visible file')
+    @fails_service_backend(reason='service backend logs are not sent to a user-visible file')
     @fails_local_backend()
     def test_hadoop_copy_log(self):
         with with_local_temp_file('log') as r:
@@ -123,12 +120,16 @@ class Tests(unittest.TestCase):
 
     @fails_local_backend()
     def test_hadoop_no_glob_in_bucket(self):
+        test_dir_url = os.environ['HAIL_TEST_STORAGE_URI']
+        scheme, rest = test_dir_url.split('://')
+        bucket, path = rest.split('/', maxsplit=1)
+        glob_in_bucket_url = f'{scheme}://glob*{bucket}/{path}'
         try:
-            hl.hadoop_ls('gs://glob*bucket')
+            hl.hadoop_ls(glob_in_bucket_url)
         except ValueError as err:
-            assert 'glob pattern only allowed in path (e.g. not in bucket): gs://glob*bucket' in err.args[0]
+            assert f'glob pattern only allowed in path (e.g. not in bucket): {glob_in_bucket_url}' in err.args[0]
         except FatalError as err:
-            assert "Invalid bucket name 'glob*bucket': bucket name must contain only 'a-z0-9_.-' characters." in err.args[0]
+            assert f"Invalid GCS bucket name 'glob*{bucket}': bucket name must contain only 'a-z0-9_.-' characters." in err.args[0]
         else:
             assert False
 
@@ -163,6 +164,7 @@ class Tests(unittest.TestCase):
         ls3 = hl.hadoop_ls(path3)
         assert len(ls3) == 2, ls3
 
+    def test_hadoop_ls_file_that_does_not_exist(self):
         try:
             hl.hadoop_ls('a_file_that_does_not_exist')
         except FileNotFoundError:
@@ -171,6 +173,31 @@ class Tests(unittest.TestCase):
             assert 'FileNotFoundException: a_file_that_does_not_exist' in err.args[0]
         else:
             assert False
+
+    def test_hadoop_glob_heterogenous_structure(self):
+        with hl.TemporaryDirectory() as dirname:
+            touch(dirname + '/abc/cat')
+            touch(dirname + '/abc/dog')
+            touch(dirname + '/def/cat')
+            touch(dirname + '/def/dog')
+            touch(dirname + '/ghi/cat')
+            touch(dirname + '/ghi/cat')
+            dirname = normalize_path(dirname)
+
+            actual = [x['path'] for x in hl.hadoop_ls(dirname + '/*/cat')]
+            expected = [
+                dirname + '/abc/cat',
+                dirname + '/def/cat',
+                dirname + '/ghi/cat',
+            ]
+            assert actual == expected
+
+            actual = [x['path'] for x in hl.hadoop_ls(dirname + '/*/dog')]
+            expected = [
+                dirname + '/abc/dog',
+                dirname + '/def/dog',
+            ]
+            assert actual == expected
 
     @fails_local_backend()
     def test_hadoop_ls_glob_no_slash_in_group(self):
@@ -255,15 +282,6 @@ class Tests(unittest.TestCase):
     def test_range_matrix_table_n_lt_partitions(self):
         hl.utils.range_matrix_table(1, 1)._force_count_rows()
 
-    def test_seeding_is_consistent(self):
-        hl.set_global_seed(0)
-        a = [Env.next_seed() for _ in range(10)]
-        hl.set_global_seed(0)
-        b = [Env.next_seed() for _ in range(10)]
-
-        self.assertEqual(len(set(a)), 10)
-        self.assertEqual(a, b)
-
     def test_escape_string(self):
         self.assertEqual(escape_str("\""), "\\\"")
         self.assertEqual(escape_str("cat"), "cat")
@@ -315,7 +333,7 @@ class Tests(unittest.TestCase):
 
 
 @pytest.fixture(scope="module")
-def glob_tests_directory():
+def glob_tests_directory(init_hail):
     with hl.TemporaryDirectory() as dirname:
         touch(dirname + '/abc/ghi/123')
         touch(dirname + '/abc/ghi/!23')
@@ -341,16 +359,12 @@ def glob_tests_directory():
 
 
 def test_hadoop_ls_folder_glob(glob_tests_directory):
-    fs = hl.current_backend().fs
-
     expected = [glob_tests_directory + '/abc/ghi/123',
                 glob_tests_directory + '/abc/jkl/123']
     actual = [x['path'] for x in hl.hadoop_ls(glob_tests_directory + '/abc/*/123')]
     assert set(actual) == set(expected)
 
 def test_hadoop_ls_prefix_folder_glob_qmarks(glob_tests_directory):
-    fs = hl.current_backend().fs
-
     expected = [glob_tests_directory + '/abc/ghi/78',
                 glob_tests_directory + '/abc/jkl/78']
     actual = [x['path'] for x in hl.hadoop_ls(glob_tests_directory + '/abc/*/??')]
@@ -358,8 +372,6 @@ def test_hadoop_ls_prefix_folder_glob_qmarks(glob_tests_directory):
 
 
 def test_hadoop_ls_two_folder_globs(glob_tests_directory):
-    fs = hl.current_backend().fs
-
     expected = [glob_tests_directory + '/abc/ghi/123',
                 glob_tests_directory + '/abc/jkl/123',
                 glob_tests_directory + '/def/ghi/123',
@@ -369,8 +381,6 @@ def test_hadoop_ls_two_folder_globs(glob_tests_directory):
 
 
 def test_hadoop_ls_two_folder_globs_and_two_qmarks(glob_tests_directory):
-    fs = hl.current_backend().fs
-
     expected = [glob_tests_directory + '/abc/ghi/78',
                 glob_tests_directory + '/abc/jkl/78',
                 glob_tests_directory + '/def/ghi/78',
@@ -380,8 +390,6 @@ def test_hadoop_ls_two_folder_globs_and_two_qmarks(glob_tests_directory):
 
 
 def test_hadoop_ls_one_folder_glob_and_qmarks_in_multiple_components(glob_tests_directory):
-    fs = hl.current_backend().fs
-
     expected = [glob_tests_directory + '/abc/ghi/78',
                 glob_tests_directory + '/def/ghi/78']
     actual = [x['path'] for x in hl.hadoop_ls(glob_tests_directory + '/*/?h?/??')]
@@ -389,24 +397,18 @@ def test_hadoop_ls_one_folder_glob_and_qmarks_in_multiple_components(glob_tests_
 
 
 def test_hadoop_ls_groups(glob_tests_directory):
-    fs = hl.current_backend().fs
-
     expected = [glob_tests_directory + '/abc/ghi/123']
     actual = [x['path'] for x in hl.hadoop_ls(glob_tests_directory + '/abc/[ghi][ghi]i/123')]
     assert set(actual) == set(expected)
 
 
 def test_hadoop_ls_size_one_groups(glob_tests_directory):
-    fs = hl.current_backend().fs
-
     expected = []
     actual = [x['path'] for x in hl.hadoop_ls(glob_tests_directory + '/abc/[h][g]i/123')]
     assert set(actual) == set(expected)
 
 
 def test_hadoop_ls_component_with_only_groups(glob_tests_directory):
-    fs = hl.current_backend().fs
-
     expected = [glob_tests_directory + '/abc/ghi/123',
                 glob_tests_directory + '/abc/ghi/!23',
                 glob_tests_directory + '/abc/ghi/?23',
@@ -417,8 +419,6 @@ def test_hadoop_ls_component_with_only_groups(glob_tests_directory):
 
 
 def test_hadoop_ls_negated_group(glob_tests_directory):
-    fs = hl.current_backend().fs
-
     expected = [glob_tests_directory + '/abc/ghi/!23',
                 glob_tests_directory + '/abc/ghi/?23']
     actual = [x['path'] for x in hl.hadoop_ls(glob_tests_directory + '/abc/ghi/[!1]23')]

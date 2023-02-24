@@ -10,13 +10,14 @@ import is.hail.types.TableType
 import is.hail.types.physical.{PCanonicalStruct, PStruct}
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.asm4s.theHailClassLoaderForSparkWorkers
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.Row
 import org.apache.spark.{Partition, TaskContext}
 
 private case class IndexBgenPartition(
   path: String,
-  compressed: Boolean,
+  compression: Int,
   skipInvalidLoci: Boolean,
   contigRecoding: Map[String, String],
   startByteOffset: Long,
@@ -57,7 +58,7 @@ object IndexBgen {
     }
 
     val recoding = Option(contigRecoding).getOrElse(Map.empty[String, String])
-    val referenceGenome = rg.map(ReferenceGenome.getReference)
+    val referenceGenome = rg.map(ctx.getReference)
     referenceGenome.foreach(_.validateContigRemap(recoding))
 
     val headers = LoadBgen.getFileHeaders(fs, bgenFilePaths)
@@ -83,7 +84,7 @@ object IndexBgen {
     val partitions: Array[Partition] = headers.zipWithIndex.map { case (f, i) =>
       IndexBgenPartition(
         f.path,
-        f.compressed,
+        f.compression,
         skipInvalidLoci,
         recoding,
         f.dataStart,
@@ -119,7 +120,7 @@ object IndexBgen {
         val htc = SparkTaskContext.get()
 
         htc.getRegionPool().scopedRegion { r =>
-          using(makeIW(idxPath, r.pool)) { iw =>
+          using(makeIW(idxPath, theHailClassLoaderForSparkWorkers, htc, r.pool)) { iw =>
             it.foreach { r =>
               assert(r.getInt(fileIdxIdx) == partIdx)
               iw.appendRow(Row(r(locusIdx), r(allelesIdx)), r.getLong(offsetIdx), Row())

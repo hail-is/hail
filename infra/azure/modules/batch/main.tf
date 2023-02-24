@@ -74,7 +74,7 @@ resource "azurerm_storage_container" "query" {
 }
 
 resource "azurerm_storage_account" "test" {
-  name                     = "${var.resource_group.name}test"
+  name                     = "${var.batch_test_user_storage_account_name}test"
   resource_group_name      = var.resource_group.name
   location                 = var.resource_group.location
   account_tier             = "Standard"
@@ -213,17 +213,6 @@ resource "azurerm_role_assignment" "test_test_container_contributor" {
   scope                = azurerm_storage_container.test.resource_manager_id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = module.test_sp.principal_id
-}
-
-resource "azuread_application" "benchmark" {
-  display_name = "${var.resource_group.name}-benchmark"
-}
-module "benchmark_sp" {
-  source = "../service_principal"
-
-  name                  = "benchmark"
-  application_id        = azuread_application.benchmark.application_id
-  application_object_id = azuread_application.benchmark.object_id
 }
 
 resource "azuread_application" "ci" {

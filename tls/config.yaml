@@ -76,14 +76,6 @@ principals:
   domains:
     - services-java-tests
   kind: json
-- name: benchmark
-  domains:
-    - benchmark
-  kind: json
-- name: benchmark-tests
-  domains:
-    - benchmark-tests
-  kind: json
 - name: monitoring
   domains:
     - monitoring

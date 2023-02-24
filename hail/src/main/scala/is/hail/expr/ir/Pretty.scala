@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.ir.Pretty.prettyBooleanLiteral
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.types.TableType
@@ -219,8 +220,8 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
       case ArrayZipBehavior.ExtendNA => "ExtendNA"
       case ArrayZipBehavior.AssumeSameLength => "AssumeSameLength"
     }, prettyIdentifiers(names))
-    case StreamZipJoin(_, key, curKey, curVals, _) if !elideBindings =>
-      FastSeq(prettyIdentifiers(key), prettyIdentifier(curKey), prettyIdentifier(curVals))
+    case StreamZipJoin(streams, key, curKey, curVals, _) if !elideBindings =>
+      FastSeq(streams.length.toString, prettyIdentifiers(key), prettyIdentifier(curKey), prettyIdentifier(curVals))
     case StreamMultiMerge(_, key) => single(prettyIdentifiers(key))
     case StreamFilter(_, name, _) if !elideBindings => single(prettyIdentifier(name))
     case StreamTakeWhile(_, name, _) if !elideBindings => single(prettyIdentifier(name))
@@ -238,7 +239,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     case StreamFor(_, valueName, _) if !elideBindings => single(prettyIdentifier(valueName))
     case StreamAgg(a, name, query) if !elideBindings => single(prettyIdentifier(name))
     case StreamAggScan(a, name, query) if !elideBindings => single(prettyIdentifier(name))
-    case StreamGroupByKey(a, key) => single(prettyIdentifiers(key))
+    case StreamGroupByKey(a, key, missingEqual) => FastSeq(prettyIdentifiers(key), prettyBooleanLiteral(missingEqual))
     case AggFold(_, _, _, accumName, otherAccumName, isScan) => if (elideBindings)
       single(Pretty.prettyBooleanLiteral(isScan))
     else
@@ -271,14 +272,14 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     case ArrayRef(_,_, errorID) => single(s"$errorID")
     case ApplyIR(function, typeArgs, _, errorID) => FastSeq(s"$errorID", prettyIdentifier(function), prettyTypes(typeArgs), ir.typ.parsableString())
     case Apply(function, typeArgs, _, t, errorID) => FastSeq(s"$errorID", prettyIdentifier(function), prettyTypes(typeArgs), t.parsableString())
-    case ApplySeeded(function, _, seed, t) => FastSeq(prettyIdentifier(function), seed.toString, t.parsableString())
+    case ApplySeeded(function, _, rngState, staticUID, t) => FastSeq(prettyIdentifier(function), staticUID.toString, t.parsableString())
     case ApplySpecial(function, typeArgs, _, t, errorID) => FastSeq(s"$errorID", prettyIdentifier(function), prettyTypes(typeArgs), t.parsableString())
     case SelectFields(_, fields) => single(fillList(fields.view.map(f => text(prettyIdentifier(f)))))
     case LowerBoundOnOrderedCollection(_, _, onKey) => single(Pretty.prettyBooleanLiteral(onKey))
     case In(i, typ) => FastSeq(typ.toString, i.toString)
     case Die(message, typ, errorID) => FastSeq(typ.parsableString(), errorID.toString)
-    case CollectDistributedArray(_, _, cname, gname, _, _) if !elideBindings =>
-      FastSeq(prettyIdentifier(cname), prettyIdentifier(gname))
+    case CollectDistributedArray(_, _, cname, gname, _, _, staticID, _) if !elideBindings =>
+      FastSeq(staticID, prettyIdentifier(cname), prettyIdentifier(gname))
     case MatrixRead(typ, dropCols, dropRows, reader) =>
       FastSeq(if (typ == reader.fullMatrixType) "None" else typ.parsableString(),
         Pretty.prettyBooleanLiteral(dropCols),
@@ -307,8 +308,9 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
       single(fillList(indicesToKeepPerDim.toSeq.view.map(indices => prettyLongs(indices, elideLiterals))))
     case BlockMatrixSparsify(_, sparsifier) =>
       single(sparsifier.pretty())
-    case BlockMatrixRandom(seed, gaussian, shape, blockSize) =>
-      FastSeq(seed.toString,
+    case BlockMatrixRandom(staticUID, gaussian, shape, blockSize) =>
+      FastSeq(
+        staticUID.toString,
         Pretty.prettyBooleanLiteral(gaussian),
         prettyLongs(shape, elideLiterals),
         blockSize.toString)
@@ -346,6 +348,8 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     case TableKeyBy(_, keys, isSorted) =>
       FastSeq(prettyIdentifiers(keys), Pretty.prettyBooleanLiteral(isSorted))
     case TableRange(n, nPartitions) => FastSeq(n.toString, nPartitions.toString)
+    case TableGenomicRange(n, nPartitions, referenceGenome) => FastSeq(
+      n.toString, nPartitions.toString, referenceGenome.map(_.name).getOrElse("None").toString)
     case TableRepartition(_, n, strategy) => FastSeq(n.toString, strategy.toString)
     case TableHead(_, n) => single(n.toString)
     case TableTail(_, n) => single(n.toString)
@@ -526,7 +530,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
         Some(Array(lName -> "l_elt", rName -> "r_elt"))
       else
         None
-      case CollectDistributedArray(contexts, globals, cname, gname, _, _) =>
+      case CollectDistributedArray(contexts, globals, cname, gname, _, _, _, _) =>
         if (i == 2) Some(Array(cname -> "ctx", gname -> "g")) else None
       case TableAggregate(child, _) =>
         if (i == 1) Some(Array("global" -> "g", "row" -> "row")) else None
@@ -666,6 +670,8 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
           child match {
             case Ref(name, _) =>
               bindings.lookupOption(name).getOrElse(uniqueify("%undefined_ref"))
+            case RelationalRef(name, _) =>
+              bindings.lookupOption(name).getOrElse(uniqueify("%undefined_relational_ref"))
             case _ =>
               val (body, ident) = prettyWithIdent(ir.children(i), bindings, "!")
               strictChildBodies += body

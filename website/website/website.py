@@ -7,7 +7,7 @@ import jinja2
 from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
 
-from gear import monitor_endpoints_middleware, setup_aiohttp_session, web_maybe_authenticated_user
+from gear import AuthClient, monitor_endpoints_middleware, setup_aiohttp_session
 from hailtop import httpx
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
@@ -18,6 +18,8 @@ MODULE_PATH = os.path.dirname(__file__)
 log = logging.getLogger('website')
 deploy_config = get_deploy_config()
 routes = web.RouteTableDef()
+
+auth = AuthClient()
 
 
 def redirect(from_url, to_url):
@@ -66,7 +68,7 @@ docs_pages = set(
 
 
 @routes.get('/docs/{tail:.*}')
-@web_maybe_authenticated_user
+@auth.web_maybe_authenticated_user
 async def serve_docs(request, userdata):
     tail = request.match_info['tail']
     if tail in docs_pages:
@@ -78,7 +80,7 @@ async def serve_docs(request, userdata):
 
 
 def make_template_handler(template_fname):
-    @web_maybe_authenticated_user
+    @auth.web_maybe_authenticated_user
     async def serve(request, userdata):
         return await render_template('www', request, userdata, template_fname, dict())
 

@@ -23,7 +23,7 @@ variable k8s_default_node_pool_machine_type {
 
 variable k8s_user_pool_machine_type {
   type    = string
-  default = "Standard_D4_v2"  # 8 vCPU
+  default = "Standard_D3_v2"  # 4 vCPU
 }
 
 variable k8s_preemptible_node_pool_name {
@@ -37,6 +37,10 @@ variable k8s_nonpreemptible_node_pool_name {
 }
 
 variable organization_domain {
+  type = string
+}
+
+variable batch_test_user_storage_account_name {
   type = string
 }
 

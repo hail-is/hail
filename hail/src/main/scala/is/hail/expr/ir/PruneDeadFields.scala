@@ -335,6 +335,7 @@ object PruneDeadFields {
       case TableParallelize(rowsAndGlobal, _) =>
         memoizeValueIR(ctx, rowsAndGlobal, TStruct("rows" -> TArray(requestedType.rowType), "global" -> requestedType.globalType), memo)
       case TableRange(_, _) =>
+      case TableGenomicRange(_, _, _) =>
       case TableRepartition(child, _, _) => memoizeTableIR(ctx, child, requestedType, memo)
       case TableHead(child, _) => memoizeTableIR(ctx, child, TableType(
         key = child.typ.key,
@@ -501,10 +502,15 @@ object PruneDeadFields {
           globalType = depGlobalType.asInstanceOf[TStruct])
         memoizeTableIR(ctx, child, dep, memo)
       case TableMapRows(child, newRow) =>
-        val rowDep = memoizeAndGetDep(ctx, newRow, requestedType.rowType, child.typ, memo)
+        val (reqKey, reqRowType) = if (ContainsScan(newRow))
+          (child.typ.key, unify(newRow.typ, requestedType.rowType, selectKey(newRow.typ.asInstanceOf[TStruct], child.typ.key)))
+        else
+          (requestedType.key, requestedType.rowType)
+        val rowDep = memoizeAndGetDep(ctx, newRow, reqRowType, child.typ, memo)
+
         val dep = TableType(
-          key = requestedType.key,
-          rowType = unify(child.typ.rowType, selectKey(requestedType.rowType, requestedType.key), rowDep.rowType),
+          key = reqKey,
+          rowType = unify(child.typ.rowType, selectKey(child.typ.rowType, reqKey), rowDep.rowType),
           globalType = unify(child.typ.globalType, requestedType.globalType, rowDep.globalType)
         )
         memoizeTableIR(ctx, child, dep, memo)
@@ -627,7 +633,7 @@ object PruneDeadFields {
         val rightRequestedType = requestedType.copy(
           globalType = TStruct.empty,
           rowKey = right.typ.rowKey,
-          rowType = selectKey(right.typ.rowType, right.typ.rowKey))
+          rowType = unify(right.typ.rowType, requestedType.rowType, selectKey(right.typ.rowType, right.typ.rowKey)))
         memoizeMatrixIR(ctx, left, leftRequestedType, memo)
         memoizeMatrixIR(ctx, right, rightRequestedType, memo)
       case MatrixMapEntries(child, newEntries) =>
@@ -636,14 +642,25 @@ object PruneDeadFields {
         memoizeMatrixIR(ctx, child, unify(child.typ, depMod, irDep), memo)
       case MatrixKeyRowsBy(child, _, isSorted) =>
         val reqKey = requestedType.rowKey
-        val childReqKey = if (isSorted) child.typ.rowKey.take(reqKey.length) else FastIndexedSeq()
+        val isPrefix = reqKey.zip(child.typ.rowKey).forall { case (l, r) => l == r }
+        val childReqKey = if (isSorted)
+          child.typ.rowKey
+        else if (isPrefix)
+          if (reqKey.length <= child.typ.rowKey.length) reqKey else child.typ.rowKey
+        else FastIndexedSeq()
+
         memoizeMatrixIR(ctx, child, requestedType.copy(
           rowKey = childReqKey,
           rowType = unify(child.typ.rowType, requestedType.rowType, selectKey(child.typ.rowType, childReqKey))),
           memo)
       case MatrixMapRows(child, newRow) =>
-        val irDep = memoizeAndGetDep(ctx, newRow, requestedType.rowType, child.typ, memo)
-        val depMod = requestedType.copy(rowType = selectKey(child.typ.rowType, child.typ.rowKey))
+        val (reqKey, reqRowType) = if (ContainsScan(newRow))
+          (child.typ.rowKey, unify(newRow.typ, requestedType.rowType, selectKey(newRow.typ.asInstanceOf[TStruct], child.typ.rowKey)))
+        else
+          (requestedType.rowKey, requestedType.rowType)
+
+        val irDep = memoizeAndGetDep(ctx, newRow, reqRowType, child.typ, memo)
+        val depMod = requestedType.copy(rowType = selectKey(child.typ.rowType, reqKey), rowKey = reqKey)
         memoizeMatrixIR(ctx, child, unify(child.typ, depMod, irDep), memo)
       case MatrixMapCols(child, newCol, newKey) =>
         val irDep = memoizeAndGetDep(ctx, newCol, requestedType.colType, child.typ, memo)
@@ -782,7 +799,8 @@ object PruneDeadFields {
       case MatrixRepartition(child, _, _) =>
         memoizeMatrixIR(ctx, child, requestedType, memo)
       case MatrixUnionRows(children) =>
-        children.foreach(memoizeMatrixIR(ctx, _, requestedType, memo))
+        memoizeMatrixIR(ctx, children.head, requestedType, memo)
+        children.tail.foreach(memoizeMatrixIR(ctx, _, requestedType.copy(colType = requestedType.colKeyStruct), memo))
       case MatrixDistinctByRow(child) =>
         val dep = requestedType.copy(
           rowKey = child.typ.rowKey,
@@ -1074,24 +1092,24 @@ object PruneDeadFields {
         unifyEnvs(
           memoizeValueIR(ctx, a, requestedType.asInstanceOf[TStream].elementType, memo),
           memoizeValueIR(ctx, size, size.typ, memo))
-      case StreamGroupByKey(a, key) =>
-        val reqStructT = coerce[TStruct](coerce[TStream](coerce[TStream](requestedType).elementType).elementType)
-        val origStructT = coerce[TStruct](coerce[TStream](a.typ).elementType)
+      case StreamGroupByKey(a, key, _) =>
+        val reqStructT = tcoerce[TStruct](tcoerce[TStream](tcoerce[TStream](requestedType).elementType).elementType)
+        val origStructT = tcoerce[TStruct](tcoerce[TStream](a.typ).elementType)
         memoizeValueIR(ctx, a, TStream(unify(origStructT, reqStructT, selectKey(origStructT, key))), memo)
       case StreamZip(as, names, body, behavior, _) =>
         val bodyEnv = memoizeValueIR(ctx, body,
           requestedType.asInstanceOf[TStream].elementType,
           memo)
         val valueTypes = (names, as).zipped.map { (name, a) =>
-          bodyEnv.eval.lookupOption(name).map(ab => unifySeq(coerce[TStream](a.typ).elementType, ab.result()))
+          bodyEnv.eval.lookupOption(name).map(ab => unifySeq(tcoerce[TStream](a.typ).elementType, ab.result()))
         }
         if (behavior == ArrayZipBehavior.AssumeSameLength && valueTypes.forall(_.isEmpty)) {
-          unifyEnvs(memoizeValueIR(ctx, as.head, TStream(minimal(coerce[TStream](as.head.typ).elementType)), memo) +:
+          unifyEnvs(memoizeValueIR(ctx, as.head, TStream(minimal(tcoerce[TStream](as.head.typ).elementType)), memo) +:
                       Array(bodyEnv.deleteEval(names)): _*)
         } else {
           unifyEnvs(
             (as, valueTypes).zipped.map { (a, vtOption) =>
-              val at = coerce[TStream](a.typ)
+              val at = tcoerce[TStream](a.typ)
               if (behavior == ArrayZipBehavior.AssumeSameLength) {
                 vtOption.map { vt =>
                   memoizeValueIR(ctx, a, TStream(vt), memo)
@@ -1101,8 +1119,8 @@ object PruneDeadFields {
             } ++ Array(bodyEnv.deleteEval(names)): _*)
         }
       case StreamZipJoin(as, key, curKey, curVals, joinF) =>
-        val eltType = coerce[TStruct](coerce[TStream](as.head.typ).elementType)
-        val requestedEltType = coerce[TStream](requestedType).elementType
+        val eltType = tcoerce[TStruct](tcoerce[TStream](as.head.typ).elementType)
+        val requestedEltType = tcoerce[TStream](requestedType).elementType
         val bodyEnv = memoizeValueIR(ctx, joinF, requestedEltType, memo)
         val childRequestedEltType = unifySeq(
           eltType,
@@ -1110,8 +1128,8 @@ object PruneDeadFields {
             selectKey(eltType, key))
         unifyEnvsSeq(as.map(memoizeValueIR(ctx, _, TStream(childRequestedEltType), memo)))
       case StreamMultiMerge(as, key) =>
-        val eltType = coerce[TStruct](coerce[TStream](as.head.typ).elementType)
-        val requestedEltType = coerce[TStream](requestedType).elementType
+        val eltType = tcoerce[TStruct](tcoerce[TStream](as.head.typ).elementType)
+        val requestedEltType = tcoerce[TStream](requestedType).elementType
         val childRequestedEltType = unify(eltType, requestedEltType, selectKey(eltType, key))
         unifyEnvsSeq(as.map(memoizeValueIR(ctx, _, TStream(childRequestedEltType), memo)))
       case StreamFilter(a, name, cond) =>
@@ -1236,6 +1254,9 @@ object PruneDeadFields {
           compEnv.deleteEval(left).deleteEval(right),
           aEnv
         )
+      case ArrayMaximalIndependentSet(a, tiebreaker) =>
+        tiebreaker.foreach { case (_, _, tb) => memoizeValueIR(ctx, tb, tb.typ, memo) }
+        memoizeValueIR(ctx, a, a.typ, memo)
       case StreamFor(a, valueName, body) =>
         assert(requestedType == TVoid)
         val aType = a.typ.asInstanceOf[TStream]
@@ -1527,14 +1548,14 @@ object PruneDeadFields {
             memoizeValueIR(ctx, paramIR, paramType, memo)
           }
         )
-      case CollectDistributedArray(contexts, globals, cname, gname, body, tsd) =>
+      case CollectDistributedArray(contexts, globals, cname, gname, body, dynamicID, _, tsd) =>
         val rArray = requestedType.asInstanceOf[TArray]
         val bodyEnv = memoizeValueIR(ctx, body, rArray.elementType, memo)
         assert(bodyEnv.scan.isEmpty)
         assert(bodyEnv.agg.isEmpty)
 
         val cDep = bodyEnv.eval.lookupOption(cname) match {
-          case Some(ts) => TStream(unify[Type](coerce[TStream](contexts.typ).elementType, ts.result(): _*))
+          case Some(ts) => TStream(unify[Type](tcoerce[TStream](contexts.typ).elementType, ts.result(): _*))
           case None => minimal(contexts.typ)
         }
 
@@ -1545,7 +1566,8 @@ object PruneDeadFields {
 
         unifyEnvs(
           memoizeValueIR(ctx, contexts, cDep, memo),
-          memoizeValueIR(ctx, globals, gDep, memo)
+          memoizeValueIR(ctx, globals, gDep, memo),
+          memoizeValueIR(ctx, dynamicID, TString, memo),
         )
       case _: IR =>
         val envs = ir.children.flatMap {
@@ -1602,9 +1624,11 @@ object PruneDeadFields {
         val child2 = rebuild(ctx, child, memo)
         val newRow2 = rebuildIR(ctx, newRow, BindingEnv(child2.typ.rowEnv, scan = Some(child2.typ.rowEnv)), memo)
         val newRowType = newRow2.typ.asInstanceOf[TStruct]
-        val child2Keyed = if (child2.typ.key.exists(k => !newRowType.hasField(k)))
-          TableKeyBy(child2, child2.typ.key.takeWhile(newRowType.hasField))
-        else
+        val child2Keyed = if (child2.typ.key.exists(k => !newRowType.hasField(k))) {
+          val upcastKey = child2.typ.key.takeWhile(newRowType.hasField)
+          assert(upcastKey.startsWith(requestedType.key))
+          TableKeyBy(child2, upcastKey)
+        } else
           child2
         TableMapRows(child2Keyed, newRow2)
       case TableMapGlobals(child, newGlobals) =>
@@ -1618,8 +1642,12 @@ object PruneDeadFields {
           child2 = upcastTable(ctx, child2, memo.requestedType.lookup(child).asInstanceOf[TableType], upcastGlobals = false)
         TableKeyBy(child2, keys2, isSorted)
       case TableOrderBy(child, sortFields) =>
-        // fully upcast before shuffle
-        val child2 = upcastTable(ctx, rebuild(ctx, child, memo), memo.requestedType.lookup(child).asInstanceOf[TableType], upcastGlobals = false)
+        val child2 = if (sortFields.forall(_.sortOrder == Ascending) && child.typ.key.startsWith(sortFields.map(_.field)))
+          rebuild(ctx, child, memo)
+        else {
+          // fully upcast before shuffle
+          upcastTable(ctx, rebuild(ctx, child, memo), memo.requestedType.lookup(child).asInstanceOf[TableType], upcastGlobals = false)
+        }
         TableOrderBy(child2, sortFields)
       case TableLeftJoinRightDistinct(left, right, root) =>
         if (requestedType.rowType.hasField(root))
@@ -1744,10 +1772,12 @@ object PruneDeadFields {
           rebuildIR(ctx, colExpr, BindingEnv(child2.typ.globalEnv, agg = Some(child2.typ.colEnv)), memo))
       case MatrixUnionRows(children) =>
         val requestedType = memo.requestedType.lookup(mir).asInstanceOf[MatrixType]
-        MatrixUnionRows(children.map { child =>
-          upcast(ctx, rebuild(ctx, child, memo), requestedType,
+        val firstChild = upcast(ctx, rebuild(ctx, children.head, memo), requestedType, upcastGlobals = false)
+        val remainingChildren = children.tail.map { child =>
+          upcast(ctx, rebuild(ctx, child, memo), requestedType.copy(colType = requestedType.colKeyStruct),
             upcastGlobals = false)
-        })
+        }
+        MatrixUnionRows(firstChild +: remainingChildren)
       case MatrixUnionCols(left, right, joinType) =>
         val requestedType = memo.requestedType.lookup(mir).asInstanceOf[MatrixType]
         val left2 = rebuild(ctx, left, memo)
@@ -1928,11 +1958,23 @@ object PruneDeadFields {
       case StreamZipJoin(as, key, curKey, curVals, joinF) =>
         val newAs = as.map(a => rebuildIR(ctx, a, env, memo))
         val newEltType = as.head.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
-        val newJoinF = rebuildIR(ctx, 
+        val newJoinF = rebuildIR(ctx,
           joinF,
           env.bindEval(curKey -> selectKey(newEltType, key), curVals -> TArray(newEltType)),
           memo)
         StreamZipJoin(newAs, key, curKey, curVals, newJoinF)
+      case StreamMultiMerge(as, key) =>
+        val eltType = tcoerce[TStruct](tcoerce[TStream](as.head.typ).elementType)
+        val requestedEltType = tcoerce[TStream](requestedType).elementType
+        val reqEltWithKey = unify(eltType, requestedEltType, selectKey(eltType, key))
+
+        val newAs = as.map(a => rebuildIR(ctx, a, env, memo))
+        val newAs2 = if (newAs.forall(_.typ == newAs(0).typ))
+          newAs
+        else
+          newAs.map(a => upcast(ctx, a, TStream(reqEltWithKey)))
+
+        StreamMultiMerge(newAs2, key)
       case StreamFilter(a, name, cond) =>
         val a2 = rebuildIR(ctx, a, env, memo)
         StreamFilter(a2, name, rebuildIR(ctx, cond, env.bindEval(name, a2.typ.asInstanceOf[TStream].elementType), memo))
@@ -2143,11 +2185,12 @@ object PruneDeadFields {
         val seqOp2 = rebuildIR(ctx, seqOp, if (isScan) env.promoteScan else env.promoteAgg, memo)
         val combOp2 = rebuildIR(ctx, combOp, env, memo)
         AggFold(zero2, seqOp2, combOp2, accumName, otherAccumName, isScan)
-      case CollectDistributedArray(contexts, globals, cname, gname, body, tsd) =>
+      case CollectDistributedArray(contexts, globals, cname, gname, body, dynamicID, staticID, tsd) =>
         val contexts2 = upcast(ctx, rebuildIR(ctx, contexts, env, memo), memo.requestedType.lookup(contexts).asInstanceOf[Type])
         val globals2 = upcast(ctx, rebuildIR(ctx, globals, env, memo), memo.requestedType.lookup(globals).asInstanceOf[Type])
         val body2 = rebuildIR(ctx, body, BindingEnv(Env(cname -> contexts2.typ.asInstanceOf[TStream].elementType, gname -> globals2.typ)), memo)
-        CollectDistributedArray(contexts2, globals2, cname, gname, body2, tsd)
+        val dynamicID2 = rebuildIR(ctx, dynamicID, env, memo)
+        CollectDistributedArray(contexts2, globals2, cname, gname, body2, dynamicID2, staticID, tsd)
       case _ =>
         ir.copy(ir.children.map {
           case valueIR: IR => rebuildIR(ctx, valueIR, env, memo) // FIXME: assert IR does not bind or change env
@@ -2268,4 +2311,3 @@ object PruneDeadFields {
     }
   }
 }
-

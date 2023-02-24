@@ -69,7 +69,13 @@ object HadoopFS {
     }
 }
 
-class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
+class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends FS {
+  def getConfiguration(): SerializableHadoopConfiguration = conf
+
+  def setConfiguration(_conf: Any): Unit = {
+    conf = _conf.asInstanceOf[SerializableHadoopConfiguration]
+  }
+
   def createNoCompression(filename: String): PositionedDataOutputStream = {
     val fs = getFileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
@@ -78,7 +84,8 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
       HadoopFS.toPositionedOutputStream(os))
   }
 
-  def openNoCompression(filename: String): SeekableDataInputStream = {
+  def openNoCompression(filename: String, _debug: Boolean = false): SeekableDataInputStream = {
+    assert(!_debug)
     val fs = getFileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
     val is = try {
@@ -114,7 +121,7 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
     }
   }
 
-  def mkDir(dirname: String): Unit = {
+  override def mkDir(dirname: String): Unit = {
     getFileSystem(dirname).mkdirs(new hadoop.fs.Path(dirname))
   }
 
@@ -130,7 +137,7 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
     getFileSystem(filename).delete(new hadoop.fs.Path(filename), recursive)
   }
 
-  def globAll(filenames: Iterable[String]): Array[String] = {
+  override def globAll(filenames: Iterable[String]): Array[String] = {
     filenames.iterator
       .flatMap { arg =>
         val fss = glob(arg)
@@ -141,7 +148,7 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
       }.toArray
   }
 
-  def globAllStatuses(filenames: Iterable[String]): Array[FileStatus] = {
+  override def globAllStatuses(filenames: Iterable[String]): Array[FileStatus] = {
     filenames.flatMap { filename =>
       val statuses = glob(filename)
       if (statuses.isEmpty)
@@ -172,7 +179,7 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
     pathFS.makeQualified(ppath).toString
   }
 
-  def deleteOnExit(filename: String): Unit = {
+  override def deleteOnExit(filename: String): Unit = {
     val ppath = new hadoop.fs.Path(filename)
     val pathFS = ppath.getFileSystem(conf.value)
     pathFS.deleteOnExit(ppath)

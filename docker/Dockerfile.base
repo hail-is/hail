@@ -3,7 +3,7 @@ FROM {{ hail_ubuntu_image.image }}
 # source: https://cloud.google.com/storage/docs/gsutil_install#linux
 RUN curl --remote-name https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-334.0.0-linux-x86_64.tar.gz && \
     tar -xf google-cloud-sdk-334.0.0-linux-x86_64.tar.gz && \
-    curl --remote-name https://dl.k8s.io/release/v1.19.7/bin/linux/amd64/kubectl && \
+    curl --remote-name https://dl.k8s.io/release/v1.21.14/bin/linux/amd64/kubectl && \
     install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 ENV PATH $PATH:/google-cloud-sdk/bin
 
@@ -18,6 +18,7 @@ RUN hail-apt-get-install \
     jq \
     openjdk-8-jdk-headless \
     liblapack3 \
+    liblz4-dev \
     g++-10 \
     gcc-10 \
     cmake \
@@ -32,7 +33,7 @@ RUN hail-apt-get-install xz-utils libncurses5 && \
     tar -vx -C /opt -f mysql-8.0.26-linux-glibc2.17-x86_64-minimal-rebuild.tar.xz && \
     ln -s /opt/mysql-8.0.26-linux-glibc2.17-x86_64-minimal-rebuild/bin/* /usr/bin/
 
-COPY docker/requirements.txt .
+COPY docker/linux-pinned-requirements.txt requirements.txt
 RUN hail-pip-install -r requirements.txt
 
 COPY pylintrc setup.cfg /

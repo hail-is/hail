@@ -479,6 +479,28 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     (push, finish)
   }
 
+  def constructFromIndicesUnsafe(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean):
+  (((EmitCodeBuilder, Value[Int], IEmitCode) => Unit, (EmitCodeBuilder => SIndexablePointerValue))) = {
+
+    val addr = cb.newLocal[Long]("pcarray_construct2_addr", allocate(region, length))
+    stagedInitialize(cb, addr, length, setMissing = false)
+    val firstElementAddress = cb.newLocal[Long]("pcarray_construct2_first_addr", firstElementOffset(addr, length))
+
+    val push: (EmitCodeBuilder, Value[Int], IEmitCode) => Unit = {
+      case (cb, idx, iec) =>
+        iec.consume(cb,
+          setElementMissing(cb, addr, idx),
+          { sc =>
+            elementType.storeAtAddress(cb, firstElementAddress + idx.toL * elementByteSize, region, sc, deepCopy = deepCopy)
+          })
+    }
+    val finish: EmitCodeBuilder => SIndexablePointerValue = { (cb: EmitCodeBuilder) =>
+      new SIndexablePointerValue(sType, addr, length, firstElementAddress)
+    }
+    (push, finish)
+  }
+
+
   def loadFromNested(addr: Code[Long]): Code[Long] = Region.loadAddress(addr)
 
   override def unstagedLoadFromNested(addr: Long): Long = Region.loadAddress(addr)
