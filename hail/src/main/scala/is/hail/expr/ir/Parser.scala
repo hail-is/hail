@@ -6,7 +6,7 @@ import is.hail.expr.ir.agg._
 import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec}
-import is.hail.rvd.{AbstractRVDSpec, RVDType}
+import is.hail.rvd.{AbstractRVDSpec, RVDPartitioner, RVDType}
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.types.{MatrixType, TableType, VirtualTypeWithReq, tcoerce}
@@ -298,6 +298,12 @@ object IRParser {
       case x: StringToken => x.value
       case x: Token => error(x, s"Expected string but found ${ x.getName } '${ x.value }'.")
     }
+  }
+
+  def partitioner_literal(env: IRParserEnvironment)(it: TokenIterator): RVDPartitioner = {
+    val (t, rangeBounds) = ir_value(it)
+    val keyType = TIterable.elementType(t).asInstanceOf[TInterval].pointType.asInstanceOf[TStruct]
+    new RVDPartitioner(env.ctx.stateManager, keyType, rangeBounds.asInstanceOf[mutable.IndexedSeq[Interval]])
   }
 
   def literals[T](literalIdentifier: TokenIterator => T)(it: TokenIterator)(implicit tct: ClassTag[T]): Array[T] =
@@ -1710,6 +1716,21 @@ object IRParser {
         table_ir(env.onlyRelational)(it).map { child =>
           TableRename(child, rowK.zip(rowV).toMap, globalK.zip(globalV).toMap)
         }
+
+      case "TableGen" =>
+        val cname = identifier(it)
+        val gname = identifier(it)
+        val partitioner = partitioner_literal(env)(it)
+        val errorId = int32_literal(it)
+        for {
+          contexts <- ir_value_expr(env.onlyRelational)(it)
+          globals <- ir_value_expr(env.onlyRelational)(it)
+          body <- ir_value_expr(env.onlyRelational.bindEval(
+            cname -> TIterable.elementType(contexts.typ),
+            gname -> globals.typ
+          ))(it)
+        } yield TableGen(contexts, globals, cname, gname, body, partitioner, errorId)
+
       case "TableFilterIntervals" =>
         val intervals = string_literal(it)
         val keep = boolean_literal(it)
