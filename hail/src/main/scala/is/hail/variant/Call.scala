@@ -257,27 +257,45 @@ object Call extends Serializable {
     }
   }
 
+  private[this] val phased_ = Array[Byte]('|', '-')
+  private[this] val phased_0 = Array[Byte]('|', '0')
+  private[this] val phased_1 = Array[Byte]('|', '1')
+  private[this] val phased_2 = Array[Byte]('|', '2')
+  private[this] val phased_00 = Array[Byte]('0', '|', '0')
+  private[this] val phased_01 = Array[Byte]('0', '|', '1')
+  private[this] val phased_10 = Array[Byte]('1', '|', '0')
+  private[this] val phased_02 = Array[Byte]('0', '|', '2')
+  private[this] val phased_11 = Array[Byte]('1', '|', '1')
+
+  private[this] val unphased_ = Array[Byte]('-')
+  private[this] val unphased_0 = Array[Byte]('0')
+  private[this] val unphased_1 = Array[Byte]('1')
+  private[this] val unphased_2 = Array[Byte]('2')
+  private[this] val unphased_00 = Array[Byte]('0', '/', '0')
+  private[this] val unphased_01 = Array[Byte]('0', '/', '1')
+  private[this] val unphased_11 = Array[Byte]('1', '/', '1')
+
   def toUTF8(c: Call): Array[Byte] = {
     val phased = isPhased(c)
     if (phased) {
       (ploidy(c): @switch) match {
-        case 0 => Array('|', '-')
+        case 0 => phased_
         case 1 =>
           val a = alleleByIndex(c, 0)
 
           (a: @switch) match {
-            case 0 => Array('|', '0')
-            case 1 => Array('|', '1')
-            case 2 => Array('|', '2')
+            case 0 => phased_0
+            case 1 => phased_1
+            case 2 => phased_2
             case _ => s"|$a".getBytes()
           }
         case 2 =>
           (alleleRepr(c): @switch) match {
-            case 0 => Array('0', '|', '0')
-            case 1 => Array('0', '|', '1')
-            case 2 => Array('1', '|', '0')
-            case 3 => Array('0', '|', '2')
-            case 4 => Array('1', '|', '1')
+            case 0 => phased_00
+            case 1 => phased_01
+            case 2 => phased_10
+            case 3 => phased_02
+            case 4 => phased_11
             case _ =>
               val p = allelePair(c)
               s"${ AllelePair.j(p) }|${ AllelePair.k(p) }".getBytes()
@@ -287,21 +305,21 @@ object Call extends Serializable {
       }
     } else {
       (ploidy(c): @switch) match {
-        case 0 => Array('-')
+        case 0 => unphased_
         case 1 =>
           val a = alleleByIndex(c, 0)
 
           (a: @switch) match {
-            case 0 => Array('0')
-            case 1 => Array('1')
-            case 2 => Array('2')
+            case 0 => unphased_0
+            case 1 => unphased_1
+            case 2 => unphased_2
             case _ => a.toString.getBytes()
           }
         case 2 =>
           (alleleRepr(c): @switch) match {
-            case 0 => Array('0', '/', '0')
-            case 1 => Array('0', '/', '1')
-            case 2 => Array('1', '/', '1')
+            case 0 => unphased_00
+            case 1 => unphased_01
+            case 2 => unphased_11
             case _ =>
               val p = allelePair(c)
               s"${ AllelePair.j(p) }/${ AllelePair.k(p) }".getBytes()
