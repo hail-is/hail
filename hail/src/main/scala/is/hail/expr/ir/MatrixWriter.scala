@@ -515,7 +515,7 @@ case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHe
     context.toI(cb).map(cb) { case ctx: SBaseStructValue =>
       val filename = ctx.loadField(cb, "partFile").get(cb, "partFile can't be missing").asString.loadString(cb)
 
-      val os = cb.memoize(cb.emb.create(filename))
+      val os = cb.memoize(Code.newInstance[java.io.BufferedOutputStream, OutputStream](cb.emb.create(filename)))
       if (writeHeader) {
         val sampleIds = ctx.loadField(cb, "cols").get(cb).asIndexable
         val stringSampleIds = cb.memoize(Code.newArray[String](sampleIds.loadLength()))
@@ -575,7 +575,8 @@ case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHe
         cb.ifx(ploidy.ceq(0), cb._fatal("VCF spec does not support 0-ploid calls."))
         cb.ifx(ploidy.ceq(1) , cb._fatal("VCF spec does not support phased haploid calls."))
         val c = v.canonicalCall(cb)
-        _writeS(cb, Code.invokeScalaObject1[Int, String](Call.getClass, "toString", c))
+        _writeB(cb, Code.invokeScalaObject1[Int, Array[Byte]](Call.getClass, "toUTF8", c))
+        // _writeS(cb, Code.invokeScalaObject1[Int, String](Call.getClass, "toString", c))
       case _ =>
         fatal(s"VCF does not support ${value.st}")
     }

@@ -28,20 +28,21 @@ object Call2 {
   def fromUnphasedDiploidGtIndex(gt: Int): Call = {
     if (gt < 0)
       fatal(s"gt must be >= 0. Found $gt.")
-    Call(gt, phased = false, ploidy = 2)
+    if ((gt >>> 29) != 0)
+      fatal(s"invalid allele representation: $gt. Max value is 2^29 - 1", -1)
+    val ploidy = 2
+    ploidy << 1 | gt << 3
   }
 
   def apply(aj: Int, ak: Int, phased: Boolean = false): Call = {
     if (aj < 0 || ak < 0)
       fatal(s"allele indices must be >= 0. Found j=$aj and k=$ak.")
 
-    val alleleRepr =
-      if (phased)
-        Genotype.diploidGtIndex(aj, aj + ak)
-      else
-        Genotype.diploidGtIndexWithSwap(aj, ak)
-
-    Call(alleleRepr, phased, ploidy = 2)
+    if (phased) {
+      Call(Genotype.diploidGtIndex(aj, aj + ak), true, ploidy = 2)
+    } else {
+      fromUnphasedDiploidGtIndex(Genotype.diploidGtIndexWithSwap(aj, ak))
+    }
   }
 
   def withErrorID(aj: Int, ak: Int, phased: Boolean, errorID: Int): Call = {
@@ -203,18 +204,111 @@ object Call extends Serializable {
 
   def toString(c: Call): String = {
     val phased = isPhased(c)
-    val sep = if (phased) "|" else "/"
+    if (phased) {
+      (ploidy(c): @switch) match {
+        case 0 => "|-"
+        case 1 =>
+          val a = alleleByIndex(c, 0)
 
-    (ploidy(c): @switch) match {
-      case 0 => if (phased) "|-" else "-"
-      case 1 =>
-        val a = alleleByIndex(c, 0)
-        if (phased) s"|$a" else s"$a"
-      case 2 =>
-        val p = allelePair(c)
-        s"${ AllelePair.j(p) }$sep${ AllelePair.k(p) }"
-      case _ =>
-        alleles(c).mkString(sep)
+          (a: @switch) match {
+            case 0 => "|0"
+            case 1 => "|1"
+            case 2 => "|2"
+            case _ => s"|$a"
+          }
+        case 2 =>
+          (alleleRepr(c): @switch) match {
+            case 0 => "0|0"
+            case 1 => "0|1"
+            case 2 => "1|0"
+            case 3 => "0|2"
+            case 4 => "1|1"
+            case _ =>
+              val p = allelePair(c)
+              s"${ AllelePair.j(p) }|${ AllelePair.k(p) }"
+          }
+        case _ =>
+          alleles(c).mkString("|")
+      }
+    } else {
+      (ploidy(c): @switch) match {
+        case 0 => "-"
+        case 1 =>
+          val a = alleleByIndex(c, 0)
+
+          (a: @switch) match {
+            case 0 => "0"
+            case 1 => "1"
+            case 2 => "2"
+            case _ => a.toString
+          }
+        case 2 =>
+          (alleleRepr(c): @switch) match {
+            case 0 => "0/0"
+            case 1 => "0/1"
+            case 2 => "1/1"
+            case _ =>
+              val p = allelePair(c)
+              s"${ AllelePair.j(p) }/${ AllelePair.k(p) }"
+          }
+        case _ =>
+          alleles(c).mkString("/")
+      }
+    }
+  }
+
+  def toUTF8(c: Call): Array[Byte] = {
+    val phased = isPhased(c)
+    if (phased) {
+      (ploidy(c): @switch) match {
+        case 0 => Array('|', '-')
+        case 1 =>
+          val a = alleleByIndex(c, 0)
+
+          (a: @switch) match {
+            case 0 => Array('|', '0')
+            case 1 => Array('|', '1')
+            case 2 => Array('|', '2')
+            case _ => s"|$a".getBytes()
+          }
+        case 2 =>
+          (alleleRepr(c): @switch) match {
+            case 0 => Array('0', '|', '0')
+            case 1 => Array('0', '|', '1')
+            case 2 => Array('1', '|', '0')
+            case 3 => Array('0', '|', '2')
+            case 4 => Array('1', '|', '1')
+            case _ =>
+              val p = allelePair(c)
+              s"${ AllelePair.j(p) }|${ AllelePair.k(p) }".getBytes()
+          }
+        case _ =>
+          alleles(c).mkString("|").getBytes()
+      }
+    } else {
+      (ploidy(c): @switch) match {
+        case 0 => Array('-')
+        case 1 =>
+          val a = alleleByIndex(c, 0)
+
+          (a: @switch) match {
+            case 0 => Array('0')
+            case 1 => Array('1')
+            case 2 => Array('2')
+            case _ => a.toString.getBytes()
+          }
+        case 2 =>
+          (alleleRepr(c): @switch) match {
+            case 0 => Array('0', '/', '0')
+            case 1 => Array('0', '/', '1')
+            case 2 => Array('1', '/', '1')
+            case _ =>
+              val p = allelePair(c)
+              s"${ AllelePair.j(p) }/${ AllelePair.k(p) }".getBytes()
+          }
+        case _ =>
+          alleles(c).mkString("/").getBytes()
+      }
     }
   }
 

@@ -75,24 +75,48 @@ object RandomSeededFunctions extends RegistryFunctions {
   // from a sequence of equidistant floating point numbers in [0, 1), using
   // (nextLong() >>> 11).toDouble / (1L << 53)
   def rand_unif(cb: EmitCodeBuilder, rand_longs: IndexedSeq[Value[Long]]): Code[Double] = {
-    assert(rand_longs.size == 4)
-    val bits: Settable[Long] = cb.newLocal[Long]("rand_unif_bits", rand_longs(3))
-    val exponent: Settable[Int] = cb.newLocal[Int]("rand_unif_exponent", 1022)
-    cb.ifx(bits.ceq(0), {
-      cb.assign(exponent, exponent - 64)
-      cb.assign(bits, rand_longs(2))
-      cb.ifx(bits.ceq(0), {
-        cb.assign(exponent, exponent - 64)
-        cb.assign(bits, rand_longs(1))
-        cb.ifx(bits.ceq(0), {
-          cb.assign(exponent, exponent - 64)
-          cb.assign(bits, rand_longs(0))
-        })
-      })
-    })
-    cb.assign(exponent, exponent - bits.numberOfTrailingZeros)
-    val result = (exponent.toL << 52) | (rand_longs(0) >>> 12)
-    Code.invokeStatic1[java.lang.Double, Long, Double]("longBitsToDouble", result)
+    // assert(rand_longs.size == 4)
+    // val bits: Settable[Long] = cb.newLocal[Long]("rand_unif_bits", rand_longs(3))
+    // val exponent: Settable[Int] = cb.newLocal[Int]("rand_unif_exponent", 1022)
+    // cb.ifx(bits.ceq(0), {
+    //   cb.assign(exponent, exponent - 64)
+    //   cb.assign(bits, rand_longs(2))
+    //   cb.ifx(bits.ceq(0), {
+    //     cb.assign(exponent, exponent - 64)
+    //     cb.assign(bits, rand_longs(1))
+    //     cb.ifx(bits.ceq(0), {
+    //       cb.assign(exponent, exponent - 64)
+    //       cb.assign(bits, rand_longs(0))
+    //     })
+    //   })
+    // })
+    // cb.assign(exponent, exponent - bits.numberOfTrailingZeros)
+    // val result = (exponent.toL << 52) | (rand_longs(0) >>> 12)
+    // Code.invokeStatic1[java.lang.Double, Long, Double]("longBitsToDouble", result)
+    assert(rand_longs.length == 4)
+    Code.invokeScalaObject4[Long, Long, Long, Long, Double](RandomSeededFunctions.getClass, "rand_unif2",
+      rand_longs(0), rand_longs(1), rand_longs(2), rand_longs(3)
+    )
+  }
+  def rand_unif2(long0: Long, long1: Long, long2: Long, long3: Long): Double = {
+    var bits = long3
+    var exp = 1022
+    if (bits == 0) {
+      exp -= 64
+      bits = long2
+      if (bits == 0) {
+        exp -= 64
+        bits = long1
+        if (bits == 0) {
+          exp -= 64
+          bits = long0
+        }
+      }
+    }
+    exp -= java.lang.Long.numberOfTrailingZeros(bits)
+    java.lang.Double.longBitsToDouble(
+      (exp.toLong << 52) | (long0 >>> 12)
+    )
   }
 
   def registerAll() {

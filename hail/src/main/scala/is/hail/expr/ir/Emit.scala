@@ -2414,7 +2414,7 @@ class Emit[C](
           }
 
           val fID = genUID()
-          parentCB.addModule(fID, bodyFB.resultWithIndex())
+          parentCB.addModule(fID, bodyFB.resultWithIndex(ctx.executeContext.getFlag("write_ir_files") != null))
           val functionID = fID
 
           val spark = parentCB.backend()
