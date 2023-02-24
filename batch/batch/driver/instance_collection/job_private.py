@@ -109,6 +109,9 @@ WHERE removed = 0 AND inst_coll = %s;
         self.exceeded_shares_counter = ExceededSharesCounter()
 
         self.boot_disk_size_gb = config.boot_disk_size_gb
+        self.max_new_instances_per_autoscaler_loop = config.max_new_instances_per_autoscaler_loop
+        self.autoscaler_loop_period_secs = config.autoscaler_loop_period_secs
+        self.worker_max_idle_time_secs = config.worker_max_idle_time_secs
 
     def config(self):
         return {
@@ -116,21 +119,49 @@ WHERE removed = 0 AND inst_coll = %s;
             'worker_disk_size_gb': self.boot_disk_size_gb,
             'max_instances': self.max_instances,
             'max_live_instances': self.max_live_instances,
+            'max_new_instances_per_autoscaler_loop': self.max_new_instances_per_autoscaler_loop,
+            'autoscaler_loop_period_secs': self.autoscaler_loop_period_secs,
+            'worker_max_idle_time_secs': self.worker_max_idle_time_secs,
         }
 
-    async def configure(self, boot_disk_size_gb, max_instances, max_live_instances):
+    async def configure(
+        self,
+        *,
+        boot_disk_size_gb,
+        max_instances,
+        max_live_instances,
+        max_new_instances_per_autoscaler_loop,
+        autoscaler_loop_period_secs,
+        worker_max_idle_time_secs,
+    ):
         await self.db.just_execute(
             '''
 UPDATE inst_colls
-SET boot_disk_size_gb = %s, max_instances = %s, max_live_instances = %s
+SET boot_disk_size_gb = %s,
+    max_instances = %s,
+    max_live_instances = %s,
+    max_new_instances_per_autoscaler_loop = %s,
+    autoscaler_loop_period_secs = %s,
+    worker_max_idle_time_secs = %s
 WHERE name = %s;
 ''',
-            (boot_disk_size_gb, max_instances, max_live_instances, self.name),
+            (
+                boot_disk_size_gb,
+                max_instances,
+                max_live_instances,
+                max_new_instances_per_autoscaler_loop,
+                autoscaler_loop_period_secs,
+                worker_max_idle_time_secs,
+                self.name,
+            ),
         )
 
         self.boot_disk_size_gb = boot_disk_size_gb
         self.max_instances = max_instances
         self.max_live_instances = max_live_instances
+        self.max_new_instances_per_autoscaler_loop = max_new_instances_per_autoscaler_loop
+        self.autoscaler_loop_period_secs = autoscaler_loop_period_secs
+        self.worker_max_idle_time_secs = worker_max_idle_time_secs
 
     async def bump_scheduler(self):
         self.scheduler_state_changed.set()
@@ -285,7 +316,7 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
             job_private=True,
             regions=regions,
             preemptible=preemptible,
-            max_idle_time_msecs=None,
+            max_idle_time_msecs=self.worker_max_idle_time_secs * 1000,
             local_ssd_data_disk=False,
             data_disk_size_gb=storage_gb,
             boot_disk_size_gb=self.boot_disk_size_gb,
@@ -308,7 +339,10 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
             should_wait = True
             return should_wait
         user_share = {
-            user: max(int(300 * resources['n_allocated_jobs'] / total + 0.5), 20)
+            user: min(
+                int(self.max_new_instances_per_autoscaler_loop * (resources['n_allocated_jobs'] / total) + 0.5),
+                resources['n_allocated_jobs'],
+            )
             for user, resources in user_resources.items()
         }
 
@@ -441,7 +475,7 @@ LIMIT %s
         end = time_msecs()
         log.info(f'create_instances: created instances for {n_instances_created} jobs in {end - start}ms for {self}')
 
-        await asyncio.sleep(15)  # ensure we don't create more instances than GCE limit
+        await asyncio.sleep(self.autoscaler_loop_period_secs)  # ensure we don't create more instances than GCE limit
 
         return should_wait
 

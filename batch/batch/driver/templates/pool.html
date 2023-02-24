@@ -31,6 +31,11 @@
     <div>Standing worker cores: <input name="standing_worker_cores" value="{{ pool.standing_worker_cores }}" /></div>
     <div>Max instances: <input name="max_instances" value="{{ pool.max_instances }}" /></div>
     <div>Max live instances: <input name="max_live_instances" value="{{ pool.max_live_instances }}" /></div>
+    <div>Max new instances per autoscaler loop: <input name="max_new_instances_per_autoscaler_loop" value="{{ pool.max_new_instances_per_autoscaler_loop }}" /></div>
+    <div>Autoscaler loop period in seconds: <input name="autoscaler_loop_period_secs" value="{{ pool.autoscaler_loop_period_secs }}" /></div>
+    <div>Worker max idle time in seconds: <input name="worker_max_idle_time_secs" value="{{ pool.worker_max_idle_time_secs }}" /></div>
+    <div>Standing worker max idle time in seconds: <input name="standing_worker_max_idle_time_secs" value="{{ pool.standing_worker_max_idle_time_secs }}" /></div>
+    <div>Job queue scheduling window in seconds: <input name="job_queue_scheduling_window_secs" value="{{ pool.job_queue_scheduling_window_secs }}" /></div>
     <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
     <input type="hidden" name="_pool_config_json" value="{{ pool_config_json }}"/>
     <button>
