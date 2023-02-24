@@ -39,7 +39,7 @@ final case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
     value.st match {
       case SJavaArrayString(_) => new SJavaArrayStringValue(this, value.asInstanceOf[SJavaArrayStringValue].array)
-      case SIndexablePointer(pc) if pc.elementType.isInstanceOf[PString] && pc.elementType.required == elementRequired =>
+      case SIndexablePointer(pc) if pc.elementType.isInstanceOf[PString] =>
 
         val sv = value.asInstanceOf[SIndexableValue]
         val len = sv.loadLength()

@@ -574,7 +574,9 @@ object PruneDeadFields {
           )
         memoizeMatrixIR(ctx, child, mtDep, memo)
       case TableUnion(children) =>
-        children.foreach(memoizeTableIR(ctx, _, requestedType, memo))
+        memoizeTableIR(ctx, children(0), requestedType, memo)
+        val noGlobals = requestedType.copy(globalType = TStruct())
+        children.iterator.drop(1).foreach(memoizeTableIR(ctx, _, noGlobals, memo))
       case CastMatrixToTable(child, entriesFieldName, colsFieldName) =>
         val childDep = MatrixType(
           rowKey = requestedType.key,
