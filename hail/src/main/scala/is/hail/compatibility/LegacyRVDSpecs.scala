@@ -1,7 +1,7 @@
 package is.hail.compatibility
 
 import is.hail.HailContext
-import is.hail.backend.ExecuteContext
+import is.hail.backend.HailStateManager
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.types.encoded._
 import is.hail.types.virtual._
@@ -82,7 +82,7 @@ trait ShimRVDSpec extends AbstractRVDSpec {
 
   final def key: IndexedSeq[String] = shim.key
 
-  override def partitioner: RVDPartitioner = shim.partitioner
+  override def partitioner(sm: HailStateManager): RVDPartitioner = shim.partitioner(sm)
 
   override def typedCodecSpec: AbstractTypedCodecSpec = shim.typedCodecSpec
 
@@ -114,7 +114,7 @@ case class UnpartitionedRVDSpec private(
 ) extends AbstractRVDSpec {
   private val (rowVType: TStruct, rowEType) = LegacyEncodedTypeParser.parseTypeAndEType(rowType)
 
-  def partitioner: RVDPartitioner = RVDPartitioner.unkeyed(partFiles.length)
+  def partitioner(sm: HailStateManager): RVDPartitioner = RVDPartitioner.unkeyed(sm, partFiles.length)
 
   def key: IndexedSeq[String] = FastIndexedSeq()
 
@@ -133,9 +133,9 @@ case class OrderedRVDSpec private(
 
   def key: IndexedSeq[String] = lRvdType.key
 
-  def partitioner: RVDPartitioner = {
+  def partitioner(sm: HailStateManager): RVDPartitioner = {
     val rangeBoundsType = TArray(TInterval(lRvdType.keyType))
-    new RVDPartitioner(lRvdType.keyType,
+    new RVDPartitioner(sm, lRvdType.keyType,
       JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType, padNulls = false).asInstanceOf[IndexedSeq[Interval]])
   }
 
@@ -143,4 +143,3 @@ case class OrderedRVDSpec private(
 
   val attrs: Map[String, String] = Map.empty
 }
-

@@ -57,7 +57,7 @@ class ETypeSuite extends HailSuite {
       Code._empty
     }
 
-    val x = inPType.unstagedStoreJavaObject(data, ctx.r)
+    val x = inPType.unstagedStoreJavaObject(ctx.stateManager, data, ctx.r)
 
     val buffer = new MemoryBuffer
     val ob = new MemoryOutputBuffer(buffer)

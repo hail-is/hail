@@ -770,12 +770,12 @@ object PartitionReader {
     new ETypeSerializer +
     new AvroSchemaSerializer
 
-  def extract(fs: FS, jv: JValue): PartitionReader = {
+  def extract(ctx: ExecuteContext, jv: JValue): PartitionReader = {
     (jv \ "name").extract[String] match {
       case "PartitionNativeIntervalReader" =>
         val path = (jv \ "path").extract[String]
-        val spec = TableNativeReader.read(fs, path, None).spec
-        PartitionNativeIntervalReader(path, spec, (jv \ "uidFieldName").extract[String])
+        val spec = TableNativeReader.read(ctx.fs, path, None).spec
+        PartitionNativeIntervalReader(ctx.stateManager, path, spec, (jv \ "uidFieldName").extract[String])
       case _ => jv.extract[PartitionReader]
     }
   }

@@ -20,6 +20,7 @@ import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
 import is.hail.types.{RIterable, TypeWithRequiredness, VirtualTypeWithReq, tcoerce}
 import is.hail.utils._
+import is.hail.variant.ReferenceGenome
 
 import java.io._
 import scala.collection.mutable
@@ -1149,8 +1150,8 @@ class Emit[C](
                 MakeTuple.ordered(FastSeq(tieBreaker)))
               assert(t.virtualType == TTuple(TFloat64))
               val resultType = t.asInstanceOf[PTuple]
-              Code.invokeScalaObject8[UnsafeIndexedSeq, HailClassLoader, FS, HailTaskContext, Region, PTuple, PTuple, (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3RegionLongLongLong, IndexedSeq[Any]](
-                Graph.getClass, "maximalIndependentSet",
+              Code.invokeScalaObject9[Map[String, ReferenceGenome], UnsafeIndexedSeq, HailClassLoader, FS, HailTaskContext, Region, PTuple, PTuple, (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3RegionLongLongLong, IndexedSeq[Any]](
+                Graph.getClass, "maximalIndependentSet", cb.emb.ecb.emodb.referenceGenomeMap,
                   jEdges, mb.getHailClassLoader, mb.getFS, mb.getTaskContext, region,
                   mb.getPType[PTuple](wrappedNodeType), mb.getPType[PTuple](resultType), mb.getObject(f))
           }

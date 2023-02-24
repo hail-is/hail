@@ -6,7 +6,7 @@ import is.hail.expr.ir.{EmitMethodBuilder, _}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.primitives.{SFloat64Value, SInt32, SInt32Value, SInt64}
+import is.hail.types.physical.stypes.primitives.{SBoolean, SFloat64Value, SInt32, SInt32Value, SInt64}
 import is.hail.types.physical.stypes.{EmitType, SType}
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -14,7 +14,7 @@ import is.hail.variant._
 
 object LocusFunctions extends RegistryFunctions {
 
-  def rgCode(mb: EmitMethodBuilder[_], rg: ReferenceGenome): Code[ReferenceGenome] =
+  def rgCode(mb: EmitMethodBuilder[_], rg: String): Code[ReferenceGenome] =
     mb.getReferenceGenome(rg)
 
   def tlocus(name: String): Type = tv(name, "locus")
@@ -64,31 +64,19 @@ object LocusFunctions extends RegistryFunctions {
     )
   }
 
-  def registerLocusCode(methodName: String)(f: IR => IR): Unit =
-    registerIR1(methodName, tlocus("T"), TBoolean)((_, a, _) => f(a))
+  def registerLocusCodePredicate(methodName: String): Unit =
+    registerSCode1(methodName, tlocus("T"), TBoolean,
+      (_: Type, x: SType) => SBoolean) {
+      case (r, cb, rt, locus: SLocusValue, _) =>
+        primitive(cb.memoize(cb.emb.getReferenceGenome(locus.st.rg).invoke[Locus, Boolean](methodName, locus.getLocusObj(cb))))
+    }
 
-  def inX(locus: IR): IR = {
-    val xContigs = Literal(TSet(TString), locus.typ.asInstanceOf[TLocus].rg.xContigs)
-    invoke("contains", TBoolean, xContigs, invoke("contig", TString, locus))
-  }
-
-  def inY(locus: IR): IR = {
-    val yContigs = Literal(TSet(TString), locus.typ.asInstanceOf[TLocus].rg.yContigs)
-    invoke("contains", TBoolean, yContigs, invoke("contig", TString, locus))
-  }
-
-  def inPar(locus: IR): IR = {
-    val t = locus.typ.asInstanceOf[TLocus]
-    val par = Literal(TArray(TInterval(t)), t.rg.par.toFastIndexedSeq)
-    ArrayFunctions.exists(par, interval => invoke("contains", TBoolean, interval, locus))
-  }
-
-  def isMitochondrial(locus: IR): IR = {
-    val mtContigs = Literal(TSet(TString), locus.typ.asInstanceOf[TLocus].rg.mtContigs)
-    invoke("contains", TBoolean, mtContigs, invoke("contig", TString, locus))
-  }
-
-  def isAutosomal(locus: IR): IR = !(inX(locus) || inY(locus) || isMitochondrial(locus))
+  def registerLocusCodeContigPredicate(methodName: String): Unit =
+    registerSCode1(methodName, tlocus("T"), TBoolean,
+      (_: Type, x: SType) => SBoolean) {
+      case (r, cb, rt, locus: SLocusValue, _) =>
+        primitive(cb.memoize(cb.emb.getReferenceGenome(locus.st.rg).invoke[String, Boolean](methodName, locus.contig(cb).loadString(cb))))
+    }
 
   def registerAll() {
     val locusClass = Locus.getClass
@@ -110,15 +98,13 @@ object LocusFunctions extends RegistryFunctions {
       case (r, cb, rt, locus: SLocusValue, _) =>
         primitive(locus.position(cb))
     }
-    registerLocusCode("isAutosomalOrPseudoAutosomal") { locus =>
-      isAutosomal(locus) || ((inX(locus) || inY(locus)) && inPar(locus))
-    }
-    registerLocusCode("isAutosomal")(isAutosomal)
-    registerLocusCode("isMitochondrial")(isMitochondrial)
-    registerLocusCode("inXPar") { locus => inX(locus) && inPar(locus) }
-    registerLocusCode("inYPar") { locus => inY(locus) && inPar(locus) }
-    registerLocusCode("inXNonPar") { locus => inX(locus) && !inPar(locus) }
-    registerLocusCode("inYNonPar") { locus => inY(locus) && !inPar(locus) }
+    registerLocusCodePredicate("isAutosomalOrPseudoAutosomal")
+    registerLocusCodeContigPredicate("isAutosomal")
+    registerLocusCodeContigPredicate("isMitochondrial")
+    registerLocusCodePredicate("inXPar")
+    registerLocusCodePredicate("inYPar")
+    registerLocusCodePredicate("inXNonPar")
+    registerLocusCodePredicate("inYNonPar")
 
     registerSCode2("add_on_contig", tlocus("T"), TInt32, tlocus("T"), (tl: Type, _:SType, _: SType) => SCanonicalLocusPointer(PCanonicalLocus(tl.asInstanceOf[TLocus].rg))) {
       case (r: EmitRegion, cb: EmitCodeBuilder, rt: SCanonicalLocusPointer, inputLocus: SLocusValue, basePairsToAdd: SInt32Value, errorID) =>
@@ -397,7 +383,7 @@ object LocusFunctions extends RegistryFunctions {
             val locusObj = loc.getLocusObj(cb)
             val lifted = cb.newLocal[(Locus, Boolean)]("lifterover_locus_ lifted",
               rgCode(cb.emb, srcRG).invoke[String, Locus, Double, (Locus, Boolean)]("liftoverLocus",
-                destRG.name, locusObj, minMatch.asDouble.value))
+                destRG, locusObj, minMatch.asDouble.value))
 
             cb.ifx(lifted.isNull, cb.goto(Lmissing))
 
@@ -437,7 +423,7 @@ object LocusFunctions extends RegistryFunctions {
             val intervalObj = Code.checkcast[Interval](svalueToJavaValue(cb, r, interval))
             val lifted = cb.newLocal[(Interval, Boolean)]("liftover_locus_interval_lifted",
               rgCode(cb.emb, srcRG).invoke[String, Interval, Double, (Interval, Boolean)]("liftoverLocusInterval",
-                destRG.name, intervalObj, minMatch.asDouble.value))
+                destRG, intervalObj, minMatch.asDouble.value))
 
 
             cb.ifx(lifted.isNull, cb.goto(Lmissing))

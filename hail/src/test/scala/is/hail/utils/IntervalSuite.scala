@@ -1,16 +1,19 @@
 package is.hail.utils
 
+import is.hail.HailSuite
 import is.hail.annotations.ExtendedOrdering
+import is.hail.backend.HailStateManager
 import is.hail.types.virtual.{TInt32, TStruct}
 import is.hail.rvd.RVDPartitioner
 import org.apache.spark.sql.Row
-import org.scalatest.testng.TestNGSuite
 import org.testng.Assert._
-import org.testng.annotations.Test
+import org.testng.annotations.{BeforeMethod, Test}
+import is.hail.backend.ExecuteContext
+import org.testng.ITestContext
 
-class IntervalSuite extends TestNGSuite {
+class IntervalSuite extends HailSuite {
 
-  val pord: ExtendedOrdering = TInt32.ordering
+  val pord: ExtendedOrdering = TInt32.ordering(HailStateManager(Map.empty))
 
   // set of intervals chosen from 5 endpoints spans the space of relations
   // that two non-empty intervals can have with each other.
@@ -25,17 +28,21 @@ class IntervalSuite extends TestNGSuite {
       if pord.lt(s, e) || (pord.equiv(s, e) && is && ie)
     } yield SetInterval(s, e, is, ie)
 
-  val test_itrees: IndexedSeq[SetIntervalTree] =
-    SetIntervalTree(Array[(SetInterval, Int)]()) +:
+  var test_itrees: IndexedSeq[SetIntervalTree] = _
+
+  @BeforeMethod
+  def setupIntervalTrees(context: ITestContext): Unit = {
+    test_itrees = SetIntervalTree(ctx, Array[(SetInterval, Int)]()) +:
       test_intervals.flatMap { i1 =>
-        SetIntervalTree(Array(i1).zipWithIndex) +:
+        SetIntervalTree(ctx, Array(i1).zipWithIndex) +:
           test_intervals.flatMap { i2 =>
             if (i1.end <= i2.start)
-              Some(SetIntervalTree(Array(i1, i2).zipWithIndex))
+              Some(SetIntervalTree(ctx, Array(i1, i2).zipWithIndex))
             else
               None
           }
       }
+  }
 
 
   @Test def interval_agrees_with_set_interval_greater_than_point() {
@@ -192,7 +199,7 @@ object SetInterval {
 
 case class SetInterval(start: Int, end: Int, includesStart: Boolean, includesEnd: Boolean) {
 
-  val pord: ExtendedOrdering = TInt32.ordering
+  val pord: ExtendedOrdering = TInt32.ordering(HailStateManager(Map.empty))
 
   val doubledPointSet: Set[Int] = {
     val first = if (includesStart) 2 * start else 2 * start + 1
@@ -259,16 +266,16 @@ case class SetInterval(start: Int, end: Int, includesStart: Boolean, includesEnd
   }
 }
 
-case class SetIntervalTree(annotations: Array[(SetInterval, Int)]) {
+case class SetIntervalTree(ctx: ExecuteContext, annotations: Array[(SetInterval, Int)]) {
 
-  val pord: ExtendedOrdering = TInt32.ordering
+  val pord: ExtendedOrdering = TInt32.ordering(HailStateManager(Map.empty))
 
   val doubledPointSet: Set[Int] =
     annotations.foldLeft(Set.empty[Int]) { case (ps, (i, _)) => ps.union(i.doubledPointSet) }
 
   val (intervals, values) = annotations.unzip
 
-  val intervalTree: RVDPartitioner = new RVDPartitioner(TStruct(("i", TInt32)), intervals.map(_.rowInterval))
+  val intervalTree: RVDPartitioner = new RVDPartitioner(ctx.stateManager, TStruct(("i", TInt32)), intervals.map(_.rowInterval))
 
   def contains(point: Int): Boolean = doubledPointSet.contains(2 * point)
 

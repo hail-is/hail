@@ -2,6 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s.{Code, Value}
+import is.hail.backend.HailStateManager
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete.{SStringPointer, SStringPointerValue}
@@ -19,8 +20,8 @@ class PCanonicalString(val required: Boolean) extends PString {
 
   lazy val binaryRepresentation: PCanonicalBinary = PCanonicalBinary(required)
 
-  def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
-    binaryRepresentation.copyFromAddress(region, srcPType.asInstanceOf[PString].binaryRepresentation, srcAddress, deepCopy)
+  override def _copyFromAddress(sm: HailStateManager, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
+    binaryRepresentation.copyFromAddress(sm, region, srcPType.asInstanceOf[PString].binaryRepresentation, srcAddress, deepCopy)
 
   override def copiedType: PType = this
 
@@ -54,8 +55,8 @@ class PCanonicalString(val required: Boolean) extends PString {
     dstAddress
   }
 
-  def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
-    binaryRepresentation.unstagedStoreAtAddress(addr, region, srcPType.asInstanceOf[PString].binaryRepresentation, srcAddress, deepCopy)
+  override def unstagedStoreAtAddress(sm: HailStateManager, addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
+    binaryRepresentation.unstagedStoreAtAddress(sm, addr, region, srcPType.asInstanceOf[PString].binaryRepresentation, srcAddress, deepCopy)
 
   def setRequired(required: Boolean): PCanonicalString =
     if (required == this.required) this else PCanonicalString(required)
@@ -82,12 +83,12 @@ class PCanonicalString(val required: Boolean) extends PString {
 
   override def unstagedLoadFromNested(addr: Long): Long = binaryRepresentation.unstagedLoadFromNested(addr)
 
-  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
-    binaryRepresentation.unstagedStoreJavaObject(annotation.asInstanceOf[String].getBytes(), region)
+  override def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region): Long = {
+    binaryRepresentation.unstagedStoreJavaObject(sm, annotation.asInstanceOf[String].getBytes(), region)
   }
 
-  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
-    binaryRepresentation.unstagedStoreJavaObjectAtAddress(addr, annotation.asInstanceOf[String].getBytes(), region)
+  override def unstagedStoreJavaObjectAtAddress(sm: HailStateManager, addr: Long, annotation: Annotation, region: Region): Unit = {
+    binaryRepresentation.unstagedStoreJavaObjectAtAddress(sm, addr, annotation.asInstanceOf[String].getBytes(), region)
   }
 }
 

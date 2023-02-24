@@ -2,6 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s.{Code, _}
+import is.hail.backend.HailStateManager
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.utils._
@@ -13,18 +14,18 @@ trait PPrimitive extends PType {
 
   override def containsPointers: Boolean = false
 
-  def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
+  def _copyFromAddress(sm: HailStateManager, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
     if (!deepCopy)
       return srcAddress
 
     // FIXME push down
     val addr = region.allocate(byteSize, byteSize)
-    unstagedStoreAtAddress(addr, region, srcPType, srcAddress, deepCopy)
+    unstagedStoreAtAddress(sm, addr, region, srcPType, srcAddress, deepCopy)
     addr
   }
 
 
-  def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
+  def unstagedStoreAtAddress(sm: HailStateManager, addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
     assert(srcPType.isOfType(this))
     Region.copyFrom(srcAddress, addr, byteSize)
   }
@@ -42,9 +43,9 @@ trait PPrimitive extends PType {
 
   def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SValue): Unit
 
-  def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
+  override def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region): Long = {
     val addr = region.allocate(this.byteSize)
-    unstagedStoreJavaObjectAtAddress(addr, annotation, region)
+    unstagedStoreJavaObjectAtAddress(sm, addr, annotation, region)
     addr
   }
 

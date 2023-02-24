@@ -843,7 +843,7 @@ object Simplify {
     case TableFilterIntervals(TableAggregateByKey(child, expr), intervals, keep) =>
       TableAggregateByKey(TableFilterIntervals(child, intervals, keep), expr)
     case TableFilterIntervals(TableFilterIntervals(child, _i1, keep1), _i2, keep2) if keep1 == keep2 =>
-      val ord = PartitionBoundOrdering(child.typ.keyType).intervalEndpointOrdering
+      val ord = PartitionBoundOrdering(ctx, child.typ.keyType).intervalEndpointOrdering
       val i1 = Interval.union(_i1.toArray[Interval], ord)
       val i2 = Interval.union(_i2.toArray[Interval], ord)
       val intervals = if (keep1)
@@ -873,9 +873,9 @@ object Simplify {
       val newOpts = tr.params.options match {
         case None =>
           val pt = t.keyType
-          NativeReaderOptions(Interval.union(intervals.toArray, PartitionBoundOrdering(pt).intervalEndpointOrdering), pt, true)
+          NativeReaderOptions(Interval.union(intervals.toArray, PartitionBoundOrdering(ctx, pt).intervalEndpointOrdering), pt, true)
         case Some(NativeReaderOptions(preIntervals, intervalPointType, _)) =>
-          val iord = PartitionBoundOrdering(intervalPointType).intervalEndpointOrdering
+          val iord = PartitionBoundOrdering(ctx, intervalPointType).intervalEndpointOrdering
           NativeReaderOptions(
             Interval.intersection(Interval.union(preIntervals.toArray, iord), Interval.union(intervals.toArray, iord), iord),
             intervalPointType, true)
@@ -889,9 +889,9 @@ object Simplify {
       val newOpts = tr.options match {
         case None =>
           val pt = t.keyType
-          NativeReaderOptions(Interval.union(intervals.toArray, PartitionBoundOrdering(pt).intervalEndpointOrdering), pt, true)
+          NativeReaderOptions(Interval.union(intervals.toArray, PartitionBoundOrdering(ctx, pt).intervalEndpointOrdering), pt, true)
         case Some(NativeReaderOptions(preIntervals, intervalPointType, _)) =>
-          val iord = PartitionBoundOrdering(intervalPointType).intervalEndpointOrdering
+          val iord = PartitionBoundOrdering(ctx, intervalPointType).intervalEndpointOrdering
           NativeReaderOptions(
             Interval.intersection(Interval.union(preIntervals.toArray, iord), Interval.union(intervals.toArray, iord), iord),
             intervalPointType, true)

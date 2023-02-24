@@ -3,7 +3,7 @@ package is.hail.io.index
 import java.io.OutputStream
 import is.hail.annotations.{Annotation, Region, RegionPool, RegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.backend.{ExecuteContext, HailTaskContext}
+import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext}
 import is.hail.backend.spark.SparkTaskContext
 import is.hail.expr.ir.{CodeParam, EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, IEmitCode, IntArrayBuilder, LongArrayBuilder, ParamType}
 import is.hail.io._
@@ -82,18 +82,19 @@ object IndexWriter {
     attributes: Map[String, Any] = Map.empty[String, Any]
   ): (String, HailClassLoader, HailTaskContext, RegionPool) => IndexWriter = {
     val f = StagedIndexWriter.build(ctx, keyType, annotationType, branchingFactor, attributes);
+    val sm = ctx.stateManager;
     { (path: String, hcl: HailClassLoader, htc: HailTaskContext, pool: RegionPool) =>
-      new IndexWriter(keyType, annotationType, f(path, hcl, htc, pool), pool)
+      new IndexWriter(sm, keyType, annotationType, f(path, hcl, htc, pool), pool)
     }
   }
 }
 
-class IndexWriter(keyType: PType, valueType: PType, comp: CompiledIndexWriter, pool: RegionPool) extends AutoCloseable {
+class IndexWriter(sm: HailStateManager, keyType: PType, valueType: PType, comp: CompiledIndexWriter, pool: RegionPool) extends AutoCloseable {
   private val region = Region(pool=pool)
-  private val rvb = new RegionValueBuilder(region)
+  private val rvb = new RegionValueBuilder(sm, region)
   def appendRow(x: Annotation, offset: Long, annotation: Annotation): Unit = {
-    val koff = keyType.unstagedStoreJavaObject(x, region)
-    val voff = valueType.unstagedStoreJavaObject(annotation, region)
+    val koff = keyType.unstagedStoreJavaObject(sm, x, region)
+    val voff = valueType.unstagedStoreJavaObject(sm, annotation, region)
     comp.apply(koff, offset, voff)
   }
 

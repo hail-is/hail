@@ -136,13 +136,12 @@ object HailContext {
     info(s"Running Hail version ${ theContext.version }")
 
     // needs to be after `theContext` is set, since this creates broadcasts
-    ReferenceGenome.addDefaultReferences()
+    backend.addDefaultReferences()
 
     theContext
   }
 
   def stop(): Unit = synchronized {
-    ReferenceGenome.reset()
     IRFunctionRegistry.clearUserFunctions()
     backend.stop()
 

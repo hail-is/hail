@@ -252,7 +252,7 @@ class TableStage(
 
     val startAndEnd = partitioner.rangeBounds.map(newPartitioner.intervalRange)
       .zipWithIndex
-    val ord = PartitionBoundOrdering.apply(newPartitioner.kType)
+    val ord = PartitionBoundOrdering.apply(newPartitioner.sm, newPartitioner.kType)
     if (startAndEnd.forall { case ((start, end), index) =>
       start + 1 == end && newPartitioner.rangeBounds(start).includes(ord, partitioner.rangeBounds(index)) }) {
       val newToOld = startAndEnd
@@ -348,7 +348,7 @@ class TableStage(
     require(newKey.forall(rowType.fieldNames.contains))
 
     val newKeyType = rowType.typeAfterSelectNames(newKey)
-    if (RVDPartitioner.isValid(newKeyType, partitioner.rangeBounds)) {
+    if (RVDPartitioner.isValid(partitioner.sm, newKeyType, partitioner.rangeBounds)) {
       changePartitionerNoRepartition(partitioner.copy(kType = newKeyType))
     } else {
       val adjustedPartitioner = partitioner.strictify
@@ -375,6 +375,7 @@ class TableStage(
         case "right" => rightPart
         case "inner" => leftPart.intersect(rightPart)
         case "outer" => RVDPartitioner.generate(
+          partitioner.sm,
           this.kType.fieldNames.take(joinKey),
           this.kType,
           leftPart.rangeBounds ++ rightPart.rangeBounds)
@@ -472,12 +473,13 @@ class TableStage(
       rightRowRTypeWithPartNum)
     assert(sorted.kType.fieldNames.sameElements("__partNum" +: right.key))
     val newRightPartitioner = new RVDPartitioner(
+      ctx.stateManager,
       Some(1),
       TStruct.concat(TStruct("__partNum" -> TInt32), right.kType),
       Array.tabulate[Interval](partitioner.numPartitions)(i => Interval(Row(i), Row(i), true, true))
       )
     val repartitioned = sorted.repartitionNoShuffle(newRightPartitioner)
-      .changePartitionerNoRepartition(RVDPartitioner.unkeyed(newRightPartitioner.numPartitions))
+      .changePartitionerNoRepartition(RVDPartitioner.unkeyed(ctx.stateManager, newRightPartitioner.numPartitions))
       .mapPartition(None) { part =>
         mapIR(part) { row =>
           SelectFields(row, right.rowType.fieldNames)
@@ -743,7 +745,7 @@ object LowerTableIR {
 
           TableStage(
             globals,
-            RVDPartitioner.empty(typ.keyType),
+            RVDPartitioner.empty(ctx, typ.keyType),
             TableStageDependency.none,
             MakeStream(FastIndexedSeq(), TStream(TStruct.empty)),
             (_: Ref) => MakeStream(FastIndexedSeq(), TStream(typ.rowType)))
@@ -790,7 +792,7 @@ object LowerTableIR {
             globalsRef.name -> GetField(loweredRowsAndGlobalRef, "global")),
           FastIndexedSeq(globalsRef.name -> globalsRef),
           globalsRef,
-          RVDPartitioner.unkeyed(nPartitionsAdj),
+          RVDPartitioner.unkeyed(ctx.stateManager, nPartitionsAdj),
           TableStageDependency.none,
           context,
           ctxRef => ToStream(ctxRef, true))
@@ -827,7 +829,7 @@ object LowerTableIR {
 
         TableStage(
           MakeStruct(FastSeq()),
-          new RVDPartitioner(Array("idx"), tir.typ.rowType,
+          new RVDPartitioner(ctx.stateManager, Array("idx"), tir.typ.rowType,
             ranges.map { case (start, end) =>
               Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
             }),
@@ -845,7 +847,7 @@ object LowerTableIR {
         val partStarts = partCounts.scanLeft(0)(_ + _)
 
         val contextType = TStruct("start" -> TInt32, "end" -> TInt32)
-        val toLocus = TableGenomicRange.toLocus(referenceGenome)
+        val toLocus = TableGenomicRange.toLocus(referenceGenome.map(ctx.getReference))
 
         val globalPosRanges = Array.tabulate(nPartitionsAdj) { i =>
           partStarts(i) -> partStarts(i + 1)
@@ -856,7 +858,7 @@ object LowerTableIR {
 
         TableStage(
           MakeStruct(FastSeq()),
-          new RVDPartitioner(Array("locus"), tir.typ.rowType,
+          new RVDPartitioner(ctx.stateManager, Array("locus"), tir.typ.rowType,
             locusRanges.map { case (start, end) =>
               Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
             }),
@@ -1000,10 +1002,10 @@ object LowerTableIR {
         val loweredChild = lower(child)
         val part = loweredChild.partitioner
         val kt = child.typ.keyType
-        val ord = PartitionBoundOrdering(kt)
+        val ord = PartitionBoundOrdering(ctx.stateManager, kt)
         val iord = ord.intervalEndpointOrdering
 
-        val filterPartitioner = new RVDPartitioner(kt, Interval.union(intervals.toArray, ord.intervalEndpointOrdering))
+        val filterPartitioner = new RVDPartitioner(ctx.stateManager, kt, Interval.union(intervals.toArray, ord.intervalEndpointOrdering))
         val boundsType = TArray(RVDPartitioner.intervalIRRepresentation(kt))
         val filterIntervalsRef = Ref(genUID(), boundsType)
         val filterIntervals: IndexedSeq[Interval] = filterPartitioner.rangeBounds.map { i =>
@@ -1037,7 +1039,7 @@ object LowerTableIR {
           (newRangeBounds, includedIndices, startAndEndInterval, f _)
         }
 
-        val newPart = new RVDPartitioner(kt, newRangeBounds)
+        val newPart = new RVDPartitioner(ctx.stateManager, kt, newRangeBounds)
 
         TableStage(
           letBindings = loweredChild.letBindings,
@@ -1643,7 +1645,7 @@ object LowerTableIR {
       case x@TableUnion(children) =>
         val lowered = children.map(lower)
         val keyType = x.typ.keyType
-        val newPartitioner = RVDPartitioner.generate(keyType, lowered.flatMap(_.partitioner.rangeBounds))
+        val newPartitioner = RVDPartitioner.generate(ctx.stateManager, keyType, lowered.flatMap(_.partitioner.rangeBounds))
         val repartitioned = lowered.map(_.repartitionNoShuffle(newPartitioner))
 
         TableStage(
@@ -1662,7 +1664,7 @@ object LowerTableIR {
       case x@TableMultiWayZipJoin(children, fieldName, globalName) =>
         val lowered = children.map(lower)
         val keyType = x.typ.keyType
-        val newPartitioner = RVDPartitioner.generate(keyType, lowered.flatMap(_.partitioner.rangeBounds))
+        val newPartitioner = RVDPartitioner.generate(ctx.stateManager, keyType, lowered.flatMap(_.partitioner.rangeBounds))
         val repartitioned = lowered.map(_.repartitionNoShuffle(newPartitioner))
         val newGlobals = MakeStruct(FastSeq(
           globalName -> MakeArray(lowered.map(_.globals), TArray(lowered.head.globalType))))
@@ -1695,7 +1697,7 @@ object LowerTableIR {
       case TableOrderBy(child, sortFields) =>
         val loweredChild = lower(child)
         if (TableOrderBy.isAlreadyOrdered(sortFields, loweredChild.partitioner.kType.fieldNames)) {
-          loweredChild.changePartitionerNoRepartition(RVDPartitioner.unkeyed(loweredChild.partitioner.numPartitions))
+          loweredChild.changePartitionerNoRepartition(RVDPartitioner.unkeyed(ctx.stateManager, loweredChild.partitioner.numPartitions))
         } else {
           val rowRType = analyses.requirednessAnalysis.lookup(child).asInstanceOf[RTable].rowType
           ctx.backend.lowerDistributedSort(

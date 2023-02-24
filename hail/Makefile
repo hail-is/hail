@@ -99,6 +99,9 @@ ifdef HAIL_DEBUG_MODE
 	$(JAR) -uf $(SHADOW_JAR) -C $(BUILD_DEBUG_PREFIX) is/hail/annotations/Memory.class
 endif
 
+.PHONY: shadowTestJar
+shadowTestJar: $(SHADOW_TEST_JAR)
+
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_TEST_JAR): native-lib-prebuilt
 endif

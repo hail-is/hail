@@ -159,7 +159,7 @@ class StringTableReader(
     val lines = GenericLines.read(fs, fileStatuses, None, None, params.minPartitions, params.forceBGZ, params.forceGZ,
       params.filePerPartition)
     TableStage(globals = MakeStruct(FastSeq()),
-      partitioner = RVDPartitioner.unkeyed(lines.nPartitions),
+      partitioner = RVDPartitioner.unkeyed(ctx.stateManager, lines.nPartitions),
       dependency = TableStageDependency.none,
       contexts = ToStream(Literal.coerce(TArray(lines.contextType), lines.contexts)),
       body = { partitionContext: Ref => ReadPartition(partitionContext, requestedType.rowType, StringTablePartitionReader(lines, uidFieldName))

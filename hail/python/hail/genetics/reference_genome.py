@@ -10,7 +10,7 @@ rg_type = lazy()
 reference_genome_type = oneof(transformed((str, lambda x: hl.get_reference(x))), rg_type)
 
 
-class ReferenceGenome(object):
+class ReferenceGenome:
     """An object that represents a `reference genome <https://en.wikipedia.org/wiki/Reference_genome>`__.
 
     Examples
@@ -67,8 +67,6 @@ class ReferenceGenome(object):
         List of tuples with (contig, start, end)
     """
 
-    _references = {}
-
     @classmethod
     def _from_config(cls, config, _builtin=False):
         def par_tuple(p):
@@ -93,7 +91,6 @@ class ReferenceGenome(object):
                       par=sequenceof(sized_tupleof(str, int, int)),
                       _builtin=bool)
     def __init__(self, name, contigs, lengths, x_contigs=[], y_contigs=[], mt_contigs=[], par=[], _builtin=False):
-        super(ReferenceGenome, self).__init__()
 
         contigs = wrap_to_list(contigs)
         x_contigs = wrap_to_list(x_contigs)
@@ -115,10 +112,8 @@ class ReferenceGenome(object):
         self._par = [hl.Interval(hl.Locus(c, s, self), hl.Locus(c, e, self)) for (c, s, e) in par]
         self._global_positions = None
 
-        ReferenceGenome._references[name] = self
-
         if not _builtin:
-            Env.backend().add_reference(self._config)
+            Env.backend().add_reference(self)
 
         self._sequence_files = None
         self._liftovers = dict()
@@ -422,9 +417,9 @@ class ReferenceGenome(object):
         :class:`.ReferenceGenome`
         """
         par_strings = ["{}:{}-{}".format(contig, start, end) for (contig, start, end) in par]
-        Env.backend().from_fasta_file(name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par_strings)
+        config = Env.backend().from_fasta_file(name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par_strings)
 
-        rg = ReferenceGenome._from_config(Env.backend().get_reference(name), _builtin=True)
+        rg = ReferenceGenome._from_config(config, _builtin=True)
         rg._sequence_files = (fasta_file, index_file)
         return rg
 

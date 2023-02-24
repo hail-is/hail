@@ -2,6 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s._
+import is.hail.backend.HailStateManager
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SBinaryPointerValue}
@@ -18,7 +19,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 
   override def byteSize: Long = 8
 
-  def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
+  override def _copyFromAddress(sm: HailStateManager, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
     val srcBinary = srcPType.asInstanceOf[PCanonicalBinary]
     if (srcBinary == this) {
       if (deepCopy) {
@@ -164,9 +165,9 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
   }
 
-  def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
+  def unstagedStoreAtAddress(sm: HailStateManager, addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
     val srcArray = srcPType.asInstanceOf[PBinary]
-    Region.storeAddress(addr, copyFromAddress(region, srcArray, srcAddress, deepCopy))
+    Region.storeAddress(addr, copyFromAddress(sm, region, srcArray, srcAddress, deepCopy))
   }
 
   def setRequired(required: Boolean): PCanonicalBinary =
@@ -176,11 +177,11 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 
   override def unstagedLoadFromNested(addr: Long): Long = Region.loadAddress(addr)
 
-  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
-    Region.storeAddress(addr, unstagedStoreJavaObject(annotation, region))
+  override def unstagedStoreJavaObjectAtAddress(sm: HailStateManager, addr: Long, annotation: Annotation, region: Region): Unit = {
+    Region.storeAddress(addr, unstagedStoreJavaObject(sm, annotation, region))
   }
 
-  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
+  override def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region): Long = {
     val bytes = annotation.asInstanceOf[Array[Byte]]
     val valueAddress = allocate(region, bytes.length)
     store(valueAddress, bytes)
@@ -193,4 +194,3 @@ object PCanonicalBinary {
 
   def unapply(t: PBinary): Option[Boolean] = Option(t.required)
 }
-
