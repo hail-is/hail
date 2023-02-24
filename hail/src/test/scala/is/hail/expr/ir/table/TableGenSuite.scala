@@ -1,5 +1,6 @@
 package is.hail.expr.ir.table
 
+import is.hail.backend.HailStateManager
 import is.hail.expr.ir.TestUtils.IRAggCollect
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.expr.ir._
@@ -125,7 +126,7 @@ class TableGenSuite extends HailSuite {
         ))
         MakeStream(Seq(elem), TStream(elem.typ))
       },
-      partitioner.getOrElse(RVDPartitioner.unkeyed(2))
+      partitioner.getOrElse(RVDPartitioner.unkeyed(HailStateManager(Map.empty), 2))
     )
   }
 }
