@@ -63,7 +63,6 @@ def test_reference_genome_sequence():
     assert gr4._sequence_files == (resource("fake_reference.fasta"), resource("fake_reference.fasta.fai"))
 
 
-@fails_service_backend()
 def test_reference_genome_liftover():
     grch37 = hl.get_reference('GRCh37')
     grch38 = hl.get_reference('GRCh38')
@@ -124,7 +123,6 @@ def test_reference_genome_liftover():
     grch38.remove_liftover("GRCh37")
 
 
-@fails_service_backend()
 def test_liftover_strand():
     grch37 = hl.get_reference('GRCh37')
     grch37.add_liftover(resource('grch37_to_grch38_chr20.over.chain.gz'), 'GRCh38')
@@ -143,19 +141,15 @@ def test_liftover_strand():
                              is_negative_strand=True)
         assert actual == expected
 
-        try:
+        with pytest.raises(FatalError):
             hl.eval(hl.liftover(hl.parse_locus_interval('1:10000-10000', reference_genome='GRCh37'), 'GRCh38'))
-        except FatalError:
-            pass
-        else:
-            assert False
     finally:
         grch37.remove_liftover("GRCh38")
 
 
 def test_read_custom_reference_genome():
     # this test doesn't behave properly if these reference genomes are already defined in scope.
-    available_rgs = set(hl.ReferenceGenome._references.keys())
+    available_rgs = set(hl.current_backend()._references.keys())
     assert 'test_rg_0' not in available_rgs
     assert 'test_rg_1' not in available_rgs
     assert 'test_rg_2' not in available_rgs
@@ -176,12 +170,8 @@ def test_read_custom_reference_genome():
 
     # loading different reference genome with same name should fail
     # (different `test_rg_o` definition)
-    try:
+    with pytest.raises(FatalError):
         hl.read_matrix_table(resource('custom_references_2.t')).count()
-    except FatalError:
-        pass
-    else:
-        assert False
 
     assert hl.read_matrix_table(resource('custom_references.mt')).count_rows() == 14
     assert_rg_loaded_correctly('test_rg_1')

@@ -52,9 +52,9 @@ private case class LoadBgenPartition(
 }
 
 object BgenRDDPartitions extends Logging {
-  def checkFilesDisjoint(fs: FS, fileMetadata: Seq[BgenFileMetadata], keyType: Type): Array[Interval] = {
+  def checkFilesDisjoint(ctx: ExecuteContext, fileMetadata: Seq[BgenFileMetadata], keyType: Type): Array[Interval] = {
     assert(fileMetadata.nonEmpty)
-    val pord = keyType.ordering
+    val pord = keyType.ordering(ctx.stateManager)
     val bounds = fileMetadata.map(md => (md.path, md.rangeBounds))
 
     val overlappingBounds = new BoxedArrayBuilder[(String, Interval, String, Interval)]
@@ -94,8 +94,8 @@ object BgenRDDPartitions extends Logging {
     val fs = ctx.fs
     val fsBc = fs.broadcast
 
-    val fileRangeBounds = checkFilesDisjoint(fs, files, keyType)
-    val intervalOrdering = TInterval(keyType).ordering
+    val fileRangeBounds = checkFilesDisjoint(ctx, files, keyType)
+    val intervalOrdering = TInterval(keyType).ordering(ctx.stateManager)
 
     val sortedFiles = files.zip(fileRangeBounds)
       .sortWith { case ((_, i1), (_, i2)) => intervalOrdering.lt(i1, i2) }
@@ -124,7 +124,7 @@ object BgenRDDPartitions extends Logging {
       val (leafCodec, internalNodeCodec) = BgenSettings.indexCodecSpecs(rg)
       val (leafPType: PStruct, leafDec) = leafCodec.buildDecoder(ctx, leafCodec.encodedVirtualType)
       val (intPType: PStruct, intDec) = internalNodeCodec.buildDecoder(ctx, internalNodeCodec.encodedVirtualType)
-      IndexReaderBuilder.withDecoders(leafDec, intDec, BgenSettings.indexKeyType(rg), BgenSettings.indexAnnotationType, leafPType, intPType)
+      IndexReaderBuilder.withDecoders(ctx, leafDec, intDec, BgenSettings.indexKeyType(rg), BgenSettings.indexAnnotationType, leafPType, intPType)
     }
     if (nonEmptyFilesAfterFilter.isEmpty) {
       (Array.empty, Array.empty)
@@ -548,4 +548,3 @@ object CompileDecoder {
     fb.resultWithIndex()
   }
 }
-

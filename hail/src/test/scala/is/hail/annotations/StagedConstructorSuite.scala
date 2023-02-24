@@ -17,6 +17,8 @@ class StagedConstructorSuite extends HailSuite {
 
   val showRVInfo = true
 
+  def sm = ctx.stateManager
+
   @Test
   def testCanonicalString() {
     val rt = PCanonicalString()
@@ -114,7 +116,7 @@ class StagedConstructorSuite extends HailSuite {
 
     val region2 = Region(pool=pool)
     val rv2 = RegionValue(region2)
-    rv2.setOffset(ScalaToRegionValue(region2, rt, FastIndexedSeq(input)))
+    rv2.setOffset(ScalaToRegionValue(sm, region2, rt, FastIndexedSeq(input)))
 
     if (showRVInfo) {
       printRegion(region2, "array")
@@ -158,7 +160,7 @@ class StagedConstructorSuite extends HailSuite {
 
     val region2 = Region(pool=pool)
     val rv2 = RegionValue(region2)
-    rv2.setOffset(ScalaToRegionValue(region2, rt, Annotation("hello", input)))
+    rv2.setOffset(ScalaToRegionValue(sm, region2, rt, Annotation("hello", input)))
 
     if (showRVInfo) {
       printRegion(region2, "struct")
@@ -202,7 +204,7 @@ class StagedConstructorSuite extends HailSuite {
 
     val region2 = Region(pool=pool)
     val rv2 = RegionValue(region2)
-    val rvb = new RegionValueBuilder(region2)
+    val rvb = new RegionValueBuilder(sm, region2)
     rvb.start(arrayType)
     rvb.startArray(2)
     for (i <- 1 to 2) {
@@ -231,8 +233,8 @@ class StagedConstructorSuite extends HailSuite {
     val strVal = "a string with a partner of 20"
     val region = Region(pool=pool)
     val region2 = Region(pool=pool)
-    val rvb = new RegionValueBuilder(region)
-    val rvb2 = new RegionValueBuilder(region2)
+    val rvb = new RegionValueBuilder(sm, region)
+    val rvb2 = new RegionValueBuilder(sm, region2)
     val rv = RegionValue(region)
     val rv2 = RegionValue(region2)
     rvb.start(rt)
@@ -274,8 +276,8 @@ class StagedConstructorSuite extends HailSuite {
     val r2 = Region(pool=pool)
     val rv = RegionValue(r)
     val rv2 = RegionValue(r2)
-    val rvb = new RegionValueBuilder(r)
-    val rvb2 = new RegionValueBuilder(r2)
+    val rvb = new RegionValueBuilder(sm, r)
+    val rvb2 = new RegionValueBuilder(sm, r2)
     rvb.start(rt)
     rvb.startStruct()
     rvb.setMissing()
@@ -335,7 +337,7 @@ class StagedConstructorSuite extends HailSuite {
 
     val region2 = Region(pool=pool)
     val rv2 = RegionValue(region2)
-    val rvb = new RegionValueBuilder(region2)
+    val rvb = new RegionValueBuilder(sm, region2)
 
     rvb.start(rt)
     rvb.startStruct()
@@ -383,7 +385,7 @@ class StagedConstructorSuite extends HailSuite {
 
     val region2 = Region(pool=pool)
     val rv2 = RegionValue(region2)
-    rv2.setOffset(ScalaToRegionValue(region2, rt, FastIndexedSeq(input, null)))
+    rv2.setOffset(ScalaToRegionValue(sm, region2, rt, FastIndexedSeq(input, null)))
 
     if (showRVInfo) {
       printRegion(region2, "missing array")
@@ -429,7 +431,7 @@ class StagedConstructorSuite extends HailSuite {
 
   @Test def testDeepCopy() {
     val g = Type.genStruct
-      .flatMap(t => Gen.zip(Gen.const(t), t.genValue))
+      .flatMap(t => Gen.zip(Gen.const(t), t.genValue(sm)))
       .filter { case (t, a) => a != null }
       .map { case (t, a) => (PType.canonical(t).asInstanceOf[PStruct], a) }
 
@@ -437,7 +439,7 @@ class StagedConstructorSuite extends HailSuite {
       assert(t.virtualType.typeCheck(a))
       val copy = pool.scopedRegion { region =>
         val copyOff = pool.scopedRegion { srcRegion =>
-          val src = ScalaToRegionValue(srcRegion, t, a)
+          val src = ScalaToRegionValue(sm, srcRegion, t, a)
 
           val fb = EmitFunctionBuilder[Region, Long, Long](ctx, "deep_copy")
           fb.emitWithBuilder[Long](cb => t.store(cb,
@@ -476,8 +478,8 @@ class StagedConstructorSuite extends HailSuite {
     )
 
     pool.scopedRegion { r =>
-      val rvb = new RegionValueBuilder(r)
-      val v1 = t2.unstagedStoreJavaObject(value, r)
+      val rvb = new RegionValueBuilder(sm, r)
+      val v1 = t2.unstagedStoreJavaObject(sm, value, r)
       assert(SafeRow.read(t2, v1) == value)
 
       rvb.clear()
@@ -505,7 +507,7 @@ class StagedConstructorSuite extends HailSuite {
 
     val valueT2 = t2.types(0)
     pool.scopedRegion { r =>
-      val v1 = valueT2.unstagedStoreJavaObject(value, r)
+      val v1 = valueT2.unstagedStoreJavaObject(sm, value, r)
       assert(SafeRow.read(valueT2, v1) == value)
 
       val f1 = EmitFunctionBuilder[Long](ctx, "stagedCopy1")

@@ -93,7 +93,7 @@ class EmitStreamSuite extends HailSuite {
       if (arg == null)
         f(r, 0L, true)
       else
-        f(r, ScalaToRegionValue(r, inputType, arg), false)
+        f(r, ScalaToRegionValue(ctx.stateManager, r, inputType, arg), false)
     }
   }
 
@@ -114,7 +114,7 @@ class EmitStreamSuite extends HailSuite {
             eos = true
             0L
           } else
-            ScalaToRegionValue(_eltRegion, elementType, it.next())
+            ScalaToRegionValue(ctx.stateManager, _eltRegion, elementType, it.next())
         }
         override def close(): Unit = ()
       }
@@ -756,7 +756,7 @@ class EmitStreamSuite extends HailSuite {
       ir)
 
     pool.scopedSmallRegion { r =>
-      val input = t.unstagedStoreJavaObject(Row(null, IndexedSeq(1d, 2d), IndexedSeq(3d, 4d)), r)
+      val input = t.unstagedStoreJavaObject(ctx.stateManager, Row(null, IndexedSeq(1d, 2d), IndexedSeq(3d, 4d)), r)
 
       assert(SafeRow.read(pt, f(theHailClassLoader, ctx.fs, ctx.taskContext, r)(r, input)) == Row(null))
     }

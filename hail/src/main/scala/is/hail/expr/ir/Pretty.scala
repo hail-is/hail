@@ -347,7 +347,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
       FastSeq(prettyIdentifiers(keys), Pretty.prettyBooleanLiteral(isSorted))
     case TableRange(n, nPartitions) => FastSeq(n.toString, nPartitions.toString)
     case TableGenomicRange(n, nPartitions, referenceGenome) => FastSeq(
-      n.toString, nPartitions.toString, referenceGenome.map(_.name).getOrElse("None").toString)
+      n.toString, nPartitions.toString, referenceGenome.getOrElse("None").toString)
     case TableRepartition(_, n, strategy) => FastSeq(n.toString, strategy.toString)
     case TableHead(_, n) => single(n.toString)
     case TableTail(_, n) => single(n.toString)

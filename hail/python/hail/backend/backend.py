@@ -59,6 +59,7 @@ class Backend(abc.ABC):
     @abc.abstractmethod
     def __init__(self):
         self._persisted_locations = dict()
+        self._references = {}
 
     @abc.abstractmethod
     def stop(self):
@@ -85,10 +86,6 @@ class Backend(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def add_reference(self, config):
-        pass
-
-    @abc.abstractmethod
     def load_references_from_dataset(self, path):
         pass
 
@@ -96,23 +93,30 @@ class Backend(abc.ABC):
     def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
         pass
 
-    @abc.abstractmethod
-    def remove_reference(self, name):
+    def add_reference(self, rg):
+        self._references[rg.name] = rg
+        self._add_reference_to_scala_backend(rg)
+
+    def _add_reference_to_scala_backend(self, rg):
         pass
 
     def get_reference(self, name):
-        if name in BUILTIN_REFERENCE_RESOURCE_PATHS:
-            path_in_jar = BUILTIN_REFERENCE_RESOURCE_PATHS[name]
-            jar_path = pkg_resources.resource_filename(__name__, 'hail-all-spark.jar')
-            return orjson.loads(zipfile.ZipFile(jar_path).open(path_in_jar).read())
-        return self._get_non_builtin_reference(name)
+        return self._references[name]
 
-    @abc.abstractmethod
-    def _get_non_builtin_reference(self, name):
+    def initialize_references(self):
+        from hail.genetics.reference_genome import ReferenceGenome
+        jar_path = pkg_resources.resource_filename(__name__, 'hail-all-spark.jar')
+        for path_in_jar in BUILTIN_REFERENCE_RESOURCE_PATHS.values():
+            rg_config = orjson.loads(zipfile.ZipFile(jar_path).open(path_in_jar).read())
+            rg = ReferenceGenome._from_config(rg_config, _builtin=True)
+            self._references[rg.name] = rg
+
+    def remove_reference(self, name):
+        del self._references[name]
+        self._remove_reference_from_scala_backend(name)
+
+    def _remove_reference_from_scala_backend(self, name):
         pass
-
-    def get_references(self, names):
-        return [self.get_reference(name) for name in names]
 
     @abc.abstractmethod
     def add_sequence(self, name, fasta_file, index_file):
