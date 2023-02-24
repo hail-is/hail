@@ -72,8 +72,7 @@ object Compile {
 
       val emitContext = EmitContext.analyze(ctx, ir)
       val rt = Emit(emitContext, ir, fb, expectedCodeReturnType, params.length)
-      val writeIRs2 = writeIRs || ctx.getFlag("write_ir_files") != null
-      CompiledFunction(rt, fb.resultWithIndex(writeIRs2, print))
+      CompiledFunction(rt, fb.resultWithIndex(writeIRs, print))
     }).tuple
   }
 }
