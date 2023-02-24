@@ -5,8 +5,9 @@ RUN hail-apt-get-install \
     iptables \
     openjdk-8-jre-headless \
     liblapack3 \
-    xfsprogs \
-    libyajl-dev # crun runtime dependency
+    libyajl-dev \ # crun runtime dependency
+    wget \    
+    xfsprogs
 
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.7 1
 
@@ -45,6 +46,9 @@ ENV PYSPARK_PYTHON python3
 
 COPY docker/core-site.xml ${SPARK_HOME}/conf/core-site.xml
 
+RUN wget https://github.com/jvm-profiling-tools/async-profiler/releases/download/v2.9/async-profiler-2.9-linux-x64.tar.gz && \
+    tar -xvf async-profiler-2.9-linux-x64.tar.gz
+
 # Build crun in separate build step
 FROM base AS crun_builder
 RUN hail-apt-get-install make git gcc build-essential pkgconf libtool \
@@ -74,7 +78,3 @@ RUN hail-pip-install /hailtop /gear /batch
 COPY batch/jars/junixsocket-selftest-2.3.3-jar-with-dependencies.jar /jvm-entryway/
 COPY batch/src/main/java/is /jvm-entryway/is
 COPY letsencrypt/subdomains.txt /
-
-RUN hail-apt-get-install wget && \
-    wget https://github.com/jvm-profiling-tools/async-profiler/releases/download/v2.9/async-profiler-2.9-linux-x64.tar.gz && \
-    tar -xvf async-profiler-2.9-linux-x64.tar.gz

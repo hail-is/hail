@@ -2223,7 +2223,7 @@ class JVMJob(Job):
                 if os.path.exists(self.profile_file):
                     profile_contents = await self.worker.fs.read(self.profile_file)
                 else:
-                    profile_contents = 'profile not available'
+                    profile_contents = b'profile not available'
                 await self.worker.file_store.write_jvm_profile(
                     self.format_version,
                     self.batch_id,
