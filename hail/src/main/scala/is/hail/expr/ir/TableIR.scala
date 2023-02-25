@@ -855,7 +855,9 @@ case class PartitionNativeIntervalReader(sm: HailStateManager, tablePath: String
               val partPath = partitionPathsRuntime.loadElement(cb, currPartitionIdx).get(cb).asString.loadString(cb)
               val idxPath = indexPathsRuntime.loadElement(cb, currPartitionIdx).get(cb).asString.loadString(cb)
               index.initialize(cb, idxPath)
-              cb.assign(ib, spec.buildCodeInputBuffer(Code.newInstance[ByteTrackingInputStream, InputStream](cb.emb.open(partPath, false))))
+              cb.assign(ib, spec.buildCodeInputBuffer(
+                Code.newInstance[ByteTrackingInputStream, InputStream](
+                  cb.emb.openUnbuffered(partPath, false))))
               index.addToFinalizer(cb, finalizer)
               cb += finalizer.invoke[Closeable, Unit]("addCloseable", ib)
             })
@@ -1028,7 +1030,9 @@ case class PartitionNativeReaderIndexed(
           cb.assign(curIdx, startIndex)
           cb.assign(endIdx, endIndex)
 
-          cb.assign(ib, spec.buildCodeInputBuffer(Code.newInstance[ByteTrackingInputStream, InputStream](cb.emb.open(partitionPath, false))))
+          cb.assign(ib, spec.buildCodeInputBuffer(
+            Code.newInstance[ByteTrackingInputStream, InputStream](
+              cb.emb.openUnbuffered(partitionPath, false))))
           cb.ifx(endIndex > startIndex, {
             val firstOffset = indexResult.loadField(cb, 2)
               .get(cb)
