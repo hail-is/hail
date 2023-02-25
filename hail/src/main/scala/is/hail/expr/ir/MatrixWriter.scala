@@ -307,8 +307,8 @@ case class SplitPartitionNativeWriter(
       }
       cb.assign(filename2, const(partPrefix2).concat(filename1))
       cb.assign(filename1, const(partPrefix1).concat(filename1))
-      cb.assign(os1, Code.newInstance[ByteTrackingOutputStream, OutputStream](mb.create(filename1)))
-      cb.assign(os2, Code.newInstance[ByteTrackingOutputStream, OutputStream](mb.create(filename2)))
+      cb.assign(os1, Code.newInstance[ByteTrackingOutputStream, OutputStream](mb.createUnbuffered(filename1)))
+      cb.assign(os2, Code.newInstance[ByteTrackingOutputStream, OutputStream](mb.createUnbuffered(filename2)))
       cb.assign(ob1, spec1.buildCodeOutputBuffer(Code.checkcast[OutputStream](os1)))
       cb.assign(ob2, spec2.buildCodeOutputBuffer(Code.checkcast[OutputStream](os2)))
       cb.assign(n, 0L)

@@ -690,7 +690,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec, uidFieldName: Str
         override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
         override def initialize(cb: EmitCodeBuilder, partitionRegion: Value[Region]): Unit = {
-          cb.assign(xRowBuf, spec.buildCodeInputBuffer(mb.open(pathString, checkCodec = true)))
+          cb.assign(xRowBuf, spec.buildCodeInputBuffer(mb.openUnbuffered(pathString, checkCodec = true)))
           cb.assign(rowIdx, -1L)
         }
 
@@ -1293,13 +1293,13 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
           cb.assign(partIdx, ctxStruct.loadField(cb, "partitionIndex").get(cb).asInt64.value)
           cb.assign(leftBuffer, specLeft.buildCodeInputBuffer(
             Code.newInstance[ByteTrackingInputStream, InputStream](
-              mb.open(ctxStruct.loadField(cb, "leftPartitionPath")
+              mb.openUnbuffered(ctxStruct.loadField(cb, "leftPartitionPath")
                 .get(cb)
                 .asString
                 .loadString(cb), true))))
           cb.assign(rightBuffer, specRight.buildCodeInputBuffer(
             Code.newInstance[ByteTrackingInputStream, InputStream](
-              mb.open(ctxStruct.loadField(cb, "rightPartitionPath")
+              mb.openUnbuffered(ctxStruct.loadField(cb, "rightPartitionPath")
                 .get(cb)
                 .asString
                 .loadString(cb), true))))
