@@ -771,6 +771,10 @@ class BlockMatrixStage2 private (
     BlockMatrixStage2(broadcastVals, typ, ctxs, newBody)
   }
 
+  def zeroRowIntervals(starts: IndexedSeq[Long], stops: IndexedSeq[Long], typ: BlockMatrixType, ib: IRBuilder): BlockMatrixStage2 = {
+    ???
+  }
+
   def collectBlocks(
     ib: IRBuilder,
     staticID: String,
@@ -999,11 +1003,10 @@ object LowerBlockMatrixIR {
           // these cases are all handled at the type level
           case BandSparsifier(blocksOnly, _, _) if (blocksOnly) => loweredChild
           case RowIntervalSparsifier(blocksOnly, _, _) if (blocksOnly) => loweredChild
-          case PerBlockSparsifier(_) => loweredChild
+          case PerBlockSparsifier(_) | RectangleSparsifier(_) => loweredChild
 
           case BandSparsifier(_, l, u) => loweredChild.zeroBand(l, u, x.typ, ib)
-          case RowIntervalSparsifier(_, starts, stops) => ???
-          case RectangleSparsifier(rectangles) => ???
+          case RowIntervalSparsifier(_, starts, stops) => loweredChild.zeroRowIntervals(starts, stops, x.typ, ib)
         }
       case _ =>
         BlockMatrixStage2.fromOldBMS(lowerNonEmpty(bmir, ib, typesToLower, ctx, analyses), bmir.typ, ib)

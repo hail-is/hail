@@ -7,11 +7,12 @@ import is.hail.expr.{Nat, NatVariable}
 import is.hail.linalg.{LAPACK, LinalgCodeUtils}
 import is.hail.types.tcoerce
 import is.hail.types.physical.stypes.EmitType
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SNDArrayPointer}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SNDArrayPointer, SNDArrayPointerValue}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.physical._
 import is.hail.types.virtual._
+import is.hail.utils._
 
 object  NDArrayFunctions extends RegistryFunctions {
   override def registerAll() {
@@ -153,13 +154,19 @@ object  NDArrayFunctions extends RegistryFunctions {
             block: SNDArrayValue,
             lower: SInt64Value, upper: SInt64Value, diagIndex: SInt64Value,
             nRows: SInt64Value, nCols: SInt64Value, errorID) =>
-        val newBlock = rst.coerceOrCopy(cb, er.region, block, deepCopy = false).asNDArray
+        val newBlock = rst.coerceOrCopy(cb, er.region, block, deepCopy = false).asInstanceOf[SNDArrayPointerValue]
         val lowestDiagIndex = cb.memoize(diagIndex.value - (nRows.value - 1L))
         val highestDiagIndex = cb.memoize(diagIndex.value + (nCols.value - 1L))
         val iLeft = cb.newLocal[Long]("iLeft")
         val iRight = cb.newLocal[Long]("iRight")
         val i = cb.newLocal[Long]("i")
         val j = cb.newLocal[Long]("j")
+
+        // iteration variables
+        val ii = cb.newLocal[Long]("ii")
+        val jj = cb.newLocal[Long]("jj")
+
+        val zero = SFloat64Value(0.0d)
 
         cb.ifx(lower.value > lowestDiagIndex, {
           cb.assign(iLeft, (diagIndex.value - lower.value).max(0L))
@@ -169,13 +176,21 @@ object  NDArrayFunctions extends RegistryFunctions {
             cb.assign(i, iLeft)
             cb.assign(j, (lower.value - diagIndex.value).max(0L))
           }, i < iRight, {
-            cb.assign(i, i + 1)
-            cb.assign(j, j + 1)
+            cb.assign(i, i + 1L)
+            cb.assign(j, j + 1L)
           }, {
             // block(i to i, 0 until j) := 0.0
+            cb.forLoop(cb.assign(jj, 0L), jj < j, cb.assign(jj, jj + 1L), {
+              rpt.setElement(cb, er.region, FastIndexedSeq(i, jj), newBlock.a, zero, false)
+            })
           })
 
           // block(iRight until nRows, ::) := 0.0
+          cb.forLoop(cb.assign(ii, iRight), ii < nRows.value, cb.assign(ii, ii + 1L), {
+            cb.forLoop(cb.assign(jj, 0L), jj < nCols.value, cb.assign(jj, jj + 1L), {
+              rpt.setElement(cb, er.region, FastIndexedSeq(ii, jj), newBlock.a, zero, false)
+            })
+          })
         })
 
         cb.ifx(upper.value < highestDiagIndex, {
@@ -183,6 +198,11 @@ object  NDArrayFunctions extends RegistryFunctions {
           cb.assign(iRight, (diagIndex.value - upper.value + nCols.value).max(nRows.value))
 
           // block(0 util iLeft, ::) := 0.0
+          cb.forLoop(cb.assign(ii, 0L), ii < iLeft, cb.assign(ii, ii + 1L), {
+            cb.forLoop(cb.assign(jj, 0L), jj < nCols.value, cb.assign(jj, jj + 1L), {
+              rpt.setElement(cb, er.region, FastIndexedSeq(ii, jj), newBlock.a, zero, false)
+            })
+          })
 
           cb.forLoop({
             cb.assign(i, iLeft)
@@ -192,6 +212,9 @@ object  NDArrayFunctions extends RegistryFunctions {
             cb.assign(j, j + 1)
           }, {
             // block(i to i, j to nCols) := 0.0
+            cb.forLoop(cb.assign(jj, j), jj < nCols.value, cb.assign(jj, jj + 1L), {
+              rpt.setElement(cb, er.region, FastIndexedSeq(i, jj), newBlock.a, zero, false)
+            })
           })
         })
 
