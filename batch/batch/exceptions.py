@@ -47,3 +47,8 @@ class BatchOperationAlreadyCompletedError(Exception):
         super().__init__(message)
         self.message = message
         self.ui_error_type = severity
+
+
+class QueryError(Exception):
+    def __init__(self, reason):
+        self.reason = reason
