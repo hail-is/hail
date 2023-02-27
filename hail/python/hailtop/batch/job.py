@@ -1082,7 +1082,7 @@ class PythonJob(Job):
             inspect.signature(unapplied).bind(*args, **kwargs)
         except ValueError as e:
             # Some builtins like `print` don't have a signature that inspect can read
-            if not 'no signature found for builtin' in e.args[0]:
+            if 'no signature found for builtin' not in e.args[0]:
                 raise e
         except TypeError as e:
             raise BatchException(f'Cannot call {unapplied.__name__} with the supplied arguments') from e
