@@ -26,6 +26,9 @@ CREATE TABLE IF NOT EXISTS `inst_colls` (
   `max_instances` BIGINT NOT NULL,
   `max_live_instances` BIGINT NOT NULL,
   `cloud` VARCHAR(100) NOT NULL,
+  `max_new_instances_per_autoscaler_loop` INT NOT NULL,
+  `autoscaler_loop_period_secs` INT NOT NULL,
+  `worker_max_idle_time_secs` INT NOT NULL,
   PRIMARY KEY (`name`)
 ) ENGINE = InnoDB;
 CREATE INDEX `inst_colls_is_pool` ON `inst_colls` (`is_pool`);
@@ -44,6 +47,8 @@ CREATE TABLE IF NOT EXISTS `pools` (
   `enable_standing_worker` BOOLEAN NOT NULL DEFAULT FALSE,
   `standing_worker_cores` BIGINT NOT NULL DEFAULT 0,
   `preemptible` BOOLEAN NOT NULL DEFAULT TRUE,
+  `standing_worker_max_idle_time_secs` INT NOT NULL,
+  `job_queue_scheduling_window_secs` INT NOT NULL,
   PRIMARY KEY (`name`),
   FOREIGN KEY (`name`) REFERENCES inst_colls(name) ON DELETE CASCADE
 ) ENGINE = InnoDB;
