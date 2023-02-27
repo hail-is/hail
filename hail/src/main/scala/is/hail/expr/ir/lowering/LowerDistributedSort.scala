@@ -2,7 +2,7 @@ package is.hail.expr.ir.lowering
 
 import is.hail.annotations.{Annotation, ExtendedOrdering, Region, SafeRow}
 import is.hail.asm4s.{AsmFunction1RegionLong, LongInfo, classInfo}
-import is.hail.backend.ExecuteContext
+import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.{ArrayFunctions, IRRandomness, UtilFunctions}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
@@ -600,14 +600,14 @@ case class DistributionSortReader(key: TStruct, keyed: Boolean, spec: TypedCodec
 
   override def pathsUsed: Seq[String] = Seq()
 
-  lazy val defaultPartitioning: RVDPartitioner = {
+  def defaultPartitioning(sm: HailStateManager): RVDPartitioner = {
     val (partitionerKey, intervals) = if (keyed) {
       (key, orderedOutputPartitions.map { segment => segment.interval })
     } else {
       (TStruct(), orderedOutputPartitions.map { _ => Interval(Row(), Row(), true, false) })
     }
 
-    new RVDPartitioner(partitionerKey, intervals)
+    new RVDPartitioner(sm, partitionerKey, intervals)
   }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = None
@@ -650,7 +650,7 @@ case class DistributionSortReader(key: TStruct, keyed: Boolean, spec: TypedCodec
     }
     val contexts = ToStream(Literal(TArray(TStruct("files" -> TArray(TStruct("partitionIndex" -> TInt64, "partitionPath" -> TString)))), contextData))
 
-    val partitioner = defaultPartitioning
+    val partitioner = defaultPartitioning(ctx.stateManager)
 
     TableStage(
       PruneDeadFields.upcast(ctx, globals, requestedType.globalType),

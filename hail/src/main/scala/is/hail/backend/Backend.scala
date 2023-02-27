@@ -82,7 +82,14 @@ abstract class Backend {
     references -= name
   }
 
-    final def lowerDistributedSort(
+  def lowerDistributedSort(
+    ctx: ExecuteContext,
+    stage: TableStage,
+    sortFields: IndexedSeq[SortField],
+    rt: RTable
+  ): TableReader
+
+  final def lowerDistributedSort(
     ctx: ExecuteContext,
     inputIR: TableIR,
     sortFields: IndexedSeq[SortField],
