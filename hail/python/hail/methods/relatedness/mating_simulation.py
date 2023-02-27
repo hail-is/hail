@@ -1,6 +1,7 @@
 import hail as hl
 from hail.typecheck import typecheck, numeric
 
+
 @typecheck(mt=hl.MatrixTable, n_rounds=int, generation_size_multiplier=numeric, keep_founders=bool)
 def simulate_random_mating(mt, n_rounds=1, generation_size_multiplier=1.0, keep_founders=True):
     """Simulate random diploid mating to produce new individuals.
@@ -59,9 +60,11 @@ def simulate_random_mating(mt, n_rounds=1, generation_size_multiplier=1.0, keep_
         else:
             return new_samples
 
-    ht = ht.annotate(__new_entries=ht.generations[1:].scan(
+    ht = ht.annotate(__new_entries=hl.fold(
         lambda prev_calls, generation_metadata: simulate_mating_calls(prev_calls, generation_metadata[0]),
-        ht.__entries.GT)[-1].map(lambda gt: hl.struct(GT=gt)))
-    ht = ht.annotate_globals(__new_cols=ht.generations.flatmap(lambda x: x[0]) if keep_founders else ht.generations[-1][0])
+        ht.generations[1:],
+        ht.__entries.GT).map(lambda gt: hl.struct(GT=gt)))
+    ht = ht.annotate_globals(
+        __new_cols=ht.generations.flatmap(lambda x: x[0]) if keep_founders else ht.generations[-1][0])
     ht = ht.drop('__entries', '__cols', 'generation_0', 'generations')
     return ht._unlocalize_entries('__new_entries', '__new_cols', list('s'))

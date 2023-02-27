@@ -1521,6 +1521,7 @@ def unpack_uid(stream_type):
 def pack_uid(uid, elt):
     return MakeTuple([uid, elt])
 
+
 def pack_to_structs(stream):
     if isinstance(stream.typ.element_type, tstruct):
         return stream
@@ -1529,6 +1530,7 @@ def pack_to_structs(stream):
     return StreamMap(stream, uid, InsertFields(GetTupleElement(elt, 1),
                                                [(uid_field_name, GetTupleElement(elt, 0))],
                                                None))
+
 
 def with_split_rng_state(ir, split, is_scan=None) -> 'BaseIR':
     ref = Ref('__rng_state', trngstate)

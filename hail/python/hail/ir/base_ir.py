@@ -1,6 +1,6 @@
 import abc
 
-from hail.expr.types import tstream, tstruct
+from hail.expr.types import tstream
 from hail.utils.java import Env
 from .renderer import Renderer, PlainRenderer, Renderable
 
