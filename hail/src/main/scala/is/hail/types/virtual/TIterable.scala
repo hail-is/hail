@@ -10,12 +10,6 @@ abstract class TIterable extends Type {
 }
 
 object TIterable {
-  def elementType: BaseType => Type = {
-    case t: TIterable => t.elementType
-    case t => throw new IllegalArgumentException(
-      s"""Could not get element type for $t.
-         |  Expected: ${classOf[TIterable].getName}
-         |    Actual: ${t.getClass.getName}""".stripMargin
-    )
-  }
+  def elementType(t: BaseType): Type =
+    t.asInstanceOf[TIterable].elementType
 }

@@ -33,6 +33,7 @@ import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
 import java.io.{Closeable, DataInputStream, DataOutputStream, InputStream}
+import scala.collection.IndexedSeq
 import scala.reflect.ClassTag
 
 
@@ -1812,22 +1813,21 @@ case class TableGen(contexts: IR,
                     partitioner: RVDPartitioner,
                     errorId: Int = ErrorIDs.NO_ERROR
                    ) extends TableIR {
-  private def typeCheck[A <: Type](varname: String, typ: Type)(implicit tag: ClassTag[A]): Option[A] =
-    tag.unapply(typ).orElse(
-      throw new IllegalArgumentException(
-        s"""Error while type-checking argument for '$varname' in '${getClass.getName}'.
-            |  Expected: ${tag.runtimeClass.getName}
-            |    Actual: ${typ.getClass.getName}""".stripMargin
-      )
+  private def typeCheck[A <: Type](varname: String, typ: Type)(implicit tag: ClassTag[A]): A =
+    if (tag.runtimeClass.isInstance(typ)) typ.asInstanceOf[A]
+    else throw new IllegalArgumentException(
+      s"""Error while type-checking argument for '$varname' in '${getClass.getName}'.
+         |  Expected: ${tag.runtimeClass.getName}
+         |    Actual: ${typ.getClass.getName}""".stripMargin
     )
 
-  private val (globalType, rowType) =
-    (for {
-      _ <- typeCheck[TStream]("contexts", contexts.typ)
-      globalType <- typeCheck[TStruct]("globals", globals.typ)
-      bodyType <- typeCheck[TStream]("body", body.typ)
-      rowType <- typeCheck[TStruct]("body.elementType", bodyType.elementType)
-    } yield (globalType, rowType)).get
+  private val (globalType, rowType) = {
+    typeCheck[TStream]("contexts", contexts.typ)
+    val globalType = typeCheck[TStruct]("globals", globals.typ)
+    val bodyType = typeCheck[TStream]("body", body.typ)
+    val rowType = typeCheck[TStruct]("body.elementType", bodyType.elementType)
+    (globalType, rowType)
+  }
 
   override def typ: TableType =
     TableType(rowType, partitioner.kType.fieldNames, globalType)
@@ -1835,16 +1835,10 @@ case class TableGen(contexts: IR,
   override val rowCountUpperBound: Option[Long] =
     None
 
-  override def copy(newChildren: IndexedSeq[BaseIR]): TableIR =
-    newChildren match {
-      case IndexedSeq(contexts: IR, globals: IR, body: IR) =>
-        TableGen(contexts, globals, cname, gname, body, partitioner, errorId)
-
-      case _ =>
-        throw new IllegalArgumentException(
-          s"'${getClass.getName}' requires 3 children of type '${classOf[IR].getName}'."
-        )
-    }
+  override def copy(newChildren: IndexedSeq[BaseIR]): TableIR = {
+    val IndexedSeq(contexts: IR, globals: IR, body: IR) = newChildren
+    TableGen(contexts, globals, cname, gname, body, partitioner, errorId)
+  }
 
   override def children: IndexedSeq[BaseIR] =
     FastSeq(contexts, globals, body)

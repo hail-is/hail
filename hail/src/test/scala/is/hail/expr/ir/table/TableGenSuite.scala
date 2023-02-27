@@ -1,13 +1,14 @@
 package is.hail.expr.ir.table
 
-import is.hail.backend.HailStateManager
+import is.hail.TestUtils.loweredExecute
+import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.expr.ir.TestUtils.IRAggCollect
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.expr.ir._
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual._
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.{FastIndexedSeq, HailException}
 import org.apache.spark.sql.Row
 import org.scalatest.Matchers._
 import org.testng.annotations.Test
@@ -72,6 +73,18 @@ class TableGenSuite extends HailSuite {
     assertEvalsTo(lowered, Row(FastIndexedSeq(0, 0).map(Row(_)), Row(0)))
   }
 
+  @Test(groups = Array("analysis", "lowering"))
+  def testNumberOfContextsMatchesPartitions: Unit = {
+    val table = TestUtils.collect(mkTableGen(partitioner = Some(RVDPartitioner.unkeyed(ctx.stateManager, 0))))
+    val lowered = LowerTableIR(table, DArrayLowering.All, ctx, Analyses(table, ctx), Map.empty)
+    val ex = intercept[HailException] {
+      ExecuteContext.scoped() { ctx =>
+        loweredExecute(ctx, lowered, Env.empty, FastIndexedSeq(), None)
+      }
+    }
+    ex.getMessage should include("partitioner contains 0 partitions, got 2")
+  }
+
   @Test(groups = Array("optimization", "prune"))
   def testPruneNoUnusedFields: Unit = {
     val start = mkTableGen()
@@ -126,7 +139,7 @@ class TableGenSuite extends HailSuite {
         ))
         MakeStream(Seq(elem), TStream(elem.typ))
       },
-      partitioner.getOrElse(RVDPartitioner.unkeyed(HailStateManager(Map.empty), 2))
+      partitioner.getOrElse(RVDPartitioner.unkeyed(ctx.stateManager, 2))
     )
   }
 }
