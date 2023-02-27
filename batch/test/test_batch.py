@@ -317,7 +317,7 @@ def test_list_batches(client: BatchClient):
     assert_batch_ids({b2.id}, f'tag={tag} name=b2')
 
 
-def test_list_jobs(client: BatchClient):
+def test_list_jobs_v1(client: BatchClient):
     bb = create_batch(client)
     j_success = bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
     j_failure = bb.create_job(DOCKER_ROOT_IMAGE, ['false'])
@@ -325,23 +325,97 @@ def test_list_jobs(client: BatchClient):
     j_running = bb.create_job(DOCKER_ROOT_IMAGE, ['sleep', '1800'], attributes={'tag': 'foo'})
 
     b = bb.submit()
-    j_success.wait()
-    j_failure.wait()
-    j_error.wait()
 
     def assert_job_ids(expected, q=None):
         jobs = b.jobs(q=q)
         actual = set(j['job_id'] for j in jobs)
         assert actual == expected, str((jobs, b.debug_info()))
 
-    assert_job_ids({j_success.job_id}, 'success')
-    assert_job_ids({j_success.job_id, j_failure.job_id, j_error.job_id}, 'done')
-    assert_job_ids({j_running.job_id}, '!done')
-    assert_job_ids({j_running.job_id}, 'tag=foo')
-    assert_job_ids({j_error.job_id, j_running.job_id}, 'has:tag')
-    assert_job_ids({j_success.job_id, j_failure.job_id, j_error.job_id, j_running.job_id}, None)
+    try:
+        j_success.wait()
+        j_failure.wait()
+        j_error.wait()
 
-    b.cancel()
+        assert_job_ids({j_success.job_id}, 'success')
+        assert_job_ids({j_success.job_id, j_failure.job_id, j_error.job_id}, 'done')
+        assert_job_ids({j_running.job_id}, '!done')
+        assert_job_ids({j_running.job_id}, 'tag=foo')
+        assert_job_ids({j_error.job_id, j_running.job_id}, 'has:tag')
+        assert_job_ids({j_success.job_id, j_failure.job_id, j_error.job_id, j_running.job_id}, None)
+    finally:
+        b.cancel()
+
+
+def test_list_jobs_v2(client: BatchClient):
+    bb = create_batch(client)
+    j_success = bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    j_failure = bb.create_job(DOCKER_ROOT_IMAGE, ['false'])
+    j_error = bb.create_job(DOCKER_ROOT_IMAGE, ['sleep 5'], attributes={'tag': 'bar'})
+    j_running = bb.create_job(DOCKER_ROOT_IMAGE, ['sleep', '1800'], attributes={'tag': 'foo'})
+
+    b = bb.submit()
+
+    def assert_job_ids(expected, q=None):
+        jobs = b.jobs(q=q, version=2)
+        actual = set(j['job_id'] for j in jobs)
+        assert actual == expected, str((jobs, b.debug_info()))
+
+    try:
+        j_success.wait()
+        j_failure.wait()
+        j_error.wait()
+
+        assert_job_ids({j_success.job_id}, 'state = success')
+        assert_job_ids({j_success.job_id}, 'state == success')
+        assert_job_ids({j_success.job_id}, 'state=success')
+
+        assert_job_ids({j_success.job_id, j_failure.job_id, j_error.job_id}, 'state=done')
+        assert_job_ids({j_running.job_id}, 'state != done')
+
+        assert_job_ids({j_running.job_id}, 'tag = foo')
+        assert_job_ids({j_running.job_id}, 'tag =~ fo')
+
+        assert_job_ids({j_error.job_id}, 'tag != foo')
+        assert_job_ids({j_error.job_id, j_running.job_id}, '"tag"')
+        assert_job_ids({j_running.job_id}, 'foo')
+
+        no_jobs = set()
+        all_jobs = {j_error.job_id, j_running.job_id, j_failure.job_id, j_success.job_id}
+        assert_job_ids(no_jobs, 'duration > 50000')
+        assert_job_ids(all_jobs, 'instance_collection = standard')
+        assert_job_ids(no_jobs, 'cost > 1000')
+
+        assert_job_ids(no_jobs, 'start_time == 2023-02-24T17:15:25Z')
+        assert_job_ids(no_jobs, 'end_time == 2023-02-24T17:15:25Z')
+
+        assert_job_ids(no_jobs, 'start_time < 2023-02-24T17:15:25Z')
+        assert_job_ids(no_jobs, 'start_time <= 2023-02-24T17:15:25Z')
+        assert_job_ids(all_jobs, 'start_time != 2023-02-24T17:15:25Z')
+        assert_job_ids(all_jobs, 'start_time > 2023-02-24T17:15:25Z')
+        assert_job_ids(all_jobs, 'start_time >= 2023-02-24T17:15:25Z')
+
+        assert_job_ids(no_jobs, 'instance = batch-worker')
+        assert_job_ids(all_jobs, 'instance != batch-worker')
+        assert_job_ids(all_jobs, 'instance =~ batch-worker')
+        assert_job_ids(no_jobs, 'instance !~ batch-worker')
+
+        assert_job_ids({j_success.job_id}, 'job_id = 1')
+        assert_job_ids(all_jobs, 'job_id >= 1')
+
+        assert_job_ids(all_jobs, None)
+
+        assert_job_ids(
+            no_jobs,
+            '''
+job_id >=1
+instance == foo
+foo = bar
+start_time >= 2023-02-24T17:15:25Z
+end_time <= 2023-02-24T17:18:25Z
+''',
+        )
+    finally:
+        b.cancel()
 
 
 def test_include_jobs(client: BatchClient):

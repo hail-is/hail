@@ -74,6 +74,7 @@ from ..exceptions import (
     ClosedBillingProjectError,
     InvalidBillingLimitError,
     NonExistentBillingProjectError,
+    QueryError,
 )
 from ..file_store import FileStore
 from ..globals import BATCH_FORMAT_VERSION, HTTP_CLIENT_MAX_SIZE, RESERVED_STORAGE_GB_PER_CORE, complete_states
@@ -81,6 +82,7 @@ from ..inst_coll_config import InstanceCollectionConfigs
 from ..resource_usage import ResourceUsageMonitor
 from ..spec_writer import SpecWriter
 from ..utils import query_billing_projects, regions_to_bits_rep, unavailable_if_frozen
+from .query import CURRENT_QUERY_VERSION, build_batch_jobs_query
 from .validate import ValidationError, validate_and_clean_jobs, validate_batch, validate_batch_update
 
 uvloop.install()
@@ -224,106 +226,15 @@ async def _handle_api_error(f, *args, **kwargs):
         raise e.http_response()
 
 
-async def _query_batch_jobs(request, batch_id):
-    state_query_values = {
-        'pending': ['Pending'],
-        'ready': ['Ready'],
-        'creating': ['Creating'],
-        'running': ['Running'],
-        'live': ['Ready', 'Creating', 'Running'],
-        'cancelled': ['Cancelled'],
-        'error': ['Error'],
-        'failed': ['Failed'],
-        'bad': ['Error', 'Failed'],
-        'success': ['Success'],
-        'done': ['Cancelled', 'Error', 'Failed', 'Success'],
-    }
+async def _query_batch_jobs(request, batch_id, version):
+    db: Database = request.app['db']
 
-    db = request.app['db']
-
-    # batch has already been validated
-    where_conditions = ['(jobs.batch_id = %s AND batch_updates.committed)']
-    where_args = [batch_id]
-
-    last_job_id = request.query.get('last_job_id')
-    if last_job_id is not None:
-        last_job_id = int(last_job_id)
-        where_conditions.append('(jobs.job_id > %s)')
-        where_args.append(last_job_id)
-
-    q = request.query.get('q', '')
-    terms = q.split()
-    for _t in terms:
-        if _t[0] == '!':
-            negate = True
-            t = _t[1:]
-        else:
-            negate = False
-            t = _t
-
-        if '=' in t:
-            k, v = t.split('=', 1)
-            if k == 'job_id':
-                condition = '(jobs.job_id = %s)'
-                args = [v]
-            else:
-                condition = '''
-((jobs.batch_id, jobs.job_id) IN
- (SELECT batch_id, job_id FROM job_attributes
-  WHERE `key` = %s AND `value` = %s))
-'''
-                args = [k, v]
-        elif t.startswith('has:'):
-            k = t[4:]
-            condition = '''
-((jobs.batch_id, jobs.job_id) IN
- (SELECT batch_id, job_id FROM job_attributes
-  WHERE `key` = %s))
-'''
-            args = [k]
-        elif t in state_query_values:
-            values = state_query_values[t]
-            condition = ' OR '.join(['(jobs.state = %s)' for v in values])
-            condition = f'({condition})'
-            args = values
-        else:
-            session = await aiohttp_session.get_session(request)
-            set_message(session, f'Invalid search term: {t}.', 'error')
-            return ([], None)
-
-        if negate:
-            condition = f'(NOT {condition})'
-
-        where_conditions.append(condition)
-        where_args.extend(args)
-
-    sql = f'''
-WITH base_t AS
-(
-  SELECT jobs.*, batches.user, batches.billing_project, batches.format_version,
-    job_attributes.value AS name
-  FROM jobs
-  INNER JOIN batches ON jobs.batch_id = batches.id
-  INNER JOIN batch_updates ON jobs.batch_id = batch_updates.batch_id AND jobs.update_id = batch_updates.update_id
-  LEFT JOIN job_attributes
-  ON jobs.batch_id = job_attributes.batch_id AND
-    jobs.job_id = job_attributes.job_id AND
-    job_attributes.`key` = 'name'
-  WHERE {' AND '.join(where_conditions)}
-  LIMIT 50
-)
-SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
-FROM base_t
-LEFT JOIN (
-  SELECT aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM base_t
-  LEFT JOIN aggregated_job_resources_v2 ON base_t.batch_id = aggregated_job_resources_v2.batch_id AND base_t.job_id = aggregated_job_resources_v2.job_id
-  GROUP BY aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, aggregated_job_resources_v2.resource_id
-) AS usage_t ON base_t.batch_id = usage_t.batch_id AND base_t.job_id = usage_t.job_id
-LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-GROUP BY base_t.batch_id, base_t.job_id;
-'''
-    sql_args = where_args
+    try:
+        sql, sql_args = build_batch_jobs_query(request, batch_id, version)
+    except QueryError as e:
+        session = await aiohttp_session.get_session(request)
+        set_message(session, e.reason, 'error')
+        return ([], None)
 
     jobs = [job_record_to_dict(record, record['name']) async for record in db.select_and_fetchall(sql, sql_args)]
 
@@ -349,7 +260,8 @@ WHERE id = %s AND NOT deleted;
     if not record:
         raise web.HTTPNotFound()
 
-    jobs, last_job_id = await _query_batch_jobs(request, batch_id)
+    version = int(request.query.get('version', 1))
+    jobs, last_job_id = await _query_batch_jobs(request, batch_id, version)
     resp = {'jobs': jobs}
     if last_job_id is not None:
         resp['last_job_id'] = last_job_id
@@ -1760,7 +1672,7 @@ async def ui_batch(request, userdata, batch_id):
     app = request.app
     batch = await _get_batch(app, batch_id)
 
-    jobs, last_job_id = await _query_batch_jobs(request, batch_id)
+    jobs, last_job_id = await _query_batch_jobs(request, batch_id, CURRENT_QUERY_VERSION)
     for j in jobs:
         j['duration'] = humanize_timedelta_msecs(j['duration'])
         j['cost'] = cost_str(j['cost'])
@@ -1768,7 +1680,11 @@ async def ui_batch(request, userdata, batch_id):
 
     batch['cost'] = cost_str(batch['cost'])
 
-    page_context = {'batch': batch, 'q': request.query.get('q'), 'last_job_id': last_job_id}
+    page_context = {
+        'batch': batch,
+        'q': request.query.get('q'),
+        'last_job_id': last_job_id,
+    }
     return await render_template('batch', request, userdata, 'batch.html', page_context)
 
 
