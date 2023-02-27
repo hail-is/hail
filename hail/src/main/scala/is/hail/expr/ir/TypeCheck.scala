@@ -4,9 +4,8 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.streams.StreamUtils
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
-import is.hail.utils._
 import is.hail.utils.StackSafe._
-import org.apache.spark.sql.types.StructType
+import is.hail.utils._
 
 import scala.reflect.ClassTag
 

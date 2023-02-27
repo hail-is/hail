@@ -388,6 +388,6 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
     }
   }
 
-  def isSubsequence(other: TStruct): Boolean =
+  def isPrefix(other: TStruct): Boolean =
     fields.length <= other.fields.length && (fields, other.fields).zipped.forall(_ == _)
 }

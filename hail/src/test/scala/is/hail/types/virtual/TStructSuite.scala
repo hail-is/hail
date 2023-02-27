@@ -6,20 +6,24 @@ import org.testng.annotations.Test
 
 class TStructSuite extends HailSuite {
   @Test
-  def testEmptyIsSubsequenceEmpty(): Unit =
-    assertTrue(TStruct().isSubsequence(TStruct()), "empty")
+  def testEmptyIsPrefixEmpty(): Unit =
+    assertTrue(TStruct().isPrefix(TStruct()), "empty")
 
   @Test
-  def testEmptyIsSubsequenceOfNonEmpty(): Unit =
-    assertTrue(TStruct().isSubsequence(TStruct("any" -> TVoid)))
+  def testEmptyIsPrefixOfNonEmpty(): Unit =
+    assertTrue(TStruct().isPrefix(TStruct("any" -> TVoid)))
 
   @Test
-  def testIsSubsequenceOfItself(): Unit = {
+  def testIsPrefixOfItself(): Unit = {
     val typ = TStruct("any" -> TVoid)
-    assertTrue(typ.isSubsequence(typ))
+    assertTrue(typ.isPrefix(typ))
   }
 
   @Test
-  def testIsNotSubsequenceWhenLonger(): Unit =
-    assertFalse(TStruct("a" -> TInt32, "b" -> TString).isSubsequence(TStruct("a" -> TInt32)))
+  def testIsNotPrefixWhenLonger(): Unit =
+    assertFalse(TStruct("a" -> TInt32, "b" -> TString).isPrefix(TStruct("a" -> TInt32)))
+
+  @Test
+  def testIsPrefix(): Unit =
+    assertTrue(TStruct("a" -> TInt32).isPrefix(TStruct("a" -> TInt32, "b" -> TString)))
 }

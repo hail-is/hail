@@ -33,7 +33,6 @@ import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
 import java.io.{Closeable, DataInputStream, DataOutputStream, InputStream}
-import scala.collection.IndexedSeq
 import scala.reflect.ClassTag
 
 
@@ -1824,9 +1823,9 @@ case class TableGen(contexts: IR,
     TypeCheck.requireInstance[TStruct]( "body.elementType", bodyType.elementType)
   }
 
-  if (!partitioner.kType.isSubsequence(rowType))
+  if (!partitioner.kType.isPrefix(rowType))
     throw new IllegalArgumentException(
-      s"""'partitioner': Type mismatch
+      s"""'partitioner': key type is not a prefix of row type
          |  Key type: ${partitioner.kType}
          |  Row type: $rowType""".stripMargin
     )
