@@ -1813,21 +1813,23 @@ case class TableGen(contexts: IR,
                     partitioner: RVDPartitioner,
                     errorId: Int = ErrorIDs.NO_ERROR
                    ) extends TableIR {
-  private def typeCheck[A <: Type](varname: String, typ: Type)(implicit tag: ClassTag[A]): A =
-    if (tag.runtimeClass.isInstance(typ)) typ.asInstanceOf[A]
-    else throw new IllegalArgumentException(
-      s"""Error while type-checking argument for '$varname' in '${getClass.getName}'.
-         |  Expected: ${tag.runtimeClass.getName}
-         |    Actual: ${typ.getClass.getName}""".stripMargin
-    )
 
-  private val (globalType, rowType) = {
-    typeCheck[TStream]("contexts", contexts.typ)
-    val globalType = typeCheck[TStruct]("globals", globals.typ)
-    val bodyType = typeCheck[TStream]("body", body.typ)
-    val rowType = typeCheck[TStruct]("body.elementType", bodyType.elementType)
-    (globalType, rowType)
+  TypeCheck.requireInstance[TStream]("contexts", contexts.typ)
+
+  private val globalType =
+    TypeCheck.requireInstance[TStruct]("globals", globals.typ)
+
+  private val rowType = {
+    val bodyType = TypeCheck.requireInstance[TStream]( "body", body.typ)
+    TypeCheck.requireInstance[TStruct]( "body.elementType", bodyType.elementType)
   }
+
+  if (!partitioner.kType.isSubsequence(rowType))
+    throw new IllegalArgumentException(
+      s"""'partitioner': Type mismatch
+         |  Key type: ${partitioner.kType}
+         |  Row type: $rowType""".stripMargin
+    )
 
   override def typ: TableType =
     TableType(rowType, partitioner.kType.fieldNames, globalType)
