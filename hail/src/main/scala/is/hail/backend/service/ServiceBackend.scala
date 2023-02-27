@@ -395,6 +395,20 @@ class ServiceBackend(
   ): TableStage = {
     LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
   }
+
+  def fromFASTAFile(
+    ctx: ExecuteContext,
+    name: String,
+    fastaFile: String,
+    indexFile: String,
+    xContigs: Array[String],
+    yContigs: Array[String],
+    mtContigs: Array[String],
+    parInput: Array[String]
+  ): String = {
+    val rg = ReferenceGenome.fromFASTAFile(ctx, name, fastaFile, indexFile, xContigs, yContigs, mtContigs, parInput)
+    rg.toJSONString
+  }
 }
 
 class EndOfInputException extends RuntimeException
@@ -464,8 +478,11 @@ class ServiceBackendSocketAPI2(
   private[this] val PARSE_VCF_METADATA = 7
   private[this] val INDEX_BGEN = 8
   private[this] val IMPORT_FAM = 9
+  private[this] val FROM_FASTA_FILE = 10
 
   private[this] val dummy = new Array[Byte](8)
+
+  private[this] val log = Logger.getLogger(getClass.getName())
 
   def read(bytes: Array[Byte], off: Int, n: Int): Unit = {
     assert(off + n <= bytes.length)
@@ -503,6 +520,17 @@ class ServiceBackendSocketAPI2(
   }
 
   def readString(): String = new String(readBytes(), StandardCharsets.UTF_8)
+
+  def readStringArray(): Array[String] = {
+    val n = readInt()
+    val arr = new Array[String](n)
+    var i = 0
+    while (i < n) {
+      arr(i) = readString()
+      i += 1
+    }
+    arr
+  }
 
   def writeBool(b: Boolean): Unit = {
     out.write(if (b) 1 else 0)
@@ -556,6 +584,16 @@ class ServiceBackendSocketAPI2(
       }
       i += 1
     }
+    val nAddedSequences = readInt()
+    val addedSequences = mutable.Map[String, (String, String)]()
+    i = 0
+    while (i < nAddedSequences) {
+      val rgName = readString()
+      val fastaFile = readString()
+      val indexFile = readString()
+      addedSequences(rgName) = (fastaFile, indexFile)
+      i += 1
+    }
     val workerCores = readString()
     val workerMemory = readString()
 
@@ -594,6 +632,9 @@ class ServiceBackendSocketAPI2(
           liftoversForSource.foreach { case (destGenome, chainFile) =>
             ctx.getReference(sourceGenome).addLiftover(ctx, chainFile, destGenome)
           }
+        }
+        addedSequences.foreach { case (rg, (fastaFile, indexFile)) =>
+          ctx.getReference(rg).addSequence(ctx, fastaFile, indexFile)
         }
         ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir, workerCores, workerMemory, regions)
         method(ctx)
@@ -660,13 +701,7 @@ class ServiceBackendSocketAPI2(
             backend.importFam(_, path, quantPheno, delimiter, missing).getBytes(StandardCharsets.UTF_8)
           )
         case INDEX_BGEN =>
-          val nFiles = readInt()
-          val files = new Array[String](nFiles)
-          var i = 0
-          while (i < nFiles) {
-            files(i) = readString()
-            i += 1
-          }
+          val files = readStringArray()
           val nIndexFiles = readInt()
           val indexFileMap = mutable.Map[String, String]()
           i = 0
@@ -700,6 +735,27 @@ class ServiceBackendSocketAPI2(
               referenceGenomeName,
               contigRecoding.toMap,
               skipInvalidLoci
+            ).getBytes(StandardCharsets.UTF_8)
+          )
+        case FROM_FASTA_FILE =>
+          val name = readString()
+          val fastaFile = readString()
+          val indexFile = readString()
+          val xContigs = readStringArray()
+          val yContigs = readStringArray()
+          val mtContigs = readStringArray()
+          val parInput = readStringArray()
+          withExecuteContext(
+            "ServiceBackend.fromFASTAFile",
+            backend.fromFASTAFile(
+              _,
+              name,
+              fastaFile,
+              indexFile,
+              xContigs,
+              yContigs,
+              mtContigs,
+              parInput
             ).getBytes(StandardCharsets.UTF_8)
           )
       }

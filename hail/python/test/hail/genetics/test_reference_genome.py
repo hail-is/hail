@@ -35,7 +35,6 @@ def test_reference_genome():
     with hl.TemporaryFilename() as filename:
         gr2.write(filename)
 
-@fails_service_backend()
 def test_reference_genome_sequence():
     gr3 = ReferenceGenome.read(resource("fake_ref_genome.json"))
     assert gr3.name == "my_reference_genome"

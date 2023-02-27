@@ -288,7 +288,7 @@ check-pip-lockfile:
 
 
 python/hailtop/hailctl/deploy.yaml: env/cloud_base env/wheel_cloud_path
-python/hailtop/hailctl/deploy.yaml: $(resources) check-pip-lockfile
+python/hailtop/hailctl/deploy.yaml: $(resources)
 	rm -f $@
 	echo "dataproc:" >> $@
 	for FILE in $(notdir $(resources)); do \
