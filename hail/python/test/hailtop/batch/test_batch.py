@@ -932,6 +932,12 @@ class ServiceTests(unittest.TestCase):
         j.call(foo, 1, 2, kwarg1=3)
         j.call(foo, 1, 2, kwarg1=3, kwarg2=4)
 
+        # `print` doesn't have a signature but other builtins like `abs` do
+        j.call(print, 5)
+        j.call(abs, -1)
+        with pytest.raises(BatchException):
+            j.call(abs, -1, 5)
+
     def test_fail_fast(self):
         b = self.batch(cancel_after_n_failures=1)
 
