@@ -315,7 +315,7 @@ class BatchClient:
         return BatchBuilder.from_async_builder(builder)
 
     def update_batch(self, batch: Union[int, Batch]) -> 'BatchBuilder':
-        builder = async_to_blocking(self._async_client.update_batch(batch))
+        builder = async_to_blocking(self._async_client.update_batch(batch._async_batch))
         return BatchBuilder.from_async_builder(builder)
 
     def get_billing_project(self, billing_project):
