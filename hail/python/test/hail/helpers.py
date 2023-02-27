@@ -115,8 +115,10 @@ def create_all_values_matrix_table():
             .annotate_entries(**prefix_struct(all_values, 'entry_'))
             .cache())
 
+
 def create_all_values_datasets():
     return (create_all_values_table(), create_all_values_matrix_table())
+
 
 def skip_unless_spark_backend(reason='requires Spark'):
     from hail.backend.spark_backend import SparkBackend
@@ -128,6 +130,7 @@ def skip_unless_spark_backend(reason='requires Spark'):
             raise unittest.SkipTest(reason)
 
     return wrapper
+
 
 def skip_when_service_backend(reason='skipping for Service Backend'):
     from hail.backend.service_backend import ServiceBackend
@@ -141,14 +144,17 @@ def skip_when_service_backend(reason='skipping for Service Backend'):
     return wrapper
 
 
-def skip_unless_service_backend(reason='only relevant to service backend'):
+def skip_unless_service_backend(reason='only relevant to service backend', clouds=None):
     from hail.backend.service_backend import ServiceBackend
     @decorator
     def wrapper(func, *args, **kwargs):
         if not isinstance(hl.utils.java.Env.backend(), ServiceBackend):
             raise unittest.SkipTest(reason)
         else:
-            return func(*args, **kwargs)
+            cloud = os.environ['CLOUD']
+            if clouds is None or cloud in clouds:
+                return func(*args, **kwargs)
+            raise unittest.SkipTest(f'{reason} for clouds {clouds}')
 
     return wrapper
 
