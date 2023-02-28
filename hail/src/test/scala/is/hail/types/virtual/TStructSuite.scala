@@ -14,7 +14,10 @@ class TStructSuite extends HailSuite {
       Array(TStruct("a" -> TVoid), TStruct("a" -> TVoid), true),
       Array(TStruct("a" -> TVoid), TStruct("a" -> TVoid, "b" -> TVoid), true),
       Array(TStruct("a" -> TVoid, "b" -> TVoid), TStruct("a" -> TVoid), false),
-      // isPrefixOf ignores field names and compares the ordered sequence of types
+      // isPrefixOf ignores field names and compares the ordered sequence of types.
+      // Consider joins for example - we only care that the key fields have the same types
+      // so we compare the key types (which are structs) for equality ignoring field names.
+      // isPrefixOf is used in similar cases involving key types where we don't care about names.
       Array(TStruct("b" -> TVoid), TStruct("a" -> TVoid, "b" -> TVoid), true)
     )
 
