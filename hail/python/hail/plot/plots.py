@@ -424,7 +424,7 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False, int
             return ValueError('Invalid input')
     elif 'values' in data:
         cdf = data
-        hist, edges = np.histogram(cdf.values, bins=bins, weights=np.diff(cdf.ranks), density=True)
+        hist, edges = np.histogram(cdf['values'], bins=bins, weights=np.diff(cdf.ranks), density=True)
         data = Struct(bin_freq=hist, bin_edges=edges, n_larger=0, n_smaller=0)
 
     if legend is None:
@@ -481,11 +481,11 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False, int
             def update(bins=bins, phase=0):
                 if phase > 0 and phase < 1:
                     bins = bins + 1
-                    delta = (cdf.values[-1] - cdf.values[0]) / bins
-                    edges = np.linspace(cdf.values[0] - (1 - phase) * delta, cdf.values[-1] + phase * delta, bins)
+                    delta = (cdf['values'][-1] - cdf.['values'][0]) / bins
+                    edges = np.linspace(cdf.['values'][0] - (1 - phase) * delta, cdf.['values'][-1] + phase * delta, bins)
                 else:
-                    edges = np.linspace(cdf.values[0], cdf.values[-1], bins)
-                hist, edges = np.histogram(cdf.values, bins=edges, weights=np.diff(cdf.ranks), density=True)
+                    edges = np.linspace(cdf['values'][0], cdf['values'][-1], bins)
+                hist, edges = np.histogram(cdf['values'], bins=edges, weights=np.diff(cdf.ranks), density=True)
                 new_data = {'top': hist, 'left': edges[:-1], 'right': edges[1:], 'bottom': np.full(len(hist), 0)}
                 q.data_source.data = new_data
                 bokeh.io.push_notebook(handle)
