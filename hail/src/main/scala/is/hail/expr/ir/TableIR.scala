@@ -1823,9 +1823,9 @@ case class TableGen(contexts: IR,
     TypeCheck.requireInstance[TStruct]( "body.elementType", bodyType.elementType)
   }
 
-  if (!partitioner.kType.isPrefix(rowType))
+  if (!partitioner.kType.isSubsetOf(rowType))
     throw new IllegalArgumentException(
-      s"""'partitioner': key type is not a prefix of row type
+      s"""'partitioner': key type contains fields absent from row type
          |  Key type: ${partitioner.kType}
          |  Row type: $rowType""".stripMargin
     )
