@@ -13,7 +13,6 @@ import is.hail.types.{MatrixType, TableType, VirtualTypeWithReq, tcoerce}
 import is.hail.utils.StackSafe._
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
-import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.Row
 import org.json4s.jackson.{JsonMethods, Serialization}
 import org.json4s.{Formats, JObject}
@@ -310,6 +309,15 @@ object IRParser {
 
   def literals[T](literalIdentifier: TokenIterator => T)(it: TokenIterator)(implicit tct: ClassTag[T]): Array[T] =
     base_seq_parser(literalIdentifier)(it)
+
+  def between[A](open: TokenIterator => Any, close: TokenIterator => Any, f: TokenIterator => A)
+                (it: TokenIterator): A = {
+    open(it)
+    val a = f(it)
+    close(it)
+    a
+  }
+
 
   def string_literals: TokenIterator => Array[String] = literals(string_literal)
   def int32_literals: TokenIterator => Array[Int] = literals(int32_literal)
@@ -1720,15 +1728,6 @@ object IRParser {
         }
 
       case "TableGen" =>
-
-        def between[A](open: TokenIterator=> Any, close: TokenIterator => Any, f: TokenIterator => A): TokenIterator => A =
-          it => {
-            open(it)
-            val a = f(it)
-            close(it)
-            a
-          }
-
         val cname = identifier(it)
         val gname = identifier(it)
         val partitioner = between(punctuation(_, "("), punctuation(_, ")"), partitioner_literal(env))(it)
