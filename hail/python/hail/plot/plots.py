@@ -481,8 +481,8 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False, int
             def update(bins=bins, phase=0):
                 if phase > 0 and phase < 1:
                     bins = bins + 1
-                    delta = (cdf['values'][-1] - cdf.['values'][0]) / bins
-                    edges = np.linspace(cdf.['values'][0] - (1 - phase) * delta, cdf.['values'][-1] + phase * delta, bins)
+                    delta = (cdf['values'][-1] - cdf['values'][0]) / bins
+                    edges = np.linspace(cdf['values'][0] - (1 - phase) * delta, cdf['values'][-1] + phase * delta, bins)
                 else:
                     edges = np.linspace(cdf['values'][0], cdf['values'][-1], bins)
                 hist, edges = np.histogram(cdf['values'], bins=edges, weights=np.diff(cdf.ranks), density=True)
