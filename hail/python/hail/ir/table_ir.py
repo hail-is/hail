@@ -1,11 +1,12 @@
 from typing import Optional
 import hail as hl
 from hail.expr.types import dtype, tint32, tint64
-from hail.ir.base_ir import BaseIR, TableIR
+from hail.ir.base_ir import BaseIR, IR, TableIR
 import hail.ir.ir as ir
 from hail.ir.utils import modify_deep_field, zip_with_index, default_row_uid, default_col_uid
 from hail.ir.ir import unify_uid_types, pad_uid, concat_uids
 from hail.genetics import ReferenceGenome
+from hail.typecheck import typecheck_method, sequenceof
 from hail.utils import FatalError
 from hail.utils.java import Env
 from hail.utils.misc import escape_str, parsable_strings, escape_id
@@ -1115,6 +1116,68 @@ class BlockMatrixToTable(TableIR):
         self.child.compute_type(deep_typecheck)
         return hl.ttable(hl.tstruct(), hl.tstruct(**{'i': hl.tint64, 'j': hl.tint64, 'entry': hl.tfloat64}), [])
 
+class Partitioner(object):
+    @typecheck_method(key_type='hl.tstruct',
+                      range_bounds=sequenceof('hl.Interval')
+                      )
+    def __init__(self, key_type, range_bounds):
+        assert all(map(lambda interval: interval.point_type == key_type, range_bounds))
+        self._key_type = key_type
+        self._range_bounds = range_bounds
+        self._serialized_type = hl.tarray(hl.tinterval(key_type))
+
+    @property
+    def key_type(self):
+        return self._key_type
+
+    @property
+    def range_bounds(self):
+        return self._range_bounds
+
+    def _parsable_string(self):
+        return (
+            f'Partitioner {self.key_type._parsable_string()} ' +
+            dump_json(self._serialized_type._convert_to_json(self.range_bounds))
+        )
+
+    def __str__(self):
+        return f'Partitioner<{self.key_type}> {self.range_bounds}'
+
+class TableGen(TableIR):
+    @typecheck_method(contexts=IR, globals=IR, cname=str, gname=str, body=IR, partitioner=Partitioner)
+    def __init__(self, contexts, globals, cname, gname, body, partitioner):
+        super().__init__(contexts, globals, body)
+        self.contexts = contexts
+        self.globals = globals
+        self.cname = cname
+        self.gname = gname
+        self.body = body
+        self.partitioner = partitioner
+        self.save_error_info()
+
+    def _compute_type(self, deep_typecheck):
+        self.globals.compute_type(deep_typecheck)
+        self.body.compute_type(deep_typecheck)
+        return hl.ttable(
+            global_type=self.globals.type,
+            row_type=self.body.type,
+            row_key=self.partitioner.key_type
+        )
+
+    def _eq(self, other):
+        return (
+            self.cname == other.cname and
+            self.gname == other.gname and
+            self.partitioner == other.partitioner
+        )
+
+    def head_str(self):
+        return ' '.join([
+            self.cname,
+            self.gname,
+            '(' + self.partitioner._parsable_string() + ')',
+            str(self._error_id)
+        ])
 
 class JavaTable(TableIR):
     def __init__(self, jir):

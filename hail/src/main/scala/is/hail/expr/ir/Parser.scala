@@ -301,8 +301,10 @@ object IRParser {
   }
 
   def partitioner_literal(env: IRParserEnvironment)(it: TokenIterator): RVDPartitioner = {
-    val (t, rangeBounds) = ir_value(it)
-    val keyType = TIterable.elementType(t).asInstanceOf[TInterval].pointType.asInstanceOf[TStruct]
+    identifier(it, "Partitioner")
+    val keyType = type_expr(it).asInstanceOf[TStruct]
+    val vJSON = JsonMethods.parse(string_literal(it))
+    val rangeBounds = JSONAnnotationImpex.importAnnotation(vJSON, TArray(TInterval(keyType)))
     new RVDPartitioner(env.ctx.stateManager, keyType, rangeBounds.asInstanceOf[mutable.IndexedSeq[Interval]])
   }
 
@@ -1718,9 +1720,18 @@ object IRParser {
         }
 
       case "TableGen" =>
+
+        def between[A](open: TokenIterator=> Any, close: TokenIterator => Any, f: TokenIterator => A): TokenIterator => A =
+          it => {
+            open(it)
+            val a = f(it)
+            close(it)
+            a
+          }
+
         val cname = identifier(it)
         val gname = identifier(it)
-        val partitioner = partitioner_literal(env)(it)
+        val partitioner = between(punctuation(_, "("), punctuation(_, ")"), partitioner_literal(env))(it)
         val errorId = int32_literal(it)
         for {
           contexts <- ir_value_expr(env.onlyRelational)(it)

@@ -388,8 +388,10 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
       FastSeq(
         prettyIdentifier(cname),
         prettyIdentifier(gname),
-        text(TArray(TInterval(partitioner.kType)).parsableString()),
-        prettyStringLiteral(Serialization.write(partitioner.rangeBounds.map(_.toJSON(partitioner.kType.toJSON)))),
+        {
+          val boundsJson = Serialization.write(partitioner.rangeBounds.map(_.toJSON(partitioner.kType.toJSON)))
+          list("Partitioner " + partitioner.kType.parsableString() + prettyStringLiteral(boundsJson))
+        },
         text(errorId.toString)
       )
     case TableRename(_, rowMap, globalMap) =>
