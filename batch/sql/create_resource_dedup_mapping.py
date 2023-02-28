@@ -35,7 +35,7 @@ async def main():
     try:
         await db.async_init()
 
-        resources = [Resource.from_record(record) async for record in db.execute_and_fetchall('SELECT * FROM resources ORDER BY resource_id ASC WHERE deduped_resource_id IS NULL')]
+        resources = [Resource.from_record(record) async for record in db.execute_and_fetchall('SELECT * FROM resources WHERE deduped_resource_id IS NULL ORDER BY resource_id ASC FOR UPDATE')]
 
         products = {}
         for resource in resources:
