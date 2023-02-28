@@ -108,7 +108,7 @@ def cdf(data, k=350, legend=None, title=None, normalize=True, log=False):
     p.add_tools(HoverTool(tooltips=[("value", "$x"), ("rank", "@top")], mode='vline'))
 
     ranks = np.array(data.ranks)
-    values = np.array(data.values)
+    values = np.array(data['values'])
     if normalize:
         ranks = ranks / ranks[-1]
 
