@@ -151,7 +151,7 @@ def skip_unless_service_backend(reason='only relevant to service backend', cloud
         if not isinstance(hl.utils.java.Env.backend(), ServiceBackend):
             raise unittest.SkipTest(reason)
         else:
-            cloud = os.environ['CLOUD']
+            cloud = os.environ['HAIL_CLOUD']
             if clouds is None or cloud in clouds:
                 return func(*args, **kwargs)
             raise unittest.SkipTest(f'{reason} for clouds {clouds}')
