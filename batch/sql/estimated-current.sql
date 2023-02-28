@@ -9,8 +9,10 @@ CREATE TABLE IF NOT EXISTS `resources` (
   `resource` VARCHAR(100) NOT NULL,
   `rate` DOUBLE NOT NULL,
   `resource_id` INT AUTO_INCREMENT UNIQUE NOT NULL,
+  `deduped_resource_id` INT DEFAULT NULL,
   PRIMARY KEY (`resource`)
 ) ENGINE = InnoDB;
+CREATE INDEX `resources_deduped_resource_id` ON `resources` (`deduped_resource_id`);
 
 CREATE TABLE IF NOT EXISTS `latest_product_versions` (
   `product` VARCHAR(100) NOT NULL,

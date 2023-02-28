@@ -2036,6 +2036,9 @@ steps:
       - name: cleanup-old-billing-tables
         script: /io/sql/cleanup-old-billing-tables.sql
         online: true
+      - name: add-deduped-resource-ids-to-resources
+        script: /io/sql/add-deduped-resource-ids-to-resources.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
