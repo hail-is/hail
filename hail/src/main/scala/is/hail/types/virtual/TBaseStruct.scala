@@ -68,13 +68,8 @@ abstract class TBaseStruct extends Type {
   def isPrefixOf(other: TBaseStruct): Boolean =
     size <= other.size && isCompatibleWith(other)
 
-  def isSubsetOf(other: TStruct): Boolean = {
-    val dropIndex = (f: Field) => (f.name, f.typ)
-    (fields.map(dropIndex).toSet -- other.fields.map(dropIndex)).isEmpty
-  }
-
   def isCompatibleWith(other: TBaseStruct): Boolean =
-    (fields, other.fields).zipped.forall(_ == _)
+    (fields, other.fields).zipped.forall(_.typ == _.typ)
 
   def truncate(newSize: Int): TBaseStruct
 

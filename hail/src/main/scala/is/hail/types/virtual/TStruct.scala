@@ -387,4 +387,9 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
       Row.fromSeq(subsetFields.map { case (i, subset) => subset(r.get(i)) })
     }
   }
+
+  def isSubsetOf(other: TStruct): Boolean = {
+    val dropIndex = (f: Field) => (f.name, f.typ)
+    (fields.map(dropIndex).toSet -- other.fields.map(dropIndex)).isEmpty
+  }
 }

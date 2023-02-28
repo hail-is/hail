@@ -4,7 +4,7 @@ import is.hail.HailSuite
 import org.testng.Assert.{assertFalse, assertTrue}
 import org.testng.annotations.{DataProvider, Test}
 
-class TBaseStructSuite extends HailSuite {
+class TStructSuite extends HailSuite {
   @DataProvider(name = "isPrefixOf")
   def isPrefixOfData: Array[Array[Any]] =
     Array(
@@ -14,7 +14,8 @@ class TBaseStructSuite extends HailSuite {
       Array(TStruct("a" -> TVoid), TStruct("a" -> TVoid), true),
       Array(TStruct("a" -> TVoid), TStruct("a" -> TVoid, "b" -> TVoid), true),
       Array(TStruct("a" -> TVoid, "b" -> TVoid), TStruct("a" -> TVoid), false),
-      Array(TStruct("b" -> TVoid), TStruct("a" -> TVoid, "b" -> TVoid), false)
+      // isPrefixOf ignores field names and compares the ordered sequence of types
+      Array(TStruct("b" -> TVoid), TStruct("a" -> TVoid, "b" -> TVoid), true)
     )
 
   @Test(dataProvider = "isPrefixOf")
