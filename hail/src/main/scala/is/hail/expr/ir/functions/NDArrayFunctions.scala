@@ -162,12 +162,6 @@ object  NDArrayFunctions extends RegistryFunctions {
         val i = cb.newLocal[Long]("i")
         val j = cb.newLocal[Long]("j")
 
-        // iteration variables
-        val ii = cb.newLocal[Long]("ii")
-        val jj = cb.newLocal[Long]("jj")
-
-        val zero = SFloat64Value(0.0d)
-
         cb.ifx(lower.value > lowestDiagIndex, {
           cb.assign(iLeft, (diagIndex.value - lower.value).max(0L))
           cb.assign(iRight, (diagIndex.value - lower.value + nCols.value).max(nRows.value))
@@ -180,17 +174,15 @@ object  NDArrayFunctions extends RegistryFunctions {
             cb.assign(j, j + 1L)
           }, {
             // block(i to i, 0 until j) := 0.0
-            cb.forLoop(cb.assign(jj, 0L), jj < j, cb.assign(jj, jj + 1L), {
-              rpt.setElement(cb, er.region, FastIndexedSeq(i, jj), newBlock.a, zero, false)
-            })
+            newBlock.slice(cb, FastIndexedSeq(ScalarIndex(i), SliceIndex(None, Some(j)))).coiterateMutate(cb, er.region) { _ =>
+              primitive(0.0d)
+            }
           })
 
           // block(iRight until nRows, ::) := 0.0
-          cb.forLoop(cb.assign(ii, iRight), ii < nRows.value, cb.assign(ii, ii + 1L), {
-            cb.forLoop(cb.assign(jj, 0L), jj < nCols.value, cb.assign(jj, jj + 1L), {
-              rpt.setElement(cb, er.region, FastIndexedSeq(ii, jj), newBlock.a, zero, false)
-            })
-          })
+          newBlock.slice(cb, FastIndexedSeq(SliceIndex(Some(iRight), None), ColonIndex)).coiterateMutate(cb, er.region) { _ =>
+            primitive(0.0d)
+          }
         })
 
         cb.ifx(upper.value < highestDiagIndex, {
@@ -198,11 +190,9 @@ object  NDArrayFunctions extends RegistryFunctions {
           cb.assign(iRight, (diagIndex.value - upper.value + nCols.value).max(nRows.value))
 
           // block(0 util iLeft, ::) := 0.0
-          cb.forLoop(cb.assign(ii, 0L), ii < iLeft, cb.assign(ii, ii + 1L), {
-            cb.forLoop(cb.assign(jj, 0L), jj < nCols.value, cb.assign(jj, jj + 1L), {
-              rpt.setElement(cb, er.region, FastIndexedSeq(ii, jj), newBlock.a, zero, false)
-            })
-          })
+          newBlock.slice(cb, FastIndexedSeq(SliceIndex(None, Some(iLeft)), ColonIndex)).coiterateMutate(cb, er.region) { _ =>
+            primitive(0.0d)
+          }
 
           cb.forLoop({
             cb.assign(i, iLeft)
@@ -212,9 +202,9 @@ object  NDArrayFunctions extends RegistryFunctions {
             cb.assign(j, j + 1)
           }, {
             // block(i to i, j to nCols) := 0.0
-            cb.forLoop(cb.assign(jj, j), jj < nCols.value, cb.assign(jj, jj + 1L), {
-              rpt.setElement(cb, er.region, FastIndexedSeq(i, jj), newBlock.a, zero, false)
-            })
+            newBlock.slice(cb, FastIndexedSeq(ScalarIndex(i), SliceIndex(Some(j), None))).coiterateMutate(cb, er.region) { _ =>
+              primitive(0.0d)
+            }
           })
         })
 
