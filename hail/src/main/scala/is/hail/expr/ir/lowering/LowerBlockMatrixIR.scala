@@ -1135,9 +1135,6 @@ object LowerBlockMatrixIR {
             MakeTuple.ordered(FastSeq(rows, cols))
           }.mapBody { (ctx, body) => NDArraySlice(body, GetField(ctx, "new")) }
 
-      // FIXME
-      case BlockMatrixSparsify(child, sparsifier) => lower(child)
-
       case RelationalLetBlockMatrix(name, value, body) => unimplemented(ctx, bmir)
 
       case ValueToBlockMatrix(child, shape, blockSize) if !child.typ.isInstanceOf[TArray] && !child.typ.isInstanceOf[TNDArray] => {
