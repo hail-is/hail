@@ -69,7 +69,7 @@ abstract class TBaseStruct extends Type {
     size <= other.size && isCompatibleWith(other)
 
   def isCompatibleWith(other: TBaseStruct): Boolean =
-    (fields, other.fields).zipped.forall(_.typ == _.typ)
+    fields.zip(other.fields).forall{ case (l, r) => l.typ == r.typ }
 
   def truncate(newSize: Int): TBaseStruct
 
