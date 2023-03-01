@@ -1,12 +1,12 @@
 from typing import Optional
 import hail as hl
-from hail.expr.types import dtype, tint32, tint64
+from hail.expr.types import dtype, tint32, tint64, tstruct
 from hail.ir.base_ir import BaseIR, IR, TableIR
 import hail.ir.ir as ir
 from hail.ir.utils import modify_deep_field, zip_with_index, default_row_uid, default_col_uid
 from hail.ir.ir import unify_uid_types, pad_uid, concat_uids
 from hail.genetics import ReferenceGenome
-from hail.typecheck import typecheck_method, sequenceof
+from hail.typecheck import typecheck_method, sequenceof, nullable
 from hail.utils import FatalError
 from hail.utils.java import Env
 from hail.utils.misc import escape_str, parsable_strings, escape_id
@@ -1117,9 +1117,9 @@ class BlockMatrixToTable(TableIR):
         return hl.ttable(hl.tstruct(), hl.tstruct(**{'i': hl.tint64, 'j': hl.tint64, 'entry': hl.tfloat64}), [])
 
 class Partitioner(object):
-    @typecheck_method(key_type='hl.tstruct',
-                      range_bounds=sequenceof('hl.Interval')
-                      )
+    # @typecheck_method(key_type=tstruct,
+    #                   range_bounds=sequenceof(Interval)
+    #                   )
     def __init__(self, key_type, range_bounds):
         assert all(map(lambda interval: interval.point_type == key_type, range_bounds))
         self._key_type = key_type
@@ -1144,8 +1144,8 @@ class Partitioner(object):
         return f'Partitioner<{self.key_type}> {self.range_bounds}'
 
 class TableGen(TableIR):
-    @typecheck_method(contexts=IR, globals=IR, cname=str, gname=str, body=IR, partitioner=Partitioner)
-    def __init__(self, contexts, globals, cname, gname, body, partitioner):
+    @typecheck_method(contexts=IR, globals=IR, cname=str, gname=str, body=IR, partitioner=Partitioner, error_id=nullable(int))
+    def __init__(self, contexts, globals, cname, gname, body, partitioner, error_id=None):
         super().__init__(contexts, globals, body)
         self.contexts = contexts
         self.globals = globals
@@ -1153,15 +1153,22 @@ class TableGen(TableIR):
         self.gname = gname
         self.body = body
         self.partitioner = partitioner
-        self.save_error_info()
+        self._error_id = error_id
+        if error_id is None:
+            self.save_error_info()
 
     def _compute_type(self, deep_typecheck):
-        self.globals.compute_type(deep_typecheck)
-        self.body.compute_type(deep_typecheck)
+        self.contexts.compute_type({}, None, deep_typecheck)
+        self.globals.compute_type({}, None, deep_typecheck)
+        bodyenv = {
+            self.cname: self.contexts.typ.element_type,
+            self.gname: self.globals.typ
+        }
+        self.body.compute_type(bodyenv, None, deep_typecheck)
         return hl.ttable(
-            global_type=self.globals.type,
-            row_type=self.body.type,
-            row_key=self.partitioner.key_type
+            global_type=self.globals.typ,
+            row_type=self.body.typ.element_type,
+            row_key=self.partitioner.key_type.fields
         )
 
     def _eq(self, other):
@@ -1178,6 +1185,42 @@ class TableGen(TableIR):
             '(' + self.partitioner._parsable_string() + ')',
             str(self._error_id)
         ])
+
+    def _handle_randomness(self, uid_field_name):
+        newcontexts = self.contexts.handle_randomness(create_uids=True)
+        newcname, random_uid, old_context = ir.unpack_uid(newcontexts.typ)
+        newbody = self.body
+
+        if self.body.uses_randomness:
+            newbody = ir.Let('__rng_state', ir.RNGStateLiteral(),
+                ir.with_split_rng_state(
+                    ir.Let(self.cname, old_context, self.body),
+                    random_uid
+                )
+            )
+
+        if uid_field_name is not None:
+            idx = Env.get_uid()
+            elem = Env.get_uid()
+            iota = ir.StreamIota(ir.I32(0), ir.I32(1))
+            newbody = ir.StreamZip(iota, newbody, [idx, elem],
+                ir.InsertFields(
+                   ir.Ref(elem, newbody.typ),
+                   [(uid_field_name,
+                     concat_uids(random_uid,ir.Cast(ir.Ref(idx, ir.tint32), ir.tint64))
+                     )]
+                )
+            )
+
+        return TableGen(
+            newcontexts,
+            self.globals,
+            newcname,
+            self.gname,
+            newbody,
+            self.partitioner,
+            self._error_id
+        )
 
 class JavaTable(TableIR):
     def __init__(self, jir):

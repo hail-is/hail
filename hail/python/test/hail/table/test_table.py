@@ -2284,6 +2284,18 @@ def test_table_randomness():
     assert_contains_node(t, ir.BlockMatrixToTable)
     assert_unique_uids(t)
 
+    # test TableGen
+    parts = range(11)
+    tg = hl.Table._generate(
+        contexts=hl._stream_range(parts.start, parts.stop - 1, parts.step),
+        globals=hl.struct(k=2, p=3),
+        body=lambda c, g:
+            hl._stream_range(1, 10, 1).map(lambda x:
+                hl.struct(a=c * g.k, r=hl.rand_int32(x * x * g.p))),
+        partitions=list(map(lambda lo, hi: hl.Interval(hl.Struct(a=lo), hl.Struct(a=hi)), parts[:-1], parts[1:]))
+    )
+    str(tg)
+
 
 def test_query_table():
     f = new_temp_file(extension='ht')
