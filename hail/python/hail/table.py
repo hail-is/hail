@@ -3506,13 +3506,13 @@ class Table(ExprContainer):
             hl.tfloat64: "Float64",
             hl.tbool: "boolean"
         }
-        all_types = dict(hl_default_dtypes, **types)
+        all_types = {**hl_default_dtypes, **types}
 
         for column in columns:
             hl_dtype = dtypes_struct[column]
             if column in all_types:
                 pd_dtype = all_types[column]
-            if hl_dtype in all_types:
+            elif hl_dtype in all_types:
                 pd_dtype = all_types[hl_dtype]
             else:
                 pd_dtype = hl_dtype.to_numpy()
