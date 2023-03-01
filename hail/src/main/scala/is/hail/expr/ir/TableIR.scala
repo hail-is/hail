@@ -516,7 +516,7 @@ abstract class TableReader {
   def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
     throw new LowererUnsupportedOperation(s"${ getClass.getSimpleName }.lower not implemented")
 
-  def partitionProposal: PartitionProposal = PartitionProposal(None, fullType.key.size, PlanPartitioning.REPARTITION_REQUIRES_EXTRA_READ)
+  def partitionProposal(ctx: ExecuteContext): PartitionProposal = PartitionProposal(None, fullType.key.size, PlanPartitioning.REPARTITION_REQUIRES_EXTRA_READ)
 }
 
 object TableNativeReader {
@@ -1475,7 +1475,7 @@ class TableNativeReader(
     val globals = lowerGlobals(ctx, requestedType.globalType)
     val rowsSpec = spec.rowsSpec
     val specPart = rowsSpec.partitioner(ctx.stateManager)
-    val partitioner = if (filterIntervals)
+    val partitioner = if (params.filterIntervals)
       params.options.map(opts => RVDPartitioner.union(ctx.stateManager, specPart.kType, opts.intervals, specPart.kType.size - 1))
     else
       params.options.map(opts => new RVDPartitioner(ctx.stateManager, specPart.kType, opts.intervals))
@@ -1495,8 +1495,8 @@ class TableNativeReader(
     lowerWithNewParams(ctx, requestedType, params)
   }
 
-  override def partitionProposal: PartitionProposal =
-    PartitionProposal(Some(params.options.filter(o => !o.filterIntervals).map(_.partitioner).getOrElse(spec.rowsSpec.partitioner)),
+  override def partitionProposal(ctx: ExecuteContext): PartitionProposal =
+    PartitionProposal(Some(params.options.filter(o => !o.filterIntervals).map(_.partitioner(ctx.stateManager)).getOrElse(spec.rowsSpec.partitioner(ctx.stateManager))),
       fullType.keyType.size,
       PlanPartitioning.NO_AFFINITY)
 }
@@ -1613,8 +1613,8 @@ case class TableNativeZippedReader(
     ).apply(globals)
   }
 
-  override def partitionProposal: PartitionProposal =
-    PartitionProposal(Some(options.filter(o => !o.filterIntervals).map(_.partitioner).getOrElse(specLeft.rowsSpec.partitioner)),
+  override def partitionProposal(ctx: ExecuteContext): PartitionProposal =
+    PartitionProposal(Some(options.filter(o => !o.filterIntervals).map(_.partitioner(ctx.stateManager)).getOrElse(specLeft.rowsSpec.partitioner(ctx.stateManager))),
       fullType.keyType.size,
       PlanPartitioning.NO_AFFINITY)
 }

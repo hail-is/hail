@@ -117,7 +117,7 @@ object PlanPartitioning {
       case t if t.typ.key.isEmpty =>
         noInformation()
       case TableRead(t, _, tr) =>
-        tr.partitionProposal
+        tr.partitionProposal(ctx)
       case t: TableLiteral =>
         PartitionProposal(Some(t.rvd.partitioner), t.rvd.typ.key.length, REPARTITION_REQUIRES_EXTRA_READ)
       case TableRepartition(child, n, RepartitionStrategy.NAIVE_COALESCE) =>

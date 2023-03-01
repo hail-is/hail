@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.backend.HailStateManager
 import is.hail.types.virtual._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.rvd.RVDPartitioner
@@ -59,7 +60,7 @@ case class NativeReaderOptions(
 
   def renderShort(): String = s"(IntervalRead: ${intervals.length} intervals, filter=${filterIntervals})"
 
-  @transient lazy val partitioner: RVDPartitioner = {
-    RVDPartitioner.generate(intervalPointType, intervals)
+  def partitioner(sm: HailStateManager): RVDPartitioner = {
+    RVDPartitioner.generate(sm, intervalPointType, intervals)
   }
 }
