@@ -70,7 +70,10 @@ def mt_to_table_of_ndarray(entry_expr, block_size=16, *, partition_size=None, wi
             hl.utils.Interval(start=agg_result.trailing_blocks[i], end=agg_result.interval_bounds[i + 1], includes_start=True, includes_end=False)
             for i in range(num_partitions - 1)
         ]
-        rekey_map = [(agg_result.trailing_blocks[i], agg_result.interval_bounds[i + 1]) for i in range(num_partitions - 1)]
+        if num_partitions > 1:
+            rekey_map = hl.dict([(agg_result.trailing_blocks[i], agg_result.interval_bounds[i + 1]) for i in range(num_partitions - 1)])
+        else:
+            rekey_map = hl.empty_dict(ht.key.dtype, ht.key.dtype)
 
         trailing_blocks_ht = hl.read_table(temp_file_name, _intervals=trailing_blocks)
         trailing_blocks_ht = trailing_blocks_ht._group_within_partitions("groups", window_size)

@@ -21,15 +21,21 @@ object LAPACK {
   private[this] val libraryInstance = ThreadLocal.withInitial(new Supplier[LAPACKLibrary]() {
     def get() = {
       val mklEnvVar = "HAIL_MKL_PATH"
+      val openblasEnvVar = "HAIL_OPENBLAS_PATH"
       val libraryName = if (sys.env.contains(mklEnvVar)) {
         val mklDir = sys.env(mklEnvVar)
         val mklLibName = "mkl_rt"
         NativeLibrary.addSearchPath(mklLibName, mklDir)
         mklLibName
+      } else if (sys.env.contains(openblasEnvVar)) {
+        val openblasDir = sys.env(openblasEnvVar)
+        val openblasLibName = "lapack"
+        NativeLibrary.addSearchPath(openblasLibName, openblasDir)
+        openblasLibName
       } else {
         "lapack"
       }
-      val standard = Native.load(libraryName, classOf[LAPACKLibrary]).asInstanceOf[LAPACKLibrary]
+      val standard = Native.load(libraryName, classOf[LAPACKLibrary])
 
       versionTest(standard) match {
         case Success(version) =>
@@ -38,7 +44,7 @@ object LAPACK {
         case Failure(exception) =>
           val underscoreAfterMap = new java.util.HashMap[String, FunctionMapper]()
           underscoreAfterMap.put(Library.OPTION_FUNCTION_MAPPER, new UnderscoreFunctionMapper)
-          val underscoreAfter = Native.load(libraryName, classOf[LAPACKLibrary], underscoreAfterMap).asInstanceOf[LAPACKLibrary]
+          val underscoreAfter = Native.load(libraryName, classOf[LAPACKLibrary], underscoreAfterMap)
           versionTest(underscoreAfter) match {
             case Success(version) =>
               log.info(s"Imported LAPACK library ${libraryName}, version ${version}, with underscore names")

@@ -3,6 +3,7 @@ package is.hail.methods
 import is.hail.annotations.Region
 import is.hail.asm4s.{Value, _}
 import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.physical.stypes.interfaces.SNDArray.assertColMajor
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.interfaces.{ColonIndex => Colon}
 import is.hail.types.physical.{PCanonicalNDArray, PFloat64Required}
@@ -30,7 +31,7 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
   val Qtemp = cb.memoizeField(matType.constructUninitialized(FastIndexedSeq(m, b), cb, region), "LW_Qtemp").asNDArray.coerceToShape(cb, m, b)
   val Qtemp2 = cb.memoizeField(matType.constructUninitialized(FastIndexedSeq(m, w), cb, region), "LW_Qtemp2").asNDArray.coerceToShape(cb, m, w)
   val blocksize = cb.memoizeField(_blocksize.min(w))
-  val work3len = SizeValueDyn(cb.memoize(worksize.max(blocksize*m)))
+  val work3len = SizeValueDyn(cb.memoize(worksize.max(blocksize * m.max(wpb))))
   val work3: SNDArrayValue = cb.memoizeField(vecType.constructUninitialized(FastIndexedSeq(work3len), cb, region), "LW_work3").asNDArray
   val Tlen = SizeValueDyn(cb.memoizeField(tsize.max(blocksize*wpb)))
   val T: SNDArrayValue = cb.memoizeField(vecType.constructUninitialized(FastIndexedSeq(Tlen), cb, region), "LW_T").asNDArray
@@ -49,7 +50,7 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
     blocksize: Value[Long]
   ): Unit = {
     SNDArray.assertMatrix(Q1, Q2, Qout, R, work1, work2)
-    SNDArray.assertColMajor(cb, Q1, Q2, Qout, R, work1, work2)
+    SNDArray.assertColMajor(cb, "whitenBlockPreOrthogonalized", Q1, Q2, Qout, R, work1, work2)
 
     val Seq(m, w) = Q1.shapes
     val n = Q2.shapes(1)
@@ -111,7 +112,7 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
     val Seq(t) = T.shapes
     cb.ifx(R.shapes(0).cne(w), cb._fatal("qr_pivot: R nrows != w"))
     cb.ifx(R.shapes(1).cne(w), cb._fatal("qr_pivot: R ncols != w"))
-    cb.ifx(m <= w, cb._fatal("qr_pivot: m <= w"))
+    cb.ifx(m <= w, cb._fatal("qr_pivot: m <= w, m=", m.toS, ", w=", w.toS))
     cb.ifx(p0 < 0 || p0 >= p1 || p1 > w, cb._fatal("qr_pivot: bad p0, p1"))
     cb.ifx(t < blocksize * p0.max((p1-p0).max(w-p1)), cb._fatal("qr_pivot: T too small"))
 
@@ -260,6 +261,7 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
   }
 
   def whitenBlock(cb: EmitCodeBuilder, _A: SNDArrayValue): Unit = {
+    assertColMajor(cb, "whitenBlock", _A)
     val b = _A.shapes(1)
 
     val A = _A.coerceToShape(cb, m, b)

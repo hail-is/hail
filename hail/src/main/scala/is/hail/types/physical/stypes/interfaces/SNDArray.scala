@@ -237,10 +237,10 @@ object SNDArray {
     for (nd <- nds) assert(nd.st.nDims == 1)
   }
 
-  def assertColMajor(cb: EmitCodeBuilder, nds: SNDArrayValue*): Unit = {
+  def assertColMajor(cb: EmitCodeBuilder, caller: String, nds: SNDArrayValue*): Unit = {
     for (nd <- nds) {
       cb.ifx(nd.strides(0).cne(nd.st.pType.elementType.byteSize),
-        cb._fatal("Require column major: found row stride ", nd.strides(0).toS, ", expected ", nd.st.pType.elementType.byteSize.toString))
+        cb._fatal(s"$caller requires column major: found row stride ", nd.strides(0).toS, ", expected ", nd.st.pType.elementType.byteSize.toString))
     }
   }
 
@@ -292,7 +292,7 @@ object SNDArray {
       X.assertHasShape(cb, FastIndexedSeq(m), errMsg)
       Y.assertHasShape(cb, FastIndexedSeq(n), errMsg)
     }
-    assertColMajor(cb, A)
+    assertColMajor(cb, "gemv", A)
 
     val ldA = A.eltStride(1).max(1)
     val ldX = X.eltStride(0).max(1)
@@ -323,7 +323,7 @@ object SNDArray {
       B.assertHasShape(cb, FastIndexedSeq(k, n), errMsg)
     else
       B.assertHasShape(cb, FastIndexedSeq(n, k), errMsg)
-    assertColMajor(cb, A, B, C)
+    assertColMajor(cb, "gemm", A, B, C)
 
     val ldA = A.eltStride(1).max(1)
     val ldB = B.eltStride(1).max(1)
@@ -340,7 +340,7 @@ object SNDArray {
   def trmm(cb: EmitCodeBuilder, side: String, uplo: String, transA: String, diag: String,
     alpha: Value[Double], A: SNDArrayValue, B: SNDArrayValue): Unit = {
     assertMatrix(A, B)
-    assertColMajor(cb, A, B)
+    assertColMajor(cb, "trmm", A, B)
 
     val Seq(m, n) = B.shapes
     val Seq(a0, a1) = A.shapes
@@ -359,7 +359,7 @@ object SNDArray {
   }
 
   def geqrt(A: SNDArrayValue, T: SNDArrayValue, work: SNDArrayValue, blocksize: Value[Long], cb: EmitCodeBuilder): Unit = {
-    if (A.st.nDims == 2) assertColMajor(cb, A) else assertVector(A)
+    if (A.st.nDims == 2) assertColMajor(cb, "geqrt", A) else assertVector(A)
     assertVector(work, T)
 
     val Seq(m, n) = if (A.st.nDims == 2) A.shapes else FastIndexedSeq(A.shapes(0), SizeValueStatic(1))
@@ -381,8 +381,8 @@ object SNDArray {
 
   def gemqrt(side: String, trans: String, V: SNDArrayValue, T: SNDArrayValue, C: SNDArrayValue, work: SNDArrayValue, blocksize: Value[Long], cb: EmitCodeBuilder): Unit = {
     assertMatrix(V)
-    assertColMajor(cb, V)
-    if (C.st.nDims == 2) assertColMajor(cb, C) else assertVector(C)
+    assertColMajor(cb, "gemqrt", V)
+    if (C.st.nDims == 2) assertColMajor(cb, "gemqrt", C) else assertVector(C)
     assertVector(work, T)
 
     assert(side == "L" || side == "R")
@@ -444,7 +444,7 @@ object SNDArray {
 
   def geqr(cb: EmitCodeBuilder, A: SNDArrayValue, T: SNDArrayValue, work: SNDArrayValue): Unit = {
     assertMatrix(A)
-    assertColMajor(cb, A)
+    assertColMajor(cb, "geqr", A)
     assertVector(T, work)
 
     val Seq(m, n) = A.shapes
@@ -467,8 +467,8 @@ object SNDArray {
 
   def gemqr(cb: EmitCodeBuilder, side: String, trans: String, A: SNDArrayValue, T: SNDArrayValue, C: SNDArrayValue, work: SNDArrayValue): Unit = {
     assertMatrix(A)
-    assertColMajor(cb, A)
-    if (C.st.nDims == 2) assertColMajor(cb, C) else assertVector(C)
+    assertColMajor(cb, "gemqr", A)
+    if (C.st.nDims == 2) assertColMajor(cb, "gemqr", C) else assertVector(C)
     assertVector(work, T)
 
     assert(side == "L" || side == "R")
@@ -513,7 +513,7 @@ object SNDArray {
 
   def tpqrt(A: SNDArrayValue, B: SNDArrayValue, T: SNDArrayValue, work: SNDArrayValue, blocksize: Value[Long], cb: EmitCodeBuilder): Unit = {
     assertMatrix(A, B)
-    assertColMajor(cb, A, B)
+    assertColMajor(cb, "tpqrt", A, B)
     assertVector(work, T)
 
     val Seq(m, n) = B.shapes
@@ -537,7 +537,7 @@ object SNDArray {
 
   def tpmqrt(side: String, trans: String, V: SNDArrayValue, T: SNDArrayValue, A: SNDArrayValue, B: SNDArrayValue, work: SNDArrayValue, blocksize: Value[Long], cb: EmitCodeBuilder): Unit = {
     assertMatrix(A, B, V)
-    assertColMajor(cb, A, B, V)
+    assertColMajor(cb, "tpmqrt", A, B, V)
     assertVector(work, T)
 
     assert(side == "L" || side == "R")
@@ -588,7 +588,7 @@ object SNDArray {
 
   def geqrf(cb: EmitCodeBuilder, A: SNDArrayValue, T: SNDArrayValue, work: SNDArrayValue): Unit = {
     assertMatrix(A)
-    assertColMajor(cb, A)
+    assertColMajor(cb, "geqrf", A)
     assertVector(T, work)
 
     val Seq(m, n) = A.shapes
@@ -608,7 +608,7 @@ object SNDArray {
 
   def orgqr(cb: EmitCodeBuilder, k: Value[Int], A: SNDArrayValue, T: SNDArrayValue, work: SNDArrayValue): Unit = {
     assertMatrix(A)
-    assertColMajor(cb, A)
+    assertColMajor(cb, "orgqr", A)
     assertVector(T, work)
 
     val Seq(m, n) = A.shapes

@@ -1930,9 +1930,9 @@ class StreamWhiten(IR):
             other.block_size == self.block_size and \
             other.normalize_after_whiten == self.normalize_after_whiten
 
-    def _compute_type(self, env, agg_env):
-        self.stream._compute_type(env, agg_env)
-        self._type = self.stream.typ
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.stream._compute_type(env, agg_env, deep_typecheck)
+        return self.stream.typ
 
 
 class StreamJoinRightDistinct(IR):

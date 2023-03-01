@@ -4,10 +4,6 @@ from hail.methods.pca import _make_tsm
 import hail as hl
 from ..helpers import *
 
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
-
-
 def naive_whiten(X, w):
     m, n = np.shape(X)
     Xw = np.zeros((m, n))
@@ -26,7 +22,6 @@ def run_local_whitening_test(vec_size, num_rows, chunk_size, window_size, partit
 
     tsm = _make_tsm(mt.x, chunk_size, partition_size=partition_size, whiten_window_size=window_size)
     ht = tsm.block_table
-    # ht = whiten(mt.x, chunk_size, window_size, partition_size)
     whitened_hail = np.vstack(ht.aggregate(hl.agg.collect(tsm.block_expr)))
     whitened_naive = naive_whiten(data.T, window_size)
     np.testing.assert_allclose(whitened_hail, whitened_naive, rtol=1e-05)

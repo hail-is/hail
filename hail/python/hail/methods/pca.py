@@ -243,18 +243,20 @@ def _make_tsm(entry_expr, block_size, *, partition_size=None, whiten_window_size
 
         A = A.annotate(ndarray=A.ndarray.T)
         vec_size = hl.eval(ht.take(1, _localize=False)[0].xs.length())
+        if vec_size <= whiten_window_size:
+            raise ValueError("whiten_window_size must be smaller than number of cols")
         joined = A.annotate(prev_window=trailing_blocks_ht[A.key].prev_window)
 
         def whiten_map_body(part_stream):
-            stream_ir = ir.ToArray(ir.StreamWhiten(
-                ir.ToStream(part_stream._ir),
+            stream_ir = ir.StreamWhiten(
+                part_stream._ir,
                 "ndarray",
                 "prev_window",
                 vec_size,
                 whiten_window_size,
                 block_size,
                 whiten_block_size,
-                normalize_after_whiten))
+                normalize_after_whiten)
             return construct_expr(stream_ir, part_stream.dtype)
         whitened = joined._map_partitions(whiten_map_body)
         whitened = whitened.annotate(ndarray=whitened.ndarray.T).persist()

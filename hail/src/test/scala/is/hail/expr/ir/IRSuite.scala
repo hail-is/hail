@@ -2641,7 +2641,7 @@ class IRSuite extends HailSuite {
     val str = Str("Hail")
     val a = Ref("a", TArray(TInt32))
     val st = Ref("st", TStream(TInt32))
-    val whitenStream = Ref("whitenStream", TStream(TStruct(("prevWindow" -> TNDArray(TFloat64, Nat(2))), ("newChunk" -> TNDArray(TFloat64, Nat(2))))))
+    val whitenStream = Ref("whitenStream", TStream(TStruct("prevWindow" -> TNDArray(TFloat64, Nat(2)), "newChunk" -> TNDArray(TFloat64, Nat(2)))))
     val mat = Ref("mat", TNDArray(TFloat64, Nat(2)))
     val aa = Ref("aa", TArray(TArray(TInt32)))
     val sta = Ref("sta", TStream(TArray(TInt32)))
@@ -2749,7 +2749,7 @@ class IRSuite extends HailSuite {
       StreamFold(st, I32(0), "x", "v", v) -> Array(st),
       StreamFold2(StreamFold(st, I32(0), "x", "v", v)) -> Array(st),
       StreamScan(st, I32(0), "x", "v", v) -> Array(st),
-      StreamWhiten(whitenStream, "newChunk", "prevWindow", 0, 0, 0, 0, false),
+      StreamWhiten(whitenStream, "newChunk", "prevWindow", 0, 0, 0, 0, false) -> Array(whitenStream),
       StreamJoinRightDistinct(
         StreamMap(StreamRange(0, 2, 1), "x", MakeStruct(FastSeq("x" -> Ref("x", TInt32)))),
         StreamMap(StreamRange(0, 3, 1), "x", MakeStruct(FastSeq("x" -> Ref("x", TInt32)))),
@@ -3035,26 +3035,6 @@ class IRSuite extends HailSuite {
 
   @Test(dataProvider = "valueIRs")
   def testValueIRParser(x: IR, refMap: BindingEnv[Type]) {
-//    val env = IRParserEnvironment(ctx, refMap = Map(
-//      "c" -> TBoolean,
-//      "a" -> TArray(TInt32),
-//      "aa" -> TArray(TArray(TInt32)),
-//      "da" -> TArray(TTuple(TInt32, TString)),
-//      "st" -> TStream(TInt32),
-//      "whitenStream" -> TStream(TStruct(("prevWindow" -> TNDArray(TFloat64, Nat(2))), ("newChunk" -> TNDArray(TFloat64, Nat(2))))),
-//      "mat" -> TNDArray(TFloat64, Nat(2)),
-//      "sta" -> TStream(TArray(TInt32)),
-//      "std" -> TStream(TTuple(TInt32, TString)),
-//      "nd" -> TNDArray(TFloat64, Nat(1)),
-//      "nd2" -> TNDArray(TArray(TString), Nat(1)),
-//      "v" -> TInt32,
-//      "l" -> TInt32,
-//      "r" -> TInt32,
-//      "s" -> TStruct("x" -> TInt32, "y" -> TInt64, "z" -> TFloat64),
-//      "t" -> TTuple(TInt32, TInt64, TFloat64),
-//      "call" -> TCall,
-//      "bin" -> TBinary,
-//      "x" -> TInt32))
     val env = IRParserEnvironment(ctx, refMap = refMap)
 
     val s = Pretty.sexprStyle(x, elideLiterals = false)

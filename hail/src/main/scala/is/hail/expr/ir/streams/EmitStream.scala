@@ -6,9 +6,10 @@ import is.hail.expr.ir._
 import is.hail.expr.ir.agg.{AggStateSig, DictState, PhysicalAggSig, StateTuple}
 import is.hail.expr.ir.functions.IntervalFunctions
 import is.hail.expr.ir.orderings.StructOrdering
+import is.hail.linalg.LinalgCodeUtils
 import is.hail.methods.{BitPackedVector, BitPackedVectorBuilder, LocalLDPrune, LocalWhitening}
-import is.hail.types.physical.stypes.EmitType
-import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SStackStruct, SUnreachable}
+import is.hail.types.physical.stypes.{EmitType, SSettable}
+import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SInsertFieldsStruct, SStackStruct, SUnreachable}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SFloat64Value, SInt32Value}
 import is.hail.types.physical.{PCanonicalArray, PCanonicalBinary, PCanonicalStruct}
@@ -1170,7 +1171,7 @@ object EmitStream {
         produce(stream, cb).map(cb) { case blocks: SStreamValue =>
           val state = new LocalWhitening(cb, SizeValueStatic(vecSize.toLong), windowSize.toLong, chunkSize.toLong, blockSize.toLong, outerRegion, normalizeAfterWhiten)
           val eltType = blocks.st.elementType.asInstanceOf[SBaseStruct]
-          val resultField = mb.newPField("StreamWhiten_result", eltType)
+          var resultField: SSettable = null
 
           val blocksProducer = blocks.getProducer(cb.emb)
           val producer: StreamProducer = new StreamProducer {
@@ -1197,11 +1198,14 @@ object EmitStream {
               row.loadField(cb, prevWindowName).consume(cb, {}, { prevWindow =>
                 state.initializeWindow(cb, prevWindow.asNDArray)
               })
-              val result = row.loadField(cb, newChunkName).get(cb, "StreamWhiten: missing chunk").asNDArray
-              state.whitenBlock(cb, result)
+              val block = row.loadField(cb, newChunkName).get(cb, "StreamWhiten: missing chunk").asNDArray
+              val whitenedBlock = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(block, cb, elementRegion)
+              state.whitenBlock(cb, whitenedBlock)
               // the 'newChunkName' field of 'row' is mutated in place and given
               // to the consumer
-              cb.assign(resultField, row)
+              val result = row.insert(cb, elementRegion, eltType.virtualType.asInstanceOf[TStruct], newChunkName -> EmitValue.present(whitenedBlock))
+              resultField = mb.newPField("StreamWhiten_result", result.st)
+              cb.assign(resultField, result)
               cb.goto(LproduceElementDone)
             }
 
