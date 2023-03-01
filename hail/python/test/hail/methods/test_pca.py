@@ -134,6 +134,26 @@ def matrix_table_from_numpy(np_mat):
 # k, m, n
 dim_triplets = [(20, 1000, 1000), (10, 100, 200)]
 
+
+def test_blanczos_T():
+    k, m, n = 10, 100, 200
+    sigma = np.diag([spec1(i + 1, k) for i in range(m)])
+    seed = 1025
+    np.random.seed(seed)
+    U = np.linalg.qr(np.random.normal(0, 1, (m, m)))[0]
+    V = np.linalg.qr(np.random.normal(0, 1, (n, m)))[0]
+    A = U @ sigma @ V.T
+    mt_A_T = matrix_table_from_numpy(A.T)
+
+    eigenvalues, scores, loadings = hl._blanczos_pca(mt_A_T.ent, k=k, oversampling_param=k, q_iterations=4, compute_loadings=True, transpose=True)
+    singulars = np.sqrt(eigenvalues)
+    hail_V = (np.array(scores.scores.collect()) / singulars).T
+    hail_U = np.array(loadings.loadings.collect())
+    approx_A = hail_U @ np.diag(singulars) @ hail_V
+    norm_of_diff = np.linalg.norm(A - approx_A, 2)
+    np.testing.assert_allclose(norm_of_diff, spec1(k + 1, k), rtol=1e-02)
+    np.testing.assert_allclose(singulars, np.diag(sigma)[:k], rtol=1e-01)
+
 def spectra_helper(spec_func):
 
     for triplet in dim_triplets:

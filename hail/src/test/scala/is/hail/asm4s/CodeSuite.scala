@@ -24,7 +24,7 @@ class CodeSuite extends HailSuite {
       sum.load()
     )
     fb.emit(code)
-    val result = fb.resultWithIndex()(theHailClassLoader, ctx.fs, 0, ctx.r)()
+    val result = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)()
     assert(result == 10)
   }
 
@@ -139,7 +139,7 @@ class CodeSuite extends HailSuite {
       hash.value
     })
     val region = Region(pool=pool)
-    val arrayPointer = pArray.unstagedStoreJavaObject(toHash, region)
+    val arrayPointer = pArray.unstagedStoreJavaObject(ctx.stateManager, toHash, region)
     fb.result(ctx)(theHailClassLoader)(arrayPointer)
   }
 
@@ -154,7 +154,7 @@ class CodeSuite extends HailSuite {
       hash.value
     })
     val region = Region(pool=pool)
-    val structPointer = pStruct.unstagedStoreJavaObject(toHash, region)
+    val structPointer = pStruct.unstagedStoreJavaObject(ctx.stateManager, toHash, region)
     fb.result(ctx)(theHailClassLoader)(structPointer)
   }
 }

@@ -39,14 +39,13 @@ class FileStore:
             return f'{self.batch_log_dir(batch_id)}/{job_id}/{task}/resource_usage'
         return f'{self.batch_log_dir(batch_id)}/{job_id}/{attempt_id}/{task}/resource_usage'
 
-    async def read_log_file(self, format_version, batch_id, job_id, attempt_id, task):
+    async def read_log_file(self, format_version, batch_id, job_id, attempt_id, task) -> bytes:
         url = self.log_path(format_version, batch_id, job_id, attempt_id, task)
-        data = await self.fs.read(url)
-        return data.decode('utf-8')
+        return await self.fs.read(url)
 
-    async def write_log_file(self, format_version, batch_id, job_id, attempt_id, task, data):
+    async def write_log_file(self, format_version, batch_id, job_id, attempt_id, task, data: bytes):
         url = self.log_path(format_version, batch_id, job_id, attempt_id, task)
-        await self.fs.write(url, data.encode('utf-8'))
+        await self.fs.write(url, data)
 
     async def read_resource_usage_file(
         self, format_version, batch_id, job_id, attempt_id, task

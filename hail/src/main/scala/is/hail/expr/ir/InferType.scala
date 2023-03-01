@@ -96,6 +96,9 @@ object InferType {
         assert(lessThan.typ == TBoolean)
         val et = tcoerce[TStream](a.typ).elementType
         TArray(et)
+      case ArrayMaximalIndependentSet(edges, _) =>
+        val et = tcoerce[TArray](edges.typ).elementType.asInstanceOf[TBaseStruct].types.head
+        TArray(et)
       case ToSet(a) =>
         val et = tcoerce[TStream](a.typ).elementType
         TSet(et)

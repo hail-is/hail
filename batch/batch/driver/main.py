@@ -11,7 +11,6 @@ from typing import Any, Dict, Set, Tuple
 
 import aiohttp_session
 import dictdiffer
-import googlecloudprofiler
 import kubernetes_asyncio.client
 import kubernetes_asyncio.config
 import pandas as pd
@@ -32,6 +31,7 @@ from gear import (
     transaction,
 )
 from gear.clients import get_cloud_async_fs
+from gear.profiling import install_profiler_if_requested
 from hailtop import aiotools, httpx
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
@@ -51,9 +51,7 @@ from ..batch_configuration import (
     BATCH_STORAGE_URI,
     CLOUD,
     DEFAULT_NAMESPACE,
-    HAIL_SHA,
     HAIL_SHOULD_CHECK_INVARIANTS,
-    HAIL_SHOULD_PROFILE,
     MACHINE_NAME_PREFIX,
     REFRESH_INTERVAL_IN_SECONDS,
 )
@@ -81,16 +79,6 @@ routes = web.RouteTableDef()
 deploy_config = get_deploy_config()
 
 auth = AuthClient()
-
-
-def ignore_failed_to_collect_and_upload_profile(record):
-    if 'Failed to collect and upload profile: [Errno 32] Broken pipe' in record.msg:
-        record.levelno = logging.INFO
-        record.levelname = "INFO"
-    return record
-
-
-googlecloudprofiler.logger.addFilter(ignore_failed_to_collect_and_upload_profile)
 
 
 def instance_name_from_request(request):
@@ -650,20 +638,65 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
                 set_message(session, f'External SSD must be at least {min_disk_storage} GB', 'error')
                 raise ConfigError()
 
+        max_new_instances_per_autoscaler_loop = validate_int(
+            session,
+            'Max instances per autoscaler loop',
+            post['max_new_instances_per_autoscaler_loop'],
+            lambda v: v > 0,
+            'a positive integer',
+        )
+
+        autoscaler_loop_period_secs = validate_int(
+            session,
+            'Autoscaler loop period in seconds',
+            post['autoscaler_loop_period_secs'],
+            lambda v: v > 0,
+            'a positive integer',
+        )
+
+        worker_max_idle_time_secs = validate_int(
+            session,
+            'Worker max idle time in seconds',
+            post['worker_max_idle_time_secs'],
+            lambda v: v > 0,
+            'a positive integer',
+        )
+
+        standing_worker_max_idle_time_secs = validate_int(
+            session,
+            'Standing worker max idle time in seconds',
+            post['standing_worker_max_idle_time_secs'],
+            lambda v: v > 0,
+            'a positive integer',
+        )
+
+        job_queue_scheduling_window_secs = validate_int(
+            session,
+            'Job queue scheduling window in seconds',
+            post['job_queue_scheduling_window_secs'],
+            lambda v: v > 0,
+            'a positive integer',
+        )
+
         proposed_pool_config = PoolConfig(
-            pool_name,
-            pool.cloud,
-            worker_type,
-            worker_cores,
-            worker_local_ssd_data_disk,
-            worker_external_ssd_data_disk_size_gb,
-            enable_standing_worker,
-            standing_worker_cores,
-            boot_disk_size_gb,
-            max_instances,
-            max_live_instances,
-            pool.preemptible,
-            label,
+            name=pool_name,
+            cloud=pool.cloud,
+            worker_type=worker_type,
+            worker_cores=worker_cores,
+            worker_local_ssd_data_disk=worker_local_ssd_data_disk,
+            worker_external_ssd_data_disk_size_gb=worker_external_ssd_data_disk_size_gb,
+            enable_standing_worker=enable_standing_worker,
+            standing_worker_cores=standing_worker_cores,
+            boot_disk_size_gb=boot_disk_size_gb,
+            max_instances=max_instances,
+            max_live_instances=max_live_instances,
+            preemptible=pool.preemptible,
+            max_new_instances_per_autoscaler_loop=max_new_instances_per_autoscaler_loop,
+            autoscaler_loop_period_secs=autoscaler_loop_period_secs,
+            worker_max_idle_time_secs=worker_max_idle_time_secs,
+            standing_worker_max_idle_time_secs=standing_worker_max_idle_time_secs,
+            job_queue_scheduling_window_secs=job_queue_scheduling_window_secs,
+            label=label,
         )
 
         current_client_pool_config = json.loads(post['_pool_config_json'])
@@ -730,7 +763,38 @@ async def job_private_config_update(request, userdata):  # pylint: disable=unuse
             session, 'Max live instances', post['max_live_instances'], lambda v: v > 0, 'a positive integer'
         )
 
-        await jpim.configure(boot_disk_size_gb, max_instances, max_live_instances)
+        max_new_instances_per_autoscaler_loop = validate_int(
+            session,
+            'Max instances per autoscaler loop',
+            post['max_new_instances_per_autoscaler_loop'],
+            lambda v: v > 0,
+            'a positive integer',
+        )
+
+        autoscaler_loop_period_secs = validate_int(
+            session,
+            'Autoscaler loop period in seconds',
+            post['autoscaler_loop_period_secs'],
+            lambda v: v > 0,
+            'a positive integer',
+        )
+
+        worker_max_idle_time_secs = validate_int(
+            session,
+            'Worker max idle time in seconds',
+            post['worker_max_idle_time_secs'],
+            lambda v: v > 0,
+            'a positive integer',
+        )
+
+        await jpim.configure(
+            boot_disk_size_gb=boot_disk_size_gb,
+            max_instances=max_instances,
+            max_live_instances=max_live_instances,
+            max_new_instances_per_autoscaler_loop=max_new_instances_per_autoscaler_loop,
+            autoscaler_loop_period_secs=autoscaler_loop_period_secs,
+            worker_max_idle_time_secs=worker_max_idle_time_secs,
+        )
 
         set_message(session, f'Updated configuration for {jpim}.', 'info')
     except ConfigError:
@@ -1387,16 +1451,7 @@ async def on_cleanup(app):
 
 
 def run():
-    if HAIL_SHOULD_PROFILE and CLOUD == 'gcp':
-        profiler_tag = f'{DEFAULT_NAMESPACE}'
-        if profiler_tag == 'default':
-            profiler_tag = DEFAULT_NAMESPACE + f'-{HAIL_SHA[0:12]}'
-        googlecloudprofiler.start(
-            service='batch-driver',
-            service_version=profiler_tag,
-            # https://cloud.google.com/profiler/docs/profiling-python#agent_logging
-            verbose=3,
-        )
+    install_profiler_if_requested('batch-driver')
 
     app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE, middlewares=[monitor_endpoints_middleware])
     setup_aiohttp_session(app)

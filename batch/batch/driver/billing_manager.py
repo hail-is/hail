@@ -60,35 +60,83 @@ class CloudBillingManager(abc.ABC):
             latest_product_version = price.version
             latest_resource_rate = price.rate
 
-            resource_name = product_version_to_resource(product, latest_product_version)
-
             current_product_version = self.product_versions.latest_version(product)
-            current_resource_rate = self.resource_rates.get(resource_name)
 
-            if current_resource_rate is None:
+            is_new_product = current_product_version is None
+
+            if is_new_product:
+                resource_name = product_version_to_resource(product, latest_product_version)
                 resource_updates.append((resource_name, latest_resource_rate))
-            elif abs(current_resource_rate - latest_resource_rate) > 1e-20:
-                log.error(
-                    f'resource {resource_name} does not have the latest rate in the database for '
-                    f'version {current_product_version}: {current_resource_rate} vs {latest_resource_rate}; '
-                    f'did the vm price change without a version change?'
-                )
-                continue
-
-            if price.is_current_price() and (
-                current_product_version is None or current_product_version != latest_product_version
-            ):
                 product_version_updates.append((product, latest_product_version))
+                log.info(
+                    f'adding new resource {resource_name} {latest_product_version} with rate change of {latest_resource_rate}'
+                )
+            else:
+                assert current_product_version
+                current_resource_name = product_version_to_resource(product, current_product_version)
+                current_resource_rate = self.resource_rates.get(current_resource_name)
+
+                have_latest_version = current_product_version == latest_product_version
+                have_latest_rate = current_resource_rate == latest_resource_rate
+
+                if have_latest_version and not have_latest_rate:
+                    log.error(
+                        f'product {product} does not have the latest rate in the database for '
+                        f'version {current_product_version}: {current_resource_rate} vs {latest_resource_rate}; '
+                        f'did the vm price change without a version change?'
+                    )
+                elif not have_latest_version and have_latest_rate:
+                    # this prevents having too many resources in the database with redundant information
+                    log.info(
+                        f'ignoring price update for product {product} -- the latest rate is equal to the previous rate '
+                        f'({current_product_version}) => ({latest_product_version}) with rate {latest_resource_rate}'
+                    )
+                elif not have_latest_version and not have_latest_rate:
+                    if price.is_current_price():
+                        latest_resource_name = product_version_to_resource(product, latest_product_version)
+                        resource_updates.append((latest_resource_name, latest_resource_rate))
+                        product_version_updates.append((product, latest_product_version))
+                        log.info(
+                            f'product {product} changed from {current_product_version} to {latest_product_version} with rate change of '
+                            f'({current_resource_rate}) => ({latest_resource_rate})'
+                        )
+                    else:
+                        log.error(
+                            f'price changed but the price is not current {product} ({current_product_version}) => ({latest_product_version}) ({current_resource_rate}) => ({latest_resource_rate}) '
+                            f'{price.effective_start_date} {price.effective_end_date}'
+                        )
+                else:
+                    assert (
+                        have_latest_version and have_latest_rate
+                    ), f'{current_product_version} {latest_product_version} {current_resource_rate} {latest_resource_rate}'
 
         @transaction(self.db)
         async def insert_or_update(tx):
             if resource_updates:
+                last_resource_id = await tx.execute_and_fetchone(
+                    '''
+SELECT COALESCE(MAX(resource_id), 0) AS last_resource_id
+FROM resources
+FOR UPDATE
+'''
+                )
+                last_resource_id = last_resource_id['last_resource_id']
+
                 await tx.execute_many(
                     '''
 INSERT INTO `resources` (resource, rate)
 VALUES (%s, %s)
 ''',
                     resource_updates,
+                )
+
+                await tx.execute_update(
+                    '''
+UPDATE resources
+SET deduped_resource_id = resource_id
+WHERE resource_id > %s AND deduped_resource_id IS NULL
+''',
+                    (last_resource_id,),
                 )
 
             if product_version_updates:

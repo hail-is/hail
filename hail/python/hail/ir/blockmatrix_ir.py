@@ -147,7 +147,7 @@ class BlockMatrixBroadcast(BlockMatrixIR):
 
     def _compute_type(self, deep_typecheck):
         self.child.compute_type(deep_typecheck)
-        assert len(self.shape) == 2
+        assert len(self.shape) == 2, self.shape
         tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape(self.shape[0], self.shape[1])
         return tblockmatrix(self.child.typ.element_type,
                             tensor_shape,
@@ -372,7 +372,7 @@ class ValueToBlockMatrix(BlockMatrixIR):
         else:
             element_type = child_type
 
-        assert len(self.shape) == 2
+        assert len(self.shape) == 2, self.shape
         tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape(self.shape[0], self.shape[1])
         return tblockmatrix(element_type, tensor_shape, is_row_vector, self.block_size)
 
@@ -402,7 +402,7 @@ class BlockMatrixRandom(BlockMatrixIR):
             self.block_size == other.block_size
 
     def _compute_type(self, deep_typecheck):
-        assert len(self.shape) == 2
+        assert len(self.shape) == 2, self.shape
         tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape(self.shape[0], self.shape[1])
 
         return tblockmatrix(hl.tfloat64, tensor_shape, is_row_vector, self.block_size)

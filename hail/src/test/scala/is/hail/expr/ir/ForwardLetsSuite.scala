@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailSuite
 import is.hail.TestUtils._
 import is.hail.expr.Nat
-import is.hail.expr.ir.IRBuilder.{applyAggOp, let, _}
+import is.hail.expr.ir.DeprecatedIRBuilder.{applyAggOp, let, _}
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.testng.annotations.{DataProvider, Test}

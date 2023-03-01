@@ -78,6 +78,11 @@ class PoolConfig(InstanceCollectionConfig):
             max_instances=record['max_instances'],
             max_live_instances=record['max_live_instances'],
             preemptible=bool(record['preemptible']),
+            max_new_instances_per_autoscaler_loop=record['max_new_instances_per_autoscaler_loop'],
+            autoscaler_loop_period_secs=record['autoscaler_loop_period_secs'],
+            worker_max_idle_time_secs=record['worker_max_idle_time_secs'],
+            standing_worker_max_idle_time_secs=record['standing_worker_max_idle_time_secs'],
+            job_queue_scheduling_window_secs=record['job_queue_scheduling_window_secs'],
             label=record['label'],
         )
 
@@ -95,6 +100,11 @@ SET worker_cores = %s,
     max_instances = %s,
     max_live_instances = %s,
     preemptible = %s,
+    max_new_instances_per_autoscaler_loop = %s,
+    autoscaler_loop_period_secs = %s,
+    worker_max_idle_time_secs = %s,
+    standing_worker_max_idle_time_secs = %s,
+    job_queue_scheduling_window_secs = %s
     label = %s
 WHERE pools.name = %s;
 ''',
@@ -108,6 +118,11 @@ WHERE pools.name = %s;
                 self.max_instances,
                 self.max_live_instances,
                 self.preemptible,
+                self.max_new_instances_per_autoscaler_loop,
+                self.autoscaler_loop_period_secs,
+                self.worker_max_idle_time_secs,
+                self.standing_worker_max_idle_time_secs,
+                self.job_queue_scheduling_window_secs,
                 self.label,
                 self.name,
             ),
@@ -115,6 +130,7 @@ WHERE pools.name = %s;
 
     def __init__(
         self,
+        *,
         name: str,
         cloud: str,
         worker_type: str,
@@ -127,6 +143,11 @@ WHERE pools.name = %s;
         max_instances: int,
         max_live_instances: int,
         preemptible: bool,
+        max_new_instances_per_autoscaler_loop: int,
+        autoscaler_loop_period_secs: int,
+        worker_max_idle_time_secs: int,
+        standing_worker_max_idle_time_secs: int,
+        job_queue_scheduling_window_secs: int,
         label: str,
     ):
         self.name = name
@@ -141,6 +162,11 @@ WHERE pools.name = %s;
         self.max_instances = max_instances
         self.max_live_instances = max_live_instances
         self.preemptible = preemptible
+        self.max_new_instances_per_autoscaler_loop = max_new_instances_per_autoscaler_loop
+        self.autoscaler_loop_period_secs = autoscaler_loop_period_secs
+        self.worker_max_idle_time_secs = worker_max_idle_time_secs
+        self.standing_worker_max_idle_time_secs = standing_worker_max_idle_time_secs
+        self.job_queue_scheduling_window_secs = job_queue_scheduling_window_secs
         self.label = label
 
     def instance_config(self, product_versions: ProductVersions, location: str) -> InstanceConfig:
@@ -183,19 +209,36 @@ class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):
     @staticmethod
     def from_record(record):
         return JobPrivateInstanceManagerConfig(
-            record['name'],
-            record['cloud'],
-            record['boot_disk_size_gb'],
-            record['max_instances'],
-            record['max_live_instances'],
+            name=record['name'],
+            cloud=record['cloud'],
+            boot_disk_size_gb=record['boot_disk_size_gb'],
+            max_instances=record['max_instances'],
+            max_live_instances=record['max_live_instances'],
+            max_new_instances_per_autoscaler_loop=record['max_new_instances_per_autoscaler_loop'],
+            autoscaler_loop_period_secs=record['autoscaler_loop_period_secs'],
+            worker_max_idle_time_secs=record['worker_max_idle_time_secs'],
         )
 
-    def __init__(self, name, cloud, boot_disk_size_gb: int, max_instances, max_live_instances):
+    def __init__(
+        self,
+        *,
+        name,
+        cloud,
+        boot_disk_size_gb: int,
+        max_instances: int,
+        max_live_instances: int,
+        max_new_instances_per_autoscaler_loop: int,
+        autoscaler_loop_period_secs: int,
+        worker_max_idle_time_secs: int,
+    ):
         self.name = name
         self.cloud = cloud
         self.boot_disk_size_gb = boot_disk_size_gb
         self.max_instances = max_instances
         self.max_live_instances = max_live_instances
+        self.max_new_instances_per_autoscaler_loop = max_new_instances_per_autoscaler_loop
+        self.autoscaler_loop_period_secs = autoscaler_loop_period_secs
+        self.worker_max_idle_time_secs = worker_max_idle_time_secs
 
     def convert_requests_to_resources(self, machine_type, storage_bytes):
         storage_gib = requested_storage_bytes_to_actual_storage_gib(self.cloud, storage_bytes, allow_zero_storage=False)
@@ -309,9 +352,16 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
                     optimal_result = (pool.name, maybe_cores_mcpu, maybe_memory_bytes, maybe_storage_gib)
         return optimal_result
 
-    def select_pool_from_worker_type(self, cloud, pool_label, worker_type, cores_mcpu, memory_bytes, storage_bytes, preemptible):
+    def select_pool_from_worker_type(
+        self, cloud, pool_label, worker_type, cores_mcpu, memory_bytes, storage_bytes, preemptible
+    ):
         for pool in self.name_pool_config.values():
-            if pool.cloud == cloud and pool.worker_type == worker_type and pool.preemptible == preemptible and pool.label == pool_label:
+            if (
+                pool.cloud == cloud
+                and pool.worker_type == worker_type
+                and pool.preemptible == preemptible
+                and pool.label == pool_label
+            ):
                 result = pool.convert_requests_to_resources(cores_mcpu, memory_bytes, storage_bytes)
                 if result:
                     actual_cores_mcpu, actual_memory_bytes, acutal_storage_gib = result
@@ -324,7 +374,15 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
         return self.jpim_config.convert_requests_to_resources(machine_type, storage_bytes)
 
     def select_inst_coll(
-        self, cloud, machine_type, pool_label, preemptible, worker_type, req_cores_mcpu, req_memory_bytes, req_storage_bytes
+        self,
+        cloud,
+        machine_type,
+        pool_label,
+        preemptible,
+        worker_type,
+        req_cores_mcpu,
+        req_memory_bytes,
+        req_storage_bytes,
     ):
         if worker_type is not None and machine_type is None:
             result = self.select_pool_from_worker_type(

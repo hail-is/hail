@@ -20,12 +20,6 @@ object LocalLDPruneSuite {
   val variantByteOverhead = 50
   val fractionMemoryToUse = 0.25
 
-  val rvRowType = TStruct(
-    "locus" -> ReferenceGenome.GRCh37.locusType,
-    "alleles" -> TArray(TString),
-    MatrixType.entriesIdentifier -> TArray(Genotype.htsGenotypeType)
-  )
-
   def fromCalls(calls: IndexedSeq[BoxedCall]): Option[BitPackedVector] = {
     val locus = Locus("1", 1)
     val alleles = Array("A", "T")

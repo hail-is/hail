@@ -33,7 +33,7 @@ import org.apache.commons.io.IOUtils
 import org.apache.log4j.Logger
 import org.json4s.Extraction
 import org.json4s.JsonAST._
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.{JsonMethods, Serialization}
 import org.json4s.{DefaultFormats, Formats}
 import org.newsclub.net.unix.{AFUNIXServerSocket, AFUNIXSocketAddress}
 
@@ -102,36 +102,35 @@ class ServiceBackend(
 
   def parallelizeAndComputeWithIndex(
     _backendContext: BackendContext,
-    _fs: FS,
+    fs: FS,
     collection: Array[Array[Byte]],
     stageIdentifier: String,
     dependency: Option[TableStageDependency] = None
   )(f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
   ): Array[Array[Byte]] = {
     val backendContext = _backendContext.asInstanceOf[ServiceBackendContext]
-    val fs = _fs.asInstanceOf[ServiceCacheableFS]
     val n = collection.length
     val token = tokenUrlSafe(32)
     val root = s"${ backendContext.remoteTmpDir }parallelizeAndComputeWithIndex/$token"
 
     // FIXME: HACK: working around the memory service until the issue is resolved:
     // https://hail.zulipchat.com/#narrow/stream/223457-Hail-Batch-support/topic/Batch.20Query.3A.20possible.20overloading.20of.20.60memory.60.20service/near/280823230
-    val (open, create) = ((x: String) => fs.openNoCompression(x), fs.createNoCompression _)
+    val (open, write) = ((x: String) => fs.openNoCompression(x), fs.writePDOS _)
 
     log.info(s"parallelizeAndComputeWithIndex: $token: nPartitions $n")
     log.info(s"parallelizeAndComputeWithIndex: $token: writing f and contexts")
 
     val uploadFunction = scalaConcurrent.Future {
       retryTransientErrors {
-        using(new ObjectOutputStream(create(s"$root/f"))) { os =>
-          os.writeObject(f)
+        write(s"$root/f") { fos =>
+          using(new ObjectOutputStream(fos)) { oos => oos.writeObject(f) }
         }
       }
     }
 
     val uploadContexts = scalaConcurrent.Future {
       retryTransientErrors {
-        using(create(s"$root/contexts")) { os =>
+        write(s"$root/contexts") { os =>
           var o = 12L * n
           var i = 0
           while (i < n) {
@@ -141,7 +140,6 @@ class ServiceBackend(
             i += 1
             o += len
           }
-          log.info(s"parallelizeAndComputeWithIndex: $token: writing contexts")
           collection.foreach { context =>
             os.write(context)
           }
@@ -303,7 +301,7 @@ class ServiceBackend(
         x,
         optimize = true)
 
-      f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
+      ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r))
       Array()
     } else {
       val (Some(PTypeReferenceSingleCodeType(pt)), f) = Compile[AsmFunction1RegionLong](ctx,
@@ -312,7 +310,7 @@ class ServiceBackend(
         MakeTuple.ordered(FastIndexedSeq(x)),
         optimize = true)
       val retPType = pt.asInstanceOf[PBaseStruct]
-      val off = f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
+      val off = ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r))
       val codec = TypedCodecSpec(
         EType.fromTypeAllOptional(retPType.virtualType),
         retPType.virtualType,
@@ -339,13 +337,8 @@ class ServiceBackend(
     sortFields: IndexedSeq[SortField],
     relationalLetsAbove: Map[String, IR],
     rowTypeRequiredness: RStruct
-  ): TableStage = {
-    if (ctx.getFlag("use_new_shuffle") != null) {
-      LowerDistributedSort.distributedSort(ctx, stage, sortFields, relationalLetsAbove, rowTypeRequiredness)
-    } else {
-      LowerDistributedSort.localSort(ctx, stage, sortFields, relationalLetsAbove)
-    }
-  }
+  ): TableStage = LowerDistributedSort.distributedSort(ctx, stage, sortFields, relationalLetsAbove, rowTypeRequiredness)
+
 
   def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String): Unit = ???
 
@@ -358,7 +351,13 @@ class ServiceBackend(
   def loadReferencesFromDataset(
     ctx: ExecuteContext,
     path: String
-  ): String = ReferenceGenome.fromHailDataset(ctx.fs, path)
+  ): String = {
+    val rgs = ReferenceGenome.fromHailDataset(ctx.fs, path)
+    rgs.foreach(addReference)
+
+    implicit val formats: Formats = defaultJSONFormats
+    Serialization.write(rgs.map(_.toJSON).toFastIndexedSeq)
+  }
 
   def parseVCFMetadata(
     ctx: ExecuteContext,
@@ -427,9 +426,11 @@ object ServiceBackendSocketAPI2 {
       jarLocation, name, new HailClassLoader(getClass().getClassLoader()), batchClient, batchId, scratchDir)
     if (HailContext.isInitialized) {
       HailContext.get.backend = backend
+      backend.addDefaultReferences()
     } else {
       HailContext(backend, "hail.log", false, false, 50, skipLoggingConfiguration = true, 3)
     }
+
     retryTransientErrors {
       using(fs.openNoCompression(input)) { in =>
         retryTransientErrors {
@@ -529,11 +530,25 @@ class ServiceBackendSocketAPI2(
       nFlagsRemaining -= 1
     }
     val nCustomReferences = readInt()
-    val customReferences = mutable.Map[String, ReferenceGenome](ReferenceGenome.references.toSeq: _*)
     var i = 0
     while (i < nCustomReferences) {
-      val reference = ReferenceGenome.fromJSON(readString())
-      customReferences(reference.name) = reference
+      backend.addReference(ReferenceGenome.fromJSON(readString()))
+      i += 1
+    }
+    val nLiftoverSourceGenomes = readInt()
+    val liftovers = mutable.Map[String, mutable.Map[String, String]]()
+    i = 0
+    while (i < nLiftoverSourceGenomes) {
+      val sourceGenome = readString()
+      val nLiftovers = readInt()
+      liftovers(sourceGenome) = mutable.Map[String, String]()
+      var j = 0
+      while (j < nLiftovers) {
+        val destGenome = readString()
+        val chainFile = readString()
+        liftovers(sourceGenome)(destGenome) = chainFile
+        j += 1
+      }
       i += 1
     }
     val workerCores = readString()
@@ -556,9 +571,14 @@ class ServiceBackendSocketAPI2(
         timer,
         null,
         backend.theHailClassLoader,
-        customReferences.toMap,
+        backend.references,
         flags
       ) { ctx =>
+        liftovers.foreach { case (sourceGenome, liftoversForSource) =>
+          liftoversForSource.foreach { case (destGenome, chainFile) =>
+            ctx.getReference(sourceGenome).addLiftover(ctx, chainFile, destGenome)
+          }
+        }
         ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir, workerCores, workerMemory)
         method(ctx)
       }

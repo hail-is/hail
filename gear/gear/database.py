@@ -10,6 +10,7 @@ import aiomysql
 import pymysql
 
 from gear.metrics import DB_CONNECTION_QUEUE_SIZE, SQL_TRANSACTIONS, PrometheusSQLTimer
+from hailtop.aiotools import BackgroundTaskManager
 from hailtop.auth.sql_config import SQLConfig
 from hailtop.utils import sleep_and_backoff
 
@@ -127,13 +128,14 @@ async def create_database_pool(config_file: str = None, autocommit: bool = True,
 
 
 class TransactionAsyncContextManager:
-    def __init__(self, db_pool, read_only):
+    def __init__(self, db_pool, read_only, task_manager: BackgroundTaskManager):
         self.db_pool = db_pool
         self.read_only = read_only
         self.tx = None
+        self.task_manager = task_manager
 
     async def __aenter__(self):
-        tx = Transaction()
+        tx = Transaction(self.task_manager)
         await tx.async_init(self.db_pool, self.read_only)
         self.tx = tx
         return tx
@@ -153,9 +155,10 @@ async def _release_connection(conn_context_manager):
 
 
 class Transaction:
-    def __init__(self):
+    def __init__(self, task_manager: BackgroundTaskManager):
         self.conn_context_manager = None
         self.conn = None
+        self._task_manager = task_manager
 
     async def async_init(self, db_pool, read_only):
         try:
@@ -173,7 +176,7 @@ class Transaction:
             self.conn = None
             conn_context_manager = self.conn_context_manager
             self.conn_context_manager = None
-            asyncio.ensure_future(_release_connection(conn_context_manager))
+            self._task_manager.ensure_future(_release_connection(conn_context_manager))
             raise
 
     async def _aexit_1(self, exc_type):
@@ -190,7 +193,7 @@ class Transaction:
             self.conn = None
             conn_context_manager = self.conn_context_manager
             self.conn_context_manager = None
-            asyncio.ensure_future(_release_connection(conn_context_manager))
+            self._task_manager.ensure_future(_release_connection(conn_context_manager))
 
     async def _aexit(self, exc_type, exc_val, exc_tb):  # pylint: disable=unused-argument
         # cancelling cleanup could leak a connection
@@ -265,12 +268,15 @@ class CallError(Exception):
 class Database:
     def __init__(self):
         self.pool = None
+        self.connection_release_task_manager = None
 
     async def async_init(self, config_file=None, maxsize=10):
         self.pool = await create_database_pool(config_file=config_file, autocommit=False, maxsize=maxsize)
+        self.connection_release_task_manager = BackgroundTaskManager()
 
     def start(self, read_only=False):
-        return TransactionAsyncContextManager(self.pool, read_only)
+        assert self.connection_release_task_manager
+        return TransactionAsyncContextManager(self.pool, read_only, self.connection_release_task_manager)
 
     @retry_transient_mysql_errors
     async def just_execute(self, sql, args=None):
@@ -320,5 +326,8 @@ class Database:
         return rv
 
     async def async_close(self):
+        assert self.pool
+        assert self.connection_release_task_manager
+        self.connection_release_task_manager.shutdown()
         self.pool.close()
         await self.pool.wait_closed()

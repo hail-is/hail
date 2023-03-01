@@ -10,6 +10,7 @@ import is.hail.types.{tcoerce, _}
 import is.hail.utils._
 
 import java.util.UUID
+import scala.collection.mutable
 import scala.language.implicitConversions
 
 package object ir {
@@ -60,15 +61,15 @@ package object ir {
 
   implicit def irToPrimitiveIR(ir: IR): PrimitiveIR = new PrimitiveIR(ir)
 
-  implicit def intToIR(i: Int): IR = I32(i)
+  implicit def intToIR(i: Int): I32 = I32(i)
 
-  implicit def longToIR(l: Long): IR = I64(l)
+  implicit def longToIR(l: Long): I64 = I64(l)
 
-  implicit def floatToIR(f: Float): IR = F32(f)
+  implicit def floatToIR(f: Float): F32 = F32(f)
 
-  implicit def doubleToIR(d: Double): IR = F64(d)
+  implicit def doubleToIR(d: Double): F64 = F64(d)
 
-  implicit def booleanToIR(b: Boolean): IR = if (b) True() else False()
+  implicit def booleanToIR(b: Boolean): TrivialIR = if (b) True() else False()
 
   def zero(t: Type): IR = t match {
     case TInt32 => I32(0)
@@ -160,6 +161,12 @@ package object ir {
     StreamJoin(left, right, lkey, rkey, lRef.name, rRef.name, f(lRef, rRef), joinType, requiresMemoryManagement)
   }
 
+  def joinRightDistinctIR(left: IR, right: IR, lkey: IndexedSeq[String], rkey: IndexedSeq[String], joinType: String)(f: (Ref, Ref) => IR): IR = {
+    val lRef = Ref(genUID(), left.typ.asInstanceOf[TStream].elementType)
+    val rRef = Ref(genUID(), right.typ.asInstanceOf[TStream].elementType)
+    StreamJoinRightDistinct(left, right, lkey, rkey, lRef.name, rRef.name, f(lRef, rRef), joinType)
+  }
+
   def streamSumIR(stream: IR): IR = {
     foldIR(stream, 0){ case (accum, elt) => accum + elt}
   }
@@ -243,6 +250,8 @@ package object ir {
     }
     s
   }
+
+  def logIR(result: IR, messages: AnyRef*): IR = ConsoleLog(strConcat(messages: _*), result)
 
   implicit def toRichIndexedSeqEmitSettable(s: IndexedSeq[EmitSettable]): RichIndexedSeqEmitSettable = new RichIndexedSeqEmitSettable(s)
 

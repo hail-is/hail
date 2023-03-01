@@ -28,9 +28,11 @@ object LowerDistributedSort {
       print = None,
       optimize = true))
 
-    val fRunnable = ctx.timer.time("LowerDistributedSort.localSort.initialize")(f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r))
-    val resultAddress = ctx.timer.time("LowerDistributedSort.localSort.run")(fRunnable(ctx.r))
-    val rowsAndGlobal = ctx.timer.time("LowerDistributedSort.localSort.toJavaObject")(SafeRow.read(resultPType, resultAddress)).asInstanceOf[Row]
+    val rowsAndGlobal = ctx.scopedExecution{ (hcl, fs, htc, r) =>
+      val fRunnable = ctx.timer.time("LowerDistributedSort.localSort.initialize")(f(hcl, fs, htc, r))
+      val resultAddress = ctx.timer.time("LowerDistributedSort.localSort.run")(fRunnable(ctx.r))
+      ctx.timer.time("LowerDistributedSort.localSort.toJavaObject")(SafeRow.read(resultPType, resultAddress)).asInstanceOf[Row]
+    }
 
     val rowsType = resultPType.fieldType("rows").asInstanceOf[PArray]
     val rowType = rowsType.elementType.asInstanceOf[PStruct]
@@ -45,7 +47,7 @@ object LowerDistributedSort {
     if (itemsPerPartition == 0)
       return TableStage(
         globals = Literal(resultPType.fieldType("global").virtualType, rowsAndGlobal.get(1)),
-        partitioner = RVDPartitioner.empty(kType),
+        partitioner = RVDPartitioner.empty(ctx, kType),
         TableStageDependency.none,
         MakeStream(FastSeq(), TStream(TStruct())),
         _ => MakeStream(FastSeq(), TStream(stage.rowType))
@@ -55,7 +57,7 @@ object LowerDistributedSort {
     val partitionerKeyType = TStruct(sortFields.takeWhile(_.sortOrder == Ascending).map(f => (f.field, rowType.virtualType.fieldType(f.field))): _*)
     val partitionerKeyIndex = partitionerKeyType.fieldNames.map(f => rowType.fieldIdx(f))
 
-    val partitioner = new RVDPartitioner(partitionerKeyType,
+    val partitioner = new RVDPartitioner(ctx.stateManager, partitionerKeyType,
       sortedRows.grouped(itemsPerPartition).map { group =>
         val first = group.head.asInstanceOf[Row].select(partitionerKeyIndex)
         val last = group.last.asInstanceOf[Row].select(partitionerKeyIndex)
@@ -83,7 +85,7 @@ object LowerDistributedSort {
     val sortColIndexOrd = sortFields.map { case SortField(n, so) =>
       val i = rowType.fieldIdx(n)
       val f = rowType.fields(i)
-      val fo = f.typ.ordering
+      val fo = f.typ.ordering(ctx.stateManager)
       if (so == Ascending) fo else fo.reverse
     }.toArray
 
@@ -406,7 +408,7 @@ object LowerDistributedSort {
       (TStruct(), orderedOutputPartitions.map{ _ => Interval(Row(), Row(), true, false)})
     }
 
-    val partitioner = new RVDPartitioner(partitionerKey, intervals)
+    val partitioner = new RVDPartitioner(ctx.stateManager, partitionerKey, intervals)
     val finalTs = TableStage(initialGlobalsLiteral, partitioner, TableStageDependency.none, contexts, { ctxRef =>
       val files = GetField(ctxRef, "files")
       val partitionInputStream = flatMapIR(ToStream(files)) { fileInfo =>

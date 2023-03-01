@@ -2,7 +2,7 @@ package is.hail.io.bgen
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.{BroadcastValue, ExecuteContext}
+import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager, HailTaskContext}
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.expr.ir.PruneDeadFields
 import is.hail.io.fs.FS
@@ -28,7 +28,7 @@ object BgenSettings {
   val ZSTD_COMPRESSION = 0x2
 
   def indexKeyType(rg: Option[ReferenceGenome]): TStruct = TStruct(
-    "locus" -> rg.map(TLocus(_)).getOrElse(TLocus.representation),
+    "locus" -> rg.map(rg => TLocus(rg.name)).getOrElse(TLocus.representation),
     "alleles" -> TArray(TString))
   val indexAnnotationType: Type = TStruct.empty
 
@@ -103,7 +103,7 @@ case class BgenSettings(
 
   val rowPType: PCanonicalStruct = PCanonicalStruct(required = true,
     Array(
-      "locus" -> PCanonicalLocus.schemaFromRG(rg, required = false),
+      "locus" -> PCanonicalLocus.schemaFromRG(rg.map(_.name), required = false),
       "alleles" -> PCanonicalArray(PCanonicalString(false), false),
       "rsid" -> PCanonicalString(),
       "varid" -> PCanonicalString(),
@@ -139,7 +139,7 @@ object BgenRDD {
       val (leafCodec, internalNodeCodec) = BgenSettings.indexCodecSpecs(settings.rg)
       val (leafPType: PStruct, leafDec) = leafCodec.buildDecoder(ctx, leafCodec.encodedVirtualType)
       val (intPType: PStruct, intDec) = internalNodeCodec.buildDecoder(ctx, internalNodeCodec.encodedVirtualType)
-      IndexReaderBuilder.withDecoders(leafDec, intDec, BgenSettings.indexKeyType(settings.rg), BgenSettings.indexAnnotationType, leafPType, intPType)
+      IndexReaderBuilder.withDecoders(ctx, leafDec, intDec, BgenSettings.indexKeyType(settings.rg), BgenSettings.indexAnnotationType, leafPType, intPType)
     }
 
     ContextRDD(new BgenRDD(ctx.fsBc, f, indexBuilder, partitions, settings, keys))
@@ -148,7 +148,7 @@ object BgenRDD {
 
 private class BgenRDD(
   fsBc: BroadcastValue[FS],
-  f: (HailClassLoader, FS, Int, Region) => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long],
+  f: (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long],
   indexBuilder: (HailClassLoader, FS, String, Int, RegionPool) => IndexReader,
   parts: Array[Partition],
   settings: BgenSettings,
@@ -162,17 +162,17 @@ private class BgenRDD(
       split match {
         case p: IndexBgenPartition =>
           assert(keys == null)
-          new IndexBgenRecordIterator(ctx, p, settings, f(theHailClassLoaderForSparkWorkers, fsBc.value, p.partitionIndex, ctx.partitionRegion)).flatten
+          new IndexBgenRecordIterator(ctx, p, settings, f(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), ctx.partitionRegion)).flatten
         case p: LoadBgenPartition =>
           val index: IndexReader = indexBuilder(theHailClassLoaderForSparkWorkers, p.fsBc.value, p.indexPath, 8, SparkTaskContext.get().getRegionPool())
           context.addTaskCompletionListener[Unit] { (context: TaskContext) =>
             index.close()
           }
           if (keys == null)
-            new BgenRecordIteratorWithoutFilter(ctx, p, settings, f(theHailClassLoaderForSparkWorkers, fsBc.value, p.partitionIndex, ctx.partitionRegion), index).flatten
+            new BgenRecordIteratorWithoutFilter(ctx, p, settings, f(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), ctx.partitionRegion), index).flatten
           else {
             val keyIterator = keys.iterator(p.filterPartition, context)
-            new BgenRecordIteratorWithFilter(ctx, p, settings, f(theHailClassLoaderForSparkWorkers, fsBc.value, p.partitionIndex, ctx.partitionRegion), index, keyIterator).flatten
+            new BgenRecordIteratorWithFilter(ctx, p, settings, f(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), ctx.partitionRegion), index, keyIterator).flatten
           }
       }
     }
@@ -246,7 +246,7 @@ private class BgenRecordIteratorWithFilter(
   private[this] var isEnd = false
   private[this] var current: LeafChild = _
   private[this] var key: Annotation = _
-  private[this] val ordering = PartitionBoundOrdering(index.keyType)
+  private[this] val ordering = PartitionBoundOrdering(index.sm, index.keyType)
 
   def next(): Option[RegionValue] = {
     val recordOffset = current.recordOffset

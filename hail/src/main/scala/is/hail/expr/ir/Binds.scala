@@ -44,6 +44,14 @@ object Bindings {
     case StreamAggScan(a, name, _) => if (i == 1) FastIndexedSeq(name -> a.typ.asInstanceOf[TStream].elementType) else empty
     case StreamJoinRightDistinct(ll, rr, _, _, l, r, _, _) => if (i == 2) Array(l -> tcoerce[TStream](ll.typ).elementType, r -> tcoerce[TStream](rr.typ).elementType) else empty
     case ArraySort(a, left, right, _) => if (i == 1) Array(left -> tcoerce[TStream](a.typ).elementType, right -> tcoerce[TStream](a.typ).elementType) else empty
+    case ArrayMaximalIndependentSet(a, Some((left, right, _))) =>
+      if (i == 1) {
+        val typ = tcoerce[TArray](a.typ).elementType.asInstanceOf[TBaseStruct].types.head
+        val tupleType = TTuple(typ)
+        Array(left -> tupleType, right -> tupleType)
+      } else {
+        empty
+      }
     case AggArrayPerElement(a, _, indexName, _, _, _) => if (i == 1) FastIndexedSeq(indexName -> TInt32) else empty
     case AggFold(zero, seqOp, combOp, accumName, otherAccumName, _) => {
       if (i == 1) FastIndexedSeq(accumName -> zero.typ)
@@ -182,6 +190,7 @@ object NewBindings {
 object ChildEnvWithoutBindings {
   def apply[T](ir: BaseIR, i: Int, env: BindingEnv[T]): BindingEnv[T] = {
     ir match {
+      case ArrayMaximalIndependentSet(_, Some(_)) if (i == 1) => env.copy(eval = Env.empty)
       case StreamAgg(_, _, _) => if (i == 1) env.createAgg else env
       case StreamAggScan(_, _, _) => if (i == 1) env.createScan else env
       case ApplyAggOp(init, _, _) => if (i < init.length) env.copy(agg = None) else env.promoteAgg

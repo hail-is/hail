@@ -3,7 +3,7 @@ package is.hail.expr.ir.lowering
 import is.hail.annotations.{BroadcastRow, Region, RegionValue}
 import is.hail.asm4s._
 import is.hail.backend.{BroadcastValue, ExecuteContext}
-import is.hail.backend.spark.AnonymousDependency
+import is.hail.backend.spark.{AnonymousDependency, SparkTaskContext}
 import is.hail.expr.ir.{Compile, CompileIterator, GetField, IR, In, Let, MakeStruct, PartitionRVDReader, ReadPartition, StreamRange, ToArray, _}
 import is.hail.io.fs.FS
 import is.hail.io.{BufferSpec, TypedCodecSpec}
@@ -53,7 +53,7 @@ object TableStageToRVD {
     }, relationalBindings)
 
     val (Some(PTypeReferenceSingleCodeType(gbPType: PStruct)), f) = Compile[AsmFunction1RegionLong](ctx, FastIndexedSeq(), FastIndexedSeq(classInfo[Region]), LongInfo, globalsAndBroadcastVals)
-    val gbAddr = f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
+    val gbAddr = f(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)(ctx.r)
 
     val globPType = gbPType.fieldType("globals").asInstanceOf[PStruct]
     val globRow = BroadcastRow(ctx, RegionValue(ctx.r, gbPType.loadField(gbAddr, 0)), globPType)
@@ -103,7 +103,7 @@ object TableStageToRVD {
           .readRegionValue(rvdContext.partitionRegion)
         val decodedBroadcastVals = makeBcDec(new ByteArrayInputStream(encodedBcVals.value), theHailClassLoaderForSparkWorkers)
           .readRegionValue(rvdContext.partitionRegion)
-        makeIterator(theHailClassLoaderForSparkWorkers, fsBc.value, idx, rvdContext, decodedContext, decodedBroadcastVals)
+        makeIterator(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), rvdContext, decodedContext, decodedBroadcastVals)
           .map(_.longValue())
       }
 

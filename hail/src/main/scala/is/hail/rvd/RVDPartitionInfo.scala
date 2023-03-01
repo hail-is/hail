@@ -3,6 +3,7 @@ package is.hail.rvd
 import net.sourceforge.jdistlib.rng.MersenneTwister
 
 import is.hail.annotations.{Region, RegionValue, SafeRow, WritableRegionValue}
+import is.hail.backend.HailStateManager
 import is.hail.types.virtual.Type
 import is.hail.utils._
 
@@ -29,6 +30,7 @@ object RVDPartitionInfo {
   final val KSORTED = 2
 
   def apply(
+    sm: HailStateManager,
     typ: RVDType,
     partitionKey: Int,
     sampleSize: Int,
@@ -39,10 +41,10 @@ object RVDPartitionInfo {
   ): RVDPartitionInfo = {
     using(RVDContext.default(producerContext.r.pool)) { localctx =>
       val kPType = typ.kType
-      val pkOrd = typ.copy(key = typ.key.take(partitionKey)).kOrd
-      val minF = WritableRegionValue(kPType, localctx.freshRegion())
-      val maxF = WritableRegionValue(kPType, localctx.freshRegion())
-      val prevF = WritableRegionValue(kPType, localctx.freshRegion())
+      val pkOrd = typ.copy(key = typ.key.take(partitionKey)).kOrd(sm)
+      val minF = WritableRegionValue(sm, kPType, localctx.freshRegion())
+      val maxF = WritableRegionValue(sm, kPType, localctx.freshRegion())
+      val prevF = WritableRegionValue(sm, kPType, localctx.freshRegion())
 
       assert(it.hasNext)
       val f0 = it.next()
@@ -60,7 +62,7 @@ object RVDPartitionInfo {
       var i: Long = 0
 
       if (sampleSize > 0) {
-        samples(0) = WritableRegionValue(kPType, f0, localctx.freshRegion())
+        samples(0) = WritableRegionValue(sm, kPType, f0, localctx.freshRegion())
         i += 1
       }
 
@@ -68,7 +70,8 @@ object RVDPartitionInfo {
       while (it.hasNext) {
         val f = it.next()
 
-        if (sortedness > UNSORTED && typ.kOrd.lt(f, prevF.value.offset)) {
+        val kOrd = typ.kOrd(sm)
+        if (sortedness > UNSORTED && kOrd.lt(f, prevF.value.offset)) {
           if (pkOrd.lt(f, prevF.value.offset)) {
             val curr = Region.pretty(typ.kType, f)
             val prev = prevF.pretty
@@ -84,15 +87,15 @@ object RVDPartitionInfo {
           }
         }
 
-        if (typ.kOrd.lt(f, minF.value.offset))
+        if (kOrd.lt(f, minF.value.offset))
           minF.set(f, deepCopy = true)
-        if (typ.kOrd.gt(f, maxF.value.offset))
+        if (kOrd.gt(f, maxF.value.offset))
           maxF.set(f, deepCopy = true)
 
         prevF.set(f, deepCopy = true)
 
         if (i < sampleSize)
-          samples(i.toInt) = WritableRegionValue(kPType, f, localctx.freshRegion())
+          samples(i.toInt) = WritableRegionValue(sm, kPType, f, localctx.freshRegion())
         else {
           val j: Long = if (i > 0) rng.nextLong(i) else 0
           if (j < sampleSize)

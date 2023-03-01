@@ -12,4 +12,9 @@ package object fs {
   type PositionedOutputStream = OutputStream with Positioned
 
   type PositionedDataOutputStream = DataOutputStream with Positioned
+
+  def outputStreamToPositionedDataOutputStream(os: OutputStream): PositionedDataOutputStream =
+    new WrappedPositionedDataOutputStream(
+      new WrappedPositionOutputStream(
+        os))
 }

@@ -24,6 +24,7 @@ from gear import (
     monitor_endpoints_middleware,
     setup_aiohttp_session,
 )
+from gear.profiling import install_profiler_if_requested
 from hailtop import aiotools, httpx
 from hailtop.batch_client.aioclient import Batch, BatchClient
 from hailtop.config import get_deploy_config
@@ -818,6 +819,8 @@ async def on_cleanup(app):
 
 
 def run():
+    install_profiler_if_requested('ci')
+
     app = web.Application(middlewares=[monitor_endpoints_middleware])
     setup_aiohttp_jinja2(app, 'ci')
     setup_aiohttp_session(app)
