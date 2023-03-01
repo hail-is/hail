@@ -772,7 +772,31 @@ class BlockMatrixStage2 private (
   }
 
   def zeroRowIntervals(starts: IndexedSeq[Long], stops: IndexedSeq[Long], typ: BlockMatrixType, ib: IRBuilder): BlockMatrixStage2 = {
-    ???
+    val t = TArray(TArray(TInt64))
+    val startsGrouped = Literal(t, starts.grouped(typ.blockSize))
+    val stopsGrouped = Literal(t, stops.grouped(typ.blockSize))
+
+    val ctxs = contexts.map(ib) { (i, _j, _pos, context) =>
+      maketuple(context, ArrayRef(startsGrouped, i), ArrayRef(stopsGrouped, i))
+    }
+
+    def newBody(ctx: Ref): IR = {
+      val localContexts = contexts match {
+        case _: DenseContexts => DenseContexts(GetTupleElement(ctx, 0), ib)
+        case _: SparseContexts => SparseContexts(GetTupleElement(ctx, 0), ib)
+      }
+
+      val starts = GetTupleElement(ctx, 1)
+      val stops = GetTupleElement(ctx, 2)
+
+      localContexts.collect { (i, j, localContext) =>
+        val (nRowsInBlock, nColsInBlock) = typ.blockShapeIR(i, j)
+        invoke("zero_row_intervals", TNDArray(TFloat64, Nat(2)), blockIR(localContext), I64(typ.blockSize),
+          j, nRowsInBlock, nColsInBlock, starts, stops)
+      }
+    }
+
+    BlockMatrixStage2(broadcastVals, typ, ctxs, newBody)
   }
 
   def collectBlocks(
