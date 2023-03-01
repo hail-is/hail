@@ -810,7 +810,7 @@ object LowerTableIR {
                 val ctxs = ToStream(If(len ceq partitioner.numPartitions, ref, {
                   val dieMsg = strConcat(
                     s"TableGen: partitioner contains ${partitioner.numPartitions} partitions,",
-                    "got ", len, "contexts."
+                    "got ", len, " contexts."
                   )
                   Die(dieMsg, ref.typ, errorId)
                 }))
@@ -828,7 +828,7 @@ object LowerTableIR {
           },
           body = in => lowerIR {
             val rows = Let(cname, GetTupleElement(in, 2), Let(gname, loweredGlobals, body))
-            if (partitioner.kType.size == 0) rows
+            if (partitioner.kType.fields.isEmpty) rows
             else bindIR(GetTupleElement(in, 1)) { interval =>
               mapIR(rows) { row =>
                 val key = SelectFields(row, partitioner.kType.fieldNames)
@@ -836,8 +836,8 @@ object LowerTableIR {
                   val idx = GetTupleElement(in, 0)
                   val msg = strConcat(
                     "TableGen: Unexpected key in partition ", idx,
-                    "\n Range bounds for partition ", idx, ": ", interval,
-                    "\n Invalid key: ", key
+                    "\n\tRange bounds for partition ", idx, ": ", interval,
+                    "\n\tInvalid key: ", key
                   )
                   Die(msg, row.typ, errorId)
                 })
