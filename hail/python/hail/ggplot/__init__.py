@@ -10,6 +10,7 @@ from .scale import scale_x_continuous, scale_y_continuous, scale_x_discrete, sca
     scale_color_manual, scale_color_continuous, scale_fill_discrete, scale_fill_hue, scale_fill_identity, scale_fill_continuous,\
     scale_fill_manual, scale_shape_manual, scale_shape_auto
 from .facets import vars, facet_wrap
+from .premade import manhattan_plot, qq_plot
 
 __all__ = [
     "aes",
@@ -54,5 +55,7 @@ __all__ = [
     "scale_shape_manual",
     "scale_shape_auto",
     "facet_wrap",
-    "vars"
+    "vars",
+    "manhattan_plot",
+    "qq_plot",
 ]
