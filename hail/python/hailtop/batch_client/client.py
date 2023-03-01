@@ -106,6 +106,9 @@ class Job:
     def wait(self):
         return async_to_blocking(self._async_job.wait())
 
+    def container_log(self, container_name):
+        return async_to_blocking(self._async_job.container_log(container_name))
+
     def log(self):
         return async_to_blocking(self._async_job.log())
 

@@ -434,6 +434,7 @@ object Simplify {
     case TableCount(TableLeftJoinRightDistinct(child, _, _)) => TableCount(child)
     case TableCount(TableIntervalJoin(child, _, _, _)) => TableCount(child)
     case TableCount(TableRange(n, _)) => I64(n)
+    case TableCount(TableGenomicRange(n, _, _)) => I64(n)
     case TableCount(TableParallelize(rowsAndGlobal, _)) => Cast(ArrayLen(GetField(rowsAndGlobal, "rows")), TInt64)
     case TableCount(TableRename(child, _, _)) => TableCount(child)
     case TableCount(TableAggregateByKey(child, _)) => TableCount(TableDistinct(child))
@@ -743,6 +744,7 @@ object Simplify {
     case MatrixColsTable(MatrixKeyRowsBy(child, _, _)) => MatrixColsTable(child)
 
     case TableRepartition(TableRange(nRows, _), nParts, _) => TableRange(nRows, nParts)
+    case TableRepartition(TableGenomicRange(nRows, _, referenceGenome), nParts, _) => TableGenomicRange(nRows, nParts, referenceGenome)
 
     case TableMapGlobals(TableMapGlobals(child, ng1), ng2) =>
       val uid = genUID()
@@ -760,6 +762,12 @@ object Simplify {
     case TableHead(tr@TableRange(nRows, nPar), n) if canRepartition =>
       if (n < nRows)
         TableRange(n.toInt, (nPar.toFloat * n / nRows).toInt.max(1))
+      else
+        tr
+
+    case TableHead(tr@TableGenomicRange(nRows, nPar, referenceGenome), n) if canRepartition =>
+      if (n < nRows)
+        TableGenomicRange(n.toInt, (nPar.toFloat * n / nRows).toInt.max(1), referenceGenome)
       else
         tr
 
@@ -835,7 +843,7 @@ object Simplify {
     case TableFilterIntervals(TableAggregateByKey(child, expr), intervals, keep) =>
       TableAggregateByKey(TableFilterIntervals(child, intervals, keep), expr)
     case TableFilterIntervals(TableFilterIntervals(child, _i1, keep1), _i2, keep2) if keep1 == keep2 =>
-      val ord = PartitionBoundOrdering(child.typ.keyType).intervalEndpointOrdering
+      val ord = PartitionBoundOrdering(ctx, child.typ.keyType).intervalEndpointOrdering
       val i1 = Interval.union(_i1.toArray[Interval], ord)
       val i2 = Interval.union(_i2.toArray[Interval], ord)
       val intervals = if (keep1)
@@ -865,9 +873,9 @@ object Simplify {
       val newOpts = tr.params.options match {
         case None =>
           val pt = t.keyType
-          NativeReaderOptions(Interval.union(intervals.toArray, PartitionBoundOrdering(pt).intervalEndpointOrdering), pt, true)
+          NativeReaderOptions(Interval.union(intervals.toArray, PartitionBoundOrdering(ctx, pt).intervalEndpointOrdering), pt, true)
         case Some(NativeReaderOptions(preIntervals, intervalPointType, _)) =>
-          val iord = PartitionBoundOrdering(intervalPointType).intervalEndpointOrdering
+          val iord = PartitionBoundOrdering(ctx, intervalPointType).intervalEndpointOrdering
           NativeReaderOptions(
             Interval.intersection(Interval.union(preIntervals.toArray, iord), Interval.union(intervals.toArray, iord), iord),
             intervalPointType, true)
@@ -881,9 +889,9 @@ object Simplify {
       val newOpts = tr.options match {
         case None =>
           val pt = t.keyType
-          NativeReaderOptions(Interval.union(intervals.toArray, PartitionBoundOrdering(pt).intervalEndpointOrdering), pt, true)
+          NativeReaderOptions(Interval.union(intervals.toArray, PartitionBoundOrdering(ctx, pt).intervalEndpointOrdering), pt, true)
         case Some(NativeReaderOptions(preIntervals, intervalPointType, _)) =>
-          val iord = PartitionBoundOrdering(intervalPointType).intervalEndpointOrdering
+          val iord = PartitionBoundOrdering(ctx, intervalPointType).intervalEndpointOrdering
           NativeReaderOptions(
             Interval.intersection(Interval.union(preIntervals.toArray, iord), Interval.union(intervals.toArray, iord), iord),
             intervalPointType, true)

@@ -1,6 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations._
+import is.hail.backend.HailStateManager
 import is.hail.check.Gen
 import is.hail.types.physical.PBaseStruct
 import is.hail.utils._
@@ -15,11 +16,11 @@ object TBaseStruct {
     * of types of r is a prefix of types, or types is a prefix of the list of
     * types of r.
     */
-  def getOrdering(types: Array[Type], missingEqual: Boolean = true): ExtendedOrdering =
-    ExtendedOrdering.rowOrdering(types.map(_.ordering), missingEqual)
+  def getOrdering(sm: HailStateManager, types: Array[Type], missingEqual: Boolean = true): ExtendedOrdering =
+    ExtendedOrdering.rowOrdering(types.map(_.ordering(sm)), missingEqual)
 
-  def getJoinOrdering(types: Array[Type], missingEqual: Boolean = false): ExtendedOrdering =
-    ExtendedOrdering.rowOrdering(types.map(_.mkOrdering(missingEqual = missingEqual)), _missingEqual = missingEqual)
+  def getJoinOrdering(sm: HailStateManager, types: Array[Type], missingEqual: Boolean = false): ExtendedOrdering =
+    ExtendedOrdering.rowOrdering(types.map(_.mkOrdering(sm, missingEqual = missingEqual)), _missingEqual = missingEqual)
 }
 
 abstract class TBaseStruct extends Type {
@@ -83,7 +84,7 @@ abstract class TBaseStruct extends Type {
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
-  override def genNonmissingValue: Gen[Annotation] = {
+  override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = {
     if (types.isEmpty) {
       Gen.const(Annotation.empty)
     } else
@@ -91,7 +92,7 @@ abstract class TBaseStruct extends Type {
         if (types.length > fuel)
           Gen.uniformSequence(types.map(t => Gen.const(null))).map(a => Annotation(a: _*))
         else
-          Gen.uniformSequence(types.map(t => t.genValue)).map(a => Annotation(a: _*)))
+          Gen.uniformSequence(types.map(t => t.genValue(sm))).map(a => Annotation(a: _*)))
   }
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean): Boolean =

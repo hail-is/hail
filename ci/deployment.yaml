@@ -87,6 +87,17 @@ spec:
                secretKeyRef:
                  name: global-config
                  key: kubernetes_server_url
+           - name: CLOUD
+             valueFrom:
+               secretKeyRef:
+                 name: global-config
+                 key: cloud
+           - name: HAIL_SHA
+             value: "{{ code.sha }}"
+{% if scope != "test" %}
+           - name: HAIL_SHOULD_PROFILE
+             value: "1"
+{% endif %}
            - name: HAIL_CI_UTILS_IMAGE
              value: "{{ ci_utils_image.image }}"
            - name: HAIL_BUILDKIT_IMAGE

@@ -458,8 +458,12 @@ class Table(ExprContainer):
                       schema=nullable(hail_type),
                       key=table_key_type,
                       n_partitions=nullable(int),
-                      partial_type=nullable(dict))
-    def parallelize(cls, rows, schema=None, key=None, n_partitions=None, *, partial_type=None) -> 'Table':
+                      partial_type=nullable(dict),
+                      globals=nullable(expr_struct()))
+    def parallelize(cls, rows, schema=None, key=None, n_partitions=None, *,
+                    partial_type=None,
+                    globals=None
+                    ) -> 'Table':
         """Parallelize a local array of structs into a distributed table.
 
         Examples
@@ -519,6 +523,8 @@ class Table(ExprContainer):
         partial_type : :obj:`dict`, optional
             A value type which may elide fields or have ``None`` in arbitrary places. The partial
             type is used by hail where the type cannot be imputed.
+        globals: :class:`dict` of :class:`str` to :obj:`any` or :class:`.StructExpression`, optional
+            A `dict` or `struct{..}` containing supplementary global data.
 
         Returns
         -------
@@ -537,9 +543,13 @@ class Table(ExprContainer):
         if not isinstance(rows.dtype.element_type, tstruct):
             raise TypeError("'parallelize' expects an array with element type 'struct', found '{}'"
                             .format(rows.dtype))
-        table = Table(ir.TableParallelize(ir.MakeStruct([
-            ('rows', rows._ir),
-            ('global', ir.MakeStruct([]))]), n_partitions))
+        table = Table(ir.TableParallelize(
+            ir.MakeStruct([
+                ('rows', rows._ir),
+                ('global', (globals or hl.struct())._ir)
+            ]),
+            n_partitions
+        ))
         if key is not None:
             table = table.key_by(*key)
         return table
@@ -3740,7 +3750,7 @@ class Table(ExprContainer):
 
     @typecheck_method(parts=sequenceof(int), keep=bool)
     def _filter_partitions(self, parts, keep=True) -> 'Table':
-        return Table(ir.TableToTableApply(self._tir, {'name': 'TableFilterPartitions', 'parts': parts, 'keep': keep})).persist()
+        return Table(ir.TableToTableApply(self._tir, {'name': 'TableFilterPartitions', 'parts': parts, 'keep': keep}))
 
     @typecheck_method(entries_field_name=str,
                       cols_field_name=str,
@@ -3829,7 +3839,7 @@ class Table(ExprContainer):
     def _calculate_new_partitions(self, n_partitions):
         """returns a set of range bounds that can be passed to write"""
         return Env.backend().execute(ir.TableToValueApply(
-            self._tir,
+            self.select().select_globals()._tir,
             {'name': 'TableCalculateNewPartitions',
              'nPartitions': n_partitions}))
 

@@ -11,11 +11,13 @@ object ExtractIntervalFilters {
 
   val MAX_LITERAL_SIZE = 4096
 
-  case class ExtractionState(rowRef: Ref, keyFields: IndexedSeq[String]) {
+  case class ExtractionState(ctx: ExecuteContext, rowRef: Ref, keyFields: IndexedSeq[String]) {
     val rowType: TStruct = rowRef.typ.asInstanceOf[TStruct]
     val rowKeyType: TStruct = rowType.select(keyFields)._1
     val firstKeyType: Type = rowKeyType.types.head
-    val iOrd: IntervalEndpointOrdering = rowKeyType.ordering.intervalEndpointOrdering
+    val iOrd: IntervalEndpointOrdering = rowKeyType.ordering(ctx.stateManager).intervalEndpointOrdering
+
+    def getReferenceGenome(rg: String): ReferenceGenome = ctx.stateManager.referenceGenomes(rg)
 
     def isFirstKey(ir: IR): Boolean = ir == GetField(rowRef, rowKeyType.fieldNames.head)
 
@@ -39,7 +41,7 @@ object ExtractIntervalFilters {
     }
   }
 
-  def minimumValueByType(t: Type): Any = {
+  def minimumValueByType(t: Type, es: ExtractionState): Any = {
     t match {
       case TInt32 => Int.MinValue
       case TInt64 => Long.MinValue
@@ -47,13 +49,13 @@ object ExtractIntervalFilters {
       case TFloat64 => Double.PositiveInfinity
       case TBoolean => false
       case t: TLocus =>
-        val rg = t.rg.asInstanceOf[ReferenceGenome]
+        val rg = es.getReferenceGenome(t.rg)
         Locus(rg.contigs.head, 1)
-      case tbs: TBaseStruct => Row.fromSeq(tbs.types.map(minimumValueByType))
+      case tbs: TBaseStruct => Row.fromSeq(tbs.types.map(minimumValueByType(_, es)))
     }
   }
 
-  def maximumValueByType(t: Type): Any = {
+  def maximumValueByType(t: Type, es: ExtractionState): Any = {
     t match {
       case TInt32 => Int.MaxValue
       case TInt64 => Long.MaxValue
@@ -61,10 +63,10 @@ object ExtractIntervalFilters {
       case TFloat64 => Double.PositiveInfinity
       case TBoolean => false
       case t: TLocus =>
-        val rg = t.rg.asInstanceOf[ReferenceGenome]
+        val rg = es.getReferenceGenome(t.rg)
         val contig = rg.contigs.last
         Locus(contig, rg.contigLength(contig) - 1)
-      case tbs: TBaseStruct => Row.fromSeq(tbs.types.map(maximumValueByType))
+      case tbs: TBaseStruct => Row.fromSeq(tbs.types.map(maximumValueByType(_, es)))
     }
   }
 
@@ -92,30 +94,30 @@ object ExtractIntervalFilters {
     }
   }
 
-  def openInterval(v: Any, typ: Type, op: ComparisonOp[_], flipped: Boolean = false): Interval = {
+  def openInterval(v: Any, typ: Type, op: ComparisonOp[_], es: ExtractionState, flipped: Boolean = false): Interval = {
     (op: @unchecked) match {
       case _: EQ =>
         Interval(endpoint(v, -1), endpoint(v, 1))
       case GT(_, _) =>
         if (flipped)
-          Interval(endpoint(v, 1), endpoint(maximumValueByType(typ), 1)) // key > value
+          Interval(endpoint(v, 1), endpoint(maximumValueByType(typ, es), 1)) // key > value
         else
-          Interval(endpoint(minimumValueByType(typ), -1), endpoint(v, -1)) // value > key
+          Interval(endpoint(minimumValueByType(typ, es), -1), endpoint(v, -1)) // value > key
       case GTEQ(_, _) =>
         if (flipped)
-          Interval(endpoint(v, -1), endpoint(maximumValueByType(typ), 1)) // key >= value
+          Interval(endpoint(v, -1), endpoint(maximumValueByType(typ, es), 1)) // key >= value
         else
-          Interval(endpoint(minimumValueByType(typ), -1), endpoint(v, 1)) // value >= key
+          Interval(endpoint(minimumValueByType(typ, es), -1), endpoint(v, 1)) // value >= key
       case LT(_, _) =>
         if (flipped)
-          Interval(endpoint(minimumValueByType(typ), -1), endpoint(v, -1)) // key < value
+          Interval(endpoint(minimumValueByType(typ, es), -1), endpoint(v, -1)) // key < value
         else
-          Interval(endpoint(v, 1), endpoint(maximumValueByType(typ), 1)) // value < key
+          Interval(endpoint(v, 1), endpoint(maximumValueByType(typ, es), 1)) // value < key
       case LTEQ(_, _) =>
         if (flipped)
-          Interval(endpoint(minimumValueByType(typ), -1), endpoint(v, 1)) // key <= value
+          Interval(endpoint(minimumValueByType(typ, es), -1), endpoint(v, 1)) // key <= value
         else
-          Interval(endpoint(v, -1), endpoint(maximumValueByType(typ), 1)) // value <= key
+          Interval(endpoint(v, -1), endpoint(maximumValueByType(typ, es), 1)) // value <= key
     }
   }
 
@@ -181,7 +183,7 @@ object ExtractIntervalFilters {
       case Coalesce(Seq(x, False())) => extractAndRewrite(x, es)
         .map { case (ir, intervals) => (Coalesce(FastSeq(ir, False())), intervals) }
       case ApplyIR("contains", _, Seq(lit: Literal, Apply("contig", _, Seq(k), _, _)),_) if es.isFirstKey(k) =>
-        val rg = k.typ.asInstanceOf[TLocus].rg.asInstanceOf[ReferenceGenome]
+        val rg = es.getReferenceGenome(k.typ.asInstanceOf[TLocus].rg)
 
         val intervals = (lit.value: @unchecked) match {
           case x: IndexedSeq[_] => x.flatMap(elt => getIntervalFromContig(elt.asInstanceOf[String], rg)).toArray
@@ -232,7 +234,7 @@ object ExtractIntervalFilters {
           k match {
             case x if es.isFirstKey(x) =>
               // simple key comparison
-              Some((True(), Array(openInterval(constValue(const), const.typ, op, flipped))))
+              Some((True(), Array(openInterval(constValue(const), const.typ, op, es, flipped))))
             case x if es.isKeyStructPrefix(x) =>
               assert(op.isInstanceOf[EQ])
               val c = constValue(const)
@@ -241,18 +243,18 @@ object ExtractIntervalFilters {
               // locus contig comparison
               val intervals = (constValue(const): @unchecked) match {
                 case s: String => {
-                  Array(getIntervalFromContig(s, es.firstKeyType.asInstanceOf[TLocus].rg)).flatMap(interval => interval)
+                  Array(getIntervalFromContig(s, es.getReferenceGenome(es.firstKeyType.asInstanceOf[TLocus].rg))).flatMap(interval => interval)
                 }
               }
               Some((True(), intervals))
             case Apply("position", _, Seq(x), _, _) if es.isFirstKey(x) =>
               // locus position comparison
               val pos = constValue(const).asInstanceOf[Int]
-              val rg = es.firstKeyType.asInstanceOf[TLocus].rg.asInstanceOf[ReferenceGenome]
-              val ord = TTuple(TInt32).ordering
+              val rg = es.getReferenceGenome(es.firstKeyType.asInstanceOf[TLocus].rg)
+              val ord = TTuple(TInt32).ordering(es.ctx.stateManager)
               val intervals = rg.contigs.indices
                 .flatMap { i =>
-                  openInterval(pos, TInt32, op, flipped).intersect(ord,
+                  openInterval(pos, TInt32, op, es, flipped).intersect(ord,
                     Interval(endpoint(1, -1), endpoint(rg.contigLength(i), -1)))
                     .map { interval =>
                       Interval(
@@ -274,18 +276,18 @@ object ExtractIntervalFilters {
     }
   }
 
-  def extractPartitionFilters(cond: IR, ref: Ref, key: IndexedSeq[String]): Option[(IR, Array[Interval])] = {
+  def extractPartitionFilters(ctx: ExecuteContext, cond: IR, ref: Ref, key: IndexedSeq[String]): Option[(IR, Array[Interval])] = {
     if (key.isEmpty)
       None
     else
-      extractAndRewrite(cond, ExtractionState(ref, key))
+      extractAndRewrite(cond, ExtractionState(ctx, ref, key))
   }
 
   def apply(ctx: ExecuteContext, ir0: BaseIR): BaseIR = {
     MapIR.mapBaseIR(ir0, (ir: BaseIR) => {
       (ir match {
         case TableFilter(child, pred) =>
-          extractPartitionFilters(pred, Ref("row", child.typ.rowType), child.typ.key)
+          extractPartitionFilters(ctx, pred, Ref("row", child.typ.rowType), child.typ.key)
             .map { case (newCond, intervals) =>
               log.info(s"generated TableFilterIntervals node with ${ intervals.length } intervals:\n  " +
                 s"Intervals: ${ intervals.mkString(", ") }\n  " +
@@ -296,7 +298,7 @@ object ExtractIntervalFilters {
                 newCond)
             }
         case MatrixFilterRows(child, pred) =>
-          extractPartitionFilters(pred, Ref("va", child.typ.rowType), child.typ.rowKey)
+          extractPartitionFilters(ctx, pred, Ref("va", child.typ.rowType), child.typ.rowKey)
             .map { case (newCond, intervals) =>
               log.info(s"generated MatrixFilterIntervals node with ${ intervals.length } intervals:\n  " +
                 s"Intervals: ${ intervals.mkString(", ") }\n  " +

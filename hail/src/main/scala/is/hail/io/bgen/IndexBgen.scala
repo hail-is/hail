@@ -10,6 +10,7 @@ import is.hail.types.TableType
 import is.hail.types.physical.{PCanonicalStruct, PStruct}
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.asm4s.theHailClassLoaderForSparkWorkers
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.Row
 import org.apache.spark.{Partition, TaskContext}
@@ -68,7 +69,7 @@ object IndexBgen {
     val settings: BgenSettings = BgenSettings(
       0, // nSamples not used if there are no entries
       TableType(rowType = TStruct(
-        "locus" -> TLocus.schemaFromRG(referenceGenome),
+        "locus" -> TLocus.schemaFromRG(rg),
         "alleles" -> TArray(TString),
         "offset" -> TInt64,
         "file_idx" -> TInt32),
@@ -105,7 +106,7 @@ object IndexBgen {
       "skip_invalid_loci" -> skipInvalidLoci)
 
     val rangeBounds = bgenFilePaths.zipWithIndex.map { case (_, i) => Interval(Row(i), Row(i), includesStart = true, includesEnd = true) }
-    val partitioner = new RVDPartitioner(Array("file_idx"), keyType.asInstanceOf[TStruct], rangeBounds)
+    val partitioner = new RVDPartitioner(ctx.stateManager, Array("file_idx"), keyType.asInstanceOf[TStruct], rangeBounds)
     val crvd = BgenRDD(ctx, partitions, settings, null).toCRDDPtr
 
     val makeIW = IndexWriter.builder(ctx, indexKeyType, annotationType, attributes = attributes)
@@ -119,7 +120,7 @@ object IndexBgen {
         val htc = SparkTaskContext.get()
 
         htc.getRegionPool().scopedRegion { r =>
-          using(makeIW(idxPath, r.pool)) { iw =>
+          using(makeIW(idxPath, theHailClassLoaderForSparkWorkers, htc, r.pool)) { iw =>
             it.foreach { r =>
               assert(r.getInt(fileIdxIdx) == partIdx)
               iw.appendRow(Row(r(locusIdx), r(allelesIdx)), r.getLong(offsetIdx), Row())

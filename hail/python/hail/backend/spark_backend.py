@@ -7,17 +7,13 @@ import socketserver
 from threading import Thread
 import py4j
 import pyspark
+import pyspark.sql
 
 from typing import List, Optional
 
 import hail as hl
-from hail.utils.java import Env, scala_package_object, scala_object
-from hail.expr.types import dtype
-from hail.expr.table_type import ttable
-from hail.expr.matrix_type import tmatrix
-from hail.expr.blockmatrix_type import tblockmatrix
+from hail.utils.java import scala_package_object
 from hail.ir.renderer import CSERenderer
-from hail.ir import finalize_randomness
 from hail.table import Table
 from hail.matrixtable import MatrixTable
 
@@ -223,6 +219,7 @@ class SparkBackend(Py4JBackend):
             connect_logger(self._utils_package_object, 'localhost', 12888)
 
             self._jbackend.startProgressBar()
+        self._initialize_flags()
 
     def jvm(self):
         return self._jvm
@@ -241,21 +238,6 @@ class SparkBackend(Py4JBackend):
         self.sc = None
         uninstall_exception_handler()
 
-    def _parse_value_ir(self, code, ref_map={}, ir_map={}):
-        return self._jbackend.parse_value_ir(
-            code,
-            {k: t._parsable_string() for k, t in ref_map.items()},
-            ir_map)
-
-    def _parse_table_ir(self, code, ir_map={}):
-        return self._jbackend.parse_table_ir(code, ir_map)
-
-    def _parse_matrix_ir(self, code, ir_map={}):
-        return self._jbackend.parse_matrix_ir(code, ir_map)
-
-    def _parse_blockmatrix_ir(self, code, ir_map={}):
-        return self._jbackend.parse_blockmatrix_ir(code, ir_map)
-
     @property
     def logger(self):
         if self._logger is None:
@@ -269,44 +251,6 @@ class SparkBackend(Py4JBackend):
             self._fs = HadoopFS(self._utils_package_object, self._jbackend.fs())
         return self._fs
 
-    def _to_java_ir(self, ir, parse):
-        if not hasattr(ir, '_jir'):
-            r = CSERenderer(stop_at_jir=True)
-            # FIXME parse should be static
-            ir._jir = parse(r(finalize_randomness(ir)), ir_map=r.jirs)
-        return ir._jir
-
-    def _to_java_value_ir(self, ir):
-        return self._to_java_ir(ir, self._parse_value_ir)
-
-    def _to_java_table_ir(self, ir):
-        return self._to_java_ir(ir, self._parse_table_ir)
-
-    def _to_java_matrix_ir(self, ir):
-        return self._to_java_ir(ir, self._parse_matrix_ir)
-
-    def _to_java_blockmatrix_ir(self, ir):
-        return self._to_java_ir(ir, self._parse_blockmatrix_ir)
-
-    def value_type(self, ir):
-        jir = self._to_java_value_ir(ir)
-        return dtype(jir.typ().toString())
-
-    def table_type(self, tir):
-        jir = self._to_java_table_ir(tir)
-        return ttable._from_java(jir.typ())
-
-    def matrix_type(self, mir):
-        jir = self._to_java_matrix_ir(mir)
-        return tmatrix._from_java(jir.typ())
-
-    def unpersist_block_matrix(self, id):
-        self._jhc.backend().unpersist(id)
-
-    def blockmatrix_type(self, bmir):
-        jir = self._to_java_blockmatrix_ir(bmir)
-        return tblockmatrix._from_java(jir.typ())
-
     def from_spark(self, df, key):
         return Table._from_java(self._jbackend.pyFromDF(df._jdf, key))
 
@@ -314,49 +258,9 @@ class SparkBackend(Py4JBackend):
         t = t.expand_types()
         if flatten:
             t = t.flatten()
-        return pyspark.sql.DataFrame(self._jbackend.pyToDF(self._to_java_table_ir(t._tir)),
-                                     Env.spark_session()._wrapped)
-
-    def add_reference(self, config):
-        self.hail_package().variant.ReferenceGenome.fromJSON(json.dumps(config))
-
-    def load_references_from_dataset(self, path):
-        return json.loads(self.hail_package().variant.ReferenceGenome.fromHailDataset(self.fs._jfs, path))
-
-    def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
-        self._jbackend.pyFromFASTAFile(
-            name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par)
-
-    def remove_reference(self, name):
-        self.hail_package().variant.ReferenceGenome.removeReference(name)
-
-    def _get_non_builtin_reference(self, name):
-        return json.loads(self.hail_package().variant.ReferenceGenome.getReference(name).toJSONString())
-
-    def add_sequence(self, name, fasta_file, index_file):
-        self._jbackend.pyAddSequence(name, fasta_file, index_file)
-
-    def remove_sequence(self, name):
-        scala_object(self.hail_package().variant, 'ReferenceGenome').removeSequence(name)
-
-    def add_liftover(self, name, chain_file, dest_reference_genome):
-        self._jbackend.pyReferenceAddLiftover(name, chain_file, dest_reference_genome)
-
-    def remove_liftover(self, name, dest_reference_genome):
-        scala_object(self.hail_package().variant, 'ReferenceGenome').referenceRemoveLiftover(
-            name, dest_reference_genome)
-
-    def parse_vcf_metadata(self, path):
-        return json.loads(self._jhc.pyParseVCFMetadataJSON(self.fs._jfs, path))
-
-    def index_bgen(self, files, index_file_map, referenceGenomeName, contig_recoding, skip_invalid_loci):
-        self._jbackend.pyIndexBgen(files, index_file_map, referenceGenomeName, contig_recoding, skip_invalid_loci)
-
-    def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
-        return json.loads(self._jbackend.pyImportFam(path, quant_pheno, delimiter, missing))
+        return pyspark.sql.DataFrame(self._jbackend.pyToDF(self._to_java_table_ir(t._tir)), self._spark_session)
 
     def register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, body):
-
         r = CSERenderer(stop_at_jir=True)
         assert not body._ir.uses_randomness
         code = r(body._ir)

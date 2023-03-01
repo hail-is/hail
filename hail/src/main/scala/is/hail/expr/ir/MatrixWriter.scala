@@ -64,7 +64,7 @@ abstract class MatrixWriter {
     ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR =
     throw new LowererUnsupportedOperation(s"${ this.getClass } does not have defined lowering!")
 
-  def canLowerEfficiently: Boolean = false
+  def canLowerEfficiently: Boolean
 }
 
 case class MatrixNativeWriter(
@@ -78,7 +78,7 @@ case class MatrixNativeWriter(
 ) extends MatrixWriter {
   def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = mv.write(ctx, path, overwrite, stageLocally, codecSpecJSONStr, partitions, partitionsTypeStr, checkpointFile)
 
-  override def canLowerEfficiently: Boolean = !stageLocally && checkpointFile == null
+  def canLowerEfficiently: Boolean = !stageLocally && checkpointFile == null
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
     ctx: ExecuteContext, tablestage: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
@@ -92,7 +92,7 @@ case class MatrixNativeWriter(
         val jv = JsonMethods.parse(partitions)
         val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, partitionsType)
           .asInstanceOf[IndexedSeq[Interval]]
-        tablestage.repartitionNoShuffle(new RVDPartitioner(tm.rowKey.toArray, tm.rowKeyStruct, rangeBounds))
+        tablestage.repartitionNoShuffle(new RVDPartitioner(ctx.stateManager, tm.rowKey.toArray, tm.rowKeyStruct, rangeBounds))
       } else tablestage
 
     if (checkpointFile != null) {
@@ -153,17 +153,17 @@ case class MatrixNativeWriter(
                   bindIR(parts) { partInfo =>
                     Begin(FastIndexedSeq(
                       WriteMetadata(MakeArray(GetField(writeEmpty, "filePath")),
-                        RVDSpecWriter(s"$path/globals/globals", RVDSpecMaker(emptySpec, RVDPartitioner.unkeyed(1)))),
+                        RVDSpecWriter(s"$path/globals/globals", RVDSpecMaker(emptySpec, RVDPartitioner.unkeyed(ctx.stateManager, 1)))),
                       WriteMetadata(MakeArray(GetField(writeGlobals, "filePath")),
-                        RVDSpecWriter(s"$path/globals/rows", RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(1)))),
+                        RVDSpecWriter(s"$path/globals/rows", RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(ctx.stateManager, 1)))),
                       WriteMetadata(MakeArray(MakeStruct(Seq("partitionCounts" -> I64(1), "distinctlyKeyed" -> True(), "firstKey" -> MakeStruct(Seq()), "lastKey" -> MakeStruct(Seq())))), globalTableWriter),
                       WriteMetadata(MakeArray(GetField(colInfo, "filePath")),
-                        RVDSpecWriter(s"$path/cols/rows", RVDSpecMaker(colSpec, RVDPartitioner.unkeyed(1)))),
+                        RVDSpecWriter(s"$path/cols/rows", RVDSpecMaker(colSpec, RVDPartitioner.unkeyed(ctx.stateManager, 1)))),
                       WriteMetadata(MakeArray(SelectFields(colInfo, IndexedSeq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey"))), colTableWriter),
                       bindIR(ToArray(mapIR(ToStream(partInfo)) { fc => GetField(fc, "filePath") })) { files =>
                         Begin(FastIndexedSeq(
                           WriteMetadata(files, RVDSpecWriter(s"$path/rows/rows", RVDSpecMaker(rowSpec, lowered.partitioner, rowsIndexSpec))),
-                          WriteMetadata(files, RVDSpecWriter(s"$path/entries/rows", RVDSpecMaker(entrySpec, RVDPartitioner.unkeyed(lowered.numPartitions), entriesIndexSpec)))))
+                          WriteMetadata(files, RVDSpecWriter(s"$path/entries/rows", RVDSpecMaker(entrySpec, RVDPartitioner.unkeyed(ctx.stateManager, lowered.numPartitions), entriesIndexSpec)))))
                       },
                       bindIR(ToArray(mapIR(ToStream(partInfo)) { fc => SelectFields(fc, Seq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey")) })) { countsAndKeyInfo =>
                         Begin(FastIndexedSeq(
@@ -409,7 +409,8 @@ case class MatrixVCFWriter(
         ctx, ts, tl, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable], Map()))
   }
 
-  override def canLowerEfficiently: Boolean = true
+  def canLowerEfficiently: Boolean = true
+
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
       ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
     require(exportType != ExportType.PARALLEL_COMPOSABLE)
@@ -526,7 +527,7 @@ case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHe
         val headerStr = Code.invokeScalaObject6[TStruct, TStruct, ReferenceGenome, Option[String], Option[VCFMetadata], Array[String], String](
           ExportVCF.getClass, "makeHeader",
           mb.getType[TStruct](typ.rowType), mb.getType[TStruct](typ.entryType),
-          mb.getReferenceGenome(typ.referenceGenome), mb.getObject(append),
+          mb.getReferenceGenome(typ.referenceGenomeName), mb.getObject(append),
           mb.getObject(metadata), stringSampleIds)
         cb += os.invoke[Array[Byte], Unit]("write", headerStr.invoke[Array[Byte]]("getBytes"))
         cb += os.invoke[Int, Unit]("write", '\n')
@@ -759,7 +760,7 @@ case class VCFExportFinalizer(typ: MatrixType, outputPath: String, append: Optio
     Code.invokeScalaObject6[TStruct, TStruct, ReferenceGenome, Option[String], Option[VCFMetadata], Array[String], String](
       ExportVCF.getClass, "makeHeader",
       mb.getType[TStruct](typ.rowType), mb.getType[TStruct](typ.entryType),
-      mb.getReferenceGenome(typ.referenceGenome), mb.getObject(append),
+      mb.getReferenceGenome(typ.referenceGenomeName), mb.getObject(append),
       mb.getObject(metadata), stringSampleIds)
   }
 
@@ -841,7 +842,7 @@ case class MatrixGENWriter(
         ctx, ts, tl, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable], Map()))
   }
 
-  override def canLowerEfficiently: Boolean = true
+  def canLowerEfficiently: Boolean = true
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
       ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
@@ -963,7 +964,8 @@ case class MatrixBGENWriter(
         ctx, ts, tl, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable], Map()))
   }
 
-  override def canLowerEfficiently: Boolean = true
+  def canLowerEfficiently: Boolean = true
+
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
       ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
 
@@ -1241,7 +1243,8 @@ case class MatrixPLINKWriter(
         ctx, ts, tl, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable], Map()))
   }
 
-  override def canLowerEfficiently: Boolean = true
+  def canLowerEfficiently: Boolean = true
+
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
       ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
     val tm = MatrixType.fromTableType(t.typ, colsFieldName, entriesFieldName, colKey)
@@ -1400,6 +1403,8 @@ case class MatrixBlockMatrixWriter(
 ) extends MatrixWriter {
   def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = MatrixWriteBlockMatrix(ctx, mv, entryField, path, overwrite, blockSize)
 
+  def canLowerEfficiently: Boolean = true
+
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
     ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
 
@@ -1437,7 +1442,7 @@ case class MatrixBlockMatrixWriter(
     val inputRowIntervals = inputPartStarts.zip(inputPartStops).map{ case (intervalStart, intervalEnd) =>
       Interval(Row(intervalStart.toInt), Row(intervalEnd.toInt), true, false)
     }
-    val rowIdxPartitioner = RVDPartitioner.generate(TStruct((perRowIdxId, TInt32)), inputRowIntervals)
+    val rowIdxPartitioner = RVDPartitioner.generate(ctx.stateManager, TStruct((perRowIdxId, TInt32)), inputRowIntervals)
 
     val keyedByRowIdx = partsZippedWithIdx.changePartitionerNoRepartition(rowIdxPartitioner)
 
@@ -1448,7 +1453,7 @@ case class MatrixBlockMatrixWriter(
       case (intervalStart, intervalEnd) =>  Interval(Row(intervalStart), Row(intervalEnd), true, false)
     }
 
-    val blockSizeGroupsPartitioner = RVDPartitioner.generate(TStruct((perRowIdxId, TInt32)), desiredRowIntervals)
+    val blockSizeGroupsPartitioner = RVDPartitioner.generate(ctx.stateManager, TStruct((perRowIdxId, TInt32)), desiredRowIntervals)
     val rowsInBlockSizeGroups: TableStage = keyedByRowIdx.repartitionNoShuffle(blockSizeGroupsPartitioner)
 
     def createBlockMakingContexts(tablePartsStreamIR: IR): IR = {

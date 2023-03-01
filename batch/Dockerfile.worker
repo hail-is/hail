@@ -8,14 +8,12 @@ RUN hail-apt-get-install \
 
 COPY docker/requirements.txt .
 RUN chmod 755 /bin/hail-pip-install && \
-    hail-pip-install -r requirements.txt pyspark==3.2.1
+    hail-pip-install -r requirements.txt pyspark==3.3.0
 
 ENV SPARK_HOME /usr/local/lib/python3.7/dist-packages/pyspark
 ENV PATH "$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"
 ENV PYSPARK_PYTHON python3
 
-COPY batch/download-gcs-connector.py /
-RUN python3 /download-gcs-connector.py
 COPY docker/core-site.xml ${SPARK_HOME}/conf/core-site.xml
 
 {% if global.cloud == "gcp" %}

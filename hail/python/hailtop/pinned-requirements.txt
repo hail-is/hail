@@ -4,7 +4,7 @@
 #
 #    pip-compile --output-file=python/hailtop/pinned-requirements.txt python/hailtop/requirements.txt
 #
-aiohttp==3.8.3
+aiohttp==3.8.4
     # via
     #   -r python/hailtop/requirements.txt
     #   aiohttp-session
@@ -16,9 +16,9 @@ async-timeout==4.0.2
     # via aiohttp
 asynctest==0.13.0
     # via aiohttp
-attrs==22.1.0
+attrs==22.2.0
     # via aiohttp
-azure-core==1.26.1
+azure-core==1.26.3
     # via
     #   azure-identity
     #   azure-storage-blob
@@ -27,14 +27,14 @@ azure-identity==1.12.0
     # via -r python/hailtop/requirements.txt
 azure-storage-blob==12.14.1
     # via -r python/hailtop/requirements.txt
-boto3==1.26.26
+boto3==1.26.73
     # via -r python/hailtop/requirements.txt
-botocore==1.29.26
+botocore==1.29.73
     # via
     #   -r python/hailtop/requirements.txt
     #   boto3
     #   s3transfer
-cachetools==5.2.0
+cachetools==5.3.0
     # via google-auth
 certifi==2022.12.7
     # via
@@ -42,13 +42,13 @@ certifi==2022.12.7
     #   requests
 cffi==1.15.1
     # via cryptography
-charset-normalizer==2.1.1
+charset-normalizer==3.0.1
     # via
     #   aiohttp
     #   requests
 commonmark==0.9.1
     # via rich
-cryptography==38.0.4
+cryptography==39.0.1
     # via
     #   azure-identity
     #   azure-storage-blob
@@ -74,9 +74,9 @@ google-cloud-storage==2.7.0
     # via -r python/hailtop/requirements.txt
 google-crc32c==1.5.0
     # via google-resumable-media
-google-resumable-media==2.4.0
+google-resumable-media==2.4.1
     # via google-cloud-storage
-googleapis-common-protos==1.57.0
+googleapis-common-protos==1.58.0
     # via google-api-core
 humanize==1.1.0
     # via -r python/hailtop/requirements.txt
@@ -92,7 +92,7 @@ jmespath==1.0.1
     # via
     #   boto3
     #   botocore
-msal==1.20.0
+msal==1.21.0
     # via
     #   azure-identity
     #   msal-extensions
@@ -100,17 +100,17 @@ msal-extensions==1.0.0
     # via azure-identity
 msrest==0.7.1
     # via azure-storage-blob
-multidict==6.0.3
+multidict==6.0.4
     # via
     #   aiohttp
     #   yarl
 oauthlib==3.2.2
     # via requests-oauthlib
-orjson==3.8.3
+orjson==3.8.6
     # via -r python/hailtop/requirements.txt
-portalocker==2.6.0
+portalocker==2.7.0
     # via msal-extensions
-protobuf==4.21.11
+protobuf==4.22.0
     # via
     #   google-api-core
     #   googleapis-common-protos
@@ -122,15 +122,15 @@ pyasn1-modules==0.2.8
     # via google-auth
 pycparser==2.21
     # via cffi
-pygments==2.13.0
+pygments==2.14.0
     # via rich
 pyjwt[crypto]==2.6.0
     # via msal
 python-dateutil==2.8.2
     # via botocore
-python-json-logger==2.0.4
+python-json-logger==2.0.6
     # via -r python/hailtop/requirements.txt
-requests==2.28.1
+requests==2.28.2
     # via
     #   azure-core
     #   google-api-core
@@ -157,7 +157,7 @@ sortedcontainers==2.4.0
     # via -r python/hailtop/requirements.txt
 tabulate==0.9.0
     # via -r python/hailtop/requirements.txt
-typing-extensions==4.4.0
+typing-extensions==4.5.0
     # via
     #   aiohttp
     #   aiohttp-session
@@ -166,7 +166,7 @@ typing-extensions==4.4.0
     #   janus
     #   rich
     #   yarl
-urllib3==1.26.13
+urllib3==1.26.14
     # via
     #   botocore
     #   requests

@@ -2,6 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
+import is.hail.backend.HailStateManager
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat32Value}
 import is.hail.types.physical.stypes.{SType, SValue}
@@ -19,7 +20,7 @@ class PFloat32(override val required: Boolean) extends PNumeric with PPrimitive 
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PFloat32")
 
-  override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
+  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = new UnsafeOrdering {
     def compare(o1: Long, o2: Long): Int = {
       java.lang.Float.compare(Region.loadFloat(o1), Region.loadFloat(o2))
     }
@@ -45,7 +46,7 @@ class PFloat32(override val required: Boolean) extends PNumeric with PPrimitive 
   override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SFloat32Value =
     new SFloat32Value(cb.memoize(Region.loadFloat(addr)))
 
-  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
+  override def unstagedStoreJavaObjectAtAddress(sm: HailStateManager, addr: Long, annotation: Annotation, region: Region): Unit = {
     Region.storeFloat(addr, annotation.asInstanceOf[Float])
   }
 }

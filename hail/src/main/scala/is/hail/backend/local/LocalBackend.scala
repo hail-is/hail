@@ -20,7 +20,7 @@ import is.hail.types.virtual.TVoid
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.hadoop
-import org.json4s.DefaultFormats
+import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 import java.io.PrintWriter
@@ -99,7 +99,7 @@ class LocalBackend(
   val fs: FS = new HadoopFS(new SerializableHadoopConfiguration(hadoopConf))
 
   def withExecuteContext[T](timer: ExecutionTimer)(f: ExecuteContext => T): T = {
-    ExecuteContext.scoped(tmpdir, tmpdir, this, fs, timer, null, theHailClassLoader, ReferenceGenome.references, flags)(f)
+    ExecuteContext.scoped(tmpdir, tmpdir, this, fs, timer, null, theHailClassLoader, this.references, flags)(f)
   }
 
   def broadcast[T: ClassTag](value: T): BroadcastValue[T] = new LocalBroadcastValue[T](value)
@@ -125,7 +125,7 @@ class LocalBackend(
     collection.zipWithIndex.map { case (c, i) =>
       val htc = new LocalTaskContext(i, stageId)
       val bytes = f(c, htc, theHailClassLoader, fs)
-      htc.finish()
+      htc.close()
       bytes
     }
   }
@@ -150,7 +150,7 @@ class LocalBackend(
       }
 
       ctx.timer.time("Run") {
-        f(ctx.theHailClassLoader, fs, 0, ctx.r).apply(ctx.r)
+        ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r))
         (pt, 0)
       }
     } else {
@@ -163,7 +163,7 @@ class LocalBackend(
       }
 
       ctx.timer.time("Run") {
-        (pt, f(ctx.theHailClassLoader, fs, 0, ctx.r).apply(ctx.r))
+        (pt, ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r)))
       }
     }
   }
@@ -255,21 +255,27 @@ class LocalBackend(
     }
   }
 
-  def pyReferenceAddLiftover(name: String, chainFile: String, destRGName: String): Unit = {
+  def pyAddReference(jsonConfig: String): Unit = addReference(ReferenceGenome.fromJSON(jsonConfig))
+  def pyRemoveReference(name: String): Unit = removeReference(name)
+
+  def pyAddLiftover(name: String, chainFile: String, destRGName: String): Unit = {
     ExecutionTimer.logTime("LocalBackend.pyReferenceAddLiftover") { timer =>
       withExecuteContext(timer) { ctx =>
-        ReferenceGenome.referenceAddLiftover(ctx, name, chainFile, destRGName)
+        references(name).addLiftover(ctx, chainFile, destRGName)
       }
     }
   }
+  def pyRemoveLiftover(name: String, destRGName: String) = references(name).removeLiftover(destRGName)
 
   def pyFromFASTAFile(name: String, fastaFile: String, indexFile: String,
     xContigs: java.util.List[String], yContigs: java.util.List[String], mtContigs: java.util.List[String],
-    parInput: java.util.List[String]): ReferenceGenome = {
+    parInput: java.util.List[String]): String = {
     ExecutionTimer.logTime("LocalBackend.pyFromFASTAFile") { timer =>
       withExecuteContext(timer) { ctx =>
-        ReferenceGenome.fromFASTAFile(ctx, name, fastaFile, indexFile,
+        val rg = ReferenceGenome.fromFASTAFile(ctx, name, fastaFile, indexFile,
           xContigs.asScala.toArray, yContigs.asScala.toArray, mtContigs.asScala.toArray, parInput.asScala.toArray)
+        addReference(rg)
+        rg.toJSONString
       }
     }
   }
@@ -277,10 +283,11 @@ class LocalBackend(
   def pyAddSequence(name: String, fastaFile: String, indexFile: String): Unit = {
     ExecutionTimer.logTime("LocalBackend.pyAddSequence") { timer =>
       withExecuteContext(timer) { ctx =>
-        ReferenceGenome.addSequence(ctx, name, fastaFile, indexFile)
+        references(name).addSequence(ctx, fastaFile, indexFile)
       }
     }
   }
+  def pyRemoveSequence(name: String) = references(name).removeSequence()
 
   def parse_value_ir(s: String, refMap: java.util.Map[String, String], irMap: java.util.Map[String, BaseIR]): IR = {
     ExecutionTimer.logTime("LocalBackend.parse_value_ir") { timer =>
@@ -327,8 +334,13 @@ class LocalBackend(
     LowerDistributedSort.distributedSort(ctx, stage, sortFields, relationalLetsAbove, rowTypeRequiredness)
   }
 
-  def pyLoadReferencesFromDataset(path: String): String =
-    ReferenceGenome.fromHailDataset(fs, path)
+  def pyLoadReferencesFromDataset(path: String): String = {
+    val rgs = ReferenceGenome.fromHailDataset(fs, path)
+    rgs.foreach(addReference)
+
+    implicit val formats: Formats = defaultJSONFormats
+    Serialization.write(rgs.map(_.toJSON).toFastIndexedSeq)
+  }
 
   def pyImportFam(path: String, isQuantPheno: Boolean, delimiter: String, missingValue: String): String =
     LoadPlink.importFamJSON(fs, path, isQuantPheno, delimiter, missingValue)

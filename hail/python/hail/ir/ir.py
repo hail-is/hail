@@ -691,6 +691,47 @@ class ArrayZeros(IR):
         return tarray(tint32)
 
 
+class ArrayMaximalIndependentSet(IR):
+    @typecheck_method(edges=IR, left_name=nullable(str), right_name=nullable(str), tie_breaker=nullable(IR))
+    def __init__(self, edges, left_name, right_name, tie_breaker):
+        super().__init__(*(ir for ir in (edges, tie_breaker) if ir))
+        self.edges = edges
+        self.left_name = left_name
+        self.right_name = right_name
+        self.tie_breaker = tie_breaker
+
+    @typecheck_method(a=IR)
+    def copy(self, edges, tie_breaker):
+        return ArrayMaximalIndependentSet(edges, self.left_name, self.right_name, tie_breaker)
+
+    def head_str(self):
+        if self.tie_breaker is not None:
+            return f'True {self.left_name} {self.right_name}'
+        return 'False'
+
+    @property
+    def bound_variables(self):
+        if self.tie_breaker is not None:
+            return {self.left_name, self.right_name} | super().bound_variables
+        return super().bound_variables
+
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.edges.compute_type(env, agg_env, deep_typecheck)
+        if self.tie_breaker is not None:
+            self.tie_breaker.compute_type(self.bindings(1), agg_env, deep_typecheck)
+        return tarray(self.edges.typ.element_type[0])
+
+    def renderable_bindings(self, i, default_value=None):
+        if i == 1:
+            if default_value is None:
+                ty = ttuple(self.edges.typ.element_type[0])
+                return {self.left_name: ty, self.right_name: ty}
+            else:
+                return {self.left_name: default_value, self.right_name: default_value}
+        else:
+            return {}
+
+
 class StreamIota(IR):
     @typecheck_method(start=IR, step=IR, requires_memory_management_per_element=bool)
     def __init__(self, start, step, requires_memory_management_per_element=False):

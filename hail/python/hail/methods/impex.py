@@ -185,6 +185,15 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None, compr
     """Export MatrixTable as :class:`.MatrixTable` as BGEN 1.2 file with 8
     bits of per probability.  Also writes SAMPLE file.
 
+    Notes
+    -----
+    The :func:`export_bgen` function requires genotype probabilities, either as an entry
+    field of `mt` (of type ``array<float64>``), or an entry expression passed in the `gp`
+    argument.
+
+    If `output` is ``"/path/to/myfile"``, this function will write a BGEN file at
+    ``"/path/to/myfile.bgen"`` and a sample file at ``"/path/to/myfile.sample"``.
+
     Parameters
     ----------
     mt : :class:`.MatrixTable`

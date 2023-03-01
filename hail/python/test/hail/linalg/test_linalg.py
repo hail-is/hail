@@ -736,6 +736,19 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: bm[0, :-11])
 
     @fails_service_backend()
+    def test_diagonal_sparse(self):
+        nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
+                       [ 5.0,  6.0,  7.0,  8.0],
+                       [ 9.0, 10.0, 11.0, 12.0],
+                       [13.0, 14.0, 15.0, 16.0],
+                       [17.0, 18.0, 19.0, 20.0]])
+        bm = BlockMatrix.from_numpy(nd, block_size=2)
+        bm = bm.sparsify_row_intervals([0, 0, 0, 0, 0], [2, 2, 2, 2, 2])
+
+        self.assertTrue(bm.is_sparse)
+        self._assert_eq(bm.diagonal(), np.array([[1.0, 6.0, 0.0, 0.0]]))
+
+    @fails_service_backend()
     @fails_local_backend()
     def test_slices_with_sparsify(self):
         nd = np.array(np.arange(0, 80, dtype=float)).reshape(8, 10)
@@ -986,8 +999,6 @@ class Tests(unittest.TestCase):
             self._assert_eq(expected, BlockMatrix.rectangles_to_numpy(rect_uri))
             self._assert_eq(expected, BlockMatrix.rectangles_to_numpy(rect_bytes_uri, binary=True))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_to_ndarray(self):
         np_mat = np.arange(12).reshape((4, 3)).astype(np.float64)
         mat = BlockMatrix.from_ndarray(hl.nd.array(np_mat)).to_ndarray()
@@ -1155,8 +1166,6 @@ class Tests(unittest.TestCase):
             bm = BlockMatrix.read(bm_uri)
             self._assert_eq(nd, bm)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_svd(self):
         def assert_same_columns_up_to_sign(a, b):
             for j in range(a.shape[1]):
@@ -1231,8 +1240,6 @@ class Tests(unittest.TestCase):
             bm.filter_rows([0]).filter_rows([3]).to_numpy()
         assert "index" in str(exc.value)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_sparsify_blocks(self):
         block_list = [1, 2]
         np_square = np.arange(16, dtype=np.float64).reshape((4, 4))
@@ -1256,8 +1263,6 @@ class Tests(unittest.TestCase):
         sparse_numpy = sparsify_numpy(np_square, block_size, block_list)
         assert np.array_equal(bm.to_numpy(), sparse_numpy)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_sparse_transposition(self):
         block_list = [1, 2]
         np_square = np.arange(16, dtype=np.float64).reshape((4, 4))

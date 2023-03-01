@@ -122,23 +122,6 @@ steps:
     dependsOn:
       - hail_ubuntu_image
       - merge_code
-  - kind: buildImage2
-    name: base_spark_3_2
-    dockerFile: /io/repo/docker/Dockerfile.base-with-spark-3-2
-    contextPath: /io/repo
-    publishAs: base_spark_3_2
-    resources:
-      storage: 10Gi
-      cpu: "2"
-      memory: standard
-    inputs:
-      - from: /repo/docker/Dockerfile.base-with-spark-3-2
-        to: /io/repo/docker/Dockerfile.base-with-spark-3-2
-      - from: /repo/docker/core-site.xml
-        to: /io/repo/docker/core-site.xml
-    dependsOn:
-      - base_image
-      - merge_code
   - kind: runImage
     name: check_pip_dependencies
     image:
@@ -725,34 +708,6 @@ steps:
         to: /just-jar/hail.jar
       - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
         to: /just-wheel/wheel-container.tar
-    dependsOn:
-      - hail_build_image
-      - merge_code
-  - kind: runImage
-    name: build_hail_jar_and_wheel_only_spark_3_2
-    image:
-      valueFrom: hail_build_image.image
-    resources:
-      memory: standard
-      cpu: '4'
-    script: |
-      set -ex
-      cd /io/repo/hail
-      chmod 755 ./gradlew
-      time retry ./gradlew --version
-      export SPARK_VERSION="3.2.1" SCALA_VERSION="2.12.12"
-      time retry make jars wheel
-      (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
-    inputs:
-      - from: /repo
-        to: /io/repo
-    outputs:
-      - from: /io/repo/hail/build/libs/hail-all-spark.jar
-        to: /just-jar/spark-32/hail.jar
-      - from: /io/repo/hail/build/libs/hail-all-spark-test.jar
-        to: /just-jar/spark-32/hail-test.jar
-      - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
-        to: /just-wheel/spark-32/wheel-container.tar
     dependsOn:
       - hail_build_image
       - merge_code
@@ -1374,12 +1329,9 @@ steps:
       - gcp
   - kind: runImage
     name: test_hail_python_local_backend
-    numSplits: 7
+    numSplits: 14
     image:
       valueFrom: hail_run_image.image
-    resources:
-      memory: standard
-      cpu: '2'
     script: |
       set -ex
       cd /io
@@ -2102,6 +2054,15 @@ steps:
       - name: case-sensitive-billing-project
         script: /io/sql/case-sensitive-billing-project.sql
         online: true
+      - name: driver-behavior
+        script: /io/sql/driver_behavior.py
+        online: true
+      - name: cleanup-old-billing-tables
+        script: /io/sql/cleanup-old-billing-tables.sql
+        online: true
+      - name: add-deduped-resource-ids-to-resources
+        script: /io/sql/add-deduped-resource-ids-to-resources.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -2225,7 +2186,7 @@ steps:
           valueFrom: default_ns.name
         mountPath: /batch-gsa-key
     inputs:
-      - from: /just-jar/spark-32/hail.jar
+      - from: /just-jar/hail.jar
         to: /io/hail.jar
       - from: /git_version
         to: /io/git_version
@@ -2233,7 +2194,7 @@ steps:
       - default_ns
       - deploy_batch
       - hailgenetics_hailtop_image
-      - build_hail_jar_and_wheel_only_spark_3_2
+      - build_hail_jar_and_wheel_only
       - merge_code
       - create_test_gsa_keys
   - kind: deploy
@@ -2288,7 +2249,7 @@ steps:
               test
     timeout: 5400
     inputs:
-      - from: /just-wheel/spark-32/wheel-container.tar
+      - from: /just-wheel/wheel-container.tar
         to: /io/wheel-container.tar
       - from: /repo/hail/python/test
         to: /io/repo/hail/python/test
@@ -2319,7 +2280,7 @@ steps:
       - hail_run_image
       - upload_query_jar
       - upload_test_resources_to_blob_storage
-      - build_hail_jar_and_wheel_only_spark_3_2
+      - build_hail_jar_and_wheel_only
   - kind: buildImage2
     name: netcat_ubuntu_image
     publishAs: netcat
@@ -2366,7 +2327,7 @@ steps:
     script: |
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-      hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
+      hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/test_memory/{{ token }}/
       python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /io/test/
     timeout: 600
     secrets:
@@ -2420,7 +2381,7 @@ steps:
       export HAIL_SCOPE="{{ scope }}"
       export HAIL_CLOUD="{{ global.cloud }}"
       export HAIL_DOMAIN="{{ global.domain }}"
-      hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
+      hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/test_batch/{{ token }}/
       python3 -m pytest \
               --asyncio-mode=auto \
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2700,7 +2661,7 @@ steps:
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
       export HAIL_GENETICS_HAILTOP_IMAGE="{{ hailgenetics_hailtop_image.image }}"
       hailctl config set batch/billing_project test
-      hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
+      hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/test_hailtop_batch/{{ token }}/
       python3 -m pytest \
               --durations=0 \
               --log-cli-level=INFO \
@@ -2751,7 +2712,7 @@ steps:
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
 
       hailctl config set batch/billing_project test
-      hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/{{ token }}/hailctl-test
+      hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/hailctl-test/{{ token }}
 
       mkdir -p foo
       echo "bar" > foo/baz.txt
@@ -2858,7 +2819,7 @@ steps:
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       cd /io/hailtop/batch
       hailctl config set batch/billing_project test
-      hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
+      hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/test_batch_docs/{{ token }}/
       python3 -m pytest --instafail \
         --doctest-modules \
         --doctest-glob='*.rst' \
@@ -3268,7 +3229,7 @@ steps:
   - kind: runImage
     name: test_hail_scala_fs
     image:
-      valueFrom: base_spark_3_2.image
+      valueFrom: hail_run_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -3302,7 +3263,7 @@ steps:
     inputs:
       - from: /resources.tar.gz
         to: /io/resources.tar.gz
-      - from: /just-jar/spark-32/hail-test.jar
+      - from: /hail-test.jar
         to: /io/hail-test.jar
       - from: /testng-fs.xml
         to: /io/testng-fs.xml
@@ -3328,9 +3289,9 @@ steps:
       - default_ns
       - create_certs
       - create_accounts
-      - base_spark_3_2
+      - hail_run_image
       - build_hail
-      - build_hail_jar_and_wheel_only_spark_3_2
+      - build_hail_jar_and_wheel_only
       - upload_test_resources_to_blob_storage
   - kind: runImage
     name: test_hail_services_java

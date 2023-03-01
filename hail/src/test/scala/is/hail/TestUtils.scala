@@ -177,7 +177,7 @@ object TestUtils {
           assert(resultType2.virtualType == resultType)
 
           ctx.r.pool.scopedRegion { region =>
-            val rvb = new RegionValueBuilder(region)
+            val rvb = new RegionValueBuilder(ctx.stateManager, region)
             rvb.start(argsPType)
             rvb.startTuple()
             var i = 0
@@ -196,7 +196,7 @@ object TestUtils {
             rvb.endArray()
             val aggOff = rvb.end()
 
-            val resultOff = f(theHailClassLoader, ctx.fs, 0, region)(region, argsOff, aggOff)
+            val resultOff = f(theHailClassLoader, ctx.fs, ctx.taskContext, region)(region, argsOff, aggOff)
             SafeRow(resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
           }
 
@@ -210,7 +210,7 @@ object TestUtils {
           assert(resultType2.virtualType == resultType)
 
           ctx.r.pool.scopedRegion { region =>
-            val rvb = new RegionValueBuilder(region)
+            val rvb = new RegionValueBuilder(ctx.stateManager, region)
             rvb.start(argsPType)
             rvb.startTuple()
             var i = 0
@@ -221,7 +221,7 @@ object TestUtils {
             rvb.endTuple()
             val argsOff = rvb.end()
 
-            val resultOff = f(theHailClassLoader, ctx.fs, 0, region)(region, argsOff)
+            val resultOff = f(theHailClassLoader, ctx.fs, ctx.taskContext, region)(region, argsOff)
             SafeRow(resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
           }
       }
@@ -299,15 +299,12 @@ object TestUtils {
     minPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
     callFields: Set[String] = Set.empty[String],
-    rg: Option[ReferenceGenome] = Some(ReferenceGenome.GRCh37),
+    rg: Option[String] = Some(ReferenceGenome.GRCh37),
     contigRecoding: Option[Map[String, String]] = None,
     arrayElementsRequired: Boolean = true,
     skipInvalidLoci: Boolean = false,
     partitionsJSON: Option[String] = None,
     partitionsTypeStr: Option[String] = None): MatrixIR = {
-    rg.foreach { referenceGenome =>
-      ReferenceGenome.addReference(referenceGenome)
-    }
     val entryFloatType = TFloat64._toPretty
 
     val reader = MatrixVCFReader(ctx,
@@ -319,7 +316,7 @@ object TestUtils {
       nPartitions,
       blockSizeInMB,
       minPartitions,
-      rg.map(_.name),
+      rg,
       contigRecoding.getOrElse(Map.empty[String, String]),
       arrayElementsRequired,
       skipInvalidLoci,

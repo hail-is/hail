@@ -2,6 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
+import is.hail.backend.HailStateManager
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete.{SIntervalPointer, SIntervalPointerValue, SStackStruct}
@@ -115,17 +116,17 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
     }
   }
 
-  override def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
+  override def unstagedStoreAtAddress(sm: HailStateManager, addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
     srcPType match {
       case t: PCanonicalInterval =>
-        representation.unstagedStoreAtAddress(addr, region, t.representation, srcAddress, deepCopy)
+        representation.unstagedStoreAtAddress(sm, addr, region, t.representation, srcAddress, deepCopy)
     }
   }
 
-  override def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
+  override def _copyFromAddress(sm: HailStateManager, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
     srcPType match {
       case t: PCanonicalInterval =>
-        representation._copyFromAddress(region, t.representation, srcAddress, deepCopy)
+        representation._copyFromAddress(sm, region, t.representation, srcAddress, deepCopy)
     }
   }
 
@@ -133,18 +134,19 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
 
   override def unstagedLoadFromNested(addr: Long): Long = representation.unstagedLoadFromNested(addr)
 
-  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
+  override def unstagedStoreJavaObjectAtAddress(sm: HailStateManager, addr: Long, annotation: Annotation, region: Region): Unit = {
     val jInterval = annotation.asInstanceOf[Interval]
     representation.unstagedStoreJavaObjectAtAddress(
+      sm,
       addr,
       Row(jInterval.start, jInterval.end, jInterval.includesStart, jInterval.includesEnd),
       region
     )
   }
 
-  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
+  override def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region): Long = {
     val addr = representation.allocate(region)
-    unstagedStoreJavaObjectAtAddress(addr, annotation, region)
+    unstagedStoreJavaObjectAtAddress(sm, addr, annotation, region)
     addr
   }
 

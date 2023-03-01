@@ -71,7 +71,7 @@ object LowerMatrixIR {
   def entries(tir: TableIR): IR =
     GetField(Ref("row", tir.typ.rowType), entriesFieldName)
 
-  import is.hail.expr.ir.IRBuilder._
+  import is.hail.expr.ir.DeprecatedIRBuilder._
 
   def matrixSubstEnv(child: MatrixIR): BindingEnv[IRProxy] = {
     val e = Env[IRProxy]("global" -> 'global.selectFields(child.typ.globalType.fieldNames: _*),

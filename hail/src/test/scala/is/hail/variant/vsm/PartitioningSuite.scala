@@ -19,7 +19,7 @@ class PartitioningSuite extends HailSuite {
         ctx,
         typ,
         BroadcastRow.empty(ctx),
-        RVD.empty(typ.canonicalRVDType)),
+        RVD.empty(ctx, typ.canonicalRVDType)),
       theHailClassLoader
     )
     val rangeReader = ir.MatrixRangeReader(100, 10, Some(10))
@@ -38,9 +38,9 @@ class PartitioningSuite extends HailSuite {
 
     val nonEmptyRVD = tv.rvd
     val rvdType = nonEmptyRVD.typ
-    val emptyRVD = RVD.empty(rvdType)
 
     ExecuteContext.scoped() { ctx =>
+      val emptyRVD = RVD.empty(ctx, rvdType)
       emptyRVD.orderedJoin(nonEmptyRVD, "left", (_, it) => it.map(_._1), rvdType, ctx).count()
       emptyRVD.orderedJoin(nonEmptyRVD, "inner", (_, it) => it.map(_._1), rvdType, ctx).count()
       nonEmptyRVD.orderedJoin(emptyRVD, "left", (_, it) => it.map(_._1), rvdType, ctx).count()

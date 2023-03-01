@@ -1,6 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations._
+import is.hail.backend.HailStateManager
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
 import is.hail.types.physical.PString
@@ -19,12 +20,10 @@ case object TString extends Type {
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[String]
 
-  override def genNonmissingValue: Gen[Annotation] = arbitrary[String]
+  override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = arbitrary[String]
 
   override def scalaClassTag: ClassTag[String] = classTag[String]
 
-  override val ordering: ExtendedOrdering = mkOrdering()
-
-  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
+  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[String]], missingEqual)
 }

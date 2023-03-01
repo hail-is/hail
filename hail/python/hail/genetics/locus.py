@@ -1,3 +1,5 @@
+from typing import Union
+
 import hail as hl
 from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
 from hail.typecheck import typecheck_method
@@ -27,7 +29,7 @@ class Locus(object):
      - :func:`.locus_from_global_position`
     """
 
-    def __init__(self, contig, position, reference_genome='default'):
+    def __init__(self, contig, position, reference_genome: Union[str, ReferenceGenome] = 'default'):
         if isinstance(contig, int):
             contig = str(contig)
 

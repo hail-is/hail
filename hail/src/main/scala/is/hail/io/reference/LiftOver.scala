@@ -1,5 +1,8 @@
 package is.hail.io.reference
 
+import java.io.File
+import java.net.URI
+
 import is.hail.backend.ExecuteContext
 import is.hail.variant.{Locus, ReferenceGenome}
 import is.hail.utils._
@@ -10,24 +13,11 @@ import scala.collection.concurrent
 import scala.language.implicitConversions
 
 object LiftOver {
-  private[this] val localChainFiles: concurrent.Map[String, String] = new concurrent.TrieMap()
-
-  def setup(tmpdir: String, fs: FS, chainFile: String): String = {
-    val localChainFile = ExecuteContext.createTmpPathNoCleanup(tmpdir, "lift-over", "chain")
-    fs.copyRecode(chainFile, localChainFile)
-
-    if (!fs.exists(localChainFile))
-      fatal(s"Error while copying chain file to local file system. Did not find '$localChainFile'.")
-
-    localChainFile
-  }
-
-  def apply(tmpdir: String, fs: FS, chainFile: String): LiftOver =
-    new LiftOver(localChainFiles.getOrElseUpdate(chainFile, LiftOver.setup(tmpdir, fs, chainFile)), chainFile)
+  def apply(fs: FS, chainFile: String): LiftOver = new LiftOver(fs, chainFile)
 }
 
-class LiftOver(localChainFile: String, val chainFile: String) {
-  val lo = new htsjdk.samtools.liftover.LiftOver(new java.io.File(uriPath(localChainFile)))
+class LiftOver(fs: FS, val chainFile: String) {
+  val lo = using(fs.open(chainFile))(new htsjdk.samtools.liftover.LiftOver(_, chainFile))
 
   def queryInterval(interval: is.hail.utils.Interval, minMatch: Double = htsjdk.samtools.liftover.LiftOver.DEFAULT_LIFTOVER_MINMATCH): (is.hail.utils.Interval, Boolean) = {
     val start = interval.start.asInstanceOf[Locus]

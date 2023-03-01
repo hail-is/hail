@@ -74,7 +74,7 @@ object TableNativeWriter {
         bindIR(parts) { fileCountAndDistinct =>
           Begin(FastIndexedSeq(
             WriteMetadata(MakeArray(GetField(writeGlobals, "filePath")),
-              RVDSpecWriter(s"$path/globals", RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(1)))),
+              RVDSpecWriter(s"$path/globals", RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(ctx.stateManager, 1)))),
             WriteMetadata(ToArray(mapIR(ToStream(fileCountAndDistinct)) { fc => GetField(fc, "filePath") }),
               RVDSpecWriter(s"$path/rows", RVDSpecMaker(rowSpec, partitioner, IndexSpec.emptyAnnotation("../index", tcoerce[PStruct](pKey))))),
             WriteMetadata(ToArray(mapIR(ToStream(fileCountAndDistinct)) { fc =>
@@ -126,8 +126,8 @@ case class TableNativeWriter(
 
     val referencesPath = path + "/references"
     fs.mkDir(referencesPath)
-    ReferenceGenome.exportReferences(fs, referencesPath, tv.typ.rowType)
-    ReferenceGenome.exportReferences(fs, referencesPath, tv.typ.globalType)
+    ReferenceGenome.exportReferences(fs, referencesPath, ReferenceGenome.getReferences(tv.typ.rowType).map(ctx.getReference(_)))
+    ReferenceGenome.exportReferences(fs, referencesPath, ReferenceGenome.getReferences(tv.typ.rowType).map(ctx.getReference(_)))
 
     val spec = TableSpecParameters(
       FileFormat.version.rep,
@@ -447,7 +447,7 @@ object RelationalWriter {
     write, RelationalWriter(path, overwrite, refs.map(typ => "references" -> (ReferenceGenome.getReferences(typ.rowType) ++ ReferenceGenome.getReferences(typ.globalType)))))
 }
 
-case class RelationalWriter(path: String, overwrite: Boolean, maybeRefs: Option[(String, Set[ReferenceGenome])]) extends MetadataWriter {
+case class RelationalWriter(path: String, overwrite: Boolean, maybeRefs: Option[(String, Set[String])]) extends MetadataWriter {
   def annotationType: Type = TVoid
 
   def writeMetadata(
@@ -691,7 +691,7 @@ case class TableNativeFanoutWriter(
                   "filePath"
                 )
               ),
-              RVDSpecWriter(s"${target.path}/globals", RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(1)))
+              RVDSpecWriter(s"${target.path}/globals", RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(ctx.stateManager, 1)))
             ),
             WriteMetadata(
               ToArray(mapIR(ToStream(fileCountAndDistinct)) { fc => GetField(GetTupleElement(fc, index), "filePath") }),

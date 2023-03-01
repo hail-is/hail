@@ -12,7 +12,7 @@ REVISION := $(shell git rev-parse HEAD)
 SHORT_REVISION := $(shell git rev-parse --short=12 HEAD)
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 SCALA_VERSION ?= 2.12.13
-SPARK_VERSION ?= 3.1.3
+SPARK_VERSION ?= 3.3.0
 HAIL_MAJOR_MINOR_VERSION := 0.2
 HAIL_PATCH_VERSION := 109
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
@@ -98,6 +98,9 @@ $(SHADOW_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) env/HAIL_DEBUG_MODE env/ELASTI
 ifdef HAIL_DEBUG_MODE
 	$(JAR) -uf $(SHADOW_JAR) -C $(BUILD_DEBUG_PREFIX) is/hail/annotations/Memory.class
 endif
+
+.PHONY: shadowTestJar
+shadowTestJar: $(SHADOW_TEST_JAR)
 
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_TEST_JAR): native-lib-prebuilt
@@ -312,15 +315,14 @@ upload-artifacts: $(WHEEL)
 # > rm upload-qob-test-resources
 upload-qob-test-resources: $(JAR_TEST_SOURCES)
 	! [ -z $(NAMESPACE) ]  # call this like: make upload-qob-test-resources NAMESPACE=default
-	gsutil -m cp -r src/test/resources $(HAIL_TEST_RESOURCES_DIR)
-	gsutil -m cp -r python/hail/docs/data $(HAIL_DOCTEST_DATA_DIR)
+	gsutil -m cp -r src/test/resources/\* $(HAIL_TEST_RESOURCES_DIR)
+	gsutil -m cp -r python/hail/docs/data/\* $(HAIL_DOCTEST_DATA_DIR)
 	touch $@
 
 # NOTE: 1-day expiration of the test bucket means that this
 # target must be run at least once a day if using a dev NAMESPACE.
 # To trigger this target to re-run,
 # > rm upload-qob-jar
-upload-qob-jar: SPARK_VERSION := 3.2.1
 upload-qob-jar: $(SHADOW_JAR)
 	! [ -z $(NAMESPACE) ]  # call this like: make upload-qob-jar NAMESPACE=default
 	gsutil -m cp $(SHADOW_JAR) $(JAR_LOCATION)
