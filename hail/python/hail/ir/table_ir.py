@@ -1144,7 +1144,15 @@ class Partitioner(object):
         return f'Partitioner<{self.key_type}> {self.range_bounds}'
 
 class TableGen(TableIR):
-    @typecheck_method(contexts=IR, globals=IR, cname=str, gname=str, body=IR, partitioner=Partitioner, error_id=nullable(int))
+    @typecheck_method(
+        contexts=IR,
+        globals=IR,
+        cname=str,
+        gname=str,
+        body=IR,
+        partitioner=Partitioner,
+        error_id=nullable(int)
+    )
     def __init__(self, contexts, globals, cname, gname, body, partitioner, error_id=None):
         super().__init__(contexts, globals, body)
         self.contexts = contexts
@@ -1171,11 +1179,18 @@ class TableGen(TableIR):
             row_key=self.partitioner.key_type.fields
         )
 
+    def renderable_bindings(self, i, default_value=None):
+        return {} if i != 2 else {
+            self.cname: self.contexts.type.element_type if default_value is None else default_value,
+            self.gname: self.globals.type if default_value is None else default_value
+        }
+
     def _eq(self, other):
         return (
             self.cname == other.cname and
             self.gname == other.gname and
-            self.partitioner == other.partitioner
+            self.partitioner == other.partitioner and
+            self._error_id == other._error_id
         )
 
     def head_str(self):
@@ -1187,37 +1202,33 @@ class TableGen(TableIR):
         ])
 
     def _handle_randomness(self, uid_field_name):
-        newcontexts = self.contexts.handle_randomness(create_uids=True)
-        newcname, random_uid, old_context = ir.unpack_uid(newcontexts.typ)
-        newbody = self.body
+        contexts = self.contexts.handle_randomness(create_uids=True)
+        cname, random_uid, old_context = ir.unpack_uid(contexts.typ)
+        body = ir.Let(self.cname, old_context, self.body)
 
-        if self.body.uses_randomness:
-            newbody = ir.Let('__rng_state', ir.RNGStateLiteral(),
-                ir.with_split_rng_state(
-                    ir.Let(self.cname, old_context, self.body),
-                    random_uid
-                )
+        if body.uses_randomness:
+            body = ir.Let('__rng_state', ir.RNGStateLiteral(),
+                ir.with_split_rng_state(body, random_uid)
             )
 
         if uid_field_name is not None:
-            idx = Env.get_uid()
-            elem = Env.get_uid()
-            iota = ir.StreamIota(ir.I32(0), ir.I32(1))
-            newbody = ir.StreamZip(iota, newbody, [idx, elem],
-                ir.InsertFields(
-                   ir.Ref(elem, newbody.typ),
-                   [(uid_field_name,
-                     concat_uids(random_uid,ir.Cast(ir.Ref(idx, ir.tint32), ir.tint64))
-                     )]
-                )
+            idx = ir.Ref(Env.get_uid(), ir.tint32)
+            elem = ir.Ref(Env.get_uid(), body.typ.element_type)
+            insert = ir.InsertFields(
+                elem,
+                [(uid_field_name, concat_uids(random_uid, ir.Cast(idx, ir.tint64)))],
+                None
             )
 
+            iota = ir.StreamIota(ir.I32(0), ir.I32(1))
+            body = ir.StreamZip([iota, body], [idx.name, elem.name], insert, 'TakeMinLength')
+
         return TableGen(
-            newcontexts,
+            contexts,
             self.globals,
-            newcname,
+            cname,
             self.gname,
-            newbody,
+            body,
             self.partitioner,
             self._error_id
         )

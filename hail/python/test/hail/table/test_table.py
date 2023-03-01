@@ -2285,16 +2285,15 @@ def test_table_randomness():
     assert_unique_uids(t)
 
     # test TableGen
-    parts = range(11)
-    tg = hl.Table._generate(
-        contexts=hl._stream_range(parts.start, parts.stop - 1, parts.step),
-        globals=hl.struct(k=2, p=3),
+    t = hl.Table._generate(
+        contexts=hl._stream_range(0, 10, 1),
+        globals=hl.struct(k=2),
         body=lambda c, g:
-            hl._stream_range(1, 10, 1).map(lambda x:
-                hl.struct(a=c * g.k, r=hl.rand_int32(x * x * g.p))),
-        partitions=list(map(lambda lo, hi: hl.Interval(hl.Struct(a=lo), hl.Struct(a=hi)), parts[:-1], parts[1:]))
+            hl._stream_range(0, 10, 1).map(lambda _: hl.struct(a=c * g.k)),
+        partitions=10
     )
-    str(tg)
+    assert_contains_node(t, ir.TableGen)
+    assert_unique_uids(t)
 
 
 def test_query_table():

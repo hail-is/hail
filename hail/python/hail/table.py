@@ -1,10 +1,9 @@
 import collections
 import itertools
-from hail.utils.interval import Interval
 import pandas
 import numpy as np
 import pyspark
-from typing import Optional, Dict, Callable, Sequence
+from typing import Optional, Dict, Callable, Sequence, Union
 
 from hail.expr.expressions import Expression, StructExpression, \
     BooleanExpression, expr_struct, expr_any, expr_bool, analyze, Indices, \
@@ -20,6 +19,7 @@ from hail.typecheck import typecheck, typecheck_method, dictof, anytype, \
     anyfunc, nullable, sequenceof, oneof, numeric, lazy, enumeration, \
     table_key_type, func_spec
 from hail.utils import deduplicate
+from hail.utils.interval import Interval
 from hail.utils.placement_tree import PlacementTree
 from hail.utils.java import Env, info, warning
 from hail.utils.misc import wrap_to_tuple, storage_level, plural, \
@@ -561,13 +561,13 @@ class Table(ExprContainer):
         contexts=expr_stream(expr_any),
         globals=expr_struct(),
         body=func_spec(2, expr_stream(expr_struct())),
-        partitions=sequenceof(Interval)
+        partitions=oneof(sequenceof(Interval), int)
     )
     def _generate(
         contexts: 'hl.StreamExpression',
         globals: 'hl.StructExpression',
         body: 'Callable[[hl.Expression, hl.StructExpression], hl.StreamExpression]',
-        partitions: 'Sequence[Interval]'
+        partitions: 'Union[Sequence[Interval], int]'
     ) -> 'Table':
         """
         Never you mind.
@@ -579,14 +579,21 @@ class Table(ExprContainer):
         globals_name = f"globals_{Env.get_uid()}"
         gexpr = construct_expr(ir.Ref(globals_name, globals.dtype), globals.dtype)
 
-        return Table(ir.TableGen(
-            contexts._ir,
-            globals._ir,
-            context_name,
-            globals_name,
-            body(cexpr, gexpr)._ir,
-            ir.Partitioner(partitions[0].point_type, partitions)
-        ))
+        body_ir = body(cexpr, gexpr)._ir
+
+        if isinstance(partitions, int):
+            partitions = [
+                Interval(hl.Struct(), hl.Struct(), True, True)
+                for _ in range(partitions)
+            ]
+
+        partitioner = ir.Partitioner(partitions[0].point_type, partitions)
+
+        return Table(
+            ir.TableGen(contexts._ir, globals._ir, context_name,
+                        globals_name, body_ir, partitioner
+            )
+        )
 
     @typecheck_method(keys=oneof(str, expr_any),
                       named_keys=expr_any)
