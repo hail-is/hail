@@ -1813,14 +1813,14 @@ case class TableGen(contexts: IR,
                     errorId: Int = ErrorIDs.NO_ERROR
                    ) extends TableIR {
 
-  TypeCheck.requireInstance[TStream]("contexts", contexts.typ)
+  TypeCheck.coerce[TStream]("contexts", contexts.typ)
 
   private val globalType =
-    TypeCheck.requireInstance[TStruct]("globals", globals.typ)
+    TypeCheck.coerce[TStruct]("globals", globals.typ)
 
   private val rowType = {
-    val bodyType = TypeCheck.requireInstance[TStream]( "body", body.typ)
-    TypeCheck.requireInstance[TStruct]( "body.elementType", bodyType.elementType)
+    val bodyType = TypeCheck.coerce[TStream]( "body", body.typ)
+    TypeCheck.coerce[TStruct]( "body.elementType", bodyType.elementType)
   }
 
   if (!partitioner.kType.isSubsetOf(rowType))

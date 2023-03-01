@@ -562,7 +562,7 @@ object TypeCheck {
     }
   }
 
-  def requireInstance[A <: Type](argname: String, typ: Type)(implicit tag: ClassTag[A]): A =
+  def coerce[A <: Type](argname: String, typ: Type)(implicit tag: ClassTag[A]): A =
     if (tag.runtimeClass.isInstance(typ)) typ.asInstanceOf[A]
     else throw new IllegalArgumentException(
       s"""'$argname': Type mismatch.
