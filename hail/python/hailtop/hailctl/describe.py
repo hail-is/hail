@@ -50,7 +50,7 @@ def parse_schema(s):
             else:
                 i += 1
 
-        raise Exception(f'End of {element_type} not found')
+        raise ValueError(f'End of {element_type} not found')
 
     start_schema_index = s.index('{')
     return parse_type(s[start_schema_index + 1:], "}", s[:start_schema_index])[0]

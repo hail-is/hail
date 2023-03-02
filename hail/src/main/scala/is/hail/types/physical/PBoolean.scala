@@ -2,6 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s.Code
+import is.hail.backend.HailStateManager
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.primitives.{SBoolean, SBooleanValue}
@@ -18,7 +19,7 @@ class PBoolean(override val required: Boolean) extends PType with PPrimitive {
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PBoolean")
 
-  override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
+  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = new UnsafeOrdering {
     def compare(o1: Long, o2: Long): Int = {
       java.lang.Boolean.compare(Region.loadBoolean(o1), Region.loadBoolean(o2))
     }
@@ -35,7 +36,7 @@ class PBoolean(override val required: Boolean) extends PType with PPrimitive {
   override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBooleanValue =
     new SBooleanValue(cb.memoize(Region.loadBoolean(addr)))
 
-  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
+  override def unstagedStoreJavaObjectAtAddress(sm: HailStateManager, addr: Long, annotation: Annotation, region: Region): Unit = {
     Region.storeByte(addr, annotation.asInstanceOf[Boolean].toByte)
   }
 }

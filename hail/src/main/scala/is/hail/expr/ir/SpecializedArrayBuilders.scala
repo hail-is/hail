@@ -684,6 +684,10 @@ final class ByteArrayBuilder(initialCapacity: Int = 16) {
     size_ = n
   }
 
+  def setSizeUnchecked(n: Int) {
+    size_ = n
+  }
+
   def apply(i: Int): Byte = {
     require(i >= 0 && i < size)
     b(i)
@@ -900,6 +904,8 @@ final class AnyRefArrayBuilder[T <: AnyRef](initialCapacity: Int = 16)(implicit 
     b(size_) = x
     size_ += 1
   }
+
+  def +=(x: T): Unit = add(x)
 
   def update(i: Int, x: T): Unit = {
     require(i >= 0 && i < size)

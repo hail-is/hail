@@ -920,8 +920,9 @@ def nd_max(hl_nd):
 
 
 def logreg_fit(X, y, null_fit, max_iter: int, tol: float):
-    assert(X.ndim == 2)
-    assert(y.ndim == 1)
+    assert max_iter >= 0
+    assert X.ndim == 2
+    assert y.ndim == 1
     # X is samples by covs.
     # y is length num samples, for one cov.
     n = X.shape[0]
@@ -960,7 +961,15 @@ def logreg_fit(X, y, null_fit, max_iter: int, tol: float):
     # Useful type abbreviations
     tvector64 = hl.tndarray(hl.tfloat64, 1)
     tmatrix64 = hl.tndarray(hl.tfloat64, 2)
-    search_return_type = hl.tstruct(b=tvector64, score=tvector64, fisher=tmatrix64, num_iter=hl.tint32, log_lkhd=hl.tfloat64, converged=hl.tbool, exploded=hl.tbool)
+    search_return_type = hl.tstruct(
+        b=tvector64,
+        score=tvector64,
+        fisher=tmatrix64,
+        mu=tvector64,
+        num_iter=hl.tint32,
+        log_lkhd=hl.tfloat64,
+        converged=hl.tbool,
+        exploded=hl.tbool)
 
     def na(field_name):
         return hl.missing(search_return_type[field_name])
@@ -983,14 +992,17 @@ def logreg_fit(X, y, null_fit, max_iter: int, tol: float):
             return recur(cur_iter, b, mu, score, fisher)
 
         return (hl.case()
-                .when(exploded | hl.is_nan(delta_b[0]), hl.struct(b=na('b'), score=na('score'), fisher=na('fisher'), num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=True))
-                .when(cur_iter == max_iter, hl.struct(b=na('b'), score=na('score'), fisher=na('fisher'), num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=False))
-                .when(max_delta_b < tol, hl.struct(b=b, score=score, fisher=fisher, num_iter=cur_iter, log_lkhd=log_lkhd, converged=True, exploded=False))
+                .when(exploded | hl.is_nan(delta_b[0]),
+                      hl.struct(b=na('b'), score=na('score'), fisher=na('fisher'), mu=na('mu'), num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=True))
+                .when(cur_iter == max_iter,
+                      hl.struct(b=na('b'), score=na('score'), fisher=na('fisher'), mu=na('mu'), num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=False))
+                .when(max_delta_b < tol,
+                      hl.struct(b=b, score=score, fisher=fisher, mu=mu, num_iter=cur_iter, log_lkhd=log_lkhd, converged=True, exploded=False))
                 .default(compute_next_iter(cur_iter, b, mu, score, fisher)))
 
-    res_struct = hl.experimental.loop(search, search_return_type, 0, b, mu, score, fisher)
-
-    return res_struct
+    if max_iter == 0:
+        return hl.struct(b=na('b'), score=na('score'), fisher=na('fisher'), mu=na('mu'), num_iter=0, log_lkhd=0, converged=False, exploded=False)
+    return hl.experimental.loop(search, search_return_type, 1, b, mu, score, fisher)
 
 
 def wald_test(X, y, null_fit, link, max_iter: int, tol: float):
@@ -1509,6 +1521,924 @@ def linear_mixed_regression_rows(entry_expr,
     raise NotImplementedError("linear_mixed_model is no longer implemented/supported as of Hail 0.2.94")
 
 
+@typecheck(group=expr_any,
+           weight=expr_float64,
+           y=expr_float64,
+           x=expr_float64,
+           covariates=sequenceof(expr_float64),
+           max_size=int,
+           accuracy=numeric,
+           iterations=int)
+def _linear_skat(group,
+                 weight,
+                 y,
+                 x,
+                 covariates,
+                 max_size: int = 46340,
+                 accuracy: float = 1e-6,
+                 iterations: int = 10000):
+    r'''The linear sequence kernel association test (SKAT).
+
+    Linear SKAT tests if the phenotype, `y`, is significantly associated with the genotype, `x`. For
+    :math:`N` samples, in a group of :math:`M` variants, with :math:`K` covariates, the model is
+    given by:
+
+    .. math::
+
+        \begin{align*}
+        X &: R^{N \times K} \quad\quad \textrm{covariates} \\
+        G &: \{0, 1, 2\}^{N \times M} \textrm{genotypes} \\
+        \\
+        \varepsilon &\sim N(0, \sigma^2) \\
+        y &= \beta_0 X + \beta_1 G + \varepsilon
+        \end{align*}
+
+    The usual null hypothesis is :math:`\beta_1 = 0`. SKAT tests for an association, but does not
+    provide an effect size or other information about the association.
+
+    Wu et al. argue that, under the null hypothesis, a particular value, :math:`Q`, is distributed
+    according to a generalized chi-squared distribution with parameters determined by the genotypes,
+    weights, and residual phenotypes. The SKAT p-value is the probability of drawing even larger
+    values of :math:`Q`. :math:`Q` is defined by Wu et al. as:
+
+    .. math::
+
+        \begin{align*}
+        r &= y - \widehat{\beta_\textrm{null}} X \\
+        W_{ii} &= w_i \\
+        \\
+        Q &= r^T G W G^T r
+        \end{align*}
+
+    :math:`\widehat{\beta_\textrm{null}}` is the best-fit beta under the null model:
+
+    .. math::
+
+        y = \beta_\textrm{null} X + \varepsilon \quad\quad \varepsilon \sim N(0, \sigma^2)
+
+    Therefore :math:`r`, the residual phenotype, is the portion of the phenotype unexplained by the
+    covariates alone. Also notice:
+
+    1. The residual phenotypes are normally distributed with mean zero and variance
+       :math:`\sigma^2`.
+
+    2. :math:`G W G^T`, is a symmetric positive-definite matrix when the weights are non-negative.
+
+    We can transform the residuals into standard normal variables by normalizing by their
+    variance. Note that the variance is corrected for the degrees of freedom in the null model:
+
+    .. math::
+
+        \begin{align*}
+        \widehat{\sigma} &= \frac{1}{N - K} r^T r \\
+        h &= \frac{1}{\widehat{\sigma}} r \\
+        h &\sim N(0, 1) \\
+        r &= h \widehat{\sigma}
+        \end{align*}
+
+    We can rewrite :math:`Q` in terms of a Grammian matrix and these new standard normal random variables:
+
+    .. math::
+
+        \begin{align*}
+        Q &= h^T \widehat{\sigma} G W G^T \widehat{\sigma} h \\
+        A &= \widehat{\sigma} G W^{1/2} \\
+        B &= A A^T \\
+        \\
+        Q &= h^T B h \\
+        \end{align*}
+
+    This expression is a `"quadratic form" <https://en.wikipedia.org/wiki/Quadratic_form>`__ of the
+    vector :math:`h`. Because :math:`B` is a real symmetric matrix, we can eigendecompose it into an
+    orthogonal matrix and a diagonal matrix of eigenvalues:
+
+    .. math::
+
+        \begin{align*}
+        U \Lambda U^T &= B \quad\quad \Lambda \textrm{ diagonal } U \textrm{ orthogonal} \\
+        Q &= h^T U \Lambda U^T h
+        \end{align*}
+
+    An orthogonal matrix transforms a vector of i.i.d. standard normal variables into a new vector
+    of different i.i.d standard normal variables, so we can interpret :math:`Q` as a weighted sum of
+    i.i.d. standard normal variables:
+
+    .. math::
+
+        \begin{align*}
+        \tilde{h} &= U^T h \\
+        Q &= \sum_s \Lambda_{ss} \tilde{h}_s^2
+        \end{align*}
+
+    The distribution of such sums (indeed, any quadratic form of i.i.d. standard normal variables)
+    is governed by the generalized chi-squared distribution (the CDF is available in Hail as
+    :func:`.pgenchisq`):
+
+    .. math::
+
+        \begin{align*}
+        \lambda_i &= \Lambda_{ii} \\
+        Q &\sim \mathrm{GeneralizedChiSquared}(\lambda, \vec{1}, \vec{0}, 0, 0)
+        \end{align*}
+
+    Therefore, we can test the null hypothesis by calculating the probability of receiving values
+    larger than :math:`Q`. If that probability is very small, then the residual phenotypes are
+    likely not i.i.d. normal variables with variance :math:`\widehat{\sigma}^2`.
+
+    The SKAT method was originally described in:
+
+        Wu MC, Lee S, Cai T, Li Y, Boehnke M, Lin X. *Rare-variant association testing for
+        sequencing data with the sequence kernel association test.* Am J Hum Genet. 2011 Jul
+        15;89(1):82-93. doi: 10.1016/j.ajhg.2011.05.029. Epub 2011 Jul 7. PMID: 21737059; PMCID:
+        PMC3135811. https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3135811/
+
+    Examples
+    --------
+
+    Generate a dataset with a phenotype noisily computed from the genotypes:
+
+    >>> hl.reset_global_randomness()
+    >>> mt = hl.balding_nichols_model(1, n_samples=100, n_variants=20)
+    >>> mt = mt.annotate_rows(gene = mt.locus.position // 12)
+    >>> mt = mt.annotate_rows(weight = 1)
+    >>> mt = mt.annotate_cols(phenotype = hl.agg.sum(mt.GT.n_alt_alleles()) - 20 + hl.rand_norm(0, 1))
+
+    Test if the phenotype is significantly associated with the genotype:
+
+    >>> skat = hl._linear_skat(
+    ...     mt.gene,
+    ...     mt.weight,
+    ...     mt.phenotype,
+    ...     mt.GT.n_alt_alleles(),
+    ...     covariates=[1.0])
+    >>> skat.show()
+    +-------+-------+----------+-----------+-------+
+    | group |  size |   q_stat |   p_value | fault |
+    +-------+-------+----------+-----------+-------+
+    | int32 | int64 |  float64 |   float64 | int32 |
+    +-------+-------+----------+-----------+-------+
+    |     0 |    11 | 1.18e+03 |  2.85e-07 |     0 |
+    |     1 |     9 | 1.19e+03 | -9.88e-08 |     0 |
+    +-------+-------+----------+-----------+-------+
+
+    The same test, but using the original paper's suggested weights which are derived from the
+    allele frequency.
+
+    >>> mt = hl.variant_qc(mt)
+    >>> skat = hl._linear_skat(
+    ...     mt.gene,
+    ...     hl.dbeta(mt.variant_qc.AF[0], 1, 25),
+    ...     mt.phenotype,
+    ...     mt.GT.n_alt_alleles(),
+    ...     covariates=[1.0])
+    >>> skat.show()
+    +-------+-------+----------+----------+-------+
+    | group |  size |   q_stat |  p_value | fault |
+    +-------+-------+----------+----------+-------+
+    | int32 | int64 |  float64 |  float64 | int32 |
+    +-------+-------+----------+----------+-------+
+    |     0 |    11 | 1.20e+02 | 6.72e-03 |     0 |
+    |     1 |     9 | 4.89e-02 | 2.00e+00 |     1 |
+    +-------+-------+----------+----------+-------+
+
+    Our simulated data was unweighted, so the null hypothesis appears true. In real datasets, we
+    expect the allele frequency to correlate with effect size.
+
+    Notice that, in the second group, the fault flag is set to 1. This indicates that the numerical
+    integration to calculate the p-value failed to achieve the required accuracy (by default,
+    1e-6). In this particular case, the null hypothesis is likely true and the numerical integration
+    returned a (nonsensical) value greater than one.
+
+    The `max_size` parameter allows us to skip large genes that would cause "out of memory" errors:
+
+    >>> skat = hl._linear_skat(
+    ...     mt.gene,
+    ...     mt.weight,
+    ...     mt.phenotype,
+    ...     mt.GT.n_alt_alleles(),
+    ...     covariates=[1.0],
+    ...     max_size=10)
+    >>> skat.show()
+    +-------+-------+----------+-----------+-------+
+    | group |  size |   q_stat |   p_value | fault |
+    +-------+-------+----------+-----------+-------+
+    | int32 | int64 |  float64 |   float64 | int32 |
+    +-------+-------+----------+-----------+-------+
+    |     0 |    11 |       NA |        NA |    NA |
+    |     1 |     9 | 1.19e+03 | -9.88e-08 |     0 |
+    +-------+-------+----------+-----------+-------+
+
+    Notes
+    -----
+
+    In the SKAT R package, the "weights" are actually the *square root* of the weight expression
+    from the paper. This method uses the definition from the paper.
+
+    The paper includes an explicit intercept term but this method expects the user to specify the
+    intercept as an extra covariate with the value 1.
+
+    This method does not perform small sample size correction.
+
+    The `q_stat` return value is *not* the :math:`Q` statistic from the paper. We match the output
+    of the SKAT R package which returns :math:`\tilde{Q}`:
+
+    .. math::
+
+        \tilde{Q} = \frac{Q}{2 \widehat{\sigma}^2}
+
+    Parameters
+    ----------
+    group : :class:`.Expression`
+        Row-indexed expression indicating to which group a variant belongs. This is typically a gene
+        name or an interval.
+    weight : :class:`.Float64Expression`
+        Row-indexed expression for weights. Must be non-negative.
+    y : :class:`.Float64Expression`
+        Column-indexed response (dependent variable) expression.
+    x : :class:`.Float64Expression`
+        Entry-indexed expression for input (independent variable).
+    covariates : :obj:`list` of :class:`.Float64Expression`
+        List of column-indexed covariate expressions. You must explicitly provide an intercept term
+        if desired. You must provide at least one covariate.
+    max_size : :obj:`int`
+        Maximum size of group on which to run the test. Groups which exceed this size will have a
+        missing p-value and missing q statistic. Defaults to 46340.
+    accuracy : :obj:`float`
+        The accuracy of the p-value if fault value is zero. Defaults to 1e-6.
+    iterations : :obj:`int`
+        The maximum number of iterations used to calculate the p-value (which has no closed
+        form). Defaults to 1e5.
+
+    Returns
+    -------
+    :class:`.Table`
+        One row per-group. The key is `group`. The row fields are:
+
+        - group : the `group` parameter.
+
+        - size : :obj:`.tint64`, the number of variants in this group.
+
+        - q_stat : :obj:`.tfloat64`, the :math:`Q` statistic, see Notes for why this differs from the paper.
+
+        - p_value : :obj:`.tfloat64`, the test p-value for the null hypothesis that the genotypes
+          have no linear influence on the phenotypes.
+
+        - fault : :obj:`.tint32`, the fault flag from :func:`.pgenchisq`.
+
+        The global fields are:
+
+        - n_complete_samples : :obj:`.tint32`, the number of samples with neither a missing
+          phenotype nor a missing covariate.
+
+        - y_residual : :obj:`.tint32`, the residual phenotype from the null model. This may be
+          interpreted as the component of the phenotype not explained by the covariates alone.
+
+        - s2 : :obj:`.tfloat64`, the variance of the residuals, :math:`\sigma^2` in the paper.
+
+    '''
+    mt = matrix_table_source('skat/x', x)
+    k = len(covariates)
+    if k == 0:
+        raise ValueError('_linear_skat: at least one covariate is required.')
+    _warn_if_no_intercept('_linear_skat', covariates)
+    mt = mt._select_all(
+        row_exprs=dict(
+            group=group,
+            weight=weight
+        ),
+        col_exprs=dict(
+            y=y,
+            covariates=covariates
+        ),
+        entry_exprs=dict(
+            x=x
+        )
+    )
+    mt = mt.filter_cols(
+        hl.all(hl.is_defined(mt.y), *[hl.is_defined(mt.covariates[i]) for i in range(k)])
+    )
+    yvec, covmat, n = mt.aggregate_cols((
+        hl.agg.collect(hl.float(mt.y)),
+        hl.agg.collect(mt.covariates.map(hl.float)),
+        hl.agg.count()
+    ), _localize=False)
+    mt = mt.annotate_globals(
+        yvec=hl.nd.array(yvec),
+        covmat=hl.nd.array(covmat),
+        n_complete_samples=n
+    )
+    # Instead of finding the best-fit beta, we go directly to the best-predicted value using the
+    # reduced QR decomposition:
+    #
+    #     Q @ R = X
+    #     y = X beta
+    #     X^T y = X^T X beta
+    #     (X^T X)^-1 X^T y = beta
+    #     (R^T Q^T Q R)^-1 R^T Q^T y = beta
+    #     (R^T R)^-1 R^T Q^T y = beta
+    #     R^-1 R^T^-1 R^T Q^T y = beta
+    #     R^-1 Q^T y = beta
+    #
+    #     X beta = X R^-1 Q^T y
+    #            = Q R R^-1 Q^T y
+    #            = Q Q^T y
+    #
+    covmat_Q, _ = hl.nd.qr(mt.covmat)
+    mt = mt.annotate_globals(
+        covmat_Q=covmat_Q
+    )
+    null_mu = mt.covmat_Q @ (mt.covmat_Q.T @ mt.yvec)
+    y_residual = mt.yvec - null_mu
+    mt = mt.annotate_globals(
+        y_residual=y_residual,
+        s2=y_residual @ y_residual.T / (n - k)
+    )
+    mt = mt.annotate_rows(
+        G_row_mean=hl.agg.mean(mt.x)
+    )
+    mt = mt.annotate_rows(
+        G_row=hl.agg.collect(hl.coalesce(mt.x, mt.G_row_mean))
+    )
+    ht = mt.rows()
+    ht = ht.filter(hl.all(hl.is_defined(ht.group), hl.is_defined(ht.weight)))
+    ht = ht.group_by(
+        'group'
+    ).aggregate(
+        weight_take=hl.agg.take(ht.weight, n=max_size + 1),
+        G_take=hl.agg.take(ht.G_row, n=max_size + 1),
+        size=hl.agg.count()
+    )
+    ht = ht.annotate(
+        weight=hl.nd.array(hl.or_missing(hl.len(ht.weight_take) <= max_size, ht.weight_take)),
+        G=hl.nd.array(hl.or_missing(hl.len(ht.G_take) <= max_size, ht.G_take)).T
+    )
+    ht = ht.annotate(
+        Q=((ht.y_residual @ ht.G).map(lambda x: x**2) * ht.weight).sum(0)
+    )
+
+    # Null model:
+    #
+    #     y = X b + e,    e ~ N(0, \sigma^2)
+    #
+    # We can find a best-fit b, bhat, and a best-fit y, yhat:
+    #
+    #     bhat = (X.T X).inv X.T y
+    #
+    #     Q R = X                     (reduced QR decomposition)
+    #     bhat = R.inv Q.T y
+    #
+    #     yhat = X bhat
+    #          = Q R R.inv Q.T y
+    #          = Q Q.T y
+    #
+    # The residual phenotype not captured by the covariates alone is r:
+    #
+    #     r = y - yhat
+    #       = (I - Q Q.T) y
+    #
+    # We can factor the Q-statistic (note there are two Qs: the Q from the QR decomposition and the
+    # Q-statistic from the paper):
+    #
+    #     Q = r.T G diag(w) G.T r
+    #     Z = r.T G diag(sqrt(w))
+    #     Q = Z Z.T
+    #
+    # Plugging in our expresion for r:
+    #
+    #     Z = y.T (I - Q Q.T) G diag(sqrt(w))
+    #
+    # Notice that I - Q Q.T is symmetric (ergo X = X.T) because each summand is symmetric and sums
+    # of symmetric matrices are symmetric matrices.
+    #
+    # We have asserted that
+    #
+    #     y ~ N(0, \sigma^2)
+    #
+    # It will soon be apparent that the distribution of Q is easier to characterize if our random
+    # variables are standard normals:
+    #
+    #     h ~ N(0, 1)
+    #     y = \sigma h
+    #
+    # We set \sigma^2 to the sample variance of the residual vectors.
+    #
+    # Returning to Z:
+    #
+    #     Z = h.T \sigma (I - Q Q.T) G diag(sqrt(w))
+    #     Q = Z Z.T
+    #
+    # Which we can factor into a symmetric matrix and a standard normal:
+    #
+    #     A = \sigma (I - Q Q.T) G diag(sqrt(w))
+    #     B = A A.T
+    #     Q = h.T B h
+    #
+    # This is called a "quadratic form". It is a weighted sum of products of pairs of entries of h,
+    # which we have asserted are i.i.d. standard normal variables. The distribution of such sums is
+    # given by the generalized chi-squared distribution:
+    #
+    #     U L U.T = B                    B is symmetric and thus has an eigendecomposition
+    #     h.T B h = Q ~ GeneralizedChiSquare(L, 1, 0, 0, 0)
+    #
+    # The orthogonal matrix U remixes the vector of i.i.d. normal variables into a new vector of
+    # different i.i.d. normal variables. The L matrix is diagonal and scales each squared normal
+    # variable.
+    #
+    # Since B = A A.T is symmetric, its eigenvalues are the square of the singular values of A or
+    # A.T:
+    #
+    #     W S V = A
+    #     U L U.T = B
+    #             = A A.T
+    #             = W S V V.T S W
+    #             = W S S W           V is orthogonal so V V.T = I
+    #             = W S^2 W
+
+    weights_arr = ht.weight._data_array()
+    A = hl.case().when(
+        hl.all(weights_arr.map(lambda x: x >= 0)),
+        (ht.G - ht.covmat_Q @ (ht.covmat_Q.T @ ht.G)) * hl.sqrt(ht.weight)
+    ).or_error(hl.format('hl._linear_skat: every weight must be positive, in group %s, the weights were: %s',
+                         ht.group, weights_arr))
+    singular_values = hl.nd.svd(A, compute_uv=False)
+
+    # SVD(M) = U S V. U and V are unitary, therefore SVD(k M) = U (k S) V.
+    eigenvalues = ht.s2 * singular_values.map(lambda x: x**2)
+
+    # The R implementation of SKAT, Function.R, Get_Lambda_Approx filters the eigenvalues,
+    # presumably because a good estimate of the Generalized Chi-Sqaured CDF is not significantly
+    # affected by chi-squared components with very tiny weights.
+    threshold = 1e-5 * eigenvalues.sum() / eigenvalues.shape[0]
+    w = eigenvalues._data_array().filter(lambda y: y >= threshold)
+    genchisq_data = hl.pgenchisq(
+        ht.Q,
+        w=w,
+        k=hl.nd.ones(hl.len(w), dtype=hl.tint32),
+        lam=hl.nd.zeros(hl.len(w)),
+        mu=0,
+        sigma=0,
+        min_accuracy=accuracy,
+        max_iterations=iterations
+    )
+    ht = ht.select(
+        'size',
+        # for reasons unknown, the R implementation calls this expression the Q statistic (which is
+        # *not* what they write in the paper)
+        q_stat=ht.Q / 2 / ht.s2,
+        # The reasoning for taking the complement of the CDF value is:
+        #
+        # 1. Q is a measure of variance and thus positive.
+        #
+        # 2. We want to know the probability of obtaining a variance even larger ("more extreme")
+        #
+        # Ergo, we want to check the right-tail of the distribution.
+        p_value=1.0 - genchisq_data.value,
+        fault=genchisq_data.fault
+    )
+    return ht.select_globals('y_residual', 's2', 'n_complete_samples')
+
+
+@typecheck(group=expr_any,
+           weight=expr_float64,
+           y=expr_float64,
+           x=expr_float64,
+           covariates=sequenceof(expr_float64),
+           max_size=int,
+           null_max_iterations=int,
+           null_tolerance=float,
+           accuracy=numeric,
+           iterations=int)
+def _logistic_skat(group,
+                   weight,
+                   y,
+                   x,
+                   covariates,
+                   max_size: int = 46340,
+                   null_max_iterations: int = 25,
+                   null_tolerance: float = 1e-6,
+                   accuracy: float = 1e-6,
+                   iterations: int = 10000):
+    r'''The logistic sequence kernel association test (SKAT).
+
+    Logistic SKAT tests if the phenotype, `y`, is significantly associated with the genotype,
+    `x`. For :math:`N` samples, in a group of :math:`M` variants, with :math:`K` covariates, the
+    model is given by:
+
+    .. math::
+
+        \begin{align*}
+        X &: R^{N \times K} \\
+        G &: \{0, 1, 2\}^{N \times M} \\
+        \\
+        Y &\sim \textrm{Bernoulli}(\textrm{logit}^{-1}(\beta_0 X + \beta_1 G))
+        \end{align*}
+
+    The usual null hypothesis is :math:`\beta_1 = 0`. SKAT tests for an association, but does not
+    provide an effect size or other information about the association.
+
+    Wu et al. argue that, under the null hypothesis, a particular value, :math:`Q`, is distributed
+    according to a generalized chi-squared distribution with parameters determined by the genotypes,
+    weights, and residual phenotypes. The SKAT p-value is the probability of drawing even larger
+    values of :math:`Q`. If :math:`\widehat{\beta_\textrm{null}}` is the best-fit beta under the
+    null model:
+
+    .. math::
+
+        Y \sim \textrm{Bernoulli}(\textrm{logit}^{-1}(\beta_\textrm{null} X))
+
+    Then :math:`Q` is defined by Wu et al. as:
+
+    .. math::
+
+        \begin{align*}
+        p_i &= \textrm{logit}^{-1}(\widehat{\beta_\textrm{null}} X) \\
+        r_i &= y_i - p_i \\
+        W_{ii} &= w_i \\
+        \\
+        Q &= r^T G W G^T r
+        \end{align*}
+
+    Therefore :math:`r_i`, the residual phenotype, is the portion of the phenotype unexplained by
+    the covariates alone. Also notice:
+
+    1. Each sample's phenotype is Bernoulli distributed with mean :math:`p_i` and variance
+       :math:`\sigma^2_i = p_i(1 - p_i)`, the binomial variance.
+
+    2. :math:`G W G^T`, is a symmetric positive-definite matrix when the weights are non-negative.
+
+    We describe below our interpretation of the mathematics as described in the main body and
+    appendix of Wu, et al. According to the paper, the distribution of :math:`Q` is given by a
+    generalized chi-squared distribution whose weights are the eigenvalues of a symmetric matrix
+    which we call :math:`Z Z^T`:
+
+    .. math::
+
+        \begin{align*}
+        V_{ii} &= \sigma^2_i \\
+        W_{ii} &= w_i \quad\quad \textrm{the weight for variant } i \\
+        \\
+        P_0 &= V - V X (X^T V X)^{-1} X^T V \\
+        Z Z^T &= P_0^{1/2} G W G^T P_0^{1/2}
+        \end{align*}
+
+    The eigenvalues of :math:`Z Z^T` and :math:`Z^T Z` are the squared singular values of :math:`Z`;
+    therefore, we instead focus on :math:`Z^T Z`. In the expressions below, we elide transpositions
+    of symmetric matrices:
+
+    .. math::
+
+        \begin{align*}
+        Z Z^T &= P_0^{1/2} G W G^T P_0^{1/2} \\
+        Z &= P_0^{1/2} G W^{1/2} \\
+        Z^T Z &= W^{1/2} G^T P_0 G W^{1/2}
+        \end{align*}
+
+    Before substituting the definition of :math:`P_0`, simplify it using the reduced QR
+    decomposition:
+
+    .. math::
+
+        \begin{align*}
+        Q R &= V^{1/2} X \\
+        R^T Q^T &= X^T V^{1/2} \\
+        \\
+        P_0 &= V - V X (X^T V X)^{-1} X^T V \\
+            &= V - V X (R^T Q^T Q R)^{-1} X^T V \\
+            &= V - V X (R^T R)^{-1} X^T V \\
+            &= V - V X R^{-1} (R^T)^{-1} X^T V \\
+            &= V - V^{1/2} Q (R^T)^{-1} X^T V^{1/2} \\
+            &= V - V^{1/2} Q Q^T V^{1/2} \\
+            &= V^{1/2} (I - Q Q^T) V^{1/2} \\
+        \end{align*}
+
+    Substitute this simplified expression into :math:`Z`:
+
+    .. math::
+
+        \begin{align*}
+        Z^T Z &= W^{1/2} G^T V^{1/2} (I - Q Q^T) V^{1/2} G W^{1/2} \\
+        \end{align*}
+
+    Split this symmetric matrix by observing that :math:`I - Q Q^T` is idempotent:
+
+    .. math::
+
+        \begin{align*}
+        I - Q Q^T &= (I - Q Q^T)(I - Q Q^T)^T \\
+        \\
+        Z &= (I - Q Q^T) V^{1/2} G W^{1/2} \\
+        Z &= (G - Q Q^T G) V^{1/2} W^{1/2}
+        \end{align*}
+
+    Finally, the squared singular values of :math:`Z` are the eigenvalues of :math:`Z^T Z`, so
+    :math:`Q` should be distributed as follows:
+
+    .. math::
+
+        \begin{align*}
+        U S V^T &= Z \quad\quad \textrm{the singular value decomposition} \\
+        \lambda_s &= S_{ss}^2 \\
+        \\
+        Q &\sim \textrm{GeneralizedChiSquared}(\lambda, \vec{1}, \vec{0}, 0, 0)
+        \end{align*}
+
+    The null hypothesis test tests for the probability of observing even larger values of :math:`Q`.
+
+    The SKAT method was originally described in:
+
+        Wu MC, Lee S, Cai T, Li Y, Boehnke M, Lin X. *Rare-variant association testing for
+        sequencing data with the sequence kernel association test.* Am J Hum Genet. 2011 Jul
+        15;89(1):82-93. doi: 10.1016/j.ajhg.2011.05.029. Epub 2011 Jul 7. PMID: 21737059; PMCID:
+        PMC3135811. https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3135811/
+
+    Examples
+    --------
+
+    Generate a dataset with a phenotype noisily computed from the genotypes:
+
+    >>> hl.reset_global_randomness()
+    >>> mt = hl.balding_nichols_model(1, n_samples=100, n_variants=20)
+    >>> mt = mt.annotate_rows(gene = mt.locus.position // 12)
+    >>> mt = mt.annotate_rows(weight = 1)
+    >>> mt = mt.annotate_cols(phenotype = (hl.agg.sum(mt.GT.n_alt_alleles()) - 20 + hl.rand_norm(0, 1)) > 0.5)
+
+    Test if the phenotype is significantly associated with the genotype:
+
+    >>> skat = hl._logistic_skat(
+    ...     mt.gene,
+    ...     mt.weight,
+    ...     mt.phenotype,
+    ...     mt.GT.n_alt_alleles(),
+    ...     covariates=[1.0])
+    >>> skat.show()
+    +-------+-------+----------+----------+-------+
+    | group |  size |   q_stat |  p_value | fault |
+    +-------+-------+----------+----------+-------+
+    | int32 | int64 |  float64 |  float64 | int32 |
+    +-------+-------+----------+----------+-------+
+    |     0 |    11 | 4.42e+01 | 2.96e-02 |     0 |
+    |     1 |     9 | 6.39e+01 | 9.64e-04 |     0 |
+    +-------+-------+----------+----------+-------+
+
+    The same test, but using the original paper's suggested weights which are derived from the
+    allele frequency.
+
+    >>> mt = hl.variant_qc(mt)
+    >>> skat = hl._logistic_skat(
+    ...     mt.gene,
+    ...     hl.dbeta(mt.variant_qc.AF[0], 1, 25),
+    ...     mt.phenotype,
+    ...     mt.GT.n_alt_alleles(),
+    ...     covariates=[1.0])
+    >>> skat.show()
+    +-------+-------+----------+----------+-------+
+    | group |  size |   q_stat |  p_value | fault |
+    +-------+-------+----------+----------+-------+
+    | int32 | int64 |  float64 |  float64 | int32 |
+    +-------+-------+----------+----------+-------+
+    |     0 |    11 | 7.18e+00 | 6.22e-02 |     0 |
+    |     1 |     9 | 3.71e-04 | 2.00e+00 |     1 |
+    +-------+-------+----------+----------+-------+
+
+    Our simulated data was unweighted, so the null hypothesis appears true. In real datasets, we
+    expect the allele frequency to correlate with effect size.
+
+    Notice that, in the second group, the fault flag is set to 1. This indicates that the numerical
+    integration to calculate the p-value failed to achieve the required accuracy (by default,
+    1e-6). In this particular case, the null hypothesis is likely true and the numerical integration
+    returned a (nonsensical) value greater than one.
+
+    The `max_size` parameter allows us to skip large genes that would cause "out of memory" errors:
+
+    >>> skat = hl._logistic_skat(
+    ...     mt.gene,
+    ...     mt.weight,
+    ...     mt.phenotype,
+    ...     mt.GT.n_alt_alleles(),
+    ...     covariates=[1.0],
+    ...     max_size=10)
+    >>> skat.show()
+    +-------+-------+----------+----------+-------+
+    | group |  size |   q_stat |  p_value | fault |
+    +-------+-------+----------+----------+-------+
+    | int32 | int64 |  float64 |  float64 | int32 |
+    +-------+-------+----------+----------+-------+
+    |     0 |    11 |       NA |       NA |    NA |
+    |     1 |     9 | 6.39e+01 | 9.64e-04 |     0 |
+    +-------+-------+----------+----------+-------+
+
+    Notes
+    -----
+
+    In the SKAT R package, the "weights" are actually the *square root* of the weight expression
+    from the paper. This method uses the definition from the paper.
+
+    The paper includes an explicit intercept term but this method expects the user to specify the
+    intercept as an extra covariate with the value 1.
+
+    This method does not perform small sample size correction.
+
+    The `q_stat` return value is *not* the :math:`Q` statistic from the paper. We match the output
+    of the SKAT R package which returns :math:`\tilde{Q}`:
+
+    .. math::
+
+        \tilde{Q} = \frac{Q}{2}
+
+    Parameters
+    ----------
+    group : :class:`.Expression`
+        Row-indexed expression indicating to which group a variant belongs. This is typically a gene
+        name or an interval.
+    weight : :class:`.Float64Expression`
+        Row-indexed expression for weights. Must be non-negative.
+    y : :class:`.Float64Expression`
+        Column-indexed response (dependent variable) expression.
+    x : :class:`.Float64Expression`
+        Entry-indexed expression for input (independent variable).
+    covariates : :obj:`list` of :class:`.Float64Expression`
+        List of column-indexed covariate expressions. You must explicitly provide an intercept term
+        if desired. You must provide at least one covariate.
+    max_size : :obj:`int`
+        Maximum size of group on which to run the test. Groups which exceed this size will have a
+        missing p-value and missing q statistic. Defaults to 46340.
+    null_max_iterations : :obj:`int`
+        The maximum number of iterations when fitting the logistic null model. Defaults to 25.
+    null_tolerance : :obj:`float`
+        The null model logisitic regression converges when the errors is less than this. Defaults to
+        1e-6.
+    accuracy : :obj:`float`
+        The accuracy of the p-value if fault value is zero. Defaults to 1e-6.
+    iterations : :obj:`int`
+        The maximum number of iterations used to calculate the p-value (which has no closed
+        form). Defaults to 1e5.
+
+    Returns
+    -------
+    :class:`.Table`
+        One row per-group. The key is `group`. The row fields are:
+
+        - group : the `group` parameter.
+
+        - size : :obj:`.tint64`, the number of variants in this group.
+
+        - q_stat : :obj:`.tfloat64`, the :math:`Q` statistic, see Notes for why this differs from the paper.
+
+        - p_value : :obj:`.tfloat64`, the test p-value for the null hypothesis that the genotypes
+          have no linear influence on the phenotypes.
+
+        - fault : :obj:`.tint32`, the fault flag from :func:`.pgenchisq`.
+
+        The global fields are:
+
+        - n_complete_samples : :obj:`.tint32`, the number of samples with neither a missing
+          phenotype nor a missing covariate.
+
+        - y_residual : :obj:`.tint32`, the residual phenotype from the null model. This may be
+          interpreted as the component of the phenotype not explained by the covariates alone.
+
+        - s2 : :obj:`.tfloat64`, the variance of the residuals, :math:`\sigma^2` in the paper.
+
+        - null_fit:
+
+          - b : :obj:`.tndarray` vector of coefficients.
+
+          - score : :obj:`.tndarray` vector of score statistics.
+
+          - fisher : :obj:`.tndarray` matrix of fisher statistics.
+
+          - mu : :obj:`.tndarray` the expected value under the null model.
+
+          - num_iter : :obj:`.tint32` the number of iterations before termination.
+
+          - log_lkhd : :obj:`.tfloat64` the log-likelihood of the final iteration.
+
+          - converged : :obj:`.tbool` True if the null model converged.
+
+          - exploded : :obj:`.tbool` True if the null model failed to converge due to numerical
+            explosion.
+
+    '''
+    mt = matrix_table_source('skat/x', x)
+    k = len(covariates)
+    if k == 0:
+        raise ValueError('_logistic_skat: at least one covariate is required.')
+    _warn_if_no_intercept('_logistic_skat', covariates)
+    mt = mt._select_all(
+        row_exprs=dict(
+            group=group,
+            weight=weight
+        ),
+        col_exprs=dict(
+            y=y,
+            covariates=covariates
+        ),
+        entry_exprs=dict(
+            x=x
+        )
+    )
+    mt = mt.filter_cols(
+        hl.all(hl.is_defined(mt.y), *[hl.is_defined(mt.covariates[i]) for i in range(k)])
+    )
+    if mt.y.dtype != hl.tbool:
+        mt = mt.annotate_cols(
+            y=(hl.case()
+               .when(hl.any(mt.y == 0, mt.y == 1), hl.bool(mt.y))
+               .or_error(hl.format(
+                   f'hl._logistic_skat: phenotypes must either be True, False, 0, or 1, found: %s of type {mt.y.dtype}', mt.y)))
+        )
+    yvec, covmat, n = mt.aggregate_cols((
+        hl.agg.collect(hl.float(mt.y)),
+        hl.agg.collect(mt.covariates.map(hl.float)),
+        hl.agg.count()
+    ), _localize=False)
+    mt = mt.annotate_globals(
+        yvec=hl.nd.array(yvec),
+        covmat=hl.nd.array(covmat),
+        n_complete_samples=n
+    )
+    null_fit = logreg_fit(mt.covmat, mt.yvec, None, max_iter=null_max_iterations, tol=null_tolerance)
+    mt = mt.annotate_globals(
+        null_fit=hl.case().when(null_fit.converged, null_fit).or_error(
+            hl.format('hl._logistic_skat: null model did not converge: %s', null_fit))
+    )
+    null_mu = mt.null_fit.mu
+    y_residual = mt.yvec - null_mu
+    mt = mt.annotate_globals(
+        y_residual=y_residual,
+        s2=null_mu * (1 - null_mu)
+    )
+    mt = mt.annotate_rows(
+        G_row_mean=hl.agg.mean(mt.x)
+    )
+    mt = mt.annotate_rows(
+        G_row=hl.agg.collect(hl.coalesce(mt.x, mt.G_row_mean))
+    )
+    ht = mt.rows()
+    ht = ht.filter(hl.all(hl.is_defined(ht.group), hl.is_defined(ht.weight)))
+    ht = ht.group_by(
+        'group'
+    ).aggregate(
+        weight_take=hl.agg.take(ht.weight, n=max_size + 1),
+        G_take=hl.agg.take(ht.G_row, n=max_size + 1),
+        size=hl.agg.count()
+    )
+    ht = ht.annotate(
+        weight=hl.nd.array(hl.or_missing(hl.len(ht.weight_take) <= max_size, ht.weight_take)),
+        G=hl.nd.array(hl.or_missing(hl.len(ht.G_take) <= max_size, ht.G_take)).T
+    )
+    ht = ht.annotate(
+        # Q=ht.y_residual @ (ht.G * ht.weight) @ ht.G.T @ ht.y_residual.T
+        Q=((ht.y_residual @ ht.G).map(lambda x: x**2) * ht.weight).sum(0)
+    )
+
+    # See linear SKAT code comment for an extensive description of the mathematics here.
+
+    sqrtv = hl.sqrt(ht.s2)
+    Q, _ = hl.nd.qr(ht.covmat * sqrtv.reshape(-1, 1))
+    weights_arr = ht.weight._data_array()
+    G_scaled = ht.G * sqrtv.reshape(-1, 1)
+    A = hl.case().when(
+        hl.all(weights_arr.map(lambda x: x >= 0)),
+        (G_scaled - Q @ (Q.T @ G_scaled)) * hl.sqrt(ht.weight)
+    ).or_error(hl.format('hl._logistic_skat: every weight must be positive, in group %s, the weights were: %s',
+                         ht.group, weights_arr))
+    singular_values = hl.nd.svd(A, compute_uv=False)
+    eigenvalues = singular_values.map(lambda x: x**2)
+
+    # The R implementation of SKAT, Function.R, Get_Lambda_Approx filters the eigenvalues,
+    # presumably because a good estimate of the Generalized Chi-Sqaured CDF is not significantly
+    # affected by chi-squared components with very tiny weights.
+    threshold = 1e-5 * eigenvalues.sum() / eigenvalues.shape[0]
+    w = eigenvalues._data_array().filter(lambda y: y >= threshold)
+    genchisq_data = hl.pgenchisq(
+        ht.Q,
+        w=w,
+        k=hl.nd.ones(hl.len(w), dtype=hl.tint32),
+        lam=hl.nd.zeros(hl.len(w)),
+        mu=0,
+        sigma=0,
+        min_accuracy=accuracy,
+        max_iterations=iterations
+    )
+    ht = ht.select(
+        'size',
+        # for reasons unknown, the R implementation calls this expression the Q statistic (which is
+        # *not* what they write in the paper)
+        q_stat=ht.Q / 2,
+        # The reasoning for taking the complement of the CDF value is:
+        #
+        # 1. Q is a measure of variance and thus positive.
+        #
+        # 2. We want to know the probability of obtaining a variance even larger ("more extreme")
+        #
+        # Ergo, we want to check the right-tail of the distribution.
+        p_value=1.0 - genchisq_data.value,
+        fault=genchisq_data.fault
+    )
+    return ht.select_globals('y_residual', 's2', 'n_complete_samples', 'null_fit')
+
+
 @typecheck(key_expr=expr_any,
            weight_expr=expr_float64,
            y=expr_float64,
@@ -1666,6 +2596,21 @@ def skat(key_expr,
         Table of SKAT results.
 
     """
+    if hl.current_backend().requires_lowering:
+        if logistic:
+            kwargs = {
+                'accuracy': accuracy,
+                'iterations': iterations
+            }
+            if logistic is not True:
+                null_max_iterations, null_tolerance = logistic
+                kwargs['null_max_iterations'] = null_max_iterations
+                kwargs['null_tolerance'] = null_tolerance
+            ht = hl._logistic_skat(key_expr, weight_expr, y, x, covariates, max_size, **kwargs)
+        else:
+            ht = hl._linear_skat(key_expr, weight_expr, y, x, covariates, max_size, accuracy, iterations)
+        ht = ht.select_globals()
+        return ht
     mt = matrix_table_source('skat/x', x)
     check_entry_indexed('skat/x', x)
 
@@ -2598,7 +3543,7 @@ def balding_nichols_model(n_populations: int,
                           n_variants: int,
                           n_partitions: Optional[int] = None,
                           pop_dist: Optional[List[int]] = None,
-                          fst: Optional[List[int]] = None,
+                          fst: Optional[List[Union[float, int]]] = None,
                           af_dist: Optional[hl.Expression] = None,
                           reference_genome: str = 'default',
                           mixture: bool = False,
@@ -2838,7 +3783,10 @@ def balding_nichols_model(n_populations: int,
 
     # generate matrix table
 
-    bn = hl.utils.range_matrix_table(n_variants, n_samples, n_partitions)
+    bn = hl.utils.genomic_range_table(n_variants, n_partitions, reference_genome=reference_genome)
+    bn = bn.annotate(alleles=['A', 'C'])
+    bn = bn._key_by_assert_sorted('locus', 'alleles')
+
     bn = bn.annotate_globals(
         bn=hl.struct(n_populations=n_populations,
                      n_samples=n_samples,
@@ -2849,12 +3797,15 @@ def balding_nichols_model(n_populations: int,
                      mixture=mixture))
     # col info
     pop_f = hl.rand_dirichlet if mixture else hl.rand_cat
-    bn = bn.key_cols_by(sample_idx=bn.col_idx)
-    bn = bn.select_cols(pop=pop_f(pop_dist))
-
+    bn = bn.annotate_globals(cols=hl.range(n_samples).map(
+        lambda idx: hl.struct(
+            sample_idx=idx,
+            pop=pop_f(pop_dist)
+        )
+    ))
+    bn = bn.annotate(entries=hl.range(n_samples).map(lambda _: hl.struct()))
+    bn = bn._unlocalize_entries('entries', 'cols', ['sample_idx'])
     # row info
-    bn = bn.key_rows_by(locus=hl.locus_from_global_position(bn.row_idx, reference_genome=reference_genome),
-                        alleles=['A', 'C'])
     bn = bn.select_rows(ancestral_af=af_dist,
                         af=hl.bind(lambda ancestral:
                                    hl.array([(1 - x) / x for x in fst])

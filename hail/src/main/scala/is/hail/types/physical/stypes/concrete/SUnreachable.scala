@@ -131,7 +131,7 @@ case class SUnreachableLocus(virtualType: TLocus) extends SUnreachable with SLoc
 
   override def contigType: SString = SUnreachableString
 
-  override def rg: ReferenceGenome = virtualType.rg
+  override def rg: String = virtualType.rg
 }
 
 class SUnreachableLocusValue(override val st: SUnreachableLocus) extends SUnreachableValue with SLocusValue {
@@ -178,9 +178,9 @@ case class SUnreachableInterval(virtualType: TInterval) extends SUnreachable wit
 }
 
 class SUnreachableIntervalValue(override val st: SUnreachableInterval) extends SUnreachableValue with SIntervalValue {
-  override def includesStart(): Value[Boolean] = const(false)
+  override def includesStart: Value[Boolean] = const(false)
 
-  override def includesEnd(): Value[Boolean] = const(false)
+  override def includesEnd: Value[Boolean] = const(false)
 
   override def loadStart(cb: EmitCodeBuilder): IEmitCode = IEmitCode.present(cb, SUnreachable.fromVirtualType(st.virtualType.pointType).defaultValue)
 

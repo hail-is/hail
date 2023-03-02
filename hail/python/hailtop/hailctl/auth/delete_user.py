@@ -4,6 +4,10 @@ from hailtop.utils import sleep_and_backoff
 from hailtop.auth import async_delete_user, async_get_user
 
 
+class DeleteUserException(Exception):
+    pass
+
+
 def init_parser(parser):
     parser.add_argument("username", type=str,
                         help="User name to delete.")
@@ -32,7 +36,7 @@ async def async_main(args):
 
         await _poll()
     except Exception as e:
-        raise Exception(f"Error while deleting user '{args.username}'") from e
+        raise DeleteUserException(f"Error while deleting user '{args.username}'") from e
 
 
 def main(args, pass_through_args):  # pylint: disable=unused-argument

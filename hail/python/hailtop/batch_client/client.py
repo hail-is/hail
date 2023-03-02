@@ -106,6 +106,9 @@ class Job:
     def wait(self):
         return async_to_blocking(self._async_job.wait())
 
+    def container_log(self, container_name):
+        return async_to_blocking(self._async_job.container_log(container_name))
+
     def log(self):
         return async_to_blocking(self._async_job.log())
 
@@ -280,6 +283,9 @@ class BatchClient:
     @property
     def billing_project(self):
         return self._async_client.billing_project
+
+    def reset_billing_project(self, billing_project):
+        self._async_client.reset_billing_project(billing_project)
 
     def list_batches(self, q=None, last_batch_id=None, limit=2**64):
         for b in agen_to_blocking(self._async_client.list_batches(q=q, last_batch_id=last_batch_id, limit=limit)):

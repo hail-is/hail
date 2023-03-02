@@ -1,6 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations.{Annotation, ExtendedOrdering}
+import is.hail.backend.HailStateManager
 import is.hail.check.Gen
 import is.hail.types.physical.PInterval
 import is.hail.types.virtual.TCall.representation
@@ -30,14 +31,12 @@ case class TInterval(pointType: Type) extends Type {
     pointType.typeCheck(i.start) && pointType.typeCheck(i.end)
   }
 
-  override def genNonmissingValue: Gen[Annotation] = Interval.gen(pointType.ordering, pointType.genValue)
+  override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = Interval.gen(pointType.ordering(sm), pointType.genValue(sm))
 
   override def scalaClassTag: ClassTag[Interval] = classTag[Interval]
 
-  override lazy val ordering: ExtendedOrdering = mkOrdering()
-
-  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
-    Interval.ordering(pointType.ordering, startPrimary=true, missingEqual)
+  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
+    Interval.ordering(pointType.ordering(sm), startPrimary=true, missingEqual)
 
   lazy val structRepresentation: TStruct = {
     TStruct(

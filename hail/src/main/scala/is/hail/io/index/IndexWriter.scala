@@ -3,7 +3,8 @@ package is.hail.io.index
 import java.io.OutputStream
 import is.hail.annotations.{Annotation, Region, RegionPool, RegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.backend.ExecuteContext
+import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext}
+import is.hail.backend.spark.SparkTaskContext
 import is.hail.expr.ir.{CodeParam, EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, IEmitCode, IntArrayBuilder, LongArrayBuilder, ParamType}
 import is.hail.io._
 import is.hail.io.fs.FS
@@ -79,20 +80,21 @@ object IndexWriter {
     annotationType: PType,
     branchingFactor: Int = 4096,
     attributes: Map[String, Any] = Map.empty[String, Any]
-  ): (String, RegionPool) => IndexWriter = {
+  ): (String, HailClassLoader, HailTaskContext, RegionPool) => IndexWriter = {
     val f = StagedIndexWriter.build(ctx, keyType, annotationType, branchingFactor, attributes);
-    { (path: String, pool: RegionPool) =>
-      new IndexWriter(keyType, annotationType, f(path, pool), pool)
+    val sm = ctx.stateManager;
+    { (path: String, hcl: HailClassLoader, htc: HailTaskContext, pool: RegionPool) =>
+      new IndexWriter(sm, keyType, annotationType, f(path, hcl, htc, pool), pool)
     }
   }
 }
 
-class IndexWriter(keyType: PType, valueType: PType, comp: CompiledIndexWriter, pool: RegionPool) extends AutoCloseable {
+class IndexWriter(sm: HailStateManager, keyType: PType, valueType: PType, comp: CompiledIndexWriter, pool: RegionPool) extends AutoCloseable {
   private val region = Region(pool=pool)
-  private val rvb = new RegionValueBuilder(region)
+  private val rvb = new RegionValueBuilder(sm, region)
   def appendRow(x: Annotation, offset: Long, annotation: Annotation): Unit = {
-    val koff = keyType.unstagedStoreJavaObject(x, region)
-    val voff = valueType.unstagedStoreJavaObject(annotation, region)
+    val koff = keyType.unstagedStoreJavaObject(sm, x, region)
+    val voff = valueType.unstagedStoreJavaObject(sm, annotation, region)
     comp.apply(koff, offset, voff)
   }
 
@@ -238,7 +240,7 @@ object StagedIndexWriter {
     annotationType: PType,
     branchingFactor: Int = 4096,
     attributes: Map[String, Any] = Map.empty[String, Any]
-  ): (String, RegionPool) => CompiledIndexWriter = {
+  ): (String, HailClassLoader, HailTaskContext, RegionPool) => CompiledIndexWriter = {
     val fb = EmitFunctionBuilder[CompiledIndexWriter](ctx, "indexwriter",
       FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Long], typeInfo[Long]),
       typeInfo[Unit])
@@ -263,10 +265,10 @@ object StagedIndexWriter {
 
     val fsBc = ctx.fsBc
 
-    { (path: String, pool: RegionPool) =>
+    { (path: String, hcl: HailClassLoader, htc: HailTaskContext, pool: RegionPool) =>
       pool.scopedRegion { r =>
         // FIXME: This seems wrong? But also, anywhere we use broadcasting for the FS is wrong.
-        val f = makeFB(theHailClassLoaderForSparkWorkers, fsBc.value, 0, r)
+        val f = makeFB(hcl, fsBc.value, htc, r)
         f.init(path)
         f
       }

@@ -691,6 +691,47 @@ class ArrayZeros(IR):
         return tarray(tint32)
 
 
+class ArrayMaximalIndependentSet(IR):
+    @typecheck_method(edges=IR, left_name=nullable(str), right_name=nullable(str), tie_breaker=nullable(IR))
+    def __init__(self, edges, left_name, right_name, tie_breaker):
+        super().__init__(*(ir for ir in (edges, tie_breaker) if ir))
+        self.edges = edges
+        self.left_name = left_name
+        self.right_name = right_name
+        self.tie_breaker = tie_breaker
+
+    @typecheck_method(a=IR)
+    def copy(self, edges, tie_breaker):
+        return ArrayMaximalIndependentSet(edges, self.left_name, self.right_name, tie_breaker)
+
+    def head_str(self):
+        if self.tie_breaker is not None:
+            return f'True {self.left_name} {self.right_name}'
+        return 'False'
+
+    @property
+    def bound_variables(self):
+        if self.tie_breaker is not None:
+            return {self.left_name, self.right_name} | super().bound_variables
+        return super().bound_variables
+
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.edges.compute_type(env, agg_env, deep_typecheck)
+        if self.tie_breaker is not None:
+            self.tie_breaker.compute_type(self.bindings(1), agg_env, deep_typecheck)
+        return tarray(self.edges.typ.element_type[0])
+
+    def renderable_bindings(self, i, default_value=None):
+        if i == 1:
+            if default_value is None:
+                ty = ttuple(self.edges.typ.element_type[0])
+                return {self.left_name: ty, self.right_name: ty}
+            else:
+                return {self.left_name: default_value, self.right_name: default_value}
+        else:
+            return {}
+
+
 class StreamIota(IR):
     @typecheck_method(start=IR, step=IR, requires_memory_management_per_element=bool)
     def __init__(self, start, step, requires_memory_management_per_element=False):
@@ -2178,17 +2219,22 @@ class AggArrayPerElement(IR):
             return {}
 
     def renderable_agg_bindings(self, i, default_value=None):
-        if i == 1:
+        if i == 1 and not self.is_scan:
             if default_value is None:
                 value = self.array.typ.element_type
             else:
                 value = default_value
             return {self.element_name: value}
-        else:
-            return {}
+        return {}
 
     def renderable_scan_bindings(self, i, default_value=None):
-        return self.renderable_agg_bindings(i, default_value)
+        if i == 1 and self.is_scan:
+            if default_value is None:
+                value = self.array.typ.element_type
+            else:
+                value = default_value
+            return {self.element_name: value}
+        return {}
 
 
 def _register(registry, name, f):
@@ -2357,6 +2403,16 @@ class AggFold(IR):
 
     def renderable_new_block(self, i: int) -> bool:
         return i > 0
+
+    @property
+    def bound_variables(self):
+        return {self.accum_name, self.other_accum_name} | super().bound_variables
+
+    def renderable_uses_agg_context(self, i: int) -> bool:
+        return (i == 1 or i == 2) and not self.is_scan
+
+    def renderable_uses_scan_context(self, i: int) -> bool:
+        return (i == 1 or i == 2) and self.is_scan
 
 
 class Begin(IR):

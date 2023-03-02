@@ -171,6 +171,8 @@ spec:
             cpu: "1.5"
             memory: "2.5G"
         env:
+         - name: PORT
+           value: "5000"
          - name: HAIL_DOMAIN
            valueFrom:
              secretKeyRef:
@@ -223,16 +225,12 @@ spec:
              secretKeyRef:
                name: global-config
                key: batch_logs_storage_uri
-         - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
-           value: "7200" # 2 hours
 {% else %}
          - name: HAIL_BATCH_STORAGE_URI
            valueFrom:
              secretKeyRef:
                name: global-config
                key: test_storage_uri
-         - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
-           value: "300"
 {% endif %}
 {% if deploy %}
          - name: HAIL_QUERY_STORAGE_URI
@@ -368,6 +366,8 @@ spec:
          - -m
          - batch.front_end
         env:
+         - name: PORT
+           value: "443"
          - name: HAIL_DOMAIN
            valueFrom:
              secretKeyRef:
@@ -404,6 +404,10 @@ spec:
                key: internal_ip
          - name: HAIL_SHA
            value: "{{ code.sha }}"
+{% if scope != "test" %}
+         - name: HAIL_SHOULD_PROFILE
+           value: "1"
+{% endif %}
          - name: HAIL_SCOPE
            value: "{{ scope }}"
 {% if deploy %}

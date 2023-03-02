@@ -9,10 +9,11 @@ import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.expr.{JSONAnnotationImpex, Nat}
 import is.hail.io._
+import is.hail.io.bgen.BgenSettings
 import is.hail.io.fs.FS
 import is.hail.io.gen.{BgenWriter, ExportGen}
 import is.hail.io.index.StagedIndexWriter
-import is.hail.io.plink.{ExportPlink, BitPacker}
+import is.hail.io.plink.{BitPacker, ExportPlink}
 import is.hail.io.vcf.{ExportVCF, TabixVCF}
 import is.hail.linalg.BlockMatrix
 import is.hail.rvd.{IndexSpec, RVDPartitioner, RVDSpecMaker}
@@ -23,8 +24,8 @@ import is.hail.types.physical.stypes.primitives._
 import is.hail.types.physical.{PBooleanRequired, PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PInt64, PStruct, PType}
 import is.hail.types.virtual._
 import is.hail.types._
-import is.hail.types.physical.stypes.concrete.{SJavaString, SJavaArrayString, SJavaArrayStringValue, SStackStruct}
-import is.hail.types.physical.stypes.interfaces.{SIndexableValue, SBaseStructValue, SStringValue}
+import is.hail.types.physical.stypes.concrete.{SJavaArrayString, SJavaArrayStringValue, SJavaString, SStackStruct}
+import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SIndexableValue, SStringValue}
 import is.hail.types.physical.stypes.primitives.{SBooleanValue, SInt64Value}
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
@@ -63,7 +64,7 @@ abstract class MatrixWriter {
     ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR =
     throw new LowererUnsupportedOperation(s"${ this.getClass } does not have defined lowering!")
 
-  def canLowerEfficiently: Boolean = false
+  def canLowerEfficiently: Boolean
 }
 
 case class MatrixNativeWriter(
@@ -77,7 +78,7 @@ case class MatrixNativeWriter(
 ) extends MatrixWriter {
   def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = mv.write(ctx, path, overwrite, stageLocally, codecSpecJSONStr, partitions, partitionsTypeStr, checkpointFile)
 
-  override def canLowerEfficiently: Boolean = !stageLocally && checkpointFile == null
+  def canLowerEfficiently: Boolean = !stageLocally && checkpointFile == null
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
     ctx: ExecuteContext, tablestage: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
@@ -91,7 +92,7 @@ case class MatrixNativeWriter(
         val jv = JsonMethods.parse(partitions)
         val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, partitionsType)
           .asInstanceOf[IndexedSeq[Interval]]
-        tablestage.repartitionNoShuffle(new RVDPartitioner(tm.rowKey.toArray, tm.rowKeyStruct, rangeBounds))
+        tablestage.repartitionNoShuffle(new RVDPartitioner(ctx.stateManager, tm.rowKey.toArray, tm.rowKeyStruct, rangeBounds))
       } else tablestage
 
     if (checkpointFile != null) {
@@ -152,17 +153,17 @@ case class MatrixNativeWriter(
                   bindIR(parts) { partInfo =>
                     Begin(FastIndexedSeq(
                       WriteMetadata(MakeArray(GetField(writeEmpty, "filePath")),
-                        RVDSpecWriter(s"$path/globals/globals", RVDSpecMaker(emptySpec, RVDPartitioner.unkeyed(1)))),
+                        RVDSpecWriter(s"$path/globals/globals", RVDSpecMaker(emptySpec, RVDPartitioner.unkeyed(ctx.stateManager, 1)))),
                       WriteMetadata(MakeArray(GetField(writeGlobals, "filePath")),
-                        RVDSpecWriter(s"$path/globals/rows", RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(1)))),
+                        RVDSpecWriter(s"$path/globals/rows", RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(ctx.stateManager, 1)))),
                       WriteMetadata(MakeArray(MakeStruct(Seq("partitionCounts" -> I64(1), "distinctlyKeyed" -> True(), "firstKey" -> MakeStruct(Seq()), "lastKey" -> MakeStruct(Seq())))), globalTableWriter),
                       WriteMetadata(MakeArray(GetField(colInfo, "filePath")),
-                        RVDSpecWriter(s"$path/cols/rows", RVDSpecMaker(colSpec, RVDPartitioner.unkeyed(1)))),
+                        RVDSpecWriter(s"$path/cols/rows", RVDSpecMaker(colSpec, RVDPartitioner.unkeyed(ctx.stateManager, 1)))),
                       WriteMetadata(MakeArray(SelectFields(colInfo, IndexedSeq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey"))), colTableWriter),
                       bindIR(ToArray(mapIR(ToStream(partInfo)) { fc => GetField(fc, "filePath") })) { files =>
                         Begin(FastIndexedSeq(
                           WriteMetadata(files, RVDSpecWriter(s"$path/rows/rows", RVDSpecMaker(rowSpec, lowered.partitioner, rowsIndexSpec))),
-                          WriteMetadata(files, RVDSpecWriter(s"$path/entries/rows", RVDSpecMaker(entrySpec, RVDPartitioner.unkeyed(lowered.numPartitions), entriesIndexSpec)))))
+                          WriteMetadata(files, RVDSpecWriter(s"$path/entries/rows", RVDSpecMaker(entrySpec, RVDPartitioner.unkeyed(ctx.stateManager, lowered.numPartitions), entriesIndexSpec)))))
                       },
                       bindIR(ToArray(mapIR(ToStream(partInfo)) { fc => SelectFields(fc, Seq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey")) })) { countsAndKeyInfo =>
                         Begin(FastIndexedSeq(
@@ -240,9 +241,11 @@ case class SplitPartitionNativeWriter(
 
       val firstSeenSettable =  mb.newEmitLocal("pnw_firstSeen", keyEmitType)
       val lastSeenSettable =  mb.newEmitLocal("pnw_lastSeen", keyEmitType)
+      val lastSeenRegion = cb.newLocal[Region]("last_seen_region")
       // Start off missing, we will use this to determine if we haven't processed any rows yet.
       cb.assign(firstSeenSettable, EmitCode.missing(cb.emb, keyEmitType.st))
       cb.assign(lastSeenSettable, EmitCode.missing(cb.emb, keyEmitType.st))
+      cb.assign(lastSeenRegion, Region.stagedCreate(Region.TINY, region.getPool()))
 
 
       def writeFile(cb: EmitCodeBuilder, codeRow: EmitCode): Unit = {
@@ -280,7 +283,8 @@ case class SplitPartitionNativeWriter(
               })
             })
           })
-          cb.assign(lastSeenSettable, IEmitCode.present(cb, key.copyToRegion(cb, region, lastSeenSettable.st)))
+          cb += lastSeenRegion.clearRegion()
+          cb.assign(lastSeenSettable, IEmitCode.present(cb, key.copyToRegion(cb, lastSeenRegion, lastSeenSettable.st)))
         }
 
         cb += ob1.writeByte(1.asInstanceOf[Byte])
@@ -322,6 +326,10 @@ case class SplitPartitionNativeWriter(
       cb += os1.invoke[Unit]("close")
       cb += os2.invoke[Unit]("close")
 
+      lastSeenSettable.loadI(cb).consume(cb, { /* do nothing */ }, { lastSeen =>
+        cb.assign(lastSeenSettable, IEmitCode.present(cb, lastSeen.copyToRegion(cb, region, lastSeenSettable.st)))
+      })
+      cb += lastSeenRegion.invalidate()
 
       SStackStruct.constructFromArgs(cb, region, returnType.asInstanceOf[TBaseStruct],
         EmitCode.present(mb, pctx),
@@ -401,7 +409,8 @@ case class MatrixVCFWriter(
         ctx, ts, tl, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable], Map()))
   }
 
-  override def canLowerEfficiently: Boolean = true
+  def canLowerEfficiently: Boolean = true
+
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
       ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
     require(exportType != ExportType.PARALLEL_COMPOSABLE)
@@ -518,7 +527,7 @@ case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHe
         val headerStr = Code.invokeScalaObject6[TStruct, TStruct, ReferenceGenome, Option[String], Option[VCFMetadata], Array[String], String](
           ExportVCF.getClass, "makeHeader",
           mb.getType[TStruct](typ.rowType), mb.getType[TStruct](typ.entryType),
-          mb.getReferenceGenome(typ.referenceGenome), mb.getObject(append),
+          mb.getReferenceGenome(typ.referenceGenomeName), mb.getObject(append),
           mb.getObject(metadata), stringSampleIds)
         cb += os.invoke[Array[Byte], Unit]("write", headerStr.invoke[Array[Byte]]("getBytes"))
         cb += os.invoke[Int, Unit]("write", '\n')
@@ -751,7 +760,7 @@ case class VCFExportFinalizer(typ: MatrixType, outputPath: String, append: Optio
     Code.invokeScalaObject6[TStruct, TStruct, ReferenceGenome, Option[String], Option[VCFMetadata], Array[String], String](
       ExportVCF.getClass, "makeHeader",
       mb.getType[TStruct](typ.rowType), mb.getType[TStruct](typ.entryType),
-      mb.getReferenceGenome(typ.referenceGenome), mb.getObject(append),
+      mb.getReferenceGenome(typ.referenceGenomeName), mb.getObject(append),
       mb.getObject(metadata), stringSampleIds)
   }
 
@@ -833,7 +842,7 @@ case class MatrixGENWriter(
         ctx, ts, tl, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable], Map()))
   }
 
-  override def canLowerEfficiently: Boolean = true
+  def canLowerEfficiently: Boolean = true
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
       ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
@@ -876,7 +885,9 @@ final case class GenVariantWriter(typ: MatrixType, entriesFieldName: String, pre
     def writeC(code: Code[Int]) = _writeC(cb, code)
     def writeS(code: Code[String]) = _writeS(cb, code)
 
-    val hasGPField = typ.entryType.hasField("GP")
+
+    require(typ.entryType.hasField("GP") && typ.entryType.fieldType("GP") == TArray(TFloat64))
+
     element.toI(cb).consume(cb, cb._fatal("stream element cannot be missing!"), { case sv: SBaseStructValue =>
       val locus = sv.loadField(cb, "locus").get(cb).asLocus
       val contig = locus.contig(cb).loadString(cb)
@@ -903,17 +914,14 @@ final case class GenVariantWriter(typ: MatrixType, entriesFieldName: String, pre
       sv.loadField(cb, entriesFieldName).get(cb).asIndexable.forEachDefinedOrMissing(cb)({ (cb, i) =>
         _writeS(cb, " 0 0 0")
         }, { (cb, i, va) =>
-          if (hasGPField) {
-            va.asBaseStruct.loadField(cb, "GP").consume(cb, _writeS(cb, " 0 0 0"), { case gp: SIndexableValue =>
-              cb.ifx(gp.loadLength().cne(3),
-                cb._fatal("Invalid 'gp' at variant '", locus.contig(cb).loadString(cb), ":", locus.position(cb).toS, ":", a0, ":", a1, "' and sample index ", i.toS, ". The array must have length equal to 3."))
-              gp.forEachDefinedOrMissing(cb)((cb, _) => cb._fatal("GP cannot be missing"), { (cb, _, gp) =>
-                _writeC(cb, ' ')
-                _writeS(cb, Code.invokeScalaObject2[Double, Int, String](utilsPackageClass, "formatDouble", gp.asDouble.value, precision))
-              })
+          va.asBaseStruct.loadField(cb, "GP").consume(cb, _writeS(cb, " 0 0 0"), { case gp: SIndexableValue =>
+            cb.ifx(gp.loadLength().cne(3),
+              cb._fatal("Invalid 'gp' at variant '", locus.contig(cb).loadString(cb), ":", locus.position(cb).toS, ":", a0, ":", a1, "' and sample index ", i.toS, ". The array must have length equal to 3."))
+            gp.forEachDefinedOrMissing(cb)((cb, _) => cb._fatal("GP cannot be missing"), { (cb, _, gp) =>
+              _writeC(cb, ' ')
+              _writeS(cb, Code.invokeScalaObject2[Double, Int, String](utilsPackageClass, "formatDouble", gp.asDouble.value, precision))
             })
-          } else
-            _writeS(cb, " 0 0 0")
+          })
         })
       writeC('\n')
     })
@@ -944,7 +952,8 @@ final class GenSampleWriter extends SimplePartitionWriter {
 
 case class MatrixBGENWriter(
   path: String,
-  exportType: String
+  exportType: String,
+  compressionCodec: String
 ) extends MatrixWriter {
   def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = {
     val tv = mv.toTableValue
@@ -955,7 +964,8 @@ case class MatrixBGENWriter(
         ctx, ts, tl, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable], Map()))
   }
 
-  override def canLowerEfficiently: Boolean = true
+  def canLowerEfficiently: Boolean = true
+
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
       ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
 
@@ -965,8 +975,13 @@ case class MatrixBGENWriter(
     else
       path + ".bgen"
 
+    assert(compressionCodec == "zlib" || compressionCodec == "zstd")
     val writeHeader = exportType == ExportType.PARALLEL_HEADER_IN_SHARD
-    val partWriter = BGENPartitionWriter(tm, entriesFieldName, writeHeader)
+    val compressionInt = compressionCodec match {
+      case "zlib" => BgenSettings.ZLIB_COMPRESSION
+      case "zstd" => BgenSettings.ZSTD_COMPRESSION
+    }
+    val partWriter = BGENPartitionWriter(tm, entriesFieldName, writeHeader, compressionInt)
 
     ts.mapContexts { oldCtx =>
       val d = digitsNeeded(ts.numPartitions)
@@ -989,13 +1004,14 @@ case class MatrixBGENWriter(
       WritePartition(rows, ctx, partWriter)
     }{ (results, globals) =>
       val ctx = MakeStruct(FastSeq("cols" -> GetField(globals, colsFieldName), "results" -> results))
-      val commit = BGENExportFinalizer(tm, path, exportType)
+      val commit = BGENExportFinalizer(tm, path, exportType, compressionInt)
       Begin(FastIndexedSeq(WriteMetadata(ctx, commit)))
     }
   }
 }
 
-case class BGENPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHeader: Boolean) extends PartitionWriter {
+case class BGENPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHeader: Boolean, compression: Int) extends PartitionWriter {
+  require(typ.entryType.hasField("GP") && typ.entryType.fieldType("GP") == TArray(TFloat64))
   val ctxType: Type = TStruct("cols" -> TArray(typ.colType), "numVariants" -> TInt64, "partFile" -> TString)
   override def returnType: TStruct = TStruct("partFile" -> TString, "numVariants" -> TInt64, "dropped" -> TInt64)
   def unionTypeRequiredness(r: TypeWithRequiredness, ctxType: TypeWithRequiredness, streamType: RIterable): Unit = {
@@ -1020,7 +1036,7 @@ case class BGENPartitionWriter(typ: MatrixType, entriesFieldName: String, writeH
           cb += (sampleIds(i) = s.loadString(cb))
         }
         val numVariants = ctx.loadField(cb, "numVariants").get(cb).asInt64.value
-        val header = Code.invokeScalaObject2[Array[String], Long, Array[Byte]](BgenWriter.getClass, "headerBlock", sampleIds, numVariants)
+        val header = Code.invokeScalaObject3[Array[String], Long, Int, Array[Byte]](BgenWriter.getClass, "headerBlock", sampleIds, numVariants, compression)
         cb += os.invoke[Array[Byte], Unit]("write", header)
       }
 
@@ -1112,33 +1128,34 @@ case class BGENPartitionWriter(typ: MatrixType, entriesFieldName: String, writeH
     entries.forEachDefinedOrMissing(cb)({ (cb, j) =>
       emitNullGP(cb)
     }, { case (cb, j, entry: SBaseStructValue) =>
-      if (entry.st.virtualType.fieldIdx.get("GP").isDefined) {
-        entry.loadField(cb, "GP").consume(cb, emitNullGP(cb), { gp =>
-          val gpSum = cb.newLocal[Double]("gpSum", 0d)
-          gp.asIndexable.forEachDefined(cb) { (cb, idx, x) =>
-            val gpv = x.asDouble.value
-            cb.ifx(gpv < 0d,
-              cb._fatal("found GP value less than 0: ", gpv.toS, ", at sample ", j.toS, " of variant", chr, ":", pos.toS))
-            cb.assign(gpSum, gpSum + gpv)
-            cb += (gpResized(idx) = gpv * BgenWriter.totalProb.toDouble)
-          }
-          cb.ifx(gpSum >= 0.999 && gpSum <= 1.001, {
-            cb += uncompBuf.invoke[Int, Byte, Unit]("update", samplePloidyStart + j, BgenWriter.ploidy)
-            cb += Code.invokeScalaObject6[Array[Double], Array[Double], Array[Int], Array[Int], ByteArrayBuilder, Long, Unit](BgenWriter.getClass, "roundWithConstantSum",
-              gpResized, fractional, index, indexInverse, uncompBuf, BgenWriter.totalProb.toLong)
-          }, {
-            cb.assign(dropped, dropped + 1l)
-            emitNullGP(cb)
-          })
+      entry.loadField(cb, "GP").consume(cb, emitNullGP(cb), { gp =>
+        val gpSum = cb.newLocal[Double]("gpSum", 0d)
+        gp.asIndexable.forEachDefined(cb) { (cb, idx, x) =>
+          val gpv = x.asDouble.value
+          cb.ifx(gpv < 0d,
+            cb._fatal("found GP value less than 0: ", gpv.toS, ", at sample ", j.toS, " of variant", chr, ":", pos.toS))
+          cb.assign(gpSum, gpSum + gpv)
+          cb += (gpResized(idx) = gpv * BgenWriter.totalProb.toDouble)
+        }
+        cb.ifx(gpSum >= 0.999 && gpSum <= 1.001, {
+          cb += uncompBuf.invoke[Int, Byte, Unit]("update", samplePloidyStart + j, BgenWriter.ploidy)
+          cb += Code.invokeScalaObject6[Array[Double], Array[Double], Array[Int], Array[Int], ByteArrayBuilder, Long, Unit](BgenWriter.getClass, "roundWithConstantSum",
+            gpResized, fractional, index, indexInverse, uncompBuf, BgenWriter.totalProb.toLong)
+        }, {
+          cb.assign(dropped, dropped + 1l)
+          emitNullGP(cb)
         })
-      } else {
-        emitNullGP(cb)
-      }
+      })
     })
     // end emitGPData
 
     val uncompLen = cb.memoize(uncompBuf.invoke[Int]("size"))
-    val compLen = cb.memoize(Code.invokeScalaObject2[ByteArrayBuilder, Array[Byte], Int](CompressionUtils.getClass, "compress", buf, uncompBuf.invoke[Array[Byte]]("result")))
+
+    val compMethod = compression match {
+      case 1 => "compressZlib"
+      case 2 => "compressZstd"
+    }
+    val compLen = cb.memoize(Code.invokeScalaObject2[ByteArrayBuilder, Array[Byte], Int](CompressionUtils.getClass, compMethod, buf, uncompBuf.invoke[Array[Byte]]("result")))
 
     updateIntToBytesLE(cb, buf, cb.memoize(compLen + 4), gtDataBlockStart)
     updateIntToBytesLE(cb, buf, uncompLen, cb.memoize(gtDataBlockStart + 4))
@@ -1147,7 +1164,7 @@ case class BGENPartitionWriter(typ: MatrixType, entriesFieldName: String, writeH
   }
 }
 
-case class BGENExportFinalizer(typ: MatrixType, path: String, exportType: String) extends MetadataWriter {
+case class BGENExportFinalizer(typ: MatrixType, path: String, exportType: String, compression: Int) extends MetadataWriter {
   def annotationType: Type = TStruct("cols" -> TArray(typ.colType), "results" -> TArray(TStruct("partFile" -> TString, "numVariants" -> TInt64, "dropped" -> TInt64)))
 
   def writeMetadata(writeAnnotations: => IEmitCode, cb: EmitCodeBuilder, region: Value[Region]): Unit = {
@@ -1188,14 +1205,14 @@ case class BGENExportFinalizer(typ: MatrixType, path: String, exportType: String
 
     if (exportType == ExportType.PARALLEL_SEPARATE_HEADER) {
       val os = cb.memoize(cb.emb.create(const(path + ".bgen").concat("/header")))
-      val header = Code.invokeScalaObject2[Array[String], Long, Array[Byte]](BgenWriter.getClass, "headerBlock", sampleIds, numVariants)
+      val header = Code.invokeScalaObject3[Array[String], Long, Int, Array[Byte]](BgenWriter.getClass, "headerBlock", sampleIds, numVariants, compression)
       cb += os.invoke[Array[Byte], Unit]("write", header)
       cb += os.invoke[Unit]("close")
     }
 
     if (exportType == ExportType.CONCATENATED) {
       val os = cb.memoize(cb.emb.create(const(path + ".bgen")))
-      val header = Code.invokeScalaObject2[Array[String], Long, Array[Byte]](BgenWriter.getClass, "headerBlock", sampleIds, numVariants)
+      val header = Code.invokeScalaObject3[Array[String], Long, Int, Array[Byte]](BgenWriter.getClass, "headerBlock", sampleIds, numVariants, compression)
       cb += os.invoke[Array[Byte], Unit]("write", header)
 
       annotations.loadField(cb, "results").get(cb).asIndexable.forEachDefined(cb) { (cb, i, res) =>
@@ -1226,7 +1243,8 @@ case class MatrixPLINKWriter(
         ctx, ts, tl, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable], Map()))
   }
 
-  override def canLowerEfficiently: Boolean = true
+  def canLowerEfficiently: Boolean = true
+
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
       ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
     val tm = MatrixType.fromTableType(t.typ, colsFieldName, entriesFieldName, colKey)
@@ -1385,6 +1403,8 @@ case class MatrixBlockMatrixWriter(
 ) extends MatrixWriter {
   def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = MatrixWriteBlockMatrix(ctx, mv, entryField, path, overwrite, blockSize)
 
+  def canLowerEfficiently: Boolean = true
+
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
     ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
 
@@ -1422,7 +1442,7 @@ case class MatrixBlockMatrixWriter(
     val inputRowIntervals = inputPartStarts.zip(inputPartStops).map{ case (intervalStart, intervalEnd) =>
       Interval(Row(intervalStart.toInt), Row(intervalEnd.toInt), true, false)
     }
-    val rowIdxPartitioner = RVDPartitioner.generate(TStruct((perRowIdxId, TInt32)), inputRowIntervals)
+    val rowIdxPartitioner = RVDPartitioner.generate(ctx.stateManager, TStruct((perRowIdxId, TInt32)), inputRowIntervals)
 
     val keyedByRowIdx = partsZippedWithIdx.changePartitionerNoRepartition(rowIdxPartitioner)
 
@@ -1433,7 +1453,7 @@ case class MatrixBlockMatrixWriter(
       case (intervalStart, intervalEnd) =>  Interval(Row(intervalStart), Row(intervalEnd), true, false)
     }
 
-    val blockSizeGroupsPartitioner = RVDPartitioner.generate(TStruct((perRowIdxId, TInt32)), desiredRowIntervals)
+    val blockSizeGroupsPartitioner = RVDPartitioner.generate(ctx.stateManager, TStruct((perRowIdxId, TInt32)), desiredRowIntervals)
     val rowsInBlockSizeGroups: TableStage = keyedByRowIdx.repartitionNoShuffle(blockSizeGroupsPartitioner)
 
     def createBlockMakingContexts(tablePartsStreamIR: IR): IR = {

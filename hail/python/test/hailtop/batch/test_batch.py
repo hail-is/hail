@@ -845,6 +845,24 @@ class ServiceTests(unittest.TestCase):
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
         assert res.get_job_log(4)['main'] == "3\n5\n30\n{\"x\": 3, \"y\": 5}\n", str(res.debug_info())
 
+    def test_python_job_can_write_to_resource_path(self):
+        b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
+
+        def write(path):
+            with open(path, 'w') as f:
+                f.write('foo')
+        head = b.new_python_job()
+        head.call(write, head.ofile)
+
+        tail = b.new_bash_job()
+        tail.command(f'cat {head.ofile}')
+
+        res = b.run()
+        assert res
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+        assert res.get_job_log(tail._job_id)['main'] == 'foo', str(res.debug_info())
+
     def test_python_job_w_resource_group_unpack_jointly(self):
         b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
         head = b.new_job()

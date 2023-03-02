@@ -25,7 +25,6 @@ CATCH_HEADER_LOCATION := ../resources/include/catch.hpp
 # If you want to add a new cpp file, like foo.cpp, to the library, add foo to
 # this list. Remember to rerun make prebuilt.
 OBJECTS := \
-  davies \
   ibs \
   Decoder \
   Encoder \

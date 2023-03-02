@@ -2,6 +2,7 @@ package is.hail.types.virtual
 
 import is.hail.annotations._
 import is.hail.asm4s._
+import is.hail.backend.HailStateManager
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.ir._
 import is.hail.types._
@@ -25,8 +26,7 @@ object Type {
       TFloat64, TString, TCall)
 
   def genComplexType(): Gen[Type] = {
-    val rgDependents = ReferenceGenome.references.values.toArray.map(rg =>
-      TLocus(rg))
+    val rgDependents = ReferenceGenome.hailReferences.toArray.map(TLocus(_))
     val others = Array(TCall)
     Gen.oneOfSeq(rgDependents ++ others)
   }
@@ -89,14 +89,14 @@ object Type {
 
   val genRequired: Gen[Type] = preGenArb()
 
-  def genWithValue: Gen[(Type, Annotation)] = for {
+  def genWithValue(sm: HailStateManager): Gen[(Type, Annotation)] = for {
     s <- Gen.size
     // prefer smaller type and bigger values
     fraction <- Gen.choose(0.1, 0.3)
     x = (fraction * s).toInt
     y = s - x
     t <- Type.genStruct.resize(x)
-    v <- t.genValue.resize(y)
+    v <- t.genValue(sm).resize(y)
   } yield (t, v)
 
   implicit def arbType = Arbitrary(genArb)
@@ -183,10 +183,10 @@ abstract class Type extends BaseType with Serializable {
 
   def toJSON(a: Annotation): JValue = JSONAnnotationImpex.exportAnnotation(a, this)
 
-  def genNonmissingValue: Gen[Annotation] = ???
+  def genNonmissingValue(sm: HailStateManager): Gen[Annotation]
 
-  def genValue: Gen[Annotation] =
-    Gen.nextCoin(0.05).flatMap(isEmpty => if (isEmpty) Gen.const(null) else genNonmissingValue)
+  def genValue(sm: HailStateManager): Gen[Annotation] =
+    Gen.nextCoin(0.05).flatMap(isEmpty => if (isEmpty) Gen.const(null) else genNonmissingValue(sm))
 
   def isRealizable: Boolean = children.forall(_.isRealizable)
 
@@ -197,9 +197,13 @@ abstract class Type extends BaseType with Serializable {
 
   def canCompare(other: Type): Boolean = this == other
 
-  def mkOrdering(missingEqual: Boolean = true): ExtendedOrdering
+  def mkOrdering(sm: HailStateManager, missingEqual: Boolean = true): ExtendedOrdering
 
-  def ordering: ExtendedOrdering = mkOrdering()
+  @transient protected var ord: ExtendedOrdering = _
+  def ordering(sm: HailStateManager): ExtendedOrdering = {
+    if (ord == null) ord = mkOrdering(sm)
+    ord
+  }
 
   def jsonReader: JSONReader[Annotation] = new JSONReader[Annotation] {
     def fromJSON(a: JValue): Annotation = JSONAnnotationImpex.importAnnotation(a, self)

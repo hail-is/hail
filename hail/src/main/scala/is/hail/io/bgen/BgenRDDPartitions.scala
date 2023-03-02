@@ -2,7 +2,7 @@ package is.hail.io.bgen
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.backend.{BroadcastValue, ExecuteContext}
+import is.hail.backend.{BroadcastValue, ExecuteContext, HailTaskContext}
 import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder, IEmitCode, ParamType, TableReader}
 import is.hail.io.fs.FS
 import is.hail.io.index.IndexReaderBuilder
@@ -19,7 +19,7 @@ import org.apache.spark.Partition
 trait BgenPartition extends Partition {
   def path: String
 
-  def compressed: Boolean
+  def compression: Int // 0 uncompressed, 1 zlib, 2 zstd
 
   def skipInvalidLoci: Boolean
 
@@ -38,7 +38,7 @@ private case class LoadBgenPartition(
   path: String,
   indexPath: String,
   filterPartition: Partition,
-  compressed: Boolean,
+  compression: Int,
   skipInvalidLoci: Boolean,
   contigRecoding: Map[String, String],
   partitionIndex: Int,
@@ -52,9 +52,9 @@ private case class LoadBgenPartition(
 }
 
 object BgenRDDPartitions extends Logging {
-  def checkFilesDisjoint(fs: FS, fileMetadata: Seq[BgenFileMetadata], keyType: Type): Array[Interval] = {
+  def checkFilesDisjoint(ctx: ExecuteContext, fileMetadata: Seq[BgenFileMetadata], keyType: Type): Array[Interval] = {
     assert(fileMetadata.nonEmpty)
-    val pord = keyType.ordering
+    val pord = keyType.ordering(ctx.stateManager)
     val bounds = fileMetadata.map(md => (md.path, md.rangeBounds))
 
     val overlappingBounds = new BoxedArrayBuilder[(String, Interval, String, Interval)]
@@ -94,8 +94,8 @@ object BgenRDDPartitions extends Logging {
     val fs = ctx.fs
     val fsBc = fs.broadcast
 
-    val fileRangeBounds = checkFilesDisjoint(fs, files, keyType)
-    val intervalOrdering = TInterval(keyType).ordering
+    val fileRangeBounds = checkFilesDisjoint(ctx, files, keyType)
+    val intervalOrdering = TInterval(keyType).ordering(ctx.stateManager)
 
     val sortedFiles = files.zip(fileRangeBounds)
       .sortWith { case ((_, i1), (_, i2)) => intervalOrdering.lt(i1, i2) }
@@ -124,7 +124,7 @@ object BgenRDDPartitions extends Logging {
       val (leafCodec, internalNodeCodec) = BgenSettings.indexCodecSpecs(rg)
       val (leafPType: PStruct, leafDec) = leafCodec.buildDecoder(ctx, leafCodec.encodedVirtualType)
       val (intPType: PStruct, intDec) = internalNodeCodec.buildDecoder(ctx, internalNodeCodec.encodedVirtualType)
-      IndexReaderBuilder.withDecoders(leafDec, intDec, BgenSettings.indexKeyType(rg), BgenSettings.indexAnnotationType, leafPType, intPType)
+      IndexReaderBuilder.withDecoders(ctx, leafDec, intDec, BgenSettings.indexKeyType(rg), BgenSettings.indexAnnotationType, leafPType, intPType)
     }
     if (nonEmptyFilesAfterFilter.isEmpty) {
       (Array.empty, Array.empty)
@@ -149,7 +149,7 @@ object BgenRDDPartitions extends Logging {
               file.path,
               file.indexPath,
               filterPartition = null,
-              file.header.compressed,
+              file.header.compression,
               file.skipInvalidLoci,
               file.contigRecoding,
               partitionIndex,
@@ -178,7 +178,7 @@ object CompileDecoder {
   def apply(
     ctx: ExecuteContext,
     settings: BgenSettings
-  ): (HailClassLoader, FS, Int, Region) => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long] = {
+  ): (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long] = {
     val fb = EmitFunctionBuilder[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long](ctx, "bgen_rdd_decoder")
     val mb = fb.apply_method
     val rowType = settings.rowPType
@@ -425,14 +425,23 @@ object CompileDecoder {
             cb.define(LnoOp)
           }
 
-          cb.ifx(cp.invoke[Boolean]("compressed"), {
+          val compression = cb.memoize(cp.invoke[Int]("compression"))
+          cb.ifx(compression ceq BgenSettings.UNCOMPRESSED, {
+            cb.assign(data, cbfis.invoke[Int, Array[Byte]]("readBytes", dataSize))
+          }, {
             cb.assign(uncompressedSize, cbfis.invoke[Int]("readInt"))
             cb.assign(input, cbfis.invoke[Int, Array[Byte]]("readBytes", dataSize - 4))
-            cb.assign(data, Code.invokeScalaObject2[Array[Byte], Int, Array[Byte]](
-              BgenRDD.getClass, "decompress", input, uncompressedSize))
-          }, {
-            cb.assign(data, cbfis.invoke[Int, Array[Byte]]("readBytes", dataSize))
+            cb.ifx(compression ceq BgenSettings.ZLIB_COMPRESSION, {
+              cb.assign(data,
+                Code.invokeScalaObject2[Array[Byte], Int, Array[Byte]](
+                  CompressionUtils.getClass, "decompressZlib", input, uncompressedSize))
+            }, {
+              // zstd
+              cb.assign(data,Code.invokeScalaObject2[Array[Byte], Int, Array[Byte]](
+                CompressionUtils.getClass, "decompressZstd", input, uncompressedSize))
+            })
           })
+
 
           cb.assign(reader, Code.newInstance[ByteArrayReader, Array[Byte]](data))
           cb.assign(nRow, reader.invoke[Int]("readInt"))
@@ -539,4 +548,3 @@ object CompileDecoder {
     fb.resultWithIndex()
   }
 }
-

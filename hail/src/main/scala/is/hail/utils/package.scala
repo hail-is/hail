@@ -809,9 +809,9 @@ package object utils extends Logging
     }
   }
 
-  def decompress(input: Array[Byte], size: Int): Array[Byte] = CompressionUtils.decompress(input, size)
+  def decompress(input: Array[Byte], size: Int): Array[Byte] = CompressionUtils.decompressZlib(input, size)
 
-  def compress(bb: ByteArrayBuilder, input: Array[Byte]): Int = CompressionUtils.compress(bb, input)
+  def compress(bb: ByteArrayBuilder, input: Array[Byte]): Int = CompressionUtils.compressZlib(bb, input)
 
   def unwrappedApply[U, T](f: (U, T) => T): (U, Seq[T]) => T = if (f == null) null else { (s, ts) =>
     f(s, ts(0))
@@ -840,6 +840,11 @@ package object utils extends Logging
   def unwrappedApply[U, T](f: (U, T, T, T, T, T, T) => T): (U, Seq[T]) => T = if (f == null) null else { (s, ts) =>
     val Seq(arg1, arg2, arg3, arg4, arg5, arg6) = ts
     f(s, arg1, arg2, arg3, arg4, arg5, arg6)
+  }
+
+  def unwrappedApply[U, T](f: (U, T, T, T, T, T, T, T) => T): (U, Seq[T]) => T = if (f == null) null else { (s, ts) =>
+    val Seq(arg1, arg2, arg3, arg4, arg5, arg6, arg7) = ts
+    f(s, arg1, arg2, arg3, arg4, arg5, arg6, arg7)
   }
 
   def drainInputStreamToOutputStream(

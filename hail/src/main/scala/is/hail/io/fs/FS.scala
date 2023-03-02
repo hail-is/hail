@@ -36,6 +36,27 @@ class WrappedPositionedDataOutputStream(os: PositionedOutputStream) extends Data
   def getPosition: Long = os.getPosition
 }
 
+class WrappedPositionOutputStream(os: OutputStream) extends OutputStream with Positioned {
+  private[this] var count: Long = 0L
+
+  override def flush(): Unit = os.flush()
+
+  override def write(i: Int): Unit = {
+    os.write(i)
+    count += 1
+  }
+
+  override def write(bytes: Array[Byte], off: Int, len: Int): Unit = {
+    os.write(bytes, off, len)
+  }
+
+  override def close(): Unit = {
+    os.close()
+  }
+
+  def getPosition: Long = count
+}
+
 trait FileStatus {
   def getPath: String
   def getModificationTime: java.lang.Long
@@ -210,27 +231,38 @@ object FS {
   def cloudSpecificCacheableFS(
     credentialsPath: String,
     flags: Option[HailFeatureFlags]
-  ): ServiceCacheableFS = retryTransientErrors {
-    using(new FileInputStream(credentialsPath)) { is =>
+  ): FS = retryTransientErrors {
+    val (scheme, cloudSpecificFS) = using(new FileInputStream(credentialsPath)) { is =>
       val credentialsStr = Some(IOUtils.toString(is, Charset.defaultCharset()))
-      sys.env.get("HAIL_CLOUD").get match {
-        case "gcp" =>
+      sys.env.get("HAIL_CLOUD") match {
+        case Some("gcp") =>
           val requesterPaysConfiguration = flags.flatMap { flags =>
             RequesterPaysConfiguration.fromFlags(
               flags.get("gcs_requester_pays_project"), flags.get("gcs_requester_pays_buckets")
             )
           }
-          new GoogleStorageFS(credentialsStr, requesterPaysConfiguration).asCacheable()
-        case "azure" =>
-          new AzureStorageFS(credentialsStr).asCacheable()
+          ("gs", new GoogleStorageFS(credentialsStr, requesterPaysConfiguration).asCacheable())
+        case Some("azure") =>
+          ("hail-az", new AzureStorageFS(credentialsStr).asCacheable())
         case cloud =>
           throw new IllegalArgumentException(s"Bad cloud: $cloud")
+        case None =>
+          throw new IllegalArgumentException(s"HAIL_CLOUD must be set.")
       }
     }
+
+    new RouterFS(Map(scheme -> cloudSpecificFS, "file" -> new HadoopFS(new SerializableHadoopConfiguration(new hadoop.conf.Configuration()))), "file")
   }
 }
 
 trait FS extends Serializable {
+
+  def openCachedNoCompression(filename: String): SeekableDataInputStream = openNoCompression(filename)
+
+  def createCachedNoCompression(filename: String): PositionedDataOutputStream = createNoCompression(filename)
+
+  def writeCached(filename: String)(writer: PositionedDataOutputStream => Unit) = writePDOS(filename)(writer)
+
   def getCodecFromExtension(extension: String, gzAsBGZ: Boolean = false): CompressionCodec = {
     extension match {
       case ".gz" =>
@@ -380,6 +412,12 @@ trait FS extends Serializable {
     else
       os
   }
+
+  def write(filename: String)(writer: OutputStream => Unit) =
+    using(create(filename))(writer)
+
+  def writePDOS(filename: String)(writer: PositionedDataOutputStream => Unit) =
+    using(create(filename))(os => writer(outputStreamToPositionedDataOutputStream(os)))
 
   def getFileSize(filename: String): Long = fileStatus(filename).getLen
 

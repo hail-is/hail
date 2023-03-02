@@ -95,16 +95,34 @@ async def create_database():
     with open(create_database_config['user_password_file']) as f:
         user_password = f.read()
 
+    admin_exists = await db.execute_and_fetchone("SELECT user FROM mysql.user WHERE user=%s", (admin_username,))
+    admin_exists = admin_exists and admin_exists.get('user') == admin_username
+
+    user_exists = await db.execute_and_fetchone("SELECT user FROM mysql.user WHERE user=%s", (user_username,))
+    user_exists = user_exists and user_exists.get('user') == user_username
+
+    create_admin_or_alter_password = (
+        f"CREATE USER '{admin_username}'@'%' IDENTIFIED BY '{admin_password}';"
+        if not admin_exists
+        else "ALTER USER '{admin_username}'@'%' IDENTIFIED BY '{admin_password}';"
+    )
+
+    create_user_or_alter_password = (
+        f"CREATE USER '{user_username}'@'%' IDENTIFIED BY '{user_password}';"
+        if not user_exists
+        else "ALTER USER '{user_username}'@'%' IDENTIFIED BY '{user_password}';"
+    )
+
     await db.just_execute(
         f'''
-CREATE DATABASE IF NOT EXISTS `{_name}`;
+        CREATE DATABASE IF NOT EXISTS `{_name}`;
 
-CREATE USER IF NOT EXISTS '{admin_username}'@'%' IDENTIFIED BY '{admin_password}';
-GRANT ALL ON `{_name}`.* TO '{admin_username}'@'%';
+        {create_admin_or_alter_password}
+        GRANT ALL ON `{_name}`.* TO '{admin_username}'@'%';
 
-CREATE USER IF NOT EXISTS '{user_username}'@'%' IDENTIFIED BY '{user_password}';
-GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}'@'%';
-'''
+        {create_user_or_alter_password}
+        GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}'@'%';
+        '''
     )
 
     await write_user_config(

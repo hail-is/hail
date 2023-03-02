@@ -77,14 +77,14 @@ def test_vcf_vds_combiner_equivalence():
                                       array_elements_required=False)]
     entry_to_keep = defined_entry_fields(vcfs[0].filter_rows(hl.is_defined(vcfs[0].info.END)), 100_000) - {'GT', 'PGT', 'PL'}
     vds = vds.combine_variant_datasets([vds.transform_gvcf(mt, reference_entry_fields_to_keep=entry_to_keep) for mt in vcfs])
-    smt = vcf.combine_gvcfs([vcf.transform_gvcf(mt) for mt in vcfs])
-    smt_from_vds = hl.vds.to_merged_sparse_mt(vds).drop('RGQ')
-    smt = smt.select_entries(*smt_from_vds.entry)  # harmonize fields and order
-    smt = smt.key_rows_by('locus', 'alleles')
-    assert smt._same(smt_from_vds)
+    vds.variant_data = vds.variant_data.drop('RGQ')
+    smt = vcf.combine_gvcfs([vcf.transform_gvcf(mt) for mt in vcfs]).drop('RGQ')
+    vds_from_smt = hl.vds.VariantDataset.from_merged_representation(smt, ref_block_fields=list(vds.reference_data.entry.drop('END')))
+
+    assert vds.variant_data._same(vds_from_smt.variant_data, reorder_fields=True)
+    assert vds.reference_data._same(vds_from_smt.reference_data, reorder_fields=True)
 
 
-@fails_service_backend
 def test_combiner_plan_round_trip_serialization():
     sample_names = all_samples[:5]
     paths = [os.path.join(resource('gvcfs'), '1kg_chr22', f'{s}.hg38.g.vcf.gz') for s in sample_names]

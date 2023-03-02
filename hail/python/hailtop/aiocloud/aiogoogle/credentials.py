@@ -74,9 +74,9 @@ class GoogleCredentials(CloudCredentials):
             log.info(f'using credentials file {credentials_file}: {creds}')
             return creds
 
-        log.warning('Unable to locate Google Cloud credentials file')
+        log.info('Unable to locate Google Cloud credentials file')
         if GoogleInstanceMetadataCredentials.available():
-            log.warning('Will attempt to use instance metadata server instead')
+            log.info('Will attempt to use instance metadata server instead')
             return GoogleInstanceMetadataCredentials()
 
         log.warning('Using anonymous credentials. If accessing private data, '

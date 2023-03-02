@@ -1,6 +1,8 @@
 package is.hail.types.virtual
 
-import is.hail.annotations.ExtendedOrdering
+import is.hail.annotations.{Annotation, ExtendedOrdering}
+import is.hail.backend.HailStateManager
+import is.hail.check.Gen
 import is.hail.types.Box
 import is.hail.types.physical.PType
 
@@ -71,7 +73,9 @@ final case class TVariable(name: String, cond: String = null) extends Type {
     t
   }
 
+  override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = ???
+
   override def scalaClassTag: ClassTag[AnyRef] = throw new RuntimeException("TVariable is not realizable")
 
-  def mkOrdering(missingEqual: Boolean): ExtendedOrdering = null
+  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering = null
 }

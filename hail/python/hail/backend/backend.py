@@ -1,8 +1,11 @@
-from typing import Mapping, List, Union, Tuple, Dict, Optional, Any
+from typing import Mapping, List, Union, Tuple, Dict, Optional, Any, AbstractSet
 import abc
 import orjson
 import pkg_resources
 import zipfile
+
+from hailtop.config.user_config import configuration_of
+
 from ..fs.fs import FS
 from ..builtin_references import BUILTIN_REFERENCE_RESOURCE_PATHS
 from ..expr import Expression
@@ -25,9 +28,38 @@ Error summary: {short_message}''',
 
 
 class Backend(abc.ABC):
+    # Must match knownFlags in HailFeatureFlags.py
+    _flags_env_vars_and_defaults: Dict[str, Tuple[str, Optional[str]]] = {
+        "no_whole_stage_codegen": ("HAIL_DEV_NO_WHOLE_STAGE_CODEGEN", None),
+        "no_ir_logging": ("HAIL_DEV_NO_IR_LOG", None),
+        "lower": ("HAIL_DEV_LOWER", None),
+        "lower_only": ("HAIL_DEV_LOWER_ONLY", None),
+        "lower_bm": ("HAIL_DEV_LOWER_BM", None),
+        "print_ir_on_worker": ("HAIL_DEV_PRINT_IR_ON_WORKER", None),
+        "print_inputs_on_worker": ("HAIL_DEV_PRINT_INPUTS_ON_WORKER", None),
+        "max_leader_scans": ("HAIL_DEV_MAX_LEADER_SCANS", "1000"),
+        "distributed_scan_comb_op": ("HAIL_DEV_DISTRIBUTED_SCAN_COMB_OP", None),
+        "jvm_bytecode_dump": ("HAIL_DEV_JVM_BYTECODE_DUMP", None),
+        "write_ir_files": ("HAIL_WRITE_IR_FILES", None),
+        "method_split_ir_limit": ("HAIL_DEV_METHOD_SPLIT_LIMIT", "16"),
+        "use_new_shuffle": ("HAIL_USE_NEW_SHUFFLE", None),
+        "shuffle_max_branch_factor": ("HAIL_SHUFFLE_MAX_BRANCH", "64"),
+        "shuffle_cutoff_to_local_sort": ("HAIL_SHUFFLE_CUTOFF", "512000000"),  # This is in bytes
+        "grouped_aggregate_buffer_size": ("HAIL_GROUPED_AGGREGATE_BUFFER_SIZE", "50"),
+        "use_ssa_logs": ("HAIL_USE_SSA_LOGS", None),
+        "gcs_requester_pays_project": ("HAIL_GCS_REQUESTER_PAYS_PROJECT", None),
+        "gcs_requester_pays_buckets": ("HAIL_GCS_REQUESTER_PAYS_BUCKETS", None),
+        "index_branching_factor": ("HAIL_INDEX_BRANCHING_FACTOR", None),
+        "rng_nonce": ("HAIL_RNG_NONCE", "0x0")
+    }
+
+    def _valid_flags(self) -> AbstractSet[str]:
+        return self._flags_env_vars_and_defaults.keys()
+
     @abc.abstractmethod
     def __init__(self):
         self._persisted_locations = dict()
+        self._references = {}
 
     @abc.abstractmethod
     def stop(self):
@@ -54,10 +86,6 @@ class Backend(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def add_reference(self, config):
-        pass
-
-    @abc.abstractmethod
     def load_references_from_dataset(self, path):
         pass
 
@@ -65,23 +93,30 @@ class Backend(abc.ABC):
     def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
         pass
 
-    @abc.abstractmethod
-    def remove_reference(self, name):
+    def add_reference(self, rg):
+        self._references[rg.name] = rg
+        self._add_reference_to_scala_backend(rg)
+
+    def _add_reference_to_scala_backend(self, rg):
         pass
 
     def get_reference(self, name):
-        if name in BUILTIN_REFERENCE_RESOURCE_PATHS:
-            path_in_jar = BUILTIN_REFERENCE_RESOURCE_PATHS[name]
-            jar_path = pkg_resources.resource_filename(__name__, 'hail-all-spark.jar')
-            return orjson.loads(zipfile.ZipFile(jar_path).open(path_in_jar).read())
-        return self._get_non_builtin_reference(name)
+        return self._references[name]
 
-    @abc.abstractmethod
-    def _get_non_builtin_reference(self, name):
+    def initialize_references(self):
+        from hail.genetics.reference_genome import ReferenceGenome
+        jar_path = pkg_resources.resource_filename(__name__, 'hail-all-spark.jar')
+        for path_in_jar in BUILTIN_REFERENCE_RESOURCE_PATHS.values():
+            rg_config = orjson.loads(zipfile.ZipFile(jar_path).open(path_in_jar).read())
+            rg = ReferenceGenome._from_config(rg_config, _builtin=True)
+            self._references[rg.name] = rg
+
+    def remove_reference(self, name):
+        del self._references[name]
+        self._remove_reference_from_scala_backend(name)
+
+    def _remove_reference_from_scala_backend(self, name):
         pass
-
-    def get_references(self, names):
-        return [self.get_reference(name) for name in names]
 
     @abc.abstractmethod
     def add_sequence(self, name, fasta_file, index_file):
@@ -166,6 +201,12 @@ class Backend(abc.ABC):
     @abc.abstractmethod
     def persist_expression(self, expr: Expression) -> Expression:
         pass
+
+    def _initialize_flags(self) -> None:
+        self.set_flags(**{
+            k: configuration_of('query', k, None, default, deprecated_envvar=deprecated_envvar)
+            for k, (deprecated_envvar, default) in Backend._flags_env_vars_and_defaults.items()
+        })
 
     @abc.abstractmethod
     def set_flags(self, **flags: Mapping[str, str]):

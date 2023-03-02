@@ -48,6 +48,8 @@ class UnsafeSuite extends HailSuite {
     }
   }
 
+  def sm = ctx.stateManager
+
   @DataProvider(name = "codecs")
   def codecs(): Array[Array[Any]] = {
     (BufferSpec.specs ++ Array(TypedCodecSpec(PCanonicalStruct("x" -> PInt64()), BufferSpec.default)))
@@ -65,12 +67,12 @@ class UnsafeSuite extends HailSuite {
     val region2 = Region(pool=pool)
     val region3 = Region(pool=pool)
     val region4 = Region(pool=pool)
-    val rvb = new RegionValueBuilder(region)
+    val rvb = new RegionValueBuilder(sm, region)
 
     val path = ctx.createTmpPath("test-codec", "ser")
 
     val g = Type.genStruct
-      .flatMap(t => Gen.zip(Gen.const(t), t.genValue))
+      .flatMap(t => Gen.zip(Gen.const(t), t.genValue(sm)))
       .filter { case (t, a) => a != null }
     val p = Prop.forAll(g) { case (t, a) =>
       assert(t.typeCheck(a))
@@ -85,7 +87,7 @@ class UnsafeSuite extends HailSuite {
       BufferSpec.specs.foreach { bufferSpec =>
         val codec = TypedCodecSpec(pt, bufferSpec)
         region.clear()
-        val offset = pt.unstagedStoreJavaObject(a, region)
+        val offset = pt.unstagedStoreJavaObject(sm, a, region)
 
         val aos = new ByteArrayOutputStream()
         val en = codec.buildEncoder(ctx, pt)(aos, theHailClassLoader)
@@ -146,7 +148,7 @@ class UnsafeSuite extends HailSuite {
 
     valuesAndTypes.foreach { case (v, t) =>
       pool.scopedRegion { region =>
-        val off = ScalaToRegionValue(region, t, v)
+        val off = ScalaToRegionValue(sm, region, t, v)
         BufferSpec.specs.foreach { spec =>
           val cs2 = TypedCodecSpec(t, spec)
           val baos = new ByteArrayOutputStream()
@@ -159,7 +161,7 @@ class UnsafeSuite extends HailSuite {
           assert(decT == t)
           val res = dec((new ByteArrayInputStream(serialized)), theHailClassLoader).readRegionValue(region)
 
-          assert(t.unsafeOrdering().equiv(res, off))
+          assert(t.unsafeOrdering(sm).equiv(res, off))
         }
       }
     }
@@ -186,11 +188,11 @@ class UnsafeSuite extends HailSuite {
   @Test def testRegionValue() {
     val region = Region(pool=pool)
     val region2 = Region(pool=pool)
-    val rvb = new RegionValueBuilder(region)
-    val rvb2 = new RegionValueBuilder(region2)
+    val rvb = new RegionValueBuilder(sm, region)
+    val rvb2 = new RegionValueBuilder(sm, region2)
 
     val g = Type.genArb
-      .flatMap(t => Gen.zip(Gen.const(t), t.genValue, Gen.choose(0, 100), Gen.choose(0, 100)))
+      .flatMap(t => Gen.zip(Gen.const(t), t.genValue(sm), Gen.choose(0, 100), Gen.choose(0, 100)))
       .filter { case (t, a, n, n2) => a != null }
     val p = Prop.forAll(g) { case (t, a, n, n2) =>
       val pt = PType.canonical(t)
@@ -200,7 +202,7 @@ class UnsafeSuite extends HailSuite {
       region.clear()
       region.allocate(1, n) // preallocate
 
-      val offset = pt.unstagedStoreJavaObject(a, region)
+      val offset = pt.unstagedStoreJavaObject(sm, a, region)
 
       val ur = UnsafeRow.read(pt, region, offset)
       assert(t.valuesSimilar(a, ur), s"$a vs $ur")
@@ -212,7 +214,7 @@ class UnsafeSuite extends HailSuite {
       // test addAnnotation from ur
       region2.clear()
       region2.allocate(1, n2) // preallocate
-      val offset2 = pt.unstagedStoreJavaObject(ur, region2)
+      val offset2 = pt.unstagedStoreJavaObject(sm, ur, region2)
 
       val ur2 = UnsafeRow.read(pt, region2, offset2)
       assert(t.valuesSimilar(a, ur2), s"$a vs $ur2")
@@ -232,7 +234,7 @@ class UnsafeSuite extends HailSuite {
           val ps = pt.asInstanceOf[PStruct]
           region2.clear()
           region2.allocate(1, n) // preallocate
-          val offset4 = ps.unstagedStoreJavaObject(Row.fromSeq(a.asInstanceOf[Row].toSeq), region2)
+          val offset4 = ps.unstagedStoreJavaObject(sm, Row.fromSeq(a.asInstanceOf[Row].toSeq), region2)
           val ur4 = new UnsafeRow(ps, region2, offset4)
           assert(t.valuesSimilar(a, ur4))
         case _ =>
@@ -249,7 +251,7 @@ class UnsafeSuite extends HailSuite {
       t match {
         case t: TStruct =>
           val ps = pt.asInstanceOf[PStruct]
-          val offset6 = ps.unstagedStoreJavaObject(Row.fromSeq(a.asInstanceOf[Row].toSeq), region)
+          val offset6 = ps.unstagedStoreJavaObject(sm, Row.fromSeq(a.asInstanceOf[Row].toSeq), region)
           val ur6 = new UnsafeRow(ps, region, offset6)
           assert(t.valuesSimilar(a, ur6))
         case _ =>
@@ -268,7 +270,7 @@ class UnsafeSuite extends HailSuite {
     x = (fraction * s).toInt
     y = s - x
     t <- Type.genStruct.resize(x)
-    v <- t.genNonmissingValue.resize(y)
+    v <- t.genNonmissingValue(sm).resize(y)
   } yield (t, v)).filter(_._2 != null)
 
   @Test def testPacking() {
@@ -318,11 +320,11 @@ class UnsafeSuite extends HailSuite {
   @Test def testUnsafeOrdering() {
     val region = Region(pool=pool)
     val region2 = Region(pool=pool)
-    val rvb = new RegionValueBuilder(region)
-    val rvb2 = new RegionValueBuilder(region2)
+    val rvb = new RegionValueBuilder(sm, region)
+    val rvb2 = new RegionValueBuilder(sm, region2)
 
     val g = PType.genStruct
-      .flatMap(t => Gen.zip(Gen.const(t), Gen.zip(t.genValue, t.genValue)))
+      .flatMap(t => Gen.zip(Gen.const(t), Gen.zip(t.genValue(sm), t.genValue(sm))))
       .filter { case (t, (a1, a2)) => a1 != null && a2 != null }
       .resize(10)
     val p = Prop.forAll(g) { case (t, (a1, a2)) =>
@@ -333,19 +335,19 @@ class UnsafeSuite extends HailSuite {
       tv.typeCheck(a2)
 
       region.clear()
-      val offset = t.unstagedStoreJavaObject(a1, region)
+      val offset = t.unstagedStoreJavaObject(sm, a1, region)
 
       val ur1 = new UnsafeRow(t, region, offset)
       assert(tv.valuesSimilar(a1, ur1))
 
       region2.clear()
-      val offset2 = t.unstagedStoreJavaObject(a2, region2)
+      val offset2 = t.unstagedStoreJavaObject(sm, a2, region2)
 
       val ur2 = new UnsafeRow(t, region2, offset2)
       assert(tv.valuesSimilar(a2, ur2))
 
-      val ord = tv.ordering
-      val uord = t.unsafeOrdering()
+      val ord = tv.ordering(sm)
+      val uord = t.unsafeOrdering(sm)
 
       val c1 = ord.compare(a1, a2)
       val c2 = ord.compare(ur1, ur2)

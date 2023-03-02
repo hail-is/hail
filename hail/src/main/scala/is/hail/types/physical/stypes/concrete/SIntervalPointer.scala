@@ -17,7 +17,7 @@ final case class SIntervalPointer(pType: PInterval) extends SInterval {
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue =
     value match {
       case value: SIntervalValue =>
-        new SIntervalPointerValue(this, pType.store(cb, region, value, deepCopy), value.includesStart(), value.includesEnd())
+        new SIntervalPointerValue(this, pType.store(cb, region, value, deepCopy), value.includesStart, value.includesEnd)
     }
 
 

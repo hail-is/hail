@@ -24,7 +24,6 @@ import google.auth.exceptions
 import google.api_core.exceptions
 import botocore.exceptions
 import time
-import weakref
 from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
 
@@ -149,7 +148,15 @@ def unzip(lst: Iterable[Tuple[T, U]]) -> Tuple[List[T], List[U]]:
 
 
 def async_to_blocking(coro: Awaitable[T]) -> T:
-    return asyncio.get_event_loop().run_until_complete(coro)
+    loop = asyncio.get_event_loop()
+    task = asyncio.ensure_future(coro)
+    try:
+        return loop.run_until_complete(task)
+    finally:
+        if not task.done():
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                loop.run_until_complete(task)
 
 
 async def blocking_to_async(thread_pool: concurrent.futures.Executor,
@@ -236,9 +243,7 @@ class AsyncThrottledGather(Generic[T]):
 class AsyncWorkerPool:
     def __init__(self, parallelism, queue_size=1000):
         self._queue: asyncio.Queue[Tuple[Callable, Tuple[Any, ...], Mapping[str, Any]]] = asyncio.Queue(maxsize=queue_size)
-        self.workers = weakref.WeakSet([
-            asyncio.ensure_future(self._worker())
-            for _ in range(parallelism)])
+        self.workers = {asyncio.ensure_future(self._worker()) for _ in range(parallelism)}
 
     async def _worker(self):
         while True:
@@ -695,6 +700,14 @@ def is_transient_error(e):
     return False
 
 
+def is_delayed_warning_error(e):
+    if isinstance(e, aiohttp.ClientResponseError) and e.status in (503, 429):
+        # 503 service unavailable
+        # 429 "Temporarily throttled, too many requests"
+        return True
+    return False
+
+
 async def sleep_and_backoff(delay, max_delay=30.0):
     # exponentially back off, up to (expected) max_delay
     t = delay * random.uniform(0.9, 1.1)
@@ -750,10 +763,15 @@ def retry_all_errors_n_times(max_errors=10, msg=None, error_logging_interval=10)
 
 
 async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
-    return await retry_transient_errors_with_debug_string('', f, *args, **kwargs)
+    return await retry_transient_errors_with_debug_string('', 0, f, *args, **kwargs)
 
 
-async def retry_transient_errors_with_debug_string(debug_string: str, f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
+async def retry_transient_errors_with_delayed_warnings(warning_delay_msecs: int, f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
+    return await retry_transient_errors_with_debug_string('', warning_delay_msecs, f, *args, **kwargs)
+
+
+async def retry_transient_errors_with_debug_string(debug_string: str, warning_delay_msecs: int, f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
+    start_time = time_msecs()
     delay = 0.1
     errors = 0
     while True:
@@ -767,11 +785,12 @@ async def retry_transient_errors_with_debug_string(debug_string: str, f: Callabl
                 return await f(*args, **kwargs)
             if not is_transient_error(e):
                 raise
-            if errors == 2:
+            log_warnings = (time_msecs() - start_time >= warning_delay_msecs) or not is_delayed_warning_error(e)
+            if log_warnings and errors == 2:
                 log.warning(f'A transient error occured. We will automatically retry. Do not be alarmed. '
                             f'We have thus far seen {errors} transient errors (current delay: '
                             f'{delay}). The most recent error was {type(e)} {e}. {debug_string}')
-            elif errors % 10 == 0:
+            elif log_warnings and errors % 10 == 0:
                 st = ''.join(traceback.format_stack())
                 log.warning(f'A transient error occured. We will automatically retry. '
                             f'We have thus far seen {errors} transient errors (current delay: '
@@ -923,12 +942,21 @@ async def run_if_changed_idempotent(changed, f, *args, **kwargs):
             await changed.wait()
 
 
-async def periodically_call(period, f, *args, **kwargs):
+async def periodically_call(period: int, f, *args, **kwargs):
     async def loop():
         log.info(f'starting loop for {f.__name__}')
         while True:
             await f(*args, **kwargs)
             await asyncio.sleep(period)
+    await retry_long_running(f.__name__, loop)
+
+
+async def periodically_call_with_dynamic_sleep(period: Callable[[], int], f, *args, **kwargs):
+    async def loop():
+        log.info(f'starting loop for {f.__name__}')
+        while True:
+            await f(*args, **kwargs)
+            await asyncio.sleep(period())
     await retry_long_running(f.__name__, loop)
 
 

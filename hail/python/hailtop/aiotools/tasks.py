@@ -1,7 +1,6 @@
-from typing import Optional
+from typing import Set
 import asyncio
 import logging
-import weakref
 
 
 log = logging.getLogger('aiotools.tasks')
@@ -12,26 +11,18 @@ class TaskManagerClosedError(Exception):
 
 
 class BackgroundTaskManager:
-    def __init__(self, loop: Optional[asyncio.AbstractEventLoop] = None):
-        if loop is None:
-            loop = asyncio.get_event_loop()
-
-        self.tasks: weakref.WeakSet = weakref.WeakSet()
-        self.loop = loop
-
+    def __init__(self):
+        # These must be strong references so that tasks do not get GC'd
+        # The event loop only keeps weak references to tasks
+        self.tasks: Set[asyncio.Task] = set()
         self._closed = False
 
-    def ensure_future(self, coroutine) -> asyncio.Future:
+    def ensure_future(self, coroutine):
         if self._closed:
             raise TaskManagerClosedError
-        t = asyncio.ensure_future(coroutine)
+        t = asyncio.create_task(coroutine)
+        t.add_done_callback(lambda _: self.tasks.remove(t))
         self.tasks.add(t)
-        return t
-
-    def ensure_future_threadsafe(self, coroutine):
-        if self._closed:
-            raise TaskManagerClosedError
-        self.tasks.add(asyncio.run_coroutine_threadsafe(coroutine, self.loop))
 
     def shutdown(self):
         self._closed = True

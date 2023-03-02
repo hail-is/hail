@@ -3,7 +3,7 @@ package is.hail.expr.ir.agg
 import breeze.linalg.{DenseMatrix, DenseVector, diag, inv}
 import is.hail.annotations.{Region, RegionValueBuilder, UnsafeRow}
 import is.hail.asm4s._
-import is.hail.backend.ExecuteContext
+import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitContext, IEmitCode}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SCode, SValue}
@@ -31,7 +31,7 @@ object LinearRegressionAggregator {
     val xtx = DenseMatrix.create(k, k, UnsafeRow.readArray(vector, null, xtxPtr)
       .asInstanceOf[IndexedSeq[Double]].toArray[Double])
 
-    val rvb = new RegionValueBuilder(region)
+    val rvb = new RegionValueBuilder(HailStateManager(Map.empty), region)
     rvb.start(resultPType)
     rvb.startStruct()
 

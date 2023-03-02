@@ -11,7 +11,7 @@ import org.testng.annotations.Test
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 import is.hail.variant.Call2
 import is.hail.utils._
-import is.hail.expr.ir.IRBuilder._
+import is.hail.expr.ir.DeprecatedIRBuilder._
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import org.apache.spark.sql.Row
 

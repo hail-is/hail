@@ -14,7 +14,9 @@ from .utils import (unzip, async_to_blocking, blocking_to_async, AsyncWorkerPool
                     url_scheme, Notice, periodically_call, dump_all_stacktraces, find_spark_home,
                     TransientError, bounded_gather2, OnlineBoundedGather2,
                     unpack_comma_delimited_inputs, unpack_key_value_inputs,
-                    retry_all_errors_n_times, Timings, is_retry_once_error, am_i_interactive)
+                    retry_all_errors_n_times, Timings, is_retry_once_error, am_i_interactive,
+                    is_delayed_warning_error, retry_transient_errors_with_delayed_warnings,
+                    periodically_call_with_dynamic_sleep)
 from .process import (
     CalledProcessError, check_shell, check_shell_output, check_exec_output,
     sync_check_shell, sync_check_shell_output, sync_check_exec)
@@ -45,11 +47,13 @@ __all__ = [
     'bounded_gather',
     'grouped',
     'is_transient_error',
+    'is_delayed_warning_error',
     'sync_sleep_and_backoff',
     'sleep_and_backoff',
     'retry_all_errors',
     'retry_transient_errors',
     'retry_transient_errors_with_debug_string',
+    'retry_transient_errors_with_delayed_warnings',
     'retry_long_running',
     'run_if_changed',
     'run_if_changed_idempotent',
@@ -80,6 +84,7 @@ __all__ = [
     'serialization',
     'Notice',
     'periodically_call',
+    'periodically_call_with_dynamic_sleep',
     'dump_all_stacktraces',
     'find_spark_home',
     'TransientError',

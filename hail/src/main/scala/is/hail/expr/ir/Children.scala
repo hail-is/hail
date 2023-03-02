@@ -81,6 +81,8 @@ object Children {
       Array(nds)
     case ArraySort(a, _, _, lessThan) =>
       Array(a, lessThan)
+    case ArrayMaximalIndependentSet(a, tieBreaker) =>
+      Array(a) ++ tieBreaker.map { case (_, _, tb) => tb }
     case ToSet(a) =>
       Array(a)
     case ToDict(a) =>
@@ -140,6 +142,8 @@ object Children {
       Array(a, query)
     case StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, _, _, _) =>
       Array(streamChild, initAggs, newKey, seqOps)
+    case StreamLocalLDPrune(streamChild, r2Threshold, windowSize, maxQueueSize, nSamples) =>
+      Array(streamChild, r2Threshold, windowSize, maxQueueSize, nSamples)
     case RunAggScan(array, _, init, seq, result, _) =>
       Array(array, init, seq, result)
     case RunAgg(body, result, _) =>

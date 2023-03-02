@@ -40,6 +40,7 @@ import org.apache.spark.util.TaskCompletionListener
 import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
 import org.json4s
+import org.json4s.Formats
 import org.json4s.JsonAST.{JInt, JObject}
 
 
@@ -64,14 +65,14 @@ object SparkTaskContext {
   }
 
   def finish(): Unit = {
-    taskContext.get().finish()
+    taskContext.get().close()
     taskContext.remove()
   }
 }
 
 
 class SparkTaskContext private[spark](ctx: TaskContext) extends HailTaskContext {
-  self=>
+  self =>
   override def stageId(): Int = ctx.stageId()
   override def partitionId(): Int = ctx.partitionId()
   override def attemptNumber(): Int = ctx.attemptNumber()
@@ -267,7 +268,7 @@ class SparkBackend(
   val sc: SparkContext,
   gcsRequesterPaysProject: String,
   gcsRequesterPaysBuckets: String
-) extends Backend with Closeable {
+) extends Backend with Closeable with BackendWithCodeCache {
   assert(gcsRequesterPaysProject != null || gcsRequesterPaysBuckets == null)
   lazy val sparkSession: SparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
   private[this] val theHailClassLoader: HailClassLoader = new HailClassLoader(getClass().getClassLoader())
@@ -323,6 +324,7 @@ class SparkBackend(
     timer,
     if (selfContainedExecution) null else new NonOwningTempFileManager(longLifeTempFileManager),
     theHailClassLoader,
+    this.references,
     flags
   )
 
@@ -335,6 +337,7 @@ class SparkBackend(
       timer,
       if (selfContainedExecution) null else new NonOwningTempFileManager(longLifeTempFileManager),
       theHailClassLoader,
+      this.references,
       flags
     )(f)
   }
@@ -345,6 +348,7 @@ class SparkBackend(
     backendContext: BackendContext,
     fs: FS,
     collection: Array[Array[Byte]],
+    stageIdentifier: String,
     dependency: Option[TableStageDependency] = None
   )(
     f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
@@ -411,7 +415,7 @@ class SparkBackend(
             ir,
             print = print)
         }
-        ctx.timer.time("Run")(Left(f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)))
+        ctx.timer.time("Run")(Left(ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r))))
 
       case _ =>
         val (Some(PTypeReferenceSingleCodeType(pt: PTuple)), f) = ctx.timer.time("Compile") {
@@ -421,7 +425,7 @@ class SparkBackend(
             MakeTuple.ordered(FastSeq(ir)),
             print = print)
         }
-        ctx.timer.time("Run")(Right((pt, f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r).apply(ctx.r))))
+        ctx.timer.time("Run")(Right((pt, ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r)))))
     }
 
     res
@@ -615,21 +619,35 @@ class SparkBackend(
     matrixReaders.asJava
   }
 
-  def pyReferenceAddLiftover(name: String, chainFile: String, destRGName: String): Unit = {
+  def pyLoadReferencesFromDataset(path: String): String = {
+    val rgs = ReferenceGenome.fromHailDataset(fs, path)
+    rgs.foreach(addReference)
+
+    implicit val formats: Formats = defaultJSONFormats
+    Serialization.write(rgs.map(_.toJSON).toFastIndexedSeq)
+  }
+
+  def pyAddReference(jsonConfig: String): Unit = addReference(ReferenceGenome.fromJSON(jsonConfig))
+  def pyRemoveReference(name: String): Unit = removeReference(name)
+
+  def pyAddLiftover(name: String, chainFile: String, destRGName: String): Unit = {
     ExecutionTimer.logTime("SparkBackend.pyReferenceAddLiftover") { timer =>
       withExecuteContext(timer) { ctx =>
-        ReferenceGenome.referenceAddLiftover(ctx, name, chainFile, destRGName)
+        references(name).addLiftover(ctx, chainFile, destRGName)
       }
     }
   }
+  def pyRemoveLiftover(name: String, destRGName: String) = references(name).removeLiftover(destRGName)
 
   def pyFromFASTAFile(name: String, fastaFile: String, indexFile: String,
     xContigs: java.util.List[String], yContigs: java.util.List[String], mtContigs: java.util.List[String],
-    parInput: java.util.List[String]): ReferenceGenome = {
+    parInput: java.util.List[String]): String = {
     ExecutionTimer.logTime("SparkBackend.pyFromFASTAFile") { timer =>
       withExecuteContext(timer) { ctx =>
-        ReferenceGenome.fromFASTAFile(ctx, name, fastaFile, indexFile,
+        val rg = ReferenceGenome.fromFASTAFile(ctx, name, fastaFile, indexFile,
           xContigs.asScala.toArray, yContigs.asScala.toArray, mtContigs.asScala.toArray, parInput.asScala.toArray)
+        addReference(rg)
+        rg.toJSONString
       }
     }
   }
@@ -637,10 +655,11 @@ class SparkBackend(
   def pyAddSequence(name: String, fastaFile: String, indexFile: String): Unit = {
     ExecutionTimer.logTime("SparkBackend.pyAddSequence") { timer =>
       withExecuteContext(timer) { ctx =>
-        ReferenceGenome.addSequence(ctx, name, fastaFile, indexFile)
+        references(name).addSequence(ctx, fastaFile, indexFile)
       }
     }
   }
+  def pyRemoveSequence(name: String) = references(name).removeSequence()
 
   def pyExportBlockMatrix(
     pathIn: String, pathOut: String, delimiter: String, header: String, addIndex: Boolean, exportType: String,
@@ -726,7 +745,7 @@ class SparkBackend(
     val sortColIndexOrd = sortFields.map { case SortField(n, so) =>
       val i = rowType.fieldIdx(n)
       val f = rowType.fields(i)
-      val fo = f.typ.ordering
+      val fo = f.typ.ordering(ctx.stateManager)
       if (so == Ascending) fo else fo.reverse
     }.toArray
 

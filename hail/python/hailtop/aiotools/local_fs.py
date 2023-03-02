@@ -5,6 +5,7 @@ import os.path
 import io
 import stat
 import asyncio
+import datetime
 from concurrent.futures import ThreadPoolExecutor
 import urllib.parse
 
@@ -15,12 +16,19 @@ from .fs import (FileStatus, FileListEntry, MultiPartCreate, AsyncFS, AsyncFSURL
 
 
 class LocalStatFileStatus(FileStatus):
-    def __init__(self, stat_result):
+    def __init__(self, stat_result: os.stat_result):
         self._stat_result = stat_result
         self._items = None
 
     async def size(self) -> int:
         return self._stat_result.st_size
+
+    def time_created(self) -> datetime.datetime:
+        raise ValueError('LocalFS does not support time created.')
+
+    def time_modified(self) -> datetime.datetime:
+        return datetime.datetime.fromtimestamp(self._stat_result.st_mtime,
+                                               tz=datetime.timezone.utc)
 
     async def __getitem__(self, key: str) -> Any:
         raise KeyError(key)

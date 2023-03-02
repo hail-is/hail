@@ -24,6 +24,79 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.109
+
+Released 2023-02-08
+
+### New Features
+
+- (hail#12605) Add `hl.pgenchisq` the cumulative distribution function of the generalized chi-squared distribution.
+- (hail#12637) Query-on-Batch now supports `hl.skat(..., logistic=False)`.
+- (hail#12645) Added `hl.vds.truncate_reference_blocks` to transform a VDS to checkpoint reference blocks in order to drastically improve interval filtering performance. Also added `hl.vds.merge_reference_blocks` to merge adjacent reference blocks according to user criteria to better compress reference data.
+
+### Bug Fixes
+
+- (hail#12650) Hail will now throw an exception on `hl.export_bgen` when there is no GP field, instead of exporting null records.
+- (hail#12635) Fix bug where `hl.skat` did not work on Apple M1 machines.
+- (hail#12571) When using Query-on-Batch, hl.hadoop* methods now properly support creation and modification time.
+- (hail#12566) Improve error message when combining incompatibly indexed fields in certain operations including array indexing.
+
+---
+
+## Version 0.2.108
+
+Released 2023-1-12
+
+### New Features
+
+- (hail#12576) `hl.import_bgen` and `hl.export_bgen` now support compression with Zstd.
+
+### Bug fixes
+
+- (hail#12585) `hail.ggplot`s that have more than one legend group or facet are now interactive. If such a plot has enough legend entries that the legend would be taller than the plot, the legend will now be scrollable. Legend entries for such plots can be clicked to show/hide traces on the plot, but this does not work and is a known issue that will only be addressed if `hail.ggplot` is migrated off of plotly.
+- (hail#12584) Fixed bug which arose as an assertion error about type mismatches. This was usually triggered when working with tuples.
+- (hail#12583) Fixed bug which showed an empty table for `ht.col_key.show()`.
+- (hail#12582) Fixed bug where matrix tables with duplicate col keys do not show properly. Also fixed bug where tables and matrix tables with HTML unsafe column headers are rendered wrong in Jupyter.
+- (hail#12574) Fixed a memory leak when processing tables. Could trigger unnecessarily high memory use and out of memory errors when there are many rows per partition or large key fields.
+- (hail#12565) Fixed a bug that prevented exploding on a field of a Table whose value is a random value.
+
+---
+
+## Version 0.2.107
+
+Released 2022-12-14
+
+### Bug fixes
+
+- (hail#12543) Fixed `hl.vds.local_to_global` error when LA array contains non-ascending allele indices.
+
+---
+
+## Version 0.2.106
+
+Released 2022-12-13
+
+### New Features
+
+- (hail#12522) Added `hailctl` config setting `'batch/backend'` to specify the default backend to use in batch scripts when not specified in code.
+- (hail#12497) Added support for `scales`, `nrow`, and `ncol` arguments, as well as grouped legends, to `hail.ggplot.facet_wrap`.
+- (hail#12471) Added `hailctl batch submit` command to run local scripts inside batch jobs.
+- (hail#12525) Add support for passing arguments to `hailctl batch submit`.
+- (hail#12465) Batch jobs' status now contains the region the job ran in. The job itself can access which region it is in through the `HAIL_REGION` environment variable.
+- (hail#12464) When using Query-on-Batch, all jobs for a single hail session are inserted into the same batch instead of one batch per action.
+- (hail#12457) `pca` and `hwe_normalized_pca` are now supported in Query-on-Batch.
+- (hail#12376) Added `hail.query_table` function for reading tables with indices from Python.
+- (hail#12139) Random number generation has been updated, but shouldn't affect most users. If you need to manually set seeds, see https://hail.is/docs/0.2/functions/random.html for details.
+- (hail#11884) Added `Job.always_copy_output` when using the `ServiceBackend`. The default behavior is `False`, which is a breaking change from the previous behavior to always copy output files regardless of the job's completion state.
+- (hail#12139) Brand new random number generation, shouldn't affect most users. If you need to manually set seeds, see https://hail.is/docs/0.2/functions/random.html for details.
+
+### Bug Fixes
+- (hail#12487) Fixed a bug causing rare but deterministic job failures deserializing data in Query-on-Batch.
+- (hail#12535) QoB will now error if the user reads from and writes to the same path. QoB also now respects the user's configuration of `disable_progress_bar`. When `disable_progress_bar` is unspecified, QoB only disables the progress bar for non-interactive sessions.
+- (hail#12517) Fix a performance regression that appears when using `hl.split_multi_hts` among other methods.
+
+---
+
 ## Version 0.2.105
 
 Released 2022-10-31 🎃

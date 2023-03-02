@@ -3,9 +3,13 @@ package is.hail.backend
 import is.hail.asm4s.HailClassLoader
 import is.hail.{HailContext, HailFeatureFlags}
 import is.hail.annotations.{Region, RegionPool}
+import is.hail.backend.local.LocalTaskContext
 import is.hail.expr.ir.Threefry
 import is.hail.io.fs.FS
-import is.hail.utils.{ExecutionTimer, using}
+import is.hail.utils._
+import is.hail.types.MapTypes
+import is.hail.types.virtual.{TLocus, Type}
+import is.hail.variant.ReferenceGenome
 
 import java.io._
 import java.security.SecureRandom
@@ -35,7 +39,6 @@ class NonOwningTempFileManager(owner: TempFileManager) extends TempFileManager {
   override def cleanup(): Unit = ()
 }
 
-
 object ExecuteContext {
   def scoped[T]()(f: ExecuteContext => T): T = {
     val (result, _) = ExecutionTimer.time("ExecuteContext.scoped") { timer =>
@@ -52,6 +55,7 @@ object ExecuteContext {
     timer: ExecutionTimer,
     tempFileManager: TempFileManager,
     theHailClassLoader: HailClassLoader,
+    referenceGenomes: Map[String, ReferenceGenome],
     flags: HailFeatureFlags,
   )(
     f: ExecuteContext => T
@@ -66,6 +70,7 @@ object ExecuteContext {
         timer,
         tempFileManager,
         theHailClassLoader,
+        referenceGenomes,
         flags
       ))(f(_))
     }
@@ -103,11 +108,19 @@ class ExecuteContext(
   val timer: ExecutionTimer,
   _tempFileManager: TempFileManager,
   val theHailClassLoader: HailClassLoader,
+  private[this] val referenceGenomes: Map[String, ReferenceGenome],
   private[this] val flags: HailFeatureFlags
 ) extends Closeable {
   var backendContext: BackendContext = _
 
-  val rngNonce: Long = java.lang.Long.decode(getFlag("rng_nonce"))
+  val rngNonce: Long = try {
+    java.lang.Long.decode(getFlag("rng_nonce"))
+  } catch {
+    case exc: NumberFormatException =>
+      fatal(s"Could not parse flag rng_nonce as a 64-bit signed integer: ${getFlag("rng_nonce")}", exc)
+  }
+
+  val stateManager = HailStateManager(referenceGenomes)
 
   private val tempFileManager: TempFileManager = if (_tempFileManager != null)
     _tempFileManager
@@ -121,6 +134,11 @@ class ExecuteContext(
   private[this] val broadcasts = mutable.ArrayBuffer.empty[BroadcastValue[_]]
 
   val memo: mutable.Map[Any, Any] = new mutable.HashMap[Any, Any]()
+
+  val taskContext: HailTaskContext = new LocalTaskContext(0, 0)
+  def scopedExecution[T](f: (HailClassLoader, FS, HailTaskContext, Region) => T): T = {
+    using(new LocalTaskContext(0, 0))(f(theHailClassLoader, fs, _, r))
+  }
 
   def createTmpPath(prefix: String, extension: String = null): String = {
     val path = ExecuteContext.createTmpPathNoCleanup(tmpdir, prefix, extension)
@@ -138,6 +156,8 @@ class ExecuteContext(
 
   def getFlag(name: String): String = flags.get(name)
 
+  def getReference(name: String): ReferenceGenome = referenceGenomes(name)
+
   def shouldWriteIRFiles(): Boolean = getFlag("write_ir_files") != null
 
   def shouldNotLogIR(): Boolean = flags.get("no_ir_logging") != null
@@ -146,6 +166,7 @@ class ExecuteContext(
 
   def close(): Unit = {
     tempFileManager.cleanup()
+    taskContext.close()
 
     var exception: Exception = null
     for (cleanupFunction <- cleanupFunctions) {

@@ -2,3 +2,11 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: test-batch-sa
+---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/service-account-token
+metadata:
+  name: test-batch-sa-token
+  annotations:
+    kubernetes.io/service-account.name: test-batch-sa

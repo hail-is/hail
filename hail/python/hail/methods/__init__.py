@@ -12,7 +12,7 @@ from .statgen import (skat, impute_sex, genetic_relatedness_matrix, realized_rel
                       ld_prune, row_correlation, ld_matrix, linear_mixed_model,
                       linear_regression_rows, _linear_regression_rows_nd, logistic_regression_rows,
                       _logistic_regression_rows_nd, poisson_regression_rows,
-                      linear_mixed_regression_rows, lambda_gc)
+                      linear_mixed_regression_rows, lambda_gc, _linear_skat, _logistic_skat)
 from .qc import sample_qc, variant_qc, vep, concordance, nirvana, summarize_variants, compute_charr
 from .misc import rename_duplicates, maximal_independent_set, segment_intervals, filter_intervals
 from .relatedness import identity_by_descent, king, pc_relate
@@ -29,6 +29,8 @@ __all__ = ['trio_matrix',
            'poisson_regression_rows',
            'linear_mixed_regression_rows',
            'lambda_gc',
+           '_linear_skat',
+           '_logistic_skat',
            'sample_qc',
            'variant_qc',
            'genetic_relatedness_matrix',
