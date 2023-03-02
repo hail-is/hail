@@ -2,7 +2,7 @@ import asyncio
 import logging
 import random
 from collections import defaultdict
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import prometheus_client as pc
 import sortedcontainers
