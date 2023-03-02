@@ -741,31 +741,28 @@ class BlockMatrixStage2 private (
     BlockMatrixStage2(broadcastVals, typ, groupedContextsWithIndices, newBody)
   }
 
-  def zeroBand(lower: Long, upper: Long, typ: BlockMatrixType, ib: IRBuilder): BlockMatrixStage2 = {
-    val ctxs = contexts.map(ib) { (_, _, _, context) =>
-      maketuple(context, I64(lower), I64(upper))
+  def zeroBand(_lower: Long, _upper: Long, typ: BlockMatrixType, ib: IRBuilder): BlockMatrixStage2 = {
+    val ctxs = contexts.map(ib) { (i, j, _, context) =>
+      maketuple(context, i, j)
     }
 
     def newBody(ctx: Ref): IR = IRBuilder.scoped { ib =>
-      val localContexts = contexts match {
-        case _: DenseContexts => DenseContexts(GetTupleElement(ctx, 0), ib)
-        case _: SparseContexts => SparseContexts(GetTupleElement(ctx, 0), ib)
-      }
-
-      val lower = GetTupleElement(ctx, 1)
-      val upper = GetTupleElement(ctx, 2)
-
-      localContexts.collect { (i, j, localContext) => bindIRs(lower, upper, blockIR(localContext)) { case Seq(lower, upper, block) =>
+      val oldCtx = GetTupleElement(ctx, 0)
+      val i = GetTupleElement(ctx, 1)
+      val j = GetTupleElement(ctx, 2)
+      val diagIndex = (j - i).toL * typ.blockSize.toLong
+      bindIRs(diagIndex, oldCtx) { case Seq(diagIndex, oldCtx) =>
+        val lower = I64(_lower)
+        val upper = I64(_upper)
         val (nRowsInBlock, nColsInBlock) = typ.blockShapeIR(i, j)
-        val diagIndex = (j - i).toL * typ.blockSize
-        val lowestDiagIndex = diagIndex - (nRowsInBlock - 1)
-        val highestDiagIndex = diagIndex + (nColsInBlock - 1)
-
+        val lowestDiagIndex = diagIndex - (nRowsInBlock - 1L)
+        val highestDiagIndex = diagIndex + (nColsInBlock - 1L)
+        val block = blockIR(oldCtx)
         If(lowestDiagIndex >= lower && highestDiagIndex <= upper,
           block,
           invoke("zero_band", TNDArray(TFloat64, Nat(2)), block, lower, upper, diagIndex, nRowsInBlock, nColsInBlock)
         )
-      }}
+      }
     }
 
     BlockMatrixStage2(broadcastVals, typ, ctxs, newBody)
@@ -776,22 +773,19 @@ class BlockMatrixStage2 private (
     val startsGrouped = Literal(t, starts.grouped(typ.blockSize))
     val stopsGrouped = Literal(t, stops.grouped(typ.blockSize))
 
-    val ctxs = contexts.map(ib) { (i, _j, _pos, context) =>
-      maketuple(context, ArrayRef(startsGrouped, i), ArrayRef(stopsGrouped, i))
+    val ctxs = contexts.map(ib) { (i, j, _, context) =>
+      maketuple(context, i, j, ArrayRef(startsGrouped, i), ArrayRef(stopsGrouped, i))
     }
 
     def newBody(ctx: Ref): IR = {
-      val localContexts = contexts match {
-        case _: DenseContexts => DenseContexts(GetTupleElement(ctx, 0), ib)
-        case _: SparseContexts => SparseContexts(GetTupleElement(ctx, 0), ib)
-      }
-
-      val starts = GetTupleElement(ctx, 1)
-      val stops = GetTupleElement(ctx, 2)
-
-      localContexts.collect { (i, j, localContext) =>
+      val oldCtx = GetTupleElement(ctx, 0)
+      val i = GetTupleElement(ctx, 1)
+      val j = GetTupleElement(ctx, 2)
+      val starts = GetTupleElement(ctx, 3)
+      val stops = GetTupleElement(ctx, 4)
+      bindIRs(oldCtx) { case Seq(oldCtx) =>
         val (nRowsInBlock, nColsInBlock) = typ.blockShapeIR(i, j)
-        invoke("zero_row_intervals", TNDArray(TFloat64, Nat(2)), blockIR(localContext), I64(typ.blockSize),
+        invoke("zero_row_intervals", TNDArray(TFloat64, Nat(2)), blockIR(oldCtx), I64(typ.blockSize),
           j, nRowsInBlock, nColsInBlock, starts, stops)
       }
     }
