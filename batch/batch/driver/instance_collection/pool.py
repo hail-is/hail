@@ -260,7 +260,7 @@ WHERE removed = 0 AND inst_coll = %s;
         cores: int,
         data_disk_size_gb: int,
         regions: List[str],
-        max_idle_time_msecs: Optional[int],
+        max_idle_time_msecs: int,
     ):
         if n_instances > 0:
             log.info(f'creating {n_instances} new instances')
