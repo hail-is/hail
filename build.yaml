@@ -47,13 +47,7 @@ steps:
       - name: auth-oauth2-client-secret
       - name: registry-push-credentials
       - name: test-gsa-key
-      - name: billing-monitor-gsa-key
-        clouds:
-          - gcp
       - name: hail-ci-0-1-service-account-key
-      - name: test-dataproc-service-account-key
-        clouds:
-          - gcp
       - name: batch-worker-ssh-public-key
         clouds:
           - azure
@@ -3011,11 +3005,6 @@ steps:
         to: /io/hail_pip_version
       - from: /repo
         to: /io/repo
-    secrets:
-      - name: test-dataproc-service-account-key
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /test-dataproc-service-account-key
     scopes:
       - deploy
       - dev
