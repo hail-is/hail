@@ -80,9 +80,9 @@ endif
 else
 JAR_LOCATION = $(TEST_STORAGE_URI)/$(NAMESPACE)/jars/$(TOKEN)/$(REVISION).jar
 endif
-HAIL_TEST_RESOURCES_PREFIX = $(TEST_STORAGE_URI)/$(shell whoami)/hail-test-resources
-HAIL_TEST_RESOURCES_DIR = $(HAIL_TEST_RESOURCES_PREFIX)/test/resources/
-HAIL_DOCTEST_DATA_DIR = $(HAIL_TEST_RESOURCES_PREFIX)/doctest/data/
+CLOUD_HAIL_TEST_RESOURCES_PREFIX = $(TEST_STORAGE_URI)/$(shell whoami)/hail-test-resources
+CLOUD_HAIL_TEST_RESOURCES_DIR = $(CLOUD_HAIL_TEST_RESOURCES_PREFIX)/test/resources/
+CLOUD_HAIL_DOCTEST_DATA_DIR = $(CLOUD_HAIL_TEST_RESOURCES_PREFIX)/doctest/data/
 
 .PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
@@ -189,7 +189,7 @@ pytest-qob: upload-qob-jar upload-qob-test-resources install-editable
   HAIL_QUERY_BACKEND=batch \
 	HAIL_QUERY_JAR_URL=$$(cat ../upload-qob-jar) \
 	HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
-	HAIL_TEST_RESOURCES_DIR='$(HAIL_TEST_RESOURCES_DIR)' \
+	HAIL_TEST_RESOURCES_DIR='$(CLOUD_HAIL_TEST_RESOURCES_DIR)' \
 	HAIL_DOCTEST_DATA_DIR='$(HAIL_DOCTEST_DATA_DIR)' \
 	pytest \
 		-v \
@@ -309,8 +309,8 @@ upload-artifacts: $(WHEEL)
 # > rm upload-qob-test-resources
 upload-qob-test-resources: $(JAR_TEST_SOURCES)
 	! [ -z $(NAMESPACE) ]  # call this like: make upload-qob-test-resources NAMESPACE=default
-	gsutil -m cp -r src/test/resources/\* $(HAIL_TEST_RESOURCES_DIR)
-	gsutil -m cp -r python/hail/docs/data/\* $(HAIL_DOCTEST_DATA_DIR)
+	gsutil -m cp -r src/test/resources/\* $(CLOUD_HAIL_TEST_RESOURCES_DIR)
+	gsutil -m cp -r python/hail/docs/data/\* $(CLOUD_HAIL_DOCTEST_DATA_DIR)
 	touch $@
 
 # NOTE: 1-day expiration of the test bucket means that this
