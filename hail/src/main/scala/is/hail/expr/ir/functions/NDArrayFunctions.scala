@@ -164,7 +164,7 @@ object  NDArrayFunctions extends RegistryFunctions {
 
         cb.ifx(lower.value > lowestDiagIndex, {
           cb.assign(iLeft, (diagIndex.value - lower.value).max(0L))
-          cb.assign(iRight, (diagIndex.value - lower.value + nCols.value).max(nRows.value))
+          cb.assign(iRight, (diagIndex.value - lower.value + nCols.value).min(nRows.value))
 
           cb.forLoop({
             cb.assign(i, iLeft)
@@ -187,7 +187,7 @@ object  NDArrayFunctions extends RegistryFunctions {
 
         cb.ifx(upper.value < highestDiagIndex, {
           cb.assign(iLeft, (diagIndex.value - upper.value).max(0L))
-          cb.assign(iRight, (diagIndex.value - upper.value + nCols.value).max(nRows.value))
+          cb.assign(iRight, (diagIndex.value - upper.value + nCols.value).min(nRows.value))
 
           // block(0 util iLeft, ::) := 0.0
           newBlock.slice(cb, FastIndexedSeq(SliceIndex(None, Some(iLeft)), ColonIndex)).coiterateMutate(cb, er.region) { _ =>
