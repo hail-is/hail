@@ -70,10 +70,6 @@ class TableStage(
   val dependency: TableStageDependency,
   val contexts: IR,
   private val ctxRefName: String,
-  // IR "function" implemented with a free variable context ref
-  // ctxRef => Stream[row]
-  // don't want to broadcast contexts to every task.
-
   private val partitionIR: IR) {
   self =>
 
@@ -792,7 +788,7 @@ object LowerTableIR {
           globalsRef,
           RVDPartitioner.unkeyed(ctx.stateManager, nPartitionsAdj),
           TableStageDependency.none,
-          bindIR(ToArray(context)) { xs => bindIR(ConsoleLog(strConcat("contexts are ", invoke("str", TString, xs)), xs)) { xs => ToStream(xs)}},
+          context,
           ctxRef => ToStream(ctxRef, true))
 
       case TableGen(contexts, globals, cname, gname, body, partitioner, errorId) =>
