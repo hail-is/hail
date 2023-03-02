@@ -321,7 +321,7 @@ class BatchClient:
 
     def update_batch(self, batch: Union[int, Batch]) -> 'BatchBuilder':
         _batch = batch._async_batch if isinstance(batch, Batch) else batch
-        batch_builder = self._async_client.update_batch(_batch)
+        batch_builder = async_to_blocking(self._async_client.update_batch(_batch))
         if isinstance(batch, Batch):
             return BatchBuilder.from_async_builder(batch_builder, batch=batch)
         return BatchBuilder.from_async_builder(batch_builder, batch=None)
