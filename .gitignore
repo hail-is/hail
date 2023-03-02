@@ -43,3 +43,4 @@ infra/.terraform.lock.hcl
 .dist/
 .cache/
 wheel-container.tar
+_/
