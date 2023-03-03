@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import secrets
 import unittest
 import pytest
@@ -498,7 +499,9 @@ class ServiceTests(unittest.TestCase):
 
     def batch(self, requester_pays_project=None, default_python_image=None,
               cancel_after_n_failures=None):
-        return Batch(backend=self.backend,
+        name_of_test_method = inspect.stack()[1][3]
+        return Batch(name=name_of_test_method,
+                     backend=self.backend,
                      default_image=DOCKER_ROOT_IMAGE,
                      attributes={'foo': 'a', 'bar': 'b'},
                      requester_pays_project=requester_pays_project,
