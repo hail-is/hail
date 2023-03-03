@@ -112,7 +112,7 @@ class SimplifySuite extends HailSuite {
     val ir3 = Let("row2", InsertFields(r, FastSeq(("y", F64(0.0)))), InsertFields(Ref("something_else", TStruct.empty), FastSeq(("z", GetField(r2, "y").toI))))
 
     assert(Simplify(ctx, ir1) == InsertFields(r, FastSeq(("y", F64(0)), ("z", GetField(r, "x").toD)), Some(FastIndexedSeq("x", "y", "z"))))
-    assert(Simplify(ctx, ir2) == InsertFields(r, FastSeq(("y", F64(0.0)), ("z", GetField(r, "x").toD + F64(0.0))), Some(FastIndexedSeq("x", "y", "z"))))
+    assert(Simplify(ctx, ir2) == InsertFields(r, FastSeq(("y", F64(0.0)), ("z", GetField(r, "x").toD)), Some(FastIndexedSeq("x", "y", "z"))))
 
     assert(Optimize[IR](ir3, "direct", ctx) == InsertFields(Ref("something_else", TStruct.empty), FastSeq(("z", I32(0)))))
 
