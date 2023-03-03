@@ -1044,6 +1044,26 @@ def test_concatenate():
     assert np.array_equal(np_res, res)
 
 
+def test_concatenate_differing_shapes():
+    with pytest.raises(ValueError, match='hl.nd.concatenate: ndarrays must have same number of dimensions, found: 1, 2'):
+        hl.nd.concatenate([
+            hl.nd.array([1]),
+            hl.nd.array([[1]])
+        ])
+
+    with pytest.raises(ValueError, match='hl.nd.concatenate: ndarrays must have same element types, found: int32, float64'):
+        hl.nd.concatenate([
+            hl.nd.array([1]),
+            hl.nd.array([1.0])
+        ])
+
+    with pytest.raises(ValueError, match='hl.nd.concatenate: ndarrays must have same element types, found: int32, float64'):
+        hl.nd.concatenate([
+            hl.nd.array([1]),
+            hl.nd.array([[1.0]])
+        ])
+
+
 def test_vstack():
     ht = hl.utils.range_table(10)
 
