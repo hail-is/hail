@@ -181,12 +181,7 @@ class LocalBatchBuilder:
                         namespace = j._service_account['namespace']
                         name = j._service_account['name']
 
-                        sa = await k8s_cache.read_service_account(name, namespace)
-                        assert len(sa.secrets) == 1
-
-                        token_secret_name = sa.secrets[0].name
-
-                        secret = await k8s_cache.read_secret(token_secret_name, namespace)
+                        secret = await k8s_cache.read_secret(f'{name}-token', namespace)
 
                         token = base64.b64decode(secret.data['token']).decode()
                         cert = secret.data['ca.crt']
