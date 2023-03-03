@@ -144,11 +144,14 @@ object BlockMatrixStage2 {
     BlockMatrixStage2(bms.broadcastVals, typ, BMSContexts(typ, ctxsArray, ib), bms.blockBody)
   }
 
-  def empty(eltType: Type, ib: IRBuilder) = BlockMatrixStage2(
-    IndexedSeq(),
-    BlockMatrixType.dense(eltType, 0, 0, 0),
-    DenseContexts(0, 0, ib.memoize(MakeArray())),
-    _ => NA(TNDArray(eltType, Nat(2))))
+  def empty(eltType: Type, ib: IRBuilder) = {
+    val ctxType = TNDArray(eltType, Nat(2))
+    BlockMatrixStage2(
+      IndexedSeq(),
+      BlockMatrixType.dense(eltType, 0, 0, 0),
+      DenseContexts(0, 0, ib.memoize(MakeArray(Seq(), TArray(ctxType)))),
+      _ => NA(ctxType))
+  }
 
   def broadcastVector(vector: IR, ib: IRBuilder, typ: BlockMatrixType, asRowVector: Boolean): BlockMatrixStage2 = {
     val v: Ref = ib.strictMemoize(vector)
