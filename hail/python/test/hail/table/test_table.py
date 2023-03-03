@@ -1901,7 +1901,7 @@ def test_to_pandas_types_type_to_type():
     assert isinstance(actual['idx'], pd.Int64Dtype)
     assert isinstance(actual['s'], pd.StringDtype)
     assert isinstance(actual['nested.foo'], pd.Int64Dtype)
-    assert isinstance(actual['nested.bar'], pd.dtype('O'))
+    assert actual['nested.bar'] == np.dtype('O')
 
 
 def test_to_pandas_types_column_to_type():
@@ -1915,7 +1915,7 @@ def test_to_pandas_types_column_to_type():
     assert isinstance(actual['idx'], pd.Int32Dtype)
     assert isinstance(actual['s'], pd.StringDtype)
     assert isinstance(actual['nested.foo'], pd.Int64Dtype)
-    assert isinstance(actual['nested.bar'], pd.dtype('O'))
+    assert actual['nested.bar'] == np.dtype('O')
 
 
 def test_to_pandas_flatten():
