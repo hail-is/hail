@@ -1112,7 +1112,7 @@ class Tests(unittest.TestCase):
     # zstat <- waldtest["x", "z value"]
     # pval <- waldtest["x", "Pr(>|z|)"]
     @fails_service_backend()
-    @fails_local_backend()
+    # @fails_local_backend()
     def test_poission_regression_wald_test(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -1130,7 +1130,7 @@ class Tests(unittest.TestCase):
 
         results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
-        self.assertAlmostEqual(results[1].beta, 0.6725210143, places=6)
+        self.assertAlmostEqual(results[1].beta, 0.6725210143, places=6, msg=results)
         self.assertAlmostEqual(results[1].standard_error, 0.7265562271, places=5)
         self.assertAlmostEqual(results[1].z_stat, 0.9256283123, places=5)
         self.assertAlmostEqual(results[1].p_value, 0.3546391746, places=6)
@@ -1174,7 +1174,7 @@ class Tests(unittest.TestCase):
     # chi2 <- lrtest[["Deviance"]][2]
     # pval <- lrtest[["Pr(>Chi)"]][2]
     @fails_service_backend()
-    @fails_local_backend()
+    # @fails_local_backend()
     def test_poission_regression_lrt(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -1220,7 +1220,7 @@ class Tests(unittest.TestCase):
     # chi2 <- scoretest[["Rao"]][2]
     # pval <- scoretest[["Pr(>Chi)"]][2]
     @fails_service_backend()
-    @fails_local_backend()
+    # @fails_local_backend()
     def test_poission_regression_score_test(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',

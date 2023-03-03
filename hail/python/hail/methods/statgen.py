@@ -1385,7 +1385,7 @@ def _logistic_regression_rows_nd(test,
         elif test == "score":
             return logistic_score_test(covs_and_x, y_vec, null_fit)
         else:
-            assert test == "firth":
+            assert test == "firth"
             raise ValueError("firth not yet supported on lowered backends")
     ht = ht.annotate(
         logistic_regression=hl.range(num_y_fields).map(test_phenotype)
@@ -1430,8 +1430,10 @@ def _poisson_fit(covmat, yvec, b, mu, score, fisher, max_iterations, tolerance):
 
 def _poisson_score_test(null_fit, covmat, yvec, xvec):
     dof = 1
+
+    X = hl.nd.hstack([covmat, xvec.T.reshape(-1, 1)])
     b = hl.nd.hstack([null_fit.b, hl.nd.array([0.0])])
-    mu = nd_exp(covmat @ b)
+    mu = nd_exp(X @ b)
     score = hl.nd.hstack([null_fit.score, hl.nd.array([xvec @ (yvec - mu)])])
 
     fisher00 = null_fit.fisher
@@ -1540,11 +1542,11 @@ def _lowered_poisson_regression_rows(test,
         chi_sq, p = _poisson_score_test(null_fit, covmat, yvec, xvec)
         return ht.select(
             chi_sq_stat=chi_sq,
-            p_value=p
+            p_value=p,
             **ht.pass_through
         )
 
-    X = hl.nd.hstack([covmat, xvec.T])
+    X = hl.nd.hstack([covmat, xvec.T.reshape(-1, 1)])
     b = hl.nd.hstack([null_fit.b, hl.nd.array([0.0])])
     mu = sigmoid(X @ b)
     residual = yvec - mu
@@ -1619,8 +1621,6 @@ def poisson_regression_rows(test,
     :class:`.Table`
     """
     if hl.current_backend().requires_lowering:
-        if test != 'score':
-            raise ValueError('hl.poisson_regression_rows: only score test is supported in lowered backends.')
         return _lowered_poisson_regression_rows(test, y, x, covariates, pass_through, max_iterations=max_iterations, tolerance=tolerance)
 
     if len(covariates) == 0:
