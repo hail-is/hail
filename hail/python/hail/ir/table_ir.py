@@ -1,12 +1,12 @@
 from typing import Optional
 import hail as hl
-from hail.expr.types import dtype, tint32, tint64, tstruct
+from hail.expr.types import dtype, tint32, tint64
 from hail.ir.base_ir import BaseIR, IR, TableIR
 import hail.ir.ir as ir
 from hail.ir.utils import modify_deep_field, zip_with_index, default_row_uid, default_col_uid
 from hail.ir.ir import unify_uid_types, pad_uid, concat_uids
 from hail.genetics import ReferenceGenome
-from hail.typecheck import typecheck_method, sequenceof, nullable
+from hail.typecheck import typecheck_method, nullable
 from hail.utils import FatalError
 from hail.utils.java import Env
 from hail.utils.misc import escape_str, parsable_strings, escape_id
@@ -1116,6 +1116,7 @@ class BlockMatrixToTable(TableIR):
         self.child.compute_type(deep_typecheck)
         return hl.ttable(hl.tstruct(), hl.tstruct(**{'i': hl.tint64, 'j': hl.tint64, 'entry': hl.tfloat64}), [])
 
+
 class Partitioner(object):
     # @typecheck_method(key_type=tstruct,
     #                   range_bounds=sequenceof(Interval)
@@ -1136,12 +1137,14 @@ class Partitioner(object):
 
     def _parsable_string(self):
         return (
-            f'Partitioner {self.key_type._parsable_string()} ' +
-            dump_json(self._serialized_type._convert_to_json(self.range_bounds))
+            f'Partitioner {self.key_type._parsable_string()} ' + dump_json(
+                self._serialized_type._convert_to_json(self.range_bounds)
+            )
         )
 
     def __str__(self):
         return f'Partitioner<{self.key_type}> {self.range_bounds}'
+
 
 class TableGen(TableIR):
     @typecheck_method(
@@ -1187,10 +1190,10 @@ class TableGen(TableIR):
 
     def _eq(self, other):
         return (
-            self.cname == other.cname and
-            self.gname == other.gname and
-            self.partitioner == other.partitioner and
-            self._error_id == other._error_id
+            self.cname == other.cname
+            and self.gname == other.gname
+            and self.partitioner == other.partitioner
+            and self._error_id == other._error_id
         )
 
     def head_str(self):
@@ -1208,8 +1211,7 @@ class TableGen(TableIR):
 
         if body.uses_randomness:
             body = ir.Let('__rng_state', ir.RNGStateLiteral(),
-                ir.with_split_rng_state(body, random_uid)
-            )
+                          ir.with_split_rng_state(body, random_uid))
 
         if uid_field_name is not None:
             idx = ir.Ref(Env.get_uid(), ir.tint32)
@@ -1232,6 +1234,7 @@ class TableGen(TableIR):
             self.partitioner,
             self._error_id
         )
+
 
 class JavaTable(TableIR):
     def __init__(self, jir):

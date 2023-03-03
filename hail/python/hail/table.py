@@ -10,8 +10,7 @@ from hail.expr.expressions import Expression, StructExpression, \
     construct_reference, to_expr, construct_expr, extract_refs_by_indices, \
     ExpressionException, TupleExpression, unify_all, NumericExpression, \
     StringExpression, CallExpression, CollectionExpression, DictExpression, \
-    IntervalExpression, LocusExpression, NDArrayExpression, expr_stream, \
-    expr_array, expr_interval
+    IntervalExpression, LocusExpression, NDArrayExpression, expr_stream
 from hail.expr.types import hail_type, tstruct, types_match, tarray, tset, dtypes_from_pandas
 from hail.expr.table_type import ttable
 import hail.ir as ir
@@ -589,11 +588,10 @@ class Table(ExprContainer):
 
         partitioner = ir.Partitioner(partitions[0].point_type, partitions)
 
-        return Table(
-            ir.TableGen(contexts._ir, globals._ir, context_name,
-                        globals_name, body_ir, partitioner
-            )
-        )
+        return Table(ir.TableGen(
+            contexts._ir, globals._ir, context_name,
+            globals_name, body_ir, partitioner
+        ))
 
     @typecheck_method(keys=oneof(str, expr_any),
                       named_keys=expr_any)
