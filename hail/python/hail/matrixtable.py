@@ -2223,7 +2223,7 @@ class MatrixTable(ExprContainer):
         """
         base, _ = self._process_joins(expr)
         analyze('MatrixTable.aggregate_cols', expr, self._global_indices, {self._col_axis})
-        cols_table = ir.MatrixColsTable(base._mir)
+        cols_table = ir.MatrixColsTable(ir.MatrixMapCols(base._mir, base.col._ir, []))
         subst_query = ir.subst(expr._ir, {}, {'sa': ir.Ref('row', cols_table.typ.row_type)})
 
         agg_ir = ir.TableAggregate(cols_table, subst_query)

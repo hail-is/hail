@@ -4,7 +4,7 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.{WrappedMatrixToTableFunction, WrappedMatrixToValueFunction}
 import is.hail.expr.ir._
 import is.hail.types._
-import is.hail.types.virtual.{TArray, TBaseStruct, TDict, TInt32, TInterval, TString, TStruct}
+import is.hail.types.virtual.{TArray, TBaseStruct, TDict, TInt32, TInterval, TString, TStruct, Type}
 import is.hail.utils._
 
 object LowerMatrixIR {
@@ -156,14 +156,14 @@ object LowerMatrixIR {
       case MatrixFilterCols(child, pred) =>
         lower(ctx, child, ab)
           .mapGlobals('global.insertFields('newColIdx ->
-            irRange(0, 'global (colsField).len)
+            irRange(0, 'global(colsField).len)
               .filter('i ~>
-                (let(sa = 'global (colsField)('i))
+                (let(sa = 'global(colsField)('i))
                   in subst(lower(ctx, pred, ab), matrixGlobalSubstEnv(child))))))
-          .mapRows('row.insertFields(entriesField -> 'global ('newColIdx).map('i ~> 'row (entriesField)('i))))
+          .mapRows('row.insertFields(entriesField -> 'global('newColIdx).map('i ~> 'row(entriesField)('i))))
           .mapGlobals('global
             .insertFields(colsField ->
-              'global ('newColIdx).map('i ~> 'global (colsField)('i)))
+              'global('newColIdx).map('i ~> 'global(colsField)('i)))
             .dropFields('newColIdx))
 
       case MatrixAnnotateRowsTable(child, table, root, product) =>
@@ -176,9 +176,9 @@ object LowerMatrixIR {
       case MatrixChooseCols(child, oldIndices) =>
         lower(ctx, child, ab)
           .mapGlobals('global.insertFields('newColIdx -> oldIndices.map(I32)))
-          .mapRows('row.insertFields(entriesField -> 'global ('newColIdx).map('i ~> 'row (entriesField)('i))))
+          .mapRows('row.insertFields(entriesField -> 'global('newColIdx).map('i ~> 'row(entriesField)('i))))
           .mapGlobals('global
-            .insertFields(colsField -> 'global ('newColIdx).map('i ~> 'global (colsField)('i)))
+            .insertFields(colsField -> 'global('newColIdx).map('i ~> 'global(colsField)('i)))
             .dropFields('newColIdx))
 
       case MatrixAnnotateColsTable(child, table, root) =>
@@ -191,7 +191,7 @@ object LowerMatrixIR {
             .apply('rows)
             .arrayStructToDict(table.typ.key)) {
             'global.insertFields(colsField ->
-              'global (colsField).map(col ~> col.insertFields(Symbol(root) -> '__dictfield.invoke("get", table.typ.valueType, colKey))))
+              'global(colsField).map(col ~> col.insertFields(Symbol(root) -> '__dictfield.invoke("get", table.typ.valueType, colKey))))
           })
 
       case MatrixMapGlobals(child, newGlobals) =>
@@ -199,7 +199,7 @@ object LowerMatrixIR {
           .mapGlobals(
             subst(lower(ctx, newGlobals, ab), BindingEnv(Env[IRProxy](
               "global" -> 'global.selectFields(child.typ.globalType.fieldNames: _*))))
-              .insertFields(colsField -> 'global (colsField)))
+              .insertFields(colsField -> 'global(colsField)))
 
       case MatrixMapRows(child, newRow) =>
         def liftScans(ir: IR): IRProxy = {
@@ -371,7 +371,7 @@ object LowerMatrixIR {
             val valueType = elementType.asInstanceOf[TBaseStruct].types(1)
             ToDict(StreamMap(ToStream(Ref(uid, aggIR.typ)), eltUID, Let(valueUID, GetField(Ref(eltUID, elementType), "value"),
               MakeTuple.ordered(FastSeq(GetField(Ref(eltUID, elementType), "key"),
-                aggs.foldLeft[IR](liftedBody) { case (acc, (name, _)) => Let(name, GetField(Ref(valueUID, valueType), name), acc) } )))))
+                aggs.foldLeft[IR](liftedBody) { case (acc, (name, _)) => Let(name, GetField(Ref(valueUID, valueType), name), acc) })))))
 
           case AggArrayPerElement(a, elementName, indexName, body, knownLength, isScan) =>
             val ab = new BoxedArrayBuilder[(String, IR)]
@@ -478,10 +478,12 @@ object LowerMatrixIR {
         }
 
         loweredChild.mapGlobals('global.insertFields(colsField ->
-          aggOutsideTransformer(scanOutsideTransformer(irRange(0, 'global(colsField).len).map(idxSym ~> let(__cols_array = 'global(colsField), sa = '__cols_array(idxSym)) {
-            aggInsideTransformer(scanInsideTransformer(b0))
-          })))
-        ))
+          aggOutsideTransformer(scanOutsideTransformer(ToArray(StreamZip(
+            FastIndexedSeq(ToStream(GetField(Ref("global", loweredChild.typ.globalType), colsFieldName)), StreamIota(0, 0)),
+            FastIndexedSeq("sa", idx.name),
+            aggInsideTransformer(scanInsideTransformer(b0)).apply(Env[Type]("sa" -> mir.typ.colType, idx.name -> TInt32)),
+            ArrayZipBehavior.AssumeSameLength)
+          )))))
 
       case MatrixFilterEntries(child, pred) =>
         val lc = lower(ctx, child, ab)
