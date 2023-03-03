@@ -1892,7 +1892,6 @@ def test_to_pandas():
 
 def test_to_pandas_types_type_to_type():
     ht = hl.utils.range_table(3)
-    reveal_type(ht)
     ht = ht.annotate(
         s=hl.array(["foo", "bar", "baz"])[ht.idx],
         nested=hl.struct(foo=ht.idx,
@@ -1907,7 +1906,6 @@ def test_to_pandas_types_type_to_type():
 
 def test_to_pandas_types_column_to_type():
     ht = hl.utils.range_table(3)
-    reveal_type(ht)
     ht = ht.annotate(
         s=hl.array(["foo", "bar", "baz"])[ht.idx],
         nested=hl.struct(foo=ht.idx,
