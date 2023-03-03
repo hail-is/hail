@@ -15,8 +15,9 @@ from hail.utils.java import Env
            maf=nullable(expr_float64),
            bounded=bool,
            min=nullable(numeric),
-           max=nullable(numeric))
-def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> Table:
+           max=nullable(numeric),
+           _use_python_impl=bool)
+def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None, _use_python_impl=False) -> Table:
     """Compute matrix of identity-by-descent estimates.
 
     .. include:: ../_templates/req_tstring.rst
@@ -104,7 +105,7 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
     dataset = dataset.select_cols().select_globals().select_entries('GT')
     dataset = require_biallelic(dataset, 'ibd')
 
-    if isinstance(Env.backend(), SparkBackend):
+    if isinstance(Env.backend(), SparkBackend) and not _use_python_impl:
         return Table(ir.MatrixToTableApply(dataset._mir, {
             'name': 'IBD',
             'mafFieldName': '__maf' if maf is not None else None,
