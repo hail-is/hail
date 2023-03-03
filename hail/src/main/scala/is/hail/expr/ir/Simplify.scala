@@ -1,12 +1,13 @@
 package is.hail.expr.ir
 
-import is.hail.HailContext
 import is.hail.backend.ExecuteContext
-import is.hail.types.virtual._
 import is.hail.io.bgen.MatrixBGENReader
-import is.hail.rvd.{PartitionBoundOrdering, RVDPartitionInfo}
+import is.hail.rvd.PartitionBoundOrdering
 import is.hail.types.tcoerce
+import is.hail.types.virtual._
 import is.hail.utils._
+
+import scala.reflect.ClassTag
 
 object Simplify {
 
@@ -63,7 +64,8 @@ object Simplify {
     )(bmir)
   }
 
-  private[this] def rewriteValueNode: IR => Option[IR] = valueRules.lift
+  private[this] def rewriteValueNode(ir: IR): Option[IR] =
+    valueRules.lift(ir).orElse(numericRules(ir))
 
   private[this] def rewriteTableNode(ctx: ExecuteContext, allowRepartitioning: Boolean)(tir: TableIR): Option[TableIR] =
     tableRules(ctx, allowRepartitioning && isDeterministicallyRepartitionable(tir)).lift(tir)
@@ -146,6 +148,111 @@ object Simplify {
     }
   }
 
+  private def numericRules: IR => Option[IR] = {
+
+    def integralBinaryIdentities(pure: Int => IR) = (ir: IR) => ir match {
+      case ApplyBinaryPrimOp(op, x, y) if ir.typ.isInstanceOf[TIntegral] =>
+        op match {
+          case Add() =>
+            if (x == y) Some(ApplyBinaryPrimOp(Multiply(), pure(2), x))
+            else None
+
+          case Subtract() =>
+            if (x == y) Some(pure(0))
+            else None
+
+          case Multiply() =>
+            if (x == pure(0) || y == pure(0)) Some(pure(0))
+            else None
+
+          case RoundToNegInfDivide() =>
+            if (x == y) Some(pure(1))
+            else if (x == pure(0)) Some(pure(0))
+            else None
+
+          case _: LeftShift | _:RightShift | _: LogicalRightShift  =>
+            if (x == pure(0)) Some(pure(0))
+            else if (y == I32(0)) Some(x)
+            else None
+
+          case BitAnd() =>
+            if (x == pure(0) || y == pure(0)) Some(pure(0))
+            else if (x == pure(-1)) Some(y)
+            else if (y == pure(-1)) Some(x)
+            else None
+
+          case BitOr() =>
+            if (x == pure(-1) || y == pure(-1)) Some(pure(-1))
+            else if (x == pure(0)) Some(y)
+            else if (y == pure(0)) Some(x)
+            else None
+
+          case BitXOr() =>
+            if (x == y) Some(pure(0))
+            else if (x == pure(0)) Some(y)
+            else if (y == pure(0)) Some(x)
+            else None
+
+          case _ =>
+            None
+        }
+      case _ =>
+        None
+    }
+
+    def hoistUnaryOp = (ir: IR) => ir match {
+      case ApplyUnaryPrimOp(f@(_: Negate | _: BitNot | _: Bang), x) => x match {
+        case ApplyUnaryPrimOp(g, y) if g == f => Some(y)
+        case _ => None
+      }
+      case _ => None
+    }
+
+    def commonBinaryIdentities(pure: Int => IR) = (ir: IR) => ir match {
+      case ApplyBinaryPrimOp(f, x, y) =>
+        f match {
+          case Add() =>
+            if (x == pure(0)) Some(y)
+            else if (y == pure(0)) Some(x)
+            else None
+
+          case Subtract() =>
+            if (x == pure(0)) Some(ApplyUnaryPrimOp(Negate(), y))
+            else if (y == pure(0)) Some(x)
+            else None
+
+          case Multiply() =>
+            if (x == pure(1)) Some(y)
+            else if (x == pure(-1)) Some(ApplyUnaryPrimOp(Negate(), y))
+            else if (y == pure(1)) Some(x)
+            else if (y == pure(-1)) Some(ApplyUnaryPrimOp(Negate(), x))
+            else None
+
+          case RoundToNegInfDivide() =>
+            if (y == pure(1)) Some(x)
+            else if (y == pure(-1)) Some(ApplyUnaryPrimOp(Negate(), x))
+            else if (y == pure(0)) Some(Die("division by zero", ir.typ))
+            else None
+
+          case _ =>
+            None
+        }
+      case _ =>
+        None
+    }
+
+    Array(
+      hoistUnaryOp,
+      (ir: IR) => integralBinaryIdentities(Literal.coerce(ir.typ, _))(ir),
+      (ir: IR) => commonBinaryIdentities(Literal.coerce(ir.typ, _))(ir),
+    ).reduce((f, g) =>
+      (ir: IR) => f(ir) match {
+        case s: Some[IR] => s
+        case None => g(ir)
+      }
+    )
+  }
+
   private[this] def valueRules: PartialFunction[IR, IR] = {
     // propagate NA
     case x: IR if hasMissingStrictChild(x) =>
@@ -198,11 +305,6 @@ object Simplify {
 
     case CastRename(x, t) if x.typ == t => x
     case CastRename(CastRename(x, _), t) => CastRename(x, t)
-
-    case ApplyBinaryPrimOp(Add(), I32(0), x) => x
-    case ApplyBinaryPrimOp(Add(), x, I32(0)) => x
-    case ApplyBinaryPrimOp(Subtract(), I32(0), x) => x
-    case ApplyBinaryPrimOp(Subtract(), x, I32(0)) => x
 
     case ApplyIR("indexArray", _, Seq(a, i@I32(v)), errorID) if v >= 0 =>
       ArrayRef(a, i, errorID)
