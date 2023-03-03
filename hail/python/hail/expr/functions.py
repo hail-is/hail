@@ -1842,6 +1842,10 @@ def logit(x) -> Float64Expression:
 def expit(x) -> Float64Expression:
     """The logistic sigmoid function.
 
+    .. math::
+
+        \textrm{expit}(x) = \frac{1}{1 + e^{-x}}
+
     Examples
     --------
     >>> hl.eval(hl.expit(.01))

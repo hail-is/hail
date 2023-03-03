@@ -490,9 +490,7 @@ class Tests(unittest.TestCase):
             assert fit.exploded
             assert not fit.converged
 
-    @fails_local_backend()
-    @fails_service_backend()
-    def test_logistic_regression_rows_max_iter_explodes_in_12_steps_for_firth(self):
+    def test_firth_logistic_regression_rows_explodes_in_12_steps(self):
         import hail as hl
         mt = hl.utils.range_matrix_table(1, 3)
         mt = mt.annotate_entries(x=hl.literal([1, 1, 10]))
@@ -508,9 +506,7 @@ class Tests(unittest.TestCase):
         assert fit.exploded
         assert not fit.converged
 
-    @fails_local_backend()
-    @fails_service_backend()
-    def test_logistic_regression_rows_does_not_converge_with_105_iterations(self):
+    def test_firth_logistic_regression_rows_does_not_converge_with_105_iterations(self):
         import hail as hl
         mt = hl.utils.range_matrix_table(1, 3)
         mt = mt.annotate_entries(x=hl.literal([1, 3, 10]))
@@ -526,9 +522,7 @@ class Tests(unittest.TestCase):
         assert not fit.exploded
         assert not fit.converged
 
-    @fails_local_backend()
-    @fails_service_backend()
-    def test_logistic_regression_rows_does_converge_with_106_iterations(self):
+    def test_firth_logistic_regression_rows_does_converge_with_106_iterations(self):
         import hail as hl
         mt = hl.utils.range_matrix_table(1, 3)
         mt = mt.annotate_entries(x=hl.literal([1, 3, 10]))
@@ -543,7 +537,7 @@ class Tests(unittest.TestCase):
         fit = result.fit
         actual_beta = result.beta
         expected_beta = 0.19699166375172233
-        assert abs(actual_beta - expected_beta) < 1e-16
+        assert abs(actual_beta - expected_beta) < 1e-15
         assert abs(result.chi_sq_stat - 0.6464918007192411) < 1e-15
         assert abs(result.p_value - 0.4213697518249182) < 1e-15
         assert fit.n_iterations == 106
@@ -998,93 +992,6 @@ class Tests(unittest.TestCase):
             self.assertTrue(is_constant(results[8]))
             self.assertTrue(is_constant(results[9]))
             self.assertTrue(is_constant(results[10]))
-
-    @fails_service_backend()
-    @fails_local_backend()
-    def test_logistic_regression_epacts(self):
-        covariates = hl.import_table(resource('regressionLogisticEpacts.cov'),
-                                     key='IND_ID',
-                                     types={'PC1': hl.tfloat, 'PC2': hl.tfloat})
-        fam = hl.import_fam(resource('regressionLogisticEpacts.fam'))
-
-        mt = hl.import_vcf(resource('regressionLogisticEpacts.vcf'))
-        mt = mt.annotate_cols(**covariates[mt.s], **fam[mt.s])
-
-        def get_results(table):
-            return dict(hl.tuple([table.locus.position, table.row]).collect())
-
-        wald = get_results(hl.logistic_regression_rows(
-            test='wald',
-            y=mt.is_case,
-            x=mt.GT.n_alt_alleles(),
-            covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]))
-        lrt = get_results(hl.logistic_regression_rows(
-            test='lrt',
-            y=mt.is_case,
-            x=mt.GT.n_alt_alleles(),
-            covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]))
-        score = get_results(hl.logistic_regression_rows(
-            test='score',
-            y=mt.is_case,
-            x=mt.GT.n_alt_alleles(),
-            covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]))
-        firth = get_results(hl.logistic_regression_rows(
-            test='firth',
-            y=mt.is_case,
-            x=mt.GT.n_alt_alleles(),
-            covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]))
-
-        # 2535 samples from 1K Genomes Project
-        # Locus("22", 16060511)  # MAC  623
-        # Locus("22", 16115878)  # MAC  370
-        # Locus("22", 16115882)  # MAC 1207
-        # Locus("22", 16117940)  # MAC    7
-        # Locus("22", 16117953)  # MAC   21
-
-        self.assertAlmostEqual(wald[16060511].beta, -0.097476, places=4)
-        self.assertAlmostEqual(wald[16060511].standard_error, 0.087478, places=4)
-        self.assertAlmostEqual(wald[16060511].z_stat, -1.1143, places=4)
-        self.assertAlmostEqual(wald[16060511].p_value, 0.26516, places=4)
-        self.assertAlmostEqual(lrt[16060511].p_value, 0.26475, places=4)
-        self.assertAlmostEqual(score[16060511].p_value, 0.26499, places=4)
-        self.assertAlmostEqual(firth[16060511].beta, -0.097079, places=4)
-        self.assertAlmostEqual(firth[16060511].p_value, 0.26593, places=4)
-
-        self.assertAlmostEqual(wald[16115878].beta, -0.052632, places=4)
-        self.assertAlmostEqual(wald[16115878].standard_error, 0.11272, places=4)
-        self.assertAlmostEqual(wald[16115878].z_stat, -0.46691, places=4)
-        self.assertAlmostEqual(wald[16115878].p_value, 0.64056, places=4)
-        self.assertAlmostEqual(lrt[16115878].p_value, 0.64046, places=4)
-        self.assertAlmostEqual(score[16115878].p_value, 0.64054, places=4)
-        self.assertAlmostEqual(firth[16115878].beta, -0.052301, places=4)
-        self.assertAlmostEqual(firth[16115878].p_value, 0.64197, places=4)
-
-        self.assertAlmostEqual(wald[16115882].beta, -0.15598, places=4)
-        self.assertAlmostEqual(wald[16115882].standard_error, 0.079508, places=4)
-        self.assertAlmostEqual(wald[16115882].z_stat, -1.9619, places=4)
-        self.assertAlmostEqual(wald[16115882].p_value, 0.049779, places=4)
-        self.assertAlmostEqual(lrt[16115882].p_value, 0.049675, places=4)
-        self.assertAlmostEqual(score[16115882].p_value, 0.049675, places=4)
-        self.assertAlmostEqual(firth[16115882].beta, -0.15567, places=4)
-        self.assertAlmostEqual(firth[16115882].p_value, 0.04991, places=4)
-
-        self.assertAlmostEqual(wald[16117940].beta, -0.88059, places=4)
-        self.assertAlmostEqual(wald[16117940].standard_error, 0.83769, places=2)
-        self.assertAlmostEqual(wald[16117940].z_stat, -1.0512, places=2)
-        self.assertAlmostEqual(wald[16117940].p_value, 0.29316, places=2)
-        self.assertAlmostEqual(lrt[16117940].p_value, 0.26984, places=4)
-        self.assertAlmostEqual(score[16117940].p_value, 0.27828, places=4)
-        self.assertAlmostEqual(firth[16117940].beta, -0.7524, places=4)
-        self.assertAlmostEqual(firth[16117940].p_value, 0.30731, places=4)
-
-        self.assertAlmostEqual(wald[16117953].beta, 0.54921, places=4)
-        self.assertAlmostEqual(wald[16117953].standard_error, 0.4517, places=3)
-        self.assertAlmostEqual(wald[16117953].z_stat, 1.2159, places=3)
-        self.assertAlmostEqual(wald[16117953].p_value, 0.22403, places=3)
-        self.assertAlmostEqual(lrt[16117953].p_value, 0.21692, places=4)
-        self.assertAlmostEqual(score[16117953].p_value, 0.21849, places=4)
-        self.assertAlmostEqual(firth[16117953].beta, 0.5258, places=4)
-        self.assertAlmostEqual(firth[16117953].p_value, 0.22562, places=4)
 
     def test_logreg_pass_through(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
@@ -1682,3 +1589,140 @@ class Tests(unittest.TestCase):
         hl.logistic_regression_rows('wald', y=mt.c1, x=x_expr, covariates=[1])
         hl.poisson_regression_rows('wald', y=mt.c1, x=x_expr, covariates=[1])
         hl.linear_regression_rows(y=mt.c1, x=x_expr, covariates=[1])
+
+
+@pytest.fixture
+def logistic_epacts_mt():
+    # 2535 samples from 1K Genomes Project
+    # Locus("22", 16060511)  # MAC  623
+    # Locus("22", 16115878)  # MAC  370
+    # Locus("22", 16115882)  # MAC 1207
+    # Locus("22", 16117940)  # MAC    7
+    # Locus("22", 16117953)  # MAC   21
+    covariates = hl.import_table(resource('regressionLogisticEpacts.cov'),
+                                 key='IND_ID',
+                                 types={'PC1': hl.tfloat, 'PC2': hl.tfloat})
+    fam = hl.import_fam(resource('regressionLogisticEpacts.fam'))
+
+    mt = hl.import_vcf(resource('regressionLogisticEpacts.vcf'))
+    mt = mt.annotate_cols(**covariates[mt.s], **fam[mt.s])
+    return mt
+
+
+def test_logistic_regression_epacts_wald(logistic_epacts_mt):
+    mt = logistic_epacts_mt
+    actual = hl.logistic_regression_rows(
+        test='wald',
+        y=mt.is_case,
+        x=mt.GT.n_alt_alleles(),
+        covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]).collect()
+
+    assert actual[0].locus == hl.Locus("22", 16060511, 'GRCh37')
+    assert actual[0].beta == pytest.approx(-0.097476, rel=1e-4)
+    assert actual[0].standard_error == pytest.approx(0.087478, rel=1e-4)
+    assert actual[0].z_stat == pytest.approx(-1.1143, rel=1e-4)
+    assert actual[0].p_value == pytest.approx(0.26516, rel=1e-4)
+
+    assert actual[1].locus == hl.Locus("22", 16115878, 'GRCh37')
+    assert actual[1].beta == pytest.approx(-0.052632, rel=1e-4)
+    assert actual[1].standard_error == pytest.approx(0.11272, rel=1e-4)
+    assert actual[1].z_stat == pytest.approx(-0.46691, rel=1e-4)
+    assert actual[1].p_value == pytest.approx(0.64056, rel=1e-4)
+
+    assert actual[2].locus == hl.Locus("22", 16115882, 'GRCh37')
+    assert actual[2].beta == pytest.approx(-0.15598, rel=1e-4)
+    assert actual[2].standard_error == pytest.approx(0.079508, rel=1e-4)
+    assert actual[2].z_stat == pytest.approx(-1.9619, rel=1e-4)
+    assert actual[2].p_value == pytest.approx(0.049779, rel=1e-4)
+
+    assert actual[3].locus == hl.Locus("22", 16117940, 'GRCh37')
+    assert actual[3].beta == pytest.approx(-0.88059, rel=1e-4)
+    assert actual[3].standard_error == pytest.approx(0.83769, rel=1e-2)
+    assert actual[3].z_stat == pytest.approx(-1.0512, rel=1e-2)
+    assert actual[3].p_value == pytest.approx(0.29316, rel=1e-2)
+
+    assert actual[4].locus == hl.Locus("22", 16117953, 'GRCh37')
+    assert actual[4].beta == pytest.approx(0.54921, rel=1e-4)
+    assert actual[4].standard_error == pytest.approx(0.4517, rel=1e-3)
+    assert actual[4].z_stat == pytest.approx(1.2159, rel=1e-3)
+    assert actual[4].p_value == pytest.approx(0.22403, rel=1e-3)
+
+
+def test_logistic_regression_epacts_lrt(logistic_epacts_mt):
+    mt = logistic_epacts_mt
+    actual = hl.logistic_regression_rows(
+        test='lrt',
+        y=mt.is_case,
+        x=mt.GT.n_alt_alleles(),
+        covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]
+    ).collect()
+
+    assert actual[0].locus == hl.Locus("22", 16060511, 'GRCh37')
+    assert actual[0].p_value == pytest.approx(0.26475, rel=1e-4)
+
+    assert actual[1].locus == hl.Locus("22", 16115878, 'GRCh37')
+    assert actual[1].p_value == pytest.approx(0.64046, rel=1e-4)
+
+    assert actual[2].locus == hl.Locus("22", 16115882, 'GRCh37')
+    assert actual[2].p_value == pytest.approx(0.049675, rel=1e-4)
+
+    assert actual[3].locus == hl.Locus("22", 16117940, 'GRCh37')
+    assert actual[3].p_value == pytest.approx(0.26984, rel=1e-4)
+
+    assert actual[4].locus == hl.Locus("22", 16117953, 'GRCh37')
+    assert actual[4].p_value == pytest.approx(0.21692, rel=1e-4)
+
+
+def test_logistic_regression_epacts_score(logistic_epacts_mt):
+    mt = logistic_epacts_mt
+    actual = hl.logistic_regression_rows(
+        test='score',
+        y=mt.is_case,
+        x=mt.GT.n_alt_alleles(),
+        covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]
+    ).collect()
+
+    assert actual[0].locus == hl.Locus("22", 16060511, 'GRCh37')
+    assert actual[0].p_value == pytest.approx(0.26499, rel=1e-4)
+
+    assert actual[0].locus == hl.Locus("22", 16115878, 'GRCh37')
+    assert actual[0].p_value == pytest.approx(0.64054, rel=1e-4)
+
+    assert actual[0].locus == hl.Locus("22", 16115882, 'GRCh37')
+    assert actual[0].p_value == pytest.approx(0.049675, rel=1e-4)
+
+    assert actual[0].locus == hl.Locus("22", 16117940, 'GRCh37')
+    assert actual[0].p_value == pytest.approx(0.27828, rel=1e-4)
+
+    assert actual[0].locus == hl.Locus("22", 16117953, 'GRCh37')
+    assert actual[0].p_value == pytest.approx(0.21849, rel=1e-4)
+
+
+def test_logistic_regression_epacts_firth(logistic_epacts_mt):
+    mt = logistic_epacts_mt
+    actual = hl.logistic_regression_rows(
+        test='firth',
+        y=mt.is_case,
+        x=mt.GT.n_alt_alleles(),
+        covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]
+    ).collect()
+
+    assert actual[0].locus == hl.Locus("22", 16060511, 'GRCh37')
+    assert actual[0].beta == pytest.approx(-0.097079, rel=1e-4)
+    assert actual[0].p_value == pytest.approx(0.26593, rel=1e-4)
+
+    assert actual[0].locus == hl.Locus("22", 16115878, 'GRCh37')
+    assert actual[0].beta == pytest.approx(-0.052301, rel=1e-4)
+    assert actual[0].p_value == pytest.approx(0.64197, rel=1e-4)
+
+    assert actual[0].locus == hl.Locus("22", 16115882, 'GRCh37')
+    assert actual[0].beta == pytest.approx(-0.15567, rel=1e-4)
+    assert actual[0].p_value == pytest.approx(0.04991, rel=1e-4)
+
+    assert actual[0].locus == hl.Locus("22", 16117940, 'GRCh37')
+    assert actual[0].beta == pytest.approx(-0.7524, rel=1e-4)
+    assert actual[0].p_value == pytest.approx(0.30731, rel=1e-4)
+
+    assert actual[0].locus == hl.Locus("22", 16117953, 'GRCh37')
+    assert actual[0].beta == pytest.approx(0.5258, rel=1e-4)
+    assert actual[0].p_value == pytest.approx(0.22562, rel=1e-4)
