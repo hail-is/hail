@@ -209,11 +209,19 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
   def genEmitMethod[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, A4: TypeInfo, A5: TypeInfo, R: TypeInfo](baseName: String): EmitMethodBuilder[C] =
     ecb.genEmitMethod[A1, A2, A3, A4, A5, R](baseName)
 
-  def open(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
+  def openUnbuffered(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
     getFS.invoke[String, Boolean, InputStream]("open", path, checkCodec)
 
-  def create(path: Code[String]): Code[OutputStream] =
+  def open(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
+    Code.newInstance[java.io.BufferedInputStream, InputStream](
+      getFS.invoke[String, Boolean, InputStream]("open", path, checkCodec))
+
+  def createUnbuffered(path: Code[String]): Code[OutputStream] =
     getFS.invoke[String, OutputStream]("create", path)
+
+  def create(path: Code[String]): Code[OutputStream] =
+    Code.newInstance[java.io.BufferedOutputStream, OutputStream](
+      getFS.invoke[String, OutputStream]("create", path))
 }
 
 class EmitClassBuilder[C](
