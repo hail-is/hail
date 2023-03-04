@@ -9,7 +9,6 @@ import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import is.hail.methods.ForceCountTable
 import is.hail.types._
-import is.hail.types.physical.PStruct
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.{ExecStrategy, HailSuite}
@@ -1160,4 +1159,5 @@ class TableIRSuite extends HailSuite {
       collect(TableMapPartitions(table, "g", "part", StreamFlatMap(StreamRange(0, 2, 1), "_", part)))))
     assert("must iterate over the partition exactly once".r.findFirstIn(e.getCause.getMessage).isDefined)
   }
+
 }
