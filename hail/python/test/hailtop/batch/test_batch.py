@@ -908,6 +908,36 @@ class ServiceTests(unittest.TestCase):
         res_status = res.status()
         assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
 
+    def test_python_job_incorrect_signature(self):
+        b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
+
+        def foo(pos_arg1, pos_arg2, *, kwarg1, kwarg2=1):
+            print(pos_arg1, pos_arg2, kwarg1, kwarg2)
+
+        j = b.new_python_job()
+
+        with pytest.raises(BatchException):
+            j.call(foo)
+        with pytest.raises(BatchException):
+            j.call(foo, 1)
+        with pytest.raises(BatchException):
+            j.call(foo, 1, 2)
+        with pytest.raises(BatchException):
+            j.call(foo, 1, kwarg1=2)
+        with pytest.raises(BatchException):
+            j.call(foo, 1, 2, 3)
+        with pytest.raises(BatchException):
+            j.call(foo, 1, 2, kwarg1=3, kwarg2=4, kwarg3=5)
+
+        j.call(foo, 1, 2, kwarg1=3)
+        j.call(foo, 1, 2, kwarg1=3, kwarg2=4)
+
+        # `print` doesn't have a signature but other builtins like `abs` do
+        j.call(print, 5)
+        j.call(abs, -1)
+        with pytest.raises(BatchException):
+            j.call(abs, -1, 5)
+
     def test_fail_fast(self):
         b = self.batch(cancel_after_n_failures=1)
 
