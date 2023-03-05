@@ -417,6 +417,65 @@ GROUP BY base_t.batch_id, base_t.job_id;
     return (jobs, last_job_id)
 
 
+@routes.get('/api/v1alpha/batches/completed')
+@auth.rest_authenticated_users_only
+async def get_completed_batches_ordered_by_completed_time(request, userdata):
+    db = request.app['db']
+    where_args = [userdata['username']]
+    wheres = [
+        'billing_project_users.`user` = %s',
+        'billing_project_users.billing_project = batches.billing_project',
+        'time_completed IS NOT NULL',
+        'NOT deleted',
+    ]
+
+    limit = 100
+    query_limit: str = request.query.get('limit')
+    if query_limit:
+        try:
+            limit = int(query_limit)
+        except ValueError as e:
+            raise web.HTTPBadRequest(reason=f'Bad value for "limit": {e}')
+
+    last_completed_timestamp = request.query.get('last_completed_timestamp')
+    if last_completed_timestamp:
+        where_args.append(int(last_completed_timestamp))
+        wheres.append('time_completed < %s')
+
+    sql = f"""
+SELECT batches.*,
+    batches_cancelled.id IS NOT NULL AS cancelled,
+    batches_n_jobs_in_complete_states.n_completed,
+    batches_n_jobs_in_complete_states.n_succeeded,
+    batches_n_jobs_in_complete_states.n_failed,
+    batches_n_jobs_in_complete_states.n_cancelled
+FROM batches
+LEFT JOIN billing_projects
+    ON batches.billing_project = billing_projects.name
+LEFT JOIN batches_n_jobs_in_complete_states
+    ON batches.id = batches_n_jobs_in_complete_states.id
+LEFT JOIN batches_cancelled
+    ON batches.id = batches_cancelled.id
+STRAIGHT_JOIN billing_project_users
+    ON batches.billing_project = billing_project_users.billing_project
+WHERE
+    {' AND '.join(wheres)}
+ORDER BY time_completed DESC
+LIMIT %s;
+    """
+
+    records = [
+        batch async for batch in db.select_and_fetchall(sql, (*where_args, limit), query_name='get_completed_batches')
+    ]
+    # this comes out as a timestamp (rather than a formed date)
+    last_completed_timestamp = records[-1]['time_completed']
+    batches = [batch_record_to_dict(batch) for batch in records]
+    body = {'batches': batches}
+    if len(batches) == limit:
+        body['last_completed_timestamp'] = last_completed_timestamp
+    return web.json_response(body)
+
+
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs')
 @rest_billing_project_users_only
 async def get_jobs(request, userdata, batch_id):  # pylint: disable=unused-argument
