@@ -3475,15 +3475,18 @@ class Table(ExprContainer):
         """
         return Env.spark_backend('to_spark').to_spark(self, flatten)
 
-    @typecheck_method(flatten=bool)
-    def to_pandas(self, flatten=True):
+    @typecheck_method(flatten=bool, types=dictof(oneof(str, hail_type), str))
+    def to_pandas(self, flatten=True, types={}):
         """Converts this table to a Pandas DataFrame.
 
         Parameters
         ----------
         flatten : :obj:`bool`
             If ``True``, :meth:`flatten` before converting to Pandas DataFrame.
-
+        types : :obj:`dict` mapping :class:`str` or :class:`.HailType` to :class:`str`
+            Dictionary defining Pandas DataFrame dtypes.
+            If a key is :class:`str`, a field with the specified key name is mapped to a Pandas dtype.
+            If a key is :class:`.HailType`, all fields with the specified :class:`.HailType` are mapped to a Pandas dtype.
         Returns
         -------
         :class:`.pandas.DataFrame`
@@ -3495,21 +3498,22 @@ class Table(ExprContainer):
         column_struct_array = table.aggregate(hl.struct(**collect_dict))
         columns = list(column_struct_array.keys())
         data_dict = {}
+        hl_default_dtypes = {
+            hl.tstr: "string",
+            hl.tint32: "Int32",
+            hl.tint64: "Int64",
+            hl.tfloat32: "Float32",
+            hl.tfloat64: "Float64",
+            hl.tbool: "boolean"
+        }
+        all_types = {**hl_default_dtypes, **types}
 
         for column in columns:
             hl_dtype = dtypes_struct[column]
-            if hl_dtype == hl.tstr:
-                pd_dtype = 'string'
-            elif hl_dtype == hl.tint32:
-                pd_dtype = 'Int32'
-            elif hl_dtype == hl.tint64:
-                pd_dtype = 'Int64'
-            elif hl_dtype == hl.tfloat32:
-                pd_dtype = 'Float32'
-            elif hl_dtype == hl.tfloat64:
-                pd_dtype = 'Float64'
-            elif hl_dtype == hl.tbool:
-                pd_dtype = 'boolean'
+            if column in all_types:
+                pd_dtype = all_types[column]
+            elif hl_dtype in all_types:
+                pd_dtype = all_types[hl_dtype]
             else:
                 pd_dtype = hl_dtype.to_numpy()
             data_dict[column] = pandas.Series(column_struct_array[column], dtype=pd_dtype)

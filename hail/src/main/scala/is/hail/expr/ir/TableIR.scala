@@ -3,10 +3,9 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext, TaskFinalizer}
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
+import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext, TaskFinalizer}
 import is.hail.expr.ir
-import is.hail.expr.ir.functions.IntervalFunctions._
 import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, IntervalFunctions, MatrixToTableFunction, TableToTableFunction}
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage, TableStageDependency}
 import is.hail.expr.ir.streams.StreamProducer
@@ -19,13 +18,10 @@ import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.types._
 import is.hail.types.physical._
+import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.concrete._
-import is.hail.types.physical.stypes.interfaces.{NoBoxLongIterator, SBaseStruct, SBaseStructValue, SStreamValue, primitive}
+import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Value}
-import is.hail.types.physical.stypes._
-import is.hail.types.physical.stypes._
-import is.hail.types.physical.stypes.concrete.{SInsertFieldsStruct, SStackStruct}
-import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SIntervalValue, SStreamValue, primitive}
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
@@ -38,6 +34,7 @@ import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
 import java.io.{Closeable, DataInputStream, DataOutputStream, InputStream}
 import scala.reflect.ClassTag
+
 
 object TableIR {
   def read(fs: FS, path: String, dropRows: Boolean = false, requestedType: Option[TableType] = None): TableRead = {
@@ -690,7 +687,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec, uidFieldName: Str
         override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
         override def initialize(cb: EmitCodeBuilder, partitionRegion: Value[Region]): Unit = {
-          cb.assign(xRowBuf, spec.buildCodeInputBuffer(mb.open(pathString, checkCodec = true)))
+          cb.assign(xRowBuf, spec.buildCodeInputBuffer(mb.openUnbuffered(pathString, checkCodec = true)))
           cb.assign(rowIdx, -1L)
         }
 
@@ -855,7 +852,9 @@ case class PartitionNativeIntervalReader(sm: HailStateManager, tablePath: String
               val partPath = partitionPathsRuntime.loadElement(cb, currPartitionIdx).get(cb).asString.loadString(cb)
               val idxPath = indexPathsRuntime.loadElement(cb, currPartitionIdx).get(cb).asString.loadString(cb)
               index.initialize(cb, idxPath)
-              cb.assign(ib, spec.buildCodeInputBuffer(Code.newInstance[ByteTrackingInputStream, InputStream](cb.emb.open(partPath, false))))
+              cb.assign(ib, spec.buildCodeInputBuffer(
+                Code.newInstance[ByteTrackingInputStream, InputStream](
+                  cb.emb.openUnbuffered(partPath, false))))
               index.addToFinalizer(cb, finalizer)
               cb += finalizer.invoke[Closeable, Unit]("addCloseable", ib)
             })
@@ -1028,7 +1027,9 @@ case class PartitionNativeReaderIndexed(
           cb.assign(curIdx, startIndex)
           cb.assign(endIdx, endIndex)
 
-          cb.assign(ib, spec.buildCodeInputBuffer(Code.newInstance[ByteTrackingInputStream, InputStream](cb.emb.open(partitionPath, false))))
+          cb.assign(ib, spec.buildCodeInputBuffer(
+            Code.newInstance[ByteTrackingInputStream, InputStream](
+              cb.emb.openUnbuffered(partitionPath, false))))
           cb.ifx(endIndex > startIndex, {
             val firstOffset = indexResult.loadField(cb, 2)
               .get(cb)
@@ -1289,13 +1290,13 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
           cb.assign(partIdx, ctxStruct.loadField(cb, "partitionIndex").get(cb).asInt64.value)
           cb.assign(leftBuffer, specLeft.buildCodeInputBuffer(
             Code.newInstance[ByteTrackingInputStream, InputStream](
-              mb.open(ctxStruct.loadField(cb, "leftPartitionPath")
+              mb.openUnbuffered(ctxStruct.loadField(cb, "leftPartitionPath")
                 .get(cb)
                 .asString
                 .loadString(cb), true))))
           cb.assign(rightBuffer, specRight.buildCodeInputBuffer(
             Code.newInstance[ByteTrackingInputStream, InputStream](
-              mb.open(ctxStruct.loadField(cb, "rightPartitionPath")
+              mb.openUnbuffered(ctxStruct.loadField(cb, "rightPartitionPath")
                 .get(cb)
                 .asString
                 .loadString(cb), true))))
@@ -1792,6 +1793,60 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolea
     val tv = child.execute(ctx, r).asTableValue(ctx)
     new TableValueIntermediate(tv.copy(typ = typ, rvd = tv.rvd.enforceKey(ctx, keys, isSorted)))
   }
+}
+
+/**
+ * Generate a table from the elementwise application of a body IR to a stream of `contexts`.
+ *
+ * @param contexts IR of type TStream[Any] whose elements are downwardly exposed to `body` as `cname`.
+ * @param globals  IR of type TStruct, downwardly exposed to `body` as `gname`.
+ * @param cname    Name of free variable in `body` referencing elements of `contexts`.
+ * @param gname    Name of free variable in `body` referencing `globals`.
+ * @param body     IR of type TStream[TStruct] that generates the rows of the table for each
+ *                 element in `contexts`, optionally referencing free variables Ref(cname) and
+ *                 Ref(gname).
+ * @param partitioner
+ * @param errorId  Identifier tracing location in Python source that created this node
+ */
+case class TableGen(contexts: IR,
+                    globals: IR,
+                    cname: String,
+                    gname: String,
+                    body: IR,
+                    partitioner: RVDPartitioner,
+                    errorId: Int = ErrorIDs.NO_ERROR
+                   ) extends TableIR {
+
+  TypeCheck.coerce[TStream]("contexts", contexts.typ)
+
+  private val globalType =
+    TypeCheck.coerce[TStruct]("globals", globals.typ)
+
+  private val rowType = {
+    val bodyType = TypeCheck.coerce[TStream]( "body", body.typ)
+    TypeCheck.coerce[TStruct]( "body.elementType", bodyType.elementType)
+  }
+
+  if (!partitioner.kType.isSubsetOf(rowType))
+    throw new IllegalArgumentException(
+      s"""'partitioner': key type contains fields absent from row type
+         |  Key type: ${partitioner.kType}
+         |  Row type: $rowType""".stripMargin
+    )
+
+  override def typ: TableType =
+    TableType(rowType, partitioner.kType.fieldNames, globalType)
+
+  override val rowCountUpperBound: Option[Long] =
+    None
+
+  override def copy(newChildren: IndexedSeq[BaseIR]): TableIR = {
+    val IndexedSeq(contexts: IR, globals: IR, body: IR) = newChildren
+    TableGen(contexts, globals, cname, gname, body, partitioner, errorId)
+  }
+
+  override def children: IndexedSeq[BaseIR] =
+    FastSeq(contexts, globals, body)
 }
 
 case class TableRange(n: Int, nPartitions: Int) extends TableIR {

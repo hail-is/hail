@@ -121,9 +121,15 @@ class ResourceUsageMonitor:
 
     def memory_usage_bytes(self) -> Optional[int]:
         usage_file = f'/sys/fs/cgroup/memory/{self.container_name}/memory.usage_in_bytes'
-        if os.path.exists(usage_file):
-            with open(usage_file, 'r', encoding='utf-8') as f:
-                return int(f.read().rstrip())
+        try:
+            if os.path.exists(usage_file):
+                with open(usage_file, 'r', encoding='utf-8') as f:
+                    return int(f.read().rstrip())
+        except OSError as e:
+            # OSError: [Errno 19] No such device
+            if e.errno == 19:
+                return None
+            raise
         return None
 
     def overlay_storage_usage_bytes(self) -> int:

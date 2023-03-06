@@ -99,8 +99,7 @@ class TableStage(
   def key: IndexedSeq[String] = kType.fieldNames
   def globalType: TStruct = globals.typ.asInstanceOf[TStruct]
 
-  assert(key.forall(f => rowType.hasField(f)), s"Key was ${key} \n kType was ${kType} \n rowType was ${rowType}")
-  assert(kType.fields.forall(f => rowType.field(f.name).typ == f.typ), s"Key was ${key} \n, kType was ${kType} \n rowType was ${rowType}")
+  assert(kType.isSubsetOf(rowType), s"Key type $kType is not a subset of $rowType")
   assert(broadcastVals.exists { case (name, value) => name == globals.name && value == globals})
 
   def copy(
@@ -796,6 +795,25 @@ object LowerTableIR {
           TableStageDependency.none,
           context,
           ctxRef => ToStream(ctxRef, true))
+
+      case t@TableGen(_, _, cname, gname, _, partitioner, traceId) =>
+        val Seq(contexts, globals, body) = t.children.map(ir => lowerIR(ir.asInstanceOf[IR]))
+        TableStage(
+          globals,
+          partitioner = partitioner,
+          dependency = TableStageDependency.none,
+          // Assert at runtime that the number of contexts matches the number of partitions
+          contexts = bindIR(ToArray(contexts)) { ref =>
+            val dieMsg = strConcat(
+              s"${t.getClass.getSimpleName}: partitioner contains ${partitioner.numPartitions} partitions, got ",
+              invoke("str", TString, ArrayLen(ref))
+            )
+            ToStream(
+              If(ArrayLen(ref) ceq partitioner.numPartitions, ref, Die(dieMsg, ref.typ, traceId))
+            )
+          },
+          body = Let(cname, _, Let(gname, globals, body))
+        )
 
       case TableRange(n, nPartitions) =>
         val nPartitionsAdj = math.max(math.min(n, nPartitions), 1)

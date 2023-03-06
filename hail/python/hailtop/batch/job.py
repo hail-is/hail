@@ -1077,6 +1077,16 @@ class PythonJob(Job):
             if isinstance(value, Job):
                 raise BatchException('arguments to a PythonJob cannot be other job objects.')
 
+        # Some builtins like `print` do not have signatures
+        try:
+            inspect.signature(unapplied).bind(*args, **kwargs)
+        except ValueError as e:
+            # Some builtins like `print` don't have a signature that inspect can read
+            if 'no signature found for builtin' not in e.args[0]:
+                raise e
+        except TypeError as e:
+            raise BatchException(f'Cannot call {unapplied.__name__} with the supplied arguments') from e
+
         def handle_arg(r):
             if r._source != self:
                 self._add_inputs(r)
