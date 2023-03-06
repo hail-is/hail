@@ -23,6 +23,7 @@ INSERT INTO `deployed_services` (`namespace`, `service`) VALUES
         (default_namespace,
          default_namespace, default_namespace, default_namespace, default_namespace),
     )
+    await db.async_close()
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(main())
