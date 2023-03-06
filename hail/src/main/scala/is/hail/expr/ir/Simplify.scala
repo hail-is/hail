@@ -7,8 +7,6 @@ import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import scala.reflect.ClassTag
-
 object Simplify {
 
   /** Transform 'ir' using simplification rules until none apply.
