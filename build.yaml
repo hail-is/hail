@@ -1830,6 +1830,9 @@ steps:
       - name: active-namespaces
         script: /io/sql/active-namespaces.sql
         online: true
+      - name: fix-default-namespace-record
+        script: /io/sql/fix-default-namespace.py
+        online: true
     inputs:
       - from: /repo/ci/sql
         to: /io/sql
