@@ -817,9 +817,8 @@ object LowerTableIR {
 
                 // [FOR KEYED TABLES ONLY]
                 // AFAIK, there's no way to guarantee that the rows generated in the
-                // body conform to their partition's range bounds at compile time.
-                // We need to assert this at runtime in the body, therefore, before
-                // shit hits the fan.
+                // body conform to their partition's range bounds at compile time so
+                // assert this at runtime in the body before it wreaks havoc upon the world.
                 val partitionIdx = StreamRange(I32(0), I32(partitioner.numPartitions), I32(1))
                 val bounds = Literal(TArray(TInterval(partitioner.kType)), partitioner.rangeBounds.toIndexedSeq)
                 zipIR(FastSeq(partitionIdx, ToStream(bounds), ctxs), AssertSameLength, errorId)(MakeTuple.ordered)
