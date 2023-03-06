@@ -2286,10 +2286,10 @@ def test_table_randomness():
 
     # test TableGen
     t = hl.Table._generate(
-        contexts=hl._stream_range(0, 10, 1),
+        contexts=hl.range(10),
         globals=hl.struct(k=2),
         body=lambda c, g:
-            hl._stream_range(0, 10, 1).map(lambda _: hl.struct(a=c * g.k)),
+            hl.range(10).map(lambda _: hl.struct(a=c * g.k)),
         partitions=10
     )
     assert_contains_node(t, ir.TableGen)

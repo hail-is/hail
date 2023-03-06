@@ -806,7 +806,7 @@ object LowerTableIR {
           contexts = lowerIR {
             bindIR(ToArray(contexts)) { ref =>
               bindIR(ArrayLen(ref)) { len =>
-                // If contexts were an array we could assert this at compile time...
+                // Assert at runtime that the number of contexts matches the number of partitions
                 val ctxs = ToStream(If(len ceq partitioner.numPartitions, ref, {
                   val dieMsg = strConcat(
                     s"TableGen: partitioner contains ${partitioner.numPartitions} partitions,",
