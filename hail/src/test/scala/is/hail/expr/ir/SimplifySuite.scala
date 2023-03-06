@@ -73,14 +73,6 @@ class SimplifySuite extends HailSuite {
     assert(Simplify(ctx, ir2) == InsertFields(SelectFields(base, FastIndexedSeq("1")), FastIndexedSeq("3" -> I32(1)), Some(FastIndexedSeq("3", "1"))))
   }
 
-  @Test def testBlockMatrixRewriteRules() {
-    val bmir = ValueToBlockMatrix(MakeArray(FastIndexedSeq(F64(1), F64(2), F64(3), F64(4)), TArray(TFloat64)),
-      FastIndexedSeq(2, 2), 10)
-    val identityBroadcast = BlockMatrixBroadcast(bmir, FastIndexedSeq(0, 1), FastIndexedSeq(2, 2), 10)
-
-    assert(Simplify(ctx, identityBroadcast) == bmir)
-  }
-
   @Test def testContainsRewrites() {
     assertEvalsTo(invoke("contains", TBoolean, Literal(TArray(TString), FastIndexedSeq("a")), In(0, TString)),
       FastIndexedSeq("a" -> TString),
@@ -440,7 +432,6 @@ class SimplifySuite extends HailSuite {
         Array(ApplyBinaryPrimOp(Multiply(), ref(typ), pure(-1)), ApplyUnaryPrimOp(Negate(), ref(typ))),
 
         // Div (truncated to -Inf)
-        Array(ApplyBinaryPrimOp(RoundToNegInfDivide(), ref(typ), pure(0)), Die("division by zero", typ)),
         Array(ApplyBinaryPrimOp(RoundToNegInfDivide(), ref(typ), pure(1)), ref(typ)),
         Array(ApplyBinaryPrimOp(RoundToNegInfDivide(), ref(typ), pure(-1)), ApplyUnaryPrimOp(Negate(), ref(typ))),
       ).asInstanceOf[Array[Array[Any]]]
@@ -449,4 +440,37 @@ class SimplifySuite extends HailSuite {
   @Test(dataProvider = "binaryIntegralArithmetic")
   def testBinaryFloatingSimplification(input: IR, expected: IR): Unit =
     assert(Simplify(ctx, input) == expected)
+
+  @DataProvider(name = "blockMatrixRules")
+  def blockMatrixRules: Array[Array[Any]] = {
+    val matrix =
+      ValueToBlockMatrix(
+        MakeArray((1 to 4).map(F64(_)), TArray(TFloat64)),
+        FastIndexedSeq(2, 2),
+        10
+      )
+
+    Array(
+      Array(BlockMatrixBroadcast(matrix, 0 to 1, matrix.shape, matrix.blockSize), matrix),
+      Array(BlockMatrixMap(matrix, "x", Ref("x", TFloat64), true), matrix),
+      Array(BlockMatrixMap(matrix, "x", ref(TFloat64), true), BlockMatrixBroadcast(
+        ValueToBlockMatrix(ref(TFloat64), FastIndexedSeq(1, 1), matrix.blockSize),
+        FastIndexedSeq(),
+        matrix.shape,
+        matrix.blockSize
+      )),
+      Array(BlockMatrixMap(matrix, "x", F64(2356), true), BlockMatrixBroadcast(
+        ValueToBlockMatrix(F64(2356), FastIndexedSeq(1, 1), matrix.blockSize),
+        FastIndexedSeq(),
+        matrix.shape,
+        matrix.blockSize
+      )),
+    ).asInstanceOf[Array[Array[Any]]]
+  }
+
+  @Test(dataProvider = "blockMatrixRules")
+  def testBlockMatrixSimplification(input: BlockMatrixIR, expected: BlockMatrixIR): Unit =
+    assert(Simplify(ctx, input) == expected)
 }
+
+

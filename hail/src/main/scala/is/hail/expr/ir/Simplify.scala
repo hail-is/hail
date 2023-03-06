@@ -168,6 +168,7 @@ object Simplify {
           case RoundToNegInfDivide() =>
             if (x == y) Some(pure(1))
             else if (x == pure(0)) Some(pure(0))
+            else if (y == pure(0)) Some(Die("division by zero", ir.typ))
             else None
 
           case _: LeftShift | _:RightShift | _: LogicalRightShift  =>
@@ -231,7 +232,6 @@ object Simplify {
           case RoundToNegInfDivide() =>
             if (y == pure(1)) Some(x)
             else if (y == pure(-1)) Some(ApplyUnaryPrimOp(Negate(), x))
-            else if (y == pure(0)) Some(Die("division by zero", ir.typ))
             else None
 
           case _ =>
@@ -245,12 +245,7 @@ object Simplify {
       hoistUnaryOp,
       (ir: IR) => integralBinaryIdentities(Literal.coerce(ir.typ, _))(ir),
       (ir: IR) => commonBinaryIdentities(Literal.coerce(ir.typ, _))(ir),
-    ).reduce((f, g) =>
-      (ir: IR) => f(ir) match {
-        case s: Some[IR] => s
-        case None => g(ir)
-      }
-    )
+    ).reduce((f, g) => ir => f(ir).orElse(g(ir)))
   }
 
   private[this] def valueRules: PartialFunction[IR, IR] = {
@@ -1114,7 +1109,15 @@ object Simplify {
       val needsDense = sparsityStrategy == NeedsDense || sparsityStrategy.exists(leftBlock = false, rightBlock = true)
       val maybeDense = if (needsDense) BlockMatrixDensify(left) else left
       BlockMatrixMap(maybeDense, leftName, Subst(f, BindingEnv.eval(rightName -> getElement)), needsDense)
-    case BlockMatrixMap(matrix, name, Ref(x, _), _)  if name == x =>
+    case BlockMatrixMap(matrix, name, Ref(x, _), _) if name == x =>
       matrix
+    case BlockMatrixMap(matrix, name, ir, _) if IsConstant(ir) || (ir.isInstanceOf[Ref] && ir.asInstanceOf[Ref].name != name) =>
+      val typ = matrix.typ
+      BlockMatrixBroadcast(
+        ValueToBlockMatrix(ir, FastIndexedSeq(1, 1), typ.blockSize),
+        FastIndexedSeq(),
+        typ.shape,
+        typ.blockSize
+      )
   }
 }
