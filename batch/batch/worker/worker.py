@@ -442,42 +442,61 @@ class Image:
         return f'/host/rootfs/{self.image_id}'
 
     async def _pull_image(self):
-        assert docker
+        n_pull_attempts = 1
 
-        try:
-            if not self.is_cloud_image:
-                await self._ensure_image_is_pulled()
-            elif self.is_public_image:
-                await self._ensure_image_is_pulled(auth=self._batch_worker_access_token)
-            elif self.image_ref_str == BATCH_WORKER_IMAGE and isinstance(
-                self.credentials, (JVMUserCredentials, CopyStepCredentials)
-            ):
-                pass
-            else:
-                # Pull to verify this user has access to this
-                # image.
-                # FIXME improve the performance of this with a
-                # per-user image cache.
-                await docker_call_retry(
-                    MAX_DOCKER_IMAGE_PULL_SECS,
-                    str(self),
-                    self._pull_with_auth_refresh,
-                    self.image_ref_str,
-                    auth=self._current_user_access_token,
-                )
-        except DockerError as e:
-            if e.status == 404 and 'pull access denied' in e.message:
-                raise ImageCannotBePulled from e
-            if e.status == 500 and (
-                'Permission "artifactregistry.repositories.downloadArtifacts" denied on resource' in e.message
-                or 'unauthorized' in e.message
-            ):
-                raise ImageCannotBePulled from e
-            if 'Invalid repository name' in e.message:
-                raise InvalidImageRepository from e
-            if 'unknown' in e.message:
-                raise ImageNotFound from e
-            raise
+        async def pull():
+            assert docker
+            nonlocal n_pull_attempts
+            try:
+                if not self.is_cloud_image:
+                    await self._ensure_image_is_pulled()
+                elif self.is_public_image:
+                    await self._ensure_image_is_pulled(auth=self._batch_worker_access_token)
+                elif self.image_ref_str == BATCH_WORKER_IMAGE and isinstance(
+                    self.credentials, (JVMUserCredentials, CopyStepCredentials)
+                ):
+                    pass
+                else:
+                    # Pull to verify this user has access to this
+                    # image.
+                    # FIXME improve the performance of this with a
+                    # per-user image cache.
+                    await docker_call_retry(
+                        MAX_DOCKER_IMAGE_PULL_SECS,
+                        str(self),
+                        self._pull_with_auth_refresh,
+                        self.image_ref_str,
+                        auth=self._current_user_access_token,
+                    )
+            except DockerError as e:
+                if e.status == 404 and 'pull access denied' in e.message:
+                    raise ImageCannotBePulled from e
+                if e.status == 500 and (
+                    'Permission "artifactregistry.repositories.downloadArtifacts" denied on resource' in e.message
+                    or 'unauthorized' in e.message
+                ):
+                    raise ImageCannotBePulled from e
+                if e.status == 500 and 'denied: retrieving permissions failed' in e.message:
+                    if n_pull_attempts <= 2:
+                        await docker_call_retry(
+                            MAX_DOCKER_OTHER_OPERATION_SECS,
+                            str(self),
+                            docker.images.delete,
+                            self.image_ref_str,
+                        )
+                        await pull()
+                    else:
+                        log.exception(f'error pulling image {self.image_ref_str}', exc_info=True)
+                        raise ImageCannotBePulled from e
+                if 'Invalid repository name' in e.message:
+                    raise InvalidImageRepository from e
+                if 'unknown' in e.message:
+                    raise ImageNotFound from e
+                raise
+            finally:
+                n_pull_attempts += 1
+
+        await pull()
 
         image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
         image_configs[self.image_ref_str] = json.loads(image_config)[0]
