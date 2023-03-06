@@ -2042,6 +2042,9 @@ steps:
       - name: create-resource-dedup-mapping
         script: /io/sql/create_resource_dedup_mapping.py
         online: true
+      - name: setup-deduped-resources-migration
+        script: /io/sql/setup-deduped-resources-migration.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
