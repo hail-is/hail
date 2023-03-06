@@ -104,8 +104,8 @@ BEGIN
     ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff_rollup * quantity;
 
     INSERT INTO aggregated_billing_project_user_resources_v3 (billing_project, user, resource_id, token, `usage`)
-    SELECT batches.billing_project, `user`,
-      resource_id,
+    SELECT batches.billing_project, batches.`user`,
+      attempt_resources.resource_id,
       rand_token,
       msec_diff_rollup * quantity
     FROM attempt_resources
@@ -129,7 +129,7 @@ BEGIN
 
     INSERT INTO aggregated_batch_resources_v3 (batch_id, resource_id, token, `usage`)
     SELECT attempt_resources.batch_id,
-      resource_id,
+      attempt_resources.resource_id,
       rand_token,
       msec_diff_rollup * quantity
     FROM attempt_resources
@@ -150,7 +150,7 @@ BEGIN
 
     INSERT INTO aggregated_job_resources_v3 (batch_id, job_id, resource_id, `usage`)
     SELECT attempt_resources.batch_id, attempt_resources.job_id,
-      resource_id,
+      attempt_resources.resource_id,
       msec_diff_rollup * quantity
     FROM attempt_resources
     JOIN aggregated_job_resources_v2 ON
@@ -176,8 +176,8 @@ BEGIN
     INSERT INTO aggregated_billing_project_user_resources_by_date_v3 (billing_date, billing_project, user, resource_id, token, `usage`)
     SELECT cur_billing_date,
       batches.billing_project,
-      `user`,
-      resource_id,
+      batches.`user`,
+      attempt_resources.resource_id,
       rand_token,
       msec_diff_rollup * quantity
     FROM attempt_resources
