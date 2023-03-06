@@ -810,7 +810,7 @@ object LowerTableIR {
                 val ctxs = ToStream(If(len ceq partitioner.numPartitions, ref, {
                   val dieMsg = strConcat(
                     s"TableGen: partitioner contains ${partitioner.numPartitions} partitions,",
-                    "got ", len, " contexts."
+                    " got ", len, " contexts."
                   )
                   Die(dieMsg, ref.typ, errorId)
                 }))
