@@ -2288,8 +2288,7 @@ def test_table_randomness():
     t = hl.Table._generate(
         contexts=hl.range(10),
         globals=hl.struct(k=2),
-        body=lambda c, g:
-            hl.range(10).map(lambda _: hl.struct(a=c * g.k)),
+        rowfn=lambda c, g: hl.range(10).map(lambda _: hl.struct(a=c * g.k)),
         partitions=10
     )
     assert_contains_node(t, ir.TableGen)
