@@ -1,13 +1,14 @@
 from typing import Optional
 import hail as hl
-from hail.expr.types import dtype, tint32, tint64
+from hail.expr.types import dtype, tint32, tint64, tstruct
 from hail.ir.base_ir import BaseIR, IR, TableIR
 import hail.ir.ir as ir
 from hail.ir.utils import modify_deep_field, zip_with_index, default_row_uid, default_col_uid
 from hail.ir.ir import unify_uid_types, pad_uid, concat_uids
 from hail.genetics import ReferenceGenome
-from hail.typecheck import typecheck_method, nullable
+from hail.typecheck import typecheck_method, nullable, sequenceof
 from hail.utils import FatalError
+from hail.utils.interval import Interval
 from hail.utils.java import Env
 from hail.utils.misc import escape_str, parsable_strings, escape_id
 from hail.utils.jsonx import dump_json
@@ -1118,9 +1119,10 @@ class BlockMatrixToTable(TableIR):
 
 
 class Partitioner(object):
-    # @typecheck_method(key_type=tstruct,
-    #                   range_bounds=sequenceof(Interval)
-    #                   )
+    @typecheck_method(
+        key_type=tstruct,
+        range_bounds=sequenceof(Interval)
+    )
     def __init__(self, key_type, range_bounds):
         assert all(map(lambda interval: interval.point_type == key_type, range_bounds))
         self._key_type = key_type
