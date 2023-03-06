@@ -266,7 +266,13 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDen
     f(_, scalar)
 
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
-    assert(f.isInstanceOf[ApplyUnaryPrimOp] || f.isInstanceOf[Apply] || f.isInstanceOf[ApplyBinaryPrimOp])
+    assert(
+      f.isInstanceOf[ApplyUnaryPrimOp]
+        || f.isInstanceOf[Apply]
+        || f.isInstanceOf[ApplyBinaryPrimOp]
+        || f.isInstanceOf[Ref]
+    )
+
     val prev = child.execute(ctx)
 
     val functionArgs = f match {

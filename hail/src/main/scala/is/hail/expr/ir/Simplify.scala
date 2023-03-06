@@ -1114,5 +1114,7 @@ object Simplify {
       val needsDense = sparsityStrategy == NeedsDense || sparsityStrategy.exists(leftBlock = false, rightBlock = true)
       val maybeDense = if (needsDense) BlockMatrixDensify(left) else left
       BlockMatrixMap(maybeDense, leftName, Subst(f, BindingEnv.eval(rightName -> getElement)), needsDense)
+    case BlockMatrixMap(matrix, name, Ref(x, _), _)  if name == x =>
+      matrix
   }
 }
