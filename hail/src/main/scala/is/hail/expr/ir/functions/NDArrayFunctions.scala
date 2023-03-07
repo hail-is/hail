@@ -196,7 +196,7 @@ object  NDArrayFunctions extends RegistryFunctions {
 
           cb.forLoop({
             cb.assign(i, iLeft)
-            cb.assign(j, (upper.value - diagIndex.value).max(0L))
+            cb.assign(j, (upper.value - diagIndex.value).max(0L) + 1)
           }, i < iRight, {
             cb.assign(i, i + 1)
             cb.assign(j, j + 1)
