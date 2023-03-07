@@ -24,7 +24,7 @@ class Scale(FigureAttribute):
         return lambda x: x
 
     @abc.abstractmethod
-    def is_discrete(self):
+    def is_discrete_output(self):
         pass
 
     @abc.abstractmethod
@@ -80,7 +80,7 @@ class PositionScaleGenomic(PositionScale):
     def transform_data(self, field_expr):
         return field_expr.global_position()
 
-    def is_discrete(self):
+    def is_discrete_output(self):
         return False
 
     def is_continuous(self):
@@ -107,7 +107,7 @@ class PositionScaleContinuous(PositionScale):
     def transform_data(self, field_expr):
         return field_expr
 
-    def is_discrete(self):
+    def is_discrete_output(self):
         return False
 
     def is_continuous(self):
@@ -124,7 +124,7 @@ class PositionScaleDiscrete(PositionScale):
     def transform_data(self, field_expr):
         return field_expr
 
-    def is_discrete(self):
+    def is_discrete_output(self):
         return True
 
     def is_continuous(self):
@@ -138,7 +138,7 @@ class ScaleContinuous(Scale):
     def transform_data(self, field_expr):
         return field_expr
 
-    def is_discrete(self):
+    def is_discrete_output(self):
         return False
 
     def is_continuous(self):
@@ -158,7 +158,7 @@ class ScaleDiscrete(Scale):
     def transform_data(self, field_expr):
         return field_expr
 
-    def is_discrete(self):
+    def is_discrete_output(self):
         return True
 
     def is_continuous(self):
@@ -212,13 +212,28 @@ class ScaleDiscreteManual(ScaleDiscrete):
 
 
 class ScaleColorContinuous(ScaleContinuous):
+    def is_discrete_output(self):
+        return True
 
     def create_local_transformer(self, groups_of_dfs):
         overall_min = None
         overall_max = None
         for group_of_dfs in groups_of_dfs:
             for df in group_of_dfs:
-                if self.aesthetic_name in df.columns:
+                if self.aesthetic_name in df.attrs:
+                    assert self.aesthetic_name not in df.columns
+                    v = df.attrs[self.aesthetic_name]
+                    if overall_min is None:
+                        overall_min = v
+                    else:
+                        overall_min = min(v, overall_min)
+
+                    if overall_max is None:
+                        overall_max = v
+                    else:
+                        overall_max = max(v, overall_max)
+                elif self.aesthetic_name in df.columns:
+                    assert self.aesthetic_name not in df.attrs
                     series = df[self.aesthetic_name]
                     series_min = series.min()
                     series_max = series.max()
@@ -235,7 +250,13 @@ class ScaleColorContinuous(ScaleContinuous):
         color_mapping = continuous_nums_to_colors(overall_min, overall_max, plotly.colors.sequential.Viridis)
 
         def transform(df):
-            df[self.aesthetic_name] = df[self.aesthetic_name].map(lambda i: color_mapping(i))
+            if self.aesthetic_name in df.attrs:
+                assert self.aesthetic_name not in df
+                df.attrs[f"{self.aesthetic_name}_legend"] = df.attrs[self.aesthetic_name]
+                df.attrs[self.aesthetic_name] = color_mapping(df.attrs[self.aesthetic_name])
+            else:
+                assert self.aesthetic_name in df
+                df[self.aesthetic_name] = df[self.aesthetic_name].map(lambda i: color_mapping(i))
             return df
 
         return transform

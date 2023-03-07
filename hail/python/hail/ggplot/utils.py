@@ -31,10 +31,12 @@ def should_use_for_grouping(name, type, scale):
 
 
 def should_use_scale_for_grouping(scale):
-    return (scale.aesthetic_name not in excluded_from_grouping) and scale.is_discrete()
+    return (scale.aesthetic_name not in excluded_from_grouping) and scale.is_discrete_output()
 
 
 def continuous_nums_to_colors(min_color, max_color, continuous_color_scale):
+    assert min_color is not None
+    assert max_color is not None
     def adjust_color(input_color):
         return (input_color - min_color) / max_color - min_color
 

@@ -299,7 +299,7 @@ class GeomBar(Geom):
 
     aes_to_arg = {
         "fill": ("marker_color", "black"),
-        "color": ("marker_line_color", None),
+        "color": ("marker_color", None),
         "tooltip": ("hovertext", None),
         "fill_legend": ("name", None),
         "alpha": ("marker_opacity", None)
@@ -325,6 +325,10 @@ class GeomBar(Geom):
                 "row": facet_row,
                 "col": facet_col
             }
+
+            if 'color' in df.attrs:
+                assert 'color_legend' in df.attrs
+                trace_args['name'] = df.attrs['color_legend']
 
             self._add_aesthetics_to_trace_args(trace_args, df)
             self._update_legend_trace_args(trace_args, legend_cache)
