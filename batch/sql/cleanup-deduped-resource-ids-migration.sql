@@ -76,6 +76,7 @@ BEGIN
       resource_id,
       msec_diff_rollup * quantity
     FROM attempt_resources
+    WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
     ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff_rollup * quantity;
 
     INSERT INTO aggregated_billing_project_user_resources_by_date_v2 (billing_date, billing_project, user, resource_id, token, `usage`)
@@ -99,7 +100,7 @@ BEGIN
       msec_diff_rollup * quantity
     FROM attempt_resources
     JOIN batches ON batches.id = attempt_resources.batch_id
-    WHERE attempt_resources.batch_id = NEW.batch_id AND attempt_resources.job_id = NEW.job_id AND attempt_id = NEW.attempt_id
+    WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
     ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff_rollup * quantity;
   END IF;
 END $$
