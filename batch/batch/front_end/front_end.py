@@ -308,10 +308,10 @@ WITH base_t AS
 SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
 FROM base_t
 LEFT JOIN (
-  SELECT aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  SELECT aggregated_job_resources_v3.batch_id, aggregated_job_resources_v3.job_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
   FROM base_t
-  LEFT JOIN aggregated_job_resources_v2 ON base_t.batch_id = aggregated_job_resources_v2.batch_id AND base_t.job_id = aggregated_job_resources_v2.job_id
-  GROUP BY aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, aggregated_job_resources_v2.resource_id
+  LEFT JOIN aggregated_job_resources_v3 ON base_t.batch_id = aggregated_job_resources_v3.batch_id AND base_t.job_id = aggregated_job_resources_v3.job_id
+  GROUP BY aggregated_job_resources_v3.batch_id, aggregated_job_resources_v3.job_id, aggregated_job_resources_v3.resource_id
 ) AS usage_t ON base_t.batch_id = usage_t.batch_id AND base_t.job_id = usage_t.job_id
 LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
 GROUP BY base_t.batch_id, base_t.job_id;
@@ -744,7 +744,7 @@ FROM base_t
 LEFT JOIN (
   SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
   FROM base_t
-  LEFT JOIN aggregated_batch_resources_v2 ON base_t.id = aggregated_batch_resources_v2.batch_id
+  LEFT JOIN aggregated_batch_resources_v3 ON base_t.id = aggregated_batch_resources_v3.batch_id
   GROUP BY batch_id, resource_id
 ) AS usage_t ON base_t.id = usage_t.batch_id
 LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
@@ -1350,7 +1350,7 @@ LOCK IN SHARE MODE''',
 SELECT COALESCE(SUM(t.`usage` * rate), 0) AS cost
 FROM (
   SELECT resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM aggregated_billing_project_user_resources_v2
+  FROM aggregated_billing_project_user_resources_v3
   WHERE billing_project = %s
   GROUP BY resource_id
 ) AS t
@@ -1565,10 +1565,10 @@ WHERE batches.id = %s AND NOT deleted
 SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
 FROM base_t
 LEFT JOIN (
-  SELECT aggregated_batch_resources_v2.batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  SELECT aggregated_batch_resources_v3.batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
   FROM base_t
-  LEFT JOIN aggregated_batch_resources_v2 ON base_t.id = aggregated_batch_resources_v2.batch_id
-  GROUP BY aggregated_batch_resources_v2.batch_id, aggregated_batch_resources_v2.resource_id
+  LEFT JOIN aggregated_batch_resources_v3 ON base_t.id = aggregated_batch_resources_v3.batch_id
+  GROUP BY aggregated_batch_resources_v3.batch_id, aggregated_batch_resources_v3.resource_id
 ) AS usage_t ON base_t.id = usage_t.batch_id
 LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
 GROUP BY base_t.id;
@@ -1813,15 +1813,15 @@ WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s AND batch_updates.
 SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
 FROM base_t
 LEFT JOIN (
-  SELECT aggregated_job_resources_v2.batch_id,
-    aggregated_job_resources_v2.job_id,
-    aggregated_job_resources_v2.resource_id,
+  SELECT aggregated_job_resources_v3.batch_id,
+    aggregated_job_resources_v3.job_id,
+    aggregated_job_resources_v3.resource_id,
     CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
   FROM base_t
-  LEFT JOIN aggregated_job_resources_v2
-    ON aggregated_job_resources_v2.batch_id = base_t.batch_id AND
-       aggregated_job_resources_v2.job_id = base_t.job_id
-  GROUP BY aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, aggregated_job_resources_v2.resource_id
+  LEFT JOIN aggregated_job_resources_v3
+    ON aggregated_job_resources_v3.batch_id = base_t.batch_id AND
+       aggregated_job_resources_v3.job_id = base_t.job_id
+  GROUP BY aggregated_job_resources_v3.batch_id, aggregated_job_resources_v3.job_id, aggregated_job_resources_v3.resource_id
 ) AS usage_t ON usage_t.batch_id = base_t.batch_id AND usage_t.job_id = base_t.job_id
 LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
 GROUP BY base_t.batch_id, base_t.job_id, base_t.last_cancelled_attempt_id;
@@ -2354,8 +2354,8 @@ SELECT
   COALESCE(SUM(`usage` * rate), 0) AS cost
 FROM (
   SELECT billing_project, `user`, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM aggregated_billing_project_user_resources_by_date_v2
-  LEFT JOIN billing_projects ON billing_projects.name = aggregated_billing_project_user_resources_by_date_v2.billing_project
+  FROM aggregated_billing_project_user_resources_by_date_v3
+  LEFT JOIN billing_projects ON billing_projects.name = aggregated_billing_project_user_resources_by_date_v3.billing_project
   WHERE {' AND '.join(where_conditions)}
   GROUP BY billing_project, `user`, resource_id
 ) AS t

@@ -38,7 +38,7 @@ LEFT JOIN batches_n_jobs_in_complete_states
   ON batches.id = batches_n_jobs_in_complete_states.id
 LEFT JOIN (
   SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM aggregated_batch_resources_v2
+  FROM aggregated_batch_resources_v3
   WHERE batch_id = %s
   GROUP BY batch_id, resource_id
 ) AS abr
