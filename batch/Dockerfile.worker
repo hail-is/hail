@@ -22,7 +22,7 @@ RUN echo "APT::Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries && \
     export GCSFUSE_REPO=gcsfuse-bionic && \
     echo "deb http://packages.cloud.google.com/apt $GCSFUSE_REPO main" | tee /etc/apt/sources.list.d/gcsfuse.list && \
     curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - && \
-    hail-apt-get-install fuse gcsfuse
+    hail-apt-get-install fuse gcsfuse=0.41.12
 
 {% elif global.cloud == "azure" %}
 # https://github.com/Azure/azure-storage-fuse/issues/603
