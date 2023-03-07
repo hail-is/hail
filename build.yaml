@@ -2051,6 +2051,9 @@ steps:
       - name: cleanup-deduped-resource-ids-migration
         script: /io/sql/cleanup-deduped-resource-ids-migration.sql
         online: true
+      - name: cleanup-attempt-resources-deduped-ids
+        script: /io/sql/cleanup-attempt-resources-deduped-ids.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

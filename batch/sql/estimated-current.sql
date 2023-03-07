@@ -444,7 +444,6 @@ CREATE TABLE IF NOT EXISTS `attempt_resources` (
   `attempt_id` VARCHAR(40) NOT NULL,
   `quantity` BIGINT NOT NULL,
   `resource_id` INT NOT NULL,
-  `deduped_resource_id` INT DEFAULT NULL,
   PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`, `resource_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(`batch_id`, `job_id`) ON DELETE CASCADE,
@@ -769,13 +768,6 @@ BEGIN
         n_creating_jobs = n_creating_jobs + 1;
     END IF;
   END IF;
-END $$
-
-DROP TRIGGER IF EXISTS attempt_resources_before_insert $$
-CREATE TRIGGER attempt_resources_before_insert BEFORE INSERT ON attempt_resources
-FOR EACH ROW
-BEGIN
-  SET NEW.deduped_resource_id = NEW.resource_id;
 END $$
 
 DROP TRIGGER IF EXISTS attempt_resources_after_insert $$
