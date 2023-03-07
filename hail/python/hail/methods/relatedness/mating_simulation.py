@@ -60,7 +60,7 @@ def simulate_random_mating(mt,
         return 0.0
 
     samples = [(i, f'founder_{i}', None, None) for i in range(ns)]
-    info(f'simulate_random_mating: {len(samples)} founders, {n_rounds} rounds of mating to do')
+    print(f'simulate_random_mating: {len(samples)} founders, {n_rounds} rounds of mating to do')
     last_generation_start_idx = 0
     indices = []
 
@@ -101,7 +101,7 @@ def simulate_random_mating(mt,
                     relatedness[curr_sample_idx][first_child] = child_rel_value
 
                 curr_sample_idx += 1
-        info(
+        print(
             f'simulate_random_mating: generation {generation + 1}: '
             f'{curr_sample_idx - last_generation_end} new samples, '
             f'for a total of {len(samples)}')
