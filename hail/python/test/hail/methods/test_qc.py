@@ -2,6 +2,7 @@ import unittest
 
 import hail as hl
 import hail.expr.aggregators as agg
+from hail.utils.misc import new_temp_file
 from ..helpers import *
 
 
@@ -342,3 +343,17 @@ class Tests(unittest.TestCase):
         ht = ht.select(variant_class=ht.vep.variant_class)
         result = ht.head(1).collect()[0]
         assert result.variant_class == 'SNV', result
+
+    @skip_unless_service_backend(clouds=['gcp'])
+    @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
+    def test_vep_grch37_against_dataproc(self):
+        tmp_file = new_temp_file(prefix="vep-grch37", extension="tsv.gz")
+        mt = hl.import_vcf(resource('sample.vcf.gz'), reference_genome='GRCh37', force=True)
+        hail_vep_result = hl.vep(mt, csq=False)
+        hail_vep_result = hail_vep_result.annotate_rows(vep=hl.json(hail_vep_result.vep))
+        hail_vep_result.rows().head(20).select('vep').export(tmp_file)
+
+        dataproc_result = hl.import_table(resource('dataproc_vep_grch37_annotations.tsv.gz'))
+        qob_result = hl.import_table(tmp_file)
+
+        assert dataproc_result._same(qob_result)
