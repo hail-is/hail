@@ -2009,6 +2009,9 @@ steps:
       - name: dedup-resources
         script: /io/sql/dedup_resources.py
         online: true
+      - name: cleanup-deduped-resource-ids-migration
+        script: /io/sql/cleanup-deduped-resource-ids-migration.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
