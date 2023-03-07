@@ -3412,7 +3412,7 @@ steps:
   - kind: runImage
     name: test_batch_invariants
     image:
-      valueFrom: batch_image.image
+      valueFrom: hail_dev_image.image
     script: |
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
@@ -3442,7 +3442,7 @@ steps:
       - create_accounts
       - default_ns
       - merge_code
-      - batch_image
+      - hail_dev_image
       - deploy_batch
       - test_batch
       - test_ci
