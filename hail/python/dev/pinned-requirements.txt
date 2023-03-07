@@ -290,7 +290,7 @@ pygments==2.14.0
     #   nbconvert
     #   qtconsole
     #   sphinx
-pylint==2.15.4
+pylint==2.16.2
     # via -r hail/hail/python/dev/requirements.txt
 pyrsistent==0.19.3
     # via jsonschema

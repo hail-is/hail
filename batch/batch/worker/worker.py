@@ -1907,7 +1907,7 @@ class JVMJob(Job):
         input_files = job_spec.get('input_files')
         output_files = job_spec.get('output_files')
         if input_files or output_files:
-            raise Exception("i/o not supported")
+            raise ValueError("i/o not supported")
 
         assert job_spec['process']['jar_spec']['type'] == 'jar_url'
         self.jar_url = job_spec['process']['jar_spec']['value']
