@@ -90,8 +90,6 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None, _us
     :class:`.Table`
     """
 
-    require_col_key_str(dataset, 'identity_by_descent')
-
     if not isinstance(dataset.GT, hl.CallExpression):
         raise Exception('GT field must be of type Call')
 
@@ -119,9 +117,14 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None, _us
     if not 0 <= min <= max <= 1:
         raise Exception(f"invalid pi hat filters {min} {max}")
 
-    sample_ids = dataset.s.collect()
-    if len(sample_ids) != len(set(sample_ids)):
-        raise Exception('duplicate sample ids found')
+    col_key_field = list(dataset.col_key)[0]
+    ds_unkey = dataset.key_cols_by()
+    _ids, dups = ds_unkey.aggregate_cols((hl.agg.collect(ds_unkey[col_key_field]),
+                                        hl.array(hl.agg.counter(ds_unkey[col_key_field]))
+                                        .filter(lambda x: x[1] > 1)
+                                        .map(lambda x: x[0])))
+    if len(dups) > 0:
+        raise Exception(f'identity_by_descent: {len(dups)} duplicate sample ids found: {list(dups.keys())[:10]}')
 
     dataset = dataset.annotate_entries(
         n_alt_alleles=hl.or_else(dataset.GT.n_alt_alleles(), 0),
@@ -158,6 +161,8 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None, _us
               + p * (q ** 2) * ((Y - 1) / Y) * (T / (T - 1)) * (T / (T - 2))),
         _e22=(T / 2)
     )
+    dataset = dataset.filter_rows(
+        ~hl.any(*(hl.is_nan(dataset[x]) for x in ('_e00', '_e10', '_e20', '_e11', '_e21', '_e22'))))
 
     dataset = dataset.checkpoint(hl.utils.new_temp_file())
 
@@ -222,10 +227,10 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None, _us
     result = result.annotate(ibd=result.ibd.annotate(PI_HAT=result.ibd.Z1 / 2 + result.ibd.Z2))
     result = result.filter((result.i < result.j) & (min <= result.ibd.PI_HAT) & (result.ibd.PI_HAT <= max))
 
-    samples = hl.literal(dataset.s.collect())
+    ids = hl.literal(_ids)
     result = result.key_by(
-        i=samples[hl.int32(result.i)],
-        j=samples[hl.int32(result.j)]
+        i=ids[hl.int32(result.i)],
+        j=ids[hl.int32(result.j)]
     )
 
     return result.persist()

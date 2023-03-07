@@ -1,70 +1,130 @@
 import hail as hl
-from hail.typecheck import typecheck, numeric
+from hail.typecheck import typecheck, numeric, nullable
+import random
+from hail.utils.java import info
 
 
-@typecheck(mt=hl.MatrixTable, n_rounds=int, generation_size_multiplier=numeric, keep_founders=bool)
-def simulate_random_mating(mt, n_rounds=1, generation_size_multiplier=1.0, keep_founders=True):
+@typecheck(mt=hl.MatrixTable,
+           n_rounds=int,
+           pairs_per_generation_multiplier=numeric,
+           children_per_pair=int,
+           seed=nullable(int))
+def simulate_random_mating(mt,
+                           n_rounds=1,
+                           pairs_per_generation_multiplier=0.5,
+                           children_per_pair=2,
+                           seed=None):
     """Simulate random diploid mating to produce new individuals.
+
+    .. include:: _templates/experimental.rst
+
+    Exmaples
+    --------
+
+    >>> dataset_sim = hl.simulate_random_mating(dataset, n_rounds=2, pairs_per_generation_multiplier=0.5)
 
     Parameters
     ----------
     mt
     n_rounds : :obj:`int`
         Number of rounds of mating.
-    generation_size_multiplier  : :obj:`float`
-        Ratio of number of offspring to current population for each round of mating.
-    keep_founders :obj:`bool`
-        If true, keep all founders and intermediate generations in the final sample list. If
-        false, keep only offspring in the last generation.
-
+    pairs_per_generation_multiplier  : :obj:`float`
+        Ratio of number of mating pairs to current population size for each round of mating.
+    children_per_pair  : :obj:`int`
+        Number of children per mating pair.
     Returns
     -------
     :class:`.MatrixTable`
     """
-    if generation_size_multiplier <= 0:
+    if pairs_per_generation_multiplier <= 0:
         raise ValueError(
-            f"simulate_random_mating: 'generation_size_multiplier' must be greater than zero: got {generation_size_multiplier}")
+            f"simulate_random_mating: 'generation_size_multiplier' must be greater than zero: got {pairs_per_generation_multiplier}")
     if n_rounds < 1:
         raise ValueError(f"simulate_random_mating: 'n_rounds' must be positive: got {n_rounds}")
 
-    ck = list(mt.col_key)[0]
-
     mt = mt.select_entries('GT')
-
     ht = mt.localize_entries('__entries', '__cols')
 
-    ht = ht.annotate_globals(
-        generation_0=hl.range(hl.len(ht.__cols)).map(lambda i: hl.struct(s=hl.str('generation_0_idx_') + hl.str(i),
-                                                                         original=hl.str(ht.__cols[i][ck]),
-                                                                         mother=hl.missing('int32'),
-                                                                         father=hl.missing('int32'))))
+    ns = mt.count_cols()
 
-    def make_new_generation(prev_generation_tup, idx):
-        prev_size = prev_generation_tup[1]
-        n_new = hl.int32(hl.floor(prev_size * generation_size_multiplier))
-        new_generation = hl.range(n_new).map(
-            lambda i: hl.struct(s=hl.str('generation_') + hl.str(idx + 1) + hl.str('_idx_') + hl.str(i),
-                                original=hl.missing('str'),
-                                mother=hl.rand_int32(0, prev_size),
-                                father=hl.rand_int32(0, prev_size)))
-        return (new_generation, (prev_size + n_new) if keep_founders else n_new)
+    # dict of true nonzero relatedness. indeed by tuples of (id1, id2) where a pair is stored with the larger (later) id first.
+    from collections import defaultdict
+    relatedness = defaultdict(dict)
 
-    ht = ht.annotate_globals(generations=hl.range(n_rounds).scan(lambda prev, idx: make_new_generation(prev, idx),
-                                                                 (ht.generation_0, hl.len(ht.generation_0))))
+    def get_rel(s1, s2):
+        if s1 > s2:
+            if s1 in relatedness:
+                return relatedness[s1].get(s2, 0.0)
+        elif s2 in relatedness:
+            return relatedness[s2].get(s1, 0.0)
+        return 0.0
 
-    def simulate_mating_calls(prev_generation_calls, new_generation):
-        new_samples = new_generation.map(lambda samp: hl.call(prev_generation_calls[samp.mother][hl.rand_int32(0, 2)],
-                                                              prev_generation_calls[samp.father][hl.rand_int32(0, 2)]))
-        if keep_founders:
-            return prev_generation_calls.extend(new_samples)
-        else:
-            return new_samples
+    samples = [(i, f'founder_{i}', None, None) for i in range(ns)]
+    info(f'simulate_random_mating: {len(samples)} founders, {n_rounds} rounds of mating to do')
+    last_generation_start_idx = 0
+    indices = []
 
+    if seed is not None:
+        random.seed(seed)
+    for generation in range(n_rounds):
+        last_generation_end = len(samples)
+        mating_generation_size = last_generation_end - last_generation_start_idx
+
+        new_pairs = int(mating_generation_size * pairs_per_generation_multiplier)
+
+        curr_sample_idx = len(samples)
+        for pair in range(new_pairs):
+            mother = int(random.uniform(last_generation_start_idx, last_generation_end))
+            father = int(last_generation_start_idx + (
+                    mother + random.uniform(1, mating_generation_size)) % mating_generation_size)
+
+            mother_rel = relatedness[mother]
+            father_rel = relatedness[father]
+
+            merged_parent_rel = {}
+            for k, v in mother_rel.items():
+                merged_parent_rel[k] = .5 * (v + father_rel.get(k, 0.0))
+            for k, v in father_rel.items():
+                if k not in mother_rel:
+                    merged_parent_rel[k] = .5 * v
+
+            child_rel_value = 0.25 + get_rel(mother, father) / 2
+            first_child = curr_sample_idx
+            for child in range(children_per_pair):
+                samples.append(
+                    (curr_sample_idx, f'generation_{generation + 1}_pair_{pair}_child_{child}', mother, father))
+                relatedness[curr_sample_idx] = merged_parent_rel.copy()
+                relatedness[curr_sample_idx][mother] = child_rel_value
+                relatedness[curr_sample_idx][father] = child_rel_value
+
+                if child > 0:
+                    relatedness[curr_sample_idx][first_child] = child_rel_value
+
+                curr_sample_idx += 1
+        info(
+            f'simulate_random_mating: generation {generation + 1}: '
+            f'{curr_sample_idx - last_generation_end} new samples, '
+            f'for a total of {len(samples)}')
+
+        indices.append((last_generation_end, curr_sample_idx))
+        last_generation_start_idx = last_generation_end
+
+    ht = ht.annotate_globals(__samples=hl.literal(samples, dtype='tarray<ttuple(int32, str, int32, int32)>')
+                             .map(lambda t: hl.struct(sample_idx=t[0], s=t[1], mother=t[2], father=t[3])),
+                             __indices=indices,
+                             relatedness=relatedness)
+
+    def simulate_mating_calls(prev_generation_calls, samples, indices):
+        new_samples = hl.range(indices[0], indices[1]) \
+            .map(lambda i: samples[i]) \
+            .map(lambda samp: hl.call(prev_generation_calls[samp.mother][hl.rand_int32(0, 2)],
+                                      prev_generation_calls[samp.father][hl.rand_int32(0, 2)]))
+        return prev_generation_calls.extend(new_samples)
+
+    samples = ht.__samples
     ht = ht.annotate(__new_entries=hl.fold(
-        lambda prev_calls, generation_metadata: simulate_mating_calls(prev_calls, generation_metadata[0]),
+        lambda prev_calls, indices: simulate_mating_calls(prev_calls, samples, indices),
         ht.__entries.GT,
-        ht.generations[1:]).map(lambda gt: hl.struct(GT=gt)))
-    ht = ht.annotate_globals(
-        __new_cols=ht.generations.flatmap(lambda x: x[0]) if keep_founders else ht.generations[-1][0])
-    ht = ht.drop('__entries', '__cols', 'generation_0', 'generations')
-    return ht._unlocalize_entries('__new_entries', '__new_cols', list('s'))
+        ht.__indices).map(lambda gt: hl.struct(GT=gt)))
+    ht = ht.drop('__entries', '__cols', '__indices')
+    return ht._unlocalize_entries('__new_entries', '__samples', list('s'))

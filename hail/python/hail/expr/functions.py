@@ -3905,7 +3905,7 @@ def group_by(f: Callable, collection) -> DictExpression:
 @typecheck(f=func_spec(2, expr_any),
            zero=expr_any,
            collection=expr_oneof(expr_set(), expr_array()))
-def fold(f: Callable, zero, collection) -> Expression:
+def fold(f: Callable, zero, collection):
     """Reduces a collection with the given function `f`, provided the initial value `zero`.
 
     Examples
