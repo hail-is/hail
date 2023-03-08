@@ -767,7 +767,7 @@ object LowerTableIR {
 
         val context = bindIR(ArrayLen(GetField(loweredRowsAndGlobalRef, "rows"))) { numRowsRef =>
           bindIR(invoke("extend", TArray(TInt32), ToArray(mapIR(rangeIR(nPartitionsAdj)) { partIdx =>
-            invoke("ceil", TFloat64, partIdx.toD * numRowsRef.toD / nPartitionsAdj.toDouble).toI
+            (partIdx * numRowsRef) floorDiv nPartitionsAdj
           }),
             MakeArray((numRowsRef)))) { indicesArray =>
             bindIR(GetField(loweredRowsAndGlobalRef, "rows")) { rows =>

@@ -69,7 +69,7 @@ class RVDPartitioner(
       Some(Interval(rangeBounds.head.left, rangeBounds.last.right))
 
   def satisfiesAllowedOverlap(testAllowedOverlap: Int): Boolean =
-    (testAllowedOverlap >= kType.size) || RVDPartitioner.isValid(sm, kType, rangeBounds, testAllowedOverlap)
+    (allowedOverlap >= kType.size) || RVDPartitioner.isValid(sm, kType, rangeBounds, testAllowedOverlap)
 
   def isStrict: Boolean = satisfiesAllowedOverlap(kType.size - 1)
 
@@ -409,7 +409,7 @@ object RVDPartitioner {
     sm: HailStateManager,
     kType: TStruct,
     rangeBounds: IndexedSeq[Interval],
-    allowedOverlap: Int
+    allowedOverlap: Int,
   ): Boolean = {
     rangeBounds.isEmpty ||
       rangeBounds.zip(rangeBounds.tail).forall { case (left: Interval, right: Interval) =>
