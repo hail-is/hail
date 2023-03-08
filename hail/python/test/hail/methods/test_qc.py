@@ -350,7 +350,7 @@ class Tests(unittest.TestCase):
         tmp_file = new_temp_file(prefix="vep-grch37", extension="tsv.gz")
         mt = hl.import_vcf(resource('sample.vcf.gz'), reference_genome='GRCh37', force=True)
         hail_vep_result = hl.vep(mt, csq=False)
-        hail_vep_result = hail_vep_result.annotate_rows(vep=hl.json(hail_vep_result.vep))
+        hail_vep_result = hail_vep_result.annotate_rows(vep=hl.str(hl.json(hail_vep_result.vep)))
         hail_vep_result.rows().head(20).select('vep').export(tmp_file)
 
         dataproc_result = hl.import_table(resource('dataproc_vep_grch37_annotations.tsv.gz'), force=True)
