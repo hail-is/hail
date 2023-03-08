@@ -1,7 +1,6 @@
 import hail as hl
 from hail.typecheck import typecheck, numeric, nullable
 import random
-from hail.utils.java import info
 
 
 @typecheck(mt=hl.MatrixTable,
@@ -52,17 +51,20 @@ def simulate_random_mating(mt,
     relatedness = defaultdict(dict)
 
     def get_rel(s1, s2):
-        if s1 > s2:
-            if s1 in relatedness:
-                return relatedness[s1].get(s2, 0.0)
-        elif s2 in relatedness:
-            return relatedness[s2].get(s1, 0.0)
-        return 0.0
+        smaller, larger = (s1, s2) if s1 < s2 else s2, s1
+        return relatedness[larger].get(smaller, 0.0)
+
+    def set_rel(from_s, to_s, value, fwd, generation_start):
+        relatedness[from_s][to_s] = value
+        if to_s >= generation_start:
+            fwd[to_s][from_s] = value
 
     samples = [(i, f'founder_{i}', None, None) for i in range(ns)]
     print(f'simulate_random_mating: {len(samples)} founders, {n_rounds} rounds of mating to do')
     last_generation_start_idx = 0
     indices = []
+
+    last_gen_fwd = defaultdict(dict)
 
     if seed is not None:
         random.seed(seed)
@@ -72,33 +74,62 @@ def simulate_random_mating(mt,
 
         new_pairs = int(mating_generation_size * pairs_per_generation_multiplier)
 
+        curr_gen_fwd = defaultdict(dict)
+
         curr_sample_idx = len(samples)
+        parent_to_child = defaultdict(set)
         for pair in range(new_pairs):
             mother = int(random.uniform(last_generation_start_idx, last_generation_end))
             father = int(last_generation_start_idx + (
                     mother + random.uniform(1, mating_generation_size)) % mating_generation_size)
 
-            mother_rel = relatedness[mother]
-            father_rel = relatedness[father]
+            mother_rel = {**relatedness[mother], **last_gen_fwd[mother]}
+            father_rel = {**relatedness[father], **last_gen_fwd[father]}
 
             merged_parent_rel = {}
+
             for k, v in mother_rel.items():
-                merged_parent_rel[k] = .5 * (v + father_rel.get(k, 0.0))
+                merged_parent_rel[k] = .5 * v
             for k, v in father_rel.items():
-                if k not in mother_rel:
+                if k in mother_rel:
+                    merged_parent_rel[k] += .5 * v
+                else:
                     merged_parent_rel[k] = .5 * v
 
-            child_rel_value = 0.25 + get_rel(mother, father) / 2
-            first_child = curr_sample_idx
+            if mother in merged_parent_rel:
+                assert father in merged_parent_rel
+                merged_parent_rel[mother] += 0.25
+                merged_parent_rel[father] += 0.25
+            else:
+                merged_parent_rel[mother] = 0.25
+                merged_parent_rel[father] = 0.25
+            sibling_rel = merged_parent_rel[mother]  # here mother/father should be the same, since
+
             for child in range(children_per_pair):
                 samples.append(
                     (curr_sample_idx, f'generation_{generation + 1}_pair_{pair}_child_{child}', mother, father))
-                relatedness[curr_sample_idx] = merged_parent_rel.copy()
-                relatedness[curr_sample_idx][mother] = child_rel_value
-                relatedness[curr_sample_idx][father] = child_rel_value
+                for k, v in merged_parent_rel.items():
+                    set_rel(curr_sample_idx, k, v, curr_gen_fwd, last_generation_start_idx)
 
-                if child > 0:
-                    relatedness[curr_sample_idx][first_child] = child_rel_value
+                mother_sibs = parent_to_child[mother]
+                father_sibs = parent_to_child[father]
+                for sib in mother_sibs:
+                    if sib in father_sibs:
+                        rel = sibling_rel
+                    else:
+                        _, _, sib_mom, sib_dad = samples[sib]
+                        other_parent = sib_mom if sib_mom != mother else sib_dad
+                        rel = .125 + get_rel(mother, other_parent) / 2
+                    set_rel(curr_sample_idx, sib, rel, curr_gen_fwd, last_generation_start_idx)
+                for sib in father_sibs:
+                    if sib not in mother_sibs:
+                        _, _, sib_mom, sib_dad = samples[sib]
+                        other_parent = sib_mom if sib_mom != father else sib_dad
+                        set_rel(curr_sample_idx, sib, 0.125 + get_rel(father, other_parent) / 2, curr_gen_fwd,
+                                last_generation_start_idx)
+
+                mother_sibs.add(curr_sample_idx)
+                father_sibs.add(curr_sample_idx)
 
                 curr_sample_idx += 1
         print(
@@ -108,6 +139,7 @@ def simulate_random_mating(mt,
 
         indices.append((last_generation_end, curr_sample_idx))
         last_generation_start_idx = last_generation_end
+        last_gen_fwd = curr_gen_fwd
 
     ht = ht.annotate_globals(__samples=hl.literal(samples, dtype='tarray<ttuple(int32, str, int32, int32)>')
                              .map(lambda t: hl.struct(sample_idx=t[0], s=t[1], mother=t[2], father=t[3])),
