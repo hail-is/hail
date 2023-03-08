@@ -433,23 +433,28 @@ GROUP BY user;
                     break
 
         n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
-        n_standing_instances_needed = max(0, self.min_instances - self.n_instances)
-        n_standing_instances_needed = min(
-            n_standing_instances_needed,
-            self.max_live_instances - n_live_instances,
-            self.max_instances - self.n_instances,
-            remaining_instances_per_autoscaler_loop,
-            # 20 queries/s; our GCE long-run quota
-            300,
-        )
-        if n_standing_instances_needed > 0:
-            await self._create_instances(
-                n_instances=n_standing_instances_needed,
-                cores=self.standing_worker_cores,
-                data_disk_size_gb=self.data_disk_size_standing_gb,
-                regions=self.all_supported_regions,
-                max_idle_time_msecs=self.standing_worker_max_idle_time_secs * 1000,
+
+        capacity_for_live_instances = max(0, self.max_live_instances - n_live_instances)
+        capacity_for_any_instances = max(0, self.max_instances - self.n_instances)
+
+        capacity_for_new_instances = min(capacity_for_live_instances, capacity_for_any_instances)
+        n_instances_to_meet_shortfall = max(0, self.min_instances - self.n_instances)
+
+        if capacity_for_new_instances > 0 and n_instances_to_meet_shortfall > 0:
+            n_standing_instances_to_provision = min(
+                capacity_for_new_instances,
+                n_instances_to_meet_shortfall,
+                remaining_instances_per_autoscaler_loop,
+                300,  # 20 queries/s; our GCE long-run quota
             )
+            if n_standing_instances_to_provision > 0:
+                await self._create_instances(
+                    n_instances=n_standing_instances_to_provision,
+                    cores=self.standing_worker_cores,
+                    data_disk_size_gb=self.data_disk_size_standing_gb,
+                    regions=self.all_supported_regions,
+                    max_idle_time_msecs=self.standing_worker_max_idle_time_secs * 1000,
+                )
 
         log.info(
             f'{self} n_instances {self.n_instances} {self.n_instances_by_state}'
