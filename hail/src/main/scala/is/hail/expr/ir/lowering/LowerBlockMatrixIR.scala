@@ -905,7 +905,7 @@ object LowerBlockMatrixIR {
         throw new LowererUnsupportedOperation(s"Can't lower node with mismatched block sizes: ${ bmir.typ.blockSize } vs child ${ c.typ.blockSize }\n\n ${ Pretty(ctx, bmir) }")
       case _ =>
     }
-    if (bmir.typ.nDefinedBlocks == 0)
+    if (bmir.typ.matrixShape == 0L -> 0L)
       BlockMatrixStage2.empty(bmir.typ.elementType, ib)
     else lowerNonEmpty2(bmir, ib, typesToLower, ctx, analyses)
   }
