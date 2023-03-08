@@ -9,7 +9,7 @@ from shlex import quote as shq
 from typing import Any, Dict, Tuple, List, Optional, Union
 
 from hailtop import pip_version
-from hailtop.utils import Timings, secret_alnum_string
+from hailtop.utils import Timings, async_to_blocking, secret_alnum_string
 import hailtop.batch_client as bc
 from hailtop.config import configuration_of
 from hailtop import yamlx
@@ -809,10 +809,10 @@ def _service_vep(backend: ServiceBackend,
     timings = Timings()
     name = 'vep(...)'
 
+    starting_job_id = async_to_blocking(backend._batch.status())['n_jobs'] + 1
+
     with timings.step("submit batch"):
-        bb = backend.bc.create_batch(token=token,
-                                     attributes={'name': backend.name_prefix + name, 'vep': '1', 'token': token},
-                                     cancel_after_n_failures=1)
+        bb = backend.bc.update_batch(backend._batch.id)
         build_vep_batch(bb)
         b = bb.submit(disable_progress_bar=True)
 
@@ -820,7 +820,8 @@ def _service_vep(backend: ServiceBackend,
         try:
             status = b.wait(description=name,
                             disable_progress_bar=backend.disable_progress_bar,
-                            progress=None)
+                            progress=None,
+                            starting_job=starting_job_id)
         except BaseException:
             print('cancelling batch...')
             b.cancel()
