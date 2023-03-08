@@ -353,7 +353,7 @@ class Tests(unittest.TestCase):
         hail_vep_result = hail_vep_result.annotate_rows(vep=hl.json(hail_vep_result.vep))
         hail_vep_result.rows().head(20).select('vep').export(tmp_file)
 
-        dataproc_result = hl.import_table(resource('dataproc_vep_grch37_annotations.tsv.gz'))
-        qob_result = hl.import_table(tmp_file)
+        dataproc_result = hl.import_table(resource('dataproc_vep_grch37_annotations.tsv.gz'), force=True)
+        qob_result = hl.import_table(tmp_file, force=True)
 
         assert dataproc_result._same(qob_result)
