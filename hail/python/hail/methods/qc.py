@@ -745,7 +745,6 @@ def _service_vep(backend: ServiceBackend,
                          "Use hl.init(gcs_requester_pays_configuration='MY_PROJECT') "
                          "to set the requester pays project to use.")
 
-    token = secret_alnum_string(16)
     vep_input_path = hl.TemporaryDirectory(prefix='qob/vep/inputs/')
     vep_output_path = hl.TemporaryDirectory(prefix='qob/vep/outputs/')
 

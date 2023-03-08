@@ -177,7 +177,7 @@ def run_vep(vep_cmd, input_file, block_size, consequence, tolerate_parse_error, 
                                      f'{stderr}')
 
             elapsed_time = time.time() - start_time
-            print(f'processed {n_processed} variants in {elapsed_time}')
+            print(f'processed {n_processed} variants in {round(elapsed_time, 2)}s')
 
     return results
 
