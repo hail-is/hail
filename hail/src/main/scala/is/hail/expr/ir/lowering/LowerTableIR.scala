@@ -876,11 +876,12 @@ object LowerTableIR {
 
       case TableGen(contexts, globals, cname, gname, body, partitioner, errorId) =>
         val loweredGlobals = lowerIR(globals)
-        TableStage(
+        val ts = TableStage(
           loweredGlobals,
           partitioner = partitioner,
           PartitionSparsity.Dense,
           dependency = TableStageDependency.none,
+          partitionSparsity = PartitionSparsity.Dense,
           contexts = lowerIR {
             bindIR(ToArray(contexts)) { ref =>
               bindIR(ArrayLen(ref)) { len =>
@@ -922,6 +923,11 @@ object LowerTableIR {
             }
           }
         )
+
+        requestedPartitioner match {
+          case UseThisPartitioning(p) => ts.repartitionNoShuffle(p)
+          case UseTheDefaultPartitioning => ts
+        }
 
       case TableRange(n, nPartitions) =>
         val nPartitionsAdj = math.max(math.min(n, nPartitions), 1)
