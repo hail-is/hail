@@ -30,8 +30,11 @@ Released 2023-03-08
 
 ### New Features
 
-- (hail#12643) In Query on Batch, `hl.skat(..., logistic=True)` now supported.
-- (hail#12643) In Query on Batch, `hl.liftover` now supported.
+- (hail#12643) In Query on Batch, `hl.skat(..., logistic=True)` is now supported.
+- (hail#12643) In Query on Batch, `hl.liftover` is now supported.
+- (hail#12629) In Query on Batch, `hl.ibd` is now supported.
+- (hail#12722) Add `hl.simulate_random_mating` to generate a population from founders under the assumption of random mating.
+- (hail#12701) Query on Spark now officially supports Spark 3.3.0 and Dataproc 2.1.x
 
 ### Performance Improvements
 
@@ -44,6 +47,7 @@ Released 2023-03-08
 - (hail#12735) Fix (hail#11738) by allowing user to override default types in `to_pandas`.
 - (hail#12760) Mitigate some JVM bytecode generation errors, particularly those related to too many method parameters.
 - (hail#12766) Fix (hail#12759) by loosening `parsimonious` dependency pin.
+- (hail#12732) In Query on Batch, fix bug that sometimes prevented terminating a pipeline using Control-C.
 
 ---
 
