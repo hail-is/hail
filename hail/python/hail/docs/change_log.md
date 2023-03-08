@@ -24,6 +24,29 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.110
+
+Released 2023-02-08
+
+### New Features
+
+- (hail#12643) In Query on Batch, `hl.skat(..., logistic=True)` now supported.
+- (hail#12643) In Query on Batch, `hl.liftover` now supported.
+
+### Performance Improvements
+
+- (hail#12679) In Query on Batch, `hl.balding_nichols_model` is slightly faster. Also added `hl.utils.genomic_range_table` to quickly create a table keyed by locus.
+
+### Bug Fixes
+
+- (hail#12711) In Query on Batch, fix null pointer exception (manifesting as `scala.MatchError: null`) when reading data from requester pays buckets.
+- (hail#12739) Fix `hl.plot.cdf`, `hl.plot.pdf`, and `hl.plot.joint_plot` which were broken by changes in Hail and changes in bokeh.
+- (hail#12735) Fix (hail#11738) by allowing user to override default types in `to_pandas`.
+- (hail#12760) Mitigate some JVM bytecode generation errors, particularly those related to too many method parameters.
+- (hail#12766) Fix (hail#12759) by loosening `parsimonious` dependency pin.
+
+---
+
 ## Version 0.2.109
 
 Released 2023-02-08
