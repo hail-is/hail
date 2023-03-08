@@ -48,6 +48,7 @@ Released 2023-03-08
 - (hail#12760) Mitigate some JVM bytecode generation errors, particularly those related to too many method parameters.
 - (hail#12766) Fix (hail#12759) by loosening `parsimonious` dependency pin.
 - (hail#12732) In Query on Batch, fix bug that sometimes prevented terminating a pipeline using Control-C.
+- (hail#12771) Use a version of `jgscm` whose version complies with PEP 440.
 
 ---
 
