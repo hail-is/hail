@@ -677,7 +677,7 @@ case class TableNativeFanoutWriter(
           keyFields,
           s"$targetPath/rows/parts/",
           Some(s"$targetPath/index/" -> keyPType),
-          if (stageLocally) Some(Path.of(ctx.localTmpdir, "rows", "parts")) else None
+          if (stageLocally) Some(Path.of(ctx.localTmpdir, s"hail_staging_tmp_${UUID.randomUUID()}", "rows", "parts")) else None
         )
         val globalWriter = PartitionNativeWriter(globalSpec, IndexedSeq(), s"$targetPath/globals/parts/", None, None)
         new FanoutWriterTarget(field, targetPath, rowSpec, keyPType, tableType, rowWriter, globalWriter)
