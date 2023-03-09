@@ -18,7 +18,7 @@ from hail.table import Table
 from hail.matrixtable import MatrixTable
 
 from .py4j_backend import Py4JBackend, handle_java_exception
-from ..hail_logging import Logger
+from ..hail_logging import Logger, PythonOnlyLogger
 
 if pyspark.__version__ < '3' and sys.version_info > (3, 8):
     raise EnvironmentError('Hail with spark {} requires Python 3.7, found {}.{}'.format(
@@ -241,7 +241,7 @@ class SparkBackend(Py4JBackend):
     @property
     def logger(self):
         if self._logger is None:
-            self._logger = Log4jLogger(self._utils_package_object)
+            self._logger = PythonOnlyLogger()
         return self._logger
 
     @property

@@ -2955,12 +2955,6 @@ class MatrixTable(ExprContainer):
         :class:`.Table`
             Table with all non-global fields from the matrix, with **one row per entry of the matrix**.
         """
-        if Env.hc()._warn_entries_order and len(self.col_key) > 0:
-            warning("entries(): Resulting entries table is sorted by '(row_key, col_key)'."
-                    "\n    To preserve row-major matrix table order, "
-                    "first unkey columns with 'key_cols_by()'")
-            Env.hc()._warn_entries_order = False
-
         return Table(ir.MatrixEntriesTable(self._mir))
 
     def index_globals(self) -> Expression:

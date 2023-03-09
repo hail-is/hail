@@ -771,7 +771,7 @@ def _collect_scatter_plot_data(
         expressions = {k: hail.str(v) if not isinstance(v, StringExpression) else v for k, v in expressions.items()}
 
         agg_f = x[1]._aggregation_method()
-        res = agg_f(hail.agg.downsample(x[1], y[1], label=list(expressions.values()) if expressions else None, n_divisions=n_divisions))
+        res = agg_f(hail.agg.downsample(x[1], y[1], label=hail.array(list(expressions.values())) if expressions else None, n_divisions=n_divisions))
         source_pd = pd.DataFrame([
             dict(
                 **{x[0]: point[0], y[0]: point[1]},
