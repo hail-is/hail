@@ -773,8 +773,8 @@ class BlockMatrixStage2 private (
 
   def zeroRowIntervals(starts: IndexedSeq[Long], stops: IndexedSeq[Long], typ: BlockMatrixType, ib: IRBuilder): BlockMatrixStage2 = {
     val t = TArray(TArray(TInt64))
-    val startsGrouped = Literal(t, starts.grouped(typ.blockSize))
-    val stopsGrouped = Literal(t, stops.grouped(typ.blockSize))
+    val startsGrouped = Literal(t, starts.grouped(typ.blockSize).toIndexedSeq)
+    val stopsGrouped = Literal(t, stops.grouped(typ.blockSize).toIndexedSeq)
 
     val ctxs = contexts.map(ib) { (i, j, _, context) =>
       maketuple(context, i, j, ArrayRef(startsGrouped, i), ArrayRef(stopsGrouped, i))
