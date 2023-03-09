@@ -1997,6 +1997,9 @@ steps:
       - name: create-resource-dedup-mapping
         script: /io/sql/create_resource_dedup_mapping.py
         online: true
+      - name: config-pool-min-instances
+        script: /io/sql/config-pool-min-instances.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
