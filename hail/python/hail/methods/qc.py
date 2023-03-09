@@ -9,7 +9,7 @@ from shlex import quote as shq
 from typing import Any, Dict, Tuple, List, Optional, Union
 
 from hailtop import pip_version
-from hailtop.utils import Timings, async_to_blocking, secret_alnum_string
+from hailtop.utils import Timings, async_to_blocking
 import hailtop.batch_client as bc
 from hailtop.config import configuration_of
 from hailtop import yamlx
