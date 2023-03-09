@@ -18,12 +18,19 @@ asynctest==0.13.0
     # via aiohttp
 attrs==22.2.0
     # via aiohttp
+azure-common==1.1.28
+    # via azure-mgmt-storage
 azure-core==1.26.3
     # via
     #   azure-identity
+    #   azure-mgmt-core
     #   azure-storage-blob
     #   msrest
 azure-identity==1.12.0
+    # via -r python/hailtop/requirements.txt
+azure-mgmt-core==1.3.2
+    # via azure-mgmt-storage
+azure-mgmt-storage==20.1.0
     # via -r python/hailtop/requirements.txt
 azure-storage-blob==12.14.1
     # via -r python/hailtop/requirements.txt
@@ -99,7 +106,9 @@ msal==1.21.0
 msal-extensions==1.0.0
     # via azure-identity
 msrest==0.7.1
-    # via azure-storage-blob
+    # via
+    #   azure-mgmt-storage
+    #   azure-storage-blob
 multidict==6.0.4
     # via
     #   aiohttp
@@ -159,9 +168,6 @@ tabulate==0.9.0
     # via -r python/hailtop/requirements.txt
 typing-extensions==4.5.0
     # via
-    #   aiohttp
-    #   aiohttp-session
-    #   async-timeout
     #   azure-core
     #   janus
     #   rich

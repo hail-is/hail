@@ -515,7 +515,7 @@ async def test_statfile_creation_and_modified_time(filesystem: Tuple[asyncio.Sem
 
 
 @pytest.mark.asyncio
-async def test_file_can_contain_url_query_delimiter(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
+async def test_file_can_contain_url_query_delimiter(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
     _, fs, base = filesystem
 
     file = str(base.with_new_path_component('bar?baz'))
