@@ -1519,10 +1519,17 @@ def unpack_uid(stream_type):
 
 
 def pack_uid(uid, elt):
-    if isinstance(elt.typ, tstruct):
-        return InsertFields(elt, [(uid_field_name, uid)], None)
-    else:
-        return MakeTuple([uid, elt])
+    return MakeTuple([uid, elt])
+
+
+def pack_to_structs(stream):
+    if isinstance(stream.typ.element_type, tstruct):
+        return stream
+    uid = Env.get_uid()
+    elt = Ref(uid, stream.typ.element_type)
+    return StreamMap(stream, uid, InsertFields(GetTupleElement(elt, 1),
+                                               [(uid_field_name, GetTupleElement(elt, 0))],
+                                               None))
 
 
 def with_split_rng_state(ir, split, is_scan=None) -> 'BaseIR':
@@ -1922,20 +1929,20 @@ class StreamJoinRightDistinct(IR):
             return StreamJoinRightDistinct(left, right, self.l_key, self.r_key, self.l_name, self.r_name, self.join, self.join_type)
 
         if self.join_type == 'left' or self.join_type == 'inner':
-            left = self.left.handle_randomness(True)
+            left = pack_to_structs(self.left.handle_randomness(True))
             right = self.right.handle_randomness(False)
             r_name = self.r_name
             l_name, uid, l_elt = unpack_uid(left.typ)
             new_join = Let(self.l_name, l_elt, self.join)
         elif self.join_type == 'right':
-            right = self.right.handle_randomness(True)
+            right = pack_to_structs(self.right.handle_randomness(True))
             left = self.left.handle_randomness(False)
             l_name = self.l_name
             r_name, uid, r_elt = unpack_uid(right.typ)
             new_join = Let(self.r_name, r_elt, self.join)
         else:
-            left = self.left.handle_randomness(True)
-            right = self.right.handle_randomness(True)
+            left = pack_to_structs(self.left.handle_randomness(True))
+            right = pack_to_structs(self.right.handle_randomness(True))
             [l_name, r_name], uids, elts = zip(*(unpack_uid(left.typ), unpack_uid(right.typ)))
             uid_type = unify_uid_types((uid.typ for uid in uids), tag=True)
             uid = If(IsNA(uids[0]), pad_uid(uids[1], uid_type, 1), pad_uid(uids[0], uid_type, 0))

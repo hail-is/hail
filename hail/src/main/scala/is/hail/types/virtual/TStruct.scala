@@ -387,4 +387,8 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
       Row.fromSeq(subsetFields.map { case (i, subset) => subset(r.get(i)) })
     }
   }
+
+  def isSubsetOf(other: TStruct): Boolean =
+    fields.forall(f => other.fieldIdx.get(f.name).exists(other.fields(_).typ == f.typ))
+
 }
