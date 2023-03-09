@@ -265,6 +265,7 @@ kubectl -n {namespace} get -o json secret {shq(admin_secret_name)}
     os.environ['HAIL_DATABASE_CONFIG_FILE'] = '/sql-config.json'
     os.environ['HAIL_SCOPE'] = scope
     os.environ['HAIL_CLOUD'] = cloud
+    os.environ['HAIL_NAMESPACE'] = namespace
 
     db = Database()
     await db.async_init()

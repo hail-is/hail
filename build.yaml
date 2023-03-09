@@ -2057,6 +2057,9 @@ steps:
       - name: add-deduped-resource-ids-to-resources
         script: /io/sql/add-deduped-resource-ids-to-resources.sql
         online: true
+      - name: create-resource-dedup-mapping
+        script: /io/sql/create_resource_dedup_mapping.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

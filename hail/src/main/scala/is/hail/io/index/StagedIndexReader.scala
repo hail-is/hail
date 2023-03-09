@@ -53,7 +53,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
     ).invoke[VariableMetadata]("toFileMetadata"))
 
     // FIXME: hardcoded. Will break if we change spec -- assumption not introduced with this code, but propagated.
-    cb.assign(is, Code.newInstance[ByteTrackingInputStream, InputStream](cb.emb.open(indexPath.concat("/index"), false)))
+    cb.assign(is, Code.newInstance[ByteTrackingInputStream, InputStream](cb.emb.openUnbuffered(indexPath.concat("/index"), false)))
 
   }
 

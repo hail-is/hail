@@ -307,8 +307,8 @@ case class SplitPartitionNativeWriter(
       }
       cb.assign(filename2, const(partPrefix2).concat(filename1))
       cb.assign(filename1, const(partPrefix1).concat(filename1))
-      cb.assign(os1, Code.newInstance[ByteTrackingOutputStream, OutputStream](mb.create(filename1)))
-      cb.assign(os2, Code.newInstance[ByteTrackingOutputStream, OutputStream](mb.create(filename2)))
+      cb.assign(os1, Code.newInstance[ByteTrackingOutputStream, OutputStream](mb.createUnbuffered(filename1)))
+      cb.assign(os2, Code.newInstance[ByteTrackingOutputStream, OutputStream](mb.createUnbuffered(filename2)))
       cb.assign(ob1, spec1.buildCodeOutputBuffer(Code.checkcast[OutputStream](os1)))
       cb.assign(ob2, spec2.buildCodeOutputBuffer(Code.checkcast[OutputStream](os2)))
       cb.assign(n, 0L)
@@ -490,11 +490,7 @@ case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHe
     case Some(i) => (i +: typ.entryType.fields.filter(fd => fd.name != "GT").map(_.index)).toArray
     case None => typ.entryType.fields.indices.toArray
   }
-  val formatFieldString = formatFieldOrder.map(i => typ.entryType.fields(i).name).mkString(":")
-  val missingFormatStr = if (typ.entryType.size > 0 && typ.entryType.types(formatFieldOrder(0)) == TCall)
-    "./."
-    else
-      "."
+  val formatFieldStr = formatFieldOrder.map(i => typ.entryType.fields(i).name).mkString(":")
 
   val locusIdx = typ.rowType.fieldIdx("locus")
   val allelesIdx = typ.rowType.fieldIdx("alleles")
@@ -513,6 +509,7 @@ case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHe
       context: EmitCode, region: Value[Region]): IEmitCode = {
     val mb = cb.emb
     context.toI(cb).map(cb) { case ctx: SBaseStructValue =>
+      val formatFieldUTF8 = cb.memoize(const(formatFieldStr).invoke[Array[Byte]]("getBytes"))
       val filename = ctx.loadField(cb, "partFile").get(cb, "partFile can't be missing").asString.loadString(cb)
 
       val os = cb.memoize(cb.emb.create(filename))
@@ -533,8 +530,26 @@ case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHe
         cb += os.invoke[Int, Unit]("write", '\n')
       }
 
+      val missingUnphasedDiploidGTUTF8Value = cb.memoize(
+        Code.getStatic[MatrixWriterConstants, Array[Byte]]("missingUnphasedDiploidGTUTF8")
+      )
+      val missingFormatUTF8Value =
+        if (typ.entryType.size > 0 && typ.entryType.types(formatFieldOrder(0)) == TCall)
+          missingUnphasedDiploidGTUTF8Value
+        else
+          cb.memoize(Code.getStatic[MatrixWriterConstants, Array[Byte]]("dotUTF8"))
+      val passUTF8Value = cb.memoize(Code.getStatic[MatrixWriterConstants, Array[Byte]]("passUTF8"))
       stream.memoryManagedConsume(region, cb) { cb =>
-        consumeElement(cb, stream.element, os, stream.elementRegion)
+        consumeElement(
+          cb,
+          stream.element,
+          os,
+          stream.elementRegion,
+          formatFieldUTF8,
+          missingUnphasedDiploidGTUTF8Value,
+          missingFormatUTF8Value,
+          passUTF8Value
+        )
       }
 
       cb += os.invoke[Unit]("flush")
@@ -548,7 +563,16 @@ case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHe
     }
   }
 
-  def consumeElement(cb: EmitCodeBuilder, element: EmitCode, os: Value[OutputStream], region: Value[Region]): Unit = {
+  def consumeElement(
+    cb: EmitCodeBuilder,
+    element: EmitCode,
+    os: Value[OutputStream],
+    region: Value[Region],
+    formatFieldUTF8: Value[Array[Byte]],
+    missingUnphasedDiploidGTUTF8Value: Value[Array[Byte]],
+    missingFormatUTF8Value: Value[Array[Byte]],
+    passUTF8Value: Value[Array[Byte]]
+  ): Unit = {
     def _writeC(cb: EmitCodeBuilder, code: Code[Int]) = { cb += os.invoke[Int, Unit]("write", code) }
     def _writeB(cb: EmitCodeBuilder, code: Code[Array[Byte]]) = { cb += os.invoke[Array[Byte], Unit]("write", code) }
     def _writeS(cb: EmitCodeBuilder, code: Code[String]) = { _writeB(cb, code.invoke[Array[Byte]]("getBytes")) }
@@ -575,7 +599,7 @@ case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHe
         cb.ifx(ploidy.ceq(0), cb._fatal("VCF spec does not support 0-ploid calls."))
         cb.ifx(ploidy.ceq(1) , cb._fatal("VCF spec does not support phased haploid calls."))
         val c = v.canonicalCall(cb)
-        _writeS(cb, Code.invokeScalaObject1[Int, String](Call.getClass, "toString", c))
+        _writeB(cb, Code.invokeScalaObject1[Int, Array[Byte]](Call.getClass, "toUTF8", c))
       case _ =>
         fatal(s"VCF does not support ${value.st}")
     }
@@ -604,7 +628,7 @@ case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHe
       val Lout = CodeLabel()
 
       cb.ifx(end < 0, {
-        _writeS(cb, missingFormatStr)
+        _writeB(cb, missingFormatUTF8Value)
         cb.goto(Lout)
       })
 
@@ -614,7 +638,7 @@ case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHe
 
         gt.loadField(cb, idx).consume(cb, {
           if (gt.st.fieldTypes(idx).virtualType == TCall)
-            _writeS(cb, "./.")
+            _writeB(cb, missingUnphasedDiploidGTUTF8Value)
           else
             _writeC(cb, '.')
         }, {
@@ -681,7 +705,7 @@ case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHe
     writeC('\t')
     if (filtersExists)
       elt.loadField(cb, filtersIdx).consume(cb, writeC('.'), { case filters: SIndexableValue =>
-        cb.ifx(filters.loadLength().ceq(0), writeS("PASS"), {
+        cb.ifx(filters.loadLength().ceq(0), writeB(passUTF8Value), {
           writeIterable(cb, filters, ';')
         })
       })
@@ -732,10 +756,10 @@ case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHe
     val genotypes = elt.loadField(cb, entriesFieldName).get(cb).asIndexable
     cb.ifx(genotypes.loadLength() > 0, {
       writeC('\t')
-      writeS(formatFieldString)
+      writeB(formatFieldUTF8)
       genotypes.forEachDefinedOrMissing(cb)({ (cb, _) =>
         _writeC(cb, '\t')
-        _writeS(cb, missingFormatStr)
+        _writeB(cb, missingFormatUTF8Value)
       }, { case (cb, _, gt: SBaseStructValue) =>
         _writeC(cb, '\t')
         writeGenotype(cb, gt)

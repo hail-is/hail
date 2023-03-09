@@ -4,8 +4,10 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.streams.StreamUtils
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
-import is.hail.utils._
 import is.hail.utils.StackSafe._
+import is.hail.utils._
+
+import scala.reflect.ClassTag
 
 object TypeCheck {
   def apply(ctx: ExecuteContext, ir: BaseIR): Unit = {
@@ -559,4 +561,13 @@ object TypeCheck {
       case _: BlockMatrixIR =>
     }
   }
+
+  def coerce[A <: Type](argname: String, typ: Type)(implicit tag: ClassTag[A]): A =
+    if (tag.runtimeClass.isInstance(typ)) typ.asInstanceOf[A]
+    else throw new IllegalArgumentException(
+      s"""'$argname': Type mismatch.
+         |  Expected: ${tag.runtimeClass.getName}
+         |    Actual: ${typ.getClass.getName}""".stripMargin
+    )
+
 }
