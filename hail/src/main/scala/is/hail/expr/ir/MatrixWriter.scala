@@ -18,11 +18,11 @@ import is.hail.linalg.BlockMatrix
 import is.hail.rvd.{IndexSpec, RVDPartitioner, RVDSpecMaker}
 import is.hail.types._
 import is.hail.types.encoded.{EBaseStruct, EBlockMatrixNDArray, EType}
+import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.{SJavaArrayString, SJavaArrayStringValue, SJavaString, SStackStruct}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.physical.stypes.{EmitType, SValue}
-import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
@@ -330,7 +330,7 @@ case class SplitPartitionNativeWriter(spec1: AbstractTypedCodecSpec,
           cb.assign(lastSeenSettable, IEmitCode.present(cb, key.copyToRegion(cb, lastSeenRegion, lastSeenSettable.st)))
         }
 
-        (buffers, specs).zipped.foreach { case (buff, spec) =>
+        buffers.zip(specs).foreach { case (buff, spec) =>
           cb += buff.writeByte(1.asInstanceOf[Byte])
           spec.encodedType.buildEncoder(row.st, cb.emb.ecb).apply(cb, row, buff)
         }
