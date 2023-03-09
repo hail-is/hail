@@ -230,7 +230,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec,
 
     private val filename = mb.newLocal[String]("filename")
     private val stagingInfo = stagingFolder.map { folder =>
-      (folder, mb.newLocal[String]("stagingFilename"))
+      (folder, mb.newLocal[String]("stage"))
     }
 
     private val os = mb.newLocal[ByteTrackingOutputStream]("write_os")
@@ -324,13 +324,8 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec,
       cb += ob.flush()
       cb += os.invoke[Unit]("close")
 
-      stagingInfo.foreach { case (_, stagingFile) =>
-        cb += mb.getFS.invoke[String, String, Boolean, Unit](
-          /* method */ "copy",
-          /* source */ stagingFile,
-          /* destination */ filename,
-          /* delete source */ const(true)
-        )
+      stagingInfo.foreach { case (_, source) =>
+        cb += mb.getFS.invoke[String, String, Boolean, Unit]("copy", source, filename, const(true))
       }
 
       lastSeenSettable.loadI(cb).consume(cb, { /* do nothing */ }, { lastSeen =>
