@@ -264,7 +264,9 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec,
         fileRef
       }
 
-      cb.assign(os, Code.newInstance[ByteTrackingOutputStream, OutputStream](mb.create(stagingFile.getOrElse(filename).get)))
+      cb.assign(os, Code.newInstance[ByteTrackingOutputStream, OutputStream](
+        mb.create(stagingFile.getOrElse(filename).get)
+      ))
       cb.assign(ob, spec.buildCodeOutputBuffer(Code.checkcast[OutputStream](os)))
       cb.assign(n, 0L)
     }
@@ -283,7 +285,8 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec,
           )
         },
           ob.invoke[Long]("indexOffset"),
-          IEmitCode.present(cb, PCanonicalStruct().loadCheapSCode(cb, 0L)))
+          IEmitCode.present(cb, PCanonicalStruct().loadCheapSCode(cb, 0L))
+        )
       }
 
       val key = SStackStruct.constructFromArgs(cb, elementRegion, keyType, keyType.fields.map { f =>

@@ -236,9 +236,10 @@ case class SplitPartitionNativeWriter(spec1: AbstractTypedCodecSpec,
 
       val ctxValue = pctx.asString.loadString(cb)
       val (filenames, stages, buffers) =
-        (1 to 2, FastIndexedSeq(partPrefix1, partPrefix2).map(const))
-          .zipped
-          .map { case (i, prefix) =>
+        FastIndexedSeq(partPrefix1, partPrefix2)
+          .map(const)
+          .zipWithIndex
+          .map { case (prefix, i) =>
             val filename = mb.newLocal[String](s"filename$i")
             cb.assign(filename, prefix.concat(ctxValue))
 
@@ -250,8 +251,8 @@ case class SplitPartitionNativeWriter(spec1: AbstractTypedCodecSpec,
 
             val ostream = mb.newLocal[ByteTrackingOutputStream](s"write_os$i")
             cb.assign(ostream, Code.newInstance[ByteTrackingOutputStream, OutputStream](
-              mb.createUnbuffered(stagingFile.getOrElse(filename).get))
-            )
+              mb.createUnbuffered(stagingFile.getOrElse(filename).get)
+            ))
 
             val buffer = mb.newLocal[OutputBuffer](s"write_ob$i")
             cb.assign(buffer, spec1.buildCodeOutputBuffer(Code.checkcast[OutputStream](ostream)))
