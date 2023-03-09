@@ -357,7 +357,7 @@ class Tests(unittest.TestCase):
         hail_vep_result = hail_vep_result.rows().select('vep')
 
         def reorder_lof_info(ht):
-            return ht.annotate_rows(vep=ht.vep.annotate(
+            return ht.annotate(vep=ht.vep.annotate(
                 transcript_consequences=hl.map(lambda csq: csq.annotate(
                     lof_info=hl.if_else(csq.lof_info == 'null', hl.null(hl.tdict(hl.tstr, hl.tstr)), hl.dict(
                         hl.map(lambda kv: hl.tuple([kv.split(":")[0], kv.split(":")[1]]), csq.lof_info.split(','))))),
