@@ -197,10 +197,6 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec,
                                  stagingFolder: Option[Path] = None,
                                  trackTotalBytes: Boolean = false
                                 ) extends PartitionWriter {
-  def hasIndex: Boolean = index.isDefined
-  val filenameType = PCanonicalString(required = true)
-  def pContextType = PCanonicalString()
-
   val keyType = spec.encodedVirtualType.asInstanceOf[TStruct].select(keyFields)._1
 
   def ctxType = PartitionNativeWriter.ctxType
@@ -233,7 +229,6 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec,
       (folder, mb.newLocal[String]("stage"))
     }
 
-    private val os = mb.newLocal[ByteTrackingOutputStream]("write_os")
     private val ob = mb.newLocal[OutputBuffer]("write_ob")
     private val n = mb.newLocal[Long]("partition_count")
     private val byteCount = if (trackTotalBytes) Some(mb.newPLocal("partition_byte_count", SInt64)) else None
@@ -264,6 +259,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec,
         fileRef
       }
 
+      val os = mb.newLocal[ByteTrackingOutputStream]("write_os")
       cb.assign(os, Code.newInstance[ByteTrackingOutputStream, OutputStream](
         mb.create(stagingFile.getOrElse(filename).get)
       ))
@@ -325,7 +321,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec,
       cb += ob.writeByte(0.asInstanceOf[Byte])
       writeIndexInfo.foreach(_._3.close(cb))
       cb += ob.flush()
-      cb += os.invoke[Unit]("close")
+      cb += ob.close()
 
       stagingInfo.foreach { case (_, source) =>
         cb += mb.getFS.invoke[String, String, Boolean, Unit]("copy", source, filename, const(true))
