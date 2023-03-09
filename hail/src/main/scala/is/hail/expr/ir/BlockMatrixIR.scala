@@ -753,12 +753,15 @@ sealed abstract class BlockMatrixSparsifier {
 case class BandSparsifier(blocksOnly: Boolean, l: Long, u: Long) extends BlockMatrixSparsifier {
   val typ: Type = TTuple(TInt64, TInt64)
   def definedBlocks(childType: BlockMatrixType): BlockMatrixSparsity = {
-    val leftBuffer = java.lang.Math.floorDiv(-l, childType.blockSize)
-    val rightBuffer = java.lang.Math.floorDiv(u, childType.blockSize)
+    val lowerBlock = java.lang.Math.floorDiv(l, childType.blockSize).toInt
+    val upperBlock = java.lang.Math.floorDiv(u + childType.blockSize - 1, childType.blockSize).toInt
 
-    BlockMatrixSparsity.constructFromShapeAndFunction(childType.nRowBlocks, childType.nColBlocks) { (i, j) =>
-      j >= (i - leftBuffer) && j <= (i + rightBuffer) && childType.hasBlock(i -> j)
-    }
+    val blocks = (for { j <- 0 until childType.nColBlocks
+           i <- ((j - upperBlock) max 0) to
+                ((j - lowerBlock) min (childType.nRowBlocks - 1))
+           if (childType.hasBlock(i -> j))
+    } yield (i -> j)).distinct.toArray
+    BlockMatrixSparsity(blocks)
   }
 
   def sparsify(bm: BlockMatrix): BlockMatrix = {
