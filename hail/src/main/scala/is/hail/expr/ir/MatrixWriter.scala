@@ -298,10 +298,10 @@ case class SplitPartitionNativeWriter(spec1: AbstractTypedCodecSpec,
               )
             )
           },
-            buffers(1).invoke[Long]("indexOffset"), {
+            buffers(0).invoke[Long]("indexOffset"), {
               IEmitCode.present(cb,
                 iAnnotationType.constructFromFields(cb, stream.elementRegion,
-                  FastIndexedSeq(EmitCode.present(cb.emb, primitive(cb.memoize(buffers(2).invoke[Long]("indexOffset"))))),
+                  FastIndexedSeq(EmitCode.present(cb.emb, primitive(cb.memoize(buffers(1).invoke[Long]("indexOffset"))))),
                   deepCopy = false
                 )
               )
