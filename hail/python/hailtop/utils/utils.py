@@ -694,6 +694,8 @@ def is_transient_error(e):
             return False
         if e.status == 500 and 'Permission "artifactregistry.repositories.downloadArtifacts" denied on resource' in e.message:
             return False
+        if e.status == 500 and 'denied: retrieving permissions failed' in e.message:
+            return False
         return e.status in RETRYABLE_HTTP_STATUS_CODES
     if isinstance(e, TransientError):
         return True

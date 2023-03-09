@@ -266,13 +266,21 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDen
     f(_, scalar)
 
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
-    assert(f.isInstanceOf[ApplyUnaryPrimOp] || f.isInstanceOf[Apply] || f.isInstanceOf[ApplyBinaryPrimOp])
+    assert(
+      f.isInstanceOf[ApplyUnaryPrimOp]
+        || f.isInstanceOf[Apply]
+        || f.isInstanceOf[ApplyBinaryPrimOp]
+        || f.isInstanceOf[Ref]
+    )
+
     val prev = child.execute(ctx)
 
     val functionArgs = f match {
       case ApplyUnaryPrimOp(_, arg1) => IndexedSeq(arg1)
       case Apply(_, _, args, _, _) => args
       case ApplyBinaryPrimOp(_, l, r) => IndexedSeq(l, r)
+      case _: Ref => IndexedSeq(f)
+      case Constant(k) => IndexedSeq(k)
     }
 
     assert(functionArgs.forall(ir => IsConstant(ir) || ir.isInstanceOf[Ref]),
@@ -305,11 +313,13 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDen
       case ApplyBinaryPrimOp(Subtract(), l, Ref(`eltName`, _)) if !Mentions(l, eltName) =>
         ("-", binaryOp(evalIR(ctx, l), (m, s) => s - m))
       case ApplyBinaryPrimOp(FloatingPointDivide(), Ref(`eltName`, _), r) if !Mentions(r, eltName) =>
-        val i = evalIR(ctx, r)
         ("/", binaryOp(evalIR(ctx, r), (m, s) => m /:/ s))
       case ApplyBinaryPrimOp(FloatingPointDivide(), l, Ref(`eltName`, _)) if !Mentions(l, eltName) =>
-        val i = evalIR(ctx, l)
         ("/", binaryOp(evalIR(ctx, l), BlockMatrix.reverseScalarDiv))
+      case Ref(`eltName`, _) =>
+        ("identity", identity(_))
+      case _: Ref | Constant(_) =>
+        ("const", binaryOp(evalIR(ctx, f), (m, s) => m := s))
 
       case _ => fatal(s"Unsupported operation on BlockMatrices: ${Pretty(ctx, f)}")
     }
