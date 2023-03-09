@@ -110,7 +110,7 @@ trait SBaseStructValue extends SValue {
   }
 
   def insert(cb: EmitCodeBuilder, region: Value[Region], newType: TStruct, fields: (String, EmitValue)*): SBaseStructValue = {
-    if (newType.size < 64 || fields.length < 16)
+    if (st.settableTupleTypes().length + fields.map(_._2.emitType.settableTupleTypes.length).sum < 64)
       return _insert(newType, fields: _*)
 
     val newFieldMap = fields.toMap
