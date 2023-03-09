@@ -90,17 +90,10 @@ object HailContext {
   }
 
   def getOrCreate(backend: Backend,
-    logFile: String = "hail.log",
-    quiet: Boolean = false,
-    append: Boolean = false,
     branchingFactor: Int = 50,
-    skipLoggingConfiguration: Boolean = false,
     optimizerIterations: Int = 3): HailContext = {
     if (theContext == null)
-      return HailContext(backend, logFile, quiet, append, branchingFactor, skipLoggingConfiguration, optimizerIterations)
-
-    if (theContext.logFile != logFile)
-      warn(s"Requested logFile $logFile, but already initialized to ${ theContext.logFile }.  Ignoring requested setting.")
+      return HailContext(backend, branchingFactor, optimizerIterations)
 
     if (theContext.branchingFactor != branchingFactor)
       warn(s"Requested branchingFactor $branchingFactor, but already initialized to ${ theContext.branchingFactor }.  Ignoring requested setting.")
@@ -112,11 +105,7 @@ object HailContext {
   }
 
   def apply(backend: Backend,
-    logFile: String = "hail.log",
-    quiet: Boolean = false,
-    append: Boolean = false,
     branchingFactor: Int = 50,
-    skipLoggingConfiguration: Boolean = false,
     optimizerIterations: Int = 3): HailContext = synchronized {
     require(theContext == null)
     checkJavaVersion()
@@ -129,9 +118,7 @@ object HailContext {
         DenseMatrix.implOpMulMatrix_DMD_DVD_eq_DVD)
     }
 
-    configureLogging(logFile, quiet, append, skipLoggingConfiguration)
-
-    theContext = new HailContext(backend, logFile, branchingFactor, optimizerIterations)
+    theContext = new HailContext(backend, branchingFactor, optimizerIterations)
 
     info(s"Running Hail version ${ theContext.version }")
 
@@ -180,7 +167,6 @@ object HailContext {
 
 class HailContext private(
   var backend: Backend,
-  val logFile: String,
   val branchingFactor: Int,
   val optimizerIterations: Int) {
   def stop(): Unit = HailContext.stop()

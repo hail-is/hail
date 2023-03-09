@@ -187,4 +187,5 @@ def warning(msg):
 
 
 def info(msg):
-    Env.backend().logger.info(msg)
+    print(msg)
+    Env.backend().logger.warning(msg)

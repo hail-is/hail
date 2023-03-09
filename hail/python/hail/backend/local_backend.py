@@ -150,7 +150,7 @@ class LocalBackend(Py4JBackend):
             gcs_requester_pays_buckets
         )
         self._jhc = hail_package.HailContext.apply(
-            self._jbackend, log, True, append, branching_factor, skip_logging_configuration, optimizer_iterations)
+            self._jbackend, branching_factor, optimizer_iterations)
 
         # This has to go after creating the SparkSession. Unclear why.
         # Maybe it does its own patch?
@@ -168,8 +168,6 @@ class LocalBackend(Py4JBackend):
         self._fs = LocalFS()
         self._logger = None
 
-        if not quiet:
-            connect_logger(self._utils_package_object, 'localhost', 12888)
         self._initialize_flags()
 
     def jvm(self):

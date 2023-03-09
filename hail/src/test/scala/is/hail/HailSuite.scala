@@ -32,8 +32,9 @@ object HailSuite {
           blockSize = 0)
           .set("spark.unsafe.exceptionOnMemoryLeak", "true")),
       tmpdir = "/tmp",
-      localTmpdir = "file:///tmp")
-    HailContext(backend, logFile = "/tmp/hail.log")
+      localTmpdir = "file:///tmp",
+      logFile = "/tmp/hail.log")
+    HailContext(backend)
   }
 
   lazy val hc: HailContext = {

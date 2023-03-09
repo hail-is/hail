@@ -26,6 +26,7 @@ trait Logging {
   }
 
   def info(msg: String) {
+    println(s"console log info: $msg")
     consoleLog.info(msg)
   }
 
