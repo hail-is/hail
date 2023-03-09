@@ -513,6 +513,7 @@ async def test_statfile_creation_and_modified_time(filesystem: Tuple[asyncio.Sem
         modified_time = status.time_modified()
         assert modified_time == create_time
 
+
 @pytest.mark.asyncio
 async def test_file_can_contain_url_query_delimiter(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
     _, fs, base = filesystem
