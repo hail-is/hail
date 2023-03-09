@@ -347,15 +347,28 @@ class Tests(unittest.TestCase):
     @skip_unless_service_backend(clouds=['gcp'])
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     def test_vep_grch37_against_dataproc(self):
-        tmp_file = new_temp_file(prefix="vep-grch37", extension="tsv.gz")
         mt = hl.import_vcf(resource('sample.vcf.gz'), reference_genome='GRCh37', force=True)
+        mt = mt.head(20)
         hail_vep_result = hl.vep(mt)
+        initial_vep_dtype = hail_vep_result.dtype
         hail_vep_result = hail_vep_result.annotate_rows(vep=hl.json(hail_vep_result.vep.annotate(
             input=hl.str('\t').join([hail_vep_result.locus.contig, hl.str(hail_vep_result.locus.position), ".", hail_vep_result.alleles[0], hail_vep_result.alleles[1], ".", ".", "GT"])
         )))
-        hail_vep_result.rows().head(20).select('vep').export(tmp_file)
+        hail_vep_result = hail_vep_result.rows().select('vep')
 
-        dataproc_result = hl.import_table(resource('dataproc_vep_grch37_annotations.tsv.gz'), force=True)
-        qob_result = hl.import_table(tmp_file, force=True)
+        def reorder_lof_info(ht):
+            return ht.annotate_rows(vep=ht.vep.annotate(
+                transcript_consequences=hl.map(lambda csq: csq.annotate(
+                    lof_info=hl.if_else(csq.lof_info == 'null', hl.null(hl.tdict(hl.tstr, hl.tstr)), hl.dict(
+                        hl.map(lambda kv: hl.tuple([kv.split(":")[0], kv.split(":")[1]]), csq.lof_info.split(','))))),
+                                               ht.vep.transcript_consequences)))
 
-        assert dataproc_result._same(qob_result)
+        hail_vep_result = reorder_lof_info(hail_vep_result)
+
+        dataproc_result = hl.import_table(resource('dataproc_vep_grch37_annotations.tsv.gz'),
+                                          key=['locus', 'alleles'],
+                                          types={'locus': hail_vep_result.locus.dtype, 'alleles': hail_vep_result.alleles.dtype,
+                                                 'vep': initial_vep_dtype}, force=True)
+        dataproc_result = reorder_lof_info(dataproc_result)
+
+        assert hail_vep_result._same(dataproc_result)
