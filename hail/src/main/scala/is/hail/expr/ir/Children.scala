@@ -81,6 +81,8 @@ object Children {
       Array(nds)
     case ArraySort(a, _, _, lessThan) =>
       Array(a, lessThan)
+    case ArrayMaximalIndependentSet(a, tieBreaker) =>
+      Array(a) ++ tieBreaker.map { case (_, _, tb) => tb }
     case ToSet(a) =>
       Array(a)
     case ToDict(a) =>
@@ -95,7 +97,7 @@ object Children {
       Array(orderedCollection, elem)
     case GroupByKey(collection) =>
       Array(collection)
-    case RNGStateLiteral(_) => none
+    case RNGStateLiteral() => none
     case RNGSplit(state, split) =>
       Array(state, split)
     case StreamLen(a) =>
@@ -140,6 +142,8 @@ object Children {
       Array(a, query)
     case StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, _, _, _) =>
       Array(streamChild, initAggs, newKey, seqOps)
+    case StreamLocalLDPrune(streamChild, r2Threshold, windowSize, maxQueueSize, nSamples) =>
+      Array(streamChild, r2Threshold, windowSize, maxQueueSize, nSamples)
     case RunAggScan(array, _, init, seq, result, _) =>
       Array(array, init, seq, result)
     case RunAgg(body, result, _) =>
@@ -215,7 +219,7 @@ object Children {
       args.toFastIndexedSeq
     case Apply(_, _, args, _, _) =>
       args.toFastIndexedSeq
-    case ApplySeeded(_, args, rngState, seed, _) =>
+    case ApplySeeded(_, args, rngState, _, _) =>
       args.toFastIndexedSeq :+ rngState
     case ApplySpecial(_, _, args, _, _) =>
       args.toFastIndexedSeq

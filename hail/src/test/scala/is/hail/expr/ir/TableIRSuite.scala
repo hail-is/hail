@@ -9,7 +9,6 @@ import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import is.hail.methods.ForceCountTable
 import is.hail.types._
-import is.hail.types.physical.PStruct
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.{ExecStrategy, HailSuite}
@@ -828,15 +827,11 @@ class TableIRSuite extends HailSuite {
 
       override def partitionCounts: Option[IndexedSeq[Long]] = Some(FastIndexedSeq(1, 2, 3, 4))
 
-      override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = ???
-
-      override def uidRequiredness: VirtualTypeWithReq = ???
-
       override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = ???
 
-      override def uidType = TInt64
+      override def rowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = ???
 
-      override def fullTypeWithoutUIDs: TableType = TableType(TStruct(), FastIndexedSeq(), TStruct.empty)
+      override def fullType: TableType = TableType(TStruct(), FastIndexedSeq(), TStruct.empty)
     }
     val tir = TableRead(tr.fullType, true, tr)
     assert(tir.partitionCounts.forall(_.sum == 0))
@@ -1164,4 +1159,5 @@ class TableIRSuite extends HailSuite {
       collect(TableMapPartitions(table, "g", "part", StreamFlatMap(StreamRange(0, 2, 1), "_", part)))))
     assert("must iterate over the partition exactly once".r.findFirstIn(e.getCause.getMessage).isDefined)
   }
+
 }

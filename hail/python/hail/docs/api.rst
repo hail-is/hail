@@ -56,5 +56,6 @@ Top-Level Functions
 .. autofunction:: hail.default_reference
 .. autofunction:: hail.get_reference
 .. autofunction:: hail.set_global_seed
+.. autofunction:: hail.reset_global_randomness
 .. autofunction:: hail.citation
 .. autofunction:: hail.version

@@ -4,7 +4,9 @@ from typing import Dict, Optional, Tuple
 
 import aiohttp
 
+from gear.cloud_config import get_azure_config
 from hailtop import httpx
+from hailtop.aiocloud import aioazure
 from hailtop.utils import request_retry_transient_errors, time_msecs
 
 from ....worker.worker_api import CloudWorkerAPI
@@ -14,6 +16,8 @@ from .disk import AzureDisk
 
 
 class AzureWorkerAPI(CloudWorkerAPI):
+    nameserver_ip = '168.63.129.16'
+
     @staticmethod
     def from_env():
         subscription_id = os.environ['SUBSCRIPTION_ID']
@@ -26,13 +30,17 @@ class AzureWorkerAPI(CloudWorkerAPI):
         self.subscription_id = subscription_id
         self.resource_group = resource_group
         self.acr_refresh_token = AcrRefreshToken(acr_url, AadAccessToken())
-
-    @property
-    def nameserver_ip(self):
-        return '168.63.129.16'
+        self.azure_credentials = aioazure.AzureCredentials.default_credentials()
 
     def create_disk(self, instance_name: str, disk_name: str, size_in_gb: int, mount_path: str) -> AzureDisk:
         return AzureDisk(disk_name, instance_name, size_in_gb, mount_path)
+
+    def get_cloud_async_fs(self) -> aioazure.AzureAsyncFS:
+        return aioazure.AzureAsyncFS(credentials=self.azure_credentials)
+
+    def get_compute_client(self) -> aioazure.AzureComputeClient:
+        azure_config = get_azure_config()
+        return aioazure.AzureComputeClient(azure_config.subscription_id, azure_config.resource_group)
 
     def user_credentials(self, credentials: Dict[str, bytes]) -> AzureUserCredentials:
         return AzureUserCredentials(credentials)

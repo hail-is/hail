@@ -39,10 +39,10 @@ def main(args):
     p = parser()
     args = p.parse_args()
     if args.module == 'deploy':
-        from .deploy import cli  # pylint: disable=import-outside-toplevel
-        cli.main(args)
+        from .deploy import cli as deploy_cli  # pylint: disable=import-outside-toplevel
+        deploy_cli.main(args)
     else:
         prefix = 'hailctl dev config'
         assert args.module[:len(prefix)] == prefix
-        from .config import cli  # pylint: disable=import-outside-toplevel
-        cli.main(args)
+        from .config import cli as config_cli  # pylint: disable=import-outside-toplevel
+        config_cli.main(args)

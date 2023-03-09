@@ -3,6 +3,12 @@
 Change Log
 ==========
 
+**Version 0.2.110**
+
+- (`#12734 <https://github.com/hail-is/hail/pull/12734>`__) :meth:`.PythonJob.call` now immediately errors when supplied arguments are incompatible with the called function instead of erroring only when the job is run.
+- (`#12726 <https://github.com/hail-is/hail/pull/12726>`__) :class:`.PythonJob` now supports intermediate file resources the same as :class:`.BashJob`.
+- (`#12684 <https://github.com/hail-is/hail/pull/12684>`__) :class:`.PythonJob` now correctly uses the default region when a specific region for the job is not given.
+
 **Version 0.2.103**
 
 - Added a new method Job.regions() as well as a configurable parameter to the ServiceBackend to

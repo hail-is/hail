@@ -4,6 +4,7 @@ from typing import Dict
 import aiohttp
 
 from hailtop import httpx
+from hailtop.aiocloud import aiogoogle
 from hailtop.utils import request_retry_transient_errors
 
 from ....worker.worker_api import CloudWorkerAPI
@@ -13,19 +14,21 @@ from .disk import GCPDisk
 
 
 class GCPWorkerAPI(CloudWorkerAPI):
+    nameserver_ip = '169.254.169.254'
+
+    # async because GoogleSession must be created inside a running event loop
     @staticmethod
-    def from_env():
+    async def from_env() -> 'GCPWorkerAPI':
         project = os.environ['PROJECT']
         zone = os.environ['ZONE'].rsplit('/', 1)[1]
-        return GCPWorkerAPI(project, zone)
+        session = aiogoogle.GoogleSession()
+        return GCPWorkerAPI(project, zone, session)
 
-    def __init__(self, project: str, zone: str):
+    def __init__(self, project: str, zone: str, session: aiogoogle.GoogleSession):
         self.project = project
         self.zone = zone
-
-    @property
-    def nameserver_ip(self):
-        return '169.254.169.254'
+        self._google_session = session
+        self._compute_client = aiogoogle.GoogleComputeClient(project, session=session)
 
     def create_disk(self, instance_name: str, disk_name: str, size_in_gb: int, mount_path: str) -> GCPDisk:
         return GCPDisk(
@@ -35,7 +38,14 @@ class GCPWorkerAPI(CloudWorkerAPI):
             name=disk_name,
             size_in_gb=size_in_gb,
             mount_path=mount_path,
+            compute_client=self._compute_client,
         )
+
+    def get_cloud_async_fs(self) -> aiogoogle.GoogleStorageAsyncFS:
+        return aiogoogle.GoogleStorageAsyncFS(session=self._google_session)
+
+    def get_compute_client(self) -> aiogoogle.GoogleComputeClient:
+        return self._compute_client
 
     def user_credentials(self, credentials: Dict[str, bytes]) -> GCPUserCredentials:
         return GCPUserCredentials(credentials)

@@ -2,15 +2,14 @@ package is.hail.types.physical
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.backend.HailStateManager
 import is.hail.types.virtual.TLocus
 import is.hail.variant._
 
 abstract class PLocus extends PType {
-  def rgBc: BroadcastRG
+  lazy val virtualType: TLocus = TLocus(rg)
 
-  lazy val virtualType: TLocus = TLocus(rgBc)
-
-  def rg: ReferenceGenome
+  def rg: String
 
   def contig(value: Long): String
 
@@ -22,5 +21,5 @@ abstract class PLocus extends PType {
 
   def positionType: PInt32
 
-  def unstagedStoreLocus(addr: Long, contig: String, position: Int, region: Region): Unit
+  def unstagedStoreLocus(sm: HailStateManager, addr: Long, contig: String, position: Int, region: Region): Unit
 }

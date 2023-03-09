@@ -27,8 +27,6 @@ class GGPlot:
     """
 
     def __init__(self, ht, aes, geoms=[], labels=Labels(), coord_cartesian=None, scales=None, facet=None):
-        self.is_static = False
-
         if scales is None:
             scales = {}
 
@@ -208,15 +206,17 @@ class GGPlot:
             all_dfs = list(itertools.chain(*[facet_to_dfs_dict.values() for _, _, facet_to_dfs_dict in geoms_and_grouped_dfs_by_facet_idx]))
             transformers[scale.aesthetic_name] = scale.create_local_transformer(all_dfs)
 
-        if self.facet is not None:
+        is_faceted = self.facet is not None
+        if is_faceted:
             n_facet_rows, n_facet_cols = self.facet.get_facet_nrows_and_ncols(num_facets)
             subplot_args = {
                 "rows": n_facet_rows,
                 "cols": n_facet_cols,
-                "shared_yaxes": True,
-                "subplot_titles": [", ".join([str(fs_value) for fs_value in facet_struct.values()]) for facet_struct in facet_list]
+                "subplot_titles": [", ".join([str(fs_value) for fs_value in facet_struct.values()]) for facet_struct in facet_list],
+                **self.facet.get_shared_axis_kwargs()
             }
         else:
+            n_facet_rows = 1
             n_facet_cols = 1
             subplot_args = {
                 "rows": 1,
@@ -225,7 +225,7 @@ class GGPlot:
         fig = make_subplots(**subplot_args)
 
         # Need to know what I've added to legend already so we don't do it more than once.
-        legend_cache = set()
+        legend_cache = {}
 
         for geom, geom_label, facet_to_grouped_dfs in geoms_and_grouped_dfs_by_facet_idx:
             for facet_idx, grouped_dfs in facet_to_grouped_dfs.items():
@@ -240,8 +240,7 @@ class GGPlot:
 
                 facet_row = facet_idx // n_facet_cols + 1
                 facet_col = facet_idx % n_facet_cols + 1
-                requires_static = geom.apply_to_fig(scaled_grouped_dfs, fig, precomputed[geom_label], facet_row, facet_col, legend_cache)
-                self.is_static |= requires_static
+                geom.apply_to_fig(scaled_grouped_dfs, fig, precomputed[geom_label], facet_row, facet_col, legend_cache, is_faceted)
 
         # Important to update axes after labels, axes names take precedence.
         self.labels.apply_to_fig(fig)
@@ -256,10 +255,16 @@ class GGPlot:
         fig = fig.update_yaxes(title_font_size=18, ticks="outside")
         fig.update_layout(
             plot_bgcolor="white",
-            xaxis=dict(linecolor="black"),
-            yaxis=dict(linecolor="black"),
             font_family='Arial, "Open Sans", verdana, sans-serif',
-            title_font_size=26
+            title_font_size=26,
+            xaxis=dict(linecolor="black", showticklabels=True),
+            yaxis=dict(linecolor="black", showticklabels=True),
+            # axes for plotly subplots are numbered following the pattern [xaxis, xaxis2, xaxis3, ...]
+            **{
+                f"{var}axis{idx}": {"linecolor": "black", "showticklabels": True}
+                for idx in range(2, n_facet_rows + n_facet_cols + 1)
+                for var in ["x", "y"]
+            },
         )
 
         return fig
@@ -267,7 +272,7 @@ class GGPlot:
     def show(self):
         """Render and show the plot, either in a browser or notebook.
         """
-        self.to_plotly().show(config={"staticPlot": self.is_static})
+        self.to_plotly().show()
 
     def write_image(self, path):
         """Write out this plot as an image.

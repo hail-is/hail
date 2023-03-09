@@ -3,6 +3,7 @@ from typing import (Any, AsyncContextManager, Optional, Type, Set, AsyncIterator
 from types import TracebackType
 import abc
 import asyncio
+import datetime
 from hailtop.utils import retry_transient_errors, OnlineBoundedGather2
 from .stream import EmptyReadableStream, ReadableStream, WritableStream
 from .exceptions import FileAndDirectoryError
@@ -12,6 +13,24 @@ class FileStatus(abc.ABC):
     @abc.abstractmethod
     async def size(self) -> int:
         pass
+
+    @abc.abstractmethod
+    def time_created(self) -> datetime.datetime:
+        '''The time the object was created in seconds since the epcoh, UTC.
+
+        Some filesystems do not support creation time. In that case, an error is raised.
+
+        '''
+
+    @abc.abstractmethod
+    def time_modified(self) -> datetime.datetime:
+        '''The time the object was last modified in seconds since the epoch, UTC.
+
+        The meaning of modification time is cloud-defined. In some clouds, it is the creation
+        time. In some clouds, it is the more recent of the creation time or the time of the most
+        recent metadata modification.
+
+        '''
 
     @abc.abstractmethod
     async def __getitem__(self, key: str) -> Any:
@@ -271,8 +290,7 @@ class AsyncFS(abc.ABC):
             await self.statfile(url)
         except FileNotFoundError:
             return False
-        else:
-            return True
+        return True
 
     async def close(self) -> None:
         pass

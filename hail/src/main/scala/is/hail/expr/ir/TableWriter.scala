@@ -74,7 +74,7 @@ object TableNativeWriter {
         bindIR(parts) { fileCountAndDistinct =>
           Begin(FastIndexedSeq(
             WriteMetadata(MakeArray(GetField(writeGlobals, "filePath")),
-              RVDSpecWriter(s"$path/globals", RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(1)))),
+              RVDSpecWriter(s"$path/globals", RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(ctx.stateManager, 1)))),
             WriteMetadata(ToArray(mapIR(ToStream(fileCountAndDistinct)) { fc => GetField(fc, "filePath") }),
               RVDSpecWriter(s"$path/rows", RVDSpecMaker(rowSpec, partitioner, IndexSpec.emptyAnnotation("../index", tcoerce[PStruct](pKey))))),
             WriteMetadata(ToArray(mapIR(ToStream(fileCountAndDistinct)) { fc =>
@@ -126,8 +126,8 @@ case class TableNativeWriter(
 
     val referencesPath = path + "/references"
     fs.mkDir(referencesPath)
-    ReferenceGenome.exportReferences(fs, referencesPath, tv.typ.rowType)
-    ReferenceGenome.exportReferences(fs, referencesPath, tv.typ.globalType)
+    ReferenceGenome.exportReferences(fs, referencesPath, ReferenceGenome.getReferences(tv.typ.rowType).map(ctx.getReference(_)))
+    ReferenceGenome.exportReferences(fs, referencesPath, ReferenceGenome.getReferences(tv.typ.rowType).map(ctx.getReference(_)))
 
     val spec = TableSpecParameters(
       FileFormat.version.rep,
@@ -233,12 +233,14 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, keyFields: Indexe
     private[this] val keyEmitType = EmitType(spec.decodedPType(keyType).sType, false)
     private[this] val firstSeenSettable = mb.newEmitLocal("pnw_firstSeen", keyEmitType)
     private[this] val lastSeenSettable = mb.newEmitLocal("pnw_lastSeen", keyEmitType)
+    private[this] val lastSeenRegion = mb.newLocal[Region]("last_key_region")
 
     def setup(): Unit = {
       cb.assign(distinctlyKeyed, !keyFields.isEmpty) // True until proven otherwise, if there's a key to care about at all.
       // Start off missing, we will use this to determine if we haven't processed any rows yet.
       cb.assign(firstSeenSettable, EmitCode.missing(cb.emb, keyEmitType.st))
       cb.assign(lastSeenSettable, EmitCode.missing(cb.emb, keyEmitType.st))
+      cb.assign(lastSeenRegion, Region.stagedCreate(Region.TINY, region.getPool()))
 
       cb.assign(filename, ctx.loadString(cb))
       if (hasIndex) {
@@ -286,7 +288,8 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, keyFields: Indexe
             })
           })
         })
-        cb.assign(lastSeenSettable, IEmitCode.present(cb, key.copyToRegion(cb, region, lastSeenSettable.st)))
+        cb += lastSeenRegion.clearRegion()
+        cb.assign(lastSeenSettable, IEmitCode.present(cb, key.copyToRegion(cb, lastSeenRegion, lastSeenSettable.st)))
       }
 
       cb += ob.writeByte(1.asInstanceOf[Byte])
@@ -307,6 +310,10 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, keyFields: Indexe
       cb += ob.flush()
       cb += os.invoke[Unit]("close")
 
+      lastSeenSettable.loadI(cb).consume(cb, { /* do nothing */ }, { lastSeen =>
+        cb.assign(lastSeenSettable, IEmitCode.present(cb, lastSeen.copyToRegion(cb, region, lastSeenSettable.st)))
+      })
+      cb += lastSeenRegion.invalidate()
       val values = Seq[EmitCode](
         EmitCode.present(mb, ctx),
         EmitCode.present(mb, new SInt64Value(n)),
@@ -440,7 +447,7 @@ object RelationalWriter {
     write, RelationalWriter(path, overwrite, refs.map(typ => "references" -> (ReferenceGenome.getReferences(typ.rowType) ++ ReferenceGenome.getReferences(typ.globalType)))))
 }
 
-case class RelationalWriter(path: String, overwrite: Boolean, maybeRefs: Option[(String, Set[ReferenceGenome])]) extends MetadataWriter {
+case class RelationalWriter(path: String, overwrite: Boolean, maybeRefs: Option[(String, Set[String])]) extends MetadataWriter {
   def annotationType: Type = TVoid
 
   def writeMetadata(
@@ -454,9 +461,10 @@ case class RelationalWriter(path: String, overwrite: Boolean, maybeRefs: Option[
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
 
     maybeRefs.foreach { case (refRelPath, refs) =>
-      cb += cb.emb.getFS.invoke[String, Unit]("mkDir", s"$path/$refRelPath")
+      val referencesFQPath = s"$path/$refRelPath"
+      cb += cb.emb.getFS.invoke[String, Unit]("mkDir", referencesFQPath)
       refs.foreach { rg =>
-        cb += Code.invokeScalaObject3[FS, String, ReferenceGenome, Unit](ReferenceGenome.getClass, "writeReference", cb.emb.getFS, path, cb.emb.getReferenceGenome(rg))
+        cb += Code.invokeScalaObject3[FS, String, ReferenceGenome, Unit](ReferenceGenome.getClass, "writeReference", cb.emb.getFS, referencesFQPath, cb.emb.getReferenceGenome(rg))
       }
     }
 
@@ -683,7 +691,7 @@ case class TableNativeFanoutWriter(
                   "filePath"
                 )
               ),
-              RVDSpecWriter(s"${target.path}/globals", RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(1)))
+              RVDSpecWriter(s"${target.path}/globals", RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(ctx.stateManager, 1)))
             ),
             WriteMetadata(
               ToArray(mapIR(ToStream(fileCountAndDistinct)) { fc => GetField(GetTupleElement(fc, index), "filePath") }),

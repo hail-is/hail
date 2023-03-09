@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.{Region, RegionPool, RegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.backend.{BackendUtils, BroadcastValue, ExecuteContext}
+import is.hail.backend.{BackendUtils, BroadcastValue, ExecuteContext, HailTaskContext}
 import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.ir.orderings.{CodeOrdering, StructOrdering}
 import is.hail.io.fs.FS
@@ -47,20 +47,30 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
 
   def getFS: Value[FS] = new StaticFieldRef(_staticFS)
 
-  private val rgContainers: mutable.Map[ReferenceGenome, StaticField[ReferenceGenome]] = mutable.Map.empty
+  private val rgContainers: mutable.Map[String, StaticField[ReferenceGenome]] = mutable.Map.empty
 
   def hasReferences: Boolean = rgContainers.nonEmpty
 
-  def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] = {
+  def getReferenceGenome(rg: String): Value[ReferenceGenome] = {
     val rgField = rgContainers.getOrElseUpdate(rg, {
-      val cls = genEmitClass[Unit](s"RGContainer_${rg.name}")
+      val cls = genEmitClass[Unit](s"RGContainer_${rg}")
       cls.newStaticField("reference_genome", Code._null[ReferenceGenome])
     })
     new StaticFieldRef(rgField)
   }
 
-  def referenceGenomes(): IndexedSeq[ReferenceGenome] = rgContainers.keys.toFastIndexedSeq.sortBy(_.name)
-  def referenceGenomeFields(): IndexedSeq[StaticField[ReferenceGenome]] = rgContainers.toFastIndexedSeq.sortBy(_._1.name).map(_._2)
+  def referenceGenomes(): IndexedSeq[ReferenceGenome] = rgContainers.keys.map(ctx.getReference(_)).toIndexedSeq.sortBy(_.name)
+  def referenceGenomeFields(): IndexedSeq[StaticField[ReferenceGenome]] = rgContainers.toFastIndexedSeq.sortBy(_._1).map(_._2)
+
+  var _rgMapField: StaticFieldRef[Map[String, ReferenceGenome]] = null
+
+  def referenceGenomeMap: Value[Map[String, ReferenceGenome]] = {
+    if (_rgMapField == null) {
+      val cls = genEmitClass[Unit](s"RGMapContainer")
+      _rgMapField = new StaticFieldRef(cls.newStaticField("reference_genome_map", Code._null[Map[String, ReferenceGenome]]))
+    }
+    _rgMapField
+  }
 
   def setObjects(cb: EmitCodeBuilder, objects: Code[Array[AnyRef]]): Unit = modb.setObjects(cb, objects)
 
@@ -78,7 +88,7 @@ trait WrappedEmitModuleBuilder {
 
   def genEmitClass[C](baseName: String)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] = emodb.genEmitClass[C](baseName)
 
-  def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] = emodb.getReferenceGenome(rg)
+  def getReferenceGenome(rg: String): Value[ReferenceGenome] = emodb.getReferenceGenome(rg)
 }
 
 trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
@@ -129,6 +139,8 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def getFS: Code[FS] = ecb.getFS
 
+  def getTaskContext: Value[HailTaskContext] = ecb.getTaskContext
+
   def getObject[T <: AnyRef : TypeInfo](obj: T): Code[T] = ecb.getObject(obj)
 
   def getSerializedAgg(i: Int): Code[Array[Byte]] = ecb.getSerializedAgg(i)
@@ -139,7 +151,7 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def backend(): Code[BackendUtils] = ecb.backend()
 
-  def addModule(name: String, mod: (HailClassLoader, FS, Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit =
+  def addModule(name: String, mod: (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit =
     ecb.addModule(name, mod)
 
   def partitionRegion: Settable[Region] = ecb.partitionRegion
@@ -171,7 +183,9 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def newRNG(seed: Long): Value[IRRandomness] = ecb.newRNG(seed)
 
-  def resultWithIndex(writeIRs: Boolean = false, print: Option[PrintWriter] = None): (HailClassLoader, FS, Int, Region) => C = ecb.resultWithIndex(writeIRs, print)
+  def getThreefryRNG(): Value[ThreefryRandomEngine] = ecb.getThreefryRNG()
+
+  def resultWithIndex(writeIRs: Boolean = false, print: Option[PrintWriter] = None): (HailClassLoader, FS, HailTaskContext, Region) => C = ecb.resultWithIndex(writeIRs, print)
 
   def getOrGenEmitMethod(
     baseName: String, key: Any, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType
@@ -195,11 +209,19 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
   def genEmitMethod[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, A4: TypeInfo, A5: TypeInfo, R: TypeInfo](baseName: String): EmitMethodBuilder[C] =
     ecb.genEmitMethod[A1, A2, A3, A4, A5, R](baseName)
 
-  def open(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
+  def openUnbuffered(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
     getFS.invoke[String, Boolean, InputStream]("open", path, checkCodec)
 
-  def create(path: Code[String]): Code[OutputStream] =
+  def open(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
+    Code.newInstance[java.io.BufferedInputStream, InputStream](
+      getFS.invoke[String, Boolean, InputStream]("open", path, checkCodec))
+
+  def createUnbuffered(path: Code[String]): Code[OutputStream] =
     getFS.invoke[String, OutputStream]("create", path)
+
+  def create(path: Code[String]): Code[OutputStream] =
+    Code.newInstance[java.io.BufferedOutputStream, OutputStream](
+      getFS.invoke[String, OutputStream]("create", path))
 }
 
 class EmitClassBuilder[C](
@@ -255,12 +277,6 @@ class EmitClassBuilder[C](
 
   def numTypes: Int = typMap.size
 
-  private[this] def addReferenceGenome(rg: ReferenceGenome): Code[Unit] = {
-    val rgExists = Code.invokeScalaObject1[String, Boolean](ReferenceGenome.getClass, "hasReference", rg.name)
-    val addRG = Code.invokeScalaObject1[ReferenceGenome, Unit](ReferenceGenome.getClass, "addReference", getReferenceGenome(rg))
-    rgExists.mux(Code._empty, addRG)
-  }
-
   private[this] val literalsMap: mutable.Map[(VirtualTypeWithReq, Any), SSettable] =
     mutable.Map[(VirtualTypeWithReq, Any), SSettable]()
   private[this] val encodedLiteralsMap: mutable.Map[EncodedLiteral, SSettable] =
@@ -268,6 +284,7 @@ class EmitClassBuilder[C](
   private[this] lazy val encLitField: Settable[Array[Byte]] = genFieldThisRef[Array[Byte]]("encodedLiterals")
 
   lazy val partitionRegion: Settable[Region] = genFieldThisRef[Region]("partitionRegion")
+  private[this] lazy val _taskContext: Settable[HailTaskContext] = genFieldThisRef[HailTaskContext]("taskContext")
   private[this] lazy val poolField: Settable[RegionPool] = genFieldThisRef[RegionPool]()
 
   def addLiteral(v: Any, t: VirtualTypeWithReq): SValue = {
@@ -321,7 +338,7 @@ class EmitClassBuilder[C](
     val baos = new ByteArrayOutputStream()
     val enc = spec.buildEncoder(ctx, litType)(baos, ctx.theHailClassLoader)
     this.emodb.ctx.r.pool.scopedRegion { region =>
-      val rvb = new RegionValueBuilder(region)
+      val rvb = new RegionValueBuilder(ctx.stateManager, region)
       rvb.start(litType)
       rvb.startTuple()
       literals.foreach { case ((typ, a), _) => rvb.addAnnotation(typ.t, a) }
@@ -333,7 +350,7 @@ class EmitClassBuilder[C](
     Array(baos.toByteArray) ++ preEncodedLiterals.map(_._1.value.ba)
   }
 
-  private[this] var _mods: BoxedArrayBuilder[(String, (HailClassLoader, FS, Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new BoxedArrayBuilder()
+  private[this] var _mods: BoxedArrayBuilder[(String, (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new BoxedArrayBuilder()
   private[this] var _backendField: Settable[BackendUtils] = _
 
   private[this] var _aggSigs: Array[agg.AggStateSig] = _
@@ -441,13 +458,15 @@ class EmitClassBuilder[C](
     poolField
   }
 
-  def addModule(name: String, mod: (HailClassLoader, FS, Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit = {
+  def addModule(name: String, mod: (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit = {
     _mods += name -> mod
   }
 
   def getHailClassLoader: Code[HailClassLoader] = emodb.getHailClassLoader
 
   def getFS: Code[FS] = emodb.getFS
+
+  def getTaskContext: Value[HailTaskContext] = _taskContext
 
   def setObjects(cb: EmitCodeBuilder, objects: Code[Array[AnyRef]]): Unit = modb.setObjects(cb, objects)
 
@@ -464,25 +483,9 @@ class EmitClassBuilder[C](
     }
   }
 
-  def getPType[T <: PType : TypeInfo](t: T): Code[T] = {
-    val references = ReferenceGenome.getReferences(t.virtualType).toArray
-    val setup = Code(Code(references.map(addReferenceGenome)),
-      Code.checkcast[T](
-        Code.invokeScalaObject1[String, PType](
-          IRParser.getClass, "parsePType", t.toString)))
-    pTypeMap.getOrElseUpdate(t,
-      genLazyFieldThisRef[T](setup)).get.asInstanceOf[Code[T]]
-  }
+  def getPType[T <: PType : TypeInfo](t: T): Code[T] = emodb.getObject(t)
 
-  def getType[T <: Type : TypeInfo](t: T): Code[T] = {
-    val references = ReferenceGenome.getReferences(t).toArray
-    val setup = Code(Code(references.map(addReferenceGenome)),
-      Code.checkcast[T](
-        Code.invokeScalaObject1[String, Type](
-          IRParser.getClass, "parseType", t.parsableString())))
-    typMap.getOrElseUpdate(t,
-      genLazyFieldThisRef[T](setup)).get.asInstanceOf[Code[T]]
-  }
+  def getType[T <: Type : TypeInfo](t: T): Code[T] = emodb.getObject(t)
 
   def getOrdering(t1: SType,
     t2: SType,
@@ -600,6 +603,8 @@ class EmitClassBuilder[C](
 
   val rngs: BoxedArrayBuilder[(Settable[IRRandomness], Code[IRRandomness])] = new BoxedArrayBuilder()
 
+  var threefryRNG: Option[(Settable[ThreefryRandomEngine], Code[ThreefryRandomEngine])] = None
+
   def makeAddPartitionRegion(): Unit = {
     cb.addInterface(typeInfo[FunctionWithPartitionRegion].iname)
     val mb = newEmitMethod("addPartitionRegion", FastIndexedSeq[ParamType](typeInfo[Region]), typeInfo[Unit])
@@ -624,6 +629,14 @@ class EmitClassBuilder[C](
     }
   }
 
+  def makeAddTaskContext(): Unit = {
+    cb.addInterface(typeInfo[FunctionWithTaskContext].iname)
+    val mb = newEmitMethod("addTaskContext", FastIndexedSeq[ParamType](typeInfo[HailTaskContext]), typeInfo[Unit])
+    mb.voidWithBuilder { cb =>
+      cb.assign(_taskContext, mb.getCodeParam[HailTaskContext](1))
+    }
+  }
+
   def makeAddReferenceGenomes(): Unit = {
     cb.addInterface(typeInfo[FunctionWithReferences].iname)
     val mb = newEmitMethod("addReferenceGenomes", FastIndexedSeq[ParamType](typeInfo[Array[ReferenceGenome]]), typeInfo[Unit])
@@ -635,6 +648,10 @@ class EmitClassBuilder[C](
         cb += rgs(i).invoke[String, FS, Unit]("heal", ctx.localTmpdir, getFS)
         cb += fld.put(rgs(i))
       }
+
+      Option(emodb._rgMapField).foreach { fld =>
+        cb.assign(fld, Code.invokeStatic1[ReferenceGenome, Array[ReferenceGenome], Map[String, ReferenceGenome]]("getMapFromArray", rgs))
+      }
     }
   }
 
@@ -645,9 +662,15 @@ class EmitClassBuilder[C](
     val mb = newEmitMethod("setPartitionIndex", IndexedSeq[ParamType](typeInfo[Int]), typeInfo[Unit])
 
     val rngFields = rngs.result()
-    val initialize = Code(rngFields.map { case (field, initialization) =>
-      field := initialization
-    })
+    val initialize = Code(
+      Code(rngFields.map { case (field, initialization) =>
+        field := initialization
+      }),
+      threefryRNG match {
+        case Some((field, init)) => field := init
+        case None => Code._empty.get
+      }
+    )
 
     val reseed = Code(rngFields.map { case (field, _) =>
       field.invoke[Int, Unit]("reset", mb.getCodeParam[Int](1))
@@ -666,14 +689,27 @@ class EmitClassBuilder[C](
     rng
   }
 
+  def getThreefryRNG(): Value[ThreefryRandomEngine] = {
+    threefryRNG match {
+      case Some((rngField, _)) => rngField
+      case None =>
+        val rngField = genFieldThisRef[ThreefryRandomEngine]()
+        val rngInit = Code.invokeScalaObject0[ThreefryRandomEngine](
+          ThreefryRandomEngine.getClass, "apply")
+        threefryRNG = Some(rngField -> rngInit)
+        rngField
+    }
+  }
+
   def resultWithIndex(
     writeIRs: Boolean,
     print: Option[PrintWriter] = None
-  ): (HailClassLoader, FS, Int, Region) => C = {
+  ): (HailClassLoader, FS, HailTaskContext, Region) => C = {
     makeRNGs()
     makeAddPartitionRegion()
     makeAddHailClassLoader()
     makeAddFS()
+    makeAddTaskContext()
 
     val hasLiterals: Boolean = literalsMap.nonEmpty || encodedLiteralsMap.nonEmpty
     val hasReferences: Boolean = emodb.hasReferences
@@ -705,10 +741,10 @@ class EmitClassBuilder[C](
     val n = cb.className.replace("/", ".")
     val classesBytes = modb.classesBytes(writeIRs, print)
 
-    new ((HailClassLoader, FS, Int, Region) => C) with java.io.Serializable {
+    new ((HailClassLoader, FS, HailTaskContext, Region) => C) with java.io.Serializable {
       @transient @volatile private var theClass: Class[_] = null
 
-      def apply(hcl: HailClassLoader, fs: FS, idx: Int, region: Region): C = {
+      def apply(hcl: HailClassLoader, fs: FS, htc: HailTaskContext, region: Region): C = {
         if (theClass == null) {
           this.synchronized {
             if (theClass == null) {
@@ -717,9 +753,12 @@ class EmitClassBuilder[C](
             }
           }
         }
+        val idx = htc.partitionId()
+
         val f = theClass.getDeclaredConstructor().newInstance().asInstanceOf[C]
         f.asInstanceOf[FunctionWithHailClassLoader].addHailClassLoader(hcl)
         f.asInstanceOf[FunctionWithFS].addFS(fs)
+        f.asInstanceOf[FunctionWithTaskContext].addTaskContext(htc)
         f.asInstanceOf[FunctionWithPartitionRegion].addPartitionRegion(region)
         f.asInstanceOf[FunctionWithPartitionRegion].setPool(region.pool)
         if (useBackend)
@@ -743,8 +782,9 @@ class EmitClassBuilder[C](
   def getOrGenEmitMethod(
     baseName: String, key: Any, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType
   )(body: EmitMethodBuilder[C] => Unit): EmitMethodBuilder[C] = {
-    methodMemo.getOrElseUpdate(key, {
+    methodMemo.getOrElse(key, {
       val mb = genEmitMethod(baseName, argsInfo, returnInfo)
+      methodMemo(key) = mb
       body(mb)
       mb
     })
@@ -856,6 +896,10 @@ trait FunctionWithFS {
   def addFS(fs: FS): Unit
 }
 
+trait FunctionWithTaskContext {
+  def addTaskContext(htc: HailTaskContext): Unit
+}
+
 trait FunctionWithReferences {
   def addReferenceGenomes(rgs: Array[ReferenceGenome]): Unit
 }
@@ -904,6 +948,10 @@ class EmitMethodBuilder[C](
   val mb: MethodBuilder[C],
   private[ir] val asmTuple: AsmTuple[_]
 ) extends WrappedEmitClassBuilder[C] {
+  private[this] val nCodeArgs = emitParamTypes.map(_.nCodes).sum
+  if (nCodeArgs > 255)
+    throw new RuntimeException(s"invalid method ${ mb.methodName }: ${ nCodeArgs } code arguments:" +
+      s"\n  ${ emitParamTypes.map(p => s"${ p.nCodes } - $p").mkString("\n  ") }")
   // wrapped MethodBuilder methods
   def newLocal[T: TypeInfo](name: String = null): LocalRef[T] = mb.newLocal[T](name)
 

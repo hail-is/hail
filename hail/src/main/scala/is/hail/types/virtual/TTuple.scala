@@ -1,6 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations.ExtendedOrdering
+import is.hail.backend.HailStateManager
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
@@ -19,10 +20,8 @@ final case class TTuple(_types: IndexedSeq[TupleField]) extends TBaseStruct {
 
   lazy val fieldIndex: Map[Int, Int] = _types.zipWithIndex.map { case (tf, idx) => tf.index -> idx }.toMap
 
-  override lazy val ordering: ExtendedOrdering = mkOrdering()
-
-  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
-    TBaseStruct.getOrdering(types, missingEqual)
+  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
+    TBaseStruct.getOrdering(sm, types, missingEqual)
 
   override lazy val _isCanonical: Boolean = _types.indices.forall(i => i == _types(i).index)
 

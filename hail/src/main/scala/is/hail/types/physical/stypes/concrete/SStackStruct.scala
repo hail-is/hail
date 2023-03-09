@@ -16,7 +16,7 @@ object SStackStruct {
   def constructFromArgs(cb: EmitCodeBuilder, region: Value[Region], t: TBaseStruct, args: EmitCode*): SBaseStructValue = {
     val as = args.toArray
     assert(t.size == args.size)
-    if (as.length > MAX_FIELDS_FOR_CONSTRUCT) {
+    if (region != null && as.length > MAX_FIELDS_FOR_CONSTRUCT) {
       val structType: PCanonicalBaseStruct = t match {
         case ts: TStruct =>
           PCanonicalStruct(false, ts.fieldNames.zip(as.map(_.emitType)).map { case (f, et) => (f, et.storageType) }: _*)

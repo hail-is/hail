@@ -27,7 +27,7 @@ class AsyncIOExecutor:
                 fut.set_exception(e)
 
     def submit(self, aw):
-        fut = asyncio.Future()
+        fut = asyncio.Future()  # type: ignore
         self.task_manager.ensure_future(self._run(fut, aw))
         return fut
 

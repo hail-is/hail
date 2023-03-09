@@ -9,7 +9,7 @@ plugins {
   id 'scala'
   id 'idea'
   id 'com.github.johnrengelman.shadow' version '6.1.0'
-  id "de.undercouch.download" version "5.3.0"
+  id "de.undercouch.download" version "5.3.1"
   id 'eclipse'
 }
 
@@ -42,10 +42,10 @@ tasks.withType(JavaCompile) {
 project.ext {
     breezeVersion = "1.1"
 
-    sparkVersion = System.getProperty("spark.version", "3.1.3")
+    sparkVersion = System.getProperty("spark.version", "3.3.0")
 
-    if (sparkVersion != "3.1.3") {
-        project.logger.lifecycle("WARNING: Hail primarily tested with Spark 3.1.3, use other versions at your own risk.")
+    if (sparkVersion != "3.3.0") {
+        project.logger.lifecycle("WARNING: Hail primarily tested with Spark 3.3.0, use other versions at your own risk.")
     }
     scalaVersion = System.getProperty("scala.version", "2.12.13")
     scalaMajorVersion = (scalaVersion =~ /^\d+.\d+/)[0]
@@ -143,7 +143,7 @@ dependencies {
     bundled 'org.scalanlp:breeze_' + scalaMajorVersion + ':' + breezeVersion
 
     bundled 'com.github.fommil.netlib:all:1.1.2'
-    bundled('com.github.samtools:htsjdk:3.0.2') {
+    bundled('com.github.samtools:htsjdk:3.0.4') {
         transitive = false
     }
 
@@ -164,13 +164,13 @@ dependencies {
     }
     else if (sparkVersion.startsWith("2.4.")) {
         assert(elasticMajorVersion == "7")
-        bundled 'org.elasticsearch:elasticsearch-spark-20_2.12:8.4.3'
+        bundled 'org.elasticsearch:elasticsearch-spark-20_2.12:8.6.1'
     }
     else {
         throw new UnsupportedOperationException("Couldn't pick a valid elasticsearch.")
     }
 
-    bundled(group: 'com.google.cloud', name: 'google-cloud-storage', version: '1.106.0') {
+    bundled(group: 'com.google.cloud', name: 'google-cloud-storage', version: '2.17.1') {
         exclude group: 'com.fasterxml.jackson.core'
     }
 
@@ -198,25 +198,17 @@ dependencies {
         exclude group: 'com.fasterxml.jackson.core'
     }
 
-    bundled 'commons-io:commons-io:2.5'
+    bundled 'commons-io:commons-io:2.11.0'
     bundled(group: 'com.azure', name: 'azure-storage-blob', version: '12.13.0') {
         exclude group: 'com.fasterxml.jackson'
         exclude group: 'com.fasterxml.jackson.core'
         exclude group: 'com.fasterxml.jackson.databind'
-        if (sparkVersion.startsWith("3.1")) {
-            exclude group: 'com.fasterxml.jackson.dataformat'
-            exclude group: 'org.codehaus.woodstox'
-        }
     }
 
     bundled(group: 'com.azure', name: 'azure-core-http-netty', version: '1.10.0') {
         exclude group: 'com.fasterxml.jackson'
         exclude group: 'com.fasterxml.jackson.core'
         exclude group: 'com.fasterxml.jackson.databind'
-        if (sparkVersion.startsWith("3.1")) {
-            exclude group: 'com.fasterxml.jackson.dataformat'
-            exclude group: 'org.codehaus.woodstox'
-        }
     }
 
 
@@ -224,15 +216,13 @@ dependencies {
         exclude group: 'com.fasterxml.jackson'
         exclude group: 'com.fasterxml.jackson.core'
         exclude group: 'com.fasterxml.jackson.databind'
-        if (sparkVersion.startsWith("3.1")) {
-            exclude group: 'com.fasterxml.jackson.dataformat'
-            exclude group: 'org.codehaus.woodstox'
-        }
     }
 
     bundled group: 'org.freemarker', name: 'freemarker', version: '2.3.31'
 
-    bundled 'com.kohlschutter.junixsocket:junixsocket-core:2.3.2'
+    bundled 'com.kohlschutter.junixsocket:junixsocket-core:2.6.1'
+
+    bundled 'com.github.luben:zstd-jni:1.5.2-1'
 }
 
 task(checkSettings) doLast {

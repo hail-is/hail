@@ -11,7 +11,7 @@ class GraphSuite {
 
   import Graph._
 
-  private def isIndependentSet[T](x: Array[T], g: T => mutable.Set[T]): Boolean = {
+  private def isIndependentSet[T](x: IndexedSeq[T], g: T => mutable.Set[T]): Boolean = {
     val s = x.toSet
     x.forall(x => g(x).intersect(s).isEmpty)
   }

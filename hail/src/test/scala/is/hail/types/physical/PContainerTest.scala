@@ -19,7 +19,7 @@ class PContainerTest extends PhysicalTestUtils {
 
   def testContainsNonZeroBits(sourceType: PArray, data: IndexedSeq[Any]) = {
     val srcRegion = Region(pool=pool)
-    val src = ScalaToRegionValue(srcRegion, sourceType, data)
+    val src = ScalaToRegionValue(ctx.stateManager, srcRegion, sourceType, data)
 
     log.info(s"Testing $data")
 
@@ -29,7 +29,7 @@ class PContainerTest extends PhysicalTestUtils {
 
   def testContainsNonZeroBitsStaged(sourceType: PArray, data: IndexedSeq[Any]) = {
     val srcRegion = Region(pool=pool)
-    val src = ScalaToRegionValue(srcRegion, sourceType, data)
+    val src = ScalaToRegionValue(ctx.stateManager, srcRegion, sourceType, data)
 
     log.info(s"Testing $data")
 
@@ -44,7 +44,7 @@ class PContainerTest extends PhysicalTestUtils {
 
   def testHasMissingValues(sourceType: PArray, data: IndexedSeq[Any]) = {
     val srcRegion = Region(pool=pool)
-    val src = ScalaToRegionValue(srcRegion, sourceType, data)
+    val src = ScalaToRegionValue(ctx.stateManager, srcRegion, sourceType, data)
 
     log.info(s"\nTesting $data")
 
@@ -118,7 +118,7 @@ class PContainerTest extends PhysicalTestUtils {
         missing <- 1 to num
     } assert(testHasMissingValues(sourceType, nullInByte(num, missing)) == true)
   }
-  
+
   @Test def arrayCopyTest() {
     // Note: can't test where data is null due to ArrayStack.top semantics (ScalaToRegionValue: assert(size_ > 0))
     def runTests(deepCopy: Boolean, interpret: Boolean) {

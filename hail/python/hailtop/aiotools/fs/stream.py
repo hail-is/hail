@@ -3,6 +3,7 @@ from types import TracebackType
 import abc
 import io
 import os
+import sys
 from concurrent.futures import ThreadPoolExecutor
 import janus
 from hailtop.utils import blocking_to_async
@@ -151,6 +152,7 @@ class _WritableStreamFromBlocking(WritableStream):
         super().__init__()
         self._thread_pool = thread_pool
         self._f = f
+        self._start = f.tell()
 
     def writable(self) -> bool:
         return self._f.writable()
@@ -161,6 +163,8 @@ class _WritableStreamFromBlocking(WritableStream):
     async def _wait_closed(self) -> None:
         await blocking_to_async(self._thread_pool, self._f.flush)
         await blocking_to_async(self._thread_pool, os.fsync, self._f.fileno())
+        if sys.platform == 'linux':
+            os.posix_fadvise(self._f.fileno(), self._start, self._f.tell() - self._start, os.POSIX_FADV_DONTNEED)
         await blocking_to_async(self._thread_pool, self._f.close)
         del self._f
 

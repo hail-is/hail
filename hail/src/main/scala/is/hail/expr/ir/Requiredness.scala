@@ -178,6 +178,14 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case ArraySort(a, l, r, c) =>
         addElementBinding(l, a, makeRequired = true)
         addElementBinding(r, a, makeRequired = true)
+      case ArrayMaximalIndependentSet(a, tiebreaker) =>
+        tiebreaker.foreach { case (left, right, _) =>
+          val eltReq = tcoerce[TypeWithRequiredness](tcoerce[RIterable](lookup(a)).elementType.children.head)
+          val req = RTuple(Seq(eltReq))
+          req.union(true)
+          refMap(left).foreach { u => defs.bind(u, Array(req)) }
+          refMap(right).foreach { u => defs.bind(u, Array(req)) }
+        }
       case StreamMap(a, name, body) =>
         addElementBinding(name, a)
       case x@StreamZip(as, names, body, behavior, _) =>
@@ -288,6 +296,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           refMap(partitionStreamName).foreach { u => defs.bind(u, Array[BaseTypeWithRequiredness](RIterable(lookup(child).rowType))) }
         val refs = refMap.getOrElse(globalName, FastIndexedSeq()) ++ refMap.getOrElse(partitionStreamName, FastIndexedSeq())
         dependents.getOrElseUpdate(child, mutable.Set[RefEquality[BaseIR]]()) ++= refs
+      case TableGen(contexts, globals, cname, gname, _, _, _) =>
+        addElementBinding(cname, contexts)
+        addBinding(gname, globals)
       case _ => fatal(Pretty(ctx, node))
     }
   }
@@ -308,10 +319,12 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.rowType.fromPType(rvd.rowPType)
         requiredness.globalType.fromPType(enc.encodedType.decodedPType(typ.globalType))
       case TableRead(typ, dropRows, tr) =>
-        val (rowPType, globalPType) = tr.rowAndGlobalRequiredness(ctx, typ)
-        requiredness.rowType.unionFields(rowPType.r.asInstanceOf[RStruct])
-        requiredness.globalType.unionFields(globalPType.r.asInstanceOf[RStruct])
+        val rowReq = tr.rowRequiredness(ctx, typ)
+        val globalReq = tr.globalRequiredness(ctx, typ)
+        requiredness.rowType.unionFields(rowReq.r.asInstanceOf[RStruct])
+        requiredness.globalType.unionFields(globalReq.r.asInstanceOf[RStruct])
       case TableRange(_, _) =>
+      case TableGenomicRange(_, _, _) =>
 
       // pass through TableIR child
       case TableKeyBy(child, _, _) => requiredness.unionFrom(lookup(child))
@@ -324,7 +337,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case TableRename(child, rMap, gMap) => requiredness.unionFrom(lookup(child))
       case TableFilterIntervals(child, intervals, keep) => requiredness.unionFrom(lookup(child))
       case RelationalLetTable(name, value, body) => requiredness.unionFrom(lookup(body))
-
+      case TableGen(_, globals, _, _, body, _, _) =>
+        requiredness.unionGlobals(lookupAs[RStruct](globals))
+        requiredness.unionRows(lookupAs[RIterable](body).elementType.asInstanceOf[RStruct])
       case TableParallelize(rowsAndGlobal, _) =>
         val Seq(rowsReq: RIterable, globalReq: RStruct) = lookupAs[RBaseStruct](rowsAndGlobal).children
         requiredness.unionRows(tcoerce[RStruct](rowsReq.elementType))
@@ -463,11 +478,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.union(node.children.forall { case c: IR => lookup(c).required })
 
       // always required
-      case _: I32 | _: I64 | _: F32 | _: F64 | _: Str | True() | False() | _: IsNA | _: Die | _: UUID4 | _: Consume | _: RNGStateLiteral =>
-      // FIXME: once support for new rng is complete, make states required
-      case RNGSplit(state, dynBitstring) =>
-        requiredness.union(lookup(state).required)
-        requiredness.union(lookup(dynBitstring).required)
+      case _: I32 | _: I64 | _: F32 | _: F64 | _: Str | True() | False() | _: IsNA | _: Die | _: UUID4 | _: Consume | _: RNGStateLiteral | _: RNGSplit =>
       case _: CombOpValue | _: AggStateValue =>
       case Trap(child) =>
         // error message field is missing if the child runs without error
@@ -525,6 +536,11 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.union(aReq.required && stopReq && lookup(start).required && lookup(step).required)
       case ArraySort(a, l, r, c) =>
         requiredness.unionFrom(lookup(a))
+      case ArrayMaximalIndependentSet(a, _) =>
+        val aReq = lookupAs[RIterable](a)
+        val Seq(childA, _) = tcoerce[RBaseStruct](aReq.elementType).children
+        tcoerce[RIterable](requiredness).elementType.unionFrom(childA)
+        requiredness.union(aReq.required)
       case ToDict(a) =>
         val aReq = lookupAs[RIterable](a)
         val Seq(keyType, valueType) = tcoerce[RBaseStruct](aReq.elementType).children
@@ -595,6 +611,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case StreamJoinRightDistinct(left, right, _, _, _, _, joinf, joinType) =>
         requiredness.union(lookup(left).required && lookup(right).required)
         tcoerce[RIterable](requiredness).elementType.unionFrom(lookup(joinf))
+      case StreamLocalLDPrune(a, r2Threshold, windowSize, maxQueueSize, nSamples) =>
+        // FIXME what else needs to go here?
+        requiredness.union(lookup(a).required)
       case StreamAgg(a, name, query) =>
         requiredness.union(lookup(a).required)
         requiredness.unionFrom(lookup(query))

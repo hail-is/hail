@@ -52,7 +52,7 @@ class RequirednessSuite extends HailSuite {
   }
 
   def nd(r: Boolean): IR =
-    if (r) MakeNDArray.fill(int(optional), FastIndexedSeq(1, 2), True()) else NA(tnd)
+    if (r) MakeNDArray.fill(int(optional), FastIndexedSeq(1L, 2L), True()) else NA(tnd)
 
 // FIXME: Currently ndarrays don't support elements that have pointers.
 //  def nestednd(r: Boolean, aelt: Boolean): IR = {
@@ -518,7 +518,8 @@ class RequirednessSuite extends HailSuite {
     for (rType <- Array(table.typ,
       TableType(TStruct("a" -> tnestedarray), FastIndexedSeq(), TStruct("z" -> tstruct))
     )) {
-      val (row, global) = reader.rowAndGlobalRequiredness(ctx, rType)
+      val row = reader.rowRequiredness(ctx, rType)
+      val global = reader.globalRequiredness(ctx, rType)
       val node = TableRead(rType, dropRows = false, reader)
       val res = Requiredness.apply(node, ctx)
       val actual = res.r.lookup(node).asInstanceOf[RTable]

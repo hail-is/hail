@@ -8,6 +8,8 @@ import logging
 import asyncio
 import urllib.parse
 import aiohttp
+import datetime
+from hailtop import timex
 from hailtop.utils import (
     secret_alnum_string, OnlineBoundedGather2,
     TransientError, retry_transient_errors)
@@ -213,13 +215,14 @@ class ResumableInsertObjectStream(WritableStream):
                                   raise_for_status=False,
                                   retry=False),
                 closable=True) as put_task:
-            for chunk in self._write_buffer.chunks(n):
-                async with _TaskManager(it.feed(chunk)) as feed_task:
-                    done, _ = await asyncio.wait([put_task, feed_task], return_when=asyncio.FIRST_COMPLETED)
-                    if feed_task not in done:
-                        msg = 'resumable upload chunk PUT request finished before writing data'
-                        log.warning(msg)
-                        raise TransientError(msg)
+            with self._write_buffer.chunks(n) as chunks:
+                for chunk in chunks:
+                    async with _TaskManager(it.feed(chunk)) as feed_task:
+                        done, _ = await asyncio.wait([put_task, feed_task], return_when=asyncio.FIRST_COMPLETED)
+                        if feed_task not in done:
+                            msg = 'resumable upload chunk PUT request finished before writing data'
+                            log.warning(msg)
+                            raise TransientError(msg)
 
             await it.stop()
 
@@ -402,6 +405,12 @@ class GetObjectFileStatus(FileStatus):
     async def size(self) -> int:
         return int(self._items['size'])
 
+    def time_created(self) -> datetime.datetime:
+        return timex.parse_rfc3339(self._items['timeCreated'])
+
+    def time_modified(self) -> datetime.datetime:
+        return timex.parse_rfc3339(self._items['updated'])
+
     async def __getitem__(self, key: str) -> str:
         return self._items[key]
 
@@ -513,8 +522,8 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
 
                     await self._compose(chunk_names, dest_name)
 
-                    for n in chunk_names:
-                        await pool.call(self._fs._remove_doesnt_exist_ok, f'gs://{self._bucket}/{n}')
+                    for name in chunk_names:
+                        await pool.call(self._fs._remove_doesnt_exist_ok, f'gs://{self._bucket}/{name}')
 
                 await tree_compose(
                     [self._part_name(i) for i in range(self._num_parts)],

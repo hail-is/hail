@@ -1,6 +1,7 @@
 package is.hail.methods
 
 import is.hail.HailSuite
+import is.hail.backend.HailStateManager
 import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr._
@@ -12,6 +13,8 @@ import org.json4s.jackson.JsonMethods._
 import org.testng.annotations.Test
 
 class ExprSuite extends HailSuite {
+
+  def sm: HailStateManager = ctx.stateManager
 
   @Test def testTypePretty() {
     // for arbType
@@ -68,7 +71,7 @@ class ExprSuite extends HailSuite {
   @Test def testImpexes() {
 
     val g = for {t <- Type.genArb
-    a <- t.genValue} yield (t, a)
+    a <- t.genValue(sm)} yield (t, a)
 
     object Spec extends Properties("ImpEx") {
       property("json") = forAll(g) { case (t, a) =>
@@ -79,17 +82,13 @@ class ExprSuite extends HailSuite {
         val string = compact(JSONAnnotationImpex.exportAnnotation(a, t))
         JSONAnnotationImpex.importAnnotation(parse(string), t) == a
       }
-
-      property("table") = forAll(g.filter { case (t, a) => t != TFloat64 && a != null }.resize(10)) { case (t, a) =>
-        TableAnnotationImpex.importAnnotation(TableAnnotationImpex.exportAnnotation(a, t), t) == a
-      }
     }
 
     Spec.check()
   }
 
   @Test def testOrdering() {
-    val intOrd = TInt32.ordering
+    val intOrd = TInt32.ordering(ctx.stateManager)
 
     assert(intOrd.compare(-2, -2) == 0)
     assert(intOrd.compare(null, null) == 0)
@@ -98,11 +97,11 @@ class ExprSuite extends HailSuite {
     assert(intOrd.compare(null, -2) > 0)
 
     val g = for (t <- Type.genArb;
-    a <- t.genValue;
-    b <- t.genValue) yield (t, a, b)
+    a <- t.genValue(sm);
+    b <- t.genValue(sm)) yield (t, a, b)
 
     val p = forAll(g) { case (t, a, b) =>
-      val ord = t.ordering
+      val ord = t.ordering(ctx.stateManager)
       ord.compare(a, b) == -ord.compare(b, a)
     }
     p.check()

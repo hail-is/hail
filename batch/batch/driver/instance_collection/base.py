@@ -3,7 +3,7 @@ import collections
 import logging
 import re
 import secrets
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Counter, Dict, List, Optional, Tuple
 
 import sortedcontainers
 
@@ -12,7 +12,6 @@ from gear.time_limited_max_size_cache import TimeLimitedMaxSizeCache
 from hailtop import aiotools
 from hailtop.utils import periodically_call, secret_alnum_string, time_msecs
 
-from ...batch_configuration import WORKER_MAX_IDLE_TIME_MSECS
 from ...instance_config import QuantifiedResource
 from ..instance import Instance
 from ..location import CloudLocationMonitor
@@ -95,9 +94,9 @@ class InstanceCollectionManager:
         return sum(inst_coll.live_free_cores_mcpu for inst_coll in self.name_inst_coll.values())
 
     @property
-    def global_n_instances_by_state(self):
+    def global_n_instances_by_state(self) -> Counter[str]:
         counters = [collections.Counter(inst_coll.n_instances_by_state) for inst_coll in self.name_inst_coll.values()]
-        result = collections.Counter({})
+        result: Counter[str] = collections.Counter()
         for counter in counters:
             result += counter
         return result
@@ -236,15 +235,12 @@ class InstanceCollection:
         job_private: bool,
         regions: List[str],
         preemptible: bool,
-        max_idle_time_msecs: Optional[int],
+        max_idle_time_msecs: int,
         local_ssd_data_disk,
         data_disk_size_gb,
         boot_disk_size_gb,
     ) -> Tuple[Instance, List[QuantifiedResource]]:
         location = self.choose_location(cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions)
-
-        if max_idle_time_msecs is None:
-            max_idle_time_msecs = WORKER_MAX_IDLE_TIME_MSECS
 
         machine_name = self.generate_machine_name()
         activation_token = secrets.token_urlsafe(32)
@@ -265,7 +261,7 @@ class InstanceCollection:
             cores=cores,
             location=location,
             machine_type=machine_type,
-            preemptible=True,
+            preemptible=preemptible,
             instance_config=instance_config,
         )
         self.add_instance(instance)
@@ -303,11 +299,7 @@ class InstanceCollection:
     async def check_on_instance(self, instance: Instance):
         active_and_healthy = await instance.check_is_active_and_healthy()
 
-        if (
-            instance.state == 'active'
-            and instance.failed_request_count > 5
-            and time_msecs() - instance.last_updated > 5 * 60 * 1000
-        ):
+        if instance.state == 'active' and instance.failed_request_count > 5:
             log.exception(
                 f'deleting {instance} with {instance.failed_request_count} failed request counts after more than 5 minutes'
             )

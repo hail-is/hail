@@ -1,6 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations._
+import is.hail.backend.HailStateManager
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
 import is.hail.types.physical.PInt64
@@ -16,13 +17,10 @@ case object TInt64 extends TIntegral {
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Long]
 
-  override def genNonmissingValue: Gen[Annotation] = arbitrary[Long]
+  override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = arbitrary[Long]
 
   override def scalaClassTag: ClassTag[java.lang.Long] = classTag[java.lang.Long]
 
-  override val ordering: ExtendedOrdering = mkOrdering()
-
-  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
+  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Long]], missingEqual)
 }
-

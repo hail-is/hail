@@ -19,7 +19,7 @@ click>=8.1.3,<9
 decorator>=5.1.1,<6
 dictdiffer>=0.8.1,<1
 dill>=0.3.1.1,<0.4
-docker>=5.0.3,<6
+docker>=5.0.3,<7
 flake8>=4.0.1,<5
 Flask-Cors>=3.0.10,<4
 Flask-Sockets>=0.2.1,<1
@@ -40,14 +40,14 @@ Jinja2==3.0.3
 keyrings.alt>=3.1,<4
 kubernetes-asyncio>=19.15.1,<20
 libsass>=0.19.2,<1
-mypy==0.982
+mypy==0.990
 nest_asyncio>=1.5.4,<2
 parsimonious>=0.8.1,<1
 pandas>=1.3.0,<1.5.0
 plotly>=5.5.0,<6
 prometheus_async>=19.2.0,<20
 prometheus_client>=0.11.0,<1
-protobuf==3.20.2
+protobuf<=3.20.0
 psutil>=5.9.0,<6
 pyjwt>=2.4.0,<3
 pylint==2.15.4

@@ -1,12 +1,11 @@
+from typing import Optional
 import unittest
 
 from hail.expr import coercer_from_dtype
 from hail.expr.types import *
+from hail.genetics import reference_genome
 from ..helpers import *
 from hail.utils.java import Env
-
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
@@ -87,7 +86,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(c.can_coerce(t))
             self.assertFalse(c.requires_conversion(t))
 
-    @fails_service_backend()
+    @skip_when_service_backend(reason='to_spark is nonsensical in the service')
     @fails_local_backend()
     def test_nested_type_to_spark(self):
         ht = hl.utils.range_table(10)
@@ -142,3 +141,14 @@ class Tests(unittest.TestCase):
         for types, rgs in types_and_rgs:
             for t in types:
                 self.assertEqual(t.get_context().references, rgs)
+
+    def test_tlocus_schema_from_rg_matches_scala(self):
+        def locus_from_import_vcf(rg: Optional[str]) -> HailType:
+            return hl.import_vcf(resource('sample2.vcf'), reference_genome=rg).locus.dtype
+
+        assert tlocus._schema_from_rg(None) == locus_from_import_vcf(None)
+        assert tlocus._schema_from_rg('GRCh37') == locus_from_import_vcf('GRCh37')
+        assert tlocus._schema_from_rg('GRCh38') == locus_from_import_vcf('GRCh38')
+        assert tlocus._schema_from_rg('GRCm38') == locus_from_import_vcf('GRCm38')
+        assert tlocus._schema_from_rg('CanFam3') == locus_from_import_vcf('CanFam3')
+        assert tlocus._schema_from_rg('default') == locus_from_import_vcf('default')

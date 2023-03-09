@@ -1,12 +1,12 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, HailSuite}
 import is.hail.expr.ir.TestUtils.IRAggCount
 import is.hail.types.virtual._
 import is.hail.utils.{FastIndexedSeq, FastSeq, Interval}
 import is.hail.variant.Locus
+import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
-import org.testng.annotations.Test
+import org.testng.annotations.{DataProvider, Test}
 
 class SimplifySuite extends HailSuite {
   implicit val execStrats = ExecStrategy.interpretOnly
@@ -73,14 +73,6 @@ class SimplifySuite extends HailSuite {
     assert(Simplify(ctx, ir2) == InsertFields(SelectFields(base, FastIndexedSeq("1")), FastIndexedSeq("3" -> I32(1)), Some(FastIndexedSeq("3", "1"))))
   }
 
-  @Test def testBlockMatrixRewriteRules() {
-    val bmir = ValueToBlockMatrix(MakeArray(FastIndexedSeq(F64(1), F64(2), F64(3), F64(4)), TArray(TFloat64)),
-      FastIndexedSeq(2, 2), 10)
-    val identityBroadcast = BlockMatrixBroadcast(bmir, FastIndexedSeq(0, 1), FastIndexedSeq(2, 2), 10)
-
-    assert(Simplify(ctx, identityBroadcast) == bmir)
-  }
-
   @Test def testContainsRewrites() {
     assertEvalsTo(invoke("contains", TBoolean, Literal(TArray(TString), FastIndexedSeq("a")), In(0, TString)),
       FastIndexedSeq("a" -> TString),
@@ -112,7 +104,7 @@ class SimplifySuite extends HailSuite {
     val ir3 = Let("row2", InsertFields(r, FastSeq(("y", F64(0.0)))), InsertFields(Ref("something_else", TStruct.empty), FastSeq(("z", GetField(r2, "y").toI))))
 
     assert(Simplify(ctx, ir1) == InsertFields(r, FastSeq(("y", F64(0)), ("z", GetField(r, "x").toD)), Some(FastIndexedSeq("x", "y", "z"))))
-    assert(Simplify(ctx, ir2) == InsertFields(r, FastSeq(("y", F64(0.0)), ("z", GetField(r, "x").toD + F64(0.0))), Some(FastIndexedSeq("x", "y", "z"))))
+    assert(Simplify(ctx, ir2) == InsertFields(r, FastSeq(("y", F64(0.0)), ("z", GetField(r, "x").toD)), Some(FastIndexedSeq("x", "y", "z"))))
 
     assert(Optimize[IR](ir3, "direct", ctx) == InsertFields(Ref("something_else", TStruct.empty), FastSeq(("z", I32(0)))))
 
@@ -332,4 +324,153 @@ class SimplifySuite extends HailSuite {
     } )
     assertEvalsTo(streamSlice4.asInstanceOf[IR], FastSeq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9))
   }
+
+  def ref(typ: Type) = Ref("", typ)
+
+  @DataProvider(name = "unaryBooleanArithmetic")
+  def unaryBooleanArithmetic: Array[Array[Any]] =
+    Array(
+      Array(ApplyUnaryPrimOp(Bang(), ApplyUnaryPrimOp(Bang(), ref(TBoolean))), ref(TBoolean))
+    ).asInstanceOf[Array[Array[Any]]]
+
+  @Test(dataProvider = "unaryBooleanArithmetic")
+  def testUnaryBooleanSimplification(input: IR, expected: IR): Unit =
+    assert(Simplify(ctx, input) == expected)
+
+  @DataProvider(name = "unaryIntegralArithmetic")
+  def unaryIntegralArithmetic: Array[Array[Any]] =
+    Array(TInt32, TInt64).flatMap { typ =>
+      Array(
+        Array(ApplyUnaryPrimOp(Negate(), ApplyUnaryPrimOp(Negate(), ref(typ))), ref(typ)),
+        Array(ApplyUnaryPrimOp(BitNot(), ApplyUnaryPrimOp(BitNot(), ref(typ))), ref(typ)),
+        Array(ApplyUnaryPrimOp(Negate(), ApplyUnaryPrimOp(BitNot(), ref(typ))), ApplyUnaryPrimOp(Negate(), ApplyUnaryPrimOp(BitNot(), ref(typ)))),
+        Array(ApplyUnaryPrimOp(BitNot(), ApplyUnaryPrimOp(Negate(), ref(typ))), ApplyUnaryPrimOp(BitNot(), ApplyUnaryPrimOp(Negate(), ref(typ))))
+      ).asInstanceOf[Array[Array[Any]]]
+    }
+
+  @Test(dataProvider = "unaryIntegralArithmetic")
+  def testUnaryIntegralSimplification(input: IR, expected: IR): Unit =
+    assert(Simplify(ctx, input) == expected)
+
+  @DataProvider(name="binaryIntegralArithmetic")
+  def binaryIntegralArithmetic: Array[Array[Any]] =
+    Array((Literal.coerce(TInt32, _)) -> TInt32, (Literal.coerce(TInt64, _)) -> TInt64).flatMap { case (pure, typ) =>
+      Array.concat(
+        Array(
+          // Addition
+          Array(ApplyBinaryPrimOp(Add(), ref(typ), ref(typ)), ApplyBinaryPrimOp(Multiply(), pure(2), ref(typ))),
+          Array(ApplyBinaryPrimOp(Add(), pure(0), ref(typ)), ref(typ)),
+          Array(ApplyBinaryPrimOp(Add(), ref(typ), pure(0)), ref(typ)),
+
+          // Subtraction
+          Array(ApplyBinaryPrimOp(Subtract(), ref(typ), ref(typ)), pure(0)),
+          Array(ApplyBinaryPrimOp(Subtract(), pure(0), ref(typ)), ApplyUnaryPrimOp(Negate(), ref(typ))),
+          Array(ApplyBinaryPrimOp(Subtract(), ref(typ), pure(0)), ref(typ)),
+
+          // Multiplication
+          Array(ApplyBinaryPrimOp(Multiply(), pure(0), ref(typ)), pure(0)),
+          Array(ApplyBinaryPrimOp(Multiply(), ref(typ), pure(0)), pure(0)),
+          Array(ApplyBinaryPrimOp(Multiply(), pure(1), ref(typ)), ref(typ)),
+          Array(ApplyBinaryPrimOp(Multiply(), ref(typ), pure(1)), ref(typ)),
+          Array(ApplyBinaryPrimOp(Multiply(), pure(-1), ref(typ)), ApplyUnaryPrimOp(Negate(), ref(typ))),
+          Array(ApplyBinaryPrimOp(Multiply(), ref(typ), pure(-1)), ApplyUnaryPrimOp(Negate(), ref(typ))),
+
+          // Div (truncated to -Inf)
+          Array(ApplyBinaryPrimOp(RoundToNegInfDivide(), ref(typ), ref(typ)), pure(1)),
+          Array(ApplyBinaryPrimOp(RoundToNegInfDivide(), pure(0), ref(typ)), pure(0)),
+          Array(ApplyBinaryPrimOp(RoundToNegInfDivide(), ref(typ), pure(0)), Die("division by zero", typ)),
+          Array(ApplyBinaryPrimOp(RoundToNegInfDivide(), ref(typ), pure(1)), ref(typ)),
+          Array(ApplyBinaryPrimOp(RoundToNegInfDivide(), ref(typ), pure(-1)), ApplyUnaryPrimOp(Negate(), ref(typ))),
+
+          // Bitwise And
+          Array(ApplyBinaryPrimOp(BitAnd(), pure(0), ref(typ)), pure(0)),
+          Array(ApplyBinaryPrimOp(BitAnd(), ref(typ), pure(0)), pure(0)),
+          Array(ApplyBinaryPrimOp(BitAnd(), pure(-1), ref(typ)), ref(typ)),
+          Array(ApplyBinaryPrimOp(BitAnd(), ref(typ), pure(-1)), ref(typ)),
+
+          // Bitwise Or
+          Array(ApplyBinaryPrimOp(BitOr(), pure(0), ref(typ)), ref(typ)),
+          Array(ApplyBinaryPrimOp(BitOr(), ref(typ), pure(0)), ref(typ)),
+          Array(ApplyBinaryPrimOp(BitOr(), pure(-1), ref(typ)), pure(-1)),
+          Array(ApplyBinaryPrimOp(BitOr(), ref(typ), pure(-1)), pure(-1)),
+
+          // Bitwise Xor
+          Array(ApplyBinaryPrimOp(BitXOr(), ref(typ), ref(typ)), pure(0)),
+          Array(ApplyBinaryPrimOp(BitXOr(), ref(typ), pure(0)), ref(typ)),
+          Array(ApplyBinaryPrimOp(BitXOr(), pure(0), ref(typ)), ref(typ)),
+        ).asInstanceOf[Array[Array[Any]]],
+        // Shifts
+        Array(LeftShift(), RightShift(), LogicalRightShift()).flatMap { shift =>
+          Array(
+            Array(ApplyBinaryPrimOp(shift, pure(0), ref(TInt32)), pure(0)),
+            Array(ApplyBinaryPrimOp(shift, ref(typ), I32(0)), ref(typ))
+          )
+        }.asInstanceOf[Array[Array[Any]]]
+      )
+    }
+
+  @Test(dataProvider = "binaryIntegralArithmetic")
+  def testBinaryIntegralSimplification(input: IR, expected: IR): Unit =
+    assert(Simplify(ctx, input) == expected)
+
+  @DataProvider(name = "floatingIntegralArithmetic")
+  def binaryFloatingArithmetic: Array[Array[Any]] =
+    Array((Literal.coerce(TFloat32, _)) -> TFloat32, (Literal.coerce(TFloat64, _)) -> TFloat64).flatMap { case (pure, typ) =>
+      Array(
+        // Addition
+        Array(ApplyBinaryPrimOp(Add(), pure(0), ref(typ)), ref(typ)),
+        Array(ApplyBinaryPrimOp(Add(), ref(typ), pure(0)), ref(typ)),
+
+        // Subtraction
+        Array(ApplyBinaryPrimOp(Subtract(), pure(0), ref(typ)), ApplyUnaryPrimOp(Negate(), ref(typ))),
+        Array(ApplyBinaryPrimOp(Subtract(), ref(typ), pure(0)), ref(typ)),
+
+        // Multiplication
+        Array(ApplyBinaryPrimOp(Multiply(), pure(1), ref(typ)), ref(typ)),
+        Array(ApplyBinaryPrimOp(Multiply(), ref(typ), pure(1)), ref(typ)),
+        Array(ApplyBinaryPrimOp(Multiply(), pure(-1), ref(typ)), ApplyUnaryPrimOp(Negate(), ref(typ))),
+        Array(ApplyBinaryPrimOp(Multiply(), ref(typ), pure(-1)), ApplyUnaryPrimOp(Negate(), ref(typ))),
+
+        // Div (truncated to -Inf)
+        Array(ApplyBinaryPrimOp(RoundToNegInfDivide(), ref(typ), pure(1)), ref(typ)),
+        Array(ApplyBinaryPrimOp(RoundToNegInfDivide(), ref(typ), pure(-1)), ApplyUnaryPrimOp(Negate(), ref(typ))),
+      ).asInstanceOf[Array[Array[Any]]]
+    }
+
+  @Test(dataProvider = "binaryIntegralArithmetic")
+  def testBinaryFloatingSimplification(input: IR, expected: IR): Unit =
+    assert(Simplify(ctx, input) == expected)
+
+  @DataProvider(name = "blockMatrixRules")
+  def blockMatrixRules: Array[Array[Any]] = {
+    val matrix =
+      ValueToBlockMatrix(
+        MakeArray((1 to 4).map(F64(_)), TArray(TFloat64)),
+        FastIndexedSeq(2, 2),
+        10
+      )
+
+    Array(
+      Array(BlockMatrixBroadcast(matrix, 0 to 1, matrix.shape, matrix.blockSize), matrix),
+      Array(BlockMatrixMap(matrix, "x", Ref("x", TFloat64), true), matrix),
+      Array(BlockMatrixMap(matrix, "x", ref(TFloat64), true), BlockMatrixBroadcast(
+        ValueToBlockMatrix(ref(TFloat64), FastIndexedSeq(1, 1), matrix.blockSize),
+        FastIndexedSeq(),
+        matrix.shape,
+        matrix.blockSize
+      )),
+      Array(BlockMatrixMap(matrix, "x", F64(2356), true), BlockMatrixBroadcast(
+        ValueToBlockMatrix(F64(2356), FastIndexedSeq(1, 1), matrix.blockSize),
+        FastIndexedSeq(),
+        matrix.shape,
+        matrix.blockSize
+      )),
+    ).asInstanceOf[Array[Array[Any]]]
+  }
+
+  @Test(dataProvider = "blockMatrixRules")
+  def testBlockMatrixSimplification(input: BlockMatrixIR, expected: BlockMatrixIR): Unit =
+    assert(Simplify(ctx, input) == expected)
 }
+
+

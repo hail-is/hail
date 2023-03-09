@@ -2,13 +2,11 @@ package is.hail.expr.ir
 
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
-import is.hail.annotations.{BroadcastRow, ExtendedOrdering, Region, SafeNDArray}
-import is.hail.asm4s.{Code, Value}
+import is.hail.annotations.{BroadcastRow, ExtendedOrdering, SafeNDArray}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
-import is.hail.expr.ir.IRBuilder._
-import is.hail.expr.ir.IRSuite.TestFunctions
+import is.hail.expr.ir.DeprecatedIRBuilder._
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.functions._
 import is.hail.io.bgen.{IndexBgen, MatrixBGENReader}
@@ -21,7 +19,7 @@ import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.primitives.SInt32
 import is.hail.types.virtual._
 import is.hail.types.{BlockMatrixType, TableType, VirtualTypeWithReq, tcoerce}
-import is.hail.utils.{FastIndexedSeq, _}
+import is.hail.utils._
 import is.hail.variant.{Call2, Locus}
 import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
@@ -30,66 +28,29 @@ import org.testng.annotations.{DataProvider, Test}
 
 import scala.language.{dynamics, implicitConversions}
 
-object IRSuite {
-  outer =>
-  var globalCounter: Int = 0
-
-  def incr(): Unit = {
-    globalCounter += 1
-  }
-
-  object TestFunctions extends RegistryFunctions {
-
-    def registerSeededWithMissingness(
-      name: String,
-      valueParameterTypes: Array[Type],
-      returnType: Type,
-      calculateReturnType: (Type, Seq[EmitType]) => EmitType
-    )(
-      impl: (EmitCodeBuilder, Value[Region], SType, Long, Array[EmitCode]) => IEmitCode
-    ) {
-      IRFunctionRegistry.addJVMFunction(
-        new SeededMissingnessAwareJVMFunction(name, valueParameterTypes, returnType, calculateReturnType) {
-          val isDeterministic: Boolean = false
-          def applySeededI(seed: Long, cb: EmitCodeBuilder, r: Value[Region], returnPType: SType, args: EmitCode*): IEmitCode = {
-            assert(unify(FastSeq(), args.map(_.st.virtualType), returnPType.virtualType))
-            impl(cb, r, returnPType, seed, args.toArray)
-          }
-        }
-      )
-    }
-
-    def registerSeededWithMissingness1(
-      name: String,
-      valueParameterType: Type,
-      returnType: Type,
-      calculateReturnType: (Type, EmitType) => EmitType
-    )(
-      impl: (EmitCodeBuilder, Value[Region], SType, Long, EmitCode) => IEmitCode
-    ): Unit =
-      registerSeededWithMissingness(name, Array(valueParameterType), returnType, unwrappedApply(calculateReturnType)) {
-        case (cb, r, rt, seed, Array(a1)) => impl(cb, r, rt, seed, a1)
-      }
-
-    def registerAll() {
-      registerSeededWithMissingness1("incr_s", TBoolean, TBoolean, { (ret: Type, pt: EmitType) => pt }) { case (cb, r, _, _, l) =>
-        cb += Code.invokeScalaObject0[Unit](outer.getClass, "incr")
-        l.toI(cb)
-      }
-
-      registerSeededWithMissingness1("incr_v", TBoolean, TBoolean, { (ret: Type, pt: EmitType) => pt }) { case (cb, _, _, _, l) =>
-        l.toI(cb).map(cb) { pc =>
-          cb += Code.invokeScalaObject0[Unit](outer.getClass, "incr")
-          pc
-        }
-      }
-    }
-  }
-
-}
-
 class IRSuite extends HailSuite {
   implicit val execStrats = ExecStrategy.nonLowering
+
+  @Test def testRandDifferentLengthUIDStrings() {
+    implicit val execStrats = ExecStrategy.lowering
+    val staticUID: Long = 112233
+    var rng: IR = RNGStateLiteral()
+    rng = RNGSplit(rng, I64(12345))
+    val expected1 = Threefry.pmac(ctx.rngNonce, staticUID, Array(12345L))
+    assertEvalsTo(ApplySeeded("rand_int64", Seq(), rng, staticUID, TInt64), expected1(0))
+
+    rng = RNGSplit(rng, I64(0))
+    val expected2 = Threefry.pmac(ctx.rngNonce, staticUID, Array(12345L, 0L))
+    assertEvalsTo(ApplySeeded("rand_int64", Seq(), rng, staticUID, TInt64), expected2(0))
+
+    rng = RNGSplit(rng, I64(0))
+    rng = RNGSplit(rng, I64(0))
+    val expected3 = Threefry.pmac(ctx.rngNonce, staticUID, Array(12345L, 0L, 0L, 0L))
+    assertEvalsTo(ApplySeeded("rand_int64", Seq(), rng, staticUID, TInt64), expected3(0))
+    assert(expected1 != expected2)
+    assert(expected2 != expected3)
+    assert(expected1 != expected3)
+  }
 
   @Test def testI32() {
     assertEvalsTo(I32(5), 5)
@@ -2722,7 +2683,7 @@ class IRSuite extends HailSuite {
     val nd = MakeNDArray(MakeArray(FastSeq(I32(-1), I32(1)), TArray(TInt32)),
       MakeTuple.ordered(FastSeq(I64(1), I64(2))),
       True(), ErrorIDs.NO_ERROR)
-    val rngState = RNGStateLiteral(Array(1L, 2L, 3L, 4L))
+    val rngState = RNGStateLiteral()
 
     def collect(ir: IR): IR =
       ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq(ir), collectSig)
@@ -3152,75 +3113,6 @@ class IRSuite extends HailSuite {
     assert(hc.irVectors.get(id) eq None)
   }
 
-  @Test def testEvaluations() {
-    TestFunctions.registerAll()
-
-    def test(x: IR, i: java.lang.Boolean, expectedEvaluations: Int) {
-      val env = Env.empty[(Any, Type)]
-      val args = FastIndexedSeq((i, TBoolean))
-
-      IRSuite.globalCounter = 0
-      Interpret[Any](ctx, x, env, args, optimize = false)
-      assert(IRSuite.globalCounter == expectedEvaluations)
-
-      IRSuite.globalCounter = 0
-      Interpret[Any](ctx, x, env, args)
-      assert(IRSuite.globalCounter == expectedEvaluations)
-
-      IRSuite.globalCounter = 0
-      eval(x, env, args, None, None, true, ctx)
-      assert(IRSuite.globalCounter == expectedEvaluations)
-    }
-
-    def i = In(0, TBoolean)
-
-    def rngState = RNGStateLiteral()
-
-    def st = ApplySeeded("incr_s", FastSeq(True()), rngState, 0L, TBoolean)
-
-    def sf = ApplySeeded("incr_s", FastSeq(True()), rngState, 0L, TBoolean)
-
-    def sm = ApplySeeded("incr_s", FastSeq(NA(TBoolean)), rngState, 0L, TBoolean)
-
-    def vt = ApplySeeded("incr_v", FastSeq(True()), rngState, 0L, TBoolean)
-
-    def vf = ApplySeeded("incr_v", FastSeq(True()), rngState, 0L, TBoolean)
-
-    def vm = ApplySeeded("incr_v", FastSeq(NA(TBoolean)), rngState, 0L, TBoolean)
-
-    // baseline
-    test(st, true, 1); test(sf, true, 1); test(sm, true, 1)
-    test(vt, true, 1); test(vf, true, 1); test(vm, true, 0)
-
-    // if
-    // condition
-    test(If(st, i, True()), true, 1)
-    test(If(sf, i, True()), true, 1)
-    test(If(sm, i, True()), true, 1)
-
-    test(If(vt, i, True()), true, 1)
-    test(If(vf, i, True()), true, 1)
-    test(If(vm, i, True()), true, 0)
-
-    // consequent
-    test(If(i, st, True()), true, 1)
-    test(If(i, sf, True()), true, 1)
-    test(If(i, sm, True()), true, 1)
-
-    test(If(i, vt, True()), true, 1)
-    test(If(i, vf, True()), true, 1)
-    test(If(i, vm, True()), true, 0)
-
-    // alternate
-    test(If(i, True(), st), false, 1)
-    test(If(i, True(), sf), false, 1)
-    test(If(i, True(), sm), false, 1)
-
-    test(If(i, True(), vt), false, 1)
-    test(If(i, True(), vf), false, 1)
-    test(If(i, True(), vm), false, 0)
-  }
-
   @Test def testArrayContinuationDealsWithIfCorrectly() {
     val ir = ToArray(StreamMap(
       If(IsNA(In(0, TBoolean)),
@@ -3236,8 +3128,8 @@ class IRSuite extends HailSuite {
 
     val t1 = TableType(TStruct("a" -> TInt32), FastIndexedSeq("a"), TStruct("g1" -> TInt32, "g2" -> TFloat64))
     val t2 = TableType(TStruct("a" -> TInt32), FastIndexedSeq("a"), TStruct("g3" -> TInt32, "g4" -> TFloat64))
-    val tab1 = TableLiteral(TableValue(ctx, t1, BroadcastRow(ctx, Row(1, 1.1), t1.globalType), RVD.empty(t1.canonicalRVDType)), theHailClassLoader)
-    val tab2 = TableLiteral(TableValue(ctx, t2, BroadcastRow(ctx, Row(2, 2.2), t2.globalType), RVD.empty(t2.canonicalRVDType)), theHailClassLoader)
+    val tab1 = TableLiteral(TableValue(ctx, t1, BroadcastRow(ctx, Row(1, 1.1), t1.globalType), RVD.empty(ctx, t1.canonicalRVDType)), theHailClassLoader)
+    val tab2 = TableLiteral(TableValue(ctx, t2, BroadcastRow(ctx, Row(2, 2.2), t2.globalType), RVD.empty(ctx, t2.canonicalRVDType)), theHailClassLoader)
 
     assertEvalsTo(TableGetGlobals(TableJoin(tab1, tab2, "left")), Row(1, 1.1, 2, 2.2))
     assertEvalsTo(TableGetGlobals(TableMapGlobals(tab1, InsertFields(Ref("global", t1.globalType), Seq("g1" -> I32(3))))), Row(3, 1.1))
@@ -3373,7 +3265,7 @@ class IRSuite extends HailSuite {
       backend.execute(timer, ir, optimize = true)
     }
     assert(
-      ir.typ.ordering.equiv(
+      ir.typ.ordering(ctx.stateManager).equiv(
         FastIndexedSeq(
           Interval(
             Row(Locus("20", 10277621)), Row(Locus("20", 11898992)), includesStart = true, includesEnd = false)),
@@ -3590,7 +3482,7 @@ class IRSuite extends HailSuite {
     val spec = TypedCodecSpec(PCanonicalStruct(("rowIdx", PInt32Required), ("extraInfo", PInt32Required)), BufferSpec.default)
     val dist = StreamDistribute(child, pivots, Str(ctx.localTmpdir), Compare(pivots.typ.asInstanceOf[TArray].elementType), spec)
     val result = eval(dist).asInstanceOf[IndexedSeq[Row]].map(row => (row(0).asInstanceOf[Interval], row(1).asInstanceOf[String], row(2).asInstanceOf[Int], row(3).asInstanceOf[Long]))
-    val kord: ExtendedOrdering = PartitionBoundOrdering(pivots.typ.asInstanceOf[TArray].elementType)
+    val kord: ExtendedOrdering = PartitionBoundOrdering(ctx, pivots.typ.asInstanceOf[TArray].elementType)
 
     var dataIdx = 0
 

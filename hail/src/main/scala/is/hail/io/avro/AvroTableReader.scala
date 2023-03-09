@@ -14,14 +14,14 @@ class AvroTableReader(
   partitionReader: AvroPartitionReader,
   paths: IndexedSeq[String],
   unsafeOptions: Option[UnsafeAvroTableReaderOptions] = None
-) extends TableReader {
+) extends TableReaderWithExtraUID {
 
   private val partitioner: RVDPartitioner = unsafeOptions.map { case UnsafeAvroTableReaderOptions(key, intervals, _) =>
     require(intervals.length == paths.length,
       s"There must be one partition interval per avro file, have ${paths.length} ${plural(paths.length, "file")} and ${intervals.length} ${plural(intervals.length, "interval")}")
-    RVDPartitioner.generate(partitionReader.fullRowType.typeAfterSelectNames(key), intervals)
+    RVDPartitioner.generate(null, partitionReader.fullRowType.typeAfterSelectNames(key), intervals)
   }.getOrElse {
-    RVDPartitioner.unkeyed(paths.length)
+    RVDPartitioner.unkeyed(null, paths.length)
   }
 
   def pathsUsed: Seq[String] = paths

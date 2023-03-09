@@ -27,7 +27,8 @@ from hail.expr.types import (HailType, hail_type, tint32, tint64, tfloat32,
 from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
 import hail.ir as ir
 from hail.typecheck import (typecheck, nullable, anytype, enumeration, tupleof,
-                            func_spec, oneof, arg_check, args_check, anyfunc)
+                            func_spec, oneof, arg_check, args_check, anyfunc,
+                            sequenceof)
 from hail.utils.java import Env, warning
 from hail.utils.misc import plural
 
@@ -43,10 +44,17 @@ def _func(name, ret_type, *args, type_args=()):
 
 
 def _seeded_func(name, ret_type, seed, *args):
-    seed = seed if seed is not None else Env.next_seed()
+    if seed is None:
+        static_rng_uid = Env.next_static_rng_uid()
+    else:
+        if Env._hc is None or not Env._hc._user_specified_rng_nonce:
+            warning('To ensure reproducible randomness across Hail sessions, '
+                    'you must set the "global_seed" parameter in hl.init(), in '
+                    'addition to the local seed in each random function.')
+        static_rng_uid = -seed - 1
     indices, aggregations = unify_all(*args)
-    rng_state = ir.RNGSplit(ir.Ref('__rng_state', trngstate), ir.MakeTuple([]))
-    return construct_expr(ir.ApplySeeded(name, seed, rng_state, ret_type, *(a._ir for a in args)), ret_type, indices, aggregations)
+    rng_state = ir.Ref('__rng_state', trngstate)
+    return construct_expr(ir.ApplySeeded(name, static_rng_uid, rng_state, ret_type, *(a._ir for a in args)), ret_type, indices, aggregations)
 
 
 def ndarray_broadcasting(func):
@@ -2038,6 +2046,7 @@ def pchisqtail(x, df, ncp=None, lower_tail=False, log_p=False) -> Float64Express
     Parameters
     ----------
     x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        The value at which to evaluate the CDF.
     df : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Degrees of freedom.
     ncp: float or :class:`.Expression` of type :py:data:`.tfloat64`
@@ -2056,6 +2065,171 @@ def pchisqtail(x, df, ncp=None, lower_tail=False, log_p=False) -> Float64Express
         return _func("pchisqtail", tfloat64, x, df, lower_tail, log_p)
     else:
         return _func("pnchisqtail", tfloat64, x, df, ncp, lower_tail, log_p)
+
+
+PGENCHISQ_RETURN_TYPE = tstruct(value=tfloat64, n_iterations=tint32, converged=tbool, fault=tint32)
+
+
+@typecheck(x=expr_float64,
+           w=expr_array(expr_float64),
+           k=expr_array(expr_int32),
+           lam=expr_array(expr_float64),
+           mu=expr_float64,
+           sigma=expr_float64,
+           max_iterations=nullable(expr_int32),
+           min_accuracy=nullable(expr_float64))
+def pgenchisq(x, w, k, lam, mu, sigma, *, max_iterations=None, min_accuracy=None) -> Float64Expression:
+    r"""The cumulative probability function of a `generalized chi-squared distribution
+    <https://en.wikipedia.org/wiki/Generalized_chi-squared_distribution>`__.
+
+    The generalized chi-squared distribution has many interpretations. We share here four
+    interpretations of the values of this distribution:
+
+    1. A linear combination of normal variables and squares of normal variables.
+
+    2. A weighted sum of sums of squares of normally distributed values plus a normally distributed
+       value.
+
+    3. A weighted sum of chi-squared distributed values plus a normally distributed value.
+
+    4. A `"quadratic form" <https://en.wikipedia.org/wiki/Quadratic_form_(statistics)>`__ in a vector
+       of uncorrelated `standard normal
+       <https://en.wikipedia.org/wiki/Normal_distribution#Standard_normal_distribution>`__ values.
+
+    The parameters of this function correspond to the parameters of the third interpretation.
+
+    .. math::
+
+        \begin{aligned}
+        w &: R^n \quad k : Z^n \quad lam : R^n \quad mu : R \quad sigma : R \\
+        \\
+        x   &\sim N(mu, sigma^2) \\
+        y_i &\sim \mathrm{NonCentralChiSquared}(k_i, lam_i) \\
+        \\
+        Z &= x + w y^T \\
+          &= x + \sum_i w_i y_i \\
+        Z &\sim \mathrm{GeneralizedNonCentralChiSquared}(w, k, lam, mu, sigma)
+        \end{aligned}
+
+    The generalized chi-squared distribution often arises when working on linear models with standard
+    normal noise because the sum of the squares of the residuals should follow a generalized
+    chi-squared distribution.
+
+    Examples
+    --------
+
+    The following plot shows three examples of the generalized chi-squared cumulative distribution
+    function.
+
+    .. image:: https://upload.wikimedia.org/wikipedia/commons/thumb/c/cd/Generalized_chi-square_cumulative_distribution_function.svg/1280px-Generalized_chi-square_cumulative_distribution_function.svg.png
+        :alt: Plots of examples of the generalized chi-square cumulative distribution function. Created by Dvidby0.
+        :target: https://commons.wikimedia.org/wiki/File:Generalized_chi-square_cumulative_distribution_function.svg
+        :width: 640px
+
+    The following examples are chosen from the three instances shown above. The curves appear in the
+    same order as the legend of the plot: blue, red, yellow.
+
+    >>> hl.eval(hl.pgenchisq(-80, w=[1, 2], k=[1, 4], lam=[1, 1], mu=0, sigma=0).value)
+    0.0
+    >>> hl.eval(hl.pgenchisq(-20, w=[1, 2], k=[1, 4], lam=[1, 1], mu=0, sigma=0).value)
+    0.0
+    >>> hl.eval(hl.pgenchisq(10 , w=[1, 2], k=[1, 4], lam=[1, 1], mu=0, sigma=0).value)
+    0.4670012373599629
+    >>> hl.eval(hl.pgenchisq(40 , w=[1, 2], k=[1, 4], lam=[1, 1], mu=0, sigma=0).value)
+    0.9958803111156718
+
+    >>> hl.eval(hl.pgenchisq(-80, w=[-2, -1], k=[5, 2], lam=[3, 1], mu=-3, sigma=0).value)
+    9.227056966837344e-05
+    >>> hl.eval(hl.pgenchisq(-20, w=[-2, -1], k=[5, 2], lam=[3, 1], mu=-3, sigma=0).value)
+    0.516439358616939
+    >>> hl.eval(hl.pgenchisq(10 , w=[-2, -1], k=[5, 2], lam=[3, 1], mu=-3, sigma=0).value)
+    1.0
+    >>> hl.eval(hl.pgenchisq(40 , w=[-2, -1], k=[5, 2], lam=[3, 1], mu=-3, sigma=0).value)
+    1.0
+
+    >>> hl.eval(hl.pgenchisq(-80, w=[1, -10, 2], k=[1, 2, 3], lam=[2, 3, 7], mu=-10, sigma=0).value)
+    0.14284718767288906
+    >>> hl.eval(hl.pgenchisq(-20, w=[1, -10, 2], k=[1, 2, 3], lam=[2, 3, 7], mu=-10, sigma=0).value)
+    0.5950150356303258
+    >>> hl.eval(hl.pgenchisq(10 , w=[1, -10, 2], k=[1, 2, 3], lam=[2, 3, 7], mu=-10, sigma=0).value)
+    0.923219534175858
+    >>> hl.eval(hl.pgenchisq(40 , w=[1, -10, 2], k=[1, 2, 3], lam=[2, 3, 7], mu=-10, sigma=0).value)
+    0.9971746768781656
+
+    Notes
+    -----
+
+    We follow Wikipedia's notational conventions. Some texts refer to the weight vector (our `w`) as
+    :math:`\lambda` or `lb` and the non-centrality vector (our `lam`) as `nc`.
+
+    We use the Davies' algorithm which was published as:
+
+        `Davies, Robert. "The distribution of a linear combination of chi-squared random variables."
+        Applied Statistics 29 323-333. 1980. <http://www.robertnz.net/pdf/lc_chisq.pdf>`__
+
+    Davies included Fortran source code in the original publication. Davies also released a `C
+    language port <http://www.robertnz.net/QF.htm>`__. Hail's implementation is a fairly direct port
+    of the C implementation to Scala. Davies provides 39 test cases with the source code. The Hail
+    tests include all 39 test cases as well as a few additional tests.
+
+    Davies' website cautions:
+
+        The method works well in most situations if you want only modest accuracy, say 0.0001. But
+        problems may arise if the sum is dominated by one or two terms with a total of only one or
+        two degrees of freedom and x is small.
+
+    For an accessible introduction the Generalized Chi-Squared Distribution, we strongly recommend
+    the introduction of this paper:
+
+        `Das, Abhranil; Geisler, Wilson (2020). "A method to integrate and classify normal
+        distributions". <https://arxiv.org/abs/2012.14331>`__
+
+    Parameters
+    ----------
+    x : :obj:`float` or :class:`.Expression` of type :py:data:`.tfloat64`
+        The value at which to evaluate the cumulative distribution function (CDF).
+    w : :obj:`list` of :obj:`float` or :class:`.Expression` of type :py:class:`.tarray` of :py:data:`.tfloat64`
+        A weight for each non-central chi-square term.
+    k : :obj:`list` of :obj:`int` or :class:`.Expression` of type :py:class:`.tarray` of :py:data:`.tint32`
+        A degrees of freedom parameter for each non-central chi-square term.
+    lam : :obj:`list` of :obj:`float` or :class:`.Expression` of type :py:class:`.tarray` of :py:data:`.tfloat64`
+        A non-centrality parameter for each non-central chi-square term. We use `lam` instead
+        of `lambda` because the latter is a reserved word in Python.
+    mu : :obj:`float` or :class:`.Expression` of type :py:data:`.tfloat64`
+        The standard deviation of the normal term.
+    sigma : :obj:`float` or :class:`.Expression` of type :py:data:`.tfloat64`
+        The standard deviation of the normal term.
+    max_iterations : :obj:`int` or :class:`.Expression` of type :py:data:`.tint32`
+        The maximum number of iterations of the numerical integration before raising an error. The
+        default maximum number of iterations is ``1e5``.
+    min_accuracy : :obj:`int` or :class:`.Expression` of type :py:data:`.tint32`
+        The minimum accuracy of the returned value. If the minimum accuracy is not achieved, this
+        function will raise an error. The default minimum accuracy is ``1e-5``.
+
+    Returns
+    -------
+    :class:`.StructExpression`
+        This method returns a structure with the value as well as information about the numerical
+        integration.
+
+        - value : :class:`.Float64Expression`. If converged is true, the value of the CDF evaluated
+          at `x`. Otherwise, this is the last value the integration evaluated before aborting.
+
+        - n_iterations : :class:`.Int32Expression`. The number of iterations before stopping.
+
+        - converged : :class:`.BooleanExpression`. True if the `min_accuracy` was achieved and round
+          off error is not likely significant.
+
+        - fault : :class:`.Int32Expression`. If converged is true, fault is zero. If converged is
+          false, fault is either one or two. One indicates that the requried accuracy was not
+          achieved. Two indicates the round-off error is possibly significant.
+
+    """
+    if max_iterations is None:
+        max_iterations = hl.literal(10_000)
+    if min_accuracy is None:
+        min_accuracy = hl.literal(1e-5)
+    return _func("pgenchisq", PGENCHISQ_RETURN_TYPE, x - mu, w, k, lam, sigma, max_iterations, min_accuracy)
 
 
 @typecheck(x=expr_float64, mu=expr_float64, sigma=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
@@ -2441,7 +2615,7 @@ def rand_bool(p, seed=None) -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.set_global_seed(0)
+    >>> hl.reset_global_randomness()
     >>> hl.eval(hl.rand_bool(0.5))
     False
 
@@ -2462,20 +2636,20 @@ def rand_bool(p, seed=None) -> BooleanExpression:
     return _seeded_func("rand_bool", tbool, seed, p)
 
 
-@typecheck(mean=expr_float64, sd=expr_float64, seed=nullable(int))
-def rand_norm(mean=0, sd=1, seed=None) -> Float64Expression:
+@typecheck(mean=expr_float64, sd=expr_float64, seed=nullable(int), size=nullable(tupleof(expr_int64)))
+def rand_norm(mean=0, sd=1, seed=None, size=None) -> Float64Expression:
     """Samples from a normal distribution with mean `mean` and standard
     deviation `sd`.
 
     Examples
     --------
 
-    >>> hl.set_global_seed(0)
+    >>> hl.reset_global_randomness()
     >>> hl.eval(hl.rand_norm())
-    0.30971254606692267
+    0.347110923255205
 
     >>> hl.eval(hl.rand_norm())
-    -1.6120679347033475
+    -0.9281375348070483
 
     Parameters
     ----------
@@ -2485,12 +2659,17 @@ def rand_norm(mean=0, sd=1, seed=None) -> Float64Expression:
         Standard deviation of normal distribution.
     seed : :obj:`int`, optional
         Random seed.
+    size : :obj:`int` or :obj:`tuple` of :obj:`int`, optional
 
     Returns
     -------
     :class:`.Float64Expression`
     """
-    return _seeded_func("rand_norm", tfloat64, seed, mean, sd)
+    if size is None:
+        return _seeded_func("rand_norm", tfloat64, seed, mean, sd)
+    else:
+        (nrows, ncols) = size
+        return _seeded_func("rand_norm_nd", tndarray(tfloat64, 2), seed, nrows, ncols, mean, sd)
 
 
 @typecheck(mean=nullable(expr_array(expr_float64)), cov=nullable(expr_array(expr_float64)), seed=nullable(int))
@@ -2500,12 +2679,12 @@ def rand_norm2d(mean=None, cov=None, seed=None) -> ArrayNumericExpression:
     Examples
     --------
 
-    >>> hl.set_global_seed(0)
+    >>> hl.reset_global_randomness()
     >>> hl.eval(hl.rand_norm2d())
-    [0.30971254606692267, -1.266553783097155]
+    [-1.3909495945443346, 1.2805588680053859]
 
     >>> hl.eval(hl.rand_norm2d())
-    [-1.6120679347033475, 1.6121791827078364]
+    [0.289520302334123, -1.1108917435930954]
 
     Notes
     -----
@@ -2562,12 +2741,12 @@ def rand_pois(lamb, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.set_global_seed(0)
+    >>> hl.reset_global_randomness()
     >>> hl.eval(hl.rand_pois(1))
-    1.0
+    4.0
 
     >>> hl.eval(hl.rand_pois(1))
-    1.0
+    4.0
 
     Parameters
     ----------
@@ -2583,23 +2762,23 @@ def rand_pois(lamb, seed=None) -> Float64Expression:
     return _seeded_func("rand_pois", tfloat64, seed, lamb)
 
 
-@typecheck(lower=expr_float64, upper=expr_float64, seed=nullable(int))
-def rand_unif(lower=0.0, upper=1.0, seed=None) -> Float64Expression:
+@typecheck(lower=expr_float64, upper=expr_float64, seed=nullable(int), size=nullable(tupleof(expr_int64)))
+def rand_unif(lower=0.0, upper=1.0, seed=None, size=None) -> Float64Expression:
     """Samples from a uniform distribution within the interval
     [`lower`, `upper`].
 
     Examples
     --------
 
-    >>> hl.set_global_seed(0)
+    >>> hl.reset_global_randomness()
     >>> hl.eval(hl.rand_unif())
-    0.6830630912401323
+    0.9828239225846387
 
     >>> hl.eval(hl.rand_unif(0, 1))
-    0.4035978197966855
+    0.49094525115847415
 
     >>> hl.eval(hl.rand_unif(0, 1))
-    0.26020045338162423
+    0.3972543766997359
 
     Parameters
     ----------
@@ -2609,12 +2788,17 @@ def rand_unif(lower=0.0, upper=1.0, seed=None) -> Float64Expression:
         Right boundary of range. Defaults to 1.0.
     seed : :obj:`int`, optional
         Random seed.
+    size : :obj:`int` or :obj:`tuple` of :obj:`int`, optional
 
     Returns
     -------
     :class:`.Float64Expression`
     """
-    return _seeded_func("rand_unif", tfloat64, seed, lower, upper)
+    if size is None:
+        return _seeded_func("rand_unif", tfloat64, seed, lower, upper)
+    else:
+        (nrows, ncols) = size
+        return _seeded_func("rand_unif_nd", tndarray(tfloat64, 2), seed, nrows, ncols, lower, upper)
 
 
 @typecheck(a=expr_int32, b=nullable(expr_int32), seed=nullable(int))
@@ -2627,12 +2811,12 @@ def rand_int32(a, b=None, *, seed=None) -> Int32Expression:
     Examples
     --------
 
-    >>> hl.set_global_seed(0)
+    >>> hl.reset_global_randomness()
     >>> hl.eval(hl.rand_int32(10))
-    0
+    9
 
     >>> hl.eval(hl.rand_int32(10, 15))
-    11
+    14
 
     >>> hl.eval(hl.rand_int32(10, 15))
     12
@@ -2656,25 +2840,27 @@ def rand_int32(a, b=None, *, seed=None) -> Int32Expression:
     return _seeded_func("rand_int32", tint32, seed, b - a) + a
 
 
-@typecheck(a=expr_int64, b=nullable(expr_int64), seed=nullable(int))
-def rand_int64(a, b=None, *, seed=None) -> Int64Expression:
+@typecheck(a=nullable(expr_int64), b=nullable(expr_int64), seed=nullable(int))
+def rand_int64(a=None, b=None, *, seed=None) -> Int64Expression:
     """Samples from a uniform distribution of 64-bit integers.
 
-    If b is `None`, samples from the uniform distribution over [0, a). Otherwise, sample from the
-    uniform distribution over [a, b).
+    If a and b are both specified, samples from the uniform distribution over [a, b).
+    If b is `None`, samples from the uniform distribution over [0, a).
+    If both a and b are `None` samples from the uniform distribution over all
+    64-bit integers.
 
     Examples
     --------
 
-    >>> hl.set_global_seed(0)
+    >>> hl.reset_global_randomness()
     >>> hl.eval(hl.rand_int64(10))
-    2
+    9
 
     >>> hl.eval(hl.rand_int64(1 << 33, 1 << 35))
-    13313179445
+    33089740109
 
     >>> hl.eval(hl.rand_int64(1 << 33, 1 << 35))
-    18981019040
+    18195458570
 
     Parameters
     ----------
@@ -2689,6 +2875,8 @@ def rand_int64(a, b=None, *, seed=None) -> Int64Expression:
     -------
     :class:`.Int64Expression`
     """
+    if a is None:
+        return _seeded_func("rand_int64", tint64, seed)
     if b is None:
         return _seeded_func("rand_int64", tint64, seed, a)
     return _seeded_func("rand_int64", tint64, seed, b - a) + a
@@ -2715,12 +2903,12 @@ def rand_beta(a, b, lower=None, upper=None, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.set_global_seed(0)
+    >>> hl.reset_global_randomness()
     >>> hl.eval(hl.rand_beta(0.5, 0.5))
-    0.3483677318466065
+    0.30607924177641355
 
     >>> hl.eval(hl.rand_beta(2, 5))
-    0.23894608018057753
+    0.1103872607301062
 
     Parameters
     ----------
@@ -2758,12 +2946,12 @@ def rand_gamma(shape, scale, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.set_global_seed(0)
+    >>> hl.reset_global_randomness()
     >>> hl.eval(hl.rand_gamma(1, 1))
-    0.8934929450909811
+    3.115449479063202
 
     >>> hl.eval(hl.rand_gamma(1, 1))
-    0.3423233699402248
+    3.077698059931638
 
     Parameters
     ----------
@@ -2798,12 +2986,12 @@ def rand_cat(prob, seed=None) -> Int32Expression:
     Examples
     --------
 
-    >>> hl.set_global_seed(0)
+    >>> hl.reset_global_randomness()
     >>> hl.eval(hl.rand_cat([0, 1.7, 2]))
     2
 
     >>> hl.eval(hl.rand_cat([0, 1.7, 2]))
-    1
+    2
 
     Parameters
     ----------
@@ -2827,12 +3015,12 @@ def rand_dirichlet(a, seed=None) -> ArrayExpression:
     Examples
     --------
 
-    >>> hl.set_global_seed(0)
+    >>> hl.reset_global_randomness()
     >>> hl.eval(hl.rand_dirichlet([1, 1, 1]))
-    [0.31600799564679466, 0.22921566396520351, 0.45477634038800185]
+    [0.6987619676833735, 0.287566556865261, 0.013671475451365567]
 
     >>> hl.eval(hl.rand_dirichlet([1, 1, 1]))
-    [0.28935842257116556, 0.40020478428981887, 0.31043679313901557]
+    [0.16299928555608242, 0.04393664153526524, 0.7930640729086523]
 
     Parameters
     ----------
@@ -4781,6 +4969,102 @@ def flatten(collection):
     return collection.flatmap(lambda x: x)
 
 
+def _union_intersection_base(name, arrays, key, join_f, result_f):
+    if builtins.len(arrays) == 0:
+        raise ValueError(f"{name}: require at least one input array")
+
+    t = arrays[0].dtype.element_type
+    if not isinstance(t, tstruct):
+        raise ValueError(f"{name}: expect a struct element type, found {t}")
+    for k in key:
+        if k not in t:
+            raise ValueError(f"{name}: key field {k!r} not in element type {t}")
+    for i, a in builtins.enumerate(arrays):
+        if a.dtype.element_type != t:
+            raise ValueError(f"{name}: input {i} has a different element type than input 0:"
+                             f"\n  input 0: {t}"
+                             f"\n  input {i}: {a.dtype.element_type}")
+
+    key_typ = hl.tstruct(**{k: t[k] for k in key})
+    vals_typ = hl.tarray(t)
+
+    key_uid = Env.get_uid()
+    vals_uid = Env.get_uid()
+
+    key_var = construct_variable(key_uid, key_typ)
+    vals_var = construct_variable(vals_uid, vals_typ)
+
+    join_ir = join_f(key_var, vals_var)
+
+    irs = []
+    for a in arrays:
+        if isinstance(a.dtype, hl.tarray):
+            irs.append(ir.toStream(a._ir))
+        else:
+            irs.append(a._ir)
+    indices, aggs = unify_all(*arrays)
+
+    zj = ir.ToArray(ir.StreamZipJoin(irs, key, key_uid, vals_uid, join_ir._ir))
+    return result_f(construct_expr(zj, zj.typ, indices, aggs))
+
+
+@typecheck(arrays=expr_oneof(expr_stream(expr_any), expr_array(expr_any)), key=sequenceof(builtins.str))
+def keyed_intersection(*arrays, key):
+    """Compute the intersection of sorted arrays on a given key.
+
+    Requires sorted arrays with distinct keys.
+
+    Warning
+    -------
+    Experimental. Does not support downstream randomness.
+
+    Parameters
+    ----------
+    arrays
+    key
+
+    Returns
+    -------
+    :class:`.ArrayExpression`
+    """
+    return _union_intersection_base(
+        'keyed_intersection',
+        arrays,
+        key,
+        lambda key_var, vals_var: hl.tuple((key_var, vals_var)),
+        lambda res: res
+        .filter(lambda x: hl.fold(lambda acc, elt: acc & hl.is_defined(elt), True, x[1]))
+        .map(lambda x: x[1].first()))
+
+
+@typecheck(arrays=expr_oneof(expr_stream(expr_any), expr_array(expr_any)), key=sequenceof(builtins.str))
+def keyed_union(*arrays, key):
+    """Compute the distinct union of sorted arrays on a given key.
+
+    Requires sorted arrays with distinct keys.
+
+    Warning
+    -------
+    Experimental. Does not support downstream randomness.
+
+    Parameters
+    ----------
+    exprs
+    key
+
+    Returns
+    -------
+    :class:`.ArrayExpression`
+    """
+    return _union_intersection_base(
+        'keyed_union',
+        arrays,
+        key,
+        lambda keys_var, vals_var: hl.fold(lambda acc, elt: hl.coalesce(acc, elt),
+                                           hl.missing(vals_var.dtype.element_type), vals_var),
+        lambda res: res)
+
+
 @typecheck(collection=expr_oneof(expr_array(), expr_set()),
            delimiter=expr_str)
 def delimit(collection, delimiter=',') -> StringExpression:
@@ -6284,9 +6568,9 @@ def shuffle(a, seed: builtins.int = None) -> ArrayExpression:
     Example
     -------
 
-    >>> hl.set_global_seed(0)
+    >>> hl.reset_global_randomness()
     >>> hl.eval(hl.shuffle(hl.range(5)))
-    [3, 2, 0, 4, 1]
+    [4, 0, 2, 1, 3]
 
     Parameters
     ----------
@@ -6299,7 +6583,84 @@ def shuffle(a, seed: builtins.int = None) -> ArrayExpression:
     -------
     :class:`.ArrayExpression`
     """
-    return sorted(a, key=lambda _: hl.rand_unif(0.0, 1.0, seed=seed))
+    return sorted(a, key=lambda _: hl.rand_unif(0.0, 1.0))
+
+
+@typecheck(path=builtins.str, point_or_interval=expr_any)
+def query_table(path, point_or_interval):
+    """Query records from a table corresponding to a given point or range of keys.
+
+    Notes
+    -----
+    This function does not dispatch to a distributed runtime; it can be used inside
+    already-distributed queries such as in :meth:`.Table.annotate`.
+
+    Warning
+    -------
+    This function contains no safeguards against reading large amounts of data
+    using a single thread.
+
+    Parameters
+    ----------
+    path : :class:`str`
+        Table path.
+    point_or_interval
+        Point or interval to query.
+
+    Returns
+    -------
+    :class:`.ArrayExpression`
+    """
+    table = hl.read_table(path)
+    row_typ = table.row.dtype
+
+    key_typ = table.key.dtype
+    key_names = list(key_typ)
+    len = builtins.len
+    if len(key_typ) == 0:
+        raise ValueError("query_table: cannot query unkeyed table")
+
+    def coerce_endpoint(point):
+        if point.dtype == key_typ[0]:
+            point = hl.struct(**{key_names[0]: point})
+        ts = point.dtype
+        if isinstance(ts, tstruct):
+            i = 0
+            while (i < len(ts)):
+                if i >= len(key_typ):
+                    raise ValueError(
+                        f"query_table: queried with {len(ts)} key field(s), but table only has {len(key_typ)} key field(s)")
+                if key_typ[i] != ts[i]:
+                    raise ValueError(
+                        f"query_table: key mismatch at key field {i} ({list(ts.keys())[i]!r}): query type is {ts[i]}, table key type is {key_typ[i]}")
+                i += 1
+
+            if i == 0:
+                raise ValueError("query_table: cannot query with empty key")
+
+            point_size = builtins.len(point.dtype)
+            return hl.tuple(
+                [hl.struct(**{key_names[i]: (point[i] if i < point_size else hl.missing(key_typ[i]))
+                              for i in builtins.range(builtins.len(key_typ))}), hl.int32(point_size)])
+        else:
+            raise ValueError(
+                f"query_table: key mismatch: cannot query a table with key "
+                f"({', '.join(builtins.str(x) for x in key_typ.values())}) with query point type {point.dtype}")
+
+    if point_or_interval.dtype != key_typ[0] and isinstance(point_or_interval.dtype, hl.tinterval):
+        partition_interval = hl.interval(start=coerce_endpoint(point_or_interval.start),
+                                         end=coerce_endpoint(point_or_interval.end),
+                                         includes_start=point_or_interval.includes_start,
+                                         includes_end=point_or_interval.includes_end)
+    else:
+        point = coerce_endpoint(point_or_interval)
+        partition_interval = hl.interval(start=point, end=point, includes_start=True, includes_end=True)
+    return construct_expr(
+        ir.ToArray(ir.ReadPartition(partition_interval._ir, reader=ir.PartitionNativeIntervalReader(path, row_typ))),
+        type=hl.tarray(row_typ),
+        indices=partition_interval._indices,
+        aggregations=partition_interval._aggregations
+    )
 
 
 @typecheck(msg=expr_str, result=expr_any)

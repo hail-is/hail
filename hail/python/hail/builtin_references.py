@@ -1,9 +1,7 @@
-import threading
-
-BUILTIN_REFERENCE_DOWNLOAD_LOCKS = {
-    'GRCh37': threading.Lock(),
-    'GRCh38': threading.Lock(),
-    'GRCm38': threading.Lock(),
-    'CanFam3': threading.Lock(),
+BUILTIN_REFERENCE_RESOURCE_PATHS = {
+    'GRCh37': 'reference/grch37.json',
+    'GRCh38': 'reference/grch38.json',
+    'GRCm38': 'reference/grcm38.json',
+    'CanFam3': 'reference/canfam3.json',
 }
-BUILTIN_REFERENCES = tuple(BUILTIN_REFERENCE_DOWNLOAD_LOCKS.keys())
+BUILTIN_REFERENCES = tuple(BUILTIN_REFERENCE_RESOURCE_PATHS.keys())

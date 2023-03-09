@@ -40,6 +40,10 @@ variable organization_domain {
   type = string
 }
 
+variable batch_test_user_storage_account_name {
+  type = string
+}
+
 variable "ci_config" {
   type = object({
     ci_and_deploy_github_oauth_token = string

@@ -458,8 +458,12 @@ class Table(ExprContainer):
                       schema=nullable(hail_type),
                       key=table_key_type,
                       n_partitions=nullable(int),
-                      partial_type=nullable(dict))
-    def parallelize(cls, rows, schema=None, key=None, n_partitions=None, *, partial_type=None) -> 'Table':
+                      partial_type=nullable(dict),
+                      globals=nullable(expr_struct()))
+    def parallelize(cls, rows, schema=None, key=None, n_partitions=None, *,
+                    partial_type=None,
+                    globals=None
+                    ) -> 'Table':
         """Parallelize a local array of structs into a distributed table.
 
         Examples
@@ -519,6 +523,8 @@ class Table(ExprContainer):
         partial_type : :obj:`dict`, optional
             A value type which may elide fields or have ``None`` in arbitrary places. The partial
             type is used by hail where the type cannot be imputed.
+        globals: :class:`dict` of :class:`str` to :obj:`any` or :class:`.StructExpression`, optional
+            A `dict` or `struct{..}` containing supplementary global data.
 
         Returns
         -------
@@ -537,9 +543,13 @@ class Table(ExprContainer):
         if not isinstance(rows.dtype.element_type, tstruct):
             raise TypeError("'parallelize' expects an array with element type 'struct', found '{}'"
                             .format(rows.dtype))
-        table = Table(ir.TableParallelize(ir.MakeStruct([
-            ('rows', rows._ir),
-            ('global', ir.MakeStruct([]))]), n_partitions))
+        table = Table(ir.TableParallelize(
+            ir.MakeStruct([
+                ('rows', rows._ir),
+                ('global', (globals or hl.struct())._ir)
+            ]),
+            n_partitions
+        ))
         if key is not None:
             table = table.key_by(*key)
         return table
@@ -1616,7 +1626,7 @@ class Table(ExprContainer):
                     s += f'<td style="{default_td_style}" colspan="{width}">'
                     if text is not None:
                         s += f'<div style="{div_style}{non_empty_div_style}">'
-                        s += text
+                        s += html.escape(text)
                         s += '</div>'
                     else:
                         s += f'<div style="{div_style}"></div>'
@@ -2065,7 +2075,7 @@ class Table(ExprContainer):
         :class:`.Table`
             Persisted table.
         """
-        return Env.backend().persist_table(self, storage_level)
+        return Env.backend().persist_table(self)
 
     def unpersist(self) -> 'Table':
         """
@@ -3465,15 +3475,18 @@ class Table(ExprContainer):
         """
         return Env.spark_backend('to_spark').to_spark(self, flatten)
 
-    @typecheck_method(flatten=bool)
-    def to_pandas(self, flatten=True):
+    @typecheck_method(flatten=bool, types=dictof(oneof(str, hail_type), str))
+    def to_pandas(self, flatten=True, types={}):
         """Converts this table to a Pandas DataFrame.
 
         Parameters
         ----------
         flatten : :obj:`bool`
             If ``True``, :meth:`flatten` before converting to Pandas DataFrame.
-
+        types : :obj:`dict` mapping :class:`str` or :class:`.HailType` to :class:`str`
+            Dictionary defining Pandas DataFrame dtypes.
+            If a key is :class:`str`, a field with the specified key name is mapped to a Pandas dtype.
+            If a key is :class:`.HailType`, all fields with the specified :class:`.HailType` are mapped to a Pandas dtype.
         Returns
         -------
         :class:`.pandas.DataFrame`
@@ -3485,21 +3498,22 @@ class Table(ExprContainer):
         column_struct_array = table.aggregate(hl.struct(**collect_dict))
         columns = list(column_struct_array.keys())
         data_dict = {}
+        hl_default_dtypes = {
+            hl.tstr: "string",
+            hl.tint32: "Int32",
+            hl.tint64: "Int64",
+            hl.tfloat32: "Float32",
+            hl.tfloat64: "Float64",
+            hl.tbool: "boolean"
+        }
+        all_types = {**hl_default_dtypes, **types}
 
         for column in columns:
             hl_dtype = dtypes_struct[column]
-            if hl_dtype == hl.tstr:
-                pd_dtype = 'string'
-            elif hl_dtype == hl.tint32:
-                pd_dtype = 'Int32'
-            elif hl_dtype == hl.tint64:
-                pd_dtype = 'Int64'
-            elif hl_dtype == hl.tfloat32:
-                pd_dtype = 'Float32'
-            elif hl_dtype == hl.tfloat64:
-                pd_dtype = 'Float64'
-            elif hl_dtype == hl.tbool:
-                pd_dtype = 'boolean'
+            if column in all_types:
+                pd_dtype = all_types[column]
+            elif hl_dtype in all_types:
+                pd_dtype = all_types[hl_dtype]
             else:
                 pd_dtype = hl_dtype.to_numpy()
             data_dict[column] = pandas.Series(column_struct_array[column], dtype=pd_dtype)
@@ -3564,9 +3578,27 @@ class Table(ExprContainer):
         new_table = hl.Table.parallelize(data, partial_type=hl_type_hints)
         return new_table if not key else new_table.key_by(*key)
 
-    @typecheck_method(other=table_type, tolerance=nullable(numeric), absolute=bool)
-    def _same(self, other, tolerance=1e-6, absolute=False):
+    @typecheck_method(other=table_type, tolerance=nullable(numeric), absolute=bool, reorder_fields=bool)
+    def _same(self, other, tolerance=1e-6, absolute=False, reorder_fields=False):
         from hail.expr.functions import _values_similar
+
+        fd_f = set if reorder_fields else list
+
+        if fd_f(self.row) != fd_f(other.row):
+            print(f'Different row fields: \n  {list(self.row)}\n  {list(other.row)}')
+            return False
+        if fd_f(self.globals) != fd_f(other.globals):
+            print(f'Different globals fields: \n  {list(self.globals)}\n  {list(other.globals)}')
+            return False
+
+        if reorder_fields:
+            globals_order = list(self.globals)
+            if list(other.globals) != globals_order:
+                other = other.select_globals(*globals_order)
+
+            row_order = list(self.row)
+            if list(other.row) != row_order:
+                other = other.select(*row_order)
 
         if self._type != other._type:
             print(f'Table._same: types differ:\n  {self._type}\n  {other._type}')
@@ -3776,11 +3808,14 @@ class Table(ExprContainer):
             raise ValueError('multi_way_zip_join must have at least one table as an argument')
         head = tables[0]
         if any(head.key.dtype != t.key.dtype for t in tables):
-            raise TypeError('All input tables to multi_way_zip_join must have the same key type')
+            raise TypeError('All input tables to multi_way_zip_join must have the same key type:\n  '
+                            + '\n  '.join(str(t.key.dtype) for t in tables))
         if any(head.row.dtype != t.row.dtype for t in tables):
-            raise TypeError('All input tables to multi_way_zip_join must have the same row type')
+            raise TypeError('All input tables to multi_way_zip_join must have the same row type\n  '
+                            + '\n  '.join(str(t.row.dtype) for t in tables))
         if any(head.globals.dtype != t.globals.dtype for t in tables):
-            raise TypeError('All input tables to multi_way_zip_join must have the same global type')
+            raise TypeError('All input tables to multi_way_zip_join must have the same global type\n  '
+                            + '\n  '.join(str(t.globals.dtype) for t in tables))
         return Table(ir.TableMultiWayZipJoin(
             [t._tir for t in tables], data_field_name, global_field_name))
 
@@ -3808,7 +3843,7 @@ class Table(ExprContainer):
     def _calculate_new_partitions(self, n_partitions):
         """returns a set of range bounds that can be passed to write"""
         return Env.backend().execute(ir.TableToValueApply(
-            self._tir,
+            self.select().select_globals()._tir,
             {'name': 'TableCalculateNewPartitions',
              'nPartitions': n_partitions}))
 

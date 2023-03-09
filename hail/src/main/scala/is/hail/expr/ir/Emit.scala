@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.{BackendContext, ExecuteContext}
+import is.hail.backend.{BackendContext, ExecuteContext, HailTaskContext}
 import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
 import is.hail.expr.ir.analyses.{ComputeMethodSplits, ControlFlowPreventsSplit, ParentPointers}
 import is.hail.expr.ir.lowering.TableStageDependency
@@ -20,6 +20,7 @@ import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
 import is.hail.types.{RIterable, TypeWithRequiredness, VirtualTypeWithReq, tcoerce}
 import is.hail.utils._
+import is.hail.variant.ReferenceGenome
 
 import java.io._
 import scala.collection.mutable
@@ -1133,6 +1134,30 @@ class Emit[C](
           sorter.toRegion(cb, x.typ)
         }
 
+      case ArrayMaximalIndependentSet(edges, tieBreaker) =>
+        emitI(edges).map(cb) { edgesCode =>
+          val jEdges: Value[UnsafeIndexedSeq] = cb.memoize(Code.checkcast[UnsafeIndexedSeq]((is.hail.expr.ir.functions.ArrayFunctions.svalueToJavaValue(cb, region, edgesCode))))
+          val maxSet = tieBreaker match {
+            case None =>
+              Code.invokeScalaObject1[UnsafeIndexedSeq, IndexedSeq[Any]](Graph.getClass, "maximalIndependentSet", jEdges)
+            case Some((leftName, rightName, tieBreaker)) =>
+              val nodeType = tcoerce[TArray](edges.typ).elementType.asInstanceOf[TBaseStruct].types.head
+              val wrappedNodeType = PCanonicalTuple(true, PType.canonical(nodeType))
+              val (Some(PTypeReferenceSingleCodeType(t)), f) = Compile[AsmFunction3RegionLongLongLong](ctx.executeContext,
+                IndexedSeq((leftName, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(wrappedNodeType))),
+                           (rightName, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(wrappedNodeType)))),
+                FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
+                MakeTuple.ordered(FastSeq(tieBreaker)))
+              assert(t.virtualType == TTuple(TFloat64))
+              val resultType = t.asInstanceOf[PTuple]
+              Code.invokeScalaObject9[Map[String, ReferenceGenome], UnsafeIndexedSeq, HailClassLoader, FS, HailTaskContext, Region, PTuple, PTuple, (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3RegionLongLongLong, IndexedSeq[Any]](
+                Graph.getClass, "maximalIndependentSet", cb.emb.ecb.emodb.referenceGenomeMap,
+                  jEdges, mb.getHailClassLoader, mb.getFS, mb.getTaskContext, region,
+                  mb.getPType[PTuple](wrappedNodeType), mb.getPType[PTuple](resultType), mb.getObject(f))
+          }
+          is.hail.expr.ir.functions.ArrayFunctions.unwrapReturn(cb, region, typeWithReq.canonicalEmitType.st, maxSet)
+        }
+
       case x@ToSet(a) =>
         emitStream(a, cb, region).map(cb) { case stream: SStreamValue =>
           val producer = stream.getProducer(mb)
@@ -1306,29 +1331,26 @@ class Emit[C](
           dictType.construct(finishOuter(cb))
         }
 
-      case RNGStateLiteral(key) =>
-        IEmitCode.present(cb, SRNGStateStaticSizeValue(cb, key))
+      case RNGStateLiteral() =>
+        IEmitCode.present(cb, SRNGStateStaticSizeValue(cb))
 
       case RNGSplit(state, dynBitstring) =>
-        // FIXME: When new rng support is complete, don't allow missing states
-        emitI(state).flatMap(cb) { stateValue =>
-          emitI(dynBitstring).map(cb) { tupleOrLong =>
-            val longs = if (tupleOrLong.isInstanceOf[SInt64Value]) {
-              Array(tupleOrLong.asInt64.value)
-            } else {
-              val tuple = tupleOrLong.asBaseStruct
-              Array.tabulate(tuple.st.size) { i =>
-                tuple.loadField(cb, i)
-                  .get(cb, "RNGSplit tuple components are required")
-                  .asInt64
-                  .value
-              }
-            }
-            var result = stateValue.asRNGState
-            longs.foreach(l => result = result.splitDyn(cb, l))
-            result
+        val stateValue = emitI(state).get(cb)
+        val tupleOrLong = emitI(dynBitstring).get(cb)
+        val longs = if (tupleOrLong.isInstanceOf[SInt64Value]) {
+          Array(tupleOrLong.asInt64.value)
+        } else {
+          val tuple = tupleOrLong.asBaseStruct
+          Array.tabulate(tuple.st.size) { i =>
+            tuple.loadField(cb, i)
+              .get(cb, "RNGSplit tuple components are required")
+              .asInt64
+              .value
           }
         }
+        var result = stateValue.asRNGState
+        longs.foreach(l => result = result.splitDyn(cb, l))
+        presentPC(result)
 
       case x@StreamLen(a) =>
         emitStream(a, cb, region).map(cb) { case stream: SStreamValue =>
@@ -1588,7 +1610,7 @@ class Emit[C](
                 outputPType.makeColumnMajorStrides(IndexedSeq(outputSize), region, cb),
                 cb,
                 region)
-              
+
               cb.append(Code.invokeScalaObject11[String, Int, Int, Double, Long, Int, Long, Int, Double, Long, Int, Unit](BLAS.getClass, method="dgemv",
                 TRANS,
                 M.toI,
@@ -2066,24 +2088,14 @@ class Emit[C](
         val rvAgg = agg.Extract.getAgg(sig)
         rvAgg.result(cb, sc.states(idx), region)
 
-      case x@ApplySeeded(fn, args, rngState, seed, rt) =>
+      case x@ApplySeeded(fn, args, rngState, staticUID, rt) =>
         val codeArgs = args.map(a => EmitCode.fromI(cb.emb)(emitInNewBuilder(_, a)))
+        val codeArgsMem = codeArgs.map(_.memoize(cb, "ApplySeeded_arg"))
+        val state = emitI(rngState).get(cb)
         val impl = x.implementation
-        val unified = impl.unify(Array.empty[Type], x.argTypes, rt)
-        assert(unified)
-        val newRNGEnabled = Array[String]()
-        if (newRNGEnabled.contains(fn)) {
-          val pureImpl = x.pureImplementation
-          assert(pureImpl.unify(Array.empty[Type], rngState.typ +: x.argTypes, rt))
-          val codeArgsMem = codeArgs.map(_.memoize(cb, "ApplySeeded_arg"))
-          emitI(rngState).consumeI(cb, {
-            impl.applySeededI(seed, cb, region, impl.computeReturnEmitType(x.typ, codeArgs.map(_.emitType)).st, codeArgsMem.map(_.load): _*)
-          }, { state =>
-            pureImpl.applyI(EmitRegion(cb.emb, region), cb, impl.computeReturnEmitType(x.typ, codeArgs.map(_.emitType)).st, Seq[Type](), const(0), EmitCode.present(mb, state) +: codeArgsMem.map(_.load): _*)
-          })
-        } else {
-          impl.applySeededI(seed, cb, region, impl.computeReturnEmitType(x.typ, codeArgs.map(_.emitType)).st, codeArgs: _*)
-        }
+        assert(impl.unify(Array.empty[Type], x.argTypes, rt))
+        val newState = EmitCode.present(mb, state.asRNGState.splitStatic(cb, staticUID))
+        impl.applyI(EmitRegion(cb.emb, region), cb, impl.computeReturnEmitType(x.typ, newState.emitType +: codeArgs.map(_.emitType)).st, Seq[Type](), const(0), newState +: codeArgsMem.map(_.load): _*)
 
       case AggStateValue(i, _) =>
         val AggContainer(_, sc, _) = container.get
@@ -2255,7 +2267,8 @@ class Emit[C](
 
       case ReadValue(path, spec, requestedType) =>
         emitI(path).map(cb) { pv =>
-          val ib = cb.memoize[InputBuffer](spec.buildCodeInputBuffer(mb.open(pv.asString.loadString(cb), checkCodec = true)))
+          val ib = cb.memoize[InputBuffer](spec.buildCodeInputBuffer(
+            mb.openUnbuffered(pv.asString.loadString(cb), checkCodec = true)))
           val decoded = spec.encodedType.buildDecoder(requestedType, mb.ecb)(cb, region, ib)
           cb += ib.close()
           decoded
@@ -2264,7 +2277,7 @@ class Emit[C](
       case WriteValue(value, path, spec) =>
         emitI(path).flatMap(cb) { case pv: SStringValue =>
           emitI(value).map(cb) { v =>
-            val ob = cb.memoize[OutputBuffer](spec.buildCodeOutputBuffer(mb.create(pv.asString.loadString(cb))))
+            val ob = cb.memoize[OutputBuffer](spec.buildCodeOutputBuffer(mb.createUnbuffered(pv.asString.loadString(cb))))
             spec.encodedType.buildEncoder(v.st, cb.emb.ecb)
               .apply(cb, v, ob)
             cb += ob.invoke[Unit]("close")
@@ -2381,6 +2394,11 @@ class Emit[C](
               (cname, decodedContext),
               (gname, decodedGlobal)), FastIndexedSeq())
 
+            if (ctx.executeContext.getFlag("print_ir_on_worker") != null)
+              cb.consoleInfo(cb.strValue(decodedContext))
+            if (ctx.executeContext.getFlag("print_inputs_on_worker") != null)
+              cb.consoleInfo(Pretty(ctx.executeContext, body, elideLiterals = true))
+
             val bodyResult = wrapInTuple(cb,
               region,
               EmitCode.fromI(cb.emb)(cb => new Emit(ctx, bodyFB.ecb).emitI(body, cb, env, None)))
@@ -2456,7 +2474,7 @@ class Emit[C](
           emitI(dynamicID).consume(cb,
             (),
             { dynamicID =>
-              cb.assign(stageName, stageName.concat(": ").concat(dynamicID.asString.loadString(cb)))
+              cb.assign(stageName, stageName.concat("|").concat(dynamicID.asString.loadString(cb)))
             })
 
           cb.assign(encRes, spark.invoke[BackendContext, HailClassLoader, FS, String, Array[Array[Byte]], Array[Byte], String, Option[TableStageDependency], Array[Array[Byte]]](

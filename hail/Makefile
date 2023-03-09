@@ -1,6 +1,6 @@
 .PHONY: jars clean
 
-HAIL_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
+HAIL_HAIL_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
 include env_var.mk
 
@@ -12,9 +12,9 @@ REVISION := $(shell git rev-parse HEAD)
 SHORT_REVISION := $(shell git rev-parse --short=12 HEAD)
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 SCALA_VERSION ?= 2.12.13
-SPARK_VERSION ?= 3.1.3
+SPARK_VERSION ?= 3.3.0
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 105
+HAIL_PATCH_VERSION := 110
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 ELASTIC_MAJOR_VERSION ?= 7
@@ -67,7 +67,7 @@ GRADLE_ARGS += -Dscala.version=$(SCALA_VERSION) -Dspark.version=$(SPARK_VERSION)
 
 QUERY_STORAGE_URI = $(shell kubectl get secret global-config --template={{.data.query_storage_uri}} | base64 --decode)
 TEST_STORAGE_URI = $(shell kubectl get secret global-config --template={{.data.test_storage_uri}} | base64 --decode)
-TOKEN := $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
+TOKEN := $(shell cat /dev/urandom 2> /dev/null | LC_ALL=C tr -dc 'a-z0-9' 2> /dev/null | head -c 12)
 
 ifeq ($(NAMESPACE),default)
 ifeq ($(UPLOAD_RELEASE_JAR),true)
@@ -80,9 +80,9 @@ endif
 else
 JAR_LOCATION = $(TEST_STORAGE_URI)/$(NAMESPACE)/jars/$(TOKEN)/$(REVISION).jar
 endif
-HAIL_TEST_RESOURCES_PREFIX = $(TEST_STORAGE_URI)/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources
-HAIL_TEST_RESOURCES_DIR = $(HAIL_TEST_RESOURCES_PREFIX)/test/resources/
-HAIL_DOCTEST_DATA_DIR = $(HAIL_TEST_RESOURCES_PREFIX)/doctest/data/
+CLOUD_HAIL_TEST_RESOURCES_PREFIX = $(TEST_STORAGE_URI)/$(shell whoami)/hail-test-resources
+CLOUD_HAIL_TEST_RESOURCES_DIR = $(CLOUD_HAIL_TEST_RESOURCES_PREFIX)/test/resources/
+CLOUD_HAIL_DOCTEST_DATA_DIR = $(CLOUD_HAIL_TEST_RESOURCES_PREFIX)/doctest/data/
 
 .PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
@@ -98,6 +98,9 @@ $(SHADOW_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) env/HAIL_DEBUG_MODE env/ELASTI
 ifdef HAIL_DEBUG_MODE
 	$(JAR) -uf $(SHADOW_JAR) -C $(BUILD_DEBUG_PREFIX) is/hail/annotations/Memory.class
 endif
+
+.PHONY: shadowTestJar
+shadowTestJar: $(SHADOW_TEST_JAR)
 
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_TEST_JAR): native-lib-prebuilt
@@ -182,12 +185,13 @@ pytest: python/README.md $(PYTHON_JAR)
 .PHONY: pytest-qob
 pytest-qob: upload-qob-jar upload-qob-test-resources install-editable
 	! [ -z $(NAMESPACE) ]  # call this like: make pytest-qob NAMESPACE=default
-	HAIL_QUERY_BACKEND=batch \
-	HAIL_QUERY_JAR_URL=$$(cat upload-qob-jar) \
+	cd python && \
+  HAIL_QUERY_BACKEND=batch \
+	HAIL_QUERY_JAR_URL=$$(cat ../upload-qob-jar) \
 	HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
-	HAIL_TEST_RESOURCES_DIR='$(HAIL_TEST_RESOURCES_DIR)' \
+	HAIL_TEST_RESOURCES_DIR='$(CLOUD_HAIL_TEST_RESOURCES_DIR)' \
 	HAIL_DOCTEST_DATA_DIR='$(HAIL_DOCTEST_DATA_DIR)' \
-	cd python && pytest \
+	pytest \
 		-v \
 		--color=no \
 		--instafail \
@@ -267,14 +271,31 @@ resources := $(wildcard python/hailtop/hailctl/dataproc/resources/*)
 $(eval $(call ENV_VAR,cloud_base))
 $(eval $(call ENV_VAR,wheel_cloud_path))
 
+
+.PHONY: generate-pip-lockfiles
+generate-pip-lockfiles:
+	HAIL_HAIL_DIR=$(HAIL_HAIL_DIR) \
+	../generate_pip_lockfile.sh python/hailtop/requirements.txt python/hailtop/pinned-requirements.txt && \
+	HAIL_HAIL_DIR=$(HAIL_HAIL_DIR) \
+	../generate_pip_lockfile.sh python/requirements.txt python/pinned-requirements.txt && \
+	HAIL_HAIL_DIR=$(HAIL_HAIL_DIR) \
+	../generate_pip_lockfile.sh python/dev/requirements.txt python/dev/pinned-requirements.txt
+
+
+.PHONY: check-pip-lockfile
+check-pip-lockfile:
+	$(PIP) install pip-tools && bash ../check_pip_requirements.sh python/requirements.txt python/pinned-requirements.txt
+
+
 python/hailtop/hailctl/deploy.yaml: env/cloud_base env/wheel_cloud_path
-python/hailtop/hailctl/deploy.yaml: $(resources) python/requirements.txt
+python/hailtop/hailctl/deploy.yaml: $(resources) check-pip-lockfile
 	rm -f $@
 	echo "dataproc:" >> $@
 	for FILE in $(notdir $(resources)); do \
 	  echo "  $$FILE: $(cloud_base)/$$FILE" >> $@ || exit 1; done
 	echo "  wheel: $(wheel_cloud_path)" >> $@
-	echo "  pip_dependencies: $(shell cat python/requirements.txt | sed '/^[[:blank:]]*#/d;s/#.*//' | grep -v pyspark | tr "\n" "|||")" >> $@
+	printf "  pip_dependencies: " >> $@
+	cat python/pinned-requirements.txt | sed '/^[[:blank:]]*#/d;s/#.*//' | grep -v pyspark | tr "\n" "|||" | tr -d '[:space:]' >> $@
 
 .PHONY: upload-artifacts
 upload-artifacts: $(WHEEL)
@@ -288,15 +309,14 @@ upload-artifacts: $(WHEEL)
 # > rm upload-qob-test-resources
 upload-qob-test-resources: $(JAR_TEST_SOURCES)
 	! [ -z $(NAMESPACE) ]  # call this like: make upload-qob-test-resources NAMESPACE=default
-	gsutil -m cp -r src/test/resources $(HAIL_TEST_RESOURCES_DIR)
-	gsutil -m cp -r python/hail/docs/data $(HAIL_DOCTEST_DATA_DIR)
+	gsutil -m cp -r src/test/resources/\* $(CLOUD_HAIL_TEST_RESOURCES_DIR)
+	gsutil -m cp -r python/hail/docs/data/\* $(CLOUD_HAIL_DOCTEST_DATA_DIR)
 	touch $@
 
 # NOTE: 1-day expiration of the test bucket means that this
 # target must be run at least once a day if using a dev NAMESPACE.
 # To trigger this target to re-run,
 # > rm upload-qob-jar
-upload-qob-jar: SPARK_VERSION := 3.2.1
 upload-qob-jar: $(SHADOW_JAR)
 	! [ -z $(NAMESPACE) ]  # call this like: make upload-qob-jar NAMESPACE=default
 	gsutil -m cp $(SHADOW_JAR) $(JAR_LOCATION)
@@ -323,8 +343,8 @@ install: $(WHEEL)
 	hailctl config set query/backend spark
 
 .PHONY: install-on-cluster
-install-on-cluster: $(WHEEL)
-	sed '/^pyspark/d' python/requirements.txt | grep -v '^#' | tr '\n' '\0' | xargs -0 $(PIP) install -U
+install-on-cluster: $(WHEEL) check-pip-lockfile
+	sed '/^pyspark/d' python/pinned-requirements.txt | grep -v -e '^[[:space:]]*#' -e '^$$' | tr '\n' '\0' | xargs -0 $(PIP) install -U
 	-$(PIP) uninstall -y hail
 	$(PIP) install $(WHEEL) --no-deps
 	hailctl config set query/backend spark
@@ -371,13 +391,6 @@ install-dev-deps:
 install-deps: install-dev-deps
 	sed "s/^pyspark.*/pyspark==$(SPARK_VERSION)/" python/requirements.txt | xargs $(PIP) install -U
 
-.PHONY: generate-pip-lockfile
-generate-pip-lockfile:
-	pip-compile --upgrade python/requirements.txt \
-		--output-file=python/pinned-requirements.txt
-	pip-compile --upgrade python/dev/requirements.txt \
-		--output-file=python/dev/pinned-requirements.txt
-
 .PHONY: benchmark
 benchmark: $(WHEEL)
 	HAIL_WHEEL=../hail/$(WHEEL) HAIL_PIP_VERSION=$(HAIL_PIP_VERSION) $(MAKE) -C ../benchmark benchmark
@@ -400,7 +413,7 @@ endif
 .PHONY: batch-docs
 batch-docs:
 	$(MAKE) -C python/hailtop/batch/docs \
-	      BUILDDIR=$(HAIL_DIR)/build/docs/batch \
+	      BUILDDIR=$(HAIL_HAIL_DIR)/build/docs/batch \
 	      html
 	rm -rf build/www/docs/batch
 	mkdir -p build/www/docs
@@ -416,7 +429,7 @@ HAIL_CACHE_VERSION = $(shell cat python/hail/hail_version)
 hail-docs: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	$(MAKE) -C python/hail/docs \
 	        SPHINXOPTS='-tgenerate_notebook_outputs' \
-	        BUILDDIR=$(HAIL_DIR)/build/docs/hail \
+	        BUILDDIR=$(HAIL_HAIL_DIR)/build/docs/hail \
 	        html
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
@@ -430,7 +443,7 @@ hail-docs: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 .PHONY: hail-docs-no-test
 hail-docs-no-test: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	$(MAKE) -C python/hail/docs \
-	        BUILDDIR=$(HAIL_DIR)/build/docs/hail \
+	        BUILDDIR=$(HAIL_HAIL_DIR)/build/docs/hail \
 	        html
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
@@ -439,7 +452,7 @@ hail-docs-no-test: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	     -iname *.html \
 	     -type f \
 	     -exec $(SED_INPLACE) -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
-	@echo Built docs: file://$(HAIL_DIR)/build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
+	@echo Built docs: file://$(HAIL_HAIL_DIR)/build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
 .PHONY: upload-docs
 upload-docs: hail-docs batch-docs

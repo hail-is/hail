@@ -29,8 +29,7 @@ from .exceptions import BatchException
 from .globals import DEFAULT_SHELL
 
 
-HAIL_GENETICS_HAIL_IMAGE = os.environ.get('HAIL_GENETICS_HAIL_IMAGE',
-                                          f'hailgenetics/hail:{pip_version()}')
+HAIL_GENETICS_HAILTOP_IMAGE = os.environ.get('HAIL_GENETICS_HAILTOP_IMAGE', f'hailgenetics/hailtop:{pip_version()}')
 
 
 RunningBatchType = TypeVar('RunningBatchType')
@@ -202,6 +201,7 @@ class LocalBackend(Backend[None]):
                 if r not in copied_input_resource_files:
                     copied_input_resource_files.add(r)
 
+                    assert r._input_path
                     input_scheme = url_scheme(r._input_path)
                     if input_scheme != '':
                         transfers_bytes = orjson.dumps([{"from": r._input_path, "to": r._get_path(tmpdir)}])
@@ -616,7 +616,7 @@ class ServiceBackend(Backend[bc.Batch]):
             if dry_run:
                 commands.append(' '.join(shq(x) for x in write_cmd))
             else:
-                j = bc_batch.create_job(image=HAIL_GENETICS_HAIL_IMAGE,
+                j = bc_batch.create_job(image=HAIL_GENETICS_HAILTOP_IMAGE,
                                         command=write_cmd,
                                         attributes={'name': 'write_external_inputs'})
                 jobs_to_command[j] = ' '.join(shq(x) for x in write_cmd)
@@ -635,9 +635,10 @@ class ServiceBackend(Backend[bc.Batch]):
             batch_remote_tmpdir, dry_run=dry_run
         )
 
+        disable_setup_steps_progress_bar = disable_progress_bar or len(batch._jobs) < 10_000
         with SimpleRichProgressBar(total=len(batch._jobs),
                                    description='upload code',
-                                   disable=disable_progress_bar) as pbar:
+                                   disable=disable_setup_steps_progress_bar) as pbar:
             async def compile_job(job):
                 used_remote_tmpdir = await job._compile(local_tmpdir, batch_remote_tmpdir, dry_run=dry_run)
                 pbar.update(1)
@@ -645,7 +646,7 @@ class ServiceBackend(Backend[bc.Batch]):
             used_remote_tmpdir_results = await bounded_gather(*[functools.partial(compile_job, j) for j in batch._jobs], parallelism=150)
             used_remote_tmpdir |= any(used_remote_tmpdir_results)
 
-        for job in track(batch._jobs, description='create job objects', disable=disable_progress_bar):
+        for job in track(batch._jobs, description='create job objects', disable=disable_setup_steps_progress_bar):
             inputs = [x for r in job._inputs for x in copy_input(r)]
 
             outputs = [x for r in job._internal_outputs for x in copy_internal_output(r)]
@@ -731,7 +732,8 @@ class ServiceBackend(Backend[bc.Batch]):
                                     requester_pays_project=batch.requester_pays_project,
                                     mount_tokens=True,
                                     user_code=user_code,
-                                    regions=job._regions)
+                                    regions=job._regions,
+                                    always_copy_output=job._always_copy_output)
 
             n_jobs_submitted += 1
 
@@ -745,7 +747,7 @@ class ServiceBackend(Backend[bc.Batch]):
         if delete_scratch_on_exit and used_remote_tmpdir:
             parents = list(jobs_to_command.keys())
             j = bc_batch.create_job(
-                image=HAIL_GENETICS_HAIL_IMAGE,
+                image=HAIL_GENETICS_HAILTOP_IMAGE,
                 command=['python3', '-m', 'hailtop.aiotools.delete', batch_remote_tmpdir],
                 parents=parents,
                 attributes={'name': 'remove_tmpdir'},

@@ -115,8 +115,8 @@ class CopyReport:
                  files_listener: Optional[Callable[[int], None]] = None,
                  bytes_listener: Optional[Callable[[int], None]] = None):
         self._start_time = time_msecs()
-        self._end_time = None
-        self._duration = None
+        self._end_time: Optional[int] = None
+        self._duration: Optional[int] = None
         if isinstance(transfer, Transfer):
             self._transfer_report: Union[TransferReport, List[TransferReport]] = TransferReport(
                 transfer, files_listener=files_listener, bytes_listener=bytes_listener)
@@ -161,6 +161,7 @@ class CopyReport:
         print(f'  Files: {total_files}')
         print(f'  Bytes: {humanize.naturalsize(total_bytes)}')
         print(f'  Time: {humanize_timedelta_msecs(self._duration)}')
+        assert self._duration is not None
         if self._duration > 0:
             print(f'  Average transfer rate: {humanize.naturalsize(total_bytes / (self._duration / 1000))}/s')
 

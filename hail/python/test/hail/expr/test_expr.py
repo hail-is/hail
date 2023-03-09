@@ -8,10 +8,8 @@ import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr.types import *
 from hail.expr.functions import _error_from_cdf
+import hail.ir as ir
 from ..helpers import *
-
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
 
 
 def _test_many_equal(test_cases):
@@ -90,8 +88,6 @@ class Tests(unittest.TestCase):
             evaled = hl.eval(hl.zeros(size))
             assert evaled == [0 for i in range(size)]
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_seeded_sampling(self):
         sampled1 = hl.utils.range_table(50, 6).filter(hl.rand_bool(0.5))
         sampled2 = hl.utils.range_table(50, 5).filter(hl.rand_bool(0.5))
@@ -300,7 +296,6 @@ class Tests(unittest.TestCase):
         for f, t in kt.row.dtype.items():
             self.assertEqual(expected_schema[f], t)
 
-    @fails_service_backend()
     def test_genetics_constructors(self):
         rg = hl.ReferenceGenome("foo", ["1"], {"1": 100})
 
@@ -2808,8 +2803,6 @@ class Tests(unittest.TestCase):
 +---------+
 '''
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_export_genetic_data(self):
         mt = hl.balding_nichols_model(1, 3, 3)
         mt = mt.key_cols_by(s = 's' + hl.str(mt.sample_idx))
@@ -3896,3 +3889,185 @@ def test_export_entry(delimiter, missing, header):
                             1, 2, 3,
                             2, None, 6]
         assert expected_collect == actual.x.collect()
+
+
+def test_stream_randomness():
+    def assert_contains_node(expr, node):
+        assert(expr._ir.base_search(lambda x: isinstance(x, node)))
+
+    def assert_unique_uids(a):
+        n1 = hl.eval(a.to_array().length())
+        n2 = len(hl.eval(hl.set(a.map(lambda x: hl.rand_int64()).to_array())))
+        assert(n1 == n2)
+
+    # test NA
+    a = hl.missing('array<int32>')
+    a = a.map(lambda x: x + hl.rand_int32(10))
+    assert_contains_node(a, ir.NA)
+    assert(hl.eval(a) == None)
+
+    # test If
+    a1 = hl._stream_range(0, 5)
+    a2 = hl._stream_range(2, 20)
+    a = hl.if_else(False, a1, a2)
+    assert_contains_node(a, ir.If)
+    assert_unique_uids(a)
+
+    # test StreamIota
+    s = hl._stream_range(10).zip_with_index(0)
+    assert_contains_node(s, ir.StreamIota)
+    assert_unique_uids(s)
+
+    # test ToArray
+    a = hl._stream_range(10)
+    a = a.map(lambda x: hl.rand_int64()).to_array()
+    assert_contains_node(a, ir.ToArray)
+    assert(len(set(hl.eval(a))) == 10)
+
+    # test ToStream
+    t = hl.rbind(hl.range(10),
+                 lambda a: (a, a.map(lambda x: hl.rand_int64())))
+    assert_contains_node(t, ir.ToStream)
+    (a, r) = hl.eval(t)
+    assert(len(set(r)) == len(a))
+
+    # test StreamZip
+    a1 = hl._stream_range(10)
+    a2 = hl._stream_range(15)
+    a = hl._zip_streams(a1, a2, fill_missing=True)
+    assert_contains_node(a, ir.StreamZip)
+    assert_unique_uids(a)
+    a = hl._zip_streams(a1, a2, fill_missing=False)
+    assert_contains_node(a, ir.StreamZip)
+    assert_unique_uids(a)
+
+    # test StreamFilter
+    a = hl._stream_range(15).filter(lambda x: x % 3 != 0)
+    assert_contains_node(a, ir.StreamFilter)
+    assert_unique_uids(a)
+
+    # test StreamFilter
+    a = hl._stream_range(5).flatmap(lambda x: hl._stream_range(x))
+    assert_contains_node(a, ir.StreamFlatMap)
+    assert_unique_uids(a)
+
+    # test StreamFold
+    a = hl._stream_range(10)
+    a = a.fold(lambda acc, x: acc.append(hl.rand_int64()), hl.empty_array(hl.tint64))
+    assert_contains_node(a, ir.StreamFold)
+    assert(len(set(hl.eval(a))) == 10)
+
+    # test StreamScan
+    a = hl._stream_range(5)
+    a = a.scan(lambda acc, x: acc.append(hl.rand_int64()), hl.empty_array(hl.tint64))
+    assert_contains_node(a, ir.StreamScan)
+    assert(len(set(hl.eval(a.to_array())[-1])) == 5)
+
+    # test AggExplode
+    t = hl.utils.range_table(5)
+    t = t.annotate(a = hl.range(t.idx))
+    a = hl.agg.explode(lambda x: hl.agg.collect_as_set(hl.rand_int64()), t.a)
+    assert_contains_node(a, ir.AggExplode)
+    assert(len(t.aggregate(a)) == 10)
+
+    # test TableCount
+    t = hl.utils.range_table(10)
+    t = t.annotate(x = hl.rand_int64())
+    assert(t.count() == 10)
+
+    # test TableGetGlobals
+    t = hl.utils.range_table(10)
+    t = t.annotate(x = hl.rand_int64())
+    g = t.index_globals()
+    assert_contains_node(g, ir.TableGetGlobals)
+    assert(len(hl.eval(g)) == 0)
+
+    # test TableCollect
+    t = hl.utils.range_table(10)
+    t = t.annotate(x = hl.rand_int64())
+    a = t.collect()
+    assert(len(set(a)) == 10)
+
+    # test TableAggregate
+    t = hl.utils.range_table(10)
+    a = t.aggregate(hl.agg.collect(hl.rand_int64()).map(lambda x: x + hl.rand_int64()))
+    assert(len(set(a)) == 10)
+
+    # test MatrixCount
+    mt = hl.utils.range_matrix_table(10, 10)
+    mt = mt.annotate_entries(x = hl.rand_int64())
+    assert(mt.count() == (10, 10))
+
+    # test MatrixAggregate
+    mt = hl.utils.range_matrix_table(5, 5)
+    a = mt.aggregate_entries(hl.agg.collect(hl.rand_int64()).map(lambda x: x + hl.rand_int64()))
+    assert(len(set(a)) == 25)
+def test_keyed_intersection():
+    a1 = hl.literal(
+        [
+            hl.Struct(a=5, b='foo'),
+            hl.Struct(a=7, b='bar'),
+            hl.Struct(a=9, b='baz'),
+        ]
+    )
+    a2 = hl.literal(
+        [
+            hl.Struct(a=5, b='foo'),
+            hl.Struct(a=6, b='qux'),
+            hl.Struct(a=8, b='qux'),
+            hl.Struct(a=9, b='baz'),
+        ]
+    )
+    assert hl.eval(hl.keyed_intersection(a1, a2, key=['a'])) == [
+        hl.Struct(a=5, b='foo'),
+        hl.Struct(a=9, b='baz'),
+    ]
+
+
+def test_keyed_union():
+    a1 = hl.literal(
+        [
+            hl.Struct(a=5, b='foo'),
+            hl.Struct(a=7, b='bar'),
+            hl.Struct(a=9, b='baz'),
+        ]
+    )
+    a2 = hl.literal(
+        [
+            hl.Struct(a=5, b='foo'),
+            hl.Struct(a=6, b='qux'),
+            hl.Struct(a=8, b='qux'),
+            hl.Struct(a=9, b='baz'),
+        ]
+    )
+    assert hl.eval(hl.keyed_union(a1, a2, key=['a'])) == [
+        hl.Struct(a=5, b='foo'),
+        hl.Struct(a=6, b='qux'),
+        hl.Struct(a=7, b='bar'),
+        hl.Struct(a=8, b='qux'),
+        hl.Struct(a=9, b='baz'),
+    ]
+
+
+def test_to_relational_row_and_col_refs():
+    mt = hl.utils.range_matrix_table(1, 1)
+    mt = mt.annotate_rows(x=1)
+    mt = mt.annotate_cols(y=1)
+    mt = mt.annotate_entries(z=1)
+
+    assert mt.row._to_relational_preserving_rows_and_cols('x')[1].row.dtype == hl.tstruct(row_idx=hl.tint32, x=hl.tint32)
+    assert mt.row_key._to_relational_preserving_rows_and_cols('x')[1].row.dtype == hl.tstruct(row_idx=hl.tint32)
+
+    assert mt.col._to_relational_preserving_rows_and_cols('x')[1].row.dtype == hl.tstruct(col_idx=hl.tint32, y=hl.tint32)
+    assert mt.col_key._to_relational_preserving_rows_and_cols('x')[1].row.dtype == hl.tstruct(col_idx=hl.tint32)
+
+
+def test_locus_addition():
+
+    rg = hl.get_reference('GRCh37')
+    len_1 = rg.lengths['1']
+    loc = hl.locus('1', 5, reference_genome='GRCh37')
+
+    assert hl.eval((loc + 10) == hl.locus('1', 15, reference_genome='GRCh37'))
+    assert hl.eval((loc - 10) == hl.locus('1', 1, reference_genome='GRCh37'))
+    assert hl.eval((loc + 2_000_000_000) == hl.locus('1', len_1, reference_genome='GRCh37'))

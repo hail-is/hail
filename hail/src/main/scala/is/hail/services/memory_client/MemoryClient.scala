@@ -1,12 +1,13 @@
 package is.hail.services.memory_client
 
-import java.io.{DataInputStream, IOException, InputStream}
+import java.io._
 
 import is.hail.HailContext
 import is.hail.io.fs.{Seekable, Positioned}
 import is.hail.services.{ClientResponseException, DeployConfig, Requester, Tokens}
-import org.apache.http.client.methods.{HttpGet, HttpPost}
-import org.apache.http.entity.ByteArrayEntity
+import org.apache.http.client.methods._
+import org.apache.http.entity._
+import org.apache.http._
 import org.apache.http.client.utils.URIBuilder
 import org.apache.log4j.{LogManager, Logger}
 import org.json4s.JValue
@@ -43,6 +44,29 @@ class MemoryClient(val deployConfig: DeployConfig, tokens: Tokens) {
     val uri = new URIBuilder(s"$baseUrl/api/v1alpha/objects").addParameter("q", path)
     val req = new HttpPost(uri.build())
     requester.request(req, new ByteArrayEntity(data))
+  }
+
+  def writeToStream(
+    path: String,
+    _isRepeatable: Boolean = false,
+    _contentType: String = "application/octet-stream",
+    _contentLength: Long = -1,
+    _isChunked: Boolean = true
+  )(
+    writer: OutputStream => Unit
+  ): Unit = {
+    val uri = new URIBuilder(s"$baseUrl/api/v1alpha/objects").addParameter("q", path)
+    val req = new HttpPost(uri.build())
+    val entity = new AbstractHttpEntity {
+      def isRepeatable(): Boolean = _isRepeatable
+      def writeTo(os: OutputStream): Unit = writer(os)
+      def getContentLength() = _contentLength
+      def getContent() = throw new UnsupportedOperationException()
+      def isStreaming() = true
+    }
+    entity.setContentType(_contentType)
+    entity.setChunked(_isChunked)
+    requester.request(req, entity)
   }
 }
 

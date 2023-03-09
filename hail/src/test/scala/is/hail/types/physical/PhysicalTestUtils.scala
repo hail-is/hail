@@ -14,13 +14,13 @@ abstract class PhysicalTestUtils extends HailSuite {
     val region = Region(pool=pool)
 
     val srcAddress = sourceType match {
-      case x: PSubsetStruct => ScalaToRegionValue(srcRegion, x.ps, sourceValue)
-      case _ => ScalaToRegionValue(srcRegion, sourceType, sourceValue)
+      case x: PSubsetStruct => ScalaToRegionValue(ctx.stateManager, srcRegion, x.ps, sourceValue)
+      case _ => ScalaToRegionValue(ctx.stateManager, srcRegion, sourceType, sourceValue)
     }
 
     if (interpret) {
       try {
-        val copyOff = destType.copyFromAddress(region, sourceType, srcAddress, deepCopy = deepCopy)
+        val copyOff = destType.copyFromAddress(ctx.stateManager, region, sourceType, srcAddress, deepCopy = deepCopy)
         val copy = UnsafeRow.read(destType, region, copyOff)
 
         log.info(s"Copied value: ${copy}, Source value: ${sourceValue}")

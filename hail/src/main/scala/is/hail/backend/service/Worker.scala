@@ -1,5 +1,6 @@
 package is.hail.backend.service
 
+import java.util
 import java.io._
 import java.nio.charset._
 import java.util.{concurrent => javaConcurrent}
@@ -41,6 +42,40 @@ class WorkerTimer() {
     startTime.foreach { s =>
       val durationMS = "%.6f".format((endTime - s).toDouble / 1000000.0)
       log.info(s"$label took $durationMS ms.")
+    }
+  }
+}
+
+// Java's ObjectInputStream does not properly use the context classloader that
+// we set on the thread and knows about the hail jar. We need to explicitly force
+// the ObjectInputStream to use the correct classloader, but it is not configurable
+// so we override the behavior ourselves.
+// For more context, see: https://github.com/scala/bug/issues/9237#issuecomment-292436652
+object ExplicitClassLoaderInputStream {
+  val primClasses: util.HashMap[String, Class[_]] = {
+    val m = new util.HashMap[String, Class[_]](8, 1.0F)
+    m.put("boolean", Boolean.getClass)
+    m.put("byte", Byte.getClass)
+    m.put("char", Char.getClass)
+    m.put("short", Short.getClass)
+    m.put("int", Int.getClass)
+    m.put("long", Long.getClass)
+    m.put("float", Float.getClass)
+    m.put("double", Double.getClass)
+    m.put("void", Unit.getClass)
+    m
+  }
+}
+class ExplicitClassLoaderInputStream(is: InputStream, cl: ClassLoader) extends ObjectInputStream(is) {
+
+  override def resolveClass(desc: ObjectStreamClass): Class[_] = {
+    val name = desc.getName
+    try return Class.forName(name, false, cl)
+    catch {
+      case ex: ClassNotFoundException =>
+        val cl = ExplicitClassLoaderInputStream.primClasses.get(name)
+        if (cl != null) return cl
+        else throw ex
     }
   }
 }
@@ -89,15 +124,15 @@ object Worker {
     val fs = FS.cloudSpecificCacheableFS(s"$scratchDir/secrets/gsa-key/key.json", None)
 
     // FIXME: HACK
-    val (open, create) = if (n <= 50) {
-      (fs.openCachedNoCompression _, fs.createCachedNoCompression _)
+    val (open, write) = if (n <= 50) {
+      (fs.openCachedNoCompression _, fs.writeCached _)
     } else {
-      ((x: String) => fs.openNoCompression(x), fs.createNoCompression _)
+      ((x: String) => fs.openNoCompression(x), fs.writePDOS _)
     }
 
     val fFuture = Future {
       retryTransientErrors {
-        using(new ObjectInputStream(open(s"$root/f"))) { is =>
+        using(new ExplicitClassLoaderInputStream(open(s"$root/f"), theHailClassLoader)) { is =>
           is.readObject().asInstanceOf[(Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]]
         }
       }
@@ -140,28 +175,30 @@ object Worker {
     } catch {
       case err: HailException => userError = err
     }
-    htc.finish()
+    htc.close()
 
     timer.end("executeFunction")
     timer.start("writeOutputs")
 
-    using(create(s"$root/result.$i")) { os =>
-      val dos = new DataOutputStream(os)
-      if (result != null) {
-        assert(userError == null)
+    retryTransientErrors {
+      write(s"$root/result.$i") { dos =>
+        if (result != null) {
+          assert(userError == null)
 
-        dos.writeBoolean(true)
-        dos.write(result)
-      } else {
-        assert(userError != null)
-        val (shortMessage, expandedMessage, errorId) = handleForPython(userError)
+          dos.writeBoolean(true)
+          dos.write(result)
+        } else {
+          assert(userError != null)
+          val (shortMessage, expandedMessage, errorId) = handleForPython(userError)
 
-        dos.writeBoolean(false)
-        writeString(dos, shortMessage)
-        writeString(dos, expandedMessage)
-        dos.writeInt(errorId)
+          dos.writeBoolean(false)
+          writeString(dos, shortMessage)
+          writeString(dos, expandedMessage)
+          dos.writeInt(errorId)
+        }
       }
     }
+
     timer.end("writeOutputs")
     timer.end(s"Job $i")
     log.info(s"finished job $i at root $root")

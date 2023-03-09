@@ -4,7 +4,7 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.IRBuilder._
+import is.hail.expr.ir.DeprecatedIRBuilder._
 import is.hail.expr.ir.functions.MatrixToMatrixFunction
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.fs.FS
@@ -154,7 +154,7 @@ trait MatrixReader {
   final def colUIDFieldName: String = MatrixReader.colUIDFieldName
 }
 
-abstract class MatrixHybridReader extends TableReader with MatrixReader {
+abstract class MatrixHybridReader extends TableReaderWithExtraUID with MatrixReader {
   override def uidType = rowUIDType
 
   override def fullTypeWithoutUIDs: TableType = matrixToTableType(

@@ -51,7 +51,7 @@ class DownsampleSuite extends HailSuite {
     }
 
     pool.scopedSmallRegion { r =>
-      fb.resultWithIndex().apply(theHailClassLoader, ctx.fs, 0, r).apply(pool)
+      fb.resultWithIndex().apply(theHailClassLoader, ctx.fs, ctx.taskContext, r).apply(pool)
     }
   }
 }

@@ -4,13 +4,11 @@ import random
 import pytest
 
 import hail as hl
+import hail.ir as ir
 import hail.expr.aggregators as agg
 from hail.utils.java import Env
 from hail.utils.misc import new_temp_file
 from ..helpers import *
-
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
@@ -1737,7 +1735,6 @@ class Tests(unittest.TestCase):
         assert t.filter(t.locus.position >= 1).collect() == [
             hl.utils.Struct(idx=0, locus=hl.genetics.Locus(contig='2', position=1, reference_genome='GRCh37'))]
 
-    @fails_service_backend()
     @fails_local_backend()
     def test_lower_row_agg_init_arg(self):
         mt = hl.balding_nichols_model(5, 200, 200)
@@ -1784,3 +1781,340 @@ def test_filter_against_invalid_contig():
     mt = hl.balding_nichols_model(3, 5, 20)
     fmt = mt.filter_rows(mt.locus.contig == "chr1")
     assert fmt.rows()._force_count() == 0
+
+
+def test_matrix_randomness():
+    def assert_unique_uids(mt):
+        x = mt.aggregate_rows(hl.struct(r=hl.agg.collect_as_set(hl.rand_int64()), n=hl.agg.count()))
+        assert(len(x.r) == x.n)
+        x = mt.aggregate_cols(hl.struct(r=hl.agg.collect_as_set(hl.rand_int64()), n=hl.agg.count()))
+        assert(len(x.r) == x.n)
+        x = mt.aggregate_entries(hl.struct(r=hl.agg.collect_as_set(hl.rand_int64()), n=hl.agg.count()))
+        assert(len(x.r) == x.n)
+
+    def assert_contains_node(t, node):
+        assert(t._mir.base_search(lambda x: isinstance(x, node)))
+
+    # test MatrixRead
+    mt = hl.utils.range_matrix_table(10, 10, 3)
+    assert_contains_node(mt, ir.MatrixRead)
+    assert_unique_uids(mt)
+
+    # test MatrixAggregateRowsByKey
+    rmt = hl.utils.range_matrix_table(20, 10, 3)
+    # with body randomness
+    mt = (rmt.group_rows_by(k=rmt.row_idx % 5)
+        .aggregate_rows(r=hl.rand_int64())
+        .aggregate_entries(e=hl.rand_int64())
+        .result())
+    assert_contains_node(mt, ir.MatrixAggregateRowsByKey)
+    x = mt.aggregate_rows(hl.struct(r=hl.agg.collect_as_set(mt.r), n=hl.agg.count()))
+    assert(len(x.r) == x.n)
+    x = mt.aggregate_entries(hl.struct(r=hl.agg.collect_as_set(mt.e), n=hl.agg.count()))
+    assert(len(x.r) == x.n)
+    assert_unique_uids(mt)
+    # with agg randomness
+    mt = (rmt.group_rows_by(k=rmt.row_idx % 5)
+          .aggregate_rows(r=hl.agg.collect(hl.rand_int64()))
+          .aggregate_entries(e=hl.agg.collect(hl.rand_int64()))
+          .result())
+    assert_contains_node(mt, ir.MatrixAggregateRowsByKey)
+    x = mt.aggregate_rows(hl.agg.explode(lambda r: hl.struct(r=hl.agg.collect_as_set(r), n=hl.agg.count()), mt.r))
+    assert(len(x.r) == x.n)
+    x = mt.aggregate_entries(hl.agg.explode(lambda r: hl.struct(r=hl.agg.collect_as_set(r), n=hl.agg.count()), mt.e))
+    assert(len(x.r) == x.n)
+    assert_unique_uids(mt)
+    # w/o body randomness
+    mt = (rmt.group_rows_by(k=rmt.row_idx % 5)
+          .aggregate_rows(row_agg=hl.agg.sum(rmt.row_idx))
+          .aggregate_entries(entry_agg=hl.agg.sum(rmt.row_idx + rmt.col_idx))
+          .result())
+    assert_contains_node(mt, ir.MatrixAggregateRowsByKey)
+    assert_unique_uids(mt)
+
+    # test MatrixFilterRows
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
+    # with cond randomness
+    mt = rmt.filter_rows(hl.rand_int64() % 2 == 0)
+    assert_contains_node(mt, ir.MatrixFilterRows)
+    mt.entries()._force_count() # test with no consumer randomness
+    assert_unique_uids(mt)
+    # w/o cond randomness
+    mt = rmt.filter_rows(rmt.row_idx < 5)
+    assert_contains_node(mt, ir.MatrixFilterRows)
+    assert_unique_uids(mt)
+
+    # test MatrixChooseCols
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
+    mt = rmt.choose_cols([2, 3, 7])
+    assert_contains_node(mt, ir.MatrixChooseCols)
+    assert_unique_uids(mt)
+
+    # test MatrixMapCols
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
+    # with body randomness
+    mt = rmt.annotate_cols(r=hl.rand_int64())
+    assert_contains_node(mt, ir.MatrixMapCols)
+    x = mt.aggregate_cols(hl.struct(r=hl.agg.collect_as_set(mt.r), n=hl.agg.count()))
+    assert(len(x.r) == x.n)
+    assert_unique_uids(mt)
+    # with agg randomness
+    mt = rmt.annotate_cols(r=hl.agg.collect(hl.rand_int64()))
+    assert_contains_node(mt, ir.MatrixMapCols)
+    x = mt.aggregate_cols(hl.agg.explode(lambda r: hl.struct(r=hl.agg.collect_as_set(r), n=hl.agg.count()), mt.r))
+    assert(len(x.r) == x.n)
+    assert_unique_uids(mt)
+    # with scan randomness
+    mt = rmt.annotate_cols(r=hl.scan.collect(hl.rand_int64()))
+    assert_contains_node(mt, ir.MatrixMapCols)
+    x = mt.aggregate_cols(hl.struct(r=hl.agg.explode(lambda r: hl.agg.collect_as_set(r), mt.r), n=hl.agg.count()))
+    assert(len(x.r) == x.n - 1)
+    assert_unique_uids(mt)
+    # w/o body randomness
+    mt = rmt.annotate_cols(x=2*rmt.col_idx)
+    assert_contains_node(mt, ir.MatrixMapCols)
+    assert_unique_uids(mt)
+
+    # test MatrixUnionCols
+    r, c = 5, 5
+    mt = hl.utils.range_matrix_table(2*r, c)
+    mt2 = hl.utils.range_matrix_table(2*r, c)
+    mt2 = mt2.key_rows_by(row_idx=mt2.row_idx + r)
+    mt2 = mt2.key_cols_by(col_idx=mt2.col_idx + c)
+    mt = mt.union_cols(mt2)
+    assert_contains_node(mt, ir.MatrixUnionCols)
+    assert_unique_uids(mt)
+
+    # test MatrixMapEntries
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
+    # with body randomness
+    mt = rmt.annotate_entries(r=hl.rand_int64())
+    assert_contains_node(mt, ir.MatrixMapEntries)
+    x = mt.aggregate_entries(hl.struct(r=hl.agg.collect_as_set(mt.r), n=hl.agg.count()))
+    assert(len(x.r) == x.n)
+    assert_unique_uids(mt)
+    # w/o body randomness
+    mt = rmt.annotate_entries(x=rmt.row_idx + rmt.col_idx)
+    assert_contains_node(mt, ir.MatrixMapEntries)
+    assert_unique_uids(mt)
+
+    # test MatrixFilterEntries
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
+    # with cond randomness
+    mt = rmt.filter_entries(hl.rand_int64() % 2 == 0)
+    assert_contains_node(mt, ir.MatrixFilterEntries)
+    mt.entries()._force_count() # test with no consumer randomness
+    assert_unique_uids(mt)
+    # w/o cond randomness
+    mt = rmt.filter_entries(rmt.row_idx + rmt.col_idx < 10)
+    assert_contains_node(mt, ir.MatrixFilterEntries)
+    assert_unique_uids(mt)
+
+    # test MatrixKeyRowsBy
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
+    mt = rmt.key_rows_by(k=rmt.row_idx // 4)
+    assert_contains_node(mt, ir.MatrixKeyRowsBy)
+    assert_unique_uids(mt)
+
+    # test MatrixMapRows
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
+    # with body randomness
+    mt = rmt.annotate_rows(r=hl.rand_int64())
+    assert_contains_node(mt, ir.MatrixMapRows)
+    x = mt.aggregate_rows(hl.struct(r=hl.agg.collect_as_set(mt.r), n=hl.agg.count()))
+    assert(len(x.r) == x.n)
+    assert_unique_uids(mt)
+    # with agg randomness
+    mt = rmt.annotate_rows(r=hl.agg.collect(hl.rand_int64()))
+    assert_contains_node(mt, ir.MatrixMapRows)
+    x = mt.aggregate_rows(hl.agg.explode(lambda r: hl.struct(r=hl.agg.collect_as_set(r), n=hl.agg.count()), mt.r))
+    assert(len(x.r) == x.n)
+    assert_unique_uids(mt)
+    # with scan randomness
+    mt = rmt.annotate_rows(r=hl.scan.collect(hl.rand_int64()))
+    assert_contains_node(mt, ir.MatrixMapRows)
+    x = mt.aggregate_rows(hl.struct(r=hl.agg.explode(lambda r: hl.agg.collect_as_set(r), mt.r), n=hl.agg.count()))
+    assert(len(x.r) == x.n - 1)
+    assert_unique_uids(mt)
+    # w/o body randomness
+    mt = rmt.annotate_rows(x=2*rmt.row_idx)
+    assert_contains_node(mt, ir.MatrixMapRows)
+    assert_unique_uids(mt)
+
+    # test MatrixMapGlobals
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
+    # with body randomness
+    mt = rmt.annotate_globals(x=hl.rand_int64())
+    assert_contains_node(mt, ir.MatrixMapGlobals)
+    mt.entries()._force_count() # test with no consumer randomness
+    assert_unique_uids(mt)
+    # w/o body randomness
+    mt = rmt.annotate_globals(x=1)
+    assert_contains_node(mt, ir.MatrixMapGlobals)
+    assert_unique_uids(mt)
+
+    # test MatrixFilterCols
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
+    # with cond randomness
+    mt = rmt.filter_cols(hl.rand_int64() % 2 == 0)
+    assert_contains_node(mt, ir.MatrixFilterCols)
+    mt.entries()._force_count() # test with no consumer randomness
+    assert_unique_uids(mt)
+    # w/o cond randomness
+    mt = rmt.filter_cols(rmt.col_idx < 5)
+    assert_contains_node(mt, ir.MatrixFilterCols)
+    assert_unique_uids(mt)
+
+    # test MatrixCollectColsByKey
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
+    mt = rmt.key_cols_by(k=rmt.col_idx % 5)
+    mt = mt.collect_cols_by_key()
+    assert_contains_node(mt, ir.MatrixCollectColsByKey)
+    assert_unique_uids(mt)
+
+    # test MatrixAggregateColsByKey
+    rmt = hl.utils.range_matrix_table(20, 10, 3)
+    # with body randomness
+    mt = (rmt.group_cols_by(k=rmt.col_idx % 5)
+          .aggregate_cols(r=hl.rand_int64())
+          .aggregate_entries(e=hl.rand_int64())
+          .result())
+    assert_contains_node(mt, ir.MatrixAggregateColsByKey)
+    x = mt.aggregate_cols(hl.struct(r=hl.agg.collect_as_set(mt.r), n=hl.agg.count()))
+    assert(len(x.r) == x.n)
+    x = mt.aggregate_entries(hl.struct(r=hl.agg.collect_as_set(mt.e), n=hl.agg.count()))
+    assert(len(x.r) == x.n)
+    assert_unique_uids(mt)
+    # with agg randomness
+    mt = (rmt.group_cols_by(k=rmt.col_idx % 5)
+          .aggregate_cols(r=hl.agg.collect(hl.rand_int64()))
+          .aggregate_entries(e=hl.agg.collect(hl.rand_int64()))
+          .result())
+    assert_contains_node(mt, ir.MatrixAggregateColsByKey)
+    x = mt.aggregate_cols(hl.agg.explode(lambda r: hl.struct(r=hl.agg.collect_as_set(r), n=hl.agg.count()), mt.r))
+    assert(len(x.r) == x.n)
+    x = mt.aggregate_entries(hl.agg.explode(lambda r: hl.struct(r=hl.agg.collect_as_set(r), n=hl.agg.count()), mt.e))
+    assert(len(x.r) == x.n)
+    assert_unique_uids(mt)
+    # w/o body randomness
+    mt = (rmt.group_cols_by(k=rmt.col_idx % 5)
+          .aggregate_cols(row_agg=hl.agg.sum(rmt.col_idx))
+          .aggregate_entries(entry_agg=hl.agg.sum(rmt.row_idx + rmt.col_idx))
+          .result())
+    assert_contains_node(mt, ir.MatrixAggregateColsByKey)
+    assert_unique_uids(mt)
+
+    # test MatrixExplodeRows
+    rmt = hl.utils.range_matrix_table(20, 10, 3)
+    mt = rmt.annotate_rows(s=hl.struct(a=hl.range(rmt.row_idx)))
+    mt = mt.explode_rows(mt.s.a)
+    assert_contains_node(mt, ir.MatrixExplodeRows)
+    assert_unique_uids(mt)
+
+    # test MatrixRepartition
+    if not hl.current_backend().requires_lowering:
+        rmt = hl.utils.range_matrix_table(20, 10, 3)
+        mt = rmt.repartition(5)
+        assert_contains_node(mt, ir.MatrixRepartition)
+        assert_unique_uids(mt)
+
+    # test MatrixUnionRows
+    r, c = 5, 5
+    mt = hl.utils.range_matrix_table(2*r, c)
+    mt2 = hl.utils.range_matrix_table(2*r, c)
+    mt2 = mt2.key_rows_by(row_idx=mt2.row_idx + r)
+    mt = mt.union_rows(mt2)
+    assert_contains_node(mt, ir.MatrixUnionRows)
+    assert_unique_uids(mt)
+
+    # test MatrixDistinctByRow
+    rmt = hl.utils.range_matrix_table(20, 10, 3)
+    mt = rmt.key_rows_by(k=rmt.row_idx % 5)
+    mt = mt.distinct_by_row()
+    assert_contains_node(mt, ir.MatrixDistinctByRow)
+    assert_unique_uids(mt)
+
+    # test MatrixRowsHead
+    rmt = hl.utils.range_matrix_table(20, 10, 3)
+    mt = rmt.head(10)
+    assert_contains_node(mt, ir.MatrixRowsHead)
+    assert_unique_uids(mt)
+
+    # test MatrixColsHead
+    rmt = hl.utils.range_matrix_table(10, 20, 3)
+    mt = rmt.head(None, 10)
+    assert_contains_node(mt, ir.MatrixColsHead)
+    assert_unique_uids(mt)
+
+    # test MatrixRowsTail
+    rmt = hl.utils.range_matrix_table(20, 10, 3)
+    mt = rmt.tail(10)
+    assert_contains_node(mt, ir.MatrixRowsTail)
+    assert_unique_uids(mt)
+
+    # test MatrixColsTail
+    rmt = hl.utils.range_matrix_table(10, 20, 3)
+    mt = rmt.tail(None, 10)
+    assert_contains_node(mt, ir.MatrixColsTail)
+    assert_unique_uids(mt)
+
+    # test MatrixExplodeCols
+    rmt = hl.utils.range_matrix_table(10, 20, 3)
+    mt = rmt.annotate_cols(s=hl.struct(a=hl.range(rmt.col_idx)))
+    mt = mt.explode_cols(mt.s.a)
+    assert_contains_node(mt, ir.MatrixExplodeCols)
+    assert_unique_uids(mt)
+
+    # test CastTableToMatrix
+    rt = hl.utils.range_table(10, 3)
+    t = rt.annotate(e=hl.range(10).map(lambda i: hl.struct(x=i)))
+    t = t.annotate_globals(c=hl.range(10).map(lambda i: hl.struct(y=i)))
+    mt = t._unlocalize_entries('e', 'c', [])
+    assert_contains_node(mt, ir.CastTableToMatrix)
+    assert_unique_uids(mt)
+
+    # test MatrixAnnotateRowsTable
+    t = hl.utils.range_table(12, 3)
+    t = t.key_by(k=(t.idx // 2) * 2)
+    mt = hl.utils.range_matrix_table(8, 10, 3)
+    mt = mt.key_rows_by(k=(mt.row_idx // 2) * 3)
+    joined = mt.annotate_rows(x=t[mt.k].idx)
+    assert_contains_node(joined, ir.MatrixAnnotateRowsTable)
+    assert_unique_uids(joined)
+
+    # test MatrixAnnotateColsTable
+    t = hl.utils.range_table(12, 3)
+    t = t.key_by(k=(t.idx // 2) * 2)
+    mt = hl.utils.range_matrix_table(10, 8, 3)
+    mt = mt.key_cols_by(k=(mt.col_idx // 2) * 3)
+    joined = mt.annotate_cols(x=t[mt.k].idx)
+    assert_contains_node(joined, ir.MatrixAnnotateColsTable)
+    assert_unique_uids(joined)
+
+    # test MatrixToMatrixApply
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
+    mt = rmt._filter_partitions([0, 2])
+    assert_contains_node(mt, ir.MatrixToMatrixApply)
+    assert_unique_uids(mt)
+
+    # test MatrixRename
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
+    mt = rmt.rename({'row_idx': 'row_index'})
+    assert_contains_node(mt, ir.MatrixRename)
+    assert_unique_uids(mt)
+
+    # test MatrixFilterIntervals
+    rmt = hl.utils.range_matrix_table(20, 10, 3)
+    intervals = [hl.interval(0, 5), hl.interval(10, 15)]
+    mt = hl.filter_intervals(rmt, intervals)
+    assert_contains_node(mt, ir.MatrixFilterIntervals)
+    assert_unique_uids(mt)
+
+
+def test_upcast_tuples():
+    t = hl.utils.range_matrix_table(1,1)
+    t = t.annotate_cols(foo=[('0', 1)])
+    t = t.explode_cols(t.foo)
+    t = t.annotate_cols(x=t.foo[1])
+    t = t.drop('foo')
+    t.cols().collect()

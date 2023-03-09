@@ -845,6 +845,24 @@ class ServiceTests(unittest.TestCase):
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
         assert res.get_job_log(4)['main'] == "3\n5\n30\n{\"x\": 3, \"y\": 5}\n", str(res.debug_info())
 
+    def test_python_job_can_write_to_resource_path(self):
+        b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
+
+        def write(path):
+            with open(path, 'w') as f:
+                f.write('foo')
+        head = b.new_python_job()
+        head.call(write, head.ofile)
+
+        tail = b.new_bash_job()
+        tail.command(f'cat {head.ofile}')
+
+        res = b.run()
+        assert res
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+        assert res.get_job_log(tail._job_id)['main'] == 'foo', str(res.debug_info())
+
     def test_python_job_w_resource_group_unpack_jointly(self):
         b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
         head = b.new_job()
@@ -889,6 +907,36 @@ class ServiceTests(unittest.TestCase):
         res = b.run()
         res_status = res.status()
         assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
+
+    def test_python_job_incorrect_signature(self):
+        b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
+
+        def foo(pos_arg1, pos_arg2, *, kwarg1, kwarg2=1):
+            print(pos_arg1, pos_arg2, kwarg1, kwarg2)
+
+        j = b.new_python_job()
+
+        with pytest.raises(BatchException):
+            j.call(foo)
+        with pytest.raises(BatchException):
+            j.call(foo, 1)
+        with pytest.raises(BatchException):
+            j.call(foo, 1, 2)
+        with pytest.raises(BatchException):
+            j.call(foo, 1, kwarg1=2)
+        with pytest.raises(BatchException):
+            j.call(foo, 1, 2, 3)
+        with pytest.raises(BatchException):
+            j.call(foo, 1, 2, kwarg1=3, kwarg2=4, kwarg3=5)
+
+        j.call(foo, 1, 2, kwarg1=3)
+        j.call(foo, 1, 2, kwarg1=3, kwarg2=4)
+
+        # `print` doesn't have a signature but other builtins like `abs` do
+        j.call(print, 5)
+        j.call(abs, -1)
+        with pytest.raises(BatchException):
+            j.call(abs, -1, 5)
 
     def test_fail_fast(self):
         b = self.batch(cancel_after_n_failures=1)
@@ -1000,3 +1048,47 @@ class ServiceTests(unittest.TestCase):
         res = b.run()
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+
+    def test_always_copy_output(self):
+        output_path = f'{self.cloud_output_dir}/test_always_copy_output.txt'
+
+        b = self.batch()
+        j = b.new_job()
+        j.always_copy_output()
+        j.command(f'echo "hello" > {j.ofile} && false')
+
+        b.write_output(j.ofile, output_path)
+        res = b.run()
+        res_status = res.status()
+        assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
+
+        b2 = self.batch()
+        input = b2.read_input(output_path)
+        file_exists_j = b2.new_job()
+        file_exists_j.command(f'cat {input}')
+
+        res = b2.run()
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+        assert res.get_job_log(1)['main'] == "hello\n", str(res.debug_info())
+
+    def test_no_copy_output_on_failure(self):
+        output_path = f'{self.cloud_output_dir}/test_no_copy_output.txt'
+
+        b = self.batch()
+        j = b.new_job()
+        j.command(f'echo "hello" > {j.ofile} && false')
+
+        b.write_output(j.ofile, output_path)
+        res = b.run()
+        res_status = res.status()
+        assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
+
+        b2 = self.batch()
+        input = b2.read_input(output_path)
+        file_exists_j = b2.new_job()
+        file_exists_j.command(f'cat {input}')
+
+        res = b2.run()
+        res_status = res.status()
+        assert res_status['state'] == 'failure', str((res_status, res.debug_info()))

@@ -223,7 +223,7 @@ def test_nonzero_storage(client: BatchClient):
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
-@skip_in_azure()
+@skip_in_azure
 def test_attached_disk(client: BatchClient):
     bb = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '400Gi'}
@@ -543,6 +543,17 @@ def test_log_after_failing_job(client: BatchClient):
     assert j.is_complete(), str(b.debug_info())
 
 
+def test_non_utf_8_log(client: BatchClient):
+    bb = client.create_batch()
+    j = bb.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', "echo -n 'hello \\x80'"])
+    b = bb.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+
+    job_main_log = j.container_log('main')
+    assert job_main_log == b'hello \\x80'
+
+
 def test_long_log_line(client: BatchClient):
     bb = client.create_batch()
     j = bb.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', 'for _ in {0..70000}; do echo -n a; done'])
@@ -726,7 +737,7 @@ def test_duplicate_parents(client: BatchClient):
         assert False, f'should receive a 400 Bad Request {batch.id}'
 
 
-@skip_in_azure()
+@skip_in_azure
 def test_verify_no_access_to_google_metadata_server(client: BatchClient):
     bb = client.create_batch()
     j = bb.create_job(os.environ['HAIL_CURL_IMAGE'], ['curl', '-fsSL', 'metadata.google.internal', '--max-time', '10'])
@@ -845,7 +856,7 @@ curl -fsSL -m 5 $OTHER_IP
     assert "Connection timed out" in job_log['main'], str((job_log, b.debug_info()))
 
 
-@skip_in_azure()
+@skip_in_azure
 def test_can_use_google_credentials(client: BatchClient):
     token = os.environ["HAIL_TOKEN"]
     remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
@@ -1069,6 +1080,14 @@ def test_job_private_instance_cancel(client: BatchClient):
     b.cancel()
     status = j.wait()
     assert status['state'] == 'Cancelled', str((status, b.debug_info()))
+
+
+def test_create_fast_path_more_than_one_job(client: BatchClient):
+    bb = client.create_batch()
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    b = bb.submit()
+    assert b.submission_info.used_fast_create, b.submission_info
 
 
 def test_update_batch_no_deps(client: BatchClient):
@@ -1296,3 +1315,19 @@ def test_submit_update_to_deleted_batch(client: BatchClient):
         assert err.status == 404
     else:
         assert False
+
+
+def test_region(client: BatchClient):
+    bb = client.create_batch()
+    if CLOUD == 'gcp':
+        region = 'us-east1'
+    else:
+        assert CLOUD == 'azure'
+        region = 'eastus'
+    resources = {'memory': 'lowmem'}
+    j = bb.create_job(DOCKER_ROOT_IMAGE, ['printenv', 'HAIL_REGION'], regions=[region], resources=resources)
+    b = bb.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+    assert status['status']['region'] == region, str((status, b.debug_info()))
+    assert region in j.log()['main'], str((status, b.debug_info()))

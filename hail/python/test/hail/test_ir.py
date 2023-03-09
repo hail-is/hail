@@ -1,3 +1,4 @@
+import re
 import unittest
 import hail as hl
 import hail.ir as ir
@@ -7,9 +8,6 @@ from hail.expr.types import tint32
 from hail.utils.java import Env
 from hail.utils import new_temp_file
 from .helpers import *
-
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
 
 
 class ValueIRTests(unittest.TestCase):
@@ -44,7 +42,7 @@ class ValueIRTests(unittest.TestCase):
         s = ir.Ref('s', env['s'])
         t = ir.Ref('t', env['t'])
         call = ir.Ref('call', env['call'])
-        rngState = ir.RNGStateLiteral((1, 2, 3, 4))
+        rngState = ir.RNGStateLiteral()
 
         table = ir.TableRange(5, 3)
 
@@ -75,7 +73,7 @@ class ValueIRTests(unittest.TestCase):
             ir.ArraySort(ir.ToStream(a), 'l', 'r', ir.ApplyComparisonOp("LT", ir.Ref('l', hl.tint32), ir.Ref('r', hl.tint32))),
             ir.ToSet(a),
             ir.ToDict(da),
-            ir.ToArray(a),
+            ir.ToArray(st),
             ir.CastToArray(ir.NA(hl.tset(hl.tint32))),
             ir.MakeNDArray(ir.MakeArray([ir.F64(-1.0), ir.F64(1.0)], hl.tarray(hl.tfloat64)),
                            ir.MakeTuple([ir.I64(1), ir.I64(2)]),
@@ -404,7 +402,7 @@ class ValueTests(unittest.TestCase):
             test_exprs.append(hl.Table(map_globals_ir).index_globals())
             expecteds.append(hl.Struct(foo=v))
 
-        actuals = hl._eval_many(*test_exprs)
+        actuals = hl.eval(hl.tuple(test_exprs))
         for expr, actual, expected in zip(test_exprs, actuals, expecteds):
             assert actual == expected, str(expr)
 
@@ -425,15 +423,16 @@ class CSETests(unittest.TestCase):
         a1 = ir.ToArray(x)
         a2 = ir.ToArray(x)
         t = ir.MakeTuple([a1, a2])
-        expected = (
+        expected_re = (
             '(Let __cse_1 (I32 0)'
             ' (Let __cse_2 (I32 10)'
             ' (Let __cse_3 (I32 1)'
             ' (MakeTuple (0 1)'
-                ' (ToArray (StreamRange 1 False (Ref __cse_1) (Ref __cse_2) (Ref __cse_3)))'
-                ' (ToArray (StreamRange 1 False (Ref __cse_1) (Ref __cse_2) (Ref __cse_3)))))))'
+                ' (ToArray (StreamRange [0-9]+ False (Ref __cse_1) (Ref __cse_2) (Ref __cse_3)))'
+                ' (ToArray (StreamRange [0-9]+ False (Ref __cse_1) (Ref __cse_2) (Ref __cse_3)))))))'
         )
-        assert expected == CSERenderer()(t)
+        expected_re = expected_re.replace('(', '\\(').replace(')', '\\)')
+        assert re.match(expected_re, CSERenderer()(t))
 
     def test_cse2(self):
         x = ir.I32(5)

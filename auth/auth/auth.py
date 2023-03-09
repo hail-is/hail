@@ -23,6 +23,7 @@ from gear import (
     transaction,
 )
 from gear.cloud_config import get_global_config
+from gear.profiling import install_profiler_if_requested
 from hailtop import httpx
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
@@ -774,6 +775,8 @@ class AuthAccessLogger(AccessLogger):
 
 
 def run():
+    install_profiler_if_requested('auth')
+
     app = web.Application(middlewares=[monitor_endpoints_middleware])
 
     setup_aiohttp_jinja2(app, 'auth')
