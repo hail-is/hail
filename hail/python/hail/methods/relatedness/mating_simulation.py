@@ -103,7 +103,10 @@ def simulate_random_mating(mt,
             else:
                 merged_parent_rel[mother] = 0.25
                 merged_parent_rel[father] = 0.25
-            sibling_rel = merged_parent_rel[mother]  # here mother/father should be the same, since
+
+            # here mother/father be the same, since the edge from father to mother
+            # and the edge from mother to father must be identical.
+            sibling_rel = merged_parent_rel[mother]
 
             for child in range(children_per_pair):
                 samples.append(
@@ -111,25 +114,25 @@ def simulate_random_mating(mt,
                 for k, v in merged_parent_rel.items():
                     set_rel(curr_sample_idx, k, v, curr_gen_fwd, last_generation_start_idx)
 
-                mother_sibs = parent_to_child[mother]
-                father_sibs = parent_to_child[father]
-                for sib in mother_sibs:
-                    if sib in father_sibs:
+                mother_other_kids = parent_to_child[mother]
+                father_other_kids = parent_to_child[father]
+                for sib in mother_other_kids:
+                    if sib in father_other_kids:
                         rel = sibling_rel
                     else:
                         _, _, sib_mom, sib_dad = samples[sib]
                         other_parent = sib_mom if sib_mom != mother else sib_dad
                         rel = .125 + get_rel(mother, other_parent) / 2
                     set_rel(curr_sample_idx, sib, rel, curr_gen_fwd, last_generation_start_idx)
-                for sib in father_sibs:
-                    if sib not in mother_sibs:
+                for sib in father_other_kids:
+                    if sib not in mother_other_kids:
                         _, _, sib_mom, sib_dad = samples[sib]
                         other_parent = sib_mom if sib_mom != father else sib_dad
                         set_rel(curr_sample_idx, sib, 0.125 + get_rel(father, other_parent) / 2, curr_gen_fwd,
                                 last_generation_start_idx)
 
-                mother_sibs.add(curr_sample_idx)
-                father_sibs.add(curr_sample_idx)
+                mother_other_kids.add(curr_sample_idx)
+                father_other_kids.add(curr_sample_idx)
 
                 curr_sample_idx += 1
         print(
