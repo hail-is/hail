@@ -796,11 +796,11 @@ case class RectangleSparsifier(rectangles: IndexedSeq[IndexedSeq[Long]]) extends
   def definedBlocks(childType: BlockMatrixType): BlockMatrixSparsity = {
     val definedBlocks = rectangles.flatMap { case IndexedSeq(rowStart, rowEnd, colStart, colEnd) =>
       val rs = childType.getBlockIdx(java.lang.Math.max(rowStart, 0))
-      val re = childType.getBlockIdx(java.lang.Math.min(rowEnd, childType.nRows))
+      val re = childType.getBlockIdx(java.lang.Math.min(rowEnd - 1, childType.nRows)) + 1
       val cs = childType.getBlockIdx(java.lang.Math.max(colStart, 0))
-      val ce = childType.getBlockIdx(java.lang.Math.min(colEnd, childType.nCols))
-      Array.range(rs, re + 1).flatMap { i =>
-        Array.range(cs, ce + 1)
+      val ce = childType.getBlockIdx(java.lang.Math.min(colEnd - 1, childType.nCols)) + 1
+      Array.range(rs, re).flatMap { i =>
+        Array.range(cs, ce)
           .filter { j => childType.hasBlock(i -> j) }
           .map { j => i -> j }
       }

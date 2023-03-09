@@ -339,7 +339,7 @@ case class BlockMatrixType(
   def nDefinedBlocks: Int =
     if (isSparse) sparsity.definedBlocks.get.length else nRowBlocks * nColBlocks
   def hasBlock(idx: (Int, Int)): Boolean =
-    if (isSparse) sparsity.hasBlock(idx) else true
+    if (isSparse) sparsity.hasBlock(idx) else idx._1 >= 0 && idx._1 < nRowBlocks && idx._2 >= 0 && idx._2 < nColBlocks
 
   def transpose: BlockMatrixType = {
     val newShape = shape match {
