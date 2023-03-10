@@ -50,6 +50,7 @@ class ServiceBackendContext(
   val remoteTmpDir: String,
   val workerCores: String,
   val workerMemory: String,
+  val regions: Array[String]
 ) extends BackendContext with Serializable {
   def tokens(): Tokens =
     new Tokens(Map((DeployConfig.get.defaultNamespace, sessionID)))
@@ -183,6 +184,7 @@ class ServiceBackend(
         ),
         "mount_tokens" -> JBool(true),
         "resources" -> resources,
+        "regions" -> JArray(backendContext.regions.map(JString).toList)
       )
       i += 1
     }
@@ -557,6 +559,17 @@ class ServiceBackendSocketAPI2(
     val workerCores = readString()
     val workerMemory = readString()
 
+    var nRegions = readInt()
+    val regions = {
+      val regionsArrayBuffer = mutable.ArrayBuffer[String]()
+      while (nRegions > 0) {
+        val region = readString()
+        regionsArrayBuffer += region
+        nRegions -= 1
+      }
+      regionsArrayBuffer.toArray
+    }
+
     val cmd = readInt()
 
     val tmpdir = readString()
@@ -582,7 +595,7 @@ class ServiceBackendSocketAPI2(
             ctx.getReference(sourceGenome).addLiftover(ctx, chainFile, destGenome)
           }
         }
-        ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir, workerCores, workerMemory)
+        ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir, workerCores, workerMemory, regions)
         method(ctx)
       }
     }
