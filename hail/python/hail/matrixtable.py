@@ -2812,7 +2812,7 @@ class MatrixTable(ExprContainer):
             if include_row_fields:
                 characters -= estimate_size(self.row_value)
             characters = max(characters, 0)
-            n_cols = characters // (estimate_size(self.entry) + 4)  # 4 for the column index
+            n_cols = max(characters // (estimate_size(self.entry) + 4), 3)  # 4 for the column index
         actual_n_cols = self.count_cols()
         displayed_n_cols = min(actual_n_cols, n_cols)
 
