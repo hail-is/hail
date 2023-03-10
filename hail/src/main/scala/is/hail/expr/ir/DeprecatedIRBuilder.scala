@@ -48,7 +48,7 @@ object DeprecatedIRBuilder {
     Die(message(env), typ, -1)
 
   def makeArray(first: IRProxy, rest: IRProxy*): IRProxy =
-    arrayToProxy((first +: rest).toArray)
+    arrayToProxy((first +: rest).toArray[IRProxy])
 
   def makeStruct(fields: (Symbol, IRProxy)*): IRProxy = (env: E) =>
     MakeStruct(fields.map { case (s, ir) => (s.name, ir(env)) })

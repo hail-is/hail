@@ -2587,7 +2587,7 @@ class IRSuite extends HailSuite {
 
     def tuple(k: String, v: Int): IR = MakeTuple.ordered(IndexedSeq(Str(k), I32(v)))
 
-    def groupby(tuples: IR*): IR = GroupByKey(MakeStream(tuples.toArray, TStream(TTuple(TString, TInt32))))
+    def groupby(tuples: IR*): IR = GroupByKey(MakeStream(tuples.toArray[IR], TStream(TTuple(TString, TInt32))))
 
     val collection1 = groupby(tuple("foo", 0), tuple("bar", 4), tuple("foo", -1), tuple("bar", 0), tuple("foo", 10), tuple("", 0))
     assertEvalsTo(collection1, Map("" -> FastIndexedSeq(0), "bar" -> FastIndexedSeq(4, 0), "foo" -> FastIndexedSeq(0, -1, 10)))

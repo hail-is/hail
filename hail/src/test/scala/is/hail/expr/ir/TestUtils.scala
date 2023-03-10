@@ -38,7 +38,7 @@ object TestUtils {
     else
       MakeArray(a.map(toIRInt), TArray(TInt32))
 
-  def IRArray(a: Integer*): IR = toIRArray(a.toArray)
+  def IRArray(a: Integer*): IR = toIRArray(a.toArray[Integer])
 
   def toIRStream(a: IndexedSeq[Integer]): IR =
     if (a == null)
@@ -46,7 +46,7 @@ object TestUtils {
     else
       MakeStream(a.map(toIRInt), TStream(TInt32))
 
-  def IRStream(a: Integer*): IR = toIRStream(a.toArray)
+  def IRStream(a: Integer*): IR = toIRStream(a.toArray[Integer])
 
   def toIRStringArray(a: IndexedSeq[String]): IR =
     if (a == null)
@@ -64,7 +64,7 @@ object TestUtils {
     else
       MakeArray(a.map(toIRDouble), TArray(TFloat64))
 
-  def IRDoubleArray(a: java.lang.Double*): IR = toIRDoubleArray(a.toArray)
+  def IRDoubleArray(a: java.lang.Double*): IR = toIRDoubleArray(a.toArray[java.lang.Double])
 
   def toIRPairArray(a: IndexedSeq[(Integer, Integer)]): IR =
     if (a == null)
@@ -78,15 +78,15 @@ object TestUtils {
     else
       ToDict(ToStream(MakeArray(a.map(toIRPair), TArray(TTuple(TInt32, TInt32)))))
 
-  def IRDict(a: (Integer, Integer)*): IR = toIRDict(a.toArray)
+  def IRDict(a: (Integer, Integer)*): IR = toIRDict(a.toArray[(Integer, Integer)])
 
   def toIRSet(a: IndexedSeq[Integer]): IR =
     if (a == null)
       NA(TSet(TInt32))
   else
-      ToSet(ToStream(toIRArray(a.toArray)))
+      ToSet(ToStream(toIRArray(a)))
 
-  def IRSet(a: Integer*): IR = toIRSet(a.toArray)
+  def IRSet(a: Integer*): IR = toIRSet(a.toArray[Integer])
 
   def IRCall(c: Call): IR = invoke("callFromRepr", TCall, I32(c))
 
