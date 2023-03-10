@@ -1710,7 +1710,7 @@ class IRSuite extends HailSuite {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     def nds(ndData: (IndexedSeq[Int], Long, Long)*): IR = {
-      MakeArray(FastIndexedSeq(ndData :_ *).map { case (values, nRows, nCols) =>
+      MakeArray(ndData.toArray.map { case (values, nRows, nCols) =>
         if (values == null) NA(TNDArray(TInt32, Nat(2))) else
           MakeNDArray(Literal(TArray(TInt32), values),
             Literal(TTuple(TInt64, TInt64), Row(nRows, nCols)), True(), ErrorIDs.NO_ERROR)
@@ -2587,7 +2587,7 @@ class IRSuite extends HailSuite {
 
     def tuple(k: String, v: Int): IR = MakeTuple.ordered(IndexedSeq(Str(k), I32(v)))
 
-    def groupby(tuples: IR*): IR = GroupByKey(MakeStream(FastIndexedSeq(tuples :_ *), TStream(TTuple(TString, TInt32))))
+    def groupby(tuples: IR*): IR = GroupByKey(MakeStream(tuples.toArray, TStream(TTuple(TString, TInt32))))
 
     val collection1 = groupby(tuple("foo", 0), tuple("bar", 4), tuple("foo", -1), tuple("bar", 0), tuple("foo", 10), tuple("", 0))
     assertEvalsTo(collection1, Map("" -> FastIndexedSeq(0), "bar" -> FastIndexedSeq(4, 0), "foo" -> FastIndexedSeq(0, -1, 10)))

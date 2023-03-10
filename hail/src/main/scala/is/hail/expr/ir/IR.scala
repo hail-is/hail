@@ -205,7 +205,7 @@ final case class ApplyComparisonOp(op: ComparisonOp[_], l: IR, r: IR) extends IR
 object MakeArray {
   def apply(args: IR*): MakeArray = {
     assert(args.nonEmpty)
-    MakeArray(FastIndexedSeq(args:_*), TArray(args.head.typ))
+    MakeArray(args.toArray, TArray(args.head.typ))
   }
 
   def unify(ctx: ExecuteContext, args: IndexedSeq[IR], requestedType: TArray = null): MakeArray = {

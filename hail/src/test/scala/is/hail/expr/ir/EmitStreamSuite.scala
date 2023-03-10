@@ -516,10 +516,10 @@ class EmitStreamSuite extends HailSuite {
     def innerjoin(lstream: IR, rstream: IR): IR = join(lstream, rstream, "inner")
 
     def lElts(xs: (Int, String)*): IR =
-      MakeStream(FastIndexedSeq(xs :_ *).map { case (a, b) => MakeStruct(IndexedSeq("k" -> I32(a), "v" -> Str(b))) }, TStream(lEltType))
+      MakeStream(xs.toArray.map { case (a, b) => MakeStruct(IndexedSeq("k" -> I32(a), "v" -> Str(b))) }, TStream(lEltType))
 
     def rElts(xs: ((Char, Any, Any, Char), String)*): IR =
-      MakeStream(FastIndexedSeq(xs :_ *).map {
+      MakeStream(xs.toArray.map {
       case ((is, s, e, ie), v) =>
         val start = if (s == null) NA(TInt32) else I32(s.asInstanceOf[Int])
         val end = if (e == null) NA(TInt32) else I32(e.asInstanceOf[Int])
