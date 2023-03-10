@@ -1511,7 +1511,7 @@ case class MatrixBlockMatrixWriter(
           val numRowsOfBlock = ArrayLen(arrayOfSlicesAndIndicesRef)
           val shape = maketuple(Cast(numRowsOfBlock, TInt64), Cast(numColsOfBlock, TInt64))
           val ndarray = MakeNDArray(ndarrayData, shape, True(), ErrorIDs.NO_ERROR)
-          MakeStream(Seq(MakeStruct(Seq(
+          MakeStream(FastIndexedSeq(MakeStruct(FastIndexedSeq(
             perRowIdxId -> idxOfResult,
             "blockRowIdx" -> GetField(ctxRef, "blockRowIdx"),
             "blockColIdx" -> GetField(ctxRef, "blockColIdx"),

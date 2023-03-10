@@ -27,13 +27,13 @@ object DeprecatedIRBuilder {
 
   implicit def symbolToSymbolProxy(s: Symbol): SymbolProxy = new SymbolProxy(s)
 
-  implicit def arrayToProxy(seq: Seq[IRProxy]): IRProxy = (env: E) => {
+  implicit def arrayToProxy(seq: IndexedSeq[IRProxy]): IRProxy = (env: E) => {
     val irs = seq.map(_ (env))
     val elType = irs.head.typ
     MakeArray(irs, TArray(elType))
   }
 
-  implicit def arrayIRToProxy(seq: Seq[IR]): IRProxy = arrayToProxy(seq.map(irToProxy))
+  implicit def arrayIRToProxy(seq: IndexedSeq[IR]): IRProxy = arrayToProxy(seq.map(irToProxy))
 
   def irRange(start: IRProxy, end: IRProxy, step: IRProxy = 1): IRProxy = (env: E) =>
     ToArray(StreamRange(start(env), end(env), step(env)))
@@ -47,7 +47,8 @@ object DeprecatedIRBuilder {
   def irDie(message: IRProxy, typ: Type): IRProxy = (env: E) =>
     Die(message(env), typ, -1)
 
-  def makeArray(first: IRProxy, rest: IRProxy*): IRProxy = arrayToProxy(first +: rest)
+  def makeArray(first: IRProxy, rest: IRProxy*): IRProxy =
+    arrayToProxy(FastIndexedSeq(first +: rest :_*))
 
   def makeStruct(fields: (Symbol, IRProxy)*): IRProxy = (env: E) =>
     MakeStruct(fields.map { case (s, ir) => (s.name, ir(env)) })

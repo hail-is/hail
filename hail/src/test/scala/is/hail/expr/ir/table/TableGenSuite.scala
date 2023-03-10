@@ -31,7 +31,7 @@ class TableGenSuite extends HailSuite {
   @Test(groups = Array("construction", "typecheck"))
   def testWithInvalidGlobalsType: Unit = {
     val ex = intercept[IllegalArgumentException] {
-      mkTableGen(globals = Some(Str("oh noes :'(")), body = Some(MakeStream(Seq(), TStream(TStruct()))))
+      mkTableGen(globals = Some(Str("oh noes :'(")), body = Some(MakeStream(IndexedSeq(), TStream(TStruct()))))
     }
     ex.getMessage should include("globals")
     ex.getMessage should include(s"Expected: ${classOf[TStruct].getName}")
@@ -51,7 +51,7 @@ class TableGenSuite extends HailSuite {
   @Test(groups = Array("construction", "typecheck"))
   def testWithInvalidBodyElementType: Unit = {
     val ex = intercept[IllegalArgumentException] {
-      mkTableGen(body = Some(MakeStream(Seq(Str("oh noes :'(")), TStream(TString))))
+      mkTableGen(body = Some(MakeStream(IndexedSeq(Str("oh noes :'(")), TStream(TString))))
     }
     ex.getMessage should include("body.elementType")
     ex.getMessage should include(s"Expected: ${classOf[TStruct].getName}")
@@ -112,8 +112,8 @@ class TableGenSuite extends HailSuite {
   def testPruneGlobals: Unit = {
     val cname = "contexts"
     val start = mkTableGen(cname = Some(cname), body = Some {
-      val elem = MakeStruct(Seq("a" -> Ref(cname, TInt32)))
-      MakeStream(Seq(elem), TStream(elem.typ))
+      val elem = MakeStruct(IndexedSeq("a" -> Ref(cname, TInt32)))
+      MakeStream(IndexedSeq(elem), TStream(elem.typ))
     })
 
     val TableAggregate(pruned, _) = PruneDeadFields(ctx,
@@ -122,7 +122,7 @@ class TableGenSuite extends HailSuite {
 
     pruned.typ should not be start.typ
     pruned.typ.globalType shouldBe TStruct()
-    pruned.asInstanceOf[TableGen].globals shouldBe MakeStruct(Seq())
+    pruned.asInstanceOf[TableGen].globals shouldBe MakeStruct(IndexedSeq())
   }
 
   @Test(groups = Array("optimization", "prune"))
@@ -140,7 +140,7 @@ class TableGenSuite extends HailSuite {
                  body: Option[IR] = None,
                  partitioner: Option[RVDPartitioner] = None
                 ): TableGen = {
-    val theGlobals = globals.getOrElse(MakeStruct(Seq("g" -> 0)))
+    val theGlobals = globals.getOrElse(MakeStruct(IndexedSeq("g" -> 0)))
     val contextName = cname.getOrElse(genUID())
     val globalsName = gname.getOrElse(genUID())
 
@@ -150,10 +150,10 @@ class TableGenSuite extends HailSuite {
       contextName,
       globalsName,
       body.getOrElse {
-        val elem = MakeStruct(Seq(
+        val elem = MakeStruct(IndexedSeq(
           "a" -> ApplyBinaryPrimOp(Multiply(), Ref(contextName, TInt32), GetField(theGlobals, "g"))
         ))
-        MakeStream(Seq(elem), TStream(elem.typ))
+        MakeStream(IndexedSeq(elem), TStream(elem.typ))
       },
       partitioner.getOrElse(RVDPartitioner.unkeyed(ctx.stateManager, 2))
     )

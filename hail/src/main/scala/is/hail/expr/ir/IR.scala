@@ -205,10 +205,10 @@ final case class ApplyComparisonOp(op: ComparisonOp[_], l: IR, r: IR) extends IR
 object MakeArray {
   def apply(args: IR*): MakeArray = {
     assert(args.nonEmpty)
-    MakeArray(args, TArray(args.head.typ))
+    MakeArray(FastIndexedSeq(args:_*), TArray(args.head.typ))
   }
 
-  def unify(ctx: ExecuteContext, args: Seq[IR], requestedType: TArray = null): MakeArray = {
+  def unify(ctx: ExecuteContext, args: IndexedSeq[IR], requestedType: TArray = null): MakeArray = {
     assert(requestedType != null || args.nonEmpty)
 
     if(args.nonEmpty)
@@ -223,10 +223,10 @@ object MakeArray {
   }
 }
 
-final case class MakeArray(args: Seq[IR], _typ: TArray) extends IR
+final case class MakeArray(args: IndexedSeq[IR], _typ: TArray) extends IR
 
 object MakeStream {
-  def unify(ctx: ExecuteContext, args: Seq[IR], requiresMemoryManagementPerElement: Boolean = false, requestedType: TStream = null): MakeStream = {
+  def unify(ctx: ExecuteContext, args: IndexedSeq[IR], requiresMemoryManagementPerElement: Boolean = false, requestedType: TStream = null): MakeStream = {
     assert(requestedType != null || args.nonEmpty)
 
     if (args.nonEmpty)
@@ -241,7 +241,7 @@ object MakeStream {
   }
 }
 
-final case class MakeStream(args: Seq[IR], _typ: TStream, requiresMemoryManagementPerElement: Boolean = false) extends IR
+final case class MakeStream(args: IndexedSeq[IR], _typ: TStream, requiresMemoryManagementPerElement: Boolean = false) extends IR
 
 object ArrayRef {
   def apply(a: IR, i: IR): ArrayRef = ArrayRef(a, i, ErrorIDs.NO_ERROR)

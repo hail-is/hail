@@ -332,7 +332,7 @@ object Simplify {
     case ArraySlice(z@ToArray(s), x@I32(i), Some(I32(j)), I32(1), _) if i > 0 && j > 0 => {
       if (j > i) {
         ToArray(StreamTake(StreamDrop(s, x), I32(j-i)))
-      } else new MakeArray(Seq(), z.typ.asInstanceOf[TArray])
+      } else new MakeArray(FastIndexedSeq(), z.typ.asInstanceOf[TArray])
     }
 
     case ArraySlice(ToArray(s), x@I32(i), None, I32(1), _) if i >= 0 =>

@@ -835,9 +835,7 @@ object LowerBlockMatrixIR {
 
     def tsPartitionFunction(ctxRef: Ref): IR = {
       val s = MakeStruct(Seq("blockRow" -> GetTupleElement(GetField(ctxRef, "new"), 0), "blockCol" -> GetTupleElement(GetField(ctxRef, "new"), 1), "block" -> bmsWithCtx.blockBody(ctxRef)))
-      MakeStream(Seq(
-        s
-      ), TStream(s.typ))
+      MakeStream(FastIndexedSeq(s), TStream(s.typ))
     }
     val ts = TableStage(letBindings, bcFields, Ref(globalsId, emptyGlobals.typ), RVDPartitioner.unkeyed(ctx.stateManager, blocksRowMajor.size), TableStageDependency.none, contextsIR, tsPartitionFunction)
     ts
