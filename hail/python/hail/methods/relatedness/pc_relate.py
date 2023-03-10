@@ -367,7 +367,7 @@ def pc_relate(call_expr: CallExpression,
     info(f"pc_relate: collecting column keys...")
 
     col_keys = hl.literal(mt.select_cols().key_cols_by().cols().collect(), dtype=tarray(mt.col_key.dtype))
-    info(f"pc_relate: keying result table and caching")
+    info(f"pc_relate: re-keying result table...")
     return ht.key_by(i=col_keys[ht.i], j=col_keys[ht.j]).persist()
 
 
