@@ -5,13 +5,25 @@ import pkg_resources
 import zipfile
 
 from hailtop.config.user_config import configuration_of
+from hailtop.aiotools.router_fs import RouterAsyncFS
 
+import hail as hl
+from .service_backend import ServiceBackend
 from ..fs.fs import FS
 from ..builtin_references import BUILTIN_REFERENCE_RESOURCE_PATHS
 from ..expr import Expression
 from ..expr.types import HailType
 from ..ir import BaseIR
 from ..utils.java import FatalError
+
+
+def validate_file_scheme(url):
+    backend = hl.current_backend()
+    if isinstance(backend, ServiceBackend):
+        fs = backend._async_fs
+        assert isinstance(fs, RouterAsyncFS)
+        if fs.get_scheme(url) == 'file':
+            raise ValueError(f'Found local filepath {url} when using Query on Batch. Specify a remote filepath instead.')
 
 
 def fatal_error_from_java_error_triplet(short_message, expanded_message, error_id):

@@ -5,6 +5,7 @@ import numpy as np
 import pyspark
 from typing import Optional, Dict, Callable, Sequence
 
+from hail.backend.backend import validate_file_scheme
 from hail.expr.expressions import Expression, StructExpression, \
     BooleanExpression, expr_struct, expr_any, expr_bool, analyze, Indices, \
     construct_reference, to_expr, construct_expr, extract_refs_by_indices, \
@@ -1104,6 +1105,8 @@ class Table(ExprContainer):
         delimiter : :class:`str`
             Field delimiter.
         """
+        validate_file_scheme(output)
+
         parallel = ir.ExportType.default(parallel)
         Env.backend().execute(
             ir.TableWrite(self._tir, ir.TableTextWriter(output, types_file, header, parallel, delimiter)))
@@ -1281,6 +1284,8 @@ class Table(ExprContainer):
         >>> table1 = table1.checkpoint('output/table_checkpoint.ht')
 
         """
+        validate_file_scheme(output)
+
         if _codec_spec is None:
             _codec_spec = """{
   "name": "LEB128BufferSpec",
@@ -1341,6 +1346,8 @@ class Table(ExprContainer):
         overwrite : bool
             If ``True``, overwrite an existing file at the destination.
         """
+
+        validate_file_scheme(output)
 
         Env.backend().execute(ir.TableWrite(self._tir, ir.TableNativeWriter(output, overwrite, stage_locally, _codec_spec)))
 
@@ -1467,6 +1474,8 @@ class Table(ExprContainer):
         overwrite : bool
             If ``True``, overwrite an existing file at the destination.
         """
+
+        validate_file_scheme(output)
 
         Env.backend().execute(
             ir.TableWrite(
