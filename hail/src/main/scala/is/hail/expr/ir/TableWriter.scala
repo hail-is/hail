@@ -26,7 +26,7 @@ import is.hail.variant.ReferenceGenome
 import org.json4s.{DefaultFormats, Formats, JBool, JObject, ShortTypeHints}
 
 import java.io.OutputStream
-import java.nio.file.Path
+import java.nio.file.{FileSystems, Path}
 import java.util.UUID
 import scala.language.existentials
 
@@ -54,7 +54,7 @@ object TableNativeWriter {
     val partitioner = ts.partitioner
     val pKey: PStruct = tcoerce[PStruct](rowSpec.decodedPType(partitioner.kType))
     val rowWriter = PartitionNativeWriter(rowSpec, pKey.fieldNames, s"$path/rows/parts/", Some(s"$path/index/" -> pKey),
-      if (stageLocally) Some(Path.of(ctx.localTmpdir, s"hail_staging_tmp_${UUID.randomUUID()}", "rows", "parts")) else None
+      if (stageLocally) Some(FileSystems.getDefault.getPath(ctx.localTmpdir, s"hail_staging_tmp_${UUID.randomUUID()}", "rows", "parts")) else None
     )
     val globalWriter = PartitionNativeWriter(globalSpec, IndexedSeq(), s"$path/globals/parts/", None, None)
 
@@ -671,7 +671,7 @@ case class TableNativeFanoutWriter(
           keyFields,
           s"$targetPath/rows/parts/",
           Some(s"$targetPath/index/" -> keyPType),
-          if (stageLocally) Some(Path.of(ctx.localTmpdir, s"hail_staging_tmp_${UUID.randomUUID()}", "rows", "parts")) else None
+          if (stageLocally) Some(FileSystems.getDefault.getPath(ctx.localTmpdir, s"hail_staging_tmp_${UUID.randomUUID()}", "rows", "parts")) else None
         )
         val globalWriter = PartitionNativeWriter(globalSpec, IndexedSeq(), s"$targetPath/globals/parts/", None, None)
         new FanoutWriterTarget(field, targetPath, rowSpec, keyPType, tableType, rowWriter, globalWriter)

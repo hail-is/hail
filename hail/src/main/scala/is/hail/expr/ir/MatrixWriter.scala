@@ -32,7 +32,7 @@ import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
 
 import java.io.{InputStream, OutputStream}
-import java.nio.file.Path
+import java.nio.file.{FileSystems, Path}
 import java.util.UUID
 import scala.language.existentials
 
@@ -119,7 +119,7 @@ case class MatrixNativeWriter(
       s"$path/entries/rows/parts/",
       pKey.virtualType.fieldNames,
       Some(s"$path/index/" -> pKey),
-      if (stageLocally) Some(Path.of(ctx.localTmpdir, s"hail_stage_tmp_${UUID.randomUUID}")) else None
+      if (stageLocally) Some(FileSystems.getDefault.getPath(ctx.localTmpdir, s"hail_stage_tmp_${UUID.randomUUID}")) else None
     )
 
     val globalTableWriter = TableSpecWriter(s"$path/globals", TableType(tm.globalType, FastIndexedSeq(), TStruct.empty), "rows", "globals", "../references", log = false)
