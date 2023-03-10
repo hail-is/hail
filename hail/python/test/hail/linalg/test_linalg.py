@@ -769,7 +769,6 @@ class Tests(unittest.TestCase):
             b.assert_eq(bm2[1, :], nd2[1:2, :])
             b.assert_eq(bm2[0:5, 0:5], nd2[0:5, 0:5])
 
-    @fails_service_backend()
     def test_sparsify_row_intervals(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
                        [ 5.0,  6.0,  7.0,  8.0],
@@ -817,7 +816,6 @@ class Tests(unittest.TestCase):
                         expected[i, j] = 0.0
                 b.assert_eq(actual, expected)
 
-    @fails_service_backend()
     def test_sparsify_band(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
                        [ 5.0,  6.0,  7.0,  8.0],
@@ -850,7 +848,6 @@ class Tests(unittest.TestCase):
                 mask = np.fromfunction(lambda i, j: (lower <= j - i) * (j - i <= upper), (8, 10))
                 b.assert_eq(actual, nd2 * mask)
 
-    @fails_service_backend()
     def test_sparsify_triangle(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
                        [ 5.0,  6.0,  7.0,  8.0],
@@ -884,7 +881,6 @@ class Tests(unittest.TestCase):
                           [ 0.,  0., 11., 12.],
                           [ 0.,  0., 15., 16.]]))
 
-    @fails_service_backend()
     def test_sparsify_rectangles(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
                        [ 5.0,  6.0,  7.0,  8.0],
