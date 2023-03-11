@@ -60,7 +60,11 @@ case class NativeReaderOptions(
 
   def renderShort(): String = s"(IntervalRead: ${intervals.length} intervals, filter=${filterIntervals})"
 
-  def partitioner(sm: HailStateManager): RVDPartitioner = {
-    RVDPartitioner.generate(sm, intervalPointType, intervals)
+  def partitioner(sm: HailStateManager, base: RVDPartitioner): RVDPartitioner = {
+    val partFromIntervals = RVDPartitioner.generate(sm, intervalPointType, intervals).extendKey(base.kType)
+    if (filterIntervals)
+      base.copy(rangeBounds = base.rangeBounds.filter(partFromIntervals.queryInterval(_).nonEmpty))
+    else
+      partFromIntervals
   }
 }

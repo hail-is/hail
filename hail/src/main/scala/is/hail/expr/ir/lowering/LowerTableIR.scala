@@ -388,7 +388,8 @@ case class TableStage private(
     if (!allowDuplication) {
       require(newPartitioner.satisfiesAllowedOverlap(newPartitioner.kType.size - 1))
     }
-    require(newPartitioner.kType.isPrefixOf(kType))
+    if (!newPartitioner.kType.isPrefixOf(kType))
+      throw new RuntimeException(s"invalid ktype: newPart: ${ newPartitioner.kType }, old: $kType")
 
     val startAndEnd = oldSparsePartitioner.rangeBounds.map(newPartitioner.intervalRange)
       .zipWithIndex
@@ -1570,17 +1571,19 @@ object LowerTableIR {
           .length
 
         require(t.definitelyDoesNotShuffle)
-        val loweredChild = if (newKey.isEmpty)
-          choosePartitioningAndLowerTable(child, typesToLower, ctx, analyses).dropEmptyPartitionsToMakeDense()
-        else
-          lower(child)
-
 
         requestedPartitioner match {
-          case UseThisPartitioning(p) => loweredChild.changePartitionerNoRepartition(p)
+          case UseThisPartitioning(p) =>
+            lower(child, requestedPartitioner = UseThisPartitioning(p.coarsen(nPreservedFields)))
+              .changePartitionerNoRepartition(p)
           case UseTheDefaultPartitioning =>
-            loweredChild.changePartitionerNoRepartition(loweredChild.partitioner.coarsen(nPreservedFields))
-              .extendKeyPreservesPartitioning(newKey)
+            if (newKey.isEmpty)
+              choosePartitioningAndLowerTable(child, typesToLower, ctx, analyses).dropEmptyPartitionsToMakeDense()
+            else {
+              val loweredChild = lower(child)
+              loweredChild.changePartitionerNoRepartition(loweredChild.partitioner.coarsen(nPreservedFields))
+                .extendKeyPreservesPartitioning(newKey)
+            }
         }
 
       case TableLeftJoinRightDistinct(left, right, root) =>
@@ -1832,7 +1835,7 @@ object LowerTableIR {
           case UseThisPartitioning(p) =>
             val revRowMap = rowMap.map { case (k, v) => (v, k) }
             val lc = lower(child, UseThisPartitioning(p.rename(revRowMap)))
-            (lc, p)
+            (lc, p.rename(rowMap))
           case UseTheDefaultPartitioning =>
             val lc = lower(child)
             (lc, lc.partitioner.rename(rowMap))
