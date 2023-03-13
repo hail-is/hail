@@ -64,7 +64,7 @@ abstract class MatrixWriter {
     ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR =
     throw new LowererUnsupportedOperation(s"${ this.getClass } does not have defined lowering!")
 
-  def canLowerEfficiently: Boolean
+  def canLowerEfficiently: Boolean = false
 }
 
 case class MatrixNativeWriter(
@@ -78,7 +78,7 @@ case class MatrixNativeWriter(
 ) extends MatrixWriter {
   def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = mv.write(ctx, path, overwrite, stageLocally, codecSpecJSONStr, partitions, partitionsTypeStr, checkpointFile)
 
-  def canLowerEfficiently: Boolean = !stageLocally && checkpointFile == null
+  override def canLowerEfficiently: Boolean = !stageLocally && checkpointFile == null
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
     ctx: ExecuteContext, tablestage: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
@@ -409,8 +409,7 @@ case class MatrixVCFWriter(
         ctx, ts, tl, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable], Map()))
   }
 
-  def canLowerEfficiently: Boolean = true
-
+  override def canLowerEfficiently: Boolean = true
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
       ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
     require(exportType != ExportType.PARALLEL_COMPOSABLE)
@@ -866,7 +865,7 @@ case class MatrixGENWriter(
         ctx, ts, tl, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable], Map()))
   }
 
-  def canLowerEfficiently: Boolean = true
+  override def canLowerEfficiently: Boolean = true
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
       ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
@@ -988,8 +987,7 @@ case class MatrixBGENWriter(
         ctx, ts, tl, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable], Map()))
   }
 
-  def canLowerEfficiently: Boolean = true
-
+  override def canLowerEfficiently: Boolean = true
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
       ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
 
@@ -1267,8 +1265,7 @@ case class MatrixPLINKWriter(
         ctx, ts, tl, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable], Map()))
   }
 
-  def canLowerEfficiently: Boolean = true
-
+  override def canLowerEfficiently: Boolean = true
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
       ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
     val tm = MatrixType.fromTableType(t.typ, colsFieldName, entriesFieldName, colKey)
@@ -1426,8 +1423,6 @@ case class MatrixBlockMatrixWriter(
   blockSize: Int
 ) extends MatrixWriter {
   def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = MatrixWriteBlockMatrix(ctx, mv, entryField, path, overwrite, blockSize)
-
-  def canLowerEfficiently: Boolean = true
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
     ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
