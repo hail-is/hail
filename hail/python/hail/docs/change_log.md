@@ -24,6 +24,21 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.111
+
+Released 2023-03-13
+
+### New Features
+
+- (hail#12581) In Query on Batch, users can specify which regions to have jobs run in.
+
+
+### Bug Fixes
+
+- (hail#12772) Fix `hailctl hdinsight submit` to pass args to the files
+
+---
+
 ## Version 0.2.110
 
 Released 2023-03-08
