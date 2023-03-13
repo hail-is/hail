@@ -1101,7 +1101,7 @@ case class PartitionZippedNativeReader(left: PartitionReader, right: PartitionRe
     val lRequired = left.rowRequiredness(lRequested)
     val rRequired = right.rowRequiredness(rRequested)
 
-    RStruct(requestedType.fieldNames.map(f => (f, lRequired.fieldType.getOrElse(f, rRequired.fieldType(f)))))
+    RStruct.fromNamesAndTypes(requestedType.fieldNames.map(f => (f, lRequired.fieldType.getOrElse(f, rRequired.fieldType(f)))))
   }
 
   lazy val fullRowType: TStruct = {

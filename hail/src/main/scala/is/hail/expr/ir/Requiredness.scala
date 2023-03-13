@@ -181,7 +181,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case ArrayMaximalIndependentSet(a, tiebreaker) =>
         tiebreaker.foreach { case (left, right, _) =>
           val eltReq = tcoerce[TypeWithRequiredness](tcoerce[RIterable](lookup(a)).elementType.children.head)
-          val req = RTuple(FastIndexedSeq(eltReq))
+          val req = RTuple.fromTypes(FastIndexedSeq(eltReq))
           req.union(true)
           refMap(left).foreach { u => defs.bind(u, Array(req)) }
           refMap(right).foreach { u => defs.bind(u, Array(req)) }
@@ -199,7 +199,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         val aEltTypes = as.map(a => tcoerce[RStruct](tcoerce[RIterable](lookup(a)).elementType))
         if (refMap.contains(curKey)) {
           val uses = refMap(curKey)
-          val keyTypes = aEltTypes.map(t => RStruct(key.map(k => k -> t.fieldType(k))))
+          val keyTypes = aEltTypes.map(t => RStruct.fromNamesAndTypes(key.map(k => k -> t.fieldType(k))))
           uses.foreach { u => defs.bind(u, keyTypes) }
           as.foreach { a => dependents.getOrElseUpdate(a, mutable.Set[RefEquality[BaseIR]]()) ++= uses }
         }

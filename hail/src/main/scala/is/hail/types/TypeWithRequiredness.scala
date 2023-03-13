@@ -65,7 +65,7 @@ object TypeWithRequiredness {
     case t: TDict => RDict(apply(t.keyType), apply(t.valueType))
     case t: TNDArray => RNDArray(apply(t.elementType))
     case t: TInterval => RInterval(apply(t.pointType), apply(t.pointType))
-    case t: TStruct => RStruct(t.fields.map(f => f.name -> apply(f.typ)))
+    case t: TStruct => RStruct.fromNamesAndTypes(t.fields.map(f => f.name -> apply(f.typ)))
     case t: TTuple => RTuple(t.fields.map(f => RField(f.name, apply(f.typ), f.index)))
     case t: TUnion => RUnion(t.cases.map(c => c.name -> apply(c.typ)))
   }
@@ -312,7 +312,7 @@ sealed class RIterable(val elementType: TypeWithRequiredness, eltRequired: Boole
   }
 }
 case class RDict(keyType: TypeWithRequiredness, valueType: TypeWithRequiredness)
-  extends RIterable(RStruct(Array("key" -> keyType, "value" -> valueType)), true) {
+  extends RIterable(RStruct.fromNamesAndTypes(Array("key" -> keyType, "value" -> valueType)), true) {
   override def _unionLiteral(a: Annotation): Unit =
     a.asInstanceOf[Map[_,_]].foreach { case (k, v) =>
       keyType.unionLiteral(k)
@@ -417,7 +417,7 @@ sealed abstract class RBaseStruct extends TypeWithRequiredness {
 }
 
 object RStruct {
-  def apply(fields: IndexedSeq[(String, TypeWithRequiredness)])(implicit dummy: DummyImplicit): RStruct =
+  def fromNamesAndTypes(fields: IndexedSeq[(String, TypeWithRequiredness)]): RStruct =
     RStruct(Array.tabulate(fields.length)(i => RField(fields(i)._1, fields(i)._2, i)))
 }
 
@@ -427,7 +427,7 @@ case class RStruct(fields: IndexedSeq[RField]) extends RBaseStruct {
   def hasField(name: String): Boolean = fieldType.contains(name)
   def copy(newChildren: IndexedSeq[BaseTypeWithRequiredness]): RStruct = {
     assert(newChildren.length == fields.length)
-    RStruct(Array.tabulate(fields.length)(i => fields(i).name -> tcoerce[TypeWithRequiredness](newChildren(i))))
+    RStruct.fromNamesAndTypes(Array.tabulate(fields.length)(i => fields(i).name -> tcoerce[TypeWithRequiredness](newChildren(i))))
   }
   def select(newFields: Array[String]): RStruct =
     RStruct(Array.tabulate(newFields.length)(i => RField(newFields(i), field(newFields(i)), i)))
@@ -435,7 +435,7 @@ case class RStruct(fields: IndexedSeq[RField]) extends RBaseStruct {
 }
 
 object RTuple {
-  def apply(fields: IndexedSeq[TypeWithRequiredness])(implicit dummy: DummyImplicit): RTuple =
+  def fromTypes(fields: IndexedSeq[TypeWithRequiredness]): RTuple =
     RTuple(Array.tabulate(fields.length)(i => RField(i.toString, fields(i), i)))
 }
 
@@ -474,8 +474,8 @@ case class RTable(rowFields: IndexedSeq[(String, TypeWithRequiredness)], globalF
 
   val children: IndexedSeq[TypeWithRequiredness] = rowTypes ++ globalTypes
 
-  val rowType: RStruct = RStruct(rowFields)
-  val globalType: RStruct = RStruct(globalFields)
+  val rowType: RStruct = RStruct.fromNamesAndTypes(rowFields)
+  val globalType: RStruct = RStruct.fromNamesAndTypes(globalFields)
 
   def unionRows(req: RStruct): Unit = rowFields.foreach { case (n, r) => if (req.hasField(n)) r.unionFrom(req.field(n)) }
   def unionRows(req: RTable): Unit = unionRows(req.rowType)
@@ -502,10 +502,10 @@ case class RTable(rowFields: IndexedSeq[(String, TypeWithRequiredness)], globalF
   }
 
   def asMatrixType(colField: String, entryField: String): RMatrix = {
-    val row = RStruct(rowFields.filter(_._1 != entryField))
+    val row = RStruct.fromNamesAndTypes(rowFields.filter(_._1 != entryField))
     val entry = tcoerce[RStruct](tcoerce[RIterable](field(entryField)).elementType)
     val col = tcoerce[RStruct](tcoerce[RIterable](field(colField)).elementType)
-    val global = RStruct(globalFields.filter(_._1 != colField))
+    val global = RStruct.fromNamesAndTypes(globalFields.filter(_._1 != colField))
     RMatrix(row, entry, col, global)
   }
 
@@ -514,10 +514,10 @@ case class RTable(rowFields: IndexedSeq[(String, TypeWithRequiredness)], globalF
 }
 
 case class RMatrix(rowType: RStruct, entryType: RStruct, colType: RStruct, globalType: RStruct) {
-  val entriesRVType: RStruct = RStruct(FastIndexedSeq(MatrixType.entriesIdentifier -> RIterable(entryType)))
+  val entriesRVType: RStruct = RStruct.fromNamesAndTypes(FastIndexedSeq(MatrixType.entriesIdentifier -> RIterable(entryType)))
 }
 
-case class RBlockMatrix(val elementType: TypeWithRequiredness) extends BaseTypeWithRequiredness {
+case class RBlockMatrix(elementType: TypeWithRequiredness) extends BaseTypeWithRequiredness {
   override def children: IndexedSeq[BaseTypeWithRequiredness] = FastIndexedSeq(elementType)
 
   override def copy(newChildren: IndexedSeq[BaseTypeWithRequiredness]): BaseTypeWithRequiredness = RBlockMatrix(newChildren(0).asInstanceOf[TypeWithRequiredness])
