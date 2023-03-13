@@ -3782,37 +3782,57 @@ def balding_nichols_model(n_populations: int,
          .format(n_populations, n_samples, n_variants))
 
     # generate matrix table
+    from numpy import intc, linspace
 
-    bn = hl.utils.genomic_range_table(n_variants, n_partitions, reference_genome=reference_genome)
-    bn = bn.annotate(alleles=['A', 'C'])
-    bn = bn._key_by_assert_sorted('locus', 'alleles')
-
-    bn = bn.annotate_globals(
-        bn=hl.struct(n_populations=n_populations,
-                     n_samples=n_samples,
-                     n_variants=n_variants,
-                     n_partitions=n_partitions,
-                     pop_dist=pop_dist,
-                     fst=fst,
-                     mixture=mixture))
-    # col info
-    pop_f = hl.rand_dirichlet if mixture else hl.rand_cat
-    bn = bn.annotate_globals(cols=hl.range(n_samples).map(
-        lambda idx: hl.struct(
-            sample_idx=idx,
-            pop=pop_f(pop_dist)
+    n_partitions = min(n_partitions, n_variants)
+    start_idxs = linspace(0, n_variants, n_partitions + 1, dtype=intc)
+    idx_bounds = hl.zip(start_idxs, start_idxs[1:])
+    bn = hl.Table._generate(
+        contexts=idx_bounds,
+        globals=hl.struct(
+            bn=hl.struct(
+                n_populations=n_populations,
+                n_samples=n_samples,
+                n_variants=n_variants,
+                n_partitions=n_partitions,
+                pop_dist=pop_dist,
+                fst=fst,
+                mixture=mixture
+            )
+        ),
+        partitions=hl.eval(
+            idx_bounds.map(lambda idx_range: hl.interval(**{
+                varname: hl.struct(
+                    locus=hl.locus_from_global_position(idx_range[k], reference_genome),
+                    alleles=['A', 'C']
+                ) for varname, k in [('start', 0), ('end', 1)]
+            }))
+        ),
+        rowfn=lambda idx_range, _: hl.range(idx_range[0], idx_range[1]).map(
+            lambda idx: hl.struct(
+                locus=hl.locus_from_global_position(idx, reference_genome),
+                alleles=['A', 'C'],
+                entries=hl.replicate(n_samples, hl.struct())
+            )
         )
+    )
+
+    pop_f = hl.rand_dirichlet if mixture else hl.rand_cat
+    bn = bn.annotate_globals(cols=hl.range(n_samples).map(lambda idx:
+        hl.struct(sample_idx=idx, pop=pop_f(pop_dist))
     ))
-    bn = bn.annotate(entries=hl.range(n_samples).map(lambda _: hl.struct()))
+
     bn = bn._unlocalize_entries('entries', 'cols', ['sample_idx'])
     # row info
-    bn = bn.select_rows(ancestral_af=af_dist,
-                        af=hl.bind(lambda ancestral:
-                                   hl.array([(1 - x) / x for x in fst])
-                                   .map(lambda x:
-                                        hl.rand_beta(ancestral * x,
-                                                     (1 - ancestral) * x)),
-                                   af_dist))
+    bn = bn.select_rows(
+        ancestral_af=af_dist,
+        af=hl.bind(lambda ancestral:
+            hl.array([(1 - x) / x for x in fst]).map(lambda x:
+                hl.rand_beta(ancestral * x, (1 - ancestral) * x)
+            ),
+            af_dist
+        )
+    )
     # entry info
     p = hl.sum(bn.pop * bn.af) if mixture else bn.af[bn.pop]
     q = 1 - p

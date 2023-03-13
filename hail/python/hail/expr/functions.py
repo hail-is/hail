@@ -4131,6 +4131,28 @@ def map(f: Callable, *collections):
         return hl.zip(*collections).starmap(f)
 
 
+@typecheck(n=expr_int32, expr=expr_any)
+def replicate(n: 'hl.tint32', expr: 'hl.Expression') -> 'hl.ArrayExpression':
+    """Return an array of length `n` with each element initialized with `expr`
+
+    Examples
+    --------
+    >>> hl.eval(hl.replicate(5, hl.struct()))
+    [Struct(), Struct(), Struct(), Struct(), Struct()]
+
+    Parameters
+    ----------
+    n    : :class:`.tint32`     Number of elements in the array
+    expr : :class:`.Expression` Initializer for every element of the array
+
+    Returns
+    -------
+    :class:`.ArrayExpression`:
+        Array where each element has been initialized by `expr`
+    """
+    return hl.range(n).map(lambda _: expr)
+
+
 @typecheck(f=anyfunc,
            collection=expr_oneof(expr_set(), expr_array(), expr_ndarray()))
 def starmap(f: Callable, collection):
