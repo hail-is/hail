@@ -696,8 +696,8 @@ trait SNDArrayValue extends SValue {
         shapeBuilder += SizeValueDyn(end)
         stridesBuilder += stridesX(i)
       case SliceIndex(Some(begin), None) =>
-        cb.ifx(begin < 0, cb._fatal("Slice end index out of bounds (axis ", i.toString, "): startpoint " , begin.toS, " < 0"))
-        cb.ifx(begin > shapeX(i), cb._fatal("Slice end index out of bounds (axis ", i.toString, "): startpoint ", begin.toS, " > ", shapeX(i).toS))
+        cb.ifx(begin < 0, cb._fatal("Slice start index out of bounds (axis ", i.toString, "): startpoint " , begin.toS, " < 0"))
+        cb.ifx(begin > shapeX(i), cb._fatal("Slice start index out of bounds (axis ", i.toString, "): startpoint ", begin.toS, " > ", shapeX(i).toS))
         val s = cb.newLocal[Long]("slice_size", shapeX(i) - begin)
         shapeBuilder += SizeValueDyn(s)
         stridesBuilder += stridesX(i)
