@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS `pools` (
   `preemptible` BOOLEAN NOT NULL DEFAULT TRUE,
   `standing_worker_max_idle_time_secs` INT NOT NULL,
   `job_queue_scheduling_window_secs` INT NOT NULL,
+  `min_instances` BIGINT NOT NULL,
   PRIMARY KEY (`name`),
   FOREIGN KEY (`name`) REFERENCES inst_colls(name) ON DELETE CASCADE
 ) ENGINE = InnoDB;

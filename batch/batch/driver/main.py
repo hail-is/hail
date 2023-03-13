@@ -590,14 +590,24 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
             raise ConfigError()
 
         max_instances = validate_int(
-            session, 'Max instances', post['max_instances'], lambda v: v > 0, 'a positive integer'
+            session, 'Max instances', post['max_instances'], lambda v: v >= 0, 'a non-negative integer'
         )
 
         max_live_instances = validate_int(
-            session, 'Max live instances', post['max_live_instances'], lambda v: v > 0, 'a positive integer'
+            session,
+            'Max live instances',
+            post['max_live_instances'],
+            lambda v: 0 <= v <= max_instances,
+            'a non-negative integer',
         )
 
-        enable_standing_worker = 'enable_standing_worker' in post
+        min_instances = validate_int(
+            session,
+            'Min instances',
+            post['min_instances'],
+            lambda v: 0 <= v <= max_live_instances,
+            f'a non-negative integer less than or equal to max_live_instances {max_live_instances}',
+        )
 
         possible_worker_cores = []
         for cores in possible_cores_from_worker_type(pool.cloud, worker_type):
@@ -683,9 +693,9 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
             worker_cores=worker_cores,
             worker_local_ssd_data_disk=worker_local_ssd_data_disk,
             worker_external_ssd_data_disk_size_gb=worker_external_ssd_data_disk_size_gb,
-            enable_standing_worker=enable_standing_worker,
             standing_worker_cores=standing_worker_cores,
             boot_disk_size_gb=boot_disk_size_gb,
+            min_instances=min_instances,
             max_instances=max_instances,
             max_live_instances=max_live_instances,
             preemptible=pool.preemptible,
