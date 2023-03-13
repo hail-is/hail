@@ -9,8 +9,6 @@ from avro.datafile import DataFileReader
 from avro.io import DatumReader
 import hail as hl
 from hail import ir
-from hail.backend.backend import validate_file_scheme
-from hail.backend.service_backend import ServiceBackend
 from hail.expr import StructExpression, LocusExpression, \
     expr_array, expr_float64, expr_str, expr_numeric, expr_call, expr_bool, \
     expr_any, \
@@ -124,7 +122,7 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
 
     require_biallelic(dataset, 'export_gen')
 
-    validate_file_scheme(output)
+    hl.current_backend().validate_file_scheme(output)
 
     if gp is None:
         if 'GP' in dataset.entry and dataset.GP.dtype == tarray(tfloat64):
@@ -229,7 +227,7 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None, compr
     require_row_key_variant(mt, 'export_bgen')
     require_col_key_str(mt, 'export_bgen')
 
-    validate_file_scheme(output)
+    hl.current_backend().validate_file_scheme(output)
 
     if gp is None:
         if 'GP' in mt.entry and mt.GP.dtype == tarray(tfloat64):
@@ -355,7 +353,7 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
 
     require_biallelic(dataset, 'export_plink', tolerate_generic_locus=True)
 
-    validate_file_scheme(output)
+    hl.current_backend().validate_file_scheme(output)
 
     if ind_id is None:
         require_col_key_str(dataset, "export_plink")
@@ -530,7 +528,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         **Note**: This feature is experimental, and the interface and defaults
         may change in future versions.
     """
-    validate_file_scheme(output)
+    hl.current_backend().validate_file_scheme(output)
 
     _, ext = os.path.splitext(output)
     if ext == '.gz':

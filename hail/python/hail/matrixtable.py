@@ -2,7 +2,6 @@ import itertools
 from typing import Iterable, Optional, Dict, Tuple, Any, List
 from collections import Counter
 import hail as hl
-from hail.backend.backend import validate_file_scheme
 from hail.expr.expressions import Expression, StructExpression, \
     expr_struct, expr_any, expr_bool, analyze, Indices, \
     construct_reference, construct_expr, extract_refs_by_indices, \
@@ -2679,7 +2678,7 @@ class MatrixTable(ExprContainer):
   }
 }"""
 
-        validate_file_scheme(output)
+        hl.current_backend().validate_file_scheme(output)
 
         if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
             self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
@@ -2730,8 +2729,8 @@ class MatrixTable(ExprContainer):
             If ``True``, overwrite an existing file at the destination.
         """
 
-        validate_file_scheme(output)
-        
+        hl.current_backend().validate_file_scheme(output)
+
         if _partitions is not None:
             _partitions, _partitions_type = hl.utils._dumps_partitions(_partitions, self.row_key.dtype)
         else:
