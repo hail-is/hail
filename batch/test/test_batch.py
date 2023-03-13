@@ -7,8 +7,8 @@ from typing import Set
 import pytest
 
 from hailtop import httpx
-from hailtop.auth import service_auth_headers
 from hailtop.batch.backend import HAIL_GENETICS_HAILTOP_IMAGE
+from hailtop.auth import hail_credentials
 from hailtop.batch_client.client import BatchClient
 from hailtop.config import get_deploy_config, get_user_config
 from hailtop.test_utils import skip_in_azure
@@ -690,7 +690,7 @@ def test_create_idempotence(client: BatchClient):
     assert b1.id == b2.id
 
 
-def test_batch_create_validation():
+async def test_batch_create_validation():
     bad_configs = [
         # unexpected field fleep
         {'billing_project': 'foo', 'n_jobs': 5, 'token': 'baz', 'fleep': 'quam'},
@@ -723,7 +723,7 @@ def test_batch_create_validation():
         {'attributes': {'k': None}, 'billing_project': 'foo', 'n_jobs': 5, 'token': 'baz'},
     ]
     url = deploy_config.url('batch', '/api/v1alpha/batches/create')
-    headers = service_auth_headers(deploy_config, 'batch')
+    headers = await hail_credentials().auth_headers()
     session = external_requests_client_session()
     for config in bad_configs:
         r = retry_response_returning_functions(session.post, url, json=config, allow_redirects=True, headers=headers)

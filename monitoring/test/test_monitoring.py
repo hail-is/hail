@@ -1,11 +1,10 @@
 import asyncio
 import logging
 
-import aiohttp
 import pytest
 
 import hailtop.utils as utils
-from hailtop.auth import service_auth_headers
+from hailtop.auth import hail_credentials
 from hailtop.config import get_deploy_config
 from hailtop.httpx import client_session
 
@@ -17,7 +16,7 @@ log = logging.getLogger(__name__)
 async def test_billing_monitoring():
     deploy_config = get_deploy_config()
     monitoring_deploy_config_url = deploy_config.url('monitoring', '/api/v1alpha/billing')
-    headers = service_auth_headers(deploy_config, 'monitoring')
+    headers = await hail_credentials().auth_headers()
     async with client_session() as session:
 
         async def wait_forever():
