@@ -5,7 +5,7 @@ Change Log
 
 **Version 0.2.111**
 
-- (`#12530 <https://github.com/hail-is/hail/pull/12530>`__) Added the ability to update an existing batch with additional jobs by calling Batch.run() more than once. The function :func:`.Batch.from_batch_id`
+- (`#12530 <https://github.com/hail-is/hail/pull/12530>`__) Added the ability to update an existing batch with additional jobs by calling :meth:`.Batch.run` more than once. The method :meth:`.Batch.from_batch_id`
   can be used to construct a :class:`.Batch` from a previously submitted batch.
 
 **Version 0.2.110**
