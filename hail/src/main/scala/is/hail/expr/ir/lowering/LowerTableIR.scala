@@ -2,15 +2,16 @@ package is.hail.expr.ir.lowering
 
 import is.hail.HailContext
 import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.ArrayZipBehavior.AssertSameLength
+import is.hail.expr.ir.agg.{Extract, PhysicalAggSig, TakeStateSig}
 import is.hail.expr.ir.functions.{TableCalculateNewPartitions, WrappedMatrixToTableFunction}
-import is.hail.expr.ir.agg.{Aggs, Extract, PhysicalAggSig, TakeStateSig}
 import is.hail.expr.ir.{agg, _}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
-import is.hail.methods.{LocalLDPrune, ForceCountTable, NPartitionsTable, TableFilterPartitions}
+import is.hail.methods.{ForceCountTable, LocalLDPrune, NPartitionsTable, TableFilterPartitions}
 import is.hail.rvd.{PartitionBoundOrdering, RVDPartitioner}
+import is.hail.types._
 import is.hail.types.physical.{PCanonicalBinary, PCanonicalTuple}
 import is.hail.types.virtual._
-import is.hail.types.{RField, RPrimitive, RStruct, RTable, TableType, TypeWithRequiredness, tcoerce, _}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
@@ -796,23 +797,52 @@ object LowerTableIR {
           context,
           ctxRef => ToStream(ctxRef, true))
 
-      case t@TableGen(_, _, cname, gname, _, partitioner, traceId) =>
-        val Seq(contexts, globals, body) = t.children.map(ir => lowerIR(ir.asInstanceOf[IR]))
+      case TableGen(contexts, globals, cname, gname, body, partitioner, errorId) =>
+        val loweredGlobals = lowerIR(globals)
         TableStage(
-          globals,
+          loweredGlobals,
           partitioner = partitioner,
           dependency = TableStageDependency.none,
-          // Assert at runtime that the number of contexts matches the number of partitions
-          contexts = bindIR(ToArray(contexts)) { ref =>
-            val dieMsg = strConcat(
-              s"${t.getClass.getSimpleName}: partitioner contains ${partitioner.numPartitions} partitions, got ",
-              invoke("str", TString, ArrayLen(ref))
-            )
-            ToStream(
-              If(ArrayLen(ref) ceq partitioner.numPartitions, ref, Die(dieMsg, ref.typ, traceId))
-            )
+          contexts = lowerIR {
+            bindIR(ToArray(contexts)) { ref =>
+              bindIR(ArrayLen(ref)) { len =>
+                // Assert at runtime that the number of contexts matches the number of partitions
+                val ctxs = ToStream(If(len ceq partitioner.numPartitions, ref, {
+                  val dieMsg = strConcat(
+                    s"TableGen: partitioner contains ${partitioner.numPartitions} partitions,",
+                    " got ", len, " contexts."
+                  )
+                  Die(dieMsg, ref.typ, errorId)
+                }))
+
+                // [FOR KEYED TABLES ONLY]
+                // AFAIK, there's no way to guarantee that the rows generated in the
+                // body conform to their partition's range bounds at compile time so
+                // assert this at runtime in the body before it wreaks havoc upon the world.
+                val partitionIdx = StreamRange(I32(0), I32(partitioner.numPartitions), I32(1))
+                val bounds = Literal(TArray(TInterval(partitioner.kType)), partitioner.rangeBounds.toIndexedSeq)
+                zipIR(FastSeq(partitionIdx, ToStream(bounds), ctxs), AssertSameLength, errorId)(MakeTuple.ordered)
+              }
+            }
           },
-          body = Let(cname, _, Let(gname, globals, body))
+          body = in => lowerIR {
+            val rows = Let(cname, GetTupleElement(in, 2), Let(gname, loweredGlobals, body))
+            if (partitioner.kType.fields.isEmpty) rows
+            else bindIR(GetTupleElement(in, 1)) { interval =>
+              mapIR(rows) { row =>
+                val key = SelectFields(row, partitioner.kType.fieldNames)
+                If(invoke("contains", TBoolean, interval, key), row, {
+                  val idx = GetTupleElement(in, 0)
+                  val msg = strConcat(
+                    "TableGen: Unexpected key in partition ", idx,
+                    "\n\tRange bounds for partition ", idx, ": ", interval,
+                    "\n\tInvalid key: ", key
+                  )
+                  Die(msg, row.typ, errorId)
+                })
+              }
+            }
+          }
         )
 
       case TableRange(n, nPartitions) =>

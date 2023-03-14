@@ -64,6 +64,7 @@ object CanLowerEfficiently {
         case t: TableAggregateByKey =>
         case t: TableRename =>
         case t: TableFilterIntervals =>
+        case t: TableGen =>
         case TableToTableApply(_, TableFilterPartitions(_, _)) =>
         case TableToTableApply(_, WrappedMatrixToTableFunction(_: LocalLDPrune, _, _, _)) =>
         case t: TableToTableApply => fail(s"TableToTableApply")

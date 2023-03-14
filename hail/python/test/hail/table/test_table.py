@@ -2284,6 +2284,16 @@ def test_table_randomness():
     assert_contains_node(t, ir.BlockMatrixToTable)
     assert_unique_uids(t)
 
+    # test TableGen
+    t = hl.Table._generate(
+        contexts=hl.range(10),
+        globals=hl.struct(k=2),
+        rowfn=lambda c, g: hl.range(10).map(lambda _: hl.struct(a=c * g.k)),
+        partitions=10
+    )
+    assert_contains_node(t, ir.TableGen)
+    assert_unique_uids(t)
+
 
 def test_query_table():
     f = new_temp_file(extension='ht')
