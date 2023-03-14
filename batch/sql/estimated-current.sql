@@ -936,17 +936,12 @@ CREATE TRIGGER aggregated_bp_user_resources_v2_after_update AFTER UPDATE ON aggr
 FOR EACH ROW
 BEGIN
   DECLARE new_resource_id INT;
-  DECLARE cur_n_tokens INT;
-  DECLARE rand_token INT;
 
   IF OLD.migrated = 0 AND NEW.migrated = 1 THEN
-    SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
-    SET rand_token = FLOOR(RAND() * cur_n_tokens);
-
     SELECT deduped_resource_id INTO new_resource_id FROM resources WHERE resource_id = OLD.resource_id;
 
     INSERT INTO aggregated_billing_project_user_resources_v3 (billing_project, user, resource_id, token, `usage`)
-    VALUES (NEW.billing_project, NEW.user, new_resource_id, rand_token, NEW.usage)
+    VALUES (NEW.billing_project, NEW.user, new_resource_id, NEW.token, NEW.usage)
     ON DUPLICATE KEY UPDATE
       `usage` = `usage` + NEW.usage;
   END IF;
@@ -957,17 +952,12 @@ CREATE TRIGGER aggregated_bp_user_resources_by_date_v2_after_update AFTER UPDATE
 FOR EACH ROW
 BEGIN
   DECLARE new_resource_id INT;
-  DECLARE cur_n_tokens INT;
-  DECLARE rand_token INT;
 
   IF OLD.migrated = 0 AND NEW.migrated = 1 THEN
-    SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
-    SET rand_token = FLOOR(RAND() * cur_n_tokens);
-
     SELECT deduped_resource_id INTO new_resource_id FROM resources WHERE resource_id = OLD.resource_id;
 
     INSERT INTO aggregated_billing_project_user_resources_by_date_v3 (billing_date, billing_project, user, resource_id, token, `usage`)
-    VALUES (NEW.billing_date, NEW.billing_project, NEW.user, new_resource_id, rand_token, NEW.usage)
+    VALUES (NEW.billing_date, NEW.billing_project, NEW.user, new_resource_id, NEW.token, NEW.usage)
     ON DUPLICATE KEY UPDATE
         `usage` = `usage` + NEW.usage;
   END IF;
@@ -978,17 +968,12 @@ CREATE TRIGGER aggregated_batch_resources_v2_after_update AFTER UPDATE ON aggreg
 FOR EACH ROW
 BEGIN
   DECLARE new_resource_id INT;
-  DECLARE cur_n_tokens INT;
-  DECLARE rand_token INT;
 
   IF OLD.migrated = 0 AND NEW.migrated = 1 THEN
-    SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
-    SET rand_token = FLOOR(RAND() * cur_n_tokens);
-
     SELECT deduped_resource_id INTO new_resource_id FROM resources WHERE resource_id = OLD.resource_id;
 
     INSERT INTO aggregated_batch_resources_v3 (batch_id, resource_id, token, `usage`)
-    VALUES (NEW.batch_id, new_resource_id, rand_token, NEW.usage)
+    VALUES (NEW.batch_id, new_resource_id, NEW.token, NEW.usage)
     ON DUPLICATE KEY UPDATE
       `usage` = `usage` + NEW.usage;
   END IF;
@@ -999,13 +984,8 @@ CREATE TRIGGER aggregated_job_resources_v2_after_update AFTER UPDATE ON aggregat
 FOR EACH ROW
 BEGIN
   DECLARE new_resource_id INT;
-  DECLARE cur_n_tokens INT;
-  DECLARE rand_token INT;
 
   IF OLD.migrated = 0 AND NEW.migrated = 1 THEN
-    SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
-    SET rand_token = FLOOR(RAND() * cur_n_tokens);
-
     SELECT deduped_resource_id INTO new_resource_id FROM resources WHERE resource_id = OLD.resource_id;
 
     INSERT INTO aggregated_job_resources_v3 (batch_id, job_id, resource_id, `usage`)
