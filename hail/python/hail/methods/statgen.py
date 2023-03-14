@@ -3782,10 +3782,10 @@ def balding_nichols_model(n_populations: int,
          .format(n_populations, n_samples, n_variants))
 
     # generate matrix table
-    from numpy import intc, linspace
+    from numpy import linspace
 
     n_partitions = min(n_partitions, n_variants)
-    start_idxs = linspace(0, n_variants, n_partitions + 1, dtype=intc)
+    start_idxs = [int(x) for x in linspace(0, n_variants, n_partitions + 1)]
     idx_bounds = hl.zip(start_idxs, start_idxs[1:])
     bn = hl.Table._generate(
         contexts=idx_bounds,
