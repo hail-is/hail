@@ -2358,3 +2358,4 @@ def test_import_google_sheet():
                      'Major': 'Math',
                      'Extracurricular Activity': 'Debate'}),
     ]
+    assert actual == expected
