@@ -173,7 +173,7 @@ LEFT JOIN (
   LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
   GROUP BY batch_id, job_id
 ) AS new ON old.batch_id = new.batch_id AND old.job_id = new.job_id
-WHERE ABS(new.cost - old.cost) >= 0.00001
+WHERE ABS(new.cost - old.cost) = 0
 LIMIT 100;
 ''')
 
@@ -211,7 +211,7 @@ LEFT JOIN (
   LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
   GROUP BY batch_id
 ) AS new ON old.batch_id = new.batch_id
-WHERE ABS(new.cost - old.cost) >= 0.00001
+WHERE ABS(new.cost - old.cost) = 0
 LIMIT 100;
 ''')
 
@@ -249,7 +249,7 @@ LEFT JOIN (
   LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
   GROUP BY billing_project, user
 ) AS new ON old.billing_project = new.billing_project AND old.user = new.user
-WHERE ABS(new.cost - old.cost) >= 0.00001
+WHERE ABS(new.cost - old.cost) = 0
 LIMIT 100;
 ''')
 
@@ -287,7 +287,7 @@ LEFT JOIN (
   LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
   GROUP BY billing_date, billing_project, user
 ) AS new ON old.billing_project = new.billing_project AND old.user = new.user
-WHERE ABS(new.cost - old.cost) >= 0.00001
+WHERE ABS(new.cost - old.cost) = 0
 LIMIT 100;
 ''')
 
