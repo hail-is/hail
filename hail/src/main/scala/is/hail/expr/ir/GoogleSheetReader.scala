@@ -69,15 +69,23 @@ class GoogleSheetPartitionReader(
   override def contextType: TStruct = TStruct()
 
   override def fullRowType: TStruct = TStruct(
+    "index" -> TInt64,
     "cells" -> TArray(TString),
     uidFieldName -> TInt64
   )
 
   override def rowRequiredness(requestedType: TStruct): RStruct = {
     val req = BaseTypeWithRequiredness.apply(requestedType).asInstanceOf[RStruct]
-    req.field("cells").hardSetRequiredness(true)
-    req.field("cells").asInstanceOf[RIterable].elementType.hardSetRequiredness(true)
-    req.field(uidFieldName).hardSetRequiredness(true)
+    if (req.hasField("index")) {
+      req.field("index").hardSetRequiredness(true)
+    }
+    if (req.hasField("cells")) {
+      req.field("cells").hardSetRequiredness(true)
+      req.field("cells").asInstanceOf[RIterable].elementType.hardSetRequiredness(true)
+    }
+    if (req.hasField(uidFieldName)) {
+      req.field(uidFieldName).hardSetRequiredness(true)
+    }
     req.hardSetRequiredness(true)
     req
   }
