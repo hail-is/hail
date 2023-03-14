@@ -179,7 +179,7 @@ def assert_all_eval_to(*expr_and_expected):
 def with_flags(*flags):
     @decorator
     def wrapper(func, *args, **kwargs):
-        prev_flags = {k: v for k, v in hl._get_flags().items() if k in flags}
+        prev_flags = hl._get_flags(*flags)
 
         hl._set_flags(**{k: '1' for k in flags})
 
