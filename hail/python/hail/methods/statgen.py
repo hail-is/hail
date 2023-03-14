@@ -3809,10 +3809,17 @@ def balding_nichols_model(n_populations: int,
             }))
         ),
         rowfn=lambda idx_range, _: hl.range(idx_range[0], idx_range[1]).map(
-            lambda idx: hl.struct(
-                locus=hl.locus_from_global_position(idx, reference_genome),
-                alleles=['A', 'C'],
-                entries=hl.replicate(n_samples, hl.struct())
+            lambda idx: hl.bind(
+                lambda ancestral: hl.struct(
+                    locus=hl.locus_from_global_position(idx, reference_genome),
+                    alleles=['A', 'C'],
+                    ancestral_af=ancestral,
+                    af=hl.array([(1 - x) / x for x in fst]).map(
+                        lambda x: hl.rand_beta(ancestral * x, (1 - ancestral) * x)
+                    ),
+                    entries=hl.replicate(n_samples, hl.struct()),
+                ),
+                af_dist
             )
         )
     )
@@ -3823,16 +3830,7 @@ def balding_nichols_model(n_populations: int,
     ))
 
     bn = bn._unlocalize_entries('entries', 'cols', ['sample_idx'])
-    # row info
-    bn = bn.select_rows(
-        ancestral_af=af_dist,
-        af=hl.bind(
-            lambda ancestral: hl.array([(1 - x) / x for x in fst]).map(
-                lambda x: hl.rand_beta(ancestral * x, (1 - ancestral) * x)
-            ),
-            af_dist
-        )
-    )
+
     # entry info
     p = hl.sum(bn.pop * bn.af) if mixture else bn.af[bn.pop]
     q = 1 - p
@@ -3841,11 +3839,8 @@ def balding_nichols_model(n_populations: int,
         mom = hl.rand_bool(p)
         dad = hl.rand_bool(p)
         return bn.select_entries(GT=hl.call(mom, dad, phased=True))
-    idx = hl.rand_cat([
-        q ** 2,
-        2 * p * q,
-        p ** 2
-    ])
+
+    idx = hl.rand_cat([q ** 2, 2 * p * q, p ** 2])
     return bn.select_entries(GT=hl.unphased_diploid_gt_index_call(idx))
 
 
