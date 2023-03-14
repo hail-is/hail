@@ -127,6 +127,11 @@ class GoogleSheetPartitionReader(
         override val element: EmitCode = EmitCode.fromI(cb.emb) { cb =>
           val reqType: TStruct = requestedType.asInstanceOf[TStruct]
           val requestedFields = Array(
+            reqType.selfField("index").map { _ =>
+              EmitCode.fromI(cb.emb) { cb =>
+                IEmitCode.present(cb, new SInt64Value(rowIdx))
+              }
+            },
             reqType.selfField("cells").map { _ =>
               EmitCode.fromI(cb.emb) { cb =>
                 IEmitCode.present(cb, SJavaArrayString(true).construct(cb, rowField))
@@ -189,9 +194,9 @@ class GoogleSheetReader(
   override def isDistinctlyKeyed: Boolean = false
 
   val fullTypeWithoutUIDs: TableType = TableType(
-    TStruct("cells"-> TArray(TString)),
-    FastIndexedSeq.empty,
-    TStruct())
+    TStruct("index"-> TInt64, "cells"-> TArray(TString)),
+    FastIndexedSeq("index"),
+    TStruct.empty)
 
   override def uidType = TInt64
 
@@ -199,7 +204,9 @@ class GoogleSheetReader(
     PCanonicalStruct(
       IndexedSeq(
         PField(
-          "cells", PCanonicalArray(PCanonicalString(true)), 0)),
+          "index", PInt64(true), 0),
+        PField(
+          "cells", PCanonicalArray(PCanonicalString(true)), 1)),
       true).subsetTo(requestedType.rowType).asInstanceOf[PStruct]
   )
 

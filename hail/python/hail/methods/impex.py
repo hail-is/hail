@@ -3151,6 +3151,7 @@ def import_google_sheet(spreadsheet_id, sheetname) -> Table:
         None
     ----------------------------------------
     Row fields:
+        'index': int64
         'Student Name': str
         'Gender': str
         'Class Level': str
@@ -3158,7 +3159,7 @@ def import_google_sheet(spreadsheet_id, sheetname) -> Table:
         'Major': str
         'Extracurricular Activity': str
     ----------------------------------------
-    Key: []
+    Key: ['index']
     ----------------------------------------
 
     Parameters
@@ -3171,27 +3172,24 @@ def import_google_sheet(spreadsheet_id, sheetname) -> Table:
     Returns
     -------
     :class:`.Table`
-        A Table constructed from imported google sheet.
+        A Table constructed from imported google sheet. The key is always `index` the 1-based index
+        of the row in the sheet.
 
     """
     st_reader = ir.GoogleSheetReader(spreadsheet_id, sheetname)
     table_type = hl.ttable(
         global_type=hl.tstruct(),
-        row_type=hl.tstruct(cells=hl.tarray(hl.tstr)),
-        row_key=[]
+        row_type=hl.tstruct(index=hl.tint64, cells=hl.tarray(hl.tstr)),
+        row_key=['index']
     )
     ht = Table(ir.TableRead(st_reader, _assert_type=table_type))
     tp = ht.head(1)
-    index = 0
-    column_names = tp.collect()[0]['cells']
-    for column_name in column_names:
+    column_names = tp.cells.collect()[0]
+    for col_index, column_name in enumerate(column_names):
         ht = ht.annotate(
-            **{column_name: ht['cells'][index]}
+            **{column_name: ht.cells[col_index]}
         )
-        index = index + 1
-    ht = ht.add_index('index')
     ht = ht.filter(ht['index'] != 0)
     ht = ht.drop('cells')
-    ht = ht.drop('index')
 
     return ht
