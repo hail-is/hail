@@ -22,7 +22,7 @@ class RVDPartitioner(
   // assert(rangeBounds.forall(SafeRow.isSafe))
 
   override def toString: String =
-    s"RVDPartitioner($kType, ${rangeBounds.mkString("[", ",\n", "]")})"
+    s"RVDPartitioner($kType),\n  partitions:\n    ${rangeBounds.mkString(",\n    ")}"
 
   def this(
     sm: HailStateManager,
@@ -69,7 +69,7 @@ class RVDPartitioner(
       Some(Interval(rangeBounds.head.left, rangeBounds.last.right))
 
   def satisfiesAllowedOverlap(testAllowedOverlap: Int): Boolean =
-    (allowedOverlap >= kType.size) || RVDPartitioner.isValid(sm, kType, rangeBounds, testAllowedOverlap)
+    (testAllowedOverlap >= kType.size) || RVDPartitioner.isValid(sm, kType, rangeBounds, testAllowedOverlap)
 
   def isStrict: Boolean = satisfiesAllowedOverlap(kType.size - 1)
 
