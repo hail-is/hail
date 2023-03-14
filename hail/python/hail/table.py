@@ -812,12 +812,8 @@ class Table(ExprContainer):
 
         return self._select(caller, self.row.annotate(**named_exprs).drop(*fields_referenced))
 
-    from .typecheck.check2 import typecheck2_method
-    from .expr.types import HailType
-
-    # @typecheck_method(named_exprs=expr_any)
-    @typecheck2_method
-    def annotate(self, **named_exprs: HailType) -> 'Table':
+    @typecheck_method(named_exprs=expr_any)
+    def annotate(self, **named_exprs) -> 'Table':
         """Add new fields.
 
         Examples

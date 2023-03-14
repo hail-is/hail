@@ -20,14 +20,10 @@ import hail
 import hail as hl
 from hail.typecheck import enumeration, typecheck, nullable
 from hail.utils.java import Env, error
-from hail.typecheck.check2 import typecheck2
 
-# @typecheck(n_rows=int, n_cols=int, n_partitions=nullable(int))
-@typecheck2
-def range_matrix_table(n_rows: int,
-                       n_cols: int,
-                       n_partitions: Optional[int] = None
-                       ) -> 'hail.MatrixTable':
+
+@typecheck(n_rows=int, n_cols=int, n_partitions=nullable(int))
+def range_matrix_table(n_rows, n_cols, n_partitions=None) -> 'hail.MatrixTable':
     """Construct a matrix table with row and column indices and no entry fields.
 
     Examples
