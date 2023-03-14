@@ -179,7 +179,7 @@ def assert_all_eval_to(*expr_and_expected):
 def with_flags(*flags):
     @decorator
     def wrapper(func, *args, **kwargs):
-        prev_flags = {k: v for k, v in hl._get_flags().items() if k in flags}
+        prev_flags = hl._get_flags(*flags)
 
         hl._set_flags(**{k: '1' for k in flags})
 
@@ -191,16 +191,4 @@ def with_flags(*flags):
 
 
 def lower_only():
-    @decorator
-    def wrapper(func, *args, **kwargs):
-        flags = hl._get_flags('lower', 'lower_only')
-        prev_lower = flags.get('lower')
-        prev_lower_only = flags.get('lower_only')
-
-        hl._set_flags(lower='1', lower_only='1')
-
-        try:
-            return func(*args, **kwargs)
-        finally:
-            hl._set_flags(lower=prev_lower, lower_only=prev_lower_only)
-    return wrapper
+    return with_flags('lower', 'lower_bm', 'lower_only')
