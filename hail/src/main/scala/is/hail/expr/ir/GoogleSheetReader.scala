@@ -86,7 +86,7 @@ class GoogleSheetPartitionReader(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     context: EmitCode,
-    requestedType: Type
+    requestedType: TStruct
   ): IEmitCode = {
     val spreadsheetIdLocal = spreadsheetId
     val sheetNameLocal = sheetName
@@ -97,9 +97,11 @@ class GoogleSheetPartitionReader(
       val rowIdx = cb.emb.genFieldThisRef[Long]("rowIdx")
 
       SStreamValue(new StreamProducer {
+        def method: EmitMethodBuilder[_] = cb.emb
+
         override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-        override def initialize(cb: EmitCodeBuilder): Unit = {
+        override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
           cb.assign(runtimeField, Code.newInstance[GoogleSheetPartitionIterator, String, String](
             spreadsheetIdLocal,
             sheetNameLocal
@@ -176,10 +178,10 @@ class GoogleSheetReader(
 ) extends TableReaderWithExtraUID {
   override def pathsUsed: Seq[String] = FastSeq(params.spreadsheetID)
 
-  override def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
-    val ts = lower(ctx, tr.typ)
+  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
+    val ts = lower(ctx, requestedType)
     val (broadCastRow, rVD) = TableStageToRVD.apply(ctx, ts, Map[String, IR]())
-    TableValue(ctx, tr.typ, broadCastRow, rVD)
+    TableValue(ctx, requestedType, broadCastRow, rVD)
   }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = None
