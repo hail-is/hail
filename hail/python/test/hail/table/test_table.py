@@ -914,8 +914,6 @@ class Tests(unittest.TestCase):
         with hl.hadoop_open(tmp_file, 'r') as f_in:
             assert f_in.read() == 'idx,foo\n0,3\n'
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_write_stage_locally(self):
         t = hl.utils.range_table(5)
         f = new_temp_file(extension='ht')
