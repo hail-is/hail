@@ -444,7 +444,6 @@ object LoweredTableReader {
 
 
 trait TableReaderWithExtraUID extends TableReader {
-
   def fullTypeWithoutUIDs: TableType
 
   final val uidFieldName = TableReader.uidFieldName
@@ -457,7 +456,6 @@ trait TableReaderWithExtraUID extends TableReader {
   }
 
   def uidType: Type
-
 
   protected def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq
 
@@ -480,6 +478,7 @@ trait TableReaderWithExtraUID extends TableReader {
     }
   }
 }
+
 abstract class TableReader {
   def pathsUsed: Seq[String]
 

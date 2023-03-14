@@ -2,19 +2,19 @@ package is.hail.expr.ir
 
 import is.hail.HAIL_PRETTY_VERSION
 import is.hail.annotations.Region
-import is.hail.asm4s.{Code, CodeLabel, Settable, Value}
+import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency, TableStageToRVD}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.fs.{FS, FileStatus}
 import is.hail.rvd.RVDPartitioner
-import is.hail.types.physical.stypes.concrete.{SJavaString, SStackStruct, SJavaArrayString}
-import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStreamValue}
-import is.hail.types.physical.{PCanonicalArray, PCanonicalString, PCanonicalStruct, PField, PStruct, PType}
-import is.hail.types.virtual.{TArray, TString, TStruct, Type}
-import is.hail.types.{BaseTypeWithRequiredness, RStruct, RIterable, TableType, TypeWithRequiredness}
-import is.hail.types.virtual.{Field, TArray, TStream, TString, TStruct, Type}
+import is.hail.types._
+import is.hail.types.physical._
+import is.hail.types.virtual._
+import is.hail.types.physical.stypes.concrete._
+import is.hail.types.physical.stypes.primitives._
+import is.hail.types.physical.stypes.interfaces._
 import is.hail.utils._
 import org.json4s.{Extraction, Formats, JValue}
 
@@ -63,16 +63,21 @@ class GoogleSheetPartitionIterator(
 
 class GoogleSheetPartitionReader(
   private[this] val spreadsheetId: String,
-  private[this] val sheetName: String
+  private[this] val sheetName: String,
+  val uidFieldName: String
 ) extends PartitionReader {
   override def contextType: TStruct = TStruct()
 
-  override def fullRowType: TStruct = TStruct("cells" -> TArray(TString))
+  override def fullRowType: TStruct = TStruct(
+    "cells" -> TArray(TString),
+    uidFieldName -> TInt64
+  )
 
-  override def rowRequiredness(requestedType: Type): RStruct = {
+  override def rowRequiredness(requestedType: TStruct): RStruct = {
     val req = BaseTypeWithRequiredness.apply(requestedType).asInstanceOf[RStruct]
     req.field("cells").hardSetRequiredness(true)
     req.field("cells").asInstanceOf[RIterable].elementType.hardSetRequiredness(true)
+    req.field(uidFieldName).hardSetRequiredness(true)
     req.hardSetRequiredness(true)
     req
   }
@@ -81,16 +86,16 @@ class GoogleSheetPartitionReader(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     context: EmitCode,
-    partitionRegion: Value[Region],
     requestedType: Type
   ): IEmitCode = {
     val spreadsheetIdLocal = spreadsheetId
     val sheetNameLocal = sheetName
 
     context.toI(cb).map(cb) { case partitionContext: SBaseStructValue =>
-
       val runtimeField = cb.fieldBuilder.newSettable[GoogleSheetPartitionIterator]("googleSheetPartitionIterator")
       val rowField = cb.fieldBuilder.newSettable[Array[String]]("googleSheetPartitionReaderRawRow")
+      val rowIdx = cb.emb.genFieldThisRef[Long]("rowIdx")
+
       SStreamValue(new StreamProducer {
         override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
@@ -99,6 +104,7 @@ class GoogleSheetPartitionReader(
             spreadsheetIdLocal,
             sheetNameLocal
           ))
+          cb.assign(rowIdx, -1L)
         }
 
         override val elementRegion: Settable[Region] =
@@ -109,6 +115,7 @@ class GoogleSheetPartitionReader(
         override val LproduceElement: CodeLabel = cb.emb.defineAndImplementLabel { cb =>
           cb.ifx(runtimeField.invoke[Boolean]("hasNext"), {
             cb.assign(rowField, runtimeField.invoke[Array[String]]("next"))
+            cb.assign(rowIdx, rowIdx + const(1L))
             cb.goto(LproduceElementDone)
           }, {
             cb.goto(LendOfStream)
@@ -121,6 +128,11 @@ class GoogleSheetPartitionReader(
             reqType.selfField("cells").map { _ =>
               EmitCode.fromI(cb.emb) { cb =>
                 IEmitCode.present(cb, SJavaArrayString(true).construct(cb, rowField))
+              }
+            },
+            reqType.selfField(uidFieldName).map { _ =>
+              EmitCode.fromI(cb.emb) { cb =>
+                IEmitCode.present(cb, new SInt64Value(rowIdx))
               }
             }
           ).flatten.toFastIndexedSeq
@@ -145,9 +157,7 @@ class GoogleSheetPartitionReader(
 }
 
 
-case class GoogleSheetReaderParameters(
-                                        spreadsheetID:String,
-                                        sheetname:String)
+case class GoogleSheetReaderParameters(spreadsheetID:String, sheetname:String)
 
 object GoogleSheetReader {
   def apply(fs: FS, params: GoogleSheetReaderParameters): GoogleSheetReader = {
@@ -162,42 +172,57 @@ object GoogleSheetReader {
 }
 
 class GoogleSheetReader(
-                         val params: GoogleSheetReaderParameters ) extends TableReader {
-
-  val fullType: TableType = TableType(
-    TStruct("cells"-> TArray(TString)),
-    FastIndexedSeq.empty,
-    TStruct())
-  override def renderShort(): String = defaultRender()
-
+  val params: GoogleSheetReaderParameters
+) extends TableReaderWithExtraUID {
   override def pathsUsed: Seq[String] = FastSeq(params.spreadsheetID)
-
-  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
-    val reader = new GoogleSheetPartitionReader(params.spreadsheetID, params.sheetname)
-    TableStage(
-      globals = MakeStruct(FastSeq()),
-      partitioner = RVDPartitioner.unkeyed(1),
-      dependency = TableStageDependency.none,
-      contexts = ToStream(MakeArray(MakeStruct(FastSeq()))),
-      body = { x => ReadPartition(x, requestedType.rowType, reader) }
-    )
-  }
 
   override def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val ts = lower(ctx, tr.typ)
     val (broadCastRow, rVD) = TableStageToRVD.apply(ctx, ts, Map[String, IR]())
     TableValue(ctx, tr.typ, broadCastRow, rVD)
   }
+
   override def partitionCounts: Option[IndexedSeq[Long]] = None
 
-  override def rowAndGlobalPTypes(ctx: ExecuteContext, requestedType: TableType): (PStruct, PStruct) =
-    (
-      PCanonicalStruct(
-        IndexedSeq(
-          PField(
-            "cells", PCanonicalArray(PCanonicalString(true)), 0)),
-        true).subsetTo(requestedType.rowType).asInstanceOf[PStruct],
-      PCanonicalStruct.empty(required = true)
+  override def isDistinctlyKeyed: Boolean = false
+
+  val fullTypeWithoutUIDs: TableType = TableType(
+    TStruct("cells"-> TArray(TString)),
+    FastIndexedSeq.empty,
+    TStruct())
+
+  override def uidType = TInt64
+
+  override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = VirtualTypeWithReq(
+    PCanonicalStruct(
+      IndexedSeq(
+        PField(
+          "cells", PCanonicalArray(PCanonicalString(true)), 0)),
+      true).subsetTo(requestedType.rowType).asInstanceOf[PStruct]
+  )
+
+  protected def uidRequiredness: VirtualTypeWithReq =
+    VirtualTypeWithReq(PInt64Required)
+
+  override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+    VirtualTypeWithReq(PCanonicalStruct.empty(required = true))
+
+  override def renderShort(): String = defaultRender()
+
+  override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
+    assert(requestedGlobalsType == TStruct.empty)
+    MakeStruct(FastSeq())
+  }
+
+  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
+    val reader = new GoogleSheetPartitionReader(params.spreadsheetID, params.sheetname, uidFieldName)
+    TableStage(
+      globals = MakeStruct(FastSeq()),
+      partitioner = RVDPartitioner.unkeyed(ctx.stateManager, 1),
+      dependency = TableStageDependency.none,
+      contexts = ToStream(MakeArray(MakeStruct(FastSeq()))),
+      body = { x => ReadPartition(x, requestedType.rowType, reader) }
     )
+  }
 }
 

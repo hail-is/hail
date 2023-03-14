@@ -3120,9 +3120,19 @@ def import_avro(paths, *, key=None, intervals=None):
     return Table(ir.TableRead(tr))
 
 
-@typecheck(spreadsheetID=oneof(str, sequenceof(str)), sheetname=str)
-def import_google_sheet(spreadsheetID, sheetname) -> Table:
+@typecheck(spreadsheet_id=oneof(str, sequenceof(str)), sheetname=str)
+def import_google_sheet(spreadsheet_id, sheetname) -> Table:
     """Import sheet from a google sheets fle as a :class:`.Table` of strings.
+
+    Warning
+    -------
+
+    You must set the GOOGLE_APPLICATION_DEFAULT environment variable to point at the JSON key file
+    for a *service account*. This method *will not* work with a human user credentials. For example,
+    ``gcloud auth application-default login`` *will not work*.
+
+    Instead, you must create a service account, create a key for that service account, download that
+    key to your computer, and set GOOGLE_APPLICATION_DEFAULT to the path to that key file.
 
     Examples
     --------
@@ -3130,7 +3140,7 @@ def import_google_sheet(spreadsheetID, sheetname) -> Table:
     Consider the Google Sheet file at the URL:
     https://docs.google.com/spreadsheets/d/**1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms**/edit#gid=0
 
-    The spreadsheetID for this file is '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upm'
+    The spreadsheet_id for this file is '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upm'
 
     To import the data on the sheeet titled 'Class Data' the sheetname should be entered as 'Class Data'
 
@@ -3153,21 +3163,18 @@ def import_google_sheet(spreadsheetID, sheetname) -> Table:
 
     Parameters
     ----------
-    spreadsheetID: :class:`str`
-        File containing sheet to import.
+    spreadsheet_id: :class:`str`
+        The ID of the spreadsheet. This is found in the URL after ``/spreadsheets/d/``.
     sheetname: :class:`str`
-        Sheet to import.
+        The particular sheet (aka tab) of the spreadsheet to import.
 
     Returns
     -------
     :class:`.Table`
-        Table constructed from imported google sheet.
+        A Table constructed from imported google sheet.
 
-    Notes:
-    ---------
-    To use this function, you must have a google service account downloaded or files cannot be accessed
     """
-    st_reader = ir.GoogleSheetReader(spreadsheetID, sheetname)
+    st_reader = ir.GoogleSheetReader(spreadsheet_id, sheetname)
     table_type = hl.ttable(
         global_type=hl.tstruct(),
         row_type=hl.tstruct(cells=hl.tarray(hl.tstr)),
