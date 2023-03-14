@@ -17,8 +17,8 @@ CLUSTER=cluster-ci-$ID
 MASTER=$CLUSTER-m
 ZONE=us-central1-b
 
-if ! (type gcloud gsutil > /dev/null); then
-    # pick up gcloud, gsutil
+if ! (type gcloud > /dev/null); then
+    # pick up gcloud
     PATH=$PATH:/usr/local/google-cloud-sdk/bin
 fi
 
