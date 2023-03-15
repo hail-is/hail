@@ -114,12 +114,7 @@ class ServiceBackend(
     val token = tokenUrlSafe(32)
     val root = s"${ backendContext.remoteTmpDir }parallelizeAndComputeWithIndex/$token"
 
-    // FIXME: HACK
-    val (open, write) = if (n <= 50) {
-      (fs.openCachedNoCompression _, fs.writeCached _)
-    } else {
-      ((x: String) => fs.openNoCompression(x), fs.writePDOS _)
-    }
+    val (open, write) = ((x: String) => fs.openNoCompression(x), fs.writePDOS _)
 
     log.info(s"parallelizeAndComputeWithIndex: $token: nPartitions $n")
     log.info(s"parallelizeAndComputeWithIndex: $token: writing f and contexts")
