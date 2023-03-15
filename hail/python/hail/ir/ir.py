@@ -1586,10 +1586,9 @@ class StreamMap(IR):
             return StreamZip([a, StreamIota(I32(0), I32(1))], [elt, uid], new_body, 'TakeMinLength')
 
         if not self.needs_randomness_handling and self.a.has_uids:
-            # There are occations when handle_randomness is been called twice
-            # on a `StreamMap`, once with `create_uids=False` and the second
-            # time with `True`. In these cases, we only need to propagate the
-            # random uid.
+            # There are occations when handle_randomness is called twice on a
+            # `StreamMap`: once with `create_uids=False` and the second time
+            # with `True`. In these cases, we only need to propagate the uid.
             assert(create_uids)
             _, uid, _ = unpack_uid(self.a.typ, self.name)
             new_body = pack_uid(uid, self.body)
