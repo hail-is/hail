@@ -23,6 +23,7 @@ object HailSuite {
   val theHailClassLoader = TestUtils.theHailClassLoader
 
   def withSparkBackend(): HailContext = {
+    HailContext.configureLogging("/tmp/hail.log", quiet = false, append = false)
     val backend = SparkBackend(
       sc = new SparkContext(
         SparkBackend.createSparkConf(
@@ -33,7 +34,7 @@ object HailSuite {
           .set("spark.unsafe.exceptionOnMemoryLeak", "true")),
       tmpdir = "/tmp",
       localTmpdir = "file:///tmp",
-      logFile = "/tmp/hail.log")
+      skipLoggingConfiguration = true)
     HailContext(backend)
   }
 

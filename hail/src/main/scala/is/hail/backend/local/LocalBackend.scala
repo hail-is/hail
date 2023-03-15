@@ -47,7 +47,8 @@ object LocalBackend {
   ): LocalBackend = synchronized {
     require(theLocalBackend == null)
 
-    HailContext.configureLogging(logFile, quiet, append, skipLoggingConfiguration)
+    if (!skipLoggingConfiguration)
+      HailContext.configureLogging(logFile, quiet, append)
     theLocalBackend = new LocalBackend(
       tmpdir,
       gcsRequesterPaysProject,

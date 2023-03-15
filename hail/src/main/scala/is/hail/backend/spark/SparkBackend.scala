@@ -233,7 +233,8 @@ object SparkBackend {
   ): SparkBackend = synchronized {
     require(theSparkBackend == null)
 
-    HailContext.configureLogging(logFile, quiet, append, skipLoggingConfiguration)
+    if (!skipLoggingConfiguration)
+      HailContext.configureLogging(logFile, quiet, append)
 
     var sc1 = sc
     if (sc1 == null)
