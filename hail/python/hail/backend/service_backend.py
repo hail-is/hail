@@ -316,6 +316,12 @@ class ServiceBackend(Backend):
     def logger(self):
         return log
 
+    def validate_file_scheme(self, url):
+        assert isinstance(self._async_fs, RouterAsyncFS)
+        if self._async_fs.get_scheme(url) == 'file':
+            raise ValueError(
+                f'Found local filepath {url} when using Query on Batch. Specify a remote filepath instead.')
+
     def stop(self):
         async_to_blocking(self._async_fs.close())
         async_to_blocking(self.async_bc.close())

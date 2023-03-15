@@ -66,6 +66,10 @@ class Backend(abc.ABC):
         pass
 
     @abc.abstractmethod
+    def validate_file_scheme(self, url):
+        pass
+
+    @abc.abstractmethod
     def execute(self, ir: BaseIR, timed: bool = False) -> Any:
         pass
 

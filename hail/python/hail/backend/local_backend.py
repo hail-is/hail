@@ -200,6 +200,9 @@ class LocalBackend(Py4JBackend):
             return_type._parsable_string(),
             jbody)
 
+    def validate_file_scheme(self, url):
+        pass
+
     def stop(self):
         self._jhc.stop()
         self._jhc = None

@@ -1144,6 +1144,8 @@ class Table(ExprContainer):
         delimiter : :class:`str`
             Field delimiter.
         """
+        hl.current_backend().validate_file_scheme(output)
+
         parallel = ir.ExportType.default(parallel)
         Env.backend().execute(
             ir.TableWrite(self._tir, ir.TableTextWriter(output, types_file, header, parallel, delimiter)))
@@ -1321,6 +1323,8 @@ class Table(ExprContainer):
         >>> table1 = table1.checkpoint('output/table_checkpoint.ht')
 
         """
+        hl.current_backend().validate_file_scheme(output)
+
         if _codec_spec is None:
             _codec_spec = """{
   "name": "LEB128BufferSpec",
@@ -1381,6 +1385,8 @@ class Table(ExprContainer):
         overwrite : bool
             If ``True``, overwrite an existing file at the destination.
         """
+
+        hl.current_backend().validate_file_scheme(output)
 
         Env.backend().execute(ir.TableWrite(self._tir, ir.TableNativeWriter(output, overwrite, stage_locally, _codec_spec)))
 
@@ -1507,6 +1513,8 @@ class Table(ExprContainer):
         overwrite : bool
             If ``True``, overwrite an existing file at the destination.
         """
+
+        hl.current_backend().validate_file_scheme(output)
 
         Env.backend().execute(
             ir.TableWrite(
