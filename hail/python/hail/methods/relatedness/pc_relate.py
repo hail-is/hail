@@ -301,7 +301,6 @@ def pc_relate(call_expr: CallExpression,
         A :class:`.Table` mapping pairs of samples to their pair-wise statistics.
     """
     if not isinstance(Env.backend(), SparkBackend):
-        print('running pc relate bm')
         return _pc_relate_bm(call_expr,
                              min_individual_maf,
                              k=k,
