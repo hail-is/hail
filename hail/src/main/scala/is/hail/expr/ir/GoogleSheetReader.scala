@@ -1,5 +1,7 @@
 package is.hail.expr.ir
 
+import java.io.FileInputStream
+
 import is.hail.HAIL_PRETTY_VERSION
 import is.hail.annotations.Region
 import is.hail.asm4s._
@@ -18,6 +20,7 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.utils._
 import org.json4s.{Extraction, Formats, JValue}
 
+import com.google.api.services.sheets.v4.model.{Sheet, Spreadsheet}
 import com.google.api.services.sheets.v4.SheetsScopes
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.auth.http.HttpCredentialsAdapter
@@ -26,18 +29,13 @@ import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
 import com.google.api.client.json.gson.GsonFactory
 import com.google.api.services.sheets.v4.Sheets
 import collection.JavaConverters._
+import org.apache.spark.sql.Row
 
 class GoogleSheetPartitionIterator(
   private[this] val spreadsheetId: String,
   private[this] val sheetName: String
 ) {
-  private[this] val httpTransport = GoogleNetHttpTransport.newTrustedTransport()
-  private[this] val gsonFactory = GsonFactory.getDefaultInstance()
-  private[this] val credentials = GoogleCredentials.getApplicationDefault().createScoped(
-    List(SheetsScopes.SPREADSHEETS_READONLY).asJava)
-  private[this] val sheetsService = new Sheets.Builder(httpTransport, gsonFactory, new HttpCredentialsAdapter(credentials))
-    .setApplicationName("Hail " + HAIL_PRETTY_VERSION)
-    .build()
+  private[this] val sheetsService = GoogleSheetReader.sheetsService()
   private[this] val theRowsOrNull: java.util.List[java.util.List[Object]] = sheetsService.spreadsheets().values()
     .get(spreadsheetId, sheetName)
     .execute()
@@ -184,6 +182,26 @@ object GoogleSheetReader {
     val params = jv.extract[GoogleSheetReaderParameters]
     GoogleSheetReader(fs, params)
   }
+
+  def sheetsService() = {
+    val httpTransport = GoogleNetHttpTransport.newTrustedTransport()
+    val gsonFactory = GsonFactory.getDefaultInstance()
+    // Do not under use: GoogleCredentials.getApplicationDefault(). This fail with a completely
+    // non-informative error message.
+    val credentials: GoogleCredentials = 
+      GoogleCredentials.fromStream(new FileInputStream(sys.env("GOOGLE_APPLICATION_DEFAULT"))).createScoped(
+        List(SheetsScopes.SPREADSHEETS).asJava
+      )
+
+    // credentials.
+
+    // System.err.println(
+    //   new HttpCredentialsAdapter(credentials).getCredentials().getRequestMetadata().asScala.mapValues(_.asScala)
+    // )
+    new Sheets.Builder(httpTransport, gsonFactory, new HttpCredentialsAdapter(credentials))
+      .setApplicationName("Hail " + HAIL_PRETTY_VERSION)
+      .build()
+  }
 }
 
 class GoogleSheetReader(
@@ -199,10 +217,10 @@ class GoogleSheetReader(
 
   override def partitionCounts: Option[IndexedSeq[Long]] = None
 
-  override def isDistinctlyKeyed: Boolean = false
+  override def isDistinctlyKeyed: Boolean = true
 
   val fullTypeWithoutUIDs: TableType = TableType(
-    TStruct("index"-> TInt64, "cells"-> TArray(TString)),
+    TStruct("index" -> TInt64, "cells" -> TArray(TString)),
     FastIndexedSeq("index"),
     TStruct.empty)
 
@@ -232,10 +250,21 @@ class GoogleSheetReader(
   }
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
+    val sheetsService = GoogleSheetReader.sheetsService()
+    val spreadsheet: Spreadsheet = sheetsService.spreadsheets().get(params.spreadsheetID).execute()
+    val sheets = spreadsheet.getSheets().asScala.filter(
+      x => x.getProperties().getTitle() == params.sheetname
+    ).toArray[Sheet]
+    assert(sheets.size == 1)
+    val theSheet = sheets(0)
+    val nRows: Long = theSheet.getProperties().getGridProperties().getRowCount().toLong
     val reader = new GoogleSheetPartitionReader(params.spreadsheetID, params.sheetname, uidFieldName)
     TableStage(
       globals = MakeStruct(FastSeq()),
-      partitioner = RVDPartitioner.unkeyed(ctx.stateManager, 1),
+      partitioner = RVDPartitioner.generate(
+        ctx.stateManager,
+        TStruct("index" -> TInt64),
+        FastIndexedSeq(Interval(Row(0L), Row(nRows), includesStart = true, includesEnd = false))),
       dependency = TableStageDependency.none,
       contexts = ToStream(MakeArray(MakeStruct(FastSeq()))),
       body = { x => ReadPartition(x, requestedType.rowType, reader) }
