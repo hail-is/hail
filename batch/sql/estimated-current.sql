@@ -445,12 +445,13 @@ CREATE TABLE IF NOT EXISTS `attempt_resources` (
   `attempt_id` VARCHAR(40) NOT NULL,
   `quantity` BIGINT NOT NULL,
   `resource_id` INT NOT NULL,
-  `deduped_resource_id` INT DEFAULT NULL
+  `deduped_resource_id` INT NOT NULL,
   PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`, `resource_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(`batch_id`, `job_id`) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`, `attempt_id`) REFERENCES attempts(`batch_id`, `job_id`, `attempt_id`) ON DELETE CASCADE,
-  FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE
+  FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE,
+  FOREIGN KEY (`deduped_resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
 DELIMITER $$
@@ -536,7 +537,7 @@ BEGIN
 
     INSERT INTO aggregated_billing_project_user_resources_v3 (billing_project, user, resource_id, token, `usage`)
     SELECT billing_project, `user`,
-      resource_id,
+      deduped_resource_id,
       rand_token,
       msec_diff_rollup * quantity
     FROM attempt_resources
@@ -555,7 +556,7 @@ BEGIN
 
     INSERT INTO aggregated_batch_resources_v3 (batch_id, resource_id, token, `usage`)
     SELECT batch_id,
-      resource_id,
+      deduped_resource_id,
       rand_token,
       msec_diff_rollup * quantity
     FROM attempt_resources
@@ -572,7 +573,7 @@ BEGIN
 
     INSERT INTO aggregated_job_resources_v3 (batch_id, job_id, resource_id, `usage`)
     SELECT batch_id, job_id,
-      resource_id,
+      deduped_resource_id,
       msec_diff_rollup * quantity
     FROM attempt_resources
     WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
@@ -594,7 +595,7 @@ BEGIN
     SELECT cur_billing_date,
       billing_project,
       `user`,
-      resource_id,
+      deduped_resource_id,
       rand_token,
       msec_diff_rollup * quantity
     FROM attempt_resources
@@ -808,7 +809,7 @@ BEGIN
       `usage` = `usage` + NEW.quantity * msec_diff_rollup;
 
     INSERT INTO aggregated_billing_project_user_resources_v3 (billing_project, user, resource_id, token, `usage`)
-    VALUES (cur_billing_project, cur_user, NEW.resource_id, rand_token, NEW.quantity * msec_diff_rollup)
+    VALUES (cur_billing_project, cur_user, NEW.deduped_resource_id, rand_token, NEW.quantity * msec_diff_rollup)
     ON DUPLICATE KEY UPDATE
       `usage` = `usage` + NEW.quantity * msec_diff_rollup;
 
@@ -818,7 +819,7 @@ BEGIN
       `usage` = `usage` + NEW.quantity * msec_diff_rollup;
 
     INSERT INTO aggregated_batch_resources_v3 (batch_id, resource_id, token, `usage`)
-    VALUES (NEW.batch_id, NEW.resource_id, rand_token, NEW.quantity * msec_diff_rollup)
+    VALUES (NEW.batch_id, NEW.deduped_resource_id, rand_token, NEW.quantity * msec_diff_rollup)
     ON DUPLICATE KEY UPDATE
       `usage` = `usage` + NEW.quantity * msec_diff_rollup;
 
@@ -828,7 +829,7 @@ BEGIN
       `usage` = `usage` + NEW.quantity * msec_diff_rollup;
 
     INSERT INTO aggregated_job_resources_v3 (batch_id, job_id, resource_id, `usage`)
-    VALUES (NEW.batch_id, NEW.job_id, NEW.resource_id, NEW.quantity * msec_diff_rollup)
+    VALUES (NEW.batch_id, NEW.job_id, NEW.deduped_resource_id, NEW.quantity * msec_diff_rollup)
     ON DUPLICATE KEY UPDATE
       `usage` = `usage` + NEW.quantity * msec_diff_rollup;
 
@@ -838,7 +839,7 @@ BEGIN
       `usage` = `usage` + NEW.quantity * msec_diff_rollup;
 
     INSERT INTO aggregated_billing_project_user_resources_by_date_v3 (billing_date, billing_project, user, resource_id, token, `usage`)
-    VALUES (cur_billing_date, cur_billing_project, cur_user, NEW.resource_id, rand_token, NEW.quantity * msec_diff_rollup)
+    VALUES (cur_billing_date, cur_billing_project, cur_user, NEW.deduped_resource_id, rand_token, NEW.quantity * msec_diff_rollup)
     ON DUPLICATE KEY UPDATE
       `usage` = `usage` + NEW.quantity * msec_diff_rollup;
   END IF;
