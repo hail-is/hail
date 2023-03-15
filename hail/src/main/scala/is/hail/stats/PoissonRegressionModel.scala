@@ -122,6 +122,8 @@ class PoissonRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) ext
       try {
         deltaB := fisher \ score
 
+        System.err.println(b)
+
         if (deltaB(0).isNaN) {
           exploded = true
         } else if (max(abs(deltaB)) < tol) {

@@ -46,7 +46,9 @@ numerical_regression_fit_dtype = hl.tstruct(
     num_iter=hl.tint32,
     log_lkhd=hl.tfloat64,
     converged=hl.tbool,
-    exploded=hl.tbool)
+    exploded=hl.tbool,
+    bs=hl.tarray(tvector64),
+    mus=hl.tarray(tvector64))
 
 
 
@@ -1008,7 +1010,7 @@ def logreg_fit(X, y, null_fit, max_iter: int, tol: float):
 
     if max_iter == 0:
         return hl.struct(b=na('b'), score=na('score'), fisher=na('fisher'), mu=na('mu'), num_iter=0, log_lkhd=0, converged=False, exploded=False)
-    return hl.experimental.loop(search, search_return_type, 1, b, mu, score, fisher)
+    return hl.experimental.loop(search, numerical_regression_fit_dtype, 1, b, mu, score, fisher)
 
 
 def wald_test(X, fit):
@@ -1399,7 +1401,7 @@ def _poisson_fit(covmat, yvec, b, mu, score, fisher, max_iterations, tolerance):
     dtype = numerical_regression_fit_dtype
     blank_struct = hl.struct(**{k: hl.missing(dtype[k]) for k in dtype})
 
-    def fit(recur, cur_iter, b, mu, score, fisher):
+    def fit(recur, cur_iter, b, mu, score, fisher, bs, mus):
         delta_b_struct = hl.nd.solve(fisher, score, no_crash=True)
 
         exploded = delta_b_struct.failed
@@ -1413,19 +1415,21 @@ def _poisson_fit(covmat, yvec, b, mu, score, fisher, max_iterations, tolerance):
         residual = yvec - next_mu
         next_score = covmat.T @ residual
         next_fisher = (mu * covmat.T) @ covmat
+        next_bs = bs.append(next_b)
+        next_mus = mus.append(next_mu)
 
         return (hl.case()
                 .when(exploded | hl.is_nan(delta_b[0]),
-                      blank_struct.annotate(num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=True))
+                      blank_struct.annotate(num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=True, bs=bs))
                 .when(cur_iter == max_iterations,
                       blank_struct.annotate(num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=False))
                 .when(max_delta_b < tolerance,
-                      hl.struct(b=b, score=score, fisher=fisher, mu=mu, num_iter=cur_iter, log_lkhd=log_lkhd, converged=True, exploded=False))
-                .default(recur(next_iter, next_b, next_mu, next_score, next_fisher)))
+                      hl.struct(b=b, score=score, fisher=fisher, mu=mu, num_iter=cur_iter, log_lkhd=log_lkhd, converged=True, exploded=False, bs=bs, mus=mus))
+                .default(recur(next_iter, next_b, next_mu, next_score, next_fisher, next_bs, next_mus)))
 
     if max_iterations == 0:
         return blank_struct.select(num_iter=0, log_lkhd=0, converged=False, exploded=False)
-    return hl.experimental.loop(fit, dtype, 1, b, mu, score, fisher)
+    return hl.experimental.loop(fit, dtype, 1, b, mu, score, fisher, [b], [mu])
 
 
 def _poisson_score_test(null_fit, covmat, yvec, xvec):
@@ -1459,7 +1463,7 @@ def _poisson_score_test(null_fit, covmat, yvec, xvec):
            covariates=sequenceof(expr_float64),
            pass_through=sequenceof(oneof(str, Expression)),
            max_iterations=int,
-           tolerance=float)
+           tolerance=nullable(float))
 def _lowered_poisson_regression_rows(test,
                                      y,
                                      x,
@@ -1467,9 +1471,13 @@ def _lowered_poisson_regression_rows(test,
                                      pass_through=(),
                                      *,
                                      max_iterations: int = 25,
-                                     tolerance: float = 1e-6):
+                                     tolerance: Optional[float] = None):
     assert max_iterations > 0
+
+    if tolerance is None:
+        tolerance = 1e-8
     assert tolerance > 0
+
     k = len(covariates)
     if k == 0:
         raise ValueError('_lowered_poisson_regression_rows: at least one covariate is required.')
@@ -1553,7 +1561,7 @@ def _lowered_poisson_regression_rows(test,
     score = hl.nd.hstack([null_fit.score, hl.nd.array([xvec @ residual])])
 
     fisher00 = null_fit.fisher
-    fisher01 = ((mu * covmat.T) @ xvec).reshape((-1, 1))
+    fisher01 = ((covmat.T * mu) @ xvec).reshape((-1, 1))
     fisher10 = fisher01.T
     fisher11 = hl.nd.array([[(mu * xvec.T) @ xvec]])
     fisher = hl.nd.vstack([
@@ -1564,12 +1572,14 @@ def _lowered_poisson_regression_rows(test,
     test_fit = _poisson_fit(X, yvec, b, mu, score, fisher, max_iterations, tolerance)
     if test == 'lrt':
         return ht.select(
+            test_fit=test_fit,
             **lrt_test(X, null_fit, test_fit),
             **ht.pass_through
         )
 
     assert test == 'wald'
     return ht.select(
+        test_fit=test_fit,
         **wald_test(X, test_fit),
         **ht.pass_through
     )
@@ -1581,7 +1591,7 @@ def _lowered_poisson_regression_rows(test,
            covariates=sequenceof(expr_float64),
            pass_through=sequenceof(oneof(str, Expression)),
            max_iterations=int,
-           tolerance=float)
+           tolerance=nullable(float))
 def poisson_regression_rows(test,
                             y,
                             x,
@@ -1589,7 +1599,7 @@ def poisson_regression_rows(test,
                             pass_through=(),
                             *,
                             max_iterations: int = 25,
-                            tolerance: float = 1e-6) -> Table:
+                            tolerance: Optional[float] = None) -> Table:
     r"""For each row, test an input variable for association with a
     count response variable using `Poisson regression <https://en.wikipedia.org/wiki/Poisson_regression>`__.
 
@@ -1615,13 +1625,20 @@ def poisson_regression_rows(test,
         Non-empty list of column-indexed covariate expressions.
     pass_through : :obj:`list` of :class:`str` or :class:`.Expression`
         Additional row fields to include in the resulting table.
+    tolerance : :obj:`int`, optional
+        The iterative fit of this model is considered "converged" if the change in the estimated
+        beta is smaller than tolerance. By default the tolerance is 1e-6.
 
     Returns
     -------
     :class:`.Table`
+
     """
     if hl.current_backend().requires_lowering:
         return _lowered_poisson_regression_rows(test, y, x, covariates, pass_through, max_iterations=max_iterations, tolerance=tolerance)
+
+    if tolerance is None:
+        tolerance = 1e-6
 
     if len(covariates) == 0:
         raise ValueError('Poisson regression requires at least one covariate expression')
