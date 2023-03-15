@@ -6,7 +6,7 @@ import sys
 import warnings
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Generator, List, Optional, TextIO, Tuple, Any
+from typing import Generator, List, Optional, TextIO, Tuple, Any, TypedDict
 
 import kubernetes_asyncio.client
 import kubernetes_asyncio.config
@@ -24,6 +24,17 @@ WARNING_YELLOW = '\033[93m'
 ERROR_RED = '\033[91m'
 GREY = '\033[37m'
 ENDC = '\033[0m'
+
+
+class ServiceAccountDict(TypedDict):
+    name: str
+    projectId: str
+    uniqueId:  str
+    email: str
+    displayName: str
+    etag: str
+    oauth2ClientId: str
+    disabled: bool
 
 
 class RotationState(Enum):
@@ -118,8 +129,9 @@ class IAMKey:
 
 
 class ServiceAccount:
-    def __init__(self, email: str, keys: List[IAMKey]):
+    def __init__(self, email: str, disabled: bool, keys: List[IAMKey]):
         self.email: str = email
+        self.disabled: bool = disabled
         self.keys: List[IAMKey] = keys
 
         self.kube_secrets: List[GSAKeySecret] = []
@@ -212,7 +224,10 @@ We will assume {kube_key.id} is the active key.
         return [k for k in self.keys if k is not active_key and k.user_managed]
 
     def __str__(self):
-        return self.rotation_state().value + ' ' + self.email
+        s = self.rotation_state().value + ' ' + self.email
+        if self.disabled:
+            return f'{WARNING_YELLOW}DISABLED{ENDC} ' + s
+        return s
 
 
 class IAMManager:
@@ -232,14 +247,16 @@ class IAMManager:
     async def get_all_service_accounts(self) -> List[ServiceAccount]:
         all_accounts = list(
             await asyncio.gather(
-                *[asyncio.create_task(self.service_account_from_email(email)) async for email in self.all_sa_emails()]
+                *[asyncio.create_task(self.service_account_from_dict(d)) async for d in self.all_sa_dicts()]
             )
         )
         all_accounts.sort(key=lambda sa: sa.email)
         return all_accounts
 
-    async def service_account_from_email(self, email: str) -> ServiceAccount:
-        return ServiceAccount(email, await self.get_sa_keys(email))
+    async def service_account_from_dict(self, d: ServiceAccountDict) -> ServiceAccount:
+        return ServiceAccount(d['email'],
+                              d.get('disabled', False),
+                              await self.get_sa_keys(d['email']))
 
     async def get_sa_keys(self, sa_email: str) -> List[IAMKey]:
         keys_json = (await self.iam_client.get(f'/serviceAccounts/{sa_email}/keys'))['keys']
@@ -248,16 +265,16 @@ class IAMManager:
         keys.reverse()
         return keys
 
-    async def all_sa_emails(self) -> Generator[str, None, None]:
+    async def all_sa_dicts(self) -> Generator[ServiceAccountDict, None, None]:
         res = await self.iam_client.get('/serviceAccounts')
         next_page_token = res.get('nextPageToken')
         for acc in res['accounts']:
-            yield acc['email']
+            yield acc
         while next_page_token is not None:
             res = await self.iam_client.get('/serviceAccounts', params={'pageToken': next_page_token})
             next_page_token = res.get('nextPageToken')
             for acc in res['accounts']:
-                yield acc['email']
+                yield acc
 
 
 async def add_new_keys(service_accounts: List[ServiceAccount], iam_manager: IAMManager, k8s_manager: KubeSecretManager):
@@ -309,6 +326,27 @@ async def delete_old_keys(service_accounts: List[ServiceAccount], iam_manager: I
 
             if input('Continue?[Yes/no] ') == 'no':
                 break
+
+
+async def delete_old_keys_ready_only(service_accounts: List[ServiceAccount], iam_manager: IAMManager):
+    async def delete_old_and_refresh(sa: ServiceAccount):
+        to_delete = sa.redundant_user_keys()
+        await asyncio.gather(*[iam_manager.delete_key(sa.email, k) for k in to_delete])
+        print(f'Deleted keys:')
+        for k in to_delete:
+            print(f'\t{k.id}')
+        sa.keys = await iam_manager.get_sa_keys(sa.email)
+        sa.list_keys(sys.stdout)
+
+    ready_for_delete = [
+        sa
+        for sa in service_accounts
+        if sa.rotation_state() == RotationState.READY_FOR_DELETE]
+    print('\n'.join(str(x) for x in ready_for_delete))
+
+    if input('Delete all but the newest key for all these service accounts?\nOnly yes will be accepted: ') == 'yes':
+        for sa in ready_for_delete:
+            await delete_old_and_refresh(sa)
 
 
 async def main():
@@ -366,11 +404,13 @@ async def main():
         for secret in other_secrets:
             print(f'\t{secret.metadata.name} ({secret.metadata.namespace})')
 
-        action = input('What action would you like to take?[update/delete]: ')
+        action = input('What action would you like to take?[update/delete/delete-ready-only]: ')
         if action == 'update':
             await add_new_keys(service_accounts, iam_manager, k8s_manager)
         elif action == 'delete':
             await delete_old_keys(service_accounts, iam_manager)
+        elif action == 'delete-ready-only':
+            await delete_old_keys_ready_only(service_accounts, iam_manager)
         else:
             print('Doing nothing')
     finally:
