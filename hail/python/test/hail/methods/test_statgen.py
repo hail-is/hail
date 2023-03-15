@@ -1347,7 +1347,7 @@ class Tests(unittest.TestCase):
 
     def test_row_correlation_vs_numpy(self):
         n, m = 11, 10
-        mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], n_partitions=2)
+        mt = hl.balding_nichols_model(3, n, m, n_partitions=2)
         mt = mt.annotate_rows(sd=agg.stats(mt.GT.n_alt_alleles()).stdev)
         mt = mt.filter_rows(mt.sd > 1e-30)
 

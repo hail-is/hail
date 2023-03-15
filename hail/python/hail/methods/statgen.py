@@ -3783,10 +3783,12 @@ def balding_nichols_model(n_populations: int,
 
     # generate matrix table
     from numpy import linspace
-
     n_partitions = min(n_partitions, n_variants)
     start_idxs = [int(x) for x in linspace(0, n_variants, n_partitions + 1)]
     idx_bounds = hl.zip(start_idxs, start_idxs[1:])
+
+    pop_f = hl.rand_dirichlet if mixture else hl.rand_cat
+
     bn = hl.Table._generate(
         contexts=idx_bounds,
         globals=hl.struct(
@@ -3798,6 +3800,9 @@ def balding_nichols_model(n_populations: int,
                 pop_dist=pop_dist,
                 fst=fst,
                 mixture=mixture
+            ),
+            cols=hl.range(n_samples).map(
+                lambda idx: hl.struct(sample_idx=idx, pop=pop_f(pop_dist))
             )
         ),
         partitions=hl.eval(
@@ -3823,11 +3828,6 @@ def balding_nichols_model(n_populations: int,
             )
         )
     )
-
-    pop_f = hl.rand_dirichlet if mixture else hl.rand_cat
-    bn = bn.annotate_globals(cols=hl.range(n_samples).map(
-        lambda idx: hl.struct(sample_idx=idx, pop=pop_f(pop_dist))
-    ))
 
     bn = bn._unlocalize_entries('entries', 'cols', ['sample_idx'])
 
