@@ -169,7 +169,7 @@ class StringTableReader(
 
   override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
     val ts = lower(ctx, requestedType)
-    val (broadCastRow, rvd) = TableStageToRVD.apply(ctx, ts, Map[String, IR]())
+    val (broadCastRow, rvd) = TableStageToRVD.apply(ctx, ts)
     TableValue(ctx, requestedType, broadCastRow, rvd)
   }
 

@@ -2,24 +2,27 @@ package is.hail.expr.ir.lowering
 
 import is.hail.annotations.{Annotation, ExtendedOrdering, Region, SafeRow}
 import is.hail.asm4s.{AsmFunction1RegionLong, LongInfo, classInfo}
-import is.hail.backend.ExecuteContext
+import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.{ArrayFunctions, IRRandomness, UtilFunctions}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.rvd.RVDPartitioner
-import is.hail.types.{RStruct, tcoerce}
+import is.hail.types.{RStruct, RTable, TableType, VirtualTypeWithReq, tcoerce}
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.physical.{PArray, PStruct}
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.Row
+import org.json4s.JValue
+import org.json4s.JsonAST.JString
 
 import scala.collection.mutable.ArrayBuffer
 
 object LowerDistributedSort {
-  def localSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Map[String, IR]): TableStage = {
-    val numPartitions = stage.partitioner.numPartitions
-    val collected = stage.collectWithGlobals(relationalLetsAbove, "shuffle_local_sort")
+  def localSort(ctx: ExecuteContext, inputStage: TableStage, sortFields: IndexedSeq[SortField], rt: RTable): TableReader = {
+
+    val numPartitions = inputStage.partitioner.numPartitions
+    val collected = inputStage.collectWithGlobals( "shuffle_local_sort")
 
     val (Some(PTypeReferenceSingleCodeType(resultPType: PStruct)), f) = ctx.timer.time("LowerDistributedSort.localSort.compile")(Compile[AsmFunction1RegionLong](ctx,
       FastIndexedSeq(),
@@ -42,16 +45,7 @@ object LowerDistributedSort {
     val sortedRows = localAnnotationSort(ctx, rows, sortFields, rowType.virtualType)
 
     val nPartitionsAdj = math.max(math.min(sortedRows.length, numPartitions), 1)
-    val itemsPerPartition = (sortedRows.length.toDouble / nPartitionsAdj).ceil.toInt
-
-    if (itemsPerPartition == 0)
-      return TableStage(
-        globals = Literal(resultPType.fieldType("global").virtualType, rowsAndGlobal.get(1)),
-        partitioner = RVDPartitioner.empty(ctx, kType),
-        TableStageDependency.none,
-        MakeStream(FastSeq(), TStream(TStruct())),
-        _ => MakeStream(FastSeq(), TStream(stage.rowType))
-      )
+    val itemsPerPartition = math.max((sortedRows.length.toDouble / nPartitionsAdj).ceil.toInt, 1)
 
     // partitioner needs keys to be ascending
     val partitionerKeyType = TStruct(sortFields.takeWhile(_.sortOrder == Ascending).map(f => (f.field, rowType.virtualType.fieldType(f.field))): _*)
@@ -64,16 +58,55 @@ object LowerDistributedSort {
         Interval(first, last, includesStart = true, includesEnd = true)
       }.toIndexedSeq)
 
-    TableStage(
-      globals = Literal(resultPType.fieldType("global").virtualType, rowsAndGlobal.get(1)),
-      partitioner = partitioner,
-      TableStageDependency.none,
-      contexts = mapIR(
-        StreamGrouped(
-          ToStream(Literal(rowsType.virtualType, sortedRows)),
-          I32(itemsPerPartition))
+    val globalsIR = Literal(resultPType.fieldType("global").virtualType, rowsAndGlobal.get(1))
+
+    LocalSortReader(sortedRows, rowType.virtualType, globalsIR, partitioner, itemsPerPartition, rt)
+  }
+
+  case class LocalSortReader(sortedRows: IndexedSeq[Annotation], rowType: TStruct, globals: IR, partitioner: RVDPartitioner, itemsPerPartition: Int, rt: RTable) extends TableReader {
+    lazy val fullType: TableType = TableType(rowType, partitioner.kType.fieldNames, globals.typ.asInstanceOf[TStruct])
+
+    override def pathsUsed: Seq[String] = Seq()
+
+    override def partitionCounts: Option[IndexedSeq[Long]] = None
+
+    def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
+      assert(!dropRows)
+      TableExecuteIntermediate(lower(ctx, requestedType)).asTableValue(ctx)
+    }
+
+    override def isDistinctlyKeyed: Boolean = false // FIXME: No default value
+
+    def rowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = {
+      VirtualTypeWithReq.subset(requestedType.rowType, rt.rowType)
+    }
+
+    def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = {
+      VirtualTypeWithReq.subset(requestedType.globalType, rt.globalType)
+    }
+
+    override def toJValue: JValue = JString("LocalSortReader")
+
+    def renderShort(): String = "LocalSortReader"
+
+    override def defaultRender(): String = "LocalSortReader"
+
+    override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
+      PruneDeadFields.upcast(ctx, globals, requestedGlobalsType)
+
+    override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
+      TableStage(
+        globals = globals,
+        partitioner = partitioner.coarsen(requestedType.key.length),
+        TableStageDependency.none,
+        contexts = mapIR(
+          StreamGrouped(
+            ToStream(Literal(TArray(rowType), sortedRows)),
+            I32(itemsPerPartition))
         )(ToArray(_)),
-      ctxRef => ToStream(ctxRef))
+        ctxRef => ToStream(ctxRef))
+        .upcast(ctx, requestedType)
+    }
   }
 
   private def localAnnotationSort(
@@ -103,10 +136,9 @@ object LowerDistributedSort {
     ctx: ExecuteContext,
     inputStage: TableStage,
     sortFields: IndexedSeq[SortField],
-    relationalLetsAbove: Map[String, IR],
-    rowTypeRequiredness: RStruct,
+    tableRequiredness: RTable,
     optTargetNumPartitions: Option[Int] = None
-  ): TableStage = {
+  ): TableReader = {
 
     val oversamplingNum = 3
     val seed = 7L
@@ -117,6 +149,7 @@ object LowerDistributedSort {
       maxBranchingFactor
     }
 
+    val rowTypeRequiredness = tableRequiredness.rowType
     val sizeCutoff = ctx.getFlag("shuffle_cutoff_to_local_sort").toInt
 
     val (keyToSortBy, _) = inputStage.rowType.select(sortFields.map(sf => sf.field))
@@ -127,7 +160,7 @@ object LowerDistributedSort {
     val writer = PartitionNativeWriter(spec, keyToSortBy.fieldNames, initialTmpPath, None, None, trackTotalBytes = true)
 
     log.info("DISTRIBUTED SORT: PHASE 1: WRITE DATA")
-    val initialStageDataRow = CompileAndEvaluate[Annotation](ctx, inputStage.mapCollectWithGlobals(relationalLetsAbove, "shuffle_initial_write") { part =>
+    val initialStageDataRow = CompileAndEvaluate[Annotation](ctx, inputStage.mapCollectWithGlobals("shuffle_initial_write") { part =>
       WritePartition(part, UUID4(), writer)
     }{ case (part, globals) =>
       val streamElement = Ref(genUID(), part.typ.asInstanceOf[TArray].elementType)
@@ -388,36 +421,8 @@ object LowerDistributedSort {
     val unorderedOutputPartitions = newlySortedSegments ++ loopState.readyOutputParts
     val orderedOutputPartitions = unorderedOutputPartitions.sortWith{ (srt1, srt2) => lessThanForSegmentIndices(srt1.indices, srt2.indices)}
 
-    val contextData = {
-      var filesCount: Long = 0
-      for (segment <- orderedOutputPartitions) yield {
-        val filesWithNums = segment.files.zipWithIndex.map { case (file, i) =>
-          Row(i + filesCount, file)
-        }
-        filesCount += segment.files.length
-        Row(filesWithNums)
-      }
-    }
-    val contexts = ToStream(Literal(TArray(TStruct("files" -> TArray(TStruct("partitionIndex" -> TInt64, "partitionPath" -> TString)))), contextData))
-
-    // Note: If all of the sort fields are not ascending, the the resulting table is sorted, but not keyed.
     val keyed = sortFields.forall(sf => sf.sortOrder == Ascending)
-    val (partitionerKey, intervals) = if (keyed) {
-      (keyToSortBy, orderedOutputPartitions.map{ segment => segment.interval})
-    } else {
-      (TStruct(), orderedOutputPartitions.map{ _ => Interval(Row(), Row(), true, false)})
-    }
-
-    val partitioner = new RVDPartitioner(ctx.stateManager, partitionerKey, intervals)
-    val finalTs = TableStage(initialGlobalsLiteral, partitioner, TableStageDependency.none, contexts, { ctxRef =>
-      val files = GetField(ctxRef, "files")
-      val partitionInputStream = flatMapIR(ToStream(files)) { fileInfo =>
-        ReadPartition(fileInfo, tcoerce[TStruct](spec._vType), reader)
-      }
-      partitionInputStream
-    })
-
-    finalTs
+    DistributionSortReader(keyToSortBy, keyed, spec, orderedOutputPartitions, initialGlobalsLiteral, spec._vType.asInstanceOf[TStruct], tableRequiredness)
   }
 
   def orderedGroupBy[T, U](is: IndexedSeq[T], func: T => U): IndexedSeq[(U, IndexedSeq[T])] = {
@@ -585,3 +590,79 @@ case class Chunk(filename: String, size: Long, byteSize: Long)
 case class SegmentResult(indices: IndexedSeq[Int], interval: Interval, chunks: IndexedSeq[Chunk])
 case class OutputPartition(indices: IndexedSeq[Int], interval: Interval, files: IndexedSeq[String])
 case class LoopState(largeSegments: IndexedSeq[SegmentResult], smallSegments: IndexedSeq[SegmentResult], readyOutputParts: IndexedSeq[OutputPartition])
+
+case class DistributionSortReader(key: TStruct, keyed: Boolean, spec: TypedCodecSpec, orderedOutputPartitions: IndexedSeq[OutputPartition], globals: IR, rowType: TStruct, rt: RTable) extends TableReader {
+  lazy val fullType: TableType = TableType(
+    rowType,
+    if (keyed) key.fieldNames else FastIndexedSeq(),
+    globals.typ.asInstanceOf[TStruct]
+  )
+
+  override def pathsUsed: Seq[String] = Seq()
+
+  def defaultPartitioning(sm: HailStateManager): RVDPartitioner = {
+    val (partitionerKey, intervals) = if (keyed) {
+      (key, orderedOutputPartitions.map { segment => segment.interval })
+    } else {
+      (TStruct(), orderedOutputPartitions.map { _ => Interval(Row(), Row(), true, false) })
+    }
+
+    new RVDPartitioner(sm, partitionerKey, intervals)
+  }
+
+  override def partitionCounts: Option[IndexedSeq[Long]] = None
+
+  def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
+    assert(!dropRows)
+    TableExecuteIntermediate(lower(ctx, requestedType)).asTableValue(ctx)
+  }
+
+  override def isDistinctlyKeyed: Boolean = false // FIXME: No default value
+
+  def rowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = {
+    VirtualTypeWithReq.subset(requestedType.rowType, rt.rowType)
+  }
+
+  def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = {
+    VirtualTypeWithReq.subset(requestedType.globalType, rt.globalType)
+  }
+
+  override def toJValue: JValue = JString("DistributionSortReader")
+
+  def renderShort(): String = "DistributionSortReader"
+
+  override def defaultRender(): String = "DistributionSortReader"
+
+  override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
+    PruneDeadFields.upcast(ctx, globals, requestedGlobalsType)
+
+  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
+
+    val contextData = {
+      var filesCount: Long = 0
+      for (segment <- orderedOutputPartitions) yield {
+        val filesWithNums = segment.files.zipWithIndex.map { case (file, i) =>
+          Row(i + filesCount, file)
+        }
+        filesCount += segment.files.length
+        Row(filesWithNums)
+      }
+    }
+    val contexts = ToStream(Literal(TArray(TStruct("files" -> TArray(TStruct("partitionIndex" -> TInt64, "partitionPath" -> TString)))), contextData))
+
+    val partitioner = defaultPartitioning(ctx.stateManager)
+
+    TableStage(
+      PruneDeadFields.upcast(ctx, globals, requestedType.globalType),
+      partitioner.coarsen(requestedType.key.length),
+      TableStageDependency.none,
+      contexts,
+      { ctxRef =>
+        val files = GetField(ctxRef, "files")
+        val partitionInputStream = flatMapIR(ToStream(files)) { fileInfo =>
+          ReadPartition(fileInfo, requestedType.rowType, PartitionNativeReader(spec, "__dummy_uid"))
+        }
+        partitionInputStream
+      })
+  }
+}

@@ -27,6 +27,9 @@ object CompileAndEvaluate {
     ir0: IR,
     optimize: Boolean = true
   ): IR = {
+    if (IsConstant(ir0))
+      return ir0
+
     _apply(ctx, ir0, optimize) match {
       case Left(_) => Begin(FastIndexedSeq())
       case Right((pt, addr)) =>

@@ -86,7 +86,7 @@ class TableGenSuite extends HailSuite {
   @Test(groups = Array("lowering"))
   def testLowering: Unit = {
     val table = TestUtils.collect(mkTableGen())
-    val lowered = LowerTableIR(table, DArrayLowering.All, ctx, Analyses(table, ctx), Map.empty)
+    val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
     assertEvalsTo(lowered, Row(FastIndexedSeq(0, 0).map(Row(_)), Row(0)))
   }
 
@@ -97,7 +97,7 @@ class TableGenSuite extends HailSuite {
       partitioner = Some(RVDPartitioner.unkeyed(ctx.stateManager, 0)),
       errorId = Some(errorId)
     ))
-    val lowered = LowerTableIR(table, DArrayLowering.All, ctx, Analyses(table, ctx), Map.empty)
+    val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
     val ex = intercept[HailException] {
       ExecuteContext.scoped() { ctx =>
         loweredExecute(ctx, lowered, Env.empty, FastIndexedSeq(), None)
@@ -116,7 +116,7 @@ class TableGenSuite extends HailSuite {
       ))),
       errorId = Some(errorId)
     ))
-    val lowered = LowerTableIR(table, DArrayLowering.All, ctx, Analyses(table, ctx), Map.empty)
+    val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
     val ex = intercept[SparkException] {
       ExecuteContext.scoped() { ctx =>
         loweredExecute(ctx, lowered, Env.empty, FastIndexedSeq(), None)

@@ -1082,8 +1082,8 @@ class TableIRSuite extends HailSuite {
         ApplyAggOp(Collect())(GetField(Ref("row", tableType.rowType), "rsid"))
       )))
     val optimized = Optimize(irToLower, "foo", ctx)
-    val analyses = Analyses.apply(optimized, ctx)
-    LowerTableIR(optimized, DArrayLowering.All, ctx, analyses, Map.empty)
+    val analyses = LoweringAnalyses.apply(optimized, ctx)
+    LowerTableIR(optimized, DArrayLowering.All, ctx, analyses)
   }
 
   @Test def testTableMapPartitions() {

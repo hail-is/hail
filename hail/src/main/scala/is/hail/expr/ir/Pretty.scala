@@ -362,7 +362,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     case TableKeyByAndAggregate(_, _, _, nPartitions, bufferSize) =>
       FastSeq(prettyIntOpt(nPartitions), bufferSize.toString)
     case TableExplode(_, path) => single(prettyStrings(path))
-    case TableMapPartitions(_, g, p, _) => FastSeq(prettyIdentifier(g), prettyIdentifier(p))
+    case TableMapPartitions(_, g, p, _, requestedKey, allowedOverlap) => FastSeq(prettyIdentifier(g), prettyIdentifier(p), requestedKey.toString, allowedOverlap.toString)
     case TableParallelize(_, nPartitions) => single(prettyIntOpt(nPartitions))
     case TableOrderBy(_, sortFields) => single(prettySortFields(sortFields))
     case CastMatrixToTable(_, entriesFieldName, colsFieldName) =>
@@ -559,7 +559,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
         if (i == 1 || i == 2)
           Some(Array("global" -> "g", "row" -> "row"))
         else None
-      case TableMapPartitions(child, g, p, _) =>
+      case TableMapPartitions(child, g, p, _, _, _) =>
         if (i == 1) Some(Array(g -> "g", p -> "part")) else None
       case MatrixMapRows(child, _) =>
         if (i == 1) Some(Array("global" -> "g", "va" -> "row", "sa" -> "col", "g" -> "entry", "n_cols" -> "n_cols")) else None
