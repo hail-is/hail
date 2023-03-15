@@ -41,7 +41,6 @@ random.shuffle(classes, lambda: 0.0)
 
 splits = partition(n_splits, classes)
 
-newline = '\n'
 for split_index, split in enumerate(splits):
     classes = '\n'.join(f'<class name="{name}"/>' for name in split)
     with open(f'testng-splits-{split_index}.xml', 'w') as f:

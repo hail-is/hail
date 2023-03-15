@@ -8,7 +8,7 @@ import pytest
 
 from hailtop import httpx
 from hailtop.auth import service_auth_headers
-from hailtop.batch.backend import HAIL_GENETICS_HAIL_IMAGE, HAIL_GENETICS_HAILTOP_IMAGE
+from hailtop.batch.backend import HAIL_GENETICS_HAILTOP_IMAGE
 from hailtop.batch_client.client import BatchClient
 from hailtop.config import get_deploy_config, get_user_config
 from hailtop.test_utils import skip_in_azure
@@ -28,6 +28,8 @@ DOMAIN = os.environ.get('HAIL_DOMAIN')
 NAMESPACE = os.environ.get('HAIL_DEFAULT_NAMESPACE')
 SCOPE = os.environ.get('HAIL_SCOPE', 'test')
 CLOUD = os.environ.get('HAIL_CLOUD')
+
+HAIL_GENETICS_HAIL_IMAGE = os.environ['HAIL_GENETICS_HAIL_IMAGE']
 
 
 @pytest.fixture

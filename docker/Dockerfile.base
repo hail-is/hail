@@ -4,7 +4,6 @@ RUN hail-apt-get-install \
     git \
     htop \
     unzip bzip2 zip tar \
-    wget \
     rsync \
     emacs-nox \
     xsltproc pandoc \

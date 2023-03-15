@@ -354,7 +354,7 @@ steps:
       - dev
     dependsOn:
       - default_ns
-      - hail_ubuntu_image
+      - admin_pod_image
       - create_deploy_config
       - create_certs
   - kind: runImage
