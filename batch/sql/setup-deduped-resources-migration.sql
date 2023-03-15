@@ -1,6 +1,3 @@
---  don't need the migrated flag as the billing trigger is only on inserting into attempt_resources
-ALTER TABLE attempt_resources ADD COLUMN deduped_resource_id INT DEFAULT NULL, ALGORITHM=INSTANT;
-
 ALTER TABLE aggregated_billing_project_user_resources_v2 ADD COLUMN migrated BOOLEAN DEFAULT FALSE, ALGORITHM=INSTANT;
 ALTER TABLE aggregated_billing_project_user_resources_by_date_v2 ADD COLUMN migrated BOOLEAN DEFAULT FALSE, ALGORITHM=INSTANT;
 ALTER TABLE aggregated_batch_resources_v2 ADD COLUMN migrated BOOLEAN DEFAULT FALSE, ALGORITHM=INSTANT;
@@ -55,16 +52,6 @@ CREATE TABLE IF NOT EXISTS `aggregated_job_resources_v3` (
   FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(`batch_id`, `job_id`) ON DELETE CASCADE,
   FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
-
-DELIMITER $$
-
--- This is okay here because the deduplication mitigation in batch will have already merged
-DROP TRIGGER IF EXISTS attempt_resources_before_insert $$
-CREATE TRIGGER attempt_resources_before_insert BEFORE INSERT ON attempt_resources
-FOR EACH ROW
-BEGIN
-  SET NEW.deduped_resource_id = NEW.resource_id;
-END $$
 
 DELIMITER $$
 
@@ -236,7 +223,7 @@ BEGIN
 
     IF bp_user_resources_migrated THEN
       INSERT INTO aggregated_billing_project_user_resources_v3 (billing_project, user, resource_id, token, `usage`)
-      VALUES (cur_billing_project, cur_user, NEW.resource_id, rand_token, NEW.quantity * msec_diff_rollup)
+      VALUES (cur_billing_project, cur_user, NEW.deduped_resource_id, rand_token, NEW.quantity * msec_diff_rollup)
       ON DUPLICATE KEY UPDATE
         `usage` = `usage` + NEW.quantity * msec_diff_rollup;
     END IF;
@@ -252,7 +239,7 @@ BEGIN
 
     IF batch_resources_migrated THEN
       INSERT INTO aggregated_batch_resources_v3 (batch_id, resource_id, token, `usage`)
-      VALUES (NEW.batch_id, NEW.resource_id, rand_token, NEW.quantity * msec_diff_rollup)
+      VALUES (NEW.batch_id, NEW.deduped_resource_id, rand_token, NEW.quantity * msec_diff_rollup)
       ON DUPLICATE KEY UPDATE
         `usage` = `usage` + NEW.quantity * msec_diff_rollup;
     END IF;
@@ -268,7 +255,7 @@ BEGIN
 
     IF job_resources_migrated THEN
       INSERT INTO aggregated_job_resources_v3 (batch_id, job_id, resource_id, `usage`)
-      VALUES (NEW.batch_id, NEW.job_id, NEW.resource_id, NEW.quantity * msec_diff_rollup)
+      VALUES (NEW.batch_id, NEW.job_id, NEW.deduped_resource_id, NEW.quantity * msec_diff_rollup)
       ON DUPLICATE KEY UPDATE
         `usage` = `usage` + NEW.quantity * msec_diff_rollup;
     END IF;
@@ -285,7 +272,7 @@ BEGIN
 
     IF bp_user_resources_by_date_migrated THEN
       INSERT INTO aggregated_billing_project_user_resources_by_date_v3 (billing_date, billing_project, user, resource_id, token, `usage`)
-      VALUES (cur_billing_date, cur_billing_project, cur_user, NEW.resource_id, rand_token, NEW.quantity * msec_diff_rollup)
+      VALUES (cur_billing_date, cur_billing_project, cur_user, NEW.deduped_resource_id, rand_token, NEW.quantity * msec_diff_rollup)
       ON DUPLICATE KEY UPDATE
         `usage` = `usage` + NEW.quantity * msec_diff_rollup;
     END IF;
@@ -324,13 +311,13 @@ DROP TRIGGER IF EXISTS aggregated_bp_user_resources_v2_after_update $$
 CREATE TRIGGER aggregated_bp_user_resources_v2_after_update AFTER UPDATE ON aggregated_billing_project_user_resources_v2
 FOR EACH ROW
 BEGIN
-  DECLARE new_resource_id INT;
+  DECLARE new_deduped_resource_id INT;
 
   IF OLD.migrated = 0 AND NEW.migrated = 1 THEN
-    SELECT deduped_resource_id INTO new_resource_id FROM resources WHERE resource_id = OLD.resource_id;
+    SELECT deduped_resource_id INTO new_deduped_resource_id FROM resources WHERE resource_id = OLD.resource_id;
 
     INSERT INTO aggregated_billing_project_user_resources_v3 (billing_project, user, resource_id, token, `usage`)
-    VALUES (NEW.billing_project, NEW.user, new_resource_id, NEW.token, NEW.usage)
+    VALUES (NEW.billing_project, NEW.user, new_deduped_resource_id, NEW.token, NEW.usage)
     ON DUPLICATE KEY UPDATE
       `usage` = `usage` + NEW.usage;
   END IF;
@@ -340,13 +327,13 @@ DROP TRIGGER IF EXISTS aggregated_bp_user_resources_by_date_v2_after_update $$
 CREATE TRIGGER aggregated_bp_user_resources_by_date_v2_after_update AFTER UPDATE ON aggregated_billing_project_user_resources_by_date_v2
 FOR EACH ROW
 BEGIN
-  DECLARE new_resource_id INT;
+  DECLARE new_deduped_resource_id INT;
 
   IF OLD.migrated = 0 AND NEW.migrated = 1 THEN
-    SELECT deduped_resource_id INTO new_resource_id FROM resources WHERE resource_id = OLD.resource_id;
+    SELECT deduped_resource_id INTO new_deduped_resource_id FROM resources WHERE resource_id = OLD.resource_id;
 
     INSERT INTO aggregated_billing_project_user_resources_by_date_v3 (billing_date, billing_project, user, resource_id, token, `usage`)
-    VALUES (NEW.billing_date, NEW.billing_project, NEW.user, new_resource_id, NEW.token, NEW.usage)
+    VALUES (NEW.billing_date, NEW.billing_project, NEW.user, new_deduped_resource_id, NEW.token, NEW.usage)
     ON DUPLICATE KEY UPDATE
         `usage` = `usage` + NEW.usage;
   END IF;
@@ -356,13 +343,13 @@ DROP TRIGGER IF EXISTS aggregated_batch_resources_v2_after_update $$
 CREATE TRIGGER aggregated_batch_resources_v2_after_update AFTER UPDATE ON aggregated_batch_resources_v2
 FOR EACH ROW
 BEGIN
-  DECLARE new_resource_id INT;
+  DECLARE new_deduped_resource_id INT;
 
   IF OLD.migrated = 0 AND NEW.migrated = 1 THEN
-    SELECT deduped_resource_id INTO new_resource_id FROM resources WHERE resource_id = OLD.resource_id;
+    SELECT deduped_resource_id INTO new_deduped_resource_id FROM resources WHERE resource_id = OLD.resource_id;
 
     INSERT INTO aggregated_batch_resources_v3 (batch_id, resource_id, token, `usage`)
-    VALUES (NEW.batch_id, new_resource_id, NEW.token, NEW.usage)
+    VALUES (NEW.batch_id, new_deduped_resource_id, NEW.token, NEW.usage)
     ON DUPLICATE KEY UPDATE
       `usage` = `usage` + NEW.usage;
   END IF;
@@ -372,13 +359,13 @@ DROP TRIGGER IF EXISTS aggregated_job_resources_v2_after_update $$
 CREATE TRIGGER aggregated_job_resources_v2_after_update AFTER UPDATE ON aggregated_job_resources_v2
 FOR EACH ROW
 BEGIN
-  DECLARE new_resource_id INT;
+  DECLARE new_deduped_resource_id INT;
 
   IF OLD.migrated = 0 AND NEW.migrated = 1 THEN
-    SELECT deduped_resource_id INTO new_resource_id FROM resources WHERE resource_id = OLD.resource_id;
+    SELECT deduped_resource_id INTO new_deduped_resource_id FROM resources WHERE resource_id = OLD.resource_id;
 
     INSERT INTO aggregated_job_resources_v3 (batch_id, job_id, resource_id, `usage`)
-    VALUES (NEW.batch_id, NEW.job_id, new_resource_id, NEW.usage)
+    VALUES (NEW.batch_id, NEW.job_id, new_deduped_resource_id, NEW.usage)
     ON DUPLICATE KEY UPDATE
       `usage` = `usage` + NEW.usage;
   END IF;
