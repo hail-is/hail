@@ -399,6 +399,7 @@ CREATE TABLE IF NOT EXISTS `attempt_resources` (
   `attempt_id` VARCHAR(40) NOT NULL,
   `quantity` BIGINT NOT NULL,
   `resource_id` INT NOT NULL,
+  `deduped_resource_id` INT DEFAULT NULL
   PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`, `resource_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(`batch_id`, `job_id`) ON DELETE CASCADE,
