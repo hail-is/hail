@@ -1207,7 +1207,15 @@ class TableGen(TableIR):
         ])
 
     def _handle_randomness(self, uid_field_name):
-        contexts = self.contexts.handle_randomness(create_uids=True)
+        globals = self.globals
+        if globals.uses_randomness:
+            globals = ir.Let('__rng_state', ir.RNGStateLiteral(), globals)
+
+        contexts = self.contexts
+        if contexts.uses_randomness:
+            contexts = ir.Let('__rng_state', ir.RNGStateLiteral(), contexts)
+
+        contexts = contexts.handle_randomness(create_uids=True)
         cname, random_uid, old_context = ir.unpack_uid(contexts.typ)
         body = ir.Let(self.cname, old_context, self.body)
 
@@ -1229,7 +1237,7 @@ class TableGen(TableIR):
 
         return TableGen(
             contexts,
-            self.globals,
+            globals,
             cname,
             self.gname,
             body,

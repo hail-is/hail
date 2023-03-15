@@ -3566,11 +3566,11 @@ def balding_nichols_model(n_populations: int,
     +---------------+------------+------+------+------+------+------+
     | locus<GRCh37> | array<str> | call | call | call | call | call |
     +---------------+------------+------+------+------+------+------+
-    | 1:1           | ["A","C"]  | 0/0  | 1/1  | 1/1  | 0/1  | 0/0  |
-    | 1:2           | ["A","C"]  | 0/0  | 1/1  | 0/1  | 0/1  | 1/1  |
-    | 1:3           | ["A","C"]  | 0/0  | 0/1  | 0/0  | 0/0  | 0/0  |
-    | 1:4           | ["A","C"]  | 0/1  | 0/1  | 0/1  | 1/1  | 1/1  |
-    | 1:5           | ["A","C"]  | 0/1  | 0/1  | 0/1  | 0/0  | 0/1  |
+    | 1:1           | ["A","C"]  | 0/1  | 0/0  | 0/1  | 0/0  | 0/0  |
+    | 1:2           | ["A","C"]  | 1/1  | 1/1  | 1/1  | 1/1  | 0/1  |
+    | 1:3           | ["A","C"]  | 0/1  | 0/1  | 1/1  | 0/1  | 1/1  |
+    | 1:4           | ["A","C"]  | 0/1  | 0/0  | 0/1  | 0/0  | 0/1  |
+    | 1:5           | ["A","C"]  | 0/1  | 0/1  | 0/1  | 0/0  | 0/0  |
     +---------------+------------+------+------+------+------+------+
     showing top 5 rows
     showing the first 5 of 100 columns
@@ -3585,11 +3585,11 @@ def balding_nichols_model(n_populations: int,
     +---------------+------------+------+------+------+------+------+
     | locus<GRCh37> | array<str> | call | call | call | call | call |
     +---------------+------------+------+------+------+------+------+
-    | 1:1           | ["A","C"]  | 0|0  | 0|0  | 0|1  | 0|1  | 1|0  |
-    | 1:2           | ["A","C"]  | 1|1  | 0|1  | 0|0  | 0|0  | 0|1  |
-    | 1:3           | ["A","C"]  | 0|0  | 0|0  | 1|0  | 1|0  | 0|0  |
-    | 1:4           | ["A","C"]  | 1|1  | 1|1  | 1|0  | 0|1  | 0|1  |
-    | 1:5           | ["A","C"]  | 1|1  | 0|1  | 0|1  | 1|0  | 1|1  |
+    | 1:1           | ["A","C"]  | 0|0  | 0|0  | 0|0  | 0|0  | 1|0  |
+    | 1:2           | ["A","C"]  | 1|1  | 1|1  | 1|1  | 1|1  | 1|1  |
+    | 1:3           | ["A","C"]  | 1|1  | 1|1  | 0|1  | 1|1  | 1|1  |
+    | 1:4           | ["A","C"]  | 0|0  | 1|0  | 0|0  | 1|0  | 0|0  |
+    | 1:5           | ["A","C"]  | 0|0  | 0|1  | 0|0  | 0|0  | 0|0  |
     +---------------+------------+------+------+------+------+------+
     showing top 5 rows
     showing the first 5 of 100 columns
@@ -3785,7 +3785,7 @@ def balding_nichols_model(n_populations: int,
     from numpy import linspace
     n_partitions = min(n_partitions, n_variants)
     start_idxs = [int(x) for x in linspace(0, n_variants, n_partitions + 1)]
-    idx_bounds = hl.zip(start_idxs, start_idxs[1:])
+    idx_bounds = [x for x in zip(start_idxs, start_idxs[1:])]
 
     pop_f = hl.rand_dirichlet if mixture else hl.rand_cat
 
@@ -3805,14 +3805,15 @@ def balding_nichols_model(n_populations: int,
                 lambda idx: hl.struct(sample_idx=idx, pop=pop_f(pop_dist))
             )
         ),
-        partitions=hl.eval(
-            idx_bounds.map(lambda idx_range: hl.interval(**{
-                varname: hl.struct(
-                    locus=hl.locus_from_global_position(idx_range[k], reference_genome),
+        partitions=[
+            hl.Interval(**{
+                endpoint: hl.Struct(
+                    locus=reference_genome.locus_from_global_position(idx),
                     alleles=['A', 'C']
-                ) for varname, k in [('start', 0), ('end', 1)]
-            }))
-        ),
+                ) for endpoint, idx in [('start', lo), ('end', hi)]
+            })
+            for (lo, hi) in idx_bounds
+        ],
         rowfn=lambda idx_range, _: hl.range(idx_range[0], idx_range[1]).map(
             lambda idx: hl.bind(
                 lambda ancestral: hl.struct(

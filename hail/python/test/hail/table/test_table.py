@@ -2284,10 +2284,10 @@ def test_table_randomness():
 
     # test TableGen
     t = hl.Table._generate(
-        contexts=hl.range(10),
-        globals=hl.struct(k=2),
-        rowfn=lambda c, g: hl.range(10).map(lambda _: hl.struct(a=c * g.k)),
-        partitions=10
+        contexts=hl.replicate(2, hl.rand_int64()),
+        globals=hl.struct(k=hl.rand_int64()),
+        partitions=2,
+        rowfn=lambda c, g: hl.replicate(2, hl.struct(a=c * g.k * hl.rand_int64())),
     )
     assert_contains_node(t, ir.TableGen)
     assert_unique_uids(t)

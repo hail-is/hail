@@ -1346,8 +1346,8 @@ class Tests(unittest.TestCase):
         self.assertTrue(np.allclose(actual, expected))
 
     def test_row_correlation_vs_numpy(self):
-        n, m = 11, 10
-        mt = hl.balding_nichols_model(3, n, m, n_partitions=2)
+        n_samples, n_variants = 11, 10
+        mt = hl.balding_nichols_model(3, n_samples, n_variants, n_partitions=2)
         mt = mt.annotate_rows(sd=agg.stats(mt.GT.n_alt_alleles()).stdev)
         mt = mt.filter_rows(mt.sd > 1e-30)
 
@@ -1357,7 +1357,8 @@ class Tests(unittest.TestCase):
 
         cor = hl.row_correlation(mt.GT.n_alt_alleles()).to_numpy()
 
-        self.assertTrue(cor.shape[0] > 5 and cor.shape[0] == cor.shape[1])
+        self.assertGreater(cor.shape[0], 5)
+        self.assertEqual(cor.shape[0], cor.shape[1])
         self.assertTrue(np.allclose(l, cor))
 
     @fails_service_backend()
@@ -1632,15 +1633,15 @@ class Tests(unittest.TestCase):
         bn_ds = hl.balding_nichols_model(1, 5, 5, phased=True)
         assert bn_ds.aggregate_entries(hl.agg.all(bn_ds.GT.phased)) == True
         actual = bn_ds.GT.collect()
-        expected = [
-            hl.Call(a, phased=True)
-            for a in [
-                    [0, 1], [0, 0], [0, 1], [0, 0], [1, 0],
-                    [1, 1], [0, 1], [1, 1], [0, 0], [0, 1],
-                    [1, 0], [0, 0], [1, 0], [0, 0], [0, 0],
-                    [1, 1], [1, 1], [1, 0], [0, 1], [1, 1],
-                    [1, 1], [1, 1], [1, 1], [1, 1], [1, 1]]]
-        assert actual == expected
+        self.assertListEqual(
+            [ c.alleles for c in actual ],
+            [ [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]
+            , [1, 1], [1, 1], [1, 1], [1, 0], [1, 1]
+            , [1, 1], [0, 1], [1, 0], [1, 0], [0, 1]
+            , [0, 0], [0, 0], [0, 0], [0, 0], [1, 0]
+            , [1, 1], [1, 1], [0, 1], [1, 1], [1, 1]
+            ]
+        )
 
     def test_de_novo(self):
         mt = hl.import_vcf(resource('denovo.vcf'))
