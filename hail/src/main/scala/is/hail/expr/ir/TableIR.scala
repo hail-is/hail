@@ -1854,7 +1854,7 @@ case class TableGen(contexts: IR,
     FastSeq(contexts, globals, body)
 
   override protected[ir] def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate =
-    new TableStageIntermediate(LowerTableIR.applyTable(this, DArrayLowering.All, ctx, Analyses(this, ctx), Map.empty))
+    new TableStageIntermediate(LowerTableIR.applyTable(this, DArrayLowering.All, ctx, LoweringAnalyses(this, ctx)))
 }
 
 case class TableRange(n: Int, nPartitions: Int) extends TableIR {

@@ -116,7 +116,7 @@ class TableGenSuite extends HailSuite {
       ))),
       errorId = Some(errorId)
     ))
-    val lowered = LowerTableIR(table, DArrayLowering.All, ctx, Analyses(table, ctx), Map.empty)
+    val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
     val ex = intercept[SparkException] {
       ExecuteContext.scoped() { ctx =>
         loweredExecute(ctx, lowered, Env.empty, FastIndexedSeq(), None)
