@@ -33,18 +33,14 @@ def mkdir_if_not_exists(path):
 role = get_metadata('dataproc-role')
 
 if role == 'Master':
-    # additional packages to install
+    # Additional packages to install.
+    # None of these packages should be related to Jupyter or JupyterLab because
+    # Dataproc Component Gateway takes care of properly setting up those services.
     pip_pkgs = [
         'setuptools',
         'mkl<2020',
         'lxml<5',
         'https://github.com/hail-is/jgscm/archive/v0.1.13+hail.zip',
-        'ipykernel==4.10.*',
-        'ipywidgets==7.5.*',
-        'jupyter-console==6.0.*',
-        'nbconvert==5.6.*',
-        'notebook==5.7.*',
-        'qtconsole==4.5.*'
     ]
 
     # add user-requested packages
@@ -121,93 +117,3 @@ if role == 'Master':
         for c in conf_to_set:
             out.write(c)
             out.write('\n')
-
-    # Update python3 kernel spec with the environment variables and the hail
-    # spark monitor
-    try:
-        with open('/opt/conda/default/share/jupyter/kernels/python3/kernel.json', 'r') as f:
-            python3_kernel = json.load(f)
-    except:  # noqa: E722
-        python3_kernel = {
-            'argv': [
-                '/opt/conda/default/bin/python',
-                '-m',
-                'ipykernel',
-                '-f',
-                '{connection_file}'
-            ],
-            'display_name': 'Python 3',
-            'language': 'python',
-        }
-    python3_kernel['env'] = {
-        **python3_kernel.get('env', dict()),
-        **env_to_set,
-        'HAIL_SPARK_MONITOR': '1',
-        'SPARK_MONITOR_UI': 'http://localhost:8088/proxy/%APP_ID%',
-    }
-
-    # write python3 kernel spec file to default Jupyter kernel directory
-    mkdir_if_not_exists('/opt/conda/default/share/jupyter/kernels/python3/')
-    with open('/opt/conda/default/share/jupyter/kernels/python3/kernel.json', 'w') as f:
-        json.dump(python3_kernel, f)
-
-    # some old notebooks use the "Hail" kernel, so create that too
-    hail_kernel = {
-        **python3_kernel,
-        'display_name': 'Hail'
-    }
-    mkdir_if_not_exists('/opt/conda/default/share/jupyter/kernels/hail/')
-    with open('/opt/conda/default/share/jupyter/kernels/hail/kernel.json', 'w') as f:
-        json.dump(hail_kernel, f)
-
-    # create Jupyter configuration file
-    mkdir_if_not_exists('/opt/conda/default/etc/jupyter/')
-    with open('/opt/conda/default/etc/jupyter/jupyter_notebook_config.py', 'w') as f:
-        opts = [
-            'c.Application.log_level = "DEBUG"',
-            'c.NotebookApp.ip = "127.0.0.1"',
-            'c.NotebookApp.open_browser = False',
-            'c.NotebookApp.port = 8123',
-            'c.NotebookApp.token = ""',
-            'c.NotebookApp.contents_manager_class = "jgscm.GoogleStorageContentManager"'
-        ]
-        f.write('\n'.join(opts) + '\n')
-
-    print('copying spark monitor')
-    spark_monitor_gs = 'gs://hail-common/sparkmonitor-3357488112c6c162c12f8386faaadcbf3789ac02/sparkmonitor-0.0.12-py3-none-any.whl'
-    spark_monitor_wheel = '/home/hail/' + spark_monitor_gs.split('/')[-1]
-    safe_call('gcloud', 'storage', 'cp', spark_monitor_gs, spark_monitor_wheel)
-    safe_call('pip', 'install', spark_monitor_wheel)
-
-    # setup jupyter-spark extension
-    safe_call('/opt/conda/default/bin/jupyter', 'serverextension', 'enable', '--user', '--py', 'sparkmonitor')
-    safe_call('/opt/conda/default/bin/jupyter', 'nbextension', 'install', '--user', '--py', 'sparkmonitor')
-    safe_call('/opt/conda/default/bin/jupyter', 'nbextension', 'enable', '--user', '--py', 'sparkmonitor')
-    safe_call('/opt/conda/default/bin/jupyter', 'nbextension', 'enable', '--user', '--py', 'widgetsnbextension')
-    safe_call(
-        """ipython profile create && echo "c.InteractiveShellApp.extensions.append('sparkmonitor.kernelextension')" >> $(ipython profile locate default)/ipython_kernel_config.py""",
-        shell=True)
-
-    # create systemd service file for Jupyter notebook server process
-    with open('/lib/systemd/system/jupyter.service', 'w') as f:
-        opts = [
-            '[Unit]',
-            'Description=Jupyter Notebook',
-            'After=hadoop-yarn-resourcemanager.service',
-            '[Service]',
-            'Type=simple',
-            'User=root',
-            'Group=root',
-            'WorkingDirectory=/home/hail/',
-            'ExecStart=/opt/conda/default/bin/python /opt/conda/default/bin/jupyter notebook --allow-root',
-            'Restart=always',
-            'RestartSec=1',
-            '[Install]',
-            'WantedBy=multi-user.target'
-        ]
-        f.write('\n'.join(opts) + '\n')
-
-    # add Jupyter service to autorun and start it
-    safe_call('systemctl', 'daemon-reload')
-    safe_call('systemctl', 'enable', 'jupyter')
-    safe_call('service', 'jupyter', 'start')
