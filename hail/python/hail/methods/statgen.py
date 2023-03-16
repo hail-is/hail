@@ -1358,7 +1358,7 @@ def _logistic_regression_rows_nd(test,
     ht = ht.transmute(x=hl.nd.array(mean_impute(ht.entries[x_field_name])))
     covs_and_x = hl.nd.hstack([ht.covmat, ht.x.reshape((-1, 1))])
 
-    def test(yvec, null_fit):
+    def run_test(yvec, null_fit):
         if test == 'score':
             return logistic_score_test(covs_and_x, y, null_fit)
     
@@ -1370,7 +1370,7 @@ def _logistic_regression_rows_nd(test,
         else:
             assert test == 'firth'
             raise ValueError("firth not yet supported on lowered backends")
-    ht = ht.annotate(logistic_regression=hl.starmap(test, hl.zip(ht.yvecs, ht.null_fits)))
+    ht = ht.annotate(logistic_regression=hl.starmap(run_test, hl.zip(ht.yvecs, ht.null_fits)))
 
     if not y_is_list:
         ht = ht.transmute(**ht.logistic_regression[0])
