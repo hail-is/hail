@@ -1481,62 +1481,6 @@ def poisson_regression_rows(test,
     return Table(ir.MatrixToTableApply(mt._mir, config)).persist()
 
 
-def _poisson_fit(covmat, yvec, b, mu, score, fisher, max_iterations, tolerance):
-    dtype = numerical_regression_fit_dtype
-    blank_struct = hl.struct(**{k: hl.missing(dtype[k]) for k in dtype})
-
-    def fit(recur, cur_iter, b, mu, score, fisher):
-        delta_b_struct = hl.nd.solve(fisher, score, no_crash=True)
-
-        exploded = delta_b_struct.failed
-        delta_b = delta_b_struct.solution
-        max_delta_b = nd_max(delta_b.map(lambda e: hl.abs(e)))
-        log_lkhd = yvec @ mu.map(lambda x: hl.log(x)) - mu.sum()
-
-        next_iter = cur_iter + 1
-        next_b = b + delta_b
-        next_mu = nd_exp(covmat @ next_b)
-        next_score = covmat.T @ (yvec - next_mu)
-        next_fisher = (next_mu * covmat.T) @ covmat
-
-        return (hl.case()
-                .when(exploded | hl.is_nan(delta_b[0]),
-                      blank_struct.annotate(num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=True))
-                .when(max_delta_b < tolerance,
-                      hl.struct(b=b, score=score, fisher=fisher, mu=mu, num_iter=cur_iter, log_lkhd=log_lkhd, converged=True, exploded=False))
-                .when(cur_iter == max_iterations,
-                      blank_struct.annotate(num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=False))
-                .default(recur(next_iter, next_b, next_mu, next_score, next_fisher)))
-
-    if max_iterations == 0:
-        return blank_struct.select(num_iter=0, log_lkhd=0, converged=False, exploded=False)
-    return hl.experimental.loop(fit, dtype, 1, b, mu, score, fisher)
-
-
-def _poisson_score_test(null_fit, covmat, yvec, xvec):
-    dof = 1
-
-    X = hl.nd.hstack([covmat, xvec.T.reshape(-1, 1)])
-    b = hl.nd.hstack([null_fit.b, hl.nd.array([0.0])])
-    mu = nd_exp(X @ b)
-    score = hl.nd.hstack([null_fit.score, hl.nd.array([xvec @ (yvec - mu)])])
-
-    fisher00 = null_fit.fisher
-    fisher01 = ((mu * covmat.T) @ xvec).reshape((-1, 1))
-    fisher10 = fisher01.T
-    fisher11 = hl.nd.array([[(mu * xvec.T) @ xvec]])
-    fisher = hl.nd.vstack([
-        hl.nd.hstack([fisher00, fisher01]),
-        hl.nd.hstack([fisher10, fisher11])
-    ])
-
-    fisher_div_score = hl.nd.solve(fisher, score, no_crash=True)
-    chi_sq = hl.or_missing(~fisher_div_score.failed,
-                           score @ fisher_div_score.solution)
-    p = hl.pchisqtail(chi_sq, dof)
-    return chi_sq, p
-
-
 @typecheck(test=enumeration('wald', 'lrt', 'score'),
            y=expr_float64,
            x=expr_float64,
@@ -1660,6 +1604,62 @@ def _lowered_poisson_regression_rows(test,
         **wald_test(X, test_fit),
         **ht.pass_through
     )
+
+
+def _poisson_fit(covmat, yvec, b, mu, score, fisher, max_iterations, tolerance):
+    dtype = numerical_regression_fit_dtype
+    blank_struct = hl.struct(**{k: hl.missing(dtype[k]) for k in dtype})
+
+    def fit(recur, cur_iter, b, mu, score, fisher):
+        delta_b_struct = hl.nd.solve(fisher, score, no_crash=True)
+
+        exploded = delta_b_struct.failed
+        delta_b = delta_b_struct.solution
+        max_delta_b = nd_max(delta_b.map(lambda e: hl.abs(e)))
+        log_lkhd = yvec @ mu.map(lambda x: hl.log(x)) - mu.sum()
+
+        next_iter = cur_iter + 1
+        next_b = b + delta_b
+        next_mu = nd_exp(covmat @ next_b)
+        next_score = covmat.T @ (yvec - next_mu)
+        next_fisher = (next_mu * covmat.T) @ covmat
+
+        return (hl.case()
+                .when(exploded | hl.is_nan(delta_b[0]),
+                      blank_struct.annotate(num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=True))
+                .when(max_delta_b < tolerance,
+                      hl.struct(b=b, score=score, fisher=fisher, mu=mu, num_iter=cur_iter, log_lkhd=log_lkhd, converged=True, exploded=False))
+                .when(cur_iter == max_iterations,
+                      blank_struct.annotate(num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=False))
+                .default(recur(next_iter, next_b, next_mu, next_score, next_fisher)))
+
+    if max_iterations == 0:
+        return blank_struct.select(num_iter=0, log_lkhd=0, converged=False, exploded=False)
+    return hl.experimental.loop(fit, dtype, 1, b, mu, score, fisher)
+
+
+def _poisson_score_test(null_fit, covmat, yvec, xvec):
+    dof = 1
+
+    X = hl.nd.hstack([covmat, xvec.T.reshape(-1, 1)])
+    b = hl.nd.hstack([null_fit.b, hl.nd.array([0.0])])
+    mu = nd_exp(X @ b)
+    score = hl.nd.hstack([null_fit.score, hl.nd.array([xvec @ (yvec - mu)])])
+
+    fisher00 = null_fit.fisher
+    fisher01 = ((mu * covmat.T) @ xvec).reshape((-1, 1))
+    fisher10 = fisher01.T
+    fisher11 = hl.nd.array([[(mu * xvec.T) @ xvec]])
+    fisher = hl.nd.vstack([
+        hl.nd.hstack([fisher00, fisher01]),
+        hl.nd.hstack([fisher10, fisher11])
+    ])
+
+    fisher_div_score = hl.nd.solve(fisher, score, no_crash=True)
+    chi_sq = hl.or_missing(~fisher_div_score.failed,
+                           score @ fisher_div_score.solution)
+    p = hl.pchisqtail(chi_sq, dof)
+    return chi_sq, p
 
 
 def linear_mixed_model(y,
