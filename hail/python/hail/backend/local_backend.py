@@ -147,7 +147,11 @@ class LocalBackend(Py4JBackend):
         self._jbackend = hail_package.backend.local.LocalBackend.apply(
             tmpdir,
             gcs_requester_pays_project,
-            gcs_requester_pays_buckets
+            gcs_requester_pays_buckets,
+            log,
+            True,
+            append,
+            skip_logging_configuration
         )
         self._jhc = hail_package.HailContext.apply(
             self._jbackend, branching_factor, optimizer_iterations)
