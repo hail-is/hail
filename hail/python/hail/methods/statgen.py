@@ -1608,9 +1608,7 @@ def _lowered_poisson_regression_rows(test,
     residual = yvec - mu
     score = covmat.T @ residual
     fisher = (mu * covmat.T) @ covmat
-
     null_fit = _poisson_fit(covmat, yvec, b, mu, score, fisher, max_iterations, tolerance)
-
     mt = mt.annotate_globals(
         null_fit=hl.case().when(null_fit.converged, null_fit).or_error(
             hl.format('_lowered_poisson_regression_rows: null model did not converge: %s',
@@ -1622,10 +1620,10 @@ def _lowered_poisson_regression_rows(test,
 
     covmat = ht.covmat
     null_fit = ht.null_fit
+    # FIXME: we should test a whole block of variants at a time not one-by-one
     xvec = ht.xvec
     yvec = ht.yvec
 
-    # FIXME: we should test a whole block of variants at a time not one-by-one
     if test == 'score':
         chi_sq, p = _poisson_score_test(null_fit, covmat, yvec, xvec)
         return ht.select(
@@ -1656,7 +1654,6 @@ def _lowered_poisson_regression_rows(test,
             **lrt_test(X, null_fit, test_fit),
             **ht.pass_through
         )
-
     assert test == 'wald'
     return ht.select(
         test_fit=test_fit,
