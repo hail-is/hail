@@ -104,7 +104,7 @@ SET worker_cores = %s,
     autoscaler_loop_period_secs = %s,
     worker_max_idle_time_secs = %s,
     standing_worker_max_idle_time_secs = %s,
-    job_queue_scheduling_window_secs = %s
+    job_queue_scheduling_window_secs = %s,
     label = %s
 WHERE pools.name = %s;
 ''',
