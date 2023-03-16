@@ -920,7 +920,7 @@ def logistic_regression_rows(test,
 # Helpers for logreg:
 def mean_impute(hl_array):
     non_missing_mean = hl.mean(hl_array, filter_missing=True)
-    return hl_array.map(lambda entry: hl.if_else(hl.is_defined(entry), entry, non_missing_mean))
+    return hl_array.map(lambda entry: hl.coalesce(entry, non_missing_mean))
 
 
 def sigmoid(hl_nd):
@@ -1335,15 +1335,15 @@ def _logistic_regression_rows_nd(test,
 
     ht = mt._localize_entries('entries', 'samples')
 
-    # cov_nd rows are samples, columns are the different covariates
-    ht = ht.annotate_globals(cov_nd=hl.nd.array(ht.samples.map(lambda s: [s[cov_name] for cov_name in cov_field_names])))
+    # covmat rows are samples, columns are the different covariates
+    ht = ht.annotate_globals(covmat=hl.nd.array(ht.samples.map(lambda s: [s[cov_name] for cov_name in cov_field_names])))
 
-    # y_nd rows are samples, columns are the various dependent variables.
-    ht = ht.annotate_globals(y_nd=hl.nd.array(ht.samples.map(lambda s: [s[y_name] for y_name in y_field_names])))
+    # yvecs is a list of sample-length vectors, one for each dependent variable.
+    ht = ht.annotate_globals(yvecs=[hl.nd.array(ht.samples[y_name]) for y_name in y_field_names])
 
     # Fit null models, which means doing a logreg fit with just the covariates for each phenotype.
-    def fit_null_for_phenotype(idx):
-        null_fit = logreg_fit(ht.cov_nd, ht.y_nd[:, idx], None, max_iter=max_iterations, tol=tolerance)
+    def fit_null(yvec):
+        null_fit = logreg_fit(ht.covmat, yvec, None, max_iter=max_iterations, tol=tolerance)
         return (
             hl.case()
             .when(~null_fit.exploded,
@@ -1353,33 +1353,25 @@ def _logistic_regression_rows_nd(test,
                              "Newton iteration failed to converge")))
             .or_error(hl.format("Failed to fit logistic regression null model (standard MLE with covariates only): "
                                 "exploded at Newton iteration %d", null_fit.num_iter)))
-    ht = ht.annotate_globals(
-        null_fits=hl.range(num_y_fields).map(fit_null_for_phenotype)
-    )
+    ht = ht.annotate_globals(null_fits=ht.yvecs.map(fit_null))
+
     ht = ht.transmute(x=hl.nd.array(mean_impute(ht.entries[x_field_name])))
+    covs_and_x = hl.nd.hstack([ht.covmat, ht.x.reshape((-1, 1))])
 
-    covs_and_x = hl.nd.hstack([ht.cov_nd, ht.x.reshape((-1, 1))])
-
-    def test_phenotype(idx):
-        nonlocal test
-        nonlocal covs_and_x
-        y_vec = ht.y_nd[:, idx]
-        null_fit = ht.null_fits[idx]
-
-        if test == "wald":
-            the_fit = logreg_fit(covs_and_x, y_vec, null_fit, max_iter=max_iterations, tol=tolerance)
-            return wald_test(covs_and_x, the_fit)
-        elif test == "lrt":
-            the_fit = logreg_fit(covs_and_x, y_vec, null_fit, max_iter=max_iterations, tol=tolerance)
-            return lrt_test(covs_and_x, null_fit, the_fit)
-        elif test == "score":
-            return logistic_score_test(covs_and_x, y_vec, null_fit)
+    def test(yvec, null_fit):
+        if test == 'score':
+            return logistic_score_test(covs_and_x, y, null_fit)
+    
+        test_fit = logreg_fit(covs_and_x, yvec, null_fit, max_iter=max_iterations, tol=tolerance)
+        if test == 'wald':
+            return wald_test(covs_and_x, test_fit)
+        elif test == 'lrt':
+            return lrt_test(covs_and_x, null_fit, test_fit)
         else:
-            assert test == "firth"
+            assert test == 'firth'
             raise ValueError("firth not yet supported on lowered backends")
-    ht = ht.annotate(
-        logistic_regression=hl.range(num_y_fields).map(test_phenotype)
-    )
+    ht = ht.annotate(logistic_regression=hl.starmap(test, hl.zip(ht.yvecs, ht.null_fits)))
+
     if not y_is_list:
         ht = ht.transmute(**ht.logistic_regression[0])
     return ht.drop("x")
