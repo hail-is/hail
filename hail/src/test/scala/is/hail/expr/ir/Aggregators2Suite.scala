@@ -691,7 +691,7 @@ class Aggregators2Suite extends HailSuite {
               AggSignature(Sum(), FastSeq(), FastSeq(TInt64))),
             false))))),
       Some(FastIndexedSeq()))))
-    assertEvalsTo(ir, Row((0 until 10).map(i => Row(i, 2L * i + 12L)), Row()))(ExecStrategy.interpretOnly)
+    assertEvalsTo(ir, Row((0 until 10).map(i => Row(i, 2L * i + 12L)), Row()))(ExecStrategy.lowering)
   }
 
   @Test def testRunAggScan(): Unit = {
