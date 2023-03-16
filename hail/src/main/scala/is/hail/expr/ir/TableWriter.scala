@@ -52,7 +52,7 @@ object TableNativeWriter {
     rowSpec: TypedCodecSpec, globalSpec: TypedCodecSpec): IR = {
     // write out partitioner key, which may be stricter than table key
     val partitioner = ts.partitioner
-    val pKey: PStruct = tcoerce[PStruct](rowSpec.decodedPType(partitioner.kType))
+    val pKey: PStruct = tcoerce[PStruct](rowSpec.decodedPType(tt.keyType))
     val rowWriter = PartitionNativeWriter(rowSpec, pKey.fieldNames, s"$path/rows/parts/", Some(s"$path/index/" -> pKey),
       if (stageLocally) Some(FileSystems.getDefault.getPath(ctx.localTmpdir, s"hail_staging_tmp_${UUID.randomUUID()}", "rows", "parts")) else None
     )

@@ -535,7 +535,8 @@ object TypeCheck {
         assert(writeCtx.typ == writer.ctxType)
         assert(x.typ == writer.returnType)
       case WriteMetadata(writeAnnotations, writer) =>
-        assert(writeAnnotations.typ == writer.annotationType)
+        if (writeAnnotations.typ != writer.annotationType)
+          throw new RuntimeException(s"$writer:\n  annots: ${writeAnnotations.typ}\n  writer:${writer.annotationType}")
       case x@ReadValue(path, spec, requestedType) =>
         assert(path.typ == TString)
         assert(spec.encodedType.decodedPType(requestedType).virtualType == requestedType)
