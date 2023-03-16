@@ -845,19 +845,15 @@ object LowerTableIR {
 
         val contextType = TStruct("start" -> TInt32, "end" -> TInt32)
 
-        val ranges = Array.tabulate(nPartitionsAdj) { i =>
-          partStarts(i) -> partStarts(i + 1)
-        }.toFastIndexedSeq
+        val ranges = Array.tabulate(nPartitionsAdj)(i => partStarts(i) -> partStarts(i + 1))
 
         TableStage(
           MakeStruct(FastSeq()),
-          new RVDPartitioner(ctx.stateManager, Array("idx"), tir.typ.rowType,
-            ranges.map { case (start, end) =>
-              Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
-            }),
+          new RVDPartitioner(ctx.stateManager, Array("idx"), tir.typ.rowType, ranges.map {
+            case (start, end) => Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
+          }),
           TableStageDependency.none,
-          ToStream(Literal(TArray(contextType),
-            ranges.map { case (start, end) => Row(start, end) })),
+          ToStream(Literal(TArray(contextType), ranges.map(Row.fromTuple).toFastIndexedSeq)),
           (ctxRef: Ref) => mapIR(StreamRange(GetField(ctxRef, "start"), GetField(ctxRef, "end"), I32(1), true)) { i =>
             MakeStruct(FastSeq("idx" -> i))
           })
@@ -873,10 +869,10 @@ object LowerTableIR {
 
         val globalPosRanges = Array.tabulate(nPartitionsAdj) { i =>
           partStarts(i) -> partStarts(i + 1)
-        }.toFastIndexedSeq
+        }
         val locusRanges = Array.tabulate(nPartitionsAdj) { i =>
           toLocus(partStarts(i)) -> toLocus(partStarts(i + 1))
-        }.toFastIndexedSeq
+        }
 
         TableStage(
           MakeStruct(FastSeq()),
@@ -888,7 +884,7 @@ object LowerTableIR {
           ToStream(
             Literal(
               TArray(contextType),
-              globalPosRanges.map { case (start, end) => Row(start, end) }
+              globalPosRanges.map(Row.fromTuple).toFastIndexedSeq
             )
           ),
           { (ctxRef: Ref) =>
@@ -999,9 +995,9 @@ object LowerTableIR {
           loweredChild.dependency,
           contexts = bindIRs(
             ToArray(loweredChild.contexts),
-            Literal(TArray(TTuple(TInt32, TInt32)), startAndEndInterval.map { case (start, end) => Row(start, end) })
+            Literal(TArray(TTuple(TInt32, TInt32)), startAndEndInterval.map(Row.fromTuple).toFastIndexedSeq)
           ) { case Seq(prevContexts, bounds) =>
-            zip2(ToStream(Literal(TArray(TInt32), includedIndices)), ToStream(bounds), ArrayZipBehavior.AssumeSameLength) { (idx, bound) =>
+            zip2(ToStream(Literal(TArray(TInt32), includedIndices.toFastIndexedSeq)), ToStream(bounds), ArrayZipBehavior.AssumeSameLength) { (idx, bound) =>
               MakeStruct(FastIndexedSeq(("prevContext", ArrayRef(prevContexts, idx)), ("bounds", bound)))
             }
           },

@@ -283,8 +283,11 @@ object RIterable {
 
 sealed class RIterable(val elementType: TypeWithRequiredness, eltRequired: Boolean) extends TypeWithRequiredness {
   val children: IndexedSeq[TypeWithRequiredness] = FastSeq(elementType)
-  def _unionLiteral(a: Annotation): Unit =
+  def _unionLiteral(a: Annotation): Unit = {
+
     a.asInstanceOf[Iterable[_]].foreach(elt => elementType.unionLiteral(elt))
+  }
+
   def _matchesPType(pt: PType): Boolean = elementType.matchesPType(tcoerce[PIterable](pt).elementType)
   def _unionPType(pType: PType): Unit = elementType.fromPType(pType.asInstanceOf[PIterable].elementType)
   def _unionEmitType(emitType: EmitType): Unit = elementType.fromEmitType(emitType.st.asInstanceOf[SIndexablePointer].elementEmitType)
