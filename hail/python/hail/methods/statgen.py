@@ -1336,10 +1336,7 @@ def _logistic_regression_rows_nd(test,
     ht = mt._localize_entries('entries', 'samples')
 
     # cov_nd rows are samples, columns are the different covariates
-    if covariates:
-        ht = ht.annotate_globals(cov_nd=hl.nd.array(ht.samples.map(lambda s: [s[cov_name] for cov_name in cov_field_names])))
-    else:
-        ht = ht.annotate_globals(cov_nd=hl.nd.array(ht.samples.map(lambda _: hl.empty_array(hl.tfloat64))))
+    ht = ht.annotate_globals(cov_nd=hl.nd.array(ht.samples.map(lambda s: [s[cov_name] for cov_name in cov_field_names])))
 
     # y_nd rows are samples, columns are the various dependent variables.
     ht = ht.annotate_globals(y_nd=hl.nd.array(ht.samples.map(lambda s: [s[y_name] for y_name in y_field_names])))
