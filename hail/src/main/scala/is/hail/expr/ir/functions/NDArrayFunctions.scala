@@ -208,47 +208,21 @@ object  NDArrayFunctions extends RegistryFunctions {
         newBlock
     }
 
-    registerSCode7("zero_row_intervals", TNDArray(TFloat64, Nat(2)), TInt64, TInt32, TInt64, TInt64, TArray(TInt64), TArray(TInt64), TNDArray(TFloat64, Nat(2)),
-      { (_, _, _, _, _, _, _, _) => PCanonicalNDArray(PFloat64Required, 2, true).sType }) {
-      case (er, cb, rst: SNDArrayPointer,
-            block: SNDArrayValue, blockSize: SInt64Value,
-            jIdx: SInt32Value, nRows: SInt64Value, nCols: SInt64Value,
-            starts: SIndexableValue, stops: SIndexableValue, errorID) =>
+    registerSCode3("zero_row_intervals", TNDArray(TFloat64, Nat(2)), TArray(TInt64), TArray(TInt64), TNDArray(TFloat64, Nat(2)),
+      { (_, _, _, _) => PCanonicalNDArray(PFloat64Required, 2, true).sType }) {
+      case (er, cb, rst: SNDArrayPointer, block: SNDArrayValue, starts: SIndexableValue, stops: SIndexableValue, errorID) =>
         val newBlock = rst.coerceOrCopy(cb, er.region, block, deepCopy = false).asInstanceOf[SNDArrayPointerValue]
         val row = cb.newLocal[Long]("rowIdx")
-        cb.forLoop(cb.assign(row, 0L), row < nRows.value, cb.assign(row, row + 1L), {
+        val IndexedSeq(nRows, nCols) = newBlock.shapes
+        cb.forLoop(cb.assign(row, 0L), row < nRows.get, cb.assign(row, row + 1L), {
           val start = starts.loadElement(cb, row.toI).get(cb).asInt64.value
-          val startBlock = cb.memoize((start / blockSize.value).toI)
-
-          cb.ifx(startBlock.ceq(jIdx.value), {
-            val startOffset = cb.memoize(start % blockSize.value)
-            // block(i to i, 0 until startOffset) := 0
-            newBlock.slice(cb, FastIndexedSeq(ScalarIndex(row), SliceIndex(None, Some(startOffset)))).coiterateMutate(cb, er.region) { _ =>
-              primitive(0.0d)
-            }
-          })
-          cb.ifx(startBlock > jIdx.value, {
-            // block(i to i, ::) := 0.0
-            newBlock.slice(cb, FastIndexedSeq(ScalarIndex(row), ColonIndex)).coiterateMutate(cb, er.region) { _ =>
-              primitive(0.0d)
-            }
-          })
-
           val stop = stops.loadElement(cb, row.toI).get(cb).asInt64.value
-          val stopBlock = cb.memoize((stop / blockSize.value).toI)
-          cb.ifx(stopBlock.ceq(jIdx.value), {
-            val stopOffset = cb.memoize(stop % blockSize.value)
-            // block(i to i, 0 until startOffset) := 0
-            newBlock.slice(cb, FastIndexedSeq(ScalarIndex(row), SliceIndex(Some(stopOffset), None))).coiterateMutate(cb, er.region) { _ =>
-              primitive(0.0d)
-            }
-          })
-          cb.ifx(stopBlock < jIdx.value, {
-            // block(i to i, ::) := 0.0
-            newBlock.slice(cb, FastIndexedSeq(ScalarIndex(row), ColonIndex)).coiterateMutate(cb, er.region) { _ =>
-              primitive(0.0d)
-            }
-          })
+          newBlock.slice(cb, FastIndexedSeq(ScalarIndex(row), SliceIndex(None, Some(start)))).coiterateMutate(cb, er.region) { _ =>
+            primitive(0.0d)
+          }
+          newBlock.slice(cb, FastIndexedSeq(ScalarIndex(row), SliceIndex(Some(stop), None))).coiterateMutate(cb, er.region) { _ =>
+            primitive(0.0d)
+          }
         })
 
         newBlock

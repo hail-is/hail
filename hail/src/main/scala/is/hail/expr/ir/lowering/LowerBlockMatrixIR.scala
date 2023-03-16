@@ -782,12 +782,11 @@ class BlockMatrixStage2 private (
       val oldCtx = GetTupleElement(ctx, 0)
       val i = GetTupleElement(ctx, 1)
       val j = GetTupleElement(ctx, 2)
-      val starts = GetTupleElement(ctx, 3)
-      val stops = GetTupleElement(ctx, 4)
+      val (_, nCols) = typ.blockShapeIR(i, j)
+      val starts = ToArray(mapIR(ToStream(GetTupleElement(ctx, 3))) { s => minIR(maxIR(s - j.toL * typ.blockSize.toLong, 0L), nCols) })
+      val stops = ToArray(mapIR(ToStream(GetTupleElement(ctx, 4))) { s => minIR(maxIR(s - j.toL * typ.blockSize.toLong, 0L), nCols) })
       bindIRs(oldCtx) { case Seq(oldCtx) =>
-        val (nRowsInBlock, nColsInBlock) = typ.blockShapeIR(i, j)
-        invoke("zero_row_intervals", TNDArray(TFloat64, Nat(2)), blockIR(oldCtx), I64(typ.blockSize),
-          j, nRowsInBlock, nColsInBlock, starts, stops)
+        invoke("zero_row_intervals", TNDArray(TFloat64, Nat(2)), blockIR(oldCtx), starts, stops)
       }
     }
 
