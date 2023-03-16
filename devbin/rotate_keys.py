@@ -80,8 +80,8 @@ class KubeSecretManager:
              and not s.metadata.name.startswith('ssl-config-')
              and not (s.metadata.name.startswith('sql-') and s.metadata.name.endswith('-config'))
              and s.metadata.name not in ('database-server-config', 'ci-config', 'deploy-config', 'gce-deploy-config')
-             and not s.metadata.name.startswith('default-token-')
-             and not s.metadata.namespace == 'kube-system'],
+             and not s.metadata.namespace == 'kube-system'
+             and not s.type == 'kubernetes.io/service-account-token'],
             [GSAKeySecret(s) for s in secrets if s.data is not None and 'key.json' in s.data]
         )
 
@@ -277,8 +277,15 @@ class IAMManager:
                 yield acc
 
 
-async def add_new_keys(service_accounts: List[ServiceAccount], iam_manager: IAMManager, k8s_manager: KubeSecretManager):
+async def add_new_keys(service_accounts: List[ServiceAccount],
+                       iam_manager: IAMManager,
+                       k8s_manager: KubeSecretManager,
+                       skip_up_to_date: bool = False):
     for sa in service_accounts:
+        if sa.disabled:
+            continue
+        if skip_up_to_date and sa.rotation_state() == RotationState.UP_TO_DATE:
+            continue
         sa.list_keys(sys.stdout)
         if input('Create new key?\nOnly yes will be accepted: ') == 'yes':
             new_key, key_data = await iam_manager.create_new_key(sa)
@@ -289,11 +296,9 @@ async def add_new_keys(service_accounts: List[ServiceAccount], iam_manager: IAMM
             )
             sa.kube_secrets = list(new_secrets)
             sa.list_keys(sys.stdout)
-            if input('Continue?[Yes/no]') == 'no':
-                break
 
 
-async def delete_old_keys(service_accounts: List[ServiceAccount], iam_manager: IAMManager):
+async def delete_old_keys(service_accounts: List[ServiceAccount], iam_manager: IAMManager, state: Optional[RotationState] = None):
     async def delete_old_and_refresh(sa: ServiceAccount):
         to_delete = sa.redundant_user_keys()
         await asyncio.gather(*[iam_manager.delete_key(sa.email, k) for k in to_delete])
@@ -304,9 +309,11 @@ async def delete_old_keys(service_accounts: List[ServiceAccount], iam_manager: I
         sa.list_keys(sys.stdout)
 
     for sa in service_accounts:
+        rotation_state = sa.rotation_state()
+        if sa.disabled or rotation_state != state:
+            continue
         sa.list_keys(sys.stdout)
         if input('Delete all but the newest key?\nOnly yes will be accepted: ') == 'yes':
-            rotation_state = sa.rotation_state()
             if rotation_state == RotationState.READY_FOR_DELETE:
                 await delete_old_and_refresh(sa)
             elif rotation_state == RotationState.IN_PROGRESS:
@@ -323,30 +330,6 @@ async def delete_old_keys(service_accounts: List[ServiceAccount], iam_manager: I
                     f'Cannot delete keys in rotation state: {rotation_state}',
                     stacklevel=2,
                 )
-
-            if input('Continue?[Yes/no] ') == 'no':
-                break
-
-
-async def delete_old_keys_ready_only(service_accounts: List[ServiceAccount], iam_manager: IAMManager):
-    async def delete_old_and_refresh(sa: ServiceAccount):
-        to_delete = sa.redundant_user_keys()
-        await asyncio.gather(*[iam_manager.delete_key(sa.email, k) for k in to_delete])
-        print(f'Deleted keys:')
-        for k in to_delete:
-            print(f'\t{k.id}')
-        sa.keys = await iam_manager.get_sa_keys(sa.email)
-        sa.list_keys(sys.stdout)
-
-    ready_for_delete = [
-        sa
-        for sa in service_accounts
-        if sa.rotation_state() == RotationState.READY_FOR_DELETE]
-    print('\n'.join(str(x) for x in ready_for_delete))
-
-    if input('Delete all but the newest key for all these service accounts?\nOnly yes will be accepted: ') == 'yes':
-        for sa in ready_for_delete:
-            await delete_old_and_refresh(sa)
 
 
 async def main():
@@ -404,13 +387,17 @@ async def main():
         for secret in other_secrets:
             print(f'\t{secret.metadata.name} ({secret.metadata.namespace})')
 
-        action = input('What action would you like to take?[update/delete/delete-ready-only]: ')
+        action = input('What action would you like to take?[update/update-all/delete/delete-ready-only/delete-in-progress-only]: ')
         if action == 'update':
+            await add_new_keys(service_accounts, iam_manager, k8s_manager, skip_up_to_date=True)
+        if action == 'update-all':
             await add_new_keys(service_accounts, iam_manager, k8s_manager)
         elif action == 'delete':
             await delete_old_keys(service_accounts, iam_manager)
         elif action == 'delete-ready-only':
-            await delete_old_keys_ready_only(service_accounts, iam_manager)
+            await delete_old_keys(service_accounts, iam_manager, state=RotationState.READY_FOR_DELETE)
+        elif action == 'delete-in-progress-only':
+            await delete_old_keys(service_accounts, iam_manager, state=RotationState.IN_PROGRESS)
         else:
             print('Doing nothing')
     finally:
