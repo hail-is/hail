@@ -146,37 +146,37 @@ use insecure ciphers. Mozilla
 Every principal in our system has a secret: `ssl-config-NAME`. These secrets are
 automatically created for a particular namespace by `tls/create_certs.py`. Who
 trusts who (i.e. who is allowed to talk to whom) is defined by
-`tls/config.yaml`. For example, `auth` is defined in `config.yaml` as follows:
+`tls/config.yaml`. For example, `site` is defined in `config.yaml` as follows:
 
 ```
-- name: auth
-  domain: auth
+- name: site
+  domain: site
   kind: nginx
 ```
 
-A principal named "auth" exists. Auth's domain names are `auth`,
-`auth.NAMESPACE`, `auth.NAMESPACE.svc.cluster.local`. Auth's configuration files
+A principal named "site" exists. Site's domain names are `site`,
+`site.NAMESPACE`, `site.NAMESPACE.svc.cluster.local`. Site's configuration files
 should be in NGINX configuration file format. `create_certs.py` will create a
-new secret named `ssl-config-auth` which contains five files:
+new secret named `ssl-config-site` which contains five files:
 
-- `auth-config-http.conf`: an NGINX configuration file that configures TLS for
+- `site-config-http.conf`: an NGINX configuration file that configures TLS for
   incoming requests.
-- `auth-config-proxy.conf`: an NGINX configuration file that configures TLS for
+- `site-config-proxy.conf`: an NGINX configuration file that configures TLS for
   outgoing (proxy_pass) requests.
-- `auth-key.pem`: a private key.
-- `auth-key-store.p12`: the same private key in PKCS12 format.
-- `auth-cert.pem`: a certificate.
-- `auth-incoming.pem`: a list of certificates trusted for incoming requests
+- `site-key.pem`: a private key.
+- `site-key-store.p12`: the same private key in PKCS12 format.
+- `site-cert.pem`: a certificate.
+- `site-incoming.pem`: a list of certificates trusted for incoming requests
   (this currently only contains the root certificate).
-- `auth-incoming-store.jks`: the same list of trusted incoming certificates in
+- `site-incoming-store.jks`: the same list of trusted incoming certificates in
   Java KeyStore format.
-- `auth-outgoing.pem`: a list of certificates expected from outgoing requests
+- `site-outgoing.pem`: a list of certificates expected from outgoing requests
   (this currently only contains the root certificate).
-- `auth-outgoing-store.jks`: the same list of trusted outgoing certificates in
+- `site-outgoing-store.jks`: the same list of trusted outgoing certificates in
   Java KeyStore format.
 
-If auth makes an HTTP request to a server and that server does not return a
-certificate in or signed by a certificate in `auth-outgoing.pem`, it will
+If site makes an HTTP request to a server and that server does not return a
+certificate in or signed by a certificate in `site-outgoing.pem`, it will
 immediately halt the connection.
 
 There are two other kinds: `json` and `curl`. The former is for Hail Python
