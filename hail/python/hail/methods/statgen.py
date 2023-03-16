@@ -1515,24 +1515,26 @@ def _lowered_poisson_regression_rows(test,
             x=x
         )
     )
+    # FIXME: the order of the columns is irrelevant to regression
+    mt = mt.key_cols_by()
 
     mt = mt.filter_cols(
         hl.all(hl.is_defined(mt.y), *[hl.is_defined(mt.covariates[i]) for i in range(k)])
     )
 
-    yvec, covmat, n = mt.aggregate_cols((
-        hl.agg.collect(hl.float(mt.y)),
-        hl.agg.collect(mt.covariates.map(hl.float)),
-        hl.agg.count()
-    ), _localize=False)
+    mt = mt.annotate_globals(**mt.aggregate_cols(hl.struct(
+        yvec=hl.agg.collect(hl.float(mt.y)),
+        covmat=hl.agg.collect(mt.covariates.map(hl.float)),
+        n=hl.agg.count()
+    ), _localize=False))
     mt = mt.annotate_globals(
         yvec=(hl.case()
-              .when(n - k - 1 >= 1, hl.nd.array(yvec))
+              .when(mt.n - k - 1 >= 1, hl.nd.array(mt.yvec))
               .or_error(hl.format(
                   "_lowered_poisson_regression_rows: insufficient degrees of freedom: n=%s, k=%s",
-                  n, k))),
-        covmat=hl.nd.array(covmat),
-        n_complete_samples=n
+                  mt.n, k))),
+        covmat=hl.nd.array(mt.covmat),
+        n_complete_samples=mt.n
     )
     covmat = mt.covmat
     yvec = mt.yvec
