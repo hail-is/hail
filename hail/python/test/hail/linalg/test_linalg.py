@@ -744,7 +744,8 @@ class Tests(unittest.TestCase):
         bm = BlockMatrix.from_numpy(nd, block_size=2)
         bm = bm.sparsify_row_intervals([0, 0, 0, 0, 0], [2, 2, 2, 2, 2])
 
-        # self.assertTrue(bm.is_sparse)  # FIXME doesn't work in service
+        # FIXME doesn't work in service, if test_is_sparse works, uncomment below
+        # self.assertTrue(bm.is_sparse)
         self._assert_eq(bm.diagonal(), np.array([[1.0, 6.0, 0.0, 0.0]]))
 
     @fails_service_backend()
@@ -854,7 +855,7 @@ class Tests(unittest.TestCase):
                        [13.0, 14.0, 15.0, 16.0]])
         bm = BlockMatrix.from_numpy(nd, block_size=2)
 
-        # FIXME is_sparse in service backend
+        # FIXME doesn't work in service, if test_is_sparse works, uncomment below
         # self.assertFalse(bm.is_sparse)
         # self.assertTrue(bm.sparsify_triangle().is_sparse)
 
@@ -1231,6 +1232,20 @@ class Tests(unittest.TestCase):
         with pytest.raises(ValueError) as exc:
             bm.filter_rows([0]).filter_rows([3]).to_numpy()
         assert "index" in str(exc.value)
+
+    @fails_service_backend()
+    def test_is_sparse(self):
+        block_list = [1, 2]
+        np_square = np.arange(16, dtype=np.float64).reshape((4, 4))
+        bm = BlockMatrix.from_numpy(np_square, block_size=2)
+        bm = bm._sparsify_blocks(block_list)
+        assert bm.is_sparse
+        assert np.array_equal(
+            bm.to_numpy(),
+            np.array([[0,  0,  2, 3],
+                      [0,  0,  6, 7],
+                      [8,  9,  0, 0],
+                      [12, 13, 0, 0]]))
 
     def test_sparsify_blocks(self):
         block_list = [1, 2]
