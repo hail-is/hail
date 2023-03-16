@@ -3,7 +3,6 @@ package is.hail.expr.ir.lowering
 import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.ArrayZipBehavior.AssertSameLength
-import is.hail.expr.ir.agg.{Extract, PhysicalAggSig, TakeStateSig}
 import is.hail.expr.ir.functions.{TableCalculateNewPartitions, WrappedMatrixToTableFunction}
 import is.hail.expr.ir.{agg, _}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
@@ -560,7 +559,7 @@ object LowerTableIR {
             bindIR(ArrayLen(boundsArray)) { nBounds =>
               bindIR(minIR(nBounds, nPartitions)) { nParts =>
                 If(nParts.ceq(0),
-                  MakeArray(Seq(), TArray(TInterval(keyType))),
+                  MakeArray(FastIndexedSeq(), TArray(TInterval(keyType))),
                   bindIR((nBounds + (nParts - 1)) floorDiv nParts) { stepSize =>
                     ToArray(mapIR(StreamRange(0, nBounds, stepSize)) { i =>
                       If((i + stepSize) < (nBounds - 1),
@@ -846,19 +845,15 @@ object LowerTableIR {
 
         val contextType = TStruct("start" -> TInt32, "end" -> TInt32)
 
-        val ranges = Array.tabulate(nPartitionsAdj) { i =>
-          partStarts(i) -> partStarts(i + 1)
-        }.toFastIndexedSeq
+        val ranges = Array.tabulate(nPartitionsAdj)(i => partStarts(i) -> partStarts(i + 1))
 
         TableStage(
           MakeStruct(FastSeq()),
-          new RVDPartitioner(ctx.stateManager, Array("idx"), tir.typ.rowType,
-            ranges.map { case (start, end) =>
-              Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
-            }),
+          new RVDPartitioner(ctx.stateManager, Array("idx"), tir.typ.rowType, ranges.map {
+            case (start, end) => Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
+          }),
           TableStageDependency.none,
-          ToStream(Literal(TArray(contextType),
-            ranges.map { case (start, end) => Row(start, end) })),
+          ToStream(Literal(TArray(contextType), ranges.map(Row.fromTuple).toFastIndexedSeq)),
           (ctxRef: Ref) => mapIR(StreamRange(GetField(ctxRef, "start"), GetField(ctxRef, "end"), I32(1), true)) { i =>
             MakeStruct(FastSeq("idx" -> i))
           })
@@ -874,10 +869,10 @@ object LowerTableIR {
 
         val globalPosRanges = Array.tabulate(nPartitionsAdj) { i =>
           partStarts(i) -> partStarts(i + 1)
-        }.toFastIndexedSeq
+        }
         val locusRanges = Array.tabulate(nPartitionsAdj) { i =>
           toLocus(partStarts(i)) -> toLocus(partStarts(i + 1))
-        }.toFastIndexedSeq
+        }
 
         TableStage(
           MakeStruct(FastSeq()),
@@ -889,7 +884,7 @@ object LowerTableIR {
           ToStream(
             Literal(
               TArray(contextType),
-              globalPosRanges.map { case (start, end) => Row(start, end) }
+              globalPosRanges.map(Row.fromTuple).toFastIndexedSeq
             )
           ),
           { (ctxRef: Ref) =>
@@ -1000,10 +995,10 @@ object LowerTableIR {
           loweredChild.dependency,
           contexts = bindIRs(
             ToArray(loweredChild.contexts),
-            Literal(TArray(TTuple(TInt32, TInt32)), startAndEndInterval.map { case (start, end) => Row(start, end) }.toFastIndexedSeq)
+            Literal(TArray(TTuple(TInt32, TInt32)), startAndEndInterval.map(Row.fromTuple).toFastIndexedSeq)
           ) { case Seq(prevContexts, bounds) =>
             zip2(ToStream(Literal(TArray(TInt32), includedIndices.toFastIndexedSeq)), ToStream(bounds), ArrayZipBehavior.AssumeSameLength) { (idx, bound) =>
-              MakeStruct(FastSeq(("prevContext", ArrayRef(prevContexts, idx)), ("bounds", bound)))
+              MakeStruct(FastIndexedSeq(("prevContext", ArrayRef(prevContexts, idx)), ("bounds", bound)))
             }
           },
           { (part: Ref) =>
@@ -1307,7 +1302,7 @@ object LowerTableIR {
                           val contexts = mapIR(rangeIR(nCombines)) { outerIdxRef =>
                             sliceArrayIR(states, outerIdxRef * branchFactor, (outerIdxRef + 1) * branchFactor)
                           }
-                          val cdaResult = cdaIR(contexts, MakeStruct(Seq()), "table_scan_up_pass",
+                          val cdaResult = cdaIR(contexts, MakeStruct(FastIndexedSeq()), "table_scan_up_pass",
                             strConcat(Str("iteration="), invoke("str", TString, iteration), Str(", nStates="), invoke("str", TString, statesLen))
                           ) { case (contexts, _) =>
                             RunAgg(
@@ -1351,7 +1346,7 @@ object LowerTableIR {
                           ))
                         }
 
-                        val results = cdaIR(groups, MakeTuple.ordered(Seq()), "table_scan_down_pass",
+                        val results = cdaIR(groups, MakeTuple.ordered(FastIndexedSeq()), "table_scan_down_pass",
                           strConcat(Str("iteration="), invoke("str", TString, iteration), Str(", level="), invoke("str", TString, level))
                         ) { case (context, _) =>
                           bindIR(GetField(context, "prev")) { prev =>
@@ -1498,7 +1493,7 @@ object LowerTableIR {
 
             val (typeOfRootStruct, _) = right.typ.rowType.filterSet(right.typ.key.toSet, false)
             val rootStruct = SelectFields(rightElementRef, typeOfRootStruct.fieldNames.toIndexedSeq)
-            val joiningOp = InsertFields(leftElementRef, Seq(root -> rootStruct))
+            val joiningOp = InsertFields(leftElementRef, FastIndexedSeq(root -> rootStruct))
             StreamJoinRightDistinct(
               leftPart, rightPart,
               left.typ.key.take(commonKeyLength), right.typ.key,

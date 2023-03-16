@@ -19,7 +19,7 @@ class DistinctlyKeyedSuite extends HailSuite{
   @Test def readTableKeyByDistinctlyKeyedAnalysis(): Unit = {
     val rt = TableRange(40, 4)
     val idxRef =  GetField(Ref("row", rt.typ.rowType), "idx")
-    val at = TableMapRows(rt, MakeStruct(Seq(
+    val at = TableMapRows(rt, MakeStruct(FastIndexedSeq(
       "idx" -> idxRef,
       "const" -> 5,
       "half" ->  idxRef.floorDiv(2),

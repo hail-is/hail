@@ -17,7 +17,7 @@ class IntervalSuite extends HailSuite {
   val tinterval1 = TInterval(tpoint1)
   val na = NA(tinterval1)
 
-  def point(i: Int): IR = MakeTuple.ordered(Seq(I32(i)))
+  def point(i: Int): IR = MakeTuple.ordered(FastIndexedSeq(I32(i)))
   def interval(start: IR, end: IR, includeStart: java.lang.Boolean, includeEnd: java.lang.Boolean): IR = {
     invoke("Interval", TInterval(start.typ), start, end, Literal.coerce(TBoolean, includeStart), Literal.coerce(TBoolean, includeEnd))
   }
@@ -210,8 +210,8 @@ class IntervalSuite extends HailSuite {
   @Test def testPointPartitionIntervalEndpointComparison() {
     def assertComp(point: IndexedSeq[Int], intervalEndpoint: IndexedSeq[Int], leansRight: Boolean, function: String, expected: Boolean) {
       val pointIR = MakeTuple.ordered(point.map(I32))
-      val endpointIR = MakeTuple.ordered(Seq(
-        MakeTuple.ordered(Seq.tabulate(3)(i =>
+      val endpointIR = MakeTuple.ordered(FastIndexedSeq(
+        MakeTuple.ordered(Array.tabulate(3)(i =>
           if (i < intervalEndpoint.length) I32(intervalEndpoint(i)) else NA(TInt32))),
         I32(intervalEndpoint.length)))
       val leansRightIR = if (leansRight) True() else False()

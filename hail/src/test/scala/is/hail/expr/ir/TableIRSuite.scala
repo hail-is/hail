@@ -567,7 +567,7 @@ class TableIRSuite extends HailSuite {
     val t2 = MatrixRowsTable(mt2)
     val mt = importVCF(ctx, "src/test/resources/sample.vcf")
     var t: TableIR = MatrixRowsTable(mt)
-    t = TableMapRows(t, SelectFields(Ref("row", t.typ.rowType), Seq("locus", "alleles")))
+    t = TableMapRows(t, SelectFields(Ref("row", t.typ.rowType), FastIndexedSeq("locus", "alleles")))
     val join: TableIR = TableJoin(t, t2, "inner", 2)
     assertEvalsTo(TableCount(join), 346L)
   }
@@ -719,7 +719,7 @@ class TableIRSuite extends HailSuite {
         Map[String, String]("y" -> "z")
       )
 
-    val newRow = MakeStruct(Seq(
+    val newRow = MakeStruct(FastIndexedSeq(
       ("foo", GetField(Ref("row", renameIR.typ.rowType), "c") + GetField(Ref("global", TStruct(("x", TString), ("z", TInt32))), "z")),
       ("bar", GetField(Ref("row", renameIR.typ.rowType), "b")))
     )
@@ -772,7 +772,7 @@ class TableIRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.interpretOnly
     val rt = TableRange(40, 4)
     val idxRef =  GetField(Ref("row", rt.typ.rowType), "idx")
-    val at = TableMapRows(rt, MakeStruct(Seq(
+    val at = TableMapRows(rt, MakeStruct(FastIndexedSeq(
       "idx" -> idxRef,
       "const" -> 5,
       "half" ->  idxRef.floorDiv(2),
@@ -1092,7 +1092,7 @@ class TableIRSuite extends HailSuite {
       TableKeyBy(
         TableMapGlobals(
           TableRange(20, nPartitions = 4),
-          MakeStruct(Seq("greeting" -> Str("Hello")))),
+          MakeStruct(FastIndexedSeq("greeting" -> Str("Hello")))),
         IndexedSeq(), false)
 
     val rowType = TStruct("idx" -> TInt32)
@@ -1131,7 +1131,7 @@ class TableIRSuite extends HailSuite {
             part,
             "row2",
             mapIR(StreamRange(0, 3, 1)) { i =>
-              MakeStruct(Seq("str" -> Str("Hello"), "i" -> i))
+              MakeStruct(FastIndexedSeq("str" -> Str("Hello"), "i" -> i))
             }
           ))),
       Row((0 until 20).flatMap(i => (0 until 3).map(j => Row("Hello", j))), Row("Hello")))
