@@ -1574,7 +1574,7 @@ object LowerTableIR {
 
         requestedPartitioner match {
           case UseThisPartitioning(p) =>
-            lower(child, requestedPartitioner = UseThisPartitioning(p.coarsen(nPreservedFields)))
+            lower(child, requestedPartitioner = UseThisPartitioning(p.coarsen(nPreservedFields).extendKeySamePartitions(child.typ.keyType)))
               .changePartitionerNoRepartition(p)
           case UseTheDefaultPartitioning =>
             if (newKey.isEmpty)
