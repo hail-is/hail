@@ -7,8 +7,9 @@ import is.hail.expr.ir._
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual._
-import is.hail.utils.{FastIndexedSeq, HailException}
+import is.hail.utils.{FastIndexedSeq, HailException, Interval}
 import is.hail.{ExecStrategy, HailSuite}
+import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 import org.scalatest.Matchers._
 import org.testng.annotations.Test
@@ -85,20 +86,45 @@ class TableGenSuite extends HailSuite {
   @Test(groups = Array("lowering"))
   def testLowering: Unit = {
     val table = TestUtils.collect(mkTableGen())
-    val lowered = LowerTableIR(table, DArrayLowering.All, ctx, Analyses(table, ctx), Map.empty)
+    val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
     assertEvalsTo(lowered, Row(FastIndexedSeq(0, 0).map(Row(_)), Row(0)))
   }
 
   @Test(groups = Array("lowering"))
   def testNumberOfContextsMatchesPartitions: Unit = {
-    val table = TestUtils.collect(mkTableGen(partitioner = Some(RVDPartitioner.unkeyed(ctx.stateManager, 0))))
-    val lowered = LowerTableIR(table, DArrayLowering.All, ctx, Analyses(table, ctx), Map.empty)
+    val errorId = 42
+    val table = TestUtils.collect(mkTableGen(
+      partitioner = Some(RVDPartitioner.unkeyed(ctx.stateManager, 0)),
+      errorId = Some(errorId)
+    ))
+    val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
     val ex = intercept[HailException] {
       ExecuteContext.scoped() { ctx =>
         loweredExecute(ctx, lowered, Env.empty, FastIndexedSeq(), None)
       }
     }
-    ex.getMessage should include("partitioner contains 0 partitions, got 2")
+    ex.errorId shouldBe errorId
+    ex.getMessage should include("partitioner contains 0 partitions, got 2 contexts.")
+  }
+
+  @Test(groups = Array("lowering"))
+  def testRowsAreCorrectlyKeyed: Unit = {
+    val errorId = 56
+    val table = TestUtils.collect(mkTableGen(
+      partitioner = Some(new RVDPartitioner(ctx.stateManager, TStruct("a" -> TInt32), FastIndexedSeq(
+        Interval(Row(0), Row(0), true, false), Interval(Row(1), Row(1), true, false)
+      ))),
+      errorId = Some(errorId)
+    ))
+    val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
+    val ex = intercept[SparkException] {
+      ExecuteContext.scoped() { ctx =>
+        loweredExecute(ctx, lowered, Env.empty, FastIndexedSeq(), None)
+      }
+    }.getCause.asInstanceOf[HailException]
+
+    ex.errorId shouldBe errorId
+    ex.getMessage should include("TableGen: Unexpected key in partition")
   }
 
   @Test(groups = Array("optimization", "prune"))
@@ -138,7 +164,8 @@ class TableGenSuite extends HailSuite {
                  cname: Option[String] = None,
                  gname: Option[String] = None,
                  body: Option[IR] = None,
-                 partitioner: Option[RVDPartitioner] = None
+                 partitioner: Option[RVDPartitioner] = None,
+                 errorId: Option[Int] = None
                 ): TableGen = {
     val theGlobals = globals.getOrElse(MakeStruct(Seq("g" -> 0)))
     val contextName = cname.getOrElse(genUID())
@@ -155,7 +182,8 @@ class TableGenSuite extends HailSuite {
         ))
         MakeStream(Seq(elem), TStream(elem.typ))
       },
-      partitioner.getOrElse(RVDPartitioner.unkeyed(ctx.stateManager, 2))
+      partitioner.getOrElse(RVDPartitioner.unkeyed(ctx.stateManager, 2)),
+      errorId.getOrElse(ErrorIDs.NO_ERROR)
     )
   }
 }

@@ -1,21 +1,13 @@
 package is.hail
 
-import is.hail.annotations._
-import is.hail.asm4s._
-import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
-import is.hail.backend.{Backend, BroadcastValue, ExecuteContext}
+import is.hail.backend.Backend
+import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.BaseIR
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.io.fs.FS
-import is.hail.io.index._
 import is.hail.io.vcf._
-import is.hail.io.{AbstractTypedCodecSpec, Decoder}
-import is.hail.rvd.{AbstractIndexSpec, RVDContext}
-import is.hail.sparkextras.{ContextRDD, IndexReadRDD}
-import is.hail.types.physical.{PBaseStruct, PCanonicalTuple, PInt64Required, PStruct, PType}
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.variant.ReferenceGenome
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
 import org.apache.spark._
 import org.apache.spark.executor.InputMetrics

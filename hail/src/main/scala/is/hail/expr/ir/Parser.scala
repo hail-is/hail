@@ -6,14 +6,13 @@ import is.hail.expr.ir.agg._
 import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec}
-import is.hail.rvd.{AbstractRVDSpec, RVDType}
+import is.hail.rvd.{AbstractRVDSpec, RVDPartitioner, RVDType}
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.types.{MatrixType, TableType, VirtualTypeWithReq, tcoerce}
 import is.hail.utils.StackSafe._
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
-import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.Row
 import org.json4s.jackson.{JsonMethods, Serialization}
 import org.json4s.{Formats, JObject}
@@ -300,8 +299,25 @@ object IRParser {
     }
   }
 
+  def partitioner_literal(env: IRParserEnvironment)(it: TokenIterator): RVDPartitioner = {
+    identifier(it, "Partitioner")
+    val keyType = type_expr(it).asInstanceOf[TStruct]
+    val vJSON = JsonMethods.parse(string_literal(it))
+    val rangeBounds = JSONAnnotationImpex.importAnnotation(vJSON, TArray(TInterval(keyType)))
+    new RVDPartitioner(env.ctx.stateManager, keyType, rangeBounds.asInstanceOf[mutable.IndexedSeq[Interval]])
+  }
+
   def literals[T](literalIdentifier: TokenIterator => T)(it: TokenIterator)(implicit tct: ClassTag[T]): Array[T] =
     base_seq_parser(literalIdentifier)(it)
+
+  def between[A](open: TokenIterator => Any, close: TokenIterator => Any, f: TokenIterator => A)
+                (it: TokenIterator): A = {
+    open(it)
+    val a = f(it)
+    close(it)
+    a
+  }
+
 
   def string_literals: TokenIterator => Array[String] = literals(string_literal)
   def int32_literals: TokenIterator => Array[Int] = literals(int32_literal)
@@ -1710,6 +1726,21 @@ object IRParser {
         table_ir(env.onlyRelational)(it).map { child =>
           TableRename(child, rowK.zip(rowV).toMap, globalK.zip(globalV).toMap)
         }
+
+      case "TableGen" =>
+        val cname = identifier(it)
+        val gname = identifier(it)
+        val partitioner = between(punctuation(_, "("), punctuation(_, ")"), partitioner_literal(env))(it)
+        val errorId = int32_literal(it)
+        for {
+          contexts <- ir_value_expr(env.onlyRelational)(it)
+          globals <- ir_value_expr(env.onlyRelational)(it)
+          body <- ir_value_expr(env.onlyRelational.bindEval(
+            cname -> TIterable.elementType(contexts.typ),
+            gname -> globals.typ
+          ))(it)
+        } yield TableGen(contexts, globals, cname, gname, body, partitioner, errorId)
+
       case "TableFilterIntervals" =>
         val intervals = string_literal(it)
         val keep = boolean_literal(it)
@@ -1723,10 +1754,12 @@ object IRParser {
       case "TableMapPartitions" =>
         val globalsName = identifier(it)
         val partitionStreamName = identifier(it)
+        val requestedKey = int32_literal(it)
+        val allowedOverlap = int32_literal(it)
         for {
           child <- table_ir(env.onlyRelational)(it)
           body <- ir_value_expr(env.onlyRelational.bindEval(globalsName -> child.typ.globalType, partitionStreamName -> TStream(child.typ.rowType)))(it)
-        } yield TableMapPartitions(child, globalsName, partitionStreamName, body)
+        } yield TableMapPartitions(child, globalsName, partitionStreamName, body, requestedKey, allowedOverlap)
       case "RelationalLetTable" =>
         val name = identifier(it)
         for {

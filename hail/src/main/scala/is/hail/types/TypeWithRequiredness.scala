@@ -6,7 +6,7 @@ import is.hail.types.physical.stypes.concrete.SIndexablePointer
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SInterval, SNDArray, SStream}
 import is.hail.types.physical.stypes.{EmitType, SType}
 import is.hail.types.virtual._
-import is.hail.utils.{FastSeq, Interval, rowIterator, toMapFast}
+import is.hail.utils.{FastIndexedSeq, FastSeq, Interval, rowIterator, toMapFast}
 import org.apache.spark.sql.Row
 
 object BaseTypeWithRequiredness {
@@ -66,7 +66,7 @@ object TypeWithRequiredness {
     case t: TNDArray => RNDArray(apply(t.elementType))
     case t: TInterval => RInterval(apply(t.pointType), apply(t.pointType))
     case t: TStruct => RStruct(t.fields.map(f => f.name -> apply(f.typ)))
-    case t: TTuple => RTuple(t.fields.map(f => RField(f.name, apply(f.typ), f.index)))
+    case t: TTuple => RTuple(t._types.zipWithIndex.map { case (t, i) => RField(t.index.toString, apply(t.typ), i) })
     case t: TUnion => RUnion(t.cases.map(c => c.name -> apply(c.typ)))
   }
 }
@@ -167,6 +167,26 @@ object VirtualTypeWithReq {
     val tr = TypeWithRequiredness(t)
     tr.unionFrom(vs.map(_.r))
     VirtualTypeWithReq(t, tr)
+  }
+
+  def subset(vt: Type, rt: TypeWithRequiredness): VirtualTypeWithReq = {
+    val empty = FastIndexedSeq()
+    def subsetRT(vt: Type, rt: TypeWithRequiredness): TypeWithRequiredness = {
+      val r = (vt, rt) match {
+        case (_, t: RPrimitive) => t.copy(empty)
+        case (tt: TTuple, rt: RTuple) =>
+          RTuple(tt.fields.map(fd => RField(fd.name, subsetRT(fd.typ, rt.fieldType(fd.name)), fd.index)))
+        case (ts: TStruct, rt: RStruct) =>
+          RStruct(ts.fields.map(fd => RField(fd.name, subsetRT(fd.typ, rt.field(fd.name)), fd.index)))
+        case (ti: TInterval, ri: RInterval) => RInterval(subsetRT(ti.pointType, ri.startType), subsetRT(ti.pointType, ri.endType))
+        case (td: TDict, ri: RDict) => RDict(subsetRT(td.keyType, ri.keyType), subsetRT(td.valueType, ri.valueType))
+        case (tit: TIterable, rit: RIterable) => RIterable(subsetRT(tit.elementType, rit.elementType))
+        case (tnd: TNDArray, rnd: RNDArray) => RNDArray(subsetRT(tnd.elementType, rnd.elementType))
+      }
+      r.union(rt.required)
+      r
+    }
+    VirtualTypeWithReq(vt, subsetRT(vt, rt))
   }
 }
 
@@ -435,8 +455,8 @@ case class RStruct(fields: IndexedSeq[RField]) extends RBaseStruct {
 }
 
 object RTuple {
-  def apply(fields: Seq[TypeWithRequiredness]): RTuple =
-    RTuple(Array.tabulate(fields.length)(i => RField(i.toString, fields(i), i)))
+  def apply(fields: Seq[(Int, TypeWithRequiredness)]): RTuple =
+    RTuple(fields.zipWithIndex.map { case ((fdIdx, typ), i) => RField(fdIdx.toString, typ, i) }.toIndexedSeq)
 }
 
 case class RTuple(fields: IndexedSeq[RField]) extends RBaseStruct {
@@ -463,6 +483,11 @@ case class RUnion(cases: Seq[(String, TypeWithRequiredness)]) extends TypeWithRe
   def _toString: String = s"RStruct[${ cases.map { case (n, t) => s"${ n }: ${ t.toString }" }.mkString(",") }]"
 }
 
+object RTable {
+  def apply(rowStruct: RStruct, globStruct: RStruct, key: Seq[String]): RTable = {
+    RTable(rowStruct.fields.map(f => (f.name -> f.typ)), globStruct.fields.map(f => (f.name -> f.typ)), key)
+  }
+}
 case class RTable(rowFields: Seq[(String, TypeWithRequiredness)], globalFields: Seq[(String, TypeWithRequiredness)], key: Seq[String]) extends BaseTypeWithRequiredness {
   val rowTypes: Seq[TypeWithRequiredness] = rowFields.map(_._2)
   val globalTypes: Seq[TypeWithRequiredness] = globalFields.map(_._2)

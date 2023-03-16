@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.annotations.{BroadcastRow, ExtendedOrdering, SafeNDArray}
-import is.hail.backend.ExecuteContext
+import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.expr.Nat
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.DeprecatedIRBuilder._
@@ -13,7 +13,7 @@ import is.hail.io.bgen.{IndexBgen, MatrixBGENReader}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
 import is.hail.methods._
-import is.hail.rvd.{PartitionBoundOrdering, RVD}
+import is.hail.rvd.{PartitionBoundOrdering, RVD, RVDPartitioner}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.primitives.SInt32
@@ -2882,7 +2882,7 @@ class IRSuite extends HailSuite {
           MakeStruct(FastIndexedSeq(
             "a" -> GetField(Ref("row", read.typ.rowType), "f32"),
             "b" -> F64(-2.11)))),
-        TableMapPartitions(TableKeyBy(read, FastIndexedSeq()), "g", "rs", StreamTake(Ref("rs", TStream(read.typ.rowType)), 1)),
+        TableMapPartitions(TableKeyBy(read, FastIndexedSeq()), "g", "rs", StreamTake(Ref("rs", TStream(read.typ.rowType)), 1), 0, 0),
         TableMapGlobals(read,
           MakeStruct(FastIndexedSeq(
             "foo" -> NA(TArray(TInt32))))),
@@ -2894,7 +2894,12 @@ class IRSuite extends HailSuite {
         CastMatrixToTable(mtRead, " # entries", " # cols"),
         TableRename(read, Map("idx" -> "idx_foo"), Map("global_f32" -> "global_foo")),
         TableFilterIntervals(read, FastIndexedSeq(Interval(IntervalEndpoint(Row(0), -1), IntervalEndpoint(Row(10), 1))), keep = false),
-        RelationalLetTable("x", I32(0), read)
+        RelationalLetTable("x", I32(0), read),
+        {
+          val structs = MakeStream(Seq(), TStream(TStruct()))
+          val partitioner = RVDPartitioner.empty(ctx.stateManager, TStruct())
+          TableGen(structs, MakeStruct(Seq()), "cname", "gname", structs, partitioner, errorId = 180)
+        }
       )
       xs.map(x => Array(x))
     } catch {

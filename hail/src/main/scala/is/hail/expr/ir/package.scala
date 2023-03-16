@@ -198,9 +198,9 @@ package object ir {
     )
   }
 
-  def zipIR(ss: IndexedSeq[IR], behavior: ArrayZipBehavior.ArrayZipBehavior)(f: IndexedSeq[Ref] => IR): IR = {
+  def zipIR(ss: IndexedSeq[IR], behavior: ArrayZipBehavior.ArrayZipBehavior, errorId: Int = ErrorIDs.NO_ERROR)(f: IndexedSeq[Ref] => IR): IR = {
     val refs = ss.map(s => Ref(genUID(), tcoerce[TStream](s.typ).elementType))
-    StreamZip(ss, refs.map(_.name), f(refs), behavior, ErrorIDs.NO_ERROR)
+    StreamZip(ss, refs.map(_.name), f(refs), behavior, errorId)
   }
 
   def makestruct(fields: (String, IR)*): MakeStruct = MakeStruct(fields)
