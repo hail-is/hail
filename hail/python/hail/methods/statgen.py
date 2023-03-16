@@ -996,10 +996,10 @@ def logreg_fit(X, y, null_fit, max_iter: int, tol: float):
         return (hl.case()
                 .when(exploded | hl.is_nan(delta_b[0]),
                       blank_struct.annotate(num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=True))
-                .when(cur_iter == max_iter,
-                      blank_struct.annotate(num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=False))
                 .when(max_delta_b < tol,
                       hl.struct(b=b, score=score, fisher=fisher, mu=mu, num_iter=cur_iter, log_lkhd=log_lkhd, converged=True, exploded=False))
+                .when(cur_iter == max_iter,
+                      blank_struct.annotate(num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=False))
                 .default(compute_next_iter(cur_iter, b, mu, score, fisher)))
 
     if max_iter == 0:
@@ -1360,7 +1360,7 @@ def _logistic_regression_rows_nd(test,
             .or_error(hl.format("Failed to fit logistic regression null model (standard MLE with covariates only): "
                                 "exploded at Newton iteration %d", null_fit.num_iter)))
     ht = ht.annotate_globals(
-        nulls=hl.range(num_y_fields).map(fit_null_for_phenotype)
+        null_fits=hl.range(num_y_fields).map(fit_null_for_phenotype)
     )
     ht = ht.transmute(x=hl.nd.array(mean_impute(ht.entries[x_field_name])))
 
@@ -1370,7 +1370,7 @@ def _logistic_regression_rows_nd(test,
         nonlocal test
         nonlocal covs_and_x
         y_vec = ht.y_nd[:, idx]
-        null_fit = ht.nulls[idx]
+        null_fit = ht.null_fits[idx]
 
         if test == "wald":
             the_fit = logreg_fit(covs_and_x, y_vec, null_fit, max_iter=max_iterations, tol=tolerance)
@@ -1412,10 +1412,10 @@ def _poisson_fit(covmat, yvec, b, mu, score, fisher, max_iterations, tolerance):
         return (hl.case()
                 .when(exploded | hl.is_nan(delta_b[0]),
                       blank_struct.annotate(num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=True))
-                .when(cur_iter == max_iterations,
-                      blank_struct.annotate(num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=False))
                 .when(max_delta_b < tolerance,
                       hl.struct(b=b, score=score, fisher=fisher, mu=mu, num_iter=cur_iter, log_lkhd=log_lkhd, converged=True, exploded=False))
+                .when(cur_iter == max_iterations,
+                      blank_struct.annotate(num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=False))
                 .default(recur(next_iter, next_b, next_mu, next_score, next_fisher)))
 
     if max_iterations == 0:
