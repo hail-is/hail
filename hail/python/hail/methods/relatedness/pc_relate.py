@@ -12,7 +12,7 @@ from hail.linalg import BlockMatrix
 from hail.table import Table
 from hail.typecheck import enumeration, nullable, numeric, typecheck
 from hail.utils import new_temp_file
-from hail.utils.java import Env, info
+from hail.utils.java import Env
 from ..pca import _hwe_normalized_blanczos, hwe_normalized_pca
 
 
@@ -313,7 +313,6 @@ def pc_relate(call_expr: CallExpression,
     mt = matrix_table_source('pc_relate/call_expr', call_expr)
 
     if k and scores_expr is None:
-        info(f"pc_relate: computing {k} principal components")
         _, scores, _ = hwe_normalized_pca(call_expr, k, compute_loadings=False)
         scores_expr = scores[mt.col_key].scores
     elif not k and scores_expr is not None:
@@ -326,7 +325,6 @@ def pc_relate(call_expr: CallExpression,
     scores_table = mt.select_cols(__scores=scores_expr) \
         .key_cols_by().select_cols('__scores').cols()
 
-    info(f"pc_relate: computing score missingness")
     n_missing = scores_table.aggregate(agg.count_where(hl.is_missing(scores_table.__scores)))
     if n_missing > 0:
         raise ValueError(f'Found {n_missing} columns with missing scores array.')
@@ -338,15 +336,11 @@ def pc_relate(call_expr: CallExpression,
     if not block_size:
         block_size = BlockMatrix.default_block_size()
 
-    info(f"pc_relate: imputing missing data and writing as block matrix")
-
     g = BlockMatrix.from_entry_expr(mean_imputed_gt,
                                     block_size=block_size)
 
-    info(f"pc_relate: collecting scores table")
     pcs = scores_table.collect(_localize=False).map(lambda x: x.__scores)
 
-    info(f"pc_relate: Running PC-Relate model")
     ht = Table(ir.BlockMatrixToTableApply(g._bmir, pcs._ir, {
         'name': 'PCRelate',
         'maf': min_individual_maf,
@@ -364,10 +358,7 @@ def pc_relate(call_expr: CallExpression,
     if not include_self_kinship:
         ht = ht.filter(ht.i == ht.j, keep=False)
 
-    info(f"pc_relate: collecting column keys")
-
     col_keys = hl.literal(mt.select_cols().key_cols_by().cols().collect(), dtype=tarray(mt.col_key.dtype))
-    info(f"pc_relate: keying result table and persisting")
     return ht.key_by(i=col_keys[ht.i], j=col_keys[ht.j]).persist()
 
 
