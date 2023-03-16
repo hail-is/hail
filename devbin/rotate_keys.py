@@ -280,11 +280,11 @@ class IAMManager:
 async def add_new_keys(service_accounts: List[ServiceAccount],
                        iam_manager: IAMManager,
                        k8s_manager: KubeSecretManager,
-                       skip_up_to_date: bool = False):
+                       ignore: Optional[RotationState] = None):
     for sa in service_accounts:
         if sa.disabled:
             continue
-        if skip_up_to_date and sa.rotation_state() == RotationState.UP_TO_DATE:
+        if ignore is not None and sa.rotation_state() == ignore:
             continue
         sa.list_keys(sys.stdout)
         if input('Create new key?\nOnly yes will be accepted: ') == 'yes':
@@ -298,7 +298,7 @@ async def add_new_keys(service_accounts: List[ServiceAccount],
             sa.list_keys(sys.stdout)
 
 
-async def delete_old_keys(service_accounts: List[ServiceAccount], iam_manager: IAMManager, state: Optional[RotationState] = None):
+async def delete_old_keys(service_accounts: List[ServiceAccount], iam_manager: IAMManager, focus: Optional[RotationState] = None):
     async def delete_old_and_refresh(sa: ServiceAccount):
         to_delete = sa.redundant_user_keys()
         await asyncio.gather(*[iam_manager.delete_key(sa.email, k) for k in to_delete])
@@ -310,7 +310,7 @@ async def delete_old_keys(service_accounts: List[ServiceAccount], iam_manager: I
 
     for sa in service_accounts:
         rotation_state = sa.rotation_state()
-        if sa.disabled or rotation_state != state:
+        if sa.disabled or focus is not None and rotation_state != focus:
             continue
         sa.list_keys(sys.stdout)
         if input('Delete all but the newest key?\nOnly yes will be accepted: ') == 'yes':
@@ -389,15 +389,15 @@ async def main():
 
         action = input('What action would you like to take?[update/update-all/delete/delete-ready-only/delete-in-progress-only]: ')
         if action == 'update':
-            await add_new_keys(service_accounts, iam_manager, k8s_manager, skip_up_to_date=True)
+            await add_new_keys(service_accounts, iam_manager, k8s_manager, ignore=RotationState.UP_TO_DATE)
         if action == 'update-all':
             await add_new_keys(service_accounts, iam_manager, k8s_manager)
         elif action == 'delete':
             await delete_old_keys(service_accounts, iam_manager)
         elif action == 'delete-ready-only':
-            await delete_old_keys(service_accounts, iam_manager, state=RotationState.READY_FOR_DELETE)
+            await delete_old_keys(service_accounts, iam_manager, focus=RotationState.READY_FOR_DELETE)
         elif action == 'delete-in-progress-only':
-            await delete_old_keys(service_accounts, iam_manager, state=RotationState.IN_PROGRESS)
+            await delete_old_keys(service_accounts, iam_manager, focus=RotationState.IN_PROGRESS)
         else:
             print('Doing nothing')
     finally:
