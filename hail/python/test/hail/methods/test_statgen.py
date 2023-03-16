@@ -1128,7 +1128,7 @@ class Tests(unittest.TestCase):
 
         results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
-        self.assertAlmostEqual(results[1].beta, 0.6725210143, places=6, msg=results)
+        self.assertAlmostEqual(results[1].beta, 0.6725210143, places=6)
         self.assertAlmostEqual(results[1].standard_error, 0.7265562271, places=5)
         self.assertAlmostEqual(results[1].z_stat, 0.9256283123, places=5)
         self.assertAlmostEqual(results[1].p_value, 0.3546391746, places=6)
