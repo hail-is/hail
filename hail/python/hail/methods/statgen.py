@@ -48,7 +48,10 @@ numerical_regression_fit_dtype = hl.tstruct(
     converged=hl.tbool,
     exploded=hl.tbool,
     bs=hl.tarray(tvector64),
-    mus=hl.tarray(tvector64))
+    deltabs=hl.tarray(tvector64),
+    mus=hl.tarray(tvector64),
+    scores=hl.tarray(tvector64),
+    fishers=hl.tarray(tmatrix64))
 
 
 
@@ -1401,7 +1404,7 @@ def _poisson_fit(covmat, yvec, b, mu, score, fisher, max_iterations, tolerance):
     dtype = numerical_regression_fit_dtype
     blank_struct = hl.struct(**{k: hl.missing(dtype[k]) for k in dtype})
 
-    def fit(recur, cur_iter, b, mu, score, fisher, bs, mus):
+    def fit(recur, cur_iter, b, mu, score, fisher, bs, deltabs, mus, scores, fishers):
         delta_b_struct = hl.nd.solve(fisher, score, no_crash=True)
 
         exploded = delta_b_struct.failed
@@ -1412,24 +1415,26 @@ def _poisson_fit(covmat, yvec, b, mu, score, fisher, max_iterations, tolerance):
         next_iter = cur_iter + 1
         next_b = b + delta_b
         next_mu = nd_exp(covmat @ next_b)
-        residual = yvec - next_mu
-        next_score = covmat.T @ residual
-        next_fisher = (mu * covmat.T) @ covmat
+        next_score = covmat.T @ (yvec - next_mu)
+        next_fisher = (next_mu * covmat.T) @ covmat
         next_bs = bs.append(next_b)
-        next_mus = mus.append(next_mu)
+        next_deltabs = deltabs.append(delta_b)
+        next_mus = hl.if_else(hl.is_missing(next_mu), mus, mus.append(next_mu))
+        next_scores = scores.append(next_score)
+        next_fishers = fishers.append(next_fisher)
 
         return (hl.case()
                 .when(exploded | hl.is_nan(delta_b[0]),
-                      blank_struct.annotate(num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=True, bs=bs))
+                      blank_struct.annotate(num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=True, bs=bs, deltabs=deltabs, mus=mus, scores=scores, fishers=fishers))
                 .when(cur_iter == max_iterations,
                       blank_struct.annotate(num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=False))
                 .when(max_delta_b < tolerance,
-                      hl.struct(b=b, score=score, fisher=fisher, mu=mu, num_iter=cur_iter, log_lkhd=log_lkhd, converged=True, exploded=False, bs=bs, mus=mus))
-                .default(recur(next_iter, next_b, next_mu, next_score, next_fisher, next_bs, next_mus)))
+                      hl.struct(b=b, score=score, fisher=fisher, mu=mu, num_iter=cur_iter, log_lkhd=log_lkhd, converged=True, exploded=False, bs=bs, deltabs=deltabs, mus=mus, scores=scores, fishers=fishers))
+                .default(recur(next_iter, next_b, next_mu, next_score, next_fisher, next_bs, next_deltabs, next_mus, next_scores, next_fishers)))
 
     if max_iterations == 0:
         return blank_struct.select(num_iter=0, log_lkhd=0, converged=False, exploded=False)
-    return hl.experimental.loop(fit, dtype, 1, b, mu, score, fisher, [b], [mu])
+    return hl.experimental.loop(fit, dtype, 1, b, mu, score, fisher, [b], [b * 0], [mu], [score], [fisher])
 
 
 def _poisson_score_test(null_fit, covmat, yvec, xvec):
