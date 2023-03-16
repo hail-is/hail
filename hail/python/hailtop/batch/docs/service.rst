@@ -35,6 +35,11 @@ a Batch Service account. A :ref:`Google Service Account <service-accounts>` is c
 on your behalf. A trial Batch billing project is also created for you at
 :code:`<USERNAME>-trial`. You can view these at `<https://auth.hail.is/user>`__.
 
+To create a new Hail Batch billing project (separate from the automatically created trial billing
+project), send an inquiry using this `billing project creation form <https://docs.google.com/forms/u/0/d/e/1FAIpQLSc1DoqSZKtt1VjVhJjNzzFL8Wfoi5QAFLHuSPwGLnamdtDzHg/viewform>`__.
+To modify an existing Hail Batch billing project, send an inquiry using this
+`billing project modification form <https://docs.google.com/forms/d/e/1FAIpQLSdOdrYE2ZlT6GmMI8ShSoR8uKyePkZ8UJ2Hel7dWaHYAC-TBA/viewform>`__.
+
 
 .. _file-localization:
 
