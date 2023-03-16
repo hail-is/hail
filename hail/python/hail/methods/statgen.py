@@ -1,6 +1,5 @@
 import builtins
 import itertools
-import functools
 import math
 from typing import Dict, Callable, Optional, Union, Tuple, List
 
@@ -977,6 +976,7 @@ def logreg_fit(X, y, null_fit, max_iter: int, tol: float):
 
     dtype = numerical_regression_fit_dtype
     blank_struct = hl.struct(**{k: hl.missing(dtype[k]) for k in dtype})
+
     def search(recur, cur_iter, b, mu, score, fisher):
         delta_b_struct = hl.nd.solve(fisher, score, no_crash=True)
 
@@ -1447,7 +1447,6 @@ def _poisson_score_test(null_fit, covmat, yvec, xvec):
     return chi_sq, p
 
 
-
 @typecheck(test=enumeration('wald', 'lrt', 'score'),
            y=expr_float64,
            x=expr_float64,
@@ -1523,12 +1522,12 @@ def _lowered_poisson_regression_rows(test,
     null_fit = _poisson_fit(covmat, yvec, b, mu, score, fisher, max_iterations, tolerance)
 
     mt = mt.annotate_globals(
-        null_fit = hl.case().when(null_fit.converged, null_fit).or_error(
+        null_fit=hl.case().when(null_fit.converged, null_fit).or_error(
             hl.format('_lowered_poisson_regression_rows: null model did not converge: %s',
                       null_fit.select('num_iter', 'log_lkhd', 'converged', 'exploded')))
     )
-    mt = mt.annotate_rows(mean_x = hl.agg.mean(mt.x))
-    mt = mt.annotate_rows(xvec = hl.nd.array(hl.agg.collect(hl.coalesce(mt.x, mt.mean_x))))
+    mt = mt.annotate_rows(mean_x=hl.agg.mean(mt.x))
+    mt = mt.annotate_rows(xvec=hl.nd.array(hl.agg.collect(hl.coalesce(mt.x, mt.mean_x))))
     ht = mt.rows()
 
     covmat = ht.covmat
