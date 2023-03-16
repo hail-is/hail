@@ -372,3 +372,33 @@ class Tests(unittest.TestCase):
         dataproc_result = reorder_lof_info(dataproc_result)
 
         assert hail_vep_result._same(dataproc_result)
+
+    @skip_unless_service_backend(clouds=['gcp'])
+    @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
+    def test_vep_grch38_against_dataproc(self):
+        dataproc_result = hl.import_table(resource('dataproc_vep_grch38_annotations.tsv.gz'),
+                                          key=['locus', 'alleles'],
+                                          types={'locus': hl.tlocus('GRCh38'), 'alleles': hl.tarray(hl.tstr),
+                                                 'vep': hl.tstr}, force=True)
+        loftee_variants = dataproc_result.select()
+
+        hail_vep_result = hl.vep(loftee_variants)
+        initial_vep_dtype = hail_vep_result.vep.dtype
+        hail_vep_result = hail_vep_result.annotate_rows(vep=hail_vep_result.vep.annotate(
+            input=hl.str('\t').join([hail_vep_result.locus.contig, hl.str(hail_vep_result.locus.position), ".", hail_vep_result.alleles[0], hail_vep_result.alleles[1], ".", ".", "GT"])
+        ))
+        hail_vep_result = hail_vep_result.rows().select('vep')
+
+        def reorder_lof_info(ht):
+            return ht.annotate(vep=ht.vep.annotate(
+                transcript_consequences=hl.map(lambda csq: csq.annotate(
+                    lof_info=hl.if_else(csq.lof_info == 'null', hl.null(hl.tdict(hl.tstr, hl.tstr)), hl.dict(
+                        hl.map(lambda kv: hl.tuple([kv.split(":")[0], kv.split(":")[1]]), csq.lof_info.split(','))))),
+                                               ht.vep.transcript_consequences)))
+
+        hail_vep_result = reorder_lof_info(hail_vep_result)
+
+        dataproc_result = dataproc_result.annotate(vep=hl.parse_json(dataproc_result.vep, hail_vep_result.vep.dtype))
+        dataproc_result = reorder_lof_info(dataproc_result)
+
+        assert hail_vep_result._same(dataproc_result)
