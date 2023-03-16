@@ -1385,6 +1385,102 @@ def _logistic_regression_rows_nd(test,
     return ht.drop("x")
 
 
+@typecheck(test=enumeration('wald', 'lrt', 'score'),
+           y=expr_float64,
+           x=expr_float64,
+           covariates=sequenceof(expr_float64),
+           pass_through=sequenceof(oneof(str, Expression)),
+           max_iterations=int,
+           tolerance=nullable(float))
+def poisson_regression_rows(test,
+                            y,
+                            x,
+                            covariates,
+                            pass_through=(),
+                            *,
+                            max_iterations: int = 25,
+                            tolerance: Optional[float] = None) -> Table:
+    r"""For each row, test an input variable for association with a
+    count response variable using `Poisson regression <https://en.wikipedia.org/wiki/Poisson_regression>`__.
+
+    Notes
+    -----
+    See :func:`.logistic_regression_rows` for more info on statistical tests
+    of general linear models.
+
+    Note
+    ----
+    Use the `pass_through` parameter to include additional row fields from
+    matrix table underlying ``x``. For example, to include an "rsid" field, set
+    ``pass_through=['rsid']`` or ``pass_through=[mt.rsid]``.
+
+    Parameters
+    ----------
+    y : :class:`.Float64Expression`
+        Column-indexed response expression.
+        All non-missing values must evaluate to a non-negative integer.
+    x : :class:`.Float64Expression`
+        Entry-indexed expression for input variable.
+    covariates : :obj:`list` of :class:`.Float64Expression`
+        Non-empty list of column-indexed covariate expressions.
+    pass_through : :obj:`list` of :class:`str` or :class:`.Expression`
+        Additional row fields to include in the resulting table.
+    tolerance : :obj:`int`, optional
+        The iterative fit of this model is considered "converged" if the change in the estimated
+        beta is smaller than tolerance. By default the tolerance is 1e-6.
+
+    Returns
+    -------
+    :class:`.Table`
+
+    """
+    if hl.current_backend().requires_lowering:
+        return _lowered_poisson_regression_rows(test, y, x, covariates, pass_through, max_iterations=max_iterations, tolerance=tolerance)
+
+    if tolerance is None:
+        tolerance = 1e-6
+
+    if len(covariates) == 0:
+        raise ValueError('Poisson regression requires at least one covariate expression')
+
+    mt = matrix_table_source('poisson_regression_rows/x', x)
+    check_entry_indexed('poisson_regression_rows/x', x)
+
+    analyze('poisson_regression_rows/y', y, mt._col_indices)
+
+    all_exprs = [y]
+    for e in covariates:
+        all_exprs.append(e)
+        analyze('poisson_regression_rows/covariates', e, mt._col_indices)
+
+    _warn_if_no_intercept('poisson_regression_rows', covariates)
+
+    x_field_name = Env.get_uid()
+    y_field_name = '__y'
+    cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
+    row_fields = _get_regression_row_fields(mt, pass_through, 'poisson_regression_rows')
+
+    # FIXME: selecting an existing entry field should be emitted as a SelectFields
+    mt = mt._select_all(col_exprs=dict(**{y_field_name: y},
+                                       **dict(zip(cov_field_names, covariates))),
+                        row_exprs=row_fields,
+                        col_key=[],
+                        entry_exprs={x_field_name: x})
+
+    config = {
+        'name': 'PoissonRegression',
+        'test': test,
+        'yField': y_field_name,
+        'xField': x_field_name,
+        'covFields': cov_field_names,
+        'passThrough': [x for x in row_fields if x not in mt.row_key],
+        'maxIterations': max_iterations,
+        'tolerance': tolerance
+    }
+
+    return Table(ir.MatrixToTableApply(mt._mir, config)).persist()
+
+
 def _poisson_fit(covmat, yvec, b, mu, score, fisher, max_iterations, tolerance):
     dtype = numerical_regression_fit_dtype
     blank_struct = hl.struct(**{k: hl.missing(dtype[k]) for k in dtype})
@@ -1567,102 +1663,6 @@ def _lowered_poisson_regression_rows(test,
         **wald_test(X, test_fit),
         **ht.pass_through
     )
-
-
-@typecheck(test=enumeration('wald', 'lrt', 'score'),
-           y=expr_float64,
-           x=expr_float64,
-           covariates=sequenceof(expr_float64),
-           pass_through=sequenceof(oneof(str, Expression)),
-           max_iterations=int,
-           tolerance=nullable(float))
-def poisson_regression_rows(test,
-                            y,
-                            x,
-                            covariates,
-                            pass_through=(),
-                            *,
-                            max_iterations: int = 25,
-                            tolerance: Optional[float] = None) -> Table:
-    r"""For each row, test an input variable for association with a
-    count response variable using `Poisson regression <https://en.wikipedia.org/wiki/Poisson_regression>`__.
-
-    Notes
-    -----
-    See :func:`.logistic_regression_rows` for more info on statistical tests
-    of general linear models.
-
-    Note
-    ----
-    Use the `pass_through` parameter to include additional row fields from
-    matrix table underlying ``x``. For example, to include an "rsid" field, set
-    ``pass_through=['rsid']`` or ``pass_through=[mt.rsid]``.
-
-    Parameters
-    ----------
-    y : :class:`.Float64Expression`
-        Column-indexed response expression.
-        All non-missing values must evaluate to a non-negative integer.
-    x : :class:`.Float64Expression`
-        Entry-indexed expression for input variable.
-    covariates : :obj:`list` of :class:`.Float64Expression`
-        Non-empty list of column-indexed covariate expressions.
-    pass_through : :obj:`list` of :class:`str` or :class:`.Expression`
-        Additional row fields to include in the resulting table.
-    tolerance : :obj:`int`, optional
-        The iterative fit of this model is considered "converged" if the change in the estimated
-        beta is smaller than tolerance. By default the tolerance is 1e-6.
-
-    Returns
-    -------
-    :class:`.Table`
-
-    """
-    if hl.current_backend().requires_lowering:
-        return _lowered_poisson_regression_rows(test, y, x, covariates, pass_through, max_iterations=max_iterations, tolerance=tolerance)
-
-    if tolerance is None:
-        tolerance = 1e-6
-
-    if len(covariates) == 0:
-        raise ValueError('Poisson regression requires at least one covariate expression')
-
-    mt = matrix_table_source('poisson_regression_rows/x', x)
-    check_entry_indexed('poisson_regression_rows/x', x)
-
-    analyze('poisson_regression_rows/y', y, mt._col_indices)
-
-    all_exprs = [y]
-    for e in covariates:
-        all_exprs.append(e)
-        analyze('poisson_regression_rows/covariates', e, mt._col_indices)
-
-    _warn_if_no_intercept('poisson_regression_rows', covariates)
-
-    x_field_name = Env.get_uid()
-    y_field_name = '__y'
-    cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
-    row_fields = _get_regression_row_fields(mt, pass_through, 'poisson_regression_rows')
-
-    # FIXME: selecting an existing entry field should be emitted as a SelectFields
-    mt = mt._select_all(col_exprs=dict(**{y_field_name: y},
-                                       **dict(zip(cov_field_names, covariates))),
-                        row_exprs=row_fields,
-                        col_key=[],
-                        entry_exprs={x_field_name: x})
-
-    config = {
-        'name': 'PoissonRegression',
-        'test': test,
-        'yField': y_field_name,
-        'xField': x_field_name,
-        'covFields': cov_field_names,
-        'passThrough': [x for x in row_fields if x not in mt.row_key],
-        'maxIterations': max_iterations,
-        'tolerance': tolerance
-    }
-
-    return Table(ir.MatrixToTableApply(mt._mir, config)).persist()
 
 
 def linear_mixed_model(y,
