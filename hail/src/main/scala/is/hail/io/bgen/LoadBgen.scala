@@ -527,7 +527,7 @@ class MatrixBGENReader(
           val filePartitioner = new RVDPartitioner(ctx.stateManager, tcoerce[TStruct](indexKeyType), file.intervals)
 
           val filterKeyLen = t0.spec.table_type.key.length
-          val strictShortKey = filePartitioner.coarsen(filterKeyLen).strictify
+          val strictShortKey = filePartitioner.coarsen(filterKeyLen).strictify()
           val strictBgenKey = strictShortKey.extendKey(filePartitioner.kType)
           rangeBounds ++= strictBgenKey.rangeBounds
 
