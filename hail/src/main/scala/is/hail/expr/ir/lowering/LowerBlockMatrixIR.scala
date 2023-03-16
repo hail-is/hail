@@ -5,8 +5,8 @@ import is.hail.expr.Nat
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.GetElement
 import is.hail.rvd.RVDPartitioner
-import is.hail.types.{BlockMatrixSparsity, BlockMatrixType, TypeWithRequiredness, tcoerce}
 import is.hail.types.virtual._
+import is.hail.types.{BlockMatrixSparsity, BlockMatrixType, TypeWithRequiredness, tcoerce}
 import is.hail.utils._
 
 object BlockMatrixStage {
@@ -814,11 +814,11 @@ object LowerBlockMatrixIR {
     val ib = new IRBuilder()
     val bms = lower(bmir, ib, typesToLower, ctx, analyses).toOldBMS
     val typ = bmir.typ
-    val bmsWithCtx = bms.addContext(TTuple(TInt32, TInt32)){ case (i, j) => MakeTuple(Seq(0 -> i, 1 -> j))}
+    val bmsWithCtx = bms.addContext(TTuple(TInt32, TInt32)){ case (i, j) => MakeTuple(FastIndexedSeq(0 -> i, 1 -> j))}
     val blocksRowMajor = Array.range(0, typ.nRowBlocks).flatMap { i =>
       Array.tabulate(typ.nColBlocks)(j => i -> j).filter(typ.hasBlock)
     }
-    val emptyGlobals = MakeStruct(Seq())
+    val emptyGlobals = MakeStruct(FastIndexedSeq())
     val globalsId = genUID()
     val letBindings = ib.getBindings :+ globalsId -> emptyGlobals
     val contextsIR = MakeStream(blocksRowMajor.map{ case (i, j) =>  bmsWithCtx.blockContext((i, j)) }, TStream(bmsWithCtx.ctxType))
@@ -832,7 +832,7 @@ object LowerBlockMatrixIR {
       :+ globalsId -> Ref(globalsId, emptyGlobals.typ))
 
     def tsPartitionFunction(ctxRef: Ref): IR = {
-      val s = MakeStruct(Seq("blockRow" -> GetTupleElement(GetField(ctxRef, "new"), 0), "blockCol" -> GetTupleElement(GetField(ctxRef, "new"), 1), "block" -> bmsWithCtx.blockBody(ctxRef)))
+      val s = MakeStruct(FastIndexedSeq("blockRow" -> GetTupleElement(GetField(ctxRef, "new"), 0), "blockCol" -> GetTupleElement(GetField(ctxRef, "new"), 1), "block" -> bmsWithCtx.blockBody(ctxRef)))
       MakeStream(FastIndexedSeq(s), TStream(s.typ))
     }
     val ts = TableStage(letBindings, bcFields, Ref(globalsId, emptyGlobals.typ), RVDPartitioner.unkeyed(ctx.stateManager, blocksRowMajor.size), TableStageDependency.none, contextsIR, tsPartitionFunction)
@@ -978,13 +978,13 @@ object LowerBlockMatrixIR {
         axesToSumOut match {
           case IndexedSeq(0, 1)  =>
             val summedChild = loweredChild.mapBody { (ctx, body) =>
-              NDArrayReshape(NDArrayAgg(body, IndexedSeq(0, 1)), MakeTuple.ordered(Seq(I64(1), I64(1))), ErrorIDs.NO_ERROR)
+              NDArrayReshape(NDArrayAgg(body, IndexedSeq(0, 1)), MakeTuple.ordered(FastIndexedSeq(I64(1), I64(1))), ErrorIDs.NO_ERROR)
             }
             val summedChildType = BlockMatrixType(child.typ.elementType, IndexedSeq[Long](child.typ.nRowBlocks, child.typ.nColBlocks), child.typ.nRowBlocks == 1, 1, BlockMatrixSparsity.dense)
             val res = NDArrayAgg(summedChild.collectLocal(summedChildType, "block_matrix_agg"), IndexedSeq[Int](0, 1))
             new BlockMatrixStage(summedChild.broadcastVals, TStruct.empty) {
               override def blockContext(idx: (Int, Int)): IR = makestruct()
-              override def blockBody(ctxRef: Ref): IR = NDArrayReshape(res, MakeTuple.ordered(Seq(I64(1L), I64(1L))), ErrorIDs.NO_ERROR)
+              override def blockBody(ctxRef: Ref): IR = NDArrayReshape(res, MakeTuple.ordered(FastIndexedSeq(I64(1L), I64(1L))), ErrorIDs.NO_ERROR)
             }
           case IndexedSeq(0) => { // Number of rows goes to 1. Number of cols remains the same.
             new BlockMatrixStage(loweredChild.broadcastVals, TArray(loweredChild.ctxType)) {
@@ -998,7 +998,7 @@ object LowerBlockMatrixIR {
               }
               override def blockBody(ctxRef: Ref): IR = {
                 val summedChildBlocks = mapIR(ToStream(ctxRef))(singleChildCtx => {
-                  bindIR(NDArrayAgg(loweredChild.blockBody(singleChildCtx), axesToSumOut))(aggedND => NDArrayReshape(aggedND, MakeTuple.ordered(Seq(I64(1), GetTupleElement(NDArrayShape(aggedND), 0))), ErrorIDs.NO_ERROR))
+                  bindIR(NDArrayAgg(loweredChild.blockBody(singleChildCtx), axesToSumOut))(aggedND => NDArrayReshape(aggedND, MakeTuple.ordered(FastIndexedSeq(I64(1), GetTupleElement(NDArrayShape(aggedND), 0))), ErrorIDs.NO_ERROR))
                 })
                 val aggVar = genUID()
                 StreamAgg(summedChildBlocks, aggVar, ApplyAggOp(NDArraySum())(Ref(aggVar, summedChildBlocks.typ.asInstanceOf[TStream].elementType)))
@@ -1017,7 +1017,9 @@ object LowerBlockMatrixIR {
               }
               override def blockBody(ctxRef: Ref): IR = {
                 val summedChildBlocks = mapIR(ToStream(ctxRef))(singleChildCtx => {
-                  bindIR(NDArrayAgg(loweredChild.blockBody(singleChildCtx), axesToSumOut))(aggedND => NDArrayReshape(aggedND, MakeTuple(Seq((0, GetTupleElement(NDArrayShape(aggedND), 0)), (1, I64(1)))), ErrorIDs.NO_ERROR))
+                  bindIR(NDArrayAgg(loweredChild.blockBody(singleChildCtx), axesToSumOut)) {
+                    aggedND => NDArrayReshape(aggedND, MakeTuple(FastIndexedSeq(0 -> GetTupleElement(NDArrayShape(aggedND), 0), 1 -> I64(1))), ErrorIDs.NO_ERROR)
+                  }
                 })
                 val aggVar = genUID()
                 StreamAgg(summedChildBlocks, aggVar, ApplyAggOp(NDArraySum())(Ref(aggVar, summedChildBlocks.typ.asInstanceOf[TStream].elementType)))
@@ -1070,9 +1072,9 @@ object LowerBlockMatrixIR {
       case ValueToBlockMatrix(child, shape, blockSize) if !child.typ.isInstanceOf[TArray] && !child.typ.isInstanceOf[TNDArray] => {
         val element = lowerIR(child)
         new BlockMatrixStage(FastIndexedSeq(), TStruct()) {
-          override def blockContext(idx: (Int, Int)): IR = MakeStruct(Seq())
+          override def blockContext(idx: (Int, Int)): IR = MakeStruct(FastIndexedSeq())
 
-          override def blockBody(ctxRef: Ref): IR = MakeNDArray(MakeArray(element), MakeTuple(Seq((0, I64(1)), (1, I64(1)))), False(), ErrorIDs.NO_ERROR)
+          override def blockBody(ctxRef: Ref): IR = MakeNDArray(MakeArray(element), MakeTuple(FastIndexedSeq((0, I64(1)), (1, I64(1)))), False(), ErrorIDs.NO_ERROR)
         }
       }
       case x@ValueToBlockMatrix(child, _, blockSize) =>

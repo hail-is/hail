@@ -1198,7 +1198,7 @@ class IRSuite extends HailSuite {
     def zip(behavior: ArrayZipBehavior, irs: IR*): IR = StreamZip(
       irs.toFastIndexedSeq,
       irs.indices.map(_.toString),
-      MakeTuple.ordered(irs.zipWithIndex.map { case (ir, i) => Ref(i.toString, ir.typ.asInstanceOf[TStream].elementType) }),
+      MakeTuple.ordered(irs.toArray.zipWithIndex.map { case (ir, i) => Ref(i.toString, ir.typ.asInstanceOf[TStream].elementType) }),
       behavior
     )
     def zipToTuple(behavior: ArrayZipBehavior, irs: IR*): IR = ToArray(zip(behavior, irs: _*))
@@ -2898,7 +2898,7 @@ class IRSuite extends HailSuite {
         {
           val structs = MakeStream(FastIndexedSeq(), TStream(TStruct()))
           val partitioner = RVDPartitioner.empty(ctx.stateManager, TStruct())
-          TableGen(structs, MakeStruct(Seq()), "cname", "gname", structs, partitioner, errorId = 180)
+          TableGen(structs, MakeStruct(FastIndexedSeq()), "cname", "gname", structs, partitioner, errorId = 180)
         }
       )
       xs.map(x => Array(x))

@@ -51,7 +51,7 @@ object DeprecatedIRBuilder {
     arrayToProxy((first +: rest).toArray[IRProxy])
 
   def makeStruct(fields: (Symbol, IRProxy)*): IRProxy = (env: E) =>
-    MakeStruct(fields.map { case (s, ir) => (s.name, ir(env)) })
+    MakeStruct(fields.toArray.map { case (s, ir) => (s.name, ir(env)) })
 
   def concatStructs(struct1: IRProxy, struct2: IRProxy): IRProxy = (env: E) => {
     val s2Type = struct2(env).typ.asInstanceOf[TStruct]
@@ -61,7 +61,7 @@ object DeprecatedIRBuilder {
   }
 
   def makeTuple(values: IRProxy*): IRProxy = (env: E) =>
-    MakeTuple.ordered(values.map(_ (env)))
+    MakeTuple.ordered(values.toArray.map(_ (env)))
 
   def applyAggOp(
     op: AggOp,
@@ -221,15 +221,15 @@ object DeprecatedIRBuilder {
       InsertFields(ir(env), fields.map { case (s, fir) => (s.name, fir(env))}, ordering)
 
     def selectFields(fields: String*): IRProxy = (env: E) =>
-      SelectFields(ir(env), fields)
+      SelectFields(ir(env), fields.toArray[String])
 
-    def dropFieldList(fields: Seq[String]): IRProxy = (env: E) => {
+    def dropFieldList(fields: IndexedSeq[String]): IRProxy = (env: E) => {
       val struct = ir(env)
       val typ = struct.typ.asInstanceOf[TStruct]
       SelectFields(struct, typ.fieldNames.diff(fields))
     }
 
-    def dropFields(fields: Symbol*): IRProxy = dropFieldList(fields.map(_.name))
+    def dropFields(fields: Symbol*): IRProxy = dropFieldList(fields.map(_.name).toArray[String])
 
     def insertStruct(other: IRProxy, ordering: Option[IndexedSeq[String]] = None): IRProxy = (env: E) => {
       val right = other(env)

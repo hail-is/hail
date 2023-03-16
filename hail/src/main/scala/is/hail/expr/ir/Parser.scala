@@ -1372,7 +1372,7 @@ object IRParser {
       case "MakeTuple" =>
         val indices = int32_literals(it)
         ir_value_children(env)(it).map { args =>
-          MakeTuple(indices.zip(args).toFastSeq)
+          MakeTuple(indices.zip(args))
         }
       case "GetTupleElement" =>
         val idx = int32_literal(it)

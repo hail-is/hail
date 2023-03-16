@@ -82,7 +82,7 @@ object TableNativeWriter {
             WriteMetadata(ToArray(mapIR(ToStream(fileCountAndDistinct)) { fc => GetField(fc, "filePath") }),
               RVDSpecWriter(s"$path/rows", RVDSpecMaker(rowSpec, partitioner, IndexSpec.emptyAnnotation("../index", tcoerce[PStruct](pKey))))),
             WriteMetadata(ToArray(mapIR(ToStream(fileCountAndDistinct)) { fc =>
-              SelectFields(fc, Seq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey"))
+              SelectFields(fc, FastIndexedSeq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey"))
             }),
               TableSpecWriter(path, tt, "rows", "globals", "references", log = true))))
         }
@@ -724,7 +724,7 @@ case class TableNativeFanoutWriter(
               ToArray(mapIR(ToStream(fileCountAndDistinct)) { fc =>
                 SelectFields(
                   GetTupleElement(fc, index),
-                  Seq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey")
+                  FastIndexedSeq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey")
                 )
               }),
               TableSpecWriter(target.path, target.tableType, "rows", "globals", "references", log = true)

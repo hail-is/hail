@@ -880,12 +880,12 @@ object Simplify {
       val te =
         TableExplode(
           TableKeyByAndAggregate(child,
-            MakeStruct(Seq(
+            MakeStruct(FastIndexedSeq(
               "row" -> ApplyAggOp(
                 FastIndexedSeq(I32(n.toInt)),
                 Array(row, keyStruct),
                 aggSig))),
-            MakeStruct(Seq()), // aggregate to one row
+            MakeStruct(FastIndexedSeq()), // aggregate to one row
             Some(1), 10),
           FastIndexedSeq("row"))
       TableMapRows(te, GetField(Ref("row", te.typ.rowType), "row"))

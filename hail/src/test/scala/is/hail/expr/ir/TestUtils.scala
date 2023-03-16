@@ -30,7 +30,7 @@ object TestUtils {
     if (p == null)
       NA(TTuple(TInt32, TInt32))
     else
-      MakeTuple.ordered(Seq(toIRInt(p._1), toIRInt(p._2)))
+      MakeTuple.ordered(FastIndexedSeq(toIRInt(p._1), toIRInt(p._2)))
 
   def toIRArray(a: IndexedSeq[Integer]): IR =
     if (a == null)
@@ -111,5 +111,5 @@ object TestUtils {
   }
 
   def IRStruct(fields: (String, IR)*): IR =
-    MakeStruct(fields)
+    MakeStruct(fields.toArray[(String, IR)])
 }
