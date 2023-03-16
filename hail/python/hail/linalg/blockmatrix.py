@@ -620,6 +620,8 @@ class BlockMatrix(object):
             If ``True``, major output will be written to temporary local storage
             before being copied to ``output``.
         """
+        hl.current_backend().validate_file_scheme(path)
+
         writer = BlockMatrixNativeWriter(path, overwrite, force_row_major, stage_locally)
         Env.backend().execute(BlockMatrixWrite(self._bmir, writer))
 
@@ -646,6 +648,7 @@ class BlockMatrix(object):
             If ``True``, major output will be written to temporary local storage
             before being copied to ``output``.
         """
+        hl.current_backend().validate_file_scheme(path)
         self.write(path, overwrite, force_row_major, stage_locally)
         return BlockMatrix.read(path, _assert_type=self._bmir._type)
 
@@ -727,6 +730,8 @@ class BlockMatrix(object):
         block_size: :obj:`int`, optional
             Block size. Default given by :meth:`.BlockMatrix.default_block_size`.
         """
+        hl.current_backend().validate_file_scheme(path)
+
         if not block_size:
             block_size = BlockMatrix.default_block_size()
 
@@ -1189,6 +1194,8 @@ class BlockMatrix(object):
         --------
         :meth:`.to_numpy`
         """
+        hl.current_backend().validate_file_scheme(uri)
+
         _check_entries_size(self.n_rows, self.n_cols)
 
         writer = BlockMatrixBinaryWriter(uri)
@@ -1974,6 +1981,8 @@ class BlockMatrix(object):
             Describes which entries to export. One of:
             ``'full'``, ``'lower'``, ``'strict_lower'``, ``'upper'``, ``'strict_upper'``.
         """
+        hl.current_backend().validate_file_scheme(path_out)
+
         export_type = ExportType.default(parallel)
 
         Env.spark_backend('BlockMatrix.export')._jbackend.pyExportBlockMatrix(

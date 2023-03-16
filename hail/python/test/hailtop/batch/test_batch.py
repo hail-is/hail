@@ -406,7 +406,7 @@ class ServiceTests(unittest.TestCase):
         remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
         if not remote_tmpdir.endswith('/'):
             remote_tmpdir += '/'
-        self.remote_tmpdir = remote_tmpdir
+        self.remote_tmpdir = remote_tmpdir + str(uuid.uuid4()) + '/'
 
         if remote_tmpdir.startswith('gs://'):
             self.bucket = re.fullmatch('gs://(?P<bucket_name>[^/]+).*', remote_tmpdir).groupdict()['bucket_name']
@@ -1092,3 +1092,89 @@ class ServiceTests(unittest.TestCase):
         res = b2.run()
         res_status = res.status()
         assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
+
+    def test_update_batch(self):
+        b = self.batch()
+        j = b.new_job()
+        j.command('true')
+        res = b.run()
+
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+
+        j2 = b.new_job()
+        j2.command('true')
+        res = b.run()
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+
+    def test_update_batch_with_dependencies(self):
+        b = self.batch()
+        j1 = b.new_job()
+        j1.command('true')
+        j2 = b.new_job()
+        j2.command('false')
+        res = b.run()
+
+        res_status = res.status()
+        assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
+
+        j3 = b.new_job()
+        j3.command('true')
+        j3.depends_on(j1)
+
+        j4 = b.new_job()
+        j4.command('true')
+        j4.depends_on(j2)
+
+        res = b.run()
+        res_status = res.status()
+        assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
+
+        assert res.get_job(3).status()['state'] == 'Success', str((res_status, res.debug_info()))
+        assert res.get_job(4).status()['state'] == 'Cancelled', str((res_status, res.debug_info()))
+
+    def test_update_batch_with_python_job_dependencies(self):
+        b = self.batch()
+
+        async def foo(i, j):
+            await asyncio.sleep(1)
+            return i * j
+
+        j1 = b.new_python_job()
+        j1.call(foo, 2, 3)
+
+        batch = b.run()
+        batch_status = batch.status()
+        assert batch_status['state'] == 'success', str((batch_status, batch.debug_info()))
+
+        j2 = b.new_python_job()
+        j2.call(foo, 2, 3)
+
+        batch = b.run()
+        batch_status = batch.status()
+        assert batch_status['state'] == 'success', str((batch_status, batch.debug_info()))
+
+        j3 = b.new_python_job()
+        j3.depends_on(j2)
+        j3.call(foo, 2, 3)
+
+        batch = b.run()
+        batch_status = batch.status()
+        assert batch_status['state'] == 'success', str((batch_status, batch.debug_info()))
+
+    def test_update_batch_from_batch_id(self):
+        b = self.batch()
+        j = b.new_job()
+        j.command('true')
+        res = b.run()
+
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+
+        b2 = Batch.from_batch_id(b._batch_handle.id, backend=b._backend)
+        j2 = b2.new_job()
+        j2.command('true')
+        res = b2.run()
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))

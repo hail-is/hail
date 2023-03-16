@@ -7,7 +7,7 @@ from hail.expr import construct_expr
 from hail.expr.types import tint32
 from hail.utils.java import Env
 from hail.utils import new_temp_file
-from .helpers import *
+from test.hail.helpers import *
 
 
 class ValueIRTests(unittest.TestCase):
@@ -212,7 +212,18 @@ class TableIRTests(unittest.TestCase):
             ir.TableToTableApply(table_read, {'name': 'TableFilterPartitions', 'parts': [0], 'keep': True}),
             ir.BlockMatrixToTableApply(block_matrix_read, aa, {'name': 'PCRelate', 'maf': 0.01, 'blockSize': 4096}),
             ir.TableFilterIntervals(table_read, [hl.utils.Interval(hl.utils.Struct(row_idx=0), hl.utils.Struct(row_idx=10))], hl.tstruct(row_idx=hl.tint32), keep=False),
-            ir.TableMapPartitions(table_read, 'glob', 'rows', ir.Ref('rows', hl.tstream(table_read_row_type)))
+            ir.TableMapPartitions(table_read, 'glob', 'rows', ir.Ref('rows', hl.tstream(table_read_row_type)), 0, 1),
+            ir.TableGen(
+                contexts=ir.StreamRange(ir.I32(0), ir.I32(10), ir.I32(1)),
+                globals=ir.MakeStruct([]),
+                cname="contexts",
+                gname="globals",
+                body=ir.ToStream(ir.MakeArray([ir.MakeStruct([('a', ir.I32(1))])], type=None)),
+                partitioner=ir.Partitioner(
+                    hl.tstruct(a=hl.tint),
+                    [hl.Interval(hl.Struct(a=1), hl.Struct(a=2), True, True)]
+                )
+            )
         ]
 
         return table_irs

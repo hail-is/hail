@@ -14,7 +14,7 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 SCALA_VERSION ?= 2.12.13
 SPARK_VERSION ?= 3.3.0
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 110
+HAIL_PATCH_VERSION := 112
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 ELASTIC_MAJOR_VERSION ?= 7
@@ -263,7 +263,7 @@ cloud_base ?= gs://hail-30-day/hailctl/dataproc/$(DEV_CLARIFIER)/$(HAIL_VERSION)
 UPLOAD_RETENTION =
 else
 cloud_base := gs://hail-common/hailctl/dataproc/$(HAIL_PIP_VERSION)
-UPLOAD_RETENTION = gsutil -m retention temp set "$(cloud_base)/*"
+UPLOAD_RETENTION = gcloud storage objects update "$(cloud_base)/*" --temporary-hold
 endif
 
 wheel_cloud_path := $(cloud_base)/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
@@ -299,8 +299,8 @@ python/hailtop/hailctl/deploy.yaml: $(resources) check-pip-lockfile
 
 .PHONY: upload-artifacts
 upload-artifacts: $(WHEEL)
-	gsutil -m cp -r $(resources) $(WHEEL) $(cloud_base)
-	gsutil -m acl set -r public-read $(cloud_base)
+	gcloud storage cp $(resources) $(WHEEL) $(cloud_base)
+	gcloud storage objects update -r $(cloud_base) --add-acl-grant=entity=AllUsers,role=READER
 	$(UPLOAD_RETENTION)
 
 
@@ -309,8 +309,8 @@ upload-artifacts: $(WHEEL)
 # > rm upload-qob-test-resources
 upload-qob-test-resources: $(JAR_TEST_SOURCES)
 	! [ -z $(NAMESPACE) ]  # call this like: make upload-qob-test-resources NAMESPACE=default
-	gsutil -m cp -r src/test/resources/\* $(CLOUD_HAIL_TEST_RESOURCES_DIR)
-	gsutil -m cp -r python/hail/docs/data/\* $(CLOUD_HAIL_DOCTEST_DATA_DIR)
+	gcloud storage cp src/test/resources/\* $(CLOUD_HAIL_TEST_RESOURCES_DIR)
+	gcloud storage cp python/hail/docs/data/\* $(CLOUD_HAIL_DOCTEST_DATA_DIR)
 	touch $@
 
 # NOTE: 1-day expiration of the test bucket means that this
@@ -319,7 +319,7 @@ upload-qob-test-resources: $(JAR_TEST_SOURCES)
 # > rm upload-qob-jar
 upload-qob-jar: $(SHADOW_JAR)
 	! [ -z $(NAMESPACE) ]  # call this like: make upload-qob-jar NAMESPACE=default
-	gsutil -m cp $(SHADOW_JAR) $(JAR_LOCATION)
+	gcloud storage cp $(SHADOW_JAR) $(JAR_LOCATION)
 	echo $(JAR_LOCATION) > $@
 
 .PHONY: install-editable
@@ -457,9 +457,9 @@ hail-docs-no-test: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 .PHONY: upload-docs
 upload-docs: hail-docs batch-docs
 	cd build && tar czf www.tar.gz www
-	gsutil -m cp build/www.tar.gz $(docs_location)
-	gsutil -m retention temp set $(docs_location)
-	gsutil -m acl set public-read $(docs_location)
+	gcloud storage cp build/www.tar.gz $(docs_location)
+	gcloud storage objects update -r $(docs_location) --temporary-hold
+	gcloud storage objects update -r $(docs_location) --add-acl-grant=entity=AllUsers,role=READER
 
 .PHONY: test
 test: pytest jvm-test doctest

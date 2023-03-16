@@ -11,7 +11,7 @@ import is.hail.asm4s._
 import is.hail.backend.{Backend, BackendContext, BackendWithNoCodeCache, BroadcastValue, ExecuteContext, HailTaskContext}
 import is.hail.expr.{JSONAnnotationImpex, Validate}
 import is.hail.expr.ir.lowering._
-import is.hail.expr.ir.{Compile, IR, IRParser, MakeTuple, SortField, TypeCheck}
+import is.hail.expr.ir.{Compile, IR, IRParser, LoweringAnalyses, MakeTuple, SortField, TableIR, TableReader, TypeCheck}
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.bgen.IndexBgen
@@ -114,12 +114,7 @@ class ServiceBackend(
     val token = tokenUrlSafe(32)
     val root = s"${ backendContext.remoteTmpDir }parallelizeAndComputeWithIndex/$token"
 
-    // FIXME: HACK
-    val (open, write) = if (n <= 50) {
-      (fs.openCachedNoCompression _, fs.writeCached _)
-    } else {
-      ((x: String) => fs.openNoCompression(x), fs.writePDOS _)
-    }
+    val (open, write) = ((x: String) => fs.openNoCompression(x), fs.writePDOS _)
 
     log.info(s"parallelizeAndComputeWithIndex: $token: nPartitions $n")
     log.info(s"parallelizeAndComputeWithIndex: $token: writing f and contexts")
@@ -338,12 +333,10 @@ class ServiceBackend(
 
   def lowerDistributedSort(
     ctx: ExecuteContext,
-    stage: TableStage,
+    inputStage: TableStage,
     sortFields: IndexedSeq[SortField],
-    relationalLetsAbove: Map[String, IR],
-    rowTypeRequiredness: RStruct
-  ): TableStage = LowerDistributedSort.distributedSort(ctx, stage, sortFields, relationalLetsAbove, rowTypeRequiredness)
-
+    rt: RTable
+  ): TableReader = LowerDistributedSort.distributedSort(ctx, inputStage, sortFields, rt)
 
   def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String): Unit = ???
 
@@ -394,6 +387,13 @@ class ServiceBackend(
     IndexBgen(ctx, files, indexFileMap, referenceGenomeName, contigRecoding, skipInvalidLoci)
     info(s"Number of BGEN files indexed: ${ files.size }")
     "null"
+  }
+
+  def tableToTableStage(ctx: ExecuteContext,
+    inputIR: TableIR,
+    analyses: LoweringAnalyses
+  ): TableStage = {
+    LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
   }
 }
 

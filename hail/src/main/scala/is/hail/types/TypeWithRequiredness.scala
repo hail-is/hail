@@ -66,7 +66,7 @@ object TypeWithRequiredness {
     case t: TNDArray => RNDArray(apply(t.elementType))
     case t: TInterval => RInterval(apply(t.pointType), apply(t.pointType))
     case t: TStruct => RStruct.fromNamesAndTypes(t.fields.map(f => f.name -> apply(f.typ)))
-    case t: TTuple => RTuple(t.fields.map(f => RField(f.name, apply(f.typ), f.index)))
+    case t: TTuple => RTuple.fromNamesAndTypes(t.fields.map(f => f.name -> apply(f.typ)))
     case t: TUnion => RUnion(t.cases.map(c => c.name -> apply(c.typ)))
   }
 }
@@ -167,6 +167,26 @@ object VirtualTypeWithReq {
     val tr = TypeWithRequiredness(t)
     tr.unionFrom(vs.map(_.r))
     VirtualTypeWithReq(t, tr)
+  }
+
+  def subset(vt: Type, rt: TypeWithRequiredness): VirtualTypeWithReq = {
+    val empty = FastIndexedSeq()
+    def subsetRT(vt: Type, rt: TypeWithRequiredness): TypeWithRequiredness = {
+      val r = (vt, rt) match {
+        case (_, t: RPrimitive) => t.copy(empty)
+        case (tt: TTuple, rt: RTuple) =>
+          RTuple(tt.fields.map(fd => RField(fd.name, subsetRT(fd.typ, rt.fieldType(fd.name)), fd.index)))
+        case (ts: TStruct, rt: RStruct) =>
+          RStruct(ts.fields.map(fd => RField(fd.name, subsetRT(fd.typ, rt.field(fd.name)), fd.index)))
+        case (ti: TInterval, ri: RInterval) => RInterval(subsetRT(ti.pointType, ri.startType), subsetRT(ti.pointType, ri.endType))
+        case (td: TDict, ri: RDict) => RDict(subsetRT(td.keyType, ri.keyType), subsetRT(td.valueType, ri.valueType))
+        case (tit: TIterable, rit: RIterable) => RIterable(subsetRT(tit.elementType, rit.elementType))
+        case (tnd: TNDArray, rnd: RNDArray) => RNDArray(subsetRT(tnd.elementType, rnd.elementType))
+      }
+      r.union(rt.required)
+      r
+    }
+    VirtualTypeWithReq(vt, subsetRT(vt, rt))
   }
 }
 
@@ -418,7 +438,7 @@ sealed abstract class RBaseStruct extends TypeWithRequiredness {
 
 object RStruct {
   def fromNamesAndTypes(fields: IndexedSeq[(String, TypeWithRequiredness)]): RStruct =
-    RStruct(Array.tabulate(fields.length)(i => RField(fields(i)._1, fields(i)._2, i)))
+    RStruct(fields.zipWithIndex.map { case ((name, typ), i) => RField(name, typ, i) })
 }
 
 case class RStruct(fields: IndexedSeq[RField]) extends RBaseStruct {
@@ -435,8 +455,8 @@ case class RStruct(fields: IndexedSeq[RField]) extends RBaseStruct {
 }
 
 object RTuple {
-  def fromTypes(fields: IndexedSeq[TypeWithRequiredness]): RTuple =
-    RTuple(Array.tabulate(fields.length)(i => RField(i.toString, fields(i), i)))
+  def fromNamesAndTypes(fields: IndexedSeq[(String, TypeWithRequiredness)]): RTuple =
+    RTuple(fields.zipWithIndex.map { case ((name, typ), i) => RField(name, typ, i) })
 }
 
 case class RTuple(fields: IndexedSeq[RField]) extends RBaseStruct {
@@ -463,9 +483,15 @@ case class RUnion(cases: IndexedSeq[(String, TypeWithRequiredness)]) extends Typ
   def _toString: String = s"RStruct[${ cases.map { case (n, t) => s"${ n }: ${ t.toString }" }.mkString(",") }]"
 }
 
-case class RTable(rowFields: IndexedSeq[(String, TypeWithRequiredness)], globalFields: IndexedSeq[(String, TypeWithRequiredness)], key: IndexedSeq[String]) extends BaseTypeWithRequiredness {
+object RTable {
+  def apply(rowStruct: RStruct, globStruct: RStruct, key: IndexedSeq[String]): RTable = {
+    RTable(rowStruct.fields.map(f => f.name -> f.typ), globStruct.fields.map(f => f.name -> f.typ), key)
+  }
+}
+case class RTable(rowFields: IndexedSeq[(String, TypeWithRequiredness)], globalFields: IndexedSeq[(String, TypeWithRequiredness)], key: Seq[String]) extends BaseTypeWithRequiredness {
   val rowTypes: IndexedSeq[TypeWithRequiredness] = rowFields.map(_._2)
   val globalTypes: IndexedSeq[TypeWithRequiredness] = globalFields.map(_._2)
+
   val keyFields: Set[String] = key.toSet
   val valueFields: Set[String] = rowFields.map(_._1).filter(n => !keyFields.contains(n)).toSet
 

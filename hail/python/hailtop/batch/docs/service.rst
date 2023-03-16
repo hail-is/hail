@@ -69,7 +69,9 @@ for more information about access control.
 
 .. code-block:: sh
 
-    gsutil iam ch serviceAccount:[SERVICE_ACCOUNT_NAME]:objectAdmin gs://[BUCKET_NAME]
+    gcloud storage buckets add-iam-policy-binding gs://[BUCKET_NAME] \
+           --member=serviceAccount:[SERVICE_ACCOUNT_NAME] \
+	   --role=objectAdmin
 
 The Google Artifact Registry is a Docker repository hosted by Google that is an alternative
 to Docker Hub for storing images. It is recommended to use the artifact registry for images that shouldn't be publically
@@ -83,10 +85,9 @@ you want to grant access to and has a path that has the following prefix `us-doc
    gcloud artifacts repositories add-iam-policy-binding <REPO> \
        --member=<SERVICE_ACCOUNT_NAME> --role=roles/artifactregistry.repoAdmin
 
-If you want to run gcloud or gsutil commands within your Batch jobs, the service
-account file is available at `/gsa-key/key.json` in the main container. You can authenticate using the service
-account by adding the following line to your user code and using a Docker image that has gcloud and gsutil
-installed.
+If you want to run gcloud commands within your Batch jobs, the service account file is available at
+`/gsa-key/key.json` in the main container. You can authenticate using the service account by adding
+the following line to your user code and using a Docker image that has gcloud installed.
 
 .. code-block:: sh
 

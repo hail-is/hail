@@ -419,7 +419,7 @@ class PruneSuite extends HailSuite {
       TableUnion(FastIndexedSeq(tab, tab)),
       subsetTable(tab.typ, "row.1", "global.g1"),
       Array(subsetTable(tab.typ, "row.1", "global.g1"),
-        subsetTable(tab.typ, "row.1", "global.g1"))
+        subsetTable(tab.typ, "row.1"))
     )
   }
 

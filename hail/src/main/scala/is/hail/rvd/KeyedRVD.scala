@@ -49,7 +49,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
 
     val sm = ctx.stateManager
     val newPartitioner = {
-      def leftPart = this.rvd.partitioner.strictify
+      def leftPart = this.rvd.partitioner.strictify()
       def rightPart = right.rvd.partitioner.coarsen(key).extendKey(realType.kType.virtualType)
       (joinType: @unchecked) match {
         case "left" => leftPart
