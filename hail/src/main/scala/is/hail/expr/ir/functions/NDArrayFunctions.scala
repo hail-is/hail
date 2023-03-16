@@ -147,28 +147,25 @@ object  NDArrayFunctions extends RegistryFunctions {
         resPCode
     }
 
-    /* block, lower, upper, diagIndex, nRows, nCols */
-    registerSCode6("zero_band", TNDArray(TFloat64, Nat(2)), TInt64, TInt64, TInt64, TInt64, TInt64, TNDArray(TFloat64, Nat(2)),
-      { (_, _, _, _, _, _, _) => PCanonicalNDArray(PFloat64Required, 2, true).sType }) {
-      case (er, cb, rst: SNDArrayPointer,
-            block: SNDArrayValue,
-            lower: SInt64Value, upper: SInt64Value, diagIndex: SInt64Value,
-            nRows: SInt64Value, nCols: SInt64Value, errorID) =>
+    registerSCode3("zero_band", TNDArray(TFloat64, Nat(2)), TInt64, TInt64, TNDArray(TFloat64, Nat(2)),
+      { (_, _, _, _) => PCanonicalNDArray(PFloat64Required, 2, true).sType }) {
+      case (er, cb, rst: SNDArrayPointer, block: SNDArrayValue, lower: SInt64Value, upper: SInt64Value, errorID) =>
         val newBlock = rst.coerceOrCopy(cb, er.region, block, deepCopy = false).asInstanceOf[SNDArrayPointerValue]
-        val lowestDiagIndex = cb.memoize(diagIndex.value - (nRows.value - 1L))
-        val highestDiagIndex = cb.memoize(diagIndex.value + (nCols.value - 1L))
+        val IndexedSeq(nRows, nCols) = newBlock.shapes
+        val lowestDiagIndex = cb.memoize(- (nRows.get - 1L))
+        val highestDiagIndex = cb.memoize(nCols.get - 1L)
         val iLeft = cb.newLocal[Long]("iLeft")
         val iRight = cb.newLocal[Long]("iRight")
         val i = cb.newLocal[Long]("i")
         val j = cb.newLocal[Long]("j")
 
         cb.ifx(lower.value > lowestDiagIndex, {
-          cb.assign(iLeft, (diagIndex.value - lower.value).max(0L))
-          cb.assign(iRight, (diagIndex.value - lower.value + nCols.value).min(nRows.value))
+          cb.assign(iLeft, (-lower.value).max(0L))
+          cb.assign(iRight, (nCols.get - lower.value).min(nRows.get))
 
           cb.forLoop({
             cb.assign(i, iLeft)
-            cb.assign(j, (lower.value - diagIndex.value).max(0L))
+            cb.assign(j, lower.value.max(0L))
           }, i < iRight, {
             cb.assign(i, i + 1L)
             cb.assign(j, j + 1L)
@@ -186,8 +183,8 @@ object  NDArrayFunctions extends RegistryFunctions {
         })
 
         cb.ifx(upper.value < highestDiagIndex, {
-          cb.assign(iLeft, (diagIndex.value - upper.value).max(0L))
-          cb.assign(iRight, (diagIndex.value - upper.value + nCols.value).min(nRows.value))
+          cb.assign(iLeft, (-upper.value).max(0L))
+          cb.assign(iRight, (nCols.get - upper.value).min(nRows.get))
 
           // block(0 util iLeft, ::) := 0.0
           newBlock.slice(cb, FastIndexedSeq(SliceIndex(None, Some(iLeft)), ColonIndex)).coiterateMutate(cb, er.region) { _ =>
@@ -196,7 +193,7 @@ object  NDArrayFunctions extends RegistryFunctions {
 
           cb.forLoop({
             cb.assign(i, iLeft)
-            cb.assign(j, (upper.value - diagIndex.value).max(0L) + 1)
+            cb.assign(j, upper.value.max(0L) + 1)
           }, i < iRight, {
             cb.assign(i, i + 1)
             cb.assign(j, j + 1)

@@ -744,7 +744,7 @@ class BlockMatrixStage2 private (
     BlockMatrixStage2(broadcastVals, typ, groupedContextsWithIndices, newBody)
   }
 
-  def zeroBand(_lower: Long, _upper: Long, typ: BlockMatrixType, ib: IRBuilder): BlockMatrixStage2 = {
+  def zeroBand(lower: Long, upper: Long, typ: BlockMatrixType, ib: IRBuilder): BlockMatrixStage2 = {
     val ctxs = contexts.map(ib) { (i, j, _, context) =>
       maketuple(context, i, j)
     }
@@ -755,15 +755,13 @@ class BlockMatrixStage2 private (
       val j = GetTupleElement(ctx, 2)
       val diagIndex = (j - i).toL * typ.blockSize.toLong
       bindIRs(diagIndex, oldCtx) { case Seq(diagIndex, oldCtx) =>
-        val lower = I64(_lower)
-        val upper = I64(_upper)
+        val localLower = I64(lower) - diagIndex
+        val localUpper = I64(upper) - diagIndex
         val (nRowsInBlock, nColsInBlock) = typ.blockShapeIR(i, j)
-        val lowestDiagIndex = diagIndex - (nRowsInBlock - 1L)
-        val highestDiagIndex = diagIndex + (nColsInBlock - 1L)
         val block = blockIR(oldCtx)
-        If(lowestDiagIndex >= lower && highestDiagIndex <= upper,
+        If(-localLower >= (nRowsInBlock - 1L) && localUpper >= (nColsInBlock - 1L),
           block,
-          invoke("zero_band", TNDArray(TFloat64, Nat(2)), block, lower, upper, diagIndex, nRowsInBlock, nColsInBlock)
+          invoke("zero_band", TNDArray(TFloat64, Nat(2)), block, localLower, localUpper)
         )
       }
     }

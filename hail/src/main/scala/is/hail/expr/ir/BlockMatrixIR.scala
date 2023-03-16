@@ -760,7 +760,7 @@ case class BandSparsifier(blocksOnly: Boolean, l: Long, u: Long) extends BlockMa
            i <- ((j - upperBlock) max 0) to
                 ((j - lowerBlock) min (childType.nRowBlocks - 1))
            if (childType.hasBlock(i -> j))
-    } yield (i -> j)).distinct.toArray
+    } yield (i -> j)).toArray
     BlockMatrixSparsity(blocks)
   }
 
