@@ -479,7 +479,7 @@ object LowerMatrixIR {
 
         loweredChild.mapGlobals('global.insertFields(colsField ->
           aggOutsideTransformer(scanOutsideTransformer(ToArray(StreamZip(
-            FastIndexedSeq(ToStream(GetField(Ref("global", loweredChild.typ.globalType), colsFieldName)), StreamIota(0, 0)),
+            FastIndexedSeq(ToStream(GetField(Ref("global", loweredChild.typ.globalType), colsFieldName)), StreamIota(0, 1)),
             FastIndexedSeq("sa", idx.name),
             aggInsideTransformer(scanInsideTransformer(b0)).apply(Env[Type]("sa" -> mir.typ.colType, idx.name -> TInt32)),
             ArrayZipBehavior.AssumeSameLength)
