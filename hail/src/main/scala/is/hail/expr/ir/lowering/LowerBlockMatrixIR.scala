@@ -149,7 +149,7 @@ object BlockMatrixStage2 {
     BlockMatrixStage2(
       IndexedSeq(),
       BlockMatrixType.dense(eltType, 0, 0, 0),
-      DenseContexts(0, 0, ib.memoize(MakeArray(Seq(), TArray(ctxType)))),
+      DenseContexts(0, 0, ib.memoize(MakeArray(FastIndexedSeq(), TArray(ctxType)))),
       _ => NA(ctxType))
   }
 
