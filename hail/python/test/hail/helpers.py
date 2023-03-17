@@ -203,15 +203,10 @@ def with_flags(**flags):
 
 
 def set_gcs_requester_pays_configuration(gcs_project):
-    @decorator
-    def wrapper(func, *args, **kwargs):
-        if gcs_project is not None:
-            with hl._with_flags(gcs_requester_pays_project=gcs_project):
-                return func(*args, **kwargs)
-        else:
-            return func(*args, **kwargs)
-    return wrapper
+    if gcs_project is not None:
+        return with_flags(gcs_requester_pays_project=gcs_project)
+    return with_flags()
 
 
 def lower_only():
-    return with_flags('lower', 'lower_bm', 'lower_only')
+    return with_flags(lower='1', lower_bm='1', lower_only='1')
