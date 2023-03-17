@@ -1490,8 +1490,8 @@ case class MatrixBlockMatrixWriter(
     val inputRowIntervals = inputPartStarts.zip(inputPartStops).map{ case (intervalStart, intervalEnd) =>
       Interval(Row(intervalStart.toInt), Row(intervalEnd.toInt), true, false)
     }
-    val rowIdxPartitioner = RVDPartitioner.generate(ctx.stateManager, TStruct((perRowIdxId, TInt32)), inputRowIntervals)
 
+    val rowIdxPartitioner = new RVDPartitioner(ctx.stateManager, TStruct((perRowIdxId, TInt32)), inputRowIntervals)
     val keyedByRowIdx = partsZippedWithIdx.changePartitionerNoRepartition(rowIdxPartitioner)
 
     // Now create a partitioner that makes appropriately sized blocks
