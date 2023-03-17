@@ -48,14 +48,15 @@ case class BlockMatrixNativeWriter(
   def loweredTyp: Type = TVoid
 
   override def lower(ctx: ExecuteContext, s: BlockMatrixStage2, evalCtx: IRBuilder, eltR: TypeWithRequiredness): IR = {
-    if (stageLocally)
-      throw new LowererUnsupportedOperation(s"stageLocally not supported in BlockMatrixWrite lowering")
     val etype = EBlockMatrixNDArray(EType.fromTypeAndAnalysis(s.typ.elementType, eltR), encodeRowMajor = forceRowMajor, required = true)
     val spec = TypedCodecSpec(etype, TNDArray(s.typ.elementType, Nat(2)), BlockMatrix.bufferSpec)
 
-    val paths = s.collectBlocks(evalCtx, "block_matrix_native_writer") { (ctx, idx, block) =>
-      val filepath = strConcat(s"$path/parts/part-", idx, UUID4())
-      WriteValue(block, filepath, spec)
+    val paths = s.collectBlocks(evalCtx, "block_matrix_native_writer") { (_, idx, block) =>
+      val suffix = strConcat("parts/part-", idx, UUID4())
+      val filepath = strConcat(s"$path/", suffix)
+      WriteValue(block, filepath, spec,
+        if (stageLocally) Some(strConcat(s"${ctx.localTmpdir}/", suffix)) else None
+      )
     }
     RelationalWriter.scoped(path, overwrite, None)(WriteMetadata(paths, BlockMatrixNativeMetadataWriter(path, stageLocally, s.typ)))
   }
