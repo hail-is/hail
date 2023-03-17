@@ -383,8 +383,7 @@ class Tests(unittest.TestCase):
         loftee_variants = dataproc_result.select()
 
         hail_vep_result = hl.vep(loftee_variants)
-        initial_vep_dtype = hail_vep_result.vep.dtype
-        hail_vep_result = hail_vep_result.annotate_rows(vep=hail_vep_result.vep.annotate(
+        hail_vep_result = hail_vep_result.annotate(vep=hail_vep_result.vep.annotate(
             input=hl.str('\t').join([hail_vep_result.locus.contig, hl.str(hail_vep_result.locus.position), ".", hail_vep_result.alleles[0], hail_vep_result.alleles[1], ".", ".", "GT"])
         ))
         hail_vep_result = hail_vep_result.rows().select('vep')
