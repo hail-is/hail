@@ -66,7 +66,7 @@ object StagedBGENReader {
     val emb = cb.emb.ecb.genEmitMethod("decode_bgen_row", IndexedSeq[ParamType](classInfo[Region], classInfo[HadoopFSDataBinaryReader], IntInfo, IntInfo, IntInfo, BooleanInfo, classInfo[Map[String, String]]), UnitInfo)
     emb.voidWithBuilder { cb =>
 
-      val rgBc = rg.map { rg => cb.memoize(emb.getReferenceGenome(rg).invoke[ReferenceGenome]("value")) }
+      val rgBc = rg.map { rg => cb.memoize(emb.getReferenceGenome(rg)) }
       val region = emb.getCodeParam[Region](1)
       val cbfis = emb.getCodeParam[HadoopFSDataBinaryReader](2)
       val nSamples = emb.getCodeParam[Int](3)
