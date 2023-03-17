@@ -541,7 +541,7 @@ object TypeCheck {
         assert(spec.encodedType.decodedPType(requestedType).virtualType == requestedType)
       case WriteValue(_, path, _, stagingFile) =>
         assert(path.typ == TString)
-        assert(stagingFile.map(_.typ).contains(TString))
+        assert(stagingFile.forall(_.typ == TString))
       case LiftMeOut(_) =>
       case Consume(_) =>
       case TableMapRows(child, newRow) =>
