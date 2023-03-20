@@ -62,9 +62,8 @@ case class PartitionProposal(
 
 object PlanPartitioning {
 
-  def noInformation(): PartitionProposal = PartitionProposal(None, 0, UNKEYED)
+  def noInformation(): PartitionProposal = PartitionProposal(None, 0, NO_AFFINITY)
 
-  val UNKEYED = -1
   val NO_AFFINITY = 0
   val REPARTITION_REQUIRES_EXTRA_READ = 1
 

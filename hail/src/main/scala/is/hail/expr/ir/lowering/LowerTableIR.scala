@@ -375,14 +375,12 @@ case class TableStage private(
     repartitionNoShuffle(newPart)
   }
 
-  def repartitionNoShuffle(newPartitioner: RVDPartitioner, allowDuplication: Boolean = false, dropEmptyPartitions: Boolean = false): TableStage = {
+  def repartitionNoShuffle(newPartitioner: RVDPartitioner, allowDuplication: Boolean = false, dropEmptyPartitions: Boolean = false) = {
+    dropEmptyPartitionsToMakeDense()._repartitionNoShuffle(newPartitioner, allowDuplication, dropEmptyPartitions)
+  }
+  def _repartitionNoShuffle(newPartitioner: RVDPartitioner, allowDuplication: Boolean = false, dropEmptyPartitions: Boolean = false): TableStage = {
     if (newPartitioner == this.partitioner) {
       return this
-    }
-
-    val oldSparsePartitioner = partitionSparsity match {
-      case PartitionSparsity.Dense => partitioner
-      case PartitionSparsity.Sparse(indices) => partitioner.copy(rangeBounds = indices.map(partitioner.rangeBounds).toArray[Interval])
     }
 
     if (!allowDuplication) {
@@ -391,11 +389,11 @@ case class TableStage private(
     if (!newPartitioner.kType.isPrefixOf(kType))
       throw new RuntimeException(s"invalid ktype: newPart: ${ newPartitioner.kType }, old: $kType")
 
-    val startAndEnd = oldSparsePartitioner.rangeBounds.map(newPartitioner.intervalRange)
+    val startAndEnd = partitioner.rangeBounds.map(newPartitioner.intervalRange)
       .zipWithIndex
     val ord = PartitionBoundOrdering.apply(newPartitioner.sm, newPartitioner.kType)
     if (startAndEnd.forall { case ((start, end), index) =>
-      start + 1 == end && newPartitioner.rangeBounds(start).includes(ord, oldSparsePartitioner.rangeBounds(index)) }) {
+      start + 1 == end && newPartitioner.rangeBounds(start).includes(ord, partitioner.rangeBounds(index)) }) {
       val newToOld = startAndEnd
         .groupBy(_._1._1)
         .map { case (newIdx, values) => (newIdx, values.map(_._2).sorted.toFastIndexedSeq) }
@@ -406,7 +404,7 @@ case class TableStage private(
         (indices.map(i => newToOld(i)), newPartitioner.copy(rangeBounds = indices.toArray.map(i => newPartitioner.rangeBounds(i))))
       } else
         ((0 until newPartitioner.numPartitions).map(i => newToOld.getOrElse(i, FastIndexedSeq())), newPartitioner)
-      log.info(s"repartitionNoShuffle - fast path, generated ${oldPartIndices.length} partitions from ${oldSparsePartitioner.numPartitions}" +
+      log.info(s"repartitionNoShuffle - fast path, generated ${oldPartIndices.length} partitions from ${partitioner.numPartitions}" +
         s" (dropped ${newPartitioner.numPartitions - oldPartIndices.length} empty output parts)")
 
       val newContexts = bindIR(ToArray(contexts)) { oldCtxs =>
@@ -420,7 +418,7 @@ case class TableStage private(
 
     val boundType = RVDPartitioner.intervalIRRepresentation(newPartitioner.kType)
     val partitionMapping: IndexedSeq[Row] = newPartitioner.rangeBounds.map { i =>
-      Row(RVDPartitioner.intervalToIRRepresentation(i, newPartitioner.kType.size), oldSparsePartitioner.queryInterval(i))
+      Row(RVDPartitioner.intervalToIRRepresentation(i, newPartitioner.kType.size), partitioner.queryInterval(i))
     }
     val partitionMappingType = TStruct(
       "partitionBound" -> boundType,
