@@ -1,3 +1,4 @@
+import math
 import numpy as np
 from ..helpers import *
 import pytest
@@ -1205,3 +1206,9 @@ def test_ndarray_indices_aggregations():
     ht = ht.annotate(f = hl.nd.inv(ht.x))
     ht = ht.annotate(h = hl.nd.concatenate((ht.x, ht.g)))
     ht = ht.annotate(i = hl.nd.concatenate((ht.g, ht.x)))
+
+
+def test_ndarray_log_broadcasting():
+    expected = np.array([math.log(x) for x in [5, 10, 15, 20]]).reshape(2, 2)
+    actual = hl.eval(hl.log(hl.nd.array([[5, 10], [15, 20]])))
+    assert actual == expected

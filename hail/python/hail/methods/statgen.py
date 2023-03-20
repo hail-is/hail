@@ -995,7 +995,7 @@ def logreg_fit(X, y, null_fit, max_iter: int, tol: float):
         exploded = delta_b_struct.failed
         delta_b = delta_b_struct.solution
         max_delta_b = nd_max(delta_b.map(lambda e: hl.abs(e)))
-        log_lkhd = ((y * mu) + (1 - y) * (1 - mu)).map(lambda e: hl.log(e)).sum()
+        log_lkhd = hl.log((y * mu) + (1 - y) * (1 - mu)).sum()
         return hl.bind(cont, exploded, delta_b, max_delta_b, log_lkhd)
 
     if max_iter == 0:
@@ -1624,7 +1624,7 @@ def _poisson_fit(covmat, yvec, b, mu, score, fisher, max_iterations, tolerance):
         exploded = delta_b_struct.failed
         delta_b = delta_b_struct.solution
         max_delta_b = nd_max(delta_b.map(lambda e: hl.abs(e)))
-        log_lkhd = yvec @ mu.map(lambda x: hl.log(x)) - mu.sum()
+        log_lkhd = yvec @ hl.log(mu) - mu.sum()
         return hl.bind(cont, exploded, delta_b, max_delta_b, log_lkhd)
 
     if max_iterations == 0:
