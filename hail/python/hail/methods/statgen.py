@@ -1312,7 +1312,6 @@ def _logistic_regression_rows_nd(test,
 
     x_field_name = Env.get_uid()
     y_field_names = [f'__y_{i}' for i in range(len(y))]
-    num_y_fields = len(y_field_names)
 
     y_dict = dict(zip(y_field_names, y))
 
