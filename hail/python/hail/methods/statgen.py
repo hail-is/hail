@@ -973,29 +973,30 @@ def logreg_fit(X, y, null_fit, max_iter: int, tol: float):
     blank_struct = hl.struct(**{k: hl.missing(dtype[k]) for k in dtype})
 
     def search(recur, cur_iter, b, mu, score, fisher):
-        delta_b_struct = hl.nd.solve(fisher, score, no_crash=True)
+        def cont(exploded, delta_b, max_delta_b, log_lkhd):
+            def compute_next_iter(cur_iter, b, mu, score, fisher):
+                cur_iter = cur_iter + 1
+                b = b + delta_b
+                mu = sigmoid(X @ b)
+                score = X.T @ (y - mu)
+                fisher = X.T @ (X * (mu * (1 - mu)).reshape(-1, 1))
+                return recur(cur_iter, b, mu, score, fisher)
 
+            return (hl.case()
+                    .when(exploded | hl.is_nan(delta_b[0]),
+                          blank_struct.annotate(num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=True))
+                    .when(max_delta_b < tol,
+                          hl.struct(b=b, score=score, fisher=fisher, mu=mu, num_iter=cur_iter, log_lkhd=log_lkhd, converged=True, exploded=False))
+                    .when(cur_iter == max_iter,
+                          blank_struct.annotate(num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=False))
+                    .default(compute_next_iter(cur_iter, b, mu, score, fisher)))
+
+        delta_b_struct = hl.nd.solve(fisher, score, no_crash=True)
         exploded = delta_b_struct.failed
         delta_b = delta_b_struct.solution
         max_delta_b = nd_max(delta_b.map(lambda e: hl.abs(e)))
         log_lkhd = ((y * mu) + (1 - y) * (1 - mu)).map(lambda e: hl.log(e)).sum()
-
-        def compute_next_iter(cur_iter, b, mu, score, fisher):
-            cur_iter = cur_iter + 1
-            b = b + delta_b
-            mu = sigmoid(X @ b)
-            score = X.T @ (y - mu)
-            fisher = X.T @ (X * (mu * (1 - mu)).reshape(-1, 1))
-            return recur(cur_iter, b, mu, score, fisher)
-
-        return (hl.case()
-                .when(exploded | hl.is_nan(delta_b[0]),
-                      blank_struct.annotate(num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=True))
-                .when(max_delta_b < tol,
-                      hl.struct(b=b, score=score, fisher=fisher, mu=mu, num_iter=cur_iter, log_lkhd=log_lkhd, converged=True, exploded=False))
-                .when(cur_iter == max_iter,
-                      blank_struct.annotate(num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=False))
-                .default(compute_next_iter(cur_iter, b, mu, score, fisher)))
+        return hl.bind(cont, exploded, delta_b, max_delta_b, log_lkhd)
 
     if max_iter == 0:
         return blank_struct.annotate(num_iter=0, log_lkhd=0, converged=False, exploded=False)
@@ -1338,16 +1339,19 @@ def _logistic_regression_rows_nd(test,
 
     # Fit null models, which means doing a logreg fit with just the covariates for each phenotype.
     def fit_null(yvec):
+        def error_if_not_converged(null_fit):
+            return (
+                hl.case()
+                .when(~null_fit.exploded,
+                      (hl.case()
+                       .when(null_fit.converged, null_fit)
+                       .or_error("Failed to fit logistic regression null model (standard MLE with covariates only): "
+                                 "Newton iteration failed to converge")))
+                .or_error(hl.format("Failed to fit logistic regression null model (standard MLE with covariates only): "
+                                    "exploded at Newton iteration %d", null_fit.num_iter)))
+
         null_fit = logreg_fit(ht.covmat, yvec, None, max_iter=max_iterations, tol=tolerance)
-        return (
-            hl.case()
-            .when(~null_fit.exploded,
-                  (hl.case()
-                   .when(null_fit.converged, null_fit)
-                   .or_error("Failed to fit logistic regression null model (standard MLE with covariates only): "
-                             "Newton iteration failed to converge")))
-            .or_error(hl.format("Failed to fit logistic regression null model (standard MLE with covariates only): "
-                                "exploded at Newton iteration %d", null_fit.num_iter)))
+        return hl.bind(error_if_not_converged, null_fit)
     ht = ht.annotate_globals(null_fits=ht.yvecs.map(fit_null))
 
     ht = ht.transmute(x=hl.nd.array(mean_impute(ht.entries[x_field_name])))
@@ -1356,7 +1360,7 @@ def _logistic_regression_rows_nd(test,
     def run_test(yvec, null_fit):
         if test == 'score':
             return logistic_score_test(covs_and_x, yvec, null_fit)
-    
+
         test_fit = logreg_fit(covs_and_x, yvec, null_fit, max_iter=max_iterations, tol=tolerance)
         if test == 'wald':
             return wald_test(covs_and_x, test_fit)
@@ -1541,11 +1545,11 @@ def _lowered_poisson_regression_rows(test,
     residual = yvec - mu
     score = covmat.T @ residual
     fisher = (mu * covmat.T) @ covmat
-    null_fit = _poisson_fit(covmat, yvec, b, mu, score, fisher, max_iterations, tolerance)
+    mt = mt.annotate_globals(null_fit=_poisson_fit(covmat, yvec, b, mu, score, fisher, max_iterations, tolerance))
     mt = mt.annotate_globals(
-        null_fit=hl.case().when(null_fit.converged, null_fit).or_error(
+        null_fit=hl.case().when(mt.null_fit.converged, mt.null_fit).or_error(
             hl.format('_lowered_poisson_regression_rows: null model did not converge: %s',
-                      null_fit.select('num_iter', 'log_lkhd', 'converged', 'exploded')))
+                      mt.null_fit.select('num_iter', 'log_lkhd', 'converged', 'exploded')))
     )
     mt = mt.annotate_rows(mean_x=hl.agg.mean(mt.x))
     mt = mt.annotate_rows(xvec=hl.nd.array(hl.agg.collect(hl.coalesce(mt.x, mt.mean_x))))
@@ -1600,27 +1604,28 @@ def _poisson_fit(covmat, yvec, b, mu, score, fisher, max_iterations, tolerance):
     blank_struct = hl.struct(**{k: hl.missing(dtype[k]) for k in dtype})
 
     def fit(recur, cur_iter, b, mu, score, fisher):
+        def cont(exploded, delta_b, max_delta_b, log_lkhd):
+            next_iter = cur_iter + 1
+            next_b = b + delta_b
+            next_mu = hl.exp(covmat @ next_b)
+            next_score = covmat.T @ (yvec - next_mu)
+            next_fisher = (next_mu * covmat.T) @ covmat
+
+            return (hl.case()
+                    .when(exploded | hl.is_nan(delta_b[0]),
+                          blank_struct.annotate(num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=True))
+                    .when(max_delta_b < tolerance,
+                          hl.struct(b=b, score=score, fisher=fisher, mu=mu, num_iter=cur_iter, log_lkhd=log_lkhd, converged=True, exploded=False))
+                    .when(cur_iter == max_iterations,
+                          blank_struct.annotate(num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=False))
+                    .default(recur(next_iter, next_b, next_mu, next_score, next_fisher)))
         delta_b_struct = hl.nd.solve(fisher, score, no_crash=True)
 
         exploded = delta_b_struct.failed
         delta_b = delta_b_struct.solution
         max_delta_b = nd_max(delta_b.map(lambda e: hl.abs(e)))
         log_lkhd = yvec @ mu.map(lambda x: hl.log(x)) - mu.sum()
-
-        next_iter = cur_iter + 1
-        next_b = b + delta_b
-        next_mu = hl.exp(covmat @ next_b)
-        next_score = covmat.T @ (yvec - next_mu)
-        next_fisher = (next_mu * covmat.T) @ covmat
-
-        return (hl.case()
-                .when(exploded | hl.is_nan(delta_b[0]),
-                      blank_struct.annotate(num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=True))
-                .when(max_delta_b < tolerance,
-                      hl.struct(b=b, score=score, fisher=fisher, mu=mu, num_iter=cur_iter, log_lkhd=log_lkhd, converged=True, exploded=False))
-                .when(cur_iter == max_iterations,
-                      blank_struct.annotate(num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=False))
-                .default(recur(next_iter, next_b, next_mu, next_score, next_fisher)))
+        return hl.bind(cont, exploded, delta_b, max_delta_b, log_lkhd)
 
     if max_iterations == 0:
         return blank_struct.select(num_iter=0, log_lkhd=0, converged=False, exploded=False)
