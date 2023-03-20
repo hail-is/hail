@@ -1156,8 +1156,6 @@ class Tests(unittest.TestCase):
             bm2.write(path, overwrite=True)
             self._assert_eq(BlockMatrix.read(path), bm2)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_stage_locally(self):
         nd = np.arange(0, 80, dtype=float).reshape(8, 10)
         with hl.TemporaryDirectory(ensure_exists=False) as bm_uri:
