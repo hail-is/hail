@@ -931,10 +931,6 @@ def nd_max(hl_nd):
     return hl.max(hl_nd.reshape(-1)._data_array())
 
 
-def nd_exp(hl_nd):
-    return hl_nd.map(lambda x: hl.exp(x))
-
-
 def logreg_fit(X, y, null_fit, max_iter: int, tol: float):
     assert max_iter >= 0
     assert X.ndim == 2
@@ -1360,7 +1356,7 @@ def _logistic_regression_rows_nd(test,
 
     def run_test(yvec, null_fit):
         if test == 'score':
-            return logistic_score_test(covs_and_x, y, null_fit)
+            return logistic_score_test(covs_and_x, yvec, null_fit)
     
         test_fit = logreg_fit(covs_and_x, yvec, null_fit, max_iter=max_iterations, tol=tolerance)
         if test == 'wald':
@@ -1542,7 +1538,7 @@ def _lowered_poisson_regression_rows(test,
 
     logmean = hl.log(yvec.sum() / n)
     b = hl.nd.array([logmean, *[0 for _ in range(k - 1)]])
-    mu = nd_exp(covmat @ b)
+    mu = hl.exp(covmat @ b)
     residual = yvec - mu
     score = covmat.T @ residual
     fisher = (mu * covmat.T) @ covmat
@@ -1614,7 +1610,7 @@ def _poisson_fit(covmat, yvec, b, mu, score, fisher, max_iterations, tolerance):
 
         next_iter = cur_iter + 1
         next_b = b + delta_b
-        next_mu = nd_exp(covmat @ next_b)
+        next_mu = hl.exp(covmat @ next_b)
         next_score = covmat.T @ (yvec - next_mu)
         next_fisher = (next_mu * covmat.T) @ covmat
 
@@ -1637,7 +1633,7 @@ def _poisson_score_test(null_fit, covmat, yvec, xvec):
 
     X = hl.nd.hstack([covmat, xvec.T.reshape(-1, 1)])
     b = hl.nd.hstack([null_fit.b, hl.nd.array([0.0])])
-    mu = nd_exp(X @ b)
+    mu = hl.exp(X @ b)
     score = hl.nd.hstack([null_fit.score, hl.nd.array([xvec @ (yvec - mu)])])
 
     fisher00 = null_fit.fisher
