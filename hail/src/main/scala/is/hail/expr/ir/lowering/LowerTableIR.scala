@@ -889,7 +889,6 @@ object LowerTableIR {
           partitioner = partitioner,
           PartitionSparsity.Dense,
           dependency = TableStageDependency.none,
-          partitionSparsity = PartitionSparsity.Dense,
           contexts = lowerIR {
             bindIR(ToArray(contexts)) { ref =>
               bindIR(ArrayLen(ref)) { len =>
