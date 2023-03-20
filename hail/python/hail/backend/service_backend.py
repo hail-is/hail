@@ -1,5 +1,6 @@
 from typing import Dict, Optional, Callable, Awaitable, Mapping, Any, List, Union, Tuple
 import abc
+import collections
 import struct
 from hail.expr.expressions.base_expression import Expression
 import orjson
@@ -26,9 +27,11 @@ from hailtop.aiotools.router_fs import RouterAsyncFS
 import hailtop.aiotools.fs as afs
 
 from .backend import Backend, fatal_error_from_java_error_triplet
+from ..builtin_references import BUILTIN_REFERENCES
 from ..fs.fs import FS
 from ..fs.router_fs import RouterFS
 from ..ir import BaseIR
+from ..utils import ANY_REGION
 
 
 ReferenceGenomeConfig = Dict[str, Any]
@@ -187,7 +190,8 @@ class ServiceBackend(Backend):
                      worker_cores: Optional[Union[int, str]] = None,
                      worker_memory: Optional[str] = None,
                      name_prefix: Optional[str] = None,
-                     token: Optional[str] = None):
+                     token: Optional[str] = None,
+                     regions: Optional[List[str]] = None):
         billing_project = configuration_of('batch', 'billing_project', billing_project, None)
         if billing_project is None:
             raise ValueError(
@@ -213,6 +217,17 @@ class ServiceBackend(Backend):
         worker_memory = configuration_of('query', 'batch_worker_memory', worker_memory, None)
         name_prefix = configuration_of('query', 'name_prefix', name_prefix, '')
 
+        if regions is None:
+            regions_from_conf = configuration_of('batch', 'regions', regions, None)
+            if regions_from_conf is not None:
+                assert isinstance(regions_from_conf, str)
+                regions = regions_from_conf.split(',')
+
+        if regions is None or regions == ANY_REGION:
+            regions = bc.supported_regions()
+
+        assert len(regions) > 0, regions
+
         if disable_progress_bar is None:
             disable_progress_bar_str = configuration_of('query', 'disable_progress_bar', None, None)
             if disable_progress_bar_str is None:
@@ -235,6 +250,7 @@ class ServiceBackend(Backend):
             worker_cores=worker_cores,
             worker_memory=worker_memory,
             name_prefix=name_prefix or '',
+            regions=regions,
         )
         sb._initialize_flags()
         return sb
@@ -254,7 +270,8 @@ class ServiceBackend(Backend):
                  driver_memory: Optional[str],
                  worker_cores: Optional[Union[int, str]],
                  worker_memory: Optional[str],
-                 name_prefix: str):
+                 name_prefix: str,
+                 regions: List[str]):
         super(ServiceBackend, self).__init__()
         self.billing_project = billing_project
         self._sync_fs = sync_fs
@@ -273,7 +290,9 @@ class ServiceBackend(Backend):
         self.worker_cores = worker_cores
         self.worker_memory = worker_memory
         self.name_prefix = name_prefix
-        self._custom_reference_configs = dict()
+        self.regions = regions
+        # Source genome -> [Destination Genome -> Chain file]
+        self._liftovers: Dict[str, Dict[str, str]] = collections.defaultdict(dict)
 
     def debug_info(self) -> Dict[str, Any]:
         return {
@@ -286,6 +305,7 @@ class ServiceBackend(Backend):
             'driver_memory': self.driver_memory,
             'worker_cores': self.worker_cores,
             'worker_memory': self.worker_memory,
+            'regions': self.regions,
         }
 
     @property
@@ -295,6 +315,12 @@ class ServiceBackend(Backend):
     @property
     def logger(self):
         return log
+
+    def validate_file_scheme(self, url):
+        assert isinstance(self._async_fs, RouterAsyncFS)
+        if self._async_fs.get_scheme(url) == 'file':
+            raise ValueError(
+                f'Found local filepath {url} when using Query on Batch. Specify a remote filepath instead.')
 
     def stop(self):
         async_to_blocking(self._async_fs.close())
@@ -323,11 +349,23 @@ class ServiceBackend(Backend):
                         if v is not None:
                             await write_str(infile, k)
                             await write_str(infile, v)
-                    await write_int(infile, len(self._custom_reference_configs))
-                    for reference_config in self._custom_reference_configs.values():
-                        await write_str(infile, orjson.dumps(reference_config).decode('utf-8'))
+                    custom_references = [rg for rg in self._references.values() if rg.name not in BUILTIN_REFERENCES]
+                    await write_int(infile, len(custom_references))
+                    for reference_config in custom_references:
+                        await write_str(infile, orjson.dumps(reference_config._config).decode('utf-8'))
+                    non_empty_liftovers = {name: liftovers for name, liftovers in self._liftovers.items() if len(liftovers) > 0}
+                    await write_int(infile, len(non_empty_liftovers))
+                    for source_genome_name, liftovers in non_empty_liftovers.items():
+                        await write_str(infile, source_genome_name)
+                        await write_int(infile, len(liftovers))
+                        for dest_reference_genome, chain_file in liftovers.items():
+                            await write_str(infile, dest_reference_genome)
+                            await write_str(infile, chain_file)
                     await write_str(infile, str(self.worker_cores))
                     await write_str(infile, str(self.worker_memory))
+                    await write_int(infile, len(self.regions))
+                    for region in self.regions:
+                        await write_str(infile, region)
                     await inputs(infile, token)
 
             with timings.step("submit batch"):
@@ -356,6 +394,7 @@ class ServiceBackend(Backend):
                     mount_tokens=True,
                     resources=resources,
                     attributes={'name': name + '_driver'},
+                    regions=self.regions,
                 )
                 self._batch = await bb.submit(disable_progress_bar=True)
 
@@ -490,15 +529,6 @@ class ServiceBackend(Backend):
     def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
         raise NotImplementedError("ServiceBackend does not support 'from_fasta_file'")
 
-    def add_reference(self, config: ReferenceGenomeConfig):
-        self._custom_reference_configs[config['name']] = config
-
-    def remove_reference(self, name):
-        self._custom_reference_configs.pop(name)
-
-    def _get_non_builtin_reference(self, name) -> ReferenceGenomeConfig:
-        return self._custom_reference_configs[name]
-
     def load_references_from_dataset(self, path):
         return async_to_blocking(self._async_load_references_from_dataset(path))
 
@@ -518,11 +548,16 @@ class ServiceBackend(Backend):
     def remove_sequence(self, name):
         raise NotImplementedError("ServiceBackend does not support 'remove_sequence'")
 
-    def add_liftover(self, name, chain_file, dest_reference_genome):
-        raise NotImplementedError("ServiceBackend does not support 'add_liftover'")
+    def add_liftover(self, name: str, chain_file: str, dest_reference_genome: str):
+        if name == dest_reference_genome:
+            raise ValueError(f'Destination reference genome cannot have the same name as this reference {name}.')
+        if dest_reference_genome in self._liftovers[name]:
+            raise ValueError(f'Chain file already exists for destination reference {dest_reference_genome}.')
+        self._liftovers[name][dest_reference_genome] = chain_file
 
     def remove_liftover(self, name, dest_reference_genome):
-        raise NotImplementedError("ServiceBackend does not support 'remove_liftover'")
+        assert dest_reference_genome in self._liftovers[name]
+        del self._liftovers[name][dest_reference_genome]
 
     def parse_vcf_metadata(self, path):
         return async_to_blocking(self._async_parse_vcf_metadata(path))

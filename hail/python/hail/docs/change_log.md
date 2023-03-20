@@ -24,6 +24,59 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.112
+
+Released 2023-03-15
+
+### Bug Fixes
+
+- (hail#12784) Removed an internal caching mechanism in Query on Batch that caused stalls in pipelines with large intermediates
+
+---
+
+## Version 0.2.111
+
+Released 2023-03-13
+
+### New Features
+
+- (hail#12581) In Query on Batch, users can specify which regions to have jobs run in.
+
+
+### Bug Fixes
+
+- (hail#12772) Fix `hailctl hdinsight submit` to pass args to the files
+
+---
+
+## Version 0.2.110
+
+Released 2023-03-08
+
+### New Features
+
+- (hail#12643) In Query on Batch, `hl.skat(..., logistic=True)` is now supported.
+- (hail#12643) In Query on Batch, `hl.liftover` is now supported.
+- (hail#12629) In Query on Batch, `hl.ibd` is now supported.
+- (hail#12722) Add `hl.simulate_random_mating` to generate a population from founders under the assumption of random mating.
+- (hail#12701) Query on Spark now officially supports Spark 3.3.0 and Dataproc 2.1.x
+
+### Performance Improvements
+
+- (hail#12679) In Query on Batch, `hl.balding_nichols_model` is slightly faster. Also added `hl.utils.genomic_range_table` to quickly create a table keyed by locus.
+
+### Bug Fixes
+
+- (hail#12711) In Query on Batch, fix null pointer exception (manifesting as `scala.MatchError: null`) when reading data from requester pays buckets.
+- (hail#12739) Fix `hl.plot.cdf`, `hl.plot.pdf`, and `hl.plot.joint_plot` which were broken by changes in Hail and changes in bokeh.
+- (hail#12735) Fix (hail#11738) by allowing user to override default types in `to_pandas`.
+- (hail#12760) Mitigate some JVM bytecode generation errors, particularly those related to too many method parameters.
+- (hail#12766) Fix (hail#12759) by loosening `parsimonious` dependency pin.
+- (hail#12732) In Query on Batch, fix bug that sometimes prevented terminating a pipeline using Control-C.
+- (hail#12771) Use a version of `jgscm` whose version complies with PEP 440.
+
+---
+
 ## Version 0.2.109
 
 Released 2023-02-08

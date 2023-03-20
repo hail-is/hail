@@ -9,8 +9,10 @@ CREATE TABLE IF NOT EXISTS `resources` (
   `resource` VARCHAR(100) NOT NULL,
   `rate` DOUBLE NOT NULL,
   `resource_id` INT AUTO_INCREMENT UNIQUE NOT NULL,
+  `deduped_resource_id` INT DEFAULT NULL,
   PRIMARY KEY (`resource`)
 ) ENGINE = InnoDB;
+CREATE INDEX `resources_deduped_resource_id` ON `resources` (`deduped_resource_id`);
 
 CREATE TABLE IF NOT EXISTS `latest_product_versions` (
   `product` VARCHAR(100) NOT NULL,
@@ -26,6 +28,9 @@ CREATE TABLE IF NOT EXISTS `inst_colls` (
   `max_instances` BIGINT NOT NULL,
   `max_live_instances` BIGINT NOT NULL,
   `cloud` VARCHAR(100) NOT NULL,
+  `max_new_instances_per_autoscaler_loop` INT NOT NULL,
+  `autoscaler_loop_period_secs` INT NOT NULL,
+  `worker_max_idle_time_secs` INT NOT NULL,
   PRIMARY KEY (`name`)
 ) ENGINE = InnoDB;
 CREATE INDEX `inst_colls_is_pool` ON `inst_colls` (`is_pool`);
@@ -44,6 +49,9 @@ CREATE TABLE IF NOT EXISTS `pools` (
   `enable_standing_worker` BOOLEAN NOT NULL DEFAULT FALSE,
   `standing_worker_cores` BIGINT NOT NULL DEFAULT 0,
   `preemptible` BOOLEAN NOT NULL DEFAULT TRUE,
+  `standing_worker_max_idle_time_secs` INT NOT NULL,
+  `job_queue_scheduling_window_secs` INT NOT NULL,
+  `min_instances` BIGINT NOT NULL,
   PRIMARY KEY (`name`),
   FOREIGN KEY (`name`) REFERENCES inst_colls(name) ON DELETE CASCADE
 ) ENGINE = InnoDB;
@@ -335,37 +343,6 @@ CREATE TABLE IF NOT EXISTS `batch_attributes` (
 ) ENGINE = InnoDB;
 CREATE INDEX batch_attributes_key_value ON `batch_attributes` (`key`, `value`(256));
 
-CREATE TABLE IF NOT EXISTS `aggregated_billing_project_resources` (
-  `billing_project` VARCHAR(100) NOT NULL,
-  `resource` VARCHAR(100) NOT NULL,
-  `token` INT NOT NULL,
-  `usage` BIGINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`billing_project`, `resource`, `token`),
-  FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name) ON DELETE CASCADE,
-  FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
-) ENGINE = InnoDB;
-
-CREATE TABLE IF NOT EXISTS `aggregated_batch_resources` (
-  `batch_id` BIGINT NOT NULL,
-  `resource` VARCHAR(100) NOT NULL,
-  `token` INT NOT NULL,
-  `usage` BIGINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`batch_id`, `resource`, `token`),
-  FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
-  FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
-) ENGINE = InnoDB;
-
-CREATE TABLE IF NOT EXISTS `aggregated_job_resources` (
-  `batch_id` BIGINT NOT NULL,
-  `job_id` INT NOT NULL,
-  `resource` VARCHAR(100) NOT NULL,
-  `usage` BIGINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`batch_id`, `job_id`, `resource`),
-  FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
-  FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(`batch_id`, `job_id`) ON DELETE CASCADE,
-  FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
-) ENGINE = InnoDB;
-
 DROP TABLE IF EXISTS `aggregated_billing_project_user_resources_v2`;
 CREATE TABLE IF NOT EXISTS `aggregated_billing_project_user_resources_v2` (
   `billing_project` VARCHAR(100) NOT NULL,
@@ -481,7 +458,6 @@ FOR EACH ROW
 BEGIN
   DECLARE job_cores_mcpu INT;
   DECLARE cur_billing_project VARCHAR(100);
-  DECLARE msec_diff BIGINT;
   DECLARE msec_diff_rollup BIGINT;
   DECLARE cur_n_tokens INT;
   DECLARE rand_token INT;
@@ -495,37 +471,10 @@ BEGIN
 
   SELECT billing_project INTO cur_billing_project FROM batches WHERE id = NEW.batch_id;
 
-  SET msec_diff = (GREATEST(COALESCE(NEW.end_time - NEW.start_time, 0), 0) -
-                   GREATEST(COALESCE(OLD.end_time - OLD.start_time, 0), 0));
-
   SET msec_diff_rollup = (GREATEST(COALESCE(NEW.rollup_time - NEW.start_time, 0), 0) -
                           GREATEST(COALESCE(OLD.rollup_time - OLD.start_time, 0), 0));
 
   SET cur_billing_date = CAST(UTC_DATE() AS DATE);
-
-  IF msec_diff != 0 THEN
-    INSERT INTO aggregated_billing_project_resources (billing_project, resource, token, `usage`)
-    SELECT billing_project, resources.resource, rand_token, msec_diff * quantity
-    FROM attempt_resources
-    JOIN batches ON batches.id = attempt_resources.batch_id
-    LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
-    WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
-    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
-
-    INSERT INTO aggregated_batch_resources (batch_id, resource, token, `usage`)
-    SELECT batch_id, resources.resource, rand_token, msec_diff * quantity
-    FROM attempt_resources
-    LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
-    WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
-    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
-
-    INSERT INTO aggregated_job_resources (batch_id, job_id, resource, `usage`)
-    SELECT batch_id, job_id, resources.resource, msec_diff * quantity
-    FROM attempt_resources
-    LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
-    WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
-    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
-  END IF;
 
   IF msec_diff_rollup != 0 THEN
     INSERT INTO aggregated_billing_project_user_resources_v2 (billing_project, user, resource_id, token, `usage`)
@@ -744,10 +693,8 @@ FOR EACH ROW
 BEGIN
   DECLARE cur_start_time BIGINT;
   DECLARE cur_rollup_time BIGINT;
-  DECLARE cur_end_time BIGINT;
   DECLARE cur_billing_project VARCHAR(100);
   DECLARE cur_user VARCHAR(100);
-  DECLARE msec_diff BIGINT;
   DECLARE msec_diff_rollup BIGINT;
   DECLARE cur_n_tokens INT;
   DECLARE rand_token INT;
@@ -762,32 +709,14 @@ BEGIN
 
   SELECT resource INTO cur_resource FROM resources WHERE resource_id = NEW.resource_id;
 
-  SELECT start_time, end_time, rollup_time INTO cur_start_time, cur_end_time, cur_rollup_time
+  SELECT start_time, rollup_time INTO cur_start_time, cur_rollup_time
   FROM attempts
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
   LOCK IN SHARE MODE;
 
-  SET msec_diff = GREATEST(COALESCE(cur_end_time - cur_start_time, 0), 0);
   SET msec_diff_rollup = GREATEST(COALESCE(cur_rollup_time - cur_start_time, 0), 0);
 
   SET cur_billing_date = CAST(UTC_DATE() AS DATE);
-
-  IF msec_diff != 0 THEN
-    INSERT INTO aggregated_billing_project_resources (billing_project, resource, token, `usage`)
-    VALUES (cur_billing_project, cur_resource, rand_token, NEW.quantity * msec_diff)
-    ON DUPLICATE KEY UPDATE
-      `usage` = `usage` + NEW.quantity * msec_diff;
-
-    INSERT INTO aggregated_batch_resources (batch_id, resource, token, `usage`)
-    VALUES (NEW.batch_id, cur_resource, rand_token, NEW.quantity * msec_diff)
-    ON DUPLICATE KEY UPDATE
-      `usage` = `usage` + NEW.quantity * msec_diff;
-
-    INSERT INTO aggregated_job_resources (batch_id, job_id, resource, `usage`)
-    VALUES (NEW.batch_id, NEW.job_id, cur_resource, NEW.quantity * msec_diff)
-    ON DUPLICATE KEY UPDATE
-      `usage` = `usage` + NEW.quantity * msec_diff;
-  END IF;
 
   IF msec_diff_rollup != 0 THEN
     INSERT INTO aggregated_billing_project_user_resources_v2 (billing_project, user, resource_id, token, `usage`)
@@ -805,12 +734,10 @@ BEGIN
     ON DUPLICATE KEY UPDATE
       `usage` = `usage` + NEW.quantity * msec_diff_rollup;
 
-    IF cur_billing_date IS NOT NULL THEN
-      INSERT INTO aggregated_billing_project_user_resources_by_date_v2 (billing_date, billing_project, user, resource_id, token, `usage`)
-      VALUES (cur_billing_date, cur_billing_project, cur_user, NEW.resource_id, rand_token, NEW.quantity * msec_diff_rollup)
-      ON DUPLICATE KEY UPDATE
-        `usage` = `usage` + NEW.quantity * msec_diff_rollup;
-    END IF;
+    INSERT INTO aggregated_billing_project_user_resources_by_date_v2 (billing_date, billing_project, user, resource_id, token, `usage`)
+    VALUES (cur_billing_date, cur_billing_project, cur_user, NEW.resource_id, rand_token, NEW.quantity * msec_diff_rollup)
+    ON DUPLICATE KEY UPDATE
+      `usage` = `usage` + NEW.quantity * msec_diff_rollup;
   END IF;
 END $$
 

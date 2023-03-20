@@ -1,6 +1,7 @@
 package is.hail.types.physical
 
 import is.hail.annotations.Annotation
+import is.hail.backend.HailStateManager
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.ir.orderings.CodeOrdering
@@ -19,6 +20,6 @@ abstract class PArray extends PContainer {
 
   def elementIterator(aoff: Long, length: Int): PArrayIterator
 
-  override def genNonmissingValue: Gen[IndexedSeq[Annotation]] =
-    Gen.buildableOf[Array](elementType.genValue).map(x => x: IndexedSeq[Annotation])
+  override def genNonmissingValue(sm: HailStateManager): Gen[IndexedSeq[Annotation]] =
+    Gen.buildableOf[Array](elementType.genValue(sm)).map(x => x: IndexedSeq[Annotation])
 }

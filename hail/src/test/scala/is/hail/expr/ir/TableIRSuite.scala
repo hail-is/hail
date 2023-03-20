@@ -9,7 +9,6 @@ import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import is.hail.methods.ForceCountTable
 import is.hail.types._
-import is.hail.types.physical.PStruct
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.{ExecStrategy, HailSuite}
@@ -568,7 +567,7 @@ class TableIRSuite extends HailSuite {
     val t2 = MatrixRowsTable(mt2)
     val mt = importVCF(ctx, "src/test/resources/sample.vcf")
     var t: TableIR = MatrixRowsTable(mt)
-    t = TableMapRows(t, SelectFields(Ref("row", t.typ.rowType), Seq("locus", "alleles")))
+    t = TableMapRows(t, SelectFields(Ref("row", t.typ.rowType), FastIndexedSeq("locus", "alleles")))
     val join: TableIR = TableJoin(t, t2, "inner", 2)
     assertEvalsTo(TableCount(join), 346L)
   }
@@ -720,7 +719,7 @@ class TableIRSuite extends HailSuite {
         Map[String, String]("y" -> "z")
       )
 
-    val newRow = MakeStruct(Seq(
+    val newRow = MakeStruct(FastIndexedSeq(
       ("foo", GetField(Ref("row", renameIR.typ.rowType), "c") + GetField(Ref("global", TStruct(("x", TString), ("z", TInt32))), "z")),
       ("bar", GetField(Ref("row", renameIR.typ.rowType), "b")))
     )
@@ -773,7 +772,7 @@ class TableIRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.interpretOnly
     val rt = TableRange(40, 4)
     val idxRef =  GetField(Ref("row", rt.typ.rowType), "idx")
-    val at = TableMapRows(rt, MakeStruct(Seq(
+    val at = TableMapRows(rt, MakeStruct(FastIndexedSeq(
       "idx" -> idxRef,
       "const" -> 5,
       "half" ->  idxRef.floorDiv(2),
@@ -1083,8 +1082,8 @@ class TableIRSuite extends HailSuite {
         ApplyAggOp(Collect())(GetField(Ref("row", tableType.rowType), "rsid"))
       )))
     val optimized = Optimize(irToLower, "foo", ctx)
-    val analyses = Analyses.apply(optimized, ctx)
-    LowerTableIR(optimized, DArrayLowering.All, ctx, analyses, Map.empty)
+    val analyses = LoweringAnalyses.apply(optimized, ctx)
+    LowerTableIR(optimized, DArrayLowering.All, ctx, analyses)
   }
 
   @Test def testTableMapPartitions() {
@@ -1093,7 +1092,7 @@ class TableIRSuite extends HailSuite {
       TableKeyBy(
         TableMapGlobals(
           TableRange(20, nPartitions = 4),
-          MakeStruct(Seq("greeting" -> Str("Hello")))),
+          MakeStruct(FastIndexedSeq("greeting" -> Str("Hello")))),
         IndexedSeq(), false)
 
     val rowType = TStruct("idx" -> TInt32)
@@ -1132,7 +1131,7 @@ class TableIRSuite extends HailSuite {
             part,
             "row2",
             mapIR(StreamRange(0, 3, 1)) { i =>
-              MakeStruct(Seq("str" -> Str("Hello"), "i" -> i))
+              MakeStruct(FastIndexedSeq("str" -> Str("Hello"), "i" -> i))
             }
           ))),
       Row((0 until 20).flatMap(i => (0 until 3).map(j => Row("Hello", j))), Row("Hello")))
@@ -1160,4 +1159,5 @@ class TableIRSuite extends HailSuite {
       collect(TableMapPartitions(table, "g", "part", StreamFlatMap(StreamRange(0, 2, 1), "_", part)))))
     assert("must iterate over the partition exactly once".r.findFirstIn(e.getCause.getMessage).isDefined)
   }
+
 }

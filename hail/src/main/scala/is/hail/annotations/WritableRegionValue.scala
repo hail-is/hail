@@ -4,37 +4,40 @@ import java.io.{ObjectInputStream, ObjectOutputStream}
 
 import scala.collection.generic.Growable
 import scala.collection.mutable.{ArrayBuffer, PriorityQueue}
+
+import is.hail.backend.HailStateManager
 import is.hail.types.physical.{PStruct, PType}
 import is.hail.rvd.RVDContext
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
 object WritableRegionValue {
-  def apply(t: PType, initial: RegionValue, region: Region): WritableRegionValue =
-    WritableRegionValue(t, initial.region, initial.offset, region)
+  def apply(sm: HailStateManager, t: PType, initial: RegionValue, region: Region): WritableRegionValue =
+    WritableRegionValue(sm, t, initial.region, initial.offset, region)
 
-  def apply(t: PType, initialOffset: Long, targetRegion: Region): WritableRegionValue = {
-    val wrv = WritableRegionValue(t, targetRegion)
+  def apply(sm: HailStateManager, t: PType, initialOffset: Long, targetRegion: Region): WritableRegionValue = {
+    val wrv = WritableRegionValue(sm, t, targetRegion)
     wrv.set(initialOffset, deepCopy = true)
     wrv
   }
 
-  def apply(t: PType, initialRegion: Region, initialOffset: Long, targetRegion: Region): WritableRegionValue = {
-    val wrv = WritableRegionValue(t, targetRegion)
+  def apply(sm: HailStateManager, t: PType, initialRegion: Region, initialOffset: Long, targetRegion: Region): WritableRegionValue = {
+    val wrv = WritableRegionValue(sm, t, targetRegion)
     wrv.set(initialRegion, initialOffset)
     wrv
   }
 
-  def apply(t: PType, region: Region): WritableRegionValue = {
-    new WritableRegionValue(t, region)
+  def apply(sm: HailStateManager, t: PType, region: Region): WritableRegionValue = {
+    new WritableRegionValue(t, region, sm)
   }
 }
 
 class WritableRegionValue private (
   val t: PType,
-  val region: Region
+  val region: Region,
+  sm: HailStateManager
 ) extends UnKryoSerializable {
   val value = RegionValue(region, 0)
-  private val rvb: RegionValueBuilder = new RegionValueBuilder(region)
+  private val rvb: RegionValueBuilder = new RegionValueBuilder(sm, region)
 
   def offset: Long = value.offset
 
@@ -86,11 +89,11 @@ class WritableRegionValue private (
   }
 }
 
-class RegionValuePriorityQueue(val t: PType, ctx: RVDContext, ord: Ordering[RegionValue])
+class RegionValuePriorityQueue(sm: HailStateManager, val t: PType, ctx: RVDContext, ord: Ordering[RegionValue])
   extends Iterable[RegionValue]
 {
   private val queue = new PriorityQueue[RegionValue]()(ord)
-  private val rvb = new RegionValueBuilder(null)
+  private val rvb = new RegionValueBuilder(sm)
 
   override def nonEmpty: Boolean = queue.nonEmpty
 
@@ -119,12 +122,12 @@ class RegionValuePriorityQueue(val t: PType, ctx: RVDContext, ord: Ordering[Regi
   def iterator: Iterator[RegionValue] = queue.iterator
 }
 
-class RegionValueArrayBuffer(val t: PType, region: Region)
+class RegionValueArrayBuffer(val t: PType, region: Region, sm: HailStateManager)
   extends Iterable[RegionValue] with Growable[RegionValue] {
 
   val value = RegionValue(region, 0)
 
-  private val rvb = new RegionValueBuilder(region)
+  private val rvb = new RegionValueBuilder(sm, region)
   val idx = ArrayBuffer.empty[Long]
 
   def length = idx.length

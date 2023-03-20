@@ -323,12 +323,13 @@ case class BlockMatrixType(
   blockSize: Int,
   sparsity: BlockMatrixSparsity
 ) extends BaseType {
+  require(blockSize >= 0)
   lazy val (nRows: Long, nCols: Long) = BlockMatrixType.tensorToMatrixShape(shape, isRowVector)
 
   def matrixShape: (Long, Long) = nRows -> nCols
 
-  lazy val nRowBlocks: Int = BlockMatrixType.numBlocks(nRows, blockSize)
-  lazy val nColBlocks: Int = BlockMatrixType.numBlocks(nCols, blockSize)
+  lazy val nRowBlocks: Int = if (blockSize == 0) 0 else BlockMatrixType.numBlocks(nRows, blockSize)
+  lazy val nColBlocks: Int = if (blockSize == 0) 0 else BlockMatrixType.numBlocks(nCols, blockSize)
   lazy val defaultBlockShape: (Int, Int) = (nRowBlocks, nColBlocks)
 
   def densify: BlockMatrixType = copy(sparsity = BlockMatrixSparsity(None))
@@ -338,7 +339,7 @@ case class BlockMatrixType(
   def nDefinedBlocks: Int =
     if (isSparse) sparsity.definedBlocks.get.length else nRowBlocks * nColBlocks
   def hasBlock(idx: (Int, Int)): Boolean =
-    if (isSparse) sparsity.hasBlock(idx) else true
+    if (isSparse) sparsity.hasBlock(idx) else idx._1 >= 0 && idx._1 < nRowBlocks && idx._2 >= 0 && idx._2 < nColBlocks
 
   def transpose: BlockMatrixType = {
     val newShape = shape match {

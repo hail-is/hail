@@ -5,6 +5,7 @@ utils
 
 .. autosummary::
 
+    ANY_REGION
     Interval
     Struct
     frozendict
@@ -40,3 +41,6 @@ utils
 .. autofunction:: get_1kg
 .. autofunction:: get_hgdp
 .. autofunction:: get_movie_lens
+
+.. autodata:: ANY_REGION
+   :annotation:

@@ -181,18 +181,18 @@ object LoadBgen {
     headers.zip(indexFiles).map { case (h, indexFile) =>
       val (keyType, _) = IndexReader.readTypes(fs, indexFile)
       val rg = keyType.asInstanceOf[TStruct].field("locus").typ match {
-        case TLocus(rg) => Some(rg.value)
+        case TLocus(rg) => Some(ctx.getReference(rg))
         case _ => None
       }
       val indexReaderBuilder = {
         val (leafCodec, internalNodeCodec) = BgenSettings.indexCodecSpecs(rg)
         val (leafPType: PStruct, leafDec) = leafCodec.buildDecoder(ctx, leafCodec.encodedVirtualType)
         val (intPType: PStruct, intDec) = internalNodeCodec.buildDecoder(ctx, internalNodeCodec.encodedVirtualType)
-        IndexReaderBuilder.withDecoders(leafDec, intDec, BgenSettings.indexKeyType(rg), BgenSettings.indexAnnotationType, leafPType, intPType)
+        IndexReaderBuilder.withDecoders(ctx, leafDec, intDec, BgenSettings.indexKeyType(rg), BgenSettings.indexAnnotationType, leafPType, intPType)
       }
       using(indexReaderBuilder(ctx.theHailClassLoader, fs, indexFile, 8, ctx.r.pool)) { index =>
         val attributes = index.attributes
-        val rg = Option(attributes("reference_genome")).map(name => ReferenceGenome.getReference(name.asInstanceOf[String]))
+        val rg = Option(attributes("reference_genome")).map(name => ctx.getReference(name.asInstanceOf[String]))
         val skipInvalidLoci = attributes("skip_invalid_loci").asInstanceOf[Boolean]
         val contigRecoding = Option(attributes("contig_recoding")).map(_.asInstanceOf[Map[String, String]]).getOrElse(Map.empty[String, String])
         val nVariants = index.nKeys
@@ -283,7 +283,7 @@ object MatrixBGENReader {
         "s" -> TString),
       colKey = Array("s"),
       rowType = TStruct(
-        "locus" -> TLocus.schemaFromRG(rg),
+        "locus" -> TLocus.schemaFromRG(rg.map(_.name)),
         "alleles" -> TArray(TString),
         "rsid" -> TString,
         "varid" -> TString,
@@ -368,7 +368,7 @@ object MatrixBGENReader {
         Some(128)
       else
         params.blockSizeInMB, params.nPartitions, indexKeyType)
-    val partitioner = new RVDPartitioner(indexKeyType.asInstanceOf[TStruct], partitionRangeBounds)
+    val partitioner = new RVDPartitioner(ctx.stateManager, indexKeyType.asInstanceOf[TStruct], partitionRangeBounds)
 
     val (partitions, variants) = params.includedVariants match {
       case Some(variantsTableIR) =>
@@ -378,7 +378,7 @@ object MatrixBGENReader {
 
         val rvd = Interpret(ir.TableDistinct(variantsTableIR), ctx).rvd
 
-        val repartitioned = RepartitionedOrderedRDD2(rvd, partitionRangeBounds.map(_.coarsen(rowType.types.length)))
+        val repartitioned = RepartitionedOrderedRDD2(ctx.stateManager, rvd, partitionRangeBounds.map(_.coarsen(rowType.types.length)))
           .toRows(rvd.rowPType)
         assert(repartitioned.getNumPartitions == maybePartitions.length)
 
@@ -491,7 +491,7 @@ class MatrixBGENReader(
       fullType.key.take(requestedType.key.length))
 
     val rvd = if (dropRows)
-      RVD.empty(rvdType)
+      RVD.empty(ctx, rvdType)
     else
       new RVD(
         rvdType,

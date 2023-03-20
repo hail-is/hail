@@ -181,7 +181,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case ArrayMaximalIndependentSet(a, tiebreaker) =>
         tiebreaker.foreach { case (left, right, _) =>
           val eltReq = tcoerce[TypeWithRequiredness](tcoerce[RIterable](lookup(a)).elementType.children.head)
-          val req = RTuple(Seq(eltReq))
+          val req = RTuple.fromNamesAndTypes(FastIndexedSeq("0" -> eltReq))
           req.union(true)
           refMap(left).foreach { u => defs.bind(u, Array(req)) }
           refMap(right).foreach { u => defs.bind(u, Array(req)) }
@@ -199,7 +199,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         val aEltTypes = as.map(a => tcoerce[RStruct](tcoerce[RIterable](lookup(a)).elementType))
         if (refMap.contains(curKey)) {
           val uses = refMap(curKey)
-          val keyTypes = aEltTypes.map(t => RStruct(key.map(k => k -> t.fieldType(k))))
+          val keyTypes = aEltTypes.map(t => RStruct.fromNamesAndTypes(key.map(k => k -> t.fieldType(k))))
           uses.foreach { u => defs.bind(u, keyTypes) }
           as.foreach { a => dependents.getOrElseUpdate(a, mutable.Set[RefEquality[BaseIR]]()) ++= uses }
         }
@@ -289,13 +289,17 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         addTableBinding(child)
       case TableAggregateByKey(child, expr) =>
         addTableBinding(child)
-      case TableMapPartitions(child, globalName, partitionStreamName, body) =>
+      case TableMapPartitions(child, globalName, partitionStreamName, body, _, _) =>
         if (refMap.contains(globalName))
           refMap(globalName).foreach { u => defs.bind(u, Array[BaseTypeWithRequiredness](lookup(child).globalType)) }
         if (refMap.contains(partitionStreamName))
           refMap(partitionStreamName).foreach { u => defs.bind(u, Array[BaseTypeWithRequiredness](RIterable(lookup(child).rowType))) }
         val refs = refMap.getOrElse(globalName, FastIndexedSeq()) ++ refMap.getOrElse(partitionStreamName, FastIndexedSeq())
         dependents.getOrElseUpdate(child, mutable.Set[RefEquality[BaseIR]]()) ++= refs
+      case TableGen(contexts, globals, cname, gname, _, _, _) =>
+        addElementBinding(cname, contexts)
+        addBinding(gname, globals)
+      case _ => fatal(Pretty(ctx, node))
     }
   }
 
@@ -333,7 +337,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case TableRename(child, rMap, gMap) => requiredness.unionFrom(lookup(child))
       case TableFilterIntervals(child, intervals, keep) => requiredness.unionFrom(lookup(child))
       case RelationalLetTable(name, value, body) => requiredness.unionFrom(lookup(body))
-
+      case TableGen(_, globals, _, _, body, _, _) =>
+        requiredness.unionGlobals(lookupAs[RStruct](globals))
+        requiredness.unionRows(lookupAs[RIterable](body).elementType.asInstanceOf[RStruct])
       case TableParallelize(rowsAndGlobal, _) =>
         val Seq(rowsReq: RIterable, globalReq: RStruct) = lookupAs[RBaseStruct](rowsAndGlobal).children
         requiredness.unionRows(tcoerce[RStruct](rowsReq.elementType))
@@ -432,7 +438,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         rReq.valueFields.foreach(n => joined.field(n).unionFrom(rReq.field(n)))
         joined.union(false)
         requiredness.unionGlobals(lReq.globalType)
-      case TableMapPartitions(child, globalName, partitionStreamName, body) =>
+      case TableMapPartitions(child, globalName, partitionStreamName, body, _, _) =>
         requiredness.unionRows(lookupAs[RIterable](body).elementType.asInstanceOf[RStruct])
         requiredness.unionGlobals(lookup(child))
       case TableToTableApply(child, function) => requiredness.maximize() //FIXME: needs implementation

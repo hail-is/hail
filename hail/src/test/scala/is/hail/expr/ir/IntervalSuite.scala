@@ -6,7 +6,8 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
-import org.testng.annotations.Test
+import org.testng.ITestContext
+import org.testng.annotations.{BeforeMethod, Test}
 
 class IntervalSuite extends HailSuite {
 
@@ -16,7 +17,7 @@ class IntervalSuite extends HailSuite {
   val tinterval1 = TInterval(tpoint1)
   val na = NA(tinterval1)
 
-  def point(i: Int): IR = MakeTuple.ordered(Seq(I32(i)))
+  def point(i: Int): IR = MakeTuple.ordered(FastIndexedSeq(I32(i)))
   def interval(start: IR, end: IR, includeStart: java.lang.Boolean, includeEnd: java.lang.Boolean): IR = {
     invoke("Interval", TInterval(start.typ), start, end, Literal.coerce(TBoolean, includeStart), Literal.coerce(TBoolean, includeEnd))
   }
@@ -109,7 +110,7 @@ class IntervalSuite extends HailSuite {
     Interval(start, end, includesStart, includesEnd)
 
   @Test def testIntervalSortAndReduce() {
-    val ord = TInt32.ordering.intervalEndpointOrdering
+    val ord = TInt32.ordering(ctx.stateManager).intervalEndpointOrdering
 
     assert(Interval.union(Array[Interval](), ord).sameElements(Array[Interval]()))
     assert(Interval.union(Array(intInterval(0, 10)), ord)
@@ -127,7 +128,7 @@ class IntervalSuite extends HailSuite {
   }
 
   @Test def testIntervalIntersection() {
-    val ord = TInt32.ordering.intervalEndpointOrdering
+    val ord = TInt32.ordering(ctx.stateManager).intervalEndpointOrdering
 
     val x1 = Array[Interval](
       intInterval(5, 10),
@@ -178,13 +179,17 @@ class IntervalSuite extends HailSuite {
   }
 
   val partitionerKType = TStruct("k1" -> TInt32, "k2" -> TInt32, "k3" -> TInt32)
-  val partitioner =
-    new RVDPartitioner(partitionerKType,
+  var partitioner: Literal = _
+
+  @BeforeMethod
+  def setupRVDPartitioner(context: ITestContext): Unit = {
+    partitioner = new RVDPartitioner(ctx.stateManager, partitionerKType,
       Array(
         Interval(Row(1, 0), Row(4, 3), true, false),
         Interval(Row(4, 3), Row(7, 9), true, false),
         Interval(Row(7, 11), Row(10, 0), true, true))
     ).partitionBoundsIRRepresentation
+  }
 
   @Test def testsortedNonOverlappingPartitionIntervalsEqualRange() {
     def assertRange(interval: Interval, startIdx: Int, endIdx: Int) {
@@ -205,8 +210,8 @@ class IntervalSuite extends HailSuite {
   @Test def testPointPartitionIntervalEndpointComparison() {
     def assertComp(point: IndexedSeq[Int], intervalEndpoint: IndexedSeq[Int], leansRight: Boolean, function: String, expected: Boolean) {
       val pointIR = MakeTuple.ordered(point.map(I32))
-      val endpointIR = MakeTuple.ordered(Seq(
-        MakeTuple.ordered(Seq.tabulate(3)(i =>
+      val endpointIR = MakeTuple.ordered(FastIndexedSeq(
+        MakeTuple.ordered(Array.tabulate(3)(i =>
           if (i < intervalEndpoint.length) I32(intervalEndpoint(i)) else NA(TInt32))),
         I32(intervalEndpoint.length)))
       val leansRightIR = if (leansRight) True() else False()

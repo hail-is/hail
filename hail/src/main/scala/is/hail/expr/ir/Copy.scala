@@ -402,9 +402,12 @@ object Copy {
       case ReadValue(path, spec, requestedType) =>
         assert(newChildren.length == 1)
         ReadValue(newChildren(0).asInstanceOf[IR], spec, requestedType)
-      case WriteValue(value, path, spec) =>
-        assert(newChildren.length == 2)
-        WriteValue(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], spec)
+      case WriteValue(_, _, spec, _) =>
+        assert(newChildren.length == 2 || newChildren.length == 3)
+        val value = newChildren(0).asInstanceOf[IR]
+        val path = newChildren(1).asInstanceOf[IR]
+        val stage = if (newChildren.length == 3) Some(newChildren(2).asInstanceOf[IR]) else None
+        WriteValue(value, path, spec, stage)
       case LiftMeOut(_) =>
         LiftMeOut(newChildren(0).asInstanceOf[IR])
     }

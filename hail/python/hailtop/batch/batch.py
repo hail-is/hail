@@ -8,6 +8,7 @@ import dill
 from hailtop.utils import secret_alnum_string, url_scheme, async_to_blocking
 from hailtop.aiotools import AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
+import hailtop.batch_client.client as _bc
 from hailtop.config import configuration_of
 
 from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
@@ -107,6 +108,36 @@ class Batch:
         cls._counter += 1
         return uid
 
+    @staticmethod
+    def from_batch_id(batch_id: int, *args, **kwargs):
+        """
+        Create a Batch from an existing batch id.
+
+        Notes
+        -----
+        Can only be used with the :class:`.ServiceBackend`.
+
+        Examples
+        --------
+
+        Create a batch object from an existing batch id:
+
+        >>> b = Batch.from_batch_id(1)  # doctest: +SKIP
+
+        Parameters
+        ----------
+        batch_id:
+            ID of an existing Batch
+
+        Returns
+        -------
+        A Batch object that can append jobs to an existing batch.
+        """
+        b = Batch(*args, **kwargs)
+        assert isinstance(b._backend, _backend.ServiceBackend)
+        b._batch_handle = b._backend._batch_client.get_batch(batch_id)
+        return b
+
     def __init__(self,
                  name: Optional[str] = None,
                  backend: Optional[_backend.Backend] = None,
@@ -167,6 +198,16 @@ class Batch:
 
         self._python_function_defs: Dict[int, Callable] = {}
         self._python_function_files: Dict[int, _resource.InputResourceFile] = {}
+
+        self._batch_handle: Optional[_bc.Batch] = None
+
+    @property
+    def _unsubmitted_jobs(self):
+        return [j for j in self._jobs if not j._submitted]
+
+    @property
+    def _submitted_jobs(self):
+        return [j for j in self._jobs if j._submitted]
 
     def _register_python_function(self, function: Callable) -> int:
         function_id = id(function)

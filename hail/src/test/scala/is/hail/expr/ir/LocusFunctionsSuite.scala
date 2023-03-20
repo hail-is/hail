@@ -13,8 +13,8 @@ class LocusFunctionsSuite extends HailSuite {
 
   implicit val execStrats = ExecStrategy.javaOnly
 
-  private def grch38: ReferenceGenome = ReferenceGenome.GRCh38
-  private def tlocus = TLocus(grch38)
+  private def grch38: ReferenceGenome = ctx.getReference(ReferenceGenome.GRCh38)
+  private def tlocus = TLocus(grch38.name)
   private def tvariant = TStruct("locus" -> tlocus, "alleles" -> TArray(TString))
 
   def locusIR: Apply = Apply("Locus", FastSeq(), FastSeq(Str("chr22"), I32(1)), tlocus, ErrorIDs.NO_ERROR)
@@ -58,15 +58,15 @@ class LocusFunctionsSuite extends HailSuite {
   }
 
   @Test def minRep() {
-    val alleles = MakeArray(Seq(Str("AA"), Str("AT")), TArray(TString))
+    val alleles = MakeArray(FastIndexedSeq(Str("AA"), Str("AT")), TArray(TString))
     assertEvalsTo(invoke("min_rep", tvariant, locusIR, alleles), Row(Locus("chr22", 2), FastIndexedSeq("A", "T")))
     assertEvalsTo(invoke("min_rep", tvariant, locusIR, NA(TArray(TString))), null)
   }
-  
+
   @Test def globalPosition() {
     assertEvalsTo(invoke("locusToGlobalPos", TInt64, locusIR), grch38.locusToGlobalPos(locus))
   }
-  
+
   @Test def reverseGlobalPosition() {
     val globalPosition = 2824183054L
     assertEvalsTo(invoke("globalPosToLocus", tlocus, I64(globalPosition)), grch38.globalPosToLocus(globalPosition))
@@ -79,20 +79,20 @@ class LocusFunctionsSuite extends HailSuite {
       invoke("Locus", TLocus(ReferenceGenome.GRCh37), Str("1"), I32(1)),
       invoke("Locus", TLocus(ReferenceGenome.GRCh38), Str("chr1"), I32(1))))
 
-    assertEvalsTo(ir, Row(Locus("1", 1, ReferenceGenome.GRCh37), Locus("chr1", 1, ReferenceGenome.GRCh38)))
+    assertEvalsTo(ir, Row(Locus("1", 1, ctx.getReference(ReferenceGenome.GRCh37)), Locus("chr1", 1, ctx.getReference(ReferenceGenome.GRCh38))))
   }
 
   @Test def testMakeInterval() {
     // TString, TInt32, TInt32, TBoolean, TBoolean, TBoolean
     val ir = MakeTuple.ordered(FastSeq(
-      invoke("LocusInterval", TInterval(TLocus(grch38)), NA(TString), I32(1), I32(100), True(), True(), False()),
-      invoke("LocusInterval", TInterval(TLocus(grch38)), Str("chr1"), NA(TInt32), I32(100), True(), True(), False()),
-      invoke("LocusInterval", TInterval(TLocus(grch38)), Str("chr1"), I32(1), NA(TInt32), True(), True(), False()),
-      invoke("LocusInterval", TInterval(TLocus(grch38)), Str("chr1"), I32(1), I32(100), NA(TBoolean), True(), False()),
-      invoke("LocusInterval", TInterval(TLocus(grch38)), Str("chr1"), I32(1), I32(100), True(), NA(TBoolean), False()),
-      invoke("LocusInterval", TInterval(TLocus(grch38)), Str("chr1"), I32(1), I32(100), True(), True(), NA(TBoolean)),
-      invoke("LocusInterval", TInterval(TLocus(grch38)), Str("chr1"), I32(-1), I32(0), True(), True(), True()),
-      invoke("LocusInterval", TInterval(TLocus(grch38)), Str("chr1"), I32(1), I32(100), True(), True(), True())
+      invoke("LocusInterval", TInterval(TLocus(grch38.name)), NA(TString), I32(1), I32(100), True(), True(), False()),
+      invoke("LocusInterval", TInterval(TLocus(grch38.name)), Str("chr1"), NA(TInt32), I32(100), True(), True(), False()),
+      invoke("LocusInterval", TInterval(TLocus(grch38.name)), Str("chr1"), I32(1), NA(TInt32), True(), True(), False()),
+      invoke("LocusInterval", TInterval(TLocus(grch38.name)), Str("chr1"), I32(1), I32(100), NA(TBoolean), True(), False()),
+      invoke("LocusInterval", TInterval(TLocus(grch38.name)), Str("chr1"), I32(1), I32(100), True(), NA(TBoolean), False()),
+      invoke("LocusInterval", TInterval(TLocus(grch38.name)), Str("chr1"), I32(1), I32(100), True(), True(), NA(TBoolean)),
+      invoke("LocusInterval", TInterval(TLocus(grch38.name)), Str("chr1"), I32(-1), I32(0), True(), True(), True()),
+      invoke("LocusInterval", TInterval(TLocus(grch38.name)), Str("chr1"), I32(1), I32(100), True(), True(), True())
     ))
 
     assertEvalsTo(ir,

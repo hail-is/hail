@@ -50,7 +50,7 @@ from . import vds  # noqa: E402
 from hail.expr import aggregators as agg  # noqa: E402
 from hail.utils import (Struct, Interval, hadoop_copy, hadoop_open, hadoop_ls,  # noqa: E402
                         hadoop_stat, hadoop_exists, hadoop_is_file,
-                        hadoop_is_dir, hadoop_scheme_supported, copy_log)
+                        hadoop_is_dir, hadoop_scheme_supported, copy_log, ANY_REGION)
 
 from .context import (init, init_local, init_batch, stop, spark_context, tmp_dir,  # noqa: E402
                       default_reference, get_reference, set_global_seed, reset_global_randomness,
@@ -112,7 +112,8 @@ __all__ = [
     'citation',
     'cite_hail',
     'cite_hail_bibtex',
-    'version'
+    'version',
+    'ANY_REGION',
 ]
 
 __all__.extend(genetics.__all__)

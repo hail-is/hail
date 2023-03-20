@@ -639,3 +639,6 @@ def no_service_backend(unsupported_feature):
         raise NotImplementedError(f'{unsupported_feature!r} is not yet supported on the service backend.'
                                   f'\n  If this is a pressing need, please alert the team on the discussion'
                                   f'\n  forum to aid in prioritization: https://discuss.hail.is')
+
+
+ANY_REGION = ['any_region']

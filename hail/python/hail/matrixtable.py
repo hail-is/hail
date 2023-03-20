@@ -2677,6 +2677,9 @@ class MatrixTable(ExprContainer):
     }
   }
 }"""
+
+        hl.current_backend().validate_file_scheme(output)
+
         if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
             self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
             _assert_type = self._type
@@ -2725,6 +2728,8 @@ class MatrixTable(ExprContainer):
         overwrite : bool
             If ``True``, overwrite an existing file at the destination.
         """
+
+        hl.current_backend().validate_file_scheme(output)
 
         if _partitions is not None:
             _partitions, _partitions_type = hl.utils._dumps_partitions(_partitions, self.row_key.dtype)

@@ -40,6 +40,7 @@ import org.apache.spark.util.TaskCompletionListener
 import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
 import org.json4s
+import org.json4s.Formats
 import org.json4s.JsonAST.{JInt, JObject}
 
 
@@ -323,7 +324,7 @@ class SparkBackend(
     timer,
     if (selfContainedExecution) null else new NonOwningTempFileManager(longLifeTempFileManager),
     theHailClassLoader,
-    ReferenceGenome.references,
+    this.references,
     flags
   )
 
@@ -336,7 +337,7 @@ class SparkBackend(
       timer,
       if (selfContainedExecution) null else new NonOwningTempFileManager(longLifeTempFileManager),
       theHailClassLoader,
-      ReferenceGenome.references,
+      this.references,
       flags
     )(f)
   }
@@ -618,21 +619,35 @@ class SparkBackend(
     matrixReaders.asJava
   }
 
-  def pyReferenceAddLiftover(name: String, chainFile: String, destRGName: String): Unit = {
+  def pyLoadReferencesFromDataset(path: String): String = {
+    val rgs = ReferenceGenome.fromHailDataset(fs, path)
+    rgs.foreach(addReference)
+
+    implicit val formats: Formats = defaultJSONFormats
+    Serialization.write(rgs.map(_.toJSON).toFastIndexedSeq)
+  }
+
+  def pyAddReference(jsonConfig: String): Unit = addReference(ReferenceGenome.fromJSON(jsonConfig))
+  def pyRemoveReference(name: String): Unit = removeReference(name)
+
+  def pyAddLiftover(name: String, chainFile: String, destRGName: String): Unit = {
     ExecutionTimer.logTime("SparkBackend.pyReferenceAddLiftover") { timer =>
       withExecuteContext(timer) { ctx =>
-        ReferenceGenome.referenceAddLiftover(ctx, name, chainFile, destRGName)
+        references(name).addLiftover(ctx, chainFile, destRGName)
       }
     }
   }
+  def pyRemoveLiftover(name: String, destRGName: String) = references(name).removeLiftover(destRGName)
 
   def pyFromFASTAFile(name: String, fastaFile: String, indexFile: String,
     xContigs: java.util.List[String], yContigs: java.util.List[String], mtContigs: java.util.List[String],
-    parInput: java.util.List[String]): ReferenceGenome = {
+    parInput: java.util.List[String]): String = {
     ExecutionTimer.logTime("SparkBackend.pyFromFASTAFile") { timer =>
       withExecuteContext(timer) { ctx =>
-        ReferenceGenome.fromFASTAFile(ctx, name, fastaFile, indexFile,
+        val rg = ReferenceGenome.fromFASTAFile(ctx, name, fastaFile, indexFile,
           xContigs.asScala.toArray, yContigs.asScala.toArray, mtContigs.asScala.toArray, parInput.asScala.toArray)
+        addReference(rg)
+        rg.toJSONString
       }
     }
   }
@@ -640,10 +655,11 @@ class SparkBackend(
   def pyAddSequence(name: String, fastaFile: String, indexFile: String): Unit = {
     ExecutionTimer.logTime("SparkBackend.pyAddSequence") { timer =>
       withExecuteContext(timer) { ctx =>
-        ReferenceGenome.addSequence(ctx, name, fastaFile, indexFile)
+        references(name).addSequence(ctx, fastaFile, indexFile)
       }
     }
   }
+  def pyRemoveSequence(name: String) = references(name).removeSequence()
 
   def pyExportBlockMatrix(
     pathIn: String, pathOut: String, delimiter: String, header: String, addIndex: Boolean, exportType: String,
@@ -713,23 +729,23 @@ class SparkBackend(
     ctx: ExecuteContext,
     stage: TableStage,
     sortFields: IndexedSeq[SortField],
-    relationalLetsAbove: Map[String, IR],
-    rowTypeRequiredness: RStruct
-  ): TableStage = {
+    rt: RTable
+  ): TableReader = {
     if (getFlag("use_new_shuffle") != null)
-      return LowerDistributedSort.distributedSort(ctx, stage, sortFields, relationalLetsAbove, rowTypeRequiredness)
+      return LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt)
 
-    val (globals, rvd) = TableStageToRVD(ctx, stage, relationalLetsAbove)
+    val (globals, rvd) = TableStageToRVD(ctx, stage)
+    val globalsLit = globals.toEncodedLiteral(ctx.theHailClassLoader)
 
     if (sortFields.forall(_.sortOrder == Ascending)) {
-      return RVDToTableStage(rvd.changeKey(ctx, sortFields.map(_.field)), globals.toEncodedLiteral(ctx.theHailClassLoader))
+      return RVDTableReader(rvd.changeKey(ctx, sortFields.map(_.field)), globalsLit, rt)
     }
 
     val rowType = rvd.rowType
     val sortColIndexOrd = sortFields.map { case SortField(n, so) =>
       val i = rowType.fieldIdx(n)
       val f = rowType.fields(i)
-      val fo = f.typ.ordering
+      val fo = f.typ.ordering(ctx.stateManager)
       if (so == Ascending) fo else fo.reverse
     }.toArray
 
@@ -740,7 +756,7 @@ class SparkBackend(
     val codec = TypedCodecSpec(rvd.rowPType, BufferSpec.wireSpec)
     val rdd = rvd.keyedEncodedRDD(ctx, codec, sortFields.map(_.field)).sortBy(_._1)(ord, act)
     val (rowPType: PStruct, orderedCRDD) = codec.decodeRDD(ctx, rowType, rdd.map(_._2))
-    RVDToTableStage(RVD.unkeyed(rowPType, orderedCRDD), globals.toEncodedLiteral(ctx.theHailClassLoader))
+    RVDTableReader(RVD.unkeyed(rowPType, orderedCRDD), globalsLit, rt)
   }
 
   def pyImportFam(path: String, isQuantPheno: Boolean, delimiter: String, missingValue: String): String =
@@ -748,6 +764,19 @@ class SparkBackend(
 
   def close(): Unit = {
     longLifeTempFileManager.cleanup()
+  }
+
+  def tableToTableStage(ctx: ExecuteContext,
+    inputIR: TableIR,
+    analyses: LoweringAnalyses
+  ): TableStage = {
+    CanLowerEfficiently(ctx, inputIR) match {
+      case Some(failReason) =>
+        log.info(s"SparkBackend: could not lower IR to table stage: $failReason")
+        inputIR.analyzeAndExecute(ctx).asTableStage(ctx)
+      case None =>
+        LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
+    }
   }
 }
 

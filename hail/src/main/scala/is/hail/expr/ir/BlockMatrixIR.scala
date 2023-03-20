@@ -266,13 +266,21 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDen
     f(_, scalar)
 
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
-    assert(f.isInstanceOf[ApplyUnaryPrimOp] || f.isInstanceOf[Apply] || f.isInstanceOf[ApplyBinaryPrimOp])
+    assert(
+      f.isInstanceOf[ApplyUnaryPrimOp]
+        || f.isInstanceOf[Apply]
+        || f.isInstanceOf[ApplyBinaryPrimOp]
+        || f.isInstanceOf[Ref]
+    )
+
     val prev = child.execute(ctx)
 
     val functionArgs = f match {
       case ApplyUnaryPrimOp(_, arg1) => IndexedSeq(arg1)
       case Apply(_, _, args, _, _) => args
       case ApplyBinaryPrimOp(_, l, r) => IndexedSeq(l, r)
+      case _: Ref => IndexedSeq(f)
+      case Constant(k) => IndexedSeq(k)
     }
 
     assert(functionArgs.forall(ir => IsConstant(ir) || ir.isInstanceOf[Ref]),
@@ -305,11 +313,13 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDen
       case ApplyBinaryPrimOp(Subtract(), l, Ref(`eltName`, _)) if !Mentions(l, eltName) =>
         ("-", binaryOp(evalIR(ctx, l), (m, s) => s - m))
       case ApplyBinaryPrimOp(FloatingPointDivide(), Ref(`eltName`, _), r) if !Mentions(r, eltName) =>
-        val i = evalIR(ctx, r)
         ("/", binaryOp(evalIR(ctx, r), (m, s) => m /:/ s))
       case ApplyBinaryPrimOp(FloatingPointDivide(), l, Ref(`eltName`, _)) if !Mentions(l, eltName) =>
-        val i = evalIR(ctx, l)
         ("/", binaryOp(evalIR(ctx, l), BlockMatrix.reverseScalarDiv))
+      case Ref(`eltName`, _) =>
+        ("identity", identity(_))
+      case _: Ref | Constant(_) =>
+        ("const", binaryOp(evalIR(ctx, f), (m, s) => m := s))
 
       case _ => fatal(s"Unsupported operation on BlockMatrices: ${Pretty(ctx, f)}")
     }
@@ -743,12 +753,15 @@ sealed abstract class BlockMatrixSparsifier {
 case class BandSparsifier(blocksOnly: Boolean, l: Long, u: Long) extends BlockMatrixSparsifier {
   val typ: Type = TTuple(TInt64, TInt64)
   def definedBlocks(childType: BlockMatrixType): BlockMatrixSparsity = {
-    val leftBuffer = java.lang.Math.floorDiv(-l, childType.blockSize)
-    val rightBuffer = java.lang.Math.floorDiv(u, childType.blockSize)
+    val lowerBlock = java.lang.Math.floorDiv(l, childType.blockSize).toInt
+    val upperBlock = java.lang.Math.floorDiv(u + childType.blockSize - 1, childType.blockSize).toInt
 
-    BlockMatrixSparsity.constructFromShapeAndFunction(childType.nRowBlocks, childType.nColBlocks) { (i, j) =>
-      j >= (i - leftBuffer) && j <= (i + rightBuffer) && childType.hasBlock(i -> j)
-    }
+    val blocks = (for { j <- 0 until childType.nColBlocks
+           i <- ((j - upperBlock) max 0) to
+                ((j - lowerBlock) min (childType.nRowBlocks - 1))
+           if (childType.hasBlock(i -> j))
+    } yield (i -> j)).toArray
+    BlockMatrixSparsity(blocks)
   }
 
   def sparsify(bm: BlockMatrix): BlockMatrix = {
@@ -786,11 +799,11 @@ case class RectangleSparsifier(rectangles: IndexedSeq[IndexedSeq[Long]]) extends
   def definedBlocks(childType: BlockMatrixType): BlockMatrixSparsity = {
     val definedBlocks = rectangles.flatMap { case IndexedSeq(rowStart, rowEnd, colStart, colEnd) =>
       val rs = childType.getBlockIdx(java.lang.Math.max(rowStart, 0))
-      val re = childType.getBlockIdx(java.lang.Math.min(rowEnd, childType.nRows))
+      val re = childType.getBlockIdx(java.lang.Math.min(rowEnd - 1, childType.nRows)) + 1
       val cs = childType.getBlockIdx(java.lang.Math.max(colStart, 0))
-      val ce = childType.getBlockIdx(java.lang.Math.min(colEnd, childType.nCols))
-      Array.range(rs, re + 1).flatMap { i =>
-        Array.range(cs, ce + 1)
+      val ce = childType.getBlockIdx(java.lang.Math.min(colEnd - 1, childType.nCols)) + 1
+      Array.range(rs, re).flatMap { i =>
+        Array.range(cs, ce)
           .filter { j => childType.hasBlock(i -> j) }
           .map { j => i -> j }
       }
@@ -820,7 +833,7 @@ case class PerBlockSparsifier(blocks: IndexedSeq[Int]) extends BlockMatrixSparsi
 
   override def sparsify(bm: BlockMatrix): BlockMatrix = bm.filterBlocks(blocks.toArray)
 
-  override def pretty(): String = s"(PerBlockSparsifier with blocks $blocks"
+  override def pretty(): String = s"(PerBlockSparsifier with blocks $blocks)"
 }
 
 case class BlockMatrixSparsify(

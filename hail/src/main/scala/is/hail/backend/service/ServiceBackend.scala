@@ -11,7 +11,7 @@ import is.hail.asm4s._
 import is.hail.backend.{Backend, BackendContext, BackendWithNoCodeCache, BroadcastValue, ExecuteContext, HailTaskContext}
 import is.hail.expr.{JSONAnnotationImpex, Validate}
 import is.hail.expr.ir.lowering._
-import is.hail.expr.ir.{Compile, IR, IRParser, MakeTuple, SortField, TypeCheck}
+import is.hail.expr.ir.{Compile, IR, IRParser, LoweringAnalyses, MakeTuple, SortField, TableIR, TableReader, TypeCheck}
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.bgen.IndexBgen
@@ -33,7 +33,7 @@ import org.apache.commons.io.IOUtils
 import org.apache.log4j.Logger
 import org.json4s.Extraction
 import org.json4s.JsonAST._
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.{JsonMethods, Serialization}
 import org.json4s.{DefaultFormats, Formats}
 import org.newsclub.net.unix.{AFUNIXServerSocket, AFUNIXSocketAddress}
 
@@ -50,6 +50,7 @@ class ServiceBackendContext(
   val remoteTmpDir: String,
   val workerCores: String,
   val workerMemory: String,
+  val regions: Array[String]
 ) extends BackendContext with Serializable {
   def tokens(): Tokens =
     new Tokens(Map((DeployConfig.get.defaultNamespace, sessionID)))
@@ -113,12 +114,7 @@ class ServiceBackend(
     val token = tokenUrlSafe(32)
     val root = s"${ backendContext.remoteTmpDir }parallelizeAndComputeWithIndex/$token"
 
-    // FIXME: HACK
-    val (open, write) = if (n <= 50) {
-      (fs.openCachedNoCompression _, fs.writeCached _)
-    } else {
-      ((x: String) => fs.openNoCompression(x), fs.writePDOS _)
-    }
+    val (open, write) = ((x: String) => fs.openNoCompression(x), fs.writePDOS _)
 
     log.info(s"parallelizeAndComputeWithIndex: $token: nPartitions $n")
     log.info(s"parallelizeAndComputeWithIndex: $token: writing f and contexts")
@@ -183,6 +179,7 @@ class ServiceBackend(
         ),
         "mount_tokens" -> JBool(true),
         "resources" -> resources,
+        "regions" -> JArray(backendContext.regions.map(JString).toList)
       )
       i += 1
     }
@@ -336,12 +333,10 @@ class ServiceBackend(
 
   def lowerDistributedSort(
     ctx: ExecuteContext,
-    stage: TableStage,
+    inputStage: TableStage,
     sortFields: IndexedSeq[SortField],
-    relationalLetsAbove: Map[String, IR],
-    rowTypeRequiredness: RStruct
-  ): TableStage = LowerDistributedSort.distributedSort(ctx, stage, sortFields, relationalLetsAbove, rowTypeRequiredness)
-
+    rt: RTable
+  ): TableReader = LowerDistributedSort.distributedSort(ctx, inputStage, sortFields, rt)
 
   def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String): Unit = ???
 
@@ -354,7 +349,13 @@ class ServiceBackend(
   def loadReferencesFromDataset(
     ctx: ExecuteContext,
     path: String
-  ): String = ReferenceGenome.fromHailDataset(ctx.fs, path)
+  ): String = {
+    val rgs = ReferenceGenome.fromHailDataset(ctx.fs, path)
+    rgs.foreach(addReference)
+
+    implicit val formats: Formats = defaultJSONFormats
+    Serialization.write(rgs.map(_.toJSON).toFastIndexedSeq)
+  }
 
   def parseVCFMetadata(
     ctx: ExecuteContext,
@@ -386,6 +387,13 @@ class ServiceBackend(
     IndexBgen(ctx, files, indexFileMap, referenceGenomeName, contigRecoding, skipInvalidLoci)
     info(s"Number of BGEN files indexed: ${ files.size }")
     "null"
+  }
+
+  def tableToTableStage(ctx: ExecuteContext,
+    inputIR: TableIR,
+    analyses: LoweringAnalyses
+  ): TableStage = {
+    LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
   }
 }
 
@@ -423,9 +431,11 @@ object ServiceBackendSocketAPI2 {
       jarLocation, name, new HailClassLoader(getClass().getClassLoader()), batchClient, batchId, scratchDir)
     if (HailContext.isInitialized) {
       HailContext.get.backend = backend
+      backend.addDefaultReferences()
     } else {
       HailContext(backend, "hail.log", false, false, 50, skipLoggingConfiguration = true, 3)
     }
+
     retryTransientErrors {
       using(fs.openNoCompression(input)) { in =>
         retryTransientErrors {
@@ -525,15 +535,40 @@ class ServiceBackendSocketAPI2(
       nFlagsRemaining -= 1
     }
     val nCustomReferences = readInt()
-    val customReferences = mutable.Map[String, ReferenceGenome](ReferenceGenome.references.toSeq: _*)
     var i = 0
     while (i < nCustomReferences) {
-      val reference = ReferenceGenome.fromJSON(readString())
-      customReferences(reference.name) = reference
+      backend.addReference(ReferenceGenome.fromJSON(readString()))
+      i += 1
+    }
+    val nLiftoverSourceGenomes = readInt()
+    val liftovers = mutable.Map[String, mutable.Map[String, String]]()
+    i = 0
+    while (i < nLiftoverSourceGenomes) {
+      val sourceGenome = readString()
+      val nLiftovers = readInt()
+      liftovers(sourceGenome) = mutable.Map[String, String]()
+      var j = 0
+      while (j < nLiftovers) {
+        val destGenome = readString()
+        val chainFile = readString()
+        liftovers(sourceGenome)(destGenome) = chainFile
+        j += 1
+      }
       i += 1
     }
     val workerCores = readString()
     val workerMemory = readString()
+
+    var nRegions = readInt()
+    val regions = {
+      val regionsArrayBuffer = mutable.ArrayBuffer[String]()
+      while (nRegions > 0) {
+        val region = readString()
+        regionsArrayBuffer += region
+        nRegions -= 1
+      }
+      regionsArrayBuffer.toArray
+    }
 
     val cmd = readInt()
 
@@ -552,10 +587,15 @@ class ServiceBackendSocketAPI2(
         timer,
         null,
         backend.theHailClassLoader,
-        customReferences.toMap,
+        backend.references,
         flags
       ) { ctx =>
-        ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir, workerCores, workerMemory)
+        liftovers.foreach { case (sourceGenome, liftoversForSource) =>
+          liftoversForSource.foreach { case (destGenome, chainFile) =>
+            ctx.getReference(sourceGenome).addLiftover(ctx, chainFile, destGenome)
+          }
+        }
+        ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir, workerCores, workerMemory, regions)
         method(ctx)
       }
     }
