@@ -1044,11 +1044,12 @@ class BGENTests(unittest.TestCase):
     def test_error_if_no_gp(self):
         mt = hl.balding_nichols_model(3, 3, 3)
         mt = mt.key_cols_by(s=hl.str(mt.sample_idx))
+        tmp_path = new_temp_file(extension='bgen')
         with pytest.raises(ValueError, match="BGEN requires a GP"):
-            hl.export_bgen(mt, "dummy_path")
+            hl.export_bgen(mt, tmp_path)
 
         with pytest.raises(ValueError, match="GEN requires a GP"):
-            hl.export_gen(mt, "dummy_path")
+            hl.export_gen(mt, tmp_path)
 
     def test_import_bgen_dosage_entry(self):
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
