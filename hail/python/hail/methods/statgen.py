@@ -923,8 +923,7 @@ def mean_impute(hl_array):
     return hl_array.map(lambda entry: hl.coalesce(entry, non_missing_mean))
 
 
-def sigmoid(hl_nd):
-    return hl_nd.map(lambda x: hl.expit(x))
+sigmoid = hl.expit
 
 
 def nd_max(hl_nd):
