@@ -152,28 +152,19 @@ async def audit_changes(db):
 
     bad_job_records = db.select_and_fetchall(
         '''
-SELECT old.batch_id, old.job_id, old.cost, new.cost, ABS(new.cost - old.cost) AS cost_diff
+SELECT old.batch_id, old.job_id, new.resource_id, old.usage, new.usage, ABS(new.usage - old.usage) AS usage_diff
 FROM (
-  SELECT batch_id, job_id, CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) AS cost
-  FROM (
-    SELECT batch_id, job_id, resource_id, COALESCE(SUM(`usage`), 0) AS `usage`
-    FROM aggregated_job_resources_v2
-    GROUP BY batch_id, job_id, resource_id
-  ) AS usage_t
-  LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-  GROUP BY batch_id, job_id
+  SELECT batch_id, job_id, deduped_resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM aggregated_job_resources_v2
+  LEFT JOIN resources ON aggregated_job_resources_v2.resource_id = resources.resource_id
+  GROUP BY batch_id, job_id, deduped_resource_id
 ) AS old
 LEFT JOIN (
-  SELECT batch_id, job_id, CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) AS cost
-  FROM (
-    SELECT batch_id, job_id, resource_id, COALESCE(SUM(`usage`), 0) AS `usage`
-    FROM aggregated_job_resources_v3
-    GROUP BY batch_id, job_id, resource_id
-  ) AS usage_t
-  LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-  GROUP BY batch_id, job_id
-) AS new ON old.batch_id = new.batch_id AND old.job_id = new.job_id
-WHERE ABS(new.cost - old.cost) = 0
+  SELECT batch_id, job_id, resource_id, COALESCE(SUM(`usage`), 0) AS `usage`
+  FROM aggregated_job_resources_v3
+  GROUP BY batch_id, job_id, resource_id
+) AS new ON old.batch_id = new.batch_id AND old.job_id = new.job_id AND old.deduped_resource_id = new.resource_id
+WHERE old.usage != new.usage
 LIMIT 100;
 ''')
 
@@ -190,28 +181,19 @@ LIMIT 100;
 
     bad_batch_records = db.select_and_fetchall(
         '''
-SELECT old.batch_id, old.cost, new.cost, ABS(new.cost - old.cost) AS cost_diff
+SELECT old.batch_id, old.deduped_resource_id, old.usage, new.usage, ABS(new.usage - old.usage) AS usage_diff
 FROM (
-  SELECT batch_id, CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) AS cost
-  FROM (
-    SELECT batch_id, resource_id, COALESCE(SUM(`usage`), 0) AS `usage`
-    FROM aggregated_batch_resources_v2
-    GROUP BY batch_id, resource_id
-  ) AS usage_t
-  LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-  GROUP BY batch_id
+  SELECT batch_id, deduped_resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM aggregated_batch_resources_v2
+  LEFT JOIN resources ON aggregated_batch_resources_v2.resource_id = resources.resource_id
+  GROUP BY batch_id, deduped_resource_id
 ) AS old
 LEFT JOIN (
-  SELECT batch_id, CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) AS cost
-  FROM (
-    SELECT batch_id, resource_id, COALESCE(SUM(`usage`), 0) AS `usage`
-    FROM aggregated_batch_resources_v3
-    GROUP BY batch_id, resource_id
-  ) AS usage_t
-  LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-  GROUP BY batch_id
-) AS new ON old.batch_id = new.batch_id
-WHERE ABS(new.cost - old.cost) = 0
+  SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM aggregated_batch_resources_v3
+  GROUP BY batch_id, resource_id
+) AS new ON old.batch_id = new.batch_id AND old.deduped_resource_id = new.resource_id
+WHERE new.usage != old.usage
 LIMIT 100;
 ''')
 
@@ -228,28 +210,19 @@ LIMIT 100;
 
     bad_bp_user_records = db.select_and_fetchall(
         '''
-SELECT old.billing_project, old.user, old.cost, new.cost, ABS(new.cost - old.cost) AS cost_diff
+SELECT old.billing_project, old.user, old.usage, new.usage, ABS(new.usage - old.usage) AS usage_diff
 FROM (
-  SELECT billing_project, user, CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) AS cost
-  FROM (
-    SELECT billing_project, user, resource_id, COALESCE(SUM(`usage`), 0) AS `usage`
-    FROM aggregated_billing_project_user_resources_by_date_v2
-    GROUP BY billing_project, user, resource_id
-  ) AS usage_t
-  LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-  GROUP BY billing_project, user
+  SELECT billing_project, user, deduped_resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM aggregated_billing_project_user_resources_by_date_v2
+  LEFT JOIN resources ON resources.resource_id = aggregated_billing_project_user_resources_by_date_v2.resource_id
+  GROUP BY billing_project, user, deduped_resource_id
 ) AS old
 LEFT JOIN (
-  SELECT billing_project, user, CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) AS cost
-  FROM (
-    SELECT billing_project, user, resource_id, COALESCE(SUM(`usage`), 0) AS `usage`
-    FROM aggregated_billing_project_user_resources_by_date_v3
-    GROUP BY billing_project, user, resource_id
-  ) AS usage_t
-  LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-  GROUP BY billing_project, user
-) AS new ON old.billing_project = new.billing_project AND old.user = new.user
-WHERE ABS(new.cost - old.cost) = 0
+  SELECT billing_project, user, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM aggregated_billing_project_user_resources_by_date_v3
+  GROUP BY billing_project, user, resource_id
+) AS new ON old.billing_project = new.billing_project AND old.user = new.user AND old.deduped_resource_id = new.resource_id
+WHERE new.usage != old.usage
 LIMIT 100;
 ''')
 
@@ -266,28 +239,19 @@ LIMIT 100;
 
     bad_bp_user_by_date_records = db.select_and_fetchall(
         '''
-SELECT old.billing_project, old.user, old.cost, new.cost, ABS(new.cost - old.cost) AS cost_diff
+SELECT old.billing_date, old.billing_project, old.user, old.usage, new.usage, new.usage - old.usage as usage_diff
 FROM (
-  SELECT billing_date, billing_project, user, CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) AS cost
-  FROM (
-    SELECT billing_date, billing_project, user, resource_id, COALESCE(SUM(`usage`), 0) AS `usage`
-    FROM aggregated_billing_project_user_resources_by_date_v2
-    GROUP BY billing_date, billing_project, user, resource_id
-  ) AS usage_t
-  LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-  GROUP BY billing_date, billing_project, user
+  SELECT billing_date, billing_project, user, deduped_resource_id, COALESCE(SUM(`usage`), 0) AS `usage`
+  FROM aggregated_billing_project_user_resources_by_date_v2
+  LEFT JOIN resources ON aggregated_billing_project_user_resources_by_date_v2.resource_id = resources.resource_id
+  GROUP BY billing_date, billing_project, user, deduped_resource_id
 ) AS old
 LEFT JOIN (
-  SELECT billing_date, billing_project, user, CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) AS cost
-  FROM (
-    SELECT billing_date, billing_project, user, resource_id, COALESCE(SUM(`usage`), 0) AS `usage`
-    FROM aggregated_billing_project_user_resources_by_date_v3
-    GROUP BY billing_date, billing_project, user, resource_id
-  ) AS usage_t
-  LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-  GROUP BY billing_date, billing_project, user
-) AS new ON old.billing_project = new.billing_project AND old.user = new.user
-WHERE ABS(new.cost - old.cost) = 0
+  SELECT billing_date, billing_project, user, resource_id, COALESCE(SUM(`usage`), 0) AS `usage`
+  FROM aggregated_billing_project_user_resources_by_date_v3
+  GROUP BY billing_date, billing_project, user, resource_id
+) AS new ON old.billing_date = new.billing_date and old.billing_project = new.billing_project AND old.user = new.user and old.deduped_resource_id = new.resource_id
+WHERE new.usage != old.usage
 LIMIT 100;
 ''')
 
