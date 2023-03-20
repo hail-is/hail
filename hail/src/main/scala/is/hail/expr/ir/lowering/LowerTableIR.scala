@@ -832,10 +832,17 @@ object LowerTableIR {
         if (dropRows) {
           val globals = reader.lowerGlobals(ctx, typ.globalType)
 
+          val (partitioner, sparsity) = requestedPartitioner match {
+            case UseThisPartitioning(p) =>
+              (p, PartitionSparsity.Sparse(FastIndexedSeq()))
+            case UseTheDefaultPartitioning =>
+              (RVDPartitioner.empty(ctx, typ.keyType), PartitionSparsity.Dense)
+          }
+
           TableStage(
             globals,
-            RVDPartitioner.empty(ctx, typ.keyType),
-            PartitionSparsity.Dense,
+            partitioner,
+            sparsity,
             TableStageDependency.none,
             MakeStream(FastIndexedSeq(), TStream(TStruct.empty)),
             (_: Ref) => MakeStream(FastIndexedSeq(), TStream(typ.rowType)))
@@ -1194,7 +1201,7 @@ object LowerTableIR {
 
         val (newPartitioner, newSparsity) = requestedPartitioner match {
           case UseThisPartitioning(p) =>
-            (p, loweredChild.partitionSparsity.head(numNewParts, loweredChild.numPartitions))
+            (p, loweredChild.partitionSparsity.head(numNewParts, loweredChild.nContexts))
           case UseTheDefaultPartitioning =>
             val newIntervals = loweredChild.partitioner.rangeBounds.slice(0,numNewParts)
             val newPartitioner = loweredChild.partitioner.copy(rangeBounds = newIntervals)
@@ -1297,14 +1304,22 @@ object LowerTableIR {
         val newCtxSeq = CompileAndEvaluate(ctx, letBindNewCtx).asInstanceOf[IndexedSeq[Any]]
         val numNewParts = newCtxSeq.length
         val oldParts = loweredChild.partitioner.rangeBounds
-        val newIntervals = oldParts.slice(oldParts.length - numNewParts, oldParts.length)
-        val newPartitioner = loweredChild.partitioner.copy(rangeBounds = newIntervals)
+
+        val (newPartitioner, newSparsity) = requestedPartitioner match {
+          case UseThisPartitioning(p) =>
+            (p, loweredChild.partitionSparsity.tail(numNewParts, loweredChild.nContexts))
+          case UseTheDefaultPartitioning =>
+            val newIntervals = oldParts.slice(oldParts.length - numNewParts, oldParts.length)
+            val newPartitioner = loweredChild.partitioner.copy(rangeBounds = newIntervals)
+            (newPartitioner, PartitionSparsity.Dense)
+        }
+
         TableStage(
           loweredChild.letBindings,
           loweredChild.broadcastVals,
           loweredChild.globals,
           newPartitioner,
-          loweredChild.partitionSparsity.tail(numNewParts, loweredChild.numPartitions),
+          newSparsity,
           loweredChild.dependency,
           ToStream(Literal(letBindNewCtx.typ, newCtxSeq)),
           (ctxRef: Ref) => bindIR(GetField(ctxRef, "old")) { oldRef =>
@@ -1932,7 +1947,8 @@ object LowerTableIR {
 
     requestedPartitioner match {
       case UseThisPartitioning(p) =>
-        assert(p == lowered.partitioner, tir.getClass.getName)
+        if (p != lowered.partitioner)
+          throw new RuntimeException(s"${ tir.getClass.getName }\n  request=${ p }\n   actual=${ lowered.partitioner }")
       case UseTheDefaultPartitioning =>
         assert(lowered.partitionSparsity == PartitionSparsity.Dense, tir.getClass.getName)
     }

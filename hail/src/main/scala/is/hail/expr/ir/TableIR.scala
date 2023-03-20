@@ -1454,6 +1454,9 @@ class TableNativeReader(
 
   override def lowerPartitioned(ctx: ExecuteContext, requestedType: TableType, partitioner: RequestedPartitioning): TableStage = {
     partitioner match {
+      case UseThisPartitioning(p) if params.options.isEmpty && p == spec.rowsSpec.partitioner(ctx.stateManager) =>
+        lowerWithNewParams(ctx, requestedType, params)
+
       case UseThisPartitioning(p) if spec.indexed =>
         val opts = params.options
         opts match {
@@ -1567,7 +1570,7 @@ case class TableNativeZippedReader(
   }
 
   override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue =
-    TableExecuteIntermediate(lower(ctx, requestedType)).asTableValue(ctx)
+    TableExecuteIntermediate(lowerPartitioned(ctx, requestedType, UseTheDefaultPartitioning)).asTableValue(ctx)
 
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
     val globalsSpec = specLeft.globalsSpec
@@ -1582,6 +1585,9 @@ case class TableNativeZippedReader(
 
   override def lowerPartitioned(ctx: ExecuteContext, requestedType: TableType, partitioner: RequestedPartitioning): TableStage = {
     partitioner match {
+      case UseThisPartitioning(p) if options.isEmpty && p == specLeft.rowsSpec.partitioner(ctx.stateManager) =>
+        lowerWithNewOpts(ctx, requestedType, None)
+
       case UseThisPartitioning(p) if specLeft.indexed =>
         options match {
           case Some(o) =>
@@ -1592,6 +1598,7 @@ case class TableNativeZippedReader(
             val lowered = lowerWithNewOpts(ctx, requestedType, options = Some(NativeReaderOptions(p.rangeBounds, p.kType, false)))
             lowered
         }
+
       case _ =>
         lowerWithNewOpts(ctx, requestedType, options)
     }
@@ -1615,6 +1622,7 @@ case class TableNativeZippedReader(
       requestedType.rowType, requestedType.key, uidFieldName
     ).apply(globals)
   }
+
 
   override def partitionProposal(ctx: ExecuteContext): PartitionProposal = {
     val base = specLeft.rowsSpec.partitioner(ctx.stateManager)

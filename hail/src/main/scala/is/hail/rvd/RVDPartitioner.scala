@@ -22,8 +22,14 @@ class RVDPartitioner(
   // expensive, for debugging
   // assert(rangeBounds.forall(SafeRow.isSafe))
 
-  override def toString: String =
-    s"RVDPartitioner($kType),\n  partitions:\n    ${rangeBounds.mkString(",\n    ")}"
+  override def toString: String = {
+    val maxToPrint = 30
+    val rbs = if (rangeBounds.length > maxToPrint)
+      rangeBounds.mkString(",\n    ") + s"\n    ... ${ rangeBounds.length - maxToPrint } more"
+    else
+      rangeBounds.mkString(",\n    ")
+    s"RVDPartitioner($kType),\n  partitions:\n    $rbs"
+  }
 
   def this(
     sm: HailStateManager,
