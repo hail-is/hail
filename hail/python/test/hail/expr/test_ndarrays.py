@@ -53,9 +53,30 @@ def test_ndarray_ref():
         (h_cube[0, 0, hl.missing(hl.tint32)], None)
     )
 
+def test_ndarray_ref_bounds_check():
     with pytest.raises(HailUserError) as exc:
         hl.eval(hl.nd.array([1, 2, 3])[4])
     assert "Index 4 is out of bounds for axis 0 with size 3" in str(exc.value)
+
+    with pytest.raises(HailUserError) as exc:
+        hl.eval(hl.nd.array([1, 2, 3])[-1])
+    assert "Index -1 is out of bounds for axis 0 with size 3" in str(exc.value)
+
+    with pytest.raises(HailUserError) as exc:
+        hl.eval(hl.nd.array([[1], [2], [3]])[4, :])
+    assert "Index 4 is out of bounds for axis 0 with size 1" in str(exc.value)
+
+    with pytest.raises(HailUserError) as exc:
+        hl.eval(hl.nd.array([[1], [2], [3]])[-1, :])
+    assert "Index -1 is out of bounds for axis 0 with size 1" in str(exc.value)
+
+    with pytest.raises(HailUserError) as exc:
+        hl.eval(hl.nd.array([[1], [2], [3]])[:, 4])
+    assert "Index 4 is out of bounds for axis 1 with size 3" in str(exc.value)
+
+    with pytest.raises(HailUserError) as exc:
+        hl.eval(hl.nd.array([[1], [2], [3]])[:, -1])
+    assert "Index -1 is out of bounds for axis 1 with size 3" in str(exc.value)
 
 
 def test_ndarray_slice():
