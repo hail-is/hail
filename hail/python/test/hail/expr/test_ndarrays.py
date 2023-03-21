@@ -1211,4 +1211,4 @@ def test_ndarray_indices_aggregations():
 def test_ndarray_log_broadcasting():
     expected = np.array([math.log(x) for x in [5, 10, 15, 20]]).reshape(2, 2)
     actual = hl.eval(hl.log(hl.nd.array([[5, 10], [15, 20]])))
-    assert actual == expected
+    assert np.array_equal(actual, expected)
