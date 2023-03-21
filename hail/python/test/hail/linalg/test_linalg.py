@@ -169,6 +169,14 @@ class Tests(unittest.TestCase):
             a4 = hl.eval(BlockMatrix.read(path).to_ndarray())
             self._assert_eq(a1, a4)
 
+    def test_from_entry_expr_empty_parts(self):
+        with hl.TemporaryDirectory(ensure_exists=False) as path:
+            mt = hl.balding_nichols_model(n_populations=5, n_variants=2000, n_samples=20, n_partitions=200)
+            mt = mt.filter_rows((mt.locus.position <= 500) | (mt.locus.position > 1500)).checkpoint(path)
+            bm = BlockMatrix.from_entry_expr(mt.GT.n_alt_alleles())
+            nd = (bm @ bm.T).to_numpy()
+            assert nd.shape == (1000, 1000)
+
     def test_from_entry_expr_options(self):
         def build_mt(a):
             data = [{'v': 0, 's': 0, 'x': a[0]},

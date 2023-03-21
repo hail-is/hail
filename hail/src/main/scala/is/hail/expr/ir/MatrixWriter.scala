@@ -1490,8 +1490,8 @@ case class MatrixBlockMatrixWriter(
     val inputRowIntervals = inputPartStarts.zip(inputPartStops).map{ case (intervalStart, intervalEnd) =>
       Interval(Row(intervalStart.toInt), Row(intervalEnd.toInt), true, false)
     }
-    val rowIdxPartitioner = RVDPartitioner.generate(ctx.stateManager, TStruct((perRowIdxId, TInt32)), inputRowIntervals)
 
+    val rowIdxPartitioner = new RVDPartitioner(ctx.stateManager, TStruct((perRowIdxId, TInt32)), inputRowIntervals)
     val keyedByRowIdx = partsZippedWithIdx.changePartitionerNoRepartition(rowIdxPartitioner)
 
     // Now create a partitioner that makes appropriately sized blocks
@@ -1505,12 +1505,12 @@ case class MatrixBlockMatrixWriter(
     val rowsInBlockSizeGroups: TableStage = keyedByRowIdx.repartitionNoShuffle(blockSizeGroupsPartitioner)
 
     def createBlockMakingContexts(tablePartsStreamIR: IR): IR = {
-      flatten(zip2(tablePartsStreamIR, rangeIR(numBlockRows), ArrayZipBehavior.AssertSameLength) { case (tableSinglePartCtx, blockColIdx)  =>
+      flatten(zip2(tablePartsStreamIR, rangeIR(numBlockRows), ArrayZipBehavior.AssertSameLength) { case (tableSinglePartCtx, blockRowIdx)  =>
         mapIR(rangeIR(I32(numBlockCols))){ blockColIdx =>
           MakeStruct(FastIndexedSeq("oldTableCtx" -> tableSinglePartCtx, "blockStart" -> (blockColIdx * I32(blockSize)),
             "blockSize" -> If(blockColIdx ceq I32(numBlockCols - 1), I32(lastBlockNumCols), I32(blockSize)),
             "blockColIdx" -> blockColIdx,
-            "blockRowIdx" -> blockColIdx))
+            "blockRowIdx" -> blockRowIdx))
         }
       })
     }
