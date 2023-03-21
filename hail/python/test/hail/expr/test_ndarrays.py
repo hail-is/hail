@@ -1,4 +1,5 @@
 import numpy as np
+import re
 from ..helpers import *
 import pytest
 
