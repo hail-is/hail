@@ -375,7 +375,10 @@ class FuseMount:
 
 # Mounts that can be shared across jobs by the same user
 # Only sharing within jobs of the same user ensures that
-# the user is authorized to access the bucket
+# the user is authorized to access the bucket. A user only has a single
+# set of credentials for cloudfuse so if they have successfully mounted
+# a bucket we can ignore the passed-in credentials and reuse the previous
+# mount.
 class ReadOnlyCloudfuseManager:
     def __init__(self):
         self.cloudfuse_dir = '/cloudfuse/readonly_cache'
