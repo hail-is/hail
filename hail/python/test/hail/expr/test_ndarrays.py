@@ -1051,13 +1051,13 @@ def test_concatenate_differing_shapes():
             hl.nd.array([[1]])
         ])
 
-    with pytest.raises(ValueError, match='hl.nd.concatenate: ndarrays must have same element types, found these element types: (int32, float64)'):
+    with pytest.raises(ValueError, match=re.escape('hl.nd.concatenate: ndarrays must have same element types, found these element types: (int32, float64)')):
         hl.nd.concatenate([
             hl.nd.array([1]),
             hl.nd.array([1.0])
         ])
 
-    with pytest.raises(ValueError, match='hl.nd.concatenate: ndarrays must have same element types, found these element types: (int32, float64)'):
+    with pytest.raises(ValueError, match=re.escape('hl.nd.concatenate: ndarrays must have same element types, found these element types: (int32, float64)')):
         hl.nd.concatenate([
             hl.nd.array([1]),
             hl.nd.array([[1.0]])
