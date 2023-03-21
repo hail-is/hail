@@ -486,7 +486,7 @@ def concatenate(nds, axis=0):
 
             ndims = {t.ndim for t in typs}
             assert len(ndims) != 1
-            ndims_str = ", ".join(str(ndim) for ndim in ndims)
+            ndims_str = ", ".join(str(nd.dtype.ndim) for nd in nds)
             raise ValueError(f'hl.nd.concatenate: ndarrays must have same number of dimensions, found: {ndims_str}.')
     else:
         indices = nds._indices
