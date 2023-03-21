@@ -543,14 +543,8 @@ class ServiceBackend(Backend[bc.Batch]):
         token:
             If not `None`, a string used for idempotency of batch submission.
         """
-        try:
-            return async_to_blocking(
-                self._async_run(batch, dry_run, verbose, delete_scratch_on_exit, wait, open, disable_progress_bar, callback, token, **backend_kwargs))
-        except KeyboardInterrupt:
-            if batch._batch_handle is not None:
-                print("Received a keyboard interrupt, cancelling the batch...")
-                batch._batch_handle.cancel()
-            raise
+        return async_to_blocking(
+            self._async_run(batch, dry_run, verbose, delete_scratch_on_exit, wait, open, disable_progress_bar, callback, token, **backend_kwargs))
 
     async def _async_run(self,
                          batch: 'batch.Batch',

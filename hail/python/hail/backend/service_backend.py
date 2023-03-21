@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Callable, Awaitable, Mapping, Any, List, Union, Tuple
+from typing import Dict, Optional, Callable, Awaitable, Mapping, Any, List, Union, Tuple, TypeVar
 import abc
 import collections
 import struct
@@ -35,6 +35,9 @@ from ..utils import ANY_REGION
 
 
 ReferenceGenomeConfig = Dict[str, Any]
+
+
+T = TypeVar("T")
 
 
 log = logging.getLogger('backend.service_backend')
@@ -443,9 +446,9 @@ class ServiceBackend(Backend):
                         raise reconstructed_error
                     raise reconstructed_error.maybe_user_error(ir)
 
-    def _cancel_on_ctrl_c(self, coro):
+    def _cancel_on_ctrl_c(self, coro: Awaitable[T]) -> T:
         try:
-            async_to_blocking(coro)
+            return async_to_blocking(coro)
         except KeyboardInterrupt:
             if self._batch is not None:
                 print("Received a keyboard interrupt, cancelling the batch...")
