@@ -185,11 +185,7 @@ class ServiceAccount:
             try:
                 kube_key = next(k for k in self.keys if all(s.matches_iam_key(k) for s in self.kube_secrets))
             except StopIteration:
-                keys_in_k8s = {s.private_key_id() for s in self.kube_secrets}
-                keys_to_k8s_secret = {
-                    k: []
-                    for k in keys_in_k8s
-                }
+                keys_to_k8s_secret = defaultdict(list)
                 for s in self.kube_secrets:
                     keys_to_k8s_secret[s.private_key_id()].append((s.name, s.namespace))
                 keys_to_k8s_secret_str = "\n".join(
@@ -201,7 +197,7 @@ class ServiceAccount:
                 )
                 kube_key = sorted(
                     [k for k in self.keys
-                     if k.id in keys_in_k8s],
+                     if k.id in keys_to_k8s_secret],
                     key=lambda k: -k.created.timestamp())[0]
                 print(f'''Found a user ({self.username()}) without a unique active key in Kubernetes.
 The known IAM keys are:
