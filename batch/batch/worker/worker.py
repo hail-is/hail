@@ -2462,10 +2462,24 @@ class JVM:
                 assert wait_for_interrupt.done()
                 raise JobDeletedError
             elif message == JVM.FINISH_USER_EXCEPTION:
+                was_oom = await read_bool(reader)
+                if was_oom:
+                    log.info(f'{self}: job OOMed, restarting JVM')
+                    try:
+                        await self.kill()
+                    except ProcessLookupError:
+                        log.info(f'{self}: JVM died after we caught OOM')
                 exception = await read_str(reader)
                 raise JVMUserError(exception)
             elif message == JVM.FINISH_ENTRYWAY_EXCEPTION:
                 log.warning(f'{self}: entryway exception encountered (interrupted: {wait_for_interrupt.done()})')
+                was_oom = await read_bool(reader)
+                if was_oom:
+                    log.info(f'{self}: job OOMed, restarting JVM')
+                    try:
+                        await self.kill()
+                    except ProcessLookupError:
+                        log.info(f'{self}: JVM died after we caught OOM')
                 exception = await read_str(reader)
                 raise ValueError(exception)
             elif message == JVM.FINISH_JVM_EOS:

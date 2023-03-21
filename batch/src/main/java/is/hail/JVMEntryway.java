@@ -208,6 +208,7 @@ class JVMEntryway {
 
   private static void finishException(int type, DataOutputStream out, Throwable t) throws IOException {
     out.writeInt(type);
+    out.writeByte(type instanceof java.lang.OutOfMemoryError);
     String s = throwableToString(t);
     byte[] bytes = s.getBytes(StandardCharsets.UTF_8);
     out.writeInt(bytes.length);
