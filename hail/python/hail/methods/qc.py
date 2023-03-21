@@ -727,12 +727,15 @@ def supported_vep_config(backend: ServiceBackend, cloud: str, reference_genome: 
 def _service_vep(backend: ServiceBackend,
                  ht: Table,
                  config: Optional[Dict[str, Any]],
-                 regions: List[str],
+                 regions: Optional[List[str]],
                  block_size: int,
                  csq: bool,
                  tolerate_parse_error: bool):
     reference_genome = ht['locus'].dtype.reference_genome.name
     cloud = backend.bc.cloud()
+
+    if regions is None:
+        regions = backend.regions
 
     if config is not None:
         vep_config = VEPConfig.from_dict(config)

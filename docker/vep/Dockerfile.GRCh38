@@ -2,6 +2,7 @@ FROM {{ hail_ubuntu_image.image }}
 
 ENV VEP_VERSION 95
 ENV VEP_DIR /vep
+ENV VEP_DATA_DIR /vep_data
 
 RUN apt-get update && apt-get -y install \
     build-essential \
@@ -42,7 +43,6 @@ RUN git clone -b release/95.1 https://github.com/Ensembl/ensembl-vep.git && \
     cd ensembl-vep && \
     perl INSTALL.pl -a a --NO_UPDATE && \
     echo "#!/bin/bash" > /vep/vep && \
-    echo "export PERL5LIB=\$PERL5LIB:${VEP_DIR}/loftee" >> /vep/vep && \
     echo "exec perl ${VEP_DIR}/ensembl-vep/vep \"\$@\"" >> /vep/vep && \
     chmod +x /vep /vep/vep && \
     git clone -b v1.0.2 https://github.com/konradjk/loftee.git && \

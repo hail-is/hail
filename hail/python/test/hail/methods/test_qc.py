@@ -398,6 +398,5 @@ class Tests(unittest.TestCase):
         hail_vep_result = reorder_lof_info(hail_vep_result)
 
         dataproc_result = dataproc_result.annotate(vep=hl.parse_json(dataproc_result.vep, hail_vep_result.vep.dtype))
-        dataproc_result = reorder_lof_info(dataproc_result)
 
         assert hail_vep_result._same(dataproc_result)
