@@ -4299,7 +4299,6 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     :class:`.Table`
         Table of a maximal independent set of variants.
     """
-    hl.utils.no_service_backend('ld_prune')
     if block_size is None:
         block_size = BlockMatrix.default_block_size()
 
