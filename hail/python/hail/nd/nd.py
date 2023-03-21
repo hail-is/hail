@@ -481,7 +481,7 @@ def concatenate(nds, axis=0):
         if len(typs) != 1:
             element_types = {t.element_type for t in typs}
             if len(element_types) != 1:
-                argument_element_types_str = ", ".join(str(t.element_type) for t in typs)
+                argument_element_types_str = ", ".join(str(nd.dtype.element_type) for nd in nds)
                 raise ValueError(f'hl.nd.concatenate: ndarrays must have same element types, found these element types: ({argument_element_types_str})')
 
             ndims = {t.ndim for t in typs}
