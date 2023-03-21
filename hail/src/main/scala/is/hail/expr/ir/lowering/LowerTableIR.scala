@@ -258,28 +258,35 @@ class TableStage(
     require(newPartitioner.kType.isPrefixOf(kType))
 
     val startAndEnd = partitioner.rangeBounds.map(newPartitioner.intervalRange)
-      .zipWithIndex
-    val ord = PartitionBoundOrdering.apply(newPartitioner.sm, newPartitioner.kType)
-    if (startAndEnd.forall { case ((start, end), index) =>
-      start + 1 == end && newPartitioner.rangeBounds(start).includes(ord, partitioner.rangeBounds(index)) }) {
-      val newToOld = startAndEnd
-        .groupBy(_._1._1)
-        .map { case (newIdx, values) => (newIdx, values.map(_._2).sorted.toFastIndexedSeq) }
+    if (startAndEnd.forall { case (start, end) => start + 1 == end }) {
+      val newToOld = startAndEnd.zipWithIndex.groupBy(_._1._1).map { case (newIdx, values) =>
+        (newIdx, values.map(_._2).sorted.toIndexedSeq)
+      }
 
+      val (oldPartIndices, newPartitionerFilt) =
+        if (dropEmptyPartitions) {
+          val indices = (0 until newPartitioner.numPartitions).filter(newToOld.contains)
+          (indices.map(newToOld), newPartitioner.copy(rangeBounds = indices.map(newPartitioner.rangeBounds)))
+        } else
+          ((0 until newPartitioner.numPartitions).map(i => newToOld.getOrElse(i, FastIndexedSeq())), newPartitioner)
 
-      val (oldPartIndices, newPartitionerFilt) = if (dropEmptyPartitions) {
-        val indices = (0 until newPartitioner.numPartitions).filter(newToOld.contains)
-        (indices.map(i => newToOld(i)), newPartitioner.copy(rangeBounds = indices.toArray.map(i => newPartitioner.rangeBounds(i))))
-      } else
-        ((0 until newPartitioner.numPartitions).map(i => newToOld.getOrElse(i, FastIndexedSeq())), newPartitioner)
-      log.info(s"repartitionNoShuffle - fast path, generated ${oldPartIndices.length} partitions from ${partitioner.numPartitions}" +
-        s" (dropped ${newPartitioner.numPartitions - oldPartIndices.length} empty output parts)")
+      val cost =
+        oldPartIndices.map(is => is.length.toDouble * is.length.toDouble).sum /
+          newPartitioner.numPartitions
+
+      log.info(
+        "repartitionNoShuffle - fast path," +
+          s" generated ${oldPartIndices.length} partitions from ${partitioner.numPartitions}" +
+          s" (dropped ${newPartitioner.numPartitions - oldPartIndices.length} empty output parts)" +
+          s" (cost: $cost)"
+      )
 
       val newContexts = bindIR(ToArray(contexts)) { oldCtxs =>
         mapIR(ToStream(Literal(TArray(TArray(TInt32)), oldPartIndices))) { inds =>
           ToArray(mapIR(ToStream(inds)) { i => ArrayRef(oldCtxs, i) })
         }
       }
+
       return TableStage(letBindings, broadcastVals, globals, newPartitionerFilt, dependency, newContexts,
         (ctx: Ref) => flatMapIR(ToStream(ctx, true)) { oldCtx => partition(oldCtx) })
     }
