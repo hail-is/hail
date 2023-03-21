@@ -393,7 +393,7 @@ class Tests(unittest.TestCase):
                 self.assertTrue(np.array_equal(a, a2))
 
     def test_trivial_loop(self):
-        assert hl.eval(hl.experimental.loop(lambda recur: 0, hl.int32)) == 0
+        assert hl.eval(hl.experimental.loop(lambda recur: 0, hl.tint32)) == 0
 
     def test_loop(self):
         def triangle_with_ints(n):
