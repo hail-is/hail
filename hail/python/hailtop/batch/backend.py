@@ -761,7 +761,7 @@ class ServiceBackend(Backend[bc.Batch]):
             if verbose:
                 print(f'Waiting for batch {batch_handle.id}...')
             starting_job_id = min(j._client_job.job_id for j in unsubmitted_jobs)
-            status = batch_handle.wait(disable_progress_bar=disable_progress_bar, starting_job=starting_job_id)
+            status = await batch_handle._async_batch.wait(disable_progress_bar=disable_progress_bar, starting_job=starting_job_id)
             print(f'batch {batch_handle.id} complete: {status["state"]}')
 
         batch._python_function_defs.clear()
