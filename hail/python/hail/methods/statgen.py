@@ -567,10 +567,10 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
             return hl.rbind(t, lambda t:
                             hl.rbind(ht.ds[idx], lambda d:
                                      hl.rbind(t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), d, True, False)), lambda p:
-                                              hl.struct(n=hl.range(rows_in_block).map(lambda i: n), sum_x=hl.array(sum_x),
-                                                        y_transpose_x=hl.array(ytx.T), beta=hl.array(b.T),
-                                                        standard_error=hl.array(se.T), t_stat=hl.array(t.T),
-                                                        p_value=hl.array(p.T)))))
+                                              hl.struct(n=hl.range(rows_in_block).map(lambda i: n), sum_x=sum_x._data_array(),
+                                                        y_transpose_x=ytx.T._data_array(), beta=b.T._data_array(),
+                                                        standard_error=se.T._data_array(), t_stat=t.T._data_array(),
+                                                        p_value=p.T._data_array()))))
 
         per_y_list = hl.range(num_y_lists).map(lambda i: process_y_group(i))
 
