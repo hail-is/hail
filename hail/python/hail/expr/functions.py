@@ -4144,6 +4144,11 @@ def replicate(n: 'hl.tint32', expr: 'hl.Expression') -> 'hl.ArrayExpression':
     >>> hl.eval(hl.rbind(hl.rand_int32(10), lambda x: hl.replicate(5, x)))
     [9, 9, 9, 9, 9]
 
+    >>> from random import randint, seed
+    >>> seed(0)
+    >>> hl.eval(hl.replicate(5, randint(0, 10)))
+    [6, 6, 6, 6, 6]
+
     Parameters
     ----------
     n    : :class:`.tint32`     Number of elements in the array
