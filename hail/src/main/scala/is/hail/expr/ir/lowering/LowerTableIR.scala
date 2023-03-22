@@ -1720,8 +1720,8 @@ object LowerTableIR {
 
         val joinedStage = joinType match {
           case "inner" => alignedLeft.zipPartitionsIntersection(alignedRight, globalsJoiner, partitionJoiner)
-          case "outer" => alignedLeft.zipPartitionsUnion(alignedRight, globalsJoiner, partitionJoiner)
-          case "left" => alignedLeft.zipPartitionsLeftJoin(alignedRight, globalsJoiner, partitionJoiner)
+          case "outer" => alignedLeft.zipPartitionsUnion(alignedRight, globalsJoiner, partitionJoiner).extendKeyPreservesPartitioning(tj.typ.key)
+          case "left" => alignedLeft.zipPartitionsLeftJoin(alignedRight, globalsJoiner, partitionJoiner).extendKeyPreservesPartitioning(tj.typ.key)
           case "right" => alignedLeft.zipPartitionsRightJoin(alignedRight, globalsJoiner, partitionJoiner)
         }
         assert(joinedStage.rowType == tj.typ.rowType)
@@ -1950,9 +1950,9 @@ object LowerTableIR {
         assert(lowered.partitionSparsity == PartitionSparsity.Dense, tir.getClass.getName)
     }
 
-    assert(tir.typ.globalType == lowered.globalType, s"\n  ir global: ${tir.typ.globalType}\n  lowered global: ${lowered.globalType}")
-    assert(tir.typ.rowType == lowered.rowType, s"\n  ir row: ${tir.typ.rowType}\n  lowered row: ${lowered.rowType}")
-    assert(lowered.key startsWith tir.typ.keyType.fieldNames, s"\n  ir key: ${tir.typ.keyType.fieldNames.toSeq}\n  lowered key: ${lowered.key}")
+    assert(tir.typ.globalType == lowered.globalType, s"${tir.getClass.getName}:\n  ir global: ${tir.typ.globalType}\n  lowered global: ${lowered.globalType}")
+    assert(tir.typ.rowType == lowered.rowType, s"${tir.getClass.getName}:\n  ir row: ${tir.typ.rowType}\n  lowered row: ${lowered.rowType}")
+    assert(lowered.key startsWith tir.typ.keyType.fieldNames, s"${tir.getClass.getName}: \n  ir key: ${tir.typ.keyType.fieldNames.toSeq}\n  lowered key: ${lowered.key}")
 
     lowered
   }
