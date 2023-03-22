@@ -216,6 +216,8 @@ class SparkBackend(Py4JBackend):
             if self._jsc.uiWebUrl().isDefined():
                 sys.stderr.write('SparkUI available at {}\n'.format(self._jsc.uiWebUrl().get()))
 
+            self._jbackend.startProgressBar()
+
         self._initialize_flags()
 
     def jvm(self):
