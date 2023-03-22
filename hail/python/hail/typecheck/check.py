@@ -356,9 +356,16 @@ class FunctionChecker(TypeChecker):
     def check(self, x, caller, param):
         if not callable(x):
             raise TypecheckFailure
-        spec = inspect.signature(x)
-        if not len(spec.parameters) == self.nargs:
-            raise TypecheckFailure
+
+        params = inspect.signature(x).parameters
+        if self.nargs != len(params):
+            n_required_params = len([
+                p for p in params.values()
+                if p.default == inspect.Parameter.empty
+            ])
+
+            if not (self.nargs >= n_required_params and self.nargs < len(params)):
+                raise TypecheckFailure
 
         def f(*args):
             ret = x(*args)
