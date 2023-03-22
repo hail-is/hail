@@ -81,5 +81,7 @@ def test_array():
         [1, 2, 3, 3]
     )
 
+    assert actual == expected
+
     with pytest.raises(ValueError, match='array: only one dimensional ndarrays are supported: ndarray<float64, 2>'):
         hl.eval(hl.array(hl.nd.array([[1.0], [2.0]])))
