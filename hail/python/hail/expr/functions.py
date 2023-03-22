@@ -4133,12 +4133,16 @@ def map(f: Callable, *collections):
 
 @typecheck(n=expr_int32, expr=expr_any)
 def replicate(n: 'hl.tint32', expr: 'hl.Expression') -> 'hl.ArrayExpression':
-    """Return an array of length `n` with each element initialized with `expr`
+    """Evaluate `expr` `n` times and return the results in an array.
 
     Examples
     --------
-    >>> hl.eval(hl.replicate(5, hl.struct()))
-    [Struct(), Struct(), Struct(), Struct(), Struct()]
+    >>> hl.reset_global_randomness()
+    >>> hl.eval(hl.replicate(5, hl.rand_int32(10)))
+    [8, 6, 4, 7, 6]
+
+    >>> hl.eval(hl.rbind(hl.rand_int32(10), lambda x: hl.replicate(5, x)))
+    [9, 9, 9, 9, 9]
 
     Parameters
     ----------
