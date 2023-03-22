@@ -4,9 +4,7 @@ import is.hail.annotations.Annotation
 import is.hail.expr.ir.{Env, IRParser, LowerMatrixIR}
 import is.hail.types.physical.{PArray, PStruct}
 import is.hail.types.virtual._
-import is.hail.rvd.RVDType
 import is.hail.utils._
-import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.Row
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.{JArray, JObject, JString}
@@ -190,7 +188,7 @@ case class MatrixType(
   def requireRowKeyVariant() {
     val rowKeyTypes = rowKeyStruct.types
     rowKey.zip(rowKeyTypes) match {
-      case IndexedSeq(("locus", TLocus(_)), ("alleles", TArray(TString))) =>
+      case Seq(("locus", TLocus(_)), ("alleles", TArray(TString))) =>
     }
   }
 
@@ -200,19 +198,19 @@ case class MatrixType(
     }
   }
 
-  def referenceGenome: ReferenceGenome = {
+  def referenceGenomeName: String = {
     val firstKeyField = rowKeyStruct.types(0)
-    firstKeyField.asInstanceOf[TLocus].rg.asInstanceOf[ReferenceGenome]
+    firstKeyField.asInstanceOf[TLocus].rg
   }
 
   def pyJson: JObject = {
     JObject(
-      "row" -> JString(rowType.toString),
+      "row_type" -> JString(rowType.toString),
       "row_key" -> JArray(rowKey.toList.map(JString(_))),
-      "col" -> JString(colType.toString),
+      "col_type" -> JString(colType.toString),
       "col_key" -> JArray(colKey.toList.map(JString(_))),
-      "entry" -> JString(entryType.toString),
-      "global" -> JString(globalType.toString)
+      "entry_type" -> JString(entryType.toString),
+      "global_type" -> JString(globalType.toString)
     )
   }
 }

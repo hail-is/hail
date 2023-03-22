@@ -4,9 +4,8 @@ import logging
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 
-from ..utils import tqdm
 from .router_fs import RouterAsyncFS
-from .utils import make_tqdm_listener
+from ..utils.rich_progress_bar import SimpleRichProgressBar
 
 
 async def delete(paths: List[str]) -> None:
@@ -15,9 +14,12 @@ async def delete(paths: List[str]) -> None:
         async with RouterAsyncFS(default_scheme='file', local_kwargs=kwargs, s3_kwargs=kwargs) as fs:
             sema = asyncio.Semaphore(50)
             async with sema:
-                with tqdm(desc='files', leave=False, position=0, unit='file') as file_pbar:
+                with SimpleRichProgressBar(
+                        description='files',
+                        transient=True,
+                        total=0) as file_pbar:
                     await asyncio.gather(*[
-                        fs.rmtree(sema, path, listener=make_tqdm_listener(file_pbar))
+                        fs.rmtree(sema, path, listener=file_pbar.make_listener())
                         for path in paths
                     ])
 

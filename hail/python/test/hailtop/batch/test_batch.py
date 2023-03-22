@@ -22,6 +22,8 @@ from hailtop.test_utils import skip_in_azure
 DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
 PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.7-slim'
 HAIL_GENETICS_HAIL_IMAGE = os.environ['HAIL_GENETICS_HAIL_IMAGE']
+CLOUD = os.environ['HAIL_CLOUD']
+
 
 class LocalTests(unittest.TestCase):
     def batch(self, requester_pays_project=None):
@@ -404,7 +406,7 @@ class ServiceTests(unittest.TestCase):
         remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
         if not remote_tmpdir.endswith('/'):
             remote_tmpdir += '/'
-        self.remote_tmpdir = remote_tmpdir
+        self.remote_tmpdir = remote_tmpdir + str(uuid.uuid4()) + '/'
 
         if remote_tmpdir.startswith('gs://'):
             self.bucket = re.fullmatch('gs://(?P<bucket_name>[^/]+).*', remote_tmpdir).groupdict()['bucket_name']
@@ -663,6 +665,35 @@ class ServiceTests(unittest.TestCase):
             j.cloudfuse(self.bucket, '')
 
     @skip_in_azure
+    def test_fuse_requester_pays(self):
+        b = self.batch(requester_pays_project='hail-vdc')
+        j = b.new_job()
+        j.cloudfuse('hail-services-requester-pays', '/fuse-bucket')
+        j.command('cat /fuse-bucket/hello')
+        res = b.run()
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+
+    @skip_in_azure
+    def test_fuse_non_requester_pays_bucket_when_requester_pays_project_specified(self):
+        assert self.bucket
+        path = f'/{self.bucket}{self.cloud_output_path}'
+
+        b = self.batch(requester_pays_project='hail-vdc')
+        head = b.new_job()
+        head.command(f'mkdir -p {path}; echo head > {path}/cloudfuse_test_1')
+        head.cloudfuse(self.bucket, f'/{self.bucket}', read_only=False)
+
+        tail = b.new_job()
+        tail.command(f'cat {path}/cloudfuse_test_1')
+        tail.cloudfuse(self.bucket, f'/{self.bucket}', read_only=True)
+        tail.depends_on(head)
+
+        res = b.run()
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+
+    @skip_in_azure
     def test_requester_pays(self):
         b = self.batch(requester_pays_project='hail-vdc')
         input = b.read_input('gs://hail-services-requester-pays/hello')
@@ -814,6 +845,24 @@ class ServiceTests(unittest.TestCase):
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
         assert res.get_job_log(4)['main'] == "3\n5\n30\n{\"x\": 3, \"y\": 5}\n", str(res.debug_info())
 
+    def test_python_job_can_write_to_resource_path(self):
+        b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
+
+        def write(path):
+            with open(path, 'w') as f:
+                f.write('foo')
+        head = b.new_python_job()
+        head.call(write, head.ofile)
+
+        tail = b.new_bash_job()
+        tail.command(f'cat {head.ofile}')
+
+        res = b.run()
+        assert res
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+        assert res.get_job_log(tail._job_id)['main'] == 'foo', str(res.debug_info())
+
     def test_python_job_w_resource_group_unpack_jointly(self):
         b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
         head = b.new_job()
@@ -858,6 +907,36 @@ class ServiceTests(unittest.TestCase):
         res = b.run()
         res_status = res.status()
         assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
+
+    def test_python_job_incorrect_signature(self):
+        b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
+
+        def foo(pos_arg1, pos_arg2, *, kwarg1, kwarg2=1):
+            print(pos_arg1, pos_arg2, kwarg1, kwarg2)
+
+        j = b.new_python_job()
+
+        with pytest.raises(BatchException):
+            j.call(foo)
+        with pytest.raises(BatchException):
+            j.call(foo, 1)
+        with pytest.raises(BatchException):
+            j.call(foo, 1, 2)
+        with pytest.raises(BatchException):
+            j.call(foo, 1, kwarg1=2)
+        with pytest.raises(BatchException):
+            j.call(foo, 1, 2, 3)
+        with pytest.raises(BatchException):
+            j.call(foo, 1, 2, kwarg1=3, kwarg2=4, kwarg3=5)
+
+        j.call(foo, 1, 2, kwarg1=3)
+        j.call(foo, 1, 2, kwarg1=3, kwarg2=4)
+
+        # `print` doesn't have a signature but other builtins like `abs` do
+        j.call(print, 5)
+        j.call(abs, -1)
+        with pytest.raises(BatchException):
+            j.call(abs, -1, 5)
 
     def test_fail_fast(self):
         b = self.batch(cancel_after_n_failures=1)
@@ -959,3 +1038,143 @@ class ServiceTests(unittest.TestCase):
         assert batch_status['state'] == 'success', str((batch_status, batch.debug_info()))
         job_log_2 = batch.get_job_log(2)
         assert job_log_2['main'] == "6\n", str((job_log_2, batch.debug_info()))
+
+    def test_specify_job_region(self):
+        b = self.batch(cancel_after_n_failures=1)
+        j = b.new_job('region')
+        possible_regions = self.backend.supported_regions()
+        j.regions(possible_regions)
+        j.command('true')
+        res = b.run()
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+
+    def test_always_copy_output(self):
+        output_path = f'{self.cloud_output_dir}/test_always_copy_output.txt'
+
+        b = self.batch()
+        j = b.new_job()
+        j.always_copy_output()
+        j.command(f'echo "hello" > {j.ofile} && false')
+
+        b.write_output(j.ofile, output_path)
+        res = b.run()
+        res_status = res.status()
+        assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
+
+        b2 = self.batch()
+        input = b2.read_input(output_path)
+        file_exists_j = b2.new_job()
+        file_exists_j.command(f'cat {input}')
+
+        res = b2.run()
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+        assert res.get_job_log(1)['main'] == "hello\n", str(res.debug_info())
+
+    def test_no_copy_output_on_failure(self):
+        output_path = f'{self.cloud_output_dir}/test_no_copy_output.txt'
+
+        b = self.batch()
+        j = b.new_job()
+        j.command(f'echo "hello" > {j.ofile} && false')
+
+        b.write_output(j.ofile, output_path)
+        res = b.run()
+        res_status = res.status()
+        assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
+
+        b2 = self.batch()
+        input = b2.read_input(output_path)
+        file_exists_j = b2.new_job()
+        file_exists_j.command(f'cat {input}')
+
+        res = b2.run()
+        res_status = res.status()
+        assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
+
+    def test_update_batch(self):
+        b = self.batch()
+        j = b.new_job()
+        j.command('true')
+        res = b.run()
+
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+
+        j2 = b.new_job()
+        j2.command('true')
+        res = b.run()
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+
+    def test_update_batch_with_dependencies(self):
+        b = self.batch()
+        j1 = b.new_job()
+        j1.command('true')
+        j2 = b.new_job()
+        j2.command('false')
+        res = b.run()
+
+        res_status = res.status()
+        assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
+
+        j3 = b.new_job()
+        j3.command('true')
+        j3.depends_on(j1)
+
+        j4 = b.new_job()
+        j4.command('true')
+        j4.depends_on(j2)
+
+        res = b.run()
+        res_status = res.status()
+        assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
+
+        assert res.get_job(3).status()['state'] == 'Success', str((res_status, res.debug_info()))
+        assert res.get_job(4).status()['state'] == 'Cancelled', str((res_status, res.debug_info()))
+
+    def test_update_batch_with_python_job_dependencies(self):
+        b = self.batch()
+
+        async def foo(i, j):
+            await asyncio.sleep(1)
+            return i * j
+
+        j1 = b.new_python_job()
+        j1.call(foo, 2, 3)
+
+        batch = b.run()
+        batch_status = batch.status()
+        assert batch_status['state'] == 'success', str((batch_status, batch.debug_info()))
+
+        j2 = b.new_python_job()
+        j2.call(foo, 2, 3)
+
+        batch = b.run()
+        batch_status = batch.status()
+        assert batch_status['state'] == 'success', str((batch_status, batch.debug_info()))
+
+        j3 = b.new_python_job()
+        j3.depends_on(j2)
+        j3.call(foo, 2, 3)
+
+        batch = b.run()
+        batch_status = batch.status()
+        assert batch_status['state'] == 'success', str((batch_status, batch.debug_info()))
+
+    def test_update_batch_from_batch_id(self):
+        b = self.batch()
+        j = b.new_job()
+        j.command('true')
+        res = b.run()
+
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+
+        b2 = Batch.from_batch_id(b._batch_handle.id, backend=b._backend)
+        j2 = b2.new_job()
+        j2.command('true')
+        res = b2.run()
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))

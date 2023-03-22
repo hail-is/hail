@@ -27,6 +27,9 @@ object CompileAndEvaluate {
     ir0: IR,
     optimize: Boolean = true
   ): IR = {
+    if (IsConstant(ir0))
+      return ir0
+
     _apply(ctx, ir0, optimize) match {
       case Left(_) => Begin(FastIndexedSeq())
       case Right((pt, addr)) =>
@@ -53,8 +56,10 @@ object CompileAndEvaluate {
         ir,
         print = None, optimize = optimize))
 
-      val fRunnable = ctx.timer.time("InitializeCompiledFunction")(f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r))
-      ctx.timer.time("RunCompiledVoidFunction")(fRunnable(ctx.r))
+      ctx.scopedExecution { (hcl, fs, htc, r) =>
+        val fRunnable = ctx.timer.time("InitializeCompiledFunction")(f(hcl, fs, htc, r))
+        ctx.timer.time("RunCompiledVoidFunction")(fRunnable(r))
+      }
       return Left(())
     }
 
@@ -64,7 +69,8 @@ object CompileAndEvaluate {
       MakeTuple.ordered(FastSeq(ir)),
       print = None, optimize = optimize))
 
-    val fRunnable = ctx.timer.time("InitializeCompiledFunction")(f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r))
+
+    val fRunnable = ctx.timer.time("InitializeCompiledFunction")(f(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r))
     val resultAddress = ctx.timer.time("RunCompiledFunction")(fRunnable(ctx.r))
 
     Right((resType, resultAddress))

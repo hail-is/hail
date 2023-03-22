@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailSuite
 import is.hail.expr.Nat
 import is.hail.expr.ir.agg.CallStatsState
-import is.hail.types.{BaseTypeWithRequiredness, RTable, TableType, TypeWithRequiredness, VirtualTypeWithReq}
+import is.hail.types.{BaseTypeWithRequiredness, RTable, TableType, TypeWithRequiredness, VirtualTypeWithReq, tcoerce}
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
@@ -52,7 +52,7 @@ class RequirednessSuite extends HailSuite {
   }
 
   def nd(r: Boolean): IR =
-    if (r) MakeNDArray.fill(int(optional), FastIndexedSeq(1, 2), True()) else NA(tnd)
+    if (r) MakeNDArray.fill(int(optional), FastIndexedSeq(1L, 2L), True()) else NA(tnd)
 
 // FIXME: Currently ndarrays don't support elements that have pointers.
 //  def nestednd(r: Boolean, aelt: Boolean): IR = {
@@ -485,7 +485,7 @@ class RequirednessSuite extends HailSuite {
     val n2 = Let("foo", I32(1), MakeStruct(FastSeq("a" -> n1, "b" -> n1)))
     val node = InsertFields(n2, FastSeq("c" -> GetField(n2, "a"), "d" -> GetField(n2, "b")))
     val res = Requiredness.apply(node, ctx)
-    val actual = coerce[TypeWithRequiredness](res.r.lookup(node)).canonicalPType(node.typ)
+    val actual = tcoerce[TypeWithRequiredness](res.r.lookup(node)).canonicalPType(node.typ)
     assert(actual == PCanonicalStruct(required,
       "a" -> PInt32(required), "b" -> PInt32(required),
       "c" -> PInt32(required), "d" -> PInt32(required)))
@@ -518,7 +518,8 @@ class RequirednessSuite extends HailSuite {
     for (rType <- Array(table.typ,
       TableType(TStruct("a" -> tnestedarray), FastIndexedSeq(), TStruct("z" -> tstruct))
     )) {
-      val (row, global) = reader.rowAndGlobalRequiredness(ctx, rType)
+      val row = reader.rowRequiredness(ctx, rType)
+      val global = reader.globalRequiredness(ctx, rType)
       val node = TableRead(rType, dropRows = false, reader)
       val res = Requiredness.apply(node, ctx)
       val actual = res.r.lookup(node).asInstanceOf[RTable]
@@ -534,7 +535,7 @@ class RequirednessSuite extends HailSuite {
       PTupleField(4, PInt32(optional)),
       PTupleField(2, PCanonicalArray(PInt32(required), optional))), required)
     val res = Requiredness.apply(node, ctx)
-    val actual = coerce[TypeWithRequiredness](res.r.lookup(node)).canonicalPType(node.typ)
+    val actual = tcoerce[TypeWithRequiredness](res.r.lookup(node)).canonicalPType(node.typ)
     assert(actual == expected)
   }
 }

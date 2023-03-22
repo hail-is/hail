@@ -3,7 +3,7 @@ package is.hail.io.fs
 import com.azure.core.credential.TokenCredential
 import com.azure.identity.{ClientSecretCredential, ClientSecretCredentialBuilder, DefaultAzureCredential, DefaultAzureCredentialBuilder}
 import com.azure.storage.blob.models.{BlobProperties, BlobRange, ListBlobsOptions}
-import com.azure.storage.blob.specialized.AppendBlobClient
+import com.azure.storage.blob.specialized.BlockBlobClient
 import com.azure.storage.blob.{BlobClient, BlobContainerClient, BlobServiceClient, BlobServiceClientBuilder}
 import is.hail.services.retryTransientErrors
 import is.hail.io.fs.AzureStorageFS.getAccountContainerPath
@@ -11,16 +11,17 @@ import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
 import org.apache.log4j.Logger
 
 import java.net.URI
-import is.hail.utils.{fatal, defaultJSONFormats}
+import is.hail.utils.{defaultJSONFormats, fatal}
 import org.json4s
 import org.json4s.jackson.JsonMethods
 import org.json4s.Formats
 
-import java.io.{ByteArrayInputStream, FileNotFoundException, OutputStream}
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, FileNotFoundException, OutputStream}
 import java.nio.file.FileSystems
 import java.time.Duration
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
+
 
 
 object AzureStorageFS {
@@ -90,6 +91,8 @@ class AzureBlobServiceClientCache(credential: TokenCredential) {
 
 
 class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
+  import AzureStorageFS.log
+
   def getConfiguration(): Unit = ()
 
   def setConfiguration(config: Any): Unit = { }
@@ -129,13 +132,20 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     getBlobServiceClient(account).getBlobContainerClient(container)
   }
 
-  def openNoCompression(filename: String): SeekableDataInputStream = retryTransientErrors {
+  def openNoCompression(filename: String, _debug: Boolean): SeekableDataInputStream = retryTransientErrors {
     val (account, container, path) = getAccountContainerPath(filename)
     val blobClient: BlobClient = getBlobClient(account, container, path)
     val blobSize = blobClient.getProperties.getBlobSize
 
     val is: SeekableInputStream = new FSSeekableInputStream {
       private[this] val client: BlobClient = blobClient
+
+      val bbOS = new OutputStream {
+        override def write(b: Array[Byte]): Unit = bb.put(b)
+        override def write(b: Int): Unit = bb.put(b.toByte)
+      }
+
+      override def physicalSeek(newPos: Long): Unit = ()
 
       override def fill(): Int = {
         val pos = getPosition
@@ -145,23 +155,29 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
           return -1
         }
 
-        val outputStreamToBuffer: OutputStream = (i: Int) => {
-          bb.put(i.toByte)
-        }
         val response = retryTransientErrors {
           bb.clear()
           client.downloadStreamWithResponse(
-            outputStreamToBuffer, new BlobRange(pos, count),
+            bbOS, new BlobRange(pos, count),
             null, null, false, timeout, null)
         }
 
         if (response.getStatusCode >= 200 && response.getStatusCode < 300) {
           bb.flip()
           assert(bb.position() == 0 && bb.remaining() > 0)
-          return bb.remaining()
-        }
 
-        -1
+          if (_debug) {
+            val byteContents = bb.array().map("%02X" format _).mkString
+            log.info(s"AzureStorageFS.openNoCompression SeekableInputStream: pos=$pos blobSize=$blobSize count=$count response.getStatusCode()=${response.getStatusCode()} bb.toString()=${bb} byteContents=${byteContents}")
+          }
+
+          bb.remaining()
+        } else {
+          if (_debug) {
+            log.info(s"AzureStorageFS.openNoCompression SeekableInputStream: pos=$pos blobSize=$blobSize count=$count response.getStatusCode()=${response.getStatusCode()}")
+          }
+          -1
+        }
       }
     }
 
@@ -170,17 +186,17 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
 
   def createNoCompression(filename: String): PositionedDataOutputStream = retryTransientErrors {
     val (account, container, path) = getAccountContainerPath(filename)
-    val appendClient = getBlobClient(account, container, path).getAppendBlobClient
-    appendClient.create(true)
+    val blockBlobClient = getBlobClient(account, container, path).getBlockBlobClient
 
-    val os: PositionedOutputStream = new FSPositionedOutputStream {
-      private[this] val client: AppendBlobClient = appendClient
+    val os: PositionedOutputStream = new FSPositionedOutputStream(4 * 1024 * 1024) {
+      private[this] val client: BlockBlobClient = blockBlobClient
+      private[this] val blobOutputStream = client.getBlobOutputStream(true)
 
       override def flush(): Unit = {
         bb.flip()
 
         if (bb.limit() > 0) {
-          client.appendBlock(new ByteArrayInputStream(bb.array(), 0, bb.limit()), bb.limit())
+          blobOutputStream.write(bb.array(), 0, bb.limit())
         }
 
         bb.clear()
@@ -189,6 +205,8 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
       override def close(): Unit = {
         if (!closed) {
           flush()
+          blobOutputStream.flush()
+          blobOutputStream.close()
           closed = true
         }
       }

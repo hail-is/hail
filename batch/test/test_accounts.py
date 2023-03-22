@@ -7,9 +7,11 @@ import aiohttp
 import orjson
 import pytest
 
+from hailtop import httpx
 from hailtop.auth import session_id_encode_to_str
 from hailtop.batch_client.aioclient import Batch, BatchClient
-from hailtop.utils import secret_alnum_string, tqdm
+from hailtop.utils import secret_alnum_string
+from hailtop.utils.rich_progress_bar import SimpleRichProgressBar
 
 from .billing_projects import get_billing_project_prefix
 
@@ -51,7 +53,7 @@ async def random_billing_project_name(dev_client: BatchClient) -> AsyncGenerator
     finally:
         try:
             r = await dev_client.get_billing_project(name)
-        except aiohttp.ClientResponseError as e:
+        except httpx.ClientResponseError as e:
             assert e.status == 403, e
         else:
             assert r['status'] != 'deleted', r
@@ -80,7 +82,7 @@ async def test_bad_token():
         bb.create_job(DOCKER_ROOT_IMAGE, ['false'])
         b = await bb.submit()
         assert False, str(await b.debug_info())
-    except aiohttp.ClientResponseError as e:
+    except httpx.ClientResponseError as e:
         assert e.status == 401
     finally:
         await bc.close()
@@ -112,35 +114,35 @@ async def test_unauthorized_billing_project_modification(
     client = await make_client('billing-project-not-needed-but-required-by-BatchClient')
     try:
         await client.create_billing_project(project)
-    except aiohttp.ClientResponseError as e:
+    except httpx.ClientResponseError as e:
         assert e.status == 401, e
     else:
         assert False, 'expected error'
 
     try:
         await client.add_user('test', project)
-    except aiohttp.ClientResponseError as e:
+    except httpx.ClientResponseError as e:
         assert e.status == 401, e
     else:
         assert False, 'expected error'
 
     try:
         await client.remove_user('test', project)
-    except aiohttp.ClientResponseError as e:
+    except httpx.ClientResponseError as e:
         assert e.status == 401, e
     else:
         assert False, 'expected error'
 
     try:
         await client.close_billing_project(project)
-    except aiohttp.ClientResponseError as e:
+    except httpx.ClientResponseError as e:
         assert e.status == 401, e
     else:
         assert False, 'expected error'
 
     try:
         await client.reopen_billing_project(project)
-    except aiohttp.ClientResponseError as e:
+    except httpx.ClientResponseError as e:
         assert e.status == 401, e
     else:
         assert False, 'expected error'
@@ -183,7 +185,7 @@ async def test_close_billing_project_with_pending_batch_update_does_not_error(
     bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
     b = await bb._open_batch()
     update_id = await bb._create_update(b.id)
-    with tqdm(total=1) as pbar:
+    with SimpleRichProgressBar(total=1) as pbar:
         process = {
             'type': 'docker',
             'command': ['sleep', '30'],
@@ -194,14 +196,14 @@ async def test_close_billing_project_with_pending_batch_update_does_not_error(
         await bb._submit_jobs(b.id, update_id, [orjson.dumps(spec)], 1, pbar)
     try:
         await dev_client.close_billing_project(project)
-    except aiohttp.ClientResponseError as e:
+    except httpx.ClientResponseError as e:
         assert False, str((e, await b.debug_info()))
 
 
 async def test_close_nonexistent_billing_project(dev_client: BatchClient):
     try:
         await dev_client.close_billing_project("nonexistent_project")
-    except aiohttp.ClientResponseError as e:
+    except httpx.ClientResponseError as e:
         assert e.status == 404, e
     else:
         assert False, 'expected error'
@@ -210,7 +212,7 @@ async def test_close_nonexistent_billing_project(dev_client: BatchClient):
 async def test_add_user_with_nonexistent_billing_project(dev_client: BatchClient):
     try:
         await dev_client.add_user("test", "nonexistent_project")
-    except aiohttp.ClientResponseError as e:
+    except httpx.ClientResponseError as e:
         assert e.status == 404, e
     else:
         assert False, 'expected error'
@@ -219,7 +221,7 @@ async def test_add_user_with_nonexistent_billing_project(dev_client: BatchClient
 async def test_remove_user_with_nonexistent_billing_project(dev_client: BatchClient):
     try:
         await dev_client.remove_user("test", "nonexistent_project")
-    except aiohttp.ClientResponseError as e:
+    except httpx.ClientResponseError as e:
         assert e.status == 404, e
     else:
         assert False, 'expected error'
@@ -229,7 +231,7 @@ async def test_delete_billing_project_only_when_closed(dev_client: BatchClient, 
     project = new_billing_project
     try:
         await dev_client.delete_billing_project(project)
-    except aiohttp.ClientResponseError as e:
+    except httpx.ClientResponseError as e:
         assert e.status == 403, e
     else:
         assert False, 'expected error'
@@ -241,14 +243,14 @@ async def test_delete_billing_project_only_when_closed(dev_client: BatchClient, 
 
     try:
         await dev_client.get_billing_project(project)
-    except aiohttp.ClientResponseError as e:
+    except httpx.ClientResponseError as e:
         assert e.status == 403, e
     else:
         assert False, 'expected error'
 
     try:
         await dev_client.reopen_billing_project(project)
-    except aiohttp.ClientResponseError as e:
+    except httpx.ClientResponseError as e:
         assert e.status == 403, e
     else:
         assert False, 'expected error'
@@ -297,7 +299,7 @@ async def test_edit_billing_limit_dev(dev_client: BatchClient, new_billing_proje
     try:
         bad_limit = 'foo'
         r = await dev_client.edit_billing_limit(project, bad_limit)
-    except aiohttp.ClientResponseError as e:
+    except httpx.ClientResponseError as e:
         assert e.status == 400, e
     else:
         r = await dev_client.get_billing_project(project)
@@ -307,7 +309,7 @@ async def test_edit_billing_limit_dev(dev_client: BatchClient, new_billing_proje
     try:
         limit = -1
         r = await dev_client.edit_billing_limit(project, limit)
-    except aiohttp.ClientResponseError as e:
+    except httpx.ClientResponseError as e:
         assert e.status == 400, e
     else:
         r = await dev_client.get_billing_project(project)
@@ -328,7 +330,7 @@ async def test_edit_billing_limit_nondev(
     try:
         limit = 5
         await client.edit_billing_limit(project, limit)
-    except aiohttp.ClientResponseError as e:
+    except httpx.ClientResponseError as e:
         assert e.status == 401, e
     else:
         r = await client.get_billing_project(project)
@@ -408,8 +410,8 @@ async def test_billing_limit_zero(
     try:
         bb = client.create_batch()
         b = await bb.submit()
-    except aiohttp.ClientResponseError as e:
-        assert e.status == 403 and 'has exceeded the budget' in e.message
+    except httpx.ClientResponseError as e:
+        assert e.status == 403 and 'has exceeded the budget' in e.body
     else:
         assert False, str(await b.debug_info())
 
@@ -550,49 +552,42 @@ async def test_batch_cannot_be_accessed_by_users_outside_the_billing_project(
     try:
         try:
             await user2_client.get_batch(b.id)
-        except aiohttp.ClientResponseError as e:
+        except httpx.ClientResponseError as e:
             assert e.status == 404, str((e, await b.debug_info()))
         else:
             assert False, str(await b.debug_info())
 
         try:
             await user2_client.get_job(j.batch_id, j.job_id)
-        except aiohttp.ClientResponseError as e:
+        except httpx.ClientResponseError as e:
             assert e.status == 404, str((e, await b.debug_info()))
         else:
             assert False, str(await b.debug_info())
 
         try:
             await user2_client.get_job_log(j.batch_id, j.job_id)
-        except aiohttp.ClientResponseError as e:
+        except httpx.ClientResponseError as e:
             assert e.status == 404, str((e, await b.debug_info()))
         else:
             assert False, str(await b.debug_info())
 
         try:
             await user2_client.get_job_attempts(j.batch_id, j.job_id)
-        except aiohttp.ClientResponseError as e:
+        except httpx.ClientResponseError as e:
             assert e.status == 404, str((e, await b.debug_info()))
         else:
             assert False, str(await b.debug_info())
 
         try:
             await user2_batch.status()
-        except aiohttp.ClientResponseError as e:
+        except httpx.ClientResponseError as e:
             assert e.status == 404, str((e, await b.debug_info()))
         else:
             assert False, str(await b.debug_info())
 
         try:
             await user2_batch.cancel()
-        except aiohttp.ClientResponseError as e:
-            assert e.status == 404, str((e, await b.debug_info()))
-        else:
-            assert False, str(await b.debug_info())
-
-        try:
-            await user2_batch.delete()
-        except aiohttp.ClientResponseError as e:
+        except httpx.ClientResponseError as e:
             assert e.status == 404, str((e, await b.debug_info()))
         else:
             assert False, str(await b.debug_info())
@@ -629,3 +624,91 @@ async def test_deleted_open_batches_do_not_prevent_billing_project_closure(
         await open_batch.delete()
     finally:
         await dev_client.close_billing_project(project)
+
+
+async def test_billing_project_case_sensitive(dev_client: BatchClient, new_billing_project: str):
+    upper_case_project = new_billing_project.upper()
+
+    # create billing project
+    await dev_client.create_billing_project(new_billing_project)
+    await dev_client.add_user('test-dev', new_billing_project)
+
+    dev_client.reset_billing_project(new_billing_project)
+
+    # create one batch with the correct billing project
+    bb = dev_client.create_batch()
+    j = bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
+    b = await bb.submit()
+
+    dev_client.reset_billing_project(upper_case_project)
+
+    # create batch
+    try:
+        bb = dev_client.create_batch()
+        j = bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
+        b = await bb.submit()
+    except aiohttp.ClientResponseError as e:
+        assert e.status == 403, e
+    else:
+        assert False
+
+    # edit billing limit
+    try:
+        limit = 5
+        await dev_client.edit_billing_limit(upper_case_project, limit)
+    except aiohttp.ClientResponseError as e:
+        assert e.status == 404, e
+    else:
+        assert False
+
+    # get billing project
+    try:
+        bp = await dev_client.get_billing_project(upper_case_project)
+    except aiohttp.ClientResponseError as e:
+        assert e.status == 403, e
+    else:
+        assert False
+
+    # add user to project
+    try:
+        r = await dev_client.add_user('test', upper_case_project)
+    except aiohttp.ClientResponseError as e:
+        assert e.status == 404, e
+    else:
+        assert False
+
+    # remove user from project
+    try:
+        r = await dev_client.remove_user('test', upper_case_project)
+    except aiohttp.ClientResponseError as e:
+        assert e.status == 404, e
+    else:
+        assert False
+
+    # close billing project
+    try:
+        r = await dev_client.close_billing_project(upper_case_project)
+    except aiohttp.ClientResponseError as e:
+        assert e.status == 404, e
+    else:
+        assert False
+
+    # delete billing project
+    try:
+        r = await dev_client.delete_billing_project(upper_case_project)
+    except aiohttp.ClientResponseError as e:
+        assert e.status == 404, e
+    else:
+        assert False
+
+    # list batches for a billing project
+    batches = [batch async for batch in dev_client.list_batches(f'billing_project:{upper_case_project}')]
+    assert len(batches) == 0
+
+    # list batches for a user
+    batches = [batch async for batch in dev_client.list_batches(f'user:DEV-TEST')]
+    assert len(batches) == 0
+
+    # list batches for a user that submitted the batch
+    batches = [batch async for batch in dev_client.list_batches(f'user=DEV-TEST')]
+    assert len(batches) == 0

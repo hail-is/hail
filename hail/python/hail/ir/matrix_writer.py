@@ -107,21 +107,24 @@ class MatrixGENWriter(MatrixWriter):
 
 
 class MatrixBGENWriter(MatrixWriter):
-    @typecheck_method(path=str, export_type=ExportType.checker)
-    def __init__(self, path, export_type):
+    @typecheck_method(path=str, export_type=ExportType.checker, compression_codec=str)
+    def __init__(self, path, export_type, compression_codec):
         self.path = path
         self.export_type = export_type
+        self.compression_codec = compression_codec
 
     def render(self):
         writer = {'name': 'MatrixBGENWriter',
                   'path': self.path,
-                  'exportType': self.export_type}
+                  'exportType': self.export_type,
+                  'compressionCodec': self.compression_codec}
         return escape_str(json.dumps(writer))
 
     def __eq__(self, other):
         return isinstance(other, MatrixBGENWriter) and \
             other.path == self.path and \
-            other.export_type == self.export_type
+            other.export_type == self.export_type and \
+            other.compression_codec == self.compression_codec
 
 
 class MatrixPLINKWriter(MatrixWriter):

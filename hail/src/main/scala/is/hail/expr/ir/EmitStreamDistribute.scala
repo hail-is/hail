@@ -171,7 +171,7 @@ object EmitStreamDistribute {
 
     cb.forLoop(cb.assign(fileArrayIdx, 0), fileArrayIdx < numFilesToWrite, cb.assign(fileArrayIdx, fileArrayIdx + 1), {
       val fileName = makeFileName(cb, fileArrayIdx)
-      val ob = cb.memoize(spec.buildCodeOutputBuffer(mb.create(fileName)))
+      val ob = cb.memoize(spec.buildCodeOutputBuffer(mb.createUnbuffered(fileName)))
       cb += outputBuffers.update(fileArrayIdx, ob)
       cb += numElementsPerFile.update(fileArrayIdx, 0)
       cb += numBytesPerFile.update(fileArrayIdx, 0)
@@ -180,10 +180,11 @@ object EmitStreamDistribute {
     // in splitters list. Since We don't want many empty files, we need to make an array mapping output buckets to files.
 
     val encoder = spec.encodedType.buildEncoder(childStream.st.elementType, cb.emb.ecb)
-    childStream.producer.memoryManagedConsume(region, cb) { cb =>
+    val producer = childStream.getProducer(mb)
+    producer.memoryManagedConsume(region, cb) { cb =>
       val b = cb.newLocal[Int]("stream_dist_b_i", 1)
       val current = mb.newEmitField("stream_dist_current", childStream.st.elementEmitType)
-      cb.assign(current, childStream.producer.element)
+      cb.assign(current, producer.element)
 
       val r = cb.newLocal[Int]("stream_dist_r")
       cb.forLoop(cb.assign(r, 0), r < treeHeight, cb.assign(r, r + 1), {

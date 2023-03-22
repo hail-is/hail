@@ -86,7 +86,7 @@ class ClientSession:
     def __init__(self,
                  *args,
                  raise_for_status: bool = True,
-                 timeout: Union[aiohttp.ClientTimeout, float] = None,
+                 timeout: Union[aiohttp.ClientTimeout, float, None] = None,
                  **kwargs):
         location = get_deploy_config().location()
         if location == 'external':
@@ -236,7 +236,7 @@ class BlockingClientResponse:
             encoding=encoding, errors=errors))
 
     def json(self, *,
-             encoding: str = None,
+             encoding: Optional[str] = None,
              loads: aiohttp.typedefs.JSONDecoder = aiohttp.typedefs.DEFAULT_JSON_DECODER,
              content_type: Optional[str] = 'application/json') -> Any:
         return async_to_blocking(self.client_response.json(

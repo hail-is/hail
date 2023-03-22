@@ -1,11 +1,12 @@
 package is.hail.types.physical.stypes.interfaces
 
-import is.hail.asm4s.{Value}
+import is.hail.asm4s.Value
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.{RInterval, TypeWithRequiredness}
 import is.hail.types.physical.stypes.primitives.SInt64Value
 import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.asm4s._
+import is.hail.expr.ir.orderings.CodeOrdering
 
 trait SInterval extends SType {
   def pointType: SType
@@ -19,9 +20,9 @@ trait SInterval extends SType {
 trait SIntervalValue extends SValue {
   def st: SInterval
 
-  def includesStart(): Value[Boolean]
+  def includesStart: Value[Boolean]
 
-  def includesEnd(): Value[Boolean]
+  def includesEnd: Value[Boolean]
 
   def loadStart(cb: EmitCodeBuilder): IEmitCode
 
@@ -30,8 +31,6 @@ trait SIntervalValue extends SValue {
   def loadEnd(cb: EmitCodeBuilder): IEmitCode
 
   def endDefined(cb: EmitCodeBuilder): Value[Boolean]
-
-  def isEmpty(cb: EmitCodeBuilder): Value[Boolean]
 
   override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = {
     val pIntervalSize = this.st.storageType().byteSize
@@ -46,5 +45,18 @@ trait SIntervalValue extends SValue {
     })
 
     new SInt64Value(sizeSoFar)
+  }
+
+  def isEmpty(cb: EmitCodeBuilder): Value[Boolean] = {
+    val gt = cb.emb.ecb.getOrderingFunction(st.pointType, CodeOrdering.Gt())
+    val gteq = cb.emb.ecb.getOrderingFunction(st.pointType, CodeOrdering.Gteq())
+
+    val start = cb.memoize(loadStart(cb), "start")
+    val end = cb.memoize(loadEnd(cb), "end")
+    val empty = cb.newLocal[Boolean]("is_empty")
+    cb.ifx(includesStart && includesEnd,
+      cb.assign(empty, gt(cb, start, end)),
+      cb.assign(empty, gteq(cb, start, end)))
+    empty
   }
 }

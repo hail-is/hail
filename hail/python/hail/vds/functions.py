@@ -82,11 +82,13 @@ def local_to_global(array, local_alleles, n_alleles, fill_value, number):
     -------
     :class:`.ArrayExpression`
     """
+    try:
+        fill_value = hl.coercer_from_dtype(array.dtype.element_type).coerce(fill_value)
+    except Exception as e:
+        raise ValueError(f'fill_value type {fill_value.dtype} is incompatible with array type {array.dtype}') from e
 
     if number == 'G':
-        local_alleles = _func("allele_to_genotype_reindex", hl.tarray(hl.tint32), local_alleles)
-        n_alleles = hl.triangle(n_alleles)
-        omit_first = False
+        return _func("local_to_global_g", array.dtype, array, local_alleles, n_alleles, fill_value)
     elif number == 'R':
         omit_first = False
     elif number == 'A':
@@ -94,9 +96,4 @@ def local_to_global(array, local_alleles, n_alleles, fill_value, number):
     else:
         raise ValueError(f'unrecognized number {number}')
 
-    try:
-        fill_value = hl.coercer_from_dtype(array.dtype.element_type).coerce(fill_value)
-    except Exception as e:
-        raise ValueError(f'fill_value type {fill_value.dtype} is incompatible with array type {array.dtype}') from e
-
-    return _func("local_to_global", array.dtype, array, local_alleles, n_alleles, fill_value, hl.bool(omit_first))
+    return _func("local_to_global_a_r", array.dtype, array, local_alleles, n_alleles, fill_value, hl.bool(omit_first))

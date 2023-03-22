@@ -10,7 +10,7 @@ ClientType = TypeVar('ClientType', bound='CloudBaseClient')
 class CloudBaseClient:
     _session: BaseSession
 
-    def __init__(self, base_url: str, session: BaseSession, *, rate_limit: RateLimit = None):
+    def __init__(self, base_url: str, session: BaseSession, *, rate_limit: Optional[RateLimit] = None):
         self._base_url = base_url
         if rate_limit is not None:
             session = RateLimitedSession(session=session, rate_limit=rate_limit)

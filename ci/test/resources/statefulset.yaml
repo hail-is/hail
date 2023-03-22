@@ -27,8 +27,8 @@ spec:
           image: "{{ hello_image.image }}"
           resources:
             requests:
-              cpu: "1m"
-              memory: "2M"
+              cpu: "10m"
+              memory: "100M"
             limits:
               cpu: "1"
               memory: "1G"
@@ -47,6 +47,9 @@ spec:
           volumeMounts:
            - mountPath: /deploy-config
              name: deploy-config
+             readOnly: true
+           - name: global-config
+             mountPath: /global-config
              readOnly: true
            - name: session-secret-key
              mountPath: /session-secret-key
@@ -74,6 +77,10 @@ spec:
          secret:
            optional: false
            secretName: deploy-config
+       - name: global-config
+         secret:
+           optional: false
+           secretName: global-config
        - name: session-secret-key
          secret:
            optional: false

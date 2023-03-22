@@ -23,6 +23,7 @@ from gear import (
     transaction,
 )
 from gear.cloud_config import get_global_config
+from gear.profiling import install_profiler_if_requested
 from hailtop import httpx
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
@@ -311,7 +312,7 @@ async def callback(request):
     if user is None:
         if caller == 'login':
             set_message(session, f'Account does not exist for login id {login_id}', 'error')
-            return aiohttp.web.HTTPFound(next_url)
+            return aiohttp.web.HTTPFound(deploy_config.external_url('auth', ''))
 
         assert caller == 'signup'
 
@@ -716,7 +717,7 @@ async def get_session_id(request):
     return session.get('session_id')
 
 
-@routes.get('/api/v1alpha/verify_dev_credentials')
+@routes.route('*', '/api/v1alpha/verify_dev_credentials')
 async def verify_dev_credentials(request):
     session_id = await get_session_id(request)
     if not session_id:
@@ -728,7 +729,7 @@ async def verify_dev_credentials(request):
     return web.Response(status=200)
 
 
-@routes.get('/api/v1alpha/verify_dev_or_sa_credentials')
+@routes.route('*', '/api/v1alpha/verify_dev_or_sa_credentials')
 async def verify_dev_or_sa_credentials(request):
     session_id = await get_session_id(request)
     if not session_id:
@@ -774,6 +775,8 @@ class AuthAccessLogger(AccessLogger):
 
 
 def run():
+    install_profiler_if_requested('auth')
+
     app = web.Application(middlewares=[monitor_endpoints_middleware])
 
     setup_aiohttp_jinja2(app, 'auth')
@@ -789,7 +792,7 @@ def run():
     web.run_app(
         deploy_config.prefix_application(app, 'auth'),
         host='0.0.0.0',
-        port=5000,
+        port=443,
         access_log_class=AuthAccessLogger,
         ssl_context=internal_server_ssl_context(),
     )

@@ -7,6 +7,8 @@ from hail.utils.java import jiterable_to_list
 
 
 class tmatrix(object):
+    __slots__ = 'global_type', 'col_type', 'col_key', 'row_type', 'row_key', 'entry_type'
+
     @staticmethod
     def _from_java(jtt):
         return tmatrix(
@@ -20,12 +22,12 @@ class tmatrix(object):
     @staticmethod
     def _from_json(json):
         return tmatrix(
-            dtype(json['global']),
-            dtype(json['col']),
-            json['col_key'],
-            dtype(json['row']),
-            json['row_key'],
-            dtype(json['entry']))
+            global_type=dtype(json['global_type']),
+            col_type=dtype(json['col_type']),
+            col_key=json['col_key'],
+            row_type=dtype(json['row_type']),
+            row_key=json['row_key'],
+            entry_type=dtype(json['entry_type']))
 
     @typecheck_method(global_type=tstruct,
                       col_type=tstruct, col_key=sequenceof(str),
@@ -38,6 +40,14 @@ class tmatrix(object):
         self.row_type = row_type
         self.row_key = row_key
         self.entry_type = entry_type
+
+    def to_dict(self):
+        return dict(global_type=str(self.global_type),
+                    col_type=str(self.col_type),
+                    col_key=self.col_key,
+                    row_type=str(self.row_type),
+                    row_key=self.row_key,
+                    entry_type=self.entry_type)
 
     def __eq__(self, other):
         return (isinstance(other, tmatrix)

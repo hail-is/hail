@@ -1,7 +1,5 @@
 include ../config.mk
 
-TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
-
 NOTEBOOK_IMAGE := $(DOCKER_PREFIX)/notebook:$(TOKEN)
 NOTEBOOK_NGINX_IMAGE := $(DOCKER_PREFIX)/notebook_nginx:$(TOKEN)
 
@@ -20,8 +18,8 @@ check:
 
 .PHONY: build-notebook
 build-notebook:
-	$(MAKE) -C ../docker service-base
-	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"'$$(cat ../docker/service-base-image-ref)'"}}' Dockerfile Dockerfile.out
+	$(MAKE) -C ../docker hail-ubuntu
+	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat ../docker/hail-ubuntu-image-ref)'"}}' Dockerfile Dockerfile.out
 	../docker-build.sh .. notebook/Dockerfile.out $(NOTEBOOK_IMAGE)
 
 .PHONY: build-nginx

@@ -8,16 +8,7 @@ retry() {
         (sleep 5 && "$@");
 }
 
-[[ $1 ]] || (echo "./deploy.sh HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE HAIL_GENETICS_HAIL_IMAGE WHEEL_FOR_AZURE WEBSITE_TAR" ; exit 1)
-[[ $2 ]] || (echo "./deploy.sh HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE HAIL_GENETICS_HAIL_IMAGE WHEEL_FOR_AZURE WEBSITE_TAR" ; exit 1)
-[[ $3 ]] || (echo "./deploy.sh HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE HAIL_GENETICS_HAIL_IMAGE WHEEL_FOR_AZURE WEBSITE_TAR" ; exit 1)
-git cat-file -e $3^{commit} || (echo "bad sha $3" ; exit 1)
-[[ $4 ]] || (echo "./deploy.sh HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE HAIL_GENETICS_HAIL_IMAGE WHEEL_FOR_AZURE WEBSITE_TAR" ; exit 1)
-[[ $5 ]] || (echo "./deploy.sh HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE HAIL_GENETICS_HAIL_IMAGE WHEEL_FOR_AZURE WEBSITE_TAR" ; exit 1)
-[[ $6 ]] || (echo "./deploy.sh HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE HAIL_GENETICS_HAIL_IMAGE WHEEL_FOR_AZURE WEBSITE_TAR" ; exit 1)
-[[ $7 ]] || (echo "./deploy.sh HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE HAIL_GENETICS_HAIL_IMAGE WHEEL_FOR_AZURE WEBSITE_TAR" ; exit 1)
-[[ $8 ]] || (echo "./deploy.sh HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE HAIL_GENETICS_HAIL_IMAGE WHEEL_FOR_AZURE WEBSITE_TAR" ; exit 1)
-[[ $9 ]] || (echo "./deploy.sh HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE HAIL_GENETICS_HAIL_IMAGE WHEEL_FOR_AZURE WEBSITE_TAR" ; exit 1)
+[[ $# -eq 10 ]] || (echo "./deploy.sh HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE HAIL_GENETICS_HAIL_IMAGE HAIL_GENETICS_HAILTOP_IMAGE WHEEL_FOR_AZURE WEBSITE_TAR" ; exit 1)
 
 HAIL_PIP_VERSION=$1
 HAIL_VERSION=$2
@@ -26,10 +17,12 @@ REMOTE=$4
 WHEEL=$5
 GITHUB_OAUTH_HEADER_FILE=$6
 HAIL_GENETICS_HAIL_IMAGE=$7
-WHEEL_FOR_AZURE=$8
-WEBSITE_TAR=$9
+HAIL_GENETICS_HAILTOP_IMAGE=$8
+WHEEL_FOR_AZURE=$9
+WEBSITE_TAR=${10}
 
 retry skopeo inspect $HAIL_GENETICS_HAIL_IMAGE || (echo "could not pull $HAIL_GENETICS_HAIL_IMAGE" ; exit 1)
+retry skopeo inspect $HAIL_GENETICS_HAILTOP_IMAGE || (echo "could not pull $HAIL_GENETICS_HAILTOP_IMAGE" ; exit 1)
 
 if git ls-remote --exit-code --tags $REMOTE $HAIL_PIP_VERSION
 then
@@ -80,29 +73,31 @@ curl -XPOST -H @$GITHUB_OAUTH_HEADER_FILE https://api.github.com/repos/hail-is/h
 
 retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE docker://docker.io/hailgenetics/hail:$HAIL_PIP_VERSION
 retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hail:$HAIL_PIP_VERSION
+retry skopeo copy $HAIL_GENETICS_HAILTOP_IMAGE docker://docker.io/hailgenetics/hailtop:$HAIL_PIP_VERSION
+retry skopeo copy $HAIL_GENETICS_HAILTOP_IMAGE docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hailtop:$HAIL_PIP_VERSION
 
 # deploy to PyPI
 twine upload $WHEEL
 
 # deploy wheel for Azure HDInsight
 wheel_for_azure_url=gs://hail-common/azure-hdinsight-wheels/$(basename $WHEEL_FOR_AZURE)
-gsutil cp $WHEEL_FOR_AZURE $wheel_for_azure_url
-gsutil -m retention temp set $wheel_for_azure_url
+gcloud storage cp $WHEEL_FOR_AZURE $wheel_for_azure_url
+gcloud storage objects update $wheel_for_azure_url --temporary-hold
 
 # update docs sha
 cloud_sha_location=gs://hail-common/builds/0.2/latest-hash/cloudtools-5-spark-2.4.0.txt
-printf "$GIT_VERSION" | gsutil cp  - $cloud_sha_location
-gsutil acl set public-read $cloud_sha_location
+printf "$GIT_VERSION" | gcloud storage cp  - $cloud_sha_location
+gcloud storage objects update -r $cloud_sha_location --add-acl-grant=entity=AllUsers,role=READER
 
 # deploy datasets (annotation db) json
 datasets_json_url=gs://hail-common/annotationdb/$HAIL_VERSION/datasets.json
-gsutil cp python/hail/experimental/datasets.json $datasets_json_url
-gsutil -m retention temp set $datasets_json_url
+gcloud storage cp python/hail/experimental/datasets.json $datasets_json_url
+gcloud storage objects update $datasets_json_url --temporary-hold
 
 # Publish website
 website_url=gs://hail-common/website/$HAIL_PIP_VERSION/www.tar.gz
-gsutil cp $WEBSITE_TAR $website_url
-gsutil -m retention temp set $website_url
+gcloud storage cp $WEBSITE_TAR $website_url
+gcloud storage objects update $website_url --temporary-hold
 
 # Create pull request to update Terra and AoU Hail versions
 terra_docker_dir=$(mktemp -d)

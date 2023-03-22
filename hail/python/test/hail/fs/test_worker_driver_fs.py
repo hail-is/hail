@@ -1,10 +1,6 @@
 import hail as hl
-from ..helpers import startTestHailContext, stopTestHailContext
 from hailtop.utils import secret_alnum_string
 from hailtop.test_utils import skip_in_azure
-
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
 
 
 @skip_in_azure

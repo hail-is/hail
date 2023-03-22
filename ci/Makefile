@@ -1,7 +1,5 @@
 include ../config.mk
 
-TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
-
 CI_UTILS_IMAGE := $(DOCKER_PREFIX)/ci-utils:$(TOKEN)
 CI_IMAGE := $(DOCKER_PREFIX)/ci:$(TOKEN)
 HAIL_BUILDKIT_IMAGE := $(DOCKER_PREFIX)/hail-buildkit:$(TOKEN)
@@ -25,9 +23,9 @@ check:
 blacken:
 	$(BLACK)
 
-.PHONY: service-base
-service-base:
-	$(MAKE) -C ../docker service-base
+.PHONY: hail-ubuntu
+hail-ubuntu:
+	$(MAKE) -C ../docker hail-ubuntu
 
 .PHONY: build-ci-utils
 build-ci-utils: service-base
@@ -40,8 +38,8 @@ build-hail-buildkit:
 	../docker-build.sh . buildkit/Dockerfile.out $(HAIL_BUILDKIT_IMAGE)
 
 .PHONY: build
-build: service-base
-	python3 jinja2_render.py '{"service_base_image":{"image":"'$$(cat ../docker/service-base-image-ref)'"}}' Dockerfile Dockerfile.out
+build: hail-ubuntu
+	python3 jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat ../docker/hail-ubuntu-image-ref)'"}}' Dockerfile Dockerfile.out
 	../docker-build.sh .. ci/Dockerfile.out $(CI_IMAGE)
 
 .PHONY: deploy

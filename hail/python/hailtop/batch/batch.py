@@ -8,6 +8,8 @@ import dill
 from hailtop.utils import secret_alnum_string, url_scheme, async_to_blocking
 from hailtop.aiotools import AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
+import hailtop.batch_client.client as _bc
+from hailtop.config import configuration_of
 
 from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
 from .exceptions import BatchException
@@ -48,7 +50,13 @@ class Batch:
     name:
         Name of the batch.
     backend:
-        Backend used to execute the jobs. Default is :class:`.LocalBackend`.
+        Backend used to execute the jobs. If no backend is specified, a backend
+        will be created by first looking at the environment variable HAIL_BATCH_BACKEND,
+        then the hailctl config variable batch/backend. These configurations, if set,
+        can be either `local` or `service`, and will result in the use of a
+        :class:`.LocalBackend` and :class:`.ServiceBackend` respectively. If no
+        argument is given and no configurations are set, the default is
+        :class:`.LocalBackend`.
     attributes:
         Key-value pairs of additional attributes. 'name' is not a valid keyword.
         Use the name argument instead.
@@ -88,7 +96,6 @@ class Batch:
         Automatically cancel the batch after N failures have occurred. The default
         behavior is there is no limit on the number of failures. Only
         applicable for the :class:`.ServiceBackend`. Must be greater than 0.
-
     """
 
     _counter = 0
@@ -100,6 +107,36 @@ class Batch:
         uid = cls._uid_prefix + str(cls._counter)
         cls._counter += 1
         return uid
+
+    @staticmethod
+    def from_batch_id(batch_id: int, *args, **kwargs):
+        """
+        Create a Batch from an existing batch id.
+
+        Notes
+        -----
+        Can only be used with the :class:`.ServiceBackend`.
+
+        Examples
+        --------
+
+        Create a batch object from an existing batch id:
+
+        >>> b = Batch.from_batch_id(1)  # doctest: +SKIP
+
+        Parameters
+        ----------
+        batch_id:
+            ID of an existing Batch
+
+        Returns
+        -------
+        A Batch object that can append jobs to an existing batch.
+        """
+        b = Batch(*args, **kwargs)
+        assert isinstance(b._backend, _backend.ServiceBackend)
+        b._batch_handle = b._backend._batch_client.get_batch(batch_id)
+        return b
 
     def __init__(self,
                  name: Optional[str] = None,
@@ -122,7 +159,15 @@ class Batch:
         self._uid = Batch._get_uid()
         self._job_tokens: Set[str] = set()
 
-        self._backend = backend if backend else _backend.LocalBackend()
+        if backend:
+            self._backend = backend
+        else:
+            backend_config = configuration_of('batch', 'backend', None, 'local')
+            if backend_config == 'service':
+                self._backend = _backend.ServiceBackend()
+            else:
+                assert backend_config == 'local'
+                self._backend = _backend.LocalBackend()
 
         self.name = name
 
@@ -153,6 +198,16 @@ class Batch:
 
         self._python_function_defs: Dict[int, Callable] = {}
         self._python_function_files: Dict[int, _resource.InputResourceFile] = {}
+
+        self._batch_handle: Optional[_bc.Batch] = None
+
+    @property
+    def _unsubmitted_jobs(self):
+        return [j for j in self._jobs if not j._submitted]
+
+    @property
+    def _submitted_jobs(self):
+        return [j for j in self._jobs if j._submitted]
 
     def _register_python_function(self, function: Callable) -> int:
         function_id = id(function)
@@ -256,6 +311,9 @@ class Batch:
         if self._default_timeout is not None:
             j.timeout(self._default_timeout)
 
+        if isinstance(self._backend, _backend.ServiceBackend):
+            j.regions(self._backend.regions)
+
         self._jobs.append(j)
         return j
 
@@ -324,6 +382,9 @@ class Batch:
             j.storage(self._default_storage)
         if self._default_timeout is not None:
             j.timeout(self._default_timeout)
+
+        if isinstance(self._backend, _backend.ServiceBackend):
+            j.regions(self._backend.regions)
 
         self._jobs.append(j)
         return j
@@ -468,7 +529,7 @@ class Batch:
         self._resource_map.update({rg._uid: rg})
         return rg
 
-    def write_output(self, resource: _resource.Resource, dest: str):  # pylint: disable=R0201
+    def write_output(self, resource: _resource.Resource, dest: str):
         """
         Write resource file or resource file group to an output destination.
 

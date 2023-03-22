@@ -1,6 +1,6 @@
 .PHONY: jars clean
 
-HAIL_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
+HAIL_HAIL_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
 include env_var.mk
 
@@ -12,9 +12,9 @@ REVISION := $(shell git rev-parse HEAD)
 SHORT_REVISION := $(shell git rev-parse --short=12 HEAD)
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 SCALA_VERSION ?= 2.12.13
-SPARK_VERSION ?= 3.1.3
+SPARK_VERSION ?= 3.3.0
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 102
+HAIL_PATCH_VERSION := 112
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 ELASTIC_MAJOR_VERSION ?= 7
@@ -38,6 +38,7 @@ JAVAC ?= javac
 JAR ?= jar
 endif
 
+PYTEST_TARGET ?= test/hail
 
 # not perfect, not robust to simdpp changes, but probably fine
 BUILD_DEBUG_PREFIX := build/classes/scala/debug
@@ -64,6 +65,25 @@ EGG := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3.6.egg
 
 GRADLE_ARGS += -Dscala.version=$(SCALA_VERSION) -Dspark.version=$(SPARK_VERSION) -Delasticsearch.major-version=$(ELASTIC_MAJOR_VERSION)
 
+QUERY_STORAGE_URI = $(shell kubectl get secret global-config --template={{.data.query_storage_uri}} | base64 --decode)
+TEST_STORAGE_URI = $(shell kubectl get secret global-config --template={{.data.test_storage_uri}} | base64 --decode)
+TOKEN := $(shell cat /dev/urandom 2> /dev/null | LC_ALL=C tr -dc 'a-z0-9' 2> /dev/null | head -c 12)
+
+ifeq ($(NAMESPACE),default)
+ifeq ($(UPLOAD_RELEASE_JAR),true)
+# This should only be used if the normal CI deploy process fails and you need to upload a JAR to the
+# expected location for our users.
+JAR_LOCATION = $(QUERY_STORAGE_URI)/jars/$(REVISION).jar
+else
+JAR_LOCATION = $(QUERY_STORAGE_URI)/jars/$(shell whoami)/$(TOKEN)/$(REVISION).jar
+endif
+else
+JAR_LOCATION = $(TEST_STORAGE_URI)/$(NAMESPACE)/jars/$(TOKEN)/$(REVISION).jar
+endif
+CLOUD_HAIL_TEST_RESOURCES_PREFIX = $(TEST_STORAGE_URI)/$(shell whoami)/hail-test-resources
+CLOUD_HAIL_TEST_RESOURCES_DIR = $(CLOUD_HAIL_TEST_RESOURCES_PREFIX)/test/resources/
+CLOUD_HAIL_DOCTEST_DATA_DIR = $(CLOUD_HAIL_TEST_RESOURCES_PREFIX)/doctest/data/
+
 .PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
 
@@ -78,6 +98,9 @@ $(SHADOW_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) env/HAIL_DEBUG_MODE env/ELASTI
 ifdef HAIL_DEBUG_MODE
 	$(JAR) -uf $(SHADOW_JAR) -C $(BUILD_DEBUG_PREFIX) is/hail/annotations/Memory.class
 endif
+
+.PHONY: shadowTestJar
+shadowTestJar: $(SHADOW_TEST_JAR)
 
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_TEST_JAR): native-lib-prebuilt
@@ -146,8 +169,7 @@ $(PYTHON_JAR): $(SHADOW_JAR)
 python-jar: $(PYTHON_JAR)
 
 .PHONY: pytest
-pytest: PYTEST_TARGET ?= test/hail
-pytest: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS)
+pytest: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
 pytest: python/README.md $(PYTHON_JAR)
 	cd python && $(HAIL_PYTHON3) setup.py pytest \
      --addopts "-v \
@@ -159,8 +181,29 @@ pytest: python/README.md $(PYTHON_JAR)
      $(PYTEST_TARGET) \
      $(PYTEST_ARGS)"
 
+# NOTE: Look at upload-qob-test-resources target if test resources are missing
+.PHONY: pytest-qob
+pytest-qob: upload-qob-jar upload-qob-test-resources install-editable
+	! [ -z $(NAMESPACE) ]  # call this like: make pytest-qob NAMESPACE=default
+	cd python && \
+  HAIL_QUERY_BACKEND=batch \
+	HAIL_QUERY_JAR_URL=$$(cat ../upload-qob-jar) \
+	HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
+	HAIL_TEST_RESOURCES_DIR='$(CLOUD_HAIL_TEST_RESOURCES_DIR)' \
+	HAIL_DOCTEST_DATA_DIR='$(HAIL_DOCTEST_DATA_DIR)' \
+	pytest \
+		-v \
+		--color=no \
+		--instafail \
+		-r A \
+		--self-contained-html \
+		--html=../build/reports/pytest.html \
+		$(PYTEST_TARGET) \
+		$(PYTEST_ARGS)
+
+
 .PHONY: doctest
-doctest: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS)
+doctest: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
 doctest: python/README.md $(PYTHON_JAR)
 	cd python && $(HAIL_PYTHON3) setup.py pytest \
 	  --addopts "-v \
@@ -183,7 +226,7 @@ doctest: python/README.md $(PYTHON_JAR)
     $(PYTEST_ARGS)"
 
 .PHONY: copy-py-files
-copy-py-files: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES) $(PYTHON_JAR)
+copy-py-files: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS) $(PY_FILES) $(PYTHON_JAR)
 	rm -rf build/deploy
 	mkdir -p build/deploy
 	mkdir -p build/deploy/src
@@ -220,7 +263,7 @@ cloud_base ?= gs://hail-30-day/hailctl/dataproc/$(DEV_CLARIFIER)/$(HAIL_VERSION)
 UPLOAD_RETENTION =
 else
 cloud_base := gs://hail-common/hailctl/dataproc/$(HAIL_PIP_VERSION)
-UPLOAD_RETENTION = gsutil -m retention temp set "$(cloud_base)/*"
+UPLOAD_RETENTION = gcloud storage objects update "$(cloud_base)/*" --temporary-hold
 endif
 
 wheel_cloud_path := $(cloud_base)/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
@@ -228,37 +271,73 @@ resources := $(wildcard python/hailtop/hailctl/dataproc/resources/*)
 $(eval $(call ENV_VAR,cloud_base))
 $(eval $(call ENV_VAR,wheel_cloud_path))
 
+
+.PHONY: check-pip-lockfile
+check-pip-lockfile:
+	$(PIP) install pip-tools && bash ../check_pip_requirements.sh python
+
+
 python/hailtop/hailctl/deploy.yaml: env/cloud_base env/wheel_cloud_path
-python/hailtop/hailctl/deploy.yaml: $(resources) python/requirements.txt
+python/hailtop/hailctl/deploy.yaml: $(resources)
 	rm -f $@
 	echo "dataproc:" >> $@
 	for FILE in $(notdir $(resources)); do \
 	  echo "  $$FILE: $(cloud_base)/$$FILE" >> $@ || exit 1; done
 	echo "  wheel: $(wheel_cloud_path)" >> $@
-	echo "  pip_dependencies: $(shell cat python/requirements.txt | sed '/^[[:blank:]]*#/d;s/#.*//' | grep -v pyspark | tr "\n" "|||")" >> $@
+	printf "  pip_dependencies: " >> $@
+	cat python/pinned-requirements.txt | sed '/^[[:blank:]]*#/d;s/#.*//' | grep -v pyspark | tr "\n" "|||" | tr -d '[:space:]' >> $@
 
 .PHONY: upload-artifacts
 upload-artifacts: $(WHEEL)
-	gsutil -m cp -r $(resources) $(WHEEL) $(cloud_base)
-	gsutil -m acl set -r public-read $(cloud_base)
+	gcloud storage cp $(resources) $(WHEEL) $(cloud_base)
+	gcloud storage objects update -r $(cloud_base) --add-acl-grant=entity=AllUsers,role=READER
 	$(UPLOAD_RETENTION)
+
+
+# NOTE: 1-day expiration of the test bucket means that this
+# target must be run at least once a day. To trigger this target to re-run,
+# > rm upload-qob-test-resources
+upload-qob-test-resources: $(JAR_TEST_SOURCES)
+	! [ -z $(NAMESPACE) ]  # call this like: make upload-qob-test-resources NAMESPACE=default
+	gcloud storage cp src/test/resources/\* $(CLOUD_HAIL_TEST_RESOURCES_DIR)
+	gcloud storage cp python/hail/docs/data/\* $(CLOUD_HAIL_DOCTEST_DATA_DIR)
+	touch $@
+
+# NOTE: 1-day expiration of the test bucket means that this
+# target must be run at least once a day if using a dev NAMESPACE.
+# To trigger this target to re-run,
+# > rm upload-qob-jar
+upload-qob-jar: $(SHADOW_JAR)
+	! [ -z $(NAMESPACE) ]  # call this like: make upload-qob-jar NAMESPACE=default
+	gcloud storage cp $(SHADOW_JAR) $(JAR_LOCATION)
+	echo $(JAR_LOCATION) > $@
 
 .PHONY: install-editable
 install-editable: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
 install-editable: python/README.md $(PYTHON_JAR)
 	-$(PIP) uninstall -y hail
 	cd python && $(PIP) install -e .
+	hailctl config set query/backend spark
+
+.PHONY: install-for-qob
+install-for-qob: upload-qob-jar install-editable
+	! [ -z $(NAMESPACE) ]  # call this like: make install-for-qob NAMESPACE=default
+	hailctl config set query/backend batch
+	hailctl config set query/jar_url $$(cat upload-qob-jar)
+	hailctl dev config set default_namespace $(NAMESPACE)
 
 .PHONY: install
 install: $(WHEEL)
 	-$(PIP) uninstall -y hail
 	$(PIP) install $(WHEEL)
+	hailctl config set query/backend spark
 
 .PHONY: install-on-cluster
-install-on-cluster: $(WHEEL)
-	sed '/^pyspark/d' python/requirements.txt | grep -v '^#' | tr '\n' '\0' | xargs -0 $(PIP) install -U
+install-on-cluster: $(WHEEL) check-pip-lockfile
+	sed '/^pyspark/d' python/pinned-requirements.txt | grep -v -e '^[[:space:]]*#' -e '^$$' | tr '\n' '\0' | xargs -0 $(PIP) install -U
 	-$(PIP) uninstall -y hail
 	$(PIP) install $(WHEEL) --no-deps
+	hailctl config set query/backend spark
 
 .PHONY: install-hailctl
 install-hailctl: install upload-artifacts
@@ -302,13 +381,6 @@ install-dev-deps:
 install-deps: install-dev-deps
 	sed "s/^pyspark.*/pyspark==$(SPARK_VERSION)/" python/requirements.txt | xargs $(PIP) install -U
 
-.PHONY: generate-pip-lockfile
-generate-pip-lockfile:
-	pip-compile --upgrade python/requirements.txt \
-		--output-file=python/pinned-requirements.txt
-	pip-compile --upgrade python/dev/requirements.txt \
-		--output-file=python/dev/pinned-requirements.txt
-
 .PHONY: benchmark
 benchmark: $(WHEEL)
 	HAIL_WHEEL=../hail/$(WHEEL) HAIL_PIP_VERSION=$(HAIL_PIP_VERSION) $(MAKE) -C ../benchmark benchmark
@@ -331,7 +403,7 @@ endif
 .PHONY: batch-docs
 batch-docs:
 	$(MAKE) -C python/hailtop/batch/docs \
-	      BUILDDIR=$(HAIL_DIR)/build/docs/batch \
+	      BUILDDIR=$(HAIL_HAIL_DIR)/build/docs/batch \
 	      html
 	rm -rf build/www/docs/batch
 	mkdir -p build/www/docs
@@ -347,7 +419,7 @@ HAIL_CACHE_VERSION = $(shell cat python/hail/hail_version)
 hail-docs: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	$(MAKE) -C python/hail/docs \
 	        SPHINXOPTS='-tgenerate_notebook_outputs' \
-	        BUILDDIR=$(HAIL_DIR)/build/docs/hail \
+	        BUILDDIR=$(HAIL_HAIL_DIR)/build/docs/hail \
 	        html
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
@@ -361,7 +433,7 @@ hail-docs: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 .PHONY: hail-docs-no-test
 hail-docs-no-test: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	$(MAKE) -C python/hail/docs \
-	        BUILDDIR=$(HAIL_DIR)/build/docs/hail \
+	        BUILDDIR=$(HAIL_HAIL_DIR)/build/docs/hail \
 	        html
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
@@ -370,14 +442,14 @@ hail-docs-no-test: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	     -iname *.html \
 	     -type f \
 	     -exec $(SED_INPLACE) -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
-	@echo Built docs: file://$(HAIL_DIR)/build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
+	@echo Built docs: file://$(HAIL_HAIL_DIR)/build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
 .PHONY: upload-docs
 upload-docs: hail-docs batch-docs
 	cd build && tar czf www.tar.gz www
-	gsutil -m cp build/www.tar.gz $(docs_location)
-	gsutil -m retention temp set $(docs_location)
-	gsutil -m acl set public-read $(docs_location)
+	gcloud storage cp build/www.tar.gz $(docs_location)
+	gcloud storage objects update -r $(docs_location) --temporary-hold
+	gcloud storage objects update -r $(docs_location) --add-acl-grant=entity=AllUsers,role=READER
 
 .PHONY: test
 test: pytest jvm-test doctest

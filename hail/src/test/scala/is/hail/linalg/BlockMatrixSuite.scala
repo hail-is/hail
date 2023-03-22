@@ -716,20 +716,27 @@ class BlockMatrixSuite extends HailSuite {
 
   @Test
   def randomTest() {
-    var lm1 = BlockMatrix.random(5, 10, 2, seed = 1, gaussian = false).toBreezeMatrix()
-    var lm2 = BlockMatrix.random(5, 10, 2, seed = 1, gaussian = false).toBreezeMatrix()
-    var lm3 = BlockMatrix.random(5, 10, 2, seed = 2, gaussian = false).toBreezeMatrix()
+    var lm1 = BlockMatrix.random(5, 10, 2, staticUID = 1, nonce = 1, gaussian = false).toBreezeMatrix()
+    var lm2 = BlockMatrix.random(5, 10, 2, staticUID = 1, nonce = 1, gaussian = false).toBreezeMatrix()
+    var lm3 = BlockMatrix.random(5, 10, 2, staticUID = 2, nonce = 1, gaussian = false).toBreezeMatrix()
+    var lm4 = BlockMatrix.random(5, 10, 2, staticUID = 1, nonce = 2, gaussian = false).toBreezeMatrix()
 
+    println(lm1)
     assert(lm1 === lm2)
     assert(lm1 !== lm3)
+    assert(lm1 !== lm4)
+    assert(lm3 !== lm4)
     assert(lm1.data.forall(x => x >= 0 && x <= 1))
 
-    lm1 = BlockMatrix.random(5, 10, 2, seed = 1, gaussian = true).toBreezeMatrix()
-    lm2 = BlockMatrix.random(5, 10, 2, seed = 1, gaussian = true).toBreezeMatrix()
-    lm3 = BlockMatrix.random(5, 10, 2, seed = 2, gaussian = true).toBreezeMatrix()
+    lm1 = BlockMatrix.random(5, 10, 2, staticUID = 1, nonce = 1, gaussian = true).toBreezeMatrix()
+    lm2 = BlockMatrix.random(5, 10, 2, staticUID = 1, nonce = 1, gaussian = true).toBreezeMatrix()
+    lm3 = BlockMatrix.random(5, 10, 2, staticUID = 2, nonce = 1, gaussian = true).toBreezeMatrix()
+    lm4 = BlockMatrix.random(5, 10, 2, staticUID = 1, nonce = 2, gaussian = true).toBreezeMatrix()
 
     assert(lm1 === lm2)
     assert(lm1 !== lm3)
+    assert(lm1 !== lm4)
+    assert(lm3 !== lm4)
   }
 
   @Test

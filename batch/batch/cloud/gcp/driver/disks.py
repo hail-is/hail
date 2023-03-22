@@ -3,6 +3,7 @@ import logging
 from typing import List
 
 import aiohttp
+import prometheus_client as pc  # type: ignore
 
 from hailtop.aiocloud import aiogoogle
 from hailtop.utils import parse_timestamp_msecs, time_msecs
@@ -10,6 +11,9 @@ from hailtop.utils import parse_timestamp_msecs, time_msecs
 from ....driver.instance_collection import InstanceCollectionManager
 
 log = logging.getLogger('disks')
+
+
+ORPHANED_DISKS_DELETED = pc.Counter('orphaned_disks_deleted', 'Orphaned disks deleted', ['reason'])
 
 
 async def delete_orphaned_disks(
@@ -34,10 +38,13 @@ async def delete_orphaned_disks(
 
             now_msecs = time_msecs()
             if instance is None:
+                ORPHANED_DISKS_DELETED.labels(reason='worker_gone').inc()
                 log.exception(f'deleting disk {disk_name} from instance that no longer exists')
             elif last_attach_timestamp_msecs is None and now_msecs - creation_timestamp_msecs > 60 * 60 * 1000:
+                ORPHANED_DISKS_DELETED.labels(reason='not_attached').inc()
                 log.exception(f'deleting disk {disk_name} that has not attached within 60 minutes')
             elif last_detach_timestamp_msecs is not None and now_msecs - last_detach_timestamp_msecs > 5 * 60 * 1000:
+                ORPHANED_DISKS_DELETED.labels(reason='not_cleaned_up').inc()
                 log.exception(f'deleting detached disk {disk_name} that has not been cleaned up within 5 minutes')
             else:
                 continue

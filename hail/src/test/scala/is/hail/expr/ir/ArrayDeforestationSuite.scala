@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.types.virtual._
 import is.hail.TestUtils._
+import is.hail.types.tcoerce
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
@@ -27,7 +28,7 @@ class ArrayDeforestationSuite extends HailSuite {
     ToArray(StreamMap(
       ToStream(array),
       "x3",
-      GetField(Ref("x3", coerce[TArray](array.typ).elementType), "f1")))
+      GetField(Ref("x3", tcoerce[TArray](array.typ).elementType), "f1")))
   }
 
   def arrayFoldWithStructWithPrimitiveValues(len: IR, max1: Int, max2: Int): IR = {
@@ -51,7 +52,7 @@ class ArrayDeforestationSuite extends HailSuite {
       MakeStruct(FastSeq[(String, IR)]("f1" -> v1, "f2" -> v2))))
     val array = arrayWithRegion(len)
     val accum = Ref(genUID(), zero.typ)
-    val value = Ref(genUID(), coerce[TArray](array.typ).elementType)
+    val value = Ref(genUID(), tcoerce[TArray](array.typ).elementType)
     StreamFold(
       ToStream(array),
       zero,

@@ -5,9 +5,6 @@ import hail as hl
 from hail.utils.java import Env, scala_object
 from ..helpers import *
 
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
-
 
 def create_backward_compatibility_files():
     import os
@@ -39,12 +36,12 @@ def test_write():
 
 
 @pytest.fixture(scope="module")
-def all_values_matrix_table_fixture():
+def all_values_matrix_table_fixture(init_hail):
     return create_all_values_matrix_table()
 
 
 @pytest.fixture(scope="module")
-def all_values_table_fixture():
+def all_values_table_fixture(init_hail):
     return create_all_values_table()
 
 

@@ -155,7 +155,7 @@ class AggFunc(object):
         aggregations = hl.utils.LinkedList(Aggregation)
         if not self._as_scan:
             aggregations = aggregations.push(Aggregation(array_agg_expr, aggregated))
-        return construct_expr(ir.AggExplode(ir.ToStream(array_agg_expr._ir), var, aggregated._ir, self._as_scan),
+        return construct_expr(ir.AggExplode(ir.toStream(array_agg_expr._ir), var, aggregated._ir, self._as_scan),
                               aggregated.dtype,
                               Indices(indices.source, aggregated._indices.axes),
                               aggregations)
@@ -433,7 +433,13 @@ def collect_as_set(expr) -> SetExpression:
     Collect the unique `ID` field where `HT` is greater than 68:
 
     >>> table1.aggregate(hl.agg.filter(table1.HT > 68, hl.agg.collect_as_set(table1.ID)))
-    frozenset({2, 3})
+    {2, 3}
+
+    Note that when collecting a set-typed field with :func:`.collect_as_set`, the values become
+    :class:`.frozenset` s because Python does not permit the keys of a dictionary to be mutable:
+
+    >>> table1.aggregate(hl.agg.filter(table1.HT > 68, hl.agg.collect_as_set(hl.set({table1.ID}))))
+    {frozenset({3}), frozenset({2})}
 
     Warning
     -------
@@ -448,6 +454,7 @@ def collect_as_set(expr) -> SetExpression:
     -------
     :class:`.SetExpression`
         Set of unique `expr` records.
+
     """
     return _agg_func('CollectAsSet', [expr], tset(expr.dtype))
 
@@ -591,13 +598,20 @@ def counter(expr, *, weight=None) -> DictExpression:
     Count the number of individuals for each unique `SEX` value:
 
     >>> table1.aggregate(hl.agg.counter(table1.SEX))
-    frozendict({'F': 2, 'M': 2})
+    {'F': 2, 'M': 2}
     <BLANKLINE>
 
     Compute the total height for each unique `SEX` value:
 
     >>> table1.aggregate(hl.agg.counter(table1.SEX, weight=table1.HT))
-    frozendict({'F': 130, 'M': 137})
+    {'F': 130, 'M': 137}
+    <BLANKLINE>
+
+    Note that when counting a set-typed field, the values become :class:`.frozenset` s because
+    Python does not permit the keys of a dictionary to be mutable:
+
+    >>> table1.aggregate(hl.agg.counter(hl.set({table1.SEX}), weight=table1.HT))
+    {frozenset({'F'}): 130, frozenset({'M'}): 137}
     <BLANKLINE>
 
     Notes
@@ -629,6 +643,7 @@ def counter(expr, *, weight=None) -> DictExpression:
     -------
     :class:`.DictExpression`
         Dictionary with the number of occurrences of each unique record.
+
     """
     if weight is None:
         return _agg_func.group_by(expr, count())
@@ -1070,7 +1085,7 @@ def explode(f, array_agg_expr) -> Expression:
     Compute the set of all observed elements in the `filters` field (``Set[String]``):
 
     >>> dataset.aggregate_rows(hl.agg.explode(lambda elt: hl.agg.collect_as_set(elt), dataset.filters))
-    frozenset({'VQSRTrancheINDEL97.00to99.00'})
+    set()
 
     Notes
     -----
@@ -1139,16 +1154,16 @@ def inbreeding(expr, prior) -> StructExpression:
     +------------------+-----------+-------------+------------------+------------------+
     | str              |   float64 |       int64 |          float64 |            int64 |
     +------------------+-----------+-------------+------------------+------------------+
-    | "C1046::HG02024" |  3.88e-01 |          12 |         1.04e+01 |               11 |
-    | "C1046::HG02025" |  3.99e-01 |          13 |         1.13e+01 |               12 |
-    | "C1046::HG02026" |  3.88e-01 |          12 |         1.04e+01 |               11 |
-    | "C1047::HG00731" | -1.31e+00 |          12 |         1.07e+01 |                9 |
-    | "C1047::HG00732" |  1.00e+00 |          12 |         1.04e+01 |               12 |
-    | "C1047::HG00733" | -8.04e-01 |          13 |         1.13e+01 |               10 |
-    | "C1048::HG02024" |  3.88e-01 |          12 |         1.04e+01 |               11 |
-    | "C1048::HG02025" |  3.99e-01 |          13 |         1.13e+01 |               12 |
-    | "C1048::HG02026" |  1.00e+00 |          12 |         1.04e+01 |               12 |
-    | "C1049::HG00731" | -1.41e+00 |          13 |         1.13e+01 |                9 |
+    | "C1046::HG02024" |  2.79e-01 |           9 |         7.61e+00 |                8 |
+    | "C1046::HG02025" | -4.41e-01 |           9 |         7.61e+00 |                7 |
+    | "C1046::HG02026" | -4.41e-01 |           9 |         7.61e+00 |                7 |
+    | "C1047::HG00731" |  2.79e-01 |           9 |         7.61e+00 |                8 |
+    | "C1047::HG00732" |  2.79e-01 |           9 |         7.61e+00 |                8 |
+    | "C1047::HG00733" |  2.79e-01 |           9 |         7.61e+00 |                8 |
+    | "C1048::HG02024" | -4.41e-01 |           9 |         7.61e+00 |                7 |
+    | "C1048::HG02025" | -4.41e-01 |           9 |         7.61e+00 |                7 |
+    | "C1048::HG02026" | -4.41e-01 |           9 |         7.61e+00 |                7 |
+    | "C1049::HG00731" |  2.79e-01 |           9 |         7.61e+00 |                8 |
     +------------------+-----------+-------------+------------------+------------------+
     showing top 10 rows
     <BLANKLINE>
@@ -1217,18 +1232,16 @@ def call_stats(call, alleles) -> StructExpression:
     +---------------+--------------+---------------------+-------------+---------------------------+
     | locus<GRCh37> | array<int32> | array<float64>      |       int32 | array<int32>              |
     +---------------+--------------+---------------------+-------------+---------------------------+
-    | 20:12990057   | [148,52]     | [7.40e-01,2.60e-01] |         200 | [57,9]                    |
-    | 20:13029862   | [0,198]      | [0.00e+00,1.00e+00] |         198 | [0,99]                    |
-    | 20:13074235   | [13,187]     | [6.50e-02,9.35e-01] |         200 | [1,88]                    |
-    | 20:13140720   | [194,6]      | [9.70e-01,3.00e-02] |         200 | [95,1]                    |
-    | 20:13695498   | [175,25]     | [8.75e-01,1.25e-01] |         200 | [75,0]                    |
-    | 20:13714384   | [199,1]      | [9.95e-01,5.00e-03] |         200 | [99,0]                    |
-    | 20:13765944   | [132,2]      | [9.85e-01,1.49e-02] |         134 | [65,0]                    |
-    | 20:13765954   | [180,2]      | [9.89e-01,1.10e-02] |         182 | [89,0]                    |
-    | 20:13845987   | [2,198]      | [1.00e-02,9.90e-01] |         200 | [0,98]                    |
-    | 20:16223957   | [145,45]     | [7.63e-01,2.37e-01] |         190 | [64,14]                   |
+    | 20:10579373   | [199,1]      | [9.95e-01,5.00e-03] |         200 | [99,0]                    |
+    | 20:10579398   | [198,2]      | [9.90e-01,1.00e-02] |         200 | [99,1]                    |
+    | 20:10627772   | [198,2]      | [9.90e-01,1.00e-02] |         200 | [98,0]                    |
+    | 20:10633237   | [108,92]     | [5.40e-01,4.60e-01] |         200 | [31,23]                   |
+    | 20:10636995   | [198,2]      | [9.90e-01,1.00e-02] |         200 | [98,0]                    |
+    | 20:10639222   | [175,25]     | [8.75e-01,1.25e-01] |         200 | [78,3]                    |
+    | 20:13763601   | [198,2]      | [9.90e-01,1.00e-02] |         200 | [98,0]                    |
+    | 20:16223922   | [87,101]     | [4.63e-01,5.37e-01] |         188 | [28,35]                   |
+    | 20:17479617   | [191,9]      | [9.55e-01,4.50e-02] |         200 | [91,0]                    |
     +---------------+--------------+---------------------+-------------+---------------------------+
-    showing top 10 rows
     <BLANKLINE>
 
     Notes

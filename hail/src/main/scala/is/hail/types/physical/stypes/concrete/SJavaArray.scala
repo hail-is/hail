@@ -39,12 +39,24 @@ final case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
     value.st match {
       case SJavaArrayString(_) => new SJavaArrayStringValue(this, value.asInstanceOf[SJavaArrayStringValue].array)
-      case SIndexablePointer(pc) if pc.elementType.isInstanceOf[PString] && pc.elementType.required == elementRequired =>
+      case SIndexablePointer(pc) if pc.elementType.isInstanceOf[PString] =>
+
         val sv = value.asInstanceOf[SIndexableValue]
         val len = sv.loadLength()
         val array = cb.memoize[Array[String]](Code.newArray[String](len))
-        sv.forEachDefined(cb) { case (cb, i, v: SStringValue) =>
-          cb += (array(i) = v.loadString(cb))
+        (pc.elementType.required, elementRequired) match {
+          case (true, _) =>
+            sv.forEachDefined(cb) { case (cb, i, v: SStringValue) =>
+              cb += (array(i) = v.loadString(cb))
+            }
+          case (false, r) =>
+            sv.forEachDefinedOrMissing(cb)({ case (cb, i) =>
+              if (r)
+                cb._fatal("requiredness mismatch: found missing value at index ", i.toS, s" coercing ${ sv.st } to $this")
+            }, { case (cb, i, elt) =>
+              cb += (array(i) = elt.asString.loadString(cb))
+            })
+          case (false, false) =>
         }
         new SJavaArrayStringValue(this, array)
     }

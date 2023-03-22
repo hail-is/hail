@@ -1,11 +1,10 @@
+import math
 import numpy as np
+import re
 from ..helpers import *
 import pytest
 
 from hail.utils.java import FatalError, HailUserError
-
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
 
 def assert_ndarrays(asserter, exprs_and_expecteds):
     exprs, expecteds = zip(*exprs_and_expecteds)
@@ -56,9 +55,35 @@ def test_ndarray_ref():
         (h_cube[0, 0, hl.missing(hl.tint32)], None)
     )
 
+
+def test_ndarray_ref_bounds_check():
     with pytest.raises(HailUserError) as exc:
         hl.eval(hl.nd.array([1, 2, 3])[4])
     assert "Index 4 is out of bounds for axis 0 with size 3" in str(exc.value)
+
+    with pytest.raises(HailUserError) as exc:
+        hl.eval(hl.nd.array([1, 2, 3])[-1])
+    assert "Index -1 is out of bounds for axis 0 with size 3" in str(exc.value)
+
+    with pytest.raises(HailUserError) as exc:
+        hl.eval(hl.nd.array([1, 2, 3])[-4])
+    assert "Index -4 is out of bounds for axis 0 with size 3" in str(exc.value)
+
+    with pytest.raises(HailUserError) as exc:
+        hl.eval(hl.nd.array([[1], [2], [3]])[4, :])
+    assert "Index 4 is out of bounds for axis 0 with size 3" in str(exc.value)
+
+    with pytest.raises(HailUserError) as exc:
+        hl.eval(hl.nd.array([[1], [2], [3]])[-4, :])
+    assert "Index -4 is out of bounds for axis 0 with size 3" in str(exc.value)
+
+    with pytest.raises(HailUserError) as exc:
+        hl.eval(hl.nd.array([[1], [2], [3]])[:, 4])
+    assert "Index 4 is out of bounds for axis 1 with size 1" in str(exc.value)
+
+    with pytest.raises(HailUserError) as exc:
+        hl.eval(hl.nd.array([[1], [2], [3]])[:, -4])
+    assert "Index -4 is out of bounds for axis 1 with size 1" in str(exc.value)
 
 
 def test_ndarray_slice():
@@ -1047,6 +1072,26 @@ def test_concatenate():
     assert np.array_equal(np_res, res)
 
 
+def test_concatenate_differing_shapes():
+    with pytest.raises(ValueError, match='hl.nd.concatenate: ndarrays must have same number of dimensions, found: 1, 2'):
+        hl.nd.concatenate([
+            hl.nd.array([1]),
+            hl.nd.array([[1]])
+        ])
+
+    with pytest.raises(ValueError, match=re.escape('hl.nd.concatenate: ndarrays must have same element types, found these element types: (int32, float64)')):
+        hl.nd.concatenate([
+            hl.nd.array([1]),
+            hl.nd.array([1.0])
+        ])
+
+    with pytest.raises(ValueError, match=re.escape('hl.nd.concatenate: ndarrays must have same element types, found these element types: (int32, float64)')):
+        hl.nd.concatenate([
+            hl.nd.array([1]),
+            hl.nd.array([[1.0]])
+        ])
+
+
 def test_vstack():
     ht = hl.utils.range_table(10)
 
@@ -1178,6 +1223,7 @@ def test_maximum_minimuim():
     assert(nan_max.size == max_matches)
     assert(nan_min.size == min_matches)
 
+
 def test_ndarray_broadcasting_with_decorator():
     nd = hl.nd.array([[1, 4, 9], [16, 25, 36]])
     nd_sqrt = hl.eval(hl.nd.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]))
@@ -1193,3 +1239,23 @@ def test_ndarray_broadcasting_with_decorator():
     nd_floor = hl.eval(hl.nd.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]))
     nd = hl.eval(hl.floor(nd))
     assert(np.array_equal(nd, nd_floor))
+
+
+def test_ndarray_indices_aggregations():
+    ht = hl.utils.range_table(1)
+    ht = ht.annotate_globals(g = hl.nd.ones((2, 2)))
+    ht = ht.annotate(x = hl.nd.ones((2, 2)))
+    ht = ht.annotate(a = hl.nd.solve(ht.x, 2 * ht.g))
+    ht = ht.annotate(b = hl.nd.solve(2 * ht.g, ht.x))
+    ht = ht.annotate(c = hl.nd.solve_triangular(2 * ht.g, hl.nd.eye(2)))
+    ht = ht.annotate(d = hl.nd.solve_triangular(hl.nd.eye(2), 2 * ht.g))
+    ht = ht.annotate(e = hl.nd.svd(ht.x))
+    ht = ht.annotate(f = hl.nd.inv(ht.x))
+    ht = ht.annotate(h = hl.nd.concatenate((ht.x, ht.g)))
+    ht = ht.annotate(i = hl.nd.concatenate((ht.g, ht.x)))
+
+
+def test_ndarray_log_broadcasting():
+    expected = np.array([math.log(x) for x in [5, 10, 15, 20]]).reshape(2, 2)
+    actual = hl.eval(hl.log(hl.nd.array([[5, 10], [15, 20]])))
+    assert np.array_equal(actual, expected)

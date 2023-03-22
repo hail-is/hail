@@ -5,9 +5,6 @@ import pytest
 from ..helpers import *
 from hail.utils import new_temp_file
 
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
-
 
 class Tests(unittest.TestCase):
     @fails_service_backend()
@@ -302,7 +299,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(f1(1, 3)), 24) # idempotent
         self.assertEqual(hl.eval(f2(1, 3)), 24) # idempotent
 
-    @fails_service_backend()
     @fails_local_backend()
     def test_pc_project(self):
         mt = hl.balding_nichols_model(3, 100, 50)
@@ -395,6 +391,9 @@ class Tests(unittest.TestCase):
                 a2 = np.loadtxt(
                     hl.current_backend().fs.open(f'{prefix2}/files/{custom_names[i]}'))
                 self.assertTrue(np.array_equal(a, a2))
+
+    def test_trivial_loop(self):
+        assert hl.eval(hl.experimental.loop(lambda recur: 0, hl.tint32)) == 0
 
     def test_loop(self):
         def triangle_with_ints(n):

@@ -7,6 +7,7 @@ import os.path
 import threading
 import asyncio
 import logging
+import datetime
 
 import botocore.config
 import botocore.exceptions
@@ -40,7 +41,7 @@ class PageIterator:
 
     async def __anext__(self):
         if self._page is None:
-            self._page = await blocking_to_async(self._fs._thread_pool, self._fs._s3.list_objects_v2,
+            self._page = await blocking_to_async(self._fs._thread_pool, self._fs._s3.list_objects_v2,  # type: ignore
                                                  Bucket=self._bucket,
                                                  Prefix=self._prefix,
                                                  **self._kwargs)
@@ -65,6 +66,16 @@ class S3HeadObjectFileStatus(FileStatus):
     async def size(self) -> int:
         return self.head_object_resp['ContentLength']
 
+    def time_created(self) -> datetime.datetime:
+        # https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadObject.html#API_HeadObject_ResponseSyntax
+        # Misleading name: LastModified is creation time.
+        # S3 Python library strips dashes from header names
+        return self.head_object_resp['LastModified']
+
+    def time_modified(self) -> datetime.datetime:
+        # S3 objects are immutable, so creation == modified
+        return self.head_object_resp['LastModified']
+
     async def __getitem__(self, key: str) -> Any:
         return self.head_object_resp[key]
 
@@ -75,6 +86,17 @@ class S3ListFilesFileStatus(FileStatus):
 
     async def size(self) -> int:
         return self._item['Size']
+
+    def time_created(self) -> datetime.datetime:
+        # https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html#API_GetObject_ResponseSyntax
+        # Misleading name: LastModified is creation time.
+        # S3 Python library strips dashes from header names
+        return self._item['LastModified']
+
+    def time_modified(self) -> datetime.datetime:
+        # S3 objects are immutable, so creation == modified
+        print(repr(self._item))
+        return self._item['LastModified']
 
     async def __getitem__(self, key: str) -> Any:
         return self._item[key]

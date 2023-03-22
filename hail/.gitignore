@@ -8,6 +8,7 @@ python/hail/hail_pip_version
 python/hail/docs/change_log.rst
 python/hail/docs/_build/*
 python/hail/docs/_static/hail_version.js
+python/hailtop/dist
 python/hailtop/hailctl/deploy.yaml
 python/hail/docs/genetics/hail.genetics.Call.rst
 python/hail/docs/genetics/hail.genetics.Locus.rst

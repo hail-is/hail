@@ -1,6 +1,7 @@
 package is.hail.rvd
 
 import is.hail.annotations._
+import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.expr.ir.IRParser
 import is.hail.types.physical.{PInterval, PStruct, PType}
 import is.hail.types.virtual.TStruct
@@ -28,22 +29,36 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String])
     .filter(i => !keySet.contains(rowType.fields(i).name))
     .toArray
 
-  val kOrd: UnsafeOrdering = kType.unsafeOrdering()
-  val kInRowOrd: UnsafeOrdering =
-    RVDType.selectUnsafeOrdering(rowType, kFieldIdx, rowType, kFieldIdx)
-  val kRowOrd: UnsafeOrdering =
-    RVDType.selectUnsafeOrdering(kType, Array.range(0, kType.size), rowType, kFieldIdx)
+  @transient private var _kInRowOrd: UnsafeOrdering = _
+  @transient private var _kRowOrd: UnsafeOrdering = _
+  @transient private var _kOrd: UnsafeOrdering = _
 
-  def kComp(other: RVDType): UnsafeOrdering =
+  def kInRowOrd(sm: HailStateManager): UnsafeOrdering = {
+    if (_kInRowOrd == null) _kInRowOrd = RVDType.selectUnsafeOrdering(sm, rowType, kFieldIdx, rowType, kFieldIdx)
+    _kInRowOrd
+  }
+  def kRowOrd(sm: HailStateManager): UnsafeOrdering = {
+    if (_kRowOrd == null) _kRowOrd = RVDType.selectUnsafeOrdering(sm, kType, Array.range(0, kType.size), rowType, kFieldIdx)
+    _kRowOrd
+  }
+
+  def kOrd(sm: HailStateManager): UnsafeOrdering = {
+    if (_kOrd == null) _kOrd = kType.unsafeOrdering(sm)
+    _kOrd
+  }
+
+  def kComp(sm: HailStateManager, other: RVDType): UnsafeOrdering =
     RVDType.selectUnsafeOrdering(
+      sm,
       this.rowType,
       this.kFieldIdx,
       other.rowType,
       other.kFieldIdx,
       true)
 
-  def joinComp(other: RVDType): UnsafeOrdering =
+  def joinComp(sm: HailStateManager, other: RVDType): UnsafeOrdering =
     RVDType.selectUnsafeOrdering(
+      sm,
       this.rowType,
       this.kFieldIdx,
       other.rowType,
@@ -53,7 +68,7 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String])
   /** Comparison of a point with an interval, for use in joins where one side
     * is keyed by intervals.
     */
-  def intervalJoinComp(other: RVDType): UnsafeOrdering = {
+  def intervalJoinComp(sm: HailStateManager, other: RVDType): UnsafeOrdering = {
     require(other.key.length == 1)
     require(other.rowType.field(other.key(0)).typ.asInstanceOf[PInterval].pointType.virtualType == rowType.field(key(0)).typ.virtualType)
 
@@ -63,7 +78,7 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String])
       val f1 = kFieldIdx(0)
       val f2 = other.kFieldIdx(0)
       val intervalType = t2.types(f2).asInstanceOf[PInterval]
-      val pord = t1.types(f1).unsafeOrdering(intervalType.pointType)
+      val pord = t1.types(f1).unsafeOrdering(sm, intervalType.pointType)
 
       // Left is a point, right is an interval.
       // Returns -1 if point is below interval, 0 if it is inside, and 1 if it
@@ -97,13 +112,14 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String])
   }
 
 
-  def kRowOrdView(region: Region) = new OrderingView[RegionValue] {
-    val wrv = WritableRegionValue(kType, region)
+  def kRowOrdView(sm: HailStateManager, region: Region) = new OrderingView[RegionValue] {
+    val wrv = WritableRegionValue(sm, kType, region)
+    val kRowOrdering = kRowOrd(sm)
     def setFiniteValue(representative: RegionValue) {
       wrv.setSelect(rowType, kFieldIdx, representative)
     }
     def compareFinite(rv: RegionValue): Int =
-      kRowOrd.compare(wrv.value, rv)
+      kRowOrdering.compare(wrv.value, rv)
   }
 
   def toJSON: JValue =
@@ -127,12 +143,13 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String])
 
 object RVDType {
   def selectUnsafeOrdering(
+    sm: HailStateManager,
     t1: PStruct, fields1: Array[Int],
     t2: PStruct, fields2: Array[Int],
     missingEqual: Boolean=true
   ): UnsafeOrdering = {
     val fieldOrderings = Range(0, fields1.length).map { i =>
-      t1.types(fields1(i)).unsafeOrdering(t2.types(fields2(i)))
+      t1.types(fields1(i)).unsafeOrdering(sm, t2.types(fields2(i)))
     }.toArray
 
     selectUnsafeOrdering(t1, fields1, t2, fields2, fieldOrderings, missingEqual)

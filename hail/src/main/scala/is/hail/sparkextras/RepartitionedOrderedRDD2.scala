@@ -1,6 +1,7 @@
 package is.hail.sparkextras
 
 import is.hail.annotations._
+import is.hail.backend.HailStateManager
 import is.hail.rvd.{PartitionBoundOrdering, RVD, RVDContext, RVDPartitioner, RVDType}
 import is.hail.utils._
 import org.apache.spark._
@@ -26,8 +27,8 @@ class OrderedDependency[T](
 }
 
 object RepartitionedOrderedRDD2 {
-  def apply(prev: RVD, newRangeBounds: IndexedSeq[Interval]): ContextRDD[Long] =
-    ContextRDD(new RepartitionedOrderedRDD2(prev, newRangeBounds))
+  def apply(sm: HailStateManager, prev: RVD, newRangeBounds: IndexedSeq[Interval]): ContextRDD[Long] =
+    ContextRDD(new RepartitionedOrderedRDD2(sm, prev, newRangeBounds))
 }
 
 /**
@@ -35,12 +36,12 @@ object RepartitionedOrderedRDD2 {
   * Assumes new key type is a prefix of old key type, so no reordering is
   * needed.
   */
-class RepartitionedOrderedRDD2 private (@transient val prev: RVD, @transient val newRangeBounds: IndexedSeq[Interval])
+class RepartitionedOrderedRDD2 private (sm: HailStateManager, @transient val prev: RVD, @transient val newRangeBounds: IndexedSeq[Interval])
   extends RDD[ContextRDD.ElementType[Long]](prev.crdd.sparkContext, Nil) { // Nil since we implement getDependencies
 
   val prevCRDD: ContextRDD[Long] = prev.crdd
   val typ: RVDType = prev.typ
-  val kOrd: ExtendedOrdering = PartitionBoundOrdering(typ.kType.virtualType)
+  val kOrd: ExtendedOrdering = PartitionBoundOrdering(sm, typ.kType.virtualType)
 
 
   def getPartitions: Array[Partition] = {

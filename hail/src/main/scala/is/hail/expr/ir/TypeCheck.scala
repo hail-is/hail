@@ -2,15 +2,17 @@ package is.hail.expr.ir
 
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.streams.StreamUtils
+import is.hail.types.tcoerce
 import is.hail.types.virtual._
+import is.hail.utils.StackSafe._
 import is.hail.utils._
 
-import scala.annotation.tailrec
+import scala.reflect.ClassTag
 
 object TypeCheck {
   def apply(ctx: ExecuteContext, ir: BaseIR): Unit = {
     try {
-      check(ctx, ir, BindingEnv.empty)
+      check(ctx, ir, BindingEnv.empty).run()
     } catch {
       case e: Throwable => fatal(s"Error while typechecking IR:\n${ Pretty(ctx, ir) }", e)
     }
@@ -18,40 +20,47 @@ object TypeCheck {
 
   def apply(ctx: ExecuteContext, ir: IR, env: BindingEnv[Type]): Unit = {
     try {
-      check(ctx, ir, env)
+      check(ctx, ir, env).run()
     } catch {
       case e: Throwable => fatal(s"Error while typechecking IR:\n${ Pretty(ctx, ir) }", e)
     }
   }
 
-  private def check(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): Unit = {
-    ir.children
-      .iterator
-      .zipWithIndex
-      .foreach { case (child, i) =>
-
-        check(ctx, child, ChildBindings(ir, i, env))
-
-        if (child.typ == TVoid) {
-          ir match {
-            case _: Let if i == 1 =>
-            case _: StreamFor if i == 1 =>
-            case _: RunAggScan if (i == 1 || i == 2) =>
-            case _: StreamBufferedAggregate if (i == 1 || i == 3) =>
-            case _: RunAgg if i == 0 =>
-            case _: SeqOp => // let seqop checking below catch bad void arguments
-            case _: InitOp => // let initop checking below catch bad void arguments
-            case _: If if i != 0 =>
-            case _: RelationalLet if i == 1 =>
-            case _: Begin =>
-            case _: WriteMetadata =>
-            case _ =>
-              throw new RuntimeException(s"unexpected void-typed IR at child $i of ${ ir.getClass.getSimpleName }" +
-                s"\n  IR: ${ Pretty(ctx, ir) }")
+  def check(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): StackFrame[Unit] = {
+    for {
+      _ <- ir.children
+        .iterator
+        .zipWithIndex
+        .foreachRecur { case (child, i) =>
+          for {
+            _ <- call(check(ctx, child, ChildBindings(ir, i, env)))
+          } yield {
+            if (child.typ == TVoid) {
+              checkVoidTypedChild(ctx, ir, i, env)
+            } else ()
           }
         }
-      }
+    } yield checkSingleNode(ctx, ir, env)
+  }
 
+  private def checkVoidTypedChild(ctx: ExecuteContext, ir: BaseIR, i: Int, env: BindingEnv[Type]): Unit = ir match {
+    case _: Let if i == 1 =>
+    case _: StreamFor if i == 1 =>
+    case _: RunAggScan if (i == 1 || i == 2) =>
+    case _: StreamBufferedAggregate if (i == 1 || i == 3) =>
+    case _: RunAgg if i == 0 =>
+    case _: SeqOp => // let seqop checking below catch bad void arguments
+    case _: InitOp => // let initop checking below catch bad void arguments
+    case _: If if i != 0 =>
+    case _: RelationalLet if i == 1 =>
+    case _: Begin =>
+    case _: WriteMetadata =>
+    case _ =>
+      throw new RuntimeException(s"unexpected void-typed IR at child $i of ${ ir.getClass.getSimpleName }" +
+        s"\n  IR: ${ Pretty(ctx, ir) }")
+  }
+
+  private def checkSingleNode(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): Unit = {
     ir match {
       case I32(x) =>
       case I64(x) =>
@@ -104,7 +113,7 @@ object TypeCheck {
             if (t != t2)
               throw new RuntimeException(s"RelationalRef type mismatch:\n  node=${t}\n   env=${t2}")
           case None =>
-              throw new RuntimeException(s"RelationalRef not found in env: $name")
+            throw new RuntimeException(s"RelationalRef not found in env: $name")
         }
       case x@TailLoop(name, _, body) =>
         assert(x.typ == body.typ)
@@ -148,14 +157,21 @@ object TypeCheck {
         }
       case x@ArrayRef(a, i, _) =>
         assert(i.typ == TInt32)
-        assert(x.typ == coerce[TArray](a.typ).elementType)
+        assert(x.typ == tcoerce[TArray](a.typ).elementType)
       case x@ArraySlice(a, start, stop, step, _) =>
         assert(start.typ == TInt32)
         stop.foreach(ir => assert(ir.typ == TInt32))
         assert(step.typ == TInt32)
-        assert(x.typ == coerce[TArray](a.typ))
+        assert(x.typ == tcoerce[TArray](a.typ))
       case ArrayLen(a) =>
         assert(a.typ.isInstanceOf[TArray])
+      case ArrayMaximalIndependentSet(edges, tieBreaker) =>
+        assert(edges.typ.isInstanceOf[TArray])
+        val edgeType = tcoerce[TArray](edges.typ).elementType
+        assert(edgeType.isInstanceOf[TBaseStruct])
+        val Array(leftType, rightType) = edgeType.asInstanceOf[TBaseStruct].types
+        assert(leftType == rightType)
+        tieBreaker.foreach { case (_, _, tb) => assert(tb.typ == TFloat64) }
       case StreamIota(start, step, _) =>
         assert(start.typ == TInt32)
         assert(step.typ == TInt32)
@@ -184,7 +200,7 @@ object TypeCheck {
         assert(nd.typ.isInstanceOf[TNDArray])
         assert(shape.typ.asInstanceOf[TTuple].types.forall(t => t == TInt64))
       case x@NDArrayConcat(nds, axis) =>
-        assert(coerce[TArray](nds.typ).elementType.isInstanceOf[TNDArray])
+        assert(tcoerce[TArray](nds.typ).elementType.isInstanceOf[TNDArray])
         assert(axis < x.typ.nDims)
       case x@NDArrayRef(nd, idxs, _) =>
         assert(nd.typ.isInstanceOf[TNDArray])
@@ -192,33 +208,33 @@ object TypeCheck {
         assert(idxs.forall(_.typ == TInt64))
       case x@NDArraySlice(nd, slices) =>
         assert(nd.typ.isInstanceOf[TNDArray])
-        val childTyp =nd.typ.asInstanceOf[TNDArray]
+        val childTyp = nd.typ.asInstanceOf[TNDArray]
         val slicesTuple = slices.typ.asInstanceOf[TTuple]
         assert(slicesTuple.size == childTyp.nDims)
         assert(slicesTuple.types.forall { t =>
           (t == TTuple(TInt64, TInt64, TInt64)) || (t == TInt64)
         })
       case NDArrayFilter(nd, filters) =>
-        val ndtyp = coerce[TNDArray](nd.typ)
+        val ndtyp = tcoerce[TNDArray](nd.typ)
         assert(ndtyp.nDims == filters.length)
-        assert(filters.forall(f => coerce[TArray](f.typ).elementType == TInt64))
+        assert(filters.forall(f => tcoerce[TArray](f.typ).elementType == TInt64))
       case x@NDArrayMap(_, _, body) =>
         assert(x.elementTyp == body.typ)
       case x@NDArrayMap2(l, r, _, _, body, _) =>
-        val lTyp = coerce[TNDArray](l.typ)
-        val rTyp = coerce[TNDArray](r.typ)
+        val lTyp = tcoerce[TNDArray](l.typ)
+        val rTyp = tcoerce[TNDArray](r.typ)
         assert(lTyp.nDims == rTyp.nDims)
         assert(x.elementTyp == body.typ)
       case x@NDArrayReindex(nd, indexExpr) =>
         assert(nd.typ.isInstanceOf[TNDArray])
-        val nInputDims = coerce[TNDArray](nd.typ).nDims
+        val nInputDims = tcoerce[TNDArray](nd.typ).nDims
         val nOutputDims = indexExpr.length
         assert(nInputDims <= nOutputDims)
         assert(indexExpr.forall(i => i < nOutputDims))
         assert((0 until nOutputDims).forall(i => indexExpr.contains(i)))
       case x@NDArrayAgg(nd, axes) =>
         assert(nd.typ.isInstanceOf[TNDArray])
-        val nInputDims = coerce[TNDArray](nd.typ).nDims
+        val nInputDims = tcoerce[TNDArray](nd.typ).nDims
         assert(axes.length <= nInputDims)
         assert(axes.forall(i => i < nInputDims))
         assert(axes.distinct.length == axes.length)
@@ -253,7 +269,7 @@ object TypeCheck {
         assert(a.typ.isInstanceOf[TStream])
       case x@ToDict(a) =>
         assert(a.typ.isInstanceOf[TStream])
-        assert(coerce[TBaseStruct](coerce[TStream](a.typ).elementType).size == 2)
+        assert(tcoerce[TBaseStruct](tcoerce[TStream](a.typ).elementType).size == 2)
       case x@ToArray(a) =>
         assert(a.typ.isInstanceOf[TStream])
       case x@CastToArray(a) =>
@@ -261,18 +277,18 @@ object TypeCheck {
       case x@ToStream(a, _) =>
         assert(a.typ.isInstanceOf[TContainer])
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
-        val elt = coerce[TIterable](orderedCollection.typ).elementType
+        val elt = tcoerce[TIterable](orderedCollection.typ).elementType
         assert(elem.typ == (if (onKey) elt match {
           case t: TBaseStruct => t.types(0)
           case t: TInterval => t.pointType
         } else elt))
       case x@GroupByKey(collection) =>
-        val telt = coerce[TBaseStruct](coerce[TStream](collection.typ).elementType)
-        val td = coerce[TDict](x.typ)
+        val telt = tcoerce[TBaseStruct](tcoerce[TStream](collection.typ).elementType)
+        val td = tcoerce[TDict](x.typ)
         assert(td.keyType == telt.types(0))
         assert(td.valueType == TArray(telt.types(1)))
-      case RNGStateLiteral(key) =>
-        assert(key.length == 4)
+      case x@RNGStateLiteral() =>
+        assert(x.typ == TRNGState)
       case RNGSplit(state, dynBitstring) =>
         assert(state.typ == TRNGState)
         def isValid: Type => Boolean = {
@@ -291,14 +307,14 @@ object TypeCheck {
         assert(x.typ == a.typ)
         assert(num.typ == TInt32)
       case x@StreamGrouped(a, size) =>
-        val ts = coerce[TStream](x.typ)
+        val ts = tcoerce[TStream](x.typ)
         assert(a.typ.isInstanceOf[TStream])
         assert(ts.elementType == a.typ)
         assert(size.typ == TInt32)
       case x@StreamGroupByKey(a, key, _) =>
-        val ts = coerce[TStream](x.typ)
+        val ts = tcoerce[TStream](x.typ)
         assert(ts.elementType == a.typ)
-        val structType = coerce[TStruct](coerce[TStream](a.typ).elementType)
+        val structType = tcoerce[TStruct](tcoerce[TStream](a.typ).elementType)
         assert(key.forall(structType.hasField))
       case x@StreamMap(a, name, body) =>
         assert(a.typ.isInstanceOf[TStream])
@@ -308,15 +324,15 @@ object TypeCheck {
         assert(x.typ.elementType == body.typ)
         assert(as.forall(_.typ.isInstanceOf[TStream]))
       case x@StreamZipJoin(as, key, curKey, curVals, joinF) =>
-        val streamType = coerce[TStream](as.head.typ)
+        val streamType = tcoerce[TStream](as.head.typ)
         assert(as.forall(_.typ == streamType))
-        val eltType = coerce[TStruct](streamType.elementType)
+        val eltType = tcoerce[TStruct](streamType.elementType)
         assert(key.forall(eltType.hasField))
         assert(x.typ.elementType == joinF.typ)
       case x@StreamMultiMerge(as, key) =>
-        val streamType = coerce[TStream](as.head.typ)
+        val streamType = tcoerce[TStream](as.head.typ)
         assert(as.forall(_.typ == streamType))
-        val eltType = coerce[TStruct](streamType.elementType)
+        val eltType = tcoerce[TStruct](streamType.elementType)
         assert(x.typ.elementType == eltType)
         assert(key.forall(eltType.hasField))
       case x@StreamFilter(a, name, cond) =>
@@ -346,12 +362,12 @@ object TypeCheck {
       case x@StreamScan(a, zero, accumName, valueName, body) =>
         assert(a.typ.isInstanceOf[TStream])
         assert(body.typ == zero.typ)
-        assert(coerce[TStream](x.typ).elementType == zero.typ)
+        assert(tcoerce[TStream](x.typ).elementType == zero.typ)
         assert(zero.typ.isRealizable)
       case x@StreamJoinRightDistinct(left, right, lKey, rKey, l, r, join, joinType) =>
-        val lEltTyp = coerce[TStruct](coerce[TStream](left.typ).elementType)
-        val rEltTyp = coerce[TStruct](coerce[TStream](right.typ).elementType)
-        assert(coerce[TStream](x.typ).elementType == join.typ)
+        val lEltTyp = tcoerce[TStruct](tcoerce[TStream](left.typ).elementType)
+        val rEltTyp = tcoerce[TStruct](tcoerce[TStream](right.typ).elementType)
+        assert(tcoerce[TStream](x.typ).elementType == join.typ)
         assert(lKey.forall(lEltTyp.hasField))
         assert(rKey.forall(rEltTyp.hasField))
         if (x.isIntervalJoin) {
@@ -372,11 +388,28 @@ object TypeCheck {
       case x@StreamAggScan(a, name, query) =>
         assert(a.typ.isInstanceOf[TStream])
         assert(x.typ.asInstanceOf[TStream].elementType == query.typ)
-      case x@StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, _, _,_) =>
+      case x@StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, _, _, _) =>
         assert(streamChild.typ.isInstanceOf[TStream])
         assert(initAggs.typ == TVoid)
         assert(seqOps.typ == TVoid)
         assert(newKey.typ.isInstanceOf[TStruct])
+        assert(x.typ.isInstanceOf[TStream])
+      case x@StreamLocalLDPrune(streamChild, r2Threshold, windowSize, maxQueueSize, nSamples) =>
+        assert(streamChild.typ.isInstanceOf[TStream])
+        assert(r2Threshold.typ == TFloat64)
+        assert(windowSize.typ == TInt32)
+        assert(maxQueueSize.typ == TInt32)
+        assert(nSamples.typ == TInt32)
+        val eltType = streamChild.typ.asInstanceOf[TStream].elementType
+        assert(eltType.isInstanceOf[TStruct])
+        val structType = eltType.asInstanceOf[TStruct]
+        assert(structType.fieldType("locus").isInstanceOf[TLocus])
+        val allelesType = structType.fieldType("alleles")
+        assert(allelesType.isInstanceOf[TArray])
+        assert(allelesType.asInstanceOf[TArray].elementType == TString)
+        val gtType = structType.fieldType("genotypes")
+        assert(gtType.isInstanceOf[TArray])
+        assert(gtType.asInstanceOf[TArray].elementType == TCall)
         assert(x.typ.isInstanceOf[TStream])
       case x@RunAgg(body, result, _) =>
         assert(x.typ == result.typ)
@@ -429,7 +462,7 @@ object TypeCheck {
         }: _*))
       case x@SelectFields(old, fields) =>
         assert {
-          val oldfields = coerce[TStruct](old.typ).fieldNames.toSet
+          val oldfields = tcoerce[TStruct](old.typ).fieldNames.toSet
           fields.forall { id => oldfields.contains(id) }
         }
       case x@InsertFields(old, fields, fieldOrder) =>
@@ -442,7 +475,7 @@ object TypeCheck {
           assert(fds.toSet.forall(f => newFieldSet.contains(f) || oldFieldNameSet.contains(f)))
         }
       case x@GetField(o, name) =>
-        val t = coerce[TStruct](o.typ)
+        val t = tcoerce[TStruct](o.typ)
         assert(t.index(name).nonEmpty, s"$name not in $t")
         assert(x.typ == t.field(name).typ)
       case x@MakeTuple(fields) =>
@@ -451,7 +484,7 @@ object TypeCheck {
         assert(indices.isSorted)
         assert(x.typ == TTuple(fields.map { case (idx, f) => TupleField(idx, f.typ)}.toFastIndexedSeq))
       case x@GetTupleElement(o, idx) =>
-        val t = coerce[TTuple](o.typ)
+        val t = tcoerce[TTuple](o.typ)
         val fd = t.fields(t.fieldIndex(idx))
         assert(x.typ == fd.typ)
       case In(i, typ) =>
@@ -506,14 +539,15 @@ object TypeCheck {
       case x@ReadValue(path, spec, requestedType) =>
         assert(path.typ == TString)
         assert(spec.encodedType.decodedPType(requestedType).virtualType == requestedType)
-      case x@WriteValue(value, path, spec) =>
+      case WriteValue(_, path, _, stagingFile) =>
         assert(path.typ == TString)
+        assert(stagingFile.forall(_.typ == TString))
       case LiftMeOut(_) =>
       case Consume(_) =>
       case TableMapRows(child, newRow) =>
         val newFieldSet = newRow.typ.asInstanceOf[TStruct].fieldNames.toSet
         assert(child.typ.key.forall(newFieldSet.contains))
-      case TableMapPartitions(child, globalName, partitionStreamName, body) =>
+      case TableMapPartitions(child, globalName, partitionStreamName, body, requestedKey, allowedOverlap) =>
         assert(StreamUtils.isIterationLinear(body, partitionStreamName), "must iterate over the partition exactly once")
         val newRowType = body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
         child.typ.key.foreach { k => if (!newRowType.hasField(k)) throw new RuntimeException(s"prev key: ${child.typ.key}, new row: ${newRowType}")}
@@ -528,4 +562,13 @@ object TypeCheck {
       case _: BlockMatrixIR =>
     }
   }
+
+  def coerce[A <: Type](argname: String, typ: Type)(implicit tag: ClassTag[A]): A =
+    if (tag.runtimeClass.isInstance(typ)) typ.asInstanceOf[A]
+    else throw new IllegalArgumentException(
+      s"""'$argname': Type mismatch.
+         |  Expected: ${tag.runtimeClass.getName}
+         |    Actual: ${typ.getClass.getName}""".stripMargin
+    )
+
 }

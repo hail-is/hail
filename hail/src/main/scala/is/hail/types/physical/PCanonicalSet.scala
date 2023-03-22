@@ -1,6 +1,7 @@
 package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, Region}
+import is.hail.backend.HailStateManager
 import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerValue}
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.virtual.{TSet, Type}
@@ -33,11 +34,11 @@ final case class PCanonicalSet(elementType: PType,  required: Boolean = false) e
   private def deepRenameSet(t: TSet) =
     PCanonicalSet(this.elementType.deepRename(t.elementType), this.required)
 
-  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
+  override def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region): Long = {
     val s: IndexedSeq[Annotation] = annotation.asInstanceOf[Set[Annotation]]
       .toFastIndexedSeq
-      .sorted(elementType.virtualType.ordering.toOrdering)
-    arrayRep.unstagedStoreJavaObject(s, region)
+      .sorted(elementType.virtualType.ordering(sm).toOrdering)
+    arrayRep.unstagedStoreJavaObject(sm, s, region)
   }
 
   def construct(_contents: SIndexableValue): SIndexableValue = {

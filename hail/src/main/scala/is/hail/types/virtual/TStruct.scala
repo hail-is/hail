@@ -1,6 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations.{Annotation, AnnotationPathException, _}
+import is.hail.backend.HailStateManager
 import is.hail.expr.ir.{Env, IRParser, IntArrayBuilder}
 import is.hail.types.physical.{PField, PStruct}
 import is.hail.utils._
@@ -50,10 +51,8 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
 
   override def truncate(newSize: Int): TStruct = TStruct(fields.take(newSize))
 
-  override lazy val ordering: ExtendedOrdering = mkOrdering()
-
-  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
-    TBaseStruct.getOrdering(types, missingEqual)
+  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
+    TBaseStruct.getOrdering(sm, types, missingEqual)
 
   override def canCompare(other: Type): Boolean = other match {
     case t: TStruct => size == t.size && fields.zip(t.fields).forall { case (f1, f2) =>
@@ -388,4 +387,8 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
       Row.fromSeq(subsetFields.map { case (i, subset) => subset(r.get(i)) })
     }
   }
+
+  def isSubsetOf(other: TStruct): Boolean =
+    fields.forall(f => other.fieldIdx.get(f.name).exists(other.fields(_).typ == f.typ))
+
 }

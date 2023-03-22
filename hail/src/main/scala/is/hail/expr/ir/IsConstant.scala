@@ -11,6 +11,11 @@ object CanEmit {
   }
 }
 
+object Constant {
+  def unapply(ir: IR): Option[IR] =
+    Some(ir).filter(IsConstant(_))
+}
+
 object IsConstant {
   def apply(ir: IR): Boolean = {
     ir match {

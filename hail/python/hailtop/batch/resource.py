@@ -320,7 +320,7 @@ class PythonResult(Resource, str):
         super().__init__()
         assert value is None or isinstance(value, str)
         self._value = value
-        self._source = source
+        self._source: job.PythonJob = source
         self._output_paths: Set[str] = set()
         self._json = None
         self._str = None

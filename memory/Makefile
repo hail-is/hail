@@ -4,8 +4,6 @@ PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../hail/python:../gear
 PYTHON := PYTHONPATH=$(PYTHONPATH) python3
 BLACK := $(PYTHON) -m black . --line-length=120 --skip-string-normalization
 
-TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
-
 MEMORY_IMAGE := $(DOCKER_PREFIX)/memory:$(TOKEN)
 
 .PHONY: check
@@ -17,8 +15,8 @@ check:
 
 .PHONY: build
 build:
-	$(MAKE) -C ../docker service-base
-	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"'$$(cat ../docker/service-base-image-ref)'"}}' Dockerfile Dockerfile.out
+	$(MAKE) -C ../docker hail-ubuntu
+	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat ../docker/hail-ubuntu-image-ref)'"}}' Dockerfile Dockerfile.out
 	../docker-build.sh .. memory/Dockerfile.out $(MEMORY_IMAGE)
 
 .PHONY: deploy

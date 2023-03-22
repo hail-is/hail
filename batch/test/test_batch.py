@@ -4,10 +4,11 @@ import secrets
 import time
 from typing import Set
 
-import aiohttp
 import pytest
 
+from hailtop import httpx
 from hailtop.auth import service_auth_headers
+from hailtop.batch.backend import HAIL_GENETICS_HAILTOP_IMAGE
 from hailtop.batch_client.client import BatchClient
 from hailtop.config import get_deploy_config, get_user_config
 from hailtop.test_utils import skip_in_azure
@@ -21,10 +22,14 @@ deploy_config = get_deploy_config()
 DOCKER_PREFIX = os.environ['DOCKER_PREFIX']
 DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
 UBUNTU_IMAGE = 'ubuntu:20.04'
+
+
 DOMAIN = os.environ.get('HAIL_DOMAIN')
 NAMESPACE = os.environ.get('HAIL_DEFAULT_NAMESPACE')
 SCOPE = os.environ.get('HAIL_SCOPE', 'test')
 CLOUD = os.environ.get('HAIL_CLOUD')
+
+HAIL_GENETICS_HAIL_IMAGE = os.environ['HAIL_GENETICS_HAIL_IMAGE']
 
 
 @pytest.fixture
@@ -61,6 +66,8 @@ def test_job_running_logs(client: BatchClient):
             if log is not None and log['main'] != '':
                 assert log['main'] == 'test\n', str((log, b.debug_info()))
                 break
+        elif status['state'] != 'Ready':
+            assert False, str((j.log(), b.debug_info()))
         delay = sync_sleep_and_backoff(delay)
 
     b.cancel()
@@ -107,14 +114,14 @@ def test_invalid_resource_requests(client: BatchClient):
     bb = client.create_batch()
     resources = {'cpu': '1', 'memory': '250Gi', 'storage': '1Gi'}
     bb.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
-    with pytest.raises(aiohttp.client.ClientResponseError, match='resource requests.*unsatisfiable'):
+    with pytest.raises(httpx.ClientResponseError, match='resource requests.*unsatisfiable'):
         bb.submit()
 
     bb = client.create_batch()
     resources = {'cpu': '0', 'memory': '1Gi', 'storage': '1Gi'}
     bb.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     with pytest.raises(
-        aiohttp.client.ClientResponseError,
+        httpx.ClientResponseError,
         match='bad resource request for job.*cpu must be a power of two with a min of 0.25; found.*',
     ):
         bb.submit()
@@ -123,7 +130,7 @@ def test_invalid_resource_requests(client: BatchClient):
     resources = {'cpu': '0.1', 'memory': '1Gi', 'storage': '1Gi'}
     bb.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     with pytest.raises(
-        aiohttp.client.ClientResponseError,
+        httpx.ClientResponseError,
         match='bad resource request for job.*cpu must be a power of two with a min of 0.25; found.*',
     ):
         bb.submit()
@@ -132,7 +139,7 @@ def test_invalid_resource_requests(client: BatchClient):
     resources = {'cpu': '0.25', 'memory': 'foo', 'storage': '1Gi'}
     bb.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     with pytest.raises(
-        aiohttp.client.ClientResponseError,
+        httpx.ClientResponseError,
         match=".*.resources.memory must match regex:.*.resources.memory must be one of:.*",
     ):
         bb.submit()
@@ -140,13 +147,13 @@ def test_invalid_resource_requests(client: BatchClient):
     bb = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '500Mi', 'storage': '10000000Gi'}
     bb.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
-    with pytest.raises(aiohttp.client.ClientResponseError, match='resource requests.*unsatisfiable'):
+    with pytest.raises(httpx.ClientResponseError, match='resource requests.*unsatisfiable'):
         bb.submit()
 
     bb = client.create_batch()
     resources = {'storage': '10000000Gi', 'machine_type': smallest_machine_type(CLOUD)}
     bb.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
-    with pytest.raises(aiohttp.client.ClientResponseError, match='resource requests.*unsatisfiable'):
+    with pytest.raises(httpx.ClientResponseError, match='resource requests.*unsatisfiable'):
         bb.submit()
 
 
@@ -221,7 +228,7 @@ def test_nonzero_storage(client: BatchClient):
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
-@skip_in_azure()
+@skip_in_azure
 def test_attached_disk(client: BatchClient):
     bb = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '400Gi'}
@@ -403,7 +410,7 @@ def test_deleted_job_log(client: BatchClient):
 
     try:
         j.log()
-    except aiohttp.ClientResponseError as e:
+    except httpx.ClientResponseError as e:
         if e.status == 404:
             pass
         else:
@@ -419,7 +426,7 @@ def test_delete_batch(client: BatchClient):
     # verify doesn't exist
     try:
         client.get_job(*j.id)
-    except aiohttp.ClientResponseError as e:
+    except httpx.ClientResponseError as e:
         if e.status == 404:
             pass
         else:
@@ -443,7 +450,7 @@ def test_cancel_batch(client: BatchClient):
     # cancelled job has no log
     try:
         j.log()
-    except aiohttp.ClientResponseError as e:
+    except httpx.ClientResponseError as e:
         if e.status == 404:
             pass
         else:
@@ -453,7 +460,7 @@ def test_cancel_batch(client: BatchClient):
 def test_get_nonexistent_job(client: BatchClient):
     try:
         client.get_job(1, 666)
-    except aiohttp.ClientResponseError as e:
+    except httpx.ClientResponseError as e:
         if e.status == 404:
             pass
         else:
@@ -539,6 +546,17 @@ def test_log_after_failing_job(client: BatchClient):
     assert job_log['main'] == 'test\n', str((job_log, b.debug_info()))
 
     assert j.is_complete(), str(b.debug_info())
+
+
+def test_non_utf_8_log(client: BatchClient):
+    bb = client.create_batch()
+    j = bb.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', "echo -n 'hello \\x80'"])
+    b = bb.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+
+    job_main_log = j.container_log('main')
+    assert job_main_log == b'hello \\x80'
 
 
 def test_long_log_line(client: BatchClient):
@@ -718,13 +736,13 @@ def test_duplicate_parents(client: BatchClient):
     bb.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[head, head])
     try:
         batch = bb.submit()
-    except aiohttp.ClientResponseError as e:
+    except httpx.ClientResponseError as e:
         assert e.status == 400
     else:
         assert False, f'should receive a 400 Bad Request {batch.id}'
 
 
-@skip_in_azure()
+@skip_in_azure
 def test_verify_no_access_to_google_metadata_server(client: BatchClient):
     bb = client.create_batch()
     j = bb.create_job(os.environ['HAIL_CURL_IMAGE'], ['curl', '-fsSL', 'metadata.google.internal', '--max-time', '10'])
@@ -757,7 +775,7 @@ b.run()
 backend.close()
 '''
     j = bb.create_job(
-        os.environ['HAIL_HAIL_BASE_IMAGE'],
+        HAIL_GENETICS_HAILTOP_IMAGE,
         ['/bin/bash', '-c', f'''python3 -c \'{script}\''''],
         mount_tokens=True,
     )
@@ -779,7 +797,7 @@ backend.close()
 
     bb = client.create_batch()
     j = bb.create_job(
-        os.environ['HAIL_HAIL_BASE_IMAGE'],
+        HAIL_GENETICS_HAILTOP_IMAGE,
         [
             '/bin/bash',
             '-c',
@@ -800,7 +818,7 @@ python3 -c \'{script}\'''',
 
     bb = client.create_batch()
     j = bb.create_job(
-        os.environ['HAIL_HAIL_BASE_IMAGE'],
+        HAIL_GENETICS_HAILTOP_IMAGE,
         [
             '/bin/bash',
             '-c',
@@ -843,7 +861,7 @@ curl -fsSL -m 5 $OTHER_IP
     assert "Connection timed out" in job_log['main'], str((job_log, b.debug_info()))
 
 
-@skip_in_azure()
+@skip_in_azure
 def test_can_use_google_credentials(client: BatchClient):
     token = os.environ["HAIL_TOKEN"]
     remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
@@ -855,9 +873,7 @@ location = f"{remote_tmpdir}/{ token }/{{ attempt_token }}/test_can_use_hailctl_
 hl.utils.range_table(10).write(location)
 hl.read_table(location).show()
 '''
-    j = bb.create_job(
-        os.environ['HAIL_HAIL_BASE_IMAGE'], ['/bin/bash', '-c', f'python3 -c >out 2>err \'{script}\'; cat out err']
-    )
+    j = bb.create_job(HAIL_GENETICS_HAIL_IMAGE, ['/bin/bash', '-c', f'python3 -c >out 2>err \'{script}\'; cat out err'])
     b = bb.submit()
     status = j.wait()
     assert status['state'] == 'Success', f'{j.log(), status}'
@@ -961,9 +977,9 @@ def test_verify_private_network_is_restricted(client: BatchClient):
     )
     try:
         bb.submit()
-    except aiohttp.ClientResponseError as err:
+    except httpx.ClientResponseError as err:
         assert err.status == 400
-        assert 'unauthorized network private' in err.message
+        assert 'unauthorized network private' in err.body
     else:
         assert False
 
@@ -1067,6 +1083,14 @@ def test_job_private_instance_cancel(client: BatchClient):
     b.cancel()
     status = j.wait()
     assert status['state'] == 'Cancelled', str((status, b.debug_info()))
+
+
+def test_create_fast_path_more_than_one_job(client: BatchClient):
+    bb = client.create_batch()
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    b = bb.submit()
+    assert b.submission_info.used_fast_create, b.submission_info
 
 
 def test_update_batch_no_deps(client: BatchClient):
@@ -1258,9 +1282,9 @@ def test_update_cancelled_batch_wout_fast_path(client: BatchClient):
         for _ in range(4):
             bb.create_job(DOCKER_ROOT_IMAGE, ['echo', 'a' * (900 * 1024)])
         b = bb.submit()
-    except aiohttp.ClientResponseError as err:
+    except httpx.ClientResponseError as err:
         assert err.status == 400
-        assert 'Cannot submit new jobs to a cancelled batch' in err.message
+        assert 'Cannot submit new jobs to a cancelled batch' in err.body
     else:
         assert False
 
@@ -1274,9 +1298,9 @@ def test_submit_update_to_cancelled_batch(client: BatchClient):
     try:
         bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
         b = bb.submit()
-    except aiohttp.ClientResponseError as err:
+    except httpx.ClientResponseError as err:
         assert err.status == 400
-        assert 'Cannot submit new jobs to a cancelled batch' in err.message
+        assert 'Cannot submit new jobs to a cancelled batch' in err.body
     else:
         assert False
 
@@ -1290,7 +1314,23 @@ def test_submit_update_to_deleted_batch(client: BatchClient):
     try:
         bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
         b = bb.submit()
-    except aiohttp.ClientResponseError as err:
+    except httpx.ClientResponseError as err:
         assert err.status == 404
     else:
         assert False
+
+
+def test_region(client: BatchClient):
+    bb = client.create_batch()
+    if CLOUD == 'gcp':
+        region = 'us-east1'
+    else:
+        assert CLOUD == 'azure'
+        region = 'eastus'
+    resources = {'memory': 'lowmem'}
+    j = bb.create_job(DOCKER_ROOT_IMAGE, ['printenv', 'HAIL_REGION'], regions=[region], resources=resources)
+    b = bb.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+    assert status['status']['region'] == region, str((status, b.debug_info()))
+    assert region in j.log()['main'], str((status, b.debug_info()))

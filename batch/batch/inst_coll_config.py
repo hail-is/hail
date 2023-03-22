@@ -72,12 +72,17 @@ class PoolConfig(InstanceCollectionConfig):
             worker_cores=record['worker_cores'],
             worker_local_ssd_data_disk=record['worker_local_ssd_data_disk'],
             worker_external_ssd_data_disk_size_gb=record['worker_external_ssd_data_disk_size_gb'],
-            enable_standing_worker=record['enable_standing_worker'],
             standing_worker_cores=record['standing_worker_cores'],
             boot_disk_size_gb=record['boot_disk_size_gb'],
+            min_instances=record['min_instances'],
             max_instances=record['max_instances'],
             max_live_instances=record['max_live_instances'],
             preemptible=bool(record['preemptible']),
+            max_new_instances_per_autoscaler_loop=record['max_new_instances_per_autoscaler_loop'],
+            autoscaler_loop_period_secs=record['autoscaler_loop_period_secs'],
+            worker_max_idle_time_secs=record['worker_max_idle_time_secs'],
+            standing_worker_max_idle_time_secs=record['standing_worker_max_idle_time_secs'],
+            job_queue_scheduling_window_secs=record['job_queue_scheduling_window_secs'],
         )
 
     async def update_database(self, db: Database):
@@ -88,55 +93,79 @@ INNER JOIN inst_colls ON pools.name = inst_colls.name
 SET worker_cores = %s,
     worker_local_ssd_data_disk = %s,
     worker_external_ssd_data_disk_size_gb = %s,
-    enable_standing_worker = %s,
     standing_worker_cores = %s,
     boot_disk_size_gb = %s,
+    min_instances = %s,
     max_instances = %s,
     max_live_instances = %s,
-    preemptible = %s
+    preemptible = %s,
+    max_new_instances_per_autoscaler_loop = %s,
+    autoscaler_loop_period_secs = %s,
+    worker_max_idle_time_secs = %s,
+    standing_worker_max_idle_time_secs = %s,
+    job_queue_scheduling_window_secs = %s
 WHERE pools.name = %s;
 ''',
             (
                 self.worker_cores,
                 self.worker_local_ssd_data_disk,
                 self.worker_external_ssd_data_disk_size_gb,
-                self.enable_standing_worker,
                 self.standing_worker_cores,
                 self.boot_disk_size_gb,
+                self.min_instances,
                 self.max_instances,
                 self.max_live_instances,
                 self.preemptible,
+                self.max_new_instances_per_autoscaler_loop,
+                self.autoscaler_loop_period_secs,
+                self.worker_max_idle_time_secs,
+                self.standing_worker_max_idle_time_secs,
+                self.job_queue_scheduling_window_secs,
                 self.name,
             ),
         )
 
     def __init__(
         self,
+        *,
         name: str,
         cloud: str,
         worker_type: str,
         worker_cores: int,
         worker_local_ssd_data_disk: bool,
         worker_external_ssd_data_disk_size_gb: int,
-        enable_standing_worker: bool,
         standing_worker_cores: int,
         boot_disk_size_gb: int,
+        min_instances: int,
         max_instances: int,
         max_live_instances: int,
         preemptible: bool,
+        max_new_instances_per_autoscaler_loop: int,
+        autoscaler_loop_period_secs: int,
+        worker_max_idle_time_secs: int,
+        standing_worker_max_idle_time_secs: int,
+        job_queue_scheduling_window_secs: int,
     ):
+        assert (
+            min_instances <= max_live_instances <= max_instances
+        ), f'{(min_instances, max_live_instances, max_instances)}'
         self.name = name
         self.cloud = cloud
         self.worker_type = worker_type
         self.worker_cores = worker_cores
         self.worker_local_ssd_data_disk = worker_local_ssd_data_disk
         self.worker_external_ssd_data_disk_size_gb = worker_external_ssd_data_disk_size_gb
-        self.enable_standing_worker = enable_standing_worker
         self.standing_worker_cores = standing_worker_cores
         self.boot_disk_size_gb = boot_disk_size_gb
+        self.min_instances = min_instances
         self.max_instances = max_instances
         self.max_live_instances = max_live_instances
         self.preemptible = preemptible
+        self.max_new_instances_per_autoscaler_loop = max_new_instances_per_autoscaler_loop
+        self.autoscaler_loop_period_secs = autoscaler_loop_period_secs
+        self.worker_max_idle_time_secs = worker_max_idle_time_secs
+        self.standing_worker_max_idle_time_secs = standing_worker_max_idle_time_secs
+        self.job_queue_scheduling_window_secs = job_queue_scheduling_window_secs
 
     def instance_config(self, product_versions: ProductVersions, location: str) -> InstanceConfig:
         return instance_config_from_pool_config(self, product_versions, location)
@@ -178,19 +207,36 @@ class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):
     @staticmethod
     def from_record(record):
         return JobPrivateInstanceManagerConfig(
-            record['name'],
-            record['cloud'],
-            record['boot_disk_size_gb'],
-            record['max_instances'],
-            record['max_live_instances'],
+            name=record['name'],
+            cloud=record['cloud'],
+            boot_disk_size_gb=record['boot_disk_size_gb'],
+            max_instances=record['max_instances'],
+            max_live_instances=record['max_live_instances'],
+            max_new_instances_per_autoscaler_loop=record['max_new_instances_per_autoscaler_loop'],
+            autoscaler_loop_period_secs=record['autoscaler_loop_period_secs'],
+            worker_max_idle_time_secs=record['worker_max_idle_time_secs'],
         )
 
-    def __init__(self, name, cloud, boot_disk_size_gb: int, max_instances, max_live_instances):
+    def __init__(
+        self,
+        *,
+        name,
+        cloud,
+        boot_disk_size_gb: int,
+        max_instances: int,
+        max_live_instances: int,
+        max_new_instances_per_autoscaler_loop: int,
+        autoscaler_loop_period_secs: int,
+        worker_max_idle_time_secs: int,
+    ):
         self.name = name
         self.cloud = cloud
         self.boot_disk_size_gb = boot_disk_size_gb
         self.max_instances = max_instances
         self.max_live_instances = max_live_instances
+        self.max_new_instances_per_autoscaler_loop = max_new_instances_per_autoscaler_loop
+        self.autoscaler_loop_period_secs = autoscaler_loop_period_secs
+        self.worker_max_idle_time_secs = worker_max_idle_time_secs
 
     def convert_requests_to_resources(self, machine_type, storage_bytes):
         storage_gib = requested_storage_bytes_to_actual_storage_gib(self.cloud, storage_bytes, allow_zero_storage=False)

@@ -144,6 +144,8 @@ object Copy {
       case ArraySort(_, l, r, _) =>
         assert(newChildren.length == 2)
         ArraySort(newChildren(0).asInstanceOf[IR], l, r, newChildren(1).asInstanceOf[IR])
+      case ArrayMaximalIndependentSet(_, tb) =>
+        ArrayMaximalIndependentSet(newChildren(0).asInstanceOf[IR], tb.map { case (l, r, _) => (l, r, newChildren(1).asInstanceOf[IR]) } )
       case ToSet(_) =>
         assert(newChildren.length == 1)
         ToSet(newChildren(0).asInstanceOf[IR])
@@ -165,7 +167,7 @@ object Copy {
       case GroupByKey(_) =>
         assert(newChildren.length == 1)
         GroupByKey(newChildren(0).asInstanceOf[IR])
-      case RNGStateLiteral(key) => RNGStateLiteral(key)
+      case RNGStateLiteral() => RNGStateLiteral()
       case RNGSplit(_, _) =>
         assert(newChildren.nonEmpty)
         RNGSplit(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
@@ -224,6 +226,9 @@ object Copy {
       case StreamJoinRightDistinct(_, _, lKey, rKey, l, r, _, joinType) =>
         assert(newChildren.length == 3)
         StreamJoinRightDistinct(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], lKey, rKey, l, r, newChildren(2).asInstanceOf[IR], joinType)
+      case _: StreamLocalLDPrune =>
+        val IndexedSeq(child: IR, r2Threshold: IR, windowSize: IR, maxQueueSize: IR, nSamples: IR) = newChildren
+        StreamLocalLDPrune(child, r2Threshold, windowSize, maxQueueSize, nSamples)
       case StreamFor(_, valueName, _) =>
         assert(newChildren.length == 2)
         StreamFor(newChildren(0).asInstanceOf[IR], valueName, newChildren(1).asInstanceOf[IR])
@@ -329,8 +334,8 @@ object Copy {
         r
       case Apply(fn, typeArgs, args, t, errorID) =>
         Apply(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), t, errorID)
-      case ApplySeeded(fn, args, rngState, seed, t) =>
-        ApplySeeded(fn, newChildren.init.map(_.asInstanceOf[IR]), newChildren.last.asInstanceOf[IR], seed, t)
+      case ApplySeeded(fn, args, rngState, staticUID, t) =>
+        ApplySeeded(fn, newChildren.init.map(_.asInstanceOf[IR]), newChildren.last.asInstanceOf[IR], staticUID, t)
       case ApplySpecial(fn, typeArgs, args, t, errorID) =>
         ApplySpecial(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), t, errorID)
       // from MatrixIR
@@ -395,9 +400,12 @@ object Copy {
       case ReadValue(path, spec, requestedType) =>
         assert(newChildren.length == 1)
         ReadValue(newChildren(0).asInstanceOf[IR], spec, requestedType)
-      case WriteValue(value, path, spec) =>
-        assert(newChildren.length == 2)
-        WriteValue(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], spec)
+      case WriteValue(_, _, spec, _) =>
+        assert(newChildren.length == 2 || newChildren.length == 3)
+        val value = newChildren(0).asInstanceOf[IR]
+        val path = newChildren(1).asInstanceOf[IR]
+        val stage = if (newChildren.length == 3) Some(newChildren(2).asInstanceOf[IR]) else None
+        WriteValue(value, path, spec, stage)
       case LiftMeOut(_) =>
         LiftMeOut(newChildren(0).asInstanceOf[IR])
     }

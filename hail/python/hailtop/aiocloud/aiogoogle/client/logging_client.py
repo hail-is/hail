@@ -1,14 +1,14 @@
-from typing import Mapping, Any
+from typing import Any, Mapping, MutableMapping, Optional
 from .base_client import GoogleBaseClient
 
 
 class PagedEntryIterator:
-    def __init__(self, client: 'GoogleLoggingClient', body: Mapping[str, Any], request_kwargs: Mapping[str, Any]):
+    def __init__(self, client: 'GoogleLoggingClient', body: MutableMapping[str, Any], request_kwargs: Mapping[str, Any]):
         self._client = client
         self._body = body
         self._request_kwargs = request_kwargs
         self._page = None
-        self._entry_index = None
+        self._entry_index: Optional[int] = None
 
     def __aiter__(self) -> 'PagedEntryIterator':
         return self
@@ -22,8 +22,9 @@ class PagedEntryIterator:
 
         # in case a response is empty but there are more pages
         while True:
+            assert self._page
             # an empty page has no entries
-            if 'entries' in self._page and self._entry_index < len(self._page['entries']):
+            if 'entries' in self._page and self._entry_index is not None and self._entry_index < len(self._page['entries']):
                 i = self._entry_index
                 self._entry_index += 1
                 return self._page['entries'][i]
@@ -46,5 +47,5 @@ class GoogleLoggingClient(GoogleBaseClient):
     # https://cloud.google.com/logging/docs/reference/v2/rest
 
     # https://cloud.google.com/logging/docs/reference/v2/rest/v2/entries/list
-    async def list_entries(self, *, body: Mapping[str, Any], **kwargs):
+    async def list_entries(self, *, body: MutableMapping[str, Any], **kwargs):
         return PagedEntryIterator(self, body, kwargs)

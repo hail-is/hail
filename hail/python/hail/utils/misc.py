@@ -11,7 +11,6 @@ import tempfile
 from collections import defaultdict, Counter
 from contextlib import contextmanager
 from io import StringIO
-from random import Random
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -520,18 +519,6 @@ def lookup_bit(byte, which_bit):
     return (byte >> which_bit) & 1
 
 
-class HailSeedGenerator(object):
-    def __init__(self, seed):
-        self.seed = seed
-        self.generator = Random(seed)
-
-    def set_seed(self, seed):
-        self.__init__(seed)
-
-    def next_seed(self):
-        return self.generator.randint(0, (1 << 63) - 1)
-
-
 def timestamp_path(base, suffix=''):
     return ''.join([base,
                     '-',
@@ -652,3 +639,6 @@ def no_service_backend(unsupported_feature):
         raise NotImplementedError(f'{unsupported_feature!r} is not yet supported on the service backend.'
                                   f'\n  If this is a pressing need, please alert the team on the discussion'
                                   f'\n  forum to aid in prioritization: https://discuss.hail.is')
+
+
+ANY_REGION = ['any_region']

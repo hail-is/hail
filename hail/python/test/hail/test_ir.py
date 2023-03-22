@@ -1,3 +1,4 @@
+import re
 import unittest
 import hail as hl
 import hail.ir as ir
@@ -6,10 +7,7 @@ from hail.expr import construct_expr
 from hail.expr.types import tint32
 from hail.utils.java import Env
 from hail.utils import new_temp_file
-from .helpers import *
-
-setUpModule = startTestHailContext
-tearDownModule = stopTestHailContext
+from test.hail.helpers import *
 
 
 class ValueIRTests(unittest.TestCase):
@@ -44,7 +42,7 @@ class ValueIRTests(unittest.TestCase):
         s = ir.Ref('s', env['s'])
         t = ir.Ref('t', env['t'])
         call = ir.Ref('call', env['call'])
-        rngState = ir.RNGStateLiteral((1, 2, 3, 4))
+        rngState = ir.RNGStateLiteral()
 
         table = ir.TableRange(5, 3)
 
@@ -75,7 +73,7 @@ class ValueIRTests(unittest.TestCase):
             ir.ArraySort(ir.ToStream(a), 'l', 'r', ir.ApplyComparisonOp("LT", ir.Ref('l', hl.tint32), ir.Ref('r', hl.tint32))),
             ir.ToSet(a),
             ir.ToDict(da),
-            ir.ToArray(a),
+            ir.ToArray(st),
             ir.CastToArray(ir.NA(hl.tset(hl.tint32))),
             ir.MakeNDArray(ir.MakeArray([ir.F64(-1.0), ir.F64(1.0)], hl.tarray(hl.tfloat64)),
                            ir.MakeTuple([ir.I64(1), ir.I64(2)]),
@@ -214,7 +212,18 @@ class TableIRTests(unittest.TestCase):
             ir.TableToTableApply(table_read, {'name': 'TableFilterPartitions', 'parts': [0], 'keep': True}),
             ir.BlockMatrixToTableApply(block_matrix_read, aa, {'name': 'PCRelate', 'maf': 0.01, 'blockSize': 4096}),
             ir.TableFilterIntervals(table_read, [hl.utils.Interval(hl.utils.Struct(row_idx=0), hl.utils.Struct(row_idx=10))], hl.tstruct(row_idx=hl.tint32), keep=False),
-            ir.TableMapPartitions(table_read, 'glob', 'rows', ir.Ref('rows', hl.tstream(table_read_row_type)))
+            ir.TableMapPartitions(table_read, 'glob', 'rows', ir.Ref('rows', hl.tstream(table_read_row_type)), 0, 1),
+            ir.TableGen(
+                contexts=ir.StreamRange(ir.I32(0), ir.I32(10), ir.I32(1)),
+                globals=ir.MakeStruct([]),
+                cname="contexts",
+                gname="globals",
+                body=ir.ToStream(ir.MakeArray([ir.MakeStruct([('a', ir.I32(1))])], type=None)),
+                partitioner=ir.Partitioner(
+                    hl.tstruct(a=hl.tint),
+                    [hl.Interval(hl.Struct(a=1), hl.Struct(a=2), True, True)]
+                )
+            )
         ]
 
         return table_irs
@@ -257,7 +266,7 @@ class MatrixIRTests(unittest.TestCase):
             matrix_read,
             matrix_range,
             ir.MatrixRead(ir.MatrixVCFReader(resource('sample.vcf'), ['GT'], hl.tfloat64, None, None, None, None, None, None,
-                                             False, True, False, True, None, None, None)),
+                                             False, True, False, True, None, None)),
             ir.MatrixRead(ir.MatrixBGENReader(resource('example.8bits.bgen'), None, {}, 10, 1, None)),
             ir.MatrixFilterRows(matrix_read, ir.FalseIR()),
             ir.MatrixFilterCols(matrix_read, ir.FalseIR()),
@@ -404,7 +413,7 @@ class ValueTests(unittest.TestCase):
             test_exprs.append(hl.Table(map_globals_ir).index_globals())
             expecteds.append(hl.Struct(foo=v))
 
-        actuals = hl._eval_many(*test_exprs)
+        actuals = hl.eval(hl.tuple(test_exprs))
         for expr, actual, expected in zip(test_exprs, actuals, expecteds):
             assert actual == expected, str(expr)
 
@@ -419,6 +428,22 @@ class CSETests(unittest.TestCase):
                 ' (Ref __cse_1)'
                 ' (Ref __cse_1)))')
         assert expected == CSERenderer()(x)
+
+    def test_stream_cse(self):
+        x = ir.StreamRange(ir.I32(0), ir.I32(10), ir.I32(1))
+        a1 = ir.ToArray(x)
+        a2 = ir.ToArray(x)
+        t = ir.MakeTuple([a1, a2])
+        expected_re = (
+            '(Let __cse_1 (I32 0)'
+            ' (Let __cse_2 (I32 10)'
+            ' (Let __cse_3 (I32 1)'
+            ' (MakeTuple (0 1)'
+                ' (ToArray (StreamRange [0-9]+ False (Ref __cse_1) (Ref __cse_2) (Ref __cse_3)))'
+                ' (ToArray (StreamRange [0-9]+ False (Ref __cse_1) (Ref __cse_2) (Ref __cse_3)))))))'
+        )
+        expected_re = expected_re.replace('(', '\\(').replace(')', '\\)')
+        assert re.match(expected_re, CSERenderer()(t))
 
     def test_cse2(self):
         x = ir.I32(5)

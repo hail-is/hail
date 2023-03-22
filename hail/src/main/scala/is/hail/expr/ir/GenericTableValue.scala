@@ -70,6 +70,7 @@ class PartitionIteratorLongReader(
       val rv = mb.genFieldThisRef[Long]("pilr_rv")
 
       val producer = new StreamProducer {
+        override def method: EmitMethodBuilder[_] = cb.emb
         override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
         override def initialize(cb: EmitCodeBuilder, partitionRegion: Value[Region]): Unit = {
@@ -104,7 +105,7 @@ class PartitionIteratorLongReader(
         override def close(cb: EmitCodeBuilder): Unit = {}
       }
 
-      SStreamValue(SStream(producer.element.emitType), producer)
+      SStreamValue(producer)
     }
   }
 
@@ -155,7 +156,7 @@ class GenericTableValue(
   val bodyPType: TStruct => PStruct,
   val body: TStruct => (Region, HailClassLoader, FS, Any) => Iterator[Long]) {
 
-  assert(fullTableType.rowType.hasField(uidFieldName))
+  assert(fullTableType.rowType.hasField(uidFieldName), s"uid=$uidFieldName, t=$fullTableType")
   assert(contextType.hasField("partitionIndex"))
   assert(contextType.fieldType("partitionIndex") == TInt32)
 
@@ -191,7 +192,7 @@ class GenericTableValue(
       case Some(partitioner) =>
         p = partitioner
       case None if requestedType.key.isEmpty =>
-        p = RVDPartitioner.unkeyed(contexts.length)
+        p = RVDPartitioner.unkeyed(ctx.stateManager, contexts.length)
       case None =>
     }
     if (p != null) {
@@ -238,7 +239,7 @@ class GenericTableValue(
       case None if requestedType.key.isEmpty =>
         RVD(
           RVDType(requestedRowPType, fullTableType.key),
-          RVDPartitioner.unkeyed(contexts.length),
+          RVDPartitioner.unkeyed(ctx.stateManager, contexts.length),
           crdd)
       case None =>
         getRVDCoercer(ctx).coerce(RVDType(requestedRowPType, fullTableType.key), crdd)

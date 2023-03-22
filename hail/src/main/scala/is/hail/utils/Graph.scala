@@ -1,11 +1,14 @@
 package is.hail.utils
 
-import is.hail.annotations.{Region, RegionValueBuilder}
+import is.hail.annotations.{Region, RegionValueBuilder, UnsafeIndexedSeq}
 import is.hail.asm4s._
-import is.hail.backend.ExecuteContext
+import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext}
 import is.hail.types.physical.{PCanonicalTuple, PTuple, PType, stypes}
-import is.hail.expr.ir.{BindingEnv, Compile, IR, IRParser, IRParserEnvironment, Interpret, Literal, MakeTuple, SingleCodeEmitParamType}
+import is.hail.expr.ir.{Compile, IR, IRParser, IRParserEnvironment, Interpret, Literal, MakeTuple, SingleCodeEmitParamType}
+import is.hail.expr.ir.{Compile, IR, IRParser, IRParserEnvironment, Interpret, Literal, MakeTuple, SingleCodeEmitParamType}
+import is.hail.io.fs.FS
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
+import is.hail.variant.ReferenceGenome
 import is.hail.types.virtual._
 import org.apache.spark.sql.Row
 
@@ -36,82 +39,54 @@ object Graph {
     m
   }
 
-  def pyMaximalIndependentSet(edgesIR: IR, nodeTypeStr: String, tieBreaker: String): IR = {
-    val nodeType = IRParser.parseType(nodeTypeStr)
-    ExecuteContext.scoped() { ctx =>
-      val edges = Interpret[IndexedSeq[Row]](ctx, edgesIR).toArray
-
-      val resultType = TSet(nodeType)
-      val result = maximalIndependentSet(ctx, edges, nodeType, Option(tieBreaker))
-      Literal(resultType, result)
-    }
+  def maximalIndependentSet(edges: UnsafeIndexedSeq): IndexedSeq[Any] = {
+    maximalIndependentSet(mkGraph(edges.map { case Row(i, j) => i -> j }))
   }
 
-  def maximalIndependentSet(ctx: ExecuteContext, edges: Array[Row], nodeType: Type, tieBreaker: Option[String]): Set[Any] = {
-    val edges2 = edges.map { r =>
-      val Row(x, y) = r
-      (x, y)
-    }
+  def maximalIndependentSet(rgs: Map[String, ReferenceGenome], edges: UnsafeIndexedSeq, hcl: HailClassLoader, fs: FS, htc: HailTaskContext, outerRegion: Region,
+      wrappedNodeType: PTuple, resultType: PTuple, tieBreaker: (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3RegionLongLongLong): IndexedSeq[Any] = {
+    val nodeType = wrappedNodeType.types.head.virtualType
+    val region = outerRegion.getPool().getRegion()
+    val tieBreakerF = tieBreaker(hcl, fs, htc, region)
+    val rvb = new RegionValueBuilder(HailStateManager(rgs))
+    val tbf = (l: Any, r: Any) => {
+      region.clear()
+      rvb.set(region)
 
-    if (edges2.length > 400000)
-      warn(s"over 400,000 edges are in the graph; maximal_independent_set may run out of memory")
+      rvb.start(wrappedNodeType)
+      rvb.startTuple()
+      rvb.addAnnotation(nodeType, l)
+      rvb.endTuple()
+      val lOffset = rvb.end()
 
-    val wrappedNodeType = PCanonicalTuple(true, PType.canonical(nodeType))
-    val refMap = BindingEnv.eval[Type]("l" -> wrappedNodeType.virtualType, "r" -> wrappedNodeType.virtualType)
+      rvb.start(wrappedNodeType)
+      rvb.startTuple()
+      rvb.addAnnotation(nodeType, r)
+      rvb.endTuple()
+      val rOffset = rvb.end()
 
-    ExecuteContext.scoped() { ctx =>
-      val region = ctx.r
-      val tieBreakerF = tieBreaker.map { e =>
-        val ir = IRParser.parse_value_ir(e, IRParserEnvironment(ctx, refMap = refMap))
-        val (Some(PTypeReferenceSingleCodeType(t)), f) = Compile[AsmFunction3RegionLongLongLong](ctx,
-          IndexedSeq(("l", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(wrappedNodeType))), ("r", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(wrappedNodeType)))),
-          FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
-          MakeTuple.ordered(FastSeq(ir)))
-        assert(t.virtualType == TTuple(TFloat64))
-        val resultType = t.asInstanceOf[PTuple]
-
-        val rvb = new RegionValueBuilder()
-
-        (l: Any, r: Any) => {
-          region.clear()
-          rvb.set(region)
-
-          rvb.start(wrappedNodeType)
-          rvb.startTuple()
-          rvb.addAnnotation(nodeType, l)
-          rvb.endTuple()
-          val lOffset = rvb.end()
-
-          rvb.start(wrappedNodeType)
-          rvb.startTuple()
-          rvb.addAnnotation(nodeType, r)
-          rvb.endTuple()
-          val rOffset = rvb.end()
-
-          val resultOffset = f(ctx.theHailClassLoader, ctx.fs, 0, region)(region, lOffset, rOffset)
-          if (resultType.isFieldMissing(resultOffset, 0)) {
-            throw new RuntimeException(
-              s"a comparison returned a missing value when " +
-                s"l=${Region.pretty(wrappedNodeType, lOffset)} and r=${Region.pretty(wrappedNodeType, rOffset)}")
-          } else {
-            Region.loadDouble(resultType.loadField(resultOffset, 0))
-          }
-        }
+      val resultOffset = tieBreakerF(region, lOffset, rOffset)
+      if (resultType.isFieldMissing(resultOffset, 0)) {
+        throw new RuntimeException(
+          s"a comparison returned a missing value when " +
+          s"l=${Region.pretty(wrappedNodeType, lOffset)} and r=${Region.pretty(wrappedNodeType, rOffset)}")
+      } else {
+        Region.loadDouble(resultType.loadField(resultOffset, 0))
       }
-
-      maximalIndependentSet(mkGraph(edges2), tieBreakerF).toSet
     }
+
+    maximalIndependentSet(mkGraph(edges.map { case Row(i, j) => i -> j }), Some(tbf))
   }
 
-  def maximalIndependentSet[T: ClassTag](edges: Array[(T, T)]): Array[T] = {
+  def maximalIndependentSet[T: ClassTag](edges: Array[(T, T)]): IndexedSeq[T] = {
     maximalIndependentSet(mkGraph(edges))
   }
 
-  def maximalIndependentSet[T: ClassTag](edges: Array[(T, T)], tieBreaker: (T, T) => Double): Array[T] = {
+  def maximalIndependentSet[T: ClassTag](edges: Array[(T, T)], tieBreaker: (T, T) => Double): IndexedSeq[T] = {
     maximalIndependentSet(mkGraph(edges), Some(tieBreaker))
   }
 
-  def maximalIndependentSet[T: ClassTag](g: mutable.MultiMap[T, T], maybeTieBreaker: Option[(T, T) => Double] = None): Array[T] = {
+  def maximalIndependentSet[T: ClassTag](g: mutable.MultiMap[T, T], maybeTieBreaker: Option[(T, T) => Double] = None): IndexedSeq[T] = {
     val verticesByDegree = new BinaryHeap[T](maybeTieBreaker = maybeTieBreaker.orNull)
 
     g.foreach { case (v, neighbors) =>

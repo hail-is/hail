@@ -1,7 +1,5 @@
 include ../config.mk
 
-TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
-
 AUTH_IMAGE := $(DOCKER_PREFIX)/auth:$(TOKEN)
 
 EXTRA_PYTHONPATH := ../hail/python:../gear:../web_common
@@ -19,8 +17,8 @@ check:
 
 .PHONY: build
 build:
-	$(MAKE) -C ../docker service-base
-	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"'$$(cat ../docker/service-base-image-ref)'"}}' Dockerfile Dockerfile.out
+	$(MAKE) -C ../docker hail-ubuntu
+	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat ../docker/hail-ubuntu-image-ref)'"}}' Dockerfile Dockerfile.out
 	../docker-build.sh .. auth/Dockerfile.out $(AUTH_IMAGE)
 
 .PHONY: deploy

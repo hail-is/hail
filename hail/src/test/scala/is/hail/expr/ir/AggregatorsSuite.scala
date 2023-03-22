@@ -11,7 +11,7 @@ import org.testng.annotations.Test
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 import is.hail.variant.Call2
 import is.hail.utils._
-import is.hail.expr.ir.IRBuilder._
+import is.hail.expr.ir.DeprecatedIRBuilder._
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import org.apache.spark.sql.Row
 
@@ -818,8 +818,8 @@ class AggregatorsSuite extends HailSuite {
       AggFold(I32(0), Ref("bar", TInt32) + GetField(Ref("row", TStruct("idx" -> TInt32)), "idx"), barRef + bazRef, "bar", "baz", false)
     )
 
-    val analyses = Analyses.apply(myTableIR, ctx)
-    val myLoweredTableIR = LowerTableIR(myTableIR, DArrayLowering.All, ctx, analyses, Map())
+    val analyses = LoweringAnalyses.apply(myTableIR, ctx)
+    val myLoweredTableIR = LowerTableIR(myTableIR, DArrayLowering.All, ctx, analyses)
 
     assertEvalsTo(myLoweredTableIR, 4950)
   }

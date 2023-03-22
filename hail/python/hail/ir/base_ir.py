@@ -71,6 +71,10 @@ class BaseIR(Renderable):
     def typ(self):
         raise NotImplementedError
 
+    @property
+    def is_stream(self):
+        return False
+
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.children == other.children and self._eq(other)
 
@@ -240,6 +244,8 @@ class IR(BaseIR):
         self._free_vars = None
         self._free_agg_vars = None
         self._free_scan_vars = None
+        self.has_uids = False
+        self.needs_randomness_handling = False
 
     @property
     def aggregations(self):
@@ -297,6 +303,7 @@ class IR(BaseIR):
     def compute_type(self, env, agg_env, deep_typecheck):
         if deep_typecheck or self._type is None:
             computed = self._compute_type(env, agg_env, deep_typecheck)
+            assert(computed is not None)
             if self._type is not None:
                 assert self._type == computed
             self._type = computed
@@ -318,6 +325,14 @@ class IR(BaseIR):
     def _handle_randomness(self, create_uids):
         pass
 
+    @property
+    def might_be_stream(self):
+        return type(self)._handle_randomness != IR._handle_randomness
+
+    @property
+    def is_stream(self):
+        return self.might_be_stream and isinstance(self.typ, tstream)
+
     def handle_randomness(self, create_uids):
         """Elaborate rng semantics in stream typed IR.
 
@@ -327,10 +342,13 @@ class IR(BaseIR):
         The uid may be an int64, or arbitrary tuple of int64s. The only
         requirement is that all stream elements contain distinct uid values.
         """
-        assert(isinstance(self.typ, tstream))
-        if not create_uids and not self.uses_randomness:
+        assert(self.is_stream)
+        if (create_uids == self.has_uids) and not self.needs_randomness_handling:
             return self
-        return self._handle_randomness(create_uids)
+        new = self._handle_randomness(create_uids)
+        new.has_uids = create_uids
+        new.needs_randomness_handling = False
+        return new
 
     @property
     def free_vars(self):
@@ -355,7 +373,7 @@ class IR(BaseIR):
     def free_agg_vars(self):
         def vars_from_child(i):
             if self.uses_agg_context(i):
-                return self.children[i].free_vars
+                return self.children[i].free_vars.difference(self.bindings(i, 0).keys())
             return self.children[i].free_agg_vars.difference(self.agg_bindings(i, 0).keys())
 
         if self._free_agg_vars is None:
@@ -368,7 +386,7 @@ class IR(BaseIR):
     def free_scan_vars(self):
         def vars_from_child(i):
             if self.uses_scan_context(i):
-                return self.children[i].free_vars
+                return self.children[i].free_vars.difference(self.bindings(i, 0).keys())
             return self.children[i].free_scan_vars.difference(self.scan_bindings(i, 0).keys())
 
         if self._free_scan_vars is None:

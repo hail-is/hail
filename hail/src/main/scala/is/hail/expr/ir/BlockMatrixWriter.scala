@@ -5,12 +5,12 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
-import is.hail.expr.ir.lowering.{BlockMatrixStage, LowererUnsupportedOperation}
-import is.hail.io.{StreamBufferSpec, TypedCodecSpec}
+import is.hail.expr.ir.lowering.{BlockMatrixStage2, LowererUnsupportedOperation}
 import is.hail.io.fs.FS
+import is.hail.io.{StreamBufferSpec, TypedCodecSpec}
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata}
 import is.hail.types.encoded.{EBlockMatrixNDArray, ENumpyBinaryNDArray, EType}
-import is.hail.types.virtual.{TArray, TNDArray, TString, Type, TVoid}
+import is.hail.types.virtual._
 import is.hail.types.{BlockMatrixType, TypeWithRequiredness}
 import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
@@ -32,7 +32,7 @@ abstract class BlockMatrixWriter {
   def pathOpt: Option[String]
   def apply(ctx: ExecuteContext, bm: BlockMatrix): Any
   def loweredTyp: Type
-  def lower(ctx: ExecuteContext, s: BlockMatrixStage, bm: BlockMatrixIR, relationalBindings: Map[String, IR], eltR: TypeWithRequiredness): IR =
+  def lower(ctx: ExecuteContext, s: BlockMatrixStage2, evalCtx: IRBuilder, eltR: TypeWithRequiredness): IR =
     throw new LowererUnsupportedOperation(s"unimplemented writer: \n${ this.getClass }")
 }
 
@@ -47,20 +47,18 @@ case class BlockMatrixNativeWriter(
 
   def loweredTyp: Type = TVoid
 
-  override def lower(ctx: ExecuteContext, s: BlockMatrixStage, bm: BlockMatrixIR, relationalBindings: Map[String, IR], eltR: TypeWithRequiredness): IR = {
-    if (stageLocally)
-      throw new LowererUnsupportedOperation(s"stageLocally not supported in BlockMatrixWrite lowering")
-    val etype = EBlockMatrixNDArray(EType.fromTypeAndAnalysis(bm.typ.elementType, eltR), encodeRowMajor = forceRowMajor, required = true)
-    val spec = TypedCodecSpec(etype, TNDArray(bm.typ.elementType, Nat(2)), BlockMatrix.bufferSpec)
+  override def lower(ctx: ExecuteContext, s: BlockMatrixStage2, evalCtx: IRBuilder, eltR: TypeWithRequiredness): IR = {
+    val etype = EBlockMatrixNDArray(EType.fromTypeAndAnalysis(s.typ.elementType, eltR), encodeRowMajor = forceRowMajor, required = true)
+    val spec = TypedCodecSpec(etype, TNDArray(s.typ.elementType, Nat(2)), BlockMatrix.bufferSpec)
 
-    val blocks = bm.typ.allBlocks(forceColMajor = true)
-    val blockMap = blocks.zipWithIndex.toMap
-    val paths = s.addContext(TString) { idx =>
-      Str(s"$path/parts/part-${ blockMap(idx) }-")
-    }.collectBlocks(relationalBindings, "block_matrix_native_writer")({ (ctx, block) =>
-      WriteValue(block, GetField(ctx, "new") + UUID4(), spec)
-    }, blocks.toArray)
-    RelationalWriter.scoped(path, overwrite, None)(WriteMetadata(paths, BlockMatrixNativeMetadataWriter(path, stageLocally, bm.typ)))
+    val paths = s.collectBlocks(evalCtx, "block_matrix_native_writer") { (_, idx, block) =>
+      val suffix = strConcat("parts/part-", idx, UUID4())
+      val filepath = strConcat(s"$path/", suffix)
+      WriteValue(block, filepath, spec,
+        if (stageLocally) Some(strConcat(s"${ctx.localTmpdir}/", suffix)) else None
+      )
+    }
+    RelationalWriter.scoped(path, overwrite, None)(WriteMetadata(paths, BlockMatrixNativeMetadataWriter(path, stageLocally, s.typ)))
   }
 }
 
@@ -122,11 +120,11 @@ case class BlockMatrixBinaryWriter(path: String) extends BlockMatrixWriter {
 
   def loweredTyp: Type = TString
 
-  override def lower(ctx: ExecuteContext, s: BlockMatrixStage, bm: BlockMatrixIR, relationalBindings: Map[String, IR], eltR: TypeWithRequiredness): IR = {
-    val nd = s.collectLocal(relationalBindings, bm.typ, "block_matrix_binary_writer")
+  override def lower(ctx: ExecuteContext, s: BlockMatrixStage2, evalCtx: IRBuilder, eltR: TypeWithRequiredness): IR = {
+    val nd = s.collectLocal(evalCtx, "block_matrix_binary_writer")
 
-    val etype = ENumpyBinaryNDArray(bm.typ.nRows, bm.typ.nCols, true)
-    val spec = TypedCodecSpec(etype, TNDArray(bm.typ.elementType, Nat(2)), new StreamBufferSpec())
+    val etype = ENumpyBinaryNDArray(s.typ.nRows, s.typ.nCols, true)
+    val spec = TypedCodecSpec(etype, TNDArray(s.typ.elementType, Nat(2)), new StreamBufferSpec())
     WriteValue(nd, Str(path), spec)
   }
 }

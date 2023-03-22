@@ -28,8 +28,8 @@ class FoldAggregator(val resultEmitType: EmitType, accumName: String, otherAccum
 
   override protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: TypedRegionBackedAggState, other: TypedRegionBackedAggState): Unit = {
 
-    val stateEV = state.get(cb).memoize(cb, "fold_agg_comb_op_state")
-    val otherEV = other.get(cb).memoize(cb, "fold_agg_comb_op_other")
+    val stateEV = state.get(cb).memoizeField(cb, "fold_agg_comb_op_state")
+    val otherEV = other.get(cb).memoizeField(cb, "fold_agg_comb_op_other")
     val env = EmitEnv(Env.apply((accumName, stateEV), (otherAccumName, otherEV)), IndexedSeq())
     val pEnv = Env.apply((accumName, resultEmitType.storageType), (otherAccumName, resultEmitType.storageType))
 

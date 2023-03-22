@@ -103,6 +103,9 @@ spec:
           - name: deploy-config
             mountPath: /deploy-config
             readOnly: true
+          - name: global-config
+            mountPath: /global-config
+            readOnly: true
           - name: session-secret-key
             mountPath: /session-secret-key
             readOnly: true
@@ -137,6 +140,10 @@ spec:
          secret:
            optional: false
            secretName: deploy-config
+       - name: global-config
+         secret:
+           optional: false
+           secretName: global-config
        - name: session-secret-key
          secret:
            optional: false
@@ -176,7 +183,7 @@ spec:
    - type: Resource
      resource:
        name: cpu
-       targetAverageUtilization: 80
+       targetAverageUtilization: 2500
 ---
 apiVersion: policy/v1beta1
 kind: PodDisruptionBudget

@@ -125,7 +125,7 @@ async def query_billing_projects(db, user=None, billing_project=None):
         args.append(user)
 
     if billing_project:
-        where_conditions.append('billing_projects.name = %s')
+        where_conditions.append('billing_projects.name_cs = %s')
         args.append(billing_project)
 
     if where_conditions:
@@ -139,7 +139,7 @@ SELECT billing_projects.name as billing_project,
   billing_projects.`status` as `status`,
   users, `limit`
 FROM (
-  SELECT billing_project, JSON_ARRAYAGG(`user`) as users
+  SELECT billing_project, JSON_ARRAYAGG(`user_cs`) as users
   FROM billing_project_users
   GROUP BY billing_project
   LOCK IN SHARE MODE
@@ -173,3 +173,29 @@ GROUP BY base_t.billing_project;
     billing_projects = [record_to_dict(record) async for record in db.execute_and_fetchall(sql, tuple(args))]
 
     return billing_projects
+
+
+def json_to_value(x):
+    if x is None:
+        return x
+    return json.loads(x)
+
+
+def regions_to_bits_rep(selected_regions, all_regions_mapping):
+    result = 0
+    for region in selected_regions:
+        idx = all_regions_mapping[region]
+        assert idx < 64, str(all_regions_mapping)
+        result |= 1 << (idx - 1)
+    return result
+
+
+def regions_bits_rep_to_regions(regions_bits_rep, all_regions_mapping):
+    if regions_bits_rep is None:
+        return None
+    result = []
+    for region, idx in all_regions_mapping.items():
+        selected_region = bool((regions_bits_rep >> idx - 1) & 1)
+        if selected_region:
+            result.append(region)
+    return result

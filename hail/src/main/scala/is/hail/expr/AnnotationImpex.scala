@@ -95,7 +95,14 @@ object JSONAnnotationImpex {
     "-Infinity" -> Float.NegativeInfinity
   )
 
-  def exportAnnotation(a: Annotation, t: Type): JValue =
+  def exportAnnotation(a: Annotation, t: Type): JValue = try {
+    _exportAnnotation(a, t)
+  } catch {
+    case exc: Exception =>
+      fatal(s"Could not export annotation with type $t: $a", exc)
+  }
+
+  def _exportAnnotation(a: Annotation, t: Type): JValue =
     if (a == null)
       JNull
     else {
@@ -314,27 +321,6 @@ object TableAnnotationImpex {
         case TCall => Call.toString(a.asInstanceOf[Call])
         case _ => a.toString
       }
-    }
-  }
-
-  def importAnnotation(a: String, t: Type): Annotation = {
-    (t: @unchecked) match {
-      case TString => a
-      case TInt32 => UtilFunctions.parseInt32(a, -1)
-      case TInt64 => UtilFunctions.parseInt64(a, -1)
-      case TFloat32 => UtilFunctions.parseFloat32(a, -1)
-      case TFloat64 => UtilFunctions.parseFloat64(a, -1)
-      case TBoolean => UtilFunctions.parseBoolean(a, -1)
-      case tl: TLocus => Locus.parse(a, tl.rg)
-      // FIXME legacy
-      case TInterval(l: TLocus) => Locus.parseInterval(a, l.rg, invalidMissing = false)
-      case t: TInterval => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
-      case TCall => Call.parse(a)
-      case t: TArray => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
-      case t: TSet => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
-      case t: TDict => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
-      case t: TBaseStruct => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
-      case t: TNDArray => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
     }
   }
 }

@@ -3,7 +3,7 @@ import collections
 import logging
 import re
 import secrets
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Counter, Dict, List, Optional, Tuple
 
 import sortedcontainers
 
@@ -12,7 +12,6 @@ from gear.time_limited_max_size_cache import TimeLimitedMaxSizeCache
 from hailtop import aiotools
 from hailtop.utils import periodically_call, secret_alnum_string, time_msecs
 
-from ...batch_configuration import WORKER_MAX_IDLE_TIME_MSECS
 from ...instance_config import QuantifiedResource
 from ..instance import Instance
 from ..location import CloudLocationMonitor
@@ -38,11 +37,15 @@ class InstanceCollectionManager:
         machine_name_prefix: str,
         location_monitor: CloudLocationMonitor,
         default_region: str,
+        regions: List[str],
     ):
         self.db: Database = db
         self.machine_name_prefix = machine_name_prefix
         self.location_monitor = location_monitor
+
+        assert default_region in regions, (default_region, regions)
         self._default_region = default_region
+        self.regions = regions
 
         self.inst_coll_regex = re.compile(f'{self.machine_name_prefix}(?P<inst_coll>.*)-.*')
         self.name_inst_coll: Dict[str, InstanceCollection] = {}
@@ -58,12 +61,17 @@ class InstanceCollectionManager:
         self.name_inst_coll[inst_coll.name] = inst_coll
 
     def choose_location(
-        self, cores: int, local_ssd_data_disk: bool, data_disk_size_gb: int, preemptible: bool, region: Optional[str]
+        self,
+        cores: int,
+        local_ssd_data_disk: bool,
+        data_disk_size_gb: int,
+        preemptible: bool,
+        regions: List[str],
     ) -> str:
-        if region is None and self.global_live_total_cores_mcpu // 1000 < 1_000:
-            region = self._default_region
+        if self._default_region in regions and self.global_live_total_cores_mcpu // 1000 < 1_000:
+            regions = [self._default_region]
         return self.location_monitor.choose_location(
-            cores, local_ssd_data_disk, data_disk_size_gb, preemptible, region=region
+            cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions
         )
 
     @property
@@ -79,16 +87,16 @@ class InstanceCollectionManager:
 
     @property
     def global_live_total_cores_mcpu(self):
-        return sum([inst_coll.live_total_cores_mcpu for inst_coll in self.name_inst_coll.values()])
+        return sum(inst_coll.live_total_cores_mcpu for inst_coll in self.name_inst_coll.values())
 
     @property
     def global_live_free_cores_mcpu(self):
-        return sum([inst_coll.live_free_cores_mcpu for inst_coll in self.name_inst_coll.values()])
+        return sum(inst_coll.live_free_cores_mcpu for inst_coll in self.name_inst_coll.values())
 
     @property
-    def global_n_instances_by_state(self):
+    def global_n_instances_by_state(self) -> Counter[str]:
         counters = [collections.Counter(inst_coll.n_instances_by_state) for inst_coll in self.name_inst_coll.values()]
-        result = collections.Counter({})
+        result: Counter[str] = collections.Counter()
         for counter in counters:
             result += counter
         return result
@@ -162,10 +170,15 @@ class InstanceCollection:
         return len(self.name_instance)
 
     def choose_location(
-        self, cores: int, local_ssd_data_disk: bool, data_disk_size_gb: int, preemptible: bool, region: Optional[str]
+        self,
+        cores: int,
+        local_ssd_data_disk: bool,
+        data_disk_size_gb: int,
+        preemptible: bool,
+        regions: List[str],
     ) -> str:
         return self.inst_coll_manager.choose_location(
-            cores, local_ssd_data_disk, data_disk_size_gb, preemptible, region
+            cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions
         )
 
     def generate_machine_name(self) -> str:
@@ -220,20 +233,14 @@ class InstanceCollection:
         cores: int,
         machine_type: str,
         job_private: bool,
-        location: Optional[str],
-        region: Optional[str],
+        regions: List[str],
         preemptible: bool,
-        max_idle_time_msecs: Optional[int],
+        max_idle_time_msecs: int,
         local_ssd_data_disk,
         data_disk_size_gb,
         boot_disk_size_gb,
     ) -> Tuple[Instance, List[QuantifiedResource]]:
-        assert not (location and region)
-        if location is None:
-            location = self.choose_location(cores, local_ssd_data_disk, data_disk_size_gb, preemptible, region)
-
-        if max_idle_time_msecs is None:
-            max_idle_time_msecs = WORKER_MAX_IDLE_TIME_MSECS
+        location = self.choose_location(cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions)
 
         machine_name = self.generate_machine_name()
         activation_token = secrets.token_urlsafe(32)
@@ -254,7 +261,7 @@ class InstanceCollection:
             cores=cores,
             location=location,
             machine_type=machine_type,
-            preemptible=True,
+            preemptible=preemptible,
             instance_config=instance_config,
         )
         self.add_instance(instance)
@@ -292,11 +299,7 @@ class InstanceCollection:
     async def check_on_instance(self, instance: Instance):
         active_and_healthy = await instance.check_is_active_and_healthy()
 
-        if (
-            instance.state == 'active'
-            and instance.failed_request_count > 5
-            and time_msecs() - instance.last_updated > 5 * 60 * 1000
-        ):
+        if instance.state == 'active' and instance.failed_request_count > 5:
             log.exception(
                 f'deleting {instance} with {instance.failed_request_count} failed request counts after more than 5 minutes'
             )

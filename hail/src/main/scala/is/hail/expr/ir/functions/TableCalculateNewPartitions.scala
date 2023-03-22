@@ -13,10 +13,10 @@ case class TableCalculateNewPartitions(
   def typ(childType: types.TableType): Type = TArray(TInterval(childType.keyType))
 
   def unionRequiredness(childType: types.RTable, resultType: types.TypeWithRequiredness): Unit = {
-    val rinterval = types.coerce[types.RInterval](
-      types.coerce[types.RIterable](resultType).elementType)
-    val rstart = types.coerce[types.RStruct](rinterval.startType)
-    val rend = types.coerce[types.RStruct](rinterval.endType)
+    val rinterval = types.tcoerce[types.RInterval](
+      types.tcoerce[types.RIterable](resultType).elementType)
+    val rstart = types.tcoerce[types.RStruct](rinterval.startType)
+    val rend = types.tcoerce[types.RStruct](rinterval.endType)
     childType.keyFields.foreach { k =>
       rstart.field(k).unionFrom(childType.field(k))
       rend.field(k).unionFrom(childType.field(k))
@@ -28,11 +28,11 @@ case class TableCalculateNewPartitions(
     if (rvd.typ.key.isEmpty)
       FastIndexedSeq()
     else {
-      val ki = RVD.getKeyInfo(rvd.typ, rvd.typ.key.length, RVD.getKeys(rvd.typ, rvd.crdd))
+      val ki = RVD.getKeyInfo(ctx, rvd.typ, rvd.typ.key.length, RVD.getKeys(ctx, rvd.typ, rvd.crdd))
       if (ki.isEmpty)
         FastIndexedSeq()
       else
-        RVD.calculateKeyRanges(rvd.typ, ki, nPartitions, rvd.typ.key.length).rangeBounds.toIndexedSeq
+        RVD.calculateKeyRanges(ctx, rvd.typ, ki, nPartitions, rvd.typ.key.length).rangeBounds.toIndexedSeq
     }
   }
 }

@@ -7,7 +7,7 @@ import sys
 
 from concurrent.futures import ThreadPoolExecutor
 
-from ..utils import tqdm, TqdmDisableOption
+from ..utils.rich_progress_bar import SimpleRichProgressBar, SimpleRichProgressBarTask
 from .router_fs import RouterAsyncFS
 from .fs import AsyncFS, FileStatus
 
@@ -52,8 +52,11 @@ async def diff(*,
                                  gcs_kwargs=gcs_kwargs,
                                  azure_kwargs=azure_kwargs,
                                  s3_kwargs=s3_kwargs) as fs:
-            should_disable_tqdm = not verbose or TqdmDisableOption.default
-            with tqdm(desc='files', leave=False, position=0, unit='file', disable=should_disable_tqdm) as pbar:
+            with SimpleRichProgressBar(
+                    description='files',
+                    transient=True,
+                    total=0,
+                    disable=not verbose) as pbar:
                 return await do_diff(source, target, fs, max_simultaneous, pbar)
 
 
@@ -66,7 +69,7 @@ class DiffException(ValueError):
     pass
 
 
-async def do_diff(top_source: str, top_target: str, fs: AsyncFS, max_simultaneous: int, pbar) -> List[dict]:
+async def do_diff(top_source: str, top_target: str, fs: AsyncFS, max_simultaneous: int, pbar: SimpleRichProgressBarTask) -> List[dict]:
     if await fs.isfile(top_source):
         result = await diff_one(top_source, top_target, fs)
         if result is None:
@@ -94,9 +97,7 @@ async def do_diff(top_source: str, top_target: str, fs: AsyncFS, max_simultaneou
             suffix = source_url[len(top_source):]
             target_url = top_target + suffix
 
-            if pbar.total is None:
-                pbar.total = 0
-            pbar.total += 1
+            pbar.update(0, total=pbar.total() + 1)
             await active_tasks.put((source_url, target_url))
 
     async def worker():

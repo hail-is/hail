@@ -1,5 +1,3 @@
-configure_file(lit.site.cfg.py.in lit.site.cfg.py @ONLY)
-
 find_program(LLVM_LIT NAMES "llvm-lit" "lit"
     HINTS ${LLVM_TOOLS_BINARY_DIR} ${LLVM_BUILD_BINARY_DIR})
 
@@ -10,12 +8,17 @@ if(LLVM_LIT)
     find_program(FILE_CHECK "FileCheck"
                  HINTS ${LLVM_TOOLS_BINARY_DIR}
                        ${LLVM_TEST_BINARY_DIR}
-                       ${LLVM_BUILD_BINARY_DIR}
-                 REQUIRED)
-    message(STATUS "Found FileCheck: ${FILE_CHECK}")
+                       ${LLVM_BUILD_BINARY_DIR})
+    if(FILE_CHECK)
+        message(STATUS "Found FileCheck: ${FILE_CHECK}")
 
-    add_custom_target(check COMMAND "${LLVM_LIT}" "${CMAKE_CURRENT_BINARY_DIR}" -v
-        DEPENDS hail-opt)
+        configure_file(lit.site.cfg.py.in lit.site.cfg.py @ONLY)
+
+        add_custom_target(check-hail COMMAND "${LLVM_LIT}" "${CMAKE_CURRENT_BINARY_DIR}" -v
+            DEPENDS hail-opt)
+    else()
+        message(WARNING "FileCheck not found, disabling lit tests")
+    endif()
 else()
-    message(WARNING "llvm-lit not found, disabling tests")
+    message(WARNING "llvm-lit not found, disabling lit tests")
 endif()
