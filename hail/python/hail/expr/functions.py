@@ -4138,7 +4138,7 @@ def map(f: Callable, *collections):
 
 @typecheck(expr=oneof(expr_any, func_spec(0, expr_any)), n=expr_int32)
 def repeat(
-    expr: 'Union[hl.Expression, Callable[[], hl.Expression]',
+    expr: 'Union[hl.Expression, Callable[[], hl.Expression]]',
     n: 'hl.tint32'
 ) -> 'hl.ArrayExpression':
     """Return array of `n` elements initialized by `expr`.
