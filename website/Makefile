@@ -23,8 +23,8 @@ docs:
 	tar czf docs.tar.gz -C ../hail/build/www .
 
 build: docs
-	$(MAKE) -C ../docker service-base
-	python3 ../ci/jinja2_render.py '{"service_base_image": {"image":"'$$(cat ../docker/service-base-image-ref)'"}}' Dockerfile Dockerfile.out
+	$(MAKE) -C ../docker hail-ubuntu
+	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image": {"image":"'$$(cat ../docker/hail-ubuntu-image-ref)'"}}' Dockerfile Dockerfile.out
 	../docker-build.sh . Dockerfile.out $(WEBSITE_IMAGE)
 
 run: docs

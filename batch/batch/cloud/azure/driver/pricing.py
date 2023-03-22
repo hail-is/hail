@@ -108,7 +108,7 @@ async def vm_prices_by_region(
 
         if sku_name in seen_vm_names:
             seen_data = seen_vm_names[sku_name]
-            raise Exception(f'already seen pricing for vm {sku_name}; {seen_data} vs {data}; aborting')
+            raise ValueError(f'already seen pricing for vm {sku_name}; {seen_data} vs {data}; aborting')
         seen_vm_names[sku_name] = data
 
         vm_price = AzureVMPrice(machine_type, preemptible, region, vm_cost_per_hour, start_date, end_date)
@@ -137,7 +137,7 @@ async def managed_disk_prices_by_region(
 
         if sku_name in seen_disk_names:
             seen_data = seen_disk_names[sku_name]
-            raise Exception(f'already seen pricing for disk {sku_name}; {seen_data} vs {data}; aborting')
+            raise ValueError(f'already seen pricing for disk {sku_name}; {seen_data} vs {data}; aborting')
         seen_disk_names[sku_name] = data
 
         start_date = int(dateutil.parser.isoparse(data['effectiveStartDate']).timestamp() * 1000 + 0.5)
