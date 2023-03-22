@@ -930,8 +930,8 @@ def nd_max(hl_nd):
     return hl.max(hl.array(hl_nd.reshape(-1)))
 
 
-def logreg_fit(X: hl.NDArrayNumericExpression, # (K,)
-               y: hl.NDArrayNumericExpression, # (N, K)
+def logreg_fit(X: hl.NDArrayNumericExpression,  # (K,)
+               y: hl.NDArrayNumericExpression,  # (N, K)
                null_fit: Optional[hl.StructExpression],
                max_iterations: int,
                tolerance: float
@@ -1069,9 +1069,9 @@ def logistic_score_test(X, y, null_fit):
     return hl.struct(chi_sq_stat=chi_sq, p_value=p)
 
 
-def _firth_fit(b: hl.NDArrayNumericExpression, # (K,)
-               X: hl.NDArrayNumericExpression, # (N, K)
-               y: hl.NDArrayNumericExpression, # (N,)
+def _firth_fit(b: hl.NDArrayNumericExpression,  # (K,)
+               X: hl.NDArrayNumericExpression,  # (N, K)
+               y: hl.NDArrayNumericExpression,  # (N,)
                max_iterations: int,
                tolerance: float
                ) -> hl.StructExpression:
@@ -1133,6 +1133,7 @@ def _firth_test(null_fit, X, y, max_iterations, tolerance) -> hl.StructExpressio
     def cont(firth_improved_null_fit):
         initial_b_full_model = hl.nd.hstack([firth_improved_null_fit.b, hl.nd.array([0.0])])
         firth_fit = _firth_fit(initial_b_full_model, X, y, max_iterations=max_iterations, tolerance=tolerance)
+
         def cont2(firth_fit):
             firth_chi_sq = 2 * (firth_fit.log_lkhd - firth_improved_null_fit.log_lkhd)
             firth_p = hl.pchisqtail(firth_chi_sq, dof)
@@ -1459,7 +1460,7 @@ def _logistic_regression_rows_nd(test,
     ht = ht.annotate_globals(null_fits=ht.yvecs.map(fit_null))
 
     ht = ht.transmute(x=hl.nd.array(mean_impute(ht.entries[x_field_name])))
-    ht = ht.annotate(covs_and_x = hl.nd.hstack([ht.covmat, ht.x.reshape((-1, 1))]))
+    ht = ht.annotate(covs_and_x=hl.nd.hstack([ht.covmat, ht.x.reshape((-1, 1))]))
 
     def run_test(yvec, null_fit):
         if test == 'score':
