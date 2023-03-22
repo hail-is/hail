@@ -1372,7 +1372,7 @@ object IRParser {
       case "MakeTuple" =>
         val indices = int32_literals(it)
         ir_value_children(env)(it).map { args =>
-          MakeTuple(indices.zip(args).toFastSeq)
+          MakeTuple(indices.zip(args))
         }
       case "GetTupleElement" =>
         val idx = int32_literal(it)
@@ -1537,10 +1537,10 @@ object IRParser {
       case "WriteValue" =>
         import AbstractRVDSpec.formats
         val spec = JsonMethods.parse(string_literal(it)).extract[AbstractTypedCodecSpec]
-        for {
-          value <- ir_value_expr(env)(it)
-          path <- ir_value_expr(env)(it)
-        } yield WriteValue(value, path, spec)
+        ir_value_children(env)(it).map {
+          case Array(value, path) => WriteValue(value, path, spec)
+          case Array(value, path, stagingFile) => WriteValue(value, path, spec, Some(stagingFile))
+        }
       case "LiftMeOut" => ir_value_expr(env)(it).map(LiftMeOut)
       case "ReadPartition" =>
         val rowType = tcoerce[TStruct](type_expr(it))
@@ -1754,10 +1754,12 @@ object IRParser {
       case "TableMapPartitions" =>
         val globalsName = identifier(it)
         val partitionStreamName = identifier(it)
+        val requestedKey = int32_literal(it)
+        val allowedOverlap = int32_literal(it)
         for {
           child <- table_ir(env.onlyRelational)(it)
           body <- ir_value_expr(env.onlyRelational.bindEval(globalsName -> child.typ.globalType, partitionStreamName -> TStream(child.typ.rowType)))(it)
-        } yield TableMapPartitions(child, globalsName, partitionStreamName, body)
+        } yield TableMapPartitions(child, globalsName, partitionStreamName, body, requestedKey, allowedOverlap)
       case "RelationalLetTable" =>
         val name = identifier(it)
         for {

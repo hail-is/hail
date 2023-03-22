@@ -60,7 +60,7 @@ def _seeded_func(name, ret_type, seed, *args):
 def ndarray_broadcasting(func):
     def broadcast_or_not(x):
         if isinstance(x.dtype, tndarray):
-            return x.map(lambda term: func(term))
+            return x.map(func)
         else:
             return func(x)
     return broadcast_or_not
@@ -1748,7 +1748,7 @@ def parse_json(x, dtype):
     return _func("parse_json", ttuple(dtype), x, type_args=(dtype,))[0]
 
 
-@typecheck(x=expr_float64, base=nullable(expr_float64))
+@typecheck(x=oneof(expr_float64, expr_ndarray(expr_float64)), base=nullable(expr_float64))
 def log(x, base=None) -> Float64Expression:
     """Take the logarithm of the `x` with base `base`.
 
@@ -1777,11 +1777,16 @@ def log(x, base=None) -> Float64Expression:
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
+    def scalar_log(x):
+        if base is not None:
+            return _func("log", tfloat64, x, to_expr(base))
+        else:
+            return _func("log", tfloat64, x)
+
     x = to_expr(x)
-    if base is not None:
-        return _func("log", tfloat64, x, to_expr(base))
-    else:
-        return _func("log", tfloat64, x)
+    if isinstance(x.dtype, tndarray):
+        return x.map(scalar_log)
+    return scalar_log(x)
 
 
 @typecheck(x=oneof(expr_float64, expr_ndarray(expr_float64)))

@@ -3,7 +3,6 @@ package is.hail.expr.ir.lowering
 import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.ArrayZipBehavior.AssertSameLength
-import is.hail.expr.ir.agg.{Extract, PhysicalAggSig, TakeStateSig}
 import is.hail.expr.ir.functions.{TableCalculateNewPartitions, WrappedMatrixToTableFunction}
 import is.hail.expr.ir.{agg, _}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
@@ -16,10 +15,6 @@ import is.hail.utils._
 import org.apache.spark.sql.Row
 
 class LowererUnsupportedOperation(msg: String = null) extends Exception(msg)
-
-case class ShuffledStage(child: TableStage)
-
-case class Binding(name: String, value: IR)
 
 object TableStage {
   def apply(
@@ -92,6 +87,18 @@ class TableStage(
       BindingEnv(Env[Type](((letBindings ++ broadcastVals).map { case (s, x) => (s, x.typ) })
         ++ FastIndexedSeq[(String, Type)]((ctxRefName, contexts.typ.asInstanceOf[TStream].elementType)): _*)))
 
+  }
+
+  def upcast(ctx: ExecuteContext, newType: TableType): TableStage = {
+    val newRowType = newType.rowType
+    val newGlobalType = newType.globalType
+    if (newRowType == rowType && newGlobalType == globalType)
+      this
+    else {
+      changePartitionerNoRepartition(partitioner.coarsen(newType.key.length))
+        .mapPartition(None)(PruneDeadFields.upcast(ctx, _, TStream(newRowType)))
+        .mapGlobals(PruneDeadFields.upcast(ctx, _, newGlobalType))
+    }
   }
 
   def ctxType: Type = contexts.typ.asInstanceOf[TStream].elementType
@@ -195,15 +202,15 @@ class TableStage(
       globals = globalsRef)
   }
 
-  def mapCollect(relationalBindings: Map[String, IR], staticID: String, dynamicID: IR = NA(TString))(f: IR => IR): IR = {
-    mapCollectWithGlobals(relationalBindings, staticID, dynamicID)(f) { (parts, globals) => parts }
+  def mapCollect(staticID: String, dynamicID: IR = NA(TString))(f: IR => IR): IR = {
+    mapCollectWithGlobals(staticID, dynamicID)(f) { (parts, globals) => parts }
   }
 
-  def mapCollectWithGlobals(relationalBindings: Map[String, IR], staticID: String, dynamicID: IR = NA(TString))(mapF: IR => IR)(body: (IR, IR) => IR): IR =
-    mapCollectWithContextsAndGlobals(relationalBindings, staticID, dynamicID)((part, ctx) => mapF(part))(body)
+  def mapCollectWithGlobals(staticID: String, dynamicID: IR = NA(TString))(mapF: IR => IR)(body: (IR, IR) => IR): IR =
+    mapCollectWithContextsAndGlobals(staticID, dynamicID)((part, ctx) => mapF(part))(body)
 
   // mapf is (part, ctx) => ???, body is (parts, globals) => ???
-  def mapCollectWithContextsAndGlobals(relationalBindings: Map[String, IR], staticID: String, dynamicID: IR = NA(TString))(mapF: (IR, Ref) => IR)(body: (IR, IR) => IR): IR = {
+  def mapCollectWithContextsAndGlobals(staticID: String, dynamicID: IR = NA(TString))(mapF: (IR, Ref) => IR)(body: (IR, IR) => IR): IR = {
     val broadcastRefs = MakeStruct(broadcastVals)
     val glob = Ref(genUID(), broadcastRefs.typ)
 
@@ -214,30 +221,30 @@ class TableStage(
         Let(name, GetField(glob, name), accum)
       }, dynamicID, staticID, Some(dependency))
 
-    LowerToCDA.substLets(TableStage.wrapInBindings(bindIR(cda) { cdaRef => body(cdaRef, globals) }, letBindings), relationalBindings)
+    TableStage.wrapInBindings(bindIR(cda) { cdaRef => body(cdaRef, globals) }, letBindings)
   }
 
-  def collectWithGlobals(relationalBindings: Map[String, IR], staticID: String, dynamicID: IR = NA(TString)): IR =
-    mapCollectWithGlobals(relationalBindings, staticID, dynamicID)(ToArray) { (parts, globals) =>
+  def collectWithGlobals(staticID: String, dynamicID: IR = NA(TString)): IR =
+    mapCollectWithGlobals(staticID, dynamicID)(ToArray) { (parts, globals) =>
       MakeStruct(FastSeq(
         "rows" -> ToArray(flatMapIR(ToStream(parts))(ToStream(_))),
         "global" -> globals))
     }
 
-  def countPerPartition(relationalBindings: Map[String, IR]): IR = mapCollect(relationalBindings, "count_per_partition")(part => Cast(StreamLen(part), TInt64))
+  def countPerPartition(): IR = mapCollect("count_per_partition")(part => Cast(StreamLen(part), TInt64))
 
   def getGlobals(): IR = TableStage.wrapInBindings(globals, letBindings)
 
   def getNumPartitions(): IR = TableStage.wrapInBindings(StreamLen(contexts), letBindings)
 
-  def changePartitionerNoRepartition(newPartitioner: RVDPartitioner): TableStage =
+  def changePartitionerNoRepartition(newPartitioner: RVDPartitioner): TableStage = {
+    require(partitioner.numPartitions == newPartitioner.numPartitions)
     copy(partitioner = newPartitioner)
+  }
 
-  def strictify(): TableStage = {
-    if (partitioner.satisfiesAllowedOverlap(kType.size - 1))
-      this
-    else
-      repartitionNoShuffle(partitioner.strictify)
+  def strictify(allowedOverlap: Int = kType.size - 1): TableStage = {
+    val newPart = partitioner.strictify(allowedOverlap)
+    repartitionNoShuffle(newPart)
   }
 
   def repartitionNoShuffle(newPartitioner: RVDPartitioner, allowDuplication: Boolean = false, dropEmptyPartitions: Boolean = false): TableStage = {
@@ -351,7 +358,7 @@ class TableStage(
     if (RVDPartitioner.isValid(partitioner.sm, newKeyType, partitioner.rangeBounds)) {
       changePartitionerNoRepartition(partitioner.copy(kType = newKeyType))
     } else {
-      val adjustedPartitioner = partitioner.strictify
+      val adjustedPartitioner = partitioner.strictify()
       repartitionNoShuffle(adjustedPartitioner)
         .changePartitionerNoRepartition(adjustedPartitioner.copy(kType = newKeyType))
     }
@@ -368,7 +375,7 @@ class TableStage(
     assert(this.kType.truncate(joinKey).isIsomorphicTo(right.kType.truncate(joinKey)))
 
     val newPartitioner = {
-      def leftPart: RVDPartitioner = this.partitioner.strictify
+      def leftPart: RVDPartitioner = this.partitioner.strictify()
       def rightPart: RVDPartitioner = right.partitioner.coarsen(joinKey).extendKey(this.kType)
       (joinType: @unchecked) match {
         case "left" => leftPart
@@ -435,7 +442,6 @@ class TableStage(
     ctx: ExecuteContext,
     right: TableStage,
     rightRowRType: RStruct,
-    relationalLetsAbove: Map[String, IR],
     globalJoiner: (IR, IR) => IR,
     joiner: (IR, IR) => IR
   ): TableStage = {
@@ -465,12 +471,14 @@ class TableStage(
         }
       }
     }
-    val rightRowRTypeWithPartNum = RStruct(IndexedSeq(RField("__partNum", TypeWithRequiredness(TInt32), 0)) ++ rightRowRType.fields.map(rField => RField(rField.name, rField.typ, rField.index + 1)))
-    val sorted = ctx.backend.lowerDistributedSort(ctx,
+
+    val rightRowRTypeWithPartNum = IndexedSeq("__partNum" -> TypeWithRequiredness(TInt32)) ++ rightRowRType.fields.map(rField => rField.name -> rField.typ)
+    val rightTableRType = RTable(rightRowRTypeWithPartNum, FastSeq(), right.key)
+    val sortedReader = ctx.backend.lowerDistributedSort(ctx,
       rightWithPartNums,
       SortField("__partNum", Ascending) +: right.key.map(k => SortField(k, Ascending)),
-      relationalLetsAbove,
-      rightRowRTypeWithPartNum)
+      rightTableRType)
+    val sorted = sortedReader.lower(ctx, sortedReader.fullType)
     assert(sorted.kType.fieldNames.sameElements("__partNum" +: right.key))
     val newRightPartitioner = new RVDPartitioner(
       ctx.stateManager,
@@ -490,21 +498,21 @@ class TableStage(
 }
 
 object LowerTableIR {
-  def apply(ir: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: Analyses, relationalLetsAbove: Map[String, IR]): IR = {
+  def apply(ir: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: LoweringAnalyses): IR = {
     def lower(tir: TableIR): TableStage = {
-      this.applyTable(tir, typesToLower, ctx, analyses, relationalLetsAbove)
+      this.applyTable(tir, typesToLower, ctx, analyses)
     }
 
     val lowered = ir match {
       case TableCount(tableIR) =>
         val stage = lower(tableIR)
         invoke("sum", TInt64,
-          stage.countPerPartition(relationalLetsAbove))
+          stage.countPerPartition())
 
       case TableToValueApply(child, ForceCountTable()) =>
         val stage = lower(child)
         invoke("sum", TInt64,
-          stage.mapCollect(relationalLetsAbove, "table_force_count")(rows => foldIR(mapIR(rows)(row => Consume(row)), 0L)(_ + _)))
+          stage.mapCollect("table_force_count")(rows => foldIR(mapIR(rows)(row => Consume(row)), 0L)(_ + _)))
 
       case TableToValueApply(child, TableCalculateNewPartitions(nPartitions)) =>
         val stage = lower(child)
@@ -524,13 +532,13 @@ object LowerTableIR {
           FastIndexedSeq(keyType, keyType))
 
 
-        bindIR(flatten(stage.mapCollect(relationalLetsAbove, "table_calculate_new_partitions") { rows =>
-          streamAggIR(rows) { elt =>
+        bindIR(flatten(stage.mapCollect("table_calculate_new_partitions") { rows =>
+          streamAggIR(mapIR(rows) { row => SelectFields(row, keyType.fieldNames)}) { elt =>
             ToArray(flatMapIR(ToStream(
               MakeArray(
                 ApplyAggOp(
                   FastIndexedSeq(I32(samplesPerPartition)),
-                  FastIndexedSeq(SelectFields(elt, keyType.fieldNames), invokeSeeded("rand_unif", 1, TFloat64, RNGStateLiteral(), F64(0.0), F64(1.0))),
+                  FastIndexedSeq(elt, invokeSeeded("rand_unif", 1, TFloat64, RNGStateLiteral(), F64(0.0), F64(1.0))),
                   samplekey),
                 ApplyAggOp(
                   FastIndexedSeq(I32(1)),
@@ -553,7 +561,7 @@ object LowerTableIR {
             bindIR(ArrayLen(boundsArray)) { nBounds =>
               bindIR(minIR(nBounds, nPartitions)) { nParts =>
                 If(nParts.ceq(0),
-                  MakeArray(Seq(), TArray(TInterval(keyType))),
+                  MakeArray(FastIndexedSeq(), TArray(TInterval(keyType))),
                   bindIR((nBounds + (nParts - 1)) floorDiv nParts) { stepSize =>
                     ToArray(mapIR(StreamRange(0, nBounds, stepSize)) { i =>
                       If((i + stepSize) < (nBounds - 1),
@@ -571,7 +579,7 @@ object LowerTableIR {
         lower(child).getGlobals()
 
       case TableCollect(child) =>
-        lower(child).collectWithGlobals(relationalLetsAbove, "table_collect")
+        lower(child).collectWithGlobals("table_collect")
 
       case TableAggregate(child, query) =>
         val resultUID = genUID()
@@ -605,7 +613,7 @@ object LowerTableIR {
           val tmpDir = ctx.createTmpPath("aggregate_intermediates/")
 
           val codecSpec = TypedCodecSpec(PCanonicalTuple(true, aggs.aggs.map(_ => PCanonicalBinary(true)): _*), BufferSpec.wireSpec)
-          lcWithInitBinding.mapCollectWithGlobals(relationalLetsAbove, "table_aggregate")({ part: IR =>
+          lcWithInitBinding.mapCollectWithGlobals("table_aggregate")({ part: IR =>
             Let("global", lc.globals,
               RunAgg(
                 Begin(FastIndexedSeq(
@@ -680,7 +688,7 @@ object LowerTableIR {
           }
         }
         else {
-          lcWithInitBinding.mapCollectWithGlobals(relationalLetsAbove, "table_aggregate_singlestage")({ part: IR =>
+          lcWithInitBinding.mapCollectWithGlobals("table_aggregate_singlestage")({ part: IR =>
             Let("global", lc.globals,
               RunAgg(
                 Begin(FastIndexedSeq(
@@ -716,7 +724,7 @@ object LowerTableIR {
         lower(child).getNumPartitions()
 
       case TableWrite(child, writer) =>
-        writer.lower(ctx, lower(child), child, tcoerce[RTable](analyses.requirednessAnalysis.lookup(child)), relationalLetsAbove)
+        writer.lower(ctx, lower(child), child, tcoerce[RTable](analyses.requirednessAnalysis.lookup(child)))
 
       case node if node.children.exists(_.isInstanceOf[TableIR]) =>
         throw new LowererUnsupportedOperation(s"IR nodes with TableIR children must be defined explicitly: \n${ Pretty(ctx, node) }")
@@ -724,13 +732,13 @@ object LowerTableIR {
     lowered
   }
 
-  def applyTable(tir: TableIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: Analyses, relationalLetsAbove: Map[String, IR]): TableStage = {
+  def applyTable(tir: TableIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: LoweringAnalyses): TableStage = {
     def lowerIR(ir: IR): IR = {
-      LowerToCDA.lower(ir, typesToLower, ctx, analyses, relationalLetsAbove)
+      LowerToCDA.lower(ir, typesToLower, ctx, analyses)
     }
 
     def lower(tir: TableIR): TableStage = {
-      this.applyTable(tir, typesToLower, ctx, analyses, relationalLetsAbove)
+      this.applyTable(tir, typesToLower, ctx, analyses)
     }
 
     if (typesToLower == DArrayLowering.BMOnly)
@@ -759,28 +767,15 @@ object LowerTableIR {
         val loweredRowsAndGlobalRef = Ref(genUID(), loweredRowsAndGlobal.typ)
 
         val context = bindIR(ArrayLen(GetField(loweredRowsAndGlobalRef, "rows"))) { numRowsRef =>
-          bindIR(If(numRowsRef < nPartitionsAdj, maxIR(numRowsRef, I32(1)), nPartitionsAdj)) { numNonEmptyPartitionsRef =>
-            bindIR(numRowsRef floorDiv numNonEmptyPartitionsRef) { qRef =>
-              bindIR(numRowsRef - qRef * numNonEmptyPartitionsRef) { remainderRef =>
-                mapIR(rangeIR(0, nPartitionsAdj)) { partIdx =>
-                  val length =
-                    (numRowsRef - partIdx + nPartitionsAdj - 1) floorDiv nPartitionsAdj
-
-                  val start =
-                    If(numNonEmptyPartitionsRef >= partIdx,
-                      If(remainderRef > 0,
-                        If(remainderRef < partIdx,
-                          qRef * partIdx + remainderRef,
-                          (qRef + 1) * partIdx),
-                        qRef * partIdx),
-                      0)
-
-                  bindIR(start) { startRef =>
-                    ToArray(mapIR(rangeIR(startRef, startRef + length)) { elt =>
-                      ArrayRef(GetField(loweredRowsAndGlobalRef, "rows"), elt)
-                    })
-                  }
-                }
+          bindIR(invoke("extend", TArray(TInt32), ToArray(mapIR(rangeIR(nPartitionsAdj)) { partIdx =>
+            (partIdx * numRowsRef) floorDiv nPartitionsAdj
+          }),
+            MakeArray((numRowsRef)))) { indicesArray =>
+            bindIR(GetField(loweredRowsAndGlobalRef, "rows")) { rows =>
+              mapIR(rangeIR(nPartitionsAdj)) { partIdx =>
+                ToArray(mapIR(rangeIR(ArrayRef(indicesArray, partIdx), ArrayRef(indicesArray, partIdx + 1))) { rowIdx =>
+                  ArrayRef(rows, rowIdx)
+                })
               }
             }
           }
@@ -852,19 +847,15 @@ object LowerTableIR {
 
         val contextType = TStruct("start" -> TInt32, "end" -> TInt32)
 
-        val ranges = Array.tabulate(nPartitionsAdj) { i =>
-          partStarts(i) -> partStarts(i + 1)
-        }.toFastIndexedSeq
+        val ranges = Array.tabulate(nPartitionsAdj)(i => partStarts(i) -> partStarts(i + 1))
 
         TableStage(
           MakeStruct(FastSeq()),
-          new RVDPartitioner(ctx.stateManager, Array("idx"), tir.typ.rowType,
-            ranges.map { case (start, end) =>
-              Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
-            }),
+          new RVDPartitioner(ctx.stateManager, Array("idx"), tir.typ.rowType, ranges.map {
+            case (start, end) => Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
+          }),
           TableStageDependency.none,
-          ToStream(Literal(TArray(contextType),
-            ranges.map { case (start, end) => Row(start, end) })),
+          ToStream(Literal(TArray(contextType), ranges.map(Row.fromTuple).toFastIndexedSeq)),
           (ctxRef: Ref) => mapIR(StreamRange(GetField(ctxRef, "start"), GetField(ctxRef, "end"), I32(1), true)) { i =>
             MakeStruct(FastSeq("idx" -> i))
           })
@@ -880,10 +871,10 @@ object LowerTableIR {
 
         val globalPosRanges = Array.tabulate(nPartitionsAdj) { i =>
           partStarts(i) -> partStarts(i + 1)
-        }.toFastIndexedSeq
+        }
         val locusRanges = Array.tabulate(nPartitionsAdj) { i =>
           toLocus(partStarts(i)) -> toLocus(partStarts(i + 1))
-        }.toFastIndexedSeq
+        }
 
         TableStage(
           MakeStruct(FastSeq()),
@@ -895,7 +886,7 @@ object LowerTableIR {
           ToStream(
             Literal(
               TArray(contextType),
-              globalPosRanges.map { case (start, end) => Row(start, end) }
+              globalPosRanges.map(Row.fromTuple).toFastIndexedSeq
             )
           ),
           { (ctxRef: Ref) =>
@@ -919,7 +910,7 @@ object LowerTableIR {
       case TableAggregateByKey(child, expr) =>
         val loweredChild = lower(child)
 
-        loweredChild.repartitionNoShuffle(loweredChild.partitioner.coarsen(child.typ.key.length).strictify)
+        loweredChild.repartitionNoShuffle(loweredChild.partitioner.coarsen(child.typ.key.length).strictify())
           .mapPartition(Some(child.typ.key)) { partition =>
 
             Let("global", loweredChild.globals,
@@ -938,82 +929,10 @@ object LowerTableIR {
               })
           }
 
-      // This ignores nPartitions. The shuffler should handle repartitioning downstream
-      case TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
-        val loweredChild = lower(child)
-        val newKeyType = newKey.typ.asInstanceOf[TStruct]
-        val resultUID = genUID()
-
-        val aggs = Extract(expr, resultUID, analyses.requirednessAnalysis)
-        val postAggIR = aggs.postAggIR
-        val init = aggs.init
-        val seq = aggs.seqPerElt
-        val aggSigs = aggs.aggs
-
-        val partiallyAggregated = loweredChild.mapPartition(Some(FastIndexedSeq())) { partition =>
-          Let("global", loweredChild.globals,
-            StreamBufferedAggregate(partition, init, newKey, seq, "row", aggSigs, bufferSize)
-          )
-        }
-        val shuffledRowType = partiallyAggregated.rowType
-
-        val sortFields = newKeyType.fieldNames.map(fieldName => SortField(fieldName, Ascending)).toIndexedSeq
-        val withNewKeyRType = TypeWithRequiredness(shuffledRowType).asInstanceOf[RStruct]
-        analyses.requirednessAnalysis.lookup(newKey).asInstanceOf[RStruct]
-          .fields
-          .foreach { f =>
-            withNewKeyRType.field(f.name).unionFrom(f.typ)
-          }
-
-        val shuffled = ctx.backend.lowerDistributedSort(
-          ctx, partiallyAggregated , sortFields, relationalLetsAbove, withNewKeyRType)
-        val repartitioned = shuffled.repartitionNoShuffle(shuffled.partitioner.strictify)
-
-        val takeVirtualSig = TakeStateSig(VirtualTypeWithReq(shuffledRowType, withNewKeyRType))
-        val takeAggSig = PhysicalAggSig(Take(), takeVirtualSig)
-        val aggStateSigsPlusTake = aggs.states ++ Array(takeVirtualSig)
-
-        val postAggUID = genUID()
-        val resultFromTakeUID = genUID()
-        val result = ResultOp(aggs.aggs.length, takeAggSig)
-
-        val aggSigsPlusTake = aggSigs ++ IndexedSeq(takeAggSig)
-        repartitioned.mapPartition(None) { partition =>
-          Let("global", repartitioned.globals,
-            mapIR(StreamGroupByKey(partition, newKeyType.fieldNames.toIndexedSeq, missingEqual = true)) { groupRef =>
-              RunAgg(
-                forIR(zipWithIndex(groupRef)) { elemWithID =>
-                  val idx = GetField(elemWithID, "idx")
-                  val elem = GetField(elemWithID, "elt")
-                  If(ApplyComparisonOp(EQ(TInt32, TInt32), idx, 0),
-                    Begin((0 until aggSigs.length).map { aIdx =>
-                      InitFromSerializedValue(aIdx, GetTupleElement(GetField(elem, "agg"), aIdx), aggSigsPlusTake(aIdx).state)
-                    } ++ IndexedSeq(
-                      InitOp(aggSigs.length, IndexedSeq(I32(1)), PhysicalAggSig(Take(), takeVirtualSig)),
-                      SeqOp(aggSigs.length, IndexedSeq(elem), PhysicalAggSig(Take(), takeVirtualSig))
-                    )),
-                    Begin((0 until aggSigs.length).map { aIdx =>
-                      CombOpValue(aIdx, GetTupleElement(GetField(elem, "agg"), aIdx), aggSigs(aIdx))
-                    }))},
-
-                Let(
-                  resultUID,
-                  ResultOp.makeTuple(aggs.aggs),
-                  Let(postAggUID, postAggIR,
-                    Let(resultFromTakeUID,
-                      result, {
-                      val keyIRs: IndexedSeq[(String, IR)] = newKeyType.fieldNames.map(keyName => keyName -> GetField(ArrayRef(Ref(resultFromTakeUID, result.typ), 0), keyName))
-                      MakeStruct(keyIRs ++ expr.typ.asInstanceOf[TStruct].fieldNames.map {f => (f, GetField(Ref(postAggUID, postAggIR.typ), f))
-                      })}
-                    )
-                  )
-                ),
-                aggStateSigsPlusTake)})}
-
       case TableDistinct(child) =>
         val loweredChild = lower(child)
 
-        loweredChild.repartitionNoShuffle(loweredChild.partitioner.coarsen(child.typ.key.length).strictify)
+        loweredChild.repartitionNoShuffle(loweredChild.partitioner.coarsen(child.typ.key.length).strictify())
           .mapPartition(None) { partition =>
             flatMapIR(StreamGroupByKey(partition, child.typ.key, missingEqual = true)) { groupRef =>
               StreamTake(groupRef, 1)
@@ -1078,10 +997,10 @@ object LowerTableIR {
           loweredChild.dependency,
           contexts = bindIRs(
             ToArray(loweredChild.contexts),
-            Literal(TArray(TTuple(TInt32, TInt32)), startAndEndInterval.map { case (start, end) => Row(start, end) }.toFastIndexedSeq)
+            Literal(TArray(TTuple(TInt32, TInt32)), startAndEndInterval.map(Row.fromTuple).toFastIndexedSeq)
           ) { case Seq(prevContexts, bounds) =>
             zip2(ToStream(Literal(TArray(TInt32), includedIndices.toFastIndexedSeq)), ToStream(bounds), ArrayZipBehavior.AssumeSameLength) { (idx, bound) =>
-              MakeStruct(FastSeq(("prevContext", ArrayRef(prevContexts, idx)), ("bounds", bound)))
+              MakeStruct(FastIndexedSeq(("prevContext", ArrayRef(prevContexts, idx)), ("bounds", bound)))
             }
           },
           { (part: Ref) =>
@@ -1131,7 +1050,7 @@ object LowerTableIR {
                 partitionSizeArrayFunc,
                 FastIndexedSeq(howManyPartsToTryRef.name -> howManyPartsToTry, iteration.name -> 0),
                 bindIR(loweredChild.mapContexts(_ => StreamTake(ToStream(childContexts), howManyPartsToTryRef)){ ctx: IR => ctx }
-                  .mapCollect(relationalLetsAbove, "table_head_recursive_count",
+                  .mapCollect("table_head_recursive_count",
                     strConcat(Str("iteration="), invoke("str", TString, iteration), Str(",nParts="), invoke("str", TString, howManyPartsToTryRef))
                   )(streamLenOrMax)) { counts =>
                   If((Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows) || (ArrayLen(childContexts) <= ArrayLen(counts)),
@@ -1183,7 +1102,7 @@ object LowerTableIR {
         }
 
         val letBindNewCtx = TableStage.wrapInBindings(newCtxs, loweredChild.letBindings)
-        val bindRelationLetsNewCtx = ToArray(LowerToCDA.substLets(letBindNewCtx, relationalLetsAbove))
+        val bindRelationLetsNewCtx = ToArray(letBindNewCtx)
         val newCtxSeq = CompileAndEvaluate(ctx, bindRelationLetsNewCtx).asInstanceOf[IndexedSeq[Any]]
         val numNewParts = newCtxSeq.length
         val newIntervals = loweredChild.partitioner.rangeBounds.slice(0,numNewParts)
@@ -1228,7 +1147,7 @@ object LowerTableIR {
                 bindIR(
                   loweredChild
                     .mapContexts(_ => StreamDrop(ToStream(childContexts), maxIR(totalNumPartitions - howManyPartsToTryRef, 0))){ ctx: IR => ctx }
-                    .mapCollect(relationalLetsAbove, "table_tail_recursive_count",
+                    .mapCollect("table_tail_recursive_count",
                       strConcat(Str("iteration="), invoke("str", TString, iteration), Str(", nParts="), invoke("str", TString, howManyPartsToTryRef)))(StreamLen)
                 ) { counts =>
                   If((Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows) || (totalNumPartitions <= ArrayLen(counts)),
@@ -1238,27 +1157,27 @@ object LowerTableIR {
           }
         }
 
-        // First element is how many partitions to drop from partitionSizeArrayRef, second is how many to keep from first kept element.
+        // First element is how many partitions to keep from the right partitionSizeArrayRef, second is how many to keep from first kept element.
         def answerTuple(partitionSizeArrayRef: Ref): IR = {
           bindIR(ArrayLen(partitionSizeArrayRef)) { numPartitions =>
             val howManyPartsToDrop = genUID()
             val i = Ref(genUID(), TInt32)
-            val numLeft = Ref(genUID(), TInt64)
-            def makeAnswer(howManyParts: IR, howManyFromLast: IR) = MakeTuple(FastIndexedSeq((0, howManyParts), (1, howManyFromLast)))
+            val nRowsToRight = Ref(genUID(), TInt64)
+            def makeAnswer(howManyParts: IR, howManyFromLast: IR) = MakeTuple.ordered(FastIndexedSeq(howManyParts, howManyFromLast))
 
             If(numPartitions ceq 0,
-              makeAnswer(0, 0L),
+              makeAnswer(0, 0),
               TailLoop(
                 howManyPartsToDrop,
-                FastIndexedSeq(i.name -> numPartitions, numLeft.name -> targetNumRows),
-                If((i ceq 1) || ((numLeft - Cast(ArrayRef(partitionSizeArrayRef, i - 1), TInt64)) <= 0L),
-                  makeAnswer(i - 1, numLeft),
+                FastIndexedSeq(i.name -> 1, nRowsToRight.name -> 0L),
+                If((i ceq numPartitions) || ((nRowsToRight + Cast(ArrayRef(partitionSizeArrayRef, numPartitions - i), TInt64)) >= targetNumRows),
+                  makeAnswer(i, maxIR(0L, Cast(ArrayRef(partitionSizeArrayRef, numPartitions - i), TInt64) - (I64(targetNumRows) - nRowsToRight)).toI),
                   Recur(
                     howManyPartsToDrop,
                     FastIndexedSeq(
-                      i - 1,
-                      numLeft - Cast(ArrayRef(partitionSizeArrayRef, i - 1), TInt64)),
-                    TTuple(TInt32, TInt64)))))
+                      i + 1,
+                      nRowsToRight + Cast(ArrayRef(partitionSizeArrayRef, numPartitions - i), TInt64)),
+                    TTuple(TInt32, TInt32)))))
           }
         }
 
@@ -1266,24 +1185,15 @@ object LowerTableIR {
           bindIR(ArrayLen(childContexts)) { totalNumPartitions =>
             bindIR(partitionSizeArray(childContexts, totalNumPartitions)) { partitionSizeArrayRef =>
               bindIR(answerTuple(partitionSizeArrayRef)) { answerTupleRef =>
-                val numPartsToDropFromPartitionSizeArray = GetTupleElement(answerTupleRef, 0)
-                val numElementsFromFirstPart = GetTupleElement(answerTupleRef, 1)
-                val numPartsToDropFromTotal = numPartsToDropFromPartitionSizeArray + (totalNumPartitions - ArrayLen(partitionSizeArrayRef))
-                val onlyNeededPartitions = StreamDrop(ToStream(childContexts), numPartsToDropFromTotal)
-                val howManyFromEachPart = mapIR(rangeIR(StreamLen(onlyNeededPartitions))) { idxRef =>
-                  If(idxRef ceq 0,
-                    Cast(numElementsFromFirstPart, TInt32),
-                    ArrayRef(partitionSizeArrayRef, idxRef))
+                val numPartsToKeepFromRight = GetTupleElement(answerTupleRef, 0)
+                val nToDropFromFirst = GetTupleElement(answerTupleRef, 1)
+                bindIR(totalNumPartitions - numPartsToKeepFromRight) { startIdx =>
+                  mapIR(rangeIR(numPartsToKeepFromRight)) { idx =>
+                    MakeStruct(FastIndexedSeq(
+                      "numberToDrop" -> If(idx ceq 0, nToDropFromFirst, 0),
+                      "old" -> ArrayRef(childContexts, idx + startIdx)))
+                  }
                 }
-                StreamZip(
-                  FastIndexedSeq(onlyNeededPartitions,
-                    howManyFromEachPart,
-                    StreamDrop(ToStream(partitionSizeArrayRef), numPartsToDropFromPartitionSizeArray)),
-                  FastIndexedSeq("part", "howMany", "partLength"),
-                  MakeStruct(FastIndexedSeq(
-                    "numberToDrop" -> maxIR(0, Ref("partLength", TInt32) - Ref("howMany", TInt32)),
-                    "old" -> Ref("part", loweredChild.ctxType))),
-                  ArrayZipBehavior.AssertSameLength)
               }
             }
           }
@@ -1337,7 +1247,7 @@ object LowerTableIR {
             val tmpDir = ctx.createTmpPath("aggregate_intermediates/")
 
             val codecSpec = TypedCodecSpec(PCanonicalTuple(true, aggs.aggs.map(_ => PCanonicalBinary(true)): _*), BufferSpec.wireSpec)
-            val partitionPrefixSumFiles = lcWithInitBinding.mapCollectWithGlobals(relationalLetsAbove, "table_scan_write_prefix_sums")({ part: IR =>
+            val partitionPrefixSumFiles = lcWithInitBinding.mapCollectWithGlobals("table_scan_write_prefix_sums")({ part: IR =>
               Let("global", lcWithInitBinding.globals,
                 RunAgg(
                   Begin(FastIndexedSeq(
@@ -1394,7 +1304,7 @@ object LowerTableIR {
                           val contexts = mapIR(rangeIR(nCombines)) { outerIdxRef =>
                             sliceArrayIR(states, outerIdxRef * branchFactor, (outerIdxRef + 1) * branchFactor)
                           }
-                          val cdaResult = cdaIR(contexts, MakeStruct(Seq()), "table_scan_up_pass",
+                          val cdaResult = cdaIR(contexts, MakeStruct(FastIndexedSeq()), "table_scan_up_pass",
                             strConcat(Str("iteration="), invoke("str", TString, iteration), Str(", nStates="), invoke("str", TString, statesLen))
                           ) { case (contexts, _) =>
                             RunAgg(
@@ -1438,7 +1348,7 @@ object LowerTableIR {
                           ))
                         }
 
-                        val results = cdaIR(groups, MakeTuple.ordered(Seq()), "table_scan_down_pass",
+                        val results = cdaIR(groups, MakeTuple.ordered(FastIndexedSeq()), "table_scan_down_pass",
                           strConcat(Str("iteration="), invoke("str", TString, iteration), Str(", level="), invoke("str", TString, level))
                         ) { case (context, _) =>
                           bindIR(GetField(context, "prev")) { prev =>
@@ -1479,7 +1389,7 @@ object LowerTableIR {
             (partitionPrefixSumFiles, {(file: IR) => ReadValue(file, codecSpec, codecSpec.encodedVirtualType) })
 
           } else {
-            val partitionAggs = lcWithInitBinding.mapCollectWithGlobals(relationalLetsAbove, "table_scan_prefix_sums_singlestage")({ part: IR =>
+            val partitionAggs = lcWithInitBinding.mapCollectWithGlobals("table_scan_prefix_sums_singlestage")({ part: IR =>
               Let("global", lc.globals,
                 RunAgg(
                   Begin(FastIndexedSeq(
@@ -1558,29 +1468,17 @@ object LowerTableIR {
           )
         }
 
-      case TableKeyBy(child, newKey, isSorted: Boolean) =>
+      case t@TableKeyBy(child, newKey, isSorted: Boolean) =>
+        require(t.definitelyDoesNotShuffle)
         val loweredChild = lower(child)
 
         val nPreservedFields = loweredChild.kType.fieldNames
           .zip(newKey)
           .takeWhile { case (l, r) => l == r }
           .length
-        require(!isSorted || nPreservedFields > 0 || newKey.isEmpty,
-          s"isSorted=${isSorted}, nPresFields=${nPreservedFields}, newKey=${newKey}, " +
-            s"originalKey = ${loweredChild.kType.fieldNames.toSeq}, child key=${child.typ.keyType}")
 
-        if (nPreservedFields == newKey.length || isSorted)
-        // TODO: should this add a runtime check that keys are within the
-        // partition bounds, like in RVD?
-          loweredChild.changePartitionerNoRepartition(loweredChild.partitioner.coarsen(nPreservedFields))
-            .extendKeyPreservesPartitioning(newKey)
-        else {
-          val rowRType = analyses.requirednessAnalysis.lookup(child).asInstanceOf[RTable].rowType
-          val sorted = ctx.backend.lowerDistributedSort(
-            ctx, loweredChild, newKey.map(k => SortField(k, Ascending)), relationalLetsAbove, rowRType)
-          assert(sorted.kType.fieldNames.sameElements(newKey))
-          sorted
-        }
+        loweredChild.changePartitionerNoRepartition(loweredChild.partitioner.coarsen(nPreservedFields))
+          .extendKeyPreservesPartitioning(newKey)
 
       case TableLeftJoinRightDistinct(left, right, root) =>
         val commonKeyLength = right.typ.keyType.size
@@ -1597,7 +1495,7 @@ object LowerTableIR {
 
             val (typeOfRootStruct, _) = right.typ.rowType.filterSet(right.typ.key.toSet, false)
             val rootStruct = SelectFields(rightElementRef, typeOfRootStruct.fieldNames.toIndexedSeq)
-            val joiningOp = InsertFields(leftElementRef, Seq(root -> rootStruct))
+            val joiningOp = InsertFields(leftElementRef, FastIndexedSeq(root -> rootStruct))
             StreamJoinRightDistinct(
               leftPart, rightPart,
               left.typ.key.take(commonKeyLength), right.typ.key,
@@ -1632,7 +1530,6 @@ object LowerTableIR {
         loweredLeft.intervalAlignAndZipPartitions(ctx,
           loweredRight,
           analyses.requirednessAnalysis.lookup(right).asInstanceOf[RTable].rowType,
-          relationalLetsAbove,
           (lGlobals, _) => lGlobals,
           partitionJoiner)
 
@@ -1723,15 +1620,10 @@ object LowerTableIR {
               InsertFields(keyRef, FastSeq(fieldName -> projectedVals)))
         )
 
-      case TableOrderBy(child, sortFields) =>
+      case t@TableOrderBy(child, sortFields) =>
+        require(t.definitelyDoesNotShuffle)
         val loweredChild = lower(child)
-        if (TableOrderBy.isAlreadyOrdered(sortFields, loweredChild.partitioner.kType.fieldNames)) {
-          loweredChild.changePartitionerNoRepartition(RVDPartitioner.unkeyed(ctx.stateManager, loweredChild.partitioner.numPartitions))
-        } else {
-          val rowRType = analyses.requirednessAnalysis.lookup(child).asInstanceOf[RTable].rowType
-          ctx.backend.lowerDistributedSort(
-            ctx, loweredChild, sortFields, relationalLetsAbove, rowRType)
-        }
+        loweredChild.changePartitionerNoRepartition(RVDPartitioner.unkeyed(ctx.stateManager, loweredChild.partitioner.numPartitions))
 
       case TableExplode(child, path) =>
         lower(child).mapPartition(Some(child.typ.key.takeWhile(k => k != path(0)))) { rows =>
@@ -1789,8 +1681,9 @@ object LowerTableIR {
             CastRename(row, row.typ.asInstanceOf[TStruct].rename(rowMap))
           })
 
-      case TableMapPartitions(child, globalName, partitionStreamName, body) =>
-        val loweredChild = lower(child)
+      case TableMapPartitions(child, globalName, partitionStreamName, body, _, allowedOverlap) =>
+        val loweredChild = lower(child).strictify(allowedOverlap)
+
         loweredChild.mapPartition(Some(child.typ.key)) { part =>
           Let(globalName, loweredChild.globals, Let(partitionStreamName, part, body))
         }
@@ -1840,7 +1733,7 @@ object LowerTableIR {
         }.mapGlobals(_ => makestruct())
 
       case bmtt@BlockMatrixToTable(bmir) =>
-        val ts = LowerBlockMatrixIR.lowerToTableStage(bmir, typesToLower, ctx, analyses, relationalLetsAbove)
+        val ts = LowerBlockMatrixIR.lowerToTableStage(bmir, typesToLower, ctx, analyses)
         // I now have an unkeyed table of (blockRow, blockCol, block).
         ts.mapPartitionWithContext { (partition, ctxRef) =>
           flatMapIR(partition)(singleRowRef =>

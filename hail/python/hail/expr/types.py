@@ -724,7 +724,9 @@ class tndarray(HailType):
         return "ndarray<{}, {}>".format(self.element_type, self.ndim)
 
     def _eq(self, other):
-        return isinstance(other, tndarray) and self.element_type == other.element_type
+        return (isinstance(other, tndarray)
+                and self.element_type == other.element_type
+                and self.ndim == other.ndim)
 
     def _pretty(self, b, indent, increment):
         b.append('ndarray<')

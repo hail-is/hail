@@ -122,6 +122,8 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
 
     require_biallelic(dataset, 'export_gen')
 
+    hl.current_backend().validate_file_scheme(output)
+
     if gp is None:
         if 'GP' in dataset.entry and dataset.GP.dtype == tarray(tfloat64):
             entry_exprs = {'GP': dataset.GP}
@@ -224,6 +226,8 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None, compr
     """
     require_row_key_variant(mt, 'export_bgen')
     require_col_key_str(mt, 'export_bgen')
+
+    hl.current_backend().validate_file_scheme(output)
 
     if gp is None:
         if 'GP' in mt.entry and mt.GP.dtype == tarray(tfloat64):
@@ -348,6 +352,8 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
     """
 
     require_biallelic(dataset, 'export_plink', tolerate_generic_locus=True)
+
+    hl.current_backend().validate_file_scheme(output)
 
     if ind_id is None:
         require_col_key_str(dataset, "export_plink")
@@ -522,12 +528,15 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         **Note**: This feature is experimental, and the interface and defaults
         may change in future versions.
     """
+    hl.current_backend().validate_file_scheme(output)
+
     _, ext = os.path.splitext(output)
     if ext == '.gz':
         warning('VCF export with standard gzip compression requested. This is almost *never* desired and will '
                 'cause issues with other tools that consume VCF files. The compression format used for VCF '
                 'files is traditionally *block* gzip compression. To use block gzip compression with hail VCF '
                 'export, use a path ending in `.bgz`.')
+
     if isinstance(dataset, Table):
         mt = MatrixTable.from_rows_table(dataset)
         dataset = mt.key_cols_by(sample="")

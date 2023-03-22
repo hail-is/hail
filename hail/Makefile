@@ -14,7 +14,7 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 SCALA_VERSION ?= 2.12.13
 SPARK_VERSION ?= 3.3.0
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 111
+HAIL_PATCH_VERSION := 112
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 ELASTIC_MAJOR_VERSION ?= 7
@@ -272,23 +272,13 @@ $(eval $(call ENV_VAR,cloud_base))
 $(eval $(call ENV_VAR,wheel_cloud_path))
 
 
-.PHONY: generate-pip-lockfiles
-generate-pip-lockfiles:
-	HAIL_HAIL_DIR=$(HAIL_HAIL_DIR) \
-	../generate_pip_lockfile.sh python/hailtop/requirements.txt python/hailtop/pinned-requirements.txt && \
-	HAIL_HAIL_DIR=$(HAIL_HAIL_DIR) \
-	../generate_pip_lockfile.sh python/requirements.txt python/pinned-requirements.txt && \
-	HAIL_HAIL_DIR=$(HAIL_HAIL_DIR) \
-	../generate_pip_lockfile.sh python/dev/requirements.txt python/dev/pinned-requirements.txt
-
-
 .PHONY: check-pip-lockfile
 check-pip-lockfile:
-	$(PIP) install pip-tools && bash ../check_pip_requirements.sh python/requirements.txt python/pinned-requirements.txt
+	$(PIP) install pip-tools && bash ../check_pip_requirements.sh python
 
 
 python/hailtop/hailctl/deploy.yaml: env/cloud_base env/wheel_cloud_path
-python/hailtop/hailctl/deploy.yaml: $(resources) check-pip-lockfile
+python/hailtop/hailctl/deploy.yaml: $(resources)
 	rm -f $@
 	echo "dataproc:" >> $@
 	for FILE in $(notdir $(resources)); do \

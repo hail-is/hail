@@ -19,10 +19,13 @@ check:
 	curlylint .
 	bash ../check-sql.sh
 
+.PHONY: hail-ubuntu
+hail-ubuntu:
+	$(MAKE) -C ../docker hail-ubuntu
+
 .PHONY: build-batch
-build-batch:
-	$(MAKE) -C ../docker service-base
-	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"'$$(cat ../docker/service-base-image-ref)'"}}' Dockerfile Dockerfile.out
+build-batch: hail-ubuntu
+	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat ../docker/hail-ubuntu-image-ref)'"}}' Dockerfile Dockerfile.out
 	../docker-build.sh . Dockerfile.out $(BATCH_IMAGE)
 
 jars/junixsocket-selftest-2.3.3-jar-with-dependencies.jar:
@@ -33,7 +36,7 @@ src/main/java/is/hail/JVMEntryway.class: src/main/java/is/hail/JVMEntryway.java 
 	javac -cp jars/junixsocket-selftest-2.3.3-jar-with-dependencies.jar $<
 
 .PHONY: build-worker
-build-worker: src/main/java/is/hail/JVMEntryway.class
+build-worker: src/main/java/is/hail/JVMEntryway.class hail-ubuntu
 	$(MAKE) -C ../hail python/hail/hail_version
 	cp ../hail/python/hail/hail_version ../hail_version
 	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat ../docker/hail-ubuntu-image-ref)'"},"global":{"cloud":"$(CLOUD)"}}' Dockerfile.worker Dockerfile.worker.out

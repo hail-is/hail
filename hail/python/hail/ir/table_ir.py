@@ -315,7 +315,7 @@ class TableKeyBy(TableIR):
         return '({}) {}'.format(' '.join([escape_id(x) for x in self.keys]), self.is_sorted)
 
     def _eq(self, other):
-        return self.keys == other.keys and self.is_sorter == other.is_sorted
+        return self.keys == other.keys and self.is_sorted == other.is_sorted
 
     def _compute_type(self, deep_typecheck):
         self.child.compute_type(deep_typecheck)
@@ -368,17 +368,19 @@ class TableMapRows(TableIR):
 
 
 class TableMapPartitions(TableIR):
-    def __init__(self, child, global_name, partition_stream_name, body):
+    def __init__(self, child, global_name, partition_stream_name, body, requested_key, allowed_overlap):
         super().__init__(child, body)
         self.child = child
         self.body = body
         self.global_name = global_name
         self.partition_stream_name = partition_stream_name
+        self.requested_key = requested_key
+        self.allowed_overlap = allowed_overlap
 
     def _handle_randomness(self, uid_field_name):
         if uid_field_name is not None:
             raise FatalError('TableMapPartitions does not support randomness, in its body or in consumers')
-        return TableMapPartitions(self.child.handle_randomness(None), self.global_name, self.partition_stream_name, self.body)
+        return TableMapPartitions(self.child.handle_randomness(None), self.global_name, self.partition_stream_name, self.body, self.requested_key, self.allowed_overlap)
 
     def _compute_type(self, deep_typecheck):
         self.child.compute_type(deep_typecheck)
@@ -403,10 +405,12 @@ class TableMapPartitions(TableIR):
             return {}
 
     def head_str(self):
-        return f'{escape_id(self.global_name)} {escape_id(self.partition_stream_name)}'
+        return f'{escape_id(self.global_name)} {escape_id(self.partition_stream_name)} {self.requested_key} {self.allowed_overlap}'
 
     def _eq(self, other):
-        return self.global_name == other.global_name and self.partition_stream_name == other.partition_stream_name
+        return (self.global_name == other.global_name
+                and self.partition_stream_name == other.partition_stream_name
+                and self.allowed_overlap == other.allowed_overlap)
 
 
 class TableRead(TableIR):

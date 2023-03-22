@@ -112,7 +112,7 @@ class PruneSuite extends HailSuite {
   lazy val tr = TableRead(tab.typ, false, new TableReader {
     override def renderShort(): String = ???
 
-    def pathsUsed: Seq[String] = FastSeq()
+    def pathsUsed: IndexedSeq[String] = FastSeq()
 
     override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = ???
 
@@ -141,7 +141,7 @@ class PruneSuite extends HailSuite {
     FastIndexedSeq(Row("1", 2, FastIndexedSeq(Row(3)))))
 
   lazy val mr = MatrixRead(mat.typ, false, false, new MatrixReader {
-    def pathsUsed: Seq[String] = FastSeq()
+    def pathsUsed: IndexedSeq[String] = FastSeq()
 
     override def columnCount: Option[Int] = None
 
@@ -408,7 +408,7 @@ class PruneSuite extends HailSuite {
   @Test def testTableAggregateByKeyMemo(): Unit = {
     val tabk = TableAggregateByKey(
       tab,
-      SelectFields(Ref("row", tab.typ.rowType), Seq("5"))
+      SelectFields(Ref("row", tab.typ.rowType), IndexedSeq("5"))
     )
     checkMemo(tabk, requestedType = subsetTable(tabk.typ, "row.3", "row.5"),
       Array(subsetTable(tabk.typ, "row.3", "row.5"), TStruct(("5", TString))))
@@ -419,7 +419,7 @@ class PruneSuite extends HailSuite {
       TableUnion(FastIndexedSeq(tab, tab)),
       subsetTable(tab.typ, "row.1", "global.g1"),
       Array(subsetTable(tab.typ, "row.1", "global.g1"),
-        subsetTable(tab.typ, "row.1", "global.g1"))
+        subsetTable(tab.typ, "row.1"))
     )
   }
 
@@ -605,7 +605,7 @@ class PruneSuite extends HailSuite {
   @Test def testAggLetMemo() {
     checkMemo(AggLet("foo", ref,
       ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(
-        SelectFields(Ref("foo", ref.typ), Seq("a"))),
+        SelectFields(Ref("foo", ref.typ), IndexedSeq("a"))),
         AggSignature(Collect(), FastIndexedSeq(), FastIndexedSeq(ref.typ))), false),
       TArray(justA), Array(justA, null))
     checkMemo(AggLet("foo", ref, True(), false), TBoolean, Array(empty, null))
@@ -752,21 +752,21 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testMakeStructMemo() {
-    checkMemo(MakeStruct(Seq("a" -> ref, "b" -> I32(10))),
+    checkMemo(MakeStruct(IndexedSeq("a" -> ref, "b" -> I32(10))),
       TStruct("a" -> justA), Array(justA, null))
-    checkMemo(MakeStruct(Seq("a" -> ref, "b" -> I32(10))),
+    checkMemo(MakeStruct(IndexedSeq("a" -> ref, "b" -> I32(10))),
       TStruct.empty, Array(null, null))
   }
 
   @Test def testInsertFieldsMemo() {
-    checkMemo(InsertFields(ref, Seq("d" -> ref)),
+    checkMemo(InsertFields(ref, IndexedSeq("d" -> ref)),
       justA ++ TStruct("d" -> justB),
       Array(justA, justB))
   }
 
   @Test def testSelectFieldsMemo() {
-    checkMemo(SelectFields(ref, Seq("a", "b")), justA, Array(justA))
-    checkMemo(SelectFields(ref, Seq("b", "a")), bAndA, Array(aAndB))
+    checkMemo(SelectFields(ref, IndexedSeq("a", "b")), justA, Array(justA))
+    checkMemo(SelectFields(ref, IndexedSeq("b", "a")), bAndA, Array(aAndB))
   }
 
   @Test def testGetFieldMemo() {
@@ -774,11 +774,11 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testMakeTupleMemo() {
-    checkMemo(MakeTuple(Seq(0 -> ref)), TTuple(justA), Array(justA))
+    checkMemo(MakeTuple(IndexedSeq(0 -> ref)), TTuple(justA), Array(justA))
   }
 
   @Test def testGetTupleElementMemo() {
-    checkMemo(GetTupleElement(MakeTuple.ordered(Seq(ref, ref)), 1), justB, Array(TTuple(FastIndexedSeq(TupleField(1, justB)))))
+    checkMemo(GetTupleElement(MakeTuple.ordered(IndexedSeq(ref, ref)), 1), justB, Array(TTuple(FastIndexedSeq(TupleField(1, justB)))))
   }
 
   @Test def testCastRenameMemo() {
@@ -793,7 +793,7 @@ class PruneSuite extends HailSuite {
 
   @Test def testAggFilterMemo(): Unit = {
     val t = TStruct("a" -> TInt32, "b" -> TInt64, "c" -> TString)
-    val select = SelectFields(Ref("x", t), Seq("c"))
+    val select = SelectFields(Ref("x", t), IndexedSeq("c"))
     checkMemo(AggFilter(
       ApplyComparisonOp(LT(TInt32, TInt32), GetField(Ref("x", t), "a"), I32(0)),
       ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(select),
@@ -805,7 +805,7 @@ class PruneSuite extends HailSuite {
 
   @Test def testAggExplodeMemo(): Unit = {
     val t = TStream(TStruct("a" -> TInt32, "b" -> TInt64))
-    val select = SelectFields(Ref("foo", t.elementType), Seq("a"))
+    val select = SelectFields(Ref("foo", t.elementType), IndexedSeq("a"))
     checkMemo(AggExplode(Ref("x", t),
       "foo",
       ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(select),
@@ -818,7 +818,7 @@ class PruneSuite extends HailSuite {
 
   @Test def testAggArrayPerElementMemo(): Unit = {
     val t = TArray(TStruct("a" -> TInt32, "b" -> TInt64))
-    val select = SelectFields(Ref("foo", t.elementType), Seq("a"))
+    val select = SelectFields(Ref("foo", t.elementType), IndexedSeq("a"))
     checkMemo(AggArrayPerElement(Ref("x", t),
       "foo",
       "bar",
@@ -1113,7 +1113,7 @@ class PruneSuite extends HailSuite {
     }
 
     val wrappedMat = MatrixMapCols(mat,
-      MakeStruct(Seq(("ck", getColField("ck")), ("c2", getColField("c2")), ("c3", getColField("c3")))), Some(FastIndexedSeq("ck"))
+      MakeStruct(IndexedSeq(("ck", getColField("ck")), ("c2", getColField("c2")), ("c3", getColField("c3")))), Some(FastIndexedSeq("ck"))
     )
 
     val wrappedMat2 = MatrixRename(
@@ -1192,7 +1192,7 @@ class PruneSuite extends HailSuite {
   @Test def testAggLetRebuild() {
     checkRebuild(AggLet("foo", NA(ref.typ),
       ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(
-        SelectFields(Ref("foo", ref.typ), Seq("a"))),
+        SelectFields(Ref("foo", ref.typ), IndexedSeq("a"))),
         AggSignature(Collect(), FastIndexedSeq(), FastIndexedSeq(ref.typ))), false), TArray(subsetTS("a")),
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[AggLet]
@@ -1201,7 +1201,7 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testMakeArrayRebuild() {
-    checkRebuild(MakeArray(Seq(NA(ts)), TArray(ts)), TArray(subsetTS("b")),
+    checkRebuild(MakeArray(IndexedSeq(NA(ts)), TArray(ts)), TArray(subsetTS("b")),
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[MakeArray]
         ir.args.head.typ == subsetTS("b")
@@ -1209,7 +1209,7 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testStreamTakeRebuild() {
-    checkRebuild(StreamTake(MakeStream(Seq(NA(ts)), TStream(ts)), I32(2)), TStream(subsetTS("b")),
+    checkRebuild(StreamTake(MakeStream(IndexedSeq(NA(ts)), TStream(ts)), I32(2)), TStream(subsetTS("b")),
                  (_: BaseIR, r: BaseIR) => {
                    val ir = r.asInstanceOf[StreamTake]
                    ir.a.typ == TStream(subsetTS("b"))
@@ -1217,7 +1217,7 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testStreamDropRebuild() {
-    checkRebuild(StreamDrop(MakeStream(Seq(NA(ts)), TStream(ts)), I32(2)), TStream(subsetTS("b")),
+    checkRebuild(StreamDrop(MakeStream(IndexedSeq(NA(ts)), TStream(ts)), I32(2)), TStream(subsetTS("b")),
                  (_: BaseIR, r: BaseIR) => {
                    val ir = r.asInstanceOf[StreamDrop]
                    ir.a.typ == TStream(subsetTS("b"))
@@ -1225,7 +1225,7 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testStreamMapRebuild() {
-    checkRebuild(StreamMap(MakeStream(Seq(NA(ts)), TStream(ts)), "x", Ref("x", ts)), TStream(subsetTS("b")),
+    checkRebuild(StreamMap(MakeStream(IndexedSeq(NA(ts)), TStream(ts)), "x", Ref("x", ts)), TStream(subsetTS("b")),
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[StreamMap]
         ir.a.typ == TStream(subsetTS("b"))
@@ -1233,7 +1233,7 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testStreamGroupedRebuild() {
-    checkRebuild(StreamGrouped(MakeStream(Seq(NA(ts)), TStream(ts)), I32(2)), TStream(TStream(subsetTS("b"))),
+    checkRebuild(StreamGrouped(MakeStream(IndexedSeq(NA(ts)), TStream(ts)), I32(2)), TStream(TStream(subsetTS("b"))),
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[StreamGrouped]
         ir.a.typ == TStream(subsetTS("b"))
@@ -1241,7 +1241,7 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testStreamGroupByKeyRebuild() {
-    checkRebuild(StreamGroupByKey(MakeStream(Seq(NA(ts)), TStream(ts)), FastIndexedSeq("a"), false), TStream(TStream(subsetTS("b"))),
+    checkRebuild(StreamGroupByKey(MakeStream(IndexedSeq(NA(ts)), TStream(ts)), FastIndexedSeq("a"), false), TStream(TStream(subsetTS("b"))),
                  (_: BaseIR, r: BaseIR) => {
                    val ir = r.asInstanceOf[StreamGroupByKey]
                    ir.a.typ == TStream(subsetTS("a", "b"))
@@ -1250,7 +1250,7 @@ class PruneSuite extends HailSuite {
 
   @Test def testStreamMergeRebuild() {
     checkRebuild(
-      StreamMultiMerge(IndexedSeq(MakeStream(Seq(NA(ts)), TStream(ts)), MakeStream(Seq(NA(ts)), TStream(ts))), FastIndexedSeq("a")),
+      StreamMultiMerge(IndexedSeq(MakeStream(IndexedSeq(NA(ts)), TStream(ts)), MakeStream(IndexedSeq(NA(ts)), TStream(ts))), FastIndexedSeq("a")),
       TStream(subsetTS("b")),
       (_: BaseIR, r: BaseIR) => r.typ == TStream(subsetTS("a", "b")))
   }
@@ -1277,7 +1277,7 @@ class PruneSuite extends HailSuite {
   }
 
     @Test def testStreamFlatmapRebuild() {
-    checkRebuild(StreamFlatMap(MakeStream(Seq(NA(ts)), TStream(ts)), "x", MakeStream(Seq(Ref("x", ts)), TStream(ts))),
+    checkRebuild(StreamFlatMap(MakeStream(IndexedSeq(NA(ts)), TStream(ts)), "x", MakeStream(IndexedSeq(Ref("x", ts)), TStream(ts))),
       TStream(subsetTS("b")),
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[StreamFlatMap]
@@ -1286,18 +1286,18 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testMakeStructRebuild() {
-    checkRebuild(MakeStruct(Seq("a" -> NA(TInt32), "b" -> NA(TInt64), "c" -> NA(TString))), subsetTS("b"),
+    checkRebuild(MakeStruct(IndexedSeq("a" -> NA(TInt32), "b" -> NA(TInt64), "c" -> NA(TString))), subsetTS("b"),
       (_: BaseIR, r: BaseIR) => {
-        r == MakeStruct(Seq("b" -> NA(TInt64)))
+        r == MakeStruct(IndexedSeq("b" -> NA(TInt64)))
       })
   }
 
   @Test def testInsertFieldsRebuild() {
-    checkRebuild(InsertFields(NA(TStruct("a" -> TInt32)), Seq("b" -> NA(TInt64), "c" -> NA(TString))),
+    checkRebuild(InsertFields(NA(TStruct("a" -> TInt32)), IndexedSeq("b" -> NA(TInt64), "c" -> NA(TString))),
       subsetTS("b"),
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[InsertFields]
-        ir.fields == Seq(
+        ir.fields == IndexedSeq(
           "b" -> NA(TInt64)
         )
       })
@@ -1312,19 +1312,19 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testMakeTupleRebuild() {
-    checkRebuild(MakeTuple(Seq(0 -> I32(1), 1 -> F64(1.0), 2 -> NA(TString))),
+    checkRebuild(MakeTuple(IndexedSeq(0 -> I32(1), 1 -> F64(1.0), 2 -> NA(TString))),
       TTuple(FastIndexedSeq(TupleField(2, TString))),
     (_: BaseIR, r: BaseIR) => {
-      r == MakeTuple(Seq(2 -> NA(TString)))
+      r == MakeTuple(IndexedSeq(2 -> NA(TString)))
     })
   }
 
   @Test def testSelectFieldsRebuild() {
-    checkRebuild(SelectFields(NA(ts), Seq("a", "b")),
+    checkRebuild(SelectFields(NA(ts), IndexedSeq("a", "b")),
       subsetTS("b"),
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[SelectFields]
-        ir.fields == Seq("b")
+        ir.fields == IndexedSeq("b")
       })
   }
 
@@ -1407,7 +1407,7 @@ class PruneSuite extends HailSuite {
 
     checkRebuild(tc, TStruct.empty,
       (_: BaseIR, r: BaseIR) => {
-        r == MakeStruct(Seq())
+        r == MakeStruct(IndexedSeq())
       })
   }
 

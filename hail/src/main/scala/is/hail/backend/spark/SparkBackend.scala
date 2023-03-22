@@ -186,7 +186,10 @@ object SparkBackend {
     appName: String = "Hail",
     master: String = null,
     local: String = "local[*]",
+    logFile: String = "hail.log",
     quiet: Boolean = false,
+    append: Boolean = false,
+    skipLoggingConfiguration: Boolean = false,
     minBlockSize: Long = 1L,
     tmpdir: String = "/tmp",
     localTmpdir: String = "file:///tmp",
@@ -194,7 +197,8 @@ object SparkBackend {
     gcsRequesterPaysBuckets: String = null
   ): SparkBackend = synchronized {
     if (theSparkBackend == null)
-      return SparkBackend(sc, appName, master, local, quiet, minBlockSize, tmpdir, localTmpdir, gcsRequesterPaysProject, gcsRequesterPaysBuckets)
+      return SparkBackend(sc, appName, master, local, logFile, quiet, append, skipLoggingConfiguration,
+        minBlockSize, tmpdir, localTmpdir, gcsRequesterPaysProject, gcsRequesterPaysBuckets)
 
     // there should be only one SparkContext
     assert(sc == null || (sc eq theSparkBackend.sc))
@@ -217,7 +221,10 @@ object SparkBackend {
     appName: String = "Hail",
     master: String = null,
     local: String = "local[*]",
+    logFile: String = "hail.log",
     quiet: Boolean = false,
+    append: Boolean = false,
+    skipLoggingConfiguration: Boolean = false,
     minBlockSize: Long = 1L,
     tmpdir: String,
     localTmpdir: String,
@@ -225,6 +232,9 @@ object SparkBackend {
     gcsRequesterPaysBuckets: String = null
   ): SparkBackend = synchronized {
     require(theSparkBackend == null)
+
+    if (!skipLoggingConfiguration)
+      HailContext.configureLogging(logFile, quiet, append)
 
     var sc1 = sc
     if (sc1 == null)
@@ -729,16 +739,16 @@ class SparkBackend(
     ctx: ExecuteContext,
     stage: TableStage,
     sortFields: IndexedSeq[SortField],
-    relationalLetsAbove: Map[String, IR],
-    rowTypeRequiredness: RStruct
-  ): TableStage = {
+    rt: RTable
+  ): TableReader = {
     if (getFlag("use_new_shuffle") != null)
-      return LowerDistributedSort.distributedSort(ctx, stage, sortFields, relationalLetsAbove, rowTypeRequiredness)
+      return LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt)
 
-    val (globals, rvd) = TableStageToRVD(ctx, stage, relationalLetsAbove)
+    val (globals, rvd) = TableStageToRVD(ctx, stage)
+    val globalsLit = globals.toEncodedLiteral(ctx.theHailClassLoader)
 
     if (sortFields.forall(_.sortOrder == Ascending)) {
-      return RVDToTableStage(rvd.changeKey(ctx, sortFields.map(_.field)), globals.toEncodedLiteral(ctx.theHailClassLoader))
+      return RVDTableReader(rvd.changeKey(ctx, sortFields.map(_.field)), globalsLit, rt)
     }
 
     val rowType = rvd.rowType
@@ -756,7 +766,7 @@ class SparkBackend(
     val codec = TypedCodecSpec(rvd.rowPType, BufferSpec.wireSpec)
     val rdd = rvd.keyedEncodedRDD(ctx, codec, sortFields.map(_.field)).sortBy(_._1)(ord, act)
     val (rowPType: PStruct, orderedCRDD) = codec.decodeRDD(ctx, rowType, rdd.map(_._2))
-    RVDToTableStage(RVD.unkeyed(rowPType, orderedCRDD), globals.toEncodedLiteral(ctx.theHailClassLoader))
+    RVDTableReader(RVD.unkeyed(rowPType, orderedCRDD), globalsLit, rt)
   }
 
   def pyImportFam(path: String, isQuantPheno: Boolean, delimiter: String, missingValue: String): String =
@@ -764,6 +774,19 @@ class SparkBackend(
 
   def close(): Unit = {
     longLifeTempFileManager.cleanup()
+  }
+
+  def tableToTableStage(ctx: ExecuteContext,
+    inputIR: TableIR,
+    analyses: LoweringAnalyses
+  ): TableStage = {
+    CanLowerEfficiently(ctx, inputIR) match {
+      case Some(failReason) =>
+        log.info(s"SparkBackend: could not lower IR to table stage: $failReason")
+        inputIR.analyzeAndExecute(ctx).asTableStage(ctx)
+      case None =>
+        LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
+    }
   }
 }
 

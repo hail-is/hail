@@ -390,9 +390,9 @@ class BillingProjectResource:
             if e.status == 403 and 'Unknown Hail Batch billing project' in e.body:
                 return
             raise
-        else:
-            if bp['status'] == 'closed':
-                await self.batch_client.reopen_billing_project(billing_project)
+
+        if bp['status'] == 'closed':
+            await self.batch_client.reopen_billing_project(billing_project)
 
         try:
             await self.batch_client.remove_user(user, billing_project)

@@ -406,7 +406,7 @@ class ServiceTests(unittest.TestCase):
         remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
         if not remote_tmpdir.endswith('/'):
             remote_tmpdir += '/'
-        self.remote_tmpdir = remote_tmpdir
+        self.remote_tmpdir = remote_tmpdir + str(uuid.uuid4()) + '/'
 
         if remote_tmpdir.startswith('gs://'):
             self.bucket = re.fullmatch('gs://(?P<bucket_name>[^/]+).*', remote_tmpdir).groupdict()['bucket_name']

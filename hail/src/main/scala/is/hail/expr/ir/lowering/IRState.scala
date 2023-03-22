@@ -1,6 +1,6 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.expr.ir.BaseIR
+import is.hail.expr.ir.{BaseIR, RelationalLet, RelationalRef, TableKeyBy, TableKeyByAndAggregate, TableOrderBy}
 
 trait IRState {
 
@@ -15,6 +15,13 @@ trait IRState {
   }
 
   final def permits(ir: BaseIR): Boolean = rules.forall(_.allows(ir)) && ir.children.forall(permits)
+
+  def +(other: IRState): IRState = {
+    val newRules = rules ++ other.rules
+    new IRState {
+      val rules: Array[Rule] = newRules
+    }
+  }
 }
 
 case object AnyIR extends IRState {
@@ -43,4 +50,29 @@ case object EmittableIR extends IRState {
 
 case object EmittableStreamIRs extends IRState {
   val rules: Array[Rule] = Array(ValueIROnly, EmittableValueIRs)
+}
+
+case object NoRelationalLetsState extends IRState {
+  val rules: Array[Rule] = Array(
+    new Rule {
+      def allows(ir: BaseIR): Boolean = ir match {
+        case _: RelationalRef => false
+        case _: RelationalLet => false
+        case _ => true
+      }
+    }
+  )
+}
+
+case object LoweredShuffles extends IRState {
+  val rules: Array[Rule] = Array(
+    new Rule {
+      def allows(ir: BaseIR): Boolean = ir match {
+        case t: TableKeyBy => t.definitelyDoesNotShuffle
+        case _: TableKeyByAndAggregate => false
+        case t: TableOrderBy => t.definitelyDoesNotShuffle
+        case _ => true
+      }
+    }
+  )
 }

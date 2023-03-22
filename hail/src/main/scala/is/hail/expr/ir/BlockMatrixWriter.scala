@@ -32,7 +32,7 @@ abstract class BlockMatrixWriter {
   def pathOpt: Option[String]
   def apply(ctx: ExecuteContext, bm: BlockMatrix): Any
   def loweredTyp: Type
-  def lower(ctx: ExecuteContext, s: BlockMatrixStage2, evalCtx: IRBuilder, relationalBindings: Map[String, IR], eltR: TypeWithRequiredness): IR =
+  def lower(ctx: ExecuteContext, s: BlockMatrixStage2, evalCtx: IRBuilder, eltR: TypeWithRequiredness): IR =
     throw new LowererUnsupportedOperation(s"unimplemented writer: \n${ this.getClass }")
 }
 
@@ -47,15 +47,16 @@ case class BlockMatrixNativeWriter(
 
   def loweredTyp: Type = TVoid
 
-  override def lower(ctx: ExecuteContext, s: BlockMatrixStage2, evalCtx: IRBuilder, relationalBindings: Map[String, IR], eltR: TypeWithRequiredness): IR = {
-    if (stageLocally)
-      throw new LowererUnsupportedOperation(s"stageLocally not supported in BlockMatrixWrite lowering")
+  override def lower(ctx: ExecuteContext, s: BlockMatrixStage2, evalCtx: IRBuilder, eltR: TypeWithRequiredness): IR = {
     val etype = EBlockMatrixNDArray(EType.fromTypeAndAnalysis(s.typ.elementType, eltR), encodeRowMajor = forceRowMajor, required = true)
     val spec = TypedCodecSpec(etype, TNDArray(s.typ.elementType, Nat(2)), BlockMatrix.bufferSpec)
 
-    val paths = s.collectBlocks(relationalBindings, evalCtx, "block_matrix_native_writer") { (ctx, idx, block) =>
-      val filepath = strConcat(s"$path/parts/part-", idx, UUID4())
-      WriteValue(block, filepath, spec)
+    val paths = s.collectBlocks(evalCtx, "block_matrix_native_writer") { (_, idx, block) =>
+      val suffix = strConcat("parts/part-", idx, UUID4())
+      val filepath = strConcat(s"$path/", suffix)
+      WriteValue(block, filepath, spec,
+        if (stageLocally) Some(strConcat(s"${ctx.localTmpdir}/", suffix)) else None
+      )
     }
     RelationalWriter.scoped(path, overwrite, None)(WriteMetadata(paths, BlockMatrixNativeMetadataWriter(path, stageLocally, s.typ)))
   }
@@ -119,8 +120,8 @@ case class BlockMatrixBinaryWriter(path: String) extends BlockMatrixWriter {
 
   def loweredTyp: Type = TString
 
-  override def lower(ctx: ExecuteContext, s: BlockMatrixStage2, evalCtx: IRBuilder, relationalBindings: Map[String, IR], eltR: TypeWithRequiredness): IR = {
-    val nd = s.collectLocal(relationalBindings, evalCtx, "block_matrix_binary_writer")
+  override def lower(ctx: ExecuteContext, s: BlockMatrixStage2, evalCtx: IRBuilder, eltR: TypeWithRequiredness): IR = {
+    val nd = s.collectLocal(evalCtx, "block_matrix_binary_writer")
 
     val etype = ENumpyBinaryNDArray(s.typ.nRows, s.typ.nCols, true)
     val spec = TypedCodecSpec(etype, TNDArray(s.typ.elementType, Nat(2)), new StreamBufferSpec())

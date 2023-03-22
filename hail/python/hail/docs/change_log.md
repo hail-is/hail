@@ -24,6 +24,16 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.112
+
+Released 2023-03-15
+
+### Bug Fixes
+
+- (hail#12784) Removed an internal caching mechanism in Query on Batch that caused stalls in pipelines with large intermediates
+
+---
+
 ## Version 0.2.111
 
 Released 2023-03-13
