@@ -712,6 +712,9 @@ object IRParser {
       case "TakeStateSig" =>
         val pt = vtwr_expr(it)
         TakeStateSig(pt)
+      case "ReservoirSampleStateSig" =>
+        val pt = vtwr_expr(it)
+        ReservoirSampleStateSig(pt)
       case "DensifyStateSig" =>
         val pt = vtwr_expr(it)
         DensifyStateSig(pt)

@@ -51,6 +51,8 @@ def register_aggregators():
 
     register_aggregator('Take', (dtype('int32'),), (dtype('?in'),), dtype('array<?in>'))
 
+    register_aggregator('ReservoirSample', (dtype('int32'),), (dtype('?in'),), dtype('array<?in>'))
+
     register_aggregator('TakeBy', (dtype('int32'),), (dtype('?in'), dtype('?key'),), dtype('array<?in>'))
 
     downsample_aggregator_type = dtype('array<tuple(float64, float64, array<str>)>')

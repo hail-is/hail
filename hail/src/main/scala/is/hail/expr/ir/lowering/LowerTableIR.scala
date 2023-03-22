@@ -514,12 +514,12 @@ object LowerTableIR {
 
       case TableToValueApply(child, TableCalculateNewPartitions(nPartitions)) =>
         val stage = lower(child)
-        val sampleSize = math.min(nPartitions * 20, 1000000)
+        val sampleSize = math.min((nPartitions * 20 + 256), 1000000)
         val samplesPerPartition = sampleSize / math.max(1, stage.numPartitions)
         val keyType = child.typ.keyType
-        val samplekey = AggSignature(TakeBy(),
+        val samplekey = AggSignature(ReservoirSample(),
           FastIndexedSeq(TInt32),
-          FastIndexedSeq(keyType, TFloat64))
+          FastIndexedSeq(keyType))
 
         val minkey = AggSignature(TakeBy(),
           FastIndexedSeq(TInt32),
@@ -536,7 +536,7 @@ object LowerTableIR {
               MakeArray(
                 ApplyAggOp(
                   FastIndexedSeq(I32(samplesPerPartition)),
-                  FastIndexedSeq(elt, invokeSeeded("rand_unif", 1, TFloat64, RNGStateLiteral(), F64(0.0), F64(1.0))),
+                  FastIndexedSeq(elt),
                   samplekey),
                 ApplyAggOp(
                   FastIndexedSeq(I32(1)),

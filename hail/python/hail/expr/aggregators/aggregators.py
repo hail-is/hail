@@ -1406,6 +1406,11 @@ def downsample(x, y, label=None, n_divisions=500) -> ArrayExpression:
                      init_op_args=[n_divisions])
 
 
+@typecheck(expr=expr_any, n=expr_int32)
+def _reservoir_sample(expr, n):
+    return _agg_func('ReservoirSample', [expr], tarray(expr.dtype), [n])
+
+
 @typecheck(gp=expr_array(expr_float64))
 def info_score(gp) -> StructExpression:
     r"""Compute the IMPUTE information score.
