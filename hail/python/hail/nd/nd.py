@@ -290,9 +290,9 @@ def solve_triangular(A, b, lower=False, no_crash=False):
 
     """
     nd_dep_ndim_orig = b.ndim
-    nd_coef, nd_dep = solve_helper(A, b, nd_dep_ndim_orig)
+    A, b = solve_helper(A, b, nd_dep_ndim_orig)
 
-    indices, aggregations = unify_all(nd_coef, nd_dep)
+    indices, aggregations = unify_all(A, b)
 
     if no_crash:
         return_type = hl.tstruct(solution=hl.tndarray(hl.tfloat64, 2), failed=hl.tbool)
