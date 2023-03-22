@@ -25,10 +25,10 @@ vep_cmd = f'''/vep/vep \
 --offline \
 --minimal \
 --assembly GRCh38 \
---dir={data_dir} \
 --fasta {data_dir}/homo_sapiens/95_GRCh38/Homo_sapiens.GRCh38.dna.toplevel.fa.gz \
---plugin LoF,loftee_path:/vep/ensembl-vep/Plugins/,gerp_bigwig:{data_dir}/gerp_conservation_scores.homo_sapiens.GRCh38.bw,human_ancestor_fa:{data_dir}/human_ancestor.fa.gz,conservation_file:{data_dir}/loftee.sql \
+--plugin "LoF,loftee_path:/vep/ensembl-vep/Plugins/,gerp_bigwig:{data_dir}/gerp_conservation_scores.homo_sapiens.GRCh38.bw,human_ancestor_fa:{data_dir}/human_ancestor.fa.gz,conservation_file:{data_dir}/loftee.sql" \
 --dir_plugins /vep/ensembl-vep/Plugins/ \
+--dir_cache {data_dir} \
 -o STDOUT
 '''
 

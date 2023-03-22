@@ -693,14 +693,15 @@ supported_vep_configs = {
         ['us-central1'],
         HAIL_GENETICS_QOB_VEP_GRCH38_IMAGE,
         '/vep_data/',
-        {'PERL5LIB': '/vep_data/loftee'},
+        {},
         VEPConfig.default_vep_json_typ._insert_field('transcript_consequences', hl.tarray(
             VEPConfig.default_vep_json_typ['transcript_consequences'].element_type._insert_fields(
                 appris=hl.tstr,
                 tsl=hl.tint32,
             )
         )),
-        ["python3", "/hail-vep/run_vep_grch38.py", "vep"],
+        ['sleep', '600'],
+        # ["python3", "/hail-vep/run_vep_grch38.py", "vep"],
         ["python3", "/hail-vep/run_vep_grch38.py", "csq_header"],
         True,
         'gcp',
@@ -732,7 +733,8 @@ def _service_vep(backend: ServiceBackend,
                  csq: bool,
                  tolerate_parse_error: bool):
     reference_genome = ht['locus'].dtype.reference_genome.name
-    cloud = backend.bc.cloud()
+    # cloud = backend.bc.cloud()
+    cloud = 'gcp'
 
     if regions is None:
         regions = backend.regions
