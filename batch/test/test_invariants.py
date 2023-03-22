@@ -1,4 +1,4 @@
-import asyncio
+import aiohttp
 import logging
 
 import aiohttp
@@ -19,7 +19,7 @@ async def test_invariants():
     deploy_config = get_deploy_config()
     url = deploy_config.url('batch-driver', '/check_invariants')
     headers = service_auth_headers(deploy_config, 'batch-driver')
-    async with client_session(timeout=60) as session:
+    async with client_session(timeout=aiohttp.ClientTimeout(total=60)) as session:
 
         resp = await utils.request_retry_transient_errors(session, 'GET', url, headers=headers)
         data = await resp.json()
