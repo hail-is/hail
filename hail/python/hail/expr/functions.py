@@ -4141,21 +4141,26 @@ def repeat(
     expr: 'Union[hl.Expression, Callable[[], hl.Expression]',
     n: 'hl.tint32'
 ) -> 'hl.ArrayExpression':
-    """Evaluate `expr` `n` times and return the results in an array.
+    """Return array of `n` elements initialized by `expr`.
 
     Examples
     --------
     >>> hl.reset_global_randomness()
-    >>> hl.eval(hl.repeat(hl.rand_int64(), 3))
-    [8, 6, 4, 7, 6]
-
-    >>> hl.eval(hl.repeat(hl.rand_int64, 3))
+    >>> hl.eval(hl.repeat(hl.rand_int32(10), 5))
     [9, 9, 9, 9, 9]
+
+    >>> hl.eval(hl.repeat(lambda: hl.rand_int32(10), 5))
+    [3, 4, 5, 4, 0]
 
     Parameters
     ----------
-    n    : :class:`.tint32`     Number of elements in the array
-    expr : :class:`.Expression` Initializer for every element of the array
+    n    : :class:`.tint32`
+        Number of elements in the array
+    expr : :class:`.Expression` or :class:`Callable[[], .Expression]`
+        Array element initializer. If `expr` is an `.Expression`, every element
+        in the array will have the same value. Otherwise, if `expr` is a thunk
+        (ie. a callable with no arguments), the array will be populated by
+        evaluating `expr()` `n` times.
 
     Returns
     -------
@@ -4163,7 +4168,7 @@ def repeat(
         Array where each element has been initialized by `expr`
     """
     mkarray = lambda x: hl.range(n).map(lambda _: x)
-    return hl.rbind(expr, lambda val: mkarray(val)) \
+    return hl.rbind(expr, mkarray) \
         if isinstance(expr, hl.Expression) \
         else mkarray(expr())
 
