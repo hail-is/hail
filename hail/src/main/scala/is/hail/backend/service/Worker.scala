@@ -123,12 +123,7 @@ object Worker {
     timer.start("readInputs")
     val fs = FS.cloudSpecificCacheableFS(s"$scratchDir/secrets/gsa-key/key.json", None)
 
-    // FIXME: HACK
-    val (open, write) = if (n <= 50) {
-      (fs.openCachedNoCompression _, fs.writeCached _)
-    } else {
-      ((x: String) => fs.openNoCompression(x), fs.writePDOS _)
-    }
+    val (open, write) = ((x: String) => fs.openNoCompression(x), fs.writePDOS _)
 
     val fFuture = Future {
       retryTransientErrors {

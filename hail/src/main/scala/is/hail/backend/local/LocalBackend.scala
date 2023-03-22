@@ -327,11 +327,10 @@ class LocalBackend(
     ctx: ExecuteContext,
     stage: TableStage,
     sortFields: IndexedSeq[SortField],
-    relationalLetsAbove: Map[String, IR],
-    rowTypeRequiredness: RStruct
-  ): TableStage = {
+    rt: RTable
+  ): TableReader = {
 
-    LowerDistributedSort.distributedSort(ctx, stage, sortFields, relationalLetsAbove, rowTypeRequiredness)
+    LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt)
   }
 
   def pyLoadReferencesFromDataset(path: String): String = {
@@ -352,4 +351,11 @@ class LocalBackend(
   def getPersistedBlockMatrix(backendContext: BackendContext, id: String): BlockMatrix = ???
 
   def getPersistedBlockMatrixType(backendContext: BackendContext, id: String): BlockMatrixType = ???
+
+  def tableToTableStage(ctx: ExecuteContext,
+    inputIR: TableIR,
+    analyses: LoweringAnalyses
+  ): TableStage = {
+    LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
+  }
 }

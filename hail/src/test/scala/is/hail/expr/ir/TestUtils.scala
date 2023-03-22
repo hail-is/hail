@@ -30,63 +30,63 @@ object TestUtils {
     if (p == null)
       NA(TTuple(TInt32, TInt32))
     else
-      MakeTuple.ordered(Seq(toIRInt(p._1), toIRInt(p._2)))
+      MakeTuple.ordered(FastIndexedSeq(toIRInt(p._1), toIRInt(p._2)))
 
-  def toIRArray(a: Seq[Integer]): IR =
+  def toIRArray(a: IndexedSeq[Integer]): IR =
     if (a == null)
       NA(TArray(TInt32))
     else
       MakeArray(a.map(toIRInt), TArray(TInt32))
 
-  def IRArray(a: Integer*): IR = toIRArray(a)
+  def IRArray(a: Integer*): IR = toIRArray(a.toArray[Integer])
 
-  def toIRStream(a: Seq[Integer]): IR =
+  def toIRStream(a: IndexedSeq[Integer]): IR =
     if (a == null)
       NA(TStream(TInt32))
     else
       MakeStream(a.map(toIRInt), TStream(TInt32))
 
-  def IRStream(a: Integer*): IR = toIRStream(a)
+  def IRStream(a: Integer*): IR = toIRStream(a.toArray[Integer])
 
-  def toIRStringArray(a: Seq[String]): IR =
+  def toIRStringArray(a: IndexedSeq[String]): IR =
     if (a == null)
       NA(TArray(TString))
     else
       MakeArray(a.map(s => Literal.coerce(TString, s)), TArray(TString))
 
-  def IRStringArray(a: String*): IR = toIRStringArray(a)
+  def IRStringArray(a: String*): IR = toIRStringArray(FastIndexedSeq(a:_*))
 
-  def IRStringSet(a: String*): IR = ToSet(ToStream(toIRStringArray(a)))
+  def IRStringSet(a: String*): IR = ToSet(ToStream(toIRStringArray(FastIndexedSeq(a:_*))))
 
-  def toIRDoubleArray(a: Seq[java.lang.Double]): IR =
+  def toIRDoubleArray(a: IndexedSeq[java.lang.Double]): IR =
     if (a == null)
       NA(TArray(TFloat64))
     else
       MakeArray(a.map(toIRDouble), TArray(TFloat64))
 
-  def IRDoubleArray(a: java.lang.Double*): IR = toIRDoubleArray(a)
+  def IRDoubleArray(a: java.lang.Double*): IR = toIRDoubleArray(a.toArray[java.lang.Double])
 
-  def toIRPairArray(a: Seq[(Integer, Integer)]): IR =
+  def toIRPairArray(a: IndexedSeq[(Integer, Integer)]): IR =
     if (a == null)
       NA(TArray(TTuple(TInt32, TInt32)))
     else
       MakeArray(a.map(toIRPair), TArray(TTuple(TInt32, TInt32)))
 
-  def toIRDict(a: Seq[(Integer, Integer)]): IR =
+  def toIRDict(a: IndexedSeq[(Integer, Integer)]): IR =
     if (a == null)
       NA(TDict(TInt32, TInt32))
     else
       ToDict(ToStream(MakeArray(a.map(toIRPair), TArray(TTuple(TInt32, TInt32)))))
 
-  def IRDict(a: (Integer, Integer)*): IR = toIRDict(a)
+  def IRDict(a: (Integer, Integer)*): IR = toIRDict(a.toArray[(Integer, Integer)])
 
-  def toIRSet(a: Seq[Integer]): IR =
+  def toIRSet(a: IndexedSeq[Integer]): IR =
     if (a == null)
       NA(TSet(TInt32))
   else
       ToSet(ToStream(toIRArray(a)))
 
-  def IRSet(a: Integer*): IR = toIRSet(a)
+  def IRSet(a: Integer*): IR = toIRSet(a.toArray[Integer])
 
   def IRCall(c: Call): IR = invoke("callFromRepr", TCall, I32(c))
 
@@ -111,5 +111,5 @@ object TestUtils {
   }
 
   def IRStruct(fields: (String, IR)*): IR =
-    MakeStruct(fields)
+    MakeStruct(fields.toArray[(String, IR)])
 }

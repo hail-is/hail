@@ -1,9 +1,9 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.{TableCalculateNewPartitions, TableToValueFunction, WrappedMatrixToTableFunction}
+import is.hail.expr.ir.lowering.LowerDistributedSort.LocalSortReader
 import is.hail.io.avro.AvroTableReader
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.plink.MatrixPLINKReader
@@ -32,6 +32,9 @@ object CanLowerEfficiently {
         case TableRead(_, _, _: MatrixPLINKReader) =>
         case TableRead(_, _, _: MatrixVCFReader) =>
         case TableRead(_, _, _: AvroTableReader) =>
+        case TableRead(_, _, _: RVDTableReader) =>
+        case TableRead(_, _, _: LocalSortReader) =>
+        case TableRead(_, _, _: DistributionSortReader) =>
         case TableRead(_, _, _: MatrixBGENReader) =>
           fail(s"no lowering for MatrixBGENReader")
         case TableRead(_, _, _: TableFromBlockMatrixNativeReader) =>
@@ -64,6 +67,7 @@ object CanLowerEfficiently {
         case t: TableAggregateByKey =>
         case t: TableRename =>
         case t: TableFilterIntervals =>
+        case t: TableGen =>
         case TableToTableApply(_, TableFilterPartitions(_, _)) =>
         case TableToTableApply(_, WrappedMatrixToTableFunction(_: LocalLDPrune, _, _, _)) =>
         case t: TableToTableApply => fail(s"TableToTableApply")

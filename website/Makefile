@@ -16,7 +16,7 @@ check:
 
 docs:
 	$(MAKE) -C ../hail hail-docs-no-test batch-docs
-	gsutil cp gs://hail-common/builds/0.1/docs/hail-0.1-docs-5a6778710097.tar.gz .
+	gcloud storage cp gs://hail-common/builds/0.1/docs/hail-0.1-docs-5a6778710097.tar.gz .
 	mkdir -p ../hail/build/www/docs/0.1
 	tar -xvf hail-0.1-docs-5a6778710097.tar.gz -C ../hail/build/www/docs/0.1 --strip-components 2
 	rm hail-0.1-docs-5a6778710097.tar.gz

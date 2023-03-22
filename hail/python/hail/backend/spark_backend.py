@@ -230,6 +230,9 @@ class SparkBackend(Py4JBackend):
     def utils_package_object(self):
         return self._utils_package_object
 
+    def validate_file_scheme(self, url):
+        pass
+
     def stop(self):
         self._jbackend.close()
         self._jhc.stop()

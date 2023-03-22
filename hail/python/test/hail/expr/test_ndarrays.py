@@ -1,4 +1,6 @@
+import math
 import numpy as np
+import re
 from ..helpers import *
 import pytest
 
@@ -1044,6 +1046,26 @@ def test_concatenate():
     assert np.array_equal(np_res, res)
 
 
+def test_concatenate_differing_shapes():
+    with pytest.raises(ValueError, match='hl.nd.concatenate: ndarrays must have same number of dimensions, found: 1, 2'):
+        hl.nd.concatenate([
+            hl.nd.array([1]),
+            hl.nd.array([[1]])
+        ])
+
+    with pytest.raises(ValueError, match=re.escape('hl.nd.concatenate: ndarrays must have same element types, found these element types: (int32, float64)')):
+        hl.nd.concatenate([
+            hl.nd.array([1]),
+            hl.nd.array([1.0])
+        ])
+
+    with pytest.raises(ValueError, match=re.escape('hl.nd.concatenate: ndarrays must have same element types, found these element types: (int32, float64)')):
+        hl.nd.concatenate([
+            hl.nd.array([1]),
+            hl.nd.array([[1.0]])
+        ])
+
+
 def test_vstack():
     ht = hl.utils.range_table(10)
 
@@ -1205,3 +1227,9 @@ def test_ndarray_indices_aggregations():
     ht = ht.annotate(f = hl.nd.inv(ht.x))
     ht = ht.annotate(h = hl.nd.concatenate((ht.x, ht.g)))
     ht = ht.annotate(i = hl.nd.concatenate((ht.g, ht.x)))
+
+
+def test_ndarray_log_broadcasting():
+    expected = np.array([math.log(x) for x in [5, 10, 15, 20]]).reshape(2, 2)
+    actual = hl.eval(hl.log(hl.nd.array([[5, 10], [15, 20]])))
+    assert np.array_equal(actual, expected)

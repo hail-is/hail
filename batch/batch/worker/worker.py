@@ -1099,7 +1099,8 @@ class Container:
             for v_container_path in volumes:
                 if not v_container_path.startswith('/'):
                     v_container_path = '/' + v_container_path
-                v_host_path = f'{self.container_scratch}/volumes{v_container_path}'
+                mount_dir = self.io_mount_path if self.io_mount_path else self.container_scratch
+                v_host_path = f'{mount_dir}/volumes{v_container_path}'
                 os.makedirs(v_host_path)
                 if uid != 0 or gid != 0:
                     os.chown(v_host_path, uid, gid)

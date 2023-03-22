@@ -35,6 +35,11 @@ a Batch Service account. A :ref:`Google Service Account <service-accounts>` is c
 on your behalf. A trial Batch billing project is also created for you at
 :code:`<USERNAME>-trial`. You can view these at `<https://auth.hail.is/user>`__.
 
+To create a new Hail Batch billing project (separate from the automatically created trial billing
+project), send an inquiry using this `billing project creation form <https://docs.google.com/forms/u/0/d/e/1FAIpQLSc1DoqSZKtt1VjVhJjNzzFL8Wfoi5QAFLHuSPwGLnamdtDzHg/viewform>`__.
+To modify an existing Hail Batch billing project, send an inquiry using this
+`billing project modification form <https://docs.google.com/forms/d/e/1FAIpQLSdOdrYE2ZlT6GmMI8ShSoR8uKyePkZ8UJ2Hel7dWaHYAC-TBA/viewform>`__.
+
 
 .. _file-localization:
 
@@ -69,7 +74,9 @@ for more information about access control.
 
 .. code-block:: sh
 
-    gsutil iam ch serviceAccount:[SERVICE_ACCOUNT_NAME]:objectAdmin gs://[BUCKET_NAME]
+    gcloud storage buckets add-iam-policy-binding gs://[BUCKET_NAME] \
+           --member=serviceAccount:[SERVICE_ACCOUNT_NAME] \
+	   --role=objectAdmin
 
 The Google Artifact Registry is a Docker repository hosted by Google that is an alternative
 to Docker Hub for storing images. It is recommended to use the artifact registry for images that shouldn't be publically
@@ -83,10 +90,9 @@ you want to grant access to and has a path that has the following prefix `us-doc
    gcloud artifacts repositories add-iam-policy-binding <REPO> \
        --member=<SERVICE_ACCOUNT_NAME> --role=roles/artifactregistry.repoAdmin
 
-If you want to run gcloud or gsutil commands within your Batch jobs, the service
-account file is available at `/gsa-key/key.json` in the main container. You can authenticate using the service
-account by adding the following line to your user code and using a Docker image that has gcloud and gsutil
-installed.
+If you want to run gcloud commands within your Batch jobs, the service account file is available at
+`/gsa-key/key.json` in the main container. You can authenticate using the service account by adding
+the following line to your user code and using a Docker image that has gcloud installed.
 
 .. code-block:: sh
 
