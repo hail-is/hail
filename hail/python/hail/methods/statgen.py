@@ -863,7 +863,7 @@ def logistic_regression_rows(test,
     if max_iterations is None:
         max_iterations = 25 if test != 'firth' else 100
 
-    if not isinstance(Env.backend(), SparkBackend):
+    if hl.current_backend().requires_lowering:
         return _logistic_regression_rows_nd(
             test, y, x, covariates, pass_through, max_iterations=max_iterations)
 
@@ -1668,6 +1668,7 @@ def _lowered_poisson_regression_rows(test,
 
     if test == 'score':
         chi_sq, p = _poisson_score_test(null_fit, covmat, yvec, xvec)
+        ht = ht.select_globals('null_fit')
         return ht.select(
             chi_sq_stat=chi_sq,
             p_value=p,
@@ -1690,6 +1691,7 @@ def _lowered_poisson_regression_rows(test,
     ])
 
     test_fit = _poisson_fit(X, yvec, b, mu, score, fisher, max_iterations, tolerance)
+    ht = ht.select_globals('null_fit')
     if test == 'lrt':
         return ht.select(
             test_fit=test_fit,
