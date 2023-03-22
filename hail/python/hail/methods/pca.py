@@ -447,7 +447,7 @@ def _pca_and_moments(A, k=10, num_moments=5, compute_loadings=False, q_iteration
     eigens = hl.eval(S * S)
     info("blanczos_pca: SVD Complete. Computing conversion to PCs.")
 
-    hail_array_scores = hl.array(scores)
+    hail_array_scores = scores._data_array()
     cols_and_scores = hl.zip(A.source_table.index_globals().cols, hail_array_scores).map(lambda tup: tup[0].annotate(scores=tup[1]))
     st = hl.Table.parallelize(cols_and_scores, key=A.col_key)
 
