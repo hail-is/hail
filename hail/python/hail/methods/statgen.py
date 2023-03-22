@@ -3823,7 +3823,7 @@ def balding_nichols_model(n_populations: int,
                     af=hl.array([(1 - x) / x for x in fst]).map(
                         lambda x: hl.rand_beta(ancestral * x, (1 - ancestral) * x)
                     ),
-                    entries=hl.replicate(n_samples, hl.struct()),
+                    entries=hl.repeat(hl.struct(), n_samples),
                 ),
                 af_dist
             )

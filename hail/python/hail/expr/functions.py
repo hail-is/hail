@@ -4131,23 +4131,21 @@ def map(f: Callable, *collections):
         return hl.zip(*collections).starmap(f)
 
 
-@typecheck(n=expr_int32, expr=expr_any)
-def replicate(n: 'hl.tint32', expr: 'hl.Expression') -> 'hl.ArrayExpression':
+@typecheck(expr=oneof(expr_any, func_spec(0, expr_any)), n=expr_int32)
+def repeat(
+    expr: 'Union[hl.Expression, Callable[[], hl.Expression]',
+    n: 'hl.tint32'
+) -> 'hl.ArrayExpression':
     """Evaluate `expr` `n` times and return the results in an array.
 
     Examples
     --------
     >>> hl.reset_global_randomness()
-    >>> hl.eval(hl.replicate(5, hl.rand_int32(10)))
+    >>> hl.eval(hl.repeat(hl.rand_int64(), 3))
     [8, 6, 4, 7, 6]
 
-    >>> hl.eval(hl.rbind(hl.rand_int32(10), lambda x: hl.replicate(5, x)))
+    >>> hl.eval(hl.repeat(hl.rand_int64, 3))
     [9, 9, 9, 9, 9]
-
-    >>> from random import randint, seed
-    >>> seed(0)
-    >>> hl.eval(hl.replicate(5, randint(0, 10)))
-    [6, 6, 6, 6, 6]
 
     Parameters
     ----------
@@ -4159,7 +4157,10 @@ def replicate(n: 'hl.tint32', expr: 'hl.Expression') -> 'hl.ArrayExpression':
     :class:`.ArrayExpression`:
         Array where each element has been initialized by `expr`
     """
-    return hl.range(n).map(lambda _: expr)
+    mkarray = lambda x: hl.range(n).map(lambda _: x)
+    return hl.rbind(expr, lambda val: mkarray(val)) \
+        if isinstance(expr, hl.Expression) \
+        else mkarray(expr())
 
 
 @typecheck(f=anyfunc,
