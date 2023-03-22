@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Callable, Awaitable, Mapping, Any, List, Union, Tuple
+from typing import Dict, Optional, Callable, Awaitable, Mapping, Any, List, Union, Tuple, TypeVar
 import abc
 import collections
 import struct
@@ -35,6 +35,9 @@ from ..utils import ANY_REGION
 
 
 ReferenceGenomeConfig = Dict[str, Any]
+
+
+T = TypeVar("T")
 
 
 log = logging.getLogger('backend.service_backend')
@@ -443,8 +446,17 @@ class ServiceBackend(Backend):
                         raise reconstructed_error
                     raise reconstructed_error.maybe_user_error(ir)
 
+    def _cancel_on_ctrl_c(self, coro: Awaitable[T]) -> T:
+        try:
+            return async_to_blocking(coro)
+        except KeyboardInterrupt:
+            if self._batch is not None:
+                print("Received a keyboard interrupt, cancelling the batch...")
+                async_to_blocking(self._batch.cancel())
+            raise
+
     def execute(self, ir: BaseIR, timed: bool = False):
-        return async_to_blocking(self._async_execute(ir, timed=timed))
+        return self._cancel_on_ctrl_c(self._async_execute(ir, timed=timed))
 
     async def _async_execute(self,
                              ir: BaseIR,
@@ -475,7 +487,7 @@ class ServiceBackend(Backend):
         return converted_value
 
     def value_type(self, ir):
-        return async_to_blocking(self._async_value_type(ir))
+        return self._cancel_on_ctrl_c(self._async_value_type(ir))
 
     async def _async_value_type(self, ir, *, progress: Optional[BatchProgressBar] = None):
         async def inputs(infile, _):
@@ -488,7 +500,7 @@ class ServiceBackend(Backend):
         return dtype(orjson.loads(resp))
 
     def table_type(self, tir):
-        return async_to_blocking(self._async_table_type(tir))
+        return self._cancel_on_ctrl_c(self._async_table_type(tir))
 
     async def _async_table_type(self, tir, *, progress: Optional[BatchProgressBar] = None):
         async def inputs(infile, _):
@@ -501,7 +513,7 @@ class ServiceBackend(Backend):
         return ttable._from_json(orjson.loads(resp))
 
     def matrix_type(self, mir):
-        return async_to_blocking(self._async_matrix_type(mir))
+        return self._cancel_on_ctrl_c(self._async_matrix_type(mir))
 
     async def _async_matrix_type(self, mir, *, progress: Optional[BatchProgressBar] = None):
         async def inputs(infile, _):
@@ -514,7 +526,7 @@ class ServiceBackend(Backend):
         return tmatrix._from_json(orjson.loads(resp))
 
     def blockmatrix_type(self, bmir):
-        return async_to_blocking(self._async_blockmatrix_type(bmir))
+        return self._cancel_on_ctrl_c(self._async_blockmatrix_type(bmir))
 
     async def _async_blockmatrix_type(self, bmir, *, progress: Optional[BatchProgressBar] = None):
         async def inputs(infile, _):
@@ -530,7 +542,7 @@ class ServiceBackend(Backend):
         raise NotImplementedError("ServiceBackend does not support 'from_fasta_file'")
 
     def load_references_from_dataset(self, path):
-        return async_to_blocking(self._async_load_references_from_dataset(path))
+        return self._cancel_on_ctrl_c(self._async_load_references_from_dataset(path))
 
     async def _async_load_references_from_dataset(self, path, *, progress: Optional[BatchProgressBar] = None):
         async def inputs(infile, _):
@@ -560,7 +572,7 @@ class ServiceBackend(Backend):
         del self._liftovers[name][dest_reference_genome]
 
     def parse_vcf_metadata(self, path):
-        return async_to_blocking(self._async_parse_vcf_metadata(path))
+        return self._cancel_on_ctrl_c(self._async_parse_vcf_metadata(path))
 
     async def _async_parse_vcf_metadata(self, path, *, progress: Optional[BatchProgressBar] = None):
         async def inputs(infile, _):
@@ -578,7 +590,7 @@ class ServiceBackend(Backend):
                    referenceGenomeName: Optional[str],
                    contig_recoding: Dict[str, str],
                    skip_invalid_loci: bool):
-        return async_to_blocking(self._async_index_bgen(
+        return self._cancel_on_ctrl_c(self._async_index_bgen(
             files,
             index_file_map,
             referenceGenomeName,
@@ -622,7 +634,7 @@ class ServiceBackend(Backend):
         return None
 
     def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
-        return async_to_blocking(self._async_import_fam(path, quant_pheno, delimiter, missing))
+        return self._cancel_on_ctrl_c(self._async_import_fam(path, quant_pheno, delimiter, missing))
 
     async def _async_import_fam(self,
                                 path: str,

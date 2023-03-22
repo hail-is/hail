@@ -161,7 +161,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case TailLoop(loopName, params, body) =>
         addBinding(loopName, body)
         val argDefs = Array.fill(params.length)(new BoxedArrayBuilder[IR]())
-        refMap(loopName).map(_.t).foreach { case Recur(_, args, _) =>
+        refMap.getOrElse(loopName, FastSeq()).map(_.t).foreach { case Recur(_, args, _) =>
           argDefs.zip(args).foreach { case (ab, d) => ab += d }
         }
         val s = Array.fill[TypeWithRequiredness](params.length)(null)

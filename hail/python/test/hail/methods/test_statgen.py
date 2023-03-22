@@ -464,7 +464,7 @@ class Tests(unittest.TestCase):
                 covariates=[1],
                 max_iterations=0
             )
-            ht.collect()[0].fit
+            ht.null_fits.collect()
         except Exception as exc:
             assert 'Failed to fit logistic regression null model (standard MLE with covariates only): Newton iteration failed to converge' in exc.args[0]
         else:
@@ -1111,8 +1111,6 @@ class Tests(unittest.TestCase):
     # se <- waldtest["x", "Std. Error"]
     # zstat <- waldtest["x", "z value"]
     # pval <- waldtest["x", "Pr(>|z|)"]
-    @fails_service_backend()
-    @fails_local_backend()
     def test_poission_regression_wald_test(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -1149,8 +1147,6 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
 
-    @fails_local_backend()
-    @fails_service_backend()
     def test_poisson_regression_max_iterations(self):
         import hail as hl
         mt = hl.utils.range_matrix_table(1, 3)
@@ -1173,9 +1169,7 @@ class Tests(unittest.TestCase):
     # lrtest <- anova(poisfitnull, poisfit, test="LRT")
     # chi2 <- lrtest[["Deviance"]][2]
     # pval <- lrtest[["Pr(>Chi)"]][2]
-    @fails_service_backend()
-    @fails_local_backend()
-    def test_poission_regression_lrt(self):
+    def test_poisson_regression_lrt(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
                                      types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
@@ -1219,9 +1213,7 @@ class Tests(unittest.TestCase):
     # scoretest <- anova(poisfitnull, poisfit, test="Rao")
     # chi2 <- scoretest[["Rao"]][2]
     # pval <- scoretest[["Pr(>Chi)"]][2]
-    @fails_service_backend()
-    @fails_local_backend()
-    def test_poission_regression_score_test(self):
+    def test_poisson_regression_score_test(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
                                      types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
@@ -1256,8 +1248,6 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_poisson_pass_through(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -1360,8 +1350,6 @@ class Tests(unittest.TestCase):
         self.assertTrue(cor.shape[0] > 5 and cor.shape[0] == cor.shape[1])
         self.assertTrue(np.allclose(l, cor))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_ld_matrix(self):
         data = [{'v': '1:1:A:C',       'cm': 0.1, 's': 'a', 'GT': hl.Call([0, 0])},
                 {'v': '1:1:A:C',       'cm': 0.1, 's': 'b', 'GT': hl.Call([0, 0])},
@@ -1693,8 +1681,6 @@ class Tests(unittest.TestCase):
             self.assertTrue(hl.methods.statgen._warn_if_no_intercept('', covariates))
             self.assertFalse(hl.methods.statgen._warn_if_no_intercept('', [intercept] + covariates))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_regression_field_dependence(self):
         mt = hl.utils.range_matrix_table(10, 10)
         mt = mt.annotate_cols(c1 = hl.literal([x % 2 == 0 for x in range(10)])[mt.col_idx], c2 = hl.rand_norm(0, 1))

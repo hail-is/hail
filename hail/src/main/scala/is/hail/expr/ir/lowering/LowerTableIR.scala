@@ -237,8 +237,10 @@ class TableStage(
 
   def getNumPartitions(): IR = TableStage.wrapInBindings(StreamLen(contexts), letBindings)
 
-  def changePartitionerNoRepartition(newPartitioner: RVDPartitioner): TableStage =
+  def changePartitionerNoRepartition(newPartitioner: RVDPartitioner): TableStage = {
+    require(partitioner.numPartitions == newPartitioner.numPartitions)
     copy(partitioner = newPartitioner)
+  }
 
   def strictify(allowedOverlap: Int = kType.size - 1): TableStage = {
     val newPart = partitioner.strictify(allowedOverlap)

@@ -247,7 +247,7 @@ object Children {
     case WritePartition(stream, ctx, _) => Array(stream, ctx)
     case WriteMetadata(writeAnnotations, _) => Array(writeAnnotations)
     case ReadValue(path, _, _) => Array(path)
-    case WriteValue(value, path, spec) => Array(value, path)
+    case WriteValue(value, path, _, staged) => Array(value, path) ++ staged.toArray[IR]
     case LiftMeOut(child) => Array(child)
   }
 }

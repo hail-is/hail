@@ -21,6 +21,8 @@ class IRBuilder() {
   }
 
   def strictMemoize(ir: IR): Ref = {
+    if (!ir.typ.isRealizable)
+      throw new RuntimeException(s"IR ${ir.getClass.getName} of type ${ir.typ} is not realizable")
     val name = genUID()
     bindings += name -> ir
     Ref(name, ir.typ)

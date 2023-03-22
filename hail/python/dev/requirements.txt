@@ -1,4 +1,4 @@
--c ../requirements.txt
+-c ../pinned-requirements.txt
 
 flake8>=4.0.1,<5
 mypy==0.990

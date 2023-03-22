@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.Pretty.prettyBooleanLiteral
@@ -12,7 +11,6 @@ import is.hail.utils.prettyPrint._
 import is.hail.utils.richUtils.RichIterable
 import is.hail.utils.{space => _, _}
 import org.json4s.DefaultFormats
-import org.json4s.JsonAST.JString
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.collection.mutable
@@ -432,7 +430,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
       single(prettyStringLiteral(JsonMethods.compact(writer.toJValue), elide = elideLiterals))
     case ReadValue(_, spec, reqType) =>
       FastSeq(prettyStringLiteral(spec.toString), reqType.parsableString())
-    case WriteValue(_, _, spec) => single(prettyStringLiteral(spec.toString))
+    case WriteValue(_, _, spec, _) => single(prettyStringLiteral(spec.toString))
     case MakeNDArray(_, _, _, errorId) => FastSeq(errorId.toString)
 
     case _ => Iterable.empty

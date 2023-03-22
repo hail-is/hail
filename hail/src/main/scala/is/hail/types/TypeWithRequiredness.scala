@@ -355,7 +355,7 @@ case class RDict(keyType: TypeWithRequiredness, valueType: TypeWithRequiredness)
 case class RNDArray(override val elementType: TypeWithRequiredness) extends RIterable(elementType, true) {
   override def _unionLiteral(a: Annotation): Unit = {
     val data = a.asInstanceOf[NDArray].getRowMajorElements()
-    data.asInstanceOf[Iterable[_]].foreach { elt =>
+    data.foreach { elt =>
       if (elt != null)
         elementType.unionLiteral(elt)
     }

@@ -2828,6 +2828,7 @@ class IRSuite extends HailSuite {
         RelationalWriter("path", overwrite = false, None)),
       ReadValue(Str("foo"), TypedCodecSpec(PCanonicalStruct("foo" -> PInt32(), "bar" -> PCanonicalString()), BufferSpec.default), TStruct("foo" -> TInt32)),
       WriteValue(I32(1), Str("foo"), TypedCodecSpec(PInt32(), BufferSpec.default)),
+      WriteValue(I32(1), Str("foo"), TypedCodecSpec(PInt32(), BufferSpec.default), Some(Str("/tmp/uid/part"))),
       LiftMeOut(I32(1)),
       RelationalLet("x", I32(0), I32(0)),
       TailLoop("y", IndexedSeq("x" -> I32(0)), Recur("y", FastSeq(I32(4)), TInt32))
