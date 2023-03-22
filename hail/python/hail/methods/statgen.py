@@ -567,10 +567,10 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
             return hl.rbind(t, lambda t:
                             hl.rbind(ht.ds[idx], lambda d:
                                      hl.rbind(t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), d, True, False)), lambda p:
-                                              hl.struct(n=hl.range(rows_in_block).map(lambda i: n), sum_x=sum_x._data_array(),
-                                                        y_transpose_x=ytx.T._data_array(), beta=b.T._data_array(),
-                                                        standard_error=se.T._data_array(), t_stat=t.T._data_array(),
-                                                        p_value=p.T._data_array()))))
+                                              hl.struct(n=hl.range(rows_in_block).map(lambda i: n), sum_x=hl.array(sum_x),
+                                                        y_transpose_x=hl.array(ytx.T), beta=hl.array(b.T),
+                                                        standard_error=hl.array(se.T), t_stat=hl.array(t.T),
+                                                        p_value=hl.array(p.T)))))
 
         per_y_list = hl.range(num_y_lists).map(lambda i: process_y_group(i))
 
@@ -927,7 +927,7 @@ sigmoid = hl.expit
 
 
 def nd_max(hl_nd):
-    return hl.max(hl_nd.reshape(-1)._data_array())
+    return hl.max(hl.array(hl_nd.reshape(-1)))
 
 
 def logreg_fit(X, y, null_fit, max_iter: int, tol: float):
@@ -2129,7 +2129,7 @@ def _linear_skat(group,
     #             = W S S W           V is orthogonal so V V.T = I
     #             = W S^2 W
 
-    weights_arr = ht.weight._data_array()
+    weights_arr = hl.array(ht.weight)
     A = hl.case().when(
         hl.all(weights_arr.map(lambda x: x >= 0)),
         (ht.G - ht.covmat_Q @ (ht.covmat_Q.T @ ht.G)) * hl.sqrt(ht.weight)
@@ -2144,7 +2144,7 @@ def _linear_skat(group,
     # presumably because a good estimate of the Generalized Chi-Sqaured CDF is not significantly
     # affected by chi-squared components with very tiny weights.
     threshold = 1e-5 * eigenvalues.sum() / eigenvalues.shape[0]
-    w = eigenvalues._data_array().filter(lambda y: y >= threshold)
+    w = hl.array(eigenvalues).filter(lambda y: y >= threshold)
     genchisq_data = hl.pgenchisq(
         ht.Q,
         w=w,
@@ -2571,7 +2571,7 @@ def _logistic_skat(group,
 
     sqrtv = hl.sqrt(ht.s2)
     Q, _ = hl.nd.qr(ht.covmat * sqrtv.reshape(-1, 1))
-    weights_arr = ht.weight._data_array()
+    weights_arr = hl.array(ht.weight)
     G_scaled = ht.G * sqrtv.reshape(-1, 1)
     A = hl.case().when(
         hl.all(weights_arr.map(lambda x: x >= 0)),
@@ -2585,7 +2585,7 @@ def _logistic_skat(group,
     # presumably because a good estimate of the Generalized Chi-Sqaured CDF is not significantly
     # affected by chi-squared components with very tiny weights.
     threshold = 1e-5 * eigenvalues.sum() / eigenvalues.shape[0]
-    w = eigenvalues._data_array().filter(lambda y: y >= threshold)
+    w = hl.array(eigenvalues).filter(lambda y: y >= threshold)
     genchisq_data = hl.pgenchisq(
         ht.Q,
         w=w,
