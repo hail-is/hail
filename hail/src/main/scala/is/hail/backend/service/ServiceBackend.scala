@@ -433,7 +433,7 @@ object ServiceBackendSocketAPI2 {
       HailContext.get.backend = backend
       backend.addDefaultReferences()
     } else {
-      HailContext(backend, "hail.log", false, false, 50, skipLoggingConfiguration = true, 3)
+      HailContext(backend, 50, 3)
     }
 
     retryTransientErrors {

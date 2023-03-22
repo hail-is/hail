@@ -39,10 +39,16 @@ object LocalBackend {
   def apply(
     tmpdir: String,
     gcsRequesterPaysProject: String,
-    gcsRequesterPaysBuckets: String
+    gcsRequesterPaysBuckets: String,
+    logFile: String = "hail.log",
+    quiet: Boolean = false,
+    append: Boolean = false,
+    skipLoggingConfiguration: Boolean = false
   ): LocalBackend = synchronized {
     require(theLocalBackend == null)
 
+    if (!skipLoggingConfiguration)
+      HailContext.configureLogging(logFile, quiet, append)
     theLocalBackend = new LocalBackend(
       tmpdir,
       gcsRequesterPaysProject,
