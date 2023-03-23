@@ -2280,6 +2280,8 @@ steps:
         online: true
       - name: add-billing-index-token
         script: /io/sql/add-billing-index-token.sql
+      - name: dedup-agg-batch-resources
+        script: /io/sql/dedup_agg_batch_resources.py
         online: true
       - name: jobs-after-update-simple.sql
         script: /io/sql/jobs-after-update-simple.sql
