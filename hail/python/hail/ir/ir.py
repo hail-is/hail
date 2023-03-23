@@ -1505,9 +1505,9 @@ def concat_uids(uid1, uid2, handle_missing_left=False, handle_missing_right=Fals
     return MakeTuple([*fields1, *fields2])
 
 
-def unpack_uid(stream_type):
+def unpack_uid(stream_type, name=None):
     tuple_type = stream_type.element_type
-    tuple = Ref(Env.get_uid(), tuple_type)
+    tuple = Ref(name or Env.get_uid(), tuple_type)
     if isinstance(tuple_type, tstruct):
         return \
             tuple.name, \
@@ -1584,6 +1584,15 @@ class StreamMap(IR):
             elt = Env.get_uid()
             new_body = with_split_rng_state(Let(self.name, elt, self.body, uid))
             return StreamZip([a, StreamIota(I32(0), I32(1))], [elt, uid], new_body, 'TakeMinLength')
+
+        if not self.needs_randomness_handling and self.a.has_uids:
+            # There are occations when handle_randomness is called twice on a
+            # `StreamMap`: once with `create_uids=False` and the second time
+            # with `True`. In these cases, we only need to propagate the uid.
+            assert(create_uids)
+            _, uid, _ = unpack_uid(self.a.typ, self.name)
+            new_body = pack_uid(uid, self.body)
+            return StreamMap(self.a, self.name, new_body)
 
         a = self.a.handle_randomness(True)
 

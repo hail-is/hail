@@ -1847,14 +1847,14 @@ def _linear_skat(group,
     ...     mt.GT.n_alt_alleles(),
     ...     covariates=[1.0])
     >>> skat.show()
-    +-------+-------+----------+-----------+-------+
-    | group |  size |   q_stat |   p_value | fault |
-    +-------+-------+----------+-----------+-------+
-    | int32 | int64 |  float64 |   float64 | int32 |
-    +-------+-------+----------+-----------+-------+
-    |     0 |    11 | 1.18e+03 |  2.85e-07 |     0 |
-    |     1 |     9 | 1.19e+03 | -9.88e-08 |     0 |
-    +-------+-------+----------+-----------+-------+
+    +-------+-------+----------+----------+-------+
+    | group |  size |   q_stat |  p_value | fault |
+    +-------+-------+----------+----------+-------+
+    | int32 | int64 |  float64 |  float64 | int32 |
+    +-------+-------+----------+----------+-------+
+    |     0 |    11 | 8.76e+02 | 1.23e-05 |     0 |
+    |     1 |     9 | 8.13e+02 | 3.95e-05 |     0 |
+    +-------+-------+----------+----------+-------+
 
     The same test, but using the original paper's suggested weights which are derived from the
     allele frequency.
@@ -1872,8 +1872,8 @@ def _linear_skat(group,
     +-------+-------+----------+----------+-------+
     | int32 | int64 |  float64 |  float64 | int32 |
     +-------+-------+----------+----------+-------+
-    |     0 |    11 | 1.20e+02 | 6.72e-03 |     0 |
-    |     1 |     9 | 4.89e-02 | 2.00e+00 |     1 |
+    |     0 |    11 | 2.39e+01 | 4.32e-01 |     0 |
+    |     1 |     9 | 1.69e+01 | 7.82e-02 |     0 |
     +-------+-------+----------+----------+-------+
 
     Our simulated data was unweighted, so the null hypothesis appears true. In real datasets, we
@@ -1894,14 +1894,14 @@ def _linear_skat(group,
     ...     covariates=[1.0],
     ...     max_size=10)
     >>> skat.show()
-    +-------+-------+----------+-----------+-------+
-    | group |  size |   q_stat |   p_value | fault |
-    +-------+-------+----------+-----------+-------+
-    | int32 | int64 |  float64 |   float64 | int32 |
-    +-------+-------+----------+-----------+-------+
-    |     0 |    11 |       NA |        NA |    NA |
-    |     1 |     9 | 1.19e+03 | -9.88e-08 |     0 |
-    +-------+-------+----------+-----------+-------+
+    +-------+-------+----------+----------+-------+
+    | group |  size |   q_stat |  p_value | fault |
+    +-------+-------+----------+----------+-------+
+    | int32 | int64 |  float64 |  float64 | int32 |
+    +-------+-------+----------+----------+-------+
+    |     0 |    11 |       NA |       NA |    NA |
+    |     1 |     9 | 8.13e+02 | 3.95e-05 |     0 |
+    +-------+-------+----------+----------+-------+
 
     Notes
     -----
@@ -2351,8 +2351,8 @@ def _logistic_skat(group,
     +-------+-------+----------+----------+-------+
     | int32 | int64 |  float64 |  float64 | int32 |
     +-------+-------+----------+----------+-------+
-    |     0 |    11 | 4.42e+01 | 2.96e-02 |     0 |
-    |     1 |     9 | 6.39e+01 | 9.64e-04 |     0 |
+    |     0 |    11 | 1.78e+02 | 1.68e-04 |     0 |
+    |     1 |     9 | 1.39e+02 | 1.82e-03 |     0 |
     +-------+-------+----------+----------+-------+
 
     The same test, but using the original paper's suggested weights which are derived from the
@@ -2371,8 +2371,8 @@ def _logistic_skat(group,
     +-------+-------+----------+----------+-------+
     | int32 | int64 |  float64 |  float64 | int32 |
     +-------+-------+----------+----------+-------+
-    |     0 |    11 | 7.18e+00 | 6.22e-02 |     0 |
-    |     1 |     9 | 3.71e-04 | 2.00e+00 |     1 |
+    |     0 |    11 | 8.04e+00 | 3.50e-01 |     0 |
+    |     1 |     9 | 1.22e+00 | 5.04e-01 |     0 |
     +-------+-------+----------+----------+-------+
 
     Our simulated data was unweighted, so the null hypothesis appears true. In real datasets, we
@@ -2399,7 +2399,7 @@ def _logistic_skat(group,
     | int32 | int64 |  float64 |  float64 | int32 |
     +-------+-------+----------+----------+-------+
     |     0 |    11 |       NA |       NA |    NA |
-    |     1 |     9 | 6.39e+01 | 9.64e-04 |     0 |
+    |     1 |     9 | 1.39e+02 | 1.82e-03 |     0 |
     +-------+-------+----------+----------+-------+
 
     Notes
@@ -3741,11 +3741,11 @@ def balding_nichols_model(n_populations: int,
     +---------------+------------+------+------+------+------+------+
     | locus<GRCh37> | array<str> | call | call | call | call | call |
     +---------------+------------+------+------+------+------+------+
-    | 1:1           | ["A","C"]  | 0/0  | 1/1  | 1/1  | 0/1  | 0/0  |
-    | 1:2           | ["A","C"]  | 0/0  | 1/1  | 0/1  | 0/1  | 1/1  |
-    | 1:3           | ["A","C"]  | 0/0  | 0/1  | 0/0  | 0/0  | 0/0  |
-    | 1:4           | ["A","C"]  | 0/1  | 0/1  | 0/1  | 1/1  | 1/1  |
-    | 1:5           | ["A","C"]  | 0/1  | 0/1  | 0/1  | 0/0  | 0/1  |
+    | 1:1           | ["A","C"]  | 0/1  | 0/0  | 0/1  | 0/0  | 0/0  |
+    | 1:2           | ["A","C"]  | 1/1  | 1/1  | 1/1  | 1/1  | 0/1  |
+    | 1:3           | ["A","C"]  | 0/1  | 0/1  | 1/1  | 0/1  | 1/1  |
+    | 1:4           | ["A","C"]  | 0/1  | 0/0  | 0/1  | 0/0  | 0/1  |
+    | 1:5           | ["A","C"]  | 0/1  | 0/1  | 0/1  | 0/0  | 0/0  |
     +---------------+------------+------+------+------+------+------+
     showing top 5 rows
     showing the first 5 of 100 columns
@@ -3760,11 +3760,11 @@ def balding_nichols_model(n_populations: int,
     +---------------+------------+------+------+------+------+------+
     | locus<GRCh37> | array<str> | call | call | call | call | call |
     +---------------+------------+------+------+------+------+------+
-    | 1:1           | ["A","C"]  | 0|0  | 0|0  | 0|1  | 0|1  | 1|0  |
-    | 1:2           | ["A","C"]  | 1|1  | 0|1  | 0|0  | 0|0  | 0|1  |
-    | 1:3           | ["A","C"]  | 0|0  | 0|0  | 1|0  | 1|0  | 0|0  |
-    | 1:4           | ["A","C"]  | 1|1  | 1|1  | 1|0  | 0|1  | 0|1  |
-    | 1:5           | ["A","C"]  | 1|1  | 0|1  | 0|1  | 1|0  | 1|1  |
+    | 1:1           | ["A","C"]  | 0|0  | 0|0  | 0|0  | 0|0  | 1|0  |
+    | 1:2           | ["A","C"]  | 1|1  | 1|1  | 1|1  | 1|1  | 1|1  |
+    | 1:3           | ["A","C"]  | 1|1  | 1|1  | 0|1  | 1|1  | 1|1  |
+    | 1:4           | ["A","C"]  | 0|0  | 1|0  | 0|0  | 1|0  | 0|0  |
+    | 1:5           | ["A","C"]  | 0|0  | 0|1  | 0|0  | 0|0  | 0|0  |
     +---------------+------------+------+------+------+------+------+
     showing top 5 rows
     showing the first 5 of 100 columns
@@ -3957,37 +3957,56 @@ def balding_nichols_model(n_populations: int,
          .format(n_populations, n_samples, n_variants))
 
     # generate matrix table
+    from numpy import linspace
+    n_partitions = min(n_partitions, n_variants)
+    start_idxs = [int(x) for x in linspace(0, n_variants, n_partitions + 1)]
+    idx_bounds = [x for x in zip(start_idxs, start_idxs[1:])]
 
-    bn = hl.utils.genomic_range_table(n_variants, n_partitions, reference_genome=reference_genome)
-    bn = bn.annotate(alleles=['A', 'C'])
-    bn = bn._key_by_assert_sorted('locus', 'alleles')
-
-    bn = bn.annotate_globals(
-        bn=hl.struct(n_populations=n_populations,
-                     n_samples=n_samples,
-                     n_variants=n_variants,
-                     n_partitions=n_partitions,
-                     pop_dist=pop_dist,
-                     fst=fst,
-                     mixture=mixture))
-    # col info
     pop_f = hl.rand_dirichlet if mixture else hl.rand_cat
-    bn = bn.annotate_globals(cols=hl.range(n_samples).map(
-        lambda idx: hl.struct(
-            sample_idx=idx,
-            pop=pop_f(pop_dist)
+
+    bn = hl.Table._generate(
+        contexts=idx_bounds,
+        globals=hl.struct(
+            bn=hl.struct(
+                n_populations=n_populations,
+                n_samples=n_samples,
+                n_variants=n_variants,
+                n_partitions=n_partitions,
+                pop_dist=pop_dist,
+                fst=fst,
+                mixture=mixture
+            ),
+            cols=hl.range(n_samples).map(
+                lambda idx: hl.struct(sample_idx=idx, pop=pop_f(pop_dist))
+            )
+        ),
+        partitions=[
+            hl.Interval(**{
+                endpoint: hl.Struct(
+                    locus=reference_genome.locus_from_global_position(idx),
+                    alleles=['A', 'C']
+                ) for endpoint, idx in [('start', lo), ('end', hi)]
+            })
+            for (lo, hi) in idx_bounds
+        ],
+        rowfn=lambda idx_range, _: hl.range(idx_range[0], idx_range[1]).map(
+            lambda idx: hl.bind(
+                lambda ancestral: hl.struct(
+                    locus=hl.locus_from_global_position(idx, reference_genome),
+                    alleles=['A', 'C'],
+                    ancestral_af=ancestral,
+                    af=hl.array([(1 - x) / x for x in fst]).map(
+                        lambda x: hl.rand_beta(ancestral * x, (1 - ancestral) * x)
+                    ),
+                    entries=hl.repeat(hl.struct(), n_samples),
+                ),
+                af_dist
+            )
         )
-    ))
-    bn = bn.annotate(entries=hl.range(n_samples).map(lambda _: hl.struct()))
+    )
+
     bn = bn._unlocalize_entries('entries', 'cols', ['sample_idx'])
-    # row info
-    bn = bn.select_rows(ancestral_af=af_dist,
-                        af=hl.bind(lambda ancestral:
-                                   hl.array([(1 - x) / x for x in fst])
-                                   .map(lambda x:
-                                        hl.rand_beta(ancestral * x,
-                                                     (1 - ancestral) * x)),
-                                   af_dist))
+
     # entry info
     p = hl.sum(bn.pop * bn.af) if mixture else bn.af[bn.pop]
     q = 1 - p
@@ -3996,11 +4015,8 @@ def balding_nichols_model(n_populations: int,
         mom = hl.rand_bool(p)
         dad = hl.rand_bool(p)
         return bn.select_entries(GT=hl.call(mom, dad, phased=True))
-    idx = hl.rand_cat([
-        q ** 2,
-        2 * p * q,
-        p ** 2
-    ])
+
+    idx = hl.rand_cat([q ** 2, 2 * p * q, p ** 2])
     return bn.select_entries(GT=hl.unphased_diploid_gt_index_call(idx))
 
 

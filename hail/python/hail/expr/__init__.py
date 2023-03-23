@@ -35,7 +35,7 @@ from .functions import (literal, chi_squared_test, if_else, cond, switch, case, 
                         contig_length, liftover, min_rep, uniroot, format, approx_equal, reversed, bit_and, bit_or,
                         bit_xor, bit_lshift, bit_rshift, bit_not, bit_count, binary_search, logit, expit, _values_similar,
                         _showstr, _sort_by, _compare, _locus_windows_per_contig, shuffle, _console_log, dnorm, dchisq,
-                        query_table, keyed_union, keyed_intersection)
+                        query_table, keyed_union, keyed_intersection, repeat)
 
 __all__ = ['HailType',
            'hail_type',
@@ -309,4 +309,5 @@ __all__ = ['HailType',
            'query_table',
            'keyed_union',
            'keyed_intersection',
+           'repeat',
            ]

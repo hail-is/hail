@@ -4136,6 +4136,43 @@ def map(f: Callable, *collections):
         return hl.zip(*collections).starmap(f)
 
 
+@typecheck(expr=oneof(expr_any, func_spec(0, expr_any)), n=expr_int32)
+def repeat(
+    expr: 'Union[hl.Expression, Callable[[], hl.Expression]]',
+    n: 'hl.tint32'
+) -> 'hl.ArrayExpression':
+    """Return array of `n` elements initialized by `expr`.
+
+    Examples
+    --------
+    >>> hl.reset_global_randomness()
+    >>> hl.eval(hl.repeat(hl.rand_int32(10), 5))
+    [9, 9, 9, 9, 9]
+
+    >>> hl.eval(hl.repeat(lambda: hl.rand_int32(10), 5))
+    [3, 4, 5, 4, 0]
+
+    Parameters
+    ----------
+    n    : :class:`.tint32`
+        Number of elements in the array
+    expr : :class:`.Expression` or :class:`Callable[[], .Expression]`
+        Array element initializer. If `expr` is an `.Expression`, every element
+        in the array will have the same value. Otherwise, if `expr` is a thunk
+        (ie. a callable with no arguments), the array will be populated by
+        evaluating `expr()` `n` times.
+
+    Returns
+    -------
+    :class:`.ArrayExpression`:
+        Array where each element has been initialized by `expr`
+    """
+    mkarray = lambda x: hl.range(n).map(lambda _: x)
+    return hl.rbind(expr, mkarray) \
+        if isinstance(expr, hl.Expression) \
+        else mkarray(expr())
+
+
 @typecheck(f=anyfunc,
            collection=expr_oneof(expr_set(), expr_array(), expr_ndarray()))
 def starmap(f: Callable, collection):
