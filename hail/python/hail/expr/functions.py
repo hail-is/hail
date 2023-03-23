@@ -4810,7 +4810,7 @@ def empty_set(t: Union[HailType, builtins.str]) -> SetExpression:
     return hl.set(empty_array(t))
 
 
-@typecheck(collection=expr_oneof(expr_set(), expr_array(), expr_dict()))
+@typecheck(collection=expr_oneof(expr_set(), expr_array(), expr_dict(), expr_ndarray()))
 def array(collection) -> ArrayExpression:
     """Construct an array expression.
 
@@ -4834,6 +4834,10 @@ def array(collection) -> ArrayExpression:
         return collection
     elif isinstance(collection.dtype, tset):
         return apply_expr(lambda c: ir.CastToArray(c), tarray(collection.dtype.element_type), collection)
+    elif isinstance(collection.dtype, tndarray):
+        if collection.dtype.ndim != 1:
+            raise ValueError(f'array: only one dimensional ndarrays are supported: {collection.dtype}')
+        return collection._data_array()
     else:
         assert isinstance(collection.dtype, tdict)
         return _func('dictToArray', tarray(ttuple(collection.dtype.key_type, collection.dtype.value_type)), collection)
