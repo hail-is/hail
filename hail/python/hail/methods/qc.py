@@ -700,8 +700,7 @@ supported_vep_configs = {
                 tsl=hl.tint32,
             )
         )),
-        ['sleep', '600'],
-        # ["python3", "/hail-vep/run_vep_grch38.py", "vep"],
+        ["python3", "/hail-vep/run_vep_grch38.py", "vep"],
         ["python3", "/hail-vep/run_vep_grch38.py", "csq_header"],
         True,
         'gcp',
@@ -733,8 +732,7 @@ def _service_vep(backend: ServiceBackend,
                  csq: bool,
                  tolerate_parse_error: bool):
     reference_genome = ht['locus'].dtype.reference_genome.name
-    # cloud = backend.bc.cloud()
-    cloud = 'gcp'
+    cloud = backend.bc.cloud()
 
     if regions is None:
         regions = backend.regions
