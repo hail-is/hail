@@ -359,7 +359,7 @@ object LoweredTableReader {
                 },
                 key.length)
 
-              TableStage(globals, partitioner, PartitionSparsity.Dense, TableStageDependency.none,
+              TableStage(globals, partitioner, TableStageDependency.none,
                 ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
                 body)
             }
@@ -390,7 +390,7 @@ object LoweredTableReader {
                   Interval(selectPK(partData.getAs[Row](1)), selectPK(partData.getAs[Row](2)), includesStart = true, includesEnd = true)
                 }, pkType.size)
 
-              val pkPartitioned = TableStage(globals, partitioner, PartitionSparsity.Dense, TableStageDependency.none,
+              val pkPartitioned = TableStage(globals, partitioner, TableStageDependency.none,
                 ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
                 body)
 
@@ -417,7 +417,7 @@ object LoweredTableReader {
 
               val partitioner = RVDPartitioner.unkeyed(ctx.stateManager, sortedPartData.length)
 
-              val tableStage = TableStage(globals, partitioner, PartitionSparsity.Dense, TableStageDependency.none,
+              val tableStage = TableStage(globals, partitioner, TableStageDependency.none,
                 ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
                 body)
 

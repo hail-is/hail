@@ -98,7 +98,6 @@ object LowerDistributedSort {
       TableStage(
         globals = globals,
         partitioner = partitioner.coarsen(requestedType.key.length),
-        PartitionSparsity.Dense,
         TableStageDependency.none,
         contexts = mapIR(
           StreamGrouped(
@@ -656,7 +655,6 @@ case class DistributionSortReader(key: TStruct, keyed: Boolean, spec: TypedCodec
     TableStage(
       PruneDeadFields.upcast(ctx, globals, requestedType.globalType),
       partitioner.coarsen(requestedType.key.length),
-      PartitionSparsity.Dense,
       TableStageDependency.none,
       contexts,
       { ctxRef =>

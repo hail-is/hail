@@ -3,7 +3,6 @@ package is.hail.rvd
 import is.hail.annotations._
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.expr.ir.Literal
-import is.hail.expr.ir.lowering.PartitionSparsity
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.commons.lang.builder.HashCodeBuilder

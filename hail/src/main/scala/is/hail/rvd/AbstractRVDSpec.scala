@@ -4,7 +4,7 @@ import is.hail.annotations._
 import is.hail.asm4s.{AsmFunction3RegionLongLongLong, HailClassLoader}
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.expr.{JSONAnnotationImpex, ir}
-import is.hail.expr.ir.lowering.{PartitionSparsity, TableStage, TableStageDependency}
+import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.expr.ir.{ArrayZipBehavior, IR, Literal, PartitionNativeReader, PartitionZippedIndexedNativeReader, PartitionZippedNativeReader, ReadPartition, Ref, ToStream}
 import is.hail.io._
 import is.hail.io.fs.FS
@@ -127,7 +127,6 @@ object AbstractRVDSpec {
           TableStage(
             globals,
             partitioner.coarsen(requestedKey.length),
-            PartitionSparsity.Dense,
             TableStageDependency.none,
             ctxIR,
             ReadPartition(_, requestedType, reader))
@@ -180,7 +179,6 @@ object AbstractRVDSpec {
           val ts = TableStage(
             globals,
             tmpPartitioner.coarsen(requestedKey.length),
-            PartitionSparsity.Dense,
             TableStageDependency.none,
             contexts,
             body)
@@ -245,7 +243,6 @@ abstract class AbstractRVDSpec {
         TableStage(
           globals,
           part.coarsen(part.kType.fieldNames.takeWhile(requestedType.rowType.hasField).length),
-          PartitionSparsity.Dense,
           TableStageDependency.none,
           contexts,
           body)
@@ -469,7 +466,6 @@ case class IndexedRVDSpec2(
         val ts = TableStage(
           globals,
           tmpPartitioner,
-          PartitionSparsity.Dense,
           TableStageDependency.none,
           contexts,
           body)

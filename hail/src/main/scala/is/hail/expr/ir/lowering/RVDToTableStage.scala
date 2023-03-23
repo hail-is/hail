@@ -79,7 +79,6 @@ object RVDToTableStage {
     TableStage(
       globals = globals,
       partitioner = rvd.partitioner,
-      PartitionSparsity.Dense,
       dependency = TableStageDependency.fromRVD(rvd),
       contexts = StreamRange(0, rvd.getNumPartitions, 1),
       body = ReadPartition(_, rvd.rowType, PartitionRVDReader(rvd, "__dummy_uid"))
@@ -94,7 +93,6 @@ object TableStageToRVD {
       broadcastVals = _ts.broadcastVals,
       globals = _ts.globals,
       partitioner = _ts.partitioner,
-      PartitionSparsity.Dense,
       dependency = _ts.dependency,
       contexts = mapIR(_ts.contexts) { c => MakeStruct(FastSeq("context" -> c)) },
       partition = { ctx: Ref => _ts.partition(GetField(ctx, "context")) })

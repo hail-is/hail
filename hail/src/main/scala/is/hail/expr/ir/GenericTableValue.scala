@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.functions.UtilFunctions
-import is.hail.expr.ir.lowering.{PartitionSparsity, TableStage, TableStageDependency}
+import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.fs.FS
 import is.hail.rvd._
@@ -197,7 +197,7 @@ class GenericTableValue(
     }
     if (p != null) {
       val contextsIR = ToStream(Literal(TArray(contextType), contexts))
-      TableStage(globalsIR, p, PartitionSparsity.Dense, TableStageDependency.none, contextsIR, requestedBody)
+      TableStage(globalsIR, p, TableStageDependency.none, contextsIR, requestedBody)
     } else {
       getLTVCoercer(ctx, context, cacheKey).coerce(
         ctx,
