@@ -406,9 +406,12 @@ case class SparseContexts(nRows: TrivialIR, nCols: TrivialIR, rowPos: TrivialIR,
     bindIR(
       Apply("lowerBound", Seq(), FastSeq(rowIdx, row, startPos, endPos), TInt32, ErrorIDs.NO_ERROR)
     ) { pos =>
-      If(ArrayRef(rowIdx, pos).eq(row),
+      If(ArrayRef(rowIdx, pos).ceq(row),
         ArrayRef(contexts, pos),
-        Die("Tried to load missing BlockMatrix context", elementType))
+        Die(strConcat("Internal Error, tried to load missing BlockMatrix context: (row = ", row, ", col = ",
+          col, ", pos = ", pos, ", rowPos = ", rowPos, ", rowIdx = ", rowIdx, ")"),
+          elementType,
+          ErrorIDs.NO_ERROR))
     }
   }
 
