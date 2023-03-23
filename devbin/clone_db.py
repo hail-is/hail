@@ -1,4 +1,5 @@
 import argparse
+import sys
 import time
 import tempfile
 from shlex import quote as shq
@@ -27,7 +28,7 @@ def create_db_clone(*, source_name, dest_name, project):
     assert dest_name != "db-jcaq4"
 
     sync_check_shell_output(f'''
-gcloud --project {shq(project)} sql instances clone {shq(source_name)} {shq(dest_name)}
+gcloud --project {shq(project)} sql instances clone {shq(source_name)} {shq(dest_name)} --async
 ''',
                             echo=True)
 
@@ -68,6 +69,7 @@ def create_vm(*, vm_name, vm_cores, vm_disk_size, project, zone):
 
     sync_check_shell_output(f'''
 gcloud -q compute instances create {shq(vm_name)} \
+    --async \
     --project {shq(project)}  \
     --zone={zone} \
     --machine-type=n1-standard-{vm_cores} \
@@ -128,6 +130,7 @@ def main(args):
             dest_name=args.dest_name,
             project=args.project,
         )
+        sys.exit()
     else:
         print(f"clone db {args.dest_name} already exists. Doing nothing.")
 
@@ -143,6 +146,7 @@ def main(args):
             project=args.project,
             zone=args.vm_zone,
         )
+        sys.exit()
     else:
         print(f"vm {vm_name} already exists. Doing nothing.")
 
