@@ -14,6 +14,7 @@ cd hail
 pip3 install -r hail/python/requirements.txt
 pip3 install -r hail/python/dev/requirements.txt
 pip3 install -r hail/python/hailtop/requirements.txt
+pip3 install -r gear/requirements.txt
 
 mkdir /gear/
 chmod 777 /gear/
