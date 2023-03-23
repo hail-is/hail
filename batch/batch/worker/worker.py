@@ -1621,6 +1621,8 @@ class DockerJob(Job):
         input_files = job_spec.get('input_files')
         output_files = job_spec.get('output_files')
 
+        requester_pays_project = job_spec.get('requester_pays_project')
+
         self.timings: Timings = Timings()
 
         hail_extra_env = [
