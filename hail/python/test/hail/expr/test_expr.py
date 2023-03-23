@@ -4073,6 +4073,11 @@ def test_locus_addition():
     assert hl.eval((loc + 2_000_000_000) == hl.locus('1', len_1, reference_genome='GRCh37'))
 
 
+def test_reservoir_sampling_pointer_type():
+    ht = hl.utils.range_table(100000, 1)
+    assert ht.aggregate(hl.agg._reservoir_sample(hl.str(ht.idx), 1000)).all(lambda x: hl.str(hl.int(x)) == x)
+
+
 def test_reservoir_sampling():
     ht = hl.Table._generate(hl.literal([(1, 10), (10, 100), (100, 1000), (1000, 10000), (10000, 100000)]),
                             hl.struct(),

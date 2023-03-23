@@ -147,7 +147,6 @@ class ReservoirSampleRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuil
           cb.assign(j, j + 1)
         })
 
-        cb.assign(garbage, other.garbage)
         cb.assign(seenSoFar, other.seenSoFar)
         cb.assign(garbage, other.garbage)
         val tmpRegion = cb.newLocal[Region]("tmpRegion", region)
@@ -160,8 +159,8 @@ class ReservoirSampleRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuil
         val newBuilder = new StagedArrayBuilder(eltPType, kb, region)
         newBuilder.initializeWithCapacity(cb, maxSize)
 
-        val totalWeightLeft = cb.memoize(seenSoFar.toD)
-        val totalWeightRight = cb.memoize(other.seenSoFar.toD)
+        val totalWeightLeft = cb.newLocal("totalWeightLeft", seenSoFar.toD)
+        val totalWeightRight = cb.newLocal("totalWeightRight", other.seenSoFar.toD)
 
         val leftSize = cb.newLocal[Int]("leftSize", builder.size)
         val rightSize = cb.newLocal[Int]("rightSize", other.builder.size)
@@ -176,6 +175,7 @@ class ReservoirSampleRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuil
               newBuilder.setMissing(cb),
               newBuilder.append(cb, _, false))
             cb.assign(leftSize, leftSize - 1)
+            cb.assign(totalWeightLeft, totalWeightLeft - 1)
             cb.ifx(idxToSample < leftSize, {
               builder.overwrite(cb, cb.memoize(builder.loadElement(cb, leftSize)), idxToSample, false)
             })
@@ -185,6 +185,7 @@ class ReservoirSampleRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuil
               newBuilder.setMissing(cb),
               newBuilder.append(cb, _, true))
             cb.assign(rightSize, rightSize - 1)
+            cb.assign(totalWeightRight, totalWeightRight - 1)
             cb.ifx(idxToSample < rightSize, {
               other.builder.overwrite(cb, cb.memoize(other.builder.loadElement(cb, rightSize)), idxToSample, false)
             })
