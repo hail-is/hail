@@ -1774,6 +1774,7 @@ object LowerTableIR {
           if (irange.length != 1 || p.rangeBounds(irange.start) != rb)
             throw new RuntimeException(s"invalid partitioner at rb=$rb, irange=$irange: ${ tir.getClass.getName }\n  expect=${ p }\n  actual=${ lowered.partitioner }")
         }
+      case _ =>
     }
 
     assert(tir.typ.globalType == lowered.globalType, s"${tir.getClass.getName}:\n  ir global: ${tir.typ.globalType}\n  lowered global: ${lowered.globalType}")
