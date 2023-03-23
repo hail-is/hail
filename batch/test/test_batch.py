@@ -7,8 +7,8 @@ from typing import Set
 import pytest
 
 from hailtop import httpx
-from hailtop.batch.backend import HAIL_GENETICS_HAILTOP_IMAGE
 from hailtop.auth import hail_credentials
+from hailtop.batch.backend import HAIL_GENETICS_HAILTOP_IMAGE
 from hailtop.batch_client.client import BatchClient
 from hailtop.config import get_deploy_config, get_user_config
 from hailtop.test_utils import skip_in_azure
