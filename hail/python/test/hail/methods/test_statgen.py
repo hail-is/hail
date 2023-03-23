@@ -1685,17 +1685,17 @@ def test_logistic_regression_epacts_score(logistic_epacts_mt):
     assert actual[0].locus == hl.Locus("22", 16060511, 'GRCh37')
     assert actual[0].p_value == pytest.approx(0.26499, rel=1e-4)
 
-    assert actual[0].locus == hl.Locus("22", 16115878, 'GRCh37')
-    assert actual[0].p_value == pytest.approx(0.64054, rel=1e-4)
+    assert actual[1].locus == hl.Locus("22", 16115878, 'GRCh37')
+    assert actual[1].p_value == pytest.approx(0.64054, rel=1e-4)
 
-    assert actual[0].locus == hl.Locus("22", 16115882, 'GRCh37')
-    assert actual[0].p_value == pytest.approx(0.049675, rel=1e-4)
+    assert actual[2].locus == hl.Locus("22", 16115882, 'GRCh37')
+    assert actual[2].p_value == pytest.approx(0.049675, rel=1e-4)
 
-    assert actual[0].locus == hl.Locus("22", 16117940, 'GRCh37')
-    assert actual[0].p_value == pytest.approx(0.27828, rel=1e-4)
+    assert actual[3].locus == hl.Locus("22", 16117940, 'GRCh37')
+    assert actual[3].p_value == pytest.approx(0.27828, rel=1e-4)
 
-    assert actual[0].locus == hl.Locus("22", 16117953, 'GRCh37')
-    assert actual[0].p_value == pytest.approx(0.21849, rel=1e-4)
+    assert actual[4].locus == hl.Locus("22", 16117953, 'GRCh37')
+    assert actual[4].p_value == pytest.approx(0.21849, rel=1e-4)
 
 
 def test_logistic_regression_epacts_firth(logistic_epacts_mt):
@@ -1711,18 +1711,18 @@ def test_logistic_regression_epacts_firth(logistic_epacts_mt):
     assert actual[0].beta == pytest.approx(-0.097079, rel=1e-4)
     assert actual[0].p_value == pytest.approx(0.26593, rel=1e-4)
 
-    assert actual[0].locus == hl.Locus("22", 16115878, 'GRCh37')
-    assert actual[0].beta == pytest.approx(-0.052301, rel=1e-4)
-    assert actual[0].p_value == pytest.approx(0.64197, rel=1e-4)
+    assert actual[1].locus == hl.Locus("22", 16115878, 'GRCh37')
+    assert actual[1].beta == pytest.approx(-0.052301, rel=1e-4)
+    assert actual[1].p_value == pytest.approx(0.64197, rel=1e-4)
 
-    assert actual[0].locus == hl.Locus("22", 16115882, 'GRCh37')
-    assert actual[0].beta == pytest.approx(-0.15567, rel=1e-4)
-    assert actual[0].p_value == pytest.approx(0.04991, rel=1e-4)
+    assert actual[2].locus == hl.Locus("22", 16115882, 'GRCh37')
+    assert actual[2].beta == pytest.approx(-0.15567, rel=1e-4)
+    assert actual[2].p_value == pytest.approx(0.04991, rel=1e-4)
 
-    assert actual[0].locus == hl.Locus("22", 16117940, 'GRCh37')
-    assert actual[0].beta == pytest.approx(-0.7524, rel=1e-4)
-    assert actual[0].p_value == pytest.approx(0.30731, rel=1e-4)
+    assert actual[3].locus == hl.Locus("22", 16117940, 'GRCh37')
+    assert actual[3].beta == pytest.approx(-0.7524, rel=1e-4)
+    assert actual[3].p_value == pytest.approx(0.30731, rel=1e-4)
 
-    assert actual[0].locus == hl.Locus("22", 16117953, 'GRCh37')
-    assert actual[0].beta == pytest.approx(0.5258, rel=1e-4)
-    assert actual[0].p_value == pytest.approx(0.22562, rel=1e-4)
+    assert actual[4].locus == hl.Locus("22", 16117953, 'GRCh37')
+    assert actual[4].beta == pytest.approx(0.5258, rel=1e-4)
+    assert actual[4].p_value == pytest.approx(0.22562, rel=1e-4)
