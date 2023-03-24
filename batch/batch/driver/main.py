@@ -1215,6 +1215,62 @@ WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= 
         await _cancel_batch(app, batch['id'])
 
 
+async def compact_agg_billing_project_users_table(app):
+    db: Database = app['db']
+
+    @transaction(db)
+    async def compact(tx):
+        await tx.execute_and_fetchall(
+            '''
+CREATE TEMPORARY TABLE scratch ENGINE=MEMORY
+AS (SELECT * FROM aggregated_billing_project_user_resources_v3
+    WHERE token != 0
+    LIMIT 100
+    FOR UPDATE
+);
+
+DELETE FROM aggregated_billing_project_user_resources_v3
+INNER JOIN scratch ON aggregated_billing_project_user_resources_v3.billing_project = scratch.billing_project AND
+                      aggregated_billing_project_user_resources_v3.`user` = scratch.`user` AND
+                      aggregated_billing_project_user_resources_v3.resource_id = scratch.resource_id;
+
+INSERT INTO aggregated_billing_project_user_resources_v3 (billing_project, `user`, resource_id, token, `usage`)
+SELECT billing_project, `user`, resource_id, 0, `usage`
+FROM scratch
+ON DUPLICATE KEY UPDATE `usage` = `usage` + scratch.`usage`;
+''')
+
+    await compact()  # pylint: disable=no-value-for-parameter
+
+
+async def compact_agg_billing_project_users_by_date_table(app):
+    db: Database = app['db']
+
+    @transaction(db)
+    async def compact(tx):
+        await tx.execute_and_fetchall(
+            '''
+CREATE TEMPORARY TABLE scratch ENGINE=MEMORY
+AS (SELECT * FROM aggregated_billing_project_user_resources_by_date_v3
+    WHERE token != 0
+    LIMIT 100
+    FOR UPDATE
+);
+
+DELETE FROM aggregated_billing_project_user_resources_by_date_v3
+INNER JOIN scratch ON aggregated_billing_project_user_resources_by_date_v3.billing_project = scratch.billing_project AND
+                      aggregated_billing_project_user_resources_by_date_v3.`user` = scratch.`user` AND
+                      aggregated_billing_project_user_resources_by_date_v3.resource_id = scratch.resource_id;
+
+INSERT INTO aggregated_billing_project_user_resources_by_date_v3 (billing_date, billing_project, `user`, resource_id, token, `usage`)
+SELECT billing_date, billing_project, `user`, resource_id, 0, `usage`
+FROM scratch
+ON DUPLICATE KEY UPDATE `usage` = `usage` + scratch.`usage`;
+''')
+
+    await compact()  # pylint: disable=no-value-for-parameter
+
+
 USER_CORES = pc.Gauge('batch_user_cores', 'Batch user cores (i.e. total in-use cores)', ['state', 'user', 'inst_coll'])
 USER_JOBS = pc.Gauge('batch_user_jobs', 'Batch user jobs', ['state', 'user', 'inst_coll'])
 ACTIVE_USER_INST_COLL_PAIRS: Set[Tuple[str, str]] = set()
@@ -1416,6 +1472,8 @@ SELECT instance_id, internal_token, frozen FROM globals;
     task_manager.ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
     task_manager.ensure_future(periodically_call(15, monitor_system, app))
     task_manager.ensure_future(periodically_call(5, refresh_globals_from_db, app, db))
+    task_manager.ensure_future(periodically_call(60, compact_agg_billing_project_users_table, app))
+    task_manager.ensure_future(periodically_call(60, compact_agg_billing_project_users_by_date_table, app))
 
 
 async def on_cleanup(app):
