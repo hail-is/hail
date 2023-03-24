@@ -4075,7 +4075,7 @@ def test_locus_addition():
 
 def test_reservoir_sampling_pointer_type():
     ht = hl.utils.range_table(100000, 1)
-    assert ht.aggregate(hl.agg._reservoir_sample(hl.str(ht.idx), 1000)).all(lambda x: hl.str(hl.int(x)) == x)
+    assert ht.aggregate(hl.agg._reservoir_sample(hl.str(ht.idx), 1000).all(lambda x: hl.str(hl.int(x)) == x))
 
 
 def test_reservoir_sampling():
