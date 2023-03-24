@@ -4071,3 +4071,26 @@ def test_locus_addition():
     assert hl.eval((loc + 10) == hl.locus('1', 15, reference_genome='GRCh37'))
     assert hl.eval((loc - 10) == hl.locus('1', 1, reference_genome='GRCh37'))
     assert hl.eval((loc + 2_000_000_000) == hl.locus('1', len_1, reference_genome='GRCh37'))
+
+
+def test_reservoir_sampling_pointer_type():
+    ht = hl.utils.range_table(100000, 1)
+    assert ht.aggregate(hl.agg._reservoir_sample(hl.str(ht.idx), 1000).all(lambda x: hl.str(hl.int(x)) == x))
+
+
+def test_reservoir_sampling():
+    ht = hl.Table._generate(hl.literal([(1, 10), (10, 100), (100, 1000), (1000, 10000), (10000, 100000)]),
+                            hl.struct(),
+                            lambda ctx, _: hl.range(ctx[0], ctx[1]).map(lambda i: hl.struct(idx=i)),
+                            5)
+
+    sample_sizes = [99, 811, 900, 1000, 3333]
+    (stats, samples) = ht.aggregate((hl.agg.stats(ht.idx), tuple([hl.sorted(hl.agg._reservoir_sample(ht.idx, size)) for size in sample_sizes])))
+
+    sample_variance = stats['stdev'] ** 2
+    sample_mean = stats['mean']
+
+    for sample, sample_size in zip(samples, sample_sizes):
+        mean = np.mean(sample)
+        expected_stdev = math.sqrt(sample_variance / sample_size)
+        assert abs(mean - sample_mean) / expected_stdev < 4 , (iteration, sample_size, abs(mean - sample_mean) / expected_stdev)
