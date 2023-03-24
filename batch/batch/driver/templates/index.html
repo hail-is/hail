@@ -25,6 +25,19 @@
     {% endif %}
   </div>
 
+<h1>Feature Switches</h1>
+  <div>
+    <form action="{{ base_path }}/configure-feature-switches" method="POST">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+      <input type="checkbox"
+             id="compact_billing_tables"
+             name="compact_billing_tables"
+             {% if feature_flags['compact_billing_tables'] %}checked{% endif %}
+      value="true" />
+      <button>Update</button>
+    </form>
+  </div>
+
   <h1>Instance Collections</h1>
 
   <h2>Pools</h2>

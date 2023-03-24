@@ -5,6 +5,10 @@ CREATE TABLE IF NOT EXISTS `globals` (
   `frozen` BOOLEAN NOT NULL DEFAULT FALSE
 ) ENGINE = InnoDB;
 
+CREATE TABLE IF NOT EXISTS `feature_switches` (
+  `compact_billing_tables` BOOLEAN NOT NULL
+) ENGINE = InnoDB;
+
 CREATE TABLE IF NOT EXISTS `resources` (
   `resource` VARCHAR(100) NOT NULL,
   `rate` DOUBLE NOT NULL,

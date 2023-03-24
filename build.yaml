@@ -2282,6 +2282,9 @@ steps:
       - name: add-list-batches-index
         script: /io/sql/add-list-batches-index.sql
         online: true
+      - name: add-feature-switches
+        script: /io/sql/add-feature-switches.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
