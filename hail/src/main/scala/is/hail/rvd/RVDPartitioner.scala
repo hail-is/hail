@@ -135,8 +135,12 @@ class RVDPartitioner(
 
   // Key manipulation
 
-  def coarsenedRangeBounds(newKeyLen: Int): Array[Interval] =
-    rangeBounds.map(_.coarsen(newKeyLen))
+  def coarsenedRangeBounds(newKeyLen: Int): Array[Interval] = {
+    if (newKeyLen == kType.size)
+      rangeBounds
+    else
+      rangeBounds.map(_.coarsen(newKeyLen))
+  }
 
   def coarsen(newKeyLen: Int): RVDPartitioner = {
     if (newKeyLen == kType.size)

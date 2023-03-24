@@ -731,6 +731,12 @@ object LowerTableIR {
 
     val typ: TableType = tir.typ
 
+    requestedPartitioner match {
+      case UseThisPartitioning(p) =>
+        assert(p.kType == typ.keyType, s"${p.kType}, ${typ.keyType}")
+      case UseTheDefaultPartitioning =>
+    }
+
     val lowered: TableStage = tir match {
       case TableRead(typ, dropRows, reader) =>
         if (dropRows) {
@@ -1587,7 +1593,7 @@ object LowerTableIR {
         val lowered = children.map(lower(_))
         val keyType = x.typ.keyType
 
-        val newPartitioner = RVDPartitioner.generate(ctx.stateManager, keyType, lowered.flatMap(_.partitioner.rangeBounds))
+        val newPartitioner = RVDPartitioner.generate(ctx.stateManager, keyType, lowered.flatMap(_.partitioner.coarsenedRangeBounds(keyType.size)))
         val aligned = lowered.map(_.repartitionNoShuffle(newPartitioner))
 
         TableStage(
@@ -1606,7 +1612,7 @@ object LowerTableIR {
       case x@TableMultiWayZipJoin(children, fieldName, globalName) =>
         val lowered = children.map(lower(_))
         val keyType = x.typ.keyType
-        val newPartitioner = RVDPartitioner.generate(ctx.stateManager, keyType, lowered.flatMap(_.partitioner.rangeBounds))
+        val newPartitioner = RVDPartitioner.generate(ctx.stateManager, keyType, lowered.flatMap(_.partitioner.coarsenedRangeBounds(keyType.size)))
         val aligned = lowered.map(_.repartitionNoShuffle(newPartitioner))
 
         val newGlobals = MakeStruct(FastSeq(
