@@ -292,29 +292,9 @@ upload-qob-test-resources: $(JAR_TEST_SOURCES)
 # target must be run at least once a day if using a dev NAMESPACE.
 # To trigger this target to re-run,
 # > rm upload-qob-jar
-# call this like: make upload-qob-jar NAMESPACE=default
-upload-qob-jar: SPARK_VERSION := 3.2.1
 upload-qob-jar: $(SHADOW_JAR)
-	set -e ;\
-	! [ -z "$(NAMESPACE)" ] ;\
-	QUERY_STORAGE_URI=$$(kubectl get secret global-config --template={{.data.query_storage_uri}} | base64 --decode) ;\
-	TEST_STORAGE_URI=$$(kubectl get secret global-config --template={{.data.test_storage_uri}} | base64 --decode) ;\
-	TOKEN=$$(cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12) ;\
-	if [ $(NAMESPACE) -eq default ] \
-	then \
-	if [ $(UPLOAD_RELEASE_JAR) -eq true ] \
-	then \
-	# This should only be used if the normal CI deploy process fails and you need to upload a JAR to the
-	# expected location for our users.
-	JAR_LOCATION=$$((QUERY_STORAGE_URI)/jars/$(REVISION).jar) ;\
-	else \
-	JAR_LOCATION=$$((TEST_STORAGE_URI)/$(NAMESPACE)/jars/$(TOKEN)/$(REVISION).jar) ;\
-	fi \
-	else \
-	JAR_LOCATION=$$((TEST_STORAGE_URI)/$(NAMESPACE)/jars/$(TOKEN)/$(REVISION).jar) ;\
-	fi ;\
-	gsutil -m cp $(SHADOW_JAR) $$(JAR_LOCATION)  ;\
-	echo $$(JAR_LOCATION) > $@  ;\
+	! [ -z $(NAMESPACE) ]  # call this like: make upload-qob-jar NAMESPACE=default
+	bash ./scripts/upload_qob_jar.sh $(NAMESPACE) $(REVISION) $(SHADOW_JAR) $@
 
 .PHONY: install-editable
 install-editable: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
