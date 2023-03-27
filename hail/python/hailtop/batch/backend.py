@@ -1,6 +1,7 @@
 from typing import Optional, Dict, Any, TypeVar, Generic, List, Union
 import sys
 import abc
+import collections
 import orjson
 import os
 import subprocess as sp
@@ -179,7 +180,7 @@ class LocalBackend(Backend[None]):
                     f"cd {tmpdir}",
                     '\n']
 
-        def run_code(code):
+        def run_code(code) -> Optional[sp.CalledProcessError]:
             code = '\n'.join(code)
             if dry_run:
                 print(code)
@@ -189,7 +190,8 @@ class LocalBackend(Backend[None]):
                 except sp.CalledProcessError as e:
                     print(e)
                     print(e.output)
-                    raise
+                    return e
+            return None
 
         copied_input_resource_files = set()
         os.makedirs(tmpdir + '/inputs/', exist_ok=True)
@@ -260,7 +262,24 @@ class LocalBackend(Backend[None]):
                 batch._serialize_python_functions_to_input_files(tmpdir, dry_run=dry_run)
             )
 
-            for job in batch._unsubmitted_jobs:
+            jobs = batch._unsubmitted_jobs
+            dependent_jobs = collections.defaultdict(set)
+
+            def add_dependents(ancestor, child):
+                dependent_jobs[ancestor].add(child)
+                for ancestor_parent in ancestor._dependencies:
+                    add_dependents(ancestor_parent, child)
+
+            for j in jobs:
+                for parent in j._dependencies:
+                    add_dependents(parent, j)
+
+            cancelled_jobs = set()
+            first_exc = None
+            for job in jobs:
+                if job in cancelled_jobs:
+                    print(f'Job {job} was cancelled. Not running')
+                    continue
                 async_to_blocking(job._compile(tmpdir, tmpdir, dry_run=dry_run))
 
                 os.makedirs(f'{tmpdir}/{job._dirname}/', exist_ok=True)
@@ -328,7 +347,12 @@ class LocalBackend(Backend[None]):
                     code += [f'python3 -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(output_transfers)}']
                 code += ['\n']
 
-                run_code(code)
+                exc = run_code(code)
+                if exc is not None:
+                    first_exc = exc
+                    for child in dependent_jobs[job]:
+                        if not child._always_run:
+                            cancelled_jobs.add(child)
                 job._submitted = True
         finally:
             batch._python_function_defs.clear()
@@ -336,6 +360,8 @@ class LocalBackend(Backend[None]):
             if delete_scratch_on_exit:
                 sp.run(f'rm -rf {tmpdir}', shell=True, check=False)
 
+        if first_exc is not None:
+            raise first_exc
         print('Batch completed successfully!')
 
     def _get_scratch_dir(self):
