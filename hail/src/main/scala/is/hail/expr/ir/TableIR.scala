@@ -1952,9 +1952,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
     val nPartitionsAdj = math.max(math.min(n, nPartitions), 1)
     val partCounts = partition(n, nPartitionsAdj)
     val partStarts = partCounts.scanLeft(0)(_ + _)
-    Array.tabulate(nPartitionsAdj) { i =>
-      partStarts(i) -> (partStarts(i + 1) - 1)
-    }
+    Array.tabulate(nPartitionsAdj)(i => partStarts(i) -> partStarts(i + 1))
   }
 
   val typ: TableType = TableType(

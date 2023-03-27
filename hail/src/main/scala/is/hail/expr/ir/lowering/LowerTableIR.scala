@@ -131,8 +131,9 @@ case class TableStage private(
   }
 
   def changePartitionerSubsetOrSuperset(newPartitioner: RVDPartitioner): TableStage = {
-    if (newPartitioner.numPartitions ==  numPartitions) {
-      assert(newPartitioner.rangeBounds.sameElements(partitioner.rangeBounds))
+    if (newPartitioner.numPartitions == numPartitions) {
+      if (!newPartitioner.rangeBounds.sameElements(partitioner.rangeBounds))
+        throw new RuntimeException(s"bad partitioner:\n  old=${ partitioner }\n  new=$newPartitioner")
       return this
     }
 
@@ -836,14 +837,9 @@ object LowerTableIR {
           case UseTheDefaultPartitioning => ts
         }
 
-      case TableRange(n, nPartitions) =>
-        val nPartitionsAdj = math.max(math.min(n, nPartitions), 1)
-        val partCounts = partition(n, nPartitionsAdj)
-        val partStarts = partCounts.scanLeft(0)(_ + _)
-
+      case tr@TableRange(n, nPartitions) =>
+        val ranges = tr.defaultPartitionRanges()
         val contextType = TStruct("start" -> TInt32, "end" -> TInt32)
-
-        val ranges = Array.tabulate(nPartitionsAdj)(i => partStarts(i) -> partStarts(i + 1))
 
         val stage = TableStage(
           MakeStruct(FastSeq()),
@@ -1775,10 +1771,14 @@ object LowerTableIR {
     requestedPartitioner match {
       case UseThisPartitioning(p) =>
         val lp = lowered.partitioner
+        val iOrd = lp.kord.intervalEndpointOrdering
         lp.rangeBounds.foreach { rb =>
-          val irange = p.queryInterval(rb)
-          if (irange.length != 1 || p.rangeBounds(irange.start) != rb)
-            throw new RuntimeException(s"invalid partitioner at rb=$rb, irange=$irange: ${ tir.getClass.getName }\n  expect=${ p }\n  actual=${ lowered.partitioner }")
+          // ignore empty intervals
+          if (iOrd.lt(rb.left, rb.right)) {
+            val irange = p.queryInterval(rb)
+            if (irange.length != 1 || p.rangeBounds(irange.start) != rb)
+              throw new RuntimeException(s"invalid partitioner at rb=$rb, irange=$irange: ${ tir.getClass.getName }\n  expect=${ p }\n  actual=${ lowered.partitioner }")
+          }
         }
       case _ =>
     }

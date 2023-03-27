@@ -125,7 +125,7 @@ object PlanPartitioning {
       case tr@TableRange(n, nPartitions) =>
         val ranges = tr.defaultPartitionRanges()
         val part = new RVDPartitioner(ctx.stateManager, tr.typ.keyType,
-          ranges.map { case (startIncl, endIncl) => Interval(Row(startIncl), Row(endIncl), true, true) },
+          ranges.map { case (startIncl, endExcl) => Interval(Row(startIncl), Row(endExcl), true, false) },
           1)
         PartitionProposal(Some(part), 1, NO_AFFINITY)
       case tk@TableKeyBy(child, keys, isSorted) =>
