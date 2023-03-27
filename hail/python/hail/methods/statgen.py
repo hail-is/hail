@@ -986,9 +986,9 @@ def logreg_fit(X: hl.NDArrayNumericExpression,  # (K,)
             log_lkhd = hl.log((y * mu) + (1 - y) * (1 - mu)).sum()
 
             next_b = b + delta_b
-            next_mu = sigmoid(X @ b)
-            next_score = X.T @ (y - mu)
-            next_fisher = X.T @ (X * (mu * (1 - mu)).reshape(-1, 1))
+            next_mu = sigmoid(X @ next_b)
+            next_score = X.T @ (y - next_mu)
+            next_fisher = X.T @ (X * (next_mu * (1 - next_mu)).reshape(-1, 1))
 
             return (hl.case()
                     .when(exploded | hl.is_nan(delta_b[0]),
