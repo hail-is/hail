@@ -1089,7 +1089,7 @@ def _firth_fit(b: hl.NDArrayNumericExpression,  # (K,)
     X_bslice = X[:, :b.shape[0]]
 
     def fit(recur, iteration, b):
-        def cont(exploded, delta_b, max_delta_b, log_lkhd):
+        def cont(exploded, delta_b, max_delta_b):
             log_lkhd_left = hl.log(y * mu + (hl.literal(1.0) - y) * (1 - mu)).sum()
             log_lkhd_right = hl.log(hl.abs(hl.nd.diagonal(r))).sum()
             log_lkhd = log_lkhd_left + log_lkhd_right
@@ -1473,9 +1473,16 @@ def _logistic_regression_rows_nd(test,
             return wald_test(ht.covs_and_x, test_fit)
         assert test == 'lrt', test
         return lrt_test(ht.covs_and_x, null_fit, test_fit)
-    ht = ht.select(logistic_regression=hl.starmap(run_test, hl.zip(ht.yvecs, ht.null_fits)))
+    ht = ht.select(
+        logistic_regression=hl.starmap(run_test, hl.zip(ht.yvecs, ht.null_fits)),
+        **{f: ht[f] for f in row_fields}
+    )
+    assert 'null_fits' not in row_fields
+    assert 'logistic_regression' not in row_fields
 
     if not y_is_list:
+        assert all(f not in row_fields for f in ht.null_fits[0])
+        assert all(f not in row_fields for f in ht.logistic_regression[0])
         ht = ht.select_globals(**ht.null_fits[0])
         return ht.transmute(**ht.logistic_regression[0])
     ht = ht.select_globals('null_fits')
@@ -1669,12 +1676,11 @@ def _lowered_poisson_regression_rows(test,
 
     if test == 'score':
         chi_sq, p = _poisson_score_test(null_fit, covmat, yvec, xvec)
-        ht = ht.select_globals('null_fit')
         return ht.select(
             chi_sq_stat=chi_sq,
             p_value=p,
             **ht.pass_through
-        )
+        ).select_globals('null_fit')
 
     X = hl.nd.hstack([covmat, xvec.T.reshape(-1, 1)])
     b = hl.nd.hstack([null_fit.b, hl.nd.array([0.0])])
@@ -1692,19 +1698,18 @@ def _lowered_poisson_regression_rows(test,
     ])
 
     test_fit = _poisson_fit(X, yvec, b, mu, score, fisher, max_iterations, tolerance)
-    ht = ht.select_globals('null_fit')
     if test == 'lrt':
         return ht.select(
             test_fit=test_fit,
             **lrt_test(X, null_fit, test_fit),
             **ht.pass_through
-        )
+        ).select_globals('null_fit')
     assert test == 'wald'
     return ht.select(
         test_fit=test_fit,
         **wald_test(X, test_fit),
         **ht.pass_through
-    )
+    ).select_globals('null_fit')
 
 
 def _poisson_fit(X: hl.NDArrayNumericExpression,       # (N, K)

@@ -464,7 +464,7 @@ class Tests(unittest.TestCase):
                 covariates=[1],
                 max_iterations=0
             )
-            ht.null_fits.collect()
+            ht.globals.collect()  # null model is a global
         except Exception as exc:
             assert 'Failed to fit logistic regression null model (standard MLE with covariates only): Newton iteration failed to converge' in exc.args[0]
         else:
