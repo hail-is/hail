@@ -1842,7 +1842,7 @@ object LowerTableIR {
 
     assert(tir.typ.globalType == lowered.globalType, s"\n  ir global: ${tir.typ.globalType}\n  lowered global: ${lowered.globalType}")
     assert(tir.typ.rowType == lowered.rowType, s"\n  ir row: ${tir.typ.rowType}\n  lowered row: ${lowered.rowType}")
-    assert(lowered.key == tir.typ.keyType, s"\n  ir key: ${tir.typ.keyType.fieldNames.toSeq}\n  lowered key: ${lowered.key}")
+    assert(lowered.key == tir.typ.key, s"\n  ir key: ${tir.typ.key}\n  lowered key: ${lowered.key}")
 
     lowered
   }
