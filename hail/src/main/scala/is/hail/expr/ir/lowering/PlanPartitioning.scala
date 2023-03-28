@@ -44,7 +44,6 @@ case class PartitionProposal(
   partitioner: Option[RVDPartitioner],
   allowedOverlap: Int,
   defaultPartitioningAffinity: Int) {
-  require(partitioner.forall(_.kType.size > 0))
 
   def getPartitioner(requestedAllowedOverlap: Int): Option[RVDPartitioner] = {
     partitioner.map(_.strictify(requestedAllowedOverlap))
@@ -67,15 +66,6 @@ object PlanPartitioning {
   val NO_AFFINITY = 0
   val REPARTITION_REQUIRES_EXTRA_READ = 1
 
-//  def computeUpperBoundWasteOfIntersection(requested: RVDPartitioner, base: RVDPartitioner): Double = {
-//    var partsRead = 0
-//    base.rangeBounds.foreach { r =>
-//      val (start, end) = requested.intervalRange(r)
-//      partsRead += (end - start + 1)
-//    }
-//    ???
-//  }
-
   def unionPlan(ctx: ExecuteContext, plans: IndexedSeq[PartitionProposal], keyType: TStruct): PartitionProposal = {
     val allowedOverlap = math.min(plans.map(_.allowedOverlap).min, keyType.size - 1)
     if (plans.map(_.partitioner).exists(_.isEmpty))
@@ -89,10 +79,11 @@ object PlanPartitioning {
   def joinedPlan(ctx: ExecuteContext, left: PartitionProposal, right: PartitionProposal, joinKey: Int, joinType: String, resultKey: TStruct): PartitionProposal = {
 
     val allowedOverlap = joinKey - 1
-    val newPart = left.getPartitioner(allowedOverlap).liftedZip(right.getPartitioner(allowedOverlap)).map { case (leftPart, right) =>
-      def rightPart: RVDPartitioner = right.coarsen(joinKey).extendKey(resultKey)
+    val newPart = left.getPartitioner(allowedOverlap).liftedZip(right.getPartitioner(allowedOverlap)).map { case (left, right) =>
+      def leftPart: RVDPartitioner = left.coarsen(joinKey)
+      def rightPart: RVDPartitioner = right.coarsen(joinKey)
 
-      (joinType: @unchecked) match {
+      ((joinType: @unchecked) match {
         case "left" => leftPart
         case "right" => rightPart
         case "inner" => leftPart.intersect(rightPart)
@@ -101,7 +92,7 @@ object PlanPartitioning {
           resultKey.fieldNames.take(joinKey),
           resultKey,
           leftPart.rangeBounds ++ rightPart.rangeBounds)
-      }
+      }).extendKey(resultKey)
     }
 
     PartitionProposal(newPart,

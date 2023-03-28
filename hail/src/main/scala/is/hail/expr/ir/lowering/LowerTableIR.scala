@@ -147,13 +147,13 @@ case class TableStage private(
           ToStream(mapIR(Literal(TArray(TInt32), ctxIndices.toFastIndexedSeq)) { i => ArrayRef(ctxs, i) })
         })
     }
-    return TableStage(letBindings = letBindings,
+    TableStage(letBindings = letBindings,
       broadcastVals = broadcastVals,
       globals = globals,
       partitioner = newPartitioner,
       dependency = dependency,
       contexts = bindIR(ToArray(contexts)) { ctxs =>
-        ToStream(mapIR(Literal(TArray(TArray(TInt32)), newToOld.toFastIndexedSeq)) { range => ToArray(mapIR(ToStream(range))(i => ArrayRef(ctxs, i))) })
+        mapIR(ToStream(Literal(TArray(TArray(TInt32)), newToOld.toFastIndexedSeq))) { range => ToArray(mapIR(ToStream(range))(i => ArrayRef(ctxs, i))) }
       },
       partition = (range: Ref) => flatMapIR(ToStream(range, requiresMemoryManagementPerElement = true)) { ctx => partition(ctx) })
   }
@@ -1767,6 +1767,9 @@ object LowerTableIR {
       case node =>
         throw new LowererUnsupportedOperation(s"undefined: \n${ Pretty(ctx, node) }")
     }
+
+    // uncomment for easier partition debugging
+    // println(s"ir ${tir}\n  with key ${tir.typ.keyType}\n  *** req=${requestedPartitioner}\n  *** got=${lowered.partitioner}")
 
     requestedPartitioner match {
       case UseThisPartitioning(p) =>
