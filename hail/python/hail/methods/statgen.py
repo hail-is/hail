@@ -620,7 +620,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
            covariates=sequenceof(expr_float64),
            pass_through=sequenceof(oneof(str, Expression)),
            max_iterations=nullable(int),
-           tolerance=float)
+           tolerance=nullable(float))
 def logistic_regression_rows(test,
                              y,
                              x,
@@ -628,7 +628,7 @@ def logistic_regression_rows(test,
                              pass_through=(),
                              *,
                              max_iterations: Optional[int] = None,
-                             tolerance: float = 1e-6) -> hail.Table:
+                             tolerance: Optional[float] = None) -> hail.Table:
     r"""For each row, test an input variable for association with a
     binary response variable using logistic regression.
 
@@ -851,9 +851,9 @@ def logistic_regression_rows(test,
         Additional row fields to include in the resulting table.
     max_iterations : :obj:`int`
         The maximum number of iterations.
-    tolerance : :obj:`float`
-        Convergence is defined by a change in the beta vector of less than
-        `tolerance`.
+    tolerance : :obj:`float`, optional
+        The iterative fit of this model is considered "converged" if the change in the estimated
+        beta is smaller than tolerance. By default the tolerance is 1e-6.
 
     Returns
     -------
@@ -865,7 +865,11 @@ def logistic_regression_rows(test,
 
     if hl.current_backend().requires_lowering:
         return _logistic_regression_rows_nd(
-            test, y, x, covariates, pass_through, max_iterations=max_iterations)
+            test, y, x, covariates, pass_through, max_iterations=max_iterations, tolerance=tolerance)
+
+    if tolerance is None:
+        tolerance = 1e-6
+    assert tolerance > 0.0
 
     if len(covariates) == 0:
         raise ValueError('logistic regression requires at least one covariate expression')
@@ -1173,7 +1177,7 @@ def _firth_test(null_fit, X, y, max_iterations, tolerance) -> hl.StructExpressio
            covariates=sequenceof(expr_float64),
            pass_through=sequenceof(oneof(str, Expression)),
            max_iterations=nullable(int),
-           tolerance=float)
+           tolerance=nullable(float))
 def _logistic_regression_rows_nd(test,
                                  y,
                                  x,
@@ -1181,7 +1185,7 @@ def _logistic_regression_rows_nd(test,
                                  pass_through=(),
                                  *,
                                  max_iterations: Optional[int] = None,
-                                 tolerance: float = 1e-6) -> hail.Table:
+                                 tolerance: Optional[float] = None) -> hail.Table:
     r"""For each row, test an input variable for association with a
     binary response variable using logistic regression.
 
@@ -1400,6 +1404,10 @@ def _logistic_regression_rows_nd(test,
     if max_iterations is None:
         max_iterations = 25 if test != 'firth' else 100
 
+    if tolerance is None:
+        tolerance = 1e-8
+    assert tolerance > 0.0
+
     if len(covariates) == 0:
         raise ValueError('logistic regression requires at least one covariate expression')
 
@@ -1529,7 +1537,7 @@ def poisson_regression_rows(test,
         Non-empty list of column-indexed covariate expressions.
     pass_through : :obj:`list` of :class:`str` or :class:`.Expression`
         Additional row fields to include in the resulting table.
-    tolerance : :obj:`int`, optional
+    tolerance : :obj:`float`, optional
         The iterative fit of this model is considered "converged" if the change in the estimated
         beta is smaller than tolerance. By default the tolerance is 1e-6.
 
@@ -1543,6 +1551,7 @@ def poisson_regression_rows(test,
 
     if tolerance is None:
         tolerance = 1e-6
+    assert tolerance > 0.0
 
     if len(covariates) == 0:
         raise ValueError('Poisson regression requires at least one covariate expression')
@@ -1604,7 +1613,7 @@ def _lowered_poisson_regression_rows(test,
 
     if tolerance is None:
         tolerance = 1e-8
-    assert tolerance > 0
+    assert tolerance > 0.0
 
     k = len(covariates)
     if k == 0:

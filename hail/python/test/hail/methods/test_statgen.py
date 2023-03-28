@@ -522,7 +522,7 @@ class Tests(unittest.TestCase):
         assert not fit.exploded
         assert not fit.converged
 
-    def test_firth_logistic_regression_rows_does_converge_with_106_iterations(self):
+    def test_firth_logistic_regression_rows_does_converge_with_more_iterations(self):
         import hail as hl
         mt = hl.utils.range_matrix_table(1, 3)
         mt = mt.annotate_entries(x=hl.literal([1, 3, 10]))
@@ -531,15 +531,14 @@ class Tests(unittest.TestCase):
             y=hl.literal([0, 1, 1])[mt.col_idx],
             x=mt.x[mt.col_idx],
             covariates=[1],
-            max_iterations=106
+            max_iterations=106,
+            tolerance=1e-6
         )
         result = ht.collect()[0]
         fit = result.fit
-        actual_beta = result.beta
-        expected_beta = 0.19699166375172233
-        assert abs(actual_beta - expected_beta) < 1e-15
-        assert abs(result.chi_sq_stat - 0.6464918007192411) < 1e-15
-        assert abs(result.p_value - 0.4213697518249182) < 1e-15
+        assert result.beta == pytest.approx(0.19699166375172233, abs=1e-15)
+        assert result.chi_sq_stat == pytest.approx(0.6464918007192411, abs=1e-15)
+        assert result.p_value == pytest.approx(0.4213697518249182, abs=1e-15)
         assert fit.n_iterations == 106
         assert not fit.exploded
         assert fit.converged
@@ -1674,6 +1673,35 @@ def test_logistic_regression_epacts_lrt(logistic_epacts_mt):
 
 
 def test_logistic_regression_epacts_score(logistic_epacts_mt):
+    # The name of this test suggests it was originally a comparison to EPACTS. The original EPACTS
+    # values were slightly different from the output of lowered logistic regression. I regenerated
+    # this test's expected values using R.
+    #
+    # 1. Export the data into an R-friendly format:
+    #
+    #     mt = logistic_epacts_mt()
+    #     mt = mt.select_cols(
+    #         y=hl.int32(mt.is_case),
+    #         c1=1.0,
+    #         c2=hl.int32(mt.is_female),
+    #         c3=mt.PC1,
+    #         c4=mt.PC2,
+    #         x=hl.agg.collect(mt.GT.n_alt_alleles())
+    #     )
+    #     mt = mt.transmute_cols(**{
+    #         f'x{i}': mt.x[i] for i in range(mt.count_rows())
+    #     })
+    #     mt.cols().export('phenos.tsv')
+    #
+    # 2. Run this model repeatedly for each x:
+    #
+    #     df = read.table(file = 'phenos.csv', sep = '\t', header = TRUE)
+    #     poisfit <- glm(df$y ~ df$c1 + df$c2 + df$c3 + df$c4 + df$x0, family="binomial")
+    #     poisfitnull <- glm(df$y ~ df$c1 + df$c2 + df$c3 + df$c4, family="binomial")
+    #     scoretest <- anova(poisfitnull, poisfit, test="Rao")
+    #     chi2 <- scoretest[["Rao"]][2]
+    #     pval <- scoretest[["Pr(>Chi)"]][2]
+    #
     mt = logistic_epacts_mt
     actual = hl.logistic_regression_rows(
         test='score',
@@ -1683,19 +1711,24 @@ def test_logistic_regression_epacts_score(logistic_epacts_mt):
     ).collect()
 
     assert actual[0].locus == hl.Locus("22", 16060511, 'GRCh37')
-    assert actual[0].p_value == pytest.approx(0.26499, rel=1e-4)
+    assert actual[0].chi_sq_stat == pytest.approx(1.242482, rel=1e-5)
+    assert actual[0].p_value == pytest.approx(0.2649933, rel=1e-5)
 
     assert actual[1].locus == hl.Locus("22", 16115878, 'GRCh37')
-    assert actual[1].p_value == pytest.approx(0.64054, rel=1e-4)
+    assert actual[1].chi_sq_stat == pytest.approx(0.218038, rel=1e-5)
+    assert actual[1].p_value == pytest.approx(0.6405389, rel=1e-5)
 
     assert actual[2].locus == hl.Locus("22", 16115882, 'GRCh37')
-    assert actual[2].p_value == pytest.approx(0.049675, rel=1e-4)
+    assert actual[2].chi_sq_stat == pytest.approx(3.850985, rel=1e-5)
+    assert actual[2].p_value == pytest.approx(0.04971679, rel=1e-5)
 
     assert actual[3].locus == hl.Locus("22", 16117940, 'GRCh37')
-    assert actual[3].p_value == pytest.approx(0.27828, rel=1e-4)
+    assert actual[3].chi_sq_stat == pytest.approx(1.175474, rel=1e-5)
+    assert actual[3].p_value == pytest.approx(0.2782793, rel=1e-5)
 
     assert actual[4].locus == hl.Locus("22", 16117953, 'GRCh37')
-    assert actual[4].p_value == pytest.approx(0.21849, rel=1e-4)
+    assert actual[4].chi_sq_stat == pytest.approx(1.514245, rel=1e-5)
+    assert actual[4].p_value == pytest.approx(0.2184924, rel=1e-5)
 
 
 def test_logistic_regression_epacts_firth(logistic_epacts_mt):
