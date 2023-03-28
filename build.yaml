@@ -2488,7 +2488,6 @@ steps:
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
               --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
               -k "not test_scale and not test_invariants" \
-              --asyncio-mode=auto \
               /io/test/
     inputs:
       - from: /repo/batch/test
