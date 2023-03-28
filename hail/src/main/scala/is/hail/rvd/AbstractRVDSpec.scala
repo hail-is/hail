@@ -183,9 +183,9 @@ object AbstractRVDSpec {
             contexts,
             body)
           if (filterIntervals)
-            ts.repartitionNoShuffle(partitioner, dropEmptyPartitions = true)
+            ts.repartitionNoShuffle(ctx, partitioner, dropEmptyPartitions = true)
           else
-            ts.repartitionNoShuffle(extendedNewPartitioner.coarsen(requestedKey.length))
+            ts.repartitionNoShuffle(ctx, extendedNewPartitioner.coarsen(requestedKey.length))
         }
     }
   }
@@ -469,7 +469,8 @@ case class IndexedRVDSpec2(
           TableStageDependency.none,
           contexts,
           body)
-        if (filterIntervals) ts.repartitionNoShuffle(part, dropEmptyPartitions = true) else ts.repartitionNoShuffle(extendedNP)
+        if (filterIntervals) ts.repartitionNoShuffle(ctx, part, dropEmptyPartitions = true)
+        else ts.repartitionNoShuffle(ctx, extendedNP)
       }
 
     case None =>

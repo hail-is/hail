@@ -41,14 +41,14 @@ object TableWriter {
 abstract class TableWriter {
   def path: String
   def apply(ctx: ExecuteContext, mv: TableValue): Unit
-  def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable): IR =
+  def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR =
     throw new LowererUnsupportedOperation(s"${ this.getClass } does not have defined lowering!")
 
   def canLowerEfficiently: Boolean = false
 }
 
 object TableNativeWriter {
-  def lower(ctx: ExecuteContext, ts: TableStage, tt: TableType, path: String, overwrite: Boolean, stageLocally: Boolean,
+  def lower(ctx: ExecuteContext, ts: TableStage, path: String, overwrite: Boolean, stageLocally: Boolean,
     rowSpec: TypedCodecSpec, globalSpec: TypedCodecSpec): IR = {
     // write out partitioner key, which may be stricter than table key
     val partitioner = ts.partitioner
@@ -56,6 +56,8 @@ object TableNativeWriter {
     val rowWriter = PartitionNativeWriter(rowSpec, pKey.fieldNames, s"$path/rows/parts/", Some(s"$path/index/" -> pKey),
       if (stageLocally) Some(FileSystems.getDefault.getPath(ctx.localTmpdir, s"hail_staging_tmp_${UUID.randomUUID()}", "rows", "parts")) else None
     )
+
+    val tt = TableType(ts.rowType, ts.key, ts.globalType)
     val globalWriter = PartitionNativeWriter(globalSpec, IndexedSeq(), s"$path/globals/parts/", None, None)
 
     RelationalWriter.scoped(path, overwrite, Some(tt))(
@@ -100,12 +102,12 @@ case class TableNativeWriter(
 
   override def canLowerEfficiently: Boolean = !stageLocally
 
-  override def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable): IR = {
+  override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
     val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
-    val rowSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(t.typ.rowType, r.rowType), t.typ.rowType, bufferSpec)
-    val globalSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(t.typ.globalType, r.globalType), t.typ.globalType, bufferSpec)
+    val rowSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(ts.rowType, r.rowType), ts.rowType, bufferSpec)
+    val globalSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(ts.globalType, r.globalType), ts.globalType, bufferSpec)
 
-    TableNativeWriter.lower(ctx, ts, t.typ, path, overwrite, stageLocally, rowSpec, globalSpec)
+    TableNativeWriter.lower(ctx, ts, path, overwrite, stageLocally, rowSpec, globalSpec)
   }
 
   def apply(ctx: ExecuteContext, tv: TableValue): Unit = {
@@ -503,7 +505,7 @@ case class TableTextWriter(
   def apply(ctx: ExecuteContext, tv: TableValue): Unit = tv.export(ctx, path, typesFile, header, exportType, delimiter)
 
   override def canLowerEfficiently: Boolean = exportType != ExportType.PARALLEL_COMPOSABLE
-  override def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable): IR = {
+  override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
     require(exportType != ExportType.PARALLEL_COMPOSABLE)
 
     val ext = ctx.fs.getCodecExtension(path)
@@ -642,17 +644,12 @@ case class TableNativeFanoutWriter(
   override def apply(ctx: ExecuteContext, mv: TableValue): Unit =
     throw new UnsupportedOperationException("TableNativeFanoutWriter only supports lowered execution")
 
-  override def lower(
-    ctx: ExecuteContext,
-    ts: TableStage,
-    t: TableIR,
-    r: RTable
-  ): IR = {
+  override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
     val partitioner = ts.partitioner
     val bufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
-    val globalSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(t.typ.globalType, r.globalType), t.typ.globalType, bufferSpec)
+    val globalSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(ts.globalType, r.globalType), ts.globalType, bufferSpec)
     val targets = {
-      val rowType = t.typ.rowType
+      val rowType = ts.rowType
       val rowRType = r.rowType
       val keyType = partitioner.kType
       val keyFields = keyType.fieldNames
@@ -664,7 +661,6 @@ case class TableNativeFanoutWriter(
         val targetRowRType = rowRType.select(fieldAndKey)
         val rowSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(targetRowType, targetRowRType), targetRowType, bufferSpec)
         val keyPType = tcoerce[PStruct](rowSpec.decodedPType(keyType))
-        val tableType = TableType(targetRowType, keyFields, t.typ.globalType)
         val rowWriter = PartitionNativeWriter(
           rowSpec,
           keyFields,
@@ -673,7 +669,7 @@ case class TableNativeFanoutWriter(
           if (stageLocally) Some(FileSystems.getDefault.getPath(ctx.localTmpdir, s"hail_staging_tmp_${UUID.randomUUID()}", "rows", "parts")) else None
         )
         val globalWriter = PartitionNativeWriter(globalSpec, IndexedSeq(), s"$targetPath/globals/parts/", None, None)
-        new FanoutWriterTarget(field, targetPath, rowSpec, keyPType, tableType, rowWriter, globalWriter)
+        new FanoutWriterTarget(field, targetPath, rowSpec, keyPType, ts.tableType, rowWriter, globalWriter)
       }.toFastIndexedSeq
     }
 
