@@ -3218,8 +3218,9 @@ steps:
         fi
       }
 
-      copy_if_not_present {{ hailgenetics_hail_image.image}} {{ global.docker_prefix }}/hailgenetics/hail:$(cat /io/hail_pip_version)
-      copy_if_not_present {{ hailgenetics_hailtop_image.image}} {{ global.docker_prefix }}/hailgenetics/hailtop:$(cat /io/hail_pip_version)
+      HAIL_VERSION=$(cat /io/hail_pip_version)
+      copy_if_not_present docker.io/hailgenetics/hail:${HAIL_VERSION} {{ global.docker_prefix }}/hailgenetics/hail:${HAIL_VERSION}
+      copy_if_not_present docker.io/hailgenetics/hailtop:${HAIL_VERSION} {{ global.docker_prefix }}/hailgenetics/hailtop:${HAIL_VERSION}
     inputs:
       - from: /hail_pip_version
         to: /io/hail_pip_version
@@ -3234,8 +3235,6 @@ steps:
     dependsOn:
       - default_ns
       - merge_code
-      - hailgenetics_hail_image
-      - hailgenetics_hailtop_image
   - kind: buildImage2
     name: website_image
     dockerFile: /io/repo/website/Dockerfile
