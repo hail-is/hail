@@ -450,6 +450,9 @@ class ServiceBackend(Backend[bc.Batch]):
                  token: Optional[str] = None,
                  regions: Optional[List[str]] = None
                  ):
+        import nest_asyncio
+        nest_asyncio.apply()
+
         if len(args) > 2:
             raise TypeError(f'ServiceBackend() takes 2 positional arguments but {len(args)} were given')
         if len(args) >= 1:

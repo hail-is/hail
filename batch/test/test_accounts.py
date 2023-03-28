@@ -1,7 +1,7 @@
 import asyncio
 import os
 import secrets
-from typing import Any, AsyncGenerator, Awaitable, Callable, Optional
+from typing import Any, AsyncGenerator, Awaitable, Callable, Optional, List, Tuple
 
 import aiohttp
 import orjson
@@ -449,7 +449,7 @@ async def test_billing_limit_tiny(
     assert batch_status['state'] == 'cancelled', str(await batch.debug_info())
 
 
-async def search_batches(client, expected_batch_id, q):
+async def search_batches(client, expected_batch_id, q) -> Tuple[bool, List[int]]:
     found = False
     batches = [x async for x in client.list_batches(q=q, last_batch_id=expected_batch_id + 1, limit=200)]
     for batch in batches:

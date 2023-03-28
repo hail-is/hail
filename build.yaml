@@ -1155,13 +1155,14 @@ steps:
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       python3 -m pytest \
-              --ignore=test/hailtop/batch/ \
-              --ignore=test/hailtop/inter_cloud \
+              -Werror \
               --log-cli-level=INFO \
               -s \
               -vv \
               --instafail \
               --durations=50 \
+              --ignore=test/hailtop/batch/ \
+              --ignore=test/hailtop/inter_cloud \
               test
     inputs:
       - from: /debug-wheel-container.tar
@@ -1209,6 +1210,7 @@ steps:
       export AZURE_APPLICATION_CREDENTIALS=/test-azure-key/credentials.json
 
       python3 -m pytest \
+              -Werror \
               --log-cli-level=INFO \
               -s \
               -vv \
@@ -1263,14 +1265,15 @@ steps:
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       python3 -m pytest \
-              -m unchecked_allocator \
-              --ignore=test/hailtop/batch/ \
-              --ignore=test/hailtop/inter_cloud \
+              -Werror \
               --log-cli-level=INFO \
               -s \
               -vv \
               --instafail \
               --durations=50 \
+              -m unchecked_allocator \
+              --ignore=test/hailtop/batch/ \
+              --ignore=test/hailtop/inter_cloud \
               test
     inputs:
       - from: /wheel-container.tar
@@ -1319,12 +1322,13 @@ steps:
       hailctl config set query/backend local
 
       python3 -m pytest \
-              --ignore=test/hailtop/ \
+              -Werror \
               --log-cli-level=INFO \
               -s \
               -vv \
               --instafail \
               --durations=50 \
+              --ignore=test/hailtop/ \
               test
     inputs:
       - from: /debug-wheel-container.tar
@@ -1351,11 +1355,17 @@ steps:
     script: |
       set -ex
       cd /hail/python/hail
-      python3 -m pytest --instafail \
-        --doctest-modules \
-        --doctest-glob='*.rst' \
-        --ignore=docs/conf.py \
-        --ignore=docs/doctest_write_data.py
+      python3 -m pytest \
+              -Werror \
+              --log-cli-level=INFO \
+              -s \
+              -vv \
+              --instafail \
+              --durations=50 \
+              --doctest-modules \
+              --doctest-glob='*.rst' \
+              --ignore=docs/conf.py \
+              --ignore=docs/doctest_write_data.py
     dependsOn:
       - hail_base_image
     clouds:
@@ -1709,7 +1719,14 @@ steps:
       valueFrom: hail_dev_image.image
     script: |
       set -ex
-      python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /io/monitoring/test
+      python3 -m pytest \
+              -Werror \
+              --log-cli-level=INFO \
+	      -s \
+	      -vv \
+	      --instafail \
+	      --durations=50 \
+	      /io/monitoring/test
     secrets:
       - name: worker-deploy-config
         namespace:
@@ -2306,13 +2323,14 @@ steps:
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}
 
       python3 -m pytest \
-              --ignore=test/hailtop/ \
+              -Werror \
               --log-cli-level=INFO \
               -s \
               -vv \
               --instafail \
               --durations=50 \
               -n 4 \
+              --ignore=test/hailtop/ \
               test
     timeout: 5400
     inputs:
@@ -2397,7 +2415,14 @@ steps:
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/test_memory/{{ token }}/
 
       cd /io/memory
-      python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 test
+      python3 -m pytest \
+              -Werror \
+              --log-cli-level=INFO \
+	      -s \
+	      -vv \
+	      --instafail \
+	      --durations=50 \
+	      test
     timeout: 600
     secrets:
       - name: worker-deploy-config
@@ -2454,15 +2479,16 @@ steps:
       hail-pip-install -r /io/dev-requirements.txt
 
       python3 -m pytest \
-              --asyncio-mode=auto \
+              -Werror \
+              --log-cli-level=INFO \
+	      -s \
+	      -vv \
+	      --instafail \
+	      --durations=50 \
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
               --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
-              --log-cli-level=INFO \
-              -s \
-              -vv \
-              --instafail \
               -k "not test_scale and not test_invariants" \
-              --durations=0 \
+              --asyncio-mode=auto \
               /io/test/
     inputs:
       - from: /repo/batch/test
@@ -2664,7 +2690,14 @@ steps:
       export ORGANIZATION=hail-ci-test
       export REPO_NAME=ci-test-"{{ create_ci_test_repo.token }}"
       export NAMESPACE="{{ default_ns.name }}"
-      python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /io/ci/test
+      python3 -m pytest \
+              -Werror \
+              --log-cli-level=INFO \
+	      -s \
+	      -vv \
+	      --instafail \
+	      --durations=50 \
+	      /io/ci/test
     secrets:
       - name: worker-deploy-config
         namespace:
@@ -2716,11 +2749,12 @@ steps:
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/test_hailtop_batch/{{ token }}/
 
       python3 -m pytest \
-              --durations=0 \
+              -Werror \
               --log-cli-level=INFO \
-              -s \
-              -vv \
-              --instafail \
+	      -s \
+	      -vv \
+	      --instafail \
+	      --durations=50 \
               /io/test/hailtop/batch/
     inputs:
       - from: /repo/hail/python/test
@@ -2881,11 +2915,17 @@ steps:
       cd /io/hailtop/batch
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/test_batch_docs/{{ token }}/
-      python3 -m pytest --instafail \
-        --doctest-modules \
-        --doctest-glob='*.rst' \
-        --ignore=docs/cookbook/files/ \
-        --ignore=docs/conf.py
+      python3 -m pytest \
+              -Werror \
+              --log-cli-level=INFO \
+              -s \
+              -vv \
+              --instafail \
+	      --durations=50 \
+              --doctest-modules \
+              --doctest-glob='*.rst' \
+              --ignore=docs/cookbook/files/ \
+              --ignore=docs/conf.py
     secrets:
       - name: worker-deploy-config
         namespace:
@@ -3456,10 +3496,15 @@ steps:
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       python3 -m pytest \
-        --log-date-format="%Y-%m-%dT%H:%M:%S" \
-        --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
-        --log-cli-level=INFO -s -vv --instafail \
-        /io/test/test_invariants.py
+              -Werror \
+              --log-cli-level=INFO \
+              -s \
+              -vv \
+              --instafail \
+	      --durations=50 \
+              --log-date-format="%Y-%m-%dT%H:%M:%S" \
+              --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
+              /io/test/test_invariants.py
     inputs:
       - from: /repo/batch/test
         to: /io/test
