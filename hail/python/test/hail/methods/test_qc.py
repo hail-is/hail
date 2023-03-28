@@ -395,8 +395,9 @@ class Tests(unittest.TestCase):
                         hl.map(lambda kv: hl.tuple([kv.split(":")[0], kv.split(":")[1]]), csq.lof_info.split(','))))),
                                                ht.vep.transcript_consequences)))
 
-        hail_vep_result = reorder_lof_info(hail_vep_result)
-
         dataproc_result = dataproc_result.annotate(vep=hl.parse_json(dataproc_result.vep, hail_vep_result.vep.dtype))
+
+        hail_vep_result = reorder_lof_info(hail_vep_result)
+        dataproc_result = reorder_lof_info(dataproc_result)
 
         assert hail_vep_result._same(dataproc_result)
