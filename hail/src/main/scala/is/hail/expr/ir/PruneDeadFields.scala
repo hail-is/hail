@@ -337,7 +337,6 @@ object PruneDeadFields {
       case TableParallelize(rowsAndGlobal, _) =>
         memoizeValueIR(ctx, rowsAndGlobal, TStruct("rows" -> TArray(requestedType.rowType), "global" -> requestedType.globalType), memo)
       case TableRange(_, _) =>
-      case TableGenomicRange(_, _, _) =>
       case TableRepartition(child, _, _) => memoizeTableIR(ctx, child, requestedType, memo)
       case TableHead(child, _) => memoizeTableIR(ctx, child, TableType(
         key = child.typ.key,
