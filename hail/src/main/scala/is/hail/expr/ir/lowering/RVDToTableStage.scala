@@ -59,6 +59,12 @@ case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader
     VirtualTypeWithReq.subset(requestedType.globalType, rt.globalType)
   }
 
+  override def partitionProposal(ctx: ExecuteContext): PartitionProposal =
+    PartitionProposal(
+      Some(rvd.partitioner),
+      fullType.key.size,
+      PlanPartitioning.REPARTITION_REQUIRES_EXTRA_READ)
+
   override def toJValue: JValue = JString("RVDTableReader")
 
   def renderShort(): String = "RVDTableReader"

@@ -1583,6 +1583,7 @@ object LowerTableIR {
           case "right" => alignedLeft.zipPartitionsRightJoin(alignedRight, globalsJoiner, partitionJoiner)
         }
         assert(joinedStage.rowType == tj.typ.rowType)
+
         joinedStage
 
       case x@TableUnion(children) =>
@@ -1769,7 +1770,7 @@ object LowerTableIR {
     }
 
     // uncomment for easier partition debugging
-    // println(s"ir ${tir}\n  with key ${tir.typ.keyType}\n  *** req=${requestedPartitioner}\n  *** got=${lowered.partitioner}")
+    // println(s"ir ${ tir }\n  with key ${ tir.typ.keyType }\n  *** req=${ requestedPartitioner }\n  *** got=${ lowered.partitioner }")
 
     requestedPartitioner match {
       case UseThisPartitioning(p) =>

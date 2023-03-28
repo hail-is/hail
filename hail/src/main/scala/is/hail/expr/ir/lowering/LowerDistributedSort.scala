@@ -75,6 +75,12 @@ object LowerDistributedSort {
       TableExecuteIntermediate(lower(ctx, requestedType)).asTableValue(ctx)
     }
 
+    override def partitionProposal(ctx: ExecuteContext): PartitionProposal =
+      PartitionProposal(
+        Some(partitioner),
+        fullType.key.size,
+        PlanPartitioning.REPARTITION_REQUIRES_EXTRA_READ)
+
     override def isDistinctlyKeyed: Boolean = false // FIXME: No default value
 
     def rowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = {
@@ -635,6 +641,12 @@ case class DistributionSortReader(key: TStruct, keyed: Boolean, spec: TypedCodec
 
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
     PruneDeadFields.upcast(ctx, globals, requestedGlobalsType)
+
+  override def partitionProposal(ctx: ExecuteContext): PartitionProposal =
+    PartitionProposal(
+      Some(defaultPartitioning(ctx.stateManager)),
+      fullType.key.size,
+      PlanPartitioning.REPARTITION_REQUIRES_EXTRA_READ)
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
 

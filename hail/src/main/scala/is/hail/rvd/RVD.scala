@@ -71,6 +71,14 @@ class RVD(
 
   // Exporting
 
+  def printPartitions(identifier: String = null): Unit = {
+    if (identifier != null)
+      println(s"==========================\nRVD $identifier:")
+    toRows.mapPartitionsWithIndex { case (pIdx, rows) =>
+      Iterator.single(s"partition $pIdx:\n  ${ rows.mkString("\n  ") }")
+    }.collect().foreach(println)
+  }
+
   def toRows: RDD[Row] = {
     val localRowType = rowPType
     map((_, ptr) => SafeRow(localRowType, ptr))
