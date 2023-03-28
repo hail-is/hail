@@ -35,7 +35,7 @@ def genomic_range_table(n: int,
     n : int
         Number of loci. Must be less than 2 ** 31.
     n_partitions : int, optional
-        Number of partitions [default: 4].
+        Number of partitions [default: 8].
     reference_genome : :class:`str` or :class:`.ReferenceGenome`
         Reference genome to use for creating the loci.
 
@@ -49,7 +49,7 @@ def genomic_range_table(n: int,
     if n >= (1 << 31):
         raise ValueError(f'`n`, {n}, must be less than 2 ** 31.')
 
-    n_partitions = 4 if n_partitions is None else n_partitions
+    n_partitions = n_partitions or 8
     start_idxs = [int(x) for x in linspace(0, n, n_partitions + 1)]
     idx_bounds = list(zip(start_idxs, start_idxs[1:]))
 
