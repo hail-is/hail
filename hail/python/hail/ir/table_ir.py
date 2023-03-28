@@ -199,47 +199,6 @@ class TableRange(TableIR):
                          hl.tstruct(idx=hl.tint32),
                          ['idx'])
 
-
-class TableGenomicRange(TableIR):
-    def __init__(self, n: int, n_partitions: Optional[int], reference_genome: Optional[ReferenceGenome]):
-        super().__init__()
-        self.n = n
-        self.n_partitions = n_partitions
-        self.reference_genome = reference_genome
-
-    def _handle_randomness(self, uid_field_name):
-        assert(uid_field_name is not None)
-        if self.reference_genome is not None:
-            global_position = ir.Apply(
-                'locusToGlobalPos',
-                tint64,
-                ir.GetField(ir.Ref('row', self.typ.row_type), 'locus'))
-        else:
-            global_position = ir.Cast(
-                ir.GetField(ir.GetField(ir.Ref('row', self.typ.row_type), 'locus'), 'position'),
-                tint64)
-
-        new_row = ir.InsertFields(
-            ir.Ref('row', self.typ.row_type),
-            [(uid_field_name, global_position)],
-            None)
-        return TableMapRows(self, new_row)
-
-    def head_str(self):
-        reference_genome = self.reference_genome.name if self.reference_genome else None
-        return f'{self.n} {self.n_partitions} {reference_genome}'
-
-    def _eq(self, other):
-        return self.n == other.n and \
-            self.n_partitions == other.n_partitions and \
-            self.reference_genome == other.reference_genome
-
-    def _compute_type(self, deep_typecheck):
-        return hl.ttable(hl.tstruct(),
-                         hl.tstruct(locus=hl.tlocus._schema_from_rg(self.reference_genome)),
-                         ['locus'])
-
-
 class TableMapGlobals(TableIR):
     def __init__(self, child, new_globals):
         super().__init__(child, new_globals)
