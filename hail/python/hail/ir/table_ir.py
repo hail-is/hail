@@ -5,7 +5,6 @@ from hail.ir.base_ir import BaseIR, IR, TableIR
 import hail.ir.ir as ir
 from hail.ir.utils import modify_deep_field, zip_with_index, default_row_uid, default_col_uid
 from hail.ir.ir import unify_uid_types, pad_uid, concat_uids
-from hail.genetics import ReferenceGenome
 from hail.typecheck import typecheck_method, nullable, sequenceof
 from hail.utils import FatalError
 from hail.utils.interval import Interval
@@ -198,6 +197,7 @@ class TableRange(TableIR):
         return hl.ttable(hl.tstruct(),
                          hl.tstruct(idx=hl.tint32),
                          ['idx'])
+
 
 class TableMapGlobals(TableIR):
     def __init__(self, child, new_globals):
