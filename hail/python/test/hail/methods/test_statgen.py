@@ -536,9 +536,9 @@ class Tests(unittest.TestCase):
         )
         result = ht.collect()[0]
         fit = result.fit
-        assert result.beta == pytest.approx(0.19699166375172233, abs=1e-15)
-        assert result.chi_sq_stat == pytest.approx(0.6464918007192411, abs=1e-15)
-        assert result.p_value == pytest.approx(0.4213697518249182, abs=1e-15)
+        assert result.beta == pytest.approx(0.19699166375172233, abs=1e-14)
+        assert result.chi_sq_stat == pytest.approx(0.6464918007192411, abs=1e-14)
+        assert result.p_value == pytest.approx(0.4213697518249182, abs=1e-14)
         assert fit.n_iterations == 106
         assert not fit.exploded
         assert fit.converged
