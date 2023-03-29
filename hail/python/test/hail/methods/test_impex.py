@@ -1051,24 +1051,28 @@ class BGENTests(unittest.TestCase):
         with pytest.raises(ValueError, match="GEN requires a GP"):
             hl.export_gen(mt, "dummy_path")
 
+    @fails_service_backend()
     def test_import_bgen_dosage_entry(self):
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['dosage'])
         self.assertEqual(bgen.entry.dtype, hl.tstruct(dosage=hl.tfloat64))
         self.assertEqual(bgen.count_rows(), 199)
 
+    @fails_service_backend()
     def test_import_bgen_GT_GP_entries(self):
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['GT', 'GP'],
                               sample_file=resource('example.sample'))
         self.assertEqual(bgen.entry.dtype, hl.tstruct(GT=hl.tcall, GP=hl.tarray(hl.tfloat64)))
 
+    @fails_service_backend()
     def test_import_bgen_no_entries(self):
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=[],
                               sample_file=resource('example.sample'))
         self.assertEqual(bgen.entry.dtype, hl.tstruct())
 
+    @fails_service_backend()
     def test_import_bgen_no_reference(self):
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['GT', 'GP', 'dosage'],
@@ -1076,6 +1080,7 @@ class BGENTests(unittest.TestCase):
         assert bgen.locus.dtype == hl.tstruct(contig=hl.tstr, position=hl.tint32)
         assert bgen.count_rows() == 199
 
+    @fails_service_backend()
     def test_import_bgen_skip_invalid_loci_does_not_error_with_invalid_loci(self):
         # Note: the skip_invalid_loci.bgen has 16-bit probabilities, and Hail
         # will crash if the genotypes are decoded
@@ -1121,6 +1126,7 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(
             bgenmt._same(genmt, tolerance=1.0 / 255, absolute=True))
 
+    @fails_service_backend()
     def test_parallel_import(self):
         mt = hl.import_bgen(resource('parallelBgenExport.bgen'),
                             ['GT', 'GP'],
@@ -1418,12 +1424,14 @@ class BGENTests(unittest.TestCase):
 
         assert expected._same(actual)
 
+    @fails_service_backend()
     def test_multiple_files_disjoint(self):
         sample_file = resource('random.sample')
         bgen_file = [resource('random-b-disjoint.bgen'), resource('random-c-disjoint.bgen'), resource('random-a-disjoint.bgen')]
         with pytest.raises(FatalError, match='Each BGEN file must contain a region of the genome disjoint from other files'):
             hl.import_bgen(bgen_file, ['GT', 'GP'], sample_file, n_partitions=3)
 
+    @fails_service_backend()
     def test_multiple_references_throws_error(self):
         sample_file = resource('random.sample')
         bgen_file1 = resource('random-b.bgen')
@@ -1435,7 +1443,7 @@ class BGENTests(unittest.TestCase):
                            sample_file=sample_file,
                            index_file_map={
                                resource('random-b.bgen'): resource('random-b.bgen-NO-REFERENCE-GENOME.idx2'),
-                               resource('random-c.bgen'): resource('random-c.bgen.idx'),
+                               resource('random-c.bgen'): resource('random-c.bgen.idx2'),
                            })
 
     def test_old_index_file_throws_error(self):
@@ -1472,6 +1480,7 @@ class BGENTests(unittest.TestCase):
                                 index_file_map=index_file_map)
             assert mt.count() == (30, 10)
 
+    @fails_service_backend()
     def test_index_bgen_errors_when_index_file_has_wrong_extension(self):
         bgen_file = resource('random.bgen')
 
