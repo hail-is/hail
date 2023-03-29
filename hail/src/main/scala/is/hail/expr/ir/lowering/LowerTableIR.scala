@@ -1842,7 +1842,7 @@ object LowerTableIR {
 
     assert(tir.typ.globalType == lowered.globalType, s"\n  ir global: ${tir.typ.globalType}\n  lowered global: ${lowered.globalType}")
     assert(tir.typ.rowType == lowered.rowType, s"\n  ir row: ${tir.typ.rowType}\n  lowered row: ${lowered.rowType}")
-    assert(lowered.key == tir.typ.key, s"\n  ir key: ${tir.typ.key}\n  lowered key: ${lowered.key}")
+    assert(tir.typ.keyType.isPrefixOf(lowered.kType) , s"\n  ir key: ${tir.typ.key}\n  lowered key: ${lowered.key}")
 
     lowered
   }
