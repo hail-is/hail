@@ -116,7 +116,7 @@ $(BUILD_DEBUG_PREFIX)/%.class: src/debug/scala/%.java
 
 src/main/resources/build-info.properties: env/REVISION env/SHORT_REVISION env/BRANCH
 src/main/resources/build-info.properties: env/SPARK_VERSION env/HAIL_PIP_VERSION
-# src/main/resources/build-info.properties: Makefile
+src/main/resources/build-info.properties: Makefile
 	echo '[Build Metadata]' > $@
 	echo 'user=$(USER)' >> $@
 	echo 'revision=$(REVISION)' >> $@
