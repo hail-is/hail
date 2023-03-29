@@ -12,12 +12,12 @@ QUERY_STORAGE_URI=$(kubectl get secret global-config --template={{.data.query_st
 TEST_STORAGE_URI=$(kubectl get secret global-config --template={{.data.test_storage_uri}} | base64 --decode)
 
 if [[ "${NAMESPACE}" == "default" ]]; then
-  if [[ "${UPLOAD_RELEASE_JAR}" == "true" ]]; then
-    JAR_LOCATION="${QUERY_STORAGE_URI}/jars/${REVISION}.jar"
+    if [[ "${UPLOAD_RELEASE_JAR}" == "true" ]]; then
+	JAR_LOCATION="${QUERY_STORAGE_URI}/jars/${REVISION}.jar"
     else
-    JAR_LOCATION="${TEST_STORAGE_URI}/${NAMESPACE}/jars/${TOKEN}/${REVISION}.jar"
-  fi
-  else
+	JAR_LOCATION="${TEST_STORAGE_URI}/${NAMESPACE}/jars/${TOKEN}/${REVISION}.jar"
+    fi
+else
     JAR_LOCATION="${TEST_STORAGE_URI}/${NAMESPACE}/jars/${TOKEN}/${REVISION}.jar"
 fi
 
