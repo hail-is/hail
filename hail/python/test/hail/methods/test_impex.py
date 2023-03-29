@@ -1447,7 +1447,13 @@ class BGENTests(unittest.TestCase):
         bgen_file2 = resource('random-c.bgen')
 
         with pytest.raises(FatalError, match='Found multiple reference genomes were specified in the BGEN index files'):
-            hl.import_bgen([bgen_file1, bgen_file2], ['GT'], sample_file=sample_file)
+            hl.import_bgen([bgen_file1, bgen_file2],
+                           ['GT'],
+                           sample_file=sample_file,
+                           index_file_map={
+                               resource('random-b.bgen'): resource('random-b.bgen-NO-REFERENCE-GENOME.idx2'),
+                               resource('random-c.bgen'): resource('random-c.bgen.idx'),
+                           })
 
     def test_old_index_file_throws_error(self):
         sample_file = resource('random.sample')
