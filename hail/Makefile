@@ -116,7 +116,7 @@ $(BUILD_DEBUG_PREFIX)/%.class: src/debug/scala/%.java
 
 src/main/resources/build-info.properties: env/REVISION env/SHORT_REVISION env/BRANCH
 src/main/resources/build-info.properties: env/SPARK_VERSION env/HAIL_PIP_VERSION
-src/main/resources/build-info.properties: Makefile
+# src/main/resources/build-info.properties: Makefile
 	echo '[Build Metadata]' > $@
 	echo 'user=$(USER)' >> $@
 	echo 'revision=$(REVISION)' >> $@
@@ -294,7 +294,7 @@ upload-qob-test-resources: $(JAR_TEST_SOURCES)
 # > rm upload-qob-jar
 upload-qob-jar: $(SHADOW_JAR)
 	! [ -z $(NAMESPACE) ]  # call this like: make upload-qob-jar NAMESPACE=default
-	bash ./scripts/upload_qob_jar.sh $(NAMESPACE) $(REVISION) $(SHADOW_JAR) $(TOKEN) $@
+	bash ./scripts/upload_qob_jar.sh $(NAMESPACE) $(REVISION) $(SHADOW_JAR) $@
 
 .PHONY: install-editable
 install-editable: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
