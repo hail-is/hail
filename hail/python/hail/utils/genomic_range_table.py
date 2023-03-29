@@ -1,3 +1,5 @@
+
+from numpy import linspace
 from typing import Optional
 
 import hail as hl
@@ -33,7 +35,7 @@ def genomic_range_table(n: int,
     n : int
         Number of loci. Must be less than 2 ** 31.
     n_partitions : int, optional
-        Number of partitions (uses Spark default parallelism if None).
+        Number of partitions [default: 8].
     reference_genome : :class:`str` or :class:`.ReferenceGenome`
         Reference genome to use for creating the loci.
 
@@ -47,4 +49,23 @@ def genomic_range_table(n: int,
     if n >= (1 << 31):
         raise ValueError(f'`n`, {n}, must be less than 2 ** 31.')
 
-    return hl.Table(hl.ir.TableGenomicRange(n, n_partitions, reference_genome))
+    n_partitions = n_partitions or 8
+    start_idxs = [int(x) for x in linspace(0, n, n_partitions + 1)]
+    idx_bounds = list(zip(start_idxs, start_idxs[1:]))
+
+    return hl.Table._generate(
+        contexts=idx_bounds,
+        partitions=[
+            hl.Interval(**{
+                endpoint: hl.Struct(
+                    locus=reference_genome.locus_from_global_position(idx)
+                ) for endpoint, idx in [('start', lo), ('end', hi)]
+            })
+            for (lo, hi) in idx_bounds
+        ],
+        rowfn=lambda idx_range, _: hl.range(idx_range[0], idx_range[1]).map(
+            lambda idx: hl.struct(
+                locus=hl.locus_from_global_position(idx, reference_genome)
+            )
+        )
+    )

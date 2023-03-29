@@ -3960,7 +3960,7 @@ def balding_nichols_model(n_populations: int,
     from numpy import linspace
     n_partitions = min(n_partitions, n_variants)
     start_idxs = [int(x) for x in linspace(0, n_variants, n_partitions + 1)]
-    idx_bounds = [x for x in zip(start_idxs, start_idxs[1:])]
+    idx_bounds = list(zip(start_idxs, start_idxs[1:]))
 
     pop_f = hl.rand_dirichlet if mixture else hl.rand_cat
 
