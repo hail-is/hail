@@ -187,14 +187,25 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None, compr
     """Export MatrixTable as :class:`.MatrixTable` as BGEN 1.2 file with 8
     bits of per probability.  Also writes SAMPLE file.
 
+    If `parallel` is ``None``, the BGEN file is written to ``output + '.bgen'``. Otherwise, ``output
+    + '.bgen'`` will be a directory containing many BGEN files. In either case, the SAMPLE file is
+    written to ``output + '.sample'``. For example,
+
+    >>> hl.export_bgen(mt, '/path/to/dataset')  # doctest: +SKIP
+
+    Will write two files: `/path/to/dataset.bgen` and `/path/to/dataset.sample`. In contrast,
+
+    >>> hl.export_bgen(mt, '/path/to/dataset', parallel='header_per_shard')  # doctest: +SKIP
+
+    Will create `/path/to/dataset.sample` and will create ``mt.n_partitions()`` files into the
+    directory `/path/to/dataset.bgen/`.
+
+
     Notes
     -----
     The :func:`export_bgen` function requires genotype probabilities, either as an entry
     field of `mt` (of type ``array<float64>``), or an entry expression passed in the `gp`
     argument.
-
-    If `output` is ``"/path/to/myfile"``, this function will write a BGEN file at
-    ``"/path/to/myfile.bgen"`` and a sample file at ``"/path/to/myfile.sample"``.
 
     Parameters
     ----------
@@ -216,13 +227,14 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None, compr
         used if defined and is of type :py:data:`.tstr`.  The default
         and missing value is ``"."``.
     parallel : :class:`str`, optional
-        If ``None``, write a single BGEN file.  If
-        ``'header_per_shard'``, write a collection of BGEN files (one
-        per partition), each with its own header.  If
-        ``'separate_header'``, write a file for each partition,
-        without header, and a header file for the combined dataset.
+        If ``None``, write a single BGEN file.  If ``'header_per_shard'``, write a collection of
+        BGEN files (one per partition), each with its own header.  If ``'separate_header'``, write a
+        file for each partition, without header, and a header file for the combined dataset. Note
+        that the files produced by ``'separate_header'`` are each individually invalid BGEN files,
+        they can only be read if they are concatenated together with the header file.
     compresssion_codec : str, optional
         Compression codec. One of 'zlib', 'zstd'.
+
     """
     require_row_key_variant(mt, 'export_bgen')
     require_col_key_str(mt, 'export_bgen')
@@ -2905,8 +2917,9 @@ def index_bgen(path,
                skip_invalid_loci=False):
     """Index BGEN files as required by :func:`.import_bgen`.
 
-    The index file is generated in the same directory as `path` with the
-    filename of `path` appended by `.idx2` unless `directory` is specified.
+    If `index_file_map` is unspecified, then, for each BGEN file, the index file is written in the
+    same directory and as the associated BGEN file with the same filename appended by
+    `.idx2`. Otherwise, the `index_file_map` must specify a distinct `idx2` path for each BGEN file.
 
     Example
     -------
@@ -2930,7 +2943,8 @@ def index_bgen(path,
     Parameters
     ----------
     path : :class:`str` or :obj:`list` of :obj:`str`
-        .bgen files to index.
+        The .bgen files to index. May be one of: a BGEN file path, a list of BGEN file paths, or the
+        path of a directory that contains BGEN files.
     index_file_map : :obj:`dict` of :class:`str` to :obj:`str`, optional
         Dict of BGEN file to index file location. Index file location must have
         a `.idx2` file extension. Cannot use Hadoop glob patterns in file names.
