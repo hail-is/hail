@@ -138,7 +138,7 @@ object PlanPartitioning {
         // intervalChild will be shuffled to child1 partitioning
       recur(child1)
       case TableLeftJoinRightDistinct(left, right, _) =>
-        joinedPlan(ctx, recur(left), recur(right), joinKey = left.typ.keyType.size,
+        joinedPlan(ctx, recur(left), recur(right), joinKey = right.typ.keyType.size,
           joinType = "left",
           resultKey = left.typ.keyType)
       case TableMapPartitions(child, _, _, _, _, allowedOverlap) =>

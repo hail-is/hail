@@ -159,19 +159,8 @@ case class TableStage private(
   }
 
   def zipPartitionsLeftJoin(right: TableStage, newGlobals: (IR, IR) => IR, body: (IR, IR) => IR): TableStage = {
-    zipPartitions(right.changePartitionerSubsetOrSuperset(this.partitioner), newGlobals, body)
-  }
-  def zipPartitionsRightJoin(right: TableStage, newGlobals: (IR, IR) => IR, body: (IR, IR) => IR): TableStage = {
-    this.changePartitionerSubsetOrSuperset(right.partitioner).zipPartitions(right, newGlobals, body)
-  }
-
-  def zipPartitionsIntersection(right: TableStage, newGlobals: (IR, IR) => IR, body: (IR, IR) => IR): TableStage = {
-    val newPartitioner = this.partitioner.intersect(right.partitioner)
-    this.changePartitionerSubsetOrSuperset(newPartitioner).zipPartitions(right.changePartitionerSubsetOrSuperset(newPartitioner), newGlobals, body)
-  }
-  def zipPartitionsUnion(right: TableStage, newGlobals: (IR, IR) => IR, body: (IR, IR) => IR): TableStage = {
-    val newPartitioner = RVDPartitioner.generate(partitioner.sm, partitioner.kType, partitioner.rangeBounds ++ right.partitioner.rangeBounds)
-    this.changePartitionerSubsetOrSuperset(newPartitioner).zipPartitions(right.changePartitionerSubsetOrSuperset(newPartitioner), newGlobals, body)
+    val leftToRight = this.partitioner.rename(this.kType.fieldNames.zip(right.kType.fieldNames).toMap)
+    zipPartitions(right.changePartitionerSubsetOrSuperset(leftToRight), newGlobals, body)
   }
 
   // 'body' must take all output key values from
@@ -1465,7 +1454,8 @@ object LowerTableIR {
             val loweredLeft = lower(left)
             (loweredLeft, lower(right).repartitionNoShuffle(loweredLeft.partitioner
               .coarsen(commonKeyLength)
-              .rename(left.typ.key.zip(right.typ.key).toMap)))
+              .rename(left.typ.key.zip(right.typ.key).toMap),
+              allowDuplication = true))
         }
 
         alignedLeft.zipPartitionsLeftJoin(
@@ -1558,30 +1548,28 @@ object LowerTableIR {
 
         val leftKeyToRightKeyMap = (left.typ.keyType.fieldNames.take(joinKey), right.typ.keyType.fieldNames.take(joinKey)).zipped.toMap
 
-        val (alignedLeft, alignedRight) = requestedPartitioner match {
+
+        val (loweredLeft, loweredRight) = requestedPartitioner match {
           case UseThisPartitioning(p) =>
 
             val leftRequestedPartitioning = p.coarsen(left.typ.key.length)
-            val rightRequestedPartitioning = p.coarsen(joinKey).rename(leftKeyToRightKeyMap)
+            val rightRequestedPartitioning = p.coarsen(joinKey).rename(leftKeyToRightKeyMap).extendKey(right.typ.keyType)
             (lower(left, UseThisPartitioning(leftRequestedPartitioning)), lower(right, UseThisPartitioning(rightRequestedPartitioning)))
           case UseTheDefaultPartitioning =>
-            val loweredLeft = lower(left)
-            val loweredRight = lower(right)
-            val p1 = PartitionProposal.fromPartitioner(loweredLeft.partitioner)
-            val p2 = PartitionProposal.fromPartitioner(loweredRight.partitioner)
-            val joinedPartitioner = PlanPartitioning.joinedPlan(ctx, p1, p2, joinKey, joinType, tj.typ.keyType)
-              .chooseBest().asInstanceOf[UseThisPartitioning].partitioner
-
-            (loweredLeft.repartitionNoShuffle(joinedPartitioner.coarsen(left.typ.key.length)),
-              loweredRight.repartitionNoShuffle(joinedPartitioner.coarsen(joinKey).rename(leftKeyToRightKeyMap)))
+            (lower(left), lower(right))
         }
 
-        val joinedStage = joinType match {
-          case "inner" => alignedLeft.zipPartitionsIntersection(alignedRight, globalsJoiner, partitionJoiner)
-          case "outer" => alignedLeft.zipPartitionsUnion(alignedRight, globalsJoiner, partitionJoiner).extendKeyPreservesPartitioning(tj.typ.key)
-          case "left" => alignedLeft.zipPartitionsLeftJoin(alignedRight, globalsJoiner, partitionJoiner).extendKeyPreservesPartitioning(tj.typ.key)
-          case "right" => alignedLeft.zipPartitionsRightJoin(alignedRight, globalsJoiner, partitionJoiner)
-        }
+        val p1 = PartitionProposal.fromPartitioner(loweredLeft.partitioner)
+        val p2 = PartitionProposal.fromPartitioner(loweredRight.partitioner)
+
+        // need to rerun planning because the partitioners coming up might be subsets of the full partitioner
+        // we are guaranteed to get back a subset of the requested partitioning
+        val joinedPartitioner = PlanPartitioning.joinedPlan(ctx, p1, p2, joinKey, joinType, tj.typ.keyType)
+          .chooseBest().asInstanceOf[UseThisPartitioning].partitioner
+
+        val alignedLeft = loweredLeft.repartitionNoShuffle(joinedPartitioner.coarsen(left.typ.key.length))
+        val alignedRight = loweredRight.repartitionNoShuffle(joinedPartitioner.coarsen(joinKey).rename(leftKeyToRightKeyMap))
+        val joinedStage = alignedLeft.zipPartitions(alignedRight, globalsJoiner, partitionJoiner).changePartitionerNoRepartition(joinedPartitioner)
         assert(joinedStage.rowType == tj.typ.rowType)
 
         joinedStage

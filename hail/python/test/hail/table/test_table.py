@@ -1652,7 +1652,6 @@ def test_join_with_key_prefix():
     t2 = t2.annotate(foo=t2.idx)
     t = t.annotate(foo=t2[t.pk].foo)
     assert t.aggregate(hl.agg.all(t.foo == 1))
-    assert t.n_partitions() == 2
 
 def test_join_distinct_preserves_count():
     left_pos = [1, 2, 4, 4, 5, 5, 9, 13, 13, 14, 15]
