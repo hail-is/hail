@@ -1473,7 +1473,7 @@ class BGENTests(unittest.TestCase):
         sample_file = resource('random.sample')
         bgen_file = resource('random.bgen')
 
-        with hl.TemporaryFilename(suffix='.idx2') as index_file:
+        with hl.TemporaryDirectory(suffix='.idx2', ensure_exists=False) as index_file:
             index_file_map = {bgen_file: index_file}
             hl.index_bgen(bgen_file,
                           index_file_map=index_file_map)
