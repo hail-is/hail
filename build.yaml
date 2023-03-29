@@ -1722,11 +1722,11 @@ steps:
       python3 -m pytest \
               -Werror \
               --log-cli-level=INFO \
-	      -s \
-	      -vv \
-	      --instafail \
-	      --durations=50 \
-	      /io/monitoring/test
+              -s \
+              -vv \
+              --instafail \
+              --durations=50 \
+              /io/monitoring/test
     secrets:
       - name: worker-deploy-config
         namespace:
@@ -2418,11 +2418,11 @@ steps:
       python3 -m pytest \
               -Werror \
               --log-cli-level=INFO \
-	      -s \
-	      -vv \
-	      --instafail \
-	      --durations=50 \
-	      test
+              -s \
+              -vv \
+              --instafail \
+              --durations=50 \
+              test
     timeout: 600
     secrets:
       - name: worker-deploy-config
@@ -2481,10 +2481,10 @@ steps:
       python3 -m pytest \
               -Werror \
               --log-cli-level=INFO \
-	      -s \
-	      -vv \
-	      --instafail \
-	      --durations=50 \
+              -s \
+              -vv \
+              --instafail \
+              --durations=50 \
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
               --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
               -k "not test_scale and not test_invariants" \
