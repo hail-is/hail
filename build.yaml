@@ -2692,11 +2692,11 @@ steps:
       python3 -m pytest \
               -Werror \
               --log-cli-level=INFO \
-	      -s \
-	      -vv \
-	      --instafail \
-	      --durations=50 \
-	      /io/ci/test
+              -s \
+              -vv \
+              --instafail \
+              --durations=50 \
+              /io/ci/test
     secrets:
       - name: worker-deploy-config
         namespace:
@@ -2750,10 +2750,10 @@ steps:
       python3 -m pytest \
               -Werror \
               --log-cli-level=INFO \
-	      -s \
-	      -vv \
-	      --instafail \
-	      --durations=50 \
+              -s \
+              -vv \
+              --instafail \
+              --durations=50 \
               /io/test/hailtop/batch/
     inputs:
       - from: /repo/hail/python/test
@@ -2920,7 +2920,7 @@ steps:
               -s \
               -vv \
               --instafail \
-	      --durations=50 \
+              --durations=50 \
               --doctest-modules \
               --doctest-glob='*.rst' \
               --ignore=docs/cookbook/files/ \
