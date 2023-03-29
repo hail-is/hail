@@ -382,8 +382,8 @@ class TableStage(
         })
 
       assert(newStage.rowType == rowType,
-        s"\n  repartitioned row type:     ${newStage.rowType}" +
-          s"\n  old row type: ${rowType}")
+        s"repartitioned row type: ${newStage.rowType}\n" +
+        s"          old row type: $rowType")
       newStage
     }
 
@@ -413,22 +413,25 @@ class TableStage(
     }
     require(newPartitioner.kType.isPrefixOf(kType))
 
-    val numRecomputedPartitions =
-      Some(newPartitioner.rangeBounds)
-        .filter(_.length > 1)
-        .map(_
-          .map(intrvl => tupled(new Range(_, _, 1))(partitioner.intervalRange(intrvl)).toSet)
-          .reduce(_.intersect(_))
-          .size
-        )
-        .getOrElse(0)
-
     val repartitionCost =
-      (0.25 * numRecomputedPartitions * newPartitioner.numPartitions) /
-        partitioner.numPartitions.asInstanceOf[Double]
+      if (partitioner.numPartitions == 0) 0
+      else {
+        val numRecomputedPartitions =
+          Some(newPartitioner.rangeBounds)
+            .filter(_.length > 1)
+            .map(_
+              .map(intrvl => tupled(new Range(_, _, 1))(partitioner.intervalRange(intrvl)).toSet)
+              .reduce(_.intersect(_))
+              .size
+            )
+            .getOrElse(0)
+
+        (0.25 * numRecomputedPartitions * newPartitioner.numPartitions) /
+          partitioner.numPartitions.asInstanceOf[Double]
+      }
 
     log.info(s"repartitionNoShuffle - cost of computing new partitions = $repartitionCost.")
-    if (repartitionCost <= 1) repartitionDynamically else spillAndReload
+    if (repartitionCost <= 1.0) repartitionDynamically else spillAndReload
   }
 
   def extendKeyPreservesPartitioning(ec: ExecuteContext, newKey: IndexedSeq[String]): TableStage = {
