@@ -251,45 +251,22 @@ class TableStage(
     repartitionNoShuffle(ec, newPart)
   }
 
-  /* We have a couple of options when repartitioning a table:
-   *  1. Send only the contexts needed to compute each new partition and
-   *     take/drop the rows that fall in that partition.
-   *  2. Compute the table with the old partitioner, write the table to cloud
-   *     storage then read the new partitions from the index.
-   *
-   * We'd like to do 1 as keeping things in memory (with perhaps a bit of work
-   * duplication) is generally less expensive than writing and reading a table
-   * to and from cloud storage. There comes a cross-over point, however, where
-   * it's cheaper to do the latter. One such example is as follows: consider a
-   * repartitioning where the same context is used to compute multiple
-   * partitions. The (parallel) computation of each partition involves at least
-   * all of the work to compute the previous partition:
-   *
-   *                  *----------------------*
-   *           in:    |                      |  ...
-   *                  *----------------------*
-   *                      /    |         \
-   *                     /     |          \
-   *                   *--*  *---*       *--*
-   *          out:     |  |  |   |  ...  |  |
-   *                   *--*  *---*       *--*
-   *
-   * We can estimate the relative cost of computing the new partitions vs
-   * spilling as:
-   *
-   *        cost ~ (N_reused × N_new) / N_old
-   *  where
-   *    N_reused is the number of old partitions that are used more than once
-   *    N_new is the new number of partitions
-   *    N_old is the original number of partitions
-   */
   def repartitionNoShuffle(ec: ExecuteContext,
                            newPartitioner: RVDPartitioner,
                            allowDuplication: Boolean = false,
                            dropEmptyPartitions: Boolean = false
                           ): TableStage = {
 
-    def repartitionDynamically: TableStage = {
+    if (newPartitioner == this.partitioner) {
+      return this
+    }
+
+    if (!allowDuplication) {
+      require(newPartitioner.satisfiesAllowedOverlap(newPartitioner.kType.size - 1))
+    }
+    require(newPartitioner.kType.isPrefixOf(kType))
+
+    LowerTableIR.selectRepartitioning(partitioner, newPartitioner) {
       val startAndEnd = partitioner.rangeBounds.map(newPartitioner.intervalRange).zipWithIndex
       if (startAndEnd.forall { case ((start, end), i) => start + 1 == end &&
         newPartitioner.rangeBounds(start).includes(newPartitioner.kord, partitioner.rangeBounds(i))
@@ -383,11 +360,9 @@ class TableStage(
 
       assert(newStage.rowType == rowType,
         s"repartitioned row type: ${newStage.rowType}\n" +
-        s"          old row type: $rowType")
+          s"          old row type: $rowType")
       newStage
-    }
-
-    def spillAndReload: TableStage = {
+    } {
       val location = ec.createTmpPath(genUID())
       CompileAndEvaluate(ec,
         TableNativeWriter(location)
@@ -403,35 +378,6 @@ class TableStage(
       val table = TableRead(tableType, dropRows = false, tr = reader)
       LowerTableIR.applyTable(table, DArrayLowering.All, ec, LoweringAnalyses.apply(table, ec))
     }
-
-    if (newPartitioner == this.partitioner) {
-      return this
-    }
-
-    if (!allowDuplication) {
-      require(newPartitioner.satisfiesAllowedOverlap(newPartitioner.kType.size - 1))
-    }
-    require(newPartitioner.kType.isPrefixOf(kType))
-
-    val repartitionCost =
-      if (partitioner.numPartitions == 0) 0
-      else {
-        val numRecomputedPartitions =
-          Some(newPartitioner.rangeBounds)
-            .filter(_.length > 1)
-            .map(_
-              .map(intrvl => tupled(new Range(_, _, 1))(partitioner.intervalRange(intrvl)).toSet)
-              .reduce(_.intersect(_))
-              .size
-            )
-            .getOrElse(0)
-
-        (0.25 * numRecomputedPartitions * newPartitioner.numPartitions) /
-          partitioner.numPartitions.asInstanceOf[Double]
-      }
-
-    log.info(s"repartitionNoShuffle - cost of computing new partitions = $repartitionCost.")
-    if (repartitionCost <= 1.0) repartitionDynamically else spillAndReload
   }
 
   def extendKeyPreservesPartitioning(ec: ExecuteContext, newKey: IndexedSeq[String]): TableStage = {
@@ -1848,5 +1794,61 @@ object LowerTableIR {
     assert(tir.typ.keyType.isPrefixOf(lowered.kType) , s"\n  ir key: ${tir.typ.key}\n  lowered key: ${lowered.key}")
 
     lowered
+  }
+
+  /* We have a couple of options when repartitioning a table:
+   *  1. Send only the contexts needed to compute each new partition and
+   *     take/drop the rows that fall in that partition.
+   *  2. Compute the table with the old partitioner, write the table to cloud
+   *     storage then read the new partitions from the index.
+   *
+   * We'd like to do 1 as keeping things in memory (with perhaps a bit of work
+   * duplication) is generally less expensive than writing and reading a table
+   * to and from cloud storage. There comes a cross-over point, however, where
+   * it's cheaper to do the latter. One such example is as follows: consider a
+   * repartitioning where the same context is used to compute multiple
+   * partitions. The (parallel) computation of each partition involves at least
+   * all of the work to compute the previous partition:
+   *
+   *                  *----------------------*
+   *           in:    |                      |  ...
+   *                  *----------------------*
+   *                      /    |         \
+   *                     /     |          \
+   *                   *--*  *---*       *--*
+   *          out:     |  |  |   |  ...  |  |
+   *                   *--*  *---*       *--*
+   *
+   * We can estimate the relative cost of computing the new partitions vs
+   * spilling as:
+   *
+   *        cost ~ (N_reused × N_new) / N_old
+   *  where
+   *    N_reused is the number of old partitions that are used more than once
+   *    N_new is the new number of partitions
+   *    N_old is the original number of partitions
+   */
+  def selectRepartitioning[A](original: RVDPartitioner, planned: RVDPartitioner)
+                             (recompute: => A)
+                             (reload: => A): A = {
+    val cost =
+      if (original.numPartitions == 0) 0.0
+      else {
+        val numRecomputedPartitions =
+          Some(planned.rangeBounds)
+            .filter(_.length > 1)
+            .map(_
+              .map(intrvl => tupled(new Range(_, _, 1))(original.intervalRange(intrvl)).toSet)
+              .reduce(_.intersect(_))
+              .size
+            )
+            .getOrElse(0)
+
+        (0.25 * numRecomputedPartitions * planned.numPartitions) /
+          original.numPartitions.asInstanceOf[Double]
+      }
+
+    log.info(s"repartition cost: $cost")
+    if (cost <= 1.0) recompute else reload
   }
 }
