@@ -294,7 +294,7 @@ upload-qob-test-resources: $(JAR_TEST_SOURCES)
 # > rm upload-qob-jar
 upload-qob-jar: $(SHADOW_JAR)
 	! [ -z $(NAMESPACE) ]  # call this like: make upload-qob-jar NAMESPACE=default
-	bash ./scripts/upload_qob_jar.sh $(NAMESPACE) $(REVISION) $(SHADOW_JAR) $@
+	bash ./scripts/upload_qob_jar.sh $(NAMESPACE) $(REVISION) $(SHADOW_JAR) $(TOKEN) $@
 
 .PHONY: install-editable
 install-editable: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)

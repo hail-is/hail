@@ -5,7 +5,8 @@ set -ex
 NAMESPACE=$1
 REVISION=$2
 SHADOW_JAR=$3
-PATH_FILE=$4
+TOKEN=$4
+PATH_FILE=$5
 
 
 
@@ -22,5 +23,5 @@ if [[ "${NAMESPACE}" == "default" ]]; then
     JAR_LOCATION="${TEST_STORAGE_URI}/${NAMESPACE}/jars/${TOKEN}/${REVISION}.jar"
 fi
 
-gcloud storage cp ${SHADOW_JAR} ${JAR_LOCATION}
+echo gcloud storage cp ${SHADOW_JAR} ${JAR_LOCATION}
 echo ${JAR_LOCATION} > ${PATH_FILE}
