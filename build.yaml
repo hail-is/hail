@@ -3500,7 +3500,7 @@ steps:
               -s \
               -vv \
               --instafail \
-	      --durations=50 \
+              --durations=50 \
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
               --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
               /io/test/test_invariants.py
