@@ -2293,6 +2293,12 @@ def test_table_randomness():
     assert_unique_uids(t)
 
 
+def test_order_by_desc():
+    t = hl.utils.range_table(10_000, n_partitions=10)
+    t = t.order_by(-t.idx)
+    assert t._force_count() == 10_000
+
+
 def test_query_table():
     f = new_temp_file(extension='ht')
     ht = hl.utils.range_table(200, 10)
