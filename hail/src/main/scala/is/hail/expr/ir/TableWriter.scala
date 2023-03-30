@@ -659,6 +659,7 @@ case class TableNativeFanoutWriter(
         val targetRowRType = rowRType.select(fieldAndKey)
         val rowSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(targetRowType, targetRowRType), targetRowType, bufferSpec)
         val keyPType = tcoerce[PStruct](rowSpec.decodedPType(keyType))
+        val tableType = TableType(targetRowType, keyFields, ts.globalType)
         val rowWriter = PartitionNativeWriter(
           rowSpec,
           keyFields,
@@ -667,7 +668,7 @@ case class TableNativeFanoutWriter(
           if (stageLocally) Some(FileSystems.getDefault.getPath(ctx.localTmpdir, s"hail_staging_tmp_${UUID.randomUUID()}", "rows", "parts")) else None
         )
         val globalWriter = PartitionNativeWriter(globalSpec, IndexedSeq(), s"$targetPath/globals/parts/", None, None)
-        new FanoutWriterTarget(field, targetPath, rowSpec, keyPType, ts.tableType, rowWriter, globalWriter)
+        new FanoutWriterTarget(field, targetPath, rowSpec, keyPType, tableType, rowWriter, globalWriter)
       }.toFastIndexedSeq
     }
 

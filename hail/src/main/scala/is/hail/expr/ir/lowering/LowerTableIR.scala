@@ -1791,7 +1791,7 @@ object LowerTableIR {
       if (original.numPartitions == 0 || planned.numPartitions < 2)
         0.0
       else
-        ((0.25 * planned.numPartitions) / original.numPartitions.asInstanceOf[Double]) * planned
+        ((0.25 * planned.numPartitions) / original.numPartitions) * planned
           .rangeBounds
           .map(intrvl => tupled(new Range(_, _, 1))(original.intervalRange(intrvl)).toSet)
           .reduce(_.intersect(_))
