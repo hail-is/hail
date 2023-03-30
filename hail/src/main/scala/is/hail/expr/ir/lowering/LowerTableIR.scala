@@ -70,8 +70,8 @@ class TableStage(
   val partitioner: RVDPartitioner,
   val dependency: TableStageDependency,
   val contexts: IR,
-  private val ctxRefName: String,
-  private val partitionIR: IR) {
+  val ctxRefName: String,
+  val partitionIR: IR) {
   self =>
 
   // useful for debugging, but should be disabled in production code due to N^2 complexity
@@ -266,7 +266,7 @@ class TableStage(
     }
     require(newPartitioner.kType.isPrefixOf(kType))
 
-    LowerTableIR.selectRepartitioning(partitioner, newPartitioner) {
+    val newStage = LowerTableIR.selectRepartitioning(partitioner, newPartitioner) {
       val startAndEnd = partitioner.rangeBounds.map(newPartitioner.intervalRange).zipWithIndex
       if (startAndEnd.forall { case ((start, end), i) => start + 1 == end &&
         newPartitioner.rangeBounds(start).includes(newPartitioner.kord, partitioner.rangeBounds(i))
@@ -334,7 +334,7 @@ class TableStage(
       )
 
       val prevContextUIDPartition = genUID()
-      val newStage = TableStage(letBindings, broadcastVals, globals, newPartitioner, dependency, newContexts,
+      TableStage(letBindings, broadcastVals, globals, newPartitioner, dependency, newContexts,
         (ctxRef: Ref) => {
           val body = self.partition(Ref(prevContextUIDPartition, self.contexts.typ.asInstanceOf[TStream].elementType))
           bindIR(GetField(ctxRef, "partitionBound")) { interval =>
@@ -357,27 +357,27 @@ class TableStage(
             }
           }
         })
-
-      assert(newStage.rowType == rowType,
-        s"repartitioned row type: ${newStage.rowType}\n" +
-          s"          old row type: $rowType")
-      newStage
     } {
       val location = ec.createTmpPath(genUID())
       CompileAndEvaluate(ec,
-        TableNativeWriter(location)
-          .lower(ec, this, BaseTypeWithRequiredness(tableType).asInstanceOf[RTable])
+        TableNativeWriter(location).lower(ec, this, RTable.fromTableStage(ec, this))
       )
 
+      val newTableType = TableType(rowType, newPartitioner.kType.fieldNames, globalType)
       val reader = TableNativeReader.read(ec.fs, location, Some(NativeReaderOptions(
         intervals = newPartitioner.rangeBounds,
         intervalPointType = newPartitioner.kType,
         filterIntervals = dropEmptyPartitions
       )))
 
-      val table = TableRead(tableType, dropRows = false, tr = reader)
+      val table = TableRead(newTableType, dropRows = false, tr = reader)
       LowerTableIR.applyTable(table, DArrayLowering.All, ec, LoweringAnalyses.apply(table, ec))
     }
+
+    assert(newStage.rowType == rowType,
+      s"repartitioned row type: ${newStage.rowType}\n" +
+        s"          old row type: $rowType")
+    newStage
   }
 
   def extendKeyPreservesPartitioning(ec: ExecuteContext, newKey: IndexedSeq[String]): TableStage = {

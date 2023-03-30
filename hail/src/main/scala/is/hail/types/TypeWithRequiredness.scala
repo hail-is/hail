@@ -1,6 +1,9 @@
 package is.hail.types
 
 import is.hail.annotations.{Annotation, NDArray}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.lowering.TableStage
+import is.hail.expr.ir.{ComputeUsesAndDefs, Env, IR}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.SIndexablePointer
@@ -489,6 +492,39 @@ case class RUnion(cases: IndexedSeq[(String, TypeWithRequiredness)]) extends Typ
 object RTable {
   def apply(rowStruct: RStruct, globStruct: RStruct, key: IndexedSeq[String]): RTable = {
     RTable(rowStruct.fields.map(f => f.name -> f.typ), globStruct.fields.map(f => f.name -> f.typ), key)
+  }
+
+  def fromTableStage(ec: ExecuteContext, s: TableStage): RTable = {
+    def getRTypeForIR(ir: IR, inputs: Env[PType]): VirtualTypeWithReq = {
+      import is.hail.expr.ir.Requiredness
+      val ns = ir.noSharing
+      val usesAndDefs = ComputeUsesAndDefs(ns, errorIfFreeVariables = false)
+      val req = Requiredness.apply(ns, usesAndDefs, ec, inputs)
+      VirtualTypeWithReq(ir.typ, req.lookup(ns).asInstanceOf[TypeWithRequiredness])
+    }
+
+    val letBindingReq = s.letBindings.foldLeft(Env.empty[PType]) { case (env, (name, ir)) =>
+      // requiredness uses ptypes for legacy reasons, there is a 1-1 mapping between
+      // RTypes and canonical PTypes
+      env.bind(name, getRTypeForIR(ir, env).canonicalPType)
+    }
+
+    val broadcastValBindings = Env.fromSeq(s.broadcastVals.map { case (name, ir) =>
+      (name, getRTypeForIR(ir, letBindingReq).canonicalPType)
+    })
+
+    val ctxReq = VirtualTypeWithReq(TIterable.elementType(s.contexts.typ),
+      getRTypeForIR(s.contexts, letBindingReq).r.asInstanceOf[RIterable].elementType
+    )
+
+    val globalReq = getRTypeForIR(s.globals, letBindingReq)
+
+    val rowReq = VirtualTypeWithReq(TIterable.elementType(s.partitionIR.typ),
+      getRTypeForIR(s.partitionIR, broadcastValBindings.bind(s.ctxRefName, ctxReq.canonicalPType))
+        .r.asInstanceOf[RIterable].elementType
+    )
+
+    RTable(rowReq.r.asInstanceOf[RStruct], globalReq.r.asInstanceOf[RStruct], s.kType.fieldNames)
   }
 }
 case class RTable(rowFields: IndexedSeq[(String, TypeWithRequiredness)], globalFields: IndexedSeq[(String, TypeWithRequiredness)], key: Seq[String]) extends BaseTypeWithRequiredness {

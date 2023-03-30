@@ -57,10 +57,8 @@ object TableNativeWriter {
       if (stageLocally) Some(FileSystems.getDefault.getPath(ctx.localTmpdir, s"hail_staging_tmp_${UUID.randomUUID()}", "rows", "parts")) else None
     )
 
-    val tt = TableType(ts.rowType, ts.key, ts.globalType)
     val globalWriter = PartitionNativeWriter(globalSpec, IndexedSeq(), s"$path/globals/parts/", None, None)
-
-    RelationalWriter.scoped(path, overwrite, Some(tt))(
+    RelationalWriter.scoped(path, overwrite, Some(ts.tableType))(
       ts.mapContexts { oldCtx =>
         val d = digitsNeeded(ts.numPartitions)
         val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"${ partFile(d, i) }-").toFastIndexedSeq)
@@ -86,7 +84,7 @@ object TableNativeWriter {
             WriteMetadata(ToArray(mapIR(ToStream(fileCountAndDistinct)) { fc =>
               SelectFields(fc, FastIndexedSeq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey"))
             }),
-              TableSpecWriter(path, tt, "rows", "globals", "references", log = true))))
+              TableSpecWriter(path, ts.tableType, "rows", "globals", "references", log = true))))
         }
       }
     )
