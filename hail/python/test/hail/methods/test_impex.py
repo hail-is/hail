@@ -1431,7 +1431,6 @@ class BGENTests(unittest.TestCase):
         with pytest.raises(FatalError, match='Each BGEN file must contain a region of the genome disjoint from other files'):
             hl.import_bgen(bgen_file, ['GT', 'GP'], sample_file, n_partitions=3)
 
-    @fails_service_backend()
     def test_multiple_references_throws_error(self):
         sample_file = resource('random.sample')
         bgen_file1 = resource('random-b.bgen')
