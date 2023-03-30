@@ -892,50 +892,6 @@ object LowerTableIR {
             MakeStruct(FastSeq("idx" -> i))
           })
 
-      case TableGenomicRange(n, nPartitions, referenceGenome) =>
-        assert(n < Int.MaxValue)
-        val nPartitionsAdj = math.max(math.min(n, nPartitions), 1)
-        val partCounts = partition(n, nPartitionsAdj)
-        val partStarts = partCounts.scanLeft(0)(_ + _)
-
-        val contextType = TStruct("start" -> TInt32, "end" -> TInt32)
-        val toLocus = TableGenomicRange.toLocus(referenceGenome.map(ctx.getReference))
-
-        val globalPosRanges = Array.tabulate(nPartitionsAdj) { i =>
-          partStarts(i) -> partStarts(i + 1)
-        }
-        val locusRanges = Array.tabulate(nPartitionsAdj) { i =>
-          toLocus(partStarts(i)) -> toLocus(partStarts(i + 1))
-        }
-
-        TableStage(
-          MakeStruct(FastSeq()),
-          new RVDPartitioner(ctx.stateManager, Array("locus"), tir.typ.rowType,
-            locusRanges.map { case (start, end) =>
-              Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
-            }),
-          TableStageDependency.none,
-          ToStream(
-            Literal(
-              TArray(contextType),
-              globalPosRanges.map(Row.fromTuple).toFastIndexedSeq
-            )
-          ),
-          { (ctxRef: Ref) =>
-            mapIR(StreamRange(GetField(ctxRef, "start"), GetField(ctxRef, "end"), I32(1), true)) { globalPos =>
-              val locusIR = referenceGenome match {
-                case Some(rg) =>
-                  val locusType = tir.typ.rowType.field("locus").typ.asInstanceOf[TLocus]
-                  invoke("globalPosToLocus", locusType, Cast(globalPos, TInt64))
-                case None =>
-                  MakeStruct(FastSeq(
-                    "contig" -> Str("1"),
-                    "position" -> Cast(globalPos, TInt32)))
-              }
-              MakeStruct(FastSeq("locus" -> locusIR))
-            }
-          })
-
       case TableMapGlobals(child, newGlobals) =>
         lower(child).mapGlobals(old => Let("global", old, newGlobals))
 

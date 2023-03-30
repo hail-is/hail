@@ -238,7 +238,7 @@ class StagedBTreeSuite extends HailSuite {
         val testSet = new BTreeBackedSet(ctx, region, n)
 
         val sets = Gen.buildableOf[Array](Gen.zip(Gen.coin(.1), values)
-          .map { case (m, v) => if (m) null else new java.lang.Long(v) })
+          .map { case (m, v) => if (m) null else Long.box(v.longValue()) })
         val lt = { (l1: java.lang.Long, l2: java.lang.Long) =>
           !(l1 == null) && ((l2 == null) || (l1 < l2))
         }

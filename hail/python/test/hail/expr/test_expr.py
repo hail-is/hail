@@ -4079,10 +4079,11 @@ def test_reservoir_sampling_pointer_type():
 
 
 def test_reservoir_sampling():
-    ht = hl.Table._generate(hl.literal([(1, 10), (10, 100), (100, 1000), (1000, 10000), (10000, 100000)]),
-                            hl.struct(),
-                            lambda ctx, _: hl.range(ctx[0], ctx[1]).map(lambda i: hl.struct(idx=i)),
-                            5)
+    ht = hl.Table._generate(
+        hl.literal([(1, 10), (10, 100), (100, 1000), (1000, 10000), (10000, 100000)]),
+        5,
+        lambda ctx, _: hl.range(ctx[0], ctx[1]).map(lambda i: hl.struct(idx=i)),
+    )
 
     sample_sizes = [99, 811, 900, 1000, 3333]
     (stats, samples) = ht.aggregate((hl.agg.stats(ht.idx), tuple([hl.sorted(hl.agg._reservoir_sample(ht.idx, size)) for size in sample_sizes])))
