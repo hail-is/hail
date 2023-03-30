@@ -1832,21 +1832,14 @@ object LowerTableIR {
                              (recompute: => A)
                              (reload: => A): A = {
     val cost =
-      if (original.numPartitions == 0) 0.0
-      else {
-        val numRecomputedPartitions =
-          Some(planned.rangeBounds)
-            .filter(_.length > 1)
-            .map(_
-              .map(intrvl => tupled(new Range(_, _, 1))(original.intervalRange(intrvl)).toSet)
-              .reduce(_.intersect(_))
-              .size
-            )
-            .getOrElse(0)
-
-        (0.25 * numRecomputedPartitions * planned.numPartitions) /
-          original.numPartitions.asInstanceOf[Double]
-      }
+      if (original.numPartitions == 0 || planned.numPartitions < 2)
+        0.0
+      else
+        ((0.25 * planned.numPartitions) / original.numPartitions.asInstanceOf[Double]) * planned
+          .rangeBounds
+          .map(intrvl => tupled(new Range(_, _, 1))(original.intervalRange(intrvl)).toSet)
+          .reduce(_.intersect(_))
+          .size
 
     log.info(s"repartition cost: $cost")
     if (cost <= 1.0) recompute else reload
