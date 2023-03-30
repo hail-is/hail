@@ -287,7 +287,10 @@ def run_list(tests, config: RunConfig):
     for i, b in enumerate(to_run):
         initialize(config)
         _run(b, config, f'[{i + 1}/{n_tests}] ')
-        stop()
+        try:
+            stop()
+        except Exception as e:  # pylint: disable=broad-except
+            logging.error(f'error while stopping session: {e}')
 
 
 def list_benchmarks():
