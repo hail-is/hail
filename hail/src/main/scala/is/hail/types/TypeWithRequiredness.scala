@@ -495,7 +495,7 @@ object RTable {
   }
 
   def fromTableStage(ec: ExecuteContext, s: TableStage): RTable = {
-    def getRTypeForIR(ir: IR, inputs: Env[PType]): VirtualTypeWithReq = {
+    def virtualTypeWithReq(ir: IR, inputs: Env[PType]): VirtualTypeWithReq = {
       import is.hail.expr.ir.Requiredness
       val ns = ir.noSharing
       val usesAndDefs = ComputeUsesAndDefs(ns, errorIfFreeVariables = false)
@@ -503,28 +503,31 @@ object RTable {
       VirtualTypeWithReq(ir.typ, req.lookup(ns).asInstanceOf[TypeWithRequiredness])
     }
 
-    val letBindingReq = s.letBindings.foldLeft(Env.empty[PType]) { case (env, (name, ir)) =>
-      // requiredness uses ptypes for legacy reasons, there is a 1-1 mapping between
-      // RTypes and canonical PTypes
-      env.bind(name, getRTypeForIR(ir, env).canonicalPType)
-    }
+    // requiredness uses ptypes for legacy reasons, there is a 1-1 mapping between
+    // RTypes and canonical PTypes
+    val letBindingReq =
+      s.letBindings.foldLeft(Env.empty[PType]) { case (env, (name, ir)) =>
+        env.bind(name, virtualTypeWithReq(ir, env).canonicalPType)
+      }
 
-    val broadcastValBindings = Env.fromSeq(s.broadcastVals.map { case (name, ir) =>
-      (name, getRTypeForIR(ir, letBindingReq).canonicalPType)
-    })
+    val broadcastValBindings =
+      Env.fromSeq(s.broadcastVals.map { case (name, ir) =>
+        (name, virtualTypeWithReq(ir, letBindingReq).canonicalPType)
+      })
 
-    val ctxReq = VirtualTypeWithReq(TIterable.elementType(s.contexts.typ),
-      getRTypeForIR(s.contexts, letBindingReq).r.asInstanceOf[RIterable].elementType
-    )
+    val ctxReq =
+      VirtualTypeWithReq(TIterable.elementType(s.contexts.typ),
+        virtualTypeWithReq(s.contexts, letBindingReq).r.asInstanceOf[RIterable].elementType
+      )
 
-    val globalReq = getRTypeForIR(s.globals, letBindingReq)
+    val globalRType =
+      virtualTypeWithReq(s.globals, letBindingReq).r.asInstanceOf[RStruct]
 
-    val rowReq = VirtualTypeWithReq(TIterable.elementType(s.partitionIR.typ),
-      getRTypeForIR(s.partitionIR, broadcastValBindings.bind(s.ctxRefName, ctxReq.canonicalPType))
-        .r.asInstanceOf[RIterable].elementType
-    )
+    val rowRType =
+      virtualTypeWithReq(s.partitionIR, broadcastValBindings.bind(s.ctxRefName, ctxReq.canonicalPType))
+        .r.asInstanceOf[RIterable].elementType.asInstanceOf[RStruct]
 
-    RTable(rowReq.r.asInstanceOf[RStruct], globalReq.r.asInstanceOf[RStruct], s.kType.fieldNames)
+    RTable(rowRType, globalRType, s.kType.fieldNames)
   }
 }
 case class RTable(rowFields: IndexedSeq[(String, TypeWithRequiredness)], globalFields: IndexedSeq[(String, TypeWithRequiredness)], key: Seq[String]) extends BaseTypeWithRequiredness {
