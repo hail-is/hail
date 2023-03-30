@@ -157,15 +157,18 @@ python-jar: $(PYTHON_JAR)
 .PHONY: pytest
 pytest: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
 pytest: python/README.md $(PYTHON_JAR)
-	cd python && $(HAIL_PYTHON3) setup.py pytest \
-     --addopts "-v \
-     --color=no \
-     --instafail \
-     -r A \
-     --self-contained-html \
-     --html=../build/reports/pytest.html \
-     $(PYTEST_TARGET) \
-     $(PYTEST_ARGS)"
+	cd python && $(HAIL_PYTHON3) -m pytest \
+            -Werror:::hail -Werror:::hailtop \
+            --log-cli-level=INFO \
+            -s \
+            -vv \
+            -r A \
+            --instafail \
+            --durations=50 \
+            --self-contained-html \
+            --html=../build/reports/pytest.html \
+            $(PYTEST_TARGET) \
+            $(PYTEST_ARGS)
 
 # NOTE: Look at upload-qob-test-resources target if test resources are missing
 .PHONY: pytest-qob
@@ -177,39 +180,47 @@ pytest-qob: upload-qob-jar upload-qob-test-resources install-editable
 	HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
 	HAIL_TEST_RESOURCES_DIR='$(CLOUD_HAIL_TEST_RESOURCES_DIR)' \
 	HAIL_DOCTEST_DATA_DIR='$(HAIL_DOCTEST_DATA_DIR)' \
-	pytest \
-		-v \
-		--color=no \
-		--instafail \
-		-r A \
-		--self-contained-html \
-		--html=../build/reports/pytest.html \
-		$(PYTEST_TARGET) \
-		$(PYTEST_ARGS)
+	$(HAIL_PYTHON3) -m pytest \
+            -Werror:::hail -Werror:::hailtop \
+            --log-cli-level=INFO \
+            -s \
+            -vv \
+            -r A \
+            --instafail \
+            --durations=50 \
+            --self-contained-html \
+            --html=../build/reports/pytest.html \
+            $(PYTEST_TARGET) \
+            $(PYTEST_ARGS)
 
 
 .PHONY: doctest
 doctest: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
 doctest: python/README.md $(PYTHON_JAR)
-	cd python && $(HAIL_PYTHON3) setup.py pytest \
-	  --addopts "-v \
-    --color=no \
-    --instafail \
-    -r A \
-    --self-contained-html \
-    --html=../build/reports/pytest-doctest.html \
-    --doctest-modules \
-    --doctest-glob='*.rst' \
-    --ignore=setup.py \
-    --ignore=setup-hailtop.py \
-    --ignore=hail/docs/conf.py \
-    --ignore=cluster-tests \
-    --ignore=hailtop \
-    --ignore=test \
-    --ignore=hail/docs/doctest_write_data.py \
-    --ignore=hail/docs/getting_started_developing.rst \
-    --ignore=hail/docs/getting_started.rst \
-    $(PYTEST_ARGS)"
+	cd python && $(HAIL_PYTHON3) -m pytest \
+            -Werror:::hail -Werror:::hailtop \
+            --log-cli-level=INFO \
+            -s \
+            -vv \
+            -r A \
+            --instafail \
+            --durations=50 \
+            --self-contained-html \
+            --html=../build/reports/pytest-doctest.html \
+            --doctest-modules \
+            --doctest-glob='*.rst' \
+            --ignore=setup.py \
+            --ignore=setup-hailtop.py \
+            --ignore=hail/docs/conf.py \
+            --ignore=cluster-tests \
+            --ignore=hailtop \
+            --ignore=test \
+            --ignore=hail/docs/doctest_write_data.py \
+            --ignore=hail/docs/getting_started_developing.rst \
+            --ignore=hail/docs/getting_started.rst \
+            $(PYTEST_TARGET) \
+            $(PYTEST_ARGS)
+
 
 .PHONY: copy-py-files
 copy-py-files: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS) $(PY_FILES) $(PYTHON_JAR)
