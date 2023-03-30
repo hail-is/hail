@@ -450,7 +450,7 @@ class ServiceBackend(Backend[bc.Batch]):
                  token: Optional[str] = None,
                  regions: Optional[List[str]] = None
                  ):
-        import nest_asyncio
+        import nest_asyncio  # pylint: disable=import-outside-toplevel
         nest_asyncio.apply()
 
         if len(args) > 2:
