@@ -130,39 +130,6 @@ case class TableStage private(
     copy(partitionIR = f(partitionIR), partitioner = part)
   }
 
-  def changePartitionerSubsetOrSuperset(newPartitioner: RVDPartitioner): TableStage = {
-    if (newPartitioner.numPartitions == numPartitions) {
-      if (!newPartitioner.rangeBounds.sameElements(partitioner.rangeBounds))
-        throw new RuntimeException(s"bad partitioner:\n  old=${ partitioner }\n  new=$newPartitioner")
-      return this
-    }
-
-    val newToOld = newPartitioner.rangeBounds.map(rb => partitioner.queryInterval(rb))
-    newToOld.foreach { r => assert (r.length <= 1) }
-    // complete subset
-    if (newToOld.forall { r => r.length == 1 }) {
-      val ctxIndices = newToOld.map(_.start)
-      return copy(partitioner = newPartitioner,
-        contexts = bindIR(ToArray(contexts)) { ctxs =>
-          ToStream(mapIR(Literal(TArray(TInt32), ctxIndices.toFastIndexedSeq)) { i => ArrayRef(ctxs, i) })
-        })
-    }
-    TableStage(letBindings = letBindings,
-      broadcastVals = broadcastVals,
-      globals = globals,
-      partitioner = newPartitioner,
-      dependency = dependency,
-      contexts = bindIR(ToArray(contexts)) { ctxs =>
-        mapIR(ToStream(Literal(TArray(TArray(TInt32)), newToOld.toFastIndexedSeq))) { range => ToArray(mapIR(ToStream(range))(i => ArrayRef(ctxs, i))) }
-      },
-      partition = (range: Ref) => flatMapIR(ToStream(range, requiresMemoryManagementPerElement = true)) { ctx => partition(ctx) })
-  }
-
-  def zipPartitionsLeftJoin(right: TableStage, newGlobals: (IR, IR) => IR, body: (IR, IR) => IR): TableStage = {
-    val leftToRight = this.partitioner.rename(this.kType.fieldNames.zip(right.kType.fieldNames).toMap)
-    zipPartitions(right.changePartitionerSubsetOrSuperset(leftToRight), newGlobals, body)
-  }
-
   // 'body' must take all output key values from
   // left stream, and be monotonic on left stream (it can drop or duplicate
   // elements of left iterator, or insert new elements in order, but cannot
@@ -1446,20 +1413,18 @@ object LowerTableIR {
       case TableLeftJoinRightDistinct(left, right, root) =>
         val commonKeyLength = right.typ.keyType.size
 
-        val (alignedLeft, alignedRight) = requestedPartitioner match {
+        val leftKeyToRightKeyMap = left.typ.key.zip(right.typ.key).toMap
+
+        val (loweredLeft, loweredRight) = requestedPartitioner match {
           case UseThisPartitioning(p) => (lower(left), lower(right,
             UseThisPartitioning(p.coarsen(commonKeyLength)
-              .rename(left.typ.key.zip(right.typ.key).toMap))))
+              .rename(leftKeyToRightKeyMap))))
           case UseTheDefaultPartitioning =>
-            val loweredLeft = lower(left)
-            (loweredLeft, lower(right).repartitionNoShuffle(loweredLeft.partitioner
-              .coarsen(commonKeyLength)
-              .rename(left.typ.key.zip(right.typ.key).toMap),
-              allowDuplication = true))
+            (lower(left), lower(right))
         }
 
-        alignedLeft.zipPartitionsLeftJoin(
-          alignedRight,
+        val alignedRight = loweredRight.repartitionNoShuffle(loweredLeft.partitioner.coarsen(commonKeyLength).rename(leftKeyToRightKeyMap), allowDuplication = true)
+        loweredLeft.zipPartitions(alignedRight,
           (lGlobals, _) => lGlobals,
           (leftPart, rightPart) => {
             val leftElementRef = Ref(genUID(), left.typ.rowType)
