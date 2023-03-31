@@ -1085,8 +1085,6 @@ class BGENTests(unittest.TestCase):
                             sample_file=resource('skip_invalid_loci.sample'))
         assert mt.rows().count() == 3
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_bgen_errors_with_invalid_loci(self):
         with hl.TemporaryFilename(suffix='.bgen') as f:
             hl.current_backend().fs.copy(resource('skip_invalid_loci.bgen'), f)
@@ -1440,7 +1438,6 @@ class BGENTests(unittest.TestCase):
                                 index_file_map=index_file_map)
             assert mt.count() == (30, 10)
 
-    @fails_service_backend()
     def test_index_bgen_errors_when_index_file_has_wrong_extension(self):
         bgen_file = resource('random.bgen')
 
