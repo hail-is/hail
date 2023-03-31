@@ -696,6 +696,9 @@ def is_transient_error(e):
             return False
         if e.status == 500 and 'denied: retrieving permissions failed' in e.message:
             return False
+        # DockerError(500, "Head https://gcr.io/v2/genomics-tools/samtools/manifests/latest: unknown: Project 'project:genomics-tools' not found or deleted.")
+        if e.status == 500 and 'not found or deleted' in e.message:
+            return False
         return e.status in RETRYABLE_HTTP_STATUS_CODES
     if isinstance(e, TransientError):
         return True
