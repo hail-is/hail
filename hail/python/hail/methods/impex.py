@@ -23,7 +23,8 @@ from hail.table import Table
 from hail.typecheck import typecheck, nullable, oneof, dictof, anytype, \
     sequenceof, enumeration, sized_tupleof, numeric, table_key_type, char
 from hail.utils.misc import wrap_to_list, plural
-from hail.utils.java import Env, FatalError, jindexed_seq_args, warning
+from hail.utils.java import Env, FatalError, jindexed_seq_args, warning, info
+from hail.utils import new_temp_file
 from hail.utils.deduplicate import deduplicate
 
 from .import_lines_helpers import split_lines, should_remove_line
@@ -1276,7 +1277,19 @@ def import_bgen(path,
                 raise TypeError(
                     f"'import_bgen' requires all elements in 'variants' are a non-empty prefix of the BGEN key type: {repr(expected_vtype)}")
 
-    reader = ir.MatrixBGENReader(path, sample_file, index_file_map, n_partitions, block_size, variants)
+        vir = variants._tir
+        if isinstance(vir, ir.TableRead) \
+                and isinstance(vir.reader, ir.TableNativeReader) \
+                and vir.reader.intervals is None \
+                and variants.count() == variants.distinct().count():
+            variants_path = vir.reader.path
+        else:
+            variants_path = new_temp_file(prefix='bgen_included_vars', extension='ht')
+            variants.distinct().write(variants_path)
+    else:
+        variants_path = None
+
+    reader = ir.MatrixBGENReader(path, sample_file, index_file_map, n_partitions, block_size, variants_path)
 
     mt = (MatrixTable(ir.MatrixRead(reader))
           .drop(*[fd for fd in ['GT', 'GP', 'dosage'] if fd not in entry_set],
@@ -2909,12 +2922,14 @@ def import_vcfs(path,
            index_file_map=nullable(dictof(str, str)),
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
-           skip_invalid_loci=bool)
+           skip_invalid_loci=bool,
+           _buffer_size=int)
 def index_bgen(path,
                index_file_map=None,
                reference_genome='default',
                contig_recoding=None,
-               skip_invalid_loci=False):
+               skip_invalid_loci=False,
+               _buffer_size=16_000_000):
     """Index BGEN files as required by :func:`.import_bgen`.
 
     If `index_file_map` is unspecified, then, for each BGEN file, the index file is written in the
@@ -2957,12 +2972,50 @@ def index_bgen(path,
         If ``True``, skip loci that are not consistent with `reference_genome`.
 
     """
-    rg = reference_genome.name if reference_genome else None
+    rg_t = hl.tlocus(reference_genome) if reference_genome else hl.tstruct(contig=hl.tstr, position=hl.tint32)
     if index_file_map is None:
         index_file_map = {}
     if contig_recoding is None:
         contig_recoding = {}
-    Env.backend().index_bgen(wrap_to_list(path), index_file_map, rg, contig_recoding, skip_invalid_loci)
+    raw_paths = wrap_to_list(path)
+
+    fs = hl.current_backend().fs
+    paths = []
+    for p in raw_paths:
+        if fs.is_file(p):
+            paths.append(p)
+        else:
+            if not fs.is_dir(p):
+                raise ValueError(f'index_bgen: no file or directory at {p}')
+            for stat_result in fs.ls(p):
+                if re.match(r"^.*part-[0-9]+(-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?$",
+                            os.path.basename(stat_result.path)):
+                    paths.append(stat_result.path)
+
+    paths_lit = hl.literal(paths, hl.tarray(hl.tstr))
+    index_file_map_lit = hl.literal(index_file_map, hl.tdict(hl.tstr, hl.tstr))
+    for k, v in index_file_map.items():
+        if not v.endswith('.idx2'):
+            raise FatalError(f"index file for {k} is missing a .idx2 file extension")
+    contig_recoding_lit = hl.literal(contig_recoding, hl.tdict(hl.tstr, hl.tstr))
+    ht = hl.utils.range_table(len(paths), len(paths))
+    path_fd = paths_lit[ht.idx]
+    ht = ht.annotate(n_indexed=hl.expr.functions._func(
+        "index_bgen",
+        hl.tint64,
+        path_fd,
+        index_file_map_lit.get(path_fd, path_fd + ".idx2"),
+        contig_recoding_lit,
+        hl.bool(skip_invalid_loci),
+        hl.int32(_buffer_size),
+        type_args=(rg_t,)))
+
+    for r in ht.collect():
+        idx = r.idx
+        n = r.n_indexed
+        path = paths[idx]
+        idx_path = index_file_map.get(path, path)
+        info(f"indexed {n} sites in {path} at {idx_path}")
 
 
 @typecheck(path=str,

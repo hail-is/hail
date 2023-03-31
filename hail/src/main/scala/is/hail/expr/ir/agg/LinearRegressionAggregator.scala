@@ -7,7 +7,7 @@ import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitContext, IEmitCode}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SCode, SValue}
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SIndexablePointer, SIndexablePointerSettable}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SIndexablePointer, SIndexablePointerSettable, SIndexablePointerValue}
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.virtual.{TArray, TFloat64, TInt32, Type}
 import is.hail.utils.FastIndexedSeq
@@ -150,7 +150,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
           case SIndexablePointer(pt: PCanonicalArray) =>
             assert(pt.elementType.isInstanceOf[PFloat64])
 
-            val xAddr = x.asInstanceOf[SIndexablePointerSettable].a
+            val xAddr = x.asInstanceOf[SIndexablePointerValue].a
             val xptr = cb.newLocal[Long]("linreg_agg_seqop_xptr")
             val xptr2 = cb.newLocal[Long]("linreg_agg_seqop_xptr2")
             cb.assign(xptr, pt.firstElementOffset(xAddr, k))

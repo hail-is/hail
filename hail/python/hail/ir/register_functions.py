@@ -295,3 +295,4 @@ def register_functions():
     register_function("chi_squared_test", (dtype("int32"), dtype("int32"), dtype("int32"), dtype("int32"),), dtype("struct{p_value: float64, odds_ratio: float64}"))
     register_function("strftime", (dtype("str"), dtype("int64"), dtype("str")), dtype("str"))
     register_function("strptime", (dtype("str"), dtype("str"), dtype("str")), dtype("int64"))
+    register_function("index_bgen", (dtype("str"), dtype("str"), dtype("dict<str, str>"), dtype('bool'), dtype("int32")), dtype("int64"), (dtype("?T"),))

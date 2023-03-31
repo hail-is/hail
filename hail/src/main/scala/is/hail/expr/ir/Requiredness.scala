@@ -583,7 +583,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         val eltType = tcoerce[RIterable](requiredness).elementType
         eltType.unionFrom(lookup(joinF))
       case StreamMultiMerge(as, _) =>
-        requiredness.union(as.forall(lookup(_).required))
+       requiredness.union(as.forall(lookup(_).required))
         val elt = tcoerce[RStruct](tcoerce[RIterable](requiredness).elementType)
         as.foreach { a =>
           elt.unionFields(tcoerce[RStruct](tcoerce[RIterable](lookup(a)).elementType))

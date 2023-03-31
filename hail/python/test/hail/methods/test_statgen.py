@@ -7,7 +7,7 @@ import hail as hl
 import hail.expr.aggregators as agg
 import hail.utils as utils
 from hail.linalg import BlockMatrix
-from hail.utils import FatalError
+from hail.utils import FatalError, new_temp_file
 from hail.utils.java import choose_backend, Env
 from ..helpers import resource, fails_local_backend, fails_service_backend, skip_when_service_backend
 
@@ -783,8 +783,6 @@ class Tests(unittest.TestCase):
             self.assertTrue(is_constant(results[9]))
             self.assertTrue(is_constant(results[10]))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_logistic_regression_wald_test_multi_pheno_bgen_dosage(self):
         covariates = hl.import_table(resource('regressionLogisticMultiPheno.cov'),
                                      key='Sample',
@@ -793,8 +791,15 @@ class Tests(unittest.TestCase):
                                 key='Sample',
                                 missing='NA',
                                 types={'Pheno1': hl.tint32, 'Pheno2': hl.tint32}).cache()
-        mt = hl.import_bgen(resource('example.8bits.bgen'),
-                                           entry_fields=['dosage']).cache()
+        bgen_path = new_temp_file(extension='bgen')
+        Env.fs().copy(resource('example.8bits.bgen'), bgen_path)
+
+        hl.index_bgen(bgen_path,
+                      contig_recoding={'01': '1'},
+                      reference_genome='GRCh37')
+
+        mt = hl.import_bgen(bgen_path,
+                                           entry_fields=['dosage'])
 
         for logistic_regression_function in self.logreg_functions:
 

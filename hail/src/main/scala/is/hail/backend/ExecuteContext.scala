@@ -140,8 +140,8 @@ class ExecuteContext(
     using(new LocalTaskContext(0, 0))(f(theHailClassLoader, fs, _, r))
   }
 
-  def createTmpPath(prefix: String, extension: String = null): String = {
-    val path = ExecuteContext.createTmpPathNoCleanup(tmpdir, prefix, extension)
+  def createTmpPath(prefix: String, extension: String = null, local: Boolean = false): String = {
+    val path = ExecuteContext.createTmpPathNoCleanup(if (local) localTmpdir else tmpdir, prefix, extension)
     tempFileManager.own(path)
     path
   }

@@ -50,6 +50,7 @@ case class AvroPartitionReader(schema: Schema, uidFieldName: String) extends Par
   override def emitStream(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
+    mb: EmitMethodBuilder[_],
     context: EmitCode,
     requestedType: TStruct
   ): IEmitCode = {
@@ -63,7 +64,6 @@ case class AvroPartitionReader(schema: Schema, uidFieldName: String) extends Par
       else
         requestedType
 
-      val mb = cb.emb
       val it = mb.genFieldThisRef[DataFileStream[GenericRecord]]("datafilestream")
       val record = mb.genFieldThisRef[GenericRecord]("record")
       val region = mb.genFieldThisRef[Region]("region")
