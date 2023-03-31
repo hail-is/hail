@@ -650,4 +650,4 @@ def test_split_sparse_roundtrip():
 
     vds_split = hl.vds.split_multi(vds)
     assert vds2.variant_data.select_entries(*vds_split.variant_data.entry)._same(vds_split.variant_data)
-    assert vds2.reference_data._same(vds_split.reference_data)
+    assert vds2.reference_data._same(vds_split.reference_data.drop('ref_allele'))

@@ -109,8 +109,7 @@ class VariantDataset:
         rmt = rmt.select_entries(*(x for x in rmt.entry if x in used_ref_block_fields))
         rmt = rmt.filter_rows(hl.agg.count() > 0)
 
-        rmt = rmt.key_rows_by('locus')
-        rmt = rmt.select_rows(ref_allele=rmt.alleles[0][0]).select_cols()
+        rmt = rmt.key_rows_by('locus').select_rows().select_cols()
 
         if is_split:
             rmt = rmt.distinct_by_row()
