@@ -48,6 +48,7 @@ variable deploy_ukbb {
   description = "Run the UKBB Genetic Correlation browser"
   default = false
 }
+variable default_subnet_ip_cidr_range {}
 
 locals {
   docker_prefix = (
@@ -73,7 +74,7 @@ provider "google-beta" {
 data "google_client_config" "provider" {}
 
 resource "google_project_service" "service_networking" {
-  disable_on_destroy = true
+  disable_on_destroy = false
   service = "servicenetworking.googleapis.com"
   timeouts {}
 }
@@ -84,10 +85,14 @@ resource "google_compute_network" "default" {
   enable_ula_internal_ipv6 = false
 }
 
-data "google_compute_subnetwork" "default_region" {
+resource "google_compute_subnetwork" "default_region" {
   name = "default"
   region = var.gcp_region
-  depends_on = [google_compute_network.default]
+  network = google_compute_network.default.id
+  ip_cidr_range = var.default_subnet_ip_cidr_range
+  private_ip_google_access = false
+
+  timeouts {}
 }
 
 resource "google_container_cluster" "vdc" {
@@ -95,7 +100,7 @@ resource "google_container_cluster" "vdc" {
   name = "vdc"
   location = var.gcp_zone
   network = google_compute_network.default.name
-  enable_shielded_nodes = null
+  enable_shielded_nodes = false
 
   # We can't create a cluster with no node pool defined, but we want to only use
   # separately managed node pools. So we create the smallest possible default
@@ -260,35 +265,18 @@ resource "random_string" "db_name_suffix" {
   }
 }
 
-# Without this, I get:
-# Error: Error, failed to create instance because the network doesn't have at least
-# 1 private services connection. Please see
-# https://cloud.google.com/sql/docs/mysql/private-ip#network_requirements
-# for how to create this connection.
-resource "google_compute_global_address" "google_managed_services_default" {
-  name = "google-managed-services-default"
-  purpose = "VPC_PEERING"
-  address_type = "INTERNAL"
-  prefix_length = 16
-  network = google_compute_network.default.id
-}
-
 resource "google_service_networking_connection" "private_vpc_connection" {
-  network = google_compute_network.default.id
+  # google_compute_network returns the name as the project but our extant networking connection uses
+  # the number
+  network = "projects/859893752941/global/networks/default" # google_compute_network.default.id
   service = "services/servicenetworking.googleapis.com"
   reserved_peering_ranges = [
     "jg-test-clone-resource-id-ip-range",
-    google_compute_global_address.google_managed_services_default.name
   ]
-}
 
-resource "google_compute_network_peering_routes_config" "private_vpc_peering_config" {
-  peering = google_service_networking_connection.private_vpc_connection.peering
-  network = google_compute_network.default.name
-  import_custom_routes = false
-  export_custom_routes = true
   timeouts {}
 }
+
 
 resource "google_sql_database_instance" "db" {
   name = "db-${random_string.db_name_suffix.result}"
@@ -383,86 +371,6 @@ provider "kubernetes" {
   )
 }
 
-resource "kubernetes_secret" "global_config" {
-  metadata {
-    name = "global-config"
-  }
-
-  data = {
-    cloud = "gcp"
-    batch_gcp_regions = var.batch_gcp_regions
-    batch_logs_bucket = module.batch_logs.name  # Deprecated
-    batch_logs_storage_uri = "gs://${module.batch_logs.name}"
-    hail_query_gcs_path = "gs://${module.hail_query.name}" # Deprecated
-    hail_test_gcs_bucket = google_storage_bucket.hail_test_bucket.name # Deprecated
-    test_storage_uri = "gs://${google_storage_bucket.hail_test_bucket.name}"
-    query_storage_uri  = "gs://${module.hail_query.name}"
-    default_namespace = "default"
-    docker_root_image = local.docker_root_image
-    domain = var.domain
-    gcp_project = var.gcp_project
-    gcp_region = var.gcp_region
-    gcp_zone = var.gcp_zone
-    docker_prefix = local.docker_prefix
-    internal_ip = google_compute_address.internal_gateway.address
-    ip = google_compute_address.gateway.address
-    kubernetes_server_url = "https://${google_container_cluster.vdc.endpoint}"
-    organization_domain = var.organization_domain
-  }
-}
-
-resource "google_sql_ssl_cert" "root_client_cert" {
-  common_name = "root-client-cert"
-  instance = google_sql_database_instance.db.name
-}
-
-resource "random_password" "db_root_password" {
-  length = 22
-}
-
-resource "google_sql_user" "db_root" {
-  name = "root"
-  instance = google_sql_database_instance.db.name
-  password = random_password.db_root_password.result
-}
-
-resource "kubernetes_secret" "database_server_config" {
-  metadata {
-    name = "database-server-config"
-  }
-
-  data = {
-    "server-ca.pem" = google_sql_database_instance.db.server_ca_cert.0.cert
-    "client-cert.pem" = google_sql_ssl_cert.root_client_cert.cert
-    "client-key.pem" = google_sql_ssl_cert.root_client_cert.private_key
-    "sql-config.cnf" = <<END
-[client]
-host=${google_sql_database_instance.db.ip_address[0].ip_address}
-user=root
-password=${random_password.db_root_password.result}
-ssl-ca=/sql-config/server-ca.pem
-ssl-mode=VERIFY_CA
-ssl-cert=/sql-config/client-cert.pem
-ssl-key=/sql-config/client-key.pem
-END
-    "sql-config.json" = <<END
-{
-    "ssl-cert": "/sql-config/client-cert.pem",
-    "ssl-key": "/sql-config/client-key.pem",
-    "ssl-ca": "/sql-config/server-ca.pem",
-    "ssl-mode": "VERIFY_CA",
-    "host": "${google_sql_database_instance.db.ip_address[0].ip_address}",
-    "port": 3306,
-    "user": "root",
-    "password": "${random_password.db_root_password.result}",
-    "instance": "${google_sql_database_instance.db.name}",
-    "connection_name": "${google_sql_database_instance.db.connection_name}",
-    "docker_root_image": "${local.docker_root_image}"
-}
-END
-  }
-}
-
 resource "google_artifact_registry_repository" "repository" {
   provider = google-beta
   format = "DOCKER"
@@ -473,10 +381,6 @@ resource "google_artifact_registry_repository" "repository" {
 resource "google_service_account" "gcr_push" {
   account_id = "gcr-push"
   display_name = "push to gcr.io"
-}
-
-resource "google_service_account_key" "gcr_push_key" {
-  service_account_id = google_service_account.gcr_push.name
 }
 
 resource "google_artifact_registry_repository_iam_member" "artifact_registry_batch_agent_viewer" {
@@ -506,26 +410,13 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_pus
   member = "serviceAccount:${google_service_account.gcr_push.email}"
 }
 
-# This is intended to match the secret name also used for azure credentials
-# This should ultimately be replaced by using CI's own batch-managed credentials
-# in BuildImage jobs
-resource "kubernetes_secret" "registry_push_credentials" {
-  metadata {
-    name = "registry-push-credentials"
-  }
-
-  data = {
-    "credentials.json" = base64decode(google_service_account_key.gcr_push_key.private_key)
-  }
-}
-
 module "ukbb" {
   count = var.deploy_ukbb ? 1 : 0
   source = "../k8s/ukbb"
 }
 
 module "auth_gsa_secret" {
-  source = "./gsa_k8s_secret"
+  source = "./gsa"
   name = "auth"
   project = var.gcp_project
   iam_roles = [
@@ -535,7 +426,7 @@ module "auth_gsa_secret" {
 }
 
 module "batch_gsa_secret" {
-  source = "./gsa_k8s_secret"
+  source = "./gsa"
   name = "batch"
   project = var.gcp_project
   iam_roles = [
@@ -546,13 +437,13 @@ module "batch_gsa_secret" {
 }
 
 resource "google_storage_bucket_iam_member" "batch_hail_query_bucket_storage_viewer" {
-  bucket = module.hail_query.name
+  bucket = google_storage_bucket.hail_query.name
   role = "roles/storage.objectViewer"
   member = "serviceAccount:${module.batch_gsa_secret.email}"
 }
 
 module "ci_gsa_secret" {
-  source = "./gsa_k8s_secret"
+  source = "./gsa"
   name = "ci"
   project = var.gcp_project
 }
@@ -567,13 +458,13 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_vie
 }
 
 module "grafana_gsa_secret" {
-  source = "./gsa_k8s_secret"
+  source = "./gsa"
   name = "grafana"
   project = var.gcp_project
 }
 
 module "test_gsa_secret" {
-  source = "./gsa_k8s_secret"
+  source = "./gsa"
   name = "test"
   project = var.gcp_project
   iam_roles = [
@@ -588,13 +479,6 @@ resource "google_storage_bucket_iam_member" "test_bucket_admin" {
   bucket = google_storage_bucket.hail_test_bucket.name
   role = "roles/storage.admin"
   member = "serviceAccount:${module.test_gsa_secret.email}"
-}
-
-# in prod this is a dupe of test.
-module "test_dev_gsa_secret" {
-  source = "./gsa_k8s_secret"
-  name = "test-dev"
-  project = var.gcp_project
 }
 
 resource "google_service_account" "batch_agent" {
@@ -626,17 +510,8 @@ resource "google_compute_firewall" "default_allow_internal" {
   source_ranges = ["10.128.0.0/9"]
 
   allow {
-    protocol = "tcp"
-    ports    = ["0-65535"]
-  }
-
-  allow {
-    protocol = "udp"
-    ports    = ["0-65535"]
-  }
-
-  allow {
-    protocol = "icmp"
+    ports    = []
+    protocol = "all"
   }
 
   timeouts {}
@@ -665,18 +540,25 @@ resource "google_compute_firewall" "vdc_to_batch_worker" {
   }
 }
 
-module "batch_logs" {
-  source        = "./gcs_bucket"
-  short_name    = "batch-logs"
-  location      = var.batch_logs_bucket_location
+resource "google_storage_bucket" "batch_logs" {
+  name = "hail-batch"
+  location = var.batch_logs_bucket_location
   storage_class = var.batch_logs_bucket_storage_class
+  labels = {
+    "name" = "hail-batch"
+  }
+  timeouts {}
 }
 
-module "hail_query" {
-  source        = "./gcs_bucket"
-  short_name    = "hail-query"
-  location      = var.hail_query_bucket_location
+
+resource "google_storage_bucket" "hail_query" {
+  name = "hail-query"
+  location = var.hail_query_bucket_location
   storage_class = var.hail_query_bucket_storage_class
+  labels = {
+    "name" = "hail-query"
+  }
+  timeouts {}
 }
 
 resource "random_string" "hail_test_bucket_suffix" {
@@ -759,25 +641,6 @@ resource "kubernetes_cluster_role_binding" "batch" {
   }
 }
 
-data "sops_file" "auth_oauth2_client_secret_sops_client_secret_json" {
-  source_file = "${var.github_organization}/auth_oauth2_client_secret.client_secret.enc.json"
-}
-
-data "sops_file" "auth_oauth2_client_secret_sops_client_secret_v2_json" {
-  source_file = "${var.github_organization}/auth_oauth2_client_secret.client_secret_v2.enc.json"
-}
-
-resource "kubernetes_secret" "auth_oauth2_client_secret" {
-  metadata {
-    name = "auth-oauth2-client-secret"
-  }
-
-  data = {
-    "client_secret.json" = data.sops_file.auth_oauth2_client_secret_sops_client_secret_json.raw
-    "client_secret_v2.json" = data.sops_file.auth_oauth2_client_secret_sops_client_secret_v2_json.raw
-  }
-}
-
 data "sops_file" "ci_config_sops" {
   count = fileexists("${var.github_organization}/ci_config.enc.json") ? 1 : 0
   source_file = "${var.github_organization}/ci_config.enc.json"
@@ -800,4 +663,5 @@ module "ci" {
 
   ci_email = module.ci_gsa_secret.email
   github_context = local.ci_config.data["github_context"]
+  test_oauth2_callback_urls = local.ci_config.data["test_oauth2_callback_urls"]
 }

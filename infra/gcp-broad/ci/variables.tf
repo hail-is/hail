@@ -31,3 +31,7 @@ variable "ci_email" {
 variable "github_context" {
   type = string
 }
+
+variable "test_oauth2_callback_urls" {
+  type = string
+}

@@ -18,20 +18,6 @@ resource "google_service_account" "service_account" {
   timeouts {}
 }
 
-resource "google_service_account_key" "service_account_key" {
-  service_account_id = google_service_account.service_account.name
-}
-
-resource "kubernetes_secret" "k8s_key" {
-  metadata {
-    name = "${var.name}-gsa-key"
-  }
-
-  data = {
-    "key.json" = base64decode(google_service_account_key.service_account_key.private_key)
-  }
-}
-
 resource "google_project_iam_member" "iam_member" {
   for_each = toset(var.iam_roles)
 

@@ -2716,10 +2716,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: hail-ci-0-1-service-account-key
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /secret/ci-secrets
       - name: ssl-config-ci-tests
         namespace:
           valueFrom: default_ns.name
