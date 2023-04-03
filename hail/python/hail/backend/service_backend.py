@@ -378,6 +378,7 @@ class ServiceBackend(Backend):
                             readonly_fuse_buckets.add(bucket)
                             storage_requirement_bytes += await (await self._async_fs.statfile(blob)).size()
                             await write_str(infile, f'/cloudfuse/{bucket}/{path}')
+                    await write_int(infile, storage_requirement_bytes)
                     await write_str(infile, str(self.worker_cores))
                     await write_str(infile, str(self.worker_memory))
                     await write_int(infile, len(self.regions))

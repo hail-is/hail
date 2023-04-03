@@ -594,6 +594,7 @@ class ServiceBackendSocketAPI2(
       addedSequences(rgName) = (fastaFile, indexFile)
       i += 1
     }
+    val requestedStorageBytes = readInt()
     val workerCores = readString()
     val workerMemory = readString()
 
