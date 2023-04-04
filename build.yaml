@@ -1428,12 +1428,6 @@ steps:
     inputs:
       - from: /repo
         to: /io/repo
-      - from: /repo/pylintrc
-        to: /io/repo/pylintrc
-      - from: /repo/setup.cfg
-        to: /io/repo/setup.cfg
-      - from: /repo/check-sql.sh
-        to: /io/repo/check-sql.sh
     dependsOn:
       - hail_dev_image
       - merge_code
@@ -1454,6 +1448,8 @@ steps:
         to: /io/repo/setup.cfg
       - from: /repo/hail/python
         to: /io/repo/hail/python
+      - from: /repo/config.mk
+        to: /io/repo/config.mk
     dependsOn:
       - hail_dev_image
       - merge_code
