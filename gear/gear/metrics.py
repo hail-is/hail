@@ -1,6 +1,9 @@
+from typing import Optional
+
 import prometheus_client as pc  # type: ignore
 from aiohttp import web
-from prometheus_async.aio import time as prom_async_time  # type: ignore
+from prometheus_async.aio import time as prom_async_time
+from prometheus_client.context_managers import Timer  # type: ignore
 
 REQUEST_TIME = pc.Summary('http_request_latency_seconds', 'Endpoint latency in seconds', ['endpoint', 'verb'])
 REQUEST_COUNT = pc.Counter('http_request_count', 'Number of HTTP requests', ['endpoint', 'verb', 'status'])
@@ -35,7 +38,7 @@ async def monitor_endpoints_middleware(request, handler):
 class PrometheusSQLTimer:
     def __init__(self, query_name: str):
         self.query_name = query_name
-        self.sql_query_latency_manager = None
+        self.sql_query_latency_manager: Optional[Timer] = None
 
     async def __aenter__(self):
         SQL_QUERY_COUNT.labels(query_name=self.query_name).inc()
@@ -44,4 +47,5 @@ class PrometheusSQLTimer:
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
+        assert self.sql_query_latency_manager
         self.sql_query_latency_manager.__exit__(exc_type, exc, tb)
