@@ -6,7 +6,9 @@ SERVICES := auth batch ci memory notebook monitoring website
 SERVICES_IMAGES := $(patsubst %, %-image, $(SERVICES))
 SERVICES_MODULES := $(SERVICES) gear web_common
 CHECK_SERVICES_MODULES := $(patsubst %, check-%, $(SERVICES_MODULES))
-SERVICES_IMAGE_DEPS = hail-ubuntu-image hail_version $(shell git ls-files hail/python/hailtop gear web_common)
+
+HAILTOP_VERSION := hail/python/hailtop/hail_version
+SERVICES_IMAGE_DEPS = hail-ubuntu-image $(HAILTOP_VERSION) $(shell git ls-files hail/python/hailtop gear web_common)
 
 EMPTY :=
 SPACE := $(EMPTY) $(EMPTY)
@@ -101,9 +103,8 @@ generate-pip-lockfiles: batch/pinned-requirements.txt
 generate-pip-lockfiles: ci/pinned-requirements.txt
 generate-pip-lockfiles: memory/pinned-requirements.txt
 
-hail_version:
-	$(MAKE) -C hail python/hail/hail_version
-	cp hail/python/hail/hail_version $@
+$(HAILTOP_VERSION):
+	$(MAKE) -C hail python/hailtop/hail_version
 
 hail-ubuntu-image: docker/hail-ubuntu
 	$(eval HAIL_UBUNTU_IMAGE := $(DOCKER_PREFIX)/hail-ubuntu:$(TOKEN))

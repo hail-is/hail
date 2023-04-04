@@ -60,7 +60,6 @@ RUN git clone --depth 1 --branch 1.4.4 https://github.com/containers/crun.git &&
 FROM base
 COPY --from=crun_builder /usr/local/bin/crun /usr/local/bin/crun
 COPY hail/python/setup-hailtop.py /hailtop/setup.py
-COPY /hail_version /hailtop/hailtop/hail_version
 COPY hail/python/MANIFEST.in /hailtop/MANIFEST.in
 COPY hail/python/hailtop /hailtop/hailtop/
 
