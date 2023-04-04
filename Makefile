@@ -12,7 +12,7 @@ SERVICES_IMAGE_DEPS = hail-ubuntu-image $(HAILTOP_VERSION) $(shell git ls-files 
 
 EMPTY :=
 SPACE := $(EMPTY) $(EMPTY)
-EXTRA_PYTHONPATH := hail/python:$(subst $(SPACE),:,$(SERVICES))
+EXTRA_PYTHONPATH := hail/python:$(subst $(SPACE),:,$(SERVICES_MODULES))
 PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
 
 default:
