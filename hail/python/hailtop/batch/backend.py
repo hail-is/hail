@@ -329,7 +329,6 @@ class LocalBackend(Backend[None]):
                                 "--entrypoint=''"
                                 f"{self._extra_docker_run_flags} "
                                 f"-v {tmpdir}:{tmpdir} "
-                                f"-w {tmpdir} "
                                 f"{memory} "
                                 f"{cpu} "
                                 f"{job._image} "
