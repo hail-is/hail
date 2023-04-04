@@ -246,13 +246,14 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec,
       cb.assign(lastSeenRegion, Region.stagedCreate(Region.TINY, region.getPool()))
 
       val ctxValue = ctx.asString.loadString(cb)
+
+      cb.assign(filename, const(partPrefix).concat(ctxValue))
       writeIndexInfo.foreach { case (indexName, _, writer) =>
         val indexFile = cb.newLocal[String]("indexFile")
         cb.assign(indexFile, const(indexName).concat(ctxValue).concat(".idx"))
-        writer.init(cb, indexFile)
+        writer.init(cb, indexFile, cb.memoize(mb.getObject[Map[String, Any]](Map.empty)))
       }
 
-      cb.assign(filename, const(partPrefix).concat(ctxValue))
 
       val stagingFile = stagingInfo.map { case (folder, fileRef) =>
         cb.assign(fileRef, const(s"$folder/").concat(ctxValue))

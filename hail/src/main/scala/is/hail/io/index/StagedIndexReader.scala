@@ -10,6 +10,15 @@ import is.hail.rvd.AbstractIndexSpec
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.{SSettable, SValue}
+import is.hail.expr.ir.functions.IntervalFunctions.compareStructWithPartitionIntervalEndpoint
+import is.hail.expr.ir.functions.MathFunctions
+import is.hail.expr.ir.{BinarySearch, EmitCode, EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
+import is.hail.io.AbstractTypedCodecSpec
+import is.hail.io.fs.FS
+import is.hail.types.physical.stypes.EmitType
+import is.hail.types.physical.stypes.concrete.SStackStruct
+import is.hail.types.physical.stypes.interfaces.{SBaseStructSettable, SBaseStructValue, SIntervalValue, primitive}
+import is.hail.types.physical.stypes.primitives.SBooleanValue
 import is.hail.types.physical.{PCanonicalArray, PCanonicalBaseStruct}
 import is.hail.types.virtual.{TInt64, TTuple}
 import is.hail.utils._
@@ -24,22 +33,23 @@ case class VariableMetadata(
   attributes: Map[String, Any]
 )
 
-
-class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
-  private[this] val leafPType = spec.leafCodec.encodedType.decodedPType(spec.leafCodec.encodedVirtualType)
-  private[this] val leafChildType = leafPType.asInstanceOf[PCanonicalBaseStruct].types(1).asInstanceOf[PCanonicalArray].elementType.sType.asInstanceOf[SBaseStruct]
-  private[this] val leafChildLocalType = SStackStruct(leafChildType.virtualType, leafChildType.fieldEmitTypes)
-  private[this] val internalPType = spec.internalNodeCodec.encodedType.decodedPType(spec.internalNodeCodec.encodedVirtualType)
-  private[this] val leafDec = spec.leafCodec.encodedType.buildDecoder(spec.leafCodec.encodedVirtualType, emb.ecb)
-  private[this] val internalDec = spec.internalNodeCodec.encodedType.buildDecoder(spec.internalNodeCodec.encodedVirtualType, emb.ecb)
-
+class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodecSpec, internalCodec: AbstractTypedCodecSpec) {
   private[this] val cache: Settable[LongToRegionValueCache] = emb.genFieldThisRef[LongToRegionValueCache]("index_cache")
   private[this] val metadata: Settable[VariableMetadata] = emb.genFieldThisRef[VariableMetadata]("index_file_metadata")
 
   private[this] val is: Settable[ByteTrackingInputStream] = emb.genFieldThisRef[ByteTrackingInputStream]("index_is")
 
+  private[this] val leafPType = leafCodec.encodedType.decodedPType(leafCodec.encodedVirtualType)
+  private[this] val internalPType = internalCodec.encodedType.decodedPType(internalCodec.encodedVirtualType)
+
+  private[this] val leafChildType = leafPType.asInstanceOf[PCanonicalBaseStruct].types(1).asInstanceOf[PCanonicalArray].elementType.sType.asInstanceOf[SBaseStruct]
+  private[this] val leafChildLocalType = SStackStruct(leafChildType.virtualType, leafChildType.fieldEmitTypes)
+
   private[this] val queryResultStartIndex: Settable[Long] = emb.genFieldThisRef[Long]("index_resultIndex")
   private[this] val queryResultStartLeaf: SSettable = emb.newPField("index_resultOffset", leafChildLocalType)
+
+  private[this] val leafDec = leafCodec.encodedType.buildDecoder(leafCodec.encodedVirtualType, emb.ecb)
+  private[this]val internalDec = internalCodec.encodedType.buildDecoder(internalCodec.encodedVirtualType, emb.ecb)
 
   def nKeys(cb: EmitCodeBuilder): Value[Long] = cb.memoize(metadata.invoke[Long]("nKeys"))
 
@@ -361,7 +371,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
         emb.emitSCode { cb =>
           val offset = emb.getCodeParam[Long](1)
           cb += is.invoke[Long, Unit]("seek", offset)
-          val ib = cb.memoize(spec.internalNodeCodec.buildCodeInputBuffer(is))
+          val ib = cb.memoize(internalCodec.buildCodeInputBuffer(is))
           cb.ifx(ib.readByte() cne 1, cb._fatal("bad buffer at internal!"))
           val region = cb.memoize(cb.emb.ecb.pool().invoke[Region.Size, Region]("getRegion", Region.TINIER))
           val internalNode = internalDec.apply(cb, region, ib)
@@ -389,7 +399,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
         emb.emitSCode { cb =>
           val offset = emb.getCodeParam[Long](1)
           cb += is.invoke[Long, Unit]("seek", offset)
-          val ib = cb.memoize(spec.leafCodec.buildCodeInputBuffer(is))
+          val ib = cb.memoize(leafCodec.buildCodeInputBuffer(is))
           cb.ifx(ib.readByte() cne 0, cb._fatal("bad buffer at leaf!"))
           val region = cb.memoize(cb.emb.ecb.pool().invoke[Region.Size, Region]("getRegion", Region.TINIER))
           val leafNode = leafDec.apply(cb, region, ib)
@@ -402,7 +412,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
     ret.asBaseStruct
   }
 
-  private def queryIndex(cb: EmitCodeBuilder, region: Value[Region], absIndex: Value[Long]): SBaseStructValue = {
+  def queryIndex(cb: EmitCodeBuilder, region: Value[Region], absIndex: Value[Long]): SBaseStructValue = {
     cb.invokeSCode(
       cb.emb.ecb.getOrGenEmitMethod("queryIndex",
         ("queryIndex", this),
@@ -416,6 +426,8 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
           val offset = cb.newLocal[Long]("lowerBound_offset", metadata.invoke[Long]("rootOffset"))
           val branchingFactor = cb.memoize(metadata.invoke[Int]("branchingFactor"))
           val result = cb.emb.newPLocal(leafChildType)
+
+          cb.ifx(absIndex >= nKeys(cb), cb._fatal("bad idx: ", absIndex.toS))
 
           val Lstart = CodeLabel()
           cb.define(Lstart)

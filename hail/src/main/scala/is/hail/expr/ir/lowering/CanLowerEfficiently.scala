@@ -36,7 +36,6 @@ object CanLowerEfficiently {
         case TableRead(_, _, _: LocalSortReader) =>
         case TableRead(_, _, _: DistributionSortReader) =>
         case TableRead(_, _, _: MatrixBGENReader) =>
-          fail(s"no lowering for MatrixBGENReader")
         case TableRead(_, _, _: TableFromBlockMatrixNativeReader) =>
           fail(s"no lowering for TableFromBlockMatrixNativeReader")
 

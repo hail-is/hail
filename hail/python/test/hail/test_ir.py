@@ -236,10 +236,6 @@ class TableIRTests(unittest.TestCase):
 
 class MatrixIRTests(unittest.TestCase):
     def matrix_irs(self):
-        hl.index_bgen(resource('example.8bits.bgen'),
-                      reference_genome=hl.get_reference('GRCh37'),
-                      contig_recoding={'01': '1'})
-
         collect = ir.MakeStruct([('x', ir.ApplyAggOp('Collect', [], [ir.I32(0)]))])
 
         matrix_read = ir.MatrixRead(

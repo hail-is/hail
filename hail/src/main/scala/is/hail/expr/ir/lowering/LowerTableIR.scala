@@ -920,12 +920,15 @@ object LowerTableIR {
       case TableDistinct(child) =>
         val loweredChild = lower(child)
 
-        loweredChild.repartitionNoShuffle(ctx, loweredChild.partitioner.coarsen(child.typ.key.length).strictify())
-          .mapPartition(None) { partition =>
-            flatMapIR(StreamGroupByKey(partition, child.typ.key, missingEqual = true)) { groupRef =>
-              StreamTake(groupRef, 1)
+        if (analyses.distinctKeyedAnalysis.contains(child))
+          loweredChild
+        else
+          loweredChild.repartitionNoShuffle(ctx, loweredChild.partitioner.coarsen(child.typ.key.length).strictify())
+            .mapPartition(None) { partition =>
+              flatMapIR(StreamGroupByKey(partition, child.typ.key, missingEqual = true)) { groupRef =>
+                StreamTake(groupRef, 1)
+              }
             }
-          }
 
       case TableFilter(child, cond) =>
         val loweredChild = lower(child)
@@ -957,6 +960,7 @@ object LowerTableIR {
 
           def f(partitionIntervals: IR, key: IR): IR =
             invoke("partitionerContains", TBoolean, partitionIntervals, key)
+
           (newRangeBounds, includedIndices, startAndEndInterval, f _)
         } else {
           // keep = False
@@ -972,6 +976,7 @@ object LowerTableIR {
 
           def f(partitionIntervals: IR, key: IR): IR =
             !invoke("partitionerContains", TBoolean, partitionIntervals, key)
+
           (newRangeBounds, includedIndices, startAndEndInterval, f _)
         }
 
@@ -1037,7 +1042,7 @@ object LowerTableIR {
               TailLoop(
                 partitionSizeArrayFunc,
                 FastIndexedSeq(howManyPartsToTryRef.name -> howManyPartsToTry, iteration.name -> 0),
-                bindIR(loweredChild.mapContexts(_ => StreamTake(ToStream(childContexts), howManyPartsToTryRef)){ ctx: IR => ctx }
+                bindIR(loweredChild.mapContexts(_ => StreamTake(ToStream(childContexts), howManyPartsToTryRef)) { ctx: IR => ctx }
                   .mapCollect("table_head_recursive_count",
                     strConcat(Str("iteration="), invoke("str", TString, iteration), Str(",nParts="), invoke("str", TString, howManyPartsToTryRef))
                   )(streamLenOrMax)) { counts =>
@@ -1093,7 +1098,7 @@ object LowerTableIR {
         val bindRelationLetsNewCtx = ToArray(letBindNewCtx)
         val newCtxSeq = CompileAndEvaluate(ctx, bindRelationLetsNewCtx).asInstanceOf[IndexedSeq[Any]]
         val numNewParts = newCtxSeq.length
-        val newIntervals = loweredChild.partitioner.rangeBounds.slice(0,numNewParts)
+        val newIntervals = loweredChild.partitioner.rangeBounds.slice(0, numNewParts)
         val newPartitioner = loweredChild.partitioner.copy(rangeBounds = newIntervals)
 
         TableStage(
@@ -1115,26 +1120,26 @@ object LowerTableIR {
             case Some(partCounts) =>
               var idx = partCounts.length - 1
               var sumSoFar = 0L
-              while(idx >= 0 && sumSoFar < targetNumRows) {
+              while (idx >= 0 && sumSoFar < targetNumRows) {
                 sumSoFar += partCounts(idx)
                 idx -= 1
               }
-              val finalParts = (idx + 1 until partCounts.length).map{partIdx => partCounts(partIdx).toInt}.toFastIndexedSeq
+              val finalParts = (idx + 1 until partCounts.length).map { partIdx => partCounts(partIdx).toInt }.toFastIndexedSeq
               Literal(TArray(TInt32), finalParts)
 
             case None =>
               val partitionSizeArrayFunc = genUID()
               val howManyPartsToTryRef = Ref(genUID(), TInt32)
-                val howManyPartsToTry = if (targetNumRows == 1L) 1 else 4
+              val howManyPartsToTry = if (targetNumRows == 1L) 1 else 4
 
-                val iteration = Ref(genUID(), TInt32)
+              val iteration = Ref(genUID(), TInt32)
 
               TailLoop(
                 partitionSizeArrayFunc,
                 FastIndexedSeq(howManyPartsToTryRef.name -> howManyPartsToTry, iteration.name -> 0),
                 bindIR(
                   loweredChild
-                    .mapContexts(_ => StreamDrop(ToStream(childContexts), maxIR(totalNumPartitions - howManyPartsToTryRef, 0))){ ctx: IR => ctx }
+                    .mapContexts(_ => StreamDrop(ToStream(childContexts), maxIR(totalNumPartitions - howManyPartsToTryRef, 0))) { ctx: IR => ctx }
                     .mapCollect("table_tail_recursive_count",
                       strConcat(Str("iteration="), invoke("str", TString, iteration), Str(", nParts="), invoke("str", TString, howManyPartsToTryRef)))(StreamLen)
                 ) { counts =>
@@ -1374,7 +1379,7 @@ object LowerTableIR {
                 }
               }
             }
-            (partitionPrefixSumFiles, {(file: IR) => ReadValue(file, codecSpec, codecSpec.encodedVirtualType) })
+            (partitionPrefixSumFiles, { (file: IR) => ReadValue(file, codecSpec, codecSpec.encodedVirtualType) })
 
           } else {
             val partitionAggs = lcWithInitBinding.mapCollectWithGlobals("table_scan_prefix_sums_singlestage")({ part: IR =>
@@ -1631,7 +1636,7 @@ object LowerTableIR {
                 path.zip(refs.init).foldRight[IR](elt) { case ((p, ref), inserted) =>
                   InsertFields(ref, FastSeq(p -> inserted))
                 }
-              }) { case ((ref, root), accum) =>  Let(ref.name, root, accum) }
+              }) { case ((ref, root), accum) => Let(ref.name, root, accum) }
           }
         }
 
@@ -1742,12 +1747,12 @@ object LowerTableIR {
         }
 
       case node =>
-        throw new LowererUnsupportedOperation(s"undefined: \n${ Pretty(ctx, node) }")
+        throw new LowererUnsupportedOperation(s"undefined: \n${Pretty(ctx, node)}")
     }
 
     assert(tir.typ.globalType == lowered.globalType, s"\n  ir global: ${tir.typ.globalType}\n  lowered global: ${lowered.globalType}")
     assert(tir.typ.rowType == lowered.rowType, s"\n  ir row: ${tir.typ.rowType}\n  lowered row: ${lowered.rowType}")
-    assert(tir.typ.keyType.isPrefixOf(lowered.kType) , s"\n  ir key: ${tir.typ.key}\n  lowered key: ${lowered.key}")
+    assert(tir.typ.keyType.isPrefixOf(lowered.kType), s"\n  ir key: ${tir.typ.key}\n  lowered key: ${lowered.key}")
 
     lowered
   }

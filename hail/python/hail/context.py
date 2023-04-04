@@ -667,7 +667,10 @@ class _TemporaryFilenameManager:
         return self.name
 
     def __exit__(self, type, value, traceback):
-        return self.fs.remove(self.name)
+        try:
+            return self.fs.remove(self.name)
+        except FileNotFoundError:
+            pass
 
 
 def TemporaryFilename(*,

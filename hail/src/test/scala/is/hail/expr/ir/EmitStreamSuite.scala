@@ -67,7 +67,7 @@ class EmitStreamSuite extends HailSuite {
         case s => s
       }
       TypeCheck(ctx, s)
-      EmitStream.produce(new Emit(emitContext, fb.ecb), s, cb, region, EmitEnv(Env.empty, inputTypes.indices.map(i => mb.storeEmitParamAsField(cb, i + 2))), None)
+      EmitStream.produce(new Emit(emitContext, fb.ecb), s, cb, cb.emb, region, EmitEnv(Env.empty, inputTypes.indices.map(i => mb.storeEmitParamAsField(cb, i + 2))), None)
         .consumeCode[Long](cb, 0L, { s =>
           val arr = StreamUtils.toArray(cb, s.asStream.getProducer(mb), region)
           val scp = SingleCodeSCode.fromSCode(cb, arr, region, false)
@@ -139,7 +139,7 @@ class EmitStreamSuite extends HailSuite {
       val len = cb.newLocal[Int]("len", 0)
       val len2 = cb.newLocal[Int]("len2", -1)
 
-      EmitStream.produce(new Emit(emitContext, fb.ecb), ir, cb, region, EmitEnv(Env.empty, FastIndexedSeq()), None)
+      EmitStream.produce(new Emit(emitContext, fb.ecb), ir, cb, cb.emb, region, EmitEnv(Env.empty, FastIndexedSeq()), None)
         .consume(cb,
           {},
           { case stream: SStreamValue =>

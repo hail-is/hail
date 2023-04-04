@@ -490,7 +490,7 @@ class Image:
                         raise ImageCannotBePulled from e
                 if 'Invalid repository name' in e.message:
                     raise InvalidImageRepository from e
-                if 'unknown' in e.message:
+                if 'unknown' in e.message or 'not found or deleted' in e.message:
                     raise ImageNotFound from e
                 raise
             finally:
@@ -635,6 +635,9 @@ def user_error(e):
         if e.status == 404 and 'pull access denied' in e.message:
             return True
         if e.status == 404 and ('not found: manifest unknown' in e.message or 'no such image' in e.message):
+            return True
+        # DockerError(500, "Head https://gcr.io/v2/genomics-tools/samtools/manifests/latest: unknown: Project 'project:genomics-tools' not found or deleted.")
+        if e.status == 500 and 'not found or deleted' in e.message:
             return True
         if e.status == 400 and 'executable file not found' in e.message:
             return True
