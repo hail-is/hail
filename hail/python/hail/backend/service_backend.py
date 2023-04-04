@@ -200,7 +200,8 @@ class ServiceBackend(Backend):
                      worker_memory: Optional[str] = None,
                      name_prefix: Optional[str] = None,
                      token: Optional[str] = None,
-                     regions: Optional[List[str]] = None):
+                     regions: Optional[List[str]] = None,
+                     gcs_requester_pays_configuration: Optional[Union[str, Tuple[str, List[str]]]] = None):
         billing_project = configuration_of('batch', 'billing_project', billing_project, None)
         if billing_project is None:
             raise ValueError(
@@ -209,7 +210,9 @@ class ServiceBackend(Backend):
                 "MY_BILLING_PROJECT'"
             )
 
-        async_fs = RouterAsyncFS('file')
+        if not isinstance(gcs_requester_pays_configuration, str):
+            raise ValueError("gcs_requester_pays_configuration must be a str when using the Batch backend")
+        async_fs = RouterAsyncFS('file', gcs_kwargs={'project': gcs_requester_pays_configuration} if gcs_requester_pays_configuration else None)
         sync_fs = RouterFS(async_fs)
         if batch_client is None:
             batch_client = await aiohb.BatchClient.create(billing_project, _token=token)

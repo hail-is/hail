@@ -496,7 +496,8 @@ async def init_batch(
                                           worker_memory=worker_memory,
                                           name_prefix=name_prefix,
                                           token=token,
-                                          regions=regions)
+                                          regions=regions,
+                                          gcs_requester_pays_configuration=gcs_requester_pays_configuration)
 
     if gcs_requester_pays_configuration:
         if isinstance(gcs_requester_pays_configuration, str):
