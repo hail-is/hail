@@ -3066,8 +3066,7 @@ steps:
       tar xvf /io/wheel-container.tar
       gcloud auth activate-service-account --key-file=/gsa-key/key.json
       HAIL_WHEEL_FILE=hail-$(cat /io/hail_pip_version)-py3-none-any.whl
-      python3 -m hailtop.aiotools.copy 'null' '[
-      {"from": "'$HAIL_WHEEL_FILE'", "to": "gs://cpg-hail-ci/wheels/'$HAIL_WHEEL_FILE'"}]'
+      gcloud storage cp "$HAIL_WHEEL_FILE" "gs://cpg-hail-ci/wheels/$HAIL_WHEEL_FILE"
     inputs:
       - from: /hail_pip_version
         to: /io/hail_pip_version
