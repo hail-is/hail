@@ -1,20 +1,5 @@
 include ../config.mk
 
-EXTRA_PYTHONPATH := ../hail/python:../gear:../web_common
-PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
-
-BLACK := $(PYTHON) -m black . --line-length=120 --skip-string-normalization
-
-.PHONY: check
-check:
-	$(PYTHON) -m flake8  --config ../setup.cfg batch
-	$(PYTHON) -m pylint --rcfile ../pylintrc batch --score=n
-	$(PYTHON) -m mypy --config-file ../setup.cfg batch
-	$(PYTHON) -m isort . --check-only --diff
-	$(BLACK) --check --diff
-	curlylint .
-	bash ../check-sql.sh
-
 .PHONY: build
 build:
 	$(MAKE) -C .. batch-image batch-worker-image

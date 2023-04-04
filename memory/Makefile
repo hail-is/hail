@@ -1,17 +1,5 @@
 include ../config.mk
 
-PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../hail/python:../gear
-PYTHON := PYTHONPATH=$(PYTHONPATH) python3
-BLACK := $(PYTHON) -m black . --line-length=120 --skip-string-normalization
-
-
-.PHONY: check
-check:
-	$(PYTHON) -m flake8  --config ../setup.cfg memory
-	$(PYTHON) -m pylint --rcfile ../pylintrc memory --score=n
-	$(PYTHON) -m isort . --check-only --diff
-	$(BLACK) --check --diff
-
 .PHONY: build
 build:
 	$(MAKE) -C .. memory-image

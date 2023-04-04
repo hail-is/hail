@@ -3,8 +3,8 @@
 include config.mk
 
 SERVICES := auth batch ci memory notebook monitoring website
-SERVICES_MODULES := $(SERVICES) gear web_common
 SERVICES_IMAGES := $(patsubst %, %-image, $(SERVICES))
+SERVICES_MODULES := $(SERVICES) gear web_common
 CHECK_SERVICES_MODULES := $(patsubst %, check-%, $(SERVICES_MODULES))
 SERVICES_IMAGE_DEPS = hail-ubuntu-image hail_version $(shell git ls-files hail/python/hailtop gear web_common)
 
@@ -26,43 +26,17 @@ check-hail:
 	$(MAKE) -C hail/python check
 
 .PHONY: check-services
-check-services: check-auth check-batch check-ci check-gear check-memory \
-  check-notebook check-monitoring check-web-common check-website
+check-services: $(CHECK_SERVICES_MODULES)
 
-.PHONY: check-auth
-check-auth:
-	$(MAKE) -C auth check
-
-.PHONY: check-batch
-check-batch:
-	$(MAKE) -C batch check
-
-.PHONY: check-ci
-check-ci:
-	$(MAKE) -C ci check
-
-.PHONY: check-gear
-check-gear:
-	$(MAKE) -C gear check
-
-.PHONY: check-memory
-check-memory:
-	$(MAKE) -C memory check
-
-.PHONY: check-notebook
-check-notebook:
-	$(MAKE) -C notebook check
-
-.PHONY: check-monitoring
-	$(MAKE) -C monitoring check
-
-.PHONY: check-web-common
-check-web-common:
-	$(MAKE) -C web_common check
-
-.PHONY: check-website
-check-website:
-	$(MAKE) -C website check
+.PHONY: check-%
+$(CHECK_SERVICES_MODULES): check-%:
+	$(PYTHON) -m flake8  --config setup.cfg $*/$*
+	$(PYTHON) -m pylint --rcfile pylintrc $*/$* --score=n
+	$(PYTHON) -m mypy --config-file setup.cfg $*
+	$(PYTHON) -m isort $* --check-only --diff
+	$(PYTHON) -m black $* --line-length=120 --skip-string-normalization --check --diff
+	curlylint $*
+	cd $* && bash ../check-sql.sh
 
 .PHONY: check-pip-requirements
 check-pip-requirements:
