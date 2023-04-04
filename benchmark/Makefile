@@ -29,7 +29,7 @@ cleanup_image:
 	rm -f pushed_image
 
 BENCHMARK_PROJECT ?= hail-vdc
-BENCHMARK_DOCKER_TAG := benchmark_$(shell whoami)
+BENCHMARK_DOCKER_TAG ?= benchmark_$(shell whoami)
 BENCHMARK_REPO_BASE = gcr.io/$(BENCHMARK_PROJECT)/$(BENCHMARK_DOCKER_TAG)
 DOCKER_ROOT_IMAGE := ubuntu:20.04
 
