@@ -237,8 +237,10 @@ class TableStage(
 
   def getNumPartitions(): IR = TableStage.wrapInBindings(StreamLen(contexts), letBindings)
 
-  def changePartitionerNoRepartition(newPartitioner: RVDPartitioner): TableStage =
+  def changePartitionerNoRepartition(newPartitioner: RVDPartitioner): TableStage = {
+    require(partitioner.numPartitions == newPartitioner.numPartitions)
     copy(partitioner = newPartitioner)
+  }
 
   def strictify(allowedOverlap: Int = kType.size - 1): TableStage = {
     val newPart = partitioner.strictify(allowedOverlap)
@@ -514,12 +516,12 @@ object LowerTableIR {
 
       case TableToValueApply(child, TableCalculateNewPartitions(nPartitions)) =>
         val stage = lower(child)
-        val sampleSize = math.min(nPartitions * 20, 1000000)
+        val sampleSize = math.min((nPartitions * 20 + 256), 1000000)
         val samplesPerPartition = sampleSize / math.max(1, stage.numPartitions)
         val keyType = child.typ.keyType
-        val samplekey = AggSignature(TakeBy(),
+        val samplekey = AggSignature(ReservoirSample(),
           FastIndexedSeq(TInt32),
-          FastIndexedSeq(keyType, TFloat64))
+          FastIndexedSeq(keyType))
 
         val minkey = AggSignature(TakeBy(),
           FastIndexedSeq(TInt32),
@@ -536,7 +538,7 @@ object LowerTableIR {
               MakeArray(
                 ApplyAggOp(
                   FastIndexedSeq(I32(samplesPerPartition)),
-                  FastIndexedSeq(elt, invokeSeeded("rand_unif", 1, TFloat64, RNGStateLiteral(), F64(0.0), F64(1.0))),
+                  FastIndexedSeq(elt),
                   samplekey),
                 ApplyAggOp(
                   FastIndexedSeq(I32(1)),
@@ -858,50 +860,6 @@ object LowerTableIR {
             MakeStruct(FastSeq("idx" -> i))
           })
 
-      case TableGenomicRange(n, nPartitions, referenceGenome) =>
-        assert(n < Int.MaxValue)
-        val nPartitionsAdj = math.max(math.min(n, nPartitions), 1)
-        val partCounts = partition(n, nPartitionsAdj)
-        val partStarts = partCounts.scanLeft(0)(_ + _)
-
-        val contextType = TStruct("start" -> TInt32, "end" -> TInt32)
-        val toLocus = TableGenomicRange.toLocus(referenceGenome.map(ctx.getReference))
-
-        val globalPosRanges = Array.tabulate(nPartitionsAdj) { i =>
-          partStarts(i) -> partStarts(i + 1)
-        }
-        val locusRanges = Array.tabulate(nPartitionsAdj) { i =>
-          toLocus(partStarts(i)) -> toLocus(partStarts(i + 1))
-        }
-
-        TableStage(
-          MakeStruct(FastSeq()),
-          new RVDPartitioner(ctx.stateManager, Array("locus"), tir.typ.rowType,
-            locusRanges.map { case (start, end) =>
-              Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
-            }),
-          TableStageDependency.none,
-          ToStream(
-            Literal(
-              TArray(contextType),
-              globalPosRanges.map(Row.fromTuple).toFastIndexedSeq
-            )
-          ),
-          { (ctxRef: Ref) =>
-            mapIR(StreamRange(GetField(ctxRef, "start"), GetField(ctxRef, "end"), I32(1), true)) { globalPos =>
-              val locusIR = referenceGenome match {
-                case Some(rg) =>
-                  val locusType = tir.typ.rowType.field("locus").typ.asInstanceOf[TLocus]
-                  invoke("globalPosToLocus", locusType, Cast(globalPos, TInt64))
-                case None =>
-                  MakeStruct(FastSeq(
-                    "contig" -> Str("1"),
-                    "position" -> Cast(globalPos, TInt32)))
-              }
-              MakeStruct(FastSeq("locus" -> locusIR))
-            }
-          })
-
       case TableMapGlobals(child, newGlobals) =>
         lower(child).mapGlobals(old => Let("global", old, newGlobals))
 
@@ -930,12 +888,15 @@ object LowerTableIR {
       case TableDistinct(child) =>
         val loweredChild = lower(child)
 
-        loweredChild.repartitionNoShuffle(loweredChild.partitioner.coarsen(child.typ.key.length).strictify())
-          .mapPartition(None) { partition =>
-            flatMapIR(StreamGroupByKey(partition, child.typ.key, missingEqual = true)) { groupRef =>
-              StreamTake(groupRef, 1)
+        if (analyses.distinctKeyedAnalysis.contains(child))
+          loweredChild
+        else
+          loweredChild.repartitionNoShuffle(loweredChild.partitioner.coarsen(child.typ.key.length).strictify())
+            .mapPartition(None) { partition =>
+              flatMapIR(StreamGroupByKey(partition, child.typ.key, missingEqual = true)) { groupRef =>
+                StreamTake(groupRef, 1)
+              }
             }
-          }
 
       case TableFilter(child, cond) =>
         val loweredChild = lower(child)

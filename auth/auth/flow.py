@@ -98,11 +98,11 @@ class AzureFlow(Flow):
         token = self._client.acquire_token_by_auth_code_flow(flow_dict['flow'], query_dict)
 
         if 'error' in token:
-            raise Exception(f'{token}')
+            raise ValueError(token)
 
         tid = token['id_token_claims']['tid']
         if tid != self._tenant_id:
-            raise Exception('invalid tenant id')
+            raise ValueError('invalid tenant id')
 
         return FlowResult(token['id_token_claims']['oid'], token['id_token_claims']['preferred_username'], token)
 

@@ -7,7 +7,8 @@ from typing import Set
 import pytest
 
 from hailtop import httpx
-from hailtop.auth import service_auth_headers
+from hailtop.auth import hail_credentials
+from hailtop.batch.backend import HAIL_GENETICS_HAILTOP_IMAGE
 from hailtop.batch_client.client import BatchClient
 from hailtop.config import get_deploy_config, get_user_config
 from hailtop.test_utils import skip_in_azure
@@ -21,10 +22,14 @@ deploy_config = get_deploy_config()
 DOCKER_PREFIX = os.environ['DOCKER_PREFIX']
 DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
 UBUNTU_IMAGE = 'ubuntu:20.04'
+
+
 DOMAIN = os.environ.get('HAIL_DOMAIN')
 NAMESPACE = os.environ.get('HAIL_DEFAULT_NAMESPACE')
 SCOPE = os.environ.get('HAIL_SCOPE', 'test')
 CLOUD = os.environ.get('HAIL_CLOUD')
+
+HAIL_GENETICS_HAIL_IMAGE = os.environ['HAIL_GENETICS_HAIL_IMAGE']
 
 
 @pytest.fixture
@@ -685,7 +690,7 @@ def test_create_idempotence(client: BatchClient):
     assert b1.id == b2.id
 
 
-def test_batch_create_validation():
+async def test_batch_create_validation():
     bad_configs = [
         # unexpected field fleep
         {'billing_project': 'foo', 'n_jobs': 5, 'token': 'baz', 'fleep': 'quam'},
@@ -718,7 +723,7 @@ def test_batch_create_validation():
         {'attributes': {'k': None}, 'billing_project': 'foo', 'n_jobs': 5, 'token': 'baz'},
     ]
     url = deploy_config.url('batch', '/api/v1alpha/batches/create')
-    headers = service_auth_headers(deploy_config, 'batch')
+    headers = await hail_credentials().auth_headers()
     session = external_requests_client_session()
     for config in bad_configs:
         r = retry_response_returning_functions(session.post, url, json=config, allow_redirects=True, headers=headers)
@@ -770,7 +775,7 @@ b.run()
 backend.close()
 '''
     j = bb.create_job(
-        os.environ['HAIL_HAIL_BASE_IMAGE'],
+        HAIL_GENETICS_HAILTOP_IMAGE,
         ['/bin/bash', '-c', f'''python3 -c \'{script}\''''],
         mount_tokens=True,
     )
@@ -792,7 +797,7 @@ backend.close()
 
     bb = client.create_batch()
     j = bb.create_job(
-        os.environ['HAIL_HAIL_BASE_IMAGE'],
+        HAIL_GENETICS_HAILTOP_IMAGE,
         [
             '/bin/bash',
             '-c',
@@ -813,7 +818,7 @@ python3 -c \'{script}\'''',
 
     bb = client.create_batch()
     j = bb.create_job(
-        os.environ['HAIL_HAIL_BASE_IMAGE'],
+        HAIL_GENETICS_HAILTOP_IMAGE,
         [
             '/bin/bash',
             '-c',
@@ -868,9 +873,7 @@ location = f"{remote_tmpdir}/{ token }/{{ attempt_token }}/test_can_use_hailctl_
 hl.utils.range_table(10).write(location)
 hl.read_table(location).show()
 '''
-    j = bb.create_job(
-        os.environ['HAIL_HAIL_BASE_IMAGE'], ['/bin/bash', '-c', f'python3 -c >out 2>err \'{script}\'; cat out err']
-    )
+    j = bb.create_job(HAIL_GENETICS_HAIL_IMAGE, ['/bin/bash', '-c', f'python3 -c >out 2>err \'{script}\'; cat out err'])
     b = bb.submit()
     status = j.wait()
     assert status['state'] == 'Success', f'{j.log(), status}'

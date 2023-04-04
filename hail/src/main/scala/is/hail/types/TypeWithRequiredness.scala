@@ -160,6 +160,11 @@ object VirtualTypeWithReq {
     VirtualTypeWithReq(t, twr)
   }
 
+  def fromLiteral(t: Type, value: Annotation): VirtualTypeWithReq = {
+    val twr = TypeWithRequiredness(t)
+    twr.unionLiteral(value)
+    VirtualTypeWithReq(t, twr)
+}
   def union(vs: IndexedSeq[VirtualTypeWithReq]): VirtualTypeWithReq = {
     val t = vs.head.t
     assert(vs.tail.forall(_.t == t))
@@ -355,7 +360,7 @@ case class RDict(keyType: TypeWithRequiredness, valueType: TypeWithRequiredness)
 case class RNDArray(override val elementType: TypeWithRequiredness) extends RIterable(elementType, true) {
   override def _unionLiteral(a: Annotation): Unit = {
     val data = a.asInstanceOf[NDArray].getRowMajorElements()
-    data.asInstanceOf[Iterable[_]].foreach { elt =>
+    data.foreach { elt =>
       if (elt != null)
         elementType.unionLiteral(elt)
     }
@@ -447,6 +452,7 @@ object RStruct {
 case class RStruct(fields: IndexedSeq[RField]) extends RBaseStruct {
   val fieldType: collection.Map[String, TypeWithRequiredness] = toMapFast(fields)(_.name, _.typ)
   def field(name: String): TypeWithRequiredness = fieldType(name)
+  def fieldOption(name: String): Option[TypeWithRequiredness] = fieldType.get(name)
   def hasField(name: String): Boolean = fieldType.contains(name)
   def copy(newChildren: IndexedSeq[BaseTypeWithRequiredness]): RStruct = {
     assert(newChildren.length == fields.length)

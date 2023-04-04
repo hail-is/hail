@@ -5,7 +5,6 @@ from hail.ir.base_ir import BaseIR, IR, TableIR
 import hail.ir.ir as ir
 from hail.ir.utils import modify_deep_field, zip_with_index, default_row_uid, default_col_uid
 from hail.ir.ir import unify_uid_types, pad_uid, concat_uids
-from hail.genetics import ReferenceGenome
 from hail.typecheck import typecheck_method, nullable, sequenceof
 from hail.utils import FatalError
 from hail.utils.interval import Interval
@@ -198,46 +197,6 @@ class TableRange(TableIR):
         return hl.ttable(hl.tstruct(),
                          hl.tstruct(idx=hl.tint32),
                          ['idx'])
-
-
-class TableGenomicRange(TableIR):
-    def __init__(self, n: int, n_partitions: Optional[int], reference_genome: Optional[ReferenceGenome]):
-        super().__init__()
-        self.n = n
-        self.n_partitions = n_partitions
-        self.reference_genome = reference_genome
-
-    def _handle_randomness(self, uid_field_name):
-        assert(uid_field_name is not None)
-        if self.reference_genome is not None:
-            global_position = ir.Apply(
-                'locusToGlobalPos',
-                tint64,
-                ir.GetField(ir.Ref('row', self.typ.row_type), 'locus'))
-        else:
-            global_position = ir.Cast(
-                ir.GetField(ir.GetField(ir.Ref('row', self.typ.row_type), 'locus'), 'position'),
-                tint64)
-
-        new_row = ir.InsertFields(
-            ir.Ref('row', self.typ.row_type),
-            [(uid_field_name, global_position)],
-            None)
-        return TableMapRows(self, new_row)
-
-    def head_str(self):
-        reference_genome = self.reference_genome.name if self.reference_genome else None
-        return f'{self.n} {self.n_partitions} {reference_genome}'
-
-    def _eq(self, other):
-        return self.n == other.n and \
-            self.n_partitions == other.n_partitions and \
-            self.reference_genome == other.reference_genome
-
-    def _compute_type(self, deep_typecheck):
-        return hl.ttable(hl.tstruct(),
-                         hl.tstruct(locus=hl.tlocus._schema_from_rg(self.reference_genome)),
-                         ['locus'])
 
 
 class TableMapGlobals(TableIR):
@@ -1211,7 +1170,15 @@ class TableGen(TableIR):
         ])
 
     def _handle_randomness(self, uid_field_name):
-        contexts = self.contexts.handle_randomness(create_uids=True)
+        globals = self.globals
+        if globals.uses_randomness:
+            globals = ir.Let('__rng_state', ir.RNGStateLiteral(), globals)
+
+        contexts = self.contexts
+        if contexts.uses_randomness:
+            contexts = ir.Let('__rng_state', ir.RNGStateLiteral(), contexts)
+
+        contexts = contexts.handle_randomness(create_uids=True)
         cname, random_uid, old_context = ir.unpack_uid(contexts.typ)
         body = ir.Let(self.cname, old_context, self.body)
 
@@ -1233,7 +1200,7 @@ class TableGen(TableIR):
 
         return TableGen(
             contexts,
-            self.globals,
+            globals,
             cname,
             self.gname,
             body,

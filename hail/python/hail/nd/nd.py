@@ -474,13 +474,26 @@ def concatenate(nds, axis=0):
     """
     head_nd = nds[0]
 
-    makearr = aarray(nds)
-    concat_ir = NDArrayConcat(makearr._ir, axis)
     if isinstance(nds, list):
         indices, aggregations = unify_all(*nds)
+        typs = {x.dtype for x in nds}
+
+        if len(typs) != 1:
+            element_types = {t.element_type for t in typs}
+            if len(element_types) != 1:
+                argument_element_types_str = ", ".join(str(nd.dtype.element_type) for nd in nds)
+                raise ValueError(f'hl.nd.concatenate: ndarrays must have same element types, found these element types: ({argument_element_types_str})')
+
+            ndims = {t.ndim for t in typs}
+            assert len(ndims) != 1
+            ndims_str = ", ".join(str(nd.dtype.ndim) for nd in nds)
+            raise ValueError(f'hl.nd.concatenate: ndarrays must have same number of dimensions, found: {ndims_str}.')
     else:
         indices = nds._indices
         aggregations = nds._aggregations
+
+    makearr = aarray(nds)
+    concat_ir = NDArrayConcat(makearr._ir, axis)
 
     return construct_expr(concat_ir, tndarray(head_nd._type.element_type, head_nd.ndim), indices, aggregations)
 

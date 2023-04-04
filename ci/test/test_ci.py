@@ -5,7 +5,7 @@ import logging
 import pytest
 
 import hailtop.utils as utils
-from hailtop.auth import service_auth_headers
+from hailtop.auth import hail_credentials
 from hailtop.config import get_deploy_config
 from hailtop.httpx import client_session
 
@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 async def test_deploy():
     deploy_config = get_deploy_config()
     ci_deploy_status_url = deploy_config.url('ci', '/api/v1alpha/deploy_status')
-    headers = service_auth_headers(deploy_config, 'ci')
+    headers = await hail_credentials().auth_headers()
     async with client_session() as session:
 
         async def wait_forever():

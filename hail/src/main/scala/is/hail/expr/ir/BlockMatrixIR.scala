@@ -753,12 +753,15 @@ sealed abstract class BlockMatrixSparsifier {
 case class BandSparsifier(blocksOnly: Boolean, l: Long, u: Long) extends BlockMatrixSparsifier {
   val typ: Type = TTuple(TInt64, TInt64)
   def definedBlocks(childType: BlockMatrixType): BlockMatrixSparsity = {
-    val leftBuffer = java.lang.Math.floorDiv(-l, childType.blockSize)
-    val rightBuffer = java.lang.Math.floorDiv(u, childType.blockSize)
+    val lowerBlock = java.lang.Math.floorDiv(l, childType.blockSize).toInt
+    val upperBlock = java.lang.Math.floorDiv(u + childType.blockSize - 1, childType.blockSize).toInt
 
-    BlockMatrixSparsity.constructFromShapeAndFunction(childType.nRowBlocks, childType.nColBlocks) { (i, j) =>
-      j >= (i - leftBuffer) && j <= (i + rightBuffer) && childType.hasBlock(i -> j)
-    }
+    val blocks = (for { j <- 0 until childType.nColBlocks
+           i <- ((j - upperBlock) max 0) to
+                ((j - lowerBlock) min (childType.nRowBlocks - 1))
+           if (childType.hasBlock(i -> j))
+    } yield (i -> j)).toArray
+    BlockMatrixSparsity(blocks)
   }
 
   def sparsify(bm: BlockMatrix): BlockMatrix = {
@@ -796,11 +799,11 @@ case class RectangleSparsifier(rectangles: IndexedSeq[IndexedSeq[Long]]) extends
   def definedBlocks(childType: BlockMatrixType): BlockMatrixSparsity = {
     val definedBlocks = rectangles.flatMap { case IndexedSeq(rowStart, rowEnd, colStart, colEnd) =>
       val rs = childType.getBlockIdx(java.lang.Math.max(rowStart, 0))
-      val re = childType.getBlockIdx(java.lang.Math.min(rowEnd, childType.nRows))
+      val re = childType.getBlockIdx(java.lang.Math.min(rowEnd - 1, childType.nRows)) + 1
       val cs = childType.getBlockIdx(java.lang.Math.max(colStart, 0))
-      val ce = childType.getBlockIdx(java.lang.Math.min(colEnd, childType.nCols))
-      Array.range(rs, re + 1).flatMap { i =>
-        Array.range(cs, ce + 1)
+      val ce = childType.getBlockIdx(java.lang.Math.min(colEnd - 1, childType.nCols)) + 1
+      Array.range(rs, re).flatMap { i =>
+        Array.range(cs, ce)
           .filter { j => childType.hasBlock(i -> j) }
           .map { j => i -> j }
       }
@@ -830,7 +833,7 @@ case class PerBlockSparsifier(blocks: IndexedSeq[Int]) extends BlockMatrixSparsi
 
   override def sparsify(bm: BlockMatrix): BlockMatrix = bm.filterBlocks(blocks.toArray)
 
-  override def pretty(): String = s"(PerBlockSparsifier with blocks $blocks"
+  override def pretty(): String = s"(PerBlockSparsifier with blocks $blocks)"
 }
 
 case class BlockMatrixSparsify(

@@ -14,9 +14,7 @@ import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{Compile, IR, IRParser, LoweringAnalyses, MakeTuple, SortField, TableIR, TableReader, TypeCheck}
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.io.{BufferSpec, TypedCodecSpec}
-import is.hail.io.bgen.IndexBgen
 import is.hail.io.fs._
-import is.hail.io.bgen.IndexBgen
 import is.hail.io.plink.LoadPlink
 import is.hail.io.vcf.LoadVCF
 import is.hail.linalg.BlockMatrix
@@ -376,19 +374,6 @@ class ServiceBackend(
     LoadPlink.importFamJSON(ctx.fs, path, quantPheno, delimiter, missing)
   }
 
-  def indexBgen(
-    ctx: ExecuteContext,
-    files: Array[String],
-    indexFileMap: Map[String, String],
-    referenceGenomeName: Option[String],
-    contigRecoding: Map[String, String],
-    skipInvalidLoci: Boolean
-  ): String = {
-    IndexBgen(ctx, files, indexFileMap, referenceGenomeName, contigRecoding, skipInvalidLoci)
-    info(s"Number of BGEN files indexed: ${ files.size }")
-    "null"
-  }
-
   def tableToTableStage(ctx: ExecuteContext,
     inputIR: TableIR,
     analyses: LoweringAnalyses
@@ -447,7 +432,7 @@ object ServiceBackendSocketAPI2 {
       HailContext.get.backend = backend
       backend.addDefaultReferences()
     } else {
-      HailContext(backend, "hail.log", false, false, 50, skipLoggingConfiguration = true, 3)
+      HailContext(backend, 50, 3)
     }
 
     retryTransientErrors {
@@ -476,9 +461,8 @@ class ServiceBackendSocketAPI2(
   private[this] val BLOCK_MATRIX_TYPE = 5
   private[this] val EXECUTE = 6
   private[this] val PARSE_VCF_METADATA = 7
-  private[this] val INDEX_BGEN = 8
-  private[this] val IMPORT_FAM = 9
-  private[this] val FROM_FASTA_FILE = 10
+  private[this] val IMPORT_FAM = 8
+  private[this] val FROM_FASTA_FILE = 9
 
   private[this] val dummy = new Array[Byte](8)
 
@@ -700,43 +684,6 @@ class ServiceBackendSocketAPI2(
           withExecuteContext(
             "ServiceBackend.importFam",
             backend.importFam(_, path, quantPheno, delimiter, missing).getBytes(StandardCharsets.UTF_8)
-          )
-        case INDEX_BGEN =>
-          val files = readStringArray()
-          val nIndexFiles = readInt()
-          val indexFileMap = mutable.Map[String, String]()
-          i = 0
-          while (i < nIndexFiles) {
-            val k = readString()
-            val v = readString()
-            indexFileMap(k) = v
-            i += 1
-          }
-          val hasReferenceGenome = readBool()
-          val referenceGenomeName = hasReferenceGenome match {
-            case true => Some(readString())
-            case false => None
-          }
-          val nContigRecoding = readInt()
-          val contigRecoding = mutable.Map[String, String]()
-          i = 0
-          while (i < nContigRecoding) {
-            val k = readString()
-            val v = readString()
-            contigRecoding(k) = v
-            i += 1
-          }
-          val skipInvalidLoci = readBool()
-          withExecuteContext(
-            "ServiceBackend.indexBgen",
-            backend.indexBgen(
-              _,
-              files,
-              indexFileMap.toMap,
-              referenceGenomeName,
-              contigRecoding.toMap,
-              skipInvalidLoci
-            ).getBytes(StandardCharsets.UTF_8)
           )
         case FROM_FASTA_FILE =>
           val name = readString()

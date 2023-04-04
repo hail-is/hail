@@ -333,7 +333,10 @@ package object asm4s {
   def _const[T](a: Any, ti: TypeInfo[T]): Value[T] =
     Value.fromLIR[T](lir.ldcInsn(a, ti))
 
-  implicit def const(s: String): Value[String] = _const(s, classInfo[String])
+  implicit def const(s: String): Value[String] = {
+    require(s != null)
+    _const(s, classInfo[String])
+  }
 
   implicit def const(b: Boolean): Value[Boolean] = new Value[Boolean] {
     def get: Code[Boolean] = new ConstCodeBoolean(b)

@@ -236,10 +236,6 @@ class TableIRTests(unittest.TestCase):
 
 class MatrixIRTests(unittest.TestCase):
     def matrix_irs(self):
-        hl.index_bgen(resource('example.8bits.bgen'),
-                      reference_genome=hl.get_reference('GRCh37'),
-                      contig_recoding={'01': '1'})
-
         collect = ir.MakeStruct([('x', ir.ApplyAggOp('Collect', [], [ir.I32(0)]))])
 
         matrix_read = ir.MatrixRead(
@@ -428,6 +424,27 @@ class CSETests(unittest.TestCase):
                 ' (Ref __cse_1)'
                 ' (Ref __cse_1)))')
         assert expected == CSERenderer()(x)
+
+    def test_cse_debug(self):
+        x = hl.nd.array([0, 1])
+        y = hl.tuple((x, x))
+        dlen = y[0]
+        hl.eval(hl.tuple([hl.if_else(dlen[0] > 1, 1, 1), hl.if_else(dlen[0] > 1, hl.nd.array([0]), dlen)]))
+
+    def test_cse_complex_lifting(self):
+        x = ir.I32(5)
+        sum = ir.ApplyBinaryPrimOp('+', x, x)
+        prod = ir.ApplyBinaryPrimOp('*', sum, sum)
+        cond = ir.If(ir.ApplyComparisonOp('EQ', prod, x), sum, x)
+        expected = (
+            '(Let __cse_1 (I32 5)'
+            ' (Let __cse_2 (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))'
+             ' (If (ApplyComparisonOp EQ (ApplyBinaryPrimOp `*` (Ref __cse_2) (Ref __cse_2)) (Ref __cse_1))'
+              ' (Let __cse_3 (I32 5)'
+               ' (ApplyBinaryPrimOp `+` (Ref __cse_3) (Ref __cse_3)))'
+              ' (I32 5))))'
+        )
+        assert expected == CSERenderer()(cond)
 
     def test_stream_cse(self):
         x = ir.StreamRange(ir.I32(0), ir.I32(10), ir.I32(1))

@@ -23,7 +23,8 @@ from hail.table import Table
 from hail.typecheck import typecheck, nullable, oneof, dictof, anytype, \
     sequenceof, enumeration, sized_tupleof, numeric, table_key_type, char
 from hail.utils.misc import wrap_to_list, plural
-from hail.utils.java import Env, FatalError, jindexed_seq_args, warning
+from hail.utils.java import Env, FatalError, jindexed_seq_args, warning, info
+from hail.utils import new_temp_file
 from hail.utils.deduplicate import deduplicate
 
 from .import_lines_helpers import split_lines, should_remove_line
@@ -187,14 +188,25 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None, compr
     """Export MatrixTable as :class:`.MatrixTable` as BGEN 1.2 file with 8
     bits of per probability.  Also writes SAMPLE file.
 
+    If `parallel` is ``None``, the BGEN file is written to ``output + '.bgen'``. Otherwise, ``output
+    + '.bgen'`` will be a directory containing many BGEN files. In either case, the SAMPLE file is
+    written to ``output + '.sample'``. For example,
+
+    >>> hl.export_bgen(mt, '/path/to/dataset')  # doctest: +SKIP
+
+    Will write two files: `/path/to/dataset.bgen` and `/path/to/dataset.sample`. In contrast,
+
+    >>> hl.export_bgen(mt, '/path/to/dataset', parallel='header_per_shard')  # doctest: +SKIP
+
+    Will create `/path/to/dataset.sample` and will create ``mt.n_partitions()`` files into the
+    directory `/path/to/dataset.bgen/`.
+
+
     Notes
     -----
     The :func:`export_bgen` function requires genotype probabilities, either as an entry
     field of `mt` (of type ``array<float64>``), or an entry expression passed in the `gp`
     argument.
-
-    If `output` is ``"/path/to/myfile"``, this function will write a BGEN file at
-    ``"/path/to/myfile.bgen"`` and a sample file at ``"/path/to/myfile.sample"``.
 
     Parameters
     ----------
@@ -216,13 +228,14 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None, compr
         used if defined and is of type :py:data:`.tstr`.  The default
         and missing value is ``"."``.
     parallel : :class:`str`, optional
-        If ``None``, write a single BGEN file.  If
-        ``'header_per_shard'``, write a collection of BGEN files (one
-        per partition), each with its own header.  If
-        ``'separate_header'``, write a file for each partition,
-        without header, and a header file for the combined dataset.
+        If ``None``, write a single BGEN file.  If ``'header_per_shard'``, write a collection of
+        BGEN files (one per partition), each with its own header.  If ``'separate_header'``, write a
+        file for each partition, without header, and a header file for the combined dataset. Note
+        that the files produced by ``'separate_header'`` are each individually invalid BGEN files,
+        they can only be read if they are concatenated together with the header file.
     compresssion_codec : str, optional
         Compression codec. One of 'zlib', 'zstd'.
+
     """
     require_row_key_variant(mt, 'export_bgen')
     require_col_key_str(mt, 'export_bgen')
@@ -1264,7 +1277,19 @@ def import_bgen(path,
                 raise TypeError(
                     f"'import_bgen' requires all elements in 'variants' are a non-empty prefix of the BGEN key type: {repr(expected_vtype)}")
 
-    reader = ir.MatrixBGENReader(path, sample_file, index_file_map, n_partitions, block_size, variants)
+        vir = variants._tir
+        if isinstance(vir, ir.TableRead) \
+                and isinstance(vir.reader, ir.TableNativeReader) \
+                and vir.reader.intervals is None \
+                and variants.count() == variants.distinct().count():
+            variants_path = vir.reader.path
+        else:
+            variants_path = new_temp_file(prefix='bgen_included_vars', extension='ht')
+            variants.distinct().write(variants_path)
+    else:
+        variants_path = None
+
+    reader = ir.MatrixBGENReader(path, sample_file, index_file_map, n_partitions, block_size, variants_path)
 
     mt = (MatrixTable(ir.MatrixRead(reader))
           .drop(*[fd for fd in ['GT', 'GP', 'dosage'] if fd not in entry_set],
@@ -2897,16 +2922,19 @@ def import_vcfs(path,
            index_file_map=nullable(dictof(str, str)),
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
-           skip_invalid_loci=bool)
+           skip_invalid_loci=bool,
+           _buffer_size=int)
 def index_bgen(path,
                index_file_map=None,
                reference_genome='default',
                contig_recoding=None,
-               skip_invalid_loci=False):
+               skip_invalid_loci=False,
+               _buffer_size=16_000_000):
     """Index BGEN files as required by :func:`.import_bgen`.
 
-    The index file is generated in the same directory as `path` with the
-    filename of `path` appended by `.idx2` unless `directory` is specified.
+    If `index_file_map` is unspecified, then, for each BGEN file, the index file is written in the
+    same directory and as the associated BGEN file with the same filename appended by
+    `.idx2`. Otherwise, the `index_file_map` must specify a distinct `idx2` path for each BGEN file.
 
     Example
     -------
@@ -2930,7 +2958,8 @@ def index_bgen(path,
     Parameters
     ----------
     path : :class:`str` or :obj:`list` of :obj:`str`
-        .bgen files to index.
+        The .bgen files to index. May be one of: a BGEN file path, a list of BGEN file paths, or the
+        path of a directory that contains BGEN files.
     index_file_map : :obj:`dict` of :class:`str` to :obj:`str`, optional
         Dict of BGEN file to index file location. Index file location must have
         a `.idx2` file extension. Cannot use Hadoop glob patterns in file names.
@@ -2943,12 +2972,50 @@ def index_bgen(path,
         If ``True``, skip loci that are not consistent with `reference_genome`.
 
     """
-    rg = reference_genome.name if reference_genome else None
+    rg_t = hl.tlocus(reference_genome) if reference_genome else hl.tstruct(contig=hl.tstr, position=hl.tint32)
     if index_file_map is None:
         index_file_map = {}
     if contig_recoding is None:
         contig_recoding = {}
-    Env.backend().index_bgen(wrap_to_list(path), index_file_map, rg, contig_recoding, skip_invalid_loci)
+    raw_paths = wrap_to_list(path)
+
+    fs = hl.current_backend().fs
+    paths = []
+    for p in raw_paths:
+        if fs.is_file(p):
+            paths.append(p)
+        else:
+            if not fs.is_dir(p):
+                raise ValueError(f'index_bgen: no file or directory at {p}')
+            for stat_result in fs.ls(p):
+                if re.match(r"^.*part-[0-9]+(-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?$",
+                            os.path.basename(stat_result.path)):
+                    paths.append(stat_result.path)
+
+    paths_lit = hl.literal(paths, hl.tarray(hl.tstr))
+    index_file_map_lit = hl.literal(index_file_map, hl.tdict(hl.tstr, hl.tstr))
+    for k, v in index_file_map.items():
+        if not v.endswith('.idx2'):
+            raise FatalError(f"index file for {k} is missing a .idx2 file extension")
+    contig_recoding_lit = hl.literal(contig_recoding, hl.tdict(hl.tstr, hl.tstr))
+    ht = hl.utils.range_table(len(paths), len(paths))
+    path_fd = paths_lit[ht.idx]
+    ht = ht.annotate(n_indexed=hl.expr.functions._func(
+        "index_bgen",
+        hl.tint64,
+        path_fd,
+        index_file_map_lit.get(path_fd, path_fd + ".idx2"),
+        contig_recoding_lit,
+        hl.bool(skip_invalid_loci),
+        hl.int32(_buffer_size),
+        type_args=(rg_t,)))
+
+    for r in ht.collect():
+        idx = r.idx
+        n = r.n_indexed
+        path = paths[idx]
+        idx_path = index_file_map.get(path, path)
+        info(f"indexed {n} sites in {path} at {idx_path}")
 
 
 @typecheck(path=str,

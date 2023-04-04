@@ -1,9 +1,0 @@
-<suite name="SuiteAll" verbose="1">
-    <test name="Split{{ split_index }}">
-      <classes>
-        {% for name in names %}
-        <class name="{{ name }}"/>
-        {% endfor %}
-      </classes>
-    </test>
-</suite>

@@ -15,7 +15,6 @@ import is.hail.backend._
 import is.hail.expr.ir.IRParser.parseType
 import is.hail.io.fs._
 import is.hail.utils._
-import is.hail.io.bgen.IndexBgen
 import org.json4s.DefaultFormats
 import org.json4s.jackson.{JsonMethods, Serialization}
 import org.apache.spark.{Dependency, NarrowDependency, Partition, ProgressBarBuilder, ShuffleDependency, SparkConf, SparkContext, TaskContext}
@@ -186,7 +185,10 @@ object SparkBackend {
     appName: String = "Hail",
     master: String = null,
     local: String = "local[*]",
+    logFile: String = "hail.log",
     quiet: Boolean = false,
+    append: Boolean = false,
+    skipLoggingConfiguration: Boolean = false,
     minBlockSize: Long = 1L,
     tmpdir: String = "/tmp",
     localTmpdir: String = "file:///tmp",
@@ -194,7 +196,8 @@ object SparkBackend {
     gcsRequesterPaysBuckets: String = null
   ): SparkBackend = synchronized {
     if (theSparkBackend == null)
-      return SparkBackend(sc, appName, master, local, quiet, minBlockSize, tmpdir, localTmpdir, gcsRequesterPaysProject, gcsRequesterPaysBuckets)
+      return SparkBackend(sc, appName, master, local, logFile, quiet, append, skipLoggingConfiguration,
+        minBlockSize, tmpdir, localTmpdir, gcsRequesterPaysProject, gcsRequesterPaysBuckets)
 
     // there should be only one SparkContext
     assert(sc == null || (sc eq theSparkBackend.sc))
@@ -217,7 +220,10 @@ object SparkBackend {
     appName: String = "Hail",
     master: String = null,
     local: String = "local[*]",
+    logFile: String = "hail.log",
     quiet: Boolean = false,
+    append: Boolean = false,
+    skipLoggingConfiguration: Boolean = false,
     minBlockSize: Long = 1L,
     tmpdir: String,
     localTmpdir: String,
@@ -225,6 +231,9 @@ object SparkBackend {
     gcsRequesterPaysBuckets: String = null
   ): SparkBackend = synchronized {
     require(theSparkBackend == null)
+
+    if (!skipLoggingConfiguration)
+      HailContext.configureLogging(logFile, quiet, append)
 
     var sc1 = sc
     if (sc1 == null)
@@ -520,20 +529,6 @@ class SparkBackend(
         JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(
           UnsafeRow.read(pt, ctx.r, off), pt.virtualType))
       }
-    }
-  }
-
-  def pyIndexBgen(
-    files: java.util.List[String],
-    indexFileMap: java.util.Map[String, String],
-    rg: String,
-    contigRecoding: java.util.Map[String, String],
-    skipInvalidLoci: Boolean) {
-    ExecutionTimer.logTime("SparkBackend.pyIndexBgen") { timer =>
-      withExecuteContext(timer) { ctx =>
-        IndexBgen(ctx, files.asScala.toArray, indexFileMap.asScala.toMap, Option(rg), contigRecoding.asScala.toMap, skipInvalidLoci)
-      }
-      info(s"Number of BGEN files indexed: ${ files.size() }")
     }
   }
 

@@ -9,6 +9,7 @@ import is.hail.expr.ir.functions._
 import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.avro.{AvroPartitionReader, AvroSchemaSerializer}
+import is.hail.io.bgen.BgenPartitionReader
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
 import is.hail.rvd.RVDSpecMaker
 import is.hail.types.encoded._
@@ -758,6 +759,7 @@ object PartitionReader {
       classOf[PartitionNativeIntervalReader],
       classOf[PartitionZippedNativeReader],
       classOf[PartitionZippedIndexedNativeReader],
+      classOf[BgenPartitionReader],
       classOf[AbstractTypedCodecSpec],
       classOf[TypedCodecSpec],
       classOf[AvroPartitionReader]),
@@ -834,6 +836,7 @@ abstract class PartitionReader {
   def emitStream(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
+    mb: EmitMethodBuilder[_],
     context: EmitCode,
     requestedType: TStruct
   ): IEmitCode
@@ -911,7 +914,7 @@ final case class WritePartition(value: IR, writeCtx: IR, writer: PartitionWriter
 final case class WriteMetadata(writeAnnotations: IR, writer: MetadataWriter) extends IR
 
 final case class ReadValue(path: IR, spec: AbstractTypedCodecSpec, requestedType: Type) extends IR
-final case class WriteValue(value: IR, path: IR, spec: AbstractTypedCodecSpec) extends IR
+final case class WriteValue(value: IR, path: IR, spec: AbstractTypedCodecSpec, stagingFile: Option[IR] = None) extends IR
 
 class PrimitiveIR(val self: IR) extends AnyVal {
   def +(other: IR): IR = {

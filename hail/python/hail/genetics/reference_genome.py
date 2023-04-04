@@ -1,3 +1,4 @@
+from bisect import bisect_right
 import json
 import re
 from hail.typecheck import typecheck_method, sequenceof, dictof, oneof, \
@@ -111,6 +112,7 @@ class ReferenceGenome:
         self._par_tuple = par
         self._par = [hl.Interval(hl.Locus(c, s, self), hl.Locus(c, e, self)) for (c, s, e) in par]
         self._global_positions = None
+        self._global_positions_list = None
 
         if not _builtin:
             Env.backend().add_reference(self)
@@ -500,6 +502,52 @@ class ReferenceGenome:
         if dest_reference_genome.name == self.name:
             raise ValueError(f'Destination reference genome cannot have the same name as this reference {self.name}.')
         self._liftovers[dest_reference_genome.name] = chain_file
+
+    @typecheck_method(global_pos=int)
+    def locus_from_global_position(self, global_pos: int) -> 'hl.Locus':
+        """"
+        Constructs a locus from a global position in reference genome.
+        The inverse of :meth:`.Locus.position`.
+
+        Examples
+        --------
+        >>> rg = hl.get_reference('GRCh37')
+        >>> rg.locus_from_global_position(0)
+        Locus(contig=1, position=1, reference_genome=GRCh37)
+
+        >>> rg.locus_from_global_position(2824183054)
+        Locus(contig=21, position=42584230, reference_genome=GRCh37)
+
+        >>> rg = hl.get_reference('GRCh38')
+        >>> rg.locus_from_global_position(2824183054)
+        Locus(contig=chr22, position=1, reference_genome=GRCh38)
+
+        Parameters
+        ----------
+        global_pos : int
+            Zero-based global base position along the reference genome.
+
+        Returns
+        -------
+        :class:`.Locus`
+        """
+        if global_pos < 0:
+            raise ValueError(f"global_pos must be non-negative, got {global_pos}")
+
+        if self._global_positions_list is None:
+            # dicts are in insertion order as of 3.7
+            self._global_positions_list = list(self.global_positions_dict.values())
+
+        global_positions = self._global_positions_list
+        contig = self.contigs[bisect_right(global_positions, global_pos) - 1]
+        contig_pos = self.global_positions_dict[contig]
+
+        if global_pos >= contig_pos + self.lengths[contig]:
+            raise ValueError(
+                f"global_pos {global_pos} exceeds length of reference genome {self}."
+            )
+
+        return hl.Locus(contig, global_pos - contig_pos + 1, self)
 
 
 rg_type.set(ReferenceGenome)

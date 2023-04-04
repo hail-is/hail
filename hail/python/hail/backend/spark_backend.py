@@ -176,16 +176,16 @@ class SparkBackend(Py4JBackend):
 
         if idempotent:
             self._jbackend = hail_package.backend.spark.SparkBackend.getOrCreate(
-                jsc, app_name, master, local, True, min_block_size, tmpdir, local_tmpdir,
+                jsc, app_name, master, local, log, True, append, skip_logging_configuration, min_block_size, tmpdir, local_tmpdir,
                 gcs_requester_pays_project, gcs_requester_pays_buckets)
             self._jhc = hail_package.HailContext.getOrCreate(
-                self._jbackend, log, True, append, branching_factor, skip_logging_configuration, optimizer_iterations)
+                self._jbackend, branching_factor, optimizer_iterations)
         else:
             self._jbackend = hail_package.backend.spark.SparkBackend.apply(
-                jsc, app_name, master, local, True, min_block_size, tmpdir, local_tmpdir,
+                jsc, app_name, master, local, log, True, append, skip_logging_configuration, min_block_size, tmpdir, local_tmpdir,
                 gcs_requester_pays_project, gcs_requester_pays_buckets)
             self._jhc = hail_package.HailContext.apply(
-                self._jbackend, log, True, append, branching_factor, skip_logging_configuration, optimizer_iterations)
+                self._jbackend, branching_factor, optimizer_iterations)
 
         self._jsc = self._jbackend.sc()
         if sc:
@@ -216,9 +216,8 @@ class SparkBackend(Py4JBackend):
             if self._jsc.uiWebUrl().isDefined():
                 sys.stderr.write('SparkUI available at {}\n'.format(self._jsc.uiWebUrl().get()))
 
-            connect_logger(self._utils_package_object, 'localhost', 12888)
-
             self._jbackend.startProgressBar()
+
         self._initialize_flags()
 
     def jvm(self):

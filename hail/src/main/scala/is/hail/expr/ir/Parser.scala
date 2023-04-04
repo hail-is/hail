@@ -712,6 +712,9 @@ object IRParser {
       case "TakeStateSig" =>
         val pt = vtwr_expr(it)
         TakeStateSig(pt)
+      case "ReservoirSampleStateSig" =>
+        val pt = vtwr_expr(it)
+        ReservoirSampleStateSig(pt)
       case "DensifyStateSig" =>
         val pt = vtwr_expr(it)
         DensifyStateSig(pt)
@@ -1537,10 +1540,10 @@ object IRParser {
       case "WriteValue" =>
         import AbstractRVDSpec.formats
         val spec = JsonMethods.parse(string_literal(it)).extract[AbstractTypedCodecSpec]
-        for {
-          value <- ir_value_expr(env)(it)
-          path <- ir_value_expr(env)(it)
-        } yield WriteValue(value, path, spec)
+        ir_value_children(env)(it).map {
+          case Array(value, path) => WriteValue(value, path, spec)
+          case Array(value, path, stagingFile) => WriteValue(value, path, spec, Some(stagingFile))
+        }
       case "LiftMeOut" => ir_value_expr(env)(it).map(LiftMeOut)
       case "ReadPartition" =>
         val rowType = tcoerce[TStruct](type_expr(it))
@@ -1679,11 +1682,6 @@ object IRParser {
         val n = int32_literal(it)
         val nPartitions = opt(it, int32_literal)
         done(TableRange(n, nPartitions.getOrElse(HailContext.backend.defaultParallelism)))
-      case "TableGenomicRange" =>
-        val n = int32_literal(it)
-        val nPartitions = opt(it, int32_literal)
-        val optRgStr = opt(it, identifier)
-        done(TableGenomicRange(n, nPartitions.getOrElse(HailContext.backend.defaultParallelism), optRgStr))
       case "TableUnion" => table_ir_children(env.onlyRelational)(it).map(TableUnion(_))
       case "TableOrderBy" =>
         val sortFields = sort_fields(it)

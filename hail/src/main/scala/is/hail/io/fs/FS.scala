@@ -316,7 +316,8 @@ trait FS extends Serializable {
       ""
   }
 
-  def openNoCompression(filename: String, _debug: Boolean = false): SeekableDataInputStream
+  final def openNoCompression(filename: String): SeekableDataInputStream = openNoCompression(filename, false)
+  def openNoCompression(filename: String, _debug: Boolean): SeekableDataInputStream
 
   def createNoCompression(filename: String): PositionedDataOutputStream
 

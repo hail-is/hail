@@ -204,8 +204,7 @@ async def _handle_ui_error(session, f, *args, **kwargs):
         set_message(session, e.message, e.ui_error_type)
         log.info(f'ui error: BatchUserError {e.message}')
         return True
-    else:
-        return False
+    return False
 
 
 async def _handle_api_error(f, *args, **kwargs):
@@ -2050,7 +2049,7 @@ def plot_resource_usage(
                     legendgroup=container_name,
                     name=container_name,
                     mode='markers+lines',
-                    line=dict(color=colors[container_name]),
+                    line={'color': colors[container_name]},
                 ),
                 row=row,
                 col=col,

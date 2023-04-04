@@ -1,3 +1,6 @@
+import pytest
+from random import randint
+
 import hail as hl
 from hail.genetics import *
 from ..helpers import *
@@ -186,3 +189,23 @@ def test_custom_reference_read_write():
         expected = ht
         actual = hl.read_table(foo)
         assert actual._same(expected)
+
+
+def test_locus_from_global_position():
+    rg = hl.get_reference('GRCh37')
+    max_length = rg.global_positions_dict[rg.contigs[-1]] + rg.lengths[rg.contigs[-1]]
+    positions = [0, randint(1, max_length - 2), max_length - 1]
+
+    python = [rg.locus_from_global_position(p) for p in positions]
+    scala = hl.eval(hl.map(lambda p: hl.locus_from_global_position(p, rg), positions))
+
+    assert python == scala
+
+def test_locus_from_global_position_negative_pos():
+    with pytest.raises(ValueError):
+        hl.get_reference('GRCh37').locus_from_global_position(-1)
+
+
+def test_locus_from_global_position_too_long():
+    with pytest.raises(ValueError):
+        hl.get_reference('GRCh37').locus_from_global_position(2**64-1)

@@ -415,7 +415,7 @@ def init_spark(sc=None,
                _optimizer_iterations=None,
                gcs_requester_pays_configuration: Optional[Union[str, Tuple[str, List[str]]]] = None
                ):
-    from hail.backend.spark_backend import SparkBackend
+    from hail.backend.spark_backend import SparkBackend, connect_logger
 
     log = _get_log(log)
     tmpdir = _get_tmpdir(tmp_dir)
@@ -437,6 +437,8 @@ def init_spark(sc=None,
     HailContext.create(
         log, quiet, append, tmpdir, local_tmpdir, default_reference,
         global_seed, backend)
+    if not quiet:
+        connect_logger(backend._utils_package_object, 'localhost', 12888)
 
 
 @typecheck(
@@ -542,7 +544,7 @@ def init_local(
         _optimizer_iterations=None,
         gcs_requester_pays_configuration: Optional[Union[str, Tuple[str, List[str]]]] = None
 ):
-    from hail.backend.local_backend import LocalBackend
+    from hail.backend.local_backend import LocalBackend, connect_logger
 
     log = _get_log(log)
     tmpdir = _get_tmpdir(tmpdir)
@@ -562,6 +564,8 @@ def init_local(
     HailContext.create(
         log, quiet, append, tmpdir, tmpdir, default_reference,
         global_seed, backend)
+    if not quiet:
+        connect_logger(backend._utils_package_object, 'localhost', 12888)
 
 
 def version() -> str:
@@ -663,7 +667,10 @@ class _TemporaryFilenameManager:
         return self.name
 
     def __exit__(self, type, value, traceback):
-        return self.fs.remove(self.name)
+        try:
+            return self.fs.remove(self.name)
+        except FileNotFoundError:
+            pass
 
 
 def TemporaryFilename(*,

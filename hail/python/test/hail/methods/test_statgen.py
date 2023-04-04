@@ -7,7 +7,7 @@ import hail as hl
 import hail.expr.aggregators as agg
 import hail.utils as utils
 from hail.linalg import BlockMatrix
-from hail.utils import FatalError
+from hail.utils import FatalError, new_temp_file
 from hail.utils.java import choose_backend, Env
 from ..helpers import resource, fails_local_backend, fails_service_backend, skip_when_service_backend
 
@@ -464,7 +464,7 @@ class Tests(unittest.TestCase):
                 covariates=[1],
                 max_iterations=0
             )
-            ht.collect()[0].fit
+            ht.null_fits.collect()
         except Exception as exc:
             assert 'Failed to fit logistic regression null model (standard MLE with covariates only): Newton iteration failed to converge' in exc.args[0]
         else:
@@ -783,8 +783,6 @@ class Tests(unittest.TestCase):
             self.assertTrue(is_constant(results[9]))
             self.assertTrue(is_constant(results[10]))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_logistic_regression_wald_test_multi_pheno_bgen_dosage(self):
         covariates = hl.import_table(resource('regressionLogisticMultiPheno.cov'),
                                      key='Sample',
@@ -793,8 +791,15 @@ class Tests(unittest.TestCase):
                                 key='Sample',
                                 missing='NA',
                                 types={'Pheno1': hl.tint32, 'Pheno2': hl.tint32}).cache()
-        mt = hl.import_bgen(resource('example.8bits.bgen'),
-                                           entry_fields=['dosage']).cache()
+        bgen_path = new_temp_file(extension='bgen')
+        Env.fs().copy(resource('example.8bits.bgen'), bgen_path)
+
+        hl.index_bgen(bgen_path,
+                      contig_recoding={'01': '1'},
+                      reference_genome='GRCh37')
+
+        mt = hl.import_bgen(bgen_path,
+                                           entry_fields=['dosage'])
 
         for logistic_regression_function in self.logreg_functions:
 
@@ -1111,8 +1116,6 @@ class Tests(unittest.TestCase):
     # se <- waldtest["x", "Std. Error"]
     # zstat <- waldtest["x", "z value"]
     # pval <- waldtest["x", "Pr(>|z|)"]
-    @fails_service_backend()
-    @fails_local_backend()
     def test_poission_regression_wald_test(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -1149,8 +1152,6 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
 
-    @fails_local_backend()
-    @fails_service_backend()
     def test_poisson_regression_max_iterations(self):
         import hail as hl
         mt = hl.utils.range_matrix_table(1, 3)
@@ -1173,9 +1174,7 @@ class Tests(unittest.TestCase):
     # lrtest <- anova(poisfitnull, poisfit, test="LRT")
     # chi2 <- lrtest[["Deviance"]][2]
     # pval <- lrtest[["Pr(>Chi)"]][2]
-    @fails_service_backend()
-    @fails_local_backend()
-    def test_poission_regression_lrt(self):
+    def test_poisson_regression_lrt(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
                                      types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
@@ -1219,9 +1218,7 @@ class Tests(unittest.TestCase):
     # scoretest <- anova(poisfitnull, poisfit, test="Rao")
     # chi2 <- scoretest[["Rao"]][2]
     # pval <- scoretest[["Pr(>Chi)"]][2]
-    @fails_service_backend()
-    @fails_local_backend()
-    def test_poission_regression_score_test(self):
+    def test_poisson_regression_score_test(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
                                      types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
@@ -1256,8 +1253,6 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_poisson_pass_through(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -1346,8 +1341,8 @@ class Tests(unittest.TestCase):
         self.assertTrue(np.allclose(actual, expected))
 
     def test_row_correlation_vs_numpy(self):
-        n, m = 11, 10
-        mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], n_partitions=2)
+        n_samples, n_variants = 11, 10
+        mt = hl.balding_nichols_model(3, n_samples, n_variants, n_partitions=2)
         mt = mt.annotate_rows(sd=agg.stats(mt.GT.n_alt_alleles()).stdev)
         mt = mt.filter_rows(mt.sd > 1e-30)
 
@@ -1357,11 +1352,10 @@ class Tests(unittest.TestCase):
 
         cor = hl.row_correlation(mt.GT.n_alt_alleles()).to_numpy()
 
-        self.assertTrue(cor.shape[0] > 5 and cor.shape[0] == cor.shape[1])
+        self.assertGreater(cor.shape[0], 5)
+        self.assertEqual(cor.shape[0], cor.shape[1])
         self.assertTrue(np.allclose(l, cor))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_ld_matrix(self):
         data = [{'v': '1:1:A:C',       'cm': 0.1, 's': 'a', 'GT': hl.Call([0, 0])},
                 {'v': '1:1:A:C',       'cm': 0.1, 's': 'b', 'GT': hl.Call([0, 0])},
@@ -1441,8 +1435,6 @@ class Tests(unittest.TestCase):
         mt = hl.split_multi(mt)
         self.assertEqual(1, mt._force_count_rows())
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_ld_prune(self):
         r2_threshold = 0.001
         window_size = 5
@@ -1478,7 +1470,6 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(entries.filter(bad_pair).count(), 0)
 
-    @fails_service_backend
     def test_ld_prune_inputs(self):
         ds = hl.balding_nichols_model(n_populations=1, n_samples=1, n_variants=1)
         self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, memory_per_core=0))
@@ -1486,23 +1477,17 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, r2=-1.0))
         self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, r2=2.0))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_ld_prune_no_prune(self):
         ds = hl.balding_nichols_model(n_populations=1, n_samples=10, n_variants=10, n_partitions=3)
         pruned_table = hl.ld_prune(ds.GT, r2=0.0, bp_window_size=0)
         expected_count = ds.filter_rows(agg.collect_as_set(ds.GT).size() > 1, keep=True).count_rows()
         self.assertEqual(pruned_table.count(), expected_count)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_ld_prune_identical_variants(self):
         ds = hl.import_vcf(resource('ldprune2.vcf'), min_partitions=2)
         pruned_table = hl.ld_prune(ds.GT)
         self.assertEqual(pruned_table.count(), 1)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_ld_prune_maf(self):
         ds = hl.balding_nichols_model(n_populations=1, n_samples=50, n_variants=10, n_partitions=10).cache()
 
@@ -1517,24 +1502,18 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(kept_maf, max(ht.maf.collect()))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_ld_prune_call_expression(self):
         ds = hl.import_vcf(resource("ldprune2.vcf"), min_partitions=2)
         ds = ds.select_entries(foo=ds.GT)
         pruned_table = hl.ld_prune(ds.foo)
         self.assertEqual(pruned_table.count(), 1)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_ld_prune_missing_entries(self):
         mt = hl.import_vcf(resource("ldprune2.vcf"), min_partitions=2).add_col_index()
         mt = mt.filter_entries(mt.col_idx > 1)
         result = hl.ld_prune(mt.GT)
         assert result.count() > 0
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_ld_prune_with_duplicate_row_keys(self):
         ds = hl.import_vcf(resource('ldprune2.vcf'), min_partitions=2)
         ds_duplicate = ds.annotate_rows(duplicate=[1, 2]).explode_rows('duplicate')
@@ -1632,15 +1611,15 @@ class Tests(unittest.TestCase):
         bn_ds = hl.balding_nichols_model(1, 5, 5, phased=True)
         assert bn_ds.aggregate_entries(hl.agg.all(bn_ds.GT.phased)) == True
         actual = bn_ds.GT.collect()
-        expected = [
-            hl.Call(a, phased=True)
-            for a in [
-                    [0, 1], [0, 0], [0, 1], [0, 0], [1, 0],
-                    [1, 1], [0, 1], [1, 1], [0, 0], [0, 1],
-                    [1, 0], [0, 0], [1, 0], [0, 0], [0, 0],
-                    [1, 1], [1, 1], [1, 0], [0, 1], [1, 1],
-                    [1, 1], [1, 1], [1, 1], [1, 1], [1, 1]]]
-        assert actual == expected
+        self.assertListEqual(
+            [ c.alleles for c in actual ],
+            [ [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]
+            , [1, 1], [1, 1], [1, 1], [1, 0], [1, 1]
+            , [1, 1], [0, 1], [1, 0], [1, 0], [0, 1]
+            , [0, 0], [0, 0], [0, 0], [0, 0], [1, 0]
+            , [1, 1], [1, 1], [0, 1], [1, 1], [1, 1]
+            ]
+        )
 
     def test_de_novo(self):
         mt = hl.import_vcf(resource('denovo.vcf'))
@@ -1693,8 +1672,6 @@ class Tests(unittest.TestCase):
             self.assertTrue(hl.methods.statgen._warn_if_no_intercept('', covariates))
             self.assertFalse(hl.methods.statgen._warn_if_no_intercept('', [intercept] + covariates))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_regression_field_dependence(self):
         mt = hl.utils.range_matrix_table(10, 10)
         mt = mt.annotate_cols(c1 = hl.literal([x % 2 == 0 for x in range(10)])[mt.col_idx], c2 = hl.rand_norm(0, 1))

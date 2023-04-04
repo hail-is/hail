@@ -318,10 +318,6 @@ class Job:
         """
         Set the job to always run, even if dependencies fail.
 
-        Notes
-        -----
-        Can only be used with the :class:`.backend.ServiceBackend`.
-
         Warning
         -------
         Jobs set to always run are not cancellable!
@@ -343,10 +339,6 @@ class Job:
         -------
         Same job object set to always run.
         """
-
-        if not isinstance(self._batch._backend, backend.ServiceBackend):
-            raise NotImplementedError("A ServiceBackend is required to use the 'always_run' option")
-
         self._always_run = always_run
         return self
 
