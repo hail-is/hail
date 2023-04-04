@@ -306,8 +306,15 @@ class Tests(unittest.TestCase):
         gnomad_vep_result = hl.import_vcf(resource('sample.gnomad.exomes.r2.1.1.sites.chr1.vcf.gz'), reference_genome='GRCh37', force=True)
         hail_vep_result = hl.vep(gnomad_vep_result, csq=True)
 
-        assert gnomad_vep_result.select_rows(vep=gnomad_vep_result.info.vep.map(lambda x: x.split('|')[:8])).rows()._same(
-            hail_vep_result.select_rows(vep=hail_vep_result.vep.map(lambda x: x.split('|')[:8])).rows().drop('vep_csq_header'))
+        expected = gnomad_vep_result.select_rows(
+            vep=gnomad_vep_result.info.vep.map(lambda x: x.split('|')[:8])
+        ).rows()
+
+        actual = hail_vep_result.select_rows(
+            vep=hail_vep_result.vep.map(lambda x: x.split('|')[:8])
+        ).rows().drop('vep_csq_header')
+
+        assert expected._same(actual)
 
         vep_csq_header = hl.eval(hail_vep_result.vep_csq_header)
         assert 'Consequence annotations from Ensembl VEP' in vep_csq_header, vep_csq_header
@@ -318,8 +325,15 @@ class Tests(unittest.TestCase):
         gnomad_vep_result = hl.import_vcf(resource('sample.gnomad.genomes.r3.0.sites.chr1.vcf.gz'), reference_genome='GRCh38', force=True)
         hail_vep_result = hl.vep(gnomad_vep_result, csq=True)
 
-        assert gnomad_vep_result.select_rows(vep=gnomad_vep_result.info.vep.map(lambda x: x.split('|')[:8])).rows()._same(
-            hail_vep_result.select_rows(vep=hail_vep_result.vep.map(lambda x: x.split('|')[:8])).rows().drop('vep_csq_header'))
+        expected = gnomad_vep_result.select_rows(
+            vep=gnomad_vep_result.info.vep.map(lambda x: x.split('|')[:8])
+        ).rows()
+
+        actual = hail_vep_result.select_rows(
+            vep=hail_vep_result.vep.map(lambda x: x.split('|')[:8])
+        ).rows().drop('vep_csq_header')
+
+        assert expected._same(actual)
 
         vep_csq_header = hl.eval(hail_vep_result.vep_csq_header)
         assert 'Consequence annotations from Ensembl VEP' in vep_csq_header, vep_csq_header
@@ -347,29 +361,38 @@ class Tests(unittest.TestCase):
     @skip_unless_service_backend(clouds=['gcp'])
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     def test_vep_grch37_against_dataproc(self):
-        mt = hl.import_vcf(resource('sample.vcf.gz'), reference_genome='GRCh37', force=True)
+        mt = hl.import_vcf(resource('sample.vcf.gz'), reference_genome='GRCh37', force_bgz=True, n_partitions=4)
         mt = mt.head(20)
         hail_vep_result = hl.vep(mt)
         initial_vep_dtype = hail_vep_result.vep.dtype
         hail_vep_result = hail_vep_result.annotate_rows(vep=hail_vep_result.vep.annotate(
-            input=hl.str('\t').join([hail_vep_result.locus.contig, hl.str(hail_vep_result.locus.position), ".", hail_vep_result.alleles[0], hail_vep_result.alleles[1], ".", ".", "GT"])
+            input=hl.str('\t').join([
+                hail_vep_result.locus.contig,
+                hl.str(hail_vep_result.locus.position),
+                ".",
+                hail_vep_result.alleles[0],
+                hail_vep_result.alleles[1],
+                ".",
+                ".",
+                "GT",
+            ])
         ))
         hail_vep_result = hail_vep_result.rows().select('vep')
 
-        def reorder_lof_info(ht):
+        def parse_lof_info_into_dict(ht):
             return ht.annotate(vep=ht.vep.annotate(
-                transcript_consequences=hl.map(lambda csq: csq.annotate(
-                    lof_info=hl.if_else(csq.lof_info == 'null', hl.null(hl.tdict(hl.tstr, hl.tstr)), hl.dict(
-                        hl.map(lambda kv: hl.tuple([kv.split(":")[0], kv.split(":")[1]]), csq.lof_info.split(','))))),
-                                               ht.vep.transcript_consequences)))
+                transcript_consequnces=ht.vep.transcript_consequences.map(
+                    lambda csq: csq.annotate(
+                        lof_info=hl.or_missing(csq.lof_info == 'null',
+                                               hl.dict(csq.lof_info.split(',').map(lambda kv: hl.tuple(kv.split(':')[:2]))))))))
 
-        hail_vep_result = reorder_lof_info(hail_vep_result)
+        hail_vep_result = parse_lof_info_into_dict(hail_vep_result)
 
         dataproc_result = hl.import_table(resource('dataproc_vep_grch37_annotations.tsv.gz'),
                                           key=['locus', 'alleles'],
                                           types={'locus': hail_vep_result.locus.dtype, 'alleles': hail_vep_result.alleles.dtype,
                                                  'vep': initial_vep_dtype}, force=True)
-        dataproc_result = reorder_lof_info(dataproc_result)
+        dataproc_result = parse_lof_info_into_dict(dataproc_result)
 
         assert hail_vep_result._same(dataproc_result)
 
@@ -384,20 +407,29 @@ class Tests(unittest.TestCase):
 
         hail_vep_result = hl.vep(loftee_variants)
         hail_vep_result = hail_vep_result.annotate(vep=hail_vep_result.vep.annotate(
-            input=hl.str('\t').join([hail_vep_result.locus.contig, hl.str(hail_vep_result.locus.position), ".", hail_vep_result.alleles[0], hail_vep_result.alleles[1], ".", ".", "GT"])
+            input=hl.str('\t').join([
+                hail_vep_result.locus.contig,
+                hl.str(hail_vep_result.locus.position),
+                ".",
+                hail_vep_result.alleles[0],
+                hail_vep_result.alleles[1],
+                ".",
+                ".",
+                "GT",
+            ])
         ))
         hail_vep_result = hail_vep_result.select('vep')
 
-        def reorder_lof_info(ht):
+        def parse_lof_info_into_dict(ht):
             return ht.annotate(vep=ht.vep.annotate(
-                transcript_consequences=hl.map(lambda csq: csq.annotate(
-                    lof_info=hl.if_else(csq.lof_info == 'null', hl.null(hl.tdict(hl.tstr, hl.tstr)), hl.dict(
-                        hl.map(lambda kv: hl.tuple([kv.split(":")[0], kv.split(":")[1]]), csq.lof_info.split(','))))),
-                                               ht.vep.transcript_consequences)))
+                transcript_consequnces=ht.vep.transcript_consequences.map(
+                    lambda csq: csq.annotate(
+                        lof_info=hl.or_missing(csq.lof_info == 'null',
+                                               hl.dict(csq.lof_info.split(',').map(lambda kv: hl.tuple(kv.split(':')[:2]))))))))
 
         dataproc_result = dataproc_result.annotate(vep=hl.parse_json(dataproc_result.vep, hail_vep_result.vep.dtype))
 
-        hail_vep_result = reorder_lof_info(hail_vep_result)
-        dataproc_result = reorder_lof_info(dataproc_result)
+        hail_vep_result = parse_lof_info_into_dict(hail_vep_result)
+        dataproc_result = parse_lof_info_into_dict(dataproc_result)
 
         assert hail_vep_result._same(dataproc_result)

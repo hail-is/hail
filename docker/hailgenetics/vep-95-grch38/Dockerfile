@@ -35,16 +35,18 @@ RUN cpanm DBI \
     Set::IntervalTree \
     JSON || { for i in /root/.cpanm/work/*/build.log; do echo $i; cat $i; done }
 
-RUN mkdir $VEP_DIR
-WORKDIR $VEP_DIR
+RUN mkdir ${VEP_DIR}
+WORKDIR ${VEP_DIR}
 
+# We need to remove the original MaxEntScan.pm file from the plugins directory
+# because LOFTEE has its own MaxEntScan plugin that is in directory form and VEP
+# will try and use the wrong plugin.
 RUN git clone -b release/95.1 https://github.com/Ensembl/ensembl-vep.git && \
     cd ensembl-vep && \
     perl INSTALL.pl -a a --NO_UPDATE && \
     echo "#!/bin/bash" > /vep/vep && \
     echo "export PERL5LIB=\$PERL5LIB:${VEP_DIR}/ensembl-vep/Plugins/" >> /vep/vep && \
     echo "exec perl ${VEP_DIR}/ensembl-vep/vep \"\$@\"" >> /vep/vep && \
-    chmod +x /vep /vep/vep && \
     git clone -b postreleasefix/95 https://github.com/Ensembl/VEP_plugins.git Plugins/ && \
     git clone -b grch38 https://github.com/konradjk/loftee.git && \
     mv loftee/* Plugins/ && \

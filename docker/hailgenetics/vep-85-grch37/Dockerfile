@@ -47,8 +47,7 @@ RUN wget https://github.com/Ensembl/ensembl-tools/archive/release/${VEP_VERSION}
     perl INSTALL.pl -a a --NO_HTSLIB && \
     echo "#!/bin/bash" > /vep/vep && \
     echo "export PERL5LIB=\$PERL5LIB:${VEP_DIR}/loftee" >> /vep/vep && \
-    echo "exec perl ${VEP_DIR}/ensembl-tools-release-$VEP_VERSION/scripts/variant_effect_predictor/variant_effect_predictor.pl \"\$@\"" >> /vep/vep && \
-    chmod +x /vep /vep/vep
+    echo "exec perl ${VEP_DIR}/ensembl-tools-release-${VEP_VERSION}/scripts/variant_effect_predictor/variant_effect_predictor.pl \"\$@\"" >> /vep/vep
 
 RUN git clone -b v1.0.2 https://github.com/konradjk/loftee.git
 

@@ -589,8 +589,8 @@ steps:
       - base_image
       - merge_code
   - kind: buildImage2
-    name: qob_vep_image_grch37
-    dockerFile: /io/repo/docker/vep/grch37/85/Dockerfile
+    name: hailgenetics_vep_grch37_85_image
+    dockerFile: /io/repo/docker/hailgenetics/vep/grch37/85/Dockerfile
     contextPath: /io/repo/docker/vep/
     publishAs: hailgenetics/vep/grch37-85
     inputs:
@@ -600,8 +600,8 @@ steps:
       - merge_code
       - hail_ubuntu_image
   - kind: buildImage2
-    name: qob_vep_image_grch38
-    dockerFile: /io/repo/docker/vep/grch38/95/Dockerfile
+    name: hailgenetics_vep_grch38_95_image
+    dockerFile: /io/repo/docker/hailgenetics/vep/grch38/95/Dockerfile
     contextPath: /io/repo/docker/vep/
     publishAs: hailgenetics/vep/grch38-95
     inputs:
@@ -2337,8 +2337,8 @@ steps:
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
       export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
-      export HAIL_GENETICS_QOB_VEP_GRCH37_IMAGE={{ qob_vep_image_grch37.image }}
-      export HAIL_GENETICS_QOB_VEP_GRCH38_IMAGE={{ qob_vep_image_grch38.image }}
+      export HAIL_GENETICS_VEP_GRCH37_85_IMAGE={{ hailgenetics_vep_grch37_85_image.image }}
+      export HAIL_GENETICS_VEP_GRCH38_95_IMAGE={{ hailgenetics_vep_grch38_95_image.image }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
 
       if [[ "$HAIL_CLOUD" = "gcp" ]]
@@ -2362,7 +2362,6 @@ steps:
       {% endif %}
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}
-      hailctl config set domain {{ global.domain }}
 
       python3 -m pytest \
               -Werror:::hail -Werror:::hailtop \
@@ -2409,8 +2408,8 @@ steps:
       - upload_query_jar
       - upload_test_resources_to_blob_storage
       - build_hail_jar_and_wheel_only
-      - qob_vep_image_grch37
-      - qob_vep_image_grch38
+      - hailgenetics_vep_grch37_85_image
+      - hailgenetics_vep_grch38_95_image
   - kind: buildImage2
     name: netcat_ubuntu_image
     publishAs: netcat
@@ -3214,8 +3213,8 @@ steps:
                              /io/github-oauth \
                              docker://{{ hailgenetics_hail_image.image }} \
                              docker://{{ hailgenetics_hailtop_image.image }} \
-                             docker://{{ qob_vep_image_grch37.image }} \
-                             docker://{{ qob_vep_image_grch38.image }} \
+                             docker://{{ hailgenetics_vep_grch37_85_image.image }} \
+                             docker://{{ hailgenetics_vep_grch38_95_image.image }} \
                              /io/wheel-for-azure/hail-*-py3-none-any.whl \
                              /io/www.tar.gz
     inputs:
@@ -3260,8 +3259,8 @@ steps:
       - merge_code
       - hailgenetics_hail_image
       - hailgenetics_hailtop_image
-      - qob_vep_image_grch37
-      - qob_vep_image_grch38
+      - hailgenetics_vep_grch37_85_image
+      - hailgenetics_vep_grch38_95_image
       - build_wheel_for_azure
       - make_docs
     clouds:

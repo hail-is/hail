@@ -11,7 +11,7 @@ from typing import Any, Dict, Tuple, List, Optional, Union
 from hailtop import pip_version
 from hailtop.utils import Timings, async_to_blocking
 import hailtop.batch_client as bc
-from hailtop.config import configuration_of
+from hailtop.config import configuration_of, get_deploy_config
 from hailtop import yamlx
 
 from hail.backend.service_backend import ServiceBackend
@@ -28,8 +28,8 @@ from .misc import require_biallelic, require_row_key_variant, require_col_key_st
 log = logging.getLogger('methods.qc')
 
 
-HAIL_GENETICS_QOB_VEP_GRCH37_IMAGE = os.environ.get('HAIL_GENETICS_QOB_VEP_GRCH37_IMAGE', f'hailgenetics/vep/grch37-85:{pip_version()}')
-HAIL_GENETICS_QOB_VEP_GRCH38_IMAGE = os.environ.get('HAIL_GENETICS_QOB_VEP_GRCH38_IMAGE', f'hailgenetics/vep/grch38-95:{pip_version()}')
+HAIL_GENETICS_VEP_GRCH37_85_IMAGE = os.environ.get('HAIL_GENETICS_VEP_GRCH37_85_IMAGE', f'hailgenetics/vep/grch37-85:{pip_version()}')
+HAIL_GENETICS_VEP_GRCH38_95_IMAGE = os.environ.get('HAIL_GENETICS_VEP_GRCH38_95_IMAGE', f'hailgenetics/vep/grch38-95:{pip_version()}')
 
 
 @typecheck(mt=MatrixTable, name=str)
@@ -648,7 +648,7 @@ class VEPConfig:
             config['vep_json_typ'],
             config['command'],
             config['csq_header_command'],
-            False,
+            config['reference_data_is_bucket_requester_pays'],
             config.get('cloud'),
         )
 
@@ -661,7 +661,7 @@ class VEPConfig:
                  vep_json_typ: hl.expr.HailType,
                  command: List[str],
                  csq_header_command: List[str],
-                 is_maintained_by_hail: bool,
+                 reference_data_is_bucket_requester_pays: bool,
                  cloud: Optional[str]):
         self.data_bucket = data_bucket
         self.regions = regions
@@ -671,19 +671,78 @@ class VEPConfig:
         self.vep_json_typ = vep_json_typ
         self.command = command
         self.csq_header_command = csq_header_command
-        self.is_maintained_by_hail = is_maintained_by_hail
+        self.reference_data_is_bucket_requester_pays = reference_data_is_bucket_requester_pays
         self.cloud = cloud
 
+
+vep_85_grch37_command = '''
+#!/bin/bash
+
+if [ $VEP_CONSEQUENCE -ne 0 ]
+then
+  vcf_or_json="--vcf"
+else
+  vcf_or_json="--json"
+fi
+
+export VEP_COMMAND=/vep/vep \
+${VEP_INPUT_FILE:+--input_file $VEP_INPUT_FILE} \
+--format vcf \
+${vcf_or_json} \
+--everything \
+--allele_number \
+--no_stats \
+--cache \
+--offline \
+--minimal \
+--assembly GRCh37 \
+--dir=${VEP_DATA_DIR} \
+--plugin LoF,human_ancestor_fa:${VEP_DATA_DIR}/loftee_data/human_ancestor.fa.gz,filter_position:0.05,min_intron_size:15,conservation_file:${VEP_DATA_DIR}/loftee_data/phylocsf_gerp.sql,gerp_file:${VEP_DATA_DIR}/loftee_data/GERP_scores.final.sorted.txt.gz \
+-o STDOUT
+
+exec vep.py "$@"
+'''
+
+
+vep_95_grch38_command = '''
+#!/bin/bash
+
+if [ $VEP_CONSEQUENCE -ne 0 ]
+then
+  vcf_or_json="--vcf"
+else
+  vcf_or_json="--json"
+fi
+
+export VEP_COMMAND=/vep/vep \
+${VEP_INPUT_FILE:+--input_file $VEP_INPUT_FILE} \
+--format vcf \
+${vcf_or_json} \
+--everything \
+--allele_number \
+--no_stats \
+--cache \
+--offline \
+--minimal \
+--assembly GRCh38 \
+--fasta ${VEP_DATA_MOUNT}/homo_sapiens/95_GRCh38/Homo_sapiens.GRCh38.dna.toplevel.fa.gz \
+--plugin "LoF,loftee_path:/vep/ensembl-vep/Plugins/,gerp_bigwig:${VEP_DATA_MOUNT}/gerp_conservation_scores.homo_sapiens.GRCh38.bw,human_ancestor_fa:${VEP_DATA_MOUNT}/human_ancestor.fa.gz,conservation_file:${VEP_DATA_MOUNT}/loftee.sql" \
+--dir_plugins /vep/ensembl-vep/Plugins/ \
+--dir_cache ${VEP_DATA_MOUNT} \
+-o STDOUT
+
+exec vep.py "$@"
+'''
 
 supported_vep_configs = {
     ('GRCh37', 'gcp', 'us-central1', 'hail.is'): VEPConfig(
         'hail-qob-vep-grch37-us-central1',
         ['us-central1'],
-        HAIL_GENETICS_QOB_VEP_GRCH37_IMAGE,
+        HAIL_GENETICS_VEP_GRCH37_85_IMAGE,
         '/vep_data/',
-        {'PERL5LIB': '/vep_data/loftee'},
+        {},
         VEPConfig.default_vep_json_typ,
-        ["python3", "/hail-vep/run_vep_grch37.py", "vep"],
+        ["/bin/bash", "-c", vep_85_grch37_command, "vep"],
         ["python3", "/hail-vep/run_vep_grch37.py", "csq_header"],
         True,
         'gcp',
@@ -691,7 +750,7 @@ supported_vep_configs = {
     ('GRCh38', 'gcp', 'us-central1', 'hail.is'): VEPConfig(
         'hail-qob-vep-grch38-us-central1',
         ['us-central1'],
-        HAIL_GENETICS_QOB_VEP_GRCH38_IMAGE,
+        HAIL_GENETICS_VEP_GRCH38_95_IMAGE,
         '/vep_data/',
         {},
         VEPConfig.default_vep_json_typ._insert_field('transcript_consequences', hl.tarray(
@@ -708,12 +767,8 @@ supported_vep_configs = {
 }
 
 
-def supported_vep_config(backend: ServiceBackend, cloud: str, reference_genome: str, *, regions: Optional[List[str]] = None) -> VEPConfig:
-    domain = configuration_of('global', 'domain', None, None)
-    possible_regions = backend.bc.supported_regions()
-    regions = configuration_of('batch', 'regions', regions, possible_regions)
-    if isinstance(regions, str):
-        regions = regions.split(',')
+def _supported_vep_config(cloud: str, reference_genome: str, *, regions: List[str]) -> VEPConfig:
+    domain = get_deploy_config()._domain
 
     for region in regions:
         config_params = (reference_genome, cloud, region, domain)
@@ -730,8 +785,8 @@ def _service_vep(backend: ServiceBackend,
                  regions: Optional[List[str]],
                  block_size: int,
                  csq: bool,
-                 tolerate_parse_error: bool):
-    reference_genome = ht['locus'].dtype.reference_genome.name
+                 tolerate_parse_error: bool) -> hl.Table:
+    reference_genome = ht.locus.dtype.reference_genome.name
     cloud = backend.bc.cloud()
 
     if regions is None:
@@ -740,7 +795,7 @@ def _service_vep(backend: ServiceBackend,
     if config is not None:
         vep_config = VEPConfig.from_dict(config)
     else:
-        vep_config = supported_vep_config(backend, cloud, reference_genome, regions=regions)
+        vep_config = _supported_vep_config(cloud, reference_genome, regions=regions)
 
     requester_pays_project = backend.flags.get('gcs_requester_pays_project')
     if requester_pays_project is None and vep_config.is_maintained_by_hail and vep_config.cloud == 'gcp':
@@ -808,48 +863,47 @@ def _service_vep(backend: ServiceBackend,
 
     hl.export_vcf(ht, vep_input_path.name, parallel='header_per_shard')
 
-    timings = Timings()
     name = 'vep(...)'
 
     starting_job_id = async_to_blocking(backend._batch.status())['n_jobs'] + 1
 
-    with timings.step("submit batch"):
-        bb = backend.bc.update_batch(backend._batch.id)
-        build_vep_batch(bb)
-        b = bb.submit(disable_progress_bar=True)
+    bb = backend.bc.update_batch(backend._batch.id)
+    build_vep_batch(bb)
+    b = bb.submit(disable_progress_bar=True)
 
-    with timings.step("wait batch"):
-        try:
-            status = b.wait(description=name,
-                            disable_progress_bar=backend.disable_progress_bar,
-                            progress=None,
-                            starting_job=starting_job_id)
-        except BaseException:
-            print('cancelling batch...')
-            b.cancel()
-            raise
+    try:
+        status = b.wait(description=name,
+                        disable_progress_bar=backend.disable_progress_bar,
+                        progress=None,
+                        starting_job=starting_job_id)
+    except BaseException:
+        b.cancel()
+        raise
 
-    with timings.step("parse status"):
-        if status['n_succeeded'] != status['n_jobs']:
-            failing_job = [job for job in b.jobs('!success')][0]
-            failing_job = b.get_job(failing_job['job_id'])
-            message = {
-                'batch_status': status,
-                'job_status': failing_job.status(),
-                'log': failing_job.log()
-            }
-            raise FatalError(yamlx.dump(message))
+    if status['n_succeeded'] != status['n_jobs']:
+        failing_job = [job for job in b.jobs('!success')][0]
+        failing_job = b.get_job(failing_job['job_id'])
+        message = {
+            'batch_status': status,
+            'job_status': failing_job.status(),
+            'log': failing_job.log()
+        }
+        raise FatalError(yamlx.dump(message))
 
     annotations = hl.import_table(f'{vep_output_path.name}/annotations/*',
-                                  key='variant',
                                   types={'variant': hl.tstr,
                                          'vep': vep_typ,
-                                         'vep_proc_id': hl.tstruct(part_id=hl.tint,
-                                                                   block_id=hl.tint)},
+                                         'part_id': hl.tint,
+                                         'block_id': hl.tint},
                                   force=True)
 
-    reference_genome = ht.locus.dtype.reference_genome.name
+    annotations = annotations.annotate(vep_proc_id=hl.struct(
+        part_id=annotations.part_id,
+        block_id=annotations.block_id
+    ))
+    annotations = annotations.drop('part_id', 'block_id')
     annotations = annotations.key_by(**hl.parse_variant(annotations.variant, reference_genome=reference_genome))
+    annotations = annotations.drop('variant')
 
     if csq:
         with hl.hadoop_open(f'{vep_output_path.name}/csq-header') as f:
@@ -860,14 +914,19 @@ def _service_vep(backend: ServiceBackend,
 
 
 @typecheck(dataset=oneof(Table, MatrixTable),
-           config=oneof(nullable(str), nullable(dictof(str, anytype))),
+           config=nullable(oneof(str, dictof(str, anytype))),
            block_size=int,
            name=str,
            csq=bool,
            tolerate_parse_error=bool,
            regions=nullable(sequenceof(str)))
-def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='vep', csq=False,
-        tolerate_parse_error=False, regions=None):
+def vep(dataset: Union[Table, MatrixTable],
+        config: Optional[Union[str, Dict[str, Any]]] = None,
+        block_size: int = 1000,
+        name: str = 'vep',
+        csq: bool = False,
+        tolerate_parse_error: bool = False,
+        regions: Optional[List[str]] = None):
     """Annotate variants with VEP.
 
     .. include:: ../_templates/req_tvariant.rst
@@ -893,7 +952,7 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
     installing VEP is achieved by specifying the `--vep` flag. For more detailed instructions,
     see :ref:`vep_dataproc`. If you use `hailctl hdinsight`, see :ref:`vep_hdinsight`.
 
-    **Configuration**
+    **Spark Configuration**
 
     :func:`.vep` needs a configuration file to tell it how to run VEP. This is the ``config`` argument
     to the VEP function. If you are using `hailctl dataproc` as mentioned above, you can just use the
@@ -901,7 +960,7 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
     there are detailed instructions below.
 
     The format of the configuration file is JSON, and :func:`.vep`
-    expects a JSON object with three fields when using the Spark backend:
+    expects a JSON object with three fields:
 
     - `command` (array of string) -- The VEP command line to run.  The string literal `__OUTPUT_FORMAT_FLAG__` is replaced with `--json` or `--vcf` depending on `csq`.
     - `env` (object) -- A map of environment variables to values to add to the environment when invoking the command.  The value of each object member must be a string.
@@ -939,27 +998,30 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
 
     If no config file is specified, this function will check to see if environment variable `VEP_CONFIG_URI` is set with a path to a config file.
 
-    When using the Service Backend, the config argument is a dictionary with the following expected fields:
+    **Batch Service Configuration**
 
-     - `command` (array of string) -- The command line to run for a VEP job for a partition.
-     - `csq_header_command` (array of string) -- The command line to run when generating the consequence header.
-     - `env` (dict of string to string) -- A map of environment variables to values to add to the environment when invoking the command.
-     - `vep_json_schema` (hl.expr.Type): The type of the VEP JSON schema (as produced by VEP when invoked with the `--json` option).
-     - `image` (string) -- The docker image to run VEP.
-     - `data_bucket` (string) -- The location where the VEP data is stored.
-     - `data_mount` (string) -- The location in the container where the data should be mounted.
+    The config argument is a dictionary with the following expected fields:
+
+     - `command` (:obj:`.list` of :obj:`.str`) -- The command line to run for a VEP job for a partition.
+     - `csq_header_command` (:obj:`.list` of :obj:`.str`) -- The command line to run when generating the consequence header.
+     - `env` (dict of :obj:`.str` to :obj:`.str`) -- A map of environment variables to values to add to the environment when invoking the command.
+     - `vep_json_schema` (:class:`.HailType`): The type of the VEP JSON schema (as produced by VEP when invoked with the `--json` option).
+     - `image` (:obj:`.str`) -- The docker image to run VEP.
+     - `data_bucket` (:obj:`.str`) -- The location where the VEP data is stored.
+     - `data_mount` (:obj:`.str`) -- The location in the container where the data should be mounted.
+     - `reference_data_is_bucket_requester_pays` (:obj:`.bool`) -- True if the reference data is in a requester pays bucket.
 
     If no config is specified, Hail will use the user's Service configuration parameters to find a supported VEP configuration.
 
-    The following environment variables are added to the job's environment based on the input to the vep command:
+    The following environment variables are added to the job's environment based on the arguments to this function:
 
-     - `VEP_BLOCK_SIZE` - block size
-     - `VEP_PART_ID` - partition id
-     - `VEP_DATA_MOUNT` - location where the vep data is mounted (same as `data_mount` in the config)
-     - `VEP_CONSEQUENCE` - integer equal to 0 or 1 on whether `csq` is False or True
-     - `VEP_TOLERATE_PARSE_ERROR` - integer equal to 0 or 1 on whether `tolerate_parse_error` is False or True
-     - `VEP_OUTPUT_FILE` - string specifying the local path where the output TSV file with the VEP result should be located
-     - `VEP_INPUT_FILE` - string specifying the local path where the input VCF shard is located for all jobs
+     - `VEP_BLOCK_SIZE` - The maximum number of variants provided as input to each invocation of VEP.
+     - `VEP_PART_ID` - Partition ID.
+     - `VEP_DATA_MOUNT` - Location where the vep data is mounted (same as `data_mount` in the config).
+     - `VEP_CONSEQUENCE` - Integer equal to 0 or 1 on whether `csq` is False or True.
+     - `VEP_TOLERATE_PARSE_ERROR` - Integer equal to 0 or 1 on whether `tolerate_parse_error` is False or True.
+     - `VEP_OUTPUT_FILE` - String specifying the local path where the output TSV file with the VEP result should be located.
+     - `VEP_INPUT_FILE` - String specifying the local path where the input VCF shard is located for all jobs.
 
     The `VEP_INPUT_FILE` environment variable is not available for the single job that computes the consequence header when
     ``csq=True``.
@@ -977,7 +1039,7 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
     ----------
     dataset : :class:`.MatrixTable` or :class:`.Table`
         Dataset.
-    config : :class:`str` or ::obj:`dict` of :class:`str` to :class`str`
+    config : :class:`str` or ::obj:`dict` of :class:`str` to :class`str`, optional
         Path to VEP configuration file or a dictionary of configuration parameters.
     block_size : :obj:`int`
         Number of rows to process per VEP invocation.
@@ -989,7 +1051,8 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
     tolerate_parse_error : :obj:`bool`
         If ``True``, ignore invalid JSON produced by VEP and return a missing annotation.
     regions: :obj:`list` of :class:`str`, optional
-        The list of regions to run jobs in when using the Service Backend.
+        The list of regions to run jobs in when using the Service Backend. In most use cases, this
+        should be a list containing a single region where the input data resides.
 
     Returns
     -------
