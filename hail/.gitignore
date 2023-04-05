@@ -60,6 +60,9 @@ python/hail/docs/vds/hail.vds.sample_qc.rst
 python/hail/docs/vds/hail.vds.split_multi.rst
 python/hail/docs/vds/hail.vds.to_dense_mt.rst
 python/hail/docs/vds/hail.vds.to_merged_sparse_mt.rst
+python/hail/docs/vds/hail.vds.local_to_global.rst
+python/hail/docs/vds/hail.vds.merge_reference_blocks.rst
+python/hail/docs/vds/hail.vds.truncate_reference_blocks.rst
 src/main/c/.cxx.vsn
 src/main/c/headers
 src/main/c/lib

@@ -5,7 +5,7 @@ import logging
 import os
 import random
 import secrets
-from typing import Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 import aiohttp
 import kubernetes_asyncio.client
@@ -521,7 +521,7 @@ WHERE id = %(id)s AND state = 'creating';
 
 
 async def create_user(app, user, skip_trial_bp=False):
-    cleanup = []
+    cleanup: List[Callable[[], Awaitable[None]]] = []
     try:
         await _create_user(app, user, skip_trial_bp, cleanup)
     except Exception:
@@ -610,7 +610,7 @@ async def update_users(app):
 
 
 async def async_main():
-    app = {}
+    app: Dict[str, Any] = {}
 
     user_creation_loop = None
     try:
@@ -629,7 +629,7 @@ async def async_main():
 
         app['identity_client'] = get_identity_client()
 
-        app['batch_client'] = await bc.aioclient.BatchClient.create(None)
+        app['batch_client'] = await bc.aioclient.BatchClient.create('')
 
         users_changed_event = asyncio.Event()
         app['users_changed_event'] = users_changed_event

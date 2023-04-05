@@ -24,14 +24,14 @@ def generate_token(size=12):
 
 
 async def write_user_config(namespace: str, database_name: str, user: str, config: SQLConfig):
-    with open('/sql-config/server-ca.pem', 'r') as f:
+    with open('/sql-config/server-ca.pem', 'r', encoding='utf-8') as f:
         server_ca = f.read()
     client_cert: Optional[str]
     client_key: Optional[str]
     if config.using_mtls():
-        with open('/sql-config/client-cert.pem', 'r') as f:
+        with open('/sql-config/client-cert.pem', 'r', encoding='utf-8') as f:
             client_cert = f.read()
-        with open('/sql-config/client-key.pem', 'r') as f:
+        with open('/sql-config/client-key.pem', 'r', encoding='utf-8') as f:
             client_key = f.read()
     else:
         client_cert = None
@@ -39,7 +39,7 @@ async def write_user_config(namespace: str, database_name: str, user: str, confi
     secret = create_secret_data_from_config(config, server_ca, client_cert, client_key)
     files = secret.keys()
     for fname, data in secret.items():
-        with open(os.path.basename(fname), 'w') as f:
+        with open(os.path.basename(fname), 'w', encoding='utf-8') as f:
             f.write(data)
     secret_name = f'sql-{database_name}-{user}-config'
     print(f'creating secret {secret_name}')
@@ -57,7 +57,7 @@ kubectl -n {shq(namespace)} create secret generic \
 
 
 async def create_database():
-    with open('/sql-config/sql-config.json', 'r') as f:
+    with open('/sql-config/sql-config.json', 'r', encoding='utf-8') as f:
         sql_config = SQLConfig.from_json(f.read())
 
     namespace = create_database_config['namespace']
@@ -89,10 +89,10 @@ async def create_database():
             assert len(rows) == 1
             return
 
-    with open(create_database_config['admin_password_file']) as f:
+    with open(create_database_config['admin_password_file'], encoding='utf-8') as f:
         admin_password = f.read()
 
-    with open(create_database_config['user_password_file']) as f:
+    with open(create_database_config['user_password_file'], encoding='utf-8') as f:
         user_password = f.read()
 
     admin_exists = await db.execute_and_fetchone("SELECT user FROM mysql.user WHERE user=%s", (admin_username,))
