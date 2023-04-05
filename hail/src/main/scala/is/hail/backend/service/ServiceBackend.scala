@@ -48,7 +48,9 @@ class ServiceBackendContext(
   val remoteTmpDir: String,
   val workerCores: String,
   val workerMemory: String,
-  val regions: Array[String]
+  val storageRequirement: String,
+  val regions: Array[String],
+  val cloudfuseConfig: Array[(String, String, Boolean)]
 ) extends BackendContext with Serializable {
   def tokens(): Tokens =
     new Tokens(Map((DeployConfig.get.defaultNamespace, sessionID)))
@@ -157,6 +159,9 @@ class ServiceBackend(
       if (backendContext.workerMemory != "None") {
         resources = resources.merge(JObject(("memory" -> JString(backendContext.workerMemory))))
       }
+      if (backendContext.storageRequirement != "0Gi") {
+        resources = resources.merge(JObject(("storage" -> JString(backendContext.storageRequirement))))
+      }
       jobs(i) = JObject(
         "always_run" -> JBool(false),
         "job_id" -> JInt(i + 1),
@@ -177,7 +182,14 @@ class ServiceBackend(
         ),
         "mount_tokens" -> JBool(true),
         "resources" -> resources,
-        "regions" -> JArray(backendContext.regions.map(JString).toList)
+        "regions" -> JArray(backendContext.regions.map(JString).toList),
+        "cloudfuse" -> JArray(backendContext.cloudfuseConfig.map{ case (bucket, mountPoint, readonly) =>
+          JObject(
+            "bucket" -> JString(bucket),
+            "mount_point" -> JString(mountPoint),
+            "read_only" -> JBool(readonly)
+          )
+        }.toList)
       )
       i += 1
     }
@@ -593,6 +605,19 @@ class ServiceBackendSocketAPI2(
       regionsArrayBuffer.toArray
     }
 
+    val storageRequirement = readString()
+    val nCloudfuseConfigElements = readInt()
+    val cloudfuseConfig = new Array[(String, String, Boolean)](nCloudfuseConfigElements)
+    i = 0
+    while (i < nCloudfuseConfigElements) {
+      val bucket = readString()
+      val mountPoint = readString()
+      val readonly = readBool()
+      cloudfuseConfig(i) = (bucket, mountPoint, readonly)
+      i += 1
+    }
+
+
     val cmd = readInt()
 
     val tmpdir = readString()
@@ -621,7 +646,7 @@ class ServiceBackendSocketAPI2(
         addedSequences.foreach { case (rg, (fastaFile, indexFile)) =>
           ctx.getReference(rg).addSequence(ctx, fastaFile, indexFile)
         }
-        ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir, workerCores, workerMemory, regions)
+        ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir, workerCores, workerMemory, storageRequirement, regions, cloudfuseConfig)
         method(ctx)
       }
     }

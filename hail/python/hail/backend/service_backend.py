@@ -380,12 +380,19 @@ class ServiceBackend(Backend):
                             readonly_fuse_buckets.add(bucket)
                             storage_requirement_bytes += await (await self._async_fs.statfile(blob)).size()
                             await write_str(infile, f'/cloudfuse/{bucket}/{path}')
-                    await write_int(infile, storage_requirement_bytes)
                     await write_str(infile, str(self.worker_cores))
                     await write_str(infile, str(self.worker_memory))
                     await write_int(infile, len(self.regions))
                     for region in self.regions:
                         await write_str(infile, region)
+                    storage_gib_str = f'{math.ceil(storage_requirement_bytes / 1024 / 1024 / 1024)}Gi'
+                    await write_str(infile, storage_gib_str)
+                    cloudfuse_config = [(bucket, f'/cloudfuse/{bucket}', True) for bucket in readonly_fuse_buckets]
+                    await write_int(infile, len(cloudfuse_config))
+                    for bucket, mount_point, readonly in readonly_fuse_buckets:
+                        await write_str(infile, bucket)
+                        await write_str(infile, mount_point)
+                        await write_bool(infile, readonly)
                     await inputs(infile, token)
 
             with timings.step("submit batch"):
@@ -403,8 +410,7 @@ class ServiceBackend(Backend):
                 if self.driver_memory is not None:
                     resources['memory'] = str(self.driver_memory)
                 if storage_requirement_bytes != 0:
-                    storage_gib = math.ceil(storage_requirement_bytes / 1024 / 1024 / 1024)
-                    resources['storage'] = f'{storage_gib}Gi'
+                    resources['storage'] = storage_gib_str
 
                 j = bb.create_jvm_job(
                     jar_spec=self.jar_spec.to_dict(),
@@ -418,7 +424,7 @@ class ServiceBackend(Backend):
                     resources=resources,
                     attributes={'name': name + '_driver'},
                     regions=self.regions,
-                    cloudfuse=[(bucket, f'/cloudfuse/{bucket}', True) for bucket in readonly_fuse_buckets]
+                    cloudfuse=cloudfuse_config,
                 )
                 self._batch = await bb.submit(disable_progress_bar=True)
 
