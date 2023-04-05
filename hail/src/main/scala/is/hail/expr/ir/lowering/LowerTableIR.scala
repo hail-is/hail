@@ -1796,16 +1796,10 @@ object LowerTableIR {
       if (original.numPartitions == 0 || planned.numPartitions < 2)
         0.0
       else
-        (0.25 * planned.numPartitions / original.numPartitions) * planned
+        (0.25 / original.numPartitions) * planned
           .rangeBounds
-          .map(original.intervalRange)
-          .foldLeft(IntMap.empty[Int]) {
-            case (counts, (lo, hi)) => Range(lo, hi, 1).foldLeft(counts) {
-              case (counts, index) => counts.updateWith(index, 1, _ + _)
-            }
-          }
-          .values
-          .count(_ > 1)
+          .map { intrvl => val (lo, hi) = original.intervalRange(intrvl); hi - lo }
+          .sum
 
     log.info(s"repartition cost: $cost")
     if (cost <= 1.0) recompute else reload
