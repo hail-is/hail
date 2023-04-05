@@ -3,7 +3,7 @@ import logging
 
 import pytest
 
-import hailtop.utils as utils
+from hailtop import utils
 from hailtop.auth import hail_credentials
 from hailtop.config import get_deploy_config
 from hailtop.httpx import client_session

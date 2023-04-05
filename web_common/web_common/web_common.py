@@ -17,7 +17,9 @@ WEB_COMMON_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 def sass_compile(module_name):
     module = importlib.import_module(module_name)
-    module_root = os.path.dirname(os.path.abspath(module.__file__))
+    module_filename = module.__file__
+    assert module_filename
+    module_root = os.path.dirname(os.path.abspath(module_filename))
 
     scss_path = f'{module_root}/styles'
     css_path = f'{module_root}/static/css'

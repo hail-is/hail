@@ -146,7 +146,7 @@ async def on_startup(app):
     kubernetes_asyncio.config.load_incluster_config()
     k8s_client = kubernetes_asyncio.client.CoreV1Api()
     app['k8s_client'] = k8s_client
-    app['redis_pool']: aioredis.ConnectionsPool = await aioredis.create_pool(socket)
+    app['redis_pool'] = await aioredis.create_pool(socket)
 
 
 async def on_cleanup(app):

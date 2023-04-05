@@ -214,7 +214,7 @@ steps:
       - from: /repo/hail/python/hailtop
         to: /io/repo/hail/python/hailtop
       - from: /hail_version
-        to: /io/repo/hail_version
+        to: /io/repo/hail/python/hailtop/hail_version
       - from: /repo/gear
         to: /io/repo/gear
     dependsOn:
@@ -423,7 +423,7 @@ steps:
       - from: /repo/hail/python/hailtop
         to: /io/repo/hail/python/hailtop
       - from: /hail_version
-        to: /io/repo/hail_version
+        to: /io/repo/hail/python/hailtop/hail_version
       - from: /repo/gear
         to: /io/repo/gear
       - from: /repo/web_common
@@ -549,7 +549,7 @@ steps:
       - from: /repo/hail/python/MANIFEST.in
         to: /io/repo/hail/python/MANIFEST.in
       - from: /hail_version
-        to: /io/repo/hail_version
+        to: /io/repo/python/hailtop/hail_version
     dependsOn:
       - base_image
       - merge_code
@@ -568,7 +568,7 @@ steps:
       - from: /repo/hail/python/hailtop
         to: /io/repo/hail/python/hailtop
       - from: /hail_version
-        to: /io/repo/hail_version
+        to: /io/repo/hail/python/hailtop/hail_version
       - from: /repo/gear
         to: /io/repo/gear
       - from: /repo/web_common
@@ -595,7 +595,7 @@ steps:
       - from: /repo/hail/python/hailtop
         to: /io/repo/hail/python/hailtop
       - from: /hail_version
-        to: /io/repo/hail_version
+        to: /io/repo/hail/python/hailtop/hail_version
       - from: /repo/gear
         to: /io/repo/gear
       - from: /repo/web_common
@@ -637,7 +637,7 @@ steps:
       - from: /repo/hail/python/hailtop
         to: /io/repo/hail/python/hailtop
       - from: /hail_version
-        to: /io/repo/hail_version
+        to: /io/repo/hail/python/hailtop/hail_version
       - from: /repo/gear
         to: /io/repo/gear
       - from: /repo/web_common
@@ -818,8 +818,6 @@ steps:
         to: /io/repo/docker
       - from: /repo/batch
         to: /io/repo/batch
-      - from: /repo/hail/python
-        to: /io/repo/hail/python
       - from: /repo/hail/python/setup-hailtop.py
         to: /io/repo/hail/python/setup-hailtop.py
       - from: /repo/hail/python/MANIFEST.in
@@ -827,7 +825,7 @@ steps:
       - from: /repo/hail/python/hailtop
         to: /io/repo/hail/python/hailtop
       - from: /hail_version
-        to: /io/repo/hail_version
+        to: /io/repo/hail/python/hailtop/hail_version
       - from: /repo/gear
         to: /io/repo/gear
       - from: /repo/web_common
@@ -859,7 +857,7 @@ steps:
       - from: /repo/hail/python/hailtop
         to: /io/repo/hail/python/hailtop
       - from: /hail_version
-        to: /io/repo/hail_version
+        to: /io/repo/hail/python/hailtop/hail_version
       - from: /repo/gear
         to: /io/repo/gear
     dependsOn:
@@ -1053,7 +1051,7 @@ steps:
       - from: /repo/hail/python/hailtop
         to: /io/repo/hail/python/hailtop
       - from: /hail_version
-        to: /io/repo/hail_version
+        to: /io/repo/hail/python/hailtop/hail_version
       - from: /repo/gear
         to: /io/repo/gear
       - from: /repo/web_common
@@ -1430,12 +1428,6 @@ steps:
     inputs:
       - from: /repo
         to: /io/repo
-      - from: /repo/pylintrc
-        to: /io/repo/pylintrc
-      - from: /repo/setup.cfg
-        to: /io/repo/setup.cfg
-      - from: /repo/check-sql.sh
-        to: /io/repo/check-sql.sh
     dependsOn:
       - hail_dev_image
       - merge_code
@@ -1456,6 +1448,8 @@ steps:
         to: /io/repo/setup.cfg
       - from: /repo/hail/python
         to: /io/repo/hail/python
+      - from: /repo/config.mk
+        to: /io/repo/config.mk
     dependsOn:
       - hail_dev_image
       - merge_code
@@ -3164,7 +3158,7 @@ steps:
       - from: /repo/hail/python/hailtop
         to: /io/repo/hail/python/hailtop
       - from: /hail_version
-        to: /io/repo/hail_version
+        to: /io/repo/hail/python/hailtop/hail_version
       - from: /repo/gear
         to: /io/repo/gear
       - from: /repo/web_common

@@ -4,8 +4,9 @@ import re
 import secrets
 
 import pytest
+from aiohttp import web
 
-import hailtop.batch_client.aioclient as aioclient
+from hailtop.batch_client import aioclient
 from hailtop.batch_client.client import BatchClient, Job
 from hailtop.config import get_user_config
 
@@ -24,12 +25,12 @@ def client():
 def test_simple(client):
     batch = client.create_batch()
     head = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
-    tail = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[head])
+    batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[head])
     batch = batch.submit()
     batch.wait()
     status = legacy_batch_status(batch)
     assert batch_status_job_counter(status, 'Success') == 2, str((status, batch.debug_info()))
-    assert all([j['exit_code'] == 0 for j in status['jobs']]), str(batch.debug_info())
+    assert all(j['exit_code'] == 0 for j in status['jobs']), str(batch.debug_info())
 
 
 def test_missing_parent_is_400(client):
@@ -115,10 +116,8 @@ def test_cancel_left_after_tail(client):
 
 
 async def test_callback(client):
-    from aiohttp import web
-
     app = web.Application()
-    callback_body = []
+    callback_bodies = []
     callback_event = asyncio.Event()
 
     def url_for(uri):
@@ -128,7 +127,7 @@ async def test_callback(client):
 
     async def callback(request):
         body = await request.json()
-        callback_body.append(body)
+        callback_bodies.append(body)
         callback_event.set()
         return web.Response()
 
@@ -145,7 +144,7 @@ async def test_callback(client):
         b.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head])
         b = b.submit()
         await asyncio.wait_for(callback_event.wait(), 5 * 60)
-        callback_body = callback_body[0]
+        callback_body = callback_bodies[0]
 
         # verify required fields present
         callback_body.pop('cost')

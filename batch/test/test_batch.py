@@ -253,9 +253,9 @@ def test_unsubmitted_state(client: BatchClient):
     j = bb.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
 
     with pytest.raises(ValueError):
-        j.batch_id
+        j.batch_id  # pylint: disable=pointless-statement
     with pytest.raises(ValueError):
-        j.id
+        j.id  # pylint: disable=pointless-statement
     with pytest.raises(ValueError):
         j.status()
     with pytest.raises(ValueError):
@@ -327,7 +327,7 @@ def test_list_jobs(client: BatchClient):
 
     def assert_job_ids(expected, q=None):
         jobs = b.jobs(q=q)
-        actual = set([j['job_id'] for j in jobs])
+        actual = set(j['job_id'] for j in jobs)
         assert actual == expected, str((jobs, b.debug_info()))
 
     assert_job_ids({j_success.job_id}, 'success')
@@ -368,15 +368,15 @@ def test_unknown_image(client: BatchClient):
             (status, b.debug_info())
         )
     except Exception as e:
-        raise AssertionError(str((status, b.debug_info())), e)
+        raise AssertionError(str((status, b.debug_info()))) from e
 
 
 @skip_in_azure
 def test_invalid_gcr(client: BatchClient):
-    b = client.create_batch()
+    bb = client.create_batch()
     # GCP projects can't be strictly numeric
-    j = b.create_job(f'gcr.io/1/does-not-exist', ['echo', 'test'])
-    b = b.submit()
+    j = bb.create_job('gcr.io/1/does-not-exist', ['echo', 'test'])
+    b = bb.submit()
     status = j.wait()
     try:
         assert j._get_exit_code(status, 'main') is None
@@ -384,7 +384,7 @@ def test_invalid_gcr(client: BatchClient):
             (status, b.debug_info())
         )
     except Exception as e:
-        raise AssertionError(str((status, b.debug_info())), e)
+        raise AssertionError(str((status, b.debug_info()))) from e
 
 
 def test_running_job_log_and_status(client: BatchClient):
@@ -497,7 +497,7 @@ def test_batch(client: BatchClient):
     assert n_cancelled <= 1, str((bstatus, b.debug_info()))
     assert n_cancelled + n_complete == 3, str((bstatus, b.debug_info()))
 
-    n_failed = sum([j['exit_code'] > 0 for j in bstatus['jobs'] if j['state'] in ('Failed', 'Error')])
+    n_failed = sum(j['exit_code'] > 0 for j in bstatus['jobs'] if j['state'] in ('Failed', 'Error'))
     assert n_failed == 1, str((bstatus, b.debug_info()))
 
 
@@ -1245,7 +1245,7 @@ def test_update_batch_w_multiple_empty_updates(client: BatchClient):
     bb = client.create_batch()
     b = bb.submit()
     b = bb.submit()
-    j = bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
     b = bb.submit()
     status = b.wait()
 
@@ -1256,7 +1256,7 @@ def test_update_batch_w_new_batch_builder(client: BatchClient):
     bb = client.create_batch()
     b = bb.submit()
     bb = client.update_batch(b.id)
-    j = bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
     b = bb.submit()
     status = b.wait()
 
