@@ -17,9 +17,9 @@ async def client():
 
 
 async def test_job(client: BatchClient):
-    b = client.create_batch()
-    j = b.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
-    b = await b.submit()
+    bb = client.create_batch()
+    j = bb.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
+    b = await bb.submit()
     status = await j.wait()
     assert 'attributes' not in status, str((status, await b.debug_info()))
     assert status['state'] == 'Success', str((status, await b.debug_info()))

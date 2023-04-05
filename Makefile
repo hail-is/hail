@@ -32,9 +32,9 @@ check-services: $(CHECK_SERVICES_MODULES)
 
 .PHONY: check-%
 $(CHECK_SERVICES_MODULES): check-%:
-	$(PYTHON) -m flake8  --config setup.cfg $*/$*
-	$(PYTHON) -m pylint --rcfile pylintrc $*/$* --score=n
-	$(PYTHON) -m mypy --config-file setup.cfg $*/$*
+	$(PYTHON) -m flake8  --config setup.cfg $*
+	$(PYTHON) -m pylint --rcfile pylintrc --recursive=y $* --score=n
+	$(PYTHON) -m mypy --config-file setup.cfg $*
 	$(PYTHON) -m isort $* --check-only --diff
 	$(PYTHON) -m black $* --line-length=120 --skip-string-normalization --check --diff
 	curlylint $*

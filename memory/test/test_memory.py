@@ -1,7 +1,6 @@
 import unittest
 import uuid
 
-from hailtop.aiocloud import aiogoogle
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.config import get_user_config
 from hailtop.utils import async_to_blocking

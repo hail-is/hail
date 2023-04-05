@@ -5,9 +5,9 @@ import jinja2
 
 
 def jinja2_render(config, input, output):
-    with open(input, 'r') as f:
+    with open(input, 'r', encoding='utf-8') as f:
         template = jinja2.Template(f.read(), undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)
-    with open(output, 'w') as f:
+    with open(output, 'w', encoding='utf-8') as f:
         f.write(template.render(**config))
 
 
