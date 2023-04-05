@@ -18,7 +18,7 @@ PYTHONPATH := $(EXTRA_PYTHONPATH)
 else
 PYTHONPATH := $(PYTHONPATH):$(EXTRA_PYTHONPATH)
 endif
-PYTHON := PYTHONPATH=$(PYTHONPATH) python3
+PYTHON := PYTHONPATH="$(PYTHONPATH)" python3
 
 default:
 	@echo Do not use this makefile to build hail, for information on how to \
@@ -111,7 +111,7 @@ generate-pip-lockfiles: memory/pinned-requirements.txt
 $(HAILTOP_VERSION):
 	$(MAKE) -C hail python/hailtop/hail_version
 
-hail-ubuntu-image: docker/hail-ubuntu
+hail-ubuntu-image: $(shell git ls-files docker/hail-ubuntu)
 	$(eval HAIL_UBUNTU_IMAGE := $(DOCKER_PREFIX)/hail-ubuntu:$(TOKEN))
 	python3 ci/jinja2_render.py '{"global":{"docker_prefix":"$(DOCKER_PREFIX)"}}' docker/hail-ubuntu/Dockerfile docker/hail-ubuntu/Dockerfile.out
 	./docker-build.sh docker/hail-ubuntu Dockerfile.out $(HAIL_UBUNTU_IMAGE)
@@ -126,9 +126,9 @@ base-image: hail-ubuntu-image docker/Dockerfile.base
 private-repo-hailgenetics-hail-image: hail-ubuntu-image docker/hailgenetics/hail/Dockerfile $(shell git ls-files hail/src/main hail/python)
 	$(eval PRIVATE_REPO_HAILGENETICS_HAIL_IMAGE := $(DOCKER_PREFIX)/hailgenetics/hail:$(TOKEN))
 	$(MAKE) -C hail wheel
-	cp hail/build/deploy/dist/hail-$$(cat hail/python/hail/hail_pip_version)-py3-none-any.whl .
-	tar -cvf wheel-container.tar hail-$$(cat hail/python/hail/hail_pip_version)-py3-none-any.whl
-	rm hail-$$(cat hail/python/hail/hail_pip_version)-py3-none-any.whl
+	tar -cvf wheel-container.tar \
+		-C hail/build/deploy/dist \
+		hail-$$(cat hail/python/hail/hail_pip_version)-py3-none-any.whl
 	python3 ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat hail-ubuntu-image)'"}}' docker/hailgenetics/hail/Dockerfile docker/hailgenetics/hail/Dockerfile.out
 	./docker-build.sh . docker/hailgenetics/hail/Dockerfile.out $(PRIVATE_REPO_HAILGENETICS_HAIL_IMAGE)
 	rm wheel-container.tar
