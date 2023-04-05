@@ -13,6 +13,8 @@ SERVICES_IMAGE_DEPS = hail-ubuntu-image $(HAILTOP_VERSION) $(shell git ls-files 
 EMPTY :=
 SPACE := $(EMPTY) $(EMPTY)
 EXTRA_PYTHONPATH := hail/python:$(subst $(SPACE),:,$(SERVICES_MODULES))
+
+PYTHONPATH ?= ""
 ifeq ($(PYTHONPATH), "")
 PYTHONPATH := $(EXTRA_PYTHONPATH)
 else
