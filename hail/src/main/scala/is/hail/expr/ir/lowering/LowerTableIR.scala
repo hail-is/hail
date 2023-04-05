@@ -14,7 +14,7 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
-import scala.Function.tupled
+import scala.collection.immutable.IntMap
 
 class LowererUnsupportedOperation(msg: String = null) extends Exception(msg)
 
@@ -1796,11 +1796,16 @@ object LowerTableIR {
       if (original.numPartitions == 0 || planned.numPartitions < 2)
         0.0
       else
-        ((0.25 * planned.numPartitions) / original.numPartitions) * planned
+        (0.25 * planned.numPartitions / original.numPartitions) * planned
           .rangeBounds
-          .map(intrvl => tupled(new Range(_, _, 1))(original.intervalRange(intrvl)).toSet)
-          .reduce(_.intersect(_))
-          .size
+          .map(original.intervalRange)
+          .foldLeft(IntMap.empty[Int]) {
+            case (counts, (lo, hi)) => Range(lo, hi, 1).foldLeft(counts) {
+              case (counts, index) => counts.updateWith(index, 1, _ + _)
+            }
+          }
+          .values
+          .count(_ > 1)
 
     log.info(s"repartition cost: $cost")
     if (cost <= 1.0) recompute else reload
