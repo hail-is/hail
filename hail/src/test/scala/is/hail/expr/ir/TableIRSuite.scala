@@ -1172,7 +1172,7 @@ class TableIRSuite extends HailSuite {
       (empty, some(1), Succeeded, Failed("Repartitioning from an empty partitioner should be free")),
       (some(1), empty, Succeeded, Failed("Repartitioning to an empty partitioner should be free")),
       (some(5), some(1), Succeeded, Failed("Combining multiple partitions into one should not incur a reload")),
-      (some(1), some(5), Failed("Recomputing the same partition multiple times should be replaced with a reload"), Succeeded)
+      (some(1), some(10), Failed("Recomputing the same partition multiple times should be replaced with a reload"), Succeeded)
     )
 
     forAll(data) { case (a, b, t, f) => LowerTableIR.selectRepartitioning(a, b)(t)(f).toSucceeded }

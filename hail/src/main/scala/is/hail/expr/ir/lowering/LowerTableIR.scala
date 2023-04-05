@@ -1781,22 +1781,17 @@ object LowerTableIR {
    *                   *--*  *---*       *--*
    *
    * We can estimate the relative cost of computing the new partitions vs
-   * spilling as:
-   *
-   *        cost ~ (N_reused × N_new) / N_old
-   *  where
-   *    N_reused is the number of old partitions that are used more than once
-   *    N_new is the new number of partitions
-   *    N_old is the original number of partitions
+   * spilling as being proportional to the mean number of old partitions
+   * used to compute new partitions.
    */
   def selectRepartitioning[A](original: RVDPartitioner, planned: RVDPartitioner)
                              (recompute: => A)
                              (reload: => A): A = {
     val cost =
-      if (original.numPartitions == 0 || planned.numPartitions < 2)
+      if (original.numPartitions == 0)
         0.0
       else
-        (0.25 / original.numPartitions) * planned
+        (0.11 / original.numPartitions) * planned
           .rangeBounds
           .map { intrvl => val (lo, hi) = original.intervalRange(intrvl); hi - lo }
           .sum
