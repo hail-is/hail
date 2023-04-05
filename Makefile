@@ -151,7 +151,7 @@ $(SERVICES_IMAGES): %-image: $(SERVICES_IMAGE_DEPS) $(shell git ls-files $$*)
 	./docker-build.sh . $*/Dockerfile.out $(IMAGE)
 	echo $(IMAGE) > $@
 
-ci-utils-image: hail-ubuntu-image $(SERVICES_IMAGE_DEPS) ci/jinja2_render.py ci/wait-for.py ci/create_database.py
+ci-utils-image: hail-ubuntu-image $(SERVICES_IMAGE_DEPS) $(shell git ls-files ci)
 	$(eval CI_UTILS_IMAGE := $(DOCKER_PREFIX)/ci-utils:$(TOKEN))
 	python3 ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat hail-ubuntu-image)'"}}' ci/Dockerfile.ci-utils ci/Dockerfile.ci-utils.out
 	./docker-build.sh . ci/Dockerfile.ci-utils.out $(CI_UTILS_IMAGE)
