@@ -107,6 +107,16 @@ class Tests(unittest.TestCase):
         self.assertEqual(r[1].vqc.gq_stats.mean, 10)
         self.assertEqual(r[1].vqc.gq_stats.stdev, 0)
 
+    def test_variant_qc_alleles_field(self):
+        mt = hl.balding_nichols_model(1, 1, 1)
+        mt = mt.key_rows_by().drop('alleles')
+        with pytest.raises(ValueError, match="Method 'variant_qc' requires a field 'alleles' \\(type 'array<str>'\\).*"):
+            hl.variant_qc(mt).variant_qc.collect()
+
+        mt = hl.balding_nichols_model(1, 1, 1)
+        mt = mt.key_rows_by().drop('locus')
+        hl.variant_qc(mt).variant_qc.collect()
+
     def test_concordance(self):
         dataset = get_dataset()
         glob_conc, cols_conc, rows_conc = hl.concordance(dataset, dataset)
