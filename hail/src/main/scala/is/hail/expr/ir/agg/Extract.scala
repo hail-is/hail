@@ -506,7 +506,7 @@ object Extract {
         ab += InitOp(i, FastIndexedSeq(Begin(initOps)), groupSig) -> groupSig
         seqBuilder += SeqOp(i, FastIndexedSeq(key, Begin(newSeq.result().toFastIndexedSeq)), groupSig)
 
-        ToDict(StreamMap(ToStream(GetTupleElement(result, i)), newRef.name, MakeTuple.ordered(FastSeq(GetField(newRef, "key"), transformed))))
+        ToDict(StreamMap(ToStream(GetTupleElement(result, i)), newRef.name, MakeTuple.ordered(FastSeq(GetField(newRef.deepCopy(), "key"), transformed))))
 
       case AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, _) =>
         val newAggs = new BoxedArrayBuilder[(InitOp, PhysicalAggSig)]()
@@ -527,7 +527,8 @@ object Extract {
         val checkSig = ArrayLenAggSig(knownLength.isDefined, pAggSigs)
         val eltSig = AggElementsAggSig(pAggSigs)
 
-        val aRef = Ref(genUID(), a.typ)
+        val aRefUID = genUID()
+        def aRef = Ref(aRefUID, a.typ)
 
         ab += InitOp(i, knownLength.map(FastSeq(_)).getOrElse(FastSeq[IR]()) :+ Begin(initOps), checkSig) -> checkSig
         seqBuilder +=
@@ -545,16 +546,17 @@ object Extract {
                     FastIndexedSeq(Ref(indexName, TInt32), Begin(newSeq.result().toFastIndexedSeq)),
                     eltSig), dependent))))))
 
-        val rUID = Ref(genUID(), rt)
+        val resUID = genUID()
+        def resRef = Ref(resUID, rt)
         Let(
-          rUID.name,
+          resRef.name,
           GetTupleElement(result, i),
           ToArray(StreamMap(
-            StreamRange(0, ArrayLen(rUID), 1),
+            StreamRange(0, ArrayLen(resRef), 1),
             indexName,
             Let(
               newRef.name,
-              ArrayRef(rUID, Ref(indexName, TInt32)),
+              ArrayRef(resRef, Ref(indexName, TInt32)),
               transformed))))
 
       case x: StreamAgg =>
