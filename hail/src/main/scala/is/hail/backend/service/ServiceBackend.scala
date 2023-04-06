@@ -186,7 +186,7 @@ class ServiceBackend(
         "cloudfuse" -> JArray(backendContext.cloudfuseConfig.map{ case (bucket, mountPoint, readonly) =>
           JObject(
             "bucket" -> JString(bucket),
-            "mount_point" -> JString(mountPoint),
+            "mount_path" -> JString(mountPoint),
             "read_only" -> JBool(readonly)
           )
         }.toList)
@@ -590,7 +590,6 @@ class ServiceBackendSocketAPI2(
       addedSequences(rgName) = (fastaFile, indexFile)
       i += 1
     }
-    val requestedStorageBytes = readInt()
     val workerCores = readString()
     val workerMemory = readString()
 

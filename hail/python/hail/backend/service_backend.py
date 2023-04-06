@@ -389,7 +389,7 @@ class ServiceBackend(Backend):
                     await write_str(infile, storage_gib_str)
                     cloudfuse_config = [(bucket, f'/cloudfuse/{bucket}', True) for bucket in readonly_fuse_buckets]
                     await write_int(infile, len(cloudfuse_config))
-                    for bucket, mount_point, readonly in readonly_fuse_buckets:
+                    for bucket, mount_point, readonly in cloudfuse_config:
                         await write_str(infile, bucket)
                         await write_str(infile, mount_point)
                         await write_bool(infile, readonly)
