@@ -7,6 +7,7 @@ import dill
 
 from hailtop.utils import secret_alnum_string, url_scheme, async_to_blocking
 from hailtop.aiotools import AsyncFS
+from hailtop.aiocloud.aioazure.fs import AzureAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 import hailtop.batch_client.client as _bc
 from hailtop.config import configuration_of
@@ -396,11 +397,12 @@ class Batch:
         self._resource_map[jrf._uid] = jrf  # pylint: disable=no-member
         return jrf
 
-    def _new_input_resource_file(self, input_path, value=None):
+    def _new_input_resource_file(self, input_path, root=None):
         self._backend.validate_file_scheme(input_path)
-        if value is None:
-            value = f'{secret_alnum_string(5)}/{os.path.basename(input_path.rstrip("/"))}'
-        irf = _resource.InputResourceFile(value)
+        root = root or secret_alnum_string(5)
+        # Take care not to include a SAS token query string in the local name.
+        file_name, _ = AzureAsyncFS.get_name_parts(input_path.rstrip("/"))
+        irf = _resource.InputResourceFile(f'{root}/{os.path.basename(file_name)}')
         irf._add_input_path(input_path)
         self._resource_map[irf._uid] = irf  # pylint: disable=no-member
         self._input_resources.add(irf)
@@ -523,8 +525,7 @@ class Batch:
         """
 
         root = secret_alnum_string(5)
-        new_resources = {name: self._new_input_resource_file(file, value=f'{root}/{os.path.basename(file.rstrip("/"))}')
-                         for name, file in kwargs.items()}
+        new_resources = {name: self._new_input_resource_file(file, root) for name, file in kwargs.items()}
         rg = _resource.ResourceGroup(None, root, **new_resources)
         self._resource_map.update({rg._uid: rg})
         return rg

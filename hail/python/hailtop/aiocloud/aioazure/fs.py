@@ -383,17 +383,20 @@ class AzureAsyncFS(AsyncFS):
             assert name[0] == '/'
             name = name[1:]
 
-        token = ''
+        name, token = AzureAsyncFS.get_name_parts(name)
+
+        return (account, container, name, token)
+
+    @staticmethod
+    def get_name_parts(name: str) -> Tuple[str, str]:
         # Look for a terminating SAS token.
         query_index = name.rfind('?')
         if query_index != -1:
             query_string = name[query_index + 1:]
             # We will accept it as a token string if it begins with at least 1 key-value pair of the form 'k=v'.
             if len(list(filter(str.strip, query_string.split('&')[0].split('=')))) == 2:
-                name = name[:query_index]
-                token = query_string
-
-        return (account, container, name, token)
+                return (name[:query_index],  query_string)
+        return (name, '')
 
     def get_blob_service_client(self, account: str, token: str) -> BlobServiceClient:
         credential = token if token else self._credential
