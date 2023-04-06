@@ -34,7 +34,6 @@ class ReadableStream(abc.ABC):
     def seekable(self):
         return False
 
-    @abc.abstractmethod
     def tell(self) -> int:
         raise NotImplementedError
 
