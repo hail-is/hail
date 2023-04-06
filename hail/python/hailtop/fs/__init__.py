@@ -9,8 +9,6 @@ from .fs_utils import (
     mkdir,
     remove,
     rmtree,
-    supports_scheme,
-    canonicalize_path,
 )
 
 __all__ = [
@@ -24,6 +22,4 @@ __all__ = [
     'mkdir',
     'remove',
     'rmtree',
-    'supports_scheme',
-    'canonicalize_path',
 ]
