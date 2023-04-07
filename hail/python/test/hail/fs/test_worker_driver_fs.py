@@ -26,6 +26,17 @@ def test_requester_pays_write_no_settings():
 
 
 @skip_in_azure
+def test_requester_pays_write_with_project():
+    hl.stop()
+    hl.init(gcs_requester_pays_configuration='hail-vdc')
+    random_filename = 'gs://hail-services-requester-pays/test_requester_pays_on_worker_driver_' + secret_alnum_string(10)
+    try:
+        hl.utils.range_table(4, n_partitions=4).write(random_filename, overwrite=True)
+    finally:
+        hl.current_backend().fs.rmtree(random_filename)
+
+
+@skip_in_azure
 def test_requester_pays_with_project():
     hl.stop()
     hl.init(gcs_requester_pays_configuration='hail-vdc')

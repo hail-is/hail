@@ -261,13 +261,28 @@ class GoogleStorageFS(
       .build()
 
     val os: PositionedOutputStream = new FSPositionedOutputStream(8 * 1024 * 1024) {
-      private[this] val write: WriteChannel = storage.writer(blobInfo)
+      private[this] var writer: WriteChannel = null
+
+      private[this] def writeHandlingRequesterPays(): Int = {
+        if (writer != null) {
+          writer.write(bb)
+        } else {
+          handleRequesterPays(
+            { (options: Seq[BlobWriteOption]) =>
+              writer = storage.writer(blobInfo, options:_*)
+              writer.write(bb)
+            },
+            BlobWriteOption.userProject _,
+            bucket
+          )
+        }
+      }
 
       override def flush(): Unit = {
         bb.flip()
 
         while (bb.remaining() > 0)
-          write.write(bb)
+          writeHandlingRequesterPays()
 
         bb.clear()
       }
@@ -276,8 +291,10 @@ class GoogleStorageFS(
         log.info(f"close: ${filename}")
         if (!closed) {
           flush()
-          retryTransientErrors {
-            write.close()
+          if (writer != null) {
+            retryTransientErrors {
+              writer.close()
+            }
           }
           closed = true
         }
