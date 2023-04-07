@@ -689,6 +689,7 @@ steps:
       cpu: '2'
     script: |
       set -ex
+      chmod 755 ./gradlew
       cd /io/repo/hail
       time retry make jars python-version-info wheel
       (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
