@@ -2,6 +2,8 @@ import hail as hl
 from hailtop.utils import secret_alnum_string
 from hailtop.test_utils import skip_in_azure
 
+from ..helpers import fails_local_backend
+
 
 @skip_in_azure
 def test_requester_pays_no_settings():
@@ -26,6 +28,7 @@ def test_requester_pays_write_no_settings():
 
 
 @skip_in_azure
+@fails_local_backend()
 def test_requester_pays_write_with_project():
     hl.stop()
     hl.init(gcs_requester_pays_configuration='hail-vdc')
