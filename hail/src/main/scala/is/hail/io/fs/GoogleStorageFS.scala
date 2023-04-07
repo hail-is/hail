@@ -5,6 +5,7 @@ import java.io.{ByteArrayInputStream, FileNotFoundException, IOException}
 import java.net.URI
 import java.nio.ByteBuffer
 import java.nio.file.FileSystems
+import java.util.concurrent._
 import org.apache.log4j.Logger
 import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.cloud.{ReadChannel, WriteChannel}
@@ -18,6 +19,7 @@ import is.hail.utils.fatal
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.{concurrent => scalaConcurrent}
 import scala.reflect.ClassTag
 
 object GoogleStorageFS {
@@ -250,6 +252,11 @@ class GoogleStorageFS(
     }
 
     new WrappedSeekableDataInputStream(is)
+  }
+
+  override def readNoCompression(filename: String): Array[Byte] = retryTransientErrors {
+    val (bucket, path) = getBucketPath(filename)
+    storage.readAllBytes(bucket, path)
   }
 
   def createNoCompression(filename: String): PositionedDataOutputStream = retryTransientErrors {
