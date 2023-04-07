@@ -139,6 +139,21 @@ object  NDArrayFunctions extends RegistryFunctions {
         resPCode
     }
 
+    registerIEmitCode3("linear_triangular_solve_no_crash", TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)), TBoolean, TStruct(("solution", TNDArray(TFloat64, Nat(2))), ("failed", TBoolean)),
+      { (t, p1, p2, p3) => EmitType(PCanonicalStruct(false, ("solution", PCanonicalNDArray(PFloat64Required, 2, false)), ("failed", PBooleanRequired)).sType, false) }) {
+      case (cb, region, SBaseStructPointer(outputStructType: PCanonicalStruct), errorID, aec, bec, lowerec) =>
+        aec.toI(cb).flatMap(cb) { apc =>
+          bec.toI(cb).flatMap(cb) { bpc =>
+            lowerec.toI(cb).map(cb) { lowerpc =>
+              val outputNDArrayPType = outputStructType.fieldType("solution")
+              val (resNDPCode, info) = linear_triangular_solve(apc.asNDArray, bpc.asNDArray, lowerpc.asBoolean, outputNDArrayPType, cb, region, errorID)
+              val ndEmitCode = EmitCode(Code._empty, info cne 0, resNDPCode)
+              outputStructType.constructFromFields(cb, region, IndexedSeq[EmitCode](ndEmitCode, EmitCode(Code._empty, false, primitive(cb.memoize(info cne 0)))), false)
+            }
+          }
+        }
+    }
+
     registerSCode3("linear_triangular_solve", TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)), TBoolean, TNDArray(TFloat64, Nat(2)),
       { (t, p1, p2, p3) => PCanonicalNDArray(PFloat64Required, 2, true).sType }) {
       case (er, cb, SNDArrayPointer(pt), apc, bpc, lower, errorID) =>
