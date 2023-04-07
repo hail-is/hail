@@ -35,6 +35,8 @@ Released 2023-04-07
 - (hail#12801) Hitting CTRL-C while interactively using Query on Batch cancels the underlying batch.
 - (hail#12810) `hl.array` can now convert 1-d ndarrays into the equivalent list.
 - (hail#12851) `hl.variant_qc` no longer requires a locus field.
+- (hail#12816) In Query on Batch, `hl.logistic_regression('firth', ...)` is now supported.
+- (hail#12854) In Query on Batch, simple pipelines with large numbers of partitions should be substantially faster.
 
 
 ### Bug Fixes
