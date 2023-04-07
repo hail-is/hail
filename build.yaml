@@ -661,7 +661,7 @@ steps:
       valueFrom: hail_build_image.image
     resources:
       memory: standard
-      cpu: '4'
+      cpu: '2'
     script: |
       set -ex
       cd /io/repo/hail
