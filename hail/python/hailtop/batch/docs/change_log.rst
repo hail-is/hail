@@ -3,6 +3,11 @@
 Change Log
 ==========
 
+**Version 0.2.113**
+
+- (`#12780 <https://github.com/hail-is/hail/pull/12780>`__) The LocalBackend now supports `always_run` jobs. The LocalBackend will no longer immediately error when a job fails, rather now aligns with the ServiceBackend in running all jobs whose parents have succeeded.
+- (`#12845 <https://github.com/hail-is/hail/pull/12845>`__) The LocalBackend now sets the working directory for dockerized jobs to the root directory instead of the temp directory. This behavior now matches ServiceBackend jobs.
+
 **Version 0.2.111**
 
 - (`#12530 <https://github.com/hail-is/hail/pull/12530>`__) Added the ability to update an existing batch with additional jobs by calling :meth:`.Batch.run` more than once. The method :meth:`.Batch.from_batch_id`
