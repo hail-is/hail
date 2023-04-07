@@ -30,13 +30,13 @@ Released 2023-04-07
 
 ### New Features
 
-- (hail#12798) Query on Batch now supports `BlockMatrix.write(..., stage_locally=True)`.
-- (hail#12793) Query on Batch now supports `hl.poisson_regression_rows`.
-- (hail#12801) Hitting CTRL-C while interactively using Query on Batch cancels the underlying batch.
+- (hail#12798) Query-on-Batch now supports `BlockMatrix.write(..., stage_locally=True)`.
+- (hail#12793) Query-on-Batch now supports `hl.poisson_regression_rows`.
+- (hail#12801) Hitting CTRL-C while interactively using Query-on-Batch cancels the underlying batch.
 - (hail#12810) `hl.array` can now convert 1-d ndarrays into the equivalent list.
 - (hail#12851) `hl.variant_qc` no longer requires a locus field.
-- (hail#12816) In Query on Batch, `hl.logistic_regression('firth', ...)` is now supported.
-- (hail#12854) In Query on Batch, simple pipelines with large numbers of partitions should be substantially faster.
+- (hail#12816) In Query-on-Batch, `hl.logistic_regression('firth', ...)` is now supported.
+- (hail#12854) In Query-on-Batch, simple pipelines with large numbers of partitions should be substantially faster.
 
 
 ### Bug Fixes
@@ -44,6 +44,7 @@ Released 2023-04-07
 - (hail#12783) Fixed bug where logs were not properly transmitted to Python.
 - (hail#12812) Fixed bug where `Table/MT._calculate_new_partitions` returned unbalanced intervals with whole-stage code generation runtime.
 - (hail#12839) Fixed `hailctl dataproc` jupyter notebooks to be compatible with Spark 3.3, which have been broken since 0.2.110.
+- (hail#12855) In Query-on-Batch, allow writing to requester pays buckets, which was broken before this release.
 
 ---
 
