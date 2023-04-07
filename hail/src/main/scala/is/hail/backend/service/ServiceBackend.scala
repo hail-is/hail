@@ -215,28 +215,32 @@ class ServiceBackend(
 
     val startTime = System.nanoTime()
 
-    val results = executor.invokeAll(IndexedSeq.range(0, n).map { i =>
-      new Callable[Array[Byte]]() {
-        def call(): Array[Byte] = {
-          availableGCSConnections.acquire()
-          try {
-            val bytes = fs.readNoCompression(s"$root/result.$i")
-            if (bytes(0) != 0) {
-              bytes.slice(1, bytes.length)
-            } else {
-              val errorInformationBytes = bytes.slice(1, bytes.length)
-              val is = new DataInputStream(new ByteArrayInputStream(errorInformationBytes))
-              val shortMessage = readString(is)
-              val expandedMessage = readString(is)
-              val errorId = is.readInt()
-              throw new HailWorkerException(shortMessage, expandedMessage, errorId)
+    val results = try {
+      executor.invokeAll(IndexedSeq.range(0, n).map { i =>
+        new Callable[Array[Byte]]() {
+          def call(): Array[Byte] = {
+            availableGCSConnections.acquire()
+            try {
+              val bytes = fs.readNoCompression(s"$root/result.$i")
+              if (bytes(0) != 0) {
+                bytes.slice(1, bytes.length)
+              } else {
+                val errorInformationBytes = bytes.slice(1, bytes.length)
+                val is = new DataInputStream(new ByteArrayInputStream(errorInformationBytes))
+                val shortMessage = readString(is)
+                val expandedMessage = readString(is)
+                val errorId = is.readInt()
+                throw new HailWorkerException(shortMessage, expandedMessage, errorId)
+              }
+            } finally {
+              availableGCSConnections.release()
             }
-          } finally {
-            availableGCSConnections.release()
           }
         }
-      }
-    }.asJava).asScala.map(_.get).toArray
+      }.asJava).asScala.map(_.get).toArray
+    } catch {
+      case exc: ExecutionException if exc.getCause() != null => throw exc.getCause()
+    }
 
     val resultsReadingSeconds = (System.nanoTime() - startTime) / 1000000000.0
     val rate = results.length / resultsReadingSeconds
