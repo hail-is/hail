@@ -688,6 +688,7 @@ steps:
       memory: standard
       cpu: '2'
     script: |
+      cd /io/repo/hail
       set -ex
       chmod 755 ./gradlew
       cd /io/repo/hail
@@ -750,9 +751,9 @@ steps:
       - from: /repo
         to: /io/repo
     outputs:
-      - from: /io/repo/hail/build/debug/hail-all-spark-test.jar
+      - from: /io/repo/hail/build/hail-all-spark-test.jar
         to: /hail-debug-test.jar
-      - from: /io/repo/hail/build/debug/debug-wheel-container.tar
+      - from: /io/repo/hail/build/debug-wheel-container.tar
         to: /debug-wheel-container.tar
     dependsOn:
       - hail_build_image
