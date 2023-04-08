@@ -194,6 +194,10 @@ class Backend(abc.ABC):
         pass
 
     @abc.abstractmethod
+    def _is_registered_ir_function_name(self, name: str) -> bool:
+        pass
+
+    @abc.abstractmethod
     def persist_expression(self, expr: Expression) -> Expression:
         pass
 
