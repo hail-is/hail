@@ -7,7 +7,7 @@ source ../copy_image.sh
 copy_if_not_present() {
     src_image=$1
     dest_image=$2
-    if ! skopeo inspect "docker://$1";
+    if ! skopeo inspect "docker://docker.io/$1";
     then
         echo "$1 does not exist yet, doing nothing"
     elif skopeo inspect "docker://$2";
@@ -15,7 +15,7 @@ copy_if_not_present() {
       echo "$2 already exists, doing nothing"
     else
       echo "$2 does not exist, copying $1 to $2"
-      skopeo copy "docker://$1" "docker://$2"
+      copy_image $1 $2
     fi
 }
 
