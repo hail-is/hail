@@ -37,7 +37,7 @@ sealed trait TableExecuteIntermediate {
   def partitioner: RVDPartitioner
 }
 
-class TableValueIntermediate(tv: TableValue) extends TableExecuteIntermediate {
+case class TableValueIntermediate(tv: TableValue) extends TableExecuteIntermediate {
   def asTableStage(ctx: ExecuteContext): TableStage = {
     RVDToTableStage(tv.rvd, tv.globals.toEncodedLiteral(ctx.theHailClassLoader))
   }
