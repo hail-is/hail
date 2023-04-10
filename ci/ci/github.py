@@ -431,6 +431,7 @@ class PR(Code):
             )
             last_known_github_status = PR._hail_github_status_from_statuses(source_sha_json)
             if last_known_github_status != self.last_known_github_status:
+                log.info(f'{self.short_str()}: new github statuses: {self.last_known_github_status} => {last_known_github_status}')
                 self.last_known_github_status = last_known_github_status
                 self.target_branch.state_changed = True
 
