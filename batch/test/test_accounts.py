@@ -14,10 +14,9 @@ from hailtop.utils import secret_alnum_string
 from hailtop.utils.rich_progress_bar import BatchProgressBar
 
 from .billing_projects import get_billing_project_prefix
+from .utils import DOCKER_ROOT_IMAGE
 
 pytestmark = pytest.mark.asyncio
-
-DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
 
 
 @pytest.fixture
