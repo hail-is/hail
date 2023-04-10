@@ -1,4 +1,4 @@
-from typing import Optional, Union, Tuple, List
+from typing import Optional, Union, Tuple, List, Set
 import os
 import socket
 import socketserver
@@ -147,10 +147,15 @@ class LocalBackend(Py4JBackend):
         self._jbackend = hail_package.backend.local.LocalBackend.apply(
             tmpdir,
             gcs_requester_pays_project,
-            gcs_requester_pays_buckets
+            gcs_requester_pays_buckets,
+            log,
+            True,
+            append,
+            skip_logging_configuration
         )
         self._jhc = hail_package.HailContext.apply(
-            self._jbackend, log, True, append, branching_factor, skip_logging_configuration, optimizer_iterations)
+            self._jbackend, branching_factor, optimizer_iterations)
+        self._registered_ir_function_names: Set[str] = set()
 
         # This has to go after creating the SparkSession. Unclear why.
         # Maybe it does its own patch?
@@ -168,8 +173,6 @@ class LocalBackend(Py4JBackend):
         self._fs = LocalFS()
         self._logger = None
 
-        if not quiet:
-            connect_logger(self._utils_package_object, 'localhost', 12888)
         self._initialize_flags()
 
     def jvm(self):
@@ -191,6 +194,7 @@ class LocalBackend(Py4JBackend):
         r = CSERenderer(stop_at_jir=True)
         code = r(finalize_randomness(body._ir))
         jbody = (self._parse_value_ir(code, ref_map=dict(zip(value_parameter_names, value_parameter_types)), ir_map=r.jirs))
+        self._registered_ir_function_names.add(name)
 
         self.hail_package().expr.ir.functions.IRFunctionRegistry.pyRegisterIR(
             name,
@@ -200,6 +204,9 @@ class LocalBackend(Py4JBackend):
             return_type._parsable_string(),
             jbody)
 
+    def _is_registered_ir_function_name(self, name: str) -> bool:
+        return name in self._registered_ir_function_names
+
     def validate_file_scheme(self, url):
         pass
 
@@ -207,6 +214,7 @@ class LocalBackend(Py4JBackend):
         self._jhc.stop()
         self._jhc = None
         self._gateway.shutdown()
+        self._registered_ir_function_names = set()
         uninstall_exception_handler()
 
     @property

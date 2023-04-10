@@ -559,15 +559,15 @@ class Table(ExprContainer):
     @staticmethod
     @typecheck(
         contexts=expr_array(expr_any),
-        globals=expr_struct(),
+        partitions=oneof(sequenceof(Interval), int),
         rowfn=func_spec(2, expr_array(expr_struct())),
-        partitions=oneof(sequenceof(Interval), int)
+        globals=nullable(expr_struct())
     )
     def _generate(
         contexts: 'hl.ArrayExpression',
-        globals: 'hl.StructExpression',
+        partitions: 'Union[Sequence[Interval], int]',
         rowfn: 'Callable[[hl.Expression, hl.StructExpression], hl.ArrayExpression]',
-        partitions: 'Union[Sequence[Interval], int]'
+        globals: 'Optional[hl.StructExpression]' = None,
     ) -> 'Table':
         """
         Never you mind.
@@ -577,6 +577,7 @@ class Table(ExprContainer):
         cexpr = construct_expr(ir.Ref(context_name, ctype), ctype)
 
         globals_name = f"globals_{Env.get_uid()}"
+        globals = globals or hl.struct()
         gexpr = construct_expr(ir.Ref(globals_name, globals.dtype), globals.dtype)
 
         body = ir.toStream(rowfn(cexpr, gexpr)._ir)

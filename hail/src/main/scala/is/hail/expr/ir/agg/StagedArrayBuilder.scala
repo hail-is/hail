@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitValue}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.SValue
@@ -32,6 +32,13 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
     cb.assign(data, Region.loadAddress(dataOffset(tmpOff)))
   }
 
+
+  def cloneFrom(cb: EmitCodeBuilder, other: StagedArrayBuilder): Unit = {
+    cb.assign(tmpOff, other.tmpOff)
+    cb.assign(size, other.size)
+    cb.assign(data, other.data)
+    cb.assign(capacity, other.capacity)
+  }
 
   def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
     cb.assign(tmpOff, src)
@@ -92,6 +99,12 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
     eltArray.setElementPresent(cb, data, size)
     eltType.storeAtAddress(cb, eltArray.elementOffset(data, capacity, size), region, elt, deepCopy)
     incrementSize(cb)
+  }
+
+  def overwrite(cb: EmitCodeBuilder, elt: EmitValue, idx: Value[Int], deepCopy: Boolean = true): Unit = {
+    elt.toI(cb).consume(cb,
+      eltArray.setElementMissing(cb, data, idx),
+      value => eltType.storeAtAddress(cb, eltArray.elementOffset(data, capacity, idx), region, value, deepCopy))
   }
 
   def initializeWithCapacity(cb: EmitCodeBuilder, capacity: Code[Int]): Unit = initialize(cb, 0, capacity)

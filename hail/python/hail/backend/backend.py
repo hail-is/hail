@@ -153,15 +153,6 @@ class Backend(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def index_bgen(self,
-                   files: List[str],
-                   index_file_map: Dict[str, str],
-                   referenceGenomeName: Optional[str],
-                   contig_recoding: Dict[str, str],
-                   skip_invalid_loci: bool):
-        pass
-
-    @abc.abstractmethod
     def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
         pass
 
@@ -200,6 +191,10 @@ class Backend(abc.ABC):
                              value_parameter_types: Union[Tuple[HailType, ...], List[HailType]],
                              return_type: HailType,
                              body: Expression):
+        pass
+
+    @abc.abstractmethod
+    def _is_registered_ir_function_name(self, name: str) -> bool:
         pass
 
     @abc.abstractmethod

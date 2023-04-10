@@ -3,7 +3,6 @@ package is.hail.types.virtual
 import is.hail.annotations._
 import is.hail.backend.HailStateManager
 import is.hail.check.Gen
-import is.hail.types.physical.PBaseStruct
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
@@ -30,7 +29,7 @@ abstract class TBaseStruct extends Type {
 
   lazy val fieldIdx: collection.Map[String, Int] = toMapFast(fields)(_.name, _.index)
 
-  override def children: Seq[Type] = types
+  override def children: IndexedSeq[Type] = types
 
   def size: Int
 

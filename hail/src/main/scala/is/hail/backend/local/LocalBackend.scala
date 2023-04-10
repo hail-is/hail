@@ -7,7 +7,6 @@ import is.hail.backend._
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{IRParser, _}
 import is.hail.expr.{JSONAnnotationImpex, Validate}
-import is.hail.io.bgen.IndexBgen
 import is.hail.io.fs._
 import is.hail.io.plink.LoadPlink
 import is.hail.io.{BufferSpec, TypedCodecSpec}
@@ -39,10 +38,16 @@ object LocalBackend {
   def apply(
     tmpdir: String,
     gcsRequesterPaysProject: String,
-    gcsRequesterPaysBuckets: String
+    gcsRequesterPaysBuckets: String,
+    logFile: String = "hail.log",
+    quiet: Boolean = false,
+    append: Boolean = false,
+    skipLoggingConfiguration: Boolean = false
   ): LocalBackend = synchronized {
     require(theLocalBackend == null)
 
+    if (!skipLoggingConfiguration)
+      HailContext.configureLogging(logFile, quiet, append)
     theLocalBackend = new LocalBackend(
       tmpdir,
       gcsRequesterPaysProject,
@@ -238,20 +243,6 @@ class LocalBackend(
         JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(
           UnsafeRow.read(pt, ctx.r, off), pt.virtualType))
       }
-    }
-  }
-
-  def pyIndexBgen(
-    files: java.util.List[String],
-    indexFileMap: java.util.Map[String, String],
-    rg: String,
-    contigRecoding: java.util.Map[String, String],
-    skipInvalidLoci: Boolean) {
-    ExecutionTimer.logTime("LocalBackend.pyIndexBgen") { timer =>
-      withExecuteContext(timer) { ctx =>
-        IndexBgen(ctx, files.asScala.toArray, indexFileMap.asScala.toMap, Option(rg), contigRecoding.asScala.toMap, skipInvalidLoci)
-      }
-      info(s"Number of BGEN files indexed: ${ files.size() }")
     }
   }
 

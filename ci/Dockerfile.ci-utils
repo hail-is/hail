@@ -1,3 +1,27 @@
+FROM {{ hail_ubuntu_image.image }} AS base
+
+# source: https://cloud.google.com/storage/docs/gsutil_install#linux
+RUN curl --remote-name https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-421.0.0-linux-x86_64.tar.gz && \
+    tar -xf google-cloud-sdk-421.0.0-linux-x86_64.tar.gz && \
+    curl --remote-name https://dl.k8s.io/release/v1.21.14/bin/linux/amd64/kubectl && \
+    install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+ENV PATH $PATH:/google-cloud-sdk/bin
+
+# https://bugs.mysql.com/bug.php?id=105288&thanks=sub
+RUN hail-apt-get-install xz-utils libncurses5 git && \
+    curl --remote-name https://downloads.mysql.com/archives/get/p/23/file/mysql-8.0.26-linux-glibc2.17-x86_64-minimal-rebuild.tar.xz && \
+    mkdir -p /opt && \
+    tar -vx -C /opt -f mysql-8.0.26-linux-glibc2.17-x86_64-minimal-rebuild.tar.xz && \
+    ln -s /opt/mysql-8.0.26-linux-glibc2.17-x86_64-minimal-rebuild/bin/* /usr/bin/
+
+COPY hail/python/hailtop/pinned-requirements.txt hailtop-requirements.txt
+COPY gear/pinned-requirements.txt gear-requirements.txt
+RUN hail-pip-install \
+      -r hailtop-requirements.txt \
+      -r gear-requirements.txt \
+      twine==1.11.0 \
+      Jinja2==3.0.3
+
 FROM golang:1.18 AS skopeo-build
 
 WORKDIR /usr/src/skopeo
@@ -8,11 +32,17 @@ RUN curl -fsSL "https://github.com/containers/skopeo/archive/v${SKOPEO_VERSION}.
 
 RUN CGO_ENABLED=0 DISABLE_DOCS=1 make BUILDTAGS=containers_image_openpgp GO_DYN_FLAGS=
 
-FROM {{ service_base_image.image }}
-
+FROM base
 COPY --from=skopeo-build /usr/src/skopeo/bin/skopeo /usr/local/bin/
 COPY --from=skopeo-build /usr/src/skopeo/default-policy.json /etc/containers/policy.json
 
-COPY jinja2_render.py .
-COPY wait-for.py .
-COPY create_database.py .
+COPY hail/python/setup-hailtop.py /hailtop/setup.py
+COPY hail/python/MANIFEST.in /hailtop/MANIFEST.in
+COPY hail/python/hailtop /hailtop/hailtop/
+
+COPY gear/setup.py /gear/setup.py
+COPY gear/gear /gear/gear/
+
+RUN hail-pip-install /hailtop /gear
+
+COPY ci/jinja2_render.py ci/wait-for.py ci/create_database.py .

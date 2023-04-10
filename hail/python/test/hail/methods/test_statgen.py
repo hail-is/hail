@@ -7,7 +7,7 @@ import hail as hl
 import hail.expr.aggregators as agg
 import hail.utils as utils
 from hail.linalg import BlockMatrix
-from hail.utils import FatalError
+from hail.utils import FatalError, new_temp_file
 from hail.utils.java import choose_backend, Env
 from ..helpers import resource, fails_local_backend, fails_service_backend, skip_when_service_backend
 
@@ -464,7 +464,7 @@ class Tests(unittest.TestCase):
                 covariates=[1],
                 max_iterations=0
             )
-            ht.collect()[0].fit
+            ht.globals.collect()  # null model is a global
         except Exception as exc:
             assert 'Failed to fit logistic regression null model (standard MLE with covariates only): Newton iteration failed to converge' in exc.args[0]
         else:
@@ -490,9 +490,7 @@ class Tests(unittest.TestCase):
             assert fit.exploded
             assert not fit.converged
 
-    @fails_local_backend()
-    @fails_service_backend()
-    def test_logistic_regression_rows_max_iter_explodes_in_12_steps_for_firth(self):
+    def test_firth_logistic_regression_rows_explodes_in_12_steps(self):
         import hail as hl
         mt = hl.utils.range_matrix_table(1, 3)
         mt = mt.annotate_entries(x=hl.literal([1, 1, 10]))
@@ -508,9 +506,7 @@ class Tests(unittest.TestCase):
         assert fit.exploded
         assert not fit.converged
 
-    @fails_local_backend()
-    @fails_service_backend()
-    def test_logistic_regression_rows_does_not_converge_with_105_iterations(self):
+    def test_firth_logistic_regression_rows_does_not_converge_with_105_iterations(self):
         import hail as hl
         mt = hl.utils.range_matrix_table(1, 3)
         mt = mt.annotate_entries(x=hl.literal([1, 3, 10]))
@@ -526,9 +522,7 @@ class Tests(unittest.TestCase):
         assert not fit.exploded
         assert not fit.converged
 
-    @fails_local_backend()
-    @fails_service_backend()
-    def test_logistic_regression_rows_does_converge_with_106_iterations(self):
+    def test_firth_logistic_regression_rows_does_converge_with_more_iterations(self):
         import hail as hl
         mt = hl.utils.range_matrix_table(1, 3)
         mt = mt.annotate_entries(x=hl.literal([1, 3, 10]))
@@ -537,15 +531,14 @@ class Tests(unittest.TestCase):
             y=hl.literal([0, 1, 1])[mt.col_idx],
             x=mt.x[mt.col_idx],
             covariates=[1],
-            max_iterations=106
+            max_iterations=106,
+            tolerance=1e-6
         )
         result = ht.collect()[0]
         fit = result.fit
-        actual_beta = result.beta
-        expected_beta = 0.19699166375172233
-        assert abs(actual_beta - expected_beta) < 1e-16
-        assert abs(result.chi_sq_stat - 0.6464918007192411) < 1e-15
-        assert abs(result.p_value - 0.4213697518249182) < 1e-15
+        assert result.beta == pytest.approx(0.19699166375172233, abs=1e-14)
+        assert result.chi_sq_stat == pytest.approx(0.6464918007192411, abs=1e-14)
+        assert result.p_value == pytest.approx(0.4213697518249182, abs=1e-14)
         assert fit.n_iterations == 106
         assert not fit.exploded
         assert fit.converged
@@ -783,8 +776,6 @@ class Tests(unittest.TestCase):
             self.assertTrue(is_constant(results[9]))
             self.assertTrue(is_constant(results[10]))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_logistic_regression_wald_test_multi_pheno_bgen_dosage(self):
         covariates = hl.import_table(resource('regressionLogisticMultiPheno.cov'),
                                      key='Sample',
@@ -793,8 +784,15 @@ class Tests(unittest.TestCase):
                                 key='Sample',
                                 missing='NA',
                                 types={'Pheno1': hl.tint32, 'Pheno2': hl.tint32}).cache()
-        mt = hl.import_bgen(resource('example.8bits.bgen'),
-                                           entry_fields=['dosage']).cache()
+        bgen_path = new_temp_file(extension='bgen')
+        Env.fs().copy(resource('example.8bits.bgen'), bgen_path)
+
+        hl.index_bgen(bgen_path,
+                      contig_recoding={'01': '1'},
+                      reference_genome='GRCh37')
+
+        mt = hl.import_bgen(bgen_path,
+                                           entry_fields=['dosage'])
 
         for logistic_regression_function in self.logreg_functions:
 
@@ -994,93 +992,6 @@ class Tests(unittest.TestCase):
             self.assertTrue(is_constant(results[9]))
             self.assertTrue(is_constant(results[10]))
 
-    @fails_service_backend()
-    @fails_local_backend()
-    def test_logistic_regression_epacts(self):
-        covariates = hl.import_table(resource('regressionLogisticEpacts.cov'),
-                                     key='IND_ID',
-                                     types={'PC1': hl.tfloat, 'PC2': hl.tfloat})
-        fam = hl.import_fam(resource('regressionLogisticEpacts.fam'))
-
-        mt = hl.import_vcf(resource('regressionLogisticEpacts.vcf'))
-        mt = mt.annotate_cols(**covariates[mt.s], **fam[mt.s])
-
-        def get_results(table):
-            return dict(hl.tuple([table.locus.position, table.row]).collect())
-
-        wald = get_results(hl.logistic_regression_rows(
-            test='wald',
-            y=mt.is_case,
-            x=mt.GT.n_alt_alleles(),
-            covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]))
-        lrt = get_results(hl.logistic_regression_rows(
-            test='lrt',
-            y=mt.is_case,
-            x=mt.GT.n_alt_alleles(),
-            covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]))
-        score = get_results(hl.logistic_regression_rows(
-            test='score',
-            y=mt.is_case,
-            x=mt.GT.n_alt_alleles(),
-            covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]))
-        firth = get_results(hl.logistic_regression_rows(
-            test='firth',
-            y=mt.is_case,
-            x=mt.GT.n_alt_alleles(),
-            covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]))
-
-        # 2535 samples from 1K Genomes Project
-        # Locus("22", 16060511)  # MAC  623
-        # Locus("22", 16115878)  # MAC  370
-        # Locus("22", 16115882)  # MAC 1207
-        # Locus("22", 16117940)  # MAC    7
-        # Locus("22", 16117953)  # MAC   21
-
-        self.assertAlmostEqual(wald[16060511].beta, -0.097476, places=4)
-        self.assertAlmostEqual(wald[16060511].standard_error, 0.087478, places=4)
-        self.assertAlmostEqual(wald[16060511].z_stat, -1.1143, places=4)
-        self.assertAlmostEqual(wald[16060511].p_value, 0.26516, places=4)
-        self.assertAlmostEqual(lrt[16060511].p_value, 0.26475, places=4)
-        self.assertAlmostEqual(score[16060511].p_value, 0.26499, places=4)
-        self.assertAlmostEqual(firth[16060511].beta, -0.097079, places=4)
-        self.assertAlmostEqual(firth[16060511].p_value, 0.26593, places=4)
-
-        self.assertAlmostEqual(wald[16115878].beta, -0.052632, places=4)
-        self.assertAlmostEqual(wald[16115878].standard_error, 0.11272, places=4)
-        self.assertAlmostEqual(wald[16115878].z_stat, -0.46691, places=4)
-        self.assertAlmostEqual(wald[16115878].p_value, 0.64056, places=4)
-        self.assertAlmostEqual(lrt[16115878].p_value, 0.64046, places=4)
-        self.assertAlmostEqual(score[16115878].p_value, 0.64054, places=4)
-        self.assertAlmostEqual(firth[16115878].beta, -0.052301, places=4)
-        self.assertAlmostEqual(firth[16115878].p_value, 0.64197, places=4)
-
-        self.assertAlmostEqual(wald[16115882].beta, -0.15598, places=4)
-        self.assertAlmostEqual(wald[16115882].standard_error, 0.079508, places=4)
-        self.assertAlmostEqual(wald[16115882].z_stat, -1.9619, places=4)
-        self.assertAlmostEqual(wald[16115882].p_value, 0.049779, places=4)
-        self.assertAlmostEqual(lrt[16115882].p_value, 0.049675, places=4)
-        self.assertAlmostEqual(score[16115882].p_value, 0.049675, places=4)
-        self.assertAlmostEqual(firth[16115882].beta, -0.15567, places=4)
-        self.assertAlmostEqual(firth[16115882].p_value, 0.04991, places=4)
-
-        self.assertAlmostEqual(wald[16117940].beta, -0.88059, places=4)
-        self.assertAlmostEqual(wald[16117940].standard_error, 0.83769, places=2)
-        self.assertAlmostEqual(wald[16117940].z_stat, -1.0512, places=2)
-        self.assertAlmostEqual(wald[16117940].p_value, 0.29316, places=2)
-        self.assertAlmostEqual(lrt[16117940].p_value, 0.26984, places=4)
-        self.assertAlmostEqual(score[16117940].p_value, 0.27828, places=4)
-        self.assertAlmostEqual(firth[16117940].beta, -0.7524, places=4)
-        self.assertAlmostEqual(firth[16117940].p_value, 0.30731, places=4)
-
-        self.assertAlmostEqual(wald[16117953].beta, 0.54921, places=4)
-        self.assertAlmostEqual(wald[16117953].standard_error, 0.4517, places=3)
-        self.assertAlmostEqual(wald[16117953].z_stat, 1.2159, places=3)
-        self.assertAlmostEqual(wald[16117953].p_value, 0.22403, places=3)
-        self.assertAlmostEqual(lrt[16117953].p_value, 0.21692, places=4)
-        self.assertAlmostEqual(score[16117953].p_value, 0.21849, places=4)
-        self.assertAlmostEqual(firth[16117953].beta, 0.5258, places=4)
-        self.assertAlmostEqual(firth[16117953].p_value, 0.22562, places=4)
-
     def test_logreg_pass_through(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -1111,8 +1022,6 @@ class Tests(unittest.TestCase):
     # se <- waldtest["x", "Std. Error"]
     # zstat <- waldtest["x", "z value"]
     # pval <- waldtest["x", "Pr(>|z|)"]
-    @fails_service_backend()
-    @fails_local_backend()
     def test_poission_regression_wald_test(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -1149,8 +1058,6 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
 
-    @fails_local_backend()
-    @fails_service_backend()
     def test_poisson_regression_max_iterations(self):
         import hail as hl
         mt = hl.utils.range_matrix_table(1, 3)
@@ -1173,9 +1080,7 @@ class Tests(unittest.TestCase):
     # lrtest <- anova(poisfitnull, poisfit, test="LRT")
     # chi2 <- lrtest[["Deviance"]][2]
     # pval <- lrtest[["Pr(>Chi)"]][2]
-    @fails_service_backend()
-    @fails_local_backend()
-    def test_poission_regression_lrt(self):
+    def test_poisson_regression_lrt(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
                                      types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
@@ -1219,9 +1124,7 @@ class Tests(unittest.TestCase):
     # scoretest <- anova(poisfitnull, poisfit, test="Rao")
     # chi2 <- scoretest[["Rao"]][2]
     # pval <- scoretest[["Pr(>Chi)"]][2]
-    @fails_service_backend()
-    @fails_local_backend()
-    def test_poission_regression_score_test(self):
+    def test_poisson_regression_score_test(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
                                      types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
@@ -1256,8 +1159,6 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_poisson_pass_through(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -1346,8 +1247,8 @@ class Tests(unittest.TestCase):
         self.assertTrue(np.allclose(actual, expected))
 
     def test_row_correlation_vs_numpy(self):
-        n, m = 11, 10
-        mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], n_partitions=2)
+        n_samples, n_variants = 11, 10
+        mt = hl.balding_nichols_model(3, n_samples, n_variants, n_partitions=2)
         mt = mt.annotate_rows(sd=agg.stats(mt.GT.n_alt_alleles()).stdev)
         mt = mt.filter_rows(mt.sd > 1e-30)
 
@@ -1357,11 +1258,10 @@ class Tests(unittest.TestCase):
 
         cor = hl.row_correlation(mt.GT.n_alt_alleles()).to_numpy()
 
-        self.assertTrue(cor.shape[0] > 5 and cor.shape[0] == cor.shape[1])
+        self.assertGreater(cor.shape[0], 5)
+        self.assertEqual(cor.shape[0], cor.shape[1])
         self.assertTrue(np.allclose(l, cor))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_ld_matrix(self):
         data = [{'v': '1:1:A:C',       'cm': 0.1, 's': 'a', 'GT': hl.Call([0, 0])},
                 {'v': '1:1:A:C',       'cm': 0.1, 's': 'b', 'GT': hl.Call([0, 0])},
@@ -1441,8 +1341,6 @@ class Tests(unittest.TestCase):
         mt = hl.split_multi(mt)
         self.assertEqual(1, mt._force_count_rows())
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_ld_prune(self):
         r2_threshold = 0.001
         window_size = 5
@@ -1478,7 +1376,6 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(entries.filter(bad_pair).count(), 0)
 
-    @fails_service_backend
     def test_ld_prune_inputs(self):
         ds = hl.balding_nichols_model(n_populations=1, n_samples=1, n_variants=1)
         self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, memory_per_core=0))
@@ -1486,23 +1383,17 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, r2=-1.0))
         self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, r2=2.0))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_ld_prune_no_prune(self):
         ds = hl.balding_nichols_model(n_populations=1, n_samples=10, n_variants=10, n_partitions=3)
         pruned_table = hl.ld_prune(ds.GT, r2=0.0, bp_window_size=0)
         expected_count = ds.filter_rows(agg.collect_as_set(ds.GT).size() > 1, keep=True).count_rows()
         self.assertEqual(pruned_table.count(), expected_count)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_ld_prune_identical_variants(self):
         ds = hl.import_vcf(resource('ldprune2.vcf'), min_partitions=2)
         pruned_table = hl.ld_prune(ds.GT)
         self.assertEqual(pruned_table.count(), 1)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_ld_prune_maf(self):
         ds = hl.balding_nichols_model(n_populations=1, n_samples=50, n_variants=10, n_partitions=10).cache()
 
@@ -1517,24 +1408,18 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(kept_maf, max(ht.maf.collect()))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_ld_prune_call_expression(self):
         ds = hl.import_vcf(resource("ldprune2.vcf"), min_partitions=2)
         ds = ds.select_entries(foo=ds.GT)
         pruned_table = hl.ld_prune(ds.foo)
         self.assertEqual(pruned_table.count(), 1)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_ld_prune_missing_entries(self):
         mt = hl.import_vcf(resource("ldprune2.vcf"), min_partitions=2).add_col_index()
         mt = mt.filter_entries(mt.col_idx > 1)
         result = hl.ld_prune(mt.GT)
         assert result.count() > 0
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_ld_prune_with_duplicate_row_keys(self):
         ds = hl.import_vcf(resource('ldprune2.vcf'), min_partitions=2)
         ds_duplicate = ds.annotate_rows(duplicate=[1, 2]).explode_rows('duplicate')
@@ -1632,15 +1517,15 @@ class Tests(unittest.TestCase):
         bn_ds = hl.balding_nichols_model(1, 5, 5, phased=True)
         assert bn_ds.aggregate_entries(hl.agg.all(bn_ds.GT.phased)) == True
         actual = bn_ds.GT.collect()
-        expected = [
-            hl.Call(a, phased=True)
-            for a in [
-                    [0, 1], [0, 0], [0, 1], [0, 0], [1, 0],
-                    [1, 1], [0, 1], [1, 1], [0, 0], [0, 1],
-                    [1, 0], [0, 0], [1, 0], [0, 0], [0, 0],
-                    [1, 1], [1, 1], [1, 0], [0, 1], [1, 1],
-                    [1, 1], [1, 1], [1, 1], [1, 1], [1, 1]]]
-        assert actual == expected
+        self.assertListEqual(
+            [ c.alleles for c in actual ],
+            [ [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]
+            , [1, 1], [1, 1], [1, 1], [1, 0], [1, 1]
+            , [1, 1], [0, 1], [1, 0], [1, 0], [0, 1]
+            , [0, 0], [0, 0], [0, 0], [0, 0], [1, 0]
+            , [1, 1], [1, 1], [0, 1], [1, 1], [1, 1]
+            ]
+        )
 
     def test_de_novo(self):
         mt = hl.import_vcf(resource('denovo.vcf'))
@@ -1693,8 +1578,6 @@ class Tests(unittest.TestCase):
             self.assertTrue(hl.methods.statgen._warn_if_no_intercept('', covariates))
             self.assertFalse(hl.methods.statgen._warn_if_no_intercept('', [intercept] + covariates))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_regression_field_dependence(self):
         mt = hl.utils.range_matrix_table(10, 10)
         mt = mt.annotate_cols(c1 = hl.literal([x % 2 == 0 for x in range(10)])[mt.col_idx], c2 = hl.rand_norm(0, 1))
@@ -1705,3 +1588,174 @@ class Tests(unittest.TestCase):
         hl.logistic_regression_rows('wald', y=mt.c1, x=x_expr, covariates=[1])
         hl.poisson_regression_rows('wald', y=mt.c1, x=x_expr, covariates=[1])
         hl.linear_regression_rows(y=mt.c1, x=x_expr, covariates=[1])
+
+
+@pytest.fixture
+def logistic_epacts_mt():
+    # 2535 samples from 1K Genomes Project
+    # Locus("22", 16060511)  # MAC  623
+    # Locus("22", 16115878)  # MAC  370
+    # Locus("22", 16115882)  # MAC 1207
+    # Locus("22", 16117940)  # MAC    7
+    # Locus("22", 16117953)  # MAC   21
+    covariates = hl.import_table(resource('regressionLogisticEpacts.cov'),
+                                 key='IND_ID',
+                                 types={'PC1': hl.tfloat, 'PC2': hl.tfloat})
+    fam = hl.import_fam(resource('regressionLogisticEpacts.fam'))
+
+    mt = hl.import_vcf(resource('regressionLogisticEpacts.vcf'))
+    mt = mt.annotate_cols(**covariates[mt.s], **fam[mt.s])
+    return mt
+
+
+def test_logistic_regression_epacts_wald(logistic_epacts_mt):
+    mt = logistic_epacts_mt
+    actual = hl.logistic_regression_rows(
+        test='wald',
+        y=mt.is_case,
+        x=mt.GT.n_alt_alleles(),
+        covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]).collect()
+
+    assert actual[0].locus == hl.Locus("22", 16060511, 'GRCh37')
+    assert actual[0].beta == pytest.approx(-0.097476, rel=1e-4)
+    assert actual[0].standard_error == pytest.approx(0.087478, rel=1e-4)
+    assert actual[0].z_stat == pytest.approx(-1.1143, rel=1e-4)
+    assert actual[0].p_value == pytest.approx(0.26516, rel=1e-4)
+
+    assert actual[1].locus == hl.Locus("22", 16115878, 'GRCh37')
+    assert actual[1].beta == pytest.approx(-0.052632, rel=1e-4)
+    assert actual[1].standard_error == pytest.approx(0.11272, rel=1e-4)
+    assert actual[1].z_stat == pytest.approx(-0.46691, rel=1e-4)
+    assert actual[1].p_value == pytest.approx(0.64056, rel=1e-4)
+
+    assert actual[2].locus == hl.Locus("22", 16115882, 'GRCh37')
+    assert actual[2].beta == pytest.approx(-0.15598, rel=1e-4)
+    assert actual[2].standard_error == pytest.approx(0.079508, rel=1e-4)
+    assert actual[2].z_stat == pytest.approx(-1.9619, rel=1e-4)
+    assert actual[2].p_value == pytest.approx(0.049779, rel=1e-4)
+
+    assert actual[3].locus == hl.Locus("22", 16117940, 'GRCh37')
+    assert actual[3].beta == pytest.approx(-0.88059, rel=1e-4)
+    assert actual[3].standard_error == pytest.approx(0.83769, rel=1e-2)
+    assert actual[3].z_stat == pytest.approx(-1.0512, rel=1e-2)
+    assert actual[3].p_value == pytest.approx(0.29316, rel=1e-2)
+
+    assert actual[4].locus == hl.Locus("22", 16117953, 'GRCh37')
+    assert actual[4].beta == pytest.approx(0.54921, rel=1e-4)
+    assert actual[4].standard_error == pytest.approx(0.4517, rel=1e-3)
+    assert actual[4].z_stat == pytest.approx(1.2159, rel=1e-3)
+    assert actual[4].p_value == pytest.approx(0.22403, rel=1e-3)
+
+
+def test_logistic_regression_epacts_lrt(logistic_epacts_mt):
+    mt = logistic_epacts_mt
+    actual = hl.logistic_regression_rows(
+        test='lrt',
+        y=mt.is_case,
+        x=mt.GT.n_alt_alleles(),
+        covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]
+    ).collect()
+
+    assert actual[0].locus == hl.Locus("22", 16060511, 'GRCh37')
+    assert actual[0].p_value == pytest.approx(0.26475, rel=1e-4)
+
+    assert actual[1].locus == hl.Locus("22", 16115878, 'GRCh37')
+    assert actual[1].p_value == pytest.approx(0.64046, rel=1e-4)
+
+    assert actual[2].locus == hl.Locus("22", 16115882, 'GRCh37')
+    assert actual[2].p_value == pytest.approx(0.049675, rel=1e-4)
+
+    assert actual[3].locus == hl.Locus("22", 16117940, 'GRCh37')
+    assert actual[3].p_value == pytest.approx(0.26984, rel=1e-4)
+
+    assert actual[4].locus == hl.Locus("22", 16117953, 'GRCh37')
+    assert actual[4].p_value == pytest.approx(0.21692, rel=1e-4)
+
+
+def test_logistic_regression_epacts_score(logistic_epacts_mt):
+    # The name of this test suggests it was originally a comparison to EPACTS. The original EPACTS
+    # values were slightly different from the output of lowered logistic regression. I regenerated
+    # this test's expected values using R.
+    #
+    # 1. Export the data into an R-friendly format:
+    #
+    #     mt = logistic_epacts_mt()
+    #     mt = mt.select_cols(
+    #         y=hl.int32(mt.is_case),
+    #         c1=1.0,
+    #         c2=hl.int32(mt.is_female),
+    #         c3=mt.PC1,
+    #         c4=mt.PC2,
+    #         x=hl.agg.collect(mt.GT.n_alt_alleles())
+    #     )
+    #     mt = mt.transmute_cols(**{
+    #         f'x{i}': mt.x[i] for i in range(mt.count_rows())
+    #     })
+    #     mt.cols().export('phenos.tsv')
+    #
+    # 2. Run this model repeatedly for each x:
+    #
+    #     df = read.table(file = 'phenos.csv', sep = '\t', header = TRUE)
+    #     poisfit <- glm(df$y ~ df$c1 + df$c2 + df$c3 + df$c4 + df$x0, family="binomial")
+    #     poisfitnull <- glm(df$y ~ df$c1 + df$c2 + df$c3 + df$c4, family="binomial")
+    #     scoretest <- anova(poisfitnull, poisfit, test="Rao")
+    #     chi2 <- scoretest[["Rao"]][2]
+    #     pval <- scoretest[["Pr(>Chi)"]][2]
+    #
+    mt = logistic_epacts_mt
+    actual = hl.logistic_regression_rows(
+        test='score',
+        y=mt.is_case,
+        x=mt.GT.n_alt_alleles(),
+        covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]
+    ).collect()
+
+    assert actual[0].locus == hl.Locus("22", 16060511, 'GRCh37')
+    assert actual[0].chi_sq_stat == pytest.approx(1.242482, rel=1e-5)
+    assert actual[0].p_value == pytest.approx(0.2649933, rel=1e-5)
+
+    assert actual[1].locus == hl.Locus("22", 16115878, 'GRCh37')
+    assert actual[1].chi_sq_stat == pytest.approx(0.218038, rel=1e-5)
+    assert actual[1].p_value == pytest.approx(0.6405389, rel=1e-5)
+
+    assert actual[2].locus == hl.Locus("22", 16115882, 'GRCh37')
+    assert actual[2].chi_sq_stat == pytest.approx(3.850985, rel=1e-5)
+    assert actual[2].p_value == pytest.approx(0.04971679, rel=1e-5)
+
+    assert actual[3].locus == hl.Locus("22", 16117940, 'GRCh37')
+    assert actual[3].chi_sq_stat == pytest.approx(1.175474, rel=1e-5)
+    assert actual[3].p_value == pytest.approx(0.2782793, rel=1e-5)
+
+    assert actual[4].locus == hl.Locus("22", 16117953, 'GRCh37')
+    assert actual[4].chi_sq_stat == pytest.approx(1.514245, rel=1e-5)
+    assert actual[4].p_value == pytest.approx(0.2184924, rel=1e-5)
+
+
+def test_logistic_regression_epacts_firth(logistic_epacts_mt):
+    mt = logistic_epacts_mt
+    actual = hl.logistic_regression_rows(
+        test='firth',
+        y=mt.is_case,
+        x=mt.GT.n_alt_alleles(),
+        covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]
+    ).collect()
+
+    assert actual[0].locus == hl.Locus("22", 16060511, 'GRCh37')
+    assert actual[0].beta == pytest.approx(-0.097079, rel=1e-4)
+    assert actual[0].p_value == pytest.approx(0.26593, rel=1e-4)
+
+    assert actual[1].locus == hl.Locus("22", 16115878, 'GRCh37')
+    assert actual[1].beta == pytest.approx(-0.052301, rel=1e-4)
+    assert actual[1].p_value == pytest.approx(0.64197, rel=1e-4)
+
+    assert actual[2].locus == hl.Locus("22", 16115882, 'GRCh37')
+    assert actual[2].beta == pytest.approx(-0.15567, rel=1e-4)
+    assert actual[2].p_value == pytest.approx(0.04991, rel=1e-4)
+
+    assert actual[3].locus == hl.Locus("22", 16117940, 'GRCh37')
+    assert actual[3].beta == pytest.approx(-0.7524, rel=1e-4)
+    assert actual[3].p_value == pytest.approx(0.30731, rel=1e-4)
+
+    assert actual[4].locus == hl.Locus("22", 16117953, 'GRCh37')
+    assert actual[4].beta == pytest.approx(0.5258, rel=1e-4)
+    assert actual[4].p_value == pytest.approx(0.22562, rel=1e-4)

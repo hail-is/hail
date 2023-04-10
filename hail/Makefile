@@ -65,21 +65,7 @@ EGG := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3.6.egg
 
 GRADLE_ARGS += -Dscala.version=$(SCALA_VERSION) -Dspark.version=$(SPARK_VERSION) -Delasticsearch.major-version=$(ELASTIC_MAJOR_VERSION)
 
-QUERY_STORAGE_URI = $(shell kubectl get secret global-config --template={{.data.query_storage_uri}} | base64 --decode)
 TEST_STORAGE_URI = $(shell kubectl get secret global-config --template={{.data.test_storage_uri}} | base64 --decode)
-TOKEN := $(shell cat /dev/urandom 2> /dev/null | LC_ALL=C tr -dc 'a-z0-9' 2> /dev/null | head -c 12)
-
-ifeq ($(NAMESPACE),default)
-ifeq ($(UPLOAD_RELEASE_JAR),true)
-# This should only be used if the normal CI deploy process fails and you need to upload a JAR to the
-# expected location for our users.
-JAR_LOCATION = $(QUERY_STORAGE_URI)/jars/$(REVISION).jar
-else
-JAR_LOCATION = $(QUERY_STORAGE_URI)/jars/$(shell whoami)/$(TOKEN)/$(REVISION).jar
-endif
-else
-JAR_LOCATION = $(TEST_STORAGE_URI)/$(NAMESPACE)/jars/$(TOKEN)/$(REVISION).jar
-endif
 CLOUD_HAIL_TEST_RESOURCES_PREFIX = $(TEST_STORAGE_URI)/$(shell whoami)/hail-test-resources
 CLOUD_HAIL_TEST_RESOURCES_DIR = $(CLOUD_HAIL_TEST_RESOURCES_PREFIX)/test/resources/
 CLOUD_HAIL_DOCTEST_DATA_DIR = $(CLOUD_HAIL_TEST_RESOURCES_PREFIX)/doctest/data/
@@ -272,23 +258,13 @@ $(eval $(call ENV_VAR,cloud_base))
 $(eval $(call ENV_VAR,wheel_cloud_path))
 
 
-.PHONY: generate-pip-lockfiles
-generate-pip-lockfiles:
-	HAIL_HAIL_DIR=$(HAIL_HAIL_DIR) \
-	../generate_pip_lockfile.sh python/hailtop/requirements.txt python/hailtop/pinned-requirements.txt && \
-	HAIL_HAIL_DIR=$(HAIL_HAIL_DIR) \
-	../generate_pip_lockfile.sh python/requirements.txt python/pinned-requirements.txt && \
-	HAIL_HAIL_DIR=$(HAIL_HAIL_DIR) \
-	../generate_pip_lockfile.sh python/dev/requirements.txt python/dev/pinned-requirements.txt
-
-
 .PHONY: check-pip-lockfile
 check-pip-lockfile:
-	$(PIP) install pip-tools && bash ../check_pip_requirements.sh python/requirements.txt python/pinned-requirements.txt
+	$(PIP) install pip-tools && bash ../check_pip_requirements.sh python
 
 
 python/hailtop/hailctl/deploy.yaml: env/cloud_base env/wheel_cloud_path
-python/hailtop/hailctl/deploy.yaml: $(resources) check-pip-lockfile
+python/hailtop/hailctl/deploy.yaml: $(resources)
 	rm -f $@
 	echo "dataproc:" >> $@
 	for FILE in $(notdir $(resources)); do \
@@ -319,8 +295,7 @@ upload-qob-test-resources: $(JAR_TEST_SOURCES)
 # > rm upload-qob-jar
 upload-qob-jar: $(SHADOW_JAR)
 	! [ -z $(NAMESPACE) ]  # call this like: make upload-qob-jar NAMESPACE=default
-	gcloud storage cp $(SHADOW_JAR) $(JAR_LOCATION)
-	echo $(JAR_LOCATION) > $@
+	bash ./scripts/upload_qob_jar.sh $(NAMESPACE) $(REVISION) $(SHADOW_JAR) $@
 
 .PHONY: install-editable
 install-editable: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)

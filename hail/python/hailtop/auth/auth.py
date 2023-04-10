@@ -1,35 +1,62 @@
 from typing import Optional, Dict, Tuple
 import os
 import aiohttp
+
+from hailtop.aiocloud.common.credentials import CloudCredentials
+from hailtop.aiocloud.common import Session
 from hailtop.config import get_deploy_config, DeployConfig
 from hailtop.utils import async_to_blocking, request_retry_transient_errors
-from hailtop import httpx
 
-from .tokens import get_tokens
+from .tokens import Tokens, get_tokens
+
+
+class HailStoredTokenCredentials(CloudCredentials):
+    def __init__(self, tokens: Tokens, namespace: Optional[str], authorize_target: bool):
+        self._tokens = tokens
+        self._namespace = namespace
+        self._authorize_target = authorize_target
+
+    @staticmethod
+    def from_file(credentials_file: str, *, namespace: Optional[str] = None, authorize_target: bool = True):
+        return HailStoredTokenCredentials(get_tokens(credentials_file), namespace, authorize_target)
+
+    @staticmethod
+    def default_credentials(*, namespace: Optional[str] = None, authorize_target: bool = True):
+        return HailStoredTokenCredentials(get_tokens(), namespace, authorize_target)
+
+    async def auth_headers(self) -> Dict[str, str]:
+        deploy_config = get_deploy_config()
+        ns = self._namespace or deploy_config.default_namespace()
+        return namespace_auth_headers(deploy_config, ns, self._tokens, authorize_target=self._authorize_target)
+
+    async def close(self):
+        pass
+
+
+def hail_credentials(*, credentials_file: Optional[str] = None, namespace: Optional[str] = None, authorize_target: bool = True) -> CloudCredentials:
+    if credentials_file is not None:
+        return HailStoredTokenCredentials.from_file(
+            credentials_file,
+            namespace=namespace,
+            authorize_target=authorize_target
+        )
+    return HailStoredTokenCredentials.default_credentials(
+        namespace=namespace,
+        authorize_target=authorize_target
+    )
 
 
 def namespace_auth_headers(deploy_config: DeployConfig,
                            ns: str,
+                           tokens: Tokens,
                            authorize_target: bool = True,
-                           *,
-                           token_file: Optional[str] = None
                            ) -> Dict[str, str]:
     headers = {}
     if authorize_target:
-        headers['Authorization'] = f'Bearer {get_tokens(token_file).namespace_token_or_error(ns)}'
+        headers['Authorization'] = f'Bearer {tokens.namespace_token_or_error(ns)}'
     if deploy_config.location() == 'external' and ns != 'default':
-        headers['X-Hail-Internal-Authorization'] = f'Bearer {get_tokens(token_file).namespace_token_or_error("default")}'
+        headers['X-Hail-Internal-Authorization'] = f'Bearer {tokens.namespace_token_or_error("default")}'
     return headers
-
-
-def service_auth_headers(deploy_config: DeployConfig,
-                         service: str,
-                         authorize_target: bool = True,
-                         *,
-                         token_file: Optional[str] = None
-                         ) -> Dict[str, str]:
-    ns = deploy_config.service_ns(service)
-    return namespace_auth_headers(deploy_config, ns, authorize_target, token_file=token_file)
 
 
 def deploy_config_and_headers_from_namespace(namespace: Optional[str] = None, *, authorize_target: bool = True) -> Tuple[DeployConfig, Dict[str, str], str]:
@@ -40,45 +67,28 @@ def deploy_config_and_headers_from_namespace(namespace: Optional[str] = None, *,
     else:
         namespace = deploy_config.default_namespace()
 
-    headers = namespace_auth_headers(deploy_config, namespace, authorize_target=authorize_target)
+    headers = namespace_auth_headers(deploy_config, namespace, get_tokens(), authorize_target=authorize_target)
 
     return (deploy_config, headers, namespace)
 
 
-async def async_get_userinfo(*,
-                             deploy_config: Optional[DeployConfig] = None,
-                             session_id: Optional[str] = None,
-                             client_session: Optional[httpx.ClientSession] = None):
-    if deploy_config is None:
-        deploy_config = get_deploy_config()
-    if session_id is None:
-        headers = service_auth_headers(deploy_config, 'auth')
-    else:
-        headers = {'Authorization': f'Bearer {session_id}'}
-
+async def async_get_userinfo():
+    deploy_config = get_deploy_config()
+    credentials = hail_credentials()
     userinfo_url = deploy_config.url('auth', '/api/v1alpha/userinfo')
 
-    async def request(session):
+    async with Session(credentials=credentials) as session:
         try:
-            resp = await request_retry_transient_errors(
-                session, 'GET', userinfo_url, headers=headers)
-            return await resp.json()
-        except aiohttp.client_exceptions.ClientResponseError as err:
+            async with await session.get(userinfo_url) as resp:
+                return await resp.json()
+        except aiohttp.ClientResponseError as err:
             if err.status == 401:
                 return None
             raise
 
-    if client_session is None:
-        async with httpx.client_session() as session:
-            return await request(session)
-    return await request(client_session)
 
-
-def get_userinfo(deploy_config=None, session_id=None, client_session=None):
-    return async_to_blocking(async_get_userinfo(
-        deploy_config=deploy_config,
-        session_id=session_id,
-        client_session=client_session))
+def get_userinfo():
+    return async_to_blocking(async_get_userinfo())
 
 
 def copy_paste_login(copy_paste_token: str, namespace: Optional[str] = None):

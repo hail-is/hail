@@ -19,10 +19,9 @@ from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.test_utils import skip_in_azure
 
 
-DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
+DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'ubuntu:20.04')
 PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.7-slim'
-HAIL_GENETICS_HAIL_IMAGE = os.environ['HAIL_GENETICS_HAIL_IMAGE']
-CLOUD = os.environ['HAIL_CLOUD']
+HAIL_GENETICS_HAIL_IMAGE = os.environ.get('HAIL_GENETICS_HAIL_IMAGE')
 
 
 class LocalTests(unittest.TestCase):
@@ -397,6 +396,57 @@ class LocalTests(unittest.TestCase):
         with LocalBackend() as backend:
             b = Batch(backend=backend)
             b.run()
+
+    def test_failed_jobs_dont_stop_non_dependent_jobs(self):
+        with tempfile.NamedTemporaryFile('w') as output_file:
+            b = self.batch()
+
+            head = b.new_job()
+            head.command(f'echo 1 > {head.ofile}')
+
+            head2 = b.new_job()
+            head2.command('false')
+
+            tail = b.new_job()
+            tail.command(f'cat {head.ofile} > {tail.ofile}')
+            b.write_output(tail.ofile, output_file.name)
+            self.assertRaises(Exception, b.run)
+            assert self.read(output_file.name) == '1'
+
+    def test_failed_jobs_stop_dependent_jobs(self):
+        with tempfile.NamedTemporaryFile('w') as output_file:
+            b = self.batch()
+
+            head = b.new_job()
+            head.command(f'echo 1 > {head.ofile}')
+            head.command('false')
+
+            head2 = b.new_job()
+            head2.command(f'echo 2 > {head2.ofile}')
+
+            tail = b.new_job()
+            tail.command(f'cat {head.ofile} > {tail.ofile}')
+
+            b.write_output(head2.ofile, output_file.name)
+            b.write_output(tail.ofile, output_file.name)
+            self.assertRaises(Exception, b.run)
+            assert self.read(output_file.name) == '2'
+
+    def test_failed_jobs_dont_stop_always_run_jobs(self):
+        with tempfile.NamedTemporaryFile('w') as output_file:
+            b = self.batch()
+
+            head = b.new_job()
+            head.command(f'echo 1 > {head.ofile}')
+            head.command('false')
+
+            tail = b.new_job()
+            tail.command(f'cat {head.ofile} > {tail.ofile}')
+            tail.always_run()
+
+            b.write_output(tail.ofile, output_file.name)
+            self.assertRaises(Exception, b.run)
+            assert self.read(output_file.name) == '1'
 
 
 class ServiceTests(unittest.TestCase):

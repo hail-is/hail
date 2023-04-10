@@ -123,6 +123,8 @@ class Env[V] private(val m: Map[Env.K, V]) {
     this(Map())
   }
 
+  def contains(k: Env.K): Boolean = m.contains(k)
+
   def isEmpty: Boolean = m.isEmpty
 
   def apply(name: String): V = m(name)

@@ -101,7 +101,7 @@ class StringFunctionsSuite extends HailSuite {
     Array(F32(3.14f), TFloat32),
     Array(I64(7), TInt64),
     Array(IRArray(1, null, 5), TArray(TInt32)),
-    Array(MakeTuple.ordered(Seq(1, NA(TInt32), 5.7)), TTuple(TInt32, TInt32, TFloat64))
+    Array(MakeTuple.ordered(FastIndexedSeq(1, NA(TInt32), 5.7)), TTuple(TInt32, TInt32, TFloat64))
   )
 
   @Test(dataProvider = "str")

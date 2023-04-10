@@ -1,7 +1,7 @@
 import asyncio
 
 from hailtop.config import get_deploy_config
-from hailtop.auth import get_tokens, service_auth_headers
+from hailtop.auth import get_tokens, hail_credentials
 from hailtop.httpx import client_session
 
 
@@ -18,7 +18,7 @@ async def async_main():
         print('Not logged in.')
         return
 
-    headers = service_auth_headers(deploy_config, 'auth')
+    headers = await hail_credentials().auth_headers()
     async with client_session(headers=headers) as session:
         async with session.post(deploy_config.url('auth', '/api/v1alpha/logout')):
             pass

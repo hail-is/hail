@@ -82,7 +82,7 @@ object TableNativeWriter {
             WriteMetadata(ToArray(mapIR(ToStream(fileCountAndDistinct)) { fc => GetField(fc, "filePath") }),
               RVDSpecWriter(s"$path/rows", RVDSpecMaker(rowSpec, partitioner, IndexSpec.emptyAnnotation("../index", tcoerce[PStruct](pKey))))),
             WriteMetadata(ToArray(mapIR(ToStream(fileCountAndDistinct)) { fc =>
-              SelectFields(fc, Seq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey"))
+              SelectFields(fc, FastIndexedSeq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey"))
             }),
               TableSpecWriter(path, tt, "rows", "globals", "references", log = true))))
         }
@@ -246,13 +246,14 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec,
       cb.assign(lastSeenRegion, Region.stagedCreate(Region.TINY, region.getPool()))
 
       val ctxValue = ctx.asString.loadString(cb)
+
+      cb.assign(filename, const(partPrefix).concat(ctxValue))
       writeIndexInfo.foreach { case (indexName, _, writer) =>
         val indexFile = cb.newLocal[String]("indexFile")
         cb.assign(indexFile, const(indexName).concat(ctxValue).concat(".idx"))
-        writer.init(cb, indexFile)
+        writer.init(cb, indexFile, cb.memoize(mb.getObject[Map[String, Any]](Map.empty)))
       }
 
-      cb.assign(filename, const(partPrefix).concat(ctxValue))
 
       val stagingFile = stagingInfo.map { case (folder, fileRef) =>
         cb.assign(fileRef, const(s"$folder/").concat(ctxValue))
@@ -724,7 +725,7 @@ case class TableNativeFanoutWriter(
               ToArray(mapIR(ToStream(fileCountAndDistinct)) { fc =>
                 SelectFields(
                   GetTupleElement(fc, index),
-                  Seq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey")
+                  FastIndexedSeq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey")
                 )
               }),
               TableSpecWriter(target.path, target.tableType, "rows", "globals", "references", log = true)

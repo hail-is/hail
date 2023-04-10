@@ -1,14 +1,13 @@
 package is.hail.utils
 
-import java.io.{InputStream, OutputStream}
-
 import is.hail.HailContext
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.types.virtual.Type
 import is.hail.io.fs.{FS, FileStatus, SeekableDataInputStream}
+import is.hail.types.virtual.Type
 import org.json4s.JsonAST._
 import org.json4s.jackson.JsonMethods
 
+import java.io.{InputStream, OutputStream}
 import scala.collection.JavaConverters._
 
 trait Py4jUtils {
@@ -122,8 +121,8 @@ trait Py4jUtils {
   }
 
   def addSocketAppender(hostname: String, port: Int) {
-    val app = new StringSocketAppender(hostname, port, HailContext.logFormat)
-    consoleLog.addAppender(app)
+    StringSocketAppender.get()
+      .connect(hostname, port, HailContext.logFormat)
   }
 
   def logWarn(msg: String) {

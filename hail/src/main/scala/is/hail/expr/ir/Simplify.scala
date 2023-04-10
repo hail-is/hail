@@ -332,7 +332,7 @@ object Simplify {
     case ArraySlice(z@ToArray(s), x@I32(i), Some(I32(j)), I32(1), _) if i > 0 && j > 0 => {
       if (j > i) {
         ToArray(StreamTake(StreamDrop(s, x), I32(j-i)))
-      } else new MakeArray(Seq(), z.typ.asInstanceOf[TArray])
+      } else new MakeArray(FastIndexedSeq(), z.typ.asInstanceOf[TArray])
     }
 
     case ArraySlice(ToArray(s), x@I32(i), None, I32(1), _) if i >= 0 =>
@@ -529,7 +529,6 @@ object Simplify {
     case TableCount(TableLeftJoinRightDistinct(child, _, _)) => TableCount(child)
     case TableCount(TableIntervalJoin(child, _, _, _)) => TableCount(child)
     case TableCount(TableRange(n, _)) => I64(n)
-    case TableCount(TableGenomicRange(n, _, _)) => I64(n)
     case TableCount(TableParallelize(rowsAndGlobal, _)) => Cast(ArrayLen(GetField(rowsAndGlobal, "rows")), TInt64)
     case TableCount(TableRename(child, _, _)) => TableCount(child)
     case TableCount(TableAggregateByKey(child, _)) => TableCount(TableDistinct(child))
@@ -839,7 +838,6 @@ object Simplify {
     case MatrixColsTable(MatrixKeyRowsBy(child, _, _)) => MatrixColsTable(child)
 
     case TableRepartition(TableRange(nRows, _), nParts, _) => TableRange(nRows, nParts)
-    case TableRepartition(TableGenomicRange(nRows, _, referenceGenome), nParts, _) => TableGenomicRange(nRows, nParts, referenceGenome)
 
     case TableMapGlobals(TableMapGlobals(child, ng1), ng2) =>
       val uid = genUID()
@@ -860,12 +858,6 @@ object Simplify {
       else
         tr
 
-    case TableHead(tr@TableGenomicRange(nRows, nPar, referenceGenome), n) if canRepartition =>
-      if (n < nRows)
-        TableGenomicRange(n.toInt, (nPar.toFloat * n / nRows).toInt.max(1), referenceGenome)
-      else
-        tr
-
     case TableHead(TableMapGlobals(child, newGlobals), n) =>
       TableMapGlobals(TableHead(child, n), newGlobals)
 
@@ -880,12 +872,12 @@ object Simplify {
       val te =
         TableExplode(
           TableKeyByAndAggregate(child,
-            MakeStruct(Seq(
+            MakeStruct(FastIndexedSeq(
               "row" -> ApplyAggOp(
                 FastIndexedSeq(I32(n.toInt)),
                 Array(row, keyStruct),
                 aggSig))),
-            MakeStruct(Seq()), // aggregate to one row
+            MakeStruct(FastIndexedSeq()), // aggregate to one row
             Some(1), 10),
           FastIndexedSeq("row"))
       TableMapRows(te, GetField(Ref("row", te.typ.rowType), "row"))

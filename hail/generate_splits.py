@@ -1,7 +1,6 @@
 import os
 import random
 import subprocess as sp
-import jinja2
 
 
 def partition(k, ls):
@@ -42,9 +41,16 @@ random.shuffle(classes, lambda: 0.0)
 
 splits = partition(n_splits, classes)
 
-with open('testng-splits.xml', 'r') as f:
-    template = jinja2.Template(f.read(), undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)
-
 for split_index, split in enumerate(splits):
+    classes = '\n'.join(f'<class name="{name}"/>' for name in split)
     with open(f'testng-splits-{split_index}.xml', 'w') as f:
-        f.write(template.render(split_index=split_index, names=split))
+        xml = f'''
+<suite name="SuiteAll" verbose="1">
+    <test name="Split{ split_index }">
+      <classes>
+        { classes }
+      </classes>
+    </test>
+</suite>
+'''
+        f.write(xml)

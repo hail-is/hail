@@ -1,16 +1,15 @@
+import asyncio
 import os
 import re
 import secrets
-import time
 
 import pytest
-from flask import Response
+from aiohttp import web
 
-import hailtop.batch_client.aioclient as aioclient
+from hailtop.batch_client import aioclient
 from hailtop.batch_client.client import BatchClient, Job
 from hailtop.config import get_user_config
 
-from .serverthread import ServerThread
 from .utils import batch_status_job_counter, legacy_batch_status
 
 DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
@@ -26,12 +25,12 @@ def client():
 def test_simple(client):
     batch = client.create_batch()
     head = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
-    tail = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[head])
+    batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[head])
     batch = batch.submit()
     batch.wait()
     status = legacy_batch_status(batch)
     assert batch_status_job_counter(status, 'Success') == 2, str((status, batch.debug_info()))
-    assert all([j['exit_code'] == 0 for j in status['jobs']]), str(batch.debug_info())
+    assert all(j['exit_code'] == 0 for j in status['jobs']), str(batch.debug_info())
 
 
 def test_missing_parent_is_400(client):
@@ -116,35 +115,36 @@ def test_cancel_left_after_tail(client):
         assert node_status['state'] == 'Cancelled', str((node_status, batch.debug_info()))
 
 
-def test_callback(client):
-    from flask import Flask, request
+async def test_callback(client):
+    app = web.Application()
+    callback_bodies = []
+    callback_event = asyncio.Event()
 
-    app = Flask('test-client')
-    callback_body = []
+    def url_for(uri):
+        host = os.environ['HAIL_BATCH_WORKER_IP']
+        port = os.environ['HAIL_BATCH_WORKER_PORT']
+        return f'http://{host}:{port}{uri}'
 
-    @app.route('/test', methods=['POST'])
-    def test():
-        body = request.get_json()
-        callback_body.append(body)
-        return Response(status=200)
+    async def callback(request):
+        body = await request.json()
+        callback_bodies.append(body)
+        callback_event.set()
+        return web.Response()
+
+    app.add_routes([web.post('/test', callback)])
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', 5000)
+    await site.start()
 
     try:
-        server = ServerThread(app)
-        server.start()
         token = secrets.token_urlsafe(32)
-        b = client.create_batch(callback=server.url_for('/test'), attributes={'foo': 'bar'}, token=token)
+        b = client.create_batch(callback=url_for('/test'), attributes={'foo': 'bar'}, token=token)
         head = b.create_job('alpine:3.8', command=['echo', 'head'])
-        tail = b.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head])
+        b.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head])
         b = b.submit()
-        b.wait()
-
-        i = 0
-        while not callback_body:
-            time.sleep(0.100 * (3 / 2) ** i)
-            i += 1
-            if i > 14:
-                break
-        callback_body = callback_body[0]
+        await asyncio.wait_for(callback_event.wait(), 5 * 60)
+        callback_body = callback_bodies[0]
 
         # verify required fields present
         callback_body.pop('cost')
@@ -169,9 +169,7 @@ def test_callback(client):
             'attributes': {'foo': 'bar'},
         }, callback_body
     finally:
-        if server:
-            server.shutdown()
-            server.join()
+        await runner.cleanup()
 
 
 def test_no_parents_allowed_in_other_batches(client):

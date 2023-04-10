@@ -80,7 +80,7 @@ class PrettyPrintWriterSuite extends TestNGSuite {
     (for {
       (doc, cases) <- data.iterator
       (width, ribbonWidth, maxLines, expected) <- cases.iterator
-    } yield Array(doc, new Integer(width), new Integer(ribbonWidth), new Integer(maxLines), expected)).asJava
+    } yield Array(doc, Int.box(width), Int.box(ribbonWidth), Int.box(maxLines), expected)).asJava
 
   @Test(dataProvider = "data")
   def testPP(doc: Doc, width: Integer, ribbonWidth: Integer, maxLines: Integer, expected: String): Unit = {

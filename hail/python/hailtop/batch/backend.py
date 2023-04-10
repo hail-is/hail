@@ -1,6 +1,7 @@
 from typing import Optional, Dict, Any, TypeVar, Generic, List, Union
 import sys
 import abc
+import collections
 import orjson
 import os
 import subprocess as sp
@@ -14,7 +15,7 @@ import warnings
 from rich.progress import track
 
 from hailtop import pip_version
-from hailtop.config import get_deploy_config, get_user_config
+from hailtop.config import configuration_of, get_deploy_config, get_user_config, get_remote_tmpdir
 from hailtop.utils.rich_progress_bar import SimpleRichProgressBar
 from hailtop.utils import parse_docker_image_reference, async_to_blocking, bounded_gather, url_scheme
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
@@ -179,7 +180,7 @@ class LocalBackend(Backend[None]):
                     f"cd {tmpdir}",
                     '\n']
 
-        def run_code(code):
+        def run_code(code) -> Optional[sp.CalledProcessError]:
             code = '\n'.join(code)
             if dry_run:
                 print(code)
@@ -189,7 +190,8 @@ class LocalBackend(Backend[None]):
                 except sp.CalledProcessError as e:
                     print(e)
                     print(e.output)
-                    raise
+                    return e
+            return None
 
         copied_input_resource_files = set()
         os.makedirs(tmpdir + '/inputs/', exist_ok=True)
@@ -260,7 +262,24 @@ class LocalBackend(Backend[None]):
                 batch._serialize_python_functions_to_input_files(tmpdir, dry_run=dry_run)
             )
 
-            for job in batch._unsubmitted_jobs:
+            jobs = batch._unsubmitted_jobs
+            dependent_jobs = collections.defaultdict(set)
+
+            def add_dependents(ancestor, child):
+                dependent_jobs[ancestor].add(child)
+                for ancestor_parent in ancestor._dependencies:
+                    add_dependents(ancestor_parent, child)
+
+            for j in jobs:
+                for parent in j._dependencies:
+                    add_dependents(parent, j)
+
+            cancelled_jobs = set()
+            first_exc = None
+            for job in jobs:
+                if job in cancelled_jobs:
+                    print(f'Job {job} was cancelled. Not running')
+                    continue
                 async_to_blocking(job._compile(tmpdir, tmpdir, dry_run=dry_run))
 
                 os.makedirs(f'{tmpdir}/{job._dirname}/', exist_ok=True)
@@ -310,7 +329,6 @@ class LocalBackend(Backend[None]):
                                 "--entrypoint=''"
                                 f"{self._extra_docker_run_flags} "
                                 f"-v {tmpdir}:{tmpdir} "
-                                f"-w {tmpdir} "
                                 f"{memory} "
                                 f"{cpu} "
                                 f"{job._image} "
@@ -328,7 +346,12 @@ class LocalBackend(Backend[None]):
                     code += [f'python3 -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(output_transfers)}']
                 code += ['\n']
 
-                run_code(code)
+                exc = run_code(code)
+                if exc is not None:
+                    first_exc = exc
+                    for child in dependent_jobs[job]:
+                        if not child._always_run:
+                            cancelled_jobs.add(child)
                 job._submitted = True
         finally:
             batch._python_function_defs.clear()
@@ -336,6 +359,8 @@ class LocalBackend(Backend[None]):
             if delete_scratch_on_exit:
                 sp.run(f'rm -rf {tmpdir}', shell=True, check=False)
 
+        if first_exc is not None:
+            raise first_exc
         print('Batch completed successfully!')
 
     def _get_scratch_dir(self):
@@ -438,8 +463,7 @@ class ServiceBackend(Backend[bc.Batch]):
             warnings.warn('Use of deprecated positional argument \'bucket\' in ServiceBackend(). Specify \'bucket\' as a keyword argument instead.')
             bucket = args[1]
 
-        if billing_project is None:
-            billing_project = get_user_config().get('batch', 'billing_project', fallback=None)
+        billing_project = configuration_of('batch', 'billing_project', billing_project, None)
         if billing_project is None:
             raise ValueError(
                 'the billing_project parameter of ServiceBackend must be set '
@@ -448,39 +472,7 @@ class ServiceBackend(Backend[bc.Batch]):
         self._batch_client = BatchClient(billing_project, _token=token)
 
         user_config = get_user_config()
-
-        if bucket is not None:
-            warnings.warn('Use of deprecated argument \'bucket\' in ServiceBackend(). Specify \'remote_tmpdir\' as a keyword argument instead.')
-
-        if remote_tmpdir is not None and bucket is not None:
-            raise ValueError('Cannot specify both \'remote_tmpdir\' and \'bucket\' in ServiceBackend(). Specify \'remote_tmpdir\' as a keyword argument instead.')
-
-        if bucket is None and remote_tmpdir is None:
-            remote_tmpdir = user_config.get('batch', 'remote_tmpdir', fallback=None)
-
-        if remote_tmpdir is None:
-            if bucket is None:
-                bucket = user_config.get('batch', 'bucket', fallback=None)
-                warnings.warn('Using deprecated configuration setting \'batch/bucket\'. Run `hailctl config set batch/remote_tmpdir` '
-                              'to set the default for \'remote_tmpdir\' instead.')
-            if bucket is None:
-                raise ValueError(
-                    'The \'remote_tmpdir\' parameter of ServiceBackend must be set. '
-                    'Run `hailctl config set batch/remote_tmpdir REMOTE_TMPDIR`')
-            if 'gs://' in bucket:
-                raise ValueError(
-                    'The bucket parameter to ServiceBackend() should be a bucket name, not a path. '
-                    'Use the remote_tmpdir parameter to specify a path.')
-            remote_tmpdir = f'gs://{bucket}/batch'
-        else:
-            schemes = {'gs', 'hail-az'}
-            found_scheme = any(remote_tmpdir.startswith(f'{scheme}://') for scheme in schemes)
-            if not found_scheme:
-                raise ValueError(
-                    f'remote_tmpdir must be a storage uri path like gs://bucket/folder. Possible schemes include {schemes}')
-        if remote_tmpdir[-1] != '/':
-            remote_tmpdir += '/'
-        self.remote_tmpdir = remote_tmpdir
+        self.remote_tmpdir = get_remote_tmpdir('ServiceBackend', bucket=bucket, remote_tmpdir=remote_tmpdir, user_config=user_config)
 
         gcs_kwargs = {'project': google_project}
         self.__fs: RouterAsyncFS = RouterAsyncFS(default_scheme='file', gcs_kwargs=gcs_kwargs)
@@ -794,7 +786,7 @@ class ServiceBackend(Backend[bc.Batch]):
             if verbose:
                 print(f'Waiting for batch {batch_handle.id}...')
             starting_job_id = min(j._client_job.job_id for j in unsubmitted_jobs)
-            status = batch_handle.wait(disable_progress_bar=disable_progress_bar, starting_job=starting_job_id)
+            status = await batch_handle._async_batch.wait(disable_progress_bar=disable_progress_bar, starting_job=starting_job_id)
             print(f'batch {batch_handle.id} complete: {status["state"]}')
 
         batch._python_function_defs.clear()

@@ -4,10 +4,10 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.rvd.RVDPartitioner
-import is.hail.types.{TableType, VirtualTypeWithReq}
-import is.hail.types.physical.{PCanonicalStruct, PCanonicalTuple, PInt64Required, PStruct}
+import is.hail.types.physical.{PCanonicalStruct, PCanonicalTuple, PInt64Required}
 import is.hail.types.virtual._
-import is.hail.utils.plural
+import is.hail.types.{TableType, VirtualTypeWithReq}
+import is.hail.utils.{FastIndexedSeq, plural}
 import org.json4s.{Formats, JValue}
 
 class AvroTableReader(
@@ -50,7 +50,7 @@ class AvroTableReader(
   }
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
-    val globals = MakeStruct(Seq())
+    val globals = MakeStruct(FastIndexedSeq())
     val contexts = zip2(ToStream(Literal(TArray(TString), paths)), StreamIota(I32(0), I32(1)), ArrayZipBehavior.TakeMinLength) { (path, idx) =>
       MakeStruct(Array("partitionPath" -> path, "partitionIndex" -> Cast(idx, TInt64)))
     }
