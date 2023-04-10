@@ -116,7 +116,6 @@ def test_cancel_left_after_tail(client):
 async def test_callback(client):
     import nest_asyncio
     nest_asyncio()
-    from aiohttp import web
 
     app = web.Application()
     callback_bodies = []
