@@ -2197,6 +2197,7 @@ class JVMJob(Job):
                     assert bucket
                     mount_path = self.cloudfuse_data_path(bucket)
                     await self.jvm.cloudfuse_mount_manager.unmount(mount_path, user=self.user, bucket=bucket)
+                    config['mounted'] = False
 
         if self.jvm is not None:
             self.worker.return_jvm(self.jvm)
