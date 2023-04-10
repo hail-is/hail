@@ -202,7 +202,7 @@ class GoogleStorageFS(
         } else {
           handleRequesterPays(
             { (options: Seq[BlobSourceOption]) =>
-              reader = storage.reader(bucket, path, options:_*)
+              reader = retryTransientErrors { storage.reader(bucket, path, options:_*) }
               reader.seek(lazyPosition)
               reader.read(bb)
             },
@@ -276,7 +276,7 @@ class GoogleStorageFS(
         } else {
           handleRequesterPays(
             { (options: Seq[BlobWriteOption]) =>
-              writer = storage.writer(blobInfo, options:_*)
+              writer = retryTransientErrors { storage.writer(blobInfo, options:_*) }
               f
             },
             BlobWriteOption.userProject _,
