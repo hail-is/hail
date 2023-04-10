@@ -1,3 +1,4 @@
+import abc
 import asyncio
 import base64
 import concurrent
@@ -364,6 +365,71 @@ class NetworkAllocator:
             self.private_networks.put_nowait(netns)
         else:
             self.public_networks.put_nowait(netns)
+
+
+class FuseMount:
+    def __init__(self, path):
+        self.path = path
+        self.bind_mounts = set()
+
+
+# Mounts that can be shared across jobs by the same user
+# Only sharing within jobs of the same user ensures that
+# the user is authorized to access the bucket. A user only has a single
+# set of credentials for cloudfuse so if they have successfully mounted
+# a bucket we can ignore the passed-in credentials and reuse the previous
+# mount.
+class ReadOnlyCloudfuseManager:
+    def __init__(self):
+        self.cloudfuse_dir = '/cloudfuse/readonly_cache'
+        self.fuse_mounts: Dict[Tuple[str, str], FuseMount] = {}
+        self.user_bucket_locks: Dict[Tuple[str, str], asyncio.Lock] = defaultdict(asyncio.Lock)
+
+    async def mount(
+        self, bucket: str, destination: str, *, user: str, credentials_path: str, tmp_path: str, config: dict
+    ):
+        assert config['read_only']
+        async with self.user_bucket_locks[(user, bucket)]:
+            if (user, bucket) not in self.fuse_mounts:
+                local_path = self._new_path()
+                await self._fuse_mount(local_path, credentials_path=credentials_path, tmp_path=tmp_path, config=config)
+                self.fuse_mounts[(user, bucket)] = FuseMount(local_path)
+            mount = self.fuse_mounts[(user, bucket)]
+            await self._bind_mount(mount.path, destination)
+            mount.bind_mounts.add(destination)
+
+    async def unmount(self, destination, *, user: str, bucket: str):
+        async with self.user_bucket_locks[(user, bucket)]:
+            mount = self.fuse_mounts[(user, bucket)]
+            await self._bind_unmount(destination)
+            mount.bind_mounts.remove(destination)
+            if len(mount.bind_mounts) == 0:
+                await self._fuse_unmount(mount.path)
+                del self.fuse_mounts[(user, bucket)]
+
+    async def _fuse_mount(self, destination: str, *, credentials_path: str, tmp_path: str, config: dict):
+        assert CLOUD_WORKER_API
+        await CLOUD_WORKER_API.mount_cloudfuse(
+            credentials_path,
+            destination,
+            tmp_path,
+            config,
+        )
+
+    async def _fuse_unmount(self, path: str):
+        assert CLOUD_WORKER_API
+        await CLOUD_WORKER_API.unmount_cloudfuse(path)
+
+    async def _bind_mount(self, src, dst):
+        await check_exec_output('mount', '--bind', src, dst)
+
+    async def _bind_unmount(self, dst):
+        await check_exec_output('umount', dst)
+
+    def _new_path(self):
+        path = f'{self.cloudfuse_dir}/{uuid.uuid4().hex}'
+        os.makedirs(path)
+        return path
 
 
 def docker_call_retry(timeout, name, f, *args, **kwargs):
@@ -1022,6 +1088,7 @@ class Container:
                 },
             },
             'linux': {
+                'rootfsPropagation': 'slave',
                 'namespaces': [
                     {'type': 'pid'},
                     {
@@ -1298,7 +1365,7 @@ def copy_container(
     )
 
 
-class Job:
+class Job(abc.ABC):
     quota_project_id = 100
 
     @staticmethod
@@ -1313,23 +1380,17 @@ class Job:
     def io_host_path(self) -> str:
         return f'{self.scratch}/io'
 
+    @abc.abstractmethod
     def cloudfuse_base_path(self):
-        # Make sure this path isn't in self.scratch to avoid accidental bucket deletions!
-        path = f'/cloudfuse/{self.token}'
-        assert os.path.commonpath([path, self.scratch]) == '/'
-        return path
+        raise NotImplementedError
 
+    @abc.abstractmethod
     def cloudfuse_data_path(self, bucket: str) -> str:
-        # Make sure this path isn't in self.scratch to avoid accidental bucket deletions!
-        path = f'{self.cloudfuse_base_path()}/{bucket}/data'
-        assert os.path.commonpath([path, self.scratch]) == '/'
-        return path
+        raise NotImplementedError
 
+    @abc.abstractmethod
     def cloudfuse_tmp_path(self, bucket: str) -> str:
-        # Make sure this path isn't in self.scratch to avoid accidental bucket deletions!
-        path = f'{self.cloudfuse_base_path()}/{bucket}/tmp'
-        assert os.path.commonpath([path, self.scratch]) == '/'
-        return path
+        raise NotImplementedError
 
     def cloudfuse_credentials_path(self, bucket: str) -> str:
         return f'{self.scratch}/cloudfuse/{bucket}'
@@ -1436,23 +1497,13 @@ class Job:
         self.output_volume_mounts.append(io_volume_mount)
 
         requester_pays_project = job_spec.get('requester_pays_project')
-        cloudfuse = job_spec.get('cloudfuse') or job_spec.get('gcsfuse')
-        self.cloudfuse = cloudfuse
-        if cloudfuse:
-            for config in cloudfuse:
+        self.cloudfuse = job_spec.get('cloudfuse') or job_spec.get('gcsfuse')
+        if self.cloudfuse:
+            for config in self.cloudfuse:
                 if requester_pays_project:
                     config['requester_pays_project'] = requester_pays_project
                 config['mounted'] = False
-                bucket = config['bucket']
-                assert bucket
-                self.main_volume_mounts.append(
-                    {
-                        'source': f'{self.cloudfuse_data_path(bucket)}',
-                        'destination': config['mount_path'],
-                        'type': 'none',
-                        'options': ['rbind', 'rw', 'shared'],
-                    }
-                )
+                assert config['bucket']
 
         secrets = job_spec.get('secrets')
         self.secrets = secrets
@@ -1582,6 +1633,18 @@ class DockerJob(Job):
             {'name': 'HAIL_BATCH_ID', 'value': str(batch_id)},
         ]
         self.env += hail_extra_env
+
+        if self.cloudfuse:
+            for config in self.cloudfuse:
+                bucket = config['bucket']
+                self.main_volume_mounts.append(
+                    {
+                        'source': f'{self.cloudfuse_data_path(bucket)}',
+                        'destination': config['mount_path'],
+                        'type': 'none',
+                        'options': ['rbind', 'rw', 'shared'],
+                    }
+                )
 
         if self.secrets:
             for secret in self.secrets:
@@ -1888,6 +1951,24 @@ class DockerJob(Job):
         status['timing'] = self.timings.to_dict()
         return status
 
+    def cloudfuse_base_path(self):
+        # Make sure this path isn't in self.scratch to avoid accidental bucket deletions!
+        path = f'/cloudfuse/{self.token}'
+        assert os.path.commonpath([path, self.scratch]) == '/'
+        return path
+
+    def cloudfuse_data_path(self, bucket: str) -> str:
+        # Make sure this path isn't in self.scratch to avoid accidental bucket deletions!
+        path = f'{self.cloudfuse_base_path()}/{bucket}/data'
+        assert os.path.commonpath([path, self.scratch]) == '/'
+        return path
+
+    def cloudfuse_tmp_path(self, bucket: str) -> str:
+        # Make sure this path isn't in self.scratch to avoid accidental bucket deletions!
+        path = f'{self.cloudfuse_base_path()}/{bucket}/tmp'
+        assert os.path.commonpath([path, self.scratch]) == '/'
+        return path
+
     def __str__(self):
         return f'job {self.id}'
 
@@ -1943,6 +2024,26 @@ class JVMJob(Job):
 
     def secret_host_path(self, secret):
         return f'{self.scratch}/secrets/{secret["mount_path"]}'
+
+    # This path must already be bind mounted into the JVM
+    def cloudfuse_base_path(self):
+        # Make sure this path isn't in self.scratch to avoid accidental bucket deletions!
+        assert self.jvm
+        path = self.jvm.cloudfuse_dir
+        assert os.path.commonpath([path, self.scratch]) == '/'
+        return path
+
+    def cloudfuse_data_path(self, bucket: str) -> str:
+        # Make sure this path isn't in self.scratch to avoid accidental bucket deletions!
+        path = f'{self.cloudfuse_base_path()}/{bucket}'
+        assert os.path.commonpath([path, self.scratch]) == '/'
+        return path
+
+    def cloudfuse_tmp_path(self, bucket: str) -> str:
+        # Make sure this path isn't in self.scratch to avoid accidental bucket deletions!
+        path = f'{self.cloudfuse_base_path()}/tmp/{bucket}'
+        assert os.path.commonpath([path, self.scratch]) == '/'
+        return path
 
     async def download_jar(self):
         assert self.worker
@@ -2005,6 +2106,37 @@ class JVMJob(Job):
                     f'xfs_quota -x -c "limit -p bsoft={self.data_disk_storage_in_gib} bhard={self.data_disk_storage_in_gib} {self.project_id}" /host/'
                 )
 
+                with self.step('adding cloudfuse support'):
+                    if self.cloudfuse:
+                        await check_shell_output(
+                            f'xfs_quota -x -c "project -s -p {self.cloudfuse_base_path()} {self.project_id}" /host/'
+                        )
+
+                        assert CLOUD_WORKER_API
+                        for config in self.cloudfuse:
+                            bucket = config['bucket']
+                            assert bucket
+
+                            credentials = self.credentials.cloudfuse_credentials(config)
+                            credentials_path = CLOUD_WORKER_API.write_cloudfuse_credentials(
+                                self.scratch, credentials, bucket
+                            )
+                            data_path = self.cloudfuse_data_path(bucket)
+                            tmp_path = self.cloudfuse_tmp_path(bucket)
+
+                            os.makedirs(data_path, exist_ok=True)
+                            os.makedirs(tmp_path, exist_ok=True)
+
+                            await self.jvm.cloudfuse_mount_manager.mount(
+                                bucket,
+                                data_path,
+                                user=self.user,
+                                credentials_path=credentials_path,
+                                tmp_path=tmp_path,
+                                config=config,
+                            )
+                            config['mounted'] = True
+
                 if self.secrets:
                     for secret in self.secrets:
                         populate_secret_host_path(self.secret_host_path(secret), secret['data'])
@@ -2056,6 +2188,16 @@ class JVMJob(Job):
         assert self.worker
         assert self.worker.file_store is not None
         assert self.worker.fs
+        assert self.jvm
+
+        if self.cloudfuse:
+            for config in self.cloudfuse:
+                if config['mounted']:
+                    bucket = config['bucket']
+                    assert bucket
+                    mount_path = self.cloudfuse_data_path(bucket)
+                    await self.jvm.cloudfuse_mount_manager.unmount(mount_path, user=self.user, bucket=bucket)
+                    config['mounted'] = False
 
         if self.jvm is not None:
             self.worker.return_jvm(self.jvm)
@@ -2163,6 +2305,7 @@ class JVMContainer:
         n_cores: int,
         socket_file: str,
         root_dir: str,
+        cloudfuse_dir: str,
         client_session: httpx.ClientSession,
         pool: concurrent.futures.ThreadPoolExecutor,
         fs: AsyncFS,
@@ -2220,6 +2363,12 @@ class JVMContainer:
                 'type': 'none',
                 'options': ['rbind', 'rw'],
             },
+            {
+                'source': cloudfuse_dir,
+                'destination': '/cloudfuse',
+                'type': 'none',
+                'options': ['rbind', 'ro', 'rslave'],
+            },
         ]
 
         c = Container(
@@ -2274,6 +2423,7 @@ class JVM:
         n_cores: int,
         socket_file: str,
         root_dir: str,
+        cloudfuse_dir: str,
         client_session: httpx.ClientSession,
         pool: concurrent.futures.ThreadPoolExecutor,
         fs: AsyncFS,
@@ -2281,7 +2431,7 @@ class JVM:
     ) -> JVMContainer:
         try:
             container = await JVMContainer.create_and_start(
-                index, n_cores, socket_file, root_dir, client_session, pool, fs, task_manager
+                index, n_cores, socket_file, root_dir, cloudfuse_dir, client_session, pool, fs, task_manager
             )
 
             attempts = 0
@@ -2323,15 +2473,18 @@ class JVM:
     async def create(cls, index: int, n_cores: int, worker: 'Worker'):
         token = uuid.uuid4().hex
         root_dir = f'/host/jvm-{token}'
+        cloudfuse_dir = f'/cloudfuse/jvm-{index}-{token[:5]}'
         socket_file = root_dir + '/socket'
         output_file = root_dir + '/output'
         should_interrupt = asyncio.Event()
         await blocking_to_async(worker.pool, os.makedirs, root_dir)
+        await blocking_to_async(worker.pool, os.makedirs, cloudfuse_dir)
         container = await cls.create_container_and_connect(
             index,
             n_cores,
             socket_file,
             root_dir,
+            cloudfuse_dir,
             worker.client_session,
             worker.pool,
             worker.fs,
@@ -2342,6 +2495,7 @@ class JVM:
             n_cores,
             socket_file,
             root_dir,
+            cloudfuse_dir,
             output_file,
             should_interrupt,
             container,
@@ -2349,6 +2503,7 @@ class JVM:
             worker.pool,
             worker.fs,
             worker.task_manager,
+            worker.cloudfuse_mount_manager,
         )
 
     def __init__(
@@ -2357,6 +2512,7 @@ class JVM:
         n_cores: int,
         socket_file: str,
         root_dir: str,
+        cloudfuse_dir: str,
         output_file: str,
         should_interrupt: asyncio.Event,
         container: JVMContainer,
@@ -2364,11 +2520,13 @@ class JVM:
         pool: concurrent.futures.ThreadPoolExecutor,
         fs: AsyncFS,
         task_manager: aiotools.BackgroundTaskManager,
+        cloudfuse_mount_manager: ReadOnlyCloudfuseManager,
     ):
         self.index = index
         self.n_cores = n_cores
         self.socket_file = socket_file
         self.root_dir = root_dir
+        self.cloudfuse_dir = cloudfuse_dir
         self.output_file = output_file
         self.should_interrupt = should_interrupt
         self.container = container
@@ -2376,6 +2534,7 @@ class JVM:
         self.pool = pool
         self.fs = fs
         self.task_manager = task_manager
+        self.cloudfuse_mount_manager = cloudfuse_mount_manager
 
     def __str__(self):
         return f'JVM-{self.index}'
@@ -2409,6 +2568,7 @@ class JVM:
                     self.n_cores,
                     self.socket_file,
                     self.root_dir,
+                    self.cloudfuse_dir,
                     self.client_session,
                     self.pool,
                     self.fs,
@@ -2508,6 +2668,8 @@ class Worker:
         self.compute_client = CLOUD_WORKER_API.get_compute_client()
 
         self.headers: Optional[Dict[str, str]] = None
+
+        self.cloudfuse_mount_manager = ReadOnlyCloudfuseManager()
 
         self._jvm_initializer_task = asyncio.create_task(self._initialize_jvms())
         self._jvms: SortedSet[JVM] = SortedSet([], key=lambda jvm: jvm.n_cores)

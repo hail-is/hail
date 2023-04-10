@@ -38,7 +38,6 @@ def test_reference_genome():
     with hl.TemporaryFilename() as filename:
         gr2.write(filename)
 
-@fails_service_backend()
 def test_reference_genome_sequence():
     gr3 = ReferenceGenome.read(resource("fake_ref_genome.json"))
     assert gr3.name == "my_reference_genome"
@@ -51,7 +50,7 @@ def test_reference_genome_sequence():
     assert gr4._sequence_files == (resource("fake_reference.fasta"), resource("fake_reference.fasta.fai"))
     assert gr4.x_contigs == ["a"]
 
-    t = hl.import_table(resource("fake_reference.tsv"), impute=True)
+    t = hl.import_table(resource("fake_reference.tsv"), impute=True, min_partitions=4)
     assert hl.eval(t.all(hl.get_sequence(t.contig, t.pos, reference_genome=gr4) == t.base))
 
     l = hl.locus("a", 7, gr4)

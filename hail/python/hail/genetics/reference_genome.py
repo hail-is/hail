@@ -421,8 +421,8 @@ class ReferenceGenome:
         par_strings = ["{}:{}-{}".format(contig, start, end) for (contig, start, end) in par]
         config = Env.backend().from_fasta_file(name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par_strings)
 
-        rg = ReferenceGenome._from_config(config, _builtin=True)
-        rg._sequence_files = (fasta_file, index_file)
+        rg = ReferenceGenome._from_config(config)
+        rg.add_sequence(fasta_file, index_file)
         return rg
 
     @typecheck_method(dest_reference_genome=reference_genome_type)
@@ -499,6 +499,8 @@ class ReferenceGenome:
         Env.backend().add_liftover(self.name, chain_file, dest_reference_genome.name)
         if dest_reference_genome.name in self._liftovers:
             raise KeyError(f"Liftover already exists from {self.name} to {dest_reference_genome.name}.")
+        if dest_reference_genome.name == self.name:
+            raise ValueError(f'Destination reference genome cannot have the same name as this reference {self.name}.')
         self._liftovers[dest_reference_genome.name] = chain_file
 
     @typecheck_method(global_pos=int)
