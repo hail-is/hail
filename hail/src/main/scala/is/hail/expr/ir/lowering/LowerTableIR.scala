@@ -1791,7 +1791,7 @@ object LowerTableIR {
       if (original.numPartitions == 0)
         0.0
       else
-        (0.15 / original.numPartitions) * planned
+        (0.0167 / original.numPartitions) * planned
           .rangeBounds
           .map { intrvl => val (lo, hi) = original.intervalRange(intrvl); hi - lo }
           .sum
