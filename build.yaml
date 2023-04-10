@@ -3207,7 +3207,7 @@ steps:
       set -x
 
       cd /io/docker/hailgenetics
-      export HAIL_VERSION=$(cat /io/hail_pip_version)
+      export HAIL_PIP_VERSION=$(cat /io/hail_pip_version)
       export DOCKER_PREFIX={{ global.docker_prefix }}
       bash mirror_images.sh
     inputs:
