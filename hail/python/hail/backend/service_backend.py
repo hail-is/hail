@@ -18,7 +18,7 @@ from hail.ir.renderer import CSERenderer
 
 from hailtop import yamlx
 from hailtop.config import (configuration_of, get_remote_tmpdir)
-from hailtop.utils import async_to_blocking, secret_alnum_string, TransientError, Timings, am_i_interactive
+from hailtop.utils import async_to_blocking, secret_alnum_string, TransientError, Timings, am_i_interactive, retry_transient_errors
 from hailtop.utils.rich_progress_bar import BatchProgressBar
 from hailtop.batch_client import client as hb
 from hailtop.batch_client import aioclient as aiohb
@@ -418,34 +418,40 @@ class ServiceBackend(Backend):
                     raise
 
             with timings.step("read output"):
+                result_bytes = await retry_transient_errors(self._read_output, ir, iodir + '/out')
+                return token, result_bytes, timings
+
+    async def _read_output(self, ir: Optional[BaseIR], output_uri: str) -> bytes:
+        assert self._batch
+
+        try:
+            driver_output = await self._async_fs.open(output_uri)
+        except FileNotFoundError as exc:
+            raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
+                'service_backend_debug_info': self.debug_info(),
+                'batch_debug_info': await self._batch.debug_info()
+            })) from exc
+
+        async with driver_output as outfile:
+            success = await read_bool(outfile)
+            if success:
+                result_bytes = await read_bytes(outfile)
                 try:
-                    driver_output = await self._async_fs.open(iodir + '/out')
-                except FileNotFoundError as exc:
+                    return result_bytes
+                except orjson.JSONDecodeError as err:
                     raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
                         'service_backend_debug_info': self.debug_info(),
                         'batch_debug_info': await self._batch.debug_info()
-                    })) from exc
+                    })) from err
 
-                async with driver_output as outfile:
-                    success = await read_bool(outfile)
-                    if success:
-                        result_bytes = await read_bytes(outfile)
-                        try:
-                            return token, result_bytes, timings
-                        except orjson.JSONDecodeError as err:
-                            raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
-                                'service_backend_debug_info': self.debug_info(),
-                                'batch_debug_info': await self._batch.debug_info()
-                            })) from err
+            short_message = await read_str(outfile)
+            expanded_message = await read_str(outfile)
+            error_id = await read_int(outfile)
 
-                    short_message = await read_str(outfile)
-                    expanded_message = await read_str(outfile)
-                    error_id = await read_int(outfile)
-
-                    reconstructed_error = fatal_error_from_java_error_triplet(short_message, expanded_message, error_id)
-                    if ir is None:
-                        raise reconstructed_error
-                    raise reconstructed_error.maybe_user_error(ir)
+            reconstructed_error = fatal_error_from_java_error_triplet(short_message, expanded_message, error_id)
+            if ir is None:
+                raise reconstructed_error
+            raise reconstructed_error.maybe_user_error(ir)
 
     def _cancel_on_ctrl_c(self, coro: Awaitable[T]) -> T:
         try:
