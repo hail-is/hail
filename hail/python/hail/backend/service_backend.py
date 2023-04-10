@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Callable, Awaitable, Mapping, Any, List, Union, Tuple, TypeVar
+from typing import Dict, Optional, Callable, Awaitable, Mapping, Any, List, Union, Tuple, TypeVar, Set
 import abc
 import collections
 import struct
@@ -287,6 +287,7 @@ class ServiceBackend(Backend):
         self.flags = flags
         self.jar_spec = jar_spec
         self.functions: List[IRFunction] = []
+        self._registered_ir_function_names: Set[str] = set()
         self.driver_cores = driver_cores
         self.driver_memory = driver_memory
         self.worker_cores = worker_cores
@@ -328,6 +329,7 @@ class ServiceBackend(Backend):
         async_to_blocking(self._async_fs.close())
         async_to_blocking(self.async_bc.close())
         self.functions = []
+        self._registered_ir_function_names = set()
 
     def render(self, ir):
         r = CSERenderer()
@@ -612,6 +614,7 @@ class ServiceBackend(Backend):
                              value_parameter_types: Union[Tuple[HailType, ...], List[HailType]],
                              return_type: HailType,
                              body: Expression):
+        self._registered_ir_function_names.add(name)
         self.functions.append(IRFunction(
             name,
             type_parameters,
@@ -620,6 +623,9 @@ class ServiceBackend(Backend):
             return_type,
             body
         ))
+
+    def _is_registered_ir_function_name(self, name: str) -> bool:
+        return name in self._registered_ir_function_names
 
     def persist_expression(self, expr):
         # FIXME: should use context manager to clean up persisted resources

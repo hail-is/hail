@@ -7,6 +7,7 @@ from typing import Optional, List, Tuple, Dict
 
 import hail as hl
 from hail import MatrixTable, Table
+from hail.experimental.function import Function
 from hail.expr import StructExpression
 from hail.expr.expressions import expr_bool, expr_str
 from hail.genetics.reference_genome import reference_genome_type
@@ -14,8 +15,8 @@ from hail.ir import Apply, TableMapRows, MatrixKeyRowsBy
 from hail.typecheck import oneof, sequenceof, typecheck
 from hail.utils.java import info, warning, Env
 
-_transform_rows_function_map = {}
-_merge_function_map = {}
+_transform_rows_function_map: Dict[Tuple[hl.HailType], Function] = {}
+_merge_function_map: Dict[Tuple[hl.HailType, hl.HailType], Function] = {}
 
 
 @typecheck(string=expr_str, has_non_ref=expr_bool)
@@ -121,7 +122,8 @@ def transform_gvcf(mt, info_to_keep=[]) -> Table:
         info_to_keep = [name for name in mt.info if name not in ['END', 'DP']]
     mt = localize(mt)
 
-    if mt.row.dtype not in _transform_rows_function_map:
+    transform_row = _transform_rows_function_map.get(mt.row.dtype)
+    if transform_row is None or not hl.current_backend()._is_registered_ir_function_name(transform_row._name):
         def get_lgt(e, n_alleles, has_non_ref, row):
             index = e.GT.unphased_diploid_gt_index()
             n_no_nonref = n_alleles - hl.int(has_non_ref)
@@ -181,7 +183,7 @@ def transform_gvcf(mt, info_to_keep=[]) -> Table:
             pass_through_fields = {k: v for k, v in e.items() if k not in handled_names}
             return hl.struct(**handled_fields, **pass_through_fields)
 
-        f = hl.experimental.define_function(
+        transform_row = hl.experimental.define_function(
             lambda row: hl.rbind(
                 hl.len(row.alleles), '<NON_REF>' == row.alleles[-1],
                 lambda alleles_len, has_non_ref: hl.struct(
@@ -191,8 +193,7 @@ def transform_gvcf(mt, info_to_keep=[]) -> Table:
                     __entries=row.__entries.map(
                         lambda e: make_entry_struct(e, alleles_len, has_non_ref, row)))),
             mt.row.dtype)
-        _transform_rows_function_map[mt.row.dtype] = f
-    transform_row = _transform_rows_function_map[mt.row.dtype]
+        _transform_rows_function_map[mt.row.dtype] = transform_row
     return Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, mt.row._ir)))
 
 
@@ -235,8 +236,9 @@ def combine(ts):
         # global index of alternate (non-ref) alleles
         return entry.annotate(LA=entry.LA.map(lambda lak: old_to_new[lak]))
 
-    if (ts.row.dtype, ts.globals.dtype) not in _merge_function_map:
-        f = hl.experimental.define_function(
+    merge_function = _merge_function_map.get((ts.row.dtype, ts.globals.dtype))
+    if merge_function is None or not hl.current_backend()._is_registered_ir_function_name(merge_function._name):
+        merge_function = hl.experimental.define_function(
             lambda row, gbl:
             hl.rbind(
                 merge_alleles(row.data.map(lambda d: d.alleles)),
@@ -260,8 +262,7 @@ def combine(ts):
                         hl.dict(hl.range(0, hl.len(alleles.globl)).map(
                             lambda j: hl.tuple([alleles.globl[j], j])))))),
             ts.row.dtype, ts.globals.dtype)
-        _merge_function_map[(ts.row.dtype, ts.globals.dtype)] = f
-    merge_function = _merge_function_map[(ts.row.dtype, ts.globals.dtype)]
+        _merge_function_map[(ts.row.dtype, ts.globals.dtype)] = merge_function
     ts = Table(TableMapRows(ts._tir, Apply(merge_function._name,
                                            merge_function._ret_type,
                                            ts.row._ir,
