@@ -167,7 +167,7 @@ async def main() -> None:
         logging.basicConfig()
         logging.root.setLevel(logging.INFO)
 
-    gcs_kwargs = {'project': args.requester_pays_project}
+    gcs_kwargs = {'gcs_requester_pays_configuration': args.requester_pays_project}
 
     try:
         different = await diff(

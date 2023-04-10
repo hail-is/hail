@@ -114,7 +114,7 @@ async def main() -> None:
     if args.files is None or args.files == '-':
         args.files = sys.stdin.read()
     files = json.loads(args.files)
-    gcs_kwargs = {'project': requester_pays_project}
+    gcs_kwargs = {'gcs_requester_pays_configuration': requester_pays_project}
 
     await copy_from_dict(
         max_simultaneous_transfers=args.max_simultaneous_transfers,

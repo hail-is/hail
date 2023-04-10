@@ -477,7 +477,7 @@ class ServiceBackend(Backend[bc.Batch]):
         user_config = get_user_config()
         self.remote_tmpdir = get_remote_tmpdir('ServiceBackend', bucket=bucket, remote_tmpdir=remote_tmpdir, user_config=user_config)
 
-        gcs_kwargs = {'project': google_project}
+        gcs_kwargs = {'gcs_requester_pays_configuration': google_project}
         self.__fs: RouterAsyncFS = RouterAsyncFS(gcs_kwargs=gcs_kwargs)
 
         if regions is None:

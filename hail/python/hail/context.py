@@ -18,6 +18,7 @@ from hail.utils.java import Env, warning, choose_backend
 from hail.backend import Backend
 from hailtop.utils import secret_alnum_string
 from hailtop.fs.fs import FS
+from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 from .builtin_references import BUILTIN_REFERENCES
 
 
@@ -193,7 +194,7 @@ def init(sc=None,
          driver_memory=None,
          worker_cores=None,
          worker_memory=None,
-         gcs_requester_pays_configuration: Optional[Union[str, Tuple[str, List[str]]]] = None,
+         gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
          regions: Optional[List[str]] = None):
     """Initialize and configure Hail.
 

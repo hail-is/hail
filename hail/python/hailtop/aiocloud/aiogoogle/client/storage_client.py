@@ -1,6 +1,6 @@
 import os
 from typing import (Tuple, Any, Set, Optional, MutableMapping, Dict, AsyncIterator, cast, Type,
-                    List, Coroutine)
+                    List, Coroutine, Union)
 from types import TracebackType
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import
 import sys
@@ -23,6 +23,9 @@ from ..session import GoogleSession
 from ..credentials import GoogleCredentials
 
 log = logging.getLogger(__name__)
+
+
+GCSRequesterPaysConfiguration = Union[str, Tuple[str, List[str]]]
 
 
 class PageIterator:
@@ -300,11 +303,13 @@ class GetObjectStream(ReadableStream):
 
 
 class GoogleStorageClient(GoogleBaseClient):
-    def __init__(self, **kwargs):
+    def __init__(self, gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
+                 **kwargs):
         if 'timeout' not in kwargs and 'http_session' not in kwargs:
             # Around May 2022, GCS started timing out a lot with our default 5s timeout
             kwargs['timeout'] = aiohttp.ClientTimeout(total=20)
         super().__init__('https://storage.googleapis.com/storage/v1', **kwargs)
+        self._gcs_requester_pays_configuration = gcs_requester_pays_configuration
 
     # docs:
     # https://cloud.google.com/storage/docs/json_api/v1
@@ -320,6 +325,7 @@ class GoogleStorageClient(GoogleBaseClient):
             kwargs['params'] = params
         assert 'name' not in params
         params['name'] = name
+        params.update(self._user_project(bucket))
 
         assert 'data' not in params
 
@@ -358,6 +364,7 @@ class GoogleStorageClient(GoogleBaseClient):
             kwargs['params'] = params
         assert 'alt' not in params
         params['alt'] = 'media'
+        params.update(self._user_project(bucket))
 
         try:
             resp = await self._session.get(
@@ -381,6 +388,9 @@ class GoogleStorageClient(GoogleBaseClient):
         await self.delete(f'/b/{bucket}/o/{urllib.parse.quote(name, safe="")}', **kwargs)
 
     async def list_objects(self, bucket: str, **kwargs) -> PageIterator:
+        if 'params' not in kwargs:
+            kwargs['params'] = {}
+        kwargs['params'].update(self._user_project(bucket))
         return PageIterator(self, f'/b/{bucket}/o', kwargs)
 
     async def compose(self, bucket: str, names: List[str], destination: str, **kwargs) -> None:
@@ -396,6 +406,16 @@ class GoogleStorageClient(GoogleBaseClient):
             'sourceObjects': [{'name': name} for name in names]
         }
         await self.post(f'/b/{bucket}/o/{urllib.parse.quote(destination, safe="")}/compose', **kwargs)
+
+    def _user_project(self, bucket):
+        config = self._gcs_requester_pays_configuration
+        if isinstance(config, str):
+            return {'userProject': config}
+        if isinstance(config, tuple):
+            project, buckets = config
+            if bucket in buckets:
+                return {'userProject': project}
+        return {}
 
 
 class GetObjectFileStatus(FileStatus):
@@ -564,13 +584,8 @@ class GoogleStorageAsyncFS(AsyncFS):
 
     def __init__(self, *,
                  storage_client: Optional[GoogleStorageClient] = None,
-                 project: Optional[str] = None,
                  **kwargs):
         if not storage_client:
-            if project is not None:
-                if 'params' not in kwargs:
-                    kwargs['params'] = {}
-                kwargs['params']['userProject'] = project
             storage_client = GoogleStorageClient(**kwargs)
         self._storage_client = storage_client
 
