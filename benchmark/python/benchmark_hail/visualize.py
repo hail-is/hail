@@ -33,7 +33,7 @@ def plot(results: 'pd.DataFrame', normalize: 'bool', head: 'Optional[int]') -> N
 
 def main(args) -> 'None':
     results = collect_results(args.files, args.metric)
-    plot(results, not (len(args.files) == 1 and args.raw), args.head)
+    plot(results, not (len(args.files) == 1 or args.raw), args.head)
 
 
 def register_main(subparser) -> 'None':
