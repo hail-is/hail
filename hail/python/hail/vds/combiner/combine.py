@@ -9,6 +9,7 @@ from ..variant_dataset import VariantDataset
 
 _transform_variant_function_map: Dict[Tuple[hl.HailType, Tuple[str, ...]], Function] = {}
 _transform_reference_fuction_map: Dict[Tuple[hl.HailType, Tuple[str, ...]], Function] = {}
+_merge_function_map: Dict[Tuple[hl.HailType, hl.HailType], Function] = {}
 
 
 def make_variants_matrix_table(mt: MatrixTable,
@@ -22,7 +23,7 @@ def make_variants_matrix_table(mt: MatrixTable,
     mt = localize(mt)
     mt = mt.filter(hl.is_missing(mt.info.END))
 
-    transform_row: Optional[Function] = _transform_variant_function_map.get((mt.row.dtype, info_key))
+    transform_row = _transform_variant_function_map.get((mt.row.dtype, info_key))
     if transform_row is None or not hl.current_backend()._is_registered_ir_function_name(transform_row._name):
         def get_lgt(e, n_alleles, has_non_ref, row):
             index = e.GT.unphased_diploid_gt_index()
@@ -127,7 +128,7 @@ def make_reference_matrix_table(mt: MatrixTable,
                   .or_error('found END with non reference-genotype at' + hl.str(row.locus)))
 
     mt = localize(mt)
-    transform_row: Optional[Function] = _transform_reference_fuction_map.get((mt.row.dtype, entry_key))
+    transform_row = _transform_reference_fuction_map.get((mt.row.dtype, entry_key))
     if transform_row is None or not hl.current_backend()._is_registered_ir_function_name(transform_row._name):
         transform_row = hl.experimental.define_function(
             lambda row: hl.struct(
@@ -187,12 +188,10 @@ def transform_gvcf(mt: MatrixTable,
     return VariantDataset(ref_mt, var_mt._key_rows_by_assert_sorted('locus', 'alleles'))
 
 
-_merge_function_map = {}
-
-
 def combine_r(ts, ref_block_max_len_field):
-    if (ts.row.dtype, ts.globals.dtype) not in _merge_function_map:
-        f = hl.experimental.define_function(
+    merge_function = _merge_function_map.get((ts.row.dtype, ts.globals.dtype))
+    if merge_function is None or not hl.current_backend()._is_registered_ir_function_name(merge_function._name):
+        merge_function = hl.experimental.define_function(
             lambda row, gbl:
             hl.struct(
                 locus=row.locus,
@@ -203,8 +202,7 @@ def combine_r(ts, ref_block_max_len_field):
                                .map(lambda _: hl.missing(row.data[i].__entries.dtype.element_type)),
                                row.data[i].__entries))),
             ts.row.dtype, ts.globals.dtype)
-        _merge_function_map[(ts.row.dtype, ts.globals.dtype)] = f
-    merge_function = _merge_function_map[(ts.row.dtype, ts.globals.dtype)]
+        _merge_function_map[(ts.row.dtype, ts.globals.dtype)] = merge_function
     ts = Table(TableMapRows(ts._tir, Apply(merge_function._name,
                                            merge_function._ret_type,
                                            ts.row._ir,
