@@ -435,14 +435,7 @@ class ServiceBackend(Backend):
         async with driver_output as outfile:
             success = await read_bool(outfile)
             if success:
-                result_bytes = await read_bytes(outfile)
-                try:
-                    return result_bytes
-                except orjson.JSONDecodeError as err:
-                    raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
-                        'service_backend_debug_info': self.debug_info(),
-                        'batch_debug_info': await self._batch.debug_info()
-                    })) from err
+                return await read_bytes(outfile)
 
             short_message = await read_str(outfile)
             expanded_message = await read_str(outfile)
