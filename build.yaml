@@ -3206,24 +3206,17 @@ steps:
       {% endif %}
       set -x
 
-      copy_if_not_present() {
-        src_image=$1
-        dest_image=$2
-        if skopeo inspect "docker://$2";
-        then
-          echo "$2 already exists, doing nothing"
-        else
-          echo "$2 does not exist, copying $1 to $2"
-          skopeo copy "docker://$1" "docker://$2"
-        fi
-      }
-
-      HAIL_VERSION=$(cat /io/hail_pip_version)
-      copy_if_not_present docker.io/hailgenetics/hail:${HAIL_VERSION} {{ global.docker_prefix }}/hailgenetics/hail:${HAIL_VERSION}
-      copy_if_not_present docker.io/hailgenetics/hailtop:${HAIL_VERSION} {{ global.docker_prefix }}/hailgenetics/hailtop:${HAIL_VERSION}
+      cd /io/docker/hailgenetics
+      export HAIL_VERSION=$(cat /io/hail_pip_version)
+      export DOCKER_PREFIX={{ global.docker_prefix }}
+      ./mirror_images.sh
     inputs:
       - from: /hail_pip_version
         to: /io/hail_pip_version
+      - from: /repo/docker/hailgenetics/mirror_images.sh
+        to: /io/docker/hailgenetics/mirror_images.sh
+      - from: /repo/docker/copy_image.sh
+        to: /io/docker/mirror_images.sh
     secrets:
       - name: registry-push-credentials
         namespace:

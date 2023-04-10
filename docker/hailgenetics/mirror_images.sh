@@ -4,6 +4,21 @@ set -ex
 
 source ../copy_image.sh
 
+copy_if_not_present() {
+    src_image=$1
+    dest_image=$2
+    if ! skopeo inspect "docker://$1";
+    then
+        echo "$1 does not exist yet, doing nothing"
+    elif skopeo inspect "docker://$2";
+    then
+      echo "$2 already exists, doing nothing"
+    else
+      echo "$2 does not exist, copying $1 to $2"
+      skopeo copy "docker://$1" "docker://$2"
+    fi
+}
+
 if [[ -z "${DOCKER_PREFIX}" ]];
 then
     echo "Env variable DOCKER_PREFIX must be set"
@@ -30,5 +45,5 @@ images=(
 )
 for image in "${images[@]}"
 do
-    copy_image "hailgenetics/${image}" "${DOCKER_PREFIX}/hailgenetics/${image}"
+    copy_if_not_present "hailgenetics/${image}" "${DOCKER_PREFIX}/hailgenetics/${image}"
 done
