@@ -17,6 +17,7 @@ import java.io._
 import com.google.cloud.storage.StorageException
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
+import io.netty.channel.unix.Errors
 import io.netty.channel.unix.Errors.NativeIoException
 
 package object services {
@@ -60,11 +61,11 @@ package object services {
 
   val nettyRetryableErrorNumbers = Set(
     // these should match (where an equivalent exists) RETRYABLE_ERRNOS in hailtop/utils/utils.py
-    ERRNO_EPIPE_NEGATIVE,
-    ERRNO_ECONNRESET_NEGATIVE,
-    ERROR_ECONNREFUSED_NEGATIVE,
-    ERROR_ENETUNREACH_NEGATIVE,
-    ERROR_EHOSTUNREACH_NEGATIVE
+    io.netty.channel.unix.Errors.ERRNO_EPIPE_NEGATIVE,
+    io.netty.channel.unix.Errors.ERRNO_ECONNRESET_NEGATIVE,
+    io.netty.channel.unix.Errors.ERROR_ECONNREFUSED_NEGATIVE,
+    io.netty.channel.unix.Errors.ERROR_ENETUNREACH_NEGATIVE,
+    io.netty.channel.unix.Errors.ERROR_EHOSTUNREACH_NEGATIVE
   )
 
   def isTransientError(_e: Throwable): Boolean = {
