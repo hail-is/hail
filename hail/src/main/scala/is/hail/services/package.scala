@@ -59,11 +59,11 @@ package object services {
 
   val nettyRetryableErrorNumbers = Set(
     // these should match (where an equivalent exists) RETRYABLE_ERRNOS in hailtop/utils/utils.py
-    NettyProxy.Errors.ERRNO_EPIPE_NEGATIVE,
-    NettyProxy.Errors.ERRNO_ECONNRESET_NEGATIVE,
-    NettyProxy.Errors.ERROR_ECONNREFUSED_NEGATIVE,
-    NettyProxy.Errors.ERROR_ENETUNREACH_NEGATIVE,
-    NettyProxy.Errors.ERROR_EHOSTUNREACH_NEGATIVE
+    NettyProxy.ERRNO_EPIPE_NEGATIVE,
+    NettyProxy.ERRNO_ECONNRESET_NEGATIVE,
+    NettyProxy.ERROR_ECONNREFUSED_NEGATIVE,
+    NettyProxy.ERROR_ENETUNREACH_NEGATIVE,
+    NettyProxy.ERROR_EHOSTUNREACH_NEGATIVE
   )
 
   def isTransientError(_e: Throwable): Boolean = {
