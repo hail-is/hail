@@ -1,21 +1,37 @@
 package is.hail.services
 
+import java.io.IOException
+import io.netty.channel.epoll.Epoll
 import io.netty.channel.unix.Errors  // cannot be in package.scala because is.hail.io shadows top-level io
-import io.netty.channel.unix.Errors.NativeIoException  // cannot be in package.scala because is.hail.io shadows top-level io
 
 object NettyProxy {
-  val ERRNO_ENOENT_NEGATIVE = io.netty.channel.unix.Errors.ERRNO_ENOENT_NEGATIVE
-  val ERRNO_ENOTCONN_NEGATIVE = io.netty.channel.unix.Errors.ERRNO_ENOTCONN_NEGATIVE
-  val ERRNO_EBADF_NEGATIVE = io.netty.channel.unix.Errors.ERRNO_EBADF_NEGATIVE
-  val ERRNO_EPIPE_NEGATIVE = io.netty.channel.unix.Errors.ERRNO_EPIPE_NEGATIVE
-  val ERRNO_ECONNRESET_NEGATIVE = io.netty.channel.unix.Errors.ERRNO_ECONNRESET_NEGATIVE
-  val ERRNO_EAGAIN_NEGATIVE = io.netty.channel.unix.Errors.ERRNO_EAGAIN_NEGATIVE
-  val ERRNO_EWOULDBLOCK_NEGATIVE = io.netty.channel.unix.Errors.ERRNO_EWOULDBLOCK_NEGATIVE
-  val ERRNO_EINPROGRESS_NEGATIVE = io.netty.channel.unix.Errors.ERRNO_EINPROGRESS_NEGATIVE
-  val ERROR_ECONNREFUSED_NEGATIVE = io.netty.channel.unix.Errors.ERROR_ECONNREFUSED_NEGATIVE
-  val ERROR_EISCONN_NEGATIVE = io.netty.channel.unix.Errors.ERROR_EISCONN_NEGATIVE
-  val ERROR_EALREADY_NEGATIVE = io.netty.channel.unix.Errors.ERROR_EALREADY_NEGATIVE
-  val ERROR_ENETUNREACH_NEGATIVE = io.netty.channel.unix.Errors.ERROR_ENETUNREACH_NEGATIVE
+  val isRetryableNettyIOException: Exception => Boolean = if (Epoll.isAvailable()) {
+    // Epoll.isAvailable returns true iff the io.netty.channel.unix.Errors class can be
+    // initialized. When it returns false, that class will fail to initialize due to missing native
+    // dependencies.
 
-  type NativeIoException = io.netty.channel.unix.Errors.NativeIoException
+    val nettyRetryableErrorNumbers = Set(
+      // these should match (where an equivalent exists) RETRYABLE_ERRNOS in hailtop/utils/utils.py
+      Errors.ERRNO_EPIPE_NEGATIVE,
+      Errors.ERRNO_ECONNRESET_NEGATIVE,
+      Errors.ERROR_ECONNREFUSED_NEGATIVE,
+      Errors.ERROR_ENETUNREACH_NEGATIVE
+    )
+
+    { case e: Errors.NativeIoException =>
+        // NativeIoException is a subclass of IOException; therefore this case must appear before
+        // the IOException case
+        //
+        // expectedErr appears to be the additive inverse of the errno returned by Linux?
+        //
+        // https://github.com/netty/netty/blob/24a0ac36ea91d1aee647d738f879ac873892d829/transport-native-unix-common/src/main/java/io/netty/channel/unix/Errors.java#L49
+        (nettyRetryableErrorNumbers.contains(e.expectedErr) ||
+          // io.netty.channel.unix.Errors$NativeIoException: readAddress(..) failed: Connection reset by peer
+          e.getMessage.contains("Connection reset by peer")
+        )
+      case e: Exception => false
+    }
+  } else {
+    { case e: Exception => false }
+  }
 }
