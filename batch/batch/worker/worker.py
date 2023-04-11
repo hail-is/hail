@@ -1335,7 +1335,7 @@ def copy_container(
     cpu_in_mcpu: int,
     memory_in_bytes: int,
     scratch: str,
-    requester_pays_project: str,
+    requester_pays_project: Optional[str],
     client_session: httpx.ClientSession,
 ) -> Container:
     assert files
