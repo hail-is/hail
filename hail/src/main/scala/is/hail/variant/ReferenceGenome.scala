@@ -332,17 +332,14 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     val tmpdir = ctx.localTmpdir
     val fs = ctx.fs
     if (!fs.exists(fastaFile))
-      fatal(s"FASTA file '$fastaFile' does not exist.")
+      fatal(s"FASTA file '$fastaFile' does not exist or you do not have access.")
     if (!fs.exists(indexFile))
-      fatal(s"FASTA index file '$indexFile' does not exist.")
+      fatal(s"FASTA index file '$indexFile' does not exist or you do not have access.")
     fastaFilePath = fastaFile
     fastaIndexPath = indexFile
 
     // assumption, fastaFile and indexFile will not move or change for the entire duration of a hail pipeline
-    val localIndexFile = ExecuteContext.createTmpPathNoCleanup(tmpdir, "fasta-reader-add-seq", "fai")
-    fs.copyRecode(indexFile, localIndexFile)
-
-    val index = new FastaSequenceIndex(new java.io.File(uriPath(localIndexFile)))
+    val index = using(fs.open(indexFile))(new FastaSequenceIndex(_))
 
     val missingContigs = contigs.filterNot(index.hasIndexEntry)
     if (missingContigs.nonEmpty)
@@ -578,9 +575,7 @@ object ReferenceGenome {
     if (!fs.exists(indexFile))
       fatal(s"FASTA index file '$indexFile' does not exist.")
 
-    val localIndexFile = ExecuteContext.createTmpPathNoCleanup(tmpdir, "fasta-reader-from-fasta", "fai")
-    fs.copyRecode(indexFile, localIndexFile)
-    val index = new FastaSequenceIndex(new java.io.File(uriPath(localIndexFile)))
+    val index = using(fs.open(indexFile))(new FastaSequenceIndex(_))
 
     val contigs = new BoxedArrayBuilder[String]
     val lengths = new BoxedArrayBuilder[(String, Int)]
@@ -592,9 +587,7 @@ object ReferenceGenome {
       lengths += (contig -> length.toInt)
     }
 
-    val rg = ReferenceGenome(name, contigs.result(), lengths.result().toMap, xContigs, yContigs, mtContigs, parInput)
-    rg.addSequence(ctx, fastaFile, indexFile)
-    rg
+    ReferenceGenome(name, contigs.result(), lengths.result().toMap, xContigs, yContigs, mtContigs, parInput)
   }
 
   def readReferences(fs: FS, path: String): Array[ReferenceGenome] = {

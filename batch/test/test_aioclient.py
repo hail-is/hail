@@ -1,10 +1,8 @@
-import os
-
 import pytest
 
 from hailtop.batch_client.aioclient import BatchClient
 
-DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
+from .utils import DOCKER_ROOT_IMAGE
 
 pytestmark = pytest.mark.asyncio
 

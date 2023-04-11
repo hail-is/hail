@@ -33,20 +33,6 @@ steps:
         to: /git_version
     dependsOn:
       - git_make_bash_image
-  - kind: buildImage2
-    name: hail_ubuntu_image
-    dockerFile: /io/hail-ubuntu/Dockerfile
-    contextPath: /io/hail-ubuntu
-    publishAs: hail-ubuntu
-    resources:
-      storage: 10Gi
-      cpu: "2"
-      memory: standard
-    inputs:
-      - from: /repo/docker/hail-ubuntu
-        to: /io/hail-ubuntu
-    dependsOn:
-      - merge_code
   - kind: createNamespace
     name: default_ns
     namespaceName: default
@@ -73,6 +59,55 @@ steps:
       - name: batch-worker-ssh-public-key
         clouds:
           - azure
+  - kind: runImage
+    name: copy_third_party_images
+    image: quay.io/skopeo/stable:v1.11.1
+    script: |
+      set -ex
+
+      REGISTRY={{ global.docker_prefix.split('/')[0] }}
+
+      {% if global.cloud == "gcp" %}
+      cat /registry-push-credentials/credentials.json | base64 -w 0 | skopeo login -u _json_key_base64 --password-stdin $REGISTRY
+      {% elif global.cloud == "azure" %}
+      dnf install -y jq
+      USERNAME=$(cat /registry-push-credentials/credentials.json | jq -jr '.appId')
+      cat /registry-push-credentials/credentials.json | jq -jr '.password' | skopeo login -u $USERNAME --password-stdin $REGISTRY
+      {% else %}
+      echo "unknown cloud {{ global.cloud }}"
+      exit 1
+      {% endif %}
+
+      cd /io/docker/third-party
+      DOCKER_PREFIX={{ global.docker_prefix }} bash copy_images.sh
+    inputs:
+      - from: /repo/docker
+        to: /io/docker
+    secrets:
+      - name: registry-push-credentials
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /registry-push-credentials
+    scopes:
+      - deploy
+    dependsOn:
+      - default_ns
+      - merge_code
+  - kind: buildImage2
+    name: hail_ubuntu_image
+    dockerFile: /io/hail-ubuntu/Dockerfile
+    contextPath: /io/hail-ubuntu
+    publishAs: hail-ubuntu
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: standard
+    inputs:
+      - from: /repo/docker/hail-ubuntu
+        to: /io/hail-ubuntu
+    dependsOn:
+      - merge_code
+      - copy_third_party_images
   - kind: deploy
     name: deploy_batch_sa
     namespace:
@@ -655,6 +690,7 @@ steps:
         to: /io/repo/ci
     dependsOn:
       - merge_code
+      - copy_third_party_images
   - kind: runImage
     name: build_hail_jar_and_wheel_only
     image:
@@ -769,12 +805,8 @@ steps:
       time retry make wheel
       (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
     inputs:
-      - from: /repo/README.md
-        to: /io/repo/README.md
-      - from: /repo/hail
-        to: /io/repo/hail
-      - from: /repo/check_pip_requirements.sh
-        to: /io/repo/check_pip_requirements.sh
+      - from: /repo
+        to: /io/repo
     outputs:
       - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
         to: /wheel-for-azure-container.tar
@@ -1566,6 +1598,7 @@ steps:
       - default_ns
       - base_image
       - create_certs
+      - copy_third_party_images
   - kind: deploy
     name: deploy_prometheus
     namespace:
@@ -1577,6 +1610,7 @@ steps:
     dependsOn:
       - default_ns
       - create_certs
+      - copy_third_party_images
   - kind: runImage
     name: create_dummy_oauth2_client_secret
     image:
@@ -2416,7 +2450,6 @@ steps:
       export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
       export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
       export HAIL_TOKEN="{{ token }}"
-      export HAIL_SCOPE="{{ scope }}"
       export HAIL_CLOUD="{{ global.cloud }}"
       export HAIL_DOMAIN="{{ global.domain }}"
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/test_batch/{{ token }}/
@@ -2678,7 +2711,6 @@ steps:
       set -ex
       export HAIL_CLOUD={{ global.cloud }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-      export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
       export HAIL_GENETICS_HAILTOP_IMAGE="{{ hailgenetics_hailtop_image.image }}"
@@ -3144,6 +3176,49 @@ steps:
       - make_docs
     clouds:
       - gcp
+  - kind: runImage
+    name: mirror_hailgenetics_images
+    image: quay.io/skopeo/stable:v1.11.1
+    script: |
+      set -ex
+
+      REGISTRY={{ global.docker_prefix.split('/')[0] }}
+
+      set +x
+      {% if global.cloud == "gcp" %}
+      cat /registry-push-credentials/credentials.json | base64 -w 0 | skopeo login -u _json_key_base64 --password-stdin $REGISTRY
+      {% elif global.cloud == "azure" %}
+      dnf install -y jq
+      USERNAME=$(cat /registry-push-credentials/credentials.json | jq -jr '.appId')
+      cat /registry-push-credentials/credentials.json | jq -jr '.password' | skopeo login -u $USERNAME --password-stdin $REGISTRY
+      {% else %}
+      echo "unknown cloud {{ global.cloud }}"
+      exit 1
+      {% endif %}
+      set -x
+
+      cd /io/docker/hailgenetics
+      export HAIL_PIP_VERSION=$(cat /io/hail_pip_version)
+      export DOCKER_PREFIX={{ global.docker_prefix }}
+      bash mirror_images.sh
+    inputs:
+      - from: /hail_pip_version
+        to: /io/hail_pip_version
+      - from: /repo/docker/hailgenetics/mirror_images.sh
+        to: /io/docker/hailgenetics/mirror_images.sh
+      - from: /repo/docker/copy_image.sh
+        to: /io/docker/copy_image.sh
+    secrets:
+      - name: registry-push-credentials
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /registry-push-credentials
+    scopes:
+      - deploy
+      - dev
+    dependsOn:
+      - default_ns
+      - merge_code
   - kind: buildImage2
     name: website_image
     dockerFile: /io/repo/website/Dockerfile

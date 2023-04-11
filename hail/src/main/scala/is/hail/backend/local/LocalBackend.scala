@@ -265,7 +265,6 @@ class LocalBackend(
       withExecuteContext(timer) { ctx =>
         val rg = ReferenceGenome.fromFASTAFile(ctx, name, fastaFile, indexFile,
           xContigs.asScala.toArray, yContigs.asScala.toArray, mtContigs.asScala.toArray, parInput.asScala.toArray)
-        addReference(rg)
         rg.toJSONString
       }
     }

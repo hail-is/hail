@@ -9,6 +9,7 @@ from shlex import quote as shq
 import uuid
 import re
 
+from hailtop import pip_version
 from hailtop.batch import Batch, ServiceBackend, LocalBackend
 from hailtop.batch.exceptions import BatchException
 from hailtop.batch.globals import arg_max
@@ -21,7 +22,7 @@ from hailtop.test_utils import skip_in_azure
 
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'ubuntu:20.04')
 PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.7-slim'
-HAIL_GENETICS_HAIL_IMAGE = os.environ.get('HAIL_GENETICS_HAIL_IMAGE')
+HAIL_GENETICS_HAIL_IMAGE = os.environ.get('HAIL_GENETICS_HAIL_IMAGE', f'hailgenetics/hail:{pip_version()}')
 
 
 class LocalTests(unittest.TestCase):
