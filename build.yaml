@@ -253,7 +253,7 @@ steps:
       - from: /repo/gear
         to: /io/repo/gear
     dependsOn:
-      - hail_ubuntu_image
+      - base_image
       - merge_code
   - kind: createDatabase
     name: test_database_instance
