@@ -854,7 +854,8 @@ curl -fsSL -m 5 $OTHER_IP
     assert "Connection timed out" in job_log['main'], str((job_log, b.debug_info()))
 
 
-def test_can_use_cloud_credentials(client: BatchClient):
+@skip_in_azure
+def test_hadoop_can_use_cloud_credentials(client: BatchClient):
     token = os.environ["HAIL_TOKEN"]
     remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
     bb = client.create_batch()
