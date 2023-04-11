@@ -19,9 +19,6 @@ import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
 
 package object services {
-  import io.netty.channel.unix.Errors  // must be inside package object to not conflict with is.hail.io
-  import io.netty.channel.unix.Errors.NativeIoException  // must be inside package object to not conflict with is.hail.io
-
   lazy val log: Logger = LogManager.getLogger("is.hail.services")
 
   val RETRYABLE_HTTP_STATUS_CODES: Set[Int] = {
@@ -62,11 +59,11 @@ package object services {
 
   val nettyRetryableErrorNumbers = Set(
     // these should match (where an equivalent exists) RETRYABLE_ERRNOS in hailtop/utils/utils.py
-    io.netty.channel.unix.Errors.ERRNO_EPIPE_NEGATIVE,
-    io.netty.channel.unix.Errors.ERRNO_ECONNRESET_NEGATIVE,
-    io.netty.channel.unix.Errors.ERROR_ECONNREFUSED_NEGATIVE,
-    io.netty.channel.unix.Errors.ERROR_ENETUNREACH_NEGATIVE,
-    io.netty.channel.unix.Errors.ERROR_EHOSTUNREACH_NEGATIVE
+    NettyProxy.Errors.ERRNO_EPIPE_NEGATIVE,
+    NettyProxy.Errors.ERRNO_ECONNRESET_NEGATIVE,
+    NettyProxy.Errors.ERROR_ECONNREFUSED_NEGATIVE,
+    NettyProxy.Errors.ERROR_ENETUNREACH_NEGATIVE,
+    NettyProxy.Errors.ERROR_EHOSTUNREACH_NEGATIVE
   )
 
   def isTransientError(_e: Throwable): Boolean = {
@@ -116,7 +113,7 @@ package object services {
         // is.hail.io.fs.FSSeekableInputStream.read(FS.scala:141)
         // ...
         e.getMessage.contains("Timeout on blocking read")
-      case e: NativeIoException =>
+      case e: NettyProxy.NativeIoException =>
         // NativeIoException is a subclass of IOException; therefore this case must appear before
         // the IOException case
         //
