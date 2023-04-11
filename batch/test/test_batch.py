@@ -15,21 +15,9 @@ from hailtop.test_utils import skip_in_azure
 from hailtop.utils import external_requests_client_session, retry_response_returning_functions, sync_sleep_and_backoff
 
 from .failure_injecting_client_session import FailureInjectingClientSession
-from .utils import legacy_batch_status, smallest_machine_type
+from .utils import DOCKER_ROOT_IMAGE, HAIL_GENETICS_HAIL_IMAGE, legacy_batch_status, smallest_machine_type
 
 deploy_config = get_deploy_config()
-
-DOCKER_PREFIX = os.environ['DOCKER_PREFIX']
-DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
-UBUNTU_IMAGE = 'ubuntu:20.04'
-
-
-DOMAIN = os.environ.get('HAIL_DOMAIN')
-NAMESPACE = os.environ.get('HAIL_DEFAULT_NAMESPACE')
-SCOPE = os.environ.get('HAIL_SCOPE', 'test')
-CLOUD = os.environ.get('HAIL_CLOUD')
-
-HAIL_GENETICS_HAIL_IMAGE = os.environ['HAIL_GENETICS_HAIL_IMAGE']
 
 
 @pytest.fixture
@@ -151,7 +139,7 @@ def test_invalid_resource_requests(client: BatchClient):
         bb.submit()
 
     bb = client.create_batch()
-    resources = {'storage': '10000000Gi', 'machine_type': smallest_machine_type(CLOUD)}
+    resources = {'storage': '10000000Gi', 'machine_type': smallest_machine_type()}
     bb.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     with pytest.raises(httpx.ClientResponseError, match='resource requests.*unsatisfiable'):
         bb.submit()
@@ -222,7 +210,7 @@ def test_quota_shared_by_io_and_rootfs(client: BatchClient):
 def test_nonzero_storage(client: BatchClient):
     bb = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '20Gi'}
-    j = bb.create_job(UBUNTU_IMAGE, ['/bin/sh', '-c', 'true'], resources=resources)
+    j = bb.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', 'true'], resources=resources)
     b = bb.submit()
     status = j.wait()
     assert status['state'] == 'Success', str((status, b.debug_info()))
@@ -232,7 +220,7 @@ def test_nonzero_storage(client: BatchClient):
 def test_attached_disk(client: BatchClient):
     bb = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '400Gi'}
-    j = bb.create_job(UBUNTU_IMAGE, ['/bin/sh', '-c', 'df -h; fallocate -l 390GiB /io/foo'], resources=resources)
+    j = bb.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', 'df -h; fallocate -l 390GiB /io/foo'], resources=resources)
     b = bb.submit()
     status = j.wait()
     assert status['state'] == 'Success', str((status, b.debug_info()))
@@ -359,6 +347,7 @@ def test_fail(client: BatchClient):
 
 def test_unknown_image(client: BatchClient):
     bb = client.create_batch()
+    DOCKER_PREFIX = os.environ['DOCKER_PREFIX']
     j = bb.create_job(f'{DOCKER_PREFIX}/does-not-exist', ['echo', 'test'])
     b = bb.submit()
     status = j.wait()
@@ -607,7 +596,8 @@ def test_cloud_image(client: BatchClient):
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
-def test_service_account(client: BatchClient):
+def test_k8s_service_account(client: BatchClient):
+    NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
     bb = client.create_batch()
     j = bb.create_job(
         os.environ['CI_UTILS_IMAGE'],
@@ -785,6 +775,9 @@ backend.close()
 
 
 def test_cant_submit_to_default_with_other_ns_creds(client: BatchClient):
+    DOMAIN = os.environ['HAIL_DOMAIN']
+    NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
+
     remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
     script = f'''import hailtop.batch as hb
 backend = hb.ServiceBackend("test", remote_tmpdir="{remote_tmpdir}")
@@ -862,7 +855,7 @@ curl -fsSL -m 5 $OTHER_IP
 
 
 @skip_in_azure
-def test_can_use_google_credentials(client: BatchClient):
+def test_hadoop_can_use_cloud_credentials(client: BatchClient):
     token = os.environ["HAIL_TOKEN"]
     remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
     bb = client.create_batch()
@@ -901,7 +894,7 @@ hl.read_table(location).show()
 def test_user_authentication_within_job(client: BatchClient):
     bb = client.create_batch()
     cmd = ['bash', '-c', 'hailctl auth user']
-    no_token = bb.create_job(os.environ['CI_UTILS_IMAGE'], cmd, mount_tokens=False)
+    no_token = bb.create_job(HAIL_GENETICS_HAILTOP_IMAGE, cmd, mount_tokens=False)
     b = bb.submit()
 
     no_token_status = no_token.wait()
@@ -1046,7 +1039,7 @@ def test_pool_standard_instance_cheapest(client: BatchClient):
 
 def test_job_private_instance_preemptible(client: BatchClient):
     bb = client.create_batch()
-    resources = {'machine_type': smallest_machine_type(CLOUD)}
+    resources = {'machine_type': smallest_machine_type()}
     j = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     b = bb.submit()
     status = j.wait()
@@ -1056,7 +1049,7 @@ def test_job_private_instance_preemptible(client: BatchClient):
 
 def test_job_private_instance_nonpreemptible(client: BatchClient):
     bb = client.create_batch()
-    resources = {'machine_type': smallest_machine_type(CLOUD), 'preemptible': False}
+    resources = {'machine_type': smallest_machine_type(), 'preemptible': False}
     j = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     b = bb.submit()
     status = j.wait()
@@ -1066,7 +1059,7 @@ def test_job_private_instance_nonpreemptible(client: BatchClient):
 
 def test_job_private_instance_cancel(client: BatchClient):
     bb = client.create_batch()
-    resources = {'machine_type': smallest_machine_type(CLOUD)}
+    resources = {'machine_type': smallest_machine_type()}
     j = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     b = bb.submit()
 
@@ -1321,6 +1314,8 @@ def test_submit_update_to_deleted_batch(client: BatchClient):
 
 
 def test_region(client: BatchClient):
+    CLOUD = os.environ['HAIL_CLOUD']
+
     bb = client.create_batch()
     if CLOUD == 'gcp':
         region = 'us-east1'

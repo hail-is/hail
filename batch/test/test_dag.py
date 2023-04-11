@@ -10,9 +10,7 @@ from hailtop.batch_client import aioclient
 from hailtop.batch_client.client import BatchClient, Job
 from hailtop.config import get_user_config
 
-from .utils import batch_status_job_counter, legacy_batch_status
-
-DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
+from .utils import DOCKER_ROOT_IMAGE, batch_status_job_counter, legacy_batch_status
 
 
 @pytest.fixture
