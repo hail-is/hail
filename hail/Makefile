@@ -19,6 +19,17 @@ HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 ELASTIC_MAJOR_VERSION ?= 7
 
+ifndef REVISION
+$(error "git rev-parse HEAD" failed to produce output)
+endif
+
+ifndef SHORT_REVISION
+$(error "git rev-parse --short=12 HEAD" failed to produce output)
+endif
+
+ifndef BRANCH
+$(error "git rev-parse --abbrev-ref HEAD" failed to produce output)
+endif
 
 $(eval $(call ENV_VAR,REVISION))
 $(eval $(call ENV_VAR,SHORT_REVISION))
