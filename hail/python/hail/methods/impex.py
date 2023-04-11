@@ -3173,7 +3173,7 @@ def import_csv(paths,
     - Pass the non-default missing value ``.``
 
     >>> table = hl.import_csv('data/samples2.csv', missing='.')
-    ... table.show()
+    >>> table.show()
     +----------+-----------+
     | Batch    | PT-ID     |
     +----------+-----------+
