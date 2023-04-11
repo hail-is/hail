@@ -17,6 +17,7 @@ import java.io._
 import com.google.cloud.storage.StorageException
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
+import io.netty.channel.unix.Errors.NativeIoException
 
 package object services {
   lazy val log: Logger = LogManager.getLogger("is.hail.services")
@@ -55,6 +56,16 @@ package object services {
         false
     }
   }
+
+
+  val nettyRetryableErrorNumbers = Set(
+    // these should match (where an equivalent exists) RETRYABLE_ERRNOS in hailtop/utils/utils.py
+    ERRNO_EPIPE_NEGATIVE,
+    ERRNO_ECONNRESET_NEGATIVE,
+    ERROR_ECONNREFUSED_NEGATIVE,
+    ERROR_ENETUNREACH_NEGATIVE,
+    ERROR_EHOSTUNREACH_NEGATIVE
+  )
 
   def isTransientError(_e: Throwable): Boolean = {
     // ReactiveException is package private inside reactore.core.Exception so we cannot access
@@ -103,6 +114,17 @@ package object services {
         // is.hail.io.fs.FSSeekableInputStream.read(FS.scala:141)
         // ...
         e.getMessage.contains("Timeout on blocking read")
+      case e: NativeIoException =>
+        // NativeIoException is a subclass of IOException; therefore this case must appear before
+        // the IOException case
+        //
+        // expectedErr appears to be the additive inverse of the errno returned by Linux?
+        //
+        // https://github.com/netty/netty/blob/24a0ac36ea91d1aee647d738f879ac873892d829/transport-native-unix-common/src/main/java/io/netty/channel/unix/Errors.java#L49
+        (nettyRetryableErrorNumbers.contains(e.expectedErr) ||
+          // io.netty.channel.unix.Errors$NativeIoException: readAddress(..) failed: Connection reset by peer
+          e.getMessage.contains("Connection reset by peer")
+        )
       case e @ (_: SSLException | _: StorageException | _: IOException) =>
         val cause = e.getCause
         cause != null && isTransientError(cause)
