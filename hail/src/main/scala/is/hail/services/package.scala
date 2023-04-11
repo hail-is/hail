@@ -17,10 +17,11 @@ import java.io._
 import com.google.cloud.storage.StorageException
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
-import io.netty.channel.unix.Errors
-import io.netty.channel.unix.Errors.NativeIoException
 
 package object services {
+  import io.netty.channel.unix.Errors  // must be inside package object to not conflict with is.hail.io
+  import io.netty.channel.unix.Errors.NativeIoException  // must be inside package object to not conflict with is.hail.io
+
   lazy val log: Logger = LogManager.getLogger("is.hail.services")
 
   val RETRYABLE_HTTP_STATUS_CODES: Set[Int] = {
