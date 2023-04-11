@@ -47,5 +47,5 @@ def register_main(subparser) -> 'None':
     parser.add_argument('runs', nargs='*', help='benchmarks to compare against baseline')
     parser.add_argument('--metric', choices=['mean','median','stdev','max_memory'], default='mean')
     parser.add_argument('--head', type=int, help="number of most significant results to take")
-    parser.add_argument('--raw', action='store_true', help="do not compute difference from mean")
+    parser.add_argument('--raw', action='store_true', help="do not normalize results")
     parser.set_defaults(main=main)
