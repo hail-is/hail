@@ -26,6 +26,7 @@ import botocore.exceptions
 import time
 from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
+from ..aiotools.fs.exceptions import UnexpectedEOFError
 
 from .time import time_msecs
 
@@ -703,6 +704,8 @@ def is_transient_error(e):
         if e.status == 500 and 'not found or deleted' in e.message:
             return False
         return e.status in RETRYABLE_HTTP_STATUS_CODES
+    if isinstance(e, UnexpectedEOFError):
+        return is_transient_error(e.__cause__)
     if isinstance(e, TransientError):
         return True
     return False
