@@ -582,6 +582,10 @@ class VCFTests(unittest.TestCase):
 
         assert hl.import_vcf(nf)._same(mt)
 
+        manifest_files = [line.strip() for line in fs.open(os.path.join(f, 'shard-manifest.txt'))]
+        assert hl.import_vcf(manifest_files[1:], header_file=manifest_files[0])._same(mt)
+        assert [p.split('/')[-1] for p in shard_paths] == [p.split('/')[-1] for p in manifest_files]
+
     def test_custom_rg_import(self):
         rg = hl.ReferenceGenome.read(resource('deid_ref_genome.json'))
         mt = hl.import_vcf(resource('custom_rg.vcf'), reference_genome=rg)
@@ -1486,6 +1490,15 @@ class BGENTests(unittest.TestCase):
                                    entry_fields=['GP'],
                                    sample_file=tmp + '.sample')
             assert bgen._same(bgen2)
+
+            fs = hl.current_backend().fs
+
+            with fs.open(f'{tmp}.bgen/shard-manifest.txt') as lines:
+                manifest_files = [line.strip() for line in lines]
+            bgen3 = hl.import_bgen(manifest_files,
+                                   entry_fields=['GP'],
+                                   sample_file=tmp + '.sample')
+            assert bgen._same(bgen3)
 
     def test_export_bgen_from_vcf(self):
         mt = hl.import_vcf(resource('sample.vcf'))
