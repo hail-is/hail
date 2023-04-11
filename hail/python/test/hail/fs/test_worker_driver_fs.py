@@ -2,6 +2,8 @@ import hail as hl
 from hailtop.utils import secret_alnum_string
 from hailtop.test_utils import skip_in_azure
 
+from ..helpers import fails_local_backend, fails_service_backend
+
 
 @skip_in_azure
 def test_requester_pays_no_settings():
@@ -23,6 +25,19 @@ def test_requester_pays_write_no_settings():
     else:
         hl.current_backend().fs.rmtree(random_filename)
         assert False
+
+
+@skip_in_azure
+@fails_local_backend()
+@fails_service_backend()
+def test_requester_pays_write_with_project():
+    hl.stop()
+    hl.init(gcs_requester_pays_configuration='hail-vdc')
+    random_filename = 'gs://hail-services-requester-pays/test_requester_pays_on_worker_driver_' + secret_alnum_string(10)
+    try:
+        hl.utils.range_table(4, n_partitions=4).write(random_filename, overwrite=True)
+    finally:
+        hl.current_backend().fs.rmtree(random_filename)
 
 
 @skip_in_azure

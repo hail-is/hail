@@ -46,7 +46,9 @@ class ServiceBackendContext(
   val remoteTmpDir: String,
   val workerCores: String,
   val workerMemory: String,
-  val regions: Array[String]
+  val storageRequirement: String,
+  val regions: Array[String],
+  val cloudfuseConfig: Array[(String, String, Boolean)]
 ) extends BackendContext with Serializable {
   def tokens(): Tokens =
     new Tokens(Map((DeployConfig.get.defaultNamespace, sessionID)))
@@ -158,6 +160,9 @@ class ServiceBackend(
       if (backendContext.workerMemory != "None") {
         resources = resources.merge(JObject(("memory" -> JString(backendContext.workerMemory))))
       }
+      if (backendContext.storageRequirement != "0Gi") {
+        resources = resources.merge(JObject(("storage" -> JString(backendContext.storageRequirement))))
+      }
       jobs(i) = JObject(
         "always_run" -> JBool(false),
         "job_id" -> JInt(i + 1),
@@ -178,7 +183,14 @@ class ServiceBackend(
         ),
         "mount_tokens" -> JBool(true),
         "resources" -> resources,
-        "regions" -> JArray(backendContext.regions.map(JString).toList)
+        "regions" -> JArray(backendContext.regions.map(JString).toList),
+        "cloudfuse" -> JArray(backendContext.cloudfuseConfig.map{ case (bucket, mountPoint, readonly) =>
+          JObject(
+            "bucket" -> JString(bucket),
+            "mount_path" -> JString(mountPoint),
+            "read_only" -> JBool(readonly)
+          )
+        }.toList)
       )
       i += 1
     }
@@ -385,6 +397,20 @@ class ServiceBackend(
   ): TableStage = {
     LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
   }
+
+  def fromFASTAFile(
+    ctx: ExecuteContext,
+    name: String,
+    fastaFile: String,
+    indexFile: String,
+    xContigs: Array[String],
+    yContigs: Array[String],
+    mtContigs: Array[String],
+    parInput: Array[String]
+  ): String = {
+    val rg = ReferenceGenome.fromFASTAFile(ctx, name, fastaFile, indexFile, xContigs, yContigs, mtContigs, parInput)
+    rg.toJSONString
+  }
 }
 
 class EndOfInputException extends RuntimeException
@@ -453,8 +479,11 @@ class ServiceBackendSocketAPI2(
   private[this] val EXECUTE = 6
   private[this] val PARSE_VCF_METADATA = 7
   private[this] val IMPORT_FAM = 8
+  private[this] val FROM_FASTA_FILE = 9
 
   private[this] val dummy = new Array[Byte](8)
+
+  private[this] val log = Logger.getLogger(getClass.getName())
 
   def read(bytes: Array[Byte], off: Int, n: Int): Unit = {
     assert(off + n <= bytes.length)
@@ -492,6 +521,17 @@ class ServiceBackendSocketAPI2(
   }
 
   def readString(): String = new String(readBytes(), StandardCharsets.UTF_8)
+
+  def readStringArray(): Array[String] = {
+    val n = readInt()
+    val arr = new Array[String](n)
+    var i = 0
+    while (i < n) {
+      arr(i) = readString()
+      i += 1
+    }
+    arr
+  }
 
   def writeBool(b: Boolean): Unit = {
     out.write(if (b) 1 else 0)
@@ -545,6 +585,16 @@ class ServiceBackendSocketAPI2(
       }
       i += 1
     }
+    val nAddedSequences = readInt()
+    val addedSequences = mutable.Map[String, (String, String)]()
+    i = 0
+    while (i < nAddedSequences) {
+      val rgName = readString()
+      val fastaFile = readString()
+      val indexFile = readString()
+      addedSequences(rgName) = (fastaFile, indexFile)
+      i += 1
+    }
     val workerCores = readString()
     val workerMemory = readString()
 
@@ -558,6 +608,19 @@ class ServiceBackendSocketAPI2(
       }
       regionsArrayBuffer.toArray
     }
+
+    val storageRequirement = readString()
+    val nCloudfuseConfigElements = readInt()
+    val cloudfuseConfig = new Array[(String, String, Boolean)](nCloudfuseConfigElements)
+    i = 0
+    while (i < nCloudfuseConfigElements) {
+      val bucket = readString()
+      val mountPoint = readString()
+      val readonly = readBool()
+      cloudfuseConfig(i) = (bucket, mountPoint, readonly)
+      i += 1
+    }
+
 
     val cmd = readInt()
 
@@ -584,7 +647,10 @@ class ServiceBackendSocketAPI2(
             ctx.getReference(sourceGenome).addLiftover(ctx, chainFile, destGenome)
           }
         }
-        ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir, workerCores, workerMemory, regions)
+        addedSequences.foreach { case (rg, (fastaFile, indexFile)) =>
+          ctx.getReference(rg).addSequence(ctx, fastaFile, indexFile)
+        }
+        ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir, workerCores, workerMemory, storageRequirement, regions, cloudfuseConfig)
         method(ctx)
       }
     }
@@ -647,6 +713,27 @@ class ServiceBackendSocketAPI2(
           withExecuteContext(
             "ServiceBackend.importFam",
             backend.importFam(_, path, quantPheno, delimiter, missing).getBytes(StandardCharsets.UTF_8)
+          )
+        case FROM_FASTA_FILE =>
+          val name = readString()
+          val fastaFile = readString()
+          val indexFile = readString()
+          val xContigs = readStringArray()
+          val yContigs = readStringArray()
+          val mtContigs = readStringArray()
+          val parInput = readStringArray()
+          withExecuteContext(
+            "ServiceBackend.fromFASTAFile",
+            backend.fromFASTAFile(
+              _,
+              name,
+              fastaFile,
+              indexFile,
+              xContigs,
+              yContigs,
+              mtContigs,
+              parInput
+            ).getBytes(StandardCharsets.UTF_8)
           )
       }
       writeBool(true)

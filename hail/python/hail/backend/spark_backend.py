@@ -1,3 +1,4 @@
+from typing import Set
 import pkg_resources
 import sys
 import os
@@ -194,6 +195,7 @@ class SparkBackend(Py4JBackend):
             self.sc = pyspark.SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
         self._jspark_session = self._jbackend.sparkSession()
         self._spark_session = pyspark.sql.SparkSession(self.sc, self._jspark_session)
+        self._registered_ir_function_names: Set[str] = set()
 
         # This has to go after creating the SparkSession. Unclear why.
         # Maybe it does its own patch?
@@ -238,6 +240,7 @@ class SparkBackend(Py4JBackend):
         self._jhc = None
         self.sc.stop()
         self.sc = None
+        self._registered_ir_function_names = set()
         uninstall_exception_handler()
 
     @property
@@ -267,6 +270,7 @@ class SparkBackend(Py4JBackend):
         assert not body._ir.uses_randomness
         code = r(body._ir)
         jbody = (self._parse_value_ir(code, ref_map=dict(zip(argument_names, argument_types)), ir_map=r.jirs))
+        self._registered_ir_function_names.add(name)
 
         self.hail_package().expr.ir.functions.IRFunctionRegistry.pyRegisterIR(
             name,
@@ -274,6 +278,9 @@ class SparkBackend(Py4JBackend):
             argument_names, [pt._parsable_string() for pt in argument_types],
             return_type._parsable_string(),
             jbody)
+
+    def _is_registered_ir_function_name(self, name: str) -> bool:
+        return name in self._registered_ir_function_names
 
     def read_multiple_matrix_tables(self, paths: 'List[str]', intervals: 'List[hl.Interval]', intervals_type):
         json_repr = {

@@ -925,8 +925,6 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
                 raise web.HTTPBadRequest(reason='invalid cpu for jvm jobs. must be 1, 2, 4, or 8')
             if 'memory' in resources and resources['memory'] == 'lowmem':
                 raise web.HTTPBadRequest(reason='jvm jobs cannot be on lowmem machines')
-            if 'storage' in resources:
-                raise web.HTTPBadRequest(reason='jvm jobs may not specify storage')
             if machine_type is not None:
                 raise web.HTTPBadRequest(reason='jvm jobs may not specify machine_type')
             if spec['process']['jar_spec']['type'] == 'git_revision':
