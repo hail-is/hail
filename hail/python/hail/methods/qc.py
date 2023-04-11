@@ -675,7 +675,9 @@ class VEPConfig:
         self.cloud = cloud
 
 
-vep_85_grch37_command = '''
+def vep_85_grch37_run_cmd(run_typ: str) -> str:
+    return f'''
+cat >> run_vep.sh <<EOF
 #!/bin/bash
 
 if [ $VEP_CONSEQUENCE -ne 0 ]
@@ -686,9 +688,9 @@ else
 fi
 
 export VEP_COMMAND=/vep/vep \
-${VEP_INPUT_FILE:+--input_file $VEP_INPUT_FILE} \
+${{VEP_INPUT_FILE:+--input_file $VEP_INPUT_FILE}} \
 --format vcf \
-${vcf_or_json} \
+${{vcf_or_json}} \
 --everything \
 --allele_number \
 --no_stats \
@@ -696,15 +698,20 @@ ${vcf_or_json} \
 --offline \
 --minimal \
 --assembly GRCh37 \
---dir=${VEP_DATA_DIR} \
---plugin LoF,human_ancestor_fa:${VEP_DATA_DIR}/loftee_data/human_ancestor.fa.gz,filter_position:0.05,min_intron_size:15,conservation_file:${VEP_DATA_DIR}/loftee_data/phylocsf_gerp.sql,gerp_file:${VEP_DATA_DIR}/loftee_data/GERP_scores.final.sorted.txt.gz \
+--dir=${{VEP_DATA_DIR}} \
+--plugin LoF,human_ancestor_fa:${{VEP_DATA_DIR}}/loftee_data/human_ancestor.fa.gz,filter_position:0.05,min_intron_size:15,conservation_file:${{VEP_DATA_DIR}}/loftee_data/phylocsf_gerp.sql,gerp_file:${{VEP_DATA_DIR}}/loftee_data/GERP_scores.final.sorted.txt.gz \
 -o STDOUT
 
-exec vep.py "$@"
+exec /vep.py "$@"
+EOF
+
+sh run_vep.sh {run_typ}
 '''
 
 
-vep_95_grch38_command = '''
+def vep_95_grch38_run_cmd(run_typ: str) -> str:
+    return f'''
+cat >> run_vep.sh <<EOF
 #!/bin/bash
 
 if [ $VEP_CONSEQUENCE -ne 0 ]
@@ -715,9 +722,9 @@ else
 fi
 
 export VEP_COMMAND=/vep/vep \
-${VEP_INPUT_FILE:+--input_file $VEP_INPUT_FILE} \
+${{VEP_INPUT_FILE:+--input_file $VEP_INPUT_FILE}} \
 --format vcf \
-${vcf_or_json} \
+${{if ($VEP_CONSEQUENCE -ne 0);then --vcf;--json;fi}} \
 --everything \
 --allele_number \
 --no_stats \
@@ -725,14 +732,18 @@ ${vcf_or_json} \
 --offline \
 --minimal \
 --assembly GRCh38 \
---fasta ${VEP_DATA_MOUNT}/homo_sapiens/95_GRCh38/Homo_sapiens.GRCh38.dna.toplevel.fa.gz \
---plugin "LoF,loftee_path:/vep/ensembl-vep/Plugins/,gerp_bigwig:${VEP_DATA_MOUNT}/gerp_conservation_scores.homo_sapiens.GRCh38.bw,human_ancestor_fa:${VEP_DATA_MOUNT}/human_ancestor.fa.gz,conservation_file:${VEP_DATA_MOUNT}/loftee.sql" \
+--fasta ${{VEP_DATA_MOUNT}}/homo_sapiens/95_GRCh38/Homo_sapiens.GRCh38.dna.toplevel.fa.gz \
+--plugin "LoF,loftee_path:/vep/ensembl-vep/Plugins/,gerp_bigwig:${{VEP_DATA_MOUNT}}/gerp_conservation_scores.homo_sapiens.GRCh38.bw,human_ancestor_fa:${{VEP_DATA_MOUNT}}/human_ancestor.fa.gz,conservation_file:${{VEP_DATA_MOUNT}}/loftee.sql" \
 --dir_plugins /vep/ensembl-vep/Plugins/ \
---dir_cache ${VEP_DATA_MOUNT} \
+--dir_cache ${{VEP_DATA_MOUNT}} \
 -o STDOUT
 
-exec vep.py "$@"
+exec /vep.py "$@"
+EOF
+
+sh run_vep.sh {run_typ}
 '''
+
 
 supported_vep_configs = {
     ('GRCh37', 'gcp', 'us-central1', 'hail.is'): VEPConfig(
@@ -742,8 +753,8 @@ supported_vep_configs = {
         '/vep_data/',
         {},
         VEPConfig.default_vep_json_typ,
-        ["/bin/bash", "-c", vep_85_grch37_command, "vep"],
-        ["python3", "/hail-vep/run_vep_grch37.py", "csq_header"],
+        ["/bin/bash", "-c", vep_85_grch37_run_cmd('vep')],
+        ["/bin/bash", "-c", vep_85_grch37_run_cmd('csq_header')],
         True,
         'gcp',
     ),
@@ -759,8 +770,8 @@ supported_vep_configs = {
                 tsl=hl.tint32,
             )
         )),
-        ["python3", "/hail-vep/run_vep_grch38.py", "vep"],
-        ["python3", "/hail-vep/run_vep_grch38.py", "csq_header"],
+        ["/bin/bash", "-c", vep_95_grch38_run_cmd('vep')],
+        ["/bin/bash", "-c", vep_95_grch38_run_cmd('csq_header')],
         True,
         'gcp',
     ),
