@@ -405,7 +405,7 @@ object Nirvana {
     val localRowType = tv.rvd.rowPType
     val localBlockSize = blockSize
 
-    val rowKeyOrd = tv.typ.keyType.ordering
+    val rowKeyOrd = tv.typ.keyType.ordering(ctx.stateManager)
 
     info("Running Nirvana")
 
@@ -459,8 +459,8 @@ object Nirvana {
     val nirvanaRVD: RVD = RVD(
       nirvanaRVDType,
       prev.partitioner,
-      ContextRDD.weaken(annotations).cmapPartitions { (ctx, it) =>
-        val rvb = new RegionValueBuilder(ctx.region)
+      ContextRDD.weaken(annotations).cmapPartitions { (rvdContext, it) =>
+        val rvb = new RegionValueBuilder(ctx.stateManager, rvdContext.region)
 
         it.map { case (v, nirvana) =>
           rvb.start(nirvanaRowType)

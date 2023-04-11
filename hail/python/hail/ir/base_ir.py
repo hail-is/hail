@@ -1,6 +1,6 @@
 import abc
 
-from hail.expr.types import tstream, tstruct
+from hail.expr.types import tstream
 from hail.utils.java import Env
 from .renderer import Renderer, PlainRenderer, Renderable
 
@@ -346,7 +346,6 @@ class IR(BaseIR):
         if (create_uids == self.has_uids) and not self.needs_randomness_handling:
             return self
         new = self._handle_randomness(create_uids)
-        assert(isinstance(self.typ.element_type, tstruct) == isinstance(new.typ.element_type, tstruct))
         new.has_uids = create_uids
         new.needs_randomness_handling = False
         return new

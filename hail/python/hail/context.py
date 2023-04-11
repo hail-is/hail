@@ -75,8 +75,7 @@ class HailContext(object):
                          local_tmpdir=local_tmpdir,
                          global_seed=global_seed,
                          backend=backend)
-        references = backend.get_references(BUILTIN_REFERENCES)
-        hc.initialize_references(references, default_reference)
+        hc.initialize_references(default_reference)
         return hc
 
     @typecheck_method(log=str,
@@ -125,12 +124,11 @@ class HailContext(object):
             backend.set_flags(rng_nonce=hex(global_seed))
         Env._hc = self
 
-    def initialize_references(self, references, default_reference):
-        for ref in references:
-            ReferenceGenome._from_config(ref, True)
-
-        if default_reference in ReferenceGenome._references:
-            self._default_ref = ReferenceGenome._references[default_reference]
+    def initialize_references(self, default_reference):
+        assert self._backend
+        self._backend.initialize_references()
+        if default_reference in BUILTIN_REFERENCES:
+            self._default_ref = self._backend.get_reference(default_reference)
         else:
             self._default_ref = ReferenceGenome.read(default_reference)
 
@@ -146,7 +144,6 @@ class HailContext(object):
         Env._dummy_table = None
         Env._seed_generator = None
         hail.ir.clear_session_functions()
-        ReferenceGenome._references = {}
 
 
 @typecheck(sc=nullable(SparkContext),
@@ -171,7 +168,8 @@ class HailContext(object):
            driver_memory=nullable(str),
            worker_cores=nullable(oneof(str, int)),
            worker_memory=nullable(str),
-           gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))))
+           gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))),
+           regions=nullable(sequenceof(str)))
 def init(sc=None,
          app_name=None,
          master=None,
@@ -195,7 +193,8 @@ def init(sc=None,
          driver_memory=None,
          worker_cores=None,
          worker_memory=None,
-         gcs_requester_pays_configuration: Optional[Union[str, Tuple[str, List[str]]]] = None):
+         gcs_requester_pays_configuration: Optional[Union[str, Tuple[str, List[str]]]] = None,
+         regions: Optional[List[str]] = None):
     """Initialize and configure Hail.
 
     This function will be called with default arguments if any Hail functionality is used. If you
@@ -304,7 +303,10 @@ def init(sc=None,
         project identified by that string. If a tuple is provided, configure the Google Cloud
         Storage file system to bill usage to the specified project for buckets specified in the
         list. See examples above.
-
+    regions : :obj:`list` of :class:`str`, optional
+        List of regions to run jobs in when using the Batch backend. Use :data:`.ANY_REGION` to specify any region is allowed
+        or use `None` to use the underlying default regions from the hailctl environment configuration. For example, use
+        `hailctl config set batch/regions region1,region2` to set the default regions to use.
     """
     if Env._hc:
         if idempotent:
@@ -339,7 +341,8 @@ def init(sc=None,
             worker_cores=worker_cores,
             worker_memory=worker_memory,
             name_prefix=app_name,
-            gcs_requester_pays_configuration=gcs_requester_pays_configuration
+            gcs_requester_pays_configuration=gcs_requester_pays_configuration,
+            regions=regions
         ))
     if backend == 'spark':
         return init_spark(
@@ -412,7 +415,7 @@ def init_spark(sc=None,
                _optimizer_iterations=None,
                gcs_requester_pays_configuration: Optional[Union[str, Tuple[str, List[str]]]] = None
                ):
-    from hail.backend.spark_backend import SparkBackend
+    from hail.backend.spark_backend import SparkBackend, connect_logger
 
     log = _get_log(log)
     tmpdir = _get_tmpdir(tmp_dir)
@@ -434,6 +437,8 @@ def init_spark(sc=None,
     HailContext.create(
         log, quiet, append, tmpdir, local_tmpdir, default_reference,
         global_seed, backend)
+    if not quiet:
+        connect_logger(backend._utils_package_object, 'localhost', 12888)
 
 
 @typecheck(
@@ -454,7 +459,8 @@ def init_spark(sc=None,
     worker_memory=nullable(str),
     name_prefix=nullable(str),
     token=nullable(str),
-    gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str))))
+    gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))),
+    regions=nullable(sequenceof(str))
 )
 async def init_batch(
         *,
@@ -475,7 +481,8 @@ async def init_batch(
         worker_memory: Optional[str] = None,
         name_prefix: Optional[str] = None,
         token: Optional[str] = None,
-        gcs_requester_pays_configuration: Optional[Union[str, Tuple[str, List[str]]]] = None
+        gcs_requester_pays_configuration: Optional[Union[str, Tuple[str, List[str]]]] = None,
+        regions: Optional[List[str]] = None,
 ):
     from hail.backend.service_backend import ServiceBackend
     # FIXME: pass local_tmpdir and use on worker and driver
@@ -488,7 +495,8 @@ async def init_batch(
                                           worker_cores=worker_cores,
                                           worker_memory=worker_memory,
                                           name_prefix=name_prefix,
-                                          token=token)
+                                          token=token,
+                                          regions=regions)
 
     if gcs_requester_pays_configuration:
         if isinstance(gcs_requester_pays_configuration, str):
@@ -536,7 +544,7 @@ def init_local(
         _optimizer_iterations=None,
         gcs_requester_pays_configuration: Optional[Union[str, Tuple[str, List[str]]]] = None
 ):
-    from hail.backend.local_backend import LocalBackend
+    from hail.backend.local_backend import LocalBackend, connect_logger
 
     log = _get_log(log)
     tmpdir = _get_tmpdir(tmpdir)
@@ -556,6 +564,8 @@ def init_local(
     HailContext.create(
         log, quiet, append, tmpdir, tmpdir, default_reference,
         global_seed, backend)
+    if not quiet:
+        connect_logger(backend._utils_package_object, 'localhost', 12888)
 
 
 def version() -> str:
@@ -657,7 +667,10 @@ class _TemporaryFilenameManager:
         return self.name
 
     def __exit__(self, type, value, traceback):
-        return self.fs.remove(self.name)
+        try:
+            return self.fs.remove(self.name)
+        except FileNotFoundError:
+            pass
 
 
 def TemporaryFilename(*,
@@ -800,7 +813,7 @@ def get_reference(name) -> ReferenceGenome:
     if name == 'default':
         return default_reference()
     else:
-        return ReferenceGenome._references[name]
+        return Env.backend().get_reference(name)
 
 
 @typecheck(seed=int)

@@ -59,11 +59,6 @@ object RelationalSpec {
     val jv = readMetadata(fs, path)
     val references = readReferences(fs, path, jv)
 
-    references.foreach { rg =>
-      if (!ReferenceGenome.hasReference(rg.name))
-        ReferenceGenome.addReference(rg)
-    }
-
     (jv \ "name").extract[String] match {
       case "TableSpec" => TableSpec.fromJValue(fs, path, jv)
       case "MatrixTableSpec" => MatrixTableSpec.fromJValue(fs, path, jv)

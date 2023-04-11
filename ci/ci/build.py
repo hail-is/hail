@@ -694,6 +694,15 @@ metadata:
   name: admin
   namespace: {self._name}
 ---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/service-account-token
+metadata:
+  name: admin-token
+  namespace: {self._name}
+  annotations:
+    kubernetes.io/service-account.name: admin
+---
 kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:

@@ -27,7 +27,7 @@ from .table_ir import (MatrixRowsTable, TableJoin, TableLeftJoinRightDistinct, T
                        TableParallelize, TableHead, TableTail, TableOrderBy, TableDistinct, RepartitionStrategy,
                        TableRepartition, CastMatrixToTable, TableRename, TableMultiWayZipJoin, TableFilterIntervals,
                        TableToTableApply, MatrixToTableApply, BlockMatrixToTableApply, BlockMatrixToTable, JavaTable,
-                       TableMapPartitions, TableGenomicRange)
+                       TableMapPartitions, TableGen, Partitioner)
 from .matrix_ir import MatrixAggregateRowsByKey, MatrixRead, MatrixFilterRows, \
     MatrixChooseCols, MatrixMapCols, MatrixUnionCols, MatrixMapEntries, \
     MatrixFilterEntries, MatrixKeyRowsBy, MatrixMapRows, MatrixMapGlobals, \
@@ -284,7 +284,6 @@ __all__ = [
     'TableKeyBy',
     'TableMapRows',
     'TableMapPartitions',
-    'TableGenomicRange',
     'TableRead',
     'MatrixEntriesTable',
     'TableFilter',
@@ -319,4 +318,6 @@ __all__ = [
     'TableNativeFanoutWriter',
     'ReadPartition',
     'PartitionNativeIntervalReader',
+    'TableGen',
+    'Partitioner'
 ]

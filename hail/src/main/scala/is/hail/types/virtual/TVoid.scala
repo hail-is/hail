@@ -1,6 +1,8 @@
 package is.hail.types.virtual
 
-import is.hail.annotations.ExtendedOrdering
+import is.hail.annotations.{Annotation, ExtendedOrdering}
+import is.hail.backend.HailStateManager
+import is.hail.check.Gen
 import is.hail.types.physical.PVoid
 
 case object TVoid extends Type {
@@ -10,7 +12,9 @@ case object TVoid extends Type {
     sb.append("void")
   }
 
-  def mkOrdering(missingEqual: Boolean): ExtendedOrdering = null
+  def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = ???
+
+  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering = null
 
   override def scalaClassTag: scala.reflect.ClassTag[_ <: AnyRef] = throw new UnsupportedOperationException("No ClassTag for Void")
 

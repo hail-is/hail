@@ -1,11 +1,10 @@
 package is.hail.expr.ir
 
-import is.hail.HailContext
 import is.hail.backend.ExecuteContext
-import is.hail.types.virtual._
 import is.hail.io.bgen.MatrixBGENReader
-import is.hail.rvd.{PartitionBoundOrdering, RVDPartitionInfo}
+import is.hail.rvd.PartitionBoundOrdering
 import is.hail.types.tcoerce
+import is.hail.types.virtual._
 import is.hail.utils._
 
 object Simplify {
@@ -63,7 +62,8 @@ object Simplify {
     )(bmir)
   }
 
-  private[this] def rewriteValueNode: IR => Option[IR] = valueRules.lift
+  private[this] def rewriteValueNode(ir: IR): Option[IR] =
+    valueRules.lift(ir).orElse(numericRules(ir))
 
   private[this] def rewriteTableNode(ctx: ExecuteContext, allowRepartitioning: Boolean)(tir: TableIR): Option[TableIR] =
     tableRules(ctx, allowRepartitioning && isDeterministicallyRepartitionable(tir)).lift(tir)
@@ -146,6 +146,106 @@ object Simplify {
     }
   }
 
+  private def numericRules: IR => Option[IR] = {
+
+    def integralBinaryIdentities(pure: Int => IR) = (ir: IR) => ir match {
+      case ApplyBinaryPrimOp(op, x, y) if ir.typ.isInstanceOf[TIntegral] =>
+        op match {
+          case Add() =>
+            if (x == y) Some(ApplyBinaryPrimOp(Multiply(), pure(2), x))
+            else None
+
+          case Subtract() =>
+            if (x == y) Some(pure(0))
+            else None
+
+          case Multiply() =>
+            if (x == pure(0) || y == pure(0)) Some(pure(0))
+            else None
+
+          case RoundToNegInfDivide() =>
+            if (x == y) Some(pure(1))
+            else if (x == pure(0)) Some(pure(0))
+            else if (y == pure(0)) Some(Die("division by zero", ir.typ))
+            else None
+
+          case _: LeftShift | _:RightShift | _: LogicalRightShift  =>
+            if (x == pure(0)) Some(pure(0))
+            else if (y == I32(0)) Some(x)
+            else None
+
+          case BitAnd() =>
+            if (x == pure(0) || y == pure(0)) Some(pure(0))
+            else if (x == pure(-1)) Some(y)
+            else if (y == pure(-1)) Some(x)
+            else None
+
+          case BitOr() =>
+            if (x == pure(-1) || y == pure(-1)) Some(pure(-1))
+            else if (x == pure(0)) Some(y)
+            else if (y == pure(0)) Some(x)
+            else None
+
+          case BitXOr() =>
+            if (x == y) Some(pure(0))
+            else if (x == pure(0)) Some(y)
+            else if (y == pure(0)) Some(x)
+            else None
+
+          case _ =>
+            None
+        }
+      case _ =>
+        None
+    }
+
+    def hoistUnaryOp = (ir: IR) => ir match {
+      case ApplyUnaryPrimOp(f@(_: Negate | _: BitNot | _: Bang), x) => x match {
+        case ApplyUnaryPrimOp(g, y) if g == f => Some(y)
+        case _ => None
+      }
+      case _ => None
+    }
+
+    def commonBinaryIdentities(pure: Int => IR) = (ir: IR) => ir match {
+      case ApplyBinaryPrimOp(f, x, y) =>
+        f match {
+          case Add() =>
+            if (x == pure(0)) Some(y)
+            else if (y == pure(0)) Some(x)
+            else None
+
+          case Subtract() =>
+            if (x == pure(0)) Some(ApplyUnaryPrimOp(Negate(), y))
+            else if (y == pure(0)) Some(x)
+            else None
+
+          case Multiply() =>
+            if (x == pure(1)) Some(y)
+            else if (x == pure(-1)) Some(ApplyUnaryPrimOp(Negate(), y))
+            else if (y == pure(1)) Some(x)
+            else if (y == pure(-1)) Some(ApplyUnaryPrimOp(Negate(), x))
+            else None
+
+          case RoundToNegInfDivide() =>
+            if (y == pure(1)) Some(x)
+            else if (y == pure(-1)) Some(ApplyUnaryPrimOp(Negate(), x))
+            else None
+
+          case _ =>
+            None
+        }
+      case _ =>
+        None
+    }
+
+    Array(
+      hoistUnaryOp,
+      (ir: IR) => integralBinaryIdentities(Literal.coerce(ir.typ, _))(ir),
+      (ir: IR) => commonBinaryIdentities(Literal.coerce(ir.typ, _))(ir),
+    ).reduce((f, g) => ir => f(ir).orElse(g(ir)))
+  }
+
   private[this] def valueRules: PartialFunction[IR, IR] = {
     // propagate NA
     case x: IR if hasMissingStrictChild(x) =>
@@ -199,11 +299,6 @@ object Simplify {
     case CastRename(x, t) if x.typ == t => x
     case CastRename(CastRename(x, _), t) => CastRename(x, t)
 
-    case ApplyBinaryPrimOp(Add(), I32(0), x) => x
-    case ApplyBinaryPrimOp(Add(), x, I32(0)) => x
-    case ApplyBinaryPrimOp(Subtract(), I32(0), x) => x
-    case ApplyBinaryPrimOp(Subtract(), x, I32(0)) => x
-
     case ApplyIR("indexArray", _, Seq(a, i@I32(v)), errorID) if v >= 0 =>
       ArrayRef(a, i, errorID)
 
@@ -237,7 +332,7 @@ object Simplify {
     case ArraySlice(z@ToArray(s), x@I32(i), Some(I32(j)), I32(1), _) if i > 0 && j > 0 => {
       if (j > i) {
         ToArray(StreamTake(StreamDrop(s, x), I32(j-i)))
-      } else new MakeArray(Seq(), z.typ.asInstanceOf[TArray])
+      } else new MakeArray(FastIndexedSeq(), z.typ.asInstanceOf[TArray])
     }
 
     case ArraySlice(ToArray(s), x@I32(i), None, I32(1), _) if i >= 0 =>
@@ -434,7 +529,6 @@ object Simplify {
     case TableCount(TableLeftJoinRightDistinct(child, _, _)) => TableCount(child)
     case TableCount(TableIntervalJoin(child, _, _, _)) => TableCount(child)
     case TableCount(TableRange(n, _)) => I64(n)
-    case TableCount(TableGenomicRange(n, _, _)) => I64(n)
     case TableCount(TableParallelize(rowsAndGlobal, _)) => Cast(ArrayLen(GetField(rowsAndGlobal, "rows")), TInt64)
     case TableCount(TableRename(child, _, _)) => TableCount(child)
     case TableCount(TableAggregateByKey(child, _)) => TableCount(TableDistinct(child))
@@ -744,7 +838,6 @@ object Simplify {
     case MatrixColsTable(MatrixKeyRowsBy(child, _, _)) => MatrixColsTable(child)
 
     case TableRepartition(TableRange(nRows, _), nParts, _) => TableRange(nRows, nParts)
-    case TableRepartition(TableGenomicRange(nRows, _, referenceGenome), nParts, _) => TableGenomicRange(nRows, nParts, referenceGenome)
 
     case TableMapGlobals(TableMapGlobals(child, ng1), ng2) =>
       val uid = genUID()
@@ -765,12 +858,6 @@ object Simplify {
       else
         tr
 
-    case TableHead(tr@TableGenomicRange(nRows, nPar, referenceGenome), n) if canRepartition =>
-      if (n < nRows)
-        TableGenomicRange(n.toInt, (nPar.toFloat * n / nRows).toInt.max(1), referenceGenome)
-      else
-        tr
-
     case TableHead(TableMapGlobals(child, newGlobals), n) =>
       TableMapGlobals(TableHead(child, n), newGlobals)
 
@@ -785,12 +872,12 @@ object Simplify {
       val te =
         TableExplode(
           TableKeyByAndAggregate(child,
-            MakeStruct(Seq(
+            MakeStruct(FastIndexedSeq(
               "row" -> ApplyAggOp(
                 FastIndexedSeq(I32(n.toInt)),
                 Array(row, keyStruct),
                 aggSig))),
-            MakeStruct(Seq()), // aggregate to one row
+            MakeStruct(FastIndexedSeq()), // aggregate to one row
             Some(1), 10),
           FastIndexedSeq("row"))
       TableMapRows(te, GetField(Ref("row", te.typ.rowType), "row"))
@@ -843,7 +930,7 @@ object Simplify {
     case TableFilterIntervals(TableAggregateByKey(child, expr), intervals, keep) =>
       TableAggregateByKey(TableFilterIntervals(child, intervals, keep), expr)
     case TableFilterIntervals(TableFilterIntervals(child, _i1, keep1), _i2, keep2) if keep1 == keep2 =>
-      val ord = PartitionBoundOrdering(child.typ.keyType).intervalEndpointOrdering
+      val ord = PartitionBoundOrdering(ctx, child.typ.keyType).intervalEndpointOrdering
       val i1 = Interval.union(_i1.toArray[Interval], ord)
       val i2 = Interval.union(_i2.toArray[Interval], ord)
       val intervals = if (keep1)
@@ -873,9 +960,9 @@ object Simplify {
       val newOpts = tr.params.options match {
         case None =>
           val pt = t.keyType
-          NativeReaderOptions(Interval.union(intervals.toArray, PartitionBoundOrdering(pt).intervalEndpointOrdering), pt, true)
+          NativeReaderOptions(Interval.union(intervals.toArray, PartitionBoundOrdering(ctx, pt).intervalEndpointOrdering), pt, true)
         case Some(NativeReaderOptions(preIntervals, intervalPointType, _)) =>
-          val iord = PartitionBoundOrdering(intervalPointType).intervalEndpointOrdering
+          val iord = PartitionBoundOrdering(ctx, intervalPointType).intervalEndpointOrdering
           NativeReaderOptions(
             Interval.intersection(Interval.union(preIntervals.toArray, iord), Interval.union(intervals.toArray, iord), iord),
             intervalPointType, true)
@@ -889,9 +976,9 @@ object Simplify {
       val newOpts = tr.options match {
         case None =>
           val pt = t.keyType
-          NativeReaderOptions(Interval.union(intervals.toArray, PartitionBoundOrdering(pt).intervalEndpointOrdering), pt, true)
+          NativeReaderOptions(Interval.union(intervals.toArray, PartitionBoundOrdering(ctx, pt).intervalEndpointOrdering), pt, true)
         case Some(NativeReaderOptions(preIntervals, intervalPointType, _)) =>
-          val iord = PartitionBoundOrdering(intervalPointType).intervalEndpointOrdering
+          val iord = PartitionBoundOrdering(ctx, intervalPointType).intervalEndpointOrdering
           NativeReaderOptions(
             Interval.intersection(Interval.union(preIntervals.toArray, iord), Interval.union(intervals.toArray, iord), iord),
             intervalPointType, true)
@@ -1012,5 +1099,15 @@ object Simplify {
       val needsDense = sparsityStrategy == NeedsDense || sparsityStrategy.exists(leftBlock = false, rightBlock = true)
       val maybeDense = if (needsDense) BlockMatrixDensify(left) else left
       BlockMatrixMap(maybeDense, leftName, Subst(f, BindingEnv.eval(rightName -> getElement)), needsDense)
+    case BlockMatrixMap(matrix, name, Ref(x, _), _) if name == x =>
+      matrix
+    case BlockMatrixMap(matrix, name, ir, _) if IsConstant(ir) || (ir.isInstanceOf[Ref] && ir.asInstanceOf[Ref].name != name) =>
+      val typ = matrix.typ
+      BlockMatrixBroadcast(
+        ValueToBlockMatrix(ir, FastIndexedSeq(1, 1), typ.blockSize),
+        FastIndexedSeq(),
+        typ.shape,
+        typ.blockSize
+      )
   }
 }

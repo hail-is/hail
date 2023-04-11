@@ -64,11 +64,14 @@ object Bindings {
     case TableAggregate(child, _) => if (i == 1) child.typ.globalEnv.m else empty
     case MatrixAggregate(child, _) => if (i == 1) child.typ.globalEnv.m else empty
     case TableFilter(child, _) => if (i == 1) child.typ.rowEnv.m else empty
+    case TableGen(contexts, globals, cname, gname, _, _, _) =>
+      if (i == 2) Array(cname -> TIterable.elementType(contexts.typ), gname -> globals.typ)
+      else empty
     case TableMapGlobals(child, _) => if (i == 1) child.typ.globalEnv.m else empty
     case TableMapRows(child, _) => if (i == 1) child.typ.rowEnv.m else empty
     case TableAggregateByKey(child, _) => if (i == 1) child.typ.globalEnv.m else empty
     case TableKeyByAndAggregate(child, _, _, _, _) => if (i == 1) child.typ.globalEnv.m else if (i == 2) child.typ.rowEnv.m else empty
-    case TableMapPartitions(child, g, p, _) => if (i == 1) Array(g -> child.typ.globalType, p -> TStream(child.typ.rowType)) else empty
+    case TableMapPartitions(child, g, p, _, _, _) => if (i == 1) Array(g -> child.typ.globalType, p -> TStream(child.typ.rowType)) else empty
     case MatrixMapRows(child, _) => if (i == 1) child.typ.rowEnv.bind("n_cols", TInt32).m else empty
     case MatrixFilterRows(child, _) => if (i == 1) child.typ.rowEnv.m else empty
     case MatrixMapCols(child, _, _) => if (i == 1) child.typ.colEnv.bind("n_rows", TInt64).m else empty

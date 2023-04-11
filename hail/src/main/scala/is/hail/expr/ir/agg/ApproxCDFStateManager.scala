@@ -1,6 +1,7 @@
 package is.hail.expr.ir.agg
 
 import is.hail.annotations._
+import is.hail.backend.HailStateManager
 import is.hail.expr.ir.{DoubleArrayBuilder, IntArrayBuilder, LongArrayBuilder}
 import is.hail.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, PFloat64, PInt32, PInt64, PStruct, PType}
 import is.hail.types.virtual._
@@ -645,7 +646,7 @@ class ApproxCDFStateManager(val k: Int) {
   }
 
   def rvResult(r: Region): Long = {
-    val rvb = new RegionValueBuilder(r)
+    val rvb = new RegionValueBuilder(HailStateManager(Map.empty), r)
     rvb.start(QuantilesAggregator.resultPType)
     result(rvb)
     rvb.end()
@@ -800,4 +801,3 @@ object QuantilesAggregator {
     total
   }
 }
-

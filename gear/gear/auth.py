@@ -9,8 +9,8 @@ import aiohttp_session
 from aiohttp import web
 
 from hailtop import httpx
-from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
+from hailtop.utils import request_retry_transient_errors
 
 from .time_limited_max_size_cache import TimeLimitedMaxSizeCache
 
@@ -114,9 +114,7 @@ class AuthClient:
     async def _load_userdata(session_id_and_session: Tuple[str, httpx.ClientSession]):
         session_id, client_session = session_id_and_session
         try:
-            return await async_get_userinfo(
-                deploy_config=deploy_config, session_id=session_id, client_session=client_session
-            )
+            return await impersonate_user_and_get_info(session_id=session_id, client_session=client_session)
         except asyncio.CancelledError:
             raise
         except aiohttp.ClientResponseError as e:
@@ -125,6 +123,18 @@ class AuthClient:
         except Exception as e:  # pylint: disable=broad-except
             log.exception('unknown exception getting userinfo')
             raise web.HTTPInternalServerError() from e
+
+
+async def impersonate_user_and_get_info(session_id: str, client_session: httpx.ClientSession):
+    headers = {'Authorization': f'Bearer {session_id}'}
+    userinfo_url = deploy_config.url('auth', '/api/v1alpha/userinfo')
+    try:
+        resp = await request_retry_transient_errors(client_session, 'GET', userinfo_url, headers=headers)
+        return await resp.json()
+    except aiohttp.ClientResponseError as err:
+        if err.status == 401:
+            return None
+        raise
 
 
 def _web_unauthenticated(request, redirect):

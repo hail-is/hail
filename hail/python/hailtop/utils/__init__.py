@@ -15,7 +15,8 @@ from .utils import (unzip, async_to_blocking, blocking_to_async, AsyncWorkerPool
                     TransientError, bounded_gather2, OnlineBoundedGather2,
                     unpack_comma_delimited_inputs, unpack_key_value_inputs,
                     retry_all_errors_n_times, Timings, is_retry_once_error, am_i_interactive,
-                    is_delayed_warning_error, retry_transient_errors_with_delayed_warnings)
+                    is_delayed_warning_error, retry_transient_errors_with_delayed_warnings,
+                    periodically_call_with_dynamic_sleep)
 from .process import (
     CalledProcessError, check_shell, check_shell_output, check_exec_output,
     sync_check_shell, sync_check_shell_output, sync_check_exec)
@@ -83,6 +84,7 @@ __all__ = [
     'serialization',
     'Notice',
     'periodically_call',
+    'periodically_call_with_dynamic_sleep',
     'dump_all_stacktraces',
     'find_spark_home',
     'TransientError',

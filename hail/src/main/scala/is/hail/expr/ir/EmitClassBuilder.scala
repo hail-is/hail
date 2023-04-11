@@ -47,24 +47,65 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
 
   def getFS: Value[FS] = new StaticFieldRef(_staticFS)
 
-  private val rgContainers: mutable.Map[ReferenceGenome, StaticField[ReferenceGenome]] = mutable.Map.empty
+  private val rgContainers: mutable.Map[String, StaticField[ReferenceGenome]] = mutable.Map.empty
 
   def hasReferences: Boolean = rgContainers.nonEmpty
 
-  def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] = {
+  def getReferenceGenome(rg: String): Value[ReferenceGenome] = {
     val rgField = rgContainers.getOrElseUpdate(rg, {
-      val cls = genEmitClass[Unit](s"RGContainer_${rg.name}")
+      val cls = genEmitClass[Unit](s"RGContainer_${rg}")
       cls.newStaticField("reference_genome", Code._null[ReferenceGenome])
     })
     new StaticFieldRef(rgField)
   }
 
-  def referenceGenomes(): IndexedSeq[ReferenceGenome] = rgContainers.keys.toFastIndexedSeq.sortBy(_.name)
-  def referenceGenomeFields(): IndexedSeq[StaticField[ReferenceGenome]] = rgContainers.toFastIndexedSeq.sortBy(_._1.name).map(_._2)
+  def referenceGenomes(): IndexedSeq[ReferenceGenome] = rgContainers.keys.map(ctx.getReference(_)).toIndexedSeq.sortBy(_.name)
+  def referenceGenomeFields(): IndexedSeq[StaticField[ReferenceGenome]] = rgContainers.toFastIndexedSeq.sortBy(_._1).map(_._2)
+
+  var _rgMapField: StaticFieldRef[Map[String, ReferenceGenome]] = null
+
+  def referenceGenomeMap: Value[Map[String, ReferenceGenome]] = {
+    if (_rgMapField == null) {
+      val cls = genEmitClass[Unit](s"RGMapContainer")
+      _rgMapField = new StaticFieldRef(cls.newStaticField("reference_genome_map", Code._null[Map[String, ReferenceGenome]]))
+    }
+    _rgMapField
+  }
 
   def setObjects(cb: EmitCodeBuilder, objects: Code[Array[AnyRef]]): Unit = modb.setObjects(cb, objects)
 
   def getObject[T <: AnyRef : TypeInfo](obj: T): Code[T] = modb.getObject(obj)
+
+  private[this] var currLitIndex: Int = 0
+  private[this] val literalsBuilder = mutable.Map.empty[(VirtualTypeWithReq, Any), (PType, Int)]
+  private[this] val encodedLiteralsBuilder = mutable.Map.empty[EncodedLiteral, (PType, Int)]
+
+  def registerLiteral(t: VirtualTypeWithReq, value: Any): (PType, Int) = {
+    literalsBuilder.getOrElseUpdate((t, value), {
+      val curr = currLitIndex
+      val pt = t.canonicalPType
+      literalsBuilder.put((t, value), (pt, curr))
+      currLitIndex += 1
+      (pt, curr)
+    })
+  }
+
+  def registerEncodedLiteral(el: EncodedLiteral): (PType, Int) = {
+    encodedLiteralsBuilder.getOrElseUpdate(el, {
+      val curr = currLitIndex
+      val pt = el.codec.decodedPType()
+      encodedLiteralsBuilder.put(el, (pt, curr))
+      currLitIndex += 1
+      (pt, curr)
+    })
+  }
+
+  def literalsResult(): (Array[(VirtualTypeWithReq, Any, PType, Int)], Array[(EncodedLiteral, PType, Int)]) = {
+    (literalsBuilder.toArray.map { case ((vt, a), (pt, i)) => (vt, a, pt, i) },
+      encodedLiteralsBuilder.toArray.map { case (el, (pt, i)) => (el, pt, i) })
+  }
+
+  def hasLiterals: Boolean = currLitIndex > 0
 }
 
 trait WrappedEmitModuleBuilder {
@@ -78,7 +119,7 @@ trait WrappedEmitModuleBuilder {
 
   def genEmitClass[C](baseName: String)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] = emodb.genEmitClass[C](baseName)
 
-  def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] = emodb.getReferenceGenome(rg)
+  def getReferenceGenome(rg: String): Value[ReferenceGenome] = emodb.getReferenceGenome(rg)
 }
 
 trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
@@ -146,9 +187,9 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def partitionRegion: Settable[Region] = ecb.partitionRegion
 
-  def addLiteral(v: Any, t: VirtualTypeWithReq): SValue = ecb.addLiteral(v, t)
+  def addLiteral(cb: EmitCodeBuilder, v: Any, t: VirtualTypeWithReq): SValue = ecb.addLiteral(cb, v, t)
 
-  def addEncodedLiteral(encodedLiteral: EncodedLiteral) = ecb.addEncodedLiteral(encodedLiteral)
+  def addEncodedLiteral(cb: EmitCodeBuilder, encodedLiteral: EncodedLiteral) = ecb.addEncodedLiteral(cb, encodedLiteral)
 
   def getPType[T <: PType : TypeInfo](t: T): Code[T] = ecb.getPType(t)
 
@@ -199,11 +240,19 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
   def genEmitMethod[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, A4: TypeInfo, A5: TypeInfo, R: TypeInfo](baseName: String): EmitMethodBuilder[C] =
     ecb.genEmitMethod[A1, A2, A3, A4, A5, R](baseName)
 
-  def open(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
+  def openUnbuffered(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
     getFS.invoke[String, Boolean, InputStream]("open", path, checkCodec)
 
-  def create(path: Code[String]): Code[OutputStream] =
+  def open(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
+    Code.newInstance[java.io.BufferedInputStream, InputStream](
+      getFS.invoke[String, Boolean, InputStream]("open", path, checkCodec))
+
+  def createUnbuffered(path: Code[String]): Code[OutputStream] =
     getFS.invoke[String, OutputStream]("create", path)
+
+  def create(path: Code[String]): Code[OutputStream] =
+    Code.newInstance[java.io.BufferedOutputStream, OutputStream](
+      getFS.invoke[String, OutputStream]("create", path))
 }
 
 class EmitClassBuilder[C](
@@ -259,44 +308,39 @@ class EmitClassBuilder[C](
 
   def numTypes: Int = typMap.size
 
-  private[this] def addReferenceGenome(rg: ReferenceGenome): Code[Unit] = {
-    val rgExists = Code.invokeScalaObject1[String, Boolean](ReferenceGenome.getClass, "hasReference", rg.name)
-    val addRG = Code.invokeScalaObject1[ReferenceGenome, Unit](ReferenceGenome.getClass, "addReference", getReferenceGenome(rg))
-    rgExists.mux(Code._empty, addRG)
-  }
+  private[this] val decodedLiteralsField = genFieldThisRef[Array[Long]]("decoded_lits")
 
-  private[this] val literalsMap: mutable.Map[(VirtualTypeWithReq, Any), SSettable] =
-    mutable.Map[(VirtualTypeWithReq, Any), SSettable]()
-  private[this] val encodedLiteralsMap: mutable.Map[EncodedLiteral, SSettable] =
-    mutable.Map[EncodedLiteral, SSettable]()
-  private[this] lazy val encLitField: Settable[Array[Byte]] = genFieldThisRef[Array[Byte]]("encodedLiterals")
+  def literalsArray(): Value[Array[Long]] = decodedLiteralsField
+
+  def setLiteralsArray(cb: EmitCodeBuilder, arr: Code[Array[Long]]): Unit = cb.assign(decodedLiteralsField, arr)
 
   lazy val partitionRegion: Settable[Region] = genFieldThisRef[Region]("partitionRegion")
   private[this] lazy val _taskContext: Settable[HailTaskContext] = genFieldThisRef[HailTaskContext]("taskContext")
   private[this] lazy val poolField: Settable[RegionPool] = genFieldThisRef[RegionPool]()
 
-  def addLiteral(v: Any, t: VirtualTypeWithReq): SValue = {
+  def addLiteral(cb: EmitCodeBuilder, v: Any, t: VirtualTypeWithReq): SValue = {
     assert(v != null)
 
-    literalsMap.getOrElseUpdate(t -> v, SSettable(fieldBuilder, t.canonicalEmitType.st, "literal"))
+    val (pt, i) = emodb.registerLiteral(t, v)
+    pt.loadCheapSCode(cb, decodedLiteralsField.get(i))
   }
 
-  def addEncodedLiteral(encodedLiteral: EncodedLiteral): SValue = {
-    encodedLiteralsMap.getOrElseUpdate(encodedLiteral, SSettable(fieldBuilder, encodedLiteral.codec.encodedType.decodedSType(encodedLiteral.typ), "encodedLiteral"))
+  def addEncodedLiteral(cb: EmitCodeBuilder, encodedLiteral: EncodedLiteral): SValue = {
+    val (pt, i) = emodb.registerEncodedLiteral(encodedLiteral)
+    pt.loadCheapSCode(cb, decodedLiteralsField.get(i))
   }
 
   private[this] def encodeLiterals(): Array[AnyRef] = {
-    val literals = literalsMap.toArray
-    val litType = PCanonicalTuple(true, literals.map(_._1._1.canonicalPType.setRequired(true)): _*)
+    val (literals, preEncodedLiterals) = emodb.literalsResult()
+    val litType = PCanonicalTuple(true, literals.map(_._1.canonicalPType.setRequired(true)): _*)
     val spec = TypedCodecSpec(litType, BufferSpec.defaultUncompressed)
 
     cb.addInterface(typeInfo[FunctionWithLiterals].iname)
-    val mb2 = newEmitMethod("addLiterals", FastIndexedSeq[ParamType](typeInfo[Array[AnyRef]]), typeInfo[Unit])
-
-    val preEncodedLiterals = encodedLiteralsMap.toArray
+    val mb2 = newEmitMethod("addAndDecodeLiterals", FastIndexedSeq[ParamType](typeInfo[Array[AnyRef]]), typeInfo[Unit])
 
     mb2.voidWithBuilder { cb =>
       val allEncodedFields = mb2.getCodeParam[Array[AnyRef]](1)
+      cb.assign(decodedLiteralsField, Code.newArray[Long](literals.length + preEncodedLiterals.length))
 
       val ib = cb.newLocal[InputBuffer]("ib",
         spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](Code.checkcast[Array[Byte]](allEncodedFields(0)))))
@@ -304,38 +348,37 @@ class EmitClassBuilder[C](
       val lits = spec.encodedType.buildDecoder(spec.encodedVirtualType, this)
         .apply(cb, partitionRegion, ib)
         .asBaseStruct
-      literals.zipWithIndex.foreach { case (((_, _), f), i) =>
+      literals.zipWithIndex.foreach { case ((t, _, pt, arrIdx), i) =>
         lits.loadField(cb, i)
           .consume(cb,
             cb._fatal("expect non-missing literals!"),
-            { pc => f.store(cb, pc) })
+            { pc =>
+              cb += (decodedLiteralsField(arrIdx) = pt.store(cb, partitionRegion, pc, false))
+            })
       }
       // Handle the pre-encoded literals, which only need to be decoded.
-      preEncodedLiterals.zipWithIndex.foreach { case ((encLit, f), index) =>
+      preEncodedLiterals.zipWithIndex.foreach { case ((encLit, pt, arrIdx), index) =>
         val spec = encLit.codec
         cb.assign(ib, spec.buildCodeInputBuffer(Code.newInstance[ArrayOfByteArrayInputStream, Array[Array[Byte]]](Code.checkcast[Array[Array[Byte]]](allEncodedFields(index + 1)))))
         val decodedValue = encLit.codec.encodedType.buildDecoder(encLit.typ, this)
           .apply(cb, partitionRegion, ib)
-        assert(decodedValue.st == f.st)
-
-        // Because 0th index is for the regular literals
-        f.store(cb, decodedValue)
+        cb += (decodedLiteralsField(arrIdx) = pt.store(cb, partitionRegion, decodedValue, false))
       }
     }
 
     val baos = new ByteArrayOutputStream()
     val enc = spec.buildEncoder(ctx, litType)(baos, ctx.theHailClassLoader)
     this.emodb.ctx.r.pool.scopedRegion { region =>
-      val rvb = new RegionValueBuilder(region)
+      val rvb = new RegionValueBuilder(ctx.stateManager, region)
       rvb.start(litType)
       rvb.startTuple()
-      literals.foreach { case ((typ, a), _) => rvb.addAnnotation(typ.t, a) }
+      literals.foreach { case (typ, a, _, _) => rvb.addAnnotation(typ.t, a) }
       rvb.endTuple()
       enc.writeRegionValue(rvb.end())
     }
     enc.flush()
     enc.close()
-    Array(baos.toByteArray) ++ preEncodedLiterals.map(_._1.value.ba)
+    Array[AnyRef](baos.toByteArray) ++ preEncodedLiterals.map(_._1.value.ba)
   }
 
   private[this] var _mods: BoxedArrayBuilder[(String, (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new BoxedArrayBuilder()
@@ -471,25 +514,9 @@ class EmitClassBuilder[C](
     }
   }
 
-  def getPType[T <: PType : TypeInfo](t: T): Code[T] = {
-    val references = ReferenceGenome.getReferences(t.virtualType).toArray
-    val setup = Code(Code(references.map(addReferenceGenome)),
-      Code.checkcast[T](
-        Code.invokeScalaObject1[String, PType](
-          IRParser.getClass, "parsePType", t.toString)))
-    Code.checkcast[T](pTypeMap.getOrElseUpdate(t,
-      genLazyFieldThisRef[T](setup)).get)
-  }
+  def getPType[T <: PType : TypeInfo](t: T): Code[T] = emodb.getObject(t)
 
-  def getType[T <: Type : TypeInfo](t: T): Code[T] = {
-    val references = ReferenceGenome.getReferences(t).toArray
-    val setup = Code(Code(references.map(addReferenceGenome)),
-      Code.checkcast[T](
-        Code.invokeScalaObject1[String, Type](
-          IRParser.getClass, "parseType", t.parsableString())))
-    Code.checkcast[T](typMap.getOrElseUpdate(t,
-      genLazyFieldThisRef[T](setup)).get)
-  }
+  def getType[T <: Type : TypeInfo](t: T): Code[T] = emodb.getObject(t)
 
   def getOrdering(t1: SType,
     t2: SType,
@@ -652,6 +679,10 @@ class EmitClassBuilder[C](
         cb += rgs(i).invoke[String, FS, Unit]("heal", ctx.localTmpdir, getFS)
         cb += fld.put(rgs(i))
       }
+
+      Option(emodb._rgMapField).foreach { fld =>
+        cb.assign(fld, Code.invokeStatic1[ReferenceGenome, Array[ReferenceGenome], Map[String, ReferenceGenome]]("getMapFromArray", rgs))
+      }
     }
   }
 
@@ -711,7 +742,7 @@ class EmitClassBuilder[C](
     makeAddFS()
     makeAddTaskContext()
 
-    val hasLiterals: Boolean = literalsMap.nonEmpty || encodedLiteralsMap.nonEmpty
+    val hasLiterals: Boolean = emodb.hasLiterals
     val hasReferences: Boolean = emodb.hasReferences
     if (hasReferences)
       makeAddReferenceGenomes()
@@ -766,7 +797,7 @@ class EmitClassBuilder[C](
         if (objects != null)
           f.asInstanceOf[FunctionWithObjects].setObjects(objects)
         if (hasLiterals)
-          f.asInstanceOf[FunctionWithLiterals].addLiterals(literalsBc.value)
+          f.asInstanceOf[FunctionWithLiterals].addAndDecodeLiterals(literalsBc.value)
         if (hasReferences)
           f.asInstanceOf[FunctionWithReferences].addReferenceGenomes(references)
         if (nSerializedAggs != 0)
@@ -910,7 +941,7 @@ trait FunctionWithPartitionRegion {
 }
 
 trait FunctionWithLiterals {
-  def addLiterals(lit: Array[AnyRef]): Unit
+  def addAndDecodeLiterals(lit: Array[AnyRef]): Unit
 }
 
 trait FunctionWithSeededRandomness {
@@ -1085,6 +1116,10 @@ class EmitMethodBuilder[C](
     val label = CodeLabel()
     implementLabel(label)(f)
     label
+  }
+
+  override def toString: String = {
+    s"[${ mb.methodName }]${ super.toString }"
   }
 }
 

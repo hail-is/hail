@@ -20,7 +20,7 @@ final case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
 
   override def castRename(t: Type): SType = this
 
-  override def rg: ReferenceGenome = pType.rg
+  override def rg: String = pType.rg
 
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue =
     value match {

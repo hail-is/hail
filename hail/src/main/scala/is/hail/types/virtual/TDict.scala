@@ -1,6 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations.{Annotation, ExtendedOrdering}
+import is.hail.backend.HailStateManager
 import is.hail.check.Gen
 import is.hail.types.physical.PDict
 import is.hail.utils._
@@ -58,8 +59,8 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
-  override def genNonmissingValue: Gen[Annotation] =
-    Gen.buildableOf2[Map](Gen.zip(keyType.genValue, valueType.genValue))
+  override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] =
+    Gen.buildableOf2[Map](Gen.zip(keyType.genValue(sm), valueType.genValue(sm)))
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean): Boolean =
     a1 == a2 || (a1 != null && a2 != null &&
@@ -70,10 +71,8 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
 
   override def scalaClassTag: ClassTag[Map[_, _]] = classTag[Map[_, _]]
 
-  override lazy val ordering: ExtendedOrdering = mkOrdering()
-
-  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
-    ExtendedOrdering.mapOrdering(elementType.ordering, missingEqual)
+  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
+    ExtendedOrdering.mapOrdering(elementType.ordering(sm), missingEqual)
 
   override def valueSubsetter(subtype: Type): Any => Any = {
     val subdict = subtype.asInstanceOf[TDict]

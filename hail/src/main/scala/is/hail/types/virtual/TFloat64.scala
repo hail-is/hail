@@ -1,6 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations._
+import is.hail.backend.HailStateManager
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
 import is.hail.types.physical.PFloat64
@@ -21,7 +22,7 @@ case object TFloat64 extends TNumeric {
 
   override def str(a: Annotation): String = if (a == null) "NA" else a.asInstanceOf[Double].formatted("%.5e")
 
-  override def genNonmissingValue: Gen[Annotation] = arbitrary[Double]
+  override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = arbitrary[Double]
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean): Boolean =
     a1 == a2 || (a1 != null && a2 != null && {
@@ -39,8 +40,6 @@ case object TFloat64 extends TNumeric {
 
   override def scalaClassTag: ClassTag[java.lang.Double] = classTag[java.lang.Double]
 
-  override val ordering: ExtendedOrdering = mkOrdering()
-
-  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
+  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Double]], missingEqual)
 }

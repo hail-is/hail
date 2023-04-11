@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.asm4s.{coerce => _, _}
+import is.hail.backend.HailStateManager
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.lir
@@ -42,6 +43,8 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   }
 
   def mb: MethodBuilder[_] = emb.mb
+
+  val stateManager: Value[HailStateManager] = null
 
   def uncheckedAppend(c: Code[Unit]): Unit = {
     code = Code(code, c)

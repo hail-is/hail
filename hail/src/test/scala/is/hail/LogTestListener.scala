@@ -11,11 +11,11 @@ class LogTestListener extends ITestListener {
   }
 
   def onTestStart(result: ITestResult) {
-    info(s"starting test ${ testString(result) }...")
+    System.err.println(s"starting test ${ testString(result) }...")
   }
 
   def onTestSuccess(result: ITestResult) {
-    info(s"test ${ testString(result) } SUCCESS")
+    System.err.println(s"test ${ testString(result) } SUCCESS")
   }
 
   def onTestFailure(result: ITestResult) {
@@ -24,13 +24,13 @@ class LogTestListener extends ITestListener {
       val sw = new StringWriter()
       val pw = new PrintWriter(sw)
       cause.printStackTrace(pw)
-      info(s"Exception:\n$sw")
+      System.err.println(s"Exception:\n$sw")
     }
-    info(s"test ${ testString(result) } FAILURE\n")
+    System.err.println(s"test ${ testString(result) } FAILURE\n")
   }
 
   def onTestSkipped(result: ITestResult) {
-    info(s"test ${ testString(result) } SKIPPED")
+    System.err.println(s"test ${ testString(result) } SKIPPED")
   }
 
   def onTestFailedButWithinSuccessPercentage(result: ITestResult) {
@@ -38,7 +38,7 @@ class LogTestListener extends ITestListener {
   }
 
   def onStart(context: ITestContext) {
-    consoleLog.addAppender(new ConsoleAppender(new PatternLayout(HailContext.logFormat), "System.err"))
+
   }
 
   def onFinish(context: ITestContext) {

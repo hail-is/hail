@@ -5,7 +5,7 @@ import is.hail.utils._
 import org.testng.annotations.Test
 
 class LocusIntervalSuite extends HailSuite {
-  def rg = ReferenceGenome.GRCh37
+  def rg = ctx.getReference(ReferenceGenome.GRCh37)
 
   @Test def testParser() {
     val xMax = rg.contigLength("X")
@@ -67,8 +67,8 @@ class LocusIntervalSuite extends HailSuite {
       Locus.parseInterval("1:1.1111111M-2M", rg)
     }
 
-    val gr37 = ReferenceGenome.GRCh37
-    val gr38 = ReferenceGenome.GRCh38
+    val gr37 = ctx.getReference(ReferenceGenome.GRCh37)
+    val gr38 = ctx.getReference(ReferenceGenome.GRCh38)
 
     val x = "[GL000197.1:3739-GL000202.1:7538)"
     assert(Locus.parseInterval(x, gr37) ==

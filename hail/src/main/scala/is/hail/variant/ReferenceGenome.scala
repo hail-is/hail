@@ -4,7 +4,7 @@ import java.io.InputStream
 import htsjdk.samtools.reference.FastaSequenceIndex
 import is.hail.HailContext
 import is.hail.asm4s.Code
-import is.hail.backend.{BroadcastValue, ExecuteContext}
+import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
 import is.hail.check.Gen
 import is.hail.expr.ir.{EmitClassBuilder, RelationalSpec}
 import is.hail.expr.{JSONExtractContig, JSONExtractIntervalLocus, JSONExtractReferenceGenome, Parser}
@@ -23,6 +23,7 @@ import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 import java.lang.ThreadLocal
+import is.hail.annotations.ExtendedOrdering
 
 
 class BroadcastRG(rgParam: ReferenceGenome) extends Serializable {
@@ -114,6 +115,8 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     }
   }
 
+  val extendedLocusOrdering = ExtendedOrdering.extendToNull(locusOrdering)
+
   // must be constructed after orderings
   @transient @volatile var _locusType: TLocus = _
 
@@ -121,7 +124,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     if (_locusType == null) {
       synchronized {
         if (_locusType == null)
-          _locusType = TLocus(this)
+          _locusType = TLocus(this.name)
       }
     }
     _locusType
@@ -154,8 +157,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   }
 
   val nBases = lengths.map(_._2.toLong).sum
-
-  private val globalPosOrd = TInt64.ordering
 
   @transient private var globalContigEnds: Array[Long] = _
 
@@ -271,7 +272,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
       }
     }
 
-    if (!Interval.isValid(locusType.ordering, start, end, includesStart, includesEnd))
+    if (!Interval.isValid(extendedLocusOrdering, start, end, includesStart, includesEnd))
       if (invalidMissing)
         return null
       else
@@ -292,9 +293,19 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   def isMitochondrial(contig: String): Boolean = mtContigs.contains(contig)
 
-  def inXPar(l: Locus): Boolean = inX(l.contig) && par.exists(_.contains(locusType.ordering, l))
+  def isAutosomal(contig: String): Boolean = !(inX(contig) || inY(contig) || isMitochondrial(contig))
 
-  def inYPar(l: Locus): Boolean = inY(l.contig) && par.exists(_.contains(locusType.ordering, l))
+  def inPar(l: Locus): Boolean = par.exists(_.contains(extendedLocusOrdering, l))
+
+  def inXPar(l: Locus): Boolean = inX(l.contig) && inPar(l)
+
+  def inYPar(l: Locus): Boolean = inY(l.contig) && inPar(l)
+
+  def inXNonPar(l: Locus): Boolean = inX(l.contig) && !inPar(l)
+
+  def inYNonPar(l: Locus): Boolean = inY(l.contig) && !inPar(l)
+
+  def isAutosomalOrPseudoAutosomal(l: Locus): Boolean = isAutosomal(l.contig) || ((inX(l.contig) || inY(l.contig)) && inPar(l))
 
   def compare(contig1: String, contig2: String): Int = ReferenceGenome.compare(contigsIndex, contig1, contig2)
 
@@ -321,17 +332,14 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     val tmpdir = ctx.localTmpdir
     val fs = ctx.fs
     if (!fs.exists(fastaFile))
-      fatal(s"FASTA file '$fastaFile' does not exist.")
+      fatal(s"FASTA file '$fastaFile' does not exist or you do not have access.")
     if (!fs.exists(indexFile))
-      fatal(s"FASTA index file '$indexFile' does not exist.")
+      fatal(s"FASTA index file '$indexFile' does not exist or you do not have access.")
     fastaFilePath = fastaFile
     fastaIndexPath = indexFile
 
     // assumption, fastaFile and indexFile will not move or change for the entire duration of a hail pipeline
-    val localIndexFile = ExecuteContext.createTmpPathNoCleanup(tmpdir, "fasta-reader-add-seq", "fai")
-    fs.copyRecode(indexFile, localIndexFile)
-
-    val index = new FastaSequenceIndex(new java.io.File(uriPath(localIndexFile)))
+    val index = using(fs.open(indexFile))(new FastaSequenceIndex(_))
 
     val missingContigs = contigs.filterNot(index.hasIndexEntry)
     if (missingContigs.nonEmpty)
@@ -401,7 +409,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
       fatal(s"Chain file '$chainFile' does not exist.")
 
     val chainFilePath = fs.fileStatus(chainFile).getPath
-    val lo = LiftOver(tmpdir, fs, chainFilePath)
+    val lo = LiftOver(fs, chainFilePath)
     val destRG = ctx.getReference(destRGName)
     lo.checkChainFile(this, destRG)
 
@@ -441,7 +449,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
       val chainFilePath = fs.fileStatus(chainFile).getPath
       liftoverMap.get(destRGName) match {
         case Some(lo) if lo.chainFile == chainFilePath => // do nothing
-        case _ => liftoverMap += destRGName -> LiftOver(tmpdir, fs, chainFilePath)
+        case _ => liftoverMap += destRGName -> LiftOver(fs, chainFilePath)
       }
     }
 
@@ -511,52 +519,24 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 }
 
 object ReferenceGenome {
-  var references: Map[String, ReferenceGenome] = Map()
-  var GRCh37: ReferenceGenome = _
-  var GRCh38: ReferenceGenome = _
-  var GRCm38: ReferenceGenome = _
-  var CanFam3: ReferenceGenome = _
-  var hailReferences: Set[String] = _
+  var GRCh37: String = "GRCh37"
+  var GRCh38: String = "GRCh38"
+  var GRCm38: String = "GRCm38"
+  var CanFam3: String = "CanFam3"
+  val hailReferences: Set[String] = Set(GRCh37, GRCh38, GRCm38, CanFam3)
 
-  def addDefaultReferences() : Unit = {
-    assert(references.isEmpty)
-    GRCh37 = fromResource("reference/grch37.json")
-    GRCh38 = fromResource("reference/grch38.json")
-    GRCm38 = fromResource("reference/grcm38.json")
-    CanFam3 = fromResource("reference/canfam3.json")
-    hailReferences = references.keySet
-  }
-
-  def reset(): Unit = {
-    references = Map()
-    GRCh37 = null
-    GRCh38 = null
-    GRCm38 = null
-    CanFam3 = null
-    hailReferences = null
-  }
-
-  def addReference(rg: ReferenceGenome) {
-    references.get(rg.name) match {
-      case Some(rg2) =>
-        if (rg != rg2) {
-          fatal(s"Cannot add reference genome '${ rg.name }', a different reference with that name already exists. Choose a reference name NOT in the following list:\n  " +
-            s"@1", references.keys.truncatable("\n  "))
-        }
-      case None =>
-        references += (rg.name -> rg)
+  def builtinReferences(): Map[String, ReferenceGenome] = {
+    var builtin: Map[String, ReferenceGenome] = Map()
+    val files = Array(
+      "reference/grch37.json", "reference/grch38.json",
+      "reference/grcm38.json", "reference/canfam3.json"
+    )
+    for (filename <- files) {
+      val rg = loadFromResource[ReferenceGenome](filename)(read)
+      builtin += (rg.name -> rg)
     }
+    builtin
   }
-
-  def getReference(name: String): ReferenceGenome = {
-    references.get(name) match {
-      case Some(rg) => rg
-      case None => fatal(s"Reference genome '$name' does not exist. Choose a reference name from the following list:\n  " +
-        s"@1", references.keys.truncatable("\n  "))
-    }
-  }
-
-  def hasReference(name: String): Boolean = references.contains(name)
 
   def read(is: InputStream): ReferenceGenome = {
     implicit val formats = defaultJSONFormats
@@ -569,27 +549,19 @@ object ReferenceGenome {
   }
 
   def fromResource(file: String): ReferenceGenome = {
-    val rg = loadFromResource[ReferenceGenome](file)(read)
-    addReference(rg)
-    rg
+    loadFromResource[ReferenceGenome](file)(read)
   }
 
   def fromFile(fs: FS, file: String): ReferenceGenome = {
-    val rg = using(fs.open(file))(read)
-    addReference(rg)
-    rg
+    using(fs.open(file))(read)
   }
 
-  def fromHailDataset(fs: FS, path: String): String = {
-    val references = RelationalSpec.readReferences(fs, path)
-    implicit val formats: Formats = defaultJSONFormats
-    Serialization.write(references.map(_.toJSON).toFastIndexedSeq)
+  def fromHailDataset(fs: FS, path: String): Array[ReferenceGenome] = {
+    RelationalSpec.readReferences(fs, path)
   }
 
   def fromJSON(config: String): ReferenceGenome = {
-    val rg = parse(config)
-    addReference(rg)
-    rg
+    parse(config)
   }
 
   def fromFASTAFile(ctx: ExecuteContext, name: String, fastaFile: String, indexFile: String,
@@ -603,9 +575,7 @@ object ReferenceGenome {
     if (!fs.exists(indexFile))
       fatal(s"FASTA index file '$indexFile' does not exist.")
 
-    val localIndexFile = ExecuteContext.createTmpPathNoCleanup(tmpdir, "fasta-reader-from-fasta", "fai")
-    fs.copyRecode(indexFile, localIndexFile)
-    val index = new FastaSequenceIndex(new java.io.File(uriPath(localIndexFile)))
+    val index = using(fs.open(indexFile))(new FastaSequenceIndex(_))
 
     val contigs = new BoxedArrayBuilder[String]
     val lengths = new BoxedArrayBuilder[(String, Int)]
@@ -617,25 +587,7 @@ object ReferenceGenome {
       lengths += (contig -> length.toInt)
     }
 
-    val rg = ReferenceGenome(name, contigs.result(), lengths.result().toMap, xContigs, yContigs, mtContigs, parInput)
-    rg.addSequence(ctx, fastaFile, indexFile)
-    rg
-  }
-
-  def addSequence(ctx: ExecuteContext, name: String, fastaFile: String, indexFile: String): Unit = {
-    references(name).addSequence(ctx, fastaFile, indexFile)
-  }
-
-  def removeSequence(name: String): Unit = {
-    references(name).removeSequence()
-  }
-
-  def referenceAddLiftover(ctx: ExecuteContext, name: String, chainFile: String, destRGName: String): Unit = {
-    references(name).addLiftover(ctx, chainFile, destRGName)
-  }
-
-  def referenceRemoveLiftover(name: String, destRGName: String): Unit = {
-    references(name).removeLiftover(destRGName)
+    ReferenceGenome(name, contigs.result(), lengths.result().toMap, xContigs, yContigs, mtContigs, parInput)
   }
 
   def readReferences(fs: FS, path: String): Array[ReferenceGenome] = {
@@ -646,8 +598,6 @@ object ReferenceGenome {
         val rgPath = fileSystem.getPath.toString
         val rg = using(fs.open(rgPath))(read)
         val name = rg.name
-        if (ReferenceGenome.hasReference(name) && ReferenceGenome.getReference(name) != rg)
-          fatal(s"'$name' already exists and is not identical to the imported reference from '$rgPath'.")
         if (!rgs.contains(rg) && !hailReferences.contains(name))
           rgs += rg
       }
@@ -655,31 +605,23 @@ object ReferenceGenome {
     } else Array()
   }
 
-  def importReferences(fs: FS, path: String) {
-    readReferences(fs, path).foreach { rg =>
-      if (!ReferenceGenome.hasReference(rg.name))
-        addReference(rg)
-    }
-  }
-
-  def writeReference(fs: is.hail.io.fs.FS, path: String, rg: ReferenceGenome) {
+  def writeReference(fs: FS, path: String, rg: ReferenceGenome) {
     val rgPath = path + "/" + rg.name + ".json.gz"
     if (!hailReferences.contains(rg.name) && !fs.exists(rgPath))
       rg.asInstanceOf[ReferenceGenome].write(fs, rgPath)
   }
 
-  def getReferences(t: Type): Set[ReferenceGenome] = {
-    var rgs = Set[ReferenceGenome]()
+  def getReferences(t: Type): Set[String] = {
+    var rgs = Set[String]()
     MapTypes.foreach {
       case tl: TLocus =>
-        rgs += tl.rg.asInstanceOf[ReferenceGenome]
+        rgs += tl.rg
       case _ =>
     }(t)
     rgs
   }
 
-  def exportReferences(fs: is.hail.io.fs.FS, path: String, t: Type) {
-    val rgs = getReferences(t)
+  def exportReferences(fs: FS, path: String, rgs: Set[ReferenceGenome]) {
     rgs.foreach(writeReference(fs, path, _))
   }
 
@@ -700,7 +642,7 @@ object ReferenceGenome {
   }
 
   def gen: Gen[ReferenceGenome] = for {
-    name <- Gen.identifier.filter(!ReferenceGenome.hasReference(_))
+    name <- Gen.identifier.filter(!ReferenceGenome.hailReferences.contains(_))
     nContigs <- Gen.choose(3, 10)
     contigs <- Gen.distinctBuildableOfN[Array](nContigs, Gen.identifier)
     lengths <- Gen.buildableOfN[Array](nContigs, Gen.choose(1000000, 500000000))
@@ -728,9 +670,7 @@ object ReferenceGenome {
       case _ => fatal("expected PAR input of form contig:start-end")
     }
 
-    val rg = ReferenceGenome(name, contigs, lengths, xContigs.toSet, yContigs.toSet, mtContigs.toSet, par)
-    addReference(rg)
-    rg
+    ReferenceGenome(name, contigs, lengths, xContigs.toSet, yContigs.toSet, mtContigs.toSet, par)
   }
 
   def apply(name: java.lang.String, contigs: java.util.List[String], lengths: java.util.Map[String, Int],
@@ -738,4 +678,6 @@ object ReferenceGenome {
     mtContigs: java.util.List[String], parInput: java.util.List[String]): ReferenceGenome =
     ReferenceGenome(name, contigs.asScala.toArray, lengths.asScala.toMap, xContigs.asScala.toArray, yContigs.asScala.toArray,
       mtContigs.asScala.toArray, parInput.asScala.toArray)
+
+  def getMapFromArray(arr: Array[ReferenceGenome]): Map[String, ReferenceGenome] = arr.map(rg => (rg.name, rg)).toMap
 }

@@ -2,12 +2,13 @@ package is.hail.utils
 
 import is.hail.annotations.{Region, RegionValueBuilder, UnsafeIndexedSeq}
 import is.hail.asm4s._
-import is.hail.backend.{ExecuteContext, HailTaskContext}
+import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext}
 import is.hail.types.physical.{PCanonicalTuple, PTuple, PType, stypes}
 import is.hail.expr.ir.{Compile, IR, IRParser, IRParserEnvironment, Interpret, Literal, MakeTuple, SingleCodeEmitParamType}
 import is.hail.expr.ir.{Compile, IR, IRParser, IRParserEnvironment, Interpret, Literal, MakeTuple, SingleCodeEmitParamType}
 import is.hail.io.fs.FS
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
+import is.hail.variant.ReferenceGenome
 import is.hail.types.virtual._
 import org.apache.spark.sql.Row
 
@@ -42,12 +43,12 @@ object Graph {
     maximalIndependentSet(mkGraph(edges.map { case Row(i, j) => i -> j }))
   }
 
-  def maximalIndependentSet(edges: UnsafeIndexedSeq, hcl: HailClassLoader, fs: FS, htc: HailTaskContext, outerRegion: Region,
+  def maximalIndependentSet(rgs: Map[String, ReferenceGenome], edges: UnsafeIndexedSeq, hcl: HailClassLoader, fs: FS, htc: HailTaskContext, outerRegion: Region,
       wrappedNodeType: PTuple, resultType: PTuple, tieBreaker: (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3RegionLongLongLong): IndexedSeq[Any] = {
     val nodeType = wrappedNodeType.types.head.virtualType
     val region = outerRegion.getPool().getRegion()
     val tieBreakerF = tieBreaker(hcl, fs, htc, region)
-    val rvb = new RegionValueBuilder()
+    val rvb = new RegionValueBuilder(HailStateManager(rgs))
     val tbf = (l: Any, r: Any) => {
       region.clear()
       rvb.set(region)

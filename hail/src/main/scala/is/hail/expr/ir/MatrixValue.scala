@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.backend.ExecuteContext
+import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.types.physical.{PArray, PCanonicalStruct, PStruct, PType}
@@ -31,7 +31,7 @@ case class MatrixValue(
   lazy val globals: BroadcastRow = {
     val prevGlobals = tv.globals
     val newT = prevGlobals.t.deleteField(LowerMatrixIR.colsFieldName)
-    val rvb = new RegionValueBuilder(prevGlobals.value.region)
+    val rvb = new RegionValueBuilder(HailStateManager(Map.empty), prevGlobals.value.region)
     rvb.start(newT)
     rvb.startStruct()
     rvb.addFields(prevGlobals.t, prevGlobals.value,
@@ -82,8 +82,6 @@ case class MatrixValue(
       fatal(s"Method '$method' does not support duplicate column keys. Duplicates:" +
         s"\n  @1", dups.sortBy(-_._2).map { case (id, count) => s"""($count) "$id"""" }.truncatable("\n  "))
   }
-
-  def referenceGenome: ReferenceGenome = typ.referenceGenome
 
   def colsTableValue(ctx: ExecuteContext): TableValue =
     TableValue(ctx, typ.colsTableType, globals, colsRVD(ctx))
@@ -173,7 +171,7 @@ case class MatrixValue(
     val refPath = path + "/references"
     fs.mkDir(refPath)
     Array(typ.colType, typ.rowType, entryType, typ.globalType).foreach { t =>
-      ReferenceGenome.exportReferences(fs, refPath, t)
+      ReferenceGenome.exportReferences(fs, refPath, ReferenceGenome.getReferences(t).map(ctx.getReference(_)))
     }
 
     val spec = MatrixTableSpecParameters(
@@ -249,7 +247,7 @@ case class MatrixValue(
         val jv = JsonMethods.parse(partitions)
         val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, partitionsType)
           .asInstanceOf[IndexedSeq[Interval]]
-        new RVDPartitioner(typ.rowKey.toArray, typ.rowKeyStruct, rangeBounds)
+        new RVDPartitioner(ctx.stateManager, typ.rowKey.toArray, typ.rowKeyStruct, rangeBounds)
       } else
         null
 
@@ -361,7 +359,7 @@ object MatrixValue {
     rvd: RVD): MatrixValue = {
     val globalsType = typ.globalType.appendKey(LowerMatrixIR.colsFieldName, TArray(typ.colType))
     val globalsPType = PType.canonical(globalsType).asInstanceOf[PStruct]
-    val rvb = new RegionValueBuilder(ctx.r)
+    val rvb = new RegionValueBuilder(ctx.stateManager, ctx.r)
     rvb.start(globalsPType)
     rvb.startStruct()
     typ.globalType.fields.foreach { f =>

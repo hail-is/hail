@@ -2,12 +2,13 @@ package is.hail.backend
 
 import is.hail.asm4s._
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
-import is.hail.expr.ir.{CodeCacheKey, CompiledFunction, IR, SortField}
+import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR, TableStage, TableStageDependency}
+import is.hail.expr.ir.{CodeCacheKey, CompiledFunction, LoweringAnalyses, SortField, TableIR, TableReader}
 import is.hail.io.fs._
 import is.hail.linalg.BlockMatrix
 import is.hail.types._
 import is.hail.utils._
+import is.hail.variant.ReferenceGenome
 
 import scala.reflect.ClassTag
 
@@ -56,15 +57,53 @@ abstract class Backend {
 
   def shouldCacheQueryInfo: Boolean = true
 
+  def lookupOrCompileCachedFunction[T](k: CodeCacheKey)(f: => CompiledFunction[T]): CompiledFunction[T]
+
+  var references: Map[String, ReferenceGenome] = Map.empty
+
+  def addDefaultReferences(): Unit = {
+    references = ReferenceGenome.builtinReferences()
+  }
+
+  def addReference(rg: ReferenceGenome) {
+    references.get(rg.name) match {
+      case Some(rg2) =>
+        if (rg != rg2) {
+          fatal(s"Cannot add reference genome '${ rg.name }', a different reference with that name already exists. Choose a reference name NOT in the following list:\n  " +
+            s"@1", references.keys.truncatable("\n  "))
+        }
+      case None =>
+        references += (rg.name -> rg)
+    }
+  }
+
+  def hasReference(name: String) = references.contains(name)
+  def removeReference(name: String): Unit = {
+    references -= name
+  }
+
   def lowerDistributedSort(
     ctx: ExecuteContext,
     stage: TableStage,
     sortFields: IndexedSeq[SortField],
-    relationalLetsAbove: Map[String, IR],
-    rowTypeRequiredness: RStruct
-  ): TableStage
+    rt: RTable
+  ): TableReader
 
-  def lookupOrCompileCachedFunction[T](k: CodeCacheKey)(f: => CompiledFunction[T]): CompiledFunction[T]
+  final def lowerDistributedSort(
+    ctx: ExecuteContext,
+    inputIR: TableIR,
+    sortFields: IndexedSeq[SortField],
+    rt: RTable
+  ): TableReader = {
+    val analyses = LoweringAnalyses.apply(inputIR, ctx)
+    val inputStage = tableToTableStage(ctx, inputIR, analyses)
+    lowerDistributedSort(ctx, inputStage, sortFields, rt)
+  }
+
+  def tableToTableStage(ctx: ExecuteContext,
+    inputIR: TableIR,
+    analyses: LoweringAnalyses
+  ): TableStage
 }
 
 trait BackendWithCodeCache {

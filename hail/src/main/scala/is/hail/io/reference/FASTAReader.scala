@@ -37,12 +37,19 @@ object FASTAReader {
   }
 
   def setup(tmpdir: String, fs: FS, fastaFile: String, indexFile: String): String = {
-    val localFastaFile = ExecuteContext.createTmpPathNoCleanup(tmpdir, "fasta-reader", "fasta")
-    log.info(s"copying FASTA file at $fastaFile to $localFastaFile")
-    fs.copyRecode(fastaFile, localFastaFile)
+    val localFastaFile = if (fastaFile.startsWith("/")) {
+      fastaFile
+    } else {
+      val localPath = ExecuteContext.createTmpPathNoCleanup(tmpdir, "fasta-reader", "fasta")
+      log.info(s"copying FASTA file at $fastaFile to $localPath")
+      fs.copyRecode(fastaFile, localPath)
+      localPath
+    }
 
     val localIndexFile = localFastaFile + ".fai"
-    fs.copyRecode(indexFile, localIndexFile)
+    if (localIndexFile != indexFile) {
+      fs.copyRecode(indexFile, localIndexFile)
+    }
 
     if (!fs.exists(localFastaFile))
       fatal(s"Error while copying FASTA file to local file system. Did not find '$localFastaFile'.")

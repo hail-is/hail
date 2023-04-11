@@ -7,6 +7,8 @@ import is.hail.backend.local.LocalTaskContext
 import is.hail.expr.ir.Threefry
 import is.hail.io.fs.FS
 import is.hail.utils._
+import is.hail.types.MapTypes
+import is.hail.types.virtual.{TLocus, Type}
 import is.hail.variant.ReferenceGenome
 
 import java.io._
@@ -36,7 +38,6 @@ class NonOwningTempFileManager(owner: TempFileManager) extends TempFileManager {
 
   override def cleanup(): Unit = ()
 }
-
 
 object ExecuteContext {
   def scoped[T]()(f: ExecuteContext => T): T = {
@@ -119,6 +120,8 @@ class ExecuteContext(
       fatal(s"Could not parse flag rng_nonce as a 64-bit signed integer: ${getFlag("rng_nonce")}", exc)
   }
 
+  val stateManager = HailStateManager(referenceGenomes)
+
   private val tempFileManager: TempFileManager = if (_tempFileManager != null)
     _tempFileManager
   else
@@ -137,8 +140,8 @@ class ExecuteContext(
     using(new LocalTaskContext(0, 0))(f(theHailClassLoader, fs, _, r))
   }
 
-  def createTmpPath(prefix: String, extension: String = null): String = {
-    val path = ExecuteContext.createTmpPathNoCleanup(tmpdir, prefix, extension)
+  def createTmpPath(prefix: String, extension: String = null, local: Boolean = false): String = {
+    val path = ExecuteContext.createTmpPathNoCleanup(if (local) localTmpdir else tmpdir, prefix, extension)
     tempFileManager.own(path)
     path
   }

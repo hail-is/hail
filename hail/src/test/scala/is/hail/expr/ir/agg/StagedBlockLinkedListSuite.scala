@@ -54,7 +54,7 @@ class StagedBlockLinkedListSuite extends HailSuite {
 
       val f = fb.result(ctx)(theHailClassLoader)
       ({ (r, ptr, elt) =>
-        f(r, ptr, if(elt == null) 0L else ScalaToRegionValue(r, elemPType, elt))
+        f(r, ptr, if(elt == null) 0L else ScalaToRegionValue(ctx.stateManager, r, elemPType, elt))
       })
     }
 

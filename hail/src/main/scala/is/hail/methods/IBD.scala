@@ -200,7 +200,8 @@ object IBD {
 
   final val chunkSize = 1024
 
-  def computeIBDMatrix(input: MatrixValue,
+  def computeIBDMatrix(ctx: ExecuteContext,
+    input: MatrixValue,
     computeMaf: Option[(RegionValue) => Double],
     min: Option[Double],
     max: Option[Double],
@@ -208,6 +209,7 @@ object IBD {
     bounded: Boolean): ContextRDD[Long] = {
 
     val nSamples = input.nCols
+    val sm = ctx.stateManager
 
     val rowPType = input.rvRowPType
     val unnormalizedIbse = input.rvd.mapPartitions { (ctx, it) =>
@@ -270,7 +272,7 @@ object IBD {
 
     joined
       .cmapPartitions { (ctx, it) =>
-        val rvb = new RegionValueBuilder(ctx.region)
+        val rvb = new RegionValueBuilder(sm, ctx.region)
         for {
           ((iChunk, jChunk), ibses) <- it
           si <- (0 until chunkSize).iterator
@@ -346,7 +348,7 @@ case class IBD(
   def execute(ctx: ExecuteContext, input: MatrixValue): TableValue = {
     input.requireUniqueSamples("ibd")
     val computeMaf = mafFieldName.map(IBD.generateComputeMaf(input, _))
-    val crdd = IBD.computeIBDMatrix(input, computeMaf, min, max, input.stringSampleIds, bounded)
+    val crdd = IBD.computeIBDMatrix(ctx, input, computeMaf, min, max, input.stringSampleIds, bounded)
     TableValue(ctx, IBD.ibdPType, IBD.ibdKey, crdd)
   }
 }

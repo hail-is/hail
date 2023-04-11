@@ -204,8 +204,7 @@ async def _handle_ui_error(session, f, *args, **kwargs):
         set_message(session, e.message, e.ui_error_type)
         log.info(f'ui error: BatchUserError {e.message}')
         return True
-    else:
-        return False
+    return False
 
 
 async def _handle_api_error(f, *args, **kwargs):
@@ -926,8 +925,6 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
                 raise web.HTTPBadRequest(reason='invalid cpu for jvm jobs. must be 1, 2, 4, or 8')
             if 'memory' in resources and resources['memory'] == 'lowmem':
                 raise web.HTTPBadRequest(reason='jvm jobs cannot be on lowmem machines')
-            if 'storage' in resources:
-                raise web.HTTPBadRequest(reason='jvm jobs may not specify storage')
             if machine_type is not None:
                 raise web.HTTPBadRequest(reason='jvm jobs may not specify machine_type')
             if spec['process']['jar_spec']['type'] == 'git_revision':
@@ -2052,7 +2049,7 @@ def plot_resource_usage(
                     legendgroup=container_name,
                     name=container_name,
                     mode='markers+lines',
-                    line=dict(color=colors[container_name]),
+                    line={'color': colors[container_name]},
                 ),
                 row=row,
                 col=col,

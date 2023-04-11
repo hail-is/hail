@@ -28,20 +28,21 @@ object Call2 {
   def fromUnphasedDiploidGtIndex(gt: Int): Call = {
     if (gt < 0)
       fatal(s"gt must be >= 0. Found $gt.")
-    Call(gt, phased = false, ploidy = 2)
+    if ((gt >>> 29) != 0)
+      fatal(s"invalid allele representation: $gt. Max value is 2^29 - 1", -1)
+    val ploidy = 2
+    ploidy << 1 | gt << 3
   }
 
   def apply(aj: Int, ak: Int, phased: Boolean = false): Call = {
     if (aj < 0 || ak < 0)
       fatal(s"allele indices must be >= 0. Found j=$aj and k=$ak.")
 
-    val alleleRepr =
-      if (phased)
-        Genotype.diploidGtIndex(aj, aj + ak)
-      else
-        Genotype.diploidGtIndexWithSwap(aj, ak)
-
-    Call(alleleRepr, phased, ploidy = 2)
+    if (phased) {
+      Call(Genotype.diploidGtIndex(aj, aj + ak), true, ploidy = 2)
+    } else {
+      fromUnphasedDiploidGtIndex(Genotype.diploidGtIndexWithSwap(aj, ak))
+    }
   }
 
   def withErrorID(aj: Int, ak: Int, phased: Boolean, errorID: Int): Call = {
@@ -203,18 +204,129 @@ object Call extends Serializable {
 
   def toString(c: Call): String = {
     val phased = isPhased(c)
-    val sep = if (phased) "|" else "/"
+    if (phased) {
+      (ploidy(c): @switch) match {
+        case 0 => "|-"
+        case 1 =>
+          val a = alleleByIndex(c, 0)
 
-    (ploidy(c): @switch) match {
-      case 0 => if (phased) "|-" else "-"
-      case 1 =>
-        val a = alleleByIndex(c, 0)
-        if (phased) s"|$a" else s"$a"
-      case 2 =>
-        val p = allelePair(c)
-        s"${ AllelePair.j(p) }$sep${ AllelePair.k(p) }"
-      case _ =>
-        alleles(c).mkString(sep)
+          (a: @switch) match {
+            case 0 => "|0"
+            case 1 => "|1"
+            case 2 => "|2"
+            case _ => s"|$a"
+          }
+        case 2 =>
+          (alleleRepr(c): @switch) match {
+            case 0 => "0|0"
+            case 1 => "0|1"
+            case 2 => "1|0"
+            case 3 => "0|2"
+            case 4 => "1|1"
+            case _ =>
+              val p = allelePair(c)
+              s"${ AllelePair.j(p) }|${ AllelePair.k(p) }"
+          }
+        case _ =>
+          alleles(c).mkString("|")
+      }
+    } else {
+      (ploidy(c): @switch) match {
+        case 0 => "-"
+        case 1 =>
+          val a = alleleByIndex(c, 0)
+
+          (a: @switch) match {
+            case 0 => "0"
+            case 1 => "1"
+            case 2 => "2"
+            case _ => a.toString
+          }
+        case 2 =>
+          (alleleRepr(c): @switch) match {
+            case 0 => "0/0"
+            case 1 => "0/1"
+            case 2 => "1/1"
+            case _ =>
+              val p = allelePair(c)
+              s"${ AllelePair.j(p) }/${ AllelePair.k(p) }"
+          }
+        case _ =>
+          alleles(c).mkString("/")
+      }
+    }
+  }
+
+  private[this] val phased_ = Array[Byte]('|', '-')
+  private[this] val phased_0 = Array[Byte]('|', '0')
+  private[this] val phased_1 = Array[Byte]('|', '1')
+  private[this] val phased_2 = Array[Byte]('|', '2')
+  private[this] val phased_00 = Array[Byte]('0', '|', '0')
+  private[this] val phased_01 = Array[Byte]('0', '|', '1')
+  private[this] val phased_10 = Array[Byte]('1', '|', '0')
+  private[this] val phased_02 = Array[Byte]('0', '|', '2')
+  private[this] val phased_11 = Array[Byte]('1', '|', '1')
+
+  private[this] val unphased_ = Array[Byte]('-')
+  private[this] val unphased_0 = Array[Byte]('0')
+  private[this] val unphased_1 = Array[Byte]('1')
+  private[this] val unphased_2 = Array[Byte]('2')
+  private[this] val unphased_00 = Array[Byte]('0', '/', '0')
+  private[this] val unphased_01 = Array[Byte]('0', '/', '1')
+  private[this] val unphased_11 = Array[Byte]('1', '/', '1')
+
+  def toUTF8(c: Call): Array[Byte] = {
+    val phased = isPhased(c)
+    if (phased) {
+      (ploidy(c): @switch) match {
+        case 0 => phased_
+        case 1 =>
+          val a = alleleByIndex(c, 0)
+
+          (a: @switch) match {
+            case 0 => phased_0
+            case 1 => phased_1
+            case 2 => phased_2
+            case _ => s"|$a".getBytes()
+          }
+        case 2 =>
+          (alleleRepr(c): @switch) match {
+            case 0 => phased_00
+            case 1 => phased_01
+            case 2 => phased_10
+            case 3 => phased_02
+            case 4 => phased_11
+            case _ =>
+              val p = allelePair(c)
+              s"${ AllelePair.j(p) }|${ AllelePair.k(p) }".getBytes()
+          }
+        case _ =>
+          alleles(c).mkString("|").getBytes()
+      }
+    } else {
+      (ploidy(c): @switch) match {
+        case 0 => unphased_
+        case 1 =>
+          val a = alleleByIndex(c, 0)
+
+          (a: @switch) match {
+            case 0 => unphased_0
+            case 1 => unphased_1
+            case 2 => unphased_2
+            case _ => a.toString.getBytes()
+          }
+        case 2 =>
+          (alleleRepr(c): @switch) match {
+            case 0 => unphased_00
+            case 1 => unphased_01
+            case 2 => unphased_11
+            case _ =>
+              val p = allelePair(c)
+              s"${ AllelePair.j(p) }/${ AllelePair.k(p) }".getBytes()
+          }
+        case _ =>
+          alleles(c).mkString("/").getBytes()
+      }
     }
   }
 

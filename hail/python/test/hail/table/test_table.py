@@ -914,8 +914,6 @@ class Tests(unittest.TestCase):
         with hl.hadoop_open(tmp_file, 'r') as f_in:
             assert f_in.read() == 'idx,foo\n0,3\n'
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_write_stage_locally(self):
         t = hl.utils.range_table(5)
         f = new_temp_file(extension='ht')
@@ -1878,8 +1876,6 @@ def test_to_pandas():
     strs = ["foo", "bar", "baz"]
     ht = ht.annotate(s = hl.array(strs)[ht.idx], nested=hl.struct(foo = ht.idx, bar=hl.range(ht.idx)))
     df_from_hail = ht.to_pandas(flatten=False)
-    print(df_from_hail)
-    print(df_from_hail.dtypes)
 
     python_data = {
         "idx": pd.Series([0, 1, 2], dtype='Int32'),
@@ -1890,6 +1886,34 @@ def test_to_pandas():
 
     df_from_python = pd.DataFrame(python_data)
     pd.testing.assert_frame_equal(df_from_hail, df_from_python)
+
+
+def test_to_pandas_types_type_to_type():
+    ht = hl.utils.range_table(3)
+    ht = ht.annotate(
+        s=hl.array(["foo", "bar", "baz"])[ht.idx],
+        nested=hl.struct(foo=ht.idx,
+                         bar=hl.range(ht.idx))
+    )
+    actual = dict(ht.to_pandas(types={hl.tint32: 'Int64'}).dtypes)
+    assert isinstance(actual['idx'], pd.Int64Dtype)
+    assert isinstance(actual['s'], pd.StringDtype)
+    assert isinstance(actual['nested.foo'], pd.Int64Dtype)
+    assert actual['nested.bar'] == np.dtype('O')
+
+
+def test_to_pandas_types_column_to_type():
+    ht = hl.utils.range_table(3)
+    ht = ht.annotate(
+        s=hl.array(["foo", "bar", "baz"])[ht.idx],
+        nested=hl.struct(foo=ht.idx,
+                         bar=hl.range(ht.idx))
+    )
+    actual = dict(ht.to_pandas(types={'nested.foo': 'Int64'}).dtypes)
+    assert isinstance(actual['idx'], pd.Int32Dtype)
+    assert isinstance(actual['s'], pd.StringDtype)
+    assert isinstance(actual['nested.foo'], pd.Int64Dtype)
+    assert actual['nested.bar'] == np.dtype('O')
 
 
 def test_to_pandas_flatten():
@@ -2257,6 +2281,22 @@ def test_table_randomness():
     t = bm.entries()
     assert_contains_node(t, ir.BlockMatrixToTable)
     assert_unique_uids(t)
+
+    # test TableGen
+    t = hl.Table._generate(
+        contexts=hl.repeat(hl.rand_int64, 2),
+        globals=hl.struct(k=hl.rand_int64()),
+        partitions=2,
+        rowfn=lambda c, g: hl.repeat(hl.struct(a=c * g.k * hl.rand_int64()), 2),
+    )
+    assert_contains_node(t, ir.TableGen)
+    assert_unique_uids(t)
+
+
+def test_order_by_desc():
+    t = hl.utils.range_table(10_000, n_partitions=10)
+    t = t.order_by(-t.idx)
+    assert t._force_count() == 10_000
 
 
 def test_query_table():

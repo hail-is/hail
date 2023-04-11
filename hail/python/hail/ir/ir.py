@@ -1505,9 +1505,9 @@ def concat_uids(uid1, uid2, handle_missing_left=False, handle_missing_right=Fals
     return MakeTuple([*fields1, *fields2])
 
 
-def unpack_uid(stream_type):
+def unpack_uid(stream_type, name=None):
     tuple_type = stream_type.element_type
-    tuple = Ref(Env.get_uid(), tuple_type)
+    tuple = Ref(name or Env.get_uid(), tuple_type)
     if isinstance(tuple_type, tstruct):
         return \
             tuple.name, \
@@ -1519,10 +1519,17 @@ def unpack_uid(stream_type):
 
 
 def pack_uid(uid, elt):
-    if isinstance(elt.typ, tstruct):
-        return InsertFields(elt, [(uid_field_name, uid)], None)
-    else:
-        return MakeTuple([uid, elt])
+    return MakeTuple([uid, elt])
+
+
+def pack_to_structs(stream):
+    if isinstance(stream.typ.element_type, tstruct):
+        return stream
+    uid = Env.get_uid()
+    elt = Ref(uid, stream.typ.element_type)
+    return StreamMap(stream, uid, InsertFields(GetTupleElement(elt, 1),
+                                               [(uid_field_name, GetTupleElement(elt, 0))],
+                                               None))
 
 
 def with_split_rng_state(ir, split, is_scan=None) -> 'BaseIR':
@@ -1577,6 +1584,15 @@ class StreamMap(IR):
             elt = Env.get_uid()
             new_body = with_split_rng_state(Let(self.name, elt, self.body, uid))
             return StreamZip([a, StreamIota(I32(0), I32(1))], [elt, uid], new_body, 'TakeMinLength')
+
+        if not self.needs_randomness_handling and self.a.has_uids:
+            # There are occations when handle_randomness is called twice on a
+            # `StreamMap`: once with `create_uids=False` and the second time
+            # with `True`. In these cases, we only need to propagate the uid.
+            assert(create_uids)
+            _, uid, _ = unpack_uid(self.a.typ, self.name)
+            new_body = pack_uid(uid, self.body)
+            return StreamMap(self.a, self.name, new_body)
 
         a = self.a.handle_randomness(True)
 
@@ -1956,20 +1972,20 @@ class StreamJoinRightDistinct(IR):
             return StreamJoinRightDistinct(left, right, self.l_key, self.r_key, self.l_name, self.r_name, self.join, self.join_type)
 
         if self.join_type == 'left' or self.join_type == 'inner':
-            left = self.left.handle_randomness(True)
+            left = pack_to_structs(self.left.handle_randomness(True))
             right = self.right.handle_randomness(False)
             r_name = self.r_name
             l_name, uid, l_elt = unpack_uid(left.typ)
             new_join = Let(self.l_name, l_elt, self.join)
         elif self.join_type == 'right':
-            right = self.right.handle_randomness(True)
+            right = pack_to_structs(self.right.handle_randomness(True))
             left = self.left.handle_randomness(False)
             l_name = self.l_name
             r_name, uid, r_elt = unpack_uid(right.typ)
             new_join = Let(self.r_name, r_elt, self.join)
         else:
-            left = self.left.handle_randomness(True)
-            right = self.right.handle_randomness(True)
+            left = pack_to_structs(self.left.handle_randomness(True))
+            right = pack_to_structs(self.right.handle_randomness(True))
             [l_name, r_name], uids, elts = zip(*(unpack_uid(left.typ), unpack_uid(right.typ)))
             uid_type = unify_uid_types((uid.typ for uid in uids), tag=True)
             uid = If(IsNA(uids[0]), pad_uid(uids[1], uid_type, 1), pad_uid(uids[0], uid_type, 0))

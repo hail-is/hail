@@ -4,7 +4,7 @@ import htsjdk.variant.vcf._
 import is.hail.annotations._
 import is.hail.asm4s.HailClassLoader
 import is.hail.backend.spark.SparkBackend
-import is.hail.backend.{BroadcastValue, ExecuteContext}
+import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering.TableStage
 import is.hail.expr.ir.{CloseableIterator, GenericLine, GenericLines, GenericTableValue, IR, IRParser, Literal, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixReader, TableValue}
@@ -1712,7 +1712,7 @@ class MatrixVCFReader(
     colKey = Array("s"),
     rowType = TStruct(
       Array(
-        "locus" -> TLocus.schemaFromRG(referenceGenome),
+        "locus" -> TLocus.schemaFromRG(referenceGenome.map(_.name)),
         "alleles" -> TArray(TString))
       ++ vaSignature.fields.map(f => f.name -> f.typ.virtualType): _*),
     rowKey = Array("locus", "alleles"),
@@ -1722,7 +1722,7 @@ class MatrixVCFReader(
   val fullRVDType = RVDType(
     PCanonicalStruct(true,
       FastIndexedSeq(
-        "locus" -> PCanonicalLocus.schemaFromRG(referenceGenome, true),
+        "locus" -> PCanonicalLocus.schemaFromRG(referenceGenome.map(_.name), true),
         "alleles" -> PCanonicalArray(PCanonicalString(true), true))
       ++ vaSignature.fields.map { f => f.name -> f.typ }
       ++ FastIndexedSeq(
@@ -1738,7 +1738,7 @@ class MatrixVCFReader(
 
   val partitionCounts: Option[IndexedSeq[Long]] = None
 
-  val partitioner: Option[RVDPartitioner] = params.partitionsJSON.map { partitionsJSON =>
+  def partitioner(sm: HailStateManager): Option[RVDPartitioner] = params.partitionsJSON.map { partitionsJSON =>
     val indexedPartitionsType = IRParser.parseType(params.partitionsTypeStr.get)
     val jv = JsonMethods.parse(partitionsJSON)
     val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, indexedPartitionsType)
@@ -1754,6 +1754,7 @@ class MatrixVCFReader(
         fatal(s"partition spec must not cross contig boundaries, start: ${start.contig} | end: ${end.contig}")
     }
     new RVDPartitioner(
+      sm,
       Array("locus"),
       fullType.keyType,
       rangeBounds)
@@ -1770,6 +1771,7 @@ class MatrixVCFReader(
 
   def executeGeneric(ctx: ExecuteContext, dropRows: Boolean = false): GenericTableValue = {
     val fs = ctx.fs
+    val sm = ctx.stateManager
 
     val rgBc = referenceGenome.map(_.broadcast)
     val localArrayElementsRequired = params.arrayElementsRequired
@@ -1779,7 +1781,8 @@ class MatrixVCFReader(
     val localNSamples = nCols
     val localFilterAndReplace = params.filterAndReplace
 
-    val lines = partitioner match {
+    val part = partitioner(ctx.stateManager)
+    val lines = part match {
       case Some(partitioner) =>
         GenericLines.readTabix(fs, fileStatuses(0), localContigRecoding, partitioner.rangeBounds)
       case None =>
@@ -1803,7 +1806,7 @@ class MatrixVCFReader(
         val fileNum = context.asInstanceOf[Row].getInt(1)
         val parseLineContext = new ParseLineContext(requestedType, makeJavaSet(localInfoFlagFieldNames), localNSamples, fileNum)
 
-        val rvb = new RegionValueBuilder(region)
+        val rvb = new RegionValueBuilder(sm, region)
 
         val abs = new MissingArrayBuilder[String]
         val abi = new MissingArrayBuilder[Int]
@@ -1838,7 +1841,7 @@ class MatrixVCFReader(
     new GenericTableValue(
       fullType,
       rowUIDFieldName,
-      partitioner,
+      part,
       { (requestedGlobalsType: Type) =>
         val subset = fullType.globalType.valueSubsetter(requestedGlobalsType)
         subset(globals).asInstanceOf[Row]
@@ -1911,7 +1914,7 @@ class VCFsReader(
         (target, mappings.head._1)
       }.toMap
 
-  private val locusType = TLocus.schemaFromRG(referenceGenome)
+  private val locusType = TLocus.schemaFromRG(rg)
   private val rowKeyType = TStruct("locus" -> locusType)
 
   private val file1 = files.head
@@ -1930,7 +1933,7 @@ class VCFsReader(
     entryType = header1.genotypeSignature.virtualType)
 
   val fullRVDType = RVDType(PCanonicalStruct(true,
-    FastIndexedSeq(("locus", PCanonicalLocus.schemaFromRG(referenceGenome, true)), ("alleles", PCanonicalArray(PCanonicalString(true), true)))
+    FastIndexedSeq(("locus", PCanonicalLocus.schemaFromRG(rg, true)), ("alleles", PCanonicalArray(PCanonicalString(true), true)))
       ++ header1.vaSignature.fields.map { f => (f.name, f.typ) }
       ++ Array(LowerMatrixIR.entriesFieldName -> PCanonicalArray(header1.genotypeSignature, true)): _*),
     typ.rowKey)
@@ -1952,6 +1955,7 @@ class VCFsReader(
     }
 
     new RVDPartitioner(
+      ctx.stateManager,
       Array("locus"),
       rowKeyType,
       rangeBounds)

@@ -35,6 +35,14 @@ kind: ServiceAccount
 metadata:
   name: ci-agent
 ---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/service-account-token
+metadata:
+  name: ci-agent-token
+  annotations:
+    kubernetes.io/service-account.name: ci-agent
+---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
@@ -75,6 +83,14 @@ kind: ServiceAccount
 metadata:
   name: admin
   namespace: default
+---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/service-account-token
+metadata:
+  name: admin-token
+  annotations:
+    kubernetes.io/service-account.name: admin
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1

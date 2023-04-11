@@ -2,7 +2,7 @@ package is.hail.linalg
 
 import breeze.linalg.DenseMatrix
 import is.hail.HailContext
-import is.hail.backend.{BroadcastValue, ExecuteContext}
+import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
 import is.hail.backend.spark.SparkBackend
 import is.hail.types.virtual.{TInt64, TStruct}
 import is.hail.io.InputBuffer
@@ -77,7 +77,7 @@ class RowMatrix(val rows: RDD[(Long, Array[Double])],
     
     val partStarts = partitionStarts()
 
-    new RVDPartitioner(partitionKey, kType,
+    new RVDPartitioner(HailStateManager(Map.empty), partitionKey, kType,
       Array.tabulate(partStarts.length - 1) { i =>
         val start = partStarts(i)
         val end = partStarts(i + 1)

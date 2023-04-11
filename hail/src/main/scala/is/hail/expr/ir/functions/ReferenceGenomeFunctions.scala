@@ -12,7 +12,7 @@ import is.hail.types.virtual._
 import is.hail.variant.ReferenceGenome
 
 object ReferenceGenomeFunctions extends RegistryFunctions {
-  def rgCode(mb: EmitMethodBuilder[_], rg: ReferenceGenome): Code[ReferenceGenome] = mb.getReferenceGenome(rg)
+  def rgCode(mb: EmitMethodBuilder[_], rg: String): Code[ReferenceGenome] = mb.getReferenceGenome(rg)
 
   def registerAll() {
     registerSCode1t("isValidContig", Array(LocusFunctions.tlocus("R")), TString, TBoolean, (_: Type, _: SType) => SBoolean) {

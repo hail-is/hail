@@ -726,7 +726,7 @@ trait SNDArrayValue extends SValue {
   def assertInBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder, errorId: Int): Unit = {
     val shape = this.shapes
     for (dimIndex <- 0 until st.nDims) {
-      cb.ifx(indices(dimIndex) >= shape(dimIndex), {
+      cb.ifx(indices(dimIndex) >= shape(dimIndex) || indices(dimIndex) < 0, {
         cb._fatalWithError(errorId,
           "Index ", indices(dimIndex).toS,
           s" is out of bounds for axis $dimIndex with size ",
@@ -865,9 +865,10 @@ trait SNDArrayValue extends SValue {
 
     for (i <- indices.indices) indices(i) match {
       case ScalarIndex(j) =>
-        cb.ifx(j < 0 || j >= shapeX(i), cb._fatal("Index out of bounds"))
+        cb.ifx(j < 0 || j >= shapeX(i), cb._fatal("Scalar index out of bounds (axis ", i.toString, "): ", j.toS, " is not in [0,", shapeX(i).toS, ")"))
       case SliceIndex(Some(begin), Some(end)) =>
-        cb.ifx(begin < 0 || end > shapeX(i) || begin > end, cb._fatal("Index out of bounds"))
+        cb.ifx(begin > end, cb._fatal("Invalid slice index, " , begin.toS, " > ", end.toS))
+        cb.ifx(begin < 0 || end > shapeX(i), cb._fatal("Slice index out of bounds: (axis ", i.toString, ") range ", begin.toS, ":", end.toS, " is not contained by [0,", shapeX(i).toS, ")"))
         val s = cb.newLocal[Long]("slice_size", end - begin)
         shapeBuilder += SizeValueDyn(s)
         stridesBuilder += stridesX(i)
@@ -876,24 +877,26 @@ trait SNDArrayValue extends SValue {
         shapeBuilder += end
         stridesBuilder += stridesX(i)
       case SliceIndex(None, Some(end)) =>
-        cb.ifx(end > shapeX(i) || end < 0, cb._fatal("Index out of bounds"))
+        cb.ifx(end < 0, cb._fatal("Slice end index out of bounds (axis ", i.toString, "): endpoint " , end.toS, " < 0"))
+        cb.ifx(end > shapeX(i), cb._fatal("Slice end index out of bounds: endpoint ", end.toS, " > ", shapeX(i).toS))
         shapeBuilder += SizeValueDyn(end)
         stridesBuilder += stridesX(i)
       case SliceIndex(Some(begin), None) =>
-        val end = shapeX(i)
-        cb.ifx(begin < 0 || begin > end, cb._fatal("Index out of bounds"))
-        val s = cb.newLocal[Long]("slice_size", end - begin)
+        cb.ifx(begin < 0, cb._fatal("Slice start index out of bounds (axis ", i.toString, "): startpoint " , begin.toS, " < 0"))
+        cb.ifx(begin > shapeX(i), cb._fatal("Slice start index out of bounds (axis ", i.toString, "): startpoint ", begin.toS, " > ", shapeX(i).toS))
+        val s = cb.newLocal[Long]("slice_size", shapeX(i) - begin)
         shapeBuilder += SizeValueDyn(s)
         stridesBuilder += stridesX(i)
       case SliceIndex(None, None) =>
         shapeBuilder += shapeX(i)
         stridesBuilder += stridesX(i)
       case SliceSize(None, size) =>
-        cb.ifx(size >= shapeX(i), cb._fatal("Index out of bounds") )
+        cb.ifx(size > shapeX(i), cb._fatal("Slice size out of bounds (axis ", i.toString, "): size ", size.toS, " > ", shapeX(i).toS))
         shapeBuilder += size
         stridesBuilder += stridesX(i)
       case SliceSize(Some(begin), size) =>
-        cb.ifx(begin < 0 || begin + size > shapeX(i), cb._fatal("Index out of bounds") )
+        cb.ifx(begin < 0, cb._fatal("Slice start out of bounds (axis ", i.toString, "): start ", begin.toS, " < 0"))
+        cb.ifx(begin + size > shapeX(i), cb._fatal("Slice index out of bounds (axis ", i.toString, "): range ", begin.toS, ":", begin.toS, "+", size.toS, " is not contained by [0,", shapeX(i).toS, ")"))
         shapeBuilder += size
         stridesBuilder += stridesX(i)
       case ColonIndex =>

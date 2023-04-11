@@ -1,3 +1,4 @@
+from typing import Optional
 from hail.expr.expressions import construct_expr, expr_any, unify_all
 from hail.expr.types import hail_type
 from hail.ir import Apply, Ref
@@ -18,7 +19,7 @@ class Function(object):
 
 
 @typecheck(f=anytype, param_types=hail_type, _name=nullable(str), type_args=tupleof(hail_type))
-def define_function(f, *param_types, _name=None, type_args=()):
+def define_function(f, *param_types, _name: Optional[str] = None, type_args=()) -> Function:
     mname = _name if _name is not None else Env.get_uid()
     param_names = [Env.get_uid(mname) for _ in param_types]
     body = f(*(construct_expr(Ref(pn), pt) for pn, pt in zip(param_names, param_types)))

@@ -3,11 +3,11 @@ package is.hail.expr.ir.agg
 import breeze.linalg.{DenseMatrix, DenseVector, diag, inv}
 import is.hail.annotations.{Region, RegionValueBuilder, UnsafeRow}
 import is.hail.asm4s._
-import is.hail.backend.ExecuteContext
+import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitContext, IEmitCode}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SCode, SValue}
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SIndexablePointer, SIndexablePointerSettable}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SIndexablePointer, SIndexablePointerSettable, SIndexablePointerValue}
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.virtual.{TArray, TFloat64, TInt32, Type}
 import is.hail.utils.FastIndexedSeq
@@ -31,7 +31,7 @@ object LinearRegressionAggregator {
     val xtx = DenseMatrix.create(k, k, UnsafeRow.readArray(vector, null, xtxPtr)
       .asInstanceOf[IndexedSeq[Double]].toArray[Double])
 
-    val rvb = new RegionValueBuilder(region)
+    val rvb = new RegionValueBuilder(HailStateManager(Map.empty), region)
     rvb.start(resultPType)
     rvb.startStruct()
 
@@ -150,7 +150,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
           case SIndexablePointer(pt: PCanonicalArray) =>
             assert(pt.elementType.isInstanceOf[PFloat64])
 
-            val xAddr = x.asInstanceOf[SIndexablePointerSettable].a
+            val xAddr = x.asInstanceOf[SIndexablePointerValue].a
             val xptr = cb.newLocal[Long]("linreg_agg_seqop_xptr")
             val xptr2 = cb.newLocal[Long]("linreg_agg_seqop_xptr2")
             cb.assign(xptr, pt.firstElementOffset(xAddr, k))

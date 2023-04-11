@@ -106,7 +106,7 @@ def get_database_ssl_context(sql_config: Optional[SQLConfig] = None) -> ssl.SSLC
 
 
 @retry_transient_mysql_errors
-async def create_database_pool(config_file: str = None, autocommit: bool = True, maxsize: int = 10):
+async def create_database_pool(config_file: Optional[str] = None, autocommit: bool = True, maxsize: int = 10):
     sql_config = get_sql_config(config_file)
     ssl_context = get_database_ssl_context(sql_config)
     assert ssl_context is not None
@@ -131,7 +131,7 @@ class TransactionAsyncContextManager:
     def __init__(self, db_pool, read_only, task_manager: BackgroundTaskManager):
         self.db_pool = db_pool
         self.read_only = read_only
-        self.tx = None
+        self.tx: Optional['Transaction'] = None
         self.task_manager = task_manager
 
     async def __aenter__(self):
@@ -141,6 +141,7 @@ class TransactionAsyncContextManager:
         return tx
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        assert self.tx is not None
         await self.tx._aexit(exc_type, exc_val, exc_tb)
         self.tx = None
 
@@ -166,6 +167,7 @@ class Transaction:
             DB_CONNECTION_QUEUE_SIZE.inc()
             SQL_TRANSACTIONS.inc()
             self.conn = await aenter(self.conn_context_manager)
+            assert self.conn is not None
             DB_CONNECTION_QUEUE_SIZE.dec()
             async with self.conn.cursor() as cursor:
                 if read_only:

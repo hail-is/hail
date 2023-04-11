@@ -10,6 +10,9 @@
     <div>Boot disk size (in GB): <input name="boot_disk_size_gb" value="{{ jpim.boot_disk_size_gb }}" /></div>
     <div>Max instances: <input name="max_instances" value="{{ jpim.max_instances }}" /></div>
     <div>Max live instances: <input name="max_live_instances" value="{{ jpim.max_live_instances }}" /></div>
+    <div>Max new instances per autoscaler loop: <input name="max_new_instances_per_autoscaler_loop" value="{{ jpim.max_new_instances_per_autoscaler_loop }}" /></div>
+    <div>Autoscaler loop period in seconds: <input name="autoscaler_loop_period_secs" value="{{ jpim.autoscaler_loop_period_secs }}" /></div>
+    <div>Worker max idle time in seconds: <input name="worker_max_idle_time_secs" value="{{ jpim.worker_max_idle_time_secs }}" /></div>
     <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
     <button>
       Update

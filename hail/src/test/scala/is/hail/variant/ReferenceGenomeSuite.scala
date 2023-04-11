@@ -1,6 +1,7 @@
 package is.hail.variant
 
 import is.hail.annotations.Region
+import is.hail.backend.HailStateManager
 import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr.ir.EmitFunctionBuilder
@@ -12,9 +13,14 @@ import htsjdk.samtools.reference.ReferenceSequenceFileFactory
 import org.testng.annotations.Test
 
 class ReferenceGenomeSuite extends HailSuite {
+
+  def hasReference(name: String) = ctx.stateManager.referenceGenomes.contains(name)
+
+  def getReference(name: String) = ctx.getReference(name)
+
   @Test def testGRCh37() {
-    val grch37 = ReferenceGenome.GRCh37
-    assert(ReferenceGenome.hasReference("GRCh37"))
+    assert(hasReference(ReferenceGenome.GRCh37))
+    val grch37 = getReference(ReferenceGenome.GRCh37)
 
     assert(grch37.inX("X") && grch37.inY("Y") && grch37.isMitochondrial("MT"))
     assert(grch37.contigLength("1") == 249250621)
@@ -29,8 +35,8 @@ class ReferenceGenomeSuite extends HailSuite {
   }
 
   @Test def testGRCh38() {
-    val grch38 = ReferenceGenome.GRCh38
-    assert(ReferenceGenome.hasReference("GRCh38"))
+    assert(hasReference(ReferenceGenome.GRCh38))
+    val grch38 = getReference(ReferenceGenome.GRCh38)
 
     assert(grch38.inX("chrX") && grch38.inY("chrY") && grch38.isMitochondrial("chrM"))
     assert(grch38.contigLength("chr1") == 248956422)
@@ -57,11 +63,11 @@ class ReferenceGenomeSuite extends HailSuite {
 
   @Test def testContigRemap() {
     val mapping = Map("23" -> "foo")
-    TestUtils.interceptFatal("have remapped contigs in reference genome")(ReferenceGenome.GRCh37.validateContigRemap(mapping))
+    TestUtils.interceptFatal("have remapped contigs in reference genome")(getReference(ReferenceGenome.GRCh37).validateContigRemap(mapping))
   }
 
   @Test def testComparisonOps() {
-    val rg = ReferenceGenome.GRCh37
+    val rg = getReference(ReferenceGenome.GRCh37)
 
     // Test contigs
     assert(rg.compare("3", "18") < 0)
@@ -85,7 +91,7 @@ class ReferenceGenomeSuite extends HailSuite {
   @Test def testWriteToFile() {
     val tmpFile = ctx.createTmpPath("grWrite", "json")
 
-    val rg = ReferenceGenome.GRCh37
+    val rg = getReference(ReferenceGenome.GRCh37)
     rg.copy(name = "GRCh37_2").write(fs, tmpFile)
     val gr2 = ReferenceGenome.fromFile(fs, tmpFile)
 
@@ -103,7 +109,6 @@ class ReferenceGenomeSuite extends HailSuite {
     val indexFile = "src/test/resources/fake_reference.fasta.fai"
 
     val rg = ReferenceGenome("test", Array("a", "b", "c"), Map("a" -> 25, "b" -> 15, "c" -> 10))
-    ReferenceGenome.addReference(rg)
 
     val fr = FASTAReaderConfig(ctx.localTmpdir, ctx.fs, rg, fastaFile, indexFile, 3, 5).reader
     val frGzip = FASTAReaderConfig(ctx.localTmpdir, ctx.fs, rg, fastaFileGzip, indexFile, 3, 5).reader
@@ -122,7 +127,7 @@ class ReferenceGenomeSuite extends HailSuite {
         fr.lookup(contig, pos, 0, 0) == expected && frGzip.lookup(contig, pos, 0, 0) == expectedGz
       }
 
-      val ordering = TLocus(rg).ordering
+      val ordering = TLocus(rg.name).ordering(HailStateManager(Map(rg.name -> rg)))
       property("interval test") = forAll(Interval.gen(ordering, Locus.gen(rg))) { i =>
         val start = i.start.asInstanceOf[Locus]
         val end = i.end.asInstanceOf[Locus]
@@ -158,10 +163,10 @@ class ReferenceGenomeSuite extends HailSuite {
 
   @Test def testSerializeOnFB() {
     withExecuteContext() { ctx =>
-      val grch38 = ReferenceGenome.GRCh38
+      val grch38 = ctx.getReference(ReferenceGenome.GRCh38)
       val fb = EmitFunctionBuilder[String, Boolean](ctx, "serialize_rg")
       val cb = fb.ecb
-      val rgfield = fb.getReferenceGenome(grch38)
+      val rgfield = fb.getReferenceGenome(grch38.name)
       fb.emit(rgfield.invoke[String, Boolean]("isValidContig", fb.getCodeParam[String](1)))
 
       val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)
@@ -169,35 +174,16 @@ class ReferenceGenomeSuite extends HailSuite {
     }
   }
 
-  @Test def testSerializeWithFastaOnFB() {
-    withExecuteContext() { ctx =>
-      val fastaFile = "src/test/resources/fake_reference.fasta"
-      val indexFile = "src/test/resources/fake_reference.fasta.fai"
-
-      val rg = ReferenceGenome("test", Array("a", "b", "c"), Map("a" -> 25, "b" -> 15, "c" -> 10))
-      ReferenceGenome.addReference(rg)
-      rg.addSequence(ctx, fastaFile, indexFile)
-
-      val fb = EmitFunctionBuilder[String, Int, Int, Int, String](ctx, "serialize_rg")
-      val cb = fb.ecb
-      val rgfield = fb.getReferenceGenome(rg)
-      fb.emit(rgfield.invoke[String, Int, Int, Int, String]("getSequence", fb.getCodeParam[String](1), fb.getCodeParam[Int](2), fb.getCodeParam[Int](3), fb.getCodeParam[Int](4)))
-
-      val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)
-      assert(f("a", 25, 0, 5) == rg.getSequence("a", 25, 0, 5))
-    }
-  }
-
   @Test def testSerializeWithLiftoverOnFB() {
     withExecuteContext() { ctx =>
-      val grch37 = ReferenceGenome.GRCh37
+      val grch37 = ctx.getReference(ReferenceGenome.GRCh37)
       val liftoverFile = "src/test/resources/grch37_to_grch38_chr20.over.chain.gz"
 
       grch37.addLiftover(ctx, liftoverFile, "GRCh38")
 
       val fb = EmitFunctionBuilder[String, Locus, Double, (Locus, Boolean)](ctx, "serialize_with_liftover")
       val cb = fb.ecb
-      val rgfield = fb.getReferenceGenome(grch37)
+      val rgfield = fb.getReferenceGenome(grch37.name)
       fb.emit(rgfield.invoke[String, Locus, Double, (Locus, Boolean)]("liftoverLocus", fb.getCodeParam[String](1), fb.getCodeParam[Locus](2), fb.getCodeParam[Double](3)))
 
       val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)

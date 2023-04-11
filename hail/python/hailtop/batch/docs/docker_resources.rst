@@ -27,8 +27,8 @@ The first directive at the top of each Dockerfile is `FROM` which states what im
 image on top of. For example, we can build off of `ubuntu:20.04` which contains a complete Ubuntu
 operating system, but does not have Python installed by default. You can use any image that already
 exists to base your image on. An image that has Python preinstalled is `python:3.6-slim-stretch` and
-one that has gsutil installed is `google/cloud-sdk:slim`. Be careful when choosing images from unknown
-sources!
+one that has `gcloud` installed is `google/cloud-sdk:slim`. Be careful when choosing images from
+unknown sources!
 
 In the example below, we create a Dockerfile that is based on `ubuntu:20.04`. In this file, we show an
 example of installing PLINK in the image with the `RUN` directive, which is an arbitrary bash command.

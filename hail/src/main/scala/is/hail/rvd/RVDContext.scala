@@ -1,6 +1,7 @@
 package is.hail.rvd
 
 import is.hail.annotations.{Region, RegionPool, RegionValueBuilder}
+import is.hail.backend.HailStateManager
 import is.hail.utils._
 
 import scala.collection.mutable
@@ -38,7 +39,7 @@ class RVDContext(val partitionRegion: Region, val r: Region) extends AutoCloseab
 
   def region: Region = r
 
-  private[this] val theRvb = new RegionValueBuilder(r)
+  private[this] val theRvb = new RegionValueBuilder(HailStateManager(Map.empty), r)
   def rvb = theRvb
 
   // frees the memory associated with this context

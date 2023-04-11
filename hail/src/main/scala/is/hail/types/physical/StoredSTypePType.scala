@@ -2,6 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, Region, UnsafeOrdering}
 import is.hail.asm4s._
+import is.hail.backend.HailStateManager
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.virtual.Type
@@ -120,19 +121,19 @@ case class StoredSTypePType(sType: SType, required: Boolean) extends PType {
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append(sType.toString)
 
-  override def unsafeOrdering(rightType: PType): UnsafeOrdering = unsupportedCanonicalMethod
+  override def unsafeOrdering(sm: HailStateManager, rightType: PType): UnsafeOrdering = unsupportedCanonicalMethod
 
-  override def unsafeOrdering(): UnsafeOrdering = unsupportedCanonicalMethod
+  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = unsupportedCanonicalMethod
 
   def unstagedLoadFromNested(addr: Long): Long = unsupportedCanonicalMethod
 
-  def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = unsupportedCanonicalMethod
+  def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region): Long = unsupportedCanonicalMethod
 
-  def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = unsupportedCanonicalMethod
+  def unstagedStoreJavaObjectAtAddress(sm: HailStateManager, addr: Long, annotation: Annotation, region: Region): Unit = unsupportedCanonicalMethod
 
-  override def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = unsupportedCanonicalMethod
+  override def _copyFromAddress(sm: HailStateManager, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = unsupportedCanonicalMethod
 
-  override def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = unsupportedCanonicalMethod
+  override def unstagedStoreAtAddress(sm: HailStateManager, addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = unsupportedCanonicalMethod
 
   override def _asIdent: String = "stored_stype_ptype"
 

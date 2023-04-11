@@ -1,8 +1,9 @@
 import sys
 import os
 
-from hailtop.auth import namespace_auth_headers
+from hailtop.auth import hail_credentials
 from hailtop.config import get_deploy_config
+from hailtop.utils import async_to_blocking
 
 
 def main(args):
@@ -12,11 +13,9 @@ def main(args):
     ns = args[0]
     svc = args[1]
     path = args[2]
-    deploy_config = get_deploy_config()
-    deploy_config = deploy_config.with_default_namespace(ns)
-    headers_dict = namespace_auth_headers(deploy_config, ns)
+    headers_dict = async_to_blocking(hail_credentials(namespace=ns).auth_headers())
     headers = [x
                for k, v in headers_dict.items()
                for x in ['-H', f'{k}: {v}']]
-    path = deploy_config.url(svc, path)
+    path = get_deploy_config().url(svc, path)
     os.execvp('curl', ['curl', *headers, *args[3:], path])

@@ -6,7 +6,7 @@ import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
 import is.hail._
 import is.hail.annotations._
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
-import is.hail.backend.{BroadcastValue, ExecuteContext}
+import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
 import is.hail.expr.ir.{IntArrayBuilder, TableReader, TableValue, ThreefryRandomEngine}
 import is.hail.io._
 import is.hail.io.fs.FS
@@ -1327,11 +1327,12 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   def entriesTable(ctx: ExecuteContext): TableValue = {
     val rowType = PCanonicalStruct(true, "i" -> PInt64Required, "j" -> PInt64Required, "entry" -> PFloat64Required)
     
-    val entriesRDD = ContextRDD.weaken(blocks).cflatMap { case (ctx, ((blockRow, blockCol), block)) =>
+    val sm = ctx.stateManager
+    val entriesRDD = ContextRDD.weaken(blocks).cflatMap { case (rvdContext, ((blockRow, blockCol), block)) =>
       val rowOffset = blockRow * blockSize.toLong
       val colOffset = blockCol * blockSize.toLong
 
-      val rvb = new RegionValueBuilder(ctx.region)
+      val rvb = new RegionValueBuilder(sm, rvdContext.region)
 
       block.activeIterator
         .map { case ((i, j), entry) =>
@@ -2132,7 +2133,7 @@ class BlockMatrixReadRowBlockedRDD(
     }
     Iterator.single { ctx =>
       val region = ctx.region
-      val rvb = new RegionValueBuilder(region)
+      val rvb = new RegionValueBuilder(HailStateManager(Map.empty), region)
       val rv = RegionValue(region)
       val firstRow = rowsForPartition(0)
       var blockRow = (firstRow / blockSize).toInt

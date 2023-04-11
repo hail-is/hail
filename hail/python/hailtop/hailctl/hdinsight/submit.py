@@ -27,7 +27,8 @@ async def main(args, pass_through_args):  # pylint: disable=unused-argument
                   # NB: Only the local protocol is permitted, the file protocol is banned #security
                   'spark.jars': 'local:/usr/bin/anaconda/envs/py37/lib/python3.7/site-packages/hail/backend/hail-all-spark.jar',
                   'spark.pyspark.driver.python': '/usr/bin/anaconda/envs/py37/bin/python3',
-              }},
+              },
+              'args': pass_through_args},
         auth=requests.auth.HTTPBasicAuth('admin', args.http_password),
         timeout=60)
     batch = resp.json()

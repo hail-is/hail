@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.{BackendContext, ExecuteContext, HailTaskContext}
@@ -9,8 +8,8 @@ import is.hail.expr.ir.analyses.{ComputeMethodSplits, ControlFlowPreventsSplit, 
 import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.expr.ir.ndarrays.EmitNDArray
 import is.hail.expr.ir.streams.{EmitStream, StreamProducer, StreamUtils}
-import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.io.fs.FS
+import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes._
@@ -18,8 +17,9 @@ import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
-import is.hail.types.{RIterable, TypeWithRequiredness, VirtualTypeWithReq, tcoerce}
+import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq, tcoerce}
 import is.hail.utils._
+import is.hail.variant.ReferenceGenome
 
 import java.io._
 import scala.collection.mutable
@@ -51,6 +51,22 @@ case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[EmitValue])
   def bind(name: String, v: EmitValue): EmitEnv = copy(bindings = bindings.bind(name, v))
 
   def bind(newBindings: (String, EmitValue)*): EmitEnv = copy(bindings = bindings.bindIterable(newBindings))
+
+  def asParams(freeVariables: Env[Unit]): (IndexedSeq[ParamType], IndexedSeq[Value[_]], (EmitCodeBuilder, Int) => EmitEnv) = {
+    val m = bindings.m.filterKeys(freeVariables.contains)
+    val bindingNames = m.keys.toArray
+    val paramTypes = bindingNames.map(name => m(name).emitType.paramType) ++ inputValues.map(_.emitType.paramType)
+    val params = bindingNames.flatMap(name => m(name).valueTuple()) ++ inputValues.flatMap(_.valueTuple())
+    val recreateFromMB = {
+      (cb: EmitCodeBuilder, startIdx: Int) =>
+        val emb = cb.emb
+        EmitEnv(
+          Env.fromSeq(bindingNames.zipWithIndex.map { case (name, bindingIdx) => (name, cb.memoizeField(emb.getEmitParam(cb, startIdx + bindingIdx), name))}),
+          inputValues.indices.map(inputIdx => cb.memoizeField(emb.getEmitParam(cb, startIdx + bindingNames.length + inputIdx), s"arg_$inputIdx"))
+        )
+    }
+    (paramTypes, params, recreateFromMB)
+  }
 }
 
 object Emit {
@@ -621,7 +637,7 @@ class Emit[C](
       this.emit(ir, mb, region, env, container, loopEnv)
 
     def emitStream(ir: IR, outerRegion: Value[Region], mb: EmitMethodBuilder[C] = mb): EmitCode =
-      EmitCode.fromI(mb)(cb => EmitStream.produce(this, ir, cb, outerRegion, env, container))
+      EmitCode.fromI(mb)(cb => EmitStream.produce(this, ir, cb, cb.emb, outerRegion, env, container))
 
     def emitVoid(ir: IR, cb: EmitCodeBuilder = cb, region: Value[Region] = region, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
       this.emitVoid(cb, ir, region, env, container, loopEnv)
@@ -802,7 +818,7 @@ class Emit[C](
       this.emitI(ir, cb, region, env, container, loopEnv)
 
     def emitStream(ir: IR, cb: EmitCodeBuilder, outerRegion: Value[Region]): IEmitCode =
-      EmitStream.produce(this, ir, cb, outerRegion, env, container)
+      EmitStream.produce(this, ir, cb, cb.emb, outerRegion, env, container)
 
     def emitVoid(ir: IR, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
       this.emitVoid(cb, ir: IR, region, env, container, loopEnv)
@@ -850,16 +866,16 @@ class Emit[C](
       case F64(x) =>
         presentPC(primitive(const(x)))
       case s@Str(x) =>
-        presentPC(mb.addLiteral(x, typeWithReq))
+        presentPC(mb.addLiteral(cb, x, typeWithReq))
       case x@UUID4(_) =>
         val pt = PCanonicalString()
         presentPC(pt.loadCheapSCode(cb, pt.
           allocateAndStoreString(cb, region, Code.invokeScalaObject0[String](
             Class.forName("is.hail.expr.ir.package$"), "uuid4"))))
       case x@Literal(t, v) =>
-        presentPC(mb.addLiteral(v, typeWithReq))
+        presentPC(mb.addLiteral(cb, v, typeWithReq))
       case x@EncodedLiteral(codec, value) =>
-        presentPC(mb.addEncodedLiteral(x))
+        presentPC(mb.addEncodedLiteral(cb, x))
       case True() =>
         presentPC(primitive(const(true)))
       case False() =>
@@ -1149,8 +1165,8 @@ class Emit[C](
                 MakeTuple.ordered(FastSeq(tieBreaker)))
               assert(t.virtualType == TTuple(TFloat64))
               val resultType = t.asInstanceOf[PTuple]
-              Code.invokeScalaObject8[UnsafeIndexedSeq, HailClassLoader, FS, HailTaskContext, Region, PTuple, PTuple, (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3RegionLongLongLong, IndexedSeq[Any]](
-                Graph.getClass, "maximalIndependentSet",
+              Code.invokeScalaObject9[Map[String, ReferenceGenome], UnsafeIndexedSeq, HailClassLoader, FS, HailTaskContext, Region, PTuple, PTuple, (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3RegionLongLongLong, IndexedSeq[Any]](
+                Graph.getClass, "maximalIndependentSet", cb.emb.ecb.emodb.referenceGenomeMap,
                   jEdges, mb.getHailClassLoader, mb.getFS, mb.getTaskContext, region,
                   mb.getPType[PTuple](wrappedNodeType), mb.getPType[PTuple](resultType), mb.getObject(f))
           }
@@ -1427,7 +1443,7 @@ class Emit[C](
                   xP.constructByCopyingArray(shapeValues, stridesSettables, dataValue.asIndexable, cb, region)
                 }
               case _: TStream =>
-                EmitStream.produce(this, dataIR, cb, region, env, container)
+                EmitStream.produce(this, dataIR, cb, cb.emb, region, env, container)
                   .map(cb) {
                     case stream: SStreamValue =>
                       val xP = PCanonicalNDArray(PType.canonical(stream.st.elementType.storageType().setRequired(true)), nDims)
@@ -2101,11 +2117,11 @@ class Emit[C](
         presentPC(sc.states(i).serializeToRegion(cb, PCanonicalBinary(), region))
 
       case ToArray(a) =>
-        EmitStream.produce(this, a, cb, region, env, container)
+        EmitStream.produce(this, a, cb, cb.emb, region, env, container)
           .map(cb) { case stream: SStreamValue => StreamUtils.toArray(cb, stream.getProducer(mb), region) }
 
       case x@StreamFold(a, zero, accumName, valueName, body) =>
-        EmitStream.produce(this, a, cb, region, env, container)
+        EmitStream.produce(this, a, cb, cb.emb, region, env, container)
           .flatMap(cb) { case stream: SStreamValue =>
             val producer = stream.getProducer(mb)
 
@@ -2266,19 +2282,26 @@ class Emit[C](
 
       case ReadValue(path, spec, requestedType) =>
         emitI(path).map(cb) { pv =>
-          val ib = cb.memoize[InputBuffer](spec.buildCodeInputBuffer(mb.open(pv.asString.loadString(cb), checkCodec = true)))
+          val ib = cb.memoize[InputBuffer](spec.buildCodeInputBuffer(
+            mb.openUnbuffered(pv.asString.loadString(cb), checkCodec = true)))
           val decoded = spec.encodedType.buildDecoder(requestedType, mb.ecb)(cb, region, ib)
           cb += ib.close()
           decoded
         }
 
-      case WriteValue(value, path, spec) =>
+      case WriteValue(value, path, spec, stagingFile) =>
         emitI(path).flatMap(cb) { case pv: SStringValue =>
           emitI(value).map(cb) { v =>
-            val ob = cb.memoize[OutputBuffer](spec.buildCodeOutputBuffer(mb.create(pv.asString.loadString(cb))))
+            val s = stagingFile.map(emitI(_).get(cb).asString)
+            val ob = cb.memoize[OutputBuffer](spec.buildCodeOutputBuffer(mb.createUnbuffered(
+              s.getOrElse(pv).loadString(cb))
+            ))
             spec.encodedType.buildEncoder(v.st, cb.emb.ecb)
               .apply(cb, v, ob)
             cb += ob.invoke[Unit]("close")
+            s.foreach { stage =>
+              cb += mb.getFS.invoke[String, String, Boolean, Unit]("copy", stage.loadString(cb), pv.loadString(cb), const(true))
+            }
             pv
           }
         }
@@ -2577,7 +2600,7 @@ class Emit[C](
     }
 
     def emitStream(ir: IR, outerRegion: Value[Region]): EmitCode =
-      EmitCode.fromI(mb)(cb => EmitStream.produce(this, ir, cb, outerRegion, env, container))
+      EmitCode.fromI(mb)(cb => EmitStream.produce(this, ir, cb, cb.emb, outerRegion, env, container))
 
     // ideally, emit would not be called with void values, but initOp args can be void
     // working towards removing this

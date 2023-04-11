@@ -1,11 +1,11 @@
 package is.hail.utils
 
-import java.io.{IOException, InterruptedIOException, ObjectOutputStream, OutputStream}
-import java.net.{ConnectException, InetAddress, Socket}
-
 import org.apache.log4j.helpers.LogLog
 import org.apache.log4j.spi.{ErrorCode, LoggingEvent}
 import org.apache.log4j.{AppenderSkeleton, PatternLayout}
+
+import java.io.{IOException, InterruptedIOException, ObjectOutputStream, OutputStream}
+import java.net.{ConnectException, InetAddress, Socket}
 
 /**
   * This class was translated and streamlined from
@@ -15,6 +15,10 @@ import org.apache.log4j.{AppenderSkeleton, PatternLayout}
 object StringSocketAppender {
   // low reconnection delay because everything is local
   val DEFAULT_RECONNECTION_DELAY = 100
+
+  var theAppender: StringSocketAppender = _
+
+  def get(): StringSocketAppender = theAppender
 }
 
 class StringSocketAppender() extends AppenderSkeleton {
@@ -26,14 +30,17 @@ class StringSocketAppender() extends AppenderSkeleton {
   private var connector: SocketConnector = null
   private var counter = 0
   private var patternLayout: PatternLayout = _
+  private var initialized: Boolean = false
 
-  def this(host: String, port: Int, format: String) {
-    this()
+  StringSocketAppender.theAppender = this
+
+  def connect(host: String, port: Int, format: String): Unit = {
     this.port = port
     this.address = InetAddress.getByName(host)
     this.remoteHost = host
     this.patternLayout = new PatternLayout(format)
     connect(address, port)
+    initialized = true
   }
 
   override def close() {
@@ -81,6 +88,7 @@ class StringSocketAppender() extends AppenderSkeleton {
   }
 
   override def append(event: LoggingEvent) {
+    if (!initialized) return
     if (event == null) return
     if (address == null) {
       errorHandler.error("No remote host is set for SocketAppender named \"" + this.name + "\".")

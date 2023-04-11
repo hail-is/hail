@@ -177,7 +177,7 @@ object RichContextRDDRegionValue {
     rowsSpec.write(fs, path + "/rows/rows")
 
     val entriesSpec = MakeRVDSpec(entriesCodecSpec, partFiles,
-      RVDPartitioner.unkeyed(partitioner.numPartitions), entriesIndexSpec)
+      RVDPartitioner.unkeyed(partitioner.sm, partitioner.numPartitions), entriesIndexSpec)
     entriesSpec.write(fs, path + "/entries/rows")
   }
 }

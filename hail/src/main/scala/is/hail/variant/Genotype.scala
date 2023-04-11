@@ -183,7 +183,9 @@ object Genotype {
   }
 
   def diploidGtIndex(j: Int, k: Int): Int = {
-    require(j >= 0 && j <= k, s"invalid gtIndex: ($j, $k)")
+    if (j < 0 | j > k) {
+      throw new AssertionError(s"invalid gtIndex: ($j, $k)")
+    }
     k * (k + 1) / 2 + j
   }
 

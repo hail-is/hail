@@ -3,6 +3,8 @@ package is.hail.io.index
 import java.io.OutputStream
 import is.hail.annotations.{Annotation, Region, RegionPool, RegionValueBuilder}
 import is.hail.asm4s._
+import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext}
+import is.hail.asm4s.{HailClassLoader, _}
 import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.backend.spark.SparkTaskContext
 import is.hail.expr.ir.{CodeParam, EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, IEmitCode, IntArrayBuilder, LongArrayBuilder, ParamType}
@@ -81,19 +83,20 @@ object IndexWriter {
     branchingFactor: Int = 4096,
     attributes: Map[String, Any] = Map.empty[String, Any]
   ): (String, HailClassLoader, HailTaskContext, RegionPool) => IndexWriter = {
-    val f = StagedIndexWriter.build(ctx, keyType, annotationType, branchingFactor, attributes);
+      val sm = ctx.stateManager;
+      val f = StagedIndexWriter.build(ctx, keyType, annotationType, branchingFactor);
     { (path: String, hcl: HailClassLoader, htc: HailTaskContext, pool: RegionPool) =>
-      new IndexWriter(keyType, annotationType, f(path, hcl, htc, pool), pool)
+      new IndexWriter(sm, keyType, annotationType, f(path, hcl, htc, pool, attributes), pool, attributes)
     }
   }
 }
 
-class IndexWriter(keyType: PType, valueType: PType, comp: CompiledIndexWriter, pool: RegionPool) extends AutoCloseable {
+class IndexWriter(sm: HailStateManager, keyType: PType, valueType: PType, comp: CompiledIndexWriter, pool: RegionPool, attributes: Map[String, Any]) extends AutoCloseable {
   private val region = Region(pool=pool)
-  private val rvb = new RegionValueBuilder(region)
+  private val rvb = new RegionValueBuilder(sm, region)
   def appendRow(x: Annotation, offset: Long, annotation: Annotation): Unit = {
-    val koff = keyType.unstagedStoreJavaObject(x, region)
-    val voff = valueType.unstagedStoreJavaObject(annotation, region)
+    val koff = keyType.unstagedStoreJavaObject(sm, x, region)
+    val voff = valueType.unstagedStoreJavaObject(sm, annotation, region)
     comp.apply(koff, offset, voff)
   }
 
@@ -226,7 +229,7 @@ class IndexWriterUtils(path: String, fs: FS, meta: StagedIndexMetadata) {
 }
 
 trait CompiledIndexWriter {
-  def init(path: String): Unit
+  def init(path: String, attributes: Map[String, Any]): Unit
   def trackedOS(): ByteTrackingOutputStream
   def apply(x: Long, offset: Long, annotation: Long): Unit
   def close(): Unit
@@ -237,17 +240,16 @@ object StagedIndexWriter {
     ctx: ExecuteContext,
     keyType: PType,
     annotationType: PType,
-    branchingFactor: Int = 4096,
-    attributes: Map[String, Any] = Map.empty[String, Any]
-  ): (String, HailClassLoader, HailTaskContext, RegionPool) => CompiledIndexWriter = {
+    branchingFactor: Int = 4096
+  ): (String, HailClassLoader, HailTaskContext, RegionPool, Map[String, Any]) => CompiledIndexWriter = {
     val fb = EmitFunctionBuilder[CompiledIndexWriter](ctx, "indexwriter",
       FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Long], typeInfo[Long]),
       typeInfo[Unit])
     val cb = fb.ecb
-    val siw = new StagedIndexWriter(branchingFactor, keyType, annotationType, attributes, cb)
+    val siw = new StagedIndexWriter(branchingFactor, keyType, annotationType, cb)
 
-    cb.newEmitMethod("init", FastIndexedSeq[ParamType](typeInfo[String]), typeInfo[Unit])
-      .voidWithBuilder(cb => siw.init(cb, cb.emb.getCodeParam[String](1)))
+    cb.newEmitMethod("init", FastIndexedSeq[ParamType](typeInfo[String], classInfo[Map[String, Any]]), typeInfo[Unit])
+      .voidWithBuilder(cb => siw.init(cb, cb.emb.getCodeParam[String](1), cb.emb.getCodeParam[Map[String, Any]](2)))
     fb.emb.voidWithBuilder { cb =>
       siw.add(cb,
         IEmitCode(cb, false, keyType.loadCheapSCode(cb, fb.getCodeParam[Long](1))),
@@ -264,11 +266,11 @@ object StagedIndexWriter {
 
     val fsBc = ctx.fsBc
 
-    { (path: String, hcl: HailClassLoader, htc: HailTaskContext, pool: RegionPool) =>
+    { (path: String, hcl: HailClassLoader, htc: HailTaskContext, pool: RegionPool, attributes: Map[String, Any]) =>
       pool.scopedRegion { r =>
         // FIXME: This seems wrong? But also, anywhere we use broadcasting for the FS is wrong.
         val f = makeFB(hcl, fsBc.value, htc, r)
-        f.init(path)
+        f.init(path, attributes)
         f
       }
     }
@@ -276,12 +278,11 @@ object StagedIndexWriter {
 
   def withDefaults(keyType: PType, cb: EmitClassBuilder[_],
     branchingFactor: Int = 4096,
-    annotationType: PType = +PCanonicalStruct(),
-    attributes: Map[String, Any] = Map.empty[String, Any]): StagedIndexWriter =
-    new StagedIndexWriter(branchingFactor, keyType, annotationType, attributes, cb)
+    annotationType: PType = +PCanonicalStruct()): StagedIndexWriter =
+    new StagedIndexWriter(branchingFactor, keyType, annotationType, cb)
 }
 
-class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PType, attributes: Map[String, Any], cb: EmitClassBuilder[_]) {
+class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PType, cb: EmitClassBuilder[_]) {
   require(branchingFactor > 1)
 
   private var elementIdx = cb.genFieldThisRef[Long]()
@@ -381,12 +382,12 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
     utils.writeMetadata(cb, utils.size + 1, off, elementIdx)
   }
 
-  def init(cb: EmitCodeBuilder, path: Value[String]): Unit = {
-    val metadata = cb.emb.getObject(StagedIndexMetadata(
+  def init(cb: EmitCodeBuilder, path: Value[String], attributes: Value[Map[String, Any]]): Unit = {
+    val metadata = Code.newInstance[StagedIndexMetadata, Int, Type, Type, Map[String, Any]](
       branchingFactor,
-      keyType.virtualType,
-      annotationType.virtualType,
-      attributes))
+      cb.emb.getObject(keyType.virtualType),
+      cb.emb.getObject(annotationType.virtualType),
+      attributes)
     val internalBuilder = new StagedInternalNodeBuilder(branchingFactor, keyType, annotationType, cb.localBuilder)
     cb.assign(elementIdx, 0L)
     utils.create(cb, path, cb.emb.getFS, metadata)

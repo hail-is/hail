@@ -51,7 +51,7 @@ class TableStageIntermediate(ts: TableStage) extends TableExecuteIntermediate {
   def asTableStage(ctx: ExecuteContext): TableStage = ts
 
   def asTableValue(ctx: ExecuteContext): TableValue = {
-    val (globals, rvd) = TableStageToRVD(ctx, ts, Map.empty)
+    val (globals, rvd) = TableStageToRVD(ctx, ts)
     TableValue(ctx, TableType(ts.rowType, ts.key, ts.globalType), globals, rvd)
   }
 

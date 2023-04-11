@@ -1,5 +1,4 @@
-from typing import Optional
-import json
+from typing import Optional, Union, Tuple, List, Set
 import os
 import socket
 import socketserver
@@ -10,16 +9,14 @@ import pkg_resources
 import py4j
 from py4j.java_gateway import JavaGateway, GatewayParameters, launch_gateway
 
-from hail.expr.blockmatrix_type import tblockmatrix
-from hail.expr.matrix_type import tmatrix
-from hail.expr.table_type import ttable
-from hail.expr.types import dtype
-from hail.ir import finalize_randomness
+from hail.utils.java import scala_package_object
 from hail.ir.renderer import CSERenderer
-from hail.utils.java import scala_package_object, scala_object
+from hail.ir import finalize_randomness
 from .py4j_backend import Py4JBackend, handle_java_exception
 from ..fs.local_fs import LocalFS
 from ..hail_logging import Logger
+from ..expr import Expression
+from ..expr.types import HailType
 from hailtop.utils import find_spark_home
 
 
@@ -134,6 +131,7 @@ class LocalBackend(Py4JBackend):
         port = launch_gateway(
             redirect_stdout=sys.stdout,
             redirect_stderr=sys.stderr,
+            java_path=None,
             jarpath=f'{spark_home}/jars/py4j-0.10.9.5.jar',
             classpath=f'{spark_home}/jars/*:{hail_jar_path}',
             die_on_exit=True)
@@ -149,10 +147,15 @@ class LocalBackend(Py4JBackend):
         self._jbackend = hail_package.backend.local.LocalBackend.apply(
             tmpdir,
             gcs_requester_pays_project,
-            gcs_requester_pays_buckets
+            gcs_requester_pays_buckets,
+            log,
+            True,
+            append,
+            skip_logging_configuration
         )
         self._jhc = hail_package.HailContext.apply(
-            self._jbackend, log, True, append, branching_factor, skip_logging_configuration, optimizer_iterations)
+            self._jbackend, branching_factor, optimizer_iterations)
+        self._registered_ir_function_names: Set[str] = set()
 
         # This has to go after creating the SparkSession. Unclear why.
         # Maybe it does its own patch?
@@ -170,8 +173,6 @@ class LocalBackend(Py4JBackend):
         self._fs = LocalFS()
         self._logger = None
 
-        if not quiet:
-            connect_logger(self._utils_package_object, 'localhost', 12888)
         self._initialize_flags()
 
     def jvm(self):
@@ -183,26 +184,38 @@ class LocalBackend(Py4JBackend):
     def utils_package_object(self):
         return self._utils_package_object
 
+    def register_ir_function(self,
+                             name: str,
+                             type_parameters: Union[Tuple[HailType, ...], List[HailType]],
+                             value_parameter_names: Union[Tuple[str, ...], List[str]],
+                             value_parameter_types: Union[Tuple[HailType, ...], List[HailType]],
+                             return_type: HailType,
+                             body: Expression):
+        r = CSERenderer(stop_at_jir=True)
+        code = r(finalize_randomness(body._ir))
+        jbody = (self._parse_value_ir(code, ref_map=dict(zip(value_parameter_names, value_parameter_types)), ir_map=r.jirs))
+        self._registered_ir_function_names.add(name)
+
+        self.hail_package().expr.ir.functions.IRFunctionRegistry.pyRegisterIR(
+            name,
+            [ta._parsable_string() for ta in type_parameters],
+            value_parameter_names,
+            [pt._parsable_string() for pt in value_parameter_types],
+            return_type._parsable_string(),
+            jbody)
+
+    def _is_registered_ir_function_name(self, name: str) -> bool:
+        return name in self._registered_ir_function_names
+
+    def validate_file_scheme(self, url):
+        pass
+
     def stop(self):
         self._jhc.stop()
         self._jhc = None
         self._gateway.shutdown()
+        self._registered_ir_function_names = set()
         uninstall_exception_handler()
-
-    def _parse_value_ir(self, code, ref_map={}, ir_map={}):
-        return self._jbackend.parse_value_ir(
-            code,
-            {k: t._parsable_string() for k, t in ref_map.items()},
-            ir_map)
-
-    def _parse_table_ir(self, code, ir_map={}):
-        return self._jbackend.parse_table_ir(code, ir_map)
-
-    def _parse_matrix_ir(self, code, ir_map={}):
-        return self._jbackend.parse_matrix_ir(code, ir_map)
-
-    def _parse_blockmatrix_ir(self, code, ir_map={}):
-        return self._jbackend.parse_blockmatrix_ir(code, ir_map)
 
     @property
     def logger(self):
@@ -213,79 +226,6 @@ class LocalBackend(Py4JBackend):
     @property
     def fs(self):
         return self._fs
-
-    def _to_java_ir(self, ir, parse):
-        if not hasattr(ir, '_jir'):
-            r = CSERenderer(stop_at_jir=True)
-            # FIXME parse should be static
-            ir._jir = parse(r(finalize_randomness(ir)), ir_map=r.jirs)
-        return ir._jir
-
-    def _to_java_value_ir(self, ir):
-        return self._to_java_ir(ir, self._parse_value_ir)
-
-    def _to_java_table_ir(self, ir):
-        return self._to_java_ir(ir, self._parse_table_ir)
-
-    def _to_java_matrix_ir(self, ir):
-        return self._to_java_ir(ir, self._parse_matrix_ir)
-
-    def _to_java_blockmatrix_ir(self, ir):
-        return self._to_java_ir(ir, self._parse_blockmatrix_ir)
-
-    def value_type(self, ir):
-        jir = self._to_java_value_ir(ir)
-        return dtype(jir.typ().toString())
-
-    def table_type(self, tir):
-        jir = self._to_java_table_ir(tir)
-        return ttable._from_java(jir.typ())
-
-    def matrix_type(self, mir):
-        jir = self._to_java_matrix_ir(mir)
-        return tmatrix._from_java(jir.typ())
-
-    def blockmatrix_type(self, bmir):
-        jir = self._to_java_blockmatrix_ir(bmir)
-        return tblockmatrix._from_java(jir.typ())
-
-    def add_reference(self, config):
-        self._hail_package.variant.ReferenceGenome.fromJSON(json.dumps(config))
-
-    def load_references_from_dataset(self, path):
-        return json.loads(self._jbackend.pyLoadReferencesFromDataset(path))
-
-    def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
-        self._jbackend.pyFromFASTAFile(
-            name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par)
-
-    def remove_reference(self, name):
-        self._hail_package.variant.ReferenceGenome.removeReference(name)
-
-    def _get_non_builtin_reference(self, name):
-        return json.loads(self._hail_package.variant.ReferenceGenome.getReference(name).toJSONString())
-
-    def add_sequence(self, name, fasta_file, index_file):
-        self._jbackend.pyAddSequence(name, fasta_file, index_file)
-
-    def remove_sequence(self, name):
-        scala_object(self._hail_package.variant, 'ReferenceGenome').removeSequence(name)
-
-    def add_liftover(self, name, chain_file, dest_reference_genome):
-        self._jbackend.pyReferenceAddLiftover(name, chain_file, dest_reference_genome)
-
-    def remove_liftover(self, name, dest_reference_genome):
-        scala_object(self._hail_package.variant, 'ReferenceGenome').referenceRemoveLiftover(
-            name, dest_reference_genome)
-
-    def parse_vcf_metadata(self, path):
-        return json.loads(self._jhc.pyParseVCFMetadataJSON(self._jbackend.fs(), path))
-
-    def index_bgen(self, files, index_file_map, referenceGenomeName, contig_recoding, skip_invalid_loci):
-        self._jbackend.pyIndexBgen(files, index_file_map, referenceGenomeName, contig_recoding, skip_invalid_loci)
-
-    def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
-        return json.loads(self._jbackend.pyImportFam(path, quant_pheno, delimiter, missing))
 
     @property
     def requires_lowering(self):

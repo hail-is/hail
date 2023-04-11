@@ -72,7 +72,7 @@ class LinearMixedModel(lmmData: LMMData) {
 
       val region = Region(pool = SparkTaskContext.get().getRegionPool())
       val rv = RegionValue(region)
-      val rvb = new RegionValueBuilder(region)
+      val rvb = new RegionValueBuilder(ctx.stateManager, region)
 
       itPAt.zip(itAt).map { case ((i, pa0), (i2, a0)) =>
         assert(i == i2)
@@ -140,7 +140,7 @@ class LinearMixedModel(lmmData: LMMData) {
 
       val region = Region(pool = SparkTaskContext.get().getRegionPool())
       val rv = RegionValue(region)
-      val rvb = new RegionValueBuilder(region)
+      val rvb = new RegionValueBuilder(ctx.stateManager, region)
 
       itPAt.map { case (i, pa0) =>
         val pa = BDV(pa0)

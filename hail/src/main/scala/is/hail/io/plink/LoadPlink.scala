@@ -27,7 +27,7 @@ case class FamFileConfig(isQuantPheno: Boolean = false,
 object LoadPlink {
   def expectedBedSize(nSamples: Int, nVariants: Long): Long = 3 + nVariants * ((nSamples + 3) / 4)
 
-  def parseBim(fs: FS, bimPath: String, a2Reference: Boolean,
+  def parseBim(ctx: ExecuteContext, fs: FS, bimPath: String, a2Reference: Boolean,
     contigRecoding: Map[String, String], rg: Option[ReferenceGenome], locusAllelesType: TStruct,
     skipInvalidLoci: Boolean): (Int, Array[PlinkVariant]) = {
     val vs = new BoxedArrayBuilder[PlinkVariant]()
@@ -58,7 +58,7 @@ object LoadPlink {
       }
     }
     val variants = vs.result()
-    (n, variants.sortBy(_.locusAlleles)(locusAllelesType.ordering.toOrdering))
+    (n, variants.sortBy(_.locusAlleles)(locusAllelesType.ordering(ctx.stateManager).toOrdering))
   }
 
   val numericRegex =
@@ -156,10 +156,10 @@ object MatrixPLINKReader {
     implicit val formats: Formats = DefaultFormats
     val params = jv.extract[MatrixPLINKReaderParameters]
 
-    val referenceGenome = params.rg.map(ReferenceGenome.getReference)
+    val referenceGenome = params.rg.map(ctx.getReference)
     referenceGenome.foreach(_.validateContigRemap(params.contigRecoding))
 
-    val locusType = TLocus.schemaFromRG(referenceGenome)
+    val locusType = TLocus.schemaFromRG(params.rg)
     val locusAllelesType = TStruct(
       "locus" -> locusType,
       "alleles" -> TArray(TString))
@@ -175,7 +175,7 @@ object MatrixPLINKReader {
     if (nSamples <= 0)
       fatal("FAM file does not contain any samples")
 
-    val (nTotalVariants, variants) = LoadPlink.parseBim(fs, params.bim, params.a2Reference, params.contigRecoding,
+    val (nTotalVariants, variants) = LoadPlink.parseBim(ctx, fs, params.bim, params.a2Reference, params.contigRecoding,
       referenceGenome, locusAllelesType, params.skipInvalidLoci)
     val nVariants = variants.length
     if (nTotalVariants <= 0)
@@ -224,7 +224,7 @@ object MatrixPLINKReader {
 
     var p = 0
     var prevEnd = 0
-    val lOrd = locusType.ordering
+    val lOrd = locusType.ordering(ctx.stateManager)
     while (p < nPartitions && prevEnd < nVariants) {
       val start = prevEnd
 
@@ -234,7 +234,7 @@ object MatrixPLINKReader {
           && lOrd.equiv(variants(end - 1).locusAlleles.asInstanceOf[Row].get(0),
             variants(end).locusAlleles.asInstanceOf[Row].get(0)))
           end += 1
-        
+
         cb += Row(params.bed, start, end)
 
         ib += Interval(
@@ -251,7 +251,7 @@ object MatrixPLINKReader {
 
     val contexts = cb.result().map(r => r: Any)
 
-    val partitioner = new RVDPartitioner(locusAllelesType, ib.result(), 0)
+    val partitioner = new RVDPartitioner(ctx.stateManager, locusAllelesType, ib.result(), 0)
 
     val fullMatrixType: MatrixType = MatrixType(
       globalType = TStruct.empty,
@@ -332,8 +332,9 @@ class MatrixPLINKReader(
     val localA2Reference = params.a2Reference
     val variantsBc = ctx.backend.broadcast(variants)
     val localNSamples = nSamples
+    val sm = ctx.stateManager
 
-    val localLocusType = TLocus.schemaFromRG(referenceGenome)
+    val localLocusType = TLocus.schemaFromRG(referenceGenome.map(_.name))
 
     val contextType = TStruct(
       "bed" -> TString,
@@ -346,7 +347,7 @@ class MatrixPLINKReader(
     }
 
     val fullRowPType = PCanonicalStruct(true,
-      "locus" -> PCanonicalLocus.schemaFromRG(referenceGenome, true),
+      "locus" -> PCanonicalLocus.schemaFromRG(referenceGenome.map(_.name), true),
       "alleles" -> PCanonicalArray(PCanonicalString(true), true),
       "rsid" -> PCanonicalString(true),
       "cm_position" -> PFloat64(true),
@@ -376,7 +377,7 @@ class MatrixPLINKReader(
 
         val blockLength = (localNSamples + 3) / 4
 
-        val rvb = new RegionValueBuilder(region)
+        val rvb = new RegionValueBuilder(sm, region)
 
         val is = fs.open(bed)
         if (TaskContext.get != null) {

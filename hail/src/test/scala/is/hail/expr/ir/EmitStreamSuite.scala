@@ -67,7 +67,7 @@ class EmitStreamSuite extends HailSuite {
         case s => s
       }
       TypeCheck(ctx, s)
-      EmitStream.produce(new Emit(emitContext, fb.ecb), s, cb, region, EmitEnv(Env.empty, inputTypes.indices.map(i => mb.storeEmitParamAsField(cb, i + 2))), None)
+      EmitStream.produce(new Emit(emitContext, fb.ecb), s, cb, cb.emb, region, EmitEnv(Env.empty, inputTypes.indices.map(i => mb.storeEmitParamAsField(cb, i + 2))), None)
         .consumeCode[Long](cb, 0L, { s =>
           val arr = StreamUtils.toArray(cb, s.asStream.getProducer(mb), region)
           val scp = SingleCodeSCode.fromSCode(cb, arr, region, false)
@@ -93,7 +93,7 @@ class EmitStreamSuite extends HailSuite {
       if (arg == null)
         f(r, 0L, true)
       else
-        f(r, ScalaToRegionValue(r, inputType, arg), false)
+        f(r, ScalaToRegionValue(ctx.stateManager, r, inputType, arg), false)
     }
   }
 
@@ -114,7 +114,7 @@ class EmitStreamSuite extends HailSuite {
             eos = true
             0L
           } else
-            ScalaToRegionValue(_eltRegion, elementType, it.next())
+            ScalaToRegionValue(ctx.stateManager, _eltRegion, elementType, it.next())
         }
         override def close(): Unit = ()
       }
@@ -139,7 +139,7 @@ class EmitStreamSuite extends HailSuite {
       val len = cb.newLocal[Int]("len", 0)
       val len2 = cb.newLocal[Int]("len2", -1)
 
-      EmitStream.produce(new Emit(emitContext, fb.ecb), ir, cb, region, EmitEnv(Env.empty, FastIndexedSeq()), None)
+      EmitStream.produce(new Emit(emitContext, fb.ecb), ir, cb, cb.emb, region, EmitEnv(Env.empty, FastIndexedSeq()), None)
         .consume(cb,
           {},
           { case stream: SStreamValue =>
@@ -167,11 +167,11 @@ class EmitStreamSuite extends HailSuite {
   @Test def testEmitMake() {
     val typ = TStream(TInt32)
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
-      MakeStream(Seq[IR](1, 2, NA(TInt32), 3), typ) -> IndexedSeq(1, 2, null, 3),
-      MakeStream(Seq[IR](), typ) -> IndexedSeq(),
-      MakeStream(Seq[IR](MakeTuple.ordered(Seq(4, 5))), TStream(TTuple(TInt32, TInt32))) ->
+      MakeStream(IndexedSeq[IR](1, 2, NA(TInt32), 3), typ) -> IndexedSeq(1, 2, null, 3),
+      MakeStream(IndexedSeq[IR](), typ) -> IndexedSeq(),
+      MakeStream(IndexedSeq[IR](MakeTuple.ordered(IndexedSeq(4, 5))), TStream(TTuple(TInt32, TInt32))) ->
         IndexedSeq(Row(4, 5)),
-      MakeStream(Seq[IR](Str("hi"), Str("world")), TStream(TString)) ->
+      MakeStream(IndexedSeq[IR](Str("hi"), Str("world")), TStream(TString)) ->
         IndexedSeq("hi", "world")
     )
     for ((ir, v) <- tests) {
@@ -218,11 +218,11 @@ class EmitStreamSuite extends HailSuite {
     // Generate many pairs of numbers between 0 and N, every pair should be equally likely
     val results = Array.tabulate(N, N){ case(i, j) => 0}
     (0 until 1000000).foreach { i =>
-      val seq = compiled.apply(()).map(_.asInstanceOf[Int])
-      assert(seq.size == n)
-      results(seq(0))(seq(1)) += 1
-      assert(seq.toSet.size == n)
-      assert(seq.forall(e => e >= 0 && e < N))
+      val IndexedSeq = compiled.apply(()).map(_.asInstanceOf[Int])
+      assert(IndexedSeq.size == n)
+      results(IndexedSeq(0))(IndexedSeq(1)) += 1
+      assert(IndexedSeq.toSet.size == n)
+      assert(IndexedSeq.forall(e => e >= 0 && e < N))
     }
 
 
@@ -237,8 +237,8 @@ class EmitStreamSuite extends HailSuite {
 
   @Test def testEmitToStream() {
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
-      ToStream(MakeArray(Seq[IR](), TArray(TInt32))) -> IndexedSeq(),
-      ToStream(MakeArray(Seq[IR](1, 2, 3, 4), TArray(TInt32))) -> IndexedSeq(1, 2, 3, 4),
+      ToStream(MakeArray(IndexedSeq[IR](), TArray(TInt32))) -> IndexedSeq(),
+      ToStream(MakeArray(IndexedSeq[IR](1, 2, 3, 4), TArray(TInt32))) -> IndexedSeq(1, 2, 3, 4),
       ToStream(NA(TArray(TInt32))) -> null
     )
     for ((ir, v) <- tests) {
@@ -255,9 +255,9 @@ class EmitStreamSuite extends HailSuite {
           Let("start", 3,
             StreamRange(Ref("start", TInt32), Ref("end", TInt32), 1)),
           "i",
-          MakeStream(Seq(Ref("i", TInt32), Ref("end", TInt32)), TStream(TInt32)))
+          MakeStream(IndexedSeq(Ref("i", TInt32), Ref("end", TInt32)), TStream(TInt32)))
       )
-    assert(evalStream(ir) == (3 until 10).flatMap { i => Seq(i, 10) }, Pretty(ctx, ir))
+    assert(evalStream(ir) == (3 until 10).flatMap { i => IndexedSeq(i, 10) }, Pretty(ctx, ir))
     assert(evalStreamLen(ir).isEmpty, Pretty(ctx, ir))
   }
 
@@ -316,10 +316,10 @@ class EmitStreamSuite extends HailSuite {
           StreamRange(0, (x + y), 1))) ->
         (0 until 20).flatMap { x => (0 until x).flatMap { y => 0 until (x + y) } },
       StreamFlatMap(StreamFilter(StreamRange(0, 5, 1), "x", x cne 3),
-        "y", MakeStream(Seq(y, y), TStream(TInt32))) ->
+        "y", MakeStream(IndexedSeq(y, y), TStream(TInt32))) ->
         IndexedSeq(0, 0, 1, 1, 2, 2, 4, 4),
       StreamFlatMap(StreamRange(0, 4, 1),
-        "x", ToStream(MakeArray(Seq[IR](x, x), TArray(TInt32)))) ->
+        "x", ToStream(MakeArray(IndexedSeq[IR](x, x), TArray(TInt32)))) ->
         IndexedSeq(0, 0, 1, 1, 2, 2, 3, 3)
     )
     for ((ir, v) <- tests) {
@@ -332,17 +332,17 @@ class EmitStreamSuite extends HailSuite {
   @Test def testStreamBufferedAggregator(): Unit = {
     val resultArrayToCompare = (0 until 12).map(i => Row(Row(i, i + 1), 1))
     val streamType = TStream(TStruct("a" -> TInt64, "b" -> TInt64))
-    val numSeq = (0 until 12).map(i => Seq(I64(i), I64(i + 1)))
-    val numTupleSeq = numSeq.map(_ => Seq("a", "b")).zip(numSeq)
+    val numSeq = (0 until 12).map(i => IndexedSeq(I64(i), I64(i + 1)))
+    val numTupleSeq = numSeq.map(_ => IndexedSeq("a", "b")).zip(numSeq)
     val countStructSeq = numTupleSeq.map { case (s, i) => s.zip(i)}.map(is => MakeStruct(is))
     val countStructStream = MakeStream(countStructSeq, streamType, false)
     val countAggSig = PhysicalAggSig(Count(), TypedStateSig(VirtualTypeWithReq.fullyOptional(TInt64).setRequired(true)))
     val initOps = InitOp(0, FastIndexedSeq(), countAggSig)
     val seqOps = SeqOp(0, FastIndexedSeq(), countAggSig)
-    val newKey = MakeStruct(Seq("count" -> SelectFields(Ref("foo", streamType.elementType), Seq("a", "b"))))
+    val newKey = MakeStruct(IndexedSeq("count" -> SelectFields(Ref("foo", streamType.elementType), IndexedSeq("a", "b"))))
     val streamBuffAggCount = StreamBufferedAggregate(countStructStream, initOps, newKey, seqOps, "foo",  IndexedSeq(countAggSig), 8)
     val result = mapIR(streamBuffAggCount) { elem =>
-      MakeStruct(Seq(
+      MakeStruct(IndexedSeq(
         "key" -> GetField(elem, "count"),
         "aggResult" ->
           RunAgg(InitFromSerializedValue(0, GetTupleElement(GetField(elem, "agg"), 0), countAggSig.state), ResultOp(0, countAggSig), IndexedSeq(countAggSig.state))
@@ -353,16 +353,16 @@ class EmitStreamSuite extends HailSuite {
   @Test def testStreamBufferedAggregatorCombine(): Unit = {
     val resultArrayToCompare = IndexedSeq(Row(Row(1), 2))
     val streamType = TStream(TStruct("a" -> TInt64))
-    val elemOne = MakeStruct(Seq(("a", I64(1))))
-    val elemTwo = MakeStruct(Seq(("a", I64(1))))
-    val countStructStream = MakeStream(Seq(elemOne, elemTwo), streamType)
+    val elemOne = MakeStruct(IndexedSeq(("a", I64(1))))
+    val elemTwo = MakeStruct(IndexedSeq(("a", I64(1))))
+    val countStructStream = MakeStream(IndexedSeq(elemOne, elemTwo), streamType)
     val countAggSig = PhysicalAggSig(Count(), TypedStateSig(VirtualTypeWithReq.fullyOptional(TInt64).setRequired(true)))
     val initOps = InitOp(0, FastIndexedSeq(), countAggSig)
     val seqOps = SeqOp(0, FastIndexedSeq(), countAggSig)
-    val newKey = MakeStruct(Seq("count" -> SelectFields(Ref("foo", streamType.elementType), Seq("a"))))
+    val newKey = MakeStruct(IndexedSeq("count" -> SelectFields(Ref("foo", streamType.elementType), IndexedSeq("a"))))
     val streamBuffAggCount = StreamBufferedAggregate(countStructStream, initOps, newKey, seqOps, "foo",  IndexedSeq(countAggSig), 8)
     val result = mapIR(streamBuffAggCount) { elem =>
-      MakeStruct(Seq(
+      MakeStruct(IndexedSeq(
         "key" -> GetField(elem, "count"),
         "aggResult" ->
       RunAgg(InitFromSerializedValue(0, GetTupleElement(GetField(elem, "agg"), 0), countAggSig.state), ResultOp(0, countAggSig), IndexedSeq(countAggSig.state))
@@ -373,18 +373,18 @@ class EmitStreamSuite extends HailSuite {
   @Test def testStreamBufferedAggregatorCollectAggregator(): Unit = {
     val resultArrayToCompare = IndexedSeq(Row(Row(1), IndexedSeq(1, 3)), Row(Row(2), IndexedSeq(2, 4)))
     val streamType = TStream(TStruct("a" -> TInt64, "b" -> TInt64))
-    val elemOne = MakeStruct(Seq(("a", I64(1)), ("b", I64(1))))
-    val elemTwo = MakeStruct(Seq(("a", I64(2)), ("b", I64(2))))
-    val elemThree = MakeStruct(Seq(("a", I64(1)), ("b", I64(3))))
-    val elemFour = MakeStruct(Seq(("a", I64(2)), ("b", I64(4))))
-    val collectStructStream = MakeStream(Seq(elemOne, elemTwo, elemThree, elemFour), streamType)
+    val elemOne = MakeStruct(IndexedSeq(("a", I64(1)), ("b", I64(1))))
+    val elemTwo = MakeStruct(IndexedSeq(("a", I64(2)), ("b", I64(2))))
+    val elemThree = MakeStruct(IndexedSeq(("a", I64(1)), ("b", I64(3))))
+    val elemFour = MakeStruct(IndexedSeq(("a", I64(2)), ("b", I64(4))))
+    val collectStructStream = MakeStream(IndexedSeq(elemOne, elemTwo, elemThree, elemFour), streamType)
     val collectAggSig =  PhysicalAggSig(Collect(), CollectStateSig(VirtualTypeWithReq(PType.canonical(TInt64))))
     val initOps = InitOp(0, FastIndexedSeq(), collectAggSig)
     val seqOps = SeqOp(0, FastIndexedSeq(GetField(Ref("foo", streamType.elementType), "b")), collectAggSig)
-    val newKey = MakeStruct(Seq("collect" -> SelectFields(Ref("foo", streamType.elementType), Seq("a"))))
+    val newKey = MakeStruct(IndexedSeq("collect" -> SelectFields(Ref("foo", streamType.elementType), IndexedSeq("a"))))
     val streamBuffAggCollect = StreamBufferedAggregate(collectStructStream, initOps, newKey, seqOps, "foo",  IndexedSeq(collectAggSig), 8)
     val result = mapIR(streamBuffAggCollect) { elem =>
-      MakeStruct(Seq(
+      MakeStruct(IndexedSeq(
         "key" -> GetField(elem, "collect"),
         "aggResult" ->
           RunAgg(InitFromSerializedValue(0, GetTupleElement(GetField(elem, "agg"), 0), collectAggSig.state), ResultOp(0, collectAggSig), IndexedSeq(collectAggSig.state))
@@ -400,24 +400,24 @@ class EmitStreamSuite extends HailSuite {
                                 Row(Row(8), Row(1, IndexedSeq(2L))), Row(Row(9), Row(1, IndexedSeq(3L))),
                                 Row(Row(10), Row(2, IndexedSeq(4L, 4L))))
     val streamType = TStream(TStruct("a" -> TInt64, "b" -> TInt64))
-    val elemOne = MakeStruct(Seq(("a", I64(1)), ("b", I64(1))))
-    val elemTwo = MakeStruct(Seq(("a", I64(2)), ("b", I64(2))))
-    val elemThree = MakeStruct(Seq(("a", I64(1)), ("b", I64(3))))
-    val elemFour = MakeStruct(Seq(("a", I64(2)), ("b", I64(4))))
-    val elemFive = MakeStruct(Seq(("a", I64(3)), ("b", I64(1))))
-    val elemSix = MakeStruct(Seq(("a", I64(3)), ("b", I64(2))))
-    val elemSeven = MakeStruct(Seq(("a", I64(3)), ("b", I64(3))))
-    val elemEight = MakeStruct(Seq(("a", I64(4)), ("b", I64(4))))
-    val elemNine = MakeStruct(Seq(("a", I64(5)), ("b", I64(1))))
-    val elemTen = MakeStruct(Seq(("a", I64(1)), ("b", I64(2))))
-    val elemEleven = MakeStruct(Seq(("a", I64(6)), ("b", I64(3))))
-    val elemTwelve = MakeStruct(Seq(("a", I64(7)), ("b", I64(4))))
-    val elemThirteen = MakeStruct(Seq(("a", I64(8)), ("b", I64(1))))
-    val elemFourteen = MakeStruct(Seq(("a", I64(8)), ("b", I64(2))))
-    val elemFifteen = MakeStruct(Seq(("a", I64(9)), ("b", I64(3))))
-    val elemSixteen = MakeStruct(Seq(("a", I64(10)), ("b", I64(4))))
-    val elemSeventeen = MakeStruct(Seq(("a", I64(10)), ("b", I64(4))))
-    val collectStructStream = MakeStream(Seq(elemOne, elemTwo, elemThree, elemFour, elemFive, elemSix, elemSeven,
+    val elemOne = MakeStruct(IndexedSeq(("a", I64(1)), ("b", I64(1))))
+    val elemTwo = MakeStruct(IndexedSeq(("a", I64(2)), ("b", I64(2))))
+    val elemThree = MakeStruct(IndexedSeq(("a", I64(1)), ("b", I64(3))))
+    val elemFour = MakeStruct(IndexedSeq(("a", I64(2)), ("b", I64(4))))
+    val elemFive = MakeStruct(IndexedSeq(("a", I64(3)), ("b", I64(1))))
+    val elemSix = MakeStruct(IndexedSeq(("a", I64(3)), ("b", I64(2))))
+    val elemSeven = MakeStruct(IndexedSeq(("a", I64(3)), ("b", I64(3))))
+    val elemEight = MakeStruct(IndexedSeq(("a", I64(4)), ("b", I64(4))))
+    val elemNine = MakeStruct(IndexedSeq(("a", I64(5)), ("b", I64(1))))
+    val elemTen = MakeStruct(IndexedSeq(("a", I64(1)), ("b", I64(2))))
+    val elemEleven = MakeStruct(IndexedSeq(("a", I64(6)), ("b", I64(3))))
+    val elemTwelve = MakeStruct(IndexedSeq(("a", I64(7)), ("b", I64(4))))
+    val elemThirteen = MakeStruct(IndexedSeq(("a", I64(8)), ("b", I64(1))))
+    val elemFourteen = MakeStruct(IndexedSeq(("a", I64(8)), ("b", I64(2))))
+    val elemFifteen = MakeStruct(IndexedSeq(("a", I64(9)), ("b", I64(3))))
+    val elemSixteen = MakeStruct(IndexedSeq(("a", I64(10)), ("b", I64(4))))
+    val elemSeventeen = MakeStruct(IndexedSeq(("a", I64(10)), ("b", I64(4))))
+    val collectStructStream = MakeStream(IndexedSeq(elemOne, elemTwo, elemThree, elemFour, elemFive, elemSix, elemSeven,
                                           elemEight, elemNine, elemTen, elemEleven, elemTwelve, elemThirteen,
                                           elemFourteen, elemFifteen, elemSixteen, elemSeventeen), streamType)
     val collectAggSig =  PhysicalAggSig(Collect(), CollectStateSig(VirtualTypeWithReq(PType.canonical(TInt64))))
@@ -430,11 +430,11 @@ class EmitStreamSuite extends HailSuite {
       SeqOp(0, FastIndexedSeq(), countAggSig),
       SeqOp(1, FastIndexedSeq(GetField(Ref("foo", streamType.elementType), "b")), collectAggSig)
     ))
-    val newKey = MakeStruct(Seq("collect" -> SelectFields(Ref("foo", streamType.elementType), Seq("a"))))
+    val newKey = MakeStruct(IndexedSeq("collect" -> SelectFields(Ref("foo", streamType.elementType), IndexedSeq("a"))))
     val streamBuffAggCollect = StreamBufferedAggregate(collectStructStream, initOps, newKey, seqOps, "foo",
                                 IndexedSeq(countAggSig, collectAggSig), 8)
     val result = mapIR(streamBuffAggCollect) { elem =>
-      MakeStruct(Seq(
+      MakeStruct(IndexedSeq(
         "key" -> GetField(elem, "collect"),
         "aggResult" ->
           RunAgg(
@@ -454,7 +454,7 @@ class EmitStreamSuite extends HailSuite {
     def join(lstream: IR, rstream: IR, joinType: String): IR =
       StreamJoinRightDistinct(
         lstream, rstream, FastIndexedSeq("k"), FastIndexedSeq("k"), "l", "r",
-        MakeTuple.ordered(Seq(
+        MakeTuple.ordered(IndexedSeq(
           GetField(Ref("l", eltType), "v"),
           GetField(Ref("r", eltType), "v"))),
         joinType)
@@ -463,29 +463,29 @@ class EmitStreamSuite extends HailSuite {
 
     def outerjoin(lstream: IR, rstream: IR): IR = join(lstream, rstream, "outer")
 
-    def pairs(xs: Seq[(Int, String)]): IR =
-      MakeStream(xs.map { case (a, b) => MakeStruct(Seq("k" -> I32(a), "v" -> Str(b))) }, TStream(eltType))
+    def pairs(xs: IndexedSeq[(Int, String)]): IR =
+      MakeStream(xs.map { case (a, b) => MakeStruct(IndexedSeq("k" -> I32(a), "v" -> Str(b))) }, TStream(eltType))
 
     val tests: Array[(IR, IR, IndexedSeq[Any], IndexedSeq[Any])] = Array(
-      (pairs(Seq()), pairs(Seq()), IndexedSeq(), IndexedSeq()),
-      (pairs(Seq(3 -> "A")),
-        pairs(Seq()),
+      (pairs(IndexedSeq()), pairs(IndexedSeq()), IndexedSeq(), IndexedSeq()),
+      (pairs(IndexedSeq(3 -> "A")),
+        pairs(IndexedSeq()),
         IndexedSeq(Row("A", null)),
         IndexedSeq(Row("A", null))),
-      (pairs(Seq()),
-        pairs(Seq(3 -> "B")),
+      (pairs(IndexedSeq()),
+        pairs(IndexedSeq(3 -> "B")),
         IndexedSeq(),
         IndexedSeq(Row(null, "B"))),
-      (pairs(Seq(0 -> "A")),
-        pairs(Seq(0 -> "B")),
+      (pairs(IndexedSeq(0 -> "A")),
+        pairs(IndexedSeq(0 -> "B")),
         IndexedSeq(Row("A", "B")),
         IndexedSeq(Row("A", "B"))),
-      (pairs(Seq(0 -> "A", 2 -> "B", 3 -> "C")),
-        pairs(Seq(0 -> "a", 1 -> ".", 2 -> "b", 4 -> "..")),
+      (pairs(IndexedSeq(0 -> "A", 2 -> "B", 3 -> "C")),
+        pairs(IndexedSeq(0 -> "a", 1 -> ".", 2 -> "b", 4 -> "..")),
         IndexedSeq(Row("A", "a"), Row("B", "b"), Row("C", null)),
         IndexedSeq(Row("A", "a"), Row(null, "."), Row("B", "b"), Row("C", null), Row(null, ".."))),
-      (pairs(Seq(0 -> "A", 1 -> "B1", 1 -> "B2")),
-        pairs(Seq(0 -> "a", 1 -> "b", 2 -> "c")),
+      (pairs(IndexedSeq(0 -> "A", 1 -> "B1", 1 -> "B2")),
+        pairs(IndexedSeq(0 -> "a", 1 -> "b", 2 -> "c")),
         IndexedSeq(Row("A", "a"), Row("B1", "b"), Row("B2", "b")),
         IndexedSeq(Row("A", "a"), Row("B1", "b"), Row("B2", "b"), Row(null, "c")))
     )
@@ -506,7 +506,7 @@ class EmitStreamSuite extends HailSuite {
     def join(lstream: IR, rstream: IR, joinType: String): IR =
       StreamJoinRightDistinct(
         lstream, rstream, FastIndexedSeq("k"), FastIndexedSeq("k"), "l", "r",
-        MakeTuple.ordered(Seq(
+        MakeTuple.ordered(IndexedSeq(
           GetField(Ref("l", lEltType), "v"),
           GetField(Ref("r", rEltType), "v"))),
         joinType)
@@ -516,17 +516,17 @@ class EmitStreamSuite extends HailSuite {
     def innerjoin(lstream: IR, rstream: IR): IR = join(lstream, rstream, "inner")
 
     def lElts(xs: (Int, String)*): IR =
-      MakeStream(xs.map { case (a, b) => MakeStruct(Seq("k" -> I32(a), "v" -> Str(b))) }, TStream(lEltType))
+      MakeStream(xs.toArray.map { case (a, b) => MakeStruct(IndexedSeq("k" -> I32(a), "v" -> Str(b))) }, TStream(lEltType))
 
     def rElts(xs: ((Char, Any, Any, Char), String)*): IR =
-      MakeStream(xs.map {
+      MakeStream(xs.toArray.map {
       case ((is, s, e, ie), v) =>
         val start = if (s == null) NA(TInt32) else I32(s.asInstanceOf[Int])
         val end = if (e == null) NA(TInt32) else I32(e.asInstanceOf[Int])
         val includesStart = is == '['
         val includesEnd = ie == ']'
         val interval = ApplySpecial("Interval", FastSeq(), FastSeq(start, end, includesStart, includesEnd), TInterval(TInt32), 0)
-        MakeStruct(Seq("k" -> interval, "v" -> Str(v)))
+        MakeStruct(IndexedSeq("k" -> interval, "v" -> Str(v)))
       }, TStream(rEltType))
 
     val tests: Array[(IR, IR, IndexedSeq[Any], IndexedSeq[Any])] = Array(
@@ -618,7 +618,7 @@ class EmitStreamSuite extends HailSuite {
     def x = Ref("x", TInt32)
 
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
-      StreamScan(MakeStream(Seq(), TStream(TInt32)),
+      StreamScan(MakeStream(IndexedSeq(), TStream(TInt32)),
         9, "a", "v", a + v) -> IndexedSeq(9),
       StreamScan(StreamMap(StreamRange(0, 4, 1), "x", x * x),
         1, "a", "v", a + v) -> IndexedSeq(1, 1 /*1+0*0*/ , 2 /*1+1*1*/ , 6 /*2+2*2*/ , 15 /*6+3*3*/)
@@ -637,7 +637,7 @@ class EmitStreamSuite extends HailSuite {
         assert(aggregate(inp) == expected, Pretty(ctx, ir))
     }
 
-    def scanOp(op: AggOp, initArgs: Seq[IR], opArgs: Seq[IR]): ApplyScanOp =
+    def scanOp(op: AggOp, initArgs: IndexedSeq[IR], opArgs: IndexedSeq[IR]): ApplyScanOp =
       ApplyScanOp(
         initArgs.toFastIndexedSeq,
         opArgs.toFastIndexedSeq,
@@ -654,8 +654,8 @@ class EmitStreamSuite extends HailSuite {
         GetField(Ref("foo", pairType), "y") +
           GetField(
             scanOp(CallStats(),
-              Seq(I32(2)),
-              Seq(GetField(Ref("foo", pairType), "x"))
+              IndexedSeq(I32(2)),
+              IndexedSeq(GetField(Ref("foo", pairType), "x"))
             ),
             "AN")
       ),
@@ -669,9 +669,9 @@ class EmitStreamSuite extends HailSuite {
       StreamAggScan(
         StreamAggScan(ToStream(In(0, intsType)),
           "i",
-          scanOp(Sum(), Seq(), Seq(Ref("i", TInt32).toL))),
+          scanOp(Sum(), IndexedSeq(), IndexedSeq(Ref("i", TInt32).toL))),
         "x",
-        scanOp(Max(), Seq(), Seq(Ref("x", TInt64)))
+        scanOp(Max(), IndexedSeq(), IndexedSeq(Ref("x", TInt64)))
       ),
       intsType,
       FastIndexedSeq(2, 5, 8, -3, 2, 2, 1, 0, 0) ->
@@ -695,16 +695,16 @@ class EmitStreamSuite extends HailSuite {
         In(0, SingleCodeEmitParamType(true, StreamSingleCodeType(false, PInt32(true), true))),
         "n", StreamRange(0, Ref("n", TInt32), 1)
       ), false, intsPType)
-    assert(f2(Seq(1, 5, 2, 9).iterator) == IndexedSeq(1, 5, 2, 9).flatMap(0 until _))
+    assert(f2(IndexedSeq(1, 5, 2, 9).iterator) == IndexedSeq(1, 5, 2, 9).flatMap(0 until _))
 
     val f3 = compileStreamWithIter(
       StreamRange(0, StreamLen(In(0, SingleCodeEmitParamType(true, StreamSingleCodeType(false, PInt32(true), true)))), 1), false, intsPType)
-    assert(f3(Seq(1, 5, 2, 9).iterator) == IndexedSeq(0, 1, 2, 3))
-    assert(f3(Seq().iterator) == IndexedSeq())
+    assert(f3(IndexedSeq(1, 5, 2, 9).iterator) == IndexedSeq(0, 1, 2, 3))
+    assert(f3(IndexedSeq().iterator) == IndexedSeq())
   }
 
   @Test def testEmitIf() {
-    def xs = MakeStream(Seq[IR](5, 3, 6), TStream(TInt32))
+    def xs = MakeStream(IndexedSeq[IR](5, 3, 6), TStream(TInt32))
 
     def ys = StreamRange(0, 4, 1)
 
@@ -717,7 +717,7 @@ class EmitStreamSuite extends HailSuite {
       If(False(), xs, na) -> null,
       If(NA(TBoolean), xs, ys) -> null,
       StreamFlatMap(
-        MakeStream(Seq(False(), True(), False()), TStream(TBoolean)),
+        MakeStream(IndexedSeq(False(), True(), False()), TStream(TBoolean)),
         "x",
         If(Ref("x", TBoolean), xs, ys))
         -> IndexedSeq(0, 1, 2, 3, 5, 3, 6, 0, 1, 2, 3)
@@ -735,7 +735,7 @@ class EmitStreamSuite extends HailSuite {
       "xs" -> PCanonicalArray(PFloat64()),
       "ys" -> PCanonicalArray(PFloat64()))
     val i1 = Ref("in", t.virtualType)
-    val ir = MakeTuple.ordered(Seq(StreamFold(
+    val ir = MakeTuple.ordered(IndexedSeq(StreamFold(
       StreamZip(
         FastIndexedSeq(
           ToStream(If(IsNA(GetField(i1, "missingParam")), NA(TArray(TFloat64)), GetField(i1, "xs"))),
@@ -756,7 +756,7 @@ class EmitStreamSuite extends HailSuite {
       ir)
 
     pool.scopedSmallRegion { r =>
-      val input = t.unstagedStoreJavaObject(Row(null, IndexedSeq(1d, 2d), IndexedSeq(3d, 4d)), r)
+      val input = t.unstagedStoreJavaObject(ctx.stateManager, Row(null, IndexedSeq(1d, 2d), IndexedSeq(3d, 4d)), r)
 
       assert(SafeRow.read(pt, f(theHailClassLoader, ctx.fs, ctx.taskContext, r)(r, input)) == Row(null))
     }
@@ -858,7 +858,7 @@ class EmitStreamSuite extends HailSuite {
   @Test def testMultiplicity() {
     val target = Ref("target", TStream(TInt32))
     val i = Ref("i", TInt32)
-    for ((ir, v) <- Seq(
+    for ((ir, v) <- IndexedSeq(
       StreamRange(0, 10, 1) -> 0,
       target -> 1,
       Let("x", True(), target) -> 1,

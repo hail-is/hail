@@ -491,7 +491,7 @@ def _pca_and_moments(A, k=10, num_moments=5, compute_loadings=False, q_iteration
         lt = lt.annotate_globals(U=U)
         idx_name = '_tmp_pca_loading_index'
         lt = lt.add_index(idx_name)
-        lt = lt.annotate(loadings=lt.U[lt[idx_name], :]._data_array()).select_globals()
+        lt = lt.annotate(loadings=hl.array(lt.U[lt[idx_name], :])).select_globals()
         lt = lt.drop(lt[idx_name])
     else:
         lt = None
@@ -609,7 +609,7 @@ def _blanczos_pca(A, k=10, compute_loadings=False, q_iterations=10, oversampling
         t = t.annotate_globals(X=X)
         idx_name = '_tmp_pca_loading_index'
         t = t.add_index(idx_name)
-        t = t.annotate(**{field_name: t.X[t[idx_name], :]._data_array()}).select_globals()
+        t = t.annotate(**{field_name: hl.array(t.X[t[idx_name], :])}).select_globals()
         t = t.drop(t[idx_name])
         return t
 

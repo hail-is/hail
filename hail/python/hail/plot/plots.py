@@ -8,7 +8,7 @@ import bokeh.io
 from bokeh.models import HoverTool, ColorBar, LogTicker, LogColorMapper, LinearColorMapper, CategoricalColorMapper, \
     ColumnDataSource, BasicTicker, Plot, ColorMapper, CDSView, GroupFilter, Legend, LegendItem, Renderer, CustomJS, \
     Select, Column, Span, DataRange1d, Slope, Label
-from bokeh.plotting import figure
+from bokeh.plotting import figure, Figure
 from bokeh.transform import transform
 from bokeh.layouts import gridplot
 
@@ -23,7 +23,7 @@ from hail.typecheck import typecheck, oneof, nullable, sized_tupleof, numeric, \
 from hail import Table
 from hail.utils.struct import Struct
 from hail.utils.java import warning
-from typing import List, Tuple, Dict, Union
+from typing import List, Tuple, Dict, Union, Callable
 import hail
 
 palette = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
@@ -56,7 +56,7 @@ def show(obj, interact=None):
         interact(handle)
 
 
-def cdf(data, k=350, legend=None, title=None, normalize=True, log=False):
+def cdf(data, k=350, legend=None, title=None, normalize=True, log=False) -> Figure:
     """Create a cumulative density plot.
 
     Parameters
@@ -108,7 +108,7 @@ def cdf(data, k=350, legend=None, title=None, normalize=True, log=False):
     p.add_tools(HoverTool(tooltips=[("value", "$x"), ("rank", "@top")], mode='vline'))
 
     ranks = np.array(data.ranks)
-    values = np.array(data.values)
+    values = np.array(data['values'])
     if normalize:
         ranks = ranks / ranks[-1]
 
@@ -141,6 +141,10 @@ def _cdf_error(cdf, failure_prob):
         s += cdf._compaction_counts[i] << (2 * i)
     s = s / (cdf.ranks[-1] ** 2)
 
+    if s == 0:
+        # no compactions ergo no error
+        return 0
+
     def update_grid_size(p):
         return 4 * math.sqrt(math.log(2 * p / failure_prob) / (2 * s))
 
@@ -151,7 +155,7 @@ def _cdf_error(cdf, failure_prob):
     return 1 / p + math.sqrt(math.log(2 * p / failure_prob) * s / 2)
 
 
-def pdf(data, k=1000, confidence=5, legend=None, title=None, log=False, interactive=False):
+def pdf(data, k=1000, confidence=5, legend=None, title=None, log=False, interactive=False) -> Union[Figure, Tuple[Figure, Callable]]:
     if isinstance(data, Expression):
         if data._indices is None:
             return ValueError('Invalid input')
@@ -287,7 +291,7 @@ def _max_entropy_cdf(min_x, max_x, x, y, e):
     return new_y, keep
 
 
-def smoothed_pdf(data, k=350, smoothing=.5, legend=None, title=None, log=False, interactive=False, figure=None):
+def smoothed_pdf(data, k=350, smoothing=.5, legend=None, title=None, log=False, interactive=False, figure=None) -> Union[Figure, Tuple[Figure, Callable]]:
     """Create a density plot.
 
     Parameters
@@ -378,7 +382,7 @@ def smoothed_pdf(data, k=350, smoothing=.5, legend=None, title=None, log=False, 
 
 @typecheck(data=oneof(Struct, expr_float64), range=nullable(sized_tupleof(numeric, numeric)),
            bins=int, legend=nullable(str), title=nullable(str), log=bool, interactive=bool)
-def histogram(data, range=None, bins=50, legend=None, title=None, log=False, interactive=False):
+def histogram(data, range=None, bins=50, legend=None, title=None, log=False, interactive=False) -> Union[Figure, Tuple[Figure, Callable]]:
     """Create a histogram.
 
     Notes
@@ -424,7 +428,7 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False, int
             return ValueError('Invalid input')
     elif 'values' in data:
         cdf = data
-        hist, edges = np.histogram(cdf.values, bins=bins, weights=np.diff(cdf.ranks), density=True)
+        hist, edges = np.histogram(cdf['values'], bins=bins, weights=np.diff(cdf.ranks), density=True)
         data = Struct(bin_freq=hist, bin_edges=edges, n_larger=0, n_smaller=0)
 
     if legend is None:
@@ -481,11 +485,11 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False, int
             def update(bins=bins, phase=0):
                 if phase > 0 and phase < 1:
                     bins = bins + 1
-                    delta = (cdf.values[-1] - cdf.values[0]) / bins
-                    edges = np.linspace(cdf.values[0] - (1 - phase) * delta, cdf.values[-1] + phase * delta, bins)
+                    delta = (cdf['values'][-1] - cdf['values'][0]) / bins
+                    edges = np.linspace(cdf['values'][0] - (1 - phase) * delta, cdf['values'][-1] + phase * delta, bins)
                 else:
-                    edges = np.linspace(cdf.values[0], cdf.values[-1], bins)
-                hist, edges = np.histogram(cdf.values, bins=edges, weights=np.diff(cdf.ranks), density=True)
+                    edges = np.linspace(cdf['values'][0], cdf['values'][-1], bins)
+                hist, edges = np.histogram(cdf['values'], bins=edges, weights=np.diff(cdf.ranks), density=True)
                 new_data = {'top': hist, 'left': edges[:-1], 'right': edges[1:], 'bottom': np.full(len(hist), 0)}
                 q.data_source.data = new_data
                 bokeh.io.push_notebook(handle)
@@ -500,7 +504,7 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False, int
 
 @typecheck(data=oneof(Struct, expr_float64), range=nullable(sized_tupleof(numeric, numeric)),
            bins=int, legend=nullable(str), title=nullable(str), normalize=bool, log=bool)
-def cumulative_histogram(data, range=None, bins=50, legend=None, title=None, normalize=True, log=False):
+def cumulative_histogram(data, range=None, bins=50, legend=None, title=None, normalize=True, log=False) -> Figure:
     """Create a cumulative histogram.
 
     Parameters
@@ -597,7 +601,7 @@ def histogram2d(x: NumericExpression,
                 width: int = 600,
                 height: int = 600,
                 colors: List[str] = bokeh.palettes.all_palettes['Blues'][7][::-1],
-                log: bool = False):
+                log: bool = False) -> Figure:
     """Plot a two-dimensional histogram.
 
     ``x`` and ``y`` must both be a :class:`.NumericExpression` from the same :class:`.Table`.
@@ -892,7 +896,7 @@ def scatter(
         collect_all: bool = False,
         n_divisions: int = 500,
         missing_label: str = 'NA'
-) -> Union[bokeh.plotting.Figure, Column]:
+) -> Union[Figure, Column]:
     """Create an interactive scatter plot.
 
     ``x`` and ``y`` must both be either:
@@ -1243,7 +1247,7 @@ def joint_plot(
         select.js_on_change('value', callback)
         first_row.append(select)
 
-    return gridplot(first_row, [sp, yp])
+    return gridplot([first_row, [sp, yp]])
 
 
 @typecheck(pvals=oneof(expr_numeric, sized_tupleof(str, expr_numeric)),
@@ -1267,7 +1271,7 @@ def qq(
         collect_all: bool = False,
         n_divisions: int = 500,
         missing_label: str = 'NA'
-) -> Union[bokeh.plotting.Figure, Column]:
+) -> Union[Figure, Column]:
     """Create a Quantile-Quantile plot. (https://en.wikipedia.org/wiki/Q-Q_plot)
 
     ``pvals`` must be either:
@@ -1339,12 +1343,12 @@ def qq(
         ht = source.select(p_value=pvals, **hover_fields, **label)
     else:
         ht = source.select_rows(p_value=pvals, **hover_fields, **label).rows()
-    ht = ht.key_by().select('p_value', *hover_fields, *label).key_by('p_value').persist()
-    n = ht.count()
+    ht = ht.key_by().select('p_value', *hover_fields, *label).key_by('p_value')
+    n = ht.aggregate(aggregators.count(), _localize=False)
     ht = ht.annotate(
         observed_p=-hail.log10(ht['p_value']),
         expected_p=-hail.log10((hail.scan.count() + 1) / n)
-    ).persist()
+    )
     if 'p' not in hover_fields:
         hover_fields['p_value'] = ht['p_value']
     p = scatter(
@@ -1385,7 +1389,7 @@ def qq(
 
 @typecheck(pvals=expr_float64, locus=nullable(expr_locus()), title=nullable(str),
            size=int, hover_fields=nullable(dictof(str, expr_any)), collect_all=bool, n_divisions=int, significance_line=nullable(numeric))
-def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_all=False, n_divisions=500, significance_line=5e-8):
+def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_all=False, n_divisions=500, significance_line=5e-8) -> Figure:
     """Create a Manhattan plot. (https://en.wikipedia.org/wiki/Manhattan_plot)
 
     Parameters
@@ -1463,7 +1467,7 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
 @typecheck(entry_field=expr_any, row_field=nullable(oneof(expr_numeric, expr_locus())), column_field=nullable(expr_str),
            window=nullable(int), plot_width=int, plot_height=int)
 def visualize_missingness(entry_field, row_field=None, column_field=None,
-                          window=6000000, plot_width=1800, plot_height=900):
+                          window=6000000, plot_width=1800, plot_height=900) -> Figure:
     """Visualize missingness in a MatrixTable.
 
     Inspired by `naniar <https://cran.r-project.org/web/packages/naniar/index.html>`__.
@@ -1484,7 +1488,7 @@ def visualize_missingness(entry_field, row_field=None, column_field=None,
         Row field to use for y-axis (can be windowed). If not provided, the row key will be used.
     column_field : :class:`.StringExpression`
         Column field to use for x-axis. If not provided, the column key will be used.
-    window : int
+    window : int, optional
         Size of window to summarize by ``row_field``. If set to None, each field will be used individually.
     plot_width : int
         Plot width in px.
@@ -1497,7 +1501,10 @@ def visualize_missingness(entry_field, row_field=None, column_field=None,
     """
     mt = entry_field._indices.source
     if row_field is None:
-        row_field = mt.row_key
+        if isinstance(mt.row_key.dtype, hail.tstruct) and len(mt.row_key) == 1:
+            row_field = mt.row_key[0]
+        else:
+            row_field = mt.row_key
     if column_field is None:
         column_field = hail.str(mt.col_key)
     row_source = row_field._indices.source
@@ -1506,18 +1513,21 @@ def visualize_missingness(entry_field, row_field=None, column_field=None,
         raise ValueError("visualize_missingness expects expressions of 'MatrixTable', found scalar expression")
     if isinstance(mt, hail.Table):
         raise ValueError("visualize_missingness requires source to be MatrixTable, not Table")
-    locus = isinstance(row_field.dtype, hail.tlocus)
     columns = column_field.collect()
     if not (mt == row_source == column_source):
         raise ValueError(f"visualize_missingness expects expressions from the same 'MatrixTable', "
                          f"found {mt} and {row_source} and {column_source}")
     # check_row_indexed('visualize_missingness', row_source)
     if window:
-        if locus:
+        row_field_is_locus = isinstance(row_field.dtype, hail.tlocus)
+        row_field_is_numeric = row_field.dtype in (hail.tint32, hail.tint64, hail.tfloat32, hail.tfloat64)
+        if row_field_is_locus:
             grouping = hail.locus_from_global_position(hail.int64(window)
                                                        * hail.int64(row_field.global_position() / window))
-        else:
+        elif row_field_is_numeric:
             grouping = hail.int64(window) * hail.int64(row_field / window)
+        else:
+            raise ValueError(f'When window is not None and row key must be numeric, but row key type was {mt.row_key.dtype}.')
         mt = mt.group_rows_by(
             _new_row_key=grouping
         ).partition_hint(100).aggregate(

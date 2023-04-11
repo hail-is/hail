@@ -1,25 +1,28 @@
 package is.hail.io.bgen
 
+import is.hail.annotations.Region
+import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir
-import is.hail.expr.ir.{IRParser, IRParserEnvironment, Interpret, MatrixHybridReader, MatrixReader, Pretty, TableIR, TableValue}
+import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
+import is.hail.expr.ir.streams.StreamProducer
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitSettable, EmitValue, IEmitCode, IR, IRParserEnvironment, Literal, LowerMatrixIR, MakeStruct, MatrixHybridReader, MatrixReader, PartitionNativeIntervalReader, PartitionReader, ReadPartition, Ref, StreamTake, TableExecuteIntermediate, TableNativeReader, TableReader, TableValue, ToStream}
 import is.hail.io._
-import is.hail.io.fs.{FS, FileStatus}
-import is.hail.io.index.{IndexReader, IndexReaderBuilder}
+import is.hail.io.fs.{FS, FileStatus, SeekableDataInputStream}
+import is.hail.io.index.{IndexReader, StagedIndexReader}
 import is.hail.io.vcf.LoadVCF
-import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
-import is.hail.sparkextras.RepartitionedOrderedRDD2
+import is.hail.rvd.RVDPartitioner
 import is.hail.types._
-import is.hail.types.physical.{PInt64Required, PStruct, PType}
+import is.hail.types.physical.PType
+import is.hail.types.physical.stypes.concrete.{SJavaArrayString, SStackStruct}
+import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant._
-import org.apache.spark.Partition
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.json4s.JsonAST.{JArray, JInt, JNull, JString}
-import org.json4s.{DefaultFormats, Formats, JObject, JValue}
+import org.json4s.{DefaultFormats, Extraction, Formats, JObject, JValue}
 
+import scala.collection.mutable
 import scala.io.Source
 
 case class BgenHeader(
@@ -27,7 +30,7 @@ case class BgenHeader(
   nSamples: Int,
   nVariants: Int,
   headerLength: Int,
-  dataStart: Int,
+  dataStart: Long,
   hasIds: Boolean,
   version: Int,
   fileByteSize: Long,
@@ -35,16 +38,19 @@ case class BgenHeader(
 )
 
 case class BgenFileMetadata(
-  path: String,
   indexPath: String,
   header: BgenHeader,
-  rg: Option[ReferenceGenome],
+  rg: Option[String],
   contigRecoding: Map[String, String],
   skipInvalidLoci: Boolean,
   nVariants: Long,
-  indexKeyType: Type,
-  indexAnnotationType: Type,
-  rangeBounds: Interval)
+  @transient indexKeyType: Type,
+  @transient indexAnnotationType: Type,
+  @transient rangeBounds: Interval) {
+  def nSamples: Int = header.nSamples
+  def compression: Int = header.compression
+  def path: String = header.path
+}
 
 object LoadBgen {
   def readSamples(fs: FS, file: String): Array[String] = {
@@ -96,7 +102,7 @@ object LoadBgen {
     is.seek(0)
     val allInfoLength = is.readInt()
     val headerLength = is.readInt()
-    val dataStart = allInfoLength + 4
+    val dataStart = allInfoLength.toLong + 4
 
     assert(headerLength <= allInfoLength)
     val nVariants = is.readInt()
@@ -108,7 +114,7 @@ object LoadBgen {
       fatal(s"expected magic number [0000] or [bgen], got [${ magicNumber.mkString }]")
 
     if (headerLength > 20)
-      is.skipBytes(headerLength.toInt - 20)
+      is.skipBytes(headerLength - 20)
 
     val flags = is.readInt()
     val compressType = flags & 3
@@ -139,7 +145,7 @@ object LoadBgen {
     if (notVersionTwo.length > 0)
       fatal(
         s"""The following BGEN files are not BGENv2:
-            |  ${ notVersionTwo.mkString("\n  ") }""".stripMargin)
+           |  ${ notVersionTwo.mkString("\n  ") }""".stripMargin)
   }
 
   def getAllFileStatuses(fs: FS, files: Array[String]): Array[FileStatus] = {
@@ -166,7 +172,7 @@ object LoadBgen {
     if (!badFiles.isEmpty)
       fatal(
         s"""The following paths refer to no files:
-            |  ${ badFiles.result().mkString("\n  ") }""".stripMargin)
+           |  ${ badFiles.result().mkString("\n  ") }""".stripMargin)
 
     statuses
   }
@@ -174,47 +180,45 @@ object LoadBgen {
   def getAllFilePaths(fs: FS, files: Array[String]): Array[String] =
     getAllFileStatuses(fs, files).map(_.getPath.toString)
 
+
   def getBgenFileMetadata(ctx: ExecuteContext, files: Array[String], indexFiles: Array[String]): Array[BgenFileMetadata] = {
     val fs = ctx.fs
     require(files.length == indexFiles.length)
     val headers = getFileHeaders(fs, files)
+
+    val cacheByRG: mutable.Map[Option[String], (String, Array[Long]) => Array[AnyRef]] = mutable.Map.empty
+
     headers.zip(indexFiles).map { case (h, indexFile) =>
-      val (keyType, _) = IndexReader.readTypes(fs, indexFile)
+      val (keyType, annotationType) = IndexReader.readTypes(fs, indexFile)
       val rg = keyType.asInstanceOf[TStruct].field("locus").typ match {
-        case TLocus(rg) => Some(rg.value)
+        case TLocus(rg) => Some(rg)
         case _ => None
       }
-      val indexReaderBuilder = {
-        val (leafCodec, internalNodeCodec) = BgenSettings.indexCodecSpecs(rg)
-        val (leafPType: PStruct, leafDec) = leafCodec.buildDecoder(ctx, leafCodec.encodedVirtualType)
-        val (intPType: PStruct, intDec) = internalNodeCodec.buildDecoder(ctx, internalNodeCodec.encodedVirtualType)
-        IndexReaderBuilder.withDecoders(leafDec, intDec, BgenSettings.indexKeyType(rg), BgenSettings.indexAnnotationType, leafPType, intPType)
-      }
-      using(indexReaderBuilder(ctx.theHailClassLoader, fs, indexFile, 8, ctx.r.pool)) { index =>
-        val attributes = index.attributes
-        val rg = Option(attributes("reference_genome")).map(name => ReferenceGenome.getReference(name.asInstanceOf[String]))
-        val skipInvalidLoci = attributes("skip_invalid_loci").asInstanceOf[Boolean]
-        val contigRecoding = Option(attributes("contig_recoding")).map(_.asInstanceOf[Map[String, String]]).getOrElse(Map.empty[String, String])
-        val nVariants = index.nKeys
+      val metadata = IndexReader.readMetadata(fs, indexFile, keyType, annotationType)
+      val (leafSpec, internalSpec) = BgenSettings.indexCodecSpecs(rg)
 
-        val rangeBounds = if (nVariants > 0) {
-          val start = index.queryByIndex(0).key
-          val end = index.queryByIndex(nVariants - 1).key
-          Interval(start, end, includesStart = true, includesEnd = true)
-        } else null
+      val getKeys = cacheByRG.getOrElseUpdate(rg, StagedBGENReader.queryIndexByPosition(ctx, leafSpec, internalSpec))
 
-        BgenFileMetadata(
-          h.path,
-          indexFile,
-          h,
-          rg,
-          contigRecoding,
-          skipInvalidLoci,
-          nVariants,
-          index.keyType,
-          index.annotationType,
-          rangeBounds)
-      }
+      val attributes = metadata.attributes
+      val skipInvalidLoci = attributes("skip_invalid_loci").asInstanceOf[Boolean]
+      val contigRecoding = Option(attributes("contig_recoding")).map(_.asInstanceOf[Map[String, String]]).getOrElse(Map.empty[String, String])
+      val nVariants = metadata.nKeys
+
+      val rangeBounds = if (nVariants > 0) {
+        val Array(start, end) = getKeys(indexFile, Array[Long](0L, nVariants - 1))
+        Interval(start, end, includesStart = true, includesEnd = true)
+      } else null
+
+      BgenFileMetadata(
+        indexFile,
+        h,
+        rg,
+        contigRecoding,
+        skipInvalidLoci,
+        metadata.nKeys,
+        keyType,
+        annotationType,
+        rangeBounds)
     }
   }
 
@@ -229,7 +233,7 @@ object LoadBgen {
     if (badExtensions.nonEmpty)
       fatal(
         s"""The following index file paths defined by 'index_file_map' are missing a .idx2 file extension:
-          |  ${ badExtensions.mkString("\n  ") })""".stripMargin)
+           |  ${ badExtensions.mkString("\n  ") })""".stripMargin)
 
     files.map(absolutePath).map(f => fileMapping.getOrElse(f, f + ".idx2"))
   }
@@ -240,20 +244,21 @@ object LoadBgen {
     if (missingIdxFiles.nonEmpty)
       fatal(
         s"""The following BGEN files have no .idx2 index file. Use 'index_bgen' to create the index file once before calling 'import_bgen':
-          |  ${ missingIdxFiles.mkString("\n  ") })""".stripMargin)
+           |  ${ missingIdxFiles.mkString("\n  ") })""".stripMargin)
     indexFiles
   }
 
   def getFileHeaders(fs: FS, files: Seq[String]): Array[BgenHeader] =
     files.map(LoadBgen.readState(fs, _)).toArray
 
-  def getReferenceGenome(fileMetadata: Array[BgenFileMetadata]): Option[ReferenceGenome] =
+  def getReferenceGenome(fileMetadata: Array[BgenFileMetadata]): Option[String] =
     getReferenceGenome(fileMetadata.map(_.rg))
 
-  def getReferenceGenome(rgs: Array[Option[ReferenceGenome]]): Option[ReferenceGenome] = {
+  def getReferenceGenome(rgs: Array[Option[String]]): Option[String] = {
     if (rgs.distinct.length != 1)
-      fatal(s"""Found multiple reference genomes were specified in the BGEN index files:
-              |  ${ rgs.distinct.map(_.map(_.name).getOrElse("None")).mkString("\n  ") }""".stripMargin)
+      fatal(
+        s"""Found multiple reference genomes were specified in the BGEN index files:
+           |  ${ rgs.distinct.map(_.getOrElse("None")).mkString("\n  ") }""".stripMargin)
     rgs.head
   }
 
@@ -264,19 +269,19 @@ object LoadBgen {
     if (indexKeyTypes.length != 1)
       fatal(
         s"""Found more than one BGEN index key type:
-            |  ${ indexKeyTypes.mkString("\n  ") })""".stripMargin)
+           |  ${ indexKeyTypes.mkString("\n  ") })""".stripMargin)
 
     if (indexAnnotationTypes.length != 1)
       fatal(
         s"""Found more than one BGEN index annotation type:
-            |  ${ indexAnnotationTypes.mkString("\n  ") })""".stripMargin)
+           |  ${ indexAnnotationTypes.mkString("\n  ") })""".stripMargin)
 
     (indexKeyTypes.head, indexAnnotationTypes.head)
   }
 }
 
 object MatrixBGENReader {
-  def fullMatrixTypeWithoutUIDs(rg: Option[ReferenceGenome]): MatrixType = {
+  def fullMatrixTypeWithoutUIDs(rg: Option[String]): MatrixType = {
     MatrixType(
       globalType = TStruct.empty,
       colType = TStruct(
@@ -296,16 +301,25 @@ object MatrixBGENReader {
         "dosage" -> TFloat64))
   }
 
-  def fullMatrixType(rg: Option[ReferenceGenome]): MatrixType = {
+  def fullMatrixType(rg: Option[String]): MatrixType = {
     val mt = fullMatrixTypeWithoutUIDs(rg)
-    val newRowType = mt.rowType.appendKey(MatrixReader.rowUIDFieldName, TInt64)
+    val newRowType = mt.rowType.appendKey(MatrixReader.rowUIDFieldName, TTuple(TInt64, TInt64))
     val newColType = mt.colType.appendKey(MatrixReader.colUIDFieldName, TInt64)
 
     mt.copy(rowType = newRowType, colType = newColType)
   }
 
+  def fullTableType(rg: Option[String]): TableType = {
+    val mt = fullMatrixTypeWithoutUIDs(rg)
+    val ttNoUID = mt.copy(mt.colType.appendKey(MatrixReader.colUIDFieldName, TInt64))
+      .toTableType(LowerMatrixIR.entriesFieldName, LowerMatrixIR.colsFieldName)
+
+    ttNoUID.copy(rowType = ttNoUID.rowType.appendKey(MatrixReader.rowUIDFieldName, TTuple(TInt64, TInt64)))
+  }
+
+
   def fromJValue(env: IRParserEnvironment, jv: JValue): MatrixBGENReader = {
-    MatrixBGENReader(env.ctx, MatrixBGENReaderParameters.fromJValue(env, jv))
+    MatrixBGENReader(env.ctx, MatrixBGENReaderParameters.fromJValue(jv))
   }
 
   def apply(ctx: ExecuteContext,
@@ -314,7 +328,7 @@ object MatrixBGENReader {
     indexFileMap: Map[String, String],
     nPartitions: Option[Int],
     blockSizeInMB: Option[Int],
-    includedVariants: Option[TableIR]): MatrixBGENReader = {
+    includedVariants: Option[String]): MatrixBGENReader = {
     MatrixBGENReader(ctx,
       MatrixBGENReaderParameters(files, sampleFile, indexFileMap, nPartitions, blockSizeInMB, includedVariants))
   }
@@ -363,48 +377,30 @@ object MatrixBGENReader {
 
     val (indexKeyType, indexAnnotationType) = LoadBgen.getIndexTypes(fileMetadata)
 
-    val (maybePartitions, partitionRangeBounds) = BgenRDDPartitions(ctx, referenceGenome, fileMetadata,
+    val filePartInfo = BgenRDDPartitions(ctx, referenceGenome, fileMetadata,
       if (params.nPartitions.isEmpty && params.blockSizeInMB.isEmpty)
         Some(128)
       else
         params.blockSizeInMB, params.nPartitions, indexKeyType)
-    val partitioner = new RVDPartitioner(indexKeyType.asInstanceOf[TStruct], partitionRangeBounds)
-
-    val (partitions, variants) = params.includedVariants match {
-      case Some(variantsTableIR) =>
-        val rowType = variantsTableIR.typ.rowType
-        assert(rowType.isPrefixOf(fullMatrixType.rowKeyStruct))
-        assert(rowType.types.nonEmpty)
-
-        val rvd = Interpret(ir.TableDistinct(variantsTableIR), ctx).rvd
-
-        val repartitioned = RepartitionedOrderedRDD2(rvd, partitionRangeBounds.map(_.coarsen(rowType.types.length)))
-          .toRows(rvd.rowPType)
-        assert(repartitioned.getNumPartitions == maybePartitions.length)
-
-        (maybePartitions.zipWithIndex.map { case (p, i) =>
-          p.asInstanceOf[LoadBgenPartition].copy(filterPartition = repartitioned.partitions(i)).asInstanceOf[Partition]
-        }, repartitioned)
-      case _ =>
-        (maybePartitions, null)
-    }
 
     new MatrixBGENReader(
-      params,
-      allFiles, referenceGenome, fullMatrixType, indexKeyType, indexAnnotationType, sampleIds, nVariants, partitions, partitioner, variants)
+      params, referenceGenome, fullMatrixType, indexKeyType, indexAnnotationType, sampleIds, filePartInfo, params.includedVariants)
   }
 }
 
 object MatrixBGENReaderParameters {
-  def fromJValue(env: IRParserEnvironment, jv: JValue): MatrixBGENReaderParameters = {
+  def fromJValue(jv: JValue): MatrixBGENReaderParameters = {
     implicit val foramts: Formats = DefaultFormats
     val files = (jv \ "files").extract[Array[String]]
     val sampleFile = (jv \ "sampleFile").extractOpt[String]
     val indexFileMap = (jv \ "indexFileMap").extract[Map[String, String]]
     val nPartitions = (jv \ "nPartitions").extractOpt[Int]
     val blockSizeInMB = (jv \ "blockSizeInMB").extractOpt[Int]
-    val includedVariantsIR = (jv \ "includedVariants").extractOpt[String].map(IRParser.parse_table_ir(_, env))
-    new MatrixBGENReaderParameters(files, sampleFile, indexFileMap, nPartitions, blockSizeInMB, includedVariantsIR)
+    val includedVariants = jv \ "includedVariants" match {
+      case JNull => None
+      case JString(s) => Some(s)
+    }
+    new MatrixBGENReaderParameters(files, sampleFile, indexFileMap, nPartitions, blockSizeInMB, includedVariants)
   }
 }
 
@@ -414,7 +410,7 @@ case class MatrixBGENReaderParameters(
   indexFileMap: Map[String, String],
   nPartitions: Option[Int],
   blockSizeInMB: Option[Int],
-  includedVariants: Option[TableIR]) {
+  includedVariants: Option[String]) {
 
   def toJValue: JValue = {
     JObject(List(
@@ -426,31 +422,26 @@ case class MatrixBGENReaderParameters(
       }.toList),
       "nPartitions" -> nPartitions.map(JInt(_)).getOrElse(JNull),
       "blockSizeInMB" -> blockSizeInMB.map(JInt(_)).getOrElse(JNull),
-      // FIXME: feels like a hack that Pretty needs execute context
-      // FIXME: feels like a hack that I use null here
-      // FIXME: feels like a hack that toJValue uses Pretty?
-      // Q: can we parse SSA'ed pretty table IR?
-      "includedVariants" -> includedVariants.map(t => JString(Pretty(null, t))).getOrElse(JNull)))
+      "includedVariants" -> includedVariants.map(t => JString(t)).getOrElse(JNull)))
   }
 }
 
 class MatrixBGENReader(
   val params: MatrixBGENReaderParameters,
-  allFiles: Array[String],
-  referenceGenome: Option[ReferenceGenome],
+  referenceGenome: Option[String],
   val fullMatrixTypeWithoutUIDs: MatrixType,
   indexKeyType: Type,
   indexAnnotationType: Type,
   sampleIds: Array[String],
-  val nVariants: Long,
-  partitions: Array[Partition],
-  partitioner: RVDPartitioner,
-  variants: RDD[Row]) extends MatrixHybridReader {
+  filePartitionInfo: IndexedSeq[FilePartitionInfo],
+  variants: Option[String]) extends MatrixHybridReader {
+  def pathsUsed: Seq[String] = filePartitionInfo.map(_.metadata.path)
 
-  def rowUIDType = TInt64
+  lazy val nVariants: Long = filePartitionInfo.map(_.metadata.nVariants).sum
+
+  def rowUIDType = TTuple(TInt64, TInt64)
+
   def colUIDType = TInt64
-
-  def pathsUsed: Seq[String] = allFiles
 
   private val nSamples = sampleIds.length
 
@@ -465,7 +456,7 @@ class MatrixBGENReader(
       _settings = BgenSettings(
         nSamples,
         requestedType,
-        referenceGenome.map(_.broadcast),
+        referenceGenome,
         indexAnnotationType)
     }
     _settings
@@ -477,30 +468,39 @@ class MatrixBGENReader(
   }
 
   override def uidRequiredness: VirtualTypeWithReq =
-    VirtualTypeWithReq(PInt64Required)
+    VirtualTypeWithReq.fullyRequired(TTuple(TInt64, TInt64))
 
   override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
     VirtualTypeWithReq(PType.canonical(requestedType.globalType, required = true))
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
-    assert(requestedType.keyType == indexKeyType)
+  def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
 
-    val settings = getSettings(requestedType)
+    val _lc = lower(ctx, requestedType)
+    val lc = if (dropRows)
+      _lc.copy(partitioner = _lc.partitioner.copy(rangeBounds = Array[Interval]()),
+        contexts = StreamTake(_lc.contexts, 0))
+    else _lc
 
-    val rvdType = RVDType(tcoerce[PStruct](settings.rowPType.subsetTo(requestedType.rowType)),
-      fullType.key.take(requestedType.key.length))
+    TableExecuteIntermediate(lc).asTableValue(ctx)
+  }
 
-    val rvd = if (dropRows)
-      RVD.empty(rvdType)
-    else
-      new RVD(
-        rvdType,
-        partitioner,
-        BgenRDD(ctx, partitions, settings, variants).toCRDDPtr)
+  override def lowerGlobals(ctx: ExecuteContext, requestedGlobalType: TStruct): IR = {
+    requestedGlobalType.fieldOption(LowerMatrixIR.colsFieldName) match {
+      case Some(f) =>
+        val ta = f.typ.asInstanceOf[TArray]
+        MakeStruct(FastSeq((LowerMatrixIR.colsFieldName, {
+          val arraysToZip = new BoxedArrayBuilder[IndexedSeq[Any]]()
+          val colType = ta.elementType.asInstanceOf[TStruct]
+          if (colType.hasField("s"))
+            arraysToZip += sampleIds
+          if (colType.hasField(colUIDFieldName))
+            arraysToZip += sampleIds.indices.map(_.toLong)
 
-    val globalValue = makeGlobalValue(ctx, requestedType.globalType, sampleIds.map(Row(_)))
-
-    TableValue(ctx, requestedType, globalValue, rvd)
+          val fields = arraysToZip.result()
+          Literal(ta, sampleIds.indices.map(i => Row.fromSeq(fields.map(_.apply(i)))))
+        })))
+      case None => MakeStruct(FastSeq())
+    }
   }
 
   override def toJValue: JValue = params.toJValue
@@ -513,4 +513,312 @@ class MatrixBGENReader(
     case that: MatrixBGENReader => params == that.params
     case _ => false
   }
+
+  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
+
+    val globals = lowerGlobals(ctx, requestedType.globalType)
+    variants match {
+      case Some(v) =>
+        val t0 = TableNativeReader.read(ctx.fs, v, None)
+
+        val contexts = new BoxedArrayBuilder[Row]()
+        val rangeBounds = new BoxedArrayBuilder[Interval]()
+        filePartitionInfo.zipWithIndex.foreach { case (file, fileIdx) =>
+          val filePartitioner = new RVDPartitioner(ctx.stateManager, tcoerce[TStruct](indexKeyType), file.intervals)
+
+          val filterKeyLen = t0.spec.table_type.key.length
+          val strictShortKey = filePartitioner.coarsen(filterKeyLen).strictify()
+          val strictBgenKey = strictShortKey.extendKey(filePartitioner.kType)
+          rangeBounds ++= strictBgenKey.rangeBounds
+
+          strictShortKey.partitionBoundsIRRepresentation.value.asInstanceOf[IndexedSeq[_]]
+            .foreach { interval =>
+              contexts += Row(fileIdx, interval)
+            }
+        }
+
+        val partitioner = new RVDPartitioner(ctx.stateManager, tcoerce[TStruct](indexKeyType), rangeBounds.result())
+
+        val reader = BgenPartitionReaderWithVariantFilter(
+          filePartitionInfo.map(_.metadata).toArray,
+          referenceGenome,
+          PartitionNativeIntervalReader(ctx.stateManager, v, t0.spec, "__dummy"))
+
+        TableStage(
+          globals = globals,
+          partitioner = partitioner,
+          dependency = TableStageDependency.none,
+          contexts = ToStream(Literal(TArray(reader.contextType), contexts.result().toFastIndexedSeq)),
+          (ref: Ref) => ReadPartition(ref, requestedType.rowType, reader)
+        )
+
+      case None =>
+        val partitioner = new RVDPartitioner(ctx.stateManager, tcoerce[TStruct](indexKeyType), filePartitionInfo.flatMap(_.intervals))
+        val reader = BgenPartitionReader(fileMetadata = filePartitionInfo.map(_.metadata).toArray, referenceGenome)
+
+        val contexts = new BoxedArrayBuilder[Row]()
+
+        var partIdx = 0
+        var fileIdx = 0
+        filePartitionInfo.foreach { file =>
+          assert(file.intervals.length == file.partN.length && file.intervals.length == file.partStarts.length)
+          file.intervals.indices.foreach { idxInFile =>
+            contexts += Row(fileIdx, file.partStarts(idxInFile), file.partN(idxInFile), partIdx)
+            partIdx += 1
+          }
+          fileIdx += 1
+        }
+
+        TableStage(
+          globals = globals,
+          partitioner = partitioner,
+          dependency = TableStageDependency.none,
+          contexts = ToStream(Literal(TArray(reader.contextType), contexts.result().toFastIndexedSeq)),
+          (ref: Ref) => ReadPartition(ref, requestedType.rowType, reader)
+        )
+    }
+  }
+}
+
+case class BgenPartitionReaderWithVariantFilter(fileMetadata: Array[BgenFileMetadata], rg: Option[String], child: PartitionNativeIntervalReader) extends PartitionReader {
+  lazy val contextType: TStruct = TStruct(
+    "file_index" -> TInt32,
+    "interval" -> RVDPartitioner.intervalIRRepresentation(child.tableSpec.table_type.keyType))
+
+  lazy val uidType = TTuple(TInt64, TInt64)
+  lazy val fullRowType: TStruct = MatrixBGENReader.fullTableType(rg).rowType
+
+  def rowRequiredness(requestedType: TStruct): RStruct = StagedBGENReader.rowRequiredness(requestedType)
+
+  def uidFieldName: String = TableReader.uidFieldName
+
+  def emitStream(
+    ctx: ExecuteContext,
+    cb: EmitCodeBuilder,
+    mb: EmitMethodBuilder[_],
+    context: EmitCode,
+    requestedType: TStruct): IEmitCode = {
+
+    val cbfis = mb.genFieldThisRef[HadoopFSDataBinaryReader]("bgen_cbfis")
+    val nSamples = mb.genFieldThisRef[Int]("bgen_nsamples")
+    val fileIdx = mb.genFieldThisRef[Int]("bgen_fileIdx")
+    val compression = mb.genFieldThisRef[Int]("bgen_compression")
+    val skipInvalidLoci = mb.genFieldThisRef[Boolean]("bgen_skip_invalid_loci")
+    val contigRecoding = mb.genFieldThisRef[Map[String, String]]("bgen_contig_recoding")
+
+    val indexNKeys = mb.genFieldThisRef[Long]("index_nkeys")
+    val (leafCodec, intCodec) = BgenSettings.indexCodecSpecs(rg)
+    val index = new StagedIndexReader(mb, leafCodec, intCodec)
+
+    val currVariantIndex = mb.genFieldThisRef[Long]("currVariantIndex")
+    val stopVariantIndex = mb.genFieldThisRef[Long]("stopVariantIndex")
+
+    var out: EmitSettable = null // filled in later
+
+    context.toI(cb).flatMap(cb) { case context: SBaseStructValue =>
+
+      val rangeBound = EmitCode.fromI(mb)(cb => context.loadField(cb, "interval"))
+
+      child.emitStream(ctx, cb, mb, rangeBound, child.fullRowType.deleteKey(child.uidFieldName))
+        .map(cb) { case variantsStream: SStreamValue =>
+          val vs = variantsStream.getProducer(mb)
+
+          SStreamValue(new StreamProducer {
+            override def method: EmitMethodBuilder[_] = mb
+
+            override val length: Option[EmitCodeBuilder => Code[Int]] = None
+
+            override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
+              vs.initialize(cb, outerRegion)
+
+              cb.assign(fileIdx, context.loadField(cb, "file_index").get(cb).asInt.value)
+              val metadata = cb.memoize(mb.getObject[IndexedSeq[BgenFileMetadata]](fileMetadata.toFastIndexedSeq)
+                .invoke[Int, BgenFileMetadata]("apply", fileIdx))
+              val fileName = cb.memoize(metadata.invoke[String]("path"))
+              val indexName = cb.memoize(metadata.invoke[String]("indexPath"))
+              cb.assign(nSamples, metadata.invoke[Int]("nSamples"))
+              cb.assign(contigRecoding, metadata.invoke[Map[String, String]]("contigRecoding"))
+              cb.assign(compression, metadata.invoke[Int]("compression"))
+              cb.assign(skipInvalidLoci, metadata.invoke[Boolean]("skipInvalidLoci"))
+
+              cb.assign(cbfis, Code.newInstance[HadoopFSDataBinaryReader, SeekableDataInputStream](
+                mb.getFS.invoke[String, SeekableDataInputStream]("openNoCompression", fileName)))
+              index.initialize(cb, indexName)
+              cb.assign(indexNKeys, index.nKeys(cb))
+            }
+
+            override val elementRegion: Settable[Region] = vs.elementRegion
+            override val requiresMemoryManagementPerElement: Boolean = vs.requiresMemoryManagementPerElement
+            override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
+              val Lstart = CodeLabel()
+              cb.define(Lstart)
+              cb.ifx(currVariantIndex < stopVariantIndex, {
+                val addr = index.queryIndex(cb, vs.elementRegion, currVariantIndex)
+                  .loadField(cb, "offset")
+                  .get(cb).asLong.value
+                cb += cbfis.invoke[Long, Unit]("seek", addr)
+
+                val reqTypeNoUID = if (requestedType.hasField(uidFieldName)) requestedType.deleteKey(uidFieldName) else requestedType
+                val sc = StagedBGENReader.decodeRow(cb, elementRegion, cbfis, nSamples, fileIdx, compression, skipInvalidLoci, contigRecoding, reqTypeNoUID, rg)
+                  .toI(cb).get(cb)
+                val scUID = if (requestedType.hasField(uidFieldName))
+                  sc.asBaseStruct.insert(cb, elementRegion, requestedType,
+                    (uidFieldName, EmitValue.present(SStackStruct.constructFromArgs(cb, elementRegion, uidType,
+                      EmitValue.present(primitive(cb.memoize(fileIdx.toL))),
+                      EmitValue.present(primitive(currVariantIndex))))))
+                else
+                  sc
+                out = mb.newEmitField(scUID.st, true)
+                cb.assign(out, EmitCode.present(mb, scUID))
+
+                cb.assign(currVariantIndex, currVariantIndex + 1)
+                cb.goto(LproduceElementDone)
+              })
+
+
+              cb.goto(vs.LproduceElement)
+              cb.define(vs.LproduceElementDone)
+
+              val nextVariant = vs.element.toI(cb).get(cb).asBaseStruct
+              val bound = SStackStruct.constructFromArgs(cb, vs.elementRegion, TTuple(nextVariant.st.virtualType, TInt32),
+                EmitValue.present(if (nextVariant.st.size == 1)
+                  nextVariant.insert(cb, elementRegion,
+                    nextVariant.st.virtualType.insert(TArray(TString), "alleles")._1.asInstanceOf[TStruct], ("alleles", EmitValue.missing(SJavaArrayString(true))))
+                else
+                  nextVariant),
+                EmitValue.present(primitive(const(nextVariant.st.size)))
+              )
+
+              cb.assign(currVariantIndex, index.queryBound(cb, bound, false).loadField(cb, 0).get(cb).asLong.value)
+              cb.assign(stopVariantIndex, index.queryBound(cb, bound, true).loadField(cb, 0).get(cb).asLong.value)
+              cb.goto(Lstart)
+
+              cb.define(vs.LendOfStream)
+              cb.goto(LendOfStream)
+            }
+            override val element: EmitCode = out
+
+            override def close(cb: EmitCodeBuilder): Unit = {
+              cb += cbfis.invoke[Unit]("close")
+              index.close(cb)
+              vs.close(cb)
+            }
+
+          })
+        }
+    }
+  }
+
+  def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
+}
+
+
+case class BgenPartitionReader(fileMetadata: Array[BgenFileMetadata], rg: Option[String]) extends PartitionReader {
+  lazy val contextType: TStruct = TStruct(
+    "file_index" -> TInt32,
+    "first_variant_index" -> TInt64,
+    "n_variants" -> TInt64,
+    "partition_index" -> TInt32)
+
+  lazy val uidType = TTuple(TInt64, TInt64)
+
+  lazy val fullRowType: TStruct = MatrixBGENReader.fullTableType(rg).rowType
+
+  def rowRequiredness(requestedType: TStruct): RStruct = StagedBGENReader.rowRequiredness(requestedType)
+
+  def uidFieldName: String = TableReader.uidFieldName
+
+  def emitStream(
+    ctx: ExecuteContext,
+    cb: EmitCodeBuilder,
+    mb: EmitMethodBuilder[_],
+    context: EmitCode,
+    requestedType: TStruct): IEmitCode = {
+
+    val eltRegion = mb.genFieldThisRef[Region]("bgen_region")
+    val cbfis = mb.genFieldThisRef[HadoopFSDataBinaryReader]("bgen_cbfis")
+    val nSamples = mb.genFieldThisRef[Int]("bgen_nsamples")
+    val fileIdx = mb.genFieldThisRef[Int]("bgen_fileIdx")
+    val compression = mb.genFieldThisRef[Int]("bgen_compression")
+    val skipInvalidLoci = mb.genFieldThisRef[Boolean]("bgen_skip_invalid_loci")
+    val contigRecoding = mb.genFieldThisRef[Map[String, String]]("bgen_contig_recoding")
+
+    val currVariantIndex = mb.genFieldThisRef[Long]("bgen_currIdx")
+    val endVariantIndex = mb.genFieldThisRef[Long]("bgen_endIdx")
+    val (leafCodec, intCodec) = BgenSettings.indexCodecSpecs(rg)
+    val index = new StagedIndexReader(mb, leafCodec, intCodec)
+
+    var out: EmitSettable = null // filled in later
+
+    context.toI(cb).map(cb) { case context: SBaseStructValue =>
+
+      val ctxField = cb.memoizeField(context, "ctxField")
+      SStreamValue(new StreamProducer {
+        override def method: EmitMethodBuilder[_] = mb
+
+        override val length: Option[EmitCodeBuilder => Code[Int]] = Some(cb => ctxField.asBaseStruct.loadField(cb, "n_variants").get(cb).asLong.value.toI)
+
+        override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
+
+          cb.assign(fileIdx, context.loadField(cb, "file_index").get(cb).asInt.value)
+          val metadata = cb.memoize(mb.getObject[IndexedSeq[BgenFileMetadata]](fileMetadata.toFastIndexedSeq)
+            .invoke[Int, BgenFileMetadata]("apply", fileIdx))
+          val fileName = cb.memoize(metadata.invoke[String]("path"))
+          val indexName = cb.memoize(metadata.invoke[String]("indexPath"))
+          cb.assign(nSamples, metadata.invoke[Int]("nSamples"))
+          cb.assign(contigRecoding, metadata.invoke[Map[String, String]]("contigRecoding"))
+          cb.assign(compression, metadata.invoke[Int]("compression"))
+          cb.assign(skipInvalidLoci, metadata.invoke[Boolean]("skipInvalidLoci"))
+
+          cb.assign(cbfis, Code.newInstance[HadoopFSDataBinaryReader, SeekableDataInputStream](
+            mb.getFS.invoke[String, SeekableDataInputStream]("openNoCompression", fileName)))
+          index.initialize(cb, indexName)
+
+          cb.assign(currVariantIndex, context.loadField(cb, "first_variant_index").get(cb).asLong.value)
+          cb.assign(endVariantIndex, currVariantIndex + context.loadField(cb, "n_variants").get(cb).asLong.value)
+        }
+
+        override val elementRegion: Settable[Region] = eltRegion
+        override val requiresMemoryManagementPerElement: Boolean = true
+        override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
+          val Lstart = CodeLabel()
+          cb.define(Lstart)
+          cb.ifx(currVariantIndex ceq endVariantIndex, cb.goto(LendOfStream))
+
+          val addr = index.queryIndex(cb, eltRegion, currVariantIndex)
+            .loadField(cb, "offset")
+            .get(cb).asLong.value
+          cb += cbfis.invoke[Long, Unit]("seek", addr)
+
+          val reqTypeNoUID = if (requestedType.hasField(uidFieldName)) requestedType.deleteKey(uidFieldName) else requestedType
+          val e = StagedBGENReader.decodeRow(cb, elementRegion, cbfis, nSamples, fileIdx, compression, skipInvalidLoci, contigRecoding, reqTypeNoUID, rg)
+          e.toI(cb).consume(cb, {
+            cb += elementRegion.clearRegion()
+            cb.goto(Lstart)
+          }, { sc =>
+            val scUID = if (requestedType.hasField(uidFieldName))
+              sc.asBaseStruct.insert(cb, eltRegion, requestedType,
+                (uidFieldName, EmitValue.present(SStackStruct.constructFromArgs(cb, eltRegion, uidType,
+                  EmitValue.present(primitive(cb.memoize(fileIdx.toL))),
+                  EmitValue.present(primitive(currVariantIndex))))))
+            else
+              sc
+            out = mb.newEmitField(scUID.st, true)
+            cb.assign(out, EmitCode.present(mb, scUID))
+          })
+
+          cb.assign(currVariantIndex, currVariantIndex + 1)
+          cb.goto(LproduceElementDone)
+        }
+        override val element: EmitCode = out
+
+        override def close(cb: EmitCodeBuilder): Unit = {
+          cb += cbfis.invoke[Unit]("close")
+          index.close(cb)
+        }
+      })
+    }
+  }
+
+  def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
 }

@@ -3,6 +3,7 @@ package is.hail.utils.richUtils
 import java.io.PrintWriter
 
 import is.hail.annotations.{Region, RegionValue, RegionValueBuilder}
+import is.hail.backend.HailStateManager
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual.TStruct
 import is.hail.rvd.RVDContext
@@ -151,7 +152,7 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
 class RichRowIterator(val it: Iterator[Row]) extends AnyVal {
   def copyToRegion(region: Region, rowTyp: PStruct): Iterator[Long] = {
     it.map { row =>
-      rowTyp.unstagedStoreJavaObject(row, region)
+      rowTyp.unstagedStoreJavaObject(null, row, region)
     }
   }
 }

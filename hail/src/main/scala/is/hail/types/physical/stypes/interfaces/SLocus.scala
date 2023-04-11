@@ -8,7 +8,7 @@ import is.hail.types.{RPrimitive, TypeWithRequiredness}
 import is.hail.variant.{Locus, ReferenceGenome}
 
 trait SLocus extends SType {
-  def rg: ReferenceGenome
+  def rg: String
   def contigType: SString
   override def _typeWithRequiredness: TypeWithRequiredness = RPrimitive()
 }

@@ -1,5 +1,6 @@
 package is.hail.backend.service
 
+import java.util
 import java.io._
 import java.nio.charset._
 import java.util.{concurrent => javaConcurrent}
@@ -41,6 +42,40 @@ class WorkerTimer() {
     startTime.foreach { s =>
       val durationMS = "%.6f".format((endTime - s).toDouble / 1000000.0)
       log.info(s"$label took $durationMS ms.")
+    }
+  }
+}
+
+// Java's ObjectInputStream does not properly use the context classloader that
+// we set on the thread and knows about the hail jar. We need to explicitly force
+// the ObjectInputStream to use the correct classloader, but it is not configurable
+// so we override the behavior ourselves.
+// For more context, see: https://github.com/scala/bug/issues/9237#issuecomment-292436652
+object ExplicitClassLoaderInputStream {
+  val primClasses: util.HashMap[String, Class[_]] = {
+    val m = new util.HashMap[String, Class[_]](8, 1.0F)
+    m.put("boolean", Boolean.getClass)
+    m.put("byte", Byte.getClass)
+    m.put("char", Char.getClass)
+    m.put("short", Short.getClass)
+    m.put("int", Int.getClass)
+    m.put("long", Long.getClass)
+    m.put("float", Float.getClass)
+    m.put("double", Double.getClass)
+    m.put("void", Unit.getClass)
+    m
+  }
+}
+class ExplicitClassLoaderInputStream(is: InputStream, cl: ClassLoader) extends ObjectInputStream(is) {
+
+  override def resolveClass(desc: ObjectStreamClass): Class[_] = {
+    val name = desc.getName
+    try return Class.forName(name, false, cl)
+    catch {
+      case ex: ClassNotFoundException =>
+        val cl = ExplicitClassLoaderInputStream.primClasses.get(name)
+        if (cl != null) return cl
+        else throw ex
     }
   }
 }
@@ -88,16 +123,11 @@ object Worker {
     timer.start("readInputs")
     val fs = FS.cloudSpecificCacheableFS(s"$scratchDir/secrets/gsa-key/key.json", None)
 
-    // FIXME: HACK
-    val (open, write) = if (n <= 50) {
-      (fs.openCachedNoCompression _, fs.writeCached _)
-    } else {
-      ((x: String) => fs.openNoCompression(x), fs.writePDOS _)
-    }
+    val (open, write) = ((x: String) => fs.openNoCompression(x), fs.writePDOS _)
 
     val fFuture = Future {
       retryTransientErrors {
-        using(new ObjectInputStream(open(s"$root/f"))) { is =>
+        using(new ExplicitClassLoaderInputStream(open(s"$root/f"), theHailClassLoader)) { is =>
           is.readObject().asInstanceOf[(Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]]
         }
       }
@@ -128,7 +158,7 @@ object Worker {
     } else {
       HailContext(
         // FIXME: workers should not have backends, but some things do need hail contexts
-        new ServiceBackend(null, null, new HailClassLoader(getClass().getClassLoader()), null, None), skipLoggingConfiguration = true, quiet = true)
+        new ServiceBackend(null, null, new HailClassLoader(getClass().getClassLoader()), null, None))
     }
     val htc = new ServiceTaskContext(i)
     var result: Array[Byte] = null

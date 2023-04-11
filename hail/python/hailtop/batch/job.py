@@ -7,6 +7,8 @@ import warnings
 from shlex import quote as shq
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union, cast
 
+import hailtop.batch_client.client as bc
+
 from . import backend, batch  # pylint: disable=cyclic-import
 from . import resource as _resource  # pylint: disable=cyclic-import
 from .exceptions import BatchException
@@ -96,6 +98,8 @@ class Job:
         self._mentioned: Set[_resource.Resource] = set()  # resources used in the command
         self._valid: Set[_resource.Resource] = set()  # resources declared in the appropriate place
         self._dependencies: Set[Job] = set()
+        self._submitted: bool = False
+        self._client_job: Optional[bc.Job] = None
 
         def safe_str(s):
             new_s = []
@@ -314,10 +318,6 @@ class Job:
         """
         Set the job to always run, even if dependencies fail.
 
-        Notes
-        -----
-        Can only be used with the :class:`.backend.ServiceBackend`.
-
         Warning
         -------
         Jobs set to always run are not cancellable!
@@ -339,10 +339,6 @@ class Job:
         -------
         Same job object set to always run.
         """
-
-        if not isinstance(self._batch._backend, backend.ServiceBackend):
-            raise NotImplementedError("A ServiceBackend is required to use the 'always_run' option")
-
         self._always_run = always_run
         return self
 
@@ -1076,6 +1072,16 @@ class PythonJob(Job):
         for value in kwargs.values():
             if isinstance(value, Job):
                 raise BatchException('arguments to a PythonJob cannot be other job objects.')
+
+        # Some builtins like `print` do not have signatures
+        try:
+            inspect.signature(unapplied).bind(*args, **kwargs)
+        except ValueError as e:
+            # Some builtins like `print` don't have a signature that inspect can read
+            if 'no signature found for builtin' not in e.args[0]:
+                raise e
+        except TypeError as e:
+            raise BatchException(f'Cannot call {unapplied.__name__} with the supplied arguments') from e
 
         def handle_arg(r):
             if r._source != self:

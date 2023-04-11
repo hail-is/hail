@@ -12,7 +12,6 @@ from gear.time_limited_max_size_cache import TimeLimitedMaxSizeCache
 from hailtop import aiotools
 from hailtop.utils import periodically_call, secret_alnum_string, time_msecs
 
-from ...batch_configuration import WORKER_MAX_IDLE_TIME_MSECS
 from ...instance_config import QuantifiedResource
 from ..instance import Instance
 from ..location import CloudLocationMonitor
@@ -236,15 +235,12 @@ class InstanceCollection:
         job_private: bool,
         regions: List[str],
         preemptible: bool,
-        max_idle_time_msecs: Optional[int],
+        max_idle_time_msecs: int,
         local_ssd_data_disk,
         data_disk_size_gb,
         boot_disk_size_gb,
     ) -> Tuple[Instance, List[QuantifiedResource]]:
         location = self.choose_location(cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions)
-
-        if max_idle_time_msecs is None:
-            max_idle_time_msecs = WORKER_MAX_IDLE_TIME_MSECS
 
         machine_name = self.generate_machine_name()
         activation_token = secrets.token_urlsafe(32)

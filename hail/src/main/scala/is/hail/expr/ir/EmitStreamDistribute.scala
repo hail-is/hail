@@ -171,7 +171,7 @@ object EmitStreamDistribute {
 
     cb.forLoop(cb.assign(fileArrayIdx, 0), fileArrayIdx < numFilesToWrite, cb.assign(fileArrayIdx, fileArrayIdx + 1), {
       val fileName = makeFileName(cb, fileArrayIdx)
-      val ob = cb.memoize(spec.buildCodeOutputBuffer(mb.create(fileName)))
+      val ob = cb.memoize(spec.buildCodeOutputBuffer(mb.createUnbuffered(fileName)))
       cb += outputBuffers.update(fileArrayIdx, ob)
       cb += numElementsPerFile.update(fileArrayIdx, 0)
       cb += numBytesPerFile.update(fileArrayIdx, 0)
