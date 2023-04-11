@@ -62,8 +62,7 @@ package object services {
     NettyProxy.ERRNO_EPIPE_NEGATIVE,
     NettyProxy.ERRNO_ECONNRESET_NEGATIVE,
     NettyProxy.ERROR_ECONNREFUSED_NEGATIVE,
-    NettyProxy.ERROR_ENETUNREACH_NEGATIVE,
-    NettyProxy.ERROR_EHOSTUNREACH_NEGATIVE
+    NettyProxy.ERROR_ENETUNREACH_NEGATIVE
   )
 
   def isTransientError(_e: Throwable): Boolean = {
