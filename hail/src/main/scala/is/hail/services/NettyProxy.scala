@@ -5,7 +5,7 @@ import io.netty.channel.epoll.Epoll
 import io.netty.channel.unix.Errors  // cannot be in package.scala because is.hail.io shadows top-level io
 
 object NettyProxy {
-  val isRetryableNettyIOException: Exception => Boolean = if (Epoll.isAvailable()) {
+  val isRetryableNettyIOException: Throwable => Boolean = if (Epoll.isAvailable()) {
     // Epoll.isAvailable returns true iff the io.netty.channel.unix.Errors class can be
     // initialized. When it returns false, that class will fail to initialize due to missing native
     // dependencies.
@@ -29,9 +29,9 @@ object NettyProxy {
           // io.netty.channel.unix.Errors$NativeIoException: readAddress(..) failed: Connection reset by peer
           e.getMessage.contains("Connection reset by peer")
         )
-      case e: Exception => false
+      case e: Throwable => false
     }
   } else {
-    { case e: Exception => false }
+    { case e: Throwable => false }
   }
 }
