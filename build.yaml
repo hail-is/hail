@@ -805,12 +805,8 @@ steps:
       time retry make wheel
       (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
     inputs:
-      - from: /repo/README.md
-        to: /io/repo/README.md
-      - from: /repo/hail
-        to: /io/repo/hail
-      - from: /repo/check_pip_requirements.sh
-        to: /io/repo/check_pip_requirements.sh
+      - from: /repo
+        to: /io/repo
     outputs:
       - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
         to: /wheel-for-azure-container.tar
