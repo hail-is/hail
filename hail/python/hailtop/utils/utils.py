@@ -667,7 +667,7 @@ def is_transient_error(e):
     if (isinstance(e, aiohttp.ClientPayloadError)
             and e.args[0] == "Response payload is not completed"):
         return True
-    if (isinstance(e, OSError) and e.errno in RETRYABLE_ERRNOS):
+    if isinstance(e, OSError) and e.errno in RETRYABLE_ERRNOS:
         return True
     if isinstance(e, aiohttp.ClientOSError):
         # aiohttp/client_reqrep.py wraps all OSError instances with a ClientOSError
