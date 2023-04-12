@@ -702,7 +702,7 @@ ${{vcf_or_json}} \
 --plugin LoF,human_ancestor_fa:${{VEP_DATA_DIR}}/loftee_data/human_ancestor.fa.gz,filter_position:0.05,min_intron_size:15,conservation_file:${{VEP_DATA_DIR}}/loftee_data/phylocsf_gerp.sql,gerp_file:${{VEP_DATA_DIR}}/loftee_data/GERP_scores.final.sorted.txt.gz \
 -o STDOUT
 
-exec /vep.py "$@"
+exec /hail-vep/vep.py "$@"
 EOF
 
 sh run_vep.sh {run_typ}
@@ -738,7 +738,7 @@ ${{if ($VEP_CONSEQUENCE -ne 0);then --vcf;--json;fi}} \
 --dir_cache ${{VEP_DATA_MOUNT}} \
 -o STDOUT
 
-exec /vep.py "$@"
+exec /hail-vep/vep.py "$@"
 EOF
 
 sh run_vep.sh {run_typ}

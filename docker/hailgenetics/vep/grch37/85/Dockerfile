@@ -51,4 +51,4 @@ RUN wget https://github.com/Ensembl/ensembl-tools/archive/release/${VEP_VERSION}
 
 RUN git clone -b v1.0.2 https://github.com/konradjk/loftee.git
 
-COPY vep.py run_vep_grch37.py /hail-vep/
+COPY vep.py /hail-vep/

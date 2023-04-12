@@ -68,4 +68,4 @@ RUN export KENT_SRC=$PWD/kent-335_base/src && \
     export PERL5LIB=\$PERL5LIB:$HOME/cpanm/lib/perl5 && \
     cpanm Bio::DB::BigFile
 
-COPY vep.py run_vep_grch38.py /hail-vep/
+COPY vep.py /hail-vep/
