@@ -925,6 +925,8 @@ trait SNDArrayValue extends SValue {
       case ColonIndex => ColonIndex
       case i: Value[_] => ScalarIndex(i.asInstanceOf[Value[Long]])
       case i: Code[_] => ScalarIndex(cb.memoize(coerce[Long](i)))
+      case i: Int => ScalarIndex(const(i.toLong))
+      case i: Long => ScalarIndex(const(i))
       case (_begin, _end) =>
         val parsedBegin = _begin match {
           case begin: Value[_] => Some(begin.asInstanceOf[Value[Long]])

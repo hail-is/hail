@@ -9,13 +9,13 @@ import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.linalg.LinalgCodeUtils
 import is.hail.lir
 import is.hail.methods.{BitPackedVector, BitPackedVectorBuilder, LocalLDPrune, LocalWhitening}
-import is.hail.types.physical.stypes.{EmitType, SSettable}
-import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SInsertFieldsStruct, SStackStruct, SUnreachable}
+import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SStackStruct, SUnreachable}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SFloat64Value, SInt32Value}
+import is.hail.types.physical.stypes.{EmitType, SSettable}
 import is.hail.types.physical.{PCanonicalArray, PCanonicalBinary, PCanonicalStruct, PType}
 import is.hail.types.virtual._
-import is.hail.types.{RIterable, TypeWithRequiredness, VirtualTypeWithReq}
+import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.utils._
 import is.hail.variant.Locus
 import org.objectweb.asm.Opcodes._
