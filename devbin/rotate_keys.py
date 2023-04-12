@@ -29,7 +29,7 @@ ENDC = '\033[0m'
 class ServiceAccountDict(TypedDict):
     name: str
     projectId: str
-    uniqueId:  str
+    uniqueId: str
     email: str
     displayName: str
     etag: str
@@ -74,15 +74,18 @@ class KubeSecretManager:
     async def get_secrets(self) -> Tuple[Any, List[GSAKeySecret]]:
         secrets = (await retry_transient_errors(self.kube_client.list_secret_for_all_namespaces)).items
         return (
-            [s for s in secrets
-             if (s.data is None or 'key.json' not in s.data)
-             and not s.metadata.name.endswith('-tokens')
-             and not s.metadata.name.startswith('ssl-config-')
-             and not (s.metadata.name.startswith('sql-') and s.metadata.name.endswith('-config'))
-             and s.metadata.name not in ('database-server-config', 'ci-config', 'deploy-config', 'gce-deploy-config')
-             and not s.metadata.namespace == 'kube-system'
-             and not s.type == 'kubernetes.io/service-account-token'],
-            [GSAKeySecret(s) for s in secrets if s.data is not None and 'key.json' in s.data]
+            [
+                s
+                for s in secrets
+                if (s.data is None or 'key.json' not in s.data)
+                and not s.metadata.name.endswith('-tokens')
+                and not s.metadata.name.startswith('ssl-config-')
+                and not (s.metadata.name.startswith('sql-') and s.metadata.name.endswith('-config'))
+                and s.metadata.name not in ('database-server-config', 'ci-config', 'deploy-config', 'gce-deploy-config')
+                and not s.metadata.namespace == 'kube-system'
+                and not s.type == 'kubernetes.io/service-account-token'
+            ],
+            [GSAKeySecret(s) for s in secrets if s.data is not None and 'key.json' in s.data],
         )
 
     async def update_gsa_key_secret(self, secret: GSAKeySecret, key_data: str) -> GSAKeySecret:
@@ -189,17 +192,16 @@ class ServiceAccount:
                 for s in self.kube_secrets:
                     keys_to_k8s_secret[s.private_key_id()].append((s.name, s.namespace))
                 keys_to_k8s_secret_str = "\n".join(
-                    f'{k} ' + ", ".join(str(s) for s in secrets)
-                    for k, secrets in keys_to_k8s_secret.items()
+                    f'{k} ' + ", ".join(str(s) for s in secrets) for k, secrets in keys_to_k8s_secret.items()
                 )
                 known_iam_keys_str = "\n".join(
                     f'{k.id} Created: {k.created_readable} Expires: {k.expiration_readable}' for k in self.keys
                 )
                 kube_key = sorted(
-                    [k for k in self.keys
-                     if k.id in keys_to_k8s_secret],
-                    key=lambda k: -k.created.timestamp())[0]
-                print(f'''Found a user ({self.username()}) without a unique active key in Kubernetes.
+                    [k for k in self.keys if k.id in keys_to_k8s_secret], key=lambda k: -k.created.timestamp()
+                )[0]
+                print(
+                    f'''Found a user ({self.username()}) without a unique active key in Kubernetes.
 The known IAM keys are:
 {known_iam_keys_str}
 
@@ -207,7 +209,8 @@ These keys are present in Kubernetes:
 {keys_to_k8s_secret_str}
 
 We will assume {kube_key.id} is the active key.
-''')
+'''
+                )
             assert kube_key is not None
             assert kube_key.user_managed
             return kube_key
@@ -250,9 +253,7 @@ class IAMManager:
         return all_accounts
 
     async def service_account_from_dict(self, d: ServiceAccountDict) -> ServiceAccount:
-        return ServiceAccount(d['email'],
-                              d.get('disabled', False),
-                              await self.get_sa_keys(d['email']))
+        return ServiceAccount(d['email'], d.get('disabled', False), await self.get_sa_keys(d['email']))
 
     async def get_sa_keys(self, sa_email: str) -> List[IAMKey]:
         keys_json = (await self.iam_client.get(f'/serviceAccounts/{sa_email}/keys'))['keys']
@@ -273,10 +274,12 @@ class IAMManager:
                 yield acc
 
 
-async def add_new_keys(service_accounts: List[ServiceAccount],
-                       iam_manager: IAMManager,
-                       k8s_manager: KubeSecretManager,
-                       ignore: Optional[RotationState] = None):
+async def add_new_keys(
+    service_accounts: List[ServiceAccount],
+    iam_manager: IAMManager,
+    k8s_manager: KubeSecretManager,
+    ignore: Optional[RotationState] = None,
+):
     for sa in service_accounts:
         if sa.disabled:
             continue
@@ -294,7 +297,9 @@ async def add_new_keys(service_accounts: List[ServiceAccount],
             sa.list_keys(sys.stdout)
 
 
-async def delete_old_keys(service_accounts: List[ServiceAccount], iam_manager: IAMManager, focus: Optional[RotationState] = None):
+async def delete_old_keys(
+    service_accounts: List[ServiceAccount], iam_manager: IAMManager, focus: Optional[RotationState] = None
+):
     async def delete_old_and_refresh(sa: ServiceAccount):
         to_delete = sa.redundant_user_keys()
         await asyncio.gather(*[iam_manager.delete_key(sa.email, k) for k in to_delete])
@@ -383,7 +388,9 @@ async def main():
         for secret in other_secrets:
             print(f'\t{secret.metadata.name} ({secret.metadata.namespace})')
 
-        action = input('What action would you like to take?[update/update-all/delete/delete-ready-only/delete-in-progress-only]: ')
+        action = input(
+            'What action would you like to take?[update/update-all/delete/delete-ready-only/delete-in-progress-only]: '
+        )
         if action == 'update':
             await add_new_keys(service_accounts, iam_manager, k8s_manager, ignore=RotationState.UP_TO_DATE)
         if action == 'update-all':

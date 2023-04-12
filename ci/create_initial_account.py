@@ -39,9 +39,7 @@ async def copy_identity_from_default(hail_credentials_secret_name: str) -> str:
 async def insert_user_if_not_exists(db, username, login_id, is_developer, is_service_account):
     @transaction(db)
     async def insert(tx):
-        row = await tx.execute_and_fetchone(
-            'SELECT id, state FROM users where username = %s;', (username,)
-        )
+        row = await tx.execute_and_fetchone('SELECT id, state FROM users where username = %s;', (username,))
         if row:
             if row['state'] == 'active':
                 return None

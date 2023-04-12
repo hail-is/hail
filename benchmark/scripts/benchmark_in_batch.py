@@ -113,7 +113,6 @@ if __name__ == '__main__':
     combine_branch_factor = int(os.environ.get('BENCHMARK_BRANCH_FACTOR', 32))
     phase_i = 1
     while len(all_output) > combine_branch_factor:
-
         new_output = []
 
         job_i = 1
