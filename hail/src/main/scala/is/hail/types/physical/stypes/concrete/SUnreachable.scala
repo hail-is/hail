@@ -2,14 +2,14 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitValue, IEmitCode}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitValue, IEmitCode}
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.SInt64Value
 import is.hail.types.physical.{PCanonicalNDArray, PNDArray, PType}
 import is.hail.types.virtual._
 import is.hail.utils.FastIndexedSeq
-import is.hail.variant.{Locus, ReferenceGenome}
+import is.hail.variant.ReferenceGenome
 
 object SUnreachable {
   def fromVirtualType(t: Type): SType = {
@@ -209,6 +209,8 @@ case class SUnreachableNDArray(virtualType: TNDArray) extends SUnreachable with 
 }
 
 class SUnreachableNDArrayValue(override val st: SUnreachableNDArray) extends SUnreachableValue with SNDArraySettable {
+  val pt = st.pType
+
   override def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SValue = SUnreachable.fromVirtualType(st.virtualType.elementType).defaultValue
 
   override def loadElementAddress(indices: IndexedSeq[is.hail.asm4s.Value[Long]],cb: is.hail.expr.ir.EmitCodeBuilder): is.hail.asm4s.Code[Long] = const(0L)

@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.expr.Nat
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.streams.StreamUtils
 import is.hail.types.tcoerce
@@ -188,6 +189,15 @@ object TypeCheck {
         assert(child.typ.isInstanceOf[TStream])
         assert(pivots.typ.isInstanceOf[TArray])
         assert(pivots.typ.asInstanceOf[TArray].elementType.isInstanceOf[TStruct])
+      case StreamWhiten(stream, newChunk, prevWindow, vecSize, windowSize, chunkSize, blockSize, normalizeAfterWhiten) =>
+        assert(stream.typ.isInstanceOf[TStream])
+        val eltTyp = stream.typ.asInstanceOf[TStream].elementType
+        assert(eltTyp.isInstanceOf[TStruct])
+        val structTyp = eltTyp.asInstanceOf[TStruct]
+        val matTyp = TNDArray(TFloat64, Nat(2))
+        assert(structTyp.field(newChunk).typ == matTyp)
+        assert(structTyp.field(prevWindow).typ == matTyp)
+        assert(windowSize % chunkSize == 0)
       case x@ArrayZeros(length) =>
         assert(length.typ == TInt32)
       case x@MakeNDArray(data, shape, rowMajor, _) =>
@@ -551,7 +561,6 @@ object TypeCheck {
         assert(StreamUtils.isIterationLinear(body, partitionStreamName), "must iterate over the partition exactly once")
         val newRowType = body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
         child.typ.key.foreach { k => if (!newRowType.hasField(k)) throw new RuntimeException(s"prev key: ${child.typ.key}, new row: ${newRowType}")}
-
       case MatrixUnionCols(left, right, joinType) =>
         assert(left.typ.rowKeyStruct == right.typ.rowKeyStruct, s"${left.typ.rowKeyStruct} != ${right.typ.rowKeyStruct}")
         assert(left.typ.colType == right.typ.colType, s"${left.typ.colType} != ${right.typ.colType}")

@@ -16,6 +16,8 @@ class ValueIRTests(unittest.TestCase):
             'c': hl.tbool,
             'a': hl.tarray(hl.tint32),
             'st': hl.tstream(hl.tint32),
+            'whitenStream': hl.tstream(hl.tstruct(prevWindow=hl.tndarray(hl.tfloat64, 2), newChunk=hl.tndarray(hl.tfloat64, 2))),
+            'mat': hl.tndarray(hl.tfloat64, 2),
             'aa': hl.tarray(hl.tarray(hl.tint32)),
             'sta': hl.tstream(hl.tarray(hl.tint32)),
             'da': hl.tarray(hl.ttuple(hl.tint32, hl.tstr)),
@@ -34,6 +36,8 @@ class ValueIRTests(unittest.TestCase):
         j = ir.I32(7)
         a = ir.Ref('a', env['a'])
         st = ir.Ref('st', env['st'])
+        whitenStream = ir.Ref('whitenStream')
+        mat = ir.Ref('mat')
         aa = ir.Ref('aa', env['aa'])
         sta = ir.Ref('sta', env['sta'])
         da = ir.Ref('da', env['da'])
@@ -92,6 +96,7 @@ class ValueIRTests(unittest.TestCase):
             ir.StreamFlatMap(sta, 'v', ir.ToStream(v)),
             ir.StreamFold(st, ir.I32(0), 'x', 'v', v),
             ir.StreamScan(st, ir.I32(0), 'x', 'v', v),
+            ir.StreamWhiten(whitenStream, "newChunk", "prevWindow", 0, 0, 0, 0, False),
             ir.StreamJoinRightDistinct(st, st, ['k'], ['k'], 'l', 'r', ir.I32(1), "left"),
             ir.StreamFor(st, 'v', ir.Void()),
             aggregate(ir.AggFilter(ir.TrueIR(), ir.I32(0), False)),
