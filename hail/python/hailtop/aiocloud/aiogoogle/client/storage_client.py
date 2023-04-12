@@ -325,7 +325,7 @@ class GoogleStorageClient(GoogleBaseClient):
             kwargs['params'] = params
         assert 'name' not in params
         params['name'] = name
-        params.update(self._user_project(bucket))
+        self._update_params_with_user_project(kwargs, bucket)
 
         assert 'data' not in params
 
@@ -364,7 +364,7 @@ class GoogleStorageClient(GoogleBaseClient):
             kwargs['params'] = params
         assert 'alt' not in params
         params['alt'] = 'media'
-        params.update(self._user_project(bucket))
+        self._update_params_with_user_project(kwargs, bucket)
 
         try:
             resp = await self._session.get(
@@ -380,22 +380,16 @@ class GoogleStorageClient(GoogleBaseClient):
     async def get_object_metadata(self, bucket: str, name: str, **kwargs) -> Dict[str, str]:
         assert name
         assert 'params' not in kwargs or 'alt' not in kwargs['params']
-        if 'params' not in kwargs:
-            kwargs['params'] = {}
-        kwargs['params'].update(self._user_project(bucket))
+        self._update_params_with_user_project(kwargs, bucket)
         return cast(Dict[str, str], await self.get(f'/b/{bucket}/o/{urllib.parse.quote(name, safe="")}', **kwargs))
 
     async def delete_object(self, bucket: str, name: str, **kwargs) -> None:
         assert name
-        if 'params' not in kwargs:
-            kwargs['params'] = {}
-        kwargs['params'].update(self._user_project(bucket))
+        self._update_params_with_user_project(kwargs, bucket)
         await self.delete(f'/b/{bucket}/o/{urllib.parse.quote(name, safe="")}', **kwargs)
 
     async def list_objects(self, bucket: str, **kwargs) -> PageIterator:
-        if 'params' not in kwargs:
-            kwargs['params'] = {}
-        kwargs['params'].update(self._user_project(bucket))
+        self._update_params_with_user_project(kwargs, bucket)
         return PageIterator(self, f'/b/{bucket}/o', kwargs)
 
     async def compose(self, bucket: str, names: List[str], destination: str, **kwargs) -> None:
@@ -410,20 +404,19 @@ class GoogleStorageClient(GoogleBaseClient):
         kwargs['json'] = {
             'sourceObjects': [{'name': name} for name in names]
         }
-        if 'params' not in kwargs:
-            kwargs['params'] = {}
-        kwargs['params'].update(self._user_project(bucket))
+        self._update_params_with_user_project(kwargs, bucket)
         await self.post(f'/b/{bucket}/o/{urllib.parse.quote(destination, safe="")}/compose', **kwargs)
 
-    def _user_project(self, bucket):
+    def _update_params_with_user_project(self, request_kwargs, bucket):
         config = self._gcs_requester_pays_configuration
+        if 'params' not in request_kwargs:
+            request_kwargs['params'] = {}
         if isinstance(config, str):
-            return {'userProject': config}
-        if isinstance(config, tuple):
+            request_kwargs.update({'userProject': config})
+        elif isinstance(config, tuple):
             project, buckets = config
             if bucket in buckets:
-                return {'userProject': project}
-        return {}
+                request_kwargs.update({'userProject': project})
 
 
 class GetObjectFileStatus(FileStatus):
