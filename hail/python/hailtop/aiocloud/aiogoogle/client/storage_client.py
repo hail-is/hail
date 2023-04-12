@@ -379,8 +379,9 @@ class GoogleStorageClient(GoogleBaseClient):
 
     async def get_object_metadata(self, bucket: str, name: str, **kwargs) -> Dict[str, str]:
         assert name
-        params = kwargs.get('params')
-        assert not params or 'alt' not in params
+        params = kwargs.get('params', {})
+        assert params == {} or 'alt' not in params
+        params.update(self._user_project(bucket))
         return cast(Dict[str, str], await self.get(f'/b/{bucket}/o/{urllib.parse.quote(name, safe="")}', **kwargs))
 
     async def delete_object(self, bucket: str, name: str, **kwargs) -> None:
