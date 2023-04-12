@@ -1,16 +1,13 @@
 package is.hail.expr
 
-import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.ir.functions.IRFunctionRegistry
-import is.hail.types.physical._
 import is.hail.types.physical.stypes.SValue
+import is.hail.types.tcoerce
 import is.hail.types.virtual._
-import is.hail.types.{tcoerce, _}
 import is.hail.utils._
 
 import java.util.UUID
-import scala.collection.mutable
 import scala.language.implicitConversions
 
 package object ir {
@@ -178,8 +175,8 @@ package object ir {
 
   def rangeIR(start: IR, stop: IR): IR = StreamRange(start, stop, 1)
 
-  def insertIR(old: IR, fields: (String, IR)*): InsertFields = InsertFields(old, fields)
-  def selectIR(old: IR, fields: String*): SelectFields = SelectFields(old, fields)
+  def insertIR(old: IR, fields: (String, IR)*): InsertFields = InsertFields(old, fields.toArray[(String, IR)])
+  def selectIR(old: IR, fields: String*): SelectFields = SelectFields(old, fields.toArray[String])
 
   def zip2(s1: IR, s2: IR, behavior: ArrayZipBehavior.ArrayZipBehavior)(f: (Ref, Ref) => IR): IR = {
     val r1 = Ref(genUID(), tcoerce[TStream](s1.typ).elementType)
@@ -198,13 +195,13 @@ package object ir {
     )
   }
 
-  def zipIR(ss: IndexedSeq[IR], behavior: ArrayZipBehavior.ArrayZipBehavior)(f: IndexedSeq[Ref] => IR): IR = {
+  def zipIR(ss: IndexedSeq[IR], behavior: ArrayZipBehavior.ArrayZipBehavior, errorId: Int = ErrorIDs.NO_ERROR)(f: IndexedSeq[Ref] => IR): IR = {
     val refs = ss.map(s => Ref(genUID(), tcoerce[TStream](s.typ).elementType))
-    StreamZip(ss, refs.map(_.name), f(refs), behavior, ErrorIDs.NO_ERROR)
+    StreamZip(ss, refs.map(_.name), f(refs), behavior, errorId)
   }
 
-  def makestruct(fields: (String, IR)*): MakeStruct = MakeStruct(fields)
-  def maketuple(fields: IR*): MakeTuple = MakeTuple(fields.zipWithIndex.map{ case (field, idx) => (idx, field)})
+  def makestruct(fields: (String, IR)*): MakeStruct = MakeStruct(fields.toArray[(String, IR)])
+  def maketuple(fields: IR*): MakeTuple = MakeTuple(fields.toArray.zipWithIndex.map { case (field, idx) => (idx, field) })
 
   def aggBindIR(v: IR, isScan: Boolean = false)(body: Ref => IR): IR = {
     val ref = Ref(genUID(), v.typ)

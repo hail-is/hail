@@ -175,7 +175,7 @@ object CompileIterator {
     printWriter: Option[PrintWriter]
   ): (PType, (HailClassLoader, FS, HailTaskContext, Region) => F) = {
 
-    val fb = EmitFunctionBuilder.apply[F](ctx, "stream", argTypeInfo.toFastIndexedSeq, CodeParamType(BooleanInfo))
+    val fb = EmitFunctionBuilder.apply[F](ctx, s"stream_${body.getClass.getSimpleName}", argTypeInfo.toFastIndexedSeq, CodeParamType(BooleanInfo), Some("Emit.scala"))
     val outerRegionField = fb.genFieldThisRef[Region]("outerRegion")
     val eltRegionField = fb.genFieldThisRef[Region]("eltRegion")
     val setF = fb.newEmitMethod("setRegions", FastIndexedSeq(CodeParamType(typeInfo[Region]), CodeParamType(typeInfo[Region])), CodeParamType(typeInfo[Unit]))
@@ -197,7 +197,7 @@ object CompileIterator {
       val emitter = new Emit(emitContext, stepFECB)
 
       val env = EmitEnv(Env.empty, argTypeInfo.indices.filter(i => argTypeInfo(i).isInstanceOf[EmitParamType]).map(i => stepF.getEmitParam(cb, i + 1)))
-      val optStream = EmitCode.fromI(stepF)(cb => EmitStream.produce(emitter, ir, cb, outerRegion, env, None))
+      val optStream = EmitCode.fromI(stepF)(cb => EmitStream.produce(emitter, ir, cb, cb.emb, outerRegion, env, None))
       returnType = optStream.st.asInstanceOf[SStream].elementEmitType.storageType.setRequired(true)
 
       elementAddress = stepF.genFieldThisRef[Long]("elementAddr")

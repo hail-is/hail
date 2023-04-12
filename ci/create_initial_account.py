@@ -39,7 +39,7 @@ async def copy_identity_from_default(hail_credentials_secret_name: str) -> str:
 async def insert_user_if_not_exists(db, username, login_id, is_developer, is_service_account):
     @transaction(db)
     async def insert(tx):
-        row = await db.execute_and_fetchone(
+        row = await tx.execute_and_fetchone(
             'SELECT id, state FROM users where username = %s;', (username,)
         )
         if row:
@@ -56,7 +56,7 @@ async def insert_user_if_not_exists(db, username, login_id, is_developer, is_ser
             hail_identity = await copy_identity_from_default(hail_credentials_secret_name)
             namespace_name = NAMESPACE
 
-        return await db.execute_insertone(
+        return await tx.execute_insertone(
             '''
     INSERT INTO users (state, username, login_id, is_developer, is_service_account, hail_identity, hail_credentials_secret_name, namespace_name)
     VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
@@ -73,7 +73,7 @@ async def insert_user_if_not_exists(db, username, login_id, is_developer, is_ser
             ),
         )
 
-    return await insert()
+    return await insert()  # pylint: disable=no-value-for-parameter
 
 
 async def main():

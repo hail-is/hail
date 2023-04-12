@@ -5,18 +5,14 @@ import json
 import logging
 import os
 from collections import defaultdict, namedtuple
+from typing import Dict
 
 import aiohttp_session
 import prometheus_client as pc  # type: ignore
 from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
 
-from gear import (
-    AuthClient,
-    Database,
-    setup_aiohttp_session,
-    transaction,
-)
+from gear import AuthClient, Database, setup_aiohttp_session, transaction
 from hailtop import aiotools, httpx
 from hailtop.aiocloud import aiogoogle
 from hailtop.config import get_deploy_config
@@ -70,8 +66,8 @@ def get_last_day_month(dt):
 
 
 def format_data(records):
-    cost_by_service = defaultdict(lambda: 0)
-    compute_cost_breakdown = defaultdict(lambda: 0)
+    cost_by_service: Dict[str, int] = defaultdict(int)
+    compute_cost_breakdown: Dict[str, int] = defaultdict(int)
     cost_by_sku_source = []
 
     for record in records:
@@ -86,12 +82,19 @@ def format_data(records):
         else:
             assert record['source'] is None
 
-    cost_by_service = sorted(
-        [{'service': k, 'cost': cost_str(v)} for k, v in cost_by_service.items()], key=lambda x: x['cost'], reverse=True
+    def non_optional_cost_str(cost: int):
+        s = cost_str(cost)
+        assert s is not None
+        return s
+
+    str_cost_by_service = sorted(
+        [{'service': k, 'cost': non_optional_cost_str(v)} for k, v in cost_by_service.items()],
+        key=lambda x: x['cost'],
+        reverse=True,
     )
 
-    compute_cost_breakdown = sorted(
-        [{'source': k, 'cost': cost_str(v)} for k, v in compute_cost_breakdown.items()],
+    str_compute_cost_breakdown = sorted(
+        [{'source': k, 'cost': non_optional_cost_str(v)} for k, v in compute_cost_breakdown.items()],
         key=lambda x: x['cost'],
         reverse=True,
     )
@@ -100,7 +103,7 @@ def format_data(records):
     for record in cost_by_sku_source:
         record['cost'] = cost_str(record['cost'])
 
-    return (cost_by_service, compute_cost_breakdown, cost_by_sku_source)
+    return (str_cost_by_service, str_compute_cost_breakdown, cost_by_sku_source)
 
 
 async def _billing(request):
@@ -295,7 +298,7 @@ async def monitor_instances(app):
     log.info('monitoring instances')
     compute_client: aiogoogle.GoogleComputeClient = app['compute_client']
 
-    instance_counts = defaultdict(int)
+    instance_counts: Dict[InstanceLabels, int] = defaultdict(int)
 
     for zone in app['zones']:
         async for instance in await compute_client.list(

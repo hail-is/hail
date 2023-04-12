@@ -1,7 +1,10 @@
+import os
+
 import hail as hl
 
 from ..helpers import skip_unless_service_backend
 from hail.backend.service_backend import ServiceBackend
+
 
 @skip_unless_service_backend()
 def test_tiny_driver_has_tiny_memory():
@@ -15,6 +18,7 @@ def test_tiny_driver_has_tiny_memory():
         )
     else:
         assert False
+
 
 @skip_unless_service_backend()
 def test_big_driver_has_big_memory():
@@ -34,6 +38,7 @@ def test_big_driver_has_big_memory():
         backend.driver_cores = old_driver_cores
         backend.driver_memory = old_driver_memory
 
+
 @skip_unless_service_backend()
 def test_tiny_worker_has_tiny_memory():
     try:
@@ -44,6 +49,7 @@ def test_tiny_worker_has_tiny_memory():
         assert 'HailException: Hail off-heap memory exceeded maximum threshold' in exc.args[0]
     else:
         assert False
+
 
 @skip_unless_service_backend()
 def test_big_worker_has_big_memory():
@@ -62,3 +68,20 @@ def test_big_worker_has_big_memory():
     finally:
         backend.driver_cores = old_driver_cores
         backend.driver_memory = old_driver_memory
+
+
+@skip_unless_service_backend()
+def test_regions():
+    backend = hl.current_backend()
+    assert isinstance(backend, ServiceBackend)
+    old_regions = backend.regions
+    CLOUD = os.environ['HAIL_CLOUD']
+    try:
+        if CLOUD == 'gcp':
+            backend.regions = ['us-east1']
+        else:
+            assert CLOUD == 'azure'
+            backend.regions = ['eastus']
+        hl.utils.range_table(1, 1).to_pandas()
+    finally:
+        backend.regions = old_regions

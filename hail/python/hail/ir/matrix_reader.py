@@ -177,17 +177,13 @@ class MatrixBGENReader(MatrixReader):
                       index_file_map=nullable(dictof(str, str)),
                       n_partitions=nullable(int),
                       block_size=nullable(int),
-                      included_variants=nullable(anytype))
+                      included_variants=nullable(str))
     def __init__(self, path, sample_file, index_file_map, n_partitions, block_size, included_variants):
         self.path = wrap_to_list(path)
         self.sample_file = sample_file
         self.index_file_map = index_file_map if index_file_map else {}
         self.n_partitions = n_partitions
         self.block_size = block_size
-
-        from hail.table import Table
-        if included_variants is not None:
-            assert (isinstance(included_variants, Table))
         self.included_variants = included_variants
 
     def render(self, r):
@@ -197,8 +193,8 @@ class MatrixBGENReader(MatrixReader):
                   'indexFileMap': self.index_file_map,
                   'nPartitions': self.n_partitions,
                   'blockSizeInMB': self.block_size,
-                  # FIXME: This has to be wrong. The included_variants IR is not included as a child
-                  'includedVariants': r(self.included_variants._tir) if self.included_variants else None}
+                  'includedVariants': self.included_variants
+                  }
         return escape_str(json.dumps(reader))
 
     def __eq__(self, other):

@@ -20,15 +20,8 @@
       value="true" />
     </div>
     <div>Worker External SSD data disk size (in GB): <input name="worker_external_ssd_data_disk_size_gb" value="{{ pool.worker_external_ssd_data_disk_size_gb }}" /></div>
-    <div>
-      <label for="enable_standing_worker">Enable standing worker: </label>
-      <input type="checkbox"
-             id="enable_standing_worker"
-             name="enable_standing_worker"
-             {% if pool.enable_standing_worker %}checked{% endif %}
-      value="true" />
-    </div>
     <div>Standing worker cores: <input name="standing_worker_cores" value="{{ pool.standing_worker_cores }}" /></div>
+    <div>Min instances: <input name="min_instances" value="{{ pool.min_instances }}" /></div>
     <div>Max instances: <input name="max_instances" value="{{ pool.max_instances }}" /></div>
     <div>Max live instances: <input name="max_live_instances" value="{{ pool.max_live_instances }}" /></div>
     <div>Max new instances per autoscaler loop: <input name="max_new_instances_per_autoscaler_loop" value="{{ pool.max_new_instances_per_autoscaler_loop }}" /></div>

@@ -7,7 +7,7 @@ from typing import Optional
 
 from hailtop import httpx
 from hailtop.config import get_deploy_config
-from hailtop.auth import service_auth_headers
+from hailtop.auth import hail_credentials
 from hailtop.httpx import client_session
 from hailtop.utils import unpack_comma_delimited_inputs, unpack_key_value_inputs
 
@@ -34,7 +34,7 @@ class CIClient:
         self._session: Optional[httpx.ClientSession] = None
 
     async def __aenter__(self):
-        headers = service_auth_headers(self._deploy_config, 'ci')
+        headers = await hail_credentials().auth_headers()
         self._session = client_session(
             raise_for_status=False,
             timeout=aiohttp.ClientTimeout(total=60), headers=headers)  # type: ignore

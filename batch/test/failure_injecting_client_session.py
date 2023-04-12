@@ -6,6 +6,7 @@ from hailtop.utils import async_to_blocking
 
 class FailureInjectingClientSession(httpx.ClientSession):
     def __init__(self, should_fail):
+        super().__init__()
         self.should_fail = should_fail
         self.real_session = httpx.client_session()
 
@@ -24,6 +25,6 @@ class FailureInjectingClientSession(httpx.ClientSession):
                 history=(),
             )
 
-    async def request(self, method, path, *args, **kwargs):
+    def request(self, method, path, *args, **kwargs):
         self.maybe_fail(method, path, kwargs.get('headers', {}))
-        return await self.real_session.request(method, path, *args, **kwargs)
+        return self.real_session.request(method, path, *args, **kwargs)

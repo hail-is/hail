@@ -196,6 +196,17 @@ def require_row_key_variant(dataset, method):
                              "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in key)))
 
 
+def require_alleles_field(dataset, method):
+    if 'alleles' not in dataset.row:
+        raise ValueError(
+            f"Method '{method}' requires a field 'alleles' (type 'array<str>')\n")
+    if dataset.alleles.dtype != tarray(tstr):
+        raise ValueError(
+            f"Method '{method}' requires a field 'alleles' (type 'array<str>')\n"
+            f"  Found:\n"
+            f"    'alleles': {dataset.alleles.dtype}")
+
+
 def require_row_key_variant_w_struct_locus(dataset, method):
     if (list(dataset.row_key) != ['locus', 'alleles']
         or not dataset['alleles'].dtype == tarray(tstr)

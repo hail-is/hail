@@ -70,7 +70,7 @@ class BlockMatrixIRSuite extends HailSuite {
 
   @Test def testBlockMatrixBroadcastValue_Scalars() {
     val broadcastTwo = BlockMatrixBroadcast(
-      ValueToBlockMatrix(MakeArray(Seq[F64](F64(2)), TArray(TFloat64)), Array[Long](1, 1), ones.typ.blockSize),
+      ValueToBlockMatrix(MakeArray(IndexedSeq[F64](F64(2)), TArray(TFloat64)), Array[Long](1, 1), ones.typ.blockSize),
       FastIndexedSeq(), shape, ones.typ.blockSize)
 
     val onesAddTwo = makeMap2(ones, broadcastTwo, Add(), UnionBlocks)
@@ -85,7 +85,7 @@ class BlockMatrixIRSuite extends HailSuite {
   }
 
   @Test def testBlockMatrixBroadcastValue_Vectors() {
-    val vectorLiteral = MakeArray(Seq[F64](F64(1), F64(2), F64(3)), TArray(TFloat64))
+    val vectorLiteral = MakeArray(IndexedSeq[F64](F64(1), F64(2), F64(3)), TArray(TFloat64))
 
     val broadcastRowVector = BlockMatrixBroadcast(ValueToBlockMatrix(vectorLiteral, Array[Long](1, 3),
       ones.typ.blockSize), FastIndexedSeq(1), shape, ones.typ.blockSize)

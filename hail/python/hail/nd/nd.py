@@ -269,19 +269,19 @@ def solve(a, b, no_crash=False):
     return result
 
 
-@typecheck(nd_coef=expr_ndarray(), nd_dep=expr_ndarray(), lower=expr_bool)
-def solve_triangular(nd_coef, nd_dep, lower=False):
-    """Solve a triangular linear system.
+@typecheck(A=expr_ndarray(), b=expr_ndarray(), lower=expr_bool, no_crash=bool)
+def solve_triangular(A, b, lower=False, no_crash=False):
+    """Solve a triangular linear system Ax = b for x.
 
     Parameters
     ----------
-    nd_coef : :class:`.NDArrayNumericExpression`, (N, N)
+    A : :class:`.NDArrayNumericExpression`, (N, N)
         Triangular coefficient matrix.
-    nd_dep : :class:`.NDArrayNumericExpression`, (N,) or (N, K)
+    b : :class:`.NDArrayNumericExpression`, (N,) or (N, K)
         Dependent variables.
     lower : `bool`:
-        If true, nd_coef is interpreted as a lower triangular matrix
-        If false, nd_coef is interpreted as a upper triangular matrix
+        If true, A is interpreted as a lower triangular matrix
+        If false, A is interpreted as a upper triangular matrix
 
     Returns
     -------
@@ -289,13 +289,21 @@ def solve_triangular(nd_coef, nd_dep, lower=False):
         Solution to the triangular system Ax = B. Shape is same as shape of B.
 
     """
-    nd_dep_ndim_orig = nd_dep.ndim
-    nd_coef, nd_dep = solve_helper(nd_coef, nd_dep, nd_dep_ndim_orig)
+    nd_dep_ndim_orig = b.ndim
+    A, b = solve_helper(A, b, nd_dep_ndim_orig)
+
+    indices, aggregations = unify_all(A, b)
+
+    if no_crash:
+        return_type = hl.tstruct(solution=hl.tndarray(hl.tfloat64, 2), failed=hl.tbool)
+        ir = Apply("linear_triangular_solve_no_crash", return_type, A._ir, b._ir, lower._ir)
+        result = construct_expr(ir, return_type, indices, aggregations)
+        if nd_dep_ndim_orig == 1:
+            result = result.annotate(solution=result.solution.reshape((-1)))
+        return result
+
     return_type = hl.tndarray(hl.tfloat64, 2)
-
-    indices, aggregations = unify_all(nd_coef, nd_dep)
-
-    ir = Apply("linear_triangular_solve", return_type, nd_coef._ir, nd_dep._ir, lower._ir)
+    ir = Apply("linear_triangular_solve", return_type, A._ir, b._ir, lower._ir)
     result = construct_expr(ir, return_type, indices, aggregations)
     if nd_dep_ndim_orig == 1:
         result = result.reshape((-1))
@@ -474,13 +482,26 @@ def concatenate(nds, axis=0):
     """
     head_nd = nds[0]
 
-    makearr = aarray(nds)
-    concat_ir = NDArrayConcat(makearr._ir, axis)
     if isinstance(nds, list):
         indices, aggregations = unify_all(*nds)
+        typs = {x.dtype for x in nds}
+
+        if len(typs) != 1:
+            element_types = {t.element_type for t in typs}
+            if len(element_types) != 1:
+                argument_element_types_str = ", ".join(str(nd.dtype.element_type) for nd in nds)
+                raise ValueError(f'hl.nd.concatenate: ndarrays must have same element types, found these element types: ({argument_element_types_str})')
+
+            ndims = {t.ndim for t in typs}
+            assert len(ndims) != 1
+            ndims_str = ", ".join(str(nd.dtype.ndim) for nd in nds)
+            raise ValueError(f'hl.nd.concatenate: ndarrays must have same number of dimensions, found: {ndims_str}.')
     else:
         indices = nds._indices
         aggregations = nds._aggregations
+
+    makearr = aarray(nds)
+    concat_ir = NDArrayConcat(makearr._ir, axis)
 
     return construct_expr(concat_ir, tndarray(head_nd._type.element_type, head_nd.ndim), indices, aggregations)
 

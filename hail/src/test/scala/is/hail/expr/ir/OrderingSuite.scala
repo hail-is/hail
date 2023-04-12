@@ -539,8 +539,8 @@ class OrderingSuite extends HailSuite {
 
   @Test def testContainsWithArrayFold() {
     implicit val execStrats = ExecStrategy.javaOnly
-    val set1 = ToSet(MakeStream(Seq(I32(1), I32(4)), TStream(TInt32)))
-    val set2 = ToSet(MakeStream(Seq(I32(9), I32(1), I32(4)), TStream(TInt32)))
+    val set1 = ToSet(MakeStream(IndexedSeq(I32(1), I32(4)), TStream(TInt32)))
+    val set2 = ToSet(MakeStream(IndexedSeq(I32(9), I32(1), I32(4)), TStream(TInt32)))
     assertEvalsTo(StreamFold(ToStream(set1), True(), "accumulator", "setelt",
         ApplySpecial("land",
           FastSeq(),

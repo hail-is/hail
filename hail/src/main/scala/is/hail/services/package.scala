@@ -105,7 +105,12 @@ package object services {
         e.getMessage.contains("Timeout on blocking read")
       case e @ (_: SSLException | _: StorageException | _: IOException) =>
         val cause = e.getCause
-        cause != null && isTransientError(cause)
+
+        (
+          NettyProxy.isRetryableNettyIOException(e)
+        ) || (
+          cause != null && isTransientError(cause)
+        )
       case _ =>
         false
     }

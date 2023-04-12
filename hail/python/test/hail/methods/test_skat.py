@@ -620,7 +620,7 @@ def test_skat_max_iteration_fails_explodes_in_37_steps():
     except FatalError as err:
         assert 'Failed to fit logistic regression null model (MLE with covariates only): exploded at Newton iteration 37' in err.args[0]
     except HailUserError as err:
-        assert 'hl._logistic_skat: null model did not converge: {b: null, score: null, fisher: null, mu: null, num_iter: 37, log_lkhd: -0.6931471805599453, converged: false, exploded: true}' in err.args[0]
+        assert 'hl._logistic_skat: null model did not converge: {b: null, score: null, fisher: null, mu: null, n_iterations: 37, log_lkhd: -0.6931471805599453, converged: false, exploded: true}' in err.args[0]
     else:
         assert False
 
@@ -650,6 +650,6 @@ def test_skat_max_iterations_fails_to_converge_in_fewer_than_36_steps():
     except FatalError as err:
         assert 'Failed to fit logistic regression null model (MLE with covariates only): Newton iteration failed to converge' in err.args[0]
     except HailUserError as err:
-        assert 'hl._logistic_skat: null model did not converge: {b: null, score: null, fisher: null, mu: null, num_iter: 36, log_lkhd: -0.6931471805599457, converged: false, exploded: false}' in err.args[0]
+        assert 'hl._logistic_skat: null model did not converge: {b: null, score: null, fisher: null, mu: null, n_iterations: 36, log_lkhd: -0.6931471805599457, converged: false, exploded: false}' in err.args[0]
     else:
         assert False

@@ -616,7 +616,7 @@ class ArrayExpression(CollectionExpression):
         -------
         :class:`.ArrayExpression`
         """
-        if not item._type == self._type.element_type:
+        if item._type != self._type.element_type:
             raise TypeError("'ArrayExpression.append' expects 'item' to be the same type as its elements\n"
                             "    array element type: '{}'\n"
                             "    type of arg 'item': '{}'".format(self._type._element_type, item._type))

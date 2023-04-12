@@ -551,6 +551,17 @@ RETRYABLE_HTTP_STATUS_CODES = {408, 429, 500, 502, 503, 504}
 if os.environ.get('HAIL_DONT_RETRY_500') == '1':
     RETRYABLE_HTTP_STATUS_CODES.remove(500)
 
+RETRYABLE_ERRNOS = {
+    # these should match (where an equivalent exists) nettyRetryableErrorNumbers in
+    # is/hail/services/package.scala
+    errno.ETIMEDOUT,
+    errno.ECONNREFUSED,
+    errno.EHOSTUNREACH,
+    errno.ECONNRESET,
+    errno.ENETUNREACH,
+    errno.EPIPE,
+}
+
 
 class TransientError(Exception):
     pass
@@ -656,15 +667,7 @@ def is_transient_error(e):
     if (isinstance(e, aiohttp.ClientPayloadError)
             and e.args[0] == "Response payload is not completed"):
         return True
-    if (isinstance(e, OSError)
-            and e.errno in (errno.ETIMEDOUT,
-                            errno.ECONNREFUSED,
-                            errno.EHOSTUNREACH,
-                            errno.ECONNRESET,
-                            errno.ENETUNREACH,
-                            errno.EPIPE,
-                            errno.ETIMEDOUT
-                            )):
+    if isinstance(e, OSError) and e.errno in RETRYABLE_ERRNOS:
         return True
     if isinstance(e, aiohttp.ClientOSError):
         # aiohttp/client_reqrep.py wraps all OSError instances with a ClientOSError
@@ -695,6 +698,9 @@ def is_transient_error(e):
         if e.status == 500 and 'Permission "artifactregistry.repositories.downloadArtifacts" denied on resource' in e.message:
             return False
         if e.status == 500 and 'denied: retrieving permissions failed' in e.message:
+            return False
+        # DockerError(500, "Head https://gcr.io/v2/genomics-tools/samtools/manifests/latest: unknown: Project 'project:genomics-tools' not found or deleted.")
+        if e.status == 500 and 'not found or deleted' in e.message:
             return False
         return e.status in RETRYABLE_HTTP_STATUS_CODES
     if isinstance(e, TransientError):

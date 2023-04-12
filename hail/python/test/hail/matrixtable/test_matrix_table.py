@@ -1287,8 +1287,6 @@ class Tests(unittest.TestCase):
         rt_one_sided = mt_one_sided.rows()
         self.assertTrue(rt_one_sided.all(rt_one_sided.hw == rt_one_sided.hw2))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_write_stage_locally(self):
         mt = self.get_mt()
         f = new_temp_file(extension='mt')

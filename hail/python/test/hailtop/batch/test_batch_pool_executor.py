@@ -1,9 +1,7 @@
 import asyncio
 import concurrent.futures
 import time
-import os
 
-import hailtop.batch_client.client
 import pytest
 
 from hailtop.batch import BatchPoolExecutor, ServiceBackend

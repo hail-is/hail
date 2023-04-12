@@ -7,7 +7,7 @@ from hail.expr import construct_expr
 from hail.expr.types import tint32
 from hail.utils.java import Env
 from hail.utils import new_temp_file
-from .helpers import *
+from test.hail.helpers import *
 
 
 class ValueIRTests(unittest.TestCase):
@@ -212,7 +212,18 @@ class TableIRTests(unittest.TestCase):
             ir.TableToTableApply(table_read, {'name': 'TableFilterPartitions', 'parts': [0], 'keep': True}),
             ir.BlockMatrixToTableApply(block_matrix_read, aa, {'name': 'PCRelate', 'maf': 0.01, 'blockSize': 4096}),
             ir.TableFilterIntervals(table_read, [hl.utils.Interval(hl.utils.Struct(row_idx=0), hl.utils.Struct(row_idx=10))], hl.tstruct(row_idx=hl.tint32), keep=False),
-            ir.TableMapPartitions(table_read, 'glob', 'rows', ir.Ref('rows', hl.tstream(table_read_row_type)))
+            ir.TableMapPartitions(table_read, 'glob', 'rows', ir.Ref('rows', hl.tstream(table_read_row_type)), 0, 1),
+            ir.TableGen(
+                contexts=ir.StreamRange(ir.I32(0), ir.I32(10), ir.I32(1)),
+                globals=ir.MakeStruct([]),
+                cname="contexts",
+                gname="globals",
+                body=ir.ToStream(ir.MakeArray([ir.MakeStruct([('a', ir.I32(1))])], type=None)),
+                partitioner=ir.Partitioner(
+                    hl.tstruct(a=hl.tint),
+                    [hl.Interval(hl.Struct(a=1), hl.Struct(a=2), True, True)]
+                )
+            )
         ]
 
         return table_irs
@@ -225,10 +236,6 @@ class TableIRTests(unittest.TestCase):
 
 class MatrixIRTests(unittest.TestCase):
     def matrix_irs(self):
-        hl.index_bgen(resource('example.8bits.bgen'),
-                      reference_genome=hl.get_reference('GRCh37'),
-                      contig_recoding={'01': '1'})
-
         collect = ir.MakeStruct([('x', ir.ApplyAggOp('Collect', [], [ir.I32(0)]))])
 
         matrix_read = ir.MatrixRead(
@@ -417,6 +424,27 @@ class CSETests(unittest.TestCase):
                 ' (Ref __cse_1)'
                 ' (Ref __cse_1)))')
         assert expected == CSERenderer()(x)
+
+    def test_cse_debug(self):
+        x = hl.nd.array([0, 1])
+        y = hl.tuple((x, x))
+        dlen = y[0]
+        hl.eval(hl.tuple([hl.if_else(dlen[0] > 1, 1, 1), hl.if_else(dlen[0] > 1, hl.nd.array([0]), dlen)]))
+
+    def test_cse_complex_lifting(self):
+        x = ir.I32(5)
+        sum = ir.ApplyBinaryPrimOp('+', x, x)
+        prod = ir.ApplyBinaryPrimOp('*', sum, sum)
+        cond = ir.If(ir.ApplyComparisonOp('EQ', prod, x), sum, x)
+        expected = (
+            '(Let __cse_1 (I32 5)'
+            ' (Let __cse_2 (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))'
+             ' (If (ApplyComparisonOp EQ (ApplyBinaryPrimOp `*` (Ref __cse_2) (Ref __cse_2)) (Ref __cse_1))'
+              ' (Let __cse_3 (I32 5)'
+               ' (ApplyBinaryPrimOp `+` (Ref __cse_3) (Ref __cse_3)))'
+              ' (I32 5))))'
+        )
+        assert expected == CSERenderer()(cond)
 
     def test_stream_cse(self):
         x = ir.StreamRange(ir.I32(0), ir.I32(10), ir.I32(1))

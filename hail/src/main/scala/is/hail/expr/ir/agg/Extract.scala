@@ -32,6 +32,7 @@ object AggStateSig {
       case Min() | Max()  => TypedStateSig(seqVTypes.head.setRequired(false))
       case Count() => TypedStateSig(VirtualTypeWithReq.fullyOptional(TInt64).setRequired(true))
       case Take() => TakeStateSig(seqVTypes.head)
+      case ReservoirSample() => ReservoirSampleStateSig(seqVTypes.head)
       case Densify() => DensifyStateSig(seqVTypes.head)
       case TakeBy(reverse) =>
         val Seq(vt, kt) = seqVTypes
@@ -61,6 +62,7 @@ object AggStateSig {
     case TypedStateSig(vt) => new TypedRegionBackedAggState(vt, cb)
     case DownsampleStateSig(labelType) => new DownsampleState(cb, labelType)
     case TakeStateSig(vt) => new TakeRVAS(vt, cb)
+    case ReservoirSampleStateSig(vt) => new ReservoirSampleRVAS(vt, cb)
     case DensifyStateSig(vt) => new DensifyState(vt, cb)
     case TakeByStateSig(vt, kt, so) => new TakeByRVAS(vt, kt, cb, so)
     case CollectStateSig(pt) => new CollectAggState(pt, cb)
@@ -86,6 +88,7 @@ case class TypedStateSig(pt: VirtualTypeWithReq) extends AggStateSig(Array(pt), 
 case class DownsampleStateSig(labelType: VirtualTypeWithReq) extends AggStateSig(Array(labelType), None)
 case class TakeStateSig(pt: VirtualTypeWithReq) extends AggStateSig(Array(pt), None)
 case class TakeByStateSig(vt: VirtualTypeWithReq, kt: VirtualTypeWithReq, so: SortOrder) extends AggStateSig(Array(vt, kt), None)
+case class ReservoirSampleStateSig(pt: VirtualTypeWithReq) extends AggStateSig(Array(pt), None)
 case class DensifyStateSig(vt: VirtualTypeWithReq) extends AggStateSig(Array(vt), None)
 case class CollectStateSig(pt: VirtualTypeWithReq) extends AggStateSig(Array(pt), None)
 case class CollectAsSetStateSig(pt: VirtualTypeWithReq) extends AggStateSig(Array(pt), None)
@@ -345,6 +348,7 @@ object Extract {
     case AggSignature(Max(), _, Seq(t)) => t
     case AggSignature(Count(), _, _) => TInt64
     case AggSignature(Take(), _, Seq(t)) => TArray(t)
+    case AggSignature(ReservoirSample(), _, Seq(t)) => TArray(t)
     case AggSignature(CallStats(), _, _) => CallStatsState.resultPType.virtualType
     case AggSignature(TakeBy(_), _, Seq(value, key)) => TArray(value)
     case AggSignature(PrevNonnull(), _, Seq(t)) => t
@@ -370,6 +374,7 @@ object Extract {
     case PhysicalAggSig(Count(), TypedStateSig(_)) => CountAggregator
     case PhysicalAggSig(Take(), TakeStateSig(t)) => new TakeAggregator(t)
     case PhysicalAggSig(TakeBy(_), TakeByStateSig(v, k, _)) => new TakeByAggregator(v, k)
+    case PhysicalAggSig(ReservoirSample(), ReservoirSampleStateSig(t)) => new ReservoirSampleAggregator(t)
     case PhysicalAggSig(Densify(), DensifyStateSig(v)) => new DensifyAggregator(v)
     case PhysicalAggSig(CallStats(), CallStatsStateSig()) => new CallStatsAggregator()
     case PhysicalAggSig(Collect(), CollectStateSig(t)) => new CollectAggregator(t)

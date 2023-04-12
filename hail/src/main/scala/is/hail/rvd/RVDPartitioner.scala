@@ -22,7 +22,7 @@ class RVDPartitioner(
   // assert(rangeBounds.forall(SafeRow.isSafe))
 
   override def toString: String =
-    s"RVDPartitioner($kType, ${rangeBounds.mkString("[", ",\n", "]")})"
+    s"RVDPartitioner($kType),\n  partitions:\n    ${rangeBounds.mkString(",\n    ")}"
 
   def this(
     sm: HailStateManager,
@@ -69,7 +69,7 @@ class RVDPartitioner(
       Some(Interval(rangeBounds.head.left, rangeBounds.last.right))
 
   def satisfiesAllowedOverlap(testAllowedOverlap: Int): Boolean =
-    RVDPartitioner.isValid(sm, kType, rangeBounds, testAllowedOverlap)
+    (testAllowedOverlap >= kType.size) || RVDPartitioner.isValid(sm, kType, rangeBounds, testAllowedOverlap)
 
   def isStrict: Boolean = satisfiesAllowedOverlap(kType.size - 1)
 
@@ -130,7 +130,13 @@ class RVDPartitioner(
     }
   }
 
-  def strictify: RVDPartitioner = extendKey(kType)
+  def strictify(allowedOverlap: Int = kType.size - 1): RVDPartitioner = {
+    if (satisfiesAllowedOverlap(allowedOverlap))
+      this
+    else
+      coarsen(allowedOverlap+1)
+        .extendKey(kType)
+  }
 
   // Adjusts 'rangeBounds' so that 'satisfiesAllowedOverlap(kType.size - 1)'
   // holds, then changes key type to 'newKType'. If 'newKType' is 'kType', still
@@ -403,7 +409,7 @@ object RVDPartitioner {
     sm: HailStateManager,
     kType: TStruct,
     rangeBounds: IndexedSeq[Interval],
-    allowedOverlap: Int
+    allowedOverlap: Int,
   ): Boolean = {
     rangeBounds.isEmpty ||
       rangeBounds.zip(rangeBounds.tail).forall { case (left: Interval, right: Interval) =>

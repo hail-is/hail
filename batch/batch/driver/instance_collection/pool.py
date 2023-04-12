@@ -127,7 +127,6 @@ WHERE removed = 0 AND inst_coll = %s;
         self.worker_cores = config.worker_cores
         self.worker_local_ssd_data_disk = config.worker_local_ssd_data_disk
         self.worker_external_ssd_data_disk_size_gb = config.worker_external_ssd_data_disk_size_gb
-        self.enable_standing_worker = config.enable_standing_worker
         self.standing_worker_cores = config.standing_worker_cores
         self.boot_disk_size_gb = config.boot_disk_size_gb
         self.data_disk_size_gb = config.data_disk_size_gb
@@ -138,6 +137,7 @@ WHERE removed = 0 AND inst_coll = %s;
         self.standing_worker_max_idle_time_secs = config.standing_worker_max_idle_time_secs
         self.worker_max_idle_time_secs = config.worker_max_idle_time_secs
         self.job_queue_scheduling_window_secs = config.job_queue_scheduling_window_secs
+        self.min_instances = config.min_instances
         self.label = config.label
 
         self.all_supported_regions = self.inst_coll_manager.regions
@@ -157,8 +157,8 @@ WHERE removed = 0 AND inst_coll = %s;
             'boot_disk_size_gb': self.boot_disk_size_gb,
             'worker_local_ssd_data_disk': self.worker_local_ssd_data_disk,
             'worker_external_ssd_data_disk_size_gb': self.worker_external_ssd_data_disk_size_gb,
-            'enable_standing_worker': self.enable_standing_worker,
             'standing_worker_cores': self.standing_worker_cores,
+            'min_instances': self.min_instances,
             'max_instances': self.max_instances,
             'max_live_instances': self.max_live_instances,
             'preemptible': self.preemptible,
@@ -178,11 +178,11 @@ WHERE removed = 0 AND inst_coll = %s;
         self.worker_cores = pool_config.worker_cores
         self.worker_local_ssd_data_disk = pool_config.worker_local_ssd_data_disk
         self.worker_external_ssd_data_disk_size_gb = pool_config.worker_external_ssd_data_disk_size_gb
-        self.enable_standing_worker = pool_config.enable_standing_worker
         self.standing_worker_cores = pool_config.standing_worker_cores
         self.boot_disk_size_gb = pool_config.boot_disk_size_gb
         self.data_disk_size_gb = pool_config.data_disk_size_gb
         self.data_disk_size_standing_gb = pool_config.data_disk_size_standing_gb
+        self.min_instances = pool_config.min_instances
         self.max_instances = pool_config.max_instances
         self.max_live_instances = pool_config.max_live_instances
         self.preemptible = pool_config.preemptible
@@ -257,17 +257,24 @@ WHERE removed = 0 AND inst_coll = %s;
         )
         return max(0, instances_needed)
 
-    async def _create_instances(self, n_instances: int, regions: List[str]):
+    async def _create_instances(
+        self,
+        n_instances: int,
+        cores: int,
+        data_disk_size_gb: int,
+        regions: List[str],
+        max_idle_time_msecs: int,
+    ):
         if n_instances > 0:
             log.info(f'creating {n_instances} new instances')
             # parallelism will be bounded by thread pool
             await asyncio.gather(
                 *[
                     self.create_instance(
-                        cores=self.worker_cores,
-                        data_disk_size_gb=self.data_disk_size_gb,
+                        cores=cores,
+                        data_disk_size_gb=data_disk_size_gb,
                         regions=regions,
-                        max_idle_time_msecs=self.worker_max_idle_time_secs * 1000,
+                        max_idle_time_msecs=max_idle_time_msecs,
                     )
                     for _ in range(n_instances)
                 ]
@@ -282,7 +289,13 @@ WHERE removed = 0 AND inst_coll = %s;
             remaining_max_new_instances_per_autoscaler_loop,
         )
 
-        await self._create_instances(instances_needed, regions)
+        await self._create_instances(
+            instances_needed,
+            self.worker_cores,
+            self.data_disk_size_gb,
+            regions,
+            max_idle_time_msecs=self.worker_max_idle_time_secs * 1000,
+        )
         return instances_needed
 
     async def regions_to_ready_cores_mcpu_from_estimated_job_queue(self) -> List[Tuple[List[str], int]]:
@@ -409,7 +422,9 @@ GROUP BY user;
         if head_job_queue_regions_ready_cores_mcpu_ordered and free_cores < 500:
             for regions, ready_cores_mcpu in head_job_queue_regions_ready_cores_mcpu_ordered:
                 n_instances_created = await self.create_instances_from_ready_cores(
-                    ready_cores_mcpu, regions, remaining_instances_per_autoscaler_loop
+                    ready_cores_mcpu,
+                    regions,
+                    remaining_instances_per_autoscaler_loop,
                 )
 
                 n_regions = len(regions)
@@ -421,13 +436,28 @@ GROUP BY user;
                     break
 
         n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
-        if self.enable_standing_worker and n_live_instances == 0 and self.max_instances > 0:
-            await self.create_instance(
-                cores=self.standing_worker_cores,
-                data_disk_size_gb=self.data_disk_size_standing_gb,
-                regions=self.all_supported_regions,
-                max_idle_time_msecs=self.standing_worker_max_idle_time_secs * 1000,
+
+        capacity_for_live_instances = max(0, self.max_live_instances - n_live_instances)
+        capacity_for_any_instances = max(0, self.max_instances - self.n_instances)
+
+        capacity_for_new_instances = min(capacity_for_live_instances, capacity_for_any_instances)
+        n_instances_to_meet_shortfall = max(0, self.min_instances - self.n_instances)
+
+        if capacity_for_new_instances > 0 and n_instances_to_meet_shortfall > 0:
+            n_standing_instances_to_provision = min(
+                capacity_for_new_instances,
+                n_instances_to_meet_shortfall,
+                remaining_instances_per_autoscaler_loop,
+                300,  # 20 queries/s; our GCE long-run quota
             )
+            if n_standing_instances_to_provision > 0:
+                await self._create_instances(
+                    n_instances=n_standing_instances_to_provision,
+                    cores=self.standing_worker_cores,
+                    data_disk_size_gb=self.data_disk_size_standing_gb,
+                    regions=self.all_supported_regions,
+                    max_idle_time_msecs=self.standing_worker_max_idle_time_secs * 1000,
+                )
 
         log.info(
             f'{self} n_instances {self.n_instances} {self.n_instances_by_state}'

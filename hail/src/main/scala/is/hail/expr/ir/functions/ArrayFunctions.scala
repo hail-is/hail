@@ -55,7 +55,7 @@ object ArrayFunctions extends RegistryFunctions {
       If(IsNA(a2),
         NA(typ),
         ToArray(StreamFlatMap(
-          MakeStream(Seq(a1, a2), TStream(typ)),
+          MakeStream(FastIndexedSeq(a1, a2), TStream(typ)),
           uid,
           ToStream(Ref(uid, a1.typ))))))
   }
@@ -101,7 +101,7 @@ object ArrayFunctions extends RegistryFunctions {
     registerIR2("extend", TArray(tv("T")), TArray(tv("T")), TArray(tv("T")))((_, a, b, _) => extend(a, b))
 
     registerIR2("append", TArray(tv("T")), tv("T"), TArray(tv("T"))) { (_, a, c, _) =>
-      extend(a, MakeArray(Seq(c), TArray(c.typ)))
+      extend(a, MakeArray(FastIndexedSeq(c), TArray(c.typ)))
     }
 
     registerIR2("contains", TArray(tv("T")), tv("T"), TBoolean) { (_, a, e, _) => contains(a, e) }

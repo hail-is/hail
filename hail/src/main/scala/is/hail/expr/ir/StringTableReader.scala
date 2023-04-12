@@ -65,6 +65,7 @@ case class StringTablePartitionReader(lines: GenericLines, uidFieldName: String)
   override def emitStream(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
+    mb: EmitMethodBuilder[_],
     context: EmitCode,
     requestedType: TStruct
   ): IEmitCode = {
@@ -74,15 +75,15 @@ case class StringTablePartitionReader(lines: GenericLines, uidFieldName: String)
       Array(EmitType(SInt64, true), EmitType(SInt64, true)))
 
     context.toI(cb).map(cb) { case partitionContext: SBaseStructValue =>
-      val iter = cb.emb.genFieldThisRef[CloseableIterator[GenericLine]]("string_table_reader_iter")
+      val iter = mb.genFieldThisRef[CloseableIterator[GenericLine]]("string_table_reader_iter")
 
-      val fileName = cb.emb.genFieldThisRef[String]("fileName")
-      val line = cb.emb.genFieldThisRef[String]("line")
-      val partIdx = cb.emb.genFieldThisRef[Long]("partitionIdx")
-      val rowIdx = cb.emb.genFieldThisRef[Long]("rowIdx")
+      val fileName = mb.genFieldThisRef[String]("fileName")
+      val line = mb.genFieldThisRef[String]("line")
+      val partIdx = mb.genFieldThisRef[Long]("partitionIdx")
+      val rowIdx = mb.genFieldThisRef[Long]("rowIdx")
 
       SStreamValue(new StreamProducer {
-        override def method: EmitMethodBuilder[_] = cb.emb
+        override def method: EmitMethodBuilder[_] = mb
         override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
         override def initialize(cb: EmitCodeBuilder, partitionRegion: Value[Region]): Unit = {
@@ -99,11 +100,11 @@ case class StringTablePartitionReader(lines: GenericLines, uidFieldName: String)
         }
 
         override val elementRegion: Settable[Region] =
-          cb.emb.genFieldThisRef[Region]("string_table_reader_region")
+          mb.genFieldThisRef[Region]("string_table_reader_region")
 
         override val requiresMemoryManagementPerElement: Boolean = true
 
-        override val LproduceElement: CodeLabel = cb.emb.defineAndImplementLabel { cb =>
+        override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
           val hasNext = iter.invoke[Boolean]("hasNext")
           cb.ifx(hasNext, {
             val gLine = iter.invoke[GenericLine]("next")
@@ -169,7 +170,7 @@ class StringTableReader(
 
   override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
     val ts = lower(ctx, requestedType)
-    val (broadCastRow, rvd) = TableStageToRVD.apply(ctx, ts, Map[String, IR]())
+    val (broadCastRow, rvd) = TableStageToRVD.apply(ctx, ts)
     TableValue(ctx, requestedType, broadCastRow, rvd)
   }
 

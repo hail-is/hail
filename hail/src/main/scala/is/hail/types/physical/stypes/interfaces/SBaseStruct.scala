@@ -44,8 +44,12 @@ trait SBaseStruct extends SType {
 
   def _typeWithRequiredness: TypeWithRequiredness = {
     virtualType match {
-      case ts: TStruct => RStruct(ts.fieldNames.zip(fieldEmitTypes).map { case (name, et) => (name, et.typeWithRequiredness.r) })
-      case tt: TTuple => RTuple(tt.fields.zip(fieldEmitTypes).map { case (f, et) => RField(f.name, et.typeWithRequiredness.r, f.index) })
+      case ts: TStruct => RStruct.fromNamesAndTypes(ts.fieldNames.zip(fieldEmitTypes).map {
+        case (name, et) => (name, et.typeWithRequiredness.r)
+      })
+      case tt: TTuple => RTuple.fromNamesAndTypes(tt._types.zip(fieldEmitTypes).map {
+        case (f, et) => (f.index.toString, et.typeWithRequiredness.r)
+      })
     }
   }
 }

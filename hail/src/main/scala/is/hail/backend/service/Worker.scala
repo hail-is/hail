@@ -160,7 +160,7 @@ object Worker {
     } else {
       HailContext(
         // FIXME: workers should not have backends, but some things do need hail contexts
-        new ServiceBackend(null, null, new HailClassLoader(getClass().getClassLoader()), null, None), skipLoggingConfiguration = true, quiet = true)
+        new ServiceBackend(null, null, new HailClassLoader(getClass().getClassLoader()), null, None))
     }
     val htc = new ServiceTaskContext(i)
     var result: Array[Byte] = null

@@ -25,11 +25,11 @@ apt-get update
 apt-get install -y --allow-unauthenticated docker-ce
 
 # Get VEP cache and LOFTEE data
-gsutil -u $PROJECT cp gs://hail-us-vep/vep95-GRCh38-loftee-gcloud.json /vep_data/vep95-GRCh38-gcloud.json
+gcloud storage cp --billing-project $PROJECT gs://hail-us-vep/vep95-GRCh38-loftee-gcloud.json /vep_data/vep95-GRCh38-gcloud.json
 ln -s /vep_data/vep95-GRCh38-gcloud.json $VEP_CONFIG_PATH
 
-gsutil -u $PROJECT cat gs://${VEP_BUCKET}/loftee-beta/${ASSEMBLY}.tar | tar -xf - -C /vep_data/ &
-gsutil -u $PROJECT cat gs://${VEP_BUCKET}/homo-sapiens/95_${ASSEMBLY}.tar | tar -xf - -C /vep_data/homo_sapiens
+gcloud storage cat --billing-project $PROJECT gs://${VEP_BUCKET}/loftee-beta/${ASSEMBLY}.tar | tar -xf - -C /vep_data/ &
+gcloud storage cat --billing-project $PROJECT gs://${VEP_BUCKET}/homo-sapiens/95_${ASSEMBLY}.tar | tar -xf - -C /vep_data/homo_sapiens
 docker pull ${VEP_DOCKER_IMAGE} &
 wait
 

@@ -12,7 +12,7 @@ class UtilFunctionsSuite extends HailSuite {
   val na = NA(TBoolean)
   val die = Die("it ded", TBoolean)
   val folded = StreamFold(
-    MakeStream(Seq(true), TStream(TBoolean)),
+    MakeStream(IndexedSeq(true), TStream(TBoolean)),
     die, "a", "e",
     Ref("a", TBoolean) || Ref("e", TBoolean))
 

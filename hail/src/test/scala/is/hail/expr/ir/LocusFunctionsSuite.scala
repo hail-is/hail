@@ -58,7 +58,7 @@ class LocusFunctionsSuite extends HailSuite {
   }
 
   @Test def minRep() {
-    val alleles = MakeArray(Seq(Str("AA"), Str("AT")), TArray(TString))
+    val alleles = MakeArray(FastIndexedSeq(Str("AA"), Str("AT")), TArray(TString))
     assertEvalsTo(invoke("min_rep", tvariant, locusIR, alleles), Row(Locus("chr22", 2), FastIndexedSeq("A", "T")))
     assertEvalsTo(invoke("min_rep", tvariant, locusIR, NA(TArray(TString))), null)
   }

@@ -48,9 +48,7 @@ case object LiftRelationalValuesToRelationalLets extends LoweringPass {
   val after: IRState = MatrixLoweredToTable
   val context: String = "LiftRelationalValuesToRelationalLets"
 
-  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = ir match {
-    case x: IR => LiftRelationalValues(x)
-  }
+  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LiftRelationalValues(ir)
 }
 
 case object LegacyInterpretNonCompilablePass extends LoweringPass {
@@ -118,7 +116,7 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
 
         if (newNode.typ != x.typ)
           throw new RuntimeException(s"types differ:\n  new: ${newNode.typ}\n  old: ${x.typ}")
-        Some(newNode)
+        Some(newNode.noSharing)
       case x@StreamAggScan(a, name, query) =>
         val res = genUID()
         val aggs = Extract(query, res, r, isScan=true)
@@ -134,8 +132,28 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
         }
         if (newNode.typ != x.typ)
           throw new RuntimeException(s"types differ:\n  new: ${ newNode.typ }\n  old: ${ x.typ }")
-        Some(newNode)
+        Some(newNode.noSharing)
       case _ => None
     })
+  }
+}
+
+case class EvalRelationalLetsPass(passesBelow: LoweringPipeline) extends LoweringPass {
+  val before: IRState = MatrixLoweredToTable
+  val after: IRState = before + NoRelationalLetsState
+  val context: String = "EvalRelationalLets"
+
+  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
+    EvalRelationalLets(ir, ctx, passesBelow)
+  }
+}
+
+case class LowerAndExecuteShufflesPass(passesBelow: LoweringPipeline) extends LoweringPass {
+  val before: IRState = NoRelationalLetsState + MatrixLoweredToTable
+  val after: IRState = before + LoweredShuffles
+  val context: String = "LowerAndExecuteShuffles"
+
+  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
+    LowerAndExecuteShuffles(ir, ctx, passesBelow)
   }
 }

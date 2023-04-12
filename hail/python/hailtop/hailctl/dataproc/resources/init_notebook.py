@@ -66,7 +66,7 @@ if role == 'Master':
     wheel_name = wheel_path.split('/')[-1]
 
     print('copying wheel')
-    safe_call('gsutil', 'cp', wheel_path, f'/home/hail/{wheel_name}')
+    safe_call('gcloud', 'storage', 'cp', wheel_path, f'/home/hail/{wheel_name}')
 
     safe_call('pip', 'install', '--no-dependencies', f'/home/hail/{wheel_name}')
 
@@ -174,9 +174,9 @@ if role == 'Master':
         f.write('\n'.join(opts) + '\n')
 
     print('copying spark monitor')
-    spark_monitor_gs = 'gs://hail-common/sparkmonitor-3357488112c6c162c12f8386faaadcbf3789ac02/sparkmonitor-0.0.12-py3-none-any.whl'
+    spark_monitor_gs = 'gs://hail-common/sparkmonitor-c1289a19ac117336fec31ec08a2b13afe7e420cf/sparkmonitor-0.0.12-py3-none-any.whl'
     spark_monitor_wheel = '/home/hail/' + spark_monitor_gs.split('/')[-1]
-    safe_call('gsutil', 'cp', spark_monitor_gs, spark_monitor_wheel)
+    safe_call('gcloud', 'storage', 'cp', spark_monitor_gs, spark_monitor_wheel)
     safe_call('pip', 'install', spark_monitor_wheel)
 
     # setup jupyter-spark extension

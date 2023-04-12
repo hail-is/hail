@@ -351,7 +351,7 @@ SET failed_request_count = failed_request_count + 1 WHERE name = %s;
         return time_msecs_str(self.time_created)
 
     def last_updated_str(self):
-        return humanize.naturaldelta(datetime.timedelta(milliseconds=(time_msecs() - self.last_updated)))
+        return humanize.naturaldelta(datetime.timedelta(milliseconds=time_msecs() - self.last_updated))
 
     @property
     def region(self):

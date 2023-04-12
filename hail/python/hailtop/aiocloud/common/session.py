@@ -23,6 +23,9 @@ class BaseSession(abc.ABC):
     async def put(self, url: str, **kwargs) -> aiohttp.ClientResponse:
         return await self.request('PUT', url, **kwargs)
 
+    async def patch(self, url: str, **kwargs) -> aiohttp.ClientResponse:
+        return await self.request('PATCH', url, **kwargs)
+
     async def delete(self, url: str, **kwargs) -> aiohttp.ClientResponse:
         return await self.request('DELETE', url, **kwargs)
 
@@ -73,9 +76,10 @@ class Session(BaseSession):
             kwargs['raise_for_status'] = True
         self._params = params
         if http_session is not None:
-            assert len(kwargs) == 0
+            self._owns_http_session = False
             self._http_session = http_session
         else:
+            self._owns_http_session = True
             self._http_session = httpx.ClientSession(**kwargs)
         self._credentials = credentials
 
@@ -104,7 +108,7 @@ class Session(BaseSession):
         return await self._http_session.request(method, url, **kwargs)
 
     async def close(self) -> None:
-        if hasattr(self, '_http_session'):
+        if hasattr(self, '_http_session') and self._owns_http_session:
             await self._http_session.close()
             del self._http_session
 

@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.Pretty.prettyBooleanLiteral
@@ -11,6 +10,7 @@ import is.hail.types.virtual.{TArray, TInterval, TStream, Type}
 import is.hail.utils.prettyPrint._
 import is.hail.utils.richUtils.RichIterable
 import is.hail.utils.{space => _, _}
+import org.json4s.DefaultFormats
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.collection.mutable
@@ -346,8 +346,6 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     case TableKeyBy(_, keys, isSorted) =>
       FastSeq(prettyIdentifiers(keys), Pretty.prettyBooleanLiteral(isSorted))
     case TableRange(n, nPartitions) => FastSeq(n.toString, nPartitions.toString)
-    case TableGenomicRange(n, nPartitions, referenceGenome) => FastSeq(
-      n.toString, nPartitions.toString, referenceGenome.getOrElse("None").toString)
     case TableRepartition(_, n, strategy) => FastSeq(n.toString, strategy.toString)
     case TableHead(_, n) => single(n.toString)
     case TableTail(_, n) => single(n.toString)
@@ -360,7 +358,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     case TableKeyByAndAggregate(_, _, _, nPartitions, bufferSize) =>
       FastSeq(prettyIntOpt(nPartitions), bufferSize.toString)
     case TableExplode(_, path) => single(prettyStrings(path))
-    case TableMapPartitions(_, g, p, _) => FastSeq(prettyIdentifier(g), prettyIdentifier(p))
+    case TableMapPartitions(_, g, p, _, requestedKey, allowedOverlap) => FastSeq(prettyIdentifier(g), prettyIdentifier(p), requestedKey.toString, allowedOverlap.toString)
     case TableParallelize(_, nPartitions) => single(prettyIntOpt(nPartitions))
     case TableOrderBy(_, sortFields) => single(prettySortFields(sortFields))
     case CastMatrixToTable(_, entriesFieldName, colsFieldName) =>
@@ -381,6 +379,17 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
       single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
     case BlockMatrixToTableApply(_, _, function) =>
       single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
+    case TableGen(_, _, cname, gname, _, partitioner, errorId) =>
+      implicit val jsonFormats = DefaultFormats
+      FastSeq(
+        prettyIdentifier(cname),
+        prettyIdentifier(gname),
+        {
+          val boundsJson = Serialization.write(partitioner.rangeBounds.map(_.toJSON(partitioner.kType.toJSON)))
+          list("Partitioner " + partitioner.kType.parsableString() + prettyStringLiteral(boundsJson))
+        },
+        text(errorId.toString)
+      )
     case TableRename(_, rowMap, globalMap) =>
       val rowKV = rowMap.toArray
       val globalKV = globalMap.toArray
@@ -419,7 +428,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
       single(prettyStringLiteral(JsonMethods.compact(writer.toJValue), elide = elideLiterals))
     case ReadValue(_, spec, reqType) =>
       FastSeq(prettyStringLiteral(spec.toString), reqType.parsableString())
-    case WriteValue(_, _, spec) => single(prettyStringLiteral(spec.toString))
+    case WriteValue(_, _, spec, _) => single(prettyStringLiteral(spec.toString))
     case MakeNDArray(_, _, _, errorId) => FastSeq(errorId.toString)
 
     case _ => Iterable.empty
@@ -546,7 +555,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
         if (i == 1 || i == 2)
           Some(Array("global" -> "g", "row" -> "row"))
         else None
-      case TableMapPartitions(child, g, p, _) =>
+      case TableMapPartitions(child, g, p, _, _, _) =>
         if (i == 1) Some(Array(g -> "g", p -> "part")) else None
       case MatrixMapRows(child, _) =>
         if (i == 1) Some(Array("global" -> "g", "va" -> "row", "sa" -> "col", "g" -> "entry", "n_cols" -> "n_cols")) else None
