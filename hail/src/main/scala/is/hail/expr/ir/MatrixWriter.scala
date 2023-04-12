@@ -50,7 +50,7 @@ case class WrappedMatrixWriter(writer: MatrixWriter,
   entriesFieldName: String,
   colKey: IndexedSeq[String]) extends TableWriter {
   def path: String = writer.path
-  def apply(ctx: ExecuteContext, tv: TableValue): Unit = writer(ctx, tv.toMatrixValue(colKey, colsFieldName, entriesFieldName))
+
   override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR =
     writer.lower(colsFieldName, entriesFieldName, colKey, ctx, ts, r)
 

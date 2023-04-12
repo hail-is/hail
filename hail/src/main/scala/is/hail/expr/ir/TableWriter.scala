@@ -40,7 +40,11 @@ object TableWriter {
 
 abstract class TableWriter {
   def path: String
-  def apply(ctx: ExecuteContext, mv: TableValue): Unit
+  def apply(ctx: ExecuteContext, tv: TableValue): Unit = {
+    val tableStage = TableValueIntermediate(tv).asTableStage(ctx)
+    CompileAndEvaluate(ctx, lower(ctx, tableStage, RTable.fromTableStage(ctx, tableStage)))
+  }
+
   def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR =
     throw new LowererUnsupportedOperation(s"${ this.getClass } does not have defined lowering!")
 
@@ -107,11 +111,6 @@ case class TableNativeWriter(
     val globalSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(ts.globalType, r.globalType), ts.globalType, bufferSpec)
 
     TableNativeWriter.lower(ctx, ts, path, overwrite, stageLocally, rowSpec, globalSpec)
-  }
-
-  def apply(ctx: ExecuteContext, tv: TableValue): Unit = {
-    val tableStage = TableValueIntermediate(tv).asTableStage(ctx)
-    CompileAndEvaluate(ctx, lower(ctx, tableStage, RTable.fromTableStage(ctx, tableStage)))
   }
 }
 
@@ -442,8 +441,6 @@ case class TableTextWriter(
   exportType: String = ExportType.CONCATENATED,
   delimiter: String
 ) extends TableWriter {
-
-  def apply(ctx: ExecuteContext, tv: TableValue): Unit = tv.export(ctx, path, typesFile, header, exportType, delimiter)
 
   override def canLowerEfficiently: Boolean = exportType != ExportType.PARALLEL_COMPOSABLE
   override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
