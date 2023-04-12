@@ -200,11 +200,12 @@ def transform_gvcf(mt, info_to_keep=[]) -> Table:
 def transform_one(mt, info_to_keep=[]) -> Table:
     return transform_gvcf(mt, info_to_keep)
 
+
 def merge_alleles(alleles):
     from hail.expr.functions import _num_allele_type, _allele_ints
     return hl.rbind(
         alleles.map(lambda a: hl.or_else(a[0], ''))
-            .fold(lambda s, t: hl.if_else(hl.len(s) > hl.len(t), s, t), ''),
+               .fold(lambda s, t: hl.if_else(hl.len(s) > hl.len(t), s, t), ''),
         lambda ref:
         hl.rbind(
             alleles.map(
@@ -229,6 +230,7 @@ def merge_alleles(alleles):
             hl.struct(
                 globl=hl.array([ref]).extend(hl.array(hl.set(hl.flatten(lal)).remove(ref))),
                 local=lal)))
+
 
 def combine(ts):
     def renumber_entry(entry, old_to_new) -> StructExpression:
