@@ -399,7 +399,7 @@ object EmitStream {
 
               override val elementRegion: Settable[Region] = region
 
-              override val requiresMemoryManagementPerElement: Boolean = false
+              override val requiresMemoryManagementPerElement: Boolean = childProducer.requiresMemoryManagementPerElement
 
               override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
                 val elementProduceLabel = CodeLabel()
