@@ -59,7 +59,15 @@ case class WrappedMatrixWriter(writer: MatrixWriter,
 
 abstract class MatrixWriter {
   def path: String
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit
+
+  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = {
+    val tv = mv.toTableValue
+    val ts = TableExecuteIntermediate(tv).asTableStage(ctx)
+    CompileAndEvaluate(ctx, lower(LowerMatrixIR.colsFieldName, MatrixType.entriesIdentifier,
+      mv.typ.colKey, ctx, ts, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable]
+    ))
+  }
+
   def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
     ctx: ExecuteContext, ts: TableStage, r: RTable): IR =
     throw new LowererUnsupportedOperation(s"${ this.getClass } does not have defined lowering!")
@@ -76,9 +84,8 @@ case class MatrixNativeWriter(
   partitionsTypeStr: String = null,
   checkpointFile: String = null
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = mv.write(ctx, path, overwrite, stageLocally, codecSpecJSONStr, partitions, partitionsTypeStr, checkpointFile)
 
-  def canLowerEfficiently: Boolean = !stageLocally && checkpointFile == null
+  def canLowerEfficiently: Boolean = checkpointFile == null
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
     ctx: ExecuteContext, tablestage: TableStage, r: RTable): IR = {
@@ -423,13 +430,6 @@ case class MatrixVCFWriter(
   metadata: Option[VCFMetadata] = None,
   tabix: Boolean = false
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = {
-    val tv = mv.toTableValue
-    val ts = TableExecuteIntermediate(tv).asTableStage(ctx)
-    CompileAndEvaluate(ctx,
-      lower(LowerMatrixIR.colsFieldName, MatrixType.entriesIdentifier, mv.typ.colKey,
-        ctx, ts, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable]))
-  }
 
   def canLowerEfficiently: Boolean = true
 
@@ -879,13 +879,6 @@ case class MatrixGENWriter(
   path: String,
   precision: Int = 4
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = {
-    val tv = mv.toTableValue
-    val ts = TableExecuteIntermediate(tv).asTableStage(ctx)
-    CompileAndEvaluate(ctx,
-      lower(LowerMatrixIR.colsFieldName, MatrixType.entriesIdentifier, mv.typ.colKey,
-        ctx, ts, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable]))
-  }
 
   def canLowerEfficiently: Boolean = true
 
@@ -1000,14 +993,6 @@ case class MatrixBGENWriter(
   exportType: String,
   compressionCodec: String
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = {
-    val tv = mv.toTableValue
-    val ts = TableExecuteIntermediate(tv).asTableStage(ctx)
-    CompileAndEvaluate(ctx,
-      lower(LowerMatrixIR.colsFieldName, MatrixType.entriesIdentifier, mv.typ.colKey,
-        ctx, ts, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable])
-    )
-  }
 
   def canLowerEfficiently: Boolean = true
 
@@ -1279,14 +1264,6 @@ case class BGENExportFinalizer(typ: MatrixType, path: String, exportType: String
 case class MatrixPLINKWriter(
   path: String
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = {
-    val tv = mv.toTableValue
-    val ts = TableExecuteIntermediate(tv).asTableStage(ctx)
-    CompileAndEvaluate(ctx,
-      lower(LowerMatrixIR.colsFieldName, MatrixType.entriesIdentifier, mv.typ.colKey,
-        ctx, ts, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable])
-    )
-  }
 
   def canLowerEfficiently: Boolean = true
 
@@ -1446,7 +1423,6 @@ case class MatrixBlockMatrixWriter(
   entryField: String,
   blockSize: Int
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = MatrixWriteBlockMatrix(ctx, mv, entryField, path, overwrite, blockSize)
 
   def canLowerEfficiently: Boolean = true
 

@@ -579,8 +579,6 @@ case class TableNativeFanoutWriter(
   stageLocally: Boolean = false,
   codecSpecJSONStr: String = null
 ) extends TableWriter {
-  override def apply(ctx: ExecuteContext, mv: TableValue): Unit =
-    throw new UnsupportedOperationException("TableNativeFanoutWriter only supports lowered execution")
 
   override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
     val partitioner = ts.partitioner
