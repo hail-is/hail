@@ -115,6 +115,7 @@ def test_cancel_left_after_tail(client):
 
 async def test_callback(client):
     import nest_asyncio  # pylint: disable=import-outside-toplevel
+
     nest_asyncio.apply()
 
     app = web.Application()

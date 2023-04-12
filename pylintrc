@@ -17,7 +17,7 @@ ignore=sql
 # C1801 Do not use len(SEQUENCE) as condition value
 # W0221 Parameters differ from overridden method
 
-disable=C0111,W1203,W1202,C0111,R0913,W0622,W0212,W0621,R0914,W0603,R0902,R0801,C1801,W0221,line-too-long,too-few-public-methods,fixme,too-many-function-args,too-many-branches,too-many-lines,too-many-boolean-expressions,too-many-statements,too-many-nested-blocks,wrong-import-order,logging-not-lazy,unnecessary-lambda,unnecessary-lambda-assignment,too-many-public-methods,broad-except,too-many-return-statements,bare-except,invalid-name,unsubscriptable-object,consider-using-f-string,try-except-raise
+disable=C0111,W1203,W1202,C0111,R0913,W0622,W0212,W0621,R0914,W0603,R0902,R0801,C1801,W0221,line-too-long,too-few-public-methods,fixme,too-many-function-args,too-many-branches,too-many-lines,too-many-boolean-expressions,too-many-statements,too-many-nested-blocks,wrong-import-order,logging-not-lazy,unnecessary-lambda,unnecessary-lambda-assignment,too-many-public-methods,broad-except,too-many-return-statements,bare-except,invalid-name,unsubscriptable-object,consider-using-f-string,try-except-raise,unnecessary-dunder-call
 
 [FORMAT]
 # String used as indentation unit. This is usually "    " (4 spaces) or "\t" (1
