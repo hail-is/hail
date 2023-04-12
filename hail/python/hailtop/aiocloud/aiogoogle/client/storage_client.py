@@ -408,15 +408,16 @@ class GoogleStorageClient(GoogleBaseClient):
         await self.post(f'/b/{bucket}/o/{urllib.parse.quote(destination, safe="")}/compose', **kwargs)
 
     def _update_params_with_user_project(self, request_kwargs, bucket):
-        config = self._gcs_requester_pays_configuration
         if 'params' not in request_kwargs:
             request_kwargs['params'] = {}
+        params = request_kwargs['params']
+        config = self._gcs_requester_pays_configuration
         if isinstance(config, str):
-            request_kwargs.update({'userProject': config})
+            params.update({'userProject': config})
         elif isinstance(config, tuple):
             project, buckets = config
             if bucket in buckets:
-                request_kwargs.update({'userProject': project})
+                params.update({'userProject': project})
 
 
 class GetObjectFileStatus(FileStatus):
