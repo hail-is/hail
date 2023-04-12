@@ -3163,7 +3163,7 @@ steps:
   - kind: runImage
     name: deploy_wheel
     image:
-      valueFrom: hail_pip_installed_image.image
+      valueFrom: hailgenetics_hail_image.image
     script: |
       set -ex
       tar xvf /io/wheel-container.tar
@@ -3180,7 +3180,7 @@ steps:
       - dev
     dependsOn:
       - default_ns
-      - hail_pip_installed_image
+      - hailgenetics_hail_image
       - build_hail_jar_and_wheel_only
     clouds:
       - gcp
