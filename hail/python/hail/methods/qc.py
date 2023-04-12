@@ -28,8 +28,8 @@ from .misc import require_biallelic, require_row_key_variant, require_col_key_st
 log = logging.getLogger('methods.qc')
 
 
-HAIL_GENETICS_VEP_GRCH37_85_IMAGE = os.environ.get('HAIL_GENETICS_VEP_GRCH37_85_IMAGE', f'hailgenetics/vep/grch37-85:{pip_version()}')
-HAIL_GENETICS_VEP_GRCH38_95_IMAGE = os.environ.get('HAIL_GENETICS_VEP_GRCH38_95_IMAGE', f'hailgenetics/vep/grch38-95:{pip_version()}')
+HAIL_GENETICS_VEP_GRCH37_85_IMAGE = os.environ.get('HAIL_GENETICS_VEP_GRCH37_85_IMAGE', f'hailgenetics/vep/grch37/85/vep:{pip_version()}')
+HAIL_GENETICS_VEP_GRCH38_95_IMAGE = os.environ.get('HAIL_GENETICS_VEP_GRCH38_95_IMAGE', f'hailgenetics/vep/grch38/95/vep:{pip_version()}')
 
 
 @typecheck(mt=MatrixTable, name=str)
