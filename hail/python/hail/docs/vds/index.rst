@@ -49,6 +49,7 @@ large as 955,000 whole exomes. The :class:`.VariantDatasetCombiner` produces a
     merge_reference_blocks
     lgt_to_gt
     local_to_global
+    store_ref_block_max_len
 
 .. currentmodule:: hail.vds.combiner
 

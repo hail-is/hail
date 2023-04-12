@@ -614,8 +614,9 @@ def _parameterized_filter_intervals(vds: 'VariantDataset',
                                              interval.includes_end))
             reference_data = hl.filter_intervals(reference_data, ref_intervals, keep)
         else:
-            warning("'hl.vds.filter_intervals': filtering intervals when reference blocks have not been truncated"
-                    "\n  (by 'hl.vds.truncate_reference_blocks') requires a full pass over the reference data (expensive!)")
+            warning("'hl.vds.filter_intervals': filtering intervals without a know max reference block length"
+                    "\n  (computed by `hl.vds.store_ref_block_max_length` or 'hl.vds.truncate_reference_blocks')"
+                    "\n  requires a full pass over the reference data (expensive!)")
 
     if mode == 'variants_only':
         variant_data = hl.filter_intervals(vds.variant_data, intervals, keep)
@@ -967,6 +968,11 @@ def truncate_reference_blocks(ds, *, max_ref_block_base_pairs=None,
     stored in the global fields, which permits :func:`.vds.filter_intervals` to filter to intervals of the reference
     data by reading `ref_block_max_length` bases ahead of each interval. This allows narrow interval queries
     to run in roughly O(data kept) work rather than O(all reference data) work.
+
+    See Also
+    --------
+    It is also possible to patch an existing VDS to store the max reference block length with
+    :func:`.vds.store_ref_block_max_len`.
 
     Parameters
     ----------

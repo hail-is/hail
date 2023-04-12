@@ -651,3 +651,20 @@ def test_split_sparse_roundtrip():
     vds_split = hl.vds.split_multi(vds)
     assert vds2.variant_data.select_entries(*vds_split.variant_data.entry)._same(vds_split.variant_data)
     assert vds2.reference_data._same(vds_split.reference_data.drop('ref_allele'))
+
+
+def test_ref_block_max_len_patch():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+    if 'ref_block_max_len' in vds.reference_data.globals:
+        vds.reference_data = vds.reference_data.drop('ref_block_max_len')
+
+    max_rb_len = vds.reference_data.aggregate_entries(
+        hl.agg.max(vds.reference_data.END - vds.reference_data.locus.position + 1))
+    with hl.TemporaryDirectory() as tmpdir:
+        vds_path = os.path.join(tmpdir, 'to_patch.vds')
+        vds.write(vds_path)
+
+        hl.vds.store_ref_block_max_len(vds_path)
+
+        vds2 = hl.vds.read_vds(vds_path)
+        assert hl.eval(vds2.reference_data.index_globals().max_ref_block_len) == max_rb_len
