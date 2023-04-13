@@ -513,7 +513,7 @@ async def rest_get_users(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
     users = await db.select_and_fetchall(
         '''
-SELECT id, username, login_id, state, is_developer, is_service_account FROM users;
+SELECT id, username, login_id, state, is_developer, is_service_account, hail_identity FROM users;
 '''
     )
     return web.json_response([user async for user in users])
@@ -527,7 +527,7 @@ async def rest_get_user(request, userdata):  # pylint: disable=unused-argument
 
     user = await db.select_and_fetchone(
         '''
-SELECT id, username, login_id, state, is_developer, is_service_account FROM users
+SELECT id, username, login_id, state, is_developer, is_service_account, hail_identity FROM users
 WHERE username = %s;
 ''',
         (username,),
