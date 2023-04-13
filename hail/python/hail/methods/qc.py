@@ -522,8 +522,8 @@ class BaseVEPConfig(abc.ABC):
     env: Dict[str, str]
     reference_data_is_bucket_requester_pays: bool
     cloud: str
-    batch_run_command: str
-    batch_run_csq_header_command: str
+    batch_run_command: List[str]
+    batch_run_csq_header_command: List[str]
 
     @abc.abstractmethod
     def vep_command(self,
@@ -534,18 +534,9 @@ class BaseVEPConfig(abc.ABC):
                     tolerate_parse_error: bool) -> List[str]:
         raise NotImplementedError
 
-    @abc.abstractmethod
-    def vep_csq_header_command(self,
-                               consequence: bool,
-                               part_id: int,
-                               input_file: Optional[str],
-                               output_file: str,
-                               tolerate_parse_error: bool) -> List[str]:
-        raise NotImplementedError
-
 
 class HailVEPConfig(BaseVEPConfig, abc.ABC):
-    default_vep_json_typ = hl.tstruct(
+    vep_json_typ = hl.tstruct(
         assembly_name=hl.tstr,
         allele_string=hl.tstr,
         ancestral=hl.tstr,
@@ -676,12 +667,7 @@ class HailVEPConfig(BaseVEPConfig, abc.ABC):
             config['regions'],
             config['image'],
             config['data_mount'],
-            config['env'],
-            config['vep_json_typ'],
-            config['reference_data_is_bucket_requester_pays'],
             config.get('cloud'),
-            config['batch_run_command'],
-            config['batch_csq_header_command'],
         )
 
     def __init__(self,
@@ -689,20 +675,16 @@ class HailVEPConfig(BaseVEPConfig, abc.ABC):
                  regions: List[str],
                  image: str,
                  data_mount: str,
-                 env: Dict[str, str],
-                 vep_json_typ: hl.expr.HailType,
-                 reference_data_is_bucket_requester_pays: bool,
-                 cloud: Optional[str],
-                 batch_run_command: List[str],
-                 batch_csq_header_command: List[str]):
+                 cloud: Optional[str]):
         self.data_bucket = data_bucket
         self.regions = regions
         self.image = image
+        self.env = {}
         self.data_mount = data_mount
-        self.env = env
-        self.vep_json_typ = vep_json_typ
-        self.reference_data_is_bucket_requester_pays = reference_data_is_bucket_requester_pays
+        self.reference_data_is_bucket_requester_pays = True
         self.cloud = cloud
+        self.batch_run_command = ['python3', '/hail-vep/vep.py', 'vep']
+        self.batch_csq_header_command = ['python3', '/hail-vep/vep.py', 'csq_header']
 
     @abc.abstractmethod
     def vep_command(self,
@@ -713,24 +695,15 @@ class HailVEPConfig(BaseVEPConfig, abc.ABC):
                     tolerate_parse_error: bool) -> List[str]:
         raise NotImplementedError
 
-    @abc.abstractmethod
-    def vep_csq_header_command(self,
-                               consequence: bool,
-                               part_id: int,
-                               input_file: Optional[str],
-                               output_file: str,
-                               tolerate_parse_error: bool) -> List[str]:
-        raise NotImplementedError
 
-
-class HailVep85ConfigGRCh37(HailVEPConfig):
-    def command(self,
-                *,
-                consequence: bool,
-                part_id: int,
-                input_file: Optional[str],
-                output_file: str,
-                tolerate_parse_error: bool) -> str:
+class HailVEPConfig_GRCh37_85(HailVEPConfig):
+    def vep_command(self,
+                    *,
+                    consequence: bool,
+                    part_id: int,
+                    input_file: Optional[str],
+                    output_file: str,
+                    tolerate_parse_error: bool) -> str:
         vcf_or_json = '--vcf' if consequence else '--json'
         input_file = f'--input_file {input_file}' if input_file else ''
         return f'''
@@ -749,70 +722,28 @@ class HailVep85ConfigGRCh37(HailVEPConfig):
 -o STDOUT
 '''
 
-    def csq_header_command(self,
-                           *,
-                           consequence: bool,
-                           part_id: int,
-                           input_file: Optional[str],
-                           output_file: str,
-                           tolerate_parse_error: bool) -> str:
-        raise NotImplementedError
 
+class HailVEPConfig_GRCh38_95(HailVEPConfig):
+    vep_json_typ = HailVEPConfig.vep_json_typ._insert_field('transcript_consequences', hl.tarray(
+        HailVEPConfig.vep_json_typ['transcript_consequences'].element_type._insert_fields(
+            appris=hl.tstr,
+            tsl=hl.tint32,
+        )
+    ))
 
-def vep_85_grch37_run_cmd(run_typ: str) -> str:
-    return f'''
-cat >> run_vep.sh <<EOF
-#!/bin/bash
-
-if [ $VEP_CONSEQUENCE -ne 0 ]
-then
-  vcf_or_json="--vcf"
-else
-  vcf_or_json="--json"
-fi
-
-input_file="--input_file ${{VEP_INPUT_FILE}}"
-
-export VEP_COMMAND="/vep/vep \
-${{input_file}} \
+    def vep_command(self,
+                    *,
+                    consequence: bool,
+                    part_id: int,
+                    input_file: Optional[str],
+                    output_file: str,
+                    tolerate_parse_error: bool) -> str:
+        vcf_or_json = '--vcf' if consequence else '--json'
+        input_file = f'--input_file {input_file}' if input_file else ''
+        return f'''
+"/vep/vep {input_file} \
 --format vcf \
-${{vcf_or_json}} \
---everything \
---allele_number \
---no_stats \
---cache \
---offline \
---minimal \
---assembly GRCh37 \
---dir=${{VEP_DATA_DIR}} \
---plugin LoF,human_ancestor_fa:${{VEP_DATA_DIR}}/loftee_data/human_ancestor.fa.gz,filter_position:0.05,min_intron_size:15,conservation_file:${{VEP_DATA_DIR}}/loftee_data/phylocsf_gerp.sql,gerp_file:${{VEP_DATA_DIR}}/loftee_data/GERP_scores.final.sorted.txt.gz \
--o STDOUT"
-
-exec /hail-vep/vep.py "$@"
-EOF
-
-sh run_vep.sh {run_typ}
-'''
-
-
-def vep_95_grch38_run_cmd(run_typ: str) -> str:
-    return f'''
-cat >> run_vep.sh <<EOF
-#!/bin/bash
-
-if [ $VEP_CONSEQUENCE -ne 0 ]
-then
-  vcf_or_json="--vcf"
-else
-  vcf_or_json="--json"
-fi
-
-input_file="--input_file ${{VEP_INPUT_FILE}}"
-
-export VEP_COMMAND="/vep/vep \
-${{input_file}} \
---format vcf \
-${{vcf_or_json}} \
+{vcf_or_json} \
 --everything \
 --allele_number \
 --no_stats \
@@ -820,53 +751,33 @@ ${{vcf_or_json}} \
 --offline \
 --minimal \
 --assembly GRCh38 \
---fasta ${{VEP_DATA_MOUNT}}/homo_sapiens/95_GRCh38/Homo_sapiens.GRCh38.dna.toplevel.fa.gz \
---plugin "LoF,loftee_path:/vep/ensembl-vep/Plugins/,gerp_bigwig:${{VEP_DATA_MOUNT}}/gerp_conservation_scores.homo_sapiens.GRCh38.bw,human_ancestor_fa:${{VEP_DATA_MOUNT}}/human_ancestor.fa.gz,conservation_file:${{VEP_DATA_MOUNT}}/loftee.sql" \
+--fasta {self.data_mount}/homo_sapiens/95_GRCh38/Homo_sapiens.GRCh38.dna.toplevel.fa.gz \
+--plugin "LoF,loftee_path:/vep/ensembl-vep/Plugins/,gerp_bigwig:{self.data_mount}/gerp_conservation_scores.homo_sapiens.GRCh38.bw,human_ancestor_fa:{self.data_mount}/human_ancestor.fa.gz,conservation_file:{self.data_mount}/loftee.sql" \
 --dir_plugins /vep/ensembl-vep/Plugins/ \
---dir_cache ${{VEP_DATA_MOUNT}} \
+--dir_cache {self.data_mount} \
 -o STDOUT"
-
-exec /hail-vep/vep.py "$@"
-EOF
-
-sh run_vep.sh {run_typ}
 '''
 
 
 supported_vep_configs = {
-    ('GRCh37', 'gcp', 'us-central1', 'hail.is'): VEPConfig(
+    ('GRCh37', 'gcp', 'us-central1', 'hail.is'): HailVEPConfig_GRCh37_85(
         'hail-qob-vep-grch37-us-central1',
         ['us-central1'],
         HAIL_GENETICS_VEP_GRCH37_85_IMAGE,
         '/vep_data/',
-        {},
-        VEPConfig.default_vep_json_typ,
-        ["/bin/bash", "-c", vep_85_grch37_run_cmd('vep')],
-        ["/bin/bash", "-c", vep_85_grch37_run_cmd('csq_header')],
-        True,
         'gcp',
     ),
-    ('GRCh38', 'gcp', 'us-central1', 'hail.is'): VEPConfig(
+    ('GRCh38', 'gcp', 'us-central1', 'hail.is'): HailVEPConfig_GRCh38_95(
         'hail-qob-vep-grch38-us-central1',
         ['us-central1'],
         HAIL_GENETICS_VEP_GRCH38_95_IMAGE,
         '/vep_data/',
-        {},
-        VEPConfig.default_vep_json_typ._insert_field('transcript_consequences', hl.tarray(
-            VEPConfig.default_vep_json_typ['transcript_consequences'].element_type._insert_fields(
-                appris=hl.tstr,
-                tsl=hl.tint32,
-            )
-        )),
-        ["/bin/bash", "-c", vep_95_grch38_run_cmd('vep')],
-        ["/bin/bash", "-c", vep_95_grch38_run_cmd('csq_header')],
-        True,
         'gcp',
     ),
 }
 
 
-def _supported_vep_config(cloud: str, reference_genome: str, *, regions: List[str]) -> VEPConfig:
+def _supported_vep_config(cloud: str, reference_genome: str, *, regions: List[str]) -> BaseVEPConfig:
     domain = get_deploy_config()._domain
 
     for region in regions:
@@ -880,7 +791,7 @@ def _supported_vep_config(cloud: str, reference_genome: str, *, regions: List[st
 
 def _service_vep(backend: ServiceBackend,
                  ht: Table,
-                 config: Optional[Dict[str, Any]],
+                 config: Optional[BaseVEPConfig],
                  regions: Optional[List[str]],
                  block_size: int,
                  csq: bool,
@@ -892,32 +803,18 @@ def _service_vep(backend: ServiceBackend,
         regions = backend.regions
 
     if config is not None:
-        vep_config = VEPConfig.from_dict(config)
+        vep_config = config
     else:
         vep_config = _supported_vep_config(cloud, reference_genome, regions=regions)
 
     requester_pays_project = backend.flags.get('gcs_requester_pays_project')
-    if requester_pays_project is None and vep_config.is_maintained_by_hail and vep_config.cloud == 'gcp':
+    if requester_pays_project is None and vep_config.reference_data_is_bucket_requester_pays and vep_config.cloud == 'gcp':
         raise ValueError("No requester pays project has been set. "
                          "Use hl.init(gcs_requester_pays_configuration='MY_PROJECT') "
                          "to set the requester pays project to use.")
 
     vep_input_path = hl.TemporaryDirectory(prefix='qob/vep/inputs/')
     vep_output_path = hl.TemporaryDirectory(prefix='qob/vep/outputs/')
-
-    def get_env(part_id: int, input_file: Optional[str], output_file: str):
-        local_env = copy.deepcopy(vep_config.env)
-        local_env.update({
-            'VEP_BLOCK_SIZE': str(block_size),
-            'VEP_DATA_MOUNT': shq(vep_config.data_mount),
-            'VEP_CONSEQUENCE': str(int(csq)),
-            'VEP_TOLERATE_PARSE_ERROR': str(int(tolerate_parse_error)),
-            'VEP_PART_ID': str(part_id),
-            'VEP_OUTPUT_FILE': output_file,
-        })
-        if input_file:
-            local_env['VEP_INPUT_FILE'] = input_file
-        return local_env
 
     if csq:
         vep_typ = hl.tarray(hl.tstr)
@@ -927,16 +824,26 @@ def _service_vep(backend: ServiceBackend,
     def build_vep_batch(bb: bc.aioclient.BatchBuilder):
         if csq:
             local_output_file = '/io/output'
+            vep_command = vep_config.vep_command(
+                              consequence=csq, part_id=-1, input_file=None, output_file=local_output_file, tolerate_parse_error=tolerate_parse_error
+                          )
             bb.create_job(vep_config.image,
-                          vep_config.csq_header_command,
+                          vep_config.batch_run_csq_header_command,
                           attributes={'name': 'csq-header'},
                           resources={'cpu': '1', 'memory': 'standard'},
                           cloudfuse=[(vep_config.data_bucket, vep_config.data_mount, True)],
                           output_files=[(local_output_file, f'{vep_output_path.name}/csq-header')],
                           regions=vep_config.regions,
                           requester_pays_project=requester_pays_project,
-                          env=get_env(-1, None, local_output_file),
-                          )
+                          env={
+                              'VEP_BLOCK_SIZE': str(block_size),
+                              'VEP_DATA_MOUNT': shq(vep_config.data_mount),
+                              'VEP_CONSEQUENCE': str(int(csq)),
+                              'VEP_TOLERATE_PARSE_ERROR': str(int(tolerate_parse_error)),
+                              'VEP_PART_ID': str(-1),
+                              'VEP_OUTPUT_FILE': local_output_file,
+                              'VEP_COMMAND': vep_command
+                          }.update(vep_config.env))
 
         for f in hl.hadoop_ls(vep_input_path.name):
             path = f['path']
@@ -948,8 +855,16 @@ def _service_vep(backend: ServiceBackend,
             local_input_file = '/io/input'
             local_output_file = '/io/output.gz'
 
+            vep_command = vep_config.vep_command(
+                consequence=csq,
+                part_id=part_id,
+                input_file=local_input_file,
+                output_file=local_output_file,
+                tolerate_parse_error=tolerate_parse_error,
+            )
+
             bb.create_job(vep_config.image,
-                          vep_config.command,
+                          vep_config.batch_run_command,
                           attributes={'name': f'vep-{part_id}'},
                           resources={'cpu': '1', 'memory': 'standard'},
                           input_files=[(path, local_input_file)],
@@ -957,8 +872,16 @@ def _service_vep(backend: ServiceBackend,
                           cloudfuse=[(vep_config.data_bucket, vep_config.data_mount, True)],
                           regions=vep_config.regions,
                           requester_pays_project=requester_pays_project,
-                          env=get_env(part_id, local_input_file, local_output_file),
-                          )
+                          env={
+                              'VEP_BLOCK_SIZE': str(block_size),
+                              'VEP_DATA_MOUNT': shq(vep_config.data_mount),
+                              'VEP_CONSEQUENCE': str(int(csq)),
+                              'VEP_TOLERATE_PARSE_ERROR': str(int(tolerate_parse_error)),
+                              'VEP_PART_ID': str(-1),
+                              'VEP_INPUT_FILE': local_input_file,
+                              'VEP_OUTPUT_FILE': local_output_file,
+                              'VEP_COMMAND': vep_command,
+                          }.update(vep_config.env))
 
     hl.export_vcf(ht, vep_input_path.name, parallel='header_per_shard')
 
