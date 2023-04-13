@@ -1175,8 +1175,6 @@ def deserialize_argument(arg):
     assert typ == 'value'
     return val
 
-    return _deserialize(arg)
-
 with open('{result}', 'wb') as dill_out:
     try:
         with open('{func_file}', 'rb') as func_file:

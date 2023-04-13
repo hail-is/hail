@@ -1234,9 +1234,9 @@ class ServiceTests(unittest.TestCase):
         b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
 
         def write(paths):
-            for path in paths:
+            for i, path in enumerate(paths):
                 with open(path, 'w') as f:
-                    f.write('foo')
+                    f.write(f'{i}')
 
         head = b.new_python_job()
         head.call(write, [head.ofile1, head.ofile2])
@@ -1249,7 +1249,7 @@ class ServiceTests(unittest.TestCase):
         assert res
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
-        assert res.get_job_log(tail._job_id)['main'] == 'foofoo', str(res.debug_info())
+        assert res.get_job_log(tail._job_id)['main'] == '12', str(res.debug_info())
 
     def test_dict_recursive_resource_extraction_in_python_jobs(self):
         b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
