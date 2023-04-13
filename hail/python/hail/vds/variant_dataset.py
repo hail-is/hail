@@ -46,12 +46,12 @@ def read_vds(path, *, intervals=None, n_partitions=None,
             warning("You are reading a VDS written with an older version of Hail."
                     "\n  Hail now supports much faster interval filters on VDS, but you'll need to run either"
                     "\n  `hl.vds.truncate_reference_blocks(vds, ...)` and write a copy (see docs) or patch the"
-                    "\n  existing VDS in place with `hl.vds.store_ref_block_max_len(vds_path)`.")
+                    "\n  existing VDS in place with `hl.vds.store_ref_block_max_length(vds_path)`.")
 
     return vds
 
 
-def store_ref_block_max_len(vds_path):
+def store_ref_block_max_length(vds_path):
     """Patches an existing VDS file to store the max reference block length for faster interval filters.
 
     This method permits :func:`.vds.filter_intervals` to remove reference data not overlapping a target interval.
@@ -64,7 +64,7 @@ def store_ref_block_max_len(vds_path):
 
     Examples
     --------
-    >>> hl.vds.store_ref_block_max_len('gs://path/to/my.vds')  # doctest: +SKIP
+    >>> hl.vds.store_ref_block_max_length('gs://path/to/my.vds')  # doctest: +SKIP
 
     See Also
     --------
@@ -102,6 +102,7 @@ class VariantDataset:
         MatrixTable containing only variant data.
     """
 
+    #: Name of global field that indicates max reference block length.
     ref_block_max_length_field = 'ref_block_max_length'
 
     @staticmethod

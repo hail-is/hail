@@ -664,7 +664,7 @@ def test_ref_block_max_len_patch():
         vds_path = os.path.join(tmpdir, 'to_patch.vds')
         vds.write(vds_path)
 
-        hl.vds.store_ref_block_max_len(vds_path)
+        hl.vds.store_ref_block_max_length(vds_path)
 
         vds2 = hl.vds.read_vds(vds_path)
-        assert hl.eval(vds2.reference_data.index_globals().ref_block_max_len) == max_rb_len
+        assert hl.eval(vds2.reference_data.index_globals()[hl.vds.VariantDataset.ref_block_max_length_field]) == max_rb_len
