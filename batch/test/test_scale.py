@@ -4,7 +4,7 @@ import pytest
 
 from hailtop.batch_client.client import BatchClient
 
-from .utils import batch_status_job_counter, legacy_batch_status
+from .utils import batch_status_job_counter, create_batch, legacy_batch_status
 
 
 @pytest.fixture
@@ -16,7 +16,7 @@ def client():
 
 def test_scale(client):
     n_jobs = 10
-    batch = client.create_batch()
+    batch = create_batch(client)
     for _ in range(n_jobs):
         sleep_time = random.uniform(0, 30)
         batch.create_job('alpine:3.8', command=['sleep', str(round(sleep_time))])
