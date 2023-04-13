@@ -90,7 +90,7 @@ resource "google_compute_subnetwork" "default_region" {
   region = var.gcp_region
   network = google_compute_network.default.id
   ip_cidr_range = var.default_subnet_ip_cidr_range
-  private_ip_google_access = false
+  private_ip_google_access = true
 
   timeouts {}
 }
