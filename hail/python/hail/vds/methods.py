@@ -79,8 +79,8 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
     dr = dr._key_by_assert_sorted('locus', 'alleles')
     fields_to_drop = ['_var_entries', '_ref_entries', 'dense_ref', '_variant_defined']
 
-    if 'ref_block_max_length' in dr.globals:
-        fields_to_drop.append('ref_block_max_length')
+    if hl.vds.VariantDataset.ref_block_max_length_field in dr.globals:
+        fields_to_drop.append(hl.vds.VariantDataset.ref_block_max_length_field)
 
     if 'ref_allele' in dr.row:
         fields_to_drop.append('ref_allele')
@@ -607,8 +607,9 @@ def _parameterized_filter_intervals(vds: 'VariantDataset',
 
     reference_data = vds.reference_data
     if keep:
-        if 'ref_block_max_length' in vds.reference_data.globals:
-            max_len = hl.eval(vds.reference_data.index_globals()['ref_block_max_length'])
+        rbml = hl.vds.VariantDataset.ref_block_max_length_field
+        if rbml in vds.reference_data.globals:
+            max_len = hl.eval(vds.reference_data.index_globals()[rbml])
             ref_intervals = intervals.map(
                 lambda interval: hl.interval(interval.start - (max_len - 1), interval.end, interval.includes_start,
                                              interval.includes_end))
@@ -1029,7 +1030,7 @@ def truncate_reference_blocks(ds, *, max_ref_block_base_pairs=None,
         lambda idx: hl.coalesce(joined.moved_blocks_dict.get(idx), joined.fixed_blocks[idx])))
     new_rd = joined._unlocalize_entries(entries_field_name='merged_blocks', cols_field_name='cols',
                                         col_key=list(rd.col_key))
-    new_rd = new_rd.annotate_globals(ref_block_max_length=max_ref_block_base_pairs)
+    new_rd = new_rd.annotate_globals(**{hl.vds.VariantDataset.ref_block_max_length_field: max_ref_block_base_pairs})
 
     if isinstance(ds, hl.vds.VariantDataset):
         return VariantDataset(reference_data=new_rd, variant_data=ds.variant_data)
@@ -1151,8 +1152,9 @@ def merge_reference_blocks(ds, equivalence_function, merge_functions=None):
     new_rd = ht_joined._unlocalize_entries(entries_field_name='new_entries', cols_field_name='cols',
                                            col_key=list(rd.col_key))
 
-    if 'ref_block_max_length' in new_rd.globals:
-        new_rd = new_rd.drop('ref_block_max_length')
+    rbml = hl.vds.VariantDataset.ref_block_max_length_field
+    if rbml in new_rd.globals:
+        new_rd = new_rd.drop(rbml)
 
     if isinstance(ds, VariantDataset):
         return VariantDataset(reference_data=new_rd, variant_data=ds.variant_data)

@@ -614,7 +614,7 @@ def test_union_rows():
     vds2_trunc = hl.vds.truncate_reference_blocks(vds1, max_ref_block_base_pairs=75)
 
     vds_trunc_union = vds1_trunc.union_rows(vds2_trunc)
-    assert hl.eval(vds_trunc_union.reference_data.index_globals().ref_block_max_length) == 75
+    assert hl.eval(vds_trunc_union.reference_data.index_globals()[hl.vds.VariantDataset.ref_block_max_length_field]) == 75
 
     assert 'max_ref_block_length' not in vds1_trunc.union_rows(vds2).reference_data.globals
 
@@ -634,10 +634,10 @@ def test_combiner_max_len():
     from hail.vds.combiner.combine import combine_references
 
     combined1 = combine_references([vds1_trunc.reference_data, vds2_trunc.reference_data])
-    assert hl.eval(combined1.index_globals().ref_block_max_length) == 75
+    assert hl.eval(combined1.index_globals()[hl.vds.VariantDataset.ref_block_max_length_field]) == 75
 
     combined2 = combine_references([vds1_trunc.reference_data, vds2.reference_data])
-    assert 'ref_block_max_length' not in combined2.globals
+    assert hl.vds.VariantDataset.ref_block_max_length_field not in combined2.globals
 
 
 def test_split_sparse_roundtrip():
@@ -667,4 +667,4 @@ def test_ref_block_max_len_patch():
         hl.vds.store_ref_block_max_len(vds_path)
 
         vds2 = hl.vds.read_vds(vds_path)
-        assert hl.eval(vds2.reference_data.index_globals().max_ref_block_len) == max_rb_len
+        assert hl.eval(vds2.reference_data.index_globals().ref_block_max_len) == max_rb_len

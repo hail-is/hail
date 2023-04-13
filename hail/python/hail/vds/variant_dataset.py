@@ -35,7 +35,7 @@ def read_vds(path, *, intervals=None, n_partitions=None,
         variant_data = hl.read_matrix_table(VariantDataset._variants_path(path), _intervals=intervals)
 
     vds = VariantDataset(reference_data, variant_data)
-    if 'max_ref_block_len' not in vds.reference_data.globals:
+    if VariantDataset.ref_block_max_length_field not in vds.reference_data.globals:
         fs = hl.current_backend().fs
         metadata_file = os.path.join(path, extra_ref_globals_file)
         if fs.exists(metadata_file):
@@ -76,15 +76,15 @@ def store_ref_block_max_len(vds_path):
     """
     vds = hl.vds.read_vds(vds_path)
 
-    if 'max_ref_block_len' in vds.reference_data.globals:
+    if VariantDataset.ref_block_max_length_field in vds.reference_data.globals:
         warning(f"VDS at {vds_path} already contains a global annotation with the max reference block length")
         return
     rd = vds.reference_data
     rd = rd.annotate_rows(__start_pos=rd.locus.position)
     fs = hl.current_backend().fs
-    max_ref_block_len = rd.aggregate_entries(hl.agg.max(rd.END - rd.__start_pos + 1))
+    ref_block_max_len = rd.aggregate_entries(hl.agg.max(rd.END - rd.__start_pos + 1))
     with fs.open(os.path.join(vds_path, extra_ref_globals_file), 'w') as f:
-        json.dump({'max_ref_block_len': max_ref_block_len}, f)
+        json.dump({VariantDataset.ref_block_max_length_field: ref_block_max_len}, f)
 
 
 class VariantDataset:
@@ -101,6 +101,8 @@ class VariantDataset:
     variant_data : :class:`.MatrixTable`
         MatrixTable containing only variant data.
     """
+
+    ref_block_max_length_field = 'ref_block_max_length'
 
     @staticmethod
     def _reference_path(base: str) -> str:
@@ -298,7 +300,7 @@ class VariantDataset:
 
         '''
 
-        fd = 'ref_block_max_length'
+        fd = hl.vds.VariantDataset.ref_block_max_length_field
         mts = [vds.reference_data for vds in vdses]
         n_with_ref_max_len = len([mt for mt in mts if fd in mt.globals])
         any_ref_max = n_with_ref_max_len > 0
