@@ -9,9 +9,9 @@ from shlex import quote as shq
 from typing import Any, Dict, Tuple, List, Optional, Union
 
 from hailtop import pip_version
-from hailtop.utils import Timings, async_to_blocking
+from hailtop.utils import async_to_blocking
 import hailtop.batch_client as bc
-from hailtop.config import configuration_of, get_deploy_config
+from hailtop.config import get_deploy_config
 from hailtop import yamlx
 
 from hail.backend.service_backend import ServiceBackend
@@ -687,8 +687,10 @@ else
   vcf_or_json="--json"
 fi
 
+input_file="--input_file ${{VEP_INPUT_FILE}}"
+
 export VEP_COMMAND=/vep/vep \
-${{VEP_INPUT_FILE:+--input_file $VEP_INPUT_FILE}} \
+${{input_file}} \
 --format vcf \
 ${{vcf_or_json}} \
 --everything \
