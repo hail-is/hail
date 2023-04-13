@@ -2,9 +2,9 @@ import inspect
 import os
 from typing import Union, overload
 
-from hailtop import pip_version
-import hailtop.batch_client.client as bc
 import hailtop.batch_client.aioclient as aiobc
+import hailtop.batch_client.client as bc
+from hailtop import pip_version
 
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'ubuntu:20.04')
 HAIL_GENETICS_HAIL_IMAGE = os.environ.get('HAIL_GENETICS_HAIL_IMAGE', f'hailgenetics/hail:{pip_version()}')

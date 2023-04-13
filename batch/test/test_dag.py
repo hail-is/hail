@@ -141,7 +141,9 @@ async def test_callback(client):
 
     try:
         token = secrets.token_urlsafe(32)
-        b = create_batch(client, callback=url_for('/test'), attributes={'foo': 'bar'}, token=token)
+        b = create_batch(
+            client, callback=url_for('/test'), attributes={'foo': 'bar', 'name': 'test_callback'}, token=token
+        )
         head = b.create_job('alpine:3.8', command=['echo', 'head'])
         b.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head])
         b = b.submit()
@@ -168,7 +170,7 @@ async def test_callback(client):
             'n_succeeded': 2,
             'n_failed': 0,
             'n_cancelled': 0,
-            'attributes': {'foo': 'bar'},
+            'attributes': {'foo': 'bar', 'name': 'test_callback'},
         }, callback_body
     finally:
         await runner.cleanup()
