@@ -79,10 +79,10 @@ retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE docker://docker.io/hailgenetics/hail
 retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hail:$HAIL_PIP_VERSION
 retry skopeo copy $HAIL_GENETICS_HAILTOP_IMAGE docker://docker.io/hailgenetics/hailtop:$HAIL_PIP_VERSION
 retry skopeo copy $HAIL_GENETICS_HAILTOP_IMAGE docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hailtop:$HAIL_PIP_VERSION
-retry skopeo copy $HAIL_GENETICS_VEP_GRCH37_85_IMAGE docker://docker.io/hailgenetics/vep/grch37/85/vep:$HAIL_PIP_VERSION
-retry skopeo copy $HAIL_GENETICS_VEP_GRCH37_85_IMAGE docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/vep/grch37/85/vep:$HAIL_PIP_VERSION
-retry skopeo copy $HAIL_GENETICS_VEP_GRCH38_95_IMAGE docker://docker.io/hailgenetics/vep/grch38/95/vep:$HAIL_PIP_VERSION
-retry skopeo copy $HAIL_GENETICS_VEP_GRCH38_95_IMAGE docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/vep/grch38/95/vep:$HAIL_PIP_VERSION
+retry skopeo copy $HAIL_GENETICS_VEP_GRCH37_85_IMAGE docker://docker.io/hailgenetics/vep-grch37-85:$HAIL_PIP_VERSION
+retry skopeo copy $HAIL_GENETICS_VEP_GRCH37_85_IMAGE docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/vep-grch37-85:$HAIL_PIP_VERSION
+retry skopeo copy $HAIL_GENETICS_VEP_GRCH38_95_IMAGE docker://docker.io/hailgenetics/vep-grch38-95:$HAIL_PIP_VERSION
+retry skopeo copy $HAIL_GENETICS_VEP_GRCH38_95_IMAGE docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/vep/grch38-95:$HAIL_PIP_VERSION
 
 # deploy to PyPI
 twine upload $WHEEL

@@ -592,7 +592,7 @@ steps:
     name: hailgenetics_vep_grch37_85_image
     dockerFile: /io/repo/docker/hailgenetics/vep/grch37/85/Dockerfile
     contextPath: /io/repo/docker/vep/
-    publishAs: hailgenetics/vep/grch37/85/vep
+    publishAs: hailgenetics/vep-grch37-85
     inputs:
       - from: /repo
         to: /io/repo
@@ -603,7 +603,7 @@ steps:
     name: hailgenetics_vep_grch38_95_image
     dockerFile: /io/repo/docker/hailgenetics/vep/grch38/95/Dockerfile
     contextPath: /io/repo/docker/vep/
-    publishAs: hailgenetics/vep/grch38/95/vep
+    publishAs: hailgenetics/vep-grch38-95
     inputs:
       - from: /repo
         to: /io/repo
