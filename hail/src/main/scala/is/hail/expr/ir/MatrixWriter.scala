@@ -72,7 +72,8 @@ abstract class MatrixWriter {
     ctx: ExecuteContext, ts: TableStage, r: RTable): IR =
     throw new LowererUnsupportedOperation(s"${ this.getClass } does not have defined lowering!")
 
-  def canLowerEfficiently: Boolean
+  def canLowerEfficiently: Boolean =
+    true
 }
 
 case class MatrixNativeWriter(
@@ -84,8 +85,6 @@ case class MatrixNativeWriter(
   partitionsTypeStr: String = null,
   checkpointFile: String = null
 ) extends MatrixWriter {
-
-  def canLowerEfficiently: Boolean = checkpointFile == null
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
     ctx: ExecuteContext, tablestage: TableStage, r: RTable): IR = {
@@ -430,9 +429,6 @@ case class MatrixVCFWriter(
   metadata: Option[VCFMetadata] = None,
   tabix: Boolean = false
 ) extends MatrixWriter {
-
-  def canLowerEfficiently: Boolean = true
-
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
       ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
     require(exportType != ExportType.PARALLEL_COMPOSABLE)
@@ -880,8 +876,6 @@ case class MatrixGENWriter(
   precision: Int = 4
 ) extends MatrixWriter {
 
-  def canLowerEfficiently: Boolean = true
-
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
       ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
     val tm = MatrixType.fromTableType(ts.tableType, colsFieldName, entriesFieldName, colKey)
@@ -993,8 +987,6 @@ case class MatrixBGENWriter(
   exportType: String,
   compressionCodec: String
 ) extends MatrixWriter {
-
-  def canLowerEfficiently: Boolean = true
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
       ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
@@ -1265,8 +1257,6 @@ case class MatrixPLINKWriter(
   path: String
 ) extends MatrixWriter {
 
-  def canLowerEfficiently: Boolean = true
-
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
       ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
     val tm = MatrixType.fromTableType(ts.tableType, colsFieldName, entriesFieldName, colKey)
@@ -1423,8 +1413,6 @@ case class MatrixBlockMatrixWriter(
   entryField: String,
   blockSize: Int
 ) extends MatrixWriter {
-
-  def canLowerEfficiently: Boolean = true
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
     ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
