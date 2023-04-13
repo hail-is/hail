@@ -1249,7 +1249,7 @@ class ServiceTests(unittest.TestCase):
         assert res
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
-        assert res.get_job_log(tail._job_id)['main'] == 'foo\nfoo', str(res.debug_info())
+        assert res.get_job_log(tail._job_id)['main'] == 'foofoo', str(res.debug_info())
 
     def test_dict_recursive_resource_extraction_in_python_jobs(self):
         b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
@@ -1270,4 +1270,4 @@ class ServiceTests(unittest.TestCase):
         assert res
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
-        assert res.get_job_log(tail._job_id)['main'] == 'a\nb', str(res.debug_info())
+        assert res.get_job_log(tail._job_id)['main'] == 'ab', str(res.debug_info())
