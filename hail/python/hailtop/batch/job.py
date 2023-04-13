@@ -1100,7 +1100,7 @@ class PythonJob(Job):
         def handle_args(r):
             if isinstance(r, _resource.Resource):
                 handle_arg(r)
-            elif isinstance(r, list):
+            elif isinstance(r, (list, tuple)):
                 for elt in r:
                     handle_args(elt)
             elif isinstance(r, dict):
@@ -1129,7 +1129,7 @@ class PythonJob(Job):
             if isinstance(arg, _resource.ResourceGroup):
                 return ('dict_path', {name: resource._get_path(local_tmpdir)
                                       for name, resource in arg._resources.items()})
-            if isinstance(arg, list):
+            if isinstance(arg, (list, tuple)):
                 return ('value', [prepare_argument_for_serialization(elt) for elt in arg])
             if isinstance(arg, dict):
                 return ('value', {k: prepare_argument_for_serialization(v) for k, v in arg.items()})
@@ -1166,7 +1166,7 @@ def deserialize_argument(arg):
     typ, val = arg
     if typ == 'value' and isinstance(val, dict):
         return {{k: deserialize_argument(v) for k, v in val.items()}}
-    if typ == 'value' and isinstance(val, list):
+    if typ == 'value' and isinstance(val, (list, tuple)):
         return [deserialize_argument(elt) for elt in val]
     if typ == 'py_path':
         return dill.load(open(val, 'rb'))
@@ -1183,8 +1183,8 @@ with open('{result}', 'wb') as dill_out:
             func = dill.load(func_file)
         with open('{args_file}', 'rb') as arg_file:
             args, kwargs = dill.load(arg_file)
-            args = deserialize_argument(args)
-            kwargs = deserialize_argument(kwargs)
+            args = [deserialize_argument(arg) for arg in args]
+            kwargs = {{k: deserialize_argument(v) for k, v in kwargs.items()}}
         result = func(*args, **kwargs)
         dill.dump(result, dill_out, recurse=True)
         {json_write}
