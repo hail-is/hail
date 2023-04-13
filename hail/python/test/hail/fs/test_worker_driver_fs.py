@@ -29,7 +29,6 @@ def test_requester_pays_write_no_settings():
 
 @skip_in_azure
 @fails_local_backend()
-@fails_service_backend()
 def test_requester_pays_write_with_project():
     hl.stop()
     hl.init(gcs_requester_pays_configuration='hail-vdc')
