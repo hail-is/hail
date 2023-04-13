@@ -53,8 +53,6 @@ case class WrappedMatrixWriter(writer: MatrixWriter,
 
   override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR =
     writer.lower(colsFieldName, entriesFieldName, colKey, ctx, ts, r)
-
-  override def canLowerEfficiently: Boolean = writer.canLowerEfficiently
 }
 
 abstract class MatrixWriter {
@@ -71,9 +69,6 @@ abstract class MatrixWriter {
   def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
     ctx: ExecuteContext, ts: TableStage, r: RTable): IR =
     throw new LowererUnsupportedOperation(s"${ this.getClass } does not have defined lowering!")
-
-  def canLowerEfficiently: Boolean =
-    true
 }
 
 case class MatrixNativeWriter(

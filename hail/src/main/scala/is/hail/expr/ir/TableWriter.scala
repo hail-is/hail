@@ -40,6 +40,7 @@ object TableWriter {
 
 abstract class TableWriter {
   def path: String
+
   def apply(ctx: ExecuteContext, tv: TableValue): Unit = {
     val tableStage = TableValueIntermediate(tv).asTableStage(ctx)
     CompileAndEvaluate(ctx, lower(ctx, tableStage, RTable.fromTableStage(ctx, tableStage)))
@@ -48,7 +49,8 @@ abstract class TableWriter {
   def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR =
     throw new LowererUnsupportedOperation(s"${ this.getClass } does not have defined lowering!")
 
-  def canLowerEfficiently: Boolean = false
+  def canLowerEfficiently: Boolean =
+    true
 }
 
 object TableNativeWriter {
@@ -101,9 +103,6 @@ case class TableNativeWriter(
   stageLocally: Boolean = false,
   codecSpecJSONStr: String = null
 ) extends TableWriter {
-
-  override def canLowerEfficiently: Boolean =
-    true
 
   override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
     val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
@@ -443,6 +442,10 @@ case class TableTextWriter(
 ) extends TableWriter {
 
   override def canLowerEfficiently: Boolean = exportType != ExportType.PARALLEL_COMPOSABLE
+
+  override def apply(ctx: ExecuteContext, tv: TableValue): Unit =
+    tv.export(ctx, path, typesFile, header, exportType, delimiter)
+
   override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
     require(exportType != ExportType.PARALLEL_COMPOSABLE)
 
@@ -675,8 +678,6 @@ case class TableNativeFanoutWriter(
       )
     }
   }
-
-  override def canLowerEfficiently: Boolean = true
 }
 
 class PartitionNativeFanoutWriter(
