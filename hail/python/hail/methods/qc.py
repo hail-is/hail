@@ -514,11 +514,54 @@ def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[
 
 
 class BaseVEPConfig(abc.ABC):
+    """
+    To define a custom VEP configuration to for Query on Batch, construct a new class that inherits from
+    :class:`.BaseVEPConfig` and has the following parameters defined:
+
+     - `vep_json_type` (:class:`.HailType`): The type of the VEP JSON schema (as produced by VEP when invoked with the `--json` option).
+     - `data_bucket` (:obj:`.str`) -- The location where the VEP data is stored.
+     - `data_mount` (:obj:`.str`) -- The location in the container where the data should be mounted.
+     - `batch_run_command` (:obj:`.list` of :obj:`.str`) -- The command line to run for a VEP job for a partition.
+     - `batch_run_csq_header_command` (:obj:`.list` of :obj:`.str`) -- The command line to run when generating the consequence header.
+     - `env` (dict of :obj:`.str` to :obj:`.str`) -- A map of environment variables to values to add to the environment when invoking the command.
+     - `cloud` (:obj:`.str`) -- The cloud where the Batch Service is located.
+     - `image` (:obj:`.str`) -- The docker image to run VEP.
+     - `reference_data_is_bucket_requester_pays` (:obj:`.bool`) -- True if the reference data is in a requester pays bucket.
+     - `regions` (:obj:`.list` of :obj:`.str`) -- A list of regions the VEP jobs can run in.
+
+    In addition, the method `vep_command` must be defined with the following signature. The output is the exact command to run the
+    VEP executable. The inputs are `consequence` and `tolerate_parse_error` which are user-defined parameters to :func:`.vep`,
+    `part_id` which is the partition ID, `input_file` which is the path to the input file where the input data can be found, and
+    `output_file` is the path to the output file where the VEP annotations are written to.
+
+    .. code-block:: python3
+
+    def vep_command(self,
+                    consequence: bool,
+                    tolerate_parse_error: bool,
+                    part_id: int,
+                    input_file: Optional[str],
+                    output_file: str) -> List[str]:
+        pass
+
+    The following environment variables are added to the job's environment:
+
+     - `VEP_BLOCK_SIZE` - The maximum number of variants provided as input to each invocation of VEP.
+     - `VEP_PART_ID` - Partition ID.
+     - `VEP_DATA_MOUNT` - Location where the vep data is mounted (same as `data_mount` in the config).
+     - `VEP_CONSEQUENCE` - Integer equal to 0 or 1 on whether `csq` is False or True.
+     - `VEP_TOLERATE_PARSE_ERROR` - Integer equal to 0 or 1 on whether `tolerate_parse_error` is False or True.
+     - `VEP_OUTPUT_FILE` - String specifying the local path where the output TSV file with the VEP result should be located.
+     - `VEP_INPUT_FILE` - String specifying the local path where the input VCF shard is located for all jobs.
+
+    The `VEP_INPUT_FILE` environment variable is not available for the single job that computes the consequence header when
+    ``csq=True``
+    """
     vep_json_typ: hl.expr.HailType
     data_bucket: str
+    data_mount: str
     regions: List[str]
     image: str
-    data_mount: str
     env: Dict[str, str]
     reference_data_is_bucket_requester_pays: bool
     cloud: str
@@ -528,10 +571,10 @@ class BaseVEPConfig(abc.ABC):
     @abc.abstractmethod
     def vep_command(self,
                     consequence: bool,
+                    tolerate_parse_error: bool,
                     part_id: int,
                     input_file: Optional[str],
-                    output_file: str,
-                    tolerate_parse_error: bool) -> List[str]:
+                    output_file: str) -> List[str]:
         raise NotImplementedError
 
 
@@ -663,25 +706,28 @@ class HailVEPConfig(BaseVEPConfig, abc.ABC):
     @staticmethod
     def from_dict(config: Dict[str, Any]):
         return HailVEPConfig(
-            config['data_bucket'],
-            config['regions'],
-            config['image'],
-            config['data_mount'],
-            config.get('cloud'),
+            data_bucket=config['data_bucket'],
+            data_mount=config['data_mount'],
+            image=config['image'],
+            regions=config['regions'],
+            cloud=config.get('cloud'),
+            reference_data_is_bucket_requester_pays=config['reference_data_is_bucket_requester_pays'],
         )
 
     def __init__(self,
+                 *,
                  data_bucket: str,
-                 regions: List[str],
-                 image: str,
                  data_mount: str,
-                 cloud: Optional[str]):
+                 image: str,
+                 regions: List[str],
+                 cloud: Optional[str],
+                 reference_data_is_bucket_requester_pays: bool):
         self.data_bucket = data_bucket
-        self.regions = regions
-        self.image = image
-        self.env = {}
         self.data_mount = data_mount
-        self.reference_data_is_bucket_requester_pays = True
+        self.image = image
+        self.regions = regions
+        self.env = {}
+        self.reference_data_is_bucket_requester_pays = reference_data_is_bucket_requester_pays
         self.cloud = cloud
         self.batch_run_command = ['python3', '/hail-vep/vep.py', 'vep']
         self.batch_csq_header_command = ['python3', '/hail-vep/vep.py', 'csq_header']
@@ -689,21 +735,40 @@ class HailVEPConfig(BaseVEPConfig, abc.ABC):
     @abc.abstractmethod
     def vep_command(self,
                     consequence: bool,
+                    tolerate_parse_error: bool,
                     part_id: int,
                     input_file: Optional[str],
-                    output_file: str,
-                    tolerate_parse_error: bool) -> List[str]:
+                    output_file: str) -> List[str]:
         raise NotImplementedError
 
 
 class HailVEPConfig_GRCh37_85(HailVEPConfig):
+    """
+    The Hail-maintained VEP configuration for GRCh37 for VEP version 85.
+
+    This class takes the following constructor arguments:
+
+     - `data_bucket` (:obj:`.str`) -- The location where the VEP data is stored.
+     - `data_mount` (:obj:`.str`) -- The location in the container where the data should be mounted.
+     - `image` (:obj:`.str`) -- The docker image to run VEP.
+     - `cloud` (:obj:`.str`) -- The cloud where the Batch Service is located.
+     - `reference_data_is_bucket_requester_pays` (:obj:`.bool`) -- True if the reference data is in a requester pays bucket.
+     - `regions` (:obj:`.list` of :obj:`.str`) -- A list of regions the VEP jobs can run in.
+                 data_bucket: str,
+                 regions: List[str],
+                 image: str,
+                 data_mount: str,
+                 cloud: Optional[str]):
+
+    """
+
     def vep_command(self,
                     *,
                     consequence: bool,
+                    tolerate_parse_error: bool,
                     part_id: int,
                     input_file: Optional[str],
-                    output_file: str,
-                    tolerate_parse_error: bool) -> str:
+                    output_file: str) -> str:
         vcf_or_json = '--vcf' if consequence else '--json'
         input_file = f'--input_file {input_file}' if input_file else ''
         return f'''
@@ -724,6 +789,25 @@ class HailVEPConfig_GRCh37_85(HailVEPConfig):
 
 
 class HailVEPConfig_GRCh38_95(HailVEPConfig):
+    """
+    The Hail-maintained VEP configuration for GRCh38 for VEP version 95.
+
+    This class takes the following constructor arguments:
+
+     - `data_bucket` (:obj:`.str`) -- The location where the VEP data is stored.
+     - `data_mount` (:obj:`.str`) -- The location in the container where the data should be mounted.
+     - `image` (:obj:`.str`) -- The docker image to run VEP.
+     - `cloud` (:obj:`.str`) -- The cloud where the Batch Service is located.
+     - `reference_data_is_bucket_requester_pays` (:obj:`.bool`) -- True if the reference data is in a requester pays bucket.
+     - `regions` (:obj:`.list` of :obj:`.str`) -- A list of regions the VEP jobs can run in.
+                 data_bucket: str,
+                 regions: List[str],
+                 image: str,
+                 data_mount: str,
+                 cloud: Optional[str]):
+
+    """
+
     vep_json_typ = HailVEPConfig.vep_json_typ._insert_field('transcript_consequences', hl.tarray(
         HailVEPConfig.vep_json_typ['transcript_consequences'].element_type._insert_fields(
             appris=hl.tstr,
@@ -734,10 +818,10 @@ class HailVEPConfig_GRCh38_95(HailVEPConfig):
     def vep_command(self,
                     *,
                     consequence: bool,
+                    tolerate_parse_error: bool,
                     part_id: int,
                     input_file: Optional[str],
-                    output_file: str,
-                    tolerate_parse_error: bool) -> str:
+                    output_file: str) -> str:
         vcf_or_json = '--vcf' if consequence else '--json'
         input_file = f'--input_file {input_file}' if input_file else ''
         return f'''
@@ -761,18 +845,20 @@ class HailVEPConfig_GRCh38_95(HailVEPConfig):
 
 supported_vep_configs = {
     ('GRCh37', 'gcp', 'us-central1', 'hail.is'): HailVEPConfig_GRCh37_85(
-        'hail-qob-vep-grch37-us-central1',
-        ['us-central1'],
-        HAIL_GENETICS_VEP_GRCH37_85_IMAGE,
-        '/vep_data/',
-        'gcp',
+        data_bucket='hail-qob-vep-grch37-us-central1',
+        data_mount='/vep_data/',
+        image=HAIL_GENETICS_VEP_GRCH37_85_IMAGE,
+        regions=['us-central1'],
+        cloud='gcp',
+        reference_data_is_bucket_requester_pays=True,
     ),
     ('GRCh38', 'gcp', 'us-central1', 'hail.is'): HailVEPConfig_GRCh38_95(
-        'hail-qob-vep-grch38-us-central1',
-        ['us-central1'],
-        HAIL_GENETICS_VEP_GRCH38_95_IMAGE,
-        '/vep_data/',
-        'gcp',
+        data_bucket='hail-qob-vep-grch38-us-central1',
+        data_mount='/vep_data/',
+        image=HAIL_GENETICS_VEP_GRCH38_95_IMAGE,
+        regions=['us-central1'],
+        cloud='gcp',
+        reference_data_is_bucket_requester_pays=True,
     ),
 }
 
@@ -936,7 +1022,7 @@ def _service_vep(backend: ServiceBackend,
 
 
 @typecheck(dataset=oneof(Table, MatrixTable),
-           config=nullable(oneof(str, dictof(str, anytype))),
+           config=nullable(oneof(str, BaseVEPConfig)),
            block_size=int,
            name=str,
            csq=bool,
@@ -1022,31 +1108,8 @@ def vep(dataset: Union[Table, MatrixTable],
 
     **Batch Service Configuration**
 
-    The config argument is a dictionary with the following expected fields:
-
-     - `command` (:obj:`.list` of :obj:`.str`) -- The command line to run for a VEP job for a partition.
-     - `csq_header_command` (:obj:`.list` of :obj:`.str`) -- The command line to run when generating the consequence header.
-     - `env` (dict of :obj:`.str` to :obj:`.str`) -- A map of environment variables to values to add to the environment when invoking the command.
-     - `vep_json_schema` (:class:`.HailType`): The type of the VEP JSON schema (as produced by VEP when invoked with the `--json` option).
-     - `image` (:obj:`.str`) -- The docker image to run VEP.
-     - `data_bucket` (:obj:`.str`) -- The location where the VEP data is stored.
-     - `data_mount` (:obj:`.str`) -- The location in the container where the data should be mounted.
-     - `reference_data_is_bucket_requester_pays` (:obj:`.bool`) -- True if the reference data is in a requester pays bucket.
-
     If no config is specified, Hail will use the user's Service configuration parameters to find a supported VEP configuration.
-
-    The following environment variables are added to the job's environment based on the arguments to this function:
-
-     - `VEP_BLOCK_SIZE` - The maximum number of variants provided as input to each invocation of VEP.
-     - `VEP_PART_ID` - Partition ID.
-     - `VEP_DATA_MOUNT` - Location where the vep data is mounted (same as `data_mount` in the config).
-     - `VEP_CONSEQUENCE` - Integer equal to 0 or 1 on whether `csq` is False or True.
-     - `VEP_TOLERATE_PARSE_ERROR` - Integer equal to 0 or 1 on whether `tolerate_parse_error` is False or True.
-     - `VEP_OUTPUT_FILE` - String specifying the local path where the output TSV file with the VEP result should be located.
-     - `VEP_INPUT_FILE` - String specifying the local path where the input VCF shard is located for all jobs.
-
-    The `VEP_INPUT_FILE` environment variable is not available for the single job that computes the consequence header when
-    ``csq=True``.
+    However, if you wish to use your own implementation of VEP, then see the documentation for :class:`.BaseVEPConfig`.
 
     **Annotations**
 
@@ -1061,7 +1124,7 @@ def vep(dataset: Union[Table, MatrixTable],
     ----------
     dataset : :class:`.MatrixTable` or :class:`.Table`
         Dataset.
-    config : :class:`str` or ::obj:`dict` of :class:`str` to :class`str`, optional
+    config : :class:`str` or :class:`.BaseVEPConfig`, optional
         Path to VEP configuration file or a dictionary of configuration parameters.
     block_size : :obj:`int`
         Number of rows to process per VEP invocation.
