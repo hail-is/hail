@@ -147,7 +147,7 @@ dependencies {
         transitive = false
     }
 
-    bundled group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25'
+    bundled group: 'org.slf4j', name: 'slf4j-api', version: '2.0.7'
 
     def elasticMajorVersion = System.getProperty("elasticsearch.major-version", "7")
     if (elasticMajorVersion != "7" && elasticMajorVersion != "8") {
