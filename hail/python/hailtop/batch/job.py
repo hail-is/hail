@@ -1097,13 +1097,18 @@ class PythonJob(Job):
 
             self._mentioned.add(r)
 
-        for arg in args:
-            if isinstance(arg, _resource.Resource):
-                handle_arg(arg)
+        def handle_args(r):
+            if isinstance(r, _resource.Resource):
+                handle_arg(r)
+            elif isinstance(r, list):
+                for elt in r:
+                    handle_arg(elt)
+            elif isinstance(r, dict):
+                for v in r.values():
+                    handle_arg(v)
 
-        for value in kwargs.values():
-            if isinstance(value, _resource.Resource):
-                handle_arg(value)
+        handle_args(args)
+        handle_args(kwargs)
 
         self.n_results += 1
         result = self._get_python_resource(f'result{self.n_results}')
@@ -1124,13 +1129,17 @@ class PythonJob(Job):
             if isinstance(arg, _resource.ResourceGroup):
                 return ('dict_path', {name: resource._get_path(local_tmpdir)
                                       for name, resource in arg._resources.items()})
+            if isinstance(arg, list):
+                return ('value', [prepare_argument_for_serialization(elt) for elt in arg])
+            if isinstance(arg, dict):
+                return ('value', {k: prepare_argument_for_serialization(v) for k, v in arg.items()})
             return ('value', arg)
 
         for i, (result, unapplied_id, args, kwargs) in enumerate(self._function_calls):
             func_file = self._batch._python_function_files[unapplied_id]
 
-            prepared_args = [prepare_argument_for_serialization(arg) for arg in args]
-            kwargs = {kw: prepare_argument_for_serialization(arg) for kw, arg in kwargs.items()}
+            prepared_args = prepare_argument_for_serialization(args)[1]
+            kwargs = prepare_argument_for_serialization(kwargs)[1]
 
             args_file = await self._batch._serialize_python_to_input_file(
                 os.path.dirname(result._get_path(remote_tmpdir)), "args", i, (prepared_args, kwargs), dry_run
@@ -1155,6 +1164,10 @@ import sys
 
 def deserialize_argument(arg):
     typ, val = arg
+    if typ == 'value' and isinstance(val, dict):
+        return {{k: deserialize_argument(v) for k, v in val.items()}}
+    if typ == 'value' and isinstance(val, list):
+        return [deserialize_argument(elt) for elt in val]
     if typ == 'py_path':
         return dill.load(open(val, 'rb'))
     if typ in ('path', 'dict_path'):
@@ -1162,14 +1175,16 @@ def deserialize_argument(arg):
     assert typ == 'value'
     return val
 
+    return _deserialize(arg)
+
 with open('{result}', 'wb') as dill_out:
     try:
         with open('{func_file}', 'rb') as func_file:
             func = dill.load(func_file)
         with open('{args_file}', 'rb') as arg_file:
             args, kwargs = dill.load(arg_file)
-            args = [deserialize_argument(arg) for arg in args]
-            kwargs = {{kw: deserialize_argument(arg) for kw, arg in kwargs.items()}}
+            args = deserialize_argument(args)
+            kwargs = deserialize_argument(kwargs)
         result = func(*args, **kwargs)
         dill.dump(result, dill_out, recurse=True)
         {json_write}

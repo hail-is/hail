@@ -1229,3 +1229,45 @@ class ServiceTests(unittest.TestCase):
         res = b2.run()
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+
+    def test_list_recursive_resource_extraction_in_python_jobs(self):
+        b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
+
+        def write(paths):
+            for path in paths:
+                with open(path, 'w') as f:
+                    f.write('foo')
+
+        head = b.new_python_job()
+        head.call(write, [head.ofile1, head.ofile2])
+
+        tail = b.new_bash_job()
+        tail.command(f'cat {head.ofile1}')
+        tail.command(f'cat {head.ofile2}')
+
+        res = b.run()
+        assert res
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+        assert res.get_job_log(tail._job_id)['main'] == 'foo\nfoo', str(res.debug_info())
+
+    def test_dict_recursive_resource_extraction_in_python_jobs(self):
+        b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
+
+        def write(kwargs):
+            for k, v in kwargs.items():
+                with open(v, 'w') as f:
+                    f.write(k)
+
+        head = b.new_python_job()
+        head.call(write, {'a': head.ofile1, 'b': head.ofile2})
+
+        tail = b.new_bash_job()
+        tail.command(f'cat {head.ofile1}')
+        tail.command(f'cat {head.ofile2}')
+
+        res = b.run()
+        assert res
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+        assert res.get_job_log(tail._job_id)['main'] == 'a\nb', str(res.debug_info())
