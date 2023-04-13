@@ -1102,10 +1102,10 @@ class PythonJob(Job):
                 handle_arg(r)
             elif isinstance(r, list):
                 for elt in r:
-                    handle_arg(elt)
+                    handle_args(elt)
             elif isinstance(r, dict):
                 for v in r.values():
-                    handle_arg(v)
+                    handle_args(v)
 
         handle_args(args)
         handle_args(kwargs)
