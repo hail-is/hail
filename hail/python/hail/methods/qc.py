@@ -1,3 +1,4 @@
+import abc
 import copy
 import logging
 
@@ -512,7 +513,38 @@ def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[
     return glob, per_sample.cols(), per_variant.rows()
 
 
-class VEPConfig:
+class BaseVEPConfig(abc.ABC):
+    vep_json_typ: hl.expr.HailType
+    data_bucket: str
+    regions: List[str]
+    image: str
+    data_mount: str
+    env: Dict[str, str]
+    reference_data_is_bucket_requester_pays: bool
+    cloud: str
+    batch_run_command: str
+    batch_run_csq_header_command: str
+
+    @abc.abstractmethod
+    def vep_command(self,
+                    consequence: bool,
+                    part_id: int,
+                    input_file: Optional[str],
+                    output_file: str,
+                    tolerate_parse_error: bool) -> List[str]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def vep_csq_header_command(self,
+                               consequence: bool,
+                               part_id: int,
+                               input_file: Optional[str],
+                               output_file: str,
+                               tolerate_parse_error: bool) -> List[str]:
+        raise NotImplementedError
+
+
+class HailVEPConfig(BaseVEPConfig, abc.ABC):
     default_vep_json_typ = hl.tstruct(
         assembly_name=hl.tstr,
         allele_string=hl.tstr,
@@ -639,17 +671,17 @@ class VEPConfig:
 
     @staticmethod
     def from_dict(config: Dict[str, Any]):
-        return VEPConfig(
+        return HailVEPConfig(
             config['data_bucket'],
             config['regions'],
             config['image'],
             config['data_mount'],
             config['env'],
             config['vep_json_typ'],
-            config['command'],
-            config['csq_header_command'],
             config['reference_data_is_bucket_requester_pays'],
             config.get('cloud'),
+            config['batch_run_command'],
+            config['batch_csq_header_command'],
         )
 
     def __init__(self,
@@ -659,20 +691,72 @@ class VEPConfig:
                  data_mount: str,
                  env: Dict[str, str],
                  vep_json_typ: hl.expr.HailType,
-                 command: List[str],
-                 csq_header_command: List[str],
                  reference_data_is_bucket_requester_pays: bool,
-                 cloud: Optional[str]):
+                 cloud: Optional[str],
+                 batch_run_command: List[str],
+                 batch_csq_header_command: List[str]):
         self.data_bucket = data_bucket
         self.regions = regions
         self.image = image
         self.data_mount = data_mount
         self.env = env
         self.vep_json_typ = vep_json_typ
-        self.command = command
-        self.csq_header_command = csq_header_command
         self.reference_data_is_bucket_requester_pays = reference_data_is_bucket_requester_pays
         self.cloud = cloud
+
+    @abc.abstractmethod
+    def vep_command(self,
+                    consequence: bool,
+                    part_id: int,
+                    input_file: Optional[str],
+                    output_file: str,
+                    tolerate_parse_error: bool) -> List[str]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def vep_csq_header_command(self,
+                               consequence: bool,
+                               part_id: int,
+                               input_file: Optional[str],
+                               output_file: str,
+                               tolerate_parse_error: bool) -> List[str]:
+        raise NotImplementedError
+
+
+class HailVep85ConfigGRCh37(HailVEPConfig):
+    def command(self,
+                *,
+                consequence: bool,
+                part_id: int,
+                input_file: Optional[str],
+                output_file: str,
+                tolerate_parse_error: bool) -> str:
+        vcf_or_json = '--vcf' if consequence else '--json'
+        input_file = f'--input_file {input_file}' if input_file else ''
+        return f'''
+/vep/vep {input_file} \
+--format vcf \
+{vcf_or_json} \
+--everything \
+--allele_number \
+--no_stats \
+--cache \
+--offline \
+--minimal \
+--assembly GRCh37 \
+--dir={self.data_mount} \
+--plugin LoF,human_ancestor_fa:{self.data_mount}/loftee_data/human_ancestor.fa.gz,filter_position:0.05,min_intron_size:15,conservation_file:{self.data_mount}/loftee_data/phylocsf_gerp.sql,gerp_file:{self.data_mount}/loftee_data/GERP_scores.final.sorted.txt.gz \
+-o STDOUT
+'''
+
+    def csq_header_command(self,
+                           *,
+                           consequence: bool,
+                           part_id: int,
+                           input_file: Optional[str],
+                           output_file: str,
+                           tolerate_parse_error: bool) -> str:
+        raise NotImplementedError
 
 
 def vep_85_grch37_run_cmd(run_typ: str) -> str:
