@@ -7,7 +7,7 @@
     <div>Login ID: <input name="login_id" /></div>
     <div><input type="checkbox" name="is_developer" value="1" /> Developer</div>
     <div><input type="checkbox" name="is_service_account" value="1" /> Service Account</div>
-    <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>  
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
     <button>
       Create
     </button>
@@ -17,7 +17,7 @@
   <form action="{{ base_path }}/users/delete" method="POST">
     <div>User ID: <input name="id" /></div>
     <div>Username: <input name="username" /></div>
-    <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>  
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
     <button  class="dangerous">
       Delete
     </button>
@@ -41,6 +41,7 @@
         <td class="numeric-cell">{{ user['id'] }}</td>
         <td>{{ user['username'] }}</td>
         <td>{{ user['login_id'] }}</td>
+        <td>{{ user['hail_identity'] }}</td>
         <td>{{ user['state'] }}</td>
         <td class="numeric-cell">{{ user['is_developer'] }}</td>
         <td class="numeric-cell">{{ user['is_service_account'] }}</td>
