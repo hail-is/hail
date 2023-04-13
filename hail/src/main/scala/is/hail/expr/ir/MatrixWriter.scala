@@ -67,8 +67,7 @@ abstract class MatrixWriter {
   }
 
   def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
-    ctx: ExecuteContext, ts: TableStage, r: RTable): IR =
-    throw new LowererUnsupportedOperation(s"${ this.getClass } does not have defined lowering!")
+    ctx: ExecuteContext, ts: TableStage, r: RTable): IR
 }
 
 case class MatrixNativeWriter(
