@@ -689,7 +689,7 @@ fi
 
 input_file="--input_file ${{VEP_INPUT_FILE}}"
 
-export VEP_COMMAND=/vep/vep \
+export VEP_COMMAND="/vep/vep \
 ${{input_file}} \
 --format vcf \
 ${{vcf_or_json}} \
@@ -702,7 +702,7 @@ ${{vcf_or_json}} \
 --assembly GRCh37 \
 --dir=${{VEP_DATA_DIR}} \
 --plugin LoF,human_ancestor_fa:${{VEP_DATA_DIR}}/loftee_data/human_ancestor.fa.gz,filter_position:0.05,min_intron_size:15,conservation_file:${{VEP_DATA_DIR}}/loftee_data/phylocsf_gerp.sql,gerp_file:${{VEP_DATA_DIR}}/loftee_data/GERP_scores.final.sorted.txt.gz \
--o STDOUT
+-o STDOUT"
 
 exec /hail-vep/vep.py "$@"
 EOF
@@ -723,10 +723,12 @@ else
   vcf_or_json="--json"
 fi
 
-export VEP_COMMAND=/vep/vep \
-${{VEP_INPUT_FILE:+--input_file $VEP_INPUT_FILE}} \
+input_file="--input_file ${{VEP_INPUT_FILE}}"
+
+export VEP_COMMAND="/vep/vep \
+${{input_file}} \
 --format vcf \
-${{if ($VEP_CONSEQUENCE -ne 0);then --vcf;--json;fi}} \
+${{vcf_or_json}} \
 --everything \
 --allele_number \
 --no_stats \
@@ -738,7 +740,7 @@ ${{if ($VEP_CONSEQUENCE -ne 0);then --vcf;--json;fi}} \
 --plugin "LoF,loftee_path:/vep/ensembl-vep/Plugins/,gerp_bigwig:${{VEP_DATA_MOUNT}}/gerp_conservation_scores.homo_sapiens.GRCh38.bw,human_ancestor_fa:${{VEP_DATA_MOUNT}}/human_ancestor.fa.gz,conservation_file:${{VEP_DATA_MOUNT}}/loftee.sql" \
 --dir_plugins /vep/ensembl-vep/Plugins/ \
 --dir_cache ${{VEP_DATA_MOUNT}} \
--o STDOUT
+-o STDOUT"
 
 exec /hail-vep/vep.py "$@"
 EOF
