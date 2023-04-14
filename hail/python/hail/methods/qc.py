@@ -556,6 +556,7 @@ class BaseVEPConfig(abc.ABC):
     The `VEP_INPUT_FILE` environment variable is not available for the single job that computes the consequence header when
     ``csq=True``
     """
+
     vep_json_typ: hl.expr.HailType
     data_bucket: str
     data_mount: str
@@ -770,8 +771,7 @@ class HailVEPConfig_GRCh37_85(HailVEPConfig):
                     output_file: str) -> str:
         vcf_or_json = '--vcf' if consequence else '--json'
         input_file = f'--input_file {input_file}' if input_file else ''
-        return f'''
-/vep/vep {input_file} \
+        return f'''/vep/vep {input_file} \
 --format vcf \
 {vcf_or_json} \
 --everything \
@@ -823,8 +823,7 @@ class HailVEPConfig_GRCh38_95(HailVEPConfig):
                     output_file: str) -> str:
         vcf_or_json = '--vcf' if consequence else '--json'
         input_file = f'--input_file {input_file}' if input_file else ''
-        return f'''
-"/vep/vep {input_file} \
+        return f'''/vep/vep {input_file} \
 --format vcf \
 {vcf_or_json} \
 --everything \
@@ -838,7 +837,7 @@ class HailVEPConfig_GRCh38_95(HailVEPConfig):
 --plugin "LoF,loftee_path:/vep/ensembl-vep/Plugins/,gerp_bigwig:{self.data_mount}/gerp_conservation_scores.homo_sapiens.GRCh38.bw,human_ancestor_fa:{self.data_mount}/human_ancestor.fa.gz,conservation_file:{self.data_mount}/loftee.sql" \
 --dir_plugins /vep/ensembl-vep/Plugins/ \
 --dir_cache {self.data_mount} \
--o STDOUT"
+-o STDOUT
 '''
 
 

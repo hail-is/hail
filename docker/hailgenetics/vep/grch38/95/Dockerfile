@@ -47,6 +47,7 @@ RUN git clone -b release/95.1 https://github.com/Ensembl/ensembl-vep.git && \
     echo "#!/bin/bash" > /vep/vep && \
     echo "export PERL5LIB=\$PERL5LIB:${VEP_DIR}/ensembl-vep/Plugins/" >> /vep/vep && \
     echo "exec perl ${VEP_DIR}/ensembl-vep/vep \"\$@\"" >> /vep/vep && \
+    chmod +x /vep/vep && \
     git clone -b postreleasefix/95 https://github.com/Ensembl/VEP_plugins.git Plugins/ && \
     git clone -b grch38 https://github.com/konradjk/loftee.git && \
     mv loftee/* Plugins/ && \
