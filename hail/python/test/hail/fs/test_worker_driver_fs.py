@@ -2,7 +2,7 @@ import hail as hl
 from hailtop.utils import secret_alnum_string
 from hailtop.test_utils import skip_in_azure
 
-from ..helpers import fails_local_backend, fails_service_backend
+from ..helpers import fails_local_backend
 
 
 @skip_in_azure

@@ -12,6 +12,7 @@ pytest-html>=1.20.0,<2
 pytest-xdist>=2.2.1,<3
 pytest-instafail>=0.4.2,<1
 pytest-asyncio>=0.14.0,<1
+pytest-timestamper>=0.0.9,<1
 sphinx>=3.5.4,<4
 sphinx-autodoc-typehints==1.11.1
 nbsphinx>=0.8.8,<1
