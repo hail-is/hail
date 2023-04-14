@@ -374,7 +374,7 @@ class Tests(unittest.TestCase):
                 hail_vep_result.alleles[1],
                 ".",
                 ".",
-                "GT",
+                # "GT",
             ])
         ))
         hail_vep_result = hail_vep_result.rows().select('vep')
@@ -393,7 +393,7 @@ class Tests(unittest.TestCase):
 
         dataproc_result = hl.import_table(resource('dataproc_vep_grch37_annotations.tsv.gz'),
                                           key=['locus', 'alleles'],
-                                          types={'locus': hail_vep_result.locus.dtype, 'alleles': hail_vep_result.alleles.dtype,
+                                          types={'locus': hl.tlocus('GRCh37'), 'alleles': hl.tarray(hl.tstr),
                                                  'vep': initial_vep_dtype}, force=True)
         dataproc_result = parse_lof_info_into_dict(dataproc_result)
 
