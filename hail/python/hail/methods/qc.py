@@ -1,5 +1,4 @@
 import abc
-import copy
 import logging
 
 import hail as hl
@@ -16,7 +15,7 @@ from hailtop.config import get_deploy_config
 from hailtop import yamlx
 
 from hail.backend.service_backend import ServiceBackend
-from hail.typecheck import typecheck, oneof, anytype, dictof, nullable, numeric, sequenceof
+from hail.typecheck import typecheck, oneof, anytype, nullable, numeric, sequenceof
 from hail.expr.expressions.expression_typecheck import expr_float64
 from hail.utils import FatalError
 from hail.utils.java import Env, info, warning
@@ -911,8 +910,18 @@ def _service_vep(backend: ServiceBackend,
         if csq:
             local_output_file = '/io/output'
             vep_command = vep_config.vep_command(
-                              consequence=csq, part_id=-1, input_file=None, output_file=local_output_file, tolerate_parse_error=tolerate_parse_error
-                          )
+                consequence=csq, part_id=-1, input_file=None, output_file=local_output_file, tolerate_parse_error=tolerate_parse_error
+            )
+            env = {
+                'VEP_BLOCK_SIZE': str(block_size),
+                'VEP_DATA_MOUNT': shq(vep_config.data_mount),
+                'VEP_CONSEQUENCE': str(int(csq)),
+                'VEP_TOLERATE_PARSE_ERROR': str(int(tolerate_parse_error)),
+                'VEP_PART_ID': str(-1),
+                'VEP_OUTPUT_FILE': local_output_file,
+                'VEP_COMMAND': vep_command
+            }
+            env.update(vep_config.env)
             bb.create_job(vep_config.image,
                           vep_config.batch_run_csq_header_command,
                           attributes={'name': 'csq-header'},
@@ -921,15 +930,7 @@ def _service_vep(backend: ServiceBackend,
                           output_files=[(local_output_file, f'{vep_output_path.name}/csq-header')],
                           regions=vep_config.regions,
                           requester_pays_project=requester_pays_project,
-                          env={
-                              'VEP_BLOCK_SIZE': str(block_size),
-                              'VEP_DATA_MOUNT': shq(vep_config.data_mount),
-                              'VEP_CONSEQUENCE': str(int(csq)),
-                              'VEP_TOLERATE_PARSE_ERROR': str(int(tolerate_parse_error)),
-                              'VEP_PART_ID': str(-1),
-                              'VEP_OUTPUT_FILE': local_output_file,
-                              'VEP_COMMAND': vep_command
-                          }.update(vep_config.env))
+                          env=env)
 
         for f in hl.hadoop_ls(vep_input_path.name):
             path = f['path']
@@ -949,6 +950,18 @@ def _service_vep(backend: ServiceBackend,
                 tolerate_parse_error=tolerate_parse_error,
             )
 
+            env = {
+                'VEP_BLOCK_SIZE': str(block_size),
+                'VEP_DATA_MOUNT': shq(vep_config.data_mount),
+                'VEP_CONSEQUENCE': str(int(csq)),
+                'VEP_TOLERATE_PARSE_ERROR': str(int(tolerate_parse_error)),
+                'VEP_PART_ID': str(-1),
+                'VEP_INPUT_FILE': local_input_file,
+                'VEP_OUTPUT_FILE': local_output_file,
+                'VEP_COMMAND': vep_command,
+            }
+            env.update(vep_config.env)
+
             bb.create_job(vep_config.image,
                           vep_config.batch_run_command,
                           attributes={'name': f'vep-{part_id}'},
@@ -958,16 +971,7 @@ def _service_vep(backend: ServiceBackend,
                           cloudfuse=[(vep_config.data_bucket, vep_config.data_mount, True)],
                           regions=vep_config.regions,
                           requester_pays_project=requester_pays_project,
-                          env={
-                              'VEP_BLOCK_SIZE': str(block_size),
-                              'VEP_DATA_MOUNT': shq(vep_config.data_mount),
-                              'VEP_CONSEQUENCE': str(int(csq)),
-                              'VEP_TOLERATE_PARSE_ERROR': str(int(tolerate_parse_error)),
-                              'VEP_PART_ID': str(-1),
-                              'VEP_INPUT_FILE': local_input_file,
-                              'VEP_OUTPUT_FILE': local_output_file,
-                              'VEP_COMMAND': vep_command,
-                          }.update(vep_config.env))
+                          env=env)
 
     hl.export_vcf(ht, vep_input_path.name, parallel='header_per_shard')
 
