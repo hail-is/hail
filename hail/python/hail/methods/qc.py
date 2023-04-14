@@ -513,9 +513,10 @@ def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[
 
 
 class BaseVEPConfig(abc.ABC):
-    """
-    To define a custom VEP configuration to for Query on Batch, construct a new class that inherits from
-    :class:`.BaseVEPConfig` and has the following parameters defined:
+    """Base class for configuring VEP.
+
+    To define a custom VEP configuration to for Query on Batch, construct a new class that inherits from :class:`.BaseVEPConfig`
+    and has the following parameters defined:
 
      - `vep_json_type` (:class:`.HailType`): The type of the VEP JSON schema (as produced by VEP when invoked with the `--json` option).
      - `data_bucket` (:obj:`.str`) -- The location where the VEP data is stored.
@@ -535,13 +536,13 @@ class BaseVEPConfig(abc.ABC):
 
     .. code-block:: python3
 
-    def vep_command(self,
-                    consequence: bool,
-                    tolerate_parse_error: bool,
-                    part_id: int,
-                    input_file: Optional[str],
-                    output_file: str) -> List[str]:
-        pass
+        def vep_command(self,
+                        consequence: bool,
+                        tolerate_parse_error: bool,
+                        part_id: int,
+                        input_file: Optional[str],
+                        output_file: str) -> List[str]:
+            pass
 
     The following environment variables are added to the job's environment:
 
@@ -555,7 +556,6 @@ class BaseVEPConfig(abc.ABC):
 
     The `VEP_INPUT_FILE` environment variable is not available for the single job that computes the consequence header when
     ``csq=True``
-
     """
 
     vep_json_typ: hl.expr.HailType
