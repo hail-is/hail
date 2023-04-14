@@ -9,7 +9,7 @@ plugins {
   id 'scala'
   id 'idea'
   id 'com.github.johnrengelman.shadow' version '6.1.0'
-  id "de.undercouch.download" version "5.3.1"
+  id "de.undercouch.download" version "5.4.0"
   id 'eclipse'
 }
 
