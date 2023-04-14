@@ -59,7 +59,7 @@ Running the tests
 
 Install development dependencies::
 
-    make install-dev-deps
+    make -C .. install-dev-requirements
 
 A couple Hail tests compare to PLINK 1.9 (not PLINK 2.0 [ignore the confusing
 URL]):
