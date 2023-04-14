@@ -210,6 +210,10 @@ class LocalAsyncFS(AsyncFS):
             thread_pool = ThreadPoolExecutor(max_workers=max_workers)
         self._thread_pool = thread_pool
 
+    @staticmethod
+    def valid_url(url: str) -> bool:
+        return url.startswith('file://') or '://' not in url
+
     def parse_url(self, url: str) -> LocalAsyncFSURL:
         return LocalAsyncFSURL(self._get_path(url))
 

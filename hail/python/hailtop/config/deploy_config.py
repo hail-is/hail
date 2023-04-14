@@ -4,8 +4,6 @@ import json
 import logging
 from ..utils import first_extant_file
 
-from .user_config import get_user_config
-
 log = logging.getLogger('deploy_config')
 
 
@@ -38,7 +36,7 @@ class DeployConfig:
             config = {
                 'location': 'external',
                 'default_namespace': 'default',
-                'domain': get_user_config().get('global', 'domain', fallback=None),
+                'domain': 'hail.is',
             }
         return DeployConfig.from_config(config)
 

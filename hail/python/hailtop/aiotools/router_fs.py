@@ -48,6 +48,11 @@ class RouterAsyncFS(AsyncFS):
     def schemes(self) -> Set[str]:
         return set(self._scheme_fs.keys())
 
+    @staticmethod
+    def valid_url(url) -> bool:
+        fss = (LocalAsyncFS, aiogoogle.GoogleStorageAsyncFS, aioazure.AzureAsyncFS, aioaws.S3AsyncFS)
+        return any(fs.valid_url(url) for fs in fss)
+
     def _load_fs(self, scheme: str):
         fs: AsyncFS
 

@@ -410,7 +410,8 @@ class ServiceBackend(Backend[bc.Batch]):
         bucket. This argument is deprecated. Use `remote_tmpdir` instead.
     remote_tmpdir:
         Temporary data will be stored in this cloud storage folder. Cannot be used with deprecated
-        argument `bucket`. Paths should start with one of gs://, hail-az://, or s3://.
+        argument `bucket`. Paths should match a GCS URI like gs://<BUCKET_NAME>/<PATH> or an ABS
+        URI of the form https://<ACCOUNT_NAME>.blob.core.windows.net/<CONTAINER_NAME>/<PATH>.
     google_project:
         If specified, the project to use when authenticating with Google
         Storage. Google Storage is used to transfer serialized values between

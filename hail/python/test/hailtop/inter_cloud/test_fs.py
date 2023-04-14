@@ -15,7 +15,7 @@ from hailtop.aiocloud.aioazure import AzureAsyncFS
 from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
 
 
-@pytest.fixture(params=['file', 'gs', 's3', 'hail-az', 'router/file', 'router/gs', 'router/s3', 'router/hail-az'])
+@pytest.fixture(params=['file', 'gs', 's3', 'azure-https', 'router/file', 'router/gs', 'router/s3', 'router/azure-https'])
 async def filesystem(request) -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS, str]]:
     token = secret_alnum_string()
 
@@ -34,7 +34,7 @@ async def filesystem(request) -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS,
         elif request.param.endswith('s3'):
             fs = S3AsyncFS(thread_pool)
         else:
-            assert request.param.endswith('hail-az')
+            assert request.param.endswith('azure-https')
             fs = AzureAsyncFS()
         async with fs:
             if request.param.endswith('file'):
@@ -46,10 +46,10 @@ async def filesystem(request) -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS,
                 bucket = os.environ['HAIL_TEST_S3_BUCKET']
                 base = f's3://{bucket}/tmp/{token}/'
             else:
-                assert request.param.endswith('hail-az')
+                assert request.param.endswith('azure-https')
                 account = os.environ['HAIL_TEST_AZURE_ACCOUNT']
                 container = os.environ['HAIL_TEST_AZURE_CONTAINER']
-                base = f'hail-az://{account}/{container}/tmp/{token}/'
+                base = f'https://{account}.blob.core.windows.net/{container}/tmp/{token}/'
 
             await fs.mkdir(base)
             sema = asyncio.Semaphore(50)

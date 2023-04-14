@@ -117,6 +117,11 @@ class AsyncFS(abc.ABC):
     def schemes(self) -> Set[str]:
         pass
 
+    @staticmethod
+    @abc.abstractmethod
+    def valid_url(url: str) -> bool:
+        pass
+
     @abc.abstractmethod
     def parse_url(self, url: str) -> AsyncFSURL:
         pass

@@ -41,10 +41,10 @@ class AzureStorageFSSuite extends TestNGSuite with FSSuite {
   }
 
   @Test def testMakeQualified(): Unit = {
-    val qualifiedFileName = "hail-az://account/container/path"
+    val qualifiedFileName = "https://account.blob.core.windows.net/container/path"
     assert(fs.makeQualified(qualifiedFileName) == qualifiedFileName)
 
-    val unqualifiedFileName = "not-hail-az://account/container/path"
+    val unqualifiedFileName = "https://account/container/path"
     try {
       fs.makeQualified(unqualifiedFileName)
     }

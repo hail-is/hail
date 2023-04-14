@@ -1,8 +1,10 @@
 import os
 from typing import Any, Dict, Set
-from urllib.parse import urlparse
 
 from gear.cloud_config import get_azure_config, get_gcp_config
+
+from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
+from hailtop.aiocloud.aioazure import AzureAsyncFS
 
 from ..instance_config import InstanceConfig
 from .azure.instance_config import AzureSlimInstanceConfig
@@ -27,6 +29,7 @@ def possible_cloud_locations(cloud: str) -> Set[str]:
 
 
 def _acceptable_query_jar_url_prefix() -> str:
+    cloud = os.environ['CLOUD']
     query_storage_uri = os.environ['HAIL_QUERY_STORAGE_URI']
     jar_subfolder = os.environ['HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER']
     acceptable_query_jar_url_prefix = query_storage_uri + jar_subfolder
@@ -34,8 +37,11 @@ def _acceptable_query_jar_url_prefix() -> str:
     assert jar_subfolder[0] == '/', (query_storage_uri, jar_subfolder)
     assert query_storage_uri[-1] != '/', (query_storage_uri, jar_subfolder)
 
-    parsed = urlparse(acceptable_query_jar_url_prefix)
-    assert parsed.scheme in {'hail-az', 'gs'}, (query_storage_uri, jar_subfolder)
+    if cloud == 'gcp':
+        assert GoogleStorageAsyncFS.valid_url(acceptable_query_jar_url_prefix)
+    else:
+        assert cloud == 'azure'
+        assert AzureAsyncFS.valid_url(acceptable_query_jar_url_prefix)
 
     return acceptable_query_jar_url_prefix
 
