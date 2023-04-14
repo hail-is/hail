@@ -51,6 +51,7 @@ class MatrixNativeWriter(MatrixWriter):
             other.partitions == self.partitions and \
             other.partitions_type == self.partitions_type
 
+
 class MatrixVCFWriter(MatrixWriter):
     @typecheck_method(path=str,
                       append=nullable(str),
