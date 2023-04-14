@@ -555,6 +555,7 @@ class BaseVEPConfig(abc.ABC):
 
     The `VEP_INPUT_FILE` environment variable is not available for the single job that computes the consequence header when
     ``csq=True``
+
     """
 
     vep_json_typ: hl.expr.HailType
@@ -730,7 +731,7 @@ class HailVEPConfig(BaseVEPConfig, abc.ABC):
         self.reference_data_is_bucket_requester_pays = reference_data_is_bucket_requester_pays
         self.cloud = cloud
         self.batch_run_command = ['python3', '/hail-vep/vep.py', 'vep']
-        self.batch_csq_header_command = ['python3', '/hail-vep/vep.py', 'csq_header']
+        self.batch_run_csq_header_command = ['python3', '/hail-vep/vep.py', 'csq_header']
 
     @abc.abstractmethod
     def vep_command(self,
