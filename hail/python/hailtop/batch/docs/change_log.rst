@@ -3,6 +3,10 @@
 Change Log
 ==========
 
+**Version 0.2.114**
+
+- (`#12780 <https://github.com/hail-is/hail/pull/12881>`__) PythonJobs now handle arguments with resources nested inside dicts and lists.
+
 **Version 0.2.113**
 
 - (`#12780 <https://github.com/hail-is/hail/pull/12780>`__) The LocalBackend now supports `always_run` jobs. The LocalBackend will no longer immediately error when a job fails, rather now aligns with the ServiceBackend in running all jobs whose parents have succeeded.
