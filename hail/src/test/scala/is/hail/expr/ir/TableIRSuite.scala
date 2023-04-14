@@ -1175,7 +1175,7 @@ class TableIRSuite extends HailSuite {
       (some(1), some(60), Failed("Recomputing the same partition multiple times should be replaced with a reload"), Succeeded)
     )
 
-    forAll(data) { case (a, b, t, f) => LowerTableIR.selectRepartitioning(a, b)(t)(f).toSucceeded }
+    forAll(data) { case (a, b, t, f) => (if (LowerTableIR.isRepartitioningCheap(a, b)) t else f).toSucceeded }
   }
 
 }

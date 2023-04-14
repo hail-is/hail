@@ -266,7 +266,7 @@ class TableStage(
     }
     require(newPartitioner.kType.isPrefixOf(kType))
 
-    val newStage = LowerTableIR.selectRepartitioning(partitioner, newPartitioner) {
+    val newStage = if (LowerTableIR.isRepartitioningCheap(partitioner, newPartitioner)) {
       val startAndEnd = partitioner.rangeBounds.map(newPartitioner.intervalRange).zipWithIndex
       if (startAndEnd.forall { case ((start, end), i) => start + 1 == end &&
         newPartitioner.rangeBounds(start).includes(newPartitioner.kord, partitioner.rangeBounds(i))
@@ -357,7 +357,7 @@ class TableStage(
             }
           }
         })
-    } {
+    } else {
       val location = ec.createTmpPath(genUID())
       CompileAndEvaluate(ec,
         TableNativeWriter(location).lower(ec, this, RTable.fromTableStage(ec, this))
@@ -1784,9 +1784,7 @@ object LowerTableIR {
    * spilling as being proportional to the mean number of old partitions
    * used to compute new partitions.
    */
-  def selectRepartitioning[A](original: RVDPartitioner, planned: RVDPartitioner)
-                             (recompute: => A)
-                             (reload: => A): A = {
+  def isRepartitioningCheap(original: RVDPartitioner, planned: RVDPartitioner): Boolean = {
     val cost =
       if (original.numPartitions == 0)
         0.0
@@ -1797,6 +1795,6 @@ object LowerTableIR {
           .sum
 
     log.info(s"repartition cost: $cost")
-    if (cost <= 1.0) recompute else reload
+    cost <= 1.0
   }
 }
