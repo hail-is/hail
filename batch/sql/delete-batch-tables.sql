@@ -22,6 +22,14 @@ DROP TRIGGER IF EXISTS attempts_after_update;
 DROP TRIGGER IF EXISTS jobs_after_update;
 DROP TRIGGER IF EXISTS attempt_resources_after_insert;
 DROP TRIGGER IF EXISTS attempt_resources_before_insert;  # deprecated
+DROP TRIGGER IF EXISTS aggregated_bp_user_resources_v2_before_insert;
+DROP TRIGGER IF EXISTS aggregated_bp_user_resources_by_date_v2_before_insert;
+DROP TRIGGER IF EXISTS aggregated_batch_resources_v2_before_insert;
+DROP TRIGGER IF EXISTS aggregated_job_resources_v2_before_insert;
+DROP TRIGGER IF EXISTS aggregated_bp_user_resources_v2_after_update;
+DROP TRIGGER IF EXISTS aggregated_bp_user_resources_by_date_v2_after_update;
+DROP TRIGGER IF EXISTS aggregated_batch_resources_v2_after_update;
+DROP TRIGGER IF EXISTS aggregated_job_resources_v2_after_update;
 
 DROP TABLE IF EXISTS `aggregated_job_resources_by_date`;
 DROP TABLE IF EXISTS `aggregated_batch_resources_by_date`;
@@ -31,11 +39,15 @@ DROP TABLE IF EXISTS `batch_inst_coll_cancellable_resources_staging`;
 
 DROP TABLE IF EXISTS `aggregated_billing_project_resources`;
 DROP TABLE IF EXISTS `aggregated_billing_project_user_resources_v2`;
+DROP TABLE IF EXISTS `aggregated_billing_project_user_resources_v3`;
 DROP TABLE IF EXISTS `aggregated_billing_project_user_resources_by_date_v2`;
+DROP TABLE IF EXISTS `aggregated_billing_project_user_resources_by_date_v3`;
 DROP TABLE IF EXISTS `aggregated_batch_resources`;
 DROP TABLE IF EXISTS `aggregated_batch_resources_v2`;
+DROP TABLE IF EXISTS `aggregated_batch_resources_v3`;
 DROP TABLE IF EXISTS `aggregated_job_resources`;
 DROP TABLE IF EXISTS `aggregated_job_resources_v2`;
+DROP TABLE IF EXISTS `aggregated_job_resources_v3`;
 DROP TABLE IF EXISTS `attempt_resources`;
 DROP TABLE IF EXISTS `batch_cancellable_resources`;  # deprecated
 DROP TABLE IF EXISTS `batch_inst_coll_cancellable_resources`;

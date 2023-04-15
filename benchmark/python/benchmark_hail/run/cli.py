@@ -10,9 +10,51 @@ from .utils import run_all, run_pattern, run_list, RunConfig
 from .. import init_logging
 
 
-def main(args_):
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+def main(args):
+    init_logging()
 
+    records = []
+
+    def handler(stats):
+        records.append(stats)
+
+    data_dir = args.data_dir or os.environ.get('HAIL_BENCHMARK_DIR') or '/tmp/hail_benchmark_data'
+    profiler_path = os.environ.get('ASYNC_PROFILER_HOME')
+
+    if args.profile and profiler_path is None:
+        raise KeyError("In order to use --profile, you must download async-profiler and set `ASYNC_PROFILER_HOME`")
+
+    config = RunConfig(args.n_iter, handler, noisy=not args.quiet, timeout=args.timeout, dry_run=args.dry_run,
+                       data_dir=data_dir, cores=args.cores, verbose=args.verbose, log=args.log,
+                       profiler_path=profiler_path, profile=args.profile, prof_fmt=args.prof_fmt)
+    if args.tests:
+        run_list(args.tests.split(','), config)
+    if args.pattern:
+        run_pattern(args.pattern, config)
+    if not args.pattern and not args.tests:
+        run_all(config)
+
+    if args.dry_run:
+        return
+
+    data = {'config': {'cores': args.cores,
+                       'version': hl.__version__,
+                       'timestamp': str(datetime.datetime.now()),
+                       'system': sys.platform},
+            'benchmarks': records}
+    if args.output:
+        with open(args.output, 'w') as out:
+            json.dump(data, out)
+    else:
+        print(json.dumps(data))
+
+
+def register_main(subparser) -> 'None':
+    parser = subparser.add_parser(
+        'run',
+        help='Run Hail benchmarks locally.',
+        description='Run Hail benchmarks locally.'
+    )
     parser.add_argument('--tests', '-t',
                         type=str,
                         required=False,
@@ -57,42 +99,4 @@ def main(args_):
                         choices=['html', 'flame', 'jfr'],
                         default='html',
                         help='Choose profiler output.')
-
-    args = parser.parse_args(args_)
-
-    init_logging()
-
-    records = []
-
-    def handler(stats):
-        records.append(stats)
-
-    data_dir = args.data_dir or os.environ.get('HAIL_BENCHMARK_DIR') or '/tmp/hail_benchmark_data'
-    profiler_path = os.environ.get('ASYNC_PROFILER_HOME')
-
-    if args.profile and profiler_path is None:
-        raise KeyError("In order to use --profile, you must download async-profiler and set `ASYNC_PROFILER_HOME`")
-
-    config = RunConfig(args.n_iter, handler, noisy=not args.quiet, timeout=args.timeout, dry_run=args.dry_run,
-                       data_dir=data_dir, cores=args.cores, verbose=args.verbose, log=args.log,
-                       profiler_path=profiler_path, profile=args.profile, prof_fmt=args.prof_fmt)
-    if args.tests:
-        run_list(args.tests.split(','), config)
-    if args.pattern:
-        run_pattern(args.pattern, config)
-    if not args.pattern and not args.tests:
-        run_all(config)
-
-    if args.dry_run:
-        return
-
-    data = {'config': {'cores': args.cores,
-                       'version': hl.__version__,
-                       'timestamp': str(datetime.datetime.now()),
-                       'system': sys.platform},
-            'benchmarks': records}
-    if args.output:
-        with open(args.output, 'w') as out:
-            json.dump(data, out)
-    else:
-        print(json.dumps(data))
+    parser.set_defaults(main=main)

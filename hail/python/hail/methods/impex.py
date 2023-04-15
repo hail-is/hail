@@ -1,12 +1,13 @@
 import json
 import os
 import re
-from typing import List
 from collections import defaultdict
+from typing import List
 
 import avro.schema
 from avro.datafile import DataFileReader
 from avro.io import DatumReader
+
 import hail as hl
 from hail import ir
 from hail.expr import StructExpression, LocusExpression, \
@@ -22,11 +23,11 @@ from hail.methods.misc import require_biallelic, require_row_key_variant, requir
 from hail.table import Table
 from hail.typecheck import typecheck, nullable, oneof, dictof, anytype, \
     sequenceof, enumeration, sized_tupleof, numeric, table_key_type, char
-from hail.utils.misc import wrap_to_list, plural
-from hail.utils.java import Env, FatalError, jindexed_seq_args, warning, info
 from hail.utils import new_temp_file
 from hail.utils.deduplicate import deduplicate
-
+from hail.utils.java import Env, FatalError, jindexed_seq_args, warning
+from hail.utils.java import info
+from hail.utils.misc import wrap_to_list, plural
 from .import_lines_helpers import split_lines, should_remove_line
 
 
@@ -3095,6 +3096,25 @@ def import_avro(paths, *, key=None, intervals=None):
         raise ValueError('key and intervals must either be both defined or both undefined')
 
     with hl.current_backend().fs.open(paths[0], 'rb') as avro_file:
-        with DataFileReader(avro_file, DatumReader()) as data_file_reader:
-            tr = ir.AvroTableReader(avro.schema.parse(data_file_reader.schema), paths, key, intervals)
+
+        # monkey patch DataFileReader.determine_file_length to account for bug in Google HadoopFS
+
+        def patched_determine_file_length(self) -> int:
+            remember_pos = self.reader.tell()
+            self.reader.seek(-1, 2)
+            file_length = self.reader.tell() + 1
+            self.reader.seek(remember_pos)
+            return file_length
+
+        original_determine_file_length = DataFileReader.determine_file_length
+
+        try:
+            DataFileReader.determine_file_length = patched_determine_file_length
+
+            with DataFileReader(avro_file, DatumReader()) as data_file_reader:
+                tr = ir.AvroTableReader(avro.schema.parse(data_file_reader.schema), paths, key, intervals)
+
+        finally:
+            DataFileReader.determine_file_length = original_determine_file_length
+
     return Table(ir.TableRead(tr))

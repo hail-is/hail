@@ -1,22 +1,7 @@
-import collections
 import json
 import logging
 
-import argparse
-
-from .. import init_logging
-
-
-def main(args_):
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument("files",
-                        type=str,
-                        nargs='*',
-                        help="JSON files to summarize.")
-
-    args = parser.parse_args(args_)
-    summarize(args.files)
+from . import init_logging
 
 
 def summarize(files):
@@ -39,3 +24,14 @@ def summarize(files):
                 logging.info(f"benchmark has no times but is not marked failed: {bm['name']}")
             if bm.get('timed_out'):
                 logging.info(f"benchmark timed out: {bm['name']}")
+
+
+def register_main(subparser) -> 'None':
+    parser = subparser.add_parser('summarize',
+        help='Summarize a benchmark json results file.',
+        description='Summarize a benchmark json results file'
+    )
+    parser.add_argument("files", type=str, nargs='*',
+        help="JSON files to summarize."
+    )
+    parser.set_defaults(main=lambda args: summarize(args.files))

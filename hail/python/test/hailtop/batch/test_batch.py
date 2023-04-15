@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import secrets
 import unittest
 import pytest
@@ -497,7 +498,9 @@ class ServiceTests(unittest.TestCase):
 
     def batch(self, requester_pays_project=None, default_python_image=None,
               cancel_after_n_failures=None):
-        return Batch(backend=self.backend,
+        name_of_test_method = inspect.stack()[1][3]
+        return Batch(name=name_of_test_method,
+                     backend=self.backend,
                      default_image=DOCKER_ROOT_IMAGE,
                      attributes={'foo': 'a', 'bar': 'b'},
                      requester_pays_project=requester_pays_project,
@@ -1228,3 +1231,45 @@ class ServiceTests(unittest.TestCase):
         res = b2.run()
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+
+    def test_list_recursive_resource_extraction_in_python_jobs(self):
+        b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
+
+        def write(paths):
+            for i, path in enumerate(paths):
+                with open(path, 'w') as f:
+                    f.write(f'{i}')
+
+        head = b.new_python_job()
+        head.call(write, [head.ofile1, head.ofile2])
+
+        tail = b.new_bash_job()
+        tail.command(f'cat {head.ofile1}')
+        tail.command(f'cat {head.ofile2}')
+
+        res = b.run()
+        assert res
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+        assert res.get_job_log(tail._job_id)['main'] == '01', str(res.debug_info())
+
+    def test_dict_recursive_resource_extraction_in_python_jobs(self):
+        b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
+
+        def write(kwargs):
+            for k, v in kwargs.items():
+                with open(v, 'w') as f:
+                    f.write(k)
+
+        head = b.new_python_job()
+        head.call(write, {'a': head.ofile1, 'b': head.ofile2})
+
+        tail = b.new_bash_job()
+        tail.command(f'cat {head.ofile1}')
+        tail.command(f'cat {head.ofile2}')
+
+        res = b.run()
+        assert res
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+        assert res.get_job_log(tail._job_id)['main'] == 'ab', str(res.debug_info())
