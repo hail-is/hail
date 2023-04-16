@@ -1017,6 +1017,8 @@ steps:
         to: /io/repo/pylintrc
       - from: /repo/setup.cfg
         to: /io/repo/setup.cfg
+      - from: /repo/pyproject.toml
+        to: /io/repo/pyproject.toml
       - from: /just-wheel/wheel-container.tar
         to: /io/repo/wheel-container.tar
     dependsOn:
@@ -1039,6 +1041,8 @@ steps:
         to: /io/repo/pylintrc
       - from: /repo/setup.cfg
         to: /io/repo/setup.cfg
+      - from: /repo/pyproject.toml
+        to: /io/repo/pyproject.toml
       - from: /just-wheel/wheel-container.tar
         to: /io/repo/wheel-container.tar
     dependsOn:
@@ -1055,7 +1059,8 @@ steps:
 
       exit_status=0
 
-      python3 -m flake8 --config setup.cfg $SITE_PACKAGES/hail $SITE_PACKAGES/hailtop || exit_status=$?
+      ruff check --config pyproject.toml --ignore I --ignore PL --ignore RUF $SITE_PACKAGES/hail || exit_status=$?
+      ruff check --config pyproject.toml --ignore I $SITE_PACKAGES/hailtop || exit_status=$?
       python3 -m pylint --rcfile pylintrc hailtop || exit_status=$?
       # working around this: https://github.com/python/mypy/issues/7087
       ln -s $SITE_PACKAGES/hailtop hailtop
@@ -1074,7 +1079,8 @@ steps:
 
       exit_status=0
 
-      python3 -m flake8 --config setup.cfg $SITE_PACKAGES/hail $SITE_PACKAGES/hailtop || exit_status=$?
+      ruff check --config pyproject.toml --ignore I --ignore PL --ignore RUF $SITE_PACKAGES/hail || exit_status=$?
+      ruff check --config pyproject.toml --ignore I $SITE_PACKAGES/hailtop || exit_status=$?
       python3 -m pylint --rcfile pylintrc hailtop || exit_status=$?
       # working around this: https://github.com/python/mypy/issues/7087
       ln -s $SITE_PACKAGES/hailtop hailtop
@@ -1508,6 +1514,8 @@ steps:
         to: /io/repo/pylintrc
       - from: /repo/setup.cfg
         to: /io/repo/setup.cfg
+      - from: /repo/pyproject.toml
+        to: /io/repo/pyproject.toml
       - from: /repo/hail/python
         to: /io/repo/hail/python
       - from: /repo/config.mk
@@ -2650,6 +2658,7 @@ steps:
       cp /io/repo/tls/create_certs.py ./ci/test/resources/
       cp /io/repo/pylintrc ./
       cp /io/repo/setup.cfg ./
+      cp /io/repo/pyproject.toml ./
       cp -R /io/repo/docker ./
       cp -R /io/repo/gear ./
       cp -R /io/repo/hail/python ./hail/

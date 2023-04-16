@@ -15,9 +15,8 @@ import kubernetes_asyncio.config
 from gear import Database, create_session
 from gear.clients import get_identity_client
 from gear.cloud_config import get_gcp_config, get_global_config
-from hailtop import aiotools
+from hailtop import aiotools, httpx
 from hailtop import batch_client as bc
-from hailtop import httpx
 from hailtop.auth.sql_config import SQLConfig, create_secret_data_from_config
 from hailtop.utils import secret_alnum_string, time_msecs
 

@@ -341,9 +341,8 @@ class AzureAsyncFS(AsyncFS):
                 credentials = AzureCredentials.from_file(credential_file, scopes=scopes)
             else:
                 credentials = AzureCredentials.default_credentials(scopes=scopes)
-        else:
-            if credential_file is not None:
-                raise ValueError('credential and credential_file cannot both be defined')
+        elif credential_file is not None:
+            raise ValueError('credential and credential_file cannot both be defined')
 
         self._credential = credentials.credential
         self._blob_service_clients: Dict[Tuple[str, str], BlobServiceClient] = {}

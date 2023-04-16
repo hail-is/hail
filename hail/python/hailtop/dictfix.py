@@ -24,7 +24,6 @@ def _dictfix(x, spec):
                 x[k] = _dictfix(v, subspec)
             except AssertionError as err:
                 raise AssertionError(f'{k}:{v}, {err.args[0]}') from err
-    else:
-        if x is None:
-            x = spec
+    elif x is None:
+        x = spec
     return x
