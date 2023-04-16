@@ -511,12 +511,12 @@ async def post_create_user(request, userdata):  # pylint: disable=unused-argumen
 @auth.rest_authenticated_developers_only
 async def rest_get_users(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
-    users = await db.select_and_fetchall(
-        '''
-SELECT id, username, login_id, state, is_developer, is_service_account, hail_identity FROM users;
+    _query = '''
+SELECT id, username, login_id, state, is_developer, is_service_account, hail_identity 
+FROM users;
 '''
-    )
-    return web.json_response([user async for user in users])
+    users = [x async for x in db.select_and_fetchall(_query)]
+    return web.json_response(users)
 
 
 @routes.get('/api/v1alpha/users/{user}')
