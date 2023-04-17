@@ -233,7 +233,7 @@ notebook==6.5.4
     # via jupyter
 notebook-shim==0.2.2
     # via nbclassic
-numpy==1.21.6
+numpy==1.24.2
     # via
     #   -c hail/hail/python/dev/../pinned-requirements.txt
     #   matplotlib
