@@ -1,14 +1,14 @@
 import aiohttp
 
 from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
-from hailtop.auth import service_auth_headers
+from hailtop.auth import hail_credentials
 from hailtop.config import get_deploy_config
 from hailtop.httpx import client_session
 from hailtop.utils import request_retry_transient_errors
 
 
 class MemoryClient:
-    def __init__(self, gcs_project=None, fs=None, deploy_config=None, session=None, headers=None, _token=None):
+    def __init__(self, gcs_project=None, fs=None, deploy_config=None, session=None, headers=None):
         if not deploy_config:
             self._deploy_config = get_deploy_config()
         else:
@@ -25,14 +25,11 @@ class MemoryClient:
         self._headers = {}
         if headers:
             self._headers.update(headers)
-        if _token:
-            self._headers['Authorization'] = f'Bearer {_token}'
 
     async def async_init(self):
         if self._session is None:
             self._session = client_session()
-        if 'Authorization' not in self._headers:
-            self._headers.update(service_auth_headers(self._deploy_config, 'memory'))
+        self._headers.update(await hail_credentials().auth_headers())
 
     async def _get_file_if_exists(self, filename):
         params = {'q': filename}

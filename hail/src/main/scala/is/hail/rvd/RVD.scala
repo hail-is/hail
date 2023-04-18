@@ -153,7 +153,7 @@ class RVD(
     if (RVDPartitioner.isValid(ctx.stateManager, rvdType.kType.virtualType, partitioner.rangeBounds))
       copy(typ = rvdType, partitioner = partitioner.copy(kType = rvdType.kType.virtualType))
     else {
-      val adjustedPartitioner = partitioner.strictify
+      val adjustedPartitioner = partitioner.strictify()
       repartition(ctx, adjustedPartitioner)
         .copy(typ = rvdType, partitioner = adjustedPartitioner.copy(kType = rvdType.kType.virtualType))
     }
@@ -237,6 +237,9 @@ class RVD(
     shuffle: Boolean = false,
     filter: Boolean = true
   ): RVD = {
+    if (newPartitioner == this.partitioner)
+      return this
+
     require(newPartitioner.satisfiesAllowedOverlap(newPartitioner.kType.size - 1))
     require(shuffle || newPartitioner.kType.isPrefixOf(typ.kType.virtualType))
 
@@ -377,7 +380,7 @@ class RVD(
   def distinctByKey(execCtx: ExecuteContext): RVD = {
     val sm = execCtx.stateManager
     val localType = typ
-    repartition(execCtx, partitioner.strictify)
+    repartition(execCtx, partitioner.strictify())
       .mapPartitions(typ)((ctx, it) =>
         OrderedRVIterator(localType, it.toIteratorRV(ctx.r), ctx, sm)
           .staircase

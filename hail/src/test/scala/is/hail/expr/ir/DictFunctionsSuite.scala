@@ -10,33 +10,33 @@ import org.testng.annotations.{DataProvider, Test}
 import org.scalatest.testng.TestNGSuite
 
 class DictFunctionsSuite extends HailSuite {
-  def tuplesToMap(a: Seq[(Integer, Integer)]): Map[Integer, Integer] =
+  def tuplesToMap(a: IndexedSeq[(Integer, Integer)]): Map[Integer, Integer] =
     Option(a).map(_.filter(_ != null).toMap).orNull
 
   implicit val execStrats = ExecStrategy.javaOnly
 
   @DataProvider(name = "basic")
   def basicData(): Array[Array[Any]] = Array(
-    Array(Seq((1, 3), (2, 7))),
-    Array(Seq((1, 3), (2, null), null, (null, 1), (3, 7))),
-    Array(Seq()),
-    Array(Seq(null)),
+    Array(IndexedSeq((1, 3), (2, 7))),
+    Array(IndexedSeq((1, 3), (2, null), null, (null, 1), (3, 7))),
+    Array(IndexedSeq()),
+    Array(IndexedSeq(null)),
     Array(null)
   )
 
   @Test(dataProvider = "basic")
-  def dictFromArray(a: Seq[(Integer, Integer)]) {
+  def dictFromArray(a: IndexedSeq[(Integer, Integer)]) {
     assertEvalsTo(invoke("dict", TDict(TInt32, TInt32), toIRPairArray(a)), tuplesToMap(a))
     assertEvalsTo(toIRDict(a), tuplesToMap(a))
   }
 
   @Test(dataProvider = "basic")
-  def dictFromSet(a: Seq[(Integer, Integer)]) {
+  def dictFromSet(a: IndexedSeq[(Integer, Integer)]) {
     assertEvalsTo(invoke("dict", TDict(TInt32, TInt32), ToSet(ToStream(toIRPairArray(a)))), tuplesToMap(a))
   }
 
   @Test(dataProvider = "basic")
-  def isEmpty(a: Seq[(Integer, Integer)]) {
+  def isEmpty(a: IndexedSeq[(Integer, Integer)]) {
     assertEvalsTo(invoke("isEmpty", TBoolean, toIRDict(a)),
       Option(a).map(_.forall(_ == null)).orNull)
   }
@@ -51,7 +51,7 @@ class DictFunctionsSuite extends HailSuite {
     Array(null, null))
 
   @Test(dataProvider = "dictToArray")
-  def dictToArray(a: Seq[(Integer, Integer)], expected: (IndexedSeq[Row])) {
+  def dictToArray(a: IndexedSeq[(Integer, Integer)], expected: (IndexedSeq[Row])) {
     assertEvalsTo(invoke("dictToArray", TArray(TTuple(TInt32, TInt32)), toIRDict(a)), expected)
   }
 
@@ -65,7 +65,7 @@ class DictFunctionsSuite extends HailSuite {
     Array(null, null, null))
 
   @Test(dataProvider = "keysAndValues")
-  def keySet(a: Seq[(Integer, Integer)],
+  def keySet(a: IndexedSeq[(Integer, Integer)],
     keys: IndexedSeq[Integer],
     values: IndexedSeq[Integer]) {
     assertEvalsTo(invoke("keySet", TSet(TInt32), toIRDict(a)),
@@ -73,14 +73,14 @@ class DictFunctionsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "keysAndValues")
-  def keys(a: Seq[(Integer, Integer)],
+  def keys(a: IndexedSeq[(Integer, Integer)],
     keys: IndexedSeq[Integer],
     values: IndexedSeq[Integer]) {
     assertEvalsTo(invoke("keys", TArray(TInt32), toIRDict(a)), keys)
   }
 
   @Test(dataProvider = "keysAndValues")
-  def values(a: Seq[(Integer, Integer)],
+  def values(a: IndexedSeq[(Integer, Integer)],
     keys: IndexedSeq[Integer],
     values: IndexedSeq[Integer]) {
     assertEvalsTo(invoke("values", TArray(TInt32), toIRDict(a)), values)

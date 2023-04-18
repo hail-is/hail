@@ -5,6 +5,7 @@ import java.io.{ByteArrayInputStream, FileNotFoundException, IOException}
 import java.net.URI
 import java.nio.ByteBuffer
 import java.nio.file.FileSystems
+import java.util.concurrent._
 import org.apache.log4j.Logger
 import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.cloud.{ReadChannel, WriteChannel}
@@ -18,6 +19,7 @@ import is.hail.utils.fatal
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.{concurrent => scalaConcurrent}
 import scala.reflect.ClassTag
 
 object GoogleStorageFS {
@@ -200,7 +202,7 @@ class GoogleStorageFS(
         } else {
           handleRequesterPays(
             { (options: Seq[BlobSourceOption]) =>
-              reader = storage.reader(bucket, path, options:_*)
+              reader = retryTransientErrors { storage.reader(bucket, path, options:_*) }
               reader.seek(lazyPosition)
               reader.read(bb)
             },
@@ -252,6 +254,11 @@ class GoogleStorageFS(
     new WrappedSeekableDataInputStream(is)
   }
 
+  override def readNoCompression(filename: String): Array[Byte] = retryTransientErrors {
+    val (bucket, path) = getBucketPath(filename)
+    storage.readAllBytes(bucket, path)
+  }
+
   def createNoCompression(filename: String): PositionedDataOutputStream = retryTransientErrors {
     log.info(f"createNoCompression: ${filename}")
     val (bucket, path) = getBucketPath(filename)
@@ -261,13 +268,30 @@ class GoogleStorageFS(
       .build()
 
     val os: PositionedOutputStream = new FSPositionedOutputStream(8 * 1024 * 1024) {
-      private[this] val write: WriteChannel = storage.writer(blobInfo)
+      private[this] var writer: WriteChannel = null
+
+      private[this] def doHandlingRequesterPays(f: => Unit): Unit = {
+        if (writer != null) {
+          f
+        } else {
+          handleRequesterPays(
+            { (options: Seq[BlobWriteOption]) =>
+              writer = retryTransientErrors { storage.writer(blobInfo, options:_*) }
+              f
+            },
+            BlobWriteOption.userProject _,
+            bucket
+          )
+        }
+      }
 
       override def flush(): Unit = {
         bb.flip()
 
         while (bb.remaining() > 0)
-          write.write(bb)
+          doHandlingRequesterPays {
+            writer.write(bb)
+          }
 
         bb.clear()
       }
@@ -277,7 +301,9 @@ class GoogleStorageFS(
         if (!closed) {
           flush()
           retryTransientErrors {
-            write.close()
+            doHandlingRequesterPays {
+              writer.close()
+            }
           }
           closed = true
         }

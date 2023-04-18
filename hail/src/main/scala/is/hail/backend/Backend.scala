@@ -2,8 +2,8 @@ package is.hail.backend
 
 import is.hail.asm4s._
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
-import is.hail.expr.ir.{CodeCacheKey, CompiledFunction, IR, SortField}
+import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR, TableStage, TableStageDependency}
+import is.hail.expr.ir.{CodeCacheKey, CompiledFunction, LoweringAnalyses, SortField, TableIR, TableReader}
 import is.hail.io.fs._
 import is.hail.linalg.BlockMatrix
 import is.hail.types._
@@ -57,14 +57,6 @@ abstract class Backend {
 
   def shouldCacheQueryInfo: Boolean = true
 
-  def lowerDistributedSort(
-    ctx: ExecuteContext,
-    stage: TableStage,
-    sortFields: IndexedSeq[SortField],
-    relationalLetsAbove: Map[String, IR],
-    rowTypeRequiredness: RStruct
-  ): TableStage
-
   def lookupOrCompileCachedFunction[T](k: CodeCacheKey)(f: => CompiledFunction[T]): CompiledFunction[T]
 
   var references: Map[String, ReferenceGenome] = Map.empty
@@ -89,6 +81,29 @@ abstract class Backend {
   def removeReference(name: String): Unit = {
     references -= name
   }
+
+  def lowerDistributedSort(
+    ctx: ExecuteContext,
+    stage: TableStage,
+    sortFields: IndexedSeq[SortField],
+    rt: RTable
+  ): TableReader
+
+  final def lowerDistributedSort(
+    ctx: ExecuteContext,
+    inputIR: TableIR,
+    sortFields: IndexedSeq[SortField],
+    rt: RTable
+  ): TableReader = {
+    val analyses = LoweringAnalyses.apply(inputIR, ctx)
+    val inputStage = tableToTableStage(ctx, inputIR, analyses)
+    lowerDistributedSort(ctx, inputStage, sortFields, rt)
+  }
+
+  def tableToTableStage(ctx: ExecuteContext,
+    inputIR: TableIR,
+    analyses: LoweringAnalyses
+  ): TableStage
 }
 
 trait BackendWithCodeCache {

@@ -7,7 +7,6 @@ import is.hail.backend._
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{IRParser, _}
 import is.hail.expr.{JSONAnnotationImpex, Validate}
-import is.hail.io.bgen.IndexBgen
 import is.hail.io.fs._
 import is.hail.io.plink.LoadPlink
 import is.hail.io.{BufferSpec, TypedCodecSpec}
@@ -39,10 +38,16 @@ object LocalBackend {
   def apply(
     tmpdir: String,
     gcsRequesterPaysProject: String,
-    gcsRequesterPaysBuckets: String
+    gcsRequesterPaysBuckets: String,
+    logFile: String = "hail.log",
+    quiet: Boolean = false,
+    append: Boolean = false,
+    skipLoggingConfiguration: Boolean = false
   ): LocalBackend = synchronized {
     require(theLocalBackend == null)
 
+    if (!skipLoggingConfiguration)
+      HailContext.configureLogging(logFile, quiet, append)
     theLocalBackend = new LocalBackend(
       tmpdir,
       gcsRequesterPaysProject,
@@ -241,20 +246,6 @@ class LocalBackend(
     }
   }
 
-  def pyIndexBgen(
-    files: java.util.List[String],
-    indexFileMap: java.util.Map[String, String],
-    rg: String,
-    contigRecoding: java.util.Map[String, String],
-    skipInvalidLoci: Boolean) {
-    ExecutionTimer.logTime("LocalBackend.pyIndexBgen") { timer =>
-      withExecuteContext(timer) { ctx =>
-        IndexBgen(ctx, files.asScala.toArray, indexFileMap.asScala.toMap, Option(rg), contigRecoding.asScala.toMap, skipInvalidLoci)
-      }
-      info(s"Number of BGEN files indexed: ${ files.size() }")
-    }
-  }
-
   def pyAddReference(jsonConfig: String): Unit = addReference(ReferenceGenome.fromJSON(jsonConfig))
   def pyRemoveReference(name: String): Unit = removeReference(name)
 
@@ -274,7 +265,6 @@ class LocalBackend(
       withExecuteContext(timer) { ctx =>
         val rg = ReferenceGenome.fromFASTAFile(ctx, name, fastaFile, indexFile,
           xContigs.asScala.toArray, yContigs.asScala.toArray, mtContigs.asScala.toArray, parInput.asScala.toArray)
-        addReference(rg)
         rg.toJSONString
       }
     }
@@ -327,11 +317,10 @@ class LocalBackend(
     ctx: ExecuteContext,
     stage: TableStage,
     sortFields: IndexedSeq[SortField],
-    relationalLetsAbove: Map[String, IR],
-    rowTypeRequiredness: RStruct
-  ): TableStage = {
+    rt: RTable
+  ): TableReader = {
 
-    LowerDistributedSort.distributedSort(ctx, stage, sortFields, relationalLetsAbove, rowTypeRequiredness)
+    LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt)
   }
 
   def pyLoadReferencesFromDataset(path: String): String = {
@@ -352,4 +341,11 @@ class LocalBackend(
   def getPersistedBlockMatrix(backendContext: BackendContext, id: String): BlockMatrix = ???
 
   def getPersistedBlockMatrixType(backendContext: BackendContext, id: String): BlockMatrixType = ???
+
+  def tableToTableStage(ctx: ExecuteContext,
+    inputIR: TableIR,
+    analyses: LoweringAnalyses
+  ): TableStage = {
+    LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
+  }
 }

@@ -10,8 +10,10 @@ import orjson
 import secrets
 
 from hailtop.config import get_deploy_config, DeployConfig
-from hailtop.auth import service_auth_headers
-from hailtop.utils import bounded_gather, request_retry_transient_errors
+from hailtop.aiocloud.common import Session
+from hailtop.aiocloud.common.credentials import CloudCredentials
+from hailtop.auth import hail_credentials
+from hailtop.utils import bounded_gather
 from hailtop.utils.rich_progress_bar import is_notebook, BatchProgressBar, BatchProgressBarTask
 from hailtop import httpx
 
@@ -827,6 +829,17 @@ class BatchBuilder:
         return self._batch
 
 
+class HailExplicitTokenCredentials(CloudCredentials):
+    def __init__(self, token: str):
+        self._token = token
+
+    async def auth_headers(self) -> Dict[str, str]:
+        return {'Authorization': f'Bearer {self._token}'}
+
+    async def close(self):
+        pass
+
+
 class BatchClient:
     @staticmethod
     async def create(billing_project: str,
@@ -838,49 +851,40 @@ class BatchClient:
         if not deploy_config:
             deploy_config = get_deploy_config()
         url = deploy_config.base_url('batch')
-        if session is None:
-            session = httpx.client_session(timeout=aiohttp.ClientTimeout(total=30))
         if headers is None:
             headers = {}
-        if _token:
-            headers['Authorization'] = f'Bearer {_token}'
+        credentials: CloudCredentials
+        if _token is not None:
+            credentials = HailExplicitTokenCredentials(_token)
         else:
-            headers.update(service_auth_headers(deploy_config, 'batch', token_file=token_file))
+            credentials = hail_credentials(credentials_file=token_file)
         return BatchClient(
             billing_project=billing_project,
             url=url,
-            session=session,
+            session=Session(credentials=credentials, http_session=session, timeout=aiohttp.ClientTimeout(total=30)),
             headers=headers)
 
     def __init__(self,
                  billing_project: str,
                  url: str,
-                 session: httpx.ClientSession,
+                 session: Session,
                  headers: Dict[str, str]):
         self.billing_project = billing_project
         self.url = url
-        self._session: Optional[httpx.ClientSession] = session
+        self._session: Session = session
         self._headers = headers
 
-    async def _get(self, path, params=None) -> aiohttp.client_reqrep.ClientResponse:
-        assert self._session
-        return await request_retry_transient_errors(
-            self._session, 'GET', self.url + path, params=params, headers=self._headers
-        )
+    async def _get(self, path, params=None) -> aiohttp.ClientResponse:
+        return await self._session.get(self.url + path, params=params, headers=self._headers)
 
-    async def _post(self, path, data=None, json=None) -> aiohttp.client_reqrep.ClientResponse:
-        assert self._session
-        return await request_retry_transient_errors(
-            self._session, 'POST', self.url + path, data=data, json=json, headers=self._headers
-        )
+    async def _post(self, path, data=None, json=None) -> aiohttp.ClientResponse:
+        return await self._session.post(self.url + path, data=data, json=json, headers=self._headers)
 
-    async def _patch(self, path) -> aiohttp.client_reqrep.ClientResponse:
-        assert self._session
-        return await request_retry_transient_errors(self._session, 'PATCH', self.url + path, headers=self._headers)
+    async def _patch(self, path) -> aiohttp.ClientResponse:
+        return await self._session.patch(self.url + path, headers=self._headers)
 
-    async def _delete(self, path) -> aiohttp.client_reqrep.ClientResponse:
-        assert self._session
-        return await request_retry_transient_errors(self._session, 'DELETE', self.url + path, headers=self._headers)
+    async def _delete(self, path) -> aiohttp.ClientResponse:
+        return await self._session.delete(self.url + path, headers=self._headers)
 
     def reset_billing_project(self, billing_project):
         self.billing_project = billing_project
@@ -984,9 +988,7 @@ class BatchClient:
         return await resp.json()
 
     async def close(self):
-        assert self._session
         await self._session.close()
-        self._session = None
 
     async def __aenter__(self):
         return self

@@ -8,6 +8,11 @@ target_treeish=${HAIL_TARGET_SHA:-$(git merge-base main HEAD)}
 
 modified_sql_file_list=$(mktemp)
 
+if [ ! -d sql ]; then
+    echo 'No migrations to check, exiting.'
+    exit 0
+fi
+
 git diff --name-status $target_treeish sql \
     | grep -Ev $'^A|^M\t[^/]+/sql/(estimated-current.sql|delete-[^ ]+-tables.sql)' \
            > $modified_sql_file_list

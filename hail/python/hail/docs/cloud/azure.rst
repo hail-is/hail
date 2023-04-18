@@ -64,12 +64,12 @@ variant in a dataset containing GRCh37 variants:
             --vep-homo-sapiens-uri https://STORAGE_ACCOUNT.blob.core.windows.net/CONTAINER/homo-sapiens-GRCh37
 
 Those two URIs must point at directories containing the VEP data files. You can populate them by
-downloading the two tar files using ``gsutil``, ``gs://hail-us-vep/loftee-beta/GRCh37.tar`` and
-``gs://hail-us-vep/homo-sapiens/85_GRCh37.tar``, extracting them into a local folder, and uploading
-that folder to your storage account using ``az storage copy``. The hail-us-vep Google Cloud Storage
-bucket is a *requester pays* bucket which means *you* must pay the cost of transferring them out of
-Google Cloud. We do not provide these files in Azure because Azure Blob Storage lacks an equivalent
-cost control mechanism.
+downloading the two tar files using ``gcloud storage cp``,
+``gs://hail-us-vep/loftee-beta/GRCh37.tar`` and ``gs://hail-us-vep/homo-sapiens/85_GRCh37.tar``,
+extracting them into a local folder, and uploading that folder to your storage account using ``az
+storage copy``. The hail-us-vep Google Cloud Storage bucket is a *requester pays* bucket which means
+*you* must pay the cost of transferring them out of Google Cloud. We do not provide these files in
+Azure because Azure Blob Storage lacks an equivalent cost control mechanism.
 
 Hail also supports VEP for GRCh38 variants. The required tar files are located at
 ``gs://hail-REGION-vep/loftee-beta/GRCh38.tar`` and

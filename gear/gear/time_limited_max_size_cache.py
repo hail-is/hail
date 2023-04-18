@@ -1,6 +1,6 @@
 import asyncio
 import time
-from typing import Awaitable, Callable, Dict, Generic, TypeVar
+from typing import Callable, Coroutine, Dict, Generic, TypeVar
 
 import prometheus_client as pc  # type: ignore
 import sortedcontainers
@@ -18,7 +18,9 @@ U = TypeVar('U')
 
 
 class TimeLimitedMaxSizeCache(Generic[T, U]):
-    def __init__(self, load: Callable[[T], Awaitable[U]], lifetime_ns: int, num_slots: int, cache_name: str):
+    def __init__(
+        self, load: Callable[[T], Coroutine[None, None, U]], lifetime_ns: int, num_slots: int, cache_name: str
+    ):
         assert lifetime_ns > 0
         assert num_slots > 0
         self.load = load

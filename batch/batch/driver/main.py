@@ -35,15 +35,7 @@ from gear.profiling import install_profiler_if_requested
 from hailtop import aiotools, httpx
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
-from hailtop.utils import (
-    AsyncWorkerPool,
-    Notice,
-    dump_all_stacktraces,
-    flatten,
-    periodically_call,
-    serialization,
-    time_msecs,
-)
+from hailtop.utils import AsyncWorkerPool, Notice, dump_all_stacktraces, flatten, periodically_call, time_msecs
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
 from ..batch import cancel_batch_in_db
@@ -51,7 +43,6 @@ from ..batch_configuration import (
     BATCH_STORAGE_URI,
     CLOUD,
     DEFAULT_NAMESPACE,
-    HAIL_SHOULD_CHECK_INVARIANTS,
     MACHINE_NAME_PREFIX,
     REFRESH_INTERVAL_IN_SECONDS,
 )
@@ -166,10 +157,13 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 @routes.get('/check_invariants')
 @auth.rest_authenticated_developers_only
 async def get_check_invariants(request, userdata):  # pylint: disable=unused-argument
-    app = request.app
+    db: Database = request.app['db']
+    incremental_result, resource_agg_result = await asyncio.gather(
+        check_incremental(db), check_resource_aggregation(db), return_exceptions=True
+    )
     data = {
-        'check_incremental_error': app['check_incremental_error'],
-        'check_resource_aggregation_error': app['check_resource_aggregation_error'],
+        'check_incremental_error': incremental_result,
+        'check_resource_aggregation_error': resource_agg_result,
     }
     return web.json_response(data=data)
 
@@ -590,16 +584,26 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
             raise ConfigError()
 
         max_instances = validate_int(
-            session, 'Max instances', post['max_instances'], lambda v: v > 0, 'a positive integer'
+            session, 'Max instances', post['max_instances'], lambda v: v >= 0, 'a non-negative integer'
         )
 
         max_live_instances = validate_int(
-            session, 'Max live instances', post['max_live_instances'], lambda v: v > 0, 'a positive integer'
+            session,
+            'Max live instances',
+            post['max_live_instances'],
+            lambda v: 0 <= v <= max_instances,
+            'a non-negative integer',
+        )
+
+        min_instances = validate_int(
+            session,
+            'Min instances',
+            post['min_instances'],
+            lambda v: 0 <= v <= max_live_instances,
+            f'a non-negative integer less than or equal to max_live_instances {max_live_instances}',
         )
 
         label = post['label']
-
-        enable_standing_worker = 'enable_standing_worker' in post
 
         possible_worker_cores = []
         for cores in possible_cores_from_worker_type(pool.cloud, worker_type):
@@ -685,9 +689,9 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
             worker_cores=worker_cores,
             worker_local_ssd_data_disk=worker_local_ssd_data_disk,
             worker_external_ssd_data_disk_size_gb=worker_external_ssd_data_disk_size_gb,
-            enable_standing_worker=enable_standing_worker,
             standing_worker_cores=standing_worker_cores,
             boot_disk_size_gb=boot_disk_size_gb,
+            min_instances=min_instances,
             max_instances=max_instances,
             max_live_instances=max_live_instances,
             preemptible=pool.preemptible,
@@ -953,7 +957,7 @@ HAVING n_ready_jobs + n_running_jobs > 0;
     return await render_template('batch-driver', request, userdata, 'user_resources.html', page_context)
 
 
-async def check_incremental(app, db):
+async def check_incremental(db):
     @transaction(db, read_only=True)
     async def check(tx):
         user_inst_coll_with_broken_resources = tx.execute_and_fetchall(
@@ -1015,14 +1019,10 @@ LOCK IN SHARE MODE;
         if len(failures) > 0:
             raise ValueError(json.dumps(failures))
 
-    try:
-        await check()  # pylint: disable=no-value-for-parameter
-    except Exception as e:
-        app['check_incremental_error'] = serialization.exception_to_dict(e)
-        log.exception('while checking incremental')
+    await check()  # pylint: disable=no-value-for-parameter
 
 
-async def check_resource_aggregation(app, db):
+async def check_resource_aggregation(db):
     def merge(r1, r2):
         if r1 is None:
             r1 = {}
@@ -1160,11 +1160,7 @@ LOCK IN SHARE MODE;
             agg_billing_project_resources,
         )
 
-    try:
-        await check()  # pylint: disable=no-value-for-parameter
-    except Exception as e:
-        app['check_resource_aggregation_error'] = serialization.exception_to_dict(e)
-        log.exception('while checking resource aggregation')
+    await check()  # pylint: disable=no-value-for-parameter
 
 
 async def _cancel_batch(app, batch_id):
@@ -1404,13 +1400,6 @@ SELECT instance_id, internal_token, frozen FROM globals;
     )
 
     app['canceller'] = await Canceller.create(app)
-
-    app['check_incremental_error'] = None
-    app['check_resource_aggregation_error'] = None
-
-    if HAIL_SHOULD_CHECK_INVARIANTS:
-        task_manager.ensure_future(periodically_call(10, check_incremental, app, db))
-        task_manager.ensure_future(periodically_call(10, check_resource_aggregation, app, db))
 
     task_manager.ensure_future(periodically_call(10, monitor_billing_limits, app))
     task_manager.ensure_future(periodically_call(10, cancel_fast_failing_batches, app))

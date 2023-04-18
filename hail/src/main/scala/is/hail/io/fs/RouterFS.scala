@@ -15,6 +15,8 @@ class RouterFS(schemes: Map[String, FS], default: String) extends FS {
 
   def createNoCompression(filename: String): PositionedDataOutputStream = lookupFS(filename).createNoCompression(filename)
 
+  override def readNoCompression(filename: String): Array[Byte] = lookupFS(filename).readNoCompression(filename)
+
   override def mkDir(dirname: String): Unit = lookupFS(dirname).mkDir(dirname)
 
   def delete(filename: String, recursive: Boolean) = lookupFS(filename).delete(filename, recursive)

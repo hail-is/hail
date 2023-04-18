@@ -9,7 +9,7 @@ from hail.utils.misc import divide_null, guess_cloud_spark_provider
 from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.ir import TableToTableApply
-from .misc import require_biallelic, require_row_key_variant, require_col_key_str, require_table_key_variant
+from .misc import require_biallelic, require_row_key_variant, require_col_key_str, require_table_key_variant, require_alleles_field
 
 
 @typecheck(mt=MatrixTable, name=str)
@@ -251,7 +251,7 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
     -------
     :class:`.MatrixTable`
     """
-    require_row_key_variant(mt, 'variant_qc')
+    require_alleles_field(mt, 'variant_qc')
 
     bound_exprs = {}
     gq_dp_exprs = {}

@@ -14,12 +14,12 @@ def log_before_after():
     log.info('ending test')
 
 
-def pytest_collection_modifyitems(config, items):
+def pytest_collection_modifyitems(config, items):  # pylint: disable=unused-argument
     n_splits = int(os.environ.get('HAIL_RUN_IMAGE_SPLITS', '1'))
     split_index = int(os.environ.get('HAIL_RUN_IMAGE_SPLIT_INDEX', '-1'))
     if n_splits <= 1:
         return
-    if not (0 <= split_index < n_splits):
+    if not 0 <= split_index < n_splits:
         raise RuntimeError(f"invalid split_index: index={split_index}, n_splits={n_splits}\n  env={os.environ}")
     skip_this = pytest.mark.skip(reason="skipped in this round")
 

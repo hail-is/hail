@@ -59,14 +59,17 @@ class VariantDataset:
     def from_merged_representation(mt,
                                    *,
                                    ref_block_fields=(),
-                                   infer_ref_block_fields: bool = True):
+                                   infer_ref_block_fields: bool = True,
+                                   is_split=False):
         """Create a VariantDataset from a sparse MatrixTable containing variant and reference data."""
 
         if 'END' not in mt.entry:
             raise ValueError("VariantDataset.from_merged_representation: expect field 'END' in matrix table entry")
 
-        if 'LA' not in mt.entry:
-            raise ValueError("VariantDataset.from_merged_representation: expect field 'LA' in matrix table entry")
+        if 'LA' not in mt.entry and not is_split:
+            raise ValueError("VariantDataset.from_merged_representation: expect field 'LA' in matrix table entry."
+                             "\n  If this dataset is already split into biallelics, use `is_split=True` to permit a conversion"
+                             " with no LA field.")
 
         if 'GT' not in mt.entry and 'LGT' not in mt.entry:
             raise ValueError(
@@ -106,7 +109,10 @@ class VariantDataset:
         rmt = rmt.select_entries(*(x for x in rmt.entry if x in used_ref_block_fields))
         rmt = rmt.filter_rows(hl.agg.count() > 0)
 
-        rmt = rmt.key_rows_by(rmt.locus).select_rows().select_cols()
+        rmt = rmt.key_rows_by('locus').select_rows().select_cols()
+
+        if is_split:
+            rmt = rmt.distinct_by_row()
 
         vmt = mt.filter_entries(hl.is_missing(mt.END)).drop('END')._key_rows_by_assert_sorted('locus', 'alleles')
         vmt = vmt.filter_rows(hl.agg.count() > 0)

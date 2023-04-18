@@ -1,21 +1,13 @@
 package is.hail
 
-import is.hail.annotations._
-import is.hail.asm4s._
-import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
-import is.hail.backend.{Backend, BroadcastValue, ExecuteContext}
+import is.hail.backend.Backend
+import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.BaseIR
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.io.fs.FS
-import is.hail.io.index._
 import is.hail.io.vcf._
-import is.hail.io.{AbstractTypedCodecSpec, Decoder}
-import is.hail.rvd.{AbstractIndexSpec, RVDContext}
-import is.hail.sparkextras.{ContextRDD, IndexReadRDD}
-import is.hail.types.physical.{PBaseStruct, PCanonicalTuple, PInt64Required, PStruct, PType}
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.variant.ReferenceGenome
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
 import org.apache.spark._
 import org.apache.spark.executor.InputMetrics
@@ -51,24 +43,33 @@ object HailContext {
 
   def sparkBackend(op: String): SparkBackend = get.sparkBackend(op)
 
-  def configureLogging(logFile: String, quiet: Boolean, append: Boolean, skipLoggingConfiguration: Boolean): Unit = {
-    if (!skipLoggingConfiguration) {
-      val logProps = new Properties()
+  def configureLogging(logFile: String, quiet: Boolean, append: Boolean): Unit = {
+    org.apache.log4j.helpers.LogLog.setInternalDebugging(true)
+    org.apache.log4j.helpers.LogLog.setQuietMode(false)
+    val logProps = new Properties()
 
-      logProps.put("log4j.rootLogger", "INFO, logfile")
-      logProps.put("log4j.appender.logfile", "org.apache.log4j.FileAppender")
-      logProps.put("log4j.appender.logfile.append", append.toString)
-      logProps.put("log4j.appender.logfile.file", logFile)
-      logProps.put("log4j.appender.logfile.threshold", "INFO")
-      logProps.put("log4j.appender.logfile.layout", "org.apache.log4j.PatternLayout")
-      logProps.put("log4j.appender.logfile.layout.ConversionPattern", HailContext.logFormat)
+    // uncomment to see log4j LogLog output:
+    // logProps.put("log4j.debug", "true")
+    logProps.put("log4j.rootLogger", "INFO, logfile")
+    logProps.put("log4j.appender.logfile", "org.apache.log4j.FileAppender")
+    logProps.put("log4j.appender.logfile.append", append.toString)
+    logProps.put("log4j.appender.logfile.file", logFile)
+    logProps.put("log4j.appender.logfile.threshold", "INFO")
+    logProps.put("log4j.appender.logfile.layout", "org.apache.log4j.PatternLayout")
+    logProps.put("log4j.appender.logfile.layout.ConversionPattern", HailContext.logFormat)
 
-      LogManager.resetConfiguration()
-      PropertyConfigurator.configure(logProps)
-    }
+    if (!quiet) {
+      logProps.put("log4j.logger.Hail", "INFO, HailConsoleAppender, HailSocketAppender")
+      logProps.put("log4j.appender.HailConsoleAppender", "org.apache.log4j.ConsoleAppender")
+      logProps.put("log4j.appender.HailConsoleAppender.target", "System.err")
+    } else
+      logProps.put("log4j.logger.Hail", "INFO, HailSocketAppender")
 
-    if (!quiet)
-      consoleLog.addAppender(new ConsoleAppender(new PatternLayout(HailContext.logFormat), "System.err"))
+    logProps.put("log4j.appender.HailSocketAppender", "is.hail.utils.StringSocketAppender")
+    logProps.put("log4j.appender.HailSocketAppender.layout", "org.apache.log4j.PatternLayout")
+
+    LogManager.resetConfiguration()
+    PropertyConfigurator.configure(logProps)
   }
 
   def checkJavaVersion(): Unit = {
@@ -90,17 +91,10 @@ object HailContext {
   }
 
   def getOrCreate(backend: Backend,
-    logFile: String = "hail.log",
-    quiet: Boolean = false,
-    append: Boolean = false,
     branchingFactor: Int = 50,
-    skipLoggingConfiguration: Boolean = false,
     optimizerIterations: Int = 3): HailContext = {
     if (theContext == null)
-      return HailContext(backend, logFile, quiet, append, branchingFactor, skipLoggingConfiguration, optimizerIterations)
-
-    if (theContext.logFile != logFile)
-      warn(s"Requested logFile $logFile, but already initialized to ${ theContext.logFile }.  Ignoring requested setting.")
+      return HailContext(backend, branchingFactor, optimizerIterations)
 
     if (theContext.branchingFactor != branchingFactor)
       warn(s"Requested branchingFactor $branchingFactor, but already initialized to ${ theContext.branchingFactor }.  Ignoring requested setting.")
@@ -112,11 +106,7 @@ object HailContext {
   }
 
   def apply(backend: Backend,
-    logFile: String = "hail.log",
-    quiet: Boolean = false,
-    append: Boolean = false,
     branchingFactor: Int = 50,
-    skipLoggingConfiguration: Boolean = false,
     optimizerIterations: Int = 3): HailContext = synchronized {
     require(theContext == null)
     checkJavaVersion()
@@ -129,9 +119,7 @@ object HailContext {
         DenseMatrix.implOpMulMatrix_DMD_DVD_eq_DVD)
     }
 
-    configureLogging(logFile, quiet, append, skipLoggingConfiguration)
-
-    theContext = new HailContext(backend, logFile, branchingFactor, optimizerIterations)
+    theContext = new HailContext(backend, branchingFactor, optimizerIterations)
 
     info(s"Running Hail version ${ theContext.version }")
 
@@ -180,7 +168,6 @@ object HailContext {
 
 class HailContext private(
   var backend: Backend,
-  val logFile: String,
   val branchingFactor: Int,
   val optimizerIterations: Int) {
   def stop(): Unit = HailContext.stop()

@@ -94,10 +94,10 @@ steps:
       - base_image
       - test_clashing_basenames_setup
   - kind: buildImage2
-    name: service_base_image
-    dockerFile: /io/repo/docker/Dockerfile.service-base
+    name: ci_utils_image
+    dockerFile: /io/repo/ci/Dockerfile.ci-utils
     contextPath: /io/repo/
-    publishAs: service-base
+    publishAs: test-ci-utils
     resources:
       storage: 10Gi
       cpu: "2"
@@ -106,10 +106,18 @@ steps:
       - base_image
       - merge_code
     inputs:
+      - from: /repo/ci
+        to: /io/repo/ci
+      - from: /repo/hail/python/setup-hailtop.py
+        to: /io/repo/hail/python/setup-hailtop.py
+      - from: /repo/hail/python/MANIFEST.in
+        to: /io/repo/hail/python/MANIFEST.in
+      - from: /repo/hail/python/hailtop
+        to: /io/repo/hail/python/hailtop
       - from: /hail_version
         to: /io/repo/hail_version
-      - from: /repo
-        to: /io/repo
+      - from: /repo/gear
+        to: /io/repo/gear
   - kind: buildImage2
     name: create_certs_image
     dockerFile: /io/ci/test/resources/Dockerfile.certs
@@ -153,7 +161,6 @@ steps:
       - from: /repo/ci
         to: /io/repo/ci
     dependsOn:
-      - service_base_image
       - merge_code
   - kind: buildImage2
     name: hello_image
@@ -168,7 +175,7 @@ steps:
       - from: /repo
         to: /io/repo
     dependsOn:
-      - service_base_image
+      - ci_utils_image
       - merge_code
   - kind: runImage
     name: check_hello
@@ -176,7 +183,11 @@ steps:
       valueFrom: hello_image.image
     script: |
       set -ex
-      python3 -m flake8 /hello/hello.py
+      pip install flake8==4.0.1
+      python3 -m flake8 --config /io/setup.cfg /hello/hello.py
+    inputs:
+      - from: /repo/setup.cfg
+        to: /io/setup.cfg
     dependsOn:
       - hello_image
   - kind: createDatabase
@@ -203,7 +214,7 @@ steps:
   - kind: runImage
     name: test_hello_database
     image:
-      valueFrom: service_base_image.image
+      valueFrom: ci_utils_image.image
     script: |
       cat > test.py <<EOF
       import asyncio
@@ -225,7 +236,7 @@ steps:
     dependsOn:
       - default_ns
       - hello_database
-      - service_base_image
+      - ci_utils_image
   - kind: deploy
     name: deploy_hello
     namespace:
@@ -259,7 +270,7 @@ steps:
     name: test_connect_to_hello
     numSplits: 2
     image:
-      valueFrom: service_base_image.image
+      valueFrom: ci_utils_image.image
     script: |
       set -ex
       export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
@@ -279,6 +290,6 @@ steps:
           valueFrom: default_ns.name
         mountPath: /deploy-config
     dependsOn:
-      - service_base_image
+      - ci_utils_image
       - default_ns
       - deploy_hello

@@ -23,6 +23,7 @@ object HailSuite {
   val theHailClassLoader = TestUtils.theHailClassLoader
 
   def withSparkBackend(): HailContext = {
+    HailContext.configureLogging("/tmp/hail.log", quiet = false, append = false)
     val backend = SparkBackend(
       sc = new SparkContext(
         SparkBackend.createSparkConf(
@@ -32,8 +33,9 @@ object HailSuite {
           blockSize = 0)
           .set("spark.unsafe.exceptionOnMemoryLeak", "true")),
       tmpdir = "/tmp",
-      localTmpdir = "file:///tmp")
-    HailContext(backend, logFile = "/tmp/hail.log")
+      localTmpdir = "file:///tmp",
+      skipLoggingConfiguration = true)
+    HailContext(backend)
   }
 
   lazy val hc: HailContext = {
@@ -261,7 +263,7 @@ class HailSuite extends TestNGSuite {
   )(
     implicit execStrats: Set[ExecStrategy]
   ): Unit = {
-    assertEvalsTo(MakeTuple.ordered(xs.map(_._1)), Row.fromSeq(xs.map(_._2)))
+    assertEvalsTo(MakeTuple.ordered(xs.toArray.map(_._1)), Row.fromSeq(xs.map(_._2)))
   }
 
   def assertEvalsTo(

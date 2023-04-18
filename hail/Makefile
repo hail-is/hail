@@ -14,11 +14,22 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 SCALA_VERSION ?= 2.12.13
 SPARK_VERSION ?= 3.3.0
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 110
+HAIL_PATCH_VERSION := 113
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 ELASTIC_MAJOR_VERSION ?= 8
 
+ifndef REVISION
+$(error "git rev-parse HEAD" failed to produce output)
+endif
+
+ifndef SHORT_REVISION
+$(error "git rev-parse --short=12 HEAD" failed to produce output)
+endif
+
+ifndef BRANCH
+$(error "git rev-parse --abbrev-ref HEAD" failed to produce output)
+endif
 
 $(eval $(call ENV_VAR,REVISION))
 $(eval $(call ENV_VAR,SHORT_REVISION))
@@ -65,21 +76,7 @@ EGG := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3.6.egg
 
 GRADLE_ARGS += -Dscala.version=$(SCALA_VERSION) -Dspark.version=$(SPARK_VERSION) -Delasticsearch.major-version=$(ELASTIC_MAJOR_VERSION)
 
-QUERY_STORAGE_URI = $(shell kubectl get secret global-config --template={{.data.query_storage_uri}} | base64 --decode)
 TEST_STORAGE_URI = $(shell kubectl get secret global-config --template={{.data.test_storage_uri}} | base64 --decode)
-TOKEN := $(shell cat /dev/urandom 2> /dev/null | LC_ALL=C tr -dc 'a-z0-9' 2> /dev/null | head -c 12)
-
-ifeq ($(NAMESPACE),default)
-ifeq ($(UPLOAD_RELEASE_JAR),true)
-# This should only be used if the normal CI deploy process fails and you need to upload a JAR to the
-# expected location for our users.
-JAR_LOCATION = $(QUERY_STORAGE_URI)/jars/$(REVISION).jar
-else
-JAR_LOCATION = $(QUERY_STORAGE_URI)/jars/$(shell whoami)/$(TOKEN)/$(REVISION).jar
-endif
-else
-JAR_LOCATION = $(TEST_STORAGE_URI)/$(NAMESPACE)/jars/$(TOKEN)/$(REVISION).jar
-endif
 CLOUD_HAIL_TEST_RESOURCES_PREFIX = $(TEST_STORAGE_URI)/$(shell whoami)/hail-test-resources
 CLOUD_HAIL_TEST_RESOURCES_DIR = $(CLOUD_HAIL_TEST_RESOURCES_PREFIX)/test/resources/
 CLOUD_HAIL_DOCTEST_DATA_DIR = $(CLOUD_HAIL_TEST_RESOURCES_PREFIX)/doctest/data/
@@ -263,7 +260,7 @@ cloud_base ?= gs://hail-30-day/hailctl/dataproc/$(DEV_CLARIFIER)/$(HAIL_VERSION)
 UPLOAD_RETENTION =
 else
 cloud_base := gs://hail-common/hailctl/dataproc/$(HAIL_PIP_VERSION)
-UPLOAD_RETENTION = gsutil -m retention temp set "$(cloud_base)/*"
+UPLOAD_RETENTION = gcloud storage objects update "$(cloud_base)/*" --temporary-hold
 endif
 
 DEV_CLARIFIER =
@@ -278,23 +275,13 @@ $(eval $(call ENV_VAR,cloud_base))
 $(eval $(call ENV_VAR,wheel_cloud_path))
 
 
-.PHONY: generate-pip-lockfiles
-generate-pip-lockfiles:
-	HAIL_HAIL_DIR=$(HAIL_HAIL_DIR) \
-	../generate_pip_lockfile.sh python/hailtop/requirements.txt python/hailtop/pinned-requirements.txt && \
-	HAIL_HAIL_DIR=$(HAIL_HAIL_DIR) \
-	../generate_pip_lockfile.sh python/requirements.txt python/pinned-requirements.txt && \
-	HAIL_HAIL_DIR=$(HAIL_HAIL_DIR) \
-	../generate_pip_lockfile.sh python/dev/requirements.txt python/dev/pinned-requirements.txt
-
-
 .PHONY: check-pip-lockfile
 check-pip-lockfile:
-	$(PIP) install pip-tools && bash ../check_pip_requirements.sh python/requirements.txt python/pinned-requirements.txt
+	$(PIP) install pip-tools && bash ../check_pip_requirements.sh python
 
 
 python/hailtop/hailctl/deploy.yaml: env/cloud_base env/wheel_cloud_path
-python/hailtop/hailctl/deploy.yaml: $(resources) check-pip-lockfile
+python/hailtop/hailctl/deploy.yaml: $(resources)
 	rm -f $@
 	echo "dataproc:" >> $@
 	for FILE in $(notdir $(resources)); do \
@@ -305,8 +292,8 @@ python/hailtop/hailctl/deploy.yaml: $(resources) check-pip-lockfile
 
 .PHONY: upload-artifacts
 upload-artifacts: $(WHEEL)
-	gsutil -m cp -r $(resources) $(WHEEL) $(cloud_base)
-	gsutil -m acl set -r public-read $(cloud_base)
+	gcloud storage cp $(resources) $(WHEEL) $(cloud_base)
+	gcloud storage objects update -r $(cloud_base) --add-acl-grant=entity=AllUsers,role=READER
 	$(UPLOAD_RETENTION)
 
 
@@ -315,8 +302,8 @@ upload-artifacts: $(WHEEL)
 # > rm upload-qob-test-resources
 upload-qob-test-resources: $(JAR_TEST_SOURCES)
 	! [ -z $(NAMESPACE) ]  # call this like: make upload-qob-test-resources NAMESPACE=default
-	gsutil -m cp -r src/test/resources/\* $(CLOUD_HAIL_TEST_RESOURCES_DIR)
-	gsutil -m cp -r python/hail/docs/data/\* $(CLOUD_HAIL_DOCTEST_DATA_DIR)
+	gcloud storage cp src/test/resources/\* $(CLOUD_HAIL_TEST_RESOURCES_DIR)
+	gcloud storage cp python/hail/docs/data/\* $(CLOUD_HAIL_DOCTEST_DATA_DIR)
 	touch $@
 
 # NOTE: 1-day expiration of the test bucket means that this
@@ -325,8 +312,7 @@ upload-qob-test-resources: $(JAR_TEST_SOURCES)
 # > rm upload-qob-jar
 upload-qob-jar: $(SHADOW_JAR)
 	! [ -z $(NAMESPACE) ]  # call this like: make upload-qob-jar NAMESPACE=default
-	gsutil -m cp $(SHADOW_JAR) $(JAR_LOCATION)
-	echo $(JAR_LOCATION) > $@
+	bash ./scripts/upload_qob_jar.sh $(NAMESPACE) $(REVISION) $(SHADOW_JAR) $@
 
 .PHONY: install-editable
 install-editable: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
@@ -463,9 +449,9 @@ hail-docs-no-test: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 .PHONY: upload-docs
 upload-docs: hail-docs batch-docs
 	cd build && tar czf www.tar.gz www
-	gsutil -m cp build/www.tar.gz $(docs_location)
-	gsutil -m retention temp set $(docs_location)
-	gsutil -m acl set public-read $(docs_location)
+	gcloud storage cp build/www.tar.gz $(docs_location)
+	gcloud storage objects update -r $(docs_location) --temporary-hold
+	gcloud storage objects update -r $(docs_location) --add-acl-grant=entity=AllUsers,role=READER
 
 .PHONY: test
 test: pytest jvm-test doctest

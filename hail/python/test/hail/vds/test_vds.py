@@ -638,3 +638,16 @@ def test_combiner_max_len():
 
     combined2 = combine_references([vds1_trunc.reference_data, vds2.reference_data])
     assert 'ref_block_max_length' not in combined2.globals
+
+
+def test_split_sparse_roundtrip():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+    smt = hl.vds.to_merged_sparse_mt(vds)
+    smt = hl.experimental.sparse_split_multi(smt)
+    vds2 = hl.vds.VariantDataset.from_merged_representation(smt,
+                                                            ref_block_fields=list(vds.reference_data.entry),
+                                                            is_split=True)
+
+    vds_split = hl.vds.split_multi(vds)
+    assert vds2.variant_data.select_entries(*vds_split.variant_data.entry)._same(vds_split.variant_data)
+    assert vds2.reference_data._same(vds_split.reference_data.drop('ref_allele'))

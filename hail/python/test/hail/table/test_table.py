@@ -914,8 +914,6 @@ class Tests(unittest.TestCase):
         with hl.hadoop_open(tmp_file, 'r') as f_in:
             assert f_in.read() == 'idx,foo\n0,3\n'
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_write_stage_locally(self):
         t = hl.utils.range_table(5)
         f = new_temp_file(extension='ht')
@@ -2283,6 +2281,22 @@ def test_table_randomness():
     t = bm.entries()
     assert_contains_node(t, ir.BlockMatrixToTable)
     assert_unique_uids(t)
+
+    # test TableGen
+    t = hl.Table._generate(
+        contexts=hl.repeat(hl.rand_int64, 2),
+        globals=hl.struct(k=hl.rand_int64()),
+        partitions=2,
+        rowfn=lambda c, g: hl.repeat(hl.struct(a=c * g.k * hl.rand_int64()), 2),
+    )
+    assert_contains_node(t, ir.TableGen)
+    assert_unique_uids(t)
+
+
+def test_order_by_desc():
+    t = hl.utils.range_table(10_000, n_partitions=10)
+    t = t.order_by(-t.idx)
+    assert t._force_count() == 10_000
 
 
 def test_query_table():

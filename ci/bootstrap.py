@@ -211,9 +211,9 @@ users:
                         dot_kube_dir = f'{job_root}/secrets/.kube'
 
                         os.makedirs(dot_kube_dir)
-                        with open(f'{dot_kube_dir}/config', 'w') as f:
+                        with open(f'{dot_kube_dir}/config', 'w', encoding='utf-8') as f:
                             f.write(kube_config)
-                        with open(f'{dot_kube_dir}/ca.crt', 'w') as f:
+                        with open(f'{dot_kube_dir}/ca.crt', 'w', encoding='utf-8') as f:
                             f.write(base64.b64decode(cert).decode())
                         mount_options.extend(['-v', f'{dot_kube_dir}:/.kube'])
                         env_options.extend(['-e', 'KUBECONFIG=/.kube/config'])
@@ -370,7 +370,7 @@ async def main():
 
     steps = [s.strip() for s in args.steps.split(',')]
 
-    with open('build.yaml', 'r') as f:
+    with open('build.yaml', 'r', encoding='utf-8') as f:
         config = BuildConfiguration(code, f.read(), scope, requested_step_names=steps)
 
     token = generate_token()

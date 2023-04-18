@@ -60,7 +60,7 @@ def _seeded_func(name, ret_type, seed, *args):
 def ndarray_broadcasting(func):
     def broadcast_or_not(x):
         if isinstance(x.dtype, tndarray):
-            return x.map(lambda term: func(term))
+            return x.map(func)
         else:
             return func(x)
     return broadcast_or_not
@@ -1748,7 +1748,7 @@ def parse_json(x, dtype):
     return _func("parse_json", ttuple(dtype), x, type_args=(dtype,))[0]
 
 
-@typecheck(x=expr_float64, base=nullable(expr_float64))
+@typecheck(x=oneof(expr_float64, expr_ndarray(expr_float64)), base=nullable(expr_float64))
 def log(x, base=None) -> Float64Expression:
     """Take the logarithm of the `x` with base `base`.
 
@@ -1777,11 +1777,16 @@ def log(x, base=None) -> Float64Expression:
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
+    def scalar_log(x):
+        if base is not None:
+            return _func("log", tfloat64, x, to_expr(base))
+        else:
+            return _func("log", tfloat64, x)
+
     x = to_expr(x)
-    if base is not None:
-        return _func("log", tfloat64, x, to_expr(base))
-    else:
-        return _func("log", tfloat64, x)
+    if isinstance(x.dtype, tndarray):
+        return x.map(scalar_log)
+    return scalar_log(x)
 
 
 @typecheck(x=oneof(expr_float64, expr_ndarray(expr_float64)))
@@ -1836,6 +1841,10 @@ def logit(x) -> Float64Expression:
 @ndarray_broadcasting
 def expit(x) -> Float64Expression:
     """The logistic sigmoid function.
+
+    .. math::
+
+        \textrm{expit}(x) = \frac{1}{1 + e^{-x}}
 
     Examples
     --------
@@ -4131,6 +4140,43 @@ def map(f: Callable, *collections):
         return hl.zip(*collections).starmap(f)
 
 
+@typecheck(expr=oneof(expr_any, func_spec(0, expr_any)), n=expr_int32)
+def repeat(
+    expr: 'Union[hl.Expression, Callable[[], hl.Expression]]',
+    n: 'hl.tint32'
+) -> 'hl.ArrayExpression':
+    """Return array of `n` elements initialized by `expr`.
+
+    Examples
+    --------
+    >>> hl.reset_global_randomness()
+    >>> hl.eval(hl.repeat(hl.rand_int32(10), 5))
+    [9, 9, 9, 9, 9]
+
+    >>> hl.eval(hl.repeat(lambda: hl.rand_int32(10), 5))
+    [3, 4, 5, 4, 0]
+
+    Parameters
+    ----------
+    n    : :class:`.tint32`
+        Number of elements in the array
+    expr : :class:`.Expression` or :class:`Callable[[], .Expression]`
+        Array element initializer. If `expr` is an `.Expression`, every element
+        in the array will have the same value. Otherwise, if `expr` is a thunk
+        (ie. a callable with no arguments), the array will be populated by
+        evaluating `expr()` `n` times.
+
+    Returns
+    -------
+    :class:`.ArrayExpression`:
+        Array where each element has been initialized by `expr`
+    """
+    mkarray = lambda x: hl.range(n).map(lambda _: x)
+    return hl.rbind(expr, mkarray) \
+        if isinstance(expr, hl.Expression) \
+        else mkarray(expr())
+
+
 @typecheck(f=anyfunc,
            collection=expr_oneof(expr_set(), expr_array(), expr_ndarray()))
 def starmap(f: Callable, collection):
@@ -4768,7 +4814,7 @@ def empty_set(t: Union[HailType, builtins.str]) -> SetExpression:
     return hl.set(empty_array(t))
 
 
-@typecheck(collection=expr_oneof(expr_set(), expr_array(), expr_dict()))
+@typecheck(collection=expr_oneof(expr_set(), expr_array(), expr_dict(), expr_ndarray()))
 def array(collection) -> ArrayExpression:
     """Construct an array expression.
 
@@ -4792,6 +4838,10 @@ def array(collection) -> ArrayExpression:
         return collection
     elif isinstance(collection.dtype, tset):
         return apply_expr(lambda c: ir.CastToArray(c), tarray(collection.dtype.element_type), collection)
+    elif isinstance(collection.dtype, tndarray):
+        if collection.dtype.ndim != 1:
+            raise ValueError(f'array: only one dimensional ndarrays are supported: {collection.dtype}')
+        return collection._data_array()
     else:
         assert isinstance(collection.dtype, tdict)
         return _func('dictToArray', tarray(ttuple(collection.dtype.key_type, collection.dtype.value_type)), collection)

@@ -1,12 +1,13 @@
 from typing import Optional
 import hail as hl
-from hail.expr.types import dtype, tint32, tint64
-from hail.ir.base_ir import BaseIR, TableIR
+from hail.expr.types import dtype, tint32, tint64, tstruct
+from hail.ir.base_ir import BaseIR, IR, TableIR
 import hail.ir.ir as ir
 from hail.ir.utils import modify_deep_field, zip_with_index, default_row_uid, default_col_uid
 from hail.ir.ir import unify_uid_types, pad_uid, concat_uids
-from hail.genetics import ReferenceGenome
+from hail.typecheck import typecheck_method, nullable, sequenceof
 from hail.utils import FatalError
+from hail.utils.interval import Interval
 from hail.utils.java import Env
 from hail.utils.misc import escape_str, parsable_strings, escape_id
 from hail.utils.jsonx import dump_json
@@ -198,46 +199,6 @@ class TableRange(TableIR):
                          ['idx'])
 
 
-class TableGenomicRange(TableIR):
-    def __init__(self, n: int, n_partitions: Optional[int], reference_genome: Optional[ReferenceGenome]):
-        super().__init__()
-        self.n = n
-        self.n_partitions = n_partitions
-        self.reference_genome = reference_genome
-
-    def _handle_randomness(self, uid_field_name):
-        assert(uid_field_name is not None)
-        if self.reference_genome is not None:
-            global_position = ir.Apply(
-                'locusToGlobalPos',
-                tint64,
-                ir.GetField(ir.Ref('row', self.typ.row_type), 'locus'))
-        else:
-            global_position = ir.Cast(
-                ir.GetField(ir.GetField(ir.Ref('row', self.typ.row_type), 'locus'), 'position'),
-                tint64)
-
-        new_row = ir.InsertFields(
-            ir.Ref('row', self.typ.row_type),
-            [(uid_field_name, global_position)],
-            None)
-        return TableMapRows(self, new_row)
-
-    def head_str(self):
-        reference_genome = self.reference_genome.name if self.reference_genome else None
-        return f'{self.n} {self.n_partitions} {reference_genome}'
-
-    def _eq(self, other):
-        return self.n == other.n and \
-            self.n_partitions == other.n_partitions and \
-            self.reference_genome == other.reference_genome
-
-    def _compute_type(self, deep_typecheck):
-        return hl.ttable(hl.tstruct(),
-                         hl.tstruct(locus=hl.tlocus._schema_from_rg(self.reference_genome)),
-                         ['locus'])
-
-
 class TableMapGlobals(TableIR):
     def __init__(self, child, new_globals):
         super().__init__(child, new_globals)
@@ -313,7 +274,7 @@ class TableKeyBy(TableIR):
         return '({}) {}'.format(' '.join([escape_id(x) for x in self.keys]), self.is_sorted)
 
     def _eq(self, other):
-        return self.keys == other.keys and self.is_sorter == other.is_sorted
+        return self.keys == other.keys and self.is_sorted == other.is_sorted
 
     def _compute_type(self, deep_typecheck):
         self.child.compute_type(deep_typecheck)
@@ -366,17 +327,19 @@ class TableMapRows(TableIR):
 
 
 class TableMapPartitions(TableIR):
-    def __init__(self, child, global_name, partition_stream_name, body):
+    def __init__(self, child, global_name, partition_stream_name, body, requested_key, allowed_overlap):
         super().__init__(child, body)
         self.child = child
         self.body = body
         self.global_name = global_name
         self.partition_stream_name = partition_stream_name
+        self.requested_key = requested_key
+        self.allowed_overlap = allowed_overlap
 
     def _handle_randomness(self, uid_field_name):
         if uid_field_name is not None:
             raise FatalError('TableMapPartitions does not support randomness, in its body or in consumers')
-        return TableMapPartitions(self.child.handle_randomness(None), self.global_name, self.partition_stream_name, self.body)
+        return TableMapPartitions(self.child.handle_randomness(None), self.global_name, self.partition_stream_name, self.body, self.requested_key, self.allowed_overlap)
 
     def _compute_type(self, deep_typecheck):
         self.child.compute_type(deep_typecheck)
@@ -401,10 +364,12 @@ class TableMapPartitions(TableIR):
             return {}
 
     def head_str(self):
-        return f'{escape_id(self.global_name)} {escape_id(self.partition_stream_name)}'
+        return f'{escape_id(self.global_name)} {escape_id(self.partition_stream_name)} {self.requested_key} {self.allowed_overlap}'
 
     def _eq(self, other):
-        return self.global_name == other.global_name and self.partition_stream_name == other.partition_stream_name
+        return (self.global_name == other.global_name
+                and self.partition_stream_name == other.partition_stream_name
+                and self.allowed_overlap == other.allowed_overlap)
 
 
 class TableRead(TableIR):
@@ -1114,6 +1079,134 @@ class BlockMatrixToTable(TableIR):
     def _compute_type(self, deep_typecheck):
         self.child.compute_type(deep_typecheck)
         return hl.ttable(hl.tstruct(), hl.tstruct(**{'i': hl.tint64, 'j': hl.tint64, 'entry': hl.tfloat64}), [])
+
+
+class Partitioner(object):
+    @typecheck_method(
+        key_type=tstruct,
+        range_bounds=sequenceof(Interval)
+    )
+    def __init__(self, key_type, range_bounds):
+        assert all(map(lambda interval: interval.point_type == key_type, range_bounds))
+        self._key_type = key_type
+        self._range_bounds = range_bounds
+        self._serialized_type = hl.tarray(hl.tinterval(key_type))
+
+    @property
+    def key_type(self):
+        return self._key_type
+
+    @property
+    def range_bounds(self):
+        return self._range_bounds
+
+    def _parsable_string(self):
+        return (
+            f'Partitioner {self.key_type._parsable_string()} ' + dump_json(
+                self._serialized_type._convert_to_json(self.range_bounds)
+            )
+        )
+
+    def __str__(self):
+        return f'Partitioner<{self.key_type}> {self.range_bounds}'
+
+
+class TableGen(TableIR):
+    @typecheck_method(
+        contexts=IR,
+        globals=IR,
+        cname=str,
+        gname=str,
+        body=IR,
+        partitioner=Partitioner,
+        error_id=nullable(int)
+    )
+    def __init__(self, contexts, globals, cname, gname, body, partitioner, error_id=None):
+        super().__init__(contexts, globals, body)
+        self.contexts = contexts
+        self.globals = globals
+        self.cname = cname
+        self.gname = gname
+        self.body = body
+        self.partitioner = partitioner
+        self._error_id = error_id
+        if error_id is None:
+            self.save_error_info()
+
+    def _compute_type(self, deep_typecheck):
+        self.contexts.compute_type({}, None, deep_typecheck)
+        self.globals.compute_type({}, None, deep_typecheck)
+        bodyenv = {
+            self.cname: self.contexts.typ.element_type,
+            self.gname: self.globals.typ
+        }
+        self.body.compute_type(bodyenv, None, deep_typecheck)
+        return hl.ttable(
+            global_type=self.globals.typ,
+            row_type=self.body.typ.element_type,
+            row_key=self.partitioner.key_type.fields
+        )
+
+    def renderable_bindings(self, i, default_value=None):
+        return {} if i != 2 else {
+            self.cname: self.contexts.type.element_type if default_value is None else default_value,
+            self.gname: self.globals.type if default_value is None else default_value
+        }
+
+    def _eq(self, other):
+        return (
+            self.cname == other.cname
+            and self.gname == other.gname
+            and self.partitioner == other.partitioner
+            and self._error_id == other._error_id
+        )
+
+    def head_str(self):
+        return ' '.join([
+            self.cname,
+            self.gname,
+            '(' + self.partitioner._parsable_string() + ')',
+            str(self._error_id)
+        ])
+
+    def _handle_randomness(self, uid_field_name):
+        globals = self.globals
+        if globals.uses_randomness:
+            globals = ir.Let('__rng_state', ir.RNGStateLiteral(), globals)
+
+        contexts = self.contexts
+        if contexts.uses_randomness:
+            contexts = ir.Let('__rng_state', ir.RNGStateLiteral(), contexts)
+
+        contexts = contexts.handle_randomness(create_uids=True)
+        cname, random_uid, old_context = ir.unpack_uid(contexts.typ)
+        body = ir.Let(self.cname, old_context, self.body)
+
+        if body.uses_randomness:
+            body = ir.Let('__rng_state', ir.RNGStateLiteral(),
+                          ir.with_split_rng_state(body, random_uid))
+
+        if uid_field_name is not None:
+            idx = ir.Ref(Env.get_uid(), ir.tint32)
+            elem = ir.Ref(Env.get_uid(), body.typ.element_type)
+            insert = ir.InsertFields(
+                elem,
+                [(uid_field_name, concat_uids(random_uid, ir.Cast(idx, ir.tint64)))],
+                None
+            )
+
+            iota = ir.StreamIota(ir.I32(0), ir.I32(1))
+            body = ir.StreamZip([iota, body], [idx.name, elem.name], insert, 'TakeMinLength')
+
+        return TableGen(
+            contexts,
+            globals,
+            cname,
+            self.gname,
+            body,
+            self.partitioner,
+            self._error_id
+        )
 
 
 class JavaTable(TableIR):
