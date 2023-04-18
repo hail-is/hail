@@ -1,6 +1,6 @@
 import hail as hl
 from hailtop.utils import secret_alnum_string
-from hailtop.test_utils import skip_in_azure
+from hailtop.test_utils import skip_in_azure, run_if_azure
 
 from ..helpers import fails_local_backend, fails_service_backend
 
@@ -116,3 +116,12 @@ def test_requester_pays_with_project_more_than_one_partition():
     hl.stop()
     hl.init(gcs_requester_pays_configuration='hail-vdc')
     assert hl.import_table('gs://hail-services-requester-pays/zero-to-nine', no_header=True, min_partitions=8).collect() == expected_file_contents
+
+
+@run_if_azure
+@fails_local_backend
+def test_can_access_public_blobs():
+    public_mt = 'hail-az://azureopendatastorage/gnomad/release/3.1/mt/genomes/gnomad.genomes.v3.1.hgdp_1kg_subset.mt'
+    assert hl.hadoop_exists(public_mt)
+    mt = hl.read_matrix_table(public_mt)
+    mt.describe()

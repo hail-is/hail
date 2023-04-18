@@ -2,7 +2,7 @@ package is.hail.io.fs
 
 import com.azure.core.credential.TokenCredential
 import com.azure.identity.{ClientSecretCredential, ClientSecretCredentialBuilder, DefaultAzureCredential, DefaultAzureCredentialBuilder}
-import com.azure.storage.blob.models.{BlobProperties, BlobRange, ListBlobsOptions}
+import com.azure.storage.blob.models.{BlobProperties, BlobRange, ListBlobsOptions, BlobStorageException}
 import com.azure.storage.blob.specialized.BlockBlobClient
 import com.azure.storage.blob.{BlobClient, BlobContainerClient, BlobServiceClient, BlobServiceClientBuilder}
 import is.hail.services.retryTransientErrors
@@ -73,19 +73,26 @@ object AzureStorageFileStatus {
 
 class AzureBlobServiceClientCache(credential: TokenCredential) {
   private lazy val clientBuilder: BlobServiceClientBuilder = new BlobServiceClientBuilder()
-  private lazy val clients: mutable.Map[String, BlobServiceClient] = mutable.Map()
+  private lazy val clients: mutable.Map[(String, String), BlobServiceClient] = mutable.Map()
 
-  def getServiceClient(account: String): BlobServiceClient = {
-    clients.get(account) match {
+  def getServiceClient(account: String, container: String): BlobServiceClient = {
+    clients.get((account, container)) match {
       case Some(client) => client
       case None =>
         val blobServiceClient = clientBuilder
           .credential(credential)
           .endpoint(s"https://$account.blob.core.windows.net")
           .buildClient()
-        clients += (account -> blobServiceClient)
+        clients += ((account, container) -> blobServiceClient)
         blobServiceClient
     }
+  }
+
+  def setPublicAccessServiceClient(account: String, container: String): Unit = {
+    val blobServiceClient = new BlobServiceClientBuilder()
+        .endpoint(s"https://$account.blob.core.windows.net")
+        .buildClient()
+    clients += ((account, container) -> blobServiceClient)
   }
 }
 
@@ -96,6 +103,22 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
   def getConfiguration(): Unit = ()
 
   def setConfiguration(config: Any): Unit = { }
+
+  // ABS errors if you attempt credentialed access for a public container,
+  // so we try once with credentials, if that fails use anonymous access for
+  // that container going forward.
+  def handlePublicAccessError[T](url: String)(f: => T): T = {
+    retryTransientErrors {
+      try {
+        f
+      } catch {
+        case e: BlobStorageException if e.getStatusCode == 401 =>
+          val (account, container, _) = getAccountContainerPath(url)
+          serviceClientCache.setPublicAccessServiceClient(account, container)
+          f
+      }
+    }
+  }
 
   private lazy val serviceClientCache = credentialsJSON match {
     case None =>
@@ -120,19 +143,19 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
   // https://docs.microsoft.com/en-us/rest/api/storageservices/setting-timeouts-for-blob-service-operations
   private val timeout = Duration.ofSeconds(30)
 
-  def getBlobServiceClient(account: String): BlobServiceClient = retryTransientErrors {
-    serviceClientCache.getServiceClient(account)
+  def getBlobServiceClient(account: String, container: String): BlobServiceClient = retryTransientErrors {
+    serviceClientCache.getServiceClient(account, container)
   }
 
   def getBlobClient(account: String, container: String, path: String): BlobClient = retryTransientErrors {
-    getBlobServiceClient(account).getBlobContainerClient(container).getBlobClient(path)
+    getBlobServiceClient(account, container).getBlobContainerClient(container).getBlobClient(path)
   }
 
   def getContainerClient(account: String, container: String): BlobContainerClient = retryTransientErrors {
-    getBlobServiceClient(account).getBlobContainerClient(container)
+    getBlobServiceClient(account, container).getBlobContainerClient(container)
   }
 
-  def openNoCompression(filename: String, _debug: Boolean): SeekableDataInputStream = retryTransientErrors {
+  def openNoCompression(filename: String, _debug: Boolean): SeekableDataInputStream = handlePublicAccessError(filename) {
     val (account, container, path) = getAccountContainerPath(filename)
     val blobClient: BlobClient = getBlobClient(account, container, path)
     val blobSize = blobClient.getProperties.getBlobSize
@@ -242,7 +265,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     }
   }
 
-  def listStatus(filename: String): Array[FileStatus] = retryTransientErrors {
+  def listStatus(filename: String): Array[FileStatus] = handlePublicAccessError(filename) {
     val (account, container, path) = getAccountContainerPath(filename)
 
     val blobContainerClient: BlobContainerClient = getContainerClient(account, container)
@@ -259,7 +282,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     statList.toArray
   }
 
-  def glob(filename: String): Array[FileStatus] = retryTransientErrors {
+  def glob(filename: String): Array[FileStatus] = handlePublicAccessError(filename) {
     var (account, container, path) = getAccountContainerPath(filename)
     path = dropTrailingSlash(path)
 
@@ -292,7 +315,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     }
   }
 
-  def fileStatus(filename: String): FileStatus = retryTransientErrors {
+  def fileStatus(filename: String): FileStatus = handlePublicAccessError(filename) {
     val (account, container, path) = getAccountContainerPath(filename)
     fileStatus(account, container, path)
   }
