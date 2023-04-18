@@ -971,7 +971,7 @@ def truncate_reference_blocks(ds, *, max_ref_block_base_pairs=None,
     to run in roughly O(data kept) work rather than O(all reference data) work.
 
     It is also possible to patch an existing VDS to store the max reference block length with :func:`.vds.store_ref_block_max_length`.
-    
+
     See Also
     --------
     :func:`.vds.store_ref_block_max_length`.
