@@ -8,27 +8,44 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: deploy to GCP
+        continue-on-error: true
         run: |
-          DEPLOY_BATCH_URL=$(curl --fail --silent --show-error -X POST \
+          DEPLOY_BATCH_URL_GCP=$(curl --fail --silent --show-error -X POST \
               -H "Authorization: Bearer ${{ secrets.CI_TOKEN }}" \
               -H "Content-Type:application/json" \
               -d '{"steps": ["deploy_auth", "deploy_batch", "deploy_ci", "deploy_hailgenetics_image", "deploy_memory", "deploy_wheel", "upload_query_jar"], "sha": "${{ github.sha }}"}' \
               https://ci.hail.populationgenomics.org.au/api/v1alpha/prod_deploy)
-          echo DEPLOY_BATCH_URL_GCP=$DEPLOY_BATCH_URL >> $GITHUB_ENV
+          if [ $? -ne 0 ]; then
+            DEPLOY_BATCH_URL_GCP="failed"
+            echo "Failed to deploy to GCP"
+          fi
+          echo DEPLOY_BATCH_URL_GCP="$DEPLOY_BATCH_URL_GCP" >> $GITHUB_ENV
 
       - name: deploy to Azure
-        # Note: deploy_hailgenetics_image and deploy_wheel not implemented yet on Azure
+        continue-on-error: true
         run: |
-          DEPLOY_BATCH_URL=$(curl --fail --silent --show-error -X POST \
+          DEPLOY_BATCH_URL_AZURE=$(curl --fail --silent --show-error -X POST \
               -H "Authorization: Bearer ${{ secrets.CI_TOKEN_AZURE }}" \
               -H "Content-Type:application/json" \
               -d '{"steps": ["deploy_auth", "deploy_batch", "deploy_ci", "deploy_memory", "upload_query_jar"], "sha": "${{ github.sha }}"}' \
               https://ci.azhail.populationgenomics.org.au/api/v1alpha/prod_deploy)
-          echo DEPLOY_BATCH_URL_AZURE=$DEPLOY_BATCH_URL >> $GITHUB_ENV
+          if [ $? -ne 0 ]; then
+            DEPLOY_BATCH_URL_AZURE="failed"
+            echo "Failed to deploy to Azure"
+          fi
+          echo DEPLOY_BATCH_URL_AZURE="$DEPLOY_BATCH_URL_AZURE" >> $GITHUB_ENV
 
       - name: post to Slack
         run: |
+          SLACK_MSG="Deploying Hail Batch:\n*GCP:* $DEPLOY_BATCH_URL_GCP\n*Azure:* $DEPLOY_BATCH_URL_AZURE"
           curl --fail --silent --show-error -X POST \
+              -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
               -H "Content-type: application/json" \
-              -d "{\"text\": \"Deploying Hail Batch: \n_GCP:_ $DEPLOY_BATCH_URL_GCP\n_Azure:_ $DEPLOY_BATCH_URL_AZURE\"}" \
-              ${{ secrets.SLACK_WEBHOOK }}
+              -d "{\"channel\": \"production-announcements\", \"text\": \"$SLACK_MSG\"}" \
+              https://slack.com/api/chat.postMessage
+
+      - name: check if any deploy failed
+        run: |
+          if [ "$DEPLOY_BATCH_URL_GCP" == "failed" ] || [ "$DEPLOY_BATCH_URL_AZURE" == "failed" ]; then
+            exit 1
+          fi
