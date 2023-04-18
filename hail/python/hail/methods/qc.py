@@ -532,7 +532,7 @@ class BaseVEPConfig(abc.ABC):
     In addition, the method `vep_command` must be defined with the following signature. The output is the exact command to run the
     VEP executable. The inputs are `consequence` and `tolerate_parse_error` which are user-defined parameters to :func:`.vep`,
     `part_id` which is the partition ID, `input_file` which is the path to the input file where the input data can be found, and
-    `output_file` is the path to the output file where the VEP annotations are written to.
+    `output_file` is the path to the output file where the VEP annotations are written to. An example is shown below:
 
     .. code-block:: python3
 
@@ -542,7 +542,22 @@ class BaseVEPConfig(abc.ABC):
                         part_id: int,
                         input_file: Optional[str],
                         output_file: str) -> List[str]:
-            pass
+            vcf_or_json = '--vcf' if consequence else '--json'
+            input_file = f'--input_file {input_file}' if input_file else ''
+            return f'''/vep/vep {input_file} \
+        --format vcf \
+        {vcf_or_json} \
+        --everything \
+        --allele_number \
+        --no_stats \
+        --cache \
+        --offline \
+        --minimal \
+        --assembly GRCh37 \
+        --dir={self.data_mount} \
+        --plugin LoF,human_ancestor_fa:{self.data_mount}/loftee_data/human_ancestor.fa.gz,filter_position:0.05,min_intron_size:15,conservation_file:{self.data_mount}/loftee_data/phylocsf_gerp.sql,gerp_file:{self.data_mount}/loftee_data/GERP_scores.final.sorted.txt.gz \
+        -o STDOUT
+        '''
 
     The following environment variables are added to the job's environment:
 

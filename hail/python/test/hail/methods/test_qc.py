@@ -374,7 +374,7 @@ class Tests(unittest.TestCase):
                 hail_vep_result.alleles[1],
                 ".",
                 ".",
-                # "GT",
+                "GT",
             ])
         ))
         hail_vep_result = hail_vep_result.rows().select('vep')
@@ -384,9 +384,9 @@ class Tests(unittest.TestCase):
                 return hl.tuple([arr[0], arr[1]])
 
             return ht.annotate(vep=ht.vep.annotate(
-                transcript_consequnces=ht.vep.transcript_consequences.map(
+                transcript_consequences=ht.vep.transcript_consequences.map(
                     lambda csq: csq.annotate(
-                        lof_info=hl.or_missing(csq.lof_info == 'null',
+                        lof_info=hl.or_missing(csq.lof_info != 'null',
                                                hl.dict(csq.lof_info.split(',').map(lambda kv: tuple2(kv.split(':')))))))))
 
         hail_vep_result = parse_lof_info_into_dict(hail_vep_result)
@@ -428,9 +428,9 @@ class Tests(unittest.TestCase):
                 return hl.tuple([arr[0], arr[1]])
 
             return ht.annotate(vep=ht.vep.annotate(
-                transcript_consequnces=ht.vep.transcript_consequences.map(
+                transcript_consequences=ht.vep.transcript_consequences.map(
                     lambda csq: csq.annotate(
-                        lof_info=hl.or_missing(csq.lof_info == 'null',
+                        lof_info=hl.or_missing(csq.lof_info != 'null',
                                                hl.dict(csq.lof_info.split(',').map(lambda kv: tuple2(kv.split(':')))))))))
 
         dataproc_result = dataproc_result.annotate(vep=hl.parse_json(dataproc_result.vep, hail_vep_result.vep.dtype))
