@@ -3163,7 +3163,7 @@ steps:
   - kind: runImage
     name: deploy_wheel
     image:
-      valueFrom: hailgenetics_hail_image.image
+      valueFrom: ci_utils_image.image
     script: |
       set -ex
       tar xvf /io/wheel-container.tar
