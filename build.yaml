@@ -3180,7 +3180,7 @@ steps:
       - dev
     dependsOn:
       - default_ns
-      - hailgenetics_hail_image
+      - ci_utils_image
       - build_hail_jar_and_wheel_only
     clouds:
       - gcp
