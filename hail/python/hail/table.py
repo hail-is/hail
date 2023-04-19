@@ -3670,7 +3670,7 @@ class Table(ExprContainer):
 
         if not hl.eval(_values_similar(t[left_global_value], t[right_global_value], tolerance, absolute)):
             g = hl.eval(t.globals)
-            print(f'Table._same: globals differ:\n{g[pprint.pformat(left_global_value)]}\n{g[pprint.pformat(right_global_value)]}')
+            print(f'Table._same: globals differ:\n{pprint.pformat(g[left_global_value])}\n{pprint.pformat(g[right_global_value)])}')
             return False
 
         if not t.all(hl.is_defined(t[left_value]) & hl.is_defined(t[right_value])
