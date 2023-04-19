@@ -282,7 +282,7 @@ $(eval $(call ENV_VAR,wheel_cloud_path))
 
 .PHONY: check-pip-lockfile
 check-pip-lockfile:
-	$(PIP) install pip-tools && bash ../check_pip_requirements.sh python
+	$(PIP) install 'pip-tools==6.13.0' && bash ../check_pip_requirements.sh python
 
 
 python/hailtop/hailctl/deploy.yaml: env/cloud_base env/wheel_cloud_path
