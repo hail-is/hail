@@ -3,6 +3,7 @@ from types import TracebackType
 
 import re
 import asyncio
+from functools import wraps
 import secrets
 import logging
 import datetime
@@ -289,11 +290,35 @@ class AzureAsyncFSURL(AsyncFSURL):
     def scheme(self) -> str:
         return 'hail-az'
 
+    @property
+    def account(self) -> str:
+        return self._account
+
+    @property
+    def container(self) -> str:
+        return self._container
+
     def with_path(self, path) -> 'AzureAsyncFSURL':
         return AzureAsyncFSURL(self._account, self._container, path)
 
     def __str__(self) -> str:
         return f'hail-az://{self._account}/{self._container}/{self._path}'
+
+
+# ABS errors if you attempt credentialed access for a public container,
+# so we try once with credentials, if that fails use anonymous access for
+# that container going forward.
+def handle_public_access_error(fun):
+    @wraps(fun)
+    async def wrapped(self, url, *args, **kwargs):
+        try:
+            return await fun(self, url, *args, **kwargs)
+        except azure.core.exceptions.ClientAuthenticationError:
+            fs_url = self.parse_url(url)
+            anon_client = BlobServiceClient(f'https://{fs_url.account}.blob.core.windows.net', credential=None)
+            self._blob_service_clients[(fs_url.account, fs_url.container)] = anon_client
+            return await fun(self, url, *args, **kwargs)
+    return wrapped
 
 
 class AzureAsyncFS(AsyncFS):
@@ -312,7 +337,7 @@ class AzureAsyncFS(AsyncFS):
                 raise ValueError('credential and credential_file cannot both be defined')
 
         self._credential = credentials.credential
-        self._blob_service_clients: Dict[str, BlobServiceClient] = {}
+        self._blob_service_clients: Dict[Tuple[str, str], BlobServiceClient] = {}
 
     def parse_url(self, url: str) -> AzureAsyncFSURL:
         return AzureAsyncFSURL(*self.get_account_container_and_name(url))
@@ -348,27 +373,30 @@ class AzureAsyncFS(AsyncFS):
 
         return (account, container, name)
 
-    def get_blob_service_client(self, account: str) -> BlobServiceClient:
-        if account not in self._blob_service_clients:
-            self._blob_service_clients[account] = BlobServiceClient(f'https://{account}.blob.core.windows.net', credential=self._credential)
-        return self._blob_service_clients[account]
+    def get_blob_service_client(self, account: str, container: str) -> BlobServiceClient:
+        k = account, container
+        if k not in self._blob_service_clients:
+            self._blob_service_clients[k] = BlobServiceClient(f'https://{account}.blob.core.windows.net', credential=self._credential)
+        return self._blob_service_clients[k]
 
     def get_blob_client(self, url: str) -> BlobClient:
         account, container, name = AzureAsyncFS.get_account_container_and_name(url)
-        blob_service_client = self.get_blob_service_client(account)
+        blob_service_client = self.get_blob_service_client(account, container)
         return blob_service_client.get_blob_client(container, name)
 
     def get_container_client(self, url: str) -> ContainerClient:
         account, container, _ = AzureAsyncFS.get_account_container_and_name(url)
-        blob_service_client = self.get_blob_service_client(account)
+        blob_service_client = self.get_blob_service_client(account, container)
         return blob_service_client.get_container_client(container)
 
+    @handle_public_access_error
     async def open(self, url: str) -> ReadableStream:
         if not await self.exists(url):
             raise FileNotFoundError
         client = self.get_blob_client(url)
         return AzureReadableStream(client, url)
 
+    @handle_public_access_error
     async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
         assert length is None or length >= 1
         if not await self.exists(url):
@@ -388,6 +416,7 @@ class AzureAsyncFS(AsyncFS):
         client = self.get_blob_client(url)
         return AzureMultiPartCreate(sema, client, num_parts)
 
+    @handle_public_access_error
     async def isfile(self, url: str) -> bool:
         _, _, name = self.get_account_container_and_name(url)
         # if name is empty, get_object_metadata behaves like list objects
@@ -397,6 +426,7 @@ class AzureAsyncFS(AsyncFS):
 
         return await self.get_blob_client(url).exists()
 
+    @handle_public_access_error
     async def isdir(self, url: str) -> bool:
         _, _, name = self.get_account_container_and_name(url)
         assert not name or name.endswith('/'), name
@@ -413,6 +443,7 @@ class AzureAsyncFS(AsyncFS):
     async def makedirs(self, url: str, exist_ok: bool = False) -> None:
         pass
 
+    @handle_public_access_error
     async def statfile(self, url: str) -> FileStatus:
         try:
             blob_props = await self.get_blob_client(url).get_blob_properties()
@@ -439,6 +470,7 @@ class AzureAsyncFS(AsyncFS):
                 assert isinstance(item, BlobProperties)
                 yield AzureFileListEntry(client.account_name, client.container_name, item.name, item)  # type: ignore
 
+    @handle_public_access_error
     async def listfiles(self,
                         url: str,
                         recursive: bool = False,
@@ -485,6 +517,7 @@ class AzureAsyncFS(AsyncFS):
 
         return cons(first_entry, it)
 
+    @handle_public_access_error
     async def staturl(self, url: str) -> str:
         return await self._staturl_parallel_isfile_isdir(url)
 
