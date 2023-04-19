@@ -14,11 +14,7 @@ jobs:
               -H "Authorization: Bearer ${{ secrets.CI_TOKEN }}" \
               -H "Content-Type:application/json" \
               -d '{"steps": ["deploy_auth", "deploy_batch", "deploy_ci", "deploy_hailgenetics_image", "deploy_memory", "deploy_wheel", "upload_query_jar"], "sha": "${{ github.sha }}"}' \
-              https://ci.hail.populationgenomics.org.au/api/v1alpha/prod_deploy)
-          if [ $? -ne 0 ]; then
-            DEPLOY_BATCH_URL_GCP="failed"
-            echo "Failed to deploy to GCP"
-          fi
+              https://ci.hail.populationgenomics.org.au/api/v1alpha/prod_deploy || echo "failed")
           echo DEPLOY_BATCH_URL_GCP="$DEPLOY_BATCH_URL_GCP" >> $GITHUB_ENV
 
       - name: deploy to Azure
@@ -28,11 +24,7 @@ jobs:
               -H "Authorization: Bearer ${{ secrets.CI_TOKEN_AZURE }}" \
               -H "Content-Type:application/json" \
               -d '{"steps": ["deploy_auth", "deploy_batch", "deploy_ci", "deploy_memory", "upload_query_jar"], "sha": "${{ github.sha }}"}' \
-              https://ci.azhail.populationgenomics.org.au/api/v1alpha/prod_deploy)
-          if [ $? -ne 0 ]; then
-            DEPLOY_BATCH_URL_AZURE="failed"
-            echo "Failed to deploy to Azure"
-          fi
+              https://ci.azhail.populationgenomics.org.au/api/v1alpha/prod_deploy || echo "failed")
           echo DEPLOY_BATCH_URL_AZURE="$DEPLOY_BATCH_URL_AZURE" >> $GITHUB_ENV
 
       - name: post to Slack
