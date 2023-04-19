@@ -3,23 +3,16 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.backend.{ExecuteContext, HailStateManager}
-import is.hail.backend.spark.SparkBackend
-import is.hail.expr.JSONAnnotationImpex
+import is.hail.io.{BufferSpec, FileWriteMetadata}
+import is.hail.linalg.RowMatrix
+import is.hail.rvd.{AbstractRVDSpec, RVD}
 import is.hail.types.physical.{PArray, PCanonicalStruct, PStruct, PType}
 import is.hail.types.virtual._
 import is.hail.types.{MatrixType, TableType}
-import is.hail.io.{BufferSpec, FileWriteMetadata, MatrixWriteCheckpoint}
-import is.hail.io.fs.FS
-import is.hail.linalg.RowMatrix
-import is.hail.rvd.{AbstractRVDSpec, RVD, _}
-import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
-import org.apache.commons.lang3.StringUtils
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
-import org.json4s.jackson.JsonMethods
-import org.json4s.jackson.JsonMethods.parse
 
 case class MatrixValue(
   typ: MatrixType,
