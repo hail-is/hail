@@ -260,8 +260,8 @@ class StructPrettyPrinter(pprint.PrettyPrinter):
                 return
 
             stream.write('Struct(')
+            indent += len('Struct(')
             if all(k.isidentifier() for k in obj):
-                indent += len('Struct(')
                 n = len(obj.items())
                 for i, (k, v) in enumerate(obj.items()):
                     is_first = i == 0
@@ -277,7 +277,7 @@ class StructPrettyPrinter(pprint.PrettyPrinter):
                         stream.write(',\n')
             else:
                 stream.write('**{')
-                indent += len('Struct(**{')
+                indent += len('**{')
                 n = len(obj.items())
                 for i, (k, v) in enumerate(obj.items()):
                     is_first = i == 0
