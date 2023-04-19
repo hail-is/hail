@@ -299,7 +299,7 @@ pycparser==2.21
     #   cffi
 pyflakes==2.4.0
     # via flake8
-pygments==2.15.0
+pygments==2.15.1
     # via
     #   -c hail/hail/python/dev/../pinned-requirements.txt
     #   ipython
