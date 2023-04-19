@@ -27,7 +27,7 @@ feature into smaller components.
 Before you can write code, there are some setup steps that will allow you to
 develop effectively.
 
-Hail currently supports Python version 3.7 or greater.
+Hail currently supports Python version 3.8 or greater.
 
 ```
 make install-dev-requirements
