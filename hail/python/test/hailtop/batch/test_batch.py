@@ -22,7 +22,7 @@ from hailtop.test_utils import skip_in_azure
 
 
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'ubuntu:20.04')
-PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.7-slim'
+PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.8-slim'
 HAIL_GENETICS_HAIL_IMAGE = os.environ.get('HAIL_GENETICS_HAIL_IMAGE', f'hailgenetics/hail:{pip_version()}')
 
 

@@ -117,7 +117,7 @@ html_theme = 'sphinx_rtd_theme'
 # html_sidebars = {}
 
 # https://www.sphinx-doc.org/en/master/usage/extensions/intersphinx.html
-intersphinx_mapping = {'python': ('https://docs.python.org/3.7', None)}
+intersphinx_mapping = {'python': ('https://docs.python.org/3.8', None)}
 
 
 # -- Extension configuration -------------------------------------------------

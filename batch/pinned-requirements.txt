@@ -70,7 +70,7 @@ multidict==6.0.4
     #   -c hail/batch/../web_common/pinned-requirements.txt
     #   aiohttp
     #   yarl
-numpy==1.21.6
+numpy==1.24.2
     # via
     #   -c hail/batch/../hail/python/dev/pinned-requirements.txt
     #   -c hail/batch/../hail/python/pinned-requirements.txt
