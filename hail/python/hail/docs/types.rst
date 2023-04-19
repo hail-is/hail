@@ -12,7 +12,7 @@ Fields and expressions in Hail have types. Throughout the documentation, you
 will find type descriptions like ``array<str>`` or :class:`.tlocus`. It is
 generally more important to know how to use expressions of various types than to
 know how to manipulate the types themselves, but some operations like
-:func:`.null` require type arguments.
+:func:`.missing` require type arguments.
 
 In Python, ``5`` is of type :obj:`int` while ``"hello"`` is of type :obj:`str`.
 Python is a dynamically-typed language, meaning that a function like:
@@ -89,7 +89,7 @@ There are a few situations where you may want to specify types explicitly:
   infer the type you want.
 - When converting a Python value to a Hail expression with :func:`.literal`,
   if you don't wish to rely on the inferred type.
-- With functions like :func:`.null` and :func:`.empty_array`.
+- With functions like :func:`.missing` and :func:`.empty_array`.
 
 Viewing an object's type
 ~~~~~~~~~~~~~~~~~~~~~~~~
