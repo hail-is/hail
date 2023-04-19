@@ -80,7 +80,7 @@ fastjsonschema==2.16.3
     # via nbformat
 flake8==4.0.1
     # via -r hail/hail/python/dev/requirements.txt
-fonttools==4.38.0
+fonttools==4.39.3
     # via matplotlib
 fswatch==0.1.1
     # via -r hail/hail/python/dev/requirements.txt
