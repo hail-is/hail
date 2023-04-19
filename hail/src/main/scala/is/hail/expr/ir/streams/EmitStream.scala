@@ -2860,22 +2860,18 @@ object EmitStream {
               cb.assign(xElts, EmitCode.present(cb.emb, curValsType.constructFromElements(cb, elementRegion, k, false) { (cb, i) =>
                 IEmitCode(cb, result(i).ceq(0L), eltType.loadCheapSCode(cb, result(i)))
               }))
-              cb.println("producing k=", cb.strValue(xKey), ", v=", cb.strValue(xElts))
               cb.goto(LproduceElementDone)
 
               cb.define(LstartNewKey)
-              cb.println(s"LstartNewKey")
               cb.forLoop(cb.assign(i, 0), i < k, cb.assign(i, i + 1), {
                 cb += (result(i) = 0L)
               })
               cb.assign(curKey, eltType.loadCheapSCode(cb, heads(winner)).subset(key: _*)
                 .castTo(cb, elementRegion, curKey.st, true))
-              cb.println(s"assigned curKey=", cb.strValue(curKey))
               cb.goto(LaddToResult)
 
               cb.define(LaddToResult)
               cb += (result(winner) = heads(winner))
-              cb.println(s"added winner=", winner.toS, " to result")
               if (streamRequiresMemoryManagement) {
                 val r = cb.newLocal[Region]("tzj_winner_region", regionArray(winner))
                 cb += elementRegion.trackAndIncrementReferenceCountOf(r)
@@ -2892,7 +2888,6 @@ object EmitStream {
 
               cb.define(LrunMatch)
               cb.assign(challenger, bracket(matchIdx))
-              cb.println(s"run match: matchIdx=", matchIdx.toS, ", challenger = ", challenger.toS)
               cb.ifx(matchIdx.ceq(0) || challenger.ceq(-1), cb.goto(LloopEnd))
 
               val LafterChallenge = CodeLabel()
@@ -2918,7 +2913,6 @@ object EmitStream {
               cb.goto(LrunMatch)
 
               cb.define(LloopEnd)
-              cb.println(s"Loop end, matchIdx=", matchIdx.toS, ", winner=", winner.toS)
               cb.ifx(matchIdx.ceq(0), {
                 // 'winner' is smallest of all k heads. If 'winner' = k, all heads
                 // must be k, and all streams are exhausted.
@@ -2927,7 +2921,6 @@ object EmitStream {
                   cb.ifx(winner.ceq(k),
                     cb.goto(LendOfStream),
                     {
-                      cb.println("assigning result to new array")
                       cb.assign(result, Code.newArray[Long](k))
                       cb.goto(LstartNewKey)
                     })
@@ -2952,11 +2945,9 @@ object EmitStream {
               val winnerIter = cb.memoize(iterArray(winner))
               val winnerNextElt = cb.memoize(winnerIter.invoke[Long]("next"))
               cb.ifx(winnerIter.invoke[Boolean]("eos"), {
-                cb.println("stream ", winner.toS, ", is EOS")
                 cb.assign(matchIdx, (winner + k) >>> 1)
                 cb.assign(winner, k)
               }, {
-                cb.println("pulled from stream ", winner.toS, ": ", cb.strValue(eltType.loadCheapSCode(cb, winnerNextElt)))
                 cb.assign(matchIdx, (winner + k) >>> 1)
                 cb += heads.update(winner, winnerNextElt)
               })
