@@ -4090,3 +4090,27 @@ def test_reservoir_sampling():
         mean = np.mean(sample)
         expected_stdev = math.sqrt(sample_variance / sample_size)
         assert abs(mean - sample_mean) / expected_stdev < 4 , (iteration, sample_size, abs(mean - sample_mean) / expected_stdev)
+
+def test_zip_join_producers():
+    contexts = hl.literal([1,2,3])
+    zj = hl._zip_join_producers(contexts,
+                                lambda i: hl.range(i).map(lambda x: hl.struct(k=x, stream_id=i)),
+                                ['k'],
+                                lambda k, vals: k.annotate(vals=vals))
+    assert hl.eval(zj) == [
+        hl.utils.Struct(k=0, vals=[
+            hl.utils.Struct(k=0, stream_id=1),
+            hl.utils.Struct(k=0, stream_id=2),
+            hl.utils.Struct(k=0, stream_id=3),
+        ]),
+        hl.utils.Struct(k=1, vals=[
+            None,
+            hl.utils.Struct(k=1, stream_id=2),
+            hl.utils.Struct(k=1, stream_id=3),
+        ]),
+        hl.utils.Struct(k=2, vals=[
+            None,
+            None,
+            hl.utils.Struct(k=2, stream_id=3),
+        ])
+    ]
