@@ -356,6 +356,11 @@ final case class StreamMultiMerge(as: IndexedSeq[IR], key: IndexedSeq[String]) e
   override def typ: TStream = tcoerce[TStream](super.typ)
 }
 
+final case class StreamZipJoinProducers(contexts: IR, ctxName: String, makeProducer: IR,
+  key: IndexedSeq[String], curKey: String, curVals: String, joinF: IR) extends IR {
+  override def typ: TStream = tcoerce[TStream](super.typ)
+}
+
 /**
   * The StreamZipJoin node assumes that input streams have distinct keys. If input streams
   * do not have distinct keys, the key that is included in the result is undefined, but

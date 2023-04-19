@@ -18,7 +18,7 @@ from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
     GetTupleElement, Die, ConsoleLog, Apply, ApplySeeded, RNGStateLiteral, RNGSplit,\
     TableCount, TableGetGlobals, TableCollect, TableAggregate, MatrixCount, \
     MatrixAggregate, TableWrite, udf, subst, clear_session_functions, ReadPartition, \
-    PartitionNativeIntervalReader, StreamMultiMerge, StreamZipJoin, StreamAgg
+    PartitionNativeIntervalReader, StreamMultiMerge, StreamZipJoin, StreamAgg, StreamZipJoinProducers
 from .register_functions import register_functions
 from .register_aggregators import register_aggregators
 from .table_ir import (MatrixRowsTable, TableJoin, TableLeftJoinRightDistinct, TableIntervalJoin,
@@ -173,6 +173,7 @@ __all__ = [
     'toStream',
     'ToStream',
     'StreamZipJoin',
+    'StreamZipJoinProducers',
     'StreamMultiMerge',
     'LowerBoundOnOrderedCollection',
     'GroupByKey',
