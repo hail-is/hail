@@ -265,7 +265,7 @@ class StructPrettyPrinter(pprint.PrettyPrinter):
                 n = len(obj.items())
                 for i, (k, v) in enumerate(obj.items()):
                     is_first = i == 0
-                    is_last = i != n - 1
+                    is_last = i == n - 1
 
                     if not is_first:
                         stream.write(' ' * indent)
@@ -273,7 +273,7 @@ class StructPrettyPrinter(pprint.PrettyPrinter):
                     stream.write('=')
                     this_indent = indent + len(k) + len('=')
                     self._format(v, stream, this_indent, allowance, context, level, *args, **kwargs)
-                    if is_last:
+                    if not is_last:
                         stream.write(',\n')
             else:
                 stream.write('**{')
@@ -281,7 +281,7 @@ class StructPrettyPrinter(pprint.PrettyPrinter):
                 n = len(obj.items())
                 for i, (k, v) in enumerate(obj.items()):
                     is_first = i == 0
-                    is_last = i != n - 1
+                    is_last = i == n - 1
 
                     if not is_first:
                         stream.write(' ' * indent)
@@ -289,7 +289,7 @@ class StructPrettyPrinter(pprint.PrettyPrinter):
                     stream.write(': ')
                     this_indent = indent + len(repr(k)) + len(': ')
                     self._format(v, stream, this_indent, allowance, context, level, *args, **kwargs)
-                    if is_last:
+                    if not is_last:
                         stream.write(',\n')
                 stream.write('}')
             stream.write(')')
