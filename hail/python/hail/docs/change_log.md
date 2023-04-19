@@ -24,6 +24,20 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.114
+
+Released 2023-04-19
+
+### New Features
+
+- (hail#12880) Added `hl.vds.store_ref_block_max_len` to patch old VDSes to make interval filtering faster.
+
+### Bug Fixes
+
+- (hail#12860) Fixed memory leak in shuffles in Query-on-Batch.
+
+---
+
 ## Version 0.2.113
 
 Released 2023-04-07
