@@ -339,6 +339,12 @@ object TypeCheck {
         val eltType = tcoerce[TStruct](streamType.elementType)
         assert(key.forall(eltType.hasField))
         assert(x.typ.elementType == joinF.typ)
+      case x@StreamZipJoinProducers(contexts, ctxName, makeProducer, key, curKey, curVals, joinF) =>
+        assert(contexts.typ.isInstanceOf[TArray])
+        val streamType = tcoerce[TStream](makeProducer.typ)
+        val eltType = tcoerce[TStruct](streamType.elementType)
+        assert(key.forall(eltType.hasField))
+        assert(x.typ.elementType == joinF.typ)
       case x@StreamMultiMerge(as, key) =>
         val streamType = tcoerce[TStream](as.head.typ)
         assert(as.forall(_.typ == streamType))

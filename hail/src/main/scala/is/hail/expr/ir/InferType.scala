@@ -136,6 +136,8 @@ object InferType {
         TStream(body.typ)
       case StreamZipJoin(_, _, _, _, joinF) =>
         TStream(joinF.typ)
+      case StreamZipJoinProducers(_, _, _, _, _, _, joinF) =>
+        TStream(joinF.typ)
       case StreamMultiMerge(as, _) =>
         TStream(tcoerce[TStream](as.head.typ).elementType)
       case StreamFilter(a, name, cond) =>

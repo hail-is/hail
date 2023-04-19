@@ -5058,6 +5058,32 @@ def _union_intersection_base(name, arrays, key, join_f, result_f):
     return result_f(construct_expr(zj, zj.typ, indices, aggs))
 
 
+def _zip_join_producers(contexts, stream_f, key, join_f):
+    ctx_uid = Env.get_uid()
+
+    ctx_var = construct_variable(ctx_uid, contexts.dtype.element_type)
+    stream_req = stream_f(ctx_var)
+    make_prod_ir = stream_req._ir
+    if isinstance(make_prod_ir.typ, hl.tarray):
+        make_prod_ir = ir.ToStream(make_prod_ir)
+    t = stream_req.dtype.element_type
+
+    key_typ = hl.tstruct(**{k: t[k] for k in key})
+    vals_typ = hl.tarray(t)
+
+    key_uid = Env.get_uid()
+    vals_uid = Env.get_uid()
+
+    key_var = construct_variable(key_uid, key_typ)
+    vals_var = construct_variable(vals_uid, vals_typ)
+
+    join_ir = join_f(key_var, vals_var)
+    zj = ir.ToArray(
+        ir.StreamZipJoinProducers(contexts._ir, ctx_uid, make_prod_ir, key, key_uid, vals_uid, join_ir._ir))
+    indices, aggs = unify_all(contexts, stream_req, join_ir)
+    return construct_expr(zj, zj.typ, indices, aggs)
+
+
 @typecheck(arrays=expr_oneof(expr_stream(expr_any), expr_array(expr_any)), key=sequenceof(builtins.str))
 def keyed_intersection(*arrays, key):
     """Compute the intersection of sorted arrays on a given key.

@@ -98,6 +98,15 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newAs <- as.mapRecur(normalize(_))
           newJoinF <- normalize(joinF, env.bindEval(curKey -> newCurKey, curVals -> newCurVals))
         } yield StreamZipJoin(newAs, key, newCurKey, newCurVals, newJoinF)
+      case StreamZipJoinProducers(contexts, ctxName, makeProducer, key, curKey, curVals, joinF) =>
+        val newCtxName = gen()
+        val newCurKey = gen()
+        val newCurVals = gen()
+        for {
+          newCtxs <- normalize(contexts)
+          newMakeProducer <- normalize(makeProducer, env.bindEval(ctxName -> newCtxName))
+          newJoinF <- normalize(joinF, env.bindEval(curKey -> newCurKey, curVals -> newCurVals))
+        } yield StreamZipJoinProducers(newCtxs, newCtxName, newMakeProducer, key, newCurKey, newCurVals, newJoinF)
       case StreamFilter(a, name, body) =>
         val newName = gen()
         for {

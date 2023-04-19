@@ -213,6 +213,29 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           uses.foreach { u => defs.bind(u, valTypes) }
           as.foreach { a => dependents.getOrElseUpdate(a, mutable.Set[RefEquality[BaseIR]]()) ++= uses }
         }
+      case StreamZipJoinProducers(contexts, ctxName, makeProducer, key, curKey, curVals, _) =>
+        val ctxType = tcoerce[RIterable](lookup(contexts)).elementType
+        if (refMap.contains(ctxName)) {
+          val uses = refMap(ctxName)
+          uses.foreach { u => defs.bind(u, Array(ctxType)) }
+          dependents.getOrElseUpdate(contexts, mutable.Set[RefEquality[BaseIR]]()) ++= uses
+        }
+
+        val producerElementType = tcoerce[RStruct](tcoerce[RIterable](lookup(makeProducer)).elementType)
+        if (refMap.contains(curKey)) {
+          val uses = refMap(curKey)
+          val keyType = RStruct.fromNamesAndTypes(key.map(k => k -> producerElementType.fieldType(k)))
+          uses.foreach { u => defs.bind(u, Array(keyType)) }
+          dependents.getOrElseUpdate(makeProducer, mutable.Set[RefEquality[BaseIR]]()) ++= uses
+        }
+        if (refMap.contains(curVals)) {
+          val uses = refMap(curVals)
+          val optional = producerElementType.copy(producerElementType.children)
+          optional.union(false)
+          uses.foreach { u => defs.bind(u, Array(RIterable(optional))) }
+          dependents.getOrElseUpdate(makeProducer, mutable.Set[RefEquality[BaseIR]]()) ++= uses
+        }
+
       case StreamFilter(a, name, cond) => addElementBinding(name, a)
       case StreamTakeWhile(a, name, cond) => addElementBinding(name, a)
       case StreamDropWhile(a, name, cond) => addElementBinding(name, a)
@@ -582,6 +605,10 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         tcoerce[RIterable](requiredness).elementType.unionFrom(lookup(body))
       case StreamZipJoin(as, _, curKey, curVals, joinF) =>
         requiredness.union(as.forall(lookup(_).required))
+        val eltType = tcoerce[RIterable](requiredness).elementType
+        eltType.unionFrom(lookup(joinF))
+      case StreamZipJoinProducers(contexts, ctxName, makeProducer, _, curKey, curVals, joinF) =>
+        requiredness.union(lookup(contexts).required)
         val eltType = tcoerce[RIterable](requiredness).elementType
         eltType.unionFrom(lookup(joinF))
       case StreamMultiMerge(as, _) =>
