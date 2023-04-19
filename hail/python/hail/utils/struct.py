@@ -83,14 +83,14 @@ class Struct(Mapping):
     def __str__(self):
         if all(k.isidentifier() for k in self._fields):
             return (
-                'Struct(' +
-                ', '.join(f'{k}={repr(v)}' for k, v in self._fields.items()) +
-                ')'
+                'Struct('
+                + ', '.join(f'{k}={repr(v)}' for k, v in self._fields.items())
+                + ')'
             )
         return (
-            'Struct(**{' +
-            ', '.join(f'{repr(k)}: {repr(v)}' for k, v in self._fields.items()) +
-            '})'
+            'Struct(**{'
+            + ', '.join(f'{repr(k)}: {repr(v)}' for k, v in self._fields.items())
+            + '})'
         )
 
     def __eq__(self, other):
