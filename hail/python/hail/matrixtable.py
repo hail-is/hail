@@ -3643,7 +3643,7 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Persisted dataset.
         """
-        return Env.backend().persist_matrix_table(self)
+        return Env.backend().persist(self)
 
     def unpersist(self) -> 'MatrixTable':
         """
@@ -3659,7 +3659,7 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Unpersisted dataset.
         """
-        return Env.backend().unpersist_matrix_table(self)
+        return Env.backend().unpersist(self)
 
     @typecheck_method(name=str)
     def add_row_index(self, name: str = 'row_idx') -> 'MatrixTable':

@@ -375,8 +375,6 @@ class BlockMatrixIRTests(unittest.TestCase):
         for x in (self.blockmatrix_irs() + [persist]):
             backend._parse_blockmatrix_ir(str(x))
 
-        backend.unpersist_block_matrix('x')
-
 
 class ValueTests(unittest.TestCase):
 
