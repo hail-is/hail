@@ -176,12 +176,12 @@ class ServiceAccount:
         old_user_keys = self.redundant_user_keys()
         if active_key.expired():
             return RotationState.EXPIRED
-        elif active_key.soon_to_expire():
-            return RotationState.SOON_TO_EXPIRE
         elif active_key.recently_created() and len(old_user_keys) > 0:
             return RotationState.IN_PROGRESS
         elif not active_key.recently_created() and len(old_user_keys) > 0:
             return RotationState.READY_FOR_DELETE
+        elif active_key.soon_to_expire():
+            return RotationState.SOON_TO_EXPIRE
         else:
             assert len(old_user_keys) == 0
             return RotationState.UP_TO_DATE
