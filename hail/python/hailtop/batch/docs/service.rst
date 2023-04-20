@@ -75,8 +75,8 @@ for more information about access control.
 .. code-block:: sh
 
     gcloud storage buckets add-iam-policy-binding gs://<BUCKET_NAME> \
-           --member=serviceAccount:<SERVICE_ACCOUNT_NAME> \
-	   --role=objectAdmin
+       --member=serviceAccount:<SERVICE_ACCOUNT_NAME> \
+       --role=roles/storage.objectAdmin
 
 The Google Artifact Registry is a Docker repository hosted by Google that is an alternative to
 Docker Hub for storing images. It is recommended to use the artifact registry for images that

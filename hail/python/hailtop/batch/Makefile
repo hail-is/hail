@@ -1,6 +1,7 @@
 .PHONY: doctest
 doctest:
 	pytest \
+        -Werror:::batch -Werror:::hailtop \
 	-v \
 	-r A \
 	--doctest-modules \

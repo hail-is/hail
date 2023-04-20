@@ -1428,13 +1428,13 @@ class Emit[C](
                   }
 
                   cb.ifx(isRowMajorCode.asBoolean.value, {
-                    val strides = xP.makeRowMajorStrides(shapeValues, region, cb)
+                    val strides = xP.makeRowMajorStrides(shapeValues, cb)
 
                     stridesSettables.zip(strides).foreach { case (settable, stride) =>
                       cb.assign(settable, stride)
                     }
                   }, {
-                    val strides = xP.makeColumnMajorStrides(shapeValues, region, cb)
+                    val strides = xP.makeColumnMajorStrides(shapeValues, cb)
                     stridesSettables.zip(strides).foreach { case (settable, stride) =>
                       cb.assign(settable, stride)
                     }
@@ -1459,14 +1459,14 @@ class Emit[C](
                       }
 
                       cb.ifx(isRowMajorCode.asBoolean.value, {
-                        val strides = xP.makeRowMajorStrides(shapeValues, region, cb)
+                        val strides = xP.makeRowMajorStrides(shapeValues, cb)
 
 
                         stridesSettables.zip(strides).foreach { case (settable, stride) =>
                           cb.assign(settable, stride)
                         }
                       }, {
-                        val strides = xP.makeColumnMajorStrides(shapeValues, region, cb)
+                        val strides = xP.makeColumnMajorStrides(shapeValues, cb)
                         stridesSettables.zip(strides).foreach { case (settable, stride) =>
                           cb.assign(settable, stride)
                         }
@@ -1558,7 +1558,7 @@ class Emit[C](
 
               val (answerFirstElementAddr, answerFinisher) = outputPType.constructDataFunction(
                 IndexedSeq(M, N),
-                outputPType.makeColumnMajorStrides(IndexedSeq(M, N), region, cb),
+                outputPType.makeColumnMajorStrides(IndexedSeq(M, N), cb),
                 cb,
                 region)
 
@@ -1622,7 +1622,7 @@ class Emit[C](
 
               val (answerFirstElementAddr, answerFinisher) = outputPType.constructDataFunction(
                 IndexedSeq(outputSize),
-                outputPType.makeColumnMajorStrides(IndexedSeq(outputSize), region, cb),
+                outputPType.makeColumnMajorStrides(IndexedSeq(outputSize), cb),
                 cb,
                 region)
 
@@ -1701,7 +1701,7 @@ class Emit[C](
           val ndPT = pndVal.st.asInstanceOf[SNDArrayPointer].pType
 
           val shapeArray = pndVal.shapes
-          val stridesArray = ndPT.makeColumnMajorStrides(shapeArray, region, cb)
+          val stridesArray = ndPT.makeColumnMajorStrides(shapeArray, cb)
 
 
           assert(shapeArray.length == 2)
@@ -1789,9 +1789,9 @@ class Emit[C](
             val vtPType = outputPType.fields(2).typ.asInstanceOf[PCanonicalNDArray]
 
             val uShapeSeq = FastIndexedSeq[Value[Long]](M, UCOL)
-            val (uData, uFinisher) = uPType.constructDataFunction(uShapeSeq, uPType.makeColumnMajorStrides(uShapeSeq, region, cb), cb, region)
+            val (uData, uFinisher) = uPType.constructDataFunction(uShapeSeq, uPType.makeColumnMajorStrides(uShapeSeq, cb), cb, region)
             val vtShapeSeq = FastIndexedSeq[Value[Long]](LDVT, N)
-            val (vtData, vtFinisher) = vtPType.constructDataFunction(vtShapeSeq, vtPType.makeColumnMajorStrides(vtShapeSeq, region, cb), cb, region)
+            val (vtData, vtFinisher) = vtPType.constructDataFunction(vtShapeSeq, vtPType.makeColumnMajorStrides(vtShapeSeq, cb), cb, region)
 
             (if (full_matrices) "A" else "S", sPType, uData, uFinisher, vtData, vtFinisher)
           }
@@ -1805,7 +1805,7 @@ class Emit[C](
             ("N", outputPType.asInstanceOf[PCanonicalNDArray], const(0L), noOp(_), const(0L), noOp(_))
           }
 
-          val (sDataAddress, sFinisher) = sPType.constructDataFunction(IndexedSeq(K), sPType.makeColumnMajorStrides(IndexedSeq(K), region, cb), cb, region)
+          val (sDataAddress, sFinisher) = sPType.constructDataFunction(IndexedSeq(K), sPType.makeColumnMajorStrides(IndexedSeq(K), cb), cb, region)
 
           cb.assign(infoDGESDDResult, Code.invokeScalaObject13[String, Int, Int, Long, Int, Long, Long, Int, Long, Int, Long, Int, Long, Int](LAPACK.getClass, "dgesdd",
             jobz,
@@ -1904,7 +1904,7 @@ class Emit[C](
 
           val hPType = ndPT
           val hShapeArray = FastIndexedSeq[Value[Long]](N, M)
-          val hStridesArray = hPType.makeRowMajorStrides(hShapeArray, region, cb)
+          val hStridesArray = hPType.makeRowMajorStrides(hShapeArray, cb)
           val (hFirstElement, hFinisher) = hPType.constructDataFunction(hShapeArray, hStridesArray, cb, region)
 
           val tauNDPType = PCanonicalNDArray(PFloat64Required, 1, true)
@@ -1971,7 +1971,7 @@ class Emit[C](
 
             val rShapeArray = FastIndexedSeq[Value[Long]](rRows, rCols)
 
-            val rStridesArray = rPType.makeColumnMajorStrides(rShapeArray, region, cb)
+            val rStridesArray = rPType.makeColumnMajorStrides(rShapeArray, cb)
 
             val (rDataAddress, rFinisher) = rPType.constructDataFunction(rShapeArray, rStridesArray, cb, region)
 
@@ -2014,7 +2014,7 @@ class Emit[C](
 
               val qPType = crPType.types(0).asInstanceOf[PCanonicalNDArray]
               val qShapeArray = if (mode == "complete") Array(M, M) else Array(M, K)
-              val qStridesArray = qPType.makeColumnMajorStrides(qShapeArray, region, cb)
+              val qStridesArray = qPType.makeColumnMajorStrides(qShapeArray, cb)
 
               val infoDORGQRResult = cb.newLocal[Int]("ndarray_qr_DORGQR_info")
               val infoDORQRErrorTest = (extraErrorMsg: String) => (infoDORGQRResult cne 0)
@@ -2825,7 +2825,7 @@ abstract class NDArrayEmitter(val outputShape: IndexedSeq[Value[Long]], val elem
 
     val (firstElementAddress, finish) = targetType.constructDataFunction(
       outputShape,
-      targetType.makeColumnMajorStrides(shapeArray, region, cb),
+      targetType.makeColumnMajorStrides(shapeArray, cb),
       cb,
       region)
 

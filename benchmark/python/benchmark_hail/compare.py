@@ -125,3 +125,27 @@ def compare(args):
     print(f'Geometric mean: {fmt_diff(gmean(comps))}')
     print(f'Arithmetic mean: {fmt_diff(np.mean(comps))}')
     print(f'Median:  {fmt_diff(np.median(comps))}')
+
+
+def register_main(subparser) -> 'None':
+    parser = subparser.add_parser(
+        'compare',
+        help='Compare Hail benchmarks.',
+        description='Run Hail benchmarks.'
+    )
+    parser.add_argument('run1',
+                        type=str,
+                        help='First benchmarking run.')
+    parser.add_argument('run2',
+                        type=str,
+                        help='Second benchmarking run.')
+    parser.add_argument('--min-time',
+                        type=float,
+                        default=1.0,
+                        help='Minimum runtime in either run for inclusion.')
+    parser.add_argument('--metric',
+                        type=str,
+                        default='median',
+                        choices=['best', 'median'],
+                        help='Comparison metric.')
+    parser.set_defaults(main=compare)

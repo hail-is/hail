@@ -47,7 +47,7 @@ class TableValueIntermediate(tv: TableValue) extends TableExecuteIntermediate {
   def partitioner: RVDPartitioner = tv.rvd.partitioner
 }
 
-class TableStageIntermediate(ts: TableStage) extends TableExecuteIntermediate {
+case class TableStageIntermediate(ts: TableStage) extends TableExecuteIntermediate {
   def asTableStage(ctx: ExecuteContext): TableStage = ts
 
   def asTableValue(ctx: ExecuteContext): TableValue = {

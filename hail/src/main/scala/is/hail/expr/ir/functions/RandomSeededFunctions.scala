@@ -42,6 +42,8 @@ class IRRandomness(seed: Long) {
 
   def rnorm(mean: Double, sd: Double): Double = mean + sd * random.nextGaussian()
 
+  def rnorm(): Double = rnorm(0, 1)
+
   def rbeta(a: Double, b: Double): Double = Beta.random(a, b, random)
 
   def rgamma(shape: Double, scale: Double): Double = Gamma.random(shape, scale, random)

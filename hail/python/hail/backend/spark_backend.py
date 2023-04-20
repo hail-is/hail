@@ -115,6 +115,14 @@ class Log4jLogger(Logger):
         self._log_pkg.info(msg)
 
 
+def append_to_comma_separated_list(conf: pyspark.SparkConf, k: str, *new_values: str):
+    old = conf.get(k, None)
+    if old is None:
+        conf.set(k, ','.join(new_values))
+    else:
+        conf.set(k, old + ',' + ','.join(new_values))
+
+
 class SparkBackend(Py4JBackend):
     def __init__(self, idempotent, sc, spark_conf, app_name, master,
                  local, log, quiet, append, min_block_size,
@@ -140,17 +148,31 @@ class SparkBackend(Py4JBackend):
             if os.environ.get('HAIL_SPARK_MONITOR') or os.environ.get('AZURE_SPARK') == '1':
                 import sparkmonitor
                 jars.append(os.path.join(os.path.dirname(sparkmonitor.__file__), 'listener.jar'))
-                conf.set("spark.extraListeners", "sparkmonitor.listener.JupyterSparkMonitorListener")
+                append_to_comma_separated_list(
+                    conf,
+                    'spark.extraListeners',
+                    'sparkmonitor.listener.JupyterSparkMonitorListener'
+                )
 
-            conf.set('spark.jars', ','.join(jars))
+            append_to_comma_separated_list(
+                conf,
+                'spark.jars',
+                *jars
+            )
             if os.environ.get('AZURE_SPARK') == '1':
                 print('AZURE_SPARK environment variable is set to "1", assuming you are in HDInsight.')
                 # Setting extraClassPath in HDInsight overrides the classpath entirely so you can't
                 # load the Scala standard library. Interestingly, setting extraClassPath is not
                 # necessary in HDInsight.
             else:
-                conf.set('spark.driver.extraClassPath', ','.join(jars))
-                conf.set('spark.executor.extraClassPath', './hail-all-spark.jar')
+                append_to_comma_separated_list(
+                    conf,
+                    'spark.driver.extraClassPath',
+                    *jars)
+                append_to_comma_separated_list(
+                    conf,
+                    'spark.executor.extraClassPath',
+                    './hail-all-spark.jar')
 
             if sc is None:
                 pyspark.SparkContext._ensure_initialized(conf=conf)

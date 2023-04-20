@@ -6,15 +6,16 @@ import is.hail.expr.ir._
 import is.hail.expr.ir.agg.{AggStateSig, DictState, PhysicalAggSig, StateTuple}
 import is.hail.expr.ir.functions.IntervalFunctions
 import is.hail.expr.ir.orderings.StructOrdering
+import is.hail.linalg.LinalgCodeUtils
 import is.hail.lir
-import is.hail.methods.{BitPackedVector, BitPackedVectorBuilder, LocalLDPrune}
-import is.hail.types.physical.stypes.EmitType
+import is.hail.methods.{BitPackedVector, BitPackedVectorBuilder, LocalLDPrune, LocalWhitening}
 import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SStackStruct, SUnreachable}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SFloat64Value, SInt32Value}
+import is.hail.types.physical.stypes.{EmitType, SSettable}
 import is.hail.types.physical.{PCanonicalArray, PCanonicalBinary, PCanonicalStruct, PType}
 import is.hail.types.virtual._
-import is.hail.types.{RIterable, TypeWithRequiredness, VirtualTypeWithReq}
+import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.utils._
 import is.hail.variant.Locus
 import org.objectweb.asm.Opcodes._
@@ -399,7 +400,7 @@ object EmitStream {
 
               override val elementRegion: Settable[Region] = region
 
-              override val requiresMemoryManagementPerElement: Boolean = false
+              override val requiresMemoryManagementPerElement: Boolean = childProducer.requiresMemoryManagementPerElement
 
               override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
                 val elementProduceLabel = CodeLabel()
@@ -1262,6 +1263,62 @@ object EmitStream {
           }
 
           mb.implementLabel(childProducer.LendOfStream) { cb =>
+            cb.goto(producer.LendOfStream)
+          }
+
+          SStreamValue(producer)
+        }
+
+      case StreamWhiten(stream, newChunkName, prevWindowName, vecSize, windowSize, chunkSize, blockSize, normalizeAfterWhiten) =>
+        produce(stream, cb).map(cb) { case blocks: SStreamValue =>
+          val state = new LocalWhitening(cb, SizeValueStatic(vecSize.toLong), windowSize.toLong, chunkSize.toLong, blockSize.toLong, outerRegion, normalizeAfterWhiten)
+          val eltType = blocks.st.elementType.asInstanceOf[SBaseStruct]
+          var resultField: SSettable = null
+
+          val blocksProducer = blocks.getProducer(cb.emb)
+          val producer: StreamProducer = new StreamProducer {
+            override def method: EmitMethodBuilder[_] = mb
+
+            override val length: Option[EmitCodeBuilder => Code[Int]] =
+              blocksProducer.length.map { l => (cb: EmitCodeBuilder) =>
+                val len = cb.memoize(l(cb))
+                len
+              }
+
+            override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
+              state.reset(cb)
+              blocksProducer.initialize(cb, outerRegion)
+            }
+
+            override val elementRegion: Settable[Region] = blocksProducer.elementRegion
+            override val requiresMemoryManagementPerElement: Boolean = blocksProducer.requiresMemoryManagementPerElement
+
+            override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
+              cb.goto(blocksProducer.LproduceElement)
+              cb.define(blocksProducer.LproduceElementDone)
+              val row = blocksProducer.element.toI(cb).get(cb, "StreamWhiten: missing tuple").asBaseStruct
+              row.loadField(cb, prevWindowName).consume(cb, {}, { prevWindow =>
+                state.initializeWindow(cb, prevWindow.asNDArray)
+              })
+              val block = row.loadField(cb, newChunkName).get(cb, "StreamWhiten: missing chunk").asNDArray
+              val whitenedBlock = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(block, cb, elementRegion)
+              state.whitenBlock(cb, whitenedBlock)
+              // the 'newChunkName' field of 'row' is mutated in place and given
+              // to the consumer
+              val result = row.insert(cb, elementRegion, eltType.virtualType.asInstanceOf[TStruct], newChunkName -> EmitValue.present(whitenedBlock))
+              resultField = mb.newPField("StreamWhiten_result", result.st)
+              cb.assign(resultField, result)
+              cb.goto(LproduceElementDone)
+            }
+
+            override val element: EmitCode = EmitCode.present(mb, resultField)
+
+            override def close(cb: EmitCodeBuilder): Unit = {
+              blocksProducer.close(cb)
+            }
+          }
+
+          mb.implementLabel(blocksProducer.LendOfStream) { cb =>
             cb.goto(producer.LendOfStream)
           }
 

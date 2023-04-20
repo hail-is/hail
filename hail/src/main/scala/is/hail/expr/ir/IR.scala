@@ -327,6 +327,14 @@ final case class SeqSample(totalRange: IR, numToSample: IR, rngState: IR, requir
 // pivots are the endpoints of the first and last interval respectively, should not be contained in the dataset.
 final case class StreamDistribute(child: IR, pivots: IR, path: IR, comparisonOp: ComparisonOp[_],spec: AbstractTypedCodecSpec) extends IR
 
+// "Whiten" a stream of vectors by regressing out from each vector all components
+// in the direction of vectors in the preceding window. For efficiency, takes
+// a stream of "chunks" of vectors.
+// Takes a stream of structs, with two designated fields: `prevWindow` is the
+// previous window (e.g. from the previous partition), if there is one, and
+// `newChunk` is the new chunk to whiten.
+final case class StreamWhiten(stream: IR, newChunk: String, prevWindow: String, vecSize: Int, windowSize: Int, chunkSize: Int, blockSize: Int, normalizeAfterWhiten: Boolean) extends IR
+
 object ArrayZipBehavior extends Enumeration {
   type ArrayZipBehavior = Value
   val AssumeSameLength: Value = Value(0)

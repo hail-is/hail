@@ -23,7 +23,6 @@ hail/src/main/c/lib
 hail/src/main/c/libsimdpp-2.0-rc2
 hail/src/main/c/libsimdpp-2.0-rc2.tar.gz
 hail/src/main/resources/build-info.properties
-hail/src/test/resources/example.8bits.bgen.idx
 hail/src/test/resources/example.v11.bgen.idx
 hail/src/test/resources/random.bgen.idx
 ci/repos

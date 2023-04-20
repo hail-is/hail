@@ -12,7 +12,7 @@ from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
     NDArrayReindex, NDArrayAgg, NDArrayMatMul, NDArrayQR, NDArrayInv, NDArrayConcat, NDArrayWrite, \
     ArraySort, ArrayMaximalIndependentSet, ToSet, ToDict, toArray, ToArray, CastToArray, \
     ToStream, toStream, LowerBoundOnOrderedCollection, GroupByKey, StreamMap, StreamZip, StreamTake, \
-    StreamFilter, StreamFlatMap, StreamFold, StreamScan, StreamJoinRightDistinct, StreamFor, \
+    StreamFilter, StreamFlatMap, StreamFold, StreamScan, StreamJoinRightDistinct, StreamFor, StreamWhiten, \
     AggFilter, AggExplode, AggGroupBy, AggArrayPerElement, BaseApplyAggOp, ApplyAggOp, ApplyScanOp, \
     AggFold, Begin, MakeStruct, SelectFields, InsertFields, GetField, MakeTuple, \
     GetTupleElement, Die, ConsoleLog, Apply, ApplySeeded, RNGStateLiteral, RNGSplit,\
@@ -182,6 +182,7 @@ __all__ = [
     'StreamFlatMap',
     'StreamFold',
     'StreamScan',
+    'StreamWhiten',
     'StreamJoinRightDistinct',
     'StreamFor',
     'StreamGrouped',

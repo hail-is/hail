@@ -1,7 +1,7 @@
 import asyncio
 import os
 import secrets
-from typing import Any, AsyncGenerator, Awaitable, Callable, Optional
+from typing import Any, AsyncGenerator, Awaitable, Callable, List, Optional, Tuple
 
 import aiohttp
 import orjson
@@ -14,7 +14,7 @@ from hailtop.utils import secret_alnum_string
 from hailtop.utils.rich_progress_bar import BatchProgressBar
 
 from .billing_projects import get_billing_project_prefix
-from .utils import DOCKER_ROOT_IMAGE
+from .utils import DOCKER_ROOT_IMAGE, create_batch
 
 pytestmark = pytest.mark.asyncio
 
@@ -77,7 +77,7 @@ async def test_bad_token():
     token = session_id_encode_to_str(secrets.token_bytes(32))
     bc = await BatchClient.create('test', _token=token)
     try:
-        bb = bc.create_batch()
+        bb = create_batch(bc)
         bb.create_job(DOCKER_ROOT_IMAGE, ['false'])
         b = await bb.submit()
         assert False, str(await b.debug_info())
@@ -180,7 +180,7 @@ async def test_close_billing_project_with_pending_batch_update_does_not_error(
     project = new_billing_project
     await dev_client.add_user("test", project)
     client = await make_client(project)
-    bb = client.create_batch()
+    bb = create_batch(client)
     bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
     b = await bb._open_batch()
     update_id = await bb._create_update(b.id)
@@ -354,12 +354,12 @@ async def test_billing_project_accrued_costs(
     def approx_equal(x, y, tolerance=1e-10):
         return abs(x - y) <= tolerance
 
-    bb = client.create_batch()
+    bb = create_batch(client)
     j1_1 = bb.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
     j1_2 = bb.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
     b1 = await bb.submit()
 
-    bb = client.create_batch()
+    bb = create_batch(client)
     j2_1 = bb.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
     j2_2 = bb.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
     b2 = await bb.submit()
@@ -408,7 +408,7 @@ async def test_billing_limit_zero(
     client = await make_client(project)
 
     try:
-        bb = client.create_batch()
+        bb = create_batch(client)
         b = await bb.submit()
     except httpx.ClientResponseError as e:
         assert e.status == 403 and 'has exceeded the budget' in e.body
@@ -433,7 +433,7 @@ async def test_billing_limit_tiny(
 
     client = await make_client(project)
 
-    bb = client.create_batch()
+    bb = create_batch(client)
     j1 = bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
     j2 = bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'], parents=[j1])
     j3 = bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'], parents=[j2])
@@ -449,7 +449,7 @@ async def test_billing_limit_tiny(
     assert batch_status['state'] == 'cancelled', str(await batch.debug_info())
 
 
-async def search_batches(client, expected_batch_id, q):
+async def search_batches(client, expected_batch_id, q) -> Tuple[bool, List[int]]:
     found = False
     batches = [x async for x in client.list_batches(q=q, last_batch_id=expected_batch_id + 1, limit=200)]
     for batch in batches:
@@ -473,7 +473,7 @@ async def test_user_can_access_batch_made_by_other_user_in_shared_billing_projec
     assert r['billing_project'] == project
 
     user1_client = await make_client(project)
-    b = user1_client.create_batch()
+    b = create_batch(user1_client)
     j = b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
     b_handle = await b.submit()
 
@@ -542,7 +542,7 @@ async def test_batch_cannot_be_accessed_by_users_outside_the_billing_project(
     assert r['billing_project'] == project
 
     user1_client = await make_client(project)
-    bb = user1_client.create_batch()
+    bb = create_batch(user1_client)
     j = bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
     b = await bb.submit()
 
@@ -620,7 +620,7 @@ async def test_deleted_open_batches_do_not_prevent_billing_project_closure(
     try:
         await dev_client.add_user('test', project)
         client = await make_client(project)
-        open_batch = await client.create_batch()._open_batch()
+        open_batch = await create_batch(client)._open_batch()
         await open_batch.delete()
     finally:
         await dev_client.close_billing_project(project)
@@ -636,7 +636,7 @@ async def test_billing_project_case_sensitive(dev_client: BatchClient, new_billi
     dev_client.reset_billing_project(new_billing_project)
 
     # create one batch with the correct billing project
-    bb = dev_client.create_batch()
+    bb = create_batch(dev_client)
     bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
     await bb.submit()
 
@@ -644,7 +644,7 @@ async def test_billing_project_case_sensitive(dev_client: BatchClient, new_billi
 
     # create batch
     try:
-        bb = dev_client.create_batch()
+        bb = create_batch(dev_client)
         bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
         await bb.submit()
     except aiohttp.ClientResponseError as e:

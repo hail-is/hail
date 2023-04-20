@@ -14,7 +14,7 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 SCALA_VERSION ?= 2.12.13
 SPARK_VERSION ?= 3.3.0
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 113
+HAIL_PATCH_VERSION := 114
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 ELASTIC_MAJOR_VERSION ?= 8
@@ -168,15 +168,18 @@ python-jar: $(PYTHON_JAR)
 .PHONY: pytest
 pytest: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
 pytest: python/README.md $(PYTHON_JAR)
-	cd python && $(HAIL_PYTHON3) setup.py pytest \
-     --addopts "-v \
-     --color=no \
-     --instafail \
-     -r A \
-     --self-contained-html \
-     --html=../build/reports/pytest.html \
-     $(PYTEST_TARGET) \
-     $(PYTEST_ARGS)"
+	cd python && $(HAIL_PYTHON3) -m pytest \
+            -Werror:::hail -Werror:::hailtop \
+            --log-cli-level=INFO \
+            -s \
+            -vv \
+            -r A \
+            --instafail \
+            --durations=50 \
+            --self-contained-html \
+            --html=../build/reports/pytest.html \
+            $(PYTEST_TARGET) \
+            $(PYTEST_ARGS)
 
 # NOTE: Look at upload-qob-test-resources target if test resources are missing
 .PHONY: pytest-qob
@@ -188,39 +191,47 @@ pytest-qob: upload-qob-jar upload-qob-test-resources install-editable
 	HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
 	HAIL_TEST_RESOURCES_DIR='$(CLOUD_HAIL_TEST_RESOURCES_DIR)' \
 	HAIL_DOCTEST_DATA_DIR='$(HAIL_DOCTEST_DATA_DIR)' \
-	pytest \
-		-v \
-		--color=no \
-		--instafail \
-		-r A \
-		--self-contained-html \
-		--html=../build/reports/pytest.html \
-		$(PYTEST_TARGET) \
-		$(PYTEST_ARGS)
+	$(HAIL_PYTHON3) -m pytest \
+            -Werror:::hail -Werror:::hailtop \
+            --log-cli-level=INFO \
+            -s \
+            -vv \
+            -r A \
+            --instafail \
+            --durations=50 \
+            --self-contained-html \
+            --html=../build/reports/pytest.html \
+            $(PYTEST_TARGET) \
+            $(PYTEST_ARGS)
 
 
 .PHONY: doctest
 doctest: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
 doctest: python/README.md $(PYTHON_JAR)
-	cd python && $(HAIL_PYTHON3) setup.py pytest \
-	  --addopts "-v \
-    --color=no \
-    --instafail \
-    -r A \
-    --self-contained-html \
-    --html=../build/reports/pytest-doctest.html \
-    --doctest-modules \
-    --doctest-glob='*.rst' \
-    --ignore=setup.py \
-    --ignore=setup-hailtop.py \
-    --ignore=hail/docs/conf.py \
-    --ignore=cluster-tests \
-    --ignore=hailtop \
-    --ignore=test \
-    --ignore=hail/docs/doctest_write_data.py \
-    --ignore=hail/docs/getting_started_developing.rst \
-    --ignore=hail/docs/getting_started.rst \
-    $(PYTEST_ARGS)"
+	cd python && $(HAIL_PYTHON3) -m pytest \
+            -Werror:::hail -Werror:::hailtop \
+            --log-cli-level=INFO \
+            -s \
+            -vv \
+            -r A \
+            --instafail \
+            --durations=50 \
+            --self-contained-html \
+            --html=../build/reports/pytest-doctest.html \
+            --doctest-modules \
+            --doctest-glob='*.rst' \
+            --ignore=setup.py \
+            --ignore=setup-hailtop.py \
+            --ignore=hail/docs/conf.py \
+            --ignore=cluster-tests \
+            --ignore=hailtop \
+            --ignore=test \
+            --ignore=hail/docs/doctest_write_data.py \
+            --ignore=hail/docs/getting_started_developing.rst \
+            --ignore=hail/docs/getting_started.rst \
+            $(PYTEST_TARGET) \
+            $(PYTEST_ARGS)
+
 
 .PHONY: copy-py-files
 copy-py-files: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS) $(PY_FILES) $(PYTHON_JAR)
@@ -374,14 +385,6 @@ test-dataproc-38: install-hailctl
 .PHONY: deploy
 deploy: test-dataproc $(WHEEL)
 	bash scripts/deploy.sh $(HAIL_PIP_VERSION) $(HAIL_VERSION) $(REVISION) $(DEPLOY_REMOTE) $(WHEEL) $(GITHUB_OAUTH_HEADER_FILE) $(HAIL_GENETICS_HAIL_IMAGE) $(WHEEL_FOR_AZURE) $(WEBSITE_TAR)
-
-.PHONY: install-dev-deps
-install-dev-deps:
-	$(PIP) install -U -r python/dev/requirements.txt
-
-.PHONY: install-deps
-install-deps: install-dev-deps
-	sed "s/^pyspark.*/pyspark==$(SPARK_VERSION)/" python/requirements.txt | xargs $(PIP) install -U
 
 .PHONY: benchmark
 benchmark: $(WHEEL)

@@ -13,7 +13,7 @@ plugins {
   id 'scala'
   id 'idea'
   id 'com.github.johnrengelman.shadow' version '6.1.0'
-  id "de.undercouch.download" version "5.3.1"
+  id "de.undercouch.download" version "5.4.0"
   id 'eclipse'
 }
 
@@ -151,7 +151,7 @@ dependencies {
         transitive = false
     }
 
-    bundled group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25'
+    bundled group: 'org.slf4j', name: 'slf4j-api', version: '2.0.7'
 
     def elasticMajorVersion = System.getProperty("elasticsearch.major-version", "7")
     if (elasticMajorVersion != "7" && elasticMajorVersion != "8") {
@@ -187,7 +187,7 @@ dependencies {
     bundled group: 'org.ow2.asm', name: 'asm-util', version: '7.3.1'
     bundled group: 'org.ow2.asm', name: 'asm-analysis', version: '7.3.1'
 
-    bundled 'net.java.dev.jna:jna:5.12.1'
+    bundled 'net.java.dev.jna:jna:5.13.0'
     bundled('net.sourceforge.jdistlib:jdistlib:0.4.5') {
         transitive = false
     }
