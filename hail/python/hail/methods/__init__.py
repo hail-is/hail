@@ -13,8 +13,8 @@ from .statgen import (skat, impute_sex, genetic_relatedness_matrix, realized_rel
                       linear_regression_rows, _linear_regression_rows_nd, logistic_regression_rows,
                       _logistic_regression_rows_nd, poisson_regression_rows,
                       linear_mixed_regression_rows, lambda_gc, _linear_skat, _logistic_skat)
-from .qc import (BaseVEPConfig, HailVEPConfig_GRCh37_85, HailVEPConfig_GRCh38_95, sample_qc, variant_qc, vep,
-                 concordance, nirvana, summarize_variants, compute_charr)
+from .qc import (VEPConfig, VEPConfigGRCh37Version85, VEPConfigGRCh38Version95, sample_qc, variant_qc, vep,
+                 concordance, nirvana, summarize_variants, compute_charr, vep_json_typ)
 from .misc import rename_duplicates, maximal_independent_set, segment_intervals, filter_intervals
 from .relatedness import identity_by_descent, king, pc_relate, simulate_random_mating
 
@@ -88,7 +88,8 @@ __all__ = ['trio_matrix',
            'row_correlation',
            'ld_matrix',
            'king',
-           'BaseVEPConfig',
-           'HailVEPConfig_GRCh37_85',
-           'HailVEPConfig_GRCh38_95',
+           'VEPConfig',
+           'VEPConfigGRCh37Version85',
+           'VEPConfigGRCh38Version95',
+           'vep_json_typ',
            ]

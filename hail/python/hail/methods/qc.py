@@ -512,13 +512,138 @@ def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[
     return glob, per_sample.cols(), per_variant.rows()
 
 
-class BaseVEPConfig(abc.ABC):
+vep_json_typ = hl.tstruct(
+    assembly_name=hl.tstr,
+    allele_string=hl.tstr,
+    ancestral=hl.tstr,
+    colocated_variants=hl.tarray(hl.tstruct(
+        aa_allele=hl.tstr,
+        aa_maf=hl.tfloat,
+        afr_allele=hl.tstr,
+        afr_maf=hl.tfloat,
+        allele_string=hl.tstr,
+        amr_allele=hl.tstr,
+        amr_maf=hl.tfloat,
+        clin_sig=hl.tarray(hl.tstr),
+        end=hl.tint32,
+        eas_allele=hl.tstr,
+        eas_maf=hl.tfloat,
+        ea_allele=hl.tstr,
+        ea_maf=hl.tfloat,
+        eur_allele=hl.tstr,
+        eur_maf=hl.tfloat,
+        exac_adj_allele=hl.tstr,
+        exac_adj_maf=hl.tfloat,
+        exac_allele=hl.tstr,
+        exac_afr_allele=hl.tstr,
+        exac_afr_maf=hl.tfloat,
+        exac_amr_allele=hl.tstr,
+        exac_amr_maf=hl.tfloat,
+        exac_eas_allele=hl.tstr,
+        exac_eas_maf=hl.tfloat,
+        exac_fin_allele=hl.tstr,
+        exac_fin_maf=hl.tfloat,
+        exac_maf=hl.tfloat,
+        exac_nfe_allele=hl.tstr,
+        exac_nfe_maf=hl.tfloat,
+        exac_oth_allele=hl.tstr,
+        exac_oth_maf=hl.tfloat,
+        exac_sas_allele=hl.tstr,
+        exac_sas_maf=hl.tfloat,
+        id=hl.tstr,
+        minor_allele=hl.tstr,
+        minor_allele_freq=hl.tfloat,
+        phenotype_or_disease=hl.tint32,
+        pubmed=hl.tarray(hl.tint32),
+        sas_allele=hl.tstr,
+        sas_maf=hl.tfloat,
+        somatic=hl.tint32,
+        start=hl.tint32,
+        strand=hl.tint32)),
+    context=hl.tstr,
+    end=hl.tint32,
+    id=hl.tstr,
+    input=hl.tstr,
+    intergenic_consequences=hl.tarray(hl.tstruct(allele_num=hl.tint32,
+                                                 consequence_terms=hl.tarray(hl.tstr),
+                                                 impact=hl.tstr,
+                                                 minimised=hl.tint32,
+                                                 variant_allele=hl.tstr)),
+    most_severe_consequence=hl.tstr,
+    motif_feature_consequences=hl.tarray(hl.tstruct(allele_num=hl.tint32,
+                                                    consequence_terms=hl.tarray(hl.tstr),
+                                                    high_inf_pos=hl.tstr,
+                                                    impact=hl.tstr,
+                                                    minimised=hl.tint32,
+                                                    motif_feature_id=hl.tstr,
+                                                    motif_name=hl.tstr,
+                                                    motif_pos=hl.tint32,
+                                                    motif_score_change=hl.tfloat,
+                                                    strand=hl.tint32,
+                                                    variant_allele=hl.tstr)),
+    regulatory_feature_consequences=hl.tarray(hl.tstruct(allele_num=hl.tint32,
+                                                         biotype=hl.tstr,
+                                                         consequence_terms=hl.tarray(hl.tstr),
+                                                         impact=hl.tstr,
+                                                         minimised=hl.tint32,
+                                                         regulatory_feature_id=hl.tstr,
+                                                         variant_allele=hl.tstr)),
+    seq_region_name=hl.tstr,
+    start=hl.tint32,
+    strand=hl.tint32,
+    transcript_consequences=hl.tarray(hl.tstruct(allele_num=hl.tint32,
+                                                 amino_acids=hl.tstr,
+                                                 biotype=hl.tstr,
+                                                 canonical=hl.tint32,
+                                                 ccds=hl.tstr,
+                                                 cdna_start=hl.tint32,
+                                                 cdna_end=hl.tint32,
+                                                 cds_end=hl.tint32,
+                                                 cds_start=hl.tint32,
+                                                 codons=hl.tstr,
+                                                 consequence_terms=hl.tarray(hl.tstr),
+                                                 distance=hl.tint32,
+                                                 domains=hl.tarray(hl.tstruct(db=hl.tstr,
+                                                                              name=hl.tstr)),
+                                                 exon=hl.tstr,
+                                                 gene_id=hl.tstr,
+                                                 gene_pheno=hl.tint32,
+                                                 gene_symbol=hl.tstr,
+                                                 gene_symbol_source=hl.tstr,
+                                                 hgnc_id=hl.tstr,
+                                                 hgvsc=hl.tstr,
+                                                 hgvsp=hl.tstr,
+                                                 hgvs_offset=hl.tint32,
+                                                 impact=hl.tstr,
+                                                 intron=hl.tstr,
+                                                 lof=hl.tstr,
+                                                 lof_flags=hl.tstr,
+                                                 lof_filter=hl.tstr,
+                                                 lof_info=hl.tstr,
+                                                 minimised=hl.tint32,
+                                                 polyphen_prediction=hl.tstr,
+                                                 polyphen_score=hl.tfloat,
+                                                 protein_end=hl.tint32,
+                                                 protein_start=hl.tint32,
+                                                 protein_id=hl.tstr,
+                                                 sift_prediction=hl.tstr,
+                                                 sift_score=hl.tfloat,
+                                                 strand=hl.tint32,
+                                                 swissprot=hl.tstr,
+                                                 transcript_id=hl.tstr,
+                                                 trembl=hl.tstr,
+                                                 uniparc=hl.tstr,
+                                                 variant_allele=hl.tstr)),
+    variant_class=hl.tstr)
+
+
+class VEPConfig(abc.ABC):
     """Base class for configuring VEP.
 
-    To define a custom VEP configuration to for Query on Batch, construct a new class that inherits from :class:`.BaseVEPConfig`
+    To define a custom VEP configuration to for Query on Batch, construct a new class that inherits from :class:`.VEPConfig`
     and has the following parameters defined:
 
-     - `vep_json_type` (:class:`.HailType`): The type of the VEP JSON schema (as produced by VEP when invoked with the `--json` option).
+     - `json_type` (:class:`.HailType`): The type of the VEP JSON schema (as produced by VEP when invoked with the `--json` option).
      - `data_bucket` (:obj:`.str`) -- The location where the VEP data is stored.
      - `data_mount` (:obj:`.str`) -- The location in the container where the data should be mounted.
      - `batch_run_command` (:obj:`.list` of :obj:`.str`) -- The command line to run for a VEP job for a partition.
@@ -526,22 +651,22 @@ class BaseVEPConfig(abc.ABC):
      - `env` (dict of :obj:`.str` to :obj:`.str`) -- A map of environment variables to values to add to the environment when invoking the command.
      - `cloud` (:obj:`.str`) -- The cloud where the Batch Service is located.
      - `image` (:obj:`.str`) -- The docker image to run VEP.
-     - `reference_data_is_bucket_requester_pays` (:obj:`.bool`) -- True if the reference data is in a requester pays bucket.
+     - `data_bucket_is_requester_pays` (:obj:`.bool`) -- True if the data bucket is requester pays.
      - `regions` (:obj:`.list` of :obj:`.str`) -- A list of regions the VEP jobs can run in.
 
-    In addition, the method `vep_command` must be defined with the following signature. The output is the exact command to run the
+    In addition, the method `command` must be defined with the following signature. The output is the exact command to run the
     VEP executable. The inputs are `consequence` and `tolerate_parse_error` which are user-defined parameters to :func:`.vep`,
     `part_id` which is the partition ID, `input_file` which is the path to the input file where the input data can be found, and
     `output_file` is the path to the output file where the VEP annotations are written to. An example is shown below:
 
     .. code-block:: python3
 
-        def vep_command(self,
-                        consequence: bool,
-                        tolerate_parse_error: bool,
-                        part_id: int,
-                        input_file: Optional[str],
-                        output_file: str) -> List[str]:
+        def command(self,
+                    consequence: bool,
+                    tolerate_parse_error: bool,
+                    part_id: int,
+                    input_file: Optional[str],
+                    output_file: str) -> List[str]:
             vcf_or_json = '--vcf' if consequence else '--json'
             input_file = f'--input_file {input_file}' if input_file else ''
             return f'''/vep/vep {input_file} \
@@ -573,192 +698,28 @@ class BaseVEPConfig(abc.ABC):
     ``csq=True``
     """
 
-    vep_json_typ: hl.expr.HailType
+    json_typ: hl.expr.HailType
     data_bucket: str
     data_mount: str
     regions: List[str]
     image: str
     env: Dict[str, str]
-    reference_data_is_bucket_requester_pays: bool
+    data_bucket_is_requester_pays: bool
     cloud: str
     batch_run_command: List[str]
     batch_run_csq_header_command: List[str]
 
     @abc.abstractmethod
-    def vep_command(self,
-                    consequence: bool,
-                    tolerate_parse_error: bool,
-                    part_id: int,
-                    input_file: Optional[str],
-                    output_file: str) -> List[str]:
+    def command(self,
+                consequence: bool,
+                tolerate_parse_error: bool,
+                part_id: int,
+                input_file: Optional[str],
+                output_file: str) -> List[str]:
         raise NotImplementedError
 
 
-class HailVEPConfig(BaseVEPConfig, abc.ABC):
-    vep_json_typ = hl.tstruct(
-        assembly_name=hl.tstr,
-        allele_string=hl.tstr,
-        ancestral=hl.tstr,
-        colocated_variants=hl.tarray(hl.tstruct(
-            aa_allele=hl.tstr,
-            aa_maf=hl.tfloat,
-            afr_allele=hl.tstr,
-            afr_maf=hl.tfloat,
-            allele_string=hl.tstr,
-            amr_allele=hl.tstr,
-            amr_maf=hl.tfloat,
-            clin_sig=hl.tarray(hl.tstr),
-            end=hl.tint32,
-            eas_allele=hl.tstr,
-            eas_maf=hl.tfloat,
-            ea_allele=hl.tstr,
-            ea_maf=hl.tfloat,
-            eur_allele=hl.tstr,
-            eur_maf=hl.tfloat,
-            exac_adj_allele=hl.tstr,
-            exac_adj_maf=hl.tfloat,
-            exac_allele=hl.tstr,
-            exac_afr_allele=hl.tstr,
-            exac_afr_maf=hl.tfloat,
-            exac_amr_allele=hl.tstr,
-            exac_amr_maf=hl.tfloat,
-            exac_eas_allele=hl.tstr,
-            exac_eas_maf=hl.tfloat,
-            exac_fin_allele=hl.tstr,
-            exac_fin_maf=hl.tfloat,
-            exac_maf=hl.tfloat,
-            exac_nfe_allele=hl.tstr,
-            exac_nfe_maf=hl.tfloat,
-            exac_oth_allele=hl.tstr,
-            exac_oth_maf=hl.tfloat,
-            exac_sas_allele=hl.tstr,
-            exac_sas_maf=hl.tfloat,
-            id=hl.tstr,
-            minor_allele=hl.tstr,
-            minor_allele_freq=hl.tfloat,
-            phenotype_or_disease=hl.tint32,
-            pubmed=hl.tarray(hl.tint32),
-            sas_allele=hl.tstr,
-            sas_maf=hl.tfloat,
-            somatic=hl.tint32,
-            start=hl.tint32,
-            strand=hl.tint32)),
-        context=hl.tstr,
-        end=hl.tint32,
-        id=hl.tstr,
-        input=hl.tstr,
-        intergenic_consequences=hl.tarray(hl.tstruct(allele_num=hl.tint32,
-                                                     consequence_terms=hl.tarray(hl.tstr),
-                                                     impact=hl.tstr,
-                                                     minimised=hl.tint32,
-                                                     variant_allele=hl.tstr)),
-        most_severe_consequence=hl.tstr,
-        motif_feature_consequences=hl.tarray(hl.tstruct(allele_num=hl.tint32,
-                                                        consequence_terms=hl.tarray(hl.tstr),
-                                                        high_inf_pos=hl.tstr,
-                                                        impact=hl.tstr,
-                                                        minimised=hl.tint32,
-                                                        motif_feature_id=hl.tstr,
-                                                        motif_name=hl.tstr,
-                                                        motif_pos=hl.tint32,
-                                                        motif_score_change=hl.tfloat,
-                                                        strand=hl.tint32,
-                                                        variant_allele=hl.tstr)),
-        regulatory_feature_consequences=hl.tarray(hl.tstruct(allele_num=hl.tint32,
-                                                             biotype=hl.tstr,
-                                                             consequence_terms=hl.tarray(hl.tstr),
-                                                             impact=hl.tstr,
-                                                             minimised=hl.tint32,
-                                                             regulatory_feature_id=hl.tstr,
-                                                             variant_allele=hl.tstr)),
-        seq_region_name=hl.tstr,
-        start=hl.tint32,
-        strand=hl.tint32,
-        transcript_consequences=hl.tarray(hl.tstruct(allele_num=hl.tint32,
-                                                     amino_acids=hl.tstr,
-                                                     biotype=hl.tstr,
-                                                     canonical=hl.tint32,
-                                                     ccds=hl.tstr,
-                                                     cdna_start=hl.tint32,
-                                                     cdna_end=hl.tint32,
-                                                     cds_end=hl.tint32,
-                                                     cds_start=hl.tint32,
-                                                     codons=hl.tstr,
-                                                     consequence_terms=hl.tarray(hl.tstr),
-                                                     distance=hl.tint32,
-                                                     domains=hl.tarray(hl.tstruct(db=hl.tstr,
-                                                                                  name=hl.tstr)),
-                                                     exon=hl.tstr,
-                                                     gene_id=hl.tstr,
-                                                     gene_pheno=hl.tint32,
-                                                     gene_symbol=hl.tstr,
-                                                     gene_symbol_source=hl.tstr,
-                                                     hgnc_id=hl.tstr,
-                                                     hgvsc=hl.tstr,
-                                                     hgvsp=hl.tstr,
-                                                     hgvs_offset=hl.tint32,
-                                                     impact=hl.tstr,
-                                                     intron=hl.tstr,
-                                                     lof=hl.tstr,
-                                                     lof_flags=hl.tstr,
-                                                     lof_filter=hl.tstr,
-                                                     lof_info=hl.tstr,
-                                                     minimised=hl.tint32,
-                                                     polyphen_prediction=hl.tstr,
-                                                     polyphen_score=hl.tfloat,
-                                                     protein_end=hl.tint32,
-                                                     protein_start=hl.tint32,
-                                                     protein_id=hl.tstr,
-                                                     sift_prediction=hl.tstr,
-                                                     sift_score=hl.tfloat,
-                                                     strand=hl.tint32,
-                                                     swissprot=hl.tstr,
-                                                     transcript_id=hl.tstr,
-                                                     trembl=hl.tstr,
-                                                     uniparc=hl.tstr,
-                                                     variant_allele=hl.tstr)),
-        variant_class=hl.tstr)
-
-    @staticmethod
-    def from_dict(config: Dict[str, Any]):
-        return HailVEPConfig(
-            data_bucket=config['data_bucket'],
-            data_mount=config['data_mount'],
-            image=config['image'],
-            regions=config['regions'],
-            cloud=config.get('cloud'),
-            reference_data_is_bucket_requester_pays=config['reference_data_is_bucket_requester_pays'],
-        )
-
-    def __init__(self,
-                 *,
-                 data_bucket: str,
-                 data_mount: str,
-                 image: str,
-                 regions: List[str],
-                 cloud: Optional[str],
-                 reference_data_is_bucket_requester_pays: bool):
-        self.data_bucket = data_bucket
-        self.data_mount = data_mount
-        self.image = image
-        self.regions = regions
-        self.env = {}
-        self.reference_data_is_bucket_requester_pays = reference_data_is_bucket_requester_pays
-        self.cloud = cloud
-        self.batch_run_command = ['python3', '/hail-vep/vep.py', 'vep']
-        self.batch_run_csq_header_command = ['python3', '/hail-vep/vep.py', 'csq_header']
-
-    @abc.abstractmethod
-    def vep_command(self,
-                    consequence: bool,
-                    tolerate_parse_error: bool,
-                    part_id: int,
-                    input_file: Optional[str],
-                    output_file: str) -> List[str]:
-        raise NotImplementedError
-
-
-class HailVEPConfig_GRCh37_85(HailVEPConfig):
+class VEPConfigGRCh37Version85(VEPConfig):
     """
     The Hail-maintained VEP configuration for GRCh37 for VEP version 85.
 
@@ -768,23 +729,37 @@ class HailVEPConfig_GRCh37_85(HailVEPConfig):
      - `data_mount` (:obj:`.str`) -- The location in the container where the data should be mounted.
      - `image` (:obj:`.str`) -- The docker image to run VEP.
      - `cloud` (:obj:`.str`) -- The cloud where the Batch Service is located.
-     - `reference_data_is_bucket_requester_pays` (:obj:`.bool`) -- True if the reference data is in a requester pays bucket.
+     - `data_bucket_is_requester_pays` (:obj:`.bool`) -- True if the data bucket is requester pays.
      - `regions` (:obj:`.list` of :obj:`.str`) -- A list of regions the VEP jobs can run in.
-                 data_bucket: str,
-                 regions: List[str],
-                 image: str,
-                 data_mount: str,
-                 cloud: Optional[str]):
 
     """
 
-    def vep_command(self,
-                    *,
-                    consequence: bool,
-                    tolerate_parse_error: bool,
-                    part_id: int,
-                    input_file: Optional[str],
-                    output_file: str) -> str:
+    def __init__(self,
+                 *,
+                 data_bucket: str,
+                 data_mount: str,
+                 image: str,
+                 regions: List[str],
+                 cloud: str,
+                 data_bucket_is_requester_pays: bool):
+        self.data_bucket = data_bucket
+        self.data_mount = data_mount
+        self.image = image
+        self.regions = regions
+        self.env = {}
+        self.data_bucket_is_requester_pays = data_bucket_is_requester_pays
+        self.cloud = cloud
+        self.batch_run_command = ['python3', '/hail-vep/vep.py', 'vep']
+        self.batch_run_csq_header_command = ['python3', '/hail-vep/vep.py', 'csq_header']
+        self.json_typ = vep_json_typ
+
+    def command(self,
+                *,
+                consequence: bool,
+                tolerate_parse_error: bool,
+                part_id: int,
+                input_file: Optional[str],
+                output_file: str) -> str:
         vcf_or_json = '--vcf' if consequence else '--json'
         input_file = f'--input_file {input_file}' if input_file else ''
         return f'''/vep/vep {input_file} \
@@ -803,7 +778,7 @@ class HailVEPConfig_GRCh37_85(HailVEPConfig):
 '''
 
 
-class HailVEPConfig_GRCh38_95(HailVEPConfig):
+class VEPConfigGRCh38Version95(VEPConfig):
     """
     The Hail-maintained VEP configuration for GRCh38 for VEP version 95.
 
@@ -813,30 +788,42 @@ class HailVEPConfig_GRCh38_95(HailVEPConfig):
      - `data_mount` (:obj:`.str`) -- The location in the container where the data should be mounted.
      - `image` (:obj:`.str`) -- The docker image to run VEP.
      - `cloud` (:obj:`.str`) -- The cloud where the Batch Service is located.
-     - `reference_data_is_bucket_requester_pays` (:obj:`.bool`) -- True if the reference data is in a requester pays bucket.
+     - `data_bucket_is_requester_pays` (:obj:`.bool`) -- True if the data bucket is set to requester pays.
      - `regions` (:obj:`.list` of :obj:`.str`) -- A list of regions the VEP jobs can run in.
-                 data_bucket: str,
-                 regions: List[str],
-                 image: str,
-                 data_mount: str,
-                 cloud: Optional[str]):
 
     """
 
-    vep_json_typ = HailVEPConfig.vep_json_typ._insert_field('transcript_consequences', hl.tarray(
-        HailVEPConfig.vep_json_typ['transcript_consequences'].element_type._insert_fields(
-            appris=hl.tstr,
-            tsl=hl.tint32,
-        )
-    ))
+    def __init__(self,
+                 *,
+                 data_bucket: str,
+                 data_mount: str,
+                 image: str,
+                 regions: List[str],
+                 cloud: str,
+                 data_bucket_is_requester_pays: bool):
+        self.data_bucket = data_bucket
+        self.data_mount = data_mount
+        self.image = image
+        self.regions = regions
+        self.env = {}
+        self.data_bucket_is_requester_pays = data_bucket_is_requester_pays
+        self.cloud = cloud
+        self.batch_run_command = ['python3', '/hail-vep/vep.py', 'vep']
+        self.batch_run_csq_header_command = ['python3', '/hail-vep/vep.py', 'csq_header']
+        self.json_typ = vep_json_typ._insert_field('transcript_consequences', hl.tarray(
+            vep_json_typ['transcript_consequences'].element_type._insert_fields(
+                appris=hl.tstr,
+                tsl=hl.tint32,
+            )
+        ))
 
-    def vep_command(self,
-                    *,
-                    consequence: bool,
-                    tolerate_parse_error: bool,
-                    part_id: int,
-                    input_file: Optional[str],
-                    output_file: str) -> str:
+    def command(self,
+                *,
+                consequence: bool,
+                tolerate_parse_error: bool,
+                part_id: int,
+                input_file: Optional[str],
+                output_file: str) -> str:
         vcf_or_json = '--vcf' if consequence else '--json'
         input_file = f'--input_file {input_file}' if input_file else ''
         return f'''/vep/vep {input_file} \
@@ -858,26 +845,26 @@ class HailVEPConfig_GRCh38_95(HailVEPConfig):
 
 
 supported_vep_configs = {
-    ('GRCh37', 'gcp', 'us-central1', 'hail.is'): HailVEPConfig_GRCh37_85(
+    ('GRCh37', 'gcp', 'us-central1', 'hail.is'): VEPConfigGRCh37Version85(
         data_bucket='hail-qob-vep-grch37-us-central1',
         data_mount='/vep_data/',
         image=HAIL_GENETICS_VEP_GRCH37_85_IMAGE,
         regions=['us-central1'],
         cloud='gcp',
-        reference_data_is_bucket_requester_pays=True,
+        data_bucket_is_requester_pays=True,
     ),
-    ('GRCh38', 'gcp', 'us-central1', 'hail.is'): HailVEPConfig_GRCh38_95(
+    ('GRCh38', 'gcp', 'us-central1', 'hail.is'): VEPConfigGRCh38Version95(
         data_bucket='hail-qob-vep-grch38-us-central1',
         data_mount='/vep_data/',
         image=HAIL_GENETICS_VEP_GRCH38_95_IMAGE,
         regions=['us-central1'],
         cloud='gcp',
-        reference_data_is_bucket_requester_pays=True,
+        data_bucket_is_requester_pays=True,
     ),
 }
 
 
-def _supported_vep_config(cloud: str, reference_genome: str, *, regions: List[str]) -> BaseVEPConfig:
+def _supported_vep_config(cloud: str, reference_genome: str, *, regions: List[str]) -> VEPConfig:
     domain = get_deploy_config()._domain
 
     for region in regions:
@@ -891,7 +878,7 @@ def _supported_vep_config(cloud: str, reference_genome: str, *, regions: List[st
 
 def _service_vep(backend: ServiceBackend,
                  ht: Table,
-                 config: Optional[BaseVEPConfig],
+                 config: Optional[VEPConfig],
                  regions: Optional[List[str]],
                  block_size: int,
                  csq: bool,
@@ -908,7 +895,7 @@ def _service_vep(backend: ServiceBackend,
         vep_config = _supported_vep_config(cloud, reference_genome, regions=regions)
 
     requester_pays_project = backend.flags.get('gcs_requester_pays_project')
-    if requester_pays_project is None and vep_config.reference_data_is_bucket_requester_pays and vep_config.cloud == 'gcp':
+    if requester_pays_project is None and vep_config.data_bucket_is_requester_pays and vep_config.cloud == 'gcp':
         raise ValueError("No requester pays project has been set. "
                          "Use hl.init(gcs_requester_pays_configuration='MY_PROJECT') "
                          "to set the requester pays project to use.")
@@ -919,12 +906,12 @@ def _service_vep(backend: ServiceBackend,
     if csq:
         vep_typ = hl.tarray(hl.tstr)
     else:
-        vep_typ = vep_config.vep_json_typ
+        vep_typ = vep_config.json_typ
 
     def build_vep_batch(bb: bc.aioclient.BatchBuilder):
         if csq:
             local_output_file = '/io/output'
-            vep_command = vep_config.vep_command(
+            vep_command = vep_config.command(
                 consequence=csq, part_id=-1, input_file=None, output_file=local_output_file, tolerate_parse_error=tolerate_parse_error
             )
             env = {
@@ -957,7 +944,7 @@ def _service_vep(backend: ServiceBackend,
             local_input_file = '/io/input'
             local_output_file = '/io/output.gz'
 
-            vep_command = vep_config.vep_command(
+            vep_command = vep_config.command(
                 consequence=csq,
                 part_id=part_id,
                 input_file=local_input_file,
@@ -1041,7 +1028,7 @@ def _service_vep(backend: ServiceBackend,
 
 
 @typecheck(dataset=oneof(Table, MatrixTable),
-           config=nullable(oneof(str, BaseVEPConfig)),
+           config=nullable(oneof(str, VEPConfig)),
            block_size=int,
            name=str,
            csq=bool,
@@ -1143,8 +1130,8 @@ def vep(dataset: Union[Table, MatrixTable],
     ----------
     dataset : :class:`.MatrixTable` or :class:`.Table`
         Dataset.
-    config : :class:`str` or :class:`.BaseVEPConfig`, optional
-        Path to VEP configuration file or a dictionary of configuration parameters.
+    config : :class:`str` or :class:`.VEPConfig`, optional
+        Path to VEP configuration file or a VEPConfig object.
     block_size : :obj:`int`
         Number of rows to process per VEP invocation.
     name : :class:`str`
