@@ -80,6 +80,19 @@ check-pip-requirements:
 		ci \
 		memory
 
+.PHONY: check-linux-pip-requirements
+check-linux-pip-requirements:
+	./check_linux_pip_requirements.sh \
+		hail/python/hailtop \
+		hail/python \
+		hail/python/dev \
+		gear \
+		web_common \
+		auth \
+		batch \
+		ci \
+		memory
+
 .PHONY: install-dev-requirements
 install-dev-requirements:
 	python3 -m pip install \
