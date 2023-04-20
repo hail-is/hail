@@ -879,15 +879,12 @@ def _supported_vep_config(cloud: str, reference_genome: str, *, regions: List[st
 def _service_vep(backend: ServiceBackend,
                  ht: Table,
                  config: Optional[VEPConfig],
-                 regions: Optional[List[str]],
                  block_size: int,
                  csq: bool,
                  tolerate_parse_error: bool) -> hl.Table:
     reference_genome = ht.locus.dtype.reference_genome.name
     cloud = backend.bc.cloud()
-
-    if regions is None:
-        regions = backend.regions
+    regions = backend.regions
 
     if config is not None:
         vep_config = config
@@ -1032,15 +1029,13 @@ def _service_vep(backend: ServiceBackend,
            block_size=int,
            name=str,
            csq=bool,
-           tolerate_parse_error=bool,
-           regions=nullable(sequenceof(str)))
+           tolerate_parse_error=bool)
 def vep(dataset: Union[Table, MatrixTable],
         config: Optional[Union[str, Dict[str, Any]]] = None,
         block_size: int = 1000,
         name: str = 'vep',
         csq: bool = False,
-        tolerate_parse_error: bool = False,
-        regions: Optional[List[str]] = None):
+        tolerate_parse_error: bool = False):
     """Annotate variants with VEP.
 
     .. include:: ../_templates/req_tvariant.rst
@@ -1141,9 +1136,6 @@ def vep(dataset: Union[Table, MatrixTable],
         If ``False``, annotates as the `vep_json_schema`.
     tolerate_parse_error : :obj:`bool`
         If ``True``, ignore invalid JSON produced by VEP and return a missing annotation.
-    regions: :obj:`list` of :class:`str`, optional
-        The list of regions to run jobs in when using the Service Backend. In most use cases, this
-        should be a list containing a single region where the input data resides.
 
     Returns
     -------
@@ -1163,7 +1155,7 @@ def vep(dataset: Union[Table, MatrixTable],
 
     backend = hl.current_backend()
     if isinstance(backend, ServiceBackend):
-        annotations = _service_vep(backend, ht, config, regions, block_size, csq, tolerate_parse_error)
+        annotations = _service_vep(backend, ht, config, block_size, csq, tolerate_parse_error)
     else:
         if config is None:
             maybe_cloud_spark_provider = guess_cloud_spark_provider()
