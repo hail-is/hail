@@ -22,7 +22,7 @@ charset-normalizer==3.1.0
     #   -c hail/auth/../hail/python/pinned-requirements.txt
     #   -c hail/auth/../web_common/pinned-requirements.txt
     #   requests
-google-auth==2.17.2
+google-auth==2.17.3
     # via
     #   -c hail/auth/../gear/pinned-requirements.txt
     #   -c hail/auth/../hail/python/pinned-requirements.txt
@@ -38,13 +38,13 @@ idna==3.4
     #   requests
 oauthlib==3.2.2
     # via requests-oauthlib
-pyasn1==0.4.8
+pyasn1==0.5.0
     # via
     #   -c hail/auth/../gear/pinned-requirements.txt
     #   -c hail/auth/../hail/python/pinned-requirements.txt
     #   pyasn1-modules
     #   rsa
-pyasn1-modules==0.2.8
+pyasn1-modules==0.3.0
     # via
     #   -c hail/auth/../gear/pinned-requirements.txt
     #   -c hail/auth/../hail/python/pinned-requirements.txt

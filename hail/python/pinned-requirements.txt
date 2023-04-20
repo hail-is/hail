@@ -16,7 +16,7 @@ asyncinit==0.2.4
     # via -r hail/hail/python/requirements.txt
 asynctest==0.13.0
     # via aiohttp
-attrs==22.2.0
+attrs==23.1.0
     # via aiohttp
 avro==1.11.1
     # via -r hail/hail/python/requirements.txt
@@ -26,13 +26,13 @@ azure-core==1.26.4
     #   azure-storage-blob
 azure-identity==1.12.0
     # via -r hail/hail/python/hailtop/requirements.txt
-azure-storage-blob==12.15.0
+azure-storage-blob==12.16.0
     # via -r hail/hail/python/hailtop/requirements.txt
 bokeh==1.4.0
     # via -r hail/hail/python/requirements.txt
-boto3==1.26.110
+boto3==1.26.117
     # via -r hail/hail/python/hailtop/requirements.txt
-botocore==1.29.110
+botocore==1.29.117
     # via
     #   -r hail/hail/python/hailtop/requirements.txt
     #   boto3
@@ -51,7 +51,7 @@ charset-normalizer==3.1.0
     #   requests
 commonmark==0.9.1
     # via rich
-cryptography==40.0.1
+cryptography==40.0.2
     # via
     #   azure-identity
     #   azure-storage-blob
@@ -75,7 +75,7 @@ google-api-core==2.11.0
     # via
     #   google-cloud-core
     #   google-cloud-storage
-google-auth==2.17.2
+google-auth==2.17.3
     # via
     #   -r hail/hail/python/hailtop/requirements.txt
     #   google-api-core
@@ -99,6 +99,10 @@ idna==3.4
     # via
     #   requests
     #   yarl
+importlib-metadata==3.10.1
+    # via
+    #   -r hail/hail/python/requirements.txt
+    #   attrs
 isodate==0.6.1
     # via azure-storage-blob
 janus==1.0.0
@@ -113,7 +117,7 @@ jmespath==1.0.1
     #   botocore
 markupsafe==2.1.2
     # via jinja2
-msal==1.21.0
+msal==1.22.0
     # via
     #   azure-identity
     #   msal-extensions
@@ -125,7 +129,7 @@ multidict==6.0.4
     #   yarl
 nest-asyncio==1.5.6
     # via -r hail/hail/python/hailtop/requirements.txt
-numpy==1.24.2
+numpy==1.21.6
     # via
     #   -r hail/hail/python/requirements.txt
     #   bokeh
@@ -133,7 +137,7 @@ numpy==1.24.2
     #   scipy
 orjson==3.8.10
     # via -r hail/hail/python/hailtop/requirements.txt
-packaging==23.0
+packaging==23.1
     # via
     #   bokeh
     #   plotly
@@ -155,11 +159,11 @@ protobuf==3.20.2
     #   googleapis-common-protos
 py4j==0.10.9.5
     # via pyspark
-pyasn1==0.4.8
+pyasn1==0.5.0
     # via
     #   pyasn1-modules
     #   rsa
-pyasn1-modules==0.2.8
+pyasn1-modules==0.3.0
     # via google-auth
 pycares==4.3.0
     # via aiodns
@@ -222,6 +226,7 @@ typing-extensions==4.5.0
     #   avro
     #   azure-core
     #   azure-storage-blob
+    #   importlib-metadata
     #   janus
     #   rich
     #   yarl
@@ -235,6 +240,8 @@ wrapt==1.15.0
     # via deprecated
 yarl==1.8.2
     # via aiohttp
+zipp==3.15.0
+    # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools
