@@ -6,6 +6,7 @@ Change Log
 **Version 0.2.114**
 
 - (`#12780 <https://github.com/hail-is/hail/pull/12881>`__) PythonJobs now handle arguments with resources nested inside dicts and lists.
+- (`#12900 <https://github.com/hail-is/hail/pull/12900>`__) Reading data from public blobs is now supported in Azure.
 
 **Version 0.2.113**
 
