@@ -109,7 +109,7 @@ def get_remote_tmpdir(caller_name: str,
                 'hailctl config setting instead to specify a path.')
         remote_tmpdir = f'gs://{bucket}/batch'
     else:
-        schemes = {'gs', 'https'}
+        schemes = {'gs', 'hail-az', 'https'}
         found_scheme = any(remote_tmpdir.startswith(f'{scheme}://') for scheme in schemes)
         if not found_scheme:
             raise ValueError(
