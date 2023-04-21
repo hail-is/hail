@@ -2124,7 +2124,7 @@ class Table(ExprContainer):
         :class:`.Table`
             Persisted table.
         """
-        return Env.backend().persist_table(self)
+        return Env.backend().persist(self)
 
     def unpersist(self) -> 'Table':
         """
@@ -2140,7 +2140,7 @@ class Table(ExprContainer):
         :class:`.Table`
             Unpersisted table.
         """
-        return Env.backend().unpersist_table(self)
+        return Env.backend().unpersist(self)
 
     @typecheck_method(_localize=bool, _timed=bool)
     def collect(self, _localize=True, *, _timed=False):

@@ -30,16 +30,10 @@ develop effectively.
 Hail currently supports Python version 3.7 or greater.
 
 ```
-make install-dev-deps
+make install-dev-requirements
 ```
 
-to install the python dependencies.
-
-If you are doing Batch or services development, run the following command to install relevant python dependencies
-
-```
-pip install -r docker/requirements.txt
-```
+to install the full set of python dependencies across the Hail repo.
 
 To make sure that certain formatting requirements are caught early, run
 

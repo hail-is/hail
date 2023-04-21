@@ -2149,6 +2149,9 @@ steps:
       - name: setup-deduped-resources-migration
         script: /io/sql/setup-deduped-resources-migration.sql
         online: true
+      - name: dedup-attempt-resources
+        script: /io/sql/dedup_attempt_resources.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
