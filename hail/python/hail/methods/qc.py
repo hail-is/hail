@@ -1031,7 +1031,7 @@ def _service_vep(backend: ServiceBackend,
            csq=bool,
            tolerate_parse_error=bool)
 def vep(dataset: Union[Table, MatrixTable],
-        config: Optional[Union[str, Dict[str, Any], VEPConfig]] = None,
+        config: Optional[Union[str, VEPConfig]] = None,
         block_size: int = 1000,
         name: str = 'vep',
         csq: bool = False,
