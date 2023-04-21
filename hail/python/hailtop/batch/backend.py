@@ -270,6 +270,7 @@ class LocalBackend(Backend[None]):
                     child_jobs[parent].add(j)
 
             cancelled_jobs = set()
+
             def cancel_child_jobs(j):
                 for child in child_jobs[j]:
                     if not child._always_run:
