@@ -342,7 +342,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
 
   def fileStatus(url: AzureStorageFSURL): FileStatus = retryTransientErrors {
     if (url.path == "") {
-      return new BlobStorageFileStatus(url.toString, null, 0, true)
+      return new BlobStorageFileStatus(url.withoutPath.toString, null, 0, true)
     }
 
     val blobClient: BlobClient = getBlobClient(url)
