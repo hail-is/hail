@@ -481,6 +481,7 @@ class ServiceBackend(Backend):
             if self._batch is not None:
                 print("Received a keyboard interrupt, cancelling the batch...")
                 async_to_blocking(self._batch.cancel())
+                self._batch = None
             raise
 
     def execute(self, ir: BaseIR, timed: bool = False):
