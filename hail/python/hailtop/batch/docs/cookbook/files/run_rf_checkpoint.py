@@ -1,5 +1,5 @@
 import hailtop.batch as hb
-import hail as hl
+import hailtop.fs as hfs
 import pandas as pd
 from typing import Tuple
 from sklearn.ensemble import RandomForestRegressor
@@ -49,7 +49,7 @@ def main(df_x_path, df_y_path, output_path, python_image):
     backend = hb.ServiceBackend()
     b = hb.Batch(name='rf-loo', default_python_image=python_image)
 
-    with hl.hadoop_open(df_y_path) as f:
+    with hfs.open(df_y_path) as f:
         local_df_y = pd.read_table(f, header=0, index_col=0)
 
     df_x_input = b.read_input(df_x_path)
@@ -59,7 +59,7 @@ def main(df_x_path, df_y_path, output_path, python_image):
 
     for window in local_df_y.index.to_list():
         checkpoint = checkpoint_path(window)
-        if hl.hadoop_exists(checkpoint):
+        if hfs.exists(checkpoint):
             result = b.read_input(checkpoint)
             results.append(result)
             continue

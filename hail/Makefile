@@ -169,7 +169,7 @@ python-jar: $(PYTHON_JAR)
 pytest: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
 pytest: python/README.md $(PYTHON_JAR)
 	cd python && $(HAIL_PYTHON3) -m pytest \
-            -Werror:::hail -Werror:::hailtop \
+            -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
             --log-cli-level=INFO \
             -s \
             -vv \
@@ -192,7 +192,7 @@ pytest-qob: upload-qob-jar upload-qob-test-resources install-editable
 	HAIL_TEST_RESOURCES_DIR='$(CLOUD_HAIL_TEST_RESOURCES_DIR)' \
 	HAIL_DOCTEST_DATA_DIR='$(HAIL_DOCTEST_DATA_DIR)' \
 	$(HAIL_PYTHON3) -m pytest \
-            -Werror:::hail -Werror:::hailtop \
+            -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
             --log-cli-level=INFO \
             -s \
             -vv \
@@ -209,7 +209,7 @@ pytest-qob: upload-qob-jar upload-qob-test-resources install-editable
 doctest: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
 doctest: python/README.md $(PYTHON_JAR)
 	cd python && $(HAIL_PYTHON3) -m pytest \
-            -Werror:::hail -Werror:::hailtop \
+            -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
             --log-cli-level=INFO \
             -s \
             -vv \

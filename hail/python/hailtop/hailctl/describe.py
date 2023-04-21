@@ -132,7 +132,7 @@ async def main_after_parsing(args, pass_through_args):  # pylint: disable=unused
         gcs_kwargs['project'] = args.requester_pays_project_id
 
     async with aio_contextlib.closing(
-            RouterAsyncFS(default_scheme='file', gcs_kwargs=gcs_kwargs)) as fs:
+            RouterAsyncFS(gcs_kwargs=gcs_kwargs)) as fs:
         j = orjson.loads(decompress(await fs.read(path.join(args.file, 'metadata.json.gz')),
                                     16 + MAX_WBITS))
 

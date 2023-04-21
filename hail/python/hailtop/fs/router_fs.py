@@ -1,7 +1,6 @@
 from typing import List, AsyncContextManager, BinaryIO, Optional, Tuple
 import asyncio
 import io
-from hailtop.aiotools.local_fs import LocalAsyncFSURL
 import nest_asyncio
 import os
 import functools
@@ -52,14 +51,14 @@ class SyncReadableStream(io.RawIOBase, BinaryIO):  # type: ignore # https://gith
     def readable(self):
         return True
 
-    def seek(self, offset, whence=None):
-        raise OSError
+    def seek(self, offset: int, whence: int = os.SEEK_SET):
+        async_to_blocking(self.ars.seek(offset, whence))
 
-    def seekable(self):
-        return False
+    def seekable(self) -> bool:
+        return self.ars.seekable()
 
-    def tell(self):
-        raise io.UnsupportedOperation
+    def tell(self) -> int:
+        return self.ars.tell()
 
     def truncate(self):
         raise io.UnsupportedOperation
@@ -159,6 +158,7 @@ def _stat_result(is_dir: bool, size_bytes_and_time_modified: Optional[Tuple[int,
     else:
         size_bytes = 0
         time_modified = None
+
     return StatResult(
         path=path.rstrip('/'),
         size=size_bytes,
@@ -168,9 +168,9 @@ def _stat_result(is_dir: bool, size_bytes_and_time_modified: Optional[Tuple[int,
 
 
 class RouterFS(FS):
-    def __init__(self, afs: RouterAsyncFS):
+    def __init__(self, afs: Optional[RouterAsyncFS] = None):
         nest_asyncio.apply()
-        self.afs = afs
+        self.afs = afs or RouterAsyncFS()
 
     def open(self, path: str, mode: str = 'r', buffer_size: int = 8192) -> io.IOBase:
         del buffer_size
@@ -183,7 +183,12 @@ class RouterFS(FS):
             strm = SyncReadableStream(async_to_blocking(self.afs.open(path)), path)
         else:
             assert mode[0] == 'w'
-            strm = SyncWritableStream(async_to_blocking(self.afs.create(path)), path)
+            try:
+                async_strm = async_to_blocking(self.afs.create(path))
+            except (FileNotFoundError, NotADirectoryError):
+                async_to_blocking(self.afs.makedirs(os.path.dirname(path)))
+                async_strm = async_to_blocking(self.afs.create(path))
+            strm = SyncWritableStream(async_strm, path)
 
         if 'b' not in mode:
             strm = io.TextIOWrapper(strm, encoding='utf-8')  # type: ignore # typeshed is wrong, this *is* an IOBase
@@ -274,9 +279,6 @@ class RouterFS(FS):
             raise ValueError(f'glob pattern only allowed in path (e.g. not in bucket): {path}')
 
         blobpath = url.path
-        if isinstance(url, LocalAsyncFSURL) and blobpath[0] != '/':
-            blobpath = './' + blobpath
-
         components = blobpath.split('/')
         assert len(components) > 0
 
@@ -293,24 +295,28 @@ class RouterFS(FS):
 
         suffix_components: List[str] = running_prefix
         if len(url.bucket_parts) > 0:
-            first_prefix = '/'.join([url.scheme + ':', '', *url.bucket_parts])
+            first_prefix = [url.scheme + ':', '', *url.bucket_parts]
         else:
-            first_prefix = url.scheme + ':'
+            assert url.scheme == 'file'
+            if path.startswith('file://'):
+                first_prefix = ['file:', '', '']
+            else:
+                first_prefix = []
         cumulative_prefixes = [first_prefix]
 
         for intervening_components, single_component_glob_pattern in glob_components:
             cumulative_prefixes = [
-                stat.path
+                stat.path.split('/')
                 for cumulative_prefix in cumulative_prefixes
-                for stat in await ls_no_glob('/'.join([cumulative_prefix, *intervening_components]))
+                for stat in await ls_no_glob('/'.join([*cumulative_prefix, *intervening_components]))
                 if fnmatch.fnmatch(stat.path,
-                                   '/'.join([cumulative_prefix, *intervening_components, single_component_glob_pattern]))
+                                   '/'.join([*cumulative_prefix, *intervening_components, single_component_glob_pattern]))
             ]
 
         found_stats = [
             stat
             for cumulative_prefix in cumulative_prefixes
-            for stat in await ls_no_glob('/'.join([cumulative_prefix, *suffix_components]))
+            for stat in await ls_no_glob('/'.join([*cumulative_prefix, *suffix_components]))
         ]
 
         if len(glob_components) == 0 and len(found_stats) == 0:

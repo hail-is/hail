@@ -1155,7 +1155,7 @@ steps:
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       python3 -m pytest \
-              -Werror:::hail -Werror:::hailtop \
+              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
               --log-cli-level=INFO \
               -s \
               -r A \
@@ -1211,7 +1211,7 @@ steps:
       export AZURE_APPLICATION_CREDENTIALS=/test-azure-key/credentials.json
 
       python3 -m pytest \
-              -Werror:::hail -Werror:::hailtop \
+              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
               --log-cli-level=INFO \
               -s \
               -r A \
@@ -1267,7 +1267,7 @@ steps:
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       python3 -m pytest \
-              -Werror:::hail -Werror:::hailtop \
+              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
               --log-cli-level=INFO \
               -s \
               -r A \
@@ -1325,7 +1325,7 @@ steps:
       hailctl config set query/backend local
 
       python3 -m pytest \
-              -Werror:::hail -Werror:::hailtop \
+              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
               --log-cli-level=INFO \
               -s \
               -r A \
@@ -1360,7 +1360,7 @@ steps:
       set -ex
       cd /hail/python/hail
       python3 -m pytest \
-              -Werror:::hail -Werror:::hailtop \
+              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
               --log-cli-level=INFO \
               -s \
               -r A \
@@ -1725,7 +1725,7 @@ steps:
     script: |
       set -ex
       python3 -m pytest \
-              -Werror:::hail -Werror:::hailtop \
+              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
               --log-cli-level=INFO \
               -s \
               -r A \
@@ -2338,7 +2338,7 @@ steps:
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}
 
       python3 -m pytest \
-              -Werror:::hail -Werror:::hailtop \
+              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
               --log-cli-level=INFO \
               -s \
               -r A \
@@ -2432,7 +2432,7 @@ steps:
 
       cd /io/memory
       python3 -m pytest \
-              -Werror:::hail -Werror:::hailtop \
+              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
               --log-cli-level=INFO \
               -s \
               -r A \
@@ -2496,7 +2496,7 @@ steps:
       hail-pip-install -r /io/dev-requirements.txt
 
       python3 -m pytest \
-              -Werror:::hail -Werror:::hailtop \
+              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
               --log-cli-level=INFO \
               -s \
               -r A \
@@ -2708,7 +2708,7 @@ steps:
       export REPO_NAME=ci-test-"{{ create_ci_test_repo.token }}"
       export NAMESPACE="{{ default_ns.name }}"
       python3 -m pytest \
-              -Werror:::hail -Werror:::hailtop \
+              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
               --log-cli-level=INFO \
               -s \
               -r A \
@@ -2767,7 +2767,7 @@ steps:
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/test_hailtop_batch/{{ token }}/
 
       python3 -m pytest \
-              -Werror:::hail -Werror:::hailtop \
+              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
               --log-cli-level=INFO \
               -s \
               -r A \
@@ -2935,7 +2935,7 @@ steps:
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/test_batch_docs/{{ token }}/
       python3 -m pytest \
-              -Werror:::hail -Werror:::hailtop \
+              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
               --log-cli-level=INFO \
               -s \
               -r A \
@@ -3516,7 +3516,7 @@ steps:
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       python3 -m pytest \
-              -Werror:::hail -Werror:::hailtop \
+              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
               --log-cli-level=INFO \
               -s \
               -r A \

@@ -5,11 +5,11 @@ import pkg_resources
 import zipfile
 
 from hailtop.config.user_config import configuration_of
+from hailtop.fs.fs import FS
 
 from ..builtin_references import BUILTIN_REFERENCE_RESOURCE_PATHS
 from ..expr import Expression
 from ..expr.types import HailType
-from ..fs.fs import FS
 from ..ir import BaseIR
 from ..linalg.blockmatrix import BlockMatrix
 from ..matrixtable import MatrixTable
