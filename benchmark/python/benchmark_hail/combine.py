@@ -2,25 +2,7 @@ import collections
 import json
 import logging
 
-import argparse
-
-from .. import init_logging
-
-
-def main(args_):
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-
-    parser.add_argument("--output", "-o",
-                        type=str,
-                        required=True,
-                        help="Output file.")
-    parser.add_argument("files",
-                        type=str,
-                        nargs='*',
-                        help="JSON files to çombine.")
-
-    args = parser.parse_args(args_)
-    combine(args.output, args.files)
+from . import init_logging
 
 
 def combine(output, files):
@@ -79,3 +61,20 @@ def combine(output, files):
 
     with open(output, 'w') as out:
         json.dump({'config': config, 'benchmarks': benchmark_json}, out)
+
+
+def register_main(subparser) -> 'None':
+    parser = subparser.add_parser(
+        'combine',
+        help='Combine parallelized benchmark metrics.',
+        description='Combine parallelized benchmark metrics.'
+    )
+    parser.add_argument("--output", "-o",
+                        type=str,
+                        required=True,
+                        help="Output file.")
+    parser.add_argument("files",
+                        type=str,
+                        nargs='*',
+                        help="JSON files to çombine.")
+    parser.set_defaults(main=lambda args: combine(args.output, args.files))

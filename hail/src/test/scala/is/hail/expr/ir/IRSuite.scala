@@ -2650,6 +2650,8 @@ class IRSuite extends HailSuite {
     val str = Str("Hail")
     val a = Ref("a", TArray(TInt32))
     val st = Ref("st", TStream(TInt32))
+    val whitenStream = Ref("whitenStream", TStream(TStruct("prevWindow" -> TNDArray(TFloat64, Nat(2)), "newChunk" -> TNDArray(TFloat64, Nat(2)))))
+    val mat = Ref("mat", TNDArray(TFloat64, Nat(2)))
     val aa = Ref("aa", TArray(TArray(TInt32)))
     val sta = Ref("sta", TStream(TArray(TInt32)))
     val da = Ref("da", TArray(TTuple(TInt32, TString)))
@@ -2756,6 +2758,7 @@ class IRSuite extends HailSuite {
       StreamFold(st, I32(0), "x", "v", v) -> Array(st),
       StreamFold2(StreamFold(st, I32(0), "x", "v", v)) -> Array(st),
       StreamScan(st, I32(0), "x", "v", v) -> Array(st),
+      StreamWhiten(whitenStream, "newChunk", "prevWindow", 0, 0, 0, 0, false) -> Array(whitenStream),
       StreamJoinRightDistinct(
         StreamMap(StreamRange(0, 2, 1), "x", MakeStruct(FastSeq("x" -> Ref("x", TInt32)))),
         StreamMap(StreamRange(0, 3, 1), "x", MakeStruct(FastSeq("x" -> Ref("x", TInt32)))),

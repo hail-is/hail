@@ -22,7 +22,7 @@ charset-normalizer==3.1.0
     #   -c hail/auth/../hail/python/pinned-requirements.txt
     #   -c hail/auth/../web_common/pinned-requirements.txt
     #   requests
-google-auth==2.16.2
+google-auth==2.17.2
     # via
     #   -c hail/auth/../gear/pinned-requirements.txt
     #   -c hail/auth/../hail/python/pinned-requirements.txt
@@ -68,7 +68,7 @@ six==1.16.0
     #   -c hail/auth/../hail/python/dev/pinned-requirements.txt
     #   -c hail/auth/../hail/python/pinned-requirements.txt
     #   google-auth
-urllib3==1.26.14
+urllib3==1.26.15
     # via
     #   -c hail/auth/../gear/pinned-requirements.txt
     #   -c hail/auth/../hail/python/dev/pinned-requirements.txt

@@ -86,7 +86,7 @@ def make_variants_matrix_table(mt: MatrixTable,
                 lambda alleles_len, has_non_ref: hl.struct(
                     locus=row.locus,
                     alleles=hl.if_else(has_non_ref, row.alleles[:-1], row.alleles),
-                    rsid=row.rsid,
+                    **({'rsid': row.rsid} if 'rsid' in row else {}),
                     __entries=row.__entries.map(
                         lambda e: make_entry_struct(e, alleles_len, has_non_ref, row)))),
             mt.row.dtype)
@@ -215,7 +215,7 @@ def combine_r(ts, ref_block_max_len_field):
 
 
 def combine_references(mts: List[MatrixTable]) -> MatrixTable:
-    fd = 'ref_block_max_length'
+    fd = hl.vds.VariantDataset.ref_block_max_length_field
     n_with_ref_max_len = len([mt for mt in mts if fd in mt.globals])
     any_ref_max = n_with_ref_max_len > 0
     all_ref_max = n_with_ref_max_len == len(mts)

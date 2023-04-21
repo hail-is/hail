@@ -33,9 +33,9 @@ abstract class PNDArray extends PType {
 
   def numElements(shape: IndexedSeq[Value[Long]]): Code[Long]
   
-  def makeRowMajorStrides(sourceShapeArray: IndexedSeq[Value[Long]], region: Value[Region], cb: EmitCodeBuilder): IndexedSeq[Value[Long]]
+  def makeRowMajorStrides(sourceShapeArray: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): IndexedSeq[Value[Long]]
 
-  def makeColumnMajorStrides(sourceShapeArray: IndexedSeq[Value[Long]], region: Value[Region], cb: EmitCodeBuilder): IndexedSeq[Value[Long]]
+  def makeColumnMajorStrides(sourceShapeArray: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): IndexedSeq[Value[Long]]
 
   def getElementAddress(indices: IndexedSeq[Long], nd: Long): Long
 

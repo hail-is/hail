@@ -2,7 +2,7 @@ import pytest
 
 from hailtop.batch_client.aioclient import BatchClient
 
-from .utils import DOCKER_ROOT_IMAGE
+from .utils import DOCKER_ROOT_IMAGE, create_batch
 
 pytestmark = pytest.mark.asyncio
 
@@ -15,7 +15,7 @@ async def client():
 
 
 async def test_job(client: BatchClient):
-    bb = client.create_batch()
+    bb = create_batch(client)
     j = bb.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
     b = await bb.submit()
     status = await j.wait()

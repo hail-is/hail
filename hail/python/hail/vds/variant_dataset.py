@@ -3,8 +3,12 @@ import os
 import hail as hl
 from hail.matrixtable import MatrixTable
 from hail.typecheck import typecheck_method
-from hail.utils.java import info
+from hail.utils.java import info, warning
 from hail.genetics import ReferenceGenome
+
+import json
+
+extra_ref_globals_file = 'extra_reference_globals.json'
 
 
 def read_vds(path, *, intervals=None, n_partitions=None,
@@ -29,7 +33,58 @@ def read_vds(path, *, intervals=None, n_partitions=None,
         assert len(intervals) > 0
         reference_data = hl.read_matrix_table(VariantDataset._reference_path(path), _intervals=intervals)
         variant_data = hl.read_matrix_table(VariantDataset._variants_path(path), _intervals=intervals)
-    return VariantDataset(reference_data, variant_data)
+
+    vds = VariantDataset(reference_data, variant_data)
+    if VariantDataset.ref_block_max_length_field not in vds.reference_data.globals:
+        fs = hl.current_backend().fs
+        metadata_file = os.path.join(path, extra_ref_globals_file)
+        if fs.exists(metadata_file):
+            with fs.open(metadata_file, 'r') as f:
+                metadata = json.load(f)
+                vds.reference_data = vds.reference_data.annotate_globals(**metadata)
+        else:
+            warning("You are reading a VDS written with an older version of Hail."
+                    "\n  Hail now supports much faster interval filters on VDS, but you'll need to run either"
+                    "\n  `hl.vds.truncate_reference_blocks(vds, ...)` and write a copy (see docs) or patch the"
+                    "\n  existing VDS in place with `hl.vds.store_ref_block_max_length(vds_path)`.")
+
+    return vds
+
+
+def store_ref_block_max_length(vds_path):
+    """Patches an existing VDS file to store the max reference block length for faster interval filters.
+
+    This method permits :func:`.vds.filter_intervals` to remove reference data not overlapping a target interval.
+
+    This method is able to patch an existing VDS file in-place, without copying all the data. However,
+    if significant downstream interval filtering is anticipated, it may be advantageous to run
+    :func:`.vds.truncate_reference_blocks` to truncate long reference blocks and make interval filters
+    even faster. However, truncation requires rewriting the entire VDS.
+
+
+    Examples
+    --------
+    >>> hl.vds.store_ref_block_max_length('gs://path/to/my.vds')  # doctest: +SKIP
+
+    See Also
+    --------
+    :func:`.vds.filter_intervals`, :func:`.vds.truncate_reference_blocks`.
+
+    Parameters
+    ----------
+    vds_path : :obj:`str`
+    """
+    vds = hl.vds.read_vds(vds_path)
+
+    if VariantDataset.ref_block_max_length_field in vds.reference_data.globals:
+        warning(f"VDS at {vds_path} already contains a global annotation with the max reference block length")
+        return
+    rd = vds.reference_data
+    rd = rd.annotate_rows(__start_pos=rd.locus.position)
+    fs = hl.current_backend().fs
+    ref_block_max_len = rd.aggregate_entries(hl.agg.max(rd.END - rd.__start_pos + 1))
+    with fs.open(os.path.join(vds_path, extra_ref_globals_file), 'w') as f:
+        json.dump({VariantDataset.ref_block_max_length_field: ref_block_max_len}, f)
 
 
 class VariantDataset:
@@ -46,6 +101,9 @@ class VariantDataset:
     variant_data : :class:`.MatrixTable`
         MatrixTable containing only variant data.
     """
+
+    #: Name of global field that indicates max reference block length.
+    ref_block_max_length_field = 'ref_block_max_length'
 
     @staticmethod
     def _reference_path(base: str) -> str:
@@ -243,7 +301,7 @@ class VariantDataset:
 
         '''
 
-        fd = 'ref_block_max_length'
+        fd = hl.vds.VariantDataset.ref_block_max_length_field
         mts = [vds.reference_data for vds in vdses]
         n_with_ref_max_len = len([mt for mt in mts if fd in mt.globals])
         any_ref_max = n_with_ref_max_len > 0

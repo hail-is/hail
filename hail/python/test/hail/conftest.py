@@ -25,12 +25,13 @@ def pytest_collection_modifyitems(config, items):
         if not digest(item.name) % n_splits == split_index:
             item.add_marker(skip_this)
 
+
 @pytest.fixture(scope="session", autouse=True)
 def ensure_event_loop_is_initialized_in_test_thread():
     try:
-        asyncio.get_event_loop()
+        asyncio.get_running_loop()
     except RuntimeError as err:
-        assert err.args[0] == "There is no current event loop in thread 'Dummy-1'."
+        assert err.args[0] == "no running event loop"
         asyncio.set_event_loop(asyncio.new_event_loop())
 
 
