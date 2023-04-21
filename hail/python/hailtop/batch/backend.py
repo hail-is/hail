@@ -263,22 +263,23 @@ class LocalBackend(Backend[None]):
             )
 
             jobs = batch._unsubmitted_jobs
-            dependent_jobs = collections.defaultdict(set)
-
-            def add_dependents(ancestor, child):
-                dependent_jobs[ancestor].add(child)
-                for ancestor_parent in ancestor._dependencies:
-                    add_dependents(ancestor_parent, child)
+            child_jobs = collections.defaultdict(set)
 
             for j in jobs:
                 for parent in j._dependencies:
-                    add_dependents(parent, j)
+                    child_jobs[parent].add(j)
 
             cancelled_jobs = set()
+            def cancel_child_jobs(j):
+                for child in child_jobs[j]:
+                    if not child._always_run:
+                        cancelled_jobs.add(child)
+
             first_exc = None
             for job in jobs:
                 if job in cancelled_jobs:
                     print(f'Job {job} was cancelled. Not running')
+                    cancel_child_jobs(job)
                     continue
                 async_to_blocking(job._compile(tmpdir, tmpdir, dry_run=dry_run))
 
@@ -348,10 +349,8 @@ class LocalBackend(Backend[None]):
 
                 exc = run_code(code)
                 if exc is not None:
-                    first_exc = exc
-                    for child in dependent_jobs[job]:
-                        if not child._always_run:
-                            cancelled_jobs.add(child)
+                    first_exc = exc if first_exc is None else first_exc
+                    cancel_child_jobs(job)
                 job._submitted = True
         finally:
             batch._python_function_defs.clear()
