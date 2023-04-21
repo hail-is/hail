@@ -127,7 +127,7 @@ typing-extensions==4.5.0
     #   async-timeout
     #   importlib-metadata
     #   yarl
-yarl==1.8.2
+yarl==1.9.1
     # via
     #   -c hail/batch/../gear/pinned-requirements.txt
     #   -c hail/batch/../hail/python/pinned-requirements.txt
