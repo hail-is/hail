@@ -629,6 +629,11 @@ final case class RunAggScan(array: IR, name: String, init: IR, seqs: IR, result:
 
 final case class Begin(xs: IndexedSeq[IR]) extends IR
 final case class MakeStruct(fields: IndexedSeq[(String, IR)]) extends IR
+case object MakeStruct {
+  def empty: MakeStruct =
+    MakeStruct(IndexedSeq.empty)
+}
+
 final case class SelectFields(old: IR, fields: IndexedSeq[String]) extends IR
 
 object InsertFields {
@@ -755,6 +760,11 @@ final case class BlockMatrixCollect(child: BlockMatrixIR) extends NDArrayIR
 final case class BlockMatrixWrite(child: BlockMatrixIR, writer: BlockMatrixWriter) extends IR
 
 final case class BlockMatrixMultiWrite(blockMatrices: IndexedSeq[BlockMatrixIR], writer: BlockMatrixMultiWriter) extends IR
+
+
+// add 2 new arguments that mirror the dynamic and static ids
+// instead of IDs they are semantic hashes
+// the current semantic hash is generated at runtime by a combination of the two
 
 final case class CollectDistributedArray(contexts: IR, globals: IR, cname: String, gname: String, body: IR, dynamicID: IR, staticID: String, tsd: Option[TableStageDependency] = None) extends IR
 

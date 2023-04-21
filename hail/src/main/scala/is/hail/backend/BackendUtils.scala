@@ -22,6 +22,12 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
 
   def getModule(id: String): (HailClassLoader, FS, HailTaskContext, Region) => F = loadedModules(id)
 
+  // add semhash for entire operation
+  // consult the cache (semhash -> Array[(int, Array[Byte])]) for those jobs that have completed
+  // only pass contexts that have yet to be evaluated
+  // update cache with all jobs that passed
+  // throw the optional exception
+  // return the result
   def collectDArray(backendContext: BackendContext, theDriverHailClassLoader: HailClassLoader, fs: FS, modID: String, contexts: Array[Array[Byte]], globals: Array[Byte], stageName: String, tsd: Option[TableStageDependency]): Array[Array[Byte]] = {
     if (contexts.isEmpty)
       return Array()

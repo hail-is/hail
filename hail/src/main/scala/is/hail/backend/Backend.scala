@@ -40,6 +40,8 @@ abstract class Backend {
 
   def getPersistedBlockMatrixType(backendContext: BackendContext, id: String): BlockMatrixType
 
+
+  // return (Option[Exception], Array[(int, Array[Byte]))
   def parallelizeAndComputeWithIndex(
     backendContext: BackendContext,
     fs: FS,
