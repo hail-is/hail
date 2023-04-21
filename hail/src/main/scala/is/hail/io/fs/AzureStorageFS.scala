@@ -162,14 +162,14 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
   // ABS errors if you attempt credentialed access for a public container,
   // so we try once with credentials, if that fails use anonymous access for
   // that container going forward.
-  def handlePublicAccessError[T](url: String)(f: => T): T = {
+  def handlePublicAccessError[T](filename: String)(f: => T): T = {
     retryTransientErrors {
       try {
         f
       } catch {
         case e: BlobStorageException if e.getStatusCode == 401 =>
-          val (account, container, _) = getAccountContainerPath(url)
-          serviceClientCache.setPublicAccessServiceClient(account, container)
+          val url = AzureStorageFS.parseUrl(filename)
+          serviceClientCache.setPublicAccessServiceClient(url.account, url.container)
           f
       }
     }
@@ -203,11 +203,11 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
   }
 
   def getBlobClient(url: AzureStorageFSURL): BlobClient = retryTransientErrors {
-    getBlobServiceClient(url.account).getBlobContainerClient(url.container).getBlobClient(url.path)
+    getBlobServiceClient(url.account, url.container).getBlobContainerClient(url.container).getBlobClient(url.path)
   }
 
   def getContainerClient(url: AzureStorageFSURL): BlobContainerClient = retryTransientErrors {
-    getBlobServiceClient(url.account).getBlobContainerClient(url.container)
+    getBlobServiceClient(url.account, url.container).getBlobContainerClient(url.container)
   }
 
   def openNoCompression(filename: String, _debug: Boolean): SeekableDataInputStream = handlePublicAccessError(filename) {
