@@ -25,6 +25,8 @@ def add_dependencies(fname):
             stripped = line.strip()
             if stripped.startswith('#') or len(stripped) == 0:
                 continue
+            if stripped.startswith('-c'):
+                continue
             if stripped.startswith('-r'):
                 additional_requirements = stripped[len('-r'):].strip()
                 add_dependencies(additional_requirements)
