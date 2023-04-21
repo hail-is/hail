@@ -402,7 +402,7 @@ async def main():
         for secret in other_secrets:
             print(f'\t{secret.metadata.name} ({secret.metadata.namespace})')
 
-        action = input('What action would you like to take?[update/update-all/delete/delete-ready-only/delete-in-progress-only]: ')
+        action = input('What action would you like to take?[update/interactive-update/delete/delete-ready-only/delete-in-progress-only]: ')
         if action == 'update':
             await add_new_keys(service_accounts, iam_manager, k8s_manager,
                                exclude={RotationState.UP_TO_DATE,
