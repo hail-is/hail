@@ -10,9 +10,9 @@ Genetics
 
 .. autosummary::
 
-    BaseVEPConfig
-    HailVEPConfig_GRCh37_85
-    HailVEPConfig_GRCh38_95
+    VEPConfig
+    VEPConfigGRCh37Version85
+    VEPConfigGRCh38Version95
     balding_nichols_model
     concordance
     filter_intervals
@@ -39,9 +39,9 @@ Genetics
     variant_qc
     vep
 
-.. autoclass:: BaseVEPConfig
-.. autoclass:: HailVEPConfig_GRCh37_85
-.. autoclass:: HailVEPConfig_GRCh38_95
+.. autoclass:: VEPConfig
+.. autoclass:: VEPConfigGRCh37Version85
+.. autoclass:: VEPConfigGRCh38Version95
 
 .. autofunction:: balding_nichols_model
 .. autofunction:: concordance
