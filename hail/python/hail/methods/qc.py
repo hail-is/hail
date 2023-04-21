@@ -15,7 +15,7 @@ from hailtop.config import get_deploy_config
 from hailtop import yamlx
 
 from hail.backend.service_backend import ServiceBackend
-from hail.typecheck import typecheck, oneof, anytype, nullable, numeric, sequenceof
+from hail.typecheck import typecheck, oneof, anytype, nullable, numeric
 from hail.expr.expressions.expression_typecheck import expr_float64
 from hail.utils import FatalError
 from hail.utils.java import Env, info, warning
