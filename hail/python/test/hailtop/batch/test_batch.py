@@ -415,7 +415,7 @@ class LocalTests(unittest.TestCase):
             self.assertRaises(Exception, b.run)
             assert self.read(output_file.name) == '1'
 
-    def test_failed_jobs_stop_dependent_jobs(self):
+    def test_failed_jobs_stop_child_jobs(self):
         with tempfile.NamedTemporaryFile('w') as output_file:
             b = self.batch()
 
@@ -431,6 +431,29 @@ class LocalTests(unittest.TestCase):
 
             b.write_output(head2.ofile, output_file.name)
             b.write_output(tail.ofile, output_file.name)
+            self.assertRaises(Exception, b.run)
+            assert self.read(output_file.name) == '2'
+
+    def test_failed_jobs_stop_grandchild_jobs(self):
+        with tempfile.NamedTemporaryFile('w') as output_file:
+            b = self.batch()
+
+            head = b.new_job()
+            head.command(f'echo 1 > {head.ofile}')
+            head.command('false')
+
+            head2 = b.new_job()
+            head2.command(f'echo 2 > {head2.ofile}')
+
+            tail = b.new_job()
+            tail.command(f'cat {head.ofile} > {tail.ofile}')
+
+            tail2 = b.new_job()
+            tail2.depends_on(tail)
+            tail2.command(f'echo foo > {tail2.ofile}')
+
+            b.write_output(head2.ofile, output_file.name)
+            b.write_output(tail2.ofile, output_file.name)
             self.assertRaises(Exception, b.run)
             assert self.read(output_file.name) == '2'
 
