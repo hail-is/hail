@@ -24,7 +24,7 @@ def event_loop():
 async def router_filesystem() -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]]]:
     token = secrets.token_hex(16)
 
-    async with RouterAsyncFS('file') as fs:
+    async with RouterAsyncFS() as fs:
         file_base = f'/tmp/{token}/'
         await fs.mkdir(file_base)
 

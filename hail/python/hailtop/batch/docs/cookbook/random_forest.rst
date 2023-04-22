@@ -39,8 +39,8 @@ from the `sklearn` package.
 .. code-block:: python
 
     import hailtop.batch as hb
+    import hailtop.fs as hfs
     from hailtop.utils import grouped
-    import hail as hl
     import pandas as pd
     from typing import List, Optional, Tuple
     import argparse
@@ -160,12 +160,12 @@ built image was pushed to.
 
 Next, we read the `y` dataframe locally in order to get the list of windows
 to run. The file path containing the dataframe could be stored on the cloud.
-Therefore, we use the function `hl.hadoop_open` to read the data regardless
+Therefore, we use the function `hfs.open` to read the data regardless
 of where it's located.
 
 .. code-block:: python
 
-    with hl.hadoop_open(df_y_path) as f:
+    with hfs.open(df_y_path) as f:
         local_df_y = pd.read_table(f, header=0, index_col=0)
 
 
@@ -240,7 +240,7 @@ Add Checkpointing
 The pipeline we wrote above is not resilient to failing jobs. Therefore, we can add
 a way to checkpoint the results so we only run jobs that haven't already succeeded
 in future runs of the pipeline. The way we do this is by having Batch write the computed
-result to a file and using the function `hl.hadoop_exists` to check whether the file already
+result to a file and using the function `hfs.exists` to check whether the file already
 exists before adding that job to the DAG.
 
 First, we define the checkpoint path for each window.
@@ -269,7 +269,7 @@ using :meth:`.Batch.write_output`.
 
     for window in local_df_y.index.to_list():
         checkpoint = checkpoint_path(window)
-        if hl.hadoop_exists(checkpoint):
+        if hfs.exists(checkpoint):
             result = b.read_input(checkpoint)
             results.append(result)
             continue
@@ -315,7 +315,7 @@ window, and the checkpoint path.
 
     for i, window in enumerate(indices):
         checkpoint = checkpoint_path(window)
-        if hl.hadoop_exists(checkpoint):
+        if hfs.exists(checkpoint):
             result = b.read_input(checkpoint)
             results[i] = result
             continue

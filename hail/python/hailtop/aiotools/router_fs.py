@@ -1,6 +1,6 @@
 from typing import Any, Optional, List, Set, AsyncIterator, Dict, AsyncContextManager, Callable
 import asyncio
-import urllib
+import urllib.parse
 
 from ..aiocloud import aioaws, aioazure, aiogoogle
 from .fs import (AsyncFS, MultiPartCreate, FileStatus, FileListEntry, ReadableStream,
@@ -10,25 +10,20 @@ from .local_fs import LocalAsyncFS
 
 class RouterAsyncFS(AsyncFS):
     def __init__(self,
-                 default_scheme: Optional[str],
                  *,
                  filesystems: Optional[List[AsyncFS]] = None,
                  local_kwargs: Optional[Dict[str, Any]] = None,
                  gcs_kwargs: Optional[Dict[str, Any]] = None,
                  azure_kwargs: Optional[Dict[str, Any]] = None,
                  s3_kwargs: Optional[Dict[str, Any]] = None):
-        filesystems = [] if filesystems is None else filesystems
-
-        self._default_scheme = default_scheme
-        self._filesystems = filesystems
-
+        self._filesystems = [] if filesystems is None else filesystems
         self._local_kwargs = local_kwargs or {}
         self._gcs_kwargs = gcs_kwargs or {}
         self._azure_kwargs = azure_kwargs or {}
         self._s3_kwargs = s3_kwargs or {}
 
     def get_scheme(self, uri: str) -> str:
-        scheme = urllib.parse.urlparse(uri).scheme or self._default_scheme
+        scheme = urllib.parse.urlparse(uri).scheme or 'file'
         if not scheme:
             raise ValueError(f"no default scheme and URL has no scheme: {uri}")
         return scheme

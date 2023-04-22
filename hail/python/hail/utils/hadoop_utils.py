@@ -1,10 +1,12 @@
 import gzip
 import io
 import os.path
+import sys
 from typing import Any, Dict, List
 
 from hail.fs.hadoop_fs import HadoopFS
-from hail.utils.java import Env
+from hail.utils import local_path_uri
+from hail.utils.java import Env, info
 from hail.typecheck import typecheck, enumeration
 
 
@@ -116,7 +118,7 @@ def hadoop_copy(src, dest):
     Try using :func:`.hadoop_open` first, it's simpler, but not great
     for large data! For example:
 
-    >>> with hadoop_open('gs://my_bucket/results.csv', 'w') as f: #doctest: +SKIP
+    >>> with hadoop_open('gs://my_bucket/results.csv', 'r') as f: #doctest: +SKIP
     ...     pandas_df.to_csv(f)
 
     The provided source and destination file paths must be URIs
@@ -285,4 +287,12 @@ def copy_log(path: str) -> None:
     ----------
     path: :class:`str`
     """
-    Env.fs().copy_log(path)
+    log = Env.hc()._log
+    try:
+        if hadoop_is_dir(path):
+            _, tail = os.path.split(log)
+            path = os.path.join(path, tail)
+        info(f"copying log to {repr(path)}...")
+        hadoop_copy(local_path_uri(Env.hc()._log), path)
+    except Exception as e:
+        sys.stderr.write(f'Could not copy log: encountered error:\n  {e}')

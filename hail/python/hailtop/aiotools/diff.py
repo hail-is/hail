@@ -47,8 +47,7 @@ async def diff(*,
         if 'max_pool_connections' not in s3_kwargs:
             s3_kwargs['max_pool_connections'] = max_simultaneous * 2
 
-        async with RouterAsyncFS(default_scheme='file',
-                                 local_kwargs=local_kwargs,
+        async with RouterAsyncFS(local_kwargs=local_kwargs,
                                  gcs_kwargs=gcs_kwargs,
                                  azure_kwargs=azure_kwargs,
                                  s3_kwargs=s3_kwargs) as fs:
@@ -168,7 +167,7 @@ async def main() -> None:
         logging.basicConfig()
         logging.root.setLevel(logging.INFO)
 
-    gcs_kwargs = {'project': args.requester_pays_project}
+    gcs_kwargs = {'gcs_requester_pays_configuration': args.requester_pays_project}
 
     try:
         different = await diff(

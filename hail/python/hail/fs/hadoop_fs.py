@@ -5,8 +5,8 @@ from typing import Dict, List, Union, Any
 
 import dateutil
 
-from .fs import FS
-from .stat_result import FileType, StatResult
+from hailtop.fs.fs import FS
+from hailtop.fs.stat_result import FileType, StatResult
 
 
 def _stat_dict_to_stat_result(stat: Dict[str, Any]) -> StatResult:

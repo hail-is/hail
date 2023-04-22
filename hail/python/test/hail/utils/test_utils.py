@@ -89,7 +89,6 @@ class Tests(unittest.TestCase):
         self.assertFalse(hl.hadoop_exists(resource('./some2')))
 
     @fails_service_backend(reason='service backend logs are not sent to a user-visible file')
-    @fails_local_backend()
     def test_hadoop_copy_log(self):
         with with_local_temp_file('log') as r:
             hl.copy_log(r)
@@ -141,7 +140,7 @@ class Tests(unittest.TestCase):
 
             results = hl.hadoop_ls(dirname + '/[a]')
             assert len(results) == 1
-            results[0]['path'] == dirname + '/a'
+            assert results[0]['path'] == dirname + '/a'
 
     def test_hadoop_ls(self):
         path1 = resource('ls_test/f_50')
@@ -184,22 +183,21 @@ class Tests(unittest.TestCase):
             touch(dirname + '/ghi/cat')
             dirname = normalize_path(dirname)
 
-            actual = [x['path'] for x in hl.hadoop_ls(dirname + '/*/cat')]
-            expected = [
+            actual = {x['path'] for x in hl.hadoop_ls(dirname + '/*/cat')}
+            expected = {
                 dirname + '/abc/cat',
                 dirname + '/def/cat',
                 dirname + '/ghi/cat',
-            ]
+            }
             assert actual == expected
 
-            actual = [x['path'] for x in hl.hadoop_ls(dirname + '/*/dog')]
-            expected = [
+            actual = {x['path'] for x in hl.hadoop_ls(dirname + '/*/dog')}
+            expected = {
                 dirname + '/abc/dog',
                 dirname + '/def/dog',
-            ]
+            }
             assert actual == expected
 
-    @fails_local_backend()
     def test_hadoop_ls_glob_no_slash_in_group(self):
         try:
             hl.hadoop_ls(resource('foo[/]bar'))

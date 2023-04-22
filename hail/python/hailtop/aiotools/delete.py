@@ -11,7 +11,7 @@ from ..utils.rich_progress_bar import SimpleRichProgressBar
 async def delete(paths: List[str]) -> None:
     with ThreadPoolExecutor() as thread_pool:
         kwargs = {'thread_pool': thread_pool}
-        async with RouterAsyncFS(default_scheme='file', local_kwargs=kwargs, s3_kwargs=kwargs) as fs:
+        async with RouterAsyncFS(local_kwargs=kwargs, s3_kwargs=kwargs) as fs:
             sema = asyncio.Semaphore(50)
             async with sema:
                 with SimpleRichProgressBar(
