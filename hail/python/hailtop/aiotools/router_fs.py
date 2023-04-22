@@ -37,8 +37,12 @@ class RouterAsyncFS(AsyncFS):
 
     @staticmethod
     def valid_url(url) -> bool:
-        fss = (LocalAsyncFS, aiogoogle.GoogleStorageAsyncFS, aioazure.AzureAsyncFS, aioaws.S3AsyncFS)
-        return any(fs.valid_url(url) for fs in fss)
+        return (
+            LocalAsyncFS.valid_url(url)
+            or aiogoogle.GoogleStorageAsyncFS.valid_url(url)
+            or aioazure.AzureAsyncFS.valid_url(url)
+            or aioaws.S3AsyncFS.valid_url(url)
+        )
 
     def _load_fs(self, uri: str):
         fs: AsyncFS
