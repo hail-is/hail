@@ -45,7 +45,7 @@ class AzureStorageFSHailAzURL(
 
   override def withoutPath(): String = s"hail-az://$account/$container"
 
-  override def toString(): String = s"hail-az://$account/$container$path"
+  override def toString(): String = s"hail-az://$account/$container/$path"
 }
 
 class AzureStorageFSHttpsURL(
@@ -59,7 +59,7 @@ class AzureStorageFSHttpsURL(
   }
 
   override def withoutPath(): String = s"https://$account.blob.core.windows.net/$container"
-  override def toString(): String = s"https://$account.blob.core.windows.net/$container$path"
+  override def toString(): String = s"https://$account.blob.core.windows.net/$container/$path"
 }
 
 
