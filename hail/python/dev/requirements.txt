@@ -1,5 +1,3 @@
--c ../pinned-requirements.txt
-
 flake8>=4.0.1,<5
 mypy==0.990
 pylint>=2.13.5,<3
@@ -18,9 +16,6 @@ sphinx-autodoc-typehints==1.11.1
 nbsphinx>=0.8.8,<1
 sphinx_rtd_theme>=1.0.0,<2
 jupyter>=1.0.0,<2
-# recent ipykernel has this requirement and we want to be compatible with ipykernel (used by ipython and jupyter)
-# https://github.com/ltalirz/ipykernel/blob/6.0.3/setup.py#L77
-importlib-metadata<4
 sphinxcontrib.katex>=0.9.0,<1
 fswatch>=0.1.1,<1
 matplotlib>=3.5,<4
