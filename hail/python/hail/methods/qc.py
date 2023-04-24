@@ -883,7 +883,8 @@ def _service_vep(backend: ServiceBackend,
                  csq: bool,
                  tolerate_parse_error: bool) -> hl.Table:
     reference_genome = ht.locus.dtype.reference_genome.name
-    cloud = backend.bc.cloud()
+    # cloud = backend.bc.cloud()
+    cloud = 'gcp'
     regions = backend.regions
 
     if config is not None:
@@ -989,7 +990,7 @@ def _service_vep(backend: ServiceBackend,
             except KeyboardInterrupt:
                 raise
             except Exception:
-                await backend._batch.cancel()
+                backend._batch.cancel()
                 backend._batch = None
                 raise
 
