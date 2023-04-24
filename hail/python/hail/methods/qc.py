@@ -1111,7 +1111,7 @@ def vep(dataset: Union[Table, MatrixTable],
     **Batch Service Configuration**
 
     If no config is specified, Hail will use the user's Service configuration parameters to find a supported VEP configuration.
-    However, if you wish to use your own implementation of VEP, then see the documentation for :class:`.BaseVEPConfig`.
+    However, if you wish to use your own implementation of VEP, then see the documentation for :class:`.VEPConfig`.
 
     **Annotations**
 
