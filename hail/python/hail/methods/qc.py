@@ -986,8 +986,11 @@ def _service_vep(backend: ServiceBackend,
                                 disable_progress_bar=backend.disable_progress_bar,
                                 progress=None,
                                 starting_job=starting_job_id)
-            except BaseException:
-                b.cancel()
+            except KeyboardInterrupt:
+                raise
+            except Exception:
+                await backend._batch.cancel()
+                backend._batch = None
                 raise
 
             if status['n_succeeded'] != status['n_jobs']:
