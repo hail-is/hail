@@ -5,10 +5,15 @@ import numpy as np
 import pandas as pd
 import bokeh
 import bokeh.io
-from bokeh.models import HoverTool, ColorBar, LogTicker, LogColorMapper, LinearColorMapper, CategoricalColorMapper, \
-    ColumnDataSource, BasicTicker, Plot, ColorMapper, CDSView, GroupFilter, Legend, LegendItem, Renderer, CustomJS, \
-    Select, Column, Span, DataRange1d, Slope, Label
-from bokeh.plotting import figure, Figure
+import bokeh.models
+from bokeh.models import (HoverTool, ColorBar, LogTicker, LogColorMapper, LinearColorMapper,
+                          CategoricalColorMapper, ColumnDataSource, BasicTicker, Plot, ColorMapper,
+                          CDSView, GroupFilter, IntersectionFilter, Legend, LegendItem, Renderer,
+                          CustomJS, Select, Column, Span, DataRange1d, Slope, Label, ColorMapper,
+                          GridPlot)
+import bokeh.plotting
+import bokeh.palettes
+from bokeh.plotting import figure
 from bokeh.transform import transform
 from bokeh.layouts import gridplot
 
@@ -20,10 +25,10 @@ from hail.expr.expressions import Expression, NumericExpression, \
     check_row_indexed
 from hail.typecheck import typecheck, oneof, nullable, sized_tupleof, numeric, \
     sequenceof, dictof
-from hail import Table
+from hail import Table, MatrixTable
 from hail.utils.struct import Struct
 from hail.utils.java import warning
-from typing import List, Tuple, Dict, Union, Callable
+from typing import List, Tuple, Dict, Union, Callable, Optional, Sequence, Any, Set
 import hail
 
 palette = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
@@ -56,7 +61,7 @@ def show(obj, interact=None):
         interact(handle)
 
 
-def cdf(data, k=350, legend=None, title=None, normalize=True, log=False) -> Figure:
+def cdf(data, k=350, legend=None, title=None, normalize=True, log=False) -> figure:
     """Create a cumulative density plot.
 
     Parameters
@@ -76,11 +81,11 @@ def cdf(data, k=350, legend=None, title=None, normalize=True, log=False) -> Figu
 
     Returns
     -------
-    :class:`bokeh.plotting.figure.Figure`
+    :class:`.figure`
     """
     if isinstance(data, Expression):
         if data._indices is None:
-            return ValueError('Invalid input')
+            raise ValueError('Invalid input')
         agg_f = data._aggregation_method()
         data = agg_f(aggregators.approx_cdf(data, k))
 
@@ -100,8 +105,8 @@ def cdf(data, k=350, legend=None, title=None, normalize=True, log=False) -> Figu
         x_axis_label=legend,
         y_axis_label=y_axis_label,
         y_axis_type=y_axis_type,
-        plot_width=600,
-        plot_height=400,
+        width=600,
+        height=400,
         background_fill_color='#EEEEEE',
         tools='xpan,xwheel_zoom,reset,save',
         active_scroll='xwheel_zoom')
@@ -155,10 +160,10 @@ def _cdf_error(cdf, failure_prob):
     return 1 / p + math.sqrt(math.log(2 * p / failure_prob) * s / 2)
 
 
-def pdf(data, k=1000, confidence=5, legend=None, title=None, log=False, interactive=False) -> Union[Figure, Tuple[Figure, Callable]]:
+def pdf(data, k=1000, confidence=5, legend=None, title=None, log=False, interactive=False) -> Union[figure, Tuple[figure, Callable]]:
     if isinstance(data, Expression):
         if data._indices is None:
-            return ValueError('Invalid input')
+            raise ValueError('Invalid input')
         agg_f = data._aggregation_method()
         data = agg_f(aggregators.approx_cdf(data, k))
 
@@ -175,8 +180,8 @@ def pdf(data, k=1000, confidence=5, legend=None, title=None, log=False, interact
         x_axis_label=legend,
         y_axis_label=y_axis_label,
         y_axis_type=y_axis_type,
-        plot_width=600,
-        plot_height=400,
+        width=600,
+        height=400,
         tools='xpan,xwheel_zoom,reset,save',
         active_scroll='xwheel_zoom',
         background_fill_color='#EEEEEE')
@@ -205,7 +210,7 @@ def pdf(data, k=1000, confidence=5, legend=None, title=None, log=False, interact
                 else:
                     new_data = {'left': [min_x, *x[keep]], 'right': [*x[keep], max_x], 'bottom': np.full(len(slopes), 0), 'top': slopes}
                 plot.data_source.data = new_data
-                bokeh.io.push_notebook(handle)
+                bokeh.io.push_notebook(handle=handle)
 
             from ipywidgets import interact
             interact(update, confidence=(1, 10, .01))
@@ -291,7 +296,7 @@ def _max_entropy_cdf(min_x, max_x, x, y, e):
     return new_y, keep
 
 
-def smoothed_pdf(data, k=350, smoothing=.5, legend=None, title=None, log=False, interactive=False, figure=None) -> Union[Figure, Tuple[Figure, Callable]]:
+def smoothed_pdf(data, k=350, smoothing=.5, legend=None, title=None, log=False, interactive=False, figure=None) -> Union[figure, Tuple[figure, Callable]]:
     """Create a density plot.
 
     Parameters
@@ -310,16 +315,16 @@ def smoothed_pdf(data, k=350, smoothing=.5, legend=None, title=None, log=False, 
         Plot the log10 of the bin counts.
     interactive : bool
         If `True`, return a handle to pass to :func:`bokeh.io.show`.
-    figure : :class:`bokeh.plotting.figure.Figure`
+    figure : :class:`.figure`
         If not None, add density plot to figure. Otherwise, create a new figure.
 
     Returns
     -------
-    :class:`bokeh.plotting.figure.Figure`
+    :class:`.figure`
     """
     if isinstance(data, Expression):
         if data._indices is None:
-            return ValueError('Invalid input')
+            raise ValueError('Invalid input')
         agg_f = data._aggregation_method()
         data = agg_f(aggregators.approx_cdf(data, k))
 
@@ -338,8 +343,8 @@ def smoothed_pdf(data, k=350, smoothing=.5, legend=None, title=None, log=False, 
             x_axis_label=legend,
             y_axis_label=y_axis_label,
             y_axis_type=y_axis_type,
-            plot_width=600,
-            plot_height=400,
+            width=600,
+            height=400,
             tools='xpan,xwheel_zoom,reset,save',
             active_scroll='xwheel_zoom',
             background_fill_color='#EEEEEE')
@@ -370,7 +375,7 @@ def smoothed_pdf(data, k=350, smoothing=.5, legend=None, title=None, log=False, 
             def update(smoothing=smoothing):
                 final = f(x_d, round1, smoothing)
                 line.data_source.data = {'x': x_d, 'y': final}
-                bokeh.io.push_notebook(handle)
+                bokeh.io.push_notebook(handle=handle)
 
             from ipywidgets import interact
             interact(update, smoothing=(.02, .8, .005))
@@ -382,7 +387,7 @@ def smoothed_pdf(data, k=350, smoothing=.5, legend=None, title=None, log=False, 
 
 @typecheck(data=oneof(Struct, expr_float64), range=nullable(sized_tupleof(numeric, numeric)),
            bins=int, legend=nullable(str), title=nullable(str), log=bool, interactive=bool)
-def histogram(data, range=None, bins=50, legend=None, title=None, log=False, interactive=False) -> Union[Figure, Tuple[Figure, Callable]]:
+def histogram(data, range=None, bins=50, legend=None, title=None, log=False, interactive=False) -> Union[figure, Tuple[figure, Callable]]:
     """Create a histogram.
 
     Notes
@@ -407,7 +412,7 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False, int
 
     Returns
     -------
-    :class:`bokeh.plotting.figure.Figure`
+    :class:`.figure`
     """
     if isinstance(data, Expression):
         if data._indices.source is not None:
@@ -425,7 +430,7 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False, int
                     raise ValueError("'data' contains no values that are defined and finite")
             data = agg_f(aggregators.hist(data, start, end, bins))
         else:
-            return ValueError('Invalid input')
+            raise ValueError('Invalid input')
     elif 'values' in data:
         cdf = data
         hist, edges = np.histogram(cdf['values'], bins=bins, weights=np.diff(cdf.ranks), density=True)
@@ -492,7 +497,7 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False, int
                 hist, edges = np.histogram(cdf['values'], bins=edges, weights=np.diff(cdf.ranks), density=True)
                 new_data = {'top': hist, 'left': edges[:-1], 'right': edges[1:], 'bottom': np.full(len(hist), 0)}
                 q.data_source.data = new_data
-                bokeh.io.push_notebook(handle)
+                bokeh.io.push_notebook(handle=handle)
 
             from ipywidgets import interact
             interact(update, bins=(0, 5 * bins), phase=(0, 1, .01))
@@ -504,7 +509,7 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False, int
 
 @typecheck(data=oneof(Struct, expr_float64), range=nullable(sized_tupleof(numeric, numeric)),
            bins=int, legend=nullable(str), title=nullable(str), normalize=bool, log=bool)
-def cumulative_histogram(data, range=None, bins=50, legend=None, title=None, normalize=True, log=False) -> Figure:
+def cumulative_histogram(data, range=None, bins=50, legend=None, title=None, normalize=True, log=False) -> figure:
     """Create a cumulative histogram.
 
     Parameters
@@ -526,7 +531,7 @@ def cumulative_histogram(data, range=None, bins=50, legend=None, title=None, nor
 
     Returns
     -------
-    :class:`bokeh.plotting.figure.Figure`
+    :class:`.figure`
     """
     if isinstance(data, Expression):
         if data._indices.source is not None:
@@ -538,7 +543,7 @@ def cumulative_histogram(data, range=None, bins=50, legend=None, title=None, nor
                 start, end = agg_f((aggregators.min(data), aggregators.max(data)))
             data = agg_f(aggregators.hist(data, start, end, bins))
         else:
-            return ValueError('Invalid input')
+            raise ValueError('Invalid input')
 
     if legend is None:
         legend = ""
@@ -560,20 +565,20 @@ def cumulative_histogram(data, range=None, bins=50, legend=None, title=None, nor
     return p
 
 
-@typecheck(p=bokeh.plotting.Figure, font_size=str)
+@typecheck(p=figure, font_size=str)
 def set_font_size(p, font_size: str = '12pt'):
     """Set most of the font sizes in a bokeh figure
 
     Parameters
     ----------
-    p : :class:`bokeh.plotting.figure.Figure`
+    p : :class:`.figure`
         Input figure.
     font_size : str
         String of font size in points (e.g. '12pt').
 
     Returns
     -------
-    :class:`bokeh.plotting.figure.Figure`
+    :class:`.figure`
     """
     p.legend.label_text_font_size = font_size
     p.xaxis.axis_label_text_font_size = font_size
@@ -596,12 +601,12 @@ def set_font_size(p, font_size: str = '12pt'):
 def histogram2d(x: NumericExpression,
                 y: NumericExpression,
                 bins: int = 40,
-                range: Tuple[int, int] = None,
-                title: str = None,
+                range: Optional[Tuple[int, int]] = None,
+                title: Optional[str] = None,
                 width: int = 600,
                 height: int = 600,
-                colors: List[str] = bokeh.palettes.all_palettes['Blues'][7][::-1],
-                log: bool = False) -> Figure:
+                colors: Sequence[str] = bokeh.palettes.all_palettes['Blues'][7][::-1],
+                log: bool = False) -> figure:
     """Plot a two-dimensional histogram.
 
     ``x`` and ``y`` must both be a :class:`.NumericExpression` from the same :class:`.Table`.
@@ -640,7 +645,7 @@ def histogram2d(x: NumericExpression,
         Plot height (default 600px).
     title : str
         Title of the plot.
-    colors : List[str]
+    colors : Sequence[str]
         List of colors (hex codes, or strings as described
         `here <https://bokeh.pydata.org/en/latest/docs/reference/colors.html>`__). Compatible with one of the many
         built-in palettes available `here <https://bokeh.pydata.org/en/latest/docs/reference/palettes.html>`__.
@@ -649,7 +654,7 @@ def histogram2d(x: NumericExpression,
 
     Returns
     -------
-    :class:`bokeh.plotting.figure.Figure`
+    :class:`.figure`
     """
     data = _generate_hist2d_data(x, y, bins, range).to_pandas()
 
@@ -657,6 +662,7 @@ def histogram2d(x: NumericExpression,
     data['x'] = data['x'].apply(lambda e: str(float(e)))
     data['y'] = data['y'].apply(lambda e: str(float(e)))
 
+    mapper: ColorMapper
     if log:
         mapper = LogColorMapper(palette=colors, low=data.c.min(), high=data.c.max())
     else:
@@ -666,7 +672,7 @@ def histogram2d(x: NumericExpression,
     y_axis = sorted(set(data.y), key=lambda z: float(z))
     p = figure(title=title,
                x_range=x_axis, y_range=y_axis,
-               x_axis_location="above", plot_width=width, plot_height=height,
+               x_axis_location="above", width=width, height=height,
                tools="hover,save,pan,box_zoom,reset,wheel_zoom", toolbar_location='below')
 
     p.grid.grid_line_color = None
@@ -686,7 +692,10 @@ def histogram2d(x: NumericExpression,
                          label_standoff=12 if log else 6, border_line_color=None, location=(0, 0))
     p.add_layout(color_bar, 'right')
 
-    p.select_one(HoverTool).tooltips = [('x', '@x'), ('y', '@y',), ('count', '@c')]
+    hovertool = p.select_one(HoverTool)
+    assert hovertool is not None
+    hovertool.tooltips = [('x', '@x'), ('y', '@y',), ('count', '@c')]
+
     return p
 
 
@@ -746,8 +755,8 @@ def _generate_hist2d_data(x, y, bins, range):
 def _collect_scatter_plot_data(
         x: Tuple[str, NumericExpression],
         y: Tuple[str, NumericExpression],
-        fields: Dict[str, Expression] = None,
-        n_divisions: int = None,
+        fields: Optional[Dict[str, Expression]] = None,
+        n_divisions: Optional[int] = None,
         missing_label: str = 'NA'
 ) -> pd.DataFrame:
 
@@ -783,8 +792,9 @@ def _collect_scatter_plot_data(
     return source_pd
 
 
-def _get_categorical_palette(factors: List[str]) -> Dict[str, str]:
+def _get_categorical_palette(factors: List[str]) -> ColorMapper:
     n = max(3, len(factors))
+    _palette: Sequence[str]
     if n < len(palette):
         _palette = palette
     elif n < 21:
@@ -798,23 +808,44 @@ def _get_categorical_palette(factors: List[str]) -> Dict[str, str]:
 
 
 def _get_scatter_plot_elements(
-        sp: Plot, source_pd: pd.DataFrame, x_col: str, y_col: str, label_cols: List[str],
-        colors: Dict[str, ColorMapper] = None, size: int = 4,
-) -> Tuple[bokeh.plotting.Figure, Dict[str, List[LegendItem]], Legend, ColorBar, Dict[str, ColorMapper], List[Renderer]]:
+        sp: Plot,
+        source_pd: pd.DataFrame,
+        x_col: str,
+        y_col: str,
+        label_cols: List[str],
+        colors: Optional[Dict[str, ColorMapper]] = None,
+        size: int = 4,
+        hover_cols: Optional[Set[str]] = None,
+) -> Union[
+    Tuple[Plot, Dict[str, List[LegendItem]], Legend, ColorBar, Dict[str, ColorMapper], List[Renderer]],
+    Tuple[Plot, None, None, None, None, None]]:
 
     if not source_pd.shape[0]:
         print("WARN: No data to plot.")
         return sp, None, None, None, None, None
 
-    sp.tools.append(HoverTool(tooltips=[(x_col, f'@{x_col}'), (y_col, f'@{y_col}')]
-                              + [(c, f'@{c}') for c in source_pd.columns if c not in [x_col, y_col]]))
+    possible_tooltips = [
+        (x_col, f'@{x_col}'),
+        (y_col, f'@{y_col}')
+    ] + [
+        (c, f'@{c}')
+        for c in source_pd.columns
+        if c not in [x_col, y_col]
+    ]
+
+    if hover_cols is not None:
+        possible_tooltips = [
+            x
+            for x in possible_tooltips
+            if x[0] in hover_cols
+        ]
+    sp.tools.append(HoverTool(tooltips=possible_tooltips))
 
     cds = ColumnDataSource(source_pd)
 
     if not label_cols:
         sp.circle(x_col, y_col, source=cds, size=size)
         return sp, None, None, None, None, None
-
     continuous_cols = [col for col in label_cols if
                        (str(source_pd.dtypes[col]).startswith('float')
                         or str(source_pd.dtypes[col]).startswith('int'))]
@@ -823,7 +854,7 @@ def _get_scatter_plot_elements(
     #  Assign color mappers to columns
     if colors is None:
         colors = {}
-    color_mappers = {}
+    color_mappers: Dict[str, ColorMapper] = {}
 
     for col in continuous_cols:
         low = np.nanmin(source_pd[col])
@@ -844,7 +875,7 @@ def _get_scatter_plot_elements(
     # Create initial glyphs
     initial_col = label_cols[0]
     initial_mapper = color_mappers[initial_col]
-    legend_items = {}
+    legend_items: Dict[str, List[LegendItem]]  = {}
 
     if not factor_cols:
         all_renderers = [
@@ -853,20 +884,26 @@ def _get_scatter_plot_elements(
 
     else:
         all_renderers = []
-        legend_items = {col: collections.defaultdict(list) for col in factor_cols}
+        legend_items_by_key_by_factor = {col: collections.defaultdict(list) for col in factor_cols}
         for key in source_pd.groupby(factor_cols).groups.keys():
             key = key if len(factor_cols) > 1 else [key]
-            cds_view = CDSView(source=cds, filters=[GroupFilter(column_name=factor_cols[i], group=key[i]) for i in range(0, len(factor_cols))])
+            cds_view = CDSView(
+                filter=IntersectionFilter(operands=[GroupFilter(column_name=factor_cols[i], group=key[i]) for i in range(0, len(factor_cols))])
+            )
             renderer = sp.circle(x_col, y_col, color=transform(initial_col, initial_mapper), source=cds, view=cds_view, size=size)
             all_renderers.append(renderer)
             for i in range(0, len(factor_cols)):
-                legend_items[factor_cols[i]][key[i]].append(renderer)
+                legend_items_by_key_by_factor[factor_cols[i]][key[i]].append(renderer)
 
-        legend_items = {factor: [LegendItem(label=key, renderers=renderers) for key, renderers in key_renderers.items()] for factor, key_renderers in legend_items.items()}
+        legend_items = {factor: [LegendItem(label=key, renderers=renderers)
+                                 for key, renderers in key_renderers.items()]
+                        for factor, key_renderers in legend_items_by_key_by_factor.items()}
 
     # Add legend / color bar
     legend = Legend(visible=False, click_policy='hide', orientation='vertical') if initial_col not in factor_cols else Legend(items=legend_items[initial_col], click_policy='hide', orientation='vertical')
-    color_bar = ColorBar(visible=False) if initial_col not in continuous_cols else ColorBar(color_mapper=color_mappers[initial_col])
+    color_bar = ColorBar(color_mapper=color_mappers[initial_col])
+    if initial_col not in continuous_cols:
+        color_bar.visible = False
     sp.add_layout(legend, 'left')
     sp.add_layout(color_bar, 'left')
 
@@ -883,30 +920,30 @@ def _get_scatter_plot_elements(
 def scatter(
         x: Union[NumericExpression, Tuple[str, NumericExpression]],
         y: Union[NumericExpression, Tuple[str, NumericExpression]],
-        label: Union[Expression, Dict[str, Expression]] = None,
-        title: str = None,
-        xlabel: str = None,
-        ylabel: str = None,
+        label: Optional[Union[Expression, Dict[str, Expression]]] = None,
+        title: Optional[str] = None,
+        xlabel: Optional[str] = None,
+        ylabel: Optional[str] = None,
         size: int = 4,
         legend: bool = True,
-        hover_fields: Dict[str, Expression] = None,
-        colors: Union[ColorMapper, Dict[str, ColorMapper]] = None,
+        hover_fields: Optional[Dict[str, Expression]] = None,
+        colors: Optional[Union[ColorMapper, Dict[str, ColorMapper]]] = None,
         width: int = 800,
         height: int = 800,
         collect_all: bool = False,
-        n_divisions: int = 500,
+        n_divisions: Optional[int] = 500,
         missing_label: str = 'NA'
-) -> Union[Figure, Column]:
+) -> Union[Plot, Column]:
     """Create an interactive scatter plot.
 
     ``x`` and ``y`` must both be either:
     - a :class:`.NumericExpression` from the same :class:`.Table`.
     - a tuple (str, :class:`.NumericExpression`) from the same :class:`.Table`. If passed as a tuple the first element is used as the hover label.
 
-    If no label or a single label is provided, then returns :class:`bokeh.plotting.figure.Figure`
+    If no label or a single label is provided, then returns :class:`.figure`
     Otherwise returns a :class:`bokeh.models.layouts.Column` containing:
     - a :class:`bokeh.models.widgets.inputs.Select` dropdown selection widget for labels
-    - a :class:`bokeh.plotting.figure.Figure` containing the interactive scatter plot
+    - a :class:`.figure` containing the interactive scatter plot
 
     Points will be colored by one of the labels defined in the ``label`` using the color scheme defined in
     the corresponding entry of ``colors`` if provided (otherwise a default scheme is used). To specify your color
@@ -925,25 +962,25 @@ def scatter(
         List of x-values to be plotted.
     y : :class:`.NumericExpression` or (str, :class:`.NumericExpression`)
         List of y-values to be plotted.
-    label : :class:`.Expression` or Dict[str, :class:`.Expression`]]
+    label : :class:`.Expression` or Dict[str, :class:`.Expression`]], optional
         Either a single expression (if a single label is desired), or a
         dictionary of label name -> label value for x and y values.
         Used to color each point w.r.t its label.
         When multiple labels are given, a dropdown will be displayed with the different options.
         Can be used with categorical or continuous expressions.
-    title : str
+    title : str, optional
         Title of the scatterplot.
-    xlabel : str
+    xlabel : str, optional
         X-axis label.
-    ylabel : str
+    ylabel : str, optional
         Y-axis label.
     size : int
         Size of markers in screen space units.
     legend: bool
         Whether or not to show the legend in the resulting figure.
-    hover_fields : Dict[str, :class:`.Expression`]
+    hover_fields : Dict[str, :class:`.Expression`], optional
         Extra fields to be displayed when hovering over a point on the plot.
-    colors : :class:`bokeh.models.mappers.ColorMapper` or Dict[str, :class:`bokeh.models.mappers.ColorMapper`]
+    colors : :class:`bokeh.models.mappers.ColorMapper` or Dict[str, :class:`bokeh.models.mappers.ColorMapper`], optional
         If a single label is used, then this can be a color mapper, if multiple labels are used, then this should
         be a Dict of label name -> color mapper.
         Used to set colors for the labels defined using ``label``.
@@ -954,35 +991,62 @@ def scatter(
         Plot height
     collect_all : bool
         Whether to collect all values or downsample before plotting.
-    n_divisions : int
+    n_divisions : int, optional
         Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
     missing_label: str
         Label to use when a point is missing data for a categorical label
 
     Returns
     -------
-    :class:`bokeh.plotting.figure.Figure` if no label or a single label was given, otherwise :class:`bokeh.models.layouts.Column`
+    :class:`.Plot` if no label or a single label was given, otherwise :class:`bokeh.models.layouts.Column`
     """
     hover_fields = {} if hover_fields is None else hover_fields
-    label = {} if label is None else {'label': label} if isinstance(label, Expression) else label
-    colors = {'label': colors} if isinstance(colors, ColorMapper) else colors
-    label_cols = list(label.keys())
+
+    label_by_col: Dict[str, Expression]
+    if label is None:
+        label_by_col = {}
+    elif isinstance(label, Expression):
+        label_by_col = {'label': label}
+    else:
+        assert isinstance(label, dict)
+        label_by_col = label
+
+    if isinstance(colors, ColorMapper):
+        colors_by_col = {'label': colors}
+    else:
+        colors_by_col = colors
+
+    label_cols = list(label_by_col.keys())
     if isinstance(x, NumericExpression):
-        x = ('x', x)
+        _x = ('x', x)
+    else:
+        _x = x
 
     if isinstance(y, NumericExpression):
-        y = ('y', y)
+        _y = ('y', y)
+    else:
+        _y = y
 
-    source_pd = _collect_scatter_plot_data(x, y, fields={**hover_fields, **label}, n_divisions=None if collect_all else n_divisions, missing_label=missing_label)
+    source_pd = _collect_scatter_plot_data(_x,
+                                           _y,
+                                           fields={**hover_fields, **label_by_col},
+                                           n_divisions=None if collect_all else n_divisions,
+                                           missing_label=missing_label)
     sp = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, height=height, width=width)
-    sp, sp_legend_items, sp_legend, sp_color_bar, sp_color_mappers, sp_scatter_renderers = _get_scatter_plot_elements(sp, source_pd, x[0], y[0], label_cols, colors, size)
+    sp, sp_legend_items, sp_legend, sp_color_bar, sp_color_mappers, sp_scatter_renderers = _get_scatter_plot_elements(
+        sp, source_pd, _x[0], _y[0], label_cols, colors_by_col, size,
+        hover_cols={'x', 'y'} | set(hover_fields)
+    )
 
     if not legend:
+        assert sp_legend is not None
+        assert sp_color_bar is not None
         sp_legend.visible = False
         sp_color_bar.visible = False
 
     # If multiple labels, create JS call back selector
     if len(label_cols) > 1:
+        callback_args: Dict[str, Any]
         callback_args = dict(
             color_mappers=sp_color_mappers,
             scatter_renderers=sp_scatter_renderers
@@ -1032,27 +1096,27 @@ def scatter(
 def joint_plot(
         x: Union[NumericExpression, Tuple[str, NumericExpression]],
         y: Union[NumericExpression, Tuple[str, NumericExpression]],
-        label: Union[Expression, Dict[str, Expression]] = None,
-        title: str = None,
-        xlabel: str = None,
-        ylabel: str = None,
+        label: Optional[Union[Expression, Dict[str, Expression]]] = None,
+        title: Optional[str] = None,
+        xlabel: Optional[str] = None,
+        ylabel: Optional[str] = None,
         size: int = 4,
         legend: bool = True,
-        hover_fields: Dict[str, StringExpression] = None,
-        colors: Union[ColorMapper, Dict[str, ColorMapper]] = None,
+        hover_fields: Optional[Dict[str, StringExpression]] = None,
+        colors: Optional[Union[ColorMapper, Dict[str, ColorMapper]]] = None,
         width: int = 800,
         height: int = 800,
         collect_all: bool = False,
-        n_divisions: int = 500,
+        n_divisions: Optional[int] = 500,
         missing_label: str = 'NA'
-) -> Column:
+) -> GridPlot:
     """Create an interactive scatter plot with marginal densities on the side.
 
        ``x`` and ``y`` must both be either:
        - a :class:`.NumericExpression` from the same :class:`.Table`.
        - a tuple (str, :class:`.NumericExpression`) from the same :class:`.Table`. If passed as a tuple the first element is used as the hover label.
 
-       This function returns a :class:`bokeh.models.layouts.Column` containing two :class:`bokeh.plotting.figure.Row`:
+       This function returns a :class:`bokeh.models.layouts.Column` containing two :class:`figure.Row`:
        - The first row contains the X-axis marginal density and a selection widget if multiple entries are specified in the ``label``
        - The second row contains the scatter plot and the y-axis marginal density
 
@@ -1074,25 +1138,25 @@ def joint_plot(
             List of x-values to be plotted.
         y : :class:`.NumericExpression` or (str, :class:`.NumericExpression`)
             List of y-values to be plotted.
-        label : :class:`.Expression` or Dict[str, :class:`.Expression`]]
+        label : :class:`.Expression` or Dict[str, :class:`.Expression`]], optional
             Either a single expression (if a single label is desired), or a
             dictionary of label name -> label value for x and y values.
             Used to color each point w.r.t its label.
             When multiple labels are given, a dropdown will be displayed with the different options.
             Can be used with categorical or continuous expressions.
-        title : str
+        title : str, optional
             Title of the scatterplot.
-        xlabel : str
+        xlabel : str, optional
             X-axis label.
-        ylabel : str
+        ylabel : str, optional
             Y-axis label.
         size : int
             Size of markers in screen space units.
         legend: bool
             Whether or not to show the legend in the resulting figure.
-        hover_fields : Dict[str, :class:`.Expression`]
+        hover_fields : Dict[str, :class:`.Expression`], optional
             Extra fields to be displayed when hovering over a point on the plot.
-        colors : :class:`bokeh.models.mappers.ColorMapper` or Dict[str, :class:`bokeh.models.mappers.ColorMapper`]
+        colors : :class:`bokeh.models.mappers.ColorMapper` or Dict[str, :class:`bokeh.models.mappers.ColorMapper`], optional
             If a single label is used, then this can be a color mapper, if multiple labels are used, then this should
             be a Dict of label name -> color mapper.
             Used to set colors for the labels defined using ``label``.
@@ -1103,7 +1167,7 @@ def joint_plot(
             Plot height
         collect_all : bool
             Whether to collect all values or downsample before plotting.
-        n_divisions : int
+        n_divisions : int, optional
             Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
         missing_label: str
             Label to use when a point is missing data for a categorical label
@@ -1111,22 +1175,41 @@ def joint_plot(
 
         Returns
         -------
-        :class:`bokeh.models.layouts.Column`
+        :class:`.GridPlot`
         """
     # Collect data
     hover_fields = {} if hover_fields is None else hover_fields
-    label = {} if label is None else {'label': label} if isinstance(label, Expression) else label
-    colors = {'label': colors} if isinstance(colors, ColorMapper) else colors
+
+    label_by_col: Dict[str, Expression]
+    if label is None:
+        label_by_col = {}
+    elif isinstance(label, Expression):
+        label_by_col = {'label': label}
+    else:
+        assert isinstance(label, dict)
+        label_by_col = label
+
+    if isinstance(colors, ColorMapper):
+        colors_by_col = {'label': colors}
+    else:
+        colors_by_col = colors
     if isinstance(x, NumericExpression):
-        x = ('x', x)
+        _x = ('x', x)
+    else:
+        _x = x
 
     if isinstance(y, NumericExpression):
-        y = ('y', y)
+        _y = ('y', y)
+    else:
+        _y = y
 
-    label_cols = list(label.keys())
-    source_pd = _collect_scatter_plot_data(x, y, fields={**hover_fields, **label}, n_divisions=None if collect_all else None, missing_label=missing_label)
+    label_cols = list(label_by_col.keys())
+    source_pd = _collect_scatter_plot_data(_x, _y, fields={**hover_fields, **label_by_col}, n_divisions=None if collect_all else None, missing_label=missing_label)
     sp = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, height=height, width=width)
-    sp, sp_legend_items, sp_legend, sp_color_bar, sp_color_mappers, sp_scatter_renderers = _get_scatter_plot_elements(sp, source_pd, x[0], y[0], label_cols, colors, size)
+    sp, sp_legend_items, sp_legend, sp_color_bar, sp_color_mappers, sp_scatter_renderers = _get_scatter_plot_elements(
+        sp, source_pd, _x[0], _y[0], label_cols, colors_by_col, size,
+        hover_cols={'x', 'y'} | set(hover_fields)
+    )
 
     continuous_cols = [col for col in label_cols if
                        (str(source_pd.dtypes[col]).startswith('float')
@@ -1171,23 +1254,26 @@ def joint_plot(
         p.outline_line_color = None
         return p, density_renderers, max_densities
 
+    assert sp_color_mappers is not None
     xp = figure(title=title, height=int(height / 3), width=width, x_range=sp.x_range)
-    xp, x_renderers, x_max_densities = get_density_plot_items(source_pd, x[0], xp, x_axis=True, colors=sp_color_mappers, continuous_cols=continuous_cols, factor_cols=factor_cols)
+    xp, x_renderers, x_max_densities = get_density_plot_items(source_pd, _x[0], xp, x_axis=True, colors=sp_color_mappers, continuous_cols=continuous_cols, factor_cols=factor_cols)
     xp.xaxis.visible = False
     yp = figure(height=height, width=int(width / 3), y_range=sp.y_range)
-    yp, y_renderers, y_max_densities = get_density_plot_items(source_pd, y[0], yp, x_axis=False, colors=sp_color_mappers, continuous_cols=continuous_cols, factor_cols=factor_cols)
+    yp, y_renderers, y_max_densities = get_density_plot_items(source_pd, _y[0], yp, x_axis=False, colors=sp_color_mappers, continuous_cols=continuous_cols, factor_cols=factor_cols)
     yp.yaxis.visible = False
     density_renderers = x_renderers + y_renderers
     first_row = [xp]
 
     if not legend:
+        assert sp_legend is not None
+        assert sp_color_bar is not None
         sp_legend.visible = False
         sp_color_bar.visible = False
 
     # If multiple labels, create JS call back selector
     if len(label_cols) > 1:
 
-        for factor_col, factor, renderer in density_renderers:
+        for factor_col, _, renderer in density_renderers:
             renderer.visible = factor_col == label_cols[0]
 
         if label_cols[0] in factor_cols:
@@ -1196,6 +1282,7 @@ def joint_plot(
             yp.x_range.start = 0
             yp.x_range.end = y_max_densities[label_cols[0]]
 
+        callback_args: Dict[str, Any]
         callback_args = dict(
             scatter_renderers=sp_scatter_renderers,
             color_mappers=sp_color_mappers,
@@ -1250,38 +1337,34 @@ def joint_plot(
     return gridplot([first_row, [sp, yp]])
 
 
-@typecheck(pvals=oneof(expr_numeric, sized_tupleof(str, expr_numeric)),
+@typecheck(pvals=expr_numeric,
            label=nullable(oneof(dictof(str, expr_any), expr_any)), title=nullable(str),
            xlabel=nullable(str), ylabel=nullable(str), size=int, legend=bool,
            hover_fields=nullable(dictof(str, expr_any)),
            colors=nullable(oneof(bokeh.models.mappers.ColorMapper, dictof(str, bokeh.models.mappers.ColorMapper))),
            width=int, height=int, collect_all=bool, n_divisions=nullable(int), missing_label=str)
 def qq(
-        pvals: Union[NumericExpression, Tuple[str, NumericExpression]],
-        label: Union[Expression, Dict[str, Expression]] = None,
-        title: str = 'Q-Q plot',
-        xlabel: str = 'Expected -log10(p)',
-        ylabel: str = 'Observed -log10(p)',
+        pvals: NumericExpression,
+        label: Optional[Union[Expression, Dict[str, Expression]]] = None,
+        title: Optional[str] = 'Q-Q plot',
+        xlabel: Optional[str] = 'Expected -log10(p)',
+        ylabel: Optional[str] = 'Observed -log10(p)',
         size: int = 6,
         legend: bool = True,
-        hover_fields: Dict[str, Expression] = None,
-        colors: Union[ColorMapper, Dict[str, ColorMapper]] = None,
+        hover_fields: Optional[Dict[str, Expression]] = None,
+        colors: Optional[Union[ColorMapper, Dict[str, ColorMapper]]] = None,
         width: int = 800,
         height: int = 800,
         collect_all: bool = False,
-        n_divisions: int = 500,
+        n_divisions: Optional[int] = 500,
         missing_label: str = 'NA'
-) -> Union[Figure, Column]:
+) -> Union[figure, Column]:
     """Create a Quantile-Quantile plot. (https://en.wikipedia.org/wiki/Q-Q_plot)
 
-    ``pvals`` must be either:
-    - a :class:`.NumericExpression`
-    - a tuple (str, :class:`.NumericExpression`). If passed as a tuple the first element is used as the hover label.
-
-    If no label or a single label is provided, then returns :class:`bokeh.plotting.figure.Figure`
+    If no label or a single label is provided, then returns :class:`.figure`
     Otherwise returns a :class:`bokeh.models.layouts.Column` containing:
     - a :class:`bokeh.models.widgets.inputs.Select` dropdown selection widget for labels
-    - a :class:`bokeh.plotting.figure.Figure` containing the interactive qq plot
+    - a :class:`.figure` containing the interactive qq plot
 
     Points will be colored by one of the labels defined in the ``label`` using the color scheme defined in
     the corresponding entry of ``colors`` if provided (otherwise a default scheme is used). To specify your color
@@ -1296,7 +1379,7 @@ def qq(
 
     Parameters
     ----------
-    pvals : :class:`.NumericExpression` or (str, :class:`.NumericExpression`)
+    pvals : :class:`.NumericExpression`
         List of x-values to be plotted.
     label : :class:`.Expression` or Dict[str, :class:`.Expression`]]
         Either a single expression (if a single label is desired), or a
@@ -1304,19 +1387,19 @@ def qq(
         Used to color each point w.r.t its label.
         When multiple labels are given, a dropdown will be displayed with the different options.
         Can be used with categorical or continuous expressions.
-    title : str
+    title : str, optional
         Title of the scatterplot.
-    xlabel : str
+    xlabel : str, optional
         X-axis label.
-    ylabel : str
+    ylabel : str, optional
         Y-axis label.
     size : int
         Size of markers in screen space units.
     legend: bool
         Whether or not to show the legend in the resulting figure.
-    hover_fields : Dict[str, :class:`.Expression`]
+    hover_fields : Dict[str, :class:`.Expression`], optional
         Extra fields to be displayed when hovering over a point on the plot.
-    colors : :class:`bokeh.models.mappers.ColorMapper` or Dict[str, :class:`bokeh.models.mappers.ColorMapper`]
+    colors : :class:`bokeh.models.mappers.ColorMapper` or Dict[str, :class:`bokeh.models.mappers.ColorMapper`], optional
         If a single label is used, then this can be a color mapper, if multiple labels are used, then this should
         be a Dict of label name -> color mapper.
         Used to set colors for the labels defined using ``label``.
@@ -1327,23 +1410,32 @@ def qq(
         Plot height
     collect_all : bool
         Whether to collect all values or downsample before plotting.
-    n_divisions : int
+    n_divisions : int, optional
         Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
     missing_label: str
         Label to use when a point is missing data for a categorical label
 
     Returns
     -------
-    :class:`bokeh.plotting.figure.Figure` if no label or a single label was given, otherwise :class:`bokeh.models.layouts.Column`
+    :class:`.figure` if no label or a single label was given, otherwise :class:`bokeh.models.layouts.Column`
     """
     hover_fields = {} if hover_fields is None else hover_fields
-    label = {} if label is None else {'label': label} if isinstance(label, Expression) else label
+    label_by_col: Dict[str, Expression]
+    if label is None:
+        label_by_col = {}
+    elif isinstance(label, Expression):
+        label_by_col = {'label': label}
+    else:
+        assert isinstance(label, dict)
+        label_by_col = label
+
     source = pvals._indices.source
     if isinstance(source, Table):
-        ht = source.select(p_value=pvals, **hover_fields, **label)
+        ht = source.select(p_value=pvals, **hover_fields, **label_by_col)
     else:
-        ht = source.select_rows(p_value=pvals, **hover_fields, **label).rows()
-    ht = ht.key_by().select('p_value', *hover_fields, *label).key_by('p_value')
+        assert isinstance(source, MatrixTable)
+        ht = source.select_rows(p_value=pvals, **hover_fields, **label_by_col).rows()
+    ht = ht.key_by().select('p_value', *hover_fields, *label_by_col).key_by('p_value')
     n = ht.aggregate(aggregators.count(), _localize=False)
     ht = ht.annotate(
         observed_p=-hail.log10(ht['p_value']),
@@ -1354,7 +1446,7 @@ def qq(
     p = scatter(
         ht.expected_p,
         ht.observed_p,
-        label={x: ht[x] for x in label},
+        label={x: ht[x] for x in label_by_col},
         title=title,
         xlabel=xlabel,
         ylabel=ylabel,
@@ -1389,7 +1481,7 @@ def qq(
 
 @typecheck(pvals=expr_float64, locus=nullable(expr_locus()), title=nullable(str),
            size=int, hover_fields=nullable(dictof(str, expr_any)), collect_all=bool, n_divisions=int, significance_line=nullable(numeric))
-def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_all=False, n_divisions=500, significance_line=5e-8) -> Figure:
+def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_all=False, n_divisions=500, significance_line=5e-8) -> Plot:
     """Create a Manhattan plot. (https://en.wikipedia.org/wiki/Manhattan_plot)
 
     Parameters
@@ -1414,7 +1506,7 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
 
     Returns
     -------
-    :class:`bokeh.plotting.figure.Figure`
+    :class:`.Plot`
     """
     if locus is None:
         locus = pvals._indices.source.locus
@@ -1437,22 +1529,29 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
     source_pd['p_value'] = [10 ** (-p) for p in source_pd['_pval']]
     source_pd['_contig'] = [locus.split(":")[0] for locus in source_pd['locus']]
 
-    observed_contigs = set(source_pd['_contig'])
-    observed_contigs = [contig for contig in ref.contigs.copy() if contig in observed_contigs]
+    observed_contigs = [
+        contig for contig in ref.contigs.copy()
+        if contig in set(source_pd['_contig'])
+    ]
 
     contig_ticks = [ref._contig_global_position(contig) + ref.contig_length(contig) // 2 for contig in observed_contigs]
     color_mapper = CategoricalColorMapper(factors=ref.contigs, palette=palette[:2] * int((len(ref.contigs) + 1) / 2))
 
     p = figure(title=title, x_axis_label='Chromosome', y_axis_label='P-value (-log10 scale)', width=1000)
     p, _, legend, _, _, _ = _get_scatter_plot_elements(
-        p, source_pd, x_col='_global_locus', y_col='_pval',
-        label_cols=['_contig'], colors={'_contig': color_mapper},
-        size=size
+        p,
+        source_pd,
+        x_col='_global_locus',
+        y_col='_pval',
+        label_cols=['_contig'],
+        colors={'_contig': color_mapper},
+        size=size,
+        hover_cols= {'locus', 'p_value'} | set(hover_fields)
     )
+    assert legend is not None
     legend.visible = False
     p.xaxis.ticker = contig_ticks
     p.xaxis.major_label_overrides = dict(zip(contig_ticks, observed_contigs))
-    p.select_one(HoverTool).tooltips = [t for t in p.select_one(HoverTool).tooltips if not t[0].startswith('_')]
 
     if significance_line is not None:
         p.renderers.append(Span(location=-math.log10(significance_line),
@@ -1467,7 +1566,7 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
 @typecheck(entry_field=expr_any, row_field=nullable(oneof(expr_numeric, expr_locus())), column_field=nullable(expr_str),
            window=nullable(int), plot_width=int, plot_height=int)
 def visualize_missingness(entry_field, row_field=None, column_field=None,
-                          window=6000000, plot_width=1800, plot_height=900) -> Figure:
+                          window=6000000, plot_width=1800, plot_height=900) -> figure:
     """Visualize missingness in a MatrixTable.
 
     Inspired by `naniar <https://cran.r-project.org/web/packages/naniar/index.html>`__.
@@ -1497,7 +1596,7 @@ def visualize_missingness(entry_field, row_field=None, column_field=None,
 
     Returns
     -------
-    :class:`bokeh.plotting.figure.Figure`
+    :class:`.figure`
     """
     mt = entry_field._indices.source
     if row_field is None:
@@ -1553,7 +1652,7 @@ def visualize_missingness(entry_field, row_field=None, column_field=None,
 
     from bokeh.plotting import figure
     p = figure(x_range=columns, y_range=list(reversed(rows)),
-               x_axis_location="above", plot_width=plot_width, plot_height=plot_height,
+               x_axis_location="above", width=plot_width, height=plot_height,
                toolbar_location='below',
                tooltips=[('defined', '@defined'), ('row', '@row'), ('column', '@column')]
                )

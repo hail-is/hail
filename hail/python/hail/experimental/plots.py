@@ -4,7 +4,7 @@ import pandas as pd
 
 import hail as hl
 from bokeh.layouts import gridplot
-from bokeh.models import Title, ColumnDataSource, HoverTool, Div, Tabs, Panel
+from bokeh.models import Title, ColumnDataSource, HoverTool, Div, Tabs, TabPanel
 from bokeh.palettes import Spectral8
 from bokeh.plotting import figure
 from bokeh.transform import factor_cmap
@@ -173,7 +173,7 @@ def hail_metadata(t_path):
     if not row_partition_bounds:
         warning('Table is not partitioned. Only plotting file sizes')
         row_file_sizes_hist, row_file_sizes_edges = np.histogram(row_file_sizes, bins=50)
-        p_file_size = figure(plot_width=panel_size, plot_height=panel_size)
+        p_file_size = figure(width=panel_size, height=panel_size)
         p_file_size.quad(right=row_file_sizes_hist, left=0, bottom=row_file_sizes_edges[:-1],
                          top=row_file_sizes_edges[1:], fill_color="#036564", line_color="#033649")
         p_file_size.yaxis.axis_label = f'File size ({row_scale}B)'
@@ -208,7 +208,7 @@ def hail_metadata(t_path):
     tools = "hover,save,pan,box_zoom,reset,wheel_zoom"
 
     source = ColumnDataSource(pd.DataFrame(all_data))
-    p = figure(tools=tools, plot_width=panel_size, plot_height=panel_size)
+    p = figure(tools=tools, width=panel_size, height=panel_size)
     p.title.text = title
     p.xaxis.axis_label = 'Number of rows'
     p.yaxis.axis_label = f'File size ({row_scale}B)'
@@ -220,8 +220,8 @@ def hail_metadata(t_path):
                                         ('rows_per_partition', 'row_file_sizes_human', 'partition_bounds', 'index')]
 
     p_stats = Div(text=msg)
-    p_rows_per_partition = figure(x_range=p.x_range, plot_width=panel_size, plot_height=subpanel_size)
-    p_file_size = figure(y_range=p.y_range, plot_width=subpanel_size, plot_height=panel_size)
+    p_rows_per_partition = figure(x_range=p.x_range, width=panel_size, height=subpanel_size)
+    p_file_size = figure(y_range=p.y_range, width=subpanel_size, height=panel_size)
 
     rows_per_partition_hist, rows_per_partition_edges = np.histogram(all_data['rows_per_partition'], bins=50)
     p_rows_per_partition.quad(top=rows_per_partition_hist, bottom=0, left=rows_per_partition_edges[:-1],
@@ -241,7 +241,7 @@ def hail_metadata(t_path):
             msg += success_file[0]
 
         source = ColumnDataSource(pd.DataFrame(all_data))
-        p = figure(tools=tools, plot_width=panel_size, plot_height=panel_size)
+        p = figure(tools=tools, width=panel_size, height=panel_size)
         p.title.text = title
         p.xaxis.axis_label = 'Number of rows'
         p.yaxis.axis_label = f'File size ({entry_scale}B)'
@@ -251,17 +251,17 @@ def hail_metadata(t_path):
         p.select_one(HoverTool).tooltips = [(x, f'@{x}') for x in ('rows_per_partition', 'entry_file_sizes_human', 'partition_bounds', 'index')]
 
         p_stats = Div(text=msg)
-        p_rows_per_partition = figure(x_range=p.x_range, plot_width=panel_size, plot_height=subpanel_size)
+        p_rows_per_partition = figure(x_range=p.x_range, width=panel_size, height=subpanel_size)
         p_rows_per_partition.quad(top=rows_per_partition_hist, bottom=0, left=rows_per_partition_edges[:-1],
                                   right=rows_per_partition_edges[1:],
                                   fill_color="#036564", line_color="#033649")
-        p_file_size = figure(y_range=p.y_range, plot_width=subpanel_size, plot_height=panel_size)
+        p_file_size = figure(y_range=p.y_range, width=subpanel_size, height=panel_size)
 
         row_file_sizes_hist, row_file_sizes_edges = np.histogram(all_data['entry_file_sizes'], bins=50)
         p_file_size.quad(right=row_file_sizes_hist, left=0, bottom=row_file_sizes_edges[:-1],
                          top=row_file_sizes_edges[1:], fill_color="#036564", line_color="#033649")
         entries_grid = gridplot([[p_rows_per_partition, p_stats], [p, p_file_size]])
 
-        return Tabs(tabs=[Panel(child=entries_grid, title='Entries'), Panel(child=rows_grid, title='Rows')])
+        return Tabs(tabs=[TabPanel(child=entries_grid, title='Entries'), TabPanel(child=rows_grid, title='Rows')])
     else:
         return rows_grid
