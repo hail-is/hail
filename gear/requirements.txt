@@ -1,5 +1,7 @@
+-c ../hail/python/hailtop/pinned-requirements.txt
 -c ../hail/python/pinned-requirements.txt
 -c ../hail/python/dev/pinned-requirements.txt
+
 aiohttp_session>=2.7,<2.13
 aiomysql>=0.0.20,<1
 google-cloud-profiler<4.0.0
