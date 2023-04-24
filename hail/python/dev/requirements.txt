@@ -1,3 +1,5 @@
+-c ../pinned-requirements.txt
+
 flake8>=4.0.1,<5
 mypy==0.990
 pylint>=2.13.5,<3
