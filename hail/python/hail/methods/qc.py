@@ -1002,7 +1002,7 @@ def _service_vep(backend: ServiceBackend,
                 }
                 raise FatalError(yamlx.dump(message))
 
-            annotations = hl.import_table(f'{vep_output_path.name}/annotations/*',
+            annotations = hl.import_table(f'{vep_output_path}/annotations/*',
                                           types={'variant': hl.tstr,
                                                  'vep': vep_typ,
                                                  'part_id': hl.tint,
@@ -1018,7 +1018,7 @@ def _service_vep(backend: ServiceBackend,
             annotations = annotations.drop('variant')
 
             if csq:
-                with hl.hadoop_open(f'{vep_output_path.name}/csq-header') as f:
+                with hl.hadoop_open(f'{vep_output_path}/csq-header') as f:
                     vep_csq_header = f.read().rstrip()
                 annotations = annotations.annotate_globals(vep_csq_header=vep_csq_header)
 
