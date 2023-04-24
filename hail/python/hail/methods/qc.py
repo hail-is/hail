@@ -897,15 +897,12 @@ def _service_vep(backend: ServiceBackend,
                          "Use hl.init(gcs_requester_pays_configuration='MY_PROJECT') "
                          "to set the requester pays project to use.")
 
-    vep_input_path = hl.TemporaryDirectory(prefix='qob/vep/inputs/')
-    vep_output_path = hl.TemporaryDirectory(prefix='qob/vep/outputs/')
-
     if csq:
         vep_typ = hl.tarray(hl.tstr)
     else:
         vep_typ = vep_config.json_typ
 
-    def build_vep_batch(bb: bc.aioclient.BatchBuilder):
+    def build_vep_batch(bb: bc.aioclient.BatchBuilder, vep_input_path: hl.TemporaryDirectory, vep_output_path: hl.TemporaryDirectory):
         if csq:
             local_output_file = '/io/output'
             vep_command = vep_config.command(
@@ -972,54 +969,56 @@ def _service_vep(backend: ServiceBackend,
                           requester_pays_project=requester_pays_project,
                           env=env)
 
-    hl.export_vcf(ht, vep_input_path.name, parallel='header_per_shard')
+    with hl.TemporaryDirectory(prefix='qob/vep/inputs/') as vep_input_path:
+        with hl.TemporaryDirectory(prefix='qob/vep/outputs/') as vep_output_path:
+            hl.export_vcf(ht, vep_input_path.name, parallel='header_per_shard')
 
-    name = 'vep(...)'
+            name = 'vep(...)'
 
-    starting_job_id = async_to_blocking(backend._batch.status())['n_jobs'] + 1
+            starting_job_id = async_to_blocking(backend._batch.status())['n_jobs'] + 1
 
-    bb = backend.bc.update_batch(backend._batch.id)
-    build_vep_batch(bb)
-    b = bb.submit(disable_progress_bar=True)
+            bb = backend.bc.update_batch(backend._batch.id)
+            build_vep_batch(bb, vep_input_path, vep_output_path)
+            b = bb.submit(disable_progress_bar=True)
 
-    try:
-        status = b.wait(description=name,
-                        disable_progress_bar=backend.disable_progress_bar,
-                        progress=None,
-                        starting_job=starting_job_id)
-    except BaseException:
-        b.cancel()
-        raise
+            try:
+                status = b.wait(description=name,
+                                disable_progress_bar=backend.disable_progress_bar,
+                                progress=None,
+                                starting_job=starting_job_id)
+            except BaseException:
+                b.cancel()
+                raise
 
-    if status['n_succeeded'] != status['n_jobs']:
-        failing_job = [job for job in b.jobs('!success')][0]
-        failing_job = b.get_job(failing_job['job_id'])
-        message = {
-            'batch_status': status,
-            'job_status': failing_job.status(),
-            'log': failing_job.log()
-        }
-        raise FatalError(yamlx.dump(message))
+            if status['n_succeeded'] != status['n_jobs']:
+                failing_job = [job for job in b.jobs('!success')][0]
+                failing_job = b.get_job(failing_job['job_id'])
+                message = {
+                    'batch_status': status,
+                    'job_status': failing_job.status(),
+                    'log': failing_job.log()
+                }
+                raise FatalError(yamlx.dump(message))
 
-    annotations = hl.import_table(f'{vep_output_path.name}/annotations/*',
-                                  types={'variant': hl.tstr,
-                                         'vep': vep_typ,
-                                         'part_id': hl.tint,
-                                         'block_id': hl.tint},
-                                  force=True)
+            annotations = hl.import_table(f'{vep_output_path.name}/annotations/*',
+                                          types={'variant': hl.tstr,
+                                                 'vep': vep_typ,
+                                                 'part_id': hl.tint,
+                                                 'block_id': hl.tint},
+                                          force=True)
 
-    annotations = annotations.annotate(vep_proc_id=hl.struct(
-        part_id=annotations.part_id,
-        block_id=annotations.block_id
-    ))
-    annotations = annotations.drop('part_id', 'block_id')
-    annotations = annotations.key_by(**hl.parse_variant(annotations.variant, reference_genome=reference_genome))
-    annotations = annotations.drop('variant')
+            annotations = annotations.annotate(vep_proc_id=hl.struct(
+                part_id=annotations.part_id,
+                block_id=annotations.block_id
+            ))
+            annotations = annotations.drop('part_id', 'block_id')
+            annotations = annotations.key_by(**hl.parse_variant(annotations.variant, reference_genome=reference_genome))
+            annotations = annotations.drop('variant')
 
-    if csq:
-        with hl.hadoop_open(f'{vep_output_path.name}/csq-header') as f:
-            vep_csq_header = f.read().rstrip()
-        annotations = annotations.annotate_globals(vep_csq_header=vep_csq_header)
+            if csq:
+                with hl.hadoop_open(f'{vep_output_path.name}/csq-header') as f:
+                    vep_csq_header = f.read().rstrip()
+                annotations = annotations.annotate_globals(vep_csq_header=vep_csq_header)
 
     return annotations
 
