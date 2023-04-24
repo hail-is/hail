@@ -18,8 +18,6 @@ sphinx-autodoc-typehints==1.11.1
 nbsphinx>=0.8.8,<1
 sphinx_rtd_theme>=1.0.0,<2
 jupyter>=1.0.0,<2
-# importlib-metadata<4: in dev/requirements.txt, jupyter depends on (an unpinned) ipykernel which needs importlib-metadata<4
-importlib-metadata<4
 sphinxcontrib.katex>=0.9.0,<1
 fswatch>=0.1.1,<1
 matplotlib>=3.5,<4
