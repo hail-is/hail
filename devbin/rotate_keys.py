@@ -6,7 +6,7 @@ import sys
 import warnings
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Generator, List, Optional, TextIO, Tuple, Any, TypedDict
+from typing import Generator, List, Optional, TextIO, Tuple, Any, TypedDict, Set
 
 import kubernetes_asyncio.client
 import kubernetes_asyncio.config
@@ -41,6 +41,7 @@ class RotationState(Enum):
     UP_TO_DATE = f'{OK_GREEN}UP TO DATE{ENDC}'
     IN_PROGRESS = f'{OK_BLUE}IN PROGRESS{ENDC}'
     READY_FOR_DELETE = f'{WARNING_YELLOW}READY FOR DELETE{ENDC}'
+    SOON_TO_EXPIRE = f'{WARNING_YELLOW}SOON TO EXPIRE{ENDC}'
     EXPIRED = f'{ERROR_RED}EXPIRED{ENDC}'
 
 
@@ -121,6 +122,9 @@ class IAMKey:
     def expired(self) -> bool:
         return self.older_than(90)
 
+    def soon_to_expire(self) -> bool:
+        return self.older_than(60)
+
     def recently_created(self) -> bool:
         return not self.older_than(30)
 
@@ -176,6 +180,8 @@ class ServiceAccount:
             return RotationState.IN_PROGRESS
         elif not active_key.recently_created() and len(old_user_keys) > 0:
             return RotationState.READY_FOR_DELETE
+        elif active_key.soon_to_expire():
+            return RotationState.SOON_TO_EXPIRE
         else:
             assert len(old_user_keys) == 0
             return RotationState.UP_TO_DATE
@@ -276,22 +282,35 @@ class IAMManager:
 async def add_new_keys(service_accounts: List[ServiceAccount],
                        iam_manager: IAMManager,
                        k8s_manager: KubeSecretManager,
-                       ignore: Optional[RotationState] = None):
-    for sa in service_accounts:
-        if sa.disabled:
-            continue
-        if ignore is not None and sa.rotation_state() == ignore:
-            continue
+                       *,
+                       exclude: Optional[Set[RotationState]] = None,
+                       interactive: bool):
+    exclude = exclude or {}
+    service_accounts_under_consideration = [
+        sa
+        for sa in service_accounts
+        if not sa.disabled and sa.rotation_state() not in exclude
+    ]
+    if not interactive:
+        accounts_str = '\n'.join(str(sa) for sa in service_accounts_under_consideration)
+        print(accounts_str)
+        if input('New keys will be created for the above accounts. Proceed? Only yes will be accepted: ') != 'yes':
+            return
+
+    for sa in service_accounts_under_consideration:
         sa.list_keys(sys.stdout)
-        if input('Create new key?\nOnly yes will be accepted: ') == 'yes':
-            new_key, key_data = await iam_manager.create_new_key(sa)
-            sa.add_new_key(new_key)
-            print(f'Created new key: {new_key.id}')
-            new_secrets = await asyncio.gather(
-                *[k8s_manager.update_gsa_key_secret(s, key_data) for s in sa.kube_secrets]
-            )
-            sa.kube_secrets = list(new_secrets)
-            sa.list_keys(sys.stdout)
+        if interactive:
+            if input('Create new key?\nOnly yes will be accepted: ') != 'yes':
+                continue
+
+        new_key, key_data = await iam_manager.create_new_key(sa)
+        sa.add_new_key(new_key)
+        print(f'Created new key: {new_key.id}')
+        new_secrets = await asyncio.gather(
+            *[k8s_manager.update_gsa_key_secret(s, key_data) for s in sa.kube_secrets]
+        )
+        sa.kube_secrets = list(new_secrets)
+        sa.list_keys(sys.stdout)
 
 
 async def delete_old_keys(service_accounts: List[ServiceAccount], iam_manager: IAMManager, focus: Optional[RotationState] = None):
@@ -383,11 +402,15 @@ async def main():
         for secret in other_secrets:
             print(f'\t{secret.metadata.name} ({secret.metadata.namespace})')
 
-        action = input('What action would you like to take?[update/update-all/delete/delete-ready-only/delete-in-progress-only]: ')
+        action = input('What action would you like to take?[update/interactive-update/delete/delete-ready-only/delete-in-progress-only]: ')
         if action == 'update':
-            await add_new_keys(service_accounts, iam_manager, k8s_manager, ignore=RotationState.UP_TO_DATE)
-        if action == 'update-all':
-            await add_new_keys(service_accounts, iam_manager, k8s_manager)
+            await add_new_keys(service_accounts, iam_manager, k8s_manager,
+                               exclude={RotationState.UP_TO_DATE,
+                                        RotationState.IN_PROGRESS,
+                                        RotationState.READY_FOR_DELETE},
+                               interactive=False)
+        if action == 'interactive-update':
+            await add_new_keys(service_accounts, iam_manager, k8s_manager, interactive=True)
         elif action == 'delete':
             await delete_old_keys(service_accounts, iam_manager)
         elif action == 'delete-ready-only':
