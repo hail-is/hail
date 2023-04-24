@@ -11,6 +11,12 @@ resource "google_storage_bucket_iam_member" "ci_bucket_admin" {
   member = "serviceAccount:${var.ci_email}"
 }
 
+resource "google_storage_bucket_iam_member" "ci_gcr_admin" {
+  bucket = var.container_registry_id
+  role = "roles/storage.admin"
+  member = "serviceAccount:${var.ci_email}"
+}
+
 resource "kubernetes_secret" "ci_config" {
   metadata {
     name = "ci-config"

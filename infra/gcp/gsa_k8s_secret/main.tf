@@ -1,21 +1,9 @@
-resource "random_string" "name_suffix" {
-  length = 3
-  special = false
-  upper = false
-  lower = false
-  lifecycle {
-    ignore_changes = [
-      special,
-      upper,
-      lower,
-    ]
-  }
+resource "random_id" "name_suffix" {
+  byte_length = 2
 }
 
 resource "google_service_account" "service_account" {
-  display_name = "${var.name}-${random_string.name_suffix.result}"
-  account_id = "${var.name}-${random_string.name_suffix.result}"
-  timeouts {}
+  account_id = "${var.name}-${random_id.name_suffix.hex}"
 }
 
 resource "google_service_account_key" "service_account_key" {

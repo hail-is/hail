@@ -93,22 +93,22 @@ Instructions:
 
   ```json
   {
+      "bucket_location": "<gcp-zone>",
+      "bucket_storage_class": "STANDARD",
       "deploy_steps": [
           "deploy_batch",
           "test_batch_0",
           "deploy_ci"
       ],
       "github_context": "ci-gcp",
+      "github_oauth_token": "<TOKEN>",
+      "github_user1_oauth_token": "<TOKEN>",
       "watched_branches": [
           [
               "hail-is/hail:main",
               true,
               false
           ]
-      ],
-      "test_oauth2_callback_urls": [
-          "https://internal.hail.is/alpha/oauth2callback",
-	  ...
       ]
   }
   ```
@@ -130,11 +130,24 @@ Instructions:
   You should see:
 
   ```sh
-  NAME                                                                  PURPOSE          ALGORITHM                    PROTECTION_LEVEL  LABELS  PRIMARY_ID  PRIMARY_STATE
-  projects/hail-vdc/locations/global/keyRings/sops/cryptoKeys/sops-key  ENCRYPT_DECRYPT  GOOGLE_SYMMETRIC_ENCRYPTION  SOFTWARE                  1           ENABLED
+  NAME                                                                         PURPOSE          PRIMARY_STATE
+  projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key ENCRYPT_DECRYPT  ENABLED
   ```
 
   This key can be shared with other developers in your team, controlling access through IAM.  It needs to be created outside of Terraform to avoid a cyclic dependency: the Terraform configuration needs to decrypt `sops` files.
+
+- Create a service account for Terraform with Owner role.  We use
+  service account name `terraform`.  Create a JSON service account key
+  and place it in `/tmp/terraform_sa_key.json`.
+
+  ```
+  gcloud iam service-accounts create terraform --display-name="Terraform Account"
+
+  gcloud projects add-iam-policy-binding <project-id> --member='serviceAccount:terraform@<project-id>.iam.gserviceaccount.com' --role='roles/owner'
+
+  gcloud iam service-accounts keys create /tmp/terraform_sa_key.json  --iam-account=terraform@<project-id>.iam.gserviceaccount.com
+  ```
+
 
 - Encrypt the above files and add them to the repository.
 
@@ -143,6 +156,8 @@ Instructions:
 
   # Optional
   sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/ci_config.json > $HAIL/infra/gcp/$GITHUB_ORGANIZATION/ci_config.enc.json
+
+  sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/terraform_sa_key.json > $HAIL/infra/gcp/$GITHUB_ORGANIZATION/terraform_sa_key.enc.json
 
   git add $HAIL/infra/gcp/$GITHUB_ORGANIZATION/*
 
@@ -170,10 +185,11 @@ Instructions:
 
 You can now install Hail:
 
-- Create a VM on the internal network, standard-8, 100GB PD-SSD, Ubuntu 20.04
-  TLS. This VM's identity needs Owner access to the project.  10GB will run out
-  of space.  We assume the rest of the commands are run on the VM.  You will
-  need to connect to this instance with ssh.  You may want to add a suiteable
+- Create a VM on the internal network, standard-8, 100GB PD-SSD,
+  Ubuntu 20.04 TLS, allow full access to all Cloud APIs, use the
+  Terraform service account.  10GB will run out of space.  We assume
+  the rest of the commands are run on the VM.  You will need to
+  connect to this instance with ssh.  You may want to add a suiteable
   ssh forwarding rule to the default network.
 
 - Clone the Hail Github repository:

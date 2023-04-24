@@ -41,7 +41,6 @@ variable "use_artifact_registry" {
   type = bool
   description = "pull the ubuntu image from Artifact Registry. Otherwise, GCR"
 }
-variable artifact_registry_location {}
 
 variable deploy_ukbb {
   type = bool
@@ -58,13 +57,21 @@ locals {
   docker_root_image = "${local.docker_prefix}/ubuntu:20.04"
 }
 
+data "sops_file" "terraform_sa_key_sops" {
+  source_file = "${var.github_organization}/terraform_sa_key.enc.json"
+}
+
 provider "google" {
+  credentials = data.sops_file.terraform_sa_key_sops.raw
+
   project = var.gcp_project
   region = var.gcp_region
   zone = var.gcp_zone
 }
 
 provider "google-beta" {
+  credentials = data.sops_file.terraform_sa_key_sops.raw
+
   project = var.gcp_project
   region = var.gcp_region
   zone = var.gcp_zone
@@ -73,15 +80,11 @@ provider "google-beta" {
 data "google_client_config" "provider" {}
 
 resource "google_project_service" "service_networking" {
-  disable_on_destroy = true
   service = "servicenetworking.googleapis.com"
-  timeouts {}
 }
 
 resource "google_compute_network" "default" {
   name = "default"
-  description = "Default network for the project"
-  enable_ula_internal_ipv6 = false
 }
 
 data "google_compute_subnetwork" "default_region" {
@@ -95,22 +98,12 @@ resource "google_container_cluster" "vdc" {
   name = "vdc"
   location = var.gcp_zone
   network = google_compute_network.default.name
-  enable_shielded_nodes = null
 
   # We can't create a cluster with no node pool defined, but we want to only use
   # separately managed node pools. So we create the smallest possible default
   # node pool and immediately delete it.
-  # remove_default_node_pool = true
-  remove_default_node_pool = null
-  initial_node_count = 0
-
-  resource_labels = {
-    role = "vdc"
-  }
-
-  release_channel {
-    channel = "REGULAR"
-  }
+  remove_default_node_pool = true
+  initial_node_count = 1
 
   master_auth {
     client_certificate_config {
@@ -118,22 +111,15 @@ resource "google_container_cluster" "vdc" {
     }
   }
 
+  release_channel {
+    channel = "STABLE"
+  }
+
   cluster_autoscaling {
     # Don't use node auto-provisioning since we manage node pools ourselves
     enabled = false
     autoscaling_profile = "OPTIMIZE_UTILIZATION"
   }
-
-  resource_usage_export_config {
-    enable_network_egress_metering       = false
-    enable_resource_consumption_metering = true
-
-    bigquery_destination {
-      dataset_id = "gke_vdc_usage"
-    }
-  }
-
-  timeouts {}
 }
 
 resource "google_container_node_pool" "vdc_preemptible_pool" {
@@ -142,7 +128,7 @@ resource "google_container_node_pool" "vdc_preemptible_pool" {
   cluster  = google_container_cluster.vdc.name
 
   # Allocate at least one node, so that autoscaling can take place.
-  initial_node_count = 3
+  initial_node_count = 1
 
   autoscaling {
     min_node_count = 0
@@ -151,7 +137,7 @@ resource "google_container_node_pool" "vdc_preemptible_pool" {
 
   node_config {
     spot = true
-    machine_type = "n1-standard-2"
+    machine_type = "n1-standard-4"
 
     labels = {
       "preemptible" = "true"
@@ -168,26 +154,8 @@ resource "google_container_node_pool" "vdc_preemptible_pool" {
     }
 
     oauth_scopes = [
-      "https://www.googleapis.com/auth/devstorage.read_only",
-      "https://www.googleapis.com/auth/logging.write",
-      "https://www.googleapis.com/auth/monitoring",
-      "https://www.googleapis.com/auth/service.management.readonly",
-      "https://www.googleapis.com/auth/servicecontrol",
-      "https://www.googleapis.com/auth/trace.append",
+      "https://www.googleapis.com/auth/cloud-platform"
     ]
-    tags = []
-
-    shielded_instance_config {
-      enable_integrity_monitoring = true
-      enable_secure_boot          = false
-    }
-  }
-
-  timeouts {}
-
-  upgrade_settings {
-    max_surge       = 1
-    max_unavailable = 0
   }
 }
 
@@ -197,21 +165,16 @@ resource "google_container_node_pool" "vdc_nonpreemptible_pool" {
   cluster  = google_container_cluster.vdc.name
 
   # Allocate at least one node, so that autoscaling can take place.
-  initial_node_count = 2
+  initial_node_count = 1
 
   autoscaling {
     min_node_count = 0
     max_node_count = 200
   }
 
-  management {
-    auto_repair  = true
-    auto_upgrade = true
-  }
-
   node_config {
     preemptible = false
-    machine_type = "n1-standard-2"
+    machine_type = "n1-standard-4"
 
     labels = {
       preemptible = "false"
@@ -222,42 +185,13 @@ resource "google_container_node_pool" "vdc_nonpreemptible_pool" {
     }
 
     oauth_scopes = [
-      "https://www.googleapis.com/auth/devstorage.read_only",
-      "https://www.googleapis.com/auth/logging.write",
-      "https://www.googleapis.com/auth/monitoring",
-      "https://www.googleapis.com/auth/service.management.readonly",
-      "https://www.googleapis.com/auth/servicecontrol",
-      "https://www.googleapis.com/auth/trace.append",
+      "https://www.googleapis.com/auth/cloud-platform"
     ]
-
-    tags = []
-
-    shielded_instance_config {
-      enable_integrity_monitoring = true
-      enable_secure_boot          = false
-    }
-  }
-
-  timeouts {}
-
-  upgrade_settings {
-    max_surge       = 1
-    max_unavailable = 0
   }
 }
 
-resource "random_string" "db_name_suffix" {
-  length = 5
-  special = false
-  numeric = false
-  upper = false
-  lifecycle {
-    ignore_changes = [
-      special,
-      numeric,
-      upper,
-    ]
-  }
+resource "random_id" "db_name_suffix" {
+  byte_length = 4
 }
 
 # Without this, I get:
@@ -275,24 +209,20 @@ resource "google_compute_global_address" "google_managed_services_default" {
 
 resource "google_service_networking_connection" "private_vpc_connection" {
   network = google_compute_network.default.id
-  service = "services/servicenetworking.googleapis.com"
-  reserved_peering_ranges = [
-    "jg-test-clone-resource-id-ip-range",
-    google_compute_global_address.google_managed_services_default.name
-  ]
+  service = "servicenetworking.googleapis.com"
+  reserved_peering_ranges = [google_compute_global_address.google_managed_services_default.name]
 }
 
 resource "google_compute_network_peering_routes_config" "private_vpc_peering_config" {
   peering = google_service_networking_connection.private_vpc_connection.peering
   network = google_compute_network.default.name
-  import_custom_routes = false
+  import_custom_routes = true
   export_custom_routes = true
-  timeouts {}
 }
 
 resource "google_sql_database_instance" "db" {
-  name = "db-${random_string.db_name_suffix.result}"
-  database_version = "MYSQL_8_0_28"
+  name = "db-${random_id.db_name_suffix.hex}"
+  database_version = "MYSQL_8_0"
   region = var.gcp_region
 
   depends_on = [google_service_networking_connection.private_vpc_connection]
@@ -307,70 +237,37 @@ resource "google_sql_database_instance" "db" {
       private_network = google_compute_network.default.id
       require_ssl = true
     }
-
-    backup_configuration {
-      binary_log_enabled             = false
-      enabled                        = true
-      location                       = "us"
-      point_in_time_recovery_enabled = false
-      start_time                     = "13:00"
-      transaction_log_retention_days = 7
-
-      backup_retention_settings {
-	retained_backups = 7
-	retention_unit   = "COUNT"
-      }
-    }
-
     database_flags {
-      name  = "innodb_log_buffer_size"
+      name = "innodb_log_buffer_size"
       value = "536870912"
     }
     database_flags {
-      name  = "innodb_log_file_size"
+      name = "innodb_log_file_size"
       value = "5368709120"
     }
     database_flags {
-      name  = "event_scheduler"
+      name = "event_scheduler"
       value = "on"
     }
     database_flags {
-      name  = "skip_show_database"
+      name = "skip_show_database"
       value = "on"
     }
     database_flags {
-      name  = "local_infile"
+      name = "local_infile"
       value = "off"
     }
-
-    insights_config {
-      query_insights_enabled  = true
-      query_string_length     = 1024
-      record_application_tags = false
-      record_client_address   = false
-    }
-
-    location_preference {
-      zone = "us-central1-a"
-    }
-
-    maintenance_window {
-      day  = 7
-      hour = 16
-    }
   }
-
-  timeouts {}
 }
 
 resource "google_compute_address" "gateway" {
-  name = "site"
+  name = "gateway"
   region = var.gcp_region
 }
 
 resource "google_compute_address" "internal_gateway" {
   name = "internal-gateway"
-  # subnetwork = data.google_compute_subnetwork.default_region.id
+  subnetwork = data.google_compute_subnetwork.default_region.id
   address_type = "INTERNAL"
   region = var.gcp_region
 }
@@ -394,8 +291,8 @@ resource "kubernetes_secret" "global_config" {
     batch_logs_bucket = module.batch_logs.name  # Deprecated
     batch_logs_storage_uri = "gs://${module.batch_logs.name}"
     hail_query_gcs_path = "gs://${module.hail_query.name}" # Deprecated
-    hail_test_gcs_bucket = google_storage_bucket.hail_test_bucket.name # Deprecated
-    test_storage_uri = "gs://${google_storage_bucket.hail_test_bucket.name}"
+    hail_test_gcs_bucket = module.hail_test_gcs_bucket.name # Deprecated
+    test_storage_uri = "gs://${module.hail_test_gcs_bucket.name}"
     query_storage_uri  = "gs://${module.hail_query.name}"
     default_namespace = "default"
     docker_root_image = local.docker_root_image
@@ -463,11 +360,14 @@ END
   }
 }
 
+resource "google_container_registry" "registry" {
+}
+
 resource "google_artifact_registry_repository" "repository" {
   provider = google-beta
   format = "DOCKER"
   repository_id = "hail"
-  location = var.artifact_registry_location
+  location = var.gcp_location
 }
 
 resource "google_service_account" "gcr_push" {
@@ -483,7 +383,7 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_bat
   provider = google-beta
   project = var.gcp_project
   repository = google_artifact_registry_repository.repository.name
-  location = var.artifact_registry_location
+  location = var.gcp_location
   role = "roles/artifactregistry.reader"
   member = "serviceAccount:${google_service_account.batch_agent.email}"
 }
@@ -492,17 +392,23 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_ci_
   provider = google-beta
   project = var.gcp_project
   repository = google_artifact_registry_repository.repository.name
-  location = var.artifact_registry_location
+  location = var.gcp_location
   role = "roles/artifactregistry.reader"
   member = "serviceAccount:${module.ci_gsa_secret.email}"
+}
+
+resource "google_storage_bucket_iam_member" "gcr_push_admin" {
+  bucket = google_container_registry.registry.id
+  role = "roles/storage.admin"
+  member = "serviceAccount:${google_service_account.gcr_push.email}"
 }
 
 resource "google_artifact_registry_repository_iam_member" "artifact_registry_push_admin" {
   provider = google-beta
   project = var.gcp_project
   repository = google_artifact_registry_repository.repository.name
-  location = var.artifact_registry_location
-  role = "roles/artifactregistry.repoAdmin"
+  location = var.gcp_location
+  role = "roles/artifactregistry.admin"
   member = "serviceAccount:${google_service_account.gcr_push.email}"
 }
 
@@ -542,6 +448,7 @@ module "batch_gsa_secret" {
     "compute.instanceAdmin.v1",
     "iam.serviceAccountUser",
     "logging.viewer",
+    "storage.admin",
   ]
 }
 
@@ -561,9 +468,15 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_vie
   provider = google-beta
   project = var.gcp_project
   repository = google_artifact_registry_repository.repository.name
-  location = var.artifact_registry_location
+  location = var.gcp_location
   role = "roles/artifactregistry.reader"
   member = "serviceAccount:${module.ci_gsa_secret.email}"
+}
+
+module "monitoring_gsa_secret" {
+  source = "./gsa_k8s_secret"
+  name = "monitoring"
+  project = var.gcp_project
 }
 
 module "grafana_gsa_secret" {
@@ -585,12 +498,17 @@ module "test_gsa_secret" {
 }
 
 resource "google_storage_bucket_iam_member" "test_bucket_admin" {
-  bucket = google_storage_bucket.hail_test_bucket.name
+  bucket = module.hail_test_gcs_bucket.name
   role = "roles/storage.admin"
   member = "serviceAccount:${module.test_gsa_secret.email}"
 }
 
-# in prod this is a dupe of test.
+resource "google_storage_bucket_iam_member" "test_gcr_viewer" {
+  bucket = google_container_registry.registry.id
+  role = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.test_gsa_secret.email}"
+}
+
 module "test_dev_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "test-dev"
@@ -598,8 +516,6 @@ module "test_dev_gsa_secret" {
 }
 
 resource "google_service_account" "batch_agent" {
-  description  = "Delete instances and pull images"
-  display_name = "batch2-agent"
   account_id = "batch2-agent"
 }
 
@@ -608,8 +524,7 @@ resource "google_project_iam_member" "batch_agent_iam_member" {
     "compute.instanceAdmin.v1",
     "iam.serviceAccountUser",
     "logging.logWriter",
-    "storage.objectCreator",
-    "storage.objectViewer",
+    "storage.objectAdmin",
   ])
 
   project = var.gcp_project
@@ -621,7 +536,7 @@ resource "google_compute_firewall" "default_allow_internal" {
   name    = "default-allow-internal"
   network = google_compute_network.default.name
 
-  priority = 1000
+  priority = 65534
 
   source_ranges = ["10.128.0.0/9"]
 
@@ -638,8 +553,6 @@ resource "google_compute_firewall" "default_allow_internal" {
   allow {
     protocol = "icmp"
   }
-
-  timeouts {}
 }
 
 resource "google_compute_firewall" "vdc_to_batch_worker" {
@@ -679,54 +592,30 @@ module "hail_query" {
   storage_class = var.hail_query_bucket_storage_class
 }
 
-resource "random_string" "hail_test_bucket_suffix" {
-  length = 5
-}
-
-resource "google_storage_bucket" "hail_test_bucket" {
-  name = "hail-test-${random_string.hail_test_bucket_suffix.result}"
-  location = var.hail_test_gcs_bucket_location
-  force_destroy = false
+module "hail_test_gcs_bucket" {
+  source        = "./gcs_bucket"
+  short_name    = "hail-test"
+  location      = var.hail_test_gcs_bucket_location
   storage_class = var.hail_test_gcs_bucket_storage_class
-  lifecycle_rule {
-    action {
-      type = "Delete"
-    }
-    condition {
-      age                        = 1
-      days_since_custom_time     = 0
-      days_since_noncurrent_time = 0
-      matches_prefix             = []
-      matches_storage_class      = []
-      matches_suffix             = []
-      num_newer_versions         = 0
-      with_state                 = "ANY"
-    }
-  }
-
-  timeouts {}
 }
 
 resource "google_dns_managed_zone" "dns_zone" {
-  description = ""
-  name = "hail"
+  name = "dns-zone"
   dns_name = "hail."
   visibility = "private"
 
   private_visibility_config {
     networks {
-      network_url = google_compute_network.default.self_link
+      network_url = google_compute_network.default.id
     }
   }
-
-  timeouts {}
 }
 
 resource "google_dns_record_set" "internal_gateway" {
   name = "*.${google_dns_managed_zone.dns_zone.dns_name}"
   managed_zone = google_dns_managed_zone.dns_zone.name
   type = "A"
-  ttl = 3600
+  ttl = 300
 
   rrdatas = [google_compute_address.internal_gateway.address]
 }
@@ -759,12 +648,8 @@ resource "kubernetes_cluster_role_binding" "batch" {
   }
 }
 
-data "sops_file" "auth_oauth2_client_secret_sops_client_secret_json" {
-  source_file = "${var.github_organization}/auth_oauth2_client_secret.client_secret.enc.json"
-}
-
-data "sops_file" "auth_oauth2_client_secret_sops_client_secret_v2_json" {
-  source_file = "${var.github_organization}/auth_oauth2_client_secret.client_secret_v2.enc.json"
+data "sops_file" "auth_oauth2_client_secret_sops" {
+  source_file = "${var.github_organization}/auth_oauth2_client_secret.enc.json"
 }
 
 resource "kubernetes_secret" "auth_oauth2_client_secret" {
@@ -773,8 +658,7 @@ resource "kubernetes_secret" "auth_oauth2_client_secret" {
   }
 
   data = {
-    "client_secret.json" = data.sops_file.auth_oauth2_client_secret_sops_client_secret_json.raw
-    "client_secret_v2.json" = data.sops_file.auth_oauth2_client_secret_sops_client_secret_v2_json.raw
+    "client_secret.json" = data.sops_file.auth_oauth2_client_secret_sops.raw
   }
 }
 
@@ -799,5 +683,6 @@ module "ci" {
   bucket_storage_class = local.ci_config.data["bucket_storage_class"]
 
   ci_email = module.ci_gsa_secret.email
+  container_registry_id = google_container_registry.registry.id
   github_context = local.ci_config.data["github_context"]
 }

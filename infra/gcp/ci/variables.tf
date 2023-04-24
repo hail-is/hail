@@ -28,6 +28,10 @@ variable "ci_email" {
   type = string
 }
 
+variable "container_registry_id" {
+  type = string
+}
+
 variable "github_context" {
   type = string
 }
