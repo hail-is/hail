@@ -1,5 +1,9 @@
+# hailtop is installed in every service so we must be compatible with it
 -c ../hail/python/hailtop/pinned-requirements.txt
+# ci-utils includes gear and is used by test_dataproc which installs hail ergo we must be compatible
+# with hail
 -c ../hail/python/pinned-requirements.txt
+# dev is installed in the batch tests
 -c ../hail/python/dev/pinned-requirements.txt
 
 aiohttp_session>=2.7,<2.13

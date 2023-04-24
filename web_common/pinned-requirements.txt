@@ -45,7 +45,7 @@ idna==3.4
     #   -c hail/web_common/../hail/python/dev/pinned-requirements.txt
     #   -c hail/web_common/../hail/python/pinned-requirements.txt
     #   yarl
-jinja2==3.0.3
+jinja2==3.1.2
     # via
     #   -c hail/web_common/../hail/python/dev/pinned-requirements.txt
     #   -c hail/web_common/../hail/python/pinned-requirements.txt

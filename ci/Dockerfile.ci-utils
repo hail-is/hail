@@ -20,7 +20,7 @@ RUN hail-pip-install \
       -r hailtop-requirements.txt \
       -r gear-requirements.txt \
       twine==1.11.0 \
-      Jinja2==3.0.3
+      'Jinja2>3,<4'
 
 FROM golang:1.18 AS skopeo-build
 

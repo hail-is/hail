@@ -103,10 +103,8 @@ isodate==0.6.1
     # via azure-storage-blob
 janus==1.0.0
     # via -r hail/hail/python/hailtop/requirements.txt
-jinja2==3.0.3
-    # via
-    #   -r hail/hail/python/requirements.txt
-    #   bokeh
+jinja2==3.1.2
+    # via bokeh
 jmespath==1.0.1
     # via
     #   boto3
