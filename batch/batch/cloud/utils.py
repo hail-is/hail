@@ -2,9 +2,8 @@ import os
 from typing import Any, Dict, Set
 
 from gear.cloud_config import get_azure_config, get_gcp_config
-
-from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
 from hailtop.aiocloud.aioazure import AzureAsyncFS
+from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
 
 from ..instance_config import InstanceConfig
 from .azure.instance_config import AzureSlimInstanceConfig
