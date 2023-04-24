@@ -243,6 +243,11 @@ def hadoop_scheme_supported(scheme: str) -> bool:
 
     >>> hadoop_scheme_supported('gs') # doctest: +SKIP
 
+    Notes
+    -----
+    URLs with the `https` scheme are only supported if they are specifically
+    Azure Blob Storage URLs of the form `https://<ACCOUNT_NAME>.blob.core.windows.net/<CONTAINER_NAME>/<PATH>`
+
     Parameters
     ----------
     scheme : :class:`str`

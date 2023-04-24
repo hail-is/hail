@@ -591,6 +591,10 @@ class GoogleStorageAsyncFS(AsyncFS):
             storage_client = GoogleStorageClient(**kwargs)
         self._storage_client = storage_client
 
+    @staticmethod
+    def valid_url(url: str) -> bool:
+        return url.startswith('gs://')
+
     def parse_url(self, url: str) -> GoogleStorageAsyncFSURL:
         return GoogleStorageAsyncFSURL(*self.get_bucket_and_name(url))
 

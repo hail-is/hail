@@ -36,13 +36,13 @@ async def router_filesystem() -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS,
 
         azure_account = os.environ['HAIL_TEST_AZURE_ACCOUNT']
         azure_container = os.environ['HAIL_TEST_AZURE_CONTAINER']
-        azure_base = f'hail-az://{azure_account}/{azure_container}/tmp/{token}/'
+        azure_base = f'https://{azure_account}.blob.core.windows.net/{azure_container}/tmp/{token}/'
 
         bases = {
             'file': file_base,
             'gs': gs_base,
             's3': s3_base,
-            'hail-az': azure_base
+            'azure-https': azure_base
         }
 
         sema = asyncio.Semaphore(50)
@@ -68,10 +68,10 @@ async def fresh_dir(fs, bases, scheme):
     return dir
 
 
-@pytest.fixture(params=['file/file', 'file/gs', 'file/s3', 'file/hail-az',
-                        'gs/file', 'gs/gs', 'gs/s3', 'gs/hail-az',
-                        's3/file', 's3/gs', 's3/s3', 's3/hail-az',
-                        'hail-az/file', 'hail-az/gs', 'hail-az/s3', 'hail-az/hail-az'])
+@pytest.fixture(params=['file/file', 'file/gs', 'file/s3', 'file/azure-https',
+                        'gs/file', 'gs/gs', 'gs/s3', 'gs/azure-https',
+                        's3/file', 's3/gs', 's3/s3', 's3/azure-https',
+                        'azure-https/file', 'azure-https/gs', 'azure-https/s3', 'azure-https/azure-https'])
 async def diff_test_context(request, router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]]):
     sema, fs, bases = router_filesystem
 

@@ -487,7 +487,11 @@ class ServiceTests(unittest.TestCase):
             self.bucket = re.fullmatch('gs://(?P<bucket_name>[^/]+).*', remote_tmpdir).groupdict()['bucket_name']
         else:
             assert remote_tmpdir.startswith('hail-az://')
-            storage_account, container_name = re.fullmatch('hail-az://(?P<storage_account>[^/]+)/(?P<container_name>[^/]+).*', remote_tmpdir).groups()
+            if remote_tmpdir.startswith('hail-az://'):
+                storage_account, container_name = re.fullmatch('hail-az://(?P<storage_account>[^/]+)/(?P<container_name>[^/]+).*', remote_tmpdir).groups()
+            else:
+                assert remote_tmpdir.startswith('https://')
+                storage_account, container_name = re.fullmatch('https://(?P<storage_account>[^/]+).blob.core.windows.net/(?P<container_name>[^/]+).*', remote_tmpdir).groups()
             self.bucket = f'{storage_account}/{container_name}'
 
         self.cloud_input_dir = f'{self.remote_tmpdir}batch-tests/resources'

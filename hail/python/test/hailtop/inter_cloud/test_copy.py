@@ -38,7 +38,7 @@ async def test_spec(request):
     return request.param
 
 
-@pytest.fixture(params=['gs', 's3', 'hail-az'])
+@pytest.fixture(params=['gs', 's3', 'azure-https'])
 async def cloud_scheme(request):
     yield request.param
 
@@ -66,13 +66,13 @@ async def router_filesystem(request) -> AsyncIterator[Tuple[asyncio.Semaphore, A
 
             azure_account = os.environ['HAIL_TEST_AZURE_ACCOUNT']
             azure_container = os.environ['HAIL_TEST_AZURE_CONTAINER']
-            azure_base = f'hail-az://{azure_account}/{azure_container}/tmp/{token}/'
+            azure_base = f'https://{azure_account}.blob.core.windows.net/{azure_container}/tmp/{token}/'
 
             bases = {
                 'file': file_base,
                 'gs': gs_base,
                 's3': s3_base,
-                'hail-az': azure_base
+                'azure-https': azure_base
             }
 
             sema = asyncio.Semaphore(50)
@@ -97,10 +97,10 @@ async def fresh_dir(fs, bases, scheme):
     return dir
 
 
-@pytest.fixture(params=['file/file', 'file/gs', 'file/s3', 'file/hail-az',
-                        'gs/file', 'gs/gs', 'gs/s3', 'gs/hail-az',
-                        's3/file', 's3/gs', 's3/s3', 's3/hail-az',
-                        'hail-az/file', 'hail-az/gs', 'hail-az/s3', 'hail-az/hail-az'])
+@pytest.fixture(params=['file/file', 'file/gs', 'file/s3', 'file/azure-https',
+                        'gs/file', 'gs/gs', 'gs/s3', 'gs/azure-https',
+                        's3/file', 's3/gs', 's3/s3', 's3/azure-https',
+                        'azure-https/file', 'azure-https/gs', 'azure-https/s3', 'azure-https/azure-https'])
 async def copy_test_context(request, router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]]):
     sema, fs, bases = router_filesystem
 
@@ -125,7 +125,7 @@ async def test_copy_behavior(copy_test_context, test_spec):
         expected = test_spec['result']
 
         dest_scheme = url_scheme(dest_base)
-        if ((dest_scheme == 'gs' or dest_scheme == 's3' or dest_scheme == 'hail-az')
+        if ((dest_scheme == 'gs' or dest_scheme == 's3' or dest_scheme == 'https')
                 and 'files' in result
                 and expected.get('exception') in ('IsADirectoryError', 'NotADirectoryError')):
             return
@@ -153,7 +153,7 @@ class RaisedWrongExceptionError(Exception):
 class RaisesOrObjectStore:
     def __init__(self, dest_base, expected_type):
         scheme = url_scheme(dest_base)
-        self._object_store = (scheme == 'gs' or scheme == 's3' or scheme == 'hail-az')
+        self._object_store = (scheme == 'gs' or scheme == 's3' or scheme == 'https')
         self._expected_type = expected_type
 
     def __enter__(self):

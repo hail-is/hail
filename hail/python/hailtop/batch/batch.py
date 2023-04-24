@@ -557,7 +557,7 @@ class Batch:
         >>> b = Batch()
         >>> j = b.new_job()
         >>> j.command(f'echo "hello" > {j.ofile}')
-        >>> b.write_output(j.ofile, 'hail-az://my-account/my-container/output/hello.txt')
+        >>> b.write_output(j.ofile, 'https://my-account.blob.core.windows.net/my-container/output/hello.txt')
         >>> b.run()  # doctest: +SKIP
 
         .. warning::
