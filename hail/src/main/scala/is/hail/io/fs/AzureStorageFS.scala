@@ -75,7 +75,7 @@ object AzureStorageFS {
 
     val scheme = uri.getScheme
     if (scheme == null || !schemes.contains(scheme)) {
-      throw new IllegalArgumentException(s"invalid scheme, expected hail-az or https: $scheme")
+      throw new IllegalArgumentException(s"Invalid scheme, expected hail-az or https: $scheme")
     }
 
     val authority = uri.getAuthority
@@ -84,7 +84,13 @@ object AzureStorageFS {
     }
     val account = scheme match {
       case "hail-az" => authority
-      case "https" => authority.stripSuffix(".blob.core.windows.net")
+      case "https" => {
+        if (authority.endsWith(".blob.core.windows.net")) {
+          authority.stripSuffix(".blob.core.windows.net")
+        } else {
+          throw new IllegalArgumentException(s"Invalid domain in blob URL: $authority")
+        }
+      }
     }
 
     val (container, path) = pathRegex.findFirstMatchIn(uri.getPath) match {
