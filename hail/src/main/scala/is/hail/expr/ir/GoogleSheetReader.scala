@@ -211,8 +211,8 @@ class GoogleSheetReader(
 
   override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
     val ts = lower(ctx, requestedType)
-    val (broadCastRow, rVD) = TableStageToRVD.apply(ctx, ts, Map[String, IR]())
-    TableValue(ctx, requestedType, broadCastRow, rVD)
+    val (broadCastRow, rvd) = TableStageToRVD.apply(ctx, ts)
+    TableValue(ctx, requestedType, broadCastRow, rvd)
   }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = None
