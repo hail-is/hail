@@ -6,7 +6,7 @@ from collections import Counter
 import os
 from shlex import quote as shq
 
-from typing import Any, Dict, Tuple, List, Optional, Union
+from typing import Dict, Tuple, List, Optional, Union
 
 from hailtop import pip_version
 from hailtop.utils import async_to_blocking
@@ -883,8 +883,7 @@ def _service_vep(backend: ServiceBackend,
                  csq: bool,
                  tolerate_parse_error: bool) -> hl.Table:
     reference_genome = ht.locus.dtype.reference_genome.name
-    # cloud = backend.bc.cloud()
-    cloud = 'gcp'
+    cloud = backend.bc.cloud()
     regions = backend.regions
 
     if config is not None:
@@ -903,7 +902,7 @@ def _service_vep(backend: ServiceBackend,
     else:
         vep_typ = vep_config.json_typ
 
-    def build_vep_batch(bb: bc.aioclient.BatchBuilder, vep_input_path: hl.TemporaryDirectory, vep_output_path: hl.TemporaryDirectory):
+    def build_vep_batch(bb: bc.aioclient.BatchBuilder, vep_input_path: str, vep_output_path: str):
         if csq:
             local_output_file = '/io/output'
             vep_command = vep_config.command(
@@ -924,12 +923,12 @@ def _service_vep(backend: ServiceBackend,
                           attributes={'name': 'csq-header'},
                           resources={'cpu': '1', 'memory': 'standard'},
                           cloudfuse=[(vep_config.data_bucket, vep_config.data_mount, True)],
-                          output_files=[(local_output_file, f'{vep_output_path.name}/csq-header')],
+                          output_files=[(local_output_file, f'{vep_output_path}/csq-header')],
                           regions=vep_config.regions,
                           requester_pays_project=requester_pays_project,
                           env=env)
 
-        for f in hl.hadoop_ls(vep_input_path.name):
+        for f in hl.hadoop_ls(vep_input_path):
             path = f['path']
             part_name = os.path.basename(path)
             if not part_name.startswith('part-'):
@@ -964,7 +963,7 @@ def _service_vep(backend: ServiceBackend,
                           attributes={'name': f'vep-{part_id}'},
                           resources={'cpu': '1', 'memory': 'standard'},
                           input_files=[(path, local_input_file)],
-                          output_files=[(local_output_file, f'{vep_output_path.name}/annotations/{part_name}.tsv.gz')],
+                          output_files=[(local_output_file, f'{vep_output_path}/annotations/{part_name}.tsv.gz')],
                           cloudfuse=[(vep_config.data_bucket, vep_config.data_mount, True)],
                           regions=vep_config.regions,
                           requester_pays_project=requester_pays_project,
@@ -972,25 +971,24 @@ def _service_vep(backend: ServiceBackend,
 
     with hl.TemporaryDirectory(prefix='qob/vep/inputs/') as vep_input_path:
         with hl.TemporaryDirectory(prefix='qob/vep/outputs/') as vep_output_path:
-            hl.export_vcf(ht, vep_input_path.name, parallel='header_per_shard')
-
-            name = 'vep(...)'
+            hl.export_vcf(ht, vep_input_path, parallel='header_per_shard')
 
             starting_job_id = async_to_blocking(backend._batch.status())['n_jobs'] + 1
 
             bb = backend.bc.update_batch(backend._batch.id)
             build_vep_batch(bb, vep_input_path, vep_output_path)
+
             b = bb.submit(disable_progress_bar=True)
 
             try:
-                status = b.wait(description=name,
+                status = b.wait(description='vep(...)',
                                 disable_progress_bar=backend.disable_progress_bar,
                                 progress=None,
                                 starting_job=starting_job_id)
-            except KeyboardInterrupt:
-                raise
-            except Exception:
-                backend._batch.cancel()
+            except BaseException as e:
+                if isinstance(e, KeyboardInterrupt):
+                    print("Received a keyboard interrupt, cancelling the batch...")
+                b.cancel()
                 backend._batch = None
                 raise
 
