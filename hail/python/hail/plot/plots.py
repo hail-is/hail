@@ -7,10 +7,9 @@ import bokeh
 import bokeh.io
 import bokeh.models
 from bokeh.models import (HoverTool, ColorBar, LogTicker, LogColorMapper, LinearColorMapper,
-                          CategoricalColorMapper, ColumnDataSource, BasicTicker, Plot, ColorMapper,
-                          CDSView, GroupFilter, IntersectionFilter, Legend, LegendItem, Renderer,
-                          CustomJS, Select, Column, Span, DataRange1d, Slope, Label, ColorMapper,
-                          GridPlot)
+                          CategoricalColorMapper, ColumnDataSource, BasicTicker, Plot, CDSView,
+                          GroupFilter, IntersectionFilter, Legend, LegendItem, Renderer, CustomJS,
+                          Select, Column, Span, DataRange1d, Slope, Label, ColorMapper, GridPlot)
 import bokeh.plotting
 import bokeh.palettes
 from bokeh.plotting import figure
@@ -816,9 +815,8 @@ def _get_scatter_plot_elements(
         colors: Optional[Dict[str, ColorMapper]] = None,
         size: int = 4,
         hover_cols: Optional[Set[str]] = None,
-) -> Union[
-    Tuple[Plot, Dict[str, List[LegendItem]], Legend, ColorBar, Dict[str, ColorMapper], List[Renderer]],
-    Tuple[Plot, None, None, None, None, None]]:
+) -> Union[Tuple[Plot, Dict[str, List[LegendItem]], Legend, ColorBar, Dict[str, ColorMapper], List[Renderer]],
+           Tuple[Plot, None, None, None, None, None]]:
 
     if not source_pd.shape[0]:
         print("WARN: No data to plot.")
@@ -875,7 +873,7 @@ def _get_scatter_plot_elements(
     # Create initial glyphs
     initial_col = label_cols[0]
     initial_mapper = color_mappers[initial_col]
-    legend_items: Dict[str, List[LegendItem]]  = {}
+    legend_items: Dict[str, List[LegendItem]] = {}
 
     if not factor_cols:
         all_renderers = [
@@ -1546,7 +1544,7 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
         label_cols=['_contig'],
         colors={'_contig': color_mapper},
         size=size,
-        hover_cols= {'locus', 'p_value'} | set(hover_fields)
+        hover_cols={'locus', 'p_value'} | set(hover_fields)
     )
     assert legend is not None
     legend.visible = False
