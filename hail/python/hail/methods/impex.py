@@ -12,8 +12,7 @@ import hail as hl
 from hail import ir
 from hail.expr import StructExpression, LocusExpression, \
     expr_array, expr_float64, expr_str, expr_numeric, expr_call, expr_bool, \
-    expr_any, \
-    to_expr, analyze
+    expr_any, expr_int32, to_expr, analyze
 from hail.expr.types import hail_type, tarray, tfloat64, tstr, tint32, tstruct, \
     tcall, tbool, tint64, tfloat32
 from hail.genetics.reference_genome import reference_genome_type
@@ -2902,6 +2901,34 @@ def import_gvcfs(path,
     return [MatrixTable(ir.JavaMatrixVectorRef(jir_vref, idx)) for idx in range(len(jir_vref))]
 
 
+@typecheck(path=expr_str,
+           file_num=expr_int32,
+           contig=expr_str,
+           start=expr_int32,
+           end=expr_int32,
+           header_info=anytype,
+           call_fields=sequenceof(str),
+           entry_float_type=hail_type,
+           array_elements_required=bool,
+           reference_genome=reference_genome_type,
+           contig_recoding=nullable(dictof(str, str)),
+           skip_invalid_loci=bool,
+           filter=nullable(str),
+           find=nullable(str),
+           replace=nullable(str))
+def import_gvcf_interval(path, file_num, contig, start, end, header_info, call_fields=[], entry_float_type='float64',
+                         array_elements_required=True, reference_genome='default', contig_recoding=None,
+                         skip_invalid_loci=False, filter=None, find=None, replace=None):
+    indices, aggs = hl.expr.unify_all(path, file_num, contig, start, end)
+    stream_ir = ir.ReadPartition(hl.struct(fileNum=file_num, path=path, contig=contig, start=start, end=end)._ir,
+                                 ir.GVCFPartitionReader(header_info, call_fields, entry_float_type,
+                                                        array_elements_required,
+                                                        reference_genome, contig_recoding or {},
+                                                        skip_invalid_loci, filter, find, replace,
+                                                        None))
+    arr = ir.ToArray(stream_ir)
+    return hl.expr.construct_expr(arr, arr.typ, indices, aggs)
+
 def import_vcfs(path,
                 partitions,
                 call_fields=['PGT'],
@@ -3027,6 +3054,18 @@ def index_bgen(path,
         path = paths[idx]
         idx_path = index_file_map.get(path, path)
         info(f"indexed {n} sites in {path} at {idx_path}")
+
+
+@typecheck(path=expr_str, filter=nullable(expr_str), find=nullable(expr_str), replace=nullable(expr_str))
+def get_vcf_header_info(path, filter=None, find=None, replace=None):
+    from hail.ir.register_functions import vcf_header_type_str
+    return hl.expr.functions._func(
+        "getVCFHeader",
+        hl.dtype(vcf_header_type_str),
+        path,
+        hl.missing('str') if filter is None else filter,
+        hl.missing('str') if find is None else find,
+        hl.missing('str') if replace is None else replace)
 
 
 @typecheck(path=str,

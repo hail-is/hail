@@ -26,13 +26,15 @@ def test_1kg_chr22():
 
     sample_names = all_samples[:5]
     paths = [os.path.join(resource('gvcfs'), '1kg_chr22', f'{s}.hg38.g.vcf.gz') for s in sample_names]
-    vc.run_combiner(paths,
-                    out_file=out_file,
-                    tmp_path=Env.hc()._tmpdir,
-                    branch_factor=2,
-                    batch_size=2,
-                    reference_genome='GRCh38',
-                    use_exome_default_intervals=True)
+    combiner = hl.vds.new_combiner(output_path=out_file,
+                                   gvcf_paths=paths,
+                                   temp_path=Env.hc()._tmpdir,
+                                   branch_factor=2,
+                                   batch_size=2,
+                                   reference_genome='GRCh38',
+                                   use_exome_default_intervals=True
+                                   )
+    combiner.run()
 
     sample_data = dict()
     for sample, path in zip(sample_names, paths):
@@ -40,7 +42,8 @@ def test_1kg_chr22():
         n, n_variant = ht.aggregate((hl.agg.count(), hl.agg.count_where(ht.entries[0].GT.is_non_ref())))
         sample_data[sample] = (n, n_variant)
 
-    mt = hl.read_matrix_table(out_file)
+    vds = hl.vds.read_vds(out_file)
+    mt = hl.vds.to_merged_sparse_mt(vds, ref_allele_function=lambda ht: hl.missing('str'))
     mt = mt.annotate_cols(n=hl.agg.count(), n_variant=hl.agg.count_where(
         mt.LGT.is_non_ref()))  # annotate the number of non-missing records
 

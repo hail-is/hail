@@ -10,6 +10,7 @@ import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.avro.{AvroPartitionReader, AvroSchemaSerializer}
 import is.hail.io.bgen.BgenPartitionReader
+import is.hail.io.vcf.{GVCFPartitionReader, VCFHeaderInfo}
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
 import is.hail.rvd.RVDSpecMaker
 import is.hail.types.encoded._
@@ -20,6 +21,7 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.types.{RIterable, RStruct, TypeWithRequiredness, tcoerce}
 import is.hail.utils.{FastIndexedSeq, _}
+import org.json4s.JsonAST.{JNothing, JString}
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
 import java.io.OutputStream
@@ -788,6 +790,9 @@ object PartitionReader {
       classOf[PartitionZippedNativeReader],
       classOf[PartitionZippedIndexedNativeReader],
       classOf[BgenPartitionReader],
+      classOf[GVCFPartitionReader],
+      classOf[TextInputFilterAndReplace],
+      classOf[VCFHeaderInfo],
       classOf[AbstractTypedCodecSpec],
       classOf[TypedCodecSpec],
       classOf[AvroPartitionReader]),
@@ -805,6 +810,22 @@ object PartitionReader {
         val path = (jv \ "path").extract[String]
         val spec = TableNativeReader.read(ctx.fs, path, None).spec
         PartitionNativeIntervalReader(ctx.stateManager, path, spec, (jv \ "uidFieldName").extract[String])
+      case "GVCFPartitionReader" =>
+        val header = VCFHeaderInfo.fromJSON((jv \ "header"))
+        val callFields = (jv \ "callFields").extract[Set[String]]
+        val entryFloatType = IRParser.parseType((jv \ "entryFloatType").extract[String])
+        val arrayElementsRequired = (jv \ "arrayElementsRequired").extract[Boolean]
+        val rg = (jv \ "rg") match {
+          case JString(s) => Some(s)
+          case JNothing => None
+        }
+        val contigRecoding = (jv \ "contigRecoding").extract[Map[String, String]]
+        val skipInvalidLoci = (jv \ "skipInvalidLoci").extract[Boolean]
+        val filterAndReplace = (jv \ "filterAndReplace").extract[TextInputFilterAndReplace]
+        val entriesFieldName = (jv \ "entriesFieldName").extract[String]
+        val uidFieldName = (jv \ "uidFieldName").extract[String]
+        GVCFPartitionReader(header, callFields, entryFloatType, arrayElementsRequired, rg, contigRecoding,
+          skipInvalidLoci, filterAndReplace, entriesFieldName, uidFieldName)
       case _ => jv.extract[PartitionReader]
     }
   }

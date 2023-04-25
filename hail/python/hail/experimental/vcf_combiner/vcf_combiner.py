@@ -8,7 +8,7 @@ from typing import Optional, List, Tuple, Dict
 import hail as hl
 from hail import MatrixTable, Table
 from hail.experimental.function import Function
-from hail.expr import StructExpression
+from hail.expr import StructExpression, unify_all, construct_expr
 from hail.expr.expressions import expr_bool, expr_str
 from hail.genetics.reference_genome import reference_genome_type
 from hail.ir import Apply, TableMapRows, MatrixKeyRowsBy
@@ -232,12 +232,12 @@ def merge_alleles(alleles):
                 local=lal)))
 
 
-def combine(ts):
+def combine_variant_rows(row, globals):
     def renumber_entry(entry, old_to_new) -> StructExpression:
         # global index of alternate (non-ref) alleles
         return entry.annotate(LA=entry.LA.map(lambda lak: old_to_new[lak]))
 
-    merge_function = _merge_function_map.get((ts.row.dtype, ts.globals.dtype))
+    merge_function = _merge_function_map.get((row.dtype, globals.dtype))
     if merge_function is None or not hl.current_backend()._is_registered_ir_function_name(merge_function._name):
         merge_function = hl.experimental.define_function(
             lambda row, gbl:
@@ -247,7 +247,8 @@ def combine(ts):
                 hl.struct(
                     locus=row.locus,
                     alleles=alleles.globl,
-                    **({'rsid': hl.find(hl.is_defined, row.data.map(lambda d: d.rsid))} if 'rsid' in row.data.dtype.element_type else {}),
+                    **({'rsid': hl.find(hl.is_defined, row.data.map(
+                        lambda d: d.rsid))} if 'rsid' in row.data.dtype.element_type else {}),
                     __entries=hl.bind(
                         lambda combined_allele_index:
                         hl.range(0, hl.len(row.data)).flatmap(
@@ -262,12 +263,20 @@ def combine(ts):
                                                lambda j: combined_allele_index[alleles.local[i][j]])))),
                         hl.dict(hl.range(0, hl.len(alleles.globl)).map(
                             lambda j: hl.tuple([alleles.globl[j], j])))))),
-            ts.row.dtype, ts.globals.dtype)
-        _merge_function_map[(ts.row.dtype, ts.globals.dtype)] = merge_function
-    ts = Table(TableMapRows(ts._tir, Apply(merge_function._name,
-                                           merge_function._ret_type,
-                                           ts.row._ir,
-                                           ts.globals._ir)))
+            row.dtype, globals.dtype)
+        _merge_function_map[(row.dtype, globals.dtype)] = merge_function
+    indices, aggs = unify_all(row, globals)
+    apply_ir = Apply(merge_function._name,
+                     merge_function._ret_type,
+                     row._ir,
+                     globals._ir)
+    return construct_expr(apply_ir, apply_ir.typ, indices, aggs)
+
+
+def combine(ts):
+    ts = Table(TableMapRows(ts._tir, combine_variant_rows(
+        ts.row,
+        ts.globals)._ir))
     return ts.transmute_globals(__cols=hl.flatten(ts.g.map(lambda g: g.__cols)))
 
 
