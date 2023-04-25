@@ -866,7 +866,7 @@ steps:
     dependsOn:
       - merge_code
       - hail_ubuntu_image
-      - compile_batch_worker_jvm_entryway
+      - jvm_entryway_jar
   - kind: buildImage2
     name: memory_image
     dockerFile: /io/repo/memory/Dockerfile
