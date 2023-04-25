@@ -35,7 +35,7 @@ Released 2023-04-25
 - (hail#12917) ABS blob URIs in the form of `https://<ACCOUNT_NAME>.blob.core.windows.net/<CONTAINER_NAME>/<PATH>` are now supported when running in Azure.
 
 ### Deprecations
-- (hail#12917) The `hail-az` scheme for referencing ABS blobs in Azure is deprecated in favor of the `https` scheme, and will be removed in a future release.
+- (hail#12917) The `hail-az` scheme for referencing ABS blobs in Azure is deprecated in favor of the `https` scheme and will be removed in a future release.
 
 ### Bug Fixes
 
