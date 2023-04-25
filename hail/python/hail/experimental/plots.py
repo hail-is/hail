@@ -71,7 +71,7 @@ def plot_roc_curve(ht, scores, tp_label='tp', fp_label='fp', colors=None, title=
         auc = ordered_ht.aggregate(hl.agg.sum(ordered_ht.auc_contrib))
         aucs.append(auc)
         df = ordered_ht.annotate(score_name=ordered_ht.score_name + f' (AUC = {auc:.4f})').to_pandas()
-        p.line(x='fpr', y='tpr', legend='score_name', source=ColumnDataSource(df), color=colors[score], line_width=3)
+        p.line(x='fpr', y='tpr', legend_field='score_name', source=ColumnDataSource(df), color=colors[score], line_width=3)
 
     p.legend.location = 'bottom_right'
     p.legend.click_policy = 'hide'
