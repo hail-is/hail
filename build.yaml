@@ -822,6 +822,7 @@ steps:
 
       cd /io/batch/jvm-entryway
 
+      chmod 755 ./gradlew
       ./gradlew shadowJar
     inputs:
       - from: /repo/batch
