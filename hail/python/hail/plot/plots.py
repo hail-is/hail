@@ -1220,7 +1220,7 @@ def joint_plot(
             data_col,
             p,
             x_axis,
-            colors: Dict[str, ColorMapper],
+            colors: Optional[Dict[str, ColorMapper]],
             continuous_cols: List[str],
             factor_cols: List[str]
     ):
@@ -1237,6 +1237,7 @@ def joint_plot(
             max_densities = {col: np.max(dens) for col in continuous_cols}
 
         for factor_col in factor_cols:
+            assert colors is not None, (colors, factor_cols)
             factor_colors = colors.get(factor_col, _get_categorical_palette(list(set(source_pd[factor_col]))))
             factor_colors = dict(zip(factor_colors.factors, factor_colors.palette))
             density_data = source_pd[[factor_col, data_col]].groupby(factor_col).apply(lambda df: np.histogram(df['x' if x_axis else 'y'], density=True))
@@ -1252,7 +1253,6 @@ def joint_plot(
         p.outline_line_color = None
         return p, density_renderers, max_densities
 
-    assert sp_color_mappers is not None
     xp = figure(title=title, height=int(height / 3), width=width, x_range=sp.x_range)
     xp, x_renderers, x_max_densities = get_density_plot_items(source_pd, _x[0], xp, x_axis=True, colors=sp_color_mappers, continuous_cols=continuous_cols, factor_cols=factor_cols)
     xp.xaxis.visible = False
