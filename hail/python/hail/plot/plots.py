@@ -80,7 +80,7 @@ def cdf(data, k=350, legend=None, title=None, normalize=True, log=False) -> figu
 
     Returns
     -------
-    :class:`.figure`
+    :class:`bokeh.plotting.figure`
     """
     if isinstance(data, Expression):
         if data._indices is None:
@@ -314,12 +314,12 @@ def smoothed_pdf(data, k=350, smoothing=.5, legend=None, title=None, log=False, 
         Plot the log10 of the bin counts.
     interactive : bool
         If `True`, return a handle to pass to :func:`bokeh.io.show`.
-    figure : :class:`.figure`
+    figure : :class:`bokeh.plotting.figure`
         If not None, add density plot to figure. Otherwise, create a new figure.
 
     Returns
     -------
-    :class:`.figure`
+    :class:`bokeh.plotting.figure`
     """
     if isinstance(data, Expression):
         if data._indices is None:
@@ -411,7 +411,7 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False, int
 
     Returns
     -------
-    :class:`.figure`
+    :class:`bokeh.plotting.figure`
     """
     if isinstance(data, Expression):
         if data._indices.source is not None:
@@ -530,7 +530,7 @@ def cumulative_histogram(data, range=None, bins=50, legend=None, title=None, nor
 
     Returns
     -------
-    :class:`.figure`
+    :class:`bokeh.plotting.figure`
     """
     if isinstance(data, Expression):
         if data._indices.source is not None:
@@ -570,14 +570,14 @@ def set_font_size(p, font_size: str = '12pt'):
 
     Parameters
     ----------
-    p : :class:`.figure`
+    p : :class:`bokeh.plotting.figure`
         Input figure.
     font_size : str
         String of font size in points (e.g. '12pt').
 
     Returns
     -------
-    :class:`.figure`
+    :class:`bokeh.plotting.figure`
     """
     p.legend.label_text_font_size = font_size
     p.xaxis.axis_label_text_font_size = font_size
@@ -653,7 +653,7 @@ def histogram2d(x: NumericExpression,
 
     Returns
     -------
-    :class:`.figure`
+    :class:`bokeh.plotting.figure`
     """
     data = _generate_hist2d_data(x, y, bins, range).to_pandas()
 
@@ -938,10 +938,10 @@ def scatter(
     - a :class:`.NumericExpression` from the same :class:`.Table`.
     - a tuple (str, :class:`.NumericExpression`) from the same :class:`.Table`. If passed as a tuple the first element is used as the hover label.
 
-    If no label or a single label is provided, then returns :class:`.figure`
+    If no label or a single label is provided, then returns :class:`bokeh.plotting.figure`
     Otherwise returns a :class:`bokeh.models.layouts.Column` containing:
     - a :class:`bokeh.models.widgets.inputs.Select` dropdown selection widget for labels
-    - a :class:`.figure` containing the interactive scatter plot
+    - a :class:`bokeh.plotting.figure` containing the interactive scatter plot
 
     Points will be colored by one of the labels defined in the ``label`` using the color scheme defined in
     the corresponding entry of ``colors`` if provided (otherwise a default scheme is used). To specify your color
@@ -996,7 +996,7 @@ def scatter(
 
     Returns
     -------
-    :class:`.Plot` if no label or a single label was given, otherwise :class:`bokeh.models.layouts.Column`
+    :class:`bokeh.models.Plot` if no label or a single label was given, otherwise :class:`bokeh.models.layouts.Column`
     """
     hover_fields = {} if hover_fields is None else hover_fields
 
@@ -1027,7 +1027,7 @@ def scatter(
 
     source_pd = _collect_scatter_plot_data(_x,
                                            _y,
-                                           fields={**hover_fields, **label_by_col},
+                                          fields={**hover_fields, **label_by_col},
                                            n_divisions=None if collect_all else n_divisions,
                                            missing_label=missing_label)
     sp = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, height=height, width=width)
@@ -1359,10 +1359,10 @@ def qq(
 ) -> Union[figure, Column]:
     """Create a Quantile-Quantile plot. (https://en.wikipedia.org/wiki/Q-Q_plot)
 
-    If no label or a single label is provided, then returns :class:`.figure`
+    If no label or a single label is provided, then returns :class:`bokeh.plotting.figure`
     Otherwise returns a :class:`bokeh.models.layouts.Column` containing:
     - a :class:`bokeh.models.widgets.inputs.Select` dropdown selection widget for labels
-    - a :class:`.figure` containing the interactive qq plot
+    - a :class:`bokeh.plotting.figure` containing the interactive qq plot
 
     Points will be colored by one of the labels defined in the ``label`` using the color scheme defined in
     the corresponding entry of ``colors`` if provided (otherwise a default scheme is used). To specify your color
@@ -1415,7 +1415,7 @@ def qq(
 
     Returns
     -------
-    :class:`.figure` if no label or a single label was given, otherwise :class:`bokeh.models.layouts.Column`
+    :class:`bokeh.plotting.figure` if no label or a single label was given, otherwise :class:`bokeh.models.layouts.Column`
     """
     hover_fields = {} if hover_fields is None else hover_fields
     label_by_col: Dict[str, Expression]
@@ -1504,7 +1504,7 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
 
     Returns
     -------
-    :class:`.Plot`
+    :class:`bokeh.models.Plot`
     """
     if locus is None:
         locus = pvals._indices.source.locus
@@ -1594,7 +1594,7 @@ def visualize_missingness(entry_field, row_field=None, column_field=None,
 
     Returns
     -------
-    :class:`.figure`
+    :class:`bokeh.plotting.figure`
     """
     mt = entry_field._indices.source
     if row_field is None:
@@ -1648,7 +1648,6 @@ def visualize_missingness(entry_field, row_field=None, column_field=None,
 
     df = pd.DataFrame(df.stack(), columns=['defined']).reset_index()
 
-    from bokeh.plotting import figure
     p = figure(x_range=columns, y_range=list(reversed(rows)),
                x_axis_location="above", width=plot_width, height=plot_height,
                toolbar_location='below',

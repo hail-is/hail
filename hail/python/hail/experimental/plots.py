@@ -39,7 +39,7 @@ def plot_roc_curve(ht, scores, tp_label='tp', fp_label='fp', colors=None, title=
 
     Returns
     -------
-    :obj:`tuple` of :class:`bokeh.plotting.figure.Figure` and :obj:`list` of :class:`str`
+    :obj:`tuple` of :class:`bokeh.plotting.figure` and :obj:`list` of :class:`str`
         Figure, and list of AUCs corresponding to scores.
     """
     if colors is None:
@@ -91,7 +91,7 @@ def hail_metadata(t_path):
 
     Returns
     -------
-    :class:`bokeh.plotting.figure.Figure` or :class:`bokeh.models.layouts.Column`
+    :class:`bokeh.plotting.figure` or :class:`bokeh.models.layouts.Column`
     """
     def get_rows_data(rows_files):
         file_sizes = []

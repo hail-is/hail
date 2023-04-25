@@ -9,8 +9,8 @@ build:
 
 run:
 	$(MAKE) -C .. docs
-	cd website && tar -xvzf ../docs.tar.gz
-	HAIL_DOMAIN=localhost:5000 python3 -m website local
+	cd website && tar -xvzf ../../docs.tar.gz
+	HAIL_DOMAIN=localhost:5005 python3 -m website local
 
 run-docker: build
 	docker run -e HAIL_DOMAIN=localhost:5000 -p 5000:5000 website python3 -m website local
