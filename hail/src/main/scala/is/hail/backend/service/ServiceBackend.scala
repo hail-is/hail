@@ -48,7 +48,7 @@ class ServiceBackendContext(
   val workerMemory: String,
   val storageRequirement: String,
   val regions: Array[String],
-  val cloudfuseConfig: Array[(String, String, Boolean)]
+  val cloudfuseConfig: Array[(String, String, Boolean)],
   val profile: Boolean
 ) extends BackendContext with Serializable {
   def tokens(): Tokens =
