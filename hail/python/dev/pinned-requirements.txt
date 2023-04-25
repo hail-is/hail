@@ -252,7 +252,7 @@ pandocfilters==1.5.0
     # via nbconvert
 parso==0.8.3
     # via jedi
-parsy==1.1.0
+parsy==2.1
     # via curlylint
 pathspec==0.11.1
     # via
