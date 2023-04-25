@@ -219,7 +219,8 @@ LIMIT %s;
         return should_wait
 
     def max_instances_to_create(self):
-        n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
+        pool_stats = self.current_worker_version_stats
+        n_live_instances = pool_stats.n_instances_by_state['pending'] + pool_stats.n_instances_by_state['active']
 
         return min(
             self.max_live_instances - n_live_instances,
