@@ -2327,7 +2327,7 @@ class JVMContainer:
             'java',
             f'-Xmx{heap_memory_mib}M',
             '-cp',
-            f'/jvm-entryway:/jvm-entryway/junixsocket-selftest-2.3.3-jar-with-dependencies.jar:{JVM.SPARK_HOME}/jars/*',
+            f'/jvm-entryway/jvm-entryway.jar:{JVM.SPARK_HOME}/jars/*',
             'is.hail.JVMEntryway',
             socket_file,
         ]
@@ -2627,14 +2627,25 @@ class JVM:
             elif message == JVM.FINISH_USER_EXCEPTION:
                 exception = await read_str(reader)
                 raise JVMUserError(exception)
-            elif message == JVM.FINISH_ENTRYWAY_EXCEPTION:
-                log.warning(f'{self}: entryway exception encountered (interrupted: {wait_for_interrupt.done()})')
-                exception = await read_str(reader)
-                raise ValueError(exception)
-            elif message == JVM.FINISH_JVM_EOS:
-                assert eos_exception is not None
-                log.warning(f'{self}: unexpected end of stream in jvm (interrupted: {wait_for_interrupt.done()})')
-                raise ValueError('unexpected end of stream in jvm') from eos_exception
+            else:
+                jvm_output = ''
+                if os.path.exists(self.container.container.log_path):
+                    jvm_output = (await self.fs.read(self.container.container.log_path)).decode('utf-8')
+
+                if message == JVM.FINISH_ENTRYWAY_EXCEPTION:
+                    log.warning(f'{self}: entryway exception encountered (interrupted: {wait_for_interrupt.done()})\nJVM Output:\n\n{jvm_output}')
+                    exception = await read_str(reader)
+                    raise ValueError(exception)
+                elif message == JVM.FINISH_JVM_EOS:
+                    assert eos_exception is not None
+                    log.warning(f'{self}: unexpected end of stream in jvm (interrupted: {wait_for_interrupt.done()})\nJVM Output:\n\n{jvm_output}')
+                    raise ValueError(
+                        # Do not include the JVM log in the exception as this is sent to the user and
+                        # the JVM log might inadvetantly contain sensitive information.
+                        'unexpected end of stream in jvm'
+                    ) from eos_exception
+                else:
+                    assert False, message
 
 
 class Worker:
