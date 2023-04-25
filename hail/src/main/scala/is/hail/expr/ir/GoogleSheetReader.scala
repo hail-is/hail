@@ -91,6 +91,7 @@ class GoogleSheetPartitionReader(
   override def emitStream(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
+    mb: EmitMethodBuilder[_],
     context: EmitCode,
     requestedType: TStruct
   ): IEmitCode = {
@@ -100,10 +101,10 @@ class GoogleSheetPartitionReader(
     context.toI(cb).map(cb) { case partitionContext: SBaseStructValue =>
       val runtimeField = cb.fieldBuilder.newSettable[GoogleSheetPartitionIterator]("googleSheetPartitionIterator")
       val rowField = cb.fieldBuilder.newSettable[Array[String]]("googleSheetPartitionReaderRawRow")
-      val rowIdx = cb.emb.genFieldThisRef[Long]("rowIdx")
+      val rowIdx = mb.genFieldThisRef[Long]("rowIdx")
 
       SStreamValue(new StreamProducer {
-        def method: EmitMethodBuilder[_] = cb.emb
+        def method: EmitMethodBuilder[_] = mb
 
         override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
@@ -116,11 +117,11 @@ class GoogleSheetPartitionReader(
         }
 
         override val elementRegion: Settable[Region] =
-          cb.emb.genFieldThisRef[Region]("google_sheet_partition_reader_region")
+          mb.genFieldThisRef[Region]("google_sheet_partition_reader_region")
 
         override val requiresMemoryManagementPerElement: Boolean = true
 
-        override val LproduceElement: CodeLabel = cb.emb.defineAndImplementLabel { cb =>
+        override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
           cb.ifx(runtimeField.invoke[Boolean]("hasNext"), {
             cb.assign(rowField, runtimeField.invoke[Array[String]]("next"))
             cb.assign(rowIdx, rowIdx + const(1L))
@@ -130,21 +131,21 @@ class GoogleSheetPartitionReader(
           })
         }
 
-        override val element: EmitCode = EmitCode.fromI(cb.emb) { cb =>
+        override val element: EmitCode = EmitCode.fromI(mb) { cb =>
           val reqType: TStruct = requestedType.asInstanceOf[TStruct]
           val requestedFields = Array(
             reqType.selfField("index").map { _ =>
-              EmitCode.fromI(cb.emb) { cb =>
+              EmitCode.fromI(mb) { cb =>
                 IEmitCode.present(cb, new SInt64Value(rowIdx))
               }
             },
             reqType.selfField("cells").map { _ =>
-              EmitCode.fromI(cb.emb) { cb =>
+              EmitCode.fromI(mb) { cb =>
                 IEmitCode.present(cb, SJavaArrayString(true).construct(cb, rowField))
               }
             },
             reqType.selfField(uidFieldName).map { _ =>
-              EmitCode.fromI(cb.emb) { cb =>
+              EmitCode.fromI(mb) { cb =>
                 IEmitCode.present(cb, new SInt64Value(rowIdx))
               }
             }
