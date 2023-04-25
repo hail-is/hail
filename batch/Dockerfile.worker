@@ -71,6 +71,5 @@ COPY batch/batch /batch/batch/
 
 RUN hail-pip-install /hailtop /gear /batch
 
-COPY batch/jars/junixsocket-selftest-2.3.3-jar-with-dependencies.jar /jvm-entryway/
-COPY batch/src/main/java/is /jvm-entryway/is
+COPY batch/jvm-entryway/build/libs/jvm-entryway.jar /jvm-entryway/
 COPY letsencrypt/subdomains.txt /
