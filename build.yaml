@@ -830,7 +830,7 @@ steps:
       - from: /io/batch/jvm-entryway/build/libs/jvm-entryway.jar
         to: /jvm-entryway.jar
     dependsOn:
-      - hail_build_image.image
+      - hail_build_image
       - merge_code
   - kind: buildImage2
     name: batch_worker_image
