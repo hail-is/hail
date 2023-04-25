@@ -3,6 +3,15 @@
 Change Log
 ==========
 
+**Version 0.2.115**
+
+-  (`#12731 <https://github.com/hail-is/hail/pull/12731>`__) Introduced `hailtop.fs`
+  that makes public a filesystem module that works for local fs, gs, s3 and abs. This
+  can be used by `import hailtop.fs as hfs`.
+- (`#12918 <https://github.com/hail-is/hail/pull/12918>`__) Fixed a combinatorial explosion in cancellation
+  calculation in the :class:`.LocalBackend`
+
+
 **Version 0.2.114**
 
 - (`#12780 <https://github.com/hail-is/hail/pull/12881>`__) PythonJobs now handle arguments with resources nested inside dicts and lists.
