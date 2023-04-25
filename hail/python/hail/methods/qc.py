@@ -19,7 +19,7 @@ from hail.typecheck import typecheck, oneof, anytype, nullable, numeric
 from hail.expr.expressions.expression_typecheck import expr_float64
 from hail.utils import FatalError
 from hail.utils.java import Env, info, warning
-from hail.utils.misc import divide_null, guess_cloud_spark_provider
+from hail.utils.misc import divide_null, guess_cloud_spark_provider, new_temp_file
 from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.ir import TableToTableApply
@@ -881,7 +881,9 @@ def _service_vep(backend: ServiceBackend,
                  config: Optional[VEPConfig],
                  block_size: int,
                  csq: bool,
-                 tolerate_parse_error: bool) -> hl.Table:
+                 tolerate_parse_error: bool,
+                 temp_input_directory: str,
+                 temp_output_directory: str) -> hl.Table:
     reference_genome = ht.locus.dtype.reference_genome.name
     cloud = backend.bc.cloud()
     regions = backend.regions
@@ -969,58 +971,56 @@ def _service_vep(backend: ServiceBackend,
                           requester_pays_project=requester_pays_project,
                           env=env)
 
-    with hl.TemporaryDirectory(prefix='qob/vep/inputs/') as vep_input_path:
-        with hl.TemporaryDirectory(prefix='qob/vep/outputs/') as vep_output_path:
-            hl.export_vcf(ht, vep_input_path, parallel='header_per_shard')
+    hl.export_vcf(ht, temp_input_directory, parallel='header_per_shard')
 
-            starting_job_id = async_to_blocking(backend._batch.status())['n_jobs'] + 1
+    starting_job_id = async_to_blocking(backend._batch.status())['n_jobs'] + 1
 
-            bb = backend.bc.update_batch(backend._batch.id)
-            build_vep_batch(bb, vep_input_path, vep_output_path)
+    bb = backend.bc.update_batch(backend._batch.id)
+    build_vep_batch(bb, temp_input_directory, temp_output_directory)
 
-            b = bb.submit(disable_progress_bar=True)
+    b = bb.submit(disable_progress_bar=True)
 
-            try:
-                status = b.wait(description='vep(...)',
-                                disable_progress_bar=backend.disable_progress_bar,
-                                progress=None,
-                                starting_job=starting_job_id)
-            except BaseException as e:
-                if isinstance(e, KeyboardInterrupt):
-                    print("Received a keyboard interrupt, cancelling the batch...")
-                b.cancel()
-                backend._batch = None
-                raise
+    try:
+        status = b.wait(description='vep(...)',
+                        disable_progress_bar=backend.disable_progress_bar,
+                        progress=None,
+                        starting_job=starting_job_id)
+    except BaseException as e:
+        if isinstance(e, KeyboardInterrupt):
+            print("Received a keyboard interrupt, cancelling the batch...")
+        b.cancel()
+        backend._batch = None
+        raise
 
-            if status['n_succeeded'] != status['n_jobs']:
-                failing_job = [job for job in b.jobs('!success')][0]
-                failing_job = b.get_job(failing_job['job_id'])
-                message = {
-                    'batch_status': status,
-                    'job_status': failing_job.status(),
-                    'log': failing_job.log()
-                }
-                raise FatalError(yamlx.dump(message))
+    if status['n_succeeded'] != status['n_jobs']:
+        failing_job = [job for job in b.jobs('!success')][0]
+        failing_job = b.get_job(failing_job['job_id'])
+        message = {
+            'batch_status': status,
+            'job_status': failing_job.status(),
+            'log': failing_job.log()
+        }
+        raise FatalError(yamlx.dump(message))
 
-            annotations = hl.import_table(f'{vep_output_path}/annotations/*',
-                                          types={'variant': hl.tstr,
-                                                 'vep': vep_typ,
-                                                 'part_id': hl.tint,
-                                                 'block_id': hl.tint},
-                                          force=True)
+    annotations = hl.import_table(f'{temp_output_directory}/annotations/*',
+                                  types={'variant': hl.tstr,
+                                         'vep': vep_typ,
+                                         'part_id': hl.tint,
+                                         'block_id': hl.tint},
+                                  force=True)
 
-            annotations = annotations.annotate(vep_proc_id=hl.struct(
-                part_id=annotations.part_id,
-                block_id=annotations.block_id
-            ))
-            annotations = annotations.drop('part_id', 'block_id')
-            annotations = annotations.key_by(**hl.parse_variant(annotations.variant, reference_genome=reference_genome))
-            annotations = annotations.drop('variant')
+    annotations = annotations.annotate(vep_proc_id=hl.struct(
+        part_id=annotations.part_id,
+        block_id=annotations.block_id
+    ))
+    annotations = annotations.drop('part_id', 'block_id')
+    annotations = annotations.key_by(**hl.parse_variant(annotations.variant, reference_genome=reference_genome))
+    annotations = annotations.drop('variant')
 
-            if csq:
-                with hl.hadoop_open(f'{vep_output_path}/csq-header') as f:
-                    vep_csq_header = f.read().rstrip()
-                annotations = annotations.annotate_globals(vep_csq_header=vep_csq_header)
+    if csq:
+        with hl.hadoop_open(f'{temp_output_directory}/csq-header') as f:
+            vep_csq_header = f.read().rstrip()
+        annotations = annotations.annotate_globals(vep_csq_header=vep_csq_header)
 
     return annotations
 
@@ -1156,7 +1156,10 @@ def vep(dataset: Union[Table, MatrixTable],
 
     backend = hl.current_backend()
     if isinstance(backend, ServiceBackend):
-        annotations = _service_vep(backend, ht, config, block_size, csq, tolerate_parse_error)
+        with hl.TemporaryDirectory(prefix='qob/vep/inputs/') as vep_input_path:
+            with hl.TemporaryDirectory(prefix='qob/vep/outputs/') as vep_output_path:
+                annotations = _service_vep(backend, ht, config, block_size, csq, tolerate_parse_error, vep_input_path, vep_output_path)
+                annotations = annotations.checkpoint(new_temp_file())
     else:
         if config is None:
             maybe_cloud_spark_provider = guess_cloud_spark_provider()
