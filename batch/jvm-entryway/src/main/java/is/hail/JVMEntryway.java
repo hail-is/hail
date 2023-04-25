@@ -1,5 +1,6 @@
 package is.hail;
 
+import is.hail.QoBOutputStreamManager;
 import java.io.*;
 import java.lang.reflect.*;
 import java.net.*;
@@ -57,9 +58,11 @@ class JVMEntryway {
           System.err.println("reading " + i + ": " + realArgs[i]);
         }
 
-        assert realArgs.length >= 2;
+        assert realArgs.length >= 4;
         String classPath = realArgs[0];
         String mainClass = realArgs[1];
+        String scratchDir = realArgs[2];
+        String logFile = realArgs[3];
 
         ClassLoader cl = classLoaders.get(classPath);
         if (cl == null) {
@@ -86,6 +89,8 @@ class JVMEntryway {
         System.err.println("class loaded");
         Method main = klass.getDeclaredMethod("main", String[].class);
         System.err.println("main method got");
+
+        QoBOutputStreamManager.instance().changeFile(logFile);
 
         CompletionService<?> gather = new ExecutorCompletionService<Object>(executor);
         Future<?> mainThread = null;

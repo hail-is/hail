@@ -1,0 +1,72 @@
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+}
+
+plugins {
+  id "application"
+  id 'java'
+  id 'scala'
+  id 'com.github.johnrengelman.shadow' version '8.1.1'
+}
+
+repositories {
+    mavenCentral()
+    maven { url "https://repository.cloudera.com/artifactory/cloudera-repos/" }
+}
+
+project.ext {
+    sparkVersion = System.getProperty("spark.version", "3.3.0")
+    scalaVersion = System.getProperty("scala.version", "2.12.13")
+}
+
+sourceSets {
+    main {
+        scala {
+            // compile java and scala together so they can interdepend
+            srcDirs = ['src/main/scala', 'src/main/java']
+        }
+        java {
+            srcDirs = []
+        }
+    }
+}
+
+configurations {
+    withoutSpark.extendsFrom implementation
+    withoutSparkAndScala {
+        exclude group: 'org.scala-lang', module: 'scala-library'
+        exclude group: 'org.apache.spark'
+    }
+}
+
+dependencies {
+    implementation 'com.kohlschutter.junixsocket:junixsocket-core:2.6.2'
+    implementation 'org.scala-lang:scala-library:' + scalaVersion
+    implementation 'org.scala-lang:scala-reflect:' + scalaVersion
+    implementation('org.apache.spark:spark-core_' + '2.12:' + sparkVersion) {
+        exclude module: 'hadoop-client'
+    }
+}
+
+jar {
+    manifest {
+        attributes 'Main-Class': application.mainClass
+    }
+}
+
+shadowJar {
+   archiveBaseName.set('jvm-entryway')
+   archiveClassifier.set('')
+   archiveVersion.set('')
+   // spark and scala are provided by PySpark
+   configurations = [project.configurations.withoutSparkAndScala]
+}
+
+application {
+    mainClassName = "is.hail.JVMEntryway"
+    // these can help debug log4j
+    // applicationDefaultJvmArgs = ["-Dlog4j.debug"]
+    // applicationDefaultJvmArgs = ["-Dlog4j2.debug"]
+}

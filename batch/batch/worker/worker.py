@@ -2327,7 +2327,7 @@ class JVMContainer:
             'java',
             f'-Xmx{heap_memory_mib}M',
             '-cp',
-            f'/jvm-entryway:/jvm-entryway/junixsocket-selftest-2.3.3-jar-with-dependencies.jar:{JVM.SPARK_HOME}/jars/*',
+            f'/jvm-entryway/jvm-entryway.jar:{JVM.SPARK_HOME}/jars/*',
             'is.hail.JVMEntryway',
             socket_file,
         ]
