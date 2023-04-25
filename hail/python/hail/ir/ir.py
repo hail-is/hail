@@ -7,7 +7,7 @@ import decorator
 import hail
 from hail.expr.types import dtype, HailType, hail_type, tint32, tint64, \
     tfloat32, tfloat64, tstr, tbool, tarray, tstream, tndarray, tset, tdict, \
-    tstruct, ttuple, tinterval, tvoid, trngstate
+    tstruct, ttuple, tinterval, tvoid, trngstate, tlocus, tcall
 from hail.ir.blockmatrix_writer import BlockMatrixWriter, BlockMatrixMultiWriter
 from hail.typecheck import typecheck, typecheck_method, sequenceof, numeric, \
     sized_tupleof, nullable, tupleof, anytype, func_spec
@@ -3148,6 +3148,100 @@ class PartitionReader(object):
         pass
 
 
+class GVCFPartitionReader(PartitionReader):
+
+    entries_field_name = '__entries'
+    def __init__(self, header, call_fields, entry_float_type, array_elements_required, rg, contig_recoding,
+                 skip_invalid_loci, filter, find, replace, uid_field):
+        self.header = header
+        self.call_fields = call_fields
+        self.entry_float_type = entry_float_type
+        self.array_elements_required = array_elements_required
+        self.rg = rg
+        self.contig_recoding = contig_recoding
+        self.skip_invalid_loci = skip_invalid_loci
+        self.filter = filter
+        self.find = find
+        self.replace = replace
+        self.uid_field = uid_field
+
+    def with_uid_field(self, uid_field):
+        return GVCFPartitionReader(self.header,
+                                   self.call_fields,
+                                   self.entry_float_type,
+                                   self.array_elements_required,
+                                   self.rg,
+                                   self.contig_recoding,
+                                   self.skip_invalid_loci,
+                                   self.filter,
+                                   self.find,
+                                   self.replace,
+                                   uid_field)
+
+    def render(self):
+        return escape_str(json.dumps({"name": "GVCFPartitionReader",
+                                      "header": {"name": "VCFHeaderInfo", **self.header},
+                                      "callFields": list(self.call_fields),
+                                      "entryFloatType": "Float64" if self.entry_float_type == tfloat64 else "Float32",
+                                      "arrayElementsRequired": self.array_elements_required,
+                                      "rg": self.rg.name if self.rg is not None else None,
+                                      "contigRecoding": self.contig_recoding,
+                                      "filterAndReplace": {
+                                          "name": "TextInputFilterAndReplace",
+                                          "filter": self.filter,
+                                          "find": self.find,
+                                          "replace": self.replace,
+                                      },
+                                      "skipInvalidLoci": self.skip_invalid_loci,
+                                      "entriesFieldName": GVCFPartitionReader.entries_field_name,
+                                      "uidFieldName": self.uid_field if self.uid_field is not None else '__dummy'}))
+
+    def _eq(self, other):
+        return isinstance(other, GVCFPartitionReader) \
+               and self.header == other.header \
+               and self.call_fields == other.call_fields \
+               and self.entry_float_type == other.entry_float_type \
+               and self.array_elements_required == other.array_elements_required \
+               and self.rg == other.rg \
+               and self.contig_recoding == other.contig_recoding \
+               and self.skip_invalid_loci == other.skip_invalid_loci \
+               and self.filter == other.filter \
+               and self.find == other.find \
+               and self.replace == other.replace \
+               and self.uid_field == other.uid_field
+
+    def row_type(self):
+        if self.uid_field is not None:
+            uid_fd = {self.uid_field: ttuple(tint64, tint64)}
+        else:
+            uid_fd = {}
+
+        from hail.expr.type_parsing import vcf_type_grammar, vcf_type_node_visitor
+
+        def parse_type(t):
+            tree = vcf_type_grammar.parse(t)
+            return vcf_type_node_visitor.visit(tree)
+
+        def subst_format(name, t):
+            if t == tfloat64:
+                return self.entry_float_type
+            if name in self.call_fields or name == 'GT':
+                return tcall
+            elif isinstance(t, tarray):
+                return tarray(subst_format(name, t.element_type))
+            return t
+
+        return tstruct(locus=tstruct(contig=tstr, position=tint32) if self.rg is None else tlocus(self.rg),
+                       alleles=tarray(tstr),
+                       rsid=tstr,
+                       qual=tfloat64,
+                       filters=tset(tstr),
+                       info=tstruct(**{k: parse_type(v) for k, v in self.header['infoFields']}),
+                       **{GVCFPartitionReader.entries_field_name: tarray(
+                           tstruct(**{k: subst_format(k, parse_type(v)) for k, v in self.header['formatFields']}))},
+                       **uid_fd)
+
+
 class PartitionNativeIntervalReader(PartitionReader):
     def __init__(self, path, table_row_type, uid_field=None):
         self.path = path
@@ -3155,7 +3249,7 @@ class PartitionNativeIntervalReader(PartitionReader):
         self.uid_field = uid_field
 
     def with_uid_field(self, uid_field):
-        return PartitionNativeIntervalReader(self.path, uid_field)
+        return PartitionNativeIntervalReader(self.path, self.table_row_type, uid_field)
 
     def render(self):
         return escape_str(json.dumps({"name": "PartitionNativeIntervalReader",

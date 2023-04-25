@@ -18,7 +18,8 @@ from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
     GetTupleElement, Die, ConsoleLog, Apply, ApplySeeded, RNGStateLiteral, RNGSplit,\
     TableCount, TableGetGlobals, TableCollect, TableAggregate, MatrixCount, \
     MatrixAggregate, TableWrite, udf, subst, clear_session_functions, ReadPartition, \
-    PartitionNativeIntervalReader, StreamMultiMerge, StreamZipJoin, StreamZipJoinProducers
+    PartitionNativeIntervalReader, StreamMultiMerge, StreamZipJoin, StreamZipJoinProducers, \
+    GVCFPartitionReader
 from .register_functions import register_functions
 from .register_aggregators import register_aggregators
 from .table_ir import (MatrixRowsTable, TableJoin, TableLeftJoinRightDistinct, TableIntervalJoin,
@@ -319,6 +320,7 @@ __all__ = [
     'TableNativeFanoutWriter',
     'ReadPartition',
     'PartitionNativeIntervalReader',
+    'GVCFPartitionReader',
     'TableGen',
     'Partitioner'
 ]

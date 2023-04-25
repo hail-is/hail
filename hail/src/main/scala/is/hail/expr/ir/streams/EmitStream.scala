@@ -2823,10 +2823,10 @@ object EmitStream {
               cb.assign(bracket, Code.newArray[Int](k))
               cb.assign(heads, Code.newArray[Long](k))
               cb.forLoop(cb.assign(i, 0), i < k, cb.assign(i, i + 1), {
-                cb += (bracket(i) = -1)
+                cb.updateArray(bracket, i, -1)
                 val eltRegion: Value[Region] = if (streamRequiresMemoryManagement) {
                   val r = cb.memoize(Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
-                  cb += regionArray.update(i, r)
+                  cb.updateArray(regionArray, i, r)
                   r
                 } else outerRegion
                 cb += iterArray(i).invoke[Region, Region, Unit]("init", outerRegion, eltRegion)
@@ -2864,7 +2864,7 @@ object EmitStream {
 
               cb.define(LstartNewKey)
               cb.forLoop(cb.assign(i, 0), i < k, cb.assign(i, i + 1), {
-                cb += (result(i) = 0L)
+                cb.updateArray(result, i, 0L)
               })
               cb.assign(curKey, eltType.loadCheapSCode(cb, heads(winner)).subset(key: _*)
                 .castTo(cb, elementRegion, curKey.st, true))
@@ -2905,7 +2905,7 @@ object EmitStream {
                   cb.goto(LafterChallenge))
 
                 cb.define(LchallengerWins)
-                cb += (bracket(matchIdx) = winner)
+                cb.updateArray(bracket, matchIdx, winner)
                 cb.assign(winner, challenger)
               })
               cb.define(LafterChallenge)
@@ -2934,7 +2934,7 @@ object EmitStream {
                 })
               }, {
                 // We're still in the setup phase
-                cb += (bracket(matchIdx) = winner)
+                cb.updateArray(bracket, matchIdx, winner)
                 cb.assign(i, i + 1)
                 cb.assign(winner, i)
                 cb.goto(LpullChild)
@@ -2949,7 +2949,7 @@ object EmitStream {
                 cb.assign(winner, k)
               }, {
                 cb.assign(matchIdx, (winner + k) >>> 1)
-                cb += heads.update(winner, winnerNextElt)
+                cb.updateArray(heads, winner, winnerNextElt)
               })
               cb.goto(LrunMatch)
             }
@@ -2960,9 +2960,9 @@ object EmitStream {
               cb.assign(i, 0)
               cb.whileLoop(i < nStreams, {
                 cb += iterArray(i).invoke[Unit]("close")
-                cb.assign(i, i + 1)
                 if (requiresMemoryManagementPerElement)
                   cb += regionArray(i).invoke[Unit]("invalidate")
+                cb.assign(i, i + 1)
               })
               if (requiresMemoryManagementPerElement)
                 cb.assign(regionArray, Code._null)
