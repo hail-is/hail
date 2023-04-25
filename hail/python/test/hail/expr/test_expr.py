@@ -607,7 +607,7 @@ class Tests(unittest.TestCase):
                                               None]),
         ]
 
-    @with_flags('distributed_scan_comb_op')
+    @with_flags(distributed_scan_comb_op='1')
     def test_densify_table(self):
         ht = hl.utils.range_table(100, n_partitions=33)
         ht = ht.annotate(arr = hl.range(100).map(lambda idx: hl.or_missing(idx == ht.idx, idx)))

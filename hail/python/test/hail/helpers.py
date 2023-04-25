@@ -8,6 +8,9 @@ from hail.utils.java import Env, choose_backend
 import hail as hl
 
 
+GCS_REQUESTER_PAYS_PROJECT = os.environ.get('GCS_REQUESTER_PAYS_PROJECT')
+
+
 def startTestHailContext():
     backend_name = choose_backend()
     if backend_name == 'spark':
@@ -18,6 +21,7 @@ def startTestHailContext():
 
 def stopTestHailContext():
     hl.stop()
+
 
 _test_dir = os.environ.get('HAIL_TEST_RESOURCES_DIR',
                            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(hl.__file__))),
@@ -111,8 +115,10 @@ def create_all_values_matrix_table():
             .annotate_entries(**prefix_struct(all_values, 'entry_'))
             .cache())
 
+
 def create_all_values_datasets():
     return (create_all_values_table(), create_all_values_matrix_table())
+
 
 def skip_unless_spark_backend(reason='requires Spark'):
     from hail.backend.spark_backend import SparkBackend
@@ -124,6 +130,7 @@ def skip_unless_spark_backend(reason='requires Spark'):
             raise unittest.SkipTest(reason)
 
     return wrapper
+
 
 def skip_when_service_backend(reason='skipping for Service Backend'):
     from hail.backend.service_backend import ServiceBackend
@@ -137,14 +144,16 @@ def skip_when_service_backend(reason='skipping for Service Backend'):
     return wrapper
 
 
-def skip_unless_service_backend(reason='only relevant to service backend'):
+def skip_unless_service_backend(reason='only relevant to service backend', clouds=None):
     from hail.backend.service_backend import ServiceBackend
     @decorator
     def wrapper(func, *args, **kwargs):
         if not isinstance(hl.utils.java.Env.backend(), ServiceBackend):
             raise unittest.SkipTest(reason)
         else:
-            return func(*args, **kwargs)
+            if clouds is None or os.environ['HAIL_CLOUD'] in clouds:
+                return func(*args, **kwargs)
+            raise unittest.SkipTest(f'{reason} for clouds {clouds}')
 
     return wrapper
 
@@ -178,12 +187,12 @@ def assert_all_eval_to(*expr_and_expected):
     assert_evals_to(hl.tuple(exprs), expecteds)
 
 
-def with_flags(*flags):
+def with_flags(**flags):
     @decorator
     def wrapper(func, *args, **kwargs):
         prev_flags = hl._get_flags(*flags)
 
-        hl._set_flags(**{k: '1' for k in flags})
+        hl._set_flags(**{k: v for k, v in flags.items()})
 
         try:
             return func(*args, **kwargs)
@@ -192,5 +201,11 @@ def with_flags(*flags):
     return wrapper
 
 
+def set_gcs_requester_pays_configuration(gcs_project):
+    if gcs_project is not None:
+        return with_flags(gcs_requester_pays_project=gcs_project)
+    return with_flags()
+
+
 def lower_only():
-    return with_flags('lower', 'lower_bm', 'lower_only')
+    return with_flags(lower='1', lower_bm='1', lower_only='1')

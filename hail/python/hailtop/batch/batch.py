@@ -456,8 +456,6 @@ class Batch:
         ----------
         path: :obj:`str`
             File path to read.
-        extension: :obj:`str`, optional
-            File extension to use.
         """
 
         irf = self._new_input_resource_file(path)
