@@ -32,6 +32,10 @@ Released 2023-04-25
   for local fs, gs, s3 and abs. This can be used by `import hailtop.fs as hfs` but has also
   replaced the underlying implementation of the `hl.hadoop_*` methods. This means that the
   `hl.hadoop_*` methods now support these additional blob storage providers.
+- (hail#12917) ABS blob URIs in the form of `https://<ACCOUNT_NAME>.blob.core.windows.net/<CONTAINER_NAME>/<PATH>` are now supported when running in Azure.
+
+### Deprecations
+- (hail#12917) The `hail-az` scheme for referencing ABS blobs in Azure is deprecated in favor of the `https` scheme, and will be removed in a future release.
 
 ### Bug Fixes
 

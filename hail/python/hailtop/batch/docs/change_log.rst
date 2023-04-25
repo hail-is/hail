@@ -5,8 +5,9 @@ Change Log
 
 **Version 0.2.115**
 
--  (`#12731 <https://github.com/hail-is/hail/pull/12731>`__) Introduced `hailtop.fs` that makes public a filesystem module that works for local fs, gs, s3 and abs. This can be used by `import hailtop.fs as hfs`.
+- (`#12731 <https://github.com/hail-is/hail/pull/12731>`__) Introduced `hailtop.fs` that makes public a filesystem module that works for local fs, gs, s3 and abs. This can be used by `import hailtop.fs as hfs`.
 - (`#12918 <https://github.com/hail-is/hail/pull/12918>`__) Fixed a combinatorial explosion in cancellation calculation in the :class:`.LocalBackend`
+- (`#12917 <https://github.com/hail-is/hail/pull/12917>`__) ABS blob URIs in the form of `https://<ACCOUNT_NAME>.blob.core.windows.net/<CONTAINER_NAME>/<PATH>` are now supported when running in Azure. The `hail-az` scheme for referencing ABS blobs is now deprecated and will be removed in a future release.
 
 **Version 0.2.114**
 
