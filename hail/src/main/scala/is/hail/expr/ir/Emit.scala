@@ -2294,11 +2294,11 @@ class Emit[C](
           emitI(value).map(cb) { v =>
             val s = stagingFile.map(emitI(_).get(cb).asString)
             val p = EmitCode.present(mb, s.getOrElse(pv))
-            val ret = writer.writeValue(cb, v, p)
+            writer.writeValue(cb, v, p)
             s.foreach { stage =>
               cb += mb.getFS.invoke[String, String, Boolean, Unit]("copy", stage.loadString(cb), pv.loadString(cb), const(true))
             }
-            ret
+            pv
           }
         }
 
