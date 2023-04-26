@@ -39,11 +39,10 @@ abstract class ValueWriter {
   }
   protected def _writeValue(cb: EmitCodeBuilder, value: SValue, args: IndexedSeq[EmitCode]): SValue
   def argumentTypes: IndexedSeq[Type]
+  // one of void, binary, or string, checked in TypeCheck
   def returnType: Type
 
   def toJValue: JValue = Extraction.decompose(this)(ValueWriter.formats)
-
-  require(returnType == TVoid || returnType == TString || returnType == TBinary)
 }
 
 abstract class ETypeValueWriter(spec: AbstractTypedCodecSpec) extends ValueWriter {
