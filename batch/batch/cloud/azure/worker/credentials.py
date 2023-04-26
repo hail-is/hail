@@ -26,10 +26,8 @@ class AzureUserCredentials(CloudUserCredentials):
     def mount_path(self):
         return '/azure-credentials/key.json'
 
-    def cloudfuse_credentials(self, fuse_config: dict) -> str:
+    def blobfuse_credentials(self, account: str, container: str) -> str:
         # https://github.com/Azure/azure-storage-fuse
-        bucket = fuse_config['bucket']
-        account, container = bucket.split('/', maxsplit=1)
         return f'''
 accountName {account}
 authType SPN
