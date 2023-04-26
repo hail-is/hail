@@ -1549,7 +1549,7 @@ object IRParser {
           ReadValue(path, spec, typ)
         }
       case "WriteValue" =>
-        import PartitionReader.formats
+        import ValueWriter.formats
         val writer = JsonMethods.parse(string_literal(it)).extract[ValueWriter]
         ir_value_children(env)(it).map {
           case Array(value, path) => WriteValue(value, path, writer)
