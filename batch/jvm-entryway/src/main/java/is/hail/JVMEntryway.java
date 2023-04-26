@@ -9,8 +9,10 @@ import java.nio.charset.*;
 import java.util.*;
 import java.util.concurrent.*;
 import org.newsclub.net.unix.*;
+import org.apache.logging.log4j.*;
 
 class JVMEntryway {
+  private static final log = Logger.getLogger(this.getClass.getName()) // this will initialize log4j which is required for us to access the QoBAppender in main
   private static final HashMap<String, ClassLoader> classLoaders = new HashMap<>();
 
   public static String throwableToString(Throwable t) throws IOException {
@@ -132,7 +134,9 @@ class JVMEntryway {
           completedThread = gather.take();
         } catch (Throwable t) {
           entrywayException = t;
-        }
+        } finally {
+	    QoBOutputStreamManager.instance().flush();
+	}
 
         if (entrywayException != null) {
           System.err.println("exception in entryway code");

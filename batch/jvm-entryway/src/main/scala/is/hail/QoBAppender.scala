@@ -12,7 +12,10 @@ import org.apache.logging.log4j.core.config.plugins._
 object QoBOutputStreamManager {
   private[this] var _instance: QoBOutputStreamManager = null
 
-  def instance: QoBOutputStreamManager = synchronized { _instance }
+  def instance: QoBOutputStreamManager = synchronized {
+    assert(_instance != null)
+    _instance
+  }
 
   def getInstance(layout: Layout[_]): QoBOutputStreamManager = synchronized {
     // we only support one QoBOutputStreamManager
@@ -36,6 +39,13 @@ class QoBOutputStreamManager(layout: Layout[_]) extends OutputStreamManager(
     } else {
       System.err.println("Creating outputstream " + filename)
       new BufferedOutputStream(new FileOutputStream(filename))
+    }
+  }
+
+  def flush(): Unit = {
+    if (hasOutputStream()) {
+      val os = getOutputStream()
+      os.flush()
     }
   }
 
