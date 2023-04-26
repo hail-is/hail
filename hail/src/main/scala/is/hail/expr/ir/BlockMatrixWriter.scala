@@ -50,11 +50,12 @@ case class BlockMatrixNativeWriter(
   override def lower(ctx: ExecuteContext, s: BlockMatrixStage2, evalCtx: IRBuilder, eltR: TypeWithRequiredness): IR = {
     val etype = EBlockMatrixNDArray(EType.fromTypeAndAnalysis(s.typ.elementType, eltR), encodeRowMajor = forceRowMajor, required = true)
     val spec = TypedCodecSpec(etype, TNDArray(s.typ.elementType, Nat(2)), BlockMatrix.bufferSpec)
+    val writer = ETypeFileValueWriter(spec)
 
     val paths = s.collectBlocks(evalCtx, "block_matrix_native_writer") { (_, idx, block) =>
       val suffix = strConcat("parts/part-", idx, UUID4())
       val filepath = strConcat(s"$path/", suffix)
-      WriteValue(block, filepath, spec,
+      WriteValue(block, filepath, writer,
         if (stageLocally) Some(strConcat(s"${ctx.localTmpdir}/", suffix)) else None
       )
     }
@@ -125,7 +126,8 @@ case class BlockMatrixBinaryWriter(path: String) extends BlockMatrixWriter {
 
     val etype = ENumpyBinaryNDArray(s.typ.nRows, s.typ.nCols, true)
     val spec = TypedCodecSpec(etype, TNDArray(s.typ.elementType, Nat(2)), new StreamBufferSpec())
-    WriteValue(nd, Str(path), spec)
+    val writer = ETypeFileValueWriter(spec)
+    WriteValue(nd, Str(path), writer)
   }
 }
 

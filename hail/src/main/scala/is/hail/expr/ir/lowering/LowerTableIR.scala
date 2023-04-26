@@ -645,6 +645,7 @@ object LowerTableIR {
           val tmpDir = ctx.createTmpPath("aggregate_intermediates/")
 
           val codecSpec = TypedCodecSpec(PCanonicalTuple(true, aggs.aggs.map(_ => PCanonicalBinary(true)): _*), BufferSpec.wireSpec)
+          val writer = ETypeFileValueWriter(codecSpec)
           lcWithInitBinding.mapCollectWithGlobals("table_aggregate")({ part: IR =>
             Let("global", lc.globals,
               RunAgg(
@@ -655,7 +656,7 @@ object LowerTableIR {
                     aggs.seqPerElt
                   )
                 )),
-                WriteValue(MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }), Str(tmpDir) + UUID4(), codecSpec),
+                WriteValue(MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }), Str(tmpDir) + UUID4(), writer),
                 aggs.states
               ))
           }) { case (collected, globals) =>
@@ -701,7 +702,7 @@ object LowerTableIR {
                       genUID(),
                       RunAgg(
                         combineGroup(distAggStatesRef, false),
-                        WriteValue(MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }), Str(tmpDir) + UUID4(), codecSpec),
+                        WriteValue(MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }), Str(tmpDir) + UUID4(), writer),
                         aggs.states
                       ),
                       strConcat(Str("iteration="), invoke("str", TString, iterNumber), Str(", n_states="), invoke("str", TString, ArrayLen(currentAggStates))),
@@ -1240,6 +1241,7 @@ object LowerTableIR {
             val tmpDir = ctx.createTmpPath("aggregate_intermediates/")
 
             val codecSpec = TypedCodecSpec(PCanonicalTuple(true, aggs.aggs.map(_ => PCanonicalBinary(true)): _*), BufferSpec.wireSpec)
+            val writer = ETypeFileValueWriter(codecSpec)
             val partitionPrefixSumFiles = lcWithInitBinding.mapCollectWithGlobals("table_scan_write_prefix_sums")({ part: IR =>
               Let("global", lcWithInitBinding.globals,
                 RunAgg(
@@ -1250,7 +1252,7 @@ object LowerTableIR {
                       aggs.seqPerElt
                     )
                   )),
-                  WriteValue(MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }), Str(tmpDir) + UUID4(), codecSpec),
+                  WriteValue(MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }), Str(tmpDir) + UUID4(), writer),
                   aggs.states
                 ))
               // Collected is TArray of TString
@@ -1302,7 +1304,7 @@ object LowerTableIR {
                           ) { case (contexts, _) =>
                             RunAgg(
                               combineGroup(contexts),
-                              WriteValue(MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }), Str(tmpDir) + UUID4(), codecSpec),
+                              WriteValue(MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }), Str(tmpDir) + UUID4(), writer),
                               aggs.states
                             )
                           }
@@ -1328,7 +1330,7 @@ object LowerTableIR {
                 val last = Ref(genUID(), TArray(TString))
 
 
-                bindIR(WriteValue(initState, Str(tmpDir) + UUID4(), codecSpec)) { freshState =>
+                bindIR(WriteValue(initState, Str(tmpDir) + UUID4(), writer)) { freshState =>
                   TailLoop(downPassLoopName, IndexedSeq((level.name, ArrayLen(aggStack) - 1), (last.name, MakeArray(freshState)), (iteration.name, I32(0))),
                     If(level < 0,
                       last,
@@ -1362,7 +1364,7 @@ object LowerTableIR {
                                     CombOpValue(i, GetTupleElement(serializedTuple, i), sig)
                                   })
                               },
-                              WriteValue(MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }), Str(tmpDir) + UUID4(), codecSpec),
+                              WriteValue(MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }), Str(tmpDir) + UUID4(), writer),
                               aggs.states
                             ))
                           }
