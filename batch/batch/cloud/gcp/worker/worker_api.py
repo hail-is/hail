@@ -8,7 +8,7 @@ from hailtop import httpx
 from hailtop.aiocloud import aiogoogle
 from hailtop.utils import check_exec_output, request_retry_transient_errors
 
-from ....worker.worker_api import CloudWorkerAPI
+from ....worker.worker_api import CloudWorkerAPI, ContainerRegistryCredentials
 from ..instance_config import GCPSlimInstanceConfig
 from .credentials import GCPUserCredentials
 from .disk import GCPDisk
@@ -52,7 +52,7 @@ class GCPWorkerAPI(CloudWorkerAPI[GCPUserCredentials]):
     def user_credentials(self, credentials: Dict[str, str]) -> GCPUserCredentials:
         return GCPUserCredentials(credentials)
 
-    async def worker_access_token(self, session: httpx.ClientSession) -> Dict[str, str]:
+    async def worker_container_registry_credentials(self, session: httpx.ClientSession) -> ContainerRegistryCredentials:
         async with await request_retry_transient_errors(
             session,
             'POST',
@@ -62,6 +62,11 @@ class GCPWorkerAPI(CloudWorkerAPI[GCPUserCredentials]):
         ) as resp:
             access_token = (await resp.json())['access_token']
             return {'username': 'oauth2accesstoken', 'password': access_token}
+
+    async def user_container_registry_credentials(
+        self, user_credentials: GCPUserCredentials
+    ) -> ContainerRegistryCredentials:
+        return {'username': '_json_key', 'password': user_credentials.key}
 
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> GCPSlimInstanceConfig:
         return GCPSlimInstanceConfig.from_dict(config_dict)

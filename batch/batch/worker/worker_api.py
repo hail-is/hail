@@ -1,6 +1,8 @@
 import abc
 from typing import Dict, Generic, TypeVar
 
+from typing_extensions import TypedDict
+
 from hailtop import httpx
 from hailtop.aiotools.fs import AsyncFS
 from hailtop.utils import CalledProcessError, sleep_and_backoff
@@ -10,6 +12,11 @@ from .credentials import CloudUserCredentials
 from .disk import CloudDisk
 
 CredsType = TypeVar("CredsType", bound=CloudUserCredentials)
+
+
+class ContainerRegistryCredentials(TypedDict):
+    username: str
+    password: str
 
 
 class CloudWorkerAPI(abc.ABC, Generic[CredsType]):
@@ -32,7 +39,11 @@ class CloudWorkerAPI(abc.ABC, Generic[CredsType]):
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def worker_access_token(self, session: httpx.ClientSession) -> Dict[str, str]:
+    async def worker_container_registry_credentials(self, session: httpx.ClientSession) -> ContainerRegistryCredentials:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def user_container_registry_credentials(self, user_credentials: CredsType) -> ContainerRegistryCredentials:
         raise NotImplementedError
 
     @abc.abstractmethod

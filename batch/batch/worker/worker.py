@@ -84,7 +84,7 @@ from ..publicly_available_images import publicly_available_images
 from ..resource_usage import ResourceUsageMonitor
 from ..semaphore import FIFOWeightedSemaphore
 from ..utils import Box
-from ..worker.worker_api import CloudDisk, CloudWorkerAPI
+from ..worker.worker_api import CloudDisk, CloudWorkerAPI, ContainerRegistryCredentials
 from .credentials import CloudUserCredentials
 from .jvm_entryway_protocol import EndOfStream, read_bool, read_int, read_str, write_int, write_str
 
@@ -531,7 +531,7 @@ class Image:
                 if not self.is_cloud_image:
                     await self._ensure_image_is_pulled()
                 elif self.is_public_image:
-                    await self._ensure_image_is_pulled(auth=self._batch_worker_access_token)
+                    await self._ensure_image_is_pulled(auth=self._batch_worker_registry_credentials)
                 elif self.image_ref_str == BATCH_WORKER_IMAGE and isinstance(
                     self.credentials, (JVMUserCredentials, CopyStepCredentials)
                 ):
@@ -546,7 +546,7 @@ class Image:
                         str(self),
                         self._pull_with_auth_refresh,
                         self.image_ref_str,
-                        auth=self._current_user_access_token,
+                        auth=self._current_user_registry_credentials,
                     )
             except DockerError as e:
                 if e.status == 404 and 'pull access denied' in e.message:
@@ -581,7 +581,9 @@ class Image:
         image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
         image_configs[self.image_ref_str] = json.loads(image_config)[0]
 
-    async def _ensure_image_is_pulled(self, auth: Optional[Callable[..., Awaitable[Optional[Dict[str, str]]]]] = None):
+    async def _ensure_image_is_pulled(
+        self, auth: Optional[Callable[..., Awaitable[Optional[ContainerRegistryCredentials]]]] = None
+    ):
         assert docker
 
         try:
@@ -594,13 +596,14 @@ class Image:
             else:
                 raise
 
-    async def _batch_worker_access_token(self) -> Dict[str, str]:
+    async def _batch_worker_registry_credentials(self) -> ContainerRegistryCredentials:
         assert CLOUD_WORKER_API
-        return await CLOUD_WORKER_API.worker_access_token(self.client_session)
+        return await CLOUD_WORKER_API.worker_container_registry_credentials(self.client_session)
 
-    async def _current_user_access_token(self) -> Dict[str, str]:
+    async def _current_user_registry_credentials(self) -> ContainerRegistryCredentials:
         assert self.credentials and isinstance(self.credentials, CloudUserCredentials)
-        return {'username': self.credentials.username, 'password': self.credentials.password}
+        assert CLOUD_WORKER_API
+        return await CLOUD_WORKER_API.user_container_registry_credentials(self.credentials)
 
     async def _extract_rootfs(self):
         assert self.image_id
