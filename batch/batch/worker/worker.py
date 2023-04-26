@@ -1395,12 +1395,6 @@ class Job(abc.ABC):
     def cloudfuse_credentials_path(self, bucket: str) -> str:
         return f'{self.scratch}/cloudfuse/{bucket}'
 
-    def credentials_host_dirname(self) -> str:
-        return f'{self.scratch}/{self.credentials.secret_name}'
-
-    def credentials_host_file_path(self) -> str:
-        return f'{self.credentials_host_dirname()}/{self.credentials.file_name}'
-
     @staticmethod
     def create(
         batch_id,
