@@ -45,7 +45,9 @@ abstract class ValueWriter {
   def toJValue: JValue = Extraction.decompose(this)(ValueWriter.formats)
 }
 
-abstract class ETypeValueWriter(spec: AbstractTypedCodecSpec) extends ValueWriter {
+abstract class ETypeValueWriter extends ValueWriter {
+  def spec: AbstractTypedCodecSpec
+
   final def serialize(cb: EmitCodeBuilder, value: SValue, os: Value[OutputStream]) = {
     val encoder = spec.encodedType.buildEncoder(value.st, cb.emb.ecb)
     val ob = cb.memoize(spec.buildCodeOutputBuffer(os))
@@ -54,7 +56,7 @@ abstract class ETypeValueWriter(spec: AbstractTypedCodecSpec) extends ValueWrite
   }
 }
 
-final case class ETypeFileValueWriter(spec: AbstractTypedCodecSpec) extends ETypeValueWriter(spec) {
+final case class ETypeFileValueWriter(spec: AbstractTypedCodecSpec) extends ETypeValueWriter {
   protected def _writeValue(cb: EmitCodeBuilder, value: SValue, args: IndexedSeq[EmitCode]): SValue = {
     val IndexedSeq(path_) = args
     val path = path_.toI(cb).get(cb).asString
