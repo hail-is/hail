@@ -183,6 +183,11 @@ async def rest_get_version(request):  # pylint: disable=W0613
     return web.Response(text=version())
 
 
+@routes.get('/api/v1alpha/cloud')
+async def rest_cloud(request):  # pylint: disable=W0613
+    return web.Response(text=CLOUD)
+
+
 @routes.get('/api/v1alpha/supported_regions')
 @auth.rest_authenticated_users_only
 async def rest_get_supported_regions(request, userdata):  # pylint: disable=unused-argument

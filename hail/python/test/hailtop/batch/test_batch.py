@@ -415,7 +415,7 @@ class LocalTests(unittest.TestCase):
             self.assertRaises(Exception, b.run)
             assert self.read(output_file.name) == '1'
 
-    def test_failed_jobs_stop_dependent_jobs(self):
+    def test_failed_jobs_stop_child_jobs(self):
         with tempfile.NamedTemporaryFile('w') as output_file:
             b = self.batch()
 
@@ -431,6 +431,29 @@ class LocalTests(unittest.TestCase):
 
             b.write_output(head2.ofile, output_file.name)
             b.write_output(tail.ofile, output_file.name)
+            self.assertRaises(Exception, b.run)
+            assert self.read(output_file.name) == '2'
+
+    def test_failed_jobs_stop_grandchild_jobs(self):
+        with tempfile.NamedTemporaryFile('w') as output_file:
+            b = self.batch()
+
+            head = b.new_job()
+            head.command(f'echo 1 > {head.ofile}')
+            head.command('false')
+
+            head2 = b.new_job()
+            head2.command(f'echo 2 > {head2.ofile}')
+
+            tail = b.new_job()
+            tail.command(f'cat {head.ofile} > {tail.ofile}')
+
+            tail2 = b.new_job()
+            tail2.depends_on(tail)
+            tail2.command(f'echo foo > {tail2.ofile}')
+
+            b.write_output(head2.ofile, output_file.name)
+            b.write_output(tail2.ofile, output_file.name)
             self.assertRaises(Exception, b.run)
             assert self.read(output_file.name) == '2'
 
@@ -464,7 +487,11 @@ class ServiceTests(unittest.TestCase):
             self.bucket = re.fullmatch('gs://(?P<bucket_name>[^/]+).*', remote_tmpdir).groupdict()['bucket_name']
         else:
             assert remote_tmpdir.startswith('hail-az://')
-            storage_account, container_name = re.fullmatch('hail-az://(?P<storage_account>[^/]+)/(?P<container_name>[^/]+).*', remote_tmpdir).groups()
+            if remote_tmpdir.startswith('hail-az://'):
+                storage_account, container_name = re.fullmatch('hail-az://(?P<storage_account>[^/]+)/(?P<container_name>[^/]+).*', remote_tmpdir).groups()
+            else:
+                assert remote_tmpdir.startswith('https://')
+                storage_account, container_name = re.fullmatch('https://(?P<storage_account>[^/]+).blob.core.windows.net/(?P<container_name>[^/]+).*', remote_tmpdir).groups()
             self.bucket = f'{storage_account}/{container_name}'
 
         self.cloud_input_dir = f'{self.remote_tmpdir}batch-tests/resources'
@@ -477,8 +504,7 @@ class ServiceTests(unittest.TestCase):
         if not os.path.exists(in_cluster_key_file):
             in_cluster_key_file = None
 
-        router_fs = RouterAsyncFS('gs',
-                                  gcs_kwargs={'project': 'hail-vdc', 'credentials_file': in_cluster_key_file},
+        router_fs = RouterAsyncFS(gcs_kwargs={'gcs_requester_pays_configuration': 'hail-vdc', 'credentials_file': in_cluster_key_file},
                                   azure_kwargs={'credential_file': in_cluster_key_file})
 
         def sync_exists(url):

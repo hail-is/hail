@@ -50,21 +50,24 @@ case class WrappedMatrixWriter(writer: MatrixWriter,
   entriesFieldName: String,
   colKey: IndexedSeq[String]) extends TableWriter {
   def path: String = writer.path
-  def apply(ctx: ExecuteContext, tv: TableValue): Unit = writer(ctx, tv.toMatrixValue(colKey, colsFieldName, entriesFieldName))
+
   override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR =
     writer.lower(colsFieldName, entriesFieldName, colKey, ctx, ts, r)
-
-  override def canLowerEfficiently: Boolean = writer.canLowerEfficiently
 }
 
 abstract class MatrixWriter {
   def path: String
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit
-  def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
-    ctx: ExecuteContext, ts: TableStage, r: RTable): IR =
-    throw new LowererUnsupportedOperation(s"${ this.getClass } does not have defined lowering!")
 
-  def canLowerEfficiently: Boolean = false
+  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = {
+    val tv = mv.toTableValue
+    val ts = TableExecuteIntermediate(tv).asTableStage(ctx)
+    CompileAndEvaluate(ctx, lower(LowerMatrixIR.colsFieldName, MatrixType.entriesIdentifier,
+      mv.typ.colKey, ctx, ts, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable]
+    ))
+  }
+
+  def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
+    ctx: ExecuteContext, ts: TableStage, r: RTable): IR
 }
 
 case class MatrixNativeWriter(
@@ -73,12 +76,8 @@ case class MatrixNativeWriter(
   stageLocally: Boolean = false,
   codecSpecJSONStr: String = null,
   partitions: String = null,
-  partitionsTypeStr: String = null,
-  checkpointFile: String = null
+  partitionsTypeStr: String = null
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = mv.write(ctx, path, overwrite, stageLocally, codecSpecJSONStr, partitions, partitionsTypeStr, checkpointFile)
-
-  override def canLowerEfficiently: Boolean = !stageLocally && checkpointFile == null
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
     ctx: ExecuteContext, tablestage: TableStage, r: RTable): IR = {
@@ -94,10 +93,6 @@ case class MatrixNativeWriter(
           .asInstanceOf[IndexedSeq[Interval]]
         tablestage.repartitionNoShuffle(ctx, new RVDPartitioner(ctx.stateManager, tm.rowKey.toArray, tm.rowKeyStruct, rangeBounds))
       } else tablestage
-
-    if (checkpointFile != null) {
-      warn(s"lowered execution does not support checkpoint files")
-    }
 
     val rowSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(tm.rowType, rm.rowType), tm.rowType, bufferSpec)
     val entrySpec = TypedCodecSpec(EType.fromTypeAndAnalysis(tm.entriesRVType, rm.entriesRVType), tm.entriesRVType, bufferSpec)
@@ -423,15 +418,6 @@ case class MatrixVCFWriter(
   metadata: Option[VCFMetadata] = None,
   tabix: Boolean = false
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = {
-    val tv = mv.toTableValue
-    val ts = TableExecuteIntermediate(tv).asTableStage(ctx)
-    CompileAndEvaluate(ctx,
-      lower(LowerMatrixIR.colsFieldName, MatrixType.entriesIdentifier, mv.typ.colKey,
-        ctx, ts, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable]))
-  }
-
-  override def canLowerEfficiently: Boolean = true
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
       ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
     require(exportType != ExportType.PARALLEL_COMPOSABLE)
@@ -878,15 +864,6 @@ case class MatrixGENWriter(
   path: String,
   precision: Int = 4
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = {
-    val tv = mv.toTableValue
-    val ts = TableExecuteIntermediate(tv).asTableStage(ctx)
-    CompileAndEvaluate(ctx,
-      lower(LowerMatrixIR.colsFieldName, MatrixType.entriesIdentifier, mv.typ.colKey,
-        ctx, ts, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable]))
-  }
-
-  override def canLowerEfficiently: Boolean = true
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
       ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
@@ -999,16 +976,7 @@ case class MatrixBGENWriter(
   exportType: String,
   compressionCodec: String
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = {
-    val tv = mv.toTableValue
-    val ts = TableExecuteIntermediate(tv).asTableStage(ctx)
-    CompileAndEvaluate(ctx,
-      lower(LowerMatrixIR.colsFieldName, MatrixType.entriesIdentifier, mv.typ.colKey,
-        ctx, ts, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable])
-    )
-  }
 
-  override def canLowerEfficiently: Boolean = true
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
       ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
 
@@ -1277,16 +1245,7 @@ case class BGENExportFinalizer(typ: MatrixType, path: String, exportType: String
 case class MatrixPLINKWriter(
   path: String
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = {
-    val tv = mv.toTableValue
-    val ts = TableExecuteIntermediate(tv).asTableStage(ctx)
-    CompileAndEvaluate(ctx,
-      lower(LowerMatrixIR.colsFieldName, MatrixType.entriesIdentifier, mv.typ.colKey,
-        ctx, ts, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable])
-    )
-  }
 
-  override def canLowerEfficiently: Boolean = true
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
       ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
     val tm = MatrixType.fromTableType(ts.tableType, colsFieldName, entriesFieldName, colKey)
@@ -1443,7 +1402,6 @@ case class MatrixBlockMatrixWriter(
   entryField: String,
   blockSize: Int
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = MatrixWriteBlockMatrix(ctx, mv, entryField, path, overwrite, blockSize)
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
     ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {

@@ -165,7 +165,7 @@ pycares==4.3.0
     # via aiodns
 pycparser==2.21
     # via cffi
-pygments==2.15.0
+pygments==2.15.1
     # via rich
 pyjwt[crypto]==2.6.0
     # via msal

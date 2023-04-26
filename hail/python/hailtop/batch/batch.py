@@ -250,8 +250,8 @@ class Batch:
     def _fs(self) -> AsyncFS:
         if self._DEPRECATED_project is not None:
             if self._DEPRECATED_fs is None:
-                gcs_kwargs = {'project': self._DEPRECATED_project}
-                self._DEPRECATED_fs = RouterAsyncFS('file', gcs_kwargs=gcs_kwargs)
+                gcs_kwargs = {'gcs_requester_pays_configuration': self._DEPRECATED_project}
+                self._DEPRECATED_fs = RouterAsyncFS(gcs_kwargs=gcs_kwargs)
             return self._DEPRECATED_fs
         return self._backend._fs
 
@@ -456,8 +456,6 @@ class Batch:
         ----------
         path: :obj:`str`
             File path to read.
-        extension: :obj:`str`, optional
-            File extension to use.
         """
 
         irf = self._new_input_resource_file(path)
@@ -557,7 +555,7 @@ class Batch:
         >>> b = Batch()
         >>> j = b.new_job()
         >>> j.command(f'echo "hello" > {j.ofile}')
-        >>> b.write_output(j.ofile, 'hail-az://my-account/my-container/output/hello.txt')
+        >>> b.write_output(j.ofile, 'https://my-account.blob.core.windows.net/my-container/output/hello.txt')
         >>> b.run()  # doctest: +SKIP
 
         .. warning::

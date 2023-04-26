@@ -14,7 +14,7 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 SCALA_VERSION ?= 2.12.13
 SPARK_VERSION ?= 3.3.0
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 114
+HAIL_PATCH_VERSION := 115
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 ELASTIC_MAJOR_VERSION ?= 8
@@ -169,7 +169,7 @@ python-jar: $(PYTHON_JAR)
 pytest: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
 pytest: python/README.md $(PYTHON_JAR)
 	cd python && $(HAIL_PYTHON3) -m pytest \
-            -Werror:::hail -Werror:::hailtop \
+            -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
             --log-cli-level=INFO \
             -s \
             -vv \
@@ -192,7 +192,7 @@ pytest-qob: upload-qob-jar upload-qob-test-resources install-editable
 	HAIL_TEST_RESOURCES_DIR='$(CLOUD_HAIL_TEST_RESOURCES_DIR)' \
 	HAIL_DOCTEST_DATA_DIR='$(HAIL_DOCTEST_DATA_DIR)' \
 	$(HAIL_PYTHON3) -m pytest \
-            -Werror:::hail -Werror:::hailtop \
+            -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
             --log-cli-level=INFO \
             -s \
             -vv \
@@ -209,7 +209,7 @@ pytest-qob: upload-qob-jar upload-qob-test-resources install-editable
 doctest: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
 doctest: python/README.md $(PYTHON_JAR)
 	cd python && $(HAIL_PYTHON3) -m pytest \
-            -Werror:::hail -Werror:::hailtop \
+            -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
             --log-cli-level=INFO \
             -s \
             -vv \
@@ -375,6 +375,15 @@ test-dataproc-38: install-hailctl
 # create the hailgenetics/hail image (see /docker) and place it somewhere skopeo can access it
 # set HAIL_GENETICS_HAIL_IMAGE to that image's full name including the protocol, e.g. docker://gcr.io/hail-vdc/hailgenetics/hail:1234abcd
 #
+# create the hailgenetics/hailtop image (see /docker) and place it somewhere skopeo can access it
+# set HAIL_GENETICS_HAILTOP_IMAGE to that image's full name including the protocol, e.g. docker://gcr.io/hail-vdc/hailgenetics/hailtop:1234abcd
+#
+# create the hailgenetics/vep-grch37-85 image (see /docker) and place it somewhere skopeo can access it
+# set HAIL_GENETICS_VEP_GRCH37_85_IMAGE to that image's full name including the protocol, e.g. docker://gcr.io/hail-vdc/hailgenetics/vep-grch37-85:1234abcd
+#
+# create the hailgenetics/vep-grch38-95 image (see /docker) and place it somewhere skopeo can access it
+# set HAIL_GENETICS_VEP_GRCH38_95_IMAGE to that image's full name including the protocol, e.g. docker://gcr.io/hail-vdc/hailgenetics/vep-grch38-95:1234abcd
+#
 # build a Azure-HDInsight-compatible wheel file (see build.yaml "build_wheel_for_azure" or start a
 # cluster to find the correct Scala and Spark versions because the version webpage does not include
 # sufficient detail)
@@ -384,7 +393,7 @@ test-dataproc-38: install-hailctl
 #
 .PHONY: deploy
 deploy: test-dataproc $(WHEEL)
-	bash scripts/deploy.sh $(HAIL_PIP_VERSION) $(HAIL_VERSION) $(REVISION) $(DEPLOY_REMOTE) $(WHEEL) $(GITHUB_OAUTH_HEADER_FILE) $(HAIL_GENETICS_HAIL_IMAGE) $(WHEEL_FOR_AZURE) $(WEBSITE_TAR)
+	bash scripts/deploy.sh $(HAIL_PIP_VERSION) $(HAIL_VERSION) $(REVISION) $(DEPLOY_REMOTE) $(WHEEL) $(GITHUB_OAUTH_HEADER_FILE) $(HAIL_GENETICS_HAIL_IMAGE) $(HAIL_GENETICS_HAILTOP_IMAGE) $(HAIL_GENETICS_VEP_GRCH37_85_IMAGE) $(HAIL_GENETICS_VEP_GRCH38_95_IMAGE) $(WHEEL_FOR_AZURE) $(WEBSITE_TAR)
 
 .PHONY: benchmark
 benchmark: $(WHEEL)

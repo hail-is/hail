@@ -545,6 +545,14 @@ async def bounded_gather2(
     return await bounded_gather2_raise_exceptions(sema, *pfs, cancel_on_error=cancel_on_error)
 
 
+# nginx returns 502 if it cannot connect to the upstream server
+#
+# 408 request timeout
+# 500 internal server error
+# 502 bad gateway
+# 503 service unavailable
+# 504 gateway timeout
+# 429 "Temporarily throttled, too many requests"
 RETRYABLE_HTTP_STATUS_CODES = {408, 429, 500, 502, 503, 504}
 if os.environ.get('HAIL_DONT_RETRY_500') == '1':
     RETRYABLE_HTTP_STATUS_CODES.remove(500)
@@ -584,6 +592,8 @@ def is_retry_once_error(e):
         return e.status == 400 and any(msg in e.body for msg in RETRY_ONCE_BAD_REQUEST_ERROR_MESSAGES)
     if isinstance(e, ConnectionResetError):
         return True
+    if e.__cause__ is not None:
+        return is_transient_error(e.__cause__)
     return False
 
 
@@ -638,20 +648,16 @@ def is_transient_error(e):
     import google.auth.exceptions  # pylint: disable=import-outside-toplevel
     import hailtop.aiocloud.aiogoogle.client.compute_client  # pylint: disable=import-outside-toplevel,cyclic-import
     import hailtop.httpx  # pylint: disable=import-outside-toplevel,cyclic-import
-    if isinstance(e, aiohttp.ClientResponseError) and (
-            e.status in RETRYABLE_HTTP_STATUS_CODES):
-        # nginx returns 502 if it cannot connect to the upstream server
-        # 408 request timeout, 500 internal server error, 502 bad gateway
-        # 503 service unavailable, 504 gateway timeout
-        # 429 "Temporarily throttled, too many requests"
+    if (isinstance(e, aiohttp.ClientResponseError)
+            and e.status in RETRYABLE_HTTP_STATUS_CODES):
         return True
     if (isinstance(e, hailtop.aiocloud.aiogoogle.client.compute_client.GCPOperationError)
             and e.error_codes is not None
             and 'QUOTA_EXCEEDED' in e.error_codes):
         return True
-    if isinstance(e, hailtop.httpx.ClientResponseError) and (
-            (e.status in RETRYABLE_HTTP_STATUS_CODES) or (
-                e.status == 403 and 'rateLimitExceeded' in e.body)):
+    if (isinstance(e, hailtop.httpx.ClientResponseError)
+            and (e.status in RETRYABLE_HTTP_STATUS_CODES
+                 or e.status == 403 and 'rateLimitExceeded' in e.body)):
         return True
     if isinstance(e, aiohttp.ServerTimeoutError):
         return True
@@ -659,8 +665,10 @@ def is_transient_error(e):
         return True
     if isinstance(e, asyncio.TimeoutError):
         return True
-    if isinstance(e, aiohttp.client_exceptions.ClientConnectorError):
-        return hasattr(e, 'os_error') and is_transient_error(e.os_error)
+    if (isinstance(e, aiohttp.client_exceptions.ClientConnectorError)
+            and hasattr(e, 'os_error')
+            and is_transient_error(e.os_error)):
+        return True
     # appears to happen when the connection is lost prematurely, see:
     # https://github.com/aio-libs/aiohttp/issues/4581
     # https://github.com/aio-libs/aiohttp/blob/v3.7.4/aiohttp/client_proto.py#L85
@@ -669,9 +677,6 @@ def is_transient_error(e):
         return True
     if isinstance(e, OSError) and e.errno in RETRYABLE_ERRNOS:
         return True
-    if isinstance(e, aiohttp.ClientOSError):
-        # aiohttp/client_reqrep.py wraps all OSError instances with a ClientOSError
-        return is_transient_error(e.__cause__)
     if isinstance(e, urllib3.exceptions.ReadTimeoutError):
         return True
     if isinstance(e, requests.exceptions.ReadTimeout):
@@ -680,12 +685,10 @@ def is_transient_error(e):
         return True
     if isinstance(e, socket.timeout):
         return True
-    if isinstance(e, socket.gaierror):
+    if isinstance(e, socket.gaierror) and e.errno in (socket.EAI_AGAIN, socket.EAI_NONAME):
         # socket.EAI_AGAIN: [Errno -3] Temporary failure in name resolution
         # socket.EAI_NONAME: [Errno 8] nodename nor servname provided, or not known
-        return e.errno in (socket.EAI_AGAIN, socket.EAI_NONAME)
-    if isinstance(e, google.auth.exceptions.TransportError):
-        return is_transient_error(e.__cause__)
+        return True
     if isinstance(e, google.api_core.exceptions.GatewayTimeout):
         return True
     if isinstance(e, google.api_core.exceptions.ServiceUnavailable):
@@ -705,6 +708,8 @@ def is_transient_error(e):
         return e.status in RETRYABLE_HTTP_STATUS_CODES
     if isinstance(e, TransientError):
         return True
+    if e.__cause__ is not None:
+        return is_transient_error(e.__cause__)
     return False
 
 

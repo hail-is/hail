@@ -166,7 +166,7 @@ jupyter-core==4.12.0
     #   nbformat
     #   notebook
     #   qtconsole
-jupyter-server==1.23.6
+jupyter-server==1.24.0
     # via
     #   nbclassic
     #   notebook-shim
@@ -299,7 +299,7 @@ pycparser==2.21
     #   cffi
 pyflakes==2.4.0
     # via flake8
-pygments==2.15.0
+pygments==2.15.1
     # via
     #   -c hail/hail/python/dev/../pinned-requirements.txt
     #   ipython
@@ -313,7 +313,7 @@ pyparsing==3.0.9
     # via matplotlib
 pyrsistent==0.19.3
     # via jsonschema
-pytest==7.3.0
+pytest==7.3.1
     # via
     #   -r hail/hail/python/dev/requirements.txt
     #   pytest-asyncio
@@ -332,6 +332,8 @@ pytest-instafail==0.5.0
     # via -r hail/hail/python/dev/requirements.txt
 pytest-metadata==2.0.4
     # via pytest-html
+pytest-timestamper==0.0.9
+    # via -r hail/hail/python/dev/requirements.txt
 pytest-xdist==2.5.0
     # via -r hail/hail/python/dev/requirements.txt
 python-dateutil==2.8.2
