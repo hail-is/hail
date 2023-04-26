@@ -61,7 +61,7 @@ steps:
           - azure
   - kind: runImage
     name: copy_third_party_images
-    image: quay.io/skopeo/stable:v1.11.1
+    image: quay.io/skopeo/stable:v1.12.0
     script: |
       set -ex
 
@@ -3270,7 +3270,7 @@ steps:
       - gcp
   - kind: runImage
     name: mirror_hailgenetics_images
-    image: quay.io/skopeo/stable:v1.11.1
+    image: quay.io/skopeo/stable:v1.12.0
     script: |
       set -ex
 
