@@ -37,20 +37,11 @@ class QoBOutputStreamManager(layout: Layout[_]) extends OutputStreamManager(
     if (filename == null) {
       null
     } else {
-      System.err.println("Creating outputstream " + filename)
       new BufferedOutputStream(new FileOutputStream(filename))
     }
   }
 
-  def flush(): Unit = {
-    if (hasOutputStream()) {
-      val os = getOutputStream()
-      os.flush()
-    }
-  }
-
   def changeFile(newFilename: String): Unit = {
-    System.err.println("changing file " + newFilename)
     flush()
     if (hasOutputStream()) {
       val os = getOutputStream()
@@ -91,6 +82,5 @@ class QoBAppender(
 ) {
   override def append(event: LogEvent): Unit = {
     super.append(event)
-    System.err.println("append " + layout.toSerializable(event))
   }
 }

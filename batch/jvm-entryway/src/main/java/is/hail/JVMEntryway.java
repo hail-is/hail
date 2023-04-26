@@ -12,7 +12,7 @@ import org.newsclub.net.unix.*;
 import org.apache.logging.log4j.*;
 
 class JVMEntryway {
-  private static final log = Logger.getLogger(this.getClass.getName()) // this will initialize log4j which is required for us to access the QoBAppender in main
+  private static final Logger log = LogManager.getLogger(JVMEntryway.class); // this will initialize log4j which is required for us to access the QoBAppender in main
   private static final HashMap<String, ClassLoader> classLoaders = new HashMap<>();
 
   public static String throwableToString(Throwable t) throws IOException {
@@ -93,6 +93,11 @@ class JVMEntryway {
         System.err.println("main method got");
 
         QoBOutputStreamManager.instance().changeFile(logFile);
+	log.info("is.hail.JVMEntryway received arguments:");
+        for (int i = 0; i < nRealArgs; ++i) {
+          log.info(i + ": " + realArgs[i]);
+        }
+	log.info("Yielding control to the QoB Job.");
 
         CompletionService<?> gather = new ExecutorCompletionService<Object>(executor);
         Future<?> mainThread = null;
@@ -111,7 +116,10 @@ class JVMEntryway {
                   }
                   main.invoke(null, (Object) mainArgs);
                 } catch (IllegalAccessException | InvocationTargetException e) {
+                  log.error("QoB Job threw an exception.", e);
                   throw new RuntimeException(e);
+		} catch (Exception e) {
+                  log.error("QoB Job threw an exception.", e);
                 } finally {
                   Thread.currentThread().setContextClassLoader(oldClassLoader);
                 }
@@ -125,7 +133,10 @@ class JVMEntryway {
                   int i = in.readInt();
                   assert i == 0 : i;
                 } catch (IOException e) {
+		  log.error("Exception encountered in QoB cancel thread.", e);
                   throw new RuntimeException(e);
+		} catch (Exception e) {
+		  log.error("Exception encountered in QoB cancel thread.", e);
                 } finally {
                   Thread.currentThread().setContextClassLoader(oldClassLoader);
                 }
