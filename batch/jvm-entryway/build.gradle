@@ -33,19 +33,11 @@ sourceSets {
     }
 }
 
-configurations {
-    withoutSpark.extendsFrom implementation
-    withoutSparkAndScala {
-        exclude group: 'org.scala-lang', module: 'scala-library'
-        exclude group: 'org.apache.spark'
-    }
-}
-
 dependencies {
     implementation 'com.kohlschutter.junixsocket:junixsocket-core:2.6.2'
-    implementation 'org.scala-lang:scala-library:' + scalaVersion
-    implementation 'org.scala-lang:scala-reflect:' + scalaVersion
-    implementation('org.apache.spark:spark-core_' + '2.12:' + sparkVersion) {
+    compileOnly 'org.scala-lang:scala-library:' + scalaVersion
+    compileOnly 'org.scala-lang:scala-reflect:' + scalaVersion
+    compileOnly('org.apache.spark:spark-core_2.12:' + sparkVersion) {
         exclude module: 'hadoop-client'
     }
 }
@@ -57,11 +49,9 @@ jar {
 }
 
 shadowJar {
-   archiveBaseName.set('jvm-entryway')
-   archiveClassifier.set('')
-   archiveVersion.set('')
-   // spark and scala are provided by PySpark
-   configurations = [project.configurations.withoutSparkAndScala]
+    archiveBaseName.set('jvm-entryway')
+    archiveClassifier.set('')
+    archiveVersion.set('')
 }
 
 application {
