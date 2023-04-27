@@ -2636,7 +2636,7 @@ class JVM:
                     log.warning(f'{self}: entryway exception encountered (interrupted: {wait_for_interrupt.done()})\nJVM Output:\n\n{jvm_output}')
                     exception = await read_str(reader)
                     raise ValueError(exception)
-                elif message == JVM.FINISH_JVM_EOS:
+                if message == JVM.FINISH_JVM_EOS:
                     assert eos_exception is not None
                     log.warning(f'{self}: unexpected end of stream in jvm (interrupted: {wait_for_interrupt.done()})\nJVM Output:\n\n{jvm_output}')
                     raise ValueError(
@@ -2644,8 +2644,7 @@ class JVM:
                         # the JVM log might inadvetantly contain sensitive information.
                         'unexpected end of stream in jvm'
                     ) from eos_exception
-                else:
-                    assert False, message
+                assert False, f'unexpected message type: {message}\nJVM Output:\n\n{jvm_output}'
 
 
 class Worker:
