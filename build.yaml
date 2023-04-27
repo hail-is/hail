@@ -2174,6 +2174,9 @@ steps:
       - name: dedup-attempt-resources
         script: /io/sql/dedup_attempt_resources.py
         online: true
+      - name: mitigate-bad-attempt-resources-trigger
+        script: /io/sql/mitigate-bad-attempt-resources-trigger.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
