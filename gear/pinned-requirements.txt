@@ -4,6 +4,8 @@
 #
 #    pip-compile --output-file=hail/gear/pinned-requirements.txt hail/gear/requirements.txt
 #
+aioconsole==0.6.1
+    # via aiomonitor
 aiohttp==3.8.5
     # via
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
@@ -11,6 +13,8 @@ aiohttp==3.8.5
     #   aiohttp-session
     #   kubernetes-asyncio
 aiohttp-session==2.12.0
+    # via -r hail/gear/requirements.txt
+aiomonitor==0.4.5
     # via -r hail/gear/requirements.txt
 aiomysql==0.2.0
     # via -r hail/gear/requirements.txt
@@ -175,6 +179,16 @@ sortedcontainers==2.4.0
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c hail/gear/../hail/python/pinned-requirements.txt
     #   -r hail/gear/requirements.txt
+terminaltables==3.1.10
+    # via aiomonitor
+typing-extensions==4.5.0
+    # via
+    #   -c hail/gear/../hail/python/dev/pinned-requirements.txt
+    #   -c hail/gear/../hail/python/pinned-requirements.txt
+    #   aiohttp
+    #   aiohttp-session
+    #   async-timeout
+    #   yarl
 uritemplate==4.1.1
     # via google-api-python-client
 urllib3==1.26.16

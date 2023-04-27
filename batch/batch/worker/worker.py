@@ -36,6 +36,7 @@ import aiodocker  # type: ignore
 import aiodocker.images
 import aiohttp
 import aiohttp.client_exceptions
+import aiomonitor
 import aiorwlock
 import async_timeout
 import orjson
@@ -3391,35 +3392,36 @@ async def async_main():
     await network_allocator.reserve()
 
     worker = Worker(httpx.client_session())
-    try:
-        await worker.run()
-    finally:
+    with aiomonitor.start_monitor(asyncio.get_event_loop(), locals=locals()):
         try:
-            await worker.shutdown()
-            log.info('worker shutdown', exc_info=True)
+            await worker.run()
         finally:
             try:
-                await CLOUD_WORKER_API.close()
+                await worker.shutdown()
+                log.info('worker shutdown', exc_info=True)
             finally:
                 try:
-                    await network_allocator_task_manager.shutdown_and_wait()
+                    await CLOUD_WORKER_API.close()
                 finally:
                     try:
-                        await docker.close()
-                        log.info('docker closed')
+                        await network_allocator_task_manager.shutdown_and_wait()
                     finally:
-                        asyncio.get_event_loop().set_debug(True)
-                        other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
-                        if other_tasks:
-                            log.warning('Tasks immediately after docker close')
-                            dump_all_stacktraces()
-                            _, pending = await asyncio.wait(
-                                other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED
-                            )
-                            for t in pending:
-                                log.warning('Dangling task:')
-                                t.print_stack()
-                                t.cancel()
+                        try:
+                            await docker.close()
+                            log.info('docker closed')
+                        finally:
+                            asyncio.get_event_loop().set_debug(True)
+                            other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
+                            if other_tasks:
+                                log.warning('Tasks immediately after docker close')
+                                dump_all_stacktraces()
+                                _, pending = await asyncio.wait(
+                                    other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED
+                                )
+                                for t in pending:
+                                    log.warning('Dangling task:')
+                                    t.print_stack()
+                                    t.cancel()
 
 
 loop = asyncio.get_event_loop()
