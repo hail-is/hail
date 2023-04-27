@@ -1027,7 +1027,7 @@ def scatter(
 
     source_pd = _collect_scatter_plot_data(_x,
                                            _y,
-                                          fields={**hover_fields, **label_by_col},
+                                           fields={**hover_fields, **label_by_col},
                                            n_divisions=None if collect_all else n_divisions,
                                            missing_label=missing_label)
     sp = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, height=height, width=width)
