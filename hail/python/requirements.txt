@@ -1,3 +1,4 @@
+-c hailtop/pinned-requirements.txt
 -r hailtop/requirements.txt
 
 asyncinit>=0.2.4,<0.3
