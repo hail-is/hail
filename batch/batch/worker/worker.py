@@ -1544,13 +1544,19 @@ class Job(abc.ABC):
 
         if self.format_version.has_full_status_in_gcs():
             assert self.worker.file_store
-            await retry_transient_errors(
-                self.worker.file_store.write_status_file,
-                self.batch_id,
-                self.job_id,
-                self.attempt_id,
-                json.dumps(full_status),
-            )
+            try:
+                async with async_timeout.timeout(120):
+                    await retry_transient_errors(
+                        self.worker.file_store.write_status_file,
+                        self.batch_id,
+                        self.job_id,
+                        self.attempt_id,
+                        json.dumps(full_status),
+                    )
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                log.exception(f'Encountered error while writing status file for job {self.id}')
 
         if not self.deleted:
             self.task_manager.ensure_future(self.worker.post_job_complete(self, mjs_fut, full_status))
@@ -1890,12 +1896,13 @@ class DockerJob(Job):
     async def cleanup(self):
         if self.disk:
             try:
-                await self.disk.delete()
-                log.info(f'deleted disk {self.disk.name} for {self.id}')
+                async with async_timeout.timeout(300):
+                    await self.disk.delete()
+                    log.info(f'deleted disk {self.disk.name} for {self.id}')
             except asyncio.CancelledError:
                 raise
             except Exception:
-                log.exception(f'while detaching and deleting disk {self.disk.name} for {self.id}')
+                log.exception(f'while detaching and deleting disk {self.disk.name} for job {self.id}')
         else:
             self.worker.data_disk_space_remaining.value += self.external_storage_in_gib
 
@@ -1908,22 +1915,32 @@ class DockerJob(Job):
 
                     try:
                         assert CLOUD_WORKER_API
-                        await CLOUD_WORKER_API.unmount_cloudfuse(mount_path)
-                        log.info(f'unmounted fuse blob storage {bucket} from {mount_path}')
-                        config['mounted'] = False
+                        async with async_timeout.timeout(120):
+                            await CLOUD_WORKER_API.unmount_cloudfuse(mount_path)
+                            log.info(f'unmounted fuse blob storage {bucket} from {mount_path}')
+                            config['mounted'] = False
                     except asyncio.CancelledError:
                         raise
                     except Exception:
-                        log.exception(f'while unmounting fuse blob storage {bucket} from {mount_path}')
-
-        await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
+                        log.exception(
+                            f'while unmounting fuse blob storage {bucket} from {mount_path} for job {self.id}'
+                        )
 
         try:
-            await blocking_to_async(self.pool, shutil.rmtree, self.scratch, ignore_errors=True)
+            async with async_timeout.timeout(120):
+                await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
         except asyncio.CancelledError:
             raise
         except Exception:
-            log.exception('while deleting volumes')
+            log.exception(f'while resetting xfs_quota project {self.project_id} for job {self.id}')
+
+        try:
+            async with async_timeout.timeout(120):
+                await blocking_to_async(self.pool, shutil.rmtree, self.scratch, ignore_errors=True)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception(f'while deleting scratch dir for job {self.id}')
 
     def get_container_log_path(self, container_name: str) -> str:
         return self.containers[container_name].log_path
