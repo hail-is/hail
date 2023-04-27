@@ -12,6 +12,7 @@ import is.hail.types.physical.stypes.primitives.SFloat64
 import is.hail.types.virtual.{TNDArray, Type}
 import is.hail.utils.FastIndexedSeq
 
+// FIXME numpy format should not be a hail native serialized format, move this to ValueReader/Writer
 final case class ENumpyBinaryNDArray(nRows: Long, nCols: Long, required: Boolean) extends EType {
   type DecodedPType = PCanonicalNDArray
   val elementType = EFloat64(true)

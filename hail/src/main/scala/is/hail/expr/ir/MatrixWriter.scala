@@ -1509,7 +1509,7 @@ case class MatrixBlockMatrixWriter(
     val elementType = tm.entryType.fieldType(entryField)
     val etype = EBlockMatrixNDArray(EType.fromTypeAndAnalysis(elementType, rm.entryType.field(entryField)), encodeRowMajor = true, required = true)
     val spec = TypedCodecSpec(etype, TNDArray(tm.entryType.fieldType(entryField), Nat(2)), BlockMatrix.bufferSpec)
-    val writer = ETypeFileValueWriter(spec)
+    val writer = ETypeValueWriter(spec)
 
     val pathsWithColMajorIndices = tableOfNDArrays.mapCollect("matrix_block_matrix_writer") { partition =>
      ToArray(mapIR(partition) { singleNDArrayTuple =>
