@@ -92,6 +92,40 @@ resource "google_compute_subnetwork" "default_region" {
   ip_cidr_range = var.default_subnet_ip_cidr_range
   private_ip_google_access = true
 
+  log_config {
+    aggregation_interval = "INTERVAL_15_MIN"
+    flow_sampling        = 0.5
+    metadata             = "EXCLUDE_ALL_METADATA"
+  }
+
+  timeouts {}
+}
+
+resource "google_compute_subnetwork" "us_nondefault_subnets" {
+  for_each = {
+    us-east1 = "10.142.0.0/20",
+    us-east4 = "10.150.0.0/20",
+    us-east5 = "10.202.0.0/20",
+    us-east7 = "10.196.0.0/20",
+    us-south1 = "10.206.0.0/20",
+    us-west1 = "10.138.0.0/20",
+    us-west2 = "10.168.0.0/20",
+    us-west3 = "10.180.0.0/20",
+    us-west4 = "10.182.0.0/20",
+  }
+
+  name = "default"
+  region = each.key
+  network = google_compute_network.default.id
+  ip_cidr_range = each.value
+  private_ip_google_access = true
+
+  log_config {
+    aggregation_interval = "INTERVAL_15_MIN"
+    flow_sampling        = 0.5
+    metadata             = "EXCLUDE_ALL_METADATA"
+  }
+
   timeouts {}
 }
 
