@@ -1585,13 +1585,6 @@ case class MatrixNativeMultiWriter(
     }
 
     require(tables.map(_._4.tableType.keyType).distinct.length == 1)
-//    val contextsTypeUniq = components.map(_.stage.contexts.typ).distinct
-//
-//    if (contextsTypeUniq.length > 1)
-//      throw new RuntimeException(s"found multiple context types:\n  ${ contextsTypeUniq.mkString("\n  ") }")
-//
-//    val contextsType = contextsTypeUniq.head
-
     val unionTuple = TTuple(components.map(c => TIterable.elementType(c.stage.contexts.typ)): _*)
     val contextUnionType = TStruct(
       "tag" -> TInt32,
