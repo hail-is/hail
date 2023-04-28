@@ -832,6 +832,7 @@ async def _create_jobs(userdata: dict, job_specs: dict, batch_id: int, update_id
     db: Database = app['db']
     file_store: FileStore = app['file_store']
     user = userdata['username']
+    is_developer = userdata['is_developer']
 
     # restrict to what's necessary; in particular, drop the session
     # which is sensitive
@@ -1062,6 +1063,10 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
 
         if cloud == 'azure' and all(envvar['name'] != 'AZURE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
             spec['env'].append({'name': 'AZURE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
+
+        cloudfuse = spec.get('gcsfuse') or spec.get('cloudfuse')
+        if not is_developer and user not in ('ci', 'test', 'test-dev') and cloudfuse is not None and len(cloudfuse) > 0:
+            raise web.HTTPBadRequest(reason='cloudfuse requests are temporarily not supported.')
 
         if spec.get('mount_tokens', False):
             secrets.append(
