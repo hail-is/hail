@@ -923,7 +923,7 @@ class Tests(unittest.TestCase):
         t.export(tmp_file, parallel='separate_header')
 
         with fs.open(f'{tmp_file}/shard-manifest.txt') as lines:
-            manifest_files = [line.strip() for line in lines]
+            manifest_files = [os.path.join(tmp_file, line.strip()) for line in lines]
         ht2 = hl.import_table(manifest_files,
                               types={'idx': hl.tint32})
         assert ht2.collect() == values
@@ -932,7 +932,7 @@ class Tests(unittest.TestCase):
         t.export(tmp_file2, parallel='header_per_shard')
 
         with fs.open(f'{tmp_file2}/shard-manifest.txt') as lines:
-            manifest_files = [line.strip() for line in lines]
+            manifest_files = [os.path.join(tmp_file2, line.strip()) for line in lines]
         ht3 = hl.import_table(manifest_files,
                               types={'idx': hl.tint32})
         assert ht3.collect() == values

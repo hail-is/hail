@@ -803,6 +803,8 @@ case class VCFExportFinalizer(typ: MatrixType, outputPath: String, append: Optio
 
     val partPaths = annotations.loadField(cb, "partFiles").get(cb).asIndexable
     val partFiles = partPaths.castTo(cb, region, SJavaArrayString(true), false).asInstanceOf[SJavaArrayStringValue].array
+    cb.ifx(partPaths.hasMissingValues(cb), cb._fatal("matrixwriter part paths contains missing values"))
+
     val allFiles = if (tabix && exportType != ExportType.CONCATENATED) {
       val len = partPaths.loadLength()
       val files = cb.memoize(Code.newArray[String](len * 2))

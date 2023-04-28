@@ -504,16 +504,19 @@ case class TableTextPartitionWriter(rowType: TStruct, delimiter: String, writeHe
 }
 
 object TableTextFinalizer {
-  def writeManifest(fs: FS, outputPath: String, files: Array[String], header: String): Unit = {
+  def writeManifest(fs: FS, outputPath: String, files: Array[String], optionalAdditionalFirstPath: String): Unit = {
+
+    def basename(f: String): String = (new java.io.File(f)).getName
+
     using(fs.createNoCompression(fs.makeQualified(outputPath + "/shard-manifest.txt"))) { os =>
       val bos = new BufferedOutputStream(os)
 
-      if (header != null) {
-        bos.write(header.getBytes)
+      if (optionalAdditionalFirstPath != null) {
+        bos.write(basename(optionalAdditionalFirstPath).getBytes())
         bos.write('\n')
       }
       files.foreach { f =>
-        bos.write(f.getBytes())
+        bos.write(basename(f).getBytes())
         bos.write('\n')
       }
       bos.flush()
