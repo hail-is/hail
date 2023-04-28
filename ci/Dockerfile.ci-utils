@@ -26,7 +26,7 @@ FROM golang:1.18 AS skopeo-build
 
 WORKDIR /usr/src/skopeo
 
-ARG SKOPEO_VERSION="1.8.0"
+ARG SKOPEO_VERSION="1.11.2"
 RUN curl -fsSL "https://github.com/containers/skopeo/archive/v${SKOPEO_VERSION}.tar.gz" \
   | tar -xzf - --strip-components=1
 

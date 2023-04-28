@@ -10,6 +10,9 @@ Genetics
 
 .. autosummary::
 
+    VEPConfig
+    VEPConfigGRCh37Version85
+    VEPConfigGRCh38Version95
     balding_nichols_model
     concordance
     filter_intervals
@@ -35,6 +38,10 @@ Genetics
     trio_matrix
     variant_qc
     vep
+
+.. autoclass:: VEPConfig
+.. autoclass:: VEPConfigGRCh37Version85
+.. autoclass:: VEPConfigGRCh38Version95
 
 .. autofunction:: balding_nichols_model
 .. autofunction:: concordance

@@ -42,7 +42,7 @@ class AzureWorkerAPI(CloudWorkerAPI):
         azure_config = get_azure_config()
         return aioazure.AzureComputeClient(azure_config.subscription_id, azure_config.resource_group)
 
-    def user_credentials(self, credentials: Dict[str, bytes]) -> AzureUserCredentials:
+    def user_credentials(self, credentials: Dict[str, str]) -> AzureUserCredentials:
         return AzureUserCredentials(credentials)
 
     async def worker_access_token(self, session: httpx.ClientSession) -> Dict[str, str]:
