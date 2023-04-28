@@ -1065,7 +1065,7 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
             spec['env'].append({'name': 'AZURE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
 
         cloudfuse = spec.get('gcsfuse') or spec.get('cloudfuse')
-        if not is_developer and user not in ('ci', 'test', 'test-dev') and cloudfuse is not None:
+        if not is_developer and user not in ('ci', 'test', 'test-dev') and cloudfuse is not None and len(cloudfuse) > 0:
             raise web.HTTPBadRequest(reason='cloudfuse requests are temporarily not supported.')
 
         if spec.get('mount_tokens', False):
