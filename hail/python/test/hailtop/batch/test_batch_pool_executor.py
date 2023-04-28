@@ -1,5 +1,4 @@
 import asyncio
-import concurrent.futures
 import time
 
 import pytest
@@ -141,7 +140,7 @@ def test_map_timeout(backend):
                 time.sleep(3600)
         try:
             list(bpe.map(lambda _: sleep_forever(), range(5), timeout=2))
-        except concurrent.futures.TimeoutError:
+        except asyncio.TimeoutError:
             pass
         else:
             assert False
