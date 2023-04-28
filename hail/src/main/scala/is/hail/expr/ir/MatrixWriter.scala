@@ -1627,15 +1627,6 @@ case class MatrixNativeMultiWriter(
                     c.stage.partition(ctxRef), ctxRef)
                 })
               }
-              // have [(0, writePart0), (1, writepart1), ... (N1, writePartN)]
-              /**
-               * want
-               * If tag == 0
-               *   writepart0
-               *   If tag == 1
-               *     writePart1
-               *     writePartN
-               */
 
               val partitionIR = writeEach.init.foldRight[IR](writeEach.last._2) { case ((i, writer), acc) =>
                 If(tag ceq i, writer, acc)
