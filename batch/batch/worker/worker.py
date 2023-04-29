@@ -2648,7 +2648,10 @@ class JVM:
                         # the JVM log might inadvetantly contain sensitive information.
                         'unexpected end of stream in jvm'
                     ) from eos_exception
-                assert False, f'unexpected message type: {message}\nJVM Output:\n\n{jvm_output}'
+                log.exception(
+                    f'{self}: unexpected message type: {message}\nJVM Output:\n\n{jvm_output}'
+                )
+                raise ValueError(f'{self}: unexpected message type: {message}')
 
 
 class Worker:
