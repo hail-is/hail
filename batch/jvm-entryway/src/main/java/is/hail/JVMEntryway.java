@@ -156,9 +156,9 @@ class JVMEntryway {
 	  URL url = loader.getResource("log4j2.properties");
 	  System.err.println("reconfiguring logging " + url.toString());
 	  context.setConfigLocation(url.toURI()); // this will force a reconfiguration
-	}
+        }
 
-	if (entrywayException != null) {
+        if (entrywayException != null) {
 	  System.err.println("exception in entryway code");
 	  entrywayException.printStackTrace();
 
