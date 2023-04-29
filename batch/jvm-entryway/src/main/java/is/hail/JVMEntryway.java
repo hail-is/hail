@@ -95,67 +95,67 @@ class JVMEntryway {
         System.err.println("main method got");
 
         QoBOutputStreamManager.changeFileInAllAppenders(logFile);
-	log.info("is.hail.JVMEntryway received arguments:");
-	for (int i = 0; i < nRealArgs; ++i) {
-	  log.info(i + ": " + realArgs[i]);
-	}
-	log.info("Yielding control to the QoB Job.");
+        log.info("is.hail.JVMEntryway received arguments:");
+        for (int i = 0; i < nRealArgs; ++i) {
+          log.info(i + ": " + realArgs[i]);
+        }
+        log.info("Yielding control to the QoB Job.");
 
-	CompletionService<?> gather = new ExecutorCompletionService<Object>(executor);
-	Future<?> mainThread = null;
-	Future<?> shouldCancelThread = null;
-	Future<?> completedThread = null;
-	Throwable entrywayException = null;
-	try {
-	  mainThread = gather.submit(new Runnable() {
-	      public void run() {
-		ClassLoader oldClassLoader = Thread.currentThread().getContextClassLoader();
-		Thread.currentThread().setContextClassLoader(hailRootCL);
-		try {
-		  String[] mainArgs = new String[nRealArgs - 2];
-		  for (int i = 2; i < nRealArgs; ++i) {
-		    mainArgs[i-2] = realArgs[i];
-		  }
-		  main.invoke(null, (Object) mainArgs);
-		} catch (IllegalAccessException | InvocationTargetException e) {
-		  log.error("QoB Job threw an exception.", e);
-		  throw new RuntimeException(e);
-		} catch (Exception e) {
-		  log.error("QoB Job threw an exception.", e);
-		} finally {
-		  QoBOutputStreamManager.flushAllAppenders();
-		  Thread.currentThread().setContextClassLoader(oldClassLoader);
-		}
-	      }
-	    }, null);
-	  shouldCancelThread = gather.submit(new Runnable() {
-	      public void run() {
-		ClassLoader oldClassLoader = Thread.currentThread().getContextClassLoader();
-		Thread.currentThread().setContextClassLoader(hailRootCL);
-		try {
-		  int i = in.readInt();
-		  assert i == 0 : i;
-		} catch (IOException e) {
-		  log.error("Exception encountered in QoB cancel thread.", e);
-		  throw new RuntimeException(e);
-		} catch (Exception e) {
-		  log.error("Exception encountered in QoB cancel thread.", e);
-		} finally {
-		  QoBOutputStreamManager.flushAllAppenders();
-		  Thread.currentThread().setContextClassLoader(oldClassLoader);
-		}
-	      }
-	    }, null);
-	  completedThread = gather.take();
-	} catch (Throwable t) {
-	  entrywayException = t;
-	} finally {
-	  QoBOutputStreamManager.flushAllAppenders();
-	  LoggerContext context = (LoggerContext) LogManager.getContext(false);
-	  ClassLoader loader = JVMEntryway.class.getClassLoader();
-	  URL url = loader.getResource("log4j2.properties");
-	  System.err.println("reconfiguring logging " + url.toString());
-	  context.setConfigLocation(url.toURI()); // this will force a reconfiguration
+        CompletionService<?> gather = new ExecutorCompletionService<Object>(executor);
+        Future<?> mainThread = null;
+        Future<?> shouldCancelThread = null;
+        Future<?> completedThread = null;
+        Throwable entrywayException = null;
+        try {
+          mainThread = gather.submit(new Runnable() {
+              public void run() {
+                ClassLoader oldClassLoader = Thread.currentThread().getContextClassLoader();
+                Thread.currentThread().setContextClassLoader(hailRootCL);
+                try {
+                  String[] mainArgs = new String[nRealArgs - 2];
+                  for (int i = 2; i < nRealArgs; ++i) {
+                    mainArgs[i-2] = realArgs[i];
+                  }
+                  main.invoke(null, (Object) mainArgs);
+                } catch (IllegalAccessException | InvocationTargetException e) {
+                  log.error("QoB Job threw an exception.", e);
+                  throw new RuntimeException(e);
+                } catch (Exception e) {
+                  log.error("QoB Job threw an exception.", e);
+                } finally {
+                  QoBOutputStreamManager.flushAllAppenders();
+                  Thread.currentThread().setContextClassLoader(oldClassLoader);
+                }
+              }
+            }, null);
+          shouldCancelThread = gather.submit(new Runnable() {
+              public void run() {
+                ClassLoader oldClassLoader = Thread.currentThread().getContextClassLoader();
+                Thread.currentThread().setContextClassLoader(hailRootCL);
+                try {
+                  int i = in.readInt();
+                  assert i == 0 : i;
+                } catch (IOException e) {
+                  log.error("Exception encountered in QoB cancel thread.", e);
+                  throw new RuntimeException(e);
+                } catch (Exception e) {
+                  log.error("Exception encountered in QoB cancel thread.", e);
+                } finally {
+                  QoBOutputStreamManager.flushAllAppenders();
+                  Thread.currentThread().setContextClassLoader(oldClassLoader);
+                }
+              }
+            }, null);
+          completedThread = gather.take();
+        } catch (Throwable t) {
+          entrywayException = t;
+        } finally {
+          QoBOutputStreamManager.flushAllAppenders();
+          LoggerContext context = (LoggerContext) LogManager.getContext(false);
+          ClassLoader loader = JVMEntryway.class.getClassLoader();
+          URL url = loader.getResource("log4j2.properties");
+          System.err.println("reconfiguring logging " + url.toString());
+          context.setConfigLocation(url.toURI()); // this will force a reconfiguration
         }
 
         if (entrywayException != null) {
