@@ -159,46 +159,46 @@ class JVMEntryway {
         }
 
         if (entrywayException != null) {
-	  System.err.println("exception in entryway code");
-	  entrywayException.printStackTrace();
+          System.err.println("exception in entryway code");
+          entrywayException.printStackTrace();
 
-	  if (mainThread != null) {
-	    Throwable t2 = cancelThreadRetrieveException(mainThread);
-	    if (t2 != null) {
-	      entrywayException.addSuppressed(t2);
-	    }
-	  }
+          if (mainThread != null) {
+            Throwable t2 = cancelThreadRetrieveException(mainThread);
+            if (t2 != null) {
+              entrywayException.addSuppressed(t2);
+            }
+          }
 
-	  if (shouldCancelThread != null) {
-	    Throwable t2 = cancelThreadRetrieveException(shouldCancelThread);
-	    if (t2 != null) {
-	      entrywayException.addSuppressed(t2);
-	    }
-	  }
+          if (shouldCancelThread != null) {
+            Throwable t2 = cancelThreadRetrieveException(shouldCancelThread);
+            if (t2 != null) {
+              entrywayException.addSuppressed(t2);
+            }
+          }
 
-	  finishEntrywayException(out, entrywayException);
-	} else {
-	  assert(completedThread != null);
+          finishEntrywayException(out, entrywayException);
+        } else {
+          assert(completedThread != null);
 
-	  if (completedThread == mainThread) {
-	    System.err.println("main thread done");
-	    finishFutures(out,
-			  FINISH_NORMAL,
-			  FINISH_USER_EXCEPTION,
-			  mainThread,
-			  FINISH_ENTRYWAY_EXCEPTION,
-			  shouldCancelThread);
-	  } else {
-	    assert(completedThread == shouldCancelThread);
-	    System.err.println("cancelled");
-	    finishFutures(out,
-			  FINISH_CANCELLED,
-			  FINISH_ENTRYWAY_EXCEPTION,
-			  shouldCancelThread,
-			  FINISH_USER_EXCEPTION,
-			  mainThread);
-	  }
-	}
+          if (completedThread == mainThread) {
+            System.err.println("main thread done");
+            finishFutures(out,
+                          FINISH_NORMAL,
+                          FINISH_USER_EXCEPTION,
+                          mainThread,
+                          FINISH_ENTRYWAY_EXCEPTION,
+                          shouldCancelThread);
+          } else {
+            assert(completedThread == shouldCancelThread);
+            System.err.println("cancelled");
+            finishFutures(out,
+                          FINISH_CANCELLED,
+                          FINISH_ENTRYWAY_EXCEPTION,
+                          shouldCancelThread,
+                          FINISH_USER_EXCEPTION,
+                          mainThread);
+          }
+        }
       }
       System.err.println("waiting for next connection");
       System.err.flush();
