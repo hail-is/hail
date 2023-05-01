@@ -1300,3 +1300,8 @@ class ServiceTests(unittest.TestCase):
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
         assert res.get_job_log(tail._job_id)['main'] == 'ab', str(res.debug_info())
+
+    def test_wait_on_empty_batch_update(self):
+        b = self.batch()
+        b.run(wait=True)
+        b.run(wait=True)
