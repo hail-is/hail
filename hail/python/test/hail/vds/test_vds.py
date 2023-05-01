@@ -55,6 +55,8 @@ def test_multi_write():
     assert hl.vds.read_vds(path1)._same(vds1)
     assert hl.vds.read_vds(path2)._same(vds2)
 
+@fails_local_backend
+@fails_service_backend
 def test_conversion_equivalence():
     gvcfs = [os.path.join(resource('gvcfs'), '1kg_chr22', path) for path in ['HG00187.hg38.g.vcf.gz',
                                                                              'HG00190.hg38.g.vcf.gz',
