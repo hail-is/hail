@@ -823,7 +823,7 @@ steps:
       cd /io/repo/hail
       chmod 755 ./gradlew
       time retry ./gradlew --version
-      export SPARK_VERSION="3.3.0" SCALA_VERSION="2.12.15"
+      export SPARK_VERSION="3.0.2" SCALA_VERSION="2.12.10"
       time retry make wheel
       (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
     inputs:
