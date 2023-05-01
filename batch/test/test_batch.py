@@ -1007,6 +1007,7 @@ def test_pool_highcpu_instance(client: BatchClient):
     assert status['state'] == 'Success', str((status, b.debug_info()))
     assert 'highcpu' in status['status']['worker'], str((status, b.debug_info()))
 
+
 @fails_in_azure # https://github.com/hail-is/hail/issues/12958
 def test_pool_highcpu_instance_cheapest(client: BatchClient):
     bb = create_batch(client)
