@@ -836,29 +836,24 @@ steps:
       - hail_build_image
       - merge_code
   - kind: runImage
-    name: compile_batch_worker_jvm_entryway
+    name: jvm_entryway_jar
     image:
-      valueFrom: base_image.image
+      valueFrom: hail_build_image.image
     script: |
       set -ex
 
-      cd /io
+      cd /io/batch/jvm-entryway
 
-      curl -sSfL https://github.com/kohlschutter/junixsocket/releases/download/junixsocket-parent-2.3.3/junixsocket-selftest-2.3.3-jar-with-dependencies.jar \
-           > junixsocket-selftest-2.3.3-jar-with-dependencies.jar
-
-      javac -cp junixsocket-selftest-2.3.3-jar-with-dependencies.jar \
-            batch/src/main/java/is/hail/JVMEntryway.java
+      chmod 755 ./gradlew
+      ./gradlew shadowJar
     inputs:
       - from: /repo/batch
         to: /io/batch
     outputs:
-      - from: /io/junixsocket-selftest-2.3.3-jar-with-dependencies.jar
-        to: /junixsocket-selftest-2.3.3-jar-with-dependencies.jar
-      - from: /io/batch/src/main/java/is/hail
-        to: /batch-jvm-entryway-classes
+      - from: /io/batch/jvm-entryway/build/libs/jvm-entryway.jar
+        to: /jvm-entryway.jar
     dependsOn:
-      - base_image
+      - hail_build_image
       - merge_code
   - kind: buildImage2
     name: batch_worker_image
@@ -886,16 +881,14 @@ steps:
         to: /io/repo/web_common
       - from: /repo/letsencrypt/subdomains.txt
         to: /repo/letsencrypt/subdomains.txt
-      - from: /batch-jvm-entryway-classes
-        to: /io/repo/batch/src/main/java/is/hail
-      - from: /junixsocket-selftest-2.3.3-jar-with-dependencies.jar
-        to: /io/repo/batch/jars/junixsocket-selftest-2.3.3-jar-with-dependencies.jar
+      - from: /jvm-entryway.jar
+        to: /io/repo/batch/jvm-entryway/build/libs/jvm-entryway.jar
       - from: /hail_version
         to: /io/repo/hail_version
     dependsOn:
       - merge_code
       - hail_ubuntu_image
-      - compile_batch_worker_jvm_entryway
+      - jvm_entryway_jar
   - kind: buildImage2
     name: memory_image
     dockerFile: /io/repo/memory/Dockerfile

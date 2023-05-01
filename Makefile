@@ -165,14 +165,10 @@ hail-buildkit-image: ci/buildkit/Dockerfile
 	./docker-build.sh ci buildkit/Dockerfile.out $(HAIL_BUILDKIT_IMAGE)
 	echo $(HAIL_BUILDKIT_IMAGE) > $@
 
-batch/jars/junixsocket-selftest-2.3.3-jar-with-dependencies.jar:
-	mkdir -p batch/jars
-	cd batch/jars && curl -LO https://github.com/kohlschutter/junixsocket/releases/download/junixsocket-parent-2.3.3/junixsocket-selftest-2.3.3-jar-with-dependencies.jar
+batch/jvm-entryway/build/libs/jvm-entryway.jar: $(shell git ls-files batch/jvm-entryway)
+	cd batch/jvm-entryway && ./gradlew shadowJar
 
-batch/src/main/java/is/hail/JVMEntryway.class: batch/src/main/java/is/hail/JVMEntryway.java batch/jars/junixsocket-selftest-2.3.3-jar-with-dependencies.jar
-	javac -cp batch/jars/junixsocket-selftest-2.3.3-jar-with-dependencies.jar $<
-
-batch-worker-image: batch/src/main/java/is/hail/JVMEntryway.class $(SERVICES_IMAGE_DEPS) $(shell git ls-files batch)
+batch-worker-image: batch/jvm-entryway/build/libs/jvm-entryway.jar $(SERVICES_IMAGE_DEPS) $(shell git ls-files batch)
 	$(eval BATCH_WORKER_IMAGE := $(DOCKER_PREFIX)/batch-worker:$(TOKEN))
 	python3 ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat hail-ubuntu-image)'"},"global":{"cloud":"$(CLOUD)"}}' batch/Dockerfile.worker batch/Dockerfile.worker.out
 	./docker-build.sh . batch/Dockerfile.worker.out $(BATCH_WORKER_IMAGE)
