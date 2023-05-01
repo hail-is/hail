@@ -1179,7 +1179,7 @@ class Container:
                         'source': v_host_path,
                         'destination': v_container_path,
                         'type': 'none',
-                        'options': ['rbind', 'rw', 'shared'],
+                        'options': ['bind', 'rw', 'private'],
                     }
                 )
 
@@ -1235,13 +1235,13 @@ class Container:
                     'source': f'/etc/netns/{self.netns.network_ns_name}/resolv.conf',
                     'destination': '/etc/resolv.conf',
                     'type': 'none',
-                    'options': ['rbind', 'ro'],
+                    'options': ['bind', 'ro', 'private'],
                 },
                 {
                     'source': f'/etc/netns/{self.netns.network_ns_name}/hosts',
                     'destination': '/etc/hosts',
                     'type': 'none',
-                    'options': ['rbind', 'ro'],
+                    'options': ['bind', 'ro', 'private'],
                 },
             ]
         )
@@ -1484,7 +1484,7 @@ class Job(abc.ABC):
             'source': self.io_host_path(),
             'destination': '/io',
             'type': 'none',
-            'options': ['rbind', 'rw'],
+            'options': ['bind', 'rw', 'private'],
         }
         self.input_volume_mounts.append(io_volume_mount)
         self.main_volume_mounts.append(io_volume_mount)
@@ -1642,7 +1642,7 @@ class DockerJob(Job):
                         'source': f'{self.cloudfuse_data_path(bucket)}',
                         'destination': config['mount_path'],
                         'type': 'none',
-                        'options': ['rbind', 'rw', 'shared'],
+                        'options': ['bind', 'ro', 'private'],
                     }
                 )
 
@@ -1652,7 +1652,7 @@ class DockerJob(Job):
                     'source': self.secret_host_path(secret),
                     'destination': secret["mount_path"],
                     'type': 'none',
-                    'options': ['rbind', 'rw'],
+                    'options': ['bind', 'rw', 'private'],
                 }
                 self.main_volume_mounts.append(volume_mount)
                 # this will be the user credentials
@@ -2348,31 +2348,31 @@ class JVMContainer:
                 'source': JVM.SPARK_HOME,
                 'destination': JVM.SPARK_HOME,
                 'type': 'none',
-                'options': ['rbind', 'rw'],
+                'options': ['bind', 'rw', 'private'],
             },
             {
                 'source': '/jvm-entryway',
                 'destination': '/jvm-entryway',
                 'type': 'none',
-                'options': ['rbind', 'rw'],
+                'options': ['bind', 'rw', 'private'],
             },
             {
                 'source': '/hail-jars',
                 'destination': '/hail-jars',
                 'type': 'none',
-                'options': ['rbind', 'rw'],
+                'options': ['bind', 'rw', 'private'],
             },
             {
                 'source': root_dir,
                 'destination': root_dir,
                 'type': 'none',
-                'options': ['rbind', 'rw'],
+                'options': ['bind', 'rw', 'private'],
             },
             {
                 'source': '/batch',
                 'destination': '/batch',
                 'type': 'none',
-                'options': ['rbind', 'rw'],
+                'options': ['bind', 'rw', 'private'],
             },
             {
                 'source': cloudfuse_dir,
