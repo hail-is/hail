@@ -1035,10 +1035,21 @@ class Container:
 
         return False
 
+    def _validate_container_config(self, config):
+        for mount in config['mounts']:
+            # bind mounts are given the dummy type 'none'
+            if mount['type'] == 'none':
+                # Mount events should not be propagated from the job container to the host
+                assert 'shared' not in mount['options']
+                assert any(option in mount['options'] for option in ('private', 'slave'))
+
     async def _write_container_config(self):
+        config = await self.container_config()
+        self._validate_container_config(config)
+
         os.makedirs(self.config_path)
         with open(f'{self.config_path}/config.json', 'w', encoding='utf-8') as f:
-            f.write(json.dumps(await self.container_config()))
+            f.write(json.dumps(config))
 
     # https://github.com/opencontainers/runtime-spec/blob/master/config.md
     async def container_config(self):
@@ -2378,7 +2389,7 @@ class JVMContainer:
                 'source': cloudfuse_dir,
                 'destination': '/cloudfuse',
                 'type': 'none',
-                'options': ['rbind', 'ro', 'rslave'],
+                'options': ['rbind', 'ro', 'slave'],
             },
         ]
 
