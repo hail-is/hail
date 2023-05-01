@@ -2089,8 +2089,12 @@ object PruneDeadFields {
             MakeStruct(FastSeq("global" -> TableGetGlobals(rebuild(ctx, child, memo))))
           else
             MakeStruct(FastSeq())
-        else
-          TableCollect(rebuild(ctx, child, memo))
+        else {
+          val rRowType = rStruct.fieldType("rows").asInstanceOf[TStruct]
+          val rGlobType = rStruct.fieldOption("globals").map(_.asInstanceOf[TStruct]).getOrElse(TStruct())
+          TableCollect(upcastTable(ctx, rebuild(ctx, child, memo), TableType(rowType = rRowType, FastIndexedSeq(), rGlobType),
+            upcastRow = true, upcastGlobals = true))
+        }
       case AggExplode(array, name, aggBody, isScan) =>
         val a2 = rebuildIR(ctx, array, if (isScan) env.promoteScan else env.promoteAgg, memo)
         val a2t = TIterable.elementType(a2.typ)
