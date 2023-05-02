@@ -364,7 +364,7 @@ def test_unknown_image(client: BatchClient):
 def test_invalid_gcr(client: BatchClient):
     bb = create_batch(client)
     # GCP projects can't be strictly numeric
-    j = bb.create_job('gcr.io/1/does-not-exist', ['echo', 'test'])
+    j = bb.create_job('us-docker.pkg.dev/1/does-not-exist', ['echo', 'test'])
     b = bb.submit()
     status = j.wait()
     try:

@@ -129,12 +129,12 @@ along with any desired Python packages.
 
 For running the random forest, we need both the `sklearn` and `pandas` Python
 packages installed in the image. We use :func:`.docker.build_python_image` to build
-an image and push it automatically to the location specified (ex: `gcr.io/hail-vdc/random-forest`).
+an image and push it automatically to the location specified (ex: `us-docker.pkg.dev/hail-vdc/random-forest`).
 
 .. code-block:: python
 
-    image = hb.build_python_image('gcr.io/hail-vdc/random-forest',
-                              requirements=['sklearn', 'pandas'])
+    image = hb.build_python_image('us-docker.pkg.dev/hail-vdc/random-forest',
+                                  requirements=['sklearn', 'pandas'])
 
 ~~~~~~~~~~~~
 Control Code

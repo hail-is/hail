@@ -367,16 +367,16 @@ test-dataproc-38: install-hailctl
 # set GITHUB_OAUTH_HEADER_FILE to that filename
 #
 # create the hailgenetics/hail image (see /docker) and place it somewhere skopeo can access it
-# set HAIL_GENETICS_HAIL_IMAGE to that image's full name including the protocol, e.g. docker://gcr.io/hail-vdc/hailgenetics/hail:1234abcd
+# set HAIL_GENETICS_HAIL_IMAGE to that image's full name including the protocol, e.g. docker://us-docker.pkg.dev/hail-vdc/hailgenetics/hail:1234abcd
 #
 # create the hailgenetics/hailtop image (see /docker) and place it somewhere skopeo can access it
-# set HAIL_GENETICS_HAILTOP_IMAGE to that image's full name including the protocol, e.g. docker://gcr.io/hail-vdc/hailgenetics/hailtop:1234abcd
+# set HAIL_GENETICS_HAILTOP_IMAGE to that image's full name including the protocol, e.g. docker://us-docker.pkg.dev/hail-vdc/hailgenetics/hailtop:1234abcd
 #
 # create the hailgenetics/vep-grch37-85 image (see /docker) and place it somewhere skopeo can access it
-# set HAIL_GENETICS_VEP_GRCH37_85_IMAGE to that image's full name including the protocol, e.g. docker://gcr.io/hail-vdc/hailgenetics/vep-grch37-85:1234abcd
+# set HAIL_GENETICS_VEP_GRCH37_85_IMAGE to that image's full name including the protocol, e.g. docker://us-docker.pkg.dev/hail-vdc/hailgenetics/vep-grch37-85:1234abcd
 #
 # create the hailgenetics/vep-grch38-95 image (see /docker) and place it somewhere skopeo can access it
-# set HAIL_GENETICS_VEP_GRCH38_95_IMAGE to that image's full name including the protocol, e.g. docker://gcr.io/hail-vdc/hailgenetics/vep-grch38-95:1234abcd
+# set HAIL_GENETICS_VEP_GRCH38_95_IMAGE to that image's full name including the protocol, e.g. docker://us-docker.pkg.dev/hail-vdc/hailgenetics/vep-grch38-95:1234abcd
 #
 # build a Azure-HDInsight-compatible wheel file (see build.yaml "build_wheel_for_azure" or start a
 # cluster to find the correct Scala and Spark versions because the version webpage does not include
