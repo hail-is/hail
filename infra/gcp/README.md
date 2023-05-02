@@ -209,7 +209,7 @@ You can now install Hail:
   the $HAIL/infra/gcp directory, unless otherwise stated.
 
 - Run the following to authenticate docker and kubectl with the new
-  container registry and kubernetes cluster, respectively.
+  artifact registry and kubernetes cluster, respectively.
 
   ```
   ./bootstrap.sh configure_gcloud <ZONE>
