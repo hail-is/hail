@@ -1,10 +1,7 @@
 FROM {{ hail_ubuntu_image.image }}
 
 ENV LANG C.UTF-8
-RUN hail-apt-get-install \
-    openjdk-8-jdk-headless \
-    python3.8 python3-pip \
-  && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1
+RUN hail-apt-get-install openjdk-8-jdk-headless
 
 COPY hail/python/pinned-requirements.txt requirements.txt
 COPY hail/python/dev/pinned-requirements.txt dev-requirements.txt
