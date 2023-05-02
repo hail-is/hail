@@ -633,6 +633,7 @@ resource "google_storage_bucket" "hail_test_requester_pays_bucket" {
   force_destroy = false
   storage_class = var.hail_test_gcs_bucket_storage_class
   uniform_bucket_level_access = true
+  requester_pays = true
 
   timeouts {}
 }
