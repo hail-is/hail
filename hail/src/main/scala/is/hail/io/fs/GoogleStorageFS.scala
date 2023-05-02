@@ -89,6 +89,10 @@ class GoogleStorageFS(
 ) extends FS {
   import GoogleStorageFS._
 
+  def validUrl(filename: String): Boolean = {
+    filename.startsWith("gs://")
+  }
+
   def getConfiguration(): Option[RequesterPaysConfiguration] = {
     requesterPaysConfiguration
   }

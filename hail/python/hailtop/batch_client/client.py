@@ -1,5 +1,6 @@
 from typing import Any, Dict, List, Optional, Union
 import asyncio
+import contextlib
 
 from ..config import DeployConfig
 from . import aioclient
@@ -7,7 +8,15 @@ from .. import httpx
 
 
 def async_to_blocking(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    loop = asyncio.get_event_loop()
+    task = asyncio.ensure_future(coro)
+    try:
+        return loop.run_until_complete(task)
+    finally:
+        if not task.done():
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                loop.run_until_complete(task)
 
 
 def sync_anext(ait):
@@ -358,6 +367,9 @@ class BatchClient:
 
     def supported_regions(self):
         return async_to_blocking(self._async_client.supported_regions())
+
+    def cloud(self):
+        return async_to_blocking(self._async_client.cloud())
 
     def close(self):
         async_to_blocking(self._async_client.close())

@@ -22,6 +22,26 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.115
+
+Released 2023-04-25
+
+### New Features
+
+- (hail#12731) Introduced `hailtop.fs` that makes public a filesystem module that works
+  for local fs, gs, s3 and abs. This can be used by `import hailtop.fs as hfs` but has also
+  replaced the underlying implementation of the `hl.hadoop_*` methods. This means that the
+  `hl.hadoop_*` methods now support these additional blob storage providers.
+- (hail#12917) ABS blob URIs in the form of `https://<ACCOUNT_NAME>.blob.core.windows.net/<CONTAINER_NAME>/<PATH>` are now supported when running in Azure.
+
+### Deprecations
+- (hail#12917) The `hail-az` scheme for referencing ABS blobs in Azure is deprecated in favor of the `https` scheme and will be removed in a future release.
+
+### Bug Fixes
+
+- (hail#12919) An interactive hail session is no longer unusable after hitting CTRL-C during a batch execution in Query-on-Batch
+- (hail#12913) Fixed bug in `hail.ggplot` where all legend entries would have the same text if one column had exactly one value for all rows and was mapped to either the `shape` or the `color` aesthetic for `geom_point`.
+
 ---
 
 ## Version 0.2.114

@@ -177,11 +177,21 @@ class TruncatedReadableBinaryIO(BinaryIO):
     def readlines(self, hint: int = -1):  # pylint: disable=unused-argument
         raise NotImplementedError
 
-    def seek(self, offset: int, whence: int = 0) -> int:  # pylint: disable=unused-argument
-        raise NotImplementedError
+    def seek(self, offset: int, whence: int = os.SEEK_SET) -> int:
+        res = self.bio.seek(offset, whence)
+        if whence == os.SEEK_SET:
+            self.offset = offset
+        elif whence == os.SEEK_CUR:
+            self.offset += offset
+        elif whence == os.SEEK_END:
+            assert offset < 0
+            self.offset = self.limit + offset
+        else:
+            raise ValueError(f'Unsupported seek whence: {whence}')
+        return res
 
     def seekable(self) -> bool:
-        return False
+        return True
 
     def tell(self) -> int:
         return self.bio.tell()
@@ -209,6 +219,10 @@ class LocalAsyncFS(AsyncFS):
         if not thread_pool:
             thread_pool = ThreadPoolExecutor(max_workers=max_workers)
         self._thread_pool = thread_pool
+
+    @staticmethod
+    def valid_url(url: str) -> bool:
+        return url.startswith('file://') or '://' not in url
 
     def parse_url(self, url: str) -> LocalAsyncFSURL:
         return LocalAsyncFSURL(self._get_path(url))

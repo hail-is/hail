@@ -137,7 +137,7 @@ class LocalBackend(Backend[None]):
             flags += f' -v {gsa_key_file}:/gsa-key/key.json'
 
         self._extra_docker_run_flags = flags
-        self.__fs: AsyncFS = RouterAsyncFS(default_scheme='file')
+        self.__fs: AsyncFS = RouterAsyncFS()
 
     @property
     def _fs(self):
@@ -263,22 +263,24 @@ class LocalBackend(Backend[None]):
             )
 
             jobs = batch._unsubmitted_jobs
-            dependent_jobs = collections.defaultdict(set)
-
-            def add_dependents(ancestor, child):
-                dependent_jobs[ancestor].add(child)
-                for ancestor_parent in ancestor._dependencies:
-                    add_dependents(ancestor_parent, child)
+            child_jobs = collections.defaultdict(set)
 
             for j in jobs:
                 for parent in j._dependencies:
-                    add_dependents(parent, j)
+                    child_jobs[parent].add(j)
 
             cancelled_jobs = set()
+
+            def cancel_child_jobs(j):
+                for child in child_jobs[j]:
+                    if not child._always_run:
+                        cancelled_jobs.add(child)
+
             first_exc = None
             for job in jobs:
                 if job in cancelled_jobs:
                     print(f'Job {job} was cancelled. Not running')
+                    cancel_child_jobs(job)
                     continue
                 async_to_blocking(job._compile(tmpdir, tmpdir, dry_run=dry_run))
 
@@ -348,10 +350,8 @@ class LocalBackend(Backend[None]):
 
                 exc = run_code(code)
                 if exc is not None:
-                    first_exc = exc
-                    for child in dependent_jobs[job]:
-                        if not child._always_run:
-                            cancelled_jobs.add(child)
+                    first_exc = exc if first_exc is None else first_exc
+                    cancel_child_jobs(job)
                 job._submitted = True
         finally:
             batch._python_function_defs.clear()
@@ -410,7 +410,8 @@ class ServiceBackend(Backend[bc.Batch]):
         bucket. This argument is deprecated. Use `remote_tmpdir` instead.
     remote_tmpdir:
         Temporary data will be stored in this cloud storage folder. Cannot be used with deprecated
-        argument `bucket`. Paths should start with one of gs://, hail-az://, or s3://.
+        argument `bucket`. Paths should match a GCS URI like gs://<BUCKET_NAME>/<PATH> or an ABS
+        URI of the form https://<ACCOUNT_NAME>.blob.core.windows.net/<CONTAINER_NAME>/<PATH>.
     google_project:
         If specified, the project to use when authenticating with Google
         Storage. Google Storage is used to transfer serialized values between
@@ -477,8 +478,8 @@ class ServiceBackend(Backend[bc.Batch]):
         user_config = get_user_config()
         self.remote_tmpdir = get_remote_tmpdir('ServiceBackend', bucket=bucket, remote_tmpdir=remote_tmpdir, user_config=user_config)
 
-        gcs_kwargs = {'project': google_project}
-        self.__fs: RouterAsyncFS = RouterAsyncFS(default_scheme='file', gcs_kwargs=gcs_kwargs)
+        gcs_kwargs = {'gcs_requester_pays_configuration': google_project}
+        self.__fs: RouterAsyncFS = RouterAsyncFS(gcs_kwargs=gcs_kwargs)
 
         if regions is None:
             regions_from_conf = user_config.get('batch', 'regions', fallback=None)

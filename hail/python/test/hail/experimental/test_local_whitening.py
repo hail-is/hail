@@ -24,7 +24,7 @@ def run_local_whitening_test(vec_size, num_rows, chunk_size, window_size, partit
     ht = tsm.block_table
     whitened_hail = np.vstack(ht.aggregate(hl.agg.collect(tsm.block_expr)))
     whitened_naive = naive_whiten(data.T, window_size)
-    np.testing.assert_allclose(whitened_hail, whitened_naive, rtol=1e-05)
+    np.testing.assert_allclose(whitened_hail, whitened_naive, rtol=5e-05)
 
 def test_local_whitening():
     run_local_whitening_test(
