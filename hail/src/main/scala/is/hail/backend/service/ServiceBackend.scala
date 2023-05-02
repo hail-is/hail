@@ -1,6 +1,5 @@
 package is.hail.backend.service
 
-import cats.kernel.Monoid
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend._
@@ -33,10 +32,8 @@ import java.nio.charset.StandardCharsets
 import java.util.concurrent._
 import scala.annotation.switch
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
 import scala.language.higherKinds
 import scala.reflect.ClassTag
-import scala.util.{Failure, Success, Try}
 
 class ServiceBackendContext(
   @transient val sessionID: String,
@@ -46,7 +43,8 @@ class ServiceBackendContext(
   val workerMemory: String,
   val storageRequirement: String,
   val regions: Array[String],
-  val cloudfuseConfig: Array[(String, String, Boolean)]
+  val cloudfuseConfig: Array[(String, String, Boolean)],
+  val executionCache: ExecutionCache
 ) extends BackendContext with Serializable {
   def tokens(): Tokens =
     new Tokens(Map((DeployConfig.get.defaultNamespace, sessionID)))
@@ -643,7 +641,9 @@ class ServiceBackendSocketAPI2(
         addedSequences.foreach { case (rg, (fastaFile, indexFile)) =>
           ctx.getReference(rg).addSequence(ctx, fastaFile, indexFile)
         }
-        ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir, workerCores, workerMemory, storageRequirement, regions, cloudfuseConfig)
+        ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir, workerCores, workerMemory, storageRequirement, regions, cloudfuseConfig,
+          ExecutionCache.fsCache(fs, remoteTmpDir)
+        )
         method(ctx)
       }
     }

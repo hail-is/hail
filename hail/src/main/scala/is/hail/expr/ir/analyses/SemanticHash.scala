@@ -9,6 +9,18 @@ import scala.collection.mutable
 
 case object SemanticHash {
 
+  object Hash {
+    type Type = Int
+
+    def apply(o: Any): Type =
+      o.hashCode
+  }
+
+  implicit class MagmaHash(a: Hash.Type) {
+    def <>(b: Hash.Type): Hash.Type =
+      Hash(FastIndexedSeq(a, b))
+  }
+
   def getFileHash(fs: FS)(path: String): Hash.Type = {
     val status = fs.fileStatus(path)
     Hash(status.getPath) <> Hash(status.getLen) <> Hash(status.getModificationTime)
@@ -128,15 +140,4 @@ case object SemanticHash {
       ir.children.iterator
   }
 
-
-  object Hash {
-    type Type = Int
-    def apply(o: Any): Type =
-      o.hashCode
-  }
-
-  implicit class MagmaHash(a: Hash.Type) {
-    def <>(b: Hash.Type): Hash.Type =
-      Hash(FastIndexedSeq(a, b))
-  }
 }

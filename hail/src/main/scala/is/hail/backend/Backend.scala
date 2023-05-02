@@ -2,6 +2,7 @@ package is.hail.backend
 
 import is.hail.asm4s._
 import is.hail.backend.spark.SparkBackend
+import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR, TableStage, TableStageDependency}
 import is.hail.expr.ir.{CodeCacheKey, CompiledFunction, LoweringAnalyses, SortField, TableIR, TableReader}
 import is.hail.io.fs._
@@ -23,7 +24,9 @@ object Backend {
 
 abstract class BroadcastValue[T] { def value: T }
 
-abstract class BackendContext
+trait BackendContext {
+  def executionCache: ExecutionCache
+}
 
 abstract class Backend {
   def defaultParallelism: Int
