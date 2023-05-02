@@ -145,7 +145,7 @@ def test_invalid_resource_requests(client: BatchClient):
         bb.submit()
 
 
-@fails_in_azure # https://github.com/hail-is/hail/issues/12958
+@fails_in_azure  # https://github.com/hail-is/hail/issues/12958
 def test_out_of_memory(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '10Gi'}
@@ -1008,7 +1008,7 @@ def test_pool_highcpu_instance(client: BatchClient):
     assert 'highcpu' in status['status']['worker'], str((status, b.debug_info()))
 
 
-@fails_in_azure # https://github.com/hail-is/hail/issues/12958
+@fails_in_azure  # https://github.com/hail-is/hail/issues/12958
 def test_pool_highcpu_instance_cheapest(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25', 'memory': '50Mi'}
