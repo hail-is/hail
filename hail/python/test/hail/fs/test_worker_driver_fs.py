@@ -8,7 +8,7 @@ from ..helpers import fails_local_backend
 @skip_in_azure
 def test_requester_pays_no_settings():
     try:
-        hl.import_table('gs://hail-services-requester-pays/hello')
+        hl.import_table('gs://hail-test-requester-pays-fds32/hello')
     except Exception as exc:
         assert "Bucket is a requester pays bucket but no user project provided" in exc.args[0]
     else:
@@ -17,7 +17,7 @@ def test_requester_pays_no_settings():
 
 @skip_in_azure
 def test_requester_pays_write_no_settings():
-    random_filename = 'gs://hail-services-requester-pays/test_requester_pays_on_worker_driver_' + secret_alnum_string(10)
+    random_filename = 'gs://hail-test-requester-pays-fds32/test_requester_pays_on_worker_driver_' + secret_alnum_string(10)
     try:
         hl.utils.range_table(4, n_partitions=4).write(random_filename, overwrite=True)
     except Exception as exc:
@@ -32,7 +32,7 @@ def test_requester_pays_write_no_settings():
 def test_requester_pays_write_with_project():
     hl.stop()
     hl.init(gcs_requester_pays_configuration='hail-vdc')
-    random_filename = 'gs://hail-services-requester-pays/test_requester_pays_on_worker_driver_' + secret_alnum_string(10)
+    random_filename = 'gs://hail-test-requester-pays-fds32/test_requester_pays_on_worker_driver_' + secret_alnum_string(10)
     try:
         hl.utils.range_table(4, n_partitions=4).write(random_filename, overwrite=True)
     finally:
@@ -43,20 +43,20 @@ def test_requester_pays_write_with_project():
 def test_requester_pays_with_project():
     hl.stop()
     hl.init(gcs_requester_pays_configuration='hail-vdc')
-    assert hl.import_table('gs://hail-services-requester-pays/hello', no_header=True).collect() == [hl.Struct(f0='hello')]
+    assert hl.import_table('gs://hail-test-requester-pays-fds32/hello', no_header=True).collect() == [hl.Struct(f0='hello')]
 
     hl.stop()
-    hl.init(gcs_requester_pays_configuration=('hail-vdc', ['hail-services-requester-pays']))
-    assert hl.import_table('gs://hail-services-requester-pays/hello', no_header=True).collect() == [hl.Struct(f0='hello')]
+    hl.init(gcs_requester_pays_configuration=('hail-vdc', ['hail-test-requester-pays-fds32']))
+    assert hl.import_table('gs://hail-test-requester-pays-fds32/hello', no_header=True).collect() == [hl.Struct(f0='hello')]
 
     hl.stop()
-    hl.init(gcs_requester_pays_configuration=('hail-vdc', ['hail-services-requester-pays', 'other-bucket']))
-    assert hl.import_table('gs://hail-services-requester-pays/hello', no_header=True).collect() == [hl.Struct(f0='hello')]
+    hl.init(gcs_requester_pays_configuration=('hail-vdc', ['hail-test-requester-pays-fds32', 'other-bucket']))
+    assert hl.import_table('gs://hail-test-requester-pays-fds32/hello', no_header=True).collect() == [hl.Struct(f0='hello')]
 
     hl.stop()
     hl.init(gcs_requester_pays_configuration=('hail-vdc', ['other-bucket']))
     try:
-        hl.import_table('gs://hail-services-requester-pays/hello')
+        hl.import_table('gs://hail-test-requester-pays-fds32/hello')
     except Exception as exc:
         assert "Bucket is a requester pays bucket but no user project provided" in exc.args[0]
     else:
@@ -64,7 +64,7 @@ def test_requester_pays_with_project():
 
     hl.stop()
     hl.init(gcs_requester_pays_configuration='hail-vdc')
-    assert hl.import_table('gs://hail-services-requester-pays/hello', no_header=True).collect() == [hl.Struct(f0='hello')]
+    assert hl.import_table('gs://hail-test-requester-pays-fds32/hello', no_header=True).collect() == [hl.Struct(f0='hello')]
 
 
 @skip_in_azure
@@ -93,20 +93,20 @@ def test_requester_pays_with_project_more_than_one_partition():
 
     hl.stop()
     hl.init(gcs_requester_pays_configuration='hail-vdc')
-    assert hl.import_table('gs://hail-services-requester-pays/zero-to-nine', no_header=True, min_partitions=8).collect() == expected_file_contents
+    assert hl.import_table('gs://hail-test-requester-pays-fds32/zero-to-nine', no_header=True, min_partitions=8).collect() == expected_file_contents
 
     hl.stop()
-    hl.init(gcs_requester_pays_configuration=('hail-vdc', ['hail-services-requester-pays']))
-    assert hl.import_table('gs://hail-services-requester-pays/zero-to-nine', no_header=True, min_partitions=8).collect() == expected_file_contents
+    hl.init(gcs_requester_pays_configuration=('hail-vdc', ['hail-test-requester-pays-fds32']))
+    assert hl.import_table('gs://hail-test-requester-pays-fds32/zero-to-nine', no_header=True, min_partitions=8).collect() == expected_file_contents
 
     hl.stop()
-    hl.init(gcs_requester_pays_configuration=('hail-vdc', ['hail-services-requester-pays', 'other-bucket']))
-    assert hl.import_table('gs://hail-services-requester-pays/zero-to-nine', no_header=True, min_partitions=8).collect() == expected_file_contents
+    hl.init(gcs_requester_pays_configuration=('hail-vdc', ['hail-test-requester-pays-fds32', 'other-bucket']))
+    assert hl.import_table('gs://hail-test-requester-pays-fds32/zero-to-nine', no_header=True, min_partitions=8).collect() == expected_file_contents
 
     hl.stop()
     hl.init(gcs_requester_pays_configuration=('hail-vdc', ['other-bucket']))
     try:
-        hl.import_table('gs://hail-services-requester-pays/zero-to-nine', min_partitions=8)
+        hl.import_table('gs://hail-test-requester-pays-fds32/zero-to-nine', min_partitions=8)
     except Exception as exc:
         assert "Bucket is a requester pays bucket but no user project provided" in exc.args[0]
     else:
@@ -114,7 +114,7 @@ def test_requester_pays_with_project_more_than_one_partition():
 
     hl.stop()
     hl.init(gcs_requester_pays_configuration='hail-vdc')
-    assert hl.import_table('gs://hail-services-requester-pays/zero-to-nine', no_header=True, min_partitions=8).collect() == expected_file_contents
+    assert hl.import_table('gs://hail-test-requester-pays-fds32/zero-to-nine', no_header=True, min_partitions=8).collect() == expected_file_contents
 
 
 @run_if_azure
