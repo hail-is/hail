@@ -1,6 +1,5 @@
 package is.hail.backend.local
 
-import is.hail.{HailContext, HailFeatureFlags}
 import is.hail.annotations.{Region, SafeRow, UnsafeRow}
 import is.hail.asm4s._
 import is.hail.backend._
@@ -18,9 +17,11 @@ import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeTy
 import is.hail.types.virtual.TVoid
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
+import is.hail.{HailContext, HailFeatureFlags}
 import org.apache.hadoop
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
+import org.sparkproject.guava.util.concurrent.MoreExecutors
 
 import java.io.PrintWriter
 import scala.collection.JavaConverters._
@@ -117,21 +118,21 @@ class LocalBackend(
     current
   }
 
-  def parallelizeAndComputeWithIndex(
+  override def parallelizeAndComputeWithIndex(
     backendContext: BackendContext,
     fs: FS,
     collection: Array[Array[Byte]],
     stageIdentifier: String,
     dependency: Option[TableStageDependency] = None
-  )(
-    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
-  ): Array[Array[Byte]] = {
+  )(f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte])
+  : (Option[Throwable], IndexedSeq[(Int, Array[Byte])]) = {
     val stageId = nextStageId()
-    collection.zipWithIndex.map { case (c, i) =>
-      val htc = new LocalTaskContext(i, stageId)
-      val bytes = f(c, htc, theHailClassLoader, fs)
-      htc.close()
-      bytes
+    runAllKeepFirstError(MoreExecutors.sameThreadExecutor) {
+      collection.zipWithIndex.map { case (c, i) =>
+        () => using(new LocalTaskContext(i, stageId)) {
+          f(c, _, theHailClassLoader, fs)
+        }
+      }
     }
   }
 

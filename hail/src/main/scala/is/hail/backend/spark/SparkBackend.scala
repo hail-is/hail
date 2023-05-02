@@ -1,46 +1,44 @@
 package is.hail.backend.spark
 
-import is.hail.annotations.{Annotation, ExtendedOrdering, Region, SafeRow, UnsafeRow}
+import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.ir.IRParser
-import is.hail.types.encoded.EType
-import is.hail.io.{BufferSpec, StreamBufferSpec, TypedCodecSpec}
-import is.hail.{HailContext, HailFeatureFlags}
-import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex, Validate}
-import is.hail.expr.ir.lowering._
-import is.hail.expr.ir._
-import is.hail.types.physical.{PStruct, PTuple, PType}
-import is.hail.types.virtual.{TArray, TInterval, TStruct, TVoid, Type}
 import is.hail.backend._
 import is.hail.expr.ir.IRParser.parseType
+import is.hail.expr.ir.lowering._
+import is.hail.expr.ir.{IRParser, _}
+import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex, Validate}
 import is.hail.io.fs._
-import is.hail.utils._
-import org.json4s.DefaultFormats
-import org.json4s.jackson.{JsonMethods, Serialization}
-import org.apache.spark.{Dependency, NarrowDependency, Partition, ProgressBarBuilder, ShuffleDependency, SparkConf, SparkContext, TaskContext}
-import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.sql.{DataFrame, SparkSession}
-
-import scala.collection.mutable
-import scala.reflect.ClassTag
-import scala.collection.JavaConverters._
-import java.io.{Closeable, PrintWriter}
 import is.hail.io.plink.LoadPlink
 import is.hail.io.vcf.VCFsReader
+import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.{BlockMatrix, RowMatrix}
 import is.hail.rvd.RVD
 import is.hail.stats.LinearMixedModel
 import is.hail.types._
+import is.hail.types.encoded.EType
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
+import is.hail.types.physical.{PStruct, PTuple}
+import is.hail.types.virtual.{TArray, TInterval, TStruct, TVoid}
+import is.hail.utils._
 import is.hail.variant.ReferenceGenome
-import org.apache.spark.rdd.RDD
-import org.apache.spark.storage.StorageLevel
-import org.apache.spark.util.TaskCompletionListener
+import is.hail.{HailContext, HailFeatureFlags}
 import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
+import org.apache.spark._
+import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.json4s
-import org.json4s.Formats
 import org.json4s.JsonAST.{JInt, JObject}
+import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.{DefaultFormats, Formats}
+
+import java.io.{Closeable, PrintWriter}
+import scala.collection.JavaConverters._
+import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
+import scala.reflect.ClassTag
+import scala.util.{Failure, Success, Try}
 
 
 class SparkBroadcastValue[T](bc: Broadcast[T]) extends BroadcastValue[T] with Serializable {
@@ -353,19 +351,41 @@ class SparkBackend(
 
   def broadcast[T : ClassTag](value: T): BroadcastValue[T] = new SparkBroadcastValue[T](sc.broadcast(value))
 
-  def parallelizeAndComputeWithIndex(
+  override def parallelizeAndComputeWithIndex(
     backendContext: BackendContext,
     fs: FS,
     collection: Array[Array[Byte]],
     stageIdentifier: String,
     dependency: Option[TableStageDependency] = None
-  )(
-    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
-  ): Array[Array[Byte]] = {
-    val sparkDeps = dependency.toIndexedSeq
-      .flatMap(dep => dep.deps.map(rvdDep => new AnonymousDependency(rvdDep.asInstanceOf[RVDDependency].rvd.crdd.rdd)))
+  )(f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte])
+  : (Option[Throwable], IndexedSeq[(Int, Array[Byte])]) = {
 
-    new SparkBackendComputeRDD(sc, collection, f, sparkDeps).collect()
+    val sparkDeps =
+      for {rvdDep <- dependency.toIndexedSeq.flatMap(_.deps)}
+        yield new AnonymousDependency(rvdDep.asInstanceOf[RVDDependency].rvd.crdd.rdd)
+
+    val rdd =
+      new RDD[Try[(Int, Array[Byte])]](sc, sparkDeps) {
+        override protected def getPartitions: Array[Partition] =
+          for {(c, k) <- collection.zipWithIndex}
+            yield SparkBackendComputeRDDPartition(c, k)
+
+        override def compute(partition: Partition, context: TaskContext): Iterator[Try[(Int, Array[Byte])]] = {
+          val sp = partition.asInstanceOf[SparkBackendComputeRDDPartition]
+          val fs = new HadoopFS(null)
+          Iterator.single(Try((sp.index, f(sp.data, SparkTaskContext.get(), theHailClassLoaderForSparkWorkers, fs))))
+        }
+      }
+
+    val buffer = new ArrayBuffer[(Int, Array[Byte])](collection.length)
+    var err = Option.empty[Throwable]
+
+    rdd.collect().foreach {
+      case Success((k, v)) => buffer.+=((k, v))
+      case Failure(t) => err = err.orElse(Some(t))
+    }
+
+    (err, buffer)
   }
 
   def defaultParallelism: Int = sc.defaultParallelism
@@ -776,20 +796,3 @@ class SparkBackend(
 
 case class SparkBackendComputeRDDPartition(data: Array[Byte], index: Int) extends Partition
 
-class SparkBackendComputeRDD(
-  sc: SparkContext,
-  @transient private val collection: Array[Array[Byte]],
-  f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte],
-  deps: Seq[Dependency[_]]
-) extends RDD[Array[Byte]](sc, deps) {
-
-  override def getPartitions: Array[Partition] = {
-    Array.tabulate(collection.length)(i => SparkBackendComputeRDDPartition(collection(i), i))
-  }
-
-  override def compute(partition: Partition, context: TaskContext): Iterator[Array[Byte]] = {
-    val sp = partition.asInstanceOf[SparkBackendComputeRDDPartition]
-    val fs = new HadoopFS(null)
-    Iterator.single(f(sp.data, SparkTaskContext.get(), theHailClassLoaderForSparkWorkers, fs))
-  }
-}

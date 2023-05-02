@@ -1,44 +1,42 @@
 package is.hail.backend.service
 
-import java.io._
-import java.nio.charset._
-import java.net._
-import java.nio.charset.StandardCharsets
-import java.util.concurrent._
-import is.hail.{HAIL_REVISION, HailContext, HailFeatureFlags}
+import cats.kernel.Monoid
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.{Backend, BackendContext, BackendWithNoCodeCache, BroadcastValue, ExecuteContext, HailTaskContext}
-import is.hail.expr.{JSONAnnotationImpex, Validate}
+import is.hail.backend._
+import is.hail.expr.Validate
+import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{Compile, IR, IRParser, LoweringAnalyses, MakeTuple, SortField, TableIR, TableReader, TypeCheck}
-import is.hail.expr.ir.functions.IRFunctionRegistry
-import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs._
 import is.hail.io.plink.LoadPlink
 import is.hail.io.vcf.LoadVCF
+import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
 import is.hail.services._
 import is.hail.services.batch_client.BatchClient
 import is.hail.types._
+import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._
-import is.hail.types.encoded._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
-import org.apache.commons.io.IOUtils
+import is.hail.{HailContext, HailFeatureFlags}
 import org.apache.log4j.Logger
-import org.json4s.Extraction
 import org.json4s.JsonAST._
 import org.json4s.jackson.{JsonMethods, Serialization}
-import org.json4s.{DefaultFormats, Formats}
-import org.newsclub.net.unix.{AFUNIXServerSocket, AFUNIXSocketAddress}
+import org.json4s.{DefaultFormats, Extraction, Formats}
 
+import java.io._
+import java.nio.charset.StandardCharsets
+import java.util.concurrent._
 import scala.annotation.switch
-import scala.reflect.ClassTag
-import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
+import scala.language.higherKinds
+import scala.reflect.ClassTag
+import scala.util.{Failure, Success, Try}
 
 class ServiceBackendContext(
   @transient val sessionID: String,
@@ -98,14 +96,14 @@ class ServiceBackend(
     new String(bytes, StandardCharsets.UTF_8)
   }
 
-  def parallelizeAndComputeWithIndex(
+  override def parallelizeAndComputeWithIndex(
     _backendContext: BackendContext,
     fs: FS,
     collection: Array[Array[Byte]],
     stageIdentifier: String,
     dependency: Option[TableStageDependency] = None
   )(f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
-  ): Array[Array[Byte]] = {
+  ): (Option[Throwable], IndexedSeq[(Int, Array[Byte])]) = {
     val backendContext = _backendContext.asInstanceOf[ServiceBackendContext]
     val n = collection.length
     val token = tokenUrlSafe(32)
@@ -227,41 +225,36 @@ class ServiceBackend(
 
     val startTime = System.nanoTime()
 
-    val results = try {
-      executor.invokeAll(IndexedSeq.range(0, n).map { i =>
-        new Callable[Array[Byte]]() {
-          def call(): Array[Byte] = {
-            availableGCSConnections.acquire()
-            try {
-              val bytes = fs.readNoCompression(s"$root/result.$i")
-              if (bytes(0) != 0) {
-                bytes.slice(1, bytes.length)
-              } else {
-                val errorInformationBytes = bytes.slice(1, bytes.length)
-                val is = new DataInputStream(new ByteArrayInputStream(errorInformationBytes))
-                val shortMessage = readString(is)
-                val expandedMessage = readString(is)
-                val errorId = is.readInt()
-                throw new HailWorkerException(shortMessage, expandedMessage, errorId)
-              }
-            } finally {
-              availableGCSConnections.release()
-            }
+    val r@(_, results) = runAllKeepFirstError(executor) {
+      for {i <- 0 until n} yield () => {
+        availableGCSConnections.acquire()
+        try {
+          val bytes = fs.readNoCompression(s"$root/result.$i")
+          if (bytes(0) != 0) {
+            bytes.slice(1, bytes.length)
+          } else {
+            val errorInformationBytes = bytes.slice(1, bytes.length)
+            val is = new DataInputStream(new ByteArrayInputStream(errorInformationBytes))
+            val shortMessage = readString(is)
+            val expandedMessage = readString(is)
+            val errorId = is.readInt()
+            throw new HailWorkerException(shortMessage, expandedMessage, errorId)
           }
+        } finally {
+          availableGCSConnections.release()
         }
-      }.asJava).asScala.map(_.get).toArray
-    } catch {
-      case exc: ExecutionException if exc.getCause() != null => throw exc.getCause()
+      }
     }
 
     val resultsReadingSeconds = (System.nanoTime() - startTime) / 1000000000.0
     val rate = results.length / resultsReadingSeconds
-    val byterate = results.map(_.length).sum / resultsReadingSeconds / 1024 / 1024
+    val byterate = results.map(_._2.length).sum / resultsReadingSeconds / 1024 / 1024
     log.info(s"all results read. $resultsReadingSeconds s. $rate result/s. $byterate MiB/s.")
-    results.toArray[Array[Byte]]
+    r
   }
 
-  def stop(): Unit = ()
+  def stop(): Unit =
+    executor.shutdownNow()
 
   def valueType(
     ctx: ExecuteContext,
