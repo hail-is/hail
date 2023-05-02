@@ -1653,7 +1653,7 @@ class DockerJob(Job):
                         'source': f'{self.cloudfuse_data_path(bucket)}',
                         'destination': config['mount_path'],
                         'type': 'none',
-                        'options': ['bind', 'ro', 'private'],
+                        'options': ['bind', 'rw', 'private'],
                     }
                 )
 
