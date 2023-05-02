@@ -361,7 +361,7 @@ def test_unknown_image(client: BatchClient):
 
 
 @skip_in_azure
-def test_invalid_gcr(client: BatchClient):
+def test_invalid_gar(client: BatchClient):
     bb = create_batch(client)
     # GCP projects can't be strictly numeric
     j = bb.create_job('us-docker.pkg.dev/1/does-not-exist', ['echo', 'test'])
@@ -369,7 +369,7 @@ def test_invalid_gcr(client: BatchClient):
     status = j.wait()
     try:
         assert j._get_exit_code(status, 'main') is None
-        assert status['status']['container_statuses']['main']['short_error'] == 'image repository is invalid', str(
+        assert status['status']['container_statuses']['main']['short_error'] == 'image cannot be pulled', str(
             (status, b.debug_info())
         )
     except Exception as e:
