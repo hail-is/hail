@@ -208,11 +208,12 @@ You can now install Hail:
   for Docker can be applied). The following steps should be completed from
   the $HAIL/infra/gcp directory, unless otherwise stated.
 
-- Run the following to authenticate docker and kubectl with the new
-  artifact registry and kubernetes cluster, respectively.
+- Run the following to authenticate docker and kubectl with the new artifact
+  registry and kubernetes cluster, respectively. The `GKE_ZONE` is the zone of
+  the GKE cluster and the `GAR_REGION` is the region of the artifact registry.
 
   ```
-  ./bootstrap.sh configure_gcloud <ZONE>
+  ./bootstrap.sh configure_gcloud <GKE_ZONE> <GAR_REGION>
   ```
 
 - Edit `$HAIL/letsencrypt/subdomains.txt` to include just the services you plan
