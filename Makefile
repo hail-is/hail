@@ -75,13 +75,13 @@ install-dev-requirements:
 hail/python/hailtop/pinned-requirements.txt: hail/python/hailtop/requirements.txt
 	./generate-linux-pip-lockfile.sh hail/python/hailtop
 
-hail/python/pinned-requirements.txt: hail/python/requirements.txt hail/python/hailtop/pinned-requirements.txt
+hail/python/pinned-requirements.txt: hail/python/hailtop/pinned-requirements.txt hail/python/requirements.txt
 	./generate-linux-pip-lockfile.sh hail/python
 
-hail/python/dev/pinned-requirements.txt: hail/python/dev/requirements.txt hail/python/pinned-requirements.txt
+hail/python/dev/pinned-requirements.txt: hail/python/pinned-requirements.txt hail/python/dev/requirements.txt
 	./generate-linux-pip-lockfile.sh hail/python/dev
 
-gear/pinned-requirements.txt: hail/python/hailtop/pinned-requirements.txt gear/requirements.txt
+gear/pinned-requirements.txt: hail/python/pinned-requirements.txt hail/python/dev/pinned-requirements.txt hail/python/hailtop/pinned-requirements.txt gear/requirements.txt
 	./generate-linux-pip-lockfile.sh gear
 
 web_common/pinned-requirements.txt: gear/pinned-requirements.txt web_common/requirements.txt

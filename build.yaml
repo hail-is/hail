@@ -154,7 +154,7 @@ steps:
       valueFrom: hail_ubuntu_image.image
     script: |
       set -ex
-      pip install pip-tools==6.9.0
+      pip install pip-tools==6.13.0
       cd /io/repo
       chmod 755 ./check_pip_requirements.sh
       ./check_pip_requirements.sh \

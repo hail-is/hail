@@ -2129,7 +2129,7 @@ def from_numpy(np_dtype):
         return tfloat32
     elif np_dtype == np.float64:
         return tfloat64
-    elif np_dtype == np.bool:
+    elif np_dtype == np.bool_:
         return tbool
     else:
         raise ValueError(f"numpy type {np_dtype} could not be converted to a hail type.")
