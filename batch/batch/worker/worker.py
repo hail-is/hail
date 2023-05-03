@@ -1937,6 +1937,10 @@ class DockerJob(Job):
                             f'while unmounting fuse blob storage {bucket} from {mount_path} for job {self.id}'
                         )
 
+            n_mounted = len([config for config in self.cloudfuse if config['mounted']])
+            if n_mounted > 0:
+                return
+
         try:
             async with async_timeout.timeout(120):
                 await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
@@ -2218,8 +2222,13 @@ class JVMJob(Job):
                     bucket = config['bucket']
                     assert bucket
                     mount_path = self.cloudfuse_data_path(bucket)
-                    await self.jvm.cloudfuse_mount_manager.unmount(mount_path, user=self.user, bucket=bucket)
-                    config['mounted'] = False
+                    try:
+                        await self.jvm.cloudfuse_mount_manager.unmount(mount_path, user=self.user, bucket=bucket)
+                        config['mounted'] = False
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:
+                        log.exception(f'error while unmounting cloudfuse in jvm job {self.jvm_name}')
 
         if self.jvm is not None:
             self.worker.return_jvm(self.jvm)
@@ -2230,6 +2239,11 @@ class JVMJob(Job):
             await self.worker.file_store.write_log_file(
                 self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', log_contents
             )
+
+        if self.cloudfuse:
+            n_mounted = len([config for config in self.cloudfuse if config['mounted']])
+            if n_mounted > 0:
+                return
 
         try:
             await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
