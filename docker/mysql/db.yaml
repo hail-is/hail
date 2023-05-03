@@ -1,0 +1,101 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-server-conf
+data:
+  my.cnf: |
+    [mysqld]
+    ssl_ca=/sql-config/server-ca.pem
+    ssl_cert=/sql-config/server-cert.pem
+    ssl_key=/sql-config/server-key.pem
+    require_secure_transport=ON
+    log_bin_trust_function_creators=ON
+    max_connections=100
+    bind-address=0.0.0.0
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: db
+  labels:
+    app: db
+spec:
+  selector:
+    matchLabels:
+      app: db
+  serviceName: db
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: db
+    spec:
+      nodeSelector:
+        preemptible: "false"
+      containers:
+        - name: db
+          image: mysql:8.0.28
+          livenessProbe:
+            exec:
+              command: ["mysqladmin", "ping"]
+            initialDelaySeconds: 30
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: "1.5"
+              memory: "1G"
+            limits:
+              cpu: "2"
+              memory: "1.5G"
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: pw
+            - name: MYSQL_ROOT_HOST
+              value: "%"
+          volumeMounts:
+            - name: mysql-persistent-storage
+              mountPath: /var/lib/mysql
+            - name: database-server-config
+              mountPath: /sql-config
+            - name: mysql-conf
+              mountPath: /etc/mysql/conf.d
+            - name: mysql-client-conf
+              mountPath: /root
+      volumes:
+       - name: mysql-persistent-storage
+         persistentVolumeClaim:
+           claimName: mysql-pv-claim
+       - name: database-server-config
+         secret:
+           secretName: database-server-config
+       - name: mysql-client-conf
+         secret:
+           secretName: database-server-config
+           items:
+             - key: sql-config.cnf
+               path: .my.cnf
+       - name: mysql-conf
+         configMap:
+           name: mysql-server-conf
+  volumeClaimTemplates:
+  - metadata:
+      name: mysql-persistent-storage
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+spec:
+  type: NodePort
+  ports:
+    - protocol: TCP
+      port: 3306
+      targetPort: 3306
+  selector:
+    app: db
