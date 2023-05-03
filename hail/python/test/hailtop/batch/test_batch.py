@@ -504,24 +504,24 @@ class ServiceTests(unittest.TestCase):
         if not os.path.exists(in_cluster_key_file):
             in_cluster_key_file = None
 
-        router_fs = RouterAsyncFS(gcs_kwargs={'gcs_requester_pays_configuration': 'hail-vdc', 'credentials_file': in_cluster_key_file},
-                                  azure_kwargs={'credential_file': in_cluster_key_file})
+        self.router_fs = RouterAsyncFS(gcs_kwargs={'gcs_requester_pays_configuration': 'hail-vdc', 'credentials_file': in_cluster_key_file},
+                                       azure_kwargs={'credential_file': in_cluster_key_file})
 
-        def sync_exists(url):
-            return async_to_blocking(router_fs.exists(url))
-
-        def sync_write(url, data):
-            return async_to_blocking(router_fs.write(url, data))
-
-        if not sync_exists(f'{self.remote_tmpdir}batch-tests/resources/hello.txt'):
-            sync_write(f'{self.remote_tmpdir}batch-tests/resources/hello.txt', b'hello world')
-        if not sync_exists(f'{self.remote_tmpdir}batch-tests/resources/hello spaces.txt'):
-            sync_write(f'{self.remote_tmpdir}batch-tests/resources/hello spaces.txt', b'hello')
-        if not sync_exists(f'{self.remote_tmpdir}batch-tests/resources/hello (foo) spaces.txt'):
-            sync_write(f'{self.remote_tmpdir}batch-tests/resources/hello (foo) spaces.txt', b'hello')
+        if not self.sync_exists(f'{self.remote_tmpdir}batch-tests/resources/hello.txt'):
+            self.sync_write(f'{self.remote_tmpdir}batch-tests/resources/hello.txt', b'hello world')
+        if not self.sync_exists(f'{self.remote_tmpdir}batch-tests/resources/hello spaces.txt'):
+            self.sync_write(f'{self.remote_tmpdir}batch-tests/resources/hello spaces.txt', b'hello')
+        if not self.sync_exists(f'{self.remote_tmpdir}batch-tests/resources/hello (foo) spaces.txt'):
+            self.sync_write(f'{self.remote_tmpdir}batch-tests/resources/hello (foo) spaces.txt', b'hello')
 
     def tearDown(self):
         self.backend.close()
+
+    def sync_exists(self, url):
+        return async_to_blocking(self.router_fs.exists(url))
+
+    def sync_write(self, url, data):
+        return async_to_blocking(self.router_fs.write(url, data))
 
     def batch(self, requester_pays_project=None, default_python_image=None,
               cancel_after_n_failures=None):
@@ -743,6 +743,17 @@ class ServiceTests(unittest.TestCase):
             j.cloudfuse('', '/empty_bucket')
         with self.assertRaises(BatchException):
             j.cloudfuse(self.bucket, '')
+
+    def test_cloudfuse_submount_in_io_doesnt_rm_bucket(self):
+        assert self.bucket
+        b = self.batch()
+        j = b.new_job()
+        j.cloudfuse(self.bucket, '/io/cloudfuse')
+        j.command(f'ls /io/cloudfuse/')
+        res = b.run()
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+        assert self.sync_exists(f'{self.remote_tmpdir}batch-tests/resources/hello.txt')
 
     @skip_in_azure
     def test_fuse_requester_pays(self):
