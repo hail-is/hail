@@ -34,7 +34,8 @@ object EmitContext {
       val requiredness = Requiredness.apply(ir, usesAndDefs, null, pTypeEnv)
       val inLoopCriticalPath = ControlFlowPreventsSplit(ir, ParentPointers(ir), usesAndDefs)
       val methodSplits = ComputeMethodSplits(ctx, ir, inLoopCriticalPath)
-      new EmitContext(ctx, requiredness, usesAndDefs, methodSplits, inLoopCriticalPath, Memo.empty[Unit])
+      val (_, semhashs) = SemanticHash(ctx.fs)(ir)
+      new EmitContext(ctx, requiredness, usesAndDefs, methodSplits, inLoopCriticalPath, Memo.empty[Unit], semhashs)
     }
   }
 }
@@ -45,7 +46,8 @@ class EmitContext(
   val usesAndDefs: UsesAndDefs,
   val methodSplits: Memo[Unit],
   val inLoopCriticalPath: Memo[Unit],
-  val tryingToSplit: Memo[Unit]
+  val tryingToSplit: Memo[Unit],
+  val semhashs: Memo[SemanticHash.Hash.Type]
 )
 
 case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[EmitValue]) {
@@ -2495,7 +2497,7 @@ class Emit[C](
           cb.assign(stageName, staticID)
 
           val semhash = cb.newLocal[SemanticHash.Hash.Type]("semhash")
-          cb.assign(semhash, SemanticHash.Hash(UUID.randomUUID))
+          cb.assign(semhash, ctx.semhashs.lookup(x))
 
           emitI(dynamicID).consume(cb, (), { dynamicID =>
             val dynV = dynamicID.asString.loadString(cb)

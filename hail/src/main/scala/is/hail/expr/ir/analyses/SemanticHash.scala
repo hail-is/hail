@@ -26,7 +26,7 @@ case object SemanticHash {
     Hash(status.getPath) <> Hash(status.getLen) <> Hash(status.getModificationTime)
   }
 
-  def apply(fs: FS)(root: BaseIR): Memo[Hash.Type] = {
+  def apply(fs: FS)(root: BaseIR): (Hash.Type, Memo[Hash.Type]) = {
     val lets = mutable.HashMap.empty[String, BaseIR]
     val memo = Memo.empty[Hash.Type]
     for (ir <- TreeTraversal.postOrder(computeLets(lets))(root)) {
@@ -123,7 +123,7 @@ case object SemanticHash {
           Hash(UUID.randomUUID)
       })
     }
-    memo
+    (memo(root), memo)
   }
 
   // Assume all let-bindings are in SSA form

@@ -80,7 +80,7 @@ class SemanticHashSuite {
 
 
   val semhash: BaseIR => Hash.Type =
-    ir => SemanticHash(fakeFs)(ir)(ir)
+    ir => SemanticHash(fakeFs)(ir)._1
 
 
   val fakeFs: FS =
