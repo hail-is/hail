@@ -2493,11 +2493,19 @@ class Emit[C](
           assert(staticID != null)
           val stageName = cb.newLocal[String]("stagename")
           cb.assign(stageName, staticID)
-          emitI(dynamicID).consume(cb,
-            (),
-            { dynamicID =>
-              cb.assign(stageName, stageName.concat("|").concat(dynamicID.asString.loadString(cb)))
-            })
+
+          val semhash = cb.newLocal[SemanticHash.Hash.Type]("semhash")
+          cb.assign(semhash, SemanticHash.Hash(UUID.randomUUID))
+
+          emitI(dynamicID).consume(cb, (), { dynamicID =>
+            val dynV = dynamicID.asString.loadString(cb)
+            cb.assign(stageName, stageName.concat("|").concat(dynV))
+            cb.assign(
+              semhash,
+              Code.newInstance[SemanticHash.MagmaHash, SemanticHash.Hash.Type](semhash)
+                .invoke("<>", Code.invokeScalaObject(SemanticHash.Hash.getClass, "apply", Array(classOf[Any]), Array(dynV)))
+            )
+          })
 
           cb.assign(encRes, spark.invoke[BackendContext, HailClassLoader, FS, String, Array[Array[Byte]], Array[Byte], String, SemanticHash.Hash.Type, Option[TableStageDependency], Array[Array[Byte]]](
             "collectDArray",
@@ -2508,7 +2516,7 @@ class Emit[C](
             ctxab.invoke[Array[Array[Byte]]]("result"),
             baos.invoke[Array[Byte]]("toByteArray"),
             stageName,
-            SemanticHash.Hash(UUID.randomUUID),
+            semhash,
             mb.getObject(tsd)))
           decodeResult(cb)
         }

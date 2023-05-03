@@ -36,14 +36,14 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
                     _contexts: Array[Array[Byte]],
                     globals: Array[Byte],
                     stageName: String,
-                    stageSemanticHash: SemanticHash.Hash.Type,
+                    semhash: SemanticHash.Hash.Type,
                     tsd: Option[TableStageDependency]
                    ): Array[Array[Byte]] = {
 
     val backend = HailContext.backend
     val f = getModule(modID)
 
-    val cachedResults = backendContext.executionCache.lookup(stageSemanticHash)
+    val cachedResults = backendContext.executionCache.lookup(semhash)
 
     val contexts =
       for {
@@ -54,7 +54,7 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
     log.info(s"executing D-Array [$stageName] with ${contexts.length} tasks")
     val t = System.nanoTime()
 
-    val (failure, results): (Option[Throwable], IndexedSeq[(Int, Array[Byte])]) =
+    val (failure, successes): (Option[Throwable], IndexedSeq[(Int, Array[Byte])]) =
       contexts match {
         case Array() =>
           (None, IndexedSeq.empty)
@@ -80,13 +80,13 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
           }
       }
 
-    // todo: merge sort these
-    val mergedResult = (cachedResults ++ results).sortBy(_._1)
-    backendContext.executionCache.put(stageSemanticHash, mergedResult)
+    // todo: merge join these
+    val results = (cachedResults ++ successes).sortBy(_._1)
+    backendContext.executionCache.put(semhash, results)
 
     failure.foreach(throw _)
 
     log.info(s"executed D-Array [$stageName] in ${formatTime(System.nanoTime() - t)}")
-    mergedResult.map(_._2).toArray
+    results.map(_._2).toArray
   }
 }
