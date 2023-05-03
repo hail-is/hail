@@ -47,7 +47,7 @@ class EmitContext(
   val methodSplits: Memo[Unit],
   val inLoopCriticalPath: Memo[Unit],
   val tryingToSplit: Memo[Unit],
-  val semhashs: Memo[SemanticHash.Hash.Type]
+  val semhash: Memo[SemanticHash.Hash.Type]
 )
 
 case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[EmitValue]) {
@@ -2497,16 +2497,22 @@ class Emit[C](
           cb.assign(stageName, staticID)
 
           val semhash = cb.newLocal[SemanticHash.Hash.Type]("semhash")
-          cb.assign(semhash, ctx.semhashs.lookup(x))
+          cb.assign(semhash, ctx.semhash.lookup(x))
 
           emitI(dynamicID).consume(cb, (), { dynamicID =>
             val dynV = dynamicID.asString.loadString(cb)
             cb.assign(stageName, stageName.concat("|").concat(dynV))
-            cb.assign(
-              semhash,
+            cb.assign(semhash, {
+              val dynamicHash =
+                Code.invokeScalaObject[SemanticHash.Hash.Type](
+                  SemanticHash.Hash.getClass, "apply", Array(classOf[Any]), Array(dynV)
+                )
+
               Code.newInstance[SemanticHash.MagmaHash, SemanticHash.Hash.Type](semhash)
-                .invoke("<>", Code.invokeScalaObject(SemanticHash.Hash.getClass, "apply", Array(classOf[Any]), Array(dynV)))
-            )
+                .invoke[SemanticHash.Hash.Type, SemanticHash.Hash.Type]("$less$greater",
+                  dynamicHash
+                )
+            })
           })
 
           cb.assign(encRes, spark.invoke[BackendContext, HailClassLoader, FS, String, Array[Array[Byte]], Array[Byte], String, SemanticHash.Hash.Type, Option[TableStageDependency], Array[Array[Byte]]](

@@ -9,7 +9,7 @@ import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.io.fs._
 import is.hail.utils._
 
-import scala.util.Using
+import scala.util.Try
 
 object BackendUtils {
   type F = AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]
@@ -60,11 +60,13 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
           (None, IndexedSeq.empty)
 
         case Array((context, k)) =>
-          Using(new LocalTaskContext(0, 0)) { htc =>
-            Using(htc.getRegionPool().getRegion()) { r =>
-              FastIndexedSeq((k, f(theDriverHailClassLoader, fs, htc, r)(r, context, globals)))
+          Try {
+            using(new LocalTaskContext(0, 0)) { htc =>
+              using(htc.getRegionPool().getRegion()) { r =>
+                FastIndexedSeq((k, f(theDriverHailClassLoader, fs, htc, r)(r, context, globals)))
+              }
             }
-          }.flatten.fold(t => (Some(t), IndexedSeq.empty), (None, _))
+          }.fold(t => (Some(t), IndexedSeq.empty), (None, _))
 
         case _ =>
           val globalsBC = backend.broadcast(globals)

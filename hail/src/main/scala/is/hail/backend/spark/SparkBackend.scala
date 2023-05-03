@@ -335,7 +335,8 @@ class SparkBackend(
     flags
   )
 
-  def withExecuteContext[T](timer: ExecutionTimer, selfContainedExecution: Boolean = true)(f: ExecuteContext => T): T = {
+  def withExecuteContext[T](timer: ExecutionTimer, selfContainedExecution: Boolean = true)
+                           (f: ExecuteContext => T): T =
     ExecuteContext.scoped(
       tmpdir,
       localTmpdir,
@@ -346,8 +347,13 @@ class SparkBackend(
       theHailClassLoader,
       this.references,
       flags
-    )(f)
-  }
+    ) { ctx =>
+      ctx.backendContext = new BackendContext {
+        override def executionCache: ExecutionCache =
+          ExecutionCache.fsCache(fs, s"$tmpdir/hail/callcache")
+      }
+      f(ctx)
+    }
 
   def broadcast[T : ClassTag](value: T): BroadcastValue[T] = new SparkBroadcastValue[T](sc.broadcast(value))
 

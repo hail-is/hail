@@ -1,13 +1,15 @@
 package is.hail.backend
 
 import is.hail.expr.ir.analyses.SemanticHash.Hash
+import is.hail.expr.ir.analyses.SemanticHash.Hash.Type
 import is.hail.io.fs.FS
+import is.hail.utils.using
 
 import java.io.OutputStream
+import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
-import scala.collection.mutable
 import scala.io.Source
-import scala.util.Using
+import scala.util.Try
 
 case object ExecutionCache {
   def fsCache(fs: FS, cachedir: String): ExecutionCache = {
@@ -15,48 +17,63 @@ case object ExecutionCache {
     FSExecutionCache(fs, cachedir)
   }
 
+  def noCache: ExecutionCache = new ExecutionCache {
+    override def lookup(s: Type): IndexedSeq[(Int, Array[Byte])] =
+      IndexedSeq.empty
+
+    override def put(s: Type, r: IndexedSeq[(Int, Array[Byte])]): Unit =
+      ()
+  }
+
   def forTesting: ExecutionCache = new ExecutionCache {
     val storage = new ConcurrentHashMap[Hash.Type, IndexedSeq[(Int, Array[Byte])]]
 
     override def lookup(s: Hash.Type): IndexedSeq[(Int, Array[Byte])] =
-      storage.getOrDefault(s, mutable.IndexedSeq.empty)
+      storage.getOrDefault(s, IndexedSeq.empty)
 
     override def put(s: Hash.Type, r: IndexedSeq[(Int, Array[Byte])]): Unit =
       storage.put(s, r)
   }
 }
 
-trait ExecutionCache {
+trait ExecutionCache extends Serializable {
   def lookup(s: Hash.Type): IndexedSeq[(Int, Array[Byte])]
   def put(s: Hash.Type, r: IndexedSeq[(Int, Array[Byte])]): Unit
 }
 
 private case class FSExecutionCache(fs: FS, cacheDir: String) extends ExecutionCache {
 
+  val base64Encode: Array[Byte] => Array[Byte] =
+    Base64.getUrlEncoder.encode
+
+  val base64Decode: String => Array[Byte] =
+    Base64.getUrlDecoder.decode
+
   override def lookup(s: Hash.Type): IndexedSeq[(Int, Array[Byte])] =
-    Using(fs.open(at(s))) {
-      Source.fromInputStream(_).getLines().map(Line.read).toIndexedSeq
+    Try {
+      using(fs.open(at(s))) {
+        Source.fromInputStream(_).getLines().map(Line.read).toIndexedSeq
+      }
     }.getOrElse(IndexedSeq.empty)
 
   override def put(s: Hash.Type, r: IndexedSeq[(Int, Array[Byte])]): Unit =
     fs.write(at(s)) { ostream => r.foreach(Line.write(_, ostream)) }
 
   def at(s: Hash.Type): String =
-    s"$cacheDir/$s"
+    s"$cacheDir/${base64Encode(s.toString.getBytes).mkString}"
 
-  case object Line {
+  private case object Line {
     private type Type = (Hash.Type, Array[Byte])
     def write(line: Type, ostream: OutputStream): Unit = {
-      assert(!line._2.contains('\n'))
-      ostream.write(line._1)
-      ostream.write(", ".getBytes)
-      ostream.write(line._2)
-      ostream.write("\n".getBytes)
+      ostream.write(line._1.toString.getBytes)
+      ostream.write(','.toInt)
+      ostream.write(base64Encode(line._2))
+      ostream.write('\n'.toInt)
     }
 
     def read(string: String): Type = {
       val Array(index, bytes) = string.split(", ")
-      (index.toInt, bytes.getBytes)
+      (index.toInt, base64Decode(bytes.substring(0, bytes.length - 1)))
     }
   }
 }
