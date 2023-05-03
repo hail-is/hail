@@ -1068,9 +1068,9 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
         if cloudfuse:
             for config in cloudfuse:
                 if not config['read_only']:
-                    raise web.HTTPBadRequest(reason='Only read-only cloudfuse requests are supported.')
+                    raise web.HTTPBadRequest(reason=f'Only read-only cloudfuse requests are supported. Found {config}')
                 if config['mount_path'] == '/io':
-                    raise web.HTTPBadRequest(reason='Cloudfuse requests with mount_path=/io are not supported.')
+                    raise web.HTTPBadRequest(reason=f'Cloudfuse requests with mount_path=/io are not supported. Found {config}')
 
         if spec.get('mount_tokens', False):
             secrets.append(

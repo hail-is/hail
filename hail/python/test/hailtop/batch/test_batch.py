@@ -700,7 +700,7 @@ class ServiceTests(unittest.TestCase):
         try:
             b.run()
         except aiohttp.ClientResponseError as e:
-            assert e.message == 'Only read-only cloudfuse requests are supported.', e.message
+            assert 'Only read-only cloudfuse requests are supported' in e.message, e.message
         else:
             assert False
 
@@ -711,12 +711,12 @@ class ServiceTests(unittest.TestCase):
         b = self.batch()
         j = b.new_job()
         j.command(f'mkdir -p {path}; echo head > {path}/cloudfuse_test_1')
-        j.cloudfuse(self.bucket, f'/io', read_only=False)
+        j.cloudfuse(self.bucket, f'/io', read_only=True)
 
         try:
             b.run()
         except aiohttp.ClientResponseError as e:
-            assert e.message == 'Cloudfuse requests with mount_path=/io are not supported.', e.message
+            assert 'Cloudfuse requests with mount_path=/io are not supported' in e.message, e.message
         else:
             assert False
 
