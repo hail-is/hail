@@ -4,6 +4,7 @@ import secrets
 import time
 from typing import Set
 
+import orjson
 import pytest
 
 from hailtop import httpx
@@ -13,6 +14,7 @@ from hailtop.batch_client.client import BatchClient
 from hailtop.config import get_deploy_config, get_user_config
 from hailtop.test_utils import skip_in_azure
 from hailtop.utils import external_requests_client_session, retry_response_returning_functions, sync_sleep_and_backoff
+from hailtop.utils.rich_progress_bar import BatchProgressBar
 
 from .failure_injecting_client_session import FailureInjectingClientSession
 from .utils import DOCKER_ROOT_IMAGE, HAIL_GENETICS_HAIL_IMAGE, create_batch, legacy_batch_status, smallest_machine_type
@@ -976,6 +978,44 @@ def test_verify_private_network_is_restricted(client: BatchClient):
         assert 'unauthorized network private' in err.body
     else:
         assert False
+
+
+async def test_old_clients_that_submit_mount_docker_socket_false_is_ok(client: BatchClient):
+    bb = create_batch(client)._async_builder
+    b = await bb._open_batch()
+    bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
+    update_id = await bb._create_update(b.id)
+    with BatchProgressBar() as pbar:
+        process = {
+            'type': 'docker',
+            'command': ['sleep', '30'],
+            'image': DOCKER_ROOT_IMAGE,
+            'mount_docker_socket': False,
+        }
+        spec = {'always_run': False, 'job_id': 1, 'parent_ids': [], 'process': process}
+        with pbar.with_task('submitting jobs', total=1) as pbar_task:
+            await bb._submit_jobs(b.id, update_id, [orjson.dumps(spec)], 1, pbar_task)
+
+
+async def test_old_clients_that_submit_mount_docker_socket_true_is_rejected(client: BatchClient):
+    bb = create_batch(client)._async_builder
+    b = await bb._open_batch()
+    bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
+    update_id = await bb._create_update(b.id)
+    with BatchProgressBar() as pbar:
+        process = {
+            'type': 'docker',
+            'command': ['sleep', '30'],
+            'image': DOCKER_ROOT_IMAGE,
+            'mount_docker_socket': True,
+        }
+        spec = {'always_run': False, 'job_id': 1, 'parent_ids': [], 'process': process}
+        with pbar.with_task('submitting jobs', total=1) as pbar_task:
+            with pytest.raises(
+                httpx.ClientResponseError,
+                match='mount_docker_socket is no longer supported but was set to True in request. Please upgrade.',
+            ):
+                await bb._submit_jobs(b.id, update_id, [orjson.dumps(spec)], 1, pbar_task)
 
 
 def test_pool_highmem_instance(client: BatchClient):
