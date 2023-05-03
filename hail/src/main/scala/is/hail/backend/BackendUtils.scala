@@ -52,7 +52,7 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
             remainingContexts match {
               case Array((context, k)) =>
                 Try {
-                  using(new LocalTaskContext(0, 0)) { htc =>
+                  using(new LocalTaskContext(k, 0)) { htc =>
                     using(htc.getRegionPool().getRegion()) { r =>
                       FastIndexedSeq((k, f(theDriverHailClassLoader, fs, htc, r)(r, context, globals)))
                     }
