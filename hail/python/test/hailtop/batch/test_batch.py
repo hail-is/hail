@@ -3,7 +3,6 @@ import inspect
 import secrets
 import unittest
 
-import aiohttp
 import pytest
 import os
 import subprocess as sp
@@ -21,6 +20,7 @@ from hailtop.config import get_user_config
 from hailtop.batch.utils import concatenate
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.test_utils import skip_in_azure
+from hailtop.httpx import ClientResponseError
 
 
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'ubuntu:20.04')
@@ -699,8 +699,8 @@ class ServiceTests(unittest.TestCase):
 
         try:
             b.run()
-        except aiohttp.ClientResponseError as e:
-            assert 'Only read-only cloudfuse requests are supported' in e.message, e.message
+        except ClientResponseError as e:
+            assert 'Only read-only cloudfuse requests are supported' in e.body, e.body
         else:
             assert False
 
@@ -715,8 +715,8 @@ class ServiceTests(unittest.TestCase):
 
         try:
             b.run()
-        except aiohttp.ClientResponseError as e:
-            assert 'Cloudfuse requests with mount_path=/io are not supported' in e.message, e.message
+        except ClientResponseError as e:
+            assert 'Cloudfuse requests with mount_path=/io are not supported' in e.body, e.body
         else:
             assert False
 
