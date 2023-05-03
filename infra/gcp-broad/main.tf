@@ -628,6 +628,21 @@ resource "google_storage_bucket" "hail_test_bucket" {
   timeouts {}
 }
 
+resource "random_string" "hail_test_requester_pays_bucket_suffix" {
+  length = 5
+}
+
+resource "google_storage_bucket" "hail_test_requester_pays_bucket" {
+  name = "hail-test-requester-pays-${random_string.hail_test_requester_pays_bucket_suffix.result}"
+  location = var.hail_test_gcs_bucket_location
+  force_destroy = false
+  storage_class = var.hail_test_gcs_bucket_storage_class
+  uniform_bucket_level_access = true
+  requester_pays = true
+
+  timeouts {}
+}
+
 resource "google_dns_managed_zone" "dns_zone" {
   description = ""
   name = "hail"

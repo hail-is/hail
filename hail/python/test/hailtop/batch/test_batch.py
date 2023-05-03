@@ -748,7 +748,7 @@ class ServiceTests(unittest.TestCase):
     def test_fuse_requester_pays(self):
         b = self.batch(requester_pays_project='hail-vdc')
         j = b.new_job()
-        j.cloudfuse('hail-services-requester-pays', '/fuse-bucket')
+        j.cloudfuse('hail-test-requester-pays-fds32', '/fuse-bucket')
         j.command('cat /fuse-bucket/hello')
         res = b.run()
         res_status = res.status()
@@ -776,7 +776,7 @@ class ServiceTests(unittest.TestCase):
     @skip_in_azure
     def test_requester_pays(self):
         b = self.batch(requester_pays_project='hail-vdc')
-        input = b.read_input('gs://hail-services-requester-pays/hello')
+        input = b.read_input('gs://hail-test-requester-pays-fds32/hello')
         j = b.new_job()
         j.command(f'cat {input}')
         res = b.run()
