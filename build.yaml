@@ -2195,6 +2195,9 @@ steps:
       - name: mitigate-bad-attempt-resources-trigger
         script: /io/sql/mitigate-bad-attempt-resources-trigger.sql
         online: true
+      - name: set-test-and-dev-pools-to-16-core-max-3
+        script: /io/sql/set-test-and-dev-pools-to-16-core-max-3.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -2348,11 +2351,11 @@ steps:
       - create_certs
   - kind: runImage
     name: test_hail_python_service_backend
-    numSplits: 5
+    numSplits: 8
     image:
       valueFrom: hail_run_image.image
     resources:
-      cpu: '1'
+      cpu: '0.5'
       preemptible: False
     script: |
       set -ex
@@ -2398,7 +2401,7 @@ steps:
               -vv \
               --instafail \
               --durations=50 \
-              -n 4 \
+              -n 6 \
               --ignore=test/hailtop/ \
               test
     timeout: 5400
