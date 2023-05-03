@@ -2,6 +2,8 @@ import asyncio
 import inspect
 import secrets
 import unittest
+
+import aiohttp
 import pytest
 import os
 import subprocess as sp
@@ -686,23 +688,37 @@ class ServiceTests(unittest.TestCase):
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
-    def test_cloudfuse(self):
+    def test_cloudfuse_fails_with_read_write_mount_option(self):
         assert self.bucket
         path = f'/{self.bucket}{self.cloud_output_path}'
 
         b = self.batch()
-        head = b.new_job()
-        head.command(f'mkdir -p {path}; echo head > {path}/cloudfuse_test_1')
-        head.cloudfuse(self.bucket, f'/{self.bucket}', read_only=False)
+        j = b.new_job()
+        j.command(f'mkdir -p {path}; echo head > {path}/cloudfuse_test_1')
+        j.cloudfuse(self.bucket, f'/{self.bucket}', read_only=False)
 
-        tail = b.new_job()
-        tail.command(f'cat {path}/cloudfuse_test_1')
-        tail.cloudfuse(self.bucket, f'/{self.bucket}', read_only=True)
-        tail.depends_on(head)
+        try:
+            b.run()
+        except aiohttp.ClientResponseError as e:
+            assert e.message == 'Only read-only cloudfuse requests are supported.', e.message
+        else:
+            assert False
 
-        res = b.run()
-        res_status = res.status()
-        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+    def test_cloudfuse_fails_with_io_mount_point(self):
+        assert self.bucket
+        path = f'/{self.bucket}{self.cloud_output_path}'
+
+        b = self.batch()
+        j = b.new_job()
+        j.command(f'mkdir -p {path}; echo head > {path}/cloudfuse_test_1')
+        j.cloudfuse(self.bucket, f'/io', read_only=False)
+
+        try:
+            b.run()
+        except aiohttp.ClientResponseError as e:
+            assert e.message == 'Cloudfuse requests with mount_path=/io are not supported.', e.message
+        else:
+            assert False
 
     def test_cloudfuse_read_only(self):
         assert self.bucket
@@ -719,17 +735,10 @@ class ServiceTests(unittest.TestCase):
 
     def test_cloudfuse_implicit_dirs(self):
         assert self.bucket
-        path = f'/{self.bucket}{self.cloud_output_path}'
-
         b = self.batch()
-        head = b.new_job()
-        head.command(f'mkdir -p {path}/cloudfuse/; echo head > {path}/cloudfuse/data')
-        head.cloudfuse(self.bucket, f'/{self.bucket}', read_only=False)
-
-        tail = b.new_job()
-        tail.command(f'cat {path}/cloudfuse/data')
-        tail.cloudfuse(self.bucket, f'/{self.bucket}', read_only=True)
-        tail.depends_on(head)
+        j = b.new_job()
+        j.command(f'cat /cloudfuse/batch-tests/resources/hello.txt')
+        j.cloudfuse(self.bucket, f'/cloudfuse', read_only=True)
 
         res = b.run()
         res_status = res.status()
@@ -768,17 +777,10 @@ class ServiceTests(unittest.TestCase):
     @skip_in_azure
     def test_fuse_non_requester_pays_bucket_when_requester_pays_project_specified(self):
         assert self.bucket
-        path = f'/{self.bucket}{self.cloud_output_path}'
-
         b = self.batch(requester_pays_project='hail-vdc')
-        head = b.new_job()
-        head.command(f'mkdir -p {path}; echo head > {path}/cloudfuse_test_1')
-        head.cloudfuse(self.bucket, f'/{self.bucket}', read_only=False)
-
-        tail = b.new_job()
-        tail.command(f'cat {path}/cloudfuse_test_1')
-        tail.cloudfuse(self.bucket, f'/{self.bucket}', read_only=True)
-        tail.depends_on(head)
+        j = b.new_job()
+        j.command(f'ls /fuse-bucket')
+        j.cloudfuse(self.bucket, f'/fuse-bucket', read_only=True)
 
         res = b.run()
         res_status = res.status()
