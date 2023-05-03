@@ -1035,10 +1035,21 @@ class Container:
 
         return False
 
+    def _validate_container_config(self, config):
+        for mount in config['mounts']:
+            # bind mounts are given the dummy type 'none'
+            if mount['type'] == 'none':
+                # Mount events should not be propagated from the job container to the host
+                assert 'shared' not in mount['options']
+                assert any(option in mount['options'] for option in ('private', 'slave'))
+
     async def _write_container_config(self):
+        config = await self.container_config()
+        self._validate_container_config(config)
+
         os.makedirs(self.config_path)
         with open(f'{self.config_path}/config.json', 'w', encoding='utf-8') as f:
-            f.write(json.dumps(await self.container_config()))
+            f.write(json.dumps(config))
 
     # https://github.com/opencontainers/runtime-spec/blob/master/config.md
     async def container_config(self):
@@ -1179,7 +1190,7 @@ class Container:
                         'source': v_host_path,
                         'destination': v_container_path,
                         'type': 'none',
-                        'options': ['rbind', 'rw', 'shared'],
+                        'options': ['bind', 'rw', 'private'],
                     }
                 )
 
@@ -1235,13 +1246,13 @@ class Container:
                     'source': f'/etc/netns/{self.netns.network_ns_name}/resolv.conf',
                     'destination': '/etc/resolv.conf',
                     'type': 'none',
-                    'options': ['rbind', 'ro'],
+                    'options': ['bind', 'ro', 'private'],
                 },
                 {
                     'source': f'/etc/netns/{self.netns.network_ns_name}/hosts',
                     'destination': '/etc/hosts',
                     'type': 'none',
-                    'options': ['rbind', 'ro'],
+                    'options': ['bind', 'ro', 'private'],
                 },
             ]
         )
@@ -1484,7 +1495,7 @@ class Job(abc.ABC):
             'source': self.io_host_path(),
             'destination': '/io',
             'type': 'none',
-            'options': ['rbind', 'rw'],
+            'options': ['bind', 'rw', 'private'],
         }
         self.input_volume_mounts.append(io_volume_mount)
         self.main_volume_mounts.append(io_volume_mount)
@@ -1642,7 +1653,7 @@ class DockerJob(Job):
                         'source': f'{self.cloudfuse_data_path(bucket)}',
                         'destination': config['mount_path'],
                         'type': 'none',
-                        'options': ['rbind', 'rw', 'shared'],
+                        'options': ['bind', 'rw', 'private'],
                     }
                 )
 
@@ -1652,7 +1663,7 @@ class DockerJob(Job):
                     'source': self.secret_host_path(secret),
                     'destination': secret["mount_path"],
                     'type': 'none',
-                    'options': ['rbind', 'rw'],
+                    'options': ['bind', 'rw', 'private'],
                 }
                 self.main_volume_mounts.append(volume_mount)
                 # this will be the user credentials
@@ -2348,37 +2359,37 @@ class JVMContainer:
                 'source': JVM.SPARK_HOME,
                 'destination': JVM.SPARK_HOME,
                 'type': 'none',
-                'options': ['rbind', 'rw'],
+                'options': ['bind', 'rw', 'private'],
             },
             {
                 'source': '/jvm-entryway',
                 'destination': '/jvm-entryway',
                 'type': 'none',
-                'options': ['rbind', 'rw'],
+                'options': ['bind', 'rw', 'private'],
             },
             {
                 'source': '/hail-jars',
                 'destination': '/hail-jars',
                 'type': 'none',
-                'options': ['rbind', 'rw'],
+                'options': ['bind', 'rw', 'private'],
             },
             {
                 'source': root_dir,
                 'destination': root_dir,
                 'type': 'none',
-                'options': ['rbind', 'rw'],
+                'options': ['bind', 'rw', 'private'],
             },
             {
                 'source': '/batch',
                 'destination': '/batch',
                 'type': 'none',
-                'options': ['rbind', 'rw'],
+                'options': ['bind', 'rw', 'private'],
             },
             {
                 'source': cloudfuse_dir,
                 'destination': '/cloudfuse',
                 'type': 'none',
-                'options': ['rbind', 'ro', 'rslave'],
+                'options': ['rbind', 'ro', 'slave'],
             },
         ]
 
