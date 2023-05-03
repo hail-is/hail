@@ -585,12 +585,17 @@ resource "google_storage_bucket" "batch_logs" {
 }
 
 
+resource "random_string" "hail_query_bucket_suffix" {
+  length = 5
+}
+
 resource "google_storage_bucket" "hail_query" {
-  name = "hail-query"
+  name = "hail-query-${random_string.hail_query_bucket_suffix.result}"
   location = var.hail_query_bucket_location
   storage_class = var.hail_query_bucket_storage_class
+  uniform_bucket_level_access = true
   labels = {
-    "name" = "hail-query"
+    "name" = "hail-query-${random_string.hail_query_bucket_suffix.result}"
   }
   timeouts {}
 }
