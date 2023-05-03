@@ -786,7 +786,7 @@ class ServiceBackend(Backend[bc.Batch]):
 
         if open:
             webbrowser.open(url)
-        if wait:
+        if wait and len(unsubmitted_jobs) > 0:
             if verbose:
                 print(f'Waiting for batch {batch_handle.id}...')
             starting_job_id = min(j._client_job.job_id for j in unsubmitted_jobs)
