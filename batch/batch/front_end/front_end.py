@@ -832,7 +832,6 @@ async def _create_jobs(userdata: dict, job_specs: dict, batch_id: int, update_id
     db: Database = app['db']
     file_store: FileStore = app['file_store']
     user = userdata['username']
-    is_developer = userdata['is_developer']
 
     # restrict to what's necessary; in particular, drop the session
     # which is sensitive
