@@ -1841,13 +1841,15 @@ class DockerJob(Job):
                             os.makedirs(self.cloudfuse_data_path(bucket), exist_ok=True)
                             os.makedirs(self.cloudfuse_tmp_path(bucket), exist_ok=True)
 
-                            await CLOUD_WORKER_API.mount_cloudfuse(
-                                credentials_path,
-                                self.cloudfuse_data_path(bucket),
-                                self.cloudfuse_tmp_path(bucket),
-                                config,
-                            )
-                            config['mounted'] = True
+                            try:
+                                await CLOUD_WORKER_API.mount_cloudfuse(
+                                    credentials_path,
+                                    self.cloudfuse_data_path(bucket),
+                                    self.cloudfuse_tmp_path(bucket),
+                                    config,
+                                )
+                            finally:
+                                config['mounted'] = True
 
                 self.state = 'running'
 
@@ -1937,6 +1939,10 @@ class DockerJob(Job):
                             f'while unmounting fuse blob storage {bucket} from {mount_path} for job {self.id}'
                         )
 
+            # this check is to ensure we do not attempt to cleanup the container if any
+            # unmount operations of cloudfuse instances failed. This check assumes that
+            # there are no partial mounts and config['mounted'] == False means no mount
+            # exists for the cloudfuse bucket to the container.
             n_mounted = len([config for config in self.cloudfuse if config['mounted']])
             if n_mounted > 0:
                 return
@@ -2142,6 +2148,8 @@ class JVMJob(Job):
                         for config in self.cloudfuse:
                             bucket = config['bucket']
                             assert bucket
+                            assert config['mount_path'] != '/io'
+                            assert config['mount_path'].startswith('/cloudfuse')
 
                             credentials = self.credentials.cloudfuse_credentials(config)
                             credentials_path = CLOUD_WORKER_API.write_cloudfuse_credentials(
@@ -2153,15 +2161,17 @@ class JVMJob(Job):
                             os.makedirs(data_path, exist_ok=True)
                             os.makedirs(tmp_path, exist_ok=True)
 
-                            await self.jvm.cloudfuse_mount_manager.mount(
-                                bucket,
-                                data_path,
-                                user=self.user,
-                                credentials_path=credentials_path,
-                                tmp_path=tmp_path,
-                                config=config,
-                            )
-                            config['mounted'] = True
+                            try:
+                                await self.jvm.cloudfuse_mount_manager.mount(
+                                    bucket,
+                                    data_path,
+                                    user=self.user,
+                                    credentials_path=credentials_path,
+                                    tmp_path=tmp_path,
+                                    config=config,
+                                )
+                            finally:
+                                config['mounted'] = True
 
                 if self.secrets:
                     for secret in self.secrets:
@@ -2240,6 +2250,10 @@ class JVMJob(Job):
                 self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', log_contents
             )
 
+        # this check is to ensure we do not attempt to cleanup the container if any
+        # unmount operations of cloudfuse instances failed. This check assumes that
+        # there are no partial mounts and config['mounted'] == False means no mount
+        # exists for the cloudfuse bucket to the container.
         if self.cloudfuse:
             n_mounted = len([config for config in self.cloudfuse if config['mounted']])
             if n_mounted > 0:
