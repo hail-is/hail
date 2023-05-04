@@ -1002,13 +1002,13 @@ steps:
       - build_hail
       - merge_code
   - kind: buildImage2
-    name: hail_pip_installed_python37_image
-    dockerFile: /io/repo/hail/Dockerfile.hail-pip-installed-python37
+    name: hail_pip_installed_python39_image
+    dockerFile: /io/repo/hail/Dockerfile.hail-pip-installed-python39
     contextPath: /io/repo
-    publishAs: hail-pip-installed-python37
+    publishAs: hail-pip-installed-python39
     inputs:
-      - from: /repo/hail/Dockerfile.hail-pip-installed-python37
-        to: /io/repo/hail/Dockerfile.hail-pip-installed-python37
+      - from: /repo/hail/Dockerfile.hail-pip-installed-python39
+        to: /io/repo/hail/Dockerfile.hail-pip-installed-python39
       - from: /repo/hail/python/pinned-requirements.txt
         to: /io/repo/hail/python/pinned-requirements.txt
       - from: /repo/hail/python/dev/pinned-requirements.txt
@@ -1046,9 +1046,9 @@ steps:
       - hail_ubuntu_image
       - merge_code
   - kind: runImage
-    name: check_hail_python37
+    name: check_hail_python39
     image:
-      valueFrom: hail_pip_installed_python37_image.image
+      valueFrom: hail_pip_installed_python39_image.image
     script: |
       set -x
       SITE_PACKAGES=$(pip3 show hail | grep Location | sed 's/Location: //')
@@ -1063,7 +1063,7 @@ steps:
 
       exit $exit_status
     dependsOn:
-      - hail_pip_installed_python37_image
+      - hail_pip_installed_python39_image
   - kind: runImage
     name: check_hail_python38
     image:
