@@ -692,6 +692,10 @@ class ContainerStartError(Exception):
     pass
 
 
+class IncompleteCloudFuseCleanup(Exception):
+    pass
+
+
 def worker_fraction_in_1024ths(cpu_in_mcpu):
     return 1024 * cpu_in_mcpu // (CORES * 1000)
 
@@ -1937,6 +1941,11 @@ class DockerJob(Job):
                             f'while unmounting fuse blob storage {bucket} from {mount_path} for job {self.id}'
                         )
                         raise
+
+        with open('/proc/mounts', 'r', encoding='utf-8') as f:
+            output = f.read()
+            if self.cloudfuse_base_path() in output:
+                raise IncompleteCloudFuseCleanup(f'incomplete cloudfuse unmounting: {output}')
 
         try:
             async with async_timeout.timeout(120):
