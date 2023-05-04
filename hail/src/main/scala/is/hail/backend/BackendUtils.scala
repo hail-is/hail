@@ -50,7 +50,7 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
 
           val (failureOpt, successes) =
             remainingContexts match {
-              case Array((context, k)) =>
+              case Array((context, k)) if backend.canExecuteParallelTasksOnDriver =>
                 Try {
                   using(new LocalTaskContext(k, 0)) { htc =>
                     using(htc.getRegionPool().getRegion()) { r =>
