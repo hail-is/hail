@@ -419,9 +419,10 @@ class ReadOnlyCloudfuseManager:
     async def _fuse_unmount(self, path: str):
         assert CLOUD_WORKER_API
         await CLOUD_WORKER_API.unmount_cloudfuse(path)
-        proc_mounts_stdout, _ = await check_shell_output('cat /proc/mounts')
-        if path in str(proc_mounts_stdout):
-            raise IncompleteCloudFuseCleanup(f'incomplete cloudfuse unmounting: {proc_mounts_stdout}')
+        with open('/proc/mounts', 'r') as f:
+            output = f.read()
+            if path in output:
+                raise IncompleteCloudFuseCleanup(f'incomplete cloudfuse unmounting: {output}')
 
     async def _bind_mount(self, src, dst):
         await check_exec_output('mount', '--bind', src, dst)
@@ -1944,9 +1945,10 @@ class DockerJob(Job):
                             f'while unmounting fuse blob storage {bucket} from {mount_path} for job {self.id}'
                         )
 
-        proc_mounts_stdout, _ = await check_shell_output('cat /proc/mounts')
-        if self.cloudfuse_base_path() in str(proc_mounts_stdout):
-            raise IncompleteCloudFuseCleanup(f'incomplete cloudfuse unmounting: {proc_mounts_stdout}')
+        with open('/proc/mounts', 'r') as f:
+            output = f.read()
+            if self.cloudfuse_base_path() in output:
+                raise IncompleteCloudFuseCleanup(f'incomplete cloudfuse unmounting: {output}')
 
         try:
             async with async_timeout.timeout(120):
