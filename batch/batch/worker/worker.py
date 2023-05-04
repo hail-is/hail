@@ -2230,10 +2230,10 @@ class JVMJob(Job):
                         config['mounted'] = False
                     except asyncio.CancelledError:
                         raise
-                    except Exception:
+                    except Exception as e:
                         raise IncompleteJVMCleanupError(
                             f'while unmounting fuse blob storage {bucket} from {mount_path} for {self.jvm_name} for job {self.id}'
-                        )
+                        ) from e
 
         if self.jvm is not None:
             self.worker.return_jvm(self.jvm)
@@ -2321,8 +2321,7 @@ class JVMCreationError(Exception):
 
 
 class IncompleteJVMCleanupError(Exception):
-    def __init__(self, msg):
-        self.msg = msg
+    pass
 
 
 class JVMUserCredentials:
