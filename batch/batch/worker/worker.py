@@ -2791,6 +2791,7 @@ class Worker:
             self.stop_event.set()
         except IncompleteJVMCleanupError:
             assert isinstance(job, JVMJob)
+            assert job.jvm is not None
             await self.recreate_jvm(job.jvm)
             log.exception(f'while running {job}, ignoring')
         except Exception as e:
