@@ -797,7 +797,7 @@ async def retry_transient_errors_with_debug_string(debug_string: str, warning_de
             if errors == 1 and is_retry_once_error(e):
                 return await f(*args, **kwargs)
             if not is_transient_error(e):
-                raise
+                raise ValueError(f"errors={errors}, delay={delay}") from e
             log_warnings = (time_msecs() - start_time >= warning_delay_msecs) or not is_delayed_warning_error(e)
             if log_warnings and errors == 2:
                 log.warning(f'A transient error occured. We will automatically retry. Do not be alarmed. '
