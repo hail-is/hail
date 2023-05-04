@@ -11,7 +11,7 @@ from hailtop.auth import hail_credentials
 from hailtop.batch.backend import HAIL_GENETICS_HAILTOP_IMAGE
 from hailtop.batch_client.client import BatchClient
 from hailtop.config import get_deploy_config, get_user_config
-from hailtop.test_utils import fails_in_azure, skip_in_azure
+from hailtop.test_utils import skip_in_azure
 from hailtop.utils import external_requests_client_session, retry_response_returning_functions, sync_sleep_and_backoff
 
 from .failure_injecting_client_session import FailureInjectingClientSession
@@ -145,7 +145,7 @@ def test_invalid_resource_requests(client: BatchClient):
         bb.submit()
 
 
-@fails_in_azure  # https://github.com/hail-is/hail/issues/12958
+@skip_in_azure  # https://github.com/hail-is/hail/issues/12958
 def test_out_of_memory(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '10Gi'}
@@ -1008,7 +1008,7 @@ def test_pool_highcpu_instance(client: BatchClient):
     assert 'highcpu' in status['status']['worker'], str((status, b.debug_info()))
 
 
-@fails_in_azure  # https://github.com/hail-is/hail/issues/12958
+@skip_in_azure  # https://github.com/hail-is/hail/issues/12958
 def test_pool_highcpu_instance_cheapest(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25', 'memory': '50Mi'}
