@@ -33,7 +33,9 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
                     semhash: SemanticHash.Hash.Type,
                     tsd: Option[TableStageDependency]
                    ): Array[Array[Byte]] = {
+    log.info(s"[collectDArray|$stageName]: querying cache for $semhash")
     val cachedResults = backendContext.executionCache.lookup(semhash)
+    log.info(s"[collectDArray|$stageName]: found ${cachedResults.length} entries for $semhash.")
     Some {
         for {
           c@(_, k) <- contexts.zipWithIndex
@@ -45,7 +47,7 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
           val backend = HailContext.backend
           val f = getModule(modID)
 
-          log.info(s"executing D-Array [$stageName] with ${remainingContexts.length} tasks")
+          log.info(s"[collectDArray|$stageName]: executing ${remainingContexts.length} tasks")
           val t = System.nanoTime()
 
           val (failureOpt, successes) =
@@ -76,7 +78,7 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
                 (failureOpt, successes.map { case (k, v) => (remainingContexts(k)._2, v) })
             }
 
-          log.info(s"executed D-Array [$stageName] in ${formatTime(System.nanoTime() - t)}")
+          log.info(s"[collectDArray|$stageName]: executed ${remainingContexts.length} tasks in ${formatTime(System.nanoTime() - t)}")
 
           // todo: merge join these
           val results = (cachedResults ++ successes).sortBy(_._1)

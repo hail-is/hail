@@ -2498,14 +2498,14 @@ class Emit[C](
 
           val semhash = cb.newLocal[SemanticHash.Hash.Type]("semhash")
           cb.assign(semhash, ctx.semhash.lookup(x))
-
+          
           emitI(dynamicID).consume(cb, (), { dynamicID =>
             val dynV = dynamicID.asString.loadString(cb)
             cb.assign(stageName, stageName.concat("|").concat(dynV))
             cb.assign(semhash, {
               val dynamicHash =
                 Code.invokeScalaObject[SemanticHash.Hash.Type](
-                  SemanticHash.Hash.getClass, "apply", Array(classOf[Any]), Array(dynV)
+                  SemanticHash.Hash.getClass, "apply", Array(classOf[String]), Array(dynV)
                 )
 
               Code.newInstance[SemanticHash.MagmaHash, SemanticHash.Hash.Type](semhash)

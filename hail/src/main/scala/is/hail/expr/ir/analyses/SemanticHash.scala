@@ -3,6 +3,7 @@ package is.hail.expr.ir.analyses
 import is.hail.expr.ir._
 import is.hail.io.fs.FS
 import is.hail.utils.{FastIndexedSeq, Logging, TreeTraversal}
+import org.apache.commons.codec.digest.MurmurHash3
 
 import java.util.UUID
 import scala.collection.mutable
@@ -11,14 +12,20 @@ case object SemanticHash extends Logging {
 
   object Hash {
     type Type = Int
+    def apply(c: Class[_]): Type =
+      apply(c.getName)
 
-    def apply(o: Any): Type =
-      o.hashCode
+    def apply(a: Any): Type =
+      apply(a.toString)
+
+    def apply(s: String): Type =
+      MurmurHash3.hash32x86(s.getBytes)
   }
 
   implicit class MagmaHash(a: Hash.Type) {
     def <>(b: Hash.Type): Hash.Type =
-      Hash(FastIndexedSeq(a, b))
+      MurmurHash3.hash32(a, b, MurmurHash3.DEFAULT_SEED)
+
   }
 
   def getFileHash(fs: FS)(path: String): Hash.Type = {

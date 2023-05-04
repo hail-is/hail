@@ -4,13 +4,14 @@ import is.hail.HailFeatureFlags
 import is.hail.expr.ir.analyses.SemanticHash.Hash
 import is.hail.expr.ir.analyses.SemanticHash.Hash.Type
 import is.hail.io.fs.FS
-import is.hail.utils.using
+import is.hail.utils.{Logging, using}
 
-import java.io.OutputStream
+import java.io.{FileNotFoundException, OutputStream}
 import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
 import scala.io.Source
 import scala.util.Try
+import scala.util.control.NonFatal
 
 case object ExecutionCache {
   case object Flags {
@@ -51,7 +52,9 @@ trait ExecutionCache extends Serializable {
   def put(s: Hash.Type, r: IndexedSeq[(Int, Array[Byte])]): Unit
 }
 
-private case class FSExecutionCache(fs: FS, cacheDir: String) extends ExecutionCache {
+private case class FSExecutionCache(fs: FS, cacheDir: String)
+  extends ExecutionCache
+    with Logging {
 
   private val base64Encode: Array[Byte] => Array[Byte] =
     Base64.getUrlEncoder.encode
@@ -60,11 +63,18 @@ private case class FSExecutionCache(fs: FS, cacheDir: String) extends ExecutionC
     Base64.getUrlDecoder.decode
 
   override def lookup(s: Hash.Type): IndexedSeq[(Int, Array[Byte])] =
-    Try {
+    try {
       using(fs.open(at(s))) {
         Source.fromInputStream(_).getLines().map(Line.read).toIndexedSeq
       }
-    }.getOrElse(IndexedSeq.empty)
+    } catch {
+      case _: FileNotFoundException =>
+        IndexedSeq.empty
+
+      case NonFatal(t) =>
+        log.warn(s"Failed to read cache entry for $s", t)
+        IndexedSeq.empty
+    }
 
   override def put(s: Hash.Type, r: IndexedSeq[(Int, Array[Byte])]): Unit =
     fs.write(at(s)) { ostream => r.foreach(Line.write(_, ostream)) }
@@ -74,15 +84,15 @@ private case class FSExecutionCache(fs: FS, cacheDir: String) extends ExecutionC
 
   private case object Line {
     private type Type = (Hash.Type, Array[Byte])
-    def write(line: Type, ostream: OutputStream): Unit = {
-      ostream.write(line._1.toString.getBytes)
+    def write(entry: Type, ostream: OutputStream): Unit = {
+      ostream.write(entry._1.toString.getBytes)
       ostream.write(','.toInt)
-      ostream.write(base64Encode(line._2))
+      ostream.write(base64Encode(entry._2))
       ostream.write('\n'.toInt)
     }
 
     def read(string: String): Type = {
-      val Array(index, bytes) = string.split(", ")
+      val Array(index, bytes) = string.split(",")
       (index.toInt, base64Decode(bytes))
     }
   }
