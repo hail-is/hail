@@ -12,9 +12,10 @@ import org.json4s.jackson.JsonMethods
 import org.json4s.{Extraction, JValue}
 
 object BufferSpec {
+  // FIXME (temporary?)
   val default: BufferSpec = LEB128BufferSpec(
-    BlockingBufferSpec(32 * 1024,
-      LZ4HCBlockBufferSpec(32 * 1024,
+    BlockingBufferSpec(64 * 1024,
+      ZstdBlockBufferSpec(64 * 1024,
         new StreamBlockBufferSpec)))
 
   val defaultUncompressed: BufferSpec = BlockingBufferSpec(32 * 1024,
@@ -39,6 +40,9 @@ object BufferSpec {
     BlockingBufferSpec(32 * 1024,
       LZ4FastBlockBufferSpec(32 * 1024,
         new StreamBlockBufferSpec)),
+    BlockingBufferSpec(64 * 1024,
+      ZstdBlockBufferSpec(64 * 1024,
+        new StreamBlockBufferSpec)),
     new StreamBufferSpec)
 
   val specs: Array[BufferSpec] = blockSpecs.flatMap { blockSpec =>
@@ -61,6 +65,7 @@ object BufferSpec {
       classOf[LZ4HCBlockBufferSpec],
       classOf[LZ4FastBlockBufferSpec],
       classOf[LZ4SizeBasedBlockBufferSpec],
+      classOf[ZstdBlockBufferSpec],
       classOf[StreamBlockBufferSpec],
       classOf[BufferSpec],
       classOf[LEB128BufferSpec],
@@ -172,6 +177,20 @@ final case class LZ4SizeBasedBlockBufferSpec(compressorType: String, blockSize: 
 
   def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBlockBuffer] =
     Code.newInstance[LZ4SizeBasedCompressingOutputBlockBuffer, LZ4, Int, Int, OutputBlockBuffer](stagedlz4, blockSize, minCompressionSize, child.buildCodeOutputBuffer(out))
+}
+
+final case class ZstdBlockBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BlockBufferSpec {
+  require(blockSize <= (1 << 16))
+
+  def buildInputBuffer(in: InputStream): InputBlockBuffer = new ZstdInputBlockBuffer(blockSize, child.buildInputBuffer(in))
+
+  def buildOutputBuffer(out: OutputStream): OutputBlockBuffer = new ZstdOutputBlockBuffer(blockSize, child.buildOutputBuffer(out))
+
+  def buildCodeInputBuffer(in: Code[InputStream]): Code[InputBlockBuffer] =
+    Code.newInstance[ZstdInputBlockBuffer, Int, InputBlockBuffer](blockSize, child.buildCodeInputBuffer(in))
+
+  def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBlockBuffer] =
+    Code.newInstance[ZstdOutputBlockBuffer, Int, OutputBlockBuffer](blockSize, child.buildCodeOutputBuffer(out))
 }
 
 object StreamBlockBufferSpec {
