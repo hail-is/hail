@@ -2231,8 +2231,9 @@ class JVMJob(Job):
                     except asyncio.CancelledError:
                         raise
                     except Exception:
-                        log.exception(f'error while unmounting cloudfuse for {self.jvm_name} for job {self.id}')
-                        raise IncompleteJVMCleanupError
+                        raise IncompleteJVMCleanupError(
+                            f'while unmounting fuse blob storage {bucket} from {mount_path} for {self.jvm_name} for job {self.id}'
+                        )
 
         if self.jvm is not None:
             self.worker.return_jvm(self.jvm)
@@ -2320,7 +2321,8 @@ class JVMCreationError(Exception):
 
 
 class IncompleteJVMCleanupError(Exception):
-    pass
+    def __init__(self, msg):
+        self.msg = msg
 
 
 class JVMUserCredentials:
@@ -2788,10 +2790,10 @@ class Worker:
             raise
         except JVMCreationError:
             self.stop_event.set()
-        except IncompleteJVMCleanupError:
+        except IncompleteJVMCleanupError as e:
             assert isinstance(job, JVMJob)
             await self.recreate_jvm(job.jvm)
-            log.exception(f'while running {job}, incomplete cleanup from {job.jvm}')
+            log.exception(e.msg)
         except Exception as e:
             if not user_error(e):
                 log.exception(f'while running {job}, ignoring')
