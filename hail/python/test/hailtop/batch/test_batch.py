@@ -738,7 +738,7 @@ class ServiceTests(unittest.TestCase):
         path = self.router_fs.parse_url(f'{self.remote_tmpdir}batch-tests/resources/hello.txt').path
         b = self.batch()
         j = b.new_job()
-        j.command(f'cat /cloudfuse{path}')
+        j.command(f'cat /cloudfuse/{path}')
         j.cloudfuse(self.bucket, f'/cloudfuse', read_only=True)
 
         res = b.run()
