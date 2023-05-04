@@ -10,7 +10,6 @@ import java.io.{FileNotFoundException, OutputStream}
 import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
 import scala.io.Source
-import scala.util.Try
 import scala.util.control.NonFatal
 
 case object ExecutionCache {

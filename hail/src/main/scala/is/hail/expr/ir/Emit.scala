@@ -22,7 +22,6 @@ import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
 import java.io._
-import java.util.UUID
 import scala.collection.mutable
 import scala.language.{existentials, postfixOps}
 

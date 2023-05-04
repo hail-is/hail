@@ -10,6 +10,7 @@ import scala.collection.mutable
 
 case object SemanticHash extends Logging {
 
+  // Picked from https://softwareengineering.stackexchange.com/a/145633
   object Hash {
     type Type = Int
     def apply(c: Class[_]): Type =
