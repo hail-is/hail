@@ -238,6 +238,24 @@ class AggFunc(object):
             return 'agg'
 
 
+def aggregate_local_array(array, f):
+    elt = array.dtype.element_type
+
+    var = Env.get_uid(base='agg')
+    ref = construct_expr(ir.Ref(var, elt), elt, array._indices)
+    aggregated = f(ref)
+
+    if not aggregated._aggregations:
+        raise ExpressionException(f"'hl.aggregate_local_array' "
+                                  f"must take mapping that contains aggregation expression.")
+
+    indices, _ = unify_all(array, aggregated)
+    return construct_expr(ir.StreamAgg(ir.ToStream(array._ir), var, aggregated._ir),
+                          aggregated.dtype,
+                          Indices(indices.source, indices.axes),
+                          array._aggregations)
+
+
 _agg_func = AggFunc()
 
 
