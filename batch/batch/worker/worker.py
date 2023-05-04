@@ -2240,11 +2240,6 @@ class JVMJob(Job):
                 self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', log_contents
             )
 
-        with open('/proc/mounts', 'r') as f:
-            output = f.read()
-            if self.cloudfuse_base_path() in output:
-                raise IncompleteCloudFuseCleanup(f'incomplete cloudfuse unmounting: {output}')
-
         try:
             await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
             await blocking_to_async(self.pool, shutil.rmtree, self.scratch, ignore_errors=True)
