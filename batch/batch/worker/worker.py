@@ -419,10 +419,6 @@ class ReadOnlyCloudfuseManager:
     async def _fuse_unmount(self, path: str):
         assert CLOUD_WORKER_API
         await CLOUD_WORKER_API.unmount_cloudfuse(path)
-        with open('/proc/mounts', 'r') as f:
-            output = f.read()
-            if path in output:
-                raise IncompleteCloudFuseCleanup(f'incomplete cloudfuse unmounting: {output}')
 
     async def _bind_mount(self, src, dst):
         await check_exec_output('mount', '--bind', src, dst)
@@ -2243,6 +2239,11 @@ class JVMJob(Job):
             await self.worker.file_store.write_log_file(
                 self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', log_contents
             )
+
+        with open('/proc/mounts', 'r') as f:
+            output = f.read()
+            if self.cloudfuse_base_path() in output:
+                raise IncompleteCloudFuseCleanup(f'incomplete cloudfuse unmounting: {output}')
 
         try:
             await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
