@@ -1936,6 +1936,7 @@ class DockerJob(Job):
                         log.exception(
                             f'while unmounting fuse blob storage {bucket} from {mount_path} for job {self.id}'
                         )
+                        raise
 
         try:
             async with async_timeout.timeout(120):
@@ -2212,24 +2213,30 @@ class JVMJob(Job):
         assert self.worker.fs
         assert self.jvm
 
+        with self.step('uploading_log'):
+            log_contents = await self.worker.fs.read(self.log_file)
+            await self.worker.file_store.write_log_file(
+                self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', log_contents
+            )
+
         if self.cloudfuse:
             for config in self.cloudfuse:
                 if config['mounted']:
                     bucket = config['bucket']
                     assert bucket
                     mount_path = self.cloudfuse_data_path(bucket)
-                    await self.jvm.cloudfuse_mount_manager.unmount(mount_path, user=self.user, bucket=bucket)
-                    config['mounted'] = False
+                    try:
+                        await self.jvm.cloudfuse_mount_manager.unmount(mount_path, user=self.user, bucket=bucket)
+                        config['mounted'] = False
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:
+                        log.exception(f'error while unmounting cloudfuse for {self.jvm_name} for job {self.id}')
+                        raise IncompleteJVMCleanupError
 
         if self.jvm is not None:
             self.worker.return_jvm(self.jvm)
             self.jvm = None
-
-        with self.step('uploading_log'):
-            log_contents = await self.worker.fs.read(self.log_file)
-            await self.worker.file_store.write_log_file(
-                self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', log_contents
-            )
 
         try:
             await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
@@ -2309,6 +2316,10 @@ class ImageData:
 
 
 class JVMCreationError(Exception):
+    pass
+
+
+class IncompleteJVMCleanupError(Exception):
     pass
 
 
@@ -2734,6 +2745,12 @@ class Worker:
         jvm.reset()
         self._jvms.add(jvm)
 
+    async def recreate_jvm(self, jvm: JVM):
+        self._jvms.remove(jvm)
+        log.info(f'quarantined {jvm} and recreated a new jvm')
+        new_jvm = await JVM.create(jvm.index, jvm.n_cores, self)
+        self._jvms.add(new_jvm)
+
     async def shutdown(self):
         log.info('Worker.shutdown')
         self._jvm_initializer_task.cancel()
@@ -2771,6 +2788,10 @@ class Worker:
             raise
         except JVMCreationError:
             self.stop_event.set()
+        except IncompleteJVMCleanupError:
+            assert isinstance(job, JVMJob)
+            await self.recreate_jvm(job.jvm)
+            log.exception(f'while running {job}, incomplete cleanup from {job.jvm}')
         except Exception as e:
             if not user_error(e):
                 log.exception(f'while running {job}, ignoring')
