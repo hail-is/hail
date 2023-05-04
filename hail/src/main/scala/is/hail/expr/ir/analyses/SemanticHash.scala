@@ -54,6 +54,12 @@ case object SemanticHash extends Logging {
         case ApplySpecial(fname, _, args, _, _) =>
           args.foldLeft(Hash(classOf[ApplySpecial]) <> Hash(fname))(_ <> memo(_))
 
+        case ApplyUnaryPrimOp(op, x) =>
+          Hash(classOf[ApplyUnaryPrimOp]) <> Hash(op.getClass) <> memo(x)
+
+        case Cast(ir, typ) =>
+          Hash(classOf[Cast]) <> memo(ir) <> Hash(typ.getClass)
+
         case GetField(ir, name) =>
           Hash(classOf[GetField]) <> memo(ir) <> Hash(name)
 
@@ -113,9 +119,14 @@ case object SemanticHash extends Logging {
         case WriteMetadata(writeAnnotations, writer) =>
           Hash(classOf[WriteMetadata]) <> memo(writeAnnotations) <> Hash(writer.toJValue)
 
+        case WriteValue(value, path, _, stagingFile) =>
+          stagingFile.foldLeft(Hash(classOf[WriteValue]) <> memo(value) <> memo(path))(_ <> memo(_))
+
         // The following are parameterized entirely by the operation's input and the operation itself
         case _: ArrayLen |
              _: ArrayRef |
+             _: ArraySlice |
+             _: ArraySort |
              _: ArrayZeros |
              _: Begin |
              _: BlockMatrixCollect |
@@ -149,12 +160,17 @@ case object SemanticHash extends Logging {
              _: NDArraySlice |
              _: NDArrayWrite |
              _: RelationalLet |
+             _: StreamDrop |
+             _: StreamDropWhile |
              _: StreamFilter |
              _: StreamFlatMap |
              _: StreamFold |
              _: StreamFold2 |
+             _: StreamFor |
              _: StreamMap |
              _: StreamRange |
+             _: StreamTake |
+             _: StreamTakeWhile |
              _: TableGetGlobals |
              _: TableCollect |
              _: TableAggregate |
@@ -194,6 +210,11 @@ case object SemanticHash extends Logging {
 
   // Assume all upwardly-exposed IR bindings are in SSA form
   def bindUEIRs(ueIRs: mutable.HashMap[String, BaseIR]): BaseIR => Iterator[BaseIR] = {
+    case ArraySort(array, x, y, lt) =>
+      assert(ueIRs.put(x, array).isEmpty)
+      assert(ueIRs.put(y, array).isEmpty)
+      FastIndexedSeq(array, lt).iterator
+
     case CollectDistributedArray(contexts, globals, cname, gname, body, dynamicID, _, _) =>
       assert(ueIRs.put(cname, contexts).isEmpty)
       assert(ueIRs.put(gname, globals).isEmpty)
@@ -206,6 +227,10 @@ case object SemanticHash extends Logging {
     case RelationalLet(name, value, body) =>
       assert(ueIRs.put(name, value).isEmpty)
       FastIndexedSeq(value, body).iterator
+
+    case StreamDropWhile(stream, name, predicate) =>
+      assert(ueIRs.put(name, stream).isEmpty)
+      FastIndexedSeq(stream, predicate).iterator
 
     case StreamFilter(stream, name, pred) =>
       assert(ueIRs.put(name, stream).isEmpty)
@@ -225,9 +250,17 @@ case object SemanticHash extends Logging {
       assert(ueIRs.put(value, stream).isEmpty)
       f.children.iterator
 
+    case StreamFor(stream, name, body) =>
+      assert(ueIRs.put(name, stream).isEmpty)
+      FastIndexedSeq(stream, body).iterator
+
     case StreamMap(stream, name, body) =>
       assert(ueIRs.put(name, stream).isEmpty)
       FastIndexedSeq(stream, body).iterator
+
+    case StreamTakeWhile(stream, name, predicate) =>
+      assert(ueIRs.put(name, stream).isEmpty)
+      FastIndexedSeq(stream, predicate).iterator
 
     case StreamZip(streams, names, body, _, _) =>
       assert(names.zip(streams).forall { case (name, stream) => ueIRs.put(name, stream).isEmpty })
