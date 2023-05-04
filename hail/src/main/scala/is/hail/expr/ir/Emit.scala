@@ -2497,6 +2497,10 @@ class Emit[C](
 
           val semhash = cb.newLocal[SemanticHash.Hash.Type]("semhash")
           cb.assign(semhash, ctx.semhash.lookup(x))
+
+          IRTraversal.postOrder(x).foreach { y =>
+            log.info(s"[${ctx.semhash.lookup(y)}]: $y")
+          }
           
           emitI(dynamicID).consume(cb, (), { dynamicID =>
             val dynV = dynamicID.asString.loadString(cb)

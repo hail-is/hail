@@ -181,7 +181,6 @@ case object SemanticHash extends Logging {
         case F64(x) => Hash(classOf[F64]) <> Hash(x)
         case NA(typ) => Hash(classOf[NA]) <> Hash(typ)
         case Str(x) => Hash(classOf[Str]) <> Hash(x)
-        case UUID4(x) => Hash(classOf[UUID4]) <> Hash(x)
 
         // In these cases, just return a random SemanticHash meaning that two
         // invocations will never return the same thing.
