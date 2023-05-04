@@ -1,5 +1,6 @@
 package is.hail
 
+import is.hail.backend.ExecutionCache
 import is.hail.utils._
 import org.json4s.JsonAST.{JArray, JObject, JString}
 
@@ -31,7 +32,9 @@ object HailFeatureFlags {
     ("gcs_requester_pays_project", "HAIL_GCS_REQUESTER_PAYS_PROJECT" -> null),
     ("gcs_requester_pays_buckets", "HAIL_GCS_REQUESTER_PAYS_BUCKETS" -> null),
     ("index_branching_factor", "HAIL_INDEX_BRANCHING_FACTOR" -> null),
-    ("rng_nonce", "HAIL_RNG_NONCE" -> "0x0")
+    ("rng_nonce", "HAIL_RNG_NONCE" -> "0x0"),
+    (ExecutionCache.Flags.UseFastRestarts, "HAIL_USE_FAST_RESTARTS" -> null),
+    (ExecutionCache.Flags.Cachedir, "HAIL_CACHE_DIR" -> null)
   )
 
   def fromEnv(): HailFeatureFlags =

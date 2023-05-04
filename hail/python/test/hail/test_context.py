@@ -58,3 +58,21 @@ class Tests(unittest.TestCase):
 
         scala_flag_map = _scala_map_str_to_tuple_str_str_to_dict(b._hail_package.HailFeatureFlags.defaults())
         assert scala_flag_map == Backend._flags_env_vars_and_defaults
+
+    def test_fast_restarts_feature(self):
+        assert hl._get_flags('use_fast_restarts', 'cachedir') == {
+            'use_fast_restarts': None,
+            'cachedir': None
+        }
+
+        hl._set_flags(use_fast_restarts='1')
+        assert hl._get_flags('use_fast_restarts', 'cachedir') == {
+            'use_fast_restarts': '1',
+            'cachedir': None
+        }
+
+        hl._set_flags(cachedir='gs://my-bucket/object-prefix')
+        assert hl._get_flags('use_fast_restarts', 'cachedir') == {
+            'use_fast_restarts': '1',
+            'cachedir': 'gs://my-bucket/object-prefix'
+        }

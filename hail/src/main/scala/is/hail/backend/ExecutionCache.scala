@@ -1,5 +1,6 @@
 package is.hail.backend
 
+import is.hail.HailFeatureFlags
 import is.hail.expr.ir.analyses.SemanticHash.Hash
 import is.hail.expr.ir.analyses.SemanticHash.Hash.Type
 import is.hail.io.fs.FS
@@ -12,9 +13,18 @@ import scala.io.Source
 import scala.util.Try
 
 case object ExecutionCache {
+  case object Flags {
+    val UseFastRestarts = "use_fast_restarts"
+    val Cachedir = "cachedir"
+  }
+
+  def fromFlags(flags: HailFeatureFlags, fs: FS, tmpdir: String): ExecutionCache =
+    if (Option(flags.get(Flags.UseFastRestarts)).isEmpty) noCache
+    else fsCache(fs, Option(flags.get(Flags.Cachedir)).getOrElse(s"$tmpdir/hail"))
+
   def fsCache(fs: FS, cachedir: String): ExecutionCache = {
     assert(fs.validUrl(cachedir))
-    FSExecutionCache(fs, cachedir)
+    FSExecutionCache(fs, s"$cachedir/${is.hail.HAIL_PIP_VERSION}")
   }
 
   def noCache: ExecutionCache = new ExecutionCache {
@@ -43,10 +53,10 @@ trait ExecutionCache extends Serializable {
 
 private case class FSExecutionCache(fs: FS, cacheDir: String) extends ExecutionCache {
 
-  val base64Encode: Array[Byte] => Array[Byte] =
+  private val base64Encode: Array[Byte] => Array[Byte] =
     Base64.getUrlEncoder.encode
 
-  val base64Decode: String => Array[Byte] =
+  private val base64Decode: String => Array[Byte] =
     Base64.getUrlDecoder.decode
 
   override def lookup(s: Hash.Type): IndexedSeq[(Int, Array[Byte])] =
@@ -59,7 +69,7 @@ private case class FSExecutionCache(fs: FS, cacheDir: String) extends ExecutionC
   override def put(s: Hash.Type, r: IndexedSeq[(Int, Array[Byte])]): Unit =
     fs.write(at(s)) { ostream => r.foreach(Line.write(_, ostream)) }
 
-  def at(s: Hash.Type): String =
+  private def at(s: Hash.Type): String =
     s"$cacheDir/${base64Encode(s.toString.getBytes).mkString}"
 
   private case object Line {
@@ -73,7 +83,7 @@ private case class FSExecutionCache(fs: FS, cacheDir: String) extends ExecutionC
 
     def read(string: String): Type = {
       val Array(index, bytes) = string.split(", ")
-      (index.toInt, base64Decode(bytes.substring(0, bytes.length - 1)))
+      (index.toInt, base64Decode(bytes))
     }
   }
 }

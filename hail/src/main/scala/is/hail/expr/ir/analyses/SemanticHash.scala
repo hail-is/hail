@@ -194,6 +194,11 @@ case object SemanticHash extends Logging {
       assert(ueIRs.put(name, stream).isEmpty)
       FastIndexedSeq(stream, pred).iterator
 
+    case StreamFold(stream, zero, accumulator, value, body) =>
+      assert(ueIRs.put(accumulator, zero).isEmpty)
+      assert(ueIRs.put(value, stream).isEmpty)
+      FastIndexedSeq(stream, zero, body).iterator
+
     case StreamMap(stream, name, body) =>
       assert(ueIRs.put(name, stream).isEmpty)
       FastIndexedSeq(stream, body).iterator

@@ -322,18 +322,27 @@ class SparkBackend(
     timer: ExecutionTimer,
     region: Region,
     selfContainedExecution: Boolean = true
-  ): ExecuteContext = new ExecuteContext(
-    tmpdir,
-    localTmpdir,
-    this,
-    fs,
-    region,
-    timer,
-    if (selfContainedExecution) null else new NonOwningTempFileManager(longLifeTempFileManager),
-    theHailClassLoader,
-    this.references,
-    flags
-  )
+  ): ExecuteContext = {
+    val ctx = new ExecuteContext(
+      tmpdir,
+      localTmpdir,
+      this,
+      fs,
+      region,
+      timer,
+      if (selfContainedExecution) null else new NonOwningTempFileManager(longLifeTempFileManager),
+      theHailClassLoader,
+      this.references,
+      flags
+    )
+
+    ctx.backendContext = new BackendContext {
+      override def executionCache: ExecutionCache =
+        ExecutionCache.forTesting
+    }
+
+    ctx
+  }
 
   def withExecuteContext[T](timer: ExecutionTimer, selfContainedExecution: Boolean = true)
                            (f: ExecuteContext => T): T =
@@ -350,7 +359,7 @@ class SparkBackend(
     ) { ctx =>
       ctx.backendContext = new BackendContext {
         override def executionCache: ExecutionCache =
-          ExecutionCache.fsCache(fs, s"$tmpdir/hail/callcache")
+          ExecutionCache.fromFlags(flags, fs, tmpdir)
       }
       f(ctx)
     }

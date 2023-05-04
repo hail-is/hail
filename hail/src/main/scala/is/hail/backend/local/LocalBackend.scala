@@ -109,7 +109,7 @@ class LocalBackend(
       ctx =>
         ctx.backendContext = new BackendContext {
           override def executionCache: ExecutionCache =
-            ExecutionCache.fsCache(fs, s"$tmpdir/hail/callcache")
+            ExecutionCache.fromFlags(flags, fs, tmpdir)
         }
       f(ctx)
     }

@@ -642,7 +642,7 @@ class ServiceBackendSocketAPI2(
           ctx.getReference(rg).addSequence(ctx, fastaFile, indexFile)
         }
         ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir, workerCores, workerMemory, storageRequirement, regions, cloudfuseConfig,
-          ExecutionCache.fsCache(fs, s"$remoteTmpDir/hail/callcache")
+          ExecutionCache.fromFlags(flags, fs, remoteTmpDir)
         )
         method(ctx)
       }
