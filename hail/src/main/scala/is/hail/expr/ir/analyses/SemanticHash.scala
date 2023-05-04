@@ -27,12 +27,15 @@ case object SemanticHash extends Logging {
   }
 
   def apply(fs: FS)(root: BaseIR): (Hash.Type, Memo[Hash.Type]) = {
-    val ueIRs = mutable.HashMap.empty[String, BaseIR]
+    val env = mutable.HashMap.empty[String, BaseIR]
     val memo = Memo.empty[Hash.Type]
-    for (ir <- TreeTraversal.postOrder(bindUEIRs(ueIRs))(root)) {
+    for (ir <- TreeTraversal.postOrder(bindUEIRs(env))(root)) {
       memo.bind(ir, ir match {
         case Apply(fname, _, args, _, _) =>
           args.foldLeft(Hash(classOf[Apply]) <> Hash(fname))(_ <> memo(_))
+
+        case ApplyBinaryPrimOp(op, x, y) =>
+          Hash(classOf[ApplyBinaryPrimOp]) <> Hash(op.getClass) <> memo(x) <> memo(y)
 
         case ApplyComparisonOp(op, x, y) =>
           Hash(classOf[ApplyComparisonOp]) <> Hash(op.getClass) <> memo(x) <> memo(y)
@@ -68,15 +71,18 @@ case object SemanticHash extends Logging {
         case MatrixWrite(child, writer) =>
           Hash(classOf[MatrixWrite]) <> memo(child) <> Hash(writer.path)
 
+        case ReadPartition(context, _, reader) =>
+          Hash(classOf[ReadPartition]) <> memo(context) <> Hash(reader.toJValue)
+
         // Notes:
         // - If the name in the (Relational)Ref is free then it's impossible to know the semantic hash
         // - The semantic hash of a (Relational)Ref cannot be the same as the value it binds to as
         //   that would imply that the evaluation of the value to is the same as evaluating the ref itself.
         case Ref(name, _) =>
-          Hash(classOf[Ref]) <> memo(ueIRs(name))
+          Hash(classOf[Ref]) <> memo(env(name))
 
         case RelationalRef(name, _) =>
-          Hash(classOf[RelationalRef]) <> memo(ueIRs(name))
+          Hash(classOf[RelationalRef]) <> memo(env(name))
 
         case SelectFields(struct, names) =>
           Hash(classOf[SelectFields]) <> names.foldLeft(memo(struct))(_ <> Hash(_))
@@ -101,6 +107,7 @@ case object SemanticHash extends Logging {
 
         // The following are parameterized entirely by the operation's input and the operation itself
         case _: ArrayLen |
+             _: ArrayRef |
              _: ArrayZeros |
              _: Begin |
              _: BlockMatrixCollect |
@@ -135,6 +142,9 @@ case object SemanticHash extends Logging {
              _: NDArrayWrite |
              _: RelationalLet |
              _: StreamFilter |
+             _: StreamFlatMap |
+             _: StreamFold |
+             _: StreamFold2 |
              _: StreamMap |
              _: StreamRange |
              _: TableGetGlobals |
@@ -194,10 +204,19 @@ case object SemanticHash extends Logging {
       assert(ueIRs.put(name, stream).isEmpty)
       FastIndexedSeq(stream, pred).iterator
 
+    case StreamFlatMap(stream, name, body) =>
+      assert(ueIRs.put(name, stream).isEmpty)
+      FastIndexedSeq(stream, body).iterator
+
     case StreamFold(stream, zero, accumulator, value, body) =>
       assert(ueIRs.put(accumulator, zero).isEmpty)
       assert(ueIRs.put(value, stream).isEmpty)
       FastIndexedSeq(stream, zero, body).iterator
+
+    case f@StreamFold2(stream, accumulator, value, _, _) =>
+      assert(accumulator.forall { case (name, zero) => ueIRs.put(name, zero).isEmpty })
+      assert(ueIRs.put(value, stream).isEmpty)
+      f.children.iterator
 
     case StreamMap(stream, name, body) =>
       assert(ueIRs.put(name, stream).isEmpty)
