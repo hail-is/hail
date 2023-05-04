@@ -1941,7 +1941,7 @@ class DockerJob(Job):
                             f'while unmounting fuse blob storage {bucket} from {mount_path} for job {self.id}'
                         )
 
-        with open('/proc/mounts', 'r') as f:
+        with open('/proc/mounts', 'r', encoding='utf-8') as f:
             output = f.read()
             if self.cloudfuse_base_path() in output:
                 raise IncompleteCloudFuseCleanup(f'incomplete cloudfuse unmounting: {output}')
