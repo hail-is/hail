@@ -33,6 +33,27 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.116
+
+Released 2023-05-04
+
+### New Features
+
+- (hail#12917) ABS blob URIs in the format of `https://<ACCOUNT_NAME>.blob.core.windows.net/<CONTAINER_NAME>/<PATH>` are now supported.
+- (hail#12731) Introduced `hailtop.fs` that makes public a filesystem module that works for local fs, gs, s3 and abs. This is now used as the `Backend.fs` for hail query but can be used standalone for Hail Batch users by `import hailtop.fs as hfs`.
+
+### Deprecations
+
+- (hail#12929) Hail no longer officially supports Python 3.7.
+- (hail#12917) The `hail-az` scheme for referencing blobs in ABS is now deprecated and will be removed in an upcoming release.
+
+### Bug Fixes
+
+- (hail#12913) Fixed bug in `hail.ggplot` where all legend entries would have the same text if one column had exactly one value for all rows and was mapped to either the `shape` or the `color` aesthetic for `geom_point`.
+- (hail#12901) `hl.Struct` now has a correct and useful implementation of `pprint`.
+
+---
+
 ## Version 0.2.115
 
 Released 2023-04-25
