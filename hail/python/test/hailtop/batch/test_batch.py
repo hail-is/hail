@@ -735,9 +735,10 @@ class ServiceTests(unittest.TestCase):
 
     def test_cloudfuse_implicit_dirs(self):
         assert self.bucket
+        path = self.router_fs.parse_url(f'{self.remote_tmpdir}batch-tests/resources/hello.txt').path
         b = self.batch()
         j = b.new_job()
-        j.command(f'cat /cloudfuse/batch-tests/resources/hello.txt')
+        j.command(f'cat /cloudfuse{path}')
         j.cloudfuse(self.bucket, f'/cloudfuse', read_only=True)
 
         res = b.run()
