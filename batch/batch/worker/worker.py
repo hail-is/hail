@@ -2789,10 +2789,10 @@ class Worker:
             raise
         except JVMCreationError:
             self.stop_event.set()
-        except IncompleteJVMCleanupError as e:
+        except IncompleteJVMCleanupError:
             assert isinstance(job, JVMJob)
             await self.recreate_jvm(job.jvm)
-            log.exception(e.msg)
+            log.exception(f'while running {job}, ignoring')
         except Exception as e:
             if not user_error(e):
                 log.exception(f'while running {job}, ignoring')
