@@ -28,6 +28,7 @@ from typing import (
     MutableMapping,
     Optional,
     Tuple,
+    TypedDict,
     Union,
 )
 
@@ -724,6 +725,13 @@ def user_error(e):
     return False
 
 
+class MountSpecification(TypedDict):
+    source: str
+    destination: str
+    type: str
+    options: List[str]
+
+
 class Container:
     def __init__(
         self,
@@ -739,7 +747,7 @@ class Container:
         port: Optional[int] = None,
         timeout: Optional[int] = None,
         unconfined: Optional[bool] = None,
-        volume_mounts: Optional[List[dict]] = None,
+        volume_mounts: Optional[List[MountSpecification]] = None,
         env: Optional[List[str]] = None,
         stdin: Optional[str] = None,
     ):
@@ -755,7 +763,7 @@ class Container:
         self.port = port
         self.timeout = timeout
         self.unconfined = unconfined
-        self.volume_mounts = volume_mounts or []
+        self.volume_mounts: List[MountSpecification] = volume_mounts or []
         self.env = env or []
         self.stdin = stdin
 
@@ -1063,6 +1071,8 @@ class Container:
         uid, gid = await self._get_in_container_user()
         weight = worker_fraction_in_1024ths(self.cpu_in_mcpu)
         workdir = self.image.image_config['Config']['WorkingDir']
+        cwd = workdir if workdir != "" else "/"
+        del workdir
         default_docker_capabilities = [
             'CAP_CHOWN',
             'CAP_DAC_OVERRIDE',
@@ -1079,14 +1089,14 @@ class Container:
             'CAP_KILL',
             'CAP_AUDIT_WRITE',
         ]
-        config = {
+        config: Dict[str, Any] = {
             'ociVersion': '1.0.1',
             'root': {
                 'path': '.',
                 'readonly': False,
             },
             'hostname': self.netns.hostname,
-            'mounts': self._mounts(uid, gid),
+            'mounts': self._mounts(uid, gid, cwd),
             'process': {
                 'user': {  # uid/gid *inside the container*
                     'uid': uid,
@@ -1094,7 +1104,7 @@ class Container:
                 },
                 'args': self.command,
                 'env': self._env(),
-                'cwd': workdir if workdir != "" else "/",
+                'cwd': cwd,
                 'capabilities': {
                     'bounding': default_docker_capabilities,
                     'effective': default_docker_capabilities,
@@ -1155,7 +1165,7 @@ class Container:
 
         return config
 
-    async def _get_in_container_user(self):
+    async def _get_in_container_user(self) -> Tuple[int, int]:
         assert self.image.image_config
         user = self.image.image_config['Config']['User']
         if not user:
@@ -1174,27 +1184,27 @@ class Container:
                     return uid, gid
             raise ValueError("Container user not found in image's /etc/passwd")
 
-    def _mounts(self, uid, gid):
+    def _mounts(self, uid: int, gid: int, cwd: str) -> List[MountSpecification]:
         assert self.image.image_config
         assert self.netns
         # Only supports empty volumes
-        external_volumes = []
+        external_volumes: List[MountSpecification] = []
         volumes = self.image.image_config['Config']['Volumes']
         if volumes:
-            for _v_container_path in volumes:
-                if not _v_container_path.startswith('/'):
-                    v_container_path = '/' + _v_container_path
+            for v_container_path in volumes:
+                if v_container_path.startswith('/'):
+                    v_absolute_container_path = v_container_path
                 else:
-                    v_container_path = _v_container_path
+                    v_absolute_container_path = os.path.join(cwd, v_container_path)
                 mount_dir = self.io_mount_path if self.io_mount_path else self.container_scratch
-                v_host_path = f'{mount_dir}/volumes{v_container_path}'
+                v_host_path = f'{mount_dir}/volumes{v_absolute_container_path}'
                 os.makedirs(v_host_path)
                 if uid != 0 or gid != 0:
                     os.chown(v_host_path, uid, gid)
                 external_volumes.append(
                     {
                         'source': v_host_path,
-                        'destination': v_container_path,
+                        'destination': v_absolute_container_path,
                         'type': 'none',
                         'options': ['bind', 'rw', 'private'],
                     }
@@ -1348,7 +1358,7 @@ def copy_container(
     job: 'DockerJob',
     task_name: str,
     files: List[dict],
-    volume_mounts: List[dict],
+    volume_mounts: List[MountSpecification],
     cpu_in_mcpu: int,
     memory_in_bytes: int,
     scratch: str,
@@ -1493,11 +1503,11 @@ class Job(abc.ABC):
             self.cpu_in_mcpu, self.memory_in_bytes, self.external_storage_in_gib
         )
 
-        self.input_volume_mounts = []
-        self.main_volume_mounts = []
-        self.output_volume_mounts = []
+        self.input_volume_mounts: List[MountSpecification] = []
+        self.main_volume_mounts: List[MountSpecification] = []
+        self.output_volume_mounts: List[MountSpecification] = []
 
-        io_volume_mount = {
+        io_volume_mount: MountSpecification = {
             'source': self.io_host_path(),
             'destination': '/io',
             'type': 'none',
@@ -1544,7 +1554,7 @@ class Job(abc.ABC):
     def get_container_log_path(self, container_name: str) -> str:
         raise NotImplementedError
 
-    async def get_resource_usage(self) -> Dict[str, Optional[bytes]]:
+    async def get_resource_usage(self) -> Dict[str, bytes]:
         raise NotImplementedError
 
     async def delete(self):
@@ -1665,7 +1675,7 @@ class DockerJob(Job):
 
         if self.secrets:
             for secret in self.secrets:
-                volume_mount = {
+                volume_mount: MountSpecification = {
                     'source': self.secret_host_path(secret),
                     'destination': secret["mount_path"],
                     'type': 'none',
@@ -1968,7 +1978,7 @@ class DockerJob(Job):
     def get_container_log_path(self, container_name: str) -> str:
         return self.containers[container_name].log_path
 
-    async def get_resource_usage(self):
+    async def get_resource_usage(self) -> Dict[str, bytes]:
         return {name: await c.get_resource_usage() for name, c in self.containers.items()}
 
     async def get_resource_usage_file_sizes(self):
@@ -2262,7 +2272,7 @@ class JVMJob(Job):
         assert container_name == 'main'
         return self.log_file
 
-    async def get_resource_usage(self):
+    async def get_resource_usage(self) -> Dict[str, bytes]:
         return {'main': ResourceUsageMonitor.no_data()}
 
     async def delete(self):
@@ -2377,7 +2387,7 @@ class JVMContainer:
             socket_file,
         ]
 
-        volume_mounts = [
+        volume_mounts: List[MountSpecification] = [
             {
                 'source': JVM.SPARK_HOME,
                 'destination': JVM.SPARK_HOME,

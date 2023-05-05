@@ -179,6 +179,19 @@ def test_quota_applies_to_volume(client: BatchClient):
     assert "fallocate failed: No space left on device" in job_log['main']
 
 
+def test_relative_volume_path(client: BatchClient):
+    bb = create_batch(client)
+    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '5Gi'}
+    j = bb.create_job(
+        os.environ['HAIL_VOLUME_IMAGE'],
+        ['/bin/sh', '-c', 'ls relative_volume && ls /tmp/relative_volume'],
+        resources=resources,
+    )
+    b = bb.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+
+
 def test_quota_shared_by_io_and_rootfs(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '10Gi'}
