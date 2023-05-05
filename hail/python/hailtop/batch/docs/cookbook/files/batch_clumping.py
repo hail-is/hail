@@ -7,7 +7,7 @@ def gwas(batch, vcf, phenotypes):
     """
     cores = 2
     g = batch.new_job(name='run-gwas')
-    g.image('gcr.io/<MY_PROJECT>/1kg-gwas:latest')
+    g.image('us-docker.pkg.dev/<MY_PROJECT>/1kg-gwas:latest')
     g.cpu(cores)
     g.declare_resource_group(ofile={
         'bed': '{root}.bed',

@@ -592,6 +592,8 @@ def is_retry_once_error(e):
         return e.status == 400 and any(msg in e.body for msg in RETRY_ONCE_BAD_REQUEST_ERROR_MESSAGES)
     if isinstance(e, ConnectionResetError):
         return True
+    if isinstance(e, ConnectionRefusedError):
+        return True
     if e.__cause__ is not None:
         return is_transient_error(e.__cause__)
     return False

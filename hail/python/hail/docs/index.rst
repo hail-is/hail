@@ -28,7 +28,7 @@ Contents
     Libraries <libraries>
     For Software Developers <getting_started_developing>
     Other Resources <other_resources>
-    Change Log <change_log>
+    Change Log And Version Policy <change_log>
 
 ==================
 Indices and tables

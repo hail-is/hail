@@ -630,9 +630,9 @@ class ServiceBackend(Backend[bc.Batch]):
         for pyjob in pyjobs:
             if pyjob._image is None:
                 version = sys.version_info
-                if version.major != 3 or version.minor not in (7, 8, 9, 10):
+                if version.major != 3 or version.minor not in (8, 9, 10):
                     raise BatchException(
-                        f"You must specify 'image' for Python jobs if you are using a Python version other than 3.7, 3.8, 3.9 or 3.10 (you are using {version})")
+                        f"You must specify 'image' for Python jobs if you are using a Python version other than 3.8, 3.9 or 3.10 (you are using {version})")
                 pyjob._image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
 
         await batch._serialize_python_functions_to_input_files(
@@ -789,7 +789,7 @@ class ServiceBackend(Backend[bc.Batch]):
             print('')
         if open:
             webbrowser.open(url)
-        if wait:
+        if wait and len(unsubmitted_jobs) > 0:
             if verbose:
                 print(f'Waiting for batch {batch_handle.id}...')
             starting_job_id = min(j._client_job.job_id for j in unsubmitted_jobs)

@@ -1,5 +1,6 @@
 package is.hail;
 
+import is.hail.QoBOutputStreamManager;
 import java.io.*;
 import java.lang.reflect.*;
 import java.net.*;
@@ -8,8 +9,12 @@ import java.nio.charset.*;
 import java.util.*;
 import java.util.concurrent.*;
 import org.newsclub.net.unix.*;
+import org.apache.logging.log4j.*;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.config.Configurator;
 
 class JVMEntryway {
+  private static final Logger log = LogManager.getLogger(JVMEntryway.class); // this will initialize log4j which is required for us to access the QoBAppender in main
   private static final HashMap<String, ClassLoader> classLoaders = new HashMap<>();
 
   public static String throwableToString(Throwable t) throws IOException {
@@ -57,9 +62,11 @@ class JVMEntryway {
           System.err.println("reading " + i + ": " + realArgs[i]);
         }
 
-        assert realArgs.length >= 2;
+        assert realArgs.length >= 4;
         String classPath = realArgs[0];
         String mainClass = realArgs[1];
+        String scratchDir = realArgs[2];
+        String logFile = realArgs[3];
 
         ClassLoader cl = classLoaders.get(classPath);
         if (cl == null) {
@@ -87,6 +94,13 @@ class JVMEntryway {
         Method main = klass.getDeclaredMethod("main", String[].class);
         System.err.println("main method got");
 
+        QoBOutputStreamManager.changeFileInAllAppenders(logFile);
+        log.info("is.hail.JVMEntryway received arguments:");
+        for (int i = 0; i < nRealArgs; ++i) {
+          log.info(i + ": " + realArgs[i]);
+        }
+        log.info("Yielding control to the QoB Job.");
+
         CompletionService<?> gather = new ExecutorCompletionService<Object>(executor);
         Future<?> mainThread = null;
         Future<?> shouldCancelThread = null;
@@ -104,8 +118,12 @@ class JVMEntryway {
                   }
                   main.invoke(null, (Object) mainArgs);
                 } catch (IllegalAccessException | InvocationTargetException e) {
+                  log.error("QoB Job threw an exception.", e);
                   throw new RuntimeException(e);
+                } catch (Exception e) {
+                  log.error("QoB Job threw an exception.", e);
                 } finally {
+                  QoBOutputStreamManager.flushAllAppenders();
                   Thread.currentThread().setContextClassLoader(oldClassLoader);
                 }
               }
@@ -118,8 +136,12 @@ class JVMEntryway {
                   int i = in.readInt();
                   assert i == 0 : i;
                 } catch (IOException e) {
+                  log.error("Exception encountered in QoB cancel thread.", e);
                   throw new RuntimeException(e);
+                } catch (Exception e) {
+                  log.error("Exception encountered in QoB cancel thread.", e);
                 } finally {
+                  QoBOutputStreamManager.flushAllAppenders();
                   Thread.currentThread().setContextClassLoader(oldClassLoader);
                 }
               }
@@ -127,6 +149,13 @@ class JVMEntryway {
           completedThread = gather.take();
         } catch (Throwable t) {
           entrywayException = t;
+        } finally {
+          QoBOutputStreamManager.flushAllAppenders();
+          LoggerContext context = (LoggerContext) LogManager.getContext(false);
+          ClassLoader loader = JVMEntryway.class.getClassLoader();
+          URL url = loader.getResource("log4j2.properties");
+          System.err.println("reconfiguring logging " + url.toString());
+          context.setConfigLocation(url.toURI()); // this will force a reconfiguration
         }
 
         if (entrywayException != null) {
