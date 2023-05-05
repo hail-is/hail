@@ -45,6 +45,9 @@ object NestingDepth {
         case StreamMap(a, name, body) =>
           computeIR(a, depth)
           computeIR(body, depth.incrementEval)
+        case StreamAgg(a, name, body) =>
+          computeIR(a, depth)
+          computeIR(body, ScopedDepth(depth.eval, depth.eval + 1, depth.scan))
         case StreamZip(as, _, body, _, _) =>
           as.foreach(computeIR(_, depth))
           computeIR(body, depth.incrementEval)
