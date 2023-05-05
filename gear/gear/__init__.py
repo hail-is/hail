@@ -4,6 +4,7 @@ from .csrf import check_csrf_token, new_csrf_token
 from .database import Database, Transaction, create_database_pool, transaction
 from .metrics import monitor_endpoints_middleware
 from .session import setup_aiohttp_session
+from .http_server_utils import json_request, json_response
 
 __all__ = [
     'create_database_pool',
@@ -18,4 +19,6 @@ __all__ = [
     'maybe_parse_bearer_header',
     'AuthClient',
     'monitor_endpoints_middleware',
+    'json_request',
+    'json_response',
 ]

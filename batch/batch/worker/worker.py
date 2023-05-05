@@ -68,6 +68,8 @@ from hailtop.utils import (
     time_msecs_str,
 )
 
+from gear import json_response, json_request
+
 from ..batch_format_version import BatchFormatVersion
 from ..cloud.azure.worker.worker_api import AzureWorkerAPI
 from ..cloud.gcp.worker.worker_api import GCPWorkerAPI
@@ -2810,7 +2812,7 @@ class Worker:
                 log.exception(f'while running {job}, ignoring')
 
     async def create_job_1(self, request):
-        body = await request.json()
+        body = await json_request(request)
 
         batch_id = body['batch_id']
         job_id = body['job_id']
@@ -2901,13 +2903,13 @@ class Worker:
         job = self._job_from_request(request)
         resource_usage = await job.get_resource_usage()
         data = {task: base64.b64encode(df).decode('utf-8') for task, df in resource_usage.items()}
-        return web.json_response(data)
+        return json_response(data)
 
     async def get_job_status(self, request):
         if not self.active:
             raise web.HTTPServiceUnavailable
         job = self._job_from_request(request)
-        return web.json_response(job.status())
+        return json_response(job.status())
 
     async def delete_job_1(self, request):
         batch_id = int(request.match_info['batch_id'])
@@ -2938,7 +2940,7 @@ class Worker:
         if not self.active:
             raise web.HTTPServiceUnavailable
         body = {'name': NAME}
-        return web.json_response(body)
+        return json_response(body)
 
     async def run(self):
         app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
