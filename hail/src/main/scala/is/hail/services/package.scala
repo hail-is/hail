@@ -125,10 +125,15 @@ package object services {
       } catch {
         case e: Exception =>
           errors += 1
-          if (errors == 1 && isRetryOnceError(e))
-            return f
+          if (isRetryOnceError(e)) {
+            if (errors == 1) {
+              return f
+            } else {
+              throw new RuntimeException(s"errors=$errors, delay=$delay", e)
+            }
+          }
           if (!isTransientError(e))
-            throw new RuntimeException(s"errors=$errors, delay=$delay", e)
+            throw e
           if (errors % 10 == 0)
             log.warn(s"encountered $errors transient errors, most recent one was $e")
       }
