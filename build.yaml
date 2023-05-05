@@ -3494,13 +3494,17 @@ steps:
       cat >cancel_all_running_test_batches.py <<'EOF'
       from hailtop.batch_client.aioclient import BatchClient
       import asyncio
+      import traceback
 
       async def cancel_all(query):
           bc = await BatchClient.create('test')
           async for b in bc.list_batches(query):
               status = await b.last_known_status()
               print(status)
-              await b.cancel()
+              try:
+                  await b.cancel()
+              except:
+                  traceback.print_exc()
 
       asyncio.get_event_loop().run_until_complete(cancel_all('user:test running'))
       EOF
@@ -3531,6 +3535,9 @@ steps:
       - test_ci
       - test_hailtop_batch
       - test_hail_python_service_backend
+      - test_hail_services_java
+      - test_batch_docs
+      - test_hailctl_batch
   - kind: runImage
     name: test_batch_invariants
     image:
