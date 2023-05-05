@@ -469,21 +469,21 @@ def transmission_disequilibrium_test(dataset, pedigree) -> Table:
     hemi_x = 1
 
     #                     kid,     dad,     mom,   copy, t, u
-    config_counts = [(hom_ref,     het,     het,   auto, 0, 2),  # noqa: E241
-                     (hom_ref, hom_ref,     het,   auto, 0, 1),  # noqa: E241
-                     (hom_ref,     het, hom_ref,   auto, 0, 1),  # noqa: E241
-                     (    het,     het,     het,   auto, 1, 1),  # noqa: E241, E201
-                     (    het, hom_ref,     het,   auto, 1, 0),  # noqa: E241, E201
-                     (    het,     het, hom_ref,   auto, 1, 0),  # noqa: E241, E201
-                     (    het, hom_var,     het,   auto, 0, 1),  # noqa: E241, E201
-                     (    het,     het, hom_var,   auto, 0, 1),  # noqa: E241, E201
-                     (hom_var,     het,     het,   auto, 2, 0),  # noqa: E241
-                     (hom_var,     het, hom_var,   auto, 1, 0),  # noqa: E241
-                     (hom_var, hom_var,     het,   auto, 1, 0),  # noqa: E241
-                     (hom_ref, hom_ref,     het, hemi_x, 0, 1),  # noqa: E241
-                     (hom_ref, hom_var,     het, hemi_x, 0, 1),  # noqa: E241
-                     (hom_var, hom_ref,     het, hemi_x, 1, 0),  # noqa: E241
-                     (hom_var, hom_var,     het, hemi_x, 1, 0)]  # noqa: E241
+    config_counts = [(hom_ref,     het,     het,   auto, 0, 2),
+                     (hom_ref, hom_ref,     het,   auto, 0, 1),
+                     (hom_ref,     het, hom_ref,   auto, 0, 1),
+                     (    het,     het,     het,   auto, 1, 1),
+                     (    het, hom_ref,     het,   auto, 1, 0),
+                     (    het,     het, hom_ref,   auto, 1, 0),
+                     (    het, hom_var,     het,   auto, 0, 1),
+                     (    het,     het, hom_var,   auto, 0, 1),
+                     (hom_var,     het,     het,   auto, 2, 0),
+                     (hom_var,     het, hom_var,   auto, 1, 0),
+                     (hom_var, hom_var,     het,   auto, 1, 0),
+                     (hom_ref, hom_ref,     het, hemi_x, 0, 1),
+                     (hom_ref, hom_var,     het, hemi_x, 0, 1),
+                     (hom_var, hom_ref,     het, hemi_x, 1, 0),
+                     (hom_var, hom_var,     het, hemi_x, 1, 0)]
 
     count_map = hl.literal({(c[0], c[1], c[2], c[3]): [c[4], c[5]] for c in config_counts})
 

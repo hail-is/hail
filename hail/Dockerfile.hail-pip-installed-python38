@@ -13,4 +13,4 @@ RUN --mount=src=wheel-container.tar,target=/wheel-container.tar \
     tar -xf wheel-container.tar && \
     hail-pip-install --no-deps hail-*-py3-none-any.whl
 
-COPY pylintrc setup.cfg /
+COPY pylintrc setup.cfg pyproject.toml /

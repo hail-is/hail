@@ -237,7 +237,7 @@ class AsyncFS(abc.ABC):
                      url: str,
                      listener: Optional[Callable[[int], None]] = None) -> None:
         if listener is None:
-            listener = lambda _: None  # noqa: E731
+            listener = lambda _: None
         if sema is None:
             sema = asyncio.Semaphore(50)
 
