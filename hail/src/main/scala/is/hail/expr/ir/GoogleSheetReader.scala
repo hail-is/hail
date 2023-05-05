@@ -187,18 +187,12 @@ object GoogleSheetReader {
   def sheetsService() = {
     val httpTransport = GoogleNetHttpTransport.newTrustedTransport()
     val gsonFactory = GsonFactory.getDefaultInstance()
-    // Do not under use: GoogleCredentials.getApplicationDefault(). This fail with a completely
+    // Do not use: GoogleCredentials.getApplicationDefault(). This fail with a completely
     // non-informative error message.
     val credentials: GoogleCredentials = 
-      GoogleCredentials.fromStream(new FileInputStream(sys.env("GOOGLE_APPLICATION_DEFAULT"))).createScoped(
+      GoogleCredentials.fromStream(new FileInputStream(sys.env("GOOGLE_APPLICATION_CREDENTIALS"))).createScoped(
         List(SheetsScopes.SPREADSHEETS).asJava
       )
-
-    // credentials.
-
-    // System.err.println(
-    //   new HttpCredentialsAdapter(credentials).getCredentials().getRequestMetadata().asScala.mapValues(_.asScala)
-    // )
     new Sheets.Builder(httpTransport, gsonFactory, new HttpCredentialsAdapter(credentials))
       .setApplicationName("Hail " + HAIL_PRETTY_VERSION)
       .build()
