@@ -3127,12 +3127,12 @@ def import_google_sheet(spreadsheet_id, sheetname) -> Table:
     Warning
     -------
 
-    You must set the GOOGLE_APPLICATION_DEFAULT environment variable to point at the JSON key file
+    You must set the GOOGLE_APPLICATION_CREDENTIALS environment variable to point at the JSON key file
     for a *service account*. This method *will not* work with a human user credentials. For example,
     ``gcloud auth application-default login`` *will not work*.
 
     Instead, you must create a service account, create a key for that service account, download that
-    key to your computer, and set GOOGLE_APPLICATION_DEFAULT to the path to that key file.
+    key to your computer, and set GOOGLE_APPLICATION_CREDENTIALS to the path to that key file.
 
     Examples
     --------
