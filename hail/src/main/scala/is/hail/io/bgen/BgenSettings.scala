@@ -7,7 +7,7 @@ import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.types.{MatrixType, TableType}
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
 
@@ -22,11 +22,16 @@ object BgenSettings {
 
   val indexAnnotationType: Type = TStruct.empty
 
-  def indexCodecSpecs(rg: Option[String]): (AbstractTypedCodecSpec, AbstractTypedCodecSpec) = {
-    val bufferSpec = LEB128BufferSpec(
-      BlockingBufferSpec(32 * 1024,
-        LZ4HCBlockBufferSpec(32 * 1024,
-          new StreamBlockBufferSpec)))
+  private def specFromVersion(indexVersion: SemanticVersion): BufferSpec =
+    if (indexVersion >= SemanticVersion(1, 2, 0)) {
+      BufferSpec.zstdCompressionLEB
+    } else {
+      BufferSpec.lz4HCCompressionLEB
+    }
+
+
+  def indexCodecSpecs(indexVersion: SemanticVersion, rg: Option[String]): (AbstractTypedCodecSpec, AbstractTypedCodecSpec) = {
+    val bufferSpec = specFromVersion(indexVersion)
 
     val keyVType = indexKeyType(rg)
     val keyEType = EBaseStruct(FastIndexedSeq(

@@ -740,7 +740,7 @@ class Emit[C](
         val ns = sigs.length
         val deserializers = sc.states.states
           .slice(start, start + ns)
-          .map(sc => sc.deserialize(BufferSpec.defaultUncompressed))
+          .map(sc => sc.deserialize(spec))
 
         Array.range(start, start + ns).foreach(i => sc.newState(cb, i))
 
@@ -2374,7 +2374,7 @@ class Emit[C](
             PCanonicalTuple(true, et.emitType.storageType).constructFromFields(cb, region, FastIndexedSeq(et), deepCopy = false)
           }
 
-          val bufferSpec: BufferSpec = BufferSpec.defaultUncompressed
+          val bufferSpec: BufferSpec = BufferSpec.wireSpec
 
           val emitGlobals = EmitCode.fromI(mb)(cb => emitInNewBuilder(cb, globals))
 

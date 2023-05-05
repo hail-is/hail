@@ -12,24 +12,25 @@ import org.json4s.jackson.JsonMethods
 import org.json4s.{Extraction, JValue}
 
 object BufferSpec {
-  // FIXME (temporary?)
-  val default: BufferSpec = LEB128BufferSpec(
+  val zstdCompressionLEB: BufferSpec = LEB128BufferSpec(
     BlockingBufferSpec(64 * 1024,
       ZstdBlockBufferSpec(64 * 1024,
         new StreamBlockBufferSpec)))
 
-  val defaultUncompressed: BufferSpec = BlockingBufferSpec(32 * 1024,
-    new StreamBlockBufferSpec)
+  val default: BufferSpec = zstdCompressionLEB
 
+  val blockedUncompressed: BufferSpec = BlockingBufferSpec(32 * 1024,
+    new StreamBlockBufferSpec)
   val unblockedUncompressed: BufferSpec = new StreamBufferSpec
 
-  val wireSpec: BufferSpec = LEB128BufferSpec(
-    BlockingBufferSpec(32 * 1024,
-      LZ4SizeBasedBlockBufferSpec("fast", 32 * 1024,
-        256,
-        new StreamBlockBufferSpec)))
-
+  val wireSpec: BufferSpec = zstdCompressionLEB
   val memorySpec: BufferSpec = wireSpec
+
+  // longtime default spec
+  val lz4HCCompressionLEB: BufferSpec = LEB128BufferSpec(
+    BlockingBufferSpec(32 * 1024,
+      LZ4HCBlockBufferSpec(32 * 1024,
+        new StreamBlockBufferSpec)))
 
   val blockSpecs: Array[BufferSpec] = Array(
     BlockingBufferSpec(64 * 1024,
