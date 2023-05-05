@@ -216,7 +216,7 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def getThreefryRNG(): Value[ThreefryRandomEngine] = ecb.getThreefryRNG()
 
-  def resultWithIndex(writeIRs: Boolean = false, print: Option[PrintWriter] = None): (HailClassLoader, FS, HailTaskContext, Region) => C = ecb.resultWithIndex(writeIRs, print)
+  def resultWithIndex(writeIRs: Boolean = ctx.shouldWriteIRFiles(), print: Option[PrintWriter] = None): (HailClassLoader, FS, HailTaskContext, Region) => C = ecb.resultWithIndex(writeIRs, print)
 
   def getOrGenEmitMethod(
     baseName: String, key: Any, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType
