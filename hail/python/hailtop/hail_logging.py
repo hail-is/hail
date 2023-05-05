@@ -6,7 +6,19 @@ import datetime
 from time import timezone
 
 
+def logger_json_serializer(log_record,
+                           default=None,
+                           cls=None,
+                           indent=None,
+                           ensure_ascii=False) -> str:
+    assert default is None and cls is None and indent is None and ensure_ascii == False
+    return orjson.dumps(log_record).decode('utf-8')
+
+
 class CustomJsonFormatter(jsonlogger.JsonFormatter):
+    def __init__(self, format_string):
+        super().__init__(format_string, json_serializer=logger_json_serializer, ensure_ascii=False)
+
     def add_fields(self, log_record, record, message_dict):
         super().add_fields(log_record, record, message_dict)
         # GCP Logging expects `severity` but jsonlogger uses `levelname`
