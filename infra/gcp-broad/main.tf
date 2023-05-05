@@ -13,6 +13,7 @@ terraform {
       version = "0.6.3"
     }
   }
+  backend "gcs" {}
 }
 
 variable "k8s_preemptible_node_pool_name" {
