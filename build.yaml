@@ -599,17 +599,6 @@ steps:
     dependsOn:
       - merge_code
       - hail_ubuntu_image
-  # - kind: buildImage2
-  #   name: hailgenetics_vep_grch38_95_image
-  #   dockerFile: /io/repo/docker/hailgenetics/vep/grch38/95/Dockerfile
-  #   contextPath: /io/repo/docker/vep/
-  #   publishAs: hailgenetics/vep-grch38-95
-  #   inputs:
-  #     - from: /repo
-  #       to: /io/repo
-  #   dependsOn:
-  #     - merge_code
-  #     - hail_ubuntu_image
   - kind: buildImage2
     name: monitoring_image
     dockerFile: /io/repo/monitoring/Dockerfile

@@ -375,10 +375,6 @@ test-dataproc-38: install-hailctl
 # create the hailgenetics/vep-grch37-85 image (see /docker) and place it somewhere skopeo can access it
 # set HAIL_GENETICS_VEP_GRCH37_85_IMAGE to that image's full name including the protocol, e.g. docker://us-docker.pkg.dev/hail-vdc/hailgenetics/vep-grch37-85:1234abcd
 #
-# create the hailgenetics/vep-grch38-95 image (see /docker) and place it somewhere skopeo can access it
-# set HAIL_GENETICS_VEP_GRCH38_95_IMAGE to that image's full name including the protocol, e.g. docker://us-docker.pkg.dev/hail-vdc/hailgenetics/vep-grch38-95:1234abcd
-#
-# build a Azure-HDInsight-compatible wheel file (see build.yaml "build_wheel_for_azure" or start a
 # cluster to find the correct Scala and Spark versions because the version webpage does not include
 # sufficient detail)
 # set WHEEL_FOR_AZURE to the path to that wheel file
@@ -387,7 +383,7 @@ test-dataproc-38: install-hailctl
 #
 .PHONY: deploy
 deploy: test-dataproc $(WHEEL)
-	bash scripts/deploy.sh $(HAIL_PIP_VERSION) $(HAIL_VERSION) $(REVISION) $(DEPLOY_REMOTE) $(WHEEL) $(GITHUB_OAUTH_HEADER_FILE) $(HAIL_GENETICS_HAIL_IMAGE) $(HAIL_GENETICS_HAILTOP_IMAGE) $(HAIL_GENETICS_VEP_GRCH37_85_IMAGE) $(HAIL_GENETICS_VEP_GRCH38_95_IMAGE) $(WHEEL_FOR_AZURE) $(WEBSITE_TAR)
+	bash scripts/deploy.sh $(HAIL_PIP_VERSION) $(HAIL_VERSION) $(REVISION) $(DEPLOY_REMOTE) $(WHEEL) $(GITHUB_OAUTH_HEADER_FILE) $(HAIL_GENETICS_HAIL_IMAGE) $(HAIL_GENETICS_HAILTOP_IMAGE) $(HAIL_GENETICS_VEP_GRCH37_85_IMAGE) $(WHEEL_FOR_AZURE) $(WEBSITE_TAR)
 
 .PHONY: benchmark
 benchmark: $(WHEEL)
