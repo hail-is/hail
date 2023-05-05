@@ -251,12 +251,13 @@ async def _query_batch_jobs(request, batch_id):
 
     q = request.query.get('q', '')
     terms = q.split()
-    for t in terms:
-        if t[0] == '!':
+    for _t in terms:
+        if _t[0] == '!':
             negate = True
-            t = t[1:]
+            t = _t[1:]
         else:
             negate = False
+            t = _t
 
         if '=' in t:
             k, v = t.split('=', 1)
@@ -656,12 +657,13 @@ async def _query_batches(request, user, q):
         where_args.append(last_batch_id)
 
     terms = q.split()
-    for t in terms:
-        if t[0] == '!':
+    for _t in terms:
+        if _t[0] == '!':
             negate = True
-            t = t[1:]
+            t = _t[1:]
         else:
             negate = False
+            t = _t
 
         if '=' in t:
             k, v = t.split('=', 1)
