@@ -65,8 +65,9 @@ RUN export KENT_SRC=$PWD/kent-335_base/src && \
     make clean && make && \
     cd ../jkOwnLib && \
     make clean && make && \
+    cpanm --notest XML::LibXML && \
     mkdir -p $VEP_DIR/cpanm && \
     export PERL5LIB=\$PERL5LIB:$HOME/cpanm/lib/perl5 && \
-    cpanm Bio::DB::BigFile
+    cpanm Bio::Root::Version Bio::DB::BigFile || true
 
 COPY vep.py /hail-vep/

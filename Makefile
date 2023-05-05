@@ -200,8 +200,8 @@ vep-grch37-image: hail-ubuntu-image
 	./docker-build.sh docker/vep/grch37/85/Dockerfile.out $(VEP_GRCH37_IMAGE)
 	echo $(VEP_GRCH37_IMAGE) > $@
 
-vep-grch38-image: hail-ubuntu-image
+vep-grch38-image: hail-ubuntu-image docker/hailgenetics/vep/grch38/95/Dockerfile docker/vep/vep.py
 	$(eval VEP_GRCH38_IMAGE := $(DOCKER_PREFIX)/hailgenetics/vep-grch38-95:$(TOKEN))
-	python3 ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat hail-ubuntu-image)'"}}' vep/grch38/95/Dockerfile vep/grch38/95/Dockerfile.out
-	./docker-build.sh docker/vep/grch38/95/Dockerfile.out $(VEP_GRCH38_IMAGE)
+	python3 ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat hail-ubuntu-image)'"}}' docker/hailgenetics/vep/grch38/95/Dockerfile docker/hailgenetics/vep/grch38/95/Dockerfile.out
+	./docker-build.sh docker/vep ../hailgenetics/vep/grch38/95/Dockerfile.out $(VEP_GRCH38_IMAGE)
 	echo $(VEP_GRCH38_IMAGE) > $@
