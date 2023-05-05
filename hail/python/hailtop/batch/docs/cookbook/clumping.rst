@@ -96,8 +96,8 @@ The following Docker command pushes the image to GCR:
 
 .. code-block:: sh
 
-    docker tag 1kg-gwas gcr.io/<MY_PROJECT>/1kg-gwas
-    docker push gcr.io/<MY_PROJECT>/1kg-gwas
+    docker tag 1kg-gwas us-docker.pkg.dev/<MY_PROJECT>/1kg-gwas
+    docker push us-docker.pkg.dev/<MY_PROJECT>/1kg-gwas
 
 Replace ``<MY_PROJECT>`` with the name of your Google project. Ensure your Batch service account
 :ref:`can access images in GCR <service-accounts>`.
@@ -129,7 +129,7 @@ access the binary PLINK file output and association results in downstream jobs.
         """
         cores = 2
         g = batch.new_job(name='run-gwas')
-        g.image('gcr.io/<MY_PROJECT>/1kg-gwas:latest')
+        g.image('us-docker.pkg.dev/<MY_PROJECT>/1kg-gwas:latest')
         g.cpu(cores)
         g.declare_resource_group(ofile={
             'bed': '{root}.bed',

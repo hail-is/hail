@@ -1,5 +1,17 @@
 .. _sec-change-log:
 
+Python Version Compatibility Policy
+===================================
+
+Hail complies with [NumPy's compatibility policy](https://numpy.org/neps/nep-0029-deprecation_policy.html#implementation) on Python
+versions. In particular, Hail officially supports:
+
+- All minor versions of Python released 42 months prior to the project, and at minimum the two
+  latest minor versions.
+
+- All minor versions of numpy released in the 24 months prior to the project, and at minimum the
+  last three minor versions.
+
 Change Log
 ==========
 

@@ -120,7 +120,7 @@ Build Python Image
 In order to run a :class:`.PythonJob`, Batch needs an image that has the
 same version of Python as the version of Python running on your computer
 and the Python package `dill` installed. Batch will automatically
-choose a suitable image for you if your Python version is 3.7 or newer.
+choose a suitable image for you if your Python version is 3.8 or newer.
 You can supply your own image that meets the requirements listed above to the
 method :meth:`.PythonJob.image` or as the argument `default_python_image` when
 constructing a Batch . We also provide a convenience function :func:`.docker.build_python_image`
@@ -129,12 +129,12 @@ along with any desired Python packages.
 
 For running the random forest, we need both the `sklearn` and `pandas` Python
 packages installed in the image. We use :func:`.docker.build_python_image` to build
-an image and push it automatically to the location specified (ex: `gcr.io/hail-vdc/random-forest`).
+an image and push it automatically to the location specified (ex: `us-docker.pkg.dev/hail-vdc/random-forest`).
 
 .. code-block:: python
 
-    image = hb.build_python_image('gcr.io/hail-vdc/random-forest',
-                              requirements=['sklearn', 'pandas'])
+    image = hb.build_python_image('us-docker.pkg.dev/hail-vdc/random-forest',
+                                  requirements=['sklearn', 'pandas'])
 
 ~~~~~~~~~~~~
 Control Code
