@@ -189,6 +189,7 @@ steps:
     image:
       valueFrom: create_certs_image.image
     script: |
+      kubectl -n default get secret
       openssl req -new -x509 -subj /CN=hail-root -nodes -newkey rsa:4096 -keyout hail-root-key.pem -out hail-root-cert.pem
       until kubectl get secret -n {{ default_ns.name }} ssl-config-hail-root
       do
