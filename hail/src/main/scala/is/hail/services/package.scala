@@ -128,7 +128,7 @@ package object services {
           if (errors == 1 && isRetryOnceError(e))
             return f
           if (!isTransientError(e))
-            throw new RuntimeException(s"errors=$errors, delay=$delay", e)
+            throw e
           if (errors % 10 == 0)
             log.warn(s"encountered $errors transient errors, most recent one was $e")
       }
