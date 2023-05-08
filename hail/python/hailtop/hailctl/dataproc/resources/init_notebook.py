@@ -43,7 +43,7 @@ if role == 'Master':
         'ipywidgets==7.5.*',
         'jupyter-console==6.0.*',
         'nbconvert==5.6.*',
-        'notebook==5.7.*',
+        'notebook==6.0.*',
         'qtconsole==4.5.*'
     ]
 
@@ -127,7 +127,7 @@ if role == 'Master':
     try:
         with open('/opt/conda/default/share/jupyter/kernels/python3/kernel.json', 'r') as f:
             python3_kernel = json.load(f)
-    except:  # noqa: E722
+    except:
         python3_kernel = {
             'argv': [
                 '/opt/conda/default/bin/python',

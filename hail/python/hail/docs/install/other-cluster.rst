@@ -36,7 +36,7 @@ The next block of commands downloads, builds, and installs Hail from source.
 
     git clone https://github.com/hail-is/hail.git
     cd hail/hail
-    make install-on-cluster HAIL_COMPILE_NATIVES=1 SCALA_VERSION=2.12.13 SPARK_VERSION=3.1.1
+    make install-on-cluster HAIL_COMPILE_NATIVES=1 SCALA_VERSION=2.12.15 SPARK_VERSION=3.3.0
 
 If you forget to install any of the requirements before running `make install-on-cluster`, it's possible
 to get into a bad state where `make` insists you don't have a requirement that you have in fact installed.

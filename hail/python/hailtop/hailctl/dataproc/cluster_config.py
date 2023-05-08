@@ -31,4 +31,5 @@ class ClusterConfig:
                 'dataproc',
                 'clusters',
                 'create',
-                name] + flags
+                name,
+                *flags]

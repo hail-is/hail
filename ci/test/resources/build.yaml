@@ -183,11 +183,11 @@ steps:
       valueFrom: hello_image.image
     script: |
       set -ex
-      pip install flake8==4.0.1
-      python3 -m flake8 --config /io/setup.cfg /hello/hello.py
+      pip install ruff==0.0.264
+      ruff check --config /io/pyproject.toml /hello/hello.py
     inputs:
-      - from: /repo/setup.cfg
-        to: /io/setup.cfg
+      - from: /repo/pyproject.toml
+        to: /io/pyproject.toml
     dependsOn:
       - hello_image
   - kind: createDatabase

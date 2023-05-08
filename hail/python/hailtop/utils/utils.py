@@ -624,7 +624,7 @@ def is_transient_error(e):
     #   File "/usr/local/lib/python3.6/dist-packages/aiohttp/client.py", line 505, in _request
     #     await resp.start(conn)
     #   File "/usr/local/lib/python3.6/dist-packages/aiohttp/client_reqrep.py", line 848, in start
-    #     message, payload = await self._protocol.read()  # type: ignore  # noqa
+    #     message, payload = await self._protocol.read()  # type: ignore
     #   File "/usr/local/lib/python3.6/dist-packages/aiohttp/streams.py", line 592, in read
     #     await self._waiter
     # aiohttp.client_exceptions.ServerDisconnectedError: None

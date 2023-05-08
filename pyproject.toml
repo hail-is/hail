@@ -3,8 +3,40 @@ line-length = 120
 skip-string-normalization = true
 force-exclude = 'hail|datasets|sql|\.mypy'
 
-[tool.isort]
-profile = "black"
-line_length = 120
-known_first_party = ["auth", "batch", "ci", "gear", "hailtop", "monitoring", "website", "web_common"]
-skip_glob = ["hail", "benchmark", "datasets", "**/sql", ".mypy"]
+[tool.ruff]
+line-length = 120
+select = ["F", "E", "W", "I", "PL", "RUF"]
+ignore = [
+    "E501",    # Line length too long
+    "E722",    # Do not use bare `except`
+    "E731",    # Do not assign a lambda expression, use a def
+    "E741",    # Ambiguous variable name
+    "PLW0603", # Using the global statement to update `<VAR>` is discouraged
+    "PLR0911", # Too many return statements
+    "PLR0912", # Too many branches
+    "PLR0915", # Too many statements
+    "PLR0913", # Too many arguments to function call
+    "PLC1901", # `<VAR> != ''` can be simplified to `<VAR>` as an empty string is falsey
+    "PLR2004", # Magic value used in comparison
+    "PLW2901", # `for` loop variable overwritten by assignment target
+]
+extend-exclude = ['sql']
+force-exclude = true
+
+[tool.ruff.isort]
+known-first-party = ["auth", "batch", "ci", "gear", "hailtop", "monitoring", "website", "web_common"]
+
+[tool.ruff.per-file-ignores]
+"hail/python/hail/**/*" = ["I", "PL", "RUF"]
+"hail/python/hailtop/**/*" = ["I"]
+"hail/python/test/**/*" = ["ALL"]
+"hail/python/cluster-tests/**/*" = ["ALL"]
+"hail/python/setup-hailtop.py" = ["ALL"]
+"hail/python/setup.py" = ["ALL"]
+"hail/scripts/update-terra-image.py" = ["ALL"]
+"hail/src/**/*" = ["ALL"]
+"benchmark/**/*" = ["ALL"]
+"datasets/**/*" = ["ALL"]
+"devbin/**/*" = ["ALL"]
+"docker/**/*" = ["ALL"]
+"query/**/*" = ["ALL"]

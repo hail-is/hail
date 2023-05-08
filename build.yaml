@@ -1002,13 +1002,13 @@ steps:
       - build_hail
       - merge_code
   - kind: buildImage2
-    name: hail_pip_installed_python37_image
-    dockerFile: /io/repo/hail/Dockerfile.hail-pip-installed-python37
+    name: hail_pip_installed_python39_image
+    dockerFile: /io/repo/hail/Dockerfile.hail-pip-installed-python39
     contextPath: /io/repo
-    publishAs: hail-pip-installed-python37
+    publishAs: hail-pip-installed-python39
     inputs:
-      - from: /repo/hail/Dockerfile.hail-pip-installed-python37
-        to: /io/repo/hail/Dockerfile.hail-pip-installed-python37
+      - from: /repo/hail/Dockerfile.hail-pip-installed-python39
+        to: /io/repo/hail/Dockerfile.hail-pip-installed-python39
       - from: /repo/hail/python/pinned-requirements.txt
         to: /io/repo/hail/python/pinned-requirements.txt
       - from: /repo/hail/python/dev/pinned-requirements.txt
@@ -1017,6 +1017,8 @@ steps:
         to: /io/repo/pylintrc
       - from: /repo/setup.cfg
         to: /io/repo/setup.cfg
+      - from: /repo/pyproject.toml
+        to: /io/repo/pyproject.toml
       - from: /just-wheel/wheel-container.tar
         to: /io/repo/wheel-container.tar
     dependsOn:
@@ -1039,6 +1041,8 @@ steps:
         to: /io/repo/pylintrc
       - from: /repo/setup.cfg
         to: /io/repo/setup.cfg
+      - from: /repo/pyproject.toml
+        to: /io/repo/pyproject.toml
       - from: /just-wheel/wheel-container.tar
         to: /io/repo/wheel-container.tar
     dependsOn:
@@ -1046,16 +1050,17 @@ steps:
       - hail_ubuntu_image
       - merge_code
   - kind: runImage
-    name: check_hail_python37
+    name: check_hail_python39
     image:
-      valueFrom: hail_pip_installed_python37_image.image
+      valueFrom: hail_pip_installed_python39_image.image
     script: |
       set -x
       SITE_PACKAGES=$(pip3 show hail | grep Location | sed 's/Location: //')
 
       exit_status=0
 
-      python3 -m flake8 --config setup.cfg $SITE_PACKAGES/hail $SITE_PACKAGES/hailtop || exit_status=$?
+      ruff check --config pyproject.toml --ignore I --ignore PL --ignore RUF $SITE_PACKAGES/hail || exit_status=$?
+      ruff check --config pyproject.toml --ignore I $SITE_PACKAGES/hailtop || exit_status=$?
       python3 -m pylint --rcfile pylintrc hailtop || exit_status=$?
       # working around this: https://github.com/python/mypy/issues/7087
       ln -s $SITE_PACKAGES/hailtop hailtop
@@ -1063,7 +1068,7 @@ steps:
 
       exit $exit_status
     dependsOn:
-      - hail_pip_installed_python37_image
+      - hail_pip_installed_python39_image
   - kind: runImage
     name: check_hail_python38
     image:
@@ -1074,7 +1079,8 @@ steps:
 
       exit_status=0
 
-      python3 -m flake8 --config setup.cfg $SITE_PACKAGES/hail $SITE_PACKAGES/hailtop || exit_status=$?
+      ruff check --config pyproject.toml --ignore I --ignore PL --ignore RUF $SITE_PACKAGES/hail || exit_status=$?
+      ruff check --config pyproject.toml --ignore I $SITE_PACKAGES/hailtop || exit_status=$?
       python3 -m pylint --rcfile pylintrc hailtop || exit_status=$?
       # working around this: https://github.com/python/mypy/issues/7087
       ln -s $SITE_PACKAGES/hailtop hailtop
@@ -1508,6 +1514,8 @@ steps:
         to: /io/repo/pylintrc
       - from: /repo/setup.cfg
         to: /io/repo/setup.cfg
+      - from: /repo/pyproject.toml
+        to: /io/repo/pyproject.toml
       - from: /repo/hail/python
         to: /io/repo/hail/python
       - from: /repo/config.mk
@@ -2650,6 +2658,7 @@ steps:
       cp /io/repo/tls/create_certs.py ./ci/test/resources/
       cp /io/repo/pylintrc ./
       cp /io/repo/setup.cfg ./
+      cp /io/repo/pyproject.toml ./
       cp -R /io/repo/docker ./
       cp -R /io/repo/gear ./
       cp -R /io/repo/hail/python ./hail/
@@ -3494,13 +3503,17 @@ steps:
       cat >cancel_all_running_test_batches.py <<'EOF'
       from hailtop.batch_client.aioclient import BatchClient
       import asyncio
+      import traceback
 
       async def cancel_all(query):
           bc = await BatchClient.create('test')
           async for b in bc.list_batches(query):
               status = await b.last_known_status()
               print(status)
-              await b.cancel()
+              try:
+                  await b.cancel()
+              except:
+                  traceback.print_exc()
 
       asyncio.get_event_loop().run_until_complete(cancel_all('user:test running'))
       EOF
@@ -3531,6 +3544,9 @@ steps:
       - test_ci
       - test_hailtop_batch
       - test_hail_python_service_backend
+      - test_hail_services_java
+      - test_batch_docs
+      - test_hailctl_batch
   - kind: runImage
     name: test_batch_invariants
     image:
