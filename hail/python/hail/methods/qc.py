@@ -1747,7 +1747,7 @@ def compute_charr(
 ):
     """Compute CHARR, the DNA sample contamination estimator.
 
-    .. include:: _templates/experimental.rst
+    .. include:: ../_templates/experimental.rst
 
     Notes
     -----
