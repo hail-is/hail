@@ -582,7 +582,7 @@ class VCFTests(unittest.TestCase):
 
         assert hl.import_vcf(nf)._same(mt)
 
-        manifest_files = [line.strip() for line in fs.open(os.path.join(f, 'shard-manifest.txt'))]
+        manifest_files = [os.path.join(f, line.strip()) for line in fs.open(os.path.join(f, 'shard-manifest.txt'))]
         assert hl.import_vcf(manifest_files[1:], header_file=manifest_files[0])._same(mt)
         assert [p.split('/')[-1] for p in shard_paths] == [p.split('/')[-1] for p in manifest_files]
 
