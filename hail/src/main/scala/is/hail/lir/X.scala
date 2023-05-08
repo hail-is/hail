@@ -65,7 +65,8 @@ class Classx[C](val name: String, val superName: String, var sourceFile: Option[
       SimplifyControl(m)
     }
 
-    if (writeIRs) saveToFile(s"/tmp/hail/${name}.lir")
+    val shortName = name.take(50)
+    if (writeIRs) saveToFile(s"/tmp/hail/${shortName}.lir")
 
     for (m <- methods) {
       if (m.name != "<init>"
@@ -100,7 +101,7 @@ class Classx[C](val name: String, val superName: String, var sourceFile: Option[
       InitializeLocals(m, blocks, locals, liveness)
     }
 
-    if (writeIRs) saveToFile(s"/tmp/hail/${name}.split.lir")
+    if (writeIRs) saveToFile(s"/tmp/hail/${shortName}.split.lir")
 
     // println(Pretty(this, saveLineNumbers = false))
     classes.iterator.map { c =>
@@ -110,7 +111,7 @@ class Classx[C](val name: String, val superName: String, var sourceFile: Option[
       )
 
       if (writeIRs) {
-        val classFile = new java.io.File(s"/tmp/hail/${c.name}.class")
+        val classFile = new java.io.File(s"/tmp/hail/${c.name.take(50)}.class")
         classFile.getParentFile.mkdirs()
         using (new java.io.FileOutputStream(classFile)) { fos =>
           fos.write(bytes)

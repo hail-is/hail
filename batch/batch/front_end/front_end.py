@@ -183,6 +183,11 @@ async def rest_get_version(request):  # pylint: disable=W0613
     return web.Response(text=version())
 
 
+@routes.get('/api/v1alpha/cloud')
+async def rest_cloud(request):  # pylint: disable=W0613
+    return web.Response(text=CLOUD)
+
+
 @routes.get('/api/v1alpha/supported_regions')
 @auth.rest_authenticated_users_only
 async def rest_get_supported_regions(request, userdata):  # pylint: disable=unused-argument
@@ -1081,6 +1086,16 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
 
         if cloud == 'azure' and all(envvar['name'] != 'AZURE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
             spec['env'].append({'name': 'AZURE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
+
+        cloudfuse = spec.get('gcsfuse') or spec.get('cloudfuse')
+        if cloudfuse:
+            for config in cloudfuse:
+                if not config['read_only']:
+                    raise web.HTTPBadRequest(reason=f'Only read-only cloudfuse requests are supported. Found {config}')
+                if config['mount_path'] == '/io':
+                    raise web.HTTPBadRequest(
+                        reason=f'Cloudfuse requests with mount_path=/io are not supported. Found {config}'
+                    )
 
         if spec.get('mount_tokens', False):
             secrets.append(

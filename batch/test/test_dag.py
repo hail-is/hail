@@ -74,10 +74,12 @@ def test_cancel_tail(client):
     tail = batch.create_job(
         DOCKER_ROOT_IMAGE, command=['/bin/sh', '-c', 'while true; do sleep 86000; done'], parents=[left, right]
     )
-    batch = batch.submit()
-    left.wait()
-    right.wait()
-    batch.cancel()
+    try:
+        batch = batch.submit()
+        left.wait()
+        right.wait()
+    finally:
+        batch.cancel()
     batch.wait()
     status = legacy_batch_status(batch)
     assert batch_status_job_counter(status, 'Success') == 3, str((status, batch.debug_info()))
@@ -97,10 +99,12 @@ def test_cancel_left_after_tail(client):
     )
     right = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'right'], parents=[head])
     tail = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[left, right])
-    batch = batch.submit()
-    head.wait()
-    right.wait()
-    batch.cancel()
+    try:
+        batch = batch.submit()
+        head.wait()
+        right.wait()
+    finally:
+        batch.cancel()
     batch.wait()
     status = legacy_batch_status(batch)
     assert batch_status_job_counter(status, 'Success') == 2, str((status, batch.debug_info()))
@@ -262,9 +266,11 @@ def test_always_run_cancel(client):
     )
     right = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'right'], parents=[head])
     tail = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[left, right], always_run=True)
-    batch = batch.submit()
-    right.wait()
-    batch.cancel()
+    try:
+        batch = batch.submit()
+        right.wait()
+    finally:
+        batch.cancel()
     batch.wait()
     status = legacy_batch_status(batch)
     assert batch_status_job_counter(status, 'Success') == 3, str((status, batch.debug_info()))

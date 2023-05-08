@@ -75,21 +75,21 @@ To create a Docker image, use
 
 .. code-block:: sh
 
-    docker build -t gcr.io/<my-project>/<my-image>:<tag> -f Dockerfile .
+    docker build -t us-docker.pkg.dev/<my-project>/<my-image>:<tag> -f Dockerfile .
 
     * `<dir>` is the context directory, `.` means the current working directory,
     * `-t <name>` specifies the image name, and
     * `-f <dockerfile>` specifies the Dockerfile file.
     * A more complete description may be found `here: <https://docs.docker.com/engine/reference/commandline/build/>`__.
 
-For example, we can build an image named gcr.io/<my-project>/<my-image> based on the Dockerfile named Dockerfile, using the current working directory as the context:
+For example, we can build an image named us-docker.pkg.dev/<my-project>/<my-image> based on the Dockerfile named Dockerfile, using the current working directory as the context:
 
 .. code-block:: sh
 
-    docker build -t gcr.io/<my-project>/<my-image>:<tag> -f Dockerfile .
+    docker build -t us-docker.pkg.dev/<my-project>/<my-image>:<tag> -f Dockerfile .
 
 
-In this example we prepend the image name with `gcr.io/<my-project>/` so that it may be pushed to the Google Container Registry, in the next step.
+In this example we prepend the image name with `us-docker.pkg.dev/<my-project>/` so that it may be pushed to the Google Container Registry, in the next step.
 
 Pushing Images
 --------------
@@ -100,8 +100,8 @@ Docker Hub. Below is an example of pushing the image to the Google Container Reg
 
 .. code-block:: sh
 
-    docker push gcr.io/<my-project>/<my-image>:<tag>
+    docker push us-docker.pkg.dev/<my-project>/<my-image>:<tag>
 
 
 Now you can use your Docker image with Batch to run your code with the method :meth:`.BashJob.image`
-specifying the image as `gcr.io/<my-project>/<my-image>:<tag>`!
+specifying the image as `us-docker.pkg.dev/<my-project>/<my-image>:<tag>`!

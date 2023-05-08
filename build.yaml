@@ -61,7 +61,7 @@ steps:
           - azure
   - kind: runImage
     name: copy_third_party_images
-    image: quay.io/skopeo/stable:v1.11.1
+    image: quay.io/skopeo/stable:v1.11.2
     script: |
       set -ex
 
@@ -154,7 +154,7 @@ steps:
       valueFrom: hail_ubuntu_image.image
     script: |
       set -ex
-      pip install pip-tools==6.9.0
+      pip install pip-tools==6.13.0
       cd /io/repo
       chmod 755 ./check_pip_requirements.sh
       ./check_pip_requirements.sh \
@@ -589,6 +589,28 @@ steps:
       - base_image
       - merge_code
   - kind: buildImage2
+    name: hailgenetics_vep_grch37_85_image
+    dockerFile: /io/repo/docker/hailgenetics/vep/grch37/85/Dockerfile
+    contextPath: /io/repo/docker/vep/
+    publishAs: hailgenetics/vep-grch37-85
+    inputs:
+      - from: /repo
+        to: /io/repo
+    dependsOn:
+      - merge_code
+      - hail_ubuntu_image
+  # - kind: buildImage2
+  #   name: hailgenetics_vep_grch38_95_image
+  #   dockerFile: /io/repo/docker/hailgenetics/vep/grch38/95/Dockerfile
+  #   contextPath: /io/repo/docker/vep/
+  #   publishAs: hailgenetics/vep-grch38-95
+  #   inputs:
+  #     - from: /repo
+  #       to: /io/repo
+  #   dependsOn:
+  #     - merge_code
+  #     - hail_ubuntu_image
+  - kind: buildImage2
     name: monitoring_image
     dockerFile: /io/repo/monitoring/Dockerfile
     contextPath: /io/repo
@@ -814,29 +836,24 @@ steps:
       - hail_build_image
       - merge_code
   - kind: runImage
-    name: compile_batch_worker_jvm_entryway
+    name: jvm_entryway_jar
     image:
-      valueFrom: base_image.image
+      valueFrom: hail_build_image.image
     script: |
       set -ex
 
-      cd /io
+      cd /io/batch/jvm-entryway
 
-      curl -sSfL https://github.com/kohlschutter/junixsocket/releases/download/junixsocket-parent-2.3.3/junixsocket-selftest-2.3.3-jar-with-dependencies.jar \
-           > junixsocket-selftest-2.3.3-jar-with-dependencies.jar
-
-      javac -cp junixsocket-selftest-2.3.3-jar-with-dependencies.jar \
-            batch/src/main/java/is/hail/JVMEntryway.java
+      chmod 755 ./gradlew
+      ./gradlew shadowJar
     inputs:
       - from: /repo/batch
         to: /io/batch
     outputs:
-      - from: /io/junixsocket-selftest-2.3.3-jar-with-dependencies.jar
-        to: /junixsocket-selftest-2.3.3-jar-with-dependencies.jar
-      - from: /io/batch/src/main/java/is/hail
-        to: /batch-jvm-entryway-classes
+      - from: /io/batch/jvm-entryway/build/libs/jvm-entryway.jar
+        to: /jvm-entryway.jar
     dependsOn:
-      - base_image
+      - hail_build_image
       - merge_code
   - kind: buildImage2
     name: batch_worker_image
@@ -864,16 +881,14 @@ steps:
         to: /io/repo/web_common
       - from: /repo/letsencrypt/subdomains.txt
         to: /repo/letsencrypt/subdomains.txt
-      - from: /batch-jvm-entryway-classes
-        to: /io/repo/batch/src/main/java/is/hail
-      - from: /junixsocket-selftest-2.3.3-jar-with-dependencies.jar
-        to: /io/repo/batch/jars/junixsocket-selftest-2.3.3-jar-with-dependencies.jar
+      - from: /jvm-entryway.jar
+        to: /io/repo/batch/jvm-entryway/build/libs/jvm-entryway.jar
       - from: /hail_version
         to: /io/repo/hail_version
     dependsOn:
       - merge_code
       - hail_ubuntu_image
-      - compile_batch_worker_jvm_entryway
+      - jvm_entryway_jar
   - kind: buildImage2
     name: memory_image
     dockerFile: /io/repo/memory/Dockerfile
@@ -987,13 +1002,13 @@ steps:
       - build_hail
       - merge_code
   - kind: buildImage2
-    name: hail_pip_installed_python37_image
-    dockerFile: /io/repo/hail/Dockerfile.hail-pip-installed-python37
+    name: hail_pip_installed_python39_image
+    dockerFile: /io/repo/hail/Dockerfile.hail-pip-installed-python39
     contextPath: /io/repo
-    publishAs: hail-pip-installed-python37
+    publishAs: hail-pip-installed-python39
     inputs:
-      - from: /repo/hail/Dockerfile.hail-pip-installed-python37
-        to: /io/repo/hail/Dockerfile.hail-pip-installed-python37
+      - from: /repo/hail/Dockerfile.hail-pip-installed-python39
+        to: /io/repo/hail/Dockerfile.hail-pip-installed-python39
       - from: /repo/hail/python/pinned-requirements.txt
         to: /io/repo/hail/python/pinned-requirements.txt
       - from: /repo/hail/python/dev/pinned-requirements.txt
@@ -1002,6 +1017,8 @@ steps:
         to: /io/repo/pylintrc
       - from: /repo/setup.cfg
         to: /io/repo/setup.cfg
+      - from: /repo/pyproject.toml
+        to: /io/repo/pyproject.toml
       - from: /just-wheel/wheel-container.tar
         to: /io/repo/wheel-container.tar
     dependsOn:
@@ -1024,6 +1041,8 @@ steps:
         to: /io/repo/pylintrc
       - from: /repo/setup.cfg
         to: /io/repo/setup.cfg
+      - from: /repo/pyproject.toml
+        to: /io/repo/pyproject.toml
       - from: /just-wheel/wheel-container.tar
         to: /io/repo/wheel-container.tar
     dependsOn:
@@ -1031,16 +1050,17 @@ steps:
       - hail_ubuntu_image
       - merge_code
   - kind: runImage
-    name: check_hail_python37
+    name: check_hail_python39
     image:
-      valueFrom: hail_pip_installed_python37_image.image
+      valueFrom: hail_pip_installed_python39_image.image
     script: |
       set -x
       SITE_PACKAGES=$(pip3 show hail | grep Location | sed 's/Location: //')
 
       exit_status=0
 
-      python3 -m flake8 --config setup.cfg $SITE_PACKAGES/hail $SITE_PACKAGES/hailtop || exit_status=$?
+      ruff check --config pyproject.toml --ignore I --ignore PL --ignore RUF $SITE_PACKAGES/hail || exit_status=$?
+      ruff check --config pyproject.toml --ignore I $SITE_PACKAGES/hailtop || exit_status=$?
       python3 -m pylint --rcfile pylintrc hailtop || exit_status=$?
       # working around this: https://github.com/python/mypy/issues/7087
       ln -s $SITE_PACKAGES/hailtop hailtop
@@ -1048,7 +1068,7 @@ steps:
 
       exit $exit_status
     dependsOn:
-      - hail_pip_installed_python37_image
+      - hail_pip_installed_python39_image
   - kind: runImage
     name: check_hail_python38
     image:
@@ -1059,7 +1079,8 @@ steps:
 
       exit_status=0
 
-      python3 -m flake8 --config setup.cfg $SITE_PACKAGES/hail $SITE_PACKAGES/hailtop || exit_status=$?
+      ruff check --config pyproject.toml --ignore I --ignore PL --ignore RUF $SITE_PACKAGES/hail || exit_status=$?
+      ruff check --config pyproject.toml --ignore I $SITE_PACKAGES/hailtop || exit_status=$?
       python3 -m pylint --rcfile pylintrc hailtop || exit_status=$?
       # working around this: https://github.com/python/mypy/issues/7087
       ln -s $SITE_PACKAGES/hailtop hailtop
@@ -1493,6 +1514,8 @@ steps:
         to: /io/repo/pylintrc
       - from: /repo/setup.cfg
         to: /io/repo/setup.cfg
+      - from: /repo/pyproject.toml
+        to: /io/repo/pyproject.toml
       - from: /repo/hail/python
         to: /io/repo/hail/python
       - from: /repo/config.mk
@@ -2152,6 +2175,9 @@ steps:
       - name: dedup-attempt-resources
         script: /io/sql/dedup_attempt_resources.py
         online: true
+      - name: mitigate-bad-attempt-resources-trigger
+        script: /io/sql/mitigate-bad-attempt-resources-trigger.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -2318,7 +2344,13 @@ steps:
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
       export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
+      export HAIL_GENETICS_VEP_GRCH37_85_IMAGE={{ hailgenetics_vep_grch37_85_image.image }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+
+      if [[ "$HAIL_CLOUD" = "gcp" ]]
+      then
+          export GCS_REQUESTER_PAYS_PROJECT=broad-ctsa
+      fi
 
       export HAIL_SHUFFLE_MAX_BRANCH=4
       export HAIL_SHUFFLE_CUTOFF=1000000
@@ -2382,6 +2414,7 @@ steps:
       - upload_query_jar
       - upload_test_resources_to_blob_storage
       - build_hail_jar_and_wheel_only
+      - hailgenetics_vep_grch37_85_image
   - kind: buildImage2
     name: netcat_ubuntu_image
     publishAs: netcat
@@ -2625,6 +2658,7 @@ steps:
       cp /io/repo/tls/create_certs.py ./ci/test/resources/
       cp /io/repo/pylintrc ./
       cp /io/repo/setup.cfg ./
+      cp /io/repo/pyproject.toml ./
       cp -R /io/repo/docker ./
       cp -R /io/repo/gear ./
       cp -R /io/repo/hail/python ./hail/
@@ -2725,10 +2759,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: hail-ci-0-1-service-account-key
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /secret/ci-secrets
       - name: ssl-config-ci-tests
         namespace:
           valueFrom: default_ns.name
@@ -3185,6 +3215,7 @@ steps:
                              /io/github-oauth \
                              docker://{{ hailgenetics_hail_image.image }} \
                              docker://{{ hailgenetics_hailtop_image.image }} \
+                             docker://{{ hailgenetics_vep_grch37_85_image.image }} \
                              /io/wheel-for-azure/hail-*-py3-none-any.whl \
                              /io/www.tar.gz
     inputs:
@@ -3229,13 +3260,14 @@ steps:
       - merge_code
       - hailgenetics_hail_image
       - hailgenetics_hailtop_image
+      - hailgenetics_vep_grch37_85_image
       - build_wheel_for_azure
       - make_docs
     clouds:
       - gcp
   - kind: runImage
     name: mirror_hailgenetics_images
-    image: quay.io/skopeo/stable:v1.11.1
+    image: quay.io/skopeo/stable:v1.11.2
     script: |
       set -ex
 
@@ -3471,13 +3503,17 @@ steps:
       cat >cancel_all_running_test_batches.py <<'EOF'
       from hailtop.batch_client.aioclient import BatchClient
       import asyncio
+      import traceback
 
       async def cancel_all(query):
           bc = await BatchClient.create('test')
           async for b in bc.list_batches(query):
               status = await b.last_known_status()
               print(status)
-              await b.cancel()
+              try:
+                  await b.cancel()
+              except:
+                  traceback.print_exc()
 
       asyncio.get_event_loop().run_until_complete(cancel_all('user:test running'))
       EOF
@@ -3508,6 +3544,9 @@ steps:
       - test_ci
       - test_hailtop_batch
       - test_hail_python_service_backend
+      - test_hail_services_java
+      - test_batch_docs
+      - test_hailctl_batch
   - kind: runImage
     name: test_batch_invariants
     image:

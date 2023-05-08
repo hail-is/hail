@@ -592,6 +592,8 @@ def is_retry_once_error(e):
         return e.status == 400 and any(msg in e.body for msg in RETRY_ONCE_BAD_REQUEST_ERROR_MESSAGES)
     if isinstance(e, ConnectionResetError):
         return True
+    if isinstance(e, ConnectionRefusedError):
+        return True
     if e.__cause__ is not None:
         return is_transient_error(e.__cause__)
     return False
@@ -622,7 +624,7 @@ def is_transient_error(e):
     #   File "/usr/local/lib/python3.6/dist-packages/aiohttp/client.py", line 505, in _request
     #     await resp.start(conn)
     #   File "/usr/local/lib/python3.6/dist-packages/aiohttp/client_reqrep.py", line 848, in start
-    #     message, payload = await self._protocol.read()  # type: ignore  # noqa
+    #     message, payload = await self._protocol.read()  # type: ignore
     #   File "/usr/local/lib/python3.6/dist-packages/aiohttp/streams.py", line 592, in read
     #     await self._waiter
     # aiohttp.client_exceptions.ServerDisconnectedError: None

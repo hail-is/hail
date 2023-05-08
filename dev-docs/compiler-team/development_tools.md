@@ -51,7 +51,7 @@ https://www.anaconda.com/download/#macos
 After installing Anaconda, you should create a new dev environment
 for Hail with:
 
-    conda create --name hail python=3.7
+    conda create --name hail python=3.8
 
 and
 

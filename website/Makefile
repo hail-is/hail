@@ -9,7 +9,7 @@ build:
 
 run:
 	$(MAKE) -C .. docs
-	cd website && tar -xvzf ../docs.tar.gz
+	cd website && tar -xvzf ../../docs.tar.gz
 	HAIL_DOMAIN=localhost:5000 python3 -m website local
 
 run-docker: build

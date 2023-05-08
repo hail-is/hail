@@ -3,6 +3,7 @@ import itertools
 import pandas
 import numpy as np
 import pyspark
+import pprint
 from typing import Optional, Dict, Callable, Sequence, Union
 
 from hail.expr.expressions import Expression, StructExpression, \
@@ -3669,7 +3670,7 @@ class Table(ExprContainer):
 
         if not hl.eval(_values_similar(t[left_global_value], t[right_global_value], tolerance, absolute)):
             g = hl.eval(t.globals)
-            print(f'Table._same: globals differ: {g[left_global_value]}, {g[right_global_value]}')
+            print(f'Table._same: globals differ:\n{pprint.pformat(g[left_global_value])}\n{pprint.pformat(g[right_global_value])}')
             return False
 
         if not t.all(hl.is_defined(t[left_value]) & hl.is_defined(t[right_value])
@@ -3678,7 +3679,7 @@ class Table(ExprContainer):
             t = t.filter(~ _values_similar(t[left_value], t[right_value], tolerance, absolute))
             bad_rows = t.take(10)
             for r in bad_rows:
-                print(f'  Row mismatch at key={r._key}:\n    L: {r[left_value]}\n    R: {r[right_value]}')
+                print(f'  Row mismatch at key={r._key}:\n    Left:\n{pprint.pformat(r[left_value])}\n    Right:\n{pprint.pformat(r[right_value])}')
             return False
 
         return True

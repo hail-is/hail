@@ -32,8 +32,6 @@ then
 fi
 
 images=(
-    "python-dill:3.7"
-    "python-dill:3.7-slim"
     "python-dill:3.8"
     "python-dill:3.8-slim"
     "python-dill:3.9"
@@ -42,6 +40,8 @@ images=(
     "python-dill:3.10-slim"
     "hail:${HAIL_PIP_VERSION}"
     "hailtop:${HAIL_PIP_VERSION}"
+    "vep-grch37-85:${HAIL_PIP_VERSION}"
+    "vep-grch38-95:${HAIL_PIP_VERSION}"
 )
 for image in "${images[@]}"
 do

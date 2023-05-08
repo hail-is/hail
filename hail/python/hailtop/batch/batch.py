@@ -16,8 +16,7 @@ from .exceptions import BatchException
 
 
 class Batch:
-    """
-    Object representing the distributed acyclic graph (DAG) of jobs to run.
+    """Object representing the distributed acyclic graph (DAG) of jobs to run.
 
     Examples
     --------
@@ -81,12 +80,11 @@ class Batch:
         applicable for the :class:`.ServiceBackend`. If `None`, there is no
         timeout.
     default_python_image:
-        Default image to use for all Python jobs. This must be the full name of the
-        image including any repository prefix and tags if desired (default tag is `latest`).
-        The image must have the `dill` Python package installed and have the same version of
-        Python installed that is currently running. If `None`, a compatible Python image with
-        `dill` pre-installed will automatically be used if the current Python version is
-        3.6, 3.7, or 3.8.
+        Default image to use for all Python jobs. This must be the full name of the image including
+        any repository prefix and tags if desired (default tag is `latest`).  The image must have
+        the `dill` Python package installed and have the same version of Python installed that is
+        currently running. If `None`, a compatible Python image with `dill` pre-installed will
+        automatically be used if the current Python version is 3.8, 3.9, or 3.10.
     project:
         DEPRECATED: please specify `google_project` on the ServiceBackend instead. If specified,
         the project to use when authenticating with Google Storage. Google Storage is used to
@@ -96,6 +94,7 @@ class Batch:
         Automatically cancel the batch after N failures have occurred. The default
         behavior is there is no limit on the number of failures. Only
         applicable for the :class:`.ServiceBackend`. Must be greater than 0.
+
     """
 
     _counter = 0
@@ -331,7 +330,7 @@ class Batch:
 
         .. code-block:: python
 
-            b = Batch(default_python_image='hailgenetics/python-dill:3.7-slim')
+            b = Batch(default_python_image='hailgenetics/python-dill:3.8-slim')
 
             def hello(name):
                 return f'hello {name}'
@@ -456,8 +455,6 @@ class Batch:
         ----------
         path: :obj:`str`
             File path to read.
-        extension: :obj:`str`, optional
-            File extension to use.
         """
 
         irf = self._new_input_resource_file(path)

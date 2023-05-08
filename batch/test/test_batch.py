@@ -145,6 +145,7 @@ def test_invalid_resource_requests(client: BatchClient):
         bb.submit()
 
 
+@skip_in_azure  # https://github.com/hail-is/hail/issues/12958
 def test_out_of_memory(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '10Gi'}
@@ -361,15 +362,15 @@ def test_unknown_image(client: BatchClient):
 
 
 @skip_in_azure
-def test_invalid_gcr(client: BatchClient):
+def test_invalid_gar(client: BatchClient):
     bb = create_batch(client)
     # GCP projects can't be strictly numeric
-    j = bb.create_job('gcr.io/1/does-not-exist', ['echo', 'test'])
+    j = bb.create_job('us-docker.pkg.dev/1/does-not-exist', ['echo', 'test'])
     b = bb.submit()
     status = j.wait()
     try:
         assert j._get_exit_code(status, 'main') is None
-        assert status['status']['container_statuses']['main']['short_error'] == 'image repository is invalid', str(
+        assert status['status']['container_statuses']['main']['short_error'] == 'image cannot be pulled', str(
             (status, b.debug_info())
         )
     except Exception as e:
@@ -1007,6 +1008,7 @@ def test_pool_highcpu_instance(client: BatchClient):
     assert 'highcpu' in status['status']['worker'], str((status, b.debug_info()))
 
 
+@skip_in_azure  # https://github.com/hail-is/hail/issues/12958
 def test_pool_highcpu_instance_cheapest(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25', 'memory': '50Mi'}

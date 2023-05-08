@@ -7,9 +7,6 @@ grafana/grafana:9.1.4
 jupyter/scipy-notebook
 jupyter/scipy-notebook:c094bb7219f9
 moby/buildkit:v0.8.3-rootless
-python:3.7
-python:3.7-slim
-python:3.7-slim-stretch
 python:3.8
 python:3.8-slim
 python:3.9

@@ -6,7 +6,7 @@ import sys
 
 def run(command: List[str]):
     """Run a gcloud command."""
-    return subprocess.check_call(["gcloud"] + command)
+    return subprocess.check_call(["gcloud", *command])
 
 
 def get_config(setting: str) -> Optional[str]:
