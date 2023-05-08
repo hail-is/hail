@@ -1494,7 +1494,7 @@ class BGENTests(unittest.TestCase):
             fs = hl.current_backend().fs
 
             with fs.open(f'{tmp}.bgen/shard-manifest.txt') as lines:
-                manifest_files = [line.strip() for line in lines]
+                manifest_files = [os.path.join(f'{tmp}.bgen/', line.strip()) for line in lines]
             bgen3 = hl.import_bgen(manifest_files,
                                    entry_fields=['GP'],
                                    sample_file=tmp + '.sample')
