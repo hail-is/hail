@@ -239,6 +239,18 @@ class AggFunc(object):
 
 
 def aggregate_local_array(array, f):
+    """Compute a summary of an array using aggregators. Useful for accessing
+    functionality that exists in `hl.agg` but not elsewhere, like `hl.agg.call_stats`.
+
+    Parameters
+    ----------
+    array
+    f
+
+    Returns
+    -------
+    Aggregation result.
+    """
     elt = array.dtype.element_type
 
     var = Env.get_uid(base='agg')
@@ -246,8 +258,8 @@ def aggregate_local_array(array, f):
     aggregated = f(ref)
 
     if not aggregated._aggregations:
-        raise ExpressionException(f"'hl.aggregate_local_array' "
-                                  f"must take mapping that contains aggregation expression.")
+        raise ExpressionException("'hl.aggregate_local_array' "
+                                  "must take a mapping that contains aggregation expression.")
 
     indices, _ = unify_all(array, aggregated)
     return construct_expr(ir.StreamAgg(ir.ToStream(array._ir), var, aggregated._ir),
