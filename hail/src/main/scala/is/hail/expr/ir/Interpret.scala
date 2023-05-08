@@ -897,7 +897,7 @@ object Interpret {
           // TODO Is this right? where does wrapped run?
           ctx.scopedExecution((hcl, fs, htc, r) => SafeRow(rt, f(hcl, fs, htc, r).apply(r, globalsOffset)))
         } else {
-          val spec = BufferSpec.wireSpec
+          val spec = BufferSpec.unblockedUncompressed
 
           val (_, initOp) = CompileWithAggregators[AsmFunction2RegionLongUnit](ctx,
             extracted.states,
