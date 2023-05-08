@@ -20,7 +20,10 @@ case object SemanticHash extends Logging {
       apply(a.toString)
 
     def apply(s: String): Type =
-      MurmurHash3.hash32x86(s.getBytes)
+      apply(s.getBytes)
+
+    def apply(bytes: Array[Byte]): Type =
+      MurmurHash3.hash32x86(bytes)
   }
 
   implicit class MagmaHash(a: Hash.Type) {
@@ -29,10 +32,9 @@ case object SemanticHash extends Logging {
 
   }
 
-  def getFileHash(fs: FS)(path: String): Hash.Type = {
-    val status = fs.fileStatus(path)
-    Hash(status.getPath) <> Hash(status.getLen) <> Hash(status.getModificationTime)
-  }
+  def getFileHash(fs: FS)(path: String): Hash.Type =
+    Hash(fs.fileChecksum(path))
+
 
   def apply(fs: FS)(root: BaseIR): (Hash.Type, Memo[Hash.Type]) = {
     val env = mutable.HashMap.empty[String, BaseIR]
@@ -167,6 +169,7 @@ case object SemanticHash extends Logging {
              _: StreamFold |
              _: StreamFold2 |
              _: StreamFor |
+             _: StreamLen |
              _: StreamMap |
              _: StreamRange |
              _: StreamTake |

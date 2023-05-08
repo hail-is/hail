@@ -33,6 +33,8 @@ class RouterFS(fss: IndexedSeq[FS]) extends FS {
 
   def fileStatus(filename: String): FileStatus = lookupFS(filename).fileStatus(filename)
 
+  override def fileChecksum(filename: String): Array[Byte] = lookupFS(filename).fileChecksum(filename)
+
   def makeQualified(path: String): String = lookupFS(path).makeQualified(path)
 
   def getConfiguration(): Any = fss.map(_.getConfiguration())

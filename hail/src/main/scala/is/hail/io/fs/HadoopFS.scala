@@ -1,11 +1,13 @@
 package is.hail.io.fs
 
 import is.hail.utils._
-
 import org.apache.hadoop
 import org.apache.hadoop.fs.{FSDataInputStream, FSDataOutputStream}
+import org.apache.hadoop.io.MD5Hash
 
 import java.io._
+import java.security.MessageDigest
+import java.util.Base64
 
 class HadoopFileStatus(fs: hadoop.fs.FileStatus) extends FileStatus {
   val normalizedPath = fs.getPath
@@ -176,6 +178,17 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
   def fileStatus(filename: String): FileStatus = {
     val p = new hadoop.fs.Path(filename)
     new HadoopFileStatus(p.getFileSystem(conf.value).getFileStatus(p))
+  }
+
+  override def fileChecksum(filename: String): Array[Byte] = {
+    val p = new hadoop.fs.Path(filename)
+    val fs = p.getFileSystem(conf.value)
+    val checksum = fs.getFileChecksum(p)
+    if (checksum != null) checksum.getBytes
+    else {
+      val digest = using(fs.open(p))(MD5Hash.digest).getDigest
+      Base64.getDecoder.decode(digest)
+    }
   }
 
   def makeQualified(path: String): String = {

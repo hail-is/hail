@@ -85,15 +85,7 @@ class SemanticHashSuite {
 
   val fakeFs: FS =
     new FakeFS {
-      override def fileStatus(filename: String): FileStatus =
-        new FileStatus {
-          override def getPath: String = filename
-          override def getModificationTime: lang.Long = filename.length.toLong
-          override def getLen: Long = filename.length.toLong
-          override def isDirectory: Boolean = false
-          override def isSymlink: Boolean = false
-          override def isFile: Boolean = true
-          override def getOwner: String = "me@fun.is"
-        }
+      override def fileChecksum(filename: String): Array[Byte] =
+        filename.getBytes
     }
 }

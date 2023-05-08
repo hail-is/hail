@@ -389,6 +389,9 @@ trait FS extends Serializable {
 
   def fileStatus(filename: String): FileStatus
 
+  /** Return a base64-encoded checksum of the contexts of filename */
+  def fileChecksum(filename: String): Array[Byte]
+
   def makeQualified(path: String): String
 
   def deleteOnExit(filename: String): Unit = {

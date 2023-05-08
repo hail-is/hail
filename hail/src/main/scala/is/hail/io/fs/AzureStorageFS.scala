@@ -376,6 +376,12 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     fileStatus(AzureStorageFS.parseUrl(filename))
   }
 
+  override def fileChecksum(filename: String): Array[Byte] =
+    handlePublicAccessError(filename) {
+      getBlobClient(AzureStorageFS.parseUrl(filename)).getProperties.getContentMd5
+    }
+
+
   def makeQualified(filename: String): String = {
     AzureStorageFS.parseUrl(filename)
     filename

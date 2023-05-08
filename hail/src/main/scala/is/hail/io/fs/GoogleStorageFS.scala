@@ -9,7 +9,7 @@ import java.util.concurrent._
 import org.apache.log4j.Logger
 import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.cloud.{ReadChannel, WriteChannel}
-import com.google.cloud.storage.Storage.{BlobListOption, BlobWriteOption, BlobSourceOption}
+import com.google.cloud.storage.Storage.{BlobGetOption, BlobListOption, BlobSourceOption, BlobWriteOption, BucketGetOption}
 import com.google.cloud.storage.{Option => StorageOption, _}
 import com.google.cloud.http.HttpTransportOptions
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
@@ -443,7 +443,7 @@ class GoogleStorageFS(
     val blobs = retryTransientErrors {
       handleRequesterPays(
         (options: Seq[BlobListOption]) => storage.list(bucket, (BlobListOption.prefix(path) +: BlobListOption.currentDirectory() +: options):_*),
-        BlobListOption.userProject _,
+        BlobListOption.userProject,
         bucket
       )
     }
@@ -464,7 +464,7 @@ class GoogleStorageFS(
     val blobs = retryTransientErrors {
       handleRequesterPays(
         (options: Seq[BlobListOption]) => storage.list(bucket, (BlobListOption.prefix(path) +: BlobListOption.currentDirectory() +: options):_*),
-        BlobListOption.userProject _,
+        BlobListOption.userProject,
         bucket
       )
     }
@@ -480,6 +480,18 @@ class GoogleStorageFS(
     }
 
     throw new FileNotFoundException(filename)
+  }
+
+  override def fileChecksum(filename: String): Array[Byte] = {
+    val (bucket, blob) = getBucketPath(filename)
+    handleRequesterPays(
+      (options: Seq[BlobGetOption]) =>
+        retryTransientErrors {
+          storage.get(bucket, blob, options:_*).getMd5.getBytes
+        },
+      BlobGetOption.userProject,
+      bucket
+    )
   }
 
   def makeQualified(filename: String): String = {
