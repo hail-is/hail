@@ -4,6 +4,8 @@
 .gradle/
 .idea/
 .vscode/
+.bloop
+.metals
 hail/libs/
 .pytest_cache/
 build/
