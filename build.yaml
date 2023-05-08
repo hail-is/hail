@@ -2333,6 +2333,7 @@ steps:
       valueFrom: hail_run_image.image
     resources:
       cpu: '1'
+      preemptible: False
     script: |
       set -ex
       tar xvf /io/wheel-container.tar
