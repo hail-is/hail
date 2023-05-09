@@ -579,7 +579,7 @@ RETRY_ONCE_BAD_REQUEST_ERROR_MESSAGES = {
 }
 
 
-def is_retry_once_error(e):
+def is_limited_retries_error(e):
     # An exception is a "retry once error" if a rare, known bug in a dependency or in a cloud
     # provider can manifest as this exception *and* that manifestation is indistinguishable from a
     # true error.
@@ -796,7 +796,7 @@ async def retry_transient_errors_with_debug_string(debug_string: str, warning_de
             raise
         except Exception as e:
             errors += 1
-            if errors == 1 and is_retry_once_error(e):
+            if errors <= 5 and is_limited_retries_error(e):
                 return await f(*args, **kwargs)
             if not is_transient_error(e):
                 raise

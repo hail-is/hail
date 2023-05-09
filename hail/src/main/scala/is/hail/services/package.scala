@@ -35,7 +35,7 @@ package object services {
     math.min(delay * 2, 60.0)
   }
 
-  def isRetryOnceError(_e: Throwable): Boolean = {
+  def isLimitedRetriesError(_e: Throwable): Boolean = {
     // An exception is a "retry once error" if a rare, known bug in a dependency or in a cloud
     // provider can manifest as this exception *and* that manifestation is indistinguishable from a
     // true error.
@@ -50,7 +50,7 @@ package object services {
         )
       case e @ (_: SSLException | _: StorageException | _: IOException) =>
         val cause = e.getCause
-        cause != null && isRetryOnceError(cause)
+        cause != null && isLimitedRetriesError(cause)
       case _ =>
         false
     }
@@ -125,7 +125,7 @@ package object services {
       } catch {
         case e: Exception =>
           errors += 1
-          if (errors == 1 && isRetryOnceError(e))
+          if (errors <= 5 && isLimitedRetriesError(e))
             return f
           if (!isTransientError(e))
             throw e
