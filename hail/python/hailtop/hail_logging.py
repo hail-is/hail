@@ -1,9 +1,11 @@
+import datetime
 import logging
 import sys
-from pythonjsonlogger import jsonlogger
-from aiohttp.abc import AbstractAccessLogger
-import datetime
 from time import timezone
+
+import orjson
+from aiohttp.abc import AbstractAccessLogger
+from pythonjsonlogger import jsonlogger
 
 
 def logger_json_serializer(log_record,
@@ -11,7 +13,7 @@ def logger_json_serializer(log_record,
                            cls=None,
                            indent=None,
                            ensure_ascii=False) -> str:
-    assert default is None and cls is None and indent is None and ensure_ascii == False
+    assert default is None and cls is None and indent is None and ensure_ascii is False
     return orjson.dumps(log_record).decode('utf-8')
 
 
