@@ -91,7 +91,7 @@ class GCPWorkerAPI(CloudWorkerAPI[GCPUserCredentials]):
             options.append('ro')
 
         try:
-            billing_project_flag = ['--billing-project', f'\"{config["requester_pays_project"]}\"']
+            billing_project_flag = ['--billing-project', config["requester_pays_project"]]
         except KeyError:
             billing_project_flag = []
 
