@@ -1,11 +1,12 @@
 FROM {{ hail_ubuntu_image.image }} AS base
 
+# libyajl-dev: crun runtime dependency
 RUN hail-apt-get-install \
     iproute2 \
     iptables \
     openjdk-8-jre-headless \
     liblapack3 \
-    libyajl-dev \ # crun runtime dependency
+    libyajl-dev \
     wget \
     xfsprogs
 
