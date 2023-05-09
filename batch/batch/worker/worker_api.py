@@ -3,7 +3,7 @@ from typing import Dict, Generic, TypeVar
 
 from hailtop import httpx
 from hailtop.aiotools.fs import AsyncFS
-from hailtop.utils import CalledProcessError, check_shell, sleep_and_backoff
+from hailtop.utils import CalledProcessError, sleep_and_backoff
 
 from ..instance_config import InstanceConfig
 from .credentials import CloudUserCredentials
