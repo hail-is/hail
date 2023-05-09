@@ -353,7 +353,7 @@ class LocalAsyncFS(AsyncFS):
                      listener: Optional[Callable[[int], None]] = None) -> None:
         path = self._get_path(url)
         if listener is None:
-            listener = lambda _: None  # noqa: E731
+            listener = lambda _: None
         if sema is None:
             sema = asyncio.Semaphore(50)
 

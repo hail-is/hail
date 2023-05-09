@@ -30,22 +30,42 @@ default:
 .PHONY: check-all
 check-all: check-hail check-services
 
+.PHONY: check-hail-fast
+check-hail-fast:
+	ruff check hail/python/hail
+	ruff check hail/python/hailtop
+	$(PYTHON) -m mypy --config-file setup.cfg hail/python/hailtop
+
+.PHONY: pylint-hailtop
+pylint-hailtop:
+	# pylint on hail is still a work in progress
+	$(PYTHON) -m pylint --rcfile pylintrc hail/python/hailtop --score=n
+
 .PHONY: check-hail
-check-hail:
-	$(MAKE) -C hail/python check
+check-hail: check-hail-fast pylint-hailtop
 
 .PHONY: check-services
 check-services: $(CHECK_SERVICES_MODULES)
 
-.PHONY: check-%
-$(CHECK_SERVICES_MODULES): check-%:
-	$(PYTHON) -m flake8  --config setup.cfg $*
+.PHONY: pylint-%
+pylint-%:
 	$(PYTHON) -m pylint --rcfile pylintrc --recursive=y $* --score=n
+
+.PHONY: check-%-fast
+check-%-fast:
+	ruff check $*
 	$(PYTHON) -m mypy --config-file setup.cfg $*
-	$(PYTHON) -m isort $* --check-only --diff
-	$(PYTHON) -m black $* --line-length=120 --skip-string-normalization --check --diff
+	$(PYTHON) -m black $* --check --diff
 	curlylint $*
 	cd $* && bash ../check-sql.sh
+
+.PHONY: check-%
+$(CHECK_SERVICES_MODULES): check-%: check-%-fast pylint-%
+
+.PHONY: isort-%
+isort-%:
+	ruff check --select I --fix $*
+
 
 .PHONY: check-pip-requirements
 check-pip-requirements:
@@ -75,13 +95,13 @@ install-dev-requirements:
 hail/python/hailtop/pinned-requirements.txt: hail/python/hailtop/requirements.txt
 	./generate-linux-pip-lockfile.sh hail/python/hailtop
 
-hail/python/pinned-requirements.txt: hail/python/requirements.txt hail/python/hailtop/pinned-requirements.txt
+hail/python/pinned-requirements.txt: hail/python/hailtop/pinned-requirements.txt hail/python/requirements.txt
 	./generate-linux-pip-lockfile.sh hail/python
 
-hail/python/dev/pinned-requirements.txt: hail/python/dev/requirements.txt hail/python/pinned-requirements.txt
+hail/python/dev/pinned-requirements.txt: hail/python/pinned-requirements.txt hail/python/dev/requirements.txt
 	./generate-linux-pip-lockfile.sh hail/python/dev
 
-gear/pinned-requirements.txt: hail/python/hailtop/pinned-requirements.txt gear/requirements.txt
+gear/pinned-requirements.txt: hail/python/pinned-requirements.txt hail/python/dev/pinned-requirements.txt hail/python/hailtop/pinned-requirements.txt gear/requirements.txt
 	./generate-linux-pip-lockfile.sh gear
 
 web_common/pinned-requirements.txt: gear/pinned-requirements.txt web_common/requirements.txt
