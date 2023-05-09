@@ -190,7 +190,7 @@ steps:
         to: /io/pyproject.toml
     dependsOn:
       - hello_image
-  - kind: createDatabase
+  - kind: createDatabase2
     name: hello_database
     databaseName: hello
     image:
