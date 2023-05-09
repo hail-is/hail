@@ -1342,6 +1342,7 @@ class ToStream(IR):
         self.a.compute_type(env, agg_env, deep_typecheck)
         return tstream(self.a.typ.element_type)
 
+
 class StreamZipJoinProducers(IR):
     @typecheck_method(contexts=IR,
                       ctx_name=str,
