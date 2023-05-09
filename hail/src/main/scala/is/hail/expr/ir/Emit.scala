@@ -2483,8 +2483,6 @@ class Emit[C](
             })
 
           val encRes = cb.newLocal[Array[Array[Byte]]]("encRes")
-          val len = mb.newLocal[Int]("cda_result_length")
-          val ib = mb.newLocal[InputBuffer]("decode_ib")
           cb.assign(encRes, spark.invoke[BackendContext, HailClassLoader, FS, String, Array[Array[Byte]], Array[Byte], String, Option[TableStageDependency], Array[Array[Byte]]](
             "collectDArray",
             mb.getObject(ctx.executeContext.backendContext),
@@ -2496,13 +2494,14 @@ class Emit[C](
             stageName,
             mb.getObject(tsd)))
 
-          cb.assign(len, encRes.length())
+          val len = cb.memoize(encRes.length())
           val pt = PCanonicalArray(bodySpec.encodedType.decodedSType(bodySpec.encodedVirtualType).asInstanceOf[SBaseStruct].fieldEmitTypes(0).storageType)
           val resultArray = pt.constructFromElements(cb, region, len, deepCopy = false) { (cb, i) =>
-            cb.assign(ib, bodySpec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](encRes(i))))
+            val ib = cb.memoize(bodySpec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](encRes(i))))
             val eltTupled = bodySpec.encodedType.buildDecoder(bodySpec.encodedVirtualType, parentCB)
               .apply(cb, region, ib)
               .asBaseStruct
+            cb += (encRes.update(i, Code._null))
             eltTupled.loadField(cb, 0)
           }
           cb.assign(encRes, Code._null)
