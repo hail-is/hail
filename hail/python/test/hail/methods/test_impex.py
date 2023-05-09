@@ -882,7 +882,7 @@ class PLINKTests(unittest.TestCase):
             hl.hadoop_copy(hl_output + '.bim', local_hl_output + '.bim')
             hl.hadoop_copy(hl_output + '.fam', local_hl_output + '.fam')
 
-        run_command(["plink", "--vcf", split_vcf_file,
+        run_command(["plink", "--vcf", local_split_vcf_file,
                      "--make-bed", "--out", plink_output,
                      "--const-fid", "--keep-allele-order"])
 
@@ -897,7 +897,7 @@ class PLINKTests(unittest.TestCase):
             f.writelines(data)
 
         run_command(["plink", "--bfile", plink_output,
-                     "--bmerge", hl_output, "--merge-mode",
+                     "--bmerge", local_hl_output, "--merge-mode",
                      "6", "--out", merge_output])
 
         same = True
