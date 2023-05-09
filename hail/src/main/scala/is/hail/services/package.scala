@@ -116,7 +116,7 @@ package object services {
     }
   }
 
-  def retryTransientErrors[T](f: => T): T = {
+  def retryTransientErrors[T](f: => T, reset: Option[() => Unit] = None): T = {
     var delay = 0.1
     var errors = 0
     while (true) {
@@ -133,6 +133,7 @@ package object services {
             log.warn(s"encountered $errors transient errors, most recent one was $e")
       }
       delay = sleepAndBackoff(delay)
+      reset.foreach(_())
     }
 
     throw new AssertionError("unreachable")
