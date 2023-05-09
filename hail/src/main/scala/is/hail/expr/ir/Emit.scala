@@ -2444,7 +2444,6 @@ class Emit[C](
           val baos = mb.genFieldThisRef[ByteArrayOutputStream]()
           val buf = mb.genFieldThisRef[OutputBuffer]()
           val ctxab = mb.genFieldThisRef[ByteArrayArrayBuilder]()
-          val encRes = mb.genFieldThisRef[Array[Array[Byte]]]()
 
 
           def addContexts(cb: EmitCodeBuilder, ctxStream: StreamProducer): Unit = {
@@ -2467,21 +2466,6 @@ class Emit[C](
             cb += buf.invoke[Unit]("flush")
           }
 
-          def decodeResult(cb: EmitCodeBuilder): SValue = {
-            val len = mb.newLocal[Int]("cda_result_length")
-            val ib = mb.newLocal[InputBuffer]("decode_ib")
-
-            cb.assign(len, encRes.length())
-            val pt = PCanonicalArray(bodySpec.encodedType.decodedSType(bodySpec.encodedVirtualType).asInstanceOf[SBaseStruct].fieldEmitTypes(0).storageType)
-            pt.asInstanceOf[PCanonicalArray].constructFromElements(cb, region, len, deepCopy = false) { (cb, i) =>
-              cb.assign(ib, bodySpec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](encRes(i))))
-              val eltTupled = bodySpec.encodedType.buildDecoder(bodySpec.encodedVirtualType, parentCB)
-                .apply(cb, region, ib)
-                .asBaseStruct
-              eltTupled.loadField(cb, 0)
-            }
-          }
-
           cb.assign(baos, Code.newInstance[ByteArrayOutputStream]())
           cb.assign(buf, contextSpec.buildCodeOutputBuffer(baos)) // TODO: take a closer look at whether we need two codec buffers?
           cb.assign(ctxab, Code.newInstance[ByteArrayArrayBuilder, Int](16))
@@ -2498,6 +2482,9 @@ class Emit[C](
               cb.assign(stageName, stageName.concat("|").concat(dynamicID.asString.loadString(cb)))
             })
 
+          val encRes = cb.newLocal[Array[Array[Byte]]]("encRes")
+          val len = mb.newLocal[Int]("cda_result_length")
+          val ib = mb.newLocal[InputBuffer]("decode_ib")
           cb.assign(encRes, spark.invoke[BackendContext, HailClassLoader, FS, String, Array[Array[Byte]], Array[Byte], String, Option[TableStageDependency], Array[Array[Byte]]](
             "collectDArray",
             mb.getObject(ctx.executeContext.backendContext),
@@ -2508,7 +2495,18 @@ class Emit[C](
             baos.invoke[Array[Byte]]("toByteArray"),
             stageName,
             mb.getObject(tsd)))
-          decodeResult(cb)
+
+          cb.assign(len, encRes.length())
+          val pt = PCanonicalArray(bodySpec.encodedType.decodedSType(bodySpec.encodedVirtualType).asInstanceOf[SBaseStruct].fieldEmitTypes(0).storageType)
+          val resultArray = pt.constructFromElements(cb, region, len, deepCopy = false) { (cb, i) =>
+            cb.assign(ib, bodySpec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](encRes(i))))
+            val eltTupled = bodySpec.encodedType.buildDecoder(bodySpec.encodedVirtualType, parentCB)
+              .apply(cb, region, ib)
+              .asBaseStruct
+            eltTupled.loadField(cb, 0)
+          }
+          cb.assign(encRes, Code._null)
+          resultArray
         }
 
       case _ =>
