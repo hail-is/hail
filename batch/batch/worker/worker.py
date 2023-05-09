@@ -2238,7 +2238,7 @@ class JVMJob(Job):
             await self.worker.file_store.write_log_file(
                 self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', log_contents
             )
-            
+
         if self.profile_file is not None:
             with self.step('uploading_profile'):
                 if os.path.exists(self.profile_file):
