@@ -968,10 +968,12 @@ date
 
 
 class CreateDatabaseStep(Step):
-    def __init__(self, params, database_name, namespace, migrations, shutdowns, inputs):
+    def __init__(self, params, database_name, namespace, migrations, shutdowns, inputs, image):
         super().__init__(params)
 
         config = self.input_config(params.code, params.scope)
+
+        self.image = expand_value_from(image, self.input_config(params.code, params.scope))
 
         # FIXME validate
         self.database_name = database_name
@@ -1035,6 +1037,7 @@ class CreateDatabaseStep(Step):
             json['migrations'],
             json.get('shutdowns', []),
             json.get('inputs'),
+            json['image'],
         )
 
     def config(self, scope):  # pylint: disable=unused-argument
@@ -1092,7 +1095,7 @@ EOF
             input_files.extend(password_files_input)
 
             self.create_passwords_job = batch.create_job(
-                CI_UTILS_IMAGE,
+                self.image,
                 command=['bash', '-c', create_passwords_script],
                 attributes={'name': self.name + "_create_passwords"},
                 output_files=[(x[1], x[0]) for x in password_files_input],
@@ -1103,7 +1106,7 @@ EOF
         n_cores = 4 if scope == 'deploy' and not is_test_deployment else 1
 
         self.create_database_job = batch.create_job(
-            CI_UTILS_IMAGE,
+            self.image,
             command=['bash', '-c', create_database_script],
             attributes={'name': self.name},
             secrets=[
@@ -1145,7 +1148,7 @@ done
 '''
 
         self.cleanup_job = batch.create_job(
-            CI_UTILS_IMAGE,
+            self.image,
             command=['bash', '-c', cleanup_script],
             attributes={'name': f'cleanup_{self.name}'},
             secrets=[
