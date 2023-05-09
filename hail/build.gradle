@@ -199,20 +199,20 @@ dependencies {
     }
 
     bundled 'commons-io:commons-io:2.11.0'
-    bundled(group: 'com.azure', name: 'azure-storage-blob', version: '12.13.0') {
+    bundled(group: 'com.azure', name: 'azure-storage-blob', version: '12.22.0') {
         exclude group: 'com.fasterxml.jackson'
         exclude group: 'com.fasterxml.jackson.core'
         exclude group: 'com.fasterxml.jackson.databind'
     }
 
-    bundled(group: 'com.azure', name: 'azure-core-http-netty', version: '1.10.0') {
+    bundled(group: 'com.azure', name: 'azure-core-http-netty', version: '1.13.3') {
         exclude group: 'com.fasterxml.jackson'
         exclude group: 'com.fasterxml.jackson.core'
         exclude group: 'com.fasterxml.jackson.databind'
     }
 
 
-    bundled(group: 'com.azure', name: 'azure-identity', version:'1.2.1') {
+    bundled(group: 'com.azure', name: 'azure-identity', version:'1.8.3') {
         exclude group: 'com.fasterxml.jackson'
         exclude group: 'com.fasterxml.jackson.core'
         exclude group: 'com.fasterxml.jackson.databind'
