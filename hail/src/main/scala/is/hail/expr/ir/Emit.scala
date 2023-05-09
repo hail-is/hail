@@ -2501,7 +2501,7 @@ class Emit[C](
             val eltTupled = bodySpec.encodedType.buildDecoder(bodySpec.encodedVirtualType, parentCB)
               .apply(cb, region, ib)
               .asBaseStruct
-            cb += (encRes.update(i, Code._null))
+            cb += (encRes.update(i, Code._null[Array[Byte]]))
             eltTupled.loadField(cb, 0)
           }
           cb.assign(encRes, Code._null)
