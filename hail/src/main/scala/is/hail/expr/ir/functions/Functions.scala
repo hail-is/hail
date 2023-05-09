@@ -8,6 +8,7 @@ import is.hail.utils._
 import is.hail.asm4s.coerce
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.experimental.ExperimentalFunctions
+import is.hail.io.bgen.BGENFunctions
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SCode, SType, SValue}
 import is.hail.types.physical.stypes.concrete._
@@ -236,7 +237,8 @@ object IRFunctionRegistry {
     StringFunctions,
     UtilFunctions,
     ExperimentalFunctions,
-    ReferenceGenomeFunctions
+    ReferenceGenomeFunctions,
+    BGENFunctions
   ).foreach(_.registerAll())
 
   def dumpFunctions(): Unit = {
@@ -295,7 +297,7 @@ abstract class RegistryFunctions {
     case _ => classInfo[AnyRef]
   }
 
-  def svalueToJavaValue(cb: EmitCodeBuilder, r: Value[Region], sc: SValue): Value[AnyRef] = {
+  def svalueToJavaValue(cb: EmitCodeBuilder, r: Value[Region], sc: SValue, safe: Boolean = false): Value[AnyRef] = {
     sc.st match {
       case SInt32 => cb.memoize(Code.boxInt(sc.asInt32.value))
       case SInt64 => cb.memoize(Code.boxLong(sc.asInt64.value))
@@ -309,7 +311,7 @@ abstract class RegistryFunctions {
         val pt = PType.canonical(t.storageType())
         val addr = pt.store(cb, r, sc, deepCopy = false)
         cb.memoize(Code.invokeScalaObject3[PType, Region, Long, AnyRef](
-          UnsafeRow.getClass, "readAnyRef",
+          if (safe) SafeRow.getClass else UnsafeRow.getClass, "readAnyRef",
           cb.emb.getPType(pt),
           r, addr))
 
@@ -637,12 +639,17 @@ abstract class RegistryFunctions {
       impl(cb, r, rt, errorID, a1, a2)
     }
 
+  def registerIEmitCode3(name: String, mt1: Type, mt2: Type, mt3: Type, rt: Type, pt: (Type, EmitType, EmitType, EmitType) => EmitType)
+    (impl: (EmitCodeBuilder, Value[Region], SType, Value[Int], EmitCode, EmitCode, EmitCode) => IEmitCode): Unit =
+    registerIEmitCode(name, Array(mt1, mt2, mt3), rt, unwrappedApply(pt)) { case (cb, r, rt, errorID, Array(a1, a2, a3)) =>
+      impl(cb, r, rt, errorID, a1, a2, a3)
+    }
+
   def registerIEmitCode4(name: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, rt: Type, pt: (Type, EmitType, EmitType, EmitType, EmitType) => EmitType)
     (impl: (EmitCodeBuilder, Value[Region], SType, Value[Int], EmitCode, EmitCode, EmitCode, EmitCode) => IEmitCode): Unit =
     registerIEmitCode(name, Array(mt1, mt2, mt3, mt4), rt, unwrappedApply(pt)) { case (cb, r, rt, errorID, Array(a1, a2, a3, a4)) =>
       impl(cb, r, rt, errorID, a1, a2, a3, a4)
     }
-
 
   def registerIEmitCode5(name: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, mt5: Type, rt: Type, pt: (Type, EmitType, EmitType, EmitType, EmitType, EmitType) => EmitType)
     (impl: (EmitCodeBuilder, Value[Region], SType, Value[Int], EmitCode, EmitCode, EmitCode, EmitCode, EmitCode) => IEmitCode): Unit =

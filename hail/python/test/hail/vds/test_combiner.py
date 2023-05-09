@@ -102,6 +102,53 @@ def test_combiner_plan_round_trip_serialization():
     plan_loaded = load_combiner(plan_path)
     assert plan == plan_loaded
 
+def test_reload_combiner_plan():
+    sample_names = all_samples[:5]
+    paths = [os.path.join(resource('gvcfs'), '1kg_chr22', f'{s}.hg38.g.vcf.gz') for s in sample_names]
+    plan_path = new_temp_file(extension='json')
+    out_file = new_temp_file(extension='vds')
+    plan = new_combiner(gvcf_paths=paths,
+                        output_path=out_file,
+                        temp_path=Env.hc()._tmpdir,
+                        save_path=plan_path,
+                        reference_genome='GRCh38',
+                        use_exome_default_intervals=True,
+                        branch_factor=2,
+                        batch_size=2)
+    plan.save()
+    plan_loaded = new_combiner(gvcf_paths=paths,
+                               output_path=out_file,
+                               temp_path=Env.hc()._tmpdir,
+                               save_path=plan_path,
+                               reference_genome='GRCh38',
+                               use_exome_default_intervals=True,
+                               branch_factor=2,
+                               batch_size=2)
+    assert plan == plan_loaded
+
+def test_move_load_combiner_plan():
+    fs = hl.current_backend().fs
+    sample_names = all_samples[:5]
+    paths = [os.path.join(resource('gvcfs'), '1kg_chr22', f'{s}.hg38.g.vcf.gz') for s in sample_names]
+    plan_path = new_temp_file(extension='json')
+    out_file = new_temp_file(extension='vds')
+    new_plan_path = new_temp_file(extension='json')
+    plan = new_combiner(gvcf_paths=paths,
+                        output_path=out_file,
+                        temp_path=Env.hc()._tmpdir,
+                        save_path=plan_path,
+                        reference_genome='GRCh38',
+                        use_exome_default_intervals=True,
+                        branch_factor=2,
+                        batch_size=2)
+    plan.save()
+    fs.copy(plan_path, new_plan_path)
+    plan_loaded = load_combiner(new_plan_path)
+    assert plan != plan_loaded
+    plan._save_path = new_plan_path
+    assert plan == plan_loaded
+
+
 @fails_local_backend
 @fails_service_backend
 def test_combiner_run():

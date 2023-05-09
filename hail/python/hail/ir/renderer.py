@@ -455,12 +455,6 @@ class CSEPrintPass:
                             lift_type = 'agg'
 
             if lift_to_frame:
-                insert_lets = (id(child) in binding_sites
-                               and (len(binding_sites[id(child)].lifted_lets) > 0
-                                    or len(binding_sites[id(child)].agg_lifted_lets) > 0
-                                    or len(binding_sites[id(child)].scan_lifted_lets > 0)))
-                assert not insert_lets
-
                 if lift_type == 'value':
                     visited = lift_to_frame.visited
                     name = lift_to_frame.lifted_lets[id(child)]

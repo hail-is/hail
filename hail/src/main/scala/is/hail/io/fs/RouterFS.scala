@@ -1,10 +1,16 @@
 package is.hail.io.fs
 
-class RouterFS(schemes: Map[String, FS], default: String) extends FS {
+class RouterFS(fss: IndexedSeq[FS]) extends FS {
 
   def lookupFS(path: String): FS = {
-    val uri = new java.net.URI(path)
-    schemes.getOrElse(uri.getScheme, schemes(default))
+    fss.find(_.validUrl(path)) match {
+      case Some(fs) => fs
+      case None => throw new IllegalArgumentException(s"Unsupported URI: $path")
+    }
+  }
+
+  def validUrl(filename: String): Boolean = {
+    fss.exists(_.validUrl(filename))
   }
 
   override def openCachedNoCompression(filename: String): SeekableDataInputStream = lookupFS(filename).openCachedNoCompression(filename)
@@ -14,6 +20,8 @@ class RouterFS(schemes: Map[String, FS], default: String) extends FS {
   def openNoCompression(filename: String, _debug: Boolean = false): SeekableDataInputStream = lookupFS(filename).openNoCompression(filename, _debug)
 
   def createNoCompression(filename: String): PositionedDataOutputStream = lookupFS(filename).createNoCompression(filename)
+
+  override def readNoCompression(filename: String): Array[Byte] = lookupFS(filename).readNoCompression(filename)
 
   override def mkDir(dirname: String): Unit = lookupFS(dirname).mkDir(dirname)
 
@@ -27,9 +35,9 @@ class RouterFS(schemes: Map[String, FS], default: String) extends FS {
 
   def makeQualified(path: String): String = lookupFS(path).makeQualified(path)
 
-  def getConfiguration(): Any = schemes.map { case (k, v) => (k, v.getConfiguration()) }
+  def getConfiguration(): Any = fss.map(_.getConfiguration())
 
   def setConfiguration(config: Any): Unit = {
-    config.asInstanceOf[Map[_, _]].foreach { case (k: String, v: Any) => schemes(k).setConfiguration(v) }
+    fss.zip(config.asInstanceOf[IndexedSeq[_]]).foreach { case (fs: FS, config: Any) => fs.setConfiguration(config) }
   }
 }

@@ -13,7 +13,6 @@ RUN hail-pip-install \
 COPY hail/python/setup-hailtop.py /hailtop/setup.py
 COPY hail/python/MANIFEST.in /hailtop/MANIFEST.in
 COPY hail/python/hailtop /hailtop/hailtop/
-COPY /hail_version /hailtop/hailtop/hail_version
 
 COPY gear/setup.py /gear/setup.py
 COPY gear/gear /gear/gear/

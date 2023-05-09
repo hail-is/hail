@@ -324,7 +324,6 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.rowType.unionFields(rowReq.r.asInstanceOf[RStruct])
         requiredness.globalType.unionFields(globalReq.r.asInstanceOf[RStruct])
       case TableRange(_, _) =>
-      case TableGenomicRange(_, _, _) =>
 
       // pass through TableIR child
       case TableKeyBy(child, _, _) => requiredness.unionFrom(lookup(child))
@@ -465,6 +464,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       // union top-level
       case _: ApplyBinaryPrimOp |
            _: ApplyUnaryPrimOp |
+           _: Consume |
            _: ArrayLen |
            _: StreamLen |
            _: ArrayZeros |
@@ -478,7 +478,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.union(node.children.forall { case c: IR => lookup(c).required })
 
       // always required
-      case _: I32 | _: I64 | _: F32 | _: F64 | _: Str | True() | False() | _: IsNA | _: Die | _: UUID4 | _: Consume | _: RNGStateLiteral | _: RNGSplit =>
+      case _: I32 | _: I64 | _: F32 | _: F64 | _: Str | True() | False() | _: IsNA | _: Die | _: UUID4 | _: RNGStateLiteral | _: RNGSplit =>
       case _: CombOpValue | _: AggStateValue =>
       case Trap(child) =>
         // error message field is missing if the child runs without error
@@ -575,6 +575,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case StreamDrop(a, n) =>
         requiredness.union(lookup(n).required)
         requiredness.unionFrom(lookup(a))
+      case StreamWhiten(stream, _, _ ,_, _, _, _, _) =>
+        requiredness.unionFrom(lookup(stream))
       case StreamZip(as, names, body, behavior, _) =>
         requiredness.union(as.forall(lookup(_).required))
         tcoerce[RIterable](requiredness).elementType.unionFrom(lookup(body))
@@ -583,7 +585,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         val eltType = tcoerce[RIterable](requiredness).elementType
         eltType.unionFrom(lookup(joinF))
       case StreamMultiMerge(as, _) =>
-        requiredness.union(as.forall(lookup(_).required))
+       requiredness.union(as.forall(lookup(_).required))
         val elt = tcoerce[RStruct](tcoerce[RIterable](requiredness).elementType)
         as.foreach { a =>
           elt.unionFields(tcoerce[RStruct](tcoerce[RIterable](lookup(a)).elementType))

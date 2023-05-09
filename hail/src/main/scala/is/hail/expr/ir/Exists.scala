@@ -93,7 +93,7 @@ object ContainsAggIntermediate {
 
 object AggIsCommutative {
   def apply(op: AggOp): Boolean = op match {
-    case Take() | Collect() | PrevNonnull() | TakeBy(_) => false
+    case Take() | Collect() | PrevNonnull() | TakeBy(_) | ReservoirSample() => false
     case _ => true
   }
 }

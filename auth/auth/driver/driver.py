@@ -5,7 +5,7 @@ import logging
 import os
 import random
 import secrets
-from typing import Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 import aiohttp
 import kubernetes_asyncio.client
@@ -15,9 +15,8 @@ import kubernetes_asyncio.config
 from gear import Database, create_session
 from gear.clients import get_identity_client
 from gear.cloud_config import get_gcp_config, get_global_config
-from hailtop import aiotools
+from hailtop import aiotools, httpx
 from hailtop import batch_client as bc
-from hailtop import httpx
 from hailtop.auth.sql_config import SQLConfig, create_secret_data_from_config
 from hailtop.utils import secret_alnum_string, time_msecs
 
@@ -521,7 +520,7 @@ WHERE id = %(id)s AND state = 'creating';
 
 
 async def create_user(app, user, skip_trial_bp=False):
-    cleanup = []
+    cleanup: List[Callable[[], Awaitable[None]]] = []
     try:
         await _create_user(app, user, skip_trial_bp, cleanup)
     except Exception:
@@ -610,7 +609,7 @@ async def update_users(app):
 
 
 async def async_main():
-    app = {}
+    app: Dict[str, Any] = {}
 
     user_creation_loop = None
     try:
@@ -629,7 +628,7 @@ async def async_main():
 
         app['identity_client'] = get_identity_client()
 
-        app['batch_client'] = await bc.aioclient.BatchClient.create(None)
+        app['batch_client'] = await bc.aioclient.BatchClient.create('')
 
         users_changed_event = asyncio.Event()
         app['users_changed_event'] = users_changed_event

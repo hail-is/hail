@@ -1,13 +1,15 @@
-from typing import Collection, List, Optional, Set
+from typing import Collection, List, Optional, Set, Tuple, Dict
 
 import hail as hl
 from hail import MatrixTable, Table
 from hail.ir import Apply, TableMapRows
+from hail.experimental.function import Function
 from hail.experimental.vcf_combiner.vcf_combiner import combine_gvcfs, localize, parse_as_fields, unlocalize
 from ..variant_dataset import VariantDataset
 
-_transform_variant_function_map = {}
-_transform_reference_fuction_map = {}
+_transform_variant_function_map: Dict[Tuple[hl.HailType, Tuple[str, ...]], Function] = {}
+_transform_reference_fuction_map: Dict[Tuple[hl.HailType, Tuple[str, ...]], Function] = {}
+_merge_function_map: Dict[Tuple[hl.HailType, hl.HailType], Function] = {}
 
 
 def make_variants_matrix_table(mt: MatrixTable,
@@ -21,7 +23,8 @@ def make_variants_matrix_table(mt: MatrixTable,
     mt = localize(mt)
     mt = mt.filter(hl.is_missing(mt.info.END))
 
-    if (mt.row.dtype, info_key) not in _transform_variant_function_map:
+    transform_row = _transform_variant_function_map.get((mt.row.dtype, info_key))
+    if transform_row is None or not hl.current_backend()._is_registered_ir_function_name(transform_row._name):
         def get_lgt(e, n_alleles, has_non_ref, row):
             index = e.GT.unphased_diploid_gt_index()
             n_no_nonref = n_alleles - hl.int(has_non_ref)
@@ -77,18 +80,17 @@ def make_variants_matrix_table(mt: MatrixTable,
             pass_through_fields = {k: v for k, v in e.items() if k not in handled_names}
             return hl.struct(**handled_fields, **pass_through_fields)
 
-        f = hl.experimental.define_function(
+        transform_row = hl.experimental.define_function(
             lambda row: hl.rbind(
                 hl.len(row.alleles), '<NON_REF>' == row.alleles[-1],
                 lambda alleles_len, has_non_ref: hl.struct(
                     locus=row.locus,
                     alleles=hl.if_else(has_non_ref, row.alleles[:-1], row.alleles),
-                    rsid=row.rsid,
+                    **({'rsid': row.rsid} if 'rsid' in row else {}),
                     __entries=row.__entries.map(
                         lambda e: make_entry_struct(e, alleles_len, has_non_ref, row)))),
             mt.row.dtype)
-        _transform_variant_function_map[mt.row.dtype, info_key] = f
-    transform_row = _transform_variant_function_map[mt.row.dtype, info_key]
+        _transform_variant_function_map[mt.row.dtype, info_key] = transform_row
     return unlocalize(Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, mt.row._ir))))
 
 
@@ -126,16 +128,16 @@ def make_reference_matrix_table(mt: MatrixTable,
                   .or_error('found END with non reference-genotype at' + hl.str(row.locus)))
 
     mt = localize(mt)
-    if (mt.row.dtype, entry_key) not in _transform_reference_fuction_map:
-        f = hl.experimental.define_function(
+    transform_row = _transform_reference_fuction_map.get((mt.row.dtype, entry_key))
+    if transform_row is None or not hl.current_backend()._is_registered_ir_function_name(transform_row._name):
+        transform_row = hl.experimental.define_function(
             lambda row: hl.struct(
                 locus=row.locus,
                 __entries=row.__entries.map(
                     lambda e: make_entry_struct(e, row))),
             mt.row.dtype)
-        _transform_reference_fuction_map[mt.row.dtype, entry_key] = f
+        _transform_reference_fuction_map[mt.row.dtype, entry_key] = transform_row
 
-    transform_row = _transform_reference_fuction_map[mt.row.dtype, entry_key]
     return unlocalize(Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, mt.row._ir))))
 
 
@@ -186,12 +188,10 @@ def transform_gvcf(mt: MatrixTable,
     return VariantDataset(ref_mt, var_mt._key_rows_by_assert_sorted('locus', 'alleles'))
 
 
-_merge_function_map = {}
-
-
 def combine_r(ts, ref_block_max_len_field):
-    if (ts.row.dtype, ts.globals.dtype) not in _merge_function_map:
-        f = hl.experimental.define_function(
+    merge_function = _merge_function_map.get((ts.row.dtype, ts.globals.dtype))
+    if merge_function is None or not hl.current_backend()._is_registered_ir_function_name(merge_function._name):
+        merge_function = hl.experimental.define_function(
             lambda row, gbl:
             hl.struct(
                 locus=row.locus,
@@ -202,8 +202,7 @@ def combine_r(ts, ref_block_max_len_field):
                                .map(lambda _: hl.missing(row.data[i].__entries.dtype.element_type)),
                                row.data[i].__entries))),
             ts.row.dtype, ts.globals.dtype)
-        _merge_function_map[(ts.row.dtype, ts.globals.dtype)] = f
-    merge_function = _merge_function_map[(ts.row.dtype, ts.globals.dtype)]
+        _merge_function_map[(ts.row.dtype, ts.globals.dtype)] = merge_function
     ts = Table(TableMapRows(ts._tir, Apply(merge_function._name,
                                            merge_function._ret_type,
                                            ts.row._ir,
@@ -216,7 +215,7 @@ def combine_r(ts, ref_block_max_len_field):
 
 
 def combine_references(mts: List[MatrixTable]) -> MatrixTable:
-    fd = 'ref_block_max_length'
+    fd = hl.vds.VariantDataset.ref_block_max_length_field
     n_with_ref_max_len = len([mt for mt in mts if fd in mt.globals])
     any_ref_max = n_with_ref_max_len > 0
     all_ref_max = n_with_ref_max_len == len(mts)

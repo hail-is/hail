@@ -529,7 +529,6 @@ object Simplify {
     case TableCount(TableLeftJoinRightDistinct(child, _, _)) => TableCount(child)
     case TableCount(TableIntervalJoin(child, _, _, _)) => TableCount(child)
     case TableCount(TableRange(n, _)) => I64(n)
-    case TableCount(TableGenomicRange(n, _, _)) => I64(n)
     case TableCount(TableParallelize(rowsAndGlobal, _)) => Cast(ArrayLen(GetField(rowsAndGlobal, "rows")), TInt64)
     case TableCount(TableRename(child, _, _)) => TableCount(child)
     case TableCount(TableAggregateByKey(child, _)) => TableCount(TableDistinct(child))
@@ -839,7 +838,6 @@ object Simplify {
     case MatrixColsTable(MatrixKeyRowsBy(child, _, _)) => MatrixColsTable(child)
 
     case TableRepartition(TableRange(nRows, _), nParts, _) => TableRange(nRows, nParts)
-    case TableRepartition(TableGenomicRange(nRows, _, referenceGenome), nParts, _) => TableGenomicRange(nRows, nParts, referenceGenome)
 
     case TableMapGlobals(TableMapGlobals(child, ng1), ng2) =>
       val uid = genUID()
@@ -857,12 +855,6 @@ object Simplify {
     case TableHead(tr@TableRange(nRows, nPar), n) if canRepartition =>
       if (n < nRows)
         TableRange(n.toInt, (nPar.toFloat * n / nRows).toInt.max(1))
-      else
-        tr
-
-    case TableHead(tr@TableGenomicRange(nRows, nPar, referenceGenome), n) if canRepartition =>
-      if (n < nRows)
-        TableGenomicRange(n.toInt, (nPar.toFloat * n / nRows).toInt.max(1), referenceGenome)
       else
         tr
 

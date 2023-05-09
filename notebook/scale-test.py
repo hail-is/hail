@@ -7,7 +7,7 @@ import time
 import aiohttp
 import numpy as np
 
-from hailtop.auth import service_auth_headers
+from hailtop.auth import hail_credentials
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import configure_logging
 from hailtop.httpx import client_session
@@ -26,7 +26,7 @@ def get_cookie(session, name):
 
 
 async def run(args, i):
-    headers = service_auth_headers(deploy_config, 'workshop', authorize_target=False)
+    headers = await hail_credentials(authorize_target=False).auth_headers()
 
     async with client_session() as session:
         # make sure notebook is up

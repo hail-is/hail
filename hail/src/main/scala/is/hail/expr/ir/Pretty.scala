@@ -230,6 +230,8 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     case StreamFold(_, _, accumName, valueName, _) if !elideBindings => FastSeq(prettyIdentifier(accumName), prettyIdentifier(valueName))
     case StreamFold2(_, acc, valueName, _, _) if !elideBindings => FastSeq(prettyIdentifiers(acc.map(_._1)), prettyIdentifier(valueName))
     case StreamScan(_, _, accumName, valueName, _) if !elideBindings => FastSeq(prettyIdentifier(accumName), prettyIdentifier(valueName))
+    case StreamWhiten(_, newChunk, prevWindow, vecSize, windowSize, chunkSize, blockSize, normalizeAfterWhiten) =>
+      FastSeq(prettyIdentifier(newChunk), prettyIdentifier(prevWindow), vecSize.toString, windowSize.toString, chunkSize.toString, blockSize.toString, Pretty.prettyBooleanLiteral(normalizeAfterWhiten))
     case StreamJoinRightDistinct(_, _, lKey, rKey, l, r, _, joinType) => if (elideBindings)
       FastSeq(prettyIdentifiers(lKey), prettyIdentifiers(rKey), joinType)
     else
@@ -346,8 +348,6 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     case TableKeyBy(_, keys, isSorted) =>
       FastSeq(prettyIdentifiers(keys), Pretty.prettyBooleanLiteral(isSorted))
     case TableRange(n, nPartitions) => FastSeq(n.toString, nPartitions.toString)
-    case TableGenomicRange(n, nPartitions, referenceGenome) => FastSeq(
-      n.toString, nPartitions.toString, referenceGenome.getOrElse("None").toString)
     case TableRepartition(_, n, strategy) => FastSeq(n.toString, strategy.toString)
     case TableHead(_, n) => single(n.toString)
     case TableTail(_, n) => single(n.toString)

@@ -1,4 +1,5 @@
 from typing import Any, Tuple, Optional, Type, TypeVar, Generic, Callable, Union
+import asyncio
 from types import TracebackType
 import orjson
 import aiohttp
@@ -191,6 +192,9 @@ class ClientSession:
 
     async def close(self) -> None:
         await self.client_session.close()
+        # - Following warning mitigation described here: https://github.com/aio-libs/aiohttp/pull/2045
+        # - Fixed in aiohttp 4.0.0: https://github.com/aio-libs/aiohttp/issues/1925
+        await asyncio.sleep(0.250)
 
     @property
     def closed(self) -> bool:

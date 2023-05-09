@@ -43,12 +43,14 @@ large as 955,000 whole exomes. The :class:`.VariantDatasetCombiner` produces a
     split_multi
     interval_coverage
     impute_sex_chromosome_ploidy
+    impute_sex_chr_ploidy_from_interval_coverage
     to_dense_mt
     to_merged_sparse_mt
     truncate_reference_blocks
     merge_reference_blocks
     lgt_to_gt
     local_to_global
+    store_ref_block_max_length
 
 .. currentmodule:: hail.vds.combiner
 

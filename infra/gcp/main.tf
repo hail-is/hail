@@ -237,6 +237,26 @@ resource "google_sql_database_instance" "db" {
       private_network = google_compute_network.default.id
       require_ssl = true
     }
+    database_flags {
+      name = "innodb_log_buffer_size"
+      value = "536870912"
+    }
+    database_flags {
+      name = "innodb_log_file_size"
+      value = "5368709120"
+    }
+    database_flags {
+      name = "event_scheduler"
+      value = "on"
+    }
+    database_flags {
+      name = "skip_show_database"
+      value = "on"
+    }
+    database_flags {
+      name = "local_infile"
+      value = "off"
+    }
   }
 }
 

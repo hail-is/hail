@@ -16,6 +16,8 @@ class ValueIRTests(unittest.TestCase):
             'c': hl.tbool,
             'a': hl.tarray(hl.tint32),
             'st': hl.tstream(hl.tint32),
+            'whitenStream': hl.tstream(hl.tstruct(prevWindow=hl.tndarray(hl.tfloat64, 2), newChunk=hl.tndarray(hl.tfloat64, 2))),
+            'mat': hl.tndarray(hl.tfloat64, 2),
             'aa': hl.tarray(hl.tarray(hl.tint32)),
             'sta': hl.tstream(hl.tarray(hl.tint32)),
             'da': hl.tarray(hl.ttuple(hl.tint32, hl.tstr)),
@@ -34,6 +36,8 @@ class ValueIRTests(unittest.TestCase):
         j = ir.I32(7)
         a = ir.Ref('a', env['a'])
         st = ir.Ref('st', env['st'])
+        whitenStream = ir.Ref('whitenStream')
+        mat = ir.Ref('mat')
         aa = ir.Ref('aa', env['aa'])
         sta = ir.Ref('sta', env['sta'])
         da = ir.Ref('da', env['da'])
@@ -92,6 +96,7 @@ class ValueIRTests(unittest.TestCase):
             ir.StreamFlatMap(sta, 'v', ir.ToStream(v)),
             ir.StreamFold(st, ir.I32(0), 'x', 'v', v),
             ir.StreamScan(st, ir.I32(0), 'x', 'v', v),
+            ir.StreamWhiten(whitenStream, "newChunk", "prevWindow", 0, 0, 0, 0, False),
             ir.StreamJoinRightDistinct(st, st, ['k'], ['k'], 'l', 'r', ir.I32(1), "left"),
             ir.StreamFor(st, 'v', ir.Void()),
             aggregate(ir.AggFilter(ir.TrueIR(), ir.I32(0), False)),
@@ -121,11 +126,10 @@ class ValueIRTests(unittest.TestCase):
             ir.TableWrite(table, ir.TableNativeWriter(new_temp_file(), False, True, "fake_codec_spec$$")),
             ir.TableWrite(table, ir.TableTextWriter(new_temp_file(), None, True, "concatenated", ",")),
             ir.MatrixAggregate(matrix_read, ir.MakeStruct([('foo', ir.ApplyAggOp('Collect', [], [ir.I32(0)]))])),
-            ir.MatrixWrite(matrix_read, ir.MatrixNativeWriter(new_temp_file(), False, False, "", None, None, None)),
+            ir.MatrixWrite(matrix_read, ir.MatrixNativeWriter(new_temp_file(), False, False, "", None, None)),
             ir.MatrixWrite(matrix_read, ir.MatrixNativeWriter(new_temp_file(), False, False, "",
                                                               '[{"start":{"row_idx":0},"end":{"row_idx": 10},"includeStart":true,"includeEnd":false}]',
-                                                              hl.dtype('array<interval<struct{row_idx:int32}>>'),
-                                                              'some_file')),
+                                                              hl.dtype('array<interval<struct{row_idx:int32}>>'))),
             ir.MatrixWrite(matrix_read, ir.MatrixVCFWriter(new_temp_file(), None, ir.ExportType.CONCATENATED, None, False)),
             ir.MatrixWrite(matrix_read, ir.MatrixGENWriter(new_temp_file(), 4)),
             ir.MatrixWrite(matrix_read, ir.MatrixPLINKWriter(new_temp_file())),
@@ -236,10 +240,6 @@ class TableIRTests(unittest.TestCase):
 
 class MatrixIRTests(unittest.TestCase):
     def matrix_irs(self):
-        hl.index_bgen(resource('example.8bits.bgen'),
-                      reference_genome=hl.get_reference('GRCh37'),
-                      contig_recoding={'01': '1'})
-
         collect = ir.MakeStruct([('x', ir.ApplyAggOp('Collect', [], [ir.I32(0)]))])
 
         matrix_read = ir.MatrixRead(
@@ -374,8 +374,6 @@ class BlockMatrixIRTests(unittest.TestCase):
         for x in (self.blockmatrix_irs() + [persist]):
             backend._parse_blockmatrix_ir(str(x))
 
-        backend.unpersist_block_matrix('x')
-
 
 class ValueTests(unittest.TestCase):
 
@@ -428,6 +426,27 @@ class CSETests(unittest.TestCase):
                 ' (Ref __cse_1)'
                 ' (Ref __cse_1)))')
         assert expected == CSERenderer()(x)
+
+    def test_cse_debug(self):
+        x = hl.nd.array([0, 1])
+        y = hl.tuple((x, x))
+        dlen = y[0]
+        hl.eval(hl.tuple([hl.if_else(dlen[0] > 1, 1, 1), hl.if_else(dlen[0] > 1, hl.nd.array([0]), dlen)]))
+
+    def test_cse_complex_lifting(self):
+        x = ir.I32(5)
+        sum = ir.ApplyBinaryPrimOp('+', x, x)
+        prod = ir.ApplyBinaryPrimOp('*', sum, sum)
+        cond = ir.If(ir.ApplyComparisonOp('EQ', prod, x), sum, x)
+        expected = (
+            '(Let __cse_1 (I32 5)'
+            ' (Let __cse_2 (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))'
+             ' (If (ApplyComparisonOp EQ (ApplyBinaryPrimOp `*` (Ref __cse_2) (Ref __cse_2)) (Ref __cse_1))'
+              ' (Let __cse_3 (I32 5)'
+               ' (ApplyBinaryPrimOp `+` (Ref __cse_3) (Ref __cse_3)))'
+              ' (I32 5))))'
+        )
+        assert expected == CSERenderer()(cond)
 
     def test_stream_cse(self):
         x = ir.StreamRange(ir.I32(0), ir.I32(10), ir.I32(1))

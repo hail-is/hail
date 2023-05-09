@@ -263,7 +263,7 @@ Missingness
 ===========
 
 In Hail, all expressions can be missing. An expression representing a missing
-value of a given type can be generated with the :func:`.null` function, which
+value of a given type can be generated with the :func:`.missing` function, which
 takes the type as its single argument.
 
 An example of generating a :class:`.Float64Expression` that is missing is:

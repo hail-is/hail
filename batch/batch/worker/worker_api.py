@@ -26,7 +26,7 @@ class CloudWorkerAPI(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def user_credentials(self, credentials: Dict[str, bytes]) -> CloudUserCredentials:
+    def user_credentials(self, credentials: Dict[str, str]) -> CloudUserCredentials:
         raise NotImplementedError
 
     @abc.abstractmethod

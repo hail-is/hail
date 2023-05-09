@@ -14,9 +14,7 @@ import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{Compile, IR, IRParser, LoweringAnalyses, MakeTuple, SortField, TableIR, TableReader, TypeCheck}
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.io.{BufferSpec, TypedCodecSpec}
-import is.hail.io.bgen.IndexBgen
 import is.hail.io.fs._
-import is.hail.io.bgen.IndexBgen
 import is.hail.io.plink.LoadPlink
 import is.hail.io.vcf.LoadVCF
 import is.hail.linalg.BlockMatrix
@@ -39,10 +37,8 @@ import org.newsclub.net.unix.{AFUNIXServerSocket, AFUNIXSocketAddress}
 
 import scala.annotation.switch
 import scala.reflect.ClassTag
-import scala.{concurrent => scalaConcurrent}
+import scala.collection.JavaConverters._
 import scala.collection.mutable
-import scala.collection.parallel.ExecutionContextTaskSupport
-
 
 class ServiceBackendContext(
   @transient val sessionID: String,
@@ -50,7 +46,9 @@ class ServiceBackendContext(
   val remoteTmpDir: String,
   val workerCores: String,
   val workerMemory: String,
-  val regions: Array[String]
+  val storageRequirement: String,
+  val regions: Array[String],
+  val cloudfuseConfig: Array[(String, String, Boolean)]
 ) extends BackendContext with Serializable {
   def tokens(): Tokens =
     new Tokens(Map((DeployConfig.get.defaultNamespace, sessionID)))
@@ -71,9 +69,8 @@ class ServiceBackend(
   import ServiceBackend.log
 
   private[this] var stageCount = 0
-  private[this] implicit val ec = scalaConcurrent.ExecutionContext.fromExecutorService(
-    Executors.newCachedThreadPool())
-  private[this] val MAX_AVAILABLE_GCS_CONNECTIONS = 100
+  private[this] val executor = Executors.newCachedThreadPool()
+  private[this] val MAX_AVAILABLE_GCS_CONNECTIONS = 1000
   private[this] val availableGCSConnections = new Semaphore(MAX_AVAILABLE_GCS_CONNECTIONS, true)
 
   override def shouldCacheQueryInfo: Boolean = false
@@ -119,35 +116,39 @@ class ServiceBackend(
     log.info(s"parallelizeAndComputeWithIndex: $token: nPartitions $n")
     log.info(s"parallelizeAndComputeWithIndex: $token: writing f and contexts")
 
-    val uploadFunction = scalaConcurrent.Future {
-      retryTransientErrors {
-        write(s"$root/f") { fos =>
-          using(new ObjectOutputStream(fos)) { oos => oos.writeObject(f) }
-        }
-      }
-    }
-
-    val uploadContexts = scalaConcurrent.Future {
-      retryTransientErrors {
-        write(s"$root/contexts") { os =>
-          var o = 12L * n
-          var i = 0
-          while (i < n) {
-            val len = collection(i).length
-            os.writeLong(o)
-            os.writeInt(len)
-            i += 1
-            o += len
-          }
-          collection.foreach { context =>
-            os.write(context)
+    val uploadFunction = executor.submit(new Callable[Unit] {
+      def call(): Unit = {
+        retryTransientErrors {
+          write(s"$root/f") { fos =>
+            using(new ObjectOutputStream(fos)) { oos => oos.writeObject(f) }
           }
         }
       }
-    }
+    })
 
-    scalaConcurrent.Await.result(uploadFunction, scalaConcurrent.duration.Duration.Inf)
-    scalaConcurrent.Await.result(uploadContexts, scalaConcurrent.duration.Duration.Inf)
+    val uploadContexts = executor.submit(new Callable[Unit] {
+      def call(): Unit = {
+        retryTransientErrors {
+          write(s"$root/contexts") { os =>
+            var o = 12L * n
+            var i = 0
+            while (i < n) {
+              val len = collection(i).length
+              os.writeLong(o)
+              os.writeInt(len)
+              i += 1
+              o += len
+            }
+            collection.foreach { context =>
+              os.write(context)
+            }
+          }
+        }
+      }
+    })
+
+    uploadFunction.get()
+    uploadContexts.get()
 
     val jobs = new Array[JObject](n)
     var i = 0
@@ -158,6 +159,9 @@ class ServiceBackend(
       }
       if (backendContext.workerMemory != "None") {
         resources = resources.merge(JObject(("memory" -> JString(backendContext.workerMemory))))
+      }
+      if (backendContext.storageRequirement != "0Gi") {
+        resources = resources.merge(JObject(("storage" -> JString(backendContext.storageRequirement))))
       }
       jobs(i) = JObject(
         "always_run" -> JBool(false),
@@ -179,7 +183,14 @@ class ServiceBackend(
         ),
         "mount_tokens" -> JBool(true),
         "resources" -> resources,
-        "regions" -> JArray(backendContext.regions.map(JString).toList)
+        "regions" -> JArray(backendContext.regions.map(JString).toList),
+        "cloudfuse" -> JArray(backendContext.cloudfuseConfig.map{ case (bucket, mountPoint, readonly) =>
+          JObject(
+            "bucket" -> JString(bucket),
+            "mount_path" -> JString(mountPoint),
+            "read_only" -> JBool(readonly)
+          )
+        }.toList)
       )
       i += 1
     }
@@ -211,42 +222,46 @@ class ServiceBackend(
 
     log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
 
-    def resultOrHailException(is: DataInputStream): Array[Byte] = {
-      val success = is.readBoolean()
-      if (success) {
-        IOUtils.toByteArray(is)
-      } else {
-        val shortMessage = readString(is)
-        val expandedMessage = readString(is)
-        val errorId = is.readInt()
-        throw new HailWorkerException(shortMessage, expandedMessage, errorId)
-      }
-    }
+    val startTime = System.nanoTime()
 
+    val results = try {
+      executor.invokeAll(IndexedSeq.range(0, n).map { i =>
+        new Callable[Array[Byte]]() {
+          def call(): Array[Byte] = {
+            availableGCSConnections.acquire()
+            try {
+              val bytes = try {
+                fs.readNoCompression(s"$root/result.$i")
+              } catch {
+                case e: Throwable => throw new HailWorkerFailure(s"no result for failing job ${i}!", e)
+              }
 
-    val results = Array.range(0, n).par.map { i =>
-      availableGCSConnections.acquire()
-      try {
-        val bytes = retryTransientErrors {
-          val is = try {
-            open(s"$root/result.$i")
-          } catch {
-            case e: Throwable => throw new HailWorkerFailure(s"no result for failing job ${i}!", e)
-          }
-          using(is) { is =>
-            resultOrHailException(new DataInputStream(is))
+              if (bytes(0) != 0) {
+                bytes.slice(1, bytes.length)
+              } else {
+                val errorInformationBytes = bytes.slice(1, bytes.length)
+                val is = new DataInputStream(new ByteArrayInputStream(errorInformationBytes))
+                val shortMessage = readString(is)
+                val expandedMessage = readString(is)
+                val errorId = is.readInt()
+                throw new HailWorkerException(shortMessage, expandedMessage, errorId)
+              }
+            } finally {
+              availableGCSConnections.release()
+            }
           }
         }
-        log.info(s"result $i complete - ${bytes.length} bytes")
-        bytes
-      } finally {
-        availableGCSConnections.release()
-      }
+      }.asJava).asScala.map(_.get).toArray
+    } catch {
+      case exc: ExecutionException if exc.getCause() != null => throw exc.getCause()
     }
 
     assert(batchState != "failed")  // a failure can't have all the correct outputs with no exceptions!
 
-    log.info(s"all results complete")
+    val resultsReadingSeconds = (System.nanoTime() - startTime) / 1000000000.0
+    val rate = results.length / resultsReadingSeconds
+    val byterate = results.map(_.length).sum / resultsReadingSeconds / 1024 / 1024
+    log.info(s"all results read. $resultsReadingSeconds s. $rate result/s. $byterate MiB/s.")
     results.toArray[Array[Byte]]
   }
 
@@ -380,24 +395,25 @@ class ServiceBackend(
     LoadPlink.importFamJSON(ctx.fs, path, quantPheno, delimiter, missing)
   }
 
-  def indexBgen(
-    ctx: ExecuteContext,
-    files: Array[String],
-    indexFileMap: Map[String, String],
-    referenceGenomeName: Option[String],
-    contigRecoding: Map[String, String],
-    skipInvalidLoci: Boolean
-  ): String = {
-    IndexBgen(ctx, files, indexFileMap, referenceGenomeName, contigRecoding, skipInvalidLoci)
-    info(s"Number of BGEN files indexed: ${ files.size }")
-    "null"
-  }
-
   def tableToTableStage(ctx: ExecuteContext,
     inputIR: TableIR,
     analyses: LoweringAnalyses
   ): TableStage = {
     LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
+  }
+
+  def fromFASTAFile(
+    ctx: ExecuteContext,
+    name: String,
+    fastaFile: String,
+    indexFile: String,
+    xContigs: Array[String],
+    yContigs: Array[String],
+    mtContigs: Array[String],
+    parInput: Array[String]
+  ): String = {
+    val rg = ReferenceGenome.fromFASTAFile(ctx, name, fastaFile, indexFile, xContigs, yContigs, mtContigs, parInput)
+    rg.toJSONString
   }
 }
 
@@ -466,10 +482,12 @@ class ServiceBackendSocketAPI2(
   private[this] val BLOCK_MATRIX_TYPE = 5
   private[this] val EXECUTE = 6
   private[this] val PARSE_VCF_METADATA = 7
-  private[this] val INDEX_BGEN = 8
-  private[this] val IMPORT_FAM = 9
+  private[this] val IMPORT_FAM = 8
+  private[this] val FROM_FASTA_FILE = 9
 
   private[this] val dummy = new Array[Byte](8)
+
+  private[this] val log = Logger.getLogger(getClass.getName())
 
   def read(bytes: Array[Byte], off: Int, n: Int): Unit = {
     assert(off + n <= bytes.length)
@@ -507,6 +525,17 @@ class ServiceBackendSocketAPI2(
   }
 
   def readString(): String = new String(readBytes(), StandardCharsets.UTF_8)
+
+  def readStringArray(): Array[String] = {
+    val n = readInt()
+    val arr = new Array[String](n)
+    var i = 0
+    while (i < n) {
+      arr(i) = readString()
+      i += 1
+    }
+    arr
+  }
 
   def writeBool(b: Boolean): Unit = {
     out.write(if (b) 1 else 0)
@@ -560,6 +589,16 @@ class ServiceBackendSocketAPI2(
       }
       i += 1
     }
+    val nAddedSequences = readInt()
+    val addedSequences = mutable.Map[String, (String, String)]()
+    i = 0
+    while (i < nAddedSequences) {
+      val rgName = readString()
+      val fastaFile = readString()
+      val indexFile = readString()
+      addedSequences(rgName) = (fastaFile, indexFile)
+      i += 1
+    }
     val workerCores = readString()
     val workerMemory = readString()
 
@@ -573,6 +612,19 @@ class ServiceBackendSocketAPI2(
       }
       regionsArrayBuffer.toArray
     }
+
+    val storageRequirement = readString()
+    val nCloudfuseConfigElements = readInt()
+    val cloudfuseConfig = new Array[(String, String, Boolean)](nCloudfuseConfigElements)
+    i = 0
+    while (i < nCloudfuseConfigElements) {
+      val bucket = readString()
+      val mountPoint = readString()
+      val readonly = readBool()
+      cloudfuseConfig(i) = (bucket, mountPoint, readonly)
+      i += 1
+    }
+
 
     val cmd = readInt()
 
@@ -599,7 +651,10 @@ class ServiceBackendSocketAPI2(
             ctx.getReference(sourceGenome).addLiftover(ctx, chainFile, destGenome)
           }
         }
-        ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir, workerCores, workerMemory, regions)
+        addedSequences.foreach { case (rg, (fastaFile, indexFile)) =>
+          ctx.getReference(rg).addSequence(ctx, fastaFile, indexFile)
+        }
+        ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir, workerCores, workerMemory, storageRequirement, regions, cloudfuseConfig)
         method(ctx)
       }
     }
@@ -663,47 +718,25 @@ class ServiceBackendSocketAPI2(
             "ServiceBackend.importFam",
             backend.importFam(_, path, quantPheno, delimiter, missing).getBytes(StandardCharsets.UTF_8)
           )
-        case INDEX_BGEN =>
-          val nFiles = readInt()
-          val files = new Array[String](nFiles)
-          var i = 0
-          while (i < nFiles) {
-            files(i) = readString()
-            i += 1
-          }
-          val nIndexFiles = readInt()
-          val indexFileMap = mutable.Map[String, String]()
-          i = 0
-          while (i < nIndexFiles) {
-            val k = readString()
-            val v = readString()
-            indexFileMap(k) = v
-            i += 1
-          }
-          val hasReferenceGenome = readBool()
-          val referenceGenomeName = hasReferenceGenome match {
-            case true => Some(readString())
-            case false => None
-          }
-          val nContigRecoding = readInt()
-          val contigRecoding = mutable.Map[String, String]()
-          i = 0
-          while (i < nContigRecoding) {
-            val k = readString()
-            val v = readString()
-            contigRecoding(k) = v
-            i += 1
-          }
-          val skipInvalidLoci = readBool()
+        case FROM_FASTA_FILE =>
+          val name = readString()
+          val fastaFile = readString()
+          val indexFile = readString()
+          val xContigs = readStringArray()
+          val yContigs = readStringArray()
+          val mtContigs = readStringArray()
+          val parInput = readStringArray()
           withExecuteContext(
-            "ServiceBackend.indexBgen",
-            backend.indexBgen(
+            "ServiceBackend.fromFASTAFile",
+            backend.fromFASTAFile(
               _,
-              files,
-              indexFileMap.toMap,
-              referenceGenomeName,
-              contigRecoding.toMap,
-              skipInvalidLoci
+              name,
+              fastaFile,
+              indexFile,
+              xContigs,
+              yContigs,
+              mtContigs,
+              parInput
             ).getBytes(StandardCharsets.UTF_8)
           )
       }

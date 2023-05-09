@@ -82,30 +82,24 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     shape.foldLeft(1L)(_ * _)
   }
 
-  def makeColumnMajorStrides(sourceShapeArray: IndexedSeq[Value[Long]], region: Value[Region], cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = {
-    val runningProduct = cb.newLocal[Long]("make_column_major_strides_prod")
-    val computedStrides = (0 until nDims).map(idx => cb.newField[Long](s"make_column_major_computed_stride_${idx}"))
-
-    cb.assign(runningProduct, elementType.byteSize)
-    (0 until nDims).foreach{ index =>
-      cb.assign(computedStrides(index), runningProduct)
-      cb.assign(runningProduct, runningProduct * (sourceShapeArray(index) > 0L).mux(sourceShapeArray(index), 1L))
+  def makeColumnMajorStrides(sourceShapeArray: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = {
+    val strides = new Array[Value[Long]](nDims)
+    for (i <- 0 until nDims) {
+      if (i == 0) strides(i) = const(elementType.byteSize)
+      else strides(i) = cb.memoize(strides(i-1) * (sourceShapeArray(i-1) > 0L).mux(sourceShapeArray(i-1), 1L))
     }
 
-    computedStrides
+    strides
   }
 
-  def makeRowMajorStrides(sourceShapeArray: IndexedSeq[Value[Long]], region: Value[Region], cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = {
-    val runningProduct = cb.newLocal[Long]("make_row_major_strides_prod")
-    val computedStrides = (0 until nDims).map(idx => cb.newField[Long](s"make_row_major_computed_stride_${idx}"))
-
-    cb.assign(runningProduct, elementType.byteSize)
-    ((nDims - 1) to 0 by -1).foreach{ index =>
-      cb.assign(computedStrides(index), runningProduct)
-      cb.assign(runningProduct, runningProduct * (sourceShapeArray(index) > 0L).mux(sourceShapeArray(index), 1L))
+  def makeRowMajorStrides(sourceShapeArray: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = {
+    val strides = new Array[Value[Long]](nDims)
+    for (i <- (nDims - 1) to 0 by -1) {
+      if (i == nDims - 1) strides(i) = const(elementType.byteSize)
+      else strides(i) = cb.memoize(strides(i+1) * (sourceShapeArray(i+1) > 0L).mux(sourceShapeArray(i+1), 1L))
     }
 
-    computedStrides
+    strides
   }
 
   def getElementAddress(indices: IndexedSeq[Long], nd: Long): Long = {
@@ -166,7 +160,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     region.allocateSharedChunk(sizeOfArray)
   }
 
-  def constructUnintialized(
+  def constructUninitialized(
     shape: IndexedSeq[SizeValue],
     strides: IndexedSeq[Value[Long]],
     cb: EmitCodeBuilder,
@@ -180,7 +174,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     cb: EmitCodeBuilder,
     region: Value[Region]
   ): SNDArrayPointerValue = {
-    constructByCopyingDataPointer(shape, makeColumnMajorStrides(shape, region, cb), this.allocateData(shape, region), cb, region)
+    constructByCopyingDataPointer(shape, makeColumnMajorStrides(shape, cb), this.allocateData(shape, region), cb, region)
   }
 
   def constructByCopyingArray(
@@ -204,7 +198,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
         val shape = (0 until nDims).map(i => SizeValueDyn(mb.getCodeParam[Long](3 + i)))
         val strides = (0 until nDims).map(i => mb.getCodeParam[Long](3 + nDims + i))
 
-        val result = constructUnintialized(shape, strides, cb, region)
+        val result = constructUninitialized(shape, strides, cb, region)
 
         dataValue.st match {
           case SIndexablePointer(PCanonicalArray(otherElementType, _)) if otherElementType == elementType =>
@@ -240,7 +234,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       case s: SizeValue => s
       case s => SizeValueDyn(s)
     }
-    val result = constructUnintialized(newShape, strides, cb, region)
+    val result = constructUninitialized(newShape, strides, cb, region)
 
     (result.firstDataAddress, (cb: EmitCodeBuilder) => result)
   }

@@ -42,7 +42,7 @@ numerical_regression_fit_dtype = hl.tstruct(
     score=tvector64,
     fisher=tmatrix64,
     mu=tvector64,
-    num_iter=hl.tint32,
+    n_iterations=hl.tint32,
     log_lkhd=hl.tfloat64,
     converged=hl.tbool,
     exploded=hl.tbool)
@@ -620,7 +620,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
            covariates=sequenceof(expr_float64),
            pass_through=sequenceof(oneof(str, Expression)),
            max_iterations=nullable(int),
-           tolerance=float)
+           tolerance=nullable(float))
 def logistic_regression_rows(test,
                              y,
                              x,
@@ -628,7 +628,7 @@ def logistic_regression_rows(test,
                              pass_through=(),
                              *,
                              max_iterations: Optional[int] = None,
-                             tolerance: float = 1e-6) -> hail.Table:
+                             tolerance: Optional[float] = None) -> hail.Table:
     r"""For each row, test an input variable for association with a
     binary response variable using logistic regression.
 
@@ -851,9 +851,9 @@ def logistic_regression_rows(test,
         Additional row fields to include in the resulting table.
     max_iterations : :obj:`int`
         The maximum number of iterations.
-    tolerance : :obj:`float`
-        Convergence is defined by a change in the beta vector of less than
-        `tolerance`.
+    tolerance : :obj:`float`, optional
+        The iterative fit of this model is considered "converged" if the change in the estimated
+        beta is smaller than tolerance. By default the tolerance is 1e-6.
 
     Returns
     -------
@@ -863,9 +863,13 @@ def logistic_regression_rows(test,
     if max_iterations is None:
         max_iterations = 25 if test != 'firth' else 100
 
-    if not isinstance(Env.backend(), SparkBackend):
+    if hl.current_backend().requires_lowering:
         return _logistic_regression_rows_nd(
-            test, y, x, covariates, pass_through, max_iterations=max_iterations)
+            test, y, x, covariates, pass_through, max_iterations=max_iterations, tolerance=tolerance)
+
+    if tolerance is None:
+        tolerance = 1e-6
+    assert tolerance > 0.0
 
     if len(covariates) == 0:
         raise ValueError('logistic regression requires at least one covariate expression')
@@ -927,11 +931,20 @@ sigmoid = hl.expit
 
 
 def nd_max(hl_nd):
-    return hl.max(hl_nd.reshape(-1)._data_array())
+    return hl.max(hl.array(hl_nd.reshape(-1)))
 
 
-def logreg_fit(X, y, null_fit, max_iter: int, tol: float):
-    assert max_iter >= 0
+def logreg_fit(X: hl.NDArrayNumericExpression,  # (K,)
+               y: hl.NDArrayNumericExpression,  # (N, K)
+               null_fit: Optional[hl.StructExpression],
+               max_iterations: int,
+               tolerance: float
+               ) -> hl.StructExpression:
+    """Iteratively reweighted least squares to fit the model y ~ Bernoulli(logit(X \beta))
+
+    When fitting the null model, K=n_covariates, otherwise K=n_covariates + 1.
+    """
+    assert max_iterations >= 0
     assert X.ndim == 2
     assert y.ndim == 1
     # X is samples by covs.
@@ -972,39 +985,37 @@ def logreg_fit(X, y, null_fit, max_iter: int, tol: float):
     dtype = numerical_regression_fit_dtype
     blank_struct = hl.struct(**{k: hl.missing(dtype[k]) for k in dtype})
 
-    def search(recur, cur_iter, b, mu, score, fisher):
-        def cont(exploded, delta_b, max_delta_b, log_lkhd):
-            def compute_next_iter(cur_iter, b, mu, score, fisher):
-                cur_iter = cur_iter + 1
-                b = b + delta_b
-                mu = sigmoid(X @ b)
-                score = X.T @ (y - mu)
-                fisher = X.T @ (X * (mu * (1 - mu)).reshape(-1, 1))
-                return recur(cur_iter, b, mu, score, fisher)
+    def search(recur, iteration, b, mu, score, fisher):
+        def cont(exploded, delta_b, max_delta_b):
+            log_lkhd = hl.log((y * mu) + (1 - y) * (1 - mu)).sum()
+
+            next_b = b + delta_b
+            next_mu = sigmoid(X @ next_b)
+            next_score = X.T @ (y - next_mu)
+            next_fisher = X.T @ (X * (next_mu * (1 - next_mu)).reshape(-1, 1))
 
             return (hl.case()
                     .when(exploded | hl.is_nan(delta_b[0]),
-                          blank_struct.annotate(num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=True))
-                    .when(max_delta_b < tol,
-                          hl.struct(b=b, score=score, fisher=fisher, mu=mu, num_iter=cur_iter, log_lkhd=log_lkhd, converged=True, exploded=False))
-                    .when(cur_iter == max_iter,
-                          blank_struct.annotate(num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=False))
-                    .default(compute_next_iter(cur_iter, b, mu, score, fisher)))
+                          blank_struct.annotate(n_iterations=iteration, log_lkhd=log_lkhd, converged=False, exploded=True))
+                    .when(max_delta_b < tolerance,
+                          hl.struct(b=b, score=score, fisher=fisher, mu=mu, n_iterations=iteration, log_lkhd=log_lkhd, converged=True, exploded=False))
+                    .when(iteration == max_iterations,
+                          blank_struct.annotate(n_iterations=iteration, log_lkhd=log_lkhd, converged=False, exploded=False))
+                    .default(recur(iteration + 1, next_b, next_mu, next_score, next_fisher)))
 
         delta_b_struct = hl.nd.solve(fisher, score, no_crash=True)
         exploded = delta_b_struct.failed
         delta_b = delta_b_struct.solution
-        max_delta_b = nd_max(delta_b.map(lambda e: hl.abs(e)))
-        log_lkhd = hl.log((y * mu) + (1 - y) * (1 - mu)).sum()
-        return hl.bind(cont, exploded, delta_b, max_delta_b, log_lkhd)
+        max_delta_b = nd_max(hl.abs(delta_b))
+        return hl.bind(cont, exploded, delta_b, max_delta_b)
 
-    if max_iter == 0:
-        return blank_struct.annotate(num_iter=0, log_lkhd=0, converged=False, exploded=False)
+    if max_iterations == 0:
+        return blank_struct.annotate(n_iterations=0, log_lkhd=0, converged=False, exploded=False)
     return hl.experimental.loop(search, numerical_regression_fit_dtype, 1, b, mu, score, fisher)
 
 
 def wald_test(X, fit):
-    se = hl.nd.diagonal(hl.nd.inv(fit.fisher)).map(lambda e: hl.sqrt(e))
+    se = hl.sqrt(hl.nd.diagonal(hl.nd.inv(fit.fisher)))
     z = fit.b / se
     p = z.map(lambda e: 2 * hl.pnorm(-hl.abs(e)))
     return hl.struct(
@@ -1012,7 +1023,7 @@ def wald_test(X, fit):
         standard_error=se[X.shape[1] - 1],
         z_stat=z[X.shape[1] - 1],
         p_value=p[X.shape[1] - 1],
-        fit=hl.struct(n_iterations=fit.num_iter, converged=fit.converged, exploded=fit.exploded))
+        fit=fit.select('n_iterations', 'converged', 'exploded'))
 
 
 def lrt_test(X, null_fit, fit):
@@ -1023,7 +1034,7 @@ def lrt_test(X, null_fit, fit):
         beta=fit.b[X.shape[1] - 1],
         chi_sq_stat=chi_sq,
         p_value=p,
-        fit=hl.struct(n_iterations=fit.num_iter, converged=fit.converged, exploded=fit.exploded))
+        fit=fit.select('n_iterations', 'converged', 'exploded'))
 
 
 def logistic_score_test(X, y, null_fit):
@@ -1034,7 +1045,7 @@ def logistic_score_test(X, y, null_fit):
     X0 = X[:, 0:m0]
     X1 = X[:, m0:]
 
-    mu = (X @ b).map(lambda e: hl.expit(e))
+    mu = hl.expit(X @ b)
 
     score_0 = null_fit.score
     score_1 = X1.T @ (y - mu)
@@ -1052,13 +1063,112 @@ def logistic_score_test(X, y, null_fit):
 
     solve_attempt = hl.nd.solve(fisher, score, no_crash=True)
 
-    chi_sq = hl.if_else(solve_attempt.failed,
-                        hl.missing(hl.tfloat64),
-                        (score * solve_attempt.solution).sum())
+    chi_sq = hl.or_missing(
+        ~solve_attempt.failed,
+        (score * solve_attempt.solution).sum()
+    )
 
     p = hl.pchisqtail(chi_sq, m - m0)
 
     return hl.struct(chi_sq_stat=chi_sq, p_value=p)
+
+
+def _firth_fit(b: hl.NDArrayNumericExpression,  # (K,)
+               X: hl.NDArrayNumericExpression,  # (N, K)
+               y: hl.NDArrayNumericExpression,  # (N,)
+               max_iterations: int,
+               tolerance: float
+               ) -> hl.StructExpression:
+    """Iteratively reweighted least squares using Firth's regression to fit the model y ~ Bernoulli(logit(X \beta))
+
+    When fitting the null model, K=n_covariates, otherwise K=n_covariates + 1.
+    """
+    assert max_iterations >= 0
+    assert X.ndim == 2
+    assert y.ndim == 1
+    assert b.ndim == 1
+
+    dtype = numerical_regression_fit_dtype._drop_fields(['score', 'fisher'])
+    blank_struct = hl.struct(**{k: hl.missing(dtype[k]) for k in dtype})
+    X_bslice = X[:, :b.shape[0]]
+
+    def fit(recur, iteration, b):
+        def cont(exploded, delta_b, max_delta_b):
+            log_lkhd_left = hl.log(y * mu + (hl.literal(1.0) - y) * (1 - mu)).sum()
+            log_lkhd_right = hl.log(hl.abs(hl.nd.diagonal(r))).sum()
+            log_lkhd = log_lkhd_left + log_lkhd_right
+
+            next_b = b + delta_b
+
+            return (hl.case()
+                    .when(exploded | hl.is_nan(delta_b[0]),
+                          blank_struct.annotate(n_iterations=iteration, log_lkhd=log_lkhd, converged=False, exploded=True))
+                    .when(max_delta_b < tolerance,
+                          hl.struct(b=b, mu=mu, n_iterations=iteration, log_lkhd=log_lkhd, converged=True, exploded=False))
+                    .when(iteration == max_iterations,
+                          blank_struct.annotate(n_iterations=iteration, log_lkhd=log_lkhd, converged=False, exploded=False))
+                    .default(recur(iteration + 1, next_b)))
+
+        m = b.shape[0]  # n_covariates or n_covariates + 1, depending on improved null fit vs full fit
+        mu = sigmoid(X_bslice @ b)
+        sqrtW = hl.sqrt(mu * (1 - mu))
+        q, r = hl.nd.qr(X * sqrtW.T.reshape(-1, 1))
+        h = (q * q).sum(1)
+        coef = r[:m, :m]
+        residual = y - mu
+        dep = q[:, :m].T @ ((residual + (h * (0.5 - mu))) / sqrtW)
+        delta_b_struct = hl.nd.solve_triangular(coef, dep.reshape(-1, 1), no_crash=True)
+        exploded = delta_b_struct.failed
+        delta_b = delta_b_struct.solution.reshape(-1)
+
+        max_delta_b = nd_max(hl.abs(delta_b))
+
+        return hl.bind(cont, exploded, delta_b, max_delta_b)
+
+    if max_iterations == 0:
+        return blank_struct.annotate(n_iterations=0, log_lkhd=0, converged=False, exploded=False)
+    return hl.experimental.loop(fit, dtype, 1, b)
+
+
+def _firth_test(null_fit, X, y, max_iterations, tolerance) -> hl.StructExpression:
+    firth_improved_null_fit = _firth_fit(null_fit.b, X, y, max_iterations=max_iterations, tolerance=tolerance)
+    dof = 1  # 1 variant
+
+    def cont(firth_improved_null_fit):
+        initial_b_full_model = hl.nd.hstack([firth_improved_null_fit.b, hl.nd.array([0.0])])
+        firth_fit = _firth_fit(initial_b_full_model, X, y, max_iterations=max_iterations, tolerance=tolerance)
+
+        def cont2(firth_fit):
+            firth_chi_sq = 2 * (firth_fit.log_lkhd - firth_improved_null_fit.log_lkhd)
+            firth_p = hl.pchisqtail(firth_chi_sq, dof)
+
+            blank_struct = hl.struct(
+                beta=hl.missing(hl.tfloat64),
+                chi_sq_stat=hl.missing(hl.tfloat64),
+                p_value=hl.missing(hl.tfloat64),
+                firth_null_fit=hl.missing(firth_improved_null_fit.dtype),
+                fit=hl.missing(firth_fit.dtype)
+            )
+            return (hl.case()
+                    .when(firth_improved_null_fit.converged,
+                          hl.case()
+                          .when(firth_fit.converged,
+                                hl.struct(
+                                    beta=firth_fit.b[firth_fit.b.shape[0] - 1],
+                                    chi_sq_stat=firth_chi_sq,
+                                    p_value=firth_p,
+                                    firth_null_fit=firth_improved_null_fit,
+                                    fit=firth_fit
+                                ))
+                          .default(blank_struct.annotate(
+                              firth_null_fit=firth_improved_null_fit,
+                              fit=firth_fit
+                          )))
+                    .default(blank_struct.annotate(
+                        firth_null_fit=firth_improved_null_fit
+                    )))
+        return hl.bind(cont2, firth_fit)
+    return hl.bind(cont, firth_improved_null_fit)
 
 
 @typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),
@@ -1067,7 +1177,7 @@ def logistic_score_test(X, y, null_fit):
            covariates=sequenceof(expr_float64),
            pass_through=sequenceof(oneof(str, Expression)),
            max_iterations=nullable(int),
-           tolerance=float)
+           tolerance=nullable(float))
 def _logistic_regression_rows_nd(test,
                                  y,
                                  x,
@@ -1075,7 +1185,7 @@ def _logistic_regression_rows_nd(test,
                                  pass_through=(),
                                  *,
                                  max_iterations: Optional[int] = None,
-                                 tolerance: float = 1e-6) -> hail.Table:
+                                 tolerance: Optional[float] = None) -> hail.Table:
     r"""For each row, test an input variable for association with a
     binary response variable using logistic regression.
 
@@ -1294,6 +1404,10 @@ def _logistic_regression_rows_nd(test,
     if max_iterations is None:
         max_iterations = 25 if test != 'firth' else 100
 
+    if tolerance is None:
+        tolerance = 1e-8
+    assert tolerance > 0.0
+
     if len(covariates) == 0:
         raise ValueError('logistic regression requires at least one covariate expression')
 
@@ -1347,32 +1461,40 @@ def _logistic_regression_rows_nd(test,
                        .or_error("Failed to fit logistic regression null model (standard MLE with covariates only): "
                                  "Newton iteration failed to converge")))
                 .or_error(hl.format("Failed to fit logistic regression null model (standard MLE with covariates only): "
-                                    "exploded at Newton iteration %d", null_fit.num_iter)))
+                                    "exploded at Newton iteration %d", null_fit.n_iterations)))
 
-        null_fit = logreg_fit(ht.covmat, yvec, None, max_iter=max_iterations, tol=tolerance)
+        null_fit = logreg_fit(ht.covmat, yvec, None, max_iterations=max_iterations, tolerance=tolerance)
         return hl.bind(error_if_not_converged, null_fit)
     ht = ht.annotate_globals(null_fits=ht.yvecs.map(fit_null))
 
     ht = ht.transmute(x=hl.nd.array(mean_impute(ht.entries[x_field_name])))
-    covs_and_x = hl.nd.hstack([ht.covmat, ht.x.reshape((-1, 1))])
+    ht = ht.annotate(covs_and_x=hl.nd.hstack([ht.covmat, ht.x.reshape((-1, 1))]))
 
     def run_test(yvec, null_fit):
         if test == 'score':
-            return logistic_score_test(covs_and_x, yvec, null_fit)
+            return logistic_score_test(ht.covs_and_x, yvec, null_fit)
+        if test == 'firth':
+            return _firth_test(null_fit, ht.covs_and_x, yvec, max_iterations=max_iterations, tolerance=tolerance)
 
-        test_fit = logreg_fit(covs_and_x, yvec, null_fit, max_iter=max_iterations, tol=tolerance)
+        test_fit = logreg_fit(ht.covs_and_x, yvec, null_fit, max_iterations=max_iterations, tolerance=tolerance)
         if test == 'wald':
-            return wald_test(covs_and_x, test_fit)
-        elif test == 'lrt':
-            return lrt_test(covs_and_x, null_fit, test_fit)
-        else:
-            assert test == 'firth'
-            raise ValueError("firth not yet supported on lowered backends")
-    ht = ht.annotate(logistic_regression=hl.starmap(run_test, hl.zip(ht.yvecs, ht.null_fits)))
+            return wald_test(ht.covs_and_x, test_fit)
+        assert test == 'lrt', test
+        return lrt_test(ht.covs_and_x, null_fit, test_fit)
+    ht = ht.select(
+        logistic_regression=hl.starmap(run_test, hl.zip(ht.yvecs, ht.null_fits)),
+        **{f: ht[f] for f in row_fields}
+    )
+    assert 'null_fits' not in row_fields
+    assert 'logistic_regression' not in row_fields
 
     if not y_is_list:
-        ht = ht.transmute(**ht.logistic_regression[0])
-    return ht.drop("x")
+        assert all(f not in row_fields for f in ht.null_fits[0])
+        assert all(f not in row_fields for f in ht.logistic_regression[0])
+        ht = ht.select_globals(**ht.null_fits[0])
+        return ht.transmute(**ht.logistic_regression[0])
+    ht = ht.select_globals('null_fits')
+    return ht
 
 
 @typecheck(test=enumeration('wald', 'lrt', 'score'),
@@ -1415,7 +1537,7 @@ def poisson_regression_rows(test,
         Non-empty list of column-indexed covariate expressions.
     pass_through : :obj:`list` of :class:`str` or :class:`.Expression`
         Additional row fields to include in the resulting table.
-    tolerance : :obj:`int`, optional
+    tolerance : :obj:`float`, optional
         The iterative fit of this model is considered "converged" if the change in the estimated
         beta is smaller than tolerance. By default the tolerance is 1e-6.
 
@@ -1429,6 +1551,7 @@ def poisson_regression_rows(test,
 
     if tolerance is None:
         tolerance = 1e-6
+    assert tolerance > 0.0
 
     if len(covariates) == 0:
         raise ValueError('Poisson regression requires at least one covariate expression')
@@ -1490,7 +1613,7 @@ def _lowered_poisson_regression_rows(test,
 
     if tolerance is None:
         tolerance = 1e-8
-    assert tolerance > 0
+    assert tolerance > 0.0
 
     k = len(covariates)
     if k == 0:
@@ -1548,7 +1671,7 @@ def _lowered_poisson_regression_rows(test,
     mt = mt.annotate_globals(
         null_fit=hl.case().when(mt.null_fit.converged, mt.null_fit).or_error(
             hl.format('_lowered_poisson_regression_rows: null model did not converge: %s',
-                      mt.null_fit.select('num_iter', 'log_lkhd', 'converged', 'exploded')))
+                      mt.null_fit.select('n_iterations', 'log_lkhd', 'converged', 'exploded')))
     )
     mt = mt.annotate_rows(mean_x=hl.agg.mean(mt.x))
     mt = mt.annotate_rows(xvec=hl.nd.array(hl.agg.collect(hl.coalesce(mt.x, mt.mean_x))))
@@ -1566,7 +1689,7 @@ def _lowered_poisson_regression_rows(test,
             chi_sq_stat=chi_sq,
             p_value=p,
             **ht.pass_through
-        )
+        ).select_globals('null_fit')
 
     X = hl.nd.hstack([covmat, xvec.T.reshape(-1, 1)])
     b = hl.nd.hstack([null_fit.b, hl.nd.array([0.0])])
@@ -1589,55 +1712,76 @@ def _lowered_poisson_regression_rows(test,
             test_fit=test_fit,
             **lrt_test(X, null_fit, test_fit),
             **ht.pass_through
-        )
+        ).select_globals('null_fit')
     assert test == 'wald'
     return ht.select(
         test_fit=test_fit,
         **wald_test(X, test_fit),
         **ht.pass_through
-    )
+    ).select_globals('null_fit')
 
 
-def _poisson_fit(covmat, yvec, b, mu, score, fisher, max_iterations, tolerance):
+def _poisson_fit(X: hl.NDArrayNumericExpression,       # (N, K)
+                 y: hl.NDArrayNumericExpression,       # (N,)
+                 b: hl.NDArrayNumericExpression,       # (K,)
+                 mu: hl.NDArrayNumericExpression,      # (N,)
+                 score: hl.NDArrayNumericExpression,   # (K,)
+                 fisher: hl.NDArrayNumericExpression,  # (K, K)
+                 max_iterations: int,
+                 tolerance: float
+                 ) -> hl.StructExpression:
+    """Iteratively reweighted least squares to fit the model y ~ Poisson(exp(X \beta))
+
+    When fitting the null model, K=n_covariates, otherwise K=n_covariates + 1.
+    """
+    assert max_iterations >= 0
+    assert X.ndim == 2
+    assert y.ndim == 1
+    assert b.ndim == 1
+    assert mu.ndim == 1
+    assert score.ndim == 1
+    assert fisher.ndim == 2
+
     dtype = numerical_regression_fit_dtype
     blank_struct = hl.struct(**{k: hl.missing(dtype[k]) for k in dtype})
 
-    def fit(recur, cur_iter, b, mu, score, fisher):
-        def cont(exploded, delta_b, max_delta_b, log_lkhd):
-            next_iter = cur_iter + 1
+    def fit(recur, iteration, b, mu, score, fisher):
+        def cont(exploded, delta_b, max_delta_b):
+            log_lkhd = y @ hl.log(mu) - mu.sum()
+
             next_b = b + delta_b
-            next_mu = hl.exp(covmat @ next_b)
-            next_score = covmat.T @ (yvec - next_mu)
-            next_fisher = (next_mu * covmat.T) @ covmat
+            next_mu = hl.exp(X @ next_b)
+            next_score = X.T @ (y - next_mu)
+            next_fisher = (next_mu * X.T) @ X
 
             return (hl.case()
                     .when(exploded | hl.is_nan(delta_b[0]),
-                          blank_struct.annotate(num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=True))
+                          blank_struct.annotate(n_iterations=iteration, log_lkhd=log_lkhd, converged=False, exploded=True))
                     .when(max_delta_b < tolerance,
-                          hl.struct(b=b, score=score, fisher=fisher, mu=mu, num_iter=cur_iter, log_lkhd=log_lkhd, converged=True, exploded=False))
-                    .when(cur_iter == max_iterations,
-                          blank_struct.annotate(num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=False))
-                    .default(recur(next_iter, next_b, next_mu, next_score, next_fisher)))
+                          hl.struct(b=b, score=score, fisher=fisher, mu=mu, n_iterations=iteration, log_lkhd=log_lkhd, converged=True, exploded=False))
+                    .when(iteration == max_iterations,
+                          blank_struct.annotate(n_iterations=iteration, log_lkhd=log_lkhd, converged=False, exploded=False))
+                    .default(recur(iteration + 1, next_b, next_mu, next_score, next_fisher)))
+
         delta_b_struct = hl.nd.solve(fisher, score, no_crash=True)
 
         exploded = delta_b_struct.failed
         delta_b = delta_b_struct.solution
         max_delta_b = nd_max(delta_b.map(lambda e: hl.abs(e)))
-        log_lkhd = yvec @ hl.log(mu) - mu.sum()
-        return hl.bind(cont, exploded, delta_b, max_delta_b, log_lkhd)
+        return hl.bind(cont, exploded, delta_b, max_delta_b)
 
     if max_iterations == 0:
-        return blank_struct.select(num_iter=0, log_lkhd=0, converged=False, exploded=False)
+        return blank_struct.select(n_iterations=0, log_lkhd=0, converged=False, exploded=False)
     return hl.experimental.loop(fit, dtype, 1, b, mu, score, fisher)
 
 
-def _poisson_score_test(null_fit, covmat, yvec, xvec):
+def _poisson_score_test(null_fit, covmat, y, xvec):
     dof = 1
 
     X = hl.nd.hstack([covmat, xvec.T.reshape(-1, 1)])
     b = hl.nd.hstack([null_fit.b, hl.nd.array([0.0])])
     mu = hl.exp(X @ b)
-    score = hl.nd.hstack([null_fit.score, hl.nd.array([xvec @ (yvec - mu)])])
+    score = hl.nd.hstack([null_fit.score, hl.nd.array([xvec @ (y - mu)])])
 
     fisher00 = null_fit.fisher
     fisher01 = ((mu * covmat.T) @ xvec).reshape((-1, 1))
@@ -1847,14 +1991,14 @@ def _linear_skat(group,
     ...     mt.GT.n_alt_alleles(),
     ...     covariates=[1.0])
     >>> skat.show()
-    +-------+-------+----------+-----------+-------+
-    | group |  size |   q_stat |   p_value | fault |
-    +-------+-------+----------+-----------+-------+
-    | int32 | int64 |  float64 |   float64 | int32 |
-    +-------+-------+----------+-----------+-------+
-    |     0 |    11 | 1.18e+03 |  2.85e-07 |     0 |
-    |     1 |     9 | 1.19e+03 | -9.88e-08 |     0 |
-    +-------+-------+----------+-----------+-------+
+    +-------+-------+----------+----------+-------+
+    | group |  size |   q_stat |  p_value | fault |
+    +-------+-------+----------+----------+-------+
+    | int32 | int64 |  float64 |  float64 | int32 |
+    +-------+-------+----------+----------+-------+
+    |     0 |    11 | 8.76e+02 | 1.23e-05 |     0 |
+    |     1 |     9 | 8.13e+02 | 3.95e-05 |     0 |
+    +-------+-------+----------+----------+-------+
 
     The same test, but using the original paper's suggested weights which are derived from the
     allele frequency.
@@ -1872,8 +2016,8 @@ def _linear_skat(group,
     +-------+-------+----------+----------+-------+
     | int32 | int64 |  float64 |  float64 | int32 |
     +-------+-------+----------+----------+-------+
-    |     0 |    11 | 1.20e+02 | 6.72e-03 |     0 |
-    |     1 |     9 | 4.89e-02 | 2.00e+00 |     1 |
+    |     0 |    11 | 2.39e+01 | 4.32e-01 |     0 |
+    |     1 |     9 | 1.69e+01 | 7.82e-02 |     0 |
     +-------+-------+----------+----------+-------+
 
     Our simulated data was unweighted, so the null hypothesis appears true. In real datasets, we
@@ -1894,14 +2038,14 @@ def _linear_skat(group,
     ...     covariates=[1.0],
     ...     max_size=10)
     >>> skat.show()
-    +-------+-------+----------+-----------+-------+
-    | group |  size |   q_stat |   p_value | fault |
-    +-------+-------+----------+-----------+-------+
-    | int32 | int64 |  float64 |   float64 | int32 |
-    +-------+-------+----------+-----------+-------+
-    |     0 |    11 |       NA |        NA |    NA |
-    |     1 |     9 | 1.19e+03 | -9.88e-08 |     0 |
-    +-------+-------+----------+-----------+-------+
+    +-------+-------+----------+----------+-------+
+    | group |  size |   q_stat |  p_value | fault |
+    +-------+-------+----------+----------+-------+
+    | int32 | int64 |  float64 |  float64 | int32 |
+    +-------+-------+----------+----------+-------+
+    |     0 |    11 |       NA |       NA |    NA |
+    |     1 |     9 | 8.13e+02 | 3.95e-05 |     0 |
+    +-------+-------+----------+----------+-------+
 
     Notes
     -----
@@ -2129,7 +2273,7 @@ def _linear_skat(group,
     #             = W S S W           V is orthogonal so V V.T = I
     #             = W S^2 W
 
-    weights_arr = ht.weight._data_array()
+    weights_arr = hl.array(ht.weight)
     A = hl.case().when(
         hl.all(weights_arr.map(lambda x: x >= 0)),
         (ht.G - ht.covmat_Q @ (ht.covmat_Q.T @ ht.G)) * hl.sqrt(ht.weight)
@@ -2144,7 +2288,7 @@ def _linear_skat(group,
     # presumably because a good estimate of the Generalized Chi-Sqaured CDF is not significantly
     # affected by chi-squared components with very tiny weights.
     threshold = 1e-5 * eigenvalues.sum() / eigenvalues.shape[0]
-    w = eigenvalues._data_array().filter(lambda y: y >= threshold)
+    w = hl.array(eigenvalues).filter(lambda y: y >= threshold)
     genchisq_data = hl.pgenchisq(
         ht.Q,
         w=w,
@@ -2351,8 +2495,8 @@ def _logistic_skat(group,
     +-------+-------+----------+----------+-------+
     | int32 | int64 |  float64 |  float64 | int32 |
     +-------+-------+----------+----------+-------+
-    |     0 |    11 | 4.42e+01 | 2.96e-02 |     0 |
-    |     1 |     9 | 6.39e+01 | 9.64e-04 |     0 |
+    |     0 |    11 | 1.78e+02 | 1.68e-04 |     0 |
+    |     1 |     9 | 1.39e+02 | 1.82e-03 |     0 |
     +-------+-------+----------+----------+-------+
 
     The same test, but using the original paper's suggested weights which are derived from the
@@ -2371,8 +2515,8 @@ def _logistic_skat(group,
     +-------+-------+----------+----------+-------+
     | int32 | int64 |  float64 |  float64 | int32 |
     +-------+-------+----------+----------+-------+
-    |     0 |    11 | 7.18e+00 | 6.22e-02 |     0 |
-    |     1 |     9 | 3.71e-04 | 2.00e+00 |     1 |
+    |     0 |    11 | 8.04e+00 | 3.50e-01 |     0 |
+    |     1 |     9 | 1.22e+00 | 5.04e-01 |     0 |
     +-------+-------+----------+----------+-------+
 
     Our simulated data was unweighted, so the null hypothesis appears true. In real datasets, we
@@ -2399,7 +2543,7 @@ def _logistic_skat(group,
     | int32 | int64 |  float64 |  float64 | int32 |
     +-------+-------+----------+----------+-------+
     |     0 |    11 |       NA |       NA |    NA |
-    |     1 |     9 | 6.39e+01 | 9.64e-04 |     0 |
+    |     1 |     9 | 1.39e+02 | 1.82e-03 |     0 |
     +-------+-------+----------+----------+-------+
 
     Notes
@@ -2484,7 +2628,7 @@ def _logistic_skat(group,
 
           - mu : :obj:`.tndarray` the expected value under the null model.
 
-          - num_iter : :obj:`.tint32` the number of iterations before termination.
+          - n_iterations : :obj:`.tint32` the number of iterations before termination.
 
           - log_lkhd : :obj:`.tfloat64` the log-likelihood of the final iteration.
 
@@ -2532,7 +2676,7 @@ def _logistic_skat(group,
         covmat=hl.nd.array(covmat),
         n_complete_samples=n
     )
-    null_fit = logreg_fit(mt.covmat, mt.yvec, None, max_iter=null_max_iterations, tol=null_tolerance)
+    null_fit = logreg_fit(mt.covmat, mt.yvec, None, max_iterations=null_max_iterations, tolerance=null_tolerance)
     mt = mt.annotate_globals(
         null_fit=hl.case().when(null_fit.converged, null_fit).or_error(
             hl.format('hl._logistic_skat: null model did not converge: %s', null_fit))
@@ -2571,7 +2715,7 @@ def _logistic_skat(group,
 
     sqrtv = hl.sqrt(ht.s2)
     Q, _ = hl.nd.qr(ht.covmat * sqrtv.reshape(-1, 1))
-    weights_arr = ht.weight._data_array()
+    weights_arr = hl.array(ht.weight)
     G_scaled = ht.G * sqrtv.reshape(-1, 1)
     A = hl.case().when(
         hl.all(weights_arr.map(lambda x: x >= 0)),
@@ -2585,7 +2729,7 @@ def _logistic_skat(group,
     # presumably because a good estimate of the Generalized Chi-Sqaured CDF is not significantly
     # affected by chi-squared components with very tiny weights.
     threshold = 1e-5 * eigenvalues.sum() / eigenvalues.shape[0]
-    w = eigenvalues._data_array().filter(lambda y: y >= threshold)
+    w = hl.array(eigenvalues).filter(lambda y: y >= threshold)
     genchisq_data = hl.pgenchisq(
         ht.Q,
         w=w,
@@ -3741,11 +3885,11 @@ def balding_nichols_model(n_populations: int,
     +---------------+------------+------+------+------+------+------+
     | locus<GRCh37> | array<str> | call | call | call | call | call |
     +---------------+------------+------+------+------+------+------+
-    | 1:1           | ["A","C"]  | 0/0  | 1/1  | 1/1  | 0/1  | 0/0  |
-    | 1:2           | ["A","C"]  | 0/0  | 1/1  | 0/1  | 0/1  | 1/1  |
-    | 1:3           | ["A","C"]  | 0/0  | 0/1  | 0/0  | 0/0  | 0/0  |
-    | 1:4           | ["A","C"]  | 0/1  | 0/1  | 0/1  | 1/1  | 1/1  |
-    | 1:5           | ["A","C"]  | 0/1  | 0/1  | 0/1  | 0/0  | 0/1  |
+    | 1:1           | ["A","C"]  | 0/1  | 0/0  | 0/1  | 0/0  | 0/0  |
+    | 1:2           | ["A","C"]  | 1/1  | 1/1  | 1/1  | 1/1  | 0/1  |
+    | 1:3           | ["A","C"]  | 0/1  | 0/1  | 1/1  | 0/1  | 1/1  |
+    | 1:4           | ["A","C"]  | 0/1  | 0/0  | 0/1  | 0/0  | 0/1  |
+    | 1:5           | ["A","C"]  | 0/1  | 0/1  | 0/1  | 0/0  | 0/0  |
     +---------------+------------+------+------+------+------+------+
     showing top 5 rows
     showing the first 5 of 100 columns
@@ -3760,11 +3904,11 @@ def balding_nichols_model(n_populations: int,
     +---------------+------------+------+------+------+------+------+
     | locus<GRCh37> | array<str> | call | call | call | call | call |
     +---------------+------------+------+------+------+------+------+
-    | 1:1           | ["A","C"]  | 0|0  | 0|0  | 0|1  | 0|1  | 1|0  |
-    | 1:2           | ["A","C"]  | 1|1  | 0|1  | 0|0  | 0|0  | 0|1  |
-    | 1:3           | ["A","C"]  | 0|0  | 0|0  | 1|0  | 1|0  | 0|0  |
-    | 1:4           | ["A","C"]  | 1|1  | 1|1  | 1|0  | 0|1  | 0|1  |
-    | 1:5           | ["A","C"]  | 1|1  | 0|1  | 0|1  | 1|0  | 1|1  |
+    | 1:1           | ["A","C"]  | 0|0  | 0|0  | 0|0  | 0|0  | 1|0  |
+    | 1:2           | ["A","C"]  | 1|1  | 1|1  | 1|1  | 1|1  | 1|1  |
+    | 1:3           | ["A","C"]  | 1|1  | 1|1  | 0|1  | 1|1  | 1|1  |
+    | 1:4           | ["A","C"]  | 0|0  | 1|0  | 0|0  | 1|0  | 0|0  |
+    | 1:5           | ["A","C"]  | 0|0  | 0|1  | 0|0  | 0|0  | 0|0  |
     +---------------+------------+------+------+------+------+------+
     showing top 5 rows
     showing the first 5 of 100 columns
@@ -3957,37 +4101,56 @@ def balding_nichols_model(n_populations: int,
          .format(n_populations, n_samples, n_variants))
 
     # generate matrix table
+    from numpy import linspace
+    n_partitions = min(n_partitions, n_variants)
+    start_idxs = [int(x) for x in linspace(0, n_variants, n_partitions + 1)]
+    idx_bounds = list(zip(start_idxs, start_idxs[1:]))
 
-    bn = hl.utils.genomic_range_table(n_variants, n_partitions, reference_genome=reference_genome)
-    bn = bn.annotate(alleles=['A', 'C'])
-    bn = bn._key_by_assert_sorted('locus', 'alleles')
-
-    bn = bn.annotate_globals(
-        bn=hl.struct(n_populations=n_populations,
-                     n_samples=n_samples,
-                     n_variants=n_variants,
-                     n_partitions=n_partitions,
-                     pop_dist=pop_dist,
-                     fst=fst,
-                     mixture=mixture))
-    # col info
     pop_f = hl.rand_dirichlet if mixture else hl.rand_cat
-    bn = bn.annotate_globals(cols=hl.range(n_samples).map(
-        lambda idx: hl.struct(
-            sample_idx=idx,
-            pop=pop_f(pop_dist)
+
+    bn = hl.Table._generate(
+        contexts=idx_bounds,
+        globals=hl.struct(
+            bn=hl.struct(
+                n_populations=n_populations,
+                n_samples=n_samples,
+                n_variants=n_variants,
+                n_partitions=n_partitions,
+                pop_dist=pop_dist,
+                fst=fst,
+                mixture=mixture
+            ),
+            cols=hl.range(n_samples).map(
+                lambda idx: hl.struct(sample_idx=idx, pop=pop_f(pop_dist))
+            )
+        ),
+        partitions=[
+            hl.Interval(**{
+                endpoint: hl.Struct(
+                    locus=reference_genome.locus_from_global_position(idx),
+                    alleles=['A', 'C']
+                ) for endpoint, idx in [('start', lo), ('end', hi)]
+            })
+            for (lo, hi) in idx_bounds
+        ],
+        rowfn=lambda idx_range, _: hl.range(idx_range[0], idx_range[1]).map(
+            lambda idx: hl.bind(
+                lambda ancestral: hl.struct(
+                    locus=hl.locus_from_global_position(idx, reference_genome),
+                    alleles=['A', 'C'],
+                    ancestral_af=ancestral,
+                    af=hl.array([(1 - x) / x for x in fst]).map(
+                        lambda x: hl.rand_beta(ancestral * x, (1 - ancestral) * x)
+                    ),
+                    entries=hl.repeat(hl.struct(), n_samples),
+                ),
+                af_dist
+            )
         )
-    ))
-    bn = bn.annotate(entries=hl.range(n_samples).map(lambda _: hl.struct()))
+    )
+
     bn = bn._unlocalize_entries('entries', 'cols', ['sample_idx'])
-    # row info
-    bn = bn.select_rows(ancestral_af=af_dist,
-                        af=hl.bind(lambda ancestral:
-                                   hl.array([(1 - x) / x for x in fst])
-                                   .map(lambda x:
-                                        hl.rand_beta(ancestral * x,
-                                                     (1 - ancestral) * x)),
-                                   af_dist))
+
     # entry info
     p = hl.sum(bn.pop * bn.af) if mixture else bn.af[bn.pop]
     q = 1 - p
@@ -3996,11 +4159,8 @@ def balding_nichols_model(n_populations: int,
         mom = hl.rand_bool(p)
         dad = hl.rand_bool(p)
         return bn.select_entries(GT=hl.call(mom, dad, phased=True))
-    idx = hl.rand_cat([
-        q ** 2,
-        2 * p * q,
-        p ** 2
-    ])
+
+    idx = hl.rand_cat([q ** 2, 2 * p * q, p ** 2])
     return bn.select_entries(GT=hl.unphased_diploid_gt_index_call(idx))
 
 
@@ -4474,7 +4634,6 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     :class:`.Table`
         Table of a maximal independent set of variants.
     """
-    hl.utils.no_service_backend('ld_prune')
     if block_size is None:
         block_size = BlockMatrix.default_block_size()
 

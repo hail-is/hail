@@ -17,8 +17,9 @@ from hail.utils import get_env_or_default
 from hail.utils.java import Env, warning, choose_backend
 from hail.backend import Backend
 from hailtop.utils import secret_alnum_string
+from hailtop.fs.fs import FS
+from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 from .builtin_references import BUILTIN_REFERENCES
-from .fs.fs import FS
 
 
 def _get_tmpdir(tmpdir):
@@ -193,7 +194,7 @@ def init(sc=None,
          driver_memory=None,
          worker_cores=None,
          worker_memory=None,
-         gcs_requester_pays_configuration: Optional[Union[str, Tuple[str, List[str]]]] = None,
+         gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
          regions: Optional[List[str]] = None):
     """Initialize and configure Hail.
 
@@ -496,7 +497,8 @@ async def init_batch(
                                           worker_memory=worker_memory,
                                           name_prefix=name_prefix,
                                           token=token,
-                                          regions=regions)
+                                          regions=regions,
+                                          gcs_requester_pays_configuration=gcs_requester_pays_configuration)
 
     if gcs_requester_pays_configuration:
         if isinstance(gcs_requester_pays_configuration, str):
@@ -667,7 +669,10 @@ class _TemporaryFilenameManager:
         return self.name
 
     def __exit__(self, type, value, traceback):
-        return self.fs.remove(self.name)
+        try:
+            return self.fs.remove(self.name)
+        except FileNotFoundError:
+            pass
 
 
 def TemporaryFilename(*,

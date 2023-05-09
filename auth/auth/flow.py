@@ -92,8 +92,8 @@ class AzureFlow(Flow):
         }
 
     def receive_callback(self, request: aiohttp.web.Request, flow_dict: dict) -> FlowResult:
-        query_dict = urllib.parse.parse_qs(request.query_string)
-        query_dict = {k: v[0] for k, v in query_dict.items()}
+        query_key_to_list_of_values = urllib.parse.parse_qs(request.query_string)
+        query_dict = {k: v[0] for k, v in query_key_to_list_of_values.items()}
 
         token = self._client.acquire_token_by_auth_code_flow(flow_dict['flow'], query_dict)
 

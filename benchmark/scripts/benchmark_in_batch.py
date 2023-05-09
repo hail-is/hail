@@ -100,12 +100,13 @@ if __name__ == '__main__':
             j.command(f'mv {resource_task.ofile} benchmark-resources/{resource_group.name()}.tar')
             j.command(f'time tar -xf benchmark-resources/{resource_group.name()}.tar')
         j.command(
-            f'MKL_NUM_THREADS=1'
-            f'OPENBLAS_NUM_THREADS=1'
-            f'OMP_NUM_THREADS=1'
-            f'VECLIB_MAXIMUM_THREADS=1'
-            f'{benchmark_lower_env_var}'
+            f'MKL_NUM_THREADS=1 '
+            f'OPENBLAS_NUM_THREADS=1 '
+            f'OMP_NUM_THREADS=1 '
+            f'VECLIB_MAXIMUM_THREADS=1 '
+            f'{benchmark_lower_env_var} '
             f'PYSPARK_SUBMIT_ARGS="--driver-memory 6G pyspark-shell" '
+            f'TMPDIR="/io/tmp" '
             f'hail-bench run -o {j.ofile} -n {N_ITERS} --data-dir benchmark-resources -t {name}'
         )
         all_output.append(j.ofile)

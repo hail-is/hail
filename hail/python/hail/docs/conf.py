@@ -48,7 +48,8 @@ extensions = [
     # https://github.com/spatialaudio/nbsphinx/issues/24#issuecomment-187172022 and https://github.com/ContinuumIO/anaconda-issues/issues/1430
     'IPython.sphinxext.ipython_console_highlighting',
     'sphinx.ext.napoleon',
-    'sphinx.ext.intersphinx'
+    'sphinx.ext.intersphinx',
+    'sphinx_rtd_theme',
 ]
 
 nbsphinx_timeout = 300
@@ -68,11 +69,11 @@ napoleon_use_rtype = False
 napoleon_use_param = False
 
 intersphinx_mapping = {
-    'python': ('https://docs.python.org/3.7', None),
+    'python': ('https://docs.python.org/3.8', None),
     'PySpark': ('https://spark.apache.org/docs/latest/api/python/', None),
-    'Bokeh': ('https://docs.bokeh.org/en/1.2.0/', None),
+    'Bokeh': ('https://docs.bokeh.org/en/3.1.0/', None),
     'numpy': ('https://numpy.org/doc/stable/', None),
-    'scipy': ('https://docs.scipy.org/doc/scipy-1.3.3/reference', None),
+    'scipy': ('https://docs.scipy.org/doc/scipy-1.9.3', None),
     'pandas': ('https://pandas.pydata.org/docs/', None)}
 
 # Add any paths that contain templates here, relative to this directory.
@@ -113,7 +114,7 @@ with open('../hail_version') as f:
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = 'en'
 
 # There are two options for replacing |today|: either, you set today to some
 # non-false value, then it is used:

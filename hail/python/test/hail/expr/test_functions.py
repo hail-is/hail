@@ -64,3 +64,24 @@ def test_pgenchisq():
         assert test.genchisq_result.fault == 0, str(test)
         assert test.genchisq_result.converged == True, str(test)
         assert test.genchisq_result.n_iterations == test.expected_n_iterations, str(test)
+
+
+def test_array():
+    actual = hl.eval((
+        hl.array(hl.array([1, 2, 3, 3])),
+        hl.array(hl.set([1, 2, 3])),
+        hl.array(hl.dict({1: 5, 7: 4})),
+        hl.array(hl.nd.array([1, 2, 3, 3])),
+    ))
+
+    expected = (
+        [1, 2, 3, 3],
+        [1, 2, 3],
+        [(1, 5), (7, 4)],
+        [1, 2, 3, 3]
+    )
+
+    assert actual == expected
+
+    with pytest.raises(ValueError, match='array: only one dimensional ndarrays are supported: ndarray<float64, 2>'):
+        hl.eval(hl.array(hl.nd.array([[1.0], [2.0]])))

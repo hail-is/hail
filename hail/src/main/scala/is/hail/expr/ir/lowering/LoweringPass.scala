@@ -116,7 +116,7 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
 
         if (newNode.typ != x.typ)
           throw new RuntimeException(s"types differ:\n  new: ${newNode.typ}\n  old: ${x.typ}")
-        Some(newNode)
+        Some(newNode.noSharing)
       case x@StreamAggScan(a, name, query) =>
         val res = genUID()
         val aggs = Extract(query, res, r, isScan=true)
@@ -132,7 +132,7 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
         }
         if (newNode.typ != x.typ)
           throw new RuntimeException(s"types differ:\n  new: ${ newNode.typ }\n  old: ${ x.typ }")
-        Some(newNode)
+        Some(newNode.noSharing)
       case _ => None
     })
   }

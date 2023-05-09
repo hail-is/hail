@@ -1,17 +1,23 @@
-from typing import Mapping, List, Union, Tuple, Dict, Optional, Any, AbstractSet
+from typing import Mapping, List, Union, TypeVar, Tuple, Dict, Optional, Any, AbstractSet
 import abc
 import orjson
 import pkg_resources
 import zipfile
 
 from hailtop.config.user_config import configuration_of
+from hailtop.fs.fs import FS
 
-from ..fs.fs import FS
 from ..builtin_references import BUILTIN_REFERENCE_RESOURCE_PATHS
 from ..expr import Expression
 from ..expr.types import HailType
 from ..ir import BaseIR
+from ..linalg.blockmatrix import BlockMatrix
+from ..matrixtable import MatrixTable
+from ..table import Table
 from ..utils.java import FatalError
+
+
+Dataset = TypeVar('Dataset', Table, MatrixTable, BlockMatrix)
 
 
 def fatal_error_from_java_error_triplet(short_message, expanded_message, error_id):
@@ -153,44 +159,22 @@ class Backend(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def index_bgen(self,
-                   files: List[str],
-                   index_file_map: Dict[str, str],
-                   referenceGenomeName: Optional[str],
-                   contig_recoding: Dict[str, str],
-                   skip_invalid_loci: bool):
-        pass
-
-    @abc.abstractmethod
     def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
         pass
 
-    def persist_table(self, t):
+    def persist(self, dataset: Dataset) -> Dataset:
         from hail.context import TemporaryFilename
-        tf = TemporaryFilename(prefix='persist_table')
-        self._persisted_locations[t] = tf
-        return t.checkpoint(tf.__enter__())
+        tempfile = TemporaryFilename(prefix=f'persist_{type(dataset).__name__}')
+        persisted = dataset.checkpoint(tempfile.__enter__())
+        self._persisted_locations[persisted] = (tempfile, dataset)
+        return persisted
 
-    def unpersist_table(self, t):
-        try:
-            self._persisted_locations[t].__exit__(None, None, None)
-        except KeyError as err:
-            raise ValueError(f'{t} is not persisted') from err
-
-    def persist_matrix_table(self, mt):
-        from hail.context import TemporaryFilename
-        tf = TemporaryFilename(prefix='persist_matrix_table')
-        self._persisted_locations[mt] = tf
-        return mt.checkpoint(tf.__enter__())
-
-    def unpersist_matrix_table(self, mt):
-        try:
-            self._persisted_locations[mt].__exit__(None, None, None)
-        except KeyError as err:
-            raise ValueError(f'{mt} is not persisted') from err
-
-    def unpersist_block_matrix(self, id):
-        pass
+    def unpersist(self, dataset: Dataset) -> Dataset:
+        tempfile, unpersisted = self._persisted_locations.pop(dataset, (None, None))
+        if tempfile is None:
+            return dataset
+        tempfile.__exit__(None, None, None)
+        return unpersisted
 
     @abc.abstractmethod
     def register_ir_function(self,
@@ -200,6 +184,10 @@ class Backend(abc.ABC):
                              value_parameter_types: Union[Tuple[HailType, ...], List[HailType]],
                              return_type: HailType,
                              body: Expression):
+        pass
+
+    @abc.abstractmethod
+    def _is_registered_ir_function_name(self, name: str) -> bool:
         pass
 
     @abc.abstractmethod

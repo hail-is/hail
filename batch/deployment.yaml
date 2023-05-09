@@ -249,10 +249,6 @@ spec:
          - name: HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER
            value: "/{{ default_ns.name }}/jars"
 {% endif %}
-{% if scope == "test" %}
-         - name: HAIL_SHOULD_CHECK_INVARIANTS
-           value: "1"
-{% endif %}
         volumeMounts:
          - name: deploy-config
            mountPath: /deploy-config

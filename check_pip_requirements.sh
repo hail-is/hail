@@ -19,7 +19,8 @@ do
         cat $new_pinned
         echo '--------------------------------------'
         echo "$pinned is no longer up to date with $reqs"
-        echo "Please regenerate the pinned requirements file."
+        echo "Please regenerate the pinned requirements file by running:"
+        echo "> make $pinned"
         exit 1
     }
 done

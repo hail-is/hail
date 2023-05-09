@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.backend.ExecuteContext
 import is.hail.annotations._
+import is.hail.expr.Nat
 import is.hail.types._
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -337,7 +338,6 @@ object PruneDeadFields {
       case TableParallelize(rowsAndGlobal, _) =>
         memoizeValueIR(ctx, rowsAndGlobal, TStruct("rows" -> TArray(requestedType.rowType), "global" -> requestedType.globalType), memo)
       case TableRange(_, _) =>
-      case TableGenomicRange(_, _, _) =>
       case TableRepartition(child, _, _) => memoizeTableIR(ctx, child, requestedType, memo)
       case TableHead(child, _) => memoizeTableIR(ctx, child, TableType(
         key = child.typ.key,
@@ -1077,6 +1077,14 @@ object PruneDeadFields {
         unifyEnvs(
           memoizeValueIR(ctx, a, requestedType, memo),
           memoizeValueIR(ctx, len, len.typ, memo))
+      case StreamWhiten(a, newChunk, prevWindow, _, _, _, _, _) =>
+        val matType = TNDArray(TFloat64, Nat(2))
+        val unifiedStructType = unify(
+          a.typ.asInstanceOf[TStream].elementType,
+          requestedType.asInstanceOf[TStream].elementType,
+          TStruct((newChunk, matType), (prevWindow, matType)))
+        unifyEnvs(
+          memoizeValueIR(ctx, a, TStream(unifiedStructType), memo))
       case StreamMap(a, name, body) =>
         val bodyEnv = memoizeValueIR(ctx, body,
           TIterable.elementType(requestedType),
@@ -2081,8 +2089,12 @@ object PruneDeadFields {
             MakeStruct(FastSeq("global" -> TableGetGlobals(rebuild(ctx, child, memo))))
           else
             MakeStruct(FastSeq())
-        else
-          TableCollect(rebuild(ctx, child, memo))
+        else {
+          val rRowType = TIterable.elementType(rStruct.fieldType("rows")).asInstanceOf[TStruct]
+          val rGlobType = rStruct.fieldOption("global").map(_.typ.asInstanceOf[TStruct]).getOrElse(TStruct())
+          TableCollect(upcastTable(ctx, rebuild(ctx, child, memo), TableType(rowType = rRowType, FastIndexedSeq(), rGlobType),
+            upcastRow = true, upcastGlobals = false))
+        }
       case AggExplode(array, name, aggBody, isScan) =>
         val a2 = rebuildIR(ctx, array, if (isScan) env.promoteScan else env.promoteAgg, memo)
         val a2t = TIterable.elementType(a2.typ)

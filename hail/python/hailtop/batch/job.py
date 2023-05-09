@@ -318,10 +318,6 @@ class Job:
         """
         Set the job to always run, even if dependencies fail.
 
-        Notes
-        -----
-        Can only be used with the :class:`.backend.ServiceBackend`.
-
         Warning
         -------
         Jobs set to always run are not cancellable!
@@ -343,10 +339,6 @@ class Job:
         -------
         Same job object set to always run.
         """
-
-        if not isinstance(self._batch._backend, backend.ServiceBackend):
-            raise NotImplementedError("A ServiceBackend is required to use the 'always_run' option")
-
         self._always_run = always_run
         return self
 
@@ -872,7 +864,7 @@ class PythonJob(Job):
 
         # Create a batch object with a default Python image
 
-        b = Batch(default_python_image='hailgenetics/python-dill:3.7-slim')
+        b = Batch(default_python_image='hailgenetics/python-dill:3.8-slim')
 
         def multiply(x, y):
             return x * y
@@ -930,11 +922,11 @@ class PythonJob(Job):
         Examples
         --------
 
-        Set the job's docker image to `hailgenetics/python-dill:3.7-slim`:
+        Set the job's docker image to `hailgenetics/python-dill:3.8-slim`:
 
         >>> b = Batch()
         >>> j = b.new_python_job()
-        >>> (j.image('hailgenetics/python-dill:3.7-slim')
+        >>> (j.image('hailgenetics/python-dill:3.8-slim')
         ...   .call(print, 'hello'))
         >>> b.run()  # doctest: +SKIP
 
@@ -1105,13 +1097,18 @@ class PythonJob(Job):
 
             self._mentioned.add(r)
 
-        for arg in args:
-            if isinstance(arg, _resource.Resource):
-                handle_arg(arg)
+        def handle_args(r):
+            if isinstance(r, _resource.Resource):
+                handle_arg(r)
+            elif isinstance(r, (list, tuple)):
+                for elt in r:
+                    handle_args(elt)
+            elif isinstance(r, dict):
+                for v in r.values():
+                    handle_args(v)
 
-        for value in kwargs.values():
-            if isinstance(value, _resource.Resource):
-                handle_arg(value)
+        handle_args(args)
+        handle_args(kwargs)
 
         self.n_results += 1
         result = self._get_python_resource(f'result{self.n_results}')
@@ -1132,13 +1129,17 @@ class PythonJob(Job):
             if isinstance(arg, _resource.ResourceGroup):
                 return ('dict_path', {name: resource._get_path(local_tmpdir)
                                       for name, resource in arg._resources.items()})
+            if isinstance(arg, (list, tuple)):
+                return ('value', [prepare_argument_for_serialization(elt) for elt in arg])
+            if isinstance(arg, dict):
+                return ('value', {k: prepare_argument_for_serialization(v) for k, v in arg.items()})
             return ('value', arg)
 
         for i, (result, unapplied_id, args, kwargs) in enumerate(self._function_calls):
             func_file = self._batch._python_function_files[unapplied_id]
 
-            prepared_args = [prepare_argument_for_serialization(arg) for arg in args]
-            kwargs = {kw: prepare_argument_for_serialization(arg) for kw, arg in kwargs.items()}
+            prepared_args = prepare_argument_for_serialization(args)[1]
+            kwargs = prepare_argument_for_serialization(kwargs)[1]
 
             args_file = await self._batch._serialize_python_to_input_file(
                 os.path.dirname(result._get_path(remote_tmpdir)), "args", i, (prepared_args, kwargs), dry_run
@@ -1163,6 +1164,10 @@ import sys
 
 def deserialize_argument(arg):
     typ, val = arg
+    if typ == 'value' and isinstance(val, dict):
+        return {{k: deserialize_argument(v) for k, v in val.items()}}
+    if typ == 'value' and isinstance(val, (list, tuple)):
+        return [deserialize_argument(elt) for elt in val]
     if typ == 'py_path':
         return dill.load(open(val, 'rb'))
     if typ in ('path', 'dict_path'):
@@ -1177,7 +1182,7 @@ with open('{result}', 'wb') as dill_out:
         with open('{args_file}', 'rb') as arg_file:
             args, kwargs = dill.load(arg_file)
             args = [deserialize_argument(arg) for arg in args]
-            kwargs = {{kw: deserialize_argument(arg) for kw, arg in kwargs.items()}}
+            kwargs = {{k: deserialize_argument(v) for k, v in kwargs.items()}}
         result = func(*args, **kwargs)
         dill.dump(result, dill_out, recurse=True)
         {json_write}

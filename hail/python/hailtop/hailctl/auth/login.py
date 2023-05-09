@@ -6,7 +6,7 @@ import webbrowser
 from aiohttp import web
 
 from hailtop.config import get_deploy_config
-from hailtop.auth import get_tokens, namespace_auth_headers
+from hailtop.auth import get_tokens, hail_credentials
 from hailtop.httpx import client_session
 
 
@@ -96,9 +96,10 @@ async def async_main(args):
     deploy_config = get_deploy_config()
     if args.namespace:
         deploy_config = deploy_config.with_default_namespace(args.namespace)
-    headers = namespace_auth_headers(deploy_config, deploy_config.default_namespace(), authorize_target=False)
+    namespace = args.namespace or deploy_config.default_namespace()
+    headers = await hail_credentials(namespace=namespace, authorize_target=False).auth_headers()
     async with client_session(headers=headers) as session:
-        await auth_flow(deploy_config, deploy_config.default_namespace(), session)
+        await auth_flow(deploy_config, namespace, session)
 
 
 def main(args, pass_through_args):  # pylint: disable=unused-argument

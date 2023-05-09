@@ -257,6 +257,20 @@ class Tests(unittest.TestCase):
         self.assertRaises(TypeError, lambda: foo(l2))
         foo(l3)
 
+        @typecheck(f=func_spec(0, int))
+        def eval(f):
+            return f()
+
+        self.assertEqual(eval(lambda x=1: x), 1)
+        self.assertEqual(eval(lambda x=None: 1), 1)
+        self.assertRaises(TypeError, lambda: eval(lambda x: 1))
+
+        @typecheck(f=func_spec(2, int), a=int, b=int)
+        def apply(f, a, b):
+            return f(a, b)
+
+        self.assertEqual(apply(lambda x, y=2, z=3: x + y + z, 5, 7), 15)
+
     def test_complex_signature(self):
         @typecheck(a=int, b=str, c=sequenceof(int), d=tupleof(str), e=dict)
         def f(a, b='5', c=[10], *d, **e):

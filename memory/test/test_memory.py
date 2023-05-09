@@ -1,7 +1,6 @@
 import unittest
 import uuid
 
-from hailtop.aiocloud import aiogoogle
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.config import get_user_config
 from hailtop.utils import async_to_blocking
@@ -9,8 +8,8 @@ from memory.client import MemoryClient
 
 
 class BlockingMemoryClient:
-    def __init__(self, gcs_project=None, fs=None, deploy_config=None, session=None, headers=None, _token=None):
-        self._client = MemoryClient(gcs_project, fs, deploy_config, session, headers, _token)
+    def __init__(self, gcs_project=None, fs=None, deploy_config=None, session=None, headers=None):
+        self._client = MemoryClient(gcs_project, fs, deploy_config, session, headers)
         async_to_blocking(self._client.async_init())
 
     def _get_file_if_exists(self, filename):
@@ -31,7 +30,7 @@ class Tests(unittest.TestCase):
         remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
         token = uuid.uuid4()
         self.test_path = f'{remote_tmpdir}memory-tests/{token}'
-        self.fs = RouterAsyncFS(None)
+        self.fs = RouterAsyncFS()
         self.client = BlockingMemoryClient(fs=self.fs)
         self.temp_files = set()
 

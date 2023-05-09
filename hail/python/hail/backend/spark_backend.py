@@ -1,3 +1,4 @@
+from typing import Set
 import pkg_resources
 import sys
 import os
@@ -13,6 +14,7 @@ from typing import List, Optional
 
 import hail as hl
 from hail.utils.java import scala_package_object
+from hail.fs.hadoop_fs import HadoopFS
 from hail.ir.renderer import CSERenderer
 from hail.table import Table
 from hail.matrixtable import MatrixTable
@@ -114,6 +116,14 @@ class Log4jLogger(Logger):
         self._log_pkg.info(msg)
 
 
+def append_to_comma_separated_list(conf: pyspark.SparkConf, k: str, *new_values: str):
+    old = conf.get(k, None)
+    if old is None:
+        conf.set(k, ','.join(new_values))
+    else:
+        conf.set(k, old + ',' + ','.join(new_values))
+
+
 class SparkBackend(Py4JBackend):
     def __init__(self, idempotent, sc, spark_conf, app_name, master,
                  local, log, quiet, append, min_block_size,
@@ -139,17 +149,31 @@ class SparkBackend(Py4JBackend):
             if os.environ.get('HAIL_SPARK_MONITOR') or os.environ.get('AZURE_SPARK') == '1':
                 import sparkmonitor
                 jars.append(os.path.join(os.path.dirname(sparkmonitor.__file__), 'listener.jar'))
-                conf.set("spark.extraListeners", "sparkmonitor.listener.JupyterSparkMonitorListener")
+                append_to_comma_separated_list(
+                    conf,
+                    'spark.extraListeners',
+                    'sparkmonitor.listener.JupyterSparkMonitorListener'
+                )
 
-            conf.set('spark.jars', ','.join(jars))
+            append_to_comma_separated_list(
+                conf,
+                'spark.jars',
+                *jars
+            )
             if os.environ.get('AZURE_SPARK') == '1':
                 print('AZURE_SPARK environment variable is set to "1", assuming you are in HDInsight.')
                 # Setting extraClassPath in HDInsight overrides the classpath entirely so you can't
                 # load the Scala standard library. Interestingly, setting extraClassPath is not
                 # necessary in HDInsight.
             else:
-                conf.set('spark.driver.extraClassPath', ','.join(jars))
-                conf.set('spark.executor.extraClassPath', './hail-all-spark.jar')
+                append_to_comma_separated_list(
+                    conf,
+                    'spark.driver.extraClassPath',
+                    *jars)
+                append_to_comma_separated_list(
+                    conf,
+                    'spark.executor.extraClassPath',
+                    './hail-all-spark.jar')
 
             if sc is None:
                 pyspark.SparkContext._ensure_initialized(conf=conf)
@@ -194,6 +218,7 @@ class SparkBackend(Py4JBackend):
             self.sc = pyspark.SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
         self._jspark_session = self._jbackend.sparkSession()
         self._spark_session = pyspark.sql.SparkSession(self.sc, self._jspark_session)
+        self._registered_ir_function_names: Set[str] = set()
 
         # This has to go after creating the SparkSession. Unclear why.
         # Maybe it does its own patch?
@@ -238,6 +263,7 @@ class SparkBackend(Py4JBackend):
         self._jhc = None
         self.sc.stop()
         self.sc = None
+        self._registered_ir_function_names = set()
         uninstall_exception_handler()
 
     @property
@@ -249,7 +275,6 @@ class SparkBackend(Py4JBackend):
     @property
     def fs(self):
         if self._fs is None:
-            from hail.fs.hadoop_fs import HadoopFS
             self._fs = HadoopFS(self._utils_package_object, self._jbackend.fs())
         return self._fs
 
@@ -267,6 +292,7 @@ class SparkBackend(Py4JBackend):
         assert not body._ir.uses_randomness
         code = r(body._ir)
         jbody = (self._parse_value_ir(code, ref_map=dict(zip(argument_names, argument_types)), ir_map=r.jirs))
+        self._registered_ir_function_names.add(name)
 
         self.hail_package().expr.ir.functions.IRFunctionRegistry.pyRegisterIR(
             name,
@@ -274,6 +300,9 @@ class SparkBackend(Py4JBackend):
             argument_names, [pt._parsable_string() for pt in argument_types],
             return_type._parsable_string(),
             jbody)
+
+    def _is_registered_ir_function_name(self, name: str) -> bool:
+        return name in self._registered_ir_function_names
 
     def read_multiple_matrix_tables(self, paths: 'List[str]', intervals: 'List[hl.Interval]', intervals_type):
         json_repr = {

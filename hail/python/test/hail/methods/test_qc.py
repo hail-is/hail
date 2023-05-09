@@ -2,7 +2,11 @@ import unittest
 
 import hail as hl
 import hail.expr.aggregators as agg
+from hail.utils.misc import new_temp_file
 from ..helpers import *
+
+
+GCS_REQUESTER_PAYS_PROJECT = os.environ.get('GCS_REQUESTER_PAYS_PROJECT')
 
 
 class Tests(unittest.TestCase):
@@ -106,6 +110,16 @@ class Tests(unittest.TestCase):
         self.assertEqual(r[1].vqc.gq_stats.max, 10)
         self.assertEqual(r[1].vqc.gq_stats.mean, 10)
         self.assertEqual(r[1].vqc.gq_stats.stdev, 0)
+
+    def test_variant_qc_alleles_field(self):
+        mt = hl.balding_nichols_model(1, 1, 1)
+        mt = mt.key_rows_by().drop('alleles')
+        with pytest.raises(ValueError, match="Method 'variant_qc' requires a field 'alleles' \\(type 'array<str>'\\).*"):
+            hl.variant_qc(mt).variant_qc.collect()
+
+        mt = hl.balding_nichols_model(1, 1, 1)
+        mt = mt.key_rows_by().drop('locus')
+        hl.variant_qc(mt).variant_qc.collect()
 
     def test_concordance(self):
         dataset = get_dataset()
@@ -285,3 +299,143 @@ class Tests(unittest.TestCase):
 
         assert pytest.approx(d['C1046::HG02024'], abs=0.0001) == .00126
         assert pytest.approx(d['C1046::HG02025'], abs=0.0001) == .00124
+
+    @skip_unless_service_backend(clouds=['gcp'])
+    @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
+    def test_vep_grch37_consequence_true(self):
+        gnomad_vep_result = hl.import_vcf(resource('sample.gnomad.exomes.r2.1.1.sites.chr1.vcf.gz'), reference_genome='GRCh37', force=True)
+        hail_vep_result = hl.vep(gnomad_vep_result, csq=True)
+
+        expected = gnomad_vep_result.select_rows(
+            vep=gnomad_vep_result.info.vep.map(lambda x: x.split('|')[:8])
+        ).rows()
+
+        actual = hail_vep_result.select_rows(
+            vep=hail_vep_result.vep.map(lambda x: x.split('|')[:8])
+        ).rows().drop('vep_csq_header')
+
+        assert expected._same(actual)
+
+        vep_csq_header = hl.eval(hail_vep_result.vep_csq_header)
+        assert 'Consequence annotations from Ensembl VEP' in vep_csq_header, vep_csq_header
+
+    @skip_unless_service_backend(clouds=['gcp'])
+    @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
+    def test_vep_grch38_consequence_true(self):
+        gnomad_vep_result = hl.import_vcf(resource('sample.gnomad.genomes.r3.0.sites.chr1.vcf.gz'), reference_genome='GRCh38', force=True)
+        hail_vep_result = hl.vep(gnomad_vep_result, csq=True)
+
+        expected = gnomad_vep_result.select_rows(
+            vep=gnomad_vep_result.info.vep.map(lambda x: x.split('|')[:8])
+        ).rows()
+
+        actual = hail_vep_result.select_rows(
+            vep=hail_vep_result.vep.map(lambda x: x.split('|')[:8])
+        ).rows().drop('vep_csq_header')
+
+        assert expected._same(actual)
+
+        vep_csq_header = hl.eval(hail_vep_result.vep_csq_header)
+        assert 'Consequence annotations from Ensembl VEP' in vep_csq_header, vep_csq_header
+
+    @skip_unless_service_backend(clouds=['gcp'])
+    @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
+    def test_vep_grch37_consequence_false(self):
+        mt = hl.import_vcf(resource('sample.gnomad.exomes.r2.1.1.sites.chr1.vcf.gz'), reference_genome='GRCh37', force=True)
+        hail_vep_result = hl.vep(mt, csq=False)
+        ht = hail_vep_result.rows()
+        ht = ht.select(variant_class=ht.vep.variant_class)
+        result = ht.head(1).collect()[0]
+        assert result.variant_class == 'SNV', result
+
+    @skip_unless_service_backend(clouds=['gcp'])
+    @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
+    def test_vep_grch38_consequence_false(self):
+        mt = hl.import_vcf(resource('sample.gnomad.genomes.r3.0.sites.chr1.vcf.gz'), reference_genome='GRCh38', force=True)
+        hail_vep_result = hl.vep(mt, csq=False)
+        ht = hail_vep_result.rows()
+        ht = ht.select(variant_class=ht.vep.variant_class)
+        result = ht.head(1).collect()[0]
+        assert result.variant_class == 'SNV', result
+
+    @skip_unless_service_backend(clouds=['gcp'])
+    @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
+    def test_vep_grch37_against_dataproc(self):
+        mt = hl.import_vcf(resource('sample.vcf.gz'), reference_genome='GRCh37', force_bgz=True, n_partitions=4)
+        mt = mt.head(20)
+        hail_vep_result = hl.vep(mt)
+        initial_vep_dtype = hail_vep_result.vep.dtype
+        hail_vep_result = hail_vep_result.annotate_rows(vep=hail_vep_result.vep.annotate(
+            input=hl.str('\t').join([
+                hail_vep_result.locus.contig,
+                hl.str(hail_vep_result.locus.position),
+                ".",
+                hail_vep_result.alleles[0],
+                hail_vep_result.alleles[1],
+                ".",
+                ".",
+                "GT",
+            ])
+        ))
+        hail_vep_result = hail_vep_result.rows().select('vep')
+
+        def parse_lof_info_into_dict(ht):
+            def tuple2(arr):
+                return hl.tuple([arr[0], arr[1]])
+
+            return ht.annotate(vep=ht.vep.annotate(
+                transcript_consequences=ht.vep.transcript_consequences.map(
+                    lambda csq: csq.annotate(
+                        lof_info=hl.or_missing(csq.lof_info != 'null',
+                                               hl.dict(csq.lof_info.split(',').map(lambda kv: tuple2(kv.split(':')))))))))
+
+        hail_vep_result = parse_lof_info_into_dict(hail_vep_result)
+
+        dataproc_result = hl.import_table(resource('dataproc_vep_grch37_annotations.tsv.gz'),
+                                          key=['locus', 'alleles'],
+                                          types={'locus': hl.tlocus('GRCh37'), 'alleles': hl.tarray(hl.tstr),
+                                                 'vep': initial_vep_dtype}, force=True)
+        dataproc_result = parse_lof_info_into_dict(dataproc_result)
+
+        assert hail_vep_result._same(dataproc_result)
+
+    @skip_unless_service_backend(clouds=['gcp'])
+    @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
+    def test_vep_grch38_against_dataproc(self):
+        dataproc_result = hl.import_table(resource('dataproc_vep_grch38_annotations.tsv.gz'),
+                                          key=['locus', 'alleles'],
+                                          types={'locus': hl.tlocus('GRCh38'), 'alleles': hl.tarray(hl.tstr),
+                                                 'vep': hl.tstr}, force=True)
+        loftee_variants = dataproc_result.select()
+
+        hail_vep_result = hl.vep(loftee_variants)
+        hail_vep_result = hail_vep_result.annotate(vep=hail_vep_result.vep.annotate(
+            input=hl.str('\t').join([
+                hail_vep_result.locus.contig,
+                hl.str(hail_vep_result.locus.position),
+                ".",
+                hail_vep_result.alleles[0],
+                hail_vep_result.alleles[1],
+                ".",
+                ".",
+                "GT",
+            ])
+        ))
+        hail_vep_result = hail_vep_result.select('vep')
+
+        def parse_lof_info_into_dict(ht):
+            def tuple2(arr):
+                return hl.tuple([arr[0], arr[1]])
+
+            return ht.annotate(vep=ht.vep.annotate(
+                transcript_consequences=ht.vep.transcript_consequences.map(
+                    lambda csq: csq.annotate(
+                        lof_info=hl.or_missing(csq.lof_info != 'null',
+                                               hl.dict(csq.lof_info.split(',').map(lambda kv: tuple2(kv.split(':')))))))))
+
+        dataproc_result = dataproc_result.annotate(vep=hl.parse_json(dataproc_result.vep, hail_vep_result.vep.dtype))
+
+        hail_vep_result = parse_lof_info_into_dict(hail_vep_result)
+        dataproc_result = parse_lof_info_into_dict(dataproc_result)
+
+        assert hail_vep_result._same(dataproc_result)

@@ -1,0 +1,20 @@
+FROM {{ hail_ubuntu_image.image }}
+
+ENV LANG C.UTF-8
+
+RUN hail-apt-get-install \
+    openjdk-8-jdk-headless \
+    python3.9 \
+  && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 1
+
+COPY hail/python/pinned-requirements.txt requirements.txt
+COPY hail/python/dev/pinned-requirements.txt dev-requirements.txt
+RUN file=$(mktemp) && \
+    cat requirements.txt dev-requirements.txt > $file && \
+    hail-pip-install -r $file
+
+RUN --mount=src=wheel-container.tar,target=/wheel-container.tar \
+    tar -xf wheel-container.tar && \
+    hail-pip-install --no-deps hail-*-py3-none-any.whl
+
+COPY pylintrc setup.cfg pyproject.toml /

@@ -12,7 +12,7 @@ from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
     NDArrayReindex, NDArrayAgg, NDArrayMatMul, NDArrayQR, NDArrayInv, NDArrayConcat, NDArrayWrite, \
     ArraySort, ArrayMaximalIndependentSet, ToSet, ToDict, toArray, ToArray, CastToArray, \
     ToStream, toStream, LowerBoundOnOrderedCollection, GroupByKey, StreamMap, StreamZip, StreamTake, \
-    StreamFilter, StreamFlatMap, StreamFold, StreamScan, StreamJoinRightDistinct, StreamFor, \
+    StreamFilter, StreamFlatMap, StreamFold, StreamScan, StreamJoinRightDistinct, StreamFor, StreamWhiten, \
     AggFilter, AggExplode, AggGroupBy, AggArrayPerElement, BaseApplyAggOp, ApplyAggOp, ApplyScanOp, \
     AggFold, Begin, MakeStruct, SelectFields, InsertFields, GetField, MakeTuple, \
     GetTupleElement, Die, ConsoleLog, Apply, ApplySeeded, RNGStateLiteral, RNGSplit,\
@@ -27,7 +27,7 @@ from .table_ir import (MatrixRowsTable, TableJoin, TableLeftJoinRightDistinct, T
                        TableParallelize, TableHead, TableTail, TableOrderBy, TableDistinct, RepartitionStrategy,
                        TableRepartition, CastMatrixToTable, TableRename, TableMultiWayZipJoin, TableFilterIntervals,
                        TableToTableApply, MatrixToTableApply, BlockMatrixToTableApply, BlockMatrixToTable, JavaTable,
-                       TableMapPartitions, TableGenomicRange, TableGen, Partitioner)
+                       TableMapPartitions, TableGen, Partitioner)
 from .matrix_ir import MatrixAggregateRowsByKey, MatrixRead, MatrixFilterRows, \
     MatrixChooseCols, MatrixMapCols, MatrixUnionCols, MatrixMapEntries, \
     MatrixFilterEntries, MatrixKeyRowsBy, MatrixMapRows, MatrixMapGlobals, \
@@ -182,6 +182,7 @@ __all__ = [
     'StreamFlatMap',
     'StreamFold',
     'StreamScan',
+    'StreamWhiten',
     'StreamJoinRightDistinct',
     'StreamFor',
     'StreamGrouped',
@@ -283,7 +284,6 @@ __all__ = [
     'TableKeyBy',
     'TableMapRows',
     'TableMapPartitions',
-    'TableGenomicRange',
     'TableRead',
     'MatrixEntriesTable',
     'TableFilter',

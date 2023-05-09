@@ -1505,9 +1505,9 @@ def concat_uids(uid1, uid2, handle_missing_left=False, handle_missing_right=Fals
     return MakeTuple([*fields1, *fields2])
 
 
-def unpack_uid(stream_type):
+def unpack_uid(stream_type, name=None):
     tuple_type = stream_type.element_type
-    tuple = Ref(Env.get_uid(), tuple_type)
+    tuple = Ref(name or Env.get_uid(), tuple_type)
     if isinstance(tuple_type, tstruct):
         return \
             tuple.name, \
@@ -1584,6 +1584,15 @@ class StreamMap(IR):
             elt = Env.get_uid()
             new_body = with_split_rng_state(Let(self.name, elt, self.body, uid))
             return StreamZip([a, StreamIota(I32(0), I32(1))], [elt, uid], new_body, 'TakeMinLength')
+
+        if not self.needs_randomness_handling and self.a.has_uids:
+            # There are occations when handle_randomness is called twice on a
+            # `StreamMap`: once with `create_uids=False` and the second time
+            # with `True`. In these cases, we only need to propagate the uid.
+            assert(create_uids)
+            _, uid, _ = unpack_uid(self.a.typ, self.name)
+            new_body = pack_uid(uid, self.body)
+            return StreamMap(self.a, self.name, new_body)
 
         a = self.a.handle_randomness(True)
 
@@ -1906,6 +1915,40 @@ class StreamScan(IR):
                 return {self.accum_name: default_value, self.value_name: default_value}
         else:
             return {}
+
+
+class StreamWhiten(IR):
+    @typecheck_method(stream=IR, new_chunk=str, prev_window=str, vec_size=int, window_size=int, chunk_size=int, block_size=int, normalize_after_whiten=bool)
+    def __init__(self, stream, new_chunk, prev_window, vec_size, window_size, chunk_size, block_size, normalize_after_whiten):
+        super().__init__(stream)
+        self.stream = stream
+        self.new_chunk = new_chunk
+        self.prev_window = prev_window
+        self.vec_size = vec_size
+        self.window_size = window_size
+        self.chunk_size = chunk_size
+        self.block_size = block_size
+        self.normalize_after_whiten = normalize_after_whiten
+
+    @typecheck_method(stream=IR)
+    def copy(self, stream):
+        return StreamWhiten(stream, self.new_chunk, self.prev_window, self.vec_size, self.window_size, self.chunk_size, self.block_size, self.normalize_after_whiten)
+
+    def head_str(self):
+        return f'{escape_id(self.new_chunk)} {escape_id(self.prev_window)} {self.vec_size} {self.window_size} {self.chunk_size} {self.block_size} {self.normalize_after_whiten}'
+
+    def _eq(self, other):
+        return other.new_chunk == self.new_chunk and \
+            other.prev_window == self.prev_window and \
+            other.vec_size == self.vec_size and \
+            other.window_size == self.window_size and \
+            other.chunk_size == self.chunk_size and \
+            other.block_size == self.block_size and \
+            other.normalize_after_whiten == self.normalize_after_whiten
+
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.stream._compute_type(env, agg_env, deep_typecheck)
+        return self.stream.typ
 
 
 class StreamJoinRightDistinct(IR):

@@ -3,23 +3,16 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.backend.{ExecuteContext, HailStateManager}
-import is.hail.backend.spark.SparkBackend
-import is.hail.expr.JSONAnnotationImpex
+import is.hail.io.{BufferSpec, FileWriteMetadata}
+import is.hail.linalg.RowMatrix
+import is.hail.rvd.{AbstractRVDSpec, RVD}
 import is.hail.types.physical.{PArray, PCanonicalStruct, PStruct, PType}
 import is.hail.types.virtual._
 import is.hail.types.{MatrixType, TableType}
-import is.hail.io.{BufferSpec, FileWriteMetadata, MatrixWriteCheckpoint}
-import is.hail.io.fs.FS
-import is.hail.linalg.RowMatrix
-import is.hail.rvd.{AbstractRVDSpec, RVD, _}
-import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
-import org.apache.commons.lang3.StringUtils
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
-import org.json4s.jackson.JsonMethods
-import org.json4s.jackson.JsonMethods.parse
 
 case class MatrixValue(
   typ: MatrixType,
@@ -82,9 +75,6 @@ case class MatrixValue(
       fatal(s"Method '$method' does not support duplicate column keys. Duplicates:" +
         s"\n  @1", dups.sortBy(-_._2).map { case (id, count) => s"""($count) "$id"""" }.truncatable("\n  "))
   }
-
-  def colsTableValue(ctx: ExecuteContext): TableValue =
-    TableValue(ctx, typ.colsTableType, globals, colsRVD(ctx))
 
   private def writeCols(ctx: ExecuteContext, path: String, bufferSpec: BufferSpec): Long = {
     val fs = ctx.fs
@@ -214,59 +204,6 @@ case class MatrixValue(
       s"\n    * Globals: ${ formatSpace(globalBytesWritten) }" +
       s"\n    * Smallest partition: $smallestStr" +
       s"\n    * Largest partition:  $largestStr")
-  }
-
-  def write(ctx: ExecuteContext,
-    path: String,
-    overwrite: Boolean,
-    stageLocally: Boolean,
-    codecSpecJSON: String,
-    partitions: String,
-    partitionsTypeStr: String,
-    checkpointFile: String): Unit = {
-    assert(typ.isCanonical)
-    val fs = ctx.fs
-
-    val bufferSpec = BufferSpec.parseOrDefault(codecSpecJSON)
-
-    if (overwrite) {
-      if (checkpointFile != null)
-        fatal(s"cannot currently use a checkpoint file with overwrite=True")
-      fs.delete(path, recursive = true)
-    } else if (fs.exists(path))
-      if (checkpointFile == null || fs.exists(path + "/_SUCCESS"))
-        fatal(s"file already exists: $path")
-
-    fs.mkDir(path)
-
-    val targetPartitioner =
-      if (partitions != null) {
-        if (checkpointFile != null)
-          fatal(s"cannot currently use a checkpoint file with `partitions` argument")
-        val partitionsType = IRParser.parseType(partitionsTypeStr)
-        val jv = JsonMethods.parse(partitions)
-        val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, partitionsType)
-          .asInstanceOf[IndexedSeq[Interval]]
-        new RVDPartitioner(ctx.stateManager, typ.rowKey.toArray, typ.rowKeyStruct, rangeBounds)
-      } else
-        null
-
-    val checkpoint = Option(checkpointFile).map(path => MatrixWriteCheckpoint.read(fs, path, path, rvd.getNumPartitions))
-
-    val fileData = rvd.writeRowsSplit(ctx, path, bufferSpec, stageLocally, targetPartitioner, checkpoint)
-
-    finalizeWrite(ctx, path, bufferSpec, fileData, consoleInfo = true)
-  }
-
-  def colsRVD(ctx: ExecuteContext): RVD = {
-    // only used in exportPlink
-    assert(typ.colKey.isEmpty)
-    val colPType = PType.canonical(typ.colType).setRequired(true).asInstanceOf[PStruct]
-
-    RVD.coerce(ctx,
-      typ.colsTableType.canonicalRVDType,
-      ContextRDD.parallelize(colValues.safeJavaValue)
-        .cmapPartitions { (ctx, it) => it.copyToRegion(ctx.region, colPType) })
   }
 
   def toRowMatrix(entryField: String): RowMatrix = {

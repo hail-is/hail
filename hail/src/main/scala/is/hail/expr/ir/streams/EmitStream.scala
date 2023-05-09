@@ -1,21 +1,24 @@
 package is.hail.expr.ir.streams
 
-import is.hail.annotations.Region
+import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.ir.agg.{AggStateSig, DictState, PhysicalAggSig, StateTuple}
 import is.hail.expr.ir.functions.IntervalFunctions
-import is.hail.expr.ir.orderings.{CodeOrdering, StructOrdering}
-import is.hail.methods.{LocalLDPrune, BitPackedVector, BitPackedVectorBuilder}
-import is.hail.types.physical.stypes.EmitType
-import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SStackStruct, SJavaArrayString, SJavaArrayStringValue, SUnreachable}
+import is.hail.expr.ir.orderings.StructOrdering
+import is.hail.linalg.LinalgCodeUtils
+import is.hail.lir
+import is.hail.methods.{BitPackedVector, BitPackedVectorBuilder, LocalLDPrune, LocalWhitening}
+import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SStackStruct, SUnreachable}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.primitives.{SInt32Value, SFloat64Value}
-import is.hail.types.physical.{PCanonicalArray, PCanonicalBinary, PCanonicalStruct}
+import is.hail.types.physical.stypes.primitives.{SFloat64Value, SInt32Value}
+import is.hail.types.physical.stypes.{EmitType, SSettable}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalBinary, PCanonicalStruct, PType}
 import is.hail.types.virtual._
 import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.utils._
 import is.hail.variant.Locus
+import org.objectweb.asm.Opcodes._
 
 import java.util
 
@@ -130,26 +133,125 @@ object EmitStream {
     emitter: Emit[_],
     streamIR: IR,
     cb: EmitCodeBuilder,
+    mb: EmitMethodBuilder[_],
     outerRegion: Value[Region],
     env: EmitEnv,
     container: Option[AggContainer]
   ): IEmitCode = {
-
-    val mb = cb.emb
-
 
     def emitVoid(ir: IR, cb: EmitCodeBuilder, region: Value[Region] = outerRegion, env: EmitEnv = env, container: Option[AggContainer] = container): Unit =
       emitter.emitVoid(cb, ir, region, env, container, None)
 
     def emit(ir: IR, cb: EmitCodeBuilder, region: Value[Region] = outerRegion, env: EmitEnv = env, container: Option[AggContainer] = container): IEmitCode = {
       ir.typ match {
-        case _: TStream => produce(ir, cb, region, env, container)
+        case _: TStream => produce(ir, cb, cb.emb, region, env, container)
         case _ => emitter.emitI(ir, cb, region, env, container, None)
       }
     }
 
-    def produce(streamIR: IR, cb: EmitCodeBuilder, region: Value[Region] = outerRegion, env: EmitEnv = env, container: Option[AggContainer] = container): IEmitCode =
-      EmitStream.produce(emitter, streamIR, cb, region, env, container)
+    // returns IEmitCode of SStreamConcrete
+    def produceIterator(streamIR: IR, elementPType: PType, cb: EmitCodeBuilder, outerRegion: Value[Region] = outerRegion, env: EmitEnv = env): IEmitCode = {
+      val ecb = cb.emb.genEmitClass[NoBoxLongIterator]("stream_to_iter")
+      ecb.cb.addInterface(typeInfo[MissingnessAsMethod].iname)
+
+      val fv = FreeVariables(streamIR, false, false).eval
+      val (envParamTypes, envParams, restoreEnv) = env.asParams(fv)
+
+      val isMissing = ecb.genFieldThisRef[Boolean]("isMissing")
+      val eosField = ecb.genFieldThisRef[Boolean]("eos")
+      val outerRegionField = ecb.genFieldThisRef[Region]("outer")
+
+      ecb.makeAddPartitionRegion()
+
+      var producer: StreamProducer = null
+      var producerRequired: Boolean = false
+
+      val next = ecb.newEmitMethod("next", FastIndexedSeq[ParamType](), LongInfo)
+      val ctor = ecb.newEmitMethod("<init>", FastIndexedSeq[ParamType](typeInfo[Region], arrayInfo[Long]) ++ envParamTypes, UnitInfo)
+      ctor.voidWithBuilder { cb =>
+        val L = new lir.Block()
+        L.append(
+          lir.methodStmt(INVOKESPECIAL,
+            "java/lang/Object",
+            "<init>",
+            "()V",
+            false,
+            UnitInfo,
+            FastIndexedSeq(lir.load(ctor.mb._this.asInstanceOf[LocalRef[_]].l))))
+        cb += new VCode(L, L, null)
+
+        val newEnv = restoreEnv(cb, 3)
+        val s = EmitStream.produce(new Emit(emitter.ctx, ecb), streamIR, cb, next, outerRegionField, newEnv, None)
+        producerRequired = s.required
+        s.consume(cb, {
+          if (!producerRequired) cb.assign(isMissing, true)
+        }, { stream =>
+          if (!producerRequired) cb.assign(isMissing, false)
+          producer = stream.asStream.getProducer(next)
+        })
+
+        val self = cb.memoize(Code.checkcast[FunctionWithPartitionRegion]((ctor.getCodeParam(0)(ecb.cb.ti))))
+
+        ecb.setLiteralsArray(cb, ctor.getCodeParam[Array[Long]](2))
+        val partitionRegion = cb.memoize(ctor.getCodeParam[Region](1))
+        cb += self.invoke[Region, Unit]("addPartitionRegion", partitionRegion)
+        cb += self.invoke[RegionPool, Unit]("setPool", partitionRegion.getPool())
+      }
+
+      next.emitWithBuilder { cb =>
+        val ret = cb.newLocal[Long]("ret")
+        val Lret = CodeLabel()
+        cb.goto(producer.LproduceElement)
+        cb.define(producer.LproduceElementDone)
+        producer.element.toI(cb)
+          .consume(cb, {
+            cb.assign(ret, 0L)
+          }, { value =>
+            cb.assign(ret, elementPType.store(cb, producer.elementRegion, value, false))
+          })
+        cb.goto(Lret)
+        cb.define(producer.LendOfStream)
+        cb.assign(eosField, true)
+
+        cb.define(Lret)
+        ret
+      }
+
+      val init = ecb.newEmitMethod("init", FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[Region]), UnitInfo)
+      init.voidWithBuilder { cb =>
+        val outerRegion = init.getCodeParam[Region](1)
+        val eltRegion = init.getCodeParam[Region](2)
+
+        cb.assign(producer.elementRegion, eltRegion)
+        cb.assign(outerRegionField, outerRegion)
+        producer.initialize(cb, outerRegion)
+        cb.assign(eosField, false)
+      }
+
+
+      val isEOS = ecb.newEmitMethod("eos", FastIndexedSeq[ParamType](), BooleanInfo)
+      isEOS.emitWithBuilder[Boolean](cb => eosField)
+
+      val isMissingMethod = ecb.newEmitMethod("isMissing", FastIndexedSeq[ParamType](), BooleanInfo)
+      isMissingMethod.emitWithBuilder[Boolean](cb => isMissing)
+
+
+      val close = ecb.newEmitMethod("close", FastIndexedSeq[ParamType](), UnitInfo)
+      close.voidWithBuilder(cb => producer.close(cb))
+
+      val obj = cb.memoize(Code.newInstance(ecb.cb, ctor.mb,
+        FastIndexedSeq(cb.emb.partitionRegion.get, cb.emb.ecb.literalsArray().get) ++ envParams.map(_.get)))
+
+      val iter = cb.emb.genFieldThisRef[NoBoxLongIterator]("iter")
+      cb.assign(iter, Code.checkcast[NoBoxLongIterator](obj))
+      IEmitCode(cb,
+        if (producerRequired) false else Code.checkcast[MissingnessAsMethod](obj).invoke[Boolean]("isMissing"),
+        new SStreamConcrete(SStreamIteratorLong(producer.element.required, elementPType, producer.requiresMemoryManagementPerElement),
+          iter))
+    }
+
+    def produce(streamIR: IR, cb: EmitCodeBuilder, mb: EmitMethodBuilder[_] = mb, region: Value[Region] = outerRegion, env: EmitEnv = env, container: Option[AggContainer] = container): IEmitCode =
+      EmitStream.produce(emitter, streamIR, cb, mb, region, env, container)
 
     def typeWithReqx(node: IR): VirtualTypeWithReq = VirtualTypeWithReq(node.typ, emitter.ctx.req.lookup(node).asInstanceOf[TypeWithRequiredness])
     def typeWithReq: VirtualTypeWithReq = typeWithReqx(streamIR)
@@ -203,7 +305,7 @@ object EmitStream {
           }
 
       case Let(name, value, body) =>
-        cb.withScopedMaybeStreamValue(EmitCode.fromI(mb)(cb => emit(value, cb)), s"let_$name") { ev =>
+        cb.withScopedMaybeStreamValue(EmitCode.fromI(cb.emb)(cb => emit(value, cb)), s"let_$name") { ev =>
           produce(body, cb, env = env.bind(name, ev))
         }
 
@@ -216,17 +318,17 @@ object EmitStream {
 
       case ToStream(a, _requiresMemoryManagementPerElement) =>
 
-        emit(a, cb).map(cb) { case ind: SIndexableValue =>
-          val containerField = mb.newPField("tostream_arr", ind.st)
+        emit(a, cb).map(cb) { case _ind: SIndexableValue =>
+          val containerField = cb.memoizeField(_ind, "indexable").asIndexable
           val container = containerField.asInstanceOf[SIndexableValue]
           val idx = mb.genFieldThisRef[Int]("tostream_idx")
           val regionVar = mb.genFieldThisRef[Region]("tostream_region")
+
 
           SStreamValue(
             new StreamProducer {
               override def method: EmitMethodBuilder[_] = mb
               override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
-                cb.assign(containerField, ind)
                 cb.assign(idx, -1)
               }
 
@@ -298,7 +400,7 @@ object EmitStream {
 
               override val elementRegion: Settable[Region] = region
 
-              override val requiresMemoryManagementPerElement: Boolean = false
+              override val requiresMemoryManagementPerElement: Boolean = childProducer.requiresMemoryManagementPerElement
 
               override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
                 val elementProduceLabel = CodeLabel()
@@ -400,7 +502,6 @@ object EmitStream {
 
       case x@MakeStream(args, _, _requiresMemoryManagementPerElement) =>
         val region = mb.genFieldThisRef[Region]("makestream_region")
-        val emittedArgs = args.map(a => EmitCode.fromI(mb)(cb => emit(a, cb, region))).toFastIndexedSeq
 
         // FIXME use SType.chooseCompatibleType
         val unifiedType = typeWithReq.canonicalEmitType.st.asInstanceOf[SStream].elementEmitType
@@ -428,7 +529,7 @@ object EmitStream {
                 EmitCodeBuilder.scopedVoid(mb) { cb =>
                   cb.goto(LendOfStream)
                 },
-                emittedArgs.map { elem =>
+                args.toFastIndexedSeq.map(a => EmitCode.fromI(mb)(cb => emit(a, cb, region))).map { elem =>
                   EmitCodeBuilder.scopedVoid(mb) { cb =>
                     cb.assign(eltField, elem.toI(cb).map(cb)(pc => pc.castTo(cb, region, unifiedType.st, false)))
                     cb.goto(LendOfSwitch)
@@ -453,8 +554,8 @@ object EmitStream {
           val Lmissing = CodeLabel()
           val Lpresent = CodeLabel()
 
-          val leftEC = EmitCode.fromI(mb)(cb => produce(cnsq, cb))
-          val rightEC = EmitCode.fromI(mb)(cb => produce(altr, cb))
+          val leftEC = EmitCode.fromI(cb.emb)(cb => produce(cnsq, cb))
+          val rightEC = EmitCode.fromI(cb.emb)(cb => produce(altr, cb))
 
           val leftProducer = leftEC.pv.asStream.getProducer(mb)
           val rightProducer = rightEC.pv.asStream.getProducer(mb)
@@ -562,6 +663,10 @@ object EmitStream {
             val startVar = mb.genFieldThisRef[Int]("range_start")
             val stopVar = mb.genFieldThisRef[Int]("streamrange_stop")
             val regionVar = mb.genFieldThisRef[Region]("sr_region")
+
+            cb.assign(startVar, startCode.asInt.value)
+            cb.assign(stopVar, stopCode.asInt.value)
+
             val producer: StreamProducer = new StreamProducer {
               override def method: EmitMethodBuilder[_] = mb
               override val length: Option[EmitCodeBuilder => Code[Int]] = Some({ cb =>
@@ -578,8 +683,6 @@ object EmitStream {
               })
 
               override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
-                cb.assign(startVar, startCode.asInt.value)
-                cb.assign(stopVar, stopCode.asInt.value)
                 start match {
                   case I32(x) if step < 0 && ((x.toLong - Int.MinValue.toLong) / step.toLong + 1) < Int.MaxValue =>
                   case I32(x) if step > 0 && ((Int.MaxValue.toLong - x.toLong) / step.toLong + 1) < Int.MaxValue =>
@@ -627,16 +730,16 @@ object EmitStream {
               val curr = mb.genFieldThisRef[Int]("streamrange_curr")
               val idx = mb.genFieldThisRef[Int]("streamrange_idx")
 
+              cb.assign(start, startc.asInt.value)
+              cb.assign(stop, stopc.asInt.value)
+              cb.assign(step, stepc.asInt.value)
+
               val producer: StreamProducer = new StreamProducer {
                 override def method: EmitMethodBuilder[_] = mb
                 override val length: Option[EmitCodeBuilder => Code[Int]] = Some(_ => len)
 
                 override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                   val llen = cb.newLocal[Long]("streamrange_llen")
-
-                  cb.assign(start, startc.asInt.value)
-                  cb.assign(stop, stopc.asInt.value)
-                  cb.assign(step, stepc.asInt.value)
 
                   cb.ifx(step ceq const(0), cb._fatalWithError(errorID, "Array range cannot have step size 0."))
                   cb.ifx(step < const(0), {
@@ -1160,6 +1263,62 @@ object EmitStream {
           }
 
           mb.implementLabel(childProducer.LendOfStream) { cb =>
+            cb.goto(producer.LendOfStream)
+          }
+
+          SStreamValue(producer)
+        }
+
+      case StreamWhiten(stream, newChunkName, prevWindowName, vecSize, windowSize, chunkSize, blockSize, normalizeAfterWhiten) =>
+        produce(stream, cb).map(cb) { case blocks: SStreamValue =>
+          val state = new LocalWhitening(cb, SizeValueStatic(vecSize.toLong), windowSize.toLong, chunkSize.toLong, blockSize.toLong, outerRegion, normalizeAfterWhiten)
+          val eltType = blocks.st.elementType.asInstanceOf[SBaseStruct]
+          var resultField: SSettable = null
+
+          val blocksProducer = blocks.getProducer(cb.emb)
+          val producer: StreamProducer = new StreamProducer {
+            override def method: EmitMethodBuilder[_] = mb
+
+            override val length: Option[EmitCodeBuilder => Code[Int]] =
+              blocksProducer.length.map { l => (cb: EmitCodeBuilder) =>
+                val len = cb.memoize(l(cb))
+                len
+              }
+
+            override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
+              state.reset(cb)
+              blocksProducer.initialize(cb, outerRegion)
+            }
+
+            override val elementRegion: Settable[Region] = blocksProducer.elementRegion
+            override val requiresMemoryManagementPerElement: Boolean = blocksProducer.requiresMemoryManagementPerElement
+
+            override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
+              cb.goto(blocksProducer.LproduceElement)
+              cb.define(blocksProducer.LproduceElementDone)
+              val row = blocksProducer.element.toI(cb).get(cb, "StreamWhiten: missing tuple").asBaseStruct
+              row.loadField(cb, prevWindowName).consume(cb, {}, { prevWindow =>
+                state.initializeWindow(cb, prevWindow.asNDArray)
+              })
+              val block = row.loadField(cb, newChunkName).get(cb, "StreamWhiten: missing chunk").asNDArray
+              val whitenedBlock = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(block, cb, elementRegion)
+              state.whitenBlock(cb, whitenedBlock)
+              // the 'newChunkName' field of 'row' is mutated in place and given
+              // to the consumer
+              val result = row.insert(cb, elementRegion, eltType.virtualType.asInstanceOf[TStruct], newChunkName -> EmitValue.present(whitenedBlock))
+              resultField = mb.newPField("StreamWhiten_result", result.st)
+              cb.assign(resultField, result)
+              cb.goto(LproduceElementDone)
+            }
+
+            override val element: EmitCode = EmitCode.present(mb, resultField)
+
+            override def close(cb: EmitCodeBuilder): Unit = {
+              blocksProducer.close(cb)
+            }
+          }
+
+          mb.implementLabel(blocksProducer.LendOfStream) { cb =>
             cb.goto(producer.LendOfStream)
           }
 
@@ -2111,7 +2270,7 @@ object EmitStream {
         }
 
       case StreamZip(as, names, body, behavior, errorID) =>
-        IEmitCode.multiMapEmitCodes(cb, as.map(a => EmitCode.fromI(mb)(cb => produce(a, cb)))) { childStreams =>
+        IEmitCode.multiMapEmitCodes(cb, as.map(a => EmitCode.fromI(cb.emb)(cb => produce(a, cb)))) { childStreams =>
 
           val producers = childStreams.map(_.asStream.getProducer(mb))
 
@@ -2346,7 +2505,7 @@ object EmitStream {
         }
 
       case x@StreamZipJoin(as, key, keyRef, valsRef, joinIR) =>
-        IEmitCode.multiMapEmitCodes(cb, as.map(a => EmitCode.fromI(mb)(cb => emit(a, cb)))) { children =>
+        IEmitCode.multiMapEmitCodes(cb, as.map(a => EmitCode.fromI(cb.emb)(cb => emit(a, cb)))) { children =>
           val producers = children.map(_.asStream.getProducer(mb))
 
           val eltType = VirtualTypeWithReq.union(as.map(a => typeWithReqx(a))).canonicalEmitType
@@ -2612,59 +2771,9 @@ object EmitStream {
               memoryManagementBooleansArray.apply(idx).toZ
           }
 
-          // The algorithm maintains a tournament tree of comparisons between the
-          // current values of the k streams. The tournament tree is a complete
-          // binary tree with k leaves. The leaves of the tree are the streams,
-          // and each internal node represents the "contest" between the "winners"
-          // of the two subtrees, where the winner is the stream with the smaller
-          // current key. Each internal node stores the index of the stream which
-          // *lost* that contest.
-          // Each time we remove the overall winner, and replace that stream's
-          // leaf with its next value, we only need to rerun the contests on the
-          // path from that leaf to the root, comparing the new value with what
-          // previously lost that contest to the previous overall winner.
-          val k = producers.length
-          // The leaf nodes of the tournament tree, each of which holds a pointer
-          // to the current value of that stream.
-          val heads = mb.genFieldThisRef[Array[Long]]("merge_heads")
-          // The internal nodes of the tournament tree, laid out in breadth-first
-          // order, each of which holds the index of the stream which lost that
-          // contest.
-          val bracket = mb.genFieldThisRef[Array[Int]]("merge_bracket")
-          // When updating the tournament tree, holds the winner of the subtree
-          // containing the updated leaf. Otherwise, holds the overall winner, i.e.
-          // the current least element.
-          val winner = mb.genFieldThisRef[Int]("merge_winner")
-          val i = mb.genFieldThisRef[Int]("merge_i")
-          val challenger = mb.genFieldThisRef[Int]("merge_challenger")
-
-          val matchIdx = mb.genFieldThisRef[Int]("merge_match_idx")
-          // Compare 'winner' with value in 'matchIdx', loser goes in 'matchIdx',
-          // winner goes on to next round. A contestant '-1' beats everything
-          // (negative infinity), a contestant 'k' loses to everything
-          // (positive infinity), and values in between are indices into 'heads'.
-
-          /**
-            * The ordering function in StreamMultiMerge should use missingFieldsEqual=false to be consistent
-            * with other nodes that deal with struct keys. When keys compare equal, the earlier index (in
-            * the list of stream children) should win. These semantics extend to missing key fields, which
-            * requires us to compile two orderings (l/r and r/l) to maintain the abilty to take from the
-            * left when key fields are missing.
-            */
-          def comp(cb: EmitCodeBuilder, li: Code[Int], lv: Code[Long], ri: Code[Int], rv: Code[Long]): Code[Boolean] = {
-            val l = unifiedType.loadCheapSCode(cb, lv).asBaseStruct.subset(key: _*)
-            val r = unifiedType.loadCheapSCode(cb, rv).asBaseStruct.subset(key: _*)
-            val ord1 = StructOrdering.make(l.asBaseStruct.st, r.asBaseStruct.st, cb.emb.ecb, missingFieldsEqual = false)
-            val ord2 = StructOrdering.make(r.asBaseStruct.st, l.asBaseStruct.st, cb.emb.ecb, missingFieldsEqual = false)
-            val b = cb.newLocal[Boolean]("stream_merge_comp_result")
-            cb.ifx(li < ri,
-              cb.assign(b, ord1.compareNonnull(cb, l, r) <= 0),
-              cb.assign(b, ord2.compareNonnull(cb, r, l) > 0))
-            b
-          }
-
-          val producer = new StreamProducer {
+          val producer = new StreamUtils.StreamMultiMergeBase(key, unifiedType, const(producers.length), mb) {
             override def method: EmitMethodBuilder[_] = mb
+
             override val length: Option[EmitCodeBuilder => Code[Int]] =
               anyFailAllFail(producers.map(_.length))
                 .map { compLens =>
@@ -2673,7 +2782,7 @@ object EmitStream {
                   }
                 }
 
-            override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
+            override def implInit(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
               cb.assign(regionArray, Code.newArray[Region](k))
               producers.zipWithIndex.foreach { case (p, i) =>
                 if (p.requiresMemoryManagementPerElement) {
@@ -2684,16 +2793,8 @@ object EmitStream {
                 p.initialize(cb, outerRegion)
               }
               initMemoryManagementPerElementArray(cb)
-              cb.assign(bracket, Code.newArray[Int](k))
-              cb.assign(heads, Code.newArray[Long](k))
-              cb.forLoop(cb.assign(i, 0), i < k, cb.assign(i, i + 1), {
-                cb += (bracket(i) = -1)
-              })
-              cb.assign(i, 0)
-              cb.assign(winner, 0)
             }
 
-            override val elementRegion: Settable[Region] = region
             override val requiresMemoryManagementPerElement: Boolean = producers.exists(_.requiresMemoryManagementPerElement)
             override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
               val LrunMatch = CodeLabel()
@@ -2753,26 +2854,22 @@ object EmitStream {
               producers.zipWithIndex.foreach { case (p, idx) =>
                 cb.define(p.LendOfStream)
                 cb.assign(winner, k)
-                cb.assign(matchIdx, (idx + k) >>> 1)
+                cb.assign(matchIdx, (const(idx) + k) >>> 1)
                 cb.goto(LrunMatch)
 
                 cb.define(p.LproduceElementDone)
                 cb += (heads(idx) = unifiedType.store(cb, p.elementRegion, p.element.toI(cb).get(cb), false))
-                cb.assign(matchIdx, (idx + k) >>> 1)
+                cb.assign(matchIdx, (const(idx) + k) >>> 1)
                 cb.goto(LrunMatch)
               }
             }
 
-            override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, unifiedType.loadCheapSCode(cb, heads(winner))))
-
-            override def close(cb: EmitCodeBuilder): Unit = {
+            override def implClose(cb: EmitCodeBuilder): Unit = {
               producers.foreach { p =>
                 if (p.requiresMemoryManagementPerElement)
                   cb += p.elementRegion.invalidate()
                 p.close(cb)
               }
-              cb.assign(bracket, Code._null)
-              cb.assign(heads, Code._null)
             }
           }
           SStreamValue(producer)
@@ -2859,8 +2956,8 @@ object EmitStream {
           }
 
       case ReadPartition(context, rowType, reader) =>
-        val ctxCode = EmitCode.fromI(mb)(cb => emit(context, cb))
-        reader.emitStream(emitter.ctx.executeContext, cb, ctxCode, rowType)
+        val ctxCode = EmitCode.fromI(cb.emb)(cb => emit(context, cb))
+        reader.emitStream(emitter.ctx.executeContext, cb, mb, ctxCode, rowType)
     }
   }
 }

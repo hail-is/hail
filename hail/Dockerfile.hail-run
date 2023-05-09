@@ -12,7 +12,7 @@ COPY hail/python/pinned-requirements.txt requirements.txt
 COPY hail/python/dev/pinned-requirements.txt dev-requirements.txt
 RUN hail-pip-install -r requirements.txt -r dev-requirements.txt
 
-ENV SPARK_HOME /usr/local/lib/python3.7/dist-packages/pyspark
+ENV SPARK_HOME /usr/local/lib/python3.8/dist-packages/pyspark
 ENV PATH "$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"
 ENV PYSPARK_PYTHON python3
 
@@ -21,7 +21,6 @@ RUN curl >${SPARK_HOME}/jars/gcs-connector-hadoop2-2.2.7.jar https://storage.goo
 COPY docker/core-site.xml ${SPARK_HOME}/conf/core-site.xml
 
 COPY hail/python/setup-hailtop.py /hailtop/setup.py
-COPY hail/python/hailtop /hailtop/hailtop/
 COPY hail/python/MANIFEST.in /hailtop/MANIFEST.in
-COPY /hail_version /hailtop/hailtop/hail_version
+COPY hail/python/hailtop /hailtop/hailtop/
 RUN hail-pip-install /hailtop && rm -rf /hailtop

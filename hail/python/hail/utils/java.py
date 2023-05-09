@@ -127,7 +127,7 @@ class Env:
     @staticmethod
     def next_static_rng_uid():
         result = Env._static_rng_uid
-        assert(result <= 0xFFFF_FFFF_FFFF_FFFF)
+        assert(result <= 0x7FFF_FFFF_FFFF_FFFF)
         Env._static_rng_uid += 1
         return result
 

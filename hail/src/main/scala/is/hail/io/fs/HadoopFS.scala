@@ -70,6 +70,11 @@ object HadoopFS {
 }
 
 class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends FS {
+  def validUrl(filename: String): Boolean = {
+    val uri = new java.net.URI(filename)
+    uri.getScheme == null || uri.getScheme == "file"
+  }
+
   def getConfiguration(): SerializableHadoopConfiguration = conf
 
   def setConfiguration(_conf: Any): Unit = {

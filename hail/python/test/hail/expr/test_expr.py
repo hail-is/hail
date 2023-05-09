@@ -607,7 +607,7 @@ class Tests(unittest.TestCase):
                                               None]),
         ]
 
-    @with_flags('distributed_scan_comb_op')
+    @with_flags(distributed_scan_comb_op='1')
     def test_densify_table(self):
         ht = hl.utils.range_table(100, n_partitions=33)
         ht = ht.annotate(arr = hl.range(100).map(lambda idx: hl.or_missing(idx == ht.idx, idx)))
@@ -1251,13 +1251,8 @@ class Tests(unittest.TestCase):
             violations.show()
             self.fail("disagreement between computed info score and truth")
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_aggregator_info_score_works_with_bgen_import(self):
-        sample_file = resource('random.sample')
-        bgen_file = resource('random.bgen')
-        hl.index_bgen(bgen_file)
-        bgenmt = hl.import_bgen(bgen_file, ['GT', 'GP'], sample_file)
+        bgenmt = hl.import_bgen(resource('random.bgen'), ['GT', 'GP'], resource('random.sample'))
         result = bgenmt.annotate_rows(info=hl.agg.info_score(bgenmt.GP)).rows().take(1)
         result = result[0].info
         self.assertAlmostEqual(result.score, -0.235041090, places=3)
@@ -3750,11 +3745,11 @@ class Tests(unittest.TestCase):
     def test_numpy_conversions(self):
         assert hl.eval(np.int32(3)) == 3
         assert hl.eval(np.int64(1234)) == 1234
-        assert hl.eval(np.bool(True))
-        assert not hl.eval(np.bool(False))
+        assert hl.eval(np.bool_(True))
+        assert not hl.eval(np.bool_(False))
         assert np.allclose(hl.eval(np.float32(3.4)), 3.4)
         assert np.allclose(hl.eval(np.float64(8.89)), 8.89)
-        assert hl.eval(np.str("cat")) == "cat"
+        assert hl.eval(np.str_("cat")) == "cat"
 
     def test_array_struct_error(self):
         a = hl.array([hl.struct(a=5)])
@@ -4071,3 +4066,27 @@ def test_locus_addition():
     assert hl.eval((loc + 10) == hl.locus('1', 15, reference_genome='GRCh37'))
     assert hl.eval((loc - 10) == hl.locus('1', 1, reference_genome='GRCh37'))
     assert hl.eval((loc + 2_000_000_000) == hl.locus('1', len_1, reference_genome='GRCh37'))
+
+
+def test_reservoir_sampling_pointer_type():
+    ht = hl.utils.range_table(100000, 1)
+    assert ht.aggregate(hl.agg._reservoir_sample(hl.str(ht.idx), 1000).all(lambda x: hl.str(hl.int(x)) == x))
+
+
+def test_reservoir_sampling():
+    ht = hl.Table._generate(
+        hl.literal([(1, 10), (10, 100), (100, 1000), (1000, 10000), (10000, 100000)]),
+        5,
+        lambda ctx, _: hl.range(ctx[0], ctx[1]).map(lambda i: hl.struct(idx=i)),
+    )
+
+    sample_sizes = [99, 811, 900, 1000, 3333]
+    (stats, samples) = ht.aggregate((hl.agg.stats(ht.idx), tuple([hl.sorted(hl.agg._reservoir_sample(ht.idx, size)) for size in sample_sizes])))
+
+    sample_variance = stats['stdev'] ** 2
+    sample_mean = stats['mean']
+
+    for sample, sample_size in zip(samples, sample_sizes):
+        mean = np.mean(sample)
+        expected_stdev = math.sqrt(sample_variance / sample_size)
+        assert abs(mean - sample_mean) / expected_stdev < 4 , (iteration, sample_size, abs(mean - sample_mean) / expected_stdev)

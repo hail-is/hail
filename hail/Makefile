@@ -11,14 +11,25 @@ MAKEFLAGS += --no-builtin-rules
 REVISION := $(shell git rev-parse HEAD)
 SHORT_REVISION := $(shell git rev-parse --short=12 HEAD)
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
-SCALA_VERSION ?= 2.12.13
+SCALA_VERSION ?= 2.12.15
 SPARK_VERSION ?= 3.3.0
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 112
+HAIL_PATCH_VERSION := 116
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 ELASTIC_MAJOR_VERSION ?= 7
 
+ifndef REVISION
+$(error "git rev-parse HEAD" failed to produce output)
+endif
+
+ifndef SHORT_REVISION
+$(error "git rev-parse --short=12 HEAD" failed to produce output)
+endif
+
+ifndef BRANCH
+$(error "git rev-parse --abbrev-ref HEAD" failed to produce output)
+endif
 
 $(eval $(call ENV_VAR,REVISION))
 $(eval $(call ENV_VAR,SHORT_REVISION))
@@ -65,21 +76,7 @@ EGG := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3.6.egg
 
 GRADLE_ARGS += -Dscala.version=$(SCALA_VERSION) -Dspark.version=$(SPARK_VERSION) -Delasticsearch.major-version=$(ELASTIC_MAJOR_VERSION)
 
-QUERY_STORAGE_URI = $(shell kubectl get secret global-config --template={{.data.query_storage_uri}} | base64 --decode)
 TEST_STORAGE_URI = $(shell kubectl get secret global-config --template={{.data.test_storage_uri}} | base64 --decode)
-TOKEN := $(shell cat /dev/urandom 2> /dev/null | LC_ALL=C tr -dc 'a-z0-9' 2> /dev/null | head -c 12)
-
-ifeq ($(NAMESPACE),default)
-ifeq ($(UPLOAD_RELEASE_JAR),true)
-# This should only be used if the normal CI deploy process fails and you need to upload a JAR to the
-# expected location for our users.
-JAR_LOCATION = $(QUERY_STORAGE_URI)/jars/$(REVISION).jar
-else
-JAR_LOCATION = $(QUERY_STORAGE_URI)/jars/$(shell whoami)/$(TOKEN)/$(REVISION).jar
-endif
-else
-JAR_LOCATION = $(TEST_STORAGE_URI)/$(NAMESPACE)/jars/$(TOKEN)/$(REVISION).jar
-endif
 CLOUD_HAIL_TEST_RESOURCES_PREFIX = $(TEST_STORAGE_URI)/$(shell whoami)/hail-test-resources
 CLOUD_HAIL_TEST_RESOURCES_DIR = $(CLOUD_HAIL_TEST_RESOURCES_PREFIX)/test/resources/
 CLOUD_HAIL_DOCTEST_DATA_DIR = $(CLOUD_HAIL_TEST_RESOURCES_PREFIX)/doctest/data/
@@ -171,15 +168,18 @@ python-jar: $(PYTHON_JAR)
 .PHONY: pytest
 pytest: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
 pytest: python/README.md $(PYTHON_JAR)
-	cd python && $(HAIL_PYTHON3) setup.py pytest \
-     --addopts "-v \
-     --color=no \
-     --instafail \
-     -r A \
-     --self-contained-html \
-     --html=../build/reports/pytest.html \
-     $(PYTEST_TARGET) \
-     $(PYTEST_ARGS)"
+	cd python && $(HAIL_PYTHON3) -m pytest \
+            -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+            --log-cli-level=INFO \
+            -s \
+            -vv \
+            -r A \
+            --instafail \
+            --durations=50 \
+            --self-contained-html \
+            --html=../build/reports/pytest.html \
+            $(PYTEST_TARGET) \
+            $(PYTEST_ARGS)
 
 # NOTE: Look at upload-qob-test-resources target if test resources are missing
 .PHONY: pytest-qob
@@ -191,39 +191,47 @@ pytest-qob: upload-qob-jar upload-qob-test-resources install-editable
 	HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
 	HAIL_TEST_RESOURCES_DIR='$(CLOUD_HAIL_TEST_RESOURCES_DIR)' \
 	HAIL_DOCTEST_DATA_DIR='$(HAIL_DOCTEST_DATA_DIR)' \
-	pytest \
-		-v \
-		--color=no \
-		--instafail \
-		-r A \
-		--self-contained-html \
-		--html=../build/reports/pytest.html \
-		$(PYTEST_TARGET) \
-		$(PYTEST_ARGS)
+	$(HAIL_PYTHON3) -m pytest \
+            -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+            --log-cli-level=INFO \
+            -s \
+            -vv \
+            -r A \
+            --instafail \
+            --durations=50 \
+            --self-contained-html \
+            --html=../build/reports/pytest.html \
+            $(PYTEST_TARGET) \
+            $(PYTEST_ARGS)
 
 
 .PHONY: doctest
 doctest: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
 doctest: python/README.md $(PYTHON_JAR)
-	cd python && $(HAIL_PYTHON3) setup.py pytest \
-	  --addopts "-v \
-    --color=no \
-    --instafail \
-    -r A \
-    --self-contained-html \
-    --html=../build/reports/pytest-doctest.html \
-    --doctest-modules \
-    --doctest-glob='*.rst' \
-    --ignore=setup.py \
-    --ignore=setup-hailtop.py \
-    --ignore=hail/docs/conf.py \
-    --ignore=cluster-tests \
-    --ignore=hailtop \
-    --ignore=test \
-    --ignore=hail/docs/doctest_write_data.py \
-    --ignore=hail/docs/getting_started_developing.rst \
-    --ignore=hail/docs/getting_started.rst \
-    $(PYTEST_ARGS)"
+	cd python && $(HAIL_PYTHON3) -m pytest \
+            -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+            --log-cli-level=INFO \
+            -s \
+            -vv \
+            -r A \
+            --instafail \
+            --durations=50 \
+            --self-contained-html \
+            --html=../build/reports/pytest-doctest.html \
+            --doctest-modules \
+            --doctest-glob='*.rst' \
+            --ignore=setup.py \
+            --ignore=setup-hailtop.py \
+            --ignore=hail/docs/conf.py \
+            --ignore=cluster-tests \
+            --ignore=hailtop \
+            --ignore=test \
+            --ignore=hail/docs/doctest_write_data.py \
+            --ignore=hail/docs/getting_started_developing.rst \
+            --ignore=hail/docs/getting_started.rst \
+            $(PYTEST_TARGET) \
+            $(PYTEST_ARGS)
+
 
 .PHONY: copy-py-files
 copy-py-files: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS) $(PY_FILES) $(PYTHON_JAR)
@@ -274,7 +282,7 @@ $(eval $(call ENV_VAR,wheel_cloud_path))
 
 .PHONY: check-pip-lockfile
 check-pip-lockfile:
-	$(PIP) install pip-tools && bash ../check_pip_requirements.sh python
+	$(PIP) install 'pip-tools==6.13.0' && bash ../check_pip_requirements.sh python
 
 
 python/hailtop/hailctl/deploy.yaml: env/cloud_base env/wheel_cloud_path
@@ -309,8 +317,7 @@ upload-qob-test-resources: $(JAR_TEST_SOURCES)
 # > rm upload-qob-jar
 upload-qob-jar: $(SHADOW_JAR)
 	! [ -z $(NAMESPACE) ]  # call this like: make upload-qob-jar NAMESPACE=default
-	gcloud storage cp $(SHADOW_JAR) $(JAR_LOCATION)
-	echo $(JAR_LOCATION) > $@
+	bash ./scripts/upload_qob_jar.sh $(NAMESPACE) $(REVISION) $(SHADOW_JAR) $@
 
 .PHONY: install-editable
 install-editable: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
@@ -360,9 +367,14 @@ test-dataproc-38: install-hailctl
 # set GITHUB_OAUTH_HEADER_FILE to that filename
 #
 # create the hailgenetics/hail image (see /docker) and place it somewhere skopeo can access it
-# set HAIL_GENETICS_HAIL_IMAGE to that image's full name including the protocol, e.g. docker://gcr.io/hail-vdc/hailgenetics/hail:1234abcd
+# set HAIL_GENETICS_HAIL_IMAGE to that image's full name including the protocol, e.g. docker://us-docker.pkg.dev/hail-vdc/hailgenetics/hail:1234abcd
 #
-# build a Azure-HDInsight-compatible wheel file (see build.yaml "build_wheel_for_azure" or start a
+# create the hailgenetics/hailtop image (see /docker) and place it somewhere skopeo can access it
+# set HAIL_GENETICS_HAILTOP_IMAGE to that image's full name including the protocol, e.g. docker://us-docker.pkg.dev/hail-vdc/hailgenetics/hailtop:1234abcd
+#
+# create the hailgenetics/vep-grch37-85 image (see /docker) and place it somewhere skopeo can access it
+# set HAIL_GENETICS_VEP_GRCH37_85_IMAGE to that image's full name including the protocol, e.g. docker://us-docker.pkg.dev/hail-vdc/hailgenetics/vep-grch37-85:1234abcd
+#
 # cluster to find the correct Scala and Spark versions because the version webpage does not include
 # sufficient detail)
 # set WHEEL_FOR_AZURE to the path to that wheel file
@@ -371,15 +383,7 @@ test-dataproc-38: install-hailctl
 #
 .PHONY: deploy
 deploy: test-dataproc $(WHEEL)
-	bash scripts/deploy.sh $(HAIL_PIP_VERSION) $(HAIL_VERSION) $(REVISION) $(DEPLOY_REMOTE) $(WHEEL) $(GITHUB_OAUTH_HEADER_FILE) $(HAIL_GENETICS_HAIL_IMAGE) $(WHEEL_FOR_AZURE) $(WEBSITE_TAR)
-
-.PHONY: install-dev-deps
-install-dev-deps:
-	$(PIP) install -U -r python/dev/requirements.txt
-
-.PHONY: install-deps
-install-deps: install-dev-deps
-	sed "s/^pyspark.*/pyspark==$(SPARK_VERSION)/" python/requirements.txt | xargs $(PIP) install -U
+	bash scripts/deploy.sh $(HAIL_PIP_VERSION) $(HAIL_VERSION) $(REVISION) $(DEPLOY_REMOTE) $(WHEEL) $(GITHUB_OAUTH_HEADER_FILE) $(HAIL_GENETICS_HAIL_IMAGE) $(HAIL_GENETICS_HAILTOP_IMAGE) $(HAIL_GENETICS_VEP_GRCH37_85_IMAGE) $(WHEEL_FOR_AZURE) $(WEBSITE_TAR)
 
 .PHONY: benchmark
 benchmark: $(WHEEL)

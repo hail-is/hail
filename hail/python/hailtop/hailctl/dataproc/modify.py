@@ -68,7 +68,7 @@ async def main(args, pass_through_args):
         modify_args.append('--no-max-age')
 
     if modify_args:
-        cmd = ['dataproc', 'clusters', 'update', args.name] + modify_args
+        cmd = ['dataproc', 'clusters', 'update', args.name, *modify_args]
 
         if args.beta:
             cmd.insert(0, 'beta')

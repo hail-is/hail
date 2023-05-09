@@ -43,7 +43,7 @@ abstract class NDArrayProducer {
   def toSCode(cb: EmitCodeBuilder, targetType: PCanonicalNDArray, region: Value[Region], rowMajor: Boolean = false): SNDArrayValue =  {
     val (firstElementAddress, finish) = targetType.constructDataFunction(
       shape,
-      targetType.makeColumnMajorStrides(shape, region, cb),
+      targetType.makeColumnMajorStrides(shape, cb),
       cb,
       region)
 
@@ -263,7 +263,7 @@ object EmitNDArray {
                 // The canonical row major thing is now in the order we want. We just need to read this with the row major striding that
                 // would be generated for something of the new shape.
                 val outputPType = PCanonicalNDArray(rowMajor.st.elementPType.setRequired(true), x.typ.nDims, true) // TODO Should it be required?
-                val rowMajorStriding = outputPType.makeRowMajorStrides(requestedShapeValues, region, cb)
+                val rowMajorStriding = outputPType.makeRowMajorStrides(requestedShapeValues, cb)
                 fromShapeStridesFirstAddress(rowMajor.st.elementPType, requestedShapeValues, rowMajorStriding, rowMajor.firstDataAddress, cb)
               }
             }

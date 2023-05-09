@@ -1,9 +1,6 @@
 import asyncio
-import concurrent.futures
 import time
-import os
 
-import hailtop.batch_client.client
 import pytest
 
 from hailtop.batch import BatchPoolExecutor, ServiceBackend
@@ -11,7 +8,7 @@ from hailtop.config import get_user_config
 from hailtop.utils import sync_sleep_and_backoff
 from hailtop.batch_client.client import BatchClient
 
-PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.7'
+PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.8'
 
 
 submitted_batch_ids = []
@@ -143,7 +140,7 @@ def test_map_timeout(backend):
                 time.sleep(3600)
         try:
             list(bpe.map(lambda _: sleep_forever(), range(5), timeout=2))
-        except concurrent.futures.TimeoutError:
+        except asyncio.TimeoutError:
             pass
         else:
             assert False

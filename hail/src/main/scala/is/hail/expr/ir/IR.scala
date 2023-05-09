@@ -9,6 +9,7 @@ import is.hail.expr.ir.functions._
 import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.avro.{AvroPartitionReader, AvroSchemaSerializer}
+import is.hail.io.bgen.BgenPartitionReader
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
 import is.hail.rvd.RVDSpecMaker
 import is.hail.types.encoded._
@@ -325,6 +326,14 @@ final case class SeqSample(totalRange: IR, numToSample: IR, rngState: IR, requir
 // Take the child stream and sort each element into buckets based on the provided pivots. The first and last elements of
 // pivots are the endpoints of the first and last interval respectively, should not be contained in the dataset.
 final case class StreamDistribute(child: IR, pivots: IR, path: IR, comparisonOp: ComparisonOp[_],spec: AbstractTypedCodecSpec) extends IR
+
+// "Whiten" a stream of vectors by regressing out from each vector all components
+// in the direction of vectors in the preceding window. For efficiency, takes
+// a stream of "chunks" of vectors.
+// Takes a stream of structs, with two designated fields: `prevWindow` is the
+// previous window (e.g. from the previous partition), if there is one, and
+// `newChunk` is the new chunk to whiten.
+final case class StreamWhiten(stream: IR, newChunk: String, prevWindow: String, vecSize: Int, windowSize: Int, chunkSize: Int, blockSize: Int, normalizeAfterWhiten: Boolean) extends IR
 
 object ArrayZipBehavior extends Enumeration {
   type ArrayZipBehavior = Value
@@ -758,6 +767,7 @@ object PartitionReader {
       classOf[PartitionNativeIntervalReader],
       classOf[PartitionZippedNativeReader],
       classOf[PartitionZippedIndexedNativeReader],
+      classOf[BgenPartitionReader],
       classOf[AbstractTypedCodecSpec],
       classOf[TypedCodecSpec],
       classOf[AvroPartitionReader]),
@@ -834,6 +844,7 @@ abstract class PartitionReader {
   def emitStream(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
+    mb: EmitMethodBuilder[_],
     context: EmitCode,
     requestedType: TStruct
   ): IEmitCode

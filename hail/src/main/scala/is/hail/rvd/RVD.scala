@@ -1,29 +1,27 @@
 package is.hail.rvd
 
-import java.util
-import is.hail.asm4s.{HailClassLoader, theHailClassLoaderForSparkWorkers}
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext}
+import is.hail.asm4s.{HailClassLoader, theHailClassLoaderForSparkWorkers}
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
-import is.hail.expr.ir.PruneDeadFields.isSupertype
-import is.hail.types._
-import is.hail.types.physical.{PCanonicalStruct, PInt64, PStruct, PType}
-import is.hail.types.virtual.{TArray, TInt64, TInterval, TStruct}
-import is.hail.io._
-import is.hail.io.index.IndexWriter
-import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, RichContextRDDRegionValue, TypedCodecSpec}
-import is.hail.sparkextras._
-import is.hail.utils._
+import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext}
 import is.hail.expr.ir.InferPType
+import is.hail.expr.ir.PruneDeadFields.isSupertype
+import is.hail.io.index.IndexWriter
+import is.hail.io._
+import is.hail.sparkextras._
+import is.hail.types._
+import is.hail.types.physical.{PCanonicalStruct, PInt64, PStruct}
+import is.hail.types.virtual.{TInterval, TStruct}
 import is.hail.utils.PartitionCounts.{PCSubsetOffset, getPCSubsetOffset, incrementalPCSubsetOffset}
+import is.hail.utils._
 import org.apache.commons.lang3.StringUtils
-import org.apache.spark.TaskContext
 import org.apache.spark.rdd.{RDD, ShuffledRDD}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
-import org.apache.spark.{Partitioner, SparkContext}
+import org.apache.spark.{Partitioner, SparkContext, TaskContext}
 
+import java.util
 import scala.language.existentials
 import scala.reflect.ClassTag
 
@@ -779,213 +777,6 @@ class RVD(
     val fileData = crdd.writeRows(ctx, path, idxRelPath, typ, stageLocally, codecSpec)
     val spec = MakeRVDSpec(codecSpec, fileData.map(_.path), partitioner, IndexSpec.emptyAnnotation(idxRelPath, typ.kType))
     spec.write(ctx.fs, path)
-    fileData
-  }
-
-  def writeRowsSplit(
-    execCtx: ExecuteContext,
-    path: String,
-    bufferSpec: BufferSpec,
-    stageLocally: Boolean,
-    targetPartitioner: RVDPartitioner,
-    checkpointFile: Option[MatrixWriteCheckpoint]
-  ): Array[FileWriteMetadata] = {
-    assert(!(targetPartitioner != null && checkpointFile.isDefined))
-
-    val localTmpdir = execCtx.localTmpdir
-    val fs = execCtx.fs
-    val fsBc = fs.broadcast
-
-    fs.mkDir(path + "/rows/rows/parts")
-    fs.mkDir(path + "/entries/rows/parts")
-    fs.mkDir(path + "/index")
-
-    val nPartitions =
-      if (targetPartitioner != null)
-        targetPartitioner.numPartitions
-      else
-        crdd.getNumPartitions
-    val d = digitsNeeded(nPartitions)
-
-    val fullRowType = typ.rowType
-    val rowsRVType = MatrixType.getRowType(fullRowType)
-    val entriesRVType = MatrixType.getSplitEntriesType(fullRowType)
-
-    val rowsCodecSpec = TypedCodecSpec(rowsRVType, bufferSpec)
-    val entriesCodecSpec = TypedCodecSpec(entriesRVType, bufferSpec)
-    val rowsIndexSpec = IndexSpec.defaultAnnotation("../../index", typ.kType)
-    val entriesIndexSpec = IndexSpec.defaultAnnotation("../../index", typ.kType, withOffsetField = true)
-    val makeRowsEnc = rowsCodecSpec.buildEncoder(execCtx, fullRowType)
-    val makeEntriesEnc = entriesCodecSpec.buildEncoder(execCtx, fullRowType)
-    val _makeIndexWriter = IndexWriter.builder(execCtx, typ.kType, +PCanonicalStruct("entries_offset" -> PInt64()))
-    val makeIndexWriter: (String, RegionPool) => IndexWriter = _makeIndexWriter(_, theHailClassLoaderForSparkWorkers, SparkTaskContext.get(), _)
-
-    val localTyp = typ
-
-    val fileData: Array[FileWriteMetadata] =
-      if (targetPartitioner != null) {
-        val nInputParts = partitioner.numPartitions
-        val nOutputParts = targetPartitioner.numPartitions
-
-        val inputFirst = new Array[Int](nInputParts)
-        val inputLast = new Array[Int](nInputParts)
-        val outputFirst = new Array[Int](nInputParts)
-        val outputLast = new Array[Int](nInputParts)
-        var i = 0
-        while (i < nInputParts) {
-          outputFirst(i) = -1
-          outputLast(i) = -1
-          inputFirst(i) = i
-          inputLast(i) = i
-          i += 1
-        }
-
-        var j = 0
-        while (j < nOutputParts) {
-          var (s, e) = partitioner.intervalRange(targetPartitioner.rangeBounds(j))
-          s = math.min(s, nInputParts - 1)
-          e = math.min(e, nInputParts - 1)
-
-          if (outputFirst(s) == -1)
-            outputFirst(s) = j
-
-          if (outputLast(s) < j)
-            outputLast(s) = j
-
-          if (inputLast(s) < e)
-            inputLast(s) = e
-
-          j += 1
-        }
-
-        val sc = crdd.sparkContext
-        val targetPartitionerBc = targetPartitioner.broadcast(sc)
-        val localRowPType = rowPType
-        val outputFirstBc = sc.broadcast(outputFirst)
-        val outputLastBc = sc.broadcast(outputLast)
-
-        val kOrd = PartitionBoundOrdering(execCtx.stateManager, localTyp.kType.virtualType)
-        crdd.blocked(inputFirst, inputLast)
-          .cmapPartitionsWithIndex { (i, ctx, it) =>
-            val s = outputFirstBc.value(i)
-            if (s == -1)
-              Iterator.empty
-            else {
-              val e = outputLastBc.value(i)
-
-              val fs = fsBc.value
-              val bit = it.buffered
-
-              val extractKey: (Long) => Any = (ptr: Long) => {
-                val ur = new UnsafeRow(localRowPType, ctx.r, ptr)
-                Row.fromSeq(localTyp.kFieldIdx.map(i => ur.get(i)))
-              }
-
-              (s to e).iterator.map { j =>
-                val b = targetPartitionerBc.value.rangeBounds(j)
-
-                while (bit.hasNext && b.isAbovePosition(kOrd, extractKey(bit.head)))
-                  bit.next()
-
-                assert(
-                  !bit.hasNext || {
-                    val k = extractKey(bit.head)
-                    b.contains(kOrd, k) || b.isBelowPosition(kOrd, k)
-                  })
-
-                val it2 = new Iterator[Long] {
-                  def hasNext: Boolean = {
-                    bit.hasNext && b.contains(kOrd, extractKey(bit.head))
-                  }
-
-                  def next(): Long = bit.next()
-                }
-
-                RichContextRDDRegionValue.writeSplitRegion(
-                  localTmpdir,
-                  fsBc.value,
-                  path,
-                  localTyp,
-                  it2,
-                  j,
-                  ctx,
-                  d,
-                  stageLocally,
-                  makeIndexWriter,
-                  os => makeRowsEnc(os, theHailClassLoaderForSparkWorkers),
-                  os => makeEntriesEnc(os, theHailClassLoaderForSparkWorkers))
-              }
-            }
-          }.collect()
-      } else {
-
-        checkpointFile match {
-          case Some(checkpoint) =>
-
-            val partitionsToCompute = sparkContext.broadcast(checkpoint.uncomputedPartitions())
-            val computedRDD = crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
-              val fs = fsBc.value
-              if (partitionsToCompute.value.contains(i)) {
-                val partFileAndCount = RichContextRDDRegionValue.writeSplitRegion(
-                  localTmpdir,
-                  fs,
-                  path,
-                  localTyp,
-                  it,
-                  i,
-                  ctx,
-                  d,
-                  stageLocally,
-                  makeIndexWriter,
-                  os => makeRowsEnc(os, theHailClassLoaderForSparkWorkers),
-                  os => makeEntriesEnc(os, theHailClassLoaderForSparkWorkers))
-
-                Iterator.single((i, partFileAndCount))
-              } else Iterator.empty
-            }.run
-
-            try {
-              sparkContext.runJob[(Int, FileWriteMetadata), Array[(Int, FileWriteMetadata)]](computedRDD,
-                (_: TaskContext, it: Iterator[(Int, FileWriteMetadata)]) => it.toArray,
-                (_: Int, data: Array[(Int, FileWriteMetadata)]) => data.foreach { case (partIdx, fwm) => checkpoint.append(partIdx, fwm) })
-            } catch {
-              case e: Throwable =>
-                checkpoint.close()
-                throw e
-            }
-
-            checkpoint.result()
-
-          case None =>
-            crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
-              val fs = fsBc.value
-              val partFileAndCount = RichContextRDDRegionValue.writeSplitRegion(
-                localTmpdir,
-                fs,
-                path,
-                localTyp,
-                it,
-                i,
-                ctx,
-                d,
-                stageLocally,
-                makeIndexWriter,
-                os => makeRowsEnc(os, theHailClassLoaderForSparkWorkers),
-                os => makeEntriesEnc(os, theHailClassLoaderForSparkWorkers))
-
-              Iterator.single(partFileAndCount)
-            }.collect()
-        }
-
-
-      }
-
-
-    RichContextRDDRegionValue.writeSplitSpecs(fs, path,
-      rowsCodecSpec, entriesCodecSpec, rowsIndexSpec, entriesIndexSpec,
-      typ, rowsRVType, entriesRVType, fileData.map(_.path),
-      if (targetPartitioner != null) targetPartitioner else partitioner)
-
     fileData
   }
 

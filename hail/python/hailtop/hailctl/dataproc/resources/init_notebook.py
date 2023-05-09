@@ -43,7 +43,7 @@ if role == 'Master':
         'ipywidgets==7.5.*',
         'jupyter-console==6.0.*',
         'nbconvert==5.6.*',
-        'notebook==5.7.*',
+        'notebook==6.0.*',
         'qtconsole==4.5.*'
     ]
 
@@ -127,7 +127,7 @@ if role == 'Master':
     try:
         with open('/opt/conda/default/share/jupyter/kernels/python3/kernel.json', 'r') as f:
             python3_kernel = json.load(f)
-    except:  # noqa: E722
+    except:
         python3_kernel = {
             'argv': [
                 '/opt/conda/default/bin/python',
@@ -174,7 +174,7 @@ if role == 'Master':
         f.write('\n'.join(opts) + '\n')
 
     print('copying spark monitor')
-    spark_monitor_gs = 'gs://hail-common/sparkmonitor-3357488112c6c162c12f8386faaadcbf3789ac02/sparkmonitor-0.0.12-py3-none-any.whl'
+    spark_monitor_gs = 'gs://hail-common/sparkmonitor-c1289a19ac117336fec31ec08a2b13afe7e420cf/sparkmonitor-0.0.12-py3-none-any.whl'
     spark_monitor_wheel = '/home/hail/' + spark_monitor_gs.split('/')[-1]
     safe_call('gcloud', 'storage', 'cp', spark_monitor_gs, spark_monitor_wheel)
     safe_call('pip', 'install', spark_monitor_wheel)

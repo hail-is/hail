@@ -98,7 +98,7 @@ object  NDArrayFunctions extends RegistryFunctions {
 
       val outputPType = tcoerce[PCanonicalNDArray](outputPt)
       val outputShape = IndexedSeq(n, nrhs)
-      val (outputAddress, outputFinisher) = outputPType.constructDataFunction(outputShape, outputPType.makeColumnMajorStrides(outputShape, region, cb), cb, region)
+      val (outputAddress, outputFinisher) = outputPType.constructDataFunction(outputShape, outputPType.makeColumnMajorStrides(outputShape, cb), cb, region)
 
       cb.append(Region.copyFrom(bColMajor.firstDataAddress, outputAddress, n * nrhs * 8L))
 
@@ -139,6 +139,21 @@ object  NDArrayFunctions extends RegistryFunctions {
         resPCode
     }
 
+    registerIEmitCode3("linear_triangular_solve_no_crash", TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)), TBoolean, TStruct(("solution", TNDArray(TFloat64, Nat(2))), ("failed", TBoolean)),
+      { (t, p1, p2, p3) => EmitType(PCanonicalStruct(false, ("solution", PCanonicalNDArray(PFloat64Required, 2, false)), ("failed", PBooleanRequired)).sType, false) }) {
+      case (cb, region, SBaseStructPointer(outputStructType: PCanonicalStruct), errorID, aec, bec, lowerec) =>
+        aec.toI(cb).flatMap(cb) { apc =>
+          bec.toI(cb).flatMap(cb) { bpc =>
+            lowerec.toI(cb).map(cb) { lowerpc =>
+              val outputNDArrayPType = outputStructType.fieldType("solution")
+              val (resNDPCode, info) = linear_triangular_solve(apc.asNDArray, bpc.asNDArray, lowerpc.asBoolean, outputNDArrayPType, cb, region, errorID)
+              val ndEmitCode = EmitCode(Code._empty, info cne 0, resNDPCode)
+              outputStructType.constructFromFields(cb, region, IndexedSeq[EmitCode](ndEmitCode, EmitCode(Code._empty, false, primitive(cb.memoize(info cne 0)))), false)
+            }
+          }
+        }
+    }
+
     registerSCode3("linear_triangular_solve", TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)), TBoolean, TNDArray(TFloat64, Nat(2)),
       { (t, p1, p2, p3) => PCanonicalNDArray(PFloat64Required, 2, true).sType }) {
       case (er, cb, SNDArrayPointer(pt), apc, bpc, lower, errorID) =>
@@ -171,13 +186,13 @@ object  NDArrayFunctions extends RegistryFunctions {
             cb.assign(j, j + 1L)
           }, {
             // block(i to i, 0 until j) := 0.0
-            newBlock.slice(cb, FastIndexedSeq(ScalarIndex(i), SliceIndex(None, Some(j)))).coiterateMutate(cb, er.region) { _ =>
+            newBlock.slice(cb, i, (null, j)).coiterateMutate(cb, er.region) { _ =>
               primitive(0.0d)
             }
           })
 
           // block(iRight until nRows, ::) := 0.0
-          newBlock.slice(cb, FastIndexedSeq(SliceIndex(Some(iRight), None), ColonIndex)).coiterateMutate(cb, er.region) { _ =>
+          newBlock.slice(cb, (iRight, null), ColonIndex).coiterateMutate(cb, er.region) { _ =>
             primitive(0.0d)
           }
         })
@@ -187,7 +202,7 @@ object  NDArrayFunctions extends RegistryFunctions {
           cb.assign(iRight, (nCols.get - upper.value).min(nRows.get))
 
           // block(0 util iLeft, ::) := 0.0
-          newBlock.slice(cb, FastIndexedSeq(SliceIndex(None, Some(iLeft)), ColonIndex)).coiterateMutate(cb, er.region) { _ =>
+          newBlock.slice(cb, (null, iLeft), ColonIndex).coiterateMutate(cb, er.region) { _ =>
             primitive(0.0d)
           }
 
@@ -199,7 +214,7 @@ object  NDArrayFunctions extends RegistryFunctions {
             cb.assign(j, j + 1)
           }, {
             // block(i to i, j to nCols) := 0.0
-            newBlock.slice(cb, FastIndexedSeq(ScalarIndex(i), SliceIndex(Some(j), None))).coiterateMutate(cb, er.region) { _ =>
+            newBlock.slice(cb, i, (j, null)).coiterateMutate(cb, er.region) { _ =>
               primitive(0.0d)
             }
           })
@@ -217,10 +232,10 @@ object  NDArrayFunctions extends RegistryFunctions {
         cb.forLoop(cb.assign(row, 0L), row < nRows.get, cb.assign(row, row + 1L), {
           val start = starts.loadElement(cb, row.toI).get(cb).asInt64.value
           val stop = stops.loadElement(cb, row.toI).get(cb).asInt64.value
-          newBlock.slice(cb, FastIndexedSeq(ScalarIndex(row), SliceIndex(None, Some(start)))).coiterateMutate(cb, er.region) { _ =>
+          newBlock.slice(cb, row, (null, start)).coiterateMutate(cb, er.region) { _ =>
             primitive(0.0d)
           }
-          newBlock.slice(cb, FastIndexedSeq(ScalarIndex(row), SliceIndex(Some(stop), None))).coiterateMutate(cb, er.region) { _ =>
+          newBlock.slice(cb, row, (stop, null)).coiterateMutate(cb, er.region) { _ =>
             primitive(0.0d)
           }
         })
