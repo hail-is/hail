@@ -83,6 +83,7 @@ resource "google_compute_network" "default" {
   name = "default"
   description = "Default network for the project"
   enable_ula_internal_ipv6 = false
+  auto_create_subnetworks = false
 }
 
 resource "google_compute_subnetwork" "default_region" {
