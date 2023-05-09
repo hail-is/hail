@@ -40,13 +40,13 @@ class CloudWorkerAPI(abc.ABC, Generic[CredsType]):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def _mount_cloudfuse(
+    async def _mount_cloudfuse(
         self,
         credentials: CredsType,
         mount_base_path_data: str,
         mount_base_path_tmp: str,
         config: dict,
-    ) -> str:
+    ):
         raise NotImplementedError
 
     async def mount_cloudfuse(
@@ -56,12 +56,11 @@ class CloudWorkerAPI(abc.ABC, Generic[CredsType]):
         mount_base_path_tmp: str,
         config: dict,
     ) -> None:
-        mount_command = self._mount_cloudfuse(credentials, mount_base_path_data, mount_base_path_tmp, config)
         delay = 0.1
         error = 0
         while True:
             try:
-                return await check_shell(mount_command)
+                return await self._mount_cloudfuse(credentials, mount_base_path_data, mount_base_path_tmp, config)
             except CalledProcessError:
                 error += 1
                 if error == 5:

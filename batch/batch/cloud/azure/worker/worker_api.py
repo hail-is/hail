@@ -70,7 +70,7 @@ class AzureWorkerAPI(CloudWorkerAPI[AzureUserCredentials]):
                 self._blobfuse_credential_files[mount_base_path_data] = credsfile.name
         return self._blobfuse_credential_files[mount_base_path_data]
 
-    def _mount_cloudfuse(
+    async def _mount_cloudfuse(
         self,
         credentials: AzureUserCredentials,
         mount_base_path_data: str,
@@ -88,23 +88,27 @@ class AzureWorkerAPI(CloudWorkerAPI[AzureUserCredentials]):
         if config['read_only']:
             options.append('ro')
 
-        return f'''
-blobfuse \
-    {mount_base_path_data} \
-    --tmp-path={mount_base_path_tmp} \
-    --config-file={fuse_credentials_path} \
-    --pre-mount-validate=true \
-    -o {",".join(options)} \
-    -o attr_timeout=240 \
-    -o entry_timeout=240 \
-    -o negative_timeout=120
-'''
+        await check_exec_output(
+            'blobfuse',
+            mount_base_path_data,
+            f'--tmp-path={mount_base_path_tmp}',
+            f'--config-file={fuse_credentials_path}',
+            '--pre-mount-validate=true',
+            '-o',
+            ','.join(options),
+            '-o',
+            'attr_timeout=240',
+            'entry_timeout=240',
+            'negative_timeout=120',
+        )
 
     async def unmount_cloudfuse(self, mount_base_path_data: str):
-        # blobfuse cleans up the temporary directory when unmounting
-        await check_exec_output('fusermount', '-u', mount_base_path_data)
-        os.remove(self._blobfuse_credential_files[mount_base_path_data])
-        del self._blobfuse_credential_files[mount_base_path_data]
+        try:
+            # blobfuse cleans up the temporary directory when unmounting
+            await check_exec_output('fusermount', '-u', mount_base_path_data)
+        finally:
+            os.remove(self._blobfuse_credential_files[mount_base_path_data])
+            del self._blobfuse_credential_files[mount_base_path_data]
 
     def __str__(self):
         return f'subscription_id={self.subscription_id} resource_group={self.resource_group}'

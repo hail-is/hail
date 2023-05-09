@@ -73,7 +73,7 @@ class GCPWorkerAPI(CloudWorkerAPI[GCPUserCredentials]):
                 self._gcsfuse_credential_files[mount_base_path_data] = credsfile.name
         return self._gcsfuse_credential_files[mount_base_path_data]
 
-    def _mount_cloudfuse(
+    async def _mount_cloudfuse(
         self,
         credentials: GCPUserCredentials,
         mount_base_path_data: str,
@@ -91,25 +91,32 @@ class GCPWorkerAPI(CloudWorkerAPI[GCPUserCredentials]):
             options.append('ro')
 
         try:
-            billing_project_flag = f'--billing-project "{config["requester_pays_project"]}"'
+            billing_project_flag = ['--billing-project', f'\"{config["requester_pays_project"]}\"']
         except KeyError:
-            billing_project_flag = ''
+            billing_project_flag = []
 
-        return f'''
-/usr/bin/gcsfuse \
-    -o {",".join(options)} \
-    --file-mode 770 \
-    --dir-mode 770 \
-    --implicit-dirs \
-    --key-file {fuse_credentials_path} \
-    {billing_project_flag} \
-    {bucket} {mount_base_path_data}
-'''
+        await check_exec_output(
+            '/usr/bin/gcsfuse',
+            '-o',
+            ','.join(options),
+            '--file-mode',
+            '770',
+            '--dir-mode',
+            '770',
+            '--implicit-dirs',
+            '--key-file',
+            fuse_credentials_path,
+            *billing_project_flag,
+            bucket,
+            mount_base_path_data,
+        )
 
     async def unmount_cloudfuse(self, mount_base_path_data: str):
-        await check_exec_output('fusermount', '-u', mount_base_path_data)
-        os.remove(self._gcsfuse_credential_files[mount_base_path_data])
-        del self._gcsfuse_credential_files[mount_base_path_data]
+        try:
+            await check_exec_output('fusermount', '-u', mount_base_path_data)
+        finally:
+            os.remove(self._gcsfuse_credential_files[mount_base_path_data])
+            del self._gcsfuse_credential_files[mount_base_path_data]
 
     def __str__(self):
         return f'project={self.project} zone={self.zone}'
