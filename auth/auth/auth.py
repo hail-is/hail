@@ -17,12 +17,12 @@ from gear import (
     Transaction,
     check_csrf_token,
     create_session,
+    json_request,
+    json_response,
     maybe_parse_bearer_header,
     monitor_endpoints_middleware,
     setup_aiohttp_session,
     transaction,
-    json_response,
-    json_request,
 )
 from gear.cloud_config import get_global_config
 from gear.profiling import install_profiler_if_requested

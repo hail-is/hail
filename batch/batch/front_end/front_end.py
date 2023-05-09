@@ -31,11 +31,11 @@ from gear import (
     Database,
     Transaction,
     check_csrf_token,
+    json_request,
+    json_response,
     monitor_endpoints_middleware,
     setup_aiohttp_session,
     transaction,
-    json_response,
-    json_request,
 )
 from gear.clients import get_cloud_async_fs
 from gear.database import CallError
@@ -2455,8 +2455,7 @@ async def get_billing_projects(request, userdata):
         user = None
 
     billing_projects = await query_billing_projects(db, user=user)
-
-    return json_response(data=billing_projects)
+    return json_response(billing_projects)
 
 
 @routes.get('/api/v1alpha/billing_projects/{billing_project}')
@@ -2476,7 +2475,7 @@ async def get_billing_project(request, userdata):
         raise web.HTTPForbidden(reason=f'Unknown Hail Batch billing project {billing_project}.')
 
     assert len(billing_projects) == 1
-    return json_response(data=billing_projects[0])
+    return json_response(billing_projects[0])
 
 
 async def _remove_user_from_billing_project(db, billing_project, user):

@@ -12,7 +12,7 @@ import prometheus_client as pc  # type: ignore
 from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
 
-from gear import AuthClient, Database, setup_aiohttp_session, transaction, json_response
+from gear import AuthClient, Database, json_response, setup_aiohttp_session, transaction
 from hailtop import aiotools, httpx
 from hailtop.aiocloud import aiogoogle
 from hailtop.config import get_deploy_config

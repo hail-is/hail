@@ -26,11 +26,11 @@ from gear import (
     AuthClient,
     Database,
     check_csrf_token,
+    json_request,
+    json_response,
     monitor_endpoints_middleware,
     setup_aiohttp_session,
     transaction,
-    json_response,
-    json_request,
 )
 from gear.clients import get_cloud_async_fs
 from gear.profiling import install_profiler_if_requested
@@ -163,11 +163,12 @@ async def get_check_invariants(request, userdata):  # pylint: disable=unused-arg
     incremental_result, resource_agg_result = await asyncio.gather(
         check_incremental(db), check_resource_aggregation(db), return_exceptions=True
     )
-    data = {
-        'check_incremental_error': incremental_result,
-        'check_resource_aggregation_error': resource_agg_result,
-    }
-    return json_response(data=data)
+    return json_response(
+        {
+            'check_incremental_error': incremental_result,
+            'check_resource_aggregation_error': resource_agg_result,
+        }
+    )
 
 
 @routes.patch('/api/v1alpha/batches/{user}/{batch_id}/update')
