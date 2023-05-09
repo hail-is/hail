@@ -232,7 +232,7 @@ class BatchBuilder:
                    image,
                    command,
                    *,
-                   env=None, mount_docker_socket=False,
+                   env=None,
                    port=None, resources=None, secrets=None,
                    service_account=None, attributes=None, parents=None,
                    input_files=None, output_files=None, always_run=False,
@@ -245,7 +245,7 @@ class BatchBuilder:
             parents = [parent._async_job for parent in parents]
 
         async_job = self._async_builder.create_job(
-            image, command, env=env, mount_docker_socket=mount_docker_socket,
+            image, command, env=env,
             port=port, resources=resources, secrets=secrets,
             service_account=service_account,
             attributes=attributes, parents=parents,
