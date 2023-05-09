@@ -98,7 +98,9 @@ class AzureWorkerAPI(CloudWorkerAPI[AzureUserCredentials]):
             ','.join(options),
             '-o',
             'attr_timeout=240',
+            '-o',
             'entry_timeout=240',
+            '-o',
             'negative_timeout=120',
         )
 
