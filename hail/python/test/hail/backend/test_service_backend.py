@@ -9,7 +9,7 @@ from hail.backend.service_backend import ServiceBackend
 @skip_unless_service_backend()
 def test_tiny_driver_has_tiny_memory():
     try:
-        hl.utils.range_table(100_000_000, 50).to_pandas()
+        hl.utils.range_table(50, 50).annotate(x=hl.range(100_000_000)).to_pandas()
     except Exception as exc:
         # Sometimes the JVM properly OOMs, sometimes it just dies.
         assert (
