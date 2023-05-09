@@ -1182,7 +1182,7 @@ class Container:
                     return uid, gid
             raise ValueError("Container user not found in image's /etc/passwd")
 
-    def _mounts(self, uid: int, gid: int, cwd: str) -> List[MountSpecification]:
+    def _mounts(self, uid: int, gid: int) -> List[MountSpecification]:
         assert self.image.image_config
         assert self.netns
         # Only supports empty volumes
