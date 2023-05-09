@@ -878,7 +878,9 @@ class PLINKTests(unittest.TestCase):
 
         with hl.TemporaryFilename() as hl_output:
             hl.export_plink(mt, hl_output)
-            hl.hadoop_copy(hl_output, local_hl_output)
+            hl.hadoop_copy(hl_output + '.bed', local_hl_output + '.bed')
+            hl.hadoop_copy(hl_output + '.bim', local_hl_output + '.bim')
+            hl.hadoop_copy(hl_output + '.fam', local_hl_output + '.fam')
 
         run_command(["plink", "--vcf", split_vcf_file,
                      "--make-bed", "--out", plink_output,
