@@ -1071,8 +1071,6 @@ class Container:
         uid, gid = await self._get_in_container_user()
         weight = worker_fraction_in_1024ths(self.cpu_in_mcpu)
         workdir = self.image.image_config['Config']['WorkingDir']
-        cwd = workdir if workdir != "" else "/"
-        del workdir
         default_docker_capabilities = [
             'CAP_CHOWN',
             'CAP_DAC_OVERRIDE',
@@ -1096,7 +1094,7 @@ class Container:
                 'readonly': False,
             },
             'hostname': self.netns.hostname,
-            'mounts': self._mounts(uid, gid, cwd),
+            'mounts': self._mounts(uid, gid),
             'process': {
                 'user': {  # uid/gid *inside the container*
                     'uid': uid,
@@ -1104,7 +1102,7 @@ class Container:
                 },
                 'args': self.command,
                 'env': self._env(),
-                'cwd': cwd,
+                'cwd': workdir if workdir != "" else "/",
                 'capabilities': {
                     'bounding': default_docker_capabilities,
                     'effective': default_docker_capabilities,
@@ -1195,7 +1193,7 @@ class Container:
                 if v_container_path.startswith('/'):
                     v_absolute_container_path = v_container_path
                 else:
-                    v_absolute_container_path = os.path.join(cwd, v_container_path)
+                    v_absolute_container_path = '/' + v_container_path
                 mount_dir = self.io_mount_path if self.io_mount_path else self.container_scratch
                 v_host_path = f'{mount_dir}/volumes{v_absolute_container_path}'
                 os.makedirs(v_host_path)

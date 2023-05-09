@@ -2432,7 +2432,7 @@ steps:
         FROM {{ hail_ubuntu_image.image }}
         VOLUME ["/data"]
         WORKDIR "/tmp"
-        VOLUME ["relative_volume]
+        VOLUME ["relative_volume"]
     dependsOn:
       - hail_ubuntu_image
   - kind: buildImage2

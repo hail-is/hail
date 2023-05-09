@@ -179,12 +179,13 @@ def test_quota_applies_to_volume(client: BatchClient):
     assert "fallocate failed: No space left on device" in job_log['main']
 
 
-def test_relative_volume_path(client: BatchClient):
+def test_relative_volume_path_is_actually_absolute(client: BatchClient):
+    # https://github.com/hail-is/hail/pull/12990#issuecomment-1540332989
     bb = create_batch(client)
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '5Gi'}
     j = bb.create_job(
         os.environ['HAIL_VOLUME_IMAGE'],
-        ['/bin/sh', '-c', 'ls relative_volume && ls /tmp/relative_volume'],
+        ['/bin/sh', '-c', 'ls / && ls . && ls /relative_volume && ! ls relative_volume'],
         resources=resources,
     )
     b = bb.submit()
