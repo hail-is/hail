@@ -19,7 +19,7 @@ def logger_json_serializer(log_record,
 
 class CustomJsonFormatter(jsonlogger.JsonFormatter):
     def __init__(self, format_string):
-        super().__init__(format_string, json_serializer=logger_json_serializer, ensure_ascii=False)
+        super().__init__(format_string, json_serializer=logger_json_serializer, json_ensure_ascii=False)
 
     def add_fields(self, log_record, record, message_dict):
         super().add_fields(log_record, record, message_dict)
