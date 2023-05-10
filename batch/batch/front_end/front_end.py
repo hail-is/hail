@@ -420,7 +420,7 @@ def attempt_id_from_spec(record) -> Optional[str]:
 async def _get_job_container_log_from_worker(client_session, batch_id, job_id, container, ip_address) -> bytes:
     try:
         return await retry_transient_errors(
-            client_session.get_return_json,
+            client_session.get_read,
             f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log/{container}',
         )
     except aiohttp.ClientResponseError:
@@ -592,7 +592,7 @@ async def _get_full_job_status(app, record):
     ip_address = record['ip_address']
     try:
         return await retry_transient_errors(
-            client_session.get_return_json,
+            client_session.get_read_json,
             f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status',
         )
     except aiohttp.ClientResponseError as e:

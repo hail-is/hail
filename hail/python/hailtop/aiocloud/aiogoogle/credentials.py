@@ -109,7 +109,7 @@ class GoogleApplicationDefaultCredentials(GoogleCredentials):
 
     async def _get_access_token(self) -> GoogleExpiringAccessToken:
         token_dict = await retry_transient_errors(
-            self._http_session.post_return_json,
+            self._http_session.post_read_json,
             'https://www.googleapis.com/oauth2/v4/token',
             headers={
                 'content-type': 'application/x-www-form-urlencoded'
@@ -147,7 +147,7 @@ class GoogleServiceAccountCredentials(GoogleCredentials):
         }
         encoded_assertion = jwt.encode(assertion, self.key['private_key'], algorithm='RS256')
         token_dict = await retry_transient_errors(
-            self._http_session.post_return_json,
+            self._http_session.post_read_json,
             'https://www.googleapis.com/oauth2/v4/token',
             headers={
                 'content-type': 'application/x-www-form-urlencoded'
@@ -164,7 +164,7 @@ class GoogleServiceAccountCredentials(GoogleCredentials):
 class GoogleInstanceMetadataCredentials(GoogleCredentials):
     async def _get_access_token(self) -> GoogleExpiringAccessToken:
         token_dict = await retry_transient_errors(
-            self._http_session.get_return_json,
+            self._http_session.get_read_json,
             'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token',
             headers={'Metadata-Flavor': 'Google'}
         )

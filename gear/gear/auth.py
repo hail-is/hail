@@ -129,7 +129,7 @@ async def impersonate_user_and_get_info(session_id: str, client_session: httpx.C
     headers = {'Authorization': f'Bearer {session_id}'}
     userinfo_url = deploy_config.url('auth', '/api/v1alpha/userinfo')
     try:
-        return await retry_transient_errors(client_session.get_return_json, userinfo_url, headers=headers)
+        return await retry_transient_errors(client_session.get_read_json, userinfo_url, headers=headers)
     except aiohttp.ClientResponseError as err:
         if err.status == 401:
             return None

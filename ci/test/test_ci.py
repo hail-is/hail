@@ -25,7 +25,7 @@ async def test_deploy():
             failure_information = None
             while deploy_state is None:
                 deploy_statuses = await retry_transient_errors(
-                    session.get_return_json, ci_deploy_status_url, headers=headers
+                    session.get_read_json, ci_deploy_status_url, headers=headers
                 )
                 log.info(f'deploy_statuses:\n{json.dumps(deploy_statuses, indent=2)}')
                 assert len(deploy_statuses) == 1, deploy_statuses

@@ -100,7 +100,7 @@ async def async_copy_paste_login(copy_paste_token: str, namespace: Optional[str]
     deploy_config, headers, namespace = deploy_config_and_headers_from_namespace(namespace, authorize_target=False)
     async with httpx.client_session(headers=headers) as session:
         data = await retry_transient_errors(
-            session.post_return_json,
+            session.post_read_json,
             deploy_config.url('auth', '/api/v1alpha/copy-paste-login'),
             params={'copy_paste_token': copy_paste_token}
         )
@@ -128,7 +128,7 @@ async def async_get_user(username: str, namespace: Optional[str] = None) -> dict
             timeout=aiohttp.ClientTimeout(total=30),
             headers=headers) as session:
         return await retry_transient_errors(
-            session.get_return_json,
+            session.get_read_json,
             deploy_config.url('auth', f'/api/v1alpha/users/{username}')
         )
 

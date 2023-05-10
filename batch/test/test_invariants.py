@@ -20,7 +20,7 @@ async def test_invariants():
     headers = await hail_credentials().auth_headers()
     async with client_session(timeout=aiohttp.ClientTimeout(total=60)) as session:
 
-        data = await retry_transient_errors(session.get_return_json, url, headers=headers)
+        data = await retry_transient_errors(session.get_read_json, url, headers=headers)
 
         assert data['check_incremental_error'] is None, data
         assert data['check_resource_aggregation_error'] is None, data

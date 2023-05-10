@@ -52,7 +52,7 @@ class GCPWorkerAPI(CloudWorkerAPI):
 
     async def worker_access_token(self, session: httpx.ClientSession) -> Dict[str, str]:
         token_dict = await retry_transient_errors(
-            session.post_return_json,
+            session.post_read_json,
             'http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token',
             headers={'Metadata-Flavor': 'Google'},
             timeout=aiohttp.ClientTimeout(total=60),  # type: ignore

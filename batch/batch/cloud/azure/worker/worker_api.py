@@ -117,7 +117,7 @@ class AadAccessToken(LazyShortLivedToken):
         # https://docs.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/how-to-use-vm-token#get-a-token-using-http
         params = {'api-version': '2018-02-01', 'resource': 'https://management.azure.com/'}
         resp_json = await retry_transient_errors(
-            session.get_return_json,
+            session.get_read_json,
             'http://169.254.169.254/metadata/identity/oauth2/token',
             headers={'Metadata': 'true'},
             params=params,
@@ -142,7 +142,7 @@ class AcrRefreshToken(LazyShortLivedToken):
             'access_token': await self.aad_access_token.token(session),
         }
         resp_json = await retry_transient_errors(
-            session.post_return_json,
+            session.post_read_json,
             f'https://{self.acr_url}/oauth2/exchange',
             headers={'Content-Type': 'application/x-www-form-urlencoded'},
             data=data,

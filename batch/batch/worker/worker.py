@@ -3130,7 +3130,7 @@ class Worker:
     async def activate(self):
         log.info('activating')
         resp_json = await retry_transient_errors(
-            self.client_session.post_return_json,
+            self.client_session.post_read_json,
             deploy_config.url('batch-driver', '/api/v1alpha/instances/activate'),
             json={'ip_address': os.environ['IP_ADDRESS']},
             headers={'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'},

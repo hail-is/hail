@@ -35,7 +35,7 @@ class MemoryClient:
         params = {'q': filename}
         try:
             return await retry_transient_errors(
-                self._session.get_return_json, self.objects_url, params=params, headers=self._headers
+                self._session.get_read, self.objects_url, params=params, headers=self._headers
             )
         except aiohttp.ClientResponseError as e:
             if e.status == 404:

@@ -23,7 +23,7 @@ async def test_billing_monitoring():
             data = None
             while data is None:
                 data = await retry_transient_errors(
-                    session.get_return_json, monitoring_deploy_config_url, headers=headers
+                    session.get_read_json, monitoring_deploy_config_url, headers=headers
                 )
                 await asyncio.sleep(5)
             return data

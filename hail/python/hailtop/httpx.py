@@ -160,11 +160,17 @@ class ClientSession:
     ) -> aiohttp.client._RequestContextManager:
         return self.request('GET', url, allow_redirects=allow_redirects, **kwargs)
 
-    async def get_return_json(
+    async def get_read_json(
         self, *args, **kwargs
     ) -> Any:
         async with self.get(*args, **kwargs) as resp:
             return await resp.json()
+
+    async def get_read(
+        self, *args, **kwargs
+    ) -> bytes:
+        async with self.get(*args, **kwargs) as resp:
+            return await resp.read()
 
     def options(
         self, url: aiohttp.client.StrOrURL, *, allow_redirects: bool = True, **kwargs: Any
@@ -181,11 +187,17 @@ class ClientSession:
     ) -> aiohttp.client._RequestContextManager:
         return self.request('POST', url, data=data, **kwargs)
 
-    async def post_return_json(
+    async def post_read_json(
         self, *args, **kwargs
     ) -> Any:
         async with self.post(*args, **kwargs) as resp:
             return await resp.json()
+
+    async def post_read(
+        self, *args, **kwargs
+    ) -> bytes:
+        async with self.post(*args, **kwargs) as resp:
+            return await resp.read()
 
     def put(
         self, url: aiohttp.client.StrOrURL, *, data: Any = None, **kwargs: Any
