@@ -797,19 +797,24 @@ async def retry_transient_errors_with_debug_string(debug_string: str, warning_de
         except Exception as e:
             errors += 1
             if errors <= 5 and is_limited_retries_error(e):
-                return await f(*args, **kwargs)
-            if not is_transient_error(e):
+                log.warning(
+                    f'A limited retry error has occured. We will automatically retry '
+                    f'{5 - errors} more times. Do not be alarmed. (current delay: '
+                    f'{delay}). The most recent error was {type(e)} {e}. {debug_string}'
+                )
+            elif not is_transient_error(e):
                 raise
-            log_warnings = (time_msecs() - start_time >= warning_delay_msecs) or not is_delayed_warning_error(e)
-            if log_warnings and errors == 2:
-                log.warning(f'A transient error occured. We will automatically retry. Do not be alarmed. '
-                            f'We have thus far seen {errors} transient errors (current delay: '
-                            f'{delay}). The most recent error was {type(e)} {e}. {debug_string}')
-            elif log_warnings and errors % 10 == 0:
-                st = ''.join(traceback.format_stack())
-                log.warning(f'A transient error occured. We will automatically retry. '
-                            f'We have thus far seen {errors} transient errors (current delay: '
-                            f'{delay}). The stack trace for this call is {st}. The most recent error was {type(e)} {e}. {debug_string}', exc_info=True)
+            else:
+                log_warnings = (time_msecs() - start_time >= warning_delay_msecs) or not is_delayed_warning_error(e)
+                if log_warnings and errors == 2:
+                    log.warning(f'A transient error occured. We will automatically retry. Do not be alarmed. '
+                                f'We have thus far seen {errors} transient errors (current delay: '
+                                f'{delay}). The most recent error was {type(e)} {e}. {debug_string}')
+                elif log_warnings and errors % 10 == 0:
+                    st = ''.join(traceback.format_stack())
+                    log.warning(f'A transient error occured. We will automatically retry. '
+                                f'We have thus far seen {errors} transient errors (current delay: '
+                                f'{delay}). The stack trace for this call is {st}. The most recent error was {type(e)} {e}. {debug_string}', exc_info=True)
         delay = await sleep_and_backoff(delay)
 
 

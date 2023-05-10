@@ -125,12 +125,16 @@ package object services {
       } catch {
         case e: Exception =>
           errors += 1
-          if (errors <= 5 && isLimitedRetriesError(e))
-            return f
-          if (!isTransientError(e))
+          if (errors <= 5 && isLimitedRetriesError(e)) {
+            log.warn(
+              s"A limited retry error has occured. We will automatically retry " +
+                s"${5 - errors} more times. Do not be alarmed. (current delay: " +
+                s"$delay). The most recent error was $e.")
+          } else if (!isTransientError(e)) {
             throw e
-          if (errors % 10 == 0)
-            log.warn(s"encountered $errors transient errors, most recent one was $e")
+          } else if (errors % 10 == 0) {
+            log.warn(s"Encountered $errors transient errors, most recent one was $e.")
+          }
       }
       delay = sleepAndBackoff(delay)
     }
