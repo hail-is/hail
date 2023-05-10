@@ -1148,7 +1148,7 @@ done
 '''
 
         self.cleanup_job = batch.create_job(
-            self.image,
+            CI_UTILS_IMAGE,
             command=['bash', '-c', cleanup_script],
             attributes={'name': f'cleanup_{self.name}'},
             secrets=[
