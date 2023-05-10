@@ -60,7 +60,6 @@ from hailtop.utils import (
     is_delayed_warning_error,
     parse_docker_image_reference,
     periodically_call,
-    request_retry_transient_errors,
     retry_transient_errors,
     retry_transient_errors_with_debug_string,
     retry_transient_errors_with_delayed_warnings,
@@ -3130,14 +3129,12 @@ class Worker:
 
     async def activate(self):
         log.info('activating')
-        resp = await request_retry_transient_errors(
-            self.client_session,
-            'POST',
+        resp_json = await retry_transient_errors(
+            self.client_session.post_return_json,
             deploy_config.url('batch-driver', '/api/v1alpha/instances/activate'),
             json={'ip_address': os.environ['IP_ADDRESS']},
             headers={'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'},
         )
-        resp_json = await resp.json()
         self.headers = {'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {resp_json["token"]}'}
         self.active = True
         self.last_updated = time_msecs()

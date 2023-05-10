@@ -3,7 +3,7 @@ import logging
 
 import pytest
 
-from hailtop import utils
+from hailtop.utils import retry_transient_errors
 from hailtop.auth import hail_credentials
 from hailtop.config import get_deploy_config
 from hailtop.httpx import client_session
@@ -22,10 +22,9 @@ async def test_billing_monitoring():
         async def wait_forever():
             data = None
             while data is None:
-                resp = await utils.request_retry_transient_errors(
-                    session, 'GET', f'{monitoring_deploy_config_url}', headers=headers
+                data = await retry_transient_errors(
+                    session.get_return_json, monitoring_deploy_config_url, headers=headers
                 )
-                data = await resp.json()
                 await asyncio.sleep(5)
             return data
 

@@ -5,7 +5,7 @@ import aiohttp
 from hailtop.aiocloud.common.credentials import CloudCredentials
 from hailtop.aiocloud.common import Session
 from hailtop.config import get_deploy_config, DeployConfig
-from hailtop.utils import async_to_blocking, request_retry_transient_errors
+from hailtop.utils import async_to_blocking, retry_transient_errors
 
 from .tokens import Tokens, get_tokens
 
@@ -101,10 +101,11 @@ async def async_copy_paste_login(copy_paste_token: str, namespace: Optional[str]
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=5),
             headers=headers) as session:
-        async with await request_retry_transient_errors(
-                session, 'POST', deploy_config.url('auth', '/api/v1alpha/copy-paste-login'),
-                params={'copy_paste_token': copy_paste_token}) as resp:
-            data = await resp.json()
+        data = await retry_transient_errors(
+            session.post_return_json,
+            deploy_config.url('auth', '/api/v1alpha/copy-paste-login'),
+            params={'copy_paste_token': copy_paste_token}
+        )
     token = data['token']
     username = data['username']
 
@@ -129,9 +130,10 @@ async def async_get_user(username: str, namespace: Optional[str] = None) -> dict
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=30),
             headers=headers) as session:
-        async with await request_retry_transient_errors(
-                session, 'GET', deploy_config.url('auth', f'/api/v1alpha/users/{username}')) as resp:
-            return await resp.json()
+        return await retry_transient_errors(
+            session.get_return_json,
+            deploy_config.url('auth', f'/api/v1alpha/users/{username}')
+        )
 
 
 def create_user(username: str, login_id: str, is_developer: bool, is_service_account: bool, namespace: Optional[str] = None):
@@ -151,8 +153,10 @@ async def async_create_user(username: str, login_id: str, is_developer: bool, is
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=30),
             headers=headers) as session:
-        await request_retry_transient_errors(
-            session, 'POST', deploy_config.url('auth', f'/api/v1alpha/users/{username}/create'), json=body
+        await retry_transient_errors(
+            session.post,
+            deploy_config.url('auth', f'/api/v1alpha/users/{username}/create'),
+            json=body
         )
 
 
@@ -166,6 +170,7 @@ async def async_delete_user(username: str, namespace: Optional[str] = None):
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=300),
             headers=headers) as session:
-        await request_retry_transient_errors(
-            session, 'DELETE', deploy_config.url('auth', f'/api/v1alpha/users/{username}')
+        await retry_transient_errors(
+            session.delete,
+            deploy_config.url('auth', f'/api/v1alpha/users/{username}')
         )

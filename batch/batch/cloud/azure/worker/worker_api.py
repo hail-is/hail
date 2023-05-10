@@ -7,7 +7,7 @@ import aiohttp
 from gear.cloud_config import get_azure_config
 from hailtop import httpx
 from hailtop.aiocloud import aioazure
-from hailtop.utils import request_retry_transient_errors, time_msecs
+from hailtop.utils import retry_transient_errors, time_msecs
 
 from ....worker.worker_api import CloudWorkerAPI
 from ..instance_config import AzureSlimInstanceConfig
@@ -116,18 +116,16 @@ class AadAccessToken(LazyShortLivedToken):
     async def _fetch(self, session: httpx.ClientSession) -> Tuple[str, int]:
         # https://docs.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/how-to-use-vm-token#get-a-token-using-http
         params = {'api-version': '2018-02-01', 'resource': 'https://management.azure.com/'}
-        async with await request_retry_transient_errors(
-            session,
-            'GET',
+        resp_json = await retry_transient_errors(
+            session.get_return_json,
             'http://169.254.169.254/metadata/identity/oauth2/token',
             headers={'Metadata': 'true'},
             params=params,
             timeout=aiohttp.ClientTimeout(total=60),  # type: ignore
-        ) as resp:
-            resp_json = await resp.json()
-            access_token: str = resp_json['access_token']
-            expiration_time_ms = int(resp_json['expires_on']) * 1000
-            return access_token, expiration_time_ms
+        )
+        access_token: str = resp_json['access_token']
+        expiration_time_ms = int(resp_json['expires_on']) * 1000
+        return access_token, expiration_time_ms
 
 
 class AcrRefreshToken(LazyShortLivedToken):
@@ -143,14 +141,13 @@ class AcrRefreshToken(LazyShortLivedToken):
             'service': self.acr_url,
             'access_token': await self.aad_access_token.token(session),
         }
-        async with await request_retry_transient_errors(
-            session,
-            'POST',
+        resp_json = await retry_transient_errors(
+            session.post_return_json,
             f'https://{self.acr_url}/oauth2/exchange',
             headers={'Content-Type': 'application/x-www-form-urlencoded'},
             data=data,
             timeout=aiohttp.ClientTimeout(total=60),  # type: ignore
-        ) as resp:
-            refresh_token: str = (await resp.json())['refresh_token']
-            expiration_time_ms = time_msecs() + 60 * 60 * 1000  # token expires in 3 hours so we refresh after 1 hour
-            return refresh_token, expiration_time_ms
+        )
+        refresh_token: str = resp_json['refresh_token']
+        expiration_time_ms = time_msecs() + 60 * 60 * 1000  # token expires in 3 hours so we refresh after 1 hour
+        return refresh_token, expiration_time_ms

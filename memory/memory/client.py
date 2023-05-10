@@ -4,7 +4,7 @@ from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
 from hailtop.auth import hail_credentials
 from hailtop.config import get_deploy_config
 from hailtop.httpx import client_session
-from hailtop.utils import request_retry_transient_errors
+from hailtop.utils import retry_transient_errors
 
 
 class MemoryClient:
@@ -34,10 +34,9 @@ class MemoryClient:
     async def _get_file_if_exists(self, filename):
         params = {'q': filename}
         try:
-            async with await request_retry_transient_errors(
-                self._session, 'get', self.objects_url, params=params, headers=self._headers
-            ) as response:
-                return await response.read()
+            return await retry_transient_errors(
+                self._session.get_return_json, self.objects_url, params=params, headers=self._headers
+            )
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
                 return None
@@ -51,10 +50,10 @@ class MemoryClient:
 
     async def write_file(self, filename, data):
         params = {'q': filename}
-        async with await request_retry_transient_errors(
-            self._session, 'post', self.objects_url, params=params, headers=self._headers, data=data
-        ) as response:
-            assert response.status == 200
+        response = await retry_transient_errors(
+            self._session.post, self.objects_url, params=params, headers=self._headers, data=data
+        )
+        assert response.status == 200
 
     async def close(self):
         await self._session.close()

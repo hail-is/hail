@@ -6,7 +6,7 @@ import logging
 import socket
 from urllib.parse import urlencode
 import jwt
-from hailtop.utils import request_retry_transient_errors
+from hailtop.utils import retry_transient_errors
 import hailtop.httpx
 from ..common.credentials import AnonymousCloudCredentials, CloudCredentials
 
@@ -108,19 +108,20 @@ class GoogleApplicationDefaultCredentials(GoogleCredentials):
         return 'ApplicationDefaultCredentials'
 
     async def _get_access_token(self) -> GoogleExpiringAccessToken:
-        async with await request_retry_transient_errors(
-                self._http_session, 'POST',
-                'https://www.googleapis.com/oauth2/v4/token',
-                headers={
-                    'content-type': 'application/x-www-form-urlencoded'
-                },
-                data=urlencode({
-                    'grant_type': 'refresh_token',
-                    'client_id': self.credentials['client_id'],
-                    'client_secret': self.credentials['client_secret'],
-                    'refresh_token': self.credentials['refresh_token']
-                })) as resp:
-            return GoogleExpiringAccessToken.from_dict(await resp.json())
+        token_dict = await retry_transient_errors(
+            self._http_session.post_return_json,
+            'https://www.googleapis.com/oauth2/v4/token',
+            headers={
+                'content-type': 'application/x-www-form-urlencoded'
+            },
+            data=urlencode({
+                'grant_type': 'refresh_token',
+                'client_id': self.credentials['client_id'],
+                'client_secret': self.credentials['client_secret'],
+                'refresh_token': self.credentials['refresh_token']
+            })
+        )
+        return GoogleExpiringAccessToken.from_dict(token_dict)
 
 
 # protocol documented here:
@@ -145,27 +146,29 @@ class GoogleServiceAccountCredentials(GoogleCredentials):
             "iss": self.key['client_email']
         }
         encoded_assertion = jwt.encode(assertion, self.key['private_key'], algorithm='RS256')
-        async with await request_retry_transient_errors(
-                self._http_session, 'POST',
-                'https://www.googleapis.com/oauth2/v4/token',
-                headers={
-                    'content-type': 'application/x-www-form-urlencoded'
-                },
-                data=urlencode({
-                    'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-                    'assertion': encoded_assertion
-                })) as resp:
-            return GoogleExpiringAccessToken.from_dict(await resp.json())
+        token_dict = await retry_transient_errors(
+            self._http_session.post_return_json,
+            'https://www.googleapis.com/oauth2/v4/token',
+            headers={
+                'content-type': 'application/x-www-form-urlencoded'
+            },
+            data=urlencode({
+                'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+                'assertion': encoded_assertion
+            })
+        )
+        return GoogleExpiringAccessToken.from_dict(token_dict)
 
 
 # https://cloud.google.com/compute/docs/access/create-enable-service-accounts-for-instances#applications
 class GoogleInstanceMetadataCredentials(GoogleCredentials):
     async def _get_access_token(self) -> GoogleExpiringAccessToken:
-        async with await request_retry_transient_errors(
-                self._http_session, 'GET',
-                'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token',
-                headers={'Metadata-Flavor': 'Google'}) as resp:
-            return GoogleExpiringAccessToken.from_dict(await resp.json())
+        token_dict = await retry_transient_errors(
+            self._http_session.get_return_json,
+            'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token',
+            headers={'Metadata-Flavor': 'Google'}
+        )
+        return GoogleExpiringAccessToken.from_dict(token_dict)
 
     @staticmethod
     def available():

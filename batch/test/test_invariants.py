@@ -3,7 +3,7 @@ import logging
 import aiohttp
 import pytest
 
-from hailtop import utils
+from hailtop.utils import retry_transient_errors
 from hailtop.auth import hail_credentials
 from hailtop.config import get_deploy_config
 from hailtop.httpx import client_session
@@ -20,8 +20,7 @@ async def test_invariants():
     headers = await hail_credentials().auth_headers()
     async with client_session(timeout=aiohttp.ClientTimeout(total=60)) as session:
 
-        resp = await utils.request_retry_transient_errors(session, 'GET', url, headers=headers)
-        data = await resp.json()
+        data = await retry_transient_errors(session.get_return_json, url, headers=headers)
 
         assert data['check_incremental_error'] is None, data
         assert data['check_resource_aggregation_error'] is None, data
