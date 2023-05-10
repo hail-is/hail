@@ -386,13 +386,20 @@ class ReadOnlyCloudfuseManager:
         self.user_bucket_locks: Dict[Tuple[str, str], asyncio.Lock] = defaultdict(asyncio.Lock)
 
     async def mount(
-        self, bucket: str, destination: str, *, user: str, credentials_path: str, tmp_path: str, config: dict
+        self,
+        bucket: str,
+        destination: str,
+        *,
+        user: str,
+        credentials: CloudUserCredentials,
+        tmp_path: str,
+        config: dict,
     ):
         assert config['read_only']
         async with self.user_bucket_locks[(user, bucket)]:
             if (user, bucket) not in self.fuse_mounts:
                 local_path = self._new_path()
-                await self._fuse_mount(local_path, credentials_path=credentials_path, tmp_path=tmp_path, config=config)
+                await self._fuse_mount(local_path, credentials=credentials, tmp_path=tmp_path, config=config)
                 self.fuse_mounts[(user, bucket)] = FuseMount(local_path)
             mount = self.fuse_mounts[(user, bucket)]
             await self._bind_mount(mount.path, destination)
@@ -407,10 +414,17 @@ class ReadOnlyCloudfuseManager:
                 await self._fuse_unmount(mount.path)
                 del self.fuse_mounts[(user, bucket)]
 
-    async def _fuse_mount(self, destination: str, *, credentials_path: str, tmp_path: str, config: dict):
+    async def _fuse_mount(
+        self,
+        destination: str,
+        *,
+        credentials: CloudUserCredentials,
+        tmp_path: str,
+        config: dict,
+    ):
         assert CLOUD_WORKER_API
         await CLOUD_WORKER_API.mount_cloudfuse(
-            credentials_path,
+            credentials,
             destination,
             tmp_path,
             config,
@@ -1414,9 +1428,6 @@ class Job(abc.ABC):
     def cloudfuse_tmp_path(self, bucket: str) -> str:
         raise NotImplementedError
 
-    def cloudfuse_credentials_path(self, bucket: str) -> str:
-        return f'{self.scratch}/cloudfuse/{bucket}'
-
     @staticmethod
     def create(
         batch_id,
@@ -1846,16 +1857,11 @@ class DockerJob(Job):
                             bucket = config['bucket']
                             assert bucket
 
-                            credentials = self.credentials.cloudfuse_credentials(config)
-                            credentials_path = CLOUD_WORKER_API.write_cloudfuse_credentials(
-                                self.scratch, credentials, bucket
-                            )
-
                             os.makedirs(self.cloudfuse_data_path(bucket), exist_ok=True)
                             os.makedirs(self.cloudfuse_tmp_path(bucket), exist_ok=True)
 
                             await CLOUD_WORKER_API.mount_cloudfuse(
-                                credentials_path,
+                                self.credentials,
                                 self.cloudfuse_data_path(bucket),
                                 self.cloudfuse_tmp_path(bucket),
                                 config,
@@ -2158,10 +2164,6 @@ class JVMJob(Job):
                             bucket = config['bucket']
                             assert bucket
 
-                            credentials = self.credentials.cloudfuse_credentials(config)
-                            credentials_path = CLOUD_WORKER_API.write_cloudfuse_credentials(
-                                self.scratch, credentials, bucket
-                            )
                             data_path = self.cloudfuse_data_path(bucket)
                             tmp_path = self.cloudfuse_tmp_path(bucket)
 
@@ -2172,7 +2174,7 @@ class JVMJob(Job):
                                 bucket,
                                 data_path,
                                 user=self.user,
-                                credentials_path=credentials_path,
+                                credentials=self.credentials,
                                 tmp_path=tmp_path,
                                 config=config,
                             )
