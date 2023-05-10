@@ -372,7 +372,7 @@ async def create_user(request: web.Request, userdata):  # pylint: disable=unused
     except AuthUserError as e:
         raise e.http_response()
 
-    return json_response()
+    return web.json_response()
 
 
 @routes.get('/user')
@@ -590,7 +590,7 @@ async def rest_delete_user(request: web.Request, userdata):  # pylint: disable=u
     except UnknownUser as e:
         return e.http_response()
 
-    return json_response()
+    return web.json_response()
 
 
 @routes.get('/api/v1alpha/oauth2callback')
