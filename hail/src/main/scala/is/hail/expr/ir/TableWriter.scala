@@ -25,7 +25,7 @@ import is.hail.utils.richUtils.ByteTrackingOutputStream
 import is.hail.variant.ReferenceGenome
 import org.json4s.{DefaultFormats, Formats, JBool, JObject, ShortTypeHints}
 
-import java.io.OutputStream
+import java.io.{BufferedOutputStream, OutputStream}
 import java.nio.file.{FileSystems, Path}
 import java.util.UUID
 import scala.language.existentials
@@ -504,6 +504,25 @@ case class TableTextPartitionWriter(rowType: TStruct, delimiter: String, writeHe
 }
 
 object TableTextFinalizer {
+  def writeManifest(fs: FS, outputPath: String, files: Array[String], optionalAdditionalFirstPath: String): Unit = {
+
+    def basename(f: String): String = (new java.io.File(f)).getName
+
+    using(fs.createNoCompression(fs.makeQualified(outputPath + "/shard-manifest.txt"))) { os =>
+      val bos = new BufferedOutputStream(os)
+
+      if (optionalAdditionalFirstPath != null) {
+        bos.write(basename(optionalAdditionalFirstPath).getBytes())
+        bos.write('\n')
+      }
+      files.foreach { f =>
+        bos.write(basename(f).getBytes())
+        bos.write('\n')
+      }
+      bos.flush()
+    }
+  }
+
   def cleanup(fs: FS, outputPath: String, files: Array[String]): Unit = {
     val outputFiles = fs.listStatus(fs.makeQualified(outputPath)).map(_.getPath).toSet
     val fileSet = files.map(fs.makeQualified(_)).toSet
@@ -547,19 +566,23 @@ case class TableTextFinalizer(outputPath: String, rowType: TStruct, delimiter: S
 
       case ExportType.PARALLEL_HEADER_IN_SHARD =>
         cb += Code.invokeScalaObject3[FS, String, Array[String], Unit](TableTextFinalizer.getClass, "cleanup", cb.emb.getFS, outputPath, files)
+        cb += Code.invokeScalaObject4[FS, String, Array[String], String, Unit](TableTextFinalizer.getClass, "writeManifest", cb.emb.getFS, outputPath, files, Code._null[String])
+
         cb += cb.emb.getFS.invoke[String, Unit]("touch", const(outputPath).concat("/_SUCCESS"))
 
       case ExportType.PARALLEL_SEPARATE_HEADER =>
         cb += Code.invokeScalaObject3[FS, String, Array[String], Unit](TableTextFinalizer.getClass, "cleanup", cb.emb.getFS, outputPath, files)
-        if (header) {
-          val headerFilePath = s"$outputPath/header$ext"
+        val headerPath = if (header) {
+          val headerFilePath = const(s"$outputPath/header$ext")
           val headerStr = rowType.fields.map(_.name).mkString(delimiter)
-          val os = cb.memoize(cb.emb.create(const(headerFilePath)))
+          val os = cb.memoize(cb.emb.create(headerFilePath))
           cb += os.invoke[Array[Byte], Unit]("write", const(headerStr).invoke[Array[Byte]]("getBytes"))
           cb += os.invoke[Int, Unit]("write", '\n')
           cb += os.invoke[Unit]("close")
-        }
+          headerFilePath
+        } else Code._null[String]
 
+        cb += Code.invokeScalaObject4[FS, String, Array[String], String, Unit](TableTextFinalizer.getClass, "writeManifest", cb.emb.getFS, outputPath, files, headerPath)
         cb += cb.emb.getFS.invoke[String, Unit]("touch", const(outputPath).concat("/_SUCCESS"))
     }
   }
