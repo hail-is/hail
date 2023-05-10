@@ -206,7 +206,7 @@ dependencies {
 
     bundled 'com.github.luben:zstd-jni:1.5.2-1'
 
-    bundled ':shadedazure'
+    bundled project(':shadedazure')
 }
 
 task(checkSettings) doLast {
