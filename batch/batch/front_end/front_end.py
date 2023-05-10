@@ -486,7 +486,7 @@ async def _get_job_resource_usage(app, batch_id, job_id):
     if state == 'Running':
         try:
             data = await retry_transient_errors(
-                client_session.get,
+                client_session.get_read_json,
                 f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resource_usage',
             )
             return {
