@@ -488,7 +488,7 @@ traitlets==5.9.0
     #   nbsphinx
     #   notebook
     #   qtconsole
-types-chardet==5.0.4.5
+types-chardet==5.0.4.6
     # via -r hail/hail/python/dev/requirements.txt
 types-decorator==5.1.8.3
     # via -r hail/hail/python/dev/requirements.txt
