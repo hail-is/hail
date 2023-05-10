@@ -22,5 +22,5 @@ else
     JAR_LOCATION="${TEST_STORAGE_URI}/${NAMESPACE}/jars/${TOKEN}/${REVISION}.jar"
 fi
 
-az storage blob upload --file ${SHADOW_JAR} --account-name haildevbatch --container-name query --name jars/dking/lfrxrx935eaq/74f44922afbdceb900661e28011ed4004e6ecb25.jar
+python3 -m hailtop.aiotools.copy -vvv 'null' '[{"from":"'${SHADOW_JAR}'", "to":"'${JAR_LOCATION}'"}]'
 echo ${JAR_LOCATION} > ${PATH_FILE}
