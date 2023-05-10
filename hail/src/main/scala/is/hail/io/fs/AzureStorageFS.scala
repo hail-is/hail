@@ -135,7 +135,6 @@ class AzureBlobServiceClientCache(credential: TokenCredential) {
         val blobServiceClient = new BlobServiceClientBuilder()
           .credential(credential)
           .endpoint(s"https://$account.blob.core.windows.net")
-          .httpClient(new NettyAsyncHttpClientBuilder(HttpClient.create()).build())
           .buildClient()
         clients += ((account, container) -> blobServiceClient)
         blobServiceClient
@@ -145,7 +144,6 @@ class AzureBlobServiceClientCache(credential: TokenCredential) {
   def setPublicAccessServiceClient(account: String, container: String): Unit = {
     val blobServiceClient = new BlobServiceClientBuilder()
       .endpoint(s"https://$account.blob.core.windows.net")
-      .httpClient(new NettyAsyncHttpClientBuilder(HttpClient.create()).build())
       .buildClient()
     clients += ((account, container) -> blobServiceClient)
   }

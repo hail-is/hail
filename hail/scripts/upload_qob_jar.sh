@@ -22,5 +22,5 @@ else
     JAR_LOCATION="${TEST_STORAGE_URI}/${NAMESPACE}/jars/${TOKEN}/${REVISION}.jar"
 fi
 
-gcloud storage cp ${SHADOW_JAR} ${JAR_LOCATION}
+az storage blob upload --file ${SHADOW_JAR} --account-name haildevbatch --container-name query --name jars/dking/lfrxrx935eaq/74f44922afbdceb900661e28011ed4004e6ecb25.jar
 echo ${JAR_LOCATION} > ${PATH_FILE}
