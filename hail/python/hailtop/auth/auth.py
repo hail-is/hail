@@ -2,6 +2,7 @@ from typing import Optional, Dict, Tuple
 import os
 import aiohttp
 
+from hailtop import httpx
 from hailtop.aiocloud.common.credentials import CloudCredentials
 from hailtop.aiocloud.common import Session
 from hailtop.config import get_deploy_config, DeployConfig
@@ -97,10 +98,7 @@ def copy_paste_login(copy_paste_token: str, namespace: Optional[str] = None):
 
 async def async_copy_paste_login(copy_paste_token: str, namespace: Optional[str] = None):
     deploy_config, headers, namespace = deploy_config_and_headers_from_namespace(namespace, authorize_target=False)
-    async with aiohttp.ClientSession(
-            raise_for_status=True,
-            timeout=aiohttp.ClientTimeout(total=5),
-            headers=headers) as session:
+    async with httpx.client_session(headers=headers) as session:
         data = await retry_transient_errors(
             session.post_return_json,
             deploy_config.url('auth', '/api/v1alpha/copy-paste-login'),
@@ -126,8 +124,7 @@ def get_user(username: str, namespace: Optional[str] = None) -> dict:
 async def async_get_user(username: str, namespace: Optional[str] = None) -> dict:
     deploy_config, headers, _ = deploy_config_and_headers_from_namespace(namespace)
 
-    async with aiohttp.ClientSession(
-            raise_for_status=True,
+    async with httpx.client_session(
             timeout=aiohttp.ClientTimeout(total=30),
             headers=headers) as session:
         return await retry_transient_errors(
@@ -149,8 +146,7 @@ async def async_create_user(username: str, login_id: str, is_developer: bool, is
         'is_service_account': is_service_account,
     }
 
-    async with aiohttp.ClientSession(
-            raise_for_status=True,
+    async with httpx.client_session(
             timeout=aiohttp.ClientTimeout(total=30),
             headers=headers) as session:
         await retry_transient_errors(
@@ -166,8 +162,7 @@ def delete_user(username: str, namespace: Optional[str] = None):
 
 async def async_delete_user(username: str, namespace: Optional[str] = None):
     deploy_config, headers, _ = deploy_config_and_headers_from_namespace(namespace)
-    async with aiohttp.ClientSession(
-            raise_for_status=True,
+    async with httpx.client_session(
             timeout=aiohttp.ClientTimeout(total=300),
             headers=headers) as session:
         await retry_transient_errors(

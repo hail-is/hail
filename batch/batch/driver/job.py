@@ -70,7 +70,7 @@ GROUP BY batches.id;
             # only jobs from CI may use batch's TLS identity
             await request(client_session)
         else:
-            async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+            async with httpx.client_session() as session:
                 await request(session)
     except asyncio.CancelledError:
         raise
