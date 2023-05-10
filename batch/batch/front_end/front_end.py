@@ -515,6 +515,30 @@ async def _get_job_resource_usage(app, batch_id, job_id):
     return dict(await asyncio.gather(*[_read_resource_usage_from_cloud_storage(task) for task in tasks]))
 
 
+async def _get_jvm_profile(app, batch_id, job_id):
+    record = await _get_job_record(app, batch_id, job_id)
+
+    file_store: FileStore = app['file_store']
+    batch_format_version = BatchFormatVersion(record['format_version'])
+
+    state = record['state']
+    attempt_id = attempt_id_from_spec(record)
+
+    if not has_resource_available(record):
+        return None
+
+    if state == 'Running':
+        return None
+
+    assert attempt_id is not None and state in complete_states
+
+    try:
+        data = await file_store.read_jvm_profile(batch_format_version, batch_id, job_id, attempt_id, 'main')
+        return data.decode('utf-8')
+    except FileNotFoundError:
+        return None
+
+
 async def _get_attributes(app, record):
     db: Database = app['db']
 
@@ -2106,6 +2130,18 @@ def plot_resource_usage(
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
 
+@routes.get('/batches/{batch_id}/jobs/{job_id}/jvm_profile')
+@web_billing_project_users_only()
+@catch_ui_error_in_dev
+async def ui_get_jvm_profile(request, userdata, batch_id):  # pylint: disable=unused-argument
+    app = request.app
+    job_id = int(request.match_info['job_id'])
+    profile = await _get_jvm_profile(app, batch_id, job_id)
+    if profile is None:
+        raise web.HTTPNotFound()
+    return web.Response(text=profile, content_type='text/html')
+
+
 @routes.get('/batches/{batch_id}/jobs/{job_id}')
 @web_billing_project_users_only()
 @catch_ui_error_in_dev
@@ -2154,6 +2190,8 @@ async def ui_get_job(request, userdata, batch_id):
         if status and status['short_error'] is None and status['container_status']['out_of_memory']:
             status['short_error'] = 'out of memory'
 
+    has_jvm_profile = False
+
     job_specification = job['spec']
     if job_specification:
         if 'process' in job_specification:
@@ -2162,6 +2200,8 @@ async def ui_get_job(request, userdata, batch_id):
             assert process_specification['type'] in {'docker', 'jvm'}
             job_specification['image'] = process_specification['image'] if process_type == 'docker' else '[jvm]'
             job_specification['command'] = process_specification['command']
+            has_jvm_profile = job['state'] in complete_states and process_specification.get('profile', False)
+
         job_specification = dictfix.dictfix(
             job_specification, dictfix.NoneOr({'image': str, 'command': list, 'resources': {}, 'env': list})
         )
@@ -2210,6 +2250,7 @@ async def ui_get_job(request, userdata, batch_id):
         'plot_resource_usage': plot_resource_usage(
             resource_usage, memory_limit_bytes, io_storage_limit_bytes, non_io_storage_limit_bytes
         ),
+        'has_jvm_profile': has_jvm_profile,
     }
 
     return await render_template('batch', request, userdata, 'job.html', page_context)
