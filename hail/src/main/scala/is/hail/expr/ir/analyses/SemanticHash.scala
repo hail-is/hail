@@ -2,6 +2,7 @@ package is.hail.expr.ir.analyses
 
 import is.hail.expr.ir._
 import is.hail.io.fs.FS
+import is.hail.types.virtual._
 import is.hail.utils.{FastIndexedSeq, Logging, TreeTraversal}
 import org.apache.commons.codec.digest.MurmurHash3
 
@@ -60,10 +61,10 @@ case object SemanticHash extends Logging {
           Hash(classOf[ApplyUnaryPrimOp]) <> Hash(op.getClass) <> memo(x)
 
         case Cast(ir, typ) =>
-          Hash(classOf[Cast]) <> memo(ir) <> Hash(typ.getClass)
+          Hash(classOf[Cast]) <> memo(ir) <> Hash(SemanticTypeName(typ))
 
         case GetField(ir, name) =>
-          Hash(classOf[GetField]) <> memo(ir) <> Hash(name)
+          Hash(classOf[GetField]) <> memo(ir) <> Hash(ir.typ.asInstanceOf[TStruct].fieldIdx(name))
 
         case GetTupleElement(ir, idx) =>
           Hash(classOf[GetTupleElement]) <> memo(ir) <> Hash(idx)
@@ -72,8 +73,8 @@ case object SemanticHash extends Logging {
           Hash(classOf[Literal]) <> Hash(typ.toJSON(value))
 
         case MakeStruct(fields) =>
-          fields.foldLeft(Hash(classOf[MakeStruct])) { case (result, (name, ir)) =>
-            result <> Hash(name) <> memo(ir)
+          fields.zipWithIndex.foldLeft(Hash(classOf[MakeStruct])) { case (result, ((_, ir), index)) =>
+            result <> Hash(index) <> memo(ir)
           }
 
         case MakeTuple(fields) =>
@@ -198,7 +199,7 @@ case object SemanticHash extends Logging {
         case I64(x) => Hash(classOf[I64]) <> Hash(x)
         case F32(x) => Hash(classOf[F32]) <> Hash(x)
         case F64(x) => Hash(classOf[F64]) <> Hash(x)
-        case NA(typ) => Hash(classOf[NA]) <> Hash(typ)
+        case NA(typ) => Hash(classOf[NA]) <> Hash(SemanticTypeName(typ))
         case Str(x) => Hash(classOf[Str]) <> Hash(x)
 
         // In these cases, just return a random SemanticHash meaning that two
@@ -273,4 +274,30 @@ case object SemanticHash extends Logging {
       ir.children.iterator
   }
 
+}
+
+case object SemanticTypeName {
+  def apply(t: Type): String = {
+    val sb = StringBuilder.newBuilder
+
+    def go(typ: Type): Unit = {
+      sb.append(typ.getClass.getSimpleName)
+      val children = typ.children
+      if (children.nonEmpty) {
+        sb.append('[')
+        go(children.head)
+
+        children.tail.foreach { t =>
+          sb.append(',')
+          go(t)
+        }
+
+        sb.append(']')
+      }
+    }
+
+    go(t)
+
+    sb.toString()
+  }
 }
