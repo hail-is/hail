@@ -210,7 +210,7 @@ class EmitValue protected(missing: Option[Value[Boolean]], val v: SValue) {
 
   def get(cb: EmitCodeBuilder): SValue = {
     missing.foreach { m =>
-      cb.ifx(m, cb._fatal(s"Can't convert missing ${ v.st } to PValue"))
+      cb.ifx(m, cb._fatal(s"Can't convert missing ${ v.st } to SValue"))
     }
     v
   }
@@ -2289,16 +2289,12 @@ class Emit[C](
           decoded
         }
 
-      case WriteValue(value, path, spec, stagingFile) =>
+      case WriteValue(value, path, writer, stagingFile) =>
         emitI(path).flatMap(cb) { case pv: SStringValue =>
           emitI(value).map(cb) { v =>
             val s = stagingFile.map(emitI(_).get(cb).asString)
-            val ob = cb.memoize[OutputBuffer](spec.buildCodeOutputBuffer(mb.createUnbuffered(
-              s.getOrElse(pv).loadString(cb))
-            ))
-            spec.encodedType.buildEncoder(v.st, cb.emb.ecb)
-              .apply(cb, v, ob)
-            cb += ob.invoke[Unit]("close")
+            val p = EmitCode.present(mb, s.getOrElse(pv))
+            writer.writeValue(cb, v, p)
             s.foreach { stage =>
               cb += mb.getFS.invoke[String, String, Boolean, Unit]("copy", stage.loadString(cb), pv.loadString(cb), const(true))
             }

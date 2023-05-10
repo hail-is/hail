@@ -1549,11 +1549,11 @@ object IRParser {
           ReadValue(path, spec, typ)
         }
       case "WriteValue" =>
-        import AbstractRVDSpec.formats
-        val spec = JsonMethods.parse(string_literal(it)).extract[AbstractTypedCodecSpec]
+        import ValueWriter.formats
+        val writer = JsonMethods.parse(string_literal(it)).extract[ValueWriter]
         ir_value_children(env)(it).map {
-          case Array(value, path) => WriteValue(value, path, spec)
-          case Array(value, path, stagingFile) => WriteValue(value, path, spec, Some(stagingFile))
+          case Array(value, path) => WriteValue(value, path, writer)
+          case Array(value, path, stagingFile) => WriteValue(value, path, writer, Some(stagingFile))
         }
       case "LiftMeOut" => ir_value_expr(env)(it).map(LiftMeOut)
       case "ReadPartition" =>

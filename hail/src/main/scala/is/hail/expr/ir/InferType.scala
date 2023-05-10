@@ -286,7 +286,7 @@ object InferType {
       case WritePartition(value, writeCtx, writer) => writer.returnType
       case _: WriteMetadata => TVoid
       case ReadValue(_, _, typ) => typ
-      case _: WriteValue => TString
+      case WriteValue(_, _, writer, _) => writer.returnType
       case LiftMeOut(child) => child.typ
     }
   }
