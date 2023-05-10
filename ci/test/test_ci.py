@@ -4,10 +4,10 @@ import logging
 
 import pytest
 
-from hailtop.utils import retry_transient_errors
 from hailtop.auth import hail_credentials
 from hailtop.config import get_deploy_config
 from hailtop.httpx import client_session
+from hailtop.utils import retry_transient_errors
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)

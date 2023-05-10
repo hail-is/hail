@@ -3,10 +3,10 @@ import logging
 import aiohttp
 import pytest
 
-from hailtop.utils import retry_transient_errors
 from hailtop.auth import hail_credentials
 from hailtop.config import get_deploy_config
 from hailtop.httpx import client_session
+from hailtop.utils import retry_transient_errors
 
 pytestmark = pytest.mark.asyncio
 
