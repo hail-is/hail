@@ -14,7 +14,6 @@ import random
 import logging
 import asyncio
 import aiohttp
-from aiohttp import web
 import urllib
 import urllib3
 import secrets
