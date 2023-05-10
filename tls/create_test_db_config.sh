@@ -31,14 +31,18 @@ openssl req -new -x509 \
     -subj /CN=db-root -nodes -newkey rsa:4096 \
     -keyout server-ca-key.pem -out server-ca.pem
 
-create_key_and_cert server db
-create_key_and_cert client client
+create_key_and_cert server
+create_key_and_cert client
+
+set +x
+LC_ALL=C tr -dc '[:alnum:]' </dev/urandom | head -c 16 > db-root-password
+password=$(cat db-root-password)
 
 cat >sql-config.cnf <<EOF
 [client]
 host=db.$NAMESPACE
 user=root
-password=pw
+password=$password
 ssl-ca=/sql-config/server-ca.pem
 ssl-cert=/sql-config/client-cert.pem
 ssl-key=/sql-config/client-key.pem
@@ -50,7 +54,7 @@ cat >sql-config.json <<EOF
     "host": "db.$NAMESPACE.svc.cluster.local",
     "port": 3306,
     "user": "root",
-    "password": "pw",
+    "password": "$password",
     "ssl-ca": "/sql-config/server-ca.pem",
     "ssl-cert": "/sql-config/client-cert.pem",
     "ssl-key": "/sql-config/client-key.pem",
@@ -68,4 +72,5 @@ kubectl create secret generic database-server-config \
     --from-file=client-cert.pem \
     --from-file=client-key.pem \
     --from-file=sql-config.cnf \
-    --from-file=sql-config.json
+    --from-file=sql-config.json \
+    --from-file=db-root-password

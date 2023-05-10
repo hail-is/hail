@@ -51,7 +51,10 @@ spec:
             - name: MYSQL_ROOT_PASSWORD
               value: pw
             - name: MYSQL_ROOT_HOST
-              value: "%"
+              valueFrom:
+                secretKeyRef:
+                  name: database-server-config
+                  key: db-root-password
           volumeMounts:
             - name: mysql-persistent-storage
               mountPath: /var/lib/mysql

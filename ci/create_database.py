@@ -85,9 +85,9 @@ async def create_database():
             assert len(rows) == 1
             return
 
-    async def create_user_idempotent(admin_or_user, mysql_username, mysql_password):
-        existing_user = await db.execute_and_fetchone('SELECT user FROM mysql.user WHERE user=%s', (mysql_username,))
-        if existing_user is not None and existing_user.get('user') == mysql_username:
+    async def create_user_if_doesnt_exist(admin_or_user, mysql_username, mysql_password):
+        existing_user = await db.execute_and_fetchone('SELECT 1 FROM mysql.user WHERE user=%s', (mysql_username,))
+        if existing_user is not None:
             return
 
         if admin_or_user == 'admin':
@@ -131,8 +131,8 @@ async def create_database():
         user_password = f.read()
 
     await db.just_execute(f'CREATE DATABASE IF NOT EXISTS `{_name}`')
-    await create_user_idempotent('admin', admin_username, admin_password)
-    await create_user_idempotent('user', user_username, user_password)
+    await create_user_if_doesnt_exist('admin', admin_username, admin_password)
+    await create_user_if_doesnt_exist('user', user_username, user_password)
 
 
 did_shutdown = False
