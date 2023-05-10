@@ -668,3 +668,12 @@ def test_ref_block_max_len_patch():
 
         vds2 = hl.vds.read_vds(vds_path)
         assert hl.eval(vds2.reference_data.index_globals()[hl.vds.VariantDataset.ref_block_max_length_field]) == max_rb_len
+
+
+def test_filter_intervals_table():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+    filter_vars = vds.variant_data.rows().head(10).select()
+    filter_intervals = filter_vars.key_by(interval=hl.interval(filter_vars.locus, filter_vars.locus, includes_end=True))
+    vds_filt = hl.vds.filter_intervals(vds, filter_intervals)
+
+    assert vds_filt.variant_data.rows().select()._same(filter_vars)
