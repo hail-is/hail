@@ -12,7 +12,6 @@ class OrJsonEncoder:
     def __init__(self, *args, **kwargs):
         del args
         del kwargs
-        pass
 
 
 def logger_json_serializer(log_record,
