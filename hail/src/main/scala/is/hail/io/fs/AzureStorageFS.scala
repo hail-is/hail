@@ -5,6 +5,7 @@ import is.hail.shadedazure.com.azure.identity.{ClientSecretCredential, ClientSec
 import is.hail.shadedazure.com.azure.storage.blob.models.{BlobProperties, BlobRange, ListBlobsOptions, BlobStorageException}
 import is.hail.shadedazure.com.azure.storage.blob.specialized.BlockBlobClient
 import is.hail.shadedazure.com.azure.storage.blob.{BlobClient, BlobContainerClient, BlobServiceClient, BlobServiceClientBuilder}
+import is.hail.shadedazure.com.azure.core.http.netty.NettyAsyncHttpClientBuilder
 import is.hail.shadedazure.reactor.netty.http.client.HttpClient
 import is.hail.services.retryTransientErrors
 import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
