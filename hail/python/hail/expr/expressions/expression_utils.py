@@ -131,7 +131,7 @@ def analyze(caller: str,
 
 
 @typecheck(expression=expr_any)
-def eval_timed(expression):
+def eval_timed(expression, *, _execute_kwargs=None):
     """Evaluate a Hail expression, returning the result and the times taken for
     each stage in the evaluation process.
 
@@ -158,11 +158,12 @@ def eval_timed(expression):
         uid = Env.get_uid()
         ir = expression._indices.source.select_globals(**{uid: expression}).index_globals()[uid]._ir
 
-    return Env.backend().execute(MakeTuple([ir]), timed=True)[0]
+    _execute_kwargs = _execute_kwargs or {}
+    return Env.backend().execute(MakeTuple([ir]), timed=True, **_execute_kwargs)[0]
 
 
 @typecheck(expression=expr_any)
-def eval(expression):
+def eval(expression, *, _execute_kwargs=None):
     """Evaluate a Hail expression, returning the result.
 
     This method is extremely useful for learning about Hail expressions and
@@ -188,7 +189,7 @@ def eval(expression):
     -------
     Any
     """
-    return eval_timed(expression)[0]
+    return eval_timed(expression, _execute_kwargs=_execute_kwargs)[0]
 
 
 @typecheck(expression=expr_any)
