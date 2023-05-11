@@ -118,7 +118,7 @@ package object services {
         // ...
         true
       case e @ (_: SSLException | _: StorageException | _: IOException)
-          if NettyProxy.isRetryableNettyIOException(e.getCause) =>
+          if e.getCause != null && NettyProxy.isRetryableNettyIOException(e.getCause) =>
         true
       case e =>
         val cause = e.getCause
