@@ -1732,6 +1732,7 @@ steps:
       - delete_monitoring_tables
       - ci_utils_image
       - create_test_database_server_config
+      - deploy_test_db
   - kind: deploy
     name: deploy_monitoring
     namespace:
@@ -1978,6 +1979,7 @@ steps:
       - delete_ci_tables
       - ci_utils_image
       - create_test_database_server_config
+      - deploy_test_db
   - kind: createDatabase2
     name: batch_database
     databaseName: batch
@@ -2213,6 +2215,7 @@ steps:
       - delete_batch_tables
       - ci_utils_image
       - create_test_database_server_config
+      - deploy_test_db
   - kind: deploy
     name: deploy_batch
     namespace:
@@ -3041,6 +3044,7 @@ steps:
       - merge_code
       - ci_utils_image
       - create_test_database_server_config
+      - deploy_test_db
   - kind: deploy
     name: deploy_notebook
     namespace:
