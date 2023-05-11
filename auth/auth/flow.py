@@ -1,14 +1,22 @@
 import abc
 import json
+import logging
 import urllib.parse
+from typing import Optional
 
 import aiohttp.web
 import google.auth.transport.requests
 import google.oauth2.id_token
 import google_auth_oauthlib.flow
+import jwt
 import msal
 
 from gear.cloud_config import get_global_config
+from hailtop import httpx
+from hailtop.aiocloud.aioazure import AzureCredentials
+from hailtop.aiocloud.aiogoogle import GoogleCredentials
+
+log = logging.getLogger('auth')
 
 
 class FlowResult:
@@ -32,6 +40,14 @@ class Flow(abc.ABC):
     @abc.abstractmethod
     def receive_callback(self, request: aiohttp.web.Request, flow_dict: dict) -> FlowResult:
         """Concludes the OAuth2 flow by returning the user's identity and credentials."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def get_login_id_from_access_token(self, session: httpx.ClientSession, access_token: str) -> Optional[str]:
+        """
+        Validate a user-provided access token. If the token is valid, return the identity
+        to which it belongs. If it is not valid, return None.
+        """
         raise NotImplementedError
 
 
@@ -70,6 +86,16 @@ class GoogleFlow(Flow):
         email = token['email']
         return FlowResult(email, email, token)
 
+    async def get_login_id_from_access_token(self, session: httpx.ClientSession, access_token: str) -> Optional[str]:
+        try:
+            # TODO Verify the audience is us
+            userinfo = await GoogleCredentials.userinfo_from_access_token(session, access_token)
+            return userinfo['email']
+        except httpx.ClientResponseError as e:
+            if e.status == 401:
+                return None
+            raise
+
 
 class AzureFlow(Flow):
     def __init__(self, credentials_file: str):
@@ -105,6 +131,14 @@ class AzureFlow(Flow):
             raise ValueError('invalid tenant id')
 
         return FlowResult(token['id_token_claims']['oid'], token['id_token_claims']['preferred_username'], token)
+
+    async def get_login_id_from_access_token(self, session: httpx.ClientSession, access_token: str) -> Optional[str]:
+        try:
+            # TODO Verify audience
+            decoded = await AzureCredentials.userinfo_from_access_token(session, access_token)
+            return decoded['oid']
+        except jwt.DecodeError:
+            return None
 
 
 def get_flow_client(credentials_file: str) -> Flow:

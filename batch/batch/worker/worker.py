@@ -1677,6 +1677,7 @@ class DockerJob(Job):
         hail_extra_env = [
             {'name': 'HAIL_REGION', 'value': REGION},
             {'name': 'HAIL_BATCH_ID', 'value': str(batch_id)},
+            {'name': 'HAIL_IDENTITY_PROVIDER', 'value': self.credentials.identity_provider.value},
         ]
         self.env += hail_extra_env
 

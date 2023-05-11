@@ -2,6 +2,8 @@ import base64
 import json
 from typing import Dict
 
+from hailtop.auth.auth import IdentityProvider
+
 from ....worker.credentials import CloudUserCredentials
 
 
@@ -25,6 +27,10 @@ class AzureUserCredentials(CloudUserCredentials):
     @property
     def mount_path(self):
         return '/azure-credentials/key.json'
+
+    @property
+    def identity_provider(self):
+        return IdentityProvider.MICROSOFT
 
     def blobfuse_credentials(self, account: str, container: str) -> str:
         # https://github.com/Azure/azure-storage-fuse

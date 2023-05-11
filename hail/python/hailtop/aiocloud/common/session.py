@@ -4,7 +4,8 @@ import aiohttp
 import abc
 from hailtop import httpx
 from hailtop.utils import retry_transient_errors, RateLimit, RateLimiter
-from .credentials import CloudCredentials
+
+from .credentials import Credentials
 
 SessionType = TypeVar('SessionType', bound='BaseSession')
 
@@ -64,11 +65,11 @@ class RateLimitedSession(BaseSession):
 
 class Session(BaseSession):
     _http_session: httpx.ClientSession
-    _credentials: CloudCredentials
+    _credentials: Credentials
 
     def __init__(self,
                  *,
-                 credentials: CloudCredentials,
+                 credentials: Credentials,
                  params: Optional[Mapping[str, str]] = None,
                  http_session: Optional[httpx.ClientSession] = None,
                  **kwargs):
@@ -102,10 +103,16 @@ class Session(BaseSession):
                     request_params[k] = v
 
         # retry by default
-        retry = kwargs.pop('retry', True)
-        if retry:
-            return await retry_transient_errors(self._http_session.request, method, url, **kwargs)
-        return await self._http_session.request(method, url, **kwargs)
+        try:
+            retry = kwargs.pop('retry', True)
+            if retry:
+                return await retry_transient_errors(self._http_session.request, method, url, **kwargs)
+            return await self._http_session.request(method, url, **kwargs)
+        except httpx.ClientResponseError as e:
+            from ...auth.auth import HailCredentials
+            if e.status == 401 and isinstance(self._credentials, HailCredentials):
+                await self._credentials.verify_user_login()
+            raise e
 
     async def close(self) -> None:
         if hasattr(self, '_http_session') and self._owns_http_session:

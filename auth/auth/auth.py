@@ -27,6 +27,7 @@ from gear import (
 from gear.cloud_config import get_global_config
 from gear.profiling import install_profiler_if_requested
 from hailtop import httpx
+from hailtop.auth import IdentityProvider
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
@@ -45,7 +46,7 @@ from .exceptions import (
     PreviouslyDeletedUser,
     UnknownUser,
 )
-from .flow import get_flow_client
+from .flow import Flow, FlowResult, get_flow_client
 
 log = logging.getLogger('auth')
 
@@ -513,7 +514,7 @@ async def post_create_user(request, userdata):  # pylint: disable=unused-argumen
 @auth.rest_authenticated_developers_only
 async def rest_get_users(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
-    users = await db.select_and_fetchall(
+    users = db.select_and_fetchall(
         '''
 SELECT id, username, login_id, state, is_developer, is_service_account FROM users;
 '''
@@ -607,7 +608,7 @@ async def rest_callback(request):
         flow_dict = json.loads(request.query['flow'])
 
     try:
-        flow_result = request.app['flow_client'].receive_callback(request, flow_dict)
+        flow_result: FlowResult = request.app['flow_client'].receive_callback(request, flow_dict)
     except asyncio.CancelledError:
         raise
     except Exception as e:
@@ -628,7 +629,14 @@ async def rest_callback(request):
 
     session_id = await create_session(db, user['id'], max_age_secs=None)
 
-    return json_response({'token': session_id, 'username': user['username']})
+    email = flow_result.email
+    if CLOUD == 'gcp':
+        identity_provider = IdentityProvider.GOOGLE.value
+    else:
+        assert CLOUD == 'azure'
+        identity_provider = IdentityProvider.MICROSOFT.value
+
+    return json_response({'token': session_id, 'username': user['username'], 'idp': identity_provider, 'email': email})
 
 
 @routes.post('/api/v1alpha/copy-paste-login')
@@ -667,11 +675,46 @@ async def rest_logout(request, userdata):
     return web.Response(status=200)
 
 
-async def get_userinfo(request, session_id):
+async def get_userinfo(request, auth_token):
+    flow_client: Flow = request.app['flow_client']
+    client_session = request.app['client_session']
+
+    userdata = await get_userinfo_from_hail_session_id(request, auth_token)
+    if userdata:
+        return userdata
+
+    login_id = await flow_client.get_login_id_from_access_token(client_session, auth_token)
+    if login_id:
+        return await get_userinfo_from_login_id_or_hail_identity_id(request, login_id)
+
+    raise web.HTTPUnauthorized()
+
+
+async def get_userinfo_from_login_id_or_hail_identity_id(request, login_id):
+    db = request.app['db']
+
+    users = [
+        x
+        async for x in db.select_and_fetchall(
+            '''
+SELECT users.*
+FROM users
+WHERE (users.login_id = %s OR users.hail_identity = %s) AND users.state = 'active'
+''',
+            (login_id, login_id),
+        )
+    ]
+
+    if len(users) != 1:
+        log.info(f'Unknown login id: {login_id}')
+        raise web.HTTPUnauthorized()
+    return users[0]
+
+
+async def get_userinfo_from_hail_session_id(request, session_id):
     # b64 encoding of 32-byte session ID is 44 bytes
     if len(session_id) != 44:
-        log.info('Session id != 44 bytes')
-        raise web.HTTPUnauthorized()
+        return None
 
     db = request.app['db']
     users = [
@@ -688,8 +731,7 @@ WHERE users.state = 'active' AND (sessions.session_id = %s) AND (ISNULL(sessions
     ]
 
     if len(users) != 1:
-        log.info(f'Unknown session id: {session_id}')
-        raise web.HTTPUnauthorized()
+        return None
     return users[0]
 
 
@@ -700,18 +742,15 @@ async def userinfo(request):
         raise web.HTTPUnauthorized()
 
     auth_header = request.headers['Authorization']
-    session_id = maybe_parse_bearer_header(auth_header)
-    if not session_id:
+    auth_token = maybe_parse_bearer_header(auth_header)
+    if not auth_token:
         log.info('Bearer not in Authorization header')
         raise web.HTTPUnauthorized()
 
-    return json_response(await get_userinfo(request, session_id))
+    return json_response(await get_userinfo(request, auth_token))
 
 
 async def get_session_id(request):
-    if 'X-Hail-Internal-Authorization' in request.headers:
-        return maybe_parse_bearer_header(request.headers['X-Hail-Internal-Authorization'])
-
     if 'Authorization' in request.headers:
         return maybe_parse_bearer_header(request.headers['Authorization'])
 

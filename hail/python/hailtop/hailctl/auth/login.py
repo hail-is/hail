@@ -6,7 +6,7 @@ import webbrowser
 from aiohttp import web
 
 from hailtop.config import get_deploy_config
-from hailtop.auth import get_tokens, hail_credentials
+from hailtop.auth import get_tokens, hail_credentials, get_identity_spec_file
 from hailtop.httpx import client_session
 
 
@@ -76,11 +76,17 @@ Opening in your browser.
                 'flow': json.dumps(flow),
             }) as resp:
         resp = await resp.json()
-    token = resp['token']
-    username = resp['username']
 
     tokens = get_tokens()
-    tokens[default_ns] = token
+    if 'idp' in resp:
+        assert 'email' in resp
+        with open(get_identity_spec_file(), 'w') as f:
+            f.write(json.dumps({'idp': resp['idp'], 'email': resp['email']}))
+    else:
+        tokens[default_ns] = resp['token']
+
+    username = resp['username']
+
     dot_hail_dir = os.path.expanduser('~/.hail')
     if not os.path.exists(dot_hail_dir):
         os.mkdir(dot_hail_dir, mode=0o700)
@@ -97,7 +103,7 @@ async def async_main(args):
     if args.namespace:
         deploy_config = deploy_config.with_default_namespace(args.namespace)
     namespace = args.namespace or deploy_config.default_namespace()
-    headers = await hail_credentials(namespace=namespace, authorize_target=False).auth_headers()
+    headers = await (await hail_credentials(namespace=namespace, authorize_target=False)).auth_headers()
     async with client_session(headers=headers) as session:
         await auth_flow(deploy_config, namespace, session)
 

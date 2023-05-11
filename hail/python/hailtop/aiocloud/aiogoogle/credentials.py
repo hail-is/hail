@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Union
+from typing import Any, Dict, Optional, Union
 import os
 import json
 import time
@@ -6,8 +6,9 @@ import logging
 import socket
 from urllib.parse import urlencode
 import jwt
+
 from hailtop.utils import retry_transient_errors
-import hailtop.httpx
+from hailtop import httpx
 from ..common.credentials import AnonymousCloudCredentials, CloudCredentials
 
 log = logging.getLogger(__name__)
@@ -31,17 +32,25 @@ class GoogleExpiringAccessToken:
 
 
 class GoogleCredentials(CloudCredentials):
-    _http_session: hailtop.httpx.ClientSession
+    _http_session: httpx.ClientSession
 
     def __init__(self,
-                 http_session: Optional[hailtop.httpx.ClientSession] = None,
+                 http_session: Optional[httpx.ClientSession] = None,
                  **kwargs):
         self._access_token: Optional[GoogleExpiringAccessToken] = None
         if http_session is not None:
             assert len(kwargs) == 0
             self._http_session = http_session
         else:
-            self._http_session = hailtop.httpx.ClientSession(**kwargs)
+            self._http_session = httpx.ClientSession(**kwargs)
+
+    @staticmethod
+    async def userinfo_from_access_token(session: httpx.ClientSession, access_token: str) -> Dict[str, Any]:
+        return await retry_transient_errors(
+            session.get_read_json,
+            'https://www.googleapis.com/oauth2/v3/tokeninfo',
+            params={'access_token': access_token},
+        )
 
     @staticmethod
     def from_file(credentials_file: str) -> 'GoogleCredentials':
@@ -85,9 +94,24 @@ class GoogleCredentials(CloudCredentials):
         return AnonymousCloudCredentials()
 
     async def auth_headers(self) -> Dict[str, str]:
+        return {'Authorization': f'Bearer {await self.access_token()}'}
+
+    async def access_token(self) -> str:
         if self._access_token is None or self._access_token.expired():
             self._access_token = await self._get_access_token()
-        return {'Authorization': f'Bearer {self._access_token.token}'}
+        return self._access_token.token
+
+    async def email(self) -> str:
+        userinfo = await self.userinfo_from_access_token(self._http_session, await self.access_token())
+        return userinfo['email']
+
+    @property
+    def login_cli(self):
+        return 'gcloud'
+
+    @property
+    def login_command(self):
+        return 'gcloud auth application-default login'
 
     async def _get_access_token(self) -> GoogleExpiringAccessToken:
         raise NotImplementedError

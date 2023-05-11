@@ -26,27 +26,14 @@ class NoBodyException(message: String, cause: Throwable) extends Exception(messa
 
 object BatchClient {
   lazy val log: Logger = LogManager.getLogger("BatchClient")
-
-  def fromSessionID(sessionID: String): BatchClient = {
-    val deployConfig = DeployConfig.get
-    new BatchClient(deployConfig,
-      new Tokens(Map(
-        deployConfig.getServiceNamespace("batch") -> sessionID)))
-  }
 }
 
 class BatchClient(
   deployConfig: DeployConfig,
   requester: Requester
 ) {
-  def this() = this(DeployConfig.get, new Requester("batch"))
 
-  def this(deployConfig: DeployConfig) = this(deployConfig, new Requester("batch"))
-
-  def this(tokens: Tokens) = this(DeployConfig.get, new Requester(tokens, "batch"))
-
-  def this(deployConfig: DeployConfig, tokens: Tokens) =
-    this(deployConfig, new Requester(tokens, "batch"))
+  def this(credentialsPath: String) = this(DeployConfig.get, Requester.fromCredentialsFile(credentialsPath))
 
   import BatchClient._
   import requester.request

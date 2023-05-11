@@ -14,24 +14,16 @@ import org.json4s.JValue
 
 object MemoryClient {
   private val log = Logger.getLogger(getClass.getName())
-
-  def fromSessionID(sessionID: String): MemoryClient = {
-    val deployConfig = DeployConfig.get
-    new MemoryClient(deployConfig,
-      new Tokens(Map(
-        deployConfig.getServiceNamespace("memory") -> sessionID)))
-  }
-
-  def get: MemoryClient = new MemoryClient(DeployConfig.get, Tokens.get)
 }
 
-class MemoryClient(val deployConfig: DeployConfig, tokens: Tokens) {
-    val requester = new Requester(tokens, "memory")
+class MemoryClient(val deployConfig: DeployConfig, requester: Requester) {
 
-    import MemoryClient.log
-    import requester.request
+  def this(credentialsPath: String) = this(DeployConfig.get, Requester.fromCredentialsFile(credentialsPath))
 
-    private[this] val baseUrl = deployConfig.baseUrl("memory")
+  import MemoryClient.log
+  import requester.request
+
+  private[this] val baseUrl = deployConfig.baseUrl("memory")
 
   def open(path: String): Option[MemorySeekableInputStream] =
     try {

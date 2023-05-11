@@ -54,6 +54,9 @@ class Tokens(collections.abc.MutableMapping):
     def __getitem__(self, key: str) -> str:
         return self._tokens[key]
 
+    def namespace_token(self, ns: str) -> Optional[str]:
+        return self._tokens.get(ns)
+
     def namespace_token_or_error(self, ns: str) -> str:
         if ns in self._tokens:
             return self._tokens[ns]

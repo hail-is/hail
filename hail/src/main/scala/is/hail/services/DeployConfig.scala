@@ -113,40 +113,4 @@ class DeployConfig(
   def baseUrl(service: String, baseScheme: String = "http"): String = {
     s"${ scheme(baseScheme) }://${ domain(service) }${ basePath(service) }"
   }
-
-  def addresses(service: String, tokens: Tokens = Tokens.get): Seq[(String, Int)] = {
-    val addressRequester = new Requester(tokens, "address")
-    implicit val formats: Formats = DefaultFormats
-
-    val addressBaseUrl = baseUrl("address")
-    val url = s"${addressBaseUrl}/api/${service}"
-    val addresses = addressRequester.request(new HttpGet(url))
-      .asInstanceOf[JArray]
-      .children
-      .asInstanceOf[List[JObject]]
-    addresses.map(x => ((x \ "address").extract[String], (x \ "port").extract[Int]))
-  }
-
-  def address(service: String, tokens: Tokens = Tokens.get): (String, Int) = {
-    val serviceAddresses = addresses(service, tokens)
-    val n = serviceAddresses.length
-    assert(n > 0)
-    serviceAddresses(Random.nextInt(n))
-  }
-
-  def socket(service: String, tokens: Tokens = Tokens.get): Socket = {
-    val (host, port) = location match {
-      case "k8s" | "gce" =>
-        address(service, tokens)
-      case "external" =>
-        throw new IllegalStateException(
-          s"Cannot open a socket from an external client to a service.")
-    }
-    log.info(s"attempting to connect ${service} at ${host}:${port}")
-    val s = retryTransientErrors {
-      getSSLContext.getSocketFactory().createSocket(host, port)
-    }
-    log.info(s"connected to ${service} at ${host}:${port}")
-    s
-  }
 }

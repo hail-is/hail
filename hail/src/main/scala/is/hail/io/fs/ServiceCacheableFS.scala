@@ -17,14 +17,10 @@ trait ServiceCacheableFS extends FS {
   private[this] implicit val ec = ExecutionContext.fromExecutorService(
     javaConcurrent.Executors.newCachedThreadPool())
 
-  def sessionID: String
-
   private val log = Logger.getLogger(getClass.getName())
 
   @transient lazy val client: MemoryClient = {
-    if (sessionID != null)
-      MemoryClient.fromSessionID(sessionID)
-    else MemoryClient.get
+    new MemoryClient("unused")
   }
 
   override def openCachedNoCompression(filename: String): SeekableDataInputStream = {
