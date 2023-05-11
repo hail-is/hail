@@ -67,7 +67,6 @@ async def create_database():
     cant_create_database = create_database_config['cant_create_database']
 
     if cant_create_database:
-        assert sql_config.db is not None
         sql_config_with_db = SQLConfig(
             host=sql_config.host,
             port=sql_config.port,
