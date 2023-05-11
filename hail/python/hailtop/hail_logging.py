@@ -8,18 +8,24 @@ from aiohttp.abc import AbstractAccessLogger
 from pythonjsonlogger import jsonlogger
 
 
+class OrJsonEncoder:
+    def __init__(self, *args, **kwargs):
+        del args
+        del kwargs
+
+
 def logger_json_serializer(log_record,
                            default=None,
                            cls=None,
                            indent=None,
                            ensure_ascii=False) -> str:
-    assert default is None and cls is None and indent is None and ensure_ascii is False
+    assert default is None and cls is OrJsonEncoder and indent is None and ensure_ascii is False, (default, cls, indent, ensure_ascii)
     return orjson.dumps(log_record).decode('utf-8')
 
 
 class CustomJsonFormatter(jsonlogger.JsonFormatter):
     def __init__(self, format_string):
-        super().__init__(format_string, json_serializer=logger_json_serializer, json_ensure_ascii=False)
+        super().__init__(format_string, json_encoder=OrJsonEncoder, json_serializer=logger_json_serializer, json_ensure_ascii=False)
 
     def add_fields(self, log_record, record, message_dict):
         super().add_fields(log_record, record, message_dict)

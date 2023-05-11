@@ -429,6 +429,7 @@ class ServiceBackend(Backend):
                     attributes={'name': name + '_driver'},
                     regions=self.regions,
                     cloudfuse=cloudfuse_config,
+                    profile=self.flags['profile'] is not None,
                 )
                 self._batch = await bb.submit(disable_progress_bar=True)
 

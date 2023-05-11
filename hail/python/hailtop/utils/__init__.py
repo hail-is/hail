@@ -13,7 +13,7 @@ from .utils import (unzip, async_to_blocking, blocking_to_async, AsyncWorkerPool
                     url_scheme, Notice, periodically_call, dump_all_stacktraces, find_spark_home,
                     TransientError, bounded_gather2, OnlineBoundedGather2,
                     unpack_comma_delimited_inputs, unpack_key_value_inputs,
-                    retry_all_errors_n_times, Timings, is_retry_once_error, am_i_interactive,
+                    retry_all_errors_n_times, Timings, is_limited_retries_error, am_i_interactive,
                     is_delayed_warning_error, retry_transient_errors_with_delayed_warnings,
                     periodically_call_with_dynamic_sleep)
 from .process import (
@@ -93,7 +93,7 @@ __all__ = [
     'retry_all_errors_n_times',
     'parse_timestamp_msecs',
     'Timings',
-    'is_retry_once_error',
+    'is_limited_retries_error',
     'rich_progress_bar',
     'time_ns',
     'am_i_interactive',

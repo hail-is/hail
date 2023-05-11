@@ -83,6 +83,7 @@ resource "google_compute_network" "default" {
   name = "default"
   description = "Default network for the project"
   enable_ula_internal_ipv6 = false
+  auto_create_subnetworks = false
 }
 
 resource "google_compute_subnetwork" "default_region" {
@@ -172,6 +173,8 @@ resource "google_container_cluster" "vdc" {
     }
   }
 
+  workload_identity_config {}
+
   timeouts {}
 }
 
@@ -219,6 +222,10 @@ resource "google_container_node_pool" "vdc_preemptible_pool" {
     shielded_instance_config {
       enable_integrity_monitoring = true
       enable_secure_boot          = false
+    }
+
+    workload_metadata_config {
+      mode = "GKE_METADATA"
     }
   }
 
@@ -274,6 +281,10 @@ resource "google_container_node_pool" "vdc_nonpreemptible_pool" {
     shielded_instance_config {
       enable_integrity_monitoring = true
       enable_secure_boot          = false
+    }
+
+    workload_metadata_config {
+      mode = "GKE_METADATA"
     }
   }
 
@@ -578,6 +589,7 @@ resource "google_storage_bucket" "batch_logs" {
   name = "hail-batch"
   location = var.batch_logs_bucket_location
   storage_class = var.batch_logs_bucket_storage_class
+  uniform_bucket_level_access = true
   labels = {
     "name" = "hail-batch"
   }
@@ -609,6 +621,7 @@ resource "google_storage_bucket" "hail_test_bucket" {
   location = var.hail_test_gcs_bucket_location
   force_destroy = false
   storage_class = var.hail_test_gcs_bucket_storage_class
+  uniform_bucket_level_access = true
   lifecycle_rule {
     action {
       type = "Delete"
