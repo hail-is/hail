@@ -29,8 +29,8 @@ cleanup_image:
 	rm -f pushed_image
 
 BENCHMARK_DOCKER_TAG ?= $(shell whoami)
-BECNHMARK_IMAGE_REPOSITOY ?= us-docker.pkg.dev/broad-ctsa/hail-benchmarks
-BENCHMARK_REPO_BASE = $(BECNHMARK_IMAGE_REPOSITOY)/$(BENCHMARK_DOCKER_TAG)
+BECNHMARK_IMAGE_REPOSITORY ?= us-docker.pkg.dev/broad-ctsa/hail-benchmarks
+BENCHMARK_REPO_BASE = $(BECNHMARK_IMAGE_REPOSITORY)/$(BENCHMARK_DOCKER_TAG)
 DOCKER_ROOT_IMAGE := ubuntu:20.04
 
 ifndef HAIL_WHEEL
