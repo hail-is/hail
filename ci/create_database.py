@@ -64,6 +64,28 @@ async def create_database():
 
     namespace = create_database_config['namespace']
     database_name = create_database_config['database_name']
+    cant_create_database = create_database_config['cant_create_database']
+
+    if cant_create_database:
+        assert sql_config.db is not None
+        sql_config_with_db = SQLConfig(
+            host=sql_config.host,
+            port=sql_config.port,
+            instance=sql_config.instance,
+            connection_name=sql_config.connection_name,
+            user=sql_config.user,
+            password=sql_config.password,
+            db=database_name,
+            ssl_ca=sql_config.ssl_ca,
+            ssl_cert=sql_config.ssl_cert,
+            ssl_key=sql_config.ssl_key,
+            ssl_mode=sql_config.ssl_mode,
+        )
+
+        await write_user_config(namespace, database_name, 'admin', sql_config_with_db)
+        await write_user_config(namespace, database_name, 'user', sql_config_with_db)
+        return
+
     scope = create_database_config['scope']
     _name = create_database_config['_name']
 
