@@ -2,13 +2,13 @@ from typing import Optional, Mapping, Pattern
 import re
 import math
 
-MEMORY_REGEXPAT: str = r'[+]?((?:[0-9]*[.])?[0-9]+)([KMGTP][i]?)?'
+MEMORY_REGEXPAT: str = r'[+]?((?:[0-9]*[.])?[0-9]+)([KMGTP][i]?)?B?'
 MEMORY_REGEX: Pattern = re.compile(MEMORY_REGEXPAT)
 
 CPU_REGEXPAT: str = r'[+]?((?:[0-9]*[.])?[0-9]+)([m])?'
 CPU_REGEX: Pattern = re.compile(CPU_REGEXPAT)
 
-STORAGE_REGEXPAT: str = r'[+]?((?:[0-9]*[.])?[0-9]+)([KMGTP][i]?)?'
+STORAGE_REGEXPAT: str = r'[+]?((?:[0-9]*[.])?[0-9]+)([KMGTP][i]?)?B?'
 STORAGE_REGEX: Pattern = re.compile(STORAGE_REGEXPAT)
 
 
