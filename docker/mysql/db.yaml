@@ -49,12 +49,12 @@ spec:
               memory: "1.5G"
           env:
             - name: MYSQL_ROOT_PASSWORD
-              value: pw
-            - name: MYSQL_ROOT_HOST
               valueFrom:
                 secretKeyRef:
                   name: database-server-config
                   key: db-root-password
+            - name: MYSQL_ROOT_HOST
+              value: "%"
           volumeMounts:
             - name: mysql-persistent-storage
               mountPath: /var/lib/mysql
