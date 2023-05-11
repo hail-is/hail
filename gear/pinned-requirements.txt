@@ -100,6 +100,11 @@ multidict==6.0.4
     #   -c hail/gear/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   yarl
+orjson==3.8.10
+    # via
+    #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
+    #   -c hail/gear/../hail/python/pinned-requirements.txt
+    #   -r hail/gear/requirements.txt
 prometheus-async==19.2.0
     # via -r hail/gear/requirements.txt
 prometheus-client==0.16.0
