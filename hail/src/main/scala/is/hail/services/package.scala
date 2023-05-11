@@ -11,7 +11,7 @@ import org.apache.http.ConnectionClosedException
 import org.apache.http.conn.HttpHostConnectException
 import org.apache.log4j.{LogManager, Logger}
 
-import reactor.core.Exceptions.ReactiveException
+import is.hail.shadedazure.reactor.core.Exceptions.ReactiveException
 import scala.util.Random
 import java.io._
 import com.google.cloud.storage.StorageException
@@ -39,7 +39,7 @@ package object services {
     // An exception is a "retry once error" if a rare, known bug in a dependency or in a cloud
     // provider can manifest as this exception *and* that manifestation is indistinguishable from a
     // true error.
-    val e = reactor.core.Exceptions.unwrap(_e)
+    val e = is.hail.shadedazure.reactor.core.Exceptions.unwrap(_e)
     e match {
       case e: SocketException =>
         e.getMessage != null && e.getMessage.contains("Connection reset")
@@ -63,7 +63,7 @@ package object services {
     //
     // If the argument is a ReactiveException, it returns its cause. If the argument is not a
     // ReactiveException it returns the exception unmodified.
-    val e = reactor.core.Exceptions.unwrap(_e)
+    val e = is.hail.shadedazure.reactor.core.Exceptions.unwrap(_e)
     e match {
       case e: NoHttpResponseException =>
         true

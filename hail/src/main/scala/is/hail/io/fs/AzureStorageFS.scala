@@ -1,10 +1,12 @@
 package is.hail.io.fs
 
-import com.azure.core.credential.TokenCredential
-import com.azure.identity.{ClientSecretCredential, ClientSecretCredentialBuilder, DefaultAzureCredential, DefaultAzureCredentialBuilder}
-import com.azure.storage.blob.models.{BlobProperties, BlobRange, ListBlobsOptions, BlobStorageException}
-import com.azure.storage.blob.specialized.BlockBlobClient
-import com.azure.storage.blob.{BlobClient, BlobContainerClient, BlobServiceClient, BlobServiceClientBuilder}
+import is.hail.shadedazure.com.azure.core.credential.TokenCredential
+import is.hail.shadedazure.com.azure.identity.{ClientSecretCredential, ClientSecretCredentialBuilder, DefaultAzureCredential, DefaultAzureCredentialBuilder}
+import is.hail.shadedazure.com.azure.storage.blob.models.{BlobProperties, BlobRange, ListBlobsOptions, BlobStorageException}
+import is.hail.shadedazure.com.azure.storage.blob.specialized.BlockBlobClient
+import is.hail.shadedazure.com.azure.storage.blob.{BlobClient, BlobContainerClient, BlobServiceClient, BlobServiceClientBuilder}
+import is.hail.shadedazure.com.azure.core.http.netty.NettyAsyncHttpClientBuilder
+import is.hail.shadedazure.reactor.netty.http.client.HttpClient
 import is.hail.services.retryTransientErrors
 import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
 import org.apache.log4j.Logger
@@ -124,14 +126,13 @@ object AzureStorageFileStatus {
 }
 
 class AzureBlobServiceClientCache(credential: TokenCredential) {
-  private lazy val clientBuilder: BlobServiceClientBuilder = new BlobServiceClientBuilder()
-  private lazy val clients: mutable.Map[(String, String), BlobServiceClient] = mutable.Map()
+  private[this] lazy val clients = mutable.Map[(String, String), BlobServiceClient]()
 
   def getServiceClient(account: String, container: String): BlobServiceClient = {
     clients.get((account, container)) match {
       case Some(client) => client
       case None =>
-        val blobServiceClient = clientBuilder
+        val blobServiceClient = new BlobServiceClientBuilder()
           .credential(credential)
           .endpoint(s"https://$account.blob.core.windows.net")
           .buildClient()
@@ -142,8 +143,8 @@ class AzureBlobServiceClientCache(credential: TokenCredential) {
 
   def setPublicAccessServiceClient(account: String, container: String): Unit = {
     val blobServiceClient = new BlobServiceClientBuilder()
-        .endpoint(s"https://$account.blob.core.windows.net")
-        .buildClient()
+      .endpoint(s"https://$account.blob.core.windows.net")
+      .buildClient()
     clients += ((account, container) -> blobServiceClient)
   }
 }
