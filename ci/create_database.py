@@ -64,15 +64,6 @@ async def create_database():
 
     namespace = create_database_config['namespace']
     database_name = create_database_config['database_name']
-    cant_create_database = create_database_config['cant_create_database']
-
-    if cant_create_database:
-        assert sql_config.db is not None
-
-        await write_user_config(namespace, database_name, 'admin', sql_config)
-        await write_user_config(namespace, database_name, 'user', sql_config)
-        return
-
     scope = create_database_config['scope']
     _name = create_database_config['_name']
 
