@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Union, List
 import os
 import json
 import time
@@ -6,8 +6,9 @@ import logging
 import socket
 from urllib.parse import urlencode
 import jwt
+
 from hailtop.utils import retry_transient_errors
-import hailtop.httpx
+from hailtop import httpx
 from ..common.credentials import AnonymousCloudCredentials, CloudCredentials
 
 log = logging.getLogger(__name__)
@@ -31,37 +32,46 @@ class GoogleExpiringAccessToken:
 
 
 class GoogleCredentials(CloudCredentials):
-    _http_session: hailtop.httpx.ClientSession
+    _http_session: httpx.ClientSession
+    default_scopes = [
+        'openid',
+        'https://www.googleapis.com/auth/userinfo.email',
+        'https://www.googleapis.com/auth/cloud-platform',
+        'https://www.googleapis.com/auth/appengine.admin',
+        'https://www.googleapis.com/auth/compute',
+    ]
 
     def __init__(self,
-                 http_session: Optional[hailtop.httpx.ClientSession] = None,
+                 http_session: Optional[httpx.ClientSession] = None,
+                 scopes: Optional[List[str]] = None,
                  **kwargs):
         self._access_token: Optional[GoogleExpiringAccessToken] = None
+        self._scopes = scopes or GoogleCredentials.default_scopes
         if http_session is not None:
             assert len(kwargs) == 0
             self._http_session = http_session
         else:
-            self._http_session = hailtop.httpx.ClientSession(**kwargs)
+            self._http_session = httpx.ClientSession(**kwargs)
 
     @staticmethod
-    def from_file(credentials_file: str) -> 'GoogleCredentials':
+    def from_file(credentials_file: str, *, scopes: Optional[List[str]] = None) -> 'GoogleCredentials':
         with open(credentials_file, encoding='utf-8') as f:
             credentials = json.load(f)
-        return GoogleCredentials.from_credentials_data(credentials)
+        return GoogleCredentials.from_credentials_data(credentials, scopes=scopes)
 
     @staticmethod
-    def from_credentials_data(credentials: dict, **kwargs) -> 'GoogleCredentials':
+    def from_credentials_data(credentials: dict, scopes: Optional[List[str]] = None, **kwargs) -> 'GoogleCredentials':
         credentials_type = credentials['type']
         if credentials_type == 'service_account':
-            return GoogleServiceAccountCredentials(credentials, **kwargs)
+            return GoogleServiceAccountCredentials(credentials, scopes=scopes, **kwargs)
 
         if credentials_type == 'authorized_user':
-            return GoogleApplicationDefaultCredentials(credentials, **kwargs)
+            return GoogleApplicationDefaultCredentials(credentials, scopes=scopes, **kwargs)
 
         raise ValueError(f'unknown Google Cloud credentials type {credentials_type}')
 
     @staticmethod
-    def default_credentials() -> Union['GoogleCredentials', AnonymousCloudCredentials]:
+    def default_credentials(scopes: Optional[List[str]] = None) -> Union['GoogleCredentials', AnonymousCloudCredentials]:
         credentials_file = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
 
         if credentials_file is None:
@@ -71,23 +81,26 @@ class GoogleCredentials(CloudCredentials):
                     credentials_file = application_default_credentials_file
 
         if credentials_file:
-            creds = GoogleCredentials.from_file(credentials_file)
+            creds = GoogleCredentials.from_file(credentials_file, scopes=scopes)
             log.info(f'using credentials file {credentials_file}: {creds}')
             return creds
 
         log.info('Unable to locate Google Cloud credentials file')
         if GoogleInstanceMetadataCredentials.available():
             log.info('Will attempt to use instance metadata server instead')
-            return GoogleInstanceMetadataCredentials()
+            return GoogleInstanceMetadataCredentials(scopes=scopes)
 
         log.warning('Using anonymous credentials. If accessing private data, '
                     'run `gcloud auth application-default login` first to log in.')
         return AnonymousCloudCredentials()
 
     async def auth_headers(self) -> Dict[str, str]:
+        return {'Authorization': f'Bearer {await self.access_token()}'}
+
+    async def access_token(self) -> str:
         if self._access_token is None or self._access_token.expired():
             self._access_token = await self._get_access_token()
-        return {'Authorization': f'Bearer {self._access_token.token}'}
+        return self._access_token.token
 
     async def _get_access_token(self) -> GoogleExpiringAccessToken:
         raise NotImplementedError
@@ -128,7 +141,8 @@ class GoogleApplicationDefaultCredentials(GoogleCredentials):
 # https://developers.google.com/identity/protocols/oauth2/service-account
 # studying `gcloud --log-http print-access-token` was also useful
 class GoogleServiceAccountCredentials(GoogleCredentials):
-    def __init__(self, key, **kwargs):
+
+    def __init__(self, key, scopes: Optional[List[str]], **kwargs):
         super().__init__(**kwargs)
         self.key = key
 
@@ -137,7 +151,7 @@ class GoogleServiceAccountCredentials(GoogleCredentials):
 
     async def _get_access_token(self) -> GoogleExpiringAccessToken:
         now = int(time.time())
-        scope = 'openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/appengine.admin https://www.googleapis.com/auth/compute'
+        scope = ' '.join(self._scopes)
         assertion = {
             "aud": "https://www.googleapis.com/oauth2/v4/token",
             "iat": now,

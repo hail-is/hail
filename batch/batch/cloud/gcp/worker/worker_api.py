@@ -1,6 +1,6 @@
 import os
 import tempfile
-from typing import Dict
+from typing import Dict, List
 
 import aiohttp
 
@@ -31,6 +31,10 @@ class GCPWorkerAPI(CloudWorkerAPI[GCPUserCredentials]):
         self._google_session = session
         self._compute_client = aiogoogle.GoogleComputeClient(project, session=session)
         self._gcsfuse_credential_files: Dict[str, str] = {}
+
+    @property
+    def cloud_specific_env_vars(self) -> List[str]:
+        return []
 
     def create_disk(self, instance_name: str, disk_name: str, size_in_gb: int, mount_path: str) -> GCPDisk:
         return GCPDisk(

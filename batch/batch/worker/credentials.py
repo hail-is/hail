@@ -11,3 +11,8 @@ class CloudUserCredentials(abc.ABC):
     @abc.abstractmethod
     def mount_path(self):
         raise NotImplementedError
+
+    @property
+    @abc.abstractmethod
+    def identity_json(self) -> dict:
+        raise NotImplementedError

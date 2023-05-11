@@ -11,7 +11,7 @@ import secrets
 
 from hailtop.config import get_deploy_config, DeployConfig
 from hailtop.aiocloud.common import Session
-from hailtop.aiocloud.common.credentials import CloudCredentials
+from hailtop.aiocloud.common.credentials import Credentials
 from hailtop.auth import hail_credentials
 from hailtop.utils import bounded_gather, sleep_before_try
 from hailtop.utils.rich_progress_bar import is_notebook, BatchProgressBar, BatchProgressBarTask
@@ -837,7 +837,7 @@ class BatchBuilder:
         return self._batch
 
 
-class HailExplicitTokenCredentials(CloudCredentials):
+class HailExplicitTokenCredentials(Credentials):
     def __init__(self, token: str):
         self._token = token
 
@@ -861,11 +861,11 @@ class BatchClient:
         url = deploy_config.base_url('batch')
         if headers is None:
             headers = {}
-        credentials: CloudCredentials
+        credentials: Credentials
         if _token is not None:
             credentials = HailExplicitTokenCredentials(_token)
         else:
-            credentials = hail_credentials(credentials_file=token_file)
+            credentials = hail_credentials(tokens_file=token_file)
         return BatchClient(
             billing_project=billing_project,
             url=url,

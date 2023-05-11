@@ -15,8 +15,16 @@ def xdg_config_home() -> Path:
     return Path(value)
 
 
+def get_hail_config_path() -> Path:
+    return Path(xdg_config_home(), 'hail')
+
+
 def get_user_config_path() -> Path:
-    return Path(xdg_config_home(), 'hail', 'config.ini')
+    return Path(get_hail_config_path(), 'config.ini')
+
+
+def get_user_identity_config_path() -> Path:
+    return Path(get_hail_config_path(), 'identity.json')
 
 
 def _load_user_config():

@@ -1,6 +1,8 @@
 import base64
 from typing import Dict
 
+from hailtop.auth.auth import IdentityProvider
+
 from ....worker.credentials import CloudUserCredentials
 
 
@@ -20,3 +22,7 @@ class GCPUserCredentials(CloudUserCredentials):
     @property
     def key(self):
         return self._key
+
+    @property
+    def identity_json(self):
+        return {'idp': IdentityProvider.GOOGLE.value}

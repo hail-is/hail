@@ -9,7 +9,7 @@ import org.testng.annotations.Test
 
 class BatchClientSuite extends TestNGSuite {
   @Test def testBasic(): Unit = {
-    val client = new BatchClient()
+    val client = new BatchClient("/test-gsa-key/key.json")
     val token = tokenUrlSafe(32)
     val batch = client.run(
       JObject(

@@ -457,7 +457,7 @@ class AzureAsyncFS(AsyncFS):
         if k not in self._blob_service_clients:
             #  https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-blob#other-client--per-operation-configuration
             self._blob_service_clients[k] = BlobServiceClient(f'https://{account}.blob.core.windows.net',
-                                                              credential=credential,
+                                                              credential=credential,  # type: ignore
                                                               connection_timeout=5,
                                                               read_timeout=5)
         return self._blob_service_clients[k]

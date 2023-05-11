@@ -1079,7 +1079,8 @@ async def test_batch_create_validation():
         {'attributes': {'k': None}, 'billing_project': 'foo', 'n_jobs': 5, 'token': 'baz'},
     ]
     url = deploy_config.url('batch', '/api/v1alpha/batches/create')
-    headers = await hail_credentials().auth_headers()
+    async with hail_credentials() as creds:
+        headers = await creds.auth_headers()
     session = external_requests_client_session()
     for config in bad_configs:
         r = retry_response_returning_functions(session.post, url, json=config, allow_redirects=True, headers=headers)
@@ -1161,10 +1162,9 @@ backend.close()
             '/bin/bash',
             '-c',
             f'''
-hailctl config set domain {DOMAIN}
-export HAIL_DEFAULT_NAMESPACE=default
 python3 -c \'{script}\'''',
         ],
+        env={'HAIL_DOMAIN': DOMAIN, 'HAIL_DEFAULT_NAMESPACE': 'default', 'HAIL_LOCATION': 'external'},
         mount_tokens=True,
     )
     b = bb.submit()
@@ -1173,7 +1173,7 @@ python3 -c \'{script}\'''',
         assert status['state'] == 'Success', str((status, b.debug_info()))
     else:
         assert status['state'] == 'Failed', str((status, b.debug_info()))
-        assert "Please log in" in j.log()['main'], (str(j.log()['main']), status)
+        assert 'Unauthorized' in j.log()['main'], (str(j.log()['main']), status)
 
 
 def test_deploy_config_is_mounted_as_readonly(client: BatchClient):
@@ -1259,11 +1259,11 @@ hl.read_table(location).show()
 def test_user_authentication_within_job(client: BatchClient):
     bb = create_batch(client)
     cmd = ['bash', '-c', 'hailctl auth user']
-    no_token = bb.create_job(HAIL_GENETICS_HAILTOP_IMAGE, cmd, mount_tokens=False)
+    j = bb.create_job(HAIL_GENETICS_HAILTOP_IMAGE, cmd)
     b = bb.submit()
 
-    no_token_status = no_token.wait()
-    assert no_token_status['state'] == 'Failed', str((no_token_status, b.debug_info()))
+    status = j.wait()
+    assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
 def test_verify_access_to_public_internet(client: BatchClient):

@@ -76,7 +76,7 @@ google-auth-httplib2==0.1.0
     #   google-cloud-profiler
 google-cloud-profiler==3.1.0
     # via -r hail/gear/requirements.txt
-googleapis-common-protos==1.59.1
+googleapis-common-protos==1.60.0
     # via
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c hail/gear/../hail/python/pinned-requirements.txt

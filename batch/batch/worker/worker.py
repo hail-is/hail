@@ -1325,7 +1325,8 @@ class Container:
 
     def _env(self):
         assert self.image.image_config
-        env = self.image.image_config['Config']['Env'] + self.env
+        assert CLOUD_WORKER_API
+        env = self.image.image_config['Config']['Env'] + self.env + CLOUD_WORKER_API.cloud_specific_env_vars
         if self.port is not None:
             assert self.host_port is not None
             env.append(f'HAIL_BATCH_WORKER_PORT={self.host_port}')
@@ -1702,6 +1703,7 @@ class DockerJob(Job):
         hail_extra_env = [
             {'name': 'HAIL_REGION', 'value': REGION},
             {'name': 'HAIL_BATCH_ID', 'value': str(batch_id)},
+            {'name': 'HAIL_IDENTITY_JSON', 'value': json.dumps(self.credentials.identity_json)},
         ]
         self.env += hail_extra_env
 

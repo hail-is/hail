@@ -32,6 +32,7 @@ from gear.auth import AIOHTTPHandler, AuthenticatedAIOHTTPHandler, MaybeAuthenti
 from gear.cloud_config import get_global_config
 from gear.profiling import install_profiler_if_requested
 from hailtop import httpx
+from hailtop.auth import AzureFlow, Flow, GoogleFlow
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
@@ -50,7 +51,6 @@ from .exceptions import (
     PreviouslyDeletedUser,
     UnknownUser,
 )
-from .flow import get_flow_client
 
 log = logging.getLogger('auth')
 
@@ -510,6 +510,12 @@ async def rest_login(request: web.Request) -> web.Response:
     )
 
 
+@routes.get('/api/v1alpha/oauth2-client')
+async def hailctl_oauth_client(request):  # pylint: disable=unused-argument
+    idp = 'Google' if CLOUD == 'gcp' else 'Microsoft'
+    return json_response({'idp': idp, 'oauth2_client': request.app['hailctl_client_config']})
+
+
 @routes.get('/roles')
 @authenticated_devs_only
 async def get_roles(request: web.Request, userdata: UserData) -> web.Response:
@@ -737,11 +743,49 @@ async def rest_logout(request: web.Request, userdata: UserData) -> web.Response:
     return web.Response(status=200)
 
 
-async def get_userinfo(request: web.Request, session_id: str) -> UserData:
+async def get_userinfo(request: web.Request, auth_token: str) -> UserData:
+    flow_client: Flow = request.app['flow_client']
+    client_session = request.app['client_session']
+
+    userdata = await get_userinfo_from_hail_session_id(request, auth_token)
+    if userdata:
+        return userdata
+
+    hailctl_oauth_client = request.app['hailctl_client_config']
+    uid = await flow_client.get_identity_uid_from_access_token(
+        client_session, auth_token, oauth2_client=hailctl_oauth_client
+    )
+    if uid:
+        return await get_userinfo_from_login_id_or_hail_identity_id(request, uid)
+
+    raise web.HTTPUnauthorized()
+
+
+async def get_userinfo_from_login_id_or_hail_identity_id(request, login_id):
+    db = request.app['db']
+
+    users = [
+        x
+        async for x in db.select_and_fetchall(
+            '''
+SELECT users.*
+FROM users
+WHERE (users.login_id = %s OR users.hail_identity_uid = %s) AND users.state = 'active'
+''',
+            (login_id, login_id),
+        )
+    ]
+
+    if len(users) != 1:
+        log.info('Unknown login id')
+        raise web.HTTPUnauthorized()
+    return users[0]
+
+
+async def get_userinfo_from_hail_session_id(request, session_id):
     # b64 encoding of 32-byte session ID is 44 bytes
     if len(session_id) != 44:
-        log.info('Session id != 44 bytes')
-        raise web.HTTPUnauthorized()
+        return None
 
     db = request.app['db']
     users = [
@@ -758,8 +802,7 @@ WHERE users.state = 'active' AND (sessions.session_id = %s) AND (ISNULL(sessions
     ]
 
     if len(users) != 1:
-        log.info(f'Unknown session id: {session_id}')
-        raise web.HTTPUnauthorized()
+        return None
     return users[0]
 
 
@@ -801,7 +844,16 @@ async def on_startup(app):
     await db.async_init(maxsize=50)
     app['db'] = db
     app['client_session'] = httpx.client_session()
-    app['flow_client'] = get_flow_client('/auth-oauth2-client-secret/client_secret.json')
+
+    credentials_file = '/auth-oauth2-client-secret/client_secret.json'
+    if CLOUD == 'azure':
+        app['flow_client'] = AzureFlow(credentials_file)
+    else:
+        assert CLOUD == 'gcp'
+        app['flow_client'] = GoogleFlow(credentials_file)
+
+    with open('/auth-oauth2-client-secret/hailctl_client_secret.json', 'r', encoding='utf-8') as f:
+        app['hailctl_client_config'] = json.loads(f.read())
 
     kubernetes_asyncio.config.load_incluster_config()
     app['k8s_client'] = kubernetes_asyncio.client.CoreV1Api()

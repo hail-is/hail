@@ -1,24 +1,74 @@
+import concurrent.futures
 import os
 import json
 import time
 import logging
-from typing import List, Optional
-from azure.identity.aio import DefaultAzureCredential, ClientSecretCredential
 
-from hailtop.utils import first_extant_file
+from typing import Any, List, Optional, Union
+from azure.identity.aio import DefaultAzureCredential, ClientSecretCredential
+from azure.core.credentials import AccessToken
+from azure.core.credentials_async import AsyncTokenCredential
+
+import msal
+
+from hailtop.utils import first_extant_file, blocking_to_async
 
 from ..common.credentials import CloudCredentials
 
 log = logging.getLogger(__name__)
 
 
+class RefreshTokenCredential(AsyncTokenCredential):
+    def __init__(self, client_id: str, tenant_id: str, refresh_token: str):
+        authority = f'https://login.microsoftonline.com/{tenant_id}'
+        self._app = msal.PublicClientApplication(client_id, authority=authority)
+        self._pool = concurrent.futures.ThreadPoolExecutor()
+        self._refresh_token: Optional[str] = refresh_token
+
+    async def get_token(
+        self, *scopes: str, claims: Optional[str] = None, tenant_id: Optional[str] = None, **kwargs: Any
+    ) -> AccessToken:
+        if self._refresh_token:
+            res_co = blocking_to_async(self._pool, self._app.acquire_token_by_refresh_token, self._refresh_token, scopes)
+            self._refresh_token = None
+            res = await res_co
+        else:
+            res = await blocking_to_async(self._pool, self._app.acquire_token_silent, scopes, None)
+            assert res
+        return AccessToken(res['access_token'], res['id_token_claims']['exp'])
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback) -> None:
+        pass
+
+    async def close(self) -> None:
+        self._pool.shutdown()
+
+
 class AzureCredentials(CloudCredentials):
     @staticmethod
     def from_credentials_data(credentials: dict, scopes: Optional[List[str]] = None):
-        credential = ClientSecretCredential(tenant_id=credentials['tenant'],
-                                            client_id=credentials['appId'],
-                                            client_secret=credentials['password'])
-        return AzureCredentials(credential, scopes)
+        if 'refreshToken' in credentials:
+            return AzureCredentials(
+                RefreshTokenCredential(
+                    client_id=credentials['appId'],
+                    tenant_id=credentials['tenant'],
+                    refresh_token=credentials['refreshToken'],
+                ),
+                scopes=scopes,
+            )
+
+        assert 'password' in credentials
+        return AzureCredentials(
+            ClientSecretCredential(
+                tenant_id=credentials['tenant'],
+                client_id=credentials['appId'],
+                client_secret=credentials['password']
+            ),
+            scopes
+        )
 
     @staticmethod
     def from_file(credentials_file: str, scopes: Optional[List[str]] = None):
@@ -40,7 +90,7 @@ class AzureCredentials(CloudCredentials):
 
         return AzureCredentials(DefaultAzureCredential(), scopes)
 
-    def __init__(self, credential, scopes: Optional[List[str]] = None):
+    def __init__(self, credential: Union[DefaultAzureCredential, ClientSecretCredential, RefreshTokenCredential], scopes: Optional[List[str]] = None):
         self.credential = credential
         self._access_token = None
         self._expires_at = None
@@ -53,12 +103,13 @@ class AzureCredentials(CloudCredentials):
         access_token = await self.access_token()
         return {'Authorization': f'Bearer {access_token.token}'}  # type: ignore
 
-    async def access_token(self):
+    async def access_token(self) -> str:
         now = time.time()
         if self._access_token is None or (self._expires_at is not None and now > self._expires_at):
             self._access_token = await self.get_access_token()
             self._expires_at = now + (self._access_token.expires_on - now) // 2   # type: ignore
-        return self._access_token
+        assert self._access_token
+        return self._access_token.token
 
     async def get_access_token(self):
         return await self.credential.get_token(*self.scopes)
