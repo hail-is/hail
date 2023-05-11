@@ -576,35 +576,6 @@ steps:
       - base_image
       - merge_code
   - kind: buildImage2
-    name: hail_run_image
-    dockerFile: /io/repo/hail/Dockerfile.hail-run
-    contextPath: /io/repo
-    publishAs: hail-run
-    resources:
-      storage: 10Gi
-      cpu: "2"
-      memory: standard
-    inputs:
-      - from: /repo/hail/Dockerfile.hail-run
-        to: /io/repo/hail/Dockerfile.hail-run
-      - from: /repo/hail/python/pinned-requirements.txt
-        to: /io/repo/hail/python/pinned-requirements.txt
-      - from: /repo/hail/python/dev/pinned-requirements.txt
-        to: /io/repo/hail/python/dev/pinned-requirements.txt
-      - from: /repo/docker/core-site.xml
-        to: /io/repo/docker/core-site.xml
-      - from: /repo/hail/python/setup-hailtop.py
-        to: /io/repo/hail/python/setup-hailtop.py
-      - from: /repo/hail/python/hailtop
-        to: /io/repo/hail/python/hailtop
-      - from: /repo/hail/python/MANIFEST.in
-        to: /io/repo/hail/python/MANIFEST.in
-      - from: /hail_version
-        to: /io/repo/python/hailtop/hail_version
-    dependsOn:
-      - base_image
-      - merge_code
-  - kind: buildImage2
     name: hailgenetics_vep_grch37_85_image
     dockerFile: /io/repo/docker/hailgenetics/vep/grch37/85/Dockerfile
     contextPath: /io/repo/docker/vep/
@@ -724,32 +695,39 @@ steps:
       valueFrom: hail_build_image.image
     resources:
       memory: standard
-      cpu: '4'
+      cpu: '2'
     script: |
       set -ex
       cd /io/repo/hail
       chmod 755 ./gradlew
       time retry ./gradlew --version
       time retry make shadowJar wheel
+
+      # Check wheel size is small enough for pypi (< 100 MB)
+      HAIL_PIP_VERSION=$(cat python/hail/hail_pip_version)
+      WHEEL_PATH="build/deploy/dist/hail-$HAIL_PIP_VERSION-py3-none-any.whl"
+      du -h $WHEEL_PATH
+      $(python3 -c "import os; exit(1) if (os.path.getsize('$WHEEL_PATH')) > (200 * 1024 * 1024) else exit(0)")
+
       (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
     inputs:
       - from: /repo
         to: /io/repo
     outputs:
       - from: /io/repo/hail/build/libs/hail-all-spark.jar
-        to: /just-jar/hail.jar
+        to: /hail.jar
       - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
-        to: /just-wheel/wheel-container.tar
+        to: /wheel-container.tar
     dependsOn:
       - hail_build_image
       - merge_code
   - kind: runImage
-    name: build_hail
+    name: build_hail_test_artifacts
     image:
       valueFrom: hail_build_image.image
     resources:
       memory: standard
-      cpu: '4'
+      cpu: '2'
     script: |
       set -ex
       cd /io/repo/hail
@@ -762,43 +740,21 @@ steps:
       mv build/libs/hail-all-spark.jar build/debug_libs/
       mv build/libs/hail-all-spark-test.jar build/debug_libs/
       mv build/deploy/dist/debug-wheel-container.tar build/debug_libs
-      time retry make jars python-version-info wheel
+      time retry make shadowTestJar
 
-      # Check wheel size is small enough for pypi (< 100 MB)
-      HAIL_PIP_VERSION=$(cat python/hail/hail_pip_version)
-      WHEEL_PATH="build/deploy/dist/hail-$HAIL_PIP_VERSION-py3-none-any.whl"
-      du -h $WHEEL_PATH
-      $(python3 -c "import os; exit(1) if (os.path.getsize('$WHEEL_PATH')) > (200 * 1024 * 1024) else exit(0)")
-
-      time (cd python && zip -r hail.zip hail hailtop)
       time tar czf test.tar.gz -C python test
       time tar czf resources.tar.gz -C src/test resources
       time tar czf data.tar.gz -C python/hail/docs data
-      (cd .. && time tar czf hail/website-src.tar.gz website)
-      time tar czf cluster-tests.tar.gz python/cluster-tests
-      (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
       time TESTNG_SPLITS=5 python3 generate_splits.py
       time tar czf splits.tar.gz testng-splits-*.xml
     inputs:
       - from: /repo
         to: /io/repo
     outputs:
-      - from: /io/repo/hail/build/libs/hail-all-spark.jar
-        to: /hail.jar
       - from: /io/repo/hail/build/libs/hail-all-spark-test.jar
         to: /hail-test.jar
       - from: /io/repo/hail/build/debug_libs/hail-all-spark-test.jar
         to: /hail-debug-test.jar
-      - from: /io/repo/hail/testng-build.xml
-        to: /testng-build.xml
-      - from: /io/repo/hail/testng-services.xml
-        to: /testng-services.xml
-      - from: /io/repo/hail/testng-fs.xml
-        to: /testng-fs.xml
-      - from: /io/repo/hail/python/hail.zip
-        to: /hail.zip
-      - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
-        to: /wheel-container.tar
       - from: /io/repo/hail/build/debug_libs/debug-wheel-container.tar
         to: /debug-wheel-container.tar
       - from: /io/repo/hail/test.tar.gz
@@ -809,10 +765,6 @@ steps:
         to: /splits.tar.gz
       - from: /io/repo/hail/data.tar.gz
         to: /data.tar.gz
-      - from: /io/repo/hail/website-src.tar.gz
-        to: /website-src.tar.gz
-      - from: /io/repo/hail/cluster-tests.tar.gz
-        to: /cluster-tests.tar.gz
     dependsOn:
       - hail_build_image
       - merge_code
@@ -840,6 +792,38 @@ steps:
     dependsOn:
       - hail_build_image
       - merge_code
+  - kind: buildImage2
+    name: hail_run_image
+    dockerFile: /io/repo/hail/Dockerfile.hail-run
+    contextPath: /io/repo
+    publishAs: hail-run
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: standard
+    inputs:
+      - from: /repo/hail/Dockerfile.hail-run
+        to: /io/repo/hail/Dockerfile.hail-run
+      - from: /repo/hail/python/pinned-requirements.txt
+        to: /io/repo/hail/python/pinned-requirements.txt
+      - from: /repo/hail/python/dev/pinned-requirements.txt
+        to: /io/repo/hail/python/dev/pinned-requirements.txt
+      - from: /repo/docker/core-site.xml
+        to: /io/repo/docker/core-site.xml
+      - from: /repo/hail/python/setup-hailtop.py
+        to: /io/repo/hail/python/setup-hailtop.py
+      - from: /repo/hail/python/hailtop
+        to: /io/repo/hail/python/hailtop
+      - from: /repo/hail/python/MANIFEST.in
+        to: /io/repo/hail/python/MANIFEST.in
+      - from: /hail_version
+        to: /io/repo/python/hailtop/hail_version
+      - from: /wheel-container.tar
+        to: /io/repo/wheel-container.tar
+    dependsOn:
+      - base_image
+      - merge_code
+      - build_hail_jar_and_wheel_only
   - kind: runImage
     name: jvm_entryway_jar
     image:
@@ -985,27 +969,7 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_image
-      - build_hail
-  - kind: buildImage2
-    name: hail_base_image
-    dockerFile: /io/repo/hail/Dockerfile.hail-base
-    contextPath: /io/repo
-    publishAs: hail-base
-    resources:
-      storage: 10Gi
-      cpu: "2"
-      memory: standard
-    inputs:
-      - from: /repo/hail/Dockerfile.hail-base
-        to: /io/repo/hail/Dockerfile.hail-base
-      - from: /hail.jar
-        to: /io/repo/hail.jar
-      - from: /hail.zip
-        to: /io/repo/hail.zip
-    dependsOn:
-      - hail_run_image
-      - build_hail
-      - merge_code
+      - build_hail_test_artifacts
   - kind: buildImage2
     name: hail_pip_installed_python39_image
     dockerFile: /io/repo/hail/Dockerfile.hail-pip-installed-python39
@@ -1024,7 +988,7 @@ steps:
         to: /io/repo/setup.cfg
       - from: /repo/pyproject.toml
         to: /io/repo/pyproject.toml
-      - from: /just-wheel/wheel-container.tar
+      - from: /wheel-container.tar
         to: /io/repo/wheel-container.tar
     dependsOn:
       - build_hail_jar_and_wheel_only
@@ -1048,7 +1012,7 @@ steps:
         to: /io/repo/setup.cfg
       - from: /repo/pyproject.toml
         to: /io/repo/pyproject.toml
-      - from: /just-wheel/wheel-container.tar
+      - from: /wheel-container.tar
         to: /io/repo/wheel-container.tar
     dependsOn:
       - build_hail_jar_and_wheel_only
@@ -1209,7 +1173,7 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_image
-      - build_hail
+      - build_hail_test_artifacts
     clouds:
       - gcp
   - kind: runImage
@@ -1267,7 +1231,7 @@ steps:
     dependsOn:
       - default_ns
       - hailgenetics_hailtop_image
-      - build_hail
+      - build_hail_test_artifacts
     clouds:
       - gcp
   - kind: runImage
@@ -1322,7 +1286,8 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_image
-      - build_hail
+      - build_hail_jar_and_wheel_only
+      - build_hail_test_artifacts
     clouds:
       - gcp
   - kind: runImage
@@ -1378,14 +1343,14 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_image
-      - build_hail
+      - build_hail_test_artifacts
   - kind: runImage
     name: test_python_docs
     image:
-      valueFrom: hail_base_image.image
+      valueFrom: hail_run_image.image
     script: |
       set -ex
-      cd /hail/python/hail
+      cd /io/hail/python/hail
       python3 -m pytest \
               -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
               --log-cli-level=INFO \
@@ -1398,26 +1363,25 @@ steps:
               --doctest-glob='*.rst' \
               --ignore=docs/conf.py \
               --ignore=docs/doctest_write_data.py
+    inputs:
+      - from: /repo/hail/python/hail
+        to: /io/hail/python/hail
     dependsOn:
-      - hail_base_image
+      - hail_run_image
     clouds:
       - gcp
   - kind: runImage
     name: make_docs
     image:
-      valueFrom: hail_base_image.image
+      valueFrom: hail_run_image.image
     script: |
       set -ex
       set -o pipefail
       export HAIL_SHORT_VERSION='0.2'
       export SPHINXOPTS='-tgenerate_notebook_outputs'
 
-      mkdir -p {{ token }}/python
-      cd {{ token }}
-      unzip -q -d python /io/hail.zip
-
-      tar xzf /io/website-src.tar.gz
-      export HAIL_WEBSITE_DIR=$(pwd)/website/website/
+      cd /io/hail
+      export HAIL_WEBSITE_DIR=/io/website/website/
 
       sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
         < python/hail/docs/change_log.md \
@@ -1438,16 +1402,18 @@ steps:
       memory: standard
       cpu: '2'
     inputs:
-      - from: /hail.zip
-        to: /io/hail.zip
-      - from: /website-src.tar.gz
-        to: /io/website-src.tar.gz
+      - from: /repo/hail/python
+        to: /io/hail/python
+      - from: /hail_version
+        to: /io/repo/hail/python/hail/hail_version
+      - from: /repo/website/website
+        to: /io/website/website
     outputs:
       - from: /io/www.tar.gz
         to: /www.tar.gz
     dependsOn:
-      - hail_base_image
-      - build_hail
+      - merge_code
+      - hail_run_image
   - kind: buildImage2
     name: hailgenetics_hail_image
     dockerFile: /io/repo/docker/hailgenetics/hail/Dockerfile
@@ -1458,7 +1424,7 @@ steps:
         to: /io/repo/docker/hailgenetics/hail
       - from: /repo/hail/python/pinned-requirements.txt
         to: /io/repo/hail/python/pinned-requirements.txt
-      - from: /just-wheel/wheel-container.tar
+      - from: /wheel-container.tar
         to: /io/repo/wheel-container.tar
     dependsOn:
       - merge_code
@@ -2331,7 +2297,7 @@ steps:
           valueFrom: default_ns.name
         mountPath: /batch-gsa-key
     inputs:
-      - from: /just-jar/hail.jar
+      - from: /hail.jar
         to: /io/hail.jar
       - from: /git_version
         to: /io/git_version
@@ -2413,7 +2379,7 @@ steps:
               test
     timeout: 5400
     inputs:
-      - from: /just-wheel/wheel-container.tar
+      - from: /wheel-container.tar
         to: /io/wheel-container.tar
       - from: /repo/hail/python/test
         to: /io/repo/hail/python/test
@@ -3294,7 +3260,6 @@ steps:
       - test_dataproc-38
       - default_ns
       - ci_utils_image
-      - build_hail
       - merge_code
       - hailgenetics_hail_image
       - hailgenetics_hailtop_image
@@ -3460,7 +3425,7 @@ steps:
         to: /io/resources.tar.gz
       - from: /hail-test.jar
         to: /io/hail-test.jar
-      - from: /testng-fs.xml
+      - from: /repo/hail/testng-fs.xml
         to: /io/testng-fs.xml
     secrets:
       - name: test-tokens
@@ -3485,7 +3450,7 @@ steps:
       - create_certs
       - create_accounts
       - hail_run_image
-      - build_hail
+      - build_hail_test_artifacts
       - build_hail_jar_and_wheel_only
       - upload_test_resources_to_blob_storage
   - kind: runImage
@@ -3510,7 +3475,7 @@ steps:
         to: /io/resources.tar.gz
       - from: /hail-test.jar
         to: /io/hail-test.jar
-      - from: /testng-services.xml
+      - from: /repo/hail/testng-services.xml
         to: /io/testng-services.xml
     secrets:
       - name: test-tokens
@@ -3531,7 +3496,7 @@ steps:
       - create_certs
       - create_accounts
       - hail_run_image
-      - build_hail
+      - build_hail_test_artifacts
       - deploy_batch
   - kind: runImage
     name: cancel_all_running_test_batches
