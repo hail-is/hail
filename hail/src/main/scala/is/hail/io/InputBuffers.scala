@@ -86,7 +86,7 @@ trait InputBlockBuffer extends Spec with Closeable {
 }
 
 final class StreamInputBuffer(in: InputStream) extends InputBuffer {
-  private val buff = new Array[Byte](8)
+  private[this] val buff = new Array[Byte](8)
 
   def close(): Unit = in.close()
 
@@ -373,19 +373,15 @@ final class TracingInputBuffer(
 }
 
 final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends InputBuffer {
-  private val buf = new Array[Byte](blockSize)
-  private var end: Int = 0
-  private var off: Int = 0
+  private[this] val buf = new Array[Byte](blockSize)
+  private[this] var end: Int = 0
+  private[this] var off: Int = 0
 
-  private def readBlock() {
-    assert(off == end)
-    end = in.readBlock(buf)
-    off = 0
-  }
-
-  private def ensure(n: Int) {
-    if (off == end)
-      readBlock()
+  private[this] def ensure(n: Int) {
+    if (off == end) {
+      end = in.readBlock(buf)
+      off = 0
+    }
     assert(off + n <= end)
   }
 
@@ -395,8 +391,7 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
 
   def seek(offset: Long): Unit = {
     in.seek(offset)
-    off = end
-    readBlock()
+    end = in.readBlock(buf)
     off = (offset & 0xFFFF).asInstanceOf[Int]
     assert(off <= end)
   }
@@ -442,8 +437,10 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
     var n = n0
 
     while (n > 0) {
-      if (end == off)
-        readBlock()
+      if (end == off) {
+        end = in.readBlock(buf)
+        off = 0
+      }
       val p = math.min(end - off, n)
       assert(p > 0)
       Region.storeBytes(toOff, buf, off, p)
@@ -458,8 +455,10 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
     var n = n0
 
     while (n > 0) {
-      if (end == off)
-        readBlock()
+      if (end == off) {
+        end = in.readBlock(buf)
+        off = 0
+      }
       val p = math.min(end - off, n)
       assert(p > 0)
       System.arraycopy(buf, off, arr, toOff, p)
@@ -533,7 +532,7 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
 }
 
 final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
-  private val lenBuf = new Array[Byte](4)
+  private[this] val lenBuf = new Array[Byte](4)
 
   def close() {
     in.close()
@@ -553,7 +552,7 @@ final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
 }
 
 final class LZ4InputBlockBuffer(lz4: LZ4, blockSize: Int, in: InputBlockBuffer) extends InputBlockBuffer {
-  private val comp = new Array[Byte](4 + lz4.maxCompressedLength(blockSize))
+  private[this] val comp = new Array[Byte](4 + lz4.maxCompressedLength(blockSize))
 
   def close() {
     in.close()
@@ -595,8 +594,8 @@ final class LZ4InputBlockBuffer(lz4: LZ4, blockSize: Int, in: InputBlockBuffer) 
 }
 
 final class LZ4SizeBasedCompressingInputBlockBuffer(lz4: LZ4, blockSize: Int, in: InputBlockBuffer) extends InputBlockBuffer {
-  private val comp = new Array[Byte](8 + lz4.maxCompressedLength(blockSize))
-  private var lim = 0
+  private[this] val comp = new Array[Byte](8 + lz4.maxCompressedLength(blockSize))
+  private[this] var lim = 0
 
   def close() {
     in.close()
