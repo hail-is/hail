@@ -42,6 +42,7 @@ cat >sql-config.cnf <<EOF
 [client]
 host=db.$NAMESPACE
 user=root
+port=3306
 password=$password
 ssl-ca=/sql-config/server-ca.pem
 ssl-cert=/sql-config/client-cert.pem

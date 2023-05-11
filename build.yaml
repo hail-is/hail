@@ -2674,6 +2674,7 @@ steps:
       cp -R /io/repo/ci/* ./ci/
       cp /io/repo/tls/Dockerfile ./ci/test/resources/Dockerfile.certs
       cp /io/repo/tls/create_certs.py ./ci/test/resources/
+      cp /io/repo/tls/create_test_db_config.sh ./ci/test/resources/
       cp /io/repo/pylintrc ./
       cp /io/repo/setup.cfg ./
       cp /io/repo/pyproject.toml ./
