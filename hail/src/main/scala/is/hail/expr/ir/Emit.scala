@@ -212,7 +212,7 @@ class EmitValue protected(missing: Option[Value[Boolean]], val v: SValue) {
 
   def get(cb: EmitCodeBuilder): SValue = {
     missing.foreach { m =>
-      cb.ifx(m, cb._fatal(s"Can't convert missing ${ v.st } to PValue"))
+      cb.ifx(m, cb._fatal(s"Can't convert missing ${ v.st } to SValue"))
     }
     v
   }
@@ -2291,16 +2291,12 @@ class Emit[C](
           decoded
         }
 
-      case WriteValue(value, path, spec, stagingFile) =>
+      case WriteValue(value, path, writer, stagingFile) =>
         emitI(path).flatMap(cb) { case pv: SStringValue =>
           emitI(value).map(cb) { v =>
             val s = stagingFile.map(emitI(_).get(cb).asString)
-            val ob = cb.memoize[OutputBuffer](spec.buildCodeOutputBuffer(mb.createUnbuffered(
-              s.getOrElse(pv).loadString(cb))
-            ))
-            spec.encodedType.buildEncoder(v.st, cb.emb.ecb)
-              .apply(cb, v, ob)
-            cb += ob.invoke[Unit]("close")
+            val p = EmitCode.present(mb, s.getOrElse(pv))
+            writer.writeValue(cb, v, p)
             s.foreach { stage =>
               cb += mb.getFS.invoke[String, String, Boolean, Unit]("copy", stage.loadString(cb), pv.loadString(cb), const(true))
             }
@@ -2446,7 +2442,6 @@ class Emit[C](
           val baos = mb.genFieldThisRef[ByteArrayOutputStream]()
           val buf = mb.genFieldThisRef[OutputBuffer]()
           val ctxab = mb.genFieldThisRef[ByteArrayArrayBuilder]()
-          val encRes = mb.genFieldThisRef[Array[Array[Byte]]]()
 
 
           def addContexts(cb: EmitCodeBuilder, ctxStream: StreamProducer): Unit = {
@@ -2467,21 +2462,6 @@ class Emit[C](
             globalSpec.encodedType.buildEncoder(wrapped.st, parentCB)
               .apply(cb, wrapped, buf)
             cb += buf.invoke[Unit]("flush")
-          }
-
-          def decodeResult(cb: EmitCodeBuilder): SValue = {
-            val len = mb.newLocal[Int]("cda_result_length")
-            val ib = mb.newLocal[InputBuffer]("decode_ib")
-
-            cb.assign(len, encRes.length())
-            val pt = PCanonicalArray(bodySpec.encodedType.decodedSType(bodySpec.encodedVirtualType).asInstanceOf[SBaseStruct].fieldEmitTypes(0).storageType)
-            pt.asInstanceOf[PCanonicalArray].constructFromElements(cb, region, len, deepCopy = false) { (cb, i) =>
-              cb.assign(ib, bodySpec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](encRes(i))))
-              val eltTupled = bodySpec.encodedType.buildDecoder(bodySpec.encodedVirtualType, parentCB)
-                .apply(cb, region, ib)
-                .asBaseStruct
-              eltTupled.loadField(cb, 0)
-            }
           }
 
           cb.assign(baos, Code.newInstance[ByteArrayOutputStream]())
@@ -2518,6 +2498,7 @@ class Emit[C](
             })
           })
 
+          val encRes = cb.newLocal[Array[Array[Byte]]]("encRes")
           cb.assign(encRes, spark.invoke[BackendContext, HailClassLoader, FS, String, Array[Array[Byte]], Array[Byte], String, SemanticHash.Hash.Type, Option[TableStageDependency], Array[Array[Byte]]](
             "collectDArray",
             mb.getObject(ctx.executeContext.backendContext),
@@ -2529,7 +2510,19 @@ class Emit[C](
             stageName,
             semhash,
             mb.getObject(tsd)))
-          decodeResult(cb)
+
+          val len = cb.memoize(encRes.length())
+          val pt = PCanonicalArray(bodySpec.encodedType.decodedSType(bodySpec.encodedVirtualType).asInstanceOf[SBaseStruct].fieldEmitTypes(0).storageType)
+          val resultArray = pt.constructFromElements(cb, region, len, deepCopy = false) { (cb, i) =>
+            val ib = cb.memoize(bodySpec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](encRes(i))))
+            val eltTupled = bodySpec.encodedType.buildDecoder(bodySpec.encodedVirtualType, parentCB)
+              .apply(cb, region, ib)
+              .asBaseStruct
+            cb += (encRes.update(i, Code._null[Array[Byte]]))
+            eltTupled.loadField(cb, 0)
+          }
+          cb.assign(encRes, Code._null)
+          resultArray
         }
 
       case _ =>

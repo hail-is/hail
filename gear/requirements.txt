@@ -14,3 +14,4 @@ prometheus_async>=19.2.0,<20
 prometheus_client>=0.11.0,<1
 PyMySQL>=1,<2
 sortedcontainers>=2.4.0,<3
+orjson>=3.6.4,<4

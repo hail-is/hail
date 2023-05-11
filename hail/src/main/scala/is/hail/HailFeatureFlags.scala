@@ -33,8 +33,9 @@ object HailFeatureFlags {
     ("gcs_requester_pays_buckets", "HAIL_GCS_REQUESTER_PAYS_BUCKETS" -> null),
     ("index_branching_factor", "HAIL_INDEX_BRANCHING_FACTOR" -> null),
     ("rng_nonce", "HAIL_RNG_NONCE" -> "0x0"),
+    ("profile", "HAIL_PROFILE" -> null),
     (ExecutionCache.Flags.UseFastRestarts, "HAIL_USE_FAST_RESTARTS" -> null),
-    (ExecutionCache.Flags.Cachedir, "HAIL_CACHE_DIR" -> null)
+    (ExecutionCache.Flags.Cachedir, "HAIL_CACHE_DIR" -> null),
   )
 
   def fromEnv(): HailFeatureFlags =

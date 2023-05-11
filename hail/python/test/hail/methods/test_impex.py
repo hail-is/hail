@@ -13,7 +13,7 @@ import pytest
 import hail as hl
 from ..helpers import *
 from hail import ir
-from hail.utils import new_temp_file, FatalError, run_command, uri_path, HailUserError
+from hail.utils import new_temp_file, new_local_temp_file, FatalError, run_command, uri_path, HailUserError
 
 _FLOAT_INFO_FIELDS = [
     'BaseQRankSum',
@@ -582,6 +582,10 @@ class VCFTests(unittest.TestCase):
 
         assert hl.import_vcf(nf)._same(mt)
 
+        manifest_files = [os.path.join(f, line.strip()) for line in fs.open(os.path.join(f, 'shard-manifest.txt'))]
+        assert hl.import_vcf(manifest_files[1:], header_file=manifest_files[0])._same(mt)
+        assert [p.split('/')[-1] for p in shard_paths] == [p.split('/')[-1] for p in manifest_files]
+
     def test_custom_rg_import(self):
         rg = hl.ReferenceGenome.read(resource('deid_ref_genome.json'))
         mt = hl.import_vcf(resource('custom_rg.vcf'), reference_genome=rg)
@@ -857,7 +861,6 @@ class PLINKTests(unittest.TestCase):
              ._force_count_rows())
 
     @unittest.skipIf('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
-    @fails_service_backend()
     def test_export_plink(self):
         vcf_file = resource('sample.vcf')
         mt = hl.split_multi_hts(hl.import_vcf(vcf_file, min_partitions=10))
@@ -868,15 +871,22 @@ class PLINKTests(unittest.TestCase):
         random.shuffle(indices)
         mt = mt.choose_cols(indices)
 
-        split_vcf_file = uri_path(new_temp_file())
-        hl_output = uri_path(new_temp_file())
-        plink_output = uri_path(new_temp_file())
-        merge_output = uri_path(new_temp_file())
+        local_split_vcf_file = uri_path(new_local_temp_file())
+        local_hl_output = uri_path(new_local_temp_file())
+        plink_output = uri_path(new_local_temp_file())
+        merge_output = uri_path(new_local_temp_file())
 
-        hl.export_vcf(mt, split_vcf_file)
-        hl.export_plink(mt, hl_output)
+        with hl.TemporaryFilename() as split_vcf_file:
+            hl.export_vcf(mt, split_vcf_file)
+            hl.hadoop_copy(split_vcf_file, local_split_vcf_file)
 
-        run_command(["plink", "--vcf", split_vcf_file,
+        with hl.TemporaryFilename() as hl_output:
+            hl.export_plink(mt, hl_output)
+            hl.hadoop_copy(hl_output + '.bed', local_hl_output + '.bed')
+            hl.hadoop_copy(hl_output + '.bim', local_hl_output + '.bim')
+            hl.hadoop_copy(hl_output + '.fam', local_hl_output + '.fam')
+
+        run_command(["plink", "--vcf", local_split_vcf_file,
                      "--make-bed", "--out", plink_output,
                      "--const-fid", "--keep-allele-order"])
 
@@ -891,7 +901,7 @@ class PLINKTests(unittest.TestCase):
             f.writelines(data)
 
         run_command(["plink", "--bfile", plink_output,
-                     "--bmerge", hl_output, "--merge-mode",
+                     "--bmerge", local_hl_output, "--merge-mode",
                      "6", "--out", merge_output])
 
         same = True
@@ -1486,6 +1496,15 @@ class BGENTests(unittest.TestCase):
                                    entry_fields=['GP'],
                                    sample_file=tmp + '.sample')
             assert bgen._same(bgen2)
+
+            fs = hl.current_backend().fs
+
+            with fs.open(f'{tmp}.bgen/shard-manifest.txt') as lines:
+                manifest_files = [os.path.join(f'{tmp}.bgen/', line.strip()) for line in lines]
+            bgen3 = hl.import_bgen(manifest_files,
+                                   entry_fields=['GP'],
+                                   sample_file=tmp + '.sample')
+            assert bgen._same(bgen3)
 
     def test_export_bgen_from_vcf(self):
         mt = hl.import_vcf(resource('sample.vcf'))

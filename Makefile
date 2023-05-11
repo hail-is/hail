@@ -3,7 +3,8 @@
 include config.mk
 
 SERVICES := auth batch ci memory notebook monitoring website
-SERVICES_IMAGES := $(patsubst %, %-image, $(SERVICES))
+SERVICES_PLUS_ADMIN_POD := $(SERVICES) admin-pod
+SERVICES_IMAGES := $(patsubst %, %-image, $(SERVICES_PLUS_ADMIN_POD))
 SERVICES_MODULES := $(SERVICES) gear web_common
 CHECK_SERVICES_MODULES := $(patsubst %, check-%, $(SERVICES_MODULES))
 

@@ -47,9 +47,13 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
           val backend = HailContext.backend
           val f = getModule(modID)
 
-          log.info(s"[collectDArray|$stageName]: executing ${remainingContexts.length} tasks")
-          val t = System.nanoTime()
+          log.info(
+            s"[collectDArray|$stageName]: executing ${remainingContexts.length} , " +
+              s"contexts size = ${formatSpace(contexts.map(_.length.toLong).sum)}, " +
+              s"globals size = ${formatSpace(globals.length)}"
+          )
 
+          val t = System.nanoTime()
           val (failureOpt, successes) =
             remainingContexts match {
               case Array((context, k)) if backend.canExecuteParallelTasksOnDriver =>

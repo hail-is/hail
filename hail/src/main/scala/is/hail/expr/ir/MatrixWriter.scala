@@ -801,18 +801,23 @@ case class VCFExportFinalizer(typ: MatrixType, outputPath: String, append: Optio
     val annotations = writeAnnotations.get(cb).asBaseStruct
 
     val partPaths = annotations.loadField(cb, "partFiles").get(cb).asIndexable
-    val files = if (tabix && exportType != ExportType.CONCATENATED) {
+    val partFiles = partPaths.castTo(cb, region, SJavaArrayString(true), false).asInstanceOf[SJavaArrayStringValue].array
+    cb.ifx(partPaths.hasMissingValues(cb), cb._fatal("matrixwriter part paths contains missing values"))
+
+    val allFiles = if (tabix && exportType != ExportType.CONCATENATED) {
       val len = partPaths.loadLength()
       val files = cb.memoize(Code.newArray[String](len * 2))
-      partPaths.forEachDefined(cb) { case (cb, i, file: SStringValue) =>
-        val path = file.loadString(cb)
+      val i = cb.newLocal[Int]("i", 0)
+      cb.whileLoop(i < len, {
+        val path = cb.memoize(partFiles(i))
         cb += files.update(i, path)
         // FIXME(chrisvittal): this will put the string ".tbi" in generated code, we should just access the htsjdk value
         cb += files.update(cb.memoize(i + len), Code.invokeStatic2[htsjdk.tribble.util.ParsingUtils, String, String, String]("appendToPath", path, htsjdk.samtools.util.FileExtensions.TABIX_INDEX))
-      }
+        cb.assign(i, i+1)
+      })
       files
     } else {
-      partPaths.castTo(cb, region, SJavaArrayString(true), false).asInstanceOf[SJavaArrayStringValue].array
+      partFiles
     }
     exportType match {
       case ExportType.CONCATENATED =>
@@ -824,10 +829,10 @@ case class VCFExportFinalizer(typ: MatrixType, outputPath: String, append: Optio
         cb += os.invoke[Int, Unit]("write", '\n')
         cb += os.invoke[Unit]("close")
 
-        val jFiles = cb.memoize(Code.newArray[String](files.length + 1))
+        val jFiles = cb.memoize(Code.newArray[String](partFiles.length + 1))
         cb += (jFiles(0) = const(headerFilePath))
         cb += Code.invokeStatic5[System, Any, Int, Any, Int, Int, Unit](
-          "arraycopy", files /*src*/, 0 /*srcPos*/, jFiles /*dest*/, 1 /*destPos*/, files.length /*len*/)
+          "arraycopy", partFiles /*src*/, 0 /*srcPos*/, jFiles /*dest*/, 1 /*destPos*/, partFiles.length /*len*/)
 
         cb += cb.emb.getFS.invoke[Array[String], String, Unit]("concatenateFiles", jFiles, const(outputPath))
 
@@ -841,11 +846,12 @@ case class VCFExportFinalizer(typ: MatrixType, outputPath: String, append: Optio
         }
 
       case ExportType.PARALLEL_HEADER_IN_SHARD =>
-        cb += Code.invokeScalaObject3[FS, String, Array[String], Unit](TableTextFinalizer.getClass, "cleanup", cb.emb.getFS, outputPath, files)
+        cb += Code.invokeScalaObject3[FS, String, Array[String], Unit](TableTextFinalizer.getClass, "cleanup", cb.emb.getFS, outputPath, allFiles)
+        cb += Code.invokeScalaObject4[FS, String, Array[String], String, Unit](TableTextFinalizer.getClass, "writeManifest", cb.emb.getFS, outputPath, partFiles, Code._null[String])
         cb += cb.emb.getFS.invoke[String, Unit]("touch", const(outputPath).concat("/_SUCCESS"))
 
       case ExportType.PARALLEL_SEPARATE_HEADER =>
-        cb += Code.invokeScalaObject3[FS, String, Array[String], Unit](TableTextFinalizer.getClass, "cleanup", cb.emb.getFS, outputPath, files)
+        cb += Code.invokeScalaObject3[FS, String, Array[String], Unit](TableTextFinalizer.getClass, "cleanup", cb.emb.getFS, outputPath, allFiles)
         val headerFilePath = s"$outputPath/header$ext"
         val headerStr = header(cb, annotations)
 
@@ -853,6 +859,7 @@ case class VCFExportFinalizer(typ: MatrixType, outputPath: String, append: Optio
         cb += os.invoke[Array[Byte], Unit]("write", headerStr.invoke[Array[Byte]]("getBytes"))
         cb += os.invoke[Int, Unit]("write", '\n')
         cb += os.invoke[Unit]("close")
+        cb += Code.invokeScalaObject4[FS, String, Array[String], String, Unit](TableTextFinalizer.getClass, "writeManifest", cb.emb.getFS, outputPath, partFiles, headerFilePath)
 
         cb += cb.emb.getFS.invoke[String, Unit]("touch", const(outputPath).concat("/_SUCCESS"))
     }
@@ -1209,15 +1216,19 @@ case class BGENExportFinalizer(typ: MatrixType, path: String, exportType: String
         cb += files.update(i, res.asBaseStruct.loadField(cb, "partFile").get(cb).asString.loadString(cb))
       }
 
+      val headerStr = if (exportType == ExportType.PARALLEL_SEPARATE_HEADER) {
+        val headerStr = cb.memoize(const(path + ".bgen").concat("/header"))
+        val os = cb.memoize(cb.emb.create(headerStr))
+        val header = Code.invokeScalaObject3[Array[String], Long, Int, Array[Byte]](BgenWriter.getClass, "headerBlock", sampleIds, numVariants, compression)
+        cb += os.invoke[Array[Byte], Unit]("write", header)
+        cb += os.invoke[Unit]("close")
+        headerStr
+      } else Code._null[String]
       cb += Code.invokeScalaObject3[FS, String, Array[String], Unit](TableTextFinalizer.getClass, "cleanup", cb.emb.getFS, path + ".bgen", files)
+      cb += Code.invokeScalaObject4[FS, String, Array[String], String, Unit](TableTextFinalizer.getClass, "writeManifest", cb.emb.getFS, path + ".bgen", files, headerStr)
+
     }
 
-    if (exportType == ExportType.PARALLEL_SEPARATE_HEADER) {
-      val os = cb.memoize(cb.emb.create(const(path + ".bgen").concat("/header")))
-      val header = Code.invokeScalaObject3[Array[String], Long, Int, Array[Byte]](BgenWriter.getClass, "headerBlock", sampleIds, numVariants, compression)
-      cb += os.invoke[Array[Byte], Unit]("write", header)
-      cb += os.invoke[Unit]("close")
-    }
 
     if (exportType == ExportType.CONCATENATED) {
       val os = cb.memoize(cb.emb.create(const(path + ".bgen")))
@@ -1495,12 +1506,13 @@ case class MatrixBlockMatrixWriter(
     val elementType = tm.entryType.fieldType(entryField)
     val etype = EBlockMatrixNDArray(EType.fromTypeAndAnalysis(elementType, rm.entryType.field(entryField)), encodeRowMajor = true, required = true)
     val spec = TypedCodecSpec(etype, TNDArray(tm.entryType.fieldType(entryField), Nat(2)), BlockMatrix.bufferSpec)
+    val writer = ETypeFileValueWriter(spec)
 
     val pathsWithColMajorIndices = tableOfNDArrays.mapCollect("matrix_block_matrix_writer") { partition =>
      ToArray(mapIR(partition) { singleNDArrayTuple =>
        bindIR(GetField(singleNDArrayTuple, "blockRowIdx") + (GetField(singleNDArrayTuple, "blockColIdx") * numBlockRows)) { colMajorIndex =>
          val blockPath = Str(s"$path/parts/part-") + invoke("str", TString, colMajorIndex)
-         maketuple(colMajorIndex, WriteValue(GetField(singleNDArrayTuple, "ndBlock"), blockPath, spec))
+         maketuple(colMajorIndex, WriteValue(GetField(singleNDArrayTuple, "ndBlock"), blockPath, writer))
        }
       })
     }

@@ -11,7 +11,7 @@ import org.apache.http.ConnectionClosedException
 import org.apache.http.conn.HttpHostConnectException
 import org.apache.log4j.{LogManager, Logger}
 
-import reactor.core.Exceptions.ReactiveException
+import is.hail.shadedazure.reactor.core.Exceptions.ReactiveException
 import scala.util.Random
 import java.io._
 import com.google.cloud.storage.StorageException
@@ -35,11 +35,11 @@ package object services {
     math.min(delay * 2, 60.0)
   }
 
-  def isRetryOnceError(_e: Throwable): Boolean = {
+  def isLimitedRetriesError(_e: Throwable): Boolean = {
     // An exception is a "retry once error" if a rare, known bug in a dependency or in a cloud
     // provider can manifest as this exception *and* that manifestation is indistinguishable from a
     // true error.
-    val e = reactor.core.Exceptions.unwrap(_e)
+    val e = is.hail.shadedazure.reactor.core.Exceptions.unwrap(_e)
     e match {
       case e: SocketException =>
         e.getMessage != null && e.getMessage.contains("Connection reset")
@@ -50,7 +50,7 @@ package object services {
         )
       case e @ (_: SSLException | _: StorageException | _: IOException) =>
         val cause = e.getCause
-        cause != null && isRetryOnceError(cause)
+        cause != null && isLimitedRetriesError(cause)
       case _ =>
         false
     }
@@ -63,7 +63,7 @@ package object services {
     //
     // If the argument is a ReactiveException, it returns its cause. If the argument is not a
     // ReactiveException it returns the exception unmodified.
-    val e = reactor.core.Exceptions.unwrap(_e)
+    val e = is.hail.shadedazure.reactor.core.Exceptions.unwrap(_e)
     e match {
       case e: NoHttpResponseException =>
         true
@@ -116,7 +116,7 @@ package object services {
     }
   }
 
-  def retryTransientErrors[T](f: => T): T = {
+  def retryTransientErrors[T](f: => T, reset: Option[() => Unit] = None): T = {
     var delay = 0.1
     var errors = 0
     while (true) {
@@ -125,14 +125,19 @@ package object services {
       } catch {
         case e: Exception =>
           errors += 1
-          if (errors == 1 && isRetryOnceError(e))
-            return f
-          if (!isTransientError(e))
+          if (errors <= 5 && isLimitedRetriesError(e)) {
+            log.warn(
+              s"A limited retry error has occured. We will automatically retry " +
+                s"${5 - errors} more times. Do not be alarmed. (current delay: " +
+                s"$delay). The most recent error was $e.")
+          } else if (!isTransientError(e)) {
             throw e
-          if (errors % 10 == 0)
-            log.warn(s"encountered $errors transient errors, most recent one was $e")
+          } else if (errors % 10 == 0) {
+            log.warn(s"Encountered $errors transient errors, most recent one was $e.")
+          }
       }
       delay = sleepAndBackoff(delay)
+      reset.foreach(_())
     }
 
     throw new AssertionError("unreachable")

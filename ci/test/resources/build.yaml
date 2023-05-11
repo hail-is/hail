@@ -190,9 +190,11 @@ steps:
         to: /io/pyproject.toml
     dependsOn:
       - hello_image
-  - kind: createDatabase
+  - kind: createDatabase2
     name: hello_database
     databaseName: hello
+    image:
+      valueFrom: ci_utils_image.image
     migrations:
       - name: create-tables
         script: /io/sql/create-hello-tables.sql
@@ -211,6 +213,7 @@ steps:
     dependsOn:
       - default_ns
       - merge_code
+      - ci_utils_image
   - kind: runImage
     name: test_hello_database
     image:

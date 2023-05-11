@@ -932,7 +932,7 @@ final case class WritePartition(value: IR, writeCtx: IR, writer: PartitionWriter
 final case class WriteMetadata(writeAnnotations: IR, writer: MetadataWriter) extends IR
 
 final case class ReadValue(path: IR, spec: AbstractTypedCodecSpec, requestedType: Type) extends IR
-final case class WriteValue(value: IR, path: IR, spec: AbstractTypedCodecSpec, stagingFile: Option[IR] = None) extends IR
+final case class WriteValue(value: IR, path: IR, writer: ValueWriter, stagingFile: Option[IR] = None) extends IR
 
 class PrimitiveIR(val self: IR) extends AnyVal {
   def +(other: IR): IR = {

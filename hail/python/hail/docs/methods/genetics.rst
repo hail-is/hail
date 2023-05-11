@@ -24,6 +24,7 @@ Genetics
     impute_sex
     ld_matrix
     ld_prune
+    compute_charr
     mendel_errors
     de_novo
     nirvana
@@ -54,6 +55,7 @@ Genetics
 .. autofunction:: impute_sex
 .. autofunction:: ld_matrix
 .. autofunction:: ld_prune
+.. autofunction:: compute_charr
 .. autofunction:: mendel_errors
 .. autofunction:: de_novo
 .. autofunction:: nirvana
