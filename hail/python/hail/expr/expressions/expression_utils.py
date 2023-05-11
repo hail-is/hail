@@ -1,5 +1,5 @@
 from typing import Set, Dict
-from hail.typecheck import typecheck, setof
+from hail.typecheck import typecheck, setof, nullable
 
 from .indices import Indices, Aggregation
 from ..expressions import Expression, ExpressionException, expr_any
@@ -130,7 +130,7 @@ def analyze(caller: str,
         raise errors[0]
 
 
-@typecheck(expression=expr_any)
+@typecheck(expression=expr_any, _execute_kwargs=nullable(dict))
 def eval_timed(expression, *, _execute_kwargs=None):
     """Evaluate a Hail expression, returning the result and the times taken for
     each stage in the evaluation process.
@@ -162,7 +162,7 @@ def eval_timed(expression, *, _execute_kwargs=None):
     return Env.backend().execute(MakeTuple([ir]), timed=True, **_execute_kwargs)[0]
 
 
-@typecheck(expression=expr_any)
+@typecheck(expression=expr_any, _execute_kwargs=nullable(dict))
 def eval(expression, *, _execute_kwargs=None):
     """Evaluate a Hail expression, returning the result.
 
