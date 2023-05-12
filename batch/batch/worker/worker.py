@@ -28,6 +28,7 @@ from typing import (
     MutableMapping,
     Optional,
     Tuple,
+    TypedDict,
     Union,
 )
 
@@ -42,6 +43,7 @@ from aiodocker.exceptions import DockerError  # type: ignore
 from aiohttp import web
 from sortedcontainers import SortedSet
 
+from gear import json_request, json_response
 from hailtop import aiotools, httpx
 from hailtop.aiotools import AsyncFS, LocalAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
@@ -60,7 +62,6 @@ from hailtop.utils import (
     is_delayed_warning_error,
     parse_docker_image_reference,
     periodically_call,
-    request_retry_transient_errors,
     retry_transient_errors,
     retry_transient_errors_with_debug_string,
     retry_transient_errors_with_delayed_warnings,
@@ -741,6 +742,13 @@ def user_error(e):
     return False
 
 
+class MountSpecification(TypedDict):
+    source: str
+    destination: str
+    type: str
+    options: List[str]
+
+
 class Container:
     def __init__(
         self,
@@ -756,7 +764,7 @@ class Container:
         port: Optional[int] = None,
         timeout: Optional[int] = None,
         unconfined: Optional[bool] = None,
-        volume_mounts: Optional[List[dict]] = None,
+        volume_mounts: Optional[List[MountSpecification]] = None,
         env: Optional[List[str]] = None,
         stdin: Optional[str] = None,
     ):
@@ -772,7 +780,7 @@ class Container:
         self.port = port
         self.timeout = timeout
         self.unconfined = unconfined
-        self.volume_mounts = volume_mounts or []
+        self.volume_mounts: List[MountSpecification] = volume_mounts or []
         self.env = env or []
         self.stdin = stdin
 
@@ -1096,7 +1104,7 @@ class Container:
             'CAP_KILL',
             'CAP_AUDIT_WRITE',
         ]
-        config = {
+        config: Dict[str, Any] = {
             'ociVersion': '1.0.1',
             'root': {
                 'path': '.',
@@ -1172,7 +1180,7 @@ class Container:
 
         return config
 
-    async def _get_in_container_user(self):
+    async def _get_in_container_user(self) -> Tuple[int, int]:
         assert self.image.image_config
         user = self.image.image_config['Config']['User']
         if not user:
@@ -1191,25 +1199,27 @@ class Container:
                     return uid, gid
             raise ValueError("Container user not found in image's /etc/passwd")
 
-    def _mounts(self, uid, gid):
+    def _mounts(self, uid: int, gid: int) -> List[MountSpecification]:
         assert self.image.image_config
         assert self.netns
         # Only supports empty volumes
-        external_volumes = []
+        external_volumes: List[MountSpecification] = []
         volumes = self.image.image_config['Config']['Volumes']
         if volumes:
             for v_container_path in volumes:
-                if not v_container_path.startswith('/'):
-                    v_container_path = '/' + v_container_path
+                if v_container_path.startswith('/'):
+                    v_absolute_container_path = v_container_path
+                else:
+                    v_absolute_container_path = '/' + v_container_path
                 mount_dir = self.io_mount_path if self.io_mount_path else self.container_scratch
-                v_host_path = f'{mount_dir}/volumes{v_container_path}'
+                v_host_path = f'{mount_dir}/volumes{v_absolute_container_path}'
                 os.makedirs(v_host_path)
                 if uid != 0 or gid != 0:
                     os.chown(v_host_path, uid, gid)
                 external_volumes.append(
                     {
                         'source': v_host_path,
-                        'destination': v_container_path,
+                        'destination': v_absolute_container_path,
                         'type': 'none',
                         'options': ['bind', 'rw', 'private'],
                     }
@@ -1370,7 +1380,7 @@ def copy_container(
     job: 'DockerJob',
     task_name: str,
     files: List[dict],
-    volume_mounts: List[dict],
+    volume_mounts: List[MountSpecification],
     cpu_in_mcpu: int,
     memory_in_bytes: int,
     scratch: str,
@@ -1512,11 +1522,11 @@ class Job(abc.ABC):
             self.cpu_in_mcpu, self.memory_in_bytes, self.external_storage_in_gib
         )
 
-        self.input_volume_mounts = []
-        self.main_volume_mounts = []
-        self.output_volume_mounts = []
+        self.input_volume_mounts: List[MountSpecification] = []
+        self.main_volume_mounts: List[MountSpecification] = []
+        self.output_volume_mounts: List[MountSpecification] = []
 
-        io_volume_mount = {
+        io_volume_mount: MountSpecification = {
             'source': self.io_host_path(),
             'destination': '/io',
             'type': 'none',
@@ -1563,7 +1573,7 @@ class Job(abc.ABC):
     def get_container_log_path(self, container_name: str) -> str:
         raise NotImplementedError
 
-    async def get_resource_usage(self) -> Dict[str, Optional[bytes]]:
+    async def get_resource_usage(self) -> Dict[str, bytes]:
         raise NotImplementedError
 
     async def delete(self):
@@ -1686,7 +1696,7 @@ class DockerJob(Job):
 
         if self.secrets:
             for secret in self.secrets:
-                volume_mount = {
+                volume_mount: MountSpecification = {
                     'source': self.secret_host_path(secret),
                     'destination': secret["mount_path"],
                     'type': 'none',
@@ -1984,7 +1994,7 @@ class DockerJob(Job):
     def get_container_log_path(self, container_name: str) -> str:
         return self.containers[container_name].log_path
 
-    async def get_resource_usage(self):
+    async def get_resource_usage(self) -> Dict[str, bytes]:
         return {name: await c.get_resource_usage() for name, c in self.containers.items()}
 
     async def delete(self):
@@ -2291,7 +2301,7 @@ class JVMJob(Job):
         assert container_name == 'main'
         return self.log_file
 
-    async def get_resource_usage(self):
+    async def get_resource_usage(self) -> Dict[str, bytes]:
         return {'main': ResourceUsageMonitor.no_data()}
 
     async def delete(self):
@@ -2406,7 +2416,7 @@ class JVMContainer:
             socket_file,
         ]
 
-        volume_mounts = [
+        volume_mounts: List[MountSpecification] = [
             {
                 'source': JVM.SPARK_HOME,
                 'destination': JVM.SPARK_HOME,
@@ -2891,7 +2901,7 @@ class Worker:
                 log.exception(f'while running {job}, ignoring')
 
     async def create_job_1(self, request):
-        body = await request.json()
+        body = await json_request(request)
 
         batch_id = body['batch_id']
         job_id = body['job_id']
@@ -2982,13 +2992,13 @@ class Worker:
         job = self._job_from_request(request)
         resource_usage = await job.get_resource_usage()
         data = {task: base64.b64encode(df).decode('utf-8') for task, df in resource_usage.items()}
-        return web.json_response(data)
+        return json_response(data)
 
     async def get_job_status(self, request):
         if not self.active:
             raise web.HTTPServiceUnavailable
         job = self._job_from_request(request)
-        return web.json_response(job.status())
+        return json_response(job.status())
 
     async def delete_job_1(self, request):
         batch_id = int(request.match_info['batch_id'])
@@ -3019,7 +3029,7 @@ class Worker:
         if not self.active:
             raise web.HTTPServiceUnavailable
         body = {'name': NAME}
-        return web.json_response(body)
+        return json_response(body)
 
     async def run(self):
         app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
@@ -3211,14 +3221,12 @@ class Worker:
 
     async def activate(self):
         log.info('activating')
-        resp = await request_retry_transient_errors(
-            self.client_session,
-            'POST',
+        resp_json = await retry_transient_errors(
+            self.client_session.post_read_json,
             deploy_config.url('batch-driver', '/api/v1alpha/instances/activate'),
             json={'ip_address': os.environ['IP_ADDRESS']},
             headers={'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'},
         )
-        resp_json = await resp.json()
         self.headers = {'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {resp_json["token"]}'}
         self.active = True
         self.last_updated = time_msecs()

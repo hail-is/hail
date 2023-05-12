@@ -17,7 +17,15 @@ from gidgethub import sansio as gh_sansio
 from prometheus_async.aio.web import server_stats  # type: ignore
 from typing_extensions import TypedDict
 
-from gear import AuthClient, Database, check_csrf_token, monitor_endpoints_middleware, setup_aiohttp_session
+from gear import (
+    AuthClient,
+    Database,
+    check_csrf_token,
+    json_request,
+    json_response,
+    monitor_endpoints_middleware,
+    setup_aiohttp_session,
+)
 from gear.profiling import install_profiler_if_requested
 from hailtop import aiotools, httpx
 from hailtop.batch_client.aioclient import Batch, BatchClient
@@ -399,7 +407,7 @@ async def remove_namespace_from_db(db: Database, namespace: str):
 async def batch_callback_handler(request):
     app = request.app
     db: Database = app['db']
-    params = await request.json()
+    params = await json_request(request)
     log.info(f'batch callback {params}')
     attrs = params.get('attributes')
     if attrs:
@@ -427,7 +435,7 @@ async def deploy_status(request, userdata):  # pylint: disable=unused-argument
     async def get_failure_information(batch):
         if isinstance(batch, MergeFailureBatch):
             exc = batch.exception
-            return traceback.format_exception(etype=type(exc), value=exc, tb=exc.__traceback__)
+            return traceback.format_exception(type(exc), value=exc, tb=exc.__traceback__)
         jobs = await collect_agen(batch.jobs())
 
         async def fetch_job_and_log(j):
@@ -450,7 +458,7 @@ async def deploy_status(request, userdata):  # pylint: disable=unused-argument
         }
         for wb in watched_branches
     ]
-    return web.json_response(wb_configs)
+    return json_response(wb_configs)
 
 
 @routes.post('/api/v1alpha/update')
@@ -471,7 +479,7 @@ async def post_update(request, userdata):  # pylint: disable=unused-argument
 async def dev_deploy_branch(request, userdata):
     app = request.app
     try:
-        params = await request.json()
+        params = await json_request(request)
     except asyncio.CancelledError:
         raise
     except Exception as e:
@@ -515,7 +523,7 @@ async def dev_deploy_branch(request, userdata):
     except Exception as e:  # pylint: disable=broad-except
         message = traceback.format_exc()
         raise web.HTTPBadRequest(text=f'starting the deploy failed due to\n{message}') from e
-    return web.json_response({'sha': sha, 'batch_id': batch_id})
+    return json_response({'sha': sha, 'batch_id': batch_id})
 
 
 @routes.post('/api/v1alpha/batch_callback')

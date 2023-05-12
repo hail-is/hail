@@ -1139,10 +1139,10 @@ class PythonJob(Job):
             func_file = self._batch._python_function_files[unapplied_id]
 
             prepared_args = prepare_argument_for_serialization(args)[1]
-            kwargs = prepare_argument_for_serialization(kwargs)[1]
+            prepared_kwargs = prepare_argument_for_serialization(kwargs)[1]
 
             args_file = await self._batch._serialize_python_to_input_file(
-                os.path.dirname(result._get_path(remote_tmpdir)), "args", i, (prepared_args, kwargs), dry_run
+                os.path.dirname(result._get_path(remote_tmpdir)), "args", i, (prepared_args, prepared_kwargs), dry_run
             )
 
             json_write, str_write, repr_write = [

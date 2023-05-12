@@ -10,7 +10,7 @@ from aiohttp import web
 
 from hailtop import httpx
 from hailtop.config import get_deploy_config
-from hailtop.utils import request_retry_transient_errors
+from hailtop.utils import retry_transient_errors
 
 from .time_limited_max_size_cache import TimeLimitedMaxSizeCache
 
@@ -129,8 +129,7 @@ async def impersonate_user_and_get_info(session_id: str, client_session: httpx.C
     headers = {'Authorization': f'Bearer {session_id}'}
     userinfo_url = deploy_config.url('auth', '/api/v1alpha/userinfo')
     try:
-        resp = await request_retry_transient_errors(client_session, 'GET', userinfo_url, headers=headers)
-        return await resp.json()
+        return await retry_transient_errors(client_session.get_read_json, userinfo_url, headers=headers)
     except aiohttp.ClientResponseError as err:
         if err.status == 401:
             return None

@@ -199,30 +199,14 @@ dependencies {
     }
 
     bundled 'commons-io:commons-io:2.11.0'
-    bundled(group: 'com.azure', name: 'azure-storage-blob', version: '12.13.0') {
-        exclude group: 'com.fasterxml.jackson'
-        exclude group: 'com.fasterxml.jackson.core'
-        exclude group: 'com.fasterxml.jackson.databind'
-    }
-
-    bundled(group: 'com.azure', name: 'azure-core-http-netty', version: '1.10.0') {
-        exclude group: 'com.fasterxml.jackson'
-        exclude group: 'com.fasterxml.jackson.core'
-        exclude group: 'com.fasterxml.jackson.databind'
-    }
-
-
-    bundled(group: 'com.azure', name: 'azure-identity', version:'1.2.1') {
-        exclude group: 'com.fasterxml.jackson'
-        exclude group: 'com.fasterxml.jackson.core'
-        exclude group: 'com.fasterxml.jackson.databind'
-    }
 
     bundled group: 'org.freemarker', name: 'freemarker', version: '2.3.31'
 
     bundled 'com.kohlschutter.junixsocket:junixsocket-core:2.6.1'
 
     bundled 'com.github.luben:zstd-jni:1.5.2-1'
+
+    bundled project(path: ':shadedazure', configuration: 'shadow')
 }
 
 task(checkSettings) doLast {

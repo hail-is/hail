@@ -268,9 +268,13 @@ iptables --append FORWARD --source 172.21.0.0/16 --destination 169.254.169.254 -
 iptables --append FORWARD --destination $INTERNAL_GATEWAY_IP --jump ACCEPT
 # And this worker
 iptables --append FORWARD --destination $IP_ADDRESS --jump ACCEPT
-# Forbid outgoing requests to cluster-internal IP addresses
+# Allow traffic going to the internet
 INTERNET_INTERFACE=$(ip link list | grep ens | awk -F": " '{{ print $2 }}')
 iptables --append FORWARD --out-interface $INTERNET_INTERFACE ! --destination 10.128.0.0/16 --jump ACCEPT
+
+# [private]
+# Allow all traffic from the private job network
+iptables --append FORWARD --source 172.20.0.0/16 --jump ACCEPT
 
 {make_global_config_str}
 
