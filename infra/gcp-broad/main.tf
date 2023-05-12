@@ -173,7 +173,9 @@ resource "google_container_cluster" "vdc" {
     }
   }
 
-  workload_identity_config {}
+  workload_identity_config {
+    workload_pool = "hail-vdc.svc.id.goog"
+  }
 
   timeouts {}
 }
