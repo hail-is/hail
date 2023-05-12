@@ -519,8 +519,10 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
     var n = n0
 
     while (n > 0) {
-      if (end == off)
-        readBlock()
+      if (end == off) {
+        end = in.readBlock(buf)
+        off = 0
+      }
       val p = math.min(end - off, n << 3) >>> 3
       assert(p > 0)
       Memory.memcpy(to, toOff, buf, off, p)
