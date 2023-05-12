@@ -65,6 +65,8 @@ async def create_database():
     namespace = create_database_config['namespace']
     database_name = create_database_config['database_name']
     cant_create_database = create_database_config['cant_create_database']
+    scope = create_database_config['scope']
+    _name = create_database_config['_name']
 
     db = Database()
     await db.async_init()
@@ -88,9 +90,6 @@ async def create_database():
         await write_user_config(namespace, database_name, 'admin', sql_config_with_db)
         await write_user_config(namespace, database_name, 'user', sql_config_with_db)
         return
-
-    scope = create_database_config['scope']
-    _name = create_database_config['_name']
 
     if scope == 'deploy':
         assert _name == database_name
