@@ -66,6 +66,9 @@ async def create_database():
     database_name = create_database_config['database_name']
     cant_create_database = create_database_config['cant_create_database']
 
+    db = Database()
+    await db.async_init()
+
     if cant_create_database:
         await db.just_execute(f'CREATE DATABASE IF NOT EXISTS `{_name}`')
         sql_config_with_db = SQLConfig(
@@ -88,9 +91,6 @@ async def create_database():
 
     scope = create_database_config['scope']
     _name = create_database_config['_name']
-
-    db = Database()
-    await db.async_init()
 
     if scope == 'deploy':
         assert _name == database_name
