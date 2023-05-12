@@ -50,8 +50,8 @@ from hailtop.utils import (
     dump_all_stacktraces,
     humanize_timedelta_msecs,
     periodically_call,
-    request_retry_transient_errors,
     retry_long_running,
+    retry_transient_errors,
     run_if_changed,
     time_msecs,
     time_msecs_str,
@@ -421,12 +421,10 @@ def attempt_id_from_spec(record) -> Optional[str]:
 
 async def _get_job_container_log_from_worker(client_session, batch_id, job_id, container, ip_address) -> bytes:
     try:
-        async with await request_retry_transient_errors(
-            client_session,
-            'GET',
+        return await retry_transient_errors(
+            client_session.get_read,
             f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log/{container}',
-        ) as resp:
-            return await resp.read()
+        )
     except aiohttp.ClientResponseError:
         log.exception(f'while getting log for {(batch_id, job_id)}')
         return b'ERROR: encountered a problem while fetching the log'
@@ -489,12 +487,10 @@ async def _get_job_resource_usage(app, batch_id, job_id):
 
     if state == 'Running':
         try:
-            resp = await request_retry_transient_errors(
-                client_session,
-                'GET',
+            data = await retry_transient_errors(
+                client_session.get_read_json,
                 f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resource_usage',
             )
-            data = await resp.json()
             return {
                 task: ResourceUsageMonitor.decode_to_df(base64.b64decode(encoded_df))
                 for task, encoded_df in data.items()
@@ -621,10 +617,10 @@ async def _get_full_job_status(app, record):
 
     ip_address = record['ip_address']
     try:
-        resp = await request_retry_transient_errors(
-            client_session, 'GET', f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status'
+        return await retry_transient_errors(
+            client_session.get_read_json,
+            f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status',
         )
-        return await resp.json()
     except aiohttp.ClientResponseError as e:
         if e.status == 404:
             return None
@@ -1740,9 +1736,8 @@ async def _commit_update(app: web.Application, batch_id: int, update_id: int, us
         raise
 
     app['task_manager'].ensure_future(
-        request_retry_transient_errors(
-            client_session,
-            'PATCH',
+        retry_transient_errors(
+            client_session.patch,
             deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/update'),
             headers=app['batch_headers'],
         )
@@ -2879,9 +2874,8 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 
 async def cancel_batch_loop_body(app):
     client_session: httpx.ClientSession = app['client_session']
-    await request_retry_transient_errors(
-        client_session,
-        'POST',
+    await retry_transient_errors(
+        client_session.post,
         deploy_config.url('batch-driver', '/api/v1alpha/batches/cancel'),
         headers=app['batch_headers'],
     )
@@ -2892,9 +2886,8 @@ async def cancel_batch_loop_body(app):
 
 async def delete_batch_loop_body(app):
     client_session: httpx.ClientSession = app['client_session']
-    await request_retry_transient_errors(
-        client_session,
-        'POST',
+    await retry_transient_errors(
+        client_session.post,
         deploy_config.url('batch-driver', '/api/v1alpha/batches/delete'),
         headers=app['batch_headers'],
     )
