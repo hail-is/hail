@@ -255,35 +255,43 @@ steps:
     dependsOn:
       - base_image
       - merge_code
-  - kind: createDatabase
-    name: test_database_instance
-    databaseName: test-instance
-    image:
-      valueFrom: ci_utils_image.image
-    migrations: []
-    namespace:
-      valueFrom: default_ns.name
-    scopes:
-      - test
-    dependsOn:
-      - default_ns
-      - ci_utils_image
   - kind: runImage
-    name: create_database_server_config
+    name: create_test_database_server_config
     image:
-      valueFrom: ci_utils_image.image
+      valueFrom: create_certs_image.image
     script: |
-     kubectl -n {{ default_ns.name }} get -o json secret {{ test_database_instance.admin_secret_name }} | jq '{apiVersion, kind, type, data, metadata: {name: "database-server-config"}}' | kubectl -n {{ default_ns.name }} apply -f -
+      set -ex
+
+      if ! kubectl get secret -n {{ default_ns.name }} database-server-config;
+      then
+          NAMESPACE={{ default_ns.name }} bash /create_test_db_config.sh
+      fi
     serviceAccount:
       name: admin
       namespace:
         valueFrom: default_ns.name
     scopes:
+      - dev
       - test
     dependsOn:
       - default_ns
-      - ci_utils_image
-      - test_database_instance
+      - create_certs_image
+  - kind: deploy
+    name: deploy_test_db
+    namespace:
+      valueFrom: default_ns.name
+    config: docker/mysql/db.yaml
+    wait:
+      - kind: Service
+        name: db
+        for: alive
+        resource_type: statefulset
+    scopes:
+      - dev
+      - test
+    dependsOn:
+      - default_ns
+      - create_test_database_server_config
   - kind: buildImage2
     name: admin_pod_image
     dockerFile: /io/repo/admin-pod/Dockerfile
@@ -316,8 +324,8 @@ steps:
       - default_ns
       - admin_pod_image
       - merge_code
-      - create_database_server_config
-  - kind: createDatabase
+      - create_test_database_server_config
+  - kind: createDatabase2
     name: auth_database
     databaseName: auth
     image:
@@ -354,6 +362,8 @@ steps:
       - merge_code
       - delete_auth_tables
       - ci_utils_image
+      - create_test_database_server_config
+      - deploy_test_db
   - kind: runImage
     name: create_deploy_config
     image:
@@ -525,7 +535,7 @@ steps:
       - create_deploy_config
       - deploy_auth_driver_service_account
       - create_test_gsa_keys
-      - create_database_server_config
+      - create_test_database_server_config
   - kind: runImage
     name: create_initial_user
     runIfRequested: true
@@ -1697,8 +1707,8 @@ steps:
       - default_ns
       - admin_pod_image
       - merge_code
-      - create_database_server_config
-  - kind: createDatabase
+      - create_test_database_server_config
+  - kind: createDatabase2
     name: monitoring_database
     databaseName: monitoring
     image:
@@ -1721,6 +1731,8 @@ steps:
       - merge_code
       - delete_monitoring_tables
       - ci_utils_image
+      - create_test_database_server_config
+      - deploy_test_db
   - kind: deploy
     name: deploy_monitoring
     namespace:
@@ -1908,7 +1920,7 @@ steps:
       - default_ns
       - admin_pod_image
       - merge_code
-      - create_database_server_config
+      - create_test_database_server_config
   - kind: runImage
     name: delete_ci_tables
     image:
@@ -1931,8 +1943,8 @@ steps:
       - default_ns
       - admin_pod_image
       - merge_code
-      - create_database_server_config
-  - kind: createDatabase
+      - create_test_database_server_config
+  - kind: createDatabase2
     name: ci_database
     databaseName: ci
     image:
@@ -1966,7 +1978,9 @@ steps:
       - merge_code
       - delete_ci_tables
       - ci_utils_image
-  - kind: createDatabase
+      - create_test_database_server_config
+      - deploy_test_db
+  - kind: createDatabase2
     name: batch_database
     databaseName: batch
     image:
@@ -2200,6 +2214,8 @@ steps:
       - merge_code
       - delete_batch_tables
       - ci_utils_image
+      - create_test_database_server_config
+      - deploy_test_db
   - kind: deploy
     name: deploy_batch
     namespace:
@@ -2663,6 +2679,7 @@ steps:
       cp -R /io/repo/ci/* ./ci/
       cp /io/repo/tls/Dockerfile ./ci/test/resources/Dockerfile.certs
       cp /io/repo/tls/create_certs.py ./ci/test/resources/
+      cp /io/repo/tls/create_test_db_config.sh ./ci/test/resources/
       cp /io/repo/pylintrc ./
       cp /io/repo/setup.cfg ./
       cp /io/repo/pyproject.toml ./
@@ -2727,7 +2744,6 @@ steps:
         for: alive
     dependsOn:
       - default_ns
-      - create_database_server_config
       - ci_image
       - ci_utils_image
       - create_accounts
@@ -3007,7 +3023,7 @@ steps:
     inputs:
       - from: /repo/hail/python/hailtop
         to: /io/hailtop
-  - kind: createDatabase
+  - kind: createDatabase2
     name: notebook_database
     databaseName: notebook
     image:
@@ -3029,6 +3045,8 @@ steps:
       - default_ns
       - merge_code
       - ci_utils_image
+      - create_test_database_server_config
+      - deploy_test_db
   - kind: deploy
     name: deploy_notebook
     namespace:

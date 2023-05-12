@@ -236,6 +236,10 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /sql-config
+    serviceAccount:
+      name: admin
+      namespace:
+        valueFrom: default_ns.name
     dependsOn:
       - default_ns
       - hello_database
