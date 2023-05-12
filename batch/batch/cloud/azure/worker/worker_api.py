@@ -10,7 +10,7 @@ from hailtop import httpx
 from hailtop.aiocloud import aioazure
 from hailtop.utils import check_exec_output, retry_transient_errors, time_msecs
 
-from ....worker.worker_api import CloudWorkerAPI
+from ....worker.worker_api import CloudWorkerAPI, ContainerRegistryCredentials
 from ..instance_config import AzureSlimInstanceConfig
 from .credentials import AzureUserCredentials
 from .disk import AzureDisk
@@ -47,11 +47,19 @@ class AzureWorkerAPI(CloudWorkerAPI[AzureUserCredentials]):
     def user_credentials(self, credentials: Dict[str, str]) -> AzureUserCredentials:
         return AzureUserCredentials(credentials)
 
-    async def worker_access_token(self, session: httpx.ClientSession) -> Dict[str, str]:
+    async def worker_container_registry_credentials(self, session: httpx.ClientSession) -> ContainerRegistryCredentials:
         # https://docs.microsoft.com/en-us/azure/container-registry/container-registry-authentication?tabs=azure-cli#az-acr-login-with---expose-token
         return {
             'username': '00000000-0000-0000-0000-000000000000',
             'password': await self.acr_refresh_token.token(session),
+        }
+
+    async def user_container_registry_credentials(
+        self, user_credentials: AzureUserCredentials
+    ) -> ContainerRegistryCredentials:
+        return {
+            'username': user_credentials.username,
+            'password': user_credentials.password,
         }
 
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> AzureSlimInstanceConfig:
