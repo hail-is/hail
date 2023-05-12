@@ -64,7 +64,6 @@ async def create_database():
 
     namespace = create_database_config['namespace']
     database_name = create_database_config['database_name']
-    cant_create_database = create_database_config['cant_create_database']
     scope = create_database_config['scope']
     _name = create_database_config['_name']
 
