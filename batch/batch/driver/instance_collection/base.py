@@ -185,7 +185,9 @@ class InstanceCollection:
         self.max_instances = max_instances
         self.max_live_instances = max_live_instances
 
-        self.stats_by_instance_version = collections.defaultdict(lambda: InstanceCollectionStats())
+        self.stats_by_instance_version: Dict[int, InstanceCollectionStats] = collections.defaultdict(
+            lambda: InstanceCollectionStats()
+        )
 
         self.name_instance: Dict[str, Instance] = {}
 
