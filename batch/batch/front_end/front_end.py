@@ -1109,14 +1109,6 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
             secrets.append(
                 {
                     'namespace': DEFAULT_NAMESPACE,
-                    'name': 'worker-deploy-config',
-                    'mount_path': '/deploy-config',
-                    'mount_in_copy': False,
-                }
-            )
-            secrets.append(
-                {
-                    'namespace': DEFAULT_NAMESPACE,
                     'name': 'ssl-config-batch-user-code',
                     'mount_path': '/ssl-config',
                     'mount_in_copy': False,

@@ -51,6 +51,9 @@ class DeployConfig:
     def with_default_namespace(self, default_namespace):
         return DeployConfig(self._location, default_namespace, self._domain)
 
+    def with_location(self, location):
+        return DeployConfig(location, self._default_namespace, self._domain)
+
     def default_namespace(self):
         return self._default_namespace
 

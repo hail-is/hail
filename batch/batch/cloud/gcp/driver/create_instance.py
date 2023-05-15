@@ -6,6 +6,7 @@ from shlex import quote as shq
 from typing import Dict
 
 from gear.cloud_config import get_global_config
+from hailtop.config import get_deploy_config
 
 from ....batch_configuration import DEFAULT_NAMESPACE, DOCKER_PREFIX, DOCKER_ROOT_IMAGE, INTERNAL_GATEWAY_IP
 from ....file_store import FileStore
@@ -278,6 +279,12 @@ iptables --append FORWARD --source 172.20.0.0/16 --jump ACCEPT
 
 {make_global_config_str}
 
+mkdir /deploy-config
+cat >/deploy-config/deploy-config.json <<EOF
+{ json.dumps(get_deploy_config().with_location('gce').get_config()) }
+EOF
+
+
 # retry once
 docker pull $BATCH_WORKER_IMAGE || \
 (echo 'pull failed, retrying' && sleep 15 && docker pull $BATCH_WORKER_IMAGE)
@@ -314,6 +321,7 @@ docker run \
 -v /batch:/batch:shared \
 -v /logs:/logs \
 -v /global-config:/global-config \
+-v /deploy-config:/deploy-config \
 -v /cloudfuse:/cloudfuse:shared \
 -v /etc/netns:/etc/netns \
 -v /sys/fs/cgroup:/sys/fs/cgroup \
