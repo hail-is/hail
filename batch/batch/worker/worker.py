@@ -48,7 +48,7 @@ from hailtop import aiotools, httpx
 from hailtop.aiotools import AsyncFS, LocalAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
-from hailtop.config import DeployConfig
+from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger, configure_logging
 from hailtop.utils import (
     CalledProcessError,
@@ -199,7 +199,7 @@ instance_config: Optional[InstanceConfig] = None
 
 N_SLOTS = 4 * CORES  # Jobs are allowed at minimum a quarter core
 
-deploy_config = DeployConfig('gce', NAMESPACE, {})
+deploy_config = get_deploy_config()
 
 docker: Optional[aiodocker.Docker] = None
 
@@ -1246,7 +1246,7 @@ class Container:
                     }
                 )
 
-        return (
+        mounts = (
             self.volume_mounts
             + external_volumes
             + [
@@ -1308,6 +1308,18 @@ class Container:
                 },
             ]
         )
+
+        if not any(v['destination'] == '/deploy-config' for v in self.volume_mounts):
+            mounts.append(
+                {
+                    'source': '/deploy-config/deploy-config.json',
+                    'destination': '/deploy-config/deploy-config.json',
+                    'type': 'none',
+                    'options': ['bind', 'ro', 'private'],
+                },
+            )
+
+        return mounts
 
     def _env(self):
         assert self.image.image_config
