@@ -48,7 +48,10 @@ def create_vm_config(
             'type': 'SCRATCH',
             'autoDelete': True,
             'interface': 'NVME',
-            'initializeParams': {'diskType': f'zones/{zone}/diskTypes/local-ssd'},
+            'initializeParams': {
+                'diskType': f'zones/{zone}/diskTypes/local-ssd',
+                'labels': {'role': 'batch2-agent', 'namespace': DEFAULT_NAMESPACE, 'instance-name': machine_name},
+            },
         }
         worker_data_disk_name = 'nvme0n1'
     else:
@@ -57,6 +60,7 @@ def create_vm_config(
             'initializeParams': {
                 'diskType': f'projects/{project}/zones/{zone}/diskTypes/pd-ssd',
                 'diskSizeGb': str(data_disk_size_gb),
+                'labels': {'role': 'batch2-agent', 'namespace': DEFAULT_NAMESPACE, 'instance-name': machine_name},
             },
         }
         worker_data_disk_name = 'sdb'
@@ -95,7 +99,7 @@ def create_vm_config(
     return {
         'name': machine_name,
         'machineType': f'projects/{project}/zones/{zone}/machineTypes/{machine_type}',
-        'labels': {'role': 'batch2-agent', 'namespace': DEFAULT_NAMESPACE},
+        'labels': {'role': 'batch2-agent', 'namespace': DEFAULT_NAMESPACE, 'instance-name': machine_name},
         'disks': [
             {
                 'boot': True,
@@ -104,6 +108,7 @@ def create_vm_config(
                     'sourceImage': f'projects/{project}/global/images/batch-worker-12',
                     'diskType': f'projects/{project}/zones/{zone}/diskTypes/pd-ssd',
                     'diskSizeGb': str(boot_disk_size_gb),
+                    'labels': {'role': 'batch2-agent', 'namespace': DEFAULT_NAMESPACE, 'instance-name': machine_name},
                 },
             },
             worker_data_disk,
