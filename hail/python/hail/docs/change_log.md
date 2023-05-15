@@ -35,7 +35,7 @@ an earlier version of Hail to read files written in a later version.
 
 ## Version 0.2.116
 
-Released 2023-05-04
+Released 2023-05-08
 
 ### New Features
 
