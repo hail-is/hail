@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gar-cleaner
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gar-cleaner
+  template:
+    metadata:
+      labels:
+        app: gar-cleaner
+    spec:
+      nodeSelector:
+        preemptible: "true"
+      tolerations:
+       - key: preemptible
+         value: "true"
+       - key: "kubernetes.azure.com/scalesetpriority"
+         value: "spot"
+      containers:
+       - name: gar-cleaner
+         command:
+          - bash
+          - -c
+          - "while true; do sleep 3600; bash gar-cleaner.sh {{ default_ns.name }} ; done"
+         image: {{ image_cleaner_image.image }}
+         resources:
+           requests:
+             cpu: "1m"
+             memory: "2M"
+           limits:
+             cpu: "1"
+             memory: "1G"
