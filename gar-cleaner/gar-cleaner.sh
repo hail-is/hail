@@ -9,3 +9,4 @@ cat images4 | awk -F' ' 'BEGIN { OFS = "\t" } { print $1, $2, $3, $4, $5 }' > im
 python3 find-expired-images.py $1
 cat expired-images.csv
 cat expired-images.csv | xargs -n1 -P16 gcloud artifacts docker images delete --delete-tags
+gcloud artifacts repositories list
