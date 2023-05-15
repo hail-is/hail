@@ -236,7 +236,7 @@ async def run_migration(db, chunk_size):
         await bounded_gather(
             *[functools.partial(process_chunk_agg_bp_user_resources, chunk_counter, db, start_offset, end_offset, quiet=False)
               for start_offset, end_offset in chunk_offsets],
-            parallelism=3
+            parallelism=10
         )
         print(
             f'took {time.time() - parallel_insert_start}s to insert the remaining complete records in parallel ({(chunk_size * len(chunk_offsets)) / (time.time() - parallel_insert_start)}) attempts / sec')
