@@ -84,10 +84,6 @@ principals:
   domains:
     - monitoring-tests
   kind: json
-- name: batch-user-code
-  domains:
-    - batch-user-code
-  kind: json
 - name: grafana
   domains:
     - grafana

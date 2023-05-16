@@ -1114,14 +1114,6 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
                     'mount_in_copy': False,
                 }
             )
-            secrets.append(
-                {
-                    'namespace': DEFAULT_NAMESPACE,
-                    'name': 'ssl-config-batch-user-code',
-                    'mount_path': '/ssl-config',
-                    'mount_in_copy': False,
-                }
-            )
 
         sa = spec.get('service_account')
         check_service_account_permissions(user, sa)
