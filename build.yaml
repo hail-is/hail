@@ -3728,8 +3728,8 @@ steps:
     contextPath: /io/repo
     publishAs: admin-pod
     inputs:
-      - from: /repo/admin-pod
-        to: /io/repo/admin-pod
+      - from: /repo/gar-cleaner
+        to: /io/repo/gar-cleaner
     clouds:
       - gcp
     dependsOn:
@@ -3739,7 +3739,7 @@ steps:
     name: deploy_gar_cleaner
     namespace:
       valueFrom: default_ns.name
-    config: admin-pod/admin-pod.yaml
+    config: gar-cleaner/deployment.yaml
     clouds:
       - gcp
     dependsOn:
