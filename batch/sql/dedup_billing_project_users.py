@@ -120,7 +120,7 @@ WHERE ((billing_project > %s) OR (billing_project = %s AND `user` >= %s))
 
             bad_bp_user_records = db.select_and_fetchall(
                 f'''
-SELECT old.billing_project, old.`user`, old.deduped_resource_id, old.`usage`, new.`usage`, ABS(new.`usage` - old.`usage`) AS usage_diff
+SELECT old.billing_project, old.`user`, old.resource_id, old.`usage`, new.`usage`, ABS(new.`usage` - old.`usage`) AS usage_diff
 FROM (
   SELECT billing_project, `user`, deduped_resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
   FROM aggregated_billing_project_user_resources_v2
