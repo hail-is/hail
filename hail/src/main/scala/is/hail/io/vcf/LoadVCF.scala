@@ -6,6 +6,7 @@ import is.hail.asm4s.HailClassLoader
 import is.hail.backend.spark.SparkBackend
 import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
 import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering.TableStage
 import is.hail.expr.ir.{CloseableIterator, GenericLine, GenericLines, GenericTableValue, IR, IRParser, Literal, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixReader, TableValue}
 import is.hail.io.fs.{FS, FileStatus}
@@ -1860,10 +1861,10 @@ class MatrixVCFReader(
         .apply(globals))
   }
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
-    executeGeneric(ctx).toTableStage(ctx, requestedType, "VCF", params)
+  override def lower(ctx: ExecuteContext, requestedType: TableType, semhash: SemanticHash.Type): TableStage =
+    executeGeneric(ctx).toTableStage(ctx, requestedType, "VCF", semhash)
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue =
+  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean, semhash: SemanticHash.Type): TableValue =
     executeGeneric(ctx, dropRows).toTableValue(ctx, requestedType)
 
   override def toJValue: JValue = {

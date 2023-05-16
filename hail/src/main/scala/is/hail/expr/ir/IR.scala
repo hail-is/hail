@@ -5,6 +5,7 @@ import is.hail.asm4s.Value
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.agg.{AggStateSig, PhysicalAggSig}
+import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.functions._
 import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.expr.ir.streams.StreamProducer
@@ -761,12 +762,9 @@ final case class BlockMatrixWrite(child: BlockMatrixIR, writer: BlockMatrixWrite
 
 final case class BlockMatrixMultiWrite(blockMatrices: IndexedSeq[BlockMatrixIR], writer: BlockMatrixMultiWriter) extends IR
 
-
-// add 2 new arguments that mirror the dynamic and static ids
-// instead of IDs they are semantic hashes
-// the current semantic hash is generated at runtime by a combination of the two
-
-final case class CollectDistributedArray(contexts: IR, globals: IR, cname: String, gname: String, body: IR, dynamicID: IR, staticID: String, tsd: Option[TableStageDependency] = None) extends IR
+final case class CollectDistributedArray(contexts: IR, globals: IR, cname: String, gname: String, body: IR, dynamicID: IR, staticID: String, tsd: Option[TableStageDependency] = None) extends IR {
+  var semhash: SemanticHash.Type = uninitialized
+}
 
 object PartitionReader {
   implicit val formats: Formats = new DefaultFormats() {

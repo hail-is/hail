@@ -3,6 +3,7 @@ package is.hail.io.bgen
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitSettable, EmitValue, IEmitCode, IR, IRParserEnvironment, Literal, LowerMatrixIR, MakeStruct, MatrixHybridReader, MatrixReader, PartitionNativeIntervalReader, PartitionReader, ReadPartition, Ref, StreamTake, TableExecuteIntermediate, TableNativeReader, TableReader, TableValue, ToStream}
@@ -473,9 +474,8 @@ class MatrixBGENReader(
   override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
     VirtualTypeWithReq(PType.canonical(requestedType.globalType, required = true))
 
-  def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
-
-    val _lc = lower(ctx, requestedType)
+  def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean, semhash: SemanticHash.Type): TableValue = {
+    val _lc = lower(ctx, requestedType, semhash)
     val lc = if (dropRows)
       _lc.copy(partitioner = _lc.partitioner.copy(rangeBounds = Array[Interval]()),
         contexts = StreamTake(_lc.contexts, 0))
@@ -514,7 +514,7 @@ class MatrixBGENReader(
     case _ => false
   }
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
+  override def lower(ctx: ExecuteContext, requestedType: TableType, semhash: SemanticHash.Type): TableStage = {
 
     val globals = lowerGlobals(ctx, requestedType.globalType)
     variants match {

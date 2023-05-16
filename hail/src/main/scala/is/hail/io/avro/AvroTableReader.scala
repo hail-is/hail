@@ -2,6 +2,7 @@ package is.hail.io.avro
 
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
+import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.physical.{PCanonicalStruct, PCanonicalTuple, PInt64Required}
@@ -44,12 +45,12 @@ class AvroTableReader(
 
   def renderShort(): String = defaultRender()
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
-    val ts = lower(ctx, requestedType)
+  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean, semhash: SemanticHash.Type): TableValue = {
+    val ts = lower(ctx, requestedType, semhash)
     new TableStageIntermediate(ts).asTableValue(ctx)
   }
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
+  override def lower(ctx: ExecuteContext, requestedType: TableType, semhash: SemanticHash.Type): TableStage = {
     val globals = MakeStruct(FastIndexedSeq())
     val contexts = zip2(ToStream(Literal(TArray(TString), paths)), StreamIota(I32(0), I32(1)), ArrayZipBehavior.TakeMinLength) { (path, idx) =>
       MakeStruct(Array("partitionPath" -> path, "partitionIndex" -> Cast(idx, TInt64)))

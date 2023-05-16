@@ -64,12 +64,15 @@ object LowerAndExecuteShuffles {
 
         val analyses = LoweringAnalyses(partiallyAggregated, ctx)
         val preShuffleStage = ctx.backend.tableToTableStage(ctx, partiallyAggregated, analyses)
+
         // annoying but no better alternative right now
         val rt = analyses.requirednessAnalysis.lookup(partiallyAggregated).asInstanceOf[RTable]
         val partiallyAggregatedReader = ctx.backend.lowerDistributedSort(ctx,
           preShuffleStage,
           newKeyType.fieldNames.map(k => SortField(k, Ascending)),
-          rt)
+          rt,
+          analyses.semhash(t)
+        )
 
         val takeVirtualSig = TakeStateSig(VirtualTypeWithReq(newKeyType, rt.rowType.select(newKeyType.fieldNames)))
         val takeAggSig = PhysicalAggSig(Take(), takeVirtualSig)

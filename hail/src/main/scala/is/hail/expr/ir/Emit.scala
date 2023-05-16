@@ -33,8 +33,7 @@ object EmitContext {
       val requiredness = Requiredness.apply(ir, usesAndDefs, null, pTypeEnv)
       val inLoopCriticalPath = ControlFlowPreventsSplit(ir, ParentPointers(ir), usesAndDefs)
       val methodSplits = ComputeMethodSplits(ctx, ir, inLoopCriticalPath)
-      val (_, semhashs) = SemanticHash(ctx.fs)(ir)
-      new EmitContext(ctx, requiredness, usesAndDefs, methodSplits, inLoopCriticalPath, Memo.empty[Unit], semhashs)
+      new EmitContext(ctx, requiredness, usesAndDefs, methodSplits, inLoopCriticalPath, Memo.empty[Unit])
     }
   }
 }
@@ -45,8 +44,7 @@ class EmitContext(
   val usesAndDefs: UsesAndDefs,
   val methodSplits: Memo[Unit],
   val inLoopCriticalPath: Memo[Unit],
-  val tryingToSplit: Memo[Unit],
-  val semhash: Memo[SemanticHash.Hash.Type]
+  val tryingToSplit: Memo[Unit]
 )
 
 case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[EmitValue]) {
@@ -2475,31 +2473,27 @@ class Emit[C](
           val stageName = cb.newLocal[String]("stagename")
           cb.assign(stageName, staticID)
 
-          val semhash = cb.newLocal[SemanticHash.Hash.Type]("semhash")
-          cb.assign(semhash, ctx.semhash.lookup(x))
-
-          IRTraversal.postOrder(x).foreach { y =>
-            log.info(s"[${ctx.semhash.lookup(y)}]: $y")
-          }
+          val semhash = cb.newLocal[SemanticHash.Type]("semhash")
+          cb.assign(semhash, x.semhash)
           
           emitI(dynamicID).consume(cb, (), { dynamicID =>
             val dynV = dynamicID.asString.loadString(cb)
             cb.assign(stageName, stageName.concat("|").concat(dynV))
             cb.assign(semhash, {
               val dynamicHash =
-                Code.invokeScalaObject[SemanticHash.Hash.Type](
-                  SemanticHash.Hash.getClass, "apply", Array(classOf[String]), Array(dynV)
+                Code.invokeScalaObject[SemanticHash.Type](
+                  SemanticHash.Type.getClass, "apply", Array(classOf[String]), Array(dynV)
                 )
 
-              Code.newInstance[SemanticHash.MagmaHash, SemanticHash.Hash.Type](semhash)
-                .invoke[SemanticHash.Hash.Type, SemanticHash.Hash.Type]("$less$greater",
+              Code.newInstance[SemanticHash.Implicits.MagmaHashType, SemanticHash.Type](semhash)
+                .invoke[SemanticHash.Type, SemanticHash.Type]("$less$greater",
                   dynamicHash
                 )
             })
           })
 
           val encRes = cb.newLocal[Array[Array[Byte]]]("encRes")
-          cb.assign(encRes, spark.invoke[BackendContext, HailClassLoader, FS, String, Array[Array[Byte]], Array[Byte], String, SemanticHash.Hash.Type, Option[TableStageDependency], Array[Array[Byte]]](
+          cb.assign(encRes, spark.invoke[BackendContext, HailClassLoader, FS, String, Array[Array[Byte]], Array[Byte], String, SemanticHash.Type, Option[TableStageDependency], Array[Array[Byte]]](
             "collectDArray",
             mb.getObject(ctx.executeContext.backendContext),
             mb.getHailClassLoader,

@@ -1,7 +1,6 @@
 package is.hail.expr.ir.analyses
 
 import is.hail.expr.ir._
-import is.hail.expr.ir.analyses.SemanticHash.Hash
 import is.hail.io.FakeFS
 import is.hail.io.fs.FS
 import is.hail.types.TableType
@@ -17,7 +16,6 @@ class SemanticHashSuite {
     def mkTableIR(ttype: TableType, path: String): TableIR =
       TableRead(ttype, dropRows = false, new FakeTableReader() {
         override def pathsUsed: Seq[String] = IndexedSeq(path)
-
         override def fullType: TableType = ttype
       })
 
@@ -102,7 +100,7 @@ class SemanticHashSuite {
     )
 
 
-  val semhash: BaseIR => Hash.Type =
+  val semhash: BaseIR => SemanticHash.Type =
     ir => SemanticHash(fakeFs)(ir)._1
 
 

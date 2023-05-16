@@ -1,12 +1,13 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.expr.ir.functions.IRRandomness
-import is.hail.expr.ir.{Apply, ApplyBinaryPrimOp, Ascending, Descending, ErrorIDs, GetField, I32, IR, Literal, LoweringAnalyses, MakeStruct, Ref, Requiredness, RequirednessAnalysis, SelectFields, SortField, TableIR, TableMapRows, TableRange, ToArray, ToStream, mapIR}
-import is.hail.{ExecStrategy, HailContext, HailSuite, TestUtils}
+import is.hail.expr.ir.analyses.SemanticHash
+import is.hail.expr.ir.analyses.SemanticHash.Implicits._
 import is.hail.expr.ir.lowering.LowerDistributedSort.samplePartition
+import is.hail.expr.ir.{Apply, Ascending, Descending, ErrorIDs, GetField, I32, Literal, LoweringAnalyses, MakeStruct, Ref, SelectFields, SortField, TableIR, TableMapRows, TableRange, ToArray, ToStream, mapIR}
 import is.hail.types.RTable
 import is.hail.types.virtual.{TArray, TInt32, TStruct}
 import is.hail.utils.FastIndexedSeq
+import is.hail.{ExecStrategy, HailSuite, TestUtils}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -41,9 +42,11 @@ class LowerDistributedSortSuite extends HailSuite {
       val rt = analyses.requirednessAnalysis.lookup(myTable).asInstanceOf[RTable]
       val stage = LowerTableIR.applyTable(myTable, DArrayLowering.All, ctx, analyses)
 
-      val sortedTs = LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt)
-        .lower(ctx, myTable.typ.copy(key = FastIndexedSeq()))
-      val res = TestUtils.eval(sortedTs.mapCollect("test")(x => ToArray(x))).asInstanceOf[IndexedSeq[IndexedSeq[Row]]].flatten
+      val sortedTs = LowerDistributedSort
+        .distributedSort(ctx, stage, sortFields, rt, analyses.semhash(myTable) <> SemanticHash.Type("distributed-sort"))
+        .lower(ctx, myTable.typ.copy(key = FastIndexedSeq()), analyses.semhash(myTable) <> SemanticHash.Type("test-helper"))
+
+      val res = TestUtils.eval(sortedTs.mapCollect("test", analyses.semhash(myTable))(x => ToArray(x))).asInstanceOf[IndexedSeq[IndexedSeq[Row]]].flatten
 
       val rowFunc = myTable.typ.rowType.select(sortFields.map(_.field))._2
       val unsortedCollect = is.hail.expr.ir.TestUtils.collect(myTable)

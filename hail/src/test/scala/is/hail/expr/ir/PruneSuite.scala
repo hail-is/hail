@@ -109,21 +109,8 @@ class PruneSuite extends HailSuite {
     false).analyzeAndExecute(ctx).asTableValue(ctx),
     theHailClassLoader)
 
-  lazy val tr = TableRead(tab.typ, false, new TableReader {
-    override def renderShort(): String = ???
-
-    def pathsUsed: IndexedSeq[String] = FastSeq()
-
-    override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = ???
-
-    def partitionCounts: Option[IndexedSeq[Long]] = ???
-
-    override def rowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
-      ???
-
-    override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
-      ???
-
+  lazy val tr = TableRead(tab.typ, false, new FakeTableReader {
+    override def pathsUsed: Seq[String] = Seq.empty
     override def fullType: TableType = tab.typ
   })
 

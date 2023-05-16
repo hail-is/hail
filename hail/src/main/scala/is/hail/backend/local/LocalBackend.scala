@@ -3,6 +3,7 @@ package is.hail.backend.local
 import is.hail.annotations.{Region, SafeRow, UnsafeRow}
 import is.hail.asm4s._
 import is.hail.backend._
+import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{IRParser, _}
 import is.hail.expr.{JSONAnnotationImpex, Validate}
@@ -320,14 +321,14 @@ class LocalBackend(
     }
   }
 
-  def lowerDistributedSort(
+  override def lowerDistributedSort(
     ctx: ExecuteContext,
     stage: TableStage,
     sortFields: IndexedSeq[SortField],
-    rt: RTable
+    rt: RTable,
+    semhash: SemanticHash.Type
   ): TableReader = {
-
-    LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt)
+    LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt, semhash)
   }
 
   def pyLoadReferencesFromDataset(path: String): String = {

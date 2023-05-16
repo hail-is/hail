@@ -1,11 +1,12 @@
 package is.hail.expr.ir
 import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.analyses.SemanticHash.Type
 import is.hail.types.{TableType, VirtualTypeWithReq}
 
 class FakeTableReader extends TableReader {
   override def pathsUsed: Seq[String] = ???
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = ???
+  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean, semhash: Type): TableValue = ???
 
   override def partitionCounts: Option[IndexedSeq[Long]] = ???
 

@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend._
 import is.hail.expr.Validate
+import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{Compile, IR, IRParser, LoweringAnalyses, MakeTuple, SortField, TableIR, TableReader, TypeCheck}
@@ -340,12 +341,13 @@ class ServiceBackend(
     execute(ctx, IRParser.parse_value_ir(ctx, code), bufferSpecString)
   }
 
-  def lowerDistributedSort(
+  override def lowerDistributedSort(
     ctx: ExecuteContext,
     inputStage: TableStage,
     sortFields: IndexedSeq[SortField],
-    rt: RTable
-  ): TableReader = LowerDistributedSort.distributedSort(ctx, inputStage, sortFields, rt)
+    rt: RTable,
+    semhash: SemanticHash.Type
+  ): TableReader = LowerDistributedSort.distributedSort(ctx, inputStage, sortFields, rt, semhash)
 
   def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String): Unit = ???
 

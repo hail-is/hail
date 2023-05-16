@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering.TableStage
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.expr.{JSONAnnotationImpex, Nat}
@@ -50,23 +51,24 @@ case class WrappedMatrixWriter(writer: MatrixWriter,
   colKey: IndexedSeq[String]) extends TableWriter {
   def path: String = writer.path
 
-  override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR =
-    writer.lower(colsFieldName, entriesFieldName, colKey, ctx, ts, r)
+  override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.Type): IR =
+    writer.lower(colsFieldName, entriesFieldName, colKey, ctx, ts, r, semhash)
 }
 
 abstract class MatrixWriter {
   def path: String
 
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = {
+  def apply(ctx: ExecuteContext, mv: MatrixValue, semhash: SemanticHash.Type): Unit = {
     val tv = mv.toTableValue
     val ts = TableExecuteIntermediate(tv).asTableStage(ctx)
     CompileAndEvaluate(ctx, lower(LowerMatrixIR.colsFieldName, MatrixType.entriesIdentifier,
-      mv.typ.colKey, ctx, ts, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable]
+      mv.typ.colKey, ctx, ts, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable],
+      semhash
     ))
   }
 
   def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
-    ctx: ExecuteContext, ts: TableStage, r: RTable): IR
+    ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.Type): IR
 }
 
 case class MatrixNativeWriter(
@@ -79,7 +81,7 @@ case class MatrixNativeWriter(
 ) extends MatrixWriter {
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
-    ctx: ExecuteContext, tablestage: TableStage, r: RTable): IR = {
+    ctx: ExecuteContext, tablestage: TableStage, r: RTable, semhash: SemanticHash.Type): IR = {
     val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
     val tm = MatrixType.fromTableType(tablestage.tableType, colsFieldName, entriesFieldName, colKey)
     val rm = r.asMatrixType(colsFieldName, entriesFieldName)
@@ -90,7 +92,7 @@ case class MatrixNativeWriter(
         val jv = JsonMethods.parse(partitions)
         val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, partitionsType)
           .asInstanceOf[IndexedSeq[Interval]]
-        tablestage.repartitionNoShuffle(ctx, new RVDPartitioner(ctx.stateManager, tm.rowKey.toArray, tm.rowKeyStruct, rangeBounds))
+        tablestage.repartitionNoShuffle(ctx, new RVDPartitioner(ctx.stateManager, tm.rowKey.toArray, tm.rowKeyStruct, rangeBounds), semhash)
       } else tablestage
 
     val rowSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(tm.rowType, rm.rowType), tm.rowType, bufferSpec)
@@ -134,7 +136,7 @@ case class MatrixNativeWriter(
                 zip2(oldCtx, ToStream(Literal(TArray(TString), partFiles.toFastIndexedSeq)), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
                   MakeStruct(FastSeq("oldCtx" -> ctxElt, "writeCtx" -> pf))
                 }
-              }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals("matrix_native_writer") { (rows, ctx) =>
+              }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals("matrix_native_writer", semhash) { (rows, ctx) =>
                 WritePartition(rows, GetField(ctx, "writeCtx"), rowWriter)
               } { (parts, globals) =>
                 val writeEmpty = WritePartition(MakeStream(FastSeq(makestruct()), TStream(TStruct.empty)), Str(partFile(1, 0)), emptyWriter)
@@ -418,7 +420,7 @@ case class MatrixVCFWriter(
   tabix: Boolean = false
 ) extends MatrixWriter {
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
-      ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
+      ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.Type): IR = {
     require(exportType != ExportType.PARALLEL_COMPOSABLE)
 
     val tm = MatrixType.fromTableType(ts.tableType, colsFieldName, entriesFieldName, colKey)
@@ -450,7 +452,7 @@ case class MatrixVCFWriter(
           "oldCtx" -> ctxElt,
           "partFile" -> pf))
       }
-    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals("matrix_vcf_writer") { (rows, ctxRef) =>
+    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals("matrix_vcf_writer", semhash) { (rows, ctxRef) =>
       val ctx = MakeStruct(FastSeq(
         "cols" -> GetField(ts.globals, colsFieldName),
         "partFile" -> (GetField(ctxRef, "partFile") + Str(ext))
@@ -872,7 +874,7 @@ case class MatrixGENWriter(
 ) extends MatrixWriter {
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
-      ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
+      ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.Type): IR = {
     val tm = MatrixType.fromTableType(ts.tableType, colsFieldName, entriesFieldName, colKey)
 
     val sampleWriter = new GenSampleWriter
@@ -889,7 +891,7 @@ case class MatrixGENWriter(
           "oldCtx" -> ctxElt,
           "partFile" -> pf))
       }
-    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals("matrix_gen_writer") { (rows, ctxRef) =>
+    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals("matrix_gen_writer", semhash) { (rows, ctxRef) =>
       WritePartition(rows, GetField(ctxRef, "partFile"), lineWriter)
     }{ (parts, globals) =>
       val cols = ToStream(GetField(globals, colsFieldName))
@@ -983,7 +985,7 @@ case class MatrixBGENWriter(
 ) extends MatrixWriter {
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
-      ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
+      ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.Type): IR = {
 
     val tm = MatrixType.fromTableType(TableType(ts.rowType, ts.key, ts.globalType), colsFieldName, entriesFieldName, colKey)
     val folder = if (exportType == ExportType.CONCATENATED)
@@ -1002,7 +1004,7 @@ case class MatrixBGENWriter(
     ts.mapContexts { oldCtx =>
       val d = digitsNeeded(ts.numPartitions)
       val partFiles = ToStream(Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"$folder/${ partFile(d, i) }-").toFastIndexedSeq))
-      val numVariants = if (writeHeader) ToStream(ts.countPerPartition()) else ToStream(MakeArray(Array.tabulate(ts.numPartitions)(_ => NA(TInt64)): _*))
+      val numVariants = if (writeHeader) ToStream(ts.countPerPartition(semhash)) else ToStream(MakeArray(Array.tabulate(ts.numPartitions)(_ => NA(TInt64)): _*))
 
       val ctxElt = Ref(genUID(), tcoerce[TStream](oldCtx.typ).elementType)
       val pf = Ref(genUID(), tcoerce[TStream](partFiles.typ).elementType)
@@ -1011,7 +1013,7 @@ case class MatrixBGENWriter(
       StreamZip(FastSeq(oldCtx, partFiles, numVariants), FastSeq(ctxElt.name, pf.name, nv.name),
         MakeStruct(FastSeq("oldCtx" -> ctxElt, "numVariants" -> nv, "partFile" -> pf)),
         ArrayZipBehavior.AssertSameLength)
-    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals("matrix_vcf_writer") { (rows, ctxRef) =>
+    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals("matrix_bgen_writer", semhash) { (rows, ctxRef) =>
       val ctx = MakeStruct(FastSeq(
         "cols" -> GetField(ts.globals, colsFieldName),
         "numVariants" -> GetField(ctxRef, "numVariants"),
@@ -1256,7 +1258,7 @@ case class MatrixPLINKWriter(
 ) extends MatrixWriter {
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
-      ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
+      ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.Type): IR = {
     val tm = MatrixType.fromTableType(ts.tableType, colsFieldName, entriesFieldName, colKey)
     val tmpBedDir = ctx.createTmpPath("export-plink", "bed")
     val tmpBimDir = ctx.createTmpPath("export-plink", "bim")
@@ -1272,7 +1274,7 @@ case class MatrixPLINKWriter(
           "oldCtx" -> ctxElt,
           "file" -> pf))
       }
-    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals("matrix_plink_writer") { (rows, ctxRef) =>
+    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals("matrix_plink_writer", semhash) { (rows, ctxRef) =>
       val bedFile = GetTupleElement(GetField(ctxRef, "file"), 0)
       val bimFile = GetTupleElement(GetField(ctxRef, "file"), 1)
       val ctx = MakeStruct(FastSeq("bedFile" -> bedFile, "bimFile" -> bimFile))
@@ -1412,7 +1414,7 @@ case class MatrixBlockMatrixWriter(
 ) extends MatrixWriter {
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
-    ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
+    ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.Type): IR = {
 
     val tm = MatrixType.fromTableType(ts.tableType, colsFieldName, entriesFieldName, colKey)
     val rm = r.asMatrixType(colsFieldName, entriesFieldName)
@@ -1422,7 +1424,7 @@ case class MatrixBlockMatrixWriter(
     val numBlockCols: Int = (numCols - 1) / blockSize + 1
     val lastBlockNumCols = numCols % blockSize
 
-    val rowCountIR = ts.mapCollect("matrix_block_matrix_writer_partition_counts")(paritionIR => StreamLen(paritionIR))
+    val rowCountIR = ts.mapCollect("matrix_block_matrix_writer_partition_counts", semhash)(paritionIR => StreamLen(paritionIR))
     val inputRowCountPerPartition: IndexedSeq[Int] = CompileAndEvaluate(ctx, rowCountIR).asInstanceOf[IndexedSeq[Int]]
     val inputPartStartsPlusLast = inputRowCountPerPartition.scanLeft(0L)(_ + _)
     val inputPartStarts = inputPartStartsPlusLast.dropRight(1)
@@ -1460,7 +1462,7 @@ case class MatrixBlockMatrixWriter(
     }
 
     val blockSizeGroupsPartitioner = RVDPartitioner.generate(ctx.stateManager, TStruct((perRowIdxId, TInt32)), desiredRowIntervals)
-    val rowsInBlockSizeGroups: TableStage = keyedByRowIdx.repartitionNoShuffle(ctx, blockSizeGroupsPartitioner)
+    val rowsInBlockSizeGroups: TableStage = keyedByRowIdx.repartitionNoShuffle(ctx, blockSizeGroupsPartitioner, semhash)
 
     def createBlockMakingContexts(tablePartsStreamIR: IR): IR = {
       flatten(zip2(tablePartsStreamIR, rangeIR(numBlockRows), ArrayZipBehavior.AssertSameLength) { case (tableSinglePartCtx, blockRowIdx)  =>
@@ -1508,7 +1510,7 @@ case class MatrixBlockMatrixWriter(
     val spec = TypedCodecSpec(etype, TNDArray(tm.entryType.fieldType(entryField), Nat(2)), BlockMatrix.bufferSpec)
     val writer = ETypeFileValueWriter(spec)
 
-    val pathsWithColMajorIndices = tableOfNDArrays.mapCollect("matrix_block_matrix_writer") { partition =>
+    val pathsWithColMajorIndices = tableOfNDArrays.mapCollect("matrix_block_matrix_writer", semhash) { partition =>
      ToArray(mapIR(partition) { singleNDArrayTuple =>
        bindIR(GetField(singleNDArrayTuple, "blockRowIdx") + (GetField(singleNDArrayTuple, "blockColIdx") * numBlockRows)) { colMajorIndex =>
          val blockPath = Str(s"$path/parts/part-") + invoke("str", TString, colMajorIndex)

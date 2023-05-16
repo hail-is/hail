@@ -4,6 +4,7 @@ import is.hail.annotations.{BroadcastRow, Region}
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkBackend
+import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.functions.UtilFunctions
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.expr.ir.streams.StreamProducer
@@ -162,7 +163,7 @@ class GenericTableValue(
   assert(contextType.fieldType("partitionIndex") == TInt32)
 
   var ltrCoercer: LoweredTableReaderCoercer = _
-  def getLTVCoercer(ctx: ExecuteContext, context: String, cacheKey: Any): LoweredTableReaderCoercer = {
+  def getLTVCoercer(ctx: ExecuteContext, context: String, semhash: SemanticHash.Type): LoweredTableReaderCoercer = {
     if (ltrCoercer == null) {
       ltrCoercer = LoweredTableReader.makeCoercer(
         ctx,
@@ -175,12 +176,13 @@ class GenericTableValue(
         bodyPType,
         body,
         context,
-        cacheKey)
+        semhash
+      )
     }
     ltrCoercer
   }
 
-  def toTableStage(ctx: ExecuteContext, requestedType: TableType, context: String, cacheKey: Any): TableStage = {
+  def toTableStage(ctx: ExecuteContext, requestedType: TableType, context: String, semhash: SemanticHash.Type): TableStage = {
     val globalsIR = Literal(requestedType.globalType, globals(requestedType.globalType))
     val requestedBody: (IR) => (IR) = (ctx: IR) => ReadPartition(ctx,
       requestedType.rowType,
@@ -200,11 +202,12 @@ class GenericTableValue(
       val contextsIR = ToStream(Literal(TArray(contextType), contexts))
       TableStage(globalsIR, p, TableStageDependency.none, contextsIR, requestedBody)
     } else {
-      getLTVCoercer(ctx, context, cacheKey).coerce(
+      getLTVCoercer(ctx, context, semhash).coerce(
         ctx,
         globalsIR,
         contextType, contexts,
-        requestedBody)
+        requestedBody
+      )
     }
   }
 

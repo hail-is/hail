@@ -5,6 +5,7 @@ import is.hail.asm4s.HailClassLoader
 import is.hail.backend.ExecuteContext
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
+import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering.TableStage
 import is.hail.io.fs.{FS, Seekable}
 import is.hail.io.vcf.LoadVCF
@@ -485,7 +486,7 @@ class MatrixPLINKReader(
       body)
   }
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue =
+  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean, semhash: SemanticHash.Type): TableValue =
     executeGeneric(ctx).toTableValue(ctx, requestedType)
 
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
@@ -494,8 +495,8 @@ class MatrixPLINKReader(
     Literal(requestedGlobalsType, subset(globals).asInstanceOf[Row])
   }
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
-    executeGeneric(ctx).toTableStage(ctx, requestedType, "PLINK file", params)
+  override def lower(ctx: ExecuteContext, requestedType: TableType, semhash: SemanticHash.Type): TableStage =
+    executeGeneric(ctx).toTableStage(ctx, requestedType, "PLINK file", semhash)
 
   override def toJValue: JValue = {
     implicit val formats: Formats = DefaultFormats

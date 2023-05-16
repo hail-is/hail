@@ -2,6 +2,7 @@ package is.hail.expr.ir
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency, TableStageToRVD}
 import is.hail.expr.ir.streams.StreamProducer
@@ -155,7 +156,7 @@ class StringTableReader(
 
   override def pathsUsed: Seq[String] = params.files
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
+  override def lower(ctx: ExecuteContext, requestedType: TableType, semhash: SemanticHash.Type): TableStage = {
     val fs = ctx.fs
     val lines = GenericLines.read(fs, fileStatuses, None, None, params.minPartitions, params.forceBGZ, params.forceGZ,
       params.filePerPartition)
@@ -168,8 +169,8 @@ class StringTableReader(
     )
   }
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
-    val ts = lower(ctx, requestedType)
+  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean, semhash: SemanticHash.Type): TableValue = {
+    val ts = lower(ctx, requestedType, semhash)
     val (broadCastRow, rvd) = TableStageToRVD.apply(ctx, ts)
     TableValue(ctx, requestedType, broadCastRow, rvd)
   }

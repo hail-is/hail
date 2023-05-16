@@ -3,6 +3,7 @@ package is.hail.rvd
 import is.hail.annotations._
 import is.hail.asm4s.{AsmFunction3RegionLongLongLong, HailClassLoader}
 import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.{JSONAnnotationImpex, ir}
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.expr.ir.{ArrayZipBehavior, IR, Literal, PartitionNativeReader, PartitionZippedIndexedNativeReader, PartitionZippedNativeReader, ReadPartition, Ref, ToStream}
@@ -99,7 +100,8 @@ object AbstractRVDSpec {
     filterIntervals: Boolean,
     requestedType: TStruct,
     requestedKey: IndexedSeq[String],
-    uidFieldName: String
+    uidFieldName: String,
+    semhash: SemanticHash.Type
   ): IR => TableStage = {
     require(specRight.key.isEmpty)
     val partitioner = specLeft.partitioner(ctx.stateManager)
@@ -183,9 +185,9 @@ object AbstractRVDSpec {
             contexts,
             body)
           if (filterIntervals)
-            ts.repartitionNoShuffle(ctx, partitioner, dropEmptyPartitions = true)
+            ts.repartitionNoShuffle(ctx, partitioner, semhash, dropEmptyPartitions = true)
           else
-            ts.repartitionNoShuffle(ctx, extendedNewPartitioner.coarsen(requestedKey.length))
+            ts.repartitionNoShuffle(ctx, extendedNewPartitioner.coarsen(requestedKey.length), semhash)
         }
     }
   }
@@ -218,7 +220,8 @@ abstract class AbstractRVDSpec {
     requestedType: TableType,
     uidFieldName: String,
     newPartitioner: Option[RVDPartitioner] = None,
-    filterIntervals: Boolean = false
+    filterIntervals: Boolean = false,
+    semhash: SemanticHash.Type
   ): IR => TableStage = newPartitioner match {
     case Some(_) => fatal("attempted to read unindexed data as indexed")
     case None =>
@@ -426,7 +429,8 @@ case class IndexedRVDSpec2(
     requestedType: TableType,
     uidFieldName: String,
     newPartitioner: Option[RVDPartitioner] = None,
-    filterIntervals: Boolean = false
+    filterIntervals: Boolean = false,
+    semhash: SemanticHash.Type
   ): IR => TableStage = newPartitioner match {
     case Some(np) =>
 
@@ -469,12 +473,12 @@ case class IndexedRVDSpec2(
           TableStageDependency.none,
           contexts,
           body)
-        if (filterIntervals) ts.repartitionNoShuffle(ctx, part, dropEmptyPartitions = true)
-        else ts.repartitionNoShuffle(ctx, extendedNP)
+        if (filterIntervals) ts.repartitionNoShuffle(ctx, part, semhash, dropEmptyPartitions = true)
+        else ts.repartitionNoShuffle(ctx, extendedNP, semhash)
       }
 
     case None =>
-      super.readTableStage(ctx, path, requestedType, uidFieldName, newPartitioner, filterIntervals)
+      super.readTableStage(ctx, path, requestedType, uidFieldName, newPartitioner, filterIntervals, semhash)
   }
 }
 

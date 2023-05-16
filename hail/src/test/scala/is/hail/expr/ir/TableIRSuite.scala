@@ -821,19 +821,9 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testPartitionCountsWithDropRows() {
-    val tr = new TableReader {
-      override def renderShort(): String = ???
-
-      def pathsUsed: Seq[String] = FastSeq()
-
-      override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = ???
-
+    val tr = new FakeTableReader {
+      override def pathsUsed: Seq[String] = Seq.empty
       override def partitionCounts: Option[IndexedSeq[Long]] = Some(FastIndexedSeq(1, 2, 3, 4))
-
-      override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = ???
-
-      override def rowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = ???
-
       override def fullType: TableType = TableType(TStruct(), FastIndexedSeq(), TStruct.empty)
     }
     val tir = TableRead(tr.fullType, true, tr)

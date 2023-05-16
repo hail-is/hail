@@ -30,7 +30,7 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
                     contexts: Array[Array[Byte]],
                     globals: Array[Byte],
                     stageName: String,
-                    semhash: SemanticHash.Hash.Type,
+                    semhash: SemanticHash.Type,
                     tsd: Option[TableStageDependency]
                    ): Array[Array[Byte]] = {
     log.info(s"[collectDArray|$stageName]: querying cache for $semhash")

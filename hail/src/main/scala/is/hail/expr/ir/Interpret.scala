@@ -12,6 +12,7 @@ import is.hail.utils._
 import is.hail.HailContext
 import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.backend.spark.SparkTaskContext
+import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeType}
 import is.hail.types.tcoerce
 import org.apache.spark.sql.Row
@@ -862,7 +863,7 @@ object Interpret {
         val tvs = children.map(_.analyzeAndExecute(ctx).asTableValue(ctx))
         writer(ctx, tvs)
       case TableWrite(child, writer) =>
-        writer(ctx, child.analyzeAndExecute(ctx).asTableValue(ctx))
+        writer(ctx, child.analyzeAndExecute(ctx).asTableValue(ctx), SemanticHash.unique)
       case BlockMatrixWrite(child, writer) =>
         writer(ctx, child.execute(ctx))
       case BlockMatrixMultiWrite(blockMatrices, writer) =>
