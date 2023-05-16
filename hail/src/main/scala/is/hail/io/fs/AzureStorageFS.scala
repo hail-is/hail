@@ -269,6 +269,23 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     new WrappedSeekableDataInputStream(is)
   }
 
+  override def readNoCompression(filename: String): Array[Byte] = handlePublicAccessError(filename) {
+    val url = AzureStorageFS.parseUrl(filename)
+    val client = getBlobClient(url)
+    val size = client.getProperties.getBlobSize
+    if (size < 2 * 1024 * 1024 * 1024) { // https://learn.microsoft.com/en-us/java/api/com.azure.storage.blob.specialized.blobclientbase?view=azure-java-stable#com-azure-storage-blob-specialized-blobclientbase-downloadcontent()
+      retryTransientErrors {
+        client.downloadContent().toBytes()
+      }
+    } else {
+      val baos = new ByteArrayOutputStream()
+      retryTransientErrors {
+        client.downloadStream(baos)
+      }
+      baos.toByteArray()
+    }
+  }
+
   def createNoCompression(filename: String): PositionedDataOutputStream = retryTransientErrors {
     val blockBlobClient = getBlobClient(AzureStorageFS.parseUrl(filename)).getBlockBlobClient
 

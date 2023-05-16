@@ -323,7 +323,9 @@ trait FS extends Serializable {
   def openNoCompression(filename: String, _debug: Boolean): SeekableDataInputStream
 
   def readNoCompression(filename: String): Array[Byte] = retryTransientErrors {
-    IOUtils.toByteArray(openNoCompression(filename))
+    using(openNoCompression(filename)) { is =>
+      IOUtils.toByteArray(is)
+    }
   }
 
   def createNoCompression(filename: String): PositionedDataOutputStream

@@ -2399,6 +2399,7 @@ def test_query_table_compound_key():
     ]
     assert hl.eval(queries) == expected
 
+
 def test_query_table_interval_key():
     f = new_temp_file(extension='ht')
 
@@ -2422,3 +2423,9 @@ def test_query_table_interval_key():
         [hl.Struct(idx=20, interval=hl.Interval(20, 70))],
     ]
     assert hl.eval(queries) == expected
+
+
+@pytest.mark.timeout(120)  # with sufficient available cores should take <=60s
+def test_large_number_of_partitions():
+    ht = hl.utils.range_table(1500, n_partitions=1500)
+    ht.collect()
