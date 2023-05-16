@@ -2195,6 +2195,9 @@ steps:
       - name: mitigate-bad-attempt-resources-trigger
         script: /io/sql/mitigate-bad-attempt-resources-trigger.sql
         online: true
+      - name: dedup-billing-project-users
+        script: /io/sql/dedup_billing_project_users.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
