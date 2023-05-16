@@ -39,12 +39,12 @@ if role == 'Master':
         'mkl<2020',
         'lxml<5',
         'https://github.com/hail-is/jgscm/archive/v0.1.13+hail.zip',
-        'ipykernel==4.10.*',
-        'ipywidgets==7.5.*',
-        'jupyter-console==6.0.*',
-        'nbconvert==5.6.*',
-        'notebook==6.0.*',
-        'qtconsole==4.5.*'
+        'ipykernel==6.22.0',
+        'ipywidgets==8.0.6',
+        'jupyter-console==6.6.3',
+        'nbconvert==7.3.1',
+        'notebook==6.5.4',
+        'qtconsole==5.4.2',
     ]
 
     # add user-requested packages
