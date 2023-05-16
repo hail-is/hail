@@ -486,7 +486,7 @@ class MatrixPLINKReader(
       body)
   }
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean, semhash: SemanticHash.Type): TableValue =
+  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean, semhash: SemanticHash.NextHash): TableValue =
     executeGeneric(ctx).toTableValue(ctx, requestedType)
 
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
@@ -495,8 +495,8 @@ class MatrixPLINKReader(
     Literal(requestedGlobalsType, subset(globals).asInstanceOf[Row])
   }
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType, semhash: SemanticHash.Type): TableStage =
-    executeGeneric(ctx).toTableStage(ctx, requestedType, "PLINK file", semhash)
+  override def lower(ctx: ExecuteContext, requestedType: TableType, semhash: SemanticHash.NextHash): TableStage =
+    executeGeneric(ctx).toTableStage(ctx, requestedType, "PLINK file", params,  semhash)
 
   override def toJValue: JValue = {
     implicit val formats: Formats = DefaultFormats

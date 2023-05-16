@@ -1,17 +1,11 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.{LoweringAnalyses, BaseIR, IR, PruneDeadFields, RewriteBottomUp, TableExecuteIntermediate, TableKeyBy, TableKeyByAndAggregate, TableOrderBy, TableReader, TableValue}
-import is.hail.types.virtual._
-import is.hail.types._
-import is.hail.expr.ir._
 import is.hail.expr.ir.agg.{Extract, PhysicalAggSig, TakeStateSig}
-import is.hail.io.TypedCodecSpec
-import is.hail.rvd.RVDPartitioner
-import is.hail.utils.{FastIndexedSeq, Interval}
-import org.apache.spark.sql.Row
-import org.json4s.JValue
-import org.json4s.JsonAST.JString
+import is.hail.expr.ir.{Requiredness, _}
+import is.hail.types._
+import is.hail.types.virtual._
+import is.hail.utils.FastIndexedSeq
 
 
 object LowerAndExecuteShuffles {
@@ -71,7 +65,7 @@ object LowerAndExecuteShuffles {
           preShuffleStage,
           newKeyType.fieldNames.map(k => SortField(k, Ascending)),
           rt,
-          analyses.semhash(t)
+          analyses.nextHash
         )
 
         val takeVirtualSig = TakeStateSig(VirtualTypeWithReq(newKeyType, rt.rowType.select(newKeyType.fieldNames)))

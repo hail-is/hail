@@ -42,12 +42,12 @@ object TableWriter {
 abstract class TableWriter {
   def path: String
 
-  def apply(ctx: ExecuteContext, tv: TableValue, semhash: SemanticHash.Type): Unit = {
+  def apply(ctx: ExecuteContext, tv: TableValue, semhash: SemanticHash.NextHash): Unit = {
     val tableStage = TableValueIntermediate(tv).asTableStage(ctx)
     CompileAndEvaluate(ctx, lower(ctx, tableStage, RTable.fromTableStage(ctx, tableStage), semhash))
   }
 
-  def lower(ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.Type): IR =
+  def lower(ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.NextHash): IR =
     throw new LowererUnsupportedOperation(s"${ this.getClass } does not have defined lowering!")
 
   def canLowerEfficiently: Boolean =
@@ -56,7 +56,7 @@ abstract class TableWriter {
 
 object TableNativeWriter {
   def lower(ctx: ExecuteContext, ts: TableStage, path: String, overwrite: Boolean, stageLocally: Boolean,
-    rowSpec: TypedCodecSpec, globalSpec: TypedCodecSpec, semhash: SemanticHash.Type): IR = {
+    rowSpec: TypedCodecSpec, globalSpec: TypedCodecSpec, semhash: SemanticHash.NextHash): IR = {
     // write out partitioner key, which may be stricter than table key
     val partitioner = ts.partitioner
     val pKey: PStruct = tcoerce[PStruct](rowSpec.decodedPType(partitioner.kType))
@@ -104,7 +104,7 @@ case class TableNativeWriter(
   codecSpecJSONStr: String = null
 ) extends TableWriter {
 
-  override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.Type): IR = {
+  override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.NextHash): IR = {
     val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
     val rowSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(ts.rowType, r.rowType), ts.rowType, bufferSpec)
     val globalSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(ts.globalType, r.globalType), ts.globalType, bufferSpec)
@@ -443,10 +443,10 @@ case class TableTextWriter(
 
   override def canLowerEfficiently: Boolean = exportType != ExportType.PARALLEL_COMPOSABLE
 
-  override def apply(ctx: ExecuteContext, tv: TableValue, semhash: SemanticHash.Type): Unit =
+  override def apply(ctx: ExecuteContext, tv: TableValue, semhash: SemanticHash.NextHash): Unit =
     tv.export(ctx, path, typesFile, header, exportType, delimiter)
 
-  override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.Type): IR = {
+  override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.NextHash): IR = {
     require(exportType != ExportType.PARALLEL_COMPOSABLE)
 
     val ext = ctx.fs.getCodecExtension(path)
@@ -605,7 +605,7 @@ case class TableNativeFanoutWriter(
   codecSpecJSONStr: String = null
 ) extends TableWriter {
 
-  override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.Type): IR = {
+  override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.NextHash): IR = {
     val partitioner = ts.partitioner
     val bufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
     val globalSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(ts.globalType, r.globalType), ts.globalType, bufferSpec)

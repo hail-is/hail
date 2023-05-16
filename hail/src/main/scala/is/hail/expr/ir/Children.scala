@@ -244,7 +244,7 @@ object Children {
     case BlockMatrixCollect(child) => Array(child)
     case BlockMatrixWrite(child, _) => Array(child)
     case BlockMatrixMultiWrite(blockMatrices, _) => blockMatrices
-    case CollectDistributedArray(ctxs, globals, _, _, body, dynamicID, _, _) => Array(ctxs, globals, body, dynamicID)
+    case CollectDistributedArray(ctxs, globals, _, _, body, dynamicID, _, _, _) => Array(ctxs, globals, body, dynamicID)
     case ReadPartition(path, _, _) => Array(path)
     case WritePartition(stream, ctx, _) => Array(stream, ctx)
     case WriteMetadata(writeAnnotations, _) => Array(writeAnnotations)

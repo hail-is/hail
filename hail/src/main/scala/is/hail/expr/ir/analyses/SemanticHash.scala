@@ -3,16 +3,16 @@ package is.hail.expr.ir.analyses
 import is.hail.expr.ir._
 import is.hail.io.fs.FS
 import is.hail.types.virtual._
-import is.hail.utils.{FastIndexedSeq, Logging, TreeTraversal}
+import is.hail.utils.Logging
 import org.apache.commons.codec.digest.MurmurHash3
 
 import java.util.UUID
-import scala.collection.mutable
 import scala.language.implicitConversions
 
 case object SemanticHash extends Logging {
 
   type Type = Int
+  type NextHash = () => Type
 
   // Picked from https://softwareengineering.stackexchange.com/a/145633
   object Type {
@@ -44,10 +44,10 @@ case object SemanticHash extends Logging {
   def unique: Type =
     Type(UUID.randomUUID.toString)
 
-  def apply(fs: FS)(root: BaseIR): (Type, Memo[Type]) = {
-    val env = mutable.HashMap.empty[String, BaseIR]
-    val memo = Memo.empty[Type]
-    for (ir <- TreeTraversal.postOrder(bindUEIRs(env))(root)) {
+  def apply(fs: FS)(root: BaseIR): NextHash = {
+    val memo = Memo.empty[SemanticHash.Type]
+    val normalized = new NormalizeNames(_.toString)(root)
+    for (ir <- IRTraversal.postOrder(normalized)) {
       memo.bind(ir, ir match {
         case Apply(fname, _, args, _, _) =>
           args.foldLeft(Type(classOf[Apply]) <> Type(fname))(_ <> memo(_))
@@ -103,10 +103,10 @@ case object SemanticHash extends Logging {
         // - The semantic hash of a (Relational)Ref cannot be the same as the value it binds to as
         //   that would imply that the evaluation of the value to is the same as evaluating the ref itself.
         case Ref(name, _) =>
-          Type(classOf[Ref]) <> memo(env(name))
+          Type(classOf[Ref]) <> Type(name)
 
         case RelationalRef(name, _) =>
-          Type(classOf[RelationalRef]) <> memo(env(name))
+          Type(classOf[RelationalRef]) <> Type(name)
 
         case SelectFields(struct, names) =>
           Type(classOf[SelectFields]) <> names.foldLeft(memo(struct))(_ <> Type(_))
@@ -116,6 +116,9 @@ case object SemanticHash extends Logging {
 
         case TableRead(_, _, reader) =>
           reader.pathsUsed.map(getFileHash(fs)).foldLeft(Type(classOf[TableRead]))(_ <> _)
+
+        case TableRange(count, numPartitions) =>
+          Type(classOf[TableRange]) <> Type(count) <> Type(numPartitions)
 
         case TableWrite(child, writer) =>
           Type(classOf[TableWrite]) <> memo(child) <> Type(writer.path)
@@ -215,72 +218,14 @@ case object SemanticHash extends Logging {
           log.info(s"SemanticHash unknown: ${ir.getClass.getName}")
           unique
       })
+
+      log.info(s"[${memo(ir)}]: $ir")
     }
-    (memo(root), memo)
+
+    val semhash = memo(normalized)
+    var count = 0
+    () => { val h = count; count += 1; semhash <> Type(h)}
   }
-
-  // Assume all upwardly-exposed IR bindings are in SSA form
-  def bindUEIRs(ueIRs: mutable.HashMap[String, BaseIR]): BaseIR => Iterator[BaseIR] = {
-    case ArraySort(array, x, y, lt) =>
-      assert(ueIRs.put(x, array).isEmpty)
-      assert(ueIRs.put(y, array).isEmpty)
-      FastIndexedSeq(array, lt).iterator
-
-    case CollectDistributedArray(contexts, globals, cname, gname, body, dynamicID, _, _) =>
-      assert(ueIRs.put(cname, contexts).isEmpty)
-      assert(ueIRs.put(gname, globals).isEmpty)
-      FastIndexedSeq(contexts, globals, body, dynamicID).iterator
-
-    case Let(name, value, body) =>
-      assert(ueIRs.put(name, value).isEmpty)
-      FastIndexedSeq(value, body).iterator
-
-    case RelationalLet(name, value, body) =>
-      assert(ueIRs.put(name, value).isEmpty)
-      FastIndexedSeq(value, body).iterator
-
-    case StreamDropWhile(stream, name, predicate) =>
-      assert(ueIRs.put(name, stream).isEmpty)
-      FastIndexedSeq(stream, predicate).iterator
-
-    case StreamFilter(stream, name, pred) =>
-      assert(ueIRs.put(name, stream).isEmpty)
-      FastIndexedSeq(stream, pred).iterator
-
-    case StreamFlatMap(stream, name, body) =>
-      assert(ueIRs.put(name, stream).isEmpty)
-      FastIndexedSeq(stream, body).iterator
-
-    case StreamFold(stream, zero, accumulator, value, body) =>
-      assert(ueIRs.put(accumulator, zero).isEmpty)
-      assert(ueIRs.put(value, stream).isEmpty)
-      FastIndexedSeq(stream, zero, body).iterator
-
-    case f@StreamFold2(stream, accumulator, value, _, _) =>
-      assert(accumulator.forall { case (name, zero) => ueIRs.put(name, zero).isEmpty })
-      assert(ueIRs.put(value, stream).isEmpty)
-      f.children.iterator
-
-    case StreamFor(stream, name, body) =>
-      assert(ueIRs.put(name, stream).isEmpty)
-      FastIndexedSeq(stream, body).iterator
-
-    case StreamMap(stream, name, body) =>
-      assert(ueIRs.put(name, stream).isEmpty)
-      FastIndexedSeq(stream, body).iterator
-
-    case StreamTakeWhile(stream, name, predicate) =>
-      assert(ueIRs.put(name, stream).isEmpty)
-      FastIndexedSeq(stream, predicate).iterator
-
-    case StreamZip(streams, names, body, _, _) =>
-      assert(names.zip(streams).forall { case (name, stream) => ueIRs.put(name, stream).isEmpty })
-      streams.iterator ++ Iterator.single(body)
-
-    case ir =>
-      ir.children.iterator
-  }
-
 }
 
 case object SemanticTypeName {

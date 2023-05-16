@@ -760,7 +760,7 @@ class SparkBackend(
     stage: TableStage,
     sortFields: IndexedSeq[SortField],
     rt: RTable,
-    semhash: SemanticHash.Type
+    semhash: SemanticHash.NextHash
   ): TableReader = {
     if (getFlag("use_new_shuffle") != null)
       return LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt, semhash)

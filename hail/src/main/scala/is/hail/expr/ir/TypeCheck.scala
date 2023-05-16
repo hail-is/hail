@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
-import is.hail.expr.Nat
 import is.hail.backend.ExecuteContext
+import is.hail.expr.Nat
 import is.hail.expr.ir.streams.StreamUtils
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
@@ -532,7 +532,7 @@ object TypeCheck {
       case BlockMatrixMultiWrite(_, _) =>
       case ValueToBlockMatrix(child, _, _) =>
         assert(child.typ.isInstanceOf[TArray] || child.typ.isInstanceOf[TNDArray] ||  child.typ == TFloat64)
-      case CollectDistributedArray(ctxs, globals, cname, gname, body, dynamicID, _, _) =>
+      case CollectDistributedArray(ctxs, globals, cname, gname, body, dynamicID, _, _, _) =>
         assert(ctxs.typ.isInstanceOf[TStream])
         assert(dynamicID.typ == TString)
       case x@ReadPartition(context, rowType, reader) =>

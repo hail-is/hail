@@ -11,12 +11,12 @@ import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.fs.FS
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
+import is.hail.types.physical.PStruct
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.{SStackStruct, SStackStructValue}
-import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStream, SStreamValue, primitive}
-import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Value}
-import is.hail.types.physical.{PStruct, PType}
-import is.hail.types.virtual.{TArray, TInt32, TInt64, TStruct, TTuple, Type}
+import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStreamValue, primitive}
+import is.hail.types.physical.stypes.primitives.SInt64
+import is.hail.types.virtual._
 import is.hail.types.{RStruct, TableType, TypeWithRequiredness}
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
@@ -163,7 +163,7 @@ class GenericTableValue(
   assert(contextType.fieldType("partitionIndex") == TInt32)
 
   var ltrCoercer: LoweredTableReaderCoercer = _
-  def getLTVCoercer(ctx: ExecuteContext, context: String, semhash: SemanticHash.Type): LoweredTableReaderCoercer = {
+  def getLTVCoercer(ctx: ExecuteContext, context: String, cacheKey: Any, semhash: SemanticHash.NextHash): LoweredTableReaderCoercer = {
     if (ltrCoercer == null) {
       ltrCoercer = LoweredTableReader.makeCoercer(
         ctx,
@@ -176,13 +176,14 @@ class GenericTableValue(
         bodyPType,
         body,
         context,
+        cacheKey,
         semhash
       )
     }
     ltrCoercer
   }
 
-  def toTableStage(ctx: ExecuteContext, requestedType: TableType, context: String, semhash: SemanticHash.Type): TableStage = {
+  def toTableStage(ctx: ExecuteContext, requestedType: TableType, context: String, cacheKey: Any, semhash: SemanticHash.NextHash): TableStage = {
     val globalsIR = Literal(requestedType.globalType, globals(requestedType.globalType))
     val requestedBody: (IR) => (IR) = (ctx: IR) => ReadPartition(ctx,
       requestedType.rowType,
@@ -202,7 +203,7 @@ class GenericTableValue(
       val contextsIR = ToStream(Literal(TArray(contextType), contexts))
       TableStage(globalsIR, p, TableStageDependency.none, contextsIR, requestedBody)
     } else {
-      getLTVCoercer(ctx, context, semhash).coerce(
+      getLTVCoercer(ctx, context, cacheKey, semhash).coerce(
         ctx,
         globalsIR,
         contextType, contexts,

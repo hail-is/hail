@@ -2366,7 +2366,7 @@ class Emit[C](
         val rt = loopRef.resultType
         IEmitCode(CodeLabel(), CodeLabel(), rt.st.defaultValue, rt.required)
 
-      case x@CollectDistributedArray(contexts, globals, cname, gname, body, dynamicID, staticID, tsd) =>
+      case x@CollectDistributedArray(contexts, globals, cname, gname, body, dynamicID, staticID, tsd, _) =>
         val parentCB = mb.ecb
         emitStream(contexts, cb, region).map(cb) { case ctxStream: SStreamValue =>
 
@@ -2474,7 +2474,7 @@ class Emit[C](
           cb.assign(stageName, staticID)
 
           val semhash = cb.newLocal[SemanticHash.Type]("semhash")
-          cb.assign(semhash, x.semhash)
+          cb.assign(semhash, x.semhash.get)
           
           emitI(dynamicID).consume(cb, (), { dynamicID =>
             val dynV = dynamicID.asString.loadString(cb)

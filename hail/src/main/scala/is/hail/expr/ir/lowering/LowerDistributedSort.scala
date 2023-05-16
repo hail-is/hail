@@ -20,10 +20,10 @@ import org.json4s.JsonAST.JString
 import scala.collection.mutable.ArrayBuffer
 
 object LowerDistributedSort {
-  def localSort(ctx: ExecuteContext, inputStage: TableStage, sortFields: IndexedSeq[SortField], rt: RTable, semhash: SemanticHash.Type): TableReader = {
+  def localSort(ctx: ExecuteContext, inputStage: TableStage, sortFields: IndexedSeq[SortField], rt: RTable, nextHash: SemanticHash.NextHash): TableReader = {
 
     val numPartitions = inputStage.partitioner.numPartitions
-    val collected = inputStage.collectWithGlobals("shuffle_local_sort", semhash)
+    val collected = inputStage.collectWithGlobals("shuffle_local_sort", nextHash)
 
     val (Some(PTypeReferenceSingleCodeType(resultPType: PStruct)), f) = ctx.timer.time("LowerDistributedSort.localSort.compile")(Compile[AsmFunction1RegionLong](ctx,
       FastIndexedSeq(),
@@ -71,9 +71,9 @@ object LowerDistributedSort {
 
     override def partitionCounts: Option[IndexedSeq[Long]] = None
 
-    override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean, semhash: SemanticHash.Type): TableValue = {
+    override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean, nextHash: SemanticHash.NextHash): TableValue = {
       assert(!dropRows)
-      TableExecuteIntermediate(lower(ctx, requestedType, semhash)).asTableValue(ctx)
+      TableExecuteIntermediate(lower(ctx, requestedType, nextHash)).asTableValue(ctx)
     }
 
     override def isDistinctlyKeyed: Boolean = false // FIXME: No default value
@@ -95,7 +95,7 @@ object LowerDistributedSort {
     override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
       PruneDeadFields.upcast(ctx, globals, requestedGlobalsType)
 
-    override def lower(ctx: ExecuteContext, requestedType: TableType, semhash: SemanticHash.Type): TableStage = {
+    override def lower(ctx: ExecuteContext, requestedType: TableType, nextHash: SemanticHash.NextHash): TableStage = {
       TableStage(
         globals = globals,
         partitioner = partitioner.coarsen(requestedType.key.length),
@@ -138,7 +138,7 @@ object LowerDistributedSort {
     inputStage: TableStage,
     sortFields: IndexedSeq[SortField],
     tableRequiredness: RTable,
-    semhash: SemanticHash.Type,
+    nextHash: SemanticHash.NextHash,
     optTargetNumPartitions: Option[Int] = None
   ): TableReader = {
 
@@ -162,7 +162,7 @@ object LowerDistributedSort {
     val writer = PartitionNativeWriter(spec, keyToSortBy.fieldNames, initialTmpPath, None, None, trackTotalBytes = true)
 
     log.info("DISTRIBUTED SORT: PHASE 1: WRITE DATA")
-    val initialStageDataRow = CompileAndEvaluate[Annotation](ctx, inputStage.mapCollectWithGlobals("shuffle_initial_write", semhash) { part =>
+    val initialStageDataRow = CompileAndEvaluate[Annotation](ctx, inputStage.mapCollectWithGlobals("shuffle_initial_write", nextHash) { part =>
       WritePartition(part, UUID4(), writer)
     }{ case (part, globals) =>
       val streamElement = Ref(genUID(), part.typ.asInstanceOf[TArray].elementType)
@@ -222,7 +222,7 @@ object LowerDistributedSort {
         "sizeOfPartition" -> TInt32,
         "numSamples" -> TInt32,
         "byteSize" -> TInt64)), perPartStatsCDAContextData))
-      val perPartStatsIR = cdaIR(perPartStatsCDAContexts, MakeStruct(FastIndexedSeq()), s"shuffle_part_stats_iteration_$i", semhash){ (ctxRef, _) =>
+      val perPartStatsIR = cdaIR(perPartStatsCDAContexts, MakeStruct(FastIndexedSeq()), s"shuffle_part_stats_iteration_$i", nextHash){ (ctxRef, _) =>
         val filenames = GetField(ctxRef, "files")
         val samples = SeqSample(GetField(ctxRef, "sizeOfPartition"), GetField(ctxRef, "numSamples"), NA(TRNGState), false)
         val partitionStream = flatMapIR(ToStream(filenames)) { fileName =>
@@ -344,7 +344,7 @@ object LowerDistributedSort {
         val distributeContexts = ToStream(Literal(TArray(TStruct("segmentIdx" -> TInt32, "files" -> TArray(TString), "partIdx" -> TInt32, "indexIntoPivotsArray" -> TInt32)), distributeContextsData))
         val distributeGlobals = MakeStruct(IndexedSeq("pivotsWithEndpointsGroupedBySegmentIdx" -> pivotsWithEndpointsGroupedBySegmentNumberLiteral))
 
-        val distribute = cdaIR(distributeContexts, distributeGlobals, s"shuffle_distribute_iteration_$i", semhash) { (ctxRef, globalsRef) =>
+        val distribute = cdaIR(distributeContexts, distributeGlobals, s"shuffle_distribute_iteration_$i", nextHash) { (ctxRef, globalsRef) =>
           val segmentIdx = GetField(ctxRef, "segmentIdx")
           val indexIntoPivotsArray = GetField(ctxRef, "indexIntoPivotsArray")
           val pivotsWithEndpointsGroupedBySegmentIdx = GetField(globalsRef, "pivotsWithEndpointsGroupedBySegmentIdx")
@@ -401,7 +401,7 @@ object LowerDistributedSort {
     val needSortingFilenames = loopState.smallSegments.map(_.chunks.map(_.filename))
     val needSortingFilenamesContext = Literal(TArray(TArray(TString)), needSortingFilenames)
 
-    val sortedFilenamesIR = cdaIR(ToStream(needSortingFilenamesContext), MakeStruct(FastIndexedSeq()), "shuffle_local_sort", semhash) { case (ctxRef, _) =>
+    val sortedFilenamesIR = cdaIR(ToStream(needSortingFilenamesContext), MakeStruct(FastIndexedSeq()), "shuffle_local_sort", nextHash) { case (ctxRef, _) =>
       val filenames = ctxRef
       val partitionInputStream = flatMapIR(ToStream(filenames)) { fileName =>
         ReadPartition(MakeStruct(Array("partitionIndex" -> I64(0), "partitionPath" -> fileName)), tcoerce[TStruct](spec._vType), reader)
@@ -614,9 +614,9 @@ case class DistributionSortReader(key: TStruct, keyed: Boolean, spec: TypedCodec
 
   override def partitionCounts: Option[IndexedSeq[Long]] = None
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean, semhash: SemanticHash.Type): TableValue = {
+  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean, nextHash: SemanticHash.NextHash): TableValue = {
     assert(!dropRows)
-    TableExecuteIntermediate(lower(ctx, requestedType, semhash)).asTableValue(ctx)
+    TableExecuteIntermediate(lower(ctx, requestedType, nextHash)).asTableValue(ctx)
   }
 
   override def isDistinctlyKeyed: Boolean = false // FIXME: No default value
@@ -638,7 +638,7 @@ case class DistributionSortReader(key: TStruct, keyed: Boolean, spec: TypedCodec
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
     PruneDeadFields.upcast(ctx, globals, requestedGlobalsType)
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType, semhash: SemanticHash.Type): TableStage = {
+  override def lower(ctx: ExecuteContext, requestedType: TableType, nextHash: SemanticHash.NextHash): TableStage = {
 
     val contextData = {
       var filesCount: Long = 0

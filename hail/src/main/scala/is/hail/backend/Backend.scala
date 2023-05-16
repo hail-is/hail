@@ -3,7 +3,7 @@ package is.hail.backend
 import is.hail.asm4s._
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.analyses.SemanticHash
-import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR, TableStage, TableStageDependency}
+import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.expr.ir.{CodeCacheKey, CompiledFunction, LoweringAnalyses, SortField, TableIR, TableReader}
 import is.hail.io.fs._
 import is.hail.linalg.BlockMatrix
@@ -89,7 +89,7 @@ abstract class Backend {
     stage: TableStage,
     sortFields: IndexedSeq[SortField],
     rt: RTable,
-    semhash: SemanticHash.Type
+    semhash: SemanticHash.NextHash
   ): TableReader
 
   final def lowerDistributedSort(
@@ -100,7 +100,7 @@ abstract class Backend {
   ): TableReader = {
     val analyses = LoweringAnalyses.apply(inputIR, ctx)
     val inputStage = tableToTableStage(ctx, inputIR, analyses)
-    lowerDistributedSort(ctx, inputStage, sortFields, rt, analyses.semhash(inputIR))
+    lowerDistributedSort(ctx, inputStage, sortFields, rt, analyses.nextHash)
   }
 
   def tableToTableStage(ctx: ExecuteContext,

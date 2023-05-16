@@ -326,9 +326,9 @@ class LocalBackend(
     stage: TableStage,
     sortFields: IndexedSeq[SortField],
     rt: RTable,
-    semhash: SemanticHash.Type
+    nextHash: SemanticHash.NextHash
   ): TableReader = {
-    LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt, semhash)
+    LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt, nextHash)
   }
 
   def pyLoadReferencesFromDataset(path: String): String = {

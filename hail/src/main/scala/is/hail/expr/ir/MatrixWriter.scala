@@ -51,14 +51,14 @@ case class WrappedMatrixWriter(writer: MatrixWriter,
   colKey: IndexedSeq[String]) extends TableWriter {
   def path: String = writer.path
 
-  override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.Type): IR =
+  override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.NextHash): IR =
     writer.lower(colsFieldName, entriesFieldName, colKey, ctx, ts, r, semhash)
 }
 
 abstract class MatrixWriter {
   def path: String
 
-  def apply(ctx: ExecuteContext, mv: MatrixValue, semhash: SemanticHash.Type): Unit = {
+  def apply(ctx: ExecuteContext, mv: MatrixValue, semhash: SemanticHash.NextHash): Unit = {
     val tv = mv.toTableValue
     val ts = TableExecuteIntermediate(tv).asTableStage(ctx)
     CompileAndEvaluate(ctx, lower(LowerMatrixIR.colsFieldName, MatrixType.entriesIdentifier,
@@ -68,7 +68,7 @@ abstract class MatrixWriter {
   }
 
   def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
-    ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.Type): IR
+    ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.NextHash): IR
 }
 
 case class MatrixNativeWriter(
@@ -81,7 +81,7 @@ case class MatrixNativeWriter(
 ) extends MatrixWriter {
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
-    ctx: ExecuteContext, tablestage: TableStage, r: RTable, semhash: SemanticHash.Type): IR = {
+    ctx: ExecuteContext, tablestage: TableStage, r: RTable, semhash: SemanticHash.NextHash): IR = {
     val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
     val tm = MatrixType.fromTableType(tablestage.tableType, colsFieldName, entriesFieldName, colKey)
     val rm = r.asMatrixType(colsFieldName, entriesFieldName)
@@ -420,7 +420,7 @@ case class MatrixVCFWriter(
   tabix: Boolean = false
 ) extends MatrixWriter {
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
-      ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.Type): IR = {
+      ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.NextHash): IR = {
     require(exportType != ExportType.PARALLEL_COMPOSABLE)
 
     val tm = MatrixType.fromTableType(ts.tableType, colsFieldName, entriesFieldName, colKey)
@@ -874,7 +874,7 @@ case class MatrixGENWriter(
 ) extends MatrixWriter {
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
-      ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.Type): IR = {
+      ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.NextHash): IR = {
     val tm = MatrixType.fromTableType(ts.tableType, colsFieldName, entriesFieldName, colKey)
 
     val sampleWriter = new GenSampleWriter
@@ -985,7 +985,7 @@ case class MatrixBGENWriter(
 ) extends MatrixWriter {
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
-      ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.Type): IR = {
+      ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.NextHash): IR = {
 
     val tm = MatrixType.fromTableType(TableType(ts.rowType, ts.key, ts.globalType), colsFieldName, entriesFieldName, colKey)
     val folder = if (exportType == ExportType.CONCATENATED)
@@ -1258,7 +1258,7 @@ case class MatrixPLINKWriter(
 ) extends MatrixWriter {
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
-      ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.Type): IR = {
+      ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.NextHash): IR = {
     val tm = MatrixType.fromTableType(ts.tableType, colsFieldName, entriesFieldName, colKey)
     val tmpBedDir = ctx.createTmpPath("export-plink", "bed")
     val tmpBimDir = ctx.createTmpPath("export-plink", "bim")
@@ -1414,7 +1414,7 @@ case class MatrixBlockMatrixWriter(
 ) extends MatrixWriter {
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
-    ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.Type): IR = {
+    ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.NextHash): IR = {
 
     val tm = MatrixType.fromTableType(ts.tableType, colsFieldName, entriesFieldName, colKey)
     val rm = r.asMatrixType(colsFieldName, entriesFieldName)

@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.utils._
 import is.hail.utils.StackSafe._
 
 class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = false) {
@@ -222,7 +221,7 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newAggBody <- normalize(aggBody, bodyEnv.bindEval(indexName, newIndexName))
           newKnownLength <- knownLength.mapRecur(normalize(_, env))
         } yield AggArrayPerElement(newA, newElementName, newIndexName, newAggBody, newKnownLength, isScan)
-      case CollectDistributedArray(ctxs, globals, cname, gname, body, dynamicID, staticID, tsd) =>
+      case CollectDistributedArray(ctxs, globals, cname, gname, body, dynamicID, staticID, tsd, semhash) =>
         val newC = gen()
         val newG = gen()
         for {
@@ -230,7 +229,7 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newGlobals <- normalize(globals)
           newBody <- normalize(body, BindingEnv.eval(cname -> newC, gname -> newG))
           newDynamicID <- normalize(dynamicID)
-        } yield CollectDistributedArray(newCtxs, newGlobals, newC, newG, newBody, newDynamicID, staticID, tsd)
+        } yield CollectDistributedArray(newCtxs, newGlobals, newC, newG, newBody, newDynamicID, staticID, tsd, semhash)
       case RelationalLet(name, value, body) =>
         for {
           newValue <- normalize(value, BindingEnv.empty)

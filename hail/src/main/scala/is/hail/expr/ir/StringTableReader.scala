@@ -8,13 +8,13 @@ import is.hail.expr.ir.lowering.{TableStage, TableStageDependency, TableStageToR
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.fs.{FS, FileStatus}
 import is.hail.rvd.RVDPartitioner
+import is.hail.types.physical._
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.{SJavaString, SStackStruct, SStackStructValue}
 import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStreamValue}
 import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Value}
-import is.hail.types.physical._
 import is.hail.types.virtual._
-import is.hail.types.{BaseTypeWithRequiredness, RStruct, TableType, TypeWithRequiredness, VirtualTypeWithReq}
+import is.hail.types.{BaseTypeWithRequiredness, RStruct, TableType, VirtualTypeWithReq}
 import is.hail.utils.{FastIndexedSeq, FastSeq, checkGzippedFile, fatal}
 import org.json4s.{Extraction, Formats, JValue}
 
@@ -156,7 +156,7 @@ class StringTableReader(
 
   override def pathsUsed: Seq[String] = params.files
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType, semhash: SemanticHash.Type): TableStage = {
+  override def lower(ctx: ExecuteContext, requestedType: TableType, semhash: SemanticHash.NextHash): TableStage = {
     val fs = ctx.fs
     val lines = GenericLines.read(fs, fileStatuses, None, None, params.minPartitions, params.forceBGZ, params.forceGZ,
       params.filePerPartition)
@@ -169,7 +169,7 @@ class StringTableReader(
     )
   }
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean, semhash: SemanticHash.Type): TableValue = {
+  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean, semhash: SemanticHash.NextHash): TableValue = {
     val ts = lower(ctx, requestedType, semhash)
     val (broadCastRow, rvd) = TableStageToRVD.apply(ctx, ts)
     TableValue(ctx, requestedType, broadCastRow, rvd)
