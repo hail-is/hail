@@ -94,6 +94,7 @@ module "batch" {
   batch_test_user_storage_account_name = var.batch_test_user_storage_account_name
   resource_group        = data.azurerm_resource_group.rg
   container_registry_id = azurerm_container_registry.acr.id
+  storage_account_suffix = var.storage_account_suffix
 }
 
 module "global_config" {
@@ -132,4 +133,5 @@ module "ci" {
   github_context                          = var.ci_config.github_context
   ci_and_deploy_github_oauth_token        = var.ci_config.ci_and_deploy_github_oauth_token
   ci_test_repo_creator_github_oauth_token = var.ci_config.ci_test_repo_creator_github_oauth_token
+  storage_account_suffix                  = var.storage_account_suffix
 }
