@@ -69,7 +69,7 @@ class InstanceCollectionManager:
         preemptible: bool,
         regions: List[str],
     ) -> str:
-        if self._default_region in regions and self.global_live_total_cores_mcpu // 1000 < 1_000:
+        if self._default_region in regions and self.global_total_provisioned_cores_mcpu // 1000 < 1_000:
             regions = [self._default_region]
         return self.location_monitor.choose_location(
             cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions
@@ -87,13 +87,15 @@ class InstanceCollectionManager:
         return result
 
     @property
-    def global_live_total_cores_mcpu(self):
+    def global_total_provisioned_cores_mcpu(self):
         return sum(
-            inst_coll.current_worker_version_stats.live_total_cores_mcpu for inst_coll in self.name_inst_coll.values()
+            instance_version_stats.live_total_cores_mcpu
+            for inst_coll in self.name_inst_coll.values()
+            for instance_version_stats in inst_coll.stats_by_instance_version.values()
         )
 
     @property
-    def global_live_free_cores_mcpu(self):
+    def global_current_version_live_free_cores_mcpu(self):
         return sum(
             inst_coll.current_worker_version_stats.live_free_cores_mcpu for inst_coll in self.name_inst_coll.values()
         )
@@ -101,8 +103,9 @@ class InstanceCollectionManager:
     @property
     def global_n_instances_by_state(self) -> Counter[str]:
         counters = [
-            collections.Counter(inst_coll.current_worker_version_stats.n_instances_by_state)
+            collections.Counter(instance_version_stats.n_instances_by_state)
             for inst_coll in self.name_inst_coll.values()
+            for instance_version_stats in inst_coll.stats_by_instance_version.values()
         ]
         result: Counter[str] = collections.Counter()
         for counter in counters:

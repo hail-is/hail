@@ -431,8 +431,8 @@ FROM user_inst_coll_resources;
         'n_instances_by_state': inst_coll_manager.global_n_instances_by_state,
         'instances': inst_coll_manager.name_instance.values(),
         'ready_cores_mcpu': ready_cores_mcpu,
-        'live_total_cores_mcpu': inst_coll_manager.global_live_total_cores_mcpu,
-        'live_free_cores_mcpu': inst_coll_manager.global_live_free_cores_mcpu,
+        'total_provisioned_cores_mcpu': inst_coll_manager.global_total_provisioned_cores_mcpu,
+        'live_free_cores_mcpu': inst_coll_manager.global_current_version_live_free_cores_mcpu,
         'frozen': app['frozen'],
     }
     return await render_template('batch-driver', request, userdata, 'index.html', page_context)

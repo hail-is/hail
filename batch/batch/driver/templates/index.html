@@ -4,7 +4,6 @@
   <h1>Globals</h1>
   <div class="attributes">
     <div>instance ID: {{ instance_id }}</div>
-    <div>ready cores: {{ ready_cores_mcpu / 1000 }}</div>
   </div>
 
   <div>
@@ -91,8 +90,8 @@
     <div>Active: {{ n_instances_by_state['active'] }}</div>
     <div>Inactive: {{ n_instances_by_state['inactive'] }}</div>
     <div>Deleted: {{ n_instances_by_state['deleted'] }}</div>
-    <div>live total cores: {{ live_total_cores_mcpu / 1000 }}</div>
-    <div>live free cores: {{ live_free_cores_mcpu / 1000 }}</div>
+    <div>Total provisioned cores: {{ total_provisioned_cores_mcpu / 1000 }}</div>
+    <div>Total schedulable cores: {{ live_free_cores_mcpu / 1000 }} / {{ total_provisioned_cores_mcpu / 1000 }}</div>
   </div>
   <table class="data-table" id="instances">
     <thead>
