@@ -51,13 +51,11 @@ log = logging.getLogger('auth')
 
 uvloop.install()
 
-
-deploy_config = get_deploy_config()
-
-
 CLOUD = get_global_config()['cloud']
 ORGANIZATION_DOMAIN = os.environ['HAIL_ORGANIZATION_DOMAIN']
 OAUTH2_CALLBACK_URL = os.environ['HAIL_OAUTH2_CALLBACK_URL']
+
+deploy_config = get_deploy_config()
 
 routes = web.RouteTableDef()
 
