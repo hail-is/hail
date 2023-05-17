@@ -25,38 +25,49 @@ class Tests(unittest.TestCase):
             'foo'
         )['foo'].dtype == hl.tstr
 
-    def test_annotate_intervals(self):
+    def test_annotate_intervals_bed1(self):
         ds = get_dataset()
-
         bed1 = hl.import_bed(resource('example1.bed'), reference_genome='GRCh37')
-        bed2 = hl.import_bed(resource('example2.bed'), reference_genome='GRCh37')
-        bed3 = hl.import_bed(resource('example3.bed'), reference_genome='GRCh37')
-        self.assertTrue(list(bed2.key.dtype) == ['interval'])
-        self.assertTrue(list(bed2.row.dtype) == ['interval', 'target'])
-
         interval_list1 = hl.import_locus_intervals(resource('exampleAnnotation1.interval_list'))
-        interval_list2 = hl.import_locus_intervals(resource('exampleAnnotation2.interval_list'))
-        self.assertTrue(list(interval_list2.key.dtype) == ['interval'])
-        self.assertTrue(list(interval_list2.row.dtype) == ['interval', 'target'])
 
         ann = ds.annotate_rows(in_interval=bed1[ds.locus]).rows()
-        self.assertTrue(ann.all((ann.locus.position <= 14000000) |
-                                (ann.locus.position >= 17000000) |
-                                (hl.is_missing(ann.in_interval))))
+        assert ann.all(hl.any(ann.locus.position <= 14000000,
+                              ann.locus.position >= 17000000,
+                              hl.is_missing(ann.in_interval)))
+        intervallist = ds.annotate_rows(in_interval=interval_list1[ds.locus]).rows()
+        bed = ds.annotate_rows(in_interval=bed1[ds.locus]).rows()
+        assert intervallist._same(bed)
 
-        for bed in [bed2, bed3]:
-            ann = ds.annotate_rows(target=bed[ds.locus].target).rows()
-            expr = (hl.case()
-                    .when(ann.locus.position <= 14000000, ann.target == 'gene1')
-                    .when(ann.locus.position >= 17000000, ann.target == 'gene2')
-                    .default(ann.target == hl.missing(hl.tstr)))
-            self.assertTrue(ann.all(expr))
+    def test_annotate_intervals_bed2(self):
+        ds = get_dataset()
+        bed2 = hl.import_bed(resource('example2.bed'), reference_genome='GRCh37')
+        assert list(bed2.key.dtype) == ['interval']
+        assert list(bed2.row.dtype) == ['interval', 'target']
 
-        self.assertTrue(ds.annotate_rows(in_interval=interval_list1[ds.locus]).rows()
-                        ._same(ds.annotate_rows(in_interval=bed1[ds.locus]).rows()))
+        interval_list2 = hl.import_locus_intervals(resource('exampleAnnotation2.interval_list'))
+        assert list(interval_list2.key.dtype) == ['interval']
+        assert list(interval_list2.row.dtype) == ['interval', 'target']
 
-        self.assertTrue(ds.annotate_rows(target=interval_list2[ds.locus].target).rows()
-                        ._same(ds.annotate_rows(target=bed2[ds.locus].target).rows()))
+        ann = ds.annotate_rows(target=bed2[ds.locus].target).rows()
+        expr = (hl.case()
+                .when(ann.locus.position <= 14000000, ann.target == 'gene1')
+                .when(ann.locus.position >= 17000000, ann.target == 'gene2')
+                .default(ann.target == hl.missing(hl.tstr)))
+        assert ann.all(expr)
+
+        intervallist = ds.annotate_rows(target=interval_list2[ds.locus].target).rows()
+        bed = ds.annotate_rows(target=bed2[ds.locus].target).rows()
+        assert intervallist._same(bed)
+
+    def test_annotate_intervals_bed3(self):
+        ds = get_dataset()
+        bed3 = hl.import_bed(resource('example3.bed'), reference_genome='GRCh37')
+        ann = ds.annotate_rows(target=bed3[ds.locus].target).rows()
+        expr = (hl.case()
+                .when(ann.locus.position <= 14000000, ann.target == 'gene1')
+                .when(ann.locus.position >= 17000000, ann.target == 'gene2')
+                .default(ann.target == hl.missing(hl.tstr)))
+        assert ann.all(expr)
 
     def test_maximal_independent_set(self):
         # prefer to remove nodes with higher index
