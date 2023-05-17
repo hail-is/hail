@@ -1350,7 +1350,6 @@ steps:
       valueFrom: hail_run_image.image
     script: |
       set -ex
-      cd /io/hail/python/hail
       python3 -m pytest \
               -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
               --log-cli-level=INFO \
@@ -1361,8 +1360,9 @@ steps:
               --durations=50 \
               --doctest-modules \
               --doctest-glob='*.rst' \
-              --ignore=docs/conf.py \
-              --ignore=docs/doctest_write_data.py
+              --ignore=/io/hail/python/hail/docs/conf.py \
+              --ignore=/io/hail/python/hail/docs/doctest_write_data.py \
+              /io/hail/python/hail
     inputs:
       - from: /repo/hail/python/hail
         to: /io/hail/python/hail
