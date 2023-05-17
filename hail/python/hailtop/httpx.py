@@ -277,7 +277,7 @@ class BlockingClientResponse:
         return self.client_response.history
 
     def __repr__(self) -> str:
-        return f'BlockingClientRepsonse({repr(self.client_response)})'
+        return f'BlockingClientRepsonse({self.client_response!r})'
 
     @property
     def status(self) -> int:
