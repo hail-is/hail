@@ -1158,12 +1158,12 @@ steps:
       - merge_code
   - kind: runImage
     name: test_hail_python
-    numSplits: 7
+    numSplits: 14
     image:
       valueFrom: hail_run_image.image
     resources:
       memory: standard
-      cpu: '2'
+      cpu: '1'
     script: |
       set -ex
       cd /io
@@ -1176,6 +1176,7 @@ steps:
       # pyspark/conf/core-site.xml already points at /gsa-key/key.json
       mv /test-gsa-key/key.json /gsa-key/key.json
 
+      export HAIL_QUERY_N_CORES=1
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}

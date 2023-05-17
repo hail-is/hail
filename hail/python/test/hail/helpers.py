@@ -9,12 +9,13 @@ import hail as hl
 
 
 GCS_REQUESTER_PAYS_PROJECT = os.environ.get('GCS_REQUESTER_PAYS_PROJECT')
+HAIL_QUERY_N_CORES = os.environ.get('HAIL_QUERY_N_CORES', '2')
 
 
 def startTestHailContext():
     backend_name = choose_backend()
     if backend_name == 'spark':
-        hl.init(master='local[2]', min_block_size=0, quiet=True, global_seed=0)
+        hl.init(master=f'local[{HAIL_QUERY_N_CORES}]', min_block_size=0, quiet=True, global_seed=0)
     else:
         hl.init(global_seed=0)
 
