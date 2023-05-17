@@ -751,7 +751,6 @@ SELECT frozen_merge_deploy FROM globals;
 
     async with await retry_transient_errors(
         app['client_session'].get_read_json,
-        'GET',
         deploy_config.url('auth', '/api/v1alpha/users'),
         headers=headers,
     ) as users:
