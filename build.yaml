@@ -2202,6 +2202,9 @@ steps:
       - name: fix-billing-triggers-deduped-resource-id
         script: /io/sql/fix-billing-triggers-deduped-resource-id.sql
         online: true
+      - name: set-test-and-dev-pools-to-16-core-max-4
+        script: /io/sql/set-test-and-dev-pools-to-max-4.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -2355,11 +2358,11 @@ steps:
       - create_certs
   - kind: runImage
     name: test_hail_python_service_backend
-    numSplits: 8
+    numSplits: 32
     image:
       valueFrom: hail_run_image.image
     resources:
-      cpu: '0.5'
+      cpu: '0.25'
       preemptible: False
     script: |
       set -ex
@@ -2405,7 +2408,7 @@ steps:
               -vv \
               --instafail \
               --durations=50 \
-              -n 6 \
+              -n 2 \
               --ignore=test/hailtop/ \
               test
     timeout: 5400
