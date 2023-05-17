@@ -184,7 +184,7 @@ class Step(abc.ABC):
         self.clouds = json.get('clouds')
         self.run_if_requested = json.get('runIfRequested', False)
 
-        self.token = params.token
+        self.token = generate_token()
 
     def input_config(self, code, scope):
         config = {}
