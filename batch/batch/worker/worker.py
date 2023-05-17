@@ -2817,7 +2817,7 @@ class Worker:
         self.file_store = FileStore(fs, BATCH_LOGS_STORAGE_URI, INSTANCE_ID)
         self.compute_client = CLOUD_WORKER_API.get_compute_client()
 
-        self.headers: Optional[Dict[str, str]] = None
+        self.instance_token = os.environ['ACTIVATION_TOKEN']
 
         self.cloudfuse_mount_manager = ReadOnlyCloudfuseManager()
 
@@ -2853,6 +2853,10 @@ class Worker:
         log.info(f'quarantined {jvm} and recreated a new jvm')
         new_jvm = await JVM.create(jvm.index, jvm.n_cores, self)
         self._jvms.add(new_jvm)
+
+    @property
+    def headers(self) -> Dict[str, str]:
+        return {'X-Hail-Instance-Name': NAME, 'X-Hail-Instance-Token': self.instance_token}
 
     async def shutdown(self):
         log.info('Worker.shutdown')
@@ -3225,9 +3229,9 @@ class Worker:
             self.client_session.post_read_json,
             deploy_config.url('batch-driver', '/api/v1alpha/instances/activate'),
             json={'ip_address': os.environ['IP_ADDRESS']},
-            headers={'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'},
+            headers=self.headers,
         )
-        self.headers = {'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {resp_json["token"]}'}
+        self.instance_token = resp_json['token']
         self.active = True
         self.last_updated = time_msecs()
 
