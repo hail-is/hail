@@ -43,10 +43,10 @@ FAST_CODEC_SPEC = """{
   "name": "LEB128BufferSpec",
   "child": {
     "name": "BlockingBufferSpec",
-    "blockSize": 32768,
+    "blockSize": 65536,
     "child": {
-      "name": "LZ4FastBlockBufferSpec",
-      "blockSize": 32768,
+      "name": "ZstdBlockBufferSpec",
+      "blockSize": 65536,
       "child": {
         "name": "StreamBlockBufferSpec"
       }
