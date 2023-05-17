@@ -1068,27 +1068,40 @@ class Tests(unittest.TestCase):
         f = hl._locus_windows_per_contig([[1.0, 3.0, 4.0], [2.0, 2.0], [5.0]], 1.0)
         assert hl.eval(f) == ([0, 1, 1, 3, 3, 5], [1, 3, 3, 5, 5, 6])
 
-    def test_locus_windows(self):
-        def assert_eq(a, b):
-            assert np.array_equal(a, np.array(b)), f"a={a}, b={b}"
+    def assert_np_arrays_eq(self, a, b):
+        assert np.array_equal(a, np.array(b)), f"a={a}, b={b}"
 
+    def test_locus_windows_1(self):
         centimorgans = hl.literal([0.1, 1.0, 1.0, 1.5, 1.9])
 
         mt = hl.balding_nichols_model(1, 5, 5).add_row_index()
         mt = mt.annotate_rows(cm=centimorgans[hl.int32(mt.row_idx)]).cache()
 
         starts, stops = hl.linalg.utils.locus_windows(mt.locus, 2)
-        assert_eq(starts, [0, 0, 0, 1, 2])
-        assert_eq(stops, [3, 4, 5, 5, 5])
+        self.assert_np_arrays_eq(starts, [0, 0, 0, 1, 2])
+        self.assert_np_arrays_eq(stops, [3, 4, 5, 5, 5])
+
+    def test_locus_windows_2(self):
+        centimorgans = hl.literal([0.1, 1.0, 1.0, 1.5, 1.9])
+
+        mt = hl.balding_nichols_model(1, 5, 5).add_row_index()
+        mt = mt.annotate_rows(cm=centimorgans[hl.int32(mt.row_idx)]).cache()
 
         starts, stops = hl.linalg.utils.locus_windows(mt.locus, 0.5, coord_expr=mt.cm)
-        assert_eq(starts, [0, 1, 1, 1, 3])
-        assert_eq(stops, [1, 4, 4, 5, 5])
+        self.assert_np_arrays_eq(starts, [0, 1, 1, 1, 3])
+        self.assert_np_arrays_eq(stops, [1, 4, 4, 5, 5])
+
+    def test_locus_windows_3(self):
+        centimorgans = hl.literal([0.1, 1.0, 1.0, 1.5, 1.9])
+
+        mt = hl.balding_nichols_model(1, 5, 5).add_row_index()
+        mt = mt.annotate_rows(cm=centimorgans[hl.int32(mt.row_idx)]).cache()
 
         starts, stops = hl.linalg.utils.locus_windows(mt.locus, 1.0, coord_expr=2 * centimorgans[hl.int32(mt.row_idx)])
-        assert_eq(starts, [0, 1, 1, 1, 3])
-        assert_eq(stops, [1, 4, 4, 5, 5])
+        self.assert_np_arrays_eq(starts, [0, 1, 1, 1, 3])
+        self.assert_np_arrays_eq(stops, [1, 4, 4, 5, 5])
 
+    def test_locus_windows_4(self):
         rows = [{'locus': hl.Locus('1', 1), 'cm': 1.0},
                 {'locus': hl.Locus('1', 2), 'cm': 3.0},
                 {'locus': hl.Locus('1', 4), 'cm': 4.0},
@@ -1101,46 +1114,74 @@ class Tests(unittest.TestCase):
                                   key=['locus'])
 
         starts, stops = hl.linalg.utils.locus_windows(ht.locus, 1)
-        assert_eq(starts, [0, 0, 2, 3, 3, 5])
-        assert_eq(stops, [2, 2, 3, 5, 5, 6])
+        self.assert_np_arrays_eq(starts, [0, 0, 2, 3, 3, 5])
+        self.assert_np_arrays_eq(stops, [2, 2, 3, 5, 5, 6])
 
+    def dummy_table_with_loci_and_cms():
+        rows = [{'locus': hl.Locus('1', 1), 'cm': 1.0},
+                {'locus': hl.Locus('1', 2), 'cm': 3.0},
+                {'locus': hl.Locus('1', 4), 'cm': 4.0},
+                {'locus': hl.Locus('2', 1), 'cm': 2.0},
+                {'locus': hl.Locus('2', 1), 'cm': 2.0},
+                {'locus': hl.Locus('3', 3), 'cm': 5.0}]
+
+        return hl.Table.parallelize(rows,
+                                    hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64),
+                                    key=['locus'])
+
+    def test_locus_windows_5(self):
+        ht = self.dummy_table_with_loci_and_cms()
         starts, stops = hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=ht.cm)
-        assert_eq(starts, [0, 1, 1, 3, 3, 5])
-        assert_eq(stops, [1, 3, 3, 5, 5, 6])
+        self.assert_np_arrays_eq(starts, [0, 1, 1, 3, 3, 5])
+        self.assert_np_arrays_eq(stops, [1, 3, 3, 5, 5, 6])
 
+    def test_locus_windows_6(self):
+        ht = self.dummy_table_with_loci_and_cms()
         with self.assertRaises(HailUserError) as cm:
             hl.linalg.utils.locus_windows(ht.order_by(ht.cm).locus, 1.0)
         assert 'ascending order' in str(cm.exception)
 
+    def test_locus_windows_7(self):
+        ht = self.dummy_table_with_loci_and_cms()
         with self.assertRaises(ExpressionException) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=hl.utils.range_table(1).idx)
         assert 'different source' in str(cm.exception)
 
+    def test_locus_windows_8(self):
+        ht = self.dummy_table_with_loci_and_cms()
         with self.assertRaises(ExpressionException) as cm:
             hl.linalg.utils.locus_windows(hl.locus('1', 1), 1.0)
         assert "no source" in str(cm.exception)
 
+    def test_locus_windows_9(self):
+        ht = self.dummy_table_with_loci_and_cms()
         with self.assertRaises(ExpressionException) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=0.0)
         assert "no source" in str(cm.exception)
 
+    def test_locus_windows_10(self):
+        ht = self.dummy_table_with_loci_and_cms()
         ht = ht.annotate_globals(x = hl.locus('1', 1), y = 1.0)
         with self.assertRaises(ExpressionException) as cm:
             hl.linalg.utils.locus_windows(ht.x, 1.0)
         assert "row-indexed" in str(cm.exception)
+
         with self.assertRaises(ExpressionException) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0, ht.y)
         assert "row-indexed" in str(cm.exception)
 
+    def test_locus_windows_11(self):
         ht = hl.Table.parallelize([{'locus': hl.missing(hl.tlocus()), 'cm': 1.0}],
                                   hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64), key=['locus'])
         with self.assertRaises(HailUserError) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0)
         assert "missing value for 'locus_expr'" in str(cm.exception)
+
         with self.assertRaises(HailUserError) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=ht.cm)
         assert "missing value for 'locus_expr'" in str(cm.exception)
 
+    def test_locus_windows_12(self):
         ht = hl.Table.parallelize([{'locus': hl.Locus('1', 1), 'cm': hl.missing(hl.tfloat64)}],
                                   hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64), key=['locus'])
         with self.assertRaises(FatalError) as cm:
