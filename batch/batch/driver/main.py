@@ -87,6 +87,13 @@ def instance_from_request(request):
     return inst_coll_manager.get_instance(instance_name)
 
 
+# Old workers use the Authorization header for their identity token
+# but that can conflict with bearer tokens used when the driver is behind another
+# auth mechanism
+def instance_token(request):
+    return request.headers.get('X-Hail-Instance-Token') or authorization_token(request)
+
+
 def activating_instances_only(fun):
     @wraps(fun)
     async def wrapped(request):
@@ -100,7 +107,7 @@ def activating_instances_only(fun):
             log.info(f'instance {instance.name} not pending')
             raise web.HTTPUnauthorized()
 
-        activation_token = authorization_token(request)
+        activation_token = instance_token(request)
         if not activation_token:
             log.info(f'activation token not found for instance {instance.name}')
             raise web.HTTPUnauthorized()
@@ -133,7 +140,7 @@ def active_instances_only(fun):
             log.info(f'instance not active {instance.name}')
             raise web.HTTPUnauthorized()
 
-        token = authorization_token(request)
+        token = instance_token(request)
         if not token:
             log.info(f'token not found for instance {instance.name}')
             raise web.HTTPUnauthorized()
