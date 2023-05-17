@@ -5,7 +5,7 @@ from ..helpers import *
 
 
 class Tests(unittest.TestCase):
-    def test_trio_matrix(self):
+    def test_trio_matrix_1(self):
         """
         This test depends on certain properties of the trio matrix VCF and
         pedigree structure. This test is NOT a valid test if the pedigree
@@ -49,9 +49,29 @@ class Tests(unittest.TestCase):
         tt = tt.select('fam', 'data').explode('data')
         tt = tt.filter(hl.is_defined(tt.data.g)).key_by('locus', 'alleles', 'fam')
 
-        self.assertEqual(et.key.dtype, tt.key.dtype)
-        self.assertEqual(et.row.dtype, tt.row.dtype)
-        self.assertTrue(et._same(tt))
+        assert et.key.dtype == tt.key.dtype
+        assert et.row.dtype == tt.row.dtype
+        assert et._same(tt)
+
+    def test_trio_matrix_2(self):
+        """
+        This test depends on certain properties of the trio matrix VCF and
+        pedigree structure. This test is NOT a valid test if the pedigree
+        includes quads: the trio_matrix method will duplicate the parents
+        appropriately, but the genotypes_table and samples_table orthogonal
+        paths would require another duplication/explode that we haven't written.
+        """
+        ped = hl.Pedigree.read(resource('triomatrix.fam'))
+        ht = hl.import_fam(resource('triomatrix.fam'))
+
+        mt = hl.import_vcf(resource('triomatrix.vcf'))
+        mt = mt.annotate_cols(fam=ht[mt.s].fam_id)
+
+        dads = ht.filter(hl.is_defined(ht.pat_id))
+        dads = dads.select(dads.pat_id, is_dad=True).key_by('pat_id')
+
+        moms = ht.filter(hl.is_defined(ht.mat_id))
+        moms = moms.select(moms.mat_id, is_mom=True).key_by('mat_id')
 
         # test annotations
         e_cols = (mt.cols()
@@ -73,9 +93,9 @@ class Tests(unittest.TestCase):
                                      hl.struct(role=2, sa=t_cols.mother)]).key_by('fam').select('data').explode('data')
         t_cols = t_cols.filter(hl.is_defined(t_cols.data.sa))
 
-        self.assertEqual(e_cols.key.dtype, t_cols.key.dtype)
-        self.assertEqual(e_cols.row.dtype, t_cols.row.dtype)
-        self.assertTrue(e_cols._same(t_cols))
+        assert e_cols.key.dtype == t_cols.key.dtype
+        assert e_cols.row.dtype == t_cols.row.dtype
+        assert e_cols._same(t_cols)
 
     def test_trio_matrix_null_keys(self):
         ped = hl.Pedigree.read(resource('triomatrix.fam'))
