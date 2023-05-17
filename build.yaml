@@ -1158,7 +1158,7 @@ steps:
       - merge_code
   - kind: runImage
     name: test_hail_python
-    numSplits: 14
+    numSplits: 28
     image:
       valueFrom: hail_run_image.image
     resources:
@@ -1327,7 +1327,7 @@ steps:
       - gcp
   - kind: runImage
     name: test_hail_python_local_backend
-    numSplits: 14
+    numSplits: 28
     image:
       valueFrom: hail_run_image.image
     script: |
