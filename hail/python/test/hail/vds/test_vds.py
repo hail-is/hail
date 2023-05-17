@@ -596,7 +596,7 @@ def test_truncate_reference_blocks():
     assert hl.vds.to_dense_mt(vds)._same(hl.vds.to_dense_mt(vds_trunc))
 
 
-def test_union_rows():
+def test_union_rows1():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
 
     vds1 = hl.vds.filter_intervals(vds,
@@ -609,6 +609,17 @@ def test_union_rows():
 
     vds_union = vds1.union_rows(vds2)
     assert hl.vds.to_dense_mt(vds)._same(hl.vds.to_dense_mt(vds_union))
+
+def test_union_rows2():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+
+    vds1 = hl.vds.filter_intervals(vds,
+                                   [hl.parse_locus_interval('chr22:start-10754094', reference_genome='GRCh38')],
+                                   split_reference_blocks=True)
+    vds2 = hl.vds.filter_intervals(vds,
+                                   [hl.parse_locus_interval('chr22:10754094-end', reference_genome='GRCh38')],
+                                   split_reference_blocks=True)
+
 
     vds1_trunc = hl.vds.truncate_reference_blocks(vds1, max_ref_block_base_pairs=50)
     vds2_trunc = hl.vds.truncate_reference_blocks(vds1, max_ref_block_base_pairs=75)
