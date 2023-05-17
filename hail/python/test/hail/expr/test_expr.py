@@ -3876,8 +3876,6 @@ def test_export_entry(delimiter, missing, header):
         actual = actual.drop('col_id')
         if not header:
             actual = actual.key_cols_by(col_idx = actual.col_idx + 1)
-        mt.show()
-        actual.show()
         assert mt._same(actual)
 
         expected_collect = [0, 0, 0,

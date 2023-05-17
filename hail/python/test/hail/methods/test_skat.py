@@ -479,8 +479,7 @@ def test_linear_skat_on_big_matrix():
     assert result.fault == 0
 
 
-
-def test_skat():
+def skat_dataset():
     ds2 = hl.import_vcf(resource('sample2.vcf'))
 
     covariates = (hl.import_table(resource("skat.cov"), impute=True)
@@ -508,7 +507,11 @@ def test_skat():
                                            hl.if_else(ds.pheno == 2.0,
                                                       True,
                                                       hl.missing(hl.tbool))))
+    return ds
 
+
+def test_skat_1():
+    ds = skat_dataset()
     hl.skat(key_expr=ds.gene,
             weight_expr=ds.weight,
             y=ds.pheno,
@@ -516,6 +519,8 @@ def test_skat():
             covariates=[1.0],
             logistic=False)._force_count()
 
+def test_skat_2():
+    ds = skat_dataset()
     hl.skat(key_expr=ds.gene,
             weight_expr=ds.weight,
             y=ds.pheno,
@@ -523,6 +528,8 @@ def test_skat():
             covariates=[1.0],
             logistic=True)._force_count()
 
+def test_skat_3():
+    ds = skat_dataset()
     hl.skat(key_expr=ds.gene,
             weight_expr=ds.weight,
             y=ds.pheno,
@@ -530,6 +537,8 @@ def test_skat():
             covariates=[1.0, ds.cov.Cov1, ds.cov.Cov2],
             logistic=False)._force_count()
 
+def test_skat_4():
+    ds = skat_dataset()
     hl.skat(key_expr=ds.gene,
             weight_expr=ds.weight,
             y=ds.pheno,
@@ -537,6 +546,8 @@ def test_skat():
             covariates=[1.0, ds.cov.Cov1, ds.cov.Cov2],
             logistic=True)._force_count()
 
+def test_skat_5():
+    ds = skat_dataset()
     hl.skat(key_expr=ds.gene,
             weight_expr=ds.weight,
             y=ds.pheno,
