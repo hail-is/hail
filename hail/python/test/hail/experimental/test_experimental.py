@@ -113,10 +113,7 @@ class Tests(unittest.TestCase):
                                    ht_20160['alleles'])
         assert ht_20160._force_count() == 151
 
-
-    @pytest.mark.unchecked_allocator
-    def test_ld_score_regression(self):
-
+    def get_ht_50_irnt():
         ht_scores = hl.import_table(
             doctest_resource('ld_score_regression.univariate_ld_scores.tsv'),
             key='SNP', types={'L2': hl.tfloat, 'BP': hl.tint})
@@ -141,6 +138,12 @@ class Tests(unittest.TestCase):
                                        ht_50_irnt['n'],
                                        ht_50_irnt['ld_score'],
                                        ht_50_irnt['phenotype'])
+        return ht_50_irnt
+
+    def get_ht_20160():
+        ht_scores = hl.import_table(
+            doctest_resource('ld_score_regression.univariate_ld_scores.tsv'),
+            key='SNP', types={'L2': hl.tfloat, 'BP': hl.tint})
 
         ht_20160 = hl.import_table(
             doctest_resource('ld_score_regression.20160.sumstats.tsv'),
@@ -162,6 +165,12 @@ class Tests(unittest.TestCase):
                                    ht_20160['n'],
                                    ht_20160['ld_score'],
                                    ht_20160['phenotype'])
+        return ht_20160
+
+    @pytest.mark.unchecked_allocator
+    def test_ld_score_regression_1(self):
+        ht_50_irnt = self.get_ht_50_irnt()
+        ht_20160 = self.get_ht_20160()
 
         ht = ht_50_irnt.union(ht_20160)
         mt = ht.to_matrix_table(row_key=['locus', 'alleles'],
@@ -223,6 +232,11 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(
             results['20160']['snp_heritability_standard_error'],
             0.0416, places=4)
+
+    @pytest.mark.unchecked_allocator
+    def test_ld_score_regression_2(self):
+        ht_50_irnt = self.get_ht_50_irnt()
+        ht_20160 = self.get_ht_20160()
 
         ht = ht_50_irnt.annotate(
             chi_squared_50_irnt=ht_50_irnt['chi_squared'],
