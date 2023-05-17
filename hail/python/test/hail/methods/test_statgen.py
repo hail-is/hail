@@ -543,6 +543,12 @@ class Tests(unittest.TestCase):
         assert not fit.exploded
         assert fit.converged
 
+    def equal_with_nans(self, arr1, arr2):
+        def both_nan_or_none(a, b):
+            return (a is None or not np.isfinite(a)) and (b is None or not np.isfinite(b))
+
+        return all([both_nan_or_none(a, b) or math.isclose(a, b) for a, b in zip(arr1, arr2)])
+
     def test_weighted_linear_regression(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',
@@ -585,14 +591,8 @@ class Tests(unittest.TestCase):
 
         betas_from_agg = ht_from_agg.my_linreg.beta[1].collect()
 
-        def equal_with_nans(arr1, arr2):
-            def both_nan_or_none(a, b):
-                return (a is None or not np.isfinite(a)) and (b is None or not np.isfinite(b))
-
-            return all([both_nan_or_none(a, b) or math.isclose(a, b) for a, b in zip(arr1, arr2)])
-
-        assert equal_with_nans(betas_with_weights, betas_pre_weighted_1)
-        assert equal_with_nans(betas_with_weights, betas_from_agg)
+        assert self.equal_with_nans(betas_with_weights, betas_pre_weighted_1)
+        assert self.equal_with_nans(betas_with_weights, betas_from_agg)
 
         ht_with_multiple_weights = hl._linear_regression_rows_nd(y=[[mt.y], [hl.abs(mt.y)]],
                                                                  x=mt.x,
@@ -606,10 +606,16 @@ class Tests(unittest.TestCase):
 
         assert np.array(multi_weight_betas).shape == (10, 2, 1)
 
-        assert(equal_with_nans(multi_weight_betas_1, betas_pre_weighted_1))
-        assert(equal_with_nans(multi_weight_betas_2, betas_pre_weighted_2))
+        assert self.equal_with_nans(multi_weight_betas_1, betas_pre_weighted_1)
+        assert self.equal_with_nans(multi_weight_betas_2, betas_pre_weighted_2)
 
-        # Now making sure that missing weights get excluded.
+    def test_weighted_linear_regression__missing_weights_are_excluded(self):
+        mt = hl.import_vcf(resource('regressionLinear.vcf'))
+        weights = hl.import_table(resource('regressionLinear.weights'),
+                                  key='Sample',
+                                  missing='0',
+                                  types={'Sample': hl.tstr, 'Weight1': hl.tfloat, 'Weight2': hl.tfloat})
+
         ht_with_missing_weights = hl._linear_regression_rows_nd(y=[[mt.y], [hl.abs(mt.y)]],
                                                                  x=mt.x,
                                                                  covariates=[1],
@@ -633,8 +639,8 @@ class Tests(unittest.TestCase):
         betas_from_agg_weight_1 = ht_from_agg_weight_1.my_linreg.beta[1].collect()
         betas_from_agg_weight_2 = ht_from_agg_weight_2.my_linreg.beta[1].collect()
 
-        assert equal_with_nans(multi_weight_missing_betas_1, betas_from_agg_weight_1)
-        assert equal_with_nans(multi_weight_missing_betas_2, betas_from_agg_weight_2)
+        assert self.equal_with_nans(multi_weight_missing_betas_1, betas_from_agg_weight_1)
+        assert self.equal_with_nans(multi_weight_missing_betas_2, betas_from_agg_weight_2)
 
         multi_weight_missing_p_values = [e.p_value for e in multi_weight_missing_results]
         multi_weight_missing_p_values_1 = [e[0][0] for e in multi_weight_missing_p_values]
@@ -643,8 +649,8 @@ class Tests(unittest.TestCase):
         p_values_from_agg_weight_1 = ht_from_agg_weight_1.my_linreg.p_value[1].collect()
         p_values_from_agg_weight_2 = ht_from_agg_weight_2.my_linreg.p_value[1].collect()
 
-        assert equal_with_nans(multi_weight_missing_p_values_1, p_values_from_agg_weight_1)
-        assert equal_with_nans(multi_weight_missing_p_values_2, p_values_from_agg_weight_2)
+        assert self.equal_with_nans(multi_weight_missing_p_values_1, p_values_from_agg_weight_1)
+        assert self.equal_with_nans(multi_weight_missing_p_values_2, p_values_from_agg_weight_2)
 
         multi_weight_missing_t_stats = [e.t_stat for e in multi_weight_missing_results]
         multi_weight_missing_t_stats_1 = [e[0][0] for e in multi_weight_missing_t_stats]
@@ -653,8 +659,8 @@ class Tests(unittest.TestCase):
         t_stats_from_agg_weight_1 = ht_from_agg_weight_1.my_linreg.t_stat[1].collect()
         t_stats_from_agg_weight_2 = ht_from_agg_weight_2.my_linreg.t_stat[1].collect()
 
-        assert equal_with_nans(multi_weight_missing_t_stats_1, t_stats_from_agg_weight_1)
-        assert equal_with_nans(multi_weight_missing_t_stats_2, t_stats_from_agg_weight_2)
+        assert self.equal_with_nans(multi_weight_missing_t_stats_1, t_stats_from_agg_weight_1)
+        assert self.equal_with_nans(multi_weight_missing_t_stats_2, t_stats_from_agg_weight_2)
 
         multi_weight_missing_se = [e.standard_error for e in multi_weight_missing_results]
         multi_weight_missing_se_1 = [e[0][0] for e in multi_weight_missing_se]
@@ -663,8 +669,8 @@ class Tests(unittest.TestCase):
         se_from_agg_weight_1 = ht_from_agg_weight_1.my_linreg.standard_error[1].collect()
         se_from_agg_weight_2 = ht_from_agg_weight_2.my_linreg.standard_error[1].collect()
 
-        assert equal_with_nans(multi_weight_missing_se_1, se_from_agg_weight_1)
-        assert equal_with_nans(multi_weight_missing_se_2, se_from_agg_weight_2)
+        assert self.equal_with_nans(multi_weight_missing_se_1, se_from_agg_weight_1)
+        assert self.equal_with_nans(multi_weight_missing_se_2, se_from_agg_weight_2)
 
     def test_errors_weighted_linear_regression(self):
         mt = hl.utils.range_matrix_table(20, 10).annotate_entries(x=2)

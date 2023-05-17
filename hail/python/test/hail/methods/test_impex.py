@@ -1,5 +1,6 @@
-import json
+gimport json
 import os
+import pytest
 import shutil
 import unittest
 
@@ -37,19 +38,6 @@ _FLOAT_ARRAY_INFO_FIELDS = ['AF', 'MLEAF']
 class VCFTests(unittest.TestCase):
     def test_info_char(self):
         self.assertEqual(hl.import_vcf(resource('infochar.vcf')).count_rows(), 1)
-
-    def test_import_export_same(self):
-        for i in range(10):
-            mt = hl.import_vcf(resource(f'random_vcfs/{i}.vcf.bgz'))
-            f1 = new_temp_file(extension='vcf.bgz')
-            hl.export_vcf(mt, f1)
-            mt2 = hl.import_vcf(f1)
-            f2 = new_temp_file(extension='vcf.bgz')
-            hl.export_vcf(mt2, f2)
-            mt3 = hl.import_vcf(f2)
-
-            assert mt._same(mt2)
-            assert mt._same(mt3)
 
     def test_info_float64(self):
         """Test that floating-point info fields are 64-bit regardless of the entry float type"""
@@ -2190,3 +2178,17 @@ def test_matrix_and_table_read_intervals_with_hidden_key():
 
     hl.read_matrix_table(f2, _intervals=[hl.Interval(0, 3)])._force_count_rows()
     hl.read_table(f3, _intervals=[hl.Interval(0, 3)])._force_count()
+
+
+@pytest.mark.parametrize("i", list(range(10)))
+def test_import_export_same(i):
+    mt = hl.import_vcf(resource(f'random_vcfs/{i}.vcf.bgz'))
+    f1 = new_temp_file(extension='vcf.bgz')
+    hl.export_vcf(mt, f1)
+    mt2 = hl.import_vcf(f1)
+    f2 = new_temp_file(extension='vcf.bgz')
+    hl.export_vcf(mt2, f2)
+    mt3 = hl.import_vcf(f2)
+
+    assert mt._same(mt2)
+    assert mt._same(mt3)
