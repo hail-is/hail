@@ -122,7 +122,7 @@ package object services {
         true
       case e =>
         val cause = e.getCause
-        cause != null && isLimitedRetriesError(cause)
+        cause != null && isTransientError(cause)
     }
   }
 
