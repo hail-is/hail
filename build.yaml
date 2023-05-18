@@ -2386,7 +2386,7 @@ steps:
       - create_certs
   - kind: runImage
     name: test_hail_python_service_backend
-    numSplits: 36
+    numSplits: 32
     image:
       valueFrom: hail_run_image.image
     resources:
@@ -2436,7 +2436,7 @@ steps:
               -vv \
               --instafail \
               --durations=50 \
-              -n 2 \
+              -n 3 \
               --ignore=test/hailtop/ \
               test
     timeout: 5400
