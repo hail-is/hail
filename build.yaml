@@ -186,6 +186,9 @@ steps:
       - merge_code
   - kind: runImage
     name: create_ssl_config_hail_root
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: create_certs_image.image
     script: |
@@ -208,6 +211,9 @@ steps:
       - create_certs_image
   - kind: runImage
     name: create_certs
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: create_certs_image.image
     script: |
@@ -257,6 +263,9 @@ steps:
       - merge_code
   - kind: runImage
     name: create_test_database_server_config
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: create_certs_image.image
     script: |
@@ -366,6 +375,9 @@ steps:
       - deploy_test_db
   - kind: runImage
     name: create_deploy_config
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: ci_utils_image.image
     script: |
@@ -410,6 +422,9 @@ steps:
       - create_certs
   - kind: runImage
     name: create_session_key
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: ci_utils_image.image
     script: |
@@ -437,6 +452,9 @@ steps:
       - ci_utils_image
   - kind: runImage
     name: create_test_gsa_keys
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: ci_utils_image.image
     script: |
@@ -491,6 +509,9 @@ steps:
       - default_ns
   - kind: runImage
     name: create_accounts
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: auth_image.image
     script: |
@@ -1392,6 +1413,9 @@ steps:
       - gcp
   - kind: runImage
     name: make_docs
+    resources:
+      memory: standard
+      cpu: '4'
     image:
       valueFrom: hail_run_image.image
     script: |
@@ -1421,9 +1445,6 @@ steps:
       find www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$HAIL_CACHE_VERSION/" {} +;
 
       tar czf /io/www.tar.gz www
-    resources:
-      memory: standard
-      cpu: '2'
     inputs:
       - from: /repo/hail/python
         to: /io/hail/python
@@ -1646,6 +1667,9 @@ steps:
       - copy_third_party_images
   - kind: runImage
     name: create_dummy_oauth2_client_secret
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: ci_utils_image.image
     script: |
@@ -1746,6 +1770,9 @@ steps:
       - gcp
   - kind: runImage
     name: test_monitoring
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: hail_dev_image.image
     script: |
@@ -1787,6 +1814,9 @@ steps:
       - gcp
   - kind: runImage
     name: test_auth_copy_paste_login
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: hailgenetics_hailtop_image.image
     script: |
@@ -1846,6 +1876,9 @@ steps:
       - hailgenetics_hailtop_image
   - kind: runImage
     name: test_auth_copy_paste_login_timeout
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: hailgenetics_hailtop_image.image
     script: |
@@ -2241,6 +2274,9 @@ steps:
       - create_certs
   - kind: runImage
     name: create_billing_projects
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: hailgenetics_hailtop_image.image
     script: |
@@ -2478,6 +2514,9 @@ steps:
       - hail_ubuntu_image
   - kind: runImage
     name: test_memory
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: hail_dev_image.image
     resources:
@@ -2609,6 +2648,9 @@ steps:
       - curl_image
   - kind: runImage
     name: delete_test_billing_projects
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: batch_image.image
     script: |
@@ -2714,6 +2756,9 @@ steps:
       - merge_code
   - kind: runImage
     name: create_ci_config
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: ci_utils_image.image
     script: |
@@ -2759,6 +2804,9 @@ steps:
       - hail_buildkit_image
   - kind: runImage
     name: test_ci
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: hail_dev_image.image
     script: |
@@ -2806,6 +2854,9 @@ steps:
       - create_ci_test_repo
   - kind: runImage
     name: test_hailtop_batch
+    resources:
+      memory: standard
+      cpu: '0.25'
     numSplits: 5
     image:
       valueFrom: hail_dev_image.image
@@ -2864,6 +2915,9 @@ steps:
       - deploy_batch
   - kind: runImage
     name: test_hailctl_batch
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: hailgenetics_hail_image.image
     script: |
@@ -3068,6 +3122,9 @@ steps:
         for: alive
   - kind: runImage
     name: cleanup_ci_test_repo
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: hail_ubuntu_image.image
     script: |
@@ -3628,6 +3685,9 @@ steps:
       - cancel_all_running_test_batches
   - kind: runImage
     name: delete_gcp_batch_instances
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: ci_utils_image.image
     alwaysRun: true
