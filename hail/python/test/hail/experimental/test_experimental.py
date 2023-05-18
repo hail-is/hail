@@ -113,7 +113,7 @@ class Tests(unittest.TestCase):
                                    ht_20160['alleles'])
         assert ht_20160._force_count() == 151
 
-    def get_ht_50_irnt():
+    def get_ht_50_irnt(self):
         ht_scores = hl.import_table(
             doctest_resource('ld_score_regression.univariate_ld_scores.tsv'),
             key='SNP', types={'L2': hl.tfloat, 'BP': hl.tint})
@@ -140,7 +140,7 @@ class Tests(unittest.TestCase):
                                        ht_50_irnt['phenotype'])
         return ht_50_irnt
 
-    def get_ht_20160():
+    def get_ht_20160(self):
         ht_scores = hl.import_table(
             doctest_resource('ld_score_regression.univariate_ld_scores.tsv'),
             key='SNP', types={'L2': hl.tfloat, 'BP': hl.tint})
