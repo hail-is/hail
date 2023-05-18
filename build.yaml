@@ -2198,6 +2198,9 @@ steps:
       - name: set-test-and-dev-pools-to-16-core-max-3
         script: /io/sql/set-test-and-dev-pools-to-16-core-max-3.py
         online: true
+      - name: fix-reset-dedup-resource-triggers
+        script: /io/sql/fix-reset-dedup-resource-triggers.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
