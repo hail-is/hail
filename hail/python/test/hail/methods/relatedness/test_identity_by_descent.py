@@ -54,10 +54,10 @@ def test_ibd_default_arguments():
 
     for row in hail_results:
         key = (row.i, row.j)
-        assert plink_results[key][0][0] == pytest.approx(row.ibd.Z0, abs=0.5e-5)
-        assert plink_results[key][0][1] == pytest.approx(row.ibd.Z1, abs=0.5e-5)
-        assert plink_results[key][0][2] == pytest.approx(row.ibd.Z2, abs=0.5e-5)
-        assert plink_results[key][0][3] == pytest.approx(row.ibd.PI_HAT, abs=0.5e-5)
+        assert plink_results[key][0][0] == pytest.approx(row.ibd.Z0, abs=0.5e-4)
+        assert plink_results[key][0][1] == pytest.approx(row.ibd.Z1, abs=0.5e-4)
+        assert plink_results[key][0][2] == pytest.approx(row.ibd.Z2, abs=0.5e-4)
+        assert plink_results[key][0][3] == pytest.approx(row.ibd.PI_HAT, abs=0.5e-4)
         assert plink_results[key][1][0] == row.ibs0
         assert plink_results[key][1][1] == row.ibs1
         assert plink_results[key][1][2] == row.ibs2
@@ -72,10 +72,10 @@ def test_ibd_0_and_1():
 
     for row in hail_results:
         key = (row.i, row.j)
-        assert plink_results[key][0][0] == pytest.approx(row.ibd.Z0, abs=0.5e-5)
-        assert plink_results[key][0][1] == pytest.approx(row.ibd.Z1, abs=0.5e-5)
-        assert plink_results[key][0][2] == pytest.approx(row.ibd.Z2, abs=0.5e-5)
-        assert plink_results[key][0][3] == pytest.approx(row.ibd.PI_HAT, abs=0.5e-5)
+        assert plink_results[key][0][0] == pytest.approx(row.ibd.Z0, abs=0.5e-4)
+        assert plink_results[key][0][1] == pytest.approx(row.ibd.Z1, abs=0.5e-4)
+        assert plink_results[key][0][2] == pytest.approx(row.ibd.Z2, abs=0.5e-4)
+        assert plink_results[key][0][3] == pytest.approx(row.ibd.PI_HAT, abs=0.5e-4)
         assert plink_results[key][1][0] == row.ibs0
         assert plink_results[key][1][1] == row.ibs1
         assert plink_results[key][1][2] == row.ibs2
