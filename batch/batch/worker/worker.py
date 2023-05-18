@@ -2162,7 +2162,7 @@ class JVMJob(Job):
             mjs_fut = self.mark_started()
             try:
                 with self.step('connecting_to_jvm'):
-                    self.jvm = await self.worker.borrow_jvm(self.cpu_in_mcpu // 1000)
+                    self.jvm = await self.worker.borrow_jvm(self.cpu_in_mcpu)
                     self.jvm_name = str(self.jvm)
 
                 self.state = 'initializing'
@@ -2413,7 +2413,7 @@ class JVMContainer:
     @staticmethod
     async def create_and_start(
         index: int,
-        n_cores: int,
+        mcpu: int,
         socket_file: str,
         root_dir: str,
         cloudfuse_dir: str,
@@ -2426,11 +2426,11 @@ class JVMContainer:
         assert os.path.isdir(root_dir)
 
         assert instance_config
-        total_memory_bytes = n_cores * worker_memory_per_core_bytes(CLOUD, instance_config.worker_type())
+        total_memory_bytes = int(mcpu / 1000 * worker_memory_per_core_bytes(CLOUD, instance_config.worker_type()))
 
         # We allocate 60% of memory per core to off heap memory
         memory_per_core_mib = worker_memory_per_core_mib(CLOUD, instance_config.worker_type())
-        memory_mib = n_cores * memory_per_core_mib
+        memory_mib = int(mcpu / 1000 * memory_per_core_mib)
         heap_memory_mib = int(0.4 * memory_mib)
         off_heap_memory_per_core_mib = memory_mib - heap_memory_mib
 
@@ -2489,7 +2489,7 @@ class JVMContainer:
             image=Image(BATCH_WORKER_IMAGE, JVMUserCredentials(), client_session, pool),
             scratch_dir=f'{root_dir}/container',
             command=command,
-            cpu_in_mcpu=n_cores * 1000,
+            cpu_in_mcpu=mcpu,
             memory_in_bytes=total_memory_bytes,
             env=[f'HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB={off_heap_memory_per_core_mib}', f'HAIL_CLOUD={CLOUD}'],
             volume_mounts=volume_mounts,
@@ -2590,7 +2590,7 @@ class JVM:
     async def create_container_and_connect(
         cls,
         index: int,
-        n_cores: int,
+        mcpu: int,
         socket_file: str,
         root_dir: str,
         cloudfuse_dir: str,
@@ -2601,7 +2601,7 @@ class JVM:
     ) -> JVMContainer:
         try:
             container = await JVMContainer.create_and_start(
-                index, n_cores, socket_file, root_dir, cloudfuse_dir, client_session, pool, fs, task_manager
+                index, mcpu, socket_file, root_dir, cloudfuse_dir, client_session, pool, fs, task_manager
             )
 
             attempts = 0
@@ -2640,7 +2640,7 @@ class JVM:
             raise JVMCreationError from e
 
     @classmethod
-    async def create(cls, index: int, n_cores: int, worker: 'Worker'):
+    async def create(cls, index: int, mcpu: int, worker: 'Worker'):
         token = uuid.uuid4().hex
         root_dir = f'/host/jvm-{token}'
         cloudfuse_dir = f'/cloudfuse/jvm-{index}-{token[:5]}'
@@ -2651,7 +2651,7 @@ class JVM:
         await blocking_to_async(worker.pool, os.makedirs, cloudfuse_dir)
         container = await cls.create_container_and_connect(
             index,
-            n_cores,
+            mcpu,
             socket_file,
             root_dir,
             cloudfuse_dir,
@@ -2662,7 +2662,7 @@ class JVM:
         )
         return cls(
             index,
-            n_cores,
+            mcpu,
             socket_file,
             root_dir,
             cloudfuse_dir,
@@ -2679,7 +2679,7 @@ class JVM:
     def __init__(
         self,
         index: int,
-        n_cores: int,
+        mcpu: int,
         socket_file: str,
         root_dir: str,
         cloudfuse_dir: str,
@@ -2693,7 +2693,7 @@ class JVM:
         cloudfuse_mount_manager: ReadOnlyCloudfuseManager,
     ):
         self.index = index
-        self.n_cores = n_cores
+        self.mcpu = mcpu
         self.socket_file = socket_file
         self.root_dir = root_dir
         self.cloudfuse_dir = cloudfuse_dir
@@ -2736,7 +2736,7 @@ class JVM:
 
                 container = await self.create_container_and_connect(
                     self.index,
-                    self.n_cores,
+                    self.mcpu,
                     self.socket_file,
                     self.root_dir,
                     self.cloudfuse_dir,
@@ -2874,25 +2874,25 @@ class Worker:
         self.cloudfuse_mount_manager = ReadOnlyCloudfuseManager()
 
         self._jvm_initializer_task = asyncio.create_task(self._initialize_jvms())
-        self._jvms: SortedSet[JVM] = SortedSet([], key=lambda jvm: jvm.n_cores)
+        self._jvms: SortedSet[JVM] = SortedSet([], key=lambda jvm: jvm.mcpu)
 
     async def _initialize_jvms(self):
         assert instance_config
         if instance_config.worker_type() in ('standard', 'D', 'highmem', 'E'):
             jvms: List[Awaitable[JVM]] = []
-            for jvm_cores in (1, 2, 4, 8):
-                for _ in range(CORES // jvm_cores):
+            for jvm_cores in (500, 1000, 2000, 4000, 8000):
+                for _ in range(CORES * 1000 // jvm_cores):
                     jvms.append(JVM.create(len(jvms), jvm_cores, self))
             self._jvms.update(await asyncio.gather(*jvms))
         log.info(f'JVMs initialized {self._jvms}')
 
-    async def borrow_jvm(self, n_cores: int) -> JVM:
+    async def borrow_jvm(self, mcpu: int) -> JVM:
         assert instance_config
         if instance_config.worker_type() not in ('standard', 'D', 'highmem', 'E'):
             raise ValueError(f'no JVMs available on {instance_config.worker_type()}')
         await self._jvm_initializer_task
         assert self._jvms
-        index = self._jvms.bisect_key_left(n_cores)
+        index = self._jvms.bisect_key_left(mcpu)
         assert index < len(self._jvms), index
         return self._jvms.pop(index)
 
@@ -2903,7 +2903,7 @@ class Worker:
     async def recreate_jvm(self, jvm: JVM):
         self._jvms.remove(jvm)
         log.info(f'quarantined {jvm} and recreated a new jvm')
-        new_jvm = await JVM.create(jvm.index, jvm.n_cores, self)
+        new_jvm = await JVM.create(jvm.index, jvm.mcpu, self)
         self._jvms.add(new_jvm)
 
     @property

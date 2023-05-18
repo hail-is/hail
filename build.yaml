@@ -2436,7 +2436,7 @@ steps:
               -vv \
               --instafail \
               --durations=50 \
-              -n 3 \
+              -n 4 \
               --ignore=test/hailtop/ \
               test
     timeout: 5400

@@ -9,6 +9,8 @@ async def main():
 
     max_instances = 4
     max_live_instances = 4
+    worker_max_idle_time_secs = 3 * 60
+    standing_worker_cores = 16
 
     db = Database()
     await db.async_init()
@@ -16,8 +18,17 @@ async def main():
     await db.execute_update(
         '''
 UPDATE inst_colls
-SET max_instances = %s, max_live_instances = %s
-''', (max_instances, max_live_instances))
+SET max_instances = %s, max_live_instances = %s, worker_max_idle_time_secs = %2
+''', (max_instances, max_live_instances, worker_max_idle_time_secs))
+
+    if os.environ['HAIL_SCOPE'] == 'dev':
+        return
+
+    await db.execute_update(
+        '''
+UPDATE pools
+SET standing_worker_cores = %s
+''', (standing_worker_cores,))
 
 
 loop = asyncio.get_event_loop()

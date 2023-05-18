@@ -16,6 +16,11 @@ def hl_init_for_test(*args, **kwargs):
     backend_name = choose_backend()
     if backend_name == 'spark':
         hl.init(master=f'local[{HAIL_QUERY_N_CORES}]', min_block_size=0, quiet=True, global_seed=0, *args, **kwargs)
+    elif backend_name == 'batch':
+        hl.init(global_seed=0,
+                driver_cores='0.5',
+                worker_cores='0.5',
+                *args, **kwargs)
     else:
         hl.init(global_seed=0, *args, **kwargs)
 
