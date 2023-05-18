@@ -611,11 +611,15 @@ class Tests(unittest.TestCase):
 
     def test_weighted_linear_regression__missing_weights_are_excluded(self):
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
+        pheno = hl.import_table(resource('regressionLinear.pheno'),
+                                key='Sample',
+                                missing='0',
+                                types={'Pheno': hl.tfloat})
+        mt = mt.annotate_cols(y=hl.coalesce(pheno[mt.s].Pheno, 1.0))
         weights = hl.import_table(resource('regressionLinear.weights'),
                                   key='Sample',
                                   missing='0',
                                   types={'Sample': hl.tstr, 'Weight1': hl.tfloat, 'Weight2': hl.tfloat})
-
         ht_with_missing_weights = hl._linear_regression_rows_nd(y=[[mt.y], [hl.abs(mt.y)]],
                                                                  x=mt.x,
                                                                  covariates=[1],
