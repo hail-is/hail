@@ -4,14 +4,12 @@ import is.hail.expr.ir._
 import is.hail.expr.ir.functions.{TableCalculateNewPartitions, WrappedMatrixToValueFunction}
 import is.hail.expr.ir.lowering.RVDTableReader
 import is.hail.io.fs.FS
-import is.hail.methods.{ForceCountTable, NPartitionsTable}
+import is.hail.methods._
 import is.hail.types.virtual._
 import is.hail.utils.Logging
 import org.apache.commons.codec.digest.MurmurHash3
 
 import java.util.UUID
-import scala.{+:, :+}
-import scala.collection.mutable
 import scala.language.implicitConversions
 
 case object SemanticHash extends Logging {
@@ -170,8 +168,14 @@ case object SemanticHash extends Logging {
             case TableCalculateNewPartitions(nPartitions) =>
               Hash(classOf[TableCalculateNewPartitions]) <> Hash(nPartitions)
 
-            case _: WrappedMatrixToValueFunction =>
-              unique
+            case WrappedMatrixToValueFunction(op, _, _, _) =>
+              Hash(classOf[WrappedMatrixToValueFunction]) <> (op match {
+                case _: ForceCountMatrixTable | _: NPartitionsMatrixTable =>
+                  Hash(op.getClass)
+
+                case _: MatrixExportEntriesByCol =>
+                  unique
+              })
 
             case _: ForceCountTable | _: NPartitionsTable =>
               Hash(op.getClass)
