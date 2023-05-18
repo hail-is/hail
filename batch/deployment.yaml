@@ -504,7 +504,7 @@ spec:
   maxReplicas: 10
 {% else %}
   minReplicas: 1
-  maxReplicas: 3
+  maxReplicas: 5
 {% endif %}
   metrics:
    - type: Resource
