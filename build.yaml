@@ -690,7 +690,7 @@ steps:
       - merge_code
       - copy_third_party_images
   - kind: runImage
-    name: build_hail_jar_and_wheel_only
+    name: build_hail_jar_and_wheel
     image:
       valueFrom: hail_build_image.image
     resources:
@@ -722,7 +722,7 @@ steps:
       - hail_build_image
       - merge_code
   - kind: runImage
-    name: build_hail_test_artifacts
+    name: build_hail_debug_jar_and_wheel
     image:
       valueFrom: hail_build_image.image
     resources:
@@ -735,11 +735,29 @@ steps:
       time retry ./gradlew --version
       time retry make jars wheel HAIL_DEBUG_MODE=1
       (cd build/deploy/dist/ && tar -cvf debug-wheel-container.tar hail-*-py3-none-any.whl)
+    inputs:
+      - from: /repo
+        to: /io/repo
+    outputs:
+      - from: /io/repo/hail/build/libs/hail-all-spark-test.jar
+        to: /hail-debug-test.jar
+      - from: /io/repo/hail/build/deploy/dist/debug-wheel-container.tar
+        to: /debug-wheel-container.tar
+    dependsOn:
+      - hail_build_image
+      - merge_code
+  - kind: runImage
+    name: build_hail_test_artifacts
+    image:
+      valueFrom: hail_build_image.image
+    resources:
+      memory: standard
+      cpu: '2'
+    script: |
+      set -ex
       cd /io/repo/hail
-      mkdir build/debug_libs
-      mv build/libs/hail-all-spark.jar build/debug_libs/
-      mv build/libs/hail-all-spark-test.jar build/debug_libs/
-      mv build/deploy/dist/debug-wheel-container.tar build/debug_libs
+      chmod 755 ./gradlew
+      time retry ./gradlew --version
       time retry make shadowTestJar
 
       time tar czf test.tar.gz -C python test
@@ -753,10 +771,6 @@ steps:
     outputs:
       - from: /io/repo/hail/build/libs/hail-all-spark-test.jar
         to: /hail-test.jar
-      - from: /io/repo/hail/build/debug_libs/hail-all-spark-test.jar
-        to: /hail-debug-test.jar
-      - from: /io/repo/hail/build/debug_libs/debug-wheel-container.tar
-        to: /debug-wheel-container.tar
       - from: /io/repo/hail/test.tar.gz
         to: /test.tar.gz
       - from: /io/repo/hail/resources.tar.gz
@@ -966,6 +980,7 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_image
+      - build_hail_debug_jar_and_wheel
       - build_hail_test_artifacts
   - kind: buildImage2
     name: hail_pip_installed_python39_image
@@ -988,7 +1003,7 @@ steps:
       - from: /wheel-container.tar
         to: /io/repo/wheel-container.tar
     dependsOn:
-      - build_hail_jar_and_wheel_only
+      - build_hail_jar_and_wheel
       - hail_ubuntu_image
       - merge_code
   - kind: buildImage2
@@ -1012,7 +1027,7 @@ steps:
       - from: /wheel-container.tar
         to: /io/repo/wheel-container.tar
     dependsOn:
-      - build_hail_jar_and_wheel_only
+      - build_hail_jar_and_wheel
       - hail_ubuntu_image
       - merge_code
   - kind: runImage
@@ -1170,6 +1185,7 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_image
+      - build_hail_debug_jar_and_wheel
       - build_hail_test_artifacts
     clouds:
       - gcp
@@ -1283,7 +1299,7 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_image
-      - build_hail_jar_and_wheel_only
+      - build_hail_jar_and_wheel
       - build_hail_test_artifacts
     clouds:
       - gcp
@@ -1340,6 +1356,7 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_image
+      - build_hail_debug_jar_and_wheel
       - build_hail_test_artifacts
   - kind: runImage
     name: test_python_docs
@@ -1347,6 +1364,9 @@ steps:
       valueFrom: hail_run_image.image
     script: |
       set -ex
+      tar xvf /io/wheel-container.tar
+      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+
       python3 -m pytest \
               -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
               --log-cli-level=INFO \
@@ -1363,7 +1383,10 @@ steps:
     inputs:
       - from: /repo/hail/python/hail
         to: /io/hail/python/hail
+      - from: /wheel-container.tar
+        to: /io/wheel-container.tar
     dependsOn:
+      - build_hail_jar_and_wheel
       - hail_run_image
     clouds:
       - gcp
@@ -1376,6 +1399,9 @@ steps:
       set -o pipefail
       export HAIL_SHORT_VERSION='0.2'
       export SPHINXOPTS='-tgenerate_notebook_outputs'
+
+      tar xvf /io/wheel-container.tar
+      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
 
       cd /io/hail
       export HAIL_WEBSITE_DIR=/io/website/website/
@@ -1405,11 +1431,14 @@ steps:
         to: /io/repo/hail/python/hail/hail_version
       - from: /repo/website/website
         to: /io/website/website
+      - from: /wheel-container.tar
+        to: /io/wheel-container.tar
     outputs:
       - from: /io/www.tar.gz
         to: /www.tar.gz
     dependsOn:
       - merge_code
+      - build_hail_jar_and_wheel
       - hail_run_image
   - kind: buildImage2
     name: hailgenetics_hail_image
@@ -1425,7 +1454,7 @@ steps:
         to: /io/repo/wheel-container.tar
     dependsOn:
       - merge_code
-      - build_hail_jar_and_wheel_only
+      - build_hail_jar_and_wheel
       - hail_ubuntu_image
   - kind: runImage
     name: test_hailgenetics_hail_image
@@ -2302,7 +2331,7 @@ steps:
       - default_ns
       - deploy_batch
       - hailgenetics_hailtop_image
-      - build_hail_jar_and_wheel_only
+      - build_hail_jar_and_wheel
       - merge_code
       - create_test_gsa_keys
   - kind: deploy
@@ -2407,7 +2436,7 @@ steps:
       - hail_run_image
       - upload_query_jar
       - upload_test_resources_to_blob_storage
-      - build_hail_jar_and_wheel_only
+      - build_hail_jar_and_wheel
       - hailgenetics_vep_grch37_85_image
   - kind: buildImage2
     name: netcat_ubuntu_image
@@ -3448,7 +3477,7 @@ steps:
       - create_accounts
       - hail_run_image
       - build_hail_test_artifacts
-      - build_hail_jar_and_wheel_only
+      - build_hail_jar_and_wheel
       - upload_test_resources_to_blob_storage
   - kind: runImage
     name: test_hail_services_java
