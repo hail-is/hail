@@ -1117,7 +1117,7 @@ class Tests(unittest.TestCase):
         self.assert_np_arrays_eq(starts, [0, 0, 2, 3, 3, 5])
         self.assert_np_arrays_eq(stops, [2, 2, 3, 5, 5, 6])
 
-    def dummy_table_with_loci_and_cms():
+    def dummy_table_with_loci_and_cms(self):
         rows = [{'locus': hl.Locus('1', 1), 'cm': 1.0},
                 {'locus': hl.Locus('1', 2), 'cm': 3.0},
                 {'locus': hl.Locus('1', 4), 'cm': 4.0},

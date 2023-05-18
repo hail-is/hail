@@ -818,12 +818,9 @@ steps:
         to: /io/repo/hail/python/MANIFEST.in
       - from: /hail_version
         to: /io/repo/python/hailtop/hail_version
-      - from: /wheel-container.tar
-        to: /io/repo/wheel-container.tar
     dependsOn:
       - base_image
       - merge_code
-      - build_hail_jar_and_wheel_only
   - kind: runImage
     name: jvm_entryway_jar
     image:
