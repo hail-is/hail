@@ -38,8 +38,8 @@
       <th>Active</th>
       <th>Inactive</th>
       <th>Deleted</th>
-      <th>Live Total Cores</th>
-      <th>Live Free Cores</th>
+      <th>Provisioned Cores</th>
+      <th>Schedulable Cores</th>
     </tr>
     </thead>
     <tbody>
@@ -48,12 +48,12 @@
       <td><a href="{{ base_path }}/inst_coll/pool/{{ pool.name }}">{{ pool.name }}</a></td>
       <td>{{ pool.worker_type }}</td>
       <td>{{ pool.preemptible }}</td>
-      <td class="numeric-cell">{{ pool.current_worker_version_stats.n_instances_by_state['pending'] }}</td>
-      <td class="numeric-cell">{{ pool.current_worker_version_stats.n_instances_by_state['active'] }}</td>
-      <td class="numeric-cell">{{ pool.current_worker_version_stats.n_instances_by_state['inactive'] }}</td>
-      <td class="numeric-cell">{{ pool.current_worker_version_stats.n_instances_by_state['deleted'] }}</td>
-      <td class="numeric-cell">{{ pool.current_worker_version_stats.live_total_cores_mcpu / 1000 }}</td>
-      <td class="numeric-cell">{{ pool.current_worker_version_stats.live_free_cores_mcpu / 1000 }}</td>
+      <td class="numeric-cell">{{ pool.all_versions_instances_by_state['pending'] }}</td>
+      <td class="numeric-cell">{{ pool.all_versions_instances_by_state['active'] }}</td>
+      <td class="numeric-cell">{{ pool.all_versions_instances_by_state['inactive'] }}</td>
+      <td class="numeric-cell">{{ pool.all_versions_instances_by_state['deleted'] }}</td>
+      <td class="numeric-cell">{{ pool.all_versions_provisioned_cores_mcpu / 1000 }}</td>
+      <td class="numeric-cell">{{ pool.current_worker_version_stats.live_free_cores_mcpu / 1000 }} / {{ pool.all_versions_provisioned_cores_mcpu / 1000 }} </td>
     </tr>
     {% endfor %}
     </tbody>
@@ -68,19 +68,19 @@
       <th>Active</th>
       <th>Inactive</th>
       <th>Deleted</th>
-      <th>Live Total Cores</th>
-      <th>Live Free Cores</th>
+      <th>Provisioned Cores</th>
+      <th>Schedulable Cores</th>
     </tr>
     </thead>
     <tbody>
     <tr>
       <td><a href="{{ base_path }}/inst_coll/jpim">{{ jpim.name }}</a></td>
-      <td class="numeric-cell">{{ jpim.current_worker_version_stats.n_instances_by_state['pending'] }}</td>
-      <td class="numeric-cell">{{ jpim.current_worker_version_stats.n_instances_by_state['active'] }}</td>
-      <td class="numeric-cell">{{ jpim.current_worker_version_stats.n_instances_by_state['inactive'] }}</td>
-      <td class="numeric-cell">{{ jpim.current_worker_version_stats.n_instances_by_state['deleted'] }}</td>
-      <td class="numeric-cell">{{ jpim.current_worker_version_stats.live_total_cores_mcpu / 1000 }}</td>
-      <td class="numeric-cell">{{ jpim.current_worker_version_stats.live_free_cores_mcpu / 1000 }}</td>
+      <td class="numeric-cell">{{ jpim.all_versions_instances_by_state['pending'] }}</td>
+      <td class="numeric-cell">{{ jpim.all_versions_instances_by_state['active'] }}</td>
+      <td class="numeric-cell">{{ jpim.all_versions_instances_by_state['inactive'] }}</td>
+      <td class="numeric-cell">{{ jpim.all_versions_instances_by_state['deleted'] }}</td>
+      <td class="numeric-cell">{{ jpim.all_versions_provisioned_cores_mcpu / 1000 }}</td>
+      <td class="numeric-cell">{{ jpim.current_worker_version_stats.live_free_cores_mcpu / 1000 }} / {{ jpim.all_versions_provisioned_cores_mcpu / 1000 }} </td>
     </tr>
     </tbody>
   </table>

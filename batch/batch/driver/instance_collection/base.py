@@ -88,11 +88,7 @@ class InstanceCollectionManager:
 
     @property
     def global_total_provisioned_cores_mcpu(self):
-        return sum(
-            instance_version_stats.live_total_cores_mcpu
-            for inst_coll in self.name_inst_coll.values()
-            for instance_version_stats in inst_coll.stats_by_instance_version.values()
-        )
+        return sum(inst_coll.all_versions_provisioned_cores_mcpu for inst_coll in self.name_inst_coll.values())
 
     @property
     def global_current_version_live_free_cores_mcpu(self):
@@ -102,15 +98,10 @@ class InstanceCollectionManager:
 
     @property
     def global_n_instances_by_state(self) -> Counter[str]:
-        counters = [
-            collections.Counter(instance_version_stats.n_instances_by_state)
-            for inst_coll in self.name_inst_coll.values()
-            for instance_version_stats in inst_coll.stats_by_instance_version.values()
-        ]
-        result: Counter[str] = collections.Counter()
-        for counter in counters:
-            result += counter
-        return result
+        return sum(
+            (inst_coll.all_versions_instances_by_state for inst_coll in self.name_inst_coll.values()),
+            collections.Counter(),
+        )
 
     def get_inst_coll(self, inst_coll_name):
         return self.name_inst_coll.get(inst_coll_name)
@@ -202,6 +193,20 @@ class InstanceCollection:
     @property
     def current_worker_version_stats(self) -> InstanceCollectionStats:
         return self.stats_by_instance_version[INSTANCE_VERSION]
+
+    @property
+    def all_versions_instances_by_state(self):
+        return sum(
+            (
+                collections.Counter(version_stats.n_instances_by_state)
+                for version_stats in self.stats_by_instance_version.values()
+            ),
+            collections.Counter(),
+        )
+
+    @property
+    def all_versions_provisioned_cores_mcpu(self):
+        return sum(version_stats.live_total_cores_mcpu for version_stats in self.stats_by_instance_version.values())
 
     @property
     def n_instances(self) -> int:
