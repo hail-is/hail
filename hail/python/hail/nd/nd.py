@@ -342,7 +342,7 @@ def qr(nd, mode="reduced"):
 
     .. math::
 
-        m \gte n \\
+        m \ge n \\
         nd : \mathbb{R}^{m \times n} \\
         Q : \mathbb{R}^{m \times n} \\
         R : \mathbb{R}^{n \times n} \\
@@ -353,7 +353,7 @@ def qr(nd, mode="reduced"):
 
     .. math::
 
-        m \gte n \\
+        m \ge n \\
         nd : \mathbb{R}^{m \times n} \\
         Q : \mathbb{R}^{m \times m} \\
         R : \mathbb{R}^{m \times n} \\
