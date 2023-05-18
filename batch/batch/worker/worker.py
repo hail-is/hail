@@ -1519,7 +1519,7 @@ class Job(abc.ABC):
             # basically fills the disk not allowing for caches etc. Most jobs
             # would need an external disk in that case.
             self.data_disk_storage_in_gib = min(
-                RESERVED_STORAGE_GB_PER_CORE, self.cpu_in_mcpu / 1000 * RESERVED_STORAGE_GB_PER_CORE
+                RESERVED_STORAGE_GB_PER_CORE, int(self.cpu_in_mcpu / 1000 * RESERVED_STORAGE_GB_PER_CORE)
             )
 
         self.resources = instance_config.quantified_resources(
