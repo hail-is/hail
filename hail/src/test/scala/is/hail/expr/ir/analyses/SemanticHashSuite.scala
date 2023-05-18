@@ -2,12 +2,13 @@ package is.hail.expr.ir.analyses
 
 import is.hail.expr.ir._
 import is.hail.io.FakeFS
-import is.hail.io.fs.FS
+import is.hail.io.fs.{FS, FileStatus}
 import is.hail.types.TableType
 import is.hail.types.virtual._
 import org.scalatest.Assertions.assertResult
 import org.testng.annotations.{DataProvider, Test}
 
+import java.lang
 import scala.util.Random
 
 class SemanticHashSuite {
@@ -47,18 +48,18 @@ class SemanticHashSuite {
 
   def isLetSemanticallyEquivalent: Array[Array[Any]] = {
     val input = Void()
-    Array(Let, RelationalLet).flatMap { let =>
+    Array((Let, Ref), (RelationalLet, RelationalRef)).flatMap { case (let, ref) =>
       Array(
         // let-bound names don't change the semantics
-        Array(let("A", input, Ref("A", input.typ)), let("B", input, Ref("B", input.typ)), true),
+        Array(let("A", input, ref("A", input.typ)), let("B", input, ref("B", input.typ)), true),
 
         // if some other operation
-        Array(let("A", input, let("B", Void(), Ref("A", input.typ))), let("B", input, Ref("B", input.typ)), false),
+        Array(let("A", input, let("B", Void(), ref("A", input.typ))), let("B", input, ref("B", input.typ)), false),
 
         // For simplicity, we assume copy propagation has occurred by this point.
         Array(
-          let("A", input, let("B", Ref("A", input.typ), Ref("B", input.typ))),
-          let("A", input, Ref("A", input.typ)),
+          let("A", input, let("B", ref("A", input.typ), ref("B", input.typ))),
+          let("A", input, ref("A", input.typ)),
           false
         )
       )
@@ -108,5 +109,16 @@ class SemanticHashSuite {
     new FakeFS {
       override def fileChecksum(filename: String): Array[Byte] =
         filename.getBytes
+
+      override def listStatus(filename: String): Array[FileStatus] =
+        Array(new FileStatus {
+          override def getPath: String = filename
+          override def getModificationTime: lang.Long = ???
+          override def getLen: Long = ???
+          override def isDirectory: Boolean = ???
+          override def isSymlink: Boolean = ???
+          override def isFile: Boolean = true
+          override def getOwner: String = ???
+        })
     }
 }

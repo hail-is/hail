@@ -231,10 +231,17 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newDynamicID <- normalize(dynamicID)
         } yield CollectDistributedArray(newCtxs, newGlobals, newC, newG, newBody, newDynamicID, staticID, tsd, semhash)
       case RelationalLet(name, value, body) =>
+        val newName = gen()
         for {
-          newValue <- normalize(value, BindingEnv.empty)
-          newBody <- normalize(body)
-        } yield RelationalLet(name, newValue, newBody)
+          newValue <- normalize(value, env)
+          newBody <- normalize(body, env.bindRelational(name, newName))
+        } yield RelationalLet(newName, newValue, newBody)
+      case RelationalRef(name, typ) =>
+        val newName = env.relational.lookupOption(name).getOrElse(
+          if (!allowFreeVariables) throw new RuntimeException(s"found free variable in normalize: $name, ${context.reverse.mkString(", ")}; ${env.pretty(x => x)}")
+          else name
+        )
+        done(RelationalRef(newName, typ))
       case x =>
         for {
           newChildren <- x.children.iterator.zipWithIndex.map { case (child, i) =>

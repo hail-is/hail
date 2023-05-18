@@ -7,7 +7,9 @@ object LoweringAnalyses {
     def apply(ir: BaseIR, ctx:ExecuteContext): LoweringAnalyses = {
       val requirednessAnalysis = Requiredness(ir, ctx)
       val distinctKeyedAnalysis = DistinctlyKeyed.apply(ir)
-      val nextHash = SemanticHash(ctx.fs)(ir)
+      val nextHash = ctx.timer.time("semantic hash") {
+        SemanticHash(ctx.fs)(ir)
+      }
       LoweringAnalyses(requirednessAnalysis, distinctKeyedAnalysis, nextHash)
   }
 }
