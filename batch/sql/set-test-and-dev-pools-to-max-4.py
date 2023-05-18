@@ -7,8 +7,8 @@ async def main():
     if os.environ['HAIL_SCOPE'] == 'deploy':
         return
 
-    max_instances = 4
-    max_live_instances = 4
+    max_instances = 8
+    max_live_instances = 8
     worker_max_idle_time_secs = 3 * 60
     standing_worker_cores = 16
 
@@ -27,7 +27,7 @@ SET max_instances = %s, max_live_instances = %s, worker_max_idle_time_secs = %s
     await db.execute_update(
         '''
 UPDATE pools
-SET standing_worker_cores = %s
+SET standing_worker_cores = %s, min_instances = %s
 ''', (standing_worker_cores,))
 
 
