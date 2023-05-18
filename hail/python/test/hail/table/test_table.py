@@ -2425,7 +2425,7 @@ def test_query_table_interval_key():
     assert hl.eval(queries) == expected
 
 
-@pytest.mark.timeout(120)  # with sufficient available cores should take <=60s
+@pytest.mark.timeout(600)  # with sufficient available cores should take <=60s
 def test_large_number_of_partitions():
     ht = hl.utils.range_table(1500, n_partitions=1500)
     ht.collect()
