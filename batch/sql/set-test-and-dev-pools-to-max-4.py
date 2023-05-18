@@ -18,7 +18,7 @@ async def main():
     await db.execute_update(
         '''
 UPDATE inst_colls
-SET max_instances = %s, max_live_instances = %s, worker_max_idle_time_secs = %2
+SET max_instances = %s, max_live_instances = %s, worker_max_idle_time_secs = %s
 ''', (max_instances, max_live_instances, worker_max_idle_time_secs))
 
     if os.environ['HAIL_SCOPE'] == 'dev':
