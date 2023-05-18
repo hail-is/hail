@@ -620,6 +620,7 @@ class Tests(unittest.TestCase):
                                   key='Sample',
                                   missing='0',
                                   types={'Sample': hl.tstr, 'Weight1': hl.tfloat, 'Weight2': hl.tfloat})
+        mt = mt.annotate_entries(x=hl.coalesce(mt.GT.n_alt_alleles(), 1.0))
         ht_with_missing_weights = hl._linear_regression_rows_nd(y=[[mt.y], [hl.abs(mt.y)]],
                                                                  x=mt.x,
                                                                  covariates=[1],
