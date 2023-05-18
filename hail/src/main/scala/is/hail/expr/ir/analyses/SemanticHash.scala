@@ -1,7 +1,10 @@
 package is.hail.expr.ir.analyses
 
 import is.hail.expr.ir._
+import is.hail.expr.ir.functions.{TableCalculateNewPartitions, WrappedMatrixToValueFunction}
+import is.hail.expr.ir.lowering.RVDTableReader
 import is.hail.io.fs.FS
+import is.hail.methods.{ForceCountTable, NPartitionsTable}
 import is.hail.types.virtual._
 import is.hail.utils.Logging
 import org.apache.commons.codec.digest.MurmurHash3
@@ -15,7 +18,7 @@ case object SemanticHash extends Logging {
   type NextHash = () => Type
 
   // Picked from https://softwareengineering.stackexchange.com/a/145633
-  object Type {
+  object Hash {
     def apply(c: Class[_]): Type =
       apply(c.getName)
 
@@ -39,101 +42,142 @@ case object SemanticHash extends Logging {
   import Implicits._
 
   def getFileHash(fs: FS)(path: String): Type =
-    Type(fs.fileChecksum(path))
+    Hash(fs.fileChecksum(path))
 
   def unique: Type =
-    Type(UUID.randomUUID.toString)
+    Hash(UUID.randomUUID.toString)
 
   def apply(fs: FS)(root: BaseIR): NextHash = {
     val memo = Memo.empty[SemanticHash.Type]
-    val normalized = new NormalizeNames(_.toString)(root)
+    val normalized = new NormalizeNames(_.toString, allowFreeVariables = true)(root)
     for (ir <- IRTraversal.postOrder(normalized)) {
       memo.bind(ir, ir match {
+        case AggOrScan(a, isScan) =>
+          a.children.foldLeft(Hash(a.getClass) <> Hash(isScan))(_ <> memo(_))
+
         case Apply(fname, _, args, _, _) =>
-          args.foldLeft(Type(classOf[Apply]) <> Type(fname))(_ <> memo(_))
+          args.foldLeft(Hash(classOf[Apply]) <> Hash(fname))(_ <> memo(_))
+
+        case ApplyAggOp(init, seq, AggSignature(op, _, _)) =>
+          seq.foldLeft(init.foldLeft(Hash(classOf[ApplyAggOp]) <> Hash(op.getClass))(_ <> memo(_)))(_ <> memo(_))
 
         case ApplyBinaryPrimOp(op, x, y) =>
-          Type(classOf[ApplyBinaryPrimOp]) <> Type(op.getClass) <> memo(x) <> memo(y)
+          Hash(classOf[ApplyBinaryPrimOp]) <> Hash(op.getClass) <> memo(x) <> memo(y)
 
         case ApplyComparisonOp(op, x, y) =>
-          Type(classOf[ApplyComparisonOp]) <> Type(op.getClass) <> memo(x) <> memo(y)
+          Hash(classOf[ApplyComparisonOp]) <> Hash(op.getClass) <> memo(x) <> memo(y)
+
+        case ApplyIR(fname, _, args, _) =>
+          args.foldLeft(Hash(classOf[ApplyIR]) <> Hash(fname))(_ <> memo(_))
 
         case ApplySeeded(fname, args, rngState: IR, _, _) =>
-          args.foldLeft(Type(classOf[ApplySeeded]) <> Type(fname))(_ <> memo(_)) <> memo(rngState)
+          args.foldLeft(Hash(classOf[ApplySeeded]) <> Hash(fname))(_ <> memo(_)) <> memo(rngState)
 
         case ApplySpecial(fname, _, args, _, _) =>
-          args.foldLeft(Type(classOf[ApplySpecial]) <> Type(fname))(_ <> memo(_))
+          args.foldLeft(Hash(classOf[ApplySpecial]) <> Hash(fname))(_ <> memo(_))
 
         case ApplyUnaryPrimOp(op, x) =>
-          Type(classOf[ApplyUnaryPrimOp]) <> Type(op.getClass) <> memo(x)
+          Hash(classOf[ApplyUnaryPrimOp]) <> Hash(op.getClass) <> memo(x)
 
         case Cast(ir, typ) =>
-          Type(classOf[Cast]) <> memo(ir) <> Type(SemanticTypeName(typ))
+          Hash(classOf[Cast]) <> memo(ir) <> Hash(SemanticTypeName(typ))
+
+        case EncodedLiteral(_, bytes) =>
+          bytes.ba.foldLeft(Hash(classOf[EncodedLiteral]))(_ <> Hash(_))
 
         case GetField(ir, name) =>
-          Type(classOf[GetField]) <> memo(ir) <> Type(ir.typ.asInstanceOf[TStruct].fieldIdx(name))
+          Hash(classOf[GetField]) <> memo(ir) <> Hash(ir.typ.asInstanceOf[TStruct].fieldIdx(name))
 
         case GetTupleElement(ir, idx) =>
-          Type(classOf[GetTupleElement]) <> memo(ir) <> Type(idx)
+          Hash(classOf[GetTupleElement]) <> memo(ir) <> Hash(idx)
 
         case Literal(typ, value) =>
-          Type(classOf[Literal]) <> Type(typ.toJSON(value))
+          Hash(classOf[Literal]) <> Hash(typ.toJSON(value))
 
         case MakeStruct(fields) =>
-          fields.zipWithIndex.foldLeft(Type(classOf[MakeStruct])) { case (result, ((_, ir), index)) =>
-            result <> Type(index) <> memo(ir)
+          fields.zipWithIndex.foldLeft(Hash(classOf[MakeStruct])) { case (result, ((_, ir), index)) =>
+            result <> Hash(index) <> memo(ir)
           }
 
         case MakeTuple(fields) =>
-          fields.foldLeft(Type(classOf[MakeTuple])) { case (result, (index, ir)) =>
-            result <> Type(index) <> memo(ir)
+          fields.foldLeft(Hash(classOf[MakeTuple])) { case (result, (index, ir)) =>
+            result <> Hash(index) <> memo(ir)
           }
 
         case MatrixRead(_, _, _, reader) =>
-          reader.pathsUsed.map(getFileHash(fs)).foldLeft(Type(classOf[MatrixRead]))(_ <> _)
+          reader.pathsUsed.map(getFileHash(fs)).foldLeft(Hash(classOf[MatrixRead]))(_ <> _)
 
         case MatrixWrite(child, writer) =>
-          Type(classOf[MatrixWrite]) <> memo(child) <> Type(writer.path)
+          Hash(classOf[MatrixWrite]) <> memo(child) <> Hash(writer.path)
 
         case ReadPartition(context, _, reader) =>
-          Type(classOf[ReadPartition]) <> memo(context) <> Type(reader.toJValue)
+          Hash(classOf[ReadPartition]) <> memo(context) <> Hash(reader.toJValue)
 
         // Notes:
         // - If the name in the (Relational)Ref is free then it's impossible to know the semantic hash
         // - The semantic hash of a (Relational)Ref cannot be the same as the value it binds to as
         //   that would imply that the evaluation of the value to is the same as evaluating the ref itself.
         case Ref(name, _) =>
-          Type(classOf[Ref]) <> Type(name)
+          Hash(classOf[Ref]) <> Hash(name)
 
         case RelationalRef(name, _) =>
-          Type(classOf[RelationalRef]) <> Type(name)
+          Hash(classOf[RelationalRef]) <> Hash(name)
 
         case SelectFields(struct, names) =>
-          Type(classOf[SelectFields]) <> names.foldLeft(memo(struct))(_ <> Type(_))
+          Hash(classOf[SelectFields]) <> names.foldLeft(memo(struct))(_ <> Hash(_))
 
         case StreamZip(streams, _, body, behaviour, _) =>
-          streams.foldLeft(Type(classOf[StreamZip]))(_ <> memo(_)) <> memo(body) <> Type(behaviour)
-
-        case TableRead(_, _, reader) =>
-          reader.pathsUsed.map(getFileHash(fs)).foldLeft(Type(classOf[TableRead]))(_ <> _)
-
-        case TableRange(count, numPartitions) =>
-          Type(classOf[TableRange]) <> Type(count) <> Type(numPartitions)
-
-        case TableWrite(child, writer) =>
-          Type(classOf[TableWrite]) <> memo(child) <> Type(writer.path)
+          streams.foldLeft(Hash(classOf[StreamZip]))(_ <> memo(_)) <> memo(body) <> Hash(behaviour)
 
         case TableKeyBy(child, keys, _) =>
-          keys.foldLeft(Type(classOf[TableKeyBy]) <> memo(child))(_ <> Type(_))
+          keys.foldLeft(Hash(classOf[TableKeyBy]) <> memo(child))(_ <> Hash(_))
+
+        case TableJoin(left, right, joinop, key) =>
+          Hash(classOf[TableJoin]) <> memo(left) <> memo(right) <> Hash(joinop) <> Hash(key)
+
+        case TableParallelize(rowsAndGlobal, nPartitions) =>
+          nPartitions.foldLeft(Hash(classOf[TableParallelize]) <> memo(rowsAndGlobal))(_ <> Hash(_))
+
+        case TableRange(count, numPartitions) =>
+          Hash(classOf[TableRange]) <> Hash(count) <> Hash(numPartitions)
+
+        case TableRead(_, dropRows, reader)  =>
+          Hash(classOf[TableRead]) <> Hash(dropRows) <> (reader match {
+            case RVDTableReader(_, _, _, semhash) =>
+              semhash
+
+            case _ =>
+              Hash(reader.getClass) <> reader
+                .pathsUsed
+                .flatMap(fs.globWithPrefix(_, "**"))
+                .filter(_.isFile)
+                .map(s => getFileHash(fs)(s.getPath))
+                .reduce(_ <> _)
+          })
+
+        case TableToValueApply(table, op) =>
+          Hash(classOf[TableToValueApply]) <> memo(table) <> (op match {
+            case TableCalculateNewPartitions(nPartitions) =>
+              Hash(classOf[TableCalculateNewPartitions]) <> Hash(nPartitions)
+
+            case _: WrappedMatrixToValueFunction =>
+              unique
+
+            case _: ForceCountTable | _: NPartitionsTable =>
+              Hash(op.getClass)
+          })
+
+        case TableWrite(child, writer) =>
+          Hash(classOf[TableWrite]) <> memo(child) <> Hash(writer.path)
 
         case WritePartition(partition, context, writer) =>
-          Type(classOf[WritePartition]) <> memo(partition) <> memo(context) <> Type(writer.toJValue)
+          Hash(classOf[WritePartition]) <> memo(partition) <> memo(context) <> Hash(writer.toJValue)
 
         case WriteMetadata(writeAnnotations, writer) =>
-          Type(classOf[WriteMetadata]) <> memo(writeAnnotations) <> Type(writer.toJValue)
+          Hash(classOf[WriteMetadata]) <> memo(writeAnnotations) <> Hash(writer.toJValue)
 
         case WriteValue(value, path, _, stagingFile) =>
-          stagingFile.foldLeft(Type(classOf[WriteValue]) <> memo(value) <> memo(path))(_ <> memo(_))
+          stagingFile.foldLeft(Hash(classOf[WriteValue]) <> memo(value) <> memo(path))(_ <> memo(_))
 
         // The following are parameterized entirely by the operation's input and the operation itself
         case _: ArrayLen |
@@ -173,6 +217,7 @@ case object SemanticHash extends Logging {
              _: NDArraySlice |
              _: NDArrayWrite |
              _: RelationalLet |
+             _: StreamAgg |
              _: StreamDrop |
              _: StreamDropWhile |
              _: StreamFilter |
@@ -180,37 +225,39 @@ case object SemanticHash extends Logging {
              _: StreamFold |
              _: StreamFold2 |
              _: StreamFor |
+             _: StreamIota |
              _: StreamLen |
              _: StreamMap |
              _: StreamRange |
              _: StreamTake |
              _: StreamTakeWhile |
              _: TableGetGlobals |
-             _: TableCollect |
              _: TableAggregate |
+             _: TableCollect |
              _: TableCount |
-             _: TableMapRows |
-             _: TableMapGlobals |
-             _: TableFilter |
              _: TableDistinct |
+             _: TableFilter |
+             _: TableMapGlobals |
+             _: TableMapRows |
+             _: TableRename |
              _: ToArray |
              _: ToDict |
              _: ToSet |
              _: ToStream |
              _: Trap =>
-          ir.children.map(memo(_)).foldLeft(Type(ir.getClass))(_ <> _)
+          ir.children.map(memo(_)).foldLeft(Hash(ir.getClass))(_ <> _)
 
         // Discrete values
         case c@(_: Void | _: True | _: False) =>
-          Type(c.getClass)
+          Hash(c.getClass)
 
         // integral constants
-        case I32(x) => Type(classOf[I32]) <> Type(x)
-        case I64(x) => Type(classOf[I64]) <> Type(x)
-        case F32(x) => Type(classOf[F32]) <> Type(x)
-        case F64(x) => Type(classOf[F64]) <> Type(x)
-        case NA(typ) => Type(classOf[NA]) <> Type(SemanticTypeName(typ))
-        case Str(x) => Type(classOf[Str]) <> Type(x)
+        case I32(x) => Hash(classOf[I32]) <> Hash(x)
+        case I64(x) => Hash(classOf[I64]) <> Hash(x)
+        case F32(x) => Hash(classOf[F32]) <> Hash(x)
+        case F64(x) => Hash(classOf[F64]) <> Hash(x)
+        case NA(typ) => Hash(classOf[NA]) <> Hash(SemanticTypeName(typ))
+        case Str(x) => Hash(classOf[Str]) <> Hash(x)
 
         // In these cases, just return a random SemanticHash meaning that two
         // invocations will never return the same thing.
@@ -223,8 +270,21 @@ case object SemanticHash extends Logging {
     }
 
     val semhash = memo(normalized)
+    log.info(s"Query semantic hash = $semhash")
     var count = 0
-    () => { val h = count; count += 1; semhash <> Type(h)}
+    () => { val h = count; count += 1; semhash <> Hash(h)}
+  }
+}
+
+private object AggOrScan {
+  def unapply(ir: BaseIR): Option[(IR, Boolean)] = ir match {
+    case a: AggExplode => Some((a, a.isScan))
+    case a: AggFilter => Some((a, a.isScan))
+    case a: AggFold => Some((a, a.isScan))
+    case a: AggGroupBy => Some((a, a.isScan))
+    case a: AggLet => Some((a, a.isScan))
+    case a: AggArrayPerElement => Some((a, a.isScan))
+    case _ => None
   }
 }
 

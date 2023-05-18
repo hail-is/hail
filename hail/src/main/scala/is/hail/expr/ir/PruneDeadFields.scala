@@ -2161,7 +2161,7 @@ object PruneDeadFields {
         val globals2 = upcast(ctx, rebuildIR(ctx, globals, env, memo), memo.requestedType.lookup(globals).asInstanceOf[Type])
         val body2 = rebuildIR(ctx, body, BindingEnv(Env(cname -> TIterable.elementType(contexts2.typ), gname -> globals2.typ)), memo)
         val dynamicID2 = rebuildIR(ctx, dynamicID, env, memo)
-        CollectDistributedArray(contexts2, globals2, cname, gname, body2, dynamicID2, staticID, tsd, semhash.map(SemanticHash.Type(PruneDeadFields.getClass) <> _))
+        CollectDistributedArray(contexts2, globals2, cname, gname, body2, dynamicID2, staticID, tsd, semhash)
       case _ =>
         ir.copy(ir.children.map {
           case valueIR: IR => rebuildIR(ctx, valueIR, env, memo) // FIXME: assert IR does not bind or change env

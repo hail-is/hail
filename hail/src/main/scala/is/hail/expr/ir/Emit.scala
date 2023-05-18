@@ -2474,6 +2474,7 @@ class Emit[C](
           cb.assign(stageName, staticID)
 
           val semhash = cb.newLocal[SemanticHash.Type]("semhash")
+          assert(x.semhash.isDefined, "CDA missing semantic hash")
           cb.assign(semhash, x.semhash.get)
           
           emitI(dynamicID).consume(cb, (), { dynamicID =>
@@ -2482,7 +2483,7 @@ class Emit[C](
             cb.assign(semhash, {
               val dynamicHash =
                 Code.invokeScalaObject[SemanticHash.Type](
-                  SemanticHash.Type.getClass, "apply", Array(classOf[String]), Array(dynV)
+                  SemanticHash.Hash.getClass, "apply", Array(classOf[String]), Array(dynV)
                 )
 
               Code.newInstance[SemanticHash.Implicits.MagmaHashType, SemanticHash.Type](semhash)

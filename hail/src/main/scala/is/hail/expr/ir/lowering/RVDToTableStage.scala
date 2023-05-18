@@ -22,7 +22,7 @@ import org.json4s.JsonAST.JString
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
-case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader {
+case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable, semhash: SemanticHash.Type) extends TableReader {
   lazy val fullType: TableType = TableType(rvd.rowType, rvd.typ.key, globals.typ.asInstanceOf[TStruct])
 
   override def pathsUsed: Seq[String] = Seq()

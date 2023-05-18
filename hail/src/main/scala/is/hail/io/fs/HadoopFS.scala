@@ -187,7 +187,7 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     if (checksum != null) checksum.getBytes
     else {
       val digest = using(fs.open(p))(MD5Hash.digest).getDigest
-      Base64.getDecoder.decode(digest)
+      Base64.getEncoder.encode(digest)
     }
   }
 
