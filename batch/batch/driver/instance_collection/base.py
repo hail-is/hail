@@ -12,6 +12,7 @@ from gear.time_limited_max_size_cache import TimeLimitedMaxSizeCache
 from hailtop import aiotools
 from hailtop.utils import periodically_call, secret_alnum_string, time_msecs
 
+from ...globals import INSTANCE_VERSION
 from ...instance_config import QuantifiedResource
 from ..instance import Instance
 from ..location import CloudLocationMonitor
@@ -68,7 +69,7 @@ class InstanceCollectionManager:
         preemptible: bool,
         regions: List[str],
     ) -> str:
-        if self._default_region in regions and self.global_live_total_cores_mcpu // 1000 < 1_000:
+        if self._default_region in regions and self.global_total_provisioned_cores_mcpu // 1000 < 1_000:
             regions = [self._default_region]
         return self.location_monitor.choose_location(
             cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions
@@ -86,20 +87,21 @@ class InstanceCollectionManager:
         return result
 
     @property
-    def global_live_total_cores_mcpu(self):
-        return sum(inst_coll.live_total_cores_mcpu for inst_coll in self.name_inst_coll.values())
+    def global_total_provisioned_cores_mcpu(self):
+        return sum(inst_coll.all_versions_provisioned_cores_mcpu for inst_coll in self.name_inst_coll.values())
 
     @property
-    def global_live_free_cores_mcpu(self):
-        return sum(inst_coll.live_free_cores_mcpu for inst_coll in self.name_inst_coll.values())
+    def global_current_version_live_free_cores_mcpu(self):
+        return sum(
+            inst_coll.current_worker_version_stats.live_free_cores_mcpu for inst_coll in self.name_inst_coll.values()
+        )
 
     @property
     def global_n_instances_by_state(self) -> Counter[str]:
-        counters = [collections.Counter(inst_coll.n_instances_by_state) for inst_coll in self.name_inst_coll.values()]
-        result: Counter[str] = collections.Counter()
-        for counter in counters:
-            result += counter
-        return result
+        return sum(
+            (inst_coll.all_versions_instances_by_state for inst_coll in self.name_inst_coll.values()),
+            collections.Counter(),
+        )
 
     def get_inst_coll(self, inst_coll_name):
         return self.name_inst_coll.get(inst_coll_name)
@@ -127,6 +129,32 @@ class InstanceCollectionManager:
         return record['token']
 
 
+class InstanceCollectionStats:
+    def __init__(self):
+        self.n_instances_by_state = {'pending': 0, 'active': 0, 'inactive': 0, 'deleted': 0}
+
+        self.live_free_cores_mcpu_by_region: Dict[str, int] = collections.defaultdict(int)
+        # pending and active
+        self.live_free_cores_mcpu = 0
+        self.live_total_cores_mcpu = 0
+
+    def remove_instance(self, instance: Instance):
+        self.n_instances_by_state[instance.state] -= 1
+
+        if instance.state in ('pending', 'active'):
+            self.live_free_cores_mcpu -= instance.free_cores_mcpu_nonnegative
+            self.live_total_cores_mcpu -= instance.cores_mcpu
+            self.live_free_cores_mcpu_by_region[instance.region] -= instance.free_cores_mcpu_nonnegative
+
+    def add_instance(self, instance: Instance):
+        self.n_instances_by_state[instance.state] += 1
+
+        if instance.state in ('pending', 'active'):
+            self.live_free_cores_mcpu += instance.free_cores_mcpu_nonnegative
+            self.live_total_cores_mcpu += instance.cores_mcpu
+            self.live_free_cores_mcpu_by_region[instance.region] += instance.free_cores_mcpu_nonnegative
+
+
 class InstanceCollection:
     def __init__(
         self,
@@ -151,19 +179,34 @@ class InstanceCollection:
         self.max_instances = max_instances
         self.max_live_instances = max_live_instances
 
+        self.stats_by_instance_version: Dict[int, InstanceCollectionStats] = collections.defaultdict(
+            lambda: InstanceCollectionStats()
+        )
+
         self.name_instance: Dict[str, Instance] = {}
-        self.live_free_cores_mcpu_by_region: Dict[str, int] = collections.defaultdict(int)
 
         self.instances_by_last_updated = sortedcontainers.SortedSet(key=lambda instance: instance.last_updated)
 
-        self.n_instances_by_state = {'pending': 0, 'active': 0, 'inactive': 0, 'deleted': 0}
-
-        # pending and active
-        self.live_free_cores_mcpu = 0
-        self.live_total_cores_mcpu = 0
-
         task_manager.ensure_future(self.monitor_instances_loop())
         self.inst_coll_manager.register_instance_collection(self)
+
+    @property
+    def current_worker_version_stats(self) -> InstanceCollectionStats:
+        return self.stats_by_instance_version[INSTANCE_VERSION]
+
+    @property
+    def all_versions_instances_by_state(self):
+        return sum(
+            (
+                collections.Counter(version_stats.n_instances_by_state)
+                for version_stats in self.stats_by_instance_version.values()
+            ),
+            collections.Counter(),
+        )
+
+    @property
+    def all_versions_provisioned_cores_mcpu(self):
+        return sum(version_stats.live_total_cores_mcpu for version_stats in self.stats_by_instance_version.values())
 
     @property
     def n_instances(self) -> int:
@@ -194,13 +237,7 @@ class InstanceCollection:
         assert instance in self.instances_by_last_updated
 
         self.instances_by_last_updated.remove(instance)
-
-        self.n_instances_by_state[instance.state] -= 1
-
-        if instance.state in ('pending', 'active'):
-            self.live_free_cores_mcpu -= instance.free_cores_mcpu_nonnegative
-            self.live_total_cores_mcpu -= instance.cores_mcpu
-            self.live_free_cores_mcpu_by_region[instance.region] -= instance.free_cores_mcpu_nonnegative
+        self.stats_by_instance_version[instance.version].remove_instance(instance)
 
     async def remove_instance(self, instance: Instance, reason: str, timestamp: Optional[int] = None):
         await instance.deactivate(reason, timestamp)
@@ -213,13 +250,8 @@ class InstanceCollection:
     def adjust_for_add_instance(self, instance: Instance):
         assert instance not in self.instances_by_last_updated
 
-        self.n_instances_by_state[instance.state] += 1
-
         self.instances_by_last_updated.add(instance)
-        if instance.state in ('pending', 'active'):
-            self.live_free_cores_mcpu += instance.free_cores_mcpu_nonnegative
-            self.live_total_cores_mcpu += instance.cores_mcpu
-            self.live_free_cores_mcpu_by_region[instance.region] += instance.free_cores_mcpu_nonnegative
+        self.stats_by_instance_version[instance.version].add_instance(instance)
 
     def add_instance(self, instance: Instance):
         assert instance.name not in self.name_instance, instance.name
