@@ -52,7 +52,6 @@ def test_pc_relate_paths_1():
     kin1 = hl.pc_relate(mt.GT, 0.10, k=2, statistics='kin', block_size=64)
     kin_s1 = hl.pc_relate(mt.GT, 0.10, scores_expr=scores3[mt.col_key].scores[:2],
                           statistics='kin', block_size=64)
-
     assert kin1._same(kin_s1, tolerance=1e-4)
     assert kin1.count() == 50 * 49 / 2
 
@@ -61,20 +60,14 @@ def test_pc_relate_paths_2():
     mt = hl.balding_nichols_model(3, 50, 100)
 
     kin2 = hl.pc_relate(mt.GT, 0.05, k=2, min_kinship=0.01, statistics='kin2', block_size=128).cache()
-    kin3 = hl.pc_relate(mt.GT, 0.02, k=3, min_kinship=0.1, statistics='kin20', block_size=64).cache()
-
     assert kin2.count() > 0
     assert kin2.filter(kin2.kin < 0.01).count() == 0
-
-    assert kin3.count() > 0
-    assert kin3.filter(kin3.kin < 0.1).count() == 0
 
 
 def test_pc_relate_paths_3():
     mt = hl.balding_nichols_model(3, 50, 100)
 
     kin3 = hl.pc_relate(mt.GT, 0.02, k=3, min_kinship=0.1, statistics='kin20', block_size=64).cache()
-
     assert kin3.count() > 0
     assert kin3.filter(kin3.kin < 0.1).count() == 0
 
