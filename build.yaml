@@ -586,17 +586,6 @@ steps:
       - merge_code
       - auth_database
   - kind: buildImage2
-    name: hail_build_image
-    dockerFile: /io/hail/Dockerfile.hail-build
-    contextPath: /io/hail
-    publishAs: hail-build
-    inputs:
-      - from: /repo/hail/Dockerfile.hail-build
-        to: /io/hail/Dockerfile.hail-build
-    dependsOn:
-      - base_image
-      - merge_code
-  - kind: buildImage2
     name: hailgenetics_vep_grch37_85_image
     dockerFile: /io/repo/docker/hailgenetics/vep/grch37/85/Dockerfile
     contextPath: /io/repo/docker/vep/
@@ -713,7 +702,7 @@ steps:
   - kind: runImage
     name: build_hail_jar_and_wheel
     image:
-      valueFrom: hail_build_image.image
+      valueFrom: base_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -740,12 +729,12 @@ steps:
       - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
         to: /wheel-container.tar
     dependsOn:
-      - hail_build_image
+      - base_image
       - merge_code
   - kind: runImage
     name: build_hail_debug_jar_and_wheel
     image:
-      valueFrom: hail_build_image.image
+      valueFrom: base_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -765,12 +754,12 @@ steps:
       - from: /io/repo/hail/build/deploy/dist/debug-wheel-container.tar
         to: /debug-wheel-container.tar
     dependsOn:
-      - hail_build_image
+      - base_image
       - merge_code
   - kind: runImage
     name: build_hail_test_artifacts
     image:
-      valueFrom: hail_build_image.image
+      valueFrom: base_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -801,12 +790,12 @@ steps:
       - from: /io/repo/hail/data.tar.gz
         to: /data.tar.gz
     dependsOn:
-      - hail_build_image
+      - base_image
       - merge_code
   - kind: runImage
     name: build_wheel_for_azure
     image:
-      valueFrom: hail_build_image.image
+      valueFrom: base_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -825,7 +814,7 @@ steps:
       - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
         to: /wheel-for-azure-container.tar
     dependsOn:
-      - hail_build_image
+      - base_image
       - merge_code
   - kind: buildImage2
     name: hail_run_image
@@ -859,7 +848,7 @@ steps:
   - kind: runImage
     name: jvm_entryway_jar
     image:
-      valueFrom: hail_build_image.image
+      valueFrom: base_image.image
     script: |
       set -ex
 
@@ -874,7 +863,7 @@ steps:
       - from: /io/batch/jvm-entryway/build/libs/jvm-entryway.jar
         to: /jvm-entryway.jar
     dependsOn:
-      - hail_build_image
+      - base_image
       - merge_code
   - kind: buildImage2
     name: batch_worker_image
