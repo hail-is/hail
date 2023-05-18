@@ -27,7 +27,7 @@ SET max_instances = %s, max_live_instances = %s, worker_max_idle_time_secs = %s
     await db.execute_update(
         '''
 UPDATE pools
-SET standing_worker_cores = %s, min_instances = %s
+SET standing_worker_cores = %s
 ''', (standing_worker_cores,))
 
 
