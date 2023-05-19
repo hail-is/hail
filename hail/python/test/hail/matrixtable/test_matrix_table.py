@@ -71,25 +71,32 @@ class Tests(unittest.TestCase):
             self.assertTrue(f(hl.eval(mt.annotate_globals(foo=hl.literal(x, t)).foo), x), f"{x}, {t}")
             self.assertTrue(f(hl.eval(ht.annotate_globals(foo=hl.literal(x, t)).foo), x), f"{x}, {t}")
 
-    def test_head(self):
-        # no empty partitions
-        mt1 = hl.utils.range_matrix_table(10, 10)
+    def test_head_no_empty_partitions(self):
+        mt = hl.utils.range_matrix_table(10, 10)
 
-        # empty partitions at front
-        mt2 = hl.utils.range_matrix_table(20, 10, 20)
-        mt2 = mt2.filter_rows(mt2.row_idx > 9)
-        mts = [mt1, mt2]
+        tmp_file = new_temp_file(extension='mt')
 
-        for mt in mts:
-            tmp_file = new_temp_file(extension='mt')
+        mt.write(tmp_file)
+        mt_readback = hl.read_matrix_table(tmp_file)
+        for mt_ in [mt, mt_readback]:
+            assert mt_.head(1).count_rows() == 1
+            assert mt_.head(1)._force_count_rows() == 1
+            assert mt_.head(100).count_rows() == 10
+            assert mt_.head(100)._force_count_rows() == 10
 
-            mt.write(tmp_file)
-            mt_readback = hl.read_matrix_table(tmp_file)
-            for mt_ in [mt, mt_readback]:
-                assert mt_.head(1).count_rows() == 1
-                assert mt_.head(1)._force_count_rows() == 1
-                assert mt_.head(100).count_rows() == 10
-                assert mt_.head(100)._force_count_rows() == 10
+    def test_head_empty_partitions_at_front(self):
+        mt = hl.utils.range_matrix_table(20, 10, 20)
+        mt = mt.filter_rows(mt.row_idx > 9)
+
+        tmp_file = new_temp_file(extension='mt')
+
+        mt.write(tmp_file)
+        mt_readback = hl.read_matrix_table(tmp_file)
+        for mt_ in [mt, mt_readback]:
+            assert mt_.head(1).count_rows() == 1
+            assert mt_.head(1)._force_count_rows() == 1
+            assert mt_.head(100).count_rows() == 10
+            assert mt_.head(100)._force_count_rows() == 10
 
     def test_head_cols(self):
         mt1 = hl.utils.range_matrix_table(10, 10)

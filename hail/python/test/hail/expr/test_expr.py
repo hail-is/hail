@@ -3189,53 +3189,68 @@ class Tests(unittest.TestCase):
         self.assert_evals_to(hl.mean(s), 3)
         self.assert_evals_to(hl.median(s), 3)
 
-    def test_set_operators(self):
+    def test_set_operators_1(self):
         self.assert_evals_to(hl.set([1, 2, 3]) <= hl.set([1, 2]), False)
         self.assert_evals_to(hl.set([1, 2, 3]) <= hl.set([1, 2, 3]), True)
         self.assert_evals_to(hl.set([1, 2, 3]) <= hl.set([1, 2, 3, 4]), True)
 
+    def test_set_operators_2(self):
         self.assert_evals_to(hl.set([1, 2, 3]) < hl.set([1, 2]), False)
         self.assert_evals_to(hl.set([1, 2, 3]) < hl.set([1, 2, 3]), False)
         self.assert_evals_to(hl.set([1, 2, 3]) < hl.set([1, 2, 3, 4]), True)
 
+    def test_set_operators_3(self):
         self.assert_evals_to(hl.set([1, 2]) >= hl.set([1, 2, 3]), False)
         self.assert_evals_to(hl.set([1, 2, 3]) >= hl.set([1, 2, 3]), True)
         self.assert_evals_to(hl.set([1, 2, 3, 4]) >= hl.set([1, 2, 3]), True)
 
+    def test_set_operators_4(self):
         self.assert_evals_to(hl.set([1, 2]) > hl.set([1, 2, 3]), False)
         self.assert_evals_to(hl.set([1, 2, 3]) > hl.set([1, 2, 3]), False)
         self.assert_evals_to(hl.set([1, 2, 3, 4]) > hl.set([1, 2, 3]), True)
 
+    def test_set_operators_5(self):
         self.assert_evals_to(hl.set([1, 2, 3]) - hl.set([1, 3]), set([2]))
         self.assert_evals_to(hl.set([1, 2, 3]) - set([1, 3]), set([2]))
         self.assert_evals_to(set([1, 2, 3]) - hl.set([1, 3]), set([2]))
 
+    def test_set_operators_6(self):
         self.assert_evals_to(hl.set([1, 2, 3]) | hl.set([3, 4, 5]), set([1, 2, 3, 4, 5]))
         self.assert_evals_to(hl.set([1, 2, 3]) | set([3, 4, 5]), set([1, 2, 3, 4, 5]))
         self.assert_evals_to(set([1, 2, 3]) | hl.set([3, 4, 5]), set([1, 2, 3, 4, 5]))
 
+    def test_set_operators_7(self):
         self.assert_evals_to(hl.set([1, 2, 3]) & hl.set([3, 4, 5]), set([3]))
         self.assert_evals_to(hl.set([1, 2, 3]) & set([3, 4, 5]), set([3]))
         self.assert_evals_to(set([1, 2, 3]) & hl.set([3, 4, 5]), set([3]))
 
+    def test_set_operators_8(self):
         self.assert_evals_to(hl.set([1, 2, 3]) ^ hl.set([3, 4, 5]), set([1, 2, 4, 5]))
         self.assert_evals_to(hl.set([1, 2, 3]) ^ set([3, 4, 5]), set([1, 2, 4, 5]))
         self.assert_evals_to(set([1, 2, 3]) ^ hl.set([3, 4, 5]), set([1, 2, 4, 5]))
 
-    def test_uniroot(self):
+    def test_uniroot_1(self):
         tol = 1.220703e-4
 
         self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, 0, hl.missing('float'), tolerance=tol)), None)
         self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, hl.missing('float'), 3, tolerance=tol)), None)
+
+    def test_uniroot_2(self):
+        tol = 1.220703e-4
+
         self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, 0, 3, tolerance=tol)), 1)
         self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: hl.log(x) - 1, 0, 3, tolerance=tol)), 2.718281828459045, delta=tol)
 
+    def test_uniroot_3(self):
         with self.assertRaisesRegex(hl.utils.FatalError, r"value of f\(x\) is missing"):
             hl.eval(hl.uniroot(lambda x: hl.missing('float'), 0, 1))
         with self.assertRaisesRegex(hl.utils.HailUserError, 'opposite signs'):
             hl.eval(hl.uniroot(lambda x: x ** 2 - 0.5, -1, 1))
         with self.assertRaisesRegex(hl.utils.HailUserError, 'min must be less than max'):
             hl.eval(hl.uniroot(lambda x: x, 1, -1))
+
+    def test_uniroot_multiple_roots(self):
+        tol = 1.220703e-4
 
         def multiple_roots(x):
             return (x - 1.5) * (x - 2) * (x - 3.3) * (x - 4.5) * (x - 5)
