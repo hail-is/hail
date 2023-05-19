@@ -5,7 +5,7 @@ import is.hail.expr.ir.ByteArrayBuilder
 import java.nio.charset.StandardCharsets
 import is.hail.utils._
 import is.hail.services._
-import is.hail.services.{DeployConfig, Tokens}
+import is.hail.services.DeployConfig
 import org.apache.commons.io.IOUtils
 import org.apache.http.{HttpEntity, HttpEntityEnclosingRequest}
 import org.apache.http.client.methods.{HttpDelete, HttpGet, HttpPatch, HttpPost, HttpUriRequest}

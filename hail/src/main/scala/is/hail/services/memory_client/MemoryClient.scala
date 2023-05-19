@@ -4,7 +4,7 @@ import java.io._
 
 import is.hail.HailContext
 import is.hail.io.fs.{Seekable, Positioned}
-import is.hail.services.{ClientResponseException, DeployConfig, Requester, Tokens}
+import is.hail.services.{ClientResponseException, DeployConfig, Requester}
 import org.apache.http.client.methods._
 import org.apache.http.entity._
 import org.apache.http._
