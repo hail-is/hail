@@ -781,7 +781,7 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(t.aggregate(aggregation), expected)
 
-    def test_agg_group_by(self):
+    def test_agg_group_by_1(self):
         t = hl.utils.range_table(10)
         tests = [(hl.agg.group_by(t.idx % 2,
                                hl.array(hl.agg.collect_as_set(t.idx + 1)).append(0)),
@@ -810,9 +810,11 @@ class Tests(unittest.TestCase):
                                   hl.agg.group_by(t.idx % 2, hl.agg.count())),
                   {i: {0: 1, 1: 1} for i in range(5)}),
                  ]
-        for aggregation, expected in tests:
-            self.assertEqual(t.aggregate(aggregation), expected)
+        results = t.aggregate(hl.tuple([x[0] for x in tests]))
+        for aggregate, (_, expected) in zip(results, tests):
+            assert aggregate == expected
 
+    def test_agg_group_by_2(self):
         t = hl.Table.parallelize([
             {"cohort": None, "pop": "EUR", "GT": hl.Call([0, 0])},
             {"cohort": None, "pop": "ASN", "GT": hl.Call([0, 1])},

@@ -1273,7 +1273,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(cor.shape[0], cor.shape[1])
         self.assertTrue(np.allclose(l, cor))
 
-    def test_ld_matrix(self):
+    def get_ld_matrix_mt(self):
         data = [{'v': '1:1:A:C',       'cm': 0.1, 's': 'a', 'GT': hl.Call([0, 0])},
                 {'v': '1:1:A:C',       'cm': 0.1, 's': 'b', 'GT': hl.Call([0, 0])},
                 {'v': '1:1:A:C',       'cm': 0.1, 's': 'c', 'GT': hl.Call([0, 1])},
@@ -1288,20 +1288,28 @@ class Tests(unittest.TestCase):
                 {'v': '2:1:C:G',       'cm': 0.2, 's': 'd', 'GT': hl.missing(hl.tcall)}]
         ht = hl.Table.parallelize(data, hl.dtype('struct{v: str, s: str, cm: float64, GT: call}'))
         ht = ht.transmute(**hl.parse_variant(ht.v))
-        mt = ht.to_matrix_table(row_key=['locus', 'alleles'], col_key=['s'], row_fields=['cm'])
+        return ht.to_matrix_table(row_key=['locus', 'alleles'], col_key=['s'], row_fields=['cm'])
 
+    def test_ld_matrix_1(self):
+        mt = self.get_ld_matrix_mt()
         self.assertTrue(np.allclose(
             hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=1e6).to_numpy(),
             [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]]))
 
+    def test_ld_matrix_2(self):
+        mt = self.get_ld_matrix_mt()
         self.assertTrue(np.allclose(
             hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=2e6).to_numpy(),
             [[1., -0.85280287, 0.], [-0.85280287, 1., 0.], [0., 0., 1.]]))
 
+    def test_ld_matrix_3(self):
+        mt = self.get_ld_matrix_mt()
         self.assertTrue(np.allclose(
             hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=0.5, coord_expr=mt.cm).to_numpy(),
             [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]]))
 
+    def test_ld_matrix_4(self):
+        mt = self.get_ld_matrix_mt()
         self.assertTrue(np.allclose(
             hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=1.0, coord_expr=mt.cm).to_numpy(),
             [[1., -0.85280287, 0.], [-0.85280287, 1., 0.], [0., 0., 1.]]))

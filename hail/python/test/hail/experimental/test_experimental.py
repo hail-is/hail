@@ -7,10 +7,7 @@ from hail.utils import new_temp_file
 
 
 class Tests(unittest.TestCase):
-    @fails_service_backend()
-    @fails_local_backend
-    def test_ld_score(self):
-
+    def get_ld_score_mt(self):
         ht = hl.import_table(doctest_resource('ldsc.annot'),
                              types={'BP': hl.tint,
                                     'CM': hl.tfloat,
@@ -22,22 +19,18 @@ class Tests(unittest.TestCase):
         mt = hl.import_plink(bed=doctest_resource('ldsc.bed'),
                              bim=doctest_resource('ldsc.bim'),
                              fam=doctest_resource('ldsc.fam'))
-        mt = mt.annotate_rows(binary=ht[mt.locus].binary,
-                              continuous=ht[mt.locus].continuous)
+        return mt.annotate_rows(binary=ht[mt.locus].binary,
+                                continuous=ht[mt.locus].continuous)
 
+    @fails_service_backend()
+    @fails_local_backend
+    def test_ld_score_univariate(self):
+        mt = self.get_ld_score_mt()
         ht_univariate = hl.experimental.ld_score(
             entry_expr=mt.GT.n_alt_alleles(),
             locus_expr=mt.locus,
             radius=1.0,
             coord_expr=mt.cm_position)
-
-        ht_annotated = hl.experimental.ld_score(
-            entry_expr=mt.GT.n_alt_alleles(),
-            locus_expr=mt.locus,
-            radius=1.0,
-            coord_expr=mt.cm_position,
-            annotation_exprs=[mt.binary,
-                              mt.continuous])
 
         univariate = ht_univariate.aggregate(hl.struct(
             chr20=hl.agg.filter(
@@ -54,6 +47,17 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(univariate.chr22, 1.140, places=3)
         self.assertAlmostEqual(univariate.mean, 3.507, places=3)
 
+    @fails_service_backend()
+    @fails_local_backend
+    def test_ld_score_annotated(self):
+        mt = self.get_ld_score_mt()
+        ht_annotated = hl.experimental.ld_score(
+            entry_expr=mt.GT.n_alt_alleles(),
+            locus_expr=mt.locus,
+            radius=1.0,
+            coord_expr=mt.cm_position,
+            annotation_exprs=[mt.binary,
+                              mt.continuous])
         annotated = ht_annotated.aggregate(
             hl.struct(
                 chr20=hl.struct(binary=hl.agg.filter(
@@ -82,7 +86,6 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(annotated.chr22.continuous, 102.174, places=3)
         self.assertAlmostEqual(annotated.mean_stats.binary, 0.965, places=3)
         self.assertAlmostEqual(annotated.mean_stats.continuous, 176.528, places=3)
-
 
     def test_plot_roc_curve(self):
         x = hl.utils.range_table(100).annotate(score1=hl.rand_norm(), score2=hl.rand_norm())

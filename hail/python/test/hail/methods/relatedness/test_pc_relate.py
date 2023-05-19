@@ -46,14 +46,17 @@ def test_pc_relate_simple_example():
 
 
 def test_pc_relate_paths_1():
-    mt = hl.balding_nichols_model(3, 50, 100)
-    _, scores3, _ = hl._hwe_normalized_blanczos(mt.GT, k=3, compute_loadings=False, q_iterations=10)
+    with hl.TemporaryDirectory(ensure_exists=False) as scores_f:
+        mt = hl.balding_nichols_model(3, 50, 100)
+        _, scores3, _ = hl._hwe_normalized_blanczos(mt.GT, k=3, compute_loadings=False, q_iterations=10)
+        scores3 = scores3.checkpoint(scores_f)
 
-    kin1 = hl.pc_relate(mt.GT, 0.10, k=2, statistics='kin', block_size=64)
-    kin_s1 = hl.pc_relate(mt.GT, 0.10, scores_expr=scores3[mt.col_key].scores[:2],
-                          statistics='kin', block_size=64)
-    assert kin1._same(kin_s1, tolerance=1e-4)
-    assert kin1.count() == 50 * 49 / 2
+        with hl.TemporaryDirectory(ensure_exists=False) as kin1_f:
+            kin1 = hl.pc_relate(mt.GT, 0.10, k=2, statistics='kin', block_size=64).checkpoint(kin1_f)
+            kin_s1 = hl.pc_relate(mt.GT, 0.10, scores_expr=scores3[mt.col_key].scores[:2],
+                                  statistics='kin', block_size=64)
+            assert kin1._same(kin_s1, tolerance=1e-4)
+            assert kin1.count() == 50 * 49 / 2
 
 
 def test_pc_relate_paths_2():
@@ -74,21 +77,23 @@ def test_pc_relate_paths_3():
 
 def test_self_kinship():
     mt = hl.balding_nichols_model(3, 10, 50)
-    with_self = hl.pc_relate(mt.GT, 0.10, k=2, statistics='kin20', block_size=16, include_self_kinship=True)
-    without_self = hl.pc_relate(mt.GT, 0.10, k=2, statistics='kin20', block_size=16)
+    with hl.TemporaryDirectory(ensure_exists=False) as with_self_f, \
+         hl.TemporaryDirectory(ensure_exists=False) as without_self_f:
+        with_self = hl.pc_relate(mt.GT, 0.10, k=2, statistics='kin20', block_size=16, include_self_kinship=True).checkpoint(with_self_f)
+        without_self = hl.pc_relate(mt.GT, 0.10, k=2, statistics='kin20', block_size=16).checkpoint(without_self_f)
 
-    assert with_self.count() == 55
-    assert without_self.count() == 45
+        assert with_self.count() == 55
+        assert without_self.count() == 45
 
-    with_self_self_kin_only = with_self.filter(with_self.i.sample_idx == with_self.j.sample_idx)
-    assert with_self_self_kin_only.count() == 10, with_self_self_kin_only.collect()
+        with_self_self_kin_only = with_self.filter(with_self.i.sample_idx == with_self.j.sample_idx)
+        assert with_self_self_kin_only.count() == 10, with_self_self_kin_only.collect()
 
-    with_self_no_self_kin = with_self.filter(with_self.i.sample_idx != with_self.j.sample_idx)
-    assert with_self_no_self_kin.count() == 45, with_self_no_self_kin.collect()
-    assert with_self_no_self_kin._same(without_self)
+        with_self_no_self_kin = with_self.filter(with_self.i.sample_idx != with_self.j.sample_idx)
+        assert with_self_no_self_kin.count() == 45, with_self_no_self_kin.collect()
+        assert with_self_no_self_kin._same(without_self)
 
-    without_self_self_kin_only = without_self.filter(without_self.i.sample_idx == without_self.j.sample_idx)
-    assert without_self_self_kin_only.count() == 0, without_self_self_kin_only.collect()
+        without_self_self_kin_only = without_self.filter(without_self.i.sample_idx == without_self.j.sample_idx)
+        assert without_self_self_kin_only.count() == 0, without_self_self_kin_only.collect()
 
 
 @skip_when_service_backend(reason='intermittent tolerance failures')
