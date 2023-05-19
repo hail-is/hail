@@ -6,20 +6,23 @@ from ...helpers import resource, skip_when_service_backend
 
 def test_pc_relate_against_R_truth():
     mt = hl.import_vcf(resource('pc_relate_bn_input.vcf.bgz'))
-    hail_kin = hl.pc_relate(mt.GT, 0.00, k=2).checkpoint(utils.new_temp_file(extension='ht'))
+    with hl.TemporaryDirectory(ensure_exists=False) as hail_kin_f:
+        hail_kin = hl.pc_relate(mt.GT, 0.00, k=2).checkpoint(utils.new_temp_file(extension='ht')).checkpoint(hail_kin_f)
 
-    r_kin = hl.import_table(resource('pc_relate_r_truth.tsv.bgz'),
-                            types={'i': 'struct{s:str}',
-                                   'j': 'struct{s:str}',
-                                   'kin': 'float',
-                                   'ibd0': 'float',
-                                   'ibd1': 'float',
-                                   'ibd2': 'float'},
-                            key=['i', 'j'])
-    assert r_kin.select("kin")._same(hail_kin.select("kin"), tolerance=1e-3, absolute=True)
-    assert r_kin.select("ibd0")._same(hail_kin.select("ibd0"), tolerance=1.3e-2, absolute=True)
-    assert r_kin.select("ibd1")._same(hail_kin.select("ibd1"), tolerance=2.6e-2, absolute=True)
-    assert r_kin.select("ibd2")._same(hail_kin.select("ibd2"), tolerance=1.3e-2, absolute=True)
+        with hl.TemporaryDirectory(ensure_exists=False) as r_kin_f:
+            r_kin = hl.import_table(resource('pc_relate_r_truth.tsv.bgz'),
+                                    types={'i': 'struct{s:str}',
+                                           'j': 'struct{s:str}',
+                                           'kin': 'float',
+                                           'ibd0': 'float',
+                                           'ibd1': 'float',
+                                           'ibd2': 'float'},
+                                    key=['i', 'j']
+                                    ).checkpoint(r_kin_f)
+            assert r_kin.select("kin")._same(hail_kin.select("kin"), tolerance=1e-3, absolute=True)
+            assert r_kin.select("ibd0")._same(hail_kin.select("ibd0"), tolerance=1.3e-2, absolute=True)
+            assert r_kin.select("ibd1")._same(hail_kin.select("ibd1"), tolerance=2.6e-2, absolute=True)
+            assert r_kin.select("ibd2")._same(hail_kin.select("ibd2"), tolerance=1.3e-2, absolute=True)
 
 
 def test_pc_relate_simple_example():
