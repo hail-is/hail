@@ -5,7 +5,7 @@ import logging
 import os
 import re
 import signal
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from functools import wraps
 from typing import Any, Dict, Set, Tuple
 
@@ -1325,12 +1325,15 @@ async def scheduling_cancelling_bump(app):
     app['cancel_running_state_changed'].set()
 
 
+Resource = namedtuple('Resource', ['resource_id', 'deduped_resource_id'])
+
+
 async def refresh_globals_from_db(app, db):
     resource_ids = {
-        record['resource']: record['resource_id']
+        record['resource']: Resource(record['resource_id'], record['deduped_resource_id'])
         async for record in db.select_and_fetchall(
             '''
-SELECT resource, resource_id FROM resources;
+SELECT resource, resource_id, deduped_resource_id FROM resources;
 '''
         )
     }
