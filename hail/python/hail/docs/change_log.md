@@ -48,7 +48,7 @@ Released 2023-05-19
 - (hail#13028) Fix crash in `hl.vds.filter_intervals` when using a table to filter a VDS that stores the max ref block length.
 - (hail#13060) Prevent 500 Internal Server Error in Jupyter Notebooks of Dataproc clusters started by `hailctl dataproc`.
 - (hail#13051) In Query-on-Batch and `hailtop.batch`, Azure Blob Storage `https` URLs are now supported.
-- (hail#13042) In Query-on-Batch, `naive_coalsce` no longer performs a full write/read of the dataset. It now operates identically to the Query-on-Spark implementation.
+- (hail#13042) In Query-on-Batch, `naive_coalesce` no longer performs a full write/read of the dataset. It now operates identically to the Query-on-Spark implementation.
 - (hail#13031) In `hl.ld_prune`, an informative error message is raised when a dataset does not contain diploid calls instead of an assertion error.
 - (hail#13032) In Query-on-Batch, in Azure, Hail now users a newer version of the Azure blob storage libraries to reduce the frequency of "Stream is already closed" errors.
 - (hail#13011) In Query-on-Batch, the driver will use ~1/2 as much memory to read results as it did in 0.2.115.
