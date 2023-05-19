@@ -7,7 +7,7 @@ from ...helpers import resource, skip_when_service_backend
 def test_pc_relate_against_R_truth():
     mt = hl.import_vcf(resource('pc_relate_bn_input.vcf.bgz'))
     with hl.TemporaryDirectory(ensure_exists=False) as hail_kin_f:
-        hail_kin = hl.pc_relate(mt.GT, 0.00, k=2).checkpoint(utils.new_temp_file(extension='ht')).checkpoint(hail_kin_f)
+        hail_kin = hl.pc_relate(mt.GT, 0.00, k=2).checkpoint(hail_kin_f)
 
         with hl.TemporaryDirectory(ensure_exists=False) as r_kin_f:
             r_kin = hl.import_table(resource('pc_relate_r_truth.tsv.bgz'),
