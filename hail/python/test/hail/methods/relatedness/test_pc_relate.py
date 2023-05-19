@@ -49,8 +49,9 @@ def test_pc_relate_simple_example():
 
 
 def test_pc_relate_paths_1():
-    with hl.TemporaryDirectory(ensure_exists=False) as scores_f:
-        mt = hl.balding_nichols_model(3, 50, 100)
+    with hl.TemporaryDirectory(ensure_exists=False) as bn_f, \
+         hl.TemporaryDirectory(ensure_exists=False) as scores_f:
+        mt = hl.balding_nichols_model(3, 50, 100).checkpoint(bn_f)
         _, scores3, _ = hl._hwe_normalized_blanczos(mt.GT, k=3, compute_loadings=False, q_iterations=10)
         scores3 = scores3.checkpoint(scores_f)
 

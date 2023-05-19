@@ -365,7 +365,7 @@ def get_impute_sex_chromosome_ploidy_var_mt():
                   LGT=hl.call(1, 1, phased=False), GQ=6, DP=2),
     ]
 
-    return var_mt = hl.Table.parallelize(
+    return hl.Table.parallelize(
         var,
         schema=hl.dtype('struct{locus:locus<GRCh37>,alleles:array<str>,s:str,LA:array<int32>,LGT:call,GQ:int32,DP:int32}')
     ).to_matrix_table(row_key=['locus', 'alleles'], col_key=['s'])
