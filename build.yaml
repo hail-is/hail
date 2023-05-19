@@ -995,7 +995,7 @@ steps:
     name: test_hail_java
     numSplits: 5
     image:
-      valueFrom: hail_run_image.image
+      valueFrom: debug_hail_installed_for_tests_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1024,7 +1024,7 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
-      - hail_run_image
+      - debug_hail_installed_for_tests_image
       - build_hail_debug_jar_and_wheel
       - build_hail_test_artifacts
   - kind: buildImage2
@@ -1181,7 +1181,7 @@ steps:
     name: test_hail_python
     numSplits: 28
     image:
-      valueFrom: hail_run_image.image
+      valueFrom: debug_hail_installed_for_tests_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1229,7 +1229,7 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
-      - hail_run_image
+      - debug_hail_installed_for_tests_image
       - build_hail_debug_jar_and_wheel
       - build_hail_test_artifacts
     clouds:
@@ -1295,7 +1295,7 @@ steps:
   - kind: runImage
     name: test_hail_python_unchecked_allocator
     image:
-      valueFrom: hail_run_image.image
+      valueFrom: debug_hail_installed_for_tests_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1343,7 +1343,7 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
-      - hail_run_image
+      - debug_hail_installed_for_tests_image
       - build_hail_jar_and_wheel
       - build_hail_test_artifacts
     clouds:
@@ -1352,7 +1352,7 @@ steps:
     name: test_hail_python_local_backend
     numSplits: 64
     image:
-      valueFrom: hail_run_image.image
+      valueFrom: debug_hail_installed_for_tests_image.image
     script: |
       set -ex
       cd /io
@@ -1400,7 +1400,7 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
-      - hail_run_image
+      - debug_hail_installed_for_tests_image
       - build_hail_debug_jar_and_wheel
       - build_hail_test_artifacts
   - kind: runImage
@@ -3477,7 +3477,7 @@ steps:
   - kind: runImage
     name: test_hail_scala_fs
     image:
-      valueFrom: hail_run_image.image
+      valueFrom: debug_hail_installed_for_tests_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -3537,14 +3537,14 @@ steps:
       - default_ns
       - create_certs
       - create_accounts
-      - hail_run_image
+      - debug_hail_installed_for_tests_image
       - build_hail_test_artifacts
       - build_hail_jar_and_wheel
       - upload_test_resources_to_blob_storage
   - kind: runImage
     name: test_hail_services_java
     image:
-      valueFrom: hail_run_image.image
+      valueFrom: debug_hail_installed_for_tests_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -3583,7 +3583,7 @@ steps:
       - default_ns
       - create_certs
       - create_accounts
-      - hail_run_image
+      - debug_hail_installed_for_tests_image
       - build_hail_test_artifacts
       - deploy_batch
   - kind: runImage
