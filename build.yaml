@@ -2479,6 +2479,7 @@ steps:
       - upload_test_resources_to_blob_storage
       - hailgenetics_vep_grch37_85_image
       - build_hail_jar_and_wheel
+      - hail_installed_for_tests_image
   - kind: buildImage2
     name: netcat_ubuntu_image
     publishAs: netcat
