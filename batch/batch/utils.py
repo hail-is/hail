@@ -59,6 +59,14 @@ class Box:
         return f'{self.value}'
 
 
+class ANullContextManager:
+    async def __aenter__(self):
+        pass
+
+    async def __aexit__(self, exc_type, exc, tb):
+        pass
+
+
 class WindowFractionCounter:
     def __init__(self, window_size: int):
         self._window_size = window_size
