@@ -2398,7 +2398,7 @@ steps:
       - create_certs
   - kind: runImage
     name: test_hail_python_service_backend
-    numSplits: 128
+    numSplits: 144
     image:
       valueFrom: hail_installed_for_tests_image.image
     resources:
@@ -2422,20 +2422,17 @@ steps:
 
       export HAIL_SHUFFLE_MAX_BRANCH=4
       export HAIL_SHUFFLE_CUTOFF=1000000
-
-      hailctl config set query/backend batch
+      export HAIL_QUERY_BACKEND=batch
       {% if global.cloud == "azure" %}
-      hailctl config set batch/regions {{ global.azure_location }}
-      echo "using region {{ global.azure_location }}"
+      export HAIL_BATCH_REGIONS={{ global.azure_location }}
       {% elif global.cloud == "gcp" %}
-      hailctl config set batch/regions {{ global.gcp_region }}
-      echo "using region {{ global.gcp_region }}"
+      export HAIL_BATCH_REGIONS={{ global.gcp_region }}
       {% else %}
       echo "unknown cloud {{ global.cloud }}"
       exit 1
       {% endif %}
-      hailctl config set batch/billing_project test
-      hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}
+      export HAIL_BATCH_BILLING_PROJECT=test
+      export HAIL_BATCH_REMOTE_TMPDIR={{ global.test_storage_uri }}
 
       python3 -m pytest \
               -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
@@ -2447,7 +2444,7 @@ steps:
               --durations=50 \
               --ignore=test/hailtop/ \
               test
-    timeout: 3600
+    timeout: 1800
     inputs:
       - from: /repo/hail/python/test
         to: /io/repo/hail/python/test
