@@ -39,7 +39,7 @@ ENV PYSPARK_SUBMIT_ARGS "--conf spark.kryo.registrator=is.hail.kryo.HailKryoRegi
 RUN curl >${SPARK_HOME}/jars/gcs-connector-hadoop2-2.2.7.jar https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.2.7.jar
 COPY docker/core-site.xml ${SPARK_HOME}/conf/core-site.xml
 
-COPY /wheel-container /wheel-container.tar
+COPY /wheel-container.tar /wheel-container.tar
 RUN mkdir /__hail && \
     cd /__hail && \
     tar xvf /wheel-container.tar && \
