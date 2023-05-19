@@ -1,4 +1,23 @@
-FROM {{ base_image.image }}
+FROM {{ hail_ubuntu_image.image }}
+
+RUN hail-apt-get-install \
+    git \
+    htop \
+    unzip bzip2 zip tar \
+    rsync \
+    emacs-nox \
+    xsltproc pandoc \
+    openjdk-8-jdk-headless \
+    liblapack3 \
+    liblz4-dev \
+    g++-10 \
+    gcc-10 \
+    cmake \
+    && \
+    update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-10 10 && \
+    update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 10
+
+RUN hail-apt-get-install maven
 
 RUN mkdir -p plink && \
   cd plink && \
@@ -19,3 +38,11 @@ ENV PYSPARK_SUBMIT_ARGS "--conf spark.kryo.registrator=is.hail.kryo.HailKryoRegi
 
 RUN curl >${SPARK_HOME}/jars/gcs-connector-hadoop2-2.2.7.jar https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.2.7.jar
 COPY docker/core-site.xml ${SPARK_HOME}/conf/core-site.xml
+
+COPY /wheel-container /wheel-container.tar
+RUN mkdir /__hail && \
+    cd /__hail && \
+    tar xvf /wheel-container.tar && \
+    python3 -m pip install --no-dependencies hail-*-py3-none-any.whl && \
+    rm -rf /wheel-container.tar && \
+    rm -rf /__hail
