@@ -244,7 +244,7 @@ class Tests(unittest.TestCase):
         np_bm = bm.to_numpy()
         self._assert_eq(np_bm, np.arange(20, dtype=np.float64).reshape((4, 5)))
 
-    def test_numpy_round_trip(self):
+    def test_numpy_round_trip_1(self):
         n_rows = 10
         n_cols = 11
         data = np.random.rand(n_rows * n_cols)
@@ -270,6 +270,14 @@ class Tests(unittest.TestCase):
                 b.assert_eq(a3, a)
                 b.assert_eq(a4, a)
                 b.assert_eq(a5, a)
+
+    def test_numpy_round_trip_2(self):
+        n_rows = 10
+        n_cols = 11
+        data = np.random.rand(n_rows * n_cols)
+
+        bm = BlockMatrix._create(n_rows, n_cols, data.tolist(), block_size=4)
+        a = data.reshape((n_rows, n_cols))
 
         bmt = bm.T
         at = a.T
