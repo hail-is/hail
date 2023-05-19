@@ -555,7 +555,7 @@ class Tests(unittest.TestCase):
          .aggregate(bar=hl.agg.collect(mt.globals == lit))
          ._force_count_rows())
 
-    def test_unions(self):
+    def test_unions_1(self):
         dataset = hl.import_vcf(resource('sample2.vcf'))
 
         # test union_rows
@@ -570,6 +570,15 @@ class Tests(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             ds1.filter_cols(ds1.s.endswith('5')).union_rows(ds2)
+
+    def test_unions_2(self):
+        dataset = hl.import_vcf(resource('sample2.vcf'))
+
+        # test union_rows
+        ds1 = dataset.filter_rows(dataset.locus.position % 2 == 1)
+        ds2 = dataset.filter_rows(dataset.locus.position % 2 == 0)
+
+        datasets = [ds1, ds2]
 
         # test union_cols
         ds = dataset.union_cols(dataset).union_cols(dataset)
@@ -1309,15 +1318,11 @@ class Tests(unittest.TestCase):
         assert mt.checkpoint(path)._same(mt)
         hl.read_matrix_table(path, _drop_rows=True).write(path2)
 
-    def test_nulls_in_distinct_joins(self):
-
+    def test_nulls_in_distinct_joins_1(self):
         # MatrixAnnotateRowsTable uses left distinct join
         mr = hl.utils.range_matrix_table(7, 3, 4)
-        matrix1 = mr.key_rows_by(new_key=hl.if_else((mr.row_idx == 3) | (mr.row_idx == 5),
-                                                hl.missing(hl.tint32), mr.row_idx))
-        matrix2 = mr.key_rows_by(new_key=hl.if_else((mr.row_idx == 4) | (mr.row_idx == 6),
-                                                hl.missing(hl.tint32), mr.row_idx))
-
+        matrix1 = mr.key_rows_by(new_key=hl.if_else((mr.row_idx == 3) | (mr.row_idx == 5), hl.missing(hl.tint32), mr.row_idx))
+        matrix2 = mr.key_rows_by(new_key=hl.if_else((mr.row_idx == 4) | (mr.row_idx == 6), hl.missing(hl.tint32), mr.row_idx))
         joined = matrix1.select_rows(idx1=matrix1.row_idx,
                                      idx2=matrix2.rows()[matrix1.new_key].row_idx)
 
@@ -1333,6 +1338,10 @@ class Tests(unittest.TestCase):
                     row(None, 5, None)]
         self.assertEqual(joined.rows().collect(), expected)
 
+    def test_nulls_in_distinct_joins_2(self):
+        mr = hl.utils.range_matrix_table(7, 3, 4)
+        matrix1 = mr.key_rows_by(new_key=hl.if_else((mr.row_idx == 3) | (mr.row_idx == 5), hl.missing(hl.tint32), mr.row_idx))
+        matrix2 = mr.key_rows_by(new_key=hl.if_else((mr.row_idx == 4) | (mr.row_idx == 6), hl.missing(hl.tint32), mr.row_idx))
         # union_cols uses inner distinct join
         matrix1 = matrix1.annotate_entries(ridx=matrix1.row_idx,
                                            cidx=matrix1.col_idx)
@@ -1870,27 +1879,35 @@ def test_matrix_randomness_choose_cols():
     assert_unique_uids(mt)
 
 
-def test_matrix_randomness_map_cols():
+def test_matrix_randomness_map_cols_with_body_randomness():
     rmt = hl.utils.range_matrix_table(10, 10, 3)
-    # with body randomness
     mt = rmt.annotate_cols(r=hl.rand_int64())
     assert_contains_node(mt, ir.MatrixMapCols)
     x = mt.aggregate_cols(hl.struct(r=hl.agg.collect_as_set(mt.r), n=hl.agg.count()))
     assert(len(x.r) == x.n)
     assert_unique_uids(mt)
-    # with agg randomness
+
+
+def test_matrix_randomness_map_cols_with_agg_randomness():
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
     mt = rmt.annotate_cols(r=hl.agg.collect(hl.rand_int64()))
     assert_contains_node(mt, ir.MatrixMapCols)
     x = mt.aggregate_cols(hl.agg.explode(lambda r: hl.struct(r=hl.agg.collect_as_set(r), n=hl.agg.count()), mt.r))
     assert(len(x.r) == x.n)
     assert_unique_uids(mt)
-    # with scan randomness
+
+
+def test_matrix_randomness_map_cols_with_scan_randomness():
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
     mt = rmt.annotate_cols(r=hl.scan.collect(hl.rand_int64()))
     assert_contains_node(mt, ir.MatrixMapCols)
     x = mt.aggregate_cols(hl.struct(r=hl.agg.explode(lambda r: hl.agg.collect_as_set(r), mt.r), n=hl.agg.count()))
     assert(len(x.r) == x.n - 1)
     assert_unique_uids(mt)
-    # w/o body randomness
+
+
+def test_matrix_randomness_map_cols_without_body_randomness():
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
     mt = rmt.annotate_cols(x=2*rmt.col_idx)
     assert_contains_node(mt, ir.MatrixMapCols)
     assert_unique_uids(mt)
@@ -1941,26 +1958,36 @@ def test_matrix_randomness_key_rows_by():
     assert_unique_uids(mt)
 
 
-def test_matrix_randomness_map_rows():
+def test_matrix_randomness_map_rows_with_body_randomness():
     rmt = hl.utils.range_matrix_table(10, 10, 3)
-    # with body randomness
     mt = rmt.annotate_rows(r=hl.rand_int64())
     assert_contains_node(mt, ir.MatrixMapRows)
     x = mt.aggregate_rows(hl.struct(r=hl.agg.collect_as_set(mt.r), n=hl.agg.count()))
     assert(len(x.r) == x.n)
     assert_unique_uids(mt)
-    # with agg randomness
+
+
+def test_matrix_randomness_map_rows_with_agg_randomness():
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
     mt = rmt.annotate_rows(r=hl.agg.collect(hl.rand_int64()))
     assert_contains_node(mt, ir.MatrixMapRows)
     x = mt.aggregate_rows(hl.agg.explode(lambda r: hl.struct(r=hl.agg.collect_as_set(r), n=hl.agg.count()), mt.r))
     assert(len(x.r) == x.n)
     assert_unique_uids(mt)
+
+
+def test_matrix_randomness_map_rows_with_scan_randomness():
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
     # with scan randomness
     mt = rmt.annotate_rows(r=hl.scan.collect(hl.rand_int64()))
     assert_contains_node(mt, ir.MatrixMapRows)
     x = mt.aggregate_rows(hl.struct(r=hl.agg.explode(lambda r: hl.agg.collect_as_set(r), mt.r), n=hl.agg.count()))
     assert(len(x.r) == x.n - 1)
     assert_unique_uids(mt)
+
+
+def test_matrix_randomness_map_rows_without_body_randomness():
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
     # w/o body randomness
     mt = rmt.annotate_rows(x=2*rmt.row_idx)
     assert_contains_node(mt, ir.MatrixMapRows)

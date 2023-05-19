@@ -149,11 +149,12 @@ class Tests(unittest.TestCase):
             cols_conc.write(outfile, overwrite=True)
             rows_conc.write(outfile, overwrite=True)
 
-    def test_concordance_n_discordant(self):
+    def test_concordance_n_discordant_1(self):
         dataset = get_dataset()
-        _, cols_conc, rows_conc = hl.concordance(dataset, dataset)
+        _, cols_conc, _ = hl.concordance(dataset, dataset)
         assert cols_conc.aggregate(hl.agg.count_where(cols_conc.n_discordant != 0)) == 0
 
+    def test_concordance_n_discordant_2(self):
         rows1 = [
             hl.Struct(**{'locus': hl.Locus('1', 100), 'alleles': ['A', 'T'], 's': '1', 'GT': hl.Call([0, 0])}),
             hl.Struct(**{'locus': hl.Locus('1', 100), 'alleles': ['A', 'T'], 's': '2', 'GT': hl.Call([0, 0])}),

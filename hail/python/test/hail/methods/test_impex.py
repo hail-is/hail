@@ -1208,7 +1208,7 @@ class BGENTests(unittest.TestCase):
 
         self.assertTrue(expected._same(part_1))
 
-    def test_import_bgen_locus_filtering_from_literals(self):
+    def test_import_bgen_locus_filtering_from_Struct_object(self):
         bgen_file = resource('example.8bits.bgen')
 
         # Test with Struct(Locus)
@@ -1219,20 +1219,26 @@ class BGENTests(unittest.TestCase):
             hl.Struct(locus=hl.Locus('1', 10000), alleles=['A', 'G']) # Duplicated variant
         ]
 
-        locus_struct = hl.import_bgen(bgen_file,
-                                      ['GT'],
-                                      variants=desired_loci)
-        self.assertEqual(locus_struct.rows().key_by('locus', 'alleles').select().collect(),
-                         expected_result)
+        data = hl.import_bgen(bgen_file,
+                              ['GT'],
+                              variants=desired_loci)
+        assert data.rows().key_by('locus', 'alleles').select().collect() == expected_result
+
+    def test_import_bgen_locus_filtering_from_struct_expression(self):
+        bgen_file = resource('example.8bits.bgen')
 
         # Test with Locus object
         desired_loci = [hl.Locus('1', 10000)]
 
-        locus_object = hl.import_bgen(bgen_file,
-                                      ['GT'],
-                                      variants=desired_loci)
-        self.assertEqual(locus_object.rows().key_by('locus', 'alleles').select().collect(),
-                         expected_result)
+        expected_result = [
+            hl.Struct(locus=hl.Locus('1', 10000), alleles=['A', 'G']),
+            hl.Struct(locus=hl.Locus('1', 10000), alleles=['A', 'G']) # Duplicated variant
+        ]
+
+        data = hl.import_bgen(bgen_file,
+                              ['GT'],
+                              variants=desired_loci)
+        assert data.rows().key_by('locus', 'alleles').select().collect() == expected_result
 
     def test_import_bgen_variant_filtering_from_exprs(self):
         bgen_file = resource('example.8bits.bgen')
