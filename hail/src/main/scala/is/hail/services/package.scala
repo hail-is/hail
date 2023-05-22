@@ -117,6 +117,9 @@ package object services {
         // is.hail.io.fs.FSSeekableInputStream.read(FS.scala:141)
         // ...
         true
+      case e: java.net.SocketTimeoutException
+          if e.getMessage != null && e.getMessage.contains("connect timed out") =>
+        true
       case e @ (_: SSLException | _: StorageException | _: IOException)
           if e.getCause != null && NettyProxy.isRetryableNettyIOException(e.getCause) =>
         true
