@@ -1,48 +1,64 @@
-import argparse
+import asyncio
+import typer
+import webbrowser
+
+from typing import List, Optional
+from typing_extensions import Annotated as Ann
+from typer import Option as Opt
+
 
 from . import config
-from . import deploy
 
 
-def parser():
-    main_parser = argparse.ArgumentParser(
-        prog='hailctl',
-        description='Manage Hail development utilities.')
-    # we have to set dest becuase of a rendering bug in argparse
-    # https://bugs.python.org/issue29298
-    main_subparsers = main_parser.add_subparsers(title='hailctl subcommand', dest='hailctl subcommand', required=True)
-
-    dev_parser = main_subparsers.add_parser(
-        'dev',
-        help='Developer tools.',
-        description='Developer tools.')
-    subparsers = dev_parser.add_subparsers(title='hailctl dev subcommand', dest='hailctl dev subcommand', required=True)
-
-    config_parser = subparsers.add_parser(
-        'config',
-        help='Configure deployment',
-        description='Configure deployment')
-
-    config.cli.init_parser(config_parser)
-
-    deploy_parser = subparsers.add_parser(
-        'deploy',
-        help='Deploy a branch',
-        description='Deploy a branch')
-    deploy_parser.set_defaults(module='deploy')
-    deploy.cli.init_parser(deploy_parser)
-
-    return main_parser
+app = typer.Typer(
+    name='dev',
+    no_args_is_help=True,
+    help='Manage Hail development utilities.',
+)
+app.add_typer(
+    config.app,
+)
 
 
-def main(args):
-    p = parser()
-    args = p.parse_args()
-    if args.module == 'deploy':
-        from .deploy import cli as deploy_cli  # pylint: disable=import-outside-toplevel
-        deploy_cli.main(args)
-    else:
-        prefix = 'hailctl dev config'
-        assert args.module[:len(prefix)] == prefix
-        from .config import cli as config_cli  # pylint: disable=import-outside-toplevel
-        config_cli.main(args)
+@app.command()
+def deploy(
+    branch: Ann[str, Opt('--branch', '-b', help='Fully-qualified branch, e.g., hail-is/hail:feature')],
+    steps: Ann[List[str], Opt('--steps', '-s', help='Comma-separated list of steps to run.')],
+    excluded_steps: Ann[
+        Optional[List[str]],
+        Opt(
+            '--excluded_steps',
+            '-e',
+            help='Comma-separated list of steps to forcibly exclude. Use with caution!',
+        ),
+    ] = None,
+    extra_config: Ann[
+        Optional[List[str]],
+        Opt(
+            '--extra-config',
+            '-e',
+            help='Comma-separated list of key=value pairs to add as extra config parameters.',
+        ),
+    ] = None,
+    open: Ann[bool, Opt('--open', '-o', help='Open the deploy batch page in a web browser.')] = False,
+):
+    '''Deploy a branch.'''
+    asyncio.run(_deploy(branch, steps, excluded_steps or [], extra_config or [], open))
+
+
+async def _deploy(branch: str, steps: List[str], excluded_steps: List[str], extra_config: List[str], open: bool):
+    from hailtop.config import get_deploy_config  # pylint: disable=import-outside-toplevel
+    from hailtop.utils import unpack_comma_delimited_inputs, unpack_key_value_inputs  # pylint: disable=import-outside-toplevel
+    from .ci_client import CIClient  # pylint: disable=import-outside-toplevel
+
+    deploy_config = get_deploy_config()
+    steps = unpack_comma_delimited_inputs(steps)
+    print(steps)
+    excluded_steps = unpack_comma_delimited_inputs(excluded_steps)
+    extra_config_dict = unpack_key_value_inputs(extra_config)
+    async with CIClient(deploy_config) as ci_client:
+        batch_id = await ci_client.dev_deploy_branch(branch, steps, excluded_steps, extra_config_dict)
+        url = deploy_config.url('ci', f'/batches/{batch_id}')
+        print(f'Created deploy batch, see {url}')
+        if open:
+            webbrowser.open(url)

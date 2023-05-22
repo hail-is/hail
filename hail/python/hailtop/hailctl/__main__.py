@@ -1,86 +1,55 @@
-import sys
+import typer
+import os
 
-import argparse
+from .auth import cli as auth_cli
+from .batch import cli as batch_cli
+from .config import cli as config_cli
+from .describe import describe
+from .dataproc import cli as dataproc_cli
+from .dev import cli as dev_cli
+from .hdinsight import cli as hdinsight_cli
 
-from hailtop import version
+
+app = typer.Typer(help='Manage and monitor hail deployments.', no_args_is_help=True)
+
+for cli in (
+    auth_cli.app,
+    batch_cli.app,
+    config_cli.app,
+    dataproc_cli.app,
+    dev_cli.app,
+    hdinsight_cli.app,
+):
+    app.add_typer(cli)
 
 
-def print_help():
-    main_parser = argparse.ArgumentParser(prog='hailctl',
-                                          description='Manage and monitor Hail deployments.')
-    subs = main_parser.add_subparsers()
+@app.command()
+def version():
+    '''Print version information and exit.'''
+    import hailtop  # pylint: disable=import-outside-toplevel
+    print(hailtop.version())
 
-    subs.add_parser('dataproc',
-                    help='Manage Google Dataproc clusters configured for Hail.',
-                    description='Manage Google Dataproc clusters configured for Hail.')
-    subs.add_parser('describe',
-                    help='Describe Hail Matrix Table and Table files.',
-                    description='Describe Hail Matrix Table and Table files.')
-    subs.add_parser('hdinsight',
-                    help='Manage Azure HDInsight clusters configured for Hail.',
-                    description='Manage Azure HDInsight clusters configured for Hail.')
-    subs.add_parser('auth',
-                    help='Manage Hail credentials.',
-                    description='Manage Hail credentials.')
-    subs.add_parser('dev',
-                    help='Manage Hail development utilities.',
-                    description='Manage Hail development utilities.')
-    subs.add_parser('version',
-                    help='Print version information and exit.',
-                    description='Print version information and exit.')
-    subs.add_parser('batch',
-                    help='Manage batches running on the batch service managed by the Hail team.',
-                    description='Manage batches running on the batch service managed by the Hail team.')
-    subs.add_parser('curl',
-                    help='Issue authenticated curl requests to Hail infrastructure.',
-                    description='Issue authenticated curl requests to Hail infrastructure.')
-    subs.add_parser('config',
-                    help='Manage Hail configuration.',
-                    description='Manage Hail configuration.')
 
-    main_parser.print_help()
+@app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
+def curl(
+    namespace: str,
+    service: str,
+    path: str,
+    ctx: typer.Context,
+):
+    '''Issue authenticated curl requests to Hail infrastructure.'''
+    from hailtop.auth import hail_credentials  # pylint: disable=import-outside-toplevel
+    from hailtop.config import get_deploy_config  # pylint: disable=import-outside-toplevel
+    from hailtop.utils import async_to_blocking  # pylint: disable=import-outside-toplevel
+
+    headers_dict = async_to_blocking(hail_credentials(namespace=namespace).auth_headers())
+    headers = [x for k, v in headers_dict.items() for x in ['-H', f'{k}: {v}']]
+    path = get_deploy_config().url(service, path)
+    os.execvp('curl', ['curl', *headers, *ctx.args, path])
+
+
+app.command(help='Describe Hail Matrix Table and Table files.')(describe)
 
 
 def main():
-    if len(sys.argv) == 1:
-        print_help()
-        sys.exit(0)
-    else:
-        module = sys.argv[1]
-        args = sys.argv[2:]
-        if module == 'version':
-            print(version())
-        elif module == 'dataproc':
-            from hailtop.hailctl.dataproc import cli as dataproc_cli  # pylint: disable=import-outside-toplevel
-            dataproc_cli.main(args)
-        elif module == 'describe':
-            from hailtop.hailctl.describe import main as describe_main  # pylint: disable=import-outside-toplevel
-            describe_main(args)
-        elif module == 'hdinsight':
-            from hailtop.hailctl.hdinsight import cli as hdinsight_cli  # pylint: disable=import-outside-toplevel
-            hdinsight_cli.main(args)
-        elif module == 'auth':
-            from hailtop.hailctl.auth import cli as auth_cli  # pylint: disable=import-outside-toplevel
-            auth_cli.main(args)
-        elif module == 'dev':
-            from hailtop.hailctl.dev import cli as dev_cli  # pylint: disable=import-outside-toplevel
-            dev_cli.main(args)
-        elif module == 'batch':
-            from hailtop.hailctl.batch import cli as batch_cli  # pylint: disable=import-outside-toplevel
-            batch_cli.main(args)
-        elif module == 'curl':
-            from hailtop.hailctl.curl import main as curl_main  # pylint: disable=import-outside-toplevel
-            curl_main(args)
-        elif module == 'config':
-            from hailtop.hailctl.config import cli as config_cli  # pylint: disable=import-outside-toplevel
-            config_cli.main(args)
-        elif module in ('-h', '--help', 'help'):
-            print_help()
-        else:
-            sys.stderr.write(f"ERROR: no such module: {module!r}")
-            print_help()
-            sys.exit(1)
-
-
-if __name__ == '__main__':
-    main()
+    app()

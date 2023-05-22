@@ -4,12 +4,12 @@
 #
 #    pip-compile --output-file=hail/auth/pinned-requirements.txt hail/auth/requirements.txt
 #
-cachetools==5.3.0
+cachetools==5.3.1
     # via
     #   -c hail/auth/../gear/pinned-requirements.txt
     #   -c hail/auth/../hail/python/pinned-requirements.txt
     #   google-auth
-certifi==2022.12.7
+certifi==2023.5.7
     # via
     #   -c hail/auth/../gear/pinned-requirements.txt
     #   -c hail/auth/../hail/python/dev/pinned-requirements.txt
@@ -22,7 +22,7 @@ charset-normalizer==3.1.0
     #   -c hail/auth/../hail/python/pinned-requirements.txt
     #   -c hail/auth/../web_common/pinned-requirements.txt
     #   requests
-google-auth==2.17.3
+google-auth==2.19.1
     # via
     #   -c hail/auth/../gear/pinned-requirements.txt
     #   -c hail/auth/../hail/python/pinned-requirements.txt
@@ -49,7 +49,7 @@ pyasn1-modules==0.3.0
     #   -c hail/auth/../gear/pinned-requirements.txt
     #   -c hail/auth/../hail/python/pinned-requirements.txt
     #   google-auth
-requests==2.28.2
+requests==2.31.0
     # via
     #   -c hail/auth/../gear/pinned-requirements.txt
     #   -c hail/auth/../hail/python/dev/pinned-requirements.txt
@@ -68,9 +68,10 @@ six==1.16.0
     #   -c hail/auth/../hail/python/dev/pinned-requirements.txt
     #   -c hail/auth/../hail/python/pinned-requirements.txt
     #   google-auth
-urllib3==1.26.15
+urllib3==1.26.16
     # via
     #   -c hail/auth/../gear/pinned-requirements.txt
     #   -c hail/auth/../hail/python/dev/pinned-requirements.txt
     #   -c hail/auth/../hail/python/pinned-requirements.txt
+    #   google-auth
     #   requests
