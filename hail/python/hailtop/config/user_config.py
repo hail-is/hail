@@ -183,7 +183,7 @@ def get_gcs_requester_pays_configuration(
                 f'spark-defaults.conf ({spark_conf.conf_path}) with mode CUSTOM, '
                 f'buckets must be set.'
             )
-        return (spark_conf.project, spark_conf.buckets.split(','))
+        return (spark_conf.project, spark_conf.buckets)
 
     if spark_conf.mode not in ('ENABLED', 'AUTO'):
         raise ValueError(
@@ -232,7 +232,7 @@ def get_spark_conf_gcs_requester_pays_configuration() -> Optional[SparkConfGcsRe
     project: Optional[str] = None
     buckets: Optional[List[str]] = None
     path = spark_conf_path()
-    if path is not None:
+    if path is not None and os.path.exists(path):
         with open(path) as f:
             for line in f.readlines():
                 setting = line.rstrip('\n')
