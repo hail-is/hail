@@ -102,7 +102,7 @@ def get_remote_tmpdir(caller_name: str,
         if bucket is None:
             raise ValueError(
                 f'Either the \'remote_tmpdir\' parameter of {caller_name}(...) must be set or you must '
-                'run `hailctl config set batch/remote_tmpdir REMOTE_TEMPTER`.')
+                'run `hailctl config set batch/remote_tmpdir REMOTE_TMPDIR`.')
         if 'gs://' in bucket:
             raise ValueError(
                 f'The bucket parameter to {caller_name}(...) and the `batch/bucket` hailctl config setting '
