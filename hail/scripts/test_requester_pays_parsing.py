@@ -1,9 +1,6 @@
-import pytest
-import os
 
-from hailtop.utils.process import check_exec_output
 from hailtop.config.user_config import get_gcs_requester_pays_configuration, spark_conf_path
-
+from hailtop.utils.process import check_exec_output
 
 # WARNING:
 #
@@ -72,11 +69,11 @@ def test_disabled():
         f.write('spark.hadoop.fs.gs.requester.pays.buckets abc,def\n')
 
     actual = get_gcs_requester_pays_configuration('test_disabled')
-    assert actual == None
+    assert actual is None
 
 
 
-def test_disabled():
+def test_enabled():
     with open(SPARK_CONF_PATH, 'w') as f:
         f.write('spark.hadoop.fs.gs.requester.pays.project.id my_project\n')
         f.write('spark.hadoop.fs.gs.requester.pays.mode ENABLED\n')
@@ -87,7 +84,7 @@ def test_disabled():
 
 
 
-def test_hailctl_takes_precedence():
+def test_hailctl_takes_precedence_1():
     check_exec_output(
         'hailctl',
         'config',
@@ -102,7 +99,7 @@ def test_hailctl_takes_precedence():
 
 
 
-def test_hailctl_takes_precedence():
+def test_hailctl_takes_precedence_2():
     check_exec_output(
         'hailctl',
         'config',
@@ -116,7 +113,7 @@ def test_hailctl_takes_precedence():
         'hailctl',
         'config',
         'set',
-        'gcs_requester_pays/project',
+        'gcs_requester_pays/buckets',
         'bucket1,bucket2',
         echo=True
     )

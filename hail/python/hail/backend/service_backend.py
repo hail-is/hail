@@ -5,6 +5,7 @@ import struct
 from hail.expr.expressions.base_expression import Expression
 import orjson
 import logging
+import warnings
 
 from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename, revision
 from hail.utils import FatalError
@@ -25,6 +26,7 @@ from hailtop.batch_client import aioclient as aiohb
 from hailtop.aiotools.fs import AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
+from hailtop.config.user_config import get_gcs_requester_pays_configuration
 import hailtop.aiotools.fs as afs
 from hailtop.fs.fs import FS
 from hailtop.fs.router_fs import RouterFS
@@ -210,7 +212,10 @@ class ServiceBackend(Backend):
                 "project or run 'hailctl config set batch/billing_project "
                 "MY_BILLING_PROJECT'"
             )
-
+        gcs_requester_pays_configuration = get_gcs_requester_pays_configuration(
+            'ServiceBackend.create',
+            gcs_requester_pays_configuration=gcs_requester_pays_configuration,
+        )
         async_fs = RouterAsyncFS(gcs_kwargs={'gcs_requester_pays_configuration': gcs_requester_pays_configuration})
         sync_fs = RouterFS(async_fs)
         if batch_client is None:
@@ -245,6 +250,20 @@ class ServiceBackend(Backend):
                 disable_progress_bar = not am_i_interactive()
             else:
                 disable_progress_bar = len(disable_progress_bar_str) > 0
+
+        flags = flags or {}
+        if 'gcs_requester_pays_project' in flags or 'gcs_requester_pays_buckets' in flags:
+            raise ValueError(
+                'Specify neither gcs_requester_pays_project nor gcs_requester_'
+                'pays_buckets in the flags argument to ServiceBackend.create'
+            )
+        if gcs_requester_pays_configuration is not None:
+            if isinstance(gcs_requester_pays_configuration, str):
+                flags['gcs_requester_pays_project'] = gcs_requester_pays_configuration
+            else:
+                assert isinstance(gcs_requester_pays_configuration, tuple)
+                flags['gcs_requester_pays_project'] = gcs_requester_pays_configuration[0]
+                flags['gcs_requester_pays_buckets'] = ','.join(gcs_requester_pays_configuration[1])
 
         sb = ServiceBackend(
             billing_project=billing_project,
@@ -712,12 +731,24 @@ class ServiceBackend(Backend):
         unknown_flags = set(flags) - self._valid_flags()
         if unknown_flags:
             raise ValueError(f'unknown flags: {", ".join(unknown_flags)}')
+        if 'gcs_requester_pays_project' in flags or 'gcs_requester_pays_buckets' in flags:
+            warnings.warn(
+                'Modifying the requester pays project or buckets at runtime '
+                'using flags is deprecated. Expect this behavior to become '
+                'unsupported soon.'
+            )
         self.flags.update(flags)
 
     def get_flags(self, *flags: str) -> Mapping[str, str]:
         unknown_flags = set(flags) - self._valid_flags()
         if unknown_flags:
             raise ValueError(f'unknown flags: {", ".join(unknown_flags)}')
+        if 'gcs_requester_pays_project' in flags or 'gcs_requester_pays_buckets' in flags:
+            warnings.warn(
+                'Retrieving the requester pays project or buckets at runtime '
+                'using flags is deprecated. Expect this behavior to become '
+                'unsupported soon.'
+            )
         return {flag: self.flags[flag] for flag in flags if flag in self.flags}
 
     @property

@@ -413,9 +413,13 @@ class ServiceBackend(Backend[bc.Batch]):
         argument `bucket`. Paths should match a GCS URI like gs://<BUCKET_NAME>/<PATH> or an ABS
         URI of the form https://<ACCOUNT_NAME>.blob.core.windows.net/<CONTAINER_NAME>/<PATH>.
     google_project:
-        If specified, the project to use when authenticating with Google
-        Storage. Google Storage is used to transfer serialized values between
-        this computer and the cloud machines that execute Python jobs.
+        DEPRECATED. Please use gcs_requester_pays_project.
+    gcs_requester_pays_project: :class:`.str`, optional.
+        The project to receive bills for accesses of requester pays buckets. If ``None``, requester
+        pays buckets are not supported.
+    gcs_requester_pays_buckets: :class:`.list` of :class:`.str`, optional
+        The list of requester pays buckets for which to accept bills. If ``None``, all bills for all
+        accesses of requester pays buckets are accepted.
     token:
         The authorization token to pass to the batch client.
         Should only be set for user delegation purposes.
@@ -424,6 +428,7 @@ class ServiceBackend(Backend[bc.Batch]):
         available regions to choose from. Use py:attribute:`.ServiceBackend.ANY_REGION` to signify the default is jobs
         can run in any available region. The default is jobs can run in any region unless a default value has
         been set with hailctl. An example invocation is `hailctl config set batch/regions "us-central1,us-east1"`.
+
     """
 
     @staticmethod
@@ -449,7 +454,9 @@ class ServiceBackend(Backend[bc.Batch]):
                  remote_tmpdir: Optional[str] = None,
                  google_project: Optional[str] = None,
                  token: Optional[str] = None,
-                 regions: Optional[List[str]] = None
+                 regions: Optional[List[str]] = None,
+                 gcs_requester_pays_project: Optional[str] = None,
+                 gcs_requester_pays_buckets: Optional[List[str]] = None,
                  ):
         import nest_asyncio  # pylint: disable=import-outside-toplevel
         nest_asyncio.apply()
@@ -478,7 +485,35 @@ class ServiceBackend(Backend[bc.Batch]):
         user_config = get_user_config()
         self.remote_tmpdir = get_remote_tmpdir('ServiceBackend', bucket=bucket, remote_tmpdir=remote_tmpdir, user_config=user_config)
 
-        gcs_kwargs = {'gcs_requester_pays_configuration': google_project}
+        if google_project is not None:
+            if gcs_requester_pays_project is not None:
+                raise ValueError(
+                    'Both google_project and gcs_requester_pays_project were '
+                    'specified. Please remove the google_project argument.'
+                )
+            if gcs_requester_pays_buckets is not None:
+                raise ValueError(
+                    'gcs_requester_pays_bucket may not be specified with google_'
+                    'project. Please use gcs_requester_pays_project in place of '
+                    'google_project'
+                )
+            warnings.warn(
+                'The google_project parameter of ServiceBackend is deprecated. '
+                'Please replace with gcs_requester_pays_project.'
+            )
+            gcs_kwargs = {'gcs_requester_pays_configuration': google_project}
+        elif gcs_requester_pays_project is not None:
+            if gcs_requester_pays_buckets is None:
+                gcs_kwargs = {'gcs_requester_pays_configuration': gcs_requester_pays_project}
+            else:
+                gcs_kwargs = {'gcs_requester_pays_configuration': (gcs_requester_pays_project, gcs_requester_pays_buckets)}
+        elif gcs_requester_pays_buckets is not None:
+            assert gcs_requester_pays_project is None
+            raise ValueError(
+                'gcs_requester_pays_buckets cannot be specified without gcs_requester_pays_project'
+            )
+        else:
+            gcs_kwargs = {}
         self.__fs: RouterAsyncFS = RouterAsyncFS(gcs_kwargs=gcs_kwargs)
 
         if regions is None:

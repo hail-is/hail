@@ -17,6 +17,7 @@ from hailtop.aiotools.fs import (FileStatus, FileListEntry, ReadableStream, Writ
                                  AsyncFSURL, AsyncFSFactory, FileAndDirectoryError, MultiPartCreate,
                                  UnexpectedEOFError)
 from hailtop.aiotools import FeedableAsyncIterable, WriteBuffer
+from hailtop.config.user_config import get_gcs_requester_pays_configuration
 
 from .base_client import GoogleBaseClient
 from ..session import GoogleSession
@@ -309,6 +310,10 @@ class GoogleStorageClient(GoogleBaseClient):
             # Around May 2022, GCS started timing out a lot with our default 5s timeout
             kwargs['timeout'] = aiohttp.ClientTimeout(total=20)
         super().__init__('https://storage.googleapis.com/storage/v1', **kwargs)
+        gcs_requester_pays_configuration = get_gcs_requester_pays_configuration(
+            'GoogleStorageClient.__init__',
+            gcs_requester_pays_configuration=gcs_requester_pays_configuration,
+        )
         self._gcs_requester_pays_configuration = gcs_requester_pays_configuration
 
     # docs:

@@ -1,6 +1,7 @@
 from typing import Optional, Callable, Type, Union, List, Any, Iterable
 from types import TracebackType
 from io import BytesIO
+import warnings
 import asyncio
 import concurrent
 import dill
@@ -111,9 +112,7 @@ class BatchPoolExecutor:
         storage bucket when this executor fully shuts down. If Python crashes
         before the executor is shutdown, the files will not be deleted.
     project:
-        If specified, the project to use when authenticating with Google
-        Storage. Google Storage is used to transfer serialized values between
-        this computer and the cloud machines that execute jobs.
+        DEPRECATED. Please specify gcs_requester_pays_project in :class:`.ServiceBackend`.
     """
 
     def __init__(self, *,
@@ -132,7 +131,14 @@ class BatchPoolExecutor:
         self.directory = self.backend.remote_tmpdir + f'batch-pool-executor/{self.name}/'
         self.inputs = self.directory + 'inputs/'
         self.outputs = self.directory + 'outputs/'
-        self.fs = RouterAsyncFS(gcs_kwargs={'gcs_requester_pays_configuration': project})
+        if project is not None:
+            warnings.warn(
+                'The project parameter of BatchPoolExecutor is deprecated. Please '
+                'use the gcs_requester_pays_project parameter of ServiceBackend.'
+            )
+            self._fs = RouterAsyncFS(gcs_kwargs={'gcs_requester_pays_configuration': project})
+        else:
+            self._fs = None
         self.futures: List[BatchPoolFuture] = []
         self.finished_future_count = 0
         self._shutdown = False
@@ -147,6 +153,12 @@ class BatchPoolExecutor:
         self.cpus_per_job = cpus_per_job
         self.cleanup_bucket = cleanup_bucket
         self.wait_on_exit = wait_on_exit
+
+    @property
+    def fs(self) -> RouterAsyncFS:
+        if self._fs is None:
+            return self.backend._fs
+        return self._fs
 
     def __enter__(self):
         return self
@@ -444,9 +456,10 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
         self._shutdown = True
 
     def _cleanup(self):
-        if self.cleanup_bucket:
-            async_to_blocking(self.fs.rmtree(None, self.directory))
-        async_to_blocking(self.fs.close())
+        if self._fs is not None:
+            if self.cleanup_bucket:
+                async_to_blocking(self.fs.rmtree(None, self.directory))
+                async_to_blocking(self.fs.close())
         self.backend.close()
 
 
