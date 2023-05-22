@@ -112,7 +112,7 @@ class BatchPoolExecutor:
         storage bucket when this executor fully shuts down. If Python crashes
         before the executor is shutdown, the files will not be deleted.
     project:
-        DEPRECATED. Please specify gcs_requester_pays_project in :class:`.ServiceBackend`.
+        DEPRECATED. Please specify gcs_requester_pays_configuration in :class:`.ServiceBackend`.
     """
 
     def __init__(self, *,
@@ -459,7 +459,7 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
         if self._fs is not None:
             if self.cleanup_bucket:
                 async_to_blocking(self.fs.rmtree(None, self.directory))
-                async_to_blocking(self.fs.close())
+            async_to_blocking(self.fs.close())
         self.backend.close()
 
 
