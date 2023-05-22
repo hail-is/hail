@@ -15,7 +15,7 @@ SPARK_CONF_PATH = spark_conf_path()
 
 
 def test_no_configuration():
-    actual = get_gcs_requester_pays_configuration()
+    actual = get_gcs_requester_pays_configuration('test_no_configuration')
     assert actual is None
 
 
@@ -25,7 +25,7 @@ def test_no_project_is_error():
         f.write('spark.hadoop.fs.gs.requester.pays.mode AUTO\n')
 
     try:
-        get_gcs_requester_pays_configuration()
+        get_gcs_requester_pays_configuration('test_no_project_is_error')
     except ValueError as err:
         assert 'a project must be set if a mode other than DISABLED is set' in err.args[0]
     else:
@@ -36,7 +36,7 @@ def test_auto_with_project():
     with open(SPARK_CONF_PATH, 'w') as f:
         f.write('spark.hadoop.fs.gs.requester.pays.project.id my_project\n')
         f.write('spark.hadoop.fs.gs.requester.pays.mode AUTO\n')
-    actual = get_gcs_requester_pays_configuration()
+    actual = get_gcs_requester_pays_configuration('test_auto_with_project')
     assert actual == 'my_project'
 
 
@@ -46,7 +46,7 @@ def test_custom_no_buckets():
         f.write('spark.hadoop.fs.gs.requester.pays.project.id my_project\n')
         f.write('spark.hadoop.fs.gs.requester.pays.mode CUSTOM\n')
     try:
-        get_gcs_requester_pays_configuration()
+        get_gcs_requester_pays_configuration('test_custom_no_buckets')
     except ValueError as err:
         assert 'with mode CUSTOM buckets must be set' in err.args[0]
     else:
@@ -60,7 +60,7 @@ def test_custom_with_buckets():
         f.write('spark.hadoop.fs.gs.requester.pays.mode CUSTOM\n')
         f.write('spark.hadoop.fs.gs.requester.pays.buckets abc,def\n')
 
-    actual = get_gcs_requester_pays_configuration()
+    actual = get_gcs_requester_pays_configuration('test_custom_with_buckets')
     assert actual == ('my_project', ['abc', 'def'])
 
 
@@ -71,7 +71,7 @@ def test_disabled():
         f.write('spark.hadoop.fs.gs.requester.pays.mode DISABLED\n')
         f.write('spark.hadoop.fs.gs.requester.pays.buckets abc,def\n')
 
-    actual = get_gcs_requester_pays_configuration()
+    actual = get_gcs_requester_pays_configuration('test_disabled')
     assert actual == None
 
 
@@ -82,7 +82,7 @@ def test_disabled():
         f.write('spark.hadoop.fs.gs.requester.pays.mode ENABLED\n')
         f.write('spark.hadoop.fs.gs.requester.pays.buckets abc,def\n')
 
-    actual = get_gcs_requester_pays_configuration()
+    actual = get_gcs_requester_pays_configuration('test_disabled')
     assert actual == 'my_project'
 
 
@@ -97,7 +97,7 @@ def test_hailctl_takes_precedence():
         echo=True
     )
 
-    actual = get_gcs_requester_pays_configuration()
+    actual = get_gcs_requester_pays_configuration('test_hailctl_takes_precedence')
     assert actual == 'hailctl_project'
 
 
@@ -121,5 +121,5 @@ def test_hailctl_takes_precedence():
         echo=True
     )
 
-    actual = get_gcs_requester_pays_configuration()
+    actual = get_gcs_requester_pays_configuration('test_hailctl_takes_precedence')
     assert actual == ('hailctl_project2', ['bucket1', 'bucket2'])
