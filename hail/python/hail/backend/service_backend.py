@@ -273,7 +273,7 @@ class ServiceBackend(Backend):
             disable_progress_bar=disable_progress_bar,
             batch_attributes=batch_attributes,
             remote_tmpdir=remote_tmpdir,
-            flags=flags or {},
+            flags=flags,
             jar_spec=jar_spec,
             driver_cores=driver_cores,
             driver_memory=driver_memory,
