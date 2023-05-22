@@ -2479,6 +2479,36 @@ steps:
       - upload_test_resources_to_blob_storage
       - build_hail_jar_and_wheel
       - hailgenetics_vep_grch37_85_image
+  - kind: runImage
+    name: test_hail_spark_conf_requester_pays_parsing
+    image:
+      valueFrom: hail_run_image.image
+    resources:
+      cpu: '0.5'
+      preemptible: False
+    script: |
+      set -ex
+      tar xvf /io/wheel-container.tar
+      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pytest \
+              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+              --log-cli-level=INFO \
+              -s \
+              -r A \
+              -vv \
+              --instafail \
+              --durations=50 \
+              /io/test_requester_pays_parsing.py
+    inputs:
+      - from: /just-wheel/wheel-container.tar
+        to: /io/wheel-container.tar
+      - from: /repo/hail/scripts/test_requester_pays_parsing.py
+        to: /io/test_requester_pays_parsing.py
+    dependsOn:
+      - default_ns
+      - merge_code
+      - hail_run_image
+      - build_hail_jar_and_wheel_only
   - kind: buildImage2
     name: netcat_ubuntu_image
     publishAs: netcat
