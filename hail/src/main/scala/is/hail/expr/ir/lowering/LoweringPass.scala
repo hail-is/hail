@@ -3,6 +3,7 @@ package is.hail.expr.ir.lowering
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.agg.Extract
 import is.hail.expr.ir._
+import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.utils._
 
 trait LoweringPass {
@@ -31,7 +32,7 @@ case class OptimizePass(_context: String) extends LoweringPass {
 }
 
 case object LowerMatrixToTablePass extends LoweringPass {
-  val before: IRState = AnyIR
+  val before: IRState = RootSemanticHash
   val after: IRState = MatrixLoweredToTable
   val context: String = "LowerMatrixToTable"
 
@@ -68,7 +69,7 @@ case object LowerOrInterpretNonCompilablePass extends LoweringPass {
 }
 
 case class LowerToDistributedArrayPass(t: DArrayLowering.Type) extends LoweringPass {
-  val before: IRState = MatrixLoweredToTable
+  val before: IRState = RootSemanticHash + MatrixLoweredToTable
   val after: IRState = CompilableIR
   val context: String = "LowerToDistributedArray"
 
@@ -149,11 +150,21 @@ case class EvalRelationalLetsPass(passesBelow: LoweringPipeline) extends Lowerin
 }
 
 case class LowerAndExecuteShufflesPass(passesBelow: LoweringPipeline) extends LoweringPass {
-  val before: IRState = NoRelationalLetsState + MatrixLoweredToTable
+  val before: IRState = RootSemanticHash + NoRelationalLetsState + MatrixLoweredToTable
   val after: IRState = before + LoweredShuffles
   val context: String = "LowerAndExecuteShuffles"
 
   override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
     LowerAndExecuteShuffles(ir, ctx, passesBelow)
   }
+}
+
+case object ComputeSemanticHash extends LoweringPass {
+  override val before: IRState = AnyIR
+  override val after: IRState = RootSemanticHash
+  override val context: String = "ComputeSemanticHash"
+
+  override protected def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
+    ExprSemanticHash(SemanticHash(ctx.fs)(ir)(), ir.asInstanceOf[IR])
+
 }

@@ -44,13 +44,14 @@ case object SemanticHash extends Logging {
 
   import Implicits._
 
-  def getFileHash(fs: FS)(path: String): Type =
+  def hashFileContents(fs: FS)(path: String): Type =
     Hash(fs.fileChecksum(path))
 
   def unique: Type =
     Hash(UUID.randomUUID.toString)
 
   def apply(fs: FS)(root: BaseIR): NextHash = {
+    log.info("computing semhash: " ++ Pretty.sexprStyle(root))
     val normalized = new NormalizeNames(_.toString, allowFreeVariables = true)(root)
     val semhash = IRTraversal.levelOrder(normalized).foldLeft(Hash.init) { (semhash, ir) =>
       val thishash = semhash <> Hash(ir.getClass) <> (ir match {
@@ -115,7 +116,7 @@ case object SemanticHash extends Logging {
           fields.foldLeft(Hash.init)({ case (hash, (index, _)) => hash <> Hash(index) })
 
         case MatrixRead(_, _, _, reader) =>
-          reader.pathsUsed.map(getFileHash(fs)).reduce(_ <> _)
+          reader.pathsUsed.map(hashFileContents(fs)).reduce(_ <> _)
 
         case MatrixWrite(_, writer) =>
           Hash(writer.path)
@@ -159,7 +160,7 @@ case object SemanticHash extends Logging {
                 .pathsUsed
                 .flatMap(fs.globWithPrefix(_, "**"))
                 .filter(_.isFile)
-                .map(s => getFileHash(fs)(s.getPath))
+                .map(s => hashFileContents(fs)(s.getPath))
                 .reduce(_ <> _)
           })
 
@@ -231,8 +232,10 @@ case object SemanticHash extends Logging {
              _: NDArrayShape |
              _: NDArraySlice |
              _: NDArrayWrite |
+             _: RunAgg |
              _: RelationalLet |
              _: StreamAgg |
+             _: StreamBufferedAggregate |
              _: StreamDrop |
              _: StreamDropWhile |
              _: StreamFilter |
@@ -253,6 +256,7 @@ case object SemanticHash extends Logging {
              _: TableDistinct |
              _: TableFilter |
              _: TableMapGlobals |
+             _: TableMapPartitions |
              _: TableMapRows |
              _: TableRename |
              _: ToArray |

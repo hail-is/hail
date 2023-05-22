@@ -175,6 +175,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
         else
           "<literal value>")
     case EncodedLiteral(codec, _) => single(codec.encodedVirtualType.parsableString())
+    case ExprSemanticHash(hash, _) => single(hash.toString)
     case Let(name, _, _) if !elideBindings => single(prettyIdentifier(name))
     case AggLet(name, _, _, isScan) => if (elideBindings)
       single(Pretty.prettyBooleanLiteral(isScan))

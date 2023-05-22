@@ -773,6 +773,15 @@ final case class CollectDistributedArray(contexts: IR,
                                          semhash: Option[SemanticHash.Type] = None
                                         ) extends IR
 
+final case class ExprSemanticHash(semhash: SemanticHash.Type, expr: IR) extends IR {
+  override def typ: Type = expr.typ
+  override lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(expr)
+  override def copy(newChildren: IndexedSeq[BaseIR]): IR = {
+    val IndexedSeq(newQuery: IR) = newChildren
+    ExprSemanticHash(semhash, newQuery)
+  }
+}
+
 object PartitionReader {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(List(

@@ -48,12 +48,16 @@ object LoweringPipeline {
 
     val base = LoweringPipeline(
       baseTransformer,
-      OptimizePass(s"$context, after ${ baseTransformer.context }"))
+      OptimizePass(s"$context, after ${ baseTransformer.context }")
+    )
 
     // recursively lowers and executes
     val withShuffleRewrite =
-      LoweringPipeline(LowerAndExecuteShufflesPass(base),
-        OptimizePass(s"$context, after LowerAndExecuteShuffles")) + base
+      LoweringPipeline(
+        ComputeSemanticHash,
+        LowerAndExecuteShufflesPass(base),
+        OptimizePass(s"$context, after LowerAndExecuteShuffles")
+      ) + base
 
     // recursively lowers and executes
     val withLetEvaluation =
@@ -65,7 +69,8 @@ object LoweringPipeline {
     LoweringPipeline(
       OptimizePass(s"$context, initial IR"),
       LowerMatrixToTablePass,
-      OptimizePass(s"$context, after LowerMatrixToTable")) + withLetEvaluation
+      OptimizePass(s"$context, after LowerMatrixToTable")
+    ) + withLetEvaluation
   }
 
   private val _relationalLowerer = fullLoweringPipeline("relationalLowerer", LowerOrInterpretNonCompilablePass)
