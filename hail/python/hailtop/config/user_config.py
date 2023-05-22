@@ -150,10 +150,10 @@ def get_gcs_requester_pays_configuration(
     if spark_conf is None:
         return None
     warnings.warn(
-        f'Reading spark-defaults.conf to determine GCS requester pays '
-        f'configuration. This is deprecated. Please use `hailctl config '
-        f'set gcs_requeseter_pays/project` and `hailctl config set '
-        f'gcs_requester_pays/buckets`.'
+        'Reading spark-defaults.conf to determine GCS requester pays '
+        'configuration. This is deprecated. Please use `hailctl config '
+        'set gcs_requeseter_pays/project` and `hailctl config set '
+        'gcs_requester_pays/buckets`.'
     )
 
     # https://github.com/GoogleCloudDataproc/hadoop-connectors/blob/master/gcs/CONFIGURATION.md#cloud-storage-requester-pays-feature-configuration
@@ -234,12 +234,12 @@ def get_spark_conf_gcs_requester_pays_configuration() -> Optional[SparkConfGcsRe
     path = spark_conf_path()
     if path is not None:
         with open(path) as f:
-            for l in f.readlines():
-                l = l.rstrip('\n')
-                ll = l.split(' ')
-                if len(ll) != 2:
-                    raise ValueError(f'Found spark-defaults.conf file line with more than one space: {l}')
-                var, val = ll
+            for line in f.readlines():
+                setting = line.rstrip('\n')
+                maybe_var_and_val = setting.split(' ')
+                if len(maybe_var_and_val) != 2:
+                    raise ValueError(f'Found spark-defaults.conf file line with more than one space: {line}')
+                var, val = maybe_var_and_val
                 if var == 'spark.hadoop.fs.gs.requester.pays.mode':
                     mode = val
                 if var == 'spark.hadoop.fs.gs.requester.pays.project.id':
