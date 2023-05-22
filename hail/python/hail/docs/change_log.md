@@ -33,6 +33,30 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.117
+
+Released 2023-05-19
+
+### New Features
+
+- (hail#12875) Parallel export modes now write a manifest file. These manifest files are text files with one filename per line, containing name of each shard written successfully to the directory. These filenames are relative to the export directory.
+- (hail#13007) In Query-on-Batch and `hailtop.batch`, memory and storage request strings may now be optionally terminated with a `B` for bytes.
+
+### Bug Fixes
+
+- (hail#13065) In Azure Query-on-Batch, fix a resource leak that prevented running pipelines with >500 partitions and created flakiness with >250 partitions.
+- (hail#13067) In Query-on-Batch, driver and worker logs no longer buffer so messages should arrive in the UI after a fixed delay rather than proportional to the frequency of log messages.
+- (hail#13028) Fix crash in `hl.vds.filter_intervals` when using a table to filter a VDS that stores the max ref block length.
+- (hail#13060) Prevent 500 Internal Server Error in Jupyter Notebooks of Dataproc clusters started by `hailctl dataproc`.
+- (hail#13051) In Query-on-Batch and `hailtop.batch`, Azure Blob Storage `https` URLs are now supported.
+- (hail#13042) In Query-on-Batch, `naive_coalesce` no longer performs a full write/read of the dataset. It now operates identically to the Query-on-Spark implementation.
+- (hail#13031) In `hl.ld_prune`, an informative error message is raised when a dataset does not contain diploid calls instead of an assertion error.
+- (hail#13032) In Query-on-Batch, in Azure, Hail now users a newer version of the Azure blob storage libraries to reduce the frequency of "Stream is already closed" errors.
+- (hail#13011) In Query-on-Batch, the driver will use ~1/2 as much memory to read results as it did in 0.2.115.
+- (hail#13013) In Query-on-Batch, transient errors while streaming from Google Storage are now automatically retried.
+
+---
+
 ## Version 0.2.116
 
 Released 2023-05-08
