@@ -44,6 +44,7 @@ Released 2023-05-19
 
 ### Bug Fixes
 
+- (hail#13065) In Azure Query-on-Batch, fix a resource leak that prevented running pipelines with >500 partitions and created flakiness with >250 partitions.
 - (hail#13067) In Query-on-Batch, driver and worker logs no longer buffer so messages should arrive in the UI after a fixed delay rather than proportional to the frequency of log messages.
 - (hail#13028) Fix crash in `hl.vds.filter_intervals` when using a table to filter a VDS that stores the max ref block length.
 - (hail#13060) Prevent 500 Internal Server Error in Jupyter Notebooks of Dataproc clusters started by `hailctl dataproc`.
