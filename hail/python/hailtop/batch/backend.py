@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any, TypeVar, Generic, List, Union
+gfrom typing import Optional, Dict, Any, TypeVar, Generic, List, Union
 import sys
 import abc
 import collections
@@ -24,6 +24,7 @@ import hailtop.batch_client.client as bc
 from hailtop.batch_client.client import BatchClient
 from hailtop.aiotools import AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.config.user_config import GCSRequesterPaysConfiguration
 
 from . import resource, batch, job as _job  # pylint: disable=unused-import
 from .exceptions import BatchException
@@ -413,13 +414,12 @@ class ServiceBackend(Backend[bc.Batch]):
         argument `bucket`. Paths should match a GCS URI like gs://<BUCKET_NAME>/<PATH> or an ABS
         URI of the form https://<ACCOUNT_NAME>.blob.core.windows.net/<CONTAINER_NAME>/<PATH>.
     google_project:
-        DEPRECATED. Please use gcs_requester_pays_project.
-    gcs_requester_pays_project: :class:`.str`, optional.
-        The project to receive bills for accesses of requester pays buckets. If ``None``, requester
-        pays buckets are not supported.
-    gcs_requester_pays_buckets: :class:`.list` of :class:`.str`, optional
-        The list of requester pays buckets for which to accept bills. If ``None``, all bills for all
-        accesses of requester pays buckets are accepted.
+        DEPRECATED. Please use gcs_requester_pays_configuration.
+    gcs_requester_pays_configuration : either :class:`str` or :class:`tuple` of :class:`str` and :class:`list` of :class:`str`, optional
+        If a string is provided, configure the Google Cloud Storage file system to bill usage to the
+        project identified by that string. If a tuple is provided, configure the Google Cloud
+        Storage file system to bill usage to the specified project for buckets specified in the
+        list.
     token:
         The authorization token to pass to the batch client.
         Should only be set for user delegation purposes.
@@ -455,8 +455,7 @@ class ServiceBackend(Backend[bc.Batch]):
                  google_project: Optional[str] = None,
                  token: Optional[str] = None,
                  regions: Optional[List[str]] = None,
-                 gcs_requester_pays_project: Optional[str] = None,
-                 gcs_requester_pays_buckets: Optional[List[str]] = None,
+                 gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
                  ):
         import nest_asyncio  # pylint: disable=import-outside-toplevel
         nest_asyncio.apply()
@@ -486,34 +485,18 @@ class ServiceBackend(Backend[bc.Batch]):
         self.remote_tmpdir = get_remote_tmpdir('ServiceBackend', bucket=bucket, remote_tmpdir=remote_tmpdir, user_config=user_config)
 
         if google_project is not None:
-            if gcs_requester_pays_project is not None:
+            if gcs_requester_pays_configuration is not None:
                 raise ValueError(
-                    'Both google_project and gcs_requester_pays_project were '
+                    'Both google_project and gcs_requester_pays_configuration were '
                     'specified. Please remove the google_project argument.'
-                )
-            if gcs_requester_pays_buckets is not None:
-                raise ValueError(
-                    'gcs_requester_pays_bucket may not be specified with google_'
-                    'project. Please use gcs_requester_pays_project in place of '
-                    'google_project'
                 )
             warnings.warn(
                 'The google_project parameter of ServiceBackend is deprecated. '
-                'Please replace with gcs_requester_pays_project.'
+                'Please replace with gcs_requester_pays_configuration.'
             )
             gcs_kwargs = {'gcs_requester_pays_configuration': google_project}
-        elif gcs_requester_pays_project is not None:
-            if gcs_requester_pays_buckets is None:
-                gcs_kwargs = {'gcs_requester_pays_configuration': gcs_requester_pays_project}
-            else:
-                gcs_kwargs = {'gcs_requester_pays_configuration': (gcs_requester_pays_project, gcs_requester_pays_buckets)}
-        elif gcs_requester_pays_buckets is not None:
-            assert gcs_requester_pays_project is None
-            raise ValueError(
-                'gcs_requester_pays_buckets cannot be specified without gcs_requester_pays_project'
-            )
         else:
-            gcs_kwargs = {}
+            gcs_kwargs = {'gcs_requester_pays_configuration': gcs_requester_pays_configuration}
         self.__fs: RouterAsyncFS = RouterAsyncFS(gcs_kwargs=gcs_kwargs)
 
         if regions is None:
