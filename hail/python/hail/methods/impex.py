@@ -3135,6 +3135,7 @@ def import_avro(paths, *, key=None, intervals=None):
            force=bool,
            source_file_field=nullable(str))
 def import_csv(paths,
+               *,
                key=None,
                min_partitions=None,
                impute=False,
@@ -3142,6 +3143,7 @@ def import_csv(paths,
                comment=(),
                missing="NA",
                types={},
+               quote='"',
                skip_blank_lines=False,
                force_bgz=False,
                filter=None,
@@ -3250,6 +3252,8 @@ def import_csv(paths,
         Identifier(s) to be treated as missing.
     types : :obj:`dict` mapping :class:`str` to :class:`.HailType`
         Dictionary defining field types.
+    quote : :class:`str` or :obj:`None`
+        Quote character.
     skip_blank_lines : :obj:`bool`
         If ``True``, ignore empty lines. Otherwise, throw an error if an empty
         line is found.
@@ -3278,7 +3282,20 @@ def import_csv(paths,
     :class:`.Table`
     """
 
-    ht = hl.import_table(paths, key=None, min_partitions=None, impute=False, no_header=False, comment=(), missing="NA",
-                         types={}, skip_blank_lines=False, force_bgz=False, filter=None, find_replace=None,
-                         force=False, source_file_field=None, delimiter=",", quote='"')
+    ht = hl.import_table(paths,
+                         key=key,
+                         min_partitions=min_partitions,
+                         impute=impute,
+                         no_header=no_header,
+                         comment=comment,
+                         missing=missing,
+                         types=types,
+                         skip_blank_lines=skip_blank_lines,
+                         force_bgz=force_bgz,
+                         filter=filter,
+                         find_replace=find_replace,
+                         force=force,
+                         source_file_field=source_file_field,
+                         delimiter=",",
+                         quote=quote)
     return ht
