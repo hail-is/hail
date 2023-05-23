@@ -11,12 +11,13 @@ import is.hail.utils._
 
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, OutputStream}
+import java.io.{InputStream, OutputStream}
 
 object ValueWriter {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(List(
       classOf[ETypeValueWriter],
+      classOf[NumericMatrixTextWriter],
       classOf[AbstractTypedCodecSpec],
       classOf[TypedCodecSpec]),
       typeHintFieldName = "name"

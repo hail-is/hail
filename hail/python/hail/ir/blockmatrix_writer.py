@@ -95,6 +95,32 @@ class BlockMatrixRectanglesWriter(BlockMatrixWriter):
             self.binary == other.binary
 
 
+class BlockMatrixExportBlocksWriter(BlockMatrixWriter):
+    @typecheck_method(path=str,
+                      delimiter=str,
+                      binary=bool)
+    def __init__(self, path, delimiter, binary):
+        self.path = path
+        self.delimiter = delimiter
+        self.binary = binary
+
+    def render(self):
+        writer = {'name': 'BlockMatrixRectanglesWriter',
+                  'path': self.path,
+                  'delimiter': self.delimiter,
+                  'binary': self.binary}
+        return escape_str(json.dumps(writer))
+
+    def _type(self):
+        return tvoid
+
+    def __eq__(self, other):
+        return isinstance(other, BlockMatrixRectanglesWriter) and \
+            self.path == other.path and \
+            self.delimiter == other.delimiter and \
+            self.binary == other.binary
+
+
 class BlockMatrixMultiWriter(object):
     @abc.abstractmethod
     def render(self):

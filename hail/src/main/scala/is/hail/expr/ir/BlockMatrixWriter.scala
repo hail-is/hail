@@ -14,6 +14,7 @@ import is.hail.types.virtual._
 import is.hail.types.{BlockMatrixType, TypeWithRequiredness}
 import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
+import org.apache.commons.lang3.StringUtils
 import org.json4s.{DefaultFormats, Formats, ShortTypeHints, jackson}
 
 import java.io.DataOutputStream
@@ -22,7 +23,7 @@ object BlockMatrixWriter {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(
       List(classOf[BlockMatrixNativeWriter], classOf[BlockMatrixBinaryWriter], classOf[BlockMatrixRectanglesWriter],
-        classOf[BlockMatrixBinaryMultiWriter], classOf[BlockMatrixTextMultiWriter],
+        classOf[BlockMatrixBinaryMultiWriter], classOf[BlockMatrixTextMultiWriter], classOf[BlockMatrixExportBlocksWriter],
         classOf[BlockMatrixPersistWriter], classOf[BlockMatrixNativeMultiWriter]), typeHintFieldName = "name")
   }
 }
@@ -152,6 +153,54 @@ case class BlockMatrixRectanglesWriter(
   }
 
   def loweredTyp: Type = TVoid
+}
+
+case class BlockMatrixExportBlocksWriter(
+  path: String,
+  delimiter: String,
+  binary: Boolean
+) extends BlockMatrixWriter {
+  def pathOpt: Option[String] = Some(path)
+
+  private def blockRectangles(nRows: Long, nCols: Long, nRowBlocks: Int, nColBlocks: Int, blockSize: Int): Array[Array[Long]] = {
+    def rowsInBlock(blockRow: Int): Long = if (blockRow == nRowBlocks - 1) nRows - blockRow * blockSize else blockSize.toLong
+    def colsInBlock(blockCol: Int): Long = if (blockCol == nColBlocks - 1) nCols - blockCol * blockSize else blockSize.toLong
+    (for {
+      blockRow <- 0 until nRowBlocks
+      blockCol <- 0 until nColBlocks
+    } yield Array(
+      blockRow.toLong * blockSize,
+      blockRow.toLong * blockSize + rowsInBlock(blockRow),
+      blockCol.toLong * blockSize,
+      blockCol.toLong * blockSize + rowsInBlock(blockCol),
+    )).toArray
+  }
+
+  def apply(ctx: ExecuteContext, bm: BlockMatrix): Unit = {
+    val gp = bm.gp
+    val rectangles = blockRectangles(gp.nRows, gp.nCols, gp.nBlockRows, gp.nBlockCols, gp.blockSize)
+    bm.exportRectangles(ctx, path, rectangles, delimiter, binary)
+  }
+
+  def loweredTyp: Type = TVoid
+
+  override def lower(ctx: ExecuteContext, s: BlockMatrixStage2, evalCtx: IRBuilder, eltR: TypeWithRequiredness): IR = {
+    val typ = s.typ
+    val rectangles = blockRectangles(typ.nRows, typ.nCols, typ.nRowBlocks, typ.nColBlocks, typ.blockSize)
+    val dRect = digitsNeeded(rectangles.length)
+    val fileNames = Literal(TArray(TString), rectangles.zipWithIndex.map { case (Array(startRow, endRow, startCol, endCol), idx) =>
+      s"rect-${StringUtils.leftPad(idx.toString, dRect, "0")}_$startRow-$endRow-$startCol-$endCol"
+    })
+
+    val paths = s.densify(evalCtx).collectBlocks(evalCtx, "block_matrix_export_blocks") { (_, idx, block) =>
+      val basename = ArrayRef(fileNames, idx)
+      val filePath = strConcat(s"$path/", basename)
+      val writer = if (binary) NumericNDArrayFlatBinaryWriter else NumericMatrixTextWriter(delimiter)
+      WriteValue(block, filePath, writer)
+    }
+
+    Begin(FastIndexedSeq(paths))
+  }
 }
 
 abstract class BlockMatrixMultiWriter {

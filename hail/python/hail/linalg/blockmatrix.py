@@ -21,8 +21,8 @@ from hail.ir import (BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryPrimOp, F64,
                      BlockMatrixSparsify, BlockMatrixDensify, RectangleSparsifier,
                      RowIntervalSparsifier, BandSparsifier, PerBlockSparsifier)
 from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinaryReader
-from hail.ir.blockmatrix_writer import (BlockMatrixBinaryWriter,
-                                        BlockMatrixNativeWriter, BlockMatrixRectanglesWriter)
+from hail.ir.blockmatrix_writer import (BlockMatrixBinaryWriter, BlockMatrixNativeWriter,
+                                        BlockMatrixRectanglesWriter, BlockMatrixExportBlocksWriter)
 from hail.ir import ExportType
 from hail.table import Table
 from hail.typecheck import (typecheck, typecheck_method, nullable, oneof,
@@ -34,6 +34,7 @@ from hail.utils.java import Env
 
 block_matrix_type = lazy()
 
+_RECT_RE = re.compile(r'rect-(\d+)_(\d+)-(\d+)-(\d+)-(\d+)')
 
 class BlockMatrix(object):
     """Hail's block-distributed matrix of :py:data:`.tfloat64` elements.
@@ -2222,28 +2223,8 @@ class BlockMatrix(object):
         binary: :obj:`bool`
             If true, export elements as raw bytes in row major order.
         """
-        def rows_in_block(block_row):
-            if block_row == self._n_block_rows - 1:
-                return self.n_rows - block_row * self.block_size
-            return self.block_size
-
-        def cols_in_block(block_col):
-            if block_col == self._n_block_cols - 1:
-                return self.n_cols - block_col * self.block_size
-            return self.block_size
-
-        def bounds(block_row, block_col):
-            start_row = block_row * self.block_size
-            start_col = block_col * self.block_size
-            end_row = start_row + rows_in_block(block_row)
-            end_col = start_col + cols_in_block(block_col)
-
-            return [start_row, end_row, start_col, end_col]
-
-        block_indices = itertools.product(range(self._n_block_rows), range(self._n_block_cols))
-        rectangles = [bounds(block_row, block_col) for (block_row, block_col) in block_indices]
-
-        self.export_rectangles(path_out, rectangles, delimiter, binary)
+        writer = BlockMatrixExportBlocksWriter(path_out, delimiter, binary)
+        Env.backend().execute(BlockMatrixWrite(self._bmir, writer))
 
     @staticmethod
     @typecheck(path=str, binary=bool)
@@ -2295,9 +2276,10 @@ class BlockMatrix(object):
         :class:`numpy.ndarray`
         """
         def parse_rects(fname):
-            rect_idx_and_bounds = [int(i) for i in re.findall(r'\d+', fname)]
-            if len(rect_idx_and_bounds) != 5:
+            match = _RECT_RE.match(fname)
+            if match is None:
                 raise ValueError(f'Invalid rectangle file name: {fname}')
+            rect_idx_and_bounds = [int(i) for i in match.groups()]
             return rect_idx_and_bounds
 
         rect_files = [file['path'] for file in hl.utils.hadoop_ls(path) if not re.match(r'.*\.crc', file['path'])]
