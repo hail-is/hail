@@ -1,4 +1,4 @@
-gfrom typing import Optional, Dict, Any, TypeVar, Generic, List, Union
+from typing import Optional, Dict, Any, TypeVar, Generic, List, Union
 import sys
 import abc
 import collections
