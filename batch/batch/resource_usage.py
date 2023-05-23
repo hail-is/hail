@@ -10,8 +10,8 @@ from typing import Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from hailtop.utils import check_shell_output, sleep_and_backoff, time_msecs, time_ns
 from hailtop.aiotools.fs import AsyncFS
+from hailtop.utils import check_shell_output, sleep_and_backoff, time_msecs, time_ns
 
 
 log = logging.getLogger('resource_usage')
