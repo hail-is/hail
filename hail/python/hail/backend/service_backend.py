@@ -272,7 +272,6 @@ class ServiceBackend(Backend):
             disable_progress_bar=disable_progress_bar,
             batch_attributes=batch_attributes,
             remote_tmpdir=remote_tmpdir,
-            flags=flags,
             jar_spec=jar_spec,
             driver_cores=driver_cores,
             driver_memory=driver_memory,
@@ -281,7 +280,7 @@ class ServiceBackend(Backend):
             name_prefix=name_prefix or '',
             regions=regions,
         )
-        sb._initialize_flags()
+        sb._initialize_flags(flags)
         return sb
 
     def __init__(self,
@@ -293,7 +292,6 @@ class ServiceBackend(Backend):
                  disable_progress_bar: bool,
                  batch_attributes: Dict[str, str],
                  remote_tmpdir: str,
-                 flags: Dict[str, str],
                  jar_spec: JarSpec,
                  driver_cores: Optional[Union[int, str]],
                  driver_memory: Optional[str],
@@ -311,7 +309,7 @@ class ServiceBackend(Backend):
         self.disable_progress_bar = disable_progress_bar
         self.batch_attributes = batch_attributes
         self.remote_tmpdir = remote_tmpdir
-        self.flags = flags
+        self.flags: Dict[str, str] = {}
         self.jar_spec = jar_spec
         self.functions: List[IRFunction] = []
         self._registered_ir_function_names: Set[str] = set()

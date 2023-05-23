@@ -157,6 +157,7 @@ class BatchPoolExecutor:
 
     @property
     def fs(self) -> RouterAsyncFS:
+        """DEPRECATED. Do not use."""
         if self._fs is None:
             return self.backend._fs
         return self._fs
