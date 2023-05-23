@@ -131,6 +131,7 @@ class BatchPoolExecutor:
         self.directory = self.backend.remote_tmpdir + f'batch-pool-executor/{self.name}/'
         self.inputs = self.directory + 'inputs/'
         self.outputs = self.directory + 'outputs/'
+        self._fs: Optional[RouterAsyncFS]
         if project is not None:
             warnings.warn(
                 'The project parameter of BatchPoolExecutor is deprecated. Please '

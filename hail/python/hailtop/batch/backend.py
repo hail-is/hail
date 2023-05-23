@@ -484,6 +484,7 @@ class ServiceBackend(Backend[bc.Batch]):
         user_config = get_user_config()
         self.remote_tmpdir = get_remote_tmpdir('ServiceBackend', bucket=bucket, remote_tmpdir=remote_tmpdir, user_config=user_config)
 
+        gcs_kwargs: Dict[str, Any]
         if google_project is not None:
             if gcs_requester_pays_configuration is not None:
                 raise ValueError(
