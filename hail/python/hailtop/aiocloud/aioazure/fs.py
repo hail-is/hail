@@ -552,8 +552,8 @@ class AzureAsyncFS(AsyncFS):
             self._credential = None
 
         if self._blob_service_clients:
-            for client in self._blob_service_clients.values():
-                await client.close()
+            await asyncio.wait([asyncio.create_task(client.close())
+                                for client in self._blob_service_clients.values()])
 
 class AzureAsyncFSFactory(AsyncFSFactory[AzureAsyncFS]):
     def from_credentials_data(self, credentials_data: dict) -> AzureAsyncFS:
