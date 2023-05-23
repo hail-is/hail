@@ -157,3 +157,18 @@ resource "azurerm_public_ip" "gateway_ip" {
   sku                 = "Standard"
   allocation_method   = "Static"
 }
+
+resource "kubernetes_pod_disruption_budget" "kube_dns_pdb" {
+  metadata {
+    name = "kube-dns"
+    namespace = "kube-system"
+  }
+  spec {
+    max_unavailable = "1"
+    selector {
+      match_labels = {
+        k8s-app = "kube-dns"
+      }
+    }
+  }
+}
