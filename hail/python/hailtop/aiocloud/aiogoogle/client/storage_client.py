@@ -311,7 +311,6 @@ class GoogleStorageClient(GoogleBaseClient):
             kwargs['timeout'] = aiohttp.ClientTimeout(total=20)
         super().__init__('https://storage.googleapis.com/storage/v1', **kwargs)
         gcs_requester_pays_configuration = get_gcs_requester_pays_configuration(
-            'GoogleStorageClient.__init__',
             gcs_requester_pays_configuration=gcs_requester_pays_configuration,
         )
         self._gcs_requester_pays_configuration = gcs_requester_pays_configuration

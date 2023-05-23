@@ -213,7 +213,6 @@ class ServiceBackend(Backend):
                 "MY_BILLING_PROJECT'"
             )
         gcs_requester_pays_configuration = get_gcs_requester_pays_configuration(
-            'ServiceBackend.create',
             gcs_requester_pays_configuration=gcs_requester_pays_configuration,
         )
         async_fs = RouterAsyncFS(gcs_kwargs={'gcs_requester_pays_configuration': gcs_requester_pays_configuration})

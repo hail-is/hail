@@ -121,7 +121,6 @@ def get_remote_tmpdir(caller_name: str,
 
 
 def get_gcs_requester_pays_configuration(
-        caller_name: str,
         *,
         gcs_requester_pays_configuration: Optional[Union[str, Tuple[str, List[str]]]] = None,
 ) -> Optional[Union[str, Tuple[str, List[str]]]]:
@@ -221,7 +220,7 @@ class SparkConfGcsRequseterPaysConfiguration:
 
 def spark_conf_path() -> Optional[str]:
     try:
-        from pyspark.find_spark_home import _find_spark_home
+        from pyspark.find_spark_home import _find_spark_home  # pylint: disable=import-outside-toplevel
     except ImportError:
         return None
     return os.path.join(_find_spark_home(), 'conf', 'spark-defaults.conf')
@@ -233,7 +232,7 @@ def get_spark_conf_gcs_requester_pays_configuration() -> Optional[SparkConfGcsRe
     buckets: Optional[List[str]] = None
     path = spark_conf_path()
     if path is not None and os.path.exists(path):
-        with open(path) as f:
+        with open(path, encoding='utf-8') as f:
             for line in f.readlines():
                 setting = line.rstrip('\n')
                 maybe_var_and_val = setting.split(' ')

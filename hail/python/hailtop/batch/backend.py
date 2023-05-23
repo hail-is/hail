@@ -24,7 +24,7 @@ import hailtop.batch_client.client as bc
 from hailtop.batch_client.client import BatchClient
 from hailtop.aiotools import AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
-from hailtop.config.user_config import GCSRequesterPaysConfiguration
+from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 
 from . import resource, batch, job as _job  # pylint: disable=unused-import
 from .exceptions import BatchException

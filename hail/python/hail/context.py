@@ -431,7 +431,6 @@ def init_spark(sc=None,
     app_name = app_name or 'Hail'
     gcs_requester_pays_project, gcs_requester_pays_buckets = convert_gcs_requester_pays_configuration_to_hadoop_conf_style(
         get_gcs_requester_pays_configuration(
-            'init_spark',
             gcs_requester_pays_configuration=gcs_requester_pays_configuration,
         )
     )
@@ -555,7 +554,6 @@ def init_local(
     jvm_heap_size = get_env_or_default(jvm_heap_size, 'HAIL_LOCAL_BACKEND_HEAP_SIZE', None)
     gcs_requester_pays_project, gcs_requester_pays_buckets = convert_gcs_requester_pays_configuration_to_hadoop_conf_style(
         get_gcs_requester_pays_configuration(
-            'init_local',
             gcs_requester_pays_configuration=gcs_requester_pays_configuration,
         )
     )
