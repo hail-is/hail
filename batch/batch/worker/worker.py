@@ -1066,6 +1066,7 @@ class Container:
                     assert self.netns
 
                     self.monitor = self.new_resource_usage_monitor(self.resource_usage_path)
+                    assert self.monitor
                     async with self.monitor:
                         if self.stdin is not None:
                             await self.process.communicate(self.stdin.encode('utf-8'))
@@ -2324,7 +2325,11 @@ class JVMJob(Job):
         return self.log_file
 
     async def get_resource_usage(self) -> Dict[str, bytes]:
-        return {'main': await self.jvm.get_resource_usage()}
+        if self.jvm:
+            contents = await self.jvm.get_resource_usage()
+        else:
+            contents = ResourceUsageMonitor.no_data()
+        return {'main': contents}
 
     async def delete(self):
         await super().delete()

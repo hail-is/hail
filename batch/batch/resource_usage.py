@@ -92,11 +92,12 @@ class ResourceUsageMonitor:
         self.last_upload_bytes: Optional[int] = None
         self.last_time_msecs: Optional[int] = None
 
-        self.out: Optional[io.BytesIO] = None
+        self.out: Optional[io.BufferedWriter] = None
 
         self.task: Optional[asyncio.Future] = None
 
     def write_header(self):
+        assert self.out
         data = self.version_to_bytes()
         self.out.write(data)
         self.out.flush()
@@ -220,6 +221,7 @@ iptables -t mangle -L -v -n -x -w | grep "{self.veth_host}" | awk '{{ if ($6 == 
             network_download_bytes_per_second,
         )
 
+        assert self.out
         self.out.write(data)
         self.out.flush()
 
