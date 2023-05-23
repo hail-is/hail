@@ -289,7 +289,6 @@ class BuildImage2Step(Step):
             else:
                 self.image = f'{self.base_image}:deploy-{self.token}'
         elif params.scope == 'dev':
-            dev_user = params.code.config()['user']
             self.image = f'{self.base_image}:dev-{self.token}'
         else:
             assert params.scope == 'test'
