@@ -1,11 +1,12 @@
 from typing import Any, Optional, List, Set, AsyncIterator, Dict, AsyncContextManager, Callable
 import asyncio
-import urllib.parse
 
 from ..aiocloud import aioaws, aioazure, aiogoogle
 from .fs import (AsyncFS, MultiPartCreate, FileStatus, FileListEntry, ReadableStream,
                  WritableStream, AsyncFSURL)
 from .local_fs import LocalAsyncFS
+
+from hailtop.config import ConfigVariable, configuration_of
 
 
 class RouterAsyncFS(AsyncFS):
@@ -15,18 +16,18 @@ class RouterAsyncFS(AsyncFS):
                  local_kwargs: Optional[Dict[str, Any]] = None,
                  gcs_kwargs: Optional[Dict[str, Any]] = None,
                  azure_kwargs: Optional[Dict[str, Any]] = None,
-                 s3_kwargs: Optional[Dict[str, Any]] = None):
+                 s3_kwargs: Optional[Dict[str, Any]] = None,
+                 gcs_bucket_allow_list: Optional[List[str]] = None):
         self._filesystems = [] if filesystems is None else filesystems
         self._local_kwargs = local_kwargs or {}
         self._gcs_kwargs = gcs_kwargs or {}
         self._azure_kwargs = azure_kwargs or {}
         self._s3_kwargs = s3_kwargs or {}
-
-    def get_scheme(self, uri: str) -> str:
-        scheme = urllib.parse.urlparse(uri).scheme or 'file'
-        if not scheme:
-            raise ValueError(f"no default scheme and URL has no scheme: {uri}")
-        return scheme
+        self._gcs_bucket_allow_list = (
+            gcs_bucket_allow_list
+            if gcs_bucket_allow_list is not None
+            else configuration_of(ConfigVariable.GCS_BUCKET_ALLOW_LIST, None, fallback="").split(",")
+        )
 
     def parse_url(self, url: str) -> AsyncFSURL:
         return self._get_fs(url).parse_url(url)
@@ -50,7 +51,10 @@ class RouterAsyncFS(AsyncFS):
         if LocalAsyncFS.valid_url(uri):
             fs = LocalAsyncFS(**self._local_kwargs)
         elif aiogoogle.GoogleStorageAsyncFS.valid_url(uri):
-            fs = aiogoogle.GoogleStorageAsyncFS(**self._gcs_kwargs)
+            fs = aiogoogle.GoogleStorageAsyncFS(
+                **self._gcs_kwargs,
+                bucket_allow_list = self._gcs_bucket_allow_list.copy()
+            )
         elif aioazure.AzureAsyncFS.valid_url(uri):
             fs = aioazure.AzureAsyncFS(**self._azure_kwargs)
         elif aioaws.S3AsyncFS.valid_url(uri):

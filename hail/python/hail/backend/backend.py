@@ -69,11 +69,11 @@ class Backend(abc.ABC):
         self._references = {}
 
     @abc.abstractmethod
-    def stop(self):
-        pass
+    def validate_file(self, uri: str):
+        raise NotImplementedError
 
     @abc.abstractmethod
-    def validate_file_scheme(self, url):
+    def stop(self):
         pass
 
     @abc.abstractmethod
