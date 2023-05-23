@@ -281,25 +281,19 @@ class BuildImage2Step(Step):
 
         image_name = publish_as
         self.base_image = f'{DOCKER_PREFIX}/{image_name}'
-        self.main_branch_cache_repository = f'{self.base_image}:cache'
+        self.cache_repository = f'{DOCKER_PREFIX}/cache'
 
         if params.scope == 'deploy':
             if is_test_deployment:
-                # CIs that don't live in default doing a deploy
-                # should not clobber the main `cache` tag
-                self.cache_repository = f'{self.base_image}:cache-{DEFAULT_NAMESPACE}-deploy'
                 self.image = f'{self.base_image}:test-deploy-{self.token}'
             else:
-                self.cache_repository = self.main_branch_cache_repository
                 self.image = f'{self.base_image}:deploy-{self.token}'
         elif params.scope == 'dev':
             dev_user = params.code.config()['user']
-            self.cache_repository = f'{self.base_image}:cache-{dev_user}'
             self.image = f'{self.base_image}:dev-{self.token}'
         else:
             assert params.scope == 'test'
             pr_number = params.code.config()['number']
-            self.cache_repository = f'{self.base_image}:cache-pr-{pr_number}'
             self.image = f'{self.base_image}:test-pr-{pr_number}-{self.token}'
 
         self.job = None
@@ -364,19 +358,16 @@ set -x
 
 {RETRY_FUNCTION_SCRIPT}
 
-export BUILDKITD_FLAGS='--oci-worker-no-process-sandbox --oci-worker-snapshotter=overlayfs'
-export BUILDCTL_CONNECT_RETRIES_MAX=100 # https://github.com/moby/buildkit/issues/1423
-retry buildctl-daemonless.sh \
-     build \
-     --frontend dockerfile.v0 \
-     --local context={shq(context)} \
-     --local dockerfile=/home/user \
-     --output 'type=image,"name={shq(self.image)},{shq(self.cache_repository)}",push=true' \
-     --export-cache type=inline \
-     --import-cache type=registry,ref={shq(self.cache_repository)} \
-     --import-cache type=registry,ref={shq(self.main_branch_cache_repository)} \
-     --trace=/home/user/trace
-cat /home/user/trace
+export TMPDIR=/io/
+retry buildah build \
+      -t {shq(self.image)} \
+      -f /home/user/Dockerfile \
+      --cache-from {shq(self.cache_repository)} \
+      --cache-to {shq(self.cache_repository)} \
+      --layers \
+      {shq(context)}
+# FIXME: try using --compression-format zstd
+retry buildah push {shq(self.image)}
 '''
 
         log.info(f'step {self.name}, script:\n{script}')
