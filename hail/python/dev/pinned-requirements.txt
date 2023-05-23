@@ -383,7 +383,7 @@ qtconsole==5.4.3
     # via jupyter
 qtpy==2.3.1
     # via qtconsole
-requests==2.28.2
+requests==2.31.0
     # via
     #   -c hail/hail/python/dev/../pinned-requirements.txt
     #   sphinx

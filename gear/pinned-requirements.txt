@@ -148,7 +148,7 @@ pyyaml==6.0
     #   -c hail/gear/../hail/python/dev/pinned-requirements.txt
     #   -c hail/gear/../hail/python/pinned-requirements.txt
     #   kubernetes-asyncio
-requests==2.28.2
+requests==2.31.0
     # via
     #   -c hail/gear/../hail/python/dev/pinned-requirements.txt
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
