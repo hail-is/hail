@@ -3,10 +3,15 @@ import collections
 import logging
 from typing import Deque, Tuple
 
-from .utils import ANullContextManager
-
-
 log = logging.getLogger('semaphore')
+
+
+class ANullContextManager:
+    async def __aenter__(self):
+        pass
+
+    async def __aexit__(self, exc_type, exc, tb):
+        pass
 
 
 class NullWeightedSemaphore:

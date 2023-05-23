@@ -82,9 +82,9 @@ from ..file_store import FileStore
 from ..globals import HTTP_CLIENT_MAX_SIZE, RESERVED_STORAGE_GB_PER_CORE, STATUS_FORMAT_VERSION
 from ..instance_config import InstanceConfig
 from ..publicly_available_images import publicly_available_images
-from ..resource_usage import ResourceUsageMonitor, read_resource_usage
+from ..resource_usage import ResourceUsageMonitor
 from ..semaphore import FIFOWeightedSemaphore
-from ..utils import ANullContextManager, Box
+from ..utils import Box
 from ..worker.worker_api import CloudDisk, CloudWorkerAPI, ContainerRegistryCredentials
 from .credentials import CloudUserCredentials
 from .jvm_entryway_protocol import EndOfStream, read_bool, read_int, read_str, write_int, write_str
@@ -804,6 +804,7 @@ class Container:
         self.container_overlay_path = f'{self.container_scratch}/rootfs_overlay'
         self.config_path = f'{self.container_scratch}/config'
         self.log_path = f'{self.container_scratch}/container.log'
+        self.resource_usage_path = f'{self.container_scratch}/resource_usage'
 
         self.overlay_mounted = False
 
@@ -816,6 +817,8 @@ class Container:
 
         self._killed = False
         self._cleaned_up = False
+
+        self.monitor: Optional[ResourceUsageMonitor] = None
 
     async def create(self):
         self.state = 'creating'
@@ -846,15 +849,12 @@ class Container:
                 raise ContainerCreateError from e
             raise
 
-    def start(self, monitor: Optional[ResourceUsageMonitor] = None):
-        if monitor is None:
-            monitor = ANullContextManager()
-
+    def start(self):
         async def _run():
             self.state = 'running'
             try:
                 with self._step('running'):
-                    timed_out = await self._run_until_done_or_deleted(self._run_container, monitor)
+                    timed_out = await self._run_until_done_or_deleted(self._run_container)
 
                 self.container_status = self.get_container_status()
                 assert self.container_status is not None
@@ -893,7 +893,6 @@ class Container:
 
     async def run(
         self,
-        monitor: Optional[ResourceUsageMonitor],
         on_completion: Callable[..., Awaitable[Any]],
         *args,
         **kwargs,
@@ -901,7 +900,7 @@ class Container:
         async with self._cleanup_lock:
             try:
                 await self.create()
-                self.start(monitor=monitor)
+                self.start()
                 await self.wait()
             finally:
                 try:
@@ -1028,9 +1027,22 @@ class Container:
             await self.netns.expose_port(self.port, self.host_port)
 
     def new_resource_usage_monitor(self, resource_usage_path):
-        return ResourceUsageMonitor(self, resource_usage_path)
+        assert self.netns is not None and self.netns.veth_host is not None
+        return ResourceUsageMonitor(
+            self.name,
+            self.container_overlay_path,
+            self.io_mount_path,
+            self.netns.veth_host,
+            resource_usage_path,
+            self.fs,
+        )
 
-    async def _run_container(self, monitor: ResourceUsageMonitor) -> bool:
+    async def get_resource_usage(self) -> bytes:
+        if self.monitor is None:
+            return ResourceUsageMonitor.no_data()
+        return await self.monitor.read()
+
+    async def _run_container(self) -> bool:
         self.started_at = time_msecs()
         try:
             await self._write_container_config()
@@ -1053,7 +1065,8 @@ class Container:
 
                     assert self.netns
 
-                    async with monitor:
+                    self.monitor = self.new_resource_usage_monitor(self.resource_usage_path)
+                    async with self.monitor:
                         if self.stdin is not None:
                             await self.process.communicate(self.stdin.encode('utf-8'))
                         await self.process.wait()
@@ -1746,19 +1759,12 @@ class DockerJob(Job):
             )
 
         self.containers = containers
-        self.monitors = {
-            task_name: c.new_resource_usage_monitor(self.resource_usage_path(task_name))
-            for task_name, c in containers.items()
-        }
 
     def step(self, name: str) -> ContextManager:
         return self.timings.step(name)
 
     def container_name(self, task_name: str):
         return f'batch-{self.batch_id}-job-{self.job_id}-{task_name}'
-
-    def resource_usage_path(self, task_name: str):
-        return f'{self.scratch}/resource_usage/{task_name}'
 
     async def setup_io(self):
         assert instance_config
@@ -1792,7 +1798,7 @@ class DockerJob(Job):
         assert self.disk is None, self.disk
         os.makedirs(self.io_host_path())
 
-    async def run_container(self, container: Container, monitor: ResourceUsageMonitor, task_name: str):
+    async def run_container(self, container: Container, task_name: str):
         async def on_completion():
             with container._step('uploading_log'):
                 assert self.worker.file_store
@@ -1812,11 +1818,11 @@ class DockerJob(Job):
                     self.job_id,
                     self.attempt_id,
                     task_name,
-                    await monitor.read(),
+                    await container.get_resource_usage(),
                 )
 
         try:
-            await container.run(monitor, on_completion)
+            await container.run(on_completion)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -1882,13 +1888,11 @@ class DockerJob(Job):
 
                 input = self.containers.get('input')
                 if input:
-                    input_monitor = self.monitors['input']
-                    await self.run_container(input, input_monitor, 'input')
+                    await self.run_container(input, 'input')
 
                 if not input or input.state == 'succeeded':
                     main = self.containers['main']
-                    main_monitor = self.monitors['main']
-                    await self.run_container(main, main_monitor, 'main')
+                    await self.run_container(main, 'main')
 
                     output = self.containers.get('output')
 
@@ -1897,8 +1901,7 @@ class DockerJob(Job):
 
                     if copy_output:
                         assert output
-                        output_monitor = self.monitors['output']
-                        await self.run_container(output, output_monitor, 'output')
+                        await self.run_container(output, 'output')
 
                     if main.state != 'succeeded':
                         self.state = main.state
@@ -1995,7 +1998,7 @@ class DockerJob(Job):
         return self.containers[container_name].log_path
 
     async def get_resource_usage(self) -> Dict[str, bytes]:
-        return {name: await m.read() for name, m in self.monitors.items()}
+        return {name: await c.get_resource_usage() for name, c in self.containers.items()}
 
     async def delete(self):
         await super().delete()
@@ -2263,7 +2266,7 @@ class JVMJob(Job):
             )
 
         with self.step('uploading_resource_usage'):
-            resource_usage_contents = await read_resource_usage(self.worker.fs, self.resource_usage_file)
+            resource_usage_contents = await self.jvm.get_job_resource_usage()
             await self.worker.file_store.write_resource_usage_file(
                 self.format_version,
                 self.batch_id,
@@ -2321,7 +2324,7 @@ class JVMJob(Job):
         return self.log_file
 
     async def get_resource_usage(self) -> Dict[str, bytes]:
-        return {'main': await read_resource_usage(self.worker.fs, self.resource_usage_file)}
+        return {'main': await self.jvm.get_resource_usage()}
 
     async def delete(self):
         await super().delete()
@@ -2495,6 +2498,7 @@ class JVMContainer:
     def __init__(self, container: Container, fs: AsyncFS):
         self.container = container
         self.fs: AsyncFS = fs
+        self.job_monitor: Optional[ResourceUsageMonitor] = None
 
     @property
     def returncode(self) -> Optional[int]:
@@ -2517,8 +2521,20 @@ class JVMContainer:
             options=['--cwd=/async-profiler-2.9-linux-x64/'],
         )
 
-    def monitor_resource_usage(self, path):
-        return self.container.new_resource_usage_monitor(path)
+    async def get_resource_usage(self) -> bytes:
+        return await self.container.get_resource_usage()
+
+    async def get_job_resource_usage(self) -> bytes:
+        if self.job_monitor is None:
+            return ResourceUsageMonitor.no_data()
+        return await self.job_monitor.read()
+
+    def monitor_resource_usage(self, path: str):
+        self.job_monitor = self.container.new_resource_usage_monitor(path)
+        return self.job_monitor
+
+    def clear_job_monitor(self):
+        self.job_monitor = None
 
 
 class JVMUserError(Exception):
@@ -2695,6 +2711,7 @@ class JVM:
         self.should_interrupt.set()
 
     def reset(self):
+        self.container.clear_job_monitor()
         self.should_interrupt.clear()
 
     async def kill(self):
@@ -2810,6 +2827,12 @@ class JVM:
                     ) from eos_exception
                 log.exception(f'{self}: unexpected message type: {message}\nJVM Output:\n\n{jvm_output}')
                 raise ValueError(f'{self}: unexpected message type: {message}')
+
+    async def get_resource_usage(self) -> bytes:
+        return await self.container.get_resource_usage()
+
+    async def get_job_resource_usage(self) -> bytes:
+        return await self.container.get_job_resource_usage()
 
 
 class Worker:
