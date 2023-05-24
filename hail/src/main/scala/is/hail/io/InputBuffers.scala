@@ -648,8 +648,38 @@ final class ZstdInputBlockBuffer(blockSize: Int, in: InputBlockBuffer) extends I
       val decompLen = Memory.loadInt(comp, 0)
       val ret = Zstd.decompressByteArray(buf, 0, decompLen, comp, 4, compLen)
       if (Zstd.isError(ret))
-        throw new RuntimeException(s"Zstd decompression error: ${Zstd.getErrorName(ret)}") // FIXME placeholder exception type
+        throw new com.github.luben.zstd.ZstdException(ret)
       decompLen
+    }
+  }
+}
+
+final class ZstdSizedBasedInputBlockBuffer(blockSize: Int, in: InputBlockBuffer) extends InputBlockBuffer {
+  private val comp = new Array[Byte](4 + Zstd.compressBound(blockSize).toInt)
+
+  def close(): Unit = {
+    in.close()
+  }
+
+  def seek(offset: Long): Unit = in.seek(offset)
+
+  def readBlock(buf: Array[Byte]): Int = {
+    val blockLen = in.readBlock(comp)
+    if (blockLen == -1) {
+      blockLen
+    } else {
+      val compLen = blockLen - 4
+      val decomp = Memory.loadInt(comp, 0)
+      if (decomp % 2 == 0) {
+        System.arraycopy(comp, 4, buf, 0, compLen)
+        compLen
+      } else {
+        val decompLen = decomp >>> 1
+        val ret = Zstd.decompressByteArray(buf, 0, decompLen, comp, 4, compLen)
+        if (Zstd.isError(ret))
+          throw new com.github.luben.zstd.ZstdException(ret)
+        decompLen
+      }
     }
   }
 }

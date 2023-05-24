@@ -23,7 +23,11 @@ object BufferSpec {
     new StreamBlockBufferSpec)
   val unblockedUncompressed: BufferSpec = new StreamBufferSpec
 
-  val wireSpec: BufferSpec = zstdCompressionLEB
+  val wireSpec: BufferSpec = LEB128BufferSpec(
+    BlockingBufferSpec(64 * 1024,
+      ZstdSizedBasedBlockBufferSpec(64 * 1024,
+        /*minCompressionSize=*/256,
+        new StreamBlockBufferSpec)))
   val memorySpec: BufferSpec = wireSpec
 
   // longtime default spec
@@ -192,6 +196,20 @@ final case class ZstdBlockBufferSpec(blockSize: Int, child: BlockBufferSpec) ext
 
   def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBlockBuffer] =
     Code.newInstance[ZstdOutputBlockBuffer, Int, OutputBlockBuffer](blockSize, child.buildCodeOutputBuffer(out))
+}
+
+final case class ZstdSizedBasedBlockBufferSpec(blockSize: Int, minCompressionSize: Int, child: BlockBufferSpec) extends BlockBufferSpec {
+  require(blockSize <= (1 << 16))
+
+  def buildInputBuffer(in: InputStream): InputBlockBuffer = new ZstdSizedBasedInputBlockBuffer(blockSize, child.buildInputBuffer(in))
+
+  def buildOutputBuffer(out: OutputStream): OutputBlockBuffer = new ZstdSizedBasedOutputBlockBuffer(blockSize, minCompressionSize, child.buildOutputBuffer(out))
+
+  def buildCodeInputBuffer(in: Code[InputStream]): Code[InputBlockBuffer] =
+    Code.newInstance[ZstdSizedBasedInputBlockBuffer, Int, InputBlockBuffer](blockSize, child.buildCodeInputBuffer(in))
+
+  def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBlockBuffer] =
+    Code.newInstance[ZstdSizedBasedOutputBlockBuffer, Int, Int, OutputBlockBuffer](blockSize, minCompressionSize, child.buildCodeOutputBuffer(out))
 }
 
 object StreamBlockBufferSpec {

@@ -355,9 +355,35 @@ final class ZstdOutputBlockBuffer(blockSize: Int, out: OutputBlockBuffer) extend
   def writeBlock(buf: Array[Byte], decompLen: Int): Unit = {
     val compLen = Zstd.compressByteArray(comp, 4, comp.length - 4, buf, 0, decompLen, Zstd.defaultCompressionLevel())
     if (Zstd.isError(compLen))
-      throw new RuntimeException(s"Zstd decompression error: ${Zstd.getErrorName(compLen)}") // FIXME placeholder exception type
+      throw new com.github.luben.zstd.ZstdException(compLen)
     Memory.storeInt(comp, 0, decompLen.toInt)
     out.writeBlock(comp, compLen.toInt + 4)
+  }
+
+  def getPos(): Long = out.getPos()
+}
+
+final class ZstdSizedBasedOutputBlockBuffer(blockSize: Int, minCompressionSize: Int, out: OutputBlockBuffer) extends OutputBlockBuffer {
+  private val comp = new Array[Byte](4 + Zstd.compressBound(blockSize).toInt)
+
+  def flush(): Unit = out.flush()
+
+  def close(): Unit = out.close()
+
+  def writeBlock(buf: Array[Byte], decompLen: Int): Unit = {
+    val compLen = if (decompLen < minCompressionSize) {
+      System.arraycopy(buf, 0, comp, 4, decompLen)
+      Memory.storeInt(comp, 0, 0)
+      decompLen
+    } else {
+      val compLen = Zstd.compressByteArray(comp, 4, comp.length - 4, buf, 0, decompLen, Zstd.defaultCompressionLevel())
+      if (Zstd.isError(compLen))
+        throw new com.github.luben.zstd.ZstdException(compLen)
+      Memory.storeInt(comp, 0, (decompLen << 1) + 1)
+      compLen.toInt
+    }
+
+    out.writeBlock(comp, compLen + 4)
   }
 
   def getPos(): Long = out.getPos()
