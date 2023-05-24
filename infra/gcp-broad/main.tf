@@ -710,6 +710,21 @@ resource "kubernetes_cluster_role_binding" "batch" {
   }
 }
 
+resource "kubernetes_pod_disruption_budget" "kube_dns_pdb" {
+  metadata {
+    name = "kube-dns"
+    namespace = "kube-system"
+  }
+  spec {
+    max_unavailable = "1"
+    selector {
+      match_labels = {
+        k8s-app = "kube-dns"
+      }
+    }
+  }
+}
+
 data "sops_file" "ci_config_sops" {
   count = fileexists("${var.github_organization}/ci_config.enc.json") ? 1 : 0
   source_file = "${var.github_organization}/ci_config.enc.json"
