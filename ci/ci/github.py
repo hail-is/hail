@@ -871,7 +871,10 @@ url: {url}
         self.n_running_batches = sum(1 for pr in self.prs.values() if pr.batch and not pr.build_state)
 
         for pr in self.prs.values():
-            await pr._heal(batch_client, db, pr == merge_candidate, gh)
+            try:
+                await pr._heal(batch_client, db, pr == merge_candidate, gh)
+            except:
+                log.exception(f'error while trying to heal {pr.short_str()}')
 
         # cancel orphan builds
         running_batches = batch_client.list_batches(
