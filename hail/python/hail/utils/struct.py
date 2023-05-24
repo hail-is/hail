@@ -81,7 +81,17 @@ class Struct(Mapping):
         return str(self)
 
     def __str__(self):
-        return 'Struct({})'.format(', '.join('{}={}'.format(k, repr(v)) for k, v in self._fields.items()))
+        if all(k.isidentifier() for k in self._fields):
+            return (
+                'Struct('
+                + ', '.join(f'{k}={repr(v)}' for k, v in self._fields.items())
+                + ')'
+            )
+        return (
+            'Struct(**{'
+            + ', '.join(f'{repr(k)}: {repr(v)}' for k, v in self._fields.items())
+            + '})'
+        )
 
     def __eq__(self, other):
         return isinstance(other, Struct) and self._fields == other._fields
@@ -241,10 +251,50 @@ _old_printer = pprint.PrettyPrinter
 
 
 class StructPrettyPrinter(pprint.PrettyPrinter):
-    def _format(self, obj, *args, **kwargs):
+    def _format(self, obj, stream, indent, allowance, context, level, *args, **kwargs):
         if isinstance(obj, Struct):
-            obj = to_dict(obj)
-        return _old_printer._format(self, obj, *args, **kwargs)
+            rep = self._repr(obj, context, level)
+            max_width = self._width - indent - allowance
+            if len(rep) <= max_width:
+                stream.write(rep)
+                return
+
+            stream.write('Struct(')
+            indent += len('Struct(')
+            if all(k.isidentifier() for k in obj):
+                n = len(obj.items())
+                for i, (k, v) in enumerate(obj.items()):
+                    is_first = i == 0
+                    is_last = i == n - 1
+
+                    if not is_first:
+                        stream.write(' ' * indent)
+                    stream.write(k)
+                    stream.write('=')
+                    this_indent = indent + len(k) + len('=')
+                    self._format(v, stream, this_indent, allowance, context, level, *args, **kwargs)
+                    if not is_last:
+                        stream.write(',\n')
+            else:
+                stream.write('**{')
+                indent += len('**{')
+                n = len(obj.items())
+                for i, (k, v) in enumerate(obj.items()):
+                    is_first = i == 0
+                    is_last = i == n - 1
+
+                    if not is_first:
+                        stream.write(' ' * indent)
+                    stream.write(repr(k))
+                    stream.write(': ')
+                    this_indent = indent + len(repr(k)) + len(': ')
+                    self._format(v, stream, this_indent, allowance, context, level, *args, **kwargs)
+                    if not is_last:
+                        stream.write(',\n')
+                stream.write('}')
+            stream.write(')')
+        else:
+            _old_printer._format(self, obj, stream, indent, allowance, context, level, *args, **kwargs)
 
 
 pprint.PrettyPrinter = StructPrettyPrinter  # monkey-patch pprint

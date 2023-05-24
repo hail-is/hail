@@ -327,6 +327,14 @@ final case class SeqSample(totalRange: IR, numToSample: IR, rngState: IR, requir
 // pivots are the endpoints of the first and last interval respectively, should not be contained in the dataset.
 final case class StreamDistribute(child: IR, pivots: IR, path: IR, comparisonOp: ComparisonOp[_],spec: AbstractTypedCodecSpec) extends IR
 
+// "Whiten" a stream of vectors by regressing out from each vector all components
+// in the direction of vectors in the preceding window. For efficiency, takes
+// a stream of "chunks" of vectors.
+// Takes a stream of structs, with two designated fields: `prevWindow` is the
+// previous window (e.g. from the previous partition), if there is one, and
+// `newChunk` is the new chunk to whiten.
+final case class StreamWhiten(stream: IR, newChunk: String, prevWindow: String, vecSize: Int, windowSize: Int, chunkSize: Int, blockSize: Int, normalizeAfterWhiten: Boolean) extends IR
+
 object ArrayZipBehavior extends Enumeration {
   type ArrayZipBehavior = Value
   val AssumeSameLength: Value = Value(0)
@@ -914,7 +922,7 @@ final case class WritePartition(value: IR, writeCtx: IR, writer: PartitionWriter
 final case class WriteMetadata(writeAnnotations: IR, writer: MetadataWriter) extends IR
 
 final case class ReadValue(path: IR, spec: AbstractTypedCodecSpec, requestedType: Type) extends IR
-final case class WriteValue(value: IR, path: IR, spec: AbstractTypedCodecSpec, stagingFile: Option[IR] = None) extends IR
+final case class WriteValue(value: IR, path: IR, writer: ValueWriter, stagingFile: Option[IR] = None) extends IR
 
 class PrimitiveIR(val self: IR) extends AnyVal {
   def +(other: IR): IR = {

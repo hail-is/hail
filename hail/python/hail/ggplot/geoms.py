@@ -173,15 +173,16 @@ class GeomPoint(Geom):
         legends = {}
         for df in grouped_data:
             values = self._get_aes_values(df)
-            trace_category = "trace1"
+            trace_categories = []
             for aes_name in self.aes_legend_groups:
                 category = self._get_aes_value(df, f"{aes_name}_legend")
-                trace_category = category if category is not None else trace_category
+                if category is not None:
+                    trace_categories.append(category)
                 legends[aes_name] = ({
                     **legends.get(aes_name, {}),
                     category: values[aes_name]
                 })
-            traces.append([fig_so_far, df, facet_row, facet_col, values, trace_category])
+            traces.append([fig_so_far, df, facet_row, facet_col, values, trace_categories])
 
         non_empty_legend_groups = [
             legend_group for legend_group in legends.values() if len(legend_group) > 1
@@ -198,6 +199,15 @@ class GeomPoint(Geom):
                         self._add_legend(fig_so_far, aes_name, category, value)
                 legend_cache[aes_name] = {**prev, **legend_group}
         else:
+            main_categories = non_empty_legend_groups[0].keys() if len(non_empty_legend_groups) == 1 else None
+            for trace in traces:
+                trace_categories = trace[-1]
+                if main_categories is not None:
+                    trace[-1] = [category for category in trace_categories if category in main_categories][0]
+                elif len(trace_categories) == 1:
+                    trace[-1] = [trace_categories][0]
+                else:
+                    trace[-1] = "trace1"
             for trace in traces:
                 self._add_trace(*trace)
 

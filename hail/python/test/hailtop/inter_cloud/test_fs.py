@@ -15,26 +15,28 @@ from hailtop.aiocloud.aioaws import S3AsyncFS
 from hailtop.aiocloud.aioazure import AzureAsyncFS
 from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
 
-@pytest.fixture(params=['file', 'gs', 's3', 'hail-az', 'router/file', 'router/gs', 'router/s3', 'router/hail-az']) # 'sas/hail-az'
-async def filesystem(request) -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]]:
+
+@pytest.fixture(params=['file', 'gs', 's3', 'azure-https', 'router/file', 'router/gs', 'router/s3', 'router/azure-https'])  # 'sas/azure-https'
+async def filesystem(request) -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS, str]]:
     token = secret_alnum_string()
 
     with ThreadPoolExecutor() as thread_pool:
         fs: AsyncFS
         if request.param.startswith('router/'):
-            fs = RouterAsyncFS(
-                'file', filesystems=[LocalAsyncFS(thread_pool),
-                                     GoogleStorageAsyncFS(),
-                                     S3AsyncFS(thread_pool),
-                                     AzureAsyncFS()])
-        elif request.param.endswith('file'):
+            fs = RouterAsyncFS(filesystems=[
+                LocalAsyncFS(thread_pool),
+                GoogleStorageAsyncFS(),
+                S3AsyncFS(thread_pool),
+                AzureAsyncFS()
+            ])
+        elif request.param == 'file':
             fs = LocalAsyncFS(thread_pool)
         elif request.param.endswith('gs'):
             fs = GoogleStorageAsyncFS()
         elif request.param.endswith('s3'):
             fs = S3AsyncFS(thread_pool)
         else:
-            assert request.param.endswith('hail-az')
+            assert request.param.endswith('azure-https')
             fs = AzureAsyncFS()
 
         async with fs:
@@ -47,16 +49,16 @@ async def filesystem(request) -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS,
                 bucket = os.environ['HAIL_TEST_S3_BUCKET']
                 base = fs.parse_url(f's3://{bucket}/tmp/{token}/')
             else:
-                assert request.param.endswith('hail-az')
+                assert request.param.endswith('azure-https')
                 account = os.environ['HAIL_TEST_AZURE_ACCOUNT']
                 container = os.environ['HAIL_TEST_AZURE_CONTAINER']
                 if request.param.startswith('sas'):
                     sub_id = os.environ['HAIL_TEST_AZURE_SUBID']
                     res_grp = os.environ['HAIL_TEST_AZURE_RESGRP']
                     sas_token = await fs.generate_sas_token(sub_id, res_grp, account, "rwdlc")
-                    base = fs.parse_url(f'hail-az://{account}/{container}/tmp/{token}/?{sas_token}')
+                    base = fs.parse_url(f'https://{account}.blob.core.windows.net/{container}/tmp/{token}/?{sas_token}')
                 else:
-                    base = fs.parse_url(f'hail-az://{account}/{container}/tmp/{token}/')
+                    base = fs.parse_url(f'https://{account}.blob.core.windows.net/{container}/tmp/{token}/')
     
             await fs.mkdir(str(base))
             sema = asyncio.Semaphore(50)
@@ -552,7 +554,7 @@ async def test_listfiles(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSUR
     await fs.touch(c)
 
     async def listfiles(dir, recursive):
-        return {(await entry.url_with_query(), await entry.is_file()) async for entry in await fs.listfiles(dir, recursive)}
+        return {(await entry.url_full(), await entry.is_file()) async for entry in await fs.listfiles(dir, recursive)}
 
     foo = str(base.with_new_path_component('foo/'))
     assert await listfiles(foo, recursive=True) == {(a, True), (c, True)}

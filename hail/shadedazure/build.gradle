@@ -1,0 +1,57 @@
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+}
+
+plugins {
+  id 'java'
+  id 'com.github.johnrengelman.shadow'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation group: 'com.azure', name: 'azure-storage-blob', version: '12.22.0'
+    implementation group: 'com.azure', name: 'azure-core-http-netty', version: '1.13.3'
+    implementation group: 'com.azure', name: 'azure-identity', version:'1.8.3'
+}
+
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+tasks.withType(ShadowJar) {
+    archiveBaseName = 'shadedazure'
+    zip64 true
+
+    // generate the jar then lightly prune the output of:
+    // jar tf shadedazure/build/libs/shadedazure-all.jar \
+    //     | awk -F'/' '{print "relocate '\''"$1"."$2"'\'', '\''is.hail.shadedazure."$1"."$2"'\''"}' \
+    //     | sort -u
+    relocate 'com.azure', 'is.hail.shadedazure.com.azure'
+    relocate 'com.ctc', 'is.hail.shadedazure.com.ctc'
+    relocate 'com.fasterxml', 'is.hail.shadedazure.com.fasterxml'
+    relocate 'com.microsoft', 'is.hail.shadedazure.com.microsoft'
+    relocate 'com.nimbusds', 'is.hail.shadedazure.com.nimbusds'
+    relocate 'com.sun', 'is.hail.shadedazure.com.sun'
+    relocate 'io.netty', 'is.hail.shadedazure.io.netty'
+    relocate 'is.hail', 'is.hail.shadedazure.is.hail'
+    relocate 'net.jcip', 'is.hail.shadedazure.net.jcip'
+    relocate 'net.minidev', 'is.hail.shadedazure.net.minidev'
+    relocate 'org.apache', 'is.hail.shadedazure.org.apache'
+    relocate 'org.codehaus', 'is.hail.shadedazure.org.codehaus'
+    relocate 'org.objectweb', 'is.hail.shadedazure.org.objectweb'
+    relocate 'org.reactivestreams', 'is.hail.shadedazure.org.reactivestreams'
+    relocate 'org.slf4j', 'is.hail.shadedazure.org.slf4j'
+    relocate 'reactor.adapter', 'is.hail.shadedazure.reactor.adapter'
+    relocate 'reactor.core', 'is.hail.shadedazure.reactor.core'
+    relocate 'reactor.netty', 'is.hail.shadedazure.reactor.netty'
+    relocate 'reactor.util', 'is.hail.shadedazure.reactor.util'
+
+    exclude 'META-INF/*.RSA'
+    exclude 'META-INF/*.SF'
+    exclude 'META-INF/*.DSA'
+}
+
+// you can make the jar from the parent directory with ./gradlew :shadedazure:shadowJar
+shadowJar {}

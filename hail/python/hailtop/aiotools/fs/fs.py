@@ -126,6 +126,11 @@ class AsyncFS(abc.ABC):
     def schemes(self) -> Set[str]:
         pass
 
+    @staticmethod
+    @abc.abstractmethod
+    def valid_url(url: str) -> bool:
+        pass
+
     @abc.abstractmethod
     def parse_url(self, url: str) -> AsyncFSURL:
         pass
@@ -241,7 +246,7 @@ class AsyncFS(abc.ABC):
                      url: str,
                      listener: Optional[Callable[[int], None]] = None) -> None:
         if listener is None:
-            listener = lambda _: None  # noqa: E731
+            listener = lambda _: None
         if sema is None:
             sema = asyncio.Semaphore(50)
 

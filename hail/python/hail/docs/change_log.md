@@ -1,4 +1,15 @@
-# Change Log
+# Change Log And Version Policy
+
+## Python Version Compatibility Policy
+
+Hail complies with [NumPy's compatibility policy](https://numpy.org/neps/nep-0029-deprecation_policy.html#implementation) on Python
+versions. In particular, Hail officially supports:
+
+- All minor versions of Python released 42 months prior to the project, and at minimum the two
+  latest minor versions.
+
+- All minor versions of numpy released in the 24 months prior to the project, and at minimum the
+  last three minor versions.
 
 ## Frequently Asked Questions
 
@@ -21,6 +32,61 @@ such in the reference documentation, which may change at any time**.
 Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
+
+## Version 0.2.116
+
+Released 2023-05-04
+
+### New Features
+
+- (hail#12917) ABS blob URIs in the format of `https://<ACCOUNT_NAME>.blob.core.windows.net/<CONTAINER_NAME>/<PATH>` are now supported.
+- (hail#12731) Introduced `hailtop.fs` that makes public a filesystem module that works for local fs, gs, s3 and abs. This is now used as the `Backend.fs` for hail query but can be used standalone for Hail Batch users by `import hailtop.fs as hfs`.
+
+### Deprecations
+
+- (hail#12929) Hail no longer officially supports Python 3.7.
+- (hail#12917) The `hail-az` scheme for referencing blobs in ABS is now deprecated and will be removed in an upcoming release.
+
+### Bug Fixes
+
+- (hail#12913) Fixed bug in `hail.ggplot` where all legend entries would have the same text if one column had exactly one value for all rows and was mapped to either the `shape` or the `color` aesthetic for `geom_point`.
+- (hail#12901) `hl.Struct` now has a correct and useful implementation of `pprint`.
+
+---
+
+## Version 0.2.115
+
+Released 2023-04-25
+
+### New Features
+
+- (hail#12731) Introduced `hailtop.fs` that makes public a filesystem module that works
+  for local fs, gs, s3 and abs. This can be used by `import hailtop.fs as hfs` but has also
+  replaced the underlying implementation of the `hl.hadoop_*` methods. This means that the
+  `hl.hadoop_*` methods now support these additional blob storage providers.
+- (hail#12917) ABS blob URIs in the form of `https://<ACCOUNT_NAME>.blob.core.windows.net/<CONTAINER_NAME>/<PATH>` are now supported when running in Azure.
+
+### Deprecations
+- (hail#12917) The `hail-az` scheme for referencing ABS blobs in Azure is deprecated in favor of the `https` scheme and will be removed in a future release.
+
+### Bug Fixes
+
+- (hail#12919) An interactive hail session is no longer unusable after hitting CTRL-C during a batch execution in Query-on-Batch
+- (hail#12913) Fixed bug in `hail.ggplot` where all legend entries would have the same text if one column had exactly one value for all rows and was mapped to either the `shape` or the `color` aesthetic for `geom_point`.
+
+---
+
+## Version 0.2.114
+
+Released 2023-04-19
+
+### New Features
+
+- (hail#12880) Added `hl.vds.store_ref_block_max_len` to patch old VDSes to make interval filtering faster.
+
+### Bug Fixes
+
+- (hail#12860) Fixed memory leak in shuffles in Query-on-Batch.
 
 ---
 

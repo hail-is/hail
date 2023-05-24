@@ -1,11 +1,12 @@
 import os
+import tempfile
 from typing import Dict
 
 import aiohttp
 
 from hailtop import httpx
 from hailtop.aiocloud import aiogoogle
-from hailtop.utils import request_retry_transient_errors
+from hailtop.utils import check_exec_output, request_retry_transient_errors
 
 from ....worker.worker_api import CloudWorkerAPI
 from ..instance_config import GCPSlimInstanceConfig
@@ -13,7 +14,7 @@ from .credentials import GCPUserCredentials
 from .disk import GCPDisk
 
 
-class GCPWorkerAPI(CloudWorkerAPI):
+class GCPWorkerAPI(CloudWorkerAPI[GCPUserCredentials]):
     nameserver_ip = '169.254.169.254'
 
     # async because GoogleSession must be created inside a running event loop
@@ -29,6 +30,7 @@ class GCPWorkerAPI(CloudWorkerAPI):
         self.zone = zone
         self._google_session = session
         self._compute_client = aiogoogle.GoogleComputeClient(project, session=session)
+        self._gcsfuse_credential_files: Dict[str, str] = {}
 
     def create_disk(self, instance_name: str, disk_name: str, size_in_gb: int, mount_path: str) -> GCPDisk:
         return GCPDisk(
@@ -47,7 +49,7 @@ class GCPWorkerAPI(CloudWorkerAPI):
     def get_compute_client(self) -> aiogoogle.GoogleComputeClient:
         return self._compute_client
 
-    def user_credentials(self, credentials: Dict[str, bytes]) -> GCPUserCredentials:
+    def user_credentials(self, credentials: Dict[str, str]) -> GCPUserCredentials:
         return GCPUserCredentials(credentials)
 
     async def worker_access_token(self, session: httpx.ClientSession) -> Dict[str, str]:
@@ -64,19 +66,23 @@ class GCPWorkerAPI(CloudWorkerAPI):
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> GCPSlimInstanceConfig:
         return GCPSlimInstanceConfig.from_dict(config_dict)
 
-    def write_cloudfuse_credentials(
-        self, root_dir: str, credentials: str, bucket: str
-    ) -> str:  # pylint: disable=unused-argument
-        path = f'{root_dir}/cloudfuse/key.json'
-        if not os.path.exists(path):
-            os.makedirs(os.path.dirname(path))
-            with open(path, 'w', encoding='utf-8') as f:
-                f.write(credentials)
-        return path
+    def _write_gcsfuse_credentials(self, credentials: GCPUserCredentials, mount_base_path_data: str) -> str:
+        if mount_base_path_data not in self._gcsfuse_credential_files:
+            with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', delete=False) as credsfile:
+                credsfile.write(credentials.key)
+                self._gcsfuse_credential_files[mount_base_path_data] = credsfile.name
+        return self._gcsfuse_credential_files[mount_base_path_data]
 
-    def _mount_cloudfuse(
-        self, fuse_credentials_path: str, mount_base_path_data: str, mount_base_path_tmp: str, config: dict
-    ) -> str:  # pylint: disable=unused-argument
+    async def _mount_cloudfuse(
+        self,
+        credentials: GCPUserCredentials,
+        mount_base_path_data: str,
+        mount_base_path_tmp: str,
+        config: dict,
+    ):  # pylint: disable=unused-argument
+
+        fuse_credentials_path = self._write_gcsfuse_credentials(credentials, mount_base_path_data)
+
         bucket = config['bucket']
         assert bucket
 
@@ -85,23 +91,32 @@ class GCPWorkerAPI(CloudWorkerAPI):
             options.append('ro')
 
         try:
-            billing_project_flag = f'--billing-project "{config["requester_pays_project"]}"'
+            billing_project_flag = ['--billing-project', config["requester_pays_project"]]
         except KeyError:
-            billing_project_flag = ''
+            billing_project_flag = []
 
-        return f'''
-/usr/bin/gcsfuse \
-    -o {",".join(options)} \
-    --file-mode 770 \
-    --dir-mode 770 \
-    --implicit-dirs \
-    --key-file {fuse_credentials_path} \
-    {billing_project_flag} \
-    {bucket} {mount_base_path_data}
-'''
+        await check_exec_output(
+            '/usr/bin/gcsfuse',
+            '-o',
+            ','.join(options),
+            '--file-mode',
+            '770',
+            '--dir-mode',
+            '770',
+            '--implicit-dirs',
+            '--key-file',
+            fuse_credentials_path,
+            *billing_project_flag,
+            bucket,
+            mount_base_path_data,
+        )
 
-    def _unmount_cloudfuse(self, mount_base_path: str) -> str:
-        return f'fusermount -u {mount_base_path}'
+    async def unmount_cloudfuse(self, mount_base_path_data: str):
+        try:
+            await check_exec_output('fusermount', '-u', mount_base_path_data)
+        finally:
+            os.remove(self._gcsfuse_credential_files[mount_base_path_data])
+            del self._gcsfuse_credential_files[mount_base_path_data]
 
     def __str__(self):
         return f'project={self.project} zone={self.zone}'

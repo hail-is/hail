@@ -24,12 +24,13 @@ from hailtop.batch_client import client as hb
 from hailtop.batch_client import aioclient as aiohb
 from hailtop.aiotools.fs import AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 import hailtop.aiotools.fs as afs
+from hailtop.fs.fs import FS
+from hailtop.fs.router_fs import RouterFS
 
 from .backend import Backend, fatal_error_from_java_error_triplet
 from ..builtin_references import BUILTIN_REFERENCES
-from ..fs.fs import FS
-from ..fs.router_fs import RouterFS
 from ..ir import BaseIR
 from ..utils import ANY_REGION
 
@@ -200,7 +201,8 @@ class ServiceBackend(Backend):
                      worker_memory: Optional[str] = None,
                      name_prefix: Optional[str] = None,
                      token: Optional[str] = None,
-                     regions: Optional[List[str]] = None):
+                     regions: Optional[List[str]] = None,
+                     gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None):
         billing_project = configuration_of('batch', 'billing_project', billing_project, None)
         if billing_project is None:
             raise ValueError(
@@ -209,7 +211,7 @@ class ServiceBackend(Backend):
                 "MY_BILLING_PROJECT'"
             )
 
-        async_fs = RouterAsyncFS('file')
+        async_fs = RouterAsyncFS(gcs_kwargs={'gcs_requester_pays_configuration': gcs_requester_pays_configuration})
         sync_fs = RouterFS(async_fs)
         if batch_client is None:
             batch_client = await aiohb.BatchClient.create(billing_project, _token=token)
@@ -427,6 +429,7 @@ class ServiceBackend(Backend):
                     attributes={'name': name + '_driver'},
                     regions=self.regions,
                     cloudfuse=cloudfuse_config,
+                    profile=self.flags['profile'] is not None,
                 )
                 self._batch = await bb.submit(disable_progress_bar=True)
 
@@ -481,6 +484,7 @@ class ServiceBackend(Backend):
             if self._batch is not None:
                 print("Received a keyboard interrupt, cancelling the batch...")
                 async_to_blocking(self._batch.cancel())
+                self._batch = None
             raise
 
     def execute(self, ir: BaseIR, timed: bool = False):

@@ -1,5 +1,6 @@
 from typing import Any, Dict, List, Optional, Union
 import asyncio
+import contextlib
 
 from ..config import DeployConfig
 from . import aioclient
@@ -7,7 +8,15 @@ from .. import httpx
 
 
 def async_to_blocking(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    loop = asyncio.get_event_loop()
+    task = asyncio.ensure_future(coro)
+    try:
+        return loop.run_until_complete(task)
+    finally:
+        if not task.done():
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                loop.run_until_complete(task)
 
 
 def sync_anext(ait):
@@ -223,7 +232,7 @@ class BatchBuilder:
                    image,
                    command,
                    *,
-                   env=None, mount_docker_socket=False,
+                   env=None,
                    port=None, resources=None, secrets=None,
                    service_account=None, attributes=None, parents=None,
                    input_files=None, output_files=None, always_run=False,
@@ -236,7 +245,7 @@ class BatchBuilder:
             parents = [parent._async_job for parent in parents]
 
         async_job = self._async_builder.create_job(
-            image, command, env=env, mount_docker_socket=mount_docker_socket,
+            image, command, env=env,
             port=port, resources=resources, secrets=secrets,
             service_account=service_account,
             attributes=attributes, parents=parents,
@@ -248,11 +257,11 @@ class BatchBuilder:
 
         return Job.from_async_job(async_job)
 
-    def create_jvm_job(self, command, *, parents=None, **kwargs) -> Job:
+    def create_jvm_job(self, command, *, profile: bool = False, parents=None, **kwargs) -> Job:
         if parents:
             parents = [parent._async_job for parent in parents]
 
-        async_job = self._async_builder.create_jvm_job(command, parents=parents, **kwargs)
+        async_job = self._async_builder.create_jvm_job(command, profile=profile, parents=parents, **kwargs)
 
         return Job.from_async_job(async_job)
 
@@ -358,6 +367,9 @@ class BatchClient:
 
     def supported_regions(self):
         return async_to_blocking(self._async_client.supported_regions())
+
+    def cloud(self):
+        return async_to_blocking(self._async_client.cloud())
 
     def close(self):
         async_to_blocking(self._async_client.close())

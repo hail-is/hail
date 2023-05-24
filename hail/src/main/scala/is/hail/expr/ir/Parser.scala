@@ -1199,6 +1199,17 @@ object IRParser {
           eltType = tcoerce[TStream](a.typ).elementType
           body <- ir_value_expr(env.bindEval(accumName -> zero.typ, valueName -> eltType))(it)
         } yield StreamScan(a, zero, accumName, valueName, body)
+      case "StreamWhiten" =>
+        val newChunk = identifier(it)
+        val prevWindow = identifier(it)
+        val vecSize = int32_literal(it)
+        val windowSize = int32_literal(it)
+        val chunkSize = int32_literal(it)
+        val blockSize = int32_literal(it)
+        val normalizeAfterWhitening = boolean_literal(it)
+        for {
+          stream <- ir_value_expr(env)(it)
+        } yield StreamWhiten(stream, newChunk, prevWindow, vecSize, windowSize, chunkSize, blockSize, normalizeAfterWhitening)
       case "StreamJoinRightDistinct" =>
         val lKey = identifiers(it)
         val rKey = identifiers(it)
@@ -1538,11 +1549,11 @@ object IRParser {
           ReadValue(path, spec, typ)
         }
       case "WriteValue" =>
-        import AbstractRVDSpec.formats
-        val spec = JsonMethods.parse(string_literal(it)).extract[AbstractTypedCodecSpec]
+        import ValueWriter.formats
+        val writer = JsonMethods.parse(string_literal(it)).extract[ValueWriter]
         ir_value_children(env)(it).map {
-          case Array(value, path) => WriteValue(value, path, spec)
-          case Array(value, path, stagingFile) => WriteValue(value, path, spec, Some(stagingFile))
+          case Array(value, path) => WriteValue(value, path, writer)
+          case Array(value, path, stagingFile) => WriteValue(value, path, writer, Some(stagingFile))
         }
       case "LiftMeOut" => ir_value_expr(env)(it).map(LiftMeOut)
       case "ReadPartition" =>

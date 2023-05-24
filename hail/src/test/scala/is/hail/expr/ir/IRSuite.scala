@@ -2650,6 +2650,8 @@ class IRSuite extends HailSuite {
     val str = Str("Hail")
     val a = Ref("a", TArray(TInt32))
     val st = Ref("st", TStream(TInt32))
+    val whitenStream = Ref("whitenStream", TStream(TStruct("prevWindow" -> TNDArray(TFloat64, Nat(2)), "newChunk" -> TNDArray(TFloat64, Nat(2)))))
+    val mat = Ref("mat", TNDArray(TFloat64, Nat(2)))
     val aa = Ref("aa", TArray(TArray(TInt32)))
     val sta = Ref("sta", TStream(TArray(TInt32)))
     val da = Ref("da", TArray(TTuple(TInt32, TString)))
@@ -2756,6 +2758,7 @@ class IRSuite extends HailSuite {
       StreamFold(st, I32(0), "x", "v", v) -> Array(st),
       StreamFold2(StreamFold(st, I32(0), "x", "v", v)) -> Array(st),
       StreamScan(st, I32(0), "x", "v", v) -> Array(st),
+      StreamWhiten(whitenStream, "newChunk", "prevWindow", 0, 0, 0, 0, false) -> Array(whitenStream),
       StreamJoinRightDistinct(
         StreamMap(StreamRange(0, 2, 1), "x", MakeStruct(FastSeq("x" -> Ref("x", TInt32)))),
         StreamMap(StreamRange(0, 3, 1), "x", MakeStruct(FastSeq("x" -> Ref("x", TInt32)))),
@@ -2836,8 +2839,8 @@ class IRSuite extends HailSuite {
         NA(TStruct("global" -> TString, "partitions" -> TStruct("filePath" -> TString, "partitionCounts" -> TInt64))),
         RelationalWriter("path", overwrite = false, None)),
       ReadValue(Str("foo"), TypedCodecSpec(PCanonicalStruct("foo" -> PInt32(), "bar" -> PCanonicalString()), BufferSpec.default), TStruct("foo" -> TInt32)),
-      WriteValue(I32(1), Str("foo"), TypedCodecSpec(PInt32(), BufferSpec.default)),
-      WriteValue(I32(1), Str("foo"), TypedCodecSpec(PInt32(), BufferSpec.default), Some(Str("/tmp/uid/part"))),
+      WriteValue(I32(1), Str("foo"), ETypeFileValueWriter(TypedCodecSpec(PInt32(), BufferSpec.default))),
+      WriteValue(I32(1), Str("foo"), ETypeFileValueWriter(TypedCodecSpec(PInt32(), BufferSpec.default)), Some(Str("/tmp/uid/part"))),
       LiftMeOut(I32(1)),
       RelationalLet("x", I32(0), I32(0)),
       TailLoop("y", IndexedSeq("x" -> I32(0)), Recur("y", FastSeq(I32(4)), TInt32))
@@ -3409,8 +3412,9 @@ class IRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.compileOnly
     val node = In(0, SingleCodeEmitParamType(true, pt))
     val spec = TypedCodecSpec(PType.canonical(node.typ), BufferSpec.defaultUncompressed)
+    val writer = ETypeFileValueWriter(spec)
     val prefix = ctx.createTmpPath("test-read-write-values")
-    val filename = WriteValue(node, Str(prefix) + UUID4(), spec)
+    val filename = WriteValue(node, Str(prefix) + UUID4(), writer)
     for (v <- Array(value, null)) {
       assertEvalsTo(ReadValue(filename, spec, pt.virtualType), FastIndexedSeq(v -> pt.virtualType), v)
     }
@@ -3421,11 +3425,12 @@ class IRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.compileOnly
     val node = In(0, SingleCodeEmitParamType(true, pt))
     val spec = TypedCodecSpec(PType.canonical(node.typ), BufferSpec.defaultUncompressed)
+    val writer = ETypeFileValueWriter(spec)
     val prefix = ctx.createTmpPath("test-read-write-value-dist")
     val readArray = Let("files",
       CollectDistributedArray(StreamMap(StreamRange(0, 10, 1), "x", node), MakeStruct(FastSeq()),
         "ctx", "globals",
-        WriteValue(Ref("ctx", node.typ), Str(prefix) + UUID4(), spec), NA(TString), "test"),
+        WriteValue(Ref("ctx", node.typ), Str(prefix) + UUID4(), writer), NA(TString), "test"),
       StreamMap(ToStream(Ref("files", TArray(TString))), "filename",
         ReadValue(Ref("filename", TString), spec, pt.virtualType)))
     for (v <- Array(value, null)) {

@@ -1,6 +1,6 @@
-from typing import Optional  # noqa: E402
-import pkg_resources  # noqa: E402
-import sys  # noqa: E402
+from typing import Optional
+import pkg_resources
+import sys
 
 if sys.version_info < (3, 6):
     raise EnvironmentError('Hail requires Python 3.6 or later, found {}.{}'.format(
@@ -32,9 +32,9 @@ To report a bug, please open an issue: https://github.com/hail-is/hail/issues
 # E402 module level import not at top of file
 from .table import Table, GroupedTable, asc, desc  # noqa: E402
 from .matrixtable import MatrixTable, GroupedMatrixTable  # noqa: E402
-from .expr import *  # noqa: F401,F403,E402
-from .genetics import *  # noqa: F401,F403,E402
-from .methods import *  # noqa: F401,F403,E402
+from .expr import *  # noqa: F403, E402
+from .genetics import *  # noqa: F403, E402
+from .methods import *  # noqa: F403, E402
 from . import expr  # noqa: E402
 from . import genetics  # noqa: E402
 from . import methods  # noqa: E402

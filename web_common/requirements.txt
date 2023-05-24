@@ -2,5 +2,5 @@
 -c ../hail/python/dev/pinned-requirements.txt
 -c ../gear/pinned-requirements.txt
 aiohttp-jinja2>=1.1.1,<2
-Jinja2==3.0.3
+Jinja2>3,<4
 libsass>=0.19.2,<1

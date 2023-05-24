@@ -42,6 +42,7 @@ from aiodocker.exceptions import DockerError  # type: ignore
 from aiohttp import web
 from sortedcontainers import SortedSet
 
+from gear import json_request, json_response
 from hailtop import aiotools, httpx
 from hailtop.aiotools import AsyncFS, LocalAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
@@ -386,13 +387,20 @@ class ReadOnlyCloudfuseManager:
         self.user_bucket_locks: Dict[Tuple[str, str], asyncio.Lock] = defaultdict(asyncio.Lock)
 
     async def mount(
-        self, bucket: str, destination: str, *, user: str, credentials_path: str, tmp_path: str, config: dict
+        self,
+        bucket: str,
+        destination: str,
+        *,
+        user: str,
+        credentials: CloudUserCredentials,
+        tmp_path: str,
+        config: dict,
     ):
         assert config['read_only']
         async with self.user_bucket_locks[(user, bucket)]:
             if (user, bucket) not in self.fuse_mounts:
                 local_path = self._new_path()
-                await self._fuse_mount(local_path, credentials_path=credentials_path, tmp_path=tmp_path, config=config)
+                await self._fuse_mount(local_path, credentials=credentials, tmp_path=tmp_path, config=config)
                 self.fuse_mounts[(user, bucket)] = FuseMount(local_path)
             mount = self.fuse_mounts[(user, bucket)]
             await self._bind_mount(mount.path, destination)
@@ -407,10 +415,17 @@ class ReadOnlyCloudfuseManager:
                 await self._fuse_unmount(mount.path)
                 del self.fuse_mounts[(user, bucket)]
 
-    async def _fuse_mount(self, destination: str, *, credentials_path: str, tmp_path: str, config: dict):
+    async def _fuse_mount(
+        self,
+        destination: str,
+        *,
+        credentials: CloudUserCredentials,
+        tmp_path: str,
+        config: dict,
+    ):
         assert CLOUD_WORKER_API
         await CLOUD_WORKER_API.mount_cloudfuse(
-            credentials_path,
+            credentials,
             destination,
             tmp_path,
             config,
@@ -689,6 +704,10 @@ class ContainerCreateError(Exception):
 
 
 class ContainerStartError(Exception):
+    pass
+
+
+class IncompleteCloudFuseCleanup(Exception):
     pass
 
 
@@ -1035,10 +1054,21 @@ class Container:
 
         return False
 
+    def _validate_container_config(self, config):
+        for mount in config['mounts']:
+            # bind mounts are given the dummy type 'none'
+            if mount['type'] == 'none':
+                # Mount events should not be propagated from the job container to the host
+                assert 'shared' not in mount['options']
+                assert any(option in mount['options'] for option in ('private', 'slave'))
+
     async def _write_container_config(self):
+        config = await self.container_config()
+        self._validate_container_config(config)
+
         os.makedirs(self.config_path)
         with open(f'{self.config_path}/config.json', 'w', encoding='utf-8') as f:
-            f.write(json.dumps(await self.container_config()))
+            f.write(json.dumps(config))
 
     # https://github.com/opencontainers/runtime-spec/blob/master/config.md
     async def container_config(self):
@@ -1179,7 +1209,7 @@ class Container:
                         'source': v_host_path,
                         'destination': v_container_path,
                         'type': 'none',
-                        'options': ['rbind', 'rw', 'shared'],
+                        'options': ['bind', 'rw', 'private'],
                     }
                 )
 
@@ -1235,13 +1265,13 @@ class Container:
                     'source': f'/etc/netns/{self.netns.network_ns_name}/resolv.conf',
                     'destination': '/etc/resolv.conf',
                     'type': 'none',
-                    'options': ['rbind', 'ro'],
+                    'options': ['bind', 'ro', 'private'],
                 },
                 {
                     'source': f'/etc/netns/{self.netns.network_ns_name}/hosts',
                     'destination': '/etc/hosts',
                     'type': 'none',
-                    'options': ['rbind', 'ro'],
+                    'options': ['bind', 'ro', 'private'],
                 },
             ]
         )
@@ -1315,6 +1345,13 @@ class Container:
             return os.path.getsize(self.resource_usage_path)
         return 0
 
+    async def exec(
+        self, cmd: List[str], *, global_options: Optional[List[str]] = None, options: Optional[List[str]] = None
+    ):
+        global_options = global_options or []
+        options = options or []
+        await check_exec_output('crun', *global_options, 'exec', *options, self.name, *cmd)
+
     def __str__(self):
         return f'container {self.name}'
 
@@ -1335,7 +1372,7 @@ def copy_container(
     cpu_in_mcpu: int,
     memory_in_bytes: int,
     scratch: str,
-    requester_pays_project: str,
+    requester_pays_project: Optional[str],
     client_session: httpx.ClientSession,
 ) -> Container:
     assert files
@@ -1391,15 +1428,6 @@ class Job(abc.ABC):
     @abc.abstractmethod
     def cloudfuse_tmp_path(self, bucket: str) -> str:
         raise NotImplementedError
-
-    def cloudfuse_credentials_path(self, bucket: str) -> str:
-        return f'{self.scratch}/cloudfuse/{bucket}'
-
-    def credentials_host_dirname(self) -> str:
-        return f'{self.scratch}/{self.credentials.secret_name}'
-
-    def credentials_host_file_path(self) -> str:
-        return f'{self.credentials_host_dirname()}/{self.credentials.file_name}'
 
     @staticmethod
     def create(
@@ -1490,7 +1518,7 @@ class Job(abc.ABC):
             'source': self.io_host_path(),
             'destination': '/io',
             'type': 'none',
-            'options': ['rbind', 'rw'],
+            'options': ['bind', 'rw', 'private'],
         }
         self.input_volume_mounts.append(io_volume_mount)
         self.main_volume_mounts.append(io_volume_mount)
@@ -1550,13 +1578,19 @@ class Job(abc.ABC):
 
         if self.format_version.has_full_status_in_gcs():
             assert self.worker.file_store
-            await retry_transient_errors(
-                self.worker.file_store.write_status_file,
-                self.batch_id,
-                self.job_id,
-                self.attempt_id,
-                json.dumps(full_status),
-            )
+            try:
+                async with async_timeout.timeout(120):
+                    await retry_transient_errors(
+                        self.worker.file_store.write_status_file,
+                        self.batch_id,
+                        self.job_id,
+                        self.attempt_id,
+                        json.dumps(full_status),
+                    )
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                log.exception(f'Encountered error while writing status file for job {self.id}')
 
         if not self.deleted:
             self.task_manager.ensure_future(self.worker.post_job_complete(self, mjs_fut, full_status))
@@ -1636,13 +1670,15 @@ class DockerJob(Job):
 
         if self.cloudfuse:
             for config in self.cloudfuse:
+                assert config['read_only']
+                assert config['mount_path'] != '/io'
                 bucket = config['bucket']
                 self.main_volume_mounts.append(
                     {
                         'source': f'{self.cloudfuse_data_path(bucket)}',
                         'destination': config['mount_path'],
                         'type': 'none',
-                        'options': ['rbind', 'rw', 'shared'],
+                        'options': ['bind', 'rw', 'private'],
                     }
                 )
 
@@ -1652,7 +1688,7 @@ class DockerJob(Job):
                     'source': self.secret_host_path(secret),
                     'destination': secret["mount_path"],
                     'type': 'none',
-                    'options': ['rbind', 'rw'],
+                    'options': ['bind', 'rw', 'private'],
                 }
                 self.main_volume_mounts.append(volume_mount)
                 # this will be the user credentials
@@ -1822,16 +1858,11 @@ class DockerJob(Job):
                             bucket = config['bucket']
                             assert bucket
 
-                            credentials = self.credentials.cloudfuse_credentials(config)
-                            credentials_path = CLOUD_WORKER_API.write_cloudfuse_credentials(
-                                self.scratch, credentials, bucket
-                            )
-
                             os.makedirs(self.cloudfuse_data_path(bucket), exist_ok=True)
                             os.makedirs(self.cloudfuse_tmp_path(bucket), exist_ok=True)
 
                             await CLOUD_WORKER_API.mount_cloudfuse(
-                                credentials_path,
+                                self.credentials,
                                 self.cloudfuse_data_path(bucket),
                                 self.cloudfuse_tmp_path(bucket),
                                 config,
@@ -1896,12 +1927,13 @@ class DockerJob(Job):
     async def cleanup(self):
         if self.disk:
             try:
-                await self.disk.delete()
-                log.info(f'deleted disk {self.disk.name} for {self.id}')
+                async with async_timeout.timeout(300):
+                    await self.disk.delete()
+                    log.info(f'deleted disk {self.disk.name} for {self.id}')
             except asyncio.CancelledError:
                 raise
             except Exception:
-                log.exception(f'while detaching and deleting disk {self.disk.name} for {self.id}')
+                log.exception(f'while detaching and deleting disk {self.disk.name} for job {self.id}')
         else:
             self.worker.data_disk_space_remaining.value += self.external_storage_in_gib
 
@@ -1914,31 +1946,44 @@ class DockerJob(Job):
 
                     try:
                         assert CLOUD_WORKER_API
-                        await CLOUD_WORKER_API.unmount_cloudfuse(mount_path)
-                        log.info(f'unmounted fuse blob storage {bucket} from {mount_path}')
-                        config['mounted'] = False
+                        async with async_timeout.timeout(120):
+                            await CLOUD_WORKER_API.unmount_cloudfuse(mount_path)
+                            log.info(f'unmounted fuse blob storage {bucket} from {mount_path}')
+                            config['mounted'] = False
                     except asyncio.CancelledError:
                         raise
                     except Exception:
-                        log.exception(f'while unmounting fuse blob storage {bucket} from {mount_path}')
+                        log.exception(
+                            f'while unmounting fuse blob storage {bucket} from {mount_path} for job {self.id}'
+                        )
+                        raise
 
-        await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
+        with open('/proc/mounts', 'r', encoding='utf-8') as f:
+            output = f.read()
+            if self.cloudfuse_base_path() in output:
+                raise IncompleteCloudFuseCleanup(f'incomplete cloudfuse unmounting: {output}')
 
         try:
-            await blocking_to_async(self.pool, shutil.rmtree, self.scratch, ignore_errors=True)
+            async with async_timeout.timeout(120):
+                await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
         except asyncio.CancelledError:
             raise
         except Exception:
-            log.exception('while deleting volumes')
+            log.exception(f'while resetting xfs_quota project {self.project_id} for job {self.id}')
+
+        try:
+            async with async_timeout.timeout(120):
+                await blocking_to_async(self.pool, shutil.rmtree, self.scratch, ignore_errors=True)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception(f'while deleting scratch dir for job {self.id}')
 
     def get_container_log_path(self, container_name: str) -> str:
         return self.containers[container_name].log_path
 
     async def get_resource_usage(self):
         return {name: await c.get_resource_usage() for name, c in self.containers.items()}
-
-    async def get_resource_usage_file_sizes(self):
-        return {name: await c.get_resource_usage_file_size() for name, c in self.containers.items()}
 
     async def delete(self):
         await super().delete()
@@ -2005,6 +2050,9 @@ class JVMJob(Job):
         self.jvm_name: Optional[str] = None
 
         self.log_file = f'{self.scratch}/log'
+
+        should_profile = job_spec['process']['profile']
+        self.profile_file = f'{self.scratch}/profile.html' if should_profile else None
 
         assert self.worker.fs is not None
 
@@ -2117,10 +2165,6 @@ class JVMJob(Job):
                             bucket = config['bucket']
                             assert bucket
 
-                            credentials = self.credentials.cloudfuse_credentials(config)
-                            credentials_path = CLOUD_WORKER_API.write_cloudfuse_credentials(
-                                self.scratch, credentials, bucket
-                            )
                             data_path = self.cloudfuse_data_path(bucket)
                             tmp_path = self.cloudfuse_tmp_path(bucket)
 
@@ -2131,7 +2175,7 @@ class JVMJob(Job):
                                 bucket,
                                 data_path,
                                 user=self.user,
-                                credentials_path=credentials_path,
+                                credentials=self.credentials,
                                 tmp_path=tmp_path,
                                 config=config,
                             )
@@ -2147,7 +2191,9 @@ class JVMJob(Job):
                     local_jar_location = await self.download_jar()
 
                 with self.step('running'):
-                    await self.jvm.execute(local_jar_location, self.scratch, self.log_file, self.jar_url, self.argv)
+                    await self.jvm.execute(
+                        local_jar_location, self.scratch, self.log_file, self.jar_url, self.argv, self.profile_file
+                    )
 
                 self.state = 'succeeded'
             except asyncio.CancelledError:
@@ -2190,24 +2236,46 @@ class JVMJob(Job):
         assert self.worker.fs
         assert self.jvm
 
+        with self.step('uploading_log'):
+            log_contents = await self.worker.fs.read(self.log_file)
+            await self.worker.file_store.write_log_file(
+                self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', log_contents
+            )
+
+        if self.profile_file is not None:
+            with self.step('uploading_profile'):
+                if os.path.exists(self.profile_file):
+                    profile_contents = await self.worker.fs.read(self.profile_file)
+                    await self.worker.file_store.write_jvm_profile(
+                        self.format_version,
+                        self.batch_id,
+                        self.job_id,
+                        self.attempt_id,
+                        'main',
+                        profile_contents,
+                    )
+                else:
+                    log.error(f'jvm profile not available for {self}')
+
         if self.cloudfuse:
             for config in self.cloudfuse:
                 if config['mounted']:
                     bucket = config['bucket']
                     assert bucket
                     mount_path = self.cloudfuse_data_path(bucket)
-                    await self.jvm.cloudfuse_mount_manager.unmount(mount_path, user=self.user, bucket=bucket)
-                    config['mounted'] = False
+                    try:
+                        await self.jvm.cloudfuse_mount_manager.unmount(mount_path, user=self.user, bucket=bucket)
+                        config['mounted'] = False
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as e:
+                        raise IncompleteJVMCleanupError(
+                            f'while unmounting fuse blob storage {bucket} from {mount_path} for {self.jvm_name} for job {self.id}'
+                        ) from e
 
         if self.jvm is not None:
             self.worker.return_jvm(self.jvm)
             self.jvm = None
-
-        with self.step('uploading_log'):
-            log_contents = await self.worker.fs.read(self.log_file)
-            await self.worker.file_store.write_log_file(
-                self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', log_contents
-            )
 
         try:
             await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
@@ -2290,6 +2358,10 @@ class JVMCreationError(Exception):
     pass
 
 
+class IncompleteJVMCleanupError(Exception):
+    pass
+
+
 class JVMUserCredentials:
     pass
 
@@ -2327,7 +2399,7 @@ class JVMContainer:
             'java',
             f'-Xmx{heap_memory_mib}M',
             '-cp',
-            f'/jvm-entryway:/jvm-entryway/junixsocket-selftest-2.3.3-jar-with-dependencies.jar:{JVM.SPARK_HOME}/jars/*',
+            f'/jvm-entryway/jvm-entryway.jar:{JVM.SPARK_HOME}/jars/*',
             'is.hail.JVMEntryway',
             socket_file,
         ]
@@ -2337,37 +2409,37 @@ class JVMContainer:
                 'source': JVM.SPARK_HOME,
                 'destination': JVM.SPARK_HOME,
                 'type': 'none',
-                'options': ['rbind', 'rw'],
+                'options': ['bind', 'rw', 'private'],
             },
             {
                 'source': '/jvm-entryway',
                 'destination': '/jvm-entryway',
                 'type': 'none',
-                'options': ['rbind', 'rw'],
+                'options': ['bind', 'rw', 'private'],
             },
             {
                 'source': '/hail-jars',
                 'destination': '/hail-jars',
                 'type': 'none',
-                'options': ['rbind', 'rw'],
+                'options': ['bind', 'rw', 'private'],
             },
             {
                 'source': root_dir,
                 'destination': root_dir,
                 'type': 'none',
-                'options': ['rbind', 'rw'],
+                'options': ['bind', 'rw', 'private'],
             },
             {
                 'source': '/batch',
                 'destination': '/batch',
                 'type': 'none',
-                'options': ['rbind', 'rw'],
+                'options': ['bind', 'rw', 'private'],
             },
             {
                 'source': cloudfuse_dir,
                 'destination': '/cloudfuse',
                 'type': 'none',
-                'options': ['rbind', 'ro', 'rslave'],
+                'options': ['rbind', 'ro', 'slave'],
             },
         ]
 
@@ -2402,9 +2474,52 @@ class JVMContainer:
     async def remove(self):
         await self.container.remove()
 
+    async def start_profiler(self, output_file: str):
+        await self.container.exec(
+            ['./profiler.sh', 'start', '-o', 'flamegraph', '-e', 'itimer', '-f', output_file, 'jps'],
+            options=['--cwd=/async-profiler-2.9-linux-x64/'],
+        )
+
+    async def stop_profiler(self, output_file: str):
+        await self.container.exec(
+            ['./profiler.sh', 'stop', '-o', 'flamegraph', '-f', output_file, 'jps'],
+            options=['--cwd=/async-profiler-2.9-linux-x64/'],
+        )
+
 
 class JVMUserError(Exception):
     pass
+
+
+class JVMProfiler:
+    def __init__(self, container: JVMContainer, output_file: Optional[str]):
+        self.container = container
+        self.output_file = output_file
+        self._task = None
+
+    async def __aenter__(self):
+        if self.output_file is None:
+            return self
+
+        try:
+            await self.container.start_profiler(self.output_file)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.warning(f'could not start JVM profiling for {self.container.container.name}')
+        finally:
+            return self  # pylint: disable=lost-exception
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self.output_file is None:
+            return
+
+        try:
+            await self.container.stop_profiler(self.output_file)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.warning(f'could not stop JVM profiling for {self.container.container.name}')
 
 
 class JVM:
@@ -2576,7 +2691,15 @@ class JVM:
                 )
                 self.container = container
 
-    async def execute(self, classpath: str, scratch_dir: str, log_file: str, jar_url: str, argv: List[str]):
+    async def execute(
+        self,
+        classpath: str,
+        scratch_dir: str,
+        log_file: str,
+        jar_url: str,
+        argv: List[str],
+        profile_file: Optional[str],
+    ):
         assert worker is not None
 
         with ExitStack() as stack:
@@ -2598,9 +2721,10 @@ class JVM:
             wait_for_interrupt: asyncio.Future = asyncio.create_task(self.should_interrupt.wait())
             stack.callback(wait_for_interrupt.cancel)
 
-            await asyncio.wait(
-                [wait_for_message_from_container, wait_for_interrupt], return_when=asyncio.FIRST_COMPLETED
-            )
+            async with JVMProfiler(self.container, profile_file):
+                await asyncio.wait(
+                    [wait_for_message_from_container, wait_for_interrupt], return_when=asyncio.FIRST_COMPLETED
+                )
 
             if wait_for_interrupt.done():
                 await wait_for_interrupt  # retrieve exceptions
@@ -2627,14 +2751,29 @@ class JVM:
             elif message == JVM.FINISH_USER_EXCEPTION:
                 exception = await read_str(reader)
                 raise JVMUserError(exception)
-            elif message == JVM.FINISH_ENTRYWAY_EXCEPTION:
-                log.warning(f'{self}: entryway exception encountered (interrupted: {wait_for_interrupt.done()})')
-                exception = await read_str(reader)
-                raise ValueError(exception)
-            elif message == JVM.FINISH_JVM_EOS:
-                assert eos_exception is not None
-                log.warning(f'{self}: unexpected end of stream in jvm (interrupted: {wait_for_interrupt.done()})')
-                raise ValueError('unexpected end of stream in jvm') from eos_exception
+            else:
+                jvm_output = ''
+                if os.path.exists(self.container.container.log_path):
+                    jvm_output = (await self.fs.read(self.container.container.log_path)).decode('utf-8')
+
+                if message == JVM.FINISH_ENTRYWAY_EXCEPTION:
+                    log.warning(
+                        f'{self}: entryway exception encountered (interrupted: {wait_for_interrupt.done()})\nJVM Output:\n\n{jvm_output}'
+                    )
+                    exception = await read_str(reader)
+                    raise ValueError(exception)
+                if message == JVM.FINISH_JVM_EOS:
+                    assert eos_exception is not None
+                    log.warning(
+                        f'{self}: unexpected end of stream in jvm (interrupted: {wait_for_interrupt.done()})\nJVM Output:\n\n{jvm_output}'
+                    )
+                    raise ValueError(
+                        # Do not include the JVM log in the exception as this is sent to the user and
+                        # the JVM log might inadvetantly contain sensitive information.
+                        'unexpected end of stream in jvm'
+                    ) from eos_exception
+                log.exception(f'{self}: unexpected message type: {message}\nJVM Output:\n\n{jvm_output}')
+                raise ValueError(f'{self}: unexpected message type: {message}')
 
 
 class Worker:
@@ -2658,7 +2797,6 @@ class Worker:
         assert CLOUD_WORKER_API
         fs = CLOUD_WORKER_API.get_cloud_async_fs()
         self.fs = RouterAsyncFS(
-            'file',
             filesystems=[
                 LocalAsyncFS(self.pool),
                 fs,
@@ -2698,6 +2836,12 @@ class Worker:
         jvm.reset()
         self._jvms.add(jvm)
 
+    async def recreate_jvm(self, jvm: JVM):
+        self._jvms.remove(jvm)
+        log.info(f'quarantined {jvm} and recreated a new jvm')
+        new_jvm = await JVM.create(jvm.index, jvm.n_cores, self)
+        self._jvms.add(new_jvm)
+
     async def shutdown(self):
         log.info('Worker.shutdown')
         self._jvm_initializer_task.cancel()
@@ -2735,12 +2879,17 @@ class Worker:
             raise
         except JVMCreationError:
             self.stop_event.set()
+        except IncompleteJVMCleanupError:
+            assert isinstance(job, JVMJob)
+            assert job.jvm is not None
+            await self.recreate_jvm(job.jvm)
+            log.exception(f'while running {job}, ignoring')
         except Exception as e:
             if not user_error(e):
                 log.exception(f'while running {job}, ignoring')
 
     async def create_job_1(self, request):
-        body = await request.json()
+        body = await json_request(request)
 
         batch_id = body['batch_id']
         job_id = body['job_id']
@@ -2831,13 +2980,13 @@ class Worker:
         job = self._job_from_request(request)
         resource_usage = await job.get_resource_usage()
         data = {task: base64.b64encode(df).decode('utf-8') for task, df in resource_usage.items()}
-        return web.json_response(data)
+        return json_response(data)
 
     async def get_job_status(self, request):
         if not self.active:
             raise web.HTTPServiceUnavailable
         job = self._job_from_request(request)
-        return web.json_response(job.status())
+        return json_response(job.status())
 
     async def delete_job_1(self, request):
         batch_id = int(request.match_info['batch_id'])
@@ -2868,7 +3017,7 @@ class Worker:
         if not self.active:
             raise web.HTTPServiceUnavailable
         body = {'name': NAME}
-        return web.json_response(body)
+        return json_response(body)
 
     async def run(self):
         app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)

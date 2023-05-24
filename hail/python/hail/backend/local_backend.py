@@ -13,11 +13,12 @@ from hail.utils.java import scala_package_object
 from hail.ir.renderer import CSERenderer
 from hail.ir import finalize_randomness
 from .py4j_backend import Py4JBackend, handle_java_exception
-from ..fs.local_fs import LocalFS
 from ..hail_logging import Logger
 from ..expr import Expression
 from ..expr.types import HailType
+
 from hailtop.utils import find_spark_home
+from hailtop.fs.router_fs import RouterFS
 
 
 _installed = False
@@ -170,7 +171,7 @@ class LocalBackend(Py4JBackend):
                                f"  JAR:    {jar_version}\n"
                                f"  Python: {py_version}")
 
-        self._fs = LocalFS()
+        self._fs = RouterFS()
         self._logger = None
 
         self._initialize_flags()

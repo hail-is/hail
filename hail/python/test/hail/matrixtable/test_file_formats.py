@@ -45,17 +45,19 @@ def all_values_table_fixture(init_hail):
     return create_all_values_table()
 
 
-# pytest sometimes uses background threads, named "Dummy-1", to collect tests. asyncio will only
-# create an event loop when `asyncio.get_event_loop()` is called if the current thread is the main
-# thread. We therefore manually create an event loop which is used only for collecting the files.
+# pytest sometimes uses background threads, named "Dummy-1", to collect tests. Our synchronous
+# interfaces will try to get an event loop by calling `asyncio.get_event_loop()`. asyncio will
+# create an event loop when `get_event_loop()` is called if and only if the current thread is the
+# main thread. We therefore manually create an event loop which is used only for collecting the
+# files.
 try:
-    old_loop = asyncio.get_event_loop()
+    old_loop = asyncio.get_running_loop()
 except RuntimeError as err:
-    assert 'There is no current event loop in thread' in err.args[0]
+    assert 'no running event loop' in err.args[0]
     old_loop = None
 loop = asyncio.new_event_loop()
-asyncio.set_event_loop(loop)
 try:
+    asyncio.set_event_loop(loop)
     resource_dir = resource('backward_compatability')
     fs = hl.current_backend().fs
     try:

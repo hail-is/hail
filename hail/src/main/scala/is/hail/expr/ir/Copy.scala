@@ -92,6 +92,8 @@ object Copy {
         SeqSample(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR], requiresMemoryManagementPerElement)
       case StreamDistribute(_, _, _, op, spec) =>
         StreamDistribute(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR], op, spec)
+      case StreamWhiten(stream, newChunk, prevWindow, vecSize, windowSize, chunkSize, blockSize, normalizeAfterWhiten) =>
+        StreamWhiten(newChildren(0).asInstanceOf[IR], newChunk, prevWindow, vecSize, windowSize, chunkSize, blockSize, normalizeAfterWhiten)
       case ArrayZeros(_) =>
         assert(newChildren.length == 1)
         ArrayZeros(newChildren(0).asInstanceOf[IR])
@@ -400,12 +402,12 @@ object Copy {
       case ReadValue(path, spec, requestedType) =>
         assert(newChildren.length == 1)
         ReadValue(newChildren(0).asInstanceOf[IR], spec, requestedType)
-      case WriteValue(_, _, spec, _) =>
+      case WriteValue(_, _, writer, _) =>
         assert(newChildren.length == 2 || newChildren.length == 3)
         val value = newChildren(0).asInstanceOf[IR]
         val path = newChildren(1).asInstanceOf[IR]
         val stage = if (newChildren.length == 3) Some(newChildren(2).asInstanceOf[IR]) else None
-        WriteValue(value, path, spec, stage)
+        WriteValue(value, path, writer, stage)
       case LiftMeOut(_) =>
         LiftMeOut(newChildren(0).asInstanceOf[IR])
     }

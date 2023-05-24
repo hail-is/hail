@@ -107,7 +107,7 @@ EOF
         --minimal \
         --assembly ${assembly} \
         -o STDOUT
-elif [ $assembly == "GRCh38"]
+elif [ $assembly == "GRCh38" ]
 then
     cat >/vep.sh <<EOF
 #!/bin/bash

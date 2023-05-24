@@ -25,6 +25,8 @@ def add_dependencies(fname):
             stripped = line.strip()
             if stripped.startswith('#') or len(stripped) == 0:
                 continue
+            if stripped.startswith('-c'):
+                continue
             if stripped.startswith('-r'):
                 additional_requirements = stripped[len('-r'):].strip()
                 add_dependencies(additional_requirements)
@@ -68,7 +70,7 @@ setup(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
     ],
-    python_requires=">=3.7",
+    python_requires=">=3.8",
     install_requires=dependencies,
     entry_points={
         'console_scripts': ['hailctl = hailtop.hailctl.__main__:main']

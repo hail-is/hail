@@ -8,7 +8,7 @@ retry() {
         (sleep 5 && "$@");
 }
 
-[[ $# -eq 10 ]] || (echo "./deploy.sh HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE HAIL_GENETICS_HAIL_IMAGE HAIL_GENETICS_HAILTOP_IMAGE WHEEL_FOR_AZURE WEBSITE_TAR" ; exit 1)
+[[ $# -eq 11 ]] || (echo "./deploy.sh HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE HAIL_GENETICS_HAIL_IMAGE HAIL_GENETICS_HAILTOP_IMAGE HAIL_GENETICS_VEP_GRCH37_85_IMAGE WHEEL_FOR_AZURE WEBSITE_TAR" ; exit 1)
 
 HAIL_PIP_VERSION=$1
 HAIL_VERSION=$2
@@ -18,11 +18,13 @@ WHEEL=$5
 GITHUB_OAUTH_HEADER_FILE=$6
 HAIL_GENETICS_HAIL_IMAGE=$7
 HAIL_GENETICS_HAILTOP_IMAGE=$8
-WHEEL_FOR_AZURE=$9
-WEBSITE_TAR=${10}
+HAIL_GENETICS_VEP_GRCH37_85_IMAGE=$9
+WHEEL_FOR_AZURE=${10}
+WEBSITE_TAR=${11}
 
 retry skopeo inspect $HAIL_GENETICS_HAIL_IMAGE || (echo "could not pull $HAIL_GENETICS_HAIL_IMAGE" ; exit 1)
 retry skopeo inspect $HAIL_GENETICS_HAILTOP_IMAGE || (echo "could not pull $HAIL_GENETICS_HAILTOP_IMAGE" ; exit 1)
+retry skopeo inspect $HAIL_GENETICS_VEP_GRCH37_85_IMAGE || (echo "could not pull $HAIL_GENETICS_VEP_GRCH37_85_IMAGE" ; exit 1)
 
 if git ls-remote --exit-code --tags $REMOTE $HAIL_PIP_VERSION
 then
@@ -75,6 +77,8 @@ retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE docker://docker.io/hailgenetics/hail
 retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hail:$HAIL_PIP_VERSION
 retry skopeo copy $HAIL_GENETICS_HAILTOP_IMAGE docker://docker.io/hailgenetics/hailtop:$HAIL_PIP_VERSION
 retry skopeo copy $HAIL_GENETICS_HAILTOP_IMAGE docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hailtop:$HAIL_PIP_VERSION
+retry skopeo copy $HAIL_GENETICS_VEP_GRCH37_85_IMAGE docker://docker.io/hailgenetics/vep-grch37-85:$HAIL_PIP_VERSION
+retry skopeo copy $HAIL_GENETICS_VEP_GRCH37_85_IMAGE docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/vep-grch37-85:$HAIL_PIP_VERSION
 
 # deploy to PyPI
 twine upload $WHEEL

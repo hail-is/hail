@@ -28,7 +28,8 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
     val backend = HailContext.backend
     val f = getModule(modID)
 
-    log.info(s"executing D-Array [$stageName] with ${contexts.length} tasks")
+    log.info(s"executing D-Array [$stageName] with ${contexts.length} tasks, " +
+      s"contexts size = ${formatSpace(contexts.map(_.length.toLong).sum)}, globals size = ${formatSpace(globals.length)}")
     val t = System.nanoTime()
     val r = if (contexts.length == 0)
       Array.empty[Array[Byte]]

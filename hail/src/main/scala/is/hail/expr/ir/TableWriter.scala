@@ -25,7 +25,7 @@ import is.hail.utils.richUtils.ByteTrackingOutputStream
 import is.hail.variant.ReferenceGenome
 import org.json4s.{DefaultFormats, Formats, JBool, JObject, ShortTypeHints}
 
-import java.io.OutputStream
+import java.io.{BufferedOutputStream, OutputStream}
 import java.nio.file.{FileSystems, Path}
 import java.util.UUID
 import scala.language.existentials
@@ -40,15 +40,21 @@ object TableWriter {
 
 abstract class TableWriter {
   def path: String
-  def apply(ctx: ExecuteContext, mv: TableValue): Unit
-  def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable): IR =
+
+  def apply(ctx: ExecuteContext, tv: TableValue): Unit = {
+    val tableStage = TableValueIntermediate(tv).asTableStage(ctx)
+    CompileAndEvaluate(ctx, lower(ctx, tableStage, RTable.fromTableStage(ctx, tableStage)))
+  }
+
+  def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR =
     throw new LowererUnsupportedOperation(s"${ this.getClass } does not have defined lowering!")
 
-  def canLowerEfficiently: Boolean = false
+  def canLowerEfficiently: Boolean =
+    true
 }
 
 object TableNativeWriter {
-  def lower(ctx: ExecuteContext, ts: TableStage, tt: TableType, path: String, overwrite: Boolean, stageLocally: Boolean,
+  def lower(ctx: ExecuteContext, ts: TableStage, path: String, overwrite: Boolean, stageLocally: Boolean,
     rowSpec: TypedCodecSpec, globalSpec: TypedCodecSpec): IR = {
     // write out partitioner key, which may be stricter than table key
     val partitioner = ts.partitioner
@@ -56,9 +62,9 @@ object TableNativeWriter {
     val rowWriter = PartitionNativeWriter(rowSpec, pKey.fieldNames, s"$path/rows/parts/", Some(s"$path/index/" -> pKey),
       if (stageLocally) Some(FileSystems.getDefault.getPath(ctx.localTmpdir, s"hail_staging_tmp_${UUID.randomUUID()}", "rows", "parts")) else None
     )
-    val globalWriter = PartitionNativeWriter(globalSpec, IndexedSeq(), s"$path/globals/parts/", None, None)
 
-    RelationalWriter.scoped(path, overwrite, Some(tt))(
+    val globalWriter = PartitionNativeWriter(globalSpec, IndexedSeq(), s"$path/globals/parts/", None, None)
+    RelationalWriter.scoped(path, overwrite, Some(ts.tableType))(
       ts.mapContexts { oldCtx =>
         val d = digitsNeeded(ts.numPartitions)
         val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"${ partFile(d, i) }-").toFastIndexedSeq)
@@ -84,7 +90,7 @@ object TableNativeWriter {
             WriteMetadata(ToArray(mapIR(ToStream(fileCountAndDistinct)) { fc =>
               SelectFields(fc, FastIndexedSeq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey"))
             }),
-              TableSpecWriter(path, tt, "rows", "globals", "references", log = true))))
+              TableSpecWriter(path, ts.tableType, "rows", "globals", "references", log = true))))
         }
       }
     )
@@ -98,78 +104,12 @@ case class TableNativeWriter(
   codecSpecJSONStr: String = null
 ) extends TableWriter {
 
-  override def canLowerEfficiently: Boolean = !stageLocally
-
-  override def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable): IR = {
+  override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
     val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
-    val rowSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(t.typ.rowType, r.rowType), t.typ.rowType, bufferSpec)
-    val globalSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(t.typ.globalType, r.globalType), t.typ.globalType, bufferSpec)
+    val rowSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(ts.rowType, r.rowType), ts.rowType, bufferSpec)
+    val globalSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(ts.globalType, r.globalType), ts.globalType, bufferSpec)
 
-    TableNativeWriter.lower(ctx, ts, t.typ, path, overwrite, stageLocally, rowSpec, globalSpec)
-  }
-
-  def apply(ctx: ExecuteContext, tv: TableValue): Unit = {
-    val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
-    assert(tv.typ.isCanonical)
-    val fs = ctx.fs
-
-    if (overwrite)
-      fs.delete(path, recursive = true)
-    else if (fs.exists(path))
-      fatal(s"file already exists: $path")
-
-    fs.mkDir(path)
-
-    val globalsPath = path + "/globals"
-    fs.mkDir(globalsPath)
-    val Array(globalFileData) = AbstractRVDSpec.writeSingle(ctx, globalsPath, tv.globals.t, bufferSpec, Array(tv.globals.javaValue))
-
-    val codecSpec = TypedCodecSpec(tv.rvd.rowPType, bufferSpec)
-    val fileData = tv.rvd.write(ctx, path + "/rows", "../index", stageLocally, codecSpec)
-    val partitionCounts = fileData.map(_.rowsWritten)
-
-    val referencesPath = path + "/references"
-    fs.mkDir(referencesPath)
-    ReferenceGenome.exportReferences(fs, referencesPath, ReferenceGenome.getReferences(tv.typ.rowType).map(ctx.getReference(_)))
-    ReferenceGenome.exportReferences(fs, referencesPath, ReferenceGenome.getReferences(tv.typ.rowType).map(ctx.getReference(_)))
-
-    val spec = TableSpecParameters(
-      FileFormat.version.rep,
-      is.hail.HAIL_PRETTY_VERSION,
-      "references",
-      tv.typ,
-      Map("globals" -> RVDComponentSpec("globals"),
-        "rows" -> RVDComponentSpec("rows"),
-        "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
-    spec.write(fs, path)
-
-    writeNativeFileReadMe(fs, path)
-
-    using(fs.create(path + "/_SUCCESS"))(_ => ())
-
-    val partitionBytesWritten = fileData.map(_.bytesWritten)
-    val totalRowsBytes = partitionBytesWritten.sum
-    val globalBytesWritten = globalFileData.bytesWritten
-    val totalBytesWritten: Long = totalRowsBytes + globalBytesWritten
-    val (smallestStr, largestStr) = if (fileData.isEmpty)
-      ("N/A", "N/A")
-    else {
-      val smallestPartition = fileData.minBy(_.bytesWritten)
-      val largestPartition = fileData.maxBy(_.bytesWritten)
-      val smallestStr = s"${ smallestPartition.rowsWritten } rows (${ formatSpace(smallestPartition.bytesWritten) })"
-      val largestStr = s"${ largestPartition.rowsWritten } rows (${ formatSpace(largestPartition.bytesWritten) })"
-      (smallestStr, largestStr)
-    }
-
-    val nRows = partitionCounts.sum
-    info(s"wrote table with $nRows ${ plural(nRows, "row") } " +
-      s"in ${ partitionCounts.length } ${ plural(partitionCounts.length, "partition") } " +
-      s"to $path" +
-      s"\n    Total size: ${ formatSpace(totalBytesWritten) }" +
-      s"\n    * Rows: ${ formatSpace(totalRowsBytes) }" +
-      s"\n    * Globals: ${ formatSpace(globalBytesWritten) }" +
-      s"\n    * Smallest partition: $smallestStr" +
-      s"\n    * Largest partition:  $largestStr")
+    TableNativeWriter.lower(ctx, ts, path, overwrite, stageLocally, rowSpec, globalSpec)
   }
 }
 
@@ -501,10 +441,12 @@ case class TableTextWriter(
   delimiter: String
 ) extends TableWriter {
 
-  def apply(ctx: ExecuteContext, tv: TableValue): Unit = tv.export(ctx, path, typesFile, header, exportType, delimiter)
-
   override def canLowerEfficiently: Boolean = exportType != ExportType.PARALLEL_COMPOSABLE
-  override def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable): IR = {
+
+  override def apply(ctx: ExecuteContext, tv: TableValue): Unit =
+    tv.export(ctx, path, typesFile, header, exportType, delimiter)
+
+  override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
     require(exportType != ExportType.PARALLEL_COMPOSABLE)
 
     val ext = ctx.fs.getCodecExtension(path)
@@ -562,6 +504,25 @@ case class TableTextPartitionWriter(rowType: TStruct, delimiter: String, writeHe
 }
 
 object TableTextFinalizer {
+  def writeManifest(fs: FS, outputPath: String, files: Array[String], optionalAdditionalFirstPath: String): Unit = {
+
+    def basename(f: String): String = (new java.io.File(f)).getName
+
+    using(fs.createNoCompression(fs.makeQualified(outputPath + "/shard-manifest.txt"))) { os =>
+      val bos = new BufferedOutputStream(os)
+
+      if (optionalAdditionalFirstPath != null) {
+        bos.write(basename(optionalAdditionalFirstPath).getBytes())
+        bos.write('\n')
+      }
+      files.foreach { f =>
+        bos.write(basename(f).getBytes())
+        bos.write('\n')
+      }
+      bos.flush()
+    }
+  }
+
   def cleanup(fs: FS, outputPath: String, files: Array[String]): Unit = {
     val outputFiles = fs.listStatus(fs.makeQualified(outputPath)).map(_.getPath).toSet
     val fileSet = files.map(fs.makeQualified(_)).toSet
@@ -605,19 +566,23 @@ case class TableTextFinalizer(outputPath: String, rowType: TStruct, delimiter: S
 
       case ExportType.PARALLEL_HEADER_IN_SHARD =>
         cb += Code.invokeScalaObject3[FS, String, Array[String], Unit](TableTextFinalizer.getClass, "cleanup", cb.emb.getFS, outputPath, files)
+        cb += Code.invokeScalaObject4[FS, String, Array[String], String, Unit](TableTextFinalizer.getClass, "writeManifest", cb.emb.getFS, outputPath, files, Code._null[String])
+
         cb += cb.emb.getFS.invoke[String, Unit]("touch", const(outputPath).concat("/_SUCCESS"))
 
       case ExportType.PARALLEL_SEPARATE_HEADER =>
         cb += Code.invokeScalaObject3[FS, String, Array[String], Unit](TableTextFinalizer.getClass, "cleanup", cb.emb.getFS, outputPath, files)
-        if (header) {
-          val headerFilePath = s"$outputPath/header$ext"
+        val headerPath = if (header) {
+          val headerFilePath = const(s"$outputPath/header$ext")
           val headerStr = rowType.fields.map(_.name).mkString(delimiter)
-          val os = cb.memoize(cb.emb.create(const(headerFilePath)))
+          val os = cb.memoize(cb.emb.create(headerFilePath))
           cb += os.invoke[Array[Byte], Unit]("write", const(headerStr).invoke[Array[Byte]]("getBytes"))
           cb += os.invoke[Int, Unit]("write", '\n')
           cb += os.invoke[Unit]("close")
-        }
+          headerFilePath
+        } else Code._null[String]
 
+        cb += Code.invokeScalaObject4[FS, String, Array[String], String, Unit](TableTextFinalizer.getClass, "writeManifest", cb.emb.getFS, outputPath, files, headerPath)
         cb += cb.emb.getFS.invoke[String, Unit]("touch", const(outputPath).concat("/_SUCCESS"))
     }
   }
@@ -640,20 +605,13 @@ case class TableNativeFanoutWriter(
   stageLocally: Boolean = false,
   codecSpecJSONStr: String = null
 ) extends TableWriter {
-  override def apply(ctx: ExecuteContext, mv: TableValue): Unit =
-    throw new UnsupportedOperationException("TableNativeFanoutWriter only supports lowered execution")
 
-  override def lower(
-    ctx: ExecuteContext,
-    ts: TableStage,
-    t: TableIR,
-    r: RTable
-  ): IR = {
+  override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
     val partitioner = ts.partitioner
     val bufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
-    val globalSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(t.typ.globalType, r.globalType), t.typ.globalType, bufferSpec)
+    val globalSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(ts.globalType, r.globalType), ts.globalType, bufferSpec)
     val targets = {
-      val rowType = t.typ.rowType
+      val rowType = ts.rowType
       val rowRType = r.rowType
       val keyType = partitioner.kType
       val keyFields = keyType.fieldNames
@@ -665,7 +623,7 @@ case class TableNativeFanoutWriter(
         val targetRowRType = rowRType.select(fieldAndKey)
         val rowSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(targetRowType, targetRowRType), targetRowType, bufferSpec)
         val keyPType = tcoerce[PStruct](rowSpec.decodedPType(keyType))
-        val tableType = TableType(targetRowType, keyFields, t.typ.globalType)
+        val tableType = TableType(targetRowType, keyFields, ts.globalType)
         val rowWriter = PartitionNativeWriter(
           rowSpec,
           keyFields,
@@ -743,8 +701,6 @@ case class TableNativeFanoutWriter(
       )
     }
   }
-
-  override def canLowerEfficiently: Boolean = true
 }
 
 class PartitionNativeFanoutWriter(

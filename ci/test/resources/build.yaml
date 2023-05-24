@@ -103,7 +103,7 @@ steps:
       cpu: "2"
       memory: standard
     dependsOn:
-      - hail_ubuntu_image
+      - base_image
       - merge_code
     inputs:
       - from: /repo/ci
@@ -183,16 +183,18 @@ steps:
       valueFrom: hello_image.image
     script: |
       set -ex
-      pip install flake8==4.0.1
-      python3 -m flake8 --config /io/setup.cfg /hello/hello.py
+      pip install ruff==0.0.264
+      ruff check --config /io/pyproject.toml /hello/hello.py
     inputs:
-      - from: /repo/setup.cfg
-        to: /io/setup.cfg
+      - from: /repo/pyproject.toml
+        to: /io/pyproject.toml
     dependsOn:
       - hello_image
-  - kind: createDatabase
+  - kind: createDatabase2
     name: hello_database
     databaseName: hello
+    image:
+      valueFrom: ci_utils_image.image
     migrations:
       - name: create-tables
         script: /io/sql/create-hello-tables.sql
@@ -211,6 +213,7 @@ steps:
     dependsOn:
       - default_ns
       - merge_code
+      - ci_utils_image
   - kind: runImage
     name: test_hello_database
     image:

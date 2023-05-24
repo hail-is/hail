@@ -1,14 +1,16 @@
 FROM {{ hail_ubuntu_image.image }} AS base
 
+# libyajl-dev: crun runtime dependency
 RUN hail-apt-get-install \
     iproute2 \
     iptables \
     openjdk-8-jre-headless \
     liblapack3 \
-    xfsprogs \
-    libyajl-dev # crun runtime dependency
+    libyajl-dev \
+    wget \
+    xfsprogs
 
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.7 1
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1
 
 {% if global.cloud == "gcp" %}
 RUN echo "APT::Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries && \
@@ -39,11 +41,13 @@ RUN hail-pip-install \
     -r batch-requirements.txt \
     pyspark==3.3.0
 
-ENV SPARK_HOME /usr/local/lib/python3.7/dist-packages/pyspark
+ENV SPARK_HOME /usr/local/lib/python3.8/dist-packages/pyspark
 ENV PATH "$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"
 ENV PYSPARK_PYTHON python3
 
 COPY docker/core-site.xml ${SPARK_HOME}/conf/core-site.xml
+
+RUN wget https://github.com/jvm-profiling-tools/async-profiler/releases/download/v2.9/async-profiler-2.9-linux-x64.tar.gz -qO- | tar -zxvf -
 
 # Build crun in separate build step
 FROM base AS crun_builder
@@ -71,6 +75,5 @@ COPY batch/batch /batch/batch/
 
 RUN hail-pip-install /hailtop /gear /batch
 
-COPY batch/jars/junixsocket-selftest-2.3.3-jar-with-dependencies.jar /jvm-entryway/
-COPY batch/src/main/java/is /jvm-entryway/is
+COPY batch/jvm-entryway/build/libs/jvm-entryway.jar /jvm-entryway/
 COPY letsencrypt/subdomains.txt /

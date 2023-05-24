@@ -396,7 +396,7 @@ object LoweredTableReader {
                 body)
 
               pkPartitioned
-                .extendKeyPreservesPartitioning(key)
+                .extendKeyPreservesPartitioning(ctx, key)
                 .mapPartition(None) { part =>
                   flatMapIR(StreamGroupByKey(part, pkType.fieldNames, missingEqual = true)) { inner =>
                     ToStream(sortIR(inner) { case (l, r) => ApplyComparisonOp(LT(l.typ), l, r) })
@@ -1642,22 +1642,6 @@ object TableRead {
       tr.fullType.copy(
         rowType = tr.fullType.rowType.deleteKey(TableReader.uidFieldName))
     TableRead(requestedType, false, tr)
-  }
-
-  def apply(
-    typ: TableType,
-    dropRows: Boolean,
-    tr: TableReader
-  ): TableRead = {
-    new TableRead(typ, dropRows, tr)
-  }
-
-  def preserveExistingUIDs(
-    typ: TableType,
-    dropRows: Boolean,
-    tr: TableReader
-  ): TableRead = {
-    new TableRead(typ, dropRows, tr)
   }
 }
 

@@ -26,6 +26,8 @@ from gear import (
     AuthClient,
     Database,
     check_csrf_token,
+    json_request,
+    json_response,
     monitor_endpoints_middleware,
     setup_aiohttp_session,
     transaction,
@@ -161,11 +163,12 @@ async def get_check_invariants(request, userdata):  # pylint: disable=unused-arg
     incremental_result, resource_agg_result = await asyncio.gather(
         check_incremental(db), check_resource_aggregation(db), return_exceptions=True
     )
-    data = {
-        'check_incremental_error': incremental_result,
-        'check_resource_aggregation_error': resource_agg_result,
-    }
-    return web.json_response(data=data)
+    return json_response(
+        {
+            'check_incremental_error': incremental_result,
+            'check_resource_aggregation_error': resource_agg_result,
+        }
+    )
 
 
 @routes.patch('/api/v1alpha/batches/{user}/{batch_id}/update')
@@ -215,7 +218,7 @@ async def get_gsa_key_1(instance):
     log.info(f'returning gsa-key to activating instance {instance}')
     with open('/gsa-key/key.json', 'r', encoding='utf-8') as f:
         key = json.loads(f.read())
-    return web.json_response({'key': key})
+    return json_response({'key': key})
 
 
 async def get_credentials_1(instance):
@@ -223,11 +226,11 @@ async def get_credentials_1(instance):
     credentials_file = '/gsa-key/key.json'
     with open(credentials_file, 'r', encoding='utf-8') as f:
         key = json.loads(f.read())
-    return web.json_response({'key': key})
+    return json_response({'key': key})
 
 
 async def activate_instance_1(request, instance):
-    body = await request.json()
+    body = await json_request(request)
     ip_address = body['ip_address']
 
     log.info(f'activating {instance}')
@@ -235,7 +238,7 @@ async def activate_instance_1(request, instance):
     token = await instance.activate(ip_address, timestamp)
     await instance.mark_healthy()
 
-    return web.json_response({'token': token})
+    return json_response({'token': token})
 
 
 # deprecated
@@ -296,7 +299,7 @@ async def kill_instance(request, userdata):  # pylint: disable=unused-argument
 
 
 async def job_complete_1(request, instance):
-    body = await request.json()
+    body = await json_request(request)
     job_status = body['status']
     marked_job_started = body.get('marked_job_started', False)
 
@@ -345,7 +348,7 @@ async def job_complete(request, instance):
 
 
 async def job_started_1(request, instance):
-    body = await request.json()
+    body = await json_request(request)
     job_status = body['status']
 
     batch_id = job_status['batch_id']
@@ -370,7 +373,7 @@ async def job_started(request, instance):
 async def billing_update_1(request, instance):
     db: Database = request.app['db']
 
-    body = await request.json()
+    body = await json_request(request)
     update_timestamp = body['timestamp']
     running_attempts = body['attempts']
 
@@ -382,7 +385,7 @@ async def billing_update_1(request, instance):
             where_attempt_args.append([attempt['batch_id'], attempt['job_id'], attempt['attempt_id']])
 
         where_query = f'WHERE {" OR ".join(where_attempt_query)}'
-        where_args = [update_timestamp] + flatten(where_attempt_args)
+        where_args = [update_timestamp, *flatten(where_attempt_args)]
 
         await db.execute_update(
             f'''

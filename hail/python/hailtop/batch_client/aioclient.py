@@ -495,15 +495,15 @@ class BatchBuilder:
 
         self._cancel_after_n_failures = cancel_after_n_failures
 
-    def create_job(self, image: str, command: List[str], *, mount_docker_socket: bool = False, **kwargs):
+    def create_job(self, image: str, command: List[str], **kwargs):
         return self._create_job(
-            {'command': command, 'image': image, 'mount_docker_socket': mount_docker_socket, 'type': 'docker'}, **kwargs
+            {'command': command, 'image': image, 'type': 'docker'}, **kwargs
         )
 
-    def create_jvm_job(self, jar_spec: Dict[str, str], argv: List[str], **kwargs):
+    def create_jvm_job(self, jar_spec: Dict[str, str], argv: List[str], *, profile: bool = False, **kwargs):
         if 'always_copy_output' in kwargs:
             raise ValueError("the 'always_copy_output' option is not allowed for JVM jobs")
-        return self._create_job({'type': 'jvm', 'jar_spec': jar_spec, 'command': argv}, **kwargs)
+        return self._create_job({'type': 'jvm', 'jar_spec': jar_spec, 'command': argv, 'profile': profile}, **kwargs)
 
     def _create_job(self,
                     process: dict,
@@ -986,6 +986,10 @@ class BatchClient:
     async def supported_regions(self):
         resp = await self._get('/api/v1alpha/supported_regions')
         return await resp.json()
+
+    async def cloud(self):
+        resp = await self._get('/api/v1alpha/cloud')
+        return await resp.text()
 
     async def close(self):
         await self._session.close()

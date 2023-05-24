@@ -1,4 +1,3 @@
-import nest_asyncio
 import warnings
 
 from .batch import Batch
@@ -23,8 +22,6 @@ __all__ = ['Batch',
            'ResourceFile',
            'ResourceGroup',
            ]
-
-nest_asyncio.apply()
 
 warnings.filterwarnings('once', append=True)
 del warnings

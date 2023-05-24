@@ -27,12 +27,12 @@ type_grammar = Grammar(
     field = identifier ":" type
     interval = ("tinterval" / "interval") _ "<" type ">"
     identifier = _ (simple_identifier / escaped_identifier) _
-    simple_identifier = ~"\w+"
+    simple_identifier = ~r"\w+"
     escaped_identifier = ~"`([^`\\\\]|\\\\.)*`"
     nat = _ (nat_literal / nat_variable) _
     nat_literal = ~"[0-9]+"
     nat_variable = "?nat"
-    _ = ~"\s*"
+    _ = ~r"\s*"
     """)
 
 
