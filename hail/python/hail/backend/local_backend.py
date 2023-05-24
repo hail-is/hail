@@ -179,7 +179,7 @@ class LocalBackend(Py4JBackend):
         self._fs = RouterFS()
         self._logger = None
 
-        self._initialize_flags()
+        self._initialize_flags({})
 
     def jvm(self):
         return self._jvm
