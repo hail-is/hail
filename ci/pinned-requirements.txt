@@ -77,3 +77,4 @@ urllib3==1.26.15
     #   requests
 zulip==0.8.2
     # via -r hail/ci/requirements.txt
+requests>=2.31.0 # not directly required, pinned by Snyk to avoid a vulnerability
