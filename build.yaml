@@ -3694,12 +3694,12 @@ steps:
           --filter 'tags.items=batch2-agent AND labels.namespace={{ default_ns.name }}' \
           --format="table[no-heading](zone.basename(), name)" \
           --project {{ global.gcp_project }} \
-        | xargs -P4 -n2 -r sh -c 'gcloud -q compute instances delete --zone "$1" --project {{ global.gcp_project }} "$2" || true' argv0
+        | xargs -P8 -n2 -r sh -c 'gcloud -q compute instances delete --zone "$1" --project {{ global.gcp_project }} "$2" || true' argv0
       gcloud -q compute disks list \
           --filter 'labels.batch=1 AND labels.namespace={{ default_ns.name }}' \
           --format="table[no-heading](zone.basename(), name)" \
           --project {{ global.gcp_project }} \
-        | xargs -P4 -n2 -r sh -c 'gcloud -q compute disks delete --zone "$1" --project {{ global.gcp_project }} "$2" || true' argv0
+        | xargs -P8 -n2 -r sh -c 'gcloud -q compute disks delete --zone "$1" --project {{ global.gcp_project }} "$2" || true' argv0
     secrets:
       - name: test-gsa-key
         namespace:
