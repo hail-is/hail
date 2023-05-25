@@ -1,11 +1,13 @@
 from typing import Optional, Union, TypeVar, Tuple, List
+from enum import Enum
 import os
 import re
 import configparser
 import warnings
 from dataclasses import dataclass
-
 from pathlib import Path
+
+from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 
 user_config = None
 
@@ -122,8 +124,8 @@ def get_remote_tmpdir(caller_name: str,
 
 def get_gcs_requester_pays_configuration(
         *,
-        gcs_requester_pays_configuration: Optional[Union[str, Tuple[str, List[str]]]] = None,
-) -> Optional[Union[str, Tuple[str, List[str]]]]:
+        gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
+) -> Optional[GCSRequesterPaysConfiguration]:
     if gcs_requester_pays_configuration:
         return gcs_requester_pays_configuration
 
@@ -151,7 +153,7 @@ def get_gcs_requester_pays_configuration(
     warnings.warn(
         'Reading spark-defaults.conf to determine GCS requester pays '
         'configuration. This is deprecated. Please use `hailctl config '
-        'set gcs_requeseter_pays/project` and `hailctl config set '
+        'set gcs_requester_pays/project` and `hailctl config set '
         'gcs_requester_pays/buckets`.'
     )
 
@@ -165,7 +167,7 @@ def get_gcs_requester_pays_configuration(
            )
         return None
 
-    if spark_conf.mode == 'DISABLED':
+    if spark_conf.mode == SparkConfGcsRequesterPaysMode.DISABLED:
         return None
 
     if spark_conf.project is None:
@@ -175,7 +177,7 @@ def get_gcs_requester_pays_configuration(
             f'DISABLED is set.'
         )
 
-    if spark_conf.mode == 'CUSTOM':
+    if spark_conf.mode == SparkConfGcsRequesterPaysMode.CUSTOM:
         if spark_conf.buckets is None:
             raise ValueError(
                 f'When reading GCS requester pays configuration from '
@@ -184,15 +186,7 @@ def get_gcs_requester_pays_configuration(
             )
         return (spark_conf.project, spark_conf.buckets)
 
-    if spark_conf.mode not in ('ENABLED', 'AUTO'):
-        raise ValueError(
-            f'When reading GCS requester pays configuration from '
-            f'spark-defaults.conf ({spark_conf.conf_path}) an unknown mode was '
-            f'found: {spark_conf.mode}. Expected ENABLED, AUTO, CUSTOM, or '
-            f'DISABLED.'
-        )
-
-    if spark_conf.mode == 'ENABLED':
+    if spark_conf.mode == SparkConfGcsRequesterPaysMode.ENABLED:
         warnings.warn(
             f'When reading GCS requester pays configuration from '
             f'spark-defaults.conf ({spark_conf.conf_path}) Hail treats the mode '
@@ -210,9 +204,16 @@ def get_gcs_requester_pays_configuration(
     return spark_conf.project
 
 
+class SparkConfGcsRequesterPaysMode(Enum):
+    ENABLED = 'ENABLED'
+    DISABLED = 'DISABLED'
+    AUTO = 'AUTO'
+    CUSTOM = 'CUSTOM'
+
+
 @dataclass
 class SparkConfGcsRequseterPaysConfiguration:
-    mode: Optional[str]
+    mode: Optional[SparkConfGcsRequesterPaysMode]
     project: Optional[str]
     buckets: Optional[List[str]]
     conf_path: str
@@ -227,7 +228,7 @@ def spark_conf_path() -> Optional[str]:
 
 
 def get_spark_conf_gcs_requester_pays_configuration() -> Optional[SparkConfGcsRequseterPaysConfiguration]:
-    mode: Optional[str] = None
+    mode: Optional[SparkConfGcsRequesterPaysMode] = None
     project: Optional[str] = None
     buckets: Optional[List[str]] = None
     path = spark_conf_path()
@@ -240,7 +241,21 @@ def get_spark_conf_gcs_requester_pays_configuration() -> Optional[SparkConfGcsRe
                     raise ValueError(f'Found spark-defaults.conf file line with more than one space: {line}')
                 var, val = maybe_var_and_val
                 if var == 'spark.hadoop.fs.gs.requester.pays.mode':
-                    mode = val
+                    if val == SparkConfGcsRequesterPaysMode.ENABLED:
+                        mode = SparkConfGcsRequesterPaysMode.ENABLED
+                    elif val == SparkConfGcsRequesterPaysMode.DISABLED:
+                        mode = SparkConfGcsRequesterPaysMode.DISABLED
+                    elif val == SparkConfGcsRequesterPaysMode.AUTO:
+                        mode = SparkConfGcsRequesterPaysMode.AUTO
+                    elif val == SparkConfGcsRequesterPaysMode.CUSTOM:
+                        mode = SparkConfGcsRequesterPaysMode.CUSTOM
+                    else:
+                        raise ValueError(
+                            f'When reading GCS requester pays configuration from '
+                            f'spark-defaults.conf ({path}) an unknown mode was '
+                            f'found: {val}. Expected ENABLED, AUTO, CUSTOM, or '
+                            f'DISABLED.'
+                        )
                 if var == 'spark.hadoop.fs.gs.requester.pays.project.id':
                     project = val
                 if var == 'spark.hadoop.fs.gs.requester.pays.buckets':
