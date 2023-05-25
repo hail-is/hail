@@ -1382,6 +1382,9 @@ steps:
 
       export HAIL_QUERY_N_CORES=2
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
+      export HAIL_LOCATION=$(dirname $(python3 -c 'import hail; print(hail.__file__)'))
+
+      mv /io/docs $HAIL_LOCATION/docs
 
       python3 -m pytest \
               -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
@@ -1393,12 +1396,12 @@ steps:
               --durations=50 \
               --doctest-modules \
               --doctest-glob='*.rst' \
-              --ignore=/io/hail/python/hail/docs/conf.py \
-              --ignore=/io/hail/python/hail/docs/doctest_write_data.py \
-              /io/hail/python/hail
+              --ignore=$HAIL_LOCATION/docs/conf.py \
+              --ignore=$HAIL_LOCATION/docs/doctest_write_data.py \
+              $HAIL_LOCATION/docs
     inputs:
-      - from: /repo/hail/python/hail
-        to: /io/hail/python/hail
+      - from: /repo/hail/python/hail/docs
+        to: /io/docs
       - from: /wheel-container.tar
         to: /io/wheel-container.tar
     dependsOn:
