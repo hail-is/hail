@@ -377,7 +377,7 @@ class BatchPoolExecutor:
         dill.dump(functools.partial(unapplied, *args, **kwargs), pipe, recurse=True)
         pipe.seek(0)
         pickledfun_remote = self.inputs + f'{name}/pickledfun'
-        await self.fs.write(pickledfun_remote, pipe.getvalue())
+        await self._fs.write(pickledfun_remote, pipe.getvalue())
         pickledfun_local = batch.read_input(pickledfun_remote)
 
         thread_limit = "1"
@@ -565,7 +565,7 @@ class BatchPoolFuture:
                     f"submitted job failed:\n{main_container_status['error']}")
             try:
                 value, traceback = dill.loads(
-                    await self.executor.fs.read(self.output_file))
+                    await self.executor._fs.read(self.output_file))
             except FileNotFoundError as exc:
                 job_log = await self.job.log()
                 raise ValueError(
