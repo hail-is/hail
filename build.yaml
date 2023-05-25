@@ -2262,6 +2262,9 @@ steps:
       - name: set-test-min-pool-size-to-1
         script: /io/sql/set-test-min-pool-size-to-1.py
         online: true
+      - name: dedup-billing-project-users-v2
+        script: /io/sql/dedup_billing_project_users_v2.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
