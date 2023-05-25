@@ -273,7 +273,7 @@ class AzureFileStatus(FileStatus):
 
 
 class AzureAsyncFSURL(AsyncFSURL):
-    def __init__(self, account: str, container: str, path: str, query: str):
+    def __init__(self, account: str, container: str, path: str, query: Optional[str]):
         self._account = account
         self._container = container
         self._path = path
@@ -294,7 +294,7 @@ class AzureAsyncFSURL(AsyncFSURL):
     @property
     def container(self) -> str:
         return self._container
-    
+
     @property
     def query(self) -> Optional[str]:
         return self._query
@@ -362,7 +362,7 @@ class AzureAsyncFS(AsyncFS):
             raise ValueError('credential and credential_file cannot both be defined')
 
         self._credential = credentials.credential
-        self._blob_service_clients: Dict[Tuple[str, Union[AzureCredentials, str]], BlobServiceClient] = {}
+        self._blob_service_clients: Dict[Tuple[str, str, Union[AzureCredentials, str]], BlobServiceClient] = {}
 
     @staticmethod
     def valid_url(url: str) -> bool:
@@ -445,7 +445,7 @@ class AzureAsyncFS(AsyncFS):
                 return (name[:query_index],  query_string)
         return (name, '')
 
-    def get_blob_service_client(self, account: str, container: str, token: str) -> BlobServiceClient:
+    def get_blob_service_client(self, account: str, container: str, token: Optional[str]) -> BlobServiceClient:
         credential = token if token else self._credential
         k = account, container, credential
         if k not in self._blob_service_clients:
