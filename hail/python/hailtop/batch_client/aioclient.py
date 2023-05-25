@@ -370,16 +370,17 @@ class Batch:
         await self._client._patch(f'/api/v1alpha/batches/{self.id}/cancel')
 
     async def jobs(self, q=None, version=None):
+        if version is None:
+            version = 1
+        assert isinstance(version, int) and version >= 1
         last_job_id = None
         while True:
             params = {}
-            if version is not None:
-                params['version'] = version
             if q is not None:
                 params['q'] = q
             if last_job_id is not None:
                 params['last_job_id'] = last_job_id
-            resp = await self._client._get(f'/api/v1alpha/batches/{self.id}/jobs', params=params)
+            resp = await self._client._get(f'/api/v{version}alpha/batches/{self.id}/jobs')
             body = await resp.json()
             for job in body['jobs']:
                 yield job

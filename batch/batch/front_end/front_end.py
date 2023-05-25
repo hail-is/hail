@@ -226,7 +226,7 @@ async def _handle_api_error(f, *args, **kwargs):
         raise e.http_response()
 
 
-async def _query_batch_jobs(request, batch_id, version):
+async def _query_batch_jobs(request, batch_id: int, version: int):
     db: Database = request.app['db']
 
     try:
@@ -246,9 +246,7 @@ async def _query_batch_jobs(request, batch_id, version):
     return (jobs, last_job_id)
 
 
-@routes.get('/api/v1alpha/batches/{batch_id}/jobs')
-@rest_billing_project_users_only
-async def get_jobs(request, userdata, batch_id):  # pylint: disable=unused-argument
+async def _get_jobs(request, batch_id: int, version: int):
     db = request.app['db']
     record = await db.select_and_fetchone(
         '''
@@ -260,11 +258,24 @@ WHERE id = %s AND NOT deleted;
     if not record:
         raise web.HTTPNotFound()
 
-    version = int(request.query.get('version', 1))
     jobs, last_job_id = await _query_batch_jobs(request, batch_id, version)
     resp = {'jobs': jobs}
     if last_job_id is not None:
         resp['last_job_id'] = last_job_id
+    return resp
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}/jobs')
+@rest_billing_project_users_only
+async def get_jobs_v1(request, userdata, batch_id):  # pylint: disable=unused-argument
+    resp = await _get_jobs(request, batch_id, 1)
+    return json_response(resp)
+
+
+@routes.get('/api/v2alpha/batches/{batch_id}/jobs')
+@rest_billing_project_users_only
+async def get_jobs_v2(request, userdata, batch_id):  # pylint: disable=unused-argument
+    resp = await _get_jobs(request, batch_id, 2)
     return json_response(resp)
 
 
