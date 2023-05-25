@@ -103,7 +103,7 @@ tenacity==8.2.2
     # via
     #   -c hail/batch/../hail/python/pinned-requirements.txt
     #   plotly
-typing-extensions==4.5.0
+typing-extensions==4.6.2
     # via
     #   -c hail/batch/../hail/python/dev/pinned-requirements.txt
     #   -c hail/batch/../hail/python/pinned-requirements.txt
@@ -112,7 +112,7 @@ tzdata==2023.3
     # via
     #   -c hail/batch/../hail/python/pinned-requirements.txt
     #   pandas
-yarl==1.9.1
+yarl==1.9.2
     # via
     #   -c hail/batch/../gear/pinned-requirements.txt
     #   -c hail/batch/../hail/python/pinned-requirements.txt
