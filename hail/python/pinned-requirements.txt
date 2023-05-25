@@ -258,7 +258,7 @@ pyyaml==6.0
     # via bokeh
 regex==2023.5.5
     # via parsimonious
-requests==2.28.2
+requests==2.31.0
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/requirements.txt
