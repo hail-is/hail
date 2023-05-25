@@ -18,7 +18,7 @@ async def main():
         '''
 UPDATE inst_colls
 SET max_instances = %s, max_live_instances = %s
-''', (max_instances, max_live_instances
+''', (max_instances, max_live_instances))
 
     if os.environ['HAIL_SCOPE'] == 'dev':
         return
