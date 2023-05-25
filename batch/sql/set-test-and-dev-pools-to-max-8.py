@@ -9,7 +9,6 @@ async def main():
 
     max_instances = 8
     max_live_instances = 8
-    worker_max_idle_time_secs = 3 * 60
     standing_worker_cores = 16
 
     db = Database()
@@ -18,8 +17,8 @@ async def main():
     await db.execute_update(
         '''
 UPDATE inst_colls
-SET max_instances = %s, max_live_instances = %s, worker_max_idle_time_secs = %s
-''', (max_instances, max_live_instances, worker_max_idle_time_secs))
+SET max_instances = %s, max_live_instances = %s
+''', (max_instances, max_live_instances
 
     if os.environ['HAIL_SCOPE'] == 'dev':
         return
