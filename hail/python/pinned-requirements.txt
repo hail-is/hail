@@ -298,7 +298,7 @@ tabulate==0.9.0
     #   -r hail/hail/python/hailtop/requirements.txt
 tenacity==8.2.2
     # via plotly
-tornado==6.3.1
+tornado==6.3.2
     # via bokeh
 typing-extensions==4.5.0
     # via
