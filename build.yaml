@@ -1372,10 +1372,16 @@ steps:
     name: test_python_docs
     image:
       valueFrom: hail_run_image.image
+    resources:
+      memory: standard
+      cpu: '2'
     script: |
       set -ex
       tar xvf /io/wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+
+      export HAIL_QUERY_N_CORES=2
+      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
 
       python3 -m pytest \
               -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
