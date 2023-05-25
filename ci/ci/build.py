@@ -346,13 +346,13 @@ set -ex
 {create_inline_dockerfile_if_present}
 
 time python3 \
-     ~/jinja2_render.py \
+     /jinja2_render.py \
      {shq(json.dumps(config))} \
      {unrendered_dockerfile} \
      /home/user/Dockerfile
 
 set +x
-/bin/sh /home/user/convert-cloud-credentials-to-docker-auth-config
+/bin/sh /convert-cloud-credentials-to-docker-auth-config
 set -x
 
 {RETRY_FUNCTION_SCRIPT}
