@@ -35,7 +35,8 @@ def add_dependencies(fname):
             if pkg.startswith('pyspark') and os.path.exists('../env/SPARK_VERSION'):
                 with open('../env/SPARK_VERSION', 'r') as file:
                     spark_version = file.read()
-                dependencies.append(f'pyspark=={spark_version}')
+                [major, minor, patch] = spark_version.split('.')
+                dependencies.append(f'pyspark>={major}.{minor},<{int(major)+1}')
             else:
                 dependencies.append(pkg)
 add_dependencies('requirements.txt')
