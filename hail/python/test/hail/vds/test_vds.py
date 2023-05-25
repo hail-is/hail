@@ -377,7 +377,7 @@ def test_impute_sex_chromosome_ploidy_1():
         [],
         schema=hl.dtype('struct{locus:locus<GRCh37>,alleles:array<str>,s:str,LA:array<int32>,LGT:call,GQ:int32,DP:int32}')
     ).to_matrix_table(row_key=['locus', 'alleles'], col_key=['s'])
-    hl.vds.VariantDataset(ref_mt, var_mt)
+    vds = hl.vds.VariantDataset(ref_mt, var_mt)
     calling_intervals = [
         hl.parse_locus_interval('22:1000010-1000020', reference_genome='GRCh37'),
         hl.parse_locus_interval(f'X:{X_PAR_END}-{X_PAR_END + 20}', reference_genome='GRCh37'),

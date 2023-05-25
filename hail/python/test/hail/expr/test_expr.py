@@ -3417,13 +3417,13 @@ class Tests(unittest.TestCase):
         assert np.isnan(r3_one_sided['het_freq_hwe'])
 
     def test_hardy_weinberg_agg_2(self):
-        calls = {
+        calls = [
             hl.call(0, 0),
             hl.call(0),
             hl.call(1, 1),
             hl.call(0, 1),
             hl.call(0, 1),
-        }
+        ]
 
         ht = hl.utils.range_table(6)
         ht = ht.annotate(
