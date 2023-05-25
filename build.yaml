@@ -713,7 +713,7 @@ steps:
       time retry ./gradlew --version
       time retry make shadowJar wheel
 
-      # Check wheel size is small enough for pypi (< 100 MB)
+      # Check wheel size is small enough for pypi (< 200 MiB)
       HAIL_PIP_VERSION=$(cat python/hail/hail_pip_version)
       WHEEL_PATH="build/deploy/dist/hail-$HAIL_PIP_VERSION-py3-none-any.whl"
       du -h $WHEEL_PATH
