@@ -1,12 +1,14 @@
 import pytest
+import sys
 
 from hailtop.config.user_config import get_gcs_requester_pays_configuration, spark_conf_path
 from hailtop.utils.process import check_exec_output
 
-# WARNING:
-#
-# This script will overwrite your spark-defaults.conf. It is intended to be executed inside a
-# container.
+
+if 'YOU_MAY_OVERWRITE_MY_SPARK_DEFAULTS_CONF' not in os.environ:
+    print('This script will overwrite your spark-defaults.conf. It is intended to be executed inside a
+# container.')
+    sys.exit(1)
 
 
 SPARK_CONF_PATH = spark_conf_path()
