@@ -131,15 +131,15 @@ class BatchPoolExecutor:
         self.directory = self.backend.remote_tmpdir + f'batch-pool-executor/{self.name}/'
         self.inputs = self.directory + 'inputs/'
         self.outputs = self.directory + 'outputs/'
-        self._fs: Optional[RouterAsyncFS]
+        self.__fs: Optional[RouterAsyncFS]
         if project is not None:
             warnings.warn(
                 'The project parameter of BatchPoolExecutor is deprecated. Please '
                 'use the gcs_requester_pays_project parameter of ServiceBackend.'
             )
-            self._fs = RouterAsyncFS(gcs_kwargs={'gcs_requester_pays_configuration': project})
+            self.__fs = RouterAsyncFS(gcs_kwargs={'gcs_requester_pays_configuration': project})
         else:
-            self._fs = None
+            self.__fs = None
         self.futures: List[BatchPoolFuture] = []
         self.finished_future_count = 0
         self._shutdown = False
@@ -156,11 +156,11 @@ class BatchPoolExecutor:
         self.wait_on_exit = wait_on_exit
 
     @property
-    def fs(self) -> RouterAsyncFS:
+    def _fs(self) -> RouterAsyncFS:
         """DEPRECATED. Do not use."""
-        if self._fs is None:
+        if self.__fs is None:
             return self.backend._fs
-        return self._fs
+        return self.__fs
 
     def __enter__(self):
         return self
@@ -458,10 +458,10 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
         self._shutdown = True
 
     def _cleanup(self):
-        if self._fs is not None:
-            if self.cleanup_bucket:
-                async_to_blocking(self.fs.rmtree(None, self.directory))
-            async_to_blocking(self.fs.close())
+        if self.cleanup_bucket:
+            async_to_blocking(self._fs.rmtree(None, self.directory))
+        if self.__fs is not None:  # only close the fs if we created it
+            async_to_blocking(self.__fs.close())
         self.backend.close()
 
 
