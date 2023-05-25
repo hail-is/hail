@@ -834,14 +834,6 @@ steps:
         to: /io/repo/hail/python/dev/pinned-requirements.txt
       - from: /repo/docker/core-site.xml
         to: /io/repo/docker/core-site.xml
-      - from: /repo/hail/python/setup-hailtop.py
-        to: /io/repo/hail/python/setup-hailtop.py
-      - from: /repo/hail/python/hailtop
-        to: /io/repo/hail/python/hailtop
-      - from: /repo/hail/python/MANIFEST.in
-        to: /io/repo/hail/python/MANIFEST.in
-      - from: /hail_version
-        to: /io/repo/python/hailtop/hail_version
     dependsOn:
       - base_image
       - merge_code
