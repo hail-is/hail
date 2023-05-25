@@ -1,8 +1,8 @@
 import os
 
 import hail as hl
-from hail.experimental.vcf_combiner import vcf_combiner as vc
 from hail.utils.java import Env
+from hail.vds.combiner import combine as vc
 from hail.utils.misc import new_temp_file
 from ..helpers import resource, fails_local_backend, fails_service_backend
 

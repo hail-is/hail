@@ -1729,7 +1729,7 @@ def summarize_variants(mt: Union[MatrixTable, MatrixTable], show=True, *, handle
                          r_ti_tv=nti / ntv)
 
 
-@typecheck(ds=oneof(hl.MatrixTable, hl.vds.VariantDataset),
+@typecheck(ds=oneof(hl.MatrixTable, lambda: hl.vds.VariantDataset),
            min_af=numeric,
            max_af=numeric,
            min_dp=int,
@@ -1737,7 +1737,7 @@ def summarize_variants(mt: Union[MatrixTable, MatrixTable], show=True, *, handle
            min_gq=int,
            ref_AF=nullable(expr_float64))
 def compute_charr(
-        ds: Union[hl.MatrixTable, hl.vds.VariantDataset],
+        ds: Union[hl.MatrixTable, 'hl.vds.VariantDataset'],
         min_af: float = 0.05,
         max_af: float = 0.95,
         min_dp: int = 10,

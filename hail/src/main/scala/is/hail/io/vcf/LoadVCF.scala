@@ -2,19 +2,18 @@ package is.hail.io.vcf
 
 import htsjdk.variant.vcf._
 import is.hail.annotations._
-import is.hail.asm4s.{Code, CodeLabel, HailClassLoader, Settable, Value}
+import is.hail.asm4s._
 import is.hail.backend.spark.SparkBackend
 import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering.TableStage
 import is.hail.expr.ir.streams.StreamProducer
-import is.hail.expr.ir.{CloseableIterator, EmitCode, EmitCodeBuilder, EmitMethodBuilder, GenericLine, GenericLines, GenericTableValue, IEmitCode, IR, IRParser, Literal, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixReader, PartitionReader, TableValue}
-import is.hail.asm4s._
+import is.hail.expr.ir.{CloseableIterator, EmitCode, EmitCodeBuilder, EmitMethodBuilder, GenericLine, GenericLines, GenericTableValue, IEmitCode, IR, IRParser, Literal, LowerMatrixIR, MatrixHybridReader, MatrixReader, PartitionReader, TableValue}
 import is.hail.io.fs.{FS, FileStatus}
 import is.hail.io.tabix._
-import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader, parseLines}
+import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader}
 import is.hail.io.{VCFAttributes, VCFMetadata}
-import is.hail.rvd.{PartitionBoundOrdering, RVD, RVDPartitioner, RVDType}
+import is.hail.rvd.{RVDPartitioner, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.types._
 import is.hail.types.physical._
@@ -93,7 +92,7 @@ case class VCFHeaderInfo(sampleIds: Array[String], infoFields: Array[(String, Ty
 
   def infoCompatible(other: VCFHeaderInfo): Boolean = {
     val m = infoFields.toMap
-    other.infoFields.forall { case (name, t) => m(name) == t }
+    other.infoFields.forall { case (name, t) => m.get(name).contains(t) }
   }
 
   def genotypeSignature: TStruct = TStruct(formatFields: _*)

@@ -4,19 +4,16 @@ import json
 import os
 import sys
 import uuid
-
 from math import floor, log
 from typing import Collection, Dict, List, NamedTuple, Optional, Union
 
 import hail as hl
-
 from hail.expr import HailType, tmatrix
 from hail.utils import Interval
 from hail.utils.java import info, warning
-from hail.experimental.vcf_combiner.vcf_combiner import calculate_even_genome_partitioning, \
+from .combine import combine_variant_datasets, transform_gvcf, defined_entry_fields, make_variant_stream, \
+    make_reference_stream, combine_r, calculate_even_genome_partitioning, \
     calculate_new_intervals, combine
-from .combine import combine_variant_datasets, transform_gvcf, defined_entry_fields, combine_reference_row, \
-    make_variant_stream, make_reference_stream, combine_r
 
 
 class VDSMetadata(NamedTuple):

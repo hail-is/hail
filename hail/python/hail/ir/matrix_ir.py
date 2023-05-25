@@ -1210,18 +1210,3 @@ class JavaMatrix(MatrixIR):
         else:
             return self._type
 
-
-class JavaMatrixVectorRef(MatrixIR):
-    def __init__(self, vec_ref, idx):
-        super().__init__()
-        self.vec_ref = vec_ref
-        self.idx = idx
-
-    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
-        raise FatalError('JavaMatrix does not support randomness in consumers')
-
-    def head_str(self):
-        return f'{self.vec_ref.jid} {self.idx}'
-
-    def _compute_type(self, deep_typecheck):
-        return self.vec_ref.item_type
