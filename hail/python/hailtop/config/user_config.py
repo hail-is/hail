@@ -241,21 +241,15 @@ def get_spark_conf_gcs_requester_pays_configuration() -> Optional[SparkConfGcsRe
                     raise ValueError(f'Found spark-defaults.conf file line with more than one space: {line}')
                 var, val = maybe_var_and_val
                 if var == 'spark.hadoop.fs.gs.requester.pays.mode':
-                    if val == SparkConfGcsRequesterPaysMode.ENABLED:
-                        mode = SparkConfGcsRequesterPaysMode.ENABLED
-                    elif val == SparkConfGcsRequesterPaysMode.DISABLED:
-                        mode = SparkConfGcsRequesterPaysMode.DISABLED
-                    elif val == SparkConfGcsRequesterPaysMode.AUTO:
-                        mode = SparkConfGcsRequesterPaysMode.AUTO
-                    elif val == SparkConfGcsRequesterPaysMode.CUSTOM:
-                        mode = SparkConfGcsRequesterPaysMode.CUSTOM
-                    else:
+                    try:
+                        mode = SparkConfGcsRequesterPaysMode(val)
+                    except ValueError as exc:
                         raise ValueError(
                             f'When reading GCS requester pays configuration from '
                             f'spark-defaults.conf ({path}) an unknown mode was '
                             f'found: {val}. Expected ENABLED, AUTO, CUSTOM, or '
                             f'DISABLED.'
-                        )
+                        ) from exc
                 if var == 'spark.hadoop.fs.gs.requester.pays.project.id':
                     project = val
                 if var == 'spark.hadoop.fs.gs.requester.pays.buckets':
