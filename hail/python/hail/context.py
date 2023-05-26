@@ -531,6 +531,7 @@ async def init_batch(
     default_reference=enumeration(*BUILTIN_REFERENCES),
     global_seed=nullable(int),
     skip_logging_configuration=bool,
+    jvm_heap_size=nullable(str),
     _optimizer_iterations=nullable(int),
     gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str))))
 )
@@ -543,6 +544,7 @@ def init_local(
         default_reference='GRCh37',
         global_seed=None,
         skip_logging_configuration=False,
+        jvm_heap_size=None,
         _optimizer_iterations=None,
         gcs_requester_pays_configuration: Optional[Union[str, Tuple[str, List[str]]]] = None
 ):
@@ -552,10 +554,12 @@ def init_local(
     tmpdir = _get_tmpdir(tmpdir)
     optimizer_iterations = get_env_or_default(_optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
 
+    jvm_heap_size = get_env_or_default(jvm_heap_size, 'HAIL_LOCAL_BACKEND_HEAP_SIZE', None)
     gcs_requester_pays_project, gcs_requester_pays_buckets = convert_gcs_requester_pays_configuration_to_hadoop_conf_style(gcs_requester_pays_configuration)
     backend = LocalBackend(
         tmpdir, log, quiet, append, branching_factor,
         skip_logging_configuration, optimizer_iterations,
+        jvm_heap_size,
         gcs_requester_pays_project=gcs_requester_pays_project,
         gcs_requester_pays_buckets=gcs_requester_pays_buckets
     )
