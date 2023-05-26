@@ -15,12 +15,12 @@ def vars(*args: Expression) -> StructExpression:
 
     Parameters
     ----------
-    *args: class:`.Expression`
+    *args: :class:`hail.expr.Expression`
         Fields to facet by.
 
     Returns
     -------
-    :class:`StructExpression`
+    :class:`hail.expr.StructExpression`
         A struct to pass to a faceter.
 
     """
@@ -32,7 +32,7 @@ def facet_wrap(facets: StructExpression, *, nrow: int = None, ncol: int = None, 
 
     Parameters
     ----------
-    facets: :class:`StructExpression` created by `hl.ggplot.vars` function.
+    facets: :class:`hail.expr.StructExpression` created by `hl.ggplot.vars` function.
         The fields to facet on.
     nrow: :class:`int`
         The number of rows into which the facets will be spread. Will be ignored if `ncol` is set.

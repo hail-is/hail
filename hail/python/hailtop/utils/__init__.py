@@ -3,8 +3,7 @@ from .time import (
     time_ns)
 from .utils import (unzip, async_to_blocking, blocking_to_async, AsyncWorkerPool, bounded_gather,
                     grouped, sync_sleep_and_backoff, sleep_and_backoff, is_transient_error,
-                    request_retry_transient_errors, request_raise_transient_errors, collect_agen,
-                    retry_all_errors, retry_transient_errors,
+                    collect_agen, retry_all_errors, retry_transient_errors,
                     retry_transient_errors_with_debug_string, retry_long_running, run_if_changed,
                     run_if_changed_idempotent, LoggingTimer, WaitableSharedPool,
                     RETRY_FUNCTION_SCRIPT, sync_retry_transient_errors,
@@ -59,8 +58,6 @@ __all__ = [
     'run_if_changed_idempotent',
     'LoggingTimer',
     'WaitableSharedPool',
-    'request_retry_transient_errors',
-    'request_raise_transient_errors',
     'collect_agen',
     'RETRY_FUNCTION_SCRIPT',
     'sync_retry_transient_errors',

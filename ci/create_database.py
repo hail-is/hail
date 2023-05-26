@@ -8,7 +8,9 @@ import sys
 from shlex import quote as shq
 from typing import Optional
 
-from gear import Database
+import orjson
+
+from gear import Database, resolve_test_db_endpoint
 from hailtop.auth.sql_config import SQLConfig, create_secret_data_from_config
 from hailtop.utils import check_shell, check_shell_output
 
@@ -62,19 +64,8 @@ async def create_database():
 
     namespace = create_database_config['namespace']
     database_name = create_database_config['database_name']
-    cant_create_database = create_database_config['cant_create_database']
-
-    if cant_create_database:
-        assert sql_config.db is not None
-
-        await write_user_config(namespace, database_name, 'admin', sql_config)
-        await write_user_config(namespace, database_name, 'user', sql_config)
-        return
-
     scope = create_database_config['scope']
     _name = create_database_config['_name']
-    admin_username = create_database_config['admin_username']
-    user_username = create_database_config['user_username']
 
     db = Database()
     await db.async_init()
@@ -89,79 +80,54 @@ async def create_database():
             assert len(rows) == 1
             return
 
+    async def create_user_if_doesnt_exist(admin_or_user, mysql_username, mysql_password):
+        existing_user = await db.execute_and_fetchone('SELECT 1 FROM mysql.user WHERE user=%s', (mysql_username,))
+        if existing_user is not None:
+            return
+
+        if admin_or_user == 'admin':
+            allowed_operations = 'ALL'
+        else:
+            assert admin_or_user == 'user'
+            allowed_operations = 'SELECT, INSERT, UPDATE, DELETE, EXECUTE'
+
+        await db.just_execute(
+            f'''
+            CREATE USER '{mysql_username}'@'%' IDENTIFIED BY '{mysql_password}';
+            GRANT {allowed_operations} ON `{_name}`.* TO '{mysql_username}'@'%';
+            '''
+        )
+
+        await write_user_config(
+            namespace,
+            database_name,
+            admin_or_user,
+            SQLConfig(
+                host=sql_config.host,
+                port=sql_config.port,
+                instance=sql_config.instance,
+                connection_name=sql_config.connection_name,
+                user=mysql_username,
+                password=mysql_password,
+                db=_name,
+                ssl_ca=sql_config.ssl_ca,
+                ssl_cert=sql_config.ssl_cert,
+                ssl_key=sql_config.ssl_key,
+                ssl_mode=sql_config.ssl_mode,
+            ),
+        )
+
+    admin_username = create_database_config['admin_username']
+    user_username = create_database_config['user_username']
+
     with open(create_database_config['admin_password_file'], encoding='utf-8') as f:
         admin_password = f.read()
-
     with open(create_database_config['user_password_file'], encoding='utf-8') as f:
         user_password = f.read()
 
-    admin_exists = await db.execute_and_fetchone("SELECT user FROM mysql.user WHERE user=%s", (admin_username,))
-    admin_exists = admin_exists and admin_exists.get('user') == admin_username
-
-    user_exists = await db.execute_and_fetchone("SELECT user FROM mysql.user WHERE user=%s", (user_username,))
-    user_exists = user_exists and user_exists.get('user') == user_username
-
-    create_admin_or_alter_password = (
-        f"CREATE USER '{admin_username}'@'%' IDENTIFIED BY '{admin_password}';"
-        if not admin_exists
-        else "ALTER USER '{admin_username}'@'%' IDENTIFIED BY '{admin_password}';"
-    )
-
-    create_user_or_alter_password = (
-        f"CREATE USER '{user_username}'@'%' IDENTIFIED BY '{user_password}';"
-        if not user_exists
-        else "ALTER USER '{user_username}'@'%' IDENTIFIED BY '{user_password}';"
-    )
-
-    await db.just_execute(
-        f'''
-        CREATE DATABASE IF NOT EXISTS `{_name}`;
-
-        {create_admin_or_alter_password}
-        GRANT ALL ON `{_name}`.* TO '{admin_username}'@'%';
-
-        {create_user_or_alter_password}
-        GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}'@'%';
-        '''
-    )
-
-    await write_user_config(
-        namespace,
-        database_name,
-        'admin',
-        SQLConfig(
-            host=sql_config.host,
-            port=sql_config.port,
-            instance=sql_config.instance,
-            connection_name=sql_config.connection_name,
-            user=admin_username,
-            password=admin_password,
-            db=_name,
-            ssl_ca=sql_config.ssl_ca,
-            ssl_cert=sql_config.ssl_cert,
-            ssl_key=sql_config.ssl_key,
-            ssl_mode=sql_config.ssl_mode,
-        ),
-    )
-
-    await write_user_config(
-        namespace,
-        database_name,
-        'user',
-        SQLConfig(
-            host=sql_config.host,
-            port=sql_config.port,
-            instance=sql_config.instance,
-            connection_name=sql_config.connection_name,
-            user=user_username,
-            password=user_password,
-            db=_name,
-            ssl_ca=sql_config.ssl_ca,
-            ssl_cert=sql_config.ssl_cert,
-            ssl_key=sql_config.ssl_key,
-            ssl_mode=sql_config.ssl_mode,
-        ),
-    )
+    await db.just_execute(f'CREATE DATABASE IF NOT EXISTS `{_name}`')
+    await create_user_if_doesnt_exist('admin', admin_username, admin_password)
+    await create_user_if_doesnt_exist('user', user_username, user_password)
 
 
 did_shutdown = False
@@ -256,11 +222,15 @@ kubectl -n {namespace} get -o json secret {shq(admin_secret_name)}
     )
     admin_secret = json.loads(out)
 
+    admin_sql_config = SQLConfig.from_json(base64.b64decode(admin_secret['data']['sql-config.json']).decode())
+    if namespace != 'default' and admin_sql_config.host.endswith('.svc.cluster.local'):
+        admin_sql_config = await resolve_test_db_endpoint(admin_sql_config)
+
     with open('/sql-config.json', 'wb') as f:
-        f.write(base64.b64decode(admin_secret['data']['sql-config.json']))
+        f.write(orjson.dumps(admin_sql_config.to_dict()))
 
     with open('/sql-config.cnf', 'wb') as f:
-        f.write(base64.b64decode(admin_secret['data']['sql-config.cnf']))
+        f.write(admin_sql_config.to_cnf().encode('utf-8'))
 
     os.environ['HAIL_DATABASE_CONFIG_FILE'] = '/sql-config.json'
     os.environ['HAIL_SCOPE'] = scope

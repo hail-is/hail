@@ -5,7 +5,7 @@ import logging
 import os
 import re
 import signal
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from functools import wraps
 from typing import Any, Dict, Set, Tuple
 
@@ -87,6 +87,13 @@ def instance_from_request(request):
     return inst_coll_manager.get_instance(instance_name)
 
 
+# Old workers use the Authorization header for their identity token
+# but that can conflict with bearer tokens used when the driver is behind another
+# auth mechanism
+def instance_token(request):
+    return request.headers.get('X-Hail-Instance-Token') or authorization_token(request)
+
+
 def activating_instances_only(fun):
     @wraps(fun)
     async def wrapped(request):
@@ -100,7 +107,7 @@ def activating_instances_only(fun):
             log.info(f'instance {instance.name} not pending')
             raise web.HTTPUnauthorized()
 
-        activation_token = authorization_token(request)
+        activation_token = instance_token(request)
         if not activation_token:
             log.info(f'activation token not found for instance {instance.name}')
             raise web.HTTPUnauthorized()
@@ -133,7 +140,7 @@ def active_instances_only(fun):
             log.info(f'instance not active {instance.name}')
             raise web.HTTPUnauthorized()
 
-        token = authorization_token(request)
+        token = instance_token(request)
         if not token:
             log.info(f'token not found for instance {instance.name}')
             raise web.HTTPUnauthorized()
@@ -431,8 +438,8 @@ FROM user_inst_coll_resources;
         'n_instances_by_state': inst_coll_manager.global_n_instances_by_state,
         'instances': inst_coll_manager.name_instance.values(),
         'ready_cores_mcpu': ready_cores_mcpu,
-        'live_total_cores_mcpu': inst_coll_manager.global_live_total_cores_mcpu,
-        'live_free_cores_mcpu': inst_coll_manager.global_live_free_cores_mcpu,
+        'total_provisioned_cores_mcpu': inst_coll_manager.global_total_provisioned_cores_mcpu,
+        'live_free_cores_mcpu': inst_coll_manager.global_current_version_live_free_cores_mcpu,
         'frozen': app['frozen'],
     }
     return await render_template('batch-driver', request, userdata, 'index.html', page_context)
@@ -1318,12 +1325,15 @@ async def scheduling_cancelling_bump(app):
     app['cancel_running_state_changed'].set()
 
 
+Resource = namedtuple('Resource', ['resource_id', 'deduped_resource_id'])
+
+
 async def refresh_globals_from_db(app, db):
     resource_ids = {
-        record['resource']: record['resource_id']
+        record['resource']: Resource(record['resource_id'], record['deduped_resource_id'])
         async for record in db.select_and_fetchall(
             '''
-SELECT resource, resource_id FROM resources;
+SELECT resource, resource_id, deduped_resource_id FROM resources;
 '''
         )
     }

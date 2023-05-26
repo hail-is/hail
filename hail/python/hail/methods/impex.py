@@ -2807,6 +2807,12 @@ def import_vcf(path,
     -------
     :class:`.MatrixTable`
     """
+    if force:
+        hl.utils.warning(
+            f'You are trying to read {path} with *ONE* core of parallelism. This '
+            'will be very slow. If this file is block-gzipped (bgzip-ed), use '
+            'force_bgz=True instead.'
+        )
 
     reader = ir.MatrixVCFReader(path, call_fields, entry_float_type, header_file,
                                 n_partitions, block_size, min_partitions,

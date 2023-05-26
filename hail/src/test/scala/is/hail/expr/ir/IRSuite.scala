@@ -2838,9 +2838,9 @@ class IRSuite extends HailSuite {
       WriteMetadata(
         NA(TStruct("global" -> TString, "partitions" -> TStruct("filePath" -> TString, "partitionCounts" -> TInt64))),
         RelationalWriter("path", overwrite = false, None)),
-      ReadValue(Str("foo"), TypedCodecSpec(PCanonicalStruct("foo" -> PInt32(), "bar" -> PCanonicalString()), BufferSpec.default), TStruct("foo" -> TInt32)),
-      WriteValue(I32(1), Str("foo"), ETypeFileValueWriter(TypedCodecSpec(PInt32(), BufferSpec.default))),
-      WriteValue(I32(1), Str("foo"), ETypeFileValueWriter(TypedCodecSpec(PInt32(), BufferSpec.default)), Some(Str("/tmp/uid/part"))),
+      ReadValue(Str("foo"), ETypeValueReader(TypedCodecSpec(PCanonicalStruct("foo" -> PInt32(), "bar" -> PCanonicalString()), BufferSpec.default)), TStruct("foo" -> TInt32)),
+      WriteValue(I32(1), Str("foo"), ETypeValueWriter(TypedCodecSpec(PInt32(), BufferSpec.default))),
+      WriteValue(I32(1), Str("foo"), ETypeValueWriter(TypedCodecSpec(PInt32(), BufferSpec.default)), Some(Str("/tmp/uid/part"))),
       LiftMeOut(I32(1)),
       RelationalLet("x", I32(0), I32(0)),
       TailLoop("y", IndexedSeq("x" -> I32(0)), Recur("y", FastSeq(I32(4)), TInt32))
@@ -3412,11 +3412,12 @@ class IRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.compileOnly
     val node = In(0, SingleCodeEmitParamType(true, pt))
     val spec = TypedCodecSpec(PType.canonical(node.typ), BufferSpec.defaultUncompressed)
-    val writer = ETypeFileValueWriter(spec)
+    val writer = ETypeValueWriter(spec)
+    val reader = ETypeValueReader(spec)
     val prefix = ctx.createTmpPath("test-read-write-values")
     val filename = WriteValue(node, Str(prefix) + UUID4(), writer)
     for (v <- Array(value, null)) {
-      assertEvalsTo(ReadValue(filename, spec, pt.virtualType), FastIndexedSeq(v -> pt.virtualType), v)
+      assertEvalsTo(ReadValue(filename, reader, pt.virtualType), FastIndexedSeq(v -> pt.virtualType), v)
     }
   }
 
@@ -3425,14 +3426,15 @@ class IRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.compileOnly
     val node = In(0, SingleCodeEmitParamType(true, pt))
     val spec = TypedCodecSpec(PType.canonical(node.typ), BufferSpec.defaultUncompressed)
-    val writer = ETypeFileValueWriter(spec)
+    val writer = ETypeValueWriter(spec)
+    val reader = ETypeValueReader(spec)
     val prefix = ctx.createTmpPath("test-read-write-value-dist")
     val readArray = Let("files",
       CollectDistributedArray(StreamMap(StreamRange(0, 10, 1), "x", node), MakeStruct(FastSeq()),
         "ctx", "globals",
         WriteValue(Ref("ctx", node.typ), Str(prefix) + UUID4(), writer), NA(TString), "test"),
       StreamMap(ToStream(Ref("files", TArray(TString))), "filename",
-        ReadValue(Ref("filename", TString), spec, pt.virtualType)))
+        ReadValue(Ref("filename", TString), reader, pt.virtualType)))
     for (v <- Array(value, null)) {
       assertEvalsTo(ToArray(readArray), FastIndexedSeq(v -> pt.virtualType), Array.fill(10)(v).toFastIndexedSeq)
     }

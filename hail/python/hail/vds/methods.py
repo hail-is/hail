@@ -599,7 +599,7 @@ def _parameterized_filter_intervals(vds: 'VariantDataset',
                 f"'filter_intervals': expect a table with a single key of type {expected}; "
                 f"found {list(intervals.key.dtype.values())}")
         intervals_table = intervals
-        intervals = intervals.aggregate(hl.agg.collect(intervals.key[0]))
+        intervals = hl.literal(intervals.aggregate(hl.agg.collect(intervals.key[0]), _localize=False))
 
     if mode == 'unchecked_filter_both':
         return VariantDataset(hl.filter_intervals(vds.reference_data, intervals, keep),
@@ -993,6 +993,10 @@ def truncate_reference_blocks(ds, *, max_ref_block_base_pairs=None,
     else:
         rd = ds
 
+    fd_name = hl.vds.VariantDataset.ref_block_max_length_field
+    if fd_name in rd.globals:
+        rd = rd.drop(fd_name)
+
     if int(ref_block_winsorize_fraction is None) + int(max_ref_block_base_pairs is None) != 1:
         raise ValueError(
             'truncate_reference_blocks: require exactly one of "max_ref_block_base_pairs", "ref_block_winsorize_fraction"')
@@ -1031,7 +1035,7 @@ def truncate_reference_blocks(ds, *, max_ref_block_base_pairs=None,
         lambda idx: hl.coalesce(joined.moved_blocks_dict.get(idx), joined.fixed_blocks[idx])))
     new_rd = joined._unlocalize_entries(entries_field_name='merged_blocks', cols_field_name='cols',
                                         col_key=list(rd.col_key))
-    new_rd = new_rd.annotate_globals(**{hl.vds.VariantDataset.ref_block_max_length_field: max_ref_block_base_pairs})
+    new_rd = new_rd.annotate_globals(**{fd_name: max_ref_block_base_pairs})
 
     if isinstance(ds, hl.vds.VariantDataset):
         return VariantDataset(reference_data=new_rd, variant_data=ds.variant_data)

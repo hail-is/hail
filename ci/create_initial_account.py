@@ -19,6 +19,14 @@ async def copy_identity_from_default(hail_credentials_secret_name: str) -> str:
 
     secret = await k8s_client.read_namespaced_secret(hail_credentials_secret_name, 'default')
 
+    try:
+        await k8s_client.delete_namespaced_secret(hail_credentials_secret_name, NAMESPACE)
+    except kubernetes_asyncio.client.rest.ApiException as e:
+        if e.status == 404:
+            pass
+        else:
+            raise
+
     await k8s_client.create_namespaced_secret(
         NAMESPACE,
         kubernetes_asyncio.client.V1Secret(

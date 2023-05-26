@@ -19,30 +19,30 @@ class BigQueryException(Exception):
 class ResultsParser:
     @staticmethod
     def _parse_struct(schema, data):
-        d = {}
-        for value, fd in zip(data['f'], schema['fields']):
-            value = value['v']
-            if fd['type'] in ('RECORD', 'STRUCT'):
-                if fd['mode'] == 'REPEATED':
-                    value = [ResultsParser._parse_struct(fd, v['v']) for v in value]
-                else:
-                    value = ResultsParser._parse_struct(fd, value)
-            elif fd['type'] == 'STRING':
-                value = or_none(str, value)
-            elif fd['type'] in ('FLOAT', 'FLOAT64'):
-                value = or_none(float, value)
-            elif fd['type'] in ('INTEGER', 'INT64'):
-                value = or_none(int, value)
-            elif fd['type'] in ('BOOLEAN', 'BOOL'):
-                value = or_none(bool, value)
-            elif fd['type'] == 'TIMESTAMP':
-                value = int(or_none(float, value))
-            else:
-                # DATE, TIME, DATETIME
-                raise NotImplementedError((fd, value))
+        def parse_field(name: str, value: Any, schema: Dict[str, Any]) -> Any:
+            typ: str = schema['type']
+            mode: str = schema['mode']
 
-            d[fd['name']] = value
-        return d
+            if typ in ('RECORD', 'STRUCT'):
+                if mode == 'REPEATED':
+                    return [ResultsParser._parse_struct(schema, v['v']) for v in value]
+                return ResultsParser._parse_struct(schema, value)
+            if typ == 'STRING':
+                return or_none(str, value)
+            if typ in ('FLOAT', 'FLOAT64'):
+                return or_none(float, value)
+            if typ in ('INTEGER', 'INT64'):
+                return or_none(int, value)
+            if typ in ('BOOLEAN', 'BOOL'):
+                return or_none(bool, value)
+            if typ == 'TIMESTAMP':
+                return int(or_none(float, value))
+            # DATE, TIME, DATETIME
+            raise NotImplementedError((name, value, typ, mode))
+        return {
+            field['name']: parse_field(field['name'], field['v'], field_schema)
+            for field, field_schema in zip(data['f'], schema['fields'])
+        }
 
     def __init__(self, schema):
         self.schema = schema

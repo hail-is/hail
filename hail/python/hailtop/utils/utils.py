@@ -14,7 +14,6 @@ import random
 import logging
 import asyncio
 import aiohttp
-from aiohttp import web
 import urllib
 import urllib3
 import secrets
@@ -836,32 +835,6 @@ def sync_retry_transient_errors(f, *args, **kwargs):
             else:
                 raise
         delay = sync_sleep_and_backoff(delay)
-
-
-async def request_retry_transient_errors(
-        session,  # : Union[httpx.ClientSession, aiohttp.ClientSession]
-        method: str,
-        url,
-        **kwargs
-) -> aiohttp.ClientResponse:
-    return await retry_transient_errors(session.request, method, url, **kwargs)
-
-
-async def request_raise_transient_errors(
-        session,  # : Union[httpx.ClientSession, aiohttp.ClientSession]
-        method: str,
-        url,
-        **kwargs
-) -> aiohttp.ClientResponse:
-    try:
-        return await session.request(method, url, **kwargs)
-    except KeyboardInterrupt:
-        raise
-    except Exception as e:
-        if is_transient_error(e):
-            log.exception('request failed with transient exception: {method} {url}')
-            raise web.HTTPServiceUnavailable()
-        raise
 
 
 def retry_response_returning_functions(fun, *args, **kwargs):
