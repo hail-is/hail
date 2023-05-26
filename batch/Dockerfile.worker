@@ -4,10 +4,11 @@ FROM {{ hail_ubuntu_image.image }} AS base
 RUN hail-apt-get-install \
     iproute2 \
     iptables \
-    openjdk-8-jre-headless \
+    libfuse3-dev \
     liblapack3 \
-    xfsprogs \
-    libyajl-dev
+    libyajl-dev \
+    openjdk-8-jre-headless \
+    xfsprogs
 
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1
 
