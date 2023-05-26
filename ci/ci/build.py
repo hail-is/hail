@@ -333,7 +333,7 @@ class BuildImage2Step(Step):
 
         if isinstance(self.dockerfile, dict):
             assert ['inline'] == list(self.dockerfile.keys())
-            unrendered_dockerfile = f'/home/user/Dockerfile.in.{self.token}'
+            unrendered_dockerfile = f'/Dockerfile.in.{self.token}'
             create_inline_dockerfile_if_present = f'echo {shq(self.dockerfile["inline"])} > {unrendered_dockerfile};\n'
         else:
             assert isinstance(self.dockerfile, str)
@@ -349,7 +349,7 @@ time python3 \
      /jinja2_render.py \
      {shq(json.dumps(config))} \
      {unrendered_dockerfile} \
-     /home/user/Dockerfile
+     /Dockerfile
 
 set +x
 /bin/sh /convert-cloud-credentials-to-docker-auth-config
@@ -360,7 +360,7 @@ set -x
 export TMPDIR=/io/
 retry buildah build \
       -t {shq(self.image)} \
-      -f /home/user/Dockerfile \
+      -f /Dockerfile \
       --cache-from {shq(self.cache_repository)} \
       --cache-to {shq(self.cache_repository)} \
       --layers \
