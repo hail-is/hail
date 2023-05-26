@@ -1347,6 +1347,7 @@ steps:
       export HAIL_TEST_STORAGE_URI=/io/tmp/
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
+      export HAIL_LOCAL_BACKEND_HEAP_SIZE=3G
 
       hailctl config set query/backend local
 
