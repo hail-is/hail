@@ -17,11 +17,11 @@ from hailtop.aiotools.fs import (FileStatus, FileListEntry, ReadableStream, Writ
                                  AsyncFSURL, AsyncFSFactory, FileAndDirectoryError, MultiPartCreate,
                                  UnexpectedEOFError)
 from hailtop.aiotools import FeedableAsyncIterable, WriteBuffer
-from hailtop.aiocloud.aiogoogle import get_gcs_requester_pays_configuration
 
 from .base_client import GoogleBaseClient
 from ..session import GoogleSession
 from ..credentials import GoogleCredentials
+from ..user_config import get_gcs_requester_pays_configuration
 
 log = logging.getLogger(__name__)
 
