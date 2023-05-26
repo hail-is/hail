@@ -25,8 +25,7 @@ from hailtop.batch_client import client as hb
 from hailtop.batch_client import aioclient as aiohb
 from hailtop.aiotools.fs import AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
-from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
-from hailtop.config.user_config import get_gcs_requester_pays_configuration
+from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
 import hailtop.aiotools.fs as afs
 from hailtop.fs.fs import FS
 from hailtop.fs.router_fs import RouterFS

@@ -17,7 +17,7 @@ from hailtop.aiotools.fs import (FileStatus, FileListEntry, ReadableStream, Writ
                                  AsyncFSURL, AsyncFSFactory, FileAndDirectoryError, MultiPartCreate,
                                  UnexpectedEOFError)
 from hailtop.aiotools import FeedableAsyncIterable, WriteBuffer
-from hailtop.config.user_config import get_gcs_requester_pays_configuration
+from hailtop.aiocloud.aiogoogle import get_gcs_requester_pays_configuration
 
 from .base_client import GoogleBaseClient
 from ..session import GoogleSession

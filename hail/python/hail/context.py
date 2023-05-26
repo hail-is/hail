@@ -18,8 +18,7 @@ from hail.utils.java import Env, warning, choose_backend
 from hail.backend import Backend
 from hailtop.utils import secret_alnum_string
 from hailtop.fs.fs import FS
-from hailtop.config.user_config import get_gcs_requester_pays_configuration
-from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
+from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
 from .builtin_references import BUILTIN_REFERENCES
 
 
