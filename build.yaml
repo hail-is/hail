@@ -3724,7 +3724,7 @@ steps:
       - cancel_all_running_test_batches
   - kind: buildImage2
     name: gar_cleaner_image
-    dockerFile: /io/repo/gce-image-cleaner/Dockerfile
+    dockerFile: /io/repo/gar-cleaner/Dockerfile
     contextPath: /io/repo
     publishAs: admin-pod
     inputs:
