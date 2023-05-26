@@ -25,7 +25,7 @@ spec:
           - bash
           - -c
           - "while true; do sleep 3600; bash gar-cleaner.sh {{ default_ns.name }} ; done"
-         image: {{ image_cleaner_image.image }}
+         image: {{ gar_cleaner_image.image }}
          resources:
            requests:
              cpu: "1m"
