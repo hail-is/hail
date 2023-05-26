@@ -84,6 +84,7 @@ resource "google_compute_network" "default" {
   name = "default"
   description = "Default network for the project"
   enable_ula_internal_ipv6 = false
+  auto_create_subnetworks = false
 }
 
 resource "google_compute_subnetwork" "default_region" {
@@ -640,6 +641,10 @@ resource "google_storage_bucket" "hail_test_requester_pays_bucket" {
   storage_class = var.hail_test_gcs_bucket_storage_class
   uniform_bucket_level_access = true
   requester_pays = true
+
+  labels = {
+    "name" = "hail-test-requester-pays-fds32"
+  }
 
   timeouts {}
 }
