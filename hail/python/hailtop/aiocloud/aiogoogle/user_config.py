@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Union, Tuple
 import os
 import warnings
 from enum import Enum
@@ -6,7 +6,9 @@ from dataclasses import dataclass
 
 
 from hailtop.config.user_config import configuration_of
-from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
+
+
+GCSRequesterPaysConfiguration = Union[str, Tuple[str, List[str]]]
 
 
 def get_gcs_requester_pays_configuration(

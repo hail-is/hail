@@ -1,6 +1,6 @@
 import os
 from typing import (Tuple, Any, Set, Optional, MutableMapping, Dict, AsyncIterator, cast, Type,
-                    List, Coroutine, Union)
+                    List, Coroutine)
 from types import TracebackType
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import
 import sys
@@ -21,12 +21,9 @@ from hailtop.aiotools import FeedableAsyncIterable, WriteBuffer
 from .base_client import GoogleBaseClient
 from ..session import GoogleSession
 from ..credentials import GoogleCredentials
-from ..user_config import get_gcs_requester_pays_configuration
+from ..user_config import get_gcs_requester_pays_configuration, GCSRequesterPaysConfiguration
 
 log = logging.getLogger(__name__)
-
-
-GCSRequesterPaysConfiguration = Union[str, Tuple[str, List[str]]]
 
 
 class PageIterator:
