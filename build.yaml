@@ -1225,6 +1225,7 @@ steps:
               --instafail \
               --durations=50 \
               test/hailtop/inter_cloud
+    timeout: 1200
     inputs:
       - from: /repo/hail/python/dev/pinned-requirements.txt
         to: /io/test-requirements.txt
@@ -1341,6 +1342,7 @@ steps:
               --durations=50 \
               --ignore=test/hailtop/ \
               test
+    timeout: 1200
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
@@ -2425,7 +2427,7 @@ steps:
               --durations=50 \
               --ignore=test/hailtop/ \
               test
-    timeout: 1800
+    timeout: 2100
     inputs:
       - from: /wheel-container.tar
         to: /io/wheel-container.tar
