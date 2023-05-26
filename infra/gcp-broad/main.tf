@@ -724,4 +724,6 @@ module "ci" {
   ci_email = module.ci_gsa_secret.email
   github_context = local.ci_config.data["github_context"]
   test_oauth2_callback_urls = local.ci_config.data["test_oauth2_callback_urls"]
+
+  github_organization = var.github_organization
 }
