@@ -130,7 +130,7 @@ class LocalBackend(Py4JBackend):
             else:
                 raise RuntimeError('local backend requires a packaged jar or HAIL_JAR to be set')
 
-        jvm_opts = ['-Dsun.java.command=HailLocalBackend']
+        jvm_opts = []
         if jvm_heap_size is not None:
             jvm_opts.append(f'-Xmx{jvm_heap_size}')
         port = launch_gateway(
