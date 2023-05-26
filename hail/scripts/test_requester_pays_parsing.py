@@ -6,8 +6,7 @@ from hailtop.utils.process import check_exec_output
 
 
 if 'YOU_MAY_OVERWRITE_MY_SPARK_DEFAULTS_CONF' not in os.environ:
-    print('This script will overwrite your spark-defaults.conf. It is intended to be executed inside a
-# container.')
+    print('This script will overwrite your spark-defaults.conf. It is intended to be executed inside a container.')
     sys.exit(1)
 
 
