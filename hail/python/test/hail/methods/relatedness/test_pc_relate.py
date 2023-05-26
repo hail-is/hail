@@ -5,8 +5,9 @@ from ...helpers import resource, skip_when_service_backend
 
 
 def test_pc_relate_against_R_truth():
-    mt = hl.import_vcf(resource('pc_relate_bn_input.vcf.bgz'))
-    with hl.TemporaryDirectory(ensure_exists=False) as hail_kin_f:
+    with hl.TemporaryDirectory(ensure_exists=False) as vcf_f, \
+         hl.TemporaryDirectory(ensure_exists=False) as hail_kin_f:
+        mt = hl.import_vcf(resource('pc_relate_bn_input.vcf.bgz')).checkpoint(vcf_f)
         hail_kin = hl.pc_relate(mt.GT, 0.00, k=2).checkpoint(hail_kin_f)
 
         with hl.TemporaryDirectory(ensure_exists=False) as r_kin_f:
