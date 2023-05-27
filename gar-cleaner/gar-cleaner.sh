@@ -2,6 +2,8 @@
 
 set -ex
 
+# FIXME: ignore all the third-party and hailgenetics images
+
 gcloud artifacts docker images list us-docker.pkg.dev/hail-vdc/hail --include-tags > images2
 cat images2 | sed 's/, /,/g' > images3
 cat images3 | sed 's/  */ /g' > images4
