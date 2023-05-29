@@ -63,12 +63,12 @@
   </thead>
   <tbody>
   <tr>
-    <td class="numeric-cell">{{ jpim.n_instances_by_state['pending'] }}</td>
-    <td class="numeric-cell">{{ jpim.n_instances_by_state['active'] }}</td>
-    <td class="numeric-cell">{{ jpim.n_instances_by_state['inactive'] }}</td>
-    <td class="numeric-cell">{{ jpim.n_instances_by_state['deleted'] }}</td>
-    <td class="numeric-cell">{{ jpim.live_total_cores_mcpu / 1000 }}</td>
-    <td class="numeric-cell">{{ jpim.live_free_cores_mcpu / 1000 }}</td>
+    <td class="numeric-cell">{{ jpim.current_worker_version_stats.n_instances_by_state['pending'] }}</td>
+    <td class="numeric-cell">{{ jpim.current_worker_version_stats.n_instances_by_state['active'] }}</td>
+    <td class="numeric-cell">{{ jpim.current_worker_version_stats.n_instances_by_state['inactive'] }}</td>
+    <td class="numeric-cell">{{ jpim.current_worker_version_stats.n_instances_by_state['deleted'] }}</td>
+    <td class="numeric-cell">{{ jpim.current_worker_version_stats.live_total_cores_mcpu / 1000 }}</td>
+    <td class="numeric-cell">{{ jpim.current_worker_version_stats.live_free_cores_mcpu / 1000 }}</td>
   </tr>
   </tbody>
 </table>

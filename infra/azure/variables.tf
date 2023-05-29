@@ -59,3 +59,7 @@ variable oauth2_developer_redirect_uris {
   type    = list(string)
   default = []
 }
+
+variable storage_account_suffix {
+  type = string
+}

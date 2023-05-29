@@ -79,8 +79,8 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
     dr = dr._key_by_assert_sorted('locus', 'alleles')
     fields_to_drop = ['_var_entries', '_ref_entries', 'dense_ref', '_variant_defined']
 
-    if 'ref_block_max_length' in dr.globals:
-        fields_to_drop.append('ref_block_max_length')
+    if hl.vds.VariantDataset.ref_block_max_length_field in dr.globals:
+        fields_to_drop.append(hl.vds.VariantDataset.ref_block_max_length_field)
 
     if 'ref_allele' in dr.row:
         fields_to_drop.append('ref_allele')
@@ -599,7 +599,7 @@ def _parameterized_filter_intervals(vds: 'VariantDataset',
                 f"'filter_intervals': expect a table with a single key of type {expected}; "
                 f"found {list(intervals.key.dtype.values())}")
         intervals_table = intervals
-        intervals = intervals.aggregate(hl.agg.collect(intervals.key[0]))
+        intervals = hl.literal(intervals.aggregate(hl.agg.collect(intervals.key[0]), _localize=False))
 
     if mode == 'unchecked_filter_both':
         return VariantDataset(hl.filter_intervals(vds.reference_data, intervals, keep),
@@ -607,15 +607,17 @@ def _parameterized_filter_intervals(vds: 'VariantDataset',
 
     reference_data = vds.reference_data
     if keep:
-        if 'ref_block_max_length' in vds.reference_data.globals:
-            max_len = hl.eval(vds.reference_data.index_globals()['ref_block_max_length'])
+        rbml = hl.vds.VariantDataset.ref_block_max_length_field
+        if rbml in vds.reference_data.globals:
+            max_len = hl.eval(vds.reference_data.index_globals()[rbml])
             ref_intervals = intervals.map(
                 lambda interval: hl.interval(interval.start - (max_len - 1), interval.end, interval.includes_start,
                                              interval.includes_end))
             reference_data = hl.filter_intervals(reference_data, ref_intervals, keep)
         else:
-            warning("'hl.vds.filter_intervals': filtering intervals when reference blocks have not been truncated"
-                    "\n  (by 'hl.vds.truncate_reference_blocks') requires a full pass over the reference data (expensive!)")
+            warning("'hl.vds.filter_intervals': filtering intervals without a known max reference block length"
+                    "\n  (computed by `hl.vds.store_ref_block_max_lengthgth` or 'hl.vds.truncate_reference_blocks')"
+                    "\n  requires a full pass over the reference data (expensive!)")
 
     if mode == 'variants_only':
         variant_data = hl.filter_intervals(vds.variant_data, intervals, keep)
@@ -968,6 +970,12 @@ def truncate_reference_blocks(ds, *, max_ref_block_base_pairs=None,
     data by reading `ref_block_max_length` bases ahead of each interval. This allows narrow interval queries
     to run in roughly O(data kept) work rather than O(all reference data) work.
 
+    It is also possible to patch an existing VDS to store the max reference block length with :func:`.vds.store_ref_block_max_length`.
+
+    See Also
+    --------
+    :func:`.vds.store_ref_block_max_length`.
+
     Parameters
     ----------
     vds : :class:`.VariantDataset` or :class:`.MatrixTable`
@@ -984,6 +992,10 @@ def truncate_reference_blocks(ds, *, max_ref_block_base_pairs=None,
         rd = ds.reference_data
     else:
         rd = ds
+
+    fd_name = hl.vds.VariantDataset.ref_block_max_length_field
+    if fd_name in rd.globals:
+        rd = rd.drop(fd_name)
 
     if int(ref_block_winsorize_fraction is None) + int(max_ref_block_base_pairs is None) != 1:
         raise ValueError(
@@ -1023,7 +1035,7 @@ def truncate_reference_blocks(ds, *, max_ref_block_base_pairs=None,
         lambda idx: hl.coalesce(joined.moved_blocks_dict.get(idx), joined.fixed_blocks[idx])))
     new_rd = joined._unlocalize_entries(entries_field_name='merged_blocks', cols_field_name='cols',
                                         col_key=list(rd.col_key))
-    new_rd = new_rd.annotate_globals(ref_block_max_length=max_ref_block_base_pairs)
+    new_rd = new_rd.annotate_globals(**{fd_name: max_ref_block_base_pairs})
 
     if isinstance(ds, hl.vds.VariantDataset):
         return VariantDataset(reference_data=new_rd, variant_data=ds.variant_data)
@@ -1145,8 +1157,9 @@ def merge_reference_blocks(ds, equivalence_function, merge_functions=None):
     new_rd = ht_joined._unlocalize_entries(entries_field_name='new_entries', cols_field_name='cols',
                                            col_key=list(rd.col_key))
 
-    if 'ref_block_max_length' in new_rd.globals:
-        new_rd = new_rd.drop('ref_block_max_length')
+    rbml = hl.vds.VariantDataset.ref_block_max_length_field
+    if rbml in new_rd.globals:
+        new_rd = new_rd.drop(rbml)
 
     if isinstance(ds, VariantDataset):
         return VariantDataset(reference_data=new_rd, variant_data=ds.variant_data)

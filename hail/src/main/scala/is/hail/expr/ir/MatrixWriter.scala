@@ -50,21 +50,24 @@ case class WrappedMatrixWriter(writer: MatrixWriter,
   entriesFieldName: String,
   colKey: IndexedSeq[String]) extends TableWriter {
   def path: String = writer.path
-  def apply(ctx: ExecuteContext, tv: TableValue): Unit = writer(ctx, tv.toMatrixValue(colKey, colsFieldName, entriesFieldName))
-  override def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable): IR =
-    writer.lower(colsFieldName, entriesFieldName, colKey, ctx, ts, t, r)
 
-  override def canLowerEfficiently: Boolean = writer.canLowerEfficiently
+  override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR =
+    writer.lower(colsFieldName, entriesFieldName, colKey, ctx, ts, r)
 }
 
 abstract class MatrixWriter {
   def path: String
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit
-  def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
-    ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable): IR =
-    throw new LowererUnsupportedOperation(s"${ this.getClass } does not have defined lowering!")
 
-  def canLowerEfficiently: Boolean
+  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = {
+    val tv = mv.toTableValue
+    val ts = TableExecuteIntermediate(tv).asTableStage(ctx)
+    CompileAndEvaluate(ctx, lower(LowerMatrixIR.colsFieldName, MatrixType.entriesIdentifier,
+      mv.typ.colKey, ctx, ts, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable]
+    ))
+  }
+
+  def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
+    ctx: ExecuteContext, ts: TableStage, r: RTable): IR
 }
 
 case class MatrixNativeWriter(
@@ -73,17 +76,13 @@ case class MatrixNativeWriter(
   stageLocally: Boolean = false,
   codecSpecJSONStr: String = null,
   partitions: String = null,
-  partitionsTypeStr: String = null,
-  checkpointFile: String = null
+  partitionsTypeStr: String = null
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = mv.write(ctx, path, overwrite, stageLocally, codecSpecJSONStr, partitions, partitionsTypeStr, checkpointFile)
-
-  def canLowerEfficiently: Boolean = !stageLocally && checkpointFile == null
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
-    ctx: ExecuteContext, tablestage: TableStage, t: TableIR, r: RTable): IR = {
+    ctx: ExecuteContext, tablestage: TableStage, r: RTable): IR = {
     val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
-    val tm = MatrixType.fromTableType(t.typ, colsFieldName, entriesFieldName, colKey)
+    val tm = MatrixType.fromTableType(tablestage.tableType, colsFieldName, entriesFieldName, colKey)
     val rm = r.asMatrixType(colsFieldName, entriesFieldName)
 
     val lowered =
@@ -92,12 +91,8 @@ case class MatrixNativeWriter(
         val jv = JsonMethods.parse(partitions)
         val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, partitionsType)
           .asInstanceOf[IndexedSeq[Interval]]
-        tablestage.repartitionNoShuffle(new RVDPartitioner(ctx.stateManager, tm.rowKey.toArray, tm.rowKeyStruct, rangeBounds))
+        tablestage.repartitionNoShuffle(ctx, new RVDPartitioner(ctx.stateManager, tm.rowKey.toArray, tm.rowKeyStruct, rangeBounds))
       } else tablestage
-
-    if (checkpointFile != null) {
-      warn(s"lowered execution does not support checkpoint files")
-    }
 
     val rowSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(tm.rowType, rm.rowType), tm.rowType, bufferSpec)
     val entrySpec = TypedCodecSpec(EType.fromTypeAndAnalysis(tm.entriesRVType, rm.entriesRVType), tm.entriesRVType, bufferSpec)
@@ -127,7 +122,7 @@ case class MatrixNativeWriter(
     val rowTableWriter = TableSpecWriter(s"$path/rows", tm.rowsTableType, "rows", "../globals/rows", "../references", log = false)
     val entriesTableWriter = TableSpecWriter(s"$path/entries", TableType(tm.entriesRVType, FastIndexedSeq(), tm.globalType), "rows", "../globals/rows", "../references", log = false)
 
-    RelationalWriter.scoped(path, overwrite = overwrite, Some(t.typ))(
+    RelationalWriter.scoped(path, overwrite = overwrite, Some(tablestage.tableType))(
       RelationalWriter.scoped(s"$path/globals", overwrite = false, None)(
         RelationalWriter.scoped(s"$path/cols", overwrite = false, None)(
           RelationalWriter.scoped(s"$path/rows", overwrite = false, None)(
@@ -423,23 +418,11 @@ case class MatrixVCFWriter(
   metadata: Option[VCFMetadata] = None,
   tabix: Boolean = false
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = {
-    val appendStr = getAppendHeaderValue(ctx.fs)
-    val tv = mv.toTableValue
-    val ts = TableExecuteIntermediate(tv).asTableStage(ctx)
-    val tl = TableLiteral(tv, ctx.theHailClassLoader)
-    CompileAndEvaluate(ctx,
-      lower(LowerMatrixIR.colsFieldName, MatrixType.entriesIdentifier, mv.typ.colKey,
-        ctx, ts, tl, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable]))
-  }
-
-  def canLowerEfficiently: Boolean = true
-
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
-      ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable): IR = {
+      ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
     require(exportType != ExportType.PARALLEL_COMPOSABLE)
 
-    val tm = MatrixType.fromTableType(t.typ, colsFieldName, entriesFieldName, colKey)
+    val tm = MatrixType.fromTableType(ts.tableType, colsFieldName, entriesFieldName, colKey)
     tm.requireRowKeyVariant()
     tm.requireColKeyString()
     ExportVCF.checkFormatSignature(tm.entryType)
@@ -819,18 +802,23 @@ case class VCFExportFinalizer(typ: MatrixType, outputPath: String, append: Optio
     val annotations = writeAnnotations.get(cb).asBaseStruct
 
     val partPaths = annotations.loadField(cb, "partFiles").get(cb).asIndexable
-    val files = if (tabix && exportType != ExportType.CONCATENATED) {
+    val partFiles = partPaths.castTo(cb, region, SJavaArrayString(true), false).asInstanceOf[SJavaArrayStringValue].array
+    cb.ifx(partPaths.hasMissingValues(cb), cb._fatal("matrixwriter part paths contains missing values"))
+
+    val allFiles = if (tabix && exportType != ExportType.CONCATENATED) {
       val len = partPaths.loadLength()
       val files = cb.memoize(Code.newArray[String](len * 2))
-      partPaths.forEachDefined(cb) { case (cb, i, file: SStringValue) =>
-        val path = file.loadString(cb)
+      val i = cb.newLocal[Int]("i", 0)
+      cb.whileLoop(i < len, {
+        val path = cb.memoize(partFiles(i))
         cb += files.update(i, path)
         // FIXME(chrisvittal): this will put the string ".tbi" in generated code, we should just access the htsjdk value
         cb += files.update(cb.memoize(i + len), Code.invokeStatic2[htsjdk.tribble.util.ParsingUtils, String, String, String]("appendToPath", path, htsjdk.samtools.util.FileExtensions.TABIX_INDEX))
-      }
+        cb.assign(i, i+1)
+      })
       files
     } else {
-      partPaths.castTo(cb, region, SJavaArrayString(true), false).asInstanceOf[SJavaArrayStringValue].array
+      partFiles
     }
     exportType match {
       case ExportType.CONCATENATED =>
@@ -842,10 +830,10 @@ case class VCFExportFinalizer(typ: MatrixType, outputPath: String, append: Optio
         cb += os.invoke[Int, Unit]("write", '\n')
         cb += os.invoke[Unit]("close")
 
-        val jFiles = cb.memoize(Code.newArray[String](files.length + 1))
+        val jFiles = cb.memoize(Code.newArray[String](partFiles.length + 1))
         cb += (jFiles(0) = const(headerFilePath))
         cb += Code.invokeStatic5[System, Any, Int, Any, Int, Int, Unit](
-          "arraycopy", files /*src*/, 0 /*srcPos*/, jFiles /*dest*/, 1 /*destPos*/, files.length /*len*/)
+          "arraycopy", partFiles /*src*/, 0 /*srcPos*/, jFiles /*dest*/, 1 /*destPos*/, partFiles.length /*len*/)
 
         cb += cb.emb.getFS.invoke[Array[String], String, Unit]("concatenateFiles", jFiles, const(outputPath))
 
@@ -859,11 +847,12 @@ case class VCFExportFinalizer(typ: MatrixType, outputPath: String, append: Optio
         }
 
       case ExportType.PARALLEL_HEADER_IN_SHARD =>
-        cb += Code.invokeScalaObject3[FS, String, Array[String], Unit](TableTextFinalizer.getClass, "cleanup", cb.emb.getFS, outputPath, files)
+        cb += Code.invokeScalaObject3[FS, String, Array[String], Unit](TableTextFinalizer.getClass, "cleanup", cb.emb.getFS, outputPath, allFiles)
+        cb += Code.invokeScalaObject4[FS, String, Array[String], String, Unit](TableTextFinalizer.getClass, "writeManifest", cb.emb.getFS, outputPath, partFiles, Code._null[String])
         cb += cb.emb.getFS.invoke[String, Unit]("touch", const(outputPath).concat("/_SUCCESS"))
 
       case ExportType.PARALLEL_SEPARATE_HEADER =>
-        cb += Code.invokeScalaObject3[FS, String, Array[String], Unit](TableTextFinalizer.getClass, "cleanup", cb.emb.getFS, outputPath, files)
+        cb += Code.invokeScalaObject3[FS, String, Array[String], Unit](TableTextFinalizer.getClass, "cleanup", cb.emb.getFS, outputPath, allFiles)
         val headerFilePath = s"$outputPath/header$ext"
         val headerStr = header(cb, annotations)
 
@@ -871,6 +860,7 @@ case class VCFExportFinalizer(typ: MatrixType, outputPath: String, append: Optio
         cb += os.invoke[Array[Byte], Unit]("write", headerStr.invoke[Array[Byte]]("getBytes"))
         cb += os.invoke[Int, Unit]("write", '\n')
         cb += os.invoke[Unit]("close")
+        cb += Code.invokeScalaObject4[FS, String, Array[String], String, Unit](TableTextFinalizer.getClass, "writeManifest", cb.emb.getFS, outputPath, partFiles, headerFilePath)
 
         cb += cb.emb.getFS.invoke[String, Unit]("touch", const(outputPath).concat("/_SUCCESS"))
     }
@@ -881,20 +871,10 @@ case class MatrixGENWriter(
   path: String,
   precision: Int = 4
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = {
-    val tv = mv.toTableValue
-    val ts = TableExecuteIntermediate(tv).asTableStage(ctx)
-    val tl = TableLiteral(tv, ctx.theHailClassLoader)
-    CompileAndEvaluate(ctx,
-      lower(LowerMatrixIR.colsFieldName, MatrixType.entriesIdentifier, mv.typ.colKey,
-        ctx, ts, tl, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable]))
-  }
-
-  def canLowerEfficiently: Boolean = true
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
-      ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable): IR = {
-    val tm = MatrixType.fromTableType(t.typ, colsFieldName, entriesFieldName, colKey)
+      ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
+    val tm = MatrixType.fromTableType(ts.tableType, colsFieldName, entriesFieldName, colKey)
 
     val sampleWriter = new GenSampleWriter
 
@@ -1003,21 +983,11 @@ case class MatrixBGENWriter(
   exportType: String,
   compressionCodec: String
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = {
-    val tv = mv.toTableValue
-    val ts = TableExecuteIntermediate(tv).asTableStage(ctx)
-    val tl = TableLiteral(tv, ctx.theHailClassLoader)
-    CompileAndEvaluate(ctx,
-      lower(LowerMatrixIR.colsFieldName, MatrixType.entriesIdentifier, mv.typ.colKey,
-        ctx, ts, tl, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable]))
-  }
-
-  def canLowerEfficiently: Boolean = true
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
-      ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable): IR = {
+      ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
 
-    val tm = MatrixType.fromTableType(t.typ, colsFieldName, entriesFieldName, colKey)
+    val tm = MatrixType.fromTableType(TableType(ts.rowType, ts.key, ts.globalType), colsFieldName, entriesFieldName, colKey)
     val folder = if (exportType == ExportType.CONCATENATED)
       ctx.createTmpPath("export-bgen-concatenated")
     else
@@ -1248,15 +1218,19 @@ case class BGENExportFinalizer(typ: MatrixType, path: String, exportType: String
         cb += files.update(i, res.asBaseStruct.loadField(cb, "partFile").get(cb).asString.loadString(cb))
       }
 
+      val headerStr = if (exportType == ExportType.PARALLEL_SEPARATE_HEADER) {
+        val headerStr = cb.memoize(const(path + ".bgen").concat("/header"))
+        val os = cb.memoize(cb.emb.create(headerStr))
+        val header = Code.invokeScalaObject3[Array[String], Long, Int, Array[Byte]](BgenWriter.getClass, "headerBlock", sampleIds, numVariants, compression)
+        cb += os.invoke[Array[Byte], Unit]("write", header)
+        cb += os.invoke[Unit]("close")
+        headerStr
+      } else Code._null[String]
       cb += Code.invokeScalaObject3[FS, String, Array[String], Unit](TableTextFinalizer.getClass, "cleanup", cb.emb.getFS, path + ".bgen", files)
+      cb += Code.invokeScalaObject4[FS, String, Array[String], String, Unit](TableTextFinalizer.getClass, "writeManifest", cb.emb.getFS, path + ".bgen", files, headerStr)
+
     }
 
-    if (exportType == ExportType.PARALLEL_SEPARATE_HEADER) {
-      val os = cb.memoize(cb.emb.create(const(path + ".bgen").concat("/header")))
-      val header = Code.invokeScalaObject3[Array[String], Long, Int, Array[Byte]](BgenWriter.getClass, "headerBlock", sampleIds, numVariants, compression)
-      cb += os.invoke[Array[Byte], Unit]("write", header)
-      cb += os.invoke[Unit]("close")
-    }
 
     if (exportType == ExportType.CONCATENATED) {
       val os = cb.memoize(cb.emb.create(const(path + ".bgen")))
@@ -1282,20 +1256,10 @@ case class BGENExportFinalizer(typ: MatrixType, path: String, exportType: String
 case class MatrixPLINKWriter(
   path: String
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = {
-    val tv = mv.toTableValue
-    val ts = TableExecuteIntermediate(tv).asTableStage(ctx)
-    val tl = TableLiteral(tv, ctx.theHailClassLoader)
-    CompileAndEvaluate(ctx,
-      lower(LowerMatrixIR.colsFieldName, MatrixType.entriesIdentifier, mv.typ.colKey,
-        ctx, ts, tl, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable]))
-  }
-
-  def canLowerEfficiently: Boolean = true
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
-      ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable): IR = {
-    val tm = MatrixType.fromTableType(t.typ, colsFieldName, entriesFieldName, colKey)
+      ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
+    val tm = MatrixType.fromTableType(ts.tableType, colsFieldName, entriesFieldName, colKey)
     val tmpBedDir = ctx.createTmpPath("export-plink", "bed")
     val tmpBimDir = ctx.createTmpPath("export-plink", "bim")
 
@@ -1449,14 +1413,11 @@ case class MatrixBlockMatrixWriter(
   entryField: String,
   blockSize: Int
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = MatrixWriteBlockMatrix(ctx, mv, entryField, path, overwrite, blockSize)
-
-  def canLowerEfficiently: Boolean = true
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
-    ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable): IR = {
+    ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
 
-    val tm = MatrixType.fromTableType(t.typ, colsFieldName, entriesFieldName, colKey)
+    val tm = MatrixType.fromTableType(ts.tableType, colsFieldName, entriesFieldName, colKey)
     val rm = r.asMatrixType(colsFieldName, entriesFieldName)
 
     val countColumnsIR = ArrayLen(GetField(ts.getGlobals(), colsFieldName))
@@ -1502,7 +1463,7 @@ case class MatrixBlockMatrixWriter(
     }
 
     val blockSizeGroupsPartitioner = RVDPartitioner.generate(ctx.stateManager, TStruct((perRowIdxId, TInt32)), desiredRowIntervals)
-    val rowsInBlockSizeGroups: TableStage = keyedByRowIdx.repartitionNoShuffle(blockSizeGroupsPartitioner)
+    val rowsInBlockSizeGroups: TableStage = keyedByRowIdx.repartitionNoShuffle(ctx, blockSizeGroupsPartitioner)
 
     def createBlockMakingContexts(tablePartsStreamIR: IR): IR = {
       flatten(zip2(tablePartsStreamIR, rangeIR(numBlockRows), ArrayZipBehavior.AssertSameLength) { case (tableSinglePartCtx, blockRowIdx)  =>
@@ -1548,6 +1509,7 @@ case class MatrixBlockMatrixWriter(
     val elementType = tm.entryType.fieldType(entryField)
     val etype = EBlockMatrixNDArray(EType.fromTypeAndAnalysis(elementType, rm.entryType.field(entryField)), encodeRowMajor = true, required = true)
     val spec = TypedCodecSpec(etype, TNDArray(tm.entryType.fieldType(entryField), Nat(2)), BlockMatrix.bufferSpec)
+    val writer = ETypeValueWriter(spec)
 
     val pathsWithColMajorIndices = tableOfNDArrays.mapCollect("matrix_block_matrix_writer") { partition =>
      ToArray(mapIR(partition) { singleNDArrayTuple =>
@@ -1555,7 +1517,7 @@ case class MatrixBlockMatrixWriter(
          val blockPath =
            Str(s"$path/parts/part-") +
              invoke("str", TString, colMajorIndex) + Str("-") + UUID4()
-         maketuple(colMajorIndex, WriteValue(GetField(singleNDArrayTuple, "ndBlock"), blockPath, spec))
+         maketuple(colMajorIndex, WriteValue(GetField(singleNDArrayTuple, "ndBlock"), blockPath, writer))
        }
       })
     }

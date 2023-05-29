@@ -24,12 +24,13 @@ from hailtop.batch_client import client as hb
 from hailtop.batch_client import aioclient as aiohb
 from hailtop.aiotools.fs import AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 import hailtop.aiotools.fs as afs
+from hailtop.fs.fs import FS
+from hailtop.fs.router_fs import RouterFS
 
 from .backend import Backend, fatal_error_from_java_error_triplet
 from ..builtin_references import BUILTIN_REFERENCES
-from ..fs.fs import FS
-from ..fs.router_fs import RouterFS
 from ..ir import BaseIR
 from ..utils import ANY_REGION
 
@@ -200,7 +201,8 @@ class ServiceBackend(Backend):
                      worker_memory: Optional[str] = None,
                      name_prefix: Optional[str] = None,
                      token: Optional[str] = None,
-                     regions: Optional[List[str]] = None):
+                     regions: Optional[List[str]] = None,
+                     gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None):
         billing_project = configuration_of('batch', 'billing_project', billing_project, None)
         if billing_project is None:
             raise ValueError(
@@ -209,7 +211,7 @@ class ServiceBackend(Backend):
                 "MY_BILLING_PROJECT'"
             )
 
-        async_fs = RouterAsyncFS('file')
+        async_fs = RouterAsyncFS(gcs_kwargs={'gcs_requester_pays_configuration': gcs_requester_pays_configuration})
         sync_fs = RouterFS(async_fs)
         if batch_client is None:
             batch_client = await aiohb.BatchClient.create(billing_project, _token=token)
@@ -346,7 +348,12 @@ class ServiceBackend(Backend):
                    inputs: Callable[[afs.WritableStream, str], Awaitable[None]],
                    *,
                    ir: Optional[BaseIR] = None,
-                   progress: Optional[BatchProgressBar] = None):
+                   progress: Optional[BatchProgressBar] = None,
+                   driver_cores: Optional[Union[int, str]] = None,
+                   driver_memory: Optional[str] = None,
+                   worker_cores: Optional[Union[int, str]] = None,
+                   worker_memory: Optional[str] = None,
+                   ):
         timings = Timings()
         token = secret_alnum_string()
         with TemporaryDirectory(ensure_exists=False) as iodir:
@@ -382,8 +389,14 @@ class ServiceBackend(Backend):
                             readonly_fuse_buckets.add(bucket)
                             storage_requirement_bytes += await (await self._async_fs.statfile(blob)).size()
                             await write_str(infile, f'/cloudfuse/{bucket}/{path}')
-                    await write_str(infile, str(self.worker_cores))
-                    await write_str(infile, str(self.worker_memory))
+                    if worker_cores is not None:
+                        await write_str(infile, str(worker_cores))
+                    else:
+                        await write_str(infile, str(self.worker_cores))
+                    if worker_memory is not None:
+                        await write_str(infile, str(worker_memory))
+                    else:
+                        await write_str(infile, str(self.worker_memory))
                     await write_int(infile, len(self.regions))
                     for region in self.regions:
                         await write_str(infile, region)
@@ -407,10 +420,16 @@ class ServiceBackend(Backend):
                     bb = await self.async_bc.update_batch(self._batch)
 
                 resources: Dict[str, Union[str, bool]] = {'preemptible': False}
-                if self.driver_cores is not None:
+                if driver_cores is not None:
+                    resources['cpu'] = str(driver_cores)
+                elif self.driver_cores is not None:
                     resources['cpu'] = str(self.driver_cores)
-                if self.driver_memory is not None:
+
+                if driver_memory is not None:
+                    resources['memory'] = str(driver_memory)
+                elif self.driver_memory is not None:
                     resources['memory'] = str(self.driver_memory)
+
                 if storage_requirement_bytes != 0:
                     resources['storage'] = storage_gib_str
 
@@ -427,6 +446,7 @@ class ServiceBackend(Backend):
                     attributes={'name': name + '_driver'},
                     regions=self.regions,
                     cloudfuse=cloudfuse_config,
+                    profile=self.flags['profile'] is not None,
                 )
                 self._batch = await bb.submit(disable_progress_bar=True)
 
@@ -481,16 +501,18 @@ class ServiceBackend(Backend):
             if self._batch is not None:
                 print("Received a keyboard interrupt, cancelling the batch...")
                 async_to_blocking(self._batch.cancel())
+                self._batch = None
             raise
 
-    def execute(self, ir: BaseIR, timed: bool = False):
-        return self._cancel_on_ctrl_c(self._async_execute(ir, timed=timed))
+    def execute(self, ir: BaseIR, timed: bool = False, **kwargs):
+        return self._cancel_on_ctrl_c(self._async_execute(ir, timed=timed, **kwargs))
 
     async def _async_execute(self,
                              ir: BaseIR,
                              *,
                              timed: bool = False,
-                             progress: Optional[BatchProgressBar] = None):
+                             progress: Optional[BatchProgressBar] = None,
+                             **kwargs):
         async def inputs(infile, token):
             await write_int(infile, ServiceBackend.EXECUTE)
             await write_str(infile, tmp_dir())
@@ -503,7 +525,13 @@ class ServiceBackend(Backend):
                 await fun.serialize(infile)
             await write_str(infile, '{"name":"StreamBufferSpec"}')
 
-        _, resp, timings = await self._rpc('execute(...)', inputs, ir=ir, progress=progress)
+        _, resp, timings = await self._rpc(
+            'execute(...)',
+            inputs,
+            ir=ir,
+            progress=progress,
+            **kwargs
+        )
         typ: HailType = ir.typ
         if typ == tvoid:
             assert resp == b'', (typ, resp)

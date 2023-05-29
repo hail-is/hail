@@ -30,7 +30,7 @@ class Tests(unittest.TestCase):
         remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
         token = uuid.uuid4()
         self.test_path = f'{remote_tmpdir}memory-tests/{token}'
-        self.fs = RouterAsyncFS(None)
+        self.fs = RouterAsyncFS()
         self.client = BlockingMemoryClient(fs=self.fs)
         self.temp_files = set()
 

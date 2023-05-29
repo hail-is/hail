@@ -22,16 +22,14 @@ class MatrixNativeWriter(MatrixWriter):
                       stage_locally=bool,
                       codec_spec=nullable(str),
                       partitions=nullable(str),
-                      partitions_type=nullable(hail_type),
-                      checkpoint_file=nullable(str))
-    def __init__(self, path, overwrite, stage_locally, codec_spec, partitions, partitions_type, checkpoint_file):
+                      partitions_type=nullable(hail_type))
+    def __init__(self, path, overwrite, stage_locally, codec_spec, partitions, partitions_type):
         self.path = path
         self.overwrite = overwrite
         self.stage_locally = stage_locally
         self.codec_spec = codec_spec
         self.partitions = partitions
         self.partitions_type = partitions_type
-        self.checkpoint_file = checkpoint_file
 
     def render(self):
         writer = {'name': 'MatrixNativeWriter',
@@ -40,8 +38,7 @@ class MatrixNativeWriter(MatrixWriter):
                   'stageLocally': self.stage_locally,
                   'codecSpecJSONStr': self.codec_spec,
                   'partitions': self.partitions,
-                  'partitionsTypeStr': self.partitions_type._parsable_string() if self.partitions_type is not None else None,
-                  'checkpointFile': self.checkpoint_file
+                  'partitionsTypeStr': self.partitions_type._parsable_string() if self.partitions_type is not None else None
                   }
         return escape_str(json.dumps(writer))
 
@@ -52,8 +49,7 @@ class MatrixNativeWriter(MatrixWriter):
             other.stage_locally == self.stage_locally and \
             other.codec_spec == self.codec_spec and \
             other.partitions == self.partitions and \
-            other.partitions_type == self.partitions_type and \
-            other.checkpoint_file == self.checkpoint_file
+            other.partitions_type == self.partitions_type
 
 
 class MatrixVCFWriter(MatrixWriter):

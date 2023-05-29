@@ -540,7 +540,7 @@ BEGIN
 
     INSERT INTO aggregated_billing_project_user_resources_v3 (billing_project, user, resource_id, token, `usage`)
     SELECT batches.billing_project, batches.`user`,
-      attempt_resources.resource_id,
+      attempt_resources.deduped_resource_id,
       rand_token,
       msec_diff_rollup * quantity
     FROM attempt_resources
@@ -564,7 +564,7 @@ BEGIN
 
     INSERT INTO aggregated_batch_resources_v3 (batch_id, resource_id, token, `usage`)
     SELECT attempt_resources.batch_id,
-      attempt_resources.resource_id,
+      attempt_resources.deduped_resource_id,
       rand_token,
       msec_diff_rollup * quantity
     FROM attempt_resources
@@ -585,7 +585,7 @@ BEGIN
 
     INSERT INTO aggregated_job_resources_v3 (batch_id, job_id, resource_id, `usage`)
     SELECT attempt_resources.batch_id, attempt_resources.job_id,
-      attempt_resources.resource_id,
+      attempt_resources.deduped_resource_id,
       msec_diff_rollup * quantity
     FROM attempt_resources
     JOIN aggregated_job_resources_v2 ON
@@ -611,7 +611,7 @@ BEGIN
     SELECT cur_billing_date,
       batches.billing_project,
       batches.`user`,
-      attempt_resources.resource_id,
+      attempt_resources.deduped_resource_id,
       rand_token,
       msec_diff_rollup * quantity
     FROM attempt_resources
@@ -836,7 +836,8 @@ BEGIN
 
     SELECT migrated INTO bp_user_resources_migrated
     FROM aggregated_billing_project_user_resources_v2
-    WHERE billing_project = cur_billing_project AND user = cur_user AND resource_id = NEW.resource_id AND token = rand_token;
+    WHERE billing_project = cur_billing_project AND user = cur_user AND resource_id = NEW.resource_id AND token = rand_token
+    FOR UPDATE;
 
     IF bp_user_resources_migrated THEN
       INSERT INTO aggregated_billing_project_user_resources_v3 (billing_project, user, resource_id, token, `usage`)
@@ -852,7 +853,8 @@ BEGIN
 
     SELECT migrated INTO batch_resources_migrated
     FROM aggregated_batch_resources_v2
-    WHERE batch_id = NEW.batch_id AND resource_id = NEW.resource_id AND token = rand_token;
+    WHERE batch_id = NEW.batch_id AND resource_id = NEW.resource_id AND token = rand_token
+    FOR UPDATE;
 
     IF batch_resources_migrated THEN
       INSERT INTO aggregated_batch_resources_v3 (batch_id, resource_id, token, `usage`)
@@ -868,7 +870,8 @@ BEGIN
 
     SELECT migrated INTO job_resources_migrated
     FROM aggregated_job_resources_v2
-    WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND resource_id = NEW.resource_id AND token = rand_token;
+    WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND resource_id = NEW.resource_id
+    FOR UPDATE;
 
     IF job_resources_migrated THEN
       INSERT INTO aggregated_job_resources_v3 (batch_id, job_id, resource_id, `usage`)
@@ -885,7 +888,8 @@ BEGIN
     SELECT migrated INTO bp_user_resources_by_date_migrated
     FROM aggregated_billing_project_user_resources_by_date_v2
     WHERE billing_date = cur_billing_date AND billing_project = cur_billing_project AND user = cur_user
-      AND resource_id = NEW.resource_id AND token = rand_token;
+      AND resource_id = NEW.resource_id AND token = rand_token
+    FOR UPDATE;
 
     IF bp_user_resources_by_date_migrated THEN
       INSERT INTO aggregated_billing_project_user_resources_by_date_v3 (billing_date, billing_project, user, resource_id, token, `usage`)

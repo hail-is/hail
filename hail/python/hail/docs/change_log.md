@@ -1,4 +1,15 @@
-# Change Log
+# Change Log And Version Policy
+
+## Python Version Compatibility Policy
+
+Hail complies with [NumPy's compatibility policy](https://numpy.org/neps/nep-0029-deprecation_policy.html#implementation) on Python
+versions. In particular, Hail officially supports:
+
+- All minor versions of Python released 42 months prior to the project, and at minimum the two
+  latest minor versions.
+
+- All minor versions of numpy released in the 24 months prior to the project, and at minimum the
+  last three minor versions.
 
 ## Frequently Asked Questions
 
@@ -21,6 +32,85 @@ such in the reference documentation, which may change at any time**.
 Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
+
+## Version 0.2.117
+
+Released 2023-05-19
+
+### New Features
+
+- (hail#12875) Parallel export modes now write a manifest file. These manifest files are text files with one filename per line, containing name of each shard written successfully to the directory. These filenames are relative to the export directory.
+- (hail#13007) In Query-on-Batch and `hailtop.batch`, memory and storage request strings may now be optionally terminated with a `B` for bytes.
+
+### Bug Fixes
+
+- (hail#13065) In Azure Query-on-Batch, fix a resource leak that prevented running pipelines with >500 partitions and created flakiness with >250 partitions.
+- (hail#13067) In Query-on-Batch, driver and worker logs no longer buffer so messages should arrive in the UI after a fixed delay rather than proportional to the frequency of log messages.
+- (hail#13028) Fix crash in `hl.vds.filter_intervals` when using a table to filter a VDS that stores the max ref block length.
+- (hail#13060) Prevent 500 Internal Server Error in Jupyter Notebooks of Dataproc clusters started by `hailctl dataproc`.
+- (hail#13051) In Query-on-Batch and `hailtop.batch`, Azure Blob Storage `https` URLs are now supported.
+- (hail#13042) In Query-on-Batch, `naive_coalesce` no longer performs a full write/read of the dataset. It now operates identically to the Query-on-Spark implementation.
+- (hail#13031) In `hl.ld_prune`, an informative error message is raised when a dataset does not contain diploid calls instead of an assertion error.
+- (hail#13032) In Query-on-Batch, in Azure, Hail now users a newer version of the Azure blob storage libraries to reduce the frequency of "Stream is already closed" errors.
+- (hail#13011) In Query-on-Batch, the driver will use ~1/2 as much memory to read results as it did in 0.2.115.
+- (hail#13013) In Query-on-Batch, transient errors while streaming from Google Storage are now automatically retried.
+
+---
+
+## Version 0.2.116
+
+Released 2023-05-08
+
+### New Features
+
+- (hail#12917) ABS blob URIs in the format of `https://<ACCOUNT_NAME>.blob.core.windows.net/<CONTAINER_NAME>/<PATH>` are now supported.
+- (hail#12731) Introduced `hailtop.fs` that makes public a filesystem module that works for local fs, gs, s3 and abs. This is now used as the `Backend.fs` for hail query but can be used standalone for Hail Batch users by `import hailtop.fs as hfs`.
+
+### Deprecations
+
+- (hail#12929) Hail no longer officially supports Python 3.7.
+- (hail#12917) The `hail-az` scheme for referencing blobs in ABS is now deprecated and will be removed in an upcoming release.
+
+### Bug Fixes
+
+- (hail#12913) Fixed bug in `hail.ggplot` where all legend entries would have the same text if one column had exactly one value for all rows and was mapped to either the `shape` or the `color` aesthetic for `geom_point`.
+- (hail#12901) `hl.Struct` now has a correct and useful implementation of `pprint`.
+
+---
+
+## Version 0.2.115
+
+Released 2023-04-25
+
+### New Features
+
+- (hail#12731) Introduced `hailtop.fs` that makes public a filesystem module that works
+  for local fs, gs, s3 and abs. This can be used by `import hailtop.fs as hfs` but has also
+  replaced the underlying implementation of the `hl.hadoop_*` methods. This means that the
+  `hl.hadoop_*` methods now support these additional blob storage providers.
+- (hail#12917) ABS blob URIs in the form of `https://<ACCOUNT_NAME>.blob.core.windows.net/<CONTAINER_NAME>/<PATH>` are now supported when running in Azure.
+
+### Deprecations
+- (hail#12917) The `hail-az` scheme for referencing ABS blobs in Azure is deprecated in favor of the `https` scheme and will be removed in a future release.
+
+### Bug Fixes
+
+- (hail#12919) An interactive hail session is no longer unusable after hitting CTRL-C during a batch execution in Query-on-Batch
+- (hail#12913) Fixed bug in `hail.ggplot` where all legend entries would have the same text if one column had exactly one value for all rows and was mapped to either the `shape` or the `color` aesthetic for `geom_point`.
+
+---
+
+## Version 0.2.114
+
+Released 2023-04-19
+
+### New Features
+
+- (hail#12880) Added `hl.vds.store_ref_block_max_len` to patch old VDSes to make interval filtering faster.
+
+### Bug Fixes
+
+- (hail#12860) Fixed memory leak in shuffles in Query-on-Batch.
 
 ---
 

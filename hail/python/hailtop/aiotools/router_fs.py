@@ -1,6 +1,6 @@
 from typing import Any, Optional, List, Set, AsyncIterator, Dict, AsyncContextManager, Callable
 import asyncio
-import urllib
+import urllib.parse
 
 from ..aiocloud import aioaws, aioazure, aiogoogle
 from .fs import (AsyncFS, MultiPartCreate, FileStatus, FileListEntry, ReadableStream,
@@ -10,33 +10,20 @@ from .local_fs import LocalAsyncFS
 
 class RouterAsyncFS(AsyncFS):
     def __init__(self,
-                 default_scheme: Optional[str],
                  *,
                  filesystems: Optional[List[AsyncFS]] = None,
                  local_kwargs: Optional[Dict[str, Any]] = None,
                  gcs_kwargs: Optional[Dict[str, Any]] = None,
                  azure_kwargs: Optional[Dict[str, Any]] = None,
                  s3_kwargs: Optional[Dict[str, Any]] = None):
-        scheme_fs: Dict[str, AsyncFS] = {}
-
-        filesystems = [] if filesystems is None else filesystems
-
-        for fs in filesystems:
-            for scheme in fs.schemes:
-                if scheme not in scheme_fs:
-                    scheme_fs[scheme] = fs
-
-        self._default_scheme = default_scheme
-        self._filesystems = filesystems
-        self._scheme_fs = scheme_fs
-
+        self._filesystems = [] if filesystems is None else filesystems
         self._local_kwargs = local_kwargs or {}
         self._gcs_kwargs = gcs_kwargs or {}
         self._azure_kwargs = azure_kwargs or {}
         self._s3_kwargs = s3_kwargs or {}
 
     def get_scheme(self, uri: str) -> str:
-        scheme = urllib.parse.urlparse(uri).scheme or self._default_scheme
+        scheme = urllib.parse.urlparse(uri).scheme or 'file'
         if not scheme:
             raise ValueError(f"no default scheme and URL has no scheme: {uri}")
         return scheme
@@ -46,32 +33,39 @@ class RouterAsyncFS(AsyncFS):
 
     @property
     def schemes(self) -> Set[str]:
-        return set(self._scheme_fs.keys())
+        return set().union(*(fs.schemes for fs in self._filesystems))
 
-    def _load_fs(self, scheme: str):
+    @staticmethod
+    def valid_url(url) -> bool:
+        return (
+            LocalAsyncFS.valid_url(url)
+            or aiogoogle.GoogleStorageAsyncFS.valid_url(url)
+            or aioazure.AzureAsyncFS.valid_url(url)
+            or aioaws.S3AsyncFS.valid_url(url)
+        )
+
+    def _load_fs(self, uri: str):
         fs: AsyncFS
 
-        if scheme in LocalAsyncFS.schemes:
+        if LocalAsyncFS.valid_url(uri):
             fs = LocalAsyncFS(**self._local_kwargs)
-        elif scheme in aiogoogle.GoogleStorageAsyncFS.schemes:
+        elif aiogoogle.GoogleStorageAsyncFS.valid_url(uri):
             fs = aiogoogle.GoogleStorageAsyncFS(**self._gcs_kwargs)
-        elif scheme in aioazure.AzureAsyncFS.schemes:
+        elif aioazure.AzureAsyncFS.valid_url(uri):
             fs = aioazure.AzureAsyncFS(**self._azure_kwargs)
-        elif scheme in aioaws.S3AsyncFS.schemes:
+        elif aioaws.S3AsyncFS.valid_url(uri):
             fs = aioaws.S3AsyncFS(**self._s3_kwargs)
         else:
-            raise ValueError(f'no file system found for scheme {scheme}')
+            raise ValueError(f'no file system found for url {uri}')
 
-        self._scheme_fs[scheme] = fs
         self._filesystems.append(fs)
+        return fs
 
     def _get_fs(self, uri: str) -> AsyncFS:
-        scheme = self.get_scheme(uri)
-        if scheme not in self._scheme_fs:
-            self._load_fs(scheme)
-        fs = self._scheme_fs.get(scheme)
-        assert fs is not None
-        return fs
+        for fs in self._filesystems:
+            if fs.valid_url(uri):
+                return fs
+        return self._load_fs(uri)
 
     async def open(self, url: str) -> ReadableStream:
         fs = self._get_fs(url)

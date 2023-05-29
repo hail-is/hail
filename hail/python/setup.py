@@ -25,6 +25,8 @@ def add_dependencies(fname):
             stripped = line.strip()
             if stripped.startswith('#') or len(stripped) == 0:
                 continue
+            if stripped.startswith('-c'):
+                continue
             if stripped.startswith('-r'):
                 additional_requirements = stripped[len('-r'):].strip()
                 add_dependencies(additional_requirements)
@@ -33,7 +35,8 @@ def add_dependencies(fname):
             if pkg.startswith('pyspark') and os.path.exists('../env/SPARK_VERSION'):
                 with open('../env/SPARK_VERSION', 'r') as file:
                     spark_version = file.read()
-                dependencies.append(f'pyspark=={spark_version}')
+                [major, minor, patch] = spark_version.split('.')
+                dependencies.append(f'pyspark>={major}.{minor},<{int(major)+1}')
             else:
                 dependencies.append(pkg)
 add_dependencies('requirements.txt')
@@ -68,7 +71,7 @@ setup(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
     ],
-    python_requires=">=3.7",
+    python_requires=">=3.8",
     install_requires=dependencies,
     entry_points={
         'console_scripts': ['hailctl = hailtop.hailctl.__main__:main']

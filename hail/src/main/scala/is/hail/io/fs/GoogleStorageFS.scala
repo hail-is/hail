@@ -89,6 +89,10 @@ class GoogleStorageFS(
 ) extends FS {
   import GoogleStorageFS._
 
+  def validUrl(filename: String): Boolean = {
+    filename.startsWith("gs://")
+  }
+
   def getConfiguration(): Option[RequesterPaysConfiguration] = {
     requesterPaysConfiguration
   }
@@ -194,29 +198,27 @@ class GoogleStorageFS(
 
     val is: SeekableInputStream = new FSSeekableInputStream {
       private[this] var reader: ReadChannel = null
-      private[this] var lazyPosition: Long = 0L
+
+      private[this] def retryingRead(): Int = {
+        retryTransientErrors(
+          { reader.read(bb) },
+          reset = Some({ () => reader.seek(getPosition) })
+        )
+      }
 
       private[this] def readHandlingRequesterPays(bb: ByteBuffer): Int = {
         if (reader != null) {
-          reader.read(bb)
+          retryingRead()
         } else {
           handleRequesterPays(
             { (options: Seq[BlobSourceOption]) =>
               reader = retryTransientErrors { storage.reader(bucket, path, options:_*) }
-              reader.seek(lazyPosition)
-              reader.read(bb)
+              reader.seek(getPosition)
+              retryingRead()
             },
             BlobSourceOption.userProject _,
             bucket
           )
-        }
-      }
-
-      private[this] def seekHandlingRequesterPays(newPos: Long): Unit = {
-        if (reader != null) {
-          reader.seek(newPos)
-        } else {
-          lazyPosition = newPos
         }
       }
 
@@ -247,7 +249,9 @@ class GoogleStorageFS(
       }
 
       override def physicalSeek(newPos: Long): Unit = {
-        seekHandlingRequesterPays(newPos)
+        if (reader != null) {
+          reader.seek(newPos)
+        }
       }
     }
 

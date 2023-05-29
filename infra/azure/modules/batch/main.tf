@@ -50,7 +50,7 @@ resource "kubernetes_secret" "batch_worker_ssh_public_key" {
 }
 
 resource "azurerm_storage_account" "batch" {
-  name                     = "${var.resource_group.name}batch"
+  name                     = "${var.resource_group.name}batch${var.storage_account_suffix}"
   resource_group_name      = var.resource_group.name
   location                 = var.resource_group.location
   account_tier             = "Standard"
@@ -74,7 +74,7 @@ resource "azurerm_storage_container" "query" {
 }
 
 resource "azurerm_storage_account" "test" {
-  name                     = "${var.batch_test_user_storage_account_name}test"
+  name                     = "${var.batch_test_user_storage_account_name}test${var.storage_account_suffix}"
   resource_group_name      = var.resource_group.name
   location                 = var.resource_group.location
   account_tier             = "Standard"

@@ -22,15 +22,9 @@ spec:
       containers:
        - name: admin-pod
          command:
-{% if not deploy %}
-         - /controller.sh
-{% endif %}
           - bash
           - -c
-          - |
-              ln -s /ssl-config/ssl-config.curlrc $HOME/.curlrc
-              ln -s /sql-config/sql-config.cnf $HOME/.my.cnf
-              while true; do sleep 1000; done
+          - "while true; do sleep 1000; done"
          image: {{ admin_pod_image.image }}
          resources:
            requests:
@@ -46,8 +40,13 @@ spec:
           - name: sql-config
             mountPath: /sql-config
             readOnly: true
-          - name: ssl-config-admin-pod
-            mountPath: /ssl-config
+          - name: ssl-config-curlrc
+            mountPath: /root/.curlrc
+            subPath: .curlrc
+            readOnly: true
+          - name: mysql-cnf
+            mountPath: /root/.my.cnf
+            subPath: .my.cnf
             readOnly: true
       volumes:
        - name: deploy-config
@@ -56,7 +55,16 @@ spec:
        - name: sql-config
          secret:
            secretName: database-server-config
-       - name: ssl-config-admin-pod
+       - name: mysql-cnf
+         secret:
+           secretName: database-server-config
+           items:
+             - key: sql-config.cnf
+               path: .my.cnf
+       - name: ssl-config-curlrc
          secret:
            optional: false
            secretName: ssl-config-admin-pod
+           items:
+             - key: ssl-config.curlrc
+               path: .curlrc

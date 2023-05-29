@@ -607,7 +607,7 @@ class Tests(unittest.TestCase):
                                               None]),
         ]
 
-    @with_flags('distributed_scan_comb_op')
+    @with_flags(distributed_scan_comb_op='1')
     def test_densify_table(self):
         ht = hl.utils.range_table(100, n_partitions=33)
         ht = ht.annotate(arr = hl.range(100).map(lambda idx: hl.or_missing(idx == ht.idx, idx)))
@@ -3745,11 +3745,11 @@ class Tests(unittest.TestCase):
     def test_numpy_conversions(self):
         assert hl.eval(np.int32(3)) == 3
         assert hl.eval(np.int64(1234)) == 1234
-        assert hl.eval(np.bool(True))
-        assert not hl.eval(np.bool(False))
+        assert hl.eval(np.bool_(True))
+        assert not hl.eval(np.bool_(False))
         assert np.allclose(hl.eval(np.float32(3.4)), 3.4)
         assert np.allclose(hl.eval(np.float64(8.89)), 8.89)
-        assert hl.eval(np.str("cat")) == "cat"
+        assert hl.eval(np.str_("cat")) == "cat"
 
     def test_array_struct_error(self):
         a = hl.array([hl.struct(a=5)])

@@ -10,6 +10,9 @@ Genetics
 
 .. autosummary::
 
+    VEPConfig
+    VEPConfigGRCh37Version85
+    VEPConfigGRCh38Version95
     balding_nichols_model
     concordance
     filter_intervals
@@ -21,6 +24,7 @@ Genetics
     impute_sex
     ld_matrix
     ld_prune
+    compute_charr
     mendel_errors
     de_novo
     nirvana
@@ -36,6 +40,10 @@ Genetics
     variant_qc
     vep
 
+.. autoclass:: VEPConfig
+.. autoclass:: VEPConfigGRCh37Version85
+.. autoclass:: VEPConfigGRCh38Version95
+
 .. autofunction:: balding_nichols_model
 .. autofunction:: concordance
 .. autofunction:: filter_intervals
@@ -47,6 +55,7 @@ Genetics
 .. autofunction:: impute_sex
 .. autofunction:: ld_matrix
 .. autofunction:: ld_prune
+.. autofunction:: compute_charr
 .. autofunction:: mendel_errors
 .. autofunction:: de_novo
 .. autofunction:: nirvana

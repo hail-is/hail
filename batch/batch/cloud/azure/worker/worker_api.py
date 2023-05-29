@@ -1,5 +1,6 @@
 import abc
 import os
+import tempfile
 from typing import Dict, Optional, Tuple
 
 import aiohttp
@@ -7,15 +8,15 @@ import aiohttp
 from gear.cloud_config import get_azure_config
 from hailtop import httpx
 from hailtop.aiocloud import aioazure
-from hailtop.utils import request_retry_transient_errors, time_msecs
+from hailtop.utils import check_exec_output, retry_transient_errors, time_msecs
 
-from ....worker.worker_api import CloudWorkerAPI
+from ....worker.worker_api import CloudWorkerAPI, ContainerRegistryCredentials
 from ..instance_config import AzureSlimInstanceConfig
 from .credentials import AzureUserCredentials
 from .disk import AzureDisk
 
 
-class AzureWorkerAPI(CloudWorkerAPI):
+class AzureWorkerAPI(CloudWorkerAPI[AzureUserCredentials]):
     nameserver_ip = '168.63.129.16'
 
     @staticmethod
@@ -31,6 +32,7 @@ class AzureWorkerAPI(CloudWorkerAPI):
         self.resource_group = resource_group
         self.acr_refresh_token = AcrRefreshToken(acr_url, AadAccessToken())
         self.azure_credentials = aioazure.AzureCredentials.default_credentials()
+        self._blobfuse_credential_files: Dict[str, str] = {}
 
     def create_disk(self, instance_name: str, disk_name: str, size_in_gb: int, mount_path: str) -> AzureDisk:
         return AzureDisk(disk_name, instance_name, size_in_gb, mount_path)
@@ -42,54 +44,81 @@ class AzureWorkerAPI(CloudWorkerAPI):
         azure_config = get_azure_config()
         return aioazure.AzureComputeClient(azure_config.subscription_id, azure_config.resource_group)
 
-    def user_credentials(self, credentials: Dict[str, bytes]) -> AzureUserCredentials:
+    def user_credentials(self, credentials: Dict[str, str]) -> AzureUserCredentials:
         return AzureUserCredentials(credentials)
 
-    async def worker_access_token(self, session: httpx.ClientSession) -> Dict[str, str]:
+    async def worker_container_registry_credentials(self, session: httpx.ClientSession) -> ContainerRegistryCredentials:
         # https://docs.microsoft.com/en-us/azure/container-registry/container-registry-authentication?tabs=azure-cli#az-acr-login-with---expose-token
         return {
             'username': '00000000-0000-0000-0000-000000000000',
             'password': await self.acr_refresh_token.token(session),
         }
 
+    async def user_container_registry_credentials(
+        self, user_credentials: AzureUserCredentials
+    ) -> ContainerRegistryCredentials:
+        return {
+            'username': user_credentials.username,
+            'password': user_credentials.password,
+        }
+
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> AzureSlimInstanceConfig:
         return AzureSlimInstanceConfig.from_dict(config_dict)
 
-    def write_cloudfuse_credentials(self, root_dir: str, credentials: str, bucket: str) -> str:
-        path = f'{root_dir}/cloudfuse/{bucket}/credentials'
-        os.makedirs(os.path.dirname(path))
-        with open(path, 'w', encoding='utf-8') as f:
-            f.write(credentials)
-        return path
-
-    def _mount_cloudfuse(
-        self, fuse_credentials_path: str, mount_base_path_data: str, mount_base_path_tmp: str, config: dict
+    def _write_blobfuse_credentials(
+        self,
+        credentials: AzureUserCredentials,
+        account: str,
+        container: str,
+        mount_base_path_data: str,
     ) -> str:
+        if mount_base_path_data not in self._blobfuse_credential_files:
+            with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', delete=False) as credsfile:
+                credsfile.write(credentials.blobfuse_credentials(account, container))
+                self._blobfuse_credential_files[mount_base_path_data] = credsfile.name
+        return self._blobfuse_credential_files[mount_base_path_data]
+
+    async def _mount_cloudfuse(
+        self,
+        credentials: AzureUserCredentials,
+        mount_base_path_data: str,
+        mount_base_path_tmp: str,
+        config: dict,
+    ):
         # https://docs.microsoft.com/en-us/azure/storage/blobs/storage-how-to-mount-container-linux#mount
         bucket = config['bucket']
         account, container = bucket.split('/', maxsplit=1)
         assert account and container
 
+        fuse_credentials_path = self._write_blobfuse_credentials(credentials, account, container, mount_base_path_data)
+
         options = ['allow_other']
         if config['read_only']:
             options.append('ro')
 
-        return f'''
-blobfuse \
-    {mount_base_path_data} \
-    --tmp-path={mount_base_path_tmp} \
-    --config-file={fuse_credentials_path} \
-    --pre-mount-validate=true \
-    -o {",".join(options)} \
-    -o attr_timeout=240 \
-    -o entry_timeout=240 \
-    -o negative_timeout=120
-'''
+        await check_exec_output(
+            'blobfuse',
+            mount_base_path_data,
+            f'--tmp-path={mount_base_path_tmp}',
+            f'--config-file={fuse_credentials_path}',
+            '--pre-mount-validate=true',
+            '-o',
+            ','.join(options),
+            '-o',
+            'attr_timeout=240',
+            '-o',
+            'entry_timeout=240',
+            '-o',
+            'negative_timeout=120',
+        )
 
-    def _unmount_cloudfuse(self, mount_base_path: str) -> str:
-        return f'''
-fusermount -u {mount_base_path}  # blobfuse cleans up the temporary directory when unmounting
-'''
+    async def unmount_cloudfuse(self, mount_base_path_data: str):
+        try:
+            # blobfuse cleans up the temporary directory when unmounting
+            await check_exec_output('fusermount', '-u', mount_base_path_data)
+        finally:
+            os.remove(self._blobfuse_credential_files[mount_base_path_data])
+            del self._blobfuse_credential_files[mount_base_path_data]
 
     def __str__(self):
         return f'subscription_id={self.subscription_id} resource_group={self.resource_group}'
@@ -116,18 +145,16 @@ class AadAccessToken(LazyShortLivedToken):
     async def _fetch(self, session: httpx.ClientSession) -> Tuple[str, int]:
         # https://docs.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/how-to-use-vm-token#get-a-token-using-http
         params = {'api-version': '2018-02-01', 'resource': 'https://management.azure.com/'}
-        async with await request_retry_transient_errors(
-            session,
-            'GET',
+        resp_json = await retry_transient_errors(
+            session.get_read_json,
             'http://169.254.169.254/metadata/identity/oauth2/token',
             headers={'Metadata': 'true'},
             params=params,
             timeout=aiohttp.ClientTimeout(total=60),  # type: ignore
-        ) as resp:
-            resp_json = await resp.json()
-            access_token: str = resp_json['access_token']
-            expiration_time_ms = int(resp_json['expires_on']) * 1000
-            return access_token, expiration_time_ms
+        )
+        access_token: str = resp_json['access_token']
+        expiration_time_ms = int(resp_json['expires_on']) * 1000
+        return access_token, expiration_time_ms
 
 
 class AcrRefreshToken(LazyShortLivedToken):
@@ -143,14 +170,13 @@ class AcrRefreshToken(LazyShortLivedToken):
             'service': self.acr_url,
             'access_token': await self.aad_access_token.token(session),
         }
-        async with await request_retry_transient_errors(
-            session,
-            'POST',
+        resp_json = await retry_transient_errors(
+            session.post_read_json,
             f'https://{self.acr_url}/oauth2/exchange',
             headers={'Content-Type': 'application/x-www-form-urlencoded'},
             data=data,
             timeout=aiohttp.ClientTimeout(total=60),  # type: ignore
-        ) as resp:
-            refresh_token: str = (await resp.json())['refresh_token']
-            expiration_time_ms = time_msecs() + 60 * 60 * 1000  # token expires in 3 hours so we refresh after 1 hour
-            return refresh_token, expiration_time_ms
+        )
+        refresh_token: str = resp_json['refresh_token']
+        expiration_time_ms = time_msecs() + 60 * 60 * 1000  # token expires in 3 hours so we refresh after 1 hour
+        return refresh_token, expiration_time_ms

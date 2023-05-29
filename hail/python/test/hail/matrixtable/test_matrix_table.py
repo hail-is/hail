@@ -1295,15 +1295,6 @@ class Tests(unittest.TestCase):
         mt2 = hl.read_matrix_table(f)
         self.assertTrue(mt._same(mt2))
 
-    def test_write_checkpoint_file(self):
-        mt = self.get_mt()
-        f = new_temp_file(extension='mt')
-        cp = new_temp_file()
-        mt.write(f, _checkpoint_file=cp)
-
-        mt2 = hl.read_matrix_table(f)
-        self.assertTrue(mt._same(mt2))
-
     def test_write_no_parts(self):
         mt = hl.utils.range_matrix_table(10, 10, 2).filter_rows(False)
         path = new_temp_file(extension='mt')
@@ -1781,24 +1772,26 @@ def test_filter_against_invalid_contig():
     assert fmt.rows()._force_count() == 0
 
 
-def test_matrix_randomness():
-    def assert_unique_uids(mt):
-        x = mt.aggregate_rows(hl.struct(r=hl.agg.collect_as_set(hl.rand_int64()), n=hl.agg.count()))
-        assert(len(x.r) == x.n)
-        x = mt.aggregate_cols(hl.struct(r=hl.agg.collect_as_set(hl.rand_int64()), n=hl.agg.count()))
-        assert(len(x.r) == x.n)
-        x = mt.aggregate_entries(hl.struct(r=hl.agg.collect_as_set(hl.rand_int64()), n=hl.agg.count()))
-        assert(len(x.r) == x.n)
+def assert_unique_uids(mt):
+    x = mt.aggregate_rows(hl.struct(r=hl.agg.collect_as_set(hl.rand_int64()), n=hl.agg.count()))
+    assert(len(x.r) == x.n)
+    x = mt.aggregate_cols(hl.struct(r=hl.agg.collect_as_set(hl.rand_int64()), n=hl.agg.count()))
+    assert(len(x.r) == x.n)
+    x = mt.aggregate_entries(hl.struct(r=hl.agg.collect_as_set(hl.rand_int64()), n=hl.agg.count()))
+    assert(len(x.r) == x.n)
 
-    def assert_contains_node(t, node):
-        assert(t._mir.base_search(lambda x: isinstance(x, node)))
 
-    # test MatrixRead
+def assert_contains_node(t, node):
+    assert(t._mir.base_search(lambda x: isinstance(x, node)))
+
+
+def test_matrix_randomness_read():
     mt = hl.utils.range_matrix_table(10, 10, 3)
     assert_contains_node(mt, ir.MatrixRead)
     assert_unique_uids(mt)
 
-    # test MatrixAggregateRowsByKey
+
+def test_matrix_randomness_aggregate_rows_by_key():
     rmt = hl.utils.range_matrix_table(20, 10, 3)
     # with body randomness
     mt = (rmt.group_rows_by(k=rmt.row_idx % 5)
@@ -1830,7 +1823,8 @@ def test_matrix_randomness():
     assert_contains_node(mt, ir.MatrixAggregateRowsByKey)
     assert_unique_uids(mt)
 
-    # test MatrixFilterRows
+
+def test_matrix_randomness_filter_rows():
     rmt = hl.utils.range_matrix_table(10, 10, 3)
     # with cond randomness
     mt = rmt.filter_rows(hl.rand_int64() % 2 == 0)
@@ -1842,13 +1836,15 @@ def test_matrix_randomness():
     assert_contains_node(mt, ir.MatrixFilterRows)
     assert_unique_uids(mt)
 
-    # test MatrixChooseCols
+
+def test_matrix_randomness_choose_cols():
     rmt = hl.utils.range_matrix_table(10, 10, 3)
     mt = rmt.choose_cols([2, 3, 7])
     assert_contains_node(mt, ir.MatrixChooseCols)
     assert_unique_uids(mt)
 
-    # test MatrixMapCols
+
+def test_matrix_randomness_map_cols():
     rmt = hl.utils.range_matrix_table(10, 10, 3)
     # with body randomness
     mt = rmt.annotate_cols(r=hl.rand_int64())
@@ -1873,7 +1869,8 @@ def test_matrix_randomness():
     assert_contains_node(mt, ir.MatrixMapCols)
     assert_unique_uids(mt)
 
-    # test MatrixUnionCols
+
+def test_matrix_randomness_union_cols():
     r, c = 5, 5
     mt = hl.utils.range_matrix_table(2*r, c)
     mt2 = hl.utils.range_matrix_table(2*r, c)
@@ -1883,7 +1880,8 @@ def test_matrix_randomness():
     assert_contains_node(mt, ir.MatrixUnionCols)
     assert_unique_uids(mt)
 
-    # test MatrixMapEntries
+
+def test_matrix_randomness_map_entries():
     rmt = hl.utils.range_matrix_table(10, 10, 3)
     # with body randomness
     mt = rmt.annotate_entries(r=hl.rand_int64())
@@ -1896,7 +1894,8 @@ def test_matrix_randomness():
     assert_contains_node(mt, ir.MatrixMapEntries)
     assert_unique_uids(mt)
 
-    # test MatrixFilterEntries
+
+def test_matrix_randomness_filter_entries():
     rmt = hl.utils.range_matrix_table(10, 10, 3)
     # with cond randomness
     mt = rmt.filter_entries(hl.rand_int64() % 2 == 0)
@@ -1908,13 +1907,15 @@ def test_matrix_randomness():
     assert_contains_node(mt, ir.MatrixFilterEntries)
     assert_unique_uids(mt)
 
-    # test MatrixKeyRowsBy
+
+def test_matrix_randomness_key_rows_by():
     rmt = hl.utils.range_matrix_table(10, 10, 3)
     mt = rmt.key_rows_by(k=rmt.row_idx // 4)
     assert_contains_node(mt, ir.MatrixKeyRowsBy)
     assert_unique_uids(mt)
 
-    # test MatrixMapRows
+
+def test_matrix_randomness_map_rows():
     rmt = hl.utils.range_matrix_table(10, 10, 3)
     # with body randomness
     mt = rmt.annotate_rows(r=hl.rand_int64())
@@ -1939,7 +1940,8 @@ def test_matrix_randomness():
     assert_contains_node(mt, ir.MatrixMapRows)
     assert_unique_uids(mt)
 
-    # test MatrixMapGlobals
+
+def test_matrix_randomness_map_globals():
     rmt = hl.utils.range_matrix_table(10, 10, 3)
     # with body randomness
     mt = rmt.annotate_globals(x=hl.rand_int64())
@@ -1951,7 +1953,8 @@ def test_matrix_randomness():
     assert_contains_node(mt, ir.MatrixMapGlobals)
     assert_unique_uids(mt)
 
-    # test MatrixFilterCols
+
+def test_matrix_randomness_filter_cols():
     rmt = hl.utils.range_matrix_table(10, 10, 3)
     # with cond randomness
     mt = rmt.filter_cols(hl.rand_int64() % 2 == 0)
@@ -1963,14 +1966,16 @@ def test_matrix_randomness():
     assert_contains_node(mt, ir.MatrixFilterCols)
     assert_unique_uids(mt)
 
-    # test MatrixCollectColsByKey
+
+def test_matrix_randomness_collect_cols_by_key():
     rmt = hl.utils.range_matrix_table(10, 10, 3)
     mt = rmt.key_cols_by(k=rmt.col_idx % 5)
     mt = mt.collect_cols_by_key()
     assert_contains_node(mt, ir.MatrixCollectColsByKey)
     assert_unique_uids(mt)
 
-    # test MatrixAggregateColsByKey
+
+def test_matrix_randomness_aggregate_cols_by_key():
     rmt = hl.utils.range_matrix_table(20, 10, 3)
     # with body randomness
     mt = (rmt.group_cols_by(k=rmt.col_idx % 5)
@@ -2002,21 +2007,24 @@ def test_matrix_randomness():
     assert_contains_node(mt, ir.MatrixAggregateColsByKey)
     assert_unique_uids(mt)
 
-    # test MatrixExplodeRows
+
+def test_matrix_randomness_explode_rows():
     rmt = hl.utils.range_matrix_table(20, 10, 3)
     mt = rmt.annotate_rows(s=hl.struct(a=hl.range(rmt.row_idx)))
     mt = mt.explode_rows(mt.s.a)
     assert_contains_node(mt, ir.MatrixExplodeRows)
     assert_unique_uids(mt)
 
-    # test MatrixRepartition
+
+def test_matrix_randomness_repartition():
     if not hl.current_backend().requires_lowering:
         rmt = hl.utils.range_matrix_table(20, 10, 3)
         mt = rmt.repartition(5)
         assert_contains_node(mt, ir.MatrixRepartition)
         assert_unique_uids(mt)
 
-    # test MatrixUnionRows
+
+def test_matrix_randomness_union_rows():
     r, c = 5, 5
     mt = hl.utils.range_matrix_table(2*r, c)
     mt2 = hl.utils.range_matrix_table(2*r, c)
@@ -2025,45 +2033,52 @@ def test_matrix_randomness():
     assert_contains_node(mt, ir.MatrixUnionRows)
     assert_unique_uids(mt)
 
-    # test MatrixDistinctByRow
+
+def test_matrix_randomness_distinct_by_row():
     rmt = hl.utils.range_matrix_table(20, 10, 3)
     mt = rmt.key_rows_by(k=rmt.row_idx % 5)
     mt = mt.distinct_by_row()
     assert_contains_node(mt, ir.MatrixDistinctByRow)
     assert_unique_uids(mt)
 
-    # test MatrixRowsHead
+
+def test_matrix_randomness_rows_head():
     rmt = hl.utils.range_matrix_table(20, 10, 3)
     mt = rmt.head(10)
     assert_contains_node(mt, ir.MatrixRowsHead)
     assert_unique_uids(mt)
 
-    # test MatrixColsHead
+
+def test_matrix_randomness_cols_head():
     rmt = hl.utils.range_matrix_table(10, 20, 3)
     mt = rmt.head(None, 10)
     assert_contains_node(mt, ir.MatrixColsHead)
     assert_unique_uids(mt)
 
-    # test MatrixRowsTail
+
+def test_matrix_randomness_rows_tail():
     rmt = hl.utils.range_matrix_table(20, 10, 3)
     mt = rmt.tail(10)
     assert_contains_node(mt, ir.MatrixRowsTail)
     assert_unique_uids(mt)
 
-    # test MatrixColsTail
+
+def test_matrix_randomness_cols_tail():
     rmt = hl.utils.range_matrix_table(10, 20, 3)
     mt = rmt.tail(None, 10)
     assert_contains_node(mt, ir.MatrixColsTail)
     assert_unique_uids(mt)
 
-    # test MatrixExplodeCols
+
+def test_matrix_randomness_explode_cols():
     rmt = hl.utils.range_matrix_table(10, 20, 3)
     mt = rmt.annotate_cols(s=hl.struct(a=hl.range(rmt.col_idx)))
     mt = mt.explode_cols(mt.s.a)
     assert_contains_node(mt, ir.MatrixExplodeCols)
     assert_unique_uids(mt)
 
-    # test CastTableToMatrix
+
+def test_matrix_randomness_cast_table_to_matrix():
     rt = hl.utils.range_table(10, 3)
     t = rt.annotate(e=hl.range(10).map(lambda i: hl.struct(x=i)))
     t = t.annotate_globals(c=hl.range(10).map(lambda i: hl.struct(y=i)))
@@ -2071,7 +2086,8 @@ def test_matrix_randomness():
     assert_contains_node(mt, ir.CastTableToMatrix)
     assert_unique_uids(mt)
 
-    # test MatrixAnnotateRowsTable
+
+def test_matrix_randomness_annotate_rows_table():
     t = hl.utils.range_table(12, 3)
     t = t.key_by(k=(t.idx // 2) * 2)
     mt = hl.utils.range_matrix_table(8, 10, 3)
@@ -2080,7 +2096,8 @@ def test_matrix_randomness():
     assert_contains_node(joined, ir.MatrixAnnotateRowsTable)
     assert_unique_uids(joined)
 
-    # test MatrixAnnotateColsTable
+
+def test_matrix_randomness_annotate_cols_table():
     t = hl.utils.range_table(12, 3)
     t = t.key_by(k=(t.idx // 2) * 2)
     mt = hl.utils.range_matrix_table(10, 8, 3)
@@ -2089,19 +2106,22 @@ def test_matrix_randomness():
     assert_contains_node(joined, ir.MatrixAnnotateColsTable)
     assert_unique_uids(joined)
 
-    # test MatrixToMatrixApply
+
+def test_matrix_randomness_to_matrix_apply():
     rmt = hl.utils.range_matrix_table(10, 10, 3)
     mt = rmt._filter_partitions([0, 2])
     assert_contains_node(mt, ir.MatrixToMatrixApply)
     assert_unique_uids(mt)
 
-    # test MatrixRename
+
+def test_matrix_randomness_rename():
     rmt = hl.utils.range_matrix_table(10, 10, 3)
     mt = rmt.rename({'row_idx': 'row_index'})
     assert_contains_node(mt, ir.MatrixRename)
     assert_unique_uids(mt)
 
-    # test MatrixFilterIntervals
+
+def test_matrix_randomness_filter_intervals():
     rmt = hl.utils.range_matrix_table(20, 10, 3)
     intervals = [hl.interval(0, 5), hl.interval(10, 15)]
     mt = hl.filter_intervals(rmt, intervals)

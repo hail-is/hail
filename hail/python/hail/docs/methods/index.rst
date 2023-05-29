@@ -64,6 +64,7 @@ Methods
     impute_sex
     ld_matrix
     ld_prune
+    compute_charr
     mendel_errors
     de_novo
     nirvana

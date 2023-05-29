@@ -33,7 +33,8 @@ hailctl dataproc \
         --max-age 120m \
         --vep $1 \
         --num-preemptible-workers=4 \
-        --requester-pays-allow-buckets hail-us-vep
+        --requester-pays-allow-buckets hail-us-vep \
+        --subnet=default
 for file in $cluster_test_files
 do
     hailctl dataproc \

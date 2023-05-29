@@ -8,11 +8,14 @@ import is.hail.expr.Nat
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import is.hail.methods.ForceCountTable
+import is.hail.rvd.RVDPartitioner
 import is.hail.types._
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
+import org.scalatest.Inspectors.forAll
+import org.scalatest.{Failed, Outcome, Succeeded}
 import org.testng.annotations.{DataProvider, Test}
 
 class TableIRSuite extends HailSuite {
@@ -1158,6 +1161,21 @@ class TableIRSuite extends HailSuite {
       ctx,
       collect(TableMapPartitions(table, "g", "part", StreamFlatMap(StreamRange(0, 2, 1), "_", part)))))
     assert("must iterate over the partition exactly once".r.findFirstIn(e.getCause.getMessage).isDefined)
+  }
+
+  @Test def testRepartitionCostEstimate: Unit = {
+    val empty = RVDPartitioner.empty(ctx.stateManager, TStruct(Array.empty[Field]))
+    val some = RVDPartitioner.unkeyed(ctx.stateManager, _)
+
+    val data = IndexedSeq(
+      (empty, empty, Succeeded, Failed("Repartitioning from an empty partitioner should be free")),
+      (empty, some(1), Succeeded, Failed("Repartitioning from an empty partitioner should be free")),
+      (some(1), empty, Succeeded, Failed("Repartitioning to an empty partitioner should be free")),
+      (some(5), some(1), Succeeded, Failed("Combining multiple partitions into one should not incur a reload")),
+      (some(1), some(60), Failed("Recomputing the same partition multiple times should be replaced with a reload"), Succeeded)
+    )
+
+    forAll(data) { case (a, b, t, f) => (if (LowerTableIR.isRepartitioningCheap(a, b)) t else f).toSucceeded }
   }
 
 }

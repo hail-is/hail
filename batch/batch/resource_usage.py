@@ -1,5 +1,6 @@
 import asyncio
 import errno
+import io
 import logging
 import os
 import shutil
@@ -9,7 +10,8 @@ from typing import Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from hailtop.utils import check_shell_output, time_msecs, time_ns
+from hailtop.aiotools.fs import AsyncFS
+from hailtop.utils import check_shell_output, sleep_and_backoff, time_msecs, time_ns
 
 log = logging.getLogger('resource_usage')
 
@@ -70,12 +72,16 @@ class ResourceUsageMonitor:
         io_volume_mount: Optional[str],
         veth_host: str,
         output_file_path: str,
+        fs: AsyncFS,
     ):
+        assert veth_host is not None
+
         self.container_name = container_name
         self.container_overlay = container_overlay
         self.io_volume_mount = io_volume_mount
         self.veth_host = veth_host
         self.output_file_path = output_file_path
+        self.fs = fs
 
         self.is_attached_disk = io_volume_mount is not None and os.path.ismount(io_volume_mount)
 
@@ -86,13 +92,13 @@ class ResourceUsageMonitor:
         self.last_upload_bytes: Optional[int] = None
         self.last_time_msecs: Optional[int] = None
 
-        self.out = open(output_file_path, 'wb')  # pylint: disable=consider-using-with
-        self.write_header()
+        self.out: Optional[io.BufferedWriter] = None
 
         self.task: Optional[asyncio.Future] = None
 
     def write_header(self):
-        data = ResourceUsageMonitor.version_to_bytes()
+        assert self.out
+        data = self.version_to_bytes()
         self.out.write(data)
         self.out.flush()
 
@@ -215,12 +221,19 @@ iptables -t mangle -L -v -n -x -w | grep "{self.veth_host}" | awk '{{ if ($6 == 
             network_download_bytes_per_second,
         )
 
+        assert self.out
         self.out.write(data)
         self.out.flush()
+
+    async def read(self):
+        if os.path.exists(self.output_file_path):
+            return await self.fs.read(self.output_file_path)
+        return ResourceUsageMonitor.no_data()
 
     async def __aenter__(self):
         async def periodically_measure():
             cancelled = False
+            delay = 0.1
             while True:
                 try:
                     await self.measure()
@@ -236,7 +249,11 @@ iptables -t mangle -L -v -n -x -w | grep "{self.veth_host}" | awk '{{ if ($6 == 
                     log.exception(f'while monitoring {self.container_name}')
                 finally:
                     if not cancelled:
-                        await asyncio.sleep(5)
+                        delay = await sleep_and_backoff(delay, 5)
+
+        os.makedirs(os.path.dirname(self.output_file_path), exist_ok=True)
+        self.out = open(self.output_file_path, 'wb')  # pylint: disable=consider-using-with
+        self.write_header()
 
         self.task = asyncio.ensure_future(periodically_measure())
         return self
@@ -245,4 +262,7 @@ iptables -t mangle -L -v -n -x -w | grep "{self.veth_host}" | awk '{{ if ($6 == 
         if self.task is not None:
             self.task.cancel()
             self.task = None
-        self.out.close()
+
+        if self.out is not None:
+            self.out.close()
+            self.out = None

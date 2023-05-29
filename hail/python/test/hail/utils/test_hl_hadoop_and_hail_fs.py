@@ -1,8 +1,10 @@
+from typing import Generator
 import pytest
 import secrets
 import os
 
 import hail as hl
+import hailtop.fs as fs
 from hail.context import _get_local_tmpdir
 from hail.utils import hadoop_open, hadoop_copy
 from hailtop.utils import secret_alnum_string
@@ -15,7 +17,7 @@ def touch(fs, filename: str):
 
 
 @pytest.fixture(params=['remote', 'local'])
-def tmpdir(request) -> str:
+def tmpdir(request) -> Generator[str, None, None]:
     if request.param == 'local':
         tmpdir = _get_local_tmpdir(None)
         tmpdir = tmpdir[len('file://'):]
@@ -23,7 +25,6 @@ def tmpdir(request) -> str:
         tmpdir = os.environ['HAIL_TEST_STORAGE_URI']
     tmpdir = os.path.join(tmpdir, secret_alnum_string(5))
 
-    fs = hl.current_backend().fs
     fs.mkdir(tmpdir)
     yield tmpdir
     fs.rmtree(tmpdir)
@@ -63,8 +64,6 @@ def test_hadoop_methods(tmpdir: str):
 
 
 def test_read_overwrite(tmpdir):
-    fs = hl.current_backend().fs
-
     with fs.open(os.path.join(tmpdir, 'randomBytes'), 'wb') as f:
         f.write(secrets.token_bytes(2048))
 
@@ -123,8 +122,6 @@ def test_hadoop_stat(tmpdir: str):
 
 
 def test_subdirs(tmpdir: str):
-    fs = hl.current_backend().fs
-
     dir = f'{tmpdir}foo/'
     subdir1 = f'{dir}foo/'
     subdir1subdir1 = f'{subdir1}foo/'
@@ -191,8 +188,6 @@ def test_subdirs(tmpdir: str):
 
 
 def test_remove_and_rmtree(tmpdir: str):
-    fs = hl.current_backend().fs
-
     dir = f'{tmpdir}foo/'
     subdir1 = f'{dir}foo/'
     subdir1subdir1 = f'{subdir1}foo/'

@@ -6,6 +6,7 @@ from .client import (
     GoogleIAmClient,
     GoogleLoggingClient,
     GoogleStorageClient,
+    GCSRequesterPaysConfiguration,
     GoogleStorageAsyncFS,
     GoogleStorageAsyncFSFactory
 )
@@ -13,6 +14,7 @@ from .credentials import GoogleCredentials, GoogleApplicationDefaultCredentials,
 from .session import GoogleSession
 
 __all__ = [
+    'GCSRequesterPaysConfiguration',
     'GoogleCredentials',
     'GoogleApplicationDefaultCredentials',
     'GoogleServiceAccountCredentials',

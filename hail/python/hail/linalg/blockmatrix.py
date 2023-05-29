@@ -20,10 +20,9 @@ from hail.ir import (BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryPrimOp, F64,
                      TableFromBlockMatrixNativeReader, TableRead, BlockMatrixSlice,
                      BlockMatrixSparsify, BlockMatrixDensify, RectangleSparsifier,
                      RowIntervalSparsifier, BandSparsifier, PerBlockSparsifier)
-from hail.ir.blockmatrix_reader import (BlockMatrixNativeReader,
-                                        BlockMatrixBinaryReader, BlockMatrixPersistReader)
+from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinaryReader
 from hail.ir.blockmatrix_writer import (BlockMatrixBinaryWriter,
-                                        BlockMatrixNativeWriter, BlockMatrixRectanglesWriter, BlockMatrixPersistWriter)
+                                        BlockMatrixNativeWriter, BlockMatrixRectanglesWriter)
 from hail.ir import ExportType
 from hail.table import Table
 from hail.typecheck import (typecheck, typecheck_method, nullable, oneof,
@@ -1337,9 +1336,7 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Persisted block matrix.
         """
-        id = Env.get_uid()
-        Env.backend().execute(BlockMatrixWrite(self._bmir, BlockMatrixPersistWriter(id, storage_level)))
-        return BlockMatrix(BlockMatrixRead(BlockMatrixPersistReader(id, self._bmir), _assert_type=self._bmir._type))
+        return Env.backend().persist_blockmatrix(self)
 
     def unpersist(self):
         """Unpersists this block matrix from memory/disk.
@@ -1354,10 +1351,7 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Unpersisted block matrix.
         """
-        if isinstance(self._bmir, BlockMatrixRead) and isinstance(self._bmir.reader, BlockMatrixPersistReader):
-            Env.backend().unpersist_block_matrix(self._bmir.reader.id)
-            return self._bmir.reader.unpersisted()
-        return self
+        return Env.backend().unpersist_blockmatrix(self)
 
     def __pos__(self):
         return self
