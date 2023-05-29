@@ -512,7 +512,7 @@ async def post_create_user(request, userdata):  # pylint: disable=unused-argumen
 async def rest_get_users(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
     _query = '''
-SELECT id, username, login_id, state, is_developer, is_service_account, hail_identity 
+SELECT id, username, login_id, state, is_developer, is_service_account, hail_identity
 FROM users;
 '''
     users = [x async for x in db.select_and_fetchall(_query)]
