@@ -1390,6 +1390,7 @@ steps:
     script: |
       set -ex
       cd /hail/python/hail
+      # NB: do not use --timeout with doctest because there is no way to override it.
       python3 -m pytest \
               -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
               --log-cli-level=INFO \
@@ -1401,8 +1402,7 @@ steps:
               --doctest-modules \
               --doctest-glob='*.rst' \
               --ignore=docs/conf.py \
-              --ignore=docs/doctest_write_data.py \
-              --timeout=120
+              --ignore=docs/doctest_write_data.py
     dependsOn:
       - hail_base_image
     clouds:
