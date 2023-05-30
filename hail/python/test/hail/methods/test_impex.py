@@ -38,7 +38,7 @@ class VCFTests(unittest.TestCase):
     def test_info_char(self):
         self.assertEqual(hl.import_vcf(resource('infochar.vcf')).count_rows(), 1)
 
-    @backend_specific_timeout(6 * 60, batch=7 * 60)
+    @backend_specific_timeout(6 * 60, local=7 * 60, batch=7 * 60)
     def test_import_export_same(self):
         for i in range(10):
             mt = hl.import_vcf(resource(f'random_vcfs/{i}.vcf.bgz'))

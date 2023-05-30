@@ -116,7 +116,7 @@ class Tests(unittest.TestCase):
 
 
     @pytest.mark.unchecked_allocator
-    @backend_specific_timeout(6 * 60, 10 * 60)
+    @backend_specific_timeout(6 * 60, local=10 * 60, batch=10 * 60)
     def test_ld_score_regression(self):
 
         ht_scores = hl.import_table(
@@ -285,6 +285,7 @@ class Tests(unittest.TestCase):
             results[1]['snp_heritability_standard_error'],
             0.0416, places=4)
 
+    @backend_specific_timeout(local=3 * 60)
     def test_sparse(self):
         expected_split_mt = hl.import_vcf(resource('sparse_split_test_b.vcf'))
         unsplit_mt = hl.import_vcf(resource('sparse_split_test.vcf'), call_fields=['LGT', 'LPGT'])

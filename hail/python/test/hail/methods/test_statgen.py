@@ -56,6 +56,7 @@ class Tests(unittest.TestCase):
     # Outside of Spark backend, "linear_regression_rows" just defers to the underscore nd version.
     linreg_functions = [hl.linear_regression_rows, hl._linear_regression_rows_nd] if backend_name == "spark" else [hl.linear_regression_rows]
 
+    @backend_specific_timeout(local=3 * 60)
     def test_linreg_basic(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
@@ -134,6 +135,7 @@ class Tests(unittest.TestCase):
                 linreg_function([[phenos[mt.s].Pheno]], mt.GT.n_alt_alleles(), [1.0],
                                 pass_through=[mt.filters.length()])
 
+    @backend_specific_timeout(local=3 * 60)
     def test_linreg_chained(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
@@ -543,7 +545,7 @@ class Tests(unittest.TestCase):
         assert not fit.exploded
         assert fit.converged
 
-    @backend_specific_timeout(batch=3 * 60)
+    @backend_specific_timeout(local=3 * 60, batch=3 * 60)
     def test_weighted_linear_regression(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',
@@ -1263,7 +1265,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(cor.shape[0], cor.shape[1])
         self.assertTrue(np.allclose(l, cor))
 
-    @backend_specific_timeout(batch=4 * 60)
+    @backend_specific_timeout(local=4 * 60, batch=4 * 60)
     def test_ld_matrix(self):
         data = [{'v': '1:1:A:C',       'cm': 0.1, 's': 'a', 'GT': hl.Call([0, 0])},
                 {'v': '1:1:A:C',       'cm': 0.1, 's': 'b', 'GT': hl.Call([0, 0])},

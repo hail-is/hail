@@ -4,7 +4,7 @@ import hail.utils as utils
 from ...helpers import resource, skip_when_service_backend, backend_specific_timeout
 
 
-@backend_specific_timeout(batch=6 * 60)
+@backend_specific_timeout(local=6 * 60, batch=6 * 60)
 def test_pc_relate_against_R_truth():
     mt = hl.import_vcf(resource('pc_relate_bn_input.vcf.bgz'))
     hail_kin = hl.pc_relate(mt.GT, 0.00, k=2).checkpoint(utils.new_temp_file(extension='ht'))
@@ -68,7 +68,7 @@ def test_pc_relate_paths():
     assert kin3.filter(kin3.kin < 0.1).count() == 0
 
 
-@backend_specific_timeout(batch=10 * 60)
+@backend_specific_timeout(local=6 * 60, batch=10 * 60)
 def test_self_kinship():
     mt = hl.balding_nichols_model(3, 10, 50)
     with_self = hl.pc_relate(mt.GT, 0.10, k=2, statistics='kin20', block_size=16, include_self_kinship=True)
@@ -89,6 +89,7 @@ def test_self_kinship():
 
 
 @skip_when_service_backend(reason='intermittent tolerance failures')
+@backend_specific_timeout(local=6 * 60, batch=10 * 60)
 def test_pc_relate_issue_5263():
     mt = hl.balding_nichols_model(3, 50, 100)
     expected = hl.pc_relate(mt.GT, 0.10, k=2, statistics='all')

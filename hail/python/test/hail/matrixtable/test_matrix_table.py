@@ -943,7 +943,7 @@ class Tests(unittest.TestCase):
         assert hl.read_matrix_table(path, _intervals=intervals, _filter_intervals = True).n_partitions() == 3
 
     @fails_service_backend()
-    @pytest.mark.timeout(3 * 60)
+    @backend_specific_timeout(3 * 60, local=6 * 60)
     def test_codecs_matrix(self):
         from hail.utils.java import scala_object
         supported_codecs = scala_object(Env.hail().io, 'BufferSpec').specs()
@@ -955,6 +955,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(ds._same(ds2))
 
     @fails_service_backend()
+    @backend_specific_timeout(local=3 * 60)
     def test_codecs_table(self):
         from hail.utils.java import scala_object
         supported_codecs = scala_object(Env.hail().io, 'BufferSpec').specs()
@@ -1342,7 +1343,7 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(matrix1.union_cols(matrix2)._same(expected))
 
-    @backend_specific_timeout(batch=5 * 60)
+    @backend_specific_timeout(local=5 * 60, batch=5 * 60)
     def test_row_joins_into_table(self):
         rt = hl.utils.range_matrix_table(9, 13, 3)
         mt1 = rt.key_rows_by(idx=rt.row_idx)

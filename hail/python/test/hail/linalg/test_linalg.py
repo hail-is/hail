@@ -177,7 +177,7 @@ class Tests(unittest.TestCase):
             nd = (bm @ bm.T).to_numpy()
             assert nd.shape == (1000, 1000)
 
-    @backend_specific_timeout(batch=6 * 60)
+    @backend_specific_timeout(local=3 * 60, batch=6 * 60)
     def test_from_entry_expr_options(self):
         def build_mt(a):
             data = [{'v': 0, 's': 0, 'x': a[0]},
@@ -355,7 +355,7 @@ class Tests(unittest.TestCase):
         mt_round_trip = BlockMatrix.from_entry_expr(mt.element).to_matrix_table_row_major()
         assert mt._same(mt_round_trip)
 
-    @pytest.mark.timeout(3 * 60)
+    @backend_specific_timeout(3 * 60, local=6 * 60)
     def test_paired_elementwise_ops(self):
         nx = np.array([[2.0]])
         nc = np.array([[1.0], [2.0]])

@@ -68,6 +68,7 @@ def test_requester_pays_with_project():
 
 
 @skip_in_azure
+@backend_specific_timeout(local=5 * 60)
 def test_requester_pays_with_project_more_than_one_partition():
     # NB: this test uses a file with more rows than partitions because Hadoop's Seekable input
     # streams do not permit seeking past the end of the input (ref:

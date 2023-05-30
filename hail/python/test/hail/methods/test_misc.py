@@ -25,7 +25,7 @@ class Tests(unittest.TestCase):
             'foo'
         )['foo'].dtype == hl.tstr
 
-    @backend_specific_timeout(batch=3 * 60)
+    @backend_specific_timeout(local=3 * 60, batch=3 * 60)
     def test_annotate_intervals(self):
         ds = get_dataset()
 

@@ -312,7 +312,7 @@ def test_impute_sex_chr_ploidy_from_interval_coverage():
     ]
 
 
-@backend_specific_timeout(batch=4 * 60)
+@backend_specific_timeout(local=4 * 60, batch=4 * 60)
 def test_impute_sex_chromosome_ploidy():
     x_par_end = 2699521
     y_par_end = 2649521
@@ -580,6 +580,7 @@ def test_merge_reference_blocks():
     assert hl.vds.to_dense_mt(vds)._same(hl.vds.to_dense_mt(merged))
 
 
+@backend_specific_timeout(local=3 * 60)
 def test_truncate_reference_blocks():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
     rd = vds.reference_data.select_globals()
@@ -599,7 +600,7 @@ def test_truncate_reference_blocks():
     assert hl.vds.to_dense_mt(vds)._same(hl.vds.to_dense_mt(vds_trunc))
 
 
-@backend_specific_timeout(batch=3 * 60)
+@backend_specific_timeout(local=3 * 60, batch=3 * 60)
 def test_union_rows():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
 
@@ -644,7 +645,7 @@ def test_combiner_max_len():
     assert hl.vds.VariantDataset.ref_block_max_length_field not in combined2.globals
 
 
-@pytest.mark.timeout(4 * 60)
+@backend_specific_timeout(4 * 60, local=6 * 60)
 def test_split_sparse_roundtrip():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
     smt = hl.vds.to_merged_sparse_mt(vds)
