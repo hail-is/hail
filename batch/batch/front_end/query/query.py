@@ -45,22 +45,22 @@ state_search_term_to_states = {
 def parse_int(word: str) -> int:
     try:
         return int(word)
-    except ValueError:
-        raise QueryError(f'expected int, but found {word}')
+    except ValueError as e:
+        raise QueryError(f'expected int, but found {word}') from e
 
 
 def parse_float(word: str) -> float:
     try:
         return float(word)
-    except ValueError:
-        raise QueryError(f'expected float, but found {word}')
+    except ValueError as e:
+        raise QueryError(f'expected float, but found {word}') from e
 
 
 def parse_date(word: str) -> int:
     try:
         return parse_timestamp_msecs(word)
-    except ValueError:
-        raise QueryError(f'expected date, but found {word}')
+    except ValueError as e:
+        raise QueryError(f'expected date, but found {word}') from e
 
 
 def parse_cost(word: str) -> float:
@@ -80,11 +80,6 @@ class Query(abc.ABC):
     def query(self) -> Tuple[str, List[Any]]:
         raise NotImplementedError
 
-    @staticmethod
-    @abc.abstractmethod
-    def parse(*args) -> 'Query':
-        raise NotImplementedError
-
 
 class StateQuery(Query):
     @staticmethod
@@ -100,7 +95,7 @@ class StateQuery(Query):
         self.operator = operator
 
     def query(self) -> Tuple[str, List[Any]]:
-        states = state_search_term_to_states[self.state]
+        states = [s.value for s in state_search_term_to_states[self.state]]
         condition = ' OR '.join(['(jobs.state = %s)' for _ in states])
         condition = f'({condition})'
         if isinstance(self.operator, NotEqualExactMatchOperator):

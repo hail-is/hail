@@ -1,19 +1,18 @@
+from typing import Optional
+
 from ...exceptions import QueryError
 from .query import state_search_term_to_states
 
 
-def parse_batch_jobs_query_v1(request, batch_id: int):
+def parse_batch_jobs_query_v1(batch_id: int, q: str, last_job_id: Optional[int]):
     # batch has already been validated
     where_conditions = ['(jobs.batch_id = %s AND batch_updates.committed)']
     where_args = [batch_id]
 
-    last_job_id = request.query.get('last_job_id')
     if last_job_id is not None:
-        last_job_id = int(last_job_id)
         where_conditions.append('(jobs.job_id > %s)')
         where_args.append(last_job_id)
 
-    q = request.query.get('q', '')
     terms = q.split()
     for _t in terms:
         if _t[0] == '!':
@@ -45,9 +44,9 @@ def parse_batch_jobs_query_v1(request, batch_id: int):
             args = [k]
         elif t in state_search_term_to_states:
             values = state_search_term_to_states[t]
-            condition = ' OR '.join(['(jobs.state = %s)' for v in values])
+            condition = ' OR '.join(['(jobs.state = %s)' for _ in values])
             condition = f'({condition})'
-            args = values
+            args = [v.value for v in values]
         else:
             raise QueryError(f'Invalid search term: {t}.')
 

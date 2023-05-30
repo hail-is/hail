@@ -368,13 +368,17 @@ def test_list_jobs_v2(client: BatchClient):
         assert_job_ids({j_success.job_id}, 'state = success')
         assert_job_ids({j_success.job_id}, 'state == success')
         assert_job_ids({j_success.job_id}, 'state=success')
+        assert_job_ids({j_success.job_id}, 'state==success')
 
         assert_job_ids({j_success.job_id, j_failure.job_id, j_error.job_id}, 'state=done')
         assert_job_ids({j_running.job_id}, 'state != done')
 
+        assert_job_ids({j_running.job_id}, 'tag=foo')
+        assert_job_ids({j_running.job_id}, 'tag=~fo')
         assert_job_ids({j_running.job_id}, 'tag = foo')
         assert_job_ids({j_running.job_id}, 'tag =~ fo')
 
+        assert_job_ids({j_error.job_id}, 'tag!=foo')
         assert_job_ids({j_error.job_id}, 'tag != foo')
         assert_job_ids({j_error.job_id, j_running.job_id}, '"tag"')
         assert_job_ids({j_running.job_id}, 'foo')
@@ -388,9 +392,14 @@ def test_list_jobs_v2(client: BatchClient):
         assert_job_ids(no_jobs, 'start_time == 2023-02-24T17:15:25Z')
         assert_job_ids(no_jobs, 'end_time == 2023-02-24T17:15:25Z')
 
+        assert_job_ids(no_jobs, 'start_time<2023-02-24T17:15:25Z')
+        assert_job_ids(no_jobs, 'start_time<=2023-02-24T17:15:25Z')
+        assert_job_ids(all_jobs, 'start_time != 2023-02-24T17:15:25Z')
+        assert_job_ids(all_jobs, 'start_time>2023-02-24T17:15:25Z')
+        assert_job_ids(all_jobs, 'start_time>=2023-02-24T17:15:25Z')
+
         assert_job_ids(no_jobs, 'start_time < 2023-02-24T17:15:25Z')
         assert_job_ids(no_jobs, 'start_time <= 2023-02-24T17:15:25Z')
-        assert_job_ids(all_jobs, 'start_time != 2023-02-24T17:15:25Z')
         assert_job_ids(all_jobs, 'start_time > 2023-02-24T17:15:25Z')
         assert_job_ids(all_jobs, 'start_time >= 2023-02-24T17:15:25Z')
 
@@ -398,6 +407,11 @@ def test_list_jobs_v2(client: BatchClient):
         assert_job_ids(all_jobs, 'instance != batch-worker')
         assert_job_ids(all_jobs, 'instance =~ batch-worker')
         assert_job_ids(no_jobs, 'instance !~ batch-worker')
+
+        assert_job_ids(no_jobs, 'instance=batch-worker')
+        assert_job_ids(all_jobs, 'instance!=batch-worker')
+        assert_job_ids(all_jobs, 'instance=~batch-worker')
+        assert_job_ids(no_jobs, 'instance!~batch-worker')
 
         assert_job_ids({j_success.job_id}, 'job_id = 1')
         assert_job_ids(all_jobs, 'job_id >= 1')

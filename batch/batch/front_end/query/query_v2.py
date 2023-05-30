@@ -6,6 +6,7 @@ from .operators import (
     GreaterThanOperator,
     LessThanEqualOperator,
     LessThanOperator,
+    pad_maybe_operator,
 )
 from .query import (
     CostQuery,
@@ -23,9 +24,8 @@ from .query import (
 )
 
 
-def parse_batch_jobs_query_v2(request, batch_id):
+def parse_batch_jobs_query_v2(batch_id: int, q: str, last_job_id: Optional[int]):
     queries: List[Query] = []
-    q = request.query.get('q', '')
 
     # logic to make time interval queries fast
     min_start_gt_query: Optional[StartTimeQuery] = None
@@ -34,12 +34,14 @@ def parse_batch_jobs_query_v2(request, batch_id):
     if q:
         terms = q.split('\n')
         for _term in terms:
+            _term = pad_maybe_operator(_term)
             statement = _term.split()
             if len(statement) == 1:
-                if statement[0] == '"':
-                    queries.append(QuotedExactMatchQuery.parse(statement))
+                word = statement[0]
+                if word[0] == '"':
+                    queries.append(QuotedExactMatchQuery.parse(word))
                 else:
-                    queries.append(UnquotedPartialMatchQuery.parse(statement))
+                    queries.append(UnquotedPartialMatchQuery.parse(word))
             elif len(statement) == 3:
                 left, op, right = statement
                 if left == 'instance':
@@ -85,9 +87,7 @@ def parse_batch_jobs_query_v2(request, batch_id):
     cost_conditions = []
     cost_args = []
 
-    last_job_id = request.query.get('last_job_id')
     if last_job_id is not None:
-        last_job_id = int(last_job_id)
         where_conditions.append('(jobs.job_id > %s)')
         where_args.append(last_job_id)
 
