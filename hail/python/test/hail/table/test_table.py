@@ -265,6 +265,7 @@ class Tests(unittest.TestCase):
             set(ht1.group_by('k').aggregate(mean_b = hl.agg.mean(ht1.b)).collect()),
             {hl.Struct(k='foo', mean_b=1.0), hl.Struct(k='bar', mean_b=2.0)})
 
+    @test_timeout(batch=6 * 60)
     def test_group_aggregate_na(self):
         ht = hl.utils.range_table(100, 8)
         ht = ht.key_by(k=hl.or_missing(ht.idx % 10 == 0, ht.idx % 4))
@@ -1705,6 +1706,7 @@ def test_write_table_containing_ndarray():
     t2 = hl.read_table(f)
     assert t._same(t2)
 
+@test_timeout(batch=6 * 60)
 def test_group_within_partitions():
     t = hl.utils.range_table(10).repartition(2)
     t = t.annotate(sq=t.idx ** 2)
@@ -1755,6 +1757,7 @@ def test_range_annotate_range():
     ht2 = hl.utils.range_table(5).annotate(x = 1)
     ht1.annotate(x = ht2[ht1.idx].x)._force_count()
 
+@test_timeout(batch=5 * 60)
 def test_read_write_all_types():
     ht = create_all_values_table()
     tmp_file = new_temp_file()

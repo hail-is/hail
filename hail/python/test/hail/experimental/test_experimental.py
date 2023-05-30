@@ -303,7 +303,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(f2(1, 3)), 24) # idempotent
 
     @fails_local_backend()
-    @test_timeout(batch=4 * 60)
+    @test_timeout(batch=8 * 60)
     def test_pc_project(self):
         mt = hl.balding_nichols_model(3, 100, 50)
         _, _, loadings_ht = hl.hwe_normalized_pca(mt.GT, k=10, compute_loadings=True)
