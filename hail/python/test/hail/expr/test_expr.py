@@ -88,6 +88,7 @@ class Tests(unittest.TestCase):
             evaled = hl.eval(hl.zeros(size))
             assert evaled == [0 for i in range(size)]
 
+    @backend_specific_timeout(batch=3 * 60)
     def test_seeded_sampling(self):
         sampled1 = hl.utils.range_table(50, 6).filter(hl.rand_bool(0.5))
         sampled2 = hl.utils.range_table(50, 5).filter(hl.rand_bool(0.5))
@@ -428,6 +429,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(r.assert1)
         self.assertTrue(r.assert2)
 
+    @backend_specific_timeout(batch=3 * 60)
     def test_agg_nesting(self):
         t = hl.utils.range_table(10)
         aggregated_count = t.aggregate(hl.agg.count(), _localize=False) #10
@@ -535,6 +537,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(mt.aggregate_rows(hl.agg.fold(0, lambda a: a + mt.row_idx, lambda a, b: a + b)), 4950)
         self.assertEqual(mt.aggregate_cols(hl.agg.fold(0, lambda a: a + mt.col_idx, lambda a, b: a + b)), 45)
 
+    @backend_specific_timeout(batch=3 * 60)
     def test_aggfold_scan(self):
         ht = hl.utils.range_table(15, 5)
         ht = ht.annotate(s=hl.scan.fold(0, lambda a: a + ht.idx, lambda a, b: a + b), )
@@ -551,6 +554,7 @@ class Tests(unittest.TestCase):
                           hl.Struct(row_idx=9, s=36, x=9), hl.Struct(row_idx=10, s=45, x=10), hl.Struct(row_idx=11, s=55, x=11),
                           hl.Struct(row_idx=12, s=66, x=12), hl.Struct(row_idx=13, s=78, x=13), hl.Struct(row_idx=14, s=91, x=14)])
 
+    @backend_specific_timeout(batch=3 * 60)
     def test_agg_filter(self):
         t = hl.utils.range_table(10)
         tests = [(hl.agg.filter(t.idx > 7,
@@ -740,6 +744,7 @@ class Tests(unittest.TestCase):
         ))
 
 
+    @backend_specific_timeout(batch=4 * 60)
     def test_agg_explode(self):
         t = hl.utils.range_table(10)
 
@@ -859,6 +864,7 @@ class Tests(unittest.TestCase):
         res = t.aggregate(hl.agg.filter(hl.rand_bool(0.5), hl.struct(collection=hl.agg.collect(t.idx), sum=hl.agg.sum(t.idx))))
         self.assertEqual(sum(res.collection), res.sum)
 
+    @backend_specific_timeout(batch=3 * 60)
     def test_aggregator_scope(self):
         t = hl.utils.range_table(10)
         with self.assertRaises(hl.expr.ExpressionException):
@@ -1094,6 +1100,7 @@ class Tests(unittest.TestCase):
         assert r.n_smaller == 0
         assert r.n_larger == 0
 
+    @backend_specific_timeout(batch=3 * 60)
     def test_aggregator_cse(self):
         ht = hl.utils.range_table(10)
         x = hl.agg.count()
@@ -1122,6 +1129,7 @@ class Tests(unittest.TestCase):
     # r2adj = sumfit$adj.r.squared
     # f = sumfit$fstatistic
     # p = pf(f[1],f[2],f[3],lower.tail=F)
+    @backend_specific_timeout(batch=3 * 60)
     def test_aggregators_linreg(self):
         t = hl.Table.parallelize([
             {"y": None, "x": 1.0},
@@ -1270,6 +1278,7 @@ class Tests(unittest.TestCase):
         grouped_expr = t.aggregate(hl.array(hl.agg.group_by(t.group, hl.agg.sum(t.x))))
         self.assertEqual(grouped_expr, hl.eval(hl.sorted(grouped_expr)))
 
+    @backend_specific_timeout(batch=3 * 60)
     def test_agg_corr(self):
         ht = hl.utils.range_table(10)
         ht = ht.annotate(tests=hl.range(0, 10).map(
@@ -1455,6 +1464,7 @@ class Tests(unittest.TestCase):
                    (True, False)
                )
 
+    @backend_specific_timeout(batch=3 * 60)
     def test_aggregator_any_and_all(self):
         df = hl.utils.range_table(10)
         df = df.annotate(all_true=True,

@@ -1,5 +1,9 @@
 import hail as hl
 
+from ..helpers import backend_specific_timeout
+
+
+@backend_specific_timeout(batch=4 * 60)
 def test_show():
     mt = hl.balding_nichols_model(3, 10, 10)
     t = mt.rows()
@@ -39,5 +43,3 @@ def test_show_mt_fewer_cols():
     showobj = mt.show(n_cols=shown_cols, handler=lambda x: x)
 
     assert len(showobj.table_show.table.row) == len(mt.row) + mt.count_cols()
-
-

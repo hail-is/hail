@@ -5,6 +5,7 @@ from ..helpers import *
 
 
 class Tests(unittest.TestCase):
+    @backend_specific_timeout(batch=3 * 60)
     def test_trio_matrix(self):
         """
         This test depends on certain properties of the trio matrix VCF and
@@ -95,7 +96,7 @@ class Tests(unittest.TestCase):
         mt = hl.import_vcf(resource('triomatrix.vcf'))
         hl.trio_matrix(mt, ped, complete_trios=False)
 
-    @pytest.mark.timeout(3 * 60)
+    @backend_specific_timeout(3 * 60, batch=4 * 60)
     def test_mendel_errors(self):
         mt = hl.import_vcf(resource('mendel.vcf'))
         ped = hl.Pedigree.read(resource('mendel.fam'))

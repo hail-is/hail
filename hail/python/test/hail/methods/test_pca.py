@@ -4,10 +4,11 @@ import numpy as np
 
 import hail as hl
 from hail.methods.pca import _make_tsm
-from ..helpers import resource, fails_local_backend, fails_service_backend, skip_when_service_backend
+from ..helpers import resource, fails_local_backend, skip_when_service_backend, backend_specific_timeout
 
 
 @fails_local_backend()
+@backend_specific_timeout(batch=5 * 60)
 def test_hwe_normalized_pca():
     mt = hl.balding_nichols_model(3, 100, 50)
     eigenvalues, scores, loadings = hl.hwe_normalized_pca(mt.GT, k=2, compute_loadings=True)
@@ -22,6 +23,7 @@ def test_hwe_normalized_pca():
 
 
 @fails_local_backend()
+@backend_specific_timeout(batch=3 * 60)
 def test_pca_against_numpy():
     mt = hl.import_vcf(resource('tiny_m.vcf'))
     mt = mt.filter_rows(hl.len(mt.alleles) == 2)
@@ -64,6 +66,7 @@ def test_pca_against_numpy():
     np.testing.assert_allclose(np.abs(hail_loadings), np.abs(np_loadings), rtol=1e-5)
 
 
+@backend_specific_timeout(batch=3 * 60)
 def test_blanczos_against_numpy():
 
     def concatToNumpy(field, horizontal=True):
@@ -213,22 +216,27 @@ def spec5(j, k):
         return 10**-5 * math.sqrt((k + 1)/j)
 
 
+@backend_specific_timeout(batch=5 * 60)
 def test_spectra_1():
     spectra_helper(spec1)
 
 
+@backend_specific_timeout(batch=5 * 60)
 def test_spectra_2():
     spectra_helper(spec2)
 
 
+@backend_specific_timeout(batch=5 * 60)
 def test_spectra_3():
     spectra_helper(spec3)
 
 
+@backend_specific_timeout(batch=5 * 60)
 def test_spectra_4():
     spectra_helper(spec4)
 
 
+@backend_specific_timeout(batch=5 * 60)
 def test_spectra_5():
     spectra_helper(spec5)
 
@@ -300,21 +308,26 @@ def spectra_and_moments_helper(spec_func):
         np.testing.assert_allclose(moments, true_moments, rtol=1e-04)
 
 
+@backend_specific_timeout(batch=4 * 60)
 def test_spectra_and_moments_1():
     spectra_and_moments_helper(spec1)
 
 
+@backend_specific_timeout(batch=4 * 60)
 def test_spectra_and_moments_2():
     spectra_and_moments_helper(spec2)
 
 
+@backend_specific_timeout(batch=4 * 60)
 def test_spectra_and_moments_3():
     spectra_and_moments_helper(spec3)
 
 
+@backend_specific_timeout(batch=4 * 60)
 def test_spectra_and_moments_4():
     spectra_and_moments_helper(spec4)
 
 
+@backend_specific_timeout(batch=4 * 60)
 def test_spectra_and_moments_5():
     spectra_and_moments_helper(spec5)

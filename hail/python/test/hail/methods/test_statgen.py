@@ -9,7 +9,7 @@ import hail.utils as utils
 from hail.linalg import BlockMatrix
 from hail.utils import FatalError, new_temp_file
 from hail.utils.java import choose_backend, Env
-from ..helpers import resource, fails_local_backend, fails_service_backend, skip_when_service_backend
+from ..helpers import resource, fails_service_backend, skip_when_service_backend, backend_specific_timeout
 
 import unittest
 
@@ -543,6 +543,7 @@ class Tests(unittest.TestCase):
         assert not fit.exploded
         assert fit.converged
 
+    @backend_specific_timeout(batch=3 * 60)
     def test_weighted_linear_regression(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',
@@ -1262,6 +1263,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(cor.shape[0], cor.shape[1])
         self.assertTrue(np.allclose(l, cor))
 
+    @backend_specific_timeout(batch=4 * 60)
     def test_ld_matrix(self):
         data = [{'v': '1:1:A:C',       'cm': 0.1, 's': 'a', 'GT': hl.Call([0, 0])},
                 {'v': '1:1:A:C',       'cm': 0.1, 's': 'b', 'GT': hl.Call([0, 0])},
@@ -1341,6 +1343,7 @@ class Tests(unittest.TestCase):
         mt = hl.split_multi(mt)
         self.assertEqual(1, mt._force_count_rows())
 
+    @backend_specific_timeout(batch=3 * 60)
     def test_ld_prune(self):
         r2_threshold = 0.001
         window_size = 5

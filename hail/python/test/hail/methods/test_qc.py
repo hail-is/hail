@@ -149,6 +149,7 @@ class Tests(unittest.TestCase):
             cols_conc.write(outfile, overwrite=True)
             rows_conc.write(outfile, overwrite=True)
 
+    @backend_specific_timeout(batch=3 * 60)
     def test_concordance_n_discordant(self):
         dataset = get_dataset()
         _, cols_conc, rows_conc = hl.concordance(dataset, dataset)

@@ -4,11 +4,12 @@ import subprocess as sp
 
 import hail as hl
 import hail.utils as utils
-from ...helpers import get_dataset
+from ...helpers import get_dataset, backend_specific_timeout
 
 
 class Tests(unittest.TestCase):
     @unittest.skipIf('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
+    @backend_specific_timeout(batch=10 * 60)
     def test_ibd(self):
         dataset = get_dataset()
 
@@ -67,4 +68,3 @@ class Tests(unittest.TestCase):
         dataset = dataset.annotate_rows(dummy_maf=0.01)
         hl.identity_by_descent(dataset, dataset['dummy_maf'], min=0.0, max=1.0)
         hl.identity_by_descent(dataset, hl.float32(dataset['dummy_maf']), min=0.0, max=1.0)
-

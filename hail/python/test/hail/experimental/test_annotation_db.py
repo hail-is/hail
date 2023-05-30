@@ -10,9 +10,8 @@ class TestAnnotationDB:
         backend = hl.current_backend()
         if isinstance(backend, ServiceBackend):
             backend.batch_attributes = dict(name='setupAnnotationDBTests')
-        t = hl.utils.range_table(10)
-        t = t.key_by(locus=hl.locus('1', t.idx + 1))
-        t = t.annotate(annotation=hl.str(t.idx))
+        t = hl.utils.genomic_range_table(10)
+        t = t.annotate(annotation=hl.str(t.locus.position - 1))
         tempdir_manager = hl.TemporaryDirectory()
         d = tempdir_manager.__enter__()
         fname = d + '/f.mt'
@@ -50,8 +49,7 @@ class TestAnnotationDB:
 
     def test_uniqueness(self, db_json):
         db = hl.experimental.DB(region='us', cloud='gcp', config=db_json)
-        t = hl.utils.range_table(10)
-        t = t.key_by(locus=hl.locus('1', t.idx + 1))
+        t = hl.utils.genomic_range_table(10)
         t = db.annotate_rows_db(t, 'unique_dataset', 'nonunique_dataset')
         assert t.unique_dataset.dtype == hl.dtype('struct{idx: int32, annotation: str}')
         assert t.nonunique_dataset.dtype == hl.dtype('array<struct{idx: int32, annotation: str}>')
