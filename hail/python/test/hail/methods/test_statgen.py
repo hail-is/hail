@@ -545,7 +545,7 @@ class Tests(unittest.TestCase):
         assert not fit.exploded
         assert fit.converged
 
-    @backend_specific_timeout(local=3 * 60, batch=3 * 60)
+    @pytest.mark.timeout(3 * 60)
     def test_weighted_linear_regression(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',

@@ -152,6 +152,7 @@ def test_move_load_combiner_plan():
 
 @fails_local_backend
 @fails_service_backend
+@pytest.mark.timeout(5 * 60)
 def test_combiner_run():
 
     tmpdir = new_temp_file()
