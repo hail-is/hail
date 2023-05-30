@@ -33,6 +33,18 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.118
+
+Released 2023-05-30
+
+### Bug Fixes
+
+- (hail#13113) `hail.ggplot2.geom_point` now displays a legend group for a column even when it has only one value in it.
+- (hail#13089) Requester pays buckets now work in `hailtop.fs` and `hl.hadoop_*`. This has been broken since at least 0.2.115.
+- (hail#12995) Fixed bug causing poor performance and memory leaks for `Matrix.annotate_rows` aggregations.
+
+---
+
 ## Version 0.2.117
 
 Released 2023-05-19
