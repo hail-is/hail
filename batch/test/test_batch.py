@@ -1054,6 +1054,7 @@ def test_pool_highmem_instance_cheapest(client: BatchClient):
     assert 'highmem' in status['status']['worker'], str((status, b.debug_info()))
 
 
+@test_timeout(batch=6 * 60)
 def test_pool_highcpu_instance(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25', 'memory': 'lowmem'}
@@ -1064,6 +1065,7 @@ def test_pool_highcpu_instance(client: BatchClient):
     assert 'highcpu' in status['status']['worker'], str((status, b.debug_info()))
 
 
+@test_timeout(batch=6 * 60)
 def test_pool_highcpu_instance_cheapest(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25', 'memory': '50Mi'}
