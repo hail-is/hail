@@ -1190,6 +1190,7 @@ steps:
               --durations=50 \
               --ignore=test/hailtop/batch/ \
               --ignore=test/hailtop/inter_cloud \
+              --timeout=120 \
               test
     inputs:
       - from: /debug-wheel-container.tar
@@ -1244,6 +1245,7 @@ steps:
               -vv \
               --instafail \
               --durations=50 \
+              --timeout=120 \
               test/hailtop/inter_cloud
     inputs:
       - from: /repo/hail/python/dev/pinned-requirements.txt
@@ -1303,6 +1305,7 @@ steps:
               -m unchecked_allocator \
               --ignore=test/hailtop/batch/ \
               --ignore=test/hailtop/inter_cloud \
+              --timeout=120 \
               test
     inputs:
       - from: /wheel-container.tar
@@ -1360,6 +1363,7 @@ steps:
               --instafail \
               --durations=50 \
               --ignore=test/hailtop/ \
+              --timeout=120 \
               test
     inputs:
       - from: /debug-wheel-container.tar
@@ -1397,7 +1401,8 @@ steps:
               --doctest-modules \
               --doctest-glob='*.rst' \
               --ignore=docs/conf.py \
-              --ignore=docs/doctest_write_data.py
+              --ignore=docs/doctest_write_data.py \
+              --timeout=120
     dependsOn:
       - hail_base_image
     clouds:
@@ -1766,6 +1771,7 @@ steps:
               -vv \
               --instafail \
               --durations=50 \
+              --timeout=120 \
               /io/monitoring/test
     secrets:
       - name: worker-deploy-config
@@ -2407,6 +2413,7 @@ steps:
               --durations=50 \
               -n 6 \
               --ignore=test/hailtop/ \
+              --timeout=120 \
               test
     timeout: 5400
     inputs:
@@ -2502,6 +2509,7 @@ steps:
               -vv \
               --instafail \
               --durations=50 \
+              --timeout=120 \
               test
     timeout: 600
     secrets:
@@ -2569,6 +2577,7 @@ steps:
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
               --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
               -k "not test_scale and not test_invariants" \
+              --timeout=120 \
               /io/test/
     inputs:
       - from: /repo/batch/test
@@ -2834,6 +2843,7 @@ steps:
               -vv \
               --instafail \
               --durations=50 \
+              --timeout=120 \
               /io/test/hailtop/batch/
     inputs:
       - from: /repo/hail/python/test
@@ -3005,6 +3015,7 @@ steps:
               --doctest-modules \
               --doctest-glob='*.rst' \
               --ignore=docs/cookbook/files/ \
+              --timeout=120 \
               --ignore=docs/conf.py
     secrets:
       - name: worker-deploy-config
@@ -3599,6 +3610,7 @@ steps:
               --durations=50 \
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
               --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
+              --timeout=120 \
               /io/test/test_invariants.py
     inputs:
       - from: /repo/batch/test

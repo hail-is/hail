@@ -480,6 +480,7 @@ def test_linear_skat_on_big_matrix():
 
 
 
+@pytest.mark.timeout(5 * 60)
 def test_skat():
     ds2 = hl.import_vcf(resource('sample2.vcf'))
 

@@ -115,6 +115,7 @@ class Tests(unittest.TestCase):
 
 
     @pytest.mark.unchecked_allocator
+    @pytest.mark.timeout(6 * 60)
     def test_ld_score_regression(self):
 
         ht_scores = hl.import_table(

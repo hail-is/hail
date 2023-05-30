@@ -178,6 +178,7 @@ pytest: python/README.md $(PYTHON_JAR)
             --durations=50 \
             --self-contained-html \
             --html=../build/reports/pytest.html \
+            --timeout=120 \
             $(PYTEST_TARGET) \
             $(PYTEST_ARGS)
 
@@ -201,6 +202,7 @@ pytest-qob: upload-qob-jar upload-qob-test-resources install-editable
             --durations=50 \
             --self-contained-html \
             --html=../build/reports/pytest.html \
+            --timeout=120 \
             $(PYTEST_TARGET) \
             $(PYTEST_ARGS)
 
@@ -229,6 +231,7 @@ doctest: python/README.md $(PYTHON_JAR)
             --ignore=hail/docs/doctest_write_data.py \
             --ignore=hail/docs/getting_started_developing.rst \
             --ignore=hail/docs/getting_started.rst \
+            --timeout=120 \
             $(PYTEST_TARGET) \
             $(PYTEST_ARGS)
 

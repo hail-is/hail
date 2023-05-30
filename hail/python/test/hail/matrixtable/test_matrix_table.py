@@ -943,6 +943,7 @@ class Tests(unittest.TestCase):
         assert hl.read_matrix_table(path, _intervals=intervals, _filter_intervals = True).n_partitions() == 3
 
     @fails_service_backend()
+    @pytest.mark.timeout(3 * 60)
     def test_codecs_matrix(self):
         from hail.utils.java import scala_object
         supported_codecs = scala_object(Env.hail().io, 'BufferSpec').specs()
