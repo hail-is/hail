@@ -627,7 +627,7 @@ class ServiceTests(unittest.TestCase):
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
-    @test_timeout(batch=6 * 60)  # this lands on a highcpu instance and thus must spin up a new machine
+    @pytest.mark.timeout(batch=6 * 60)  # this lands on a highcpu instance and thus must spin up a new machine
     def test_specify_memory(self):
         b = self.batch()
         j = b.new_job()
