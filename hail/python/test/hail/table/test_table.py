@@ -1009,6 +1009,7 @@ class Tests(unittest.TestCase):
         t = t.key_by(rev_idx=-t.idx)
         assert t.take(10) == [hl.Struct(idx=idx, rev_idx=-idx) for idx in range(19, 9, -1)]
 
+    @test_timeout(batch=5 * 60)
     def test_filter_partitions(self):
         ht = hl.utils.range_table(23, n_partitions=8)
         self.assertEqual(ht.n_partitions(), 8)
@@ -2024,6 +2025,7 @@ def test_literal_of_pandas_NA_and_numpy_int32():
     hl.eval(hl.literal(x))
 
 
+@test_timeout(batch=5 * 60)
 def test_write_many():
     t = hl.utils.range_table(5)
     t = t.annotate(a = t.idx, b = t.idx * t.idx, c = hl.str(t.idx))

@@ -304,6 +304,7 @@ class Tests(unittest.TestCase):
 
     @skip_unless_service_backend(clouds=['gcp'])
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
+    @test_timeout(batch=5 * 60)
     def test_vep_grch37_consequence_true(self):
         gnomad_vep_result = hl.import_vcf(resource('sample.gnomad.exomes.r2.1.1.sites.chr1.vcf.gz'), reference_genome='GRCh37', force=True)
         hail_vep_result = hl.vep(gnomad_vep_result, csq=True)
@@ -323,6 +324,7 @@ class Tests(unittest.TestCase):
 
     @skip_unless_service_backend(clouds=['gcp'])
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
+    @test_timeout(batch=5 * 60)
     def test_vep_grch38_consequence_true(self):
         gnomad_vep_result = hl.import_vcf(resource('sample.gnomad.genomes.r3.0.sites.chr1.vcf.gz'), reference_genome='GRCh38', force=True)
         hail_vep_result = hl.vep(gnomad_vep_result, csq=True)
@@ -342,6 +344,7 @@ class Tests(unittest.TestCase):
 
     @skip_unless_service_backend(clouds=['gcp'])
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
+    @test_timeout(batch=5 * 60)
     def test_vep_grch37_consequence_false(self):
         mt = hl.import_vcf(resource('sample.gnomad.exomes.r2.1.1.sites.chr1.vcf.gz'), reference_genome='GRCh37', force=True)
         hail_vep_result = hl.vep(mt, csq=False)
@@ -363,6 +366,7 @@ class Tests(unittest.TestCase):
 
     @skip_unless_service_backend(clouds=['gcp'])
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
+    @test_timeout(batch=5 * 60)
     def test_vep_grch37_against_dataproc(self):
         mt = hl.import_vcf(resource('sample.vcf.gz'), reference_genome='GRCh37', force_bgz=True, n_partitions=4)
         mt = mt.head(20)
@@ -404,6 +408,7 @@ class Tests(unittest.TestCase):
 
     @skip_unless_service_backend(clouds=['gcp'])
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
+    @test_timeout(batch=5 * 60)
     def test_vep_grch38_against_dataproc(self):
         dataproc_result = hl.import_table(resource('dataproc_vep_grch38_annotations.tsv.gz'),
                                           key=['locus', 'alleles'],

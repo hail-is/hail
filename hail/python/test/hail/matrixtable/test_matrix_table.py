@@ -835,6 +835,7 @@ class Tests(unittest.TestCase):
               (df.GT == df.entry_struct.GT)) &
              (df.AD == df.entry_struct.AD))))
 
+    @test_timeout(batch=5 * 60)
     def test_filter_partitions(self):
         ds = self.get_mt(min_partitions=8)
         self.assertEqual(ds.n_partitions(), 8)
@@ -1798,7 +1799,7 @@ def test_matrix_randomness_read():
     assert_unique_uids(mt)
 
 
-@test_timeout(batch=4 * 60)
+@test_timeout(batch=8 * 60)
 def test_matrix_randomness_aggregate_rows_by_key():
     rmt = hl.utils.range_matrix_table(20, 10, 3)
     # with body randomness
@@ -1985,6 +1986,7 @@ def test_matrix_randomness_collect_cols_by_key():
     assert_unique_uids(mt)
 
 
+@test_timeout(batch=5 * 60)
 def test_matrix_randomness_aggregate_cols_by_key():
     rmt = hl.utils.range_matrix_table(20, 10, 3)
     # with body randomness

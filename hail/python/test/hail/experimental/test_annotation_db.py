@@ -50,7 +50,6 @@ class TestAnnotationDB:
     def test_uniqueness(self, db_json):
         db = hl.experimental.DB(region='us', cloud='gcp', config=db_json)
         t = hl.utils.genomic_range_table(10)
-        t = t.annotate(idx = t.locus.position - 1)
         t = db.annotate_rows_db(t, 'unique_dataset', 'nonunique_dataset')
-        assert t.unique_dataset.dtype == hl.dtype('struct{idx: int32, annotation: str}')
-        assert t.nonunique_dataset.dtype == hl.dtype('array<struct{idx: int32, annotation: str}>')
+        assert t.unique_dataset.dtype == hl.dtype('struct{annotation: str}')
+        assert t.nonunique_dataset.dtype == hl.dtype('array<struct{annotation: str}>')

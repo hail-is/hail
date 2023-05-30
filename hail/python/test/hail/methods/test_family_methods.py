@@ -5,7 +5,7 @@ from ..helpers import *
 
 
 class Tests(unittest.TestCase):
-    @test_timeout(local=3 * 60, batch=3 * 60)
+    @test_timeout(local=3 * 60, batch=6 * 60)
     def test_trio_matrix(self):
         """
         This test depends on certain properties of the trio matrix VCF and

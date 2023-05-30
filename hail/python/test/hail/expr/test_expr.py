@@ -3665,6 +3665,7 @@ class Tests(unittest.TestCase):
 
         assert ht.aggregate((hl.agg._prev_nonnull(ht.idx))) == 0
 
+    @test_timeout(batch=5 * 60)
     def test_summarize_runs(self):
         mt = hl.utils.range_matrix_table(3,3).annotate_entries(
             x1 = 'a',

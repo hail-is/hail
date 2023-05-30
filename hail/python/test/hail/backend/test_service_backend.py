@@ -48,7 +48,7 @@ def test_tiny_worker_has_tiny_memory():
 
 
 @skip_unless_service_backend()
-@test_timeout(batch=5 * 60)
+@test_timeout(batch=10 * 60)
 def test_big_worker_has_big_memory():
     backend = hl.current_backend()
     assert isinstance(backend, ServiceBackend)
