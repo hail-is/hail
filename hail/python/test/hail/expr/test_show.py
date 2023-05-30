@@ -1,9 +1,9 @@
 import hail as hl
 
-from ..helpers import backend_specific_timeout
+from ..helpers import test_timeout
 
 
-@backend_specific_timeout(batch=4 * 60)
+@test_timeout(batch=4 * 60)
 def test_show():
     mt = hl.balding_nichols_model(3, 10, 10)
     t = mt.rows()

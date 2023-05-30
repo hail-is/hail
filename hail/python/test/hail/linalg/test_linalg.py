@@ -177,7 +177,7 @@ class Tests(unittest.TestCase):
             nd = (bm @ bm.T).to_numpy()
             assert nd.shape == (1000, 1000)
 
-    @backend_specific_timeout(local=3 * 60, batch=6 * 60)
+    @test_timeout(local=3 * 60, batch=6 * 60)
     def test_from_entry_expr_options(self):
         def build_mt(a):
             data = [{'v': 0, 's': 0, 'x': a[0]},
@@ -355,7 +355,7 @@ class Tests(unittest.TestCase):
         mt_round_trip = BlockMatrix.from_entry_expr(mt.element).to_matrix_table_row_major()
         assert mt._same(mt_round_trip)
 
-    @backend_specific_timeout(3 * 60, local=6 * 60)
+    @test_timeout(3 * 60, local=6 * 60)
     def test_paired_elementwise_ops(self):
         nx = np.array([[2.0]])
         nc = np.array([[1.0], [2.0]])
@@ -685,7 +685,7 @@ class Tests(unittest.TestCase):
         self.assert_sums_agree(bm3, nd)
         self.assert_sums_agree(bm4, nd4)
 
-    @backend_specific_timeout(batch=3 * 60)
+    @test_timeout(batch=3 * 60)
     def test_slicing(self):
         nd = np.array(np.arange(0, 80, dtype=float)).reshape(8, 10)
         bm = BlockMatrix.from_ndarray(hl.literal(nd), block_size=3)
@@ -1071,6 +1071,7 @@ class Tests(unittest.TestCase):
         f = hl._locus_windows_per_contig([[1.0, 3.0, 4.0], [2.0, 2.0], [5.0]], 1.0)
         assert hl.eval(f) == ([0, 1, 1, 3, 3, 5], [1, 3, 3, 5, 5, 6])
 
+    @test_timeout(batch=3 * 60)
     def test_locus_windows(self):
         def assert_eq(a, b):
             assert np.array_equal(a, np.array(b)), f"a={a}, b={b}"

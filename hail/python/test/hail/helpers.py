@@ -176,7 +176,7 @@ fails_spark_backend = pytest.mark.xfail(
     strict=True)
 
 
-def backend_specific_timeout(overall=None, *, batch=None, local=None, spark=None):
+def test_timeout(overall=None, *, batch=None, local=None, spark=None):
     backend = choose_backend()
     specific_timeout = {'batch': batch, 'local': local, 'spark': spark}[backend]
     timeout = specific_timeout or overall

@@ -4,12 +4,12 @@ import subprocess as sp
 
 import hail as hl
 import hail.utils as utils
-from ...helpers import get_dataset, backend_specific_timeout
+from ...helpers import get_dataset, test_timeout
 
 
 class Tests(unittest.TestCase):
     @unittest.skipIf('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
-    @backend_specific_timeout(local=10 * 60, batch=10 * 60)
+    @test_timeout(local=10 * 60, batch=10 * 60)
     def test_ibd(self):
         dataset = get_dataset()
 

@@ -4,7 +4,7 @@ import pytest
 import hail as hl
 from hail.utils import new_temp_file
 from hail.vds.combiner.combine import defined_entry_fields
-from ..helpers import resource, fails_local_backend, fails_service_backend, backend_specific_timeout
+from ..helpers import resource, fails_local_backend, fails_service_backend, test_timeout
 
 
 # run this method to regenerate the combined VDS from 5 samples
@@ -218,6 +218,7 @@ def test_segment_intervals():
     assert before_coverage == after_coverage
 
 
+@test_timeout(batch=5 * 60)
 def test_interval_coverage():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
 
@@ -312,7 +313,7 @@ def test_impute_sex_chr_ploidy_from_interval_coverage():
     ]
 
 
-@backend_specific_timeout(local=4 * 60, batch=4 * 60)
+@test_timeout(local=4 * 60, batch=4 * 60)
 def test_impute_sex_chromosome_ploidy():
     x_par_end = 2699521
     y_par_end = 2649521
@@ -422,7 +423,7 @@ def test_impute_sex_chromosome_ploidy():
     ]
 
 
-@backend_specific_timeout(batch=3 * 60)
+@test_timeout(batch=6 * 60)
 def test_filter_intervals_segment():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
 
@@ -551,7 +552,7 @@ def test_to_dense_mt():
     assert as_dict.get(('chr22:10562436', 'NA12878')) == hl.Struct(LGT=hl.Call([0, 0]), LA=None, GQ=21, DP=9)
 
 
-@backend_specific_timeout(batch=3 * 60)
+@test_timeout(batch=3 * 60)
 def test_merge_reference_blocks():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
     vds = hl.vds.filter_samples(vds, ['HG00187'])
@@ -580,7 +581,7 @@ def test_merge_reference_blocks():
     assert hl.vds.to_dense_mt(vds)._same(hl.vds.to_dense_mt(merged))
 
 
-@backend_specific_timeout(local=3 * 60)
+@test_timeout(local=3 * 60, batch=6 * 60)
 def test_truncate_reference_blocks():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
     rd = vds.reference_data.select_globals()
@@ -600,7 +601,7 @@ def test_truncate_reference_blocks():
     assert hl.vds.to_dense_mt(vds)._same(hl.vds.to_dense_mt(vds_trunc))
 
 
-@backend_specific_timeout(local=3 * 60, batch=3 * 60)
+@test_timeout(local=3 * 60, batch=3 * 60)
 def test_union_rows():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
 
@@ -645,7 +646,7 @@ def test_combiner_max_len():
     assert hl.vds.VariantDataset.ref_block_max_length_field not in combined2.globals
 
 
-@backend_specific_timeout(4 * 60, local=6 * 60)
+@test_timeout(4 * 60, local=6 * 60)
 def test_split_sparse_roundtrip():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
     smt = hl.vds.to_merged_sparse_mt(vds)

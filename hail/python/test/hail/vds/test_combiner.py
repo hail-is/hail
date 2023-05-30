@@ -7,7 +7,7 @@ from hail.utils.java import Env
 from hail.utils.misc import new_temp_file
 from hail.vds.combiner import combine_variant_datasets, new_combiner, load_combiner, transform_gvcf
 from hail.vds.combiner.combine import defined_entry_fields
-from ..helpers import resource, fails_local_backend, fails_service_backend
+from ..helpers import resource, fails_local_backend, fails_service_backend, test_timeout
 
 
 all_samples = ['HG00308', 'HG00592', 'HG02230', 'NA18534', 'NA20760',
@@ -54,7 +54,7 @@ def test_combiner_works():
 
 @fails_local_backend
 @fails_service_backend
-@pytest.mark.timeout(6 * 60)
+@test_timeout(6 * 60)
 def test_vcf_vds_combiner_equivalence():
     import hail.experimental.vcf_combiner.vcf_combiner as vcf
     import hail.vds.combiner as vds
@@ -153,7 +153,7 @@ def test_move_load_combiner_plan():
 
 @fails_local_backend
 @fails_service_backend
-@pytest.mark.timeout(5 * 60)
+@test_timeout(5 * 60)
 def test_combiner_run():
 
     tmpdir = new_temp_file()

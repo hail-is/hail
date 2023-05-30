@@ -3,7 +3,7 @@ import pytest
 from hailtop.utils import secret_alnum_string
 from hailtop.test_utils import skip_in_azure, run_if_azure
 
-from ..helpers import fails_local_backend, backend_specific_timeout
+from ..helpers import fails_local_backend, test_timeout
 
 
 @skip_in_azure
@@ -69,7 +69,7 @@ def test_requester_pays_with_project():
 
 
 @skip_in_azure
-@backend_specific_timeout(local=5 * 60)
+@test_timeout(local=5 * 60)
 def test_requester_pays_with_project_more_than_one_partition():
     # NB: this test uses a file with more rows than partitions because Hadoop's Seekable input
     # streams do not permit seeking past the end of the input (ref:

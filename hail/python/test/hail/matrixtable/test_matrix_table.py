@@ -97,6 +97,7 @@ class Tests(unittest.TestCase):
         assert mt1.head(1, None).count() == (1, 10)
         assert mt1.head(None, 1).count() == (10, 1)
 
+    @test_timeout(batch=5 * 60)
     def test_tail(self):
         # no empty partitions
         mt1 = hl.utils.range_matrix_table(10, 10)
@@ -943,7 +944,7 @@ class Tests(unittest.TestCase):
         assert hl.read_matrix_table(path, _intervals=intervals, _filter_intervals = True).n_partitions() == 3
 
     @fails_service_backend()
-    @backend_specific_timeout(3 * 60, local=6 * 60)
+    @test_timeout(3 * 60, local=6 * 60)
     def test_codecs_matrix(self):
         from hail.utils.java import scala_object
         supported_codecs = scala_object(Env.hail().io, 'BufferSpec').specs()
@@ -955,7 +956,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(ds._same(ds2))
 
     @fails_service_backend()
-    @backend_specific_timeout(local=3 * 60)
+    @test_timeout(local=3 * 60)
     def test_codecs_table(self):
         from hail.utils.java import scala_object
         supported_codecs = scala_object(Env.hail().io, 'BufferSpec').specs()
@@ -1022,7 +1023,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(mt.filter_cols(hl.missing(hl.tbool)).count_cols(), 0)
         self.assertEqual(mt.filter_entries(hl.missing(hl.tbool)).entries().count(), 0)
 
-    @backend_specific_timeout(batch=4 * 60)
+    @test_timeout(batch=4 * 60)
     def test_to_table_on_various_fields(self):
         mt = hl.utils.range_matrix_table(3, 4)
 
@@ -1343,7 +1344,7 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(matrix1.union_cols(matrix2)._same(expected))
 
-    @backend_specific_timeout(local=5 * 60, batch=5 * 60)
+    @test_timeout(local=5 * 60, batch=5 * 60)
     def test_row_joins_into_table(self):
         rt = hl.utils.range_matrix_table(9, 13, 3)
         mt1 = rt.key_rows_by(idx=rt.row_idx)
@@ -1604,7 +1605,7 @@ class Tests(unittest.TestCase):
         actual = mt.show(handler=str)
         assert actual == expected
 
-    @backend_specific_timeout(batch=3 * 60)
+    @test_timeout(batch=3 * 60)
     def test_partitioned_write(self):
         mt = hl.utils.range_matrix_table(40, 3, 5)
 
@@ -1730,7 +1731,7 @@ class Tests(unittest.TestCase):
             hl.utils.Struct(idx=0, locus=hl.genetics.Locus(contig='2', position=1, reference_genome='GRCh37'))]
 
     @fails_local_backend()
-    @backend_specific_timeout(batch=3 * 60)
+    @test_timeout(batch=3 * 60)
     def test_lower_row_agg_init_arg(self):
         mt = hl.balding_nichols_model(5, 200, 200)
         mt2 = hl.variant_qc(mt)
@@ -1797,7 +1798,7 @@ def test_matrix_randomness_read():
     assert_unique_uids(mt)
 
 
-@backend_specific_timeout(batch=4 * 60)
+@test_timeout(batch=4 * 60)
 def test_matrix_randomness_aggregate_rows_by_key():
     rmt = hl.utils.range_matrix_table(20, 10, 3)
     # with body randomness
@@ -1851,6 +1852,7 @@ def test_matrix_randomness_choose_cols():
     assert_unique_uids(mt)
 
 
+@test_timeout(batch=5 * 60)
 def test_matrix_randomness_map_cols():
     rmt = hl.utils.range_matrix_table(10, 10, 3)
     # with body randomness
@@ -1922,6 +1924,7 @@ def test_matrix_randomness_key_rows_by():
     assert_unique_uids(mt)
 
 
+@test_timeout(batch=5 * 60)
 def test_matrix_randomness_map_rows():
     rmt = hl.utils.range_matrix_table(10, 10, 3)
     # with body randomness

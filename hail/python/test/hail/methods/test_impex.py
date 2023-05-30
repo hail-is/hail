@@ -38,7 +38,7 @@ class VCFTests(unittest.TestCase):
     def test_info_char(self):
         self.assertEqual(hl.import_vcf(resource('infochar.vcf')).count_rows(), 1)
 
-    @backend_specific_timeout(6 * 60, local=7 * 60, batch=7 * 60)
+    @test_timeout(6 * 60, local=7 * 60, batch=7 * 60)
     def test_import_export_same(self):
         for i in range(10):
             mt = hl.import_vcf(resource(f'random_vcfs/{i}.vcf.bgz'))
@@ -421,7 +421,7 @@ class VCFTests(unittest.TestCase):
     def test_vcf_parser_golden_master__sample_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('sample.vcf'), 'GRCh37')
 
-    @pytest.mark.timeout(3 * 60)
+    @test_timeout(3 * 60)
     def test_vcf_parser_golden_master__gvcf_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('gvcfs/HG00096.g.vcf.gz'), 'GRCh38')
 
@@ -916,7 +916,7 @@ class PLINKTests(unittest.TestCase):
 
         self.assertTrue(same)
 
-    @backend_specific_timeout(batch=3 * 60)
+    @test_timeout(batch=3 * 60)
     def test_export_plink_exprs(self):
         ds = get_dataset()
         fam_mapping = {'f0': 'fam_id', 'f1': 'ind_id', 'f2': 'pat_id', 'f3': 'mat_id',
@@ -1597,7 +1597,7 @@ class GENTests(unittest.TestCase):
                                resource('skip_invalid_loci.sample'))
             mt._force_count_rows()
 
-    @backend_specific_timeout(batch=3 * 60)
+    @test_timeout(batch=3 * 60)
     def test_export_gen(self):
         gen = hl.import_gen(resource('example.gen'),
                             sample_file=resource('example.sample'),
@@ -1926,6 +1926,7 @@ class ImportMatrixTableTests(unittest.TestCase):
 @pytest.mark.parametrize("header", [True, False])
 @pytest.mark.parametrize("delimiter", [',', ' '])
 @pytest.mark.parametrize("missing", ['.', '9'])
+@test_timeout(batch=3 * 60)
 def test_import_matrix_table_round_trip(missing, delimiter, header, entry_fun):
     mt = hl.utils.range_matrix_table(10, 10, n_partitions=2)
     mt = mt.annotate_entries(x = entry_fun(mt.row_idx * mt.col_idx))

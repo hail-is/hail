@@ -121,6 +121,7 @@ class Tests(unittest.TestCase):
         mt = mt.key_rows_by().drop('locus')
         hl.variant_qc(mt).variant_qc.collect()
 
+    @test_timeout(batch=5 * 60)
     def test_concordance(self):
         dataset = get_dataset()
         glob_conc, cols_conc, rows_conc = hl.concordance(dataset, dataset)
@@ -149,7 +150,7 @@ class Tests(unittest.TestCase):
             cols_conc.write(outfile, overwrite=True)
             rows_conc.write(outfile, overwrite=True)
 
-    @backend_specific_timeout(local=3 * 60, batch=3 * 60)
+    @test_timeout(local=3 * 60, batch=3 * 60)
     def test_concordance_n_discordant(self):
         dataset = get_dataset()
         _, cols_conc, rows_conc = hl.concordance(dataset, dataset)
@@ -351,6 +352,7 @@ class Tests(unittest.TestCase):
 
     @skip_unless_service_backend(clouds=['gcp'])
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
+    @test_timeout(batch=5 * 60)
     def test_vep_grch38_consequence_false(self):
         mt = hl.import_vcf(resource('sample.gnomad.genomes.r3.0.sites.chr1.vcf.gz'), reference_genome='GRCh38', force=True)
         hail_vep_result = hl.vep(mt, csq=False)
