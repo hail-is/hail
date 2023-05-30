@@ -1704,7 +1704,7 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
 
     val rowsT = ptype.types(0).asInstanceOf[PArray]
     val rowT = rowsT.elementType.asInstanceOf[PStruct].setRequired(true)
-    val spec = TypedCodecSpec(rowT, BufferSpec.wireSpec)
+    val spec = TypedCodecSpec(rowT, BufferSpec.blockedUncompressed)
 
     val makeEnc = spec.buildEncoder(ctx, rowT)
     val rowsAddr = ptype.loadField(res, 0)
@@ -2562,7 +2562,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       else
         null
 
-    val spec = BufferSpec.wireSpec
+    val spec = BufferSpec.blockedUncompressed
 
     // Order of operations:
     // 1. init op on all aggs and serialize to byte array.
@@ -3059,7 +3059,7 @@ case class TableKeyByAndAggregate(
 
     val globalsBc = prev.globals.broadcast(ctx.theHailClassLoader)
 
-    val spec = BufferSpec.wireSpec
+    val spec = BufferSpec.blockedUncompressed
     val res = genUID()
 
     val extracted = agg.Extract(expr, res, Requiredness(this, ctx))
@@ -3347,7 +3347,7 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
 
     val act = implicitly[ClassTag[Annotation]]
 
-    val codec = TypedCodecSpec(prev.rvd.rowPType, BufferSpec.wireSpec)
+    val codec = TypedCodecSpec(prev.rvd.rowPType, BufferSpec.blockedUncompressed)
     val rdd = prev.rvd.keyedEncodedRDD(ctx, codec, sortFields.map(_.field)).sortBy(_._1)(ord, act)
     val (rowPType: PStruct, orderedCRDD) = codec.decodeRDD(ctx, rowType, rdd.map(_._2))
     new TableValueIntermediate(TableValue(ctx, typ, prev.globals, RVD.unkeyed(rowPType, orderedCRDD)))

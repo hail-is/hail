@@ -2374,7 +2374,7 @@ class Emit[C](
             PCanonicalTuple(true, et.emitType.storageType).constructFromFields(cb, region, FastIndexedSeq(et), deepCopy = false)
           }
 
-          val bufferSpec: BufferSpec = BufferSpec.wireSpec
+          val bufferSpec: BufferSpec = BufferSpec.blockedUncompressed
 
           val emitGlobals = EmitCode.fromI(mb)(cb => emitInNewBuilder(cb, globals))
 
