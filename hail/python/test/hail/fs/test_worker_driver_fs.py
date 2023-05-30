@@ -1,8 +1,9 @@
 import hail as hl
+import pytest
 from hailtop.utils import secret_alnum_string
 from hailtop.test_utils import skip_in_azure, run_if_azure
 
-from ..helpers import fails_local_backend
+from ..helpers import fails_local_backend, backend_specific_timeout
 
 
 @skip_in_azure
