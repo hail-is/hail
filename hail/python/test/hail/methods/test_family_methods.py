@@ -200,7 +200,6 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(men2.filter(men2.s == 'Dtr1')._same(men.filter(men.s == 'Dtr1')))
 
-    @test_timeout(batch=4 * 60)
     def test_tdt(self):
         pedigree = hl.Pedigree.read(resource('tdt.fam'))
         tdt_tab = (hl.transmission_disequilibrium_test(

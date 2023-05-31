@@ -3,7 +3,6 @@ import hail as hl
 from ..helpers import test_timeout
 
 
-@test_timeout(batch=4 * 60)
 def test_show():
     mt = hl.balding_nichols_model(3, 10, 10)
     t = mt.rows()

@@ -1915,7 +1915,6 @@ head_tail_test_data = [
 
 
 @pytest.mark.parametrize("test", head_tail_test_data)
-@test_timeout(batch=4 * 60)
 def test_table_head_and_tail(test):
     test()
 
