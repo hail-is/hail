@@ -65,6 +65,12 @@ steps:
     script: |
       set -ex
 
+      retry() {
+          "$@" ||
+              (sleep 2 && "$@") ||
+              (sleep 5 && "$@");
+      }
+
       REGISTRY={{ global.docker_prefix.split('/')[0] }}
 
       {% if global.cloud == "gcp" %}
@@ -79,7 +85,7 @@ steps:
       {% endif %}
 
       cd /io/docker/third-party
-      DOCKER_PREFIX={{ global.docker_prefix }} bash copy_images.sh
+      DOCKER_PREFIX={{ global.docker_prefix }} retry bash copy_images.sh
     inputs:
       - from: /repo/docker
         to: /io/docker
