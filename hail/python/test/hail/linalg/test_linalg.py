@@ -203,7 +203,7 @@ class Tests(unittest.TestCase):
     @test_timeout(local=6 * 60, batch=6 * 60)
     def test_from_entry_expr_options_2(self):
         mean_imputed = np.array([0.0, 1.0, 2.0])
-        actual = hl.literal([0.0, hl.missing(hl.tfloat), 2.0])
+        actual = hl.array([0.0, hl.missing(hl.tfloat), 2.0])
 
         mt = hl.utils.range_matrix_table(1, 3)
         mt = mt.rename({'row_idx': 'v', 'col_idx': 's'})
