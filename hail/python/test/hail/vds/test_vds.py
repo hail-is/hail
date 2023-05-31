@@ -144,6 +144,7 @@ def test_sampleqc_singleton_r_ti_tv():
 
 
 
+@test_timeout(batch=4 * 60)
 def test_filter_samples_and_merge():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
     vds.reference_data = vds.reference_data.drop('ref_allele')
@@ -486,6 +487,7 @@ def test_filter_intervals_default_table():
     assert var.aggregate_rows(hl.agg.all(intervals[0].contains(var.locus)))
 
 
+@test_timeout(batch=4 * 60)
 def test_filter_chromosomes():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
 

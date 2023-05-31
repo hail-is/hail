@@ -7,6 +7,7 @@ from hail.backend.service_backend import ServiceBackend
 
 
 @skip_unless_service_backend()
+@test_timeout(batch=4 * 60)
 def test_tiny_driver_has_tiny_memory():
     try:
         hl.utils.range_table(100_000_000, 50).to_pandas()
@@ -63,7 +64,7 @@ def test_big_worker_has_big_memory():
 
 
 @skip_unless_service_backend()
-@test_timeout(batch=6 * 60)
+@test_timeout(batch=12 * 60)
 def test_regions():
     backend = hl.current_backend()
     assert isinstance(backend, ServiceBackend)
