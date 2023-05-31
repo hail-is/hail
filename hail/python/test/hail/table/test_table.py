@@ -2092,28 +2092,29 @@ def test_indexed_read_boundaries(branching_factor):
         assert t1.idx.collect() == [141, 142, 143, 144, 152]
 
 
-@test_timeout(batch=5 * 60)
-def test_table_randomness():
-    def assert_unique_uids(ht):
-        ht = ht.annotate(r=hl.rand_int64())
-        x = ht.aggregate(hl.struct(r=hl.agg.collect_as_set(ht.r), n=hl.agg.count()))
-        assert(len(x.r) == x.n)
+def assert_unique_uids(ht):
+    ht = ht.annotate(r=hl.rand_int64())
+    x = ht.aggregate(hl.struct(r=hl.agg.collect_as_set(ht.r), n=hl.agg.count()))
+    assert(len(x.r) == x.n)
 
-    def assert_contains_node(t, node):
-        assert(t._tir.base_search(lambda x: isinstance(x, node)))
+def assert_contains_node(t, node):
+    assert(t._tir.base_search(lambda x: isinstance(x, node)))
 
-    # test TableRange
+
+def test_table_randomness_range_table():
     t = hl.utils.range_table(10, 3)
     assert_contains_node(t, ir.TableRange)
     assert_unique_uids(t)
 
-    # test MatrixRowsTable
+
+def test_table_randomness_range_matrix_rows_table():
     mt = hl.utils.range_matrix_table(10, 10, 3)
     t = mt.rows()
     assert_contains_node(t, ir.MatrixRowsTable)
     assert_unique_uids(t)
 
-    # test TableJoin
+
+def test_table_randomness_join():
     t1 = hl.utils.range_table(12, 3)
     t1 = t1.key_by(k=(t1.idx // 2) * 2)
     t2 = hl.utils.range_table(8, 3)
@@ -2122,7 +2123,8 @@ def test_table_randomness():
     assert_contains_node(t, ir.TableJoin)
     assert_unique_uids(t)
 
-    # test TableLeftJoinRightDistinct
+
+def test_table_randomness_left_join_right_distinct():
     t1 = hl.utils.range_table(12, 3)
     t1 = t1.key_by(k=(t1.idx // 2) * 2)
     t2 = hl.utils.range_table(4, 3)
@@ -2131,7 +2133,8 @@ def test_table_randomness():
     assert_contains_node(t, ir.TableLeftJoinRightDistinct)
     assert_unique_uids(t)
 
-    # test TableIntervalJoin
+
+def test_table_randomness_interval_join():
     t1 = hl.utils.range_table(12, 3)
     t2 = hl.utils.range_table(4, 3)
     t2 = t2.key_by(k=hl.interval(t2.idx * 3, (t2.idx + 1) * 3))
@@ -2139,7 +2142,8 @@ def test_table_randomness():
     assert_contains_node(t, ir.TableIntervalJoin)
     assert_unique_uids(t)
 
-    # test TableUnion
+
+def test_table_randomness_union():
     t1 = hl.utils.range_table(12, 3)
     t2 = hl.utils.range_table(4, 3)
     t2 = t2.key_by(idx=t2.idx * 3)
@@ -2147,55 +2151,68 @@ def test_table_randomness():
     assert_contains_node(t, ir.TableUnion)
     assert_unique_uids(t)
 
-    # test TableMapGlobals
+
+def test_table_randomness_map_globals_with_body_randomness():
     rt = hl.utils.range_table(5)
-    # with body randomness
     t1 = rt.annotate_globals(x=hl.rand_int64())
     assert_contains_node(t1, ir.TableMapGlobals)
     t1._force_count() # test with no consumer randomness
     assert_unique_uids(t1)
-    # w/o body randomness
+
+
+def test_table_randomness_map_globals_without_body_randomness():
+    rt = hl.utils.range_table(5)
     t2 = rt.annotate_globals(x=1)
     assert_contains_node(t2, ir.TableMapGlobals)
     assert_unique_uids(t2)
 
-    # test TableExplode
+
+def test_table_randomness_explode():
     t = hl.utils.range_table(5)
     t = t.annotate(s=hl.struct(a=hl.range(t.idx)))
     t = t.explode(t.s.a)
     assert_contains_node(t, ir.TableExplode)
     assert_unique_uids(t)
 
-    # test TableKeyBy
+
+def test_table_randomness_key_by():
     t = hl.utils.range_table(12, 3)
     t = t.key_by(k=t.idx // 4)
     assert_contains_node(t, ir.TableKeyBy)
     assert_unique_uids(t)
 
-    # test TableMapRows
+
+def test_table_randomness_map_rows_with_body_randomness():
     rt = hl.utils.range_table(12, 3)
-    # with body randomness
     t = rt.annotate(x=hl.rand_int64())
     assert_contains_node(t, ir.TableMapRows)
     t._force_count() # test with no consumer randomness
     assert_unique_uids(t)
-    # with body scan randomness
+
+
+def test_table_randomness_map_rows_with_scan_randomness():
+    rt = hl.utils.range_table(12, 3)
     t = rt.annotate(x=hl.scan.sum(hl.rand_int64()))
     assert_contains_node(t, ir.TableMapRows)
     assert_unique_uids(t)
-    # w/o body randomness
+
+
+def test_table_randomness_map_rows_without_body_randomness():
+    rt = hl.utils.range_table(12, 3)
     t = rt.annotate(x=1)
     assert_contains_node(t, ir.TableMapRows)
     assert_unique_uids(t)
 
-    # test TableMapPartitions
+
+def test_table_randomness_map_partitions():
     rt = hl.utils.range_table(10, 3)
     t = rt.annotate(x=hl.rand_int64())
     t = t._map_partitions(lambda part: part.map(lambda row: row.annotate(x=row.x / 2)))
     assert_contains_node(t, ir.TableMapPartitions)
     t._force_count() # test with no consumer randomness
 
-    # test TableRead
+
+def test_table_randomness_read():
     rt = hl.utils.range_table(10, 3)
     path = new_temp_file()
     rt.write(path)
@@ -2203,92 +2220,111 @@ def test_table_randomness():
     assert_contains_node(t, ir.TableRead)
     assert_unique_uids(t)
 
-    # test MatrixEntriesTable
+
+def test_table_randomness_matrix_entries_table():
     mt = hl.utils.range_matrix_table(10, 10, 3)
     t = mt.entries()
     assert_contains_node(t, ir.MatrixEntriesTable)
     assert_unique_uids(t)
 
-    # test TableFilter
+
+def test_table_randomness_filter_with_cond_randomness():
     rt = hl.utils.range_table(20, 3)
-    # with cond randomness
     t = rt.filter(hl.rand_int64() % 2 == 0)
     assert_contains_node(t, ir.TableFilter)
     t._force_count() # test with no consumer randomness
     assert_unique_uids(t)
-    # w/o cond randomness
+
+
+def test_table_randomness_filter_without_cond_randomness():
+    rt = hl.utils.range_table(20, 3)
     t = rt.filter(rt.idx < 100)
     assert_contains_node(t, ir.TableFilter)
     assert_unique_uids(t)
 
-    # test TableKeyByAndAggregate
+
+def test_table_randomness_key_by_and_aggregate_with_body_randomness():
     rt = hl.utils.range_table(20, 3)
-    # with body randomness
     t = rt.group_by(k=rt.idx % 5).aggregate(x=hl.agg.sum(rt.idx) + hl.rand_int64())
     assert_contains_node(t, ir.TableKeyByAndAggregate)
     t._force_count() # test with no consumer randomness
     assert_unique_uids(t)
-    # with agg randomness
+
+
+def test_table_randomness_key_by_and_aggregate_with_agg_randomness():
+    rt = hl.utils.range_table(20, 3)
     t = rt.group_by(k=rt.idx % 5).aggregate(x=hl.agg.sum(hl.rand_int64()))
     assert_contains_node(t, ir.TableKeyByAndAggregate)
     t._force_count() # test with no consumer randomness
     assert_unique_uids(t)
-    # w/o body randomness
+
+
+def test_table_randomness_key_by_and_aggregate_without_body_randomness():
+    rt = hl.utils.range_table(20, 3)
     t = rt.group_by(k=rt.idx % 5).aggregate(x=hl.agg.sum(rt.idx))
     assert_contains_node(t, ir.TableKeyByAndAggregate)
     assert_unique_uids(t)
 
-    # test TableAggregateByKey
+
+def test_table_randomness_aggregate_by_key():
     rt = hl.utils.range_table(20, 3)
     t = rt.key_by(k=rt.idx % 5)
     t = t.collect_by_key()
     assert_contains_node(t, ir.TableAggregateByKey)
     assert_unique_uids(t)
 
-    # test MatrixColsTable
+
+def test_table_randomness_matrix_cols_table():
     mt = hl.utils.range_matrix_table(10, 10, 3)
     t = mt.cols()
     assert_contains_node(t, ir.MatrixColsTable)
     assert_unique_uids(t)
 
-    # test TableParallelize
+
+def test_table_randomness_parallelize_with_body_randomness():
     rt = hl.utils.range_table(20, 3)
-    # with body randomness
     t = hl.Table.parallelize(hl.array([1, 2, 3]).map(lambda x: hl.struct(x=x, r=hl.rand_int64())))
     assert_contains_node(t, ir.TableParallelize)
     t._force_count() # test with no consumer randomness
     assert_unique_uids(t)
-    # w/o body randomness
+
+
+def test_table_randomness_parallelize_without_body_randomness():
+    rt = hl.utils.range_table(20, 3)
     t = hl.Table.parallelize(hl.array([1, 2, 3]).map(lambda x: hl.struct(x=x)))
     assert_contains_node(t, ir.TableParallelize)
     assert_unique_uids(t)
 
-    # test TableHead
+def test_table_randomness_head():
     t = hl.utils.range_table(20, 3)
     t = t.head(10)
     assert_contains_node(t, ir.TableHead)
     assert_unique_uids(t)
 
-    # test TableTail
+
+def test_table_randomness_tail():
     t = hl.utils.range_table(20, 3)
     t = t.tail(10)
     assert_contains_node(t, ir.TableTail)
     assert_unique_uids(t)
 
-    # test TableOrderBy
+
+def test_table_randomness_order_by():
     t = hl.utils.range_table(10, 3)
     t = t.order_by(-t.idx)
     assert_contains_node(t, ir.TableOrderBy)
     assert_unique_uids(t)
 
-    # test TableDistinct
+
+def test_table_randomness_distinct():
     rt = hl.utils.range_table(20, 3)
     t = rt.key_by(k=rt.idx % 5)
     t = t.distinct()
     assert_contains_node(t, ir.TableDistinct)
     assert_unique_uids(t)
 
-    # test TableRepartition
+
+def test_table_randomness_repartition():
     if not hl.current_backend().requires_lowering:
         rt = hl.utils.range_table(20, 3)
         t = rt.repartition(5)
@@ -2296,19 +2332,22 @@ def test_table_randomness():
         assert_contains_node(t, ir.TableRepartition)
         assert_unique_uids(t)
 
-    # test CastMatrixToTable
+
+def test_table_randomness_cast_matrix_to_table():
     mt = hl.utils.range_matrix_table(10, 10, 3)
     t = mt._localize_entries("entries", "cols")
     assert_contains_node(t, ir.CastMatrixToTable)
     assert_unique_uids(t)
 
-    # test TableRename
+
+def test_table_randomness_rename():
     rt = hl.utils.range_table(20, 3)
     t = rt.rename({'idx': 'index'})
     assert_contains_node(t, ir.TableRename)
     assert_unique_uids(t)
 
-    # test TableMultiWayZipJoin
+
+def test_table_randomness_multi_way_zip_join():
     t1 = hl.utils.range_table(12, 3)
     t1 = t1.key_by(k=(t1.idx // 2) * 2)
     t2 = hl.utils.range_table(12, 3)
@@ -2319,20 +2358,23 @@ def test_table_randomness():
     assert_contains_node(t, ir.TableMultiWayZipJoin)
     assert_unique_uids(t)
 
-    # test TableFilterIntervals
+
+def test_table_randomness_filter_intervals():
     rt = hl.utils.range_table(20, 3)
     intervals = [hl.interval(0, 5), hl.interval(10, 15)]
     t = hl.filter_intervals(rt, intervals)
     assert_contains_node(t, ir.TableFilterIntervals)
     assert_unique_uids(t)
 
-    # test BlockMatrixToTable
+
+def test_table_randomness_block_matrix_to_table():
     bm = hl.linalg.BlockMatrix.fill(10, 10, 0)
     t = bm.entries()
     assert_contains_node(t, ir.BlockMatrixToTable)
     assert_unique_uids(t)
 
-    # test TableGen
+
+def test_table_randomness_table_gen():
     t = hl.Table._generate(
         contexts=hl.repeat(hl.rand_int64, 2),
         globals=hl.struct(k=hl.rand_int64()),
