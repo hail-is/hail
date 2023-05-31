@@ -1,6 +1,5 @@
 import abc
 import re
-from typing import TypeVar
 
 from ...exceptions import QueryError
 
@@ -13,42 +12,19 @@ class Operator(abc.ABC):
         raise NotImplementedError
 
 
-class OperatorMixin:
+class ComparisonOperator(Operator, abc.ABC):
+    symbols = {'>=', '>', '<', '<=', '==', '=', '!='}
+
+
+class MatchOperator(Operator, abc.ABC):
+    symbols = {'=', '!=', '!~', '=~'}
+
+
+class PartialMatchOperator(MatchOperator, abc.ABC):
     pass
 
 
-OperatorMixinType = TypeVar("OperatorMixinType", bound=OperatorMixin)
-
-
-class ComparisonOperatorMixin(OperatorMixin):
-    pass
-
-
-class ComparisonOperator(Operator, ComparisonOperatorMixin, abc.ABC):
-    pass
-
-
-class MatchOperatorMixin(OperatorMixin):
-    pass
-
-
-class MatchOperator(Operator, MatchOperatorMixin, abc.ABC):
-    pass
-
-
-class PartialMatchOperatorMixin(MatchOperatorMixin):
-    pass
-
-
-class PartialMatchOperator(Operator, PartialMatchOperatorMixin, abc.ABC):
-    pass
-
-
-class ExactMatchOperatorMixin(MatchOperatorMixin):
-    pass
-
-
-class ExactMatchOperator(Operator, ExactMatchOperatorMixin, abc.ABC):
+class ExactMatchOperator(MatchOperator, abc.ABC):
     pass
 
 

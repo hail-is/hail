@@ -1,20 +1,15 @@
 import abc
 from enum import Enum
-from typing import Any, List, Tuple, Type
+from typing import Any, List, Tuple
 
 from hailtop.utils import parse_timestamp_msecs
 
 from ...exceptions import QueryError
 from .operators import (
     ComparisonOperator,
-    ComparisonOperatorMixin,
     ExactMatchOperator,
-    ExactMatchOperatorMixin,
     MatchOperator,
-    MatchOperatorMixin,
     NotEqualExactMatchOperator,
-    Operator,
-    OperatorMixinType,
     PartialMatchOperator,
     get_operator,
 )
@@ -72,13 +67,6 @@ def parse_cost(word: str) -> float:
     return parse_float(word)
 
 
-def parse_operator(expected_operator_type: Type[OperatorMixinType], symbol: str) -> Operator:
-    operator = get_operator(symbol)
-    if not isinstance(operator, expected_operator_type):
-        raise QueryError(f'unexpected operator "{symbol}" expected {expected_operator_type}')
-    return operator
-
-
 class Query(abc.ABC):
     @abc.abstractmethod
     def query(self) -> Tuple[str, List[Any]]:
@@ -88,8 +76,9 @@ class Query(abc.ABC):
 class StateQuery(Query):
     @staticmethod
     def parse(op: str, state: str) -> 'StateQuery':
-        operator = parse_operator(ExactMatchOperatorMixin, op)
-        assert isinstance(operator, ExactMatchOperator)
+        operator = get_operator(op)
+        if not isinstance(operator, ExactMatchOperator):
+            raise QueryError(f'unexpected operator "{op}" expected {ExactMatchOperator}')
         if state not in state_search_term_to_states:
             raise QueryError(f'unknown state "{state}"')
         return StateQuery(state, operator)
@@ -110,8 +99,9 @@ class StateQuery(Query):
 class JobIdQuery(Query):
     @staticmethod
     def parse(op: str, maybe_job_id: str) -> 'JobIdQuery':
-        operator = parse_operator(ComparisonOperatorMixin, op)
-        assert isinstance(operator, ComparisonOperator)
+        operator = get_operator(op)
+        if not isinstance(operator, ComparisonOperator):
+            raise QueryError(f'unexpected operator "{op}" expected one of {ComparisonOperator.symbols}')
         job_id = parse_int(maybe_job_id)
         return JobIdQuery(job_id, operator)
 
@@ -127,8 +117,9 @@ class JobIdQuery(Query):
 class InstanceQuery(Query):
     @staticmethod
     def parse(op: str, instance: str) -> 'InstanceQuery':
-        operator = parse_operator(MatchOperatorMixin, op)
-        assert isinstance(operator, MatchOperator)
+        operator = get_operator(op)
+        if not isinstance(operator, MatchOperator):
+            raise QueryError(f'unexpected operator "{op}" expected one of {MatchOperator.symbols}')
         return InstanceQuery(instance, operator)
 
     def __init__(self, instance: str, operator: MatchOperator):
@@ -150,8 +141,9 @@ class InstanceQuery(Query):
 class InstanceCollectionQuery(Query):
     @staticmethod
     def parse(op: str, instance_collection: str) -> 'InstanceCollectionQuery':
-        operator = parse_operator(MatchOperatorMixin, op)
-        assert isinstance(operator, MatchOperator)
+        operator = get_operator(op)
+        if not isinstance(operator, MatchOperator):
+            raise QueryError(f'unexpected operator "{op}" expected one of {MatchOperator.symbols}')
         return InstanceCollectionQuery(instance_collection, operator)
 
     def __init__(self, inst_coll: str, operator: MatchOperator):
@@ -220,8 +212,9 @@ class UnquotedPartialMatchQuery(Query):
 class KeywordQuery(Query):
     @staticmethod
     def parse(op: str, key: str, value: str) -> 'KeywordQuery':
-        operator = parse_operator(MatchOperatorMixin, op)
-        assert isinstance(operator, MatchOperator)
+        operator = get_operator(op)
+        if not isinstance(operator, MatchOperator):
+            raise QueryError(f'unexpected operator "{op}" expected one of {MatchOperator.symbols}')
         return KeywordQuery(operator, key, value)
 
     def __init__(self, operator: MatchOperator, key: str, value: str):
@@ -244,8 +237,9 @@ class KeywordQuery(Query):
 class StartTimeQuery(Query):
     @staticmethod
     def parse(op: str, time: str) -> 'StartTimeQuery':
-        operator = parse_operator(ComparisonOperatorMixin, op)
-        assert isinstance(operator, ComparisonOperator)
+        operator = get_operator(op)
+        if not isinstance(operator, ComparisonOperator):
+            raise QueryError(f'unexpected operator "{op}" expected one of {ComparisonOperator.symbols}')
         time_msecs = parse_date(time)
         return StartTimeQuery(operator, time_msecs)
 
@@ -266,8 +260,9 @@ class StartTimeQuery(Query):
 class EndTimeQuery(Query):
     @staticmethod
     def parse(op: str, time: str) -> 'EndTimeQuery':
-        operator = parse_operator(ComparisonOperatorMixin, op)
-        assert isinstance(operator, ComparisonOperator)
+        operator = get_operator(op)
+        if not isinstance(operator, ComparisonOperator):
+            raise QueryError(f'unexpected operator "{op}" expected one of {ComparisonOperator.symbols}')
         time_msecs = parse_date(time)
         return EndTimeQuery(operator, time_msecs)
 
@@ -288,8 +283,9 @@ class EndTimeQuery(Query):
 class DurationQuery(Query):
     @staticmethod
     def parse(op: str, time: str) -> 'DurationQuery':
-        operator = parse_operator(ComparisonOperatorMixin, op)
-        assert isinstance(operator, ComparisonOperator)
+        operator = get_operator(op)
+        if not isinstance(operator, ComparisonOperator):
+            raise QueryError(f'unexpected operator "{op}" expected one of {ComparisonOperator.symbols}')
         time_msecs = int(parse_float(time) * 1000 + 1)
         return DurationQuery(operator, time_msecs)
 
@@ -310,8 +306,9 @@ class DurationQuery(Query):
 class CostQuery(Query):
     @staticmethod
     def parse(op: str, cost_str: str) -> 'CostQuery':
-        operator = parse_operator(ComparisonOperatorMixin, op)
-        assert isinstance(operator, ComparisonOperator)
+        operator = get_operator(op)
+        if not isinstance(operator, ComparisonOperator):
+            raise QueryError(f'unexpected operator "{op}" expected one of {ComparisonOperator.symbols}')
         cost = parse_float(cost_str)
         return CostQuery(operator, cost)
 
