@@ -49,7 +49,7 @@ class FileListEntry(abc.ABC):
     async def url_maybe_trailing_slash(self) -> str:
         return await self.url()
 
-    async def url_with_query(self) -> str:
+    async def url_full(self) -> str:
         return await self.url()
 
     @abc.abstractmethod
@@ -141,12 +141,13 @@ class AsyncFS(abc.ABC):
 
     async def open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
         if length == 0:
-            if url.endswith('/'):
-                file_url = url.rstrip('/')
-                dir_url = url
+            fs_url = self.parse_url(url)
+            if fs_url.path.endswith('/'):
+                file_url = str(fs_url.with_path(fs_url.path.rstrip('/')))
+                dir_url = str(fs_url)
             else:
-                file_url = url
-                dir_url = url + '/'
+                file_url = str(fs_url)
+                dir_url = str(fs_url.with_path(fs_url.path + '/'))
             isfile, isdir = await asyncio.gather(self.isfile(file_url), self.isdir(dir_url))
             if isfile:
                 if isdir:
@@ -253,7 +254,7 @@ class AsyncFS(abc.ABC):
         async def rm(entry: FileListEntry):
             assert listener is not None
             listener(1)
-            await self._remove_doesnt_exist_ok(await entry.url_with_query())
+            await self._remove_doesnt_exist_ok(await entry.url_full())
             listener(-1)
 
         try:
