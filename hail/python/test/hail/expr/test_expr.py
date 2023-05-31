@@ -2800,6 +2800,7 @@ class Tests(unittest.TestCase):
 +---------+
 '''
 
+    @test_timeout(4 * 60)
     def test_export_genetic_data(self):
         mt = hl.balding_nichols_model(1, 3, 3)
         mt = mt.key_cols_by(s = 's' + hl.str(mt.sample_idx))
