@@ -1484,6 +1484,7 @@ class Tests(unittest.TestCase):
         test_af_range(hl.rand_unif(.4, .7), .4, .7, 2)
         test_af_range(hl.rand_beta(4, 6), 0, 1, 3)
 
+    @test_timeout(batch=6 * 60)
     def test_balding_nichols_stats(self):
         def test_stat(k, n, m, seed):
             hl.reset_global_randomness()

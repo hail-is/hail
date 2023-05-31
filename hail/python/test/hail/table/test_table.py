@@ -827,6 +827,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(dist.all(hl.len(dist.values) == 1))
         self.assertEqual(dist.count(), len(t1.aggregate(hl.agg.collect_as_set(t1.a))))
 
+    @test_timeout(batch=6 * 60)
     def test_group_by_key(self):
         t1 = hl.Table.parallelize([
             {'a': 'foo', 'b': 1},
@@ -1672,6 +1673,7 @@ def create_width_scale_files():
         write_file(w)
 
 
+@test_timeout(batch=6 * 60)
 def test_join_with_key_prefix():
     t = hl.utils.range_table(20, 2)
     t = t.annotate(pk=1)
@@ -1897,6 +1899,7 @@ head_tail_test_data = [
 
 
 @pytest.mark.parametrize("test", head_tail_test_data)
+@test_timeout(batch=4 * 60)
 def test_table_head_and_tail(test):
     test()
 
