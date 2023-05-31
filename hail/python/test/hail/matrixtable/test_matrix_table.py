@@ -1040,7 +1040,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(mt.filter_cols(hl.missing(hl.tbool)).count_cols(), 0)
         self.assertEqual(mt.filter_entries(hl.missing(hl.tbool)).entries().count(), 0)
 
-    def test_to_table_on_various_fields(self):
+    def get_example_mt_for_to_table_on_various_fields(self):
         mt = hl.utils.range_matrix_table(3, 4)
 
         globe = 'the globe!'
@@ -1053,7 +1053,10 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_cols(s=hl.array(sample_ids)[mt.col_idx]).key_cols_by('s')
         mt = mt.annotate_entries(e=hl.array(entries)[mt.col_idx])
         mt = mt.annotate_rows(r=hl.array(rows)[mt.row_idx]).key_rows_by('r')
+        return mt, globe, sample_ids, entries, rows, sorted_rows
 
+    def test_to_table_on_various_fields_1(self):
+        mt, globe, sample_ids, entries, _, sorted_rows = self.get_example_mt_for_to_table_on_various_fields()
         self.assertEqual(mt.globe.collect(), [globe])
 
         self.assertEqual(mt.s.collect(), sample_ids)
@@ -1066,6 +1069,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(mt.r.collect(), sorted_rows)
         self.assertEqual(mt.r.take(1), [sorted_rows[0]])
 
+    def test_to_table_on_various_fields_2(self):
+        mt, _, sample_ids, entries, rows, sorted_rows = self.get_example_mt_for_to_table_on_various_fields()
         self.assertEqual(mt.col_key.collect(),
                          [hl.Struct(s=s) for s in sample_ids])
         self.assertEqual(mt.col.collect(),
@@ -1080,6 +1085,8 @@ class Tests(unittest.TestCase):
                           for _ in sorted_rows
                           for e in entries])
 
+    def test_to_table_on_various_fields_3(self):
+        mt, _, sample_ids, entries, _, sorted_rows = self.get_example_mt_for_to_table_on_various_fields()
         self.assertEqual(mt.cols().s.collect(), sorted(sample_ids))
         self.assertEqual(mt.cols().s.take(1), [sorted(sample_ids)[0]])
         self.assertEqual(mt.entries().e.collect(), sorted(entries) * 3)
