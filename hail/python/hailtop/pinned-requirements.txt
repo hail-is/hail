@@ -177,6 +177,7 @@ typing-extensions==4.5.0
     #   azure-core
     #   azure-storage-blob
     #   janus
+    #   rich
 urllib3==1.26.15
     # via
     #   botocore
