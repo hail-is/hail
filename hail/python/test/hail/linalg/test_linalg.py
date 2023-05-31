@@ -192,7 +192,7 @@ class Tests(unittest.TestCase):
 
         mt = hl.utils.range_matrix_table(1, 3)
         mt = mt.rename({'row_idx': 'v', 'col_idx': 's'})
-        mt = mt.annotate_entries(x = hl.literal(a)[mt.])
+        mt = mt.annotate_entries(x = hl.literal(a)[mt.s])
 
         assert np.allclose(entry_expr_to_ndarray_vec(mt.x, False, False, False), a)
         assert np.allclose(entry_expr_to_ndarray_vec(mt.x, False, True, False), a - 1.0)
