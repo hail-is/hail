@@ -71,8 +71,15 @@ class Tests(unittest.TestCase):
             self.assertTrue(f(hl.eval(mt.annotate_globals(foo=hl.literal(x, t)).foo), x), f"{x}, {t}")
             self.assertTrue(f(hl.eval(ht.annotate_globals(foo=hl.literal(x, t)).foo), x), f"{x}, {t}")
 
+<<<<<<< HEAD
     def test_head_no_empty_partitions(self):
         mt = hl.utils.range_matrix_table(10, 10)
+=======
+    @test_timeout(batch=4 * 60)
+    def test_head(self):
+        # no empty partitions
+        mt1 = hl.utils.range_matrix_table(10, 10)
+>>>>>>> tp/local-backend-memory
 
         tmp_file = new_temp_file(extension='mt')
 
@@ -104,6 +111,7 @@ class Tests(unittest.TestCase):
         assert mt1.head(1, None).count() == (1, 10)
         assert mt1.head(None, 1).count() == (10, 1)
 
+    @test_timeout(batch=5 * 60)
     def test_tail(self):
         # no empty partitions
         mt1 = hl.utils.range_matrix_table(10, 10)
@@ -850,6 +858,7 @@ class Tests(unittest.TestCase):
               (df.GT == df.entry_struct.GT)) &
              (df.AD == df.entry_struct.AD))))
 
+    @test_timeout(batch=5 * 60)
     def test_filter_partitions(self):
         ds = self.get_mt(min_partitions=8)
         self.assertEqual(ds.n_partitions(), 8)
@@ -959,6 +968,7 @@ class Tests(unittest.TestCase):
         assert hl.read_matrix_table(path, _intervals=intervals, _filter_intervals = True).n_partitions() == 3
 
     @fails_service_backend()
+    @test_timeout(3 * 60, local=6 * 60)
     def test_codecs_matrix(self):
         from hail.utils.java import scala_object
         supported_codecs = scala_object(Env.hail().io, 'BufferSpec').specs()
@@ -970,6 +980,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(ds._same(ds2))
 
     @fails_service_backend()
+    @test_timeout(local=3 * 60)
     def test_codecs_table(self):
         from hail.utils.java import scala_object
         supported_codecs = scala_object(Env.hail().io, 'BufferSpec').specs()
@@ -1036,6 +1047,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(mt.filter_cols(hl.missing(hl.tbool)).count_cols(), 0)
         self.assertEqual(mt.filter_entries(hl.missing(hl.tbool)).entries().count(), 0)
 
+    @test_timeout(batch=4 * 60)
     def test_to_table_on_various_fields(self):
         mt = hl.utils.range_matrix_table(3, 4)
 
@@ -1356,6 +1368,7 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(matrix1.union_cols(matrix2)._same(expected))
 
+    @test_timeout(local=5 * 60, batch=10 * 60)
     def test_row_joins_into_table_1(self):
         rt = hl.utils.range_matrix_table(9, 13, 3)
         mt1 = rt.key_rows_by(idx=rt.row_idx)
@@ -1385,6 +1398,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(tinterval1.index(mt1.idx).collect(), values)
         self.assertEqual(tinterval1.index(mt1.row_key).collect(), values)
 
+    @test_timeout(local=5 * 60, batch=10 * 60)
     def test_row_joins_into_table_2(self):
         rt = hl.utils.range_matrix_table(9, 13, 3)
         mt2 = rt.key_rows_by(idx=rt.row_idx, idx2=rt.row_idx + 1)
@@ -1635,6 +1649,7 @@ class Tests(unittest.TestCase):
         actual = mt.show(handler=str)
         assert actual == expected
 
+    @test_timeout(batch=6 * 60)
     def test_partitioned_write(self):
         mt = hl.utils.range_matrix_table(40, 3, 5)
 
@@ -1760,6 +1775,7 @@ class Tests(unittest.TestCase):
             hl.utils.Struct(idx=0, locus=hl.genetics.Locus(contig='2', position=1, reference_genome='GRCh37'))]
 
     @fails_local_backend()
+    @test_timeout(batch=3 * 60)
     def test_lower_row_agg_init_arg(self):
         mt = hl.balding_nichols_model(5, 200, 200)
         mt2 = hl.variant_qc(mt)
@@ -1826,6 +1842,7 @@ def test_matrix_randomness_read():
     assert_unique_uids(mt)
 
 
+@test_timeout(batch=8 * 60)
 def test_matrix_randomness_aggregate_rows_by_key():
     rmt = hl.utils.range_matrix_table(20, 10, 3)
     # with body randomness
@@ -1958,7 +1975,7 @@ def test_matrix_randomness_key_rows_by():
     assert_unique_uids(mt)
 
 
-def test_matrix_randomness_map_rows_with_body_randomness():
+def test_matrix_randomness_map_rows():
     rmt = hl.utils.range_matrix_table(10, 10, 3)
     mt = rmt.annotate_rows(r=hl.rand_int64())
     assert_contains_node(mt, ir.MatrixMapRows)
@@ -2028,6 +2045,7 @@ def test_matrix_randomness_collect_cols_by_key():
     assert_unique_uids(mt)
 
 
+@test_timeout(batch=5 * 60)
 def test_matrix_randomness_aggregate_cols_by_key():
     rmt = hl.utils.range_matrix_table(20, 10, 3)
     # with body randomness

@@ -88,6 +88,7 @@ class Tests(unittest.TestCase):
             evaled = hl.eval(hl.zeros(size))
             assert evaled == [0 for i in range(size)]
 
+    @test_timeout(batch=3 * 60)
     def test_seeded_sampling(self):
         sampled1 = hl.utils.range_table(50, 6).filter(hl.rand_bool(0.5))
         sampled2 = hl.utils.range_table(50, 5).filter(hl.rand_bool(0.5))
@@ -199,6 +200,7 @@ class Tests(unittest.TestCase):
             else:
                 self.assertEqual(v, result[k], msg=k)
 
+    @test_timeout(batch=3 * 60)
     def test_array_slicing(self):
         schema = hl.tstruct(a=hl.tarray(hl.tint32))
         rows = [{'a': [1, 2, 3, 4, 5]}]
@@ -428,6 +430,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(r.assert1)
         self.assertTrue(r.assert2)
 
+    @test_timeout(batch=3 * 60)
     def test_agg_nesting(self):
         t = hl.utils.range_table(10)
         aggregated_count = t.aggregate(hl.agg.count(), _localize=False) #10
@@ -535,6 +538,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(mt.aggregate_rows(hl.agg.fold(0, lambda a: a + mt.row_idx, lambda a, b: a + b)), 4950)
         self.assertEqual(mt.aggregate_cols(hl.agg.fold(0, lambda a: a + mt.col_idx, lambda a, b: a + b)), 45)
 
+    @test_timeout(batch=3 * 60)
     def test_aggfold_scan(self):
         ht = hl.utils.range_table(15, 5)
         ht = ht.annotate(s=hl.scan.fold(0, lambda a: a + ht.idx, lambda a, b: a + b), )
@@ -551,6 +555,7 @@ class Tests(unittest.TestCase):
                           hl.Struct(row_idx=9, s=36, x=9), hl.Struct(row_idx=10, s=45, x=10), hl.Struct(row_idx=11, s=55, x=11),
                           hl.Struct(row_idx=12, s=66, x=12), hl.Struct(row_idx=13, s=78, x=13), hl.Struct(row_idx=14, s=91, x=14)])
 
+    @test_timeout(batch=3 * 60)
     def test_agg_filter(self):
         t = hl.utils.range_table(10)
         tests = [(hl.agg.filter(t.idx > 7,
@@ -680,6 +685,7 @@ class Tests(unittest.TestCase):
         r4 = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.filter(x == 5, hl.agg.count()), ht.a))
         assert r4 == [1]
 
+    @test_timeout(batch=4 * 60)
     def test_agg_array_group_by(self):
         ht = hl.utils.range_table(10)
         ht = ht.annotate(a=[ht.idx, ht.idx + 1])
@@ -740,6 +746,7 @@ class Tests(unittest.TestCase):
         ))
 
 
+    @test_timeout(batch=4 * 60)
     def test_agg_explode(self):
         t = hl.utils.range_table(10)
 
@@ -861,6 +868,7 @@ class Tests(unittest.TestCase):
         res = t.aggregate(hl.agg.filter(hl.rand_bool(0.5), hl.struct(collection=hl.agg.collect(t.idx), sum=hl.agg.sum(t.idx))))
         self.assertEqual(sum(res.collection), res.sum)
 
+    @test_timeout(batch=3 * 60)
     def test_aggregator_scope(self):
         t = hl.utils.range_table(10)
         with self.assertRaises(hl.expr.ExpressionException):
@@ -1096,6 +1104,7 @@ class Tests(unittest.TestCase):
         assert r.n_smaller == 0
         assert r.n_larger == 0
 
+    @test_timeout(batch=3 * 60)
     def test_aggregator_cse(self):
         ht = hl.utils.range_table(10)
         x = hl.agg.count()
@@ -1124,6 +1133,7 @@ class Tests(unittest.TestCase):
     # r2adj = sumfit$adj.r.squared
     # f = sumfit$fstatistic
     # p = pf(f[1],f[2],f[3],lower.tail=F)
+    @test_timeout(batch=3 * 60)
     def test_aggregators_linreg(self):
         t = hl.Table.parallelize([
             {"y": None, "x": 1.0},
@@ -1272,6 +1282,7 @@ class Tests(unittest.TestCase):
         grouped_expr = t.aggregate(hl.array(hl.agg.group_by(t.group, hl.agg.sum(t.x))))
         self.assertEqual(grouped_expr, hl.eval(hl.sorted(grouped_expr)))
 
+    @test_timeout(batch=3 * 60)
     def test_agg_corr(self):
         ht = hl.utils.range_table(10)
         ht = ht.annotate(tests=hl.range(0, 10).map(
@@ -1457,6 +1468,7 @@ class Tests(unittest.TestCase):
                    (True, False)
                )
 
+    @test_timeout(batch=3 * 60)
     def test_aggregator_any_and_all(self):
         df = hl.utils.range_table(10)
         df = df.annotate(all_true=True,
@@ -2946,7 +2958,7 @@ class Tests(unittest.TestCase):
         with self.assertRaises(hl.utils.FatalError):
             hl.eval(hl.contig_length('chr5', 'GRCh37'))
 
-
+    @test_timeout(batch=5 * 60)
     def test_initop_table(self):
         t = (hl.utils.range_table(5, 3)
              .annotate(GT=hl.call(0, 1))
@@ -2955,6 +2967,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(t.aggregate(hl.agg.call_stats(t.GT, t.alleles)) ==
                         hl.Struct(AC=[5, 5], AF=[0.5, 0.5], AN=10, homozygote_count=[0, 0])) # Tests table.aggregate initOp
 
+    @test_timeout(batch=5 * 60)
     def test_initop_matrix_table(self):
         mt = (hl.utils.range_matrix_table(10, 5, 5)
               .annotate_entries(GT=hl.call(0, 1))
@@ -2972,6 +2985,7 @@ class Tests(unittest.TestCase):
             hl.is_defined(col_agg.call_stats)
             & (col_agg.call_stats == hl.struct(AC=[10, 10], AF=[0.5, 0.5], AN=20, homozygote_count=[0, 0]))))
 
+    @test_timeout(batch=5 * 60)
     def test_initop_table_aggregate_by_key(self):
         t = (hl.utils.range_table(5, 3)
              .annotate(GT=hl.call(0, 1))
@@ -2986,6 +3000,7 @@ class Tests(unittest.TestCase):
                     hl.is_defined(group_agg.call_stats)
                     & (group_agg.call_stats == hl.struct(AC=[2, 2], AF=[0.5, 0.5], AN=4, homozygote_count=[0, 0])))))
 
+    @test_timeout(batch=5 * 60)
     def test_initop_matrix_aggregate_cols_by_key_entries(self):
         mt = (hl.utils.range_matrix_table(10, 5, 5)
               .annotate_entries(GT=hl.call(0, 1))
@@ -3002,6 +3017,7 @@ class Tests(unittest.TestCase):
                     hl.is_defined(group_cols_agg.call_stats)
                     & (group_cols_agg.call_stats == hl.struct(AC=[2, 2], AF=[0.5, 0.5], AN=4, homozygote_count=[0, 0])))))
 
+    @test_timeout(batch=5 * 60)
     def test_initop_matrix_aggregate_cols_by_key_cols(self):
         mt = (hl.utils.range_matrix_table(10, 5, 5)
               .annotate_entries(GT=hl.call(0, 1))
@@ -3020,6 +3036,7 @@ class Tests(unittest.TestCase):
                     hl.is_defined(group_cols_agg.call_stats)
                     & (group_cols_agg.call_stats == hl.struct(AC=[2, 2], AF=[0.5, 0.5], AN=4, homozygote_count=[0, 0])))))
 
+    @test_timeout(batch=5 * 60)
     def test_initop_matrix_aggregate_rows_by_key_entries(self):
         mt = (hl.utils.range_matrix_table(10, 5, 5)
               .annotate_entries(GT=hl.call(0, 1))
@@ -3036,6 +3053,7 @@ class Tests(unittest.TestCase):
                     hl.is_defined(group_rows_agg.call_stats)
                     & (group_rows_agg.call_stats == hl.struct(AC=[7, 7], AF=[0.5, 0.5], AN=14, homozygote_count=[0, 0])))))
 
+    @test_timeout(batch=5 * 60)
     def test_initop_matrix_aggregate_rows_by_key_rows(self):
         mt = (hl.utils.range_matrix_table(10, 5, 5)
               .annotate_entries(GT=hl.call(0, 1))
@@ -3705,6 +3723,7 @@ class Tests(unittest.TestCase):
 
         assert ht.aggregate((hl.agg._prev_nonnull(ht.idx))) == 0
 
+    @test_timeout(batch=5 * 60)
     def test_summarize_runs(self):
         mt = hl.utils.range_matrix_table(3,3).annotate_entries(
             x1 = 'a',
@@ -3898,6 +3917,7 @@ class Tests(unittest.TestCase):
 @pytest.mark.parametrize("delimiter", ['\t', ',', '@'])
 @pytest.mark.parametrize("missing", ['NA', 'null'])
 @pytest.mark.parametrize("header", [True, False])
+@test_timeout(batch=6 * 60)
 def test_export_entry(delimiter, missing, header):
     mt = hl.utils.range_matrix_table(3, 3)
     mt = mt.key_cols_by(col_idx = mt.col_idx + 1)

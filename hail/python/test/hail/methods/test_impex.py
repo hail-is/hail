@@ -408,6 +408,7 @@ class VCFTests(unittest.TestCase):
     def test_vcf_parser_golden_master__sample_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('sample.vcf'), 'GRCh37')
 
+    @test_timeout(3 * 60, local=6 * 60, batch=6 * 60)
     def test_vcf_parser_golden_master__gvcf_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('gvcfs/HG00096.g.vcf.gz'), 'GRCh38')
 
@@ -902,6 +903,7 @@ class PLINKTests(unittest.TestCase):
 
         self.assertTrue(same)
 
+    @test_timeout(batch=3 * 60)
     def test_export_plink_exprs(self):
         ds = get_dataset()
         fam_mapping = {'f0': 'fam_id', 'f1': 'ind_id', 'f2': 'pat_id', 'f3': 'mat_id',
@@ -1477,6 +1479,7 @@ class BGENTests(unittest.TestCase):
                                    sample_file=tmp + '.sample')
             assert bgen._same(bgen2)
 
+    @test_timeout(batch=4 * 60)
     def test_export_bgen_parallel(self):
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['GP'],
@@ -1588,6 +1591,7 @@ class GENTests(unittest.TestCase):
                                resource('skip_invalid_loci.sample'))
             mt._force_count_rows()
 
+    @test_timeout(batch=3 * 60)
     def test_export_gen(self):
         gen = hl.import_gen(resource('example.gen'),
                             sample_file=resource('example.sample'),
@@ -1797,6 +1801,7 @@ class ImportMatrixTableTests(unittest.TestCase):
             hl.import_matrix_table([resource("sampleheader1.txt"), resource("sampleheader2.txt")],
                                    row_fields={'f0': hl.tstr}, row_key=['f0'])
 
+    @test_timeout(batch=4 * 60)
     def test_headers_same_len_diff_elem(self):
         with pytest.raises(ValueError, match='invalid header: expected elements to be identical for all input paths'):
             hl.import_matrix_table([resource("sampleheader2.txt"),
@@ -1916,6 +1921,7 @@ class ImportMatrixTableTests(unittest.TestCase):
 @pytest.mark.parametrize("header", [True, False])
 @pytest.mark.parametrize("delimiter", [',', ' '])
 @pytest.mark.parametrize("missing", ['.', '9'])
+@test_timeout(batch=3 * 60)
 def test_import_matrix_table_round_trip(missing, delimiter, header, entry_fun):
     mt = hl.utils.range_matrix_table(10, 10, n_partitions=2)
     mt = mt.annotate_entries(x = entry_fun(mt.row_idx * mt.col_idx))
@@ -2187,6 +2193,7 @@ def test_matrix_and_table_read_intervals_with_hidden_key():
 
 
 @pytest.mark.parametrize("i", list(range(10)))
+@test_timeout(6 * 60, local=7 * 60, batch=7 * 60)
 def test_import_export_same(i):
     mt = hl.import_vcf(resource(f'random_vcfs/{i}.vcf.bgz'))
     f1 = new_temp_file(extension='vcf.bgz')

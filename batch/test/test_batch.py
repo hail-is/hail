@@ -147,6 +147,7 @@ def test_invalid_resource_requests(client: BatchClient):
         bb.submit()
 
 
+@pytest.mark.timeout(6 * 60)
 def test_out_of_memory(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '10Gi'}
@@ -167,6 +168,7 @@ def test_out_of_storage(client: BatchClient):
     assert "fallocate failed: No space left on device" in job_log['main']
 
 
+@pytest.mark.timeout(6 * 60)
 def test_quota_applies_to_volume(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '5Gi'}
@@ -194,6 +196,7 @@ def test_relative_volume_path_is_actually_absolute(client: BatchClient):
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
+@pytest.mark.timeout(6 * 60)
 def test_quota_shared_by_io_and_rootfs(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '10Gi'}
@@ -223,6 +226,7 @@ def test_quota_shared_by_io_and_rootfs(client: BatchClient):
     assert "fallocate failed: No space left on device" in job_log['main'], str((job_log, b.debug_info()))
 
 
+@pytest.mark.timeout(batch=6 * 60)
 def test_nonzero_storage(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '20Gi'}
@@ -1031,6 +1035,7 @@ async def test_old_clients_that_submit_mount_docker_socket_true_is_rejected(clie
                 await bb._submit_jobs(b.id, update_id, [orjson.dumps(spec)], 1, pbar_task)
 
 
+@pytest.mark.timeout(6 * 60)
 def test_pool_highmem_instance(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25', 'memory': 'highmem'}
@@ -1041,6 +1046,7 @@ def test_pool_highmem_instance(client: BatchClient):
     assert 'highmem' in status['status']['worker'], str((status, b.debug_info()))
 
 
+@pytest.mark.timeout(6 * 60)
 def test_pool_highmem_instance_cheapest(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '1', 'memory': '5Gi'}
@@ -1051,6 +1057,7 @@ def test_pool_highmem_instance_cheapest(client: BatchClient):
     assert 'highmem' in status['status']['worker'], str((status, b.debug_info()))
 
 
+@pytest.mark.timeout(6 * 60)
 def test_pool_highcpu_instance(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25', 'memory': 'lowmem'}
@@ -1061,6 +1068,7 @@ def test_pool_highcpu_instance(client: BatchClient):
     assert 'highcpu' in status['status']['worker'], str((status, b.debug_info()))
 
 
+@pytest.mark.timeout(6 * 60)
 def test_pool_highcpu_instance_cheapest(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25', 'memory': '50Mi'}
@@ -1091,6 +1099,7 @@ def test_pool_standard_instance_cheapest(client: BatchClient):
     assert 'standard' in status['status']['worker'], str((status, b.debug_info()))
 
 
+@pytest.mark.timeout(6 * 60)
 def test_job_private_instance_preemptible(client: BatchClient):
     bb = create_batch(client)
     resources = {'machine_type': smallest_machine_type()}
@@ -1101,6 +1110,7 @@ def test_job_private_instance_preemptible(client: BatchClient):
     assert 'job-private' in status['status']['worker'], str((status, b.debug_info()))
 
 
+@pytest.mark.timeout(6 * 60)
 def test_job_private_instance_nonpreemptible(client: BatchClient):
     bb = create_batch(client)
     resources = {'machine_type': smallest_machine_type(), 'preemptible': False}
@@ -1367,6 +1377,7 @@ def test_submit_update_to_deleted_batch(client: BatchClient):
         assert False
 
 
+@pytest.mark.timeout(6 * 60)
 def test_region(client: BatchClient):
     CLOUD = os.environ['HAIL_CLOUD']
 

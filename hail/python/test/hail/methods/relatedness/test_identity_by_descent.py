@@ -5,7 +5,7 @@ import unittest
 
 import hail as hl
 import hail.utils as utils
-from ...helpers import get_dataset
+from ...helpers import get_dataset, test_timeout
 
 
 def plinkify(ds, min=None, max=None):
@@ -46,6 +46,7 @@ def plinkify(ds, min=None, max=None):
 
 
 @unittest.skipIf('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
+@test_timeout(local=10 * 60, batch=10 * 60)
 def test_ibd_default_arguments():
     ds = get_dataset()
 
@@ -64,6 +65,7 @@ def test_ibd_default_arguments():
 
 
 @unittest.skipIf('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
+@test_timeout(local=10 * 60, batch=10 * 60)
 def test_ibd_0_and_1():
     ds = get_dataset()
 
@@ -81,12 +83,14 @@ def test_ibd_0_and_1():
         assert plink_results[key][1][2] == row.ibs2
 
 
+@test_timeout(local=10 * 60, batch=10 * 60)
 def test_ibd_does_not_error_with_dummy_maf_float64():
     dataset = get_dataset()
     dataset = dataset.annotate_rows(dummy_maf=0.01)
     hl.identity_by_descent(dataset, dataset['dummy_maf'], min=0.0, max=1.0)
 
 
+@test_timeout(local=10 * 60, batch=10 * 60)
 def test_ibd_does_not_error_with_dummy_maf_float32():
     dataset = get_dataset()
     dataset = dataset.annotate_rows(dummy_maf=0.01)

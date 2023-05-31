@@ -5,6 +5,7 @@ from ..helpers import *
 
 
 class Tests(unittest.TestCase):
+    @test_timeout(local=3 * 60, batch=6 * 60)
     def test_trio_matrix_1(self):
         """
         This test depends on certain properties of the trio matrix VCF and
@@ -53,6 +54,7 @@ class Tests(unittest.TestCase):
         assert et.row.dtype == tt.row.dtype
         assert et._same(tt)
 
+    @test_timeout(local=3 * 60, batch=6 * 60)
     def test_trio_matrix_2(self):
         """
         This test depends on certain properties of the trio matrix VCF and
@@ -115,7 +117,7 @@ class Tests(unittest.TestCase):
         mt = hl.import_vcf(resource('triomatrix.vcf'))
         hl.trio_matrix(mt, ped, complete_trios=False)
 
-
+    @test_timeout(3 * 60, local=4 * 60, batch=8 * 60)
     def test_mendel_errors(self):
         mt = hl.import_vcf(resource('mendel.vcf'))
         ped = hl.Pedigree.read(resource('mendel.fam'))
@@ -198,6 +200,7 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(men2.filter(men2.s == 'Dtr1')._same(men.filter(men.s == 'Dtr1')))
 
+    @test_timeout(batch=4 * 60)
     def test_tdt(self):
         pedigree = hl.Pedigree.read(resource('tdt.fam'))
         tdt_tab = (hl.transmission_disequilibrium_test(

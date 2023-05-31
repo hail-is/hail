@@ -1,8 +1,9 @@
 import hail as hl
+import pytest
 from hailtop.utils import secret_alnum_string
 from hailtop.test_utils import skip_in_azure, run_if_azure
 
-from ..helpers import fails_local_backend, hl_stop_for_test, hl_init_for_test
+from ..helpers import fails_local_backend, hl_stop_for_test, hl_init_for_test, test_timeout
 
 
 @skip_in_azure
@@ -40,6 +41,7 @@ def test_requester_pays_write_with_project():
 
 
 @skip_in_azure
+@test_timeout(local=5 * 60, batch=5 * 60)
 def test_requester_pays_with_project():
     hl_stop_for_test()
     hl_init_for_test(gcs_requester_pays_configuration='hail-vdc')
@@ -68,6 +70,7 @@ def test_requester_pays_with_project():
 
 
 @skip_in_azure
+@test_timeout(local=5 * 60, batch=5 * 60)
 def test_requester_pays_with_project_more_than_one_partition():
     # NB: this test uses a file with more rows than partitions because Hadoop's Seekable input
     # streams do not permit seeking past the end of the input (ref:

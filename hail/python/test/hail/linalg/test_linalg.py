@@ -177,6 +177,7 @@ class Tests(unittest.TestCase):
             nd = (bm @ bm.T).to_numpy()
             assert nd.shape == (1000, 1000)
 
+    @test_timeout(local=3 * 60, batch=6 * 60)
     def test_from_entry_expr_options(self):
         def build_mt(a):
             data = [{'v': 0, 's': 0, 'x': a[0]},
@@ -362,6 +363,7 @@ class Tests(unittest.TestCase):
         mt_round_trip = BlockMatrix.from_entry_expr(mt.element).to_matrix_table_row_major()
         assert mt._same(mt_round_trip)
 
+    @test_timeout(3 * 60, local=6 * 60)
     def test_paired_elementwise_ops(self):
         nx = np.array([[2.0]])
         nc = np.array([[1.0], [2.0]])
@@ -691,6 +693,7 @@ class Tests(unittest.TestCase):
         self.assert_sums_agree(bm3, nd)
         self.assert_sums_agree(bm4, nd4)
 
+    @test_timeout(batch=3 * 60)
     def test_slicing(self):
         nd = np.array(np.arange(0, 80, dtype=float)).reshape(8, 10)
         bm = BlockMatrix.from_ndarray(hl.literal(nd), block_size=3)
@@ -1018,6 +1021,7 @@ class Tests(unittest.TestCase):
         sparsed = BlockMatrix.from_ndarray(hl.nd.array(sparsed_numpy), block_size=4)._sparsify_blocks(blocks_to_sparsify).to_ndarray()
         self.assertTrue(np.array_equal(sparsed_numpy, hl.eval(sparsed)))
 
+    @test_timeout(batch=5 * 60)
     def test_block_matrix_entries(self):
         n_rows, n_cols = 5, 3
         rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(n_rows) for j in range(n_cols)]

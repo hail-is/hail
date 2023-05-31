@@ -4,7 +4,7 @@ import pytest
 import hail as hl
 from hail.utils import new_temp_file
 from hail.vds.combiner.combine import defined_entry_fields
-from ..helpers import resource, fails_local_backend, fails_service_backend
+from ..helpers import resource, fails_local_backend, fails_service_backend, test_timeout
 
 
 # run this method to regenerate the combined VDS from 5 samples
@@ -144,6 +144,7 @@ def test_sampleqc_singleton_r_ti_tv():
 
 
 
+@test_timeout(batch=4 * 60)
 def test_filter_samples_and_merge():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
     vds.reference_data = vds.reference_data.drop('ref_allele')
@@ -218,6 +219,7 @@ def test_segment_intervals():
     assert before_coverage == after_coverage
 
 
+@test_timeout(batch=5 * 60)
 def test_interval_coverage():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
 
@@ -433,6 +435,7 @@ def test_impute_sex_chromosome_ploidy_2():
     ]
 
 
+@test_timeout(batch=6 * 60)
 def test_filter_intervals_segment():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
 
@@ -495,6 +498,7 @@ def test_filter_intervals_default_table():
     assert var.aggregate_rows(hl.agg.all(intervals[0].contains(var.locus)))
 
 
+@test_timeout(batch=4 * 60)
 def test_filter_chromosomes():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
 
@@ -561,6 +565,7 @@ def test_to_dense_mt():
     assert as_dict.get(('chr22:10562436', 'NA12878')) == hl.Struct(LGT=hl.Call([0, 0]), LA=None, GQ=21, DP=9)
 
 
+@test_timeout(batch=3 * 60)
 def test_merge_reference_blocks():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
     vds = hl.vds.filter_samples(vds, ['HG00187'])
@@ -589,6 +594,7 @@ def test_merge_reference_blocks():
     assert hl.vds.to_dense_mt(vds)._same(hl.vds.to_dense_mt(merged))
 
 
+@test_timeout(local=3 * 60, batch=6 * 60)
 def test_truncate_reference_blocks():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
     rd = vds.reference_data.select_globals()
@@ -608,6 +614,7 @@ def test_truncate_reference_blocks():
     assert hl.vds.to_dense_mt(vds)._same(hl.vds.to_dense_mt(vds_trunc))
 
 
+@test_timeout(local=3 * 60)
 def test_union_rows1():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
 
@@ -622,6 +629,7 @@ def test_union_rows1():
     vds_union = vds1.union_rows(vds2)
     assert hl.vds.to_dense_mt(vds)._same(hl.vds.to_dense_mt(vds_union))
 
+@test_timeout(local=3 * 60)
 def test_union_rows2():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
 
@@ -663,6 +671,7 @@ def test_combiner_max_len():
     assert hl.vds.VariantDataset.ref_block_max_length_field not in combined2.globals
 
 
+@test_timeout(4 * 60, local=6 * 60)
 def test_split_sparse_roundtrip():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
     smt = hl.vds.to_merged_sparse_mt(vds)

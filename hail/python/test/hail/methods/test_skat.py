@@ -3,7 +3,7 @@ import pytest
 
 from hail.utils import FatalError, HailUserError
 
-from ..helpers import resource, fails_local_backend, fails_service_backend
+from ..helpers import resource, test_timeout
 
 
 @pytest.mark.parametrize("skat_model", [('hl._linear_skat', hl._linear_skat),
@@ -556,6 +556,7 @@ def test_skat_5():
             logistic=(25, 1e-6))._force_count()
 
 
+@test_timeout(batch=4 * 60)
 def test_linear_skat_produces_same_results_as_old_scala_method():
     mt = hl.import_vcf(resource('sample2.vcf'))
     covariates_ht = hl.import_table(

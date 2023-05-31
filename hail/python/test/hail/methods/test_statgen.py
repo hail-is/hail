@@ -9,7 +9,7 @@ import hail.utils as utils
 from hail.linalg import BlockMatrix
 from hail.utils import FatalError, new_temp_file
 from hail.utils.java import choose_backend, Env
-from ..helpers import resource, fails_local_backend, fails_service_backend, skip_when_service_backend
+from ..helpers import resource, fails_service_backend, skip_when_service_backend, test_timeout
 
 import unittest
 
@@ -56,6 +56,7 @@ class Tests(unittest.TestCase):
     # Outside of Spark backend, "linear_regression_rows" just defers to the underscore nd version.
     linreg_functions = [hl.linear_regression_rows, hl._linear_regression_rows_nd] if backend_name == "spark" else [hl.linear_regression_rows]
 
+    @test_timeout(local=3 * 60)
     def test_linreg_basic(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
@@ -134,6 +135,7 @@ class Tests(unittest.TestCase):
                 linreg_function([[phenos[mt.s].Pheno]], mt.GT.n_alt_alleles(), [1.0],
                                 pass_through=[mt.filters.length()])
 
+    @test_timeout(local=3 * 60)
     def test_linreg_chained(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
@@ -549,6 +551,7 @@ class Tests(unittest.TestCase):
 
         return all([both_nan_or_none(a, b) or math.isclose(a, b) for a, b in zip(arr1, arr2)])
 
+    @test_timeout(3 * 60)
     def test_weighted_linear_regression(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',
@@ -609,6 +612,7 @@ class Tests(unittest.TestCase):
         assert self.equal_with_nans(multi_weight_betas_1, betas_pre_weighted_1)
         assert self.equal_with_nans(multi_weight_betas_2, betas_pre_weighted_2)
 
+    @test_timeout(3 * 60)
     def test_weighted_linear_regression__missing_weights_are_excluded(self):
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
         pheno = hl.import_table(resource('regressionLinear.pheno'),
@@ -677,6 +681,7 @@ class Tests(unittest.TestCase):
         assert self.equal_with_nans(multi_weight_missing_se_1, se_from_agg_weight_1)
         assert self.equal_with_nans(multi_weight_missing_se_2, se_from_agg_weight_2)
 
+    @test_timeout(3 * 60)
     def test_errors_weighted_linear_regression(self):
         mt = hl.utils.range_matrix_table(20, 10).annotate_entries(x=2)
         mt = mt.annotate_cols(**{f"col_{i}": i for i in range(4)})
@@ -1338,6 +1343,7 @@ class Tests(unittest.TestCase):
         ds1 = ds1.drop('was_split', 'a_index')
         self.assertTrue(ds1._same(ds2))
 
+    @test_timeout(batch=4 * 60)
     def test_split_multi_shuffle(self):
         ht = hl.utils.range_table(1)
         ht = ht.annotate(keys=[hl.struct(locus=hl.locus('1', 1180), alleles=['A', 'C', 'T']),
@@ -1360,6 +1366,7 @@ class Tests(unittest.TestCase):
         mt = hl.split_multi(mt)
         self.assertEqual(1, mt._force_count_rows())
 
+    @test_timeout(batch=6 * 60)
     def test_ld_prune(self):
         r2_threshold = 0.001
         window_size = 5
@@ -1402,6 +1409,7 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, r2=-1.0))
         self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, r2=2.0))
 
+    @test_timeout(batch=3 * 60)
     def test_ld_prune_no_prune(self):
         ds = hl.balding_nichols_model(n_populations=1, n_samples=10, n_variants=10, n_partitions=3)
         pruned_table = hl.ld_prune(ds.GT, r2=0.0, bp_window_size=0)
@@ -1413,6 +1421,7 @@ class Tests(unittest.TestCase):
         pruned_table = hl.ld_prune(ds.GT)
         self.assertEqual(pruned_table.count(), 1)
 
+    @test_timeout(batch=5 * 60)
     def test_ld_prune_maf(self):
         ds = hl.balding_nichols_model(n_populations=1, n_samples=50, n_variants=10, n_partitions=10).cache()
 
@@ -1427,6 +1436,7 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(kept_maf, max(ht.maf.collect()))
 
+    @test_timeout(batch=4 * 60)
     def test_ld_prune_call_expression(self):
         ds = hl.import_vcf(resource("ldprune2.vcf"), min_partitions=2)
         ds = ds.select_entries(foo=ds.GT)
@@ -1439,6 +1449,7 @@ class Tests(unittest.TestCase):
         result = hl.ld_prune(mt.GT)
         assert result.count() > 0
 
+    @test_timeout(batch=5 * 60)
     def test_ld_prune_with_duplicate_row_keys(self):
         ds = hl.import_vcf(resource('ldprune2.vcf'), min_partitions=2)
         ds_duplicate = ds.annotate_rows(duplicate=[1, 2]).explode_rows('duplicate')
@@ -1495,6 +1506,7 @@ class Tests(unittest.TestCase):
         test_af_range(hl.rand_unif(.4, .7), .4, .7, 2)
         test_af_range(hl.rand_beta(4, 6), 0, 1, 3)
 
+    @test_timeout(batch=6 * 60)
     def test_balding_nichols_stats(self):
         def test_stat(k, n, m, seed):
             hl.reset_global_randomness()

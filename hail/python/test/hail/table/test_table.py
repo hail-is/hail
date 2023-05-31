@@ -265,6 +265,7 @@ class Tests(unittest.TestCase):
             set(ht1.group_by('k').aggregate(mean_b = hl.agg.mean(ht1.b)).collect()),
             {hl.Struct(k='foo', mean_b=1.0), hl.Struct(k='bar', mean_b=2.0)})
 
+    @test_timeout(batch=6 * 60)
     def test_group_aggregate_na(self):
         ht = hl.utils.range_table(100, 8)
         ht = ht.key_by(k=hl.or_missing(ht.idx % 10 == 0, ht.idx % 4))
@@ -535,6 +536,7 @@ class Tests(unittest.TestCase):
         mt.select_entries(a=mt2[mt.row_idx, mt.col_idx].x,
                           b=mt2[mt.row_idx, mt.col_idx].x)
 
+    @test_timeout(batch=3 * 60)
     def test_multi_way_zip_join(self):
         d1 = [{"id": 0, "name": "a", "data": 0.0},
               {"id": 1, "name": "b", "data": 3.14},
@@ -825,6 +827,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(dist.all(hl.len(dist.values) == 1))
         self.assertEqual(dist.count(), len(t1.aggregate(hl.agg.collect_as_set(t1.a))))
 
+    @test_timeout(batch=6 * 60)
     def test_group_by_key(self):
         t1 = hl.Table.parallelize([
             {'a': 'foo', 'b': 1},
@@ -961,6 +964,7 @@ class Tests(unittest.TestCase):
         t_read_back = hl.import_table(tmp_file, types=dict(t.row.dtype)).key_by('idx')
         self.assertTrue(t.select_globals()._same(t_read_back, tolerance=1e-4, absolute=True))
 
+    @test_timeout(batch=3 * 60)
     def test_indexed_read(self):
         t = hl.utils.range_table(2000, 10)
         f = new_temp_file(extension='ht')
@@ -1007,6 +1011,7 @@ class Tests(unittest.TestCase):
         t = t.key_by(rev_idx=-t.idx)
         assert t.take(10) == [hl.Struct(idx=idx, rev_idx=-idx) for idx in range(19, 9, -1)]
 
+    @test_timeout(batch=5 * 60)
     def test_filter_partitions(self):
         ht = hl.utils.range_table(23, n_partitions=8)
         self.assertEqual(ht.n_partitions(), 8)
@@ -1518,6 +1523,7 @@ class Tests(unittest.TestCase):
         hl.import_vcf(resource('sample.vcf')).rows().key_by('locus').write(path)
         hl.read_table(path).select()._force_count()
 
+    @test_timeout(batch=5 * 60)
     def test_repartition_empty_key(self):
         data = [{'x': i} for i in range(1000)]
         ht = hl.Table.parallelize(data, hl.tstruct(x=hl.tint32), key=None, n_partitions=11)
@@ -1644,6 +1650,7 @@ def test_maybe_flexindex_table_by_expr_prefix_interval_match():
 
 
 @pytest.mark.parametrize("width", [256, 512, 1024, 2048, pytest.param(3072, marks=pytest.mark.xfail(strict=True))])
+@test_timeout(3 * 60)
 def test_can_process_wide_tables(width):
     path = resource(f'width_scale_tests/{width}.tsv')
     ht = hl.import_table(path, impute=False)
@@ -1684,6 +1691,7 @@ def create_width_scale_files():
         write_file(w)
 
 
+@test_timeout(batch=6 * 60)
 def test_join_with_key_prefix():
     t = hl.utils.range_table(20, 2)
     t = t.annotate(pk=1)
@@ -1718,6 +1726,7 @@ def test_write_table_containing_ndarray():
     t2 = hl.read_table(f)
     assert t._same(t2)
 
+@test_timeout(batch=6 * 60)
 def test_group_within_partitions():
     t = hl.utils.range_table(10).repartition(2)
     t = t.annotate(sq=t.idx ** 2)
@@ -1768,6 +1777,7 @@ def test_range_annotate_range():
     ht2 = hl.utils.range_table(5).annotate(x = 1)
     ht1.annotate(x = ht2[ht1.idx].x)._force_count()
 
+@test_timeout(batch=5 * 60)
 def test_read_write_all_types():
     ht = create_all_values_table()
     tmp_file = new_temp_file()
@@ -1907,6 +1917,7 @@ head_tail_test_data = [
 
 
 @pytest.mark.parametrize("test", head_tail_test_data)
+@test_timeout(batch=4 * 60)
 def test_table_head_and_tail(test):
     test()
 
@@ -2038,6 +2049,7 @@ def test_literal_of_pandas_NA_and_numpy_int32():
     hl.eval(hl.literal(x))
 
 
+@test_timeout(batch=5 * 60)
 def test_write_many():
     t = hl.utils.range_table(5)
     t = t.annotate(a = t.idx, b = t.idx * t.idx, c = hl.str(t.idx))
@@ -2083,6 +2095,7 @@ def test_indexed_read_boundaries(branching_factor):
         assert t1.idx.collect() == [141, 142, 143, 144, 152]
 
 
+@test_timeout(batch=5 * 60)
 def test_table_randomness():
     def assert_unique_uids(ht):
         ht = ht.annotate(r=hl.rand_int64())
@@ -2417,6 +2430,7 @@ def test_query_table_compound_key():
     assert hl.eval(queries) == expected
 
 
+@test_timeout(batch=5 * 60)
 def test_query_table_interval_key():
     f = new_temp_file(extension='ht')
 
@@ -2442,7 +2456,7 @@ def test_query_table_interval_key():
     assert hl.eval(queries) == expected
 
 
-@pytest.mark.timeout(600)  # with sufficient available cores should take <=60s
+@test_timeout(600)  # with sufficient available cores should take <=60s
 def test_large_number_of_partitions():
     ht = hl.utils.range_table(1500, n_partitions=1500)
     ht.collect()
