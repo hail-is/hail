@@ -16,7 +16,7 @@ from hailtop.aiocloud.aioazure import AzureAsyncFS
 from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
 
 
-@pytest.fixture(params=['file', 'gs', 's3', 'azure-https', 'router/file', 'router/gs', 'router/s3', 'router/azure-https'])  # 'sas/azure-https'
+@pytest.fixture(params=['file', 'gs', 's3', 'azure-https', 'router/file', 'router/gs', 'router/s3', 'router/azure-https', 'sas/azure-https'])
 async def filesystem(request) -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS, str]]:
     token = secret_alnum_string()
 
