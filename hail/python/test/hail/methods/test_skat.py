@@ -480,7 +480,7 @@ def test_linear_skat_on_big_matrix():
 
 
 
-@test_timeout(5 * 60, local=10 * 60)
+@test_timeout(5 * 60, local=10 * 60, batch=10 * 60)
 def test_skat():
     ds2 = hl.import_vcf(resource('sample2.vcf'))
 

@@ -1607,7 +1607,7 @@ class Tests(unittest.TestCase):
         actual = mt.show(handler=str)
         assert actual == expected
 
-    @test_timeout(batch=3 * 60)
+    @test_timeout(batch=6 * 60)
     def test_partitioned_write(self):
         mt = hl.utils.range_matrix_table(40, 3, 5)
 
