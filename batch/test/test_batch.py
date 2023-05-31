@@ -383,7 +383,7 @@ def test_list_jobs_v2(client: BatchClient):
         assert_job_ids({j_error.job_id, j_running.job_id}, '"tag"')
         assert_job_ids({j_running.job_id}, 'foo')
 
-        no_jobs = set()
+        no_jobs: Set[int] = set()
         all_jobs = {j_error.job_id, j_running.job_id, j_failure.job_id, j_success.job_id}
         assert_job_ids(no_jobs, 'duration > 50000')
         assert_job_ids(all_jobs, 'instance_collection = standard')

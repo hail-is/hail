@@ -23,6 +23,25 @@ from .query import (
     UnquotedPartialMatchQuery,
 )
 
+# <jobs-query-list> ::= "" | <jobs-query> "\n" <jobs-query-list>
+# <jobs-query> ::= <instance-query> | <instance-collection-query> | <job-id-query> | <state-query> |
+#                  <start-time-query> | <end-time-query> | <duration-query> | <cost-query> |
+#                  <quoted-exact-match-query> | <unquoted-partial-match-query>
+# <exact-match-operator> ::= "=" | "==" | "!="
+# <partial-match-operator> ::= "!~" | "=~"
+# <match-operator> ::= <exact-match-operator> | <partial-match-operator>
+# <comparison-operator> ::= ">=" | "<=" | ">" | "<" | <exact-match-operator>
+# <instance-query> ::= "instance" <match-operator> <str>
+# <instance-collection-query> ::= "instance_collection" <match-operator> <str>
+# <job-id-query> ::= "job_id" <comparison-operator> <int>
+# <state-query> ::= "state" <exact-match-operator> <str>
+# <start-time-query> ::= "start_time" <comparison-operator> <datetime_str>
+# <end-time-query> ::= "end_time" <comparison-operator> <datetime_str>
+# <duration-query> ::= "duration" <comparison-operator> <float>
+# <cost-query> ::= "cost" <comparison-operator> <float>
+# <quoted-exact-match-query> ::= \" <str> \"
+# <unquoted-partial-match-query> ::= <str>
+
 
 def parse_batch_jobs_query_v2(batch_id: int, q: str, last_job_id: Optional[int]):
     queries: List[Query] = []

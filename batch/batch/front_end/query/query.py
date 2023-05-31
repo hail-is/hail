@@ -7,10 +7,14 @@ from hailtop.utils import parse_timestamp_msecs
 from ...exceptions import QueryError
 from .operators import (
     ComparisonOperator,
+    ComparisonOperatorMixin,
     ExactMatchOperator,
+    ExactMatchOperatorMixin,
     MatchOperator,
+    MatchOperatorMixin,
     NotEqualExactMatchOperator,
     Operator,
+    OperatorMixinType,
     PartialMatchOperator,
     get_operator,
 )
@@ -68,7 +72,7 @@ def parse_cost(word: str) -> float:
     return parse_float(word)
 
 
-def parse_operator(expected_operator_type: Type[Operator], symbol: str) -> Operator:
+def parse_operator(expected_operator_type: Type[OperatorMixinType], symbol: str) -> Operator:
     operator = get_operator(symbol)
     if not isinstance(operator, expected_operator_type):
         raise QueryError(f'unexpected operator "{symbol}" expected {expected_operator_type}')
@@ -84,7 +88,7 @@ class Query(abc.ABC):
 class StateQuery(Query):
     @staticmethod
     def parse(op: str, state: str) -> 'StateQuery':
-        operator = parse_operator(ExactMatchOperator, op)
+        operator = parse_operator(ExactMatchOperatorMixin, op)
         assert isinstance(operator, ExactMatchOperator)
         if state not in state_search_term_to_states:
             raise QueryError(f'unknown state "{state}"')
@@ -106,7 +110,7 @@ class StateQuery(Query):
 class JobIdQuery(Query):
     @staticmethod
     def parse(op: str, maybe_job_id: str) -> 'JobIdQuery':
-        operator = parse_operator(ComparisonOperator, op)
+        operator = parse_operator(ComparisonOperatorMixin, op)
         assert isinstance(operator, ComparisonOperator)
         job_id = parse_int(maybe_job_id)
         return JobIdQuery(job_id, operator)
@@ -123,7 +127,7 @@ class JobIdQuery(Query):
 class InstanceQuery(Query):
     @staticmethod
     def parse(op: str, instance: str) -> 'InstanceQuery':
-        operator = parse_operator(MatchOperator, op)
+        operator = parse_operator(MatchOperatorMixin, op)
         assert isinstance(operator, MatchOperator)
         return InstanceQuery(instance, operator)
 
@@ -146,7 +150,7 @@ class InstanceQuery(Query):
 class InstanceCollectionQuery(Query):
     @staticmethod
     def parse(op: str, instance_collection: str) -> 'InstanceCollectionQuery':
-        operator = parse_operator(MatchOperator, op)
+        operator = parse_operator(MatchOperatorMixin, op)
         assert isinstance(operator, MatchOperator)
         return InstanceCollectionQuery(instance_collection, operator)
 
@@ -216,7 +220,7 @@ class UnquotedPartialMatchQuery(Query):
 class KeywordQuery(Query):
     @staticmethod
     def parse(op: str, key: str, value: str) -> 'KeywordQuery':
-        operator = parse_operator(MatchOperator, op)
+        operator = parse_operator(MatchOperatorMixin, op)
         assert isinstance(operator, MatchOperator)
         return KeywordQuery(operator, key, value)
 
@@ -240,7 +244,7 @@ class KeywordQuery(Query):
 class StartTimeQuery(Query):
     @staticmethod
     def parse(op: str, time: str) -> 'StartTimeQuery':
-        operator = parse_operator(ComparisonOperator, op)
+        operator = parse_operator(ComparisonOperatorMixin, op)
         assert isinstance(operator, ComparisonOperator)
         time_msecs = parse_date(time)
         return StartTimeQuery(operator, time_msecs)
@@ -262,7 +266,7 @@ class StartTimeQuery(Query):
 class EndTimeQuery(Query):
     @staticmethod
     def parse(op: str, time: str) -> 'EndTimeQuery':
-        operator = parse_operator(ComparisonOperator, op)
+        operator = parse_operator(ComparisonOperatorMixin, op)
         assert isinstance(operator, ComparisonOperator)
         time_msecs = parse_date(time)
         return EndTimeQuery(operator, time_msecs)
@@ -284,7 +288,7 @@ class EndTimeQuery(Query):
 class DurationQuery(Query):
     @staticmethod
     def parse(op: str, time: str) -> 'DurationQuery':
-        operator = parse_operator(ComparisonOperator, op)
+        operator = parse_operator(ComparisonOperatorMixin, op)
         assert isinstance(operator, ComparisonOperator)
         time_msecs = int(parse_float(time) * 1000 + 1)
         return DurationQuery(operator, time_msecs)
@@ -306,7 +310,7 @@ class DurationQuery(Query):
 class CostQuery(Query):
     @staticmethod
     def parse(op: str, cost_str: str) -> 'CostQuery':
-        operator = parse_operator(ComparisonOperator, op)
+        operator = parse_operator(ComparisonOperatorMixin, op)
         assert isinstance(operator, ComparisonOperator)
         cost = parse_float(cost_str)
         return CostQuery(operator, cost)

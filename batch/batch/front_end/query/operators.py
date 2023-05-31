@@ -1,5 +1,6 @@
 import abc
 import re
+from typing import TypeVar
 
 from ...exceptions import QueryError
 
@@ -12,19 +13,42 @@ class Operator(abc.ABC):
         raise NotImplementedError
 
 
-class ComparisonOperator(Operator, abc.ABC):
+class OperatorMixin:
     pass
 
 
-class MatchOperator(Operator, abc.ABC):
+OperatorMixinType = TypeVar("OperatorMixinType", bound=OperatorMixin)
+
+
+class ComparisonOperatorMixin(OperatorMixin):
     pass
 
 
-class PartialMatchOperator(MatchOperator, abc.ABC):
+class ComparisonOperator(Operator, ComparisonOperatorMixin, abc.ABC):
     pass
 
 
-class ExactMatchOperator(MatchOperator, abc.ABC):
+class MatchOperatorMixin(OperatorMixin):
+    pass
+
+
+class MatchOperator(Operator, MatchOperatorMixin, abc.ABC):
+    pass
+
+
+class PartialMatchOperatorMixin(MatchOperatorMixin):
+    pass
+
+
+class PartialMatchOperator(Operator, PartialMatchOperatorMixin, abc.ABC):
+    pass
+
+
+class ExactMatchOperatorMixin(MatchOperatorMixin):
+    pass
+
+
+class ExactMatchOperator(Operator, ExactMatchOperatorMixin, abc.ABC):
     pass
 
 
@@ -59,28 +83,28 @@ class LessThanOperator(ComparisonOperator):
 class NotEqualExactMatchOperator(ExactMatchOperator, ComparisonOperator):
     regex = re.compile('([^!]+)(!=)(.+)')
 
-    def to_sql(self):
+    def to_sql(self) -> str:
         return '!='
 
 
-class EqualExactMatchOperator(ExactMatchOperator, ComparisonOperator):
+class EqualExactMatchOperator(ExactMatchOperator):
     regex = re.compile('([^=]+)(==|=)(.+)')
 
-    def to_sql(self):
+    def to_sql(self) -> str:
         return '='
 
 
 class NotEqualPartialMatchOperator(PartialMatchOperator):
     regex = re.compile('([^!]+)(!~)(.+)')
 
-    def to_sql(self):
+    def to_sql(self) -> str:
         return 'NOT LIKE'
 
 
 class EqualPartialMatchOperator(PartialMatchOperator):
     regex = re.compile('([^=]+)(=~)(.+)')
 
-    def to_sql(self):
+    def to_sql(self) -> str:
         return 'LIKE'
 
 

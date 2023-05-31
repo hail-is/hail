@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, List, Optional
 
 from ...exceptions import QueryError
 from .query import state_search_term_to_states
@@ -7,7 +7,7 @@ from .query import state_search_term_to_states
 def parse_batch_jobs_query_v1(batch_id: int, q: str, last_job_id: Optional[int]):
     # batch has already been validated
     where_conditions = ['(jobs.batch_id = %s AND batch_updates.committed)']
-    where_args = [batch_id]
+    where_args: List[Any] = [batch_id]
 
     if last_job_id is not None:
         where_conditions.append('(jobs.job_id > %s)')
@@ -21,6 +21,8 @@ def parse_batch_jobs_query_v1(batch_id: int, q: str, last_job_id: Optional[int])
         else:
             negate = False
             t = _t
+
+        args: List[Any]
 
         if '=' in t:
             k, v = t.split('=', 1)
