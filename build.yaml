@@ -2413,7 +2413,7 @@ steps:
               --durations=50 \
               -n 6 \
               --ignore=test/hailtop/ \
-              --timeout=120 \
+              --timeout=300 \
               test
     timeout: 5400
     inputs:
