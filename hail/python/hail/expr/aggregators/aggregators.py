@@ -238,7 +238,7 @@ class AggFunc(object):
             return 'agg'
 
 
-def aggregate_local_array(array, f):
+def _aggregate_local_array(array, f):
     """Compute a summary of an array using aggregators. Useful for accessing
     functionality that exists in `hl.agg` but not elsewhere, like `hl.agg.call_stats`.
 

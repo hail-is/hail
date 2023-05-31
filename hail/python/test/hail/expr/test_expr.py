@@ -4090,3 +4090,8 @@ def test_reservoir_sampling():
         mean = np.mean(sample)
         expected_stdev = math.sqrt(sample_variance / sample_size)
         assert abs(mean - sample_mean) / expected_stdev < 4 , (iteration, sample_size, abs(mean - sample_mean) / expected_stdev)
+
+
+def test_local_agg():
+    x = hl.literal([1,2,3,4])
+    assert hl.eval(x.aggregate(lambda x: hl.agg.sum(x))) == 10

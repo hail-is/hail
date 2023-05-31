@@ -463,6 +463,25 @@ class ArrayExpression(CollectionExpression):
 
         return construct_expr(slice_ir, self.dtype, indices, aggregations)
 
+    @typecheck_method(f=func_spec(1, expr_any))
+    def aggregate(self, f):
+        """Uses the aggregator library to compute a summary from an array.
+
+        This method is useful for accessing functionality that exists in the aggregator library
+        but not the basic expression library, for instance, :func:`.call_stats`.
+
+        Parameters
+        ----------
+        f
+            Aggregation function
+
+        Returns
+        -------
+        :class:`.Expression`
+        """
+        return hl.agg._aggregate_local_array(self, f)
+
+
     @typecheck_method(item=expr_any)
     def contains(self, item):
         """Returns a boolean indicating whether `item` is found in the array.
