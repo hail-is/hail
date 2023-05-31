@@ -1034,7 +1034,7 @@ async def test_old_clients_that_submit_mount_docker_socket_true_is_rejected(clie
                 await bb._submit_jobs(b.id, update_id, [orjson.dumps(spec)], 1, pbar_task)
 
 
-@pytest.mark.timeout(batch=6 * 60)
+@pytest.mark.timeout(6 * 60)
 def test_pool_highmem_instance(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25', 'memory': 'highmem'}
@@ -1045,7 +1045,7 @@ def test_pool_highmem_instance(client: BatchClient):
     assert 'highmem' in status['status']['worker'], str((status, b.debug_info()))
 
 
-@pytest.mark.timeout(batch=6 * 60)
+@pytest.mark.timeout(6 * 60)
 def test_pool_highmem_instance_cheapest(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '1', 'memory': '5Gi'}
