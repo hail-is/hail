@@ -119,6 +119,15 @@ class BatchedAsserts():
                     f'test failure:\n  left={a_res}\n right={b_res}\n f={comp_func.__name__}\n  failure at:\n{"".join(x for x in tb[i:])}') from e
 
 
+def entry_expr_to_ndarray_vec(expr, mean_impute, center, normalize):
+    return np.squeeze(hl.eval(BlockMatrix.from_entry_expr(
+        expr,
+        mean_impute=mean_impute,
+        center=center,
+        normalize=normalize
+    ).to_ndarray()))
+
+
 class Tests(unittest.TestCase):
     @staticmethod
     def _np_matrix(a):
@@ -178,37 +187,32 @@ class Tests(unittest.TestCase):
             assert nd.shape == (1000, 1000)
 
     @test_timeout(local=6 * 60, batch=6 * 60)
-    def test_from_entry_expr_options(self):
-        def build_mt(a):
-            data = [{'v': 0, 's': 0, 'x': a[0]},
-                    {'v': 0, 's': 1, 'x': a[1]},
-                    {'v': 0, 's': 2, 'x': a[2]}]
-            ht = hl.Table.parallelize(data, hl.dtype('struct{v: int32, s: int32, x: float64}'))
-            mt = ht.to_matrix_table(['v'], ['s'])
-            ids = mt.key_cols_by()['s'].collect()
-            return mt.choose_cols([ids.index(0), ids.index(1), ids.index(2)])
-
-        def check(expr, mean_impute, center, normalize, expected):
-            actual = np.squeeze(hl.eval(BlockMatrix.from_entry_expr(expr,
-                                                            mean_impute=mean_impute,
-                                                            center=center,
-                                                            normalize=normalize).to_ndarray()))
-            assert np.allclose(actual, expected)
-
+    def test_from_entry_expr_options_1(self):
         a = np.array([0.0, 1.0, 2.0])
 
-        mt = build_mt(a)
-        check(mt.x, False, False, False, a)
-        check(mt.x, False, True, False, a - 1.0)
-        check(mt.x, False, False, True, a / np.sqrt(5))
-        check(mt.x, False, True, True, (a - 1.0) / np.sqrt(2))
-        check(mt.x + 1 - 1, False, False, False, a)
+        mt = hl.utils.range_matrix_table(1, 3)
+        mt = mt.rename({'row_idx': 'v', 'col_idx': 's'})
+        mt = mt.annotate_entries(x = hl.literal(a)[mt.])
 
-        mt = build_mt([0.0, hl.missing('float64'), 2.0])
-        check(mt.x, True, False, False, a)
-        check(mt.x, True, True, False, a - 1.0)
-        check(mt.x, True, False, True, a / np.sqrt(5))
-        check(mt.x, True, True, True, (a - 1.0) / np.sqrt(2))
+        assert np.allclose(entry_expr_to_ndarray_vec(mt.x, False, False, False), a)
+        assert np.allclose(entry_expr_to_ndarray_vec(mt.x, False, True, False), a - 1.0)
+        assert np.allclose(entry_expr_to_ndarray_vec(mt.x, False, False, True), a / np.sqrt(5))
+        assert np.allclose(entry_expr_to_ndarray_vec(mt.x, False, True, True), (a - 1.0) / np.sqrt(2))
+        assert np.allclose(entry_expr_to_ndarray_vec(mt.x + 1 - 1, False, False, False), a)
+
+    @test_timeout(local=6 * 60, batch=6 * 60)
+    def test_from_entry_expr_options_2(self):
+        mean_imputed = np.array([0.0, 1.0, 2.0])
+        actual = hl.literal([0.0, hl.missing(hl.tfloat), 2.0])
+
+        mt = hl.utils.range_matrix_table(1, 3)
+        mt = mt.rename({'row_idx': 'v', 'col_idx': 's'})
+        mt = mt.annotate_entries(x = actual[mt.s])
+
+        assert np.allclose(entry_expr_to_ndarray_vec(mt.x, True, False, False), mean_imputed)
+        assert np.allclose(entry_expr_to_ndarray_vec(mt.x, True, True, False), mean_imputed - 1.0)
+        assert np.allclose(entry_expr_to_ndarray_vec(mt.x, True, False, True), mean_imputed / np.sqrt(5))
+        assert np.allclose(entry_expr_to_ndarray_vec(mt.x, True, True, True), (mean_imputed - 1.0) / np.sqrt(2))
         with self.assertRaises(Exception):
             BlockMatrix.from_entry_expr(mt.x)
 

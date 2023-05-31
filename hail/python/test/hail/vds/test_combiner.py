@@ -54,7 +54,7 @@ def test_combiner_works():
 
 @fails_local_backend
 @fails_service_backend
-@test_timeout(6 * 60, batch=12 * 60)
+@test_timeout(12 * 60)
 def test_vcf_vds_combiner_equivalence():
     import hail.experimental.vcf_combiner.vcf_combiner as vcf
     import hail.vds.combiner as vds
