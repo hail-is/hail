@@ -2226,8 +2226,8 @@ steps:
       - name: fix-billing-triggers-deduped-resource-id
         script: /io/sql/fix-billing-triggers-deduped-resource-id.sql
         online: true
-      - name: set-test-and-dev-pools-to-16-core-max-4
-        script: /io/sql/set-test-and-dev-pools-to-max-8.py
+      - name: set-test-and-dev-pools-to-max-8-standing-16
+        script: /io/sql/set-test-and-dev-pools-to-max-8-standing-16.py
         online: true
     inputs:
       - from: /repo/batch/sql
