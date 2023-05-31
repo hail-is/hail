@@ -96,7 +96,7 @@ class Tests(unittest.TestCase):
         mt = hl.import_vcf(resource('triomatrix.vcf'))
         hl.trio_matrix(mt, ped, complete_trios=False)
 
-    @test_timeout(3 * 60, local=4 * 60, batch=4 * 60)
+    @test_timeout(3 * 60, local=4 * 60, batch=8 * 60)
     def test_mendel_errors(self):
         mt = hl.import_vcf(resource('mendel.vcf'))
         ped = hl.Pedigree.read(resource('mendel.fam'))

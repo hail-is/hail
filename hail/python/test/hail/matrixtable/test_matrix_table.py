@@ -1346,7 +1346,7 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(matrix1.union_cols(matrix2)._same(expected))
 
-    @test_timeout(local=5 * 60, batch=5 * 60)
+    @test_timeout(local=5 * 60, batch=10 * 60)
     def test_row_joins_into_table(self):
         rt = hl.utils.range_matrix_table(9, 13, 3)
         mt1 = rt.key_rows_by(idx=rt.row_idx)

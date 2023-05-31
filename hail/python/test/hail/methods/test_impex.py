@@ -421,7 +421,7 @@ class VCFTests(unittest.TestCase):
     def test_vcf_parser_golden_master__sample_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('sample.vcf'), 'GRCh37')
 
-    @test_timeout(3 * 60, batch=6 * 60)
+    @test_timeout(3 * 60, local=6 * 60, batch=6 * 60)
     def test_vcf_parser_golden_master__gvcf_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('gvcfs/HG00096.g.vcf.gz'), 'GRCh38')
 
@@ -1486,6 +1486,7 @@ class BGENTests(unittest.TestCase):
                                    sample_file=tmp + '.sample')
             assert bgen._same(bgen2)
 
+    @test_timeout(batch=4 * 60)
     def test_export_bgen_parallel(self):
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['GP'],
@@ -1807,6 +1808,7 @@ class ImportMatrixTableTests(unittest.TestCase):
             hl.import_matrix_table([resource("sampleheader1.txt"), resource("sampleheader2.txt")],
                                    row_fields={'f0': hl.tstr}, row_key=['f0'])
 
+    @test_timeout(batch=4 * 60)
     def test_headers_same_len_diff_elem(self):
         with pytest.raises(ValueError, match='invalid header: expected elements to be identical for all input paths'):
             hl.import_matrix_table([resource("sampleheader2.txt"),

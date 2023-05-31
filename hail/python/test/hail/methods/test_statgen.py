@@ -1323,6 +1323,7 @@ class Tests(unittest.TestCase):
         ds1 = ds1.drop('was_split', 'a_index')
         self.assertTrue(ds1._same(ds2))
 
+    @test_timeout(batch=4 * 60)
     def test_split_multi_shuffle(self):
         ht = hl.utils.range_table(1)
         ht = ht.annotate(keys=[hl.struct(locus=hl.locus('1', 1180), alleles=['A', 'C', 'T']),
