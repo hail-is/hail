@@ -231,7 +231,6 @@ doctest: python/README.md $(PYTHON_JAR)
             --ignore=hail/docs/doctest_write_data.py \
             --ignore=hail/docs/getting_started_developing.rst \
             --ignore=hail/docs/getting_started.rst \
-            --timeout=120 \
             $(PYTEST_TARGET) \
             $(PYTEST_ARGS)
 
