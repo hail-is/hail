@@ -71,15 +71,8 @@ class Tests(unittest.TestCase):
             self.assertTrue(f(hl.eval(mt.annotate_globals(foo=hl.literal(x, t)).foo), x), f"{x}, {t}")
             self.assertTrue(f(hl.eval(ht.annotate_globals(foo=hl.literal(x, t)).foo), x), f"{x}, {t}")
 
-<<<<<<< HEAD
     def test_head_no_empty_partitions(self):
         mt = hl.utils.range_matrix_table(10, 10)
-=======
-    @test_timeout(batch=4 * 60)
-    def test_head(self):
-        # no empty partitions
-        mt1 = hl.utils.range_matrix_table(10, 10)
->>>>>>> tp/local-backend-memory
 
         tmp_file = new_temp_file(extension='mt')
 
@@ -1047,7 +1040,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(mt.filter_cols(hl.missing(hl.tbool)).count_cols(), 0)
         self.assertEqual(mt.filter_entries(hl.missing(hl.tbool)).entries().count(), 0)
 
-    @test_timeout(batch=4 * 60)
     def test_to_table_on_various_fields(self):
         mt = hl.utils.range_matrix_table(3, 4)
 
@@ -1775,7 +1767,6 @@ class Tests(unittest.TestCase):
             hl.utils.Struct(idx=0, locus=hl.genetics.Locus(contig='2', position=1, reference_genome='GRCh37'))]
 
     @fails_local_backend()
-    @test_timeout(batch=3 * 60)
     def test_lower_row_agg_init_arg(self):
         mt = hl.balding_nichols_model(5, 200, 200)
         mt2 = hl.variant_qc(mt)

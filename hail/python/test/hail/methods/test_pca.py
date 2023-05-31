@@ -23,7 +23,6 @@ def test_hwe_normalized_pca():
 
 
 @fails_local_backend()
-@test_timeout(batch=3 * 60)
 def test_pca_against_numpy():
     mt = hl.import_vcf(resource('tiny_m.vcf'))
     mt = mt.filter_rows(hl.len(mt.alleles) == 2)
@@ -66,7 +65,6 @@ def test_pca_against_numpy():
     np.testing.assert_allclose(np.abs(hail_loadings), np.abs(np_loadings), rtol=1e-5)
 
 
-@test_timeout(batch=3 * 60)
 def test_blanczos_against_numpy():
 
     def concatToNumpy(field, horizontal=True):

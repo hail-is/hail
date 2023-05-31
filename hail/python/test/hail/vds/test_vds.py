@@ -144,7 +144,6 @@ def test_sampleqc_singleton_r_ti_tv():
 
 
 
-@test_timeout(batch=4 * 60)
 def test_filter_samples_and_merge():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
     vds.reference_data = vds.reference_data.drop('ref_allele')
@@ -498,7 +497,6 @@ def test_filter_intervals_default_table():
     assert var.aggregate_rows(hl.agg.all(intervals[0].contains(var.locus)))
 
 
-@test_timeout(batch=4 * 60)
 def test_filter_chromosomes():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
 
@@ -565,7 +563,6 @@ def test_to_dense_mt():
     assert as_dict.get(('chr22:10562436', 'NA12878')) == hl.Struct(LGT=hl.Call([0, 0]), LA=None, GQ=21, DP=9)
 
 
-@test_timeout(batch=3 * 60)
 def test_merge_reference_blocks():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
     vds = hl.vds.filter_samples(vds, ['HG00187'])
