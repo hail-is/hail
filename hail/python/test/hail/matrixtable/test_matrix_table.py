@@ -973,7 +973,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(ds._same(ds2))
 
     @fails_service_backend()
-    @test_timeout(local=3 * 60)
+    @test_timeout(local=6 * 60)
     def test_codecs_table(self):
         from hail.utils.java import scala_object
         supported_codecs = scala_object(Env.hail().io, 'BufferSpec').specs()

@@ -30,7 +30,7 @@ def tmpdir(request) -> Generator[str, None, None]:
     fs.rmtree(tmpdir)
 
 
-def test_hadoop_methods(tmpdir: str):
+def test_hadoop_methods_1(tmpdir: str):
     data = ['foo', 'bar', 'baz']
     data.extend(map(str, range(100)))
 
@@ -44,6 +44,11 @@ def test_hadoop_methods(tmpdir: str):
 
     assert data == data2
 
+
+def test_hadoop_methods_2(tmpdir: str):
+    data = ['foo', 'bar', 'baz']
+    data.extend(map(str, range(100)))
+
     with hadoop_open(f'{tmpdir}/test_out.txt.gz', 'w') as f:
         for d in data:
             f.write(d)
@@ -53,6 +58,15 @@ def test_hadoop_methods(tmpdir: str):
         data3 = [line.strip() for line in f]
 
     assert data == data3
+
+def test_hadoop_methods_3(tmpdir: str):
+    data = ['foo', 'bar', 'baz']
+    data.extend(map(str, range(100)))
+
+    with hadoop_open(f'{tmpdir}/test_out.txt.gz', 'w') as f:
+        for d in data:
+            f.write(d)
+            f.write('\n')
 
     hadoop_copy(f'{tmpdir}/test_out.txt.gz',
                 f'{tmpdir}/test_out.copy.txt.gz')

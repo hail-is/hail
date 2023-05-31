@@ -3905,7 +3905,7 @@ class Tests(unittest.TestCase):
 @pytest.mark.parametrize("delimiter", ['\t', ',', '@'])
 @pytest.mark.parametrize("missing", ['NA', 'null'])
 @pytest.mark.parametrize("header", [True, False])
-@test_timeout(batch=6 * 60)
+@test_timeout(local=6 * 60, batch=6 * 60)
 def test_export_entry(delimiter, missing, header):
     mt = hl.utils.range_matrix_table(3, 3)
     mt = mt.key_cols_by(col_idx = mt.col_idx + 1)

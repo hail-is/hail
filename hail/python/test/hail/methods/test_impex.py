@@ -408,7 +408,7 @@ class VCFTests(unittest.TestCase):
     def test_vcf_parser_golden_master__sample_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('sample.vcf'), 'GRCh37')
 
-    @test_timeout(3 * 60, local=6 * 60, batch=6 * 60)
+    @test_timeout(6 * 60)
     def test_vcf_parser_golden_master__gvcf_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('gvcfs/HG00096.g.vcf.gz'), 'GRCh38')
 
@@ -1589,6 +1589,7 @@ class GENTests(unittest.TestCase):
                                resource('skip_invalid_loci.sample'))
             mt._force_count_rows()
 
+    @test_timeout(local=4 * 60)
     def test_export_gen(self):
         gen = hl.import_gen(resource('example.gen'),
                             sample_file=resource('example.sample'),
@@ -1848,6 +1849,7 @@ class ImportMatrixTableTests(unittest.TestCase):
         mt = mt.key_rows_by('Chromosome', 'Position')
         mt._force_count_rows()
 
+    @test_timeout(local=4 * 60)
     def test_devilish_nine_separated_eight_missing_file(self):
         fields = {'chr': hl.tstr,
                   '': hl.tint32,

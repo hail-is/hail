@@ -214,31 +214,31 @@ def spec5(j, k):
 
 
 @pytest.mark.parametrize("triplet", dim_triplets)
-@test_timeout(local=5 * 60, batch=8 * 60)
+@test_timeout(5 * 60, batch=8 * 60)
 def test_spectra_1(triplet):
     spectra_helper(spec1, triplet)
 
 
 @pytest.mark.parametrize("triplet", dim_triplets)
-@test_timeout(local=5 * 60, batch=8 * 60)
+@test_timeout(5 * 60, batch=8 * 60)
 def test_spectra_2(triplet):
     spectra_helper(spec2, triplet)
 
 
 @pytest.mark.parametrize("triplet", dim_triplets)
-@test_timeout(local=5 * 60, batch=8 * 60)
+@test_timeout(5 * 60, batch=8 * 60)
 def test_spectra_3(triplet):
     spectra_helper(spec3, triplet)
 
 
 @pytest.mark.parametrize("triplet", dim_triplets)
-@test_timeout(local=5 * 60, batch=8 * 60)
+@test_timeout(5 * 60, batch=8 * 60)
 def test_spectra_4(triplet):
     spectra_helper(spec4, triplet)
 
 
 @pytest.mark.parametrize("triplet", dim_triplets)
-@test_timeout(local=5 * 60, batch=8 * 60)
+@test_timeout(5 * 60, batch=8 * 60)
 def test_spectra_5(triplet):
     spectra_helper(spec5, triplet)
 

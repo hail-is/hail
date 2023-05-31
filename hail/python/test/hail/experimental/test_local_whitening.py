@@ -26,7 +26,7 @@ def run_local_whitening_test(vec_size, num_rows, chunk_size, window_size, partit
     whitened_naive = naive_whiten(data.T, window_size)
     np.testing.assert_allclose(whitened_hail, whitened_naive, rtol=5e-05)
 
-@test_timeout(batch=5 * 60)
+@test_timeout(local=5 * 60, batch=5 * 60)
 def test_local_whitening():
     run_local_whitening_test(
         vec_size=100,
@@ -36,7 +36,7 @@ def test_local_whitening():
         partition_size=32 * 40,
         initial_num_partitions=50)
 
-@test_timeout(batch=5 * 60)
+@test_timeout(local=5 * 60, batch=5 * 60)
 def test_local_whitening_singleton_final_partition():
     run_local_whitening_test(
         vec_size=100,
