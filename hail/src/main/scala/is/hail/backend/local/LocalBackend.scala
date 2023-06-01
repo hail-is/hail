@@ -1,9 +1,9 @@
 package is.hail.backend.local
 
+import cats.syntax.all._
 import is.hail.annotations.{Region, SafeRow, UnsafeRow}
 import is.hail.asm4s._
 import is.hail.backend._
-import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{IRParser, _}
 import is.hail.expr.{JSONAnnotationImpex, Validate}
@@ -26,6 +26,7 @@ import org.sparkproject.guava.util.concurrent.MoreExecutors
 
 import java.io.PrintWriter
 import scala.collection.JavaConverters._
+import scala.language.higherKinds
 import scala.reflect.ClassTag
 
 class LocalBroadcastValue[T](val value: T) extends BroadcastValue[T] with Serializable
@@ -147,48 +148,55 @@ class LocalBackend(
 
   def stop(): Unit = LocalBackend.stop()
 
-  private[this] def _jvmLowerAndExecute(ctx: ExecuteContext, ir0: IR, print: Option[PrintWriter] = None): (Option[SingleCodeType], Long) = {
-    val ir = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All).apply(ctx, ir0).asInstanceOf[IR]
+  private[this] def _jvmLowerAndExecute[M[_]](ctx: ExecuteContext, ir0: IR, print: Option[PrintWriter] = None)
+                                             (implicit M: MonadLower[M])
+  : M[(Option[SingleCodeType], Long)] =
+    LoweringPipeline.darrayLowerer(true)(DArrayLowering.All)(ctx, ir0).flatMap { case ir: IR =>
 
-    if (!Compilable(ir))
-      throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${ Pretty(ctx, ir) }")
+      if (!Compilable(ir))
+        M.raiseError(new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${Pretty(ctx, ir)}"))
 
-    if (ir.typ == TVoid) {
-      val (pt, f) = ctx.timer.time("Compile") {
-        Compile[AsmFunction1RegionUnit](ctx,
-          FastIndexedSeq(),
-          FastIndexedSeq(classInfo[Region]), UnitInfo,
-          ir,
-          print = print)
-      }
+      ir.typ match {
+        case TVoid =>
+          for {
+            (pt, f) <- ctx.timer.timeM("Compile") {
+              Compile[M, AsmFunction1RegionUnit](ctx,
+                FastIndexedSeq(),
+                FastIndexedSeq(classInfo[Region]), UnitInfo,
+                ir,
+                print = print
+              )
+            }
+          } yield ctx.timer.time("Run") {
+            ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r)(r))
+            (pt, 0)
+          }
 
-      ctx.timer.time("Run") {
-        ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r))
-        (pt, 0)
-      }
-    } else {
-      val (pt, f) = ctx.timer.time("Compile") {
-        Compile[AsmFunction1RegionLong](ctx,
-          FastIndexedSeq(),
-          FastIndexedSeq(classInfo[Region]), LongInfo,
-          MakeTuple.ordered(FastSeq(ir)),
-          print = print)
-      }
-
-      ctx.timer.time("Run") {
-        (pt, ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r)))
+        case _ =>
+          for {
+            (pt, f) <- ctx.timer.timeM("Compile") {
+              Compile[M, AsmFunction1RegionLong](ctx,
+                FastIndexedSeq(),
+                FastIndexedSeq(classInfo[Region]),
+                LongInfo,
+                MakeTuple.ordered(FastSeq(ir)),
+                print = print
+              )
+            }
+          } yield ctx.timer.time("Run") {
+            (pt, ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r)(r)))
+          }
       }
     }
-  }
 
   private[this] def _execute(ctx: ExecuteContext, ir: IR): (Option[SingleCodeType], Long) = {
     TypeCheck(ctx, ir)
     Validate(ir)
     val queryID = Backend.nextID()
     log.info(s"starting execution of query $queryID of initial size ${ IRSize(ir) }")
-    val res = _jvmLowerAndExecute(ctx, ir)
+    val result = _jvmLowerAndExecute[Lower](ctx, ir).runA(ctx, LoweringState())
     log.info(s"finished execution of query $queryID")
-    res
+    result
   }
 
 
@@ -321,15 +329,13 @@ class LocalBackend(
     }
   }
 
-  override def lowerDistributedSort(
+  override def lowerDistributedSort[M[_]: MonadLower](
     ctx: ExecuteContext,
     stage: TableStage,
     sortFields: IndexedSeq[SortField],
-    rt: RTable,
-    nextHash: SemanticHash.NextHash
-  ): TableReader = {
-    LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt, nextHash)
-  }
+    rt: RTable
+  ): M[TableReader] =
+    LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt)
 
   def pyLoadReferencesFromDataset(path: String): String = {
     val rgs = ReferenceGenome.fromHailDataset(fs, path)
@@ -350,10 +356,7 @@ class LocalBackend(
 
   def getPersistedBlockMatrixType(backendContext: BackendContext, id: String): BlockMatrixType = ???
 
-  def tableToTableStage(ctx: ExecuteContext,
-    inputIR: TableIR,
-    analyses: LoweringAnalyses
-  ): TableStage = {
+  def tableToTableStage[M[_]: MonadLower](ctx: ExecuteContext, inputIR: TableIR, analyses: LoweringAnalyses)
+  : M[TableStage] =
     LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
-  }
 }

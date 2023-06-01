@@ -5,8 +5,7 @@ import is.hail.asm4s.HailClassLoader
 import is.hail.backend.ExecuteContext
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
-import is.hail.expr.ir.analyses.SemanticHash
-import is.hail.expr.ir.lowering.TableStage
+import is.hail.expr.ir.lowering.{MonadLower, TableStage}
 import is.hail.io.fs.{FS, Seekable}
 import is.hail.io.vcf.LoadVCF
 import is.hail.rvd.RVDPartitioner
@@ -20,6 +19,8 @@ import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Formats, JValue}
+
+import scala.language.higherKinds
 
 case class FamFileConfig(isQuantPheno: Boolean = false,
   delimiter: String = "\\t",
@@ -486,7 +487,7 @@ class MatrixPLINKReader(
       body)
   }
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean, semhash: SemanticHash.NextHash): TableValue =
+  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue =
     executeGeneric(ctx).toTableValue(ctx, requestedType)
 
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
@@ -495,8 +496,8 @@ class MatrixPLINKReader(
     Literal(requestedGlobalsType, subset(globals).asInstanceOf[Row])
   }
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType, semhash: SemanticHash.NextHash): TableStage =
-    executeGeneric(ctx).toTableStage(ctx, requestedType, "PLINK file", params,  semhash)
+  override def lower[M[_]: MonadLower](ctx: ExecuteContext, requestedType: TableType): M[TableStage] =
+    executeGeneric(ctx).toTableStage(ctx, requestedType, "PLINK file", params)
 
   override def toJValue: JValue = {
     implicit val formats: Formats = DefaultFormats

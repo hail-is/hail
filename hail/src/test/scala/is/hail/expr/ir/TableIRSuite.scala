@@ -6,7 +6,7 @@ import is.hail.annotations.SafeNDArray
 import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
 import is.hail.expr.ir.TestUtils._
-import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
+import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR, LoweringState}
 import is.hail.methods.ForceCountTable
 import is.hail.rvd.RVDPartitioner
 import is.hail.types._
@@ -17,6 +17,7 @@ import org.apache.spark.sql.Row
 import org.scalatest.Inspectors.forAll
 import org.scalatest.{Failed, Outcome, Succeeded}
 import org.testng.annotations.{DataProvider, Test}
+import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
 
 class TableIRSuite extends HailSuite {
 
@@ -762,11 +763,11 @@ class TableIRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.interpretOnly
     val table = TableRange(5, 4)
     val path = ctx.createTmpPath("test-table-write", "ht")
-    Interpret[Unit](ctx, TableWrite(table, TableNativeWriter(path)))
+    Interpret(ctx, TableWrite(table, TableNativeWriter(path))).runA(ctx, LoweringState())
     val before = table.analyzeAndExecute(ctx).asTableValue(ctx)
     val read = TableIR.read(fs, path, requestedType = Some(table.typ))
     assert(read.isDistinctlyKeyed)
-    val after = Interpret(read, ctx, false)
+    val after = Interpret(read, ctx, false).runA(ctx, LoweringState())
     assert(before.globals.javaValue == after.globals.javaValue)
     assert(before.rdd.collect().toFastIndexedSeq == after.rdd.collect().toFastIndexedSeq)
   }
@@ -785,37 +786,37 @@ class TableIRSuite extends HailSuite {
     )))
     val keyedByConst = TableKeyBy(at, IndexedSeq("const"))
     val pathConst = ctx.createTmpPath("test-table-write-distinctness", "ht")
-    Interpret[Unit](ctx, TableWrite(keyedByConst, TableNativeWriter(pathConst)))
+    Interpret(ctx, TableWrite(keyedByConst, TableNativeWriter(pathConst))).runA(ctx, LoweringState())
     val readConst = TableIR.read(fs, pathConst)
     assert(!readConst.isDistinctlyKeyed)
 
     val keyedByHalf = TableKeyBy(at, IndexedSeq("half"))
     val pathHalf = ctx.createTmpPath("test-table-write-distinctness", "ht")
-    Interpret[Unit](ctx, TableWrite(keyedByHalf, TableNativeWriter(pathHalf)))
+    Interpret(ctx, TableWrite(keyedByHalf, TableNativeWriter(pathHalf))).runA(ctx, LoweringState())
     val readHalf = TableIR.read(fs, pathHalf)
     assert(!readHalf.isDistinctlyKeyed)
 
     val keyedByIdxAndHalf = TableKeyBy(at, IndexedSeq("idx", "half"))
     val pathIdxAndHalf = ctx.createTmpPath("test-table-write-distinctness", "ht")
-    Interpret[Unit](ctx, TableWrite(keyedByIdxAndHalf, TableNativeWriter(pathIdxAndHalf)))
+    Interpret(ctx, TableWrite(keyedByIdxAndHalf, TableNativeWriter(pathIdxAndHalf))).runA(ctx, LoweringState())
     val readIdxAndHalf = TableIR.read(fs, pathIdxAndHalf)
     assert(readIdxAndHalf.isDistinctlyKeyed)
 
     val keyedByOneRepeat = TableKeyBy(at, IndexedSeq("oneRepeat"))
     val pathOneRepeat = ctx.createTmpPath("test-table-write-distinctness", "ht")
-    Interpret[Unit](ctx, TableWrite(keyedByOneRepeat, TableNativeWriter(pathOneRepeat)))
+    Interpret(ctx, TableWrite(keyedByOneRepeat, TableNativeWriter(pathOneRepeat))).runA(ctx, LoweringState())
     val readOneRepeat = TableIR.read(fs, pathOneRepeat)
     assert(!readOneRepeat.isDistinctlyKeyed)
 
     val keyedByOneMissing = TableKeyBy(at, IndexedSeq("oneMissing"))
     val pathOneMissing = ctx.createTmpPath("test-table-write-distinctness", "ht")
-    Interpret[Unit](ctx, TableWrite(keyedByOneMissing, TableNativeWriter(pathOneMissing)))
+    Interpret(ctx, TableWrite(keyedByOneMissing, TableNativeWriter(pathOneMissing))).runA(ctx, LoweringState())
     val readOneMissing = TableIR.read(fs, pathOneMissing)
     assert(readOneMissing.isDistinctlyKeyed)
 
     val keyedByTwoMissing = TableKeyBy(at, IndexedSeq("twoMissing"))
     val pathTwoMissing = ctx.createTmpPath("test-table-write-distinctness", "ht")
-    Interpret[Unit](ctx, TableWrite(keyedByTwoMissing, TableNativeWriter(pathTwoMissing)))
+    Interpret(ctx, TableWrite(keyedByTwoMissing, TableNativeWriter(pathTwoMissing))).runA(ctx, LoweringState())
     val readTwoMissing = TableIR.read(fs, pathTwoMissing)
     assert(!readTwoMissing.isDistinctlyKeyed)
   }

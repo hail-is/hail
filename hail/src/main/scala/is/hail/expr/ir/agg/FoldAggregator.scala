@@ -1,10 +1,10 @@
 package is.hail.expr.ir.agg
 import is.hail.annotations.Region
-import is.hail.asm4s.{AsmFunction1RegionLong, AsmFunction2, LongInfo, Value}
+import is.hail.asm4s.Value
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.{Compile, Emit, EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitContext, EmitEnv, EmitMethodBuilder, Env, IEmitCode, IR, SCodeEmitParamType}
-import is.hail.types.physical.PType
-import is.hail.types.physical.stypes.{EmitType, SType}
+import is.hail.expr.ir.lowering.LoweringState
+import is.hail.expr.ir.{Emit, EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitContext, EmitEnv, EmitMethodBuilder, Env, IEmitCode, IR}
+import is.hail.types.physical.stypes.EmitType
 import is.hail.types.virtual.Type
 
 // (IR => T), seq op (IR T => T), and comb op (IR (T,T) => T)
@@ -34,7 +34,7 @@ class FoldAggregator(val resultEmitType: EmitType, accumName: String, otherAccum
     val pEnv = Env.apply((accumName, resultEmitType.storageType), (otherAccumName, resultEmitType.storageType))
 
     val emitCtx = EmitContext.analyze(ctx, combOpIR, pEnv)
-    val emit = new Emit[Any](emitCtx, cb.emb.ecb.asInstanceOf[EmitClassBuilder[Any]])
+    val emit = new Emit[Any](emitCtx, cb.emb.ecb.asInstanceOf[EmitClassBuilder[Any]], LoweringState())
     val ec = emit.emit(combOpIR, cb.emb.asInstanceOf[EmitMethodBuilder[Any]], env, None)
     ec.toI(cb).consume(cb, state.storeMissing(cb), sv => state.storeNonmissing(cb, sv))
   }

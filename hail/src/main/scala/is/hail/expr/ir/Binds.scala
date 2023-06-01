@@ -60,7 +60,7 @@ object Bindings {
     }
     case NDArrayMap(nd, name, _) => if (i == 1) Array(name -> tcoerce[TNDArray](nd.typ).elementType) else empty
     case NDArrayMap2(l, r, lName, rName, _, _) => if (i == 2) Array(lName -> tcoerce[TNDArray](l.typ).elementType, rName -> tcoerce[TNDArray](r.typ).elementType) else empty
-    case CollectDistributedArray(contexts, globals, cname, gname, _, _, _, _, _) => if (i == 2) Array(cname -> tcoerce[TStream](contexts.typ).elementType, gname -> globals.typ) else empty
+    case CollectDistributedArray(contexts, globals, cname, gname, _, _, _, _) => if (i == 2) Array(cname -> tcoerce[TStream](contexts.typ).elementType, gname -> globals.typ) else empty
     case TableAggregate(child, _) => if (i == 1) child.typ.globalEnv.m else empty
     case MatrixAggregate(child, _) => if (i == 1) child.typ.globalEnv.m else empty
     case TableFilter(child, _) => if (i == 1) child.typ.rowEnv.m else empty
@@ -109,7 +109,7 @@ object AggBindings {
       case TableAggregate(child, _) => if (i == 1) Some(child.typ.rowEnv.m) else None
       case MatrixAggregate(child, _) => if (i == 1) Some(child.typ.entryEnv.m) else None
       case RelationalLet(_, _, _) => None
-      case CollectDistributedArray(_, _, _, _, _, _, _, _, _) if (i == 2) => None
+      case CollectDistributedArray(_, _, _, _, _, _, _, _) if (i == 2) => None
       case _: ApplyAggOp => None
       case AggFold(_, _, _, _, _, false) => None
       case _: IR => base
@@ -151,7 +151,7 @@ object ScanBindings {
       case TableAggregate(_, _) => None
       case MatrixAggregate(_, _) => None
       case RelationalLet(_, _, _) => None
-      case CollectDistributedArray(_, _, _, _, _, _, _, _, _) if (i == 2) => None
+      case CollectDistributedArray(_, _, _, _, _, _, _, _) if (i == 2) => None
       case _: ApplyScanOp => None
       case _: IR => base
 
@@ -206,7 +206,7 @@ object ChildEnvWithoutBindings {
         case (true, 2) => env.copy(eval = Env.empty, scan = None)
         case (false, 2) => env.copy(eval = Env.empty, agg = None)
       }
-      case CollectDistributedArray(_, _, _, _, _, _, _, _, _) => if (i == 2) BindingEnv(relational = env.relational) else env
+      case CollectDistributedArray(_, _, _, _, _, _, _, _) => if (i == 2) BindingEnv(relational = env.relational) else env
       case MatrixAggregate(_, _) => if (i == 0) env.onlyRelational else BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)
       case TableAggregate(_, _) => if (i == 0) env.onlyRelational else BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)
       case RelationalLet(_, _, _) => if (i == 0) env.onlyRelational else env.copy(agg = None, scan = None)

@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailSuite
 import is.hail.expr.Nat
 import is.hail.expr.ir.agg.CallStatsState
+import is.hail.expr.ir.lowering.LoweringState
 import is.hail.types.{BaseTypeWithRequiredness, RTable, TableType, TypeWithRequiredness, VirtualTypeWithReq, tcoerce}
 import is.hail.types.physical._
 import is.hail.types.virtual._
@@ -14,6 +15,7 @@ import is.hail.types.physical.stypes.primitives.SInt32
 import is.hail.utils.{BoxedArrayBuilder, FastIndexedSeq, FastSeq}
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
+import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
 
 class RequirednessSuite extends HailSuite {
   val required: Boolean = true
@@ -513,7 +515,7 @@ class RequirednessSuite extends HailSuite {
     ), None)
 
     val path = ctx.createTmpPath("test-table-requiredness", "ht")
-    CompileAndEvaluate[Unit](ctx, TableWrite(table, TableNativeWriter(path, overwrite = true)), false)
+    CompileAndEvaluate(ctx, TableWrite(table, TableNativeWriter(path, overwrite = true)), false).runA(ctx, LoweringState())
 
     val reader = TableNativeReader(fs, TableNativeReaderParameters(path, None))
     for (rType <- Array(table.typ,

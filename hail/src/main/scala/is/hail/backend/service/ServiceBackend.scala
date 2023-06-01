@@ -1,10 +1,10 @@
 package is.hail.backend.service
 
+import cats.syntax.all._
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend._
 import is.hail.expr.Validate
-import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{Compile, IR, IRParser, LoweringAnalyses, MakeTuple, SortField, TableIR, TableReader, TypeCheck}
@@ -299,55 +299,65 @@ class ServiceBackend(
     JsonMethods.compact(jv)
   }
 
-  private[this] def execute(ctx: ExecuteContext, _x: IR, bufferSpecString: String): Array[Byte] = {
+  private[this] def execute[M[_]: MonadLower](ctx: ExecuteContext, _x: IR, bufferSpecString: String)
+  : M[Array[Byte]] = {
     TypeCheck(ctx, _x)
     Validate(_x)
-    val x = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All).apply(ctx, _x)
-      .asInstanceOf[IR]
-    if (x.typ == TVoid) {
-      val (_, f) = Compile[AsmFunction1RegionUnit](ctx,
-        FastIndexedSeq(),
-        FastIndexedSeq[TypeInfo[_]](classInfo[Region]), UnitInfo,
-        x,
-        optimize = true)
+    LoweringPipeline.darrayLowerer(true)(DArrayLowering.All)(ctx, _x).flatMap {
+      case x: IR =>
+        x.typ match {
+          case TVoid =>
+            for {
+              (_, f) <- Compile[M, AsmFunction1RegionUnit](ctx,
+                FastIndexedSeq(),
+                FastIndexedSeq[TypeInfo[_]](classInfo[Region]),
+                UnitInfo,
+                x,
+                optimize = true
+              )
+            } yield {
+              ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r)(r))
+              Array()
+            }
 
-      ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r))
-      Array()
-    } else {
-      val (Some(PTypeReferenceSingleCodeType(pt)), f) = Compile[AsmFunction1RegionLong](ctx,
-        FastIndexedSeq(),
-        FastIndexedSeq[TypeInfo[_]](classInfo[Region]), LongInfo,
-        MakeTuple.ordered(FastIndexedSeq(x)),
-        optimize = true)
-      val retPType = pt.asInstanceOf[PBaseStruct]
-      val off = ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r))
-      val codec = TypedCodecSpec(
-        EType.fromTypeAllOptional(retPType.virtualType),
-        retPType.virtualType,
-        BufferSpec.parseOrDefault(bufferSpecString)
-      )
-      codec.encode(ctx, retPType, off)
+          case _ =>
+            for {
+              (Some(PTypeReferenceSingleCodeType(pt)), f) <- Compile[M, AsmFunction1RegionLong](ctx,
+                FastIndexedSeq(),
+                FastIndexedSeq[TypeInfo[_]](classInfo[Region]),
+                LongInfo,
+                MakeTuple.ordered(FastIndexedSeq(x)),
+                optimize = true
+              )
+            } yield {
+              val retPType = pt.asInstanceOf[PBaseStruct]
+              val off = ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r)(r))
+              val codec = TypedCodecSpec(
+                EType.fromTypeAllOptional(retPType.virtualType),
+                retPType.virtualType,
+                BufferSpec.parseOrDefault(bufferSpecString)
+              )
+              codec.encode(ctx, retPType, off)
+            }
+        }
     }
   }
 
-  def execute(
-    ctx: ExecuteContext,
-    code: String,
-    token: String,
-    bufferSpecString: String
-  ): Array[Byte] = {
+  def execute(ctx: ExecuteContext, code: String, token: String, bufferSpecString: String)
+  : Array[Byte] = {
     log.info(s"executing: ${token} ${ctx.fs.getConfiguration()}")
+    execute[Lower](ctx, IRParser.parse_value_ir(ctx, code), bufferSpecString)
+      .runA(ctx, LoweringState())
 
-    execute(ctx, IRParser.parse_value_ir(ctx, code), bufferSpecString)
   }
 
-  override def lowerDistributedSort(
+  override def lowerDistributedSort[M[_]: MonadLower](
     ctx: ExecuteContext,
     inputStage: TableStage,
     sortFields: IndexedSeq[SortField],
-    rt: RTable,
-    nextHash: SemanticHash.NextHash
-  ): TableReader = LowerDistributedSort.distributedSort(ctx, inputStage, sortFields, rt, nextHash)
+    rt: RTable
+  ): M[TableReader] =
+    LowerDistributedSort.distributedSort(ctx, inputStage, sortFields, rt)
 
   def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String): Unit = ???
 
@@ -387,12 +397,10 @@ class ServiceBackend(
     LoadPlink.importFamJSON(ctx.fs, path, quantPheno, delimiter, missing)
   }
 
-  def tableToTableStage(ctx: ExecuteContext,
-    inputIR: TableIR,
-    analyses: LoweringAnalyses
-  ): TableStage = {
+  override def tableToTableStage[M[_]: MonadLower](ctx: ExecuteContext, inputIR: TableIR, analyses: LoweringAnalyses)
+  : M[TableStage] =
     LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
-  }
+
 
   def fromFASTAFile(
     ctx: ExecuteContext,

@@ -50,9 +50,12 @@ case object SemanticHash extends Logging {
   def unique: Type =
     Hash(UUID.randomUUID.toString)
 
-  def apply(fs: FS)(root: BaseIR): NextHash = {
+  def split(hash: Type): (Type, Type) =
+    (hash <> Hash(0), hash <> Hash(1))
+
+  def apply(fs: FS)(root: BaseIR): Type = {
     val normalized = new NormalizeNames(_.toString, allowFreeVariables = true)(root)
-    val semhash = IRTraversal.levelOrder(normalized).foldLeft(Hash.init) { (semhash, ir) =>
+    IRTraversal.levelOrder(normalized).foldLeft(Hash.init) { (semhash, ir) =>
       val thishash = semhash <> Hash(ir.getClass) <> (ir match {
         case a: AggExplode =>
           Hash(a.isScan)
@@ -151,8 +154,8 @@ case object SemanticHash extends Logging {
 
         case TableRead(_, dropRows, reader)  =>
           Hash(dropRows) <> (reader match {
-            case RVDTableReader(_, _, _, semhash) =>
-              semhash
+            case _: RVDTableReader =>
+              unique
 
             case _ =>
               Hash(reader.getClass) <> reader
@@ -284,9 +287,6 @@ case object SemanticHash extends Logging {
       log.info(s"[$thishash]: $ir")
       thishash
     }
-    log.info(s"Query semantic hash = $semhash")
-    var count = 0
-    () => { val h = count; count += 1; semhash <> Hash(h)}
   }
 }
 

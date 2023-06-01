@@ -9,6 +9,7 @@ import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.io.fs._
 import is.hail.utils._
 
+import javax.annotation.Nullable
 import scala.util.Try
 
 object BackendUtils {
@@ -30,12 +31,19 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
                     contexts: Array[Array[Byte]],
                     globals: Array[Byte],
                     stageName: String,
-                    semhash: SemanticHash.Type,
+                    @Nullable semhash: SemanticHash.Type,
                     tsd: Option[TableStageDependency]
                    ): Array[Array[Byte]] = {
-    log.info(s"[collectDArray|$stageName]: querying cache for $semhash")
-    val cachedResults = backendContext.executionCache.lookup(semhash)
-    log.info(s"[collectDArray|$stageName]: found ${cachedResults.length} entries for $semhash.")
+
+    val cachedResults = Option(semhash)
+      .map { s =>
+        log.info(s"[collectDArray|$stageName]: querying cache for $s")
+        val cachedResults = backendContext.executionCache.lookup(s)
+        log.info(s"[collectDArray|$stageName]: found ${cachedResults.length} entries for $s.")
+        cachedResults
+      }
+      .getOrElse(IndexedSeq.empty)
+
     Some {
         for {
           c@(_, k) <- contexts.zipWithIndex
@@ -86,8 +94,7 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
 
           // todo: merge join these
           val results = (cachedResults ++ successes).sortBy(_._1)
-          backendContext.executionCache.put(semhash, results)
-
+          Option(semhash).foreach(s => backendContext.executionCache.put(s, results))
           failureOpt.foreach(throw _)
 
           results

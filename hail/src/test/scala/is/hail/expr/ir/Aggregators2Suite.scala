@@ -1,16 +1,19 @@
 package is.hail.expr.ir
 
 import breeze.linalg.sum
+import cats.syntax.all._
 import is.hail.TestUtils._
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.agg._
+import is.hail.expr.ir.lowering.{Lower, LoweringState}
 import is.hail.types.{MatrixType, RPrimitive, TypeWithRequiredness, VirtualTypeWithReq, tcoerce}
-import is.hail.types.physical.{stypes, _}
+import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.io.BufferSpec
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.utils._
+import is.hail.utils.traverseInstanceGenTraversable
 import is.hail.variant.{Call0, Call1, Call2}
 import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
@@ -35,7 +38,9 @@ class Aggregators2Suite extends HailSuite {
     val argRef = Ref(genUID(), argT.virtualType)
     val spec = BufferSpec.defaultUncompressed
 
-    val (_, combAndDuplicate) = CompileWithAggregators[AsmFunction1RegionUnit](ctx,
+    import Lower.monadLowerInstanceForLower
+    val (s1, Right((_, combAndDuplicate))) =
+      CompileWithAggregators[Lower, AsmFunction1RegionUnit](ctx,
       Array.fill(nPartitions)(aggSig.state),
       FastIndexedSeq(),
       FastIndexedSeq(classInfo[Region]), UnitInfo,
@@ -43,13 +48,17 @@ class Aggregators2Suite extends HailSuite {
         Array.tabulate(nPartitions)(i => DeserializeAggs(i, i, spec, Array(aggSig.state))) ++
           Array.range(1, nPartitions).map(i => CombOp(0, i, aggSig)) :+
           SerializeAggs(0, 0, spec, Array(aggSig.state)) :+
-          DeserializeAggs(1, 0, spec, Array(aggSig.state))))
+          DeserializeAggs(1, 0, spec, Array(aggSig.state)))
+      ).run(ctx, LoweringState())
 
-    val (Some(PTypeReferenceSingleCodeType(rt: PTuple)), resF) = CompileWithAggregators[AsmFunction1RegionLong](ctx,
-      Array.fill(nPartitions)(aggSig.state),
-      FastIndexedSeq(),
-      FastIndexedSeq(classInfo[Region]), LongInfo,
-      ResultOp.makeTuple(Array(aggSig, aggSig)))
+    val (s2, Right((Some(PTypeReferenceSingleCodeType(rt: PTuple)), resF))) =
+      CompileWithAggregators[Lower, AsmFunction1RegionLong](ctx,
+        Array.fill(nPartitions)(aggSig.state),
+        FastIndexedSeq(),
+        FastIndexedSeq(classInfo[Region]), LongInfo,
+        ResultOp.makeTuple(Array(aggSig, aggSig))
+      ).run(ctx, s1)
+
     assert(rt.types(0) == rt.types(1))
 
     val resultType = rt.types(0)
@@ -60,61 +69,69 @@ class Aggregators2Suite extends HailSuite {
       val argOff = ScalaToRegionValue(ctx.stateManager, region, argT, argVs)
 
       def withArgs(foo: IR) = {
-        CompileWithAggregators[AsmFunction2RegionLongUnit](ctx,
+        CompileWithAggregators[Lower, AsmFunction2RegionLongUnit](ctx,
           Array(aggSig.state),
           FastIndexedSeq((argRef.name, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argT)))),
           FastIndexedSeq(classInfo[Region], LongInfo), UnitInfo,
           args.map(_._1).foldLeft[IR](foo) { case (op, name) =>
             Let(name, GetField(argRef, name), op)
-          })._2
+          }
+        ).map(_._2)
       }
 
       val serialize = SerializeAggs(0, 0, spec, Array(aggSig.state))
-      val (_, writeF) = CompileWithAggregators[AsmFunction1RegionUnit](ctx,
-        Array(aggSig.state),
-        FastIndexedSeq(),
-        FastIndexedSeq(classInfo[Region]), UnitInfo,
-        serialize)
-
-      val initF = withArgs(initOp)
-
-      expectedInit.foreach { v =>
-        val (Some(PTypeReferenceSingleCodeType(rt: PBaseStruct)), resOneF) = CompileWithAggregators[AsmFunction1RegionLong](ctx,
+      (for {
+        (_, writeF) <- CompileWithAggregators[Lower, AsmFunction1RegionUnit](ctx,
           Array(aggSig.state),
           FastIndexedSeq(),
-          FastIndexedSeq(classInfo[Region]), LongInfo,
-          ResultOp.makeTuple(Array(aggSig)))
+          FastIndexedSeq(classInfo[Region]), UnitInfo,
+          serialize
+        )
 
-        val init = initF(theHailClassLoader, ctx.fs, ctx.taskContext, region)
-        val res = resOneF(theHailClassLoader, ctx.fs, ctx.taskContext, region)
+        initF <- withArgs(initOp)
 
-        pool.scopedSmallRegion { aggRegion =>
-          init.newAggState(aggRegion)
-          init(region, argOff)
-          res.setAggState(aggRegion, init.getAggOffset())
-          val result = SafeRow(rt, res(region)).get(0)
-          assert(resultType.virtualType.valuesSimilar(result, v))
+        _ <- expectedInit.traverse_ { v =>
+          CompileWithAggregators[Lower, AsmFunction1RegionLong](ctx,
+            Array(aggSig.state),
+            FastIndexedSeq(),
+            FastIndexedSeq(classInfo[Region]), LongInfo,
+            ResultOp.makeTuple(Array(aggSig))
+          ).map { case (Some(PTypeReferenceSingleCodeType(rt: PBaseStruct)), resOneF) =>
+
+            val init = initF(theHailClassLoader, ctx.fs, ctx.taskContext, region)
+            val res = resOneF(theHailClassLoader, ctx.fs, ctx.taskContext, region)
+
+            pool.scopedSmallRegion { aggRegion =>
+              init.newAggState(aggRegion)
+              init(region, argOff)
+              res.setAggState(aggRegion, init.getAggOffset())
+              val result = SafeRow(rt, res(region)).get(0)
+              assert(resultType.virtualType.valuesSimilar(result, v))
+            }
+          }
         }
-      }
 
-      val serializedParts = seqOps.grouped(math.ceil(seqOps.length / nPartitions.toDouble).toInt).map { seqs =>
-        val init = initF(theHailClassLoader, ctx.fs, ctx.taskContext, region)
-        val seq = withArgs(Begin(seqs))(theHailClassLoader, ctx.fs, ctx.taskContext, region)
-        val write = writeF(theHailClassLoader, ctx.fs, ctx.taskContext, region)
-        pool.scopedSmallRegion { aggRegion =>
-          init.newAggState(aggRegion)
-          init(region, argOff)
-          val ioff = init.getAggOffset()
-          seq.setAggState(aggRegion, ioff)
-          seq(region, argOff)
-          val soff = seq.getAggOffset()
-          write.setAggState(aggRegion, soff)
-          write(region)
-          write.getSerializedAgg(0)
+        size = math.ceil(seqOps.length / nPartitions.toDouble).toInt
+        serializedParts <- seqOps.grouped(size).toIndexedSeq.traverse { seqs =>
+          val init = initF(theHailClassLoader, ctx.fs, ctx.taskContext, region)
+          withArgs(Begin(seqs)).map { f =>
+            val seq = f(theHailClassLoader, ctx.fs, ctx.taskContext, region)
+            val write = writeF(theHailClassLoader, ctx.fs, ctx.taskContext, region)
+            pool.scopedSmallRegion { aggRegion =>
+              init.newAggState(aggRegion)
+              init(region, argOff)
+              val ioff = init.getAggOffset()
+              seq.setAggState(aggRegion, ioff)
+              seq(region, argOff)
+              val soff = seq.getAggOffset()
+              write.setAggState(aggRegion, soff)
+              write(region)
+              write.getSerializedAgg(0)
+            }
+          }
         }
-      }.toArray
 
-      pool.scopedSmallRegion { aggRegion =>
+      } yield pool.scopedSmallRegion { aggRegion =>
         val combOp = combAndDuplicate(theHailClassLoader, ctx.fs, ctx.taskContext, region)
         combOp.newAggState(aggRegion)
         serializedParts.zipWithIndex.foreach { case (s, i) =>
@@ -136,7 +153,7 @@ class Aggregators2Suite extends HailSuite {
             assert(resultType.virtualType.valuesSimilar(double.get(0), expected),
               s"\nresult: ${ double.get(0) }\nexpect: $expected")
         }
-      }
+      }).runA(ctx, s2)
     }
   }
 

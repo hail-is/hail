@@ -1,27 +1,24 @@
 package is.hail.expr.ir
 
-import is.hail.asm4s.{HailClassLoader, theHailClassLoaderForSparkWorkers}
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.asm4s.{HailClassLoader, theHailClassLoaderForSparkWorkers}
 import is.hail.backend.spark.SparkTaskContext
 import is.hail.backend.{BroadcastValue, ExecuteContext, HailTaskContext}
 import is.hail.expr.TableAnnotationImpex
-import is.hail.expr.ir.lowering.{RVDToTableStage, TableStage, TableStageToRVD}
+import is.hail.expr.ir.lowering._
+import is.hail.io.exportTypes
 import is.hail.io.fs.FS
+import is.hail.rvd.{RVD, RVDContext, RVDPartitioner, RVDType}
+import is.hail.sparkextras.ContextRDD
 import is.hail.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, PStruct}
 import is.hail.types.virtual.{Field, TArray, TStruct}
 import is.hail.types.{MatrixType, TableType}
-import is.hail.io.{BufferSpec, TypedCodecSpec, exportTypes}
-import is.hail.rvd.{AbstractRVDSpec, RVD, RVDContext, RVDPartitioner, RVDType}
-import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
-import is.hail.variant.ReferenceGenome
-import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.storage.StorageLevel
-import org.json4s.jackson.JsonMethods
 
 object TableExecuteIntermediate {
   def apply(tv: TableValue): TableExecuteIntermediate = new TableValueIntermediate(tv)
@@ -51,7 +48,7 @@ case class TableStageIntermediate(ts: TableStage) extends TableExecuteIntermedia
   def asTableStage(ctx: ExecuteContext): TableStage = ts
 
   def asTableValue(ctx: ExecuteContext): TableValue = {
-    val (globals, rvd) = TableStageToRVD(ctx, ts)
+    val (globals, rvd) = TableStageToRVD(ctx, ts)(Lower.monadLowerInstanceForLower).runA(ctx, LoweringState())
     TableValue(ctx, TableType(ts.rowType, ts.key, ts.globalType), globals, rvd)
   }
 

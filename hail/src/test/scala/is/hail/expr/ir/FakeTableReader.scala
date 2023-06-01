@@ -5,7 +5,7 @@ import is.hail.types.{TableType, VirtualTypeWithReq}
 
 class FakeTableReader extends TableReader {
   override def pathsUsed: Seq[String] = ???
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean, semhash: NextHash): TableValue = ???
+  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = ???
   override def partitionCounts: Option[IndexedSeq[Long]] = ???
   override def fullType: TableType = ???
   override def rowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = ???

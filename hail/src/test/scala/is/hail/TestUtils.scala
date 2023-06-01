@@ -2,6 +2,7 @@ package is.hail
 
 import java.io.{File, PrintWriter}
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
+import cats.implicits.toFunctorOps
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
 import is.hail.asm4s._
@@ -9,7 +10,7 @@ import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir._
 import is.hail.expr.ir.{BindingEnv, MakeTuple, Subst}
-import is.hail.expr.ir.lowering.LowererUnsupportedOperation
+import is.hail.expr.ir.lowering.{Lower, LowererUnsupportedOperation, LoweringState, MonadLower}
 import is.hail.types.physical.{PBaseStruct, PCanonicalArray, PType, stypes}
 import is.hail.types.virtual._
 import is.hail.io.vcf.MatrixVCFReader
@@ -20,6 +21,7 @@ import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 
 import scala.collection.mutable
+import scala.language.higherKinds
 
 object ExecStrategy extends Enumeration {
   type ExecStrategy = Value
@@ -106,22 +108,22 @@ object TestUtils {
 
     ExecutionTimer.logTime("TestUtils.loweredExecute") { timer =>
       HailContext.sparkBackend("TestUtils.loweredExecute")
-        .jvmLowerAndExecute(ctx, timer, x, optimize = false, lowerTable = true, lowerBM = true, print = bytecodePrinter)
+        .jvmLowerAndExecute(ctx, x, optimize = false, lowerTable = true, lowerBM = true, print = bytecodePrinter)
     }
   }
 
   def eval(x: IR): Any = ExecuteContext.scoped(){ ctx =>
-    eval(x, Env.empty, FastIndexedSeq(), None, None, true, ctx)
+    eval[Lower](x, Env.empty, FastIndexedSeq(), None, None, true, ctx).runA(ctx, LoweringState())
   }
 
-  def eval(x: IR,
+  def eval[M[_]: MonadLower](x: IR,
     env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
     agg: Option[(IndexedSeq[Row], TStruct)],
     bytecodePrinter: Option[PrintWriter] = None,
     optimize: Boolean = true,
     ctx: ExecuteContext
-  ): Any = {
+  ): M[Any] = {
       val inputTypesB = new BoxedArrayBuilder[Type]()
       val inputsB = new mutable.ArrayBuffer[Any]()
 
@@ -167,62 +169,66 @@ object TestUtils {
             aggElementVar,
             MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(eval = substEnv, agg = Some(substAggEnv)))))))
 
-          val (Some(PTypeReferenceSingleCodeType(resultType2)), f) = Compile[AsmFunction3RegionLongLongLong](ctx,
+          Compile[M, AsmFunction3RegionLongLongLong](ctx,
             FastIndexedSeq((argsVar, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argsPType))),
               (aggArrayVar, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(aggArrayPType)))),
             FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
             aggIR,
             print = bytecodePrinter,
-            optimize = optimize)
-          assert(resultType2.virtualType == resultType)
+            optimize = optimize
+          ).map { case (Some(PTypeReferenceSingleCodeType(resultType2)), f) =>
+            assert(resultType2.virtualType == resultType)
 
-          ctx.r.pool.scopedRegion { region =>
-            val rvb = new RegionValueBuilder(ctx.stateManager, region)
-            rvb.start(argsPType)
-            rvb.startTuple()
-            var i = 0
-            while (i < inputsB.length) {
-              rvb.addAnnotation(inputTypesB(i), inputsB(i))
-              i += 1
+            ctx.r.pool.scopedRegion { region =>
+              val rvb = new RegionValueBuilder(ctx.stateManager, region)
+              rvb.start(argsPType)
+              rvb.startTuple()
+              var i = 0
+              while (i < inputsB.length) {
+                rvb.addAnnotation(inputTypesB(i), inputsB(i))
+                i += 1
+              }
+              rvb.endTuple()
+              val argsOff = rvb.end()
+
+              rvb.start(aggArrayPType)
+              rvb.startArray(aggElements.length)
+              aggElements.foreach { r =>
+                rvb.addAnnotation(aggType, r)
+              }
+              rvb.endArray()
+              val aggOff = rvb.end()
+
+              val resultOff = f(theHailClassLoader, ctx.fs, ctx.taskContext, region)(region, argsOff, aggOff)
+              SafeRow(resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
             }
-            rvb.endTuple()
-            val argsOff = rvb.end()
-
-            rvb.start(aggArrayPType)
-            rvb.startArray(aggElements.length)
-            aggElements.foreach { r =>
-              rvb.addAnnotation(aggType, r)
-            }
-            rvb.endArray()
-            val aggOff = rvb.end()
-
-            val resultOff = f(theHailClassLoader, ctx.fs, ctx.taskContext, region)(region, argsOff, aggOff)
-            SafeRow(resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
           }
 
         case None =>
-          val (Some(PTypeReferenceSingleCodeType(resultType2)), f) = Compile[AsmFunction2RegionLongLong](ctx,
+          Compile[M, AsmFunction2RegionLongLong](ctx,
             FastIndexedSeq((argsVar, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argsPType)))),
             FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
             MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(substEnv))))),
             optimize = optimize,
-            print = bytecodePrinter)
-          assert(resultType2.virtualType == resultType)
+            print = bytecodePrinter
+          ).map { case (Some(PTypeReferenceSingleCodeType(resultType2)), f) =>
+            assert(resultType2.virtualType == resultType)
 
-          ctx.r.pool.scopedRegion { region =>
-            val rvb = new RegionValueBuilder(ctx.stateManager, region)
-            rvb.start(argsPType)
-            rvb.startTuple()
-            var i = 0
-            while (i < inputsB.length) {
-              rvb.addAnnotation(inputTypesB(i), inputsB(i))
-              i += 1
+            ctx.r.pool.scopedRegion { region =>
+              val rvb = new RegionValueBuilder(ctx.stateManager, region)
+              rvb.start(argsPType)
+              rvb.startTuple()
+              var i = 0
+              while (i < inputsB.length) {
+                rvb.addAnnotation(inputTypesB(i), inputsB(i))
+                i += 1
+              }
+              rvb.endTuple()
+              val argsOff = rvb.end()
+
+              val resultOff = f(theHailClassLoader, ctx.fs, ctx.taskContext, region)(region, argsOff)
+              SafeRow(resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
             }
-            rvb.endTuple()
-            val argsOff = rvb.end()
-
-            val resultOff = f(theHailClassLoader, ctx.fs, ctx.taskContext, region)(region, argsOff)
-            SafeRow(resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
           }
       }
   }
@@ -238,10 +244,11 @@ object TestUtils {
   def assertEvalSame(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)]) {
     val t = x.typ
 
+    import Lower.monadLowerInstanceForLower
     val (i, i2, c) = ExecuteContext.scoped() { ctx =>
-      val i = Interpret[Any](ctx, x, env, args)
-      val i2 = Interpret[Any](ctx, x, env, args, optimize = false)
-      val c = eval(x, env, args, None, None, true, ctx)
+      val i: Any = Interpret(ctx, x, env, args).runA(ctx, LoweringState())
+      val i2: Any = Interpret(ctx, x, env, args, optimize = false).runA(ctx, LoweringState())
+      val c: Any = eval(x, env, args, None, None, true, ctx).runA(ctx, LoweringState())
       (i, i2, c)
     }
 
@@ -259,9 +266,10 @@ object TestUtils {
 
   def assertThrows[E <: Throwable : Manifest](x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], regex: String) {
     ExecuteContext.scoped() { ctx =>
-      interceptException[E](regex)(Interpret[Any](ctx, x, env, args))
-      interceptException[E](regex)(Interpret[Any](ctx, x, env, args, optimize = false))
-      interceptException[E](regex)(eval(x, env, args, None, None, true, ctx))
+      import Lower.monadLowerInstanceForLower
+      interceptException[E](regex)(Interpret(ctx, x, env, args).run(ctx, LoweringState()))
+      interceptException[E](regex)(Interpret(ctx, x, env, args, optimize = false).run(ctx, LoweringState()))
+      interceptException[E](regex)(eval(x, env, args, None, None, true, ctx).run(ctx, LoweringState()))
     }
   }
 
@@ -279,7 +287,8 @@ object TestUtils {
 
   def assertCompiledThrows[E <: Throwable : Manifest](x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], regex: String) {
     ExecuteContext.scoped() { ctx =>
-      interceptException[E](regex)(eval(x, env, args, None, None, true, ctx))
+      import Lower.monadLowerInstanceForLower
+      interceptException[E](regex)(eval(x, env, args, None, None, true, ctx).runA(ctx, LoweringState()))
     }
   }
 

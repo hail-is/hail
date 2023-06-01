@@ -4,6 +4,7 @@ import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.functions.RelationalFunctions
+import is.hail.expr.ir.lowering.{Lower, LoweringState}
 import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec}
 import is.hail.rvd.{AbstractRVDSpec, RVDPartitioner, RVDType}
@@ -2001,28 +2002,29 @@ object IRParser {
         punctuation(it, ")")
         ir_value_expr(env)(it).map { ir =>
           val Row(starts: IndexedSeq[Long @unchecked], stops: IndexedSeq[Long @unchecked]) =
-            CompileAndEvaluate[Row](env.ctx, ir)
+            CompileAndEvaluate[Lower, Row](env.ctx, ir).runA(env.ctx, LoweringState())
           RowIntervalSparsifier(blocksOnly, starts, stops)
         }
       case "PyBandSparsifier" =>
         val blocksOnly = boolean_literal(it)
         punctuation(it, ")")
         ir_value_expr(env)(it).map { ir =>
-          val Row(l: Long, u: Long) = CompileAndEvaluate[Row](env.ctx, ir)
+          val Row(l: Long, u: Long) =
+            CompileAndEvaluate[Lower, Row](env.ctx, ir).runA(env.ctx, LoweringState())
           BandSparsifier(blocksOnly, l, u)
         }
       case "PyPerBlockSparsifier" =>
         punctuation(it, ")")
         ir_value_expr(env)(it).map { ir =>
           val indices: IndexedSeq[Int] =
-            CompileAndEvaluate[IndexedSeq[Int]](env.ctx, ir)
+            CompileAndEvaluate[Lower, IndexedSeq[Int]](env.ctx, ir).runA(env.ctx, LoweringState())
           PerBlockSparsifier(indices)
         }
       case "PyRectangleSparsifier" =>
         punctuation(it, ")")
         ir_value_expr(env)(it).map { ir =>
           val rectangles: IndexedSeq[Long] =
-            CompileAndEvaluate[IndexedSeq[Long]](env.ctx, ir)
+            CompileAndEvaluate[Lower, IndexedSeq[Long]](env.ctx, ir).runA(env.ctx, LoweringState())
           RectangleSparsifier(rectangles.grouped(4).toIndexedSeq)
         }
       case "RowIntervalSparsifier" =>

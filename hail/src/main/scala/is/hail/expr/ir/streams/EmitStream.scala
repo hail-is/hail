@@ -1,24 +1,22 @@
 package is.hail.expr.ir.streams
 
-import is.hail.annotations.{Region, RegionPool}
+import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.ir.agg.{AggStateSig, DictState, PhysicalAggSig, StateTuple}
 import is.hail.expr.ir.functions.IntervalFunctions
 import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.linalg.LinalgCodeUtils
-import is.hail.lir
 import is.hail.methods.{BitPackedVector, BitPackedVectorBuilder, LocalLDPrune, LocalWhitening}
 import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SStackStruct, SUnreachable}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SFloat64Value, SInt32Value}
 import is.hail.types.physical.stypes.{EmitType, SSettable}
-import is.hail.types.physical.{PCanonicalArray, PCanonicalBinary, PCanonicalStruct, PType}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalBinary, PCanonicalStruct}
 import is.hail.types.virtual._
 import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.utils._
 import is.hail.variant.Locus
-import org.objectweb.asm.Opcodes._
 
 import java.util
 
@@ -150,105 +148,105 @@ object EmitStream {
     }
 
     // returns IEmitCode of SStreamConcrete
-    def produceIterator(streamIR: IR, elementPType: PType, cb: EmitCodeBuilder, outerRegion: Value[Region] = outerRegion, env: EmitEnv = env): IEmitCode = {
-      val ecb = cb.emb.genEmitClass[NoBoxLongIterator]("stream_to_iter")
-      ecb.cb.addInterface(typeInfo[MissingnessAsMethod].iname)
-
-      val fv = FreeVariables(streamIR, false, false).eval
-      val (envParamTypes, envParams, restoreEnv) = env.asParams(fv)
-
-      val isMissing = ecb.genFieldThisRef[Boolean]("isMissing")
-      val eosField = ecb.genFieldThisRef[Boolean]("eos")
-      val outerRegionField = ecb.genFieldThisRef[Region]("outer")
-
-      ecb.makeAddPartitionRegion()
-
-      var producer: StreamProducer = null
-      var producerRequired: Boolean = false
-
-      val next = ecb.newEmitMethod("next", FastIndexedSeq[ParamType](), LongInfo)
-      val ctor = ecb.newEmitMethod("<init>", FastIndexedSeq[ParamType](typeInfo[Region], arrayInfo[Long]) ++ envParamTypes, UnitInfo)
-      ctor.voidWithBuilder { cb =>
-        val L = new lir.Block()
-        L.append(
-          lir.methodStmt(INVOKESPECIAL,
-            "java/lang/Object",
-            "<init>",
-            "()V",
-            false,
-            UnitInfo,
-            FastIndexedSeq(lir.load(ctor.mb._this.asInstanceOf[LocalRef[_]].l))))
-        cb += new VCode(L, L, null)
-
-        val newEnv = restoreEnv(cb, 3)
-        val s = EmitStream.produce(new Emit(emitter.ctx, ecb), streamIR, cb, next, outerRegionField, newEnv, None)
-        producerRequired = s.required
-        s.consume(cb, {
-          if (!producerRequired) cb.assign(isMissing, true)
-        }, { stream =>
-          if (!producerRequired) cb.assign(isMissing, false)
-          producer = stream.asStream.getProducer(next)
-        })
-
-        val self = cb.memoize(Code.checkcast[FunctionWithPartitionRegion]((ctor.getCodeParam(0)(ecb.cb.ti))))
-
-        ecb.setLiteralsArray(cb, ctor.getCodeParam[Array[Long]](2))
-        val partitionRegion = cb.memoize(ctor.getCodeParam[Region](1))
-        cb += self.invoke[Region, Unit]("addPartitionRegion", partitionRegion)
-        cb += self.invoke[RegionPool, Unit]("setPool", partitionRegion.getPool())
-      }
-
-      next.emitWithBuilder { cb =>
-        val ret = cb.newLocal[Long]("ret")
-        val Lret = CodeLabel()
-        cb.goto(producer.LproduceElement)
-        cb.define(producer.LproduceElementDone)
-        producer.element.toI(cb)
-          .consume(cb, {
-            cb.assign(ret, 0L)
-          }, { value =>
-            cb.assign(ret, elementPType.store(cb, producer.elementRegion, value, false))
-          })
-        cb.goto(Lret)
-        cb.define(producer.LendOfStream)
-        cb.assign(eosField, true)
-
-        cb.define(Lret)
-        ret
-      }
-
-      val init = ecb.newEmitMethod("init", FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[Region]), UnitInfo)
-      init.voidWithBuilder { cb =>
-        val outerRegion = init.getCodeParam[Region](1)
-        val eltRegion = init.getCodeParam[Region](2)
-
-        cb.assign(producer.elementRegion, eltRegion)
-        cb.assign(outerRegionField, outerRegion)
-        producer.initialize(cb, outerRegion)
-        cb.assign(eosField, false)
-      }
-
-
-      val isEOS = ecb.newEmitMethod("eos", FastIndexedSeq[ParamType](), BooleanInfo)
-      isEOS.emitWithBuilder[Boolean](cb => eosField)
-
-      val isMissingMethod = ecb.newEmitMethod("isMissing", FastIndexedSeq[ParamType](), BooleanInfo)
-      isMissingMethod.emitWithBuilder[Boolean](cb => isMissing)
-
-
-      val close = ecb.newEmitMethod("close", FastIndexedSeq[ParamType](), UnitInfo)
-      close.voidWithBuilder(cb => producer.close(cb))
-
-      val obj = cb.memoize(Code.newInstance(ecb.cb, ctor.mb,
-        FastIndexedSeq(cb.emb.partitionRegion.get, cb.emb.ecb.literalsArray().get) ++ envParams.map(_.get)))
-
-      val iter = cb.emb.genFieldThisRef[NoBoxLongIterator]("iter")
-      cb.assign(iter, Code.checkcast[NoBoxLongIterator](obj))
-      IEmitCode(cb,
-        if (producerRequired) false else Code.checkcast[MissingnessAsMethod](obj).invoke[Boolean]("isMissing"),
-        new SStreamConcrete(SStreamIteratorLong(producer.element.required, elementPType, producer.requiresMemoryManagementPerElement),
-          iter))
-    }
+//    def produceIterator(streamIR: IR, elementPType: PType, cb: EmitCodeBuilder, outerRegion: Value[Region] = outerRegion, env: EmitEnv = env): IEmitCode = {
+//      val ecb = cb.emb.genEmitClass[NoBoxLongIterator]("stream_to_iter")
+//      ecb.cb.addInterface(typeInfo[MissingnessAsMethod].iname)
+//
+//      val fv = FreeVariables(streamIR, false, false).eval
+//      val (envParamTypes, envParams, restoreEnv) = env.asParams(fv)
+//
+//      val isMissing = ecb.genFieldThisRef[Boolean]("isMissing")
+//      val eosField = ecb.genFieldThisRef[Boolean]("eos")
+//      val outerRegionField = ecb.genFieldThisRef[Region]("outer")
+//
+//      ecb.makeAddPartitionRegion()
+//
+//      var producer: StreamProducer = null
+//      var producerRequired: Boolean = false
+//
+//      val next = ecb.newEmitMethod("next", FastIndexedSeq[ParamType](), LongInfo)
+//      val ctor = ecb.newEmitMethod("<init>", FastIndexedSeq[ParamType](typeInfo[Region], arrayInfo[Long]) ++ envParamTypes, UnitInfo)
+//      ctor.voidWithBuilder { cb =>
+//        val L = new lir.Block()
+//        L.append(
+//          lir.methodStmt(INVOKESPECIAL,
+//            "java/lang/Object",
+//            "<init>",
+//            "()V",
+//            false,
+//            UnitInfo,
+//            FastIndexedSeq(lir.load(ctor.mb._this.asInstanceOf[LocalRef[_]].l))))
+//        cb += new VCode(L, L, null)
+//
+//        val newEnv = restoreEnv(cb, 3)
+//        val s = EmitStream.produce(new Emit(emitter.ctx, ecb), streamIR, cb, next, outerRegionField, newEnv, None)
+//        producerRequired = s.required
+//        s.consume(cb, {
+//          if (!producerRequired) cb.assign(isMissing, true)
+//        }, { stream =>
+//          if (!producerRequired) cb.assign(isMissing, false)
+//          producer = stream.asStream.getProducer(next)
+//        })
+//
+//        val self = cb.memoize(Code.checkcast[FunctionWithPartitionRegion]((ctor.getCodeParam(0)(ecb.cb.ti))))
+//
+//        ecb.setLiteralsArray(cb, ctor.getCodeParam[Array[Long]](2))
+//        val partitionRegion = cb.memoize(ctor.getCodeParam[Region](1))
+//        cb += self.invoke[Region, Unit]("addPartitionRegion", partitionRegion)
+//        cb += self.invoke[RegionPool, Unit]("setPool", partitionRegion.getPool())
+//      }
+//
+//      next.emitWithBuilder { cb =>
+//        val ret = cb.newLocal[Long]("ret")
+//        val Lret = CodeLabel()
+//        cb.goto(producer.LproduceElement)
+//        cb.define(producer.LproduceElementDone)
+//        producer.element.toI(cb)
+//          .consume(cb, {
+//            cb.assign(ret, 0L)
+//          }, { value =>
+//            cb.assign(ret, elementPType.store(cb, producer.elementRegion, value, false))
+//          })
+//        cb.goto(Lret)
+//        cb.define(producer.LendOfStream)
+//        cb.assign(eosField, true)
+//
+//        cb.define(Lret)
+//        ret
+//      }
+//
+//      val init = ecb.newEmitMethod("init", FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[Region]), UnitInfo)
+//      init.voidWithBuilder { cb =>
+//        val outerRegion = init.getCodeParam[Region](1)
+//        val eltRegion = init.getCodeParam[Region](2)
+//
+//        cb.assign(producer.elementRegion, eltRegion)
+//        cb.assign(outerRegionField, outerRegion)
+//        producer.initialize(cb, outerRegion)
+//        cb.assign(eosField, false)
+//      }
+//
+//
+//      val isEOS = ecb.newEmitMethod("eos", FastIndexedSeq[ParamType](), BooleanInfo)
+//      isEOS.emitWithBuilder[Boolean](cb => eosField)
+//
+//      val isMissingMethod = ecb.newEmitMethod("isMissing", FastIndexedSeq[ParamType](), BooleanInfo)
+//      isMissingMethod.emitWithBuilder[Boolean](cb => isMissing)
+//
+//
+//      val close = ecb.newEmitMethod("close", FastIndexedSeq[ParamType](), UnitInfo)
+//      close.voidWithBuilder(cb => producer.close(cb))
+//
+//      val obj = cb.memoize(Code.newInstance(ecb.cb, ctor.mb,
+//        FastIndexedSeq(cb.emb.partitionRegion.get, cb.emb.ecb.literalsArray().get) ++ envParams.map(_.get)))
+//
+//      val iter = cb.emb.genFieldThisRef[NoBoxLongIterator]("iter")
+//      cb.assign(iter, Code.checkcast[NoBoxLongIterator](obj))
+//      IEmitCode(cb,
+//        if (producerRequired) false else Code.checkcast[MissingnessAsMethod](obj).invoke[Boolean]("isMissing"),
+//        new SStreamConcrete(SStreamIteratorLong(producer.element.required, elementPType, producer.requiresMemoryManagementPerElement),
+//          iter))
+//    }
 
     def produce(streamIR: IR, cb: EmitCodeBuilder, mb: EmitMethodBuilder[_] = mb, region: Value[Region] = outerRegion, env: EmitEnv = env, container: Option[AggContainer] = container): IEmitCode =
       EmitStream.produce(emitter, streamIR, cb, mb, region, env, container)

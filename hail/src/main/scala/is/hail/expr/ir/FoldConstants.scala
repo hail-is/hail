@@ -1,6 +1,8 @@
 package is.hail.expr.ir
 
+import cats.Id
 import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.lowering.{Lower, LoweringState}
 import is.hail.types.virtual.TStream
 import is.hail.utils.HailException
 
@@ -10,7 +12,7 @@ object FoldConstants {
       foldConstants(ctx, ir)
     }
   private def foldConstants(ctx: ExecuteContext, ir: BaseIR): BaseIR =
-    RewriteBottomUp(ir, {
+    RewriteBottomUp[Id](ir, {
       case _: Ref |
            _: In |
            _: RelationalRef |
@@ -44,7 +46,7 @@ object FoldConstants {
           case _ => false
         } =>
         try {
-          Some(Literal.coerce(ir.typ, Interpret.alreadyLowered(ctx, ir)))
+          Some(Literal.coerce(ir.typ, Interpret.alreadyLowered[Lower](ctx, ir).runA(ctx, LoweringState())))
         } catch {
           case _: HailException => None
         }

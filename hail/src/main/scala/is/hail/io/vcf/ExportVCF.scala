@@ -4,17 +4,12 @@ import htsjdk.samtools.util.FileExtensions
 import htsjdk.tribble.SimpleFeature
 import htsjdk.tribble.index.tabix.{TabixFormat, TabixIndexCreator}
 import is.hail
-import is.hail.annotations.Region
-import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.MatrixValue
 import is.hail.io.compress.{BGzipLineReader, BGzipOutputStream}
 import is.hail.io.fs.FS
 import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
-import is.hail.types.MatrixType
-import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.variant.{Call, ReferenceGenome, RegionValueVariant}
+import is.hail.variant.ReferenceGenome
 
 object ExportVCF {
   def infoNumber(t: Type): String = t match {
@@ -24,8 +19,8 @@ object ExportVCF {
     case _ => "1"
   }
 
-  def fmtFloat(fmt: String, value: Float): String = value.formatted(fmt)
-  def fmtDouble(fmt: String, value: Double): String = value.formatted(fmt)
+  def fmtFloat(fmt: String, value: Float): String = fmt.format(value)
+  def fmtDouble(fmt: String, value: Double): String = fmt.format(value)
 
   def infoType(t: Type): Option[String] = t match {
     case TInt32 | TInt64 => Some("Integer")

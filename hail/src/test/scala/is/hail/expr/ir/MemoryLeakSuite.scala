@@ -4,6 +4,8 @@ import is.hail.HailSuite
 import is.hail.TestUtils.eval
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir
+import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
+import is.hail.expr.ir.lowering.LoweringState
 import is.hail.types.virtual.{TArray, TBoolean, TSet, TString}
 import is.hail.utils._
 import org.testng.annotations.Test
@@ -17,10 +19,11 @@ class MemoryLeakSuite extends HailSuite {
       val lit = Literal(TSet(TString), (0 until litSize).map(_.toString).toSet)
       val queries = Literal(TArray(TString), (0 until size).map(_.toString).toFastIndexedSeq)
       ExecuteContext.scoped() { ctx =>
-        val r = eval(
+        eval(
           ToArray(
             mapIR(ToStream(queries)) { r => ir.invoke("contains", TBoolean, lit, r) }
-          ), Env.empty, FastIndexedSeq(), None, None, false, ctx)
+          ), Env.empty, FastIndexedSeq(), None, None, false, ctx
+        ).runA(ctx, LoweringState())
         ctx.r.pool.getHighestTotalUsage
       }
     }

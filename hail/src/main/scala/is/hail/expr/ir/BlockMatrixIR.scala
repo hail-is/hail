@@ -6,7 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations.NDArray
 import is.hail.backend.{BackendContext, ExecuteContext}
 import is.hail.expr.Nat
-import is.hail.expr.ir.lowering.{BMSContexts, BlockMatrixStage2, LowererUnsupportedOperation}
+import is.hail.expr.ir.lowering._
 import is.hail.io.fs.FS
 import is.hail.io.{StreamBufferSpec, TypedCodecSpec}
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata}
@@ -19,6 +19,7 @@ import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
 import scala.collection.immutable.NumericRange
 import scala.collection.mutable.ArrayBuffer
+import scala.language.higherKinds
 
 object BlockMatrixIR {
   def checkFitsIntoArray(nRows: Long, nCols: Long) {
@@ -105,8 +106,9 @@ object BlockMatrixReader {
 abstract class BlockMatrixReader {
   def pathsUsed: Seq[String]
   def apply(ctx: ExecuteContext): BlockMatrix
-  def lower(ctx: ExecuteContext, evalCtx: IRBuilder): BlockMatrixStage2 =
-    throw new LowererUnsupportedOperation(s"BlockMatrixReader not implemented: ${ this.getClass }")
+  def lower[M[_]: MonadLower](ctx: ExecuteContext, evalCtx: IRBuilder): M[BlockMatrixStage2] =
+    MonadLower[M].raiseError(new LowererUnsupportedOperation(s"BlockMatrixReader not implemented: ${ this.getClass }"))
+
   def fullType: BlockMatrixType
   def toJValue: JValue = {
     Extraction.decompose(this)(BlockMatrixReader.formats)
@@ -156,28 +158,30 @@ class BlockMatrixNativeReader(
 
   }
 
-  override def lower(ctx: ExecuteContext, evalCtx: IRBuilder): BlockMatrixStage2 = {
-    val fileNames = Literal(TArray(TString), metadata.partFiles)
+  override def lower[M[_]: MonadLower](ctx: ExecuteContext, evalCtx: IRBuilder): M[BlockMatrixStage2] =
+    MonadLower[M].pure {
+      val fileNames = Literal(TArray(TString), metadata.partFiles)
 
-    val contexts = BMSContexts(fullType, fileNames, evalCtx)
+      val contexts = BMSContexts(fullType, fileNames, evalCtx)
 
-    val vType = TNDArray(fullType.elementType, Nat(2))
-    val spec = TypedCodecSpec(EBlockMatrixNDArray(EFloat64(required = true), required = true), vType, BlockMatrix.bufferSpec)
+      val vType = TNDArray(fullType.elementType, Nat(2))
+      val spec = TypedCodecSpec(EBlockMatrixNDArray(EFloat64(required = true), required = true), vType, BlockMatrix.bufferSpec)
 
-    def blockIR(ctx: IR): IR = {
-      val path = Apply("concat", FastSeq(),
-        FastSeq(Str(s"${ params.path }/parts/"), ctx),
-        TString, ErrorIDs.NO_ERROR)
+      def blockIR(ctx: IR): IR = {
+        val path = Apply("concat", FastSeq(),
+          FastSeq(Str(s"${params.path}/parts/"), ctx),
+          TString, ErrorIDs.NO_ERROR)
 
-      ReadValue(path, spec, vType)
+        ReadValue(path, spec, vType)
+      }
+
+      BlockMatrixStage2(
+        FastIndexedSeq(),
+        fullType,
+        contexts,
+        blockIR
+      )
     }
-
-    BlockMatrixStage2(
-      FastIndexedSeq(),
-      fullType,
-      contexts,
-      blockIR)
-  }
 
   override def toJValue: JValue = {
     decomposeWithName(params, "BlockMatrixNativeReader")(BlockMatrixReader.formats)
@@ -206,22 +210,23 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
     BlockMatrix.fromBreezeMatrix(breezeMatrix, blockSize)
   }
 
-  override def lower(ctx: ExecuteContext, evalCtx: IRBuilder): BlockMatrixStage2 = {
-    val readFromNumpyEType = ENumpyBinaryNDArray(nRows, nCols, true)
-    val readFromNumpySpec = TypedCodecSpec(readFromNumpyEType, TNDArray(TFloat64, Nat(2)), new StreamBufferSpec())
-    val nd = evalCtx.memoize(ReadValue(Str(path), readFromNumpySpec, TNDArray(TFloat64, nDimsBase = Nat(2))))
+  override def lower[M[_]: MonadLower](ctx: ExecuteContext, evalCtx: IRBuilder): M[BlockMatrixStage2] =
+    MonadLower[M].pure {
+      val readFromNumpyEType = ENumpyBinaryNDArray(nRows, nCols, true)
+      val readFromNumpySpec = TypedCodecSpec(readFromNumpyEType, TNDArray(TFloat64, Nat(2)), new StreamBufferSpec())
+      val nd = evalCtx.memoize(ReadValue(Str(path), readFromNumpySpec, TNDArray(TFloat64, nDimsBase = Nat(2))))
 
-    val typ = fullType
-    val contexts = BMSContexts.tabulate(typ, evalCtx) { (blockRow, blockCol) =>
-      NDArraySlice(nd, MakeTuple.ordered(FastSeq(
-        MakeTuple.ordered(FastSeq(blockRow.toL * blockSize.toLong, minIR((blockRow + 1).toL * blockSize.toLong, nRows), 1L)),
-        MakeTuple.ordered(FastSeq(blockCol.toL * blockSize.toLong, minIR((blockCol + 1).toL * blockSize.toLong, nCols), 1L)))))
+      val typ = fullType
+      val contexts = BMSContexts.tabulate(typ, evalCtx) { (blockRow, blockCol) =>
+        NDArraySlice(nd, MakeTuple.ordered(FastSeq(
+          MakeTuple.ordered(FastSeq(blockRow.toL * blockSize.toLong, minIR((blockRow + 1).toL * blockSize.toLong, nRows), 1L)),
+          MakeTuple.ordered(FastSeq(blockCol.toL * blockSize.toLong, minIR((blockCol + 1).toL * blockSize.toLong, nCols), 1L)))))
+      }
+
+      def blockIR(ctx: IR) = ctx
+
+      BlockMatrixStage2(FastIndexedSeq(), typ, contexts, blockIR)
     }
-
-    def blockIR(ctx: IR) = ctx
-
-    BlockMatrixStage2(FastIndexedSeq(), typ, contexts, blockIR)
-  }
 }
 
 case class BlockMatrixNativePersistParameters(id: String)
@@ -256,7 +261,7 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDen
   val blockCostIsLinear: Boolean = child.blockCostIsLinear
 
   private def evalIR(ctx: ExecuteContext, ir: IR): Double = {
-    val res: Any = CompileAndEvaluate(ctx, ir)
+    val res: Any = CompileAndEvaluate[Lower, Any](ctx, ir).runA(ctx, LoweringState())
     if (res == null)
       fatal("can't perform BlockMatrix operation on missing values!")
     res.asInstanceOf[Double]
@@ -429,13 +434,12 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, leftName: 
   private def coerceToVector(ctx: ExecuteContext, ir: BlockMatrixIR): Array[Double] = {
     ir match {
       case ValueToBlockMatrix(child, _, _) =>
-        Interpret[Any](ctx, child) match {
+        Interpret[Lower, Any](ctx, child).runA(ctx, LoweringState()) match {
           case vector: IndexedSeq[_] => vector.asInstanceOf[IndexedSeq[Double]].toArray
-          case vector: NDArray => {
+          case vector: NDArray =>
             val IndexedSeq(numRows, numCols) = vector.shape
             assert(numRows == 1L || numCols == 1L)
             vector.getRowMajorElements().asInstanceOf[IndexedSeq[Double]].toArray
-          }
         }
       case _ => ir.execute(ctx).toBreezeMatrix().data
     }
@@ -943,7 +947,7 @@ case class ValueToBlockMatrix(
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
     val IndexedSeq(nRows, nCols) = shape
     BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
-    CompileAndEvaluate[Any](ctx, child, true) match {
+    CompileAndEvaluate[Lower, Any](ctx, child, true).runA(ctx, LoweringState()) match {
       case scalar: Double =>
         assert(nRows == 1 && nCols == 1)
         BlockMatrix.fill(nRows, nCols, scalar, blockSize)

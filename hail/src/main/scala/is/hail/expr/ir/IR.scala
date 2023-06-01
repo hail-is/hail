@@ -5,7 +5,6 @@ import is.hail.asm4s.Value
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.agg.{AggStateSig, PhysicalAggSig}
-import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.functions._
 import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.expr.ir.streams.StreamProducer
@@ -769,8 +768,7 @@ final case class CollectDistributedArray(contexts: IR,
                                          body: IR,
                                          dynamicID: IR,
                                          staticID: String,
-                                         tsd: Option[TableStageDependency] = None,
-                                         semhash: Option[SemanticHash.Type] = None
+                                         tsd: Option[TableStageDependency] = None
                                         ) extends IR
 
 object PartitionReader {

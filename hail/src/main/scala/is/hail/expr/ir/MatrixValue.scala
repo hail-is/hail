@@ -283,7 +283,7 @@ object MatrixValue {
     }
 
     val fileData = RVD.writeRowsSplitFiles(ctx, mvs.map(_.rvd), paths, bufferSpec, stageLocally)
-    for ((mv, path, fd) <- (mvs, paths, fileData).zipped) {
+    (mvs, paths, fileData).zipped.foreach { case (mv, path, fd) =>
       mv.finalizeWrite(ctx, path, bufferSpec, fd, consoleInfo = false)
     }
   }

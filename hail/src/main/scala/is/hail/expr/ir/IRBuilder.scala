@@ -1,6 +1,11 @@
 package is.hail.expr.ir
 
+import cats.Functor
+import cats.data.ContT
+import cats.implicits.toFunctorOps
+
 import scala.collection.mutable
+import scala.language.higherKinds
 
 object IRBuilder {
   def scoped(f: IRBuilder => IR): IR = {
@@ -8,6 +13,9 @@ object IRBuilder {
     val result = f(ctx)
     ctx.wrap(result)
   }
+
+  def newScope[F[_]: Functor]: ContT[F, IR, IRBuilder] =
+    ContT { f => val ctx = new IRBuilder(); f(ctx).map(ctx.wrap) }
 }
 
 class IRBuilder() {

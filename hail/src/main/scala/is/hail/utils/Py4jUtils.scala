@@ -98,9 +98,8 @@ trait Py4jUtils {
       formatDigits(bytes, tera) + "T"
   }
 
-  private def formatDigits(n: Long, factor: Long): String = {
-    (n / factor.toDouble).formatted("%.1f")
-  }
+  private def formatDigits(n: Long, factor: Long): String =
+    "%.1f".format(n / factor.toDouble)
 
   def readFile(fs: FS, path: String, buffSize: Int): HadoopSeekablePyReader =
     new HadoopSeekablePyReader(fs.fileStatus(path), fs.openNoCompression(path), buffSize)

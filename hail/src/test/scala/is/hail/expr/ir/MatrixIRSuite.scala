@@ -6,6 +6,8 @@ import is.hail.TestUtils._
 import is.hail.annotations.BroadcastRow
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.TestUtils._
+import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
+import is.hail.expr.ir.lowering.LoweringState
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -65,10 +67,10 @@ class MatrixIRSuite extends HailSuite {
   }
 
   def getRows(mir: MatrixIR): Array[Row] =
-    Interpret(MatrixRowsTable(mir), ctx).rdd.collect()
+    Interpret(MatrixRowsTable(mir), ctx).runA(ctx, LoweringState()).rdd.collect()
 
   def getCols(mir: MatrixIR): Array[Row] =
-    Interpret(MatrixColsTable(mir), ctx).rdd.collect()
+    Interpret(MatrixColsTable(mir), ctx).runA(ctx, LoweringState()).rdd.collect()
 
   @Test def testScanCountBehavesLikeIndexOnRows() {
     val mt = rangeMatrix()
@@ -229,15 +231,15 @@ class MatrixIRSuite extends HailSuite {
 
     val mir = CastTableToMatrix(rowTab, "__entries", "__cols", Array("col_idx"))
     // cols are same
-    val mtCols = Interpret(MatrixColsTable(mir), ctx).rdd.collect()
+    val mtCols = Interpret(MatrixColsTable(mir), ctx).runA(ctx, LoweringState()).rdd.collect()
     assert(mtCols sameElements cdata)
 
     // Rows are same
-    val mtRows = Interpret(MatrixRowsTable(mir), ctx).rdd.collect()
+    val mtRows = Interpret(MatrixRowsTable(mir), ctx).runA(ctx, LoweringState()).rdd.collect()
     assert(mtRows sameElements rdata.map(row => Row.fromSeq(row.toSeq.take(2))))
 
     // Round trip
-    val roundTrip = Interpret(CastMatrixToTable(mir, "__entries", "__cols"), ctx)
+    val roundTrip = Interpret(CastMatrixToTable(mir, "__entries", "__cols"), ctx).runA(ctx, LoweringState())
     val localRows = roundTrip.rdd.collect()
     assert(localRows sameElements rdata)
     val localCols = roundTrip.globals.javaValue.getAs[IndexedSeq[Row]](0)
@@ -260,7 +262,7 @@ class MatrixIRSuite extends HailSuite {
 
     // All rows must have the same number of elements in the entry field as colTab has rows
     interceptSpark("length mismatch between entry array and column array") {
-      Interpret(mir, ctx, optimize = true).rvd.count()
+      Interpret(mir, ctx, optimize = true).runA(ctx, LoweringState()).rvd.count()
     }
 
     // The entry field must be an array
@@ -276,7 +278,7 @@ class MatrixIRSuite extends HailSuite {
     val rowTab2 = makeLocalizedTable(rdata2, cdata)
     val mir2 = CastTableToMatrix(rowTab2, "__entries", "__cols", Array("col_idx"))
 
-    interceptSpark("missing") { Interpret(mir2, ctx, optimize = true).rvd.count() }
+    interceptSpark("missing") { Interpret(mir2, ctx, optimize = true).runA(ctx, LoweringState()).rvd.count() }
   }
 
   @Test def testMatrixFiltersWorkWithRandomness() {
@@ -286,12 +288,17 @@ class MatrixIRSuite extends HailSuite {
 
     val colUID = GetField(Ref("sa", range.typ.colType), MatrixReader.colUIDFieldName)
     val colRNG = RNGSplit(RNGStateLiteral(), colUID)
-    val cols = Interpret(MatrixFilterCols(range, rand(colRNG)), ctx, optimize = true).toMatrixValue(range.typ.colKey).nCols
+    val cols = Interpret(MatrixFilterCols(range, rand(colRNG)), ctx, optimize = true)
+      .runA(ctx, LoweringState())
+      .toMatrixValue(range.typ.colKey).nCols
     val rowUID = GetField(Ref("va", range.typ.rowType), MatrixReader.rowUIDFieldName)
     val rowRNG = RNGSplit(RNGStateLiteral(), rowUID)
-    val rows = Interpret(MatrixFilterRows(range, rand(rowRNG)), ctx, optimize = true).rvd.count()
+    val rows = Interpret(MatrixFilterRows(range, rand(rowRNG)), ctx, optimize = true)
+      .runA(ctx, LoweringState())
+      .rvd.count()
     val entryRNG = RNGSplit(RNGStateLiteral(), MakeTuple.ordered(FastSeq(rowUID, colUID)))
-    val entries = Interpret(MatrixEntriesTable(MatrixFilterEntries(range, rand(entryRNG))), ctx, optimize = true).rvd.count()
+    val entries = Interpret(MatrixEntriesTable(MatrixFilterEntries(range, rand(entryRNG))), ctx, optimize = true)
+      .runA(ctx, LoweringState()).rvd.count()
 
     assert(cols < 20 && cols > 0)
     assert(rows < 20 && rows > 0)
@@ -310,7 +317,8 @@ class MatrixIRSuite extends HailSuite {
       10 -> RepartitionStrategy.COALESCE
     )
     params.foreach { case (n, strat) =>
-      val rvd = Interpret(MatrixRepartition(range, n, strat), ctx, optimize = false).rvd
+      val rvd = Interpret(MatrixRepartition(range, n, strat), ctx, optimize = false)
+        .runA(ctx, LoweringState()).rvd
       assert(rvd.getNumPartitions == n, n -> strat)
       val values = rvd.collect(ctx).map(r => r.getAs[Int](0))
       assert(values.isSorted && values.length == 11, n -> strat)

@@ -1,10 +1,10 @@
 package is.hail.expr.ir
+import cats.syntax.all._
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.functions.StringFunctions
-import is.hail.expr.ir.lowering.{TableStage, TableStageDependency, TableStageToRVD}
+import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.fs.{FS, FileStatus}
 import is.hail.rvd.RVDPartitioner
@@ -17,6 +17,8 @@ import is.hail.types.virtual._
 import is.hail.types.{BaseTypeWithRequiredness, RStruct, TableType, VirtualTypeWithReq}
 import is.hail.utils.{FastIndexedSeq, FastSeq, checkGzippedFile, fatal}
 import org.json4s.{Extraction, Formats, JValue}
+
+import scala.language.higherKinds
 
 case class StringTableReaderParameters(
   files: Array[String],
@@ -156,23 +158,29 @@ class StringTableReader(
 
   override def pathsUsed: Seq[String] = params.files
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType, semhash: SemanticHash.NextHash): TableStage = {
-    val fs = ctx.fs
-    val lines = GenericLines.read(fs, fileStatuses, None, None, params.minPartitions, params.forceBGZ, params.forceGZ,
-      params.filePerPartition)
-    TableStage(globals = MakeStruct(FastSeq()),
-      partitioner = RVDPartitioner.unkeyed(ctx.stateManager, lines.nPartitions),
-      dependency = TableStageDependency.none,
-      contexts = ToStream(Literal.coerce(TArray(lines.contextType), lines.contexts)),
-      body = { partitionContext: Ref => ReadPartition(partitionContext, requestedType.rowType, StringTablePartitionReader(lines, uidFieldName))
-      }
-    )
-  }
+  override def lower[M[_] : MonadLower](ctx: ExecuteContext, requestedType: TableType): M[TableStage] =
+    MonadLower[M].pure {
+      val fs = ctx.fs
+      val lines = GenericLines.read(fs, fileStatuses, None, None, params.minPartitions, params.forceBGZ, params.forceGZ,
+        params.filePerPartition)
+      TableStage(globals = MakeStruct(FastSeq()),
+        partitioner = RVDPartitioner.unkeyed(ctx.stateManager, lines.nPartitions),
+        dependency = TableStageDependency.none,
+        contexts = ToStream(Literal.coerce(TArray(lines.contextType), lines.contexts)),
+        body = { partitionContext: Ref => ReadPartition(partitionContext, requestedType.rowType, StringTablePartitionReader(lines, uidFieldName))
+        }
+      )
+    }
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean, semhash: SemanticHash.NextHash): TableValue = {
-    val ts = lower(ctx, requestedType, semhash)
-    val (broadCastRow, rvd) = TableStageToRVD.apply(ctx, ts)
-    TableValue(ctx, requestedType, broadCastRow, rvd)
+  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
+    import Lower.monadLowerInstanceForLower
+    val lowering: Lower[TableValue] =
+      for {
+        ts <- lower(ctx, requestedType)
+        (broadCastRow, rvd) <- TableStageToRVD.apply(ctx, ts)
+      } yield TableValue(ctx, requestedType, broadCastRow, rvd)
+
+    lowering.runA(ctx, LoweringState())
   }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = None

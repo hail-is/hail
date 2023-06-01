@@ -1,59 +1,65 @@
 package is.hail.expr.ir.lowering
 
+import cats.syntax.all._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{BaseIR, IRSize, Pretty, TypeCheck}
 import is.hail.utils._
 
+import scala.language.higherKinds
+import scala.util.control.NonFatal
+
 case class LoweringPipeline(lowerings: LoweringPass*) {
   assert(lowerings.nonEmpty)
 
-  final def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
-    var x = ir
-
-    def render(context: String): Unit = {
+  final def apply[M[_]: MonadLower](ctx: ExecuteContext, ir0: BaseIR): M[BaseIR] = {
+    def render(context: String, ir: BaseIR): Unit =
       if (ctx.shouldLogIR())
-        log.info(s"$context: IR size ${ IRSize(x) }: \n" + Pretty(ctx, x, elideLiterals = true))
-    }
+        log.info(s"$context: IR size ${ IRSize(ir) }: \n" + Pretty(ctx, ir))
 
-    render(s"initial IR")
+    render(s"initial IR", ir0)
 
-    lowerings.foreach { l =>
-      try {
-        x = l.apply(ctx, x)
-        render(s"after ${ l.context }")
-      } catch {
-        case e: Throwable =>
-          log.error(s"error while applying lowering '${ l.context }'")
-          throw e
+    FastSeq(lowerings: _*).foldM(ir0) { case (ir, l) =>
+      for {
+        lowered <- l.apply(ctx, ir).handleErrorWith {
+          case NonFatal(e) =>
+            log.error(s"error while applying lowering '${l.context}'")
+            throw e
+        }
+      } yield {
+        render(s"after ${l.context}", lowered)
+        try TypeCheck(ctx, lowered)
+        catch {
+          case NonFatal(e) =>
+            fatal(s"error after applying ${l.context}", e)
+        }
+        lowered
       }
-      try {
-        TypeCheck(ctx, x)
-      } catch {
-        case e: Throwable =>
-          fatal(s"error after applying ${ l.context }", e)
-      }
     }
-
-    x
   }
 
-  def noOptimization(): LoweringPipeline = LoweringPipeline(lowerings.filter(l => !l.isInstanceOf[OptimizePass]): _*)
+  def noOptimization(): LoweringPipeline =
+    LoweringPipeline(lowerings.filter(l => !l.isInstanceOf[OptimizePass]): _*)
 
-  def +(suffix: LoweringPipeline): LoweringPipeline = LoweringPipeline((lowerings ++ suffix.lowerings): _*)
+  def +(suffix: LoweringPipeline): LoweringPipeline =
+    LoweringPipeline((lowerings ++ suffix.lowerings): _*)
 }
 
 object LoweringPipeline {
 
   def fullLoweringPipeline(context: String, baseTransformer: LoweringPass): LoweringPipeline = {
 
-    val base = LoweringPipeline(
-      baseTransformer,
-      OptimizePass(s"$context, after ${ baseTransformer.context }"))
+    val base =
+      LoweringPipeline(
+        baseTransformer,
+        OptimizePass(s"$context, after ${ baseTransformer.context }")
+      )
 
     // recursively lowers and executes
     val withShuffleRewrite =
-      LoweringPipeline(LowerAndExecuteShufflesPass(base),
-        OptimizePass(s"$context, after LowerAndExecuteShuffles")) + base
+      LoweringPipeline(
+        LowerAndExecuteShufflesPass(base),
+        OptimizePass(s"$context, after LowerAndExecuteShuffles")
+      ) + base
 
     // recursively lowers and executes
     val withLetEvaluation =
@@ -64,8 +70,10 @@ object LoweringPipeline {
 
     LoweringPipeline(
       OptimizePass(s"$context, initial IR"),
+      ComputeSemanticHash,
       LowerMatrixToTablePass,
-      OptimizePass(s"$context, after LowerMatrixToTable")) + withLetEvaluation
+      OptimizePass(s"$context, after LowerMatrixToTable")
+    ) + withLetEvaluation
   }
 
   private val _relationalLowerer = fullLoweringPipeline("relationalLowerer", LowerOrInterpretNonCompilablePass)

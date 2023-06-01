@@ -1,13 +1,11 @@
 package is.hail.lir
 
-import java.io.PrintWriter
-
-import is.hail.HailContext
-
-import scala.collection.mutable
 import is.hail.asm4s._
 import is.hail.utils._
 import org.objectweb.asm.Opcodes._
+
+import java.io.PrintWriter
+import scala.collection.mutable
 
 // FIXME move typeinfo stuff lir
 

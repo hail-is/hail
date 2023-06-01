@@ -1,73 +1,81 @@
 package is.hail.expr.ir
 
+import cats.implicits.toTraverseOps
+import cats.syntax.all._
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.lowering.{CanLowerEfficiently, DArrayLowering, LowerToDistributedArrayPass}
+import is.hail.expr.ir.lowering._
 import is.hail.types.virtual.TVoid
 import is.hail.utils._
 
 import scala.collection.mutable
+import scala.language.higherKinds
 
 object LowerOrInterpretNonCompilable {
 
-  def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
+  def apply[M[_]: MonadLower](ctx: ExecuteContext, ir: BaseIR): M[BaseIR] = {
 
-    def evaluate(value: IR): IR = {
-      val preTime = System.nanoTime()
-      val result = CanLowerEfficiently(ctx, value) match {
+    def evaluate(value: IR): M[IR] =
+    for {
+      preTime <- MonadLower[M].pure(System.nanoTime())
+      result <- CanLowerEfficiently(ctx, value) match {
         case Some(failReason) =>
           log.info(s"LowerOrInterpretNonCompilable: cannot efficiently lower query: $failReason")
           log.info(s"interpreting non-compilable result: ${ value.getClass.getSimpleName }")
-          val v = Interpret.alreadyLowered(ctx, value)
-          if (value.typ == TVoid) {
-            Begin(FastIndexedSeq())
-          } else Literal.coerce(value.typ, v)
+          MonadLower[M].pure[IR] {
+            val v = Interpret.alreadyLowered(ctx, value)
+            if (value.typ == TVoid) Begin(FastIndexedSeq())
+            else Literal.coerce(value.typ, v)
+          }
         case None =>
           log.info(s"LowerOrInterpretNonCompilable: whole stage code generation is a go!")
           log.info(s"lowering result: ${ value.getClass.getSimpleName }")
-          val fullyLowered = LowerToDistributedArrayPass(DArrayLowering.All).transform(ctx, value)
-            .asInstanceOf[IR]
-          log.info(s"compiling and evaluating result: ${ value.getClass.getSimpleName }")
-          CompileAndEvaluate.evalToIR(ctx, fullyLowered, true)
+          for {
+            fullyLowered <- LowerToDistributedArrayPass(DArrayLowering.All)(ctx, value)
+            _ = log.info(s"compiling and evaluating result: ${ value.getClass.getSimpleName }")
+            ir <- CompileAndEvaluate.evalToIR(ctx, fullyLowered.asInstanceOf[IR],  optimize = true)
+          } yield ir
       }
-      log.info(s"took ${ formatTime(System.nanoTime() - preTime) }")
-      assert(result.typ == value.typ)
-      result
-    }
+      _ = log.info(s"took ${ formatTime(System.nanoTime() - preTime) }")
+      _ = assert(result.typ == value.typ)
+    } yield result
 
-    def rewriteChildren(x: BaseIR, m: mutable.Map[String, IR]): BaseIR = {
+    def rewriteChildren(x: BaseIR, m: mutable.Map[String, IR]) = {
       val children = x.children
-      val newChildren = children.map(rewrite(_, m))
-
-      // only recons if necessary
-      if ((children, newChildren).zipped.forall(_ eq _))
-        x
-      else
-        x.copy(newChildren)
+      children.traverse(rewrite(_, m)).map { newChildren =>
+        if ((children, newChildren).zipped.forall(_ eq _)) x
+        else x.copy(newChildren)
+      }
     }
 
+    def rewriteLet(m: mutable.Map[String, IR], name: String, value: IR, body: BaseIR) =
+      for {
+        rvalue <- rewrite(value, m)
+        evald <- evaluate(rvalue.asInstanceOf[IR])
+        rewritten <- rewrite(body, m += (name -> evald))
+      } yield rewritten
 
-    def rewrite(x: BaseIR, m: mutable.Map[String, IR]): BaseIR = {
-
+    def rewrite(x: BaseIR, m: mutable.Map[String, IR]): M[BaseIR] =
       x match {
         case RelationalLet(name, value, body) =>
-          rewrite(body, m += (name -> evaluate(rewrite(value, m).asInstanceOf[IR])))
+          rewriteLet(m, name, value, body)
         case RelationalLetTable(name, value, body) =>
-          rewrite(body, m += (name -> evaluate(rewrite(value, m).asInstanceOf[IR])))
+          rewriteLet(m, name, value, body)
         case RelationalLetMatrixTable(name, value, body) =>
-          rewrite(body, m += (name -> evaluate(rewrite(value, m).asInstanceOf[IR])))
+          rewriteLet(m, name, value, body)
         case RelationalLetBlockMatrix(name, value, body) =>
-          rewrite(body, m += (name -> evaluate(rewrite(value, m).asInstanceOf[IR])))
+          rewriteLet(m, name, value, body)
         case RelationalRef(name, t) =>
           m.get(name) match {
             case Some(res) =>
               assert(res.typ == t)
-              res
+              MonadLower[M].pure(res)
             case None => throw new RuntimeException(name)
           }
-        case x: IR if InterpretableButNotCompilable(x) => evaluate(rewriteChildren(x, m).asInstanceOf[IR])
+        case x: IR if InterpretableButNotCompilable(x) =>
+          for { r <- rewriteChildren(x, m); evald <- evaluate(r.asInstanceOf[IR]) }
+              yield evald
         case _ => rewriteChildren(x, m)
       }
-    }
 
     rewrite(ir.noSharing, mutable.HashMap.empty)
   }

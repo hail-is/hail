@@ -4,7 +4,6 @@ import is.hail.TestUtils.loweredExecute
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.TestUtils.IRAggCollect
 import is.hail.expr.ir._
-import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual._
 import is.hail.utils.{FastIndexedSeq, HailException, Interval}
@@ -86,8 +85,7 @@ class TableGenSuite extends HailSuite {
   @Test(groups = Array("lowering"))
   def testLowering: Unit = {
     val table = TestUtils.collect(mkTableGen())
-    val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
-    assertEvalsTo(lowered, Row(FastIndexedSeq(0, 0).map(Row(_)), Row(0)))
+    assertEvalsTo(table, Row(FastIndexedSeq(0, 0).map(Row(_)), Row(0)))
   }
 
   @Test(groups = Array("lowering"))
@@ -97,10 +95,9 @@ class TableGenSuite extends HailSuite {
       partitioner = Some(RVDPartitioner.unkeyed(ctx.stateManager, 0)),
       errorId = Some(errorId)
     ))
-    val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
     val ex = intercept[HailException] {
       ExecuteContext.scoped() { ctx =>
-        loweredExecute(ctx, lowered, Env.empty, FastIndexedSeq(), None)
+        loweredExecute(ctx, table, Env.empty, FastIndexedSeq(), None)
       }
     }
     ex.errorId shouldBe errorId
@@ -116,10 +113,9 @@ class TableGenSuite extends HailSuite {
       ))),
       errorId = Some(errorId)
     ))
-    val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
     val ex = intercept[SparkException] {
       ExecuteContext.scoped() { ctx =>
-        loweredExecute(ctx, lowered, Env.empty, FastIndexedSeq(), None)
+        loweredExecute(ctx, table, Env.empty, FastIndexedSeq(), None)
       }
     }.getCause.asInstanceOf[HailException]
 

@@ -1,12 +1,12 @@
 package is.hail.expr.ir
 
+import cats.syntax.all._
 import is.hail.annotations.{BroadcastRow, Region}
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.functions.UtilFunctions
-import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
+import is.hail.expr.ir.lowering.{MonadLower, TableStage, TableStageDependency}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.fs.FS
 import is.hail.rvd._
@@ -24,6 +24,8 @@ import org.apache.spark.sql.Row
 import org.apache.spark.{Partition, TaskContext}
 import org.json4s.JsonAST.{JObject, JString}
 import org.json4s.{Extraction, JValue}
+
+import scala.language.higherKinds
 
 class PartitionIteratorLongReader(
   rowType: TStruct,
@@ -73,6 +75,7 @@ class PartitionIteratorLongReader(
 
       val producer = new StreamProducer {
         override def method: EmitMethodBuilder[_] = mb
+
         override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
         override def initialize(cb: EmitCodeBuilder, partitionRegion: Value[Region]): Unit = {
@@ -141,11 +144,13 @@ class GenericTableValueRDD(
 }
 
 abstract class LoweredTableReaderCoercer {
-  def coerce(ctx: ExecuteContext,
+  def coerce[M[_]: MonadLower](
+    ctx: ExecuteContext,
     globals: IR,
     contextType: Type,
     contexts: IndexedSeq[Any],
-    body: IR => IR): TableStage
+    body: IR => IR
+  ): M[TableStage]
 }
 
 class GenericTableValue(
@@ -163,9 +168,11 @@ class GenericTableValue(
   assert(contextType.fieldType("partitionIndex") == TInt32)
 
   var ltrCoercer: LoweredTableReaderCoercer = _
-  def getLTVCoercer(ctx: ExecuteContext, context: String, cacheKey: Any, semhash: SemanticHash.NextHash): LoweredTableReaderCoercer = {
-    if (ltrCoercer == null) {
-      ltrCoercer = LoweredTableReader.makeCoercer(
+  def getLTVCoercer[M[_]](ctx: ExecuteContext, context: String, cacheKey: Any)
+                         (implicit M: MonadLower[M])
+  : M[LoweredTableReaderCoercer] = {
+    if (ltrCoercer != null) M.pure(ltrCoercer)
+    else LoweredTableReader.makeCoercer(
         ctx,
         fullTableType.key,
         1,
@@ -176,14 +183,15 @@ class GenericTableValue(
         bodyPType,
         body,
         context,
-        cacheKey,
-        semhash
-      )
+        cacheKey
+      ).map { c =>
+      ltrCoercer = c
+      c
     }
-    ltrCoercer
   }
 
-  def toTableStage(ctx: ExecuteContext, requestedType: TableType, context: String, cacheKey: Any, semhash: SemanticHash.NextHash): TableStage = {
+  def toTableStage[M[_]](ctx: ExecuteContext, requestedType: TableType, context: String, cacheKey: Any)
+                        (implicit M: MonadLower[M]): M[TableStage] = {
     val globalsIR = Literal(requestedType.globalType, globals(requestedType.globalType))
     val requestedBody: (IR) => (IR) = (ctx: IR) => ReadPartition(ctx,
       requestedType.rowType,
@@ -199,17 +207,14 @@ class GenericTableValue(
         p = RVDPartitioner.unkeyed(ctx.stateManager, contexts.length)
       case None =>
     }
-    if (p != null) {
-      val contextsIR = ToStream(Literal(TArray(contextType), contexts))
-      TableStage(globalsIR, p, TableStageDependency.none, contextsIR, requestedBody)
-    } else {
-      getLTVCoercer(ctx, context, cacheKey, semhash).coerce(
-        ctx,
-        globalsIR,
-        contextType, contexts,
-        requestedBody
+    if (p != null)
+      M.pure {
+        TableStage(globalsIR, p, TableStageDependency.none, ToStream(Literal(TArray(contextType), contexts)), requestedBody)
+      }
+    else
+      getLTVCoercer(ctx, context, cacheKey).flatMap(
+        _.coerce(ctx,globalsIR,contextType, contexts,requestedBody)
       )
-    }
   }
 
   def toContextRDD(fs: FS, requestedRowType: TStruct): ContextRDD[Long] = {

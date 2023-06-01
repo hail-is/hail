@@ -4,12 +4,14 @@ import is.hail.HailSuite
 import is.hail.annotations.BroadcastRow
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir
+import is.hail.expr.ir.lowering.LoweringState
 import is.hail.expr.ir.{Interpret, MatrixAnnotateRowsTable, TableLiteral, TableRange, TableValue}
 import is.hail.types._
 import is.hail.types.virtual.{TInt32, TStruct}
 import is.hail.rvd.RVD
 import is.hail.utils.FastIndexedSeq
 import org.testng.annotations.Test
+import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
 
 class PartitioningSuite extends HailSuite {
   @Test def testShuffleOnEmptyRDD() {
@@ -29,12 +31,12 @@ class PartitioningSuite extends HailSuite {
         t,
         "foo",
         product = false),
-      ctx, optimize = false)
-      .rvd.count()
+      ctx, optimize = false
+    ).runA(ctx, LoweringState()).rvd.count()
   }
 
   @Test def testEmptyRDDOrderedJoin() {
-    val tv = Interpret.apply(TableRange(100, 6), ctx)
+    val tv = Interpret.apply(TableRange(100, 6), ctx).runA(ctx, LoweringState())
 
     val nonEmptyRVD = tv.rvd
     val rvdType = nonEmptyRVD.typ

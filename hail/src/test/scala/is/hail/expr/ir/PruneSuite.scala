@@ -6,6 +6,8 @@ import is.hail.expr.Nat
 import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
 import is.hail.rvd.RVD
 import is.hail.types._
+import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
+import is.hail.expr.ir.lowering.LoweringState
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -478,7 +480,7 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testMatrixAnnotateRowsTableMemo() {
-    val tl = TableLiteral(Interpret(MatrixRowsTable(mat), ctx), theHailClassLoader)
+    val tl = TableLiteral(Interpret(MatrixRowsTable(mat), ctx).runA(ctx, LoweringState()), theHailClassLoader)
     val mart = MatrixAnnotateRowsTable(mat, tl, "foo", product=false)
     checkMemo(mart, subsetMatrixTable(mart.typ, "va.foo.r3", "va.r3"),
       Array(subsetMatrixTable(mat.typ, "va.r3"), subsetTable(tl.typ, "row.r3")))
@@ -1129,7 +1131,7 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testMatrixAnnotateRowsTableRebuild() {
-    val tl = TableLiteral(Interpret(MatrixRowsTable(mat), ctx), theHailClassLoader)
+    val tl = TableLiteral(Interpret(MatrixRowsTable(mat), ctx).runA(ctx, LoweringState()), theHailClassLoader)
     val mart = MatrixAnnotateRowsTable(mat, tl, "foo", product=false)
     checkRebuild(mart, subsetMatrixTable(mart.typ),
       (_: BaseIR, r: BaseIR) => {

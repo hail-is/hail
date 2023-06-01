@@ -1,16 +1,18 @@
 package is.hail.backend
 
+import cats.syntax.all._
 import is.hail.asm4s._
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.analyses.SemanticHash
-import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
-import is.hail.expr.ir.{CodeCacheKey, CompiledFunction, LoweringAnalyses, SortField, TableIR, TableReader}
+import is.hail.expr.ir.Compile.CompiledFunction
+import is.hail.expr.ir.lowering.{MonadLower, TableStage, TableStageDependency}
+import is.hail.expr.ir.{CodeCacheKey, LoweringAnalyses, SortField, TableIR, TableReader}
 import is.hail.io.fs._
 import is.hail.linalg.BlockMatrix
 import is.hail.types._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
+import scala.language.higherKinds
 import scala.reflect.ClassTag
 
 object Backend {
@@ -59,7 +61,8 @@ abstract class Backend {
 
   def shouldCacheQueryInfo: Boolean = true
 
-  def lookupOrCompileCachedFunction[T](k: CodeCacheKey)(f: => CompiledFunction[T]): CompiledFunction[T]
+  def lookupOrCompileCachedFunction[M[_]: MonadLower, T](k: CodeCacheKey, f: M[CompiledFunction[T]])
+  : M[CompiledFunction[T]]
 
   var references: Map[String, ReferenceGenome] = Map.empty
 
@@ -84,44 +87,46 @@ abstract class Backend {
     references -= name
   }
 
-  def lowerDistributedSort(
+  def lowerDistributedSort[M[_]: MonadLower](
     ctx: ExecuteContext,
     stage: TableStage,
     sortFields: IndexedSeq[SortField],
-    rt: RTable,
-    semhash: SemanticHash.NextHash
-  ): TableReader
+    rt: RTable
+  ): M[TableReader]
 
-  final def lowerDistributedSort(
+  final def lowerDistributedSort[M[_]: MonadLower](
     ctx: ExecuteContext,
     inputIR: TableIR,
     sortFields: IndexedSeq[SortField],
     rt: RTable
-  ): TableReader = {
-    val analyses = LoweringAnalyses.apply(inputIR, ctx)
-    val inputStage = tableToTableStage(ctx, inputIR, analyses)
-    lowerDistributedSort(ctx, inputStage, sortFields, rt, analyses.nextHash)
-  }
+  ): M[TableReader] =
+    for {
+      inputStage <- tableToTableStage(ctx, inputIR, LoweringAnalyses(inputIR, ctx))
+      sorted <- lowerDistributedSort(ctx, inputStage, sortFields, rt)
+    } yield sorted
 
-  def tableToTableStage(ctx: ExecuteContext,
-    inputIR: TableIR,
-    analyses: LoweringAnalyses
-  ): TableStage
+  def tableToTableStage[M[_]: MonadLower](ctx: ExecuteContext, inputIR: TableIR, analyses: LoweringAnalyses)
+  : M[TableStage]
 }
 
 trait BackendWithCodeCache {
-  private[this] val codeCache: Cache[CodeCacheKey, CompiledFunction[_]] = new Cache(50)
-  def lookupOrCompileCachedFunction[T](k: CodeCacheKey)(f: => CompiledFunction[T]): CompiledFunction[T] = {
+  private[this] val codeCache: Cache[CodeCacheKey, CompiledFunction[_]] =
+    new Cache(50)
+
+  def lookupOrCompileCachedFunction[M[_], T](k: CodeCacheKey, f: M[CompiledFunction[T]])
+                                            (implicit M: MonadLower[M])
+  : M[CompiledFunction[T]] =
     codeCache.get(k) match {
-      case Some(v) => v.asInstanceOf[CompiledFunction[T]]
-      case None =>
-        val compiledFunction = f
-        codeCache += ((k, f))
-        f
+      case Some(v) => M.pure(v.asInstanceOf[CompiledFunction[T]])
+      case None => for {
+        compiledFunction <- f
+        _ = codeCache += ((k, compiledFunction))
+      } yield compiledFunction
     }
-  }
 }
 
 trait BackendWithNoCodeCache {
-  def lookupOrCompileCachedFunction[T](k: CodeCacheKey)(f: => CompiledFunction[T]): CompiledFunction[T] = f
+  def lookupOrCompileCachedFunction[M[_]: MonadLower, T](k: CodeCacheKey, f: M[CompiledFunction[T]])
+  : M[CompiledFunction[T]] =
+    f
 }

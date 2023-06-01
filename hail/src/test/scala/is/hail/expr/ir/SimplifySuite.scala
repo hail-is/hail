@@ -1,12 +1,14 @@
 package is.hail.expr.ir
 
 import is.hail.expr.ir.TestUtils.IRAggCount
+import is.hail.expr.ir.lowering.LoweringState
 import is.hail.types.virtual._
 import is.hail.utils.{FastIndexedSeq, FastSeq, Interval}
 import is.hail.variant.Locus
 import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
+import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
 
 class SimplifySuite extends HailSuite {
   implicit val execStrats = ExecStrategy.interpretOnly
@@ -255,7 +257,7 @@ class SimplifySuite extends HailSuite {
     val tnr = TableNativeReader(fs, TableNativeReaderParameters(src + "/rows", None))
     val tr = TableRead(tnr.fullType, false, tnr)
 
-    val tzr = mr.lower().asInstanceOf[TableMapGlobals].child.asInstanceOf[TableRead]
+    val tzr = mr.lower.runA(ctx, LoweringState()).asInstanceOf[TableMapGlobals].child.asInstanceOf[TableRead]
     val tzrr = tzr.tr.asInstanceOf[TableNativeZippedReader]
 
     val intervals1 = FastIndexedSeq(Interval(Row(Locus("1", 100000)), Row(Locus("1", 200000)), true, false), Interval(Row(Locus("2", 100000)), Row(Locus("2", 200000)), true, false))

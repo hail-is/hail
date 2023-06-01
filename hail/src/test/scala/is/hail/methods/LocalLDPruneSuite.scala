@@ -15,6 +15,8 @@ import is.hail.variant._
 import is.hail.{HailSuite, TestUtils}
 import org.apache.spark.rdd.RDD
 import org.testng.annotations.Test
+import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
+import is.hail.expr.ir.lowering.LoweringState
 
 object LocalLDPruneSuite {
   val variantByteOverhead = 50
@@ -110,8 +112,10 @@ object LocalLDPruneSuite {
 class LocalLDPruneSuite extends HailSuite {
   val memoryPerCoreBytes = 256 * 1024 * 1024
   val nCores = 4
-  lazy val mt = Interpret(TestUtils.importVCF(ctx, "src/test/resources/sample.vcf.bgz", nPartitions = Option(10)),
-    ctx, false).toMatrixValue(Array("s"))
+  lazy val mt =
+    Interpret(TestUtils.importVCF(ctx, "src/test/resources/sample.vcf.bgz", nPartitions = Option(10)), ctx, false)
+      .runA(ctx, LoweringState())
+      .toMatrixValue(Array("s"))
 
   lazy val maxQueueSize = LocalLDPruneSuite.estimateMemoryRequirements(
     mt.rvd.count(),

@@ -1,6 +1,7 @@
 
 package is.hail.expr.ir
 
+import cats.Applicative
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
@@ -18,6 +19,8 @@ import is.hail.variant._
 import org.apache.spark.sql.Row
 import org.json4s._
 import org.json4s.jackson.JsonMethods
+
+import scala.language.higherKinds
 
 object MatrixIR {
   def read(fs: FS, path: String, dropCols: Boolean = false, dropRows: Boolean = false, requestedType: Option[MatrixType] = None): MatrixIR = {
@@ -470,7 +473,10 @@ case class MatrixRead(
       reader.columnCount
   }
 
-  final def lower(): TableIR = reader.lower(typ, dropCols, dropRows)
+  final def lower[M[_]](implicit M: Applicative[M]): M[TableIR] =
+    M.pure {
+      reader.lower(typ, dropCols, dropRows)
+    }
 }
 
 case class MatrixFilterCols(child: MatrixIR, pred: IR) extends MatrixIR {

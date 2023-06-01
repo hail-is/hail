@@ -1,6 +1,10 @@
 package is.hail.utils
 
+import cats.Monad
+import cats.syntax.all._
+
 import scala.collection.mutable
+import scala.language.higherKinds
 
 class TimeBlock(val name: String) {
   val children: mutable.ArrayBuffer[TimeBlock] = new mutable.ArrayBuffer()
@@ -84,6 +88,23 @@ class ExecutionTimer(val rootName: String) {
     stack.pop()
     result
   }
+
+  def timeM[F[_], A](name: String)(fa: F[A])(implicit F: Monad[F]): F[A] =
+    for {
+      (child, start) <- F.pure {
+        val parent = stack.top
+        val child = new TimeBlock(name)
+        parent.children += child
+        stack.push(child)
+        (child, System.nanoTime())
+      }
+      result <- fa
+    } yield {
+      val end = System.nanoTime()
+      child.finish(end - start)
+      stack.pop()
+      result
+    }
 
   def finish(): Unit = {
     if (finished)

@@ -1,23 +1,25 @@
 package is.hail
 
-import java.io.{File, PrintWriter}
-
-import breeze.linalg.{DenseMatrix, Matrix, Vector}
+import breeze.linalg.DenseMatrix
+import cats.implicits.{toFlatMapOps, toFoldableOps}
 import is.hail.ExecStrategy.ExecStrategy
+import is.hail.TestUtils._
 import is.hail.annotations._
-import is.hail.asm4s.HailClassLoader
-import is.hail.expr.ir._
-import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.backend.spark.SparkBackend
+import is.hail.backend.{BroadcastValue, ExecuteContext}
+import is.hail.expr.ir._
+import is.hail.expr.ir.lowering.{Lower, LoweringState}
+import is.hail.io.fs.FS
+import is.hail.linalg.BlockMatrix
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.io.fs.FS
-import is.hail.TestUtils._
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
 import org.scalatest.testng.TestNGSuite
 import org.testng.ITestContext
 import org.testng.annotations.{AfterMethod, BeforeClass, BeforeMethod}
+
+import java.io.{File, PrintWriter}
 
 object HailSuite {
   val theHailClassLoader = TestUtils.theHailClassLoader
@@ -118,45 +120,41 @@ class HailSuite extends TestNGSuite {
           execStrats.intersect(ExecStrategy.backendOnly)
         }
 
+      import Lower.monadLowerInstanceForLower
       filteredExecStrats.foreach { strat =>
-        try {
-          val res = strat match {
-            case ExecStrategy.Interpret =>
-              assert(agg.isEmpty)
-              Interpret[Any](ctx, x, env, args)
-            case ExecStrategy.InterpretUnoptimized =>
-              assert(agg.isEmpty)
-              Interpret[Any](ctx, x, env, args, optimize = false)
-            case ExecStrategy.JvmCompile =>
-              assert(Forall(x, node => Compilable(node)))
-              eval(x, env, args, agg, bytecodePrinter =
-                Option(ctx.getFlag("jvm_bytecode_dump"))
-                  .map { path =>
-                    val pw = new PrintWriter(new File(path))
-                    pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(ctx, x)}\n */\n\n")
-                    pw
-                  }, true, ctx)
-            case ExecStrategy.JvmCompileUnoptimized =>
-              assert(Forall(x, node => Compilable(node)))
-              eval(x, env, args, agg, bytecodePrinter =
-                Option(ctx.getFlag("jvm_bytecode_dump"))
-                  .map { path =>
-                    val pw = new PrintWriter(new File(path))
-                    pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(ctx, x)}\n */\n\n")
-                    pw
-                  },
-                optimize = false, ctx)
-            case ExecStrategy.LoweredJVMCompile =>
-              loweredExecute(ctx, x, env, args, agg)
-          }
-          if (t != TVoid) {
-            assert(t.typeCheck(res), s"\n  t=$t\n  result=$res\n  strategy=$strat")
-            assert(t.valuesSimilar(res, expected), s"\n  result=$res\n  expect=$expected\n  strategy=$strat)")
-          }
-        } catch {
-          case e: Exception =>
-            error(s"error from strategy $strat")
-            if (execStrats.contains(strat)) throw e
+        val res = (strat match {
+          case ExecStrategy.Interpret =>
+            assert(agg.isEmpty)
+            Interpret(ctx, x, env, args)
+          case ExecStrategy.InterpretUnoptimized =>
+            assert(agg.isEmpty)
+            Interpret(ctx, x, env, args, optimize = false)
+          case ExecStrategy.JvmCompile =>
+            assert(Forall(x, node => Compilable(node)))
+            eval(x, env, args, agg, bytecodePrinter =
+              Option(ctx.getFlag("jvm_bytecode_dump"))
+                .map { path =>
+                  val pw = new PrintWriter(new File(path))
+                  pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(ctx, x)}\n */\n\n")
+                  pw
+                }, true, ctx)
+          case ExecStrategy.JvmCompileUnoptimized =>
+            assert(Forall(x, node => Compilable(node)))
+            eval(x, env, args, agg, bytecodePrinter =
+              Option(ctx.getFlag("jvm_bytecode_dump"))
+                .map { path =>
+                  val pw = new PrintWriter(new File(path))
+                  pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(ctx, x)}\n */\n\n")
+                  pw
+                },
+              optimize = false, ctx
+            )
+          case ExecStrategy.LoweredJVMCompile =>
+            Lower.pure(loweredExecute(ctx, x, env, args, agg))
+        }).runA(ctx, LoweringState())
+        if (t != TVoid) {
+          assert(t.typeCheck(res), s"\n  t=$t\n  result=$res\n  strategy=$strat")
+          assert(t.valuesSimilar(res, expected), s"\n  result=$res\n  expect=$expected\n  strategy=$strat)")
         }
       }
     }
@@ -239,19 +237,14 @@ class HailSuite extends TestNGSuite {
           execStrats.intersect(ExecStrategy.backendOnly)
         }
       filteredExecStrats.filter(ExecStrategy.interpretOnly).foreach { strat =>
-        try {
-          val res = strat match {
-            case ExecStrategy.Interpret =>
-              Interpret(bm, ctx, optimize = true)
-            case ExecStrategy.InterpretUnoptimized =>
-              Interpret(bm, ctx, optimize = false)
-          }
-          assert(res.toBreezeMatrix() == expected)
-        } catch {
-          case e: Exception =>
-            error(s"error from strategy $strat")
-            if (execStrats.contains(strat)) throw e
+        import Lower.monadLowerInstanceForLower
+        val res: Lower[BlockMatrix] = strat match {
+          case ExecStrategy.Interpret =>
+            Interpret(bm, ctx, optimize = true)
+          case ExecStrategy.InterpretUnoptimized =>
+            Interpret(bm, ctx, optimize = false)
         }
+        assert(res.runA(ctx, LoweringState()).toBreezeMatrix() == expected)
       }
       val expectedArray = Array.tabulate(expected.rows)(i => Array.tabulate(expected.cols)(j => expected(i, j)).toFastIndexedSeq).toFastIndexedSeq
       assertNDEvals(BlockMatrixCollect(bm), expectedArray)(filteredExecStrats.filterNot(ExecStrategy.interpretOnly))

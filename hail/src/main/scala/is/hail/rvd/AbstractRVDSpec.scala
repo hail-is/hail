@@ -3,8 +3,7 @@ package is.hail.rvd
 import is.hail.annotations._
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.compatibility
-import is.hail.expr.ir.analyses.SemanticHash
-import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
+import is.hail.expr.ir.lowering.{MonadLower, TableStage, TableStageDependency}
 import is.hail.expr.ir.{IR, Literal, PartitionNativeReader, PartitionZippedIndexedNativeReader, PartitionZippedNativeReader, ReadPartition, ToStream}
 import is.hail.expr.{JSONAnnotationImpex, ir}
 import is.hail.io._
@@ -19,6 +18,8 @@ import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
 import org.json4s.jackson.{JsonMethods, Serialization}
 import org.json4s.{DefaultFormats, Formats, JValue, ShortTypeHints}
+
+import scala.language.higherKinds
 
 object AbstractRVDSpec {
   implicit val formats: Formats = new DefaultFormats() {
@@ -89,19 +90,18 @@ object AbstractRVDSpec {
     Array(FileWriteMetadata(path, part0Count, bytesWritten))
   }
 
-  def readZippedLowered(
-                         ctx: ExecuteContext,
-                         specLeft: AbstractRVDSpec,
-                         specRight: AbstractRVDSpec,
-                         pathLeft: String,
-                         pathRight: String,
-                         newPartitioner: Option[RVDPartitioner],
-                         filterIntervals: Boolean,
-                         requestedType: TStruct,
-                         requestedKey: IndexedSeq[String],
-                         uidFieldName: String,
-                         nextHash: SemanticHash.NextHash
-  ): IR => TableStage = {
+  def readZippedLowered[M[_]: MonadLower](
+    ctx: ExecuteContext,
+    specLeft: AbstractRVDSpec,
+    specRight: AbstractRVDSpec,
+    pathLeft: String,
+    pathRight: String,
+    newPartitioner: Option[RVDPartitioner],
+    filterIntervals: Boolean,
+    requestedType: TStruct,
+    requestedKey: IndexedSeq[String],
+    uidFieldName: String
+  ): IR => M[TableStage] = {
     require(specRight.key.isEmpty)
     val partitioner = specLeft.partitioner(ctx.stateManager)
 
@@ -125,12 +125,14 @@ object AbstractRVDSpec {
         assert(requestedKey == partKeyPrefix, s"$requestedKey != $partKeyPrefix")
 
         { (globals: IR) =>
-          TableStage(
-            globals,
-            partitioner.coarsen(requestedKey.length),
-            TableStageDependency.none,
-            ctxIR,
-            ReadPartition(_, requestedType, reader))
+          MonadLower[M].pure {
+            TableStage(
+              globals,
+              partitioner.coarsen(requestedKey.length),
+              TableStageDependency.none,
+              ctxIR,
+              ReadPartition(_, requestedType, reader))
+          }
         }
 
       case Some(np) =>
@@ -182,11 +184,12 @@ object AbstractRVDSpec {
             tmpPartitioner.coarsen(requestedKey.length),
             TableStageDependency.none,
             contexts,
-            body)
+            body
+          )
           if (filterIntervals)
-            ts.repartitionNoShuffle(ctx, partitioner, nextHash, dropEmptyPartitions = true)
+            ts.repartitionNoShuffle(ctx, partitioner, dropEmptyPartitions = true)
           else
-            ts.repartitionNoShuffle(ctx, extendedNewPartitioner.coarsen(requestedKey.length), nextHash)
+            ts.repartitionNoShuffle(ctx, extendedNewPartitioner.coarsen(requestedKey.length))
         }
     }
   }
@@ -213,15 +216,14 @@ abstract class AbstractRVDSpec {
 
   def attrs: Map[String, String]
 
-  def readTableStage(
+  def readTableStage[M[_]: MonadLower](
     ctx: ExecuteContext,
     path: String,
     requestedType: TableType,
     uidFieldName: String,
     newPartitioner: Option[RVDPartitioner] = None,
-    filterIntervals: Boolean = false,
-    semhash: SemanticHash.NextHash
-  ): IR => TableStage = newPartitioner match {
+    filterIntervals: Boolean = false
+  ): IR => M[TableStage] = newPartitioner match {
     case Some(_) => fatal("attempted to read unindexed data as indexed")
     case None =>
       val part = partitioner(ctx.stateManager)
@@ -242,12 +244,15 @@ abstract class AbstractRVDSpec {
         ir.ReadPartition(ctx, requestedType.rowType, ir.PartitionNativeReader(rSpec, uidFieldName))
 
       (globals: IR) =>
-        TableStage(
-          globals,
-          part.coarsen(part.kType.fieldNames.takeWhile(requestedType.rowType.hasField).length),
-          TableStageDependency.none,
-          contexts,
-          body)
+        MonadLower[M].pure {
+          TableStage(
+            globals,
+            part.coarsen(part.kType.fieldNames.takeWhile(requestedType.rowType.hasField).length),
+            TableStageDependency.none,
+            contexts,
+            body
+          )
+        }
   }
 
   def write(fs: FS, path: String) {
@@ -422,15 +427,14 @@ case class IndexedRVDSpec2(
 
   val attrs: Map[String, String] = _attrs
 
-  override def readTableStage(
+  override def readTableStage[M[_]: MonadLower](
     ctx: ExecuteContext,
     path: String,
     requestedType: TableType,
     uidFieldName: String,
     newPartitioner: Option[RVDPartitioner] = None,
-    filterIntervals: Boolean = false,
-    semhash: SemanticHash.NextHash
-  ): IR => TableStage = newPartitioner match {
+    filterIntervals: Boolean = false
+  ): IR => M[TableStage] = newPartitioner match {
     case Some(np) =>
 
       val part = partitioner(ctx.stateManager)
@@ -472,12 +476,12 @@ case class IndexedRVDSpec2(
           TableStageDependency.none,
           contexts,
           body)
-        if (filterIntervals) ts.repartitionNoShuffle(ctx, part, semhash, dropEmptyPartitions = true)
-        else ts.repartitionNoShuffle(ctx, extendedNP, semhash)
+        if (filterIntervals) ts.repartitionNoShuffle(ctx, part, dropEmptyPartitions = true)
+        else ts.repartitionNoShuffle(ctx, extendedNP)
       }
 
     case None =>
-      super.readTableStage(ctx, path, requestedType, uidFieldName, newPartitioner, filterIntervals, semhash)
+      super.readTableStage(ctx, path, requestedType, uidFieldName, newPartitioner, filterIntervals)
   }
 }
 

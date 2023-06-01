@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.backend.{BackendContext, ExecuteContext, HailTaskContext}
 import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
 import is.hail.expr.ir.analyses.{ComputeMethodSplits, ControlFlowPreventsSplit, ParentPointers, SemanticHash}
-import is.hail.expr.ir.lowering.TableStageDependency
+import is.hail.expr.ir.lowering.{Lower, LoweringState, MonadLower, TableStageDependency}
 import is.hail.expr.ir.ndarrays.EmitNDArray
 import is.hail.expr.ir.streams.{EmitStream, StreamProducer, StreamUtils}
 import is.hail.io.fs.FS
@@ -23,7 +23,8 @@ import is.hail.variant.ReferenceGenome
 
 import java.io._
 import scala.collection.mutable
-import scala.language.{existentials, postfixOps}
+import scala.language.{existentials, higherKinds, postfixOps}
+import scala.util.Try
 
 // class for holding all information computed ahead-of-time that we need in the emitter
 object EmitContext {
@@ -70,41 +71,48 @@ case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[EmitValue])
 }
 
 object Emit {
-  def apply[C](ctx: EmitContext, ir: IR, fb: EmitFunctionBuilder[C], rti: TypeInfo[_], nParams: Int, aggs: Option[Array[AggStateSig]] = None): Option[SingleCodeType] = {
-    TypeCheck(ctx.executeContext, ir)
+  def apply[M[_]: MonadLower, C](ctx: EmitContext, ir: IR, fb: EmitFunctionBuilder[C], rti: TypeInfo[_], nParams: Int, aggs: Option[Array[AggStateSig]] = None)
+  : M[Option[SingleCodeType]] =
+    MonadLower[M].lift {
+      Lower { (_, s) =>
+        TypeCheck(ctx.executeContext, ir)
 
-    val mb = fb.apply_method
-    val container = aggs.map { a =>
-      val c = fb.addAggStates(a)
-      AggContainer(a, c, () => ())
-    }
-    val emitter = new Emit[C](ctx, fb.ecb)
-    val region = mb.getCodeParam[Region](1)
-    val returnTypeOption: Option[SingleCodeType] = if (ir.typ == TVoid) {
-      fb.apply_method.voidWithBuilder { cb =>
-        val env = EmitEnv(Env.empty, (0 until nParams).map(i => mb.storeEmitParamAsField(cb, i + 2))) // this, region, ...
-        emitter.emitVoid(cb, ir, region, env, container, None)
+        val mb = fb.apply_method
+        val container = aggs.map { a =>
+          val c = fb.addAggStates(a)
+          AggContainer(a, c, () => ())
+        }
+        val emitter = new Emit[C](ctx, fb.ecb, s)
+        val region = mb.getCodeParam[Region](1)
+        val result = Try {
+          if (ir.typ == TVoid) {
+            fb.apply_method.voidWithBuilder { cb =>
+              val env = EmitEnv(Env.empty, (0 until nParams).map(i => mb.storeEmitParamAsField(cb, i + 2))) // this, region, ...
+              emitter.emitVoid(cb, ir, region, env, container, None)
+            }
+            None
+          } else {
+            var sct: SingleCodeType = null
+            fb.emitWithBuilder { cb =>
+
+              val env = EmitEnv(Env.empty, (0 until nParams).map(i => mb.storeEmitParamAsField(cb, i + 2))) // this, region, ...
+              val sc = emitter.emitI(ir, cb, region, env, container, None).handle(cb, {
+                cb._throw[RuntimeException](
+                  Code.newInstance[RuntimeException, String]("cannot return empty"))
+              })
+
+              val scp = SingleCodeSCode.fromSCode(cb, sc, region)
+              assert(scp.typ.ti == rti, s"type info mismatch: expect $rti, got ${scp.typ.ti}")
+              sct = scp.typ
+              scp.code
+            }
+            Some(sct)
+          }
+        }.toEither
+
+        (emitter.loweringState, result)
       }
-      None
-    } else {
-      var sct: SingleCodeType = null
-      fb.emitWithBuilder { cb =>
-
-        val env = EmitEnv(Env.empty, (0 until nParams).map(i => mb.storeEmitParamAsField(cb, i + 2)))  // this, region, ...
-        val sc = emitter.emitI(ir, cb, region, env, container, None).handle(cb, {
-          cb._throw[RuntimeException](
-            Code.newInstance[RuntimeException, String]("cannot return empty"))
-        })
-
-        val scp = SingleCodeSCode.fromSCode(cb, sc, region)
-        assert(scp.typ.ti == rti, s"type info mismatch: expect $rti, got ${ scp.typ.ti }")
-        sct = scp.typ
-        scp.code
-      }
-      Some(sct)
     }
-    returnTypeOption
-  }
 }
 
 object AggContainer {
@@ -579,9 +587,7 @@ abstract class EstimableEmitter[C] {
   def estimatedSize: Int
 }
 
-class Emit[C](
-  val ctx: EmitContext,
-  val cb: EmitClassBuilder[C]) {
+class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C], var loweringState: LoweringState) {
   emitSelf =>
 
   val methods: mutable.Map[(String, Seq[Type], Seq[SType], SType), EmitMethodBuilder[C]] = mutable.Map()
@@ -1158,11 +1164,24 @@ class Emit[C](
             case Some((leftName, rightName, tieBreaker)) =>
               val nodeType = tcoerce[TArray](edges.typ).elementType.asInstanceOf[TBaseStruct].types.head
               val wrappedNodeType = PCanonicalTuple(true, PType.canonical(nodeType))
-              val (Some(PTypeReferenceSingleCodeType(t)), f) = Compile[AsmFunction3RegionLongLongLong](ctx.executeContext,
-                IndexedSeq((leftName, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(wrappedNodeType))),
-                           (rightName, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(wrappedNodeType)))),
-                FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
-                MakeTuple.ordered(FastSeq(tieBreaker)))
+              val (Some(PTypeReferenceSingleCodeType(t)), f) = {
+                val (s, result) =
+                  Compile[Lower, AsmFunction3RegionLongLongLong](
+                    ctx.executeContext,
+                    IndexedSeq(
+                      (leftName, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(wrappedNodeType))),
+                      (rightName, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(wrappedNodeType)))
+                    ),
+                    FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
+                    MakeTuple.ordered(FastSeq(tieBreaker))
+                  ).run(ctx.executeContext, loweringState)
+                loweringState = s
+                result match {
+                  case Left(t) => throw t
+                  case Right(r) => r
+                }
+              }
+
               assert(t.virtualType == TTuple(TFloat64))
               val resultType = t.asInstanceOf[PTuple]
               Code.invokeScalaObject9[Map[String, ReferenceGenome], UnsafeIndexedSeq, HailClassLoader, FS, HailTaskContext, Region, PTuple, PTuple, (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3RegionLongLongLong, IndexedSeq[Any]](
@@ -2366,7 +2385,7 @@ class Emit[C](
         val rt = loopRef.resultType
         IEmitCode(CodeLabel(), CodeLabel(), rt.st.defaultValue, rt.required)
 
-      case x@CollectDistributedArray(contexts, globals, cname, gname, body, dynamicID, staticID, tsd, _) =>
+      case x@CollectDistributedArray(contexts, globals, cname, gname, body, dynamicID, staticID, tsd) =>
         val parentCB = mb.ecb
         emitStream(contexts, cb, region).map(cb) { case ctxStream: SStreamValue =>
 
@@ -2416,9 +2435,12 @@ class Emit[C](
             if (ctx.executeContext.getFlag("print_inputs_on_worker") != null)
               cb.consoleInfo(Pretty(ctx.executeContext, body, elideLiterals = true))
 
-            val bodyResult = wrapInTuple(cb,
-              region,
-              EmitCode.fromI(cb.emb)(cb => new Emit(ctx, bodyFB.ecb).emitI(body, cb, env, None)))
+            val bodyResult = {
+              val emit =  new Emit(ctx, bodyFB.ecb, loweringState)
+              val result = EmitCode.fromI(cb.emb)(cb => emit.emitI(body, cb, env, None))
+              loweringState = emit.loweringState
+              wrapInTuple(cb, region, result)
+            }
 
             bodySpec = TypedCodecSpec(bodyResult.st.storageType().setRequired(true), bufferSpec)
 
@@ -2473,24 +2495,30 @@ class Emit[C](
           val stageName = cb.newLocal[String]("stagename")
           cb.assign(stageName, staticID)
 
-          val semhash = cb.newLocal[SemanticHash.Type]("semhash")
-          assert(x.semhash.isDefined, "CDA missing semantic hash")
-          cb.assign(semhash, x.semhash.get)
-          
+          val semhash = cb.newLocal[SemanticHash.Type]("semhash", null)
+          val (newLoweringState, Right(nextHash)) = LoweringState.nextHash[Lower].run(ctx.executeContext, loweringState)
+          loweringState = newLoweringState
+          nextHash.foreach { h =>
+            cb.assign(semhash, h)
+          }
+
           emitI(dynamicID).consume(cb, (), { dynamicID =>
             val dynV = dynamicID.asString.loadString(cb)
             cb.assign(stageName, stageName.concat("|").concat(dynV))
-            cb.assign(semhash, {
+            nextHash.foreach { _ =>
               val dynamicHash =
                 Code.invokeScalaObject[SemanticHash.Type](
                   SemanticHash.Hash.getClass, "apply", Array(classOf[String]), Array(dynV)
                 )
 
-              Code.newInstance[SemanticHash.Implicits.MagmaHashType, SemanticHash.Type](semhash)
+              val combined =
+                Code.newInstance[SemanticHash.Implicits.MagmaHashType, SemanticHash.Type](semhash)
                 .invoke[SemanticHash.Type, SemanticHash.Type]("$less$greater",
                   dynamicHash
                 )
-            })
+
+              cb.assign(semhash, combined)
+            }
           })
 
           val encRes = cb.newLocal[Array[Array[Byte]]]("encRes")

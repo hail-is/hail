@@ -6,8 +6,7 @@ import is.hail.asm4s.HailClassLoader
 import is.hail.backend.spark.SparkBackend
 import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.analyses.SemanticHash
-import is.hail.expr.ir.lowering.TableStage
+import is.hail.expr.ir.lowering.{MonadLower, TableStage}
 import is.hail.expr.ir.{CloseableIterator, GenericLine, GenericLines, GenericTableValue, IR, IRParser, Literal, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixReader, TableValue}
 import is.hail.io.fs.{FS, FileStatus}
 import is.hail.io.tabix._
@@ -29,7 +28,7 @@ import org.json4s.{DefaultFormats, Formats, JValue}
 import scala.annotation.meta.param
 import scala.annotation.switch
 import scala.collection.JavaConverters._
-import scala.language.implicitConversions
+import scala.language.{higherKinds, implicitConversions}
 
 class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble.readers.LineIterator {
   override def peek(): String = bit.head
@@ -1861,10 +1860,10 @@ class MatrixVCFReader(
         .apply(globals))
   }
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType, nextHash: SemanticHash.NextHash): TableStage =
-    executeGeneric(ctx).toTableStage(ctx, requestedType, "VCF", params, nextHash)
+  override def lower[M[_]: MonadLower](ctx: ExecuteContext, requestedType: TableType): M[TableStage] =
+    executeGeneric(ctx).toTableStage(ctx, requestedType, "VCF", params)
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean, nextHash: SemanticHash.NextHash): TableValue =
+  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue =
     executeGeneric(ctx, dropRows).toTableValue(ctx, requestedType)
 
   override def toJValue: JValue = {

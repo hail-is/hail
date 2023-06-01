@@ -3,12 +3,14 @@ package is.hail.expr.ir
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.annotations.{BroadcastRow, ExtendedOrdering, SafeNDArray}
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.DeprecatedIRBuilder._
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.functions._
+import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
+import is.hail.expr.ir.lowering.{Lower, LoweringState}
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
@@ -19,10 +21,8 @@ import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.primitives.SInt32
 import is.hail.types.virtual._
 import is.hail.types.{BlockMatrixType, TableType, VirtualTypeWithReq, tcoerce}
-import is.hail.utils._
-import is.hail.variant.{Call2, Locus}
 import is.hail.utils.{FastIndexedSeq, _}
-import is.hail.variant.{Call2, Locus, ReferenceGenome}
+import is.hail.variant.{Call2, Locus}
 import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
 import org.json4s.jackson.{JsonMethods, Serialization}
@@ -2640,7 +2640,8 @@ class IRSuite extends HailSuite {
       Str("src/test/resources/example.8bits.bgen.idx2"),
       Literal(TDict(TString, TString), Map("01" -> "1")),
       False(),
-      I32(1000000)))
+      I32(1000000))
+    ).runA(ctx, LoweringState())
 
     val b = True()
     val bin = Ref("bin", TBinary)
@@ -2940,7 +2941,8 @@ class IRSuite extends HailSuite {
         Str("src/test/resources/example.8bits.bgen.idx2"),
         Literal(TDict(TString, TString), Map("01" -> "1")),
         False(),
-        I32(1000000)))
+        I32(1000000))
+      ).runA(ctx, LoweringState())
 
       val tableRead = TableIR.read(fs, "src/test/resources/backward_compatability/1.1.0/table/0.ht")
       val read = MatrixIR.read(fs, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")

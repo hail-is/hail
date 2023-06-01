@@ -1,21 +1,22 @@
 package is.hail.expr.ir.agg
 
+import cats.implicits.toFunctorOps
 import is.hail.annotations.{Region, RegionPool, RegionValue}
 import is.hail.asm4s.{HailClassLoader, _}
-import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.backend.spark.SparkTaskContext
+import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.expr.ir
-import is.hail.expr.ir._
+import is.hail.expr.ir.lowering.MonadLower
+import is.hail.expr.ir.{agg, _}
 import is.hail.io.BufferSpec
-import is.hail.types.physical._
-import is.hail.types.physical.stypes.{EmitType, SType}
+import is.hail.types.physical.stypes.EmitType
 import is.hail.types.virtual._
-import is.hail.types.{BaseTypeWithRequiredness, TypeWithRequiredness, VirtualTypeWithReq}
+import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.utils._
 import org.apache.spark.TaskContext
 
 import scala.collection.mutable
-import scala.language.{existentials, postfixOps}
+import scala.language.{existentials, higherKinds, postfixOps}
 
 class UnsupportedExtraction(msg: String) extends Exception(msg)
 
@@ -187,53 +188,55 @@ class Aggs(original: IR, rewriteMap: Memo[IR], bindingNodesReferenced: Memo[Unit
 
   def eltOp(ctx: ExecuteContext): IR = seqPerElt
 
-  def deserialize(ctx: ExecuteContext, spec: BufferSpec): ((HailClassLoader, HailTaskContext, Region, Array[Byte]) => Long) = {
-    val (_, f) = ir.CompileWithAggregators[AsmFunction1RegionUnit](ctx,
+  def deserialize[M[_]: MonadLower](ctx: ExecuteContext, spec: BufferSpec)
+  : M[(HailClassLoader, HailTaskContext, Region, Array[Byte]) => Long] =
+    ir.CompileWithAggregators[M, AsmFunction1RegionUnit](ctx,
       states,
       FastIndexedSeq(),
       FastIndexedSeq(classInfo[Region]), UnitInfo,
-      ir.DeserializeAggs(0, 0, spec, states))
-
-    val fsBc = ctx.fsBc;
-    { (hcl: HailClassLoader, htc: HailTaskContext, aggRegion: Region, bytes: Array[Byte]) =>
-      val f2 = f(hcl, fsBc.value, htc, aggRegion)
-      f2.newAggState(aggRegion)
-      f2.setSerializedAgg(0, bytes)
-      f2(aggRegion)
-      f2.getAggOffset()
+      ir.DeserializeAggs(0, 0, spec, states)
+    ).map { case (_, f) =>
+      val fsBc = ctx.fsBc;
+      { (hcl: HailClassLoader, htc: HailTaskContext, aggRegion: Region, bytes: Array[Byte]) =>
+        val f2 = f(hcl, fsBc.value, htc, aggRegion)
+        f2.newAggState(aggRegion)
+        f2.setSerializedAgg(0, bytes)
+        f2(aggRegion)
+        f2.getAggOffset()
+      }
     }
-  }
 
-  def serialize(ctx: ExecuteContext, spec: BufferSpec): (HailClassLoader, HailTaskContext, Region, Long) => Array[Byte] = {
-    val (_, f) = ir.CompileWithAggregators[AsmFunction1RegionUnit](ctx,
+  def serialize[M[_]: MonadLower](ctx: ExecuteContext, spec: BufferSpec): M[(HailClassLoader, HailTaskContext, Region, Long) => Array[Byte]] =
+    ir.CompileWithAggregators[M, AsmFunction1RegionUnit](ctx,
       states,
       FastIndexedSeq(),
       FastIndexedSeq(classInfo[Region]), UnitInfo,
-      ir.SerializeAggs(0, 0, spec, states))
-
-    val fsBc = ctx.fsBc;
-    { (hcl: HailClassLoader, htc: HailTaskContext, aggRegion: Region, off: Long) =>
-      val f2 = f(hcl, fsBc.value, htc, aggRegion)
-      f2.setAggState(aggRegion, off)
-      f2(aggRegion)
-      f2.storeAggsToRegion()
-      f2.getSerializedAgg(0)
+      ir.SerializeAggs(0, 0, spec, states)
+    ).map { case (_, f) =>
+      val fsBc = ctx.fsBc;
+      { (hcl: HailClassLoader, htc: HailTaskContext, aggRegion: Region, off: Long) =>
+        val f2 = f(hcl, fsBc.value, htc, aggRegion)
+        f2.setAggState(aggRegion, off)
+        f2(aggRegion)
+        f2.storeAggsToRegion()
+        f2.getSerializedAgg(0)
+      }
     }
-  }
 
-  def combOpFSerializedWorkersOnly(ctx: ExecuteContext, spec: BufferSpec): (Array[Byte], Array[Byte]) => Array[Byte] = {
-    combOpFSerializedFromRegionPool(ctx, spec)(() => {
+  def combOpFSerializedWorkersOnly[M[_]: MonadLower](ctx: ExecuteContext, spec: BufferSpec)
+  : M[(Array[Byte], Array[Byte]) => Array[Byte]] =
+    combOpFSerializedFromRegionPool(ctx, spec).map(_(() => {
       val htc = SparkTaskContext.get()
       val hcl = theHailClassLoaderForSparkWorkers
       if (htc == null) {
         throw new UnsupportedOperationException(s"Can't get htc. On worker = ${TaskContext.get != null}")
       }
       (htc.getRegionPool(), hcl, htc)
-    })
-  }
+    }))
 
-  def combOpFSerializedFromRegionPool(ctx: ExecuteContext, spec: BufferSpec): (() => (RegionPool, HailClassLoader, HailTaskContext)) => ((Array[Byte], Array[Byte]) => Array[Byte]) = {
-    val (_, f) = ir.CompileWithAggregators[AsmFunction1RegionUnit](ctx,
+  def combOpFSerializedFromRegionPool[M[_]: MonadLower](ctx: ExecuteContext, spec: BufferSpec)
+  : M[(() => (RegionPool, HailClassLoader, HailTaskContext)) => (Array[Byte], Array[Byte]) => Array[Byte]] =
+    ir.CompileWithAggregators[M, AsmFunction1RegionUnit](ctx,
       states ++ states,
       FastIndexedSeq(),
       FastIndexedSeq(classInfo[Region]), UnitInfo,
@@ -242,22 +245,22 @@ class Aggs(original: IR, rewriteMap: Memo[IR], bindingNodesReferenced: Memo[Unit
         ir.DeserializeAggs(nAggs, 1, spec, states),
         Begin(aggs.zipWithIndex.map { case (sig, i) => CombOp(i, i + nAggs, sig) }),
         SerializeAggs(0, 0, spec, states)
-      )))
-
-    val fsBc = ctx.fsBc
-    poolGetter: (() => (RegionPool, HailClassLoader, HailTaskContext)) => { (bytes1: Array[Byte], bytes2: Array[Byte]) =>
-      val (pool, hcl, htc) = poolGetter()
-      pool.scopedSmallRegion { r =>
-        val f2 = f(hcl, fsBc.value, htc, r)
-        f2.newAggState(r)
-        f2.setSerializedAgg(0, bytes1)
-        f2.setSerializedAgg(1, bytes2)
-        f2(r)
-        f2.storeAggsToRegion()
-        f2.getSerializedAgg(0)
+      ))
+    ).map { case (_, f) =>
+      val fsBc = ctx.fsBc
+      poolGetter: (() => (RegionPool, HailClassLoader, HailTaskContext)) => { (bytes1: Array[Byte], bytes2: Array[Byte]) =>
+        val (pool, hcl, htc) = poolGetter()
+        pool.scopedSmallRegion { r =>
+          val f2 = f(hcl, fsBc.value, htc, r)
+          f2.newAggState(r)
+          f2.setSerializedAgg(0, bytes1)
+          f2.setSerializedAgg(1, bytes2)
+          f2(r)
+          f2.storeAggsToRegion()
+          f2.getSerializedAgg(0)
+        }
       }
     }
-  }
 
   // Takes ownership of both input regions, and returns ownership of region in
   // resulting RegionValue.

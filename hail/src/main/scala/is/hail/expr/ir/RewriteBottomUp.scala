@@ -1,38 +1,40 @@
 package is.hail.expr.ir
 
-import is.hail.utils.StackSafe._
+import cats.Monad
+import cats.syntax.all._
+import is.hail.utils.FastIndexedSeq
+
+import scala.annotation.tailrec
+import scala.language.higherKinds
 
 object RewriteBottomUp {
-  def areObjectEqual(oldChildren: IndexedSeq[BaseIR], newChildren: IndexedSeq[BaseIR]): Boolean = {
-    var same = true
-    var i = 0
-    while (same && i < oldChildren.length) {
-      same = oldChildren(i) eq newChildren(i)
-      i += 1
-    }
-    same
-  }
-  def apply(ir: BaseIR, rule: BaseIR => Option[BaseIR]): BaseIR = {
-    var rewrite: BaseIR => StackFrame[BaseIR] = null
-    rewrite = (ast: BaseIR) =>
-      for {
-        newChildren <- call(ast.children.mapRecur(rewrite))
-        rewritten = {
-          if (areObjectEqual(ast.children, newChildren))
-            ast
-          else
-            ast.copy(newChildren)
-        }
-        result <- rule(rewritten) match {
-          case Some(newAST) =>
-            if (newAST != rewritten)
-              call(rewrite(newAST))
-            else done(newAST)
-          case None =>
-            done(rewritten)
-        }
-      } yield result
 
-    rewrite(ir).run()
+  def apply[M[_]](ir: BaseIR, rule: BaseIR => M[Option[BaseIR]])
+                 (implicit M: Monad[M]): M[BaseIR] = {
+    val init = (false, List.empty[BaseIR])
+
+    val res =
+      IRTraversal.postOrder(ir).foldLeft(M.pure(List.empty[(Boolean, BaseIR)])) {
+        (fstack, n) =>
+          for {
+            stack <- fstack
+            ((changed, children), stack_) = dequeue(n.children.length, init, stack)
+            node = if (changed) n.copy(FastIndexedSeq(children: _*)) else n
+            rewritten <- rule(node).flatMap {
+              case Some(x) => apply(x, rule).map((true, _))
+              case None => M.pure((changed, node))
+            }
+          } yield rewritten :: stack_
+      }
+
+    res.map(_.head._2)
+  }
+
+  @tailrec
+  private def dequeue[A](n: Int, init: (Boolean, List[A]), queue: List[(Boolean, A)])
+  : ((Boolean, List[A]), List[(Boolean, A)]) =
+    if (n == 0) (init, queue) else {
+      val (changed, node) = queue.head
+      dequeue(n - 1, (init._1 || changed, node :: init._2), queue.tail)
   }
 }

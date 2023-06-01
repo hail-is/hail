@@ -1,7 +1,9 @@
 package is.hail.expr
 
+import cats.Functor
+import cats.data.ContT
+import cats.implicits.toFunctorOps
 import is.hail.asm4s._
-import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.types.physical.stypes.SValue
 import is.hail.types.tcoerce
@@ -9,7 +11,7 @@ import is.hail.types.virtual._
 import is.hail.utils._
 
 import java.util.UUID
-import scala.language.implicitConversions
+import scala.language.{higherKinds, implicitConversions}
 
 package object ir {
   type TokenIterator = BufferedIterator[Token]
@@ -86,6 +88,9 @@ package object ir {
     val ref = Ref(genUID(), v.typ)
     Let(ref.name, v, body(ref))
   }
+
+  def newRef[F[_]: Functor](v: IR): ContT[F, IR, Ref] =
+    ContT { f => val ref = Ref(genUID(), v.typ); f(ref).map(Let(ref.name, v, _)) }
 
   def iota(start: IR, step: IR): IR = StreamIota(start, step)
 
@@ -220,10 +225,11 @@ package object ir {
     AggFold(zero, seqOp(accum1, element), combOp(accum1, accum2), accum1.name, accum2.name, false)
   }
 
-  def cdaIR(contexts: IR, globals: IR, staticID: String, semhash: SemanticHash.NextHash, dynamicID: IR = NA(TString))(body: (Ref, Ref) => IR): CollectDistributedArray = {
+  def cdaIR(contexts: IR, globals: IR, staticID: String, dynamicID: IR = NA(TString))
+           (body: (Ref, Ref) => IR): CollectDistributedArray = {
     val contextRef = Ref(genUID(), contexts.typ.asInstanceOf[TStream].elementType)
     val globalRef = Ref(genUID(), globals.typ)
-    CollectDistributedArray(contexts, globals, contextRef.name, globalRef.name, body(contextRef, globalRef), dynamicID, staticID, None, Some(semhash()))
+    CollectDistributedArray(contexts, globals, contextRef.name, globalRef.name, body(contextRef, globalRef), dynamicID, staticID, None)
   }
 
   def strConcat(irs: AnyRef*): IR = {

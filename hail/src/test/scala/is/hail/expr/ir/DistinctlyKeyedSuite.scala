@@ -1,6 +1,8 @@
 package is.hail.expr.ir
 
 import is.hail.HailSuite
+import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
+import is.hail.expr.ir.lowering.LoweringState
 import is.hail.types.virtual.TInt32
 import is.hail.utils.FastIndexedSeq
 import org.testng.annotations.Test
@@ -27,14 +29,14 @@ class DistinctlyKeyedSuite extends HailSuite{
     )))
     val keyedByConst = TableKeyBy(at, IndexedSeq("const"))
     val pathConst = ctx.createTmpPath("test-table-distinctly-keyed", "ht")
-    Interpret[Unit](ctx, TableWrite(keyedByConst, TableNativeWriter(pathConst)))
+    Interpret(ctx, TableWrite(keyedByConst, TableNativeWriter(pathConst))).runA(ctx, LoweringState())
     val readConst = TableIR.read(fs, pathConst)
     val distinctlyKeyedAnalysis1 = DistinctlyKeyed.apply(readConst)
     assert(!distinctlyKeyedAnalysis1.contains(readConst))
 
     val keyedByIdxAndHalf = TableKeyBy(at, IndexedSeq("idx", "half"))
     val pathIdxAndHalf = ctx.createTmpPath("test-table-write-distinctness", "ht")
-    Interpret[Unit](ctx, TableWrite(keyedByIdxAndHalf, TableNativeWriter(pathIdxAndHalf)))
+    Interpret(ctx, TableWrite(keyedByIdxAndHalf, TableNativeWriter(pathIdxAndHalf))).runA(ctx, LoweringState())
     val readIdxAndHalf = TableIR.read(fs, pathIdxAndHalf)
     val distinctlyKeyedAnalysis2 = DistinctlyKeyed.apply(readIdxAndHalf)
     assert(distinctlyKeyedAnalysis2.contains(readIdxAndHalf))

@@ -5,7 +5,7 @@ import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue}
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.agg.{CollectStateSig, PhysicalAggSig, TypedStateSig}
-import is.hail.expr.ir.lowering.LoweringPipeline
+import is.hail.expr.ir.lowering.{Lower, LoweringPipeline, LoweringState}
 import is.hail.expr.ir.streams.{EmitStream, StreamUtils}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
@@ -17,6 +17,7 @@ import is.hail.variant.Call2
 import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
+import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
 
 class EmitStreamSuite extends HailSuite {
 
@@ -67,7 +68,7 @@ class EmitStreamSuite extends HailSuite {
         case s => s
       }
       TypeCheck(ctx, s)
-      EmitStream.produce(new Emit(emitContext, fb.ecb), s, cb, cb.emb, region, EmitEnv(Env.empty, inputTypes.indices.map(i => mb.storeEmitParamAsField(cb, i + 2))), None)
+      EmitStream.produce(new Emit(emitContext, fb.ecb, LoweringState()), s, cb, cb.emb, region, EmitEnv(Env.empty, inputTypes.indices.map(i => mb.storeEmitParamAsField(cb, i + 2))), None)
         .consumeCode[Long](cb, 0L, { s =>
           val arr = StreamUtils.toArray(cb, s.asStream.getProducer(mb), region)
           val scp = SingleCodeSCode.fromSCode(cb, arr, region, false)
@@ -139,7 +140,7 @@ class EmitStreamSuite extends HailSuite {
       val len = cb.newLocal[Int]("len", 0)
       val len2 = cb.newLocal[Int]("len2", -1)
 
-      EmitStream.produce(new Emit(emitContext, fb.ecb), ir, cb, cb.emb, region, EmitEnv(Env.empty, FastIndexedSeq()), None)
+      EmitStream.produce(new Emit(emitContext, fb.ecb, LoweringState()), ir, cb, cb.emb, region, EmitEnv(Env.empty, FastIndexedSeq()), None)
         .consume(cb,
           {},
           { case stream: SStreamValue =>
@@ -750,10 +751,10 @@ class EmitStreamSuite extends HailSuite {
       Ref("foldAcc", TFloat64) + Ref("foldVal", TFloat64)
     )))
 
-    val (Some(PTypeReferenceSingleCodeType(pt)), f) = Compile[AsmFunction2RegionLongLong](ctx,
+    val (Some(PTypeReferenceSingleCodeType(pt)), f) = Compile[Lower, AsmFunction2RegionLongLong](ctx,
       FastIndexedSeq(("in", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(t)))),
       FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
-      ir)
+      ir).runA(ctx, LoweringState())
 
     pool.scopedSmallRegion { r =>
       val input = t.unstagedStoreJavaObject(ctx.stateManager, Row(null, IndexedSeq(1d, 2d), IndexedSeq(3d, 4d)), r)

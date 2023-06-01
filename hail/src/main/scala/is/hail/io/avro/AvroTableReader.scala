@@ -1,15 +1,17 @@
 package is.hail.io.avro
 
+import cats.Applicative
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
-import is.hail.expr.ir.analyses.SemanticHash
-import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
+import is.hail.expr.ir.lowering._
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.physical.{PCanonicalStruct, PCanonicalTuple, PInt64Required}
 import is.hail.types.virtual._
 import is.hail.types.{TableType, VirtualTypeWithReq}
 import is.hail.utils.{FastIndexedSeq, plural}
 import org.json4s.{Formats, JValue}
+
+import scala.language.higherKinds
 
 class AvroTableReader(
   partitionReader: AvroPartitionReader,
@@ -45,26 +47,22 @@ class AvroTableReader(
 
   def renderShort(): String = defaultRender()
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean, semhash: SemanticHash.NextHash): TableValue = {
-    val ts = lower(ctx, requestedType, semhash)
-    new TableStageIntermediate(ts).asTableValue(ctx)
-  }
+  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue =
+    TableStageIntermediate(lower[Lower](ctx, requestedType).runA(ctx, LoweringState())).asTableValue(ctx)
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType, semhash: SemanticHash.NextHash): TableStage = {
-    val globals = MakeStruct(FastIndexedSeq())
-    val contexts = zip2(ToStream(Literal(TArray(TString), paths)), StreamIota(I32(0), I32(1)), ArrayZipBehavior.TakeMinLength) { (path, idx) =>
-      MakeStruct(Array("partitionPath" -> path, "partitionIndex" -> Cast(idx, TInt64)))
-    }
-    TableStage(
-      globals,
-      partitioner,
-      TableStageDependency.none,
-      contexts,
-      { ctx =>
-        ReadPartition(ctx, requestedType.rowType, partitionReader)
+  override def lower[M[_] : MonadLower](ctx: ExecuteContext, requestedType: TableType): M[TableStage] =
+    Applicative[M].pure {
+      val contexts = zip2(ToStream(Literal(TArray(TString), paths)), StreamIota(I32(0), I32(1)), ArrayZipBehavior.TakeMinLength) { (path, idx) =>
+        MakeStruct(Array("partitionPath" -> path, "partitionIndex" -> Cast(idx, TInt64)))
       }
-    )
-  }
+      TableStage(
+        MakeStruct(FastIndexedSeq()),
+        partitioner,
+        TableStageDependency.none,
+        contexts,
+        ctx =>ReadPartition(ctx, requestedType.rowType, partitionReader)
+      )
+    }
 }
 
 object AvroTableReader {

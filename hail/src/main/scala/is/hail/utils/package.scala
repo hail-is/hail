@@ -1,5 +1,7 @@
 package is.hail
 
+import cats.implicits.{catsSyntaxApply, toFunctorOps}
+import cats.{Applicative, Eval, Traverse, TraverseFilter}
 import is.hail.annotations.ExtendedOrdering
 import is.hail.check.Gen
 import is.hail.expr.ir.ByteArrayBuilder
@@ -25,8 +27,7 @@ import java.text.SimpleDateFormat
 import java.util.concurrent.{Executor, ExecutorCompletionService}
 import java.util.{Base64, Date}
 import scala.collection.generic.CanBuildFrom
-import scala.collection.mutable.ArrayBuffer
-import scala.collection.{GenTraversableOnce, TraversableOnce, mutable}
+import scala.collection.{GenTraversable, GenTraversableOnce, TraversableOnce, mutable}
 import scala.language.{higherKinds, implicitConversions}
 import scala.reflect.ClassTag
 import scala.util.{Failure, Success, Try}
@@ -327,7 +328,8 @@ package object utils extends Logging
       s"`${ StringEscapeUtils.escapeString(str, backticked = true) }`"
   }
 
-  def formatDouble(d: Double, precision: Int): String = d.formatted(s"%.${ precision }f")
+  def formatDouble(d: Double, precision: Int): String =
+    s"%.${ precision }f".format(d)
 
   def uriPath(uri: String): String = new URI(uri).getPath
 
@@ -971,7 +973,40 @@ package object utils extends Logging
 
   def runAllKeepFirstError[A](executor: Executor): IndexedSeq[() => A] => (Option[Throwable], IndexedSeq[(Int, A)]) =
     runAll[Option, A](executor) { case (opt, (_, e)) => opt.orElse(Some(e)) } (None)
+
+
+  implicit def traverseInstanceGenTraversable[S[+T] <: GenTraversable[T]]: Traverse[S] =
+    new Traverse[S] {
+      override def traverse[G[_], A, B](fa: S[A])(f: A => G[B])
+                                       (implicit G: Applicative[G]): G[S[B]] =
+        fa.foldLeft(G.pure(fa.companion.newBuilder[B])) {
+          (gfb, a) => gfb.map(fb => (b: B) => fb += b).ap(f(a))
+        }
+          .map(_.result.asInstanceOf[S[B]])
+
+      override def foldLeft[A, B](fa: S[A], b: B)
+                                 (f: (B, A) => B): B =
+        fa.foldLeft(b)(f)
+
+      override def foldRight[A, B](fa: S[A], lb: Eval[B])
+                                  (f: (A, Eval[B]) => Eval[B]): Eval[B] =
+        fa.foldRight(lb)(f)
+    }
+
+  implicit def traverseFilterInstanceGenTraversable[S[+T] <: GenTraversable[T]]: TraverseFilter[S] =
+    new TraverseFilter[S] {
+      override def traverse: Traverse[S] =
+        implicitly
+
+      override def traverseFilter[G[_], A, B](fa: S[A])(f: A => G[Option[B]])
+                                             (implicit G: Applicative[G]): G[S[B]] =
+        fa.foldLeft(G.pure(fa.companion.newBuilder[B])) { (gfb, a) =>
+          gfb.map(fb => (opt: Option[B]) => opt.foldLeft(fb)((fb, b) => fb += b)).ap(f(a))
+        }.map(_.result.asInstanceOf[S[B]])
+
+    }
 }
+
 
 // FIXME: probably resolved in 3.6 https://github.com/json4s/json4s/commit/fc96a92e1aa3e9e3f97e2e91f94907fdfff6010d
 object GenericIndexedSeqSerializer extends Serializer[IndexedSeq[_]] {

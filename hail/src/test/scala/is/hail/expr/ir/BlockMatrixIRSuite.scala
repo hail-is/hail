@@ -2,14 +2,15 @@ package is.hail.expr.ir
 
 import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.ExecStrategy.ExecStrategy
-import is.hail.{ExecStrategy, HailSuite}
 import is.hail.expr.Nat
-import is.hail.types.encoded.{EFloat64Required, EBlockMatrixNDArray}
-import is.hail.types.virtual._
+import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
+import is.hail.expr.ir.lowering.{Lower, LoweringState}
 import is.hail.io.TypedCodecSpec
 import is.hail.linalg.BlockMatrix
+import is.hail.types.encoded.{EBlockMatrixNDArray, EFloat64Required}
+import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.TestUtils._
+import is.hail.{ExecStrategy, HailSuite}
 import org.testng.annotations.Test
 
 class BlockMatrixIRSuite extends HailSuite {
@@ -38,8 +39,7 @@ class BlockMatrixIRSuite extends HailSuite {
   @Test def testBlockMatrixWriteRead() {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.interpretOnly
     val tempPath = ctx.createTmpPath("test-blockmatrix-write-read", "bm")
-    Interpret[Unit](ctx, BlockMatrixWrite(ones,
-      BlockMatrixNativeWriter(tempPath, false, false, false)))
+    Interpret(ctx, BlockMatrixWrite(ones, BlockMatrixNativeWriter(tempPath, false, false, false))).runA(ctx, LoweringState())
 
     assertBMEvalsTo(BlockMatrixRead(BlockMatrixNativeReader(fs, tempPath)), BDM.fill[Double](N_ROWS, N_COLS)(1))
   }
