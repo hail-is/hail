@@ -49,6 +49,7 @@ class Tests(unittest.TestCase):
 
     @fails_service_backend()
     @fails_local_backend
+    @test_timeout(local=6 * 60)
     def test_ld_score_annotated(self):
         mt = self.get_ld_score_mt()
         ht_annotated = hl.experimental.ld_score(

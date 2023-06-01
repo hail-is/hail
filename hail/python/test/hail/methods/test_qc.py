@@ -247,7 +247,7 @@ class Tests(unittest.TestCase):
                 hl.filter_alleles(ds, lambda a, i: False).count_rows(), 0)
             self.assertEqual(hl.filter_alleles(ds, lambda a, i: True).count_rows(), ds.count_rows())
 
-    def test_filter_alleles_hts(self):
+    def test_filter_alleles_hts_1(self):
         # 1 variant: A:T,G
         ds = hl.import_vcf(resource('filter_alleles/input.vcf'))
 
@@ -256,17 +256,29 @@ class Tests(unittest.TestCase):
                 .drop('old_alleles', 'old_locus', 'new_to_old', 'old_to_new')
                 ._same(hl.import_vcf(resource('filter_alleles/keep_allele1_subset.vcf'))))
 
+    def test_filter_alleles_hts_2(self):
+        # 1 variant: A:T,G
+        ds = hl.import_vcf(resource('filter_alleles/input.vcf'))
+
         self.assertTrue(
             hl.filter_alleles_hts(ds, lambda a, i: a == 'G', subset=True)
                 .drop('old_alleles', 'old_locus', 'new_to_old', 'old_to_new')
                 ._same(hl.import_vcf(resource('filter_alleles/keep_allele2_subset.vcf')))
         )
 
+    def test_filter_alleles_hts_3(self):
+        # 1 variant: A:T,G
+        ds = hl.import_vcf(resource('filter_alleles/input.vcf'))
+
         self.assertTrue(
             hl.filter_alleles_hts(ds, lambda a, i: a != 'G', subset=False)
                 .drop('old_alleles', 'old_locus', 'new_to_old', 'old_to_new')
                 ._same(hl.import_vcf(resource('filter_alleles/keep_allele1_downcode.vcf')))
         )
+
+    def test_filter_alleles_hts_4(self):
+        # 1 variant: A:T,G
+        ds = hl.import_vcf(resource('filter_alleles/input.vcf'))
 
         self.assertTrue(
             hl.filter_alleles_hts(ds, lambda a, i: a == 'G', subset=False)

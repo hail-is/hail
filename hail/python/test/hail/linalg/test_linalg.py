@@ -368,7 +368,7 @@ class Tests(unittest.TestCase):
         assert mt._same(mt_round_trip)
 
     @test_timeout(3 * 60, local=6 * 60)
-    def test_paired_elementwise_ops(self):
+    def test_paired_elementwise_addition(self):
         nx = np.array([[2.0]])
         nc = np.array([[1.0], [2.0]])
         nr = np.array([[1.0, 2.0, 3.0]])
@@ -433,7 +433,23 @@ class Tests(unittest.TestCase):
             b.assert_eq(m + nr, m + r)
             b.assert_eq(m + nm, m + m)
 
-            # subtraction
+    @test_timeout(3 * 60, local=6 * 60)
+    def test_paired_elementwise_subtraction(self):
+        nx = np.array([[2.0]])
+        nc = np.array([[1.0], [2.0]])
+        nr = np.array([[1.0, 2.0, 3.0]])
+        nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+
+        e = 2.0
+        # BlockMatrixMap requires very simple IRs on the SparkBackend. If I use
+        # `from_ndarray` here, it generates an `NDArrayRef` expression that it can't handle.
+        # Will be fixed by improving FoldConstants handling of ndarrays or fully lowering BlockMatrix.
+        x = BlockMatrix._create(1, 1, [2.0], block_size=8)
+        c = BlockMatrix.from_ndarray(hl.literal(nc), block_size=8)
+        r = BlockMatrix.from_ndarray(hl.literal(nr), block_size=8)
+        m = BlockMatrix.from_ndarray(hl.literal(nm), block_size=8)
+
+        with BatchedAsserts() as b:
             b.assert_eq(x - e, nx - e)
             b.assert_eq(c - e, nc - e)
             b.assert_eq(r - e, nr - e)
@@ -475,7 +491,23 @@ class Tests(unittest.TestCase):
             b.assert_eq(m - nr, m - r)
             b.assert_eq(m - nm, m - m)
 
-            # multiplication
+    @test_timeout(3 * 60, local=6 * 60)
+    def test_paired_elementwise_multiplication(self):
+        nx = np.array([[2.0]])
+        nc = np.array([[1.0], [2.0]])
+        nr = np.array([[1.0, 2.0, 3.0]])
+        nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+
+        e = 2.0
+        # BlockMatrixMap requires very simple IRs on the SparkBackend. If I use
+        # `from_ndarray` here, it generates an `NDArrayRef` expression that it can't handle.
+        # Will be fixed by improving FoldConstants handling of ndarrays or fully lowering BlockMatrix.
+        x = BlockMatrix._create(1, 1, [2.0], block_size=8)
+        c = BlockMatrix.from_ndarray(hl.literal(nc), block_size=8)
+        r = BlockMatrix.from_ndarray(hl.literal(nr), block_size=8)
+        m = BlockMatrix.from_ndarray(hl.literal(nm), block_size=8)
+
+        with BatchedAsserts() as b:
             b.assert_eq(x * e, nx * e)
             b.assert_eq(c * e, nc * e)
             b.assert_eq(r * e, nr * e)
@@ -517,7 +549,23 @@ class Tests(unittest.TestCase):
             b.assert_eq(m * nr, m * r)
             b.assert_eq(m * nm, m * m)
 
-            # division
+    @test_timeout(3 * 60, local=6 * 60)
+    def test_paired_elementwise_division(self):
+        nx = np.array([[2.0]])
+        nc = np.array([[1.0], [2.0]])
+        nr = np.array([[1.0, 2.0, 3.0]])
+        nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+
+        e = 2.0
+        # BlockMatrixMap requires very simple IRs on the SparkBackend. If I use
+        # `from_ndarray` here, it generates an `NDArrayRef` expression that it can't handle.
+        # Will be fixed by improving FoldConstants handling of ndarrays or fully lowering BlockMatrix.
+        x = BlockMatrix._create(1, 1, [2.0], block_size=8)
+        c = BlockMatrix.from_ndarray(hl.literal(nc), block_size=8)
+        r = BlockMatrix.from_ndarray(hl.literal(nr), block_size=8)
+        m = BlockMatrix.from_ndarray(hl.literal(nm), block_size=8)
+
+        with BatchedAsserts() as b:
             b.assert_close(x / e, nx / e)
             b.assert_close(c / e, nc / e)
             b.assert_close(r / e, nr / e)

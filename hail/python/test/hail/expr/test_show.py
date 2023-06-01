@@ -3,19 +3,37 @@ import hail as hl
 from ..helpers import test_timeout
 
 
-def test_show():
+def test_show_1():
     mt = hl.balding_nichols_model(3, 10, 10)
-    t = mt.rows()
     mt.GT.show()
     mt.locus.show()
+
+
+def test_show_2():
+    mt = hl.balding_nichols_model(3, 10, 10)
     mt.af.show()
     mt.pop.show()
+
+
+def test_show_3():
+    mt = hl.balding_nichols_model(3, 10, 10)
     mt.sample_idx.show()
     mt.bn.show()
+
+
+def test_show_4():
+    mt = hl.balding_nichols_model(3, 10, 10)
     mt.bn.fst.show()
     mt.GT.n_alt_alleles().show()
+
+def test_show_5():
+    mt = hl.balding_nichols_model(3, 10, 10)
     (mt.GT.n_alt_alleles() * mt.GT.n_alt_alleles()).show()
     (mt.af * mt.GT.n_alt_alleles()).show()
+
+
+def test_show_rows_table():
+    t = hl.balding_nichols_model(3, 10, 10).rows()A
     t.af.show()
     (t.af * 3).show()
 
