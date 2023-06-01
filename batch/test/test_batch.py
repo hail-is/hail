@@ -428,6 +428,9 @@ start_time >= 2023-02-24T17:15:25Z
 end_time <= 2023-02-24T17:18:25Z
 ''',
         )
+
+        with pytest.raises(httpx.ClientResponseError, match='expected float, but found'):
+            assert_job_ids(no_jobs, 'duration >= abcd')
     finally:
         b.cancel()
 

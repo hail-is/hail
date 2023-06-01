@@ -218,7 +218,7 @@ async def _handle_ui_error(session, f, *args, **kwargs):
 
 async def _handle_api_error(f, *args, **kwargs):
     try:
-        await f(*args, **kwargs)
+        return await f(*args, **kwargs)
     except BatchOperationAlreadyCompletedError as e:
         log.info(e.message)
         return
@@ -228,13 +228,7 @@ async def _handle_api_error(f, *args, **kwargs):
 
 async def _query_batch_jobs(request, batch_id: int, version: int, q: str, last_job_id: Optional[int]):
     db: Database = request.app['db']
-
-    try:
-        sql, sql_args = build_batch_jobs_query(batch_id, version, q, last_job_id)
-    except QueryError as e:
-        session = await aiohttp_session.get_session(request)
-        set_message(session, e.reason, 'error')
-        return ([], None)
+    sql, sql_args = build_batch_jobs_query(batch_id, version, q, last_job_id)
 
     jobs = [job_record_to_dict(record, record['name']) async for record in db.select_and_fetchall(sql, sql_args)]
 
@@ -260,6 +254,7 @@ WHERE id = %s AND NOT deleted;
         raise web.HTTPNotFound()
 
     jobs, last_job_id = await _query_batch_jobs(request, batch_id, version, q, last_job_id)
+
     resp = {'jobs': jobs}
     if last_job_id is not None:
         resp['last_job_id'] = last_job_id
@@ -273,7 +268,7 @@ async def get_jobs_v1(request, userdata, batch_id):  # pylint: disable=unused-ar
     last_job_id = request.query.get('last_job_id')
     if last_job_id is not None:
         last_job_id = int(last_job_id)
-    resp = await _get_jobs(request, batch_id, 1, q, last_job_id)
+    resp = await _handle_api_error(_get_jobs, request, batch_id, 1, q, last_job_id)
     return json_response(resp)
 
 
@@ -284,7 +279,7 @@ async def get_jobs_v2(request, userdata, batch_id):  # pylint: disable=unused-ar
     last_job_id = request.query.get('last_job_id')
     if last_job_id is not None:
         last_job_id = int(last_job_id)
-    resp = await _get_jobs(request, batch_id, 2, q, last_job_id)
+    resp = await _handle_api_error(_get_jobs, request, batch_id, 2, q, last_job_id)
     return json_response(resp)
 
 
@@ -1697,7 +1692,14 @@ async def ui_batch(request, userdata, batch_id):
     if last_job_id is not None:
         last_job_id = int(last_job_id)
 
-    jobs, last_job_id = await _query_batch_jobs(request, batch_id, CURRENT_QUERY_VERSION, q, last_job_id)
+    try:
+        jobs, last_job_id = await _query_batch_jobs(request, batch_id, CURRENT_QUERY_VERSION, q, last_job_id)
+    except QueryError as e:
+        session = await aiohttp_session.get_session(request)
+        set_message(session, e.message, 'error')
+        jobs = []
+        last_job_id = None
+
     for j in jobs:
         j['duration'] = humanize_timedelta_msecs(j['duration'])
         j['cost'] = cost_str(j['cost'])

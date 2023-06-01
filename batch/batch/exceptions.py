@@ -49,6 +49,9 @@ class BatchOperationAlreadyCompletedError(Exception):
         self.ui_error_type = severity
 
 
-class QueryError(Exception):
-    def __init__(self, reason):
-        self.reason = reason
+class QueryError(BatchUserError):
+    def __init__(self, message):
+        self.message = message
+
+    def http_response(self):
+        return web.HTTPBadRequest(reason=self.message)

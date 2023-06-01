@@ -51,7 +51,7 @@ def parse_batch_jobs_query_v2(batch_id: int, q: str, last_job_id: Optional[int])
     max_end_lt_query: Optional[EndTimeQuery] = None
 
     if q:
-        terms = q.split('\n')
+        terms = q.rstrip().lstrip().split('\n')
         for _term in terms:
             _term = pad_maybe_operator(_term)
             statement = _term.split()
@@ -75,14 +75,14 @@ def parse_batch_jobs_query_v2(batch_id: int, q: str, last_job_id: Optional[int])
                     st_query = StartTimeQuery.parse(op, right)
                     queries.append(st_query)
                     if (type(st_query.operator) in [GreaterThanOperator, GreaterThanEqualOperator]) and (
-                            min_start_gt_query is None or min_start_gt_query.time_msecs >= st_query.time_msecs
+                        min_start_gt_query is None or min_start_gt_query.time_msecs >= st_query.time_msecs
                     ):
                         min_start_gt_query = st_query
                 elif left == 'end_time':
                     et_query = EndTimeQuery.parse(op, right)
                     queries.append(et_query)
                     if (type(et_query.operator) in [LessThanOperator, LessThanEqualOperator]) and (
-                            max_end_lt_query is None or max_end_lt_query.time_msecs <= et_query.time_msecs
+                        max_end_lt_query is None or max_end_lt_query.time_msecs <= et_query.time_msecs
                     ):
                         max_end_lt_query = et_query
                 elif left == 'duration':

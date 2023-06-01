@@ -63,7 +63,7 @@ class NotEqualExactMatchOperator(ExactMatchOperator, ComparisonOperator):
         return '!='
 
 
-class EqualExactMatchOperator(ExactMatchOperator):
+class EqualExactMatchOperator(ExactMatchOperator, ComparisonOperator):
     regex = re.compile('([^=]+)(==|=)(.+)')
 
     def to_sql(self) -> str:
