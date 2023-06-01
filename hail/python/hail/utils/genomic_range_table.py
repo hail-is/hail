@@ -18,7 +18,7 @@ def genomic_range_table(n: int,
     Examples
     --------
 
-    >>> ht = hl.utils.range_table(100)
+    >>> ht = hl.utils.genomic_range_table(100)
     >>> ht.count()
     100
 

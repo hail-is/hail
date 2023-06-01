@@ -1,5 +1,6 @@
 import json
 import os
+import pytest
 import shutil
 import unittest
 
@@ -37,19 +38,6 @@ _FLOAT_ARRAY_INFO_FIELDS = ['AF', 'MLEAF']
 class VCFTests(unittest.TestCase):
     def test_info_char(self):
         self.assertEqual(hl.import_vcf(resource('infochar.vcf')).count_rows(), 1)
-
-    def test_import_export_same(self):
-        for i in range(10):
-            mt = hl.import_vcf(resource(f'random_vcfs/{i}.vcf.bgz'))
-            f1 = new_temp_file(extension='vcf.bgz')
-            hl.export_vcf(mt, f1)
-            mt2 = hl.import_vcf(f1)
-            f2 = new_temp_file(extension='vcf.bgz')
-            hl.export_vcf(mt2, f2)
-            mt3 = hl.import_vcf(f2)
-
-            assert mt._same(mt2)
-            assert mt._same(mt3)
 
     def test_info_float64(self):
         """Test that floating-point info fields are 64-bit regardless of the entry float type"""
@@ -420,6 +408,7 @@ class VCFTests(unittest.TestCase):
     def test_vcf_parser_golden_master__sample_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('sample.vcf'), 'GRCh37')
 
+    @test_timeout(6 * 60)
     def test_vcf_parser_golden_master__gvcf_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('gvcfs/HG00096.g.vcf.gz'), 'GRCh38')
 
@@ -1220,7 +1209,7 @@ class BGENTests(unittest.TestCase):
 
         self.assertTrue(expected._same(part_1))
 
-    def test_import_bgen_locus_filtering_from_literals(self):
+    def test_import_bgen_locus_filtering_from_Struct_object(self):
         bgen_file = resource('example.8bits.bgen')
 
         # Test with Struct(Locus)
@@ -1231,20 +1220,26 @@ class BGENTests(unittest.TestCase):
             hl.Struct(locus=hl.Locus('1', 10000), alleles=['A', 'G']) # Duplicated variant
         ]
 
-        locus_struct = hl.import_bgen(bgen_file,
-                                      ['GT'],
-                                      variants=desired_loci)
-        self.assertEqual(locus_struct.rows().key_by('locus', 'alleles').select().collect(),
-                         expected_result)
+        data = hl.import_bgen(bgen_file,
+                              ['GT'],
+                              variants=desired_loci)
+        assert data.rows().key_by('locus', 'alleles').select().collect() == expected_result
+
+    def test_import_bgen_locus_filtering_from_struct_expression(self):
+        bgen_file = resource('example.8bits.bgen')
 
         # Test with Locus object
         desired_loci = [hl.Locus('1', 10000)]
 
-        locus_object = hl.import_bgen(bgen_file,
-                                      ['GT'],
-                                      variants=desired_loci)
-        self.assertEqual(locus_object.rows().key_by('locus', 'alleles').select().collect(),
-                         expected_result)
+        expected_result = [
+            hl.Struct(locus=hl.Locus('1', 10000), alleles=['A', 'G']),
+            hl.Struct(locus=hl.Locus('1', 10000), alleles=['A', 'G']) # Duplicated variant
+        ]
+
+        data = hl.import_bgen(bgen_file,
+                              ['GT'],
+                              variants=desired_loci)
+        assert data.rows().key_by('locus', 'alleles').select().collect() == expected_result
 
     def test_import_bgen_variant_filtering_from_exprs(self):
         bgen_file = resource('example.8bits.bgen')
@@ -1594,6 +1589,7 @@ class GENTests(unittest.TestCase):
                                resource('skip_invalid_loci.sample'))
             mt._force_count_rows()
 
+    @test_timeout(local=4 * 60, batch=8 * 60)
     def test_export_gen(self):
         gen = hl.import_gen(resource('example.gen'),
                             sample_file=resource('example.sample'),
@@ -1753,7 +1749,7 @@ class LocusIntervalTests(unittest.TestCase):
 
 
 class ImportMatrixTableTests(unittest.TestCase):
-    def test_import_matrix_table(self):
+    def test_import_matrix_table_1(self):
         mt = hl.import_matrix_table(doctest_resource('matrix1.tsv'),
                                     row_fields={'Barcode': hl.tstr, 'Tissue': hl.tstr, 'Days': hl.tfloat32})
         self.assertEqual(mt['Barcode']._indices, mt._row_indices)
@@ -1764,16 +1760,27 @@ class ImportMatrixTableTests(unittest.TestCase):
 
         mt.count()
 
-        row_fields = {'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32}
-        hl.import_matrix_table(doctest_resource('matrix2.tsv'),
-                               row_fields=row_fields, row_key=[])._force_count_rows()
-        hl.import_matrix_table(doctest_resource('matrix3.tsv'),
-                               row_fields=row_fields,
-                               no_header=True)._force_count_rows()
-        hl.import_matrix_table(doctest_resource('matrix3.tsv'),
-                               row_fields=row_fields,
-                               no_header=True,
-                               row_key=[])._force_count_rows()
+    def test_import_matrix_table_2(self):
+        hl.import_matrix_table(
+            doctest_resource('matrix2.tsv'),
+            row_fields={'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32},
+            row_key=[]
+        )._force_count_rows()
+
+    def test_import_matrix_table_3(self):
+        hl.import_matrix_table(
+            doctest_resource('matrix3.tsv'),
+            row_fields={'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32},
+            no_header=True
+        )._force_count_rows()
+
+    def test_import_matrix_table_4(self):
+        hl.import_matrix_table(
+            doctest_resource('matrix3.tsv'),
+            row_fields={'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32},
+            no_header=True,
+            row_key=[]
+        )._force_count_rows()
 
     def test_import_matrix_table_no_cols(self):
         fields = {'Chromosome': hl.tstr, 'Position': hl.tint32, 'Ref': hl.tstr, 'Alt': hl.tstr, 'Rand1': hl.tfloat64, 'Rand2': hl.tfloat64}
@@ -1853,6 +1860,7 @@ class ImportMatrixTableTests(unittest.TestCase):
         mt = mt.key_rows_by('Chromosome', 'Position')
         mt._force_count_rows()
 
+    @test_timeout(local=4 * 60)
     def test_devilish_nine_separated_eight_missing_file(self):
         fields = {'chr': hl.tstr,
                   '': hl.tint32,
@@ -2190,3 +2198,18 @@ def test_matrix_and_table_read_intervals_with_hidden_key():
 
     hl.read_matrix_table(f2, _intervals=[hl.Interval(0, 3)])._force_count_rows()
     hl.read_table(f3, _intervals=[hl.Interval(0, 3)])._force_count()
+
+
+@pytest.mark.parametrize("i", list(range(10)))
+@test_timeout(6 * 60, local=7 * 60, batch=7 * 60)
+def test_import_export_same(i):
+    mt = hl.import_vcf(resource(f'random_vcfs/{i}.vcf.bgz'))
+    f1 = new_temp_file(extension='vcf.bgz')
+    hl.export_vcf(mt, f1)
+    mt2 = hl.import_vcf(f1)
+    f2 = new_temp_file(extension='vcf.bgz')
+    hl.export_vcf(mt2, f2)
+    mt3 = hl.import_vcf(f2)
+
+    assert mt._same(mt2)
+    assert mt._same(mt3)
