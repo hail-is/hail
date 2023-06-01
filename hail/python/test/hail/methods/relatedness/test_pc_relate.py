@@ -53,17 +53,22 @@ def test_pc_relate_simple_example():
 @test_timeout(6 * 60, batch=14 * 60)
 def test_pc_relate_paths_1():
     with hl.TemporaryDirectory(ensure_exists=False) as bn_f, \
-         hl.TemporaryDirectory(ensure_exists=False) as scores_f:
+         hl.TemporaryDirectory(ensure_exists=False) as scores_f, \
+         hl.TemporaryDirectory(ensure_exists=False) as kin1_f, \
+         hl.TemporaryDirectory(ensure_exists=False) as kins1_f:
         mt = hl.balding_nichols_model(3, 50, 100).checkpoint(bn_f)
         _, scores3, _ = hl._hwe_normalized_blanczos(mt.GT, k=3, compute_loadings=False, q_iterations=10)
         scores3 = scores3.checkpoint(scores_f)
 
-        with hl.TemporaryDirectory(ensure_exists=False) as kin1_f:
-            kin1 = hl.pc_relate(mt.GT, 0.10, k=2, statistics='kin', block_size=64).checkpoint(kin1_f)
-            kin_s1 = hl.pc_relate(mt.GT, 0.10, scores_expr=scores3[mt.col_key].scores[:2],
-                                  statistics='kin', block_size=64)
-            assert kin1._same(kin_s1, tolerance=1e-4)
-            assert kin1.count() == 50 * 49 / 2
+        kin1 = hl.pc_relate(
+            mt.GT, 0.10, k=2, statistics='kin', block_size=64
+        ).checkpoint(kin1_f)
+        kin_s1 = hl.pc_relate(
+            mt.GT, 0.10, scores_expr=scores3[mt.col_key].scores[:2], statistics='kin', block_size=64
+        ).checkpoint(kins1_f)
+
+        assert kin1._same(kin_s1, tolerance=1e-4)
+        assert kin1.count() == 50 * 49 / 2
 
 
 @test_timeout(6 * 60, batch=14 * 60)
