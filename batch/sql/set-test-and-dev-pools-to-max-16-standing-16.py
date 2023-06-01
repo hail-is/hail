@@ -7,8 +7,8 @@ async def main():
     if os.environ['HAIL_SCOPE'] == 'deploy':
         return
 
-    max_instances = 8
-    max_live_instances = 8
+    max_instances = 16
+    max_live_instances = 16
     standing_worker_cores = 16
 
     db = Database()
