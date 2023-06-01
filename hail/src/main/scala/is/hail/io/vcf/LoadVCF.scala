@@ -514,7 +514,7 @@ final class VCFLine(
 
   def parseFormatFloat(): Float = {
     val s = parseFormatString()
-    s.toFloat
+    infoToFloat(s)
   }
 
   def parseAddFormatFloat(rvb: RegionValueBuilder) {
@@ -528,7 +528,7 @@ final class VCFLine(
 
   def parseFormatDouble(): Double = {
     val s = parseFormatString()
-    s.toDouble
+    infoToDouble(s)
   }
 
   def parseAddFormatDouble(rvb: RegionValueBuilder) {
@@ -774,6 +774,16 @@ final class VCFLine(
       case "inf" => Double.PositiveInfinity
       case "-inf" => Double.NegativeInfinity
       case _ => s.toDouble
+    }
+  }
+
+  def infoToFloat(s: String): Float = {
+    s match {
+      case "nan" => Float.NaN
+      case "-nan" => Float.NaN
+      case "inf" => Float.PositiveInfinity
+      case "-inf" => Float.NegativeInfinity
+      case _ => s.toFloat
     }
   }
 
