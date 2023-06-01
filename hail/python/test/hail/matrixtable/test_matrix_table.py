@@ -1958,28 +1958,32 @@ def test_matrix_randomness_union_cols():
     assert_unique_uids(mt)
 
 
-def test_matrix_randomness_map_entries():
+def test_matrix_randomness_map_entries_with_body_randomness():
     rmt = hl.utils.range_matrix_table(10, 10, 3)
-    # with body randomness
     mt = rmt.annotate_entries(r=hl.rand_int64())
     assert_contains_node(mt, ir.MatrixMapEntries)
     x = mt.aggregate_entries(hl.struct(r=hl.agg.collect_as_set(mt.r), n=hl.agg.count()))
     assert(len(x.r) == x.n)
     assert_unique_uids(mt)
-    # w/o body randomness
+
+
+def test_matrix_randomness_map_entries_without_body_randomness():
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
     mt = rmt.annotate_entries(x=rmt.row_idx + rmt.col_idx)
     assert_contains_node(mt, ir.MatrixMapEntries)
     assert_unique_uids(mt)
 
 
-def test_matrix_randomness_filter_entries():
+def test_matrix_randomness_filter_entries_with_cond_randomness():
     rmt = hl.utils.range_matrix_table(10, 10, 3)
-    # with cond randomness
     mt = rmt.filter_entries(hl.rand_int64() % 2 == 0)
     assert_contains_node(mt, ir.MatrixFilterEntries)
     mt.entries()._force_count() # test with no consumer randomness
     assert_unique_uids(mt)
-    # w/o cond randomness
+
+
+def test_matrix_randomness_filter_entries_without_cond_randomness():
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
     mt = rmt.filter_entries(rmt.row_idx + rmt.col_idx < 10)
     assert_contains_node(mt, ir.MatrixFilterEntries)
     assert_unique_uids(mt)
