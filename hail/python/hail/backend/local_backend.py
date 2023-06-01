@@ -114,6 +114,7 @@ class Log4jLogger(Logger):
 class LocalBackend(Py4JBackend):
     def __init__(self, tmpdir, log, quiet, append, branching_factor,
                  skip_logging_configuration, optimizer_iterations,
+                 jvm_heap_size,
                  *,
                  gcs_requester_pays_project: Optional[str] = None,
                  gcs_requester_pays_buckets: Optional[str] = None
@@ -129,10 +130,14 @@ class LocalBackend(Py4JBackend):
             else:
                 raise RuntimeError('local backend requires a packaged jar or HAIL_JAR to be set')
 
+        jvm_opts = []
+        if jvm_heap_size is not None:
+            jvm_opts.append(f'-Xmx{jvm_heap_size}')
         port = launch_gateway(
             redirect_stdout=sys.stdout,
             redirect_stderr=sys.stderr,
             java_path=None,
+            javaopts=jvm_opts,
             jarpath=f'{spark_home}/jars/py4j-0.10.9.5.jar',
             classpath=f'{spark_home}/jars/*:{hail_jar_path}',
             die_on_exit=True)

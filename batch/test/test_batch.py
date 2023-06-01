@@ -147,18 +147,20 @@ def test_invalid_resource_requests(client: BatchClient):
         bb.submit()
 
 
+@pytest.mark.timeout(6 * 60)
 def test_out_of_memory(client: BatchClient):
     bb = create_batch(client)
-    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '10Gi'}
-    j = bb.create_job('python:3.6-slim-stretch', ['python', '-c', 'x = "a" * 1000**3'], resources=resources)
+    resources = {'cpu': '0.25'}
+    j = bb.create_job('python:3.6-slim-stretch', ['python', '-c', 'x = "a" * (2 * 1024**3)'], resources=resources)
     b = bb.submit()
     status = j.wait()
     assert j._get_out_of_memory(status, 'main'), str((status, b.debug_info()))
 
 
+@pytest.mark.timeout(6 * 60)
 def test_out_of_storage(client: BatchClient):
     bb = create_batch(client)
-    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '5Gi'}
+    resources = {'cpu': '0.25'}
     j = bb.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', 'fallocate -l 100GiB /foo'], resources=resources)
     b = bb.submit()
     status = j.wait()
@@ -167,9 +169,10 @@ def test_out_of_storage(client: BatchClient):
     assert "fallocate failed: No space left on device" in job_log['main']
 
 
+@pytest.mark.timeout(6 * 60)
 def test_quota_applies_to_volume(client: BatchClient):
     bb = create_batch(client)
-    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '5Gi'}
+    resources = {'cpu': '0.25'}
     j = bb.create_job(
         os.environ['HAIL_VOLUME_IMAGE'], ['/bin/sh', '-c', 'fallocate -l 100GiB /data/foo'], resources=resources
     )
@@ -180,10 +183,11 @@ def test_quota_applies_to_volume(client: BatchClient):
     assert "fallocate failed: No space left on device" in job_log['main']
 
 
+@pytest.mark.timeout(6 * 60)
 def test_relative_volume_path_is_actually_absolute(client: BatchClient):
     # https://github.com/hail-is/hail/pull/12990#issuecomment-1540332989
     bb = create_batch(client)
-    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '5Gi'}
+    resources = {'cpu': '0.25'}
     j = bb.create_job(
         os.environ['HAIL_VOLUME_IMAGE'],
         ['/bin/sh', '-c', 'ls / && ls . && ls /relative_volume && ! ls relative_volume'],
@@ -194,23 +198,24 @@ def test_relative_volume_path_is_actually_absolute(client: BatchClient):
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
+@pytest.mark.timeout(6 * 60)
 def test_quota_shared_by_io_and_rootfs(client: BatchClient):
     bb = create_batch(client)
-    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '10Gi'}
+    resources = {'cpu': '0.25', 'storage': '10Gi'}
     j = bb.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', 'fallocate -l 7GiB /foo'], resources=resources)
     b = bb.submit()
     status = j.wait()
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
     bb = create_batch(client)
-    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '10Gi'}
+    resources = {'cpu': '0.25', 'storage': '10Gi'}
     j = bb.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', 'fallocate -l 7GiB /io/foo'], resources=resources)
     b = bb.submit()
     status = j.wait()
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
     bb = create_batch(client)
-    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '10Gi'}
+    resources = {'cpu': '0.25', 'storage': '10Gi'}
     j = bb.create_job(
         DOCKER_ROOT_IMAGE,
         ['/bin/sh', '-c', 'fallocate -l 7GiB /foo; fallocate -l 7GiB /io/foo'],
@@ -223,9 +228,10 @@ def test_quota_shared_by_io_and_rootfs(client: BatchClient):
     assert "fallocate failed: No space left on device" in job_log['main'], str((job_log, b.debug_info()))
 
 
+@pytest.mark.timeout(6 * 60)
 def test_nonzero_storage(client: BatchClient):
     bb = create_batch(client)
-    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '20Gi'}
+    resources = {'cpu': '0.25', 'storage': '20Gi'}
     j = bb.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', 'true'], resources=resources)
     b = bb.submit()
     status = j.wait()
@@ -235,7 +241,7 @@ def test_nonzero_storage(client: BatchClient):
 @skip_in_azure
 def test_attached_disk(client: BatchClient):
     bb = create_batch(client)
-    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '400Gi'}
+    resources = {'cpu': '0.25', 'storage': '400Gi'}
     j = bb.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', 'df -h; fallocate -l 390GiB /io/foo'], resources=resources)
     b = bb.submit()
     status = j.wait()
@@ -1031,6 +1037,7 @@ async def test_old_clients_that_submit_mount_docker_socket_true_is_rejected(clie
                 await bb._submit_jobs(b.id, update_id, [orjson.dumps(spec)], 1, pbar_task)
 
 
+@pytest.mark.timeout(6 * 60)
 def test_pool_highmem_instance(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25', 'memory': 'highmem'}
@@ -1041,6 +1048,7 @@ def test_pool_highmem_instance(client: BatchClient):
     assert 'highmem' in status['status']['worker'], str((status, b.debug_info()))
 
 
+@pytest.mark.timeout(6 * 60)
 def test_pool_highmem_instance_cheapest(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '1', 'memory': '5Gi'}
@@ -1051,6 +1059,7 @@ def test_pool_highmem_instance_cheapest(client: BatchClient):
     assert 'highmem' in status['status']['worker'], str((status, b.debug_info()))
 
 
+@pytest.mark.timeout(6 * 60)
 def test_pool_highcpu_instance(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25', 'memory': 'lowmem'}
@@ -1061,6 +1070,8 @@ def test_pool_highcpu_instance(client: BatchClient):
     assert 'highcpu' in status['status']['worker'], str((status, b.debug_info()))
 
 
+@pytest.mark.timeout(6 * 60)
+@pytest.mark.xfail(os.environ.get('HAIL_CLOUD') == 'azure', strict=True, reason='prices changed in Azure 2023-06-01')
 def test_pool_highcpu_instance_cheapest(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25', 'memory': '50Mi'}
@@ -1091,6 +1102,7 @@ def test_pool_standard_instance_cheapest(client: BatchClient):
     assert 'standard' in status['status']['worker'], str((status, b.debug_info()))
 
 
+@pytest.mark.timeout(6 * 60)
 def test_job_private_instance_preemptible(client: BatchClient):
     bb = create_batch(client)
     resources = {'machine_type': smallest_machine_type()}
@@ -1101,6 +1113,7 @@ def test_job_private_instance_preemptible(client: BatchClient):
     assert 'job-private' in status['status']['worker'], str((status, b.debug_info()))
 
 
+@pytest.mark.timeout(6 * 60)
 def test_job_private_instance_nonpreemptible(client: BatchClient):
     bb = create_batch(client)
     resources = {'machine_type': smallest_machine_type(), 'preemptible': False}
@@ -1367,6 +1380,7 @@ def test_submit_update_to_deleted_batch(client: BatchClient):
         assert False
 
 
+@pytest.mark.timeout(12 * 60)
 def test_region(client: BatchClient):
     CLOUD = os.environ['HAIL_CLOUD']
 
@@ -1376,8 +1390,7 @@ def test_region(client: BatchClient):
     else:
         assert CLOUD == 'azure'
         region = 'eastus'
-    resources = {'memory': 'lowmem'}
-    j = bb.create_job(DOCKER_ROOT_IMAGE, ['printenv', 'HAIL_REGION'], regions=[region], resources=resources)
+    j = bb.create_job(DOCKER_ROOT_IMAGE, ['printenv', 'HAIL_REGION'], regions=[region])
     b = bb.submit()
     status = j.wait()
     assert status['state'] == 'Success', str((status, b.debug_info()))

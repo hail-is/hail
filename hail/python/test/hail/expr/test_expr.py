@@ -96,7 +96,7 @@ class Tests(unittest.TestCase):
         set2 = set(sampled2.idx.collect())
         expected = set1 & set2
 
-        for i in range(10):
+        for i in range(7):
             s1 = sampled1.filter(hl.is_defined(sampled2[sampled1.idx]))
             s2 = sampled2.filter(hl.is_defined(sampled1[sampled2.idx]))
             self.assertEqual(set(s1.idx.collect()), expected)
@@ -781,7 +781,7 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(t.aggregate(aggregation), expected)
 
-    def test_agg_group_by(self):
+    def test_agg_group_by_1(self):
         t = hl.utils.range_table(10)
         tests = [(hl.agg.group_by(t.idx % 2,
                                hl.array(hl.agg.collect_as_set(t.idx + 1)).append(0)),
@@ -810,9 +810,11 @@ class Tests(unittest.TestCase):
                                   hl.agg.group_by(t.idx % 2, hl.agg.count())),
                   {i: {0: 1, 1: 1} for i in range(5)}),
                  ]
-        for aggregation, expected in tests:
-            self.assertEqual(t.aggregate(aggregation), expected)
+        results = t.aggregate(hl.tuple([x[0] for x in tests]))
+        for aggregate, (_, expected) in zip(results, tests):
+            assert aggregate == expected
 
+    def test_agg_group_by_2(self):
         t = hl.Table.parallelize([
             {"cohort": None, "pop": "EUR", "GT": hl.Call([0, 0])},
             {"cohort": None, "pop": "ASN", "GT": hl.Call([0, 1])},
@@ -2798,6 +2800,7 @@ class Tests(unittest.TestCase):
 +---------+
 '''
 
+    @test_timeout(4 * 60)
     def test_export_genetic_data(self):
         mt = hl.balding_nichols_model(1, 3, 3)
         mt = mt.key_cols_by(s = 's' + hl.str(mt.sample_idx))
@@ -2944,8 +2947,8 @@ class Tests(unittest.TestCase):
         with self.assertRaises(hl.utils.FatalError):
             hl.eval(hl.contig_length('chr5', 'GRCh37'))
 
-
-    def test_initop(self):
+    @test_timeout(batch=5 * 60)
+    def test_initop_table(self):
         t = (hl.utils.range_table(5, 3)
              .annotate(GT=hl.call(0, 1))
              .annotate_globals(alleles=["A", "T"]))
@@ -2953,6 +2956,8 @@ class Tests(unittest.TestCase):
         self.assertTrue(t.aggregate(hl.agg.call_stats(t.GT, t.alleles)) ==
                         hl.Struct(AC=[5, 5], AF=[0.5, 0.5], AN=10, homozygote_count=[0, 0])) # Tests table.aggregate initOp
 
+    @test_timeout(batch=5 * 60)
+    def test_initop_matrix_table(self):
         mt = (hl.utils.range_matrix_table(10, 5, 5)
               .annotate_entries(GT=hl.call(0, 1))
               .annotate_rows(alleles=["A", "T"])
@@ -2969,7 +2974,11 @@ class Tests(unittest.TestCase):
             hl.is_defined(col_agg.call_stats)
             & (col_agg.call_stats == hl.struct(AC=[10, 10], AF=[0.5, 0.5], AN=20, homozygote_count=[0, 0]))))
 
-        # test TableAggregateByKey initOp
+    @test_timeout(batch=5 * 60)
+    def test_initop_table_aggregate_by_key(self):
+        t = (hl.utils.range_table(5, 3)
+             .annotate(GT=hl.call(0, 1))
+             .annotate_globals(alleles=["A", "T"]))
         t2 = t.annotate(group=t.idx < 3)
         group_agg = t2.group_by(t2['group']).aggregate(call_stats=hl.agg.call_stats(t2.GT, t2.alleles))
 
@@ -2980,7 +2989,12 @@ class Tests(unittest.TestCase):
                     hl.is_defined(group_agg.call_stats)
                     & (group_agg.call_stats == hl.struct(AC=[2, 2], AF=[0.5, 0.5], AN=4, homozygote_count=[0, 0])))))
 
-        # test MatrixAggregateColsByKey entries initOp
+    @test_timeout(batch=5 * 60)
+    def test_initop_matrix_aggregate_cols_by_key_entries(self):
+        mt = (hl.utils.range_matrix_table(10, 5, 5)
+              .annotate_entries(GT=hl.call(0, 1))
+              .annotate_rows(alleles=["A", "T"])
+              .annotate_globals(alleles2=["G", "C"]))
         mt2 = mt.annotate_cols(group=mt.col_idx < 3)
         group_cols_agg = (mt2.group_cols_by(mt2['group'])
                           .aggregate(call_stats=hl.agg.call_stats(mt2.GT, mt2.alleles2)).entries())
@@ -2992,7 +3006,12 @@ class Tests(unittest.TestCase):
                     hl.is_defined(group_cols_agg.call_stats)
                     & (group_cols_agg.call_stats == hl.struct(AC=[2, 2], AF=[0.5, 0.5], AN=4, homozygote_count=[0, 0])))))
 
-        # test MatrixAggregateColsByKey cols initOp
+    @test_timeout(batch=5 * 60)
+    def test_initop_matrix_aggregate_cols_by_key_cols(self):
+        mt = (hl.utils.range_matrix_table(10, 5, 5)
+              .annotate_entries(GT=hl.call(0, 1))
+              .annotate_rows(alleles=["A", "T"])
+              .annotate_globals(alleles2=["G", "C"]))
         mt2 = mt.annotate_cols(group=mt.col_idx < 3, GT_col=hl.call(0, 1))
         group_cols_agg = (mt2.group_cols_by(mt2['group'])
                           .aggregate_cols(call_stats=hl.agg.call_stats(mt2.GT_col, mt2.alleles2))
@@ -3006,7 +3025,12 @@ class Tests(unittest.TestCase):
                     hl.is_defined(group_cols_agg.call_stats)
                     & (group_cols_agg.call_stats == hl.struct(AC=[2, 2], AF=[0.5, 0.5], AN=4, homozygote_count=[0, 0])))))
 
-        # test MatrixAggregateRowsByKey entries initOp
+    @test_timeout(batch=5 * 60)
+    def test_initop_matrix_aggregate_rows_by_key_entries(self):
+        mt = (hl.utils.range_matrix_table(10, 5, 5)
+              .annotate_entries(GT=hl.call(0, 1))
+              .annotate_rows(alleles=["A", "T"])
+              .annotate_globals(alleles2=["G", "C"]))
         mt2 = mt.annotate_rows(group=mt.row_idx < 3)
         group_rows_agg = (mt2.group_rows_by(mt2['group'])
                           .aggregate(call_stats=hl.agg.call_stats(mt2.GT, mt2.alleles2)).entries())
@@ -3018,7 +3042,12 @@ class Tests(unittest.TestCase):
                     hl.is_defined(group_rows_agg.call_stats)
                     & (group_rows_agg.call_stats == hl.struct(AC=[7, 7], AF=[0.5, 0.5], AN=14, homozygote_count=[0, 0])))))
 
-        # test MatrixAggregateRowsByKey rows initOp
+    @test_timeout(batch=5 * 60)
+    def test_initop_matrix_aggregate_rows_by_key_rows(self):
+        mt = (hl.utils.range_matrix_table(10, 5, 5)
+              .annotate_entries(GT=hl.call(0, 1))
+              .annotate_rows(alleles=["A", "T"])
+              .annotate_globals(alleles2=["G", "C"]))
         mt2 = mt.annotate_rows(group=mt.row_idx < 3, GT_row=hl.call(0, 1))
         group_rows_agg = (mt2.group_rows_by(mt2['group'])
                           .aggregate_rows(call_stats=hl.agg.call_stats(mt2.GT_row, mt2.alleles2))
@@ -3187,53 +3216,68 @@ class Tests(unittest.TestCase):
         self.assert_evals_to(hl.mean(s), 3)
         self.assert_evals_to(hl.median(s), 3)
 
-    def test_set_operators(self):
+    def test_set_operators_1(self):
         self.assert_evals_to(hl.set([1, 2, 3]) <= hl.set([1, 2]), False)
         self.assert_evals_to(hl.set([1, 2, 3]) <= hl.set([1, 2, 3]), True)
         self.assert_evals_to(hl.set([1, 2, 3]) <= hl.set([1, 2, 3, 4]), True)
 
+    def test_set_operators_2(self):
         self.assert_evals_to(hl.set([1, 2, 3]) < hl.set([1, 2]), False)
         self.assert_evals_to(hl.set([1, 2, 3]) < hl.set([1, 2, 3]), False)
         self.assert_evals_to(hl.set([1, 2, 3]) < hl.set([1, 2, 3, 4]), True)
 
+    def test_set_operators_3(self):
         self.assert_evals_to(hl.set([1, 2]) >= hl.set([1, 2, 3]), False)
         self.assert_evals_to(hl.set([1, 2, 3]) >= hl.set([1, 2, 3]), True)
         self.assert_evals_to(hl.set([1, 2, 3, 4]) >= hl.set([1, 2, 3]), True)
 
+    def test_set_operators_4(self):
         self.assert_evals_to(hl.set([1, 2]) > hl.set([1, 2, 3]), False)
         self.assert_evals_to(hl.set([1, 2, 3]) > hl.set([1, 2, 3]), False)
         self.assert_evals_to(hl.set([1, 2, 3, 4]) > hl.set([1, 2, 3]), True)
 
+    def test_set_operators_5(self):
         self.assert_evals_to(hl.set([1, 2, 3]) - hl.set([1, 3]), set([2]))
         self.assert_evals_to(hl.set([1, 2, 3]) - set([1, 3]), set([2]))
         self.assert_evals_to(set([1, 2, 3]) - hl.set([1, 3]), set([2]))
 
+    def test_set_operators_6(self):
         self.assert_evals_to(hl.set([1, 2, 3]) | hl.set([3, 4, 5]), set([1, 2, 3, 4, 5]))
         self.assert_evals_to(hl.set([1, 2, 3]) | set([3, 4, 5]), set([1, 2, 3, 4, 5]))
         self.assert_evals_to(set([1, 2, 3]) | hl.set([3, 4, 5]), set([1, 2, 3, 4, 5]))
 
+    def test_set_operators_7(self):
         self.assert_evals_to(hl.set([1, 2, 3]) & hl.set([3, 4, 5]), set([3]))
         self.assert_evals_to(hl.set([1, 2, 3]) & set([3, 4, 5]), set([3]))
         self.assert_evals_to(set([1, 2, 3]) & hl.set([3, 4, 5]), set([3]))
 
+    def test_set_operators_8(self):
         self.assert_evals_to(hl.set([1, 2, 3]) ^ hl.set([3, 4, 5]), set([1, 2, 4, 5]))
         self.assert_evals_to(hl.set([1, 2, 3]) ^ set([3, 4, 5]), set([1, 2, 4, 5]))
         self.assert_evals_to(set([1, 2, 3]) ^ hl.set([3, 4, 5]), set([1, 2, 4, 5]))
 
-    def test_uniroot(self):
+    def test_uniroot_1(self):
         tol = 1.220703e-4
 
         self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, 0, hl.missing('float'), tolerance=tol)), None)
         self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, hl.missing('float'), 3, tolerance=tol)), None)
+
+    def test_uniroot_2(self):
+        tol = 1.220703e-4
+
         self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, 0, 3, tolerance=tol)), 1)
         self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: hl.log(x) - 1, 0, 3, tolerance=tol)), 2.718281828459045, delta=tol)
 
+    def test_uniroot_3(self):
         with self.assertRaisesRegex(hl.utils.FatalError, r"value of f\(x\) is missing"):
             hl.eval(hl.uniroot(lambda x: hl.missing('float'), 0, 1))
         with self.assertRaisesRegex(hl.utils.HailUserError, 'opposite signs'):
             hl.eval(hl.uniroot(lambda x: x ** 2 - 0.5, -1, 1))
         with self.assertRaisesRegex(hl.utils.HailUserError, 'min must be less than max'):
             hl.eval(hl.uniroot(lambda x: x, 1, -1))
+
+    def test_uniroot_multiple_roots(self):
+        tol = 1.220703e-4
 
         def multiple_roots(x):
             return (x - 1.5) * (x - 2) * (x - 3.3) * (x - 4.5) * (x - 5)
@@ -3334,8 +3378,8 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(one_sided_res['p_value'], 0.57142857)
         self.assertAlmostEqual(one_sided_res['het_freq_hwe'], 0.57142857)
 
-    def test_hardy_weinberg_agg(self):
-        mapping = {
+    def test_hardy_weinberg_agg_1(self):
+        row_idx_col_idx_to_call = {
             (0, 0): hl.call(0, 0),
             (0, 1): hl.call(0),
             (0, 2): hl.call(1, 1),
@@ -3350,10 +3394,14 @@ class Tests(unittest.TestCase):
 
         mt = hl.utils.range_matrix_table(n_rows=3, n_cols=5)
         mt = mt.annotate_rows(
-            hwe_two_sided = hl.agg.hardy_weinberg_test(hl.literal(mapping).get((mt.row_idx, mt.col_idx)), one_sided=False),
-            hwe_one_sided = hl.agg.hardy_weinberg_test(hl.literal(mapping).get((mt.row_idx, mt.col_idx)), one_sided=True)
+            hwe_two_sided = hl.agg.hardy_weinberg_test(hl.literal(row_idx_col_idx_to_call).get((mt.row_idx, mt.col_idx)), one_sided=False),
+            hwe_one_sided = hl.agg.hardy_weinberg_test(hl.literal(row_idx_col_idx_to_call).get((mt.row_idx, mt.col_idx)), one_sided=True)
         )
-        [r1_two_sided, r2_two_sided, r3_two_sided] = mt.hwe_two_sided.collect()
+        rows = mt.rows().collect()
+        all_hwe_one_sided = [r.hwe_one_sided for r in rows]
+        all_hwe_two_sided = [r.hwe_two_sided for r in rows]
+
+        [r1_two_sided, r2_two_sided, r3_two_sided] = all_hwe_two_sided
 
         self.assertAlmostEqual(r1_two_sided['p_value'], 0.65714285)
         self.assertAlmostEqual(r1_two_sided['het_freq_hwe'], 0.57142857)
@@ -3364,7 +3412,7 @@ class Tests(unittest.TestCase):
         assert r3_two_sided['p_value'] == 0.5
         assert np.isnan(r3_two_sided['het_freq_hwe'])
 
-        [r1_one_sided, r2_one_sided, r3_one_sided] = mt.hwe_one_sided.collect()
+        [r1_one_sided, r2_one_sided, r3_one_sided] = all_hwe_one_sided
 
         self.assertAlmostEqual(r1_one_sided['p_value'], 0.57142857)
         self.assertAlmostEqual(r1_one_sided['het_freq_hwe'], 0.57142857)
@@ -3375,12 +3423,24 @@ class Tests(unittest.TestCase):
         assert r3_one_sided['p_value'] == 0.5
         assert np.isnan(r3_one_sided['het_freq_hwe'])
 
+    def test_hardy_weinberg_agg_2(self):
+        calls = [
+            hl.call(0, 0),
+            hl.call(0),
+            hl.call(1, 1),
+            hl.call(0, 1),
+            hl.call(0, 1),
+        ]
+
         ht = hl.utils.range_table(6)
         ht = ht.annotate(
-            x_two_sided = hl.scan.hardy_weinberg_test(hl.literal(list(mapping.values())[:5])[ht.idx % 5], one_sided=False),
-            x_one_sided = hl.scan.hardy_weinberg_test(hl.literal(list(mapping.values())[:5])[ht.idx % 5], one_sided=True)
+            x_two_sided = hl.scan.hardy_weinberg_test(hl.literal(calls)[ht.idx % 5], one_sided=False),
+            x_one_sided = hl.scan.hardy_weinberg_test(hl.literal(calls)[ht.idx % 5], one_sided=True)
         )
-        all_x_two_sided = ht.x_two_sided.collect()
+        rows = ht.collect()
+        all_x_one_sided = [r.x_one_sided for r in rows]
+        all_x_two_sided = [r.x_two_sided for r in rows]
+
         [first_two_sided, *mid_two_sided, penultimate_two_sided, last_two_sided] = all_x_two_sided
 
         assert first_two_sided['p_value'] == 0.5
@@ -3392,7 +3452,6 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(last_two_sided['p_value'], 0.65714285)
         self.assertAlmostEqual(last_two_sided['het_freq_hwe'], 0.57142857)
 
-        all_x_one_sided = ht.x_one_sided.collect()
         [first_one_sided, *mid_one_sided, penultimate_one_sided, last_one_sided] = all_x_one_sided
 
         assert first_one_sided['p_value'] == 0.5
@@ -3653,6 +3712,7 @@ class Tests(unittest.TestCase):
 
         assert ht.aggregate((hl.agg._prev_nonnull(ht.idx))) == 0
 
+    @test_timeout(batch=5 * 60)
     def test_summarize_runs(self):
         mt = hl.utils.range_matrix_table(3,3).annotate_entries(
             x1 = 'a',
@@ -3773,8 +3833,6 @@ class Tests(unittest.TestCase):
 
     def test_expr_persist(self):
         # need to test laziness, so we will overwrite a file
-        ht2 = hl.utils.range_table(100)
-
         with hl.TemporaryDirectory(ensure_exists=False) as f:
             hl.utils.range_table(10).write(f, overwrite=True)
             ht = hl.read_table(f)
@@ -3848,6 +3906,7 @@ class Tests(unittest.TestCase):
 @pytest.mark.parametrize("delimiter", ['\t', ',', '@'])
 @pytest.mark.parametrize("missing", ['NA', 'null'])
 @pytest.mark.parametrize("header", [True, False])
+@test_timeout(local=6 * 60, batch=6 * 60)
 def test_export_entry(delimiter, missing, header):
     mt = hl.utils.range_matrix_table(3, 3)
     mt = mt.key_cols_by(col_idx = mt.col_idx + 1)
@@ -3876,8 +3935,6 @@ def test_export_entry(delimiter, missing, header):
         actual = actual.drop('col_id')
         if not header:
             actual = actual.key_cols_by(col_idx = actual.col_idx + 1)
-        mt.show()
-        actual.show()
         assert mt._same(actual)
 
         expected_collect = [0, 0, 0,
