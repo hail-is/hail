@@ -1770,14 +1770,14 @@ class ImportMatrixTableTests(unittest.TestCase):
     def test_import_matrix_table_3(self):
         hl.import_matrix_table(
             doctest_resource('matrix3.tsv'),
-            row_fields=row_fields={'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32},
+            row_fields={'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32},
             no_header=True
         )._force_count_rows()
 
     def test_import_matrix_table_4(self):
         hl.import_matrix_table(
             doctest_resource('matrix3.tsv'),
-            row_fields=row_fields={'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32},
+            row_fields={'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32},
             no_header=True,
             row_key=[]
         )._force_count_rows()
