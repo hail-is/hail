@@ -145,6 +145,18 @@ def skip_when_service_backend(reason='skipping for Service Backend'):
     return wrapper
 
 
+def skip_when_service_backend_in_azure(reason='skipping for Service Backend in Azure'):
+    from hail.backend.service_backend import ServiceBackend
+    @decorator
+    def wrapper(func, *args, **kwargs):
+        if isinstance(hl.utils.java.Env.backend(), ServiceBackend) and os.environ.get('HAIL_CLOUD') == 'azure':
+            raise unittest.SkipTest(reason)
+        else:
+            return func(*args, **kwargs)
+
+    return wrapper
+
+
 def skip_unless_service_backend(reason='only relevant to service backend', clouds=None):
     from hail.backend.service_backend import ServiceBackend
     @decorator

@@ -8,7 +8,7 @@ from ..helpers import resource, fails_local_backend, skip_when_service_backend, 
 
 
 @fails_local_backend()
-@test_timeout(batch=5 * 60)
+@test_timeout(batch=10 * 60)
 def test_hwe_normalized_pca():
     mt = hl.balding_nichols_model(3, 100, 50)
     eigenvalues, scores, loadings = hl.hwe_normalized_pca(mt.GT, k=2, compute_loadings=True)

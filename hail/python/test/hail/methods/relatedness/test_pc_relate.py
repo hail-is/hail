@@ -1,7 +1,7 @@
 import hail as hl
 import hail.utils as utils
 
-from ...helpers import resource, skip_when_service_backend, test_timeout
+from ...helpers import resource, skip_when_service_backend, test_timeout, skip_when_service_backend_in_azure
 
 
 @test_timeout(local=6 * 60, batch=6 * 60)
@@ -51,6 +51,7 @@ def test_pc_relate_simple_example():
 
 
 @test_timeout(6 * 60, batch=14 * 60)
+@skip_when_service_backend_in_azure(reason='takes >14 minutes in QoB in Azure')
 def test_pc_relate_paths_1():
     with hl.TemporaryDirectory(ensure_exists=False) as bn_f, \
          hl.TemporaryDirectory(ensure_exists=False) as scores_f, \

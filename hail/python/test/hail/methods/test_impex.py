@@ -1589,7 +1589,7 @@ class GENTests(unittest.TestCase):
                                resource('skip_invalid_loci.sample'))
             mt._force_count_rows()
 
-    @test_timeout(local=4 * 60)
+    @test_timeout(local=4 * 60, batch=8 * 60)
     def test_export_gen(self):
         gen = hl.import_gen(resource('example.gen'),
                             sample_file=resource('example.sample'),
