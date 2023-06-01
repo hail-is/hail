@@ -33,7 +33,7 @@ def test_show_5():
 
 
 def test_show_rows_table():
-    t = hl.balding_nichols_model(3, 10, 10).rows()A
+    t = hl.balding_nichols_model(3, 10, 10).rows()
     t.af.show()
     (t.af * 3).show()
 
