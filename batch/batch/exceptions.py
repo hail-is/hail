@@ -51,6 +51,7 @@ class BatchOperationAlreadyCompletedError(Exception):
 
 class QueryError(BatchUserError):
     def __init__(self, message):
+        super().__init__(message, 'error')
         self.message = message
 
     def http_response(self):

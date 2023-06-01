@@ -109,7 +109,7 @@ def pad_operator(s: str) -> str:
 
 
 def pad_maybe_operator(s: str) -> str:
-    for symbol, op in symbols_to_operator.items():
+    for symbol in symbols_to_operator:
         if symbol in s:
             return pad_operator(s)
     return s
