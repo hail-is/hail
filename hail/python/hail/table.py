@@ -3665,11 +3665,11 @@ class Table(ExprContainer):
 
         t = left.join(right, how='outer')
 
-        globals_same_expr = _values_similar(t[left_global_value], t[right_global_value], tolerance, absolute)
-        globals_same, left_globals, right_globals, mismatched_rows = t.aggregate(hl.tuple((
-            globals_same_expr,
-            hl.or_missing(~globals_same, g[left_global_value]),
-            hl.or_missing(~globals_same, g[right_global_value]),
+        mismatched_globals, mismatched_rows = t.aggregate(hl.tuple((
+            hl.or_missing(
+                ~_values_similar(t[left_global_value], t[right_global_value], tolerance, absolute),
+                hl.struct(left=t[left_global_value], right=t[right_global_value])
+            ),
             hl.agg.filter(
                 ~hl.all(
                     hl.is_defined(t[left_value]),
@@ -3683,8 +3683,8 @@ class Table(ExprContainer):
             )
         )))
 
-        if not globals_same:
-            print(f'Table._same: globals differ:\n{pprint.pformat(left_globals)}\n{pprint.pformat(right_globals)}')
+        if mismatched_globals is not None:
+            print(f'Table._same: globals differ:\n{pprint.pformat(mismatched_globals.left)}\n{pprint.pformat(mismatched_globals.right)}')
             return False
 
         if len(mismatched_rows) > 0:
