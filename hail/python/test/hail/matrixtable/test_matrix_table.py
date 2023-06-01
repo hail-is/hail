@@ -168,7 +168,7 @@ class Tests(unittest.TestCase):
         mt = mt.filter_entries((mt.z1 < 5) & (mt.y1 == 3) & (mt.x1 == 5) & (mt.foo == 2))
         mt.count_rows()
 
-    def test_aggregate(self):
+    def test_aggregate_rows(self):
         mt = self.get_mt()
 
         mt = mt.annotate_globals(foo=5)
@@ -177,23 +177,39 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_entries(z1=mt.DP)
 
         qv = mt.aggregate_rows(agg.count())
-        qs = mt.aggregate_cols(agg.count())
-        qg = mt.aggregate_entries(agg.count())
-
-        self.assertIsNotNone(mt.aggregate_entries(hl.agg.take(mt.s, 1)[0]))
-
         self.assertEqual(qv, 346)
+
+        mt.aggregate_rows(hl.Struct(x=agg.collect(mt.locus.contig),
+                                    y=agg.collect(mt.x1)))
+
+    def test_aggregate_cols(self):
+        mt = self.get_mt()
+
+        mt = mt.annotate_globals(foo=5)
+        mt = mt.annotate_rows(x1=agg.count())
+        mt = mt.annotate_cols(y1=agg.count())
+        mt = mt.annotate_entries(z1=mt.DP)
+
+        qs = mt.aggregate_cols(agg.count())
         self.assertEqual(qs, 100)
-        self.assertEqual(qg, qv * qs)
 
-        qvs = mt.aggregate_rows(hl.Struct(x=agg.collect(mt.locus.contig),
-                                           y=agg.collect(mt.x1)))
+        mt.aggregate_cols(hl.Struct(x=agg.collect(mt.s),
+                                    y=agg.collect(mt.y1)))
 
-        qss = mt.aggregate_cols(hl.Struct(x=agg.collect(mt.s),
-                                           y=agg.collect(mt.y1)))
+    def test_aggregate_entries(self):
+        mt = self.get_mt()
 
-        qgs = mt.aggregate_entries(hl.Struct(x=agg.filter(False, agg.collect(mt.y1)),
-                                              y=agg.filter(hl.rand_bool(0.1), agg.collect(mt.GT))))
+        mt = mt.annotate_globals(foo=5)
+        mt = mt.annotate_rows(x1=agg.count())
+        mt = mt.annotate_cols(y1=agg.count())
+        mt = mt.annotate_entries(z1=mt.DP)
+
+        qg = mt.aggregate_entries(agg.count())
+        self.assertEqual(qg, 34600)
+
+        mt.aggregate_entries(hl.Struct(x=agg.filter(False, agg.collect(mt.y1)),
+                                       y=agg.filter(hl.rand_bool(0.1), agg.collect(mt.GT))))
+        self.assertIsNotNone(mt.aggregate_entries(hl.agg.take(mt.s, 1)[0]))
 
     def test_aggregate_rows_array_agg(self):
         mt = hl.utils.range_matrix_table(10, 10)
