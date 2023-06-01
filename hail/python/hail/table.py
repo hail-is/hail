@@ -3673,7 +3673,7 @@ class Table(ExprContainer):
             hl.agg.filter(
                 ~hl.all(
                     hl.is_defined(t[left_value]),
-                    hl.is_defined(t[right_value])
+                    hl.is_defined(t[right_value]),
                     _values_similar(t[left_value], t[right_value], tolerance, absolute),
                 ),
                 hl.agg.take(
