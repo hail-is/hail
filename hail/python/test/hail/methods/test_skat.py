@@ -556,6 +556,7 @@ def test_skat_5():
             logistic=(25, 1e-6))._force_count()
 
 
+@test_timeout(local=4 * 60)
 def test_linear_skat_produces_same_results_as_old_scala_method():
     mt = hl.import_vcf(resource('sample2.vcf'))
     covariates_ht = hl.import_table(

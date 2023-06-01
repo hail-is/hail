@@ -1749,7 +1749,7 @@ class LocusIntervalTests(unittest.TestCase):
 
 
 class ImportMatrixTableTests(unittest.TestCase):
-    def test_import_matrix_table(self):
+    def test_import_matrix_table_1(self):
         mt = hl.import_matrix_table(doctest_resource('matrix1.tsv'),
                                     row_fields={'Barcode': hl.tstr, 'Tissue': hl.tstr, 'Days': hl.tfloat32})
         self.assertEqual(mt['Barcode']._indices, mt._row_indices)
@@ -1760,16 +1760,27 @@ class ImportMatrixTableTests(unittest.TestCase):
 
         mt.count()
 
-        row_fields = {'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32}
-        hl.import_matrix_table(doctest_resource('matrix2.tsv'),
-                               row_fields=row_fields, row_key=[])._force_count_rows()
-        hl.import_matrix_table(doctest_resource('matrix3.tsv'),
-                               row_fields=row_fields,
-                               no_header=True)._force_count_rows()
-        hl.import_matrix_table(doctest_resource('matrix3.tsv'),
-                               row_fields=row_fields,
-                               no_header=True,
-                               row_key=[])._force_count_rows()
+    def test_import_matrix_table_2(self):
+        hl.import_matrix_table(
+            doctest_resource('matrix2.tsv'),
+            row_fields={'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32},
+            row_key=[]
+        )._force_count_rows()
+
+    def test_import_matrix_table_3(self):
+        hl.import_matrix_table(
+            doctest_resource('matrix3.tsv'),
+            row_fields=row_fields={'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32},
+            no_header=True
+        )._force_count_rows()
+
+    def test_import_matrix_table_4(self):
+        hl.import_matrix_table(
+            doctest_resource('matrix3.tsv'),
+            row_fields=row_fields={'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32},
+            no_header=True,
+            row_key=[]
+        )._force_count_rows()
 
     def test_import_matrix_table_no_cols(self):
         fields = {'Chromosome': hl.tstr, 'Position': hl.tint32, 'Ref': hl.tstr, 'Alt': hl.tstr, 'Rand1': hl.tfloat64, 'Rand2': hl.tfloat64}
