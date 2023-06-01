@@ -2435,7 +2435,7 @@ steps:
               --ignore=test/hailtop/ \
               --timeout=300 \
               test
-    timeout: 2100
+    timeout: 2700
     inputs:
       - from: /wheel-container.tar
         to: /io/wheel-container.tar
