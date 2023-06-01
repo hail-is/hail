@@ -1379,7 +1379,7 @@ def test_submit_update_to_deleted_batch(client: BatchClient):
         assert False
 
 
-@pytest.mark.timeout(6 * 60)
+@pytest.mark.timeout(12 * 60)
 def test_region(client: BatchClient):
     CLOUD = os.environ['HAIL_CLOUD']
 

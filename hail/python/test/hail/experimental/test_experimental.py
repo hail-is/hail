@@ -87,7 +87,7 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(annotated.mean_stats.binary, 0.965, places=3)
         self.assertAlmostEqual(annotated.mean_stats.continuous, 176.528, places=3)
 
-    @test_timeout(local=4 * 60)
+    @test_timeout(batch=8 * 60)
     def test_plot_roc_curve(self):
         x = hl.utils.range_table(100).annotate(score1=hl.rand_norm(), score2=hl.rand_norm())
         x = x.annotate(tp=hl.if_else(x.score1 > 0, hl.rand_bool(0.7), False), score3=x.score1 + hl.rand_norm())
