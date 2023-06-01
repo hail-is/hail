@@ -3665,18 +3665,32 @@ class Table(ExprContainer):
 
         t = left.join(right, how='outer')
 
-        if not hl.eval(_values_similar(t[left_global_value], t[right_global_value], tolerance, absolute)):
-            g = hl.eval(t.globals)
-            print(f'Table._same: globals differ:\n{pprint.pformat(g[left_global_value])}\n{pprint.pformat(g[right_global_value])}')
+        globals_same_expr = _values_similar(t[left_global_value], t[right_global_value], tolerance, absolute)
+        globals_same, left_globals, right_globals, mismatched_rows = t.aggregate(hl.tuple((
+            globals_same = globals_same_expr,
+            left_global_value = hl.or_missing(~globals_same, g[left_global_value]),
+            right_global_value = hl.or_missing(~globals_same, g[right_global_value]),
+            mismatched_rows = hl.agg.filter(
+                ~hl.all(
+                    hl.is_defined(t[left_value]),
+                    hl.is_defined(t[right_value])
+                    _values_similar(t[left_value], t[right_value], tolerance, absolute),
+                ),
+                hl.agg.take(
+                    hl.struct(left=t[left_value], right=t[right_value]),
+                    10
+                )
+            )
+        )))
+
+        if not globals_same:
+            print(f'Table._same: globals differ:\n{pprint.pformat(left_globals])}\n{pprint.pformat(right_globals)}')
             return False
 
-        if not t.all(hl.is_defined(t[left_value]) & hl.is_defined(t[right_value])
-                     & _values_similar(t[left_value], t[right_value], tolerance, absolute)):
+        if len(mismatched_rows) > 0:
             print('Table._same: rows differ:')
-            t = t.filter(~ _values_similar(t[left_value], t[right_value], tolerance, absolute))
-            bad_rows = t.take(10)
-            for r in bad_rows:
-                print(f'  Row mismatch at key={r._key}:\n    Left:\n{pprint.pformat(r[left_value])}\n    Right:\n{pprint.pformat(r[right_value])}')
+            for r in mismatched_rows:
+                print(f'  Row mismatch at key={r._key}:\n    Left:\n{pprint.pformat(r.left)}\n    Right:\n{pprint.pformat(r.right)}')
             return False
 
         return True
