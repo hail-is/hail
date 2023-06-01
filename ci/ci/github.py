@@ -65,15 +65,16 @@ WHERE sha = %s
     return record is not None
 
 
-async def send_zulip_deploy_failure_message(message: str, db: Database, sha: str):
+async def send_zulip_deploy_failure_message(message: str, db: Database, sha: Optional[str]):
     if zulip_client is None:
         log.info('Zulip integration is not enabled. No config file found')
         return
 
-    alerted = await sha_already_alerted(db, sha)
-    if alerted:
-        log.info(f'Already alerted failure to Zulip for sha {sha}')
-        return
+    if sha is not None:
+        alerted = await sha_already_alerted(db, sha)
+        if alerted:
+            log.info(f'Already alerted failure to Zulip for sha {sha}')
+            return
 
     request = {
         'type': 'stream',
@@ -84,12 +85,13 @@ async def send_zulip_deploy_failure_message(message: str, db: Database, sha: str
     result = zulip_client.send_message(request)
     log.info(result)
 
-    await db.execute_insertone(
-        '''
+    if sha is not None:
+        await db.execute_insertone(
+            '''
 INSERT INTO alerted_failed_shas (sha) VALUES (%s)
 ''',
-        (sha,),
-    )
+            (sha,),
+        )
 
 
 class Repo:
