@@ -43,7 +43,7 @@ charset-normalizer==3.1.0
     #   requests
 commonmark==0.9.1
     # via rich
-cryptography==40.0.2
+cryptography==41.0.0
     # via
     #   azure-identity
     #   azure-storage-blob
