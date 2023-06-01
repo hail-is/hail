@@ -1055,42 +1055,61 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_rows(r=hl.array(rows)[mt.row_idx]).key_rows_by('r')
         return mt, globe, sample_ids, entries, rows, sorted_rows
 
-    def test_to_table_on_various_fields_1(self):
-        mt, globe, sample_ids, entries, _, sorted_rows = self.get_example_mt_for_to_table_on_various_fields()
+    def test_to_table_on_global_and_sample_fields(self):
+        mt, globe, sample_ids, _, _, _ = self.get_example_mt_for_to_table_on_various_fields()
+
         self.assertEqual(mt.globe.collect(), [globe])
 
         self.assertEqual(mt.s.collect(), sample_ids)
         self.assertEqual((mt.s + '1').collect(), [s + '1' for s in sample_ids])
         self.assertEqual(('1' + mt.s).collect(), ['1' + s for s in sample_ids])
         self.assertEqual(mt.s.take(1), [sample_ids[0]])
+
+    def test_to_table_on_entry_fields(self):
+        mt, _, _, entries, _, _ = self.get_example_mt_for_to_table_on_various_fields()
         self.assertEqual(mt.e.collect(), entries * 3)
         self.assertEqual(mt.e.take(1), [entries[0]])
+
+    def test_to_table_on_row_fields(self):
+        mt, _, _, _, _, sorted_rows = self.get_example_mt_for_to_table_on_various_fields()
         self.assertEqual(mt.row_idx.collect(), [2, 1, 0])
         self.assertEqual(mt.r.collect(), sorted_rows)
         self.assertEqual(mt.r.take(1), [sorted_rows[0]])
 
-    def test_to_table_on_various_fields_2(self):
-        mt, _, sample_ids, entries, rows, sorted_rows = self.get_example_mt_for_to_table_on_various_fields()
+    def test_to_table_on_col_and_col_key(self):
+        mt, _, sample_ids, _, _, _ = self.get_example_mt_for_to_table_on_various_fields()
         self.assertEqual(mt.col_key.collect(),
                          [hl.Struct(s=s) for s in sample_ids])
         self.assertEqual(mt.col.collect(),
                          [hl.Struct(s=s, col_idx=i) for i, s in enumerate(sample_ids)])
+
+    def test_to_table_on_row_and_row_key(self):
+        mt, _, _, _, rows, sorted_rows = self.get_example_mt_for_to_table_on_various_fields()
         self.assertEqual(mt.row_key.collect(),
                          [hl.Struct(r=r) for r in sorted_rows])
         self.assertEqual(mt.row.collect(),
                          sorted([hl.Struct(r=r, row_idx=i) for i, r in enumerate(rows)],
                                 key=lambda x: x.r))
+
+    def test_to_table_on_entry(self):
+        mt, _, _, entries, _, sorted_rows = self.get_example_mt_for_to_table_on_various_fields()
         self.assertEqual(mt.entry.collect(),
                          [hl.Struct(e=e)
                           for _ in sorted_rows
                           for e in entries])
 
-    def test_to_table_on_various_fields_3(self):
-        mt, _, sample_ids, entries, _, sorted_rows = self.get_example_mt_for_to_table_on_various_fields()
+    def test_to_table_on_cols_method(self):
+        mt, _, sample_ids, _, _, _ = self.get_example_mt_for_to_table_on_various_fields()
         self.assertEqual(mt.cols().s.collect(), sorted(sample_ids))
         self.assertEqual(mt.cols().s.take(1), [sorted(sample_ids)[0]])
+
+    def test_to_table_on_entries_method(self):
+        mt, _, _, entries, _, _ = self.get_example_mt_for_to_table_on_various_fields()
         self.assertEqual(mt.entries().e.collect(), sorted(entries) * 3)
         self.assertEqual(mt.entries().e.take(1), [sorted(entries)[0]])
+
+    def test_to_table_on_rows_method(self):
+        mt, _, _, _, _, sorted_rows = self.get_example_mt_for_to_table_on_various_fields()
         self.assertEqual(mt.rows().row_idx.collect(), [2, 1, 0])
         self.assertEqual(mt.rows().r.collect(), sorted_rows)
         self.assertEqual(mt.rows().r.take(1), [sorted_rows[0]])
