@@ -3684,7 +3684,7 @@ class Table(ExprContainer):
         )))
 
         if not globals_same:
-            print(f'Table._same: globals differ:\n{pprint.pformat(left_globals])}\n{pprint.pformat(right_globals)}')
+            print(f'Table._same: globals differ:\n{pprint.pformat(left_globals)}\n{pprint.pformat(right_globals)}')
             return False
 
         if len(mismatched_rows) > 0:
