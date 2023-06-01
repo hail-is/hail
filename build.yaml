@@ -1969,6 +1969,9 @@ steps:
       - name: fix-default-namespace-record
         script: /io/sql/fix-default-namespace.py
         online: true
+      - name: record-failure-notifications
+        script: /io/sql/record-failure-notifications.sql
+        online: true
     inputs:
       - from: /repo/ci/sql
         to: /io/sql
