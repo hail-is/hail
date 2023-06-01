@@ -3667,10 +3667,10 @@ class Table(ExprContainer):
 
         globals_same_expr = _values_similar(t[left_global_value], t[right_global_value], tolerance, absolute)
         globals_same, left_globals, right_globals, mismatched_rows = t.aggregate(hl.tuple((
-            globals_same = globals_same_expr,
-            left_global_value = hl.or_missing(~globals_same, g[left_global_value]),
-            right_global_value = hl.or_missing(~globals_same, g[right_global_value]),
-            mismatched_rows = hl.agg.filter(
+            globals_same_expr,
+            hl.or_missing(~globals_same, g[left_global_value]),
+            hl.or_missing(~globals_same, g[right_global_value]),
+            hl.agg.filter(
                 ~hl.all(
                     hl.is_defined(t[left_value]),
                     hl.is_defined(t[right_value])
