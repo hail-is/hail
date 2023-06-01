@@ -1071,7 +1071,7 @@ def test_pool_highcpu_instance(client: BatchClient):
 
 
 @pytest.mark.timeout(6 * 60)
-@pytest.mark.xfail(strict=True, reason='prices changed in Azure 2023-06-01')
+@pytest.mark.xfail(os.environ.get('HAIL_CLOUD') == 'azure', strict=True, reason='prices changed in Azure 2023-06-01')
 def test_pool_highcpu_instance_cheapest(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25', 'memory': '50Mi'}
