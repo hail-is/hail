@@ -1587,8 +1587,6 @@ class Tests(unittest.TestCase):
         assert [[x * y for x in range(0, 10)] for y in range(0, 10)] == localized.entries.collect()
         assert range(0, 10) == localized.cols.collect()
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_multi_write(self):
         mt = self.get_mt()
         f = new_temp_file()
@@ -1760,8 +1758,6 @@ class Tests(unittest.TestCase):
         mt.write(f)
         assert hl.read_matrix_table(f)._same(mt)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_matrix_multi_write_range(self):
         mts = [
             hl.utils.range_matrix_table(11, 27, n_partitions=10),

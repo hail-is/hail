@@ -760,6 +760,9 @@ object LowerTableIR {
       case TableWrite(child, writer) =>
         writer.lower(ctx, lower(child), tcoerce[RTable](analyses.requirednessAnalysis.lookup(child)))
 
+      case TableMultiWrite(children, writer) =>
+        writer.lower(ctx, children.map(child => (lower(child), tcoerce[RTable](analyses.requirednessAnalysis.lookup(child)))))
+
       case node if node.children.exists(_.isInstanceOf[TableIR]) =>
         throw new LowererUnsupportedOperation(s"IR nodes with TableIR children must be defined explicitly: \n${ Pretty(ctx, node) }")
     }
