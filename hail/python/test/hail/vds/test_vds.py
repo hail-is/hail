@@ -43,8 +43,6 @@ def test_validate():
             vds.variant_data).validate()
 
 
-@fails_local_backend()
-@fails_service_backend()
 def test_multi_write():
     vds1 = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
     to_keep = vds1.variant_data.filter_cols(vds1.variant_data.s == 'HG00187').cols()
