@@ -12,17 +12,16 @@ import scala.language.higherKinds
 
 object LowerOrInterpretNonCompilable {
 
-  def apply[M[_]: MonadLower](ctx: ExecuteContext, ir: BaseIR): M[BaseIR] = {
+  def apply[M[_]: MonadLower](ir: BaseIR): M[BaseIR] = {
 
     def evaluate(value: IR): M[IR] =
     for {
       preTime <- MonadLower[M].pure(System.nanoTime())
-      result <- CanLowerEfficiently(ctx, value) match {
+      result <- CanLowerEfficiently(value) match {
         case Some(failReason) =>
           log.info(s"LowerOrInterpretNonCompilable: cannot efficiently lower query: $failReason")
           log.info(s"interpreting non-compilable result: ${ value.getClass.getSimpleName }")
-          MonadLower[M].pure[IR] {
-            val v = Interpret.alreadyLowered(ctx, value)
+          Interpret.alreadyLowered(value).map { v =>
             if (value.typ == TVoid) Begin(FastIndexedSeq())
             else Literal.coerce(value.typ, v)
           }
@@ -30,9 +29,9 @@ object LowerOrInterpretNonCompilable {
           log.info(s"LowerOrInterpretNonCompilable: whole stage code generation is a go!")
           log.info(s"lowering result: ${ value.getClass.getSimpleName }")
           for {
-            fullyLowered <- LowerToDistributedArrayPass(DArrayLowering.All)(ctx, value)
+            fullyLowered <- LowerToDistributedArrayPass(DArrayLowering.All)(value)
             _ = log.info(s"compiling and evaluating result: ${ value.getClass.getSimpleName }")
-            ir <- CompileAndEvaluate.evalToIR(ctx, fullyLowered.asInstanceOf[IR],  optimize = true)
+            ir <- CompileAndEvaluate.evalToIR(fullyLowered.asInstanceOf[IR],  optimize = true)
           } yield ir
       }
       _ = log.info(s"took ${ formatTime(System.nanoTime() - preTime) }")

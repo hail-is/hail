@@ -3,7 +3,6 @@ package is.hail.expr.ir.lowering
 import cats.implicits.toFunctorOps
 import cats.syntax.all._
 import cats.{Applicative, Id}
-import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.agg.Extract
 import is.hail.expr.ir.analyses.SemanticHash
@@ -31,16 +30,16 @@ trait LoweringPass {
   val after: IRState
   val context: String
 
-  final def apply[M[_]](ctx: ExecuteContext, ir: BaseIR)(implicit M: MonadLower[M]): M[BaseIR] =
-    ctx.timer.timeM(context) {
-      ctx.timer.time("Verify")(before.verify(ir))
-      ctx.timer.timeM("LoweringTransformation")(transform(ctx, ir)).map { loweredIr =>
-        ctx.timer.time("Verify")(after.verify(loweredIr))
-        loweredIr
-      }
+  final def apply[M[_]](ir: BaseIR)(implicit M: MonadLower[M]): M[BaseIR] =
+    M.timeM(context) {
+      for {
+        _ <- M.time("Verify")(before.verify(ir))
+        lowered <- M.timeM("LoweringTransformation")(transform(ir))
+        _ <- M.time("Verify")(after.verify(lowered))
+      } yield lowered
     }
 
-  protected def transform[M[_]: MonadLower](ctx: ExecuteContext, ir: BaseIR): M[BaseIR]
+  protected def transform[M[_]: MonadLower](ir: BaseIR): M[BaseIR]
 }
 
 case class OptimizePass(_context: String) extends LoweringPass {
@@ -48,8 +47,8 @@ case class OptimizePass(_context: String) extends LoweringPass {
   val before: IRState = AnyIR
   val after: IRState = AnyIR
 
-  override protected def transform[M[_]: MonadLower](ctx: ExecuteContext, ir: BaseIR): M[BaseIR] =
-    Applicative[M].pure { Optimize(ir, context, ctx) }
+  override protected def transform[M[_]: MonadLower](ir: BaseIR): M[BaseIR] =
+    MonadLower[M].ctx.ask.map(Optimize(ir, context, _))
 }
 
 case object LowerMatrixToTablePass extends LoweringPass {
@@ -57,8 +56,8 @@ case object LowerMatrixToTablePass extends LoweringPass {
   val after: IRState = MatrixLoweredToTable
   val context: String = "LowerMatrixToTable"
 
-  override protected def transform[M[_]: MonadLower](ctx: ExecuteContext, ir: BaseIR): M[BaseIR] =
-    LowerMatrixIR(ctx, ir)
+  override protected def transform[M[_]: MonadLower](ir: BaseIR): M[BaseIR] =
+    LowerMatrixIR(ir)
 }
 
 case object LiftRelationalValuesToRelationalLets extends LoweringPass {
@@ -66,7 +65,7 @@ case object LiftRelationalValuesToRelationalLets extends LoweringPass {
   val after: IRState = MatrixLoweredToTable
   val context: String = "LiftRelationalValuesToRelationalLets"
 
-  override protected def transform[M[_]: MonadLower](ctx: ExecuteContext, ir: BaseIR): M[BaseIR] =
+  override protected def transform[M[_]: MonadLower](ir: BaseIR): M[BaseIR] =
     Applicative[M].pure {
       LiftRelationalValues(ir)
     }
@@ -77,8 +76,8 @@ case object LegacyInterpretNonCompilablePass extends LoweringPass {
   val after: IRState = ExecutableTableIR
   val context: String = "InterpretNonCompilable"
 
-  override protected def transform[M[_]: MonadLower](ctx: ExecuteContext, ir: BaseIR): M[BaseIR] =
-    LowerOrInterpretNonCompilable(ctx, ir)
+  override protected def transform[M[_]: MonadLower](ir: BaseIR): M[BaseIR] =
+    LowerOrInterpretNonCompilable(ir)
 }
 
 case object LowerOrInterpretNonCompilablePass extends LoweringPass {
@@ -86,8 +85,8 @@ case object LowerOrInterpretNonCompilablePass extends LoweringPass {
   val after: IRState = CompilableIR
   val context: String = "LowerOrInterpretNonCompilable"
 
-  override protected def transform[M[_]: MonadLower](ctx: ExecuteContext, ir: BaseIR): M[BaseIR] =
-    LowerOrInterpretNonCompilable(ctx, ir)
+  override protected def transform[M[_]: MonadLower](ir: BaseIR): M[BaseIR] =
+    LowerOrInterpretNonCompilable(ir)
 }
 
 case class LowerToDistributedArrayPass(t: DArrayLowering.Type) extends LoweringPass {
@@ -95,8 +94,8 @@ case class LowerToDistributedArrayPass(t: DArrayLowering.Type) extends LoweringP
   val after: IRState = CompilableIR
   val context: String = "LowerToDistributedArray"
 
-  override protected def transform[M[_]: MonadLower](ctx: ExecuteContext, ir: BaseIR): M[BaseIR] =
-    LowerToCDA(ir.asInstanceOf[IR], t, ctx).asInstanceOf[M[BaseIR]]
+  override protected def transform[M[_]: MonadLower](ir: BaseIR): M[BaseIR] =
+    LowerToCDA(ir.asInstanceOf[IR], t).asInstanceOf[M[BaseIR]]
 }
 
 case object InlineApplyIR extends LoweringPass {
@@ -104,7 +103,7 @@ case object InlineApplyIR extends LoweringPass {
   val after: IRState = CompilableIRNoApply
   val context: String = "InlineApplyIR"
 
-  override protected def transform[M[_]: MonadLower](ctx: ExecuteContext, ir: BaseIR): M[BaseIR] =
+  override protected def transform[M[_]: MonadLower](ir: BaseIR): M[BaseIR] =
     Applicative[M].pure {
       RewriteBottomUp[Id](ir, {
         case x: ApplyIR => Some(x.explicitNode)
@@ -118,8 +117,8 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
   val after: IRState = EmittableIR
   val context: String = "LowerArrayAggsToRunAggs"
 
-  override protected def transform[M[_]: MonadLower](ctx: ExecuteContext, ir: BaseIR): M[BaseIR] =
-    Applicative[M].pure {
+  override protected def transform[M[_]: MonadLower](ir: BaseIR): M[BaseIR] =
+    MonadLower[M].ctx.reader { ctx =>
       val x = ir.noSharing
       val r = Requiredness(x, ctx)
       RewriteBottomUp[Id](x, {
@@ -171,8 +170,8 @@ case class EvalRelationalLetsPass(passesBelow: LoweringPipeline) extends Lowerin
   val after: IRState = before + NoRelationalLetsState
   val context: String = "EvalRelationalLets"
 
-  override protected def transform[M[_]: MonadLower](ctx: ExecuteContext, ir: BaseIR): M[BaseIR] =
-    EvalRelationalLets(ir, ctx, passesBelow)
+  override protected def transform[M[_]: MonadLower](ir: BaseIR): M[BaseIR] =
+    EvalRelationalLets(ir, passesBelow)
 }
 
 case class LowerAndExecuteShufflesPass(passesBelow: LoweringPipeline) extends LoweringPass {
@@ -180,8 +179,8 @@ case class LowerAndExecuteShufflesPass(passesBelow: LoweringPipeline) extends Lo
   val after: IRState = before + LoweredShuffles
   val context: String = "LowerAndExecuteShuffles"
 
-  override protected def transform[M[_]: MonadLower](ctx: ExecuteContext, ir: BaseIR): M[BaseIR] =
-    LowerAndExecuteShuffles(ir, ctx, passesBelow)
+  override protected def transform[M[_]: MonadLower](ir: BaseIR): M[BaseIR] =
+    LowerAndExecuteShuffles(ir, passesBelow)
 
 }
 
@@ -190,6 +189,10 @@ case object ComputeSemanticHash extends LoweringPass {
   override val after: IRState = AnyIR
   override val context: String = "ComputeSemanticHash"
 
-  override protected def transform[M[_]: MonadLower](ctx: ExecuteContext, ir: BaseIR): M[BaseIR] =
-    MonadLower[M].state.modify(_.copy(semhash = Some(SemanticHash(ctx.fs)(ir)))).as(ir)
+  override protected def transform[M[_]: MonadLower](ir: BaseIR)(implicit M: MonadLower[M]): M[BaseIR] =
+    for {
+      fs <- M.ctx.reader(_.fs)
+      _ <- M.state.modify(_.copy(semhash = Some(SemanticHash(fs)(ir))))
+    }  yield ir
+
 }

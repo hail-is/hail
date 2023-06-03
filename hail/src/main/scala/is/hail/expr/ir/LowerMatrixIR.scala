@@ -1,9 +1,8 @@
 package is.hail.expr.ir
 
-import cats.Applicative
 import cats.implicits.toTraverseOps
 import cats.syntax.all._
-import is.hail.backend.ExecuteContext
+import cats.{Applicative, MonadThrow}
 import is.hail.expr.ir.functions.{WrappedMatrixToTableFunction, WrappedMatrixToValueFunction}
 import is.hail.expr.ir.lowering.MonadLower
 import is.hail.types._
@@ -18,32 +17,30 @@ object LowerMatrixIR {
   val colsField: Symbol = Symbol(colsFieldName)
   val entriesField: Symbol = Symbol(entriesFieldName)
 
-  def apply[M[_]: MonadLower, A <: BaseIR](ctx: ExecuteContext, ir: A): M[BaseIR] =
+  def apply[M[_]: MonadLower, A <: BaseIR](ir: A): M[BaseIR] =
     ir match {
-      case ir: IR => apply(ctx, ir, lowerIR[M], RelationalLet).widen[BaseIR]
-      case ir: TableIR => apply(ctx, ir, lowerTableIR[M], RelationalLetTable).widen[BaseIR]
-      case ir: MatrixIR => apply(ctx, ir, lowerMatrixIR[M], RelationalLetTable).widen[BaseIR]
-      case ir: BlockMatrixIR => apply(ctx, ir, lowerBlockMatrixIR[M], RelationalLetBlockMatrix).widen[BaseIR]
+      case ir: IR => apply(ir, lowerIR[M], RelationalLet).widen[BaseIR]
+      case ir: TableIR => apply(ir, lowerTableIR[M], RelationalLetTable).widen[BaseIR]
+      case ir: MatrixIR => apply(ir, lowerMatrixIR[M], RelationalLetTable).widen[BaseIR]
+      case ir: BlockMatrixIR => apply(ir, lowerBlockMatrixIR[M], RelationalLetBlockMatrix).widen[BaseIR]
     }
 
-  def apply[M[_]: MonadLower, A, B](
-    ctx: ExecuteContext,
-    ir: A,
-    lower: (ExecuteContext, A, BoxedArrayBuilder[(String, IR)]) => M[B],
-    let: (String, IR, B) => B
-  ): M[B] = {
+  def apply[M[_]: MonadLower, A, B](ir: A,
+                                    lower: (A, BoxedArrayBuilder[(String, IR)]) => M[B],
+                                    let: (String, IR, B) => B
+                                   ): M[B] = {
     val ab = new BoxedArrayBuilder[(String, IR)]
-    lower(ctx, ir, ab).map {
+    lower(ir, ab).map {
       ab.result().foldRight(_) { case ((ident, value), body) => let(ident, value, body) }
     }
   }
 
-  private[this] def lowerChildren[M[_]: MonadLower](ctx: ExecuteContext, ir: BaseIR, ab: BoxedArrayBuilder[(String, IR)])
+  private[this] def lowerChildren[M[_]: MonadLower](ir: BaseIR, ab: BoxedArrayBuilder[(String, IR)])
   : M[BaseIR] =
     ir.children.traverse {
-      case vir: IR => lowerIR(ctx, vir, ab).asInstanceOf[M[BaseIR]]
-      case tir: TableIR => lowerTableIR(ctx, tir, ab).asInstanceOf[M[BaseIR]]
-      case bmir: BlockMatrixIR => lowerBlockMatrixIR(ctx, bmir, ab).asInstanceOf[M[BaseIR]]
+      case vir: IR => lowerIR(vir, ab).widen[BaseIR]
+      case tir: TableIR => lowerTableIR(tir, ab).widen[BaseIR]
+      case bmir: BlockMatrixIR => lowerBlockMatrixIR(bmir, ab).widen[BaseIR]
 
       case mir: MatrixIR =>
         throw new RuntimeException(
@@ -88,17 +85,17 @@ object LowerMatrixIR {
   }
 
 
-  private[this] def lowerMatrixIR[M[_]: MonadLower](ctx: ExecuteContext, mir: MatrixIR, ab: BoxedArrayBuilder[(String, IR)])
+  private[this] def lowerMatrixIR[M[_]: MonadLower](mir: MatrixIR, ab: BoxedArrayBuilder[(String, IR)])
   : M[TableIR] = {
     val lowered: M[TableIR] = mir match {
       case RelationalLetMatrixTable(name, value, body) =>
         for {
-          loweredValue <- lowerIR(ctx, value, ab)
-          loweredBody <- lowerMatrixIR(ctx, body, ab)
+          loweredValue <- lowerIR(value, ab)
+          loweredBody <- lowerMatrixIR(body, ab)
         } yield RelationalLetTable(name, loweredValue, loweredBody)
 
       case CastTableToMatrix(child, entries, cols, colKey) =>
-        lowerTableIR(ctx, child, ab).map { lc =>
+        lowerTableIR(child, ab).map { lc =>
           val row = Ref("row", lc.typ.rowType)
           val glob = Ref("global", lc.typ.globalType)
           TableMapRows(
@@ -126,12 +123,12 @@ object LowerMatrixIR {
         }
 
       case MatrixToMatrixApply(child, function) =>
-        lowerMatrixIR(ctx, child, ab).map {
+        lowerMatrixIR(child, ab).map {
           TableToTableApply(_, function.lower())
         }
 
       case MatrixRename(child, globalMap, colMap, rowMap, entryMap) =>
-        lowerMatrixIR(ctx, child, ab).map { t0 =>
+        lowerMatrixIR(child, ab).map { t0 =>
           var t = t0.rename(rowMap, globalMap)
 
           if (colMap.nonEmpty) {
@@ -148,18 +145,18 @@ object LowerMatrixIR {
         }
 
       case MatrixKeyRowsBy(child, keys, isSorted) =>
-        lowerMatrixIR(ctx, child, ab).map(_.keyBy(keys, isSorted))
+        lowerMatrixIR(child, ab).map(_.keyBy(keys, isSorted))
 
       case MatrixFilterRows(child, pred) =>
         for {
-          lc <- lowerMatrixIR(ctx, child, ab)
-          lp <- lowerIR(ctx, pred, ab)
+          lc <- lowerMatrixIR(child, ab)
+          lp <- lowerIR(pred, ab)
         } yield lc.filter(subst(lp, matrixSubstEnv(child)))
 
       case MatrixFilterCols(child, pred) =>
         for {
-          lc <- lowerMatrixIR(ctx, child, ab)
-          lp <- lowerIR(ctx, pred, ab)
+          lc <- lowerMatrixIR(child, ab)
+          lp <- lowerIR(pred, ab)
         } yield lc.mapGlobals('global.insertFields('newColIdx ->
           irRange(0, 'global(colsField).len)
             .filter('i ~>
@@ -173,8 +170,8 @@ object LowerMatrixIR {
 
       case MatrixAnnotateRowsTable(child, table, root, product) =>
         for {
-          loweredChild <- lowerMatrixIR(ctx, child, ab)
-          loweredTable <- lowerTableIR(ctx, table, ab)
+          loweredChild <- lowerMatrixIR(child, ab)
+          loweredTable <- lowerTableIR(table, ab)
           kt = table.typ.keyType
         } yield if (kt.size == 1 && kt.types(0) == TInterval(child.typ.rowKeyStruct.types(0)))
             TableIntervalJoin(loweredChild, loweredTable, root, product)
@@ -182,7 +179,7 @@ object LowerMatrixIR {
             TableLeftJoinRightDistinct(loweredChild, loweredTable, root)
 
       case MatrixChooseCols(child, oldIndices) =>
-        lowerMatrixIR(ctx, child, ab).map {
+        lowerMatrixIR(child, ab).map {
           _.mapGlobals('global.insertFields('newColIdx -> oldIndices.map(I32)))
             .mapRows('row.insertFields(entriesField -> 'global('newColIdx).map('i ~> 'row(entriesField)('i))))
             .mapGlobals('global
@@ -192,8 +189,8 @@ object LowerMatrixIR {
 
       case MatrixAnnotateColsTable(child, table, root) =>
         for {
-          lowererChild <- lowerMatrixIR(ctx, child, ab)
-          loweredTable <- lowerTableIR(ctx, table, ab)
+          lowererChild <- lowerMatrixIR(child, ab)
+          loweredTable <- lowerTableIR(table, ab)
         } yield {
           val col = Symbol(genUID())
           val colKey = makeStruct(table.typ.key.zip(child.typ.colKey).map { case (tk, mck) => Symbol(tk) -> col(Symbol(mck)) }: _*)
@@ -217,8 +214,8 @@ object LowerMatrixIR {
 
       case MatrixMapGlobals(child, newGlobals) =>
         for {
-          loweredChild <- lowerMatrixIR(ctx, child, ab)
-          loweredGlobals <- lowerIR(ctx, newGlobals, ab)
+          loweredChild <- lowerMatrixIR(child, ab)
+          loweredGlobals <- lowerIR(newGlobals, ab)
         } yield loweredChild.mapGlobals(
           subst(
             loweredGlobals,
@@ -326,8 +323,8 @@ object LowerMatrixIR {
         }
 
         for {
-          lc <- lowerMatrixIR(ctx, child, ab)
-          loweredRow <- lowerIR(ctx, newRow, ab)
+          lc <- lowerMatrixIR(child, ab)
+          loweredRow <- lowerIR(newRow, ab)
         } yield lc.mapRows {
           let(n_cols = 'global(colsField).len) {
             liftScans(Subst(loweredRow, matrixSubstEnvIR(child, lc)))
@@ -337,8 +334,8 @@ object LowerMatrixIR {
 
       case MatrixMapCols(child, newCol, _) =>
         for {
-          loweredChild <- lowerMatrixIR(ctx, child, ab)
-          loweredCol <- lowerIR(ctx, newCol, ab)
+          loweredChild <- lowerMatrixIR(child, ab)
+          loweredCol <- lowerIR(newCol, ab)
         } yield {
             def lift(ir: IR, scanBindings: BoxedArrayBuilder[(String, IR)], aggBindings: BoxedArrayBuilder[(String, IR)]): IR = ir match {
               case a: ApplyScanOp =>
@@ -518,8 +515,8 @@ object LowerMatrixIR {
 
       case MatrixFilterEntries(child, pred) =>
         for {
-          lc <- lowerMatrixIR(ctx, child, ab)
-          lp <- lowerIR(ctx, pred, ab)
+          lc <- lowerMatrixIR(child, ab)
+          lp <- lowerIR(pred, ab)
         } yield lc.mapRows('row.insertFields(entriesField ->
           irRange(0, 'global(colsField).len).map {
             'i ~>
@@ -535,8 +532,8 @@ object LowerMatrixIR {
 
       case MatrixUnionCols(left, right, joinType) =>
         for {
-          loweredLeft <- lowerMatrixIR(ctx, left, ab)
-          loweredRight <- lowerMatrixIR(ctx, right, ab)
+          loweredLeft <- lowerMatrixIR(left, ab)
+          loweredRight <- lowerMatrixIR(right, ab)
         } yield {
           val rightEntries = genUID()
           val rightCols = genUID()
@@ -576,8 +573,8 @@ object LowerMatrixIR {
 
       case MatrixMapEntries(child, newEntries) =>
         for {
-          loweredChild <- lowerMatrixIR(ctx, child, ab)
-          loweredEntries <- lowerIR(ctx, newEntries, ab)
+          loweredChild <- lowerMatrixIR(child, ab)
+          loweredEntries <- lowerIR(newEntries, ab)
         } yield {
           val rt = loweredChild.typ.rowType
           val gt = loweredChild.typ.globalType
@@ -598,45 +595,45 @@ object LowerMatrixIR {
         }
 
       case MatrixRepartition(child, n, shuffle) =>
-        lowerMatrixIR(ctx, child, ab).map {
+        lowerMatrixIR(child, ab).map {
           TableRepartition(_, n, shuffle)
         }
 
       case MatrixFilterIntervals(child, intervals, keep) =>
-        lowerMatrixIR(ctx, child, ab).map {
+        lowerMatrixIR(child, ab).map {
           TableFilterIntervals(_, intervals, keep)
         }
 
       case MatrixUnionRows(children) =>
         // FIXME: this should check that all children have the same column keys.
-        children.traverse(lowerMatrixIR(ctx, _, ab)).map { newChildren =>
+        children.traverse(lowerMatrixIR(_, ab)).map { newChildren =>
           TableUnion(newChildren)
             .mapRows('row.selectFields(newChildren.head.typ.rowType.fieldNames: _*))
         }
 
       case MatrixDistinctByRow(child) =>
-        lowerMatrixIR(ctx, child, ab).map(TableDistinct)
+        lowerMatrixIR(child, ab).map(TableDistinct)
 
       case MatrixRowsHead(child, n) =>
-        lowerMatrixIR(ctx, child, ab).map(TableHead(_, n))
+        lowerMatrixIR(child, ab).map(TableHead(_, n))
 
       case MatrixRowsTail(child, n) =>
-        lowerMatrixIR(ctx, child, ab).map(TableTail(_, n))
+        lowerMatrixIR(child, ab).map(TableTail(_, n))
 
       case MatrixColsHead(child, n) =>
-        lowerMatrixIR(ctx, child, ab).map(_
+        lowerMatrixIR(child, ab).map(_
           .mapGlobals('global.insertFields(colsField -> 'global(colsField).arraySlice(0, Some(n), 1)))
           .mapRows('row.insertFields(entriesField -> 'row(entriesField).arraySlice(0, Some(n), 1)))
         )
 
       case MatrixColsTail(child, n) =>
-        lowerMatrixIR(ctx, child, ab).map(_
+        lowerMatrixIR(child, ab).map(_
           .mapGlobals('global.insertFields(colsField -> 'global(colsField).arraySlice(-n, None, 1)))
           .mapRows('row.insertFields(entriesField -> 'row(entriesField).arraySlice(-n, None, 1)))
         )
 
       case MatrixExplodeCols(child, path) =>
-        lowerMatrixIR(ctx, child, ab).map { loweredChild =>
+        lowerMatrixIR(child, ab).map { loweredChild =>
           val lengths = Symbol(genUID())
           val colIdx = Symbol(genUID())
           val nestedIdx = Symbol(genUID())
@@ -676,9 +673,9 @@ object LowerMatrixIR {
 
       case MatrixAggregateRowsByKey(child, entryExpr, rowExpr) =>
         for {
-          loweredChild <- lowerMatrixIR(ctx, child, ab)
-          loweredEntry <- lowerIR(ctx, entryExpr, ab)
-          loweredRow <- lowerIR(ctx, rowExpr, ab)
+          loweredChild <- lowerMatrixIR(child, ab)
+          loweredEntry <- lowerIR(entryExpr, ab)
+          loweredRow <- lowerIR(rowExpr, ab)
         } yield {
           val substEnv = matrixSubstEnv(child)
           val eeSub = subst(loweredEntry, substEnv)
@@ -696,7 +693,7 @@ object LowerMatrixIR {
         }
 
       case MatrixCollectColsByKey(child) =>
-        lowerMatrixIR(ctx, child, ab).map(_
+        lowerMatrixIR(child, ab).map(_
           .mapGlobals('global.insertFields('newColIdx ->
             irRange(0, 'global (colsField).len).map {
               'i ~>
@@ -726,7 +723,7 @@ object LowerMatrixIR {
         )
 
       case MatrixExplodeRows(child, path) =>
-        lowerMatrixIR(ctx, child, ab).map {
+        lowerMatrixIR(child, ab).map {
           TableExplode(_, path)
         }
 
@@ -735,9 +732,9 @@ object LowerMatrixIR {
 
       case MatrixAggregateColsByKey(child, entryExpr, colExpr) =>
         for {
-          loweredChild <- lowerMatrixIR(ctx, child, ab)
-          loweredEntry <- lowerIR(ctx, entryExpr, ab)
-          loweredCol <- lowerIR(ctx, colExpr, ab)
+          loweredChild <- lowerMatrixIR(child, ab)
+          loweredEntry <- lowerIR(entryExpr, ab)
+          loweredCol <- lowerIR(colExpr, ab)
         } yield {
           val colKey = child.typ.colKey
 
@@ -796,193 +793,190 @@ object LowerMatrixIR {
 
     lowered.map { lowered =>
       if (!mir.typ.isCompatibleWith(lowered.typ))
-        throw new RuntimeException(s"Lowering changed type:\n  BEFORE: ${Pretty(ctx, mir)}\n    ${mir.typ}\n    ${mir.typ.canonicalTableType}\n  AFTER: ${Pretty(ctx, lowered)}\n    ${lowered.typ}")
+        throw new RuntimeException(s"Lowering changed type:\n  BEFORE: ${Pretty(mir)}\n    ${mir.typ}\n    ${mir.typ.canonicalTableType}\n  AFTER: ${Pretty(lowered)}\n    ${lowered.typ}")
       lowered
     }
   }
 
-  private[this] def lowerTableIR[M[_]: MonadLower](ctx: ExecuteContext, tir: TableIR, ab: BoxedArrayBuilder[(String, IR)])
-  : M[TableIR] = {
-    val lowered = tir match {
-      case CastMatrixToTable(child, entries, cols) =>
-        lowerMatrixIR(ctx, child, ab).map {
-          _.mapRows('row.selectFields(child.typ.rowType.fieldNames ++ Array(entriesFieldName): _*))
-            .rename(Map(entriesFieldName -> entries), Map(colsFieldName -> cols))
-        }
+  private[this] def lowerTableIR[M[_]: MonadLower](tir: TableIR, ab: BoxedArrayBuilder[(String, IR)])
+  : M[TableIR] =
+    assertIsomorphism(tir) {
+      tir match {
+        case CastMatrixToTable(child, entries, cols) =>
+          lowerMatrixIR(child, ab).map {
+            _.mapRows('row.selectFields(child.typ.rowType.fieldNames ++ Array(entriesFieldName): _*))
+              .rename(Map(entriesFieldName -> entries), Map(colsFieldName -> cols))
+          }
 
-      case x@MatrixEntriesTable(child) =>
-        lowerMatrixIR(ctx, child, ab).map { lc =>
+        case x@MatrixEntriesTable(child) =>
+          lowerMatrixIR(child, ab).map { lc =>
 
-          if (child.typ.rowKey.nonEmpty && child.typ.colKey.nonEmpty) {
-            val oldColIdx = Symbol(genUID())
-            val lambdaIdx1 = Symbol(genUID())
-            val lambdaIdx2 = Symbol(genUID())
-            val lambdaIdx3 = Symbol(genUID())
-            val toExplode = Symbol(genUID())
-            val values = Symbol(genUID())
-            lc.mapGlobals('global.insertFields(oldColIdx -> irRange(0, 'global(colsField).len)
-              .map(lambdaIdx1 ~> makeStruct('key -> 'global(colsField)(lambdaIdx1).selectFields(child.typ.colKey: _*), 'value -> lambdaIdx1))
-              .sort(ascending = true, onKey = true)
-              .map(lambdaIdx1 ~> lambdaIdx1('value))))
-              .aggregateByKey(makeStruct(values -> applyAggOp(Collect(), seqOpArgs = FastIndexedSeq('row.selectFields(lc.typ.valueType.fieldNames: _*)))))
-              .mapRows('row.dropFields(values).insertFields(toExplode ->
-                'global(oldColIdx)
-                  .flatMap(lambdaIdx1 ~> 'row(values)
-                    .filter(lambdaIdx2 ~> !lambdaIdx2(entriesField)(lambdaIdx1).isNA)
-                    .map(lambdaIdx3 ~> let(__col = 'global(colsField)(lambdaIdx1), __entry = lambdaIdx3(entriesField)(lambdaIdx1)) {
-                      makeStruct(
-                        child.typ.rowValueStruct.fieldNames.map(Symbol(_)).map(f => f -> lambdaIdx3(f)) ++
-                          child.typ.colType.fieldNames.map(Symbol(_)).map(f => f -> '__col(f)) ++
-                          child.typ.entryType.fieldNames.map(Symbol(_)).map(f => f -> '__entry(f)): _*
+            if (child.typ.rowKey.nonEmpty && child.typ.colKey.nonEmpty) {
+              val oldColIdx = Symbol(genUID())
+              val lambdaIdx1 = Symbol(genUID())
+              val lambdaIdx2 = Symbol(genUID())
+              val lambdaIdx3 = Symbol(genUID())
+              val toExplode = Symbol(genUID())
+              val values = Symbol(genUID())
+              lc.mapGlobals('global.insertFields(oldColIdx -> irRange(0, 'global(colsField).len)
+                .map(lambdaIdx1 ~> makeStruct('key -> 'global(colsField)(lambdaIdx1).selectFields(child.typ.colKey: _*), 'value -> lambdaIdx1))
+                .sort(ascending = true, onKey = true)
+                .map(lambdaIdx1 ~> lambdaIdx1('value))))
+                .aggregateByKey(makeStruct(values -> applyAggOp(Collect(), seqOpArgs = FastIndexedSeq('row.selectFields(lc.typ.valueType.fieldNames: _*)))))
+                .mapRows('row.dropFields(values).insertFields(toExplode ->
+                  'global(oldColIdx)
+                    .flatMap(lambdaIdx1 ~> 'row(values)
+                      .filter(lambdaIdx2 ~> !lambdaIdx2(entriesField)(lambdaIdx1).isNA)
+                      .map(lambdaIdx3 ~> let(__col = 'global(colsField)(lambdaIdx1), __entry = lambdaIdx3(entriesField)(lambdaIdx1)) {
+                        makeStruct(
+                          child.typ.rowValueStruct.fieldNames.map(Symbol(_)).map(f => f -> lambdaIdx3(f)) ++
+                            child.typ.colType.fieldNames.map(Symbol(_)).map(f => f -> '__col(f)) ++
+                            child.typ.entryType.fieldNames.map(Symbol(_)).map(f => f -> '__entry(f)): _*
+                        )
+                      }
                       )
-                    }
                     )
-                  )
-              ))
-              .explode(toExplode)
-              .mapRows(makeStruct(x.typ.rowType.fieldNames.map { f =>
-                val fd = Symbol(f)
-                (fd, if (child.typ.rowKey.contains(f)) 'row(fd) else 'row(toExplode)(fd))
-              }: _*))
-              .mapGlobals('global.dropFields(colsField, oldColIdx))
-              .keyBy(child.typ.rowKey ++ child.typ.colKey, isSorted = true)
-          } else {
-            val colIdx = Symbol(genUID())
-            val lambdaIdx = Symbol(genUID())
-            val result = lc
-              .mapRows('row.insertFields(colIdx -> irRange(0, 'global(colsField).len)
-                .filter(lambdaIdx ~> !'row(entriesField)(lambdaIdx).isNA)))
-              .explode(colIdx)
-              .mapRows(let(__col_struct = 'global(colsField)('row(colIdx)),
-                __entry_struct = 'row(entriesField)('row(colIdx))) {
-                val newFields = child.typ.colType.fieldNames.map(Symbol(_)).map(f => f -> '__col_struct(f)) ++
-                  child.typ.entryType.fieldNames.map(Symbol(_)).map(f => f -> '__entry_struct(f))
+                ))
+                .explode(toExplode)
+                .mapRows(makeStruct(x.typ.rowType.fieldNames.map { f =>
+                  val fd = Symbol(f)
+                  (fd, if (child.typ.rowKey.contains(f)) 'row(fd) else 'row(toExplode)(fd))
+                }: _*))
+                .mapGlobals('global.dropFields(colsField, oldColIdx))
+                .keyBy(child.typ.rowKey ++ child.typ.colKey, isSorted = true)
+            } else {
+              val colIdx = Symbol(genUID())
+              val lambdaIdx = Symbol(genUID())
+              val result = lc
+                .mapRows('row.insertFields(colIdx -> irRange(0, 'global(colsField).len)
+                  .filter(lambdaIdx ~> !'row(entriesField)(lambdaIdx).isNA)))
+                .explode(colIdx)
+                .mapRows(let(__col_struct = 'global(colsField)('row(colIdx)),
+                  __entry_struct = 'row(entriesField)('row(colIdx))) {
+                  val newFields = child.typ.colType.fieldNames.map(Symbol(_)).map(f => f -> '__col_struct(f)) ++
+                    child.typ.entryType.fieldNames.map(Symbol(_)).map(f => f -> '__entry_struct(f))
 
-                'row.dropFields(entriesField, colIdx).insertFieldsList(newFields,
-                  ordering = Some(x.typ.rowType.fieldNames.toFastIndexedSeq))
-              })
-              .mapGlobals('global.dropFields(colsField))
-            if (child.typ.colKey.isEmpty)
-              result
-            else {
-              assert(child.typ.rowKey.isEmpty)
-              result.keyBy(child.typ.colKey)
+                  'row.dropFields(entriesField, colIdx).insertFieldsList(newFields,
+                    ordering = Some(x.typ.rowType.fieldNames.toFastIndexedSeq))
+                })
+                .mapGlobals('global.dropFields(colsField))
+              if (child.typ.colKey.isEmpty)
+                result
+              else {
+                assert(child.typ.rowKey.isEmpty)
+                result.keyBy(child.typ.colKey)
+              }
             }
           }
-        }
 
-      case MatrixToTableApply(child, function) =>
-        lowerMatrixIR(ctx, child, ab).map {
-          TableToTableApply(_,
-            function.lower().getOrElse(
-              WrappedMatrixToTableFunction(function, colsFieldName, entriesFieldName, child.typ.colKey)
-            )
-          )
-        }
-
-      case MatrixRowsTable(child) =>
-        lowerMatrixIR(ctx, child, ab).map {
-          _.mapGlobals('global.dropFields(colsField))
-            .mapRows('row.dropFields(entriesField))
-        }
-
-      case MatrixColsTable(child) =>
-        val colKey = child.typ.colKey
-        lowerMatrixIR(ctx, child, ab).map { lowered =>
-          let(__cols_and_globals = lowered.getGlobals) {
-            val sortedCols = if (colKey.isEmpty)
-              '__cols_and_globals(colsField)
-            else
-              '__cols_and_globals(colsField).map {
-                '__cols_element ~>
-                  makeStruct(
-                    // key struct
-                    '_1 -> '__cols_element.selectFields(colKey: _*),
-                    '_2 -> '__cols_element)
-              }.sort(true, onKey = true)
-                .map {
-                  'elt ~> 'elt('_2)
-                }
-            makeStruct('rows -> sortedCols, 'global -> '__cols_and_globals.dropFields(colsField))
-          }.parallelize(None).keyBy(child.typ.colKey)
-        }
-
-      case table => lowerChildren(ctx, table, ab).map(_.asInstanceOf[TableIR])
-    }
-
-    lowered.map { lowered =>
-      assertTypeUnchanged(tir, lowered)
-      lowered
-    }
-  }
-
-  private[this] def lowerBlockMatrixIR[M[_]: MonadLower](ctx: ExecuteContext, bmir: BlockMatrixIR, ab: BoxedArrayBuilder[(String, IR)])
-  : M[BlockMatrixIR] =
-    lowerChildren(ctx, bmir, ab).map { case lowered: BlockMatrixIR =>
-      assertTypeUnchanged(bmir, lowered)
-      lowered
-    }
-
-  private[this] def lowerIR[M[_]: MonadLower](ctx: ExecuteContext, ir: IR, ab: BoxedArrayBuilder[(String, IR)])
-  : M[IR] = {
-    val lowered = ir match {
-      case MatrixToValueApply(child, function) =>
-        lowerMatrixIR(ctx, child, ab).map { tableIr =>
-          TableToValueApply(
-            tableIr,
-            function.lower().getOrElse(
-              WrappedMatrixToValueFunction(function, colsFieldName, entriesFieldName, child.typ.colKey)
-            )
-          )
-        }
-
-      case MatrixWrite(child, writer) =>
-        lowerMatrixIR(ctx, child, ab).map { tir =>
-          TableWrite(tir, WrappedMatrixWriter(writer, colsFieldName, entriesFieldName, child.typ.colKey))
-        }
-
-      case MatrixMultiWrite(children, writer) =>
-        children.traverse(lowerMatrixIR(ctx, _, ab)).map { lowered =>
-          TableMultiWrite(lowered, WrappedMatrixNativeMultiWriter(writer, children.head.typ.colKey))
-        }
-
-      case MatrixCount(child) =>
-        lowerMatrixIR(ctx, child, ab).map {
-          _.aggregate(makeTuple(applyAggOp(Count(), FastIndexedSeq(), FastIndexedSeq()), 'global(colsField).len))
-        }
-
-      case MatrixAggregate(child, query) =>
-        lowerMatrixIR(ctx, child, ab).map { lc =>
-          TableAggregate(lc,
-            aggExplodeIR(
-              filterIR(
-                zip2(
-                  ToStream(GetField(Ref("row", lc.typ.rowType), entriesFieldName)),
-                  ToStream(GetField(Ref("global", lc.typ.globalType), colsFieldName)),
-                  ArrayZipBehavior.AssertSameLength
-                ) { case (e, c) =>
-                  MakeTuple.ordered(FastSeq(e, c))
-                }) { filterTuple =>
-                ApplyUnaryPrimOp(Bang(), IsNA(GetTupleElement(filterTuple, 0)))
-              }) { explodedTuple =>
-              AggLet("g", GetTupleElement(explodedTuple, 0),
-                AggLet("sa", GetTupleElement(explodedTuple, 1), Subst(query, matrixSubstEnvIR(child, lc)),
-                  isScan = false),
-                isScan = false
+        case MatrixToTableApply(child, function) =>
+          lowerMatrixIR(child, ab).map {
+            TableToTableApply(_,
+              function.lower().getOrElse(
+                WrappedMatrixToTableFunction(function, colsFieldName, entriesFieldName, child.typ.colKey)
               )
-            })
-        }
-      case _ => lowerChildren(ctx, ir, ab).map(_.asInstanceOf[IR])
+            )
+          }
+
+        case MatrixRowsTable(child) =>
+          lowerMatrixIR(child, ab).map {
+            _.mapGlobals('global.dropFields(colsField))
+              .mapRows('row.dropFields(entriesField))
+          }
+
+        case MatrixColsTable(child) =>
+          val colKey = child.typ.colKey
+          lowerMatrixIR(child, ab).map { lowered =>
+            let(__cols_and_globals = lowered.getGlobals) {
+              val sortedCols = if (colKey.isEmpty)
+                '__cols_and_globals(colsField)
+              else
+                '__cols_and_globals(colsField).map {
+                  '__cols_element ~>
+                    makeStruct(
+                      // key struct
+                      '_1 -> '__cols_element.selectFields(colKey: _*),
+                      '_2 -> '__cols_element)
+                }.sort(true, onKey = true)
+                  .map {
+                    'elt ~> 'elt('_2)
+                  }
+              makeStruct('rows -> sortedCols, 'global -> '__cols_and_globals.dropFields(colsField))
+            }.parallelize(None).keyBy(child.typ.colKey)
+          }
+
+        case table => lowerChildren(table, ab).map(_.asInstanceOf[TableIR])
+      }
     }
 
-    lowered.map { lowered =>
-      assertTypeUnchanged(ir, lowered)
-      lowered
+  private[this] def lowerBlockMatrixIR[M[_]: MonadLower](bmir: BlockMatrixIR,
+                                                         ab: BoxedArrayBuilder[(String, IR)]
+                                                        ): M[BlockMatrixIR] =
+    assertIsomorphism(bmir) {
+      for {ir <- lowerChildren(bmir, ab)}
+        yield ir.asInstanceOf[BlockMatrixIR]
     }
-  }
 
-  private[this] def assertTypeUnchanged(original: BaseIR, lowered: BaseIR) {
-    if (lowered.typ != original.typ)
-      fatal(s"lowering changed type:\n  before: ${ original.typ }\n after: ${ lowered.typ }\n")
-  }
+  private[this] def lowerIR[M[_]: MonadLower](ir: IR, ab: BoxedArrayBuilder[(String, IR)]): M[IR] =
+    assertIsomorphism(ir) {
+      ir match {
+        case MatrixToValueApply(child, function) =>
+          lowerMatrixIR(child, ab).map { tableIr =>
+            TableToValueApply(
+              tableIr,
+              function.lower().getOrElse(
+                WrappedMatrixToValueFunction(function, colsFieldName, entriesFieldName, child.typ.colKey)
+              )
+            )
+          }
+
+        case MatrixWrite(child, writer) =>
+          lowerMatrixIR(child, ab).map { tir =>
+            TableWrite(tir, WrappedMatrixWriter(writer, colsFieldName, entriesFieldName, child.typ.colKey))
+          }
+
+        case MatrixMultiWrite(children, writer) =>
+          children.traverse(lowerMatrixIR(_, ab)).map { lowered =>
+            TableMultiWrite(lowered, WrappedMatrixNativeMultiWriter(writer, children.head.typ.colKey))
+          }
+
+        case MatrixCount(child) =>
+          lowerMatrixIR(child, ab).map {
+            _.aggregate(makeTuple(applyAggOp(Count(), FastIndexedSeq(), FastIndexedSeq()), 'global(colsField).len))
+          }
+
+        case MatrixAggregate(child, query) =>
+          lowerMatrixIR(child, ab).map { lc =>
+            TableAggregate(lc,
+              aggExplodeIR(
+                filterIR(
+                  zip2(
+                    ToStream(GetField(Ref("row", lc.typ.rowType), entriesFieldName)),
+                    ToStream(GetField(Ref("global", lc.typ.globalType), colsFieldName)),
+                    ArrayZipBehavior.AssertSameLength
+                  ) { case (e, c) =>
+                    MakeTuple.ordered(FastSeq(e, c))
+                  }) { filterTuple =>
+                  ApplyUnaryPrimOp(Bang(), IsNA(GetTupleElement(filterTuple, 0)))
+                }) { explodedTuple =>
+                AggLet("g", GetTupleElement(explodedTuple, 0),
+                  AggLet("sa", GetTupleElement(explodedTuple, 1), Subst(query, matrixSubstEnvIR(child, lc)),
+                    isScan = false),
+                  isScan = false
+                )
+              })
+          }
+        case _ => lowerChildren(ir, ab).map(_.asInstanceOf[IR])
+      }
+    }
+
+  private[this] def assertIsomorphism[M[_], A <: BaseIR](original: A)(lowered: M[A])
+                                                          (implicit M: MonadThrow[M]): M[A] =
+    for {
+      l <- lowered
+      _ <- M.raiseWhen(l.typ != original.typ) {
+        new HailException(s"lowering changed type:\n  before: ${original.typ}\n after: ${l.typ}\n")
+      }
+    } yield l
+
 }

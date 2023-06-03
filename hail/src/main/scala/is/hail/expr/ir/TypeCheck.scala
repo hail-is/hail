@@ -1,5 +1,8 @@
 package is.hail.expr.ir
 
+import cats.MonadThrow
+import cats.mtl.Ask
+import cats.syntax.all._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
 import is.hail.expr.ir.streams.StreamUtils
@@ -8,24 +11,20 @@ import is.hail.types.virtual._
 import is.hail.utils.StackSafe._
 import is.hail.utils._
 
+import scala.language.higherKinds
 import scala.reflect.ClassTag
 
 object TypeCheck {
-  def apply(ctx: ExecuteContext, ir: BaseIR): Unit = {
-    try {
-      check(ctx, ir, BindingEnv.empty).run()
-    } catch {
-      case e: Throwable => fatal(s"Error while typechecking IR:\n${ Pretty(ctx, ir) }", e)
-    }
-  }
+  def apply[M[_]](ir: BaseIR)(implicit A: Ask[M, ExecuteContext], M: MonadThrow[M]): M[Unit] =
+    A.ask.map(check(_, ir, BindingEnv.empty).run())
 
-  def apply(ctx: ExecuteContext, ir: IR, env: BindingEnv[Type]): Unit = {
+  def apply(ctx: ExecuteContext, ir: IR, env: BindingEnv[Type]): Unit =
     try {
       check(ctx, ir, env).run()
     } catch {
-      case e: Throwable => fatal(s"Error while typechecking IR:\n${ Pretty(ctx, ir) }", e)
+      case e: Throwable =>
+        fatal(s"Error while typechecking IR:\n${ Pretty(ctx, ir) }", e)
     }
-  }
 
   def check(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): StackFrame[Unit] = {
     for {

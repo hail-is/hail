@@ -9,30 +9,29 @@ import scala.language.higherKinds
 
 object LowerToCDA {
 
-  def apply[M[_]: MonadLower](ir: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext): M[IR] =
-    lower(ir, typesToLower, ctx, LoweringAnalyses.apply(ir, ctx))
+  def apply[M[_]: MonadLower](ir: IR, typesToLower: DArrayLowering.Type): M[IR] =
+    for {
+      analyses <- LoweringAnalyses(ir)
+      result <- lower(ir, typesToLower, analyses)
+    } yield result
 
-  def lower[M[_]: MonadLower](
-    ir: IR,
-    typesToLower: DArrayLowering.Type,
-    ctx: ExecuteContext,
-    analyses: LoweringAnalyses
-  ): M[IR] =
+  def lower[M[_]](ir: IR, typesToLower: DArrayLowering.Type, analyses: LoweringAnalyses)
+                 (implicit M: MonadLower[M]): M[IR] =
     ir match {
       case node if node.children.forall(_.isInstanceOf[IR]) =>
-        ir.children.traverse { case c: IR => lower(c, typesToLower, ctx, analyses) }.map(Copy(node, _))
+        ir.children.traverse { case c: IR => lower(c, typesToLower, analyses) }.map(Copy(node, _))
 
       case node if node.children.exists(n => n.isInstanceOf[TableIR]) && node.children.forall(n => n.isInstanceOf[TableIR] || n.isInstanceOf[IR]) =>
-        LowerTableIR(ir, typesToLower, ctx, analyses)
+        LowerTableIR(ir, typesToLower, analyses)
 
       case node if node.children.exists(n => n.isInstanceOf[BlockMatrixIR]) && node.children.forall(n => n.isInstanceOf[BlockMatrixIR] || n.isInstanceOf[IR]) =>
-        LowerBlockMatrixIR(ir, typesToLower, ctx, analyses)
+        LowerBlockMatrixIR(ir, typesToLower, analyses)
 
       case node if node.children.exists(_.isInstanceOf[MatrixIR]) =>
-        throw new LowererUnsupportedOperation(s"MatrixIR nodes must be lowered to TableIR nodes separately: \n${Pretty(ctx, node)}")
+        M.raiseError(new LowererUnsupportedOperation(s"MatrixIR nodes must be lowered to TableIR nodes separately: \n${Pretty(node)}"))
 
       case node =>
-        throw new LowererUnsupportedOperation(s"Cannot lower: \n${Pretty(ctx, node)}")
+        M.raiseError(new LowererUnsupportedOperation(s"Cannot lower: \n${Pretty(node)}"))
     }
 }
 

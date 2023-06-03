@@ -842,9 +842,9 @@ class BlockMatrixStage2 private (
 }
 
 object LowerBlockMatrixIR {
-  def apply[M[_]: MonadLower](node: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: LoweringAnalyses): M[IR] = {
+  def apply[M[_]: MonadLower](node: IR, typesToLower: DArrayLowering.Type, analyses: LoweringAnalyses): M[IR] = {
     def lower(bmir: BlockMatrixIR, ib: IRBuilder) =
-      LowerBlockMatrixIR.lower(bmir, ib, typesToLower, ctx, analyses)
+      LowerBlockMatrixIR.lower(bmir, ib, typesToLower, analyses)
       
     IRBuilder.newScope[M].run { ib =>
       node match {
@@ -853,9 +853,9 @@ object LowerBlockMatrixIR {
         case BlockMatrixToValueApply(child, GetElement(IndexedSeq(i, j))) =>
           lower(child, ib).map(_.getElement(i, j))
         case BlockMatrixWrite(child, writer) =>
-          lower(child, ib).map(writer.lower(ctx, _, ib, TypeWithRequiredness(child.typ.elementType))) //FIXME: BlockMatrixIR is currently ignored in Requiredness inference since all eltTypes are +TFloat64
+          lower(child, ib).map(writer.lower(_, ib, TypeWithRequiredness(child.typ.elementType))) //FIXME: BlockMatrixIR is currently ignored in Requiredness inference since all eltTypes are +TFloat64
         case _: BlockMatrixMultiWrite =>
-          Applicative[M].pure(unimplemented(ctx, node))
+          Applicative[M].pure(unimplemented(node))
         case node if node.children.exists(_.isInstanceOf[BlockMatrixIR]) =>
           throw new LowererUnsupportedOperation(s"IR nodes with BlockMatrixIR children need explicit rules: \n${Pretty(ctx, node)}")
 
@@ -902,10 +902,10 @@ object LowerBlockMatrixIR {
     }
   }
 
-  private def unimplemented[T](ctx: ExecuteContext, node: BaseIR): T =
-    throw new LowererUnsupportedOperation(s"unimplemented: \n${ Pretty(ctx, node) }")
+  private def unimplemented[M[_], A](node: BaseIR)(implicit M: MonadLower[M]): M[A] =
+    Pretty(node).flatMap(str => M.raiseError(new LowererUnsupportedOperation(s"unimplemented: \n$str")))
 
-  def lower[M[_]: MonadLower](bmir: BlockMatrixIR, ib: IRBuilder, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: LoweringAnalyses)
+  def lower[M[_]: MonadLower](bmir: BlockMatrixIR, ib: IRBuilder, typesToLower: DArrayLowering.Type, analyses: LoweringAnalyses)
   : M[BlockMatrixStage2] = {
     if (!DArrayLowering.lowerBM(typesToLower))
       throw new LowererUnsupportedOperation("found BlockMatrixIR in lowering; lowering only TableIRs.")
@@ -917,7 +917,7 @@ object LowerBlockMatrixIR {
     }
 
     if (bmir.typ.matrixShape == 0L -> 0L) Applicative[M].pure(BlockMatrixStage2.empty(bmir.typ.elementType, ib))
-    else lowerNonEmpty2(bmir, ib, typesToLower, ctx, analyses)
+    else lowerNonEmpty2(bmir, ib, typesToLower, analyses)
   }
 
   def lowerNonEmpty2[M[_]: MonadLower](

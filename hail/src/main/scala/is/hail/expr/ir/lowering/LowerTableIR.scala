@@ -569,9 +569,9 @@ class TableStage(
 }
 
 object LowerTableIR {
-  def apply[M[_]: MonadLower](ir: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: LoweringAnalyses): M[IR] = {
+  def apply[M[_]: MonadLower](ir: IR, typesToLower: DArrayLowering.Type, analyses: LoweringAnalyses): M[IR] = {
     def lower(tir: TableIR): M[TableStage] =
-      this.applyTable(tir, typesToLower, ctx, analyses)
+      this.applyTable(tir, typesToLower, analyses)
 
     ir match {
       case TableCount(tableIR) =>

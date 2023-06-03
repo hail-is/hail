@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import cats.mtl.Ask
 import is.hail.backend.ExecuteContext
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.Pretty.prettyBooleanLiteral
@@ -14,6 +15,7 @@ import org.json4s.DefaultFormats
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.collection.mutable
+import scala.language.higherKinds
 
 object Pretty {
   def apply(ctx: ExecuteContext, ir: BaseIR, width: Int = 100, ribbonWidth: Int = 50, elideLiterals: Boolean = true, maxLen: Int = -1, allowUnboundRefs: Boolean = false): String = {
@@ -21,6 +23,10 @@ object Pretty {
     val pretty = new Pretty(width, ribbonWidth, elideLiterals, maxLen, allowUnboundRefs, useSSA)
     pretty(ir)
   }
+
+  def apply[M[_]](ir: BaseIR, width: Int = 100, ribbonWidth: Int = 50, elideLiterals: Boolean = true, maxLen: Int = -1, allowUnboundRefs: Boolean = false)
+                 (implicit M: Ask[M, ExecuteContext]): M[String] =
+    M.reader(ctx => Pretty(ctx, ir, width, ribbonWidth, elideLiterals, maxLen, allowUnboundRefs))
 
   def sexprStyle(ir: BaseIR, width: Int = 100, ribbonWidth: Int = 50, elideLiterals: Boolean = true, maxLen: Int = -1, allowUnboundRefs: Boolean = false): String = {
     val pretty = new Pretty(width, ribbonWidth, elideLiterals, maxLen, allowUnboundRefs, useSSA = false)

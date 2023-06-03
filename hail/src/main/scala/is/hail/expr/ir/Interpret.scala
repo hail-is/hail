@@ -28,40 +28,38 @@ object Interpret {
   def apply[M[_]: MonadLower](tir: TableIR, ctx: ExecuteContext): M[TableValue] =
     apply[M](tir, ctx, optimize = true)
 
-  def apply[M[_]: MonadLower](tir: TableIR, ctx: ExecuteContext, optimize: Boolean): M[TableValue] =
-    for {lowered <- LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, tir)}
-      yield lowered.asInstanceOf[TableIR].noSharing.analyzeAndExecute(ctx).asTableValue(ctx)
+  def apply[M[_]: MonadLower](tir: TableIR, optimize: Boolean): M[TableValue] =
+    for {lowered <- LoweringPipeline.legacyRelationalLowerer(optimize)(tir)}
+      yield lowered.asInstanceOf[TableIR].noSharing.analyzeAndExecute.asTableValue
 
-  def apply[M[_]: MonadLower](mir: MatrixIR, ctx: ExecuteContext, optimize: Boolean): M[TableValue] =
-    for {lowered <- LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, mir)}
+  def apply[M[_]: MonadLower](mir: MatrixIR, optimize: Boolean): M[TableValue] =
+    for {lowered <- LoweringPipeline.legacyRelationalLowerer(optimize)(mir)}
       yield lowered.asInstanceOf[TableIR].analyzeAndExecute(ctx).asTableValue(ctx)
 
-  def apply[M[_]: MonadLower](bmir: BlockMatrixIR, ctx: ExecuteContext, optimize: Boolean): M[BlockMatrix] =
-    for {lowered <- LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, bmir)}
+  def apply[M[_]: MonadLower](bmir: BlockMatrixIR,  optimize: Boolean): M[BlockMatrix] =
+    for {lowered <- LoweringPipeline.legacyRelationalLowerer(optimize)(bmir)}
       yield lowered.asInstanceOf[BlockMatrixIR].execute(ctx)
 
-  def apply[M[_]: MonadLower, A](ctx: ExecuteContext, ir: IR)(implicit ev: Null <:< A) : M[A] =
-    apply[M, A](ctx, ir, Env.empty[(Any, Type)], FastIndexedSeq[(Any, Type)]())
+  def apply[M[_]: MonadLower, A](ir: IR)(implicit ev: Null <:< A) : M[A] =
+    apply[M, A](ir, Env.empty[(Any, Type)], FastIndexedSeq[(Any, Type)]())
 
-  def apply[M[_]: MonadLower, A](ctx: ExecuteContext,
-                                 ir0: IR,
+  def apply[M[_]: MonadLower, A](ir0: IR,
                                  env: Env[(Any, Type)],
                                  args: IndexedSeq[(Any, Type)],
                                  optimize: Boolean = true
                                  )
                                  (implicit ev: Null <:< A): M[A] =
     for {
-      lowered <- LoweringPipeline.relationalLowerer(optimize)(ctx, env.m.foldLeft[IR](ir0) {
+      lowered <- LoweringPipeline.relationalLowerer(optimize)(env.m.foldLeft[IR](ir0) {
         case (acc, (k, (value, t))) => Let(k, Literal.coerce(t, value), acc)
       })
-      result <- run(ctx, lowered.asInstanceOf[IR], Env.empty[Any], args, Memo.empty).value
+      result <- run(lowered.asInstanceOf[IR], Env.empty[Any], args, Memo.empty).value
     } yield result.map(_.asInstanceOf[A]).orNull
 
-  def alreadyLowered[M[_]](ctx: ExecuteContext, ir: IR)(implicit M: MonadLower[M]): M[Any] =
-    run(ctx, ir, Env.empty, FastIndexedSeq(), Memo.empty).getOrElseF(M.pure(null))
+  def alreadyLowered[M[_]](ir: IR)(implicit M: MonadLower[M]): M[Any] =
+    run(ir, Env.empty, FastIndexedSeq(), Memo.empty).getOrElseF(M.pure(null))
 
-  private def run[M[_]](ctx: ExecuteContext,
-                        ir: IR,
+  private def run[M[_]](ir: IR,
                         env: Env[Any],
                         args: IndexedSeq[(Any, Type)],
                         functionMemo: Memo[(SingleCodeType, AsmFunction2RegionLongLong)]
@@ -75,7 +73,7 @@ object Interpret {
     def empty = OptionT.none[M, Any]
 
     def interpret(ir: IR, env: Env[Any] = env, args: IndexedSeq[(Any, Type)] = args): F[Any] =
-      run(ctx, ir, env, args, functionMemo)
+      run(ir, env, args, functionMemo)
 
     ir match {
       case I32(x) => F.pure(x)
@@ -87,12 +85,12 @@ object Interpret {
       case False() => F.pure(false)
       case Literal(_, value) => F.pure(value)
       case x@EncodedLiteral(codec, value) =>
-        F.pure {
+        F.lift(M.reader { ctx =>
           ctx.r.getPool().scopedRegion { r =>
             val (pt, addr) = codec.decodeArrays(ctx, x.typ, value.ba, ctx.r)
             SafeRow.read(pt, addr)
           }
-        }
+        })
       case Void() => F.unit.widen[Any]
       case Cast(v, t) =>
         interpret(v, env, args).map { vValue =>
@@ -241,16 +239,17 @@ object Interpret {
           for {
             lValue <- interpret(l, env, args).value
             rValue <- interpret(r, env, args).value
+            stateManager <- M.reader(_.stateManager)
           } yield Some(op).filter(_.strict && (lValue == null || rValue == null)).map {
-            case EQ(t, _) => t.ordering(ctx.stateManager).equiv(lValue, rValue)
-            case EQWithNA(t, _) => t.ordering(ctx.stateManager).equiv(lValue, rValue)
-            case NEQ(t, _) => !t.ordering(ctx.stateManager).equiv(lValue, rValue)
-            case NEQWithNA(t, _) => !t.ordering(ctx.stateManager).equiv(lValue, rValue)
-            case LT(t, _) => t.ordering(ctx.stateManager).lt(lValue, rValue)
-            case GT(t, _) => t.ordering(ctx.stateManager).gt(lValue, rValue)
-            case LTEQ(t, _) => t.ordering(ctx.stateManager).lteq(lValue, rValue)
-            case GTEQ(t, _) => t.ordering(ctx.stateManager).gteq(lValue, rValue)
-            case Compare(t, _) => t.ordering(ctx.stateManager).compare(lValue, rValue)
+            case EQ(t, _) => t.ordering(stateManager).equiv(lValue, rValue)
+            case EQWithNA(t, _) => t.ordering(stateManager).equiv(lValue, rValue)
+            case NEQ(t, _) => !t.ordering(stateManager).equiv(lValue, rValue)
+            case NEQWithNA(t, _) => !t.ordering(stateManager).equiv(lValue, rValue)
+            case LT(t, _) => t.ordering(stateManager).lt(lValue, rValue)
+            case GT(t, _) => t.ordering(stateManager).gt(lValue, rValue)
+            case LTEQ(t, _) => t.ordering(stateManager).lteq(lValue, rValue)
+            case GTEQ(t, _) => t.ordering(stateManager).gteq(lValue, rValue)
+            case Compare(t, _) => t.ordering(stateManager).compare(lValue, rValue)
           }
         }
 
@@ -338,7 +337,7 @@ object Interpret {
                   aValue.sortWith { (left, right) =>
                     if (left != null && right != null) {
                       val (s_, res) =
-                        run[Lower](ctx, lessThan, env.bind(l, left).bind(r, right), args, functionMemo)
+                        run[Lower](lessThan, env.bind(l, left).bind(r, right), args, functionMemo)
                           .value
                           .run(ctx, s)
 
@@ -370,9 +369,9 @@ object Interpret {
 
       case _: CastToArray | _: ToArray | _: ToStream =>
         val c = ir.children(0).asInstanceOf[IR]
-        for { cValue <- interpret(c, env, args) }
+        for { cValue <- interpret(c, env, args); sm <- OptionT.liftF(M.reader(_.stateManager)) }
           yield {
-            val ordering = tcoerce[TIterable](c.typ).elementType.ordering(ctx.stateManager).toOrdering
+            val ordering = tcoerce[TIterable](c.typ).elementType.ordering(sm).toOrdering
             cValue match {
               case s: Set[_] =>
                 s.asInstanceOf[Set[Any]].toFastIndexedSeq.sorted(ordering)

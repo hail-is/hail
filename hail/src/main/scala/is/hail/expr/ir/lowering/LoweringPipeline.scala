@@ -1,7 +1,6 @@
 package is.hail.expr.ir.lowering
 
 import cats.syntax.all._
-import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{BaseIR, IRSize, Pretty, TypeCheck}
 import is.hail.utils._
 
@@ -11,29 +10,26 @@ import scala.util.control.NonFatal
 case class LoweringPipeline(lowerings: LoweringPass*) {
   assert(lowerings.nonEmpty)
 
-  final def apply[M[_]: MonadLower](ctx: ExecuteContext, ir0: BaseIR): M[BaseIR] = {
-    def render(context: String, ir: BaseIR): Unit =
-      if (ctx.shouldLogIR())
-        log.info(s"$context: IR size ${ IRSize(ir) }: \n" + Pretty(ctx, ir))
-
-    render(s"initial IR", ir0)
-
-    FastSeq(lowerings: _*).foldM(ir0) { case (ir, l) =>
-      for {
-        lowered <- l.apply(ctx, ir).handleErrorWith {
-          case NonFatal(e) =>
-            log.error(s"error while applying lowering '${l.context}'")
-            throw e
-        }
-      } yield {
-        render(s"after ${l.context}", lowered)
-        try TypeCheck(ctx, lowered)
-        catch {
-          case NonFatal(e) =>
-            fatal(s"error after applying ${l.context}", e)
-        }
-        lowered
+  final def apply[M[_]](ir0: BaseIR)(implicit M: MonadLower[M]): M[BaseIR] = {
+    def render(context: String, ir: BaseIR): M[Unit] =
+      M.reader { ctx =>
+        if (ctx.shouldLogIR())
+          log.info(s"$context: IR size ${IRSize(ir)}: \n" + Pretty(ctx, ir))
       }
+
+    render(s"initial IR", ir0) *> lowerings.foldM(ir0) { case (ir, lower) =>
+      for {
+        lowered <- lower(ir).handleErrorWith {
+          case NonFatal(e) =>
+            log.error(s"error while applying lowering '${lower.context}'")
+            M.raiseError(e)
+        }
+        _ <- render(s"after ${lower.context}", lowered)
+        _ <- TypeCheck(lowered).handleErrorWith {
+          case NonFatal(e) =>
+            M.raiseError(new HailException(s"error after applying ${lower.context}", None, e))
+        }
+      } yield lowered
     }
   }
 

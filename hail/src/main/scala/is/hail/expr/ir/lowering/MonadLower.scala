@@ -1,16 +1,25 @@
 package is.hail.expr.ir.lowering
 
 import cats.mtl.{Ask, Stateful}
+import cats.syntax.all.toFlatMapOps
 import cats.{Applicative, Monad, MonadThrow}
 import is.hail.backend.ExecuteContext
 
 import scala.annotation.tailrec
 import scala.language.{higherKinds, implicitConversions}
 
-trait MonadLower[M[_]] extends MonadThrow[M] {
-  def ctx: Ask[M, ExecuteContext]
-  def state: Stateful[M, LoweringState]
+trait MonadLower[M[_]]
+  extends MonadThrow[M]
+    with Ask[M, ExecuteContext]
+    with Stateful[M, LoweringState] {
+
   def lift[A](lower: Lower[A]): M[A]
+
+  def time[A](name: String)(a: => A): M[A] =
+    reader(_.timer.time(name)(a))
+
+  def timeM[A](name: String)(fa: M[A])(implicit M: MonadLower[M]): M[A] =
+    M.reader(_.timer).flatMap(_.timeM(name)(fa))
 }
 
 object MonadLower {
@@ -27,26 +36,19 @@ final case class Lower[+A](run: (ExecuteContext, LoweringState) => (LoweringStat
 }
 
 object Lower extends MonadLower[Lower] {
-  override def ctx: Ask[Lower, ExecuteContext] =
-    new Ask[Lower, ExecuteContext] {
-      override def applicative: Applicative[Lower] =
-        Lower
+  override def applicative: Applicative[Lower] =
+    Lower
+  override def monad: Monad[Lower] =
+    Lower
 
-      override def ask[E2 >: ExecuteContext]: Lower[E2] =
-        Lower((ctx, s) => (s, Right(ctx.asInstanceOf[E2])))
-    }
+  override def ask[E2 >: ExecuteContext]: Lower[E2] =
+    Lower((ctx, s) => (s, Right(ctx.asInstanceOf[E2])))
 
-  override def state: Stateful[Lower, LoweringState] =
-    new Stateful[Lower, LoweringState]{
-      override def monad: Monad[Lower] =
-        Lower
+  override def get: Lower[LoweringState] =
+    Lower((_, s) => (s, Right(s)))
 
-      override def get: Lower[LoweringState] =
-        Lower((_, s) => (s, Right(s)))
-
-      override def set(s: LoweringState): Lower[Unit] =
-        Lower((_, _) => (s, Right(())))
-    }
+  override def set(s: LoweringState): Lower[Unit] =
+    Lower((_, _) => (s, Right(())))
 
   override def lift[A](lower: Lower[A]): Lower[A] =
     lower
