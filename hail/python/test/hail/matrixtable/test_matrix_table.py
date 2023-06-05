@@ -615,6 +615,17 @@ class Tests(unittest.TestCase):
         mt = mt.key_rows_by(x = mt.row_idx // 2)
         assert mt.union_cols(mt).count_rows() == 5
 
+    def test_union_cols_good_error(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        mt = mt.annotate_rows(foo = 'hi', bar = 'bye')
+        mt2 = mt.annotate_rows(foo = 3, baz = 'hello')
+        with pytest.raises(ValueError,
+                             match=(
+                                 '.*When drop_right_row_fields=True, the matrix tables must distinct row fields.*'
+                                 "'bar': left type is str, right type is str..*'foo': left type is str, right type is int..*"
+                             )):
+            mt.union_cols(mt2, drop_right_row_fields=False)
+
     def test_union_cols_outer(self):
         r, c = 10, 10
         mt = hl.utils.range_matrix_table(2*r, c)

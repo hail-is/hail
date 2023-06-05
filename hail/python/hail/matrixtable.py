@@ -3960,6 +3960,19 @@ class MatrixTable(ExprContainer):
 
         if drop_right_row_fields:
             other = other.select_rows()
+        else:
+            shared_field_names = set(self.row_value) & set(other.row_value)
+            if shared_field_names:
+                field_infos = [
+                    f'  {f!r}: left type is {self.row_value.dtype[f]}, right type is {other.row_value.dtype[f]}.'
+                    for f in shared_field_names
+                ]
+                raise ValueError(
+                    f'When drop_right_row_fields=True, the matrix tables must '
+                    f'have distinct row fields. These fields were found to be in both tables:\n' +
+                    '\n'.join(field_infos) +
+                    '\nConsider renaming the fields in the right-hand-side matrix table so they are distinct from those fields in the left-hand-side.'
+                )
 
         return MatrixTable(ir.MatrixUnionCols(self._mir, other._mir, row_join_type))
 
