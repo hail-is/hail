@@ -864,7 +864,7 @@ class PythonJob(Job):
 
         # Create a batch object with a default Python image
 
-        b = Batch(default_python_image='hailgenetics/python-dill:3.7-slim')
+        b = Batch(default_python_image='hailgenetics/python-dill:3.8-slim')
 
         def multiply(x, y):
             return x * y
@@ -922,11 +922,11 @@ class PythonJob(Job):
         Examples
         --------
 
-        Set the job's docker image to `hailgenetics/python-dill:3.7-slim`:
+        Set the job's docker image to `hailgenetics/python-dill:3.8-slim`:
 
         >>> b = Batch()
         >>> j = b.new_python_job()
-        >>> (j.image('hailgenetics/python-dill:3.7-slim')
+        >>> (j.image('hailgenetics/python-dill:3.8-slim')
         ...   .call(print, 'hello'))
         >>> b.run()  # doctest: +SKIP
 
@@ -1139,10 +1139,10 @@ class PythonJob(Job):
             func_file = self._batch._python_function_files[unapplied_id]
 
             prepared_args = prepare_argument_for_serialization(args)[1]
-            kwargs = prepare_argument_for_serialization(kwargs)[1]
+            prepared_kwargs = prepare_argument_for_serialization(kwargs)[1]
 
             args_file = await self._batch._serialize_python_to_input_file(
-                os.path.dirname(result._get_path(remote_tmpdir)), "args", i, (prepared_args, kwargs), dry_run
+                os.path.dirname(result._get_path(remote_tmpdir)), "args", i, (prepared_args, prepared_kwargs), dry_run
             )
 
             json_write, str_write, repr_write = [

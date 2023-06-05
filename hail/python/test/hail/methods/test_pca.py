@@ -1,13 +1,14 @@
 import math
-
+import pytest
 import numpy as np
 
 import hail as hl
 from hail.methods.pca import _make_tsm
-from ..helpers import resource, fails_local_backend, fails_service_backend, skip_when_service_backend
+from ..helpers import resource, fails_local_backend, skip_when_service_backend, test_timeout
 
 
 @fails_local_backend()
+@test_timeout(batch=10 * 60)
 def test_hwe_normalized_pca():
     mt = hl.balding_nichols_model(3, 100, 50)
     eigenvalues, scores, loadings = hl.hwe_normalized_pca(mt.GT, k=2, compute_loadings=True)
@@ -135,6 +136,7 @@ def matrix_table_from_numpy(np_mat):
 dim_triplets = [(20, 1000, 1000), (10, 100, 200)]
 
 
+@test_timeout(batch=5 * 60)
 def test_blanczos_T():
     k, m, n = 10, 100, 200
     sigma = np.diag([spec1(i + 1, k) for i in range(m)])
@@ -154,27 +156,25 @@ def test_blanczos_T():
     np.testing.assert_allclose(norm_of_diff, spec1(k + 1, k), rtol=1e-02)
     np.testing.assert_allclose(singulars, np.diag(sigma)[:k], rtol=1e-01)
 
-def spectra_helper(spec_func):
+def spectra_helper(spec_func, triplet):
+    k, m, n = triplet
+    min_dim = min(m, n)
+    sigma = np.diag([spec_func(i + 1, k) for i in range(min_dim)])
+    seed = 1025
+    np.random.seed(seed)
+    U = np.linalg.qr(np.random.normal(0, 1, (m, min_dim)))[0]
+    V = np.linalg.qr(np.random.normal(0, 1, (n, min_dim)))[0]
+    A = U @ sigma @ V.T
+    mt_A = matrix_table_from_numpy(A)
 
-    for triplet in dim_triplets:
-        k, m, n = triplet
-        min_dim = min(m, n)
-        sigma = np.diag([spec_func(i + 1, k) for i in range(min_dim)])
-        seed = 1025
-        np.random.seed(seed)
-        U = np.linalg.qr(np.random.normal(0, 1, (m, min_dim)))[0]
-        V = np.linalg.qr(np.random.normal(0, 1, (n, min_dim)))[0]
-        A = U @ sigma @ V.T
-        mt_A = matrix_table_from_numpy(A)
-
-        eigenvalues, scores, loadings = hl._blanczos_pca(mt_A.ent, k=k, oversampling_param=k, compute_loadings=True, q_iterations=4)
-        singulars = np.sqrt(eigenvalues)
-        hail_V = (np.array(scores.scores.collect()) / singulars).T
-        hail_U = np.array(loadings.loadings.collect())
-        approx_A = hail_U @ np.diag(singulars) @ hail_V
-        norm_of_diff = np.linalg.norm(A - approx_A, 2)
-        np.testing.assert_allclose(norm_of_diff, spec_func(k + 1, k), rtol=1e-02, err_msg=f"Norm test failed on triplet {triplet} ")
-        np.testing.assert_allclose(singulars, np.diag(sigma)[:k], rtol=1e-01, err_msg=f"Failed on triplet {triplet}")
+    eigenvalues, scores, loadings = hl._blanczos_pca(mt_A.ent, k=k, oversampling_param=k, compute_loadings=True, q_iterations=4)
+    singulars = np.sqrt(eigenvalues)
+    hail_V = (np.array(scores.scores.collect()) / singulars).T
+    hail_U = np.array(loadings.loadings.collect())
+    approx_A = hail_U @ np.diag(singulars) @ hail_V
+    norm_of_diff = np.linalg.norm(A - approx_A, 2)
+    np.testing.assert_allclose(norm_of_diff, spec_func(k + 1, k), rtol=1e-02, err_msg=f"Norm test failed on triplet {triplet} ")
+    np.testing.assert_allclose(singulars, np.diag(sigma)[:k], rtol=1e-01, err_msg=f"Failed on triplet {triplet}")
 
 
 def spec1(j, k):
@@ -213,24 +213,34 @@ def spec5(j, k):
         return 10**-5 * math.sqrt((k + 1)/j)
 
 
-def test_spectra_1():
-    spectra_helper(spec1)
+@pytest.mark.parametrize("triplet", dim_triplets)
+@test_timeout(5 * 60, batch=8 * 60)
+def test_spectra_1(triplet):
+    spectra_helper(spec1, triplet)
 
 
-def test_spectra_2():
-    spectra_helper(spec2)
+@pytest.mark.parametrize("triplet", dim_triplets)
+@test_timeout(5 * 60, batch=8 * 60)
+def test_spectra_2(triplet):
+    spectra_helper(spec2, triplet)
 
 
-def test_spectra_3():
-    spectra_helper(spec3)
+@pytest.mark.parametrize("triplet", dim_triplets)
+@test_timeout(5 * 60, batch=8 * 60)
+def test_spectra_3(triplet):
+    spectra_helper(spec3, triplet)
 
 
-def test_spectra_4():
-    spectra_helper(spec4)
+@pytest.mark.parametrize("triplet", dim_triplets)
+@test_timeout(5 * 60, batch=8 * 60)
+def test_spectra_4(triplet):
+    spectra_helper(spec4, triplet)
 
 
-def test_spectra_5():
-    spectra_helper(spec5)
+@pytest.mark.parametrize("triplet", dim_triplets)
+@test_timeout(5 * 60, batch=8 * 60)
+def test_spectra_5(triplet):
+    spectra_helper(spec5, triplet)
 
 
 def spectral_moments_helper(spec_func):
@@ -251,26 +261,31 @@ def spectral_moments_helper(spec_func):
 
 
 @skip_when_service_backend(reason='v slow & OOms')
+@test_timeout(local=3 * 60)
 def test_spectral_moments_1():
     spectral_moments_helper(spec1)
 
 
 @skip_when_service_backend(reason='v slow & OOms')
+@test_timeout(local=3 * 60)
 def test_spectral_moments_2():
     spectral_moments_helper(spec2)
 
 
 @skip_when_service_backend(reason='v slow & OOms')
+@test_timeout(local=3 * 60)
 def test_spectral_moments_3():
     spectral_moments_helper(spec3)
 
 
 @skip_when_service_backend(reason='v slow & OOms')
+@test_timeout(local=3 * 60)
 def test_spectral_moments_4():
     spectral_moments_helper(spec4)
 
 
 @skip_when_service_backend(reason='v slow & OOms')
+@test_timeout(local=3 * 60)
 def test_spectral_moments_5():
     spectral_moments_helper(spec5)
 
@@ -300,21 +315,26 @@ def spectra_and_moments_helper(spec_func):
         np.testing.assert_allclose(moments, true_moments, rtol=1e-04)
 
 
+@test_timeout(local=4 * 60, batch=8 * 60)
 def test_spectra_and_moments_1():
     spectra_and_moments_helper(spec1)
 
 
+@test_timeout(local=4 * 60, batch=8 * 60)
 def test_spectra_and_moments_2():
     spectra_and_moments_helper(spec2)
 
 
+@test_timeout(local=4 * 60, batch=8 * 60)
 def test_spectra_and_moments_3():
     spectra_and_moments_helper(spec3)
 
 
+@test_timeout(local=4 * 60, batch=8 * 60)
 def test_spectra_and_moments_4():
     spectra_and_moments_helper(spec4)
 
 
+@test_timeout(local=4 * 60, batch=8 * 60)
 def test_spectra_and_moments_5():
     spectra_and_moments_helper(spec5)

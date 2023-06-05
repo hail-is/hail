@@ -83,6 +83,7 @@ resource "google_compute_network" "default" {
   name = "default"
   description = "Default network for the project"
   enable_ula_internal_ipv6 = false
+  auto_create_subnetworks = false
 }
 
 resource "google_compute_subnetwork" "default_region" {
@@ -172,6 +173,10 @@ resource "google_container_cluster" "vdc" {
     }
   }
 
+  workload_identity_config {
+    workload_pool = "hail-vdc.svc.id.goog"
+  }
+
   timeouts {}
 }
 
@@ -219,6 +224,10 @@ resource "google_container_node_pool" "vdc_preemptible_pool" {
     shielded_instance_config {
       enable_integrity_monitoring = true
       enable_secure_boot          = false
+    }
+
+    workload_metadata_config {
+      mode = "GKE_METADATA"
     }
   }
 
@@ -274,6 +283,10 @@ resource "google_container_node_pool" "vdc_nonpreemptible_pool" {
     shielded_instance_config {
       enable_integrity_monitoring = true
       enable_secure_boot          = false
+    }
+
+    workload_metadata_config {
+      mode = "GKE_METADATA"
     }
   }
 
@@ -578,6 +591,7 @@ resource "google_storage_bucket" "batch_logs" {
   name = "hail-batch"
   location = var.batch_logs_bucket_location
   storage_class = var.batch_logs_bucket_storage_class
+  uniform_bucket_level_access = true
   labels = {
     "name" = "hail-batch"
   }
@@ -585,12 +599,17 @@ resource "google_storage_bucket" "batch_logs" {
 }
 
 
+resource "random_string" "hail_query_bucket_suffix" {
+  length = 5
+}
+
 resource "google_storage_bucket" "hail_query" {
-  name = "hail-query"
+  name = "hail-query-${random_string.hail_query_bucket_suffix.result}"
   location = var.hail_query_bucket_location
   storage_class = var.hail_query_bucket_storage_class
+  uniform_bucket_level_access = true
   labels = {
-    "name" = "hail-query"
+    "name" = "hail-query-${random_string.hail_query_bucket_suffix.result}"
   }
   timeouts {}
 }
@@ -604,6 +623,7 @@ resource "google_storage_bucket" "hail_test_bucket" {
   location = var.hail_test_gcs_bucket_location
   force_destroy = false
   storage_class = var.hail_test_gcs_bucket_storage_class
+  uniform_bucket_level_access = true
   lifecycle_rule {
     action {
       type = "Delete"
@@ -619,6 +639,21 @@ resource "google_storage_bucket" "hail_test_bucket" {
       with_state                 = "ANY"
     }
   }
+
+  timeouts {}
+}
+
+resource "random_string" "hail_test_requester_pays_bucket_suffix" {
+  length = 5
+}
+
+resource "google_storage_bucket" "hail_test_requester_pays_bucket" {
+  name = "hail-test-requester-pays-${random_string.hail_test_requester_pays_bucket_suffix.result}"
+  location = var.hail_test_gcs_bucket_location
+  force_destroy = false
+  storage_class = var.hail_test_gcs_bucket_storage_class
+  uniform_bucket_level_access = true
+  requester_pays = true
 
   timeouts {}
 }
@@ -672,6 +707,21 @@ resource "kubernetes_cluster_role_binding" "batch" {
     kind      = "ServiceAccount"
     name      = "batch"
     namespace = "default"
+  }
+}
+
+resource "kubernetes_pod_disruption_budget" "kube_dns_pdb" {
+  metadata {
+    name = "kube-dns"
+    namespace = "kube-system"
+  }
+  spec {
+    max_unavailable = "1"
+    selector {
+      match_labels = {
+        k8s-app = "kube-dns"
+      }
+    }
   }
 }
 

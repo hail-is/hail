@@ -341,9 +341,8 @@ class AzureAsyncFS(AsyncFS):
                 credentials = AzureCredentials.from_file(credential_file, scopes=scopes)
             else:
                 credentials = AzureCredentials.default_credentials(scopes=scopes)
-        else:
-            if credential_file is not None:
-                raise ValueError('credential and credential_file cannot both be defined')
+        elif credential_file is not None:
+            raise ValueError('credential and credential_file cannot both be defined')
 
         self._credential = credentials.credential
         self._blob_service_clients: Dict[Tuple[str, str], BlobServiceClient] = {}
@@ -553,8 +552,8 @@ class AzureAsyncFS(AsyncFS):
             self._credential = None
 
         if self._blob_service_clients:
-            await asyncio.wait([client.close() for client in self._blob_service_clients.values()])
-
+            await asyncio.wait([asyncio.create_task(client.close())
+                                for client in self._blob_service_clients.values()])
 
 class AzureAsyncFSFactory(AsyncFSFactory[AzureAsyncFS]):
     def from_credentials_data(self, credentials_data: dict) -> AzureAsyncFS:

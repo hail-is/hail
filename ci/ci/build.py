@@ -240,8 +240,10 @@ class Step(abc.ABC):
             return CreateNamespaceStep.from_json(params)
         if kind == 'deploy':
             return DeployStep.from_json(params)
-        if kind in ('createDatabase', 'createDatabase2'):
+        if kind == 'createDatabase':
             return CreateDatabaseStep.from_json(params)
+        if kind == 'createDatabase2':
+            return CreateDatabase2Step.from_json(params)
         raise BuildConfigurationError(f'unknown build step kind: {kind}')
 
     def __eq__(self, other):
@@ -466,6 +468,7 @@ true
                     'mount_path': '/secrets/registry-push-credentials',
                 }
             ],
+            resources={'cpu': '0.25'},
             parents=parents,
             always_run=True,
             network='private',
@@ -935,6 +938,7 @@ date
             attributes=attrs,
             # FIXME configuration
             service_account={'namespace': DEFAULT_NAMESPACE, 'name': 'ci-agent'},
+            resources={'cpu': '0.25'},
             parents=self.deps_parents(),
             network='private',
             regions=[REGION],
@@ -960,6 +964,7 @@ date
                 attributes={'name': self.name + '_logs'},
                 # FIXME configuration
                 service_account={'namespace': DEFAULT_NAMESPACE, 'name': 'ci-agent'},
+                resources={'cpu': '0.25'},
                 parents=parents,
                 always_run=True,
                 network='private',
@@ -968,10 +973,12 @@ date
 
 
 class CreateDatabaseStep(Step):
-    def __init__(self, params, database_name, namespace, migrations, shutdowns, inputs):
+    def __init__(self, params, database_name, namespace, migrations, shutdowns, inputs, image):
         super().__init__(params)
 
         config = self.input_config(params.code, params.scope)
+
+        self.image = expand_value_from(image, self.input_config(params.code, params.scope))
 
         # FIXME validate
         self.database_name = database_name
@@ -1035,6 +1042,7 @@ class CreateDatabaseStep(Step):
             json['migrations'],
             json.get('shutdowns', []),
             json.get('inputs'),
+            json['image'],
         )
 
     def config(self, scope):  # pylint: disable=unused-argument
@@ -1092,7 +1100,7 @@ EOF
             input_files.extend(password_files_input)
 
             self.create_passwords_job = batch.create_job(
-                CI_UTILS_IMAGE,
+                self.image,
                 command=['bash', '-c', create_passwords_script],
                 attributes={'name': self.name + "_create_passwords"},
                 output_files=[(x[1], x[0]) for x in password_files_input],
@@ -1103,7 +1111,7 @@ EOF
         n_cores = 4 if scope == 'deploy' and not is_test_deployment else 1
 
         self.create_database_job = batch.create_job(
-            CI_UTILS_IMAGE,
+            self.image,
             command=['bash', '-c', create_database_script],
             attributes={'name': self.name},
             secrets=[
@@ -1161,3 +1169,160 @@ done
             network='private',
             regions=[REGION],
         )
+
+
+class CreateDatabase2Step(Step):
+    def __init__(self, params, database_name, namespace, migrations, shutdowns, inputs, image):
+        super().__init__(params)
+
+        config = self.input_config(params.code, params.scope)
+
+        self.image = expand_value_from(image, self.input_config(params.code, params.scope))
+
+        # FIXME validate
+        self.database_name = database_name
+        self.namespace = get_namespace(namespace, config)
+        self.migrations = migrations
+
+        for s in shutdowns:
+            s['namespace'] = get_namespace(s['namespace'], config)
+        self.shutdowns = shutdowns
+
+        self.inputs = inputs
+        self.create_passwords_job = None
+        self.create_database_job = None
+        self.cleanup_job = None
+
+        self.cant_create_database = False
+
+        # MySQL user name can be up to 16 characters long before MySQL 5.7.8 (32 after)
+        if params.scope == 'deploy':
+            self._name = database_name
+            self.admin_username = f'{database_name}-admin'
+            self.user_username = f'{database_name}-user'
+        elif params.scope == 'dev':
+            dev_username = params.code.config()['user']
+            self._name = f'{dev_username}-{database_name}'
+            self.admin_username = f'{dev_username}-{database_name}-admin'
+            self.user_username = f'{dev_username}-{database_name}-user'
+        else:
+            assert params.scope == 'test'
+            self._name = f'{params.code.short_str()}-{database_name}-{self.token}'
+            self.admin_username = generate_token()
+            self.user_username = generate_token()
+
+        self.admin_password_file = f'/io/{self.admin_username}.pwd'
+        self.user_password_file = f'/io/{self.user_username}.pwd'
+
+        self.admin_secret_name = f'sql-{self.database_name}-admin-config'
+        self.user_secret_name = f'sql-{self.database_name}-user-config'
+
+    def wrapped_job(self):
+        if self.cleanup_job:
+            return [self.cleanup_job]
+        if self.create_passwords_job:
+            assert self.create_database_job is not None
+            return [self.create_passwords_job, self.create_database_job]
+        if self.create_database_job:
+            return [self.create_database_job]
+        return []
+
+    @staticmethod
+    def from_json(params: StepParameters):
+        json = params.json
+        return CreateDatabase2Step(
+            params,
+            json['databaseName'],
+            json['namespace'],
+            json['migrations'],
+            json.get('shutdowns', []),
+            json.get('inputs'),
+            json['image'],
+        )
+
+    def config(self, scope):  # pylint: disable=unused-argument
+        return {
+            'token': self.token,
+            'admin_secret_name': self.admin_secret_name,
+            'user_secret_name': self.user_secret_name,
+        }
+
+    def build(self, batch, code, scope):  # pylint: disable=unused-argument
+        create_database_config = {
+            'cloud': CLOUD,
+            'namespace': self.namespace,
+            'scope': scope,
+            'database_name': self.database_name,
+            '_name': self._name,
+            'admin_username': self.admin_username,
+            'user_username': self.user_username,
+            'admin_password_file': self.admin_password_file,
+            'user_password_file': self.user_password_file,
+            'cant_create_database': self.cant_create_database,
+            'migrations': self.migrations,
+            'shutdowns': self.shutdowns,
+        }
+
+        create_passwords_script = f'''
+set -ex
+
+LC_ALL=C tr -dc '[:alnum:]' </dev/urandom | head -c 16 > {self.admin_password_file}
+LC_ALL=C tr -dc '[:alnum:]' </dev/urandom | head -c 16 > {self.user_password_file}
+'''
+
+        create_database_script = f'''
+set -ex
+
+create_database_config={shq(json.dumps(create_database_config, indent=2))}
+python3 create_database.py <<EOF
+$create_database_config
+EOF
+'''
+
+        input_files = []
+        if self.inputs:
+            for i in self.inputs:
+                input_files.append((f'{STORAGE_URI}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
+
+        if not self.cant_create_database:
+            password_files_input = [
+                (
+                    f'{STORAGE_URI}/build/{batch.attributes["token"]}/{self.admin_password_file}',
+                    self.admin_password_file,
+                ),
+                (f'{STORAGE_URI}/build/{batch.attributes["token"]}/{self.user_password_file}', self.user_password_file),
+            ]
+            input_files.extend(password_files_input)
+
+            self.create_passwords_job = batch.create_job(
+                self.image,
+                command=['bash', '-c', create_passwords_script],
+                attributes={'name': self.name + "_create_passwords"},
+                output_files=[(x[1], x[0]) for x in password_files_input],
+                parents=self.deps_parents(),
+                regions=[REGION],
+            )
+
+        n_cores = 4 if scope == 'deploy' and not is_test_deployment else 1
+
+        self.create_database_job = batch.create_job(
+            self.image,
+            command=['bash', '-c', create_database_script],
+            attributes={'name': self.name},
+            secrets=[
+                {
+                    'namespace': self.namespace,
+                    'name': 'database-server-config',
+                    'mount_path': '/sql-config',
+                }
+            ],
+            service_account={'namespace': self.namespace, 'name': 'admin'},
+            input_files=input_files,
+            parents=[self.create_passwords_job] if self.create_passwords_job else self.deps_parents(),
+            network='private',
+            resources={'preemptible': False, 'cpu': str(n_cores)},
+            regions=[REGION],
+        )
+
+    def cleanup(self, batch, scope, parents):
+        pass

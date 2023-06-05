@@ -1,7 +1,24 @@
 .. _sec-change-log:
 
+Python Version Compatibility Policy
+===================================
+
+Hail complies with [NumPy's compatibility policy](https://numpy.org/neps/nep-0029-deprecation_policy.html#implementation) on Python
+versions. In particular, Hail officially supports:
+
+- All minor versions of Python released 42 months prior to the project, and at minimum the two
+  latest minor versions.
+
+- All minor versions of numpy released in the 24 months prior to the project, and at minimum the
+  last three minor versions.
+
 Change Log
 ==========
+
+**Version 0.2.117**
+
+- (`#13007 <https://github.com/hail-is/hail/pull/13007>`__) Memory and storage request strings may now be optionally terminated with a `B` for bytes.
+- (`#13051 <https://github.com/hail-is/hail/pull/13051>`__) Azure Blob Storage `https` URLs are now supported.
 
 **Version 0.2.115**
 

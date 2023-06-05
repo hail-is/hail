@@ -47,7 +47,7 @@ project.ext {
     if (sparkVersion != "3.3.0") {
         project.logger.lifecycle("WARNING: Hail primarily tested with Spark 3.3.0, use other versions at your own risk.")
     }
-    scalaVersion = System.getProperty("scala.version", "2.12.13")
+    scalaVersion = System.getProperty("scala.version", "2.12.15")
     scalaMajorVersion = (scalaVersion =~ /^\d+.\d+/)[0]
     assert(scalaMajorVersion == "2.12")
 }
@@ -199,30 +199,14 @@ dependencies {
     }
 
     bundled 'commons-io:commons-io:2.11.0'
-    bundled(group: 'com.azure', name: 'azure-storage-blob', version: '12.13.0') {
-        exclude group: 'com.fasterxml.jackson'
-        exclude group: 'com.fasterxml.jackson.core'
-        exclude group: 'com.fasterxml.jackson.databind'
-    }
-
-    bundled(group: 'com.azure', name: 'azure-core-http-netty', version: '1.10.0') {
-        exclude group: 'com.fasterxml.jackson'
-        exclude group: 'com.fasterxml.jackson.core'
-        exclude group: 'com.fasterxml.jackson.databind'
-    }
-
-
-    bundled(group: 'com.azure', name: 'azure-identity', version:'1.2.1') {
-        exclude group: 'com.fasterxml.jackson'
-        exclude group: 'com.fasterxml.jackson.core'
-        exclude group: 'com.fasterxml.jackson.databind'
-    }
 
     bundled group: 'org.freemarker', name: 'freemarker', version: '2.3.31'
 
     bundled 'com.kohlschutter.junixsocket:junixsocket-core:2.6.1'
 
     bundled 'com.github.luben:zstd-jni:1.5.2-1'
+
+    bundled project(path: ':shadedazure', configuration: 'shadow')
 
     bundled 'com.google.api-client:google-api-client:1.33.0'
     bundled 'com.google.oauth-client:google-oauth-client-jetty:1.32.1'

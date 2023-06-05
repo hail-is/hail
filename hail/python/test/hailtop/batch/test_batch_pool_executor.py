@@ -1,5 +1,4 @@
 import asyncio
-import concurrent.futures
 import time
 
 import pytest
@@ -9,7 +8,7 @@ from hailtop.config import get_user_config
 from hailtop.utils import sync_sleep_and_backoff
 from hailtop.batch_client.client import BatchClient
 
-PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.7'
+PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.8'
 
 
 submitted_batch_ids = []
@@ -42,24 +41,28 @@ def check_for_running_batches():
                 delay = sync_sleep_and_backoff(delay)
 
 
+@pytest.mark.timeout(6 * 60)
 def test_simple_map(backend):
     with BatchPoolExecutor(backend=backend, project='hail-vdc', image=PYTHON_DILL_IMAGE) as bpe:
         actual = list(bpe.map(lambda x: x * 3, range(4)))
     assert [0, 3, 6, 9] == actual
 
 
+@pytest.mark.timeout(6 * 60)
 def test_empty_map(backend):
     with BatchPoolExecutor(backend=backend, project='hail-vdc', image=PYTHON_DILL_IMAGE) as bpe:
         actual = list(bpe.map(lambda x: x * 3, []))
     assert [] == actual
 
 
+@pytest.mark.timeout(6 * 60)
 def test_simple_submit_result(backend):
     with BatchPoolExecutor(backend=backend, project='hail-vdc', image=PYTHON_DILL_IMAGE) as bpe:
         future_twenty_one = bpe.submit(lambda: 7 * 3)
     assert 21 == future_twenty_one.result()
 
 
+@pytest.mark.timeout(6 * 60)
 def test_cancel_future(backend):
     with BatchPoolExecutor(backend=backend, project='hail-vdc', image=PYTHON_DILL_IMAGE) as bpe:
         def sleep_forever():
@@ -72,6 +75,7 @@ def test_cancel_future(backend):
     assert future.cancelled()
 
 
+@pytest.mark.timeout(6 * 60)
 def test_cancel_future_after_shutdown_no_wait(backend):
     bpe = BatchPoolExecutor(backend=backend, project='hail-vdc', image=PYTHON_DILL_IMAGE)
     def sleep_forever():
@@ -85,6 +89,7 @@ def test_cancel_future_after_shutdown_no_wait(backend):
     assert future.cancelled()
 
 
+@pytest.mark.timeout(6 * 60)
 def test_cancel_future_after_exit_no_wait_on_exit(backend):
     with BatchPoolExecutor(backend=backend, project='hail-vdc', wait_on_exit=False, image=PYTHON_DILL_IMAGE) as bpe:
         def sleep_forever():
@@ -97,6 +102,7 @@ def test_cancel_future_after_exit_no_wait_on_exit(backend):
     assert future.cancelled()
 
 
+@pytest.mark.timeout(6 * 60)
 def test_result_with_timeout(backend):
     with BatchPoolExecutor(backend=backend, project='hail-vdc', image=PYTHON_DILL_IMAGE) as bpe:
         def sleep_forever():
@@ -114,6 +120,7 @@ def test_result_with_timeout(backend):
             future.cancel()
 
 
+@pytest.mark.timeout(6 * 60)
 def test_map_chunksize(backend):
     row_args = [x
                 for row in range(5)
@@ -134,6 +141,7 @@ def test_map_chunksize(backend):
         0,  4,  8, 12, 16]
 
 
+@pytest.mark.timeout(6 * 60)
 def test_map_timeout(backend):
     with BatchPoolExecutor(backend=backend, project='hail-vdc', image=PYTHON_DILL_IMAGE) as bpe:
         def sleep_forever():
@@ -141,17 +149,19 @@ def test_map_timeout(backend):
                 time.sleep(3600)
         try:
             list(bpe.map(lambda _: sleep_forever(), range(5), timeout=2))
-        except concurrent.futures.TimeoutError:
+        except asyncio.TimeoutError:
             pass
         else:
             assert False
 
 
+@pytest.mark.timeout(6 * 60)
 def test_map_error_without_wait_no_error(backend):
     with BatchPoolExecutor(backend=backend, project='hail-vdc', wait_on_exit=False, image=PYTHON_DILL_IMAGE) as bpe:
         bpe.map(lambda _: time.sleep(10), range(5), timeout=2)
 
 
+@pytest.mark.timeout(6 * 60)
 def test_exception_in_map(backend):
     def raise_value_error():
         raise ValueError('dead')
@@ -165,6 +175,7 @@ def test_exception_in_map(backend):
             assert False
 
 
+@pytest.mark.timeout(6 * 60)
 def test_exception_in_result(backend):
     def raise_value_error():
         raise ValueError('dead')
@@ -178,6 +189,7 @@ def test_exception_in_result(backend):
             assert False
 
 
+@pytest.mark.timeout(6 * 60)
 def test_exception_in_exception(backend):
     def raise_value_error():
         raise ValueError('dead')
@@ -191,6 +203,7 @@ def test_exception_in_exception(backend):
             assert False
 
 
+@pytest.mark.timeout(6 * 60)
 def test_no_exception_when_exiting_context(backend):
     def raise_value_error():
         raise ValueError('dead')
@@ -218,6 +231,7 @@ def test_bad_image_gives_good_error(backend):
         assert False
 
 
+@pytest.mark.timeout(6 * 60)
 def test_call_result_after_timeout():
     with BatchPoolExecutor(project='hail-vdc', image=PYTHON_DILL_IMAGE) as bpe:
         def sleep_forever():
@@ -240,11 +254,13 @@ def test_call_result_after_timeout():
             future.cancel()
 
 
+@pytest.mark.timeout(6 * 60)
 def test_basic_async_fun():
     with BatchPoolExecutor(project='hail-vdc', image=PYTHON_DILL_IMAGE) as bpe:
         bpe.submit(asyncio.sleep, 1)
 
 
+@pytest.mark.timeout(6 * 60)
 def test_async_fun_returns_value():
     async def foo(i, j):
         await asyncio.sleep(1)

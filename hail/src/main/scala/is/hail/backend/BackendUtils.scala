@@ -28,14 +28,17 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
     val backend = HailContext.backend
     val f = getModule(modID)
 
-    log.info(s"executing D-Array [$stageName] with ${contexts.length} tasks")
+    log.info(s"executing D-Array [$stageName] with ${contexts.length} tasks, " +
+      s"contexts size = ${formatSpace(contexts.map(_.length.toLong).sum)}, globals size = ${formatSpace(globals.length)}")
     val t = System.nanoTime()
     val r = if (contexts.length == 0)
       Array.empty[Array[Byte]]
     else if (contexts.length == 1 && backend.canExecuteParallelTasksOnDriver) {
       using(new LocalTaskContext(0, 0)) { htc =>
         using(htc.getRegionPool().getRegion()) { r =>
-          Array(f(theDriverHailClassLoader, fs, htc, r)(r, contexts(0), globals))
+          val compute = f(theDriverHailClassLoader, fs, htc, r)
+          val res = is.hail.services.retryTransientErrors { compute(r, contexts(0), globals) }
+          Array(res)
         }
       }
     } else {

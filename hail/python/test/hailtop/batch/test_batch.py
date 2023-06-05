@@ -2,6 +2,7 @@ import asyncio
 import inspect
 import secrets
 import unittest
+
 import pytest
 import os
 import subprocess as sp
@@ -19,10 +20,11 @@ from hailtop.config import get_user_config
 from hailtop.batch.utils import concatenate
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.test_utils import skip_in_azure
+from hailtop.httpx import ClientResponseError
 
 
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'ubuntu:20.04')
-PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.7-slim'
+PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.8-slim'
 HAIL_GENETICS_HAIL_IMAGE = os.environ.get('HAIL_GENETICS_HAIL_IMAGE', f'hailgenetics/hail:{pip_version()}')
 
 
@@ -504,24 +506,24 @@ class ServiceTests(unittest.TestCase):
         if not os.path.exists(in_cluster_key_file):
             in_cluster_key_file = None
 
-        router_fs = RouterAsyncFS(gcs_kwargs={'gcs_requester_pays_configuration': 'hail-vdc', 'credentials_file': in_cluster_key_file},
-                                  azure_kwargs={'credential_file': in_cluster_key_file})
+        self.router_fs = RouterAsyncFS(gcs_kwargs={'gcs_requester_pays_configuration': 'hail-vdc', 'credentials_file': in_cluster_key_file},
+                                       azure_kwargs={'credential_file': in_cluster_key_file})
 
-        def sync_exists(url):
-            return async_to_blocking(router_fs.exists(url))
-
-        def sync_write(url, data):
-            return async_to_blocking(router_fs.write(url, data))
-
-        if not sync_exists(f'{self.remote_tmpdir}batch-tests/resources/hello.txt'):
-            sync_write(f'{self.remote_tmpdir}batch-tests/resources/hello.txt', b'hello world')
-        if not sync_exists(f'{self.remote_tmpdir}batch-tests/resources/hello spaces.txt'):
-            sync_write(f'{self.remote_tmpdir}batch-tests/resources/hello spaces.txt', b'hello')
-        if not sync_exists(f'{self.remote_tmpdir}batch-tests/resources/hello (foo) spaces.txt'):
-            sync_write(f'{self.remote_tmpdir}batch-tests/resources/hello (foo) spaces.txt', b'hello')
+        if not self.sync_exists(f'{self.remote_tmpdir}batch-tests/resources/hello.txt'):
+            self.sync_write(f'{self.remote_tmpdir}batch-tests/resources/hello.txt', b'hello world')
+        if not self.sync_exists(f'{self.remote_tmpdir}batch-tests/resources/hello spaces.txt'):
+            self.sync_write(f'{self.remote_tmpdir}batch-tests/resources/hello spaces.txt', b'hello')
+        if not self.sync_exists(f'{self.remote_tmpdir}batch-tests/resources/hello (foo) spaces.txt'):
+            self.sync_write(f'{self.remote_tmpdir}batch-tests/resources/hello (foo) spaces.txt', b'hello')
 
     def tearDown(self):
         self.backend.close()
+
+    def sync_exists(self, url):
+        return async_to_blocking(self.router_fs.exists(url))
+
+    def sync_write(self, url, data):
+        return async_to_blocking(self.router_fs.write(url, data))
 
     def batch(self, requester_pays_project=None, default_python_image=None,
               cancel_after_n_failures=None):
@@ -625,6 +627,7 @@ class ServiceTests(unittest.TestCase):
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
+    @pytest.mark.timeout(6 * 60)  # this lands on a highcpu instance and thus must spin up a new machine
     def test_specify_memory(self):
         b = self.batch()
         j = b.new_job()
@@ -686,23 +689,37 @@ class ServiceTests(unittest.TestCase):
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
-    def test_cloudfuse(self):
+    def test_cloudfuse_fails_with_read_write_mount_option(self):
         assert self.bucket
         path = f'/{self.bucket}{self.cloud_output_path}'
 
         b = self.batch()
-        head = b.new_job()
-        head.command(f'mkdir -p {path}; echo head > {path}/cloudfuse_test_1')
-        head.cloudfuse(self.bucket, f'/{self.bucket}', read_only=False)
+        j = b.new_job()
+        j.command(f'mkdir -p {path}; echo head > {path}/cloudfuse_test_1')
+        j.cloudfuse(self.bucket, f'/{self.bucket}', read_only=False)
 
-        tail = b.new_job()
-        tail.command(f'cat {path}/cloudfuse_test_1')
-        tail.cloudfuse(self.bucket, f'/{self.bucket}', read_only=True)
-        tail.depends_on(head)
+        try:
+            b.run()
+        except ClientResponseError as e:
+            assert 'Only read-only cloudfuse requests are supported' in e.body, e.body
+        else:
+            assert False
 
-        res = b.run()
-        res_status = res.status()
-        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+    def test_cloudfuse_fails_with_io_mount_point(self):
+        assert self.bucket
+        path = f'/{self.bucket}{self.cloud_output_path}'
+
+        b = self.batch()
+        j = b.new_job()
+        j.command(f'mkdir -p {path}; echo head > {path}/cloudfuse_test_1')
+        j.cloudfuse(self.bucket, f'/io', read_only=True)
+
+        try:
+            b.run()
+        except ClientResponseError as e:
+            assert 'Cloudfuse requests with mount_path=/io are not supported' in e.body, e.body
+        else:
+            assert False
 
     def test_cloudfuse_read_only(self):
         assert self.bucket
@@ -719,17 +736,11 @@ class ServiceTests(unittest.TestCase):
 
     def test_cloudfuse_implicit_dirs(self):
         assert self.bucket
-        path = f'/{self.bucket}{self.cloud_output_path}'
-
+        path = self.router_fs.parse_url(f'{self.remote_tmpdir}batch-tests/resources/hello.txt').path
         b = self.batch()
-        head = b.new_job()
-        head.command(f'mkdir -p {path}/cloudfuse/; echo head > {path}/cloudfuse/data')
-        head.cloudfuse(self.bucket, f'/{self.bucket}', read_only=False)
-
-        tail = b.new_job()
-        tail.command(f'cat {path}/cloudfuse/data')
-        tail.cloudfuse(self.bucket, f'/{self.bucket}', read_only=True)
-        tail.depends_on(head)
+        j = b.new_job()
+        j.command(f'cat /cloudfuse/{path}')
+        j.cloudfuse(self.bucket, f'/cloudfuse', read_only=True)
 
         res = b.run()
         res_status = res.status()
@@ -744,11 +755,22 @@ class ServiceTests(unittest.TestCase):
         with self.assertRaises(BatchException):
             j.cloudfuse(self.bucket, '')
 
+    def test_cloudfuse_submount_in_io_doesnt_rm_bucket(self):
+        assert self.bucket
+        b = self.batch()
+        j = b.new_job()
+        j.cloudfuse(self.bucket, '/io/cloudfuse')
+        j.command(f'ls /io/cloudfuse/')
+        res = b.run()
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+        assert self.sync_exists(f'{self.remote_tmpdir}batch-tests/resources/hello.txt')
+
     @skip_in_azure
     def test_fuse_requester_pays(self):
         b = self.batch(requester_pays_project='hail-vdc')
         j = b.new_job()
-        j.cloudfuse('hail-services-requester-pays', '/fuse-bucket')
+        j.cloudfuse('hail-test-requester-pays-fds32', '/fuse-bucket')
         j.command('cat /fuse-bucket/hello')
         res = b.run()
         res_status = res.status()
@@ -757,17 +779,10 @@ class ServiceTests(unittest.TestCase):
     @skip_in_azure
     def test_fuse_non_requester_pays_bucket_when_requester_pays_project_specified(self):
         assert self.bucket
-        path = f'/{self.bucket}{self.cloud_output_path}'
-
         b = self.batch(requester_pays_project='hail-vdc')
-        head = b.new_job()
-        head.command(f'mkdir -p {path}; echo head > {path}/cloudfuse_test_1')
-        head.cloudfuse(self.bucket, f'/{self.bucket}', read_only=False)
-
-        tail = b.new_job()
-        tail.command(f'cat {path}/cloudfuse_test_1')
-        tail.cloudfuse(self.bucket, f'/{self.bucket}', read_only=True)
-        tail.depends_on(head)
+        j = b.new_job()
+        j.command(f'ls /fuse-bucket')
+        j.cloudfuse(self.bucket, f'/fuse-bucket', read_only=True)
 
         res = b.run()
         res_status = res.status()
@@ -776,7 +791,7 @@ class ServiceTests(unittest.TestCase):
     @skip_in_azure
     def test_requester_pays(self):
         b = self.batch(requester_pays_project='hail-vdc')
-        input = b.read_input('gs://hail-services-requester-pays/hello')
+        input = b.read_input('gs://hail-test-requester-pays-fds32/hello')
         j = b.new_job()
         j.command(f'cat {input}')
         res = b.run()
@@ -854,6 +869,7 @@ class ServiceTests(unittest.TestCase):
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
+    @pytest.mark.timeout(6 * 60)
     def test_python_job(self):
         b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
         head = b.new_job()
@@ -888,6 +904,7 @@ class ServiceTests(unittest.TestCase):
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
         assert res.get_job_log(4)['main'] == "3\n5\n30\n{\"x\": 3, \"y\": 5}\n", str(res.debug_info())
 
+    @pytest.mark.timeout(6 * 60)
     def test_python_job_w_resource_group_unpack_individually(self):
         b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
         head = b.new_job()
@@ -925,6 +942,7 @@ class ServiceTests(unittest.TestCase):
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
         assert res.get_job_log(4)['main'] == "3\n5\n30\n{\"x\": 3, \"y\": 5}\n", str(res.debug_info())
 
+    @pytest.mark.timeout(6 * 60)
     def test_python_job_can_write_to_resource_path(self):
         b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
 
@@ -943,6 +961,7 @@ class ServiceTests(unittest.TestCase):
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
         assert res.get_job_log(tail._job_id)['main'] == 'foo', str(res.debug_info())
 
+    @pytest.mark.timeout(6 * 60)
     def test_python_job_w_resource_group_unpack_jointly(self):
         b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
         head = b.new_job()
@@ -976,6 +995,7 @@ class ServiceTests(unittest.TestCase):
         job_log_3 = res.get_job_log(3)
         assert job_log_3['main'] == "15\n", str((job_log_3, res.debug_info()))
 
+    @pytest.mark.timeout(6 * 60)
     def test_python_job_w_non_zero_ec(self):
         b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
         j = b.new_python_job()
@@ -988,6 +1008,7 @@ class ServiceTests(unittest.TestCase):
         res_status = res.status()
         assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
 
+    @pytest.mark.timeout(6 * 60)
     def test_python_job_incorrect_signature(self):
         b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
 
@@ -1070,6 +1091,7 @@ class ServiceTests(unittest.TestCase):
         batch_status = batch.status()
         assert batch_status['state'] == 'success', str((batch.debug_info()))
 
+    @pytest.mark.timeout(6 * 60)
     def test_query_on_batch_in_batch(self):
         sb = ServiceBackend(remote_tmpdir=f'{self.remote_tmpdir}/temporary-files')
         bb = Batch(backend=sb, default_python_image=HAIL_GENETICS_HAIL_IMAGE)
@@ -1259,6 +1281,7 @@ class ServiceTests(unittest.TestCase):
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
+    @pytest.mark.timeout(6 * 60)
     def test_list_recursive_resource_extraction_in_python_jobs(self):
         b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
 
@@ -1280,6 +1303,7 @@ class ServiceTests(unittest.TestCase):
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
         assert res.get_job_log(tail._job_id)['main'] == '01', str(res.debug_info())
 
+    @pytest.mark.timeout(6 * 60)
     def test_dict_recursive_resource_extraction_in_python_jobs(self):
         b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
 
@@ -1300,3 +1324,8 @@ class ServiceTests(unittest.TestCase):
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
         assert res.get_job_log(tail._job_id)['main'] == 'ab', str(res.debug_info())
+
+    def test_wait_on_empty_batch_update(self):
+        b = self.batch()
+        b.run(wait=True)
+        b.run(wait=True)

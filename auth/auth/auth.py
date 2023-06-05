@@ -17,6 +17,8 @@ from gear import (
     Transaction,
     check_csrf_token,
     create_session,
+    json_request,
+    json_response,
     maybe_parse_bearer_header,
     monitor_endpoints_middleware,
     setup_aiohttp_session,
@@ -360,7 +362,7 @@ async def create_user(request: web.Request, userdata):  # pylint: disable=unused
     db: Database = request.app['db']
     username = request.match_info['user']
 
-    body = await request.json()
+    body = await json_request(request)
     login_id = body['login_id']
     is_developer = body['is_developer']
     is_service_account = body['is_service_account']
@@ -434,7 +436,7 @@ async def rest_login(request):
     flow_data['callback_uri'] = callback_uri
 
     # keeping authorization_url and state for backwards compatibility
-    return web.json_response(
+    return json_response(
         {'flow': flow_data, 'authorization_url': flow_data['authorization_url'], 'state': flow_data['state']}
     )
 
@@ -511,12 +513,12 @@ async def post_create_user(request, userdata):  # pylint: disable=unused-argumen
 @auth.rest_authenticated_developers_only
 async def rest_get_users(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
-    users = await db.select_and_fetchall(
-        '''
-SELECT id, username, login_id, state, is_developer, is_service_account FROM users;
+    _query = '''
+SELECT id, username, login_id, state, is_developer, is_service_account, hail_identity
+FROM users;
 '''
-    )
-    return web.json_response([user async for user in users])
+    users = [x async for x in db.select_and_fetchall(_query)]
+    return json_response(users)
 
 
 @routes.get('/api/v1alpha/users/{user}')
@@ -527,14 +529,14 @@ async def rest_get_user(request, userdata):  # pylint: disable=unused-argument
 
     user = await db.select_and_fetchone(
         '''
-SELECT id, username, login_id, state, is_developer, is_service_account FROM users
+SELECT id, username, login_id, state, is_developer, is_service_account, hail_identity FROM users
 WHERE username = %s;
 ''',
         (username,),
     )
     if user is None:
         raise web.HTTPNotFound()
-    return web.json_response(user)
+    return json_response(user)
 
 
 async def _delete_user(db: Database, username: str, id: Optional[str]):
@@ -626,7 +628,7 @@ async def rest_callback(request):
 
     session_id = await create_session(db, user['id'], max_age_secs=None)
 
-    return web.json_response({'token': session_id, 'username': user['username']})
+    return json_response({'token': session_id, 'username': user['username']})
 
 
 @routes.post('/api/v1alpha/copy-paste-login')
@@ -652,7 +654,7 @@ WHERE copy_paste_tokens.id = %s
         return session
 
     session = await maybe_pop_token()  # pylint: disable=no-value-for-parameter
-    return web.json_response({'token': session['session_id'], 'username': session['username']})
+    return json_response({'token': session['session_id'], 'username': session['username']})
 
 
 @routes.post('/api/v1alpha/logout')
@@ -703,7 +705,7 @@ async def userinfo(request):
         log.info('Bearer not in Authorization header')
         raise web.HTTPUnauthorized()
 
-    return web.json_response(await get_userinfo(request, session_id))
+    return json_response(await get_userinfo(request, session_id))
 
 
 async def get_session_id(request):

@@ -121,6 +121,7 @@ class Tests(unittest.TestCase):
         mt = mt.key_rows_by().drop('locus')
         hl.variant_qc(mt).variant_qc.collect()
 
+    @test_timeout(batch=5 * 60)
     def test_concordance(self):
         dataset = get_dataset()
         glob_conc, cols_conc, rows_conc = hl.concordance(dataset, dataset)
@@ -149,11 +150,14 @@ class Tests(unittest.TestCase):
             cols_conc.write(outfile, overwrite=True)
             rows_conc.write(outfile, overwrite=True)
 
-    def test_concordance_n_discordant(self):
+    @test_timeout(local=3 * 60)
+    def test_concordance_n_discordant_1(self):
         dataset = get_dataset()
-        _, cols_conc, rows_conc = hl.concordance(dataset, dataset)
+        _, cols_conc, _ = hl.concordance(dataset, dataset)
         assert cols_conc.aggregate(hl.agg.count_where(cols_conc.n_discordant != 0)) == 0
 
+    @test_timeout(local=3 * 60)
+    def test_concordance_n_discordant_2(self):
         rows1 = [
             hl.Struct(**{'locus': hl.Locus('1', 100), 'alleles': ['A', 'T'], 's': '1', 'GT': hl.Call([0, 0])}),
             hl.Struct(**{'locus': hl.Locus('1', 100), 'alleles': ['A', 'T'], 's': '2', 'GT': hl.Call([0, 0])}),
@@ -243,7 +247,7 @@ class Tests(unittest.TestCase):
                 hl.filter_alleles(ds, lambda a, i: False).count_rows(), 0)
             self.assertEqual(hl.filter_alleles(ds, lambda a, i: True).count_rows(), ds.count_rows())
 
-    def test_filter_alleles_hts(self):
+    def test_filter_alleles_hts_1(self):
         # 1 variant: A:T,G
         ds = hl.import_vcf(resource('filter_alleles/input.vcf'))
 
@@ -252,17 +256,29 @@ class Tests(unittest.TestCase):
                 .drop('old_alleles', 'old_locus', 'new_to_old', 'old_to_new')
                 ._same(hl.import_vcf(resource('filter_alleles/keep_allele1_subset.vcf'))))
 
+    def test_filter_alleles_hts_2(self):
+        # 1 variant: A:T,G
+        ds = hl.import_vcf(resource('filter_alleles/input.vcf'))
+
         self.assertTrue(
             hl.filter_alleles_hts(ds, lambda a, i: a == 'G', subset=True)
                 .drop('old_alleles', 'old_locus', 'new_to_old', 'old_to_new')
                 ._same(hl.import_vcf(resource('filter_alleles/keep_allele2_subset.vcf')))
         )
 
+    def test_filter_alleles_hts_3(self):
+        # 1 variant: A:T,G
+        ds = hl.import_vcf(resource('filter_alleles/input.vcf'))
+
         self.assertTrue(
             hl.filter_alleles_hts(ds, lambda a, i: a != 'G', subset=False)
                 .drop('old_alleles', 'old_locus', 'new_to_old', 'old_to_new')
                 ._same(hl.import_vcf(resource('filter_alleles/keep_allele1_downcode.vcf')))
         )
+
+    def test_filter_alleles_hts_4(self):
+        # 1 variant: A:T,G
+        ds = hl.import_vcf(resource('filter_alleles/input.vcf'))
 
         self.assertTrue(
             hl.filter_alleles_hts(ds, lambda a, i: a == 'G', subset=False)
@@ -302,6 +318,7 @@ class Tests(unittest.TestCase):
 
     @skip_unless_service_backend(clouds=['gcp'])
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
+    @test_timeout(batch=5 * 60)
     def test_vep_grch37_consequence_true(self):
         gnomad_vep_result = hl.import_vcf(resource('sample.gnomad.exomes.r2.1.1.sites.chr1.vcf.gz'), reference_genome='GRCh37', force=True)
         hail_vep_result = hl.vep(gnomad_vep_result, csq=True)
@@ -321,6 +338,7 @@ class Tests(unittest.TestCase):
 
     @skip_unless_service_backend(clouds=['gcp'])
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
+    @test_timeout(batch=5 * 60)
     def test_vep_grch38_consequence_true(self):
         gnomad_vep_result = hl.import_vcf(resource('sample.gnomad.genomes.r3.0.sites.chr1.vcf.gz'), reference_genome='GRCh38', force=True)
         hail_vep_result = hl.vep(gnomad_vep_result, csq=True)
@@ -340,6 +358,7 @@ class Tests(unittest.TestCase):
 
     @skip_unless_service_backend(clouds=['gcp'])
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
+    @test_timeout(batch=5 * 60)
     def test_vep_grch37_consequence_false(self):
         mt = hl.import_vcf(resource('sample.gnomad.exomes.r2.1.1.sites.chr1.vcf.gz'), reference_genome='GRCh37', force=True)
         hail_vep_result = hl.vep(mt, csq=False)
@@ -350,6 +369,7 @@ class Tests(unittest.TestCase):
 
     @skip_unless_service_backend(clouds=['gcp'])
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
+    @test_timeout(batch=5 * 60)
     def test_vep_grch38_consequence_false(self):
         mt = hl.import_vcf(resource('sample.gnomad.genomes.r3.0.sites.chr1.vcf.gz'), reference_genome='GRCh38', force=True)
         hail_vep_result = hl.vep(mt, csq=False)
@@ -360,6 +380,7 @@ class Tests(unittest.TestCase):
 
     @skip_unless_service_backend(clouds=['gcp'])
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
+    @test_timeout(batch=5 * 60)
     def test_vep_grch37_against_dataproc(self):
         mt = hl.import_vcf(resource('sample.vcf.gz'), reference_genome='GRCh37', force_bgz=True, n_partitions=4)
         mt = mt.head(20)
@@ -401,6 +422,7 @@ class Tests(unittest.TestCase):
 
     @skip_unless_service_backend(clouds=['gcp'])
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
+    @test_timeout(batch=5 * 60)
     def test_vep_grch38_against_dataproc(self):
         dataproc_result = hl.import_table(resource('dataproc_vep_grch38_annotations.tsv.gz'),
                                           key=['locus', 'alleles'],

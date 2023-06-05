@@ -31,6 +31,8 @@ from gear import (
     Database,
     Transaction,
     check_csrf_token,
+    json_request,
+    json_response,
     monitor_endpoints_middleware,
     setup_aiohttp_session,
     transaction,
@@ -48,8 +50,8 @@ from hailtop.utils import (
     dump_all_stacktraces,
     humanize_timedelta_msecs,
     periodically_call,
-    request_retry_transient_errors,
     retry_long_running,
+    retry_transient_errors,
     run_if_changed,
     time_msecs,
     time_msecs_str,
@@ -191,7 +193,7 @@ async def rest_cloud(request):  # pylint: disable=W0613
 @routes.get('/api/v1alpha/supported_regions')
 @auth.rest_authenticated_users_only
 async def rest_get_supported_regions(request, userdata):  # pylint: disable=unused-argument
-    return web.json_response(list(request.app['regions'].keys()))
+    return json_response(list(request.app['regions'].keys()))
 
 
 async def _handle_ui_error(session, f, *args, **kwargs):
@@ -251,12 +253,13 @@ async def _query_batch_jobs(request, batch_id):
 
     q = request.query.get('q', '')
     terms = q.split()
-    for t in terms:
-        if t[0] == '!':
+    for _t in terms:
+        if _t[0] == '!':
             negate = True
-            t = t[1:]
+            t = _t[1:]
         else:
             negate = False
+            t = _t
 
         if '=' in t:
             k, v = t.split('=', 1)
@@ -350,7 +353,7 @@ WHERE id = %s AND NOT deleted;
     resp = {'jobs': jobs}
     if last_job_id is not None:
         resp['last_job_id'] = last_job_id
-    return web.json_response(resp)
+    return json_response(resp)
 
 
 async def _get_job_record(app, batch_id, job_id):
@@ -419,12 +422,10 @@ def attempt_id_from_spec(record) -> Optional[str]:
 
 async def _get_job_container_log_from_worker(client_session, batch_id, job_id, container, ip_address) -> bytes:
     try:
-        async with await request_retry_transient_errors(
-            client_session,
-            'GET',
+        return await retry_transient_errors(
+            client_session.get_read,
             f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log/{container}',
-        ) as resp:
-            return await resp.read()
+        )
     except aiohttp.ClientResponseError:
         log.exception(f'while getting log for {(batch_id, job_id)}')
         return b'ERROR: encountered a problem while fetching the log'
@@ -487,12 +488,10 @@ async def _get_job_resource_usage(app, batch_id, job_id):
 
     if state == 'Running':
         try:
-            resp = await request_retry_transient_errors(
-                client_session,
-                'GET',
+            data = await retry_transient_errors(
+                client_session.get_read_json,
                 f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resource_usage',
             )
-            data = await resp.json()
             return {
                 task: ResourceUsageMonitor.decode_to_df(base64.b64decode(encoded_df))
                 for task, encoded_df in data.items()
@@ -513,6 +512,30 @@ async def _get_job_resource_usage(app, batch_id, job_id):
         return task, df
 
     return dict(await asyncio.gather(*[_read_resource_usage_from_cloud_storage(task) for task in tasks]))
+
+
+async def _get_jvm_profile(app, batch_id, job_id):
+    record = await _get_job_record(app, batch_id, job_id)
+
+    file_store: FileStore = app['file_store']
+    batch_format_version = BatchFormatVersion(record['format_version'])
+
+    state = record['state']
+    attempt_id = attempt_id_from_spec(record)
+
+    if not has_resource_available(record):
+        return None
+
+    if state == 'Running':
+        return None
+
+    assert attempt_id is not None and state in complete_states
+
+    try:
+        data = await file_store.read_jvm_profile(batch_format_version, batch_id, job_id, attempt_id, 'main')
+        return data.decode('utf-8')
+    except FileNotFoundError:
+        return None
 
 
 async def _get_attributes(app, record):
@@ -595,10 +618,10 @@ async def _get_full_job_status(app, record):
 
     ip_address = record['ip_address']
     try:
-        resp = await request_retry_transient_errors(
-            client_session, 'GET', f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status'
+        return await retry_transient_errors(
+            client_session.get_read_json,
+            f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status',
         )
-        return await resp.json()
     except aiohttp.ClientResponseError as e:
         if e.status == 404:
             return None
@@ -619,7 +642,7 @@ async def get_job_log(request, userdata, batch_id):  # pylint: disable=unused-ar
             raise web.HTTPBadRequest(
                 reason=f'log for container {container} is not valid UTF-8, upgrade your hail version to download the log'
             ) from e
-    return web.json_response(job_log_strings)
+    return json_response(job_log_strings)
 
 
 async def get_job_container_log(request, batch_id):
@@ -656,12 +679,13 @@ async def _query_batches(request, user, q):
         where_args.append(last_batch_id)
 
     terms = q.split()
-    for t in terms:
-        if t[0] == '!':
+    for _t in terms:
+        if _t[0] == '!':
             negate = True
-            t = t[1:]
+            t = _t[1:]
         else:
             negate = False
+            t = _t
 
         if '=' in t:
             k, v = t.split('=', 1)
@@ -779,7 +803,7 @@ async def get_batches(request, userdata):  # pylint: disable=unused-argument
     body = {'batches': batches}
     if last_batch_id is not None:
         body['last_batch_id'] = last_batch_id
-    return web.json_response(body)
+    return json_response(body)
 
 
 def check_service_account_permissions(user, sa):
@@ -801,7 +825,7 @@ async def create_jobs(request: aiohttp.web.Request, userdata: dict):
     app = request.app
 
     batch_id = int(request.match_info['batch_id'])
-    job_specs = await request.json()
+    job_specs = await json_request(request)
     return await _create_jobs(userdata, job_specs, batch_id, 1, app)
 
 
@@ -816,7 +840,7 @@ async def create_jobs_for_update(request: aiohttp.web.Request, userdata: dict):
 
     batch_id = int(request.match_info['batch_id'])
     update_id = int(request.match_info['update_id'])
-    job_specs = await request.json()
+    job_specs = await json_request(request)
     return await _create_jobs(userdata, job_specs, batch_id, update_id, app)
 
 
@@ -1063,6 +1087,16 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
         if cloud == 'azure' and all(envvar['name'] != 'AZURE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
             spec['env'].append({'name': 'AZURE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
 
+        cloudfuse = spec.get('gcsfuse') or spec.get('cloudfuse')
+        if cloudfuse:
+            for config in cloudfuse:
+                if not config['read_only']:
+                    raise web.HTTPBadRequest(reason=f'Only read-only cloudfuse requests are supported. Found {config}')
+                if config['mount_path'] == '/io':
+                    raise web.HTTPBadRequest(
+                        reason=f'Cloudfuse requests with mount_path=/io are not supported. Found {config}'
+                    )
+
         if spec.get('mount_tokens', False):
             secrets.append(
                 {
@@ -1275,7 +1309,7 @@ async def create_batch_fast(request, userdata):
     db: Database = app['db']
 
     user = userdata['username']
-    batch_and_bunch = await request.json()
+    batch_and_bunch = await json_request(request)
     batch_spec = batch_and_bunch['batch']
     bunch = batch_and_bunch['bunch']
     batch_id = await _create_batch(batch_spec, userdata, db)
@@ -1284,10 +1318,10 @@ async def create_batch_fast(request, userdata):
         await _create_jobs(userdata, bunch, batch_id, update_id, app)
     except web.HTTPBadRequest as e:
         if f'update {update_id} is already committed' == e.reason:
-            return web.json_response({'id': batch_id})
+            return json_response({'id': batch_id})
         raise
     await _commit_update(app, batch_id, update_id, user, db)
-    return web.json_response({'id': batch_id})
+    return json_response({'id': batch_id})
 
 
 @routes.post('/api/v1alpha/batches/create')
@@ -1296,7 +1330,7 @@ async def create_batch(request, userdata):
     app = request.app
     db: Database = app['db']
 
-    batch_spec = await request.json()
+    batch_spec = await json_request(request)
     id = await _create_batch(batch_spec, userdata, db)
     n_jobs = batch_spec['n_jobs']
     if n_jobs > 0:
@@ -1305,7 +1339,7 @@ async def create_batch(request, userdata):
         )
     else:
         update_id = None
-    return web.json_response({'id': id, 'update_id': update_id})
+    return json_response({'id': id, 'update_id': update_id})
 
 
 async def _create_batch(batch_spec: dict, userdata: dict, db: Database):
@@ -1430,7 +1464,7 @@ async def update_batch_fast(request, userdata):
 
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
-    update_and_bunch = await request.json()
+    update_and_bunch = await json_request(request)
     update_spec = update_and_bunch['update']
     bunch = update_and_bunch['bunch']
 
@@ -1447,10 +1481,10 @@ async def update_batch_fast(request, userdata):
         await _create_jobs(userdata, bunch, batch_id, update_id, app)
     except web.HTTPBadRequest as e:
         if f'update {update_id} is already committed' == e.reason:
-            return web.json_response({'update_id': update_id, 'start_job_id': start_job_id})
+            return json_response({'update_id': update_id, 'start_job_id': start_job_id})
         raise
     await _commit_update(app, batch_id, update_id, user, db)
-    return web.json_response({'update_id': update_id, 'start_job_id': start_job_id})
+    return json_response({'update_id': update_id, 'start_job_id': start_job_id})
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/updates/create')
@@ -1465,7 +1499,7 @@ async def create_update(request, userdata):
 
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
-    update_spec = await request.json()
+    update_spec = await json_request(request)
 
     try:
         validate_batch_update(update_spec)
@@ -1473,7 +1507,7 @@ async def create_update(request, userdata):
         raise web.HTTPBadRequest(reason=e.reason)
 
     update_id, _ = await _create_batch_update(batch_id, update_spec['token'], update_spec['n_jobs'], user, db)
-    return web.json_response({'update_id': update_id})
+    return json_response({'update_id': update_id})
 
 
 async def _create_batch_update(
@@ -1612,7 +1646,7 @@ WHERE id = %s AND NOT deleted;
 @routes.get('/api/v1alpha/batches/{batch_id}')
 @rest_billing_project_users_only
 async def get_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
-    return web.json_response(await _get_batch(request.app, batch_id))
+    return json_response(await _get_batch(request.app, batch_id))
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/cancel')
@@ -1684,7 +1718,7 @@ WHERE user = %s AND batches.id = %s AND batch_updates.update_id = %s AND NOT del
         raise web.HTTPBadRequest(reason='Cannot commit an update to a cancelled batch')
 
     await _commit_update(app, batch_id, update_id, user, db)
-    return web.json_response({'start_job_id': record['start_job_id']})
+    return json_response({'start_job_id': record['start_job_id']})
 
 
 async def _commit_update(app: web.Application, batch_id: int, update_id: int, user: str, db: Database):
@@ -1704,9 +1738,8 @@ async def _commit_update(app: web.Application, batch_id: int, update_id: int, us
         raise
 
     app['task_manager'].ensure_future(
-        request_retry_transient_errors(
-            client_session,
-            'PATCH',
+        retry_transient_errors(
+            client_session.patch,
             deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/update'),
             headers=app['batch_headers'],
         )
@@ -1896,7 +1929,7 @@ WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 async def get_attempts(request, userdata, batch_id):  # pylint: disable=unused-argument
     job_id = int(request.match_info['job_id'])
     attempts = await _get_attempts(request.app, batch_id, job_id)
-    return web.json_response(attempts)
+    return json_response(attempts)
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
@@ -1904,7 +1937,7 @@ async def get_attempts(request, userdata, batch_id):  # pylint: disable=unused-a
 async def get_job(request, userdata, batch_id):  # pylint: disable=unused-argument
     job_id = int(request.match_info['job_id'])
     status = await _get_job(request.app, batch_id, job_id)
-    return web.json_response(status)
+    return json_response(status)
 
 
 def plot_job_durations(container_statuses: dict, batch_id: int, job_id: int):
@@ -2096,6 +2129,18 @@ def plot_resource_usage(
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
 
+@routes.get('/batches/{batch_id}/jobs/{job_id}/jvm_profile')
+@web_billing_project_users_only()
+@catch_ui_error_in_dev
+async def ui_get_jvm_profile(request, userdata, batch_id):  # pylint: disable=unused-argument
+    app = request.app
+    job_id = int(request.match_info['job_id'])
+    profile = await _get_jvm_profile(app, batch_id, job_id)
+    if profile is None:
+        raise web.HTTPNotFound()
+    return web.Response(text=profile, content_type='text/html')
+
+
 @routes.get('/batches/{batch_id}/jobs/{job_id}')
 @web_billing_project_users_only()
 @catch_ui_error_in_dev
@@ -2144,6 +2189,8 @@ async def ui_get_job(request, userdata, batch_id):
         if status and status['short_error'] is None and status['container_status']['out_of_memory']:
             status['short_error'] = 'out of memory'
 
+    has_jvm_profile = False
+
     job_specification = job['spec']
     if job_specification:
         if 'process' in job_specification:
@@ -2152,6 +2199,8 @@ async def ui_get_job(request, userdata, batch_id):
             assert process_specification['type'] in {'docker', 'jvm'}
             job_specification['image'] = process_specification['image'] if process_type == 'docker' else '[jvm]'
             job_specification['command'] = process_specification['command']
+            has_jvm_profile = job['state'] in complete_states and process_specification.get('profile', False)
+
         job_specification = dictfix.dictfix(
             job_specification, dictfix.NoneOr({'image': str, 'command': list, 'resources': {}, 'env': list})
         )
@@ -2200,6 +2249,7 @@ async def ui_get_job(request, userdata, batch_id):
         'plot_resource_usage': plot_resource_usage(
             resource_usage, memory_limit_bytes, io_storage_limit_bytes, non_io_storage_limit_bytes
         ),
+        'has_jvm_profile': has_jvm_profile,
     }
 
     return await render_template('batch', request, userdata, 'job.html', page_context)
@@ -2280,10 +2330,10 @@ UPDATE billing_projects SET `limit` = %s WHERE name_cs = %s;
 async def post_edit_billing_limits(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
-    data = await request.json()
+    data = await json_request(request)
     limit = data['limit']
     await _handle_api_error(_edit_billing_limit, db, billing_project, limit)
-    return web.json_response({'billing_project': billing_project, 'limit': limit})
+    return json_response({'billing_project': billing_project, 'limit': limit})
 
 
 @routes.post('/billing_limits/{billing_project}/edit')
@@ -2443,8 +2493,7 @@ async def get_billing_projects(request, userdata):
         user = None
 
     billing_projects = await query_billing_projects(db, user=user)
-
-    return web.json_response(data=billing_projects)
+    return json_response(billing_projects)
 
 
 @routes.get('/api/v1alpha/billing_projects/{billing_project}')
@@ -2464,7 +2513,7 @@ async def get_billing_project(request, userdata):
         raise web.HTTPForbidden(reason=f'Unknown Hail Batch billing project {billing_project}.')
 
     assert len(billing_projects) == 1
-    return web.json_response(data=billing_projects[0])
+    return json_response(billing_projects[0])
 
 
 async def _remove_user_from_billing_project(db, billing_project, user):
@@ -2535,7 +2584,7 @@ async def api_get_billing_projects_remove_user(request, userdata):  # pylint: di
     billing_project = request.match_info['billing_project']
     user = request.match_info['user']
     await _handle_api_error(_remove_user_from_billing_project, db, billing_project, user)
-    return web.json_response({'billing_project': billing_project, 'user': user})
+    return json_response({'billing_project': billing_project, 'user': user})
 
 
 async def _add_user_to_billing_project(db, billing_project, user):
@@ -2607,7 +2656,7 @@ async def api_billing_projects_add_user(request, userdata):  # pylint: disable=u
     billing_project = request.match_info['billing_project']
 
     await _handle_api_error(_add_user_to_billing_project, db, billing_project, user)
-    return web.json_response({'billing_project': billing_project, 'user': user})
+    return json_response({'billing_project': billing_project, 'user': user})
 
 
 async def _create_billing_project(db, billing_project):
@@ -2661,7 +2710,7 @@ async def api_get_create_billing_projects(request, userdata):  # pylint: disable
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     await _handle_api_error(_create_billing_project, db, billing_project)
-    return web.json_response(billing_project)
+    return json_response(billing_project)
 
 
 async def _close_billing_project(db, billing_project):
@@ -2721,7 +2770,7 @@ async def api_close_billing_projects(request, userdata):  # pylint: disable=unus
     billing_project = request.match_info['billing_project']
 
     await _handle_api_error(_close_billing_project, db, billing_project)
-    return web.json_response(billing_project)
+    return json_response(billing_project)
 
 
 async def _reopen_billing_project(db, billing_project):
@@ -2764,7 +2813,7 @@ async def api_reopen_billing_projects(request, userdata):  # pylint: disable=unu
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     await _handle_api_error(_reopen_billing_project, db, billing_project)
-    return web.json_response(billing_project)
+    return json_response(billing_project)
 
 
 async def _delete_billing_project(db, billing_project):
@@ -2795,7 +2844,7 @@ async def api_delete_billing_projects(request, userdata):  # pylint: disable=unu
     billing_project = request.match_info['billing_project']
 
     await _handle_api_error(_delete_billing_project, db, billing_project)
-    return web.json_response(billing_project)
+    return json_response(billing_project)
 
 
 async def _refresh(app):
@@ -2827,9 +2876,8 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 
 async def cancel_batch_loop_body(app):
     client_session: httpx.ClientSession = app['client_session']
-    await request_retry_transient_errors(
-        client_session,
-        'POST',
+    await retry_transient_errors(
+        client_session.post,
         deploy_config.url('batch-driver', '/api/v1alpha/batches/cancel'),
         headers=app['batch_headers'],
     )
@@ -2840,9 +2888,8 @@ async def cancel_batch_loop_body(app):
 
 async def delete_batch_loop_body(app):
     client_session: httpx.ClientSession = app['client_session']
-    await request_retry_transient_errors(
-        client_session,
-        'POST',
+    await retry_transient_errors(
+        client_session.post,
         deploy_config.url('batch-driver', '/api/v1alpha/batches/delete'),
         headers=app['batch_headers'],
     )

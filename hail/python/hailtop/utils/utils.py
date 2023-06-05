@@ -14,7 +14,6 @@ import random
 import logging
 import asyncio
 import aiohttp
-from aiohttp import web
 import urllib
 import urllib3
 import secrets
@@ -579,7 +578,7 @@ RETRY_ONCE_BAD_REQUEST_ERROR_MESSAGES = {
 }
 
 
-def is_retry_once_error(e):
+def is_limited_retries_error(e):
     # An exception is a "retry once error" if a rare, known bug in a dependency or in a cloud
     # provider can manifest as this exception *and* that manifestation is indistinguishable from a
     # true error.
@@ -591,6 +590,8 @@ def is_retry_once_error(e):
     if isinstance(e, hailtop.httpx.ClientResponseError):
         return e.status == 400 and any(msg in e.body for msg in RETRY_ONCE_BAD_REQUEST_ERROR_MESSAGES)
     if isinstance(e, ConnectionResetError):
+        return True
+    if isinstance(e, ConnectionRefusedError):
         return True
     if e.__cause__ is not None:
         return is_transient_error(e.__cause__)
@@ -622,7 +623,7 @@ def is_transient_error(e):
     #   File "/usr/local/lib/python3.6/dist-packages/aiohttp/client.py", line 505, in _request
     #     await resp.start(conn)
     #   File "/usr/local/lib/python3.6/dist-packages/aiohttp/client_reqrep.py", line 848, in start
-    #     message, payload = await self._protocol.read()  # type: ignore  # noqa
+    #     message, payload = await self._protocol.read()  # type: ignore
     #   File "/usr/local/lib/python3.6/dist-packages/aiohttp/streams.py", line 592, in read
     #     await self._waiter
     # aiohttp.client_exceptions.ServerDisconnectedError: None
@@ -794,20 +795,25 @@ async def retry_transient_errors_with_debug_string(debug_string: str, warning_de
             raise
         except Exception as e:
             errors += 1
-            if errors == 1 and is_retry_once_error(e):
-                return await f(*args, **kwargs)
-            if not is_transient_error(e):
+            if errors <= 5 and is_limited_retries_error(e):
+                log.warning(
+                    f'A limited retry error has occured. We will automatically retry '
+                    f'{5 - errors} more times. Do not be alarmed. (current delay: '
+                    f'{delay}). The most recent error was {type(e)} {e}. {debug_string}'
+                )
+            elif not is_transient_error(e):
                 raise
-            log_warnings = (time_msecs() - start_time >= warning_delay_msecs) or not is_delayed_warning_error(e)
-            if log_warnings and errors == 2:
-                log.warning(f'A transient error occured. We will automatically retry. Do not be alarmed. '
-                            f'We have thus far seen {errors} transient errors (current delay: '
-                            f'{delay}). The most recent error was {type(e)} {e}. {debug_string}')
-            elif log_warnings and errors % 10 == 0:
-                st = ''.join(traceback.format_stack())
-                log.warning(f'A transient error occured. We will automatically retry. '
-                            f'We have thus far seen {errors} transient errors (current delay: '
-                            f'{delay}). The stack trace for this call is {st}. The most recent error was {type(e)} {e}. {debug_string}', exc_info=True)
+            else:
+                log_warnings = (time_msecs() - start_time >= warning_delay_msecs) or not is_delayed_warning_error(e)
+                if log_warnings and errors == 2:
+                    log.warning(f'A transient error occured. We will automatically retry. Do not be alarmed. '
+                                f'We have thus far seen {errors} transient errors (current delay: '
+                                f'{delay}). The most recent error was {type(e)} {e}. {debug_string}')
+                elif log_warnings and errors % 10 == 0:
+                    st = ''.join(traceback.format_stack())
+                    log.warning(f'A transient error occured. We will automatically retry. '
+                                f'We have thus far seen {errors} transient errors (current delay: '
+                                f'{delay}). The stack trace for this call is {st}. The most recent error was {type(e)} {e}. {debug_string}', exc_info=True)
         delay = await sleep_and_backoff(delay)
 
 
@@ -829,32 +835,6 @@ def sync_retry_transient_errors(f, *args, **kwargs):
             else:
                 raise
         delay = sync_sleep_and_backoff(delay)
-
-
-async def request_retry_transient_errors(
-        session,  # : Union[httpx.ClientSession, aiohttp.ClientSession]
-        method: str,
-        url,
-        **kwargs
-) -> aiohttp.ClientResponse:
-    return await retry_transient_errors(session.request, method, url, **kwargs)
-
-
-async def request_raise_transient_errors(
-        session,  # : Union[httpx.ClientSession, aiohttp.ClientSession]
-        method: str,
-        url,
-        **kwargs
-) -> aiohttp.ClientResponse:
-    try:
-        return await session.request(method, url, **kwargs)
-    except KeyboardInterrupt:
-        raise
-    except Exception as e:
-        if is_transient_error(e):
-            log.exception('request failed with transient exception: {method} {url}')
-            raise web.HTTPServiceUnavailable()
-        raise
 
 
 def retry_response_returning_functions(fun, *args, **kwargs):

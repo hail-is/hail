@@ -27,7 +27,7 @@ feature into smaller components.
 Before you can write code, there are some setup steps that will allow you to
 develop effectively.
 
-Hail currently supports Python version 3.7 or greater.
+Hail currently supports Python version 3.8 or greater.
 
 ```
 make install-dev-requirements
@@ -66,7 +66,7 @@ Install and configure tools necessary for working on the Hail Services:
 gcloud auth login
 gcloud config set project hail-vdc
 gcloud container clusters get-credentials vdc --zone=us-central1-a
-gcloud auth -q configure-docker gcr.io
+gcloud auth -q configure-docker us-docker.pkg.dev
 ```
 
 5. Add these lines to `~/.zshrc` or `~/.bashrc` to configure your shell and environment for Hail:

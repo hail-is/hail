@@ -176,7 +176,7 @@ class RouterFS(FS):
         del buffer_size
 
         if mode not in ('r', 'rb', 'w', 'wb'):
-            raise ValueError(f'Unsupported mode: {repr(mode)}')
+            raise ValueError(f'Unsupported mode: {mode!r}')
 
         strm: io.IOBase
         if mode[0] == 'r':

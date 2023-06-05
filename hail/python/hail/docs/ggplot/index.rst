@@ -62,7 +62,7 @@ currently uses plotly to generate plots, as opposed to ``hl.plot``, which uses b
 .. rubric:: Scales
 
 .. autosummary::
-    :nosignatures
+    :nosignatures:
 
     scale_x_continuous
     scale_x_discrete
@@ -103,6 +103,19 @@ currently uses plotly to generate plots, as opposed to ``hl.plot``, which uses b
 .. autofunction:: scale_fill_hue
 .. autofunction:: scale_fill_manual
 .. autofunction:: scale_fill_identity
+
+
+.. rubric:: Facets
+
+.. autosummary::
+    :nosignatures:
+
+    facet_wrap
+    vars
+
+.. autofunction:: facet_wrap
+.. autofunction:: vars
+
 
 .. rubric:: Labels
 
