@@ -3969,7 +3969,7 @@ class MatrixTable(ExprContainer):
                 ]
                 raise ValueError(
                     f'When drop_right_row_fields=True, the matrix tables must '
-                    f'have distinct row fields. These fields were found to be in both tables:\n' +
+                    f'have distinct row fields. These fields were found to be in both matrix tables:\n' +
                     '\n'.join(field_infos) +
                     '\nConsider renaming the fields in the right-hand-side matrix table so they are distinct from those fields in the left-hand-side.'
                 )
