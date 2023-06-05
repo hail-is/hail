@@ -3677,7 +3677,7 @@ class Table(ExprContainer):
                     _values_similar(t[left_value], t[right_value], tolerance, absolute),
                 ),
                 hl.agg.take(
-                    hl.struct(left=t[left_value], right=t[right_value]),
+                    hl.struct(_key=t._key, left=t[left_value], right=t[right_value]),
                     10
                 )
             )
