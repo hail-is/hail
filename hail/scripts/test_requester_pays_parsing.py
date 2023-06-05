@@ -1,7 +1,7 @@
 import pytest
 import sys
 
-from hailtop.config.user_config import get_gcs_requester_pays_configuration, spark_conf_path
+from hailtop.aiocloud.aiogoogle import get_gcs_requester_pays_configuration
 from hailtop.utils.process import check_exec_output
 
 
