@@ -2646,7 +2646,9 @@ def get_vcf_metadata(path):
            filter=nullable(str),
            find_replace=nullable(sized_tupleof(str, str)),
            n_partitions=nullable(int),
-           block_size=nullable(int))
+           block_size=nullable(int),
+           _create_row_uids=bool,
+           _create_col_uids=bool)
 def import_vcf(path,
                force=False,
                force_bgz=False,
@@ -2662,7 +2664,9 @@ def import_vcf(path,
                filter=None,
                find_replace=None,
                n_partitions=None,
-               block_size=None) -> MatrixTable:
+               block_size=None,
+               _create_row_uids=False, _create_col_uids=False,
+               ) -> MatrixTable:
     """Import VCF file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -2818,7 +2822,7 @@ def import_vcf(path,
                                 n_partitions, block_size, min_partitions,
                                 reference_genome, contig_recoding, array_elements_required,
                                 skip_invalid_loci, force_bgz, force, filter, find_replace)
-    return MatrixTable(ir.MatrixRead(reader, drop_cols=drop_samples))
+    return MatrixTable(ir.MatrixRead(reader, drop_cols=drop_samples, drop_row_uids=not _create_row_uids, drop_col_uids=not _create_col_uids))
 
 
 @typecheck(path=sequenceof(str),

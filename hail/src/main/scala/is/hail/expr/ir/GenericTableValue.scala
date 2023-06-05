@@ -34,8 +34,11 @@ class PartitionIteratorLongReader(
   assert(contextType.hasField("partitionIndex"))
   assert(contextType.fieldType("partitionIndex") == TInt32)
 
-  override lazy val fullRowType: TStruct =
+  override lazy val fullRowType: TStruct = if (rowType.hasField(uidFieldName)) {
+    rowType
+  } else {
     rowType.insertFields(Array(uidFieldName -> TTuple(TInt64, TInt64)))
+  }
 
   override def rowRequiredness(requestedType: TStruct): RStruct = {
     val tr = TypeWithRequiredness(requestedType).asInstanceOf[RStruct]
@@ -50,7 +53,7 @@ class PartitionIteratorLongReader(
     context: EmitCode,
     requestedType: TStruct): IEmitCode = {
 
-    val insertUID: Boolean = requestedType.hasField(uidFieldName)
+    val insertUID: Boolean = requestedType.hasField(uidFieldName) && !rowType.hasField(uidFieldName)
 
     val concreteType: TStruct = if (insertUID)
       requestedType.deleteKey(uidFieldName)
