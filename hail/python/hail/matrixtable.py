@@ -12,8 +12,8 @@ import hail.ir as ir
 from hail.table import Table, ExprContainer, TableIndexKeyError
 from hail.typecheck import typecheck, typecheck_method, dictof, anytype, \
     anyfunc, nullable, sequenceof, oneof, numeric, lazy, enumeration
-from hail.utils import storage_level, default_handler
-from hail.utils.java import warning, Env
+from hail.utils import storage_level, default_handler, deduplicate
+from hail.utils.java import warning, Env, info
 from hail.utils.misc import wrap_to_tuple, \
     get_key_by_exprs, \
     get_select_exprs, check_annotate_exprs, process_joins
@@ -3961,18 +3961,16 @@ class MatrixTable(ExprContainer):
         if drop_right_row_fields:
             other = other.select_rows()
         else:
-            shared_field_names = set(self.row_value) & set(other.row_value)
-            if shared_field_names:
-                field_infos = [
-                    f'  {f!r}: left type is {self.row_value.dtype[f]}, right type is {other.row_value.dtype[f]}.'
-                    for f in shared_field_names
-                ]
-                raise ValueError(
-                    f'When drop_right_row_fields=True, the matrix tables must '
-                    f'have distinct row fields. These fields were found to be in both matrix tables:\n' +
-                    '\n'.join(field_infos) +
-                    '\nConsider renaming the fields in the right-hand-side matrix table so they are distinct from those fields in the left-hand-side.'
-                )
+            left_fields = set(self._fields)
+            other_fields = set(other._fields) - set(other.key)
+            renames, _ = deduplicate(
+                other_fields, max_attempts=100, already_used=left_fields)
+
+            if renames:
+                renames = dict(renames)
+                other = other.rename(renames)
+                info('Table.join: renamed the following fields on the right to avoid name conflicts:'
+                     + ''.join(f'\n    {repr(k)} -> {repr(v)}' for k, v in renames.items()))
 
         return MatrixTable(ir.MatrixUnionCols(self._mir, other._mir, row_join_type))
 
