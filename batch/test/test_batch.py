@@ -610,6 +610,7 @@ def test_authorized_users_only():
         assert r.status_code == expected, (full_url, r, expected)
 
 
+@pytest.mark.timeout(6 * 60)
 def test_cloud_image(client: BatchClient):
     bb = create_batch(client)
     j = bb.create_job(os.environ['HAIL_CURL_IMAGE'], ['echo', 'test'])
@@ -618,6 +619,7 @@ def test_cloud_image(client: BatchClient):
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
+@pytest.mark.timeout(6 * 60)
 def test_service_account(client: BatchClient):
     NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
     bb = create_batch(client)
@@ -755,6 +757,7 @@ def test_duplicate_parents(client: BatchClient):
 
 
 @skip_in_azure
+@pytest.mark.timeout(6 * 60)
 def test_verify_no_access_to_google_metadata_server(client: BatchClient):
     bb = create_batch(client)
     j = bb.create_job(os.environ['HAIL_CURL_IMAGE'], ['curl', '-fsSL', 'metadata.google.internal', '--max-time', '10'])
@@ -765,6 +768,7 @@ def test_verify_no_access_to_google_metadata_server(client: BatchClient):
     assert "Could not resolve host" in job_log['main'], str((job_log, b.debug_info()))
 
 
+@pytest.mark.timeout(6 * 60)
 def test_verify_no_access_to_metadata_server(client: BatchClient):
     bb = create_batch(client)
     j = bb.create_job(os.environ['HAIL_CURL_IMAGE'], ['curl', '-fsSL', '169.254.169.254', '--max-time', '10'])
@@ -775,6 +779,7 @@ def test_verify_no_access_to_metadata_server(client: BatchClient):
     assert "Connection timed out" in job_log['main'], str((job_log, b.debug_info()))
 
 
+@pytest.mark.timeout(6 * 60)
 def test_submit_batch_in_job(client: BatchClient):
     bb = create_batch(client)
     remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
@@ -796,6 +801,7 @@ backend.close()
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
+@pytest.mark.timeout(6 * 60)
 def test_cant_submit_to_default_with_other_ns_creds(client: BatchClient):
     DOMAIN = os.environ['HAIL_DOMAIN']
     NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
@@ -854,6 +860,7 @@ python3 -c \'{script}\'''',
         assert "Please log in" in job_log['main'], str((job_log, b.debug_info()))
 
 
+@pytest.mark.timeout(6 * 60)
 def test_cannot_contact_other_internal_ips(client: BatchClient):
     internal_ips = [f'10.128.0.{i}' for i in (10, 11, 12)]
     bb = create_batch(client)
@@ -877,6 +884,7 @@ curl -fsSL -m 5 $OTHER_IP
 
 
 @skip_in_azure
+@pytest.mark.timeout(6 * 60)
 def test_hadoop_can_use_cloud_credentials(client: BatchClient):
     token = os.environ["HAIL_TOKEN"]
     remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
@@ -913,6 +921,7 @@ hl.read_table(location).show()
     assert expected_log in log['main'], str((log, b.debug_info()))
 
 
+@pytest.mark.timeout(6 * 60)
 def test_user_authentication_within_job(client: BatchClient):
     bb = create_batch(client)
     cmd = ['bash', '-c', 'hailctl auth user']
@@ -923,6 +932,7 @@ def test_user_authentication_within_job(client: BatchClient):
     assert no_token_status['state'] == 'Failed', str((no_token_status, b.debug_info()))
 
 
+@pytest.mark.timeout(6 * 60)
 def test_verify_access_to_public_internet(client: BatchClient):
     bb = create_batch(client)
     j = bb.create_job(os.environ['HAIL_CURL_IMAGE'], ['curl', '-fsSL', 'example.com'])
@@ -931,6 +941,7 @@ def test_verify_access_to_public_internet(client: BatchClient):
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
+@pytest.mark.timeout(6 * 60)
 def test_verify_can_tcp_to_localhost(client: BatchClient):
     bb = create_batch(client)
     script = '''
@@ -949,6 +960,7 @@ echo "hello" | nc -q 1 localhost 5000
     assert 'hello\n' == job_log['main'], str((job_log, b.debug_info()))
 
 
+@pytest.mark.timeout(6 * 60)
 def test_verify_can_tcp_to_127_0_0_1(client: BatchClient):
     bb = create_batch(client)
     script = '''
@@ -967,6 +979,7 @@ echo "hello" | nc -q 1 127.0.0.1 5000
     assert 'hello\n' == job_log['main'], str((job_log, b.debug_info()))
 
 
+@pytest.mark.timeout(6 * 60)
 def test_verify_can_tcp_to_self_ip(client: BatchClient):
     bb = create_batch(client)
     script = '''
@@ -985,6 +998,7 @@ echo "hello" | nc -q 1 $(hostname -i) 5000
     assert 'hello\n' == job_log['main'], str((job_log, b.debug_info()))
 
 
+@pytest.mark.timeout(6 * 60)
 def test_verify_private_network_is_restricted(client: BatchClient):
     bb = create_batch(client)
     bb.create_job(
