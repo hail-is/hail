@@ -123,32 +123,32 @@ class Tests(unittest.TestCase):
         ped = hl.Pedigree.read(resource('mendel.fam'))
         men, fam, ind, var = hl.mendel_errors(mt['GT'], ped)
 
-        self.assertEqual(men.key.dtype, hl.tstruct(locus=mt.locus.dtype,
-                                                   alleles=hl.tarray(hl.tstr),
-                                                   s=hl.tstr))
-        self.assertEqual(men.row.dtype, hl.tstruct(locus=mt.locus.dtype,
-                                                   alleles=hl.tarray(hl.tstr),
-                                                   s=hl.tstr,
-                                                   fam_id=hl.tstr,
-                                                   mendel_code=hl.tint))
-        self.assertEqual(fam.key.dtype, hl.tstruct(pat_id=hl.tstr,
-                                                   mat_id=hl.tstr))
-        self.assertEqual(fam.row.dtype, hl.tstruct(pat_id=hl.tstr,
-                                                   mat_id=hl.tstr,
-                                                   fam_id=hl.tstr,
-                                                   children=hl.tint,
-                                                   errors=hl.tint64,
-                                                   snp_errors=hl.tint64))
-        self.assertEqual(ind.key.dtype, hl.tstruct(s=hl.tstr))
-        self.assertEqual(ind.row.dtype, hl.tstruct(s=hl.tstr,
-                                                   fam_id=hl.tstr,
-                                                   errors=hl.tint64,
-                                                   snp_errors=hl.tint64))
-        self.assertEqual(var.key.dtype, hl.tstruct(locus=mt.locus.dtype,
-                                                   alleles=hl.tarray(hl.tstr)))
-        self.assertEqual(var.row.dtype, hl.tstruct(locus=mt.locus.dtype,
-                                                   alleles=hl.tarray(hl.tstr),
-                                                   errors=hl.tint64))
+        assert men.key.dtype == hl.tstruct(locus=mt.locus.dtype,
+                                           alleles=hl.tarray(hl.tstr),
+                                           s=hl.tstr)
+        assert men.row.dtype == hl.tstruct(locus=mt.locus.dtype,
+                                           alleles=hl.tarray(hl.tstr),
+                                           s=hl.tstr,
+                                           fam_id=hl.tstr,
+                                           mendel_code=hl.tint)
+        assert fam.key.dtype == hl.tstruct(pat_id=hl.tstr,
+                                           mat_id=hl.tstr)
+        assert fam.row.dtype == hl.tstruct(pat_id=hl.tstr,
+                                           mat_id=hl.tstr,
+                                           fam_id=hl.tstr,
+                                           children=hl.tint,
+                                           errors=hl.tint64,
+                                           snp_errors=hl.tint64)
+        assert ind.key.dtype == hl.tstruct(s=hl.tstr)
+        assert ind.row.dtype == hl.tstruct(s=hl.tstr,
+                                           fam_id=hl.tstr,
+                                           errors=hl.tint64,
+                                           snp_errors=hl.tint64)
+        assert var.key.dtype == hl.tstruct(locus=mt.locus.dtype,
+                                           alleles=hl.tarray(hl.tstr))
+        assert var.row.dtype == hl.tstruct(locus=mt.locus.dtype,
+                                           alleles=hl.tarray(hl.tstr),
+                                           errors=hl.tint64)
 
     @test_timeout(4 * 60)
     def test_mendel_errors_2(self):
