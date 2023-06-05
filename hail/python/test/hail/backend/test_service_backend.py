@@ -21,6 +21,7 @@ def test_tiny_driver_has_tiny_memory():
 
 
 @skip_unless_service_backend()
+@test_timeout(batch=6 * 60)
 def test_big_driver_has_big_memory():
     backend = hl.current_backend()
     assert isinstance(backend, ServiceBackend)

@@ -63,7 +63,7 @@ _dataset = None
 def get_dataset():
     global _dataset
     if _dataset is None:
-        _dataset = hl.split_multi_hts(hl.import_vcf(resource('sample.vcf'))).cache()
+        _dataset = hl.read_matrix_table(resource('split-multi-sample.vcf.mt'))
     return _dataset
 
 def assert_time(f, max_duration):
