@@ -219,6 +219,32 @@ async def rest_get_supported_regions(request: web.Request, _) -> web.Response:
     return json_response(list(request.app['regions'].keys()))
 
 
+@routes.get('/api/v1alpha/cluster_stats')
+@auth.authenticated_users_only()
+async def rest_get_cluster_stats(request: web.Request, userdata) -> web.Response:
+    username = userdata['username']
+    app = request.app
+    client_session: httpx.ClientSession = app['client_session']
+    resp = await retry_transient_errors(
+        client_session.post,
+        deploy_config.url('batch-driver', '/api/v1alpha/cluster_stats'),
+        headers=await app['hail_credentials'].auth_headers(),
+    )
+    data = await resp.json()
+
+    for pool_data in data.values():
+        user_running_cores_mcpu = pool_data['user_running_cores_mcpu']
+        if user_running_cores_mcpu is not None:
+            user_running_cores_mcpu = json.loads(user_running_cores_mcpu)
+            pool_data['user_running_cores_mcpu'] = user_running_cores_mcpu.get(username, 0.0)
+        else:
+            pool_data['user_running_cores_mcpu'] = 0.0
+
+    # FIXME: make pools a key with a list of pool_data
+
+    return json_response(data)
+
+
 async def _handle_ui_error(
     session: aiohttp_session.Session, f: Callable[P, Awaitable[T]], *args: P.args, **kwargs: P.kwargs
 ) -> T:
@@ -1511,6 +1537,9 @@ SELECT batches.*,
   job_groups_n_jobs_in_complete_states.n_succeeded,
   job_groups_n_jobs_in_complete_states.n_failed,
   job_groups_n_jobs_in_complete_states.n_cancelled,
+  job_groups_n_jobs_in_complete_states.n_running,
+  job_groups_n_jobs_in_complete_states.n_ready,
+  job_groups_n_jobs_in_complete_states.n_creating,
   cost_t.*
 FROM batches
 LEFT JOIN job_groups_n_jobs_in_complete_states

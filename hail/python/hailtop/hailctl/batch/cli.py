@@ -9,6 +9,7 @@ from typing import Optional, List, Annotated as Ann, cast, Dict, Any
 from . import list_batches
 from . import billing
 from .initialize import async_basic_initialize
+from .monitor import async_monitor
 from . import submit as _submit
 from .batch_cli_utils import (
     get_batch_if_exists,
@@ -184,3 +185,19 @@ def initialize(
         verbose: Ann[bool, Opt('--verbose', '-v', help='Print gcloud commands being executed')] = False
 ):
     asyncio.run(async_basic_initialize(verbose=verbose))
+
+
+@app.command('monitor', help='Monitor batch progress.')
+def monitor(
+        include_cluster_stats: Ann[bool, Opt('--cluster-stats', '-c', help='Include cluster statistics')] = True,
+        include_batch_progress: Ann[bool, Opt('--batch-progress', '-b', help='Include batch progress')] = True,
+        batch_ids: Ann[Optional[List[int]], Opt('--batch-ids', help='Batch IDs to show')] = None,
+        limit: Ann[int, Opt('--limit', help='Maximum number of running batches to show')] = 10,
+):
+    # https://github.com/tiangolo/typer/pull/664
+    if len(batch_ids) == 0:
+        batch_ids = None
+    asyncio.run(async_monitor(include_cluster_stats=include_cluster_stats,
+                              include_batch_progress=include_batch_progress,
+                              batch_ids=batch_ids,
+                              limit=limit))

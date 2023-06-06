@@ -305,6 +305,9 @@ class BatchClient:
     def cloud(self):
         return async_to_blocking(self._async_client.cloud())
 
+    def cluster_stats(self):
+        return async_to_blocking(self._async_client.cluster_stats())
+
     def close(self):
         async_to_blocking(self._async_client.close())
 

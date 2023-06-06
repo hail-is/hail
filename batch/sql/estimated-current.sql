@@ -246,6 +246,9 @@ CREATE TABLE IF NOT EXISTS `job_groups_n_jobs_in_complete_states` (
   `n_succeeded` INT NOT NULL DEFAULT 0,
   `n_failed` INT NOT NULL DEFAULT 0,
   `n_cancelled` INT NOT NULL DEFAULT 0,
+  `n_ready` INT NOT NULL DEFAULT 0,
+  `n_running` INT NOT NULL DEFAULT 0,
+  `n_creating` INT NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`id`) REFERENCES batches(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
@@ -852,6 +855,12 @@ BEGIN
     n_cancelled_ready_jobs = n_cancelled_ready_jobs + delta_n_cancelled_ready_jobs,
     n_cancelled_running_jobs = n_cancelled_running_jobs + delta_n_cancelled_running_jobs,
     n_cancelled_creating_jobs = n_cancelled_creating_jobs + delta_n_cancelled_creating_jobs;
+
+  UPDATE job_groups_n_jobs_in_complete_states
+  SET n_running = n_running + now_running - was_running,
+      n_ready = n_ready + now_ready - was_ready,
+      n_creating = n_creating + now_creating - was_creating
+  WHERE id = NEW.batch_id;
 END $$
 
 DROP TRIGGER IF EXISTS attempt_resources_after_insert $$

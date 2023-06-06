@@ -1021,6 +1021,10 @@ class BatchClient:
         resp = await self._get('/api/v1alpha/supported_regions')
         return await resp.json()
 
+    async def cluster_stats(self) -> List[str]:
+        resp = await self._get('/api/v1alpha/cluster_stats')
+        return await resp.json()
+
     async def cloud(self):
         resp = await self._get('/api/v1alpha/cloud')
         return await resp.text()

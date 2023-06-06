@@ -195,6 +195,45 @@ async def get_healthcheck(_) -> web.Response:
     return web.Response()
 
 
+@routes.post('/api/v1alpha/cluster_stats')
+@batch_only
+async def get_cluster_stats(request):
+    app = request.app
+    db: Database = app['db']
+    inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
+
+    user_running_cores_mcpu = db.select_and_fetchall(
+        '''
+SELECT inst_coll, JSON_OBJECTAGG(`user`, running_cores_mcpu) AS user_running_cores_mcpu
+FROM (
+  SELECT inst_coll, `user`, SUM(running_cores_mcpu) AS running_cores_mcpu
+  FROM user_inst_coll_resources
+  GROUP BY inst_coll, `user`
+) AS t
+GROUP BY inst_coll;
+'''
+    )
+    user_running_cores_mcpu = {record['inst_coll']: record['user_running_cores_mcpu'] async for record in user_running_cores_mcpu}
+
+    all_data = {}
+    for name, pool in inst_coll_manager.pools.items():
+        assert isinstance(pool, Pool)
+        pool_data = {
+            'name': pool.name,
+            'total_capacity_cores': pool.max_live_instances * pool.worker_cores,
+            'user_running_cores_mcpu': user_running_cores_mcpu.get(name),
+            'all_versions_instances_by_state': pool.all_versions_instances_by_state,
+            'all_versions_cores_mcpu_by_state': pool.all_versions_cores_mcpu_by_state,
+            'current_worker_version_active_schedulable_free_cores_mcpu': pool.current_worker_version_stats.active_schedulable_free_cores_mcpu,
+            'current_worker_version_active_schedulable_cores_mcpu': pool.current_worker_version_stats.cores_mcpu_by_state[
+                'active'
+            ],
+        }
+        all_data[name] = pool_data
+
+    return json_response(all_data)
+
+
 @routes.get('/check_invariants')
 @auth.authenticated_developers_only()
 async def get_check_invariants(request: web.Request, _) -> web.Response:

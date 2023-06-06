@@ -2350,6 +2350,9 @@ steps:
       - name: rename-job-groups-tables
         script: /io/sql/rename-job-groups-tables.sql
         online: false  # this must be offline
+      - name: add-ready-running-job-totals
+        script: /io/sql/add-ready-running-job-totals.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
