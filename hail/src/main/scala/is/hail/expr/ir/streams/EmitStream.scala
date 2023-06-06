@@ -2544,7 +2544,8 @@ object EmitStream {
                   cb.assign(p.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
                 } else
                   cb.assign(p.elementRegion, outerRegion)
-                cb += (regionArray(idx) = p.elementRegion)
+                if (anyRequireMemoryManagement)
+                  cb += (regionArray(idx) = p.elementRegion)
                 p.initialize(cb, outerRegion)
               }
               initMemoryManagementPerElementArray(cb)
@@ -2560,6 +2561,10 @@ object EmitStream {
             }
 
             override def pullNext(cb: EmitCodeBuilder, LrunMatch: CodeLabel): Unit = {
+              cb += Code.switch(winner,
+                LendOfStream.goto, // can only happen if k=0
+                producers.map(_.LproduceElement.goto))
+
               producers.zipWithIndex.foreach { case (p, idx) =>
                 cb.define(p.LendOfStream)
                 cb.assign(winner, k)
