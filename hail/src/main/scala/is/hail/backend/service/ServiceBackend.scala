@@ -655,12 +655,11 @@ class ServiceBackendSocketAPI2(
         methodName: String,
         method: ExecuteContext => Array[Byte]
       ): () => Array[Byte] = {
-        ExecutionTimer.logTime(methodName) { timer =>
-          val flags = HailFeatureFlags.fromMap(flagsMap)
-          val shouldProfile = flags.get("profile") != null
-          val fs = FS.cloudSpecificCacheableFS(s"${backend.scratchDir}/secrets/gsa-key/key.json", Some(flags))
-
-          { () =>
+        val flags = HailFeatureFlags.fromMap(flagsMap)
+        val shouldProfile = flags.get("profile") != null
+        val fs = FS.cloudSpecificCacheableFS(s"${backend.scratchDir}/secrets/gsa-key/key.json", Some(flags))
+        { () =>
+          ExecutionTimer.logTime(methodName) { timer =>
             ExecuteContext.scoped(
               tmpdir,
               "file:///tmp",
