@@ -1435,7 +1435,7 @@ def test_from_entry_expr_simple_gt_n_alt_alleles():
     mt = hl.utils.range_matrix_table(346, 100)
     mt = mt.annotate_entries(x=(mt.row_idx * mt.col_idx) % 3)
     mt = mt.annotate_entries(GT=hl.unphased_diploid_gt_index_call(mt.x))
-    expected = np.array([(x * y) % 3 for x in range(346) for y in range(100)])
+    expected = np.array([(x * y) % 3 for x in range(346) for y in range(100)]).reshape((346, 100))
     actual = hl.eval(BlockMatrix.from_entry_expr(hl.or_else(mt.GT.n_alt_alleles(), 0), block_size=32).to_ndarray())
     assert np.array_equal(expected, actual)
 
@@ -1444,7 +1444,7 @@ def test_from_entry_expr_simple_direct_from_field():
     mt = hl.utils.range_matrix_table(346, 100)
     mt = mt.annotate_entries(x=(mt.row_idx * mt.col_idx) % 3)
 
-    expected = np.array([(x * y) % 3 for x in range(346) for y in range(100)])
+    expected = np.array([(x * y) % 3 for x in range(346) for y in range(100)]).reshape((346, 100))
     actual = hl.eval(BlockMatrix.from_entry_expr(mt.x, block_size=32).to_ndarray())
     assert np.array_equal(expected, actual)
 
@@ -1453,7 +1453,7 @@ def test_from_entry_expr_simple_with_float_conversion():
     mt = hl.utils.range_matrix_table(346, 100)
     mt = mt.annotate_entries(x=(mt.row_idx * mt.col_idx) % 3)
 
-    expected = np.array([(x * y) % 3 for x in range(346) for y in range(100)])
+    expected = np.array([(x * y) % 3 for x in range(346) for y in range(100)]).reshape((346, 100))
     actual = hl.eval(BlockMatrix.from_entry_expr(hl.float64(mt.x), block_size=32).to_ndarray())
     assert np.array_equal(expected, actual)
 
@@ -1462,7 +1462,7 @@ def test_write_from_entry_expr_simple():
     mt = hl.utils.range_matrix_table(346, 100)
     mt = mt.annotate_entries(x=(mt.row_idx * mt.col_idx) % 3)
 
-    expected = np.array([(x * y) % 3 for x in range(346) for y in range(100)])
+    expected = np.array([(x * y) % 3 for x in range(346) for y in range(100)]).reshape((346, 100))
     with hl.TemporaryDirectory(ensure_exists=False) as path:
         BlockMatrix.write_from_entry_expr(mt.x, path, block_size=32)
         actual = hl.eval(BlockMatrix.read(path).to_ndarray())
