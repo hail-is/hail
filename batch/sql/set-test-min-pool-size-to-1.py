@@ -10,7 +10,7 @@ async def main():
     await db.async_init()
     await db.execute_update(
         '''
-UPDATE pools SET min_instances = 1 standing_worker_max_idle_time_secs = 1800;
+UPDATE pools SET min_instances = 1, standing_worker_max_idle_time_secs = 1800;
 ''')
     await db.async_close()
 
