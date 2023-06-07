@@ -657,31 +657,51 @@ class ServiceBackendSocketAPI2(
           val path = input.readString()
           withExecuteContext(
             "ServiceBackend.loadReferencesFromDataset",
-            backend.loadReferencesFromDataset(_, path).getBytes(StandardCharsets.UTF_8)
+            backend.loadReferencesFromDataset(_, path).getBytes(StandardCharsets.UTF_8),
+            flagsMap,
+            tmpdir,
+            liftovers,
+            addedSequences
           )
         case VALUE_TYPE =>
           val s = input.readString()
           withExecuteContext(
             "ServiceBackend.valueType",
-            backend.valueType(_, s).getBytes(StandardCharsets.UTF_8)
+            backend.valueType(_, s).getBytes(StandardCharsets.UTF_8),
+            flagsMap,
+            tmpdir,
+            liftovers,
+            addedSequences
           )
         case TABLE_TYPE =>
           val s = input.readString()
           withExecuteContext(
             "ServiceBackend.tableType",
-            backend.tableType(_, s).getBytes(StandardCharsets.UTF_8)
+            backend.tableType(_, s).getBytes(StandardCharsets.UTF_8),
+            flagsMap,
+            tmpdir,
+            liftovers,
+            addedSequences
           )
         case MATRIX_TABLE_TYPE =>
           val s = input.readString()
           withExecuteContext(
             "ServiceBackend.matrixTableType",
-            backend.matrixTableType(_, s).getBytes(StandardCharsets.UTF_8)
+            backend.matrixTableType(_, s).getBytes(StandardCharsets.UTF_8),
+            flagsMap,
+            tmpdir,
+            liftovers,
+            addedSequences
           )
         case BLOCK_MATRIX_TYPE =>
           val s = input.readString()
           withExecuteContext(
             "ServiceBackend.blockMatrixType",
-            backend.blockMatrixType(_, s).getBytes(StandardCharsets.UTF_8)
+            backend.blockMatrixType(_, s).getBytes(StandardCharsets.UTF_8),
+            flagsMap,
+            tmpdir,
+            liftovers,
+            addedSequences
           )
         case EXECUTE =>
           val code = input.readString()
@@ -693,13 +713,21 @@ class ServiceBackendSocketAPI2(
                 val bufferSpecString = input.readString()
                 backend.execute(ctx, code, token, bufferSpecString)
               }
-            }
+            },
+            flagsMap,
+            tmpdir,
+            liftovers,
+            addedSequences
           )
         case PARSE_VCF_METADATA =>
           val path = input.readString()
           withExecuteContext(
             "ServiceBackend.parseVCFMetadata",
-            backend.parseVCFMetadata(_, path).getBytes(StandardCharsets.UTF_8)
+            backend.parseVCFMetadata(_, path).getBytes(StandardCharsets.UTF_8),
+            flagsMap,
+            tmpdir,
+            liftovers,
+            addedSequences
           )
         case IMPORT_FAM =>
           val path = input.readString()
@@ -708,7 +736,11 @@ class ServiceBackendSocketAPI2(
           val missing = input.readString()
           withExecuteContext(
             "ServiceBackend.importFam",
-            backend.importFam(_, path, quantPheno, delimiter, missing).getBytes(StandardCharsets.UTF_8)
+            backend.importFam(_, path, quantPheno, delimiter, missing).getBytes(StandardCharsets.UTF_8),
+            flagsMap,
+            tmpdir,
+            liftovers,
+            addedSequences
           )
         case FROM_FASTA_FILE =>
           val name = input.readString()
@@ -729,7 +761,11 @@ class ServiceBackendSocketAPI2(
               yContigs,
               mtContigs,
               parInput
-            ).getBytes(StandardCharsets.UTF_8)
+            ).getBytes(StandardCharsets.UTF_8),
+            flagsMap,
+            tmpdir,
+            liftovers,
+            addedSequences
           )
       }
     }
@@ -793,7 +829,11 @@ class ServiceBackendSocketAPI2(
 
   private[this] def withExecuteContext(
     methodName: String,
-    method: ExecuteContext => Array[Byte]
+    method: ExecuteContext => Array[Byte],
+    flagsMap: mutable.Map[String, String],
+    tmpdir: String,
+    liftovers: mutable.Map[String, String],
+    addedSequences: mutable.Map[String, (String, String)]
   ): () => Array[Byte] = {
     ExecutionTimer.logTime(methodName) { timer =>
       val flags = HailFeatureFlags.fromMap(flagsMap)
