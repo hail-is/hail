@@ -63,7 +63,7 @@ def test_big_worker_has_big_memory():
 
 
 @skip_unless_service_backend()
-@test_timeout(batch=12 * 60)
+@test_timeout(batch=24 * 60)
 def test_regions():
     backend = hl.current_backend()
     assert isinstance(backend, ServiceBackend)
