@@ -1320,6 +1320,9 @@ steps:
     numSplits: 48
     image:
       valueFrom: hail_run_image.image
+    resources:
+      memory: standard
+      cpu: '2'
     script: |
       set -ex
       cd /io
