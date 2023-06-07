@@ -15,32 +15,6 @@ from .operators import (
 )
 
 
-class State(Enum):
-    PENDING = 'Pending'
-    READY = 'Ready'
-    CREATING = 'Creating'
-    RUNNING = 'Running'
-    CANCELLED = 'Cancelled'
-    ERROR = 'Error'
-    FAILED = 'Failed'
-    SUCCESS = 'Success'
-
-
-state_search_term_to_states = {
-    'pending': [State.PENDING],
-    'ready': [State.READY],
-    'creating': [State.CREATING],
-    'running': [State.RUNNING],
-    'live': [State.READY, State.CREATING, State.RUNNING],
-    'cancelled': [State.CANCELLED],
-    'error': [State.ERROR],
-    'failed': [State.FAILED],
-    'bad': [State.ERROR, State.FAILED],
-    'success': [State.SUCCESS],
-    'done': [State.CANCELLED, State.ERROR, State.FAILED, State.SUCCESS],
-}
-
-
 def parse_int(word: str) -> int:
     try:
         return int(word)
@@ -73,22 +47,48 @@ class Query(abc.ABC):
         raise NotImplementedError
 
 
-class StateQuery(Query):
+class JobState(Enum):
+    PENDING = 'Pending'
+    READY = 'Ready'
+    CREATING = 'Creating'
+    RUNNING = 'Running'
+    CANCELLED = 'Cancelled'
+    ERROR = 'Error'
+    FAILED = 'Failed'
+    SUCCESS = 'Success'
+
+
+job_state_search_term_to_states = {
+    'pending': [JobState.PENDING],
+    'ready': [JobState.READY],
+    'creating': [JobState.CREATING],
+    'running': [JobState.RUNNING],
+    'live': [JobState.READY, JobState.CREATING, JobState.RUNNING],
+    'cancelled': [JobState.CANCELLED],
+    'error': [JobState.ERROR],
+    'failed': [JobState.FAILED],
+    'bad': [JobState.ERROR, JobState.FAILED],
+    'success': [JobState.SUCCESS],
+    'done': [JobState.CANCELLED, JobState.ERROR, JobState.FAILED, JobState.SUCCESS],
+}
+
+
+class JobStateQuery(Query):
     @staticmethod
-    def parse(op: str, state: str) -> 'StateQuery':
+    def parse(op: str, state: str) -> 'JobStateQuery':
         operator = get_operator(op)
         if not isinstance(operator, ExactMatchOperator):
             raise QueryError(f'unexpected operator "{op}" expected one of {ExactMatchOperator.symbols}')
-        if state not in state_search_term_to_states:
+        if state not in job_state_search_term_to_states:
             raise QueryError(f'unknown state "{state}"')
-        return StateQuery(state, operator)
+        return JobStateQuery(state, operator)
 
     def __init__(self, state: str, operator: ExactMatchOperator):
         self.state = state
         self.operator = operator
 
     def query(self) -> Tuple[str, List[Any]]:
-        states = [s.value for s in state_search_term_to_states[self.state]]
+        states = [s.value for s in job_state_search_term_to_states[self.state]]
         condition = ' OR '.join(['(jobs.state = %s)' for _ in states])
         condition = f'({condition})'
         if isinstance(self.operator, NotEqualExactMatchOperator):
@@ -114,13 +114,13 @@ class JobIdQuery(Query):
         return (f'(jobs.job_id {op} %s)', [self.job_id])
 
 
-class InstanceQuery(Query):
+class JobInstanceQuery(Query):
     @staticmethod
-    def parse(op: str, instance: str) -> 'InstanceQuery':
+    def parse(op: str, instance: str) -> 'JobInstanceQuery':
         operator = get_operator(op)
         if not isinstance(operator, MatchOperator):
             raise QueryError(f'unexpected operator "{op}" expected one of {MatchOperator.symbols}')
-        return InstanceQuery(instance, operator)
+        return JobInstanceQuery(instance, operator)
 
     def __init__(self, instance: str, operator: MatchOperator):
         self.instance = instance
@@ -138,13 +138,13 @@ class InstanceQuery(Query):
         return (sql, [self.instance])
 
 
-class InstanceCollectionQuery(Query):
+class JobInstanceCollectionQuery(Query):
     @staticmethod
-    def parse(op: str, instance_collection: str) -> 'InstanceCollectionQuery':
+    def parse(op: str, instance_collection: str) -> 'JobInstanceCollectionQuery':
         operator = get_operator(op)
         if not isinstance(operator, MatchOperator):
             raise QueryError(f'unexpected operator "{op}" expected one of {MatchOperator.symbols}')
-        return InstanceCollectionQuery(instance_collection, operator)
+        return JobInstanceCollectionQuery(instance_collection, operator)
 
     def __init__(self, inst_coll: str, operator: MatchOperator):
         self.inst_coll = inst_coll
@@ -158,14 +158,14 @@ class InstanceCollectionQuery(Query):
         return (sql, [self.inst_coll])
 
 
-class QuotedExactMatchQuery(Query):
+class JobQuotedExactMatchQuery(Query):
     @staticmethod
-    def parse(term: str) -> 'QuotedExactMatchQuery':
+    def parse(term: str) -> 'JobQuotedExactMatchQuery':
         if len(term) < 3:
             raise QueryError(f'expected a string of minimum length 3. Found {term}')
         if term[-1] != '"':
             raise QueryError("expected the last character of the string to be '\"'")
-        return QuotedExactMatchQuery(term[1:-1])
+        return JobQuotedExactMatchQuery(term[1:-1])
 
     def __init__(self, term: str):
         self.term = term
@@ -182,16 +182,16 @@ class QuotedExactMatchQuery(Query):
         return (sql, [self.term, self.term, self.term])
 
 
-class UnquotedPartialMatchQuery(Query):
+class JobUnquotedPartialMatchQuery(Query):
     @staticmethod
-    def parse(term: str) -> 'UnquotedPartialMatchQuery':
+    def parse(term: str) -> 'JobUnquotedPartialMatchQuery':
         if len(term) < 1:
             raise QueryError(f'expected a string of minimum length 1. Found {term}')
         if term[0] == '"':
             raise QueryError("expected the first character of the string to not be '\"'")
         if term[-1] == '"':
             raise QueryError("expected the last character of the string to not be '\"'")
-        return UnquotedPartialMatchQuery(term)
+        return JobUnquotedPartialMatchQuery(term)
 
     def __init__(self, term: str):
         self.term = term
@@ -209,13 +209,13 @@ class UnquotedPartialMatchQuery(Query):
         return (sql, [escaped_term, escaped_term, escaped_term])
 
 
-class KeywordQuery(Query):
+class JobKeywordQuery(Query):
     @staticmethod
-    def parse(op: str, key: str, value: str) -> 'KeywordQuery':
+    def parse(op: str, key: str, value: str) -> 'JobKeywordQuery':
         operator = get_operator(op)
         if not isinstance(operator, MatchOperator):
             raise QueryError(f'unexpected operator "{op}" expected one of {MatchOperator.symbols}')
-        return KeywordQuery(operator, key, value)
+        return JobKeywordQuery(operator, key, value)
 
     def __init__(self, operator: MatchOperator, key: str, value: str):
         self.operator = operator
@@ -224,24 +224,25 @@ class KeywordQuery(Query):
 
     def query(self) -> Tuple[str, List[Any]]:
         op = self.operator.to_sql()
+        value = self.value
         if isinstance(self.operator, PartialMatchOperator):
-            self.value = f'%{self.value}%'
+            value = f'%{value}%'
         sql = f'''
 ((jobs.batch_id, jobs.job_id) IN
  (SELECT batch_id, job_id FROM job_attributes
   WHERE `key` = %s AND `value` {op} %s))
         '''
-        return (sql, [self.key, self.value])
+        return (sql, [self.key, value])
 
 
-class StartTimeQuery(Query):
+class JobStartTimeQuery(Query):
     @staticmethod
-    def parse(op: str, time: str) -> 'StartTimeQuery':
+    def parse(op: str, time: str) -> 'JobStartTimeQuery':
         operator = get_operator(op)
         if not isinstance(operator, ComparisonOperator):
             raise QueryError(f'unexpected operator "{op}" expected one of {ComparisonOperator.symbols}')
         time_msecs = parse_date(time)
-        return StartTimeQuery(operator, time_msecs)
+        return JobStartTimeQuery(operator, time_msecs)
 
     def __init__(self, operator: ComparisonOperator, time_msecs: int):
         self.operator = operator
@@ -257,14 +258,14 @@ class StartTimeQuery(Query):
         return (sql, [self.time_msecs])
 
 
-class EndTimeQuery(Query):
+class JobEndTimeQuery(Query):
     @staticmethod
-    def parse(op: str, time: str) -> 'EndTimeQuery':
+    def parse(op: str, time: str) -> 'JobEndTimeQuery':
         operator = get_operator(op)
         if not isinstance(operator, ComparisonOperator):
             raise QueryError(f'unexpected operator "{op}" expected one of {ComparisonOperator.symbols}')
         time_msecs = parse_date(time)
-        return EndTimeQuery(operator, time_msecs)
+        return JobEndTimeQuery(operator, time_msecs)
 
     def __init__(self, operator: ComparisonOperator, time_msecs: int):
         self.operator = operator
@@ -280,14 +281,14 @@ class EndTimeQuery(Query):
         return (sql, [self.time_msecs])
 
 
-class DurationQuery(Query):
+class JobDurationQuery(Query):
     @staticmethod
-    def parse(op: str, time: str) -> 'DurationQuery':
+    def parse(op: str, time: str) -> 'JobDurationQuery':
         operator = get_operator(op)
         if not isinstance(operator, ComparisonOperator):
             raise QueryError(f'unexpected operator "{op}" expected one of {ComparisonOperator.symbols}')
         time_msecs = int(parse_float(time) * 1000 + 1)
-        return DurationQuery(operator, time_msecs)
+        return JobDurationQuery(operator, time_msecs)
 
     def __init__(self, operator: ComparisonOperator, time_msecs: int):
         self.operator = operator
@@ -303,14 +304,14 @@ class DurationQuery(Query):
         return (sql, [self.time_msecs])
 
 
-class CostQuery(Query):
+class JobCostQuery(Query):
     @staticmethod
-    def parse(op: str, cost_str: str) -> 'CostQuery':
+    def parse(op: str, cost_str: str) -> 'JobCostQuery':
         operator = get_operator(op)
         if not isinstance(operator, ComparisonOperator):
             raise QueryError(f'unexpected operator "{op}" expected one of {ComparisonOperator.symbols}')
-        cost = parse_float(cost_str)
-        return CostQuery(operator, cost)
+        cost = parse_cost(cost_str)
+        return JobCostQuery(operator, cost)
 
     def __init__(self, operator: ComparisonOperator, cost: float):
         self.operator = operator
@@ -319,3 +320,249 @@ class CostQuery(Query):
     def query(self) -> Tuple[str, List[Any]]:
         op = self.operator.to_sql()
         return (f'(cost {op} %s)', [self.cost])
+
+
+class BatchStateQuery(Query):
+    possible_states = {'open', 'closed', 'complete', 'running', 'cancelled', 'failure', 'success'}
+
+    @staticmethod
+    def parse(op: str, state: str) -> 'BatchStateQuery':
+        operator = get_operator(op)
+        if not isinstance(operator, ExactMatchOperator):
+            raise QueryError(f'unexpected operator "{op}" expected one of {ExactMatchOperator.symbols}')
+        if state not in BatchStateQuery.possible_states:
+            raise QueryError(f'unknown state "{state}"')
+        return BatchStateQuery(state, operator)
+
+    def __init__(self, state: str, operator: ExactMatchOperator):
+        self.state = state
+        self.operator = operator
+
+    def query(self) -> Tuple[str, List[Any]]:
+        args: List[Any]
+        if self.state == 'open':
+            condition = "(`state` = 'open')"
+            args = []
+        elif self.state == 'closed':
+            condition = "(`state` != 'open')"
+            args = []
+        elif self.state == 'complete':
+            condition = "(`state` = 'complete')"
+            args = []
+        elif self.state == 'running':
+            condition = "(`state` = 'running')"
+            args = []
+        elif self.state == 'cancelled':
+            condition = '(batches_cancelled.id IS NOT NULL)'
+            args = []
+        elif self.state == 'failure':
+            condition = '(n_failed > 0)'
+            args = []
+        else:
+            assert self.state == 'success'
+            # need complete because there might be no jobs
+            condition = "(`state` = 'complete' AND n_succeeded = n_jobs)"
+            args = []
+
+        if isinstance(self.operator, NotEqualExactMatchOperator):
+            condition = f'(NOT {condition})'
+
+        return (condition, args)
+
+
+class BatchIdQuery(Query):
+    @staticmethod
+    def parse(op: str, maybe_batch_id: str) -> 'BatchIdQuery':
+        operator = get_operator(op)
+        if not isinstance(operator, ComparisonOperator):
+            raise QueryError(f'unexpected operator "{op}" expected one of {ComparisonOperator.symbols}')
+        batch_id = parse_int(maybe_batch_id)
+        return BatchIdQuery(batch_id, operator)
+
+    def __init__(self, batch_id: int, operator: ComparisonOperator):
+        self.batch_id = batch_id
+        self.operator = operator
+
+    def query(self) -> Tuple[str, List[Any]]:
+        op = self.operator.to_sql()
+        return (f'(batches.id {op} %s)', [self.batch_id])
+
+
+class BatchUserQuery(Query):
+    @staticmethod
+    def parse(op: str, user: str) -> 'BatchUserQuery':
+        operator = get_operator(op)
+        if not isinstance(operator, ExactMatchOperator):
+            raise QueryError(f'unexpected operator "{op}" expected one of {ExactMatchOperator.symbols}')
+        return BatchUserQuery(user, operator)
+
+    def __init__(self, user: str, operator: ExactMatchOperator):
+        self.user = user
+        self.operator = operator
+
+    def query(self) -> Tuple[str, List[Any]]:
+        op = self.operator.to_sql()
+        return (f'(batches.user {op} %s)', [self.user])
+
+
+class BatchBillingProjectQuery(Query):
+    @staticmethod
+    def parse(op: str, billing_project: str) -> 'BatchBillingProjectQuery':
+        operator = get_operator(op)
+        if not isinstance(operator, ExactMatchOperator):
+            raise QueryError(f'unexpected operator "{op}" expected one of {ExactMatchOperator.symbols}')
+        return BatchBillingProjectQuery(billing_project, operator)
+
+    def __init__(self, billing_project: str, operator: ExactMatchOperator):
+        self.billing_project = billing_project
+        self.operator = operator
+
+    def query(self) -> Tuple[str, List[Any]]:
+        op = self.operator.to_sql()
+        return (f'(batches.billing_project {op} %s)', [self.billing_project])
+
+
+class BatchQuotedExactMatchQuery(Query):
+    @staticmethod
+    def parse(term: str) -> 'BatchQuotedExactMatchQuery':
+        if len(term) < 3:
+            raise QueryError(f'expected a string of minimum length 3. Found {term}')
+        if term[-1] != '"':
+            raise QueryError("expected the last character of the string to be '\"'")
+        return BatchQuotedExactMatchQuery(term[1:-1])
+
+    def __init__(self, term: str):
+        self.term = term
+
+    def query(self) -> Tuple[str, List[Any]]:
+        sql = '''
+((batches.id) IN
+ (SELECT batch_id FROM batch_attributes
+  WHERE `key` = %s OR `value` = %s))
+'''
+        return (sql, [self.term, self.term])
+
+
+class BatchUnquotedPartialMatchQuery(Query):
+    @staticmethod
+    def parse(term: str) -> 'BatchUnquotedPartialMatchQuery':
+        if len(term) < 1:
+            raise QueryError(f'expected a string of minimum length 1. Found {term}')
+        if term[0] == '"':
+            raise QueryError("expected the first character of the string to not be '\"'")
+        if term[-1] == '"':
+            raise QueryError("expected the last character of the string to not be '\"'")
+        return BatchUnquotedPartialMatchQuery(term)
+
+    def __init__(self, term: str):
+        self.term = term
+
+    def query(self) -> Tuple[str, List[Any]]:
+        sql = '''
+((batches.id) IN
+ (SELECT batch_id FROM batch_attributes
+  WHERE `key` LIKE %s OR `value` LIKE %s))
+'''
+        escaped_term = f'%{self.term}%'
+        return (sql, [escaped_term, escaped_term])
+
+
+class BatchKeywordQuery(Query):
+    @staticmethod
+    def parse(op: str, key: str, value: str) -> 'BatchKeywordQuery':
+        operator = get_operator(op)
+        if not isinstance(operator, MatchOperator):
+            raise QueryError(f'unexpected operator "{op}" expected one of {MatchOperator.symbols}')
+        return BatchKeywordQuery(operator, key, value)
+
+    def __init__(self, operator: MatchOperator, key: str, value: str):
+        self.operator = operator
+        self.key = key
+        self.value = value
+
+    def query(self) -> Tuple[str, List[Any]]:
+        op = self.operator.to_sql()
+        value = self.value
+        if isinstance(self.operator, PartialMatchOperator):
+            value = f'%{value}%'
+        sql = f'''
+((batches.id) IN
+ (SELECT batch_id FROM batch_attributes
+  WHERE `key` = %s AND `value` {op} %s))
+        '''
+        return (sql, [self.key, value])
+
+
+class BatchStartTimeQuery(Query):
+    @staticmethod
+    def parse(op: str, time: str) -> 'BatchStartTimeQuery':
+        operator = get_operator(op)
+        if not isinstance(operator, ComparisonOperator):
+            raise QueryError(f'unexpected operator "{op}" expected one of {ComparisonOperator.symbols}')
+        time_msecs = parse_date(time)
+        return BatchStartTimeQuery(operator, time_msecs)
+
+    def __init__(self, operator: ComparisonOperator, time_msecs: int):
+        self.operator = operator
+        self.time_msecs = time_msecs
+
+    def query(self) -> Tuple[str, List[Any]]:
+        op = self.operator.to_sql()
+        sql = f'(batches.time_created {op} %s)'
+        return (sql, [self.time_msecs])
+
+
+class BatchEndTimeQuery(Query):
+    @staticmethod
+    def parse(op: str, time: str) -> 'BatchEndTimeQuery':
+        operator = get_operator(op)
+        if not isinstance(operator, ComparisonOperator):
+            raise QueryError(f'unexpected operator "{op}" expected one of {ComparisonOperator.symbols}')
+        time_msecs = parse_date(time)
+        return BatchEndTimeQuery(operator, time_msecs)
+
+    def __init__(self, operator: ComparisonOperator, time_msecs: int):
+        self.operator = operator
+        self.time_msecs = time_msecs
+
+    def query(self) -> Tuple[str, List[Any]]:
+        op = self.operator.to_sql()
+        sql = f'(batches.time_completed {op} %s)'
+        return (sql, [self.time_msecs])
+
+
+class BatchDurationQuery(Query):
+    @staticmethod
+    def parse(op: str, time: str) -> 'BatchDurationQuery':
+        operator = get_operator(op)
+        if not isinstance(operator, ComparisonOperator):
+            raise QueryError(f'unexpected operator "{op}" expected one of {ComparisonOperator.symbols}')
+        time_msecs = int(parse_float(time) * 1000 + 1)
+        return BatchDurationQuery(operator, time_msecs)
+
+    def __init__(self, operator: ComparisonOperator, time_msecs: int):
+        self.operator = operator
+        self.time_msecs = time_msecs
+
+    def query(self) -> Tuple[str, List[Any]]:
+        op = self.operator.to_sql()
+        sql = f'((batches.time_completed - batches.time_created) {op} %s)'
+        return (sql, [self.time_msecs])
+
+
+class BatchCostQuery(Query):
+    @staticmethod
+    def parse(op: str, cost_str: str) -> 'BatchCostQuery':
+        operator = get_operator(op)
+        if not isinstance(operator, ComparisonOperator):
+            raise QueryError(f'unexpected operator "{op}" expected one of {ComparisonOperator.symbols}')
+        cost = parse_cost(cost_str)
+        return BatchCostQuery(operator, cost)
+
+    def __init__(self, operator: ComparisonOperator, cost: float):
+        self.operator = operator
+        self.cost = cost
+
+    def query(self) -> Tuple[str, List[Any]]:
+        op = self.operator.to_sql()
+        return (f'(cost_t.cost {op} %s)', [self.cost])

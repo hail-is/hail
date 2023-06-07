@@ -88,7 +88,7 @@ from ..utils import (
     regions_to_bits_rep,
     unavailable_if_frozen,
 )
-from .query import CURRENT_QUERY_VERSION, build_batch_jobs_query
+from .query import CURRENT_QUERY_VERSION, build_batch_jobs_query, build_list_batches_query
 from .validate import ValidationError, validate_and_clean_jobs, validate_batch, validate_batch_update
 
 uvloop.install()
@@ -600,127 +600,11 @@ async def rest_get_job_container_log(request, userdata, batch_id):  # pylint: di
     return await get_job_container_log(request, batch_id)
 
 
-async def _query_batches(request, user, q):
-    db = request.app['db']
+async def _query_batches(request, user: str, q: str, version: int, last_batch_id: Optional[int]):
+    db: Database = request.app['db']
+    sql, sql_args = build_list_batches_query(user, version, q, last_batch_id)
 
-    where_conditions = [
-        '(billing_project_users.`user` = %s AND billing_project_users.billing_project = batches.billing_project)',
-        'NOT deleted',
-    ]
-    where_args = [user]
-
-    last_batch_id = request.query.get('last_batch_id')
-    if last_batch_id is not None:
-        last_batch_id = int(last_batch_id)
-        where_conditions.append('(batches.id < %s)')
-        where_args.append(last_batch_id)
-
-    terms = q.split()
-    for _t in terms:
-        if _t[0] == '!':
-            negate = True
-            t = _t[1:]
-        else:
-            negate = False
-            t = _t
-
-        if '=' in t:
-            k, v = t.split('=', 1)
-            condition = '''
-((batches.id) IN
- (SELECT batch_id FROM batch_attributes
-  WHERE `key` = %s AND `value` = %s))
-'''
-            args = [k, v]
-        elif t.startswith('has:'):
-            k = t[4:]
-            condition = '''
-((batches.id) IN
- (SELECT batch_id FROM batch_attributes
-  WHERE `key` = %s))
-'''
-            args = [k]
-        elif t.startswith('user:'):
-            k = t[5:]
-            condition = '''
-(batches.`user` = %s)
-'''
-            args = [k]
-        elif t.startswith('billing_project:'):
-            k = t[16:]
-            condition = '''
-(billing_projects.name_cs = %s)
-'''
-            args = [k]
-        elif t == 'open':
-            condition = "(`state` = 'open')"
-            args = []
-        elif t == 'closed':
-            condition = "(`state` != 'open')"
-            args = []
-        elif t == 'complete':
-            condition = "(`state` = 'complete')"
-            args = []
-        elif t == 'running':
-            condition = "(`state` = 'running')"
-            args = []
-        elif t == 'cancelled':
-            condition = '(batches_cancelled.id IS NOT NULL)'
-            args = []
-        elif t == 'failure':
-            condition = '(n_failed > 0)'
-            args = []
-        elif t == 'success':
-            # need complete because there might be no jobs
-            condition = "(`state` = 'complete' AND n_succeeded = n_jobs)"
-            args = []
-        else:
-            session = await aiohttp_session.get_session(request)
-            set_message(session, f'Invalid search term: {t}.', 'error')
-            return ([], None)
-
-        if negate:
-            condition = f'(NOT {condition})'
-
-        where_conditions.append(condition)
-        where_args.extend(args)
-
-    sql = f'''
-WITH base_t AS (
-  SELECT batches.*,
-    batches_cancelled.id IS NOT NULL AS cancelled,
-    batches_n_jobs_in_complete_states.n_completed,
-    batches_n_jobs_in_complete_states.n_succeeded,
-    batches_n_jobs_in_complete_states.n_failed,
-    batches_n_jobs_in_complete_states.n_cancelled
-  FROM batches
-  LEFT JOIN billing_projects ON batches.billing_project = billing_projects.name
-  LEFT JOIN batches_n_jobs_in_complete_states
-    ON batches.id = batches_n_jobs_in_complete_states.id
-  LEFT JOIN batches_cancelled
-    ON batches.id = batches_cancelled.id
-  STRAIGHT_JOIN billing_project_users ON batches.billing_project = billing_project_users.billing_project
-  WHERE {' AND '.join(where_conditions)}
-  ORDER BY id DESC
-  LIMIT 51
-)
-SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
-FROM base_t
-LEFT JOIN (
-  SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM base_t
-  LEFT JOIN aggregated_batch_resources_v2 ON base_t.id = aggregated_batch_resources_v2.batch_id
-  GROUP BY batch_id, resource_id
-) AS usage_t ON base_t.id = usage_t.batch_id
-LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-GROUP BY id
-ORDER BY id DESC;
-'''
-    sql_args = where_args
-
-    batches = [
-        batch_record_to_dict(batch) async for batch in db.select_and_fetchall(sql, sql_args, query_name='get_batches')
-    ]
+    batches = [batch_record_to_dict(record) async for record in db.select_and_fetchall(sql, sql_args)]
 
     if len(batches) == 51:
         batches.pop()
@@ -734,10 +618,25 @@ ORDER BY id DESC;
 @routes.get('/api/v1alpha/batches')
 @auth.rest_authenticated_users_only
 @add_metadata_to_request
-async def get_batches(request, userdata):  # pylint: disable=unused-argument
+async def get_batches_v1(request, userdata):  # pylint: disable=unused-argument
     user = userdata['username']
     q = request.query.get('q', f'user:{user}')
-    batches, last_batch_id = await _query_batches(request, user, q)
+    last_batch_id = request.query.get('last_batch_id')
+    batches, last_batch_id = await _query_batches(request, user, q, 1, last_batch_id)
+    body = {'batches': batches}
+    if last_batch_id is not None:
+        body['last_batch_id'] = last_batch_id
+    return json_response(body)
+
+
+@routes.get('/api/v2alpha/batches')
+@auth.rest_authenticated_users_only
+@add_metadata_to_request
+async def get_batches_v2(request, userdata):  # pylint: disable=unused-argument
+    user = userdata['username']
+    q = request.query.get('q', f'user = {user}')
+    last_batch_id = request.query.get('last_batch_id')
+    batches, last_batch_id = await _query_batches(request, user, q, 2, last_batch_id)
     body = {'batches': batches}
     if last_batch_id is not None:
         body['last_batch_id'] = last_batch_id
@@ -1787,7 +1686,10 @@ async def ui_delete_batch(request, userdata, batch_id):  # pylint: disable=unuse
 async def ui_batches(request, userdata):
     user = userdata['username']
     q = request.query.get('q', f'user:{user}')
-    batches, last_batch_id = await _query_batches(request, user, q)
+    last_batch_id = request.query.get('last_batch_id')
+    if last_batch_id is not None:
+        last_batch_id = int(last_batch_id)
+    batches, last_batch_id = await _query_batches(request, user, q, CURRENT_QUERY_VERSION, last_batch_id)
     for batch in batches:
         batch['cost'] = cost_str(batch['cost'])
     page_context = {'batches': batches, 'q': q, 'last_batch_id': last_batch_id}

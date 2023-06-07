@@ -270,7 +270,7 @@ def test_unsubmitted_state(client: BatchClient):
         j.wait()
 
 
-def test_list_batches(client: BatchClient):
+def test_list_batches_v1(client: BatchClient):
     tag = secrets.token_urlsafe(64)
     bb1 = create_batch(client, attributes={'tag': tag, 'name': 'b1'})
     bb1.create_job(DOCKER_ROOT_IMAGE, ['sleep', '3600'])
@@ -315,6 +315,173 @@ def test_list_batches(client: BatchClient):
     assert_batch_ids({b1.id, b2.id}, f'complete tag={tag}')
 
     assert_batch_ids({b2.id}, f'tag={tag} name=b2')
+
+
+def test_list_batches_v2(client: BatchClient):
+    tag = secrets.token_urlsafe(64)
+    bb1 = create_batch(client, attributes={'tag': tag, 'name': 'b1'})
+    bb1.create_job(DOCKER_ROOT_IMAGE, ['sleep', '3600'])
+    b1 = bb1.submit()
+
+    bb2 = create_batch(client, attributes={'tag': tag, 'name': 'b2'})
+    bb2.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
+    b2 = bb2.submit()
+
+    batch_id_test_universe = {b1.id, b2.id}
+
+    def assert_batch_ids(expected: Set[int], q=None):
+        assert expected.issubset(batch_id_test_universe)
+        max_id = max(batch_id_test_universe)
+        min_id = min(batch_id_test_universe)
+        span = max_id - min_id + 1
+        # list_batches returns all batches for all prev run tests so we set a limit
+        batches = client.list_batches(q, last_batch_id=max_id + 1, limit=span, version=2)
+        full_actual = {b.id for b in batches}
+        actual = full_actual.intersection(batch_id_test_universe)
+        assert actual == expected, str((full_actual, max_id, span, b1.debug_info(), b2.debug_info()))
+
+    assert_batch_ids({b1.id, b2.id})
+
+    assert_batch_ids({b1.id, b2.id}, f'tag={tag}')
+    assert_batch_ids({b1.id, b2.id}, f'tag=~{tag}')
+    assert_batch_ids(
+        {b1.id, b2.id},
+        f'''
+name=~b
+tag={tag}
+''',
+    )
+    assert_batch_ids(
+        {b1.id},
+        f'''
+name!~b2
+tag={tag}
+''',
+    )
+    assert_batch_ids(
+        {b1.id},
+        f'''
+name!=b2
+tag={tag}
+''',
+    )
+    assert_batch_ids(
+        {b2.id},
+        f'''
+b2
+tag={tag}
+''',
+    )
+
+    b2.wait()
+
+    assert_batch_ids(
+        {b1.id},
+        f'''
+state != complete
+tag = {tag}
+''',
+    )
+    assert_batch_ids(
+        {b2.id},
+        f'''
+state=complete
+tag={tag}
+''',
+    )
+
+    assert_batch_ids(
+        {b1.id},
+        f'''
+state != success
+tag={tag}
+''',
+    )
+    assert_batch_ids(
+        {b2.id},
+        f'''
+state == success
+tag={tag}
+''',
+    )
+
+    b1.cancel()
+    b1.wait()
+
+    assert_batch_ids(
+        {b1.id},
+        f'''
+state!=success
+tag={tag}
+''',
+    )
+    assert_batch_ids(
+        {b2.id},
+        f'''
+state = success
+tag={tag}
+''',
+    )
+
+    assert_batch_ids(
+        set(),
+        f'''
+state != complete
+tag={tag}
+''',
+    )
+    assert_batch_ids(
+        {b1.id, b2.id},
+        f'''
+state = complete
+tag={tag}
+''',
+    )
+
+    assert_batch_ids(
+        {b2.id},
+        f'''
+tag={tag}
+name=b2
+''',
+    )
+
+    assert_batch_ids(
+        {b2.id},
+        f'''
+tag={tag}
+"b2"
+''',
+    )
+
+    assert_batch_ids(
+        {b2.id},
+        f'''
+tag=~{tag}
+"b2"
+''',
+    )
+
+    assert_batch_ids(
+        {b1.id, b2.id},
+        '''
+start_time >= 2023-02-24T17:15:25Z
+end_time < 3000-02-24T17:15:25Z
+''',
+    )
+
+    assert_batch_ids(
+        set(),
+        '''
+start_time >= 2023-02-24T17:15:25Z
+end_time == 2023-02-24T17:15:25Z
+''',
+    )
+
+    assert_batch_ids(set(), 'duration > 50000')
+    assert_batch_ids(set(), 'cost > 1000')
+    assert_batch_ids({b1.id}, f'batch_id = {b1.id}')
+    assert_batch_ids({b1.id}, f'batch_id == {b1.id}')
 
 
 def test_list_jobs_v1(client: BatchClient):
