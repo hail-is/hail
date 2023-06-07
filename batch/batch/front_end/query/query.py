@@ -78,7 +78,7 @@ class StateQuery(Query):
     def parse(op: str, state: str) -> 'StateQuery':
         operator = get_operator(op)
         if not isinstance(operator, ExactMatchOperator):
-            raise QueryError(f'unexpected operator "{op}" expected {ExactMatchOperator}')
+            raise QueryError(f'unexpected operator "{op}" expected one of {ExactMatchOperator.symbols}')
         if state not in state_search_term_to_states:
             raise QueryError(f'unknown state "{state}"')
         return StateQuery(state, operator)

@@ -97,21 +97,12 @@ symbols_to_operator = {
 }
 
 
-def pad_operator(s: str) -> str:
-    for op in symbols_to_operator.values():
-        match = op.regex.fullmatch(s)
-        if match:
-            groups = match.groups()
-            if len(groups) != 3:
-                raise QueryError(f'could not parse operator in query string "{s}"')
-            return ' '.join(groups)
-    raise QueryError(f'could not parse operator in query string "{s}"')
-
-
 def pad_maybe_operator(s: str) -> str:
     for symbol in symbols_to_operator:
         if symbol in s:
-            return pad_operator(s)
+            padded_symbol = f' {symbol} '
+            tokens = [token.strip() for token in s.split(symbol)]
+            return padded_symbol.join(tokens)
     return s
 
 
