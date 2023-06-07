@@ -98,32 +98,44 @@ class Tests(unittest.TestCase):
             assert mt_.head(100).count_rows() == 10
             assert mt_.head(100)._force_count_rows() == 10
 
-    def test_head_cols(self):
+    def test_head_rows_and_cols(self):
         mt1 = hl.utils.range_matrix_table(10, 10)
         assert mt1.head(1, 2).count() == (1, 2)
+
+    def test_head_rows(self):
+        mt1 = hl.utils.range_matrix_table(10, 10)
         assert mt1.head(1, None).count() == (1, 10)
+
+    def test_head_cols(self):
+        mt1 = hl.utils.range_matrix_table(10, 10)
         assert mt1.head(None, 1).count() == (10, 1)
 
     @test_timeout(batch=5 * 60)
-    def test_tail(self):
-        # no empty partitions
-        mt1 = hl.utils.range_matrix_table(10, 10)
+    def test_tail_no_empty_partitions(self):
+        mt = hl.utils.range_matrix_table(10, 10)
 
-        # empty partitions at front
-        mt2 = hl.utils.range_matrix_table(20, 10, 20)
-        mt2 = mt2.filter_rows(mt2.row_idx > 9)
-        mts = [mt1, mt2]
+        tmp_file = new_temp_file(extension='mt')
+        mt.write(tmp_file)
+        mt_readback = hl.read_matrix_table(tmp_file)
+        for mt_ in [mt, mt_readback]:
+            assert mt_.tail(1).count_rows() == 1
+            assert mt_.tail(1)._force_count_rows() == 1
+            assert mt_.tail(100).count_rows() == 10
+            assert mt_.tail(100)._force_count_rows() == 10
 
-        for mt in mts:
-            tmp_file = new_temp_file(extension='mt')
+    @test_timeout(batch=5 * 60)
+    def test_tail_empty_partitions_at_front(self):
+        mt = hl.utils.range_matrix_table(20, 10, 20)
+        mt = mt.filter_rows(mt.row_idx > 9)
 
-            mt.write(tmp_file)
-            mt_readback = hl.read_matrix_table(tmp_file)
-            for mt_ in [mt, mt_readback]:
-                assert mt_.tail(1).count_rows() == 1
-                assert mt_.tail(1)._force_count_rows() == 1
-                assert mt_.tail(100).count_rows() == 10
-                assert mt_.tail(100)._force_count_rows() == 10
+        tmp_file = new_temp_file(extension='mt')
+        mt.write(tmp_file)
+        mt_readback = hl.read_matrix_table(tmp_file)
+        for mt_ in [mt, mt_readback]:
+            assert mt_.tail(1).count_rows() == 1
+            assert mt_.tail(1)._force_count_rows() == 1
+            assert mt_.tail(100).count_rows() == 10
+            assert mt_.tail(100)._force_count_rows() == 10
 
     def test_tail_cols(self):
         mt1 = hl.utils.range_matrix_table(10, 10)
@@ -575,7 +587,6 @@ class Tests(unittest.TestCase):
     def test_unions_1(self):
         dataset = hl.import_vcf(resource('sample2.vcf'))
 
-        # test union_rows
         ds1 = dataset.filter_rows(dataset.locus.position % 2 == 1)
         ds2 = dataset.filter_rows(dataset.locus.position % 2 == 0)
 
@@ -591,13 +602,6 @@ class Tests(unittest.TestCase):
     def test_unions_2(self):
         dataset = hl.import_vcf(resource('sample2.vcf'))
 
-        # test union_rows
-        ds1 = dataset.filter_rows(dataset.locus.position % 2 == 1)
-        ds2 = dataset.filter_rows(dataset.locus.position % 2 == 0)
-
-        datasets = [ds1, ds2]
-
-        # test union_cols
         ds = dataset.union_cols(dataset).union_cols(dataset)
         for s, count in ds.aggregate_cols(agg.counter(ds.s)).items():
             self.assertEqual(count, 3)
@@ -707,8 +711,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(
             rt.all(((rt.locus.position % 2) == 0) == rt['value']))
 
-    def test_computed_key_join_2(self):
-        # multiple keys
+    def test_computed_key_join_multiple_keys(self):
         ds = self.get_mt()
         kt = hl.Table.parallelize(
             [{'key1': 0, 'key2': 0, 'value': 0},
@@ -723,8 +726,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(
             rt.all((rt.locus.position % 2) - 2 * (rt.info.DP % 2) == rt['value']))
 
-    def test_computed_key_join_3(self):
-        # duplicate row keys
+    def test_computed_key_join_duplicate_row_keys(self):
         ds = self.get_mt()
         kt = hl.Table.parallelize(
             [{'culprit': 'InbreedingCoeff', 'foo': 'bar', 'value': 'IB'}],
@@ -826,7 +828,7 @@ class Tests(unittest.TestCase):
         assert mt.key_rows_by().key_cols_by().entries().collect() == original_order
         assert mt.key_rows_by().entries().collect() == sorted(original_order, key=lambda x: x.col_idx)
 
-    def test_entries_table_with_out_of_order_row_key_fields(self):
+    def test_entries_table_without_of_order_row_key_fields(self):
         mt = hl.utils.range_matrix_table(10, 10, 1)
         mt = mt.select_rows(key2=0, key1=mt.row_idx)
         mt = mt.key_rows_by(mt.key1, mt.key2)
@@ -1415,8 +1417,6 @@ class Tests(unittest.TestCase):
 
         tinterval1 = t1.key_by(k=hl.interval(t1.idx, t1.idx, True, True))
         tinterval1 = tinterval1.select(v=tinterval1.idx + 2)
-        tinterval2 = t2.key_by(k=hl.interval(t2.key, t2.key, True, True))
-        tinterval2 = tinterval2.select(v=tinterval2.idx + 2)
 
         values = [hl.Struct(v=i + 2) for i in range(9)]
         # join on mt row key
@@ -1872,9 +1872,8 @@ def test_matrix_randomness_read():
 
 
 @test_timeout(batch=8 * 60)
-def test_matrix_randomness_aggregate_rows_by_key():
+def test_matrix_randomness_aggregate_rows_by_key_with_body_randomness():
     rmt = hl.utils.range_matrix_table(20, 10, 3)
-    # with body randomness
     mt = (rmt.group_rows_by(k=rmt.row_idx % 5)
         .aggregate_rows(r=hl.rand_int64())
         .aggregate_entries(e=hl.rand_int64())
@@ -1885,7 +1884,11 @@ def test_matrix_randomness_aggregate_rows_by_key():
     x = mt.aggregate_entries(hl.struct(r=hl.agg.collect_as_set(mt.e), n=hl.agg.count()))
     assert(len(x.r) == x.n)
     assert_unique_uids(mt)
-    # with agg randomness
+
+
+@test_timeout(batch=8 * 60)
+def test_matrix_randomness_aggregate_rows_by_key_then_aggregate_entries_with_agg_randomness():
+    rmt = hl.utils.range_matrix_table(20, 10, 3)
     mt = (rmt.group_rows_by(k=rmt.row_idx % 5)
           .aggregate_rows(r=hl.agg.collect(hl.rand_int64()))
           .aggregate_entries(e=hl.agg.collect(hl.rand_int64()))
@@ -1896,7 +1899,11 @@ def test_matrix_randomness_aggregate_rows_by_key():
     x = mt.aggregate_entries(hl.agg.explode(lambda r: hl.struct(r=hl.agg.collect_as_set(r), n=hl.agg.count()), mt.e))
     assert(len(x.r) == x.n)
     assert_unique_uids(mt)
-    # w/o body randomness
+
+
+@test_timeout(batch=8 * 60)
+def test_matrix_randomness_aggregate_rows_by_key_without_body_randomness():
+    rmt = hl.utils.range_matrix_table(20, 10, 3)
     mt = (rmt.group_rows_by(k=rmt.row_idx % 5)
           .aggregate_rows(row_agg=hl.agg.sum(rmt.row_idx))
           .aggregate_entries(entry_agg=hl.agg.sum(rmt.row_idx + rmt.col_idx))
@@ -1905,14 +1912,16 @@ def test_matrix_randomness_aggregate_rows_by_key():
     assert_unique_uids(mt)
 
 
-def test_matrix_randomness_filter_rows():
+def test_matrix_randomness_filter_rows_with_cond_randomness():
     rmt = hl.utils.range_matrix_table(10, 10, 3)
-    # with cond randomness
     mt = rmt.filter_rows(hl.rand_int64() % 2 == 0)
     assert_contains_node(mt, ir.MatrixFilterRows)
     mt.entries()._force_count() # test with no consumer randomness
     assert_unique_uids(mt)
-    # w/o cond randomness
+
+
+def test_matrix_randomness_filter_rows_without_cond_randomness():
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
     mt = rmt.filter_rows(rmt.row_idx < 5)
     assert_contains_node(mt, ir.MatrixFilterRows)
     assert_unique_uids(mt)
@@ -2028,7 +2037,6 @@ def test_matrix_randomness_map_rows_with_agg_randomness():
 
 def test_matrix_randomness_map_rows_with_scan_randomness():
     rmt = hl.utils.range_matrix_table(10, 10, 3)
-    # with scan randomness
     mt = rmt.annotate_rows(r=hl.scan.collect(hl.rand_int64()))
     assert_contains_node(mt, ir.MatrixMapRows)
     x = mt.aggregate_rows(hl.struct(r=hl.agg.explode(lambda r: hl.agg.collect_as_set(r), mt.r), n=hl.agg.count()))
@@ -2038,33 +2046,36 @@ def test_matrix_randomness_map_rows_with_scan_randomness():
 
 def test_matrix_randomness_map_rows_without_body_randomness():
     rmt = hl.utils.range_matrix_table(10, 10, 3)
-    # w/o body randomness
     mt = rmt.annotate_rows(x=2*rmt.row_idx)
     assert_contains_node(mt, ir.MatrixMapRows)
     assert_unique_uids(mt)
 
 
-def test_matrix_randomness_map_globals():
+def test_matrix_randomness_map_globals_with_body_randomness():
     rmt = hl.utils.range_matrix_table(10, 10, 3)
-    # with body randomness
     mt = rmt.annotate_globals(x=hl.rand_int64())
     assert_contains_node(mt, ir.MatrixMapGlobals)
     mt.entries()._force_count() # test with no consumer randomness
     assert_unique_uids(mt)
-    # w/o body randomness
+
+
+def test_matrix_randomness_map_globals_without_body_randomness():
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
     mt = rmt.annotate_globals(x=1)
     assert_contains_node(mt, ir.MatrixMapGlobals)
     assert_unique_uids(mt)
 
 
-def test_matrix_randomness_filter_cols():
+def test_matrix_randomness_filter_cols_with_cond_randomness():
     rmt = hl.utils.range_matrix_table(10, 10, 3)
-    # with cond randomness
     mt = rmt.filter_cols(hl.rand_int64() % 2 == 0)
     assert_contains_node(mt, ir.MatrixFilterCols)
     mt.entries()._force_count() # test with no consumer randomness
     assert_unique_uids(mt)
-    # w/o cond randomness
+
+
+def test_matrix_randomness_filter_cols_without_cond_randomness():
+    rmt = hl.utils.range_matrix_table(10, 10, 3)
     mt = rmt.filter_cols(rmt.col_idx < 5)
     assert_contains_node(mt, ir.MatrixFilterCols)
     assert_unique_uids(mt)
@@ -2079,9 +2090,8 @@ def test_matrix_randomness_collect_cols_by_key():
 
 
 @test_timeout(batch=5 * 60)
-def test_matrix_randomness_aggregate_cols_by_key():
+def test_matrix_randomness_aggregate_cols_by_key_with_body_randomness():
     rmt = hl.utils.range_matrix_table(20, 10, 3)
-    # with body randomness
     mt = (rmt.group_cols_by(k=rmt.col_idx % 5)
           .aggregate_cols(r=hl.rand_int64())
           .aggregate_entries(e=hl.rand_int64())
@@ -2092,7 +2102,11 @@ def test_matrix_randomness_aggregate_cols_by_key():
     x = mt.aggregate_entries(hl.struct(r=hl.agg.collect_as_set(mt.e), n=hl.agg.count()))
     assert(len(x.r) == x.n)
     assert_unique_uids(mt)
-    # with agg randomness
+
+
+@test_timeout(batch=5 * 60)
+def test_matrix_randomness_aggregate_cols_by_key_with_agg_randomness():
+    rmt = hl.utils.range_matrix_table(20, 10, 3)
     mt = (rmt.group_cols_by(k=rmt.col_idx % 5)
           .aggregate_cols(r=hl.agg.collect(hl.rand_int64()))
           .aggregate_entries(e=hl.agg.collect(hl.rand_int64()))
@@ -2103,7 +2117,11 @@ def test_matrix_randomness_aggregate_cols_by_key():
     x = mt.aggregate_entries(hl.agg.explode(lambda r: hl.struct(r=hl.agg.collect_as_set(r), n=hl.agg.count()), mt.e))
     assert(len(x.r) == x.n)
     assert_unique_uids(mt)
-    # w/o body randomness
+
+
+@test_timeout(batch=5 * 60)
+def test_matrix_randomness_aggregate_cols_by_key_without_body_randomness():
+    rmt = hl.utils.range_matrix_table(20, 10, 3)
     mt = (rmt.group_cols_by(k=rmt.col_idx % 5)
           .aggregate_cols(row_agg=hl.agg.sum(rmt.col_idx))
           .aggregate_entries(entry_agg=hl.agg.sum(rmt.row_idx + rmt.col_idx))
