@@ -3882,8 +3882,13 @@ class MatrixTable(ExprContainer):
     @typecheck_method(other=matrix_table_type,
                       row_join_type=enumeration('inner', 'outer'),
                       drop_right_row_fields=bool)
-    def union_cols(self, other: 'MatrixTable', row_join_type='inner', drop_right_row_fields=True) -> 'MatrixTable':
+    def union_cols(self, other: 'MatrixTable', row_join_type: str = 'inner', drop_right_row_fields: bool = True) -> 'MatrixTable':
         """Take the union of dataset columns.
+
+        Warning
+        -------
+
+        This method does not preserve the global fields from the other matrix table.
 
         Examples
         --------
@@ -3928,10 +3933,10 @@ class MatrixTable(ExprContainer):
         ----------
         other : :class:`.MatrixTable`
             Dataset to concatenate.
-        row_join_type : string
+        row_join_type : :obj:`.str`
             If `outer`, perform an outer join on rows; if 'inner', perform an
             inner join. Default `inner`.
-        drop_right_row_fields : boolean
+        drop_right_row_fields : :obj:`.bool`
             If true, non-key row fields of `other` are dropped. Otherwise,
             non-key row fields in the two datasets must have distinct names,
             and the result contains the union of the row fields.
@@ -3961,15 +3966,15 @@ class MatrixTable(ExprContainer):
         if drop_right_row_fields:
             other = other.select_rows()
         else:
-            left_fields = set(self._fields)
-            other_fields = set(other._fields) - set(other.key)
+            left_fields = set(self.row_value)
+            other_fields = set(other.row_value) - set(other.row_key)
             renames, _ = deduplicate(
                 other_fields, max_attempts=100, already_used=left_fields)
 
             if renames:
                 renames = dict(renames)
                 other = other.rename(renames)
-                info('Table.join: renamed the following fields on the right to avoid name conflicts:'
+                info('Table.union_cols: renamed the following fields on the right to avoid name conflicts:'
                      + ''.join(f'\n    {repr(k)} -> {repr(v)}' for k, v in renames.items()))
 
         return MatrixTable(ir.MatrixUnionCols(self._mir, other._mir, row_join_type))
