@@ -1,4 +1,5 @@
 from typing import Dict, Optional, Callable, Awaitable, Mapping, Any, List, Union, Tuple, TypeVar, Set
+import asyncio
 import abc
 import math
 import struct
@@ -28,6 +29,7 @@ from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 import hailtop.aiotools.fs as afs
 from hailtop.fs.fs import FS
 from hailtop.fs.router_fs import RouterFS
+from hailtop.aiotools.fs.exceptions import UnexpectedEOFError
 
 from .backend import Backend, fatal_error_from_java_error_triplet
 from ..builtin_references import BUILTIN_REFERENCES
@@ -466,8 +468,46 @@ class ServiceBackend(Backend):
                     raise
 
             with timings.step("read output"):
-                result_bytes = await retry_transient_errors(self._read_output, ir, iodir + '/out')
+                result_bytes = await self._resiliently_read_output(ir, iodir + '/out')
                 return token, result_bytes, timings
+
+    async def _resiliently_read_output(self, ir: Optional[BaseIR], output_uri: str) -> bytes:
+        # Azure appears to return EOF for valid reads. We suspect this is due to load shedding.
+        #
+        # /usr/local/lib/python3.8/dist-packages/hail/backend/service_backend.py:528: in _async_execute
+        #     _, resp, timings = await self._rpc(
+        # /usr/local/lib/python3.8/dist-packages/hail/backend/service_backend.py:469: in _rpc
+        #     result_bytes = await retry_transient_errors(self._read_output, ir, iodir + '/out')
+        # /usr/local/lib/python3.8/dist-packages/hailtop/utils/utils.py:780: in retry_transient_errors
+        #     return await retry_transient_errors_with_debug_string('', 0, f, *args, **kwargs)
+        # /usr/local/lib/python3.8/dist-packages/hailtop/utils/utils.py:793: in retry_transient_errors_with_debug_string
+        #     return await f(*args, **kwargs)
+        # /usr/local/lib/python3.8/dist-packages/hail/backend/service_backend.py:484: in _read_output
+        #     success = await read_bool(outfile)
+        # /usr/local/lib/python3.8/dist-packages/hail/backend/service_backend.py:87: in read_bool
+        #     return (await read_byte(strm)) != 0
+        # /usr/local/lib/python3.8/dist-packages/hail/backend/service_backend.py:83: in read_byte
+        #     return (await strm.readexactly(1))[0]
+        # _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+        #
+        # self = <hailtop.aiocloud.aioazure.fs.AzureReadableStream object at 0x7fe2083a5b80>
+        # n = 1
+        #
+        #     async def readexactly(self, n: int) -> bytes:
+        #         assert not self._closed and n >= 0
+        #         data = await self.read(n)
+        #         if len(data) != n:
+        # >           raise UnexpectedEOFError()
+        # E           hailtop.aiotools.fs.exceptions.UnexpectedEOFError
+        eofs_encountered = 0
+        while True:
+            try:
+                return await retry_transient_errors(self._read_output, ir, output_uri)
+            except UnexpectedEOFError as exc:
+                eofs_encountered += 1
+                if eofs_encountered == 2:
+                    raise exc
+                await asyncio.sleep(1)
 
     async def _read_output(self, ir: Optional[BaseIR], output_uri: str) -> bytes:
         assert self._batch

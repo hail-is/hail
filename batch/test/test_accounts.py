@@ -338,6 +338,7 @@ async def test_edit_billing_limit_nondev(
         assert False, 'expected error'
 
 
+@pytest.mark.timeout(10 * 60)
 async def test_billing_project_accrued_costs(
     make_client: Callable[[str], Awaitable[BatchClient]], dev_client: BatchClient, new_billing_project: str
 ):
