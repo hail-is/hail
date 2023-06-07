@@ -2238,6 +2238,9 @@ steps:
       - name: set-test-and-dev-pools-to-max-16-standing-16
         script: /io/sql/set-test-and-dev-pools-to-max-16-standing-16.py
         online: true
+      - name: set-test-min-pool-size-to-1
+        script: /io/sql/set-test-min-pool-size-to-1.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
