@@ -1432,7 +1432,7 @@ class Tests(unittest.TestCase):
 
 
 def test_from_entry_expr_simple_gt_n_alt_alleles():
-    mt = hl.utils.range_matrix_table(n_variants=346, n_samples=100)
+    mt = hl.utils.range_matrix_table(346, 100)
     mt = mt.annotate_entries(x=(mt.row_idx * mt.col_idx) % 3)
     mt = mt.annotate_entries(GT=hl.unphased_diploid_gt_index_call(mt.x))
     expected = np.array([(x * y) % 3 for x in range(346) for y in range(100)])
@@ -1441,7 +1441,7 @@ def test_from_entry_expr_simple_gt_n_alt_alleles():
 
 
 def test_from_entry_expr_simple_direct_from_field():
-    mt = hl.utils.range_matrix_table(n_variants=346, n_samples=100)
+    mt = hl.utils.range_matrix_table(346, 100)
     mt = mt.annotate_entries(x=(mt.row_idx * mt.col_idx) % 3)
 
     expected = np.array([(x * y) % 3 for x in range(346) for y in range(100)])
@@ -1450,7 +1450,7 @@ def test_from_entry_expr_simple_direct_from_field():
 
 
 def test_from_entry_expr_simple_with_float_conversion():
-    mt = hl.utils.range_matrix_table(n_variants=346, n_samples=100)
+    mt = hl.utils.range_matrix_table(346, 100)
     mt = mt.annotate_entries(x=(mt.row_idx * mt.col_idx) % 3)
 
     expected = np.array([(x * y) % 3 for x in range(346) for y in range(100)])
@@ -1459,7 +1459,7 @@ def test_from_entry_expr_simple_with_float_conversion():
 
 
 def test_write_from_entry_expr_simple():
-    mt = hl.utils.range_matrix_table(n_variants=346, n_samples=100)
+    mt = hl.utils.range_matrix_table(346, 100)
     mt = mt.annotate_entries(x=(mt.row_idx * mt.col_idx) % 3)
 
     expected = np.array([(x * y) % 3 for x in range(346) for y in range(100)])
