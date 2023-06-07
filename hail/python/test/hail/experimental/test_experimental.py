@@ -7,10 +7,7 @@ from hail.utils import new_temp_file
 
 
 class Tests(unittest.TestCase):
-    @fails_service_backend()
-    @fails_local_backend
-    def test_ld_score(self):
-
+    def get_ld_score_mt(self):
         ht = hl.import_table(doctest_resource('ldsc.annot'),
                              types={'BP': hl.tint,
                                     'CM': hl.tfloat,
@@ -22,22 +19,18 @@ class Tests(unittest.TestCase):
         mt = hl.import_plink(bed=doctest_resource('ldsc.bed'),
                              bim=doctest_resource('ldsc.bim'),
                              fam=doctest_resource('ldsc.fam'))
-        mt = mt.annotate_rows(binary=ht[mt.locus].binary,
-                              continuous=ht[mt.locus].continuous)
+        return mt.annotate_rows(binary=ht[mt.locus].binary,
+                                continuous=ht[mt.locus].continuous)
 
+    @fails_service_backend()
+    @fails_local_backend
+    def test_ld_score_univariate(self):
+        mt = self.get_ld_score_mt()
         ht_univariate = hl.experimental.ld_score(
             entry_expr=mt.GT.n_alt_alleles(),
             locus_expr=mt.locus,
             radius=1.0,
             coord_expr=mt.cm_position)
-
-        ht_annotated = hl.experimental.ld_score(
-            entry_expr=mt.GT.n_alt_alleles(),
-            locus_expr=mt.locus,
-            radius=1.0,
-            coord_expr=mt.cm_position,
-            annotation_exprs=[mt.binary,
-                              mt.continuous])
 
         univariate = ht_univariate.aggregate(hl.struct(
             chr20=hl.agg.filter(
@@ -54,6 +47,18 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(univariate.chr22, 1.140, places=3)
         self.assertAlmostEqual(univariate.mean, 3.507, places=3)
 
+    @fails_service_backend()
+    @fails_local_backend
+    @test_timeout(local=6 * 60)
+    def test_ld_score_annotated(self):
+        mt = self.get_ld_score_mt()
+        ht_annotated = hl.experimental.ld_score(
+            entry_expr=mt.GT.n_alt_alleles(),
+            locus_expr=mt.locus,
+            radius=1.0,
+            coord_expr=mt.cm_position,
+            annotation_exprs=[mt.binary,
+                              mt.continuous])
         annotated = ht_annotated.aggregate(
             hl.struct(
                 chr20=hl.struct(binary=hl.agg.filter(
@@ -83,7 +88,7 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(annotated.mean_stats.binary, 0.965, places=3)
         self.assertAlmostEqual(annotated.mean_stats.continuous, 176.528, places=3)
 
-
+    @test_timeout(local=8 * 60, batch=8 * 60)
     def test_plot_roc_curve(self):
         x = hl.utils.range_table(100).annotate(score1=hl.rand_norm(), score2=hl.rand_norm())
         x = x.annotate(tp=hl.if_else(x.score1 > 0, hl.rand_bool(0.7), False), score3=x.score1 + hl.rand_norm())
@@ -113,10 +118,7 @@ class Tests(unittest.TestCase):
                                    ht_20160['alleles'])
         assert ht_20160._force_count() == 151
 
-
-    @pytest.mark.unchecked_allocator
-    def test_ld_score_regression(self):
-
+    def get_ht_50_irnt(self):
         ht_scores = hl.import_table(
             doctest_resource('ld_score_regression.univariate_ld_scores.tsv'),
             key='SNP', types={'L2': hl.tfloat, 'BP': hl.tint})
@@ -141,6 +143,12 @@ class Tests(unittest.TestCase):
                                        ht_50_irnt['n'],
                                        ht_50_irnt['ld_score'],
                                        ht_50_irnt['phenotype'])
+        return ht_50_irnt
+
+    def get_ht_20160(self):
+        ht_scores = hl.import_table(
+            doctest_resource('ld_score_regression.univariate_ld_scores.tsv'),
+            key='SNP', types={'L2': hl.tfloat, 'BP': hl.tint})
 
         ht_20160 = hl.import_table(
             doctest_resource('ld_score_regression.20160.sumstats.tsv'),
@@ -162,6 +170,13 @@ class Tests(unittest.TestCase):
                                    ht_20160['n'],
                                    ht_20160['ld_score'],
                                    ht_20160['phenotype'])
+        return ht_20160
+
+    @pytest.mark.unchecked_allocator
+    @test_timeout(6 * 60, local=10 * 60, batch=10 * 60)
+    def test_ld_score_regression_1(self):
+        ht_50_irnt = self.get_ht_50_irnt()
+        ht_20160 = self.get_ht_20160()
 
         ht = ht_50_irnt.union(ht_20160)
         mt = ht.to_matrix_table(row_key=['locus', 'alleles'],
@@ -224,6 +239,12 @@ class Tests(unittest.TestCase):
             results['20160']['snp_heritability_standard_error'],
             0.0416, places=4)
 
+    @pytest.mark.unchecked_allocator
+    @test_timeout(6 * 60, local=10 * 60, batch=10 * 60)
+    def test_ld_score_regression_2(self):
+        ht_50_irnt = self.get_ht_50_irnt()
+        ht_20160 = self.get_ht_20160()
+
         ht = ht_50_irnt.annotate(
             chi_squared_50_irnt=ht_50_irnt['chi_squared'],
             n_50_irnt=ht_50_irnt['n'],
@@ -283,6 +304,7 @@ class Tests(unittest.TestCase):
             results[1]['snp_heritability_standard_error'],
             0.0416, places=4)
 
+    @test_timeout(local=6 * 60)
     def test_sparse(self):
         expected_split_mt = hl.import_vcf(resource('sparse_split_test_b.vcf'))
         unsplit_mt = hl.import_vcf(resource('sparse_split_test.vcf'), call_fields=['LGT', 'LPGT'])
@@ -300,6 +322,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(f2(1, 3)), 24) # idempotent
 
     @fails_local_backend()
+    @test_timeout(batch=8 * 60)
     def test_pc_project(self):
         mt = hl.balding_nichols_model(3, 100, 50)
         _, _, loadings_ht = hl.hwe_normalized_pca(mt.GT, k=10, compute_loadings=True)

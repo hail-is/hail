@@ -468,6 +468,7 @@ true
                     'mount_path': '/secrets/registry-push-credentials',
                 }
             ],
+            resources={'cpu': '0.25'},
             parents=parents,
             always_run=True,
             network='private',
@@ -937,6 +938,7 @@ date
             attributes=attrs,
             # FIXME configuration
             service_account={'namespace': DEFAULT_NAMESPACE, 'name': 'ci-agent'},
+            resources={'cpu': '0.25'},
             parents=self.deps_parents(),
             network='private',
             regions=[REGION],
@@ -962,6 +964,7 @@ date
                 attributes={'name': self.name + '_logs'},
                 # FIXME configuration
                 service_account={'namespace': DEFAULT_NAMESPACE, 'name': 'ci-agent'},
+                resources={'cpu': '0.25'},
                 parents=parents,
                 always_run=True,
                 network='private',

@@ -119,6 +119,15 @@ class BatchedAsserts():
                     f'test failure:\n  left={a_res}\n right={b_res}\n f={comp_func.__name__}\n  failure at:\n{"".join(x for x in tb[i:])}') from e
 
 
+def entry_expr_to_ndarray_vec(expr, mean_impute, center, normalize):
+    return np.squeeze(hl.eval(BlockMatrix.from_entry_expr(
+        expr,
+        mean_impute=mean_impute,
+        center=center,
+        normalize=normalize
+    ).to_ndarray()))
+
+
 class Tests(unittest.TestCase):
     @staticmethod
     def _np_matrix(a):
@@ -177,37 +186,33 @@ class Tests(unittest.TestCase):
             nd = (bm @ bm.T).to_numpy()
             assert nd.shape == (1000, 1000)
 
-    def test_from_entry_expr_options(self):
-        def build_mt(a):
-            data = [{'v': 0, 's': 0, 'x': a[0]},
-                    {'v': 0, 's': 1, 'x': a[1]},
-                    {'v': 0, 's': 2, 'x': a[2]}]
-            ht = hl.Table.parallelize(data, hl.dtype('struct{v: int32, s: int32, x: float64}'))
-            mt = ht.to_matrix_table(['v'], ['s'])
-            ids = mt.key_cols_by()['s'].collect()
-            return mt.choose_cols([ids.index(0), ids.index(1), ids.index(2)])
-
-        def check(expr, mean_impute, center, normalize, expected):
-            actual = np.squeeze(hl.eval(BlockMatrix.from_entry_expr(expr,
-                                                            mean_impute=mean_impute,
-                                                            center=center,
-                                                            normalize=normalize).to_ndarray()))
-            assert np.allclose(actual, expected)
-
+    @test_timeout(local=6 * 60, batch=6 * 60)
+    def test_from_entry_expr_options_1(self):
         a = np.array([0.0, 1.0, 2.0])
 
-        mt = build_mt(a)
-        check(mt.x, False, False, False, a)
-        check(mt.x, False, True, False, a - 1.0)
-        check(mt.x, False, False, True, a / np.sqrt(5))
-        check(mt.x, False, True, True, (a - 1.0) / np.sqrt(2))
-        check(mt.x + 1 - 1, False, False, False, a)
+        mt = hl.utils.range_matrix_table(1, 3)
+        mt = mt.rename({'row_idx': 'v', 'col_idx': 's'})
+        mt = mt.annotate_entries(x = hl.literal(a)[mt.s])
 
-        mt = build_mt([0.0, hl.missing('float64'), 2.0])
-        check(mt.x, True, False, False, a)
-        check(mt.x, True, True, False, a - 1.0)
-        check(mt.x, True, False, True, a / np.sqrt(5))
-        check(mt.x, True, True, True, (a - 1.0) / np.sqrt(2))
+        assert np.allclose(entry_expr_to_ndarray_vec(mt.x, False, False, False), a)
+        assert np.allclose(entry_expr_to_ndarray_vec(mt.x, False, True, False), a - 1.0)
+        assert np.allclose(entry_expr_to_ndarray_vec(mt.x, False, False, True), a / np.sqrt(5))
+        assert np.allclose(entry_expr_to_ndarray_vec(mt.x, False, True, True), (a - 1.0) / np.sqrt(2))
+        assert np.allclose(entry_expr_to_ndarray_vec(mt.x + 1 - 1, False, False, False), a)
+
+    @test_timeout(local=6 * 60, batch=6 * 60)
+    def test_from_entry_expr_options_2(self):
+        mean_imputed = np.array([0.0, 1.0, 2.0])
+        actual = hl.array([0.0, hl.missing(hl.tfloat), 2.0])
+
+        mt = hl.utils.range_matrix_table(1, 3)
+        mt = mt.rename({'row_idx': 'v', 'col_idx': 's'})
+        mt = mt.annotate_entries(x = actual[mt.s])
+
+        assert np.allclose(entry_expr_to_ndarray_vec(mt.x, True, False, False), mean_imputed)
+        assert np.allclose(entry_expr_to_ndarray_vec(mt.x, True, True, False), mean_imputed - 1.0)
+        assert np.allclose(entry_expr_to_ndarray_vec(mt.x, True, False, True), mean_imputed / np.sqrt(5))
+        assert np.allclose(entry_expr_to_ndarray_vec(mt.x, True, True, True), (mean_imputed - 1.0) / np.sqrt(2))
         with self.assertRaises(Exception):
             BlockMatrix.from_entry_expr(mt.x)
 
@@ -244,7 +249,7 @@ class Tests(unittest.TestCase):
         np_bm = bm.to_numpy()
         self._assert_eq(np_bm, np.arange(20, dtype=np.float64).reshape((4, 5)))
 
-    def test_numpy_round_trip(self):
+    def test_numpy_round_trip_1(self):
         n_rows = 10
         n_cols = 11
         data = np.random.rand(n_rows * n_cols)
@@ -270,6 +275,14 @@ class Tests(unittest.TestCase):
                 b.assert_eq(a3, a)
                 b.assert_eq(a4, a)
                 b.assert_eq(a5, a)
+
+    def test_numpy_round_trip_2(self):
+        n_rows = 10
+        n_cols = 11
+        data = np.random.rand(n_rows * n_cols)
+
+        bm = BlockMatrix._create(n_rows, n_cols, data.tolist(), block_size=4)
+        a = data.reshape((n_rows, n_cols))
 
         bmt = bm.T
         at = a.T
@@ -354,7 +367,8 @@ class Tests(unittest.TestCase):
         mt_round_trip = BlockMatrix.from_entry_expr(mt.element).to_matrix_table_row_major()
         assert mt._same(mt_round_trip)
 
-    def test_paired_elementwise_ops(self):
+    @test_timeout(3 * 60, local=6 * 60)
+    def test_paired_elementwise_addition(self):
         nx = np.array([[2.0]])
         nc = np.array([[1.0], [2.0]])
         nr = np.array([[1.0, 2.0, 3.0]])
@@ -419,7 +433,23 @@ class Tests(unittest.TestCase):
             b.assert_eq(m + nr, m + r)
             b.assert_eq(m + nm, m + m)
 
-            # subtraction
+    @test_timeout(3 * 60, local=6 * 60)
+    def test_paired_elementwise_subtraction(self):
+        nx = np.array([[2.0]])
+        nc = np.array([[1.0], [2.0]])
+        nr = np.array([[1.0, 2.0, 3.0]])
+        nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+
+        e = 2.0
+        # BlockMatrixMap requires very simple IRs on the SparkBackend. If I use
+        # `from_ndarray` here, it generates an `NDArrayRef` expression that it can't handle.
+        # Will be fixed by improving FoldConstants handling of ndarrays or fully lowering BlockMatrix.
+        x = BlockMatrix._create(1, 1, [2.0], block_size=8)
+        c = BlockMatrix.from_ndarray(hl.literal(nc), block_size=8)
+        r = BlockMatrix.from_ndarray(hl.literal(nr), block_size=8)
+        m = BlockMatrix.from_ndarray(hl.literal(nm), block_size=8)
+
+        with BatchedAsserts() as b:
             b.assert_eq(x - e, nx - e)
             b.assert_eq(c - e, nc - e)
             b.assert_eq(r - e, nr - e)
@@ -461,7 +491,23 @@ class Tests(unittest.TestCase):
             b.assert_eq(m - nr, m - r)
             b.assert_eq(m - nm, m - m)
 
-            # multiplication
+    @test_timeout(3 * 60, local=6 * 60)
+    def test_paired_elementwise_multiplication(self):
+        nx = np.array([[2.0]])
+        nc = np.array([[1.0], [2.0]])
+        nr = np.array([[1.0, 2.0, 3.0]])
+        nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+
+        e = 2.0
+        # BlockMatrixMap requires very simple IRs on the SparkBackend. If I use
+        # `from_ndarray` here, it generates an `NDArrayRef` expression that it can't handle.
+        # Will be fixed by improving FoldConstants handling of ndarrays or fully lowering BlockMatrix.
+        x = BlockMatrix._create(1, 1, [2.0], block_size=8)
+        c = BlockMatrix.from_ndarray(hl.literal(nc), block_size=8)
+        r = BlockMatrix.from_ndarray(hl.literal(nr), block_size=8)
+        m = BlockMatrix.from_ndarray(hl.literal(nm), block_size=8)
+
+        with BatchedAsserts() as b:
             b.assert_eq(x * e, nx * e)
             b.assert_eq(c * e, nc * e)
             b.assert_eq(r * e, nr * e)
@@ -503,7 +549,23 @@ class Tests(unittest.TestCase):
             b.assert_eq(m * nr, m * r)
             b.assert_eq(m * nm, m * m)
 
-            # division
+    @test_timeout(3 * 60, local=6 * 60)
+    def test_paired_elementwise_division(self):
+        nx = np.array([[2.0]])
+        nc = np.array([[1.0], [2.0]])
+        nr = np.array([[1.0, 2.0, 3.0]])
+        nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+
+        e = 2.0
+        # BlockMatrixMap requires very simple IRs on the SparkBackend. If I use
+        # `from_ndarray` here, it generates an `NDArrayRef` expression that it can't handle.
+        # Will be fixed by improving FoldConstants handling of ndarrays or fully lowering BlockMatrix.
+        x = BlockMatrix._create(1, 1, [2.0], block_size=8)
+        c = BlockMatrix.from_ndarray(hl.literal(nc), block_size=8)
+        r = BlockMatrix.from_ndarray(hl.literal(nr), block_size=8)
+        m = BlockMatrix.from_ndarray(hl.literal(nm), block_size=8)
+
+        with BatchedAsserts() as b:
             b.assert_close(x / e, nx / e)
             b.assert_close(c / e, nc / e)
             b.assert_close(r / e, nr / e)
@@ -1010,6 +1072,7 @@ class Tests(unittest.TestCase):
         sparsed = BlockMatrix.from_ndarray(hl.nd.array(sparsed_numpy), block_size=4)._sparsify_blocks(blocks_to_sparsify).to_ndarray()
         self.assertTrue(np.array_equal(sparsed_numpy, hl.eval(sparsed)))
 
+    @test_timeout(batch=5 * 60)
     def test_block_matrix_entries(self):
         n_rows, n_cols = 5, 3
         rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(n_rows) for j in range(n_cols)]
@@ -1068,27 +1131,40 @@ class Tests(unittest.TestCase):
         f = hl._locus_windows_per_contig([[1.0, 3.0, 4.0], [2.0, 2.0], [5.0]], 1.0)
         assert hl.eval(f) == ([0, 1, 1, 3, 3, 5], [1, 3, 3, 5, 5, 6])
 
-    def test_locus_windows(self):
-        def assert_eq(a, b):
-            assert np.array_equal(a, np.array(b)), f"a={a}, b={b}"
+    def assert_np_arrays_eq(self, a, b):
+        assert np.array_equal(a, np.array(b)), f"a={a}, b={b}"
 
+    def test_locus_windows_1(self):
         centimorgans = hl.literal([0.1, 1.0, 1.0, 1.5, 1.9])
 
         mt = hl.balding_nichols_model(1, 5, 5).add_row_index()
         mt = mt.annotate_rows(cm=centimorgans[hl.int32(mt.row_idx)]).cache()
 
         starts, stops = hl.linalg.utils.locus_windows(mt.locus, 2)
-        assert_eq(starts, [0, 0, 0, 1, 2])
-        assert_eq(stops, [3, 4, 5, 5, 5])
+        self.assert_np_arrays_eq(starts, [0, 0, 0, 1, 2])
+        self.assert_np_arrays_eq(stops, [3, 4, 5, 5, 5])
+
+    def test_locus_windows_2(self):
+        centimorgans = hl.literal([0.1, 1.0, 1.0, 1.5, 1.9])
+
+        mt = hl.balding_nichols_model(1, 5, 5).add_row_index()
+        mt = mt.annotate_rows(cm=centimorgans[hl.int32(mt.row_idx)]).cache()
 
         starts, stops = hl.linalg.utils.locus_windows(mt.locus, 0.5, coord_expr=mt.cm)
-        assert_eq(starts, [0, 1, 1, 1, 3])
-        assert_eq(stops, [1, 4, 4, 5, 5])
+        self.assert_np_arrays_eq(starts, [0, 1, 1, 1, 3])
+        self.assert_np_arrays_eq(stops, [1, 4, 4, 5, 5])
+
+    def test_locus_windows_3(self):
+        centimorgans = hl.literal([0.1, 1.0, 1.0, 1.5, 1.9])
+
+        mt = hl.balding_nichols_model(1, 5, 5).add_row_index()
+        mt = mt.annotate_rows(cm=centimorgans[hl.int32(mt.row_idx)]).cache()
 
         starts, stops = hl.linalg.utils.locus_windows(mt.locus, 1.0, coord_expr=2 * centimorgans[hl.int32(mt.row_idx)])
-        assert_eq(starts, [0, 1, 1, 1, 3])
-        assert_eq(stops, [1, 4, 4, 5, 5])
+        self.assert_np_arrays_eq(starts, [0, 1, 1, 1, 3])
+        self.assert_np_arrays_eq(stops, [1, 4, 4, 5, 5])
 
+    def test_locus_windows_4(self):
         rows = [{'locus': hl.Locus('1', 1), 'cm': 1.0},
                 {'locus': hl.Locus('1', 2), 'cm': 3.0},
                 {'locus': hl.Locus('1', 4), 'cm': 4.0},
@@ -1101,46 +1177,74 @@ class Tests(unittest.TestCase):
                                   key=['locus'])
 
         starts, stops = hl.linalg.utils.locus_windows(ht.locus, 1)
-        assert_eq(starts, [0, 0, 2, 3, 3, 5])
-        assert_eq(stops, [2, 2, 3, 5, 5, 6])
+        self.assert_np_arrays_eq(starts, [0, 0, 2, 3, 3, 5])
+        self.assert_np_arrays_eq(stops, [2, 2, 3, 5, 5, 6])
 
+    def dummy_table_with_loci_and_cms(self):
+        rows = [{'locus': hl.Locus('1', 1), 'cm': 1.0},
+                {'locus': hl.Locus('1', 2), 'cm': 3.0},
+                {'locus': hl.Locus('1', 4), 'cm': 4.0},
+                {'locus': hl.Locus('2', 1), 'cm': 2.0},
+                {'locus': hl.Locus('2', 1), 'cm': 2.0},
+                {'locus': hl.Locus('3', 3), 'cm': 5.0}]
+
+        return hl.Table.parallelize(rows,
+                                    hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64),
+                                    key=['locus'])
+
+    def test_locus_windows_5(self):
+        ht = self.dummy_table_with_loci_and_cms()
         starts, stops = hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=ht.cm)
-        assert_eq(starts, [0, 1, 1, 3, 3, 5])
-        assert_eq(stops, [1, 3, 3, 5, 5, 6])
+        self.assert_np_arrays_eq(starts, [0, 1, 1, 3, 3, 5])
+        self.assert_np_arrays_eq(stops, [1, 3, 3, 5, 5, 6])
 
+    def test_locus_windows_6(self):
+        ht = self.dummy_table_with_loci_and_cms()
         with self.assertRaises(HailUserError) as cm:
             hl.linalg.utils.locus_windows(ht.order_by(ht.cm).locus, 1.0)
         assert 'ascending order' in str(cm.exception)
 
+    def test_locus_windows_7(self):
+        ht = self.dummy_table_with_loci_and_cms()
         with self.assertRaises(ExpressionException) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=hl.utils.range_table(1).idx)
         assert 'different source' in str(cm.exception)
 
+    def test_locus_windows_8(self):
+        ht = self.dummy_table_with_loci_and_cms()
         with self.assertRaises(ExpressionException) as cm:
             hl.linalg.utils.locus_windows(hl.locus('1', 1), 1.0)
         assert "no source" in str(cm.exception)
 
+    def test_locus_windows_9(self):
+        ht = self.dummy_table_with_loci_and_cms()
         with self.assertRaises(ExpressionException) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=0.0)
         assert "no source" in str(cm.exception)
 
+    def test_locus_windows_10(self):
+        ht = self.dummy_table_with_loci_and_cms()
         ht = ht.annotate_globals(x = hl.locus('1', 1), y = 1.0)
         with self.assertRaises(ExpressionException) as cm:
             hl.linalg.utils.locus_windows(ht.x, 1.0)
         assert "row-indexed" in str(cm.exception)
+
         with self.assertRaises(ExpressionException) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0, ht.y)
         assert "row-indexed" in str(cm.exception)
 
+    def test_locus_windows_11(self):
         ht = hl.Table.parallelize([{'locus': hl.missing(hl.tlocus()), 'cm': 1.0}],
                                   hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64), key=['locus'])
         with self.assertRaises(HailUserError) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0)
         assert "missing value for 'locus_expr'" in str(cm.exception)
+
         with self.assertRaises(HailUserError) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=ht.cm)
         assert "missing value for 'locus_expr'" in str(cm.exception)
 
+    def test_locus_windows_12(self):
         ht = hl.Table.parallelize([{'locus': hl.Locus('1', 1), 'cm': hl.missing(hl.tfloat64)}],
                                   hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64), key=['locus'])
         with self.assertRaises(FatalError) as cm:

@@ -8,3 +8,4 @@ DROP TABLE IF EXISTS `invalidated_batches`;
 DROP TABLE IF EXISTS `globals`;
 DROP TABLE IF EXISTS `active_namespaces`;
 DROP TABLE IF EXISTS `deployed_services`;
+DROP TABLE IF EXISTS `alerted_failed_shas`;

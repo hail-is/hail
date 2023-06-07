@@ -91,11 +91,9 @@ object CanLowerEfficiently {
         case TableGetGlobals(_) =>
 
         case TableWrite(_, writer) => if (!writer.canLowerEfficiently) fail(s"writer has no efficient lowering: ${ writer.getClass.getSimpleName }")
-        case TableMultiWrite(_, _) => fail(s"no lowering available for TableMultiWrite")
+        case TableMultiWrite(_, _) =>
 
         case RelationalRef(_, _) => throw new RuntimeException(s"unexpected relational ref")
-
-        case _: ApplySeeded => fail("seeded randomness does not satisfy determinism restrictions in lowered IR")
 
         case x: IR =>
           // nodes with relational children should be enumerated above explicitly

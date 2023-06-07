@@ -2,7 +2,7 @@ import os
 
 import hail as hl
 
-from ..helpers import skip_unless_service_backend
+from ..helpers import skip_unless_service_backend, test_timeout
 from hail.backend.service_backend import ServiceBackend
 
 
@@ -47,6 +47,7 @@ def test_tiny_worker_has_tiny_memory():
 
 
 @skip_unless_service_backend()
+@test_timeout(batch=10 * 60)
 def test_big_worker_has_big_memory():
     backend = hl.current_backend()
     assert isinstance(backend, ServiceBackend)
@@ -61,6 +62,7 @@ def test_big_worker_has_big_memory():
 
 
 @skip_unless_service_backend()
+@test_timeout(batch=12 * 60)
 def test_regions():
     backend = hl.current_backend()
     assert isinstance(backend, ServiceBackend)

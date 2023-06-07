@@ -9,7 +9,7 @@ import hail.utils as utils
 from hail.linalg import BlockMatrix
 from hail.utils import FatalError, new_temp_file
 from hail.utils.java import choose_backend, Env
-from ..helpers import resource, fails_local_backend, fails_service_backend, skip_when_service_backend
+from ..helpers import resource, fails_service_backend, skip_when_service_backend, test_timeout
 
 import unittest
 
@@ -56,6 +56,7 @@ class Tests(unittest.TestCase):
     # Outside of Spark backend, "linear_regression_rows" just defers to the underscore nd version.
     linreg_functions = [hl.linear_regression_rows, hl._linear_regression_rows_nd] if backend_name == "spark" else [hl.linear_regression_rows]
 
+    @test_timeout(local=3 * 60)
     def test_linreg_basic(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
@@ -134,6 +135,7 @@ class Tests(unittest.TestCase):
                 linreg_function([[phenos[mt.s].Pheno]], mt.GT.n_alt_alleles(), [1.0],
                                 pass_through=[mt.filters.length()])
 
+    @test_timeout(local=3 * 60)
     def test_linreg_chained(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
@@ -543,6 +545,13 @@ class Tests(unittest.TestCase):
         assert not fit.exploded
         assert fit.converged
 
+    def equal_with_nans(self, arr1, arr2):
+        def both_nan_or_none(a, b):
+            return (a is None or not np.isfinite(a)) and (b is None or not np.isfinite(b))
+
+        return all([both_nan_or_none(a, b) or math.isclose(a, b) for a, b in zip(arr1, arr2)])
+
+    @test_timeout(3 * 60)
     def test_weighted_linear_regression(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',
@@ -585,14 +594,8 @@ class Tests(unittest.TestCase):
 
         betas_from_agg = ht_from_agg.my_linreg.beta[1].collect()
 
-        def equal_with_nans(arr1, arr2):
-            def both_nan_or_none(a, b):
-                return (a is None or not np.isfinite(a)) and (b is None or not np.isfinite(b))
-
-            return all([both_nan_or_none(a, b) or math.isclose(a, b) for a, b in zip(arr1, arr2)])
-
-        assert equal_with_nans(betas_with_weights, betas_pre_weighted_1)
-        assert equal_with_nans(betas_with_weights, betas_from_agg)
+        assert self.equal_with_nans(betas_with_weights, betas_pre_weighted_1)
+        assert self.equal_with_nans(betas_with_weights, betas_from_agg)
 
         ht_with_multiple_weights = hl._linear_regression_rows_nd(y=[[mt.y], [hl.abs(mt.y)]],
                                                                  x=mt.x,
@@ -606,10 +609,22 @@ class Tests(unittest.TestCase):
 
         assert np.array(multi_weight_betas).shape == (10, 2, 1)
 
-        assert(equal_with_nans(multi_weight_betas_1, betas_pre_weighted_1))
-        assert(equal_with_nans(multi_weight_betas_2, betas_pre_weighted_2))
+        assert self.equal_with_nans(multi_weight_betas_1, betas_pre_weighted_1)
+        assert self.equal_with_nans(multi_weight_betas_2, betas_pre_weighted_2)
 
-        # Now making sure that missing weights get excluded.
+    @test_timeout(3 * 60)
+    def test_weighted_linear_regression__missing_weights_are_excluded(self):
+        mt = hl.import_vcf(resource('regressionLinear.vcf'))
+        pheno = hl.import_table(resource('regressionLinear.pheno'),
+                                key='Sample',
+                                missing='0',
+                                types={'Pheno': hl.tfloat})
+        mt = mt.annotate_cols(y=hl.coalesce(pheno[mt.s].Pheno, 1.0))
+        weights = hl.import_table(resource('regressionLinear.weights'),
+                                  key='Sample',
+                                  missing='0',
+                                  types={'Sample': hl.tstr, 'Weight1': hl.tfloat, 'Weight2': hl.tfloat})
+        mt = mt.annotate_entries(x=hl.coalesce(mt.GT.n_alt_alleles(), 1.0))
         ht_with_missing_weights = hl._linear_regression_rows_nd(y=[[mt.y], [hl.abs(mt.y)]],
                                                                  x=mt.x,
                                                                  covariates=[1],
@@ -633,8 +648,8 @@ class Tests(unittest.TestCase):
         betas_from_agg_weight_1 = ht_from_agg_weight_1.my_linreg.beta[1].collect()
         betas_from_agg_weight_2 = ht_from_agg_weight_2.my_linreg.beta[1].collect()
 
-        assert equal_with_nans(multi_weight_missing_betas_1, betas_from_agg_weight_1)
-        assert equal_with_nans(multi_weight_missing_betas_2, betas_from_agg_weight_2)
+        assert self.equal_with_nans(multi_weight_missing_betas_1, betas_from_agg_weight_1)
+        assert self.equal_with_nans(multi_weight_missing_betas_2, betas_from_agg_weight_2)
 
         multi_weight_missing_p_values = [e.p_value for e in multi_weight_missing_results]
         multi_weight_missing_p_values_1 = [e[0][0] for e in multi_weight_missing_p_values]
@@ -643,8 +658,8 @@ class Tests(unittest.TestCase):
         p_values_from_agg_weight_1 = ht_from_agg_weight_1.my_linreg.p_value[1].collect()
         p_values_from_agg_weight_2 = ht_from_agg_weight_2.my_linreg.p_value[1].collect()
 
-        assert equal_with_nans(multi_weight_missing_p_values_1, p_values_from_agg_weight_1)
-        assert equal_with_nans(multi_weight_missing_p_values_2, p_values_from_agg_weight_2)
+        assert self.equal_with_nans(multi_weight_missing_p_values_1, p_values_from_agg_weight_1)
+        assert self.equal_with_nans(multi_weight_missing_p_values_2, p_values_from_agg_weight_2)
 
         multi_weight_missing_t_stats = [e.t_stat for e in multi_weight_missing_results]
         multi_weight_missing_t_stats_1 = [e[0][0] for e in multi_weight_missing_t_stats]
@@ -653,8 +668,8 @@ class Tests(unittest.TestCase):
         t_stats_from_agg_weight_1 = ht_from_agg_weight_1.my_linreg.t_stat[1].collect()
         t_stats_from_agg_weight_2 = ht_from_agg_weight_2.my_linreg.t_stat[1].collect()
 
-        assert equal_with_nans(multi_weight_missing_t_stats_1, t_stats_from_agg_weight_1)
-        assert equal_with_nans(multi_weight_missing_t_stats_2, t_stats_from_agg_weight_2)
+        assert self.equal_with_nans(multi_weight_missing_t_stats_1, t_stats_from_agg_weight_1)
+        assert self.equal_with_nans(multi_weight_missing_t_stats_2, t_stats_from_agg_weight_2)
 
         multi_weight_missing_se = [e.standard_error for e in multi_weight_missing_results]
         multi_weight_missing_se_1 = [e[0][0] for e in multi_weight_missing_se]
@@ -663,9 +678,10 @@ class Tests(unittest.TestCase):
         se_from_agg_weight_1 = ht_from_agg_weight_1.my_linreg.standard_error[1].collect()
         se_from_agg_weight_2 = ht_from_agg_weight_2.my_linreg.standard_error[1].collect()
 
-        assert equal_with_nans(multi_weight_missing_se_1, se_from_agg_weight_1)
-        assert equal_with_nans(multi_weight_missing_se_2, se_from_agg_weight_2)
+        assert self.equal_with_nans(multi_weight_missing_se_1, se_from_agg_weight_1)
+        assert self.equal_with_nans(multi_weight_missing_se_2, se_from_agg_weight_2)
 
+    @test_timeout(3 * 60)
     def test_errors_weighted_linear_regression(self):
         mt = hl.utils.range_matrix_table(20, 10).annotate_entries(x=2)
         mt = mt.annotate_cols(**{f"col_{i}": i for i in range(4)})
@@ -1262,7 +1278,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(cor.shape[0], cor.shape[1])
         self.assertTrue(np.allclose(l, cor))
 
-    def test_ld_matrix(self):
+    def get_ld_matrix_mt(self):
         data = [{'v': '1:1:A:C',       'cm': 0.1, 's': 'a', 'GT': hl.Call([0, 0])},
                 {'v': '1:1:A:C',       'cm': 0.1, 's': 'b', 'GT': hl.Call([0, 0])},
                 {'v': '1:1:A:C',       'cm': 0.1, 's': 'c', 'GT': hl.Call([0, 1])},
@@ -1277,20 +1293,28 @@ class Tests(unittest.TestCase):
                 {'v': '2:1:C:G',       'cm': 0.2, 's': 'd', 'GT': hl.missing(hl.tcall)}]
         ht = hl.Table.parallelize(data, hl.dtype('struct{v: str, s: str, cm: float64, GT: call}'))
         ht = ht.transmute(**hl.parse_variant(ht.v))
-        mt = ht.to_matrix_table(row_key=['locus', 'alleles'], col_key=['s'], row_fields=['cm'])
+        return ht.to_matrix_table(row_key=['locus', 'alleles'], col_key=['s'], row_fields=['cm'])
 
+    def test_ld_matrix_1(self):
+        mt = self.get_ld_matrix_mt()
         self.assertTrue(np.allclose(
             hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=1e6).to_numpy(),
             [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]]))
 
+    def test_ld_matrix_2(self):
+        mt = self.get_ld_matrix_mt()
         self.assertTrue(np.allclose(
             hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=2e6).to_numpy(),
             [[1., -0.85280287, 0.], [-0.85280287, 1., 0.], [0., 0., 1.]]))
 
+    def test_ld_matrix_3(self):
+        mt = self.get_ld_matrix_mt()
         self.assertTrue(np.allclose(
             hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=0.5, coord_expr=mt.cm).to_numpy(),
             [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]]))
 
+    def test_ld_matrix_4(self):
+        mt = self.get_ld_matrix_mt()
         self.assertTrue(np.allclose(
             hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=1.0, coord_expr=mt.cm).to_numpy(),
             [[1., -0.85280287, 0.], [-0.85280287, 1., 0.], [0., 0., 1.]]))
@@ -1341,6 +1365,7 @@ class Tests(unittest.TestCase):
         mt = hl.split_multi(mt)
         self.assertEqual(1, mt._force_count_rows())
 
+    @test_timeout(batch=6 * 60)
     def test_ld_prune(self):
         r2_threshold = 0.001
         window_size = 5
@@ -1394,6 +1419,7 @@ class Tests(unittest.TestCase):
         pruned_table = hl.ld_prune(ds.GT)
         self.assertEqual(pruned_table.count(), 1)
 
+    @test_timeout(batch=5 * 60)
     def test_ld_prune_maf(self):
         ds = hl.balding_nichols_model(n_populations=1, n_samples=50, n_variants=10, n_partitions=10).cache()
 
@@ -1420,6 +1446,7 @@ class Tests(unittest.TestCase):
         result = hl.ld_prune(mt.GT)
         assert result.count() > 0
 
+    @test_timeout(batch=5 * 60)
     def test_ld_prune_with_duplicate_row_keys(self):
         ds = hl.import_vcf(resource('ldprune2.vcf'), min_partitions=2)
         ds_duplicate = ds.annotate_rows(duplicate=[1, 2]).explode_rows('duplicate')
@@ -1476,6 +1503,7 @@ class Tests(unittest.TestCase):
         test_af_range(hl.rand_unif(.4, .7), .4, .7, 2)
         test_af_range(hl.rand_beta(4, 6), 0, 1, 3)
 
+    @test_timeout(batch=6 * 60)
     def test_balding_nichols_stats(self):
         def test_stat(k, n, m, seed):
             hl.reset_global_randomness()

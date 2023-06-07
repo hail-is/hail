@@ -405,6 +405,43 @@ object RelationalWriter {
     write, RelationalWriter(path, overwrite, refs.map(typ => "references" -> (ReferenceGenome.getReferences(typ.rowType) ++ ReferenceGenome.getReferences(typ.globalType)))))
 }
 
+case class RelationalSetup(path: String, overwrite: Boolean, refs: Option[TableType]) extends MetadataWriter {
+  lazy val maybeRefs = refs.map(typ => "references" -> (ReferenceGenome.getReferences(typ.rowType) ++ ReferenceGenome.getReferences(typ.globalType)))
+
+  def annotationType: Type = TStruct()
+
+  def writeMetadata(
+    writeAnnotations: => IEmitCode,
+    cb: EmitCodeBuilder,
+    region: Value[Region]): Unit = {
+    if (overwrite)
+      cb += cb.emb.getFS.invoke[String, Boolean, Unit]("delete", path, true)
+    else
+      cb.ifx(cb.emb.getFS.invoke[String, Boolean]("exists", path), cb._fatal(s"file already exists: $path"))
+    cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
+
+    maybeRefs.foreach { case (refRelPath, refs) =>
+      val referencesFQPath = s"$path/$refRelPath"
+      cb += cb.emb.getFS.invoke[String, Unit]("mkDir", referencesFQPath)
+      refs.foreach { rg =>
+        cb += Code.invokeScalaObject3[FS, String, ReferenceGenome, Unit](ReferenceGenome.getClass, "writeReference", cb.emb.getFS, referencesFQPath, cb.emb.getReferenceGenome(rg))
+      }
+    }
+  }
+}
+
+case class RelationalCommit(path: String) extends MetadataWriter {
+  def annotationType: Type = TStruct()
+
+  def writeMetadata(
+    writeAnnotations: => IEmitCode,
+    cb: EmitCodeBuilder,
+    region: Value[Region]): Unit = {
+    cb += Code.invokeScalaObject2[FS, String, Unit](Class.forName("is.hail.utils.package$"), "writeNativeFileReadMe", cb.emb.getFS, path)
+    cb += cb.emb.create(s"$path/_SUCCESS").invoke[Unit]("close")
+  }
+}
+
 case class RelationalWriter(path: String, overwrite: Boolean, maybeRefs: Option[(String, Set[String])]) extends MetadataWriter {
   def annotationType: Type = TVoid
 
@@ -764,6 +801,11 @@ case class WrappedMatrixNativeMultiWriter(
   writer: MatrixNativeMultiWriter,
   colKey: IndexedSeq[String]
 ) {
+  def lower(ctx: ExecuteContext, ts: IndexedSeq[(TableStage, RTable)]): IR =
+    writer.lower(ctx, ts.map { case (ts, rt) =>
+      (LowerMatrixIR.colsFieldName, LowerMatrixIR.entriesFieldName, colKey, ts, rt)
+    })
+
   def apply(ctx: ExecuteContext, mvs: IndexedSeq[TableValue]): Unit = writer.apply(
     ctx, mvs.map(_.toMatrixValue(colKey)))
 }
