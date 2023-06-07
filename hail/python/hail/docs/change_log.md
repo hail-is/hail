@@ -39,9 +39,11 @@ Released 2023-05-30
 
 ### Bug Fixes
 
-- (hail#13113) `hail.ggplot2.geom_point` now displays a legend group for a column even when it has only one value in it.
+- (hail#13126) Query-on-Batch pipelines with one partition are now retried when they encounter transient errors.
+- (hail#13113) `hail.ggplot.geom_point` now displays a legend group for a column even when it has only one value in it.
 - (hail#13089) Requester pays buckets now work in `hailtop.fs` and `hl.hadoop_*`. This has been broken since at least 0.2.115.
 - (hail#12995) Fixed bug causing poor performance and memory leaks for `Matrix.annotate_rows` aggregations.
+- (hail#12569) The documentation for `hail.ggplot.facets` is now correctly included in the API reference.
 
 ---
 
