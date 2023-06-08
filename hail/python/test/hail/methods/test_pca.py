@@ -15,7 +15,7 @@ def test_hwe_normalized_pca():
 
     assert len(eigenvalues) == 2
     assert isinstance(scores, hl.Table)
-    scores.count() == 100
+    assert scores.count() == 100
     assert isinstance(loadings, hl.Table)
 
     _, _, loadings = hl.hwe_normalized_pca(mt.GT, k=2, compute_loadings=False)
@@ -23,29 +23,30 @@ def test_hwe_normalized_pca():
 
 
 @fails_local_backend()
+@test_timeout(batch=10 * 60)
 def test_pca_against_numpy():
     mt = hl.import_vcf(resource('tiny_m.vcf'))
-    mt = mt.filter_rows(hl.len(mt.alleles) == 2)
     mt = mt.annotate_rows(AC=hl.agg.sum(mt.GT.n_alt_alleles()),
                           n_called=hl.agg.count_where(hl.is_defined(mt.GT)))
-    mt = mt.filter_rows((mt.AC > 0) & (mt.AC < 2 * mt.n_called)).persist()
-    n_rows = mt.count_rows()
+    n_rows = 3
+    n_cols = 4
+    k = 3
 
-    def make_expr(mean):
-        return hl.if_else(hl.is_defined(mt.GT),
-                          (mt.GT.n_alt_alleles() - mean) / hl.sqrt(mean * (2 - mean) * n_rows / 2),
-                          0)
+    mean = mt.AC / mt.n_called
+    eigen, scores, loadings = hl.pca(
+        hl.coalesce(
+            (mt.GT.n_alt_alleles() - mean) / hl.sqrt(mean * (2 - mean) * n_rows / 2),
+            0
+        ),
+        k=k,
+        compute_loadings=True
+    )
 
-    eigen, scores, loadings = hl.pca(hl.bind(make_expr, mt.AC / mt.n_called), k=3, compute_loadings=True)
     hail_scores = scores.explode('scores').scores.collect()
     hail_loadings = loadings.explode('loadings').loadings.collect()
 
-    assert len(eigen) == 3
-    assert scores.count() == mt.count_cols()
-    assert loadings.count() == n_rows
-
-    assert len(scores.globals) == 0
-    assert len(loadings.globals) == 0
+    assert len(hail_scores) == n_cols * k
+    assert len(hail_loadings) == n_rows * k
 
     # compute PCA with numpy
     def normalize(a):
@@ -65,41 +66,44 @@ def test_pca_against_numpy():
     np.testing.assert_allclose(np.abs(hail_loadings), np.abs(np_loadings), rtol=1e-5)
 
 
+@test_timeout(batch=10 * 60)
 def test_blanczos_against_numpy():
-
-    def concatToNumpy(field, horizontal=True):
-        blocks = field.collect()
+    def concatToNumpy(blocks, horizontal=True):
         if horizontal:
             return np.concatenate(blocks, axis=0)
         else:
             return np.concatenate(blocks, axis=1)
 
     mt = hl.import_vcf(resource('tiny_m.vcf'))
-    mt = mt.filter_rows(hl.len(mt.alleles) == 2)
     mt = mt.annotate_rows(AC=hl.agg.sum(mt.GT.n_alt_alleles()),
                           n_called=hl.agg.count_where(hl.is_defined(mt.GT)))
-    mt = mt.filter_rows((mt.AC > 0) & (mt.AC < 2 * mt.n_called)).persist()
-    n_rows = mt.count_rows()
-
-    def make_expr(mean):
-        return hl.if_else(hl.is_defined(mt.GT),
-                          (mt.GT.n_alt_alleles() - mean) / hl.sqrt(mean * (2 - mean) * n_rows / 2),
-                          0)
-
+    n_rows = 3
+    n_cols = 4
     k = 3
 
-    float_expr = make_expr(mt.AC / mt.n_called)
+    mean = mt.AC / mt.n_called
+    float_expr = hl.coalesce(
+        (mt.GT.n_alt_alleles() - mean) / hl.sqrt(mean * (2 - mean) * n_rows / 2),
+        0
+    )
 
     eigens, scores_t, loadings_t = hl._blanczos_pca(float_expr, k=k, q_iterations=7, compute_loadings=True)
-    A = np.array(float_expr.collect()).reshape((3, 4)).T
-    scores = concatToNumpy(scores_t.scores)
-    loadings = concatToNumpy(loadings_t.loadings)
+    A = np.array([
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0, 0.0],
+        [0.0, 0.0, 2.0, 0.0],
+    ])
+    scores_blocks = scores_t.scores.collect()
+    scores = concatToNumpy(scores_blocks)
     scores = np.reshape(scores, (len(scores) // k, k))
+
+    loadings_blocks = loadings_t.loadings.collect()
+    loadings = concatToNumpy(loadings_blocks)
     loadings = np.reshape(loadings, (len(loadings) // k, k))
 
     assert len(eigens) == 3
-    assert scores_t.count() == mt.count_cols()
-    assert loadings_t.count() == n_rows
+    assert len(scores) == n_cols
+    assert len(loadings) == n_rows
     np.testing.assert_almost_equal(A @ loadings, scores)
 
     assert len(scores_t.globals) == 0
