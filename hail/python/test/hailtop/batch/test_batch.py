@@ -627,7 +627,6 @@ class ServiceTests(unittest.TestCase):
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
-    @pytest.mark.timeout(6 * 60)  # this lands on a highcpu instance and thus must spin up a new machine
     def test_specify_memory(self):
         b = self.batch()
         j = b.new_job()
@@ -869,7 +868,6 @@ class ServiceTests(unittest.TestCase):
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
-    @pytest.mark.timeout(6 * 60)
     def test_python_job(self):
         b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
         head = b.new_job()
@@ -904,7 +902,6 @@ class ServiceTests(unittest.TestCase):
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
         assert res.get_job_log(4)['main'] == "3\n5\n30\n{\"x\": 3, \"y\": 5}\n", str(res.debug_info())
 
-    @pytest.mark.timeout(6 * 60)
     def test_python_job_w_resource_group_unpack_individually(self):
         b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
         head = b.new_job()
@@ -942,7 +939,6 @@ class ServiceTests(unittest.TestCase):
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
         assert res.get_job_log(4)['main'] == "3\n5\n30\n{\"x\": 3, \"y\": 5}\n", str(res.debug_info())
 
-    @pytest.mark.timeout(6 * 60)
     def test_python_job_can_write_to_resource_path(self):
         b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
 
@@ -961,7 +957,6 @@ class ServiceTests(unittest.TestCase):
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
         assert res.get_job_log(tail._job_id)['main'] == 'foo', str(res.debug_info())
 
-    @pytest.mark.timeout(6 * 60)
     def test_python_job_w_resource_group_unpack_jointly(self):
         b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
         head = b.new_job()
@@ -995,7 +990,6 @@ class ServiceTests(unittest.TestCase):
         job_log_3 = res.get_job_log(3)
         assert job_log_3['main'] == "15\n", str((job_log_3, res.debug_info()))
 
-    @pytest.mark.timeout(6 * 60)
     def test_python_job_w_non_zero_ec(self):
         b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
         j = b.new_python_job()
@@ -1008,7 +1002,6 @@ class ServiceTests(unittest.TestCase):
         res_status = res.status()
         assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
 
-    @pytest.mark.timeout(6 * 60)
     def test_python_job_incorrect_signature(self):
         b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
 
@@ -1091,7 +1084,6 @@ class ServiceTests(unittest.TestCase):
         batch_status = batch.status()
         assert batch_status['state'] == 'success', str((batch.debug_info()))
 
-    @pytest.mark.timeout(6 * 60)
     def test_query_on_batch_in_batch(self):
         sb = ServiceBackend(remote_tmpdir=f'{self.remote_tmpdir}/temporary-files')
         bb = Batch(backend=sb, default_python_image=HAIL_GENETICS_HAIL_IMAGE)
@@ -1281,7 +1273,6 @@ class ServiceTests(unittest.TestCase):
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
-    @pytest.mark.timeout(6 * 60)
     def test_list_recursive_resource_extraction_in_python_jobs(self):
         b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
 
@@ -1303,7 +1294,6 @@ class ServiceTests(unittest.TestCase):
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
         assert res.get_job_log(tail._job_id)['main'] == '01', str(res.debug_info())
 
-    @pytest.mark.timeout(6 * 60)
     def test_dict_recursive_resource_extraction_in_python_jobs(self):
         b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
 
