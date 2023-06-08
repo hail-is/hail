@@ -158,19 +158,21 @@ WITH base_t AS
     job_attributes.`key` = 'name'
   {attempts_table_join_str}
   WHERE {" AND ".join(where_conditions)}
-  LIMIT 50
 )
-SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
-FROM base_t
-LEFT JOIN (
-  SELECT aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM base_t
-  LEFT JOIN aggregated_job_resources_v2 ON base_t.batch_id = aggregated_job_resources_v2.batch_id AND base_t.job_id = aggregated_job_resources_v2.job_id
+SELECT base_t.*, cost_t.cost
+FROM base_t,
+LATERAL (
+SELECT COALESCE(SUM(`usage` * rate), 0) AS cost
+FROM (SELECT aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM aggregated_job_resources_v2
+  WHERE aggregated_job_resources_v2.batch_id = base_t.batch_id AND aggregated_job_resources_v2.job_id = base_t.job_id
   GROUP BY aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, aggregated_job_resources_v2.resource_id
-) AS usage_t ON base_t.batch_id = usage_t.batch_id AND base_t.job_id = usage_t.job_id
+) AS usage_t
 LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-GROUP BY base_t.batch_id, base_t.job_id
-{cost_condition_str};
+GROUP BY usage_t.batch_id, usage_t.job_id
+{cost_condition_str}
+) AS cost_t
+LIMIT 50;
 '''
 
     sql_args = where_args + cost_args
