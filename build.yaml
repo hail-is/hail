@@ -2503,7 +2503,7 @@ steps:
               --durations=50 \
               /io/test_requester_pays_parsing.py
     inputs:
-      - from: /just-wheel/wheel-container.tar
+      - from: /wheel-container.tar
         to: /io/wheel-container.tar
       - from: /repo/hail/scripts/test_requester_pays_parsing.py
         to: /io/test_requester_pays_parsing.py
@@ -2511,7 +2511,7 @@ steps:
       - default_ns
       - merge_code
       - hail_run_image
-      - build_hail_jar_and_wheel_only
+      - build_hail_jar_and_wheel
   - kind: buildImage2
     name: netcat_ubuntu_image
     publishAs: netcat
