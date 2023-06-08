@@ -2491,7 +2491,7 @@ steps:
       tar xvf /io/wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
 
-      export YOU_MAY_OVERWRITE_MY_SPARK_DEFAULTS_CONF=1
+      export YOU_MAY_OVERWRITE_MY_SPARK_DEFAULTS_CONF_AND_HAILCTL_SETTINGS=1
 
       python3 -m pytest \
               -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \

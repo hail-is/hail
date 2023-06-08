@@ -19,18 +19,23 @@ def get_user_config_path() -> Path:
     return Path(xdg_config_home(), 'hail', 'config.ini')
 
 
+def _load_user_config():
+    global user_config
+    user_config = configparser.ConfigParser()
+    config_file = get_user_config_path()
+    # in older versions, the config file was accidentally named
+    # config.yaml, if the new config does not exist, and the old
+    # one does, silently rename it
+    old_path = config_file.with_name('config.yaml')
+    if old_path.exists() and not config_file.exists():
+        old_path.rename(config_file)
+    user_config.read(config_file)
+
+
 def get_user_config() -> configparser.ConfigParser:
     global user_config
     if user_config is None:
-        user_config = configparser.ConfigParser()
-        config_file = get_user_config_path()
-        # in older versions, the config file was accidentally named
-        # config.yaml, if the new config does not exist, and the old
-        # one does, silently rename it
-        old_path = config_file.with_name('config.yaml')
-        if old_path.exists() and not config_file.exists():
-            old_path.rename(config_file)
-        user_config.read(config_file)
+        _load_user_config()
     return user_config
 
 
