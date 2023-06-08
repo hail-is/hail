@@ -1221,6 +1221,9 @@ steps:
 
       export HAIL_TEST_AZURE_ACCOUNT=hailtest
       export HAIL_TEST_AZURE_CONTAINER=hail-test-4nxei
+      # Required for SAS testing on Azure
+      export HAIL_TEST_AZURE_RESGRP=hail-dev
+      export HAIL_TEST_AZURE_SUBID=22cd45fe-f996-4c51-af67-ef329d977519
       export AZURE_APPLICATION_CREDENTIALS=/test-azure-key/credentials.json
 
       python3 -m pytest \
