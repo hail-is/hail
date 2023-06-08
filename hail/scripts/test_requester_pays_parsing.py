@@ -3,6 +3,7 @@ import sys
 import os
 
 from hailtop.aiocloud.aiogoogle import get_gcs_requester_pays_configuration
+from hailtop.aiocloud.aiogoogle.user_config import spark_conf_path
 from hailtop.utils.process import check_exec_output
 
 
