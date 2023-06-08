@@ -283,7 +283,10 @@ python-json-logger==2.0.7
 pytz==2023.3
     # via pandas
 pyyaml==6.0
-    # via bokeh
+    # via
+    #   -c hail/hail/python/hailtop/pinned-requirements.txt
+    #   -r hail/hail/python/hailtop/requirements.txt
+    #   bokeh
 regex==2023.6.3
     # via parsimonious
 requests==2.31.0

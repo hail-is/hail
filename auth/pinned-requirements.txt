@@ -37,7 +37,9 @@ idna==3.4
     #   -c hail/auth/../web_common/pinned-requirements.txt
     #   requests
 oauthlib==3.2.2
-    # via requests-oauthlib
+    # via
+    #   -c hail/auth/../hail/python/pinned-requirements.txt
+    #   requests-oauthlib
 pyasn1==0.5.0
     # via
     #   -c hail/auth/../gear/pinned-requirements.txt
@@ -56,7 +58,9 @@ requests==2.31.0
     #   -c hail/auth/../hail/python/pinned-requirements.txt
     #   requests-oauthlib
 requests-oauthlib==1.3.1
-    # via google-auth-oauthlib
+    # via
+    #   -c hail/auth/../hail/python/pinned-requirements.txt
+    #   google-auth-oauthlib
 rsa==4.9
     # via
     #   -c hail/auth/../gear/pinned-requirements.txt

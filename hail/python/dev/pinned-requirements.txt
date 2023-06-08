@@ -400,7 +400,7 @@ rfc3986-validator==0.1.1
     # via
     #   jsonschema
     #   jupyter-events
-ruff==0.0.270
+ruff==0.0.272
     # via -r hail/hail/python/dev/requirements.txt
 send2trash==1.8.2
     # via
@@ -430,7 +430,7 @@ sphinx==6.2.1
     #   sphinxcontrib-katex
 sphinx-autodoc-typehints==1.23.0
     # via -r hail/hail/python/dev/requirements.txt
-sphinx-rtd-theme==1.2.1
+sphinx-rtd-theme==1.2.2
     # via -r hail/hail/python/dev/requirements.txt
 sphinxcontrib-applehelp==1.0.4
     # via sphinx
@@ -442,7 +442,7 @@ sphinxcontrib-jquery==4.1
     # via sphinx-rtd-theme
 sphinxcontrib-jsmath==1.0.1
     # via sphinx
-sphinxcontrib-katex==0.9.4
+sphinxcontrib-katex==0.9.5
     # via -r hail/hail/python/dev/requirements.txt
 sphinxcontrib-qthelp==1.0.3
     # via sphinx
