@@ -88,11 +88,7 @@ def test_blanczos_against_numpy():
     )
 
     eigens, scores_t, loadings_t = hl._blanczos_pca(float_expr, k=k, q_iterations=7, compute_loadings=True)
-    A = np.array([
-        [1.0, 0.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0, 0.0],
-        [0.0, 0.0, 2.0, 0.0],
-    ]).T
+    A = np.array(float_expr.collect()).reshape((3, 4)).T
     scores_blocks = scores_t.scores.collect()
     scores = concatToNumpy(scores_blocks)
     scores = np.reshape(scores, (len(scores) // k, k))
