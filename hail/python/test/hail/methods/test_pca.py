@@ -92,7 +92,7 @@ def test_blanczos_against_numpy():
         [1.0, 0.0, 0.0, 0.0],
         [0.0, 1.0, 0.0, 0.0],
         [0.0, 0.0, 2.0, 0.0],
-    ])
+    ]).T
     scores_blocks = scores_t.scores.collect()
     scores = concatToNumpy(scores_blocks)
     scores = np.reshape(scores, (len(scores) // k, k))
