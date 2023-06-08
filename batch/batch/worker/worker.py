@@ -2867,7 +2867,6 @@ class Worker:
             ],
         )
         self.file_store = FileStore(fs, BATCH_LOGS_STORAGE_URI, INSTANCE_ID)
-        self.compute_client = CLOUD_WORKER_API.get_compute_client()
 
         self.instance_token = os.environ['ACTIVATION_TOKEN']
 
@@ -2928,17 +2927,12 @@ class Worker:
                         log.info('closed file store')
                 finally:
                     try:
-                        if self.compute_client:
-                            await self.compute_client.close()
-                            log.info('closed compute client')
+                        if self.fs:
+                            await self.fs.close()
+                            log.info('closed worker file system')
                     finally:
-                        try:
-                            if self.fs:
-                                await self.fs.close()
-                                log.info('closed worker file system')
-                        finally:
-                            await self.client_session.close()
-                            log.info('closed client session')
+                        await self.client_session.close()
+                        log.info('closed client session')
 
     async def run_job(self, job):
         try:
@@ -3363,22 +3357,27 @@ async def async_main():
             log.info('worker shutdown', exc_info=True)
         finally:
             try:
-                await network_allocator_task_manager.shutdown_and_wait()
+                await CLOUD_WORKER_API.close()
             finally:
                 try:
-                    await docker.close()
-                    log.info('docker closed')
+                    await network_allocator_task_manager.shutdown_and_wait()
                 finally:
-                    asyncio.get_event_loop().set_debug(True)
-                    other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
-                    if other_tasks:
-                        log.warning('Tasks immediately after docker close')
-                        dump_all_stacktraces()
-                        _, pending = await asyncio.wait(other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED)
-                        for t in pending:
-                            log.warning('Dangling task:')
-                            t.print_stack()
-                            t.cancel()
+                    try:
+                        await docker.close()
+                        log.info('docker closed')
+                    finally:
+                        asyncio.get_event_loop().set_debug(True)
+                        other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
+                        if other_tasks:
+                            log.warning('Tasks immediately after docker close')
+                            dump_all_stacktraces()
+                            _, pending = await asyncio.wait(
+                                other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED
+                            )
+                            for t in pending:
+                                log.warning('Dangling task:')
+                                t.print_stack()
+                                t.cancel()
 
 
 loop = asyncio.get_event_loop()
