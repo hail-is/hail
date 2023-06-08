@@ -224,7 +224,9 @@ async def _handle_api_error(f, *args, **kwargs):
         raise e.http_response()
 
 
-async def _query_batch_jobs(request, batch_id):
+async def _query_batch_jobs(request, batch_id, limit = 50, exclude = None):
+    exclude_condition = f"jobs.job_id NOT IN ({exclude}) AND" if exclude is not None else ""
+
     state_query_values = {
         'pending': ['Pending'],
         'ready': ['Ready'],
@@ -309,8 +311,8 @@ WITH base_t AS
   ON jobs.batch_id = job_attributes.batch_id AND
     jobs.job_id = job_attributes.job_id AND
     job_attributes.`key` = 'name'
-  WHERE {' AND '.join(where_conditions)}
-  LIMIT 50
+  WHERE {exclude_condition} {' AND '.join(where_conditions)}
+  LIMIT {limit}
 )
 SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
 FROM base_t
@@ -354,6 +356,34 @@ WHERE id = %s AND NOT deleted;
     if last_job_id is not None:
         resp['last_job_id'] = last_job_id
     return json_response(resp)
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}/jobs/ws')
+@rest_billing_project_users_only
+async def get_jobs_websocket(request, userdata, batch_id):
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+    async for msg in ws:
+        if msg.type == aiohttp.WSMsgType.TEXT:
+            handler, _, args = msg.data.partition(":")
+            if handler == "close":
+                await ws.close()
+            elif handler == "load_initial":
+                # TODO timeout on coro
+                # TODO use @transaction(db) and asyncio coro to start the second query in the background
+                # app['task_manager'].ensure_future(coro)? or asyncio.create_task...
+                jobs, last_job_id = await _query_batch_jobs(request, batch_id)
+                await ws.send_json(jobs)
+            elif handler == "load_rest":
+                # TODO how do we avoid sql injection here pls?
+                jobs, last_job_id = await _query_batch_jobs(request, batch_id, limit = 1000, exclude = args)
+                await ws.send_json(jobs)
+                # TODO refresh loop from db on timer? need to check if user tabs out and freeze if so
+            else:
+                await ws.send_str("pong")
+        elif msg.type == aiohttp.WSMsgType.ERROR:
+            log.info(f"ws connection closed with exception: {ws.exception()}")
+    return ws
 
 
 async def _get_job_record(app, batch_id, job_id):
@@ -1759,16 +1789,8 @@ async def delete_batch(request, userdata, batch_id):  # pylint: disable=unused-a
 async def ui_batch(request, userdata, batch_id):
     app = request.app
     batch = await _get_batch(app, batch_id)
-
-    jobs, last_job_id = await _query_batch_jobs(request, batch_id)
-    for j in jobs:
-        j['duration'] = humanize_timedelta_msecs(j['duration'])
-        j['cost'] = cost_str(j['cost'])
-    batch['jobs'] = jobs
-
     batch['cost'] = cost_str(batch['cost'])
-
-    page_context = {'batch': batch, 'q': request.query.get('q'), 'last_job_id': last_job_id}
+    page_context = {'batch': batch, 'q': request.query.get('q')}
     return await render_template('batch', request, userdata, 'batch.html', page_context)
 
 
