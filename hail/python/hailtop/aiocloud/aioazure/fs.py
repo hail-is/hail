@@ -336,13 +336,13 @@ class AzureAsyncFSHttpsURL(AzureAsyncFSURL):
 # that container going forward.
 def handle_public_access_error(fun):
     @wraps(fun)
-    async def wrapped(self, url, *args, **kwargs):
+    async def wrapped(self: 'AzureAsyncFS', url, *args, **kwargs):
         try:
             return await fun(self, url, *args, **kwargs)
         except azure.core.exceptions.ClientAuthenticationError:
             fs_url = self.parse_url(url)
             anon_client = BlobServiceClient(f'https://{fs_url.account}.blob.core.windows.net', credential=None)
-            self._blob_service_clients[(fs_url.account, fs_url.container)] = anon_client
+            self._blob_service_clients[(fs_url.account, fs_url.container, fs_url.query)] = anon_client
             return await fun(self, url, *args, **kwargs)
     return wrapped
 
@@ -362,7 +362,7 @@ class AzureAsyncFS(AsyncFS):
             raise ValueError('credential and credential_file cannot both be defined')
 
         self._credential = credentials.credential
-        self._blob_service_clients: Dict[Tuple[str, str, Union[AzureCredentials, str]], BlobServiceClient] = {}
+        self._blob_service_clients: Dict[Tuple[str, str, Union[AzureCredentials, str, None]], BlobServiceClient] = {}
 
     @staticmethod
     def valid_url(url: str) -> bool:
@@ -448,7 +448,7 @@ class AzureAsyncFS(AsyncFS):
 
     def get_blob_service_client(self, account: str, container: str, token: Optional[str]) -> BlobServiceClient:
         credential = token if token else self._credential
-        k = account, container, credential
+        k = account, container, token
         if k not in self._blob_service_clients:
             self._blob_service_clients[k] = BlobServiceClient(f'https://{account}.blob.core.windows.net', credential=credential)
         return self._blob_service_clients[k]
