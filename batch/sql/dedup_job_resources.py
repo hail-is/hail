@@ -128,12 +128,13 @@ FROM (
   LOCK IN SHARE MODE
 ) AS old
 LEFT JOIN (
-  SELECT batch_id, job_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  SELECT batch_id, job_id, deduped_resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
   FROM aggregated_job_resources_v3
+  LEFT JOIN resources ON resources.resource_id = aggregated_job_resources_v3.resource_id
   {where_statement}
-  GROUP BY batch_id, job_id, resource_id
+  GROUP BY batch_id, job_id, deduped_resource_id
   LOCK IN SHARE MODE
-) AS new ON old.batch_id = new.batch_id AND old.job_id = new.job_id AND old.deduped_resource_id = new.resource_id
+) AS new ON old.batch_id = new.batch_id AND old.job_id = new.job_id AND old.deduped_resource_id = new.deduped_resource_id
 WHERE new.`usage` != old.`usage`
 LIMIT 100;
 ''',
