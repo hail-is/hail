@@ -1,5 +1,6 @@
 import pytest
 import sys
+import os
 
 from hailtop.aiocloud.aiogoogle import get_gcs_requester_pays_configuration
 from hailtop.utils.process import check_exec_output
