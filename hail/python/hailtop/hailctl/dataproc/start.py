@@ -186,6 +186,7 @@ def init_parser(parser):
     parser.add_argument('--temp-bucket', type=str,
                         help='The Google Cloud Storage bucket to use for cluster temporary storage (just the bucket name, no gs:// prefix).')
     parser.add_argument('--network', type=str, help='the network for all nodes in this cluster')
+    parser.add_argument('--subnet', type=str, help='the subnetwork for all nodes in this cluster')
     parser.add_argument('--service-account', type=str, help='The Google Service Account to use for cluster creation (default to the Compute Engine service account).')
     parser.add_argument('--master-tags', type=str, help='comma-separated list of instance tags to apply to the mastern node')
     parser.add_argument('--scopes', help='Specifies access scopes for the node instances')
@@ -387,8 +388,12 @@ async def main(args, pass_through_args):
     if args.zone:
         conf.flags['zone'] = args.zone
     conf.flags['initialization-action-timeout'] = args.init_timeout
+    if args.network and args.subnet:
+        raise RuntimeError("Cannot define both 'network' and 'subnet' at the same time.")
     if args.network:
         conf.flags['network'] = args.network
+    if args.subnet:
+        conf.flags['subnet'] = args.subnet
     if args.configuration:
         conf.flags['configuration'] = args.configuration
     if args.project:
