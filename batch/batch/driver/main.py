@@ -1223,18 +1223,18 @@ async def compact_agg_billing_project_users_table(app):
         await tx.execute_and_fetchall(
             '''
 CREATE TEMPORARY TABLE scratch ENGINE=MEMORY
-AS (SELECT * FROM aggregated_billing_project_user_resources_v3
+AS (SELECT * FROM aggregated_billing_project_user_resources_v2
     WHERE token != 0
     LIMIT 100
     FOR UPDATE
 );
 
-DELETE FROM aggregated_billing_project_user_resources_v3
-INNER JOIN scratch ON aggregated_billing_project_user_resources_v3.billing_project = scratch.billing_project AND
-                      aggregated_billing_project_user_resources_v3.`user` = scratch.`user` AND
-                      aggregated_billing_project_user_resources_v3.resource_id = scratch.resource_id;
+DELETE FROM aggregated_billing_project_user_resources_v2
+INNER JOIN scratch ON aggregated_billing_project_user_resources_v2.billing_project = scratch.billing_project AND
+                      aggregated_billing_project_user_resources_v2.`user` = scratch.`user` AND
+                      aggregated_billing_project_user_resources_v2.resource_id = scratch.resource_id;
 
-INSERT INTO aggregated_billing_project_user_resources_v3 (billing_project, `user`, resource_id, token, `usage`)
+INSERT INTO aggregated_billing_project_user_resources_v2 (billing_project, `user`, resource_id, token, `usage`)
 SELECT billing_project, `user`, resource_id, 0, `usage`
 FROM scratch
 ON DUPLICATE KEY UPDATE `usage` = `usage` + scratch.`usage`;
@@ -1251,18 +1251,18 @@ async def compact_agg_billing_project_users_by_date_table(app):
         await tx.execute_and_fetchall(
             '''
 CREATE TEMPORARY TABLE scratch ENGINE=MEMORY
-AS (SELECT * FROM aggregated_billing_project_user_resources_by_date_v3
+AS (SELECT * FROM aggregated_billing_project_user_resources_by_date_v2
     WHERE token != 0
     LIMIT 100
     FOR UPDATE
 );
 
-DELETE FROM aggregated_billing_project_user_resources_by_date_v3
-INNER JOIN scratch ON aggregated_billing_project_user_resources_by_date_v3.billing_project = scratch.billing_project AND
-                      aggregated_billing_project_user_resources_by_date_v3.`user` = scratch.`user` AND
-                      aggregated_billing_project_user_resources_by_date_v3.resource_id = scratch.resource_id;
+DELETE FROM aggregated_billing_project_user_resources_by_date_v2
+INNER JOIN scratch ON aggregated_billing_project_user_resources_by_date_v2.billing_project = scratch.billing_project AND
+                      aggregated_billing_project_user_resources_by_date_v2.`user` = scratch.`user` AND
+                      aggregated_billing_project_user_resources_by_date_v2.resource_id = scratch.resource_id;
 
-INSERT INTO aggregated_billing_project_user_resources_by_date_v3 (billing_date, billing_project, `user`, resource_id, token, `usage`)
+INSERT INTO aggregated_billing_project_user_resources_by_date_v2 (billing_date, billing_project, `user`, resource_id, token, `usage`)
 SELECT billing_date, billing_project, `user`, resource_id, 0, `usage`
 FROM scratch
 ON DUPLICATE KEY UPDATE `usage` = `usage` + scratch.`usage`;
