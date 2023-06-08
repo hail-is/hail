@@ -37,13 +37,15 @@ spec:
           livenessProbe:
             tcpSocket:
               port: 5000
-            initialDelaySeconds: 5
-            periodSeconds: 5
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 10
           readinessProbe:
             tcpSocket:
               port: 5000
-            initialDelaySeconds: 5
-            periodSeconds: 5
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 10
           volumeMounts:
            - mountPath: /deploy-config
              name: deploy-config
