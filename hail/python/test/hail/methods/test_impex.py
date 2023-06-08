@@ -903,14 +903,13 @@ class PLINKTests(unittest.TestCase):
 
         self.assertTrue(same)
 
-    def test_export_plink_exprs(self):
+    def test_export_plink_default_arguments(self):
         ds = get_dataset()
         fam_mapping = {'f0': 'fam_id', 'f1': 'ind_id', 'f2': 'pat_id', 'f3': 'mat_id',
                        'f4': 'is_female', 'f5': 'pheno'}
         bim_mapping = {'f0': 'contig', 'f1': 'varid', 'f2': 'cm_position',
                        'f3': 'position', 'f4': 'a1', 'f5': 'a2'}
 
-        # Test default arguments
         out1 = new_temp_file()
         hl.export_plink(ds, out1)
         fam1 = (hl.import_table(out1 + '.fam', no_header=True, impute=False, missing="")
@@ -924,7 +923,11 @@ class PLINKTests(unittest.TestCase):
         self.assertTrue(bim1.all((bim1.varid == bim1.contig + ":" + bim1.position + ":" + bim1.a2 + ":" + bim1.a1) &
                                  (bim1.cm_position == "0.0")))
 
-        # Test non-default FAM arguments
+    def test_export_plink_non_default_arguments(self):
+        ds = get_dataset()
+        fam_mapping = {'f0': 'fam_id', 'f1': 'ind_id', 'f2': 'pat_id', 'f3': 'mat_id',
+                       'f4': 'is_female', 'f5': 'pheno'}
+
         out2 = new_temp_file()
         hl.export_plink(ds, out2, ind_id=ds.s, fam_id=ds.s, pat_id="nope",
                         mat_id="nada", is_female=True, pheno=False)
@@ -935,7 +938,12 @@ class PLINKTests(unittest.TestCase):
                                  (fam2.mat_id == "nada") & (fam2.is_female == "2") &
                                  (fam2.pheno == "1")))
 
-        # Test quantitative phenotype
+    def test_export_plink_quantitative_phenotype(self):
+        ds = get_dataset()
+        fam_mapping = {'f0': 'fam_id', 'f1': 'ind_id', 'f2': 'pat_id', 'f3': 'mat_id',
+                       'f4': 'is_female', 'f5': 'pheno'}
+        bim_mapping = {'f0': 'contig', 'f1': 'varid', 'f2': 'cm_position',
+                       'f3': 'position', 'f4': 'a1', 'f5': 'a2'}
         out3 = new_temp_file()
         hl.export_plink(ds, out3, ind_id=ds.s, pheno=hl.float64(hl.len(ds.s)))
         fam3 = (hl.import_table(out3 + '.fam', no_header=True, impute=False, missing="")
@@ -945,7 +953,10 @@ class PLINKTests(unittest.TestCase):
                                  (fam3.mat_id == "0") & (fam3.is_female == "0") &
                                  (fam3.pheno != "0") & (fam3.pheno != "NA")))
 
-        # Test non-default BIM arguments
+    def test_export_plink_non_default_bim_arguments(self):
+        ds = get_dataset()
+        bim_mapping = {'f0': 'contig', 'f1': 'varid', 'f2': 'cm_position',
+                       'f3': 'position', 'f4': 'a1', 'f5': 'a2'}
         out4 = new_temp_file()
         hl.export_plink(ds, out4, varid="hello", cm_position=100)
         bim4 = (hl.import_table(out4 + '.bim', no_header=True, impute=False)
@@ -953,7 +964,8 @@ class PLINKTests(unittest.TestCase):
 
         self.assertTrue(bim4.all((bim4.varid == "hello") & (bim4.cm_position == "100.0")))
 
-        # Test call expr
+    def test_export_plink_call_expression(self):
+        ds = get_dataset()
         out5 = new_temp_file()
         ds_call = ds.annotate_entries(gt_fake=hl.call(0, 0))
         hl.export_plink(ds_call, out5, call=ds_call.gt_fake)
@@ -961,11 +973,13 @@ class PLINKTests(unittest.TestCase):
         nerrors = ds_all_hom_ref.aggregate_entries(hl.agg.count_where(~ds_all_hom_ref.GT.is_hom_ref()))
         self.assertTrue(nerrors == 0)
 
-        # Test white-space in FAM id expr raises error
+    def test_export_plink_white_space_in_fam_id_raises_error(self):
+        ds = get_dataset()
         with self.assertRaisesRegex(TypeError, "has spaces in the following values:"):
             hl.export_plink(ds, new_temp_file(), mat_id="hello world")
 
-        # Test white-space in varid expr raises error
+    def test_export_plink_white_space_in_varid_raises_error(self):
+        ds = get_dataset()
         with self.assertRaisesRegex(FatalError, "no white space allowed:"):
             hl.export_plink(ds, new_temp_file(), varid="hello world")
 
