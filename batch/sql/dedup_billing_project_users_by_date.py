@@ -148,7 +148,7 @@ WHERE ((billing_date > %s) OR
 
             bad_bp_by_date_user_records = db.select_and_fetchall(
                 f'''
-SELECT old.billing_date, old.billing_project, old.`user`, old.resource_id, old.`usage`, new.`usage`, ABS(new.`usage` - old.`usage`) AS usage_diff
+SELECT old.billing_date, old.billing_project, old.`user`, old.deduped_resource_id, old.`usage`, new.`usage`, ABS(new.`usage` - old.`usage`) AS usage_diff
 FROM (
   SELECT billing_date, billing_project, `user`, deduped_resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
   FROM aggregated_billing_project_user_resources_by_date_v2
@@ -158,12 +158,13 @@ FROM (
   LOCK IN SHARE MODE
 ) AS old
 LEFT JOIN (
-  SELECT billing_date, billing_project, `user`, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  SELECT billing_date, billing_project, `user`, deduped_resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
   FROM aggregated_billing_project_user_resources_by_date_v3
+  LEFT JOIN resources ON resources.resource_id = aggregated_billing_project_user_resources_by_date_v3.resource_id
   {where_statement}
-  GROUP BY billing_date, billing_project, `user`, resource_id
+  GROUP BY billing_date, billing_project, `user`, deduped_resource_id
   LOCK IN SHARE MODE
-) AS new ON old.billing_date = new.billing_date AND old.billing_project = new.billing_project AND old.`user` = new.`user` AND old.deduped_resource_id = new.resource_id
+) AS new ON old.billing_date = new.billing_date AND old.billing_project = new.billing_project AND old.`user` = new.`user` AND old.deduped_resource_id = new.deduped_resource_id
 WHERE new.`usage` != old.`usage`
 LIMIT 100;
 ''',
