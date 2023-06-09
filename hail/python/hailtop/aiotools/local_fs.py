@@ -374,19 +374,37 @@ class LocalAsyncFS(AsyncFS):
             listener(1)
             if contents_tasks:
                 await pool.wait(contents_tasks)
-            await self.rmdir(path)
-            listener(-1)
+            try:
+                await self.rmdir(path)
+                listener(-1)
+            finally:
+                def raise_them_all(exceptions: List[BaseException]):
+                    if exceptions:
+                        try:
+                            raise exceptions[0]
+                        finally:
+                            raise_them_all(exceptions[1:])
+                excs = [exc
+                        for t in contents_tasks
+                        for exc in [t.exception()]
+                        if exc is not None]
+                raise_them_all(excs)
 
         async with OnlineBoundedGather2(sema) as pool:
             contents_tasks_by_dir: Dict[str, List[asyncio.Task]] = {}
             for dirpath, dirnames, filenames in os.walk(path, topdown=False):
+                def rm_dir_or_symlink(path: str):
+                    if os.path.islink(path):
+                        return pool.call(rm_file, path)
+                    else:
+                        return pool.call(rm_dir, pool, contents_tasks_by_dir.get(path, []), path)
+
                 contents_tasks = [
                     pool.call(rm_file, os.path.join(dirpath, filename))
                     for filename in filenames
                 ] + [
-                    pool.call(rm_dir, pool, contents_tasks_by_dir[fulldirname], fulldirname)
+                    rm_dir_or_symlink(os.path.join(dirpath, dirname))
                     for dirname in dirnames
-                    for fulldirname in [os.path.join(dirpath, dirname)]
                 ]
                 contents_tasks_by_dir[dirpath] = contents_tasks
-            await rm_dir(pool, contents_tasks_by_dir[path], path)
+            await rm_dir(pool, contents_tasks_by_dir.get(path, []), path)

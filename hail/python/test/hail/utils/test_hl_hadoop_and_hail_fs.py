@@ -201,6 +201,18 @@ def test_subdirs(tmpdir: str):
     assert not fs.is_dir(dir)
 
 
+def test_rmtree_empty_is_ok(tmpdir: str):
+    dir = f'{tmpdir}foo/'
+    fs.rmtree(dir)
+
+
+def test_rmtree_empty_subdir_is_ok(tmpdir: str):
+    dir = f'{tmpdir}foo/'
+    fs.mkdir(f'{tmpdir}foo/')
+    fs.mkdir(f'{tmpdir}foo/bar')
+    fs.rmtree(dir)
+
+
 def test_remove_and_rmtree(tmpdir: str):
     dir = f'{tmpdir}foo/'
     subdir1 = f'{dir}foo/'
