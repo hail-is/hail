@@ -74,11 +74,11 @@ packaging==23.1
     #   -c hail/batch/../hail/python/dev/pinned-requirements.txt
     #   -c hail/batch/../hail/python/pinned-requirements.txt
     #   plotly
-pandas==2.0.1
+pandas==2.0.2
     # via
     #   -c hail/batch/../hail/python/pinned-requirements.txt
     #   -r hail/batch/requirements.txt
-plotly==5.14.1
+plotly==5.15.0
     # via
     #   -c hail/batch/../hail/python/pinned-requirements.txt
     #   -r hail/batch/requirements.txt
