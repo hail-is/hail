@@ -467,7 +467,7 @@ class ServiceBackend(Backend):
                     raise
 
             with timings.step("read output"):
-                result_bytes = await self._read_output(ir, iodir + '/out', iodir + '/in')
+                result_bytes = await retry_transient_errors(self._read_output, ir, iodir + '/out', iodir + '/in')
                 return token, result_bytes, timings
 
     async def _read_output(self, ir: Optional[BaseIR], output_uri: str, input_uri: str) -> bytes:
