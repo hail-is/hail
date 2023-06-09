@@ -37,6 +37,11 @@ an earlier version of Hail to read files written in a later version.
 
 Released 2023-05-30
 
+### New Features
+
+- (hail#13140) Enable `hail-az` and Azure Blob Storage `https` URLs to contain SAS tokens to enable bearer-auth style file access to Azure storage.
+- (hail#13129) Allow subnet to be passed through to gcloud in hailctl.
+
 ### Bug Fixes
 
 - (hail#13126) Query-on-Batch pipelines with one partition are now retried when they encounter transient errors.
