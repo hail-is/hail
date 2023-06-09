@@ -89,7 +89,7 @@ async def create_database():
             allowed_operations = 'ALL'
         else:
             assert admin_or_user == 'user'
-            allowed_operations = 'SELECT, INSERT, UPDATE, DELETE, EXECUTE'
+            allowed_operations = 'SELECT, INSERT, UPDATE, DELETE, EXECUTE, CREATE TEMPORARY TABLES'
 
         await db.just_execute(
             f'''
