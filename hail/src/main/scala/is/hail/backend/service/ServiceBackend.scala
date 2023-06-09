@@ -658,6 +658,7 @@ class ServiceBackendSocketAPI2(
         val flags = HailFeatureFlags.fromMap(flagsMap)
         val shouldProfile = flags.get("profile") != null
         val fs = FS.cloudSpecificCacheableFS(s"${backend.scratchDir}/secrets/gsa-key/key.json", Some(flags))
+
         { () =>
           ExecutionTimer.logTime(methodName) { timer =>
             ExecuteContext.scoped(
