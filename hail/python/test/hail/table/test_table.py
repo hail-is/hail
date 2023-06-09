@@ -964,13 +964,9 @@ class Tests(unittest.TestCase):
         t_read_back = hl.import_table(tmp_file, types=dict(t.row.dtype)).key_by('idx')
         self.assertTrue(t.select_globals()._same(t_read_back, tolerance=1e-4, absolute=True))
 
-    def test_indexed_read(self):
-        t = hl.utils.range_table(2000, 10)
-        f = new_temp_file(extension='ht')
-        t.write(f)
-        t1 = hl.read_table(f, _create_row_uids=True)
-
-        t2 = hl.read_table(f, _intervals=[
+    def test_indexed_read_1(self):
+        t1 = hl.read_table(resource('range-table-2000-with-10-parts.ht'), _create_row_uids=True)
+        t2 = hl.read_table(resource('range-table-2000-with-10-parts.ht'), _intervals=[
             hl.Interval(start=150, end=250, includes_start=True, includes_end=False),
             hl.Interval(start=250, end=500, includes_start=True, includes_end=False),
         ], _create_row_uids=True)
@@ -979,14 +975,18 @@ class Tests(unittest.TestCase):
         self.assertEqual(t2._force_count(), 350)
         self.assertTrue(t1.filter((t1.idx >= 150) & (t1.idx < 500))._same(t2))
 
-        t2 = hl.read_table(f, _intervals=[
+    def test_indexed_read_2(self):
+        t1 = hl.read_table(resource('range-table-2000-with-10-parts.ht'), _create_row_uids=True)
+        t2 = hl.read_table(resource('range-table-2000-with-10-parts.ht'), _intervals=[
             hl.Interval(start=150, end=250, includes_start=True, includes_end=False),
             hl.Interval(start=250, end=500, includes_start=True, includes_end=False),
         ], _filter_intervals=True, _create_row_uids=True)
         self.assertEqual(t2.n_partitions(), 3)
         self.assertTrue(t1.filter((t1.idx >= 150) & (t1.idx < 500))._same(t2))
 
-        t2 = hl.read_table(f, _intervals=[
+    def test_indexed_read_3(self):
+        t1 = hl.read_table(resource('range-table-2000-with-10-parts.ht'), _create_row_uids=True)
+        t2 = hl.read_table(resource('range-table-2000-with-10-parts.ht'), _intervals=[
             hl.Interval(start=150, end=250, includes_start=False, includes_end=True),
             hl.Interval(start=250, end=500, includes_start=False, includes_end=True),
         ], _create_row_uids=True)
@@ -995,7 +995,9 @@ class Tests(unittest.TestCase):
         self.assertEqual(t2._force_count(), 350)
         self.assertTrue(t1.filter((t1.idx > 150) & (t1.idx <= 500))._same(t2))
 
-        t2 = hl.read_table(f, _intervals=[
+    def test_indexed_read_4(self):
+        t1 = hl.read_table(resource('range-table-2000-with-10-parts.ht'), _create_row_uids=True)
+        t2 = hl.read_table(resource('range-table-2000-with-10-parts.ht'), _intervals=[
             hl.Interval(start=150, end=250, includes_start=False, includes_end=True),
             hl.Interval(start=250, end=500, includes_start=False, includes_end=True),
         ], _filter_intervals=True, _create_row_uids=True)
