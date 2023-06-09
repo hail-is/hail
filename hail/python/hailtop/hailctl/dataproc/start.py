@@ -401,7 +401,7 @@ async def main(args, pass_through_args):
     if args.bucket:
         conf.flags['bucket'] = args.bucket
     if args.temp_bucket:
-        conf.flags['temp-bucket'] = args.bucket
+        conf.flags['temp-bucket'] = args.temp_bucket
     if args.scopes:
         conf.flags['scopes'] = args.scopes
 
