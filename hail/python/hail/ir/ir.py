@@ -1136,6 +1136,31 @@ class NDArraySVD(IR):
             return tndarray(tfloat64, 1)
 
 
+class NDArrayEigh(IR):
+    @typecheck_method(nd=IR, eigvals_only=bool, error_id=nullable(int), stack_trace=nullable(str))
+    def __init__(self, nd, eigvals_only=False, error_id=None, stack_trace=None):
+        super().__init__(nd)
+        self.nd = nd
+        self.eigvals_only = eigvals_only
+        self._error_id = error_id
+        self._stack_trace = stack_trace
+        if error_id is None or stack_trace is None:
+            self.save_error_info()
+
+    def copy(self):
+        return NDArrayEigh(self.nd, self.eigvals_only, self._error_id, self._stack_trace)
+
+    def head_str(self):
+        return f'{self._error_id} {self.eigvals_only}'
+
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.nd.compute_type(env, agg_env, deep_typecheck)
+        if self.eigvals_only:
+            return tndarray(tfloat64, 1)
+        else:
+            return ttuple(tndarray(tfloat64, 1), tndarray(tfloat64, 2))
+
+
 class NDArrayInv(IR):
     @typecheck_method(nd=IR, error_id=nullable(int), stack_trace=nullable(str))
     def __init__(self, nd, error_id=None, stack_trace=None):

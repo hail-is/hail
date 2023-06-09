@@ -2,9 +2,8 @@ package is.hail.linalg
 
 import java.lang.reflect.Method
 import java.util.function._
-
 import com.sun.jna.{FunctionMapper, Library, Native, NativeLibrary}
-import com.sun.jna.ptr.IntByReference
+import com.sun.jna.ptr.{IntByReference, DoubleByReference}
 
 import scala.util.{Failure, Success, Try}
 import is.hail.utils._
@@ -200,6 +199,25 @@ object LAPACK {
     INFOref.getValue()
   }
 
+  def dsyevr(jobz: String, range: String, uplo: String, n: Int, A: Long, ldA: Int, vl: Double, vu: Double, il: Int, iu: Int, abstol: Double, W: Long, Z: Long, ldZ: Int, ISuppZ: Long, Work: Long, lWork: Int, IWork: Long, lIWork: Int): Int = {
+    val nRef = new IntByReference(n)
+    val ldARef = new IntByReference(ldA)
+    val vlRef = new DoubleByReference(vl)
+    val vuRef = new DoubleByReference(vu)
+    val ilRef = new IntByReference(il)
+    val iuRef = new IntByReference(iu)
+    val abstolRef = new DoubleByReference(abstol)
+    val ldZRef = new IntByReference(ldZ)
+    val lWorkRef = new IntByReference(lWork)
+    val lIWorkRef = new IntByReference(lIWork)
+    val INFOref = new IntByReference(1)
+    val mRef = new IntByReference(0)
+
+    libraryInstance.get.dsyevr(jobz, range, uplo, nRef, A, ldARef, vlRef, vuRef, ilRef, iuRef, abstolRef, mRef, W, Z, ldZRef, ISuppZ, Work, lWorkRef, IWork, lIWorkRef, INFOref)
+
+    INFOref.getValue()
+  }
+
   def dtrtrs(UPLO: String, TRANS: String, DIAG: String, N: Int, NRHS: Int,
              A: Long, LDA: Int, B: Long, LDB: Int): Int = {
     val Nref =  new IntByReference(N)
@@ -254,6 +272,7 @@ trait LAPACKLibrary extends Library {
   def dgetrf(M: IntByReference, N: IntByReference, A: Long, LDA: IntByReference, IPIV: Long, INFO: IntByReference)
   def dgetri(N: IntByReference, A: Long, LDA: IntByReference, IPIV: Long, WORK: Long, LWORK: IntByReference, INFO: IntByReference)
   def dgesdd(JOBZ: String, M: IntByReference, N: IntByReference, A: Long, LDA: IntByReference, S: Long, U: Long, LDU: IntByReference, VT: Long, LDVT: IntByReference, WORK: Long, LWORK: IntByReference, IWORK: Long, INFO: IntByReference)
+  def dsyevr(jobz: String, range: String, uplo: String, n: IntByReference, A: Long, ldA: IntByReference, vl: DoubleByReference, vu: DoubleByReference, il: IntByReference, iu: IntByReference, abstol: DoubleByReference, m: IntByReference, W: Long, Z: Long, ldZ: IntByReference, ISuppZ: Long, Work: Long, lWork: IntByReference, IWork: Long, lIWork: IntByReference, info: IntByReference)
   def ilaver(MAJOR: IntByReference, MINOR: IntByReference, PATCH: IntByReference)
   def ilaenv(ispec: IntByReference, name: String, opts: String, n1: IntByReference, n2: IntByReference, n3: IntByReference, n4: IntByReference): Int
   def dtrtrs(UPLO: String, TRANS: String, DIAG: String, N: IntByReference, NRHS: IntByReference, A: Long, LDA: IntByReference, B: Long, LDB: IntByReference, INFO:IntByReference)
