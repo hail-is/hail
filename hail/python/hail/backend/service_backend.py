@@ -1,5 +1,4 @@
 from typing import Dict, Optional, Callable, Awaitable, Mapping, Any, List, Union, Tuple, TypeVar, Set
-import asyncio
 import abc
 import math
 import struct
@@ -468,48 +467,10 @@ class ServiceBackend(Backend):
                     raise
 
             with timings.step("read output"):
-                result_bytes = await self._resiliently_read_output(ir, iodir + '/out')
+                result_bytes = await retry_transient_errors(self._read_output, ir, iodir + '/out', iodir + '/in')
                 return token, result_bytes, timings
 
-    async def _resiliently_read_output(self, ir: Optional[BaseIR], output_uri: str) -> bytes:
-        # Azure appears to return EOF for valid reads. We suspect this is due to load shedding.
-        #
-        # /usr/local/lib/python3.8/dist-packages/hail/backend/service_backend.py:528: in _async_execute
-        #     _, resp, timings = await self._rpc(
-        # /usr/local/lib/python3.8/dist-packages/hail/backend/service_backend.py:469: in _rpc
-        #     result_bytes = await retry_transient_errors(self._read_output, ir, iodir + '/out')
-        # /usr/local/lib/python3.8/dist-packages/hailtop/utils/utils.py:780: in retry_transient_errors
-        #     return await retry_transient_errors_with_debug_string('', 0, f, *args, **kwargs)
-        # /usr/local/lib/python3.8/dist-packages/hailtop/utils/utils.py:793: in retry_transient_errors_with_debug_string
-        #     return await f(*args, **kwargs)
-        # /usr/local/lib/python3.8/dist-packages/hail/backend/service_backend.py:484: in _read_output
-        #     success = await read_bool(outfile)
-        # /usr/local/lib/python3.8/dist-packages/hail/backend/service_backend.py:87: in read_bool
-        #     return (await read_byte(strm)) != 0
-        # /usr/local/lib/python3.8/dist-packages/hail/backend/service_backend.py:83: in read_byte
-        #     return (await strm.readexactly(1))[0]
-        # _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-        #
-        # self = <hailtop.aiocloud.aioazure.fs.AzureReadableStream object at 0x7fe2083a5b80>
-        # n = 1
-        #
-        #     async def readexactly(self, n: int) -> bytes:
-        #         assert not self._closed and n >= 0
-        #         data = await self.read(n)
-        #         if len(data) != n:
-        # >           raise UnexpectedEOFError()
-        # E           hailtop.aiotools.fs.exceptions.UnexpectedEOFError
-        eofs_encountered = 0
-        while True:
-            try:
-                return await retry_transient_errors(self._read_output, ir, output_uri)
-            except UnexpectedEOFError as exc:
-                eofs_encountered += 1
-                if eofs_encountered == 2:
-                    raise exc
-                await asyncio.sleep(1)
-
-    async def _read_output(self, ir: Optional[BaseIR], output_uri: str) -> bytes:
+    async def _read_output(self, ir: Optional[BaseIR], output_uri: str, input_uri: str) -> bytes:
         assert self._batch
 
         try:
@@ -517,22 +478,31 @@ class ServiceBackend(Backend):
         except FileNotFoundError as exc:
             raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
                 'service_backend_debug_info': self.debug_info(),
-                'batch_debug_info': await self._batch.debug_info()
+                'batch_debug_info': await self._batch.debug_info(),
+                'input_uri': await self._async_fs.read(input_uri),
             })) from exc
 
-        async with driver_output as outfile:
-            success = await read_bool(outfile)
-            if success:
-                return await read_bytes(outfile)
+        try:
+            async with driver_output as outfile:
+                success = await read_bool(outfile)
+                if success:
+                    return await read_bytes(outfile)
 
-            short_message = await read_str(outfile)
-            expanded_message = await read_str(outfile)
-            error_id = await read_int(outfile)
+                short_message = await read_str(outfile)
+                expanded_message = await read_str(outfile)
+                error_id = await read_int(outfile)
 
-            reconstructed_error = fatal_error_from_java_error_triplet(short_message, expanded_message, error_id)
-            if ir is None:
-                raise reconstructed_error
-            raise reconstructed_error.maybe_user_error(ir)
+                reconstructed_error = fatal_error_from_java_error_triplet(short_message, expanded_message, error_id)
+                if ir is None:
+                    raise reconstructed_error
+                raise reconstructed_error.maybe_user_error(ir)
+        except UnexpectedEOFError as exc:
+            raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
+                'service_backend_debug_info': self.debug_info(),
+                'batch_debug_info': await self._batch.debug_info(),
+                'in': await self._async_fs.read(input_uri),
+                'out': await self._async_fs.read(output_uri),
+            })) from exc
 
     def _cancel_on_ctrl_c(self, coro: Awaitable[T]) -> T:
         try:
