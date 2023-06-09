@@ -203,6 +203,7 @@ def test_subdirs(tmpdir: str):
 
 def test_rmtree_empty_is_ok(tmpdir: str):
     dir = f'{tmpdir}foo/'
+    fs.mkdir(dir)
     fs.rmtree(dir)
 
 
