@@ -7,7 +7,7 @@ import re
 import signal
 from collections import defaultdict, namedtuple
 from functools import wraps
-from typing import Any, Dict, Set, Tuple
+from typing import Any, Dict, Optional, Set, Tuple
 
 import aiohttp_session
 import dictdiffer
@@ -1218,13 +1218,24 @@ WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= 
 async def compact_agg_billing_project_users_table(app):
     db: Database = app['db']
 
-    @transaction(db)
-    async def compact(tx):
-        await tx.execute_and_fetchall(
-            '''
+    async def compact(key: Optional[Tuple[str, str, int]]) -> Optional[Tuple[str, str, int]]:
+        if key:
+            billing_project, user, resource_id = key
+            where_condition = '(billing_project > %s) OR' \
+                              '(billing_project = %s AND `user` > %s) OR' \
+                              '(billing_project = %s AND `user` = %s AND resource_id > %s)'
+            args = [billing_project,
+                    billing_project, user,
+                    billing_project, user, resource_id]
+        else:
+            where_condition = ''
+            args = []
+
+        next_key = await db.execute_and_fetchone(
+                f'''
 CREATE TEMPORARY TABLE scratch ENGINE=MEMORY
 AS (SELECT * FROM aggregated_billing_project_user_resources_v2
-    WHERE token != 0
+    WHERE token != 0 AND ({where_condition})
     LIMIT 100
     FOR UPDATE
 );
@@ -1238,37 +1249,75 @@ INSERT INTO aggregated_billing_project_user_resources_v2 (billing_project, `user
 SELECT billing_project, `user`, resource_id, 0, `usage`
 FROM scratch
 ON DUPLICATE KEY UPDATE `usage` = `usage` + scratch.`usage`;
-''')
 
-    await compact()  # pylint: disable=no-value-for-parameter
+SELECT billing_project, `user`, resource_id
+FROM scratch
+ORDER BY billing_project DESC, `user` DESC, resource_id DESC
+LIMIT 1;
+''',
+            args)
+
+        if next_key is None:
+            return None
+        return (next_key['billing_project'], next_key['user'], next_key['resource_id'])
+
+    next_key = await compact(None)
+    while next_key is not None:
+        await compact(next_key)
 
 
 async def compact_agg_billing_project_users_by_date_table(app):
     db: Database = app['db']
 
-    @transaction(db)
-    async def compact(tx):
-        await tx.execute_and_fetchall(
-            '''
+    async def compact(key: Optional[Tuple[str, str, str, int]]) -> Optional[Tuple[str, str, str, int]]:
+        if key:
+            billing_date, billing_project, user, resource_id = key
+            where_condition = '(billing_date > %s) OR' \
+                              '(billing_date = %s AND billing_project > %s) OR' \
+                              '(billing_date = %s AND billing_project = %s AND `user` > %s) OR' \
+                              '(billing_date = %s AND billing_project = %s AND `user` = %s AND resource_id > %s)'
+            args = [billing_date,
+                    billing_date, billing_project,
+                    billing_date, billing_project, user,
+                    billing_date, billing_project, user, resource_id]
+        else:
+            where_condition = ''
+            args = []
+
+        next_key = await db.execute_and_fetchone(
+            f'''
 CREATE TEMPORARY TABLE scratch ENGINE=MEMORY
 AS (SELECT * FROM aggregated_billing_project_user_resources_by_date_v2
-    WHERE token != 0
+    WHERE token != 0 AND ({where_condition})
     LIMIT 100
     FOR UPDATE
 );
 
 DELETE FROM aggregated_billing_project_user_resources_by_date_v2
-INNER JOIN scratch ON aggregated_billing_project_user_resources_by_date_v2.billing_project = scratch.billing_project AND
+INNER JOIN scratch ON aggregated_billing_project_user_resources_by_date_v2.billing_date = scratch.billing_date AND
+                      aggregated_billing_project_user_resources_by_date_v2.billing_project = scratch.billing_project AND
                       aggregated_billing_project_user_resources_by_date_v2.`user` = scratch.`user` AND
                       aggregated_billing_project_user_resources_by_date_v2.resource_id = scratch.resource_id;
 
 INSERT INTO aggregated_billing_project_user_resources_by_date_v2 (billing_date, billing_project, `user`, resource_id, token, `usage`)
 SELECT billing_date, billing_project, `user`, resource_id, 0, `usage`
 FROM scratch
-ON DUPLICATE KEY UPDATE `usage` = `usage` + scratch.`usage`;
-''')
+ON DUPLICATE KEY UPDATE `usage` = `usage` + scratch.`usage`
 
-    await compact()  # pylint: disable=no-value-for-parameter
+SELECT billing_date, billing_project, `user`, resource_id
+FROM scratch
+ORDER BY billing_date DESC, billing_project DESC, `user` DESC, resource_id DESC
+LIMIT 1;
+''',
+        args)
+
+        if next_key is None:
+            return None
+        return (next_key['billing_date'], next_key['billing_project'], next_key['user'], next_key['resource_id'])
+
+    next_key = await compact(None)
+    while next_key is not None:
+        await compact(next_key)
 
 
 USER_CORES = pc.Gauge('batch_user_cores', 'Batch user cores (i.e. total in-use cores)', ['state', 'user', 'inst_coll'])
