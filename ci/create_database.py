@@ -83,6 +83,11 @@ async def create_database():
     async def create_user_if_doesnt_exist(admin_or_user, mysql_username, mysql_password):
         existing_user = await db.execute_and_fetchone('SELECT 1 FROM mysql.user WHERE user=%s', (mysql_username,))
         if existing_user is not None:
+            await db.just_execute(
+f'''
+GRANT CREATE TEMPORARY TABLES ON `{_name}`.* TO '{mysql_username}'@'%';
+'''
+            )
             return
 
         if admin_or_user == 'admin':
