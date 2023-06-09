@@ -41,7 +41,7 @@ Released 2023-05-30
 
 - (hail#13126) Query-on-Batch pipelines with one partition are now retried when they encounter transient errors.
 - (hail#13113) `hail.ggplot.geom_point` now displays a legend group for a column even when it has only one value in it.
-- (hail#13089) Requester pays buckets now work in `hailtop.fs` and `hl.hadoop_*`. This has been broken since at least 0.2.115.
+- (hail#13075) (hail#13074) Add a new transient error plaguing pipelines in Query-on-Batch in Google: `java.net.SocketTimeoutException: connect timed out`.
 - (hail#12569) The documentation for `hail.ggplot.facets` is now correctly included in the API reference.
 
 ---
