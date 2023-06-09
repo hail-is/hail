@@ -28,11 +28,26 @@ abstract class AzureStorageFSURL(
   val account: String,
   val container: String,
   val path: String
-) {
+) extends FSURL[AzureStorageFSURL] {
 
+  def addPathComponent(c: String): AzureStorageFSURL = {
+    if (path == "")
+      withPath(c)
+    else
+      withPath(s"$path/$c")
+  }
   def withPath(newPath: String): AzureStorageFSURL
+  def fromString(s: String): AzureStorageFSURL = AzureStorageFS.parseUrl(s)
 
-  def withoutPath(): String
+  def prefix: String
+  def getPath: String = path
+
+  override def toString(): String = {
+    val pathPart = if (path == "") "" else s"/$path"
+    val sasTokenPart = sasToken.getOrElse("")
+
+    prefix + pathPart + sasTokenPart
+  }
 }
 
 class AzureStorageFSHailAzURL(
@@ -45,9 +60,7 @@ class AzureStorageFSHailAzURL(
     new AzureStorageFSHailAzURL(account, container, newPath)
   }
 
-  override def withoutPath(): String = s"hail-az://$account/$container"
-
-  override def toString(): String = s"hail-az://$account/$container/$path"
+  override def prefix: String = s"hail-az://$account/$container"
 }
 
 class AzureStorageFSHttpsURL(
@@ -60,8 +73,7 @@ class AzureStorageFSHttpsURL(
     new AzureStorageFSHttpsURL(account, container, newPath)
   }
 
-  override def withoutPath(): String = s"https://$account.blob.core.windows.net/$container"
-  override def toString(): String = s"https://$account.blob.core.windows.net/$container/$path"
+  override def prefix: String = s"https://$account.blob.core.windows.net/$container"
 }
 
 
@@ -139,6 +151,8 @@ class AzureBlobServiceClientCache(credential: TokenCredential) {
 
 
 class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
+  type URL = AzureStorageFSURL
+
   import AzureStorageFS.log
 
   def validUrl(filename: String): Boolean = {
@@ -349,12 +363,12 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
 
   def glob(filename: String): Array[FileStatus] = handlePublicAccessError(filename) {
     val url = AzureStorageFS.parseUrl(filename)
-    globWithPrefix(prefix = url.withoutPath(), path = dropTrailingSlash(url.path))
+    globWithPrefix(prefix = url.withPath(""), path = dropTrailingSlash(url.path))
   }
 
-  def fileStatus(url: AzureStorageFSURL): FileStatus = retryTransientErrors {
+  override def fileStatus(url: AzureStorageFSURL): FileStatus = retryTransientErrors {
     if (url.path == "") {
-      return new BlobStorageFileStatus(url.withoutPath.toString, null, 0, true)
+      return new BlobStorageFileStatus(url.toString, null, 0, true)
     }
 
     val blobClient: BlobClient = getBlobClient(url)
