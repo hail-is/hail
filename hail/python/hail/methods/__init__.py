@@ -1,10 +1,10 @@
 from .family_methods import (trio_matrix, mendel_errors,
                              transmission_disequilibrium_test, de_novo)
-from .impex import (export_elasticsearch, export_gen, export_bgen, export_plink,
-                    export_vcf, import_locus_intervals, import_bed, import_fam, grep,
-                    import_bgen, import_gen, import_table, import_plink, read_matrix_table,
-                    read_table, get_vcf_metadata, import_vcf, import_gvcfs, import_vcfs,
-                    index_bgen, import_matrix_table, import_lines, import_avro)
+from .impex import (export_elasticsearch, export_gen, export_bgen, export_plink, export_vcf,
+                    import_locus_intervals, import_bed, import_fam, grep, import_bgen, import_gen,
+                    import_table, import_csv, import_plink, read_matrix_table, read_table,
+                    get_vcf_metadata, import_vcf, import_gvcfs, import_vcfs, index_bgen,
+                    import_matrix_table, import_lines, import_avro)
 from .statgen import (skat, impute_sex, genetic_relatedness_matrix, realized_relationship_matrix,
                       pca, hwe_normalized_pca, _blanczos_pca, _hwe_normalized_blanczos,
                       _spectral_moments, _pca_and_moments, split_multi, filter_alleles,
@@ -67,6 +67,7 @@ __all__ = ['trio_matrix',
            'import_bgen',
            'import_gen',
            'import_table',
+           'import_csv',
            'import_lines',
            'import_plink',
            'read_matrix_table',
