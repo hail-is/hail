@@ -28,7 +28,7 @@ spec:
           image: "{{ hello_image.image }}"
           resources:
             requests:
-              cpu: "10m"
+              cpu: "50m"
               memory: "100M"
             limits:
               cpu: "1"
@@ -40,11 +40,13 @@ spec:
               port: 5000
             initialDelaySeconds: 30
             periodSeconds: 10
+            timeoutSeconds: 10
           readinessProbe:
             tcpSocket:
               port: 5000
             initialDelaySeconds: 30
             periodSeconds: 10
+            timeoutSeconds: 10
           volumeMounts:
            - mountPath: /deploy-config
              name: deploy-config

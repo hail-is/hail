@@ -147,7 +147,6 @@ def test_invalid_resource_requests(client: BatchClient):
         bb.submit()
 
 
-@pytest.mark.timeout(6 * 60)
 def test_out_of_memory(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25'}
@@ -157,7 +156,6 @@ def test_out_of_memory(client: BatchClient):
     assert j._get_out_of_memory(status, 'main'), str((status, b.debug_info()))
 
 
-@pytest.mark.timeout(6 * 60)
 def test_out_of_storage(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25'}
@@ -169,7 +167,6 @@ def test_out_of_storage(client: BatchClient):
     assert "fallocate failed: No space left on device" in job_log['main']
 
 
-@pytest.mark.timeout(6 * 60)
 def test_quota_applies_to_volume(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25'}
@@ -183,7 +180,6 @@ def test_quota_applies_to_volume(client: BatchClient):
     assert "fallocate failed: No space left on device" in job_log['main']
 
 
-@pytest.mark.timeout(6 * 60)
 def test_relative_volume_path_is_actually_absolute(client: BatchClient):
     # https://github.com/hail-is/hail/pull/12990#issuecomment-1540332989
     bb = create_batch(client)
@@ -198,7 +194,6 @@ def test_relative_volume_path_is_actually_absolute(client: BatchClient):
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
-@pytest.mark.timeout(6 * 60)
 def test_quota_shared_by_io_and_rootfs(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25', 'storage': '10Gi'}
@@ -228,7 +223,6 @@ def test_quota_shared_by_io_and_rootfs(client: BatchClient):
     assert "fallocate failed: No space left on device" in job_log['main'], str((job_log, b.debug_info()))
 
 
-@pytest.mark.timeout(6 * 60)
 def test_nonzero_storage(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25', 'storage': '20Gi'}
@@ -610,7 +604,6 @@ def test_authorized_users_only():
         assert r.status_code == expected, (full_url, r, expected)
 
 
-@pytest.mark.timeout(6 * 60)
 def test_cloud_image(client: BatchClient):
     bb = create_batch(client)
     j = bb.create_job(os.environ['HAIL_CURL_IMAGE'], ['echo', 'test'])
@@ -619,7 +612,6 @@ def test_cloud_image(client: BatchClient):
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
-@pytest.mark.timeout(6 * 60)
 def test_service_account(client: BatchClient):
     NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
     bb = create_batch(client)
@@ -757,7 +749,6 @@ def test_duplicate_parents(client: BatchClient):
 
 
 @skip_in_azure
-@pytest.mark.timeout(6 * 60)
 def test_verify_no_access_to_google_metadata_server(client: BatchClient):
     bb = create_batch(client)
     j = bb.create_job(os.environ['HAIL_CURL_IMAGE'], ['curl', '-fsSL', 'metadata.google.internal', '--max-time', '10'])
@@ -768,7 +759,6 @@ def test_verify_no_access_to_google_metadata_server(client: BatchClient):
     assert "Could not resolve host" in job_log['main'], str((job_log, b.debug_info()))
 
 
-@pytest.mark.timeout(6 * 60)
 def test_verify_no_access_to_metadata_server(client: BatchClient):
     bb = create_batch(client)
     j = bb.create_job(os.environ['HAIL_CURL_IMAGE'], ['curl', '-fsSL', '169.254.169.254', '--max-time', '10'])
@@ -779,7 +769,6 @@ def test_verify_no_access_to_metadata_server(client: BatchClient):
     assert "Connection timed out" in job_log['main'], str((job_log, b.debug_info()))
 
 
-@pytest.mark.timeout(6 * 60)
 def test_submit_batch_in_job(client: BatchClient):
     bb = create_batch(client)
     remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
@@ -801,7 +790,6 @@ backend.close()
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
-@pytest.mark.timeout(6 * 60)
 def test_cant_submit_to_default_with_other_ns_creds(client: BatchClient):
     DOMAIN = os.environ['HAIL_DOMAIN']
     NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
@@ -860,7 +848,6 @@ python3 -c \'{script}\'''',
         assert "Please log in" in job_log['main'], str((job_log, b.debug_info()))
 
 
-@pytest.mark.timeout(6 * 60)
 def test_cannot_contact_other_internal_ips(client: BatchClient):
     internal_ips = [f'10.128.0.{i}' for i in (10, 11, 12)]
     bb = create_batch(client)
@@ -884,7 +871,6 @@ curl -fsSL -m 5 $OTHER_IP
 
 
 @skip_in_azure
-@pytest.mark.timeout(6 * 60)
 def test_hadoop_can_use_cloud_credentials(client: BatchClient):
     token = os.environ["HAIL_TOKEN"]
     remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
@@ -921,7 +907,6 @@ hl.read_table(location).show()
     assert expected_log in log['main'], str((log, b.debug_info()))
 
 
-@pytest.mark.timeout(6 * 60)
 def test_user_authentication_within_job(client: BatchClient):
     bb = create_batch(client)
     cmd = ['bash', '-c', 'hailctl auth user']
@@ -932,7 +917,6 @@ def test_user_authentication_within_job(client: BatchClient):
     assert no_token_status['state'] == 'Failed', str((no_token_status, b.debug_info()))
 
 
-@pytest.mark.timeout(6 * 60)
 def test_verify_access_to_public_internet(client: BatchClient):
     bb = create_batch(client)
     j = bb.create_job(os.environ['HAIL_CURL_IMAGE'], ['curl', '-fsSL', 'example.com'])
@@ -941,7 +925,6 @@ def test_verify_access_to_public_internet(client: BatchClient):
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
-@pytest.mark.timeout(6 * 60)
 def test_verify_can_tcp_to_localhost(client: BatchClient):
     bb = create_batch(client)
     script = '''
@@ -960,7 +943,6 @@ echo "hello" | nc -q 1 localhost 5000
     assert 'hello\n' == job_log['main'], str((job_log, b.debug_info()))
 
 
-@pytest.mark.timeout(6 * 60)
 def test_verify_can_tcp_to_127_0_0_1(client: BatchClient):
     bb = create_batch(client)
     script = '''
@@ -979,7 +961,6 @@ echo "hello" | nc -q 1 127.0.0.1 5000
     assert 'hello\n' == job_log['main'], str((job_log, b.debug_info()))
 
 
-@pytest.mark.timeout(6 * 60)
 def test_verify_can_tcp_to_self_ip(client: BatchClient):
     bb = create_batch(client)
     script = '''
@@ -998,7 +979,6 @@ echo "hello" | nc -q 1 $(hostname -i) 5000
     assert 'hello\n' == job_log['main'], str((job_log, b.debug_info()))
 
 
-@pytest.mark.timeout(6 * 60)
 def test_verify_private_network_is_restricted(client: BatchClient):
     bb = create_batch(client)
     bb.create_job(
@@ -1051,7 +1031,6 @@ async def test_old_clients_that_submit_mount_docker_socket_true_is_rejected(clie
                 await bb._submit_jobs(b.id, update_id, [orjson.dumps(spec)], 1, pbar_task)
 
 
-@pytest.mark.timeout(6 * 60)
 def test_pool_highmem_instance(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25', 'memory': 'highmem'}
@@ -1062,7 +1041,6 @@ def test_pool_highmem_instance(client: BatchClient):
     assert 'highmem' in status['status']['worker'], str((status, b.debug_info()))
 
 
-@pytest.mark.timeout(6 * 60)
 def test_pool_highmem_instance_cheapest(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '1', 'memory': '5Gi'}
@@ -1073,7 +1051,6 @@ def test_pool_highmem_instance_cheapest(client: BatchClient):
     assert 'highmem' in status['status']['worker'], str((status, b.debug_info()))
 
 
-@pytest.mark.timeout(6 * 60)
 def test_pool_highcpu_instance(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25', 'memory': 'lowmem'}
@@ -1084,7 +1061,6 @@ def test_pool_highcpu_instance(client: BatchClient):
     assert 'highcpu' in status['status']['worker'], str((status, b.debug_info()))
 
 
-@pytest.mark.timeout(6 * 60)
 @pytest.mark.xfail(os.environ.get('HAIL_CLOUD') == 'azure', strict=True, reason='prices changed in Azure 2023-06-01')
 def test_pool_highcpu_instance_cheapest(client: BatchClient):
     bb = create_batch(client)
@@ -1116,7 +1092,6 @@ def test_pool_standard_instance_cheapest(client: BatchClient):
     assert 'standard' in status['status']['worker'], str((status, b.debug_info()))
 
 
-@pytest.mark.timeout(6 * 60)
 def test_job_private_instance_preemptible(client: BatchClient):
     bb = create_batch(client)
     resources = {'machine_type': smallest_machine_type()}
@@ -1127,7 +1102,6 @@ def test_job_private_instance_preemptible(client: BatchClient):
     assert 'job-private' in status['status']['worker'], str((status, b.debug_info()))
 
 
-@pytest.mark.timeout(6 * 60)
 def test_job_private_instance_nonpreemptible(client: BatchClient):
     bb = create_batch(client)
     resources = {'machine_type': smallest_machine_type(), 'preemptible': False}

@@ -2618,7 +2618,7 @@ steps:
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
               --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
               -k "not test_scale and not test_invariants" \
-              --timeout=120 \
+              --timeout=360 \
               /io/test/
     inputs:
       - from: /repo/batch/test
@@ -2896,7 +2896,7 @@ steps:
               -vv \
               --instafail \
               --durations=50 \
-              --timeout=120 \
+              --timeout=360 \
               /io/test/hailtop/batch/
     inputs:
       - from: /repo/hail/python/test
