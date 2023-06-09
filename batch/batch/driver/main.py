@@ -1221,21 +1221,22 @@ async def compact_agg_billing_project_users_table(app):
     async def compact(key: Optional[Tuple[str, str, int]]) -> Optional[Tuple[str, str, int]]:
         if key:
             billing_project, user, resource_id = key
-            where_condition = '(billing_project > %s) OR' \
-                              '(billing_project = %s AND `user` > %s) OR' \
-                              '(billing_project = %s AND `user` = %s AND resource_id > %s)'
-            args = [billing_project,
-                    billing_project, user,
-                    billing_project, user, resource_id]
+            where_condition = (
+                'AND ((billing_project > %s) OR'
+                '(billing_project = %s AND `user` > %s) OR'
+                '(billing_project = %s AND `user` = %s AND resource_id > %s))'
+            )
+            args = [billing_project, billing_project, user, billing_project, user, resource_id]
         else:
             where_condition = ''
             args = []
 
         next_key = await db.execute_and_fetchone(
-                f'''
+            f'''
 CREATE TEMPORARY TABLE scratch ENGINE=MEMORY
 AS (SELECT * FROM aggregated_billing_project_user_resources_v2
-    WHERE token != 0 AND ({where_condition})
+    WHERE token != 0 {where_condition}
+    ORDER BY billing_project, `user`, resource_id
     LIMIT 100
     FOR UPDATE
 );
@@ -1255,7 +1256,8 @@ FROM scratch
 ORDER BY billing_project DESC, `user` DESC, resource_id DESC
 LIMIT 1;
 ''',
-            args)
+            args,
+        )
 
         if next_key is None:
             return None
@@ -1272,14 +1274,24 @@ async def compact_agg_billing_project_users_by_date_table(app):
     async def compact(key: Optional[Tuple[str, str, str, int]]) -> Optional[Tuple[str, str, str, int]]:
         if key:
             billing_date, billing_project, user, resource_id = key
-            where_condition = '(billing_date > %s) OR' \
-                              '(billing_date = %s AND billing_project > %s) OR' \
-                              '(billing_date = %s AND billing_project = %s AND `user` > %s) OR' \
-                              '(billing_date = %s AND billing_project = %s AND `user` = %s AND resource_id > %s)'
-            args = [billing_date,
-                    billing_date, billing_project,
-                    billing_date, billing_project, user,
-                    billing_date, billing_project, user, resource_id]
+            where_condition = (
+                'AND ((billing_date > %s) OR'
+                '(billing_date = %s AND billing_project > %s) OR'
+                '(billing_date = %s AND billing_project = %s AND `user` > %s) OR'
+                '(billing_date = %s AND billing_project = %s AND `user` = %s AND resource_id > %s))'
+            )
+            args = [
+                billing_date,
+                billing_date,
+                billing_project,
+                billing_date,
+                billing_project,
+                user,
+                billing_date,
+                billing_project,
+                user,
+                resource_id,
+            ]
         else:
             where_condition = ''
             args = []
@@ -1288,7 +1300,8 @@ async def compact_agg_billing_project_users_by_date_table(app):
             f'''
 CREATE TEMPORARY TABLE scratch ENGINE=MEMORY
 AS (SELECT * FROM aggregated_billing_project_user_resources_by_date_v2
-    WHERE token != 0 AND ({where_condition})
+    WHERE token != 0 {where_condition}
+    ORDER BY billing_date, billing_project, `user`, resource_id
     LIMIT 100
     FOR UPDATE
 );
@@ -1302,14 +1315,15 @@ INNER JOIN scratch ON aggregated_billing_project_user_resources_by_date_v2.billi
 INSERT INTO aggregated_billing_project_user_resources_by_date_v2 (billing_date, billing_project, `user`, resource_id, token, `usage`)
 SELECT billing_date, billing_project, `user`, resource_id, 0, `usage`
 FROM scratch
-ON DUPLICATE KEY UPDATE `usage` = `usage` + scratch.`usage`
+ON DUPLICATE KEY UPDATE `usage` = `usage` + scratch.`usage`;
 
 SELECT billing_date, billing_project, `user`, resource_id
 FROM scratch
 ORDER BY billing_date DESC, billing_project DESC, `user` DESC, resource_id DESC
 LIMIT 1;
 ''',
-        args)
+            args,
+        )
 
         if next_key is None:
             return None
