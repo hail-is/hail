@@ -33,9 +33,9 @@ def _load_user_config():
 
 
 def get_user_config() -> configparser.ConfigParser:
-    global user_config
     if user_config is None:
         _load_user_config()
+        assert user_config is not None
     return user_config
 
 
