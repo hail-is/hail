@@ -396,8 +396,7 @@ class LocalAsyncFS(AsyncFS):
                 def rm_dir_or_symlink(path: str):
                     if os.path.islink(path):
                         return pool.call(rm_file, path)
-                    else:
-                        return pool.call(rm_dir, pool, contents_tasks_by_dir.get(path, []), path)
+                    return pool.call(rm_dir, pool, contents_tasks_by_dir.get(path, []), path)
 
                 contents_tasks = [
                     pool.call(rm_file, os.path.join(dirpath, filename))
