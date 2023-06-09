@@ -477,16 +477,17 @@ class GoogleStorageFS(
       .toArray
   }
 
-  def fileStatus(filename: String): FileStatus = retryTransientErrors {
-    var url = parseUrl(filename)
-    url = url.withPath(dropTrailingSlash(url.path))
+  def fileStatus(filename: String): FileStatus = fileStatus(parseUrl(filename))
+
+  override def fileStatus(url: GoogleStorageFSURL): FileStatus = retryTransientErrors {
+    val path = dropTrailingSlash(url.path)
 
     if (url.path == "")
       return new BlobStorageFileStatus(s"gs://${url.bucket}", null, 0, true)
 
     val blobs = retryTransientErrors {
       handleRequesterPays(
-        (options: Seq[BlobListOption]) => storage.list(url.bucket, (BlobListOption.prefix(url.path) +: BlobListOption.currentDirectory() +: options):_*),
+        (options: Seq[BlobListOption]) => storage.list(url.bucket, (BlobListOption.prefix(path) +: BlobListOption.currentDirectory() +: options):_*),
         BlobListOption.userProject _,
         url.bucket
       )
@@ -498,11 +499,11 @@ class GoogleStorageFS(
       var name = b.getName
       while (name.endsWith("/"))
         name = name.dropRight(1)
-      if (name == url.path)
+      if (name == path)
         return GoogleStorageFileStatus(b)
     }
 
-    throw new FileNotFoundException(filename)
+    throw new FileNotFoundException(url.toString)
   }
 
   def makeQualified(filename: String): String = {
