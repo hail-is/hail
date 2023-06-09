@@ -1,6 +1,6 @@
 import os
 from typing import (Tuple, Any, Set, Optional, MutableMapping, Dict, AsyncIterator, cast, Type,
-                    List, Coroutine, Union)
+                    List, Coroutine)
 from types import TracebackType
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import
 import sys
@@ -21,11 +21,9 @@ from hailtop.aiotools import FeedableAsyncIterable, WriteBuffer
 from .base_client import GoogleBaseClient
 from ..session import GoogleSession
 from ..credentials import GoogleCredentials
+from ..user_config import get_gcs_requester_pays_configuration, GCSRequesterPaysConfiguration
 
 log = logging.getLogger(__name__)
-
-
-GCSRequesterPaysConfiguration = Union[str, Tuple[str, List[str]]]
 
 
 class PageIterator:
@@ -309,6 +307,9 @@ class GoogleStorageClient(GoogleBaseClient):
             # Around May 2022, GCS started timing out a lot with our default 5s timeout
             kwargs['timeout'] = aiohttp.ClientTimeout(total=20)
         super().__init__('https://storage.googleapis.com/storage/v1', **kwargs)
+        gcs_requester_pays_configuration = get_gcs_requester_pays_configuration(
+            gcs_requester_pays_configuration=gcs_requester_pays_configuration,
+        )
         self._gcs_requester_pays_configuration = gcs_requester_pays_configuration
 
     # docs:
