@@ -198,6 +198,19 @@ steps:
     image:
       valueFrom: create_certs_image.image
     script: |
+
+      {% if not deploy %}
+      kubectl get secret -n {{ default_ns.name }} ssl-config-hail-root \
+        --template={% raw %}'{{index .data "hail-root-cert.pem"}}'{% endraw %} \
+        | base64 --decode \
+        | openssl x509 -checkend 0 -noout -in -
+
+      if [ "$?" -ne 0 ]
+      then
+          kubectl delete secret -n {{ default_ns.name }} ssl-config-hail-root
+      fi
+      {% endif %}
+
       openssl req -new -x509 -subj /CN=hail-root -nodes -newkey rsa:4096 -keyout hail-root-key.pem -out hail-root-cert.pem
       until kubectl get secret -n {{ default_ns.name }} ssl-config-hail-root
       do
