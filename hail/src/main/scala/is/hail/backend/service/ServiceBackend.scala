@@ -420,6 +420,8 @@ class EndOfInputException extends RuntimeException
 class HailBatchFailure(message: String) extends RuntimeException(message)
 
 object ServiceBackendSocketAPI2 {
+  private[this] val log = Logger.getLogger(getClass.getName())
+
   def main(argv: Array[String]): Unit = {
     assert(argv.length == 7, argv.toFastIndexedSeq)
 
@@ -439,20 +441,27 @@ object ServiceBackendSocketAPI2 {
     val userTokens = Tokens.fromFile(s"$scratchDir/secrets/user-tokens/tokens.json")
     Tokens.set(userTokens)
     tls.setSSLConfigFromDir(s"$scratchDir/secrets/ssl-config")
+    log.info("TLS configured.")
 
     val sessionId = userTokens.namespaceToken(deployConfig.defaultNamespace)
+    log.info("Namespace token acquired.")
     val batchClient = BatchClient.fromSessionID(sessionId)
+    log.info("BatchClient allocated.")
 
     var batchId = BatchConfig.fromConfigFile(s"$scratchDir/batch-config/batch-config.json").map(_.batchId)
+    log.info("BatchConfig parsed.")
 
     // FIXME: when can the classloader be shared? (optimizer benefits!)
     val backend = new ServiceBackend(
       jarLocation, name, new HailClassLoader(getClass().getClassLoader()), batchClient, batchId, scratchDir)
+    log.info("ServiceBackend allocated.")
     if (HailContext.isInitialized) {
       HailContext.get.backend = backend
       backend.addDefaultReferences()
+      log.info("Default references added to already initialized HailContexet.")
     } else {
       HailContext(backend, 50, 3)
+      log.info("HailContexet initialized.")
     }
 
     new ServiceBackendSocketAPI2(backend, fs, inputURL, outputURL, sessionId).executeOneCommand()
