@@ -124,7 +124,10 @@ def get_spark_conf_gcs_requester_pays_configuration() -> Optional[SparkConfGcsRe
     if path is not None and os.path.exists(path):
         with open(path, encoding='utf-8') as f:
             for line in f.readlines():
-                setting = line.rstrip('\n')
+                setting = line.rstrip('\n').lstrip(' ')
+                if setting[0] == '#':
+                    continue
+
                 maybe_var_and_val = setting.split(' ')
                 if len(maybe_var_and_val) != 2:
                     raise ValueError(f'Found spark-defaults.conf file line with more than one space: {line}')
