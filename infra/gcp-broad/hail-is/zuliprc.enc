@@ -1,0 +1,21 @@
+{
+	"data": "ENC[AES256_GCM,data:UFVTCuNj7+KYtY8yOTa8TOC5mnXScERGeI4Hof7OHMq31lUul2Om2FPBqv6B5RarzQjGCL1Ha2QM9hKL49LzXCpymEVlbTe5gI0Lxt95pmA1t34jPX3SNGYER2WVm7CaqJY7ONK8ag==,iv:XqkIgYP2SATlff/+dru6bU5Vch06pNMwtyS9BFlH3sg=,tag:3jwlRmOaBIhEVToNjSZ3Qw==,type:str]",
+	"sops": {
+		"kms": null,
+		"gcp_kms": [
+			{
+				"resource_id": "projects/hail-vdc/locations/global/keyRings/sops/cryptoKeys/sops-key",
+				"created_at": "2023-05-26T15:02:14Z",
+				"enc": "CiQA0ec+WwXRI2qJpgJhrIq19ChH432G8Ta7ViHw58FzKzvBMn8SSQCe82Adql2wUnT9vLQBn4k6Y3klU0ZCzz67jUCw9FKICCt4Z+P9FEkoISffqpompPEWS0p4STgXAj9yTQpVSmu9qJi4GLWeZ7w="
+			}
+		],
+		"azure_kv": null,
+		"hc_vault": null,
+		"age": null,
+		"lastmodified": "2023-05-26T15:02:14Z",
+		"mac": "ENC[AES256_GCM,data:WJ2XxWZ4WOounHf90SIh4hbOZ0tM27XtkOjm1Spwt13nJtiBXnbhKdVETRLT1pcFqbRL9/bWixW9dVDwyyprbj8+mZ0qnyav7Tn2jd+zLb+O0YgoE+4syR0xFhquab4CahSsccZM73CptikunZ8iAhEoi76g/kEncCbk6pUQhV0=,iv:xRrufgYtPw4oXq+sDwWrQxSRMm2VaY8PQ0ZGbZHKoyU=,tag:1rLXU2imd5YHfJEtqSG6WQ==,type:str]",
+		"pgp": null,
+		"unencrypted_suffix": "_unencrypted",
+		"version": "3.7.3"
+	}
+}

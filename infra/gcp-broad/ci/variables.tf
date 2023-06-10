@@ -35,3 +35,7 @@ variable "github_context" {
 variable "test_oauth2_callback_urls" {
   type = string
 }
+
+variable "github_organization" {
+  type = string
+}
