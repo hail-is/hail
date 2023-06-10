@@ -419,7 +419,7 @@ snowballstemmer==2.2.0
     # via sphinx
 soupsieve==2.4.1
     # via beautifulsoup4
-sphinx==6.2.1
+sphinx==7.0.1
     # via
     #   -r hail/hail/python/dev/requirements.txt
     #   nbsphinx
