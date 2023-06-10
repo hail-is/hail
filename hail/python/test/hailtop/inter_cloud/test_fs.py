@@ -59,7 +59,7 @@ async def filesystem(request) -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS,
                     base = fs.parse_url(f'https://{account}.blob.core.windows.net/{container}/tmp/{token}/?{sas_token}')
                 else:
                     base = fs.parse_url(f'https://{account}.blob.core.windows.net/{container}/tmp/{token}/')
-    
+
             await fs.mkdir(str(base))
             sema = asyncio.Semaphore(50)
             async with sema:
@@ -618,3 +618,20 @@ async def test_multi_part_create(filesystem: Tuple[asyncio.Semaphore, AsyncFS, A
     async with await fs.open(path) as f:
         actual = await f.read()
     assert expected == actual
+
+
+@pytest.mark.asyncio
+async def test_rmtree_on_symlink_to_directory():
+    token = secret_alnum_string()
+    with ThreadPoolExecutor() as thread_pool:
+        fs = LocalAsyncFS(thread_pool)
+        base = fs.parse_url(f'/tmp/{token}')
+        await fs.mkdir(str(base))
+        sema = asyncio.Semaphore(50)
+        try:
+            os.mkdir(f'/tmp/{token}/subdir')
+            os.symlink(f'/tmp/{token}/subdir', f'/tmp/{token}/subdir/loop')
+            await fs.rmtree(sema, str(base.with_new_path_component('/subdir')))
+        finally:
+            await fs.rmtree(sema, str(base))
+            assert not await fs.isdir(str(base))
