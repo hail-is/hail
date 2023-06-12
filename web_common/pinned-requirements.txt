@@ -64,7 +64,7 @@ multidict==6.0.4
     #   -c hail/web_common/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   yarl
-yarl==1.9.1
+yarl==1.9.2
     # via
     #   -c hail/web_common/../gear/pinned-requirements.txt
     #   -c hail/web_common/../hail/python/pinned-requirements.txt
