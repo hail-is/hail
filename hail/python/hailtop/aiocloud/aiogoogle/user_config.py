@@ -1,6 +1,7 @@
 from typing import Optional, List, Union, Tuple
 import os
 import warnings
+from jproperties import Properties
 from enum import Enum
 from dataclasses import dataclass
 
@@ -122,30 +123,24 @@ def get_spark_conf_gcs_requester_pays_configuration() -> Optional[SparkConfGcsRe
     buckets: Optional[List[str]] = None
     path = spark_conf_path()
     if path is not None and os.path.exists(path):
-        with open(path, encoding='utf-8') as f:
-            for line in f.readlines():
-                setting = line.rstrip('\n').lstrip(' ')
-                if setting[0] == '#':
-                    continue
-
-                maybe_var_and_val = setting.split(' ')
-                if len(maybe_var_and_val) != 2:
-                    raise ValueError(f'Found spark-defaults.conf file line with more than one space: {line}')
-                var, val = maybe_var_and_val
-                if var == 'spark.hadoop.fs.gs.requester.pays.mode':
-                    try:
-                        mode = SparkConfGcsRequesterPaysMode(val)
-                    except ValueError as exc:
-                        raise ValueError(
-                            f'When reading GCS requester pays configuration from '
-                            f'spark-defaults.conf ({path}) an unknown mode was '
-                            f'found: {val}. Expected ENABLED, AUTO, CUSTOM, or '
-                            f'DISABLED.'
-                        ) from exc
-                if var == 'spark.hadoop.fs.gs.requester.pays.project.id':
-                    project = val
-                if var == 'spark.hadoop.fs.gs.requester.pays.buckets':
-                    buckets = val.split(',')
+        props = Properties()
+        with open(path, 'rb') as f:
+            props.load(f, 'utf-8')
+        for key, (val, _) in dict(props).items():
+            if key == 'spark.hadoop.fs.gs.requester.pays.mode':
+                try:
+                    mode = SparkConfGcsRequesterPaysMode(val)
+                except ValueError as exc:
+                    raise ValueError(
+                        f'When reading GCS requester pays configuration from '
+                        f'spark-defaults.conf ({path}) an unknown mode was '
+                        f'found: {val}. Expected ENABLED, AUTO, CUSTOM, or '
+                        f'DISABLED.'
+                    ) from exc
+            elif key == 'spark.hadoop.fs.gs.requester.pays.project.id':
+                project = val
+            elif key == 'spark.hadoop.fs.gs.requester.pays.buckets':
+                buckets = val.split(',')
         if mode or project or buckets:
             return SparkConfGcsRequseterPaysConfiguration(mode, project, buckets, path)
     return None
