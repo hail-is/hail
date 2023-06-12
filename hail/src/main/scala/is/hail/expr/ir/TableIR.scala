@@ -2562,7 +2562,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       else
         null
 
-    val spec = BufferSpec.blockedUncompressed
+    val spec = BufferSpec.defaultUncompressed
 
     // Order of operations:
     // 1. init op on all aggs and serialize to byte array.
@@ -3059,7 +3059,7 @@ case class TableKeyByAndAggregate(
 
     val globalsBc = prev.globals.broadcast(ctx.theHailClassLoader)
 
-    val spec = BufferSpec.blockedUncompressed
+    val spec = BufferSpec.defaultUncompressed
     val res = genUID()
 
     val extracted = agg.Extract(expr, res, Requiredness(this, ctx))

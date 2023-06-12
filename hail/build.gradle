@@ -204,7 +204,7 @@ dependencies {
 
     bundled 'com.kohlschutter.junixsocket:junixsocket-core:2.6.1'
 
-    bundled 'com.github.luben:zstd-jni:1.5.5-2'
+    bundled 'com.github.luben:zstd-jni:1.5.2-1'
 
     bundled project(path: ':shadedazure', configuration: 'shadow')
 }
