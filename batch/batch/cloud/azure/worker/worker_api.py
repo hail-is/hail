@@ -63,6 +63,9 @@ class AzureWorkerAPI(CloudWorkerAPI[AzureUserCredentials]):
             'password': user_credentials.password,
         }
 
+    def metadata_server(self):
+        raise NotImplementedError
+
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> AzureSlimInstanceConfig:
         return AzureSlimInstanceConfig.from_dict(config_dict)
 

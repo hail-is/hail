@@ -1,6 +1,9 @@
 import abc
 from typing import Dict, Generic, List, TypedDict, TypeVar
 
+import aiohttp.typedefs
+from aiohttp import web
+
 from hailtop import httpx
 from hailtop.aiotools.fs import AsyncFS
 from hailtop.utils import CalledProcessError, sleep_before_try
@@ -10,11 +13,44 @@ from .credentials import CloudUserCredentials
 from .disk import CloudDisk
 
 CredsType = TypeVar("CredsType", bound=CloudUserCredentials)
+ContainerCredentials = TypeVar("ContainerCredentials")
 
 
 class ContainerRegistryCredentials(TypedDict):
     username: str
     password: str
+
+
+class HailMetadataServer(abc.ABC, Generic[CredsType, ContainerCredentials]):
+    def __init__(self):
+        self._ip_container_credentials: Dict[str, ContainerCredentials] = {}
+
+    def set_container_credentials(self, ip: str, default_credentials: CredsType):
+        self._ip_container_credentials[ip] = self._create_container_credentials(default_credentials)
+
+    async def clear_container_credentials(self, ip: str):
+        creds = self._ip_container_credentials.pop(ip)
+        await self._close_container_credentials(creds)
+
+    @abc.abstractmethod
+    def _create_container_credentials(self, default_credentials: CredsType) -> ContainerCredentials:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def _close_container_credentials(self, container_credentials: ContainerCredentials):
+        raise NotImplementedError
+
+    @web.middleware
+    async def set_request_credentials(self, request: web.Request, handler: aiohttp.typedefs.Handler):
+        assert request.remote
+        if credentials := self._ip_container_credentials.get(request.remote):
+            request['credentials'] = credentials
+            return await handler(request)
+        raise web.HTTPBadRequest()
+
+    @abc.abstractmethod
+    def create_app(self) -> web.Application:
+        raise NotImplementedError
 
 
 class CloudWorkerAPI(abc.ABC, Generic[CredsType]):
@@ -43,6 +79,10 @@ class CloudWorkerAPI(abc.ABC, Generic[CredsType]):
 
     @abc.abstractmethod
     async def user_container_registry_credentials(self, user_credentials: CredsType) -> ContainerRegistryCredentials:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def metadata_server(self) -> HailMetadataServer[CredsType, object]:
         raise NotImplementedError
 
     @abc.abstractmethod

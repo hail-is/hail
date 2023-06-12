@@ -84,7 +84,7 @@ from ..instance_config import InstanceConfig
 from ..publicly_available_images import publicly_available_images
 from ..resource_usage import ResourceUsageMonitor
 from ..semaphore import FIFOWeightedSemaphore
-from ..worker.worker_api import CloudDisk, CloudWorkerAPI, ContainerRegistryCredentials
+from ..worker.worker_api import CloudDisk, CloudWorkerAPI, ContainerRegistryCredentials, HailMetadataServer
 from .credentials import CloudUserCredentials
 from .jvm_entryway_protocol import EndOfStream, read_bool, read_int, read_str, write_int, write_str
 
@@ -208,6 +208,7 @@ docker: Optional[aiodocker.Docker] = None
 
 port_allocator: Optional['PortAllocator'] = None
 network_allocator: Optional['NetworkAllocator'] = None
+metadata_server: Optional[HailMetadataServer] = None
 
 worker: Optional['Worker'] = None
 
@@ -264,6 +265,8 @@ class NetworkNamespace:
                 for service in HAIL_SERVICES:
                     hosts.write(f'{INTERNAL_GATEWAY_IP} {service}.hail\n')
             hosts.write(f'{INTERNAL_GATEWAY_IP} internal.hail\n')
+            if CLOUD == 'gcp':
+                hosts.write('169.254.169.254 metadata metadata.google.internal')
 
         # Jobs on the private network should have access to the metadata server
         # and our vdc. The public network should not so we use google's public
@@ -771,6 +774,7 @@ class Container:
         command: List[str],
         cpu_in_mcpu: int,
         memory_in_bytes: int,
+        user_credentials: Optional[CloudUserCredentials],
         network: Optional[Union[bool, str]] = None,
         port: Optional[int] = None,
         timeout: Optional[int] = None,
@@ -788,6 +792,7 @@ class Container:
         self.command = command
         self.cpu_in_mcpu = cpu_in_mcpu
         self.memory_in_bytes = memory_in_bytes
+        self.user_credentials = user_credentials
         self.network = network
         self.port = port
         self.timeout = timeout
@@ -970,6 +975,10 @@ class Container:
         if self._cleaned_up:
             return
 
+        if self.netns:
+            if self.user_credentials and metadata_server:
+                await metadata_server.clear_container_credentials(self.netns.job_ip)
+
         assert self._run_fut is None
         try:
             if self.overlay_mounted:
@@ -1036,6 +1045,8 @@ class Container:
                 else:
                     assert self.network is None or self.network == 'public'
                     self.netns = await network_allocator.allocate_public()
+            if self.user_credentials and metadata_server:
+                metadata_server.set_container_credentials(self.netns.job_ip, self.user_credentials)
         except asyncio.TimeoutError:
             log.exception(network_allocator.task_manager.tasks)
             raise
@@ -1467,6 +1478,7 @@ def copy_container(
         cpu_in_mcpu=cpu_in_mcpu,
         memory_in_bytes=memory_in_bytes,
         volume_mounts=volume_mounts,
+        user_credentials=job.credentials,
         env=[f'{job.credentials.cloud_env_name}={job.credentials.mount_path}'],
         stdin=json.dumps(files),
     )
@@ -1795,6 +1807,7 @@ class DockerJob(Job):
             command=job_spec['process']['command'],
             cpu_in_mcpu=self.cpu_in_mcpu,
             memory_in_bytes=self.memory_in_bytes,
+            user_credentials=self.credentials,
             network=job_spec.get('network'),
             port=job_spec.get('port'),
             timeout=job_spec.get('timeout'),
@@ -2561,6 +2574,7 @@ class JVMContainer:
             command=command,
             cpu_in_mcpu=n_cores * 1000,
             memory_in_bytes=total_memory_bytes,
+            user_credentials=None,
             env=[f'HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB={off_heap_memory_per_core_mib}', f'HAIL_CLOUD={CLOUD}'],
             volume_mounts=volume_mounts,
             log_path=f'/batch/jvm-container-logs/jvm-{index}.log',
@@ -3205,6 +3219,16 @@ class Worker:
         return json_response(body)
 
     async def run(self):
+        global metadata_server
+        assert CLOUD_WORKER_API
+        assert network_allocator
+        if CLOUD == 'gcp':
+            metadata_server = CLOUD_WORKER_API.metadata_server()
+            metadata_app_runner = web.AppRunner(metadata_server.create_app(), access_log_class=BatchWorkerAccessLogger)
+            await metadata_app_runner.setup()
+            metadata_site = web.TCPSite(metadata_app_runner, '0.0.0.0', 5555)
+            await metadata_site.start()
+
         app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
         app.add_routes(
             [

@@ -5,12 +5,13 @@ from .client import (
     GoogleComputeClient,
     GoogleIAmClient,
     GoogleLoggingClient,
+    GoogleMetadataServerClient,
     GoogleStorageClient,
     GCSRequesterPaysConfiguration,
     GoogleStorageAsyncFS,
     GoogleStorageAsyncFSFactory
 )
-from .credentials import GoogleCredentials, GoogleApplicationDefaultCredentials, GoogleServiceAccountCredentials
+from .credentials import GoogleCredentials, GoogleApplicationDefaultCredentials, GoogleServiceAccountCredentials, GoogleInstanceMetadataCredentials
 from .session import GoogleSession
 from .user_config import get_gcs_requester_pays_configuration
 
@@ -20,6 +21,7 @@ __all__ = [
     'GoogleCredentials',
     'GoogleApplicationDefaultCredentials',
     'GoogleServiceAccountCredentials',
+    'GoogleInstanceMetadataCredentials',
     'GoogleSession',
     'GoogleBigQueryClient',
     'GoogleBillingClient',
@@ -27,6 +29,7 @@ __all__ = [
     'GoogleComputeClient',
     'GoogleIAmClient',
     'GoogleLoggingClient',
+    'GoogleMetadataServerClient',
     'GoogleStorageClient',
     'GoogleStorageAsyncFS',
     'GoogleStorageAsyncFSFactory',

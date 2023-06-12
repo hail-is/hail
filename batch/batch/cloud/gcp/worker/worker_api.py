@@ -2,13 +2,15 @@ import os
 import tempfile
 from typing import Dict, List
 
-import aiohttp
+import orjson
+from aiohttp import web
 
 from hailtop import httpx
 from hailtop.aiocloud import aiogoogle
-from hailtop.utils import check_exec_output, retry_transient_errors
+from hailtop.utils import check_exec_output
 
-from ....worker.worker_api import CloudWorkerAPI, ContainerRegistryCredentials
+from ....globals import HTTP_CLIENT_MAX_SIZE
+from ....worker.worker_api import CloudWorkerAPI, ContainerRegistryCredentials, HailMetadataServer
 from ..instance_config import GCPSlimInstanceConfig
 from .credentials import GCPUserCredentials
 from .disk import GCPDisk
@@ -22,15 +24,26 @@ class GCPWorkerAPI(CloudWorkerAPI[GCPUserCredentials]):
     async def from_env() -> 'GCPWorkerAPI':
         project = os.environ['PROJECT']
         zone = os.environ['ZONE'].rsplit('/', 1)[1]
-        session = aiogoogle.GoogleSession()
-        return GCPWorkerAPI(project, zone, session)
+        worker_credentials = aiogoogle.GoogleInstanceMetadataCredentials()
+        http_session = httpx.ClientSession()
+        google_session = aiogoogle.GoogleSession(credentials=worker_credentials, http_session=http_session)
+        return GCPWorkerAPI(project, zone, worker_credentials, http_session, google_session)
 
-    def __init__(self, project: str, zone: str, session: aiogoogle.GoogleSession):
+    def __init__(
+        self,
+        project: str,
+        zone: str,
+        worker_credentials: aiogoogle.GoogleInstanceMetadataCredentials,
+        http_session: httpx.ClientSession,
+        session: aiogoogle.GoogleSession,
+    ):
         self.project = project
         self.zone = zone
+        self._http_session = http_session
         self._google_session = session
         self._compute_client = aiogoogle.GoogleComputeClient(project, session=session)
         self._gcsfuse_credential_files: Dict[str, str] = {}
+        self._worker_credentials = worker_credentials
 
     @property
     def cloud_specific_env_vars_for_user_jobs(self) -> List[str]:
@@ -54,19 +67,16 @@ class GCPWorkerAPI(CloudWorkerAPI[GCPUserCredentials]):
         return GCPUserCredentials(credentials)
 
     async def worker_container_registry_credentials(self, session: httpx.ClientSession) -> ContainerRegistryCredentials:
-        token_dict = await retry_transient_errors(
-            session.post_read_json,
-            'http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token',
-            headers={'Metadata-Flavor': 'Google'},
-            timeout=aiohttp.ClientTimeout(total=60),  # type: ignore
-        )
-        access_token = token_dict['access_token']
+        access_token = await self._worker_credentials.access_token()
         return {'username': 'oauth2accesstoken', 'password': access_token}
 
     async def user_container_registry_credentials(
         self, user_credentials: GCPUserCredentials
     ) -> ContainerRegistryCredentials:
         return {'username': '_json_key', 'password': user_credentials.key}
+
+    def metadata_server(self) -> 'GoogleHailMetadataServer':
+        return GoogleHailMetadataServer(self.project, self._http_session)
 
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> GCPSlimInstanceConfig:
         return GCPSlimInstanceConfig.from_dict(config_dict)
@@ -128,3 +138,111 @@ class GCPWorkerAPI(CloudWorkerAPI[GCPUserCredentials]):
 
     def __str__(self):
         return f'project={self.project} zone={self.zone}'
+
+
+ContainerCredentials = Dict[str, aiogoogle.GoogleServiceAccountCredentials]
+
+
+class GoogleHailMetadataServer(HailMetadataServer[GCPUserCredentials, ContainerCredentials]):
+    def __init__(self, project: str, http_session: httpx.ClientSession):
+        super().__init__()
+        self._project = project
+        self._metadata_server_client = aiogoogle.GoogleMetadataServerClient(http_session)
+
+    def _create_container_credentials(self, default_credentials: GCPUserCredentials):
+        default_sa_creds = aiogoogle.GoogleServiceAccountCredentials(orjson.loads(default_credentials.key))
+        credentials = {}
+        for name in ('default', default_sa_creds.email):
+            credentials[name] = default_sa_creds
+        return credentials
+
+    async def _close_container_credentials(self, container_credentials: ContainerCredentials):
+        for credential in container_credentials.values():
+            await credential.close()
+
+    def _container_credentials(self, request: web.Request) -> ContainerCredentials:
+        return request['credentials']
+
+    def _user_credentials(self, request: web.Request) -> aiogoogle.GoogleServiceAccountCredentials:
+        email = request.match_info.get('gsa') or 'default'
+        return self._container_credentials(request)[email]
+
+    async def root(self, _):
+        return web.Response(text='computeMetadata/\n')
+
+    async def project_id(self, _):
+        return web.Response(text=self._project)
+
+    async def numeric_project_id(self, _):
+        return web.Response(text=await self._metadata_server_client.numeric_project_id())
+
+    async def service_accounts(self, request: web.Request):
+        accounts = '\n'.join(self._container_credentials(request).keys())
+        return web.Response(text=f'{accounts}\n')
+
+    async def user_service_account(self, request: web.Request):
+        gsa_email = self._user_credentials(request).email
+        recursive = request.query.get('recursive')
+        if recursive == 'true':
+            return web.json_response(
+                {
+                    'aliases': ['default'],
+                    'email': gsa_email,
+                    'scopes': ['https://www.googleapis.com/auth/cloud-platform'],
+                },
+            )
+        return web.Response(text='aliases\nemail\nidentity\nscopes\ntoken\n')
+
+    async def user_email(self, request: web.Request):
+        return web.Response(text=self._user_credentials(request).email)
+
+    async def user_token(self, request: web.Request):
+        gsa_email = request.match_info['gsa']
+        creds = self._container_credentials(request)[gsa_email]
+        access_token = await creds.access_token_obj()
+        return web.json_response(
+            {
+                'access_token': access_token.token,
+                'expires_in': access_token.expires_in,
+                'token_type': 'Bearer',
+            }
+        )
+
+    @web.middleware
+    async def configure_response(self, request: web.Request, handler):
+        credentials = self._container_credentials(request)
+        gsa = request.match_info.get('gsa', 'default')
+        if gsa not in credentials.keys():
+            raise web.HTTPBadRequest()
+
+        response = await handler(request)
+        response.enable_compression()
+
+        # `gcloud` does not properly respect `charset`, which aiohttp automatically
+        # sets so we have to explicitly erase it
+        # See https://github.com/googleapis/google-auth-library-python/blob/b935298aaf4ea5867b5778bcbfc42408ba4ec02c/google/auth/compute_engine/_metadata.py#L170
+        if 'application/json' in response.headers['Content-Type']:
+            response.headers['Content-Type'] = 'application/json'
+        response.headers['Metadata-Flavor'] = 'Google'
+        response.headers['Server'] = 'Metadata Server for VM'
+        response.headers['X-XSS-Protection'] = '0'
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+        return response
+
+    def create_app(self) -> web.Application:
+        metadata_app = web.Application(
+            client_max_size=HTTP_CLIENT_MAX_SIZE,
+            middlewares=[self.set_request_credentials, self.configure_response],
+        )
+        metadata_app.add_routes(
+            [
+                web.get('/', self.root),
+                web.get('/computeMetadata/v1/project/project-id', self.project_id),
+                web.get('/computeMetadata/v1/project/numeric-project-id', self.numeric_project_id),
+                web.get('/computeMetadata/v1/instance/service-accounts/', self.service_accounts),
+                web.get('/computeMetadata/v1/instance/service-accounts/{gsa}/', self.user_service_account),
+                web.get('/computeMetadata/v1/instance/service-accounts/{gsa}/email', self.user_email),
+                web.get('/computeMetadata/v1/instance/service-accounts/{gsa}/token', self.user_token),
+            ]
+        )
+        return metadata_app
