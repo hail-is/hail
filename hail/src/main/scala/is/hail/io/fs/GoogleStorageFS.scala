@@ -4,7 +4,7 @@ package is.hail.io.fs
 import java.io.{ByteArrayInputStream, FileNotFoundException, IOException}
 import java.net.URI
 import java.nio.ByteBuffer
-import java.nio.file.FileSystems
+import java.nio.file.Paths
 import java.util.concurrent._
 import org.apache.log4j.Logger
 import com.google.auth.oauth2.ServiceAccountCredentials
@@ -24,21 +24,17 @@ import scala.reflect.ClassTag
 
 object GoogleStorageFS {
   private val log = Logger.getLogger(getClass.getName())
+  private[this] val GCS_URI_REGEX = "^gs:\\/\\/([a-z0-9_\\-\\.]+)(\\/.*)?".r
 
   def getBucketPath(filename: String): (String, String) = {
-    val uri = new URI(filename).normalize()
-
-    val scheme = uri.getScheme
-    assert(scheme != null && scheme == "gs", (uri.getScheme, filename))
-
-    val bucket = uri.getAuthority
-    assert(bucket != null, (filename, uri.toString(), uri.getScheme, uri.getAuthority, uri.getRawAuthority(), uri.getUserInfo()))
-
-    var path = uri.getPath
-    if (path.nonEmpty && path.head == '/')
-      path = path.drop(1)
-
-    (bucket, path)
+    GCS_URI_REGEX.findFirstMatchIn(filename) match {
+      case Some(m) =>
+        val bucket = m.group(1)
+        val maybePath = m.group(2)
+        val path = Paths.get(if (maybePath == null) "" else maybePath.stripPrefix("/"))
+        (bucket, path.normalize().toString)
+      case None => throw new IllegalArgumentException(s"GCS URI must be of the form: gs://bucket/path, found $filename")
+    }
   }
 }
 
