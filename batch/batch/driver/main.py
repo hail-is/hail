@@ -37,7 +37,15 @@ from gear.profiling import install_profiler_if_requested
 from hailtop import aiotools, httpx
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
-from hailtop.utils import AsyncWorkerPool, Notice, dump_all_stacktraces, flatten, periodically_call, time_msecs
+from hailtop.utils import (
+    AsyncWorkerPool,
+    Notice,
+    dump_all_stacktraces,
+    flatten,
+    periodically_call,
+    secret_alnum_string,
+    time_msecs,
+)
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
 from ..batch import cancel_batch_in_db
@@ -1231,9 +1239,13 @@ async def compact_agg_billing_project_users_table(app):
             where_condition = ''
             args = []
 
-        next_key = await db.execute_and_fetchone(
-            f'''
-CREATE TEMPORARY TABLE scratch ENGINE=MEMORY
+        token = secret_alnum_string(5)
+        scratch_table_name = f'`scratch_{token}`'
+
+        try:
+            next_key = await db.execute_and_fetchone(
+                f'''
+CREATE TEMPORARY TABLE {scratch_table_name} ENGINE=MEMORY
 AS (SELECT * FROM aggregated_billing_project_user_resources_v2
     WHERE token != 0 {where_condition}
     ORDER BY billing_project, `user`, resource_id
@@ -1242,22 +1254,24 @@ AS (SELECT * FROM aggregated_billing_project_user_resources_v2
 );
 
 DELETE FROM aggregated_billing_project_user_resources_v2
-INNER JOIN scratch ON aggregated_billing_project_user_resources_v2.billing_project = scratch.billing_project AND
-                      aggregated_billing_project_user_resources_v2.`user` = scratch.`user` AND
-                      aggregated_billing_project_user_resources_v2.resource_id = scratch.resource_id;
+INNER JOIN scratch ON aggregated_billing_project_user_resources_v2.billing_project = {scratch_table_name}.billing_project AND
+                      aggregated_billing_project_user_resources_v2.`user` = {scratch_table_name}.`user` AND
+                      aggregated_billing_project_user_resources_v2.resource_id = {scratch_table_name}.resource_id;
 
 INSERT INTO aggregated_billing_project_user_resources_v2 (billing_project, `user`, resource_id, token, `usage`)
 SELECT billing_project, `user`, resource_id, 0, `usage`
-FROM scratch
+FROM {scratch_table_name}
 ON DUPLICATE KEY UPDATE `usage` = `usage` + scratch.`usage`;
 
 SELECT billing_project, `user`, resource_id
-FROM scratch
+FROM {scratch_table_name}
 ORDER BY billing_project DESC, `user` DESC, resource_id DESC
 LIMIT 1;
 ''',
-            args,
-        )
+                args,
+            )
+        finally:
+            await db.just_execute(f'DROP TEMPORARY TABLE IF EXISTS {scratch_table_name};')
 
         if next_key is None:
             return None
@@ -1296,34 +1310,40 @@ async def compact_agg_billing_project_users_by_date_table(app):
             where_condition = ''
             args = []
 
-        next_key = await db.execute_and_fetchone(
-            f'''
-CREATE TEMPORARY TABLE scratch ENGINE=MEMORY
+        token = secret_alnum_string(5)
+        scratch_table_name = f'`scratch_{token}`'
+
+        try:
+            next_key = await db.execute_and_fetchone(
+                f'''
+CREATE TEMPORARY TABLE {scratch_table_name} ENGINE=MEMORY
 AS (SELECT * FROM aggregated_billing_project_user_resources_by_date_v2
     WHERE token != 0 {where_condition}
     ORDER BY billing_date, billing_project, `user`, resource_id
-    LIMIT 10
+    LIMIT 100
     LOCK IN SHARE MODE
 );
 
 DELETE FROM aggregated_billing_project_user_resources_by_date_v2
-INNER JOIN scratch ON aggregated_billing_project_user_resources_by_date_v2.billing_date = scratch.billing_date AND
-                      aggregated_billing_project_user_resources_by_date_v2.billing_project = scratch.billing_project AND
-                      aggregated_billing_project_user_resources_by_date_v2.`user` = scratch.`user` AND
-                      aggregated_billing_project_user_resources_by_date_v2.resource_id = scratch.resource_id;
+INNER JOIN scratch ON aggregated_billing_project_user_resources_by_date_v2.billing_date = {scratch_table_name}.billing_date AND
+                      aggregated_billing_project_user_resources_by_date_v2.billing_project = {scratch_table_name}.billing_project AND
+                      aggregated_billing_project_user_resources_by_date_v2.`user` = {scratch_table_name}.`user` AND
+                      aggregated_billing_project_user_resources_by_date_v2.resource_id = {scratch_table_name}.resource_id;
 
 INSERT INTO aggregated_billing_project_user_resources_by_date_v2 (billing_date, billing_project, `user`, resource_id, token, `usage`)
 SELECT billing_date, billing_project, `user`, resource_id, 0, `usage`
-FROM scratch
+FROM {scratch_table_name}
 ON DUPLICATE KEY UPDATE `usage` = `usage` + scratch.`usage`;
 
 SELECT billing_date, billing_project, `user`, resource_id
-FROM scratch
+FROM {scratch_table_name}
 ORDER BY billing_date DESC, billing_project DESC, `user` DESC, resource_id DESC
 LIMIT 1;
 ''',
-            args,
-        )
+                args,
+            )
+        finally:
+            await db.just_execute(f'DROP TEMPORARY TABLE IF EXISTS {scratch_table_name};')
 
         if next_key is None:
             return None
