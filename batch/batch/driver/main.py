@@ -1253,7 +1253,7 @@ AS (SELECT * FROM aggregated_billing_project_user_resources_v2
     LOCK IN SHARE MODE
 );
 
-DELETE FROM aggregated_billing_project_user_resources_v2
+DELETE aggregated_billing_project_user_resources_v2 FROM aggregated_billing_project_user_resources_v2
 INNER JOIN {scratch_table_name} ON aggregated_billing_project_user_resources_v2.billing_project = {scratch_table_name}.billing_project AND
                       aggregated_billing_project_user_resources_v2.`user` = {scratch_table_name}.`user` AND
                       aggregated_billing_project_user_resources_v2.resource_id = {scratch_table_name}.resource_id;
@@ -1324,7 +1324,7 @@ AS (SELECT * FROM aggregated_billing_project_user_resources_by_date_v2
     LOCK IN SHARE MODE
 );
 
-DELETE FROM aggregated_billing_project_user_resources_by_date_v2
+DELETE aggregated_billing_project_user_resources_by_date_v2 FROM aggregated_billing_project_user_resources_by_date_v2
 INNER JOIN {scratch_table_name} ON aggregated_billing_project_user_resources_by_date_v2.billing_date = {scratch_table_name}.billing_date AND
                       aggregated_billing_project_user_resources_by_date_v2.billing_project = {scratch_table_name}.billing_project AND
                       aggregated_billing_project_user_resources_by_date_v2.`user` = {scratch_table_name}.`user` AND
