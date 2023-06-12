@@ -1238,7 +1238,7 @@ AS (SELECT * FROM aggregated_billing_project_user_resources_v2
     WHERE token != 0 {where_condition}
     ORDER BY billing_project, `user`, resource_id
     LIMIT 100
-    FOR UPDATE
+    LOCK IN SHARE MODE
 );
 
 DELETE FROM aggregated_billing_project_user_resources_v2
@@ -1302,8 +1302,8 @@ CREATE TEMPORARY TABLE scratch ENGINE=MEMORY
 AS (SELECT * FROM aggregated_billing_project_user_resources_by_date_v2
     WHERE token != 0 {where_condition}
     ORDER BY billing_date, billing_project, `user`, resource_id
-    LIMIT 100
-    FOR UPDATE
+    LIMIT 10
+    LOCK IN SHARE MODE
 );
 
 DELETE FROM aggregated_billing_project_user_resources_by_date_v2
