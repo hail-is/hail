@@ -1,7 +1,2 @@
-DROP TRIGGER IF EXISTS aggregated_bp_user_resources_v2_after_update;
-DROP TRIGGER IF EXISTS aggregated_bp_user_resources_by_date_v2_after_update;
-DROP TRIGGER IF EXISTS aggregated_bp_user_resources_v2_before_insert;
-DROP TRIGGER IF EXISTS aggregated_bp_user_resources_by_date_v2_before_insert;
-
 CREATE INDEX aggregated_billing_project_user_resources_v2_token ON `aggregated_billing_project_user_resources_v2` (`token`);
 CREATE INDEX aggregated_billing_project_user_resources_by_date_v2_token ON `aggregated_billing_project_user_resources_by_date_v2` (`token`);
