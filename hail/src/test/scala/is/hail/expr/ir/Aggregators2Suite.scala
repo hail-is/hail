@@ -33,7 +33,7 @@ class Aggregators2Suite extends HailSuite {
     val argT = PType.canonical(TStruct(args.map { case (n, (typ, _)) => n -> typ }: _*)).setRequired(true).asInstanceOf[PStruct]
     val argVs = Row.fromSeq(args.map { case (_, (_, v)) => v })
     val argRef = Ref(genUID(), argT.virtualType)
-    val spec = BufferSpec.wireSpec
+    val spec = BufferSpec.defaultUncompressed
 
     val (_, combAndDuplicate) = CompileWithAggregators[AsmFunction1RegionUnit](ctx,
       Array.fill(nPartitions)(aggSig.state),

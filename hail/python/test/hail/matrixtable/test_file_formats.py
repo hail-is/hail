@@ -73,7 +73,7 @@ finally:
 
 @pytest.mark.parametrize("path", mt_paths)
 def test_backward_compatability_mt(path, all_values_matrix_table_fixture):
-    assert len(mt_paths) == 56, str((resource_dir, ht_paths))
+    assert len(mt_paths) == 46, str((resource_dir, ht_paths))
 
     old = hl.read_matrix_table(path)
 
@@ -88,7 +88,7 @@ def test_backward_compatability_mt(path, all_values_matrix_table_fixture):
 
 @pytest.mark.parametrize("path", ht_paths)
 def test_backward_compatability_ht(path, all_values_table_fixture):
-    assert len(ht_paths) == 52, str((resource_dir, ht_paths))
+    assert len(ht_paths) == 42, str((resource_dir, ht_paths))
 
     old = hl.read_table(path)
 

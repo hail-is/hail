@@ -2662,6 +2662,22 @@ class MatrixTable(ExprContainer):
         --------
         >>> dataset = dataset.checkpoint('output/dataset_checkpoint.mt')
         """
+        if _codec_spec is None:
+            _codec_spec = """{
+  "name": "LEB128BufferSpec",
+  "child": {
+    "name": "BlockingBufferSpec",
+    "blockSize": 32768,
+    "child": {
+      "name": "LZ4FastBlockBufferSpec",
+      "blockSize": 32768,
+      "child": {
+        "name": "StreamBlockBufferSpec"
+      }
+    }
+  }
+}"""
+
         hl.current_backend().validate_file_scheme(output)
 
         if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
