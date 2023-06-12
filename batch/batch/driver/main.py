@@ -1261,7 +1261,7 @@ INNER JOIN {scratch_table_name} ON aggregated_billing_project_user_resources_v2.
 INSERT INTO aggregated_billing_project_user_resources_v2 (billing_project, `user`, resource_id, token, `usage`)
 SELECT billing_project, `user`, resource_id, 0, `usage`
 FROM {scratch_table_name}
-ON DUPLICATE KEY UPDATE `usage` = `usage` + scratch.`usage`;
+ON DUPLICATE KEY UPDATE `usage` = `usage` + {scratch_table_name}.`usage`;
 
 SELECT billing_project, `user`, resource_id
 FROM {scratch_table_name}
@@ -1333,7 +1333,7 @@ INNER JOIN {scratch_table_name} ON aggregated_billing_project_user_resources_by_
 INSERT INTO aggregated_billing_project_user_resources_by_date_v2 (billing_date, billing_project, `user`, resource_id, token, `usage`)
 SELECT billing_date, billing_project, `user`, resource_id, 0, `usage`
 FROM {scratch_table_name}
-ON DUPLICATE KEY UPDATE `usage` = `usage` + scratch.`usage`;
+ON DUPLICATE KEY UPDATE `usage` = `usage` + {scratch_table_name}.`usage`;
 
 SELECT billing_date, billing_project, `user`, resource_id
 FROM {scratch_table_name}
