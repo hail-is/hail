@@ -7,7 +7,7 @@ import re
 import signal
 from collections import defaultdict, namedtuple
 from functools import wraps
-from typing import Any, Dict, Optional, Set, Tuple
+from typing import Any, Dict, Set, Tuple
 
 import aiohttp_session
 import dictdiffer
@@ -43,7 +43,6 @@ from hailtop.utils import (
     dump_all_stacktraces,
     flatten,
     periodically_call,
-    secret_alnum_string,
     time_msecs,
 )
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
@@ -62,7 +61,14 @@ from ..exceptions import BatchUserError
 from ..file_store import FileStore
 from ..globals import HTTP_CLIENT_MAX_SIZE
 from ..inst_coll_config import InstanceCollectionConfigs, PoolConfig
-from ..utils import authorization_token, batch_only, json_to_value, query_billing_projects
+from ..utils import (
+    authorization_token,
+    batch_only,
+    compact_agg_billing_project_users_table,
+    compact_agg_billing_project_users_by_date_table,
+    json_to_value,
+    query_billing_projects,
+)
 from .canceller import Canceller
 from .driver import CloudDriver
 from .instance_collection import InstanceCollectionManager, JobPrivateInstanceManager, Pool
@@ -1223,137 +1229,6 @@ WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= 
         await _cancel_batch(app, batch['id'])
 
 
-async def compact_agg_billing_project_users_table(app):
-    db: Database = app['db']
-
-    async def compact(key: Optional[Tuple[str, str, int]]) -> Optional[Tuple[str, str, int]]:
-        if key:
-            billing_project, user, resource_id = key
-            where_condition = (
-                'AND ((billing_project > %s) OR'
-                '(billing_project = %s AND `user` > %s) OR'
-                '(billing_project = %s AND `user` = %s AND resource_id > %s))'
-            )
-            args = [billing_project, billing_project, user, billing_project, user, resource_id]
-        else:
-            where_condition = ''
-            args = []
-
-        token = secret_alnum_string(5)
-        scratch_table_name = f'`scratch_{token}`'
-
-        try:
-            next_key = await db.execute_and_fetchone(
-                f'''
-CREATE TEMPORARY TABLE {scratch_table_name} ENGINE=MEMORY
-AS (SELECT * FROM aggregated_billing_project_user_resources_v2
-    WHERE token != 0 {where_condition}
-    ORDER BY billing_project, `user`, resource_id
-    LIMIT 1000
-    LOCK IN SHARE MODE
-);
-
-DELETE aggregated_billing_project_user_resources_v2 FROM aggregated_billing_project_user_resources_v2
-INNER JOIN {scratch_table_name} ON aggregated_billing_project_user_resources_v2.billing_project = {scratch_table_name}.billing_project AND
-                      aggregated_billing_project_user_resources_v2.`user` = {scratch_table_name}.`user` AND
-                      aggregated_billing_project_user_resources_v2.resource_id = {scratch_table_name}.resource_id;
-
-INSERT INTO aggregated_billing_project_user_resources_v2 (billing_project, `user`, resource_id, token, `usage`)
-SELECT billing_project, `user`, resource_id, 0, `usage`
-FROM {scratch_table_name}
-ON DUPLICATE KEY UPDATE `usage` = aggregated_billing_project_user_resources_v2.`usage` + {scratch_table_name}.`usage`;
-
-SELECT billing_project, `user`, resource_id
-FROM {scratch_table_name}
-ORDER BY billing_project DESC, `user` DESC, resource_id DESC
-LIMIT 1;
-''',
-                args,
-            )
-        finally:
-            await db.just_execute(f'DROP TEMPORARY TABLE IF EXISTS {scratch_table_name};')
-
-        if next_key is None:
-            return None
-        return (next_key['billing_project'], next_key['user'], next_key['resource_id'])
-
-    next_key = await compact(None)
-    while next_key is not None:
-        await compact(next_key)
-
-
-async def compact_agg_billing_project_users_by_date_table(app):
-    db: Database = app['db']
-
-    async def compact(key: Optional[Tuple[str, str, str, int]]) -> Optional[Tuple[str, str, str, int]]:
-        if key:
-            billing_date, billing_project, user, resource_id = key
-            where_condition = (
-                'AND ((billing_date > %s) OR'
-                '(billing_date = %s AND billing_project > %s) OR'
-                '(billing_date = %s AND billing_project = %s AND `user` > %s) OR'
-                '(billing_date = %s AND billing_project = %s AND `user` = %s AND resource_id > %s))'
-            )
-            args = [
-                billing_date,
-                billing_date,
-                billing_project,
-                billing_date,
-                billing_project,
-                user,
-                billing_date,
-                billing_project,
-                user,
-                resource_id,
-            ]
-        else:
-            where_condition = ''
-            args = []
-
-        token = secret_alnum_string(5)
-        scratch_table_name = f'`scratch_{token}`'
-
-        try:
-            next_key = await db.execute_and_fetchone(
-                f'''
-CREATE TEMPORARY TABLE {scratch_table_name} ENGINE=MEMORY
-AS (SELECT * FROM aggregated_billing_project_user_resources_by_date_v2
-    WHERE token != 0 {where_condition}
-    ORDER BY billing_date, billing_project, `user`, resource_id
-    LIMIT 1000
-    LOCK IN SHARE MODE
-);
-
-DELETE aggregated_billing_project_user_resources_by_date_v2 FROM aggregated_billing_project_user_resources_by_date_v2
-INNER JOIN {scratch_table_name} ON aggregated_billing_project_user_resources_by_date_v2.billing_date = {scratch_table_name}.billing_date AND
-                      aggregated_billing_project_user_resources_by_date_v2.billing_project = {scratch_table_name}.billing_project AND
-                      aggregated_billing_project_user_resources_by_date_v2.`user` = {scratch_table_name}.`user` AND
-                      aggregated_billing_project_user_resources_by_date_v2.resource_id = {scratch_table_name}.resource_id;
-
-INSERT INTO aggregated_billing_project_user_resources_by_date_v2 (billing_date, billing_project, `user`, resource_id, token, `usage`)
-SELECT billing_date, billing_project, `user`, resource_id, 0, `usage`
-FROM {scratch_table_name}
-ON DUPLICATE KEY UPDATE `usage` = aggregated_billing_project_user_resources_by_date_v2.`usage` + {scratch_table_name}.`usage`;
-
-SELECT billing_date, billing_project, `user`, resource_id
-FROM {scratch_table_name}
-ORDER BY billing_date DESC, billing_project DESC, `user` DESC, resource_id DESC
-LIMIT 1;
-''',
-                args,
-            )
-        finally:
-            await db.just_execute(f'DROP TEMPORARY TABLE IF EXISTS {scratch_table_name};')
-
-        if next_key is None:
-            return None
-        return (next_key['billing_date'], next_key['billing_project'], next_key['user'], next_key['resource_id'])
-
-    next_key = await compact(None)
-    while next_key is not None:
-        await compact(next_key)
-
-
 USER_CORES = pc.Gauge('batch_user_cores', 'Batch user cores (i.e. total in-use cores)', ['state', 'user', 'inst_coll'])
 USER_JOBS = pc.Gauge('batch_user_jobs', 'Batch user jobs', ['state', 'user', 'inst_coll'])
 ACTIVE_USER_INST_COLL_PAIRS: Set[Tuple[str, str]] = set()
@@ -1555,8 +1430,8 @@ SELECT instance_id, internal_token, frozen FROM globals;
     task_manager.ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
     task_manager.ensure_future(periodically_call(15, monitor_system, app))
     task_manager.ensure_future(periodically_call(5, refresh_globals_from_db, app, db))
-    task_manager.ensure_future(periodically_call(5, compact_agg_billing_project_users_table, app))
-    task_manager.ensure_future(periodically_call(5, compact_agg_billing_project_users_by_date_table, app))
+    task_manager.ensure_future(periodically_call(300, compact_agg_billing_project_users_table, db))
+    task_manager.ensure_future(periodically_call(300, compact_agg_billing_project_users_by_date_table, db))
 
 
 async def on_cleanup(app):

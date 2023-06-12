@@ -20,6 +20,7 @@ from ..file_store import FileStore
 from ..globals import STATUS_FORMAT_VERSION, complete_states, tasks
 from ..instance_config import QuantifiedResource
 from ..spec_writer import SpecWriter
+from ..utils import compact_agg_billing_project_users_table, compact_agg_billing_project_users_by_date_table
 from .instance import Instance
 from .k8s_cache import K8sCache
 
@@ -57,6 +58,10 @@ GROUP BY batches.id;
 
     if not record:
         return
+
+    await asyncio.gather(compact_agg_billing_project_users_table(db),
+                         compact_agg_billing_project_users_by_date_table(db))
+
     callback = record['callback']
 
     log.info(f'making callback for batch {batch_id}: {callback}')

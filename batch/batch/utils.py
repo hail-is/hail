@@ -3,11 +3,11 @@ import logging
 import secrets
 from collections import deque
 from functools import wraps
-from typing import Deque, Set, Tuple
+from typing import Deque, Optional, Set, Tuple
 
 from aiohttp import web
 
-from gear import maybe_parse_bearer_header
+from gear import Database, maybe_parse_bearer_header
 from hailtop.utils import secret_alnum_string
 
 log = logging.getLogger('utils')
@@ -199,3 +199,130 @@ def regions_bits_rep_to_regions(regions_bits_rep, all_regions_mapping):
         if selected_region:
             result.append(region)
     return result
+
+
+async def compact_agg_billing_project_users_table(db: Database):
+    async def compact(key: Optional[Tuple[str, str, int]]) -> Optional[Tuple[str, str, int]]:
+        if key:
+            billing_project, user, resource_id = key
+            where_condition = (
+                'AND ((billing_project > %s) OR'
+                '(billing_project = %s AND `user` > %s) OR'
+                '(billing_project = %s AND `user` = %s AND resource_id > %s))'
+            )
+            args = [billing_project, billing_project, user, billing_project, user, resource_id]
+        else:
+            where_condition = ''
+            args = []
+
+        token = secret_alnum_string(5)
+        scratch_table_name = f'`scratch_{token}`'
+
+        try:
+            next_key = await db.execute_and_fetchone(
+                f'''
+CREATE TEMPORARY TABLE {scratch_table_name} ENGINE=MEMORY
+AS (SELECT * FROM aggregated_billing_project_user_resources_v2
+    WHERE token != 0 {where_condition}
+    ORDER BY billing_project, `user`, resource_id
+    LIMIT 1000
+    LOCK IN SHARE MODE
+);
+
+DELETE aggregated_billing_project_user_resources_v2 FROM aggregated_billing_project_user_resources_v2
+INNER JOIN {scratch_table_name} ON aggregated_billing_project_user_resources_v2.billing_project = {scratch_table_name}.billing_project AND
+                      aggregated_billing_project_user_resources_v2.`user` = {scratch_table_name}.`user` AND
+                      aggregated_billing_project_user_resources_v2.resource_id = {scratch_table_name}.resource_id;
+
+INSERT INTO aggregated_billing_project_user_resources_v2 (billing_project, `user`, resource_id, token, `usage`)
+SELECT billing_project, `user`, resource_id, 0, `usage`
+FROM {scratch_table_name}
+ON DUPLICATE KEY UPDATE `usage` = aggregated_billing_project_user_resources_v2.`usage` + {scratch_table_name}.`usage`;
+
+SELECT billing_project, `user`, resource_id
+FROM {scratch_table_name}
+ORDER BY billing_project DESC, `user` DESC, resource_id DESC
+LIMIT 1;
+''',
+                args,
+            )
+        finally:
+            await db.just_execute(f'DROP TEMPORARY TABLE IF EXISTS {scratch_table_name};')
+
+        if next_key is None:
+            return None
+        return (next_key['billing_project'], next_key['user'], next_key['resource_id'])
+
+    next_key = await compact(None)
+    while next_key is not None:
+        await compact(next_key)
+
+
+async def compact_agg_billing_project_users_by_date_table(db: Database):
+    async def compact(key: Optional[Tuple[str, str, str, int]]) -> Optional[Tuple[str, str, str, int]]:
+        if key:
+            billing_date, billing_project, user, resource_id = key
+            where_condition = (
+                'AND ((billing_date > %s) OR'
+                '(billing_date = %s AND billing_project > %s) OR'
+                '(billing_date = %s AND billing_project = %s AND `user` > %s) OR'
+                '(billing_date = %s AND billing_project = %s AND `user` = %s AND resource_id > %s))'
+            )
+            args = [
+                billing_date,
+                billing_date,
+                billing_project,
+                billing_date,
+                billing_project,
+                user,
+                billing_date,
+                billing_project,
+                user,
+                resource_id,
+            ]
+        else:
+            where_condition = ''
+            args = []
+
+        token = secret_alnum_string(5)
+        scratch_table_name = f'`scratch_{token}`'
+
+        try:
+            next_key = await db.execute_and_fetchone(
+                f'''
+CREATE TEMPORARY TABLE {scratch_table_name} ENGINE=MEMORY
+AS (SELECT * FROM aggregated_billing_project_user_resources_by_date_v2
+    WHERE token != 0 {where_condition}
+    ORDER BY billing_date, billing_project, `user`, resource_id
+    LIMIT 1000
+    LOCK IN SHARE MODE
+);
+
+DELETE aggregated_billing_project_user_resources_by_date_v2 FROM aggregated_billing_project_user_resources_by_date_v2
+INNER JOIN {scratch_table_name} ON aggregated_billing_project_user_resources_by_date_v2.billing_date = {scratch_table_name}.billing_date AND
+                      aggregated_billing_project_user_resources_by_date_v2.billing_project = {scratch_table_name}.billing_project AND
+                      aggregated_billing_project_user_resources_by_date_v2.`user` = {scratch_table_name}.`user` AND
+                      aggregated_billing_project_user_resources_by_date_v2.resource_id = {scratch_table_name}.resource_id;
+
+INSERT INTO aggregated_billing_project_user_resources_by_date_v2 (billing_date, billing_project, `user`, resource_id, token, `usage`)
+SELECT billing_date, billing_project, `user`, resource_id, 0, `usage`
+FROM {scratch_table_name}
+ON DUPLICATE KEY UPDATE `usage` = aggregated_billing_project_user_resources_by_date_v2.`usage` + {scratch_table_name}.`usage`;
+
+SELECT billing_date, billing_project, `user`, resource_id
+FROM {scratch_table_name}
+ORDER BY billing_date DESC, billing_project DESC, `user` DESC, resource_id DESC
+LIMIT 1;
+''',
+                args,
+            )
+        finally:
+            await db.just_execute(f'DROP TEMPORARY TABLE IF EXISTS {scratch_table_name};')
+
+        if next_key is None:
+            return None
+        return (next_key['billing_date'], next_key['billing_project'], next_key['user'], next_key['resource_id'])
+
+    next_key = await compact(None)
+    while next_key is not None:
+        await compact(next_key)
