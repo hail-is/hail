@@ -13,6 +13,7 @@ terraform {
       version = "0.6.3"
     }
   }
+  backend "gcs" {}
 }
 
 variable "k8s_preemptible_node_pool_name" {
@@ -655,6 +656,10 @@ resource "google_storage_bucket" "hail_test_requester_pays_bucket" {
   uniform_bucket_level_access = true
   requester_pays = true
 
+  labels = {
+    "name" = "hail-test-requester-pays-fds32"
+  }
+
   timeouts {}
 }
 
@@ -748,4 +753,6 @@ module "ci" {
   ci_email = module.ci_gsa_secret.email
   github_context = local.ci_config.data["github_context"]
   test_oauth2_callback_urls = local.ci_config.data["test_oauth2_callback_urls"]
+
+  github_organization = var.github_organization
 }

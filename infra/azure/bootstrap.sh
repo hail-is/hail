@@ -35,6 +35,7 @@ create_terraform_remote_storage() {
         --account-name $STORAGE_ACCOUNT_NAME \
         --account-key $STORAGE_ACCOUNT_KEY
     cat >remote_storage.tfvars <<EOF
+resource_group_name  = "$RESOURCE_GROUP"
 storage_account_name = "$STORAGE_ACCOUNT_NAME"
 container_name       = "$STORAGE_CONTAINER_NAME"
 key                  = "haildev.tfstate"

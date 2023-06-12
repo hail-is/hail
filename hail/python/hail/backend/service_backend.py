@@ -1,11 +1,11 @@
 from typing import Dict, Optional, Callable, Awaitable, Mapping, Any, List, Union, Tuple, TypeVar, Set
-import asyncio
 import abc
 import math
 import struct
 from hail.expr.expressions.base_expression import Expression
 import orjson
 import logging
+import warnings
 
 from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename, revision
 from hail.utils import FatalError
@@ -25,7 +25,7 @@ from hailtop.batch_client import client as hb
 from hailtop.batch_client import aioclient as aiohb
 from hailtop.aiotools.fs import AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
-from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
+from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
 import hailtop.aiotools.fs as afs
 from hailtop.fs.fs import FS
 from hailtop.fs.router_fs import RouterFS
@@ -212,7 +212,9 @@ class ServiceBackend(Backend):
                 "project or run 'hailctl config set batch/billing_project "
                 "MY_BILLING_PROJECT'"
             )
-
+        gcs_requester_pays_configuration = get_gcs_requester_pays_configuration(
+            gcs_requester_pays_configuration=gcs_requester_pays_configuration,
+        )
         async_fs = RouterAsyncFS(gcs_kwargs={'gcs_requester_pays_configuration': gcs_requester_pays_configuration})
         sync_fs = RouterFS(async_fs)
         if batch_client is None:
@@ -248,6 +250,20 @@ class ServiceBackend(Backend):
             else:
                 disable_progress_bar = len(disable_progress_bar_str) > 0
 
+        flags = flags or {}
+        if 'gcs_requester_pays_project' in flags or 'gcs_requester_pays_buckets' in flags:
+            raise ValueError(
+                'Specify neither gcs_requester_pays_project nor gcs_requester_'
+                'pays_buckets in the flags argument to ServiceBackend.create'
+            )
+        if gcs_requester_pays_configuration is not None:
+            if isinstance(gcs_requester_pays_configuration, str):
+                flags['gcs_requester_pays_project'] = gcs_requester_pays_configuration
+            else:
+                assert isinstance(gcs_requester_pays_configuration, tuple)
+                flags['gcs_requester_pays_project'] = gcs_requester_pays_configuration[0]
+                flags['gcs_requester_pays_buckets'] = ','.join(gcs_requester_pays_configuration[1])
+
         sb = ServiceBackend(
             billing_project=billing_project,
             sync_fs=sync_fs,
@@ -256,7 +272,6 @@ class ServiceBackend(Backend):
             disable_progress_bar=disable_progress_bar,
             batch_attributes=batch_attributes,
             remote_tmpdir=remote_tmpdir,
-            flags=flags or {},
             jar_spec=jar_spec,
             driver_cores=driver_cores,
             driver_memory=driver_memory,
@@ -265,7 +280,7 @@ class ServiceBackend(Backend):
             name_prefix=name_prefix or '',
             regions=regions,
         )
-        sb._initialize_flags()
+        sb._initialize_flags(flags)
         return sb
 
     def __init__(self,
@@ -277,7 +292,6 @@ class ServiceBackend(Backend):
                  disable_progress_bar: bool,
                  batch_attributes: Dict[str, str],
                  remote_tmpdir: str,
-                 flags: Dict[str, str],
                  jar_spec: JarSpec,
                  driver_cores: Optional[Union[int, str]],
                  driver_memory: Optional[str],
@@ -295,7 +309,7 @@ class ServiceBackend(Backend):
         self.disable_progress_bar = disable_progress_bar
         self.batch_attributes = batch_attributes
         self.remote_tmpdir = remote_tmpdir
-        self.flags = flags
+        self.flags: Dict[str, str] = {}
         self.jar_spec = jar_spec
         self.functions: List[IRFunction] = []
         self._registered_ir_function_names: Set[str] = set()
@@ -468,48 +482,10 @@ class ServiceBackend(Backend):
                     raise
 
             with timings.step("read output"):
-                result_bytes = await self._resiliently_read_output(ir, iodir + '/out')
+                result_bytes = await retry_transient_errors(self._read_output, ir, iodir + '/out', iodir + '/in')
                 return token, result_bytes, timings
 
-    async def _resiliently_read_output(self, ir: Optional[BaseIR], output_uri: str) -> bytes:
-        # Azure appears to return EOF for valid reads. We suspect this is due to load shedding.
-        #
-        # /usr/local/lib/python3.8/dist-packages/hail/backend/service_backend.py:528: in _async_execute
-        #     _, resp, timings = await self._rpc(
-        # /usr/local/lib/python3.8/dist-packages/hail/backend/service_backend.py:469: in _rpc
-        #     result_bytes = await retry_transient_errors(self._read_output, ir, iodir + '/out')
-        # /usr/local/lib/python3.8/dist-packages/hailtop/utils/utils.py:780: in retry_transient_errors
-        #     return await retry_transient_errors_with_debug_string('', 0, f, *args, **kwargs)
-        # /usr/local/lib/python3.8/dist-packages/hailtop/utils/utils.py:793: in retry_transient_errors_with_debug_string
-        #     return await f(*args, **kwargs)
-        # /usr/local/lib/python3.8/dist-packages/hail/backend/service_backend.py:484: in _read_output
-        #     success = await read_bool(outfile)
-        # /usr/local/lib/python3.8/dist-packages/hail/backend/service_backend.py:87: in read_bool
-        #     return (await read_byte(strm)) != 0
-        # /usr/local/lib/python3.8/dist-packages/hail/backend/service_backend.py:83: in read_byte
-        #     return (await strm.readexactly(1))[0]
-        # _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-        #
-        # self = <hailtop.aiocloud.aioazure.fs.AzureReadableStream object at 0x7fe2083a5b80>
-        # n = 1
-        #
-        #     async def readexactly(self, n: int) -> bytes:
-        #         assert not self._closed and n >= 0
-        #         data = await self.read(n)
-        #         if len(data) != n:
-        # >           raise UnexpectedEOFError()
-        # E           hailtop.aiotools.fs.exceptions.UnexpectedEOFError
-        eofs_encountered = 0
-        while True:
-            try:
-                return await retry_transient_errors(self._read_output, ir, output_uri)
-            except UnexpectedEOFError as exc:
-                eofs_encountered += 1
-                if eofs_encountered == 2:
-                    raise exc
-                await asyncio.sleep(1)
-
-    async def _read_output(self, ir: Optional[BaseIR], output_uri: str) -> bytes:
+    async def _read_output(self, ir: Optional[BaseIR], output_uri: str, input_uri: str) -> bytes:
         assert self._batch
 
         try:
@@ -517,22 +493,31 @@ class ServiceBackend(Backend):
         except FileNotFoundError as exc:
             raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
                 'service_backend_debug_info': self.debug_info(),
-                'batch_debug_info': await self._batch.debug_info()
+                'batch_debug_info': await self._batch.debug_info(),
+                'input_uri': await self._async_fs.read(input_uri),
             })) from exc
 
-        async with driver_output as outfile:
-            success = await read_bool(outfile)
-            if success:
-                return await read_bytes(outfile)
+        try:
+            async with driver_output as outfile:
+                success = await read_bool(outfile)
+                if success:
+                    return await read_bytes(outfile)
 
-            short_message = await read_str(outfile)
-            expanded_message = await read_str(outfile)
-            error_id = await read_int(outfile)
+                short_message = await read_str(outfile)
+                expanded_message = await read_str(outfile)
+                error_id = await read_int(outfile)
 
-            reconstructed_error = fatal_error_from_java_error_triplet(short_message, expanded_message, error_id)
-            if ir is None:
-                raise reconstructed_error
-            raise reconstructed_error.maybe_user_error(ir)
+                reconstructed_error = fatal_error_from_java_error_triplet(short_message, expanded_message, error_id)
+                if ir is None:
+                    raise reconstructed_error
+                raise reconstructed_error.maybe_user_error(ir)
+        except UnexpectedEOFError as exc:
+            raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
+                'service_backend_debug_info': self.debug_info(),
+                'batch_debug_info': await self._batch.debug_info(),
+                'in': await self._async_fs.read(input_uri),
+                'out': await self._async_fs.read(output_uri),
+            })) from exc
 
     def _cancel_on_ctrl_c(self, coro: Awaitable[T]) -> T:
         try:
@@ -752,12 +737,24 @@ class ServiceBackend(Backend):
         unknown_flags = set(flags) - self._valid_flags()
         if unknown_flags:
             raise ValueError(f'unknown flags: {", ".join(unknown_flags)}')
+        if 'gcs_requester_pays_project' in flags or 'gcs_requester_pays_buckets' in flags:
+            warnings.warn(
+                'Modifying the requester pays project or buckets at runtime '
+                'using flags is deprecated. Expect this behavior to become '
+                'unsupported soon.'
+            )
         self.flags.update(flags)
 
     def get_flags(self, *flags: str) -> Mapping[str, str]:
         unknown_flags = set(flags) - self._valid_flags()
         if unknown_flags:
             raise ValueError(f'unknown flags: {", ".join(unknown_flags)}')
+        if 'gcs_requester_pays_project' in flags or 'gcs_requester_pays_buckets' in flags:
+            warnings.warn(
+                'Retrieving the requester pays project or buckets at runtime '
+                'using flags is deprecated. Expect this behavior to become '
+                'unsupported soon.'
+            )
         return {flag: self.flags[flag] for flag in flags if flag in self.flags}
 
     @property

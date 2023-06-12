@@ -19,7 +19,7 @@ Contents
     Installation <getting_started>
     Hail on the Cloud <hail_on_the_cloud>
     Tutorials <tutorials-landing>
-    Reference (Python API) <api>
+    Reference (Python API) <root_api>
     Overview <overview/index>
     How-To Guides <guides>
     Cheatsheets <cheatsheets>

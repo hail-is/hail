@@ -579,7 +579,13 @@ class Image:
 
         await pull()
 
-        image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
+        try:
+            image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
+        except:
+            # inspect non-deterministically fails sometimes
+            await asyncio.sleep(1)
+            await pull()
+            image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
         image_configs[self.image_ref_str] = json.loads(image_config)[0]
 
     async def _ensure_image_is_pulled(

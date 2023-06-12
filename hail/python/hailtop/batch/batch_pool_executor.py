@@ -1,6 +1,7 @@
 from typing import Optional, Callable, Type, Union, List, Any, Iterable
 from types import TracebackType
 from io import BytesIO
+import warnings
 import asyncio
 import concurrent
 import dill
@@ -111,9 +112,7 @@ class BatchPoolExecutor:
         storage bucket when this executor fully shuts down. If Python crashes
         before the executor is shutdown, the files will not be deleted.
     project:
-        If specified, the project to use when authenticating with Google
-        Storage. Google Storage is used to transfer serialized values between
-        this computer and the cloud machines that execute jobs.
+        DEPRECATED. Please specify gcs_requester_pays_configuration in :class:`.ServiceBackend`.
     """
 
     def __init__(self, *,
@@ -132,7 +131,15 @@ class BatchPoolExecutor:
         self.directory = self.backend.remote_tmpdir + f'batch-pool-executor/{self.name}/'
         self.inputs = self.directory + 'inputs/'
         self.outputs = self.directory + 'outputs/'
-        self.fs = RouterAsyncFS(gcs_kwargs={'gcs_requester_pays_configuration': project})
+        self.__fs: Optional[RouterAsyncFS]
+        if project is not None:
+            warnings.warn(
+                'The project parameter of BatchPoolExecutor is deprecated. Please '
+                'use the gcs_requester_pays_project parameter of ServiceBackend.'
+            )
+            self.__fs = RouterAsyncFS(gcs_kwargs={'gcs_requester_pays_configuration': project})
+        else:
+            self.__fs = None
         self.futures: List[BatchPoolFuture] = []
         self.finished_future_count = 0
         self._shutdown = False
@@ -147,6 +154,13 @@ class BatchPoolExecutor:
         self.cpus_per_job = cpus_per_job
         self.cleanup_bucket = cleanup_bucket
         self.wait_on_exit = wait_on_exit
+
+    @property
+    def _fs(self) -> RouterAsyncFS:
+        """DEPRECATED. Do not use."""
+        if self.__fs is None:
+            return self.backend._fs
+        return self.__fs
 
     def __enter__(self):
         return self
@@ -363,7 +377,7 @@ class BatchPoolExecutor:
         dill.dump(functools.partial(unapplied, *args, **kwargs), pipe, recurse=True)
         pipe.seek(0)
         pickledfun_remote = self.inputs + f'{name}/pickledfun'
-        await self.fs.write(pickledfun_remote, pipe.getvalue())
+        await self._fs.write(pickledfun_remote, pipe.getvalue())
         pickledfun_local = batch.read_input(pickledfun_remote)
 
         thread_limit = "1"
@@ -445,8 +459,9 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
 
     def _cleanup(self):
         if self.cleanup_bucket:
-            async_to_blocking(self.fs.rmtree(None, self.directory))
-        async_to_blocking(self.fs.close())
+            async_to_blocking(self._fs.rmtree(None, self.directory))
+        if self.__fs is not None:  # only close the fs if we created it
+            async_to_blocking(self.__fs.close())
         self.backend.close()
 
 
@@ -550,7 +565,7 @@ class BatchPoolFuture:
                     f"submitted job failed:\n{main_container_status['error']}")
             try:
                 value, traceback = dill.loads(
-                    await self.executor.fs.read(self.output_file))
+                    await self.executor._fs.read(self.output_file))
             except FileNotFoundError as exc:
                 job_log = await self.job.log()
                 raise ValueError(

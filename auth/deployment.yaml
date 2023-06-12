@@ -126,11 +126,7 @@ spec:
   selector:
     matchLabels:
       app: auth
-{% if deploy %}
-  replicas: 3
-{% else %}
-  replicas: 1
-{% endif %}
+  replicas: 5
   template:
     metadata:
       labels:
@@ -253,6 +249,7 @@ spec:
          secret:
            optional: false
            secretName: ssl-config-auth
+{% if deploy %}
 ---
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler
@@ -263,13 +260,8 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: auth
-{% if deploy %}
   minReplicas: 3
   maxReplicas: 10
-{% else %}
-  minReplicas: 1
-  maxReplicas: 3
-{% endif %}
   metrics:
    - type: Resource
      resource:
@@ -281,14 +273,11 @@ kind: PodDisruptionBudget
 metadata:
   name: auth
 spec:
-{% if deploy %}
   minAvailable: 2
-{% else %}
-  minAvailable: 0
-{% endif %}
   selector:
     matchLabels:
       app: auth
+{% endif %}
 ---
 apiVersion: v1
 kind: Service

@@ -619,6 +619,17 @@ class Tests(unittest.TestCase):
         mt = mt.key_rows_by(x = mt.row_idx // 2)
         assert mt.union_cols(mt).count_rows() == 5
 
+    def test_union_cols_no_error_on_duplicate_names(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        mt = mt.annotate_rows(both = 'hi')
+        mt2 = mt.annotate_rows(both = 3, right_only = 'abc')
+        mt = mt.annotate_rows(left_only = '123')
+        mt = mt.union_cols(mt2, drop_right_row_fields=False)
+        assert 'both' in mt.row_value
+        assert 'left_only' in mt.row_value
+        assert 'right_only' in mt.row_value
+        assert len(mt.row_value) == 4
+
     def test_union_cols_outer(self):
         r, c = 10, 10
         mt = hl.utils.range_matrix_table(2*r, c)

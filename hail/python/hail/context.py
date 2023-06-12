@@ -18,7 +18,7 @@ from hail.utils.java import Env, warning, choose_backend
 from hail.backend import Backend
 from hailtop.utils import secret_alnum_string
 from hailtop.fs.fs import FS
-from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
+from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
 from .builtin_references import BUILTIN_REFERENCES
 
 
@@ -239,6 +239,9 @@ def init(sc=None,
     ...     gcs_requester_pays_configuration=('my-project', ['bucket_of_fish', 'bucket_of_eels'])
     ... )  # doctest: +SKIP
 
+    You may also use `hailctl config set gcs_requester_pays/project` and `hailctl config set
+    gcs_requester_pays/buckets` to achieve the same effect.
+
     See Also
     --------
     :func:`.stop`
@@ -308,6 +311,7 @@ def init(sc=None,
         List of regions to run jobs in when using the Batch backend. Use :data:`.ANY_REGION` to specify any region is allowed
         or use `None` to use the underlying default regions from the hailctl environment configuration. For example, use
         `hailctl config set batch/regions region1,region2` to set the default regions to use.
+
     """
     if Env._hc:
         if idempotent:
@@ -414,7 +418,7 @@ def init_spark(sc=None,
                skip_logging_configuration=False,
                local_tmpdir=None,
                _optimizer_iterations=None,
-               gcs_requester_pays_configuration: Optional[Union[str, Tuple[str, List[str]]]] = None
+               gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None
                ):
     from hail.backend.spark_backend import SparkBackend, connect_logger
 
@@ -424,7 +428,11 @@ def init_spark(sc=None,
     optimizer_iterations = get_env_or_default(_optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
 
     app_name = app_name or 'Hail'
-    gcs_requester_pays_project, gcs_requester_pays_buckets = convert_gcs_requester_pays_configuration_to_hadoop_conf_style(gcs_requester_pays_configuration)
+    gcs_requester_pays_project, gcs_requester_pays_buckets = convert_gcs_requester_pays_configuration_to_hadoop_conf_style(
+        get_gcs_requester_pays_configuration(
+            gcs_requester_pays_configuration=gcs_requester_pays_configuration,
+        )
+    )
     backend = SparkBackend(
         idempotent, sc, spark_conf, app_name, master, local, log,
         quiet, append, min_block_size, branching_factor, tmpdir, local_tmpdir,
@@ -482,7 +490,7 @@ async def init_batch(
         worker_memory: Optional[str] = None,
         name_prefix: Optional[str] = None,
         token: Optional[str] = None,
-        gcs_requester_pays_configuration: Optional[Union[str, Tuple[str, List[str]]]] = None,
+        gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
         regions: Optional[List[str]] = None,
 ):
     from hail.backend.service_backend import ServiceBackend
@@ -499,18 +507,6 @@ async def init_batch(
                                           token=token,
                                           regions=regions,
                                           gcs_requester_pays_configuration=gcs_requester_pays_configuration)
-
-    if gcs_requester_pays_configuration:
-        if isinstance(gcs_requester_pays_configuration, str):
-            backend.set_flags(
-                gcs_requester_pays_project=gcs_requester_pays_configuration
-            )
-        else:
-            assert isinstance(gcs_requester_pays_configuration, tuple)
-            backend.set_flags(
-                gcs_requester_pays_project=gcs_requester_pays_configuration[0],
-                gcs_requester_pays_buckets=",".join(gcs_requester_pays_configuration[1])
-            )
 
     log = _get_log(log)
     if tmpdir is None:
@@ -546,7 +542,7 @@ def init_local(
         skip_logging_configuration=False,
         jvm_heap_size=None,
         _optimizer_iterations=None,
-        gcs_requester_pays_configuration: Optional[Union[str, Tuple[str, List[str]]]] = None
+        gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None
 ):
     from hail.backend.local_backend import LocalBackend, connect_logger
 
@@ -555,7 +551,11 @@ def init_local(
     optimizer_iterations = get_env_or_default(_optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
 
     jvm_heap_size = get_env_or_default(jvm_heap_size, 'HAIL_LOCAL_BACKEND_HEAP_SIZE', None)
-    gcs_requester_pays_project, gcs_requester_pays_buckets = convert_gcs_requester_pays_configuration_to_hadoop_conf_style(gcs_requester_pays_configuration)
+    gcs_requester_pays_project, gcs_requester_pays_buckets = convert_gcs_requester_pays_configuration_to_hadoop_conf_style(
+        get_gcs_requester_pays_configuration(
+            gcs_requester_pays_configuration=gcs_requester_pays_configuration,
+        )
+    )
     backend = LocalBackend(
         tmpdir, log, quiet, append, branching_factor,
         skip_logging_configuration, optimizer_iterations,

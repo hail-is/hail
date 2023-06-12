@@ -185,7 +185,8 @@ class GeomPoint(Geom):
             traces.append([fig_so_far, df, facet_row, facet_col, values, trace_categories])
 
         non_empty_legend_groups = [
-            legend_group for legend_group in legends.values() if len(legend_group) > 1
+            legend_group for legend_group in legends.values()
+            if len(legend_group) > 1 or (len(legend_group) == 1 and list(legend_group.keys())[0] is not None)
         ]
         dummy_legend = is_faceted or len(non_empty_legend_groups) >= 2
 

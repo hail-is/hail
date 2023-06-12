@@ -57,11 +57,11 @@ azure-storage-blob==12.16.0
     #   -r hail/hail/python/hailtop/requirements.txt
 bokeh==3.1.1
     # via -r hail/hail/python/requirements.txt
-boto3==1.26.150
+boto3==1.26.151
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt
-botocore==1.29.150
+botocore==1.29.151
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt
@@ -213,7 +213,7 @@ oauthlib==3.2.2
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   requests-oauthlib
-orjson==3.9.0
+orjson==3.9.1
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt
