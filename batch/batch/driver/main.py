@@ -1555,8 +1555,8 @@ SELECT instance_id, internal_token, frozen FROM globals;
     task_manager.ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
     task_manager.ensure_future(periodically_call(15, monitor_system, app))
     task_manager.ensure_future(periodically_call(5, refresh_globals_from_db, app, db))
-    task_manager.ensure_future(periodically_call(60, compact_agg_billing_project_users_table, app))
-    task_manager.ensure_future(periodically_call(60, compact_agg_billing_project_users_by_date_table, app))
+    task_manager.ensure_future(periodically_call(5, compact_agg_billing_project_users_table, app))
+    task_manager.ensure_future(periodically_call(5, compact_agg_billing_project_users_by_date_table, app))
 
 
 async def on_cleanup(app):
