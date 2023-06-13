@@ -50,6 +50,7 @@ charset-normalizer==3.1.0
     #   requests
 click==8.1.3
     # via
+    #   -c hail/hail/python/dev/../pinned-requirements.txt
     #   -r hail/hail/python/dev/requirements.txt
     #   black
     #   curlylint
@@ -115,7 +116,7 @@ importlib-resources==5.12.0
     #   matplotlib
 iniconfig==2.0.0
     # via pytest
-ipykernel==6.23.1
+ipykernel==6.23.2
     # via
     #   ipywidgets
     #   jupyter

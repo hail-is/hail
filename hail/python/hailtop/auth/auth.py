@@ -117,6 +117,25 @@ async def async_copy_paste_login(copy_paste_token: str, namespace: Optional[str]
     return namespace, username
 
 
+async def async_logout():
+    deploy_config = get_deploy_config()
+
+    auth_ns = deploy_config.service_ns('auth')
+    tokens = get_tokens()
+    if auth_ns not in tokens:
+        print('Not logged in.')
+        return
+
+    headers = await hail_credentials().auth_headers()
+    async with httpx.client_session(headers=headers) as session:
+        async with session.post(deploy_config.url('auth', '/api/v1alpha/logout')):
+            pass
+    auth_ns = deploy_config.service_ns('auth')
+
+    del tokens[auth_ns]
+    tokens.write()
+
+
 def get_user(username: str, namespace: Optional[str] = None) -> dict:
     return async_to_blocking(async_get_user(username, namespace))
 

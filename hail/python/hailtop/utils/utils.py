@@ -46,14 +46,13 @@ T = TypeVar('T')  # pylint: disable=invalid-name
 U = TypeVar('U')  # pylint: disable=invalid-name
 
 
-def unpack_comma_delimited_inputs(inputs):
+def unpack_comma_delimited_inputs(inputs: List[str]) -> List[str]:
     return [s.strip()
-            for steps in inputs
-            for step in steps
-            for s in step.split(',') if s.strip()]
+            for comma_separated_steps in inputs
+            for s in comma_separated_steps.split(',') if s.strip()]
 
 
-def unpack_key_value_inputs(inputs):
+def unpack_key_value_inputs(inputs: List[str]) -> Dict[str, str]:
     key_values = [i.split('=') for i in unpack_comma_delimited_inputs(inputs)]
     return {kv[0]: kv[1] for kv in key_values}
 
