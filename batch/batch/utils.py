@@ -171,6 +171,8 @@ LATERAL (
             record['users'] = json.loads(record['users'])
         return record
 
+    log.info(f'sql {sql} args {args}')
+
     billing_projects = [record_to_dict(record) async for record in db.execute_and_fetchall(sql, tuple(args))]
 
     return billing_projects
