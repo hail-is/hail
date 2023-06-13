@@ -13,7 +13,7 @@ from hailtop.config import get_deploy_config, DeployConfig
 from hailtop.aiocloud.common import Session
 from hailtop.aiocloud.common.credentials import CloudCredentials
 from hailtop.auth import hail_credentials
-from hailtop.utils import bounded_gather
+from hailtop.utils import bounded_gather, sleep_and_backoff
 from hailtop.utils.rich_progress_bar import is_notebook, BatchProgressBar, BatchProgressBarTask
 from hailtop import httpx
 
@@ -422,10 +422,14 @@ class Batch:
             return await self.status()  # updates _last_known_status
         return self._last_known_status
 
-    async def _wait(self, description: str, progress: BatchProgressBar, disable_progress_bar: bool, starting_job: int):
+    async def _wait(self,
+                    description: str,
+                    progress: BatchProgressBar,
+                    disable_progress_bar: bool,
+                    starting_job: int,
+                    max_delay: Optional[int]):
         deploy_config = get_deploy_config()
         url = deploy_config.external_url('batch', f'/batches/{self.id}')
-        i = 0
         status = await self.status()
         if is_notebook():
             description += f'[link={url}]{self.id}[/link]'
@@ -434,16 +438,13 @@ class Batch:
         with progress.with_task(description,
                                 total=status['n_jobs'] - starting_job + 1,
                                 disable=disable_progress_bar) as progress_task:
+            delay = 0.1
             while True:
                 status = await self.status()
                 progress_task.update(None, total=status['n_jobs'] - starting_job + 1, completed=status['n_completed'] - starting_job + 1)
                 if status['complete']:
                     return status
-                j = random.randrange(math.floor(1.1 ** i))
-                await asyncio.sleep(0.100 * j)
-                # max 44.5s
-                if i < 64:
-                    i = i + 1
+                await sleep_and_backoff(delay, max_delay)
 
     # FIXME Error if this is called while within a job of the same Batch
     async def wait(self,
@@ -452,13 +453,14 @@ class Batch:
                    description: str = '',
                    progress: Optional[BatchProgressBar] = None,
                    starting_job: int = 1,
+                   max_delay: Optional[int] = None,
                    ):
         if description:
             description += ': '
         if progress is not None:
-            return await self._wait(description, progress, disable_progress_bar, starting_job)
+            return await self._wait(description, progress, disable_progress_bar, starting_job, max_delay)
         with BatchProgressBar(disable=disable_progress_bar) as progress2:
-            return await self._wait(description, progress2, disable_progress_bar, starting_job)
+            return await self._wait(description, progress2, disable_progress_bar, starting_job, max_delay)
 
     async def debug_info(self):
         batch_status = await self.status()
