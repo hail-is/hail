@@ -382,7 +382,7 @@ async def billing_update_1(request, instance):
             where_attempt_args.append([attempt['batch_id'], attempt['job_id'], attempt['attempt_id']])
 
         where_query = f'WHERE {" OR ".join(where_attempt_query)}'
-        where_args = [update_timestamp] + flatten(where_attempt_args)
+        where_args = [update_timestamp, *flatten(where_attempt_args)]
 
         await db.execute_update(
             f'''

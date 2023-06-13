@@ -180,14 +180,13 @@ def handle_deprecated_job_keys(i, job):
         del job['command']
         del job['image']
         del job['mount_docker_socket']
-    else:
-        if 'command' in job or 'image' in job or 'mount_docker_socket' in job:
-            raise ValidationError(
-                f"jobs[{i}].process is already defined, but "
-                f"deprecated keys 'command', 'image', "
-                f"'mount_docker_socket' are also present. "
-                f"Please remove deprecated keys."
-            )
+    elif 'command' in job or 'image' in job or 'mount_docker_socket' in job:
+        raise ValidationError(
+            f"jobs[{i}].process is already defined, but "
+            f"deprecated keys 'command', 'image', "
+            f"'mount_docker_socket' are also present. "
+            f"Please remove deprecated keys."
+        )
 
     if 'gcsfuse' in job:
         job['cloudfuse'] = job.pop('gcsfuse')
