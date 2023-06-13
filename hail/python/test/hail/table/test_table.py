@@ -914,6 +914,29 @@ class Tests(unittest.TestCase):
         with hl.hadoop_open(tmp_file, 'r') as f_in:
             assert f_in.read() == 'idx,foo\n0,3\n'
 
+    def test_export_parallel_manifest(self):
+        t = hl.utils.range_table(10, n_partitions=8).key_by()
+        values = t.collect()
+        fs = hl.current_backend().fs
+
+        tmp_file = new_temp_file()
+        t.export(tmp_file, parallel='separate_header')
+
+        with fs.open(f'{tmp_file}/shard-manifest.txt') as lines:
+            manifest_files = [os.path.join(tmp_file, line.strip()) for line in lines]
+        ht2 = hl.import_table(manifest_files,
+                              types={'idx': hl.tint32})
+        assert ht2.collect() == values
+
+        tmp_file2 = new_temp_file()
+        t.export(tmp_file2, parallel='header_per_shard')
+
+        with fs.open(f'{tmp_file2}/shard-manifest.txt') as lines:
+            manifest_files = [os.path.join(tmp_file2, line.strip()) for line in lines]
+        ht3 = hl.import_table(manifest_files,
+                              types={'idx': hl.tint32})
+        assert ht3.collect() == values
+
     def test_write_stage_locally(self):
         t = hl.utils.range_table(5)
         f = new_temp_file(extension='ht')

@@ -21,7 +21,3 @@ class CloudUserCredentials(abc.ABC):
     @abc.abstractmethod
     def mount_path(self):
         raise NotImplementedError
-
-    @abc.abstractmethod
-    def cloudfuse_credentials(self, fuse_config: dict) -> str:
-        raise NotImplementedError

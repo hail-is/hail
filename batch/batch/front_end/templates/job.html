@@ -121,6 +121,11 @@
 </script>
 {% endif %}
 
+{% if has_jvm_profile %}
+<h2>JVM Profile Report</h2>
+<a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/jvm_profile">Report</a>
+{% endif %}
+
 {% if error is not none %}
 <h2>Error</h2>
 <pre>{{ error }}</pre>

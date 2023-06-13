@@ -578,6 +578,7 @@ resource "google_storage_bucket" "batch_logs" {
   name = "hail-batch"
   location = var.batch_logs_bucket_location
   storage_class = var.batch_logs_bucket_storage_class
+  uniform_bucket_level_access = true
   labels = {
     "name" = "hail-batch"
   }
@@ -609,6 +610,7 @@ resource "google_storage_bucket" "hail_test_bucket" {
   location = var.hail_test_gcs_bucket_location
   force_destroy = false
   storage_class = var.hail_test_gcs_bucket_storage_class
+  uniform_bucket_level_access = true
   lifecycle_rule {
     action {
       type = "Delete"

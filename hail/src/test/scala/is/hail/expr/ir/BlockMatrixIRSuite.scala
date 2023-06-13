@@ -174,7 +174,7 @@ class BlockMatrixIRSuite extends HailSuite {
     val read = ReadValue(Str(path), spec, typ)
     assertNDEvals(read, expected)
     assertNDEvals(ReadValue(
-      WriteValue(read, Str(ctx.createTmpPath("read-blockmatrix-ir", "hv")) + UUID4(), spec),
+      WriteValue(read, Str(ctx.createTmpPath("read-blockmatrix-ir", "hv")) + UUID4(), ETypeFileValueWriter(spec)),
       spec, typ), expected)
   }
 

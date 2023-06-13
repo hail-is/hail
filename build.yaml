@@ -251,6 +251,8 @@ steps:
   - kind: createDatabase
     name: test_database_instance
     databaseName: test-instance
+    image:
+      valueFrom: ci_utils_image.image
     migrations: []
     namespace:
       valueFrom: default_ns.name
@@ -258,6 +260,7 @@ steps:
       - test
     dependsOn:
       - default_ns
+      - ci_utils_image
   - kind: runImage
     name: create_database_server_config
     image:
@@ -310,6 +313,8 @@ steps:
   - kind: createDatabase
     name: auth_database
     databaseName: auth
+    image:
+      valueFrom: ci_utils_image.image
     migrations:
       - name: initial
         script: /io/sql/initial.sql
@@ -341,6 +346,7 @@ steps:
       - default_ns
       - merge_code
       - delete_auth_tables
+      - ci_utils_image
   - kind: runImage
     name: create_deploy_config
     image:
@@ -1688,6 +1694,8 @@ steps:
   - kind: createDatabase
     name: monitoring_database
     databaseName: monitoring
+    image:
+      valueFrom: ci_utils_image.image
     migrations:
       - name: initial
         script: /io/sql/initial.sql
@@ -1705,6 +1713,7 @@ steps:
       - default_ns
       - merge_code
       - delete_monitoring_tables
+      - ci_utils_image
   - kind: deploy
     name: deploy_monitoring
     namespace:
@@ -1919,6 +1928,8 @@ steps:
   - kind: createDatabase
     name: ci_database
     databaseName: ci
+    image:
+      valueFrom: ci_utils_image.image
     migrations:
       - name: initial
         script: /io/sql/initial.sql
@@ -1947,9 +1958,12 @@ steps:
       - default_ns
       - merge_code
       - delete_ci_tables
+      - ci_utils_image
   - kind: createDatabase
     name: batch_database
     databaseName: batch
+    image:
+      valueFrom: ci_utils_image.image
     migrations:
       - name: initial
         script: /io/sql/initial.sql
@@ -2180,6 +2194,7 @@ steps:
       - default_ns
       - merge_code
       - delete_batch_tables
+      - ci_utils_image
   - kind: deploy
     name: deploy_batch
     namespace:
@@ -2317,6 +2332,7 @@ steps:
       valueFrom: hail_run_image.image
     resources:
       cpu: '1'
+      preemptible: False
     script: |
       set -ex
       tar xvf /io/wheel-container.tar
@@ -2986,6 +3002,8 @@ steps:
   - kind: createDatabase
     name: notebook_database
     databaseName: notebook
+    image:
+      valueFrom: ci_utils_image.image
     migrations:
       - name: initial
         script: /io/sql/initial.sql
@@ -3002,6 +3020,7 @@ steps:
     dependsOn:
       - default_ns
       - merge_code
+      - ci_utils_image
   - kind: deploy
     name: deploy_notebook
     namespace:

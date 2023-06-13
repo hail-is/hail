@@ -21,6 +21,8 @@ from gear import (
     AuthClient,
     Database,
     check_csrf_token,
+    json_request,
+    json_response,
     monitor_endpoints_middleware,
     setup_aiohttp_session,
 )
@@ -409,7 +411,7 @@ async def remove_namespace_from_db(db: Database, namespace: str):
 async def batch_callback_handler(request):
     app = request.app
     db: Database = app['db']
-    params = await request.json()
+    params = await json_request(request)
     log.info(f'batch callback {params}')
     attrs = params.get('attributes')
     if attrs:
@@ -460,7 +462,7 @@ async def deploy_status(request, userdata):  # pylint: disable=unused-argument
         }
         for wb in watched_branches
     ]
-    return web.json_response(wb_configs)
+    return json_response(wb_configs)
 
 
 @routes.post('/api/v1alpha/update')
@@ -481,7 +483,7 @@ async def post_update(request, userdata):  # pylint: disable=unused-argument
 async def dev_deploy_branch(request, userdata):
     app = request.app
     try:
-        params = await request.json()
+        params = await json_request(request)
     except asyncio.CancelledError:
         raise
     except Exception as e:
@@ -525,7 +527,7 @@ async def dev_deploy_branch(request, userdata):
     except Exception as e:  # pylint: disable=broad-except
         message = traceback.format_exc()
         raise web.HTTPBadRequest(text=f'starting the deploy failed due to\n{message}') from e
-    return web.json_response({'sha': sha, 'batch_id': batch_id})
+    return json_response({'sha': sha, 'batch_id': batch_id})
 
 
 # This is CPG-specific, as the Hail team redeploys by watching the main branch.
