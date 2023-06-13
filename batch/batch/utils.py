@@ -136,7 +136,7 @@ async def query_billing_projects(db, user=None, billing_project=None):
     sql = f'''
 SELECT billing_projects.name as billing_project,
   billing_projects.`status` as `status`,
-  users, `limit`, cost_t.accrued_cost
+  users, `limit`, COALESCE(cost_t.cost, 0) AS accrued_cost
 FROM billing_projects
 LEFT JOIN LATERAL (
   SELECT billing_project, JSON_ARRAYAGG(`user_cs`) as users
@@ -146,7 +146,7 @@ LEFT JOIN LATERAL (
   LOCK IN SHARE MODE
 ) AS t ON TRUE
 LEFT JOIN LATERAL (
-  SELECT COALESCE(SUM(`usage` * rate), 0) as accrued_cost
+  SELECT SUM(`usage` * rate) as cost
   FROM (
     SELECT billing_project, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
     FROM aggregated_billing_project_user_resources_v2
