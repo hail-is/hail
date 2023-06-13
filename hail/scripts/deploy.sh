@@ -62,7 +62,7 @@ then
 fi
 
 export PYPI_USED_STORAGE=$(curl https://pypi.org/pypi/hail/json | jq '[.releases[][].size ]| add')
-python3 $SCRIPT_DIR/assert_pypi_has_room.py
+WHEEL=$WHEEL python3 $SCRIPT_DIR/assert_pypi_has_room.py
 
 # push git tag
 git tag $HAIL_PIP_VERSION -m "Hail version $HAIL_PIP_VERSION."
