@@ -2280,12 +2280,11 @@ class Emit[C](
       case CastToArray(a) =>
         emitI(a).map(cb) { ind => ind.asIndexable.castToArray(cb) }
 
-      case ReadValue(path, spec, requestedType) =>
+      case ReadValue(path, reader, requestedType) =>
         emitI(path).map(cb) { pv =>
-          val ib = cb.memoize[InputBuffer](spec.buildCodeInputBuffer(
-            mb.openUnbuffered(pv.asString.loadString(cb), checkCodec = true)))
-          val decoded = spec.encodedType.buildDecoder(requestedType, mb.ecb)(cb, region, ib)
-          cb += ib.close()
+          val is = cb.memoize(mb.openUnbuffered(pv.asString.loadString(cb), checkCodec = true))
+          val decoded = reader.readValue(cb, requestedType, region, is)
+          cb += is.invoke[Unit]("close")
           decoded
         }
 
@@ -2293,8 +2292,9 @@ class Emit[C](
         emitI(path).flatMap(cb) { case pv: SStringValue =>
           emitI(value).map(cb) { v =>
             val s = stagingFile.map(emitI(_).get(cb).asString)
-            val p = EmitCode.present(mb, s.getOrElse(pv))
-            writer.writeValue(cb, v, p)
+            val os = cb.memoize(mb.createUnbuffered(s.getOrElse(pv).loadString(cb)))
+            writer.writeValue(cb, v, os)
+            cb += os.invoke[Unit]("close")
             s.foreach { stage =>
               cb += mb.getFS.invoke[String, String, Boolean, Unit]("copy", stage.loadString(cb), pv.loadString(cb), const(true))
             }

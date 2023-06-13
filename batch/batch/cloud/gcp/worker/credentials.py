@@ -14,14 +14,6 @@ class GCPUserCredentials(CloudUserCredentials):
         return 'GOOGLE_APPLICATION_CREDENTIALS'
 
     @property
-    def username(self):
-        return '_json_key'
-
-    @property
-    def password(self) -> str:
-        return self._key
-
-    @property
     def mount_path(self):
         return '/gsa-key/key.json'
 

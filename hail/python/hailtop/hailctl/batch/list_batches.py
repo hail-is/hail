@@ -27,10 +27,15 @@ def main(args, passthrough_args, client):  # pylint: disable=unused-argument
         status['state'] = status['state'].capitalize()
 
     if args.full:
-        for status in statuses:
-            status = {k: v for k, v in status.items() if k != 'attributes'}
+        statuses = [
+            {k: v for k, v in status.items() if k != 'attributes'}
+            for status in statuses
+        ]
     else:
-        statuses = [{'id': status['id'], 'state': status['state']} for status in statuses]
+        statuses = [
+            {'id': status['id'], 'state': status['state']}
+            for status in statuses
+        ]
 
     format = make_formatter(args.o)
     print(format(statuses))

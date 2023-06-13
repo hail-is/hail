@@ -9,15 +9,5 @@ class CloudUserCredentials(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def username(self) -> str:
-        raise NotImplementedError
-
-    @property
-    @abc.abstractmethod
-    def password(self) -> str:
-        raise NotImplementedError
-
-    @property
-    @abc.abstractmethod
     def mount_path(self):
         raise NotImplementedError

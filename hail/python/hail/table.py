@@ -2567,9 +2567,6 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with at most `max_partitions` partitions.
         """
-        if hl.current_backend().requires_lowering:
-            return self.repartition(max_partitions)
-
         return Table(ir.TableRepartition(
             self._tir, max_partitions, ir.RepartitionStrategy.NAIVE_COALESCE))
 

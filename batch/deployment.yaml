@@ -319,11 +319,7 @@ spec:
   selector:
     matchLabels:
       app: batch
-{% if deploy %}
   replicas: 3
-{% else %}
-  replicas: 1
-{% endif %}
   template:
     metadata:
       labels:
@@ -444,8 +440,8 @@ spec:
          - containerPort: 443
         resources:
           requests:
-            cpu: "20m"
-            memory: "20M"
+            cpu: "100m"
+            memory: "200M"
           limits:
             cpu: "1"
             memory: "1G"

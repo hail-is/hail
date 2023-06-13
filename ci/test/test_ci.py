@@ -4,10 +4,10 @@ import logging
 
 import pytest
 
-from hailtop import utils
 from hailtop.auth import hail_credentials
 from hailtop.config import get_deploy_config
 from hailtop.httpx import client_session
+from hailtop.utils import retry_transient_errors
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -24,10 +24,9 @@ async def test_deploy():
             deploy_state = None
             failure_information = None
             while deploy_state is None:
-                resp = await utils.request_retry_transient_errors(
-                    session, 'GET', f'{ci_deploy_status_url}', headers=headers
+                deploy_statuses = await retry_transient_errors(
+                    session.get_read_json, ci_deploy_status_url, headers=headers
                 )
-                deploy_statuses = await resp.json()
                 log.info(f'deploy_statuses:\n{json.dumps(deploy_statuses, indent=2)}')
                 assert len(deploy_statuses) == 1, deploy_statuses
                 deploy_status = deploy_statuses[0]

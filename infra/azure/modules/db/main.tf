@@ -36,13 +36,15 @@ resource "azurerm_mysql_flexible_server" "db" {
   # Which availability zone (out of 1,2,3) that the database should be hosted
   # in. This should ideally match the zone that batch is in but we don't have
   # availability zones enabled in AKS.
+  # Sometimes zones are not available in particular regions
+  # In this case either change to an appropriate zone or comment the below line out
   # Commented out due to the following error:
   # │ Error: waiting for creation of Flexible Server: (Name "db-2138b3b3" / Resource Group "hail"): Code="AvailableZoneNotFound" Message="The availiabilityZone '1' is not found for subscription id '4453ab2e-2015-4bf0-adf2-7b2fa1f207e3'."
-  # │ 
+  # │
   # │   with module.db.azurerm_mysql_flexible_server.db,
   # │   on modules/db/main.tf line 22, in resource "azurerm_mysql_flexible_server" "db":
   # │   22: resource "azurerm_mysql_flexible_server" "db" {
-  # │ 
+  # │
   # zone = 1
 
   delegated_subnet_id = var.subnet_id

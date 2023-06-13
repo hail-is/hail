@@ -70,7 +70,7 @@ GROUP BY batches.id;
             # only jobs from CI may use batch's TLS identity
             await request(client_session)
         else:
-            async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+            async with httpx.client_session() as session:
                 await request(session)
     except asyncio.CancelledError:
         raise
@@ -89,9 +89,15 @@ async def add_attempt_resources(app, db, batch_id, job_id, attempt_id, resources
             # This must be sorted in order to match the order of values in the actual SQL table!
             _resources = dict(sorted(_resources.items()))
 
-            # the deduped resource id is the same as the resource id as the mitigation for duplicate resource ids already merged
             resource_args = [
-                (batch_id, job_id, attempt_id, resource_name_to_id[name], resource_name_to_id[name], quantity)
+                (
+                    batch_id,
+                    job_id,
+                    attempt_id,
+                    resource_name_to_id[name].resource_id,
+                    resource_name_to_id[name].deduped_resource_id,
+                    quantity,
+                )
                 for name, quantity in _resources.items()
             ]
 

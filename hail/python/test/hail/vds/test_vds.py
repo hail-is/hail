@@ -579,7 +579,7 @@ def test_merge_reference_blocks():
 
 def test_truncate_reference_blocks():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
-    rd = vds.reference_data
+    rd = vds.reference_data.select_globals()
     rd = rd.filter_entries(rd.GQ > 0)
     vds.reference_data = rd
 
@@ -636,7 +636,7 @@ def test_combiner_max_len():
     combined1 = combine_references([vds1_trunc.reference_data, vds2_trunc.reference_data])
     assert hl.eval(combined1.index_globals()[hl.vds.VariantDataset.ref_block_max_length_field]) == 75
 
-    combined2 = combine_references([vds1_trunc.reference_data, vds2.reference_data])
+    combined2 = combine_references([vds1_trunc.reference_data, vds2.reference_data.drop(hl.vds.VariantDataset.ref_block_max_length_field)])
     assert hl.vds.VariantDataset.ref_block_max_length_field not in combined2.globals
 
 
@@ -649,7 +649,7 @@ def test_split_sparse_roundtrip():
                                                             is_split=True)
 
     vds_split = hl.vds.split_multi(vds)
-    assert vds2.variant_data.select_entries(*vds_split.variant_data.entry)._same(vds_split.variant_data)
+    assert vds2.variant_data.select_entries(*vds_split.variant_data.entry).select_globals()._same(vds_split.variant_data)
     assert vds2.reference_data._same(vds_split.reference_data.drop('ref_allele'))
 
 
@@ -668,3 +668,12 @@ def test_ref_block_max_len_patch():
 
         vds2 = hl.vds.read_vds(vds_path)
         assert hl.eval(vds2.reference_data.index_globals()[hl.vds.VariantDataset.ref_block_max_length_field]) == max_rb_len
+
+
+def test_filter_intervals_table():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+    filter_vars = vds.variant_data.rows().head(10).select()
+    filter_intervals = filter_vars.key_by(interval=hl.interval(filter_vars.locus, filter_vars.locus, includes_end=True))
+    vds_filt = hl.vds.filter_intervals(vds, filter_intervals)
+
+    assert vds_filt.variant_data.rows().select()._same(filter_vars)
