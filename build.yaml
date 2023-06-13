@@ -2260,6 +2260,9 @@ steps:
       - name: set-test-min-pool-size-to-1
         script: /io/sql/set-test-min-pool-size-to-1.py
         online: true
+      - name: add-jobs-ready-time
+        script: /io/sql/add-jobs-ready-time.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

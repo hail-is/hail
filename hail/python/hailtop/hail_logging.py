@@ -3,6 +3,7 @@ import logging
 import sys
 from time import timezone
 
+import aiohttp
 import orjson
 from aiohttp.abc import AbstractAccessLogger
 from pythonjsonlogger import jsonlogger
@@ -46,15 +47,35 @@ def configure_logging():
 
 
 class AccessLogger(AbstractAccessLogger):
+    path_to_operation = {}
+
     def log(self, request, response, time):
         tz = datetime.timezone(datetime.timedelta(seconds=-timezone))
         now = datetime.datetime.now(tz)
         start_time = now - datetime.timedelta(seconds=time)
         start_time_str = start_time.strftime('[%d/%b/%Y:%H:%M:%S %z]')
+        batch_identifier = request.get('batch_identifier')
+        job_identifier = request.get('job_identifier')
+        batch_operation = request.get('batch_operation')
+        job_queue_time = request.get('job_queue_time')
+
+        extra = {
+            'remote_address': request.remote,
+            'request_start_time': start_time_str,
+            'request_duration': time,
+            'response_status': response.status,
+            'x_real_ip': request.headers.get("X-Real-IP")
+        }
+
+        if batch_identifier:
+            extra['batch_identifier'] = batch_identifier
+        if job_identifier:
+            extra['job_identifier'] = job_identifier
+        if batch_operation:
+            extra['batch_operation'] = batch_operation
+        if job_queue_time:
+            extra['job_queue_time'] = job_queue_time
+
         self.logger.info(f'{request.scheme} {request.method} {request.path} '
                          f'done in {time}s: {response.status}',
-                         extra={'remote_address': request.remote,
-                                'request_start_time': start_time_str,
-                                'request_duration': time,
-                                'response_status': response.status,
-                                'x_real_ip': request.headers.get("X-Real-IP")})
+                         extra=extra)

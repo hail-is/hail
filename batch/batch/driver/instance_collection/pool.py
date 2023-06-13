@@ -635,7 +635,7 @@ LIMIT 300;
                 if not batch['cancelled']:
                     async for record in self.db.select_and_fetchall(
                         '''
-SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep
+SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep, time_ready
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 WHERE jobs.batch_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 0 AND cancelled = 0
 ORDER BY jobs.batch_id, inst_coll, state, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
