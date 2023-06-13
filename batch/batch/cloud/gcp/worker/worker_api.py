@@ -46,9 +46,6 @@ class GCPWorkerAPI(CloudWorkerAPI[GCPUserCredentials]):
     def get_cloud_async_fs(self) -> aiogoogle.GoogleStorageAsyncFS:
         return aiogoogle.GoogleStorageAsyncFS(session=self._google_session)
 
-    def get_compute_client(self) -> aiogoogle.GoogleComputeClient:
-        return self._compute_client
-
     def user_credentials(self, credentials: Dict[str, str]) -> GCPUserCredentials:
         return GCPUserCredentials(credentials)
 
@@ -121,6 +118,9 @@ class GCPWorkerAPI(CloudWorkerAPI[GCPUserCredentials]):
         finally:
             os.remove(self._gcsfuse_credential_files[mount_base_path_data])
             del self._gcsfuse_credential_files[mount_base_path_data]
+
+    async def close(self):
+        await self._compute_client.close()
 
     def __str__(self):
         return f'project={self.project} zone={self.zone}'

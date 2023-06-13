@@ -81,15 +81,20 @@ async def create_database():
             return
 
     async def create_user_if_doesnt_exist(admin_or_user, mysql_username, mysql_password):
-        existing_user = await db.execute_and_fetchone('SELECT 1 FROM mysql.user WHERE user=%s', (mysql_username,))
-        if existing_user is not None:
-            return
-
         if admin_or_user == 'admin':
             allowed_operations = 'ALL'
         else:
             assert admin_or_user == 'user'
-            allowed_operations = 'SELECT, INSERT, UPDATE, DELETE, EXECUTE'
+            allowed_operations = 'SELECT, INSERT, UPDATE, DELETE, EXECUTE, CREATE TEMPORARY TABLES'
+
+        existing_user = await db.execute_and_fetchone('SELECT 1 FROM mysql.user WHERE user=%s', (mysql_username,))
+        if existing_user is not None:
+            await db.just_execute(
+                f'''
+                GRANT {allowed_operations} ON `{_name}`.* TO '{mysql_username}'@'%';
+                '''
+            )
+            return
 
         await db.just_execute(
             f'''

@@ -983,7 +983,7 @@ class BatchClient:
         bp_resp = await self._post(f'/api/v1alpha/billing_limits/{project}/edit', json={'limit': limit})
         return await bp_resp.json()
 
-    async def supported_regions(self):
+    async def supported_regions(self) -> List[str]:
         resp = await self._get('/api/v1alpha/supported_regions')
         return await resp.json()
 

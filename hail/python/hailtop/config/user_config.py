@@ -3,7 +3,6 @@ import os
 import re
 import configparser
 import warnings
-
 from pathlib import Path
 
 user_config = None
@@ -20,18 +19,23 @@ def get_user_config_path() -> Path:
     return Path(xdg_config_home(), 'hail', 'config.ini')
 
 
-def get_user_config() -> configparser.ConfigParser:
+def _load_user_config():
     global user_config
+    user_config = configparser.ConfigParser()
+    config_file = get_user_config_path()
+    # in older versions, the config file was accidentally named
+    # config.yaml, if the new config does not exist, and the old
+    # one does, silently rename it
+    old_path = config_file.with_name('config.yaml')
+    if old_path.exists() and not config_file.exists():
+        old_path.rename(config_file)
+    user_config.read(config_file)
+
+
+def get_user_config() -> configparser.ConfigParser:
     if user_config is None:
-        user_config = configparser.ConfigParser()
-        config_file = get_user_config_path()
-        # in older versions, the config file was accidentally named
-        # config.yaml, if the new config does not exist, and the old
-        # one does, silently rename it
-        old_path = config_file.with_name('config.yaml')
-        if old_path.exists() and not config_file.exists():
-            old_path.rename(config_file)
-        user_config.read(config_file)
+        _load_user_config()
+        assert user_config is not None
     return user_config
 
 

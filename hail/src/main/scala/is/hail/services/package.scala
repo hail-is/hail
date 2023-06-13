@@ -12,6 +12,7 @@ import org.apache.http.conn.HttpHostConnectException
 import org.apache.log4j.{LogManager, Logger}
 
 import is.hail.shadedazure.reactor.core.Exceptions.ReactiveException
+import is.hail.shadedazure.com.azure.storage.common.implementation.Constants
 import scala.util.Random
 import java.io._
 import com.google.cloud.storage.StorageException
@@ -41,6 +42,9 @@ package object services {
     // true error.
     val e = is.hail.shadedazure.reactor.core.Exceptions.unwrap(_e)
     e match {
+      case e: RuntimeException
+          if e.getMessage != null && e.getMessage == Constants.STREAM_CLOSED =>
+        true
       case e: SocketException
           if e.getMessage != null && e.getMessage.contains("Connection reset") =>
         true

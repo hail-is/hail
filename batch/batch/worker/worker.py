@@ -579,7 +579,13 @@ class Image:
 
         await pull()
 
-        image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
+        try:
+            image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
+        except:
+            # inspect non-deterministically fails sometimes
+            await asyncio.sleep(1)
+            await pull()
+            image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
         image_configs[self.image_ref_str] = json.loads(image_config)[0]
 
     async def _ensure_image_is_pulled(
@@ -818,6 +824,8 @@ class Container:
         self._killed = False
         self._cleaned_up = False
 
+        self.monitor: Optional[ResourceUsageMonitor] = None
+
     async def create(self):
         self.state = 'creating'
         try:
@@ -1024,6 +1032,22 @@ class Container:
             self.host_port = await port_allocator.allocate()
             await self.netns.expose_port(self.port, self.host_port)
 
+    def new_resource_usage_monitor(self, resource_usage_path):
+        assert self.netns is not None and self.netns.veth_host is not None
+        return ResourceUsageMonitor(
+            self.name,
+            self.container_overlay_path,
+            self.io_mount_path,
+            self.netns.veth_host,
+            resource_usage_path,
+            self.fs,
+        )
+
+    async def get_resource_usage(self) -> bytes:
+        if self.monitor is None:
+            return ResourceUsageMonitor.no_data()
+        return await self.monitor.read()
+
     async def _run_container(self) -> bool:
         self.started_at = time_msecs()
         try:
@@ -1047,13 +1071,9 @@ class Container:
 
                     assert self.netns
 
-                    async with ResourceUsageMonitor(
-                        self.name,
-                        self.container_overlay_path,
-                        self.io_mount_path,
-                        self.netns.veth_host,
-                        self.resource_usage_path,
-                    ):
+                    self.monitor = self.new_resource_usage_monitor(self.resource_usage_path)
+                    assert self.monitor
+                    async with self.monitor:
                         if self.stdin is not None:
                             await self.process.communicate(self.stdin.encode('utf-8'))
                         await self.process.wait()
@@ -1347,16 +1367,6 @@ class Container:
     def container_finished(self):
         return self.process is not None and self.process.returncode is not None
 
-    async def get_resource_usage(self) -> bytes:
-        if os.path.exists(self.resource_usage_path):
-            return await self.fs.read(self.resource_usage_path)
-        return ResourceUsageMonitor.no_data()
-
-    async def get_resource_usage_file_size(self) -> int:
-        if os.path.exists(self.resource_usage_path):
-            return os.path.getsize(self.resource_usage_path)
-        return 0
-
     async def exec(
         self, cmd: List[str], *, global_options: Optional[List[str]] = None, options: Optional[List[str]] = None
     ):
@@ -1515,7 +1525,7 @@ class Job(abc.ABC):
             # basically fills the disk not allowing for caches etc. Most jobs
             # would need an external disk in that case.
             self.data_disk_storage_in_gib = min(
-                RESERVED_STORAGE_GB_PER_CORE, self.cpu_in_mcpu / 1000 * RESERVED_STORAGE_GB_PER_CORE
+                RESERVED_STORAGE_GB_PER_CORE, int(self.cpu_in_mcpu / 1000 * RESERVED_STORAGE_GB_PER_CORE)
             )
 
         self.resources = instance_config.quantified_resources(
@@ -2066,6 +2076,8 @@ class JVMJob(Job):
         should_profile = job_spec['process']['profile']
         self.profile_file = f'{self.scratch}/profile.html' if should_profile else None
 
+        self.resource_usage_file = f'{self.scratch}/resource_usage'
+
         assert self.worker.fs is not None
 
     def write_batch_config(self):
@@ -2204,7 +2216,13 @@ class JVMJob(Job):
 
                 with self.step('running'):
                     await self.jvm.execute(
-                        local_jar_location, self.scratch, self.log_file, self.jar_url, self.argv, self.profile_file
+                        local_jar_location,
+                        self.scratch,
+                        self.log_file,
+                        self.jar_url,
+                        self.argv,
+                        self.profile_file,
+                        self.resource_usage_file,
                     )
 
                 self.state = 'succeeded'
@@ -2252,6 +2270,17 @@ class JVMJob(Job):
             log_contents = await self.worker.fs.read(self.log_file)
             await self.worker.file_store.write_log_file(
                 self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', log_contents
+            )
+
+        with self.step('uploading_resource_usage'):
+            resource_usage_contents = await self.jvm.get_job_resource_usage()
+            await self.worker.file_store.write_resource_usage_file(
+                self.format_version,
+                self.batch_id,
+                self.job_id,
+                self.attempt_id,
+                'main',
+                resource_usage_contents,
             )
 
         if self.profile_file is not None:
@@ -2302,7 +2331,11 @@ class JVMJob(Job):
         return self.log_file
 
     async def get_resource_usage(self) -> Dict[str, bytes]:
-        return {'main': ResourceUsageMonitor.no_data()}
+        if self.jvm:
+            contents = await self.jvm.get_resource_usage()
+        else:
+            contents = ResourceUsageMonitor.no_data()
+        return {'main': contents}
 
     async def delete(self):
         await super().delete()
@@ -2476,6 +2509,7 @@ class JVMContainer:
     def __init__(self, container: Container, fs: AsyncFS):
         self.container = container
         self.fs: AsyncFS = fs
+        self.job_monitor: Optional[ResourceUsageMonitor] = None
 
     @property
     def returncode(self) -> Optional[int]:
@@ -2497,6 +2531,21 @@ class JVMContainer:
             ['./profiler.sh', 'stop', '-o', 'flamegraph', '-f', output_file, 'jps'],
             options=['--cwd=/async-profiler-2.9-linux-x64/'],
         )
+
+    async def get_resource_usage(self) -> bytes:
+        return await self.container.get_resource_usage()
+
+    async def get_job_resource_usage(self) -> bytes:
+        if self.job_monitor is None:
+            return ResourceUsageMonitor.no_data()
+        return await self.job_monitor.read()
+
+    def monitor_resource_usage(self, path: str):
+        self.job_monitor = self.container.new_resource_usage_monitor(path)
+        return self.job_monitor
+
+    def clear_job_monitor(self):
+        self.job_monitor = None
 
 
 class JVMUserError(Exception):
@@ -2673,6 +2722,7 @@ class JVM:
         self.should_interrupt.set()
 
     def reset(self):
+        self.container.clear_job_monitor()
         self.should_interrupt.clear()
 
     async def kill(self):
@@ -2711,6 +2761,7 @@ class JVM:
         jar_url: str,
         argv: List[str],
         profile_file: Optional[str],
+        resource_usage_file: str,
     ):
         assert worker is not None
 
@@ -2734,9 +2785,10 @@ class JVM:
             stack.callback(wait_for_interrupt.cancel)
 
             async with JVMProfiler(self.container, profile_file):
-                await asyncio.wait(
-                    [wait_for_message_from_container, wait_for_interrupt], return_when=asyncio.FIRST_COMPLETED
-                )
+                async with self.container.monitor_resource_usage(resource_usage_file):
+                    await asyncio.wait(
+                        [wait_for_message_from_container, wait_for_interrupt], return_when=asyncio.FIRST_COMPLETED
+                    )
 
             if wait_for_interrupt.done():
                 await wait_for_interrupt  # retrieve exceptions
@@ -2787,6 +2839,12 @@ class JVM:
                 log.exception(f'{self}: unexpected message type: {message}\nJVM Output:\n\n{jvm_output}')
                 raise ValueError(f'{self}: unexpected message type: {message}')
 
+    async def get_resource_usage(self) -> bytes:
+        return await self.container.get_resource_usage()
+
+    async def get_job_resource_usage(self) -> bytes:
+        return await self.container.get_job_resource_usage()
+
 
 class Worker:
     def __init__(self, client_session: httpx.ClientSession):
@@ -2815,7 +2873,6 @@ class Worker:
             ],
         )
         self.file_store = FileStore(fs, BATCH_LOGS_STORAGE_URI, INSTANCE_ID)
-        self.compute_client = CLOUD_WORKER_API.get_compute_client()
 
         self.instance_token = os.environ['ACTIVATION_TOKEN']
 
@@ -2876,17 +2933,12 @@ class Worker:
                         log.info('closed file store')
                 finally:
                     try:
-                        if self.compute_client:
-                            await self.compute_client.close()
-                            log.info('closed compute client')
+                        if self.fs:
+                            await self.fs.close()
+                            log.info('closed worker file system')
                     finally:
-                        try:
-                            if self.fs:
-                                await self.fs.close()
-                                log.info('closed worker file system')
-                        finally:
-                            await self.client_session.close()
-                            log.info('closed client session')
+                        await self.client_session.close()
+                        log.info('closed client session')
 
     async def run_job(self, job):
         try:
@@ -3311,22 +3363,27 @@ async def async_main():
             log.info('worker shutdown', exc_info=True)
         finally:
             try:
-                await network_allocator_task_manager.shutdown_and_wait()
+                await CLOUD_WORKER_API.close()
             finally:
                 try:
-                    await docker.close()
-                    log.info('docker closed')
+                    await network_allocator_task_manager.shutdown_and_wait()
                 finally:
-                    asyncio.get_event_loop().set_debug(True)
-                    other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
-                    if other_tasks:
-                        log.warning('Tasks immediately after docker close')
-                        dump_all_stacktraces()
-                        _, pending = await asyncio.wait(other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED)
-                        for t in pending:
-                            log.warning('Dangling task:')
-                            t.print_stack()
-                            t.cancel()
+                    try:
+                        await docker.close()
+                        log.info('docker closed')
+                    finally:
+                        asyncio.get_event_loop().set_debug(True)
+                        other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
+                        if other_tasks:
+                            log.warning('Tasks immediately after docker close')
+                            dump_all_stacktraces()
+                            _, pending = await asyncio.wait(
+                                other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED
+                            )
+                            for t in pending:
+                                log.warning('Dangling task:')
+                                t.print_stack()
+                                t.cancel()
 
 
 loop = asyncio.get_event_loop()

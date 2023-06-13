@@ -5,7 +5,6 @@ from typing import Dict, Optional, Tuple
 
 import aiohttp
 
-from gear.cloud_config import get_azure_config
 from hailtop import httpx
 from hailtop.aiocloud import aioazure
 from hailtop.utils import check_exec_output, retry_transient_errors, time_msecs
@@ -39,10 +38,6 @@ class AzureWorkerAPI(CloudWorkerAPI[AzureUserCredentials]):
 
     def get_cloud_async_fs(self) -> aioazure.AzureAsyncFS:
         return aioazure.AzureAsyncFS(credentials=self.azure_credentials)
-
-    def get_compute_client(self) -> aioazure.AzureComputeClient:
-        azure_config = get_azure_config()
-        return aioazure.AzureComputeClient(azure_config.subscription_id, azure_config.resource_group)
 
     def user_credentials(self, credentials: Dict[str, str]) -> AzureUserCredentials:
         return AzureUserCredentials(credentials)
@@ -119,6 +114,9 @@ class AzureWorkerAPI(CloudWorkerAPI[AzureUserCredentials]):
         finally:
             os.remove(self._blobfuse_credential_files[mount_base_path_data])
             del self._blobfuse_credential_files[mount_base_path_data]
+
+    async def close(self):
+        pass
 
     def __str__(self):
         return f'subscription_id={self.subscription_id} resource_group={self.resource_group}'

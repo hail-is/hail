@@ -1,9 +1,6 @@
-import os
 import sys
 
 import argparse
-import re
-import time
 
 from hailtop import version
 
@@ -44,61 +41,7 @@ def print_help():
     main_parser.print_help()
 
 
-def check_for_update():
-    try:
-        check_file = os.path.expanduser('~') + '/.hail_version_check'
-        if os.path.exists(check_file):
-            last_modified = os.stat(check_file).st_ctime_ns
-
-            delta = time.time() - last_modified / 10 ** 9
-            assert delta > 0
-            day = 60 * 60 * 24
-            check_for_update = delta / day > 1
-        else:
-            check_for_update = True
-
-        if check_for_update:
-            # touch the file
-            open(check_file, 'w', encoding='utf-8').close()  # pylint: disable=consider-using-with
-
-            import subprocess as sp  # pylint: disable=import-outside-toplevel
-            try:
-                pip_out = sp.check_output(['pip', 'search', 'hail'], stderr=sp.STDOUT)
-            except Exception:  # pylint: disable=broad-except
-                pip_out = sp.check_output(['pip3', 'search', 'hail'], stderr=sp.STDOUT)
-
-            latest_match = re.search(r'hail \((\\d+)\.(\\d+)\.(\\d+).*', pip_out.decode())
-            assert latest_match
-            latest = latest_match.groups()
-
-            installed_match = re.search(r'(\d+)\.(\d+)\.(\d+).*', version())
-            assert installed_match
-            installed = installed_match.groups()
-
-            def int_version(version):
-                return tuple(map(int, version))
-
-            def fmt_version(version):
-                return '.'.join(version)
-
-            if int_version(latest) > int_version(installed):
-                sys.stderr.write(f'~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n'
-                                 f'You have Hail {fmt_version(installed)} installed, '
-                                 f'but a newer version {fmt_version(latest)} exists.\n'
-                                 f'  To upgrade to the latest version, please run:\n\n'
-                                 f'    pip3 install -U hail\n\n'
-                                 f'~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n')
-    except Exception:  # pylint: disable=broad-except
-        pass
-
-
-def print_version():
-    print(version())
-
-
 def main():
-    check_for_update()
-
     if len(sys.argv) == 1:
         print_help()
         sys.exit(0)
@@ -106,7 +49,7 @@ def main():
         module = sys.argv[1]
         args = sys.argv[2:]
         if module == 'version':
-            print_version()
+            print(version())
         elif module == 'dataproc':
             from hailtop.hailctl.dataproc import cli as dataproc_cli  # pylint: disable=import-outside-toplevel
             dataproc_cli.main(args)
