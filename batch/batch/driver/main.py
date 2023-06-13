@@ -1425,7 +1425,7 @@ SELECT instance_id, internal_token, frozen FROM globals;
 
     task_manager.ensure_future(periodically_call(10, monitor_billing_limits, app))
     task_manager.ensure_future(periodically_call(10, cancel_fast_failing_batches, app))
-    task_manager.ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
+    task_manager.ensure_future(periodically_call(5, scheduling_cancelling_bump, app))
     task_manager.ensure_future(periodically_call(15, monitor_system, app))
     task_manager.ensure_future(periodically_call(5, refresh_globals_from_db, app, db))
 

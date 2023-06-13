@@ -922,7 +922,7 @@ async def run_if_changed(changed, f, *args, **kwargs):
         # event is constantly being set. This was instated to
         # avoid wasteful repetition of scheduling loops, but
         # might not always be desirable, especially in very low-latency batches.
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(0.1)
         if should_wait:
             await changed.wait()
 
