@@ -202,6 +202,9 @@ SELECT state FROM batches WHERE user = %s AND id = %s;
 
     request.app['scheduler_state_changed'].notify()
 
+    request['batch_id'] = str(batch_id)
+    request['batch_operation'] = 'driver_batch_update'
+
     return web.Response()
 
 
@@ -319,6 +322,10 @@ async def job_complete_1(request, instance):
     job_id = job_status['job_id']
     attempt_id = job_status['attempt_id']
 
+    request['batch_id'] = str(batch_id)
+    request['job_id'] = str(job_id)
+    request['batch_operation'] = 'driver_job_complete'
+
     state = job_status['state']
     if state == 'succeeded':
         new_state = 'Success'
@@ -368,6 +375,10 @@ async def job_started_1(request, instance):
     attempt_id = job_status['attempt_id']
     start_time = job_status['start_time']
     resources = job_status.get('resources')
+
+    request['batch_id'] = str(batch_id)
+    request['job_id'] = str(job_id)
+    request['batch_operation'] = 'driver_job_started'
 
     await mark_job_started(request.app, batch_id, job_id, attempt_id, instance, start_time, resources)
 
@@ -1349,18 +1360,21 @@ SELECT resource, resource_id, deduped_resource_id FROM resources;
 class BatchDriverAccessLogger(AccessLogger):
     def __init__(self, logger: logging.Logger, log_format: str):
         super().__init__(logger, log_format)
-        self.exclude = [
-            (endpoint[0], re.compile(deploy_config.base_path('batch-driver') + endpoint[1]))
-            for endpoint in [
-                ('POST', '/api/v1alpha/instances/billing_update'),
-                ('POST', '/api/v1alpha/instances/job_complete'),
-                ('POST', '/api/v1alpha/instances/job_started'),
-                ('PATCH', '/api/v1alpha/batches/.*/.*/close'),
-                ('POST', '/api/v1alpha/batches/cancel'),
-                ('PATCH', '/api/v1alpha/batches/.*/.*/update'),
-                ('GET', '/metrics'),
+        if DEFAULT_NAMESPACE == 'default':
+            self.exclude = [
+                (endpoint[0], re.compile(deploy_config.base_path('batch-driver') + endpoint[1]))
+                for endpoint in [
+                    ('POST', '/api/v1alpha/instances/billing_update'),
+                    ('POST', '/api/v1alpha/instances/job_complete'),
+                    ('POST', '/api/v1alpha/instances/job_started'),
+                    ('PATCH', '/api/v1alpha/batches/.*/.*/close'),
+                    ('POST', '/api/v1alpha/batches/cancel'),
+                    ('PATCH', '/api/v1alpha/batches/.*/.*/update'),
+                    ('GET', '/metrics'),
+                ]
             ]
-        ]
+        else:
+            self.exclude = []
 
     def log(self, request, response, time):
         for method, path_expr in self.exclude:

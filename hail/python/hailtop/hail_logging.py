@@ -51,10 +51,31 @@ class AccessLogger(AbstractAccessLogger):
         now = datetime.datetime.now(tz)
         start_time = now - datetime.timedelta(seconds=time)
         start_time_str = start_time.strftime('[%d/%b/%Y:%H:%M:%S %z]')
+
+        extra = {
+            'remote_address': request.remote,
+            'request_start_time': start_time_str,
+            'request_duration': time,
+            'response_status': response.status,
+            'x_real_ip': request.headers.get("X-Real-IP")
+        }
+
+        batch_id = request.get('batch_id')
+        if batch_id:
+            extra['batch_id'] = batch_id
+
+        job_id = request.get('job_id')
+        if job_id:
+            extra['job_id'] = job_id
+
+        batch_operation = request.get('batch_operation')
+        if batch_operation:
+            extra['batch_operation'] = batch_operation
+
+        job_queue_time = request.get('job_queue_time')
+        if job_queue_time:
+            extra['job_queue_time'] = job_queue_time
+
         self.logger.info(f'{request.scheme} {request.method} {request.path} '
                          f'done in {time}s: {response.status}',
-                         extra={'remote_address': request.remote,
-                                'request_start_time': start_time_str,
-                                'request_duration': time,
-                                'response_status': response.status,
-                                'x_real_ip': request.headers.get("X-Real-IP")})
+                         extra=extra)

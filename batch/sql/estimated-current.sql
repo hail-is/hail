@@ -263,6 +263,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `inst_coll` VARCHAR(255),
   `n_regions` INT DEFAULT NULL,
   `regions_bits_rep` BIGINT DEFAULT NULL,
+  `time_ready` BIGINT DEFAULT NULL,
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `update_id`) REFERENCES batch_updates(batch_id, update_id) ON DELETE CASCADE,
@@ -1236,7 +1237,8 @@ BEGIN
                jobs.job_id = t.job_id
           SET jobs.state = IF(COALESCE(t.n_pending_parents, 0) = 0, 'Ready', 'Pending'),
               jobs.n_pending_parents = COALESCE(t.n_pending_parents, 0),
-              jobs.cancelled = IF(COALESCE(t.n_succeeded, 0) = COALESCE(t.n_parents - t.n_pending_parents, 0), jobs.cancelled, 1)
+              jobs.cancelled = IF(COALESCE(t.n_succeeded, 0) = COALESCE(t.n_parents - t.n_pending_parents, 0), jobs.cancelled, 1),
+              jobs.time_ready = IF(COALESCE(t.n_pending_parents, 0) = 0 AND jobs.time_ready IS NULL, in_timestamp, jobs.time_ready)
           WHERE jobs.batch_id = in_batch_id AND jobs.job_id >= cur_update_start_job_id AND
               jobs.job_id < cur_update_start_job_id + staging_n_jobs;
       END IF;
@@ -1716,7 +1718,8 @@ BEGIN
            jobs.job_id = `job_parents`.job_id
       SET jobs.state = IF(jobs.n_pending_parents = 1, 'Ready', 'Pending'),
           jobs.n_pending_parents = jobs.n_pending_parents - 1,
-          jobs.cancelled = IF(new_state = 'Success', jobs.cancelled, 1)
+          jobs.cancelled = IF(new_state = 'Success', jobs.cancelled, 1),
+          jobs.time_ready = IF(jobs.n_pending_parents = 1, new_timestamp, jobs.time_ready)
       WHERE jobs.batch_id = in_batch_id AND
             `job_parents`.batch_id = in_batch_id AND
             `job_parents`.parent_id = in_job_id;

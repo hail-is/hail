@@ -269,6 +269,8 @@ WHERE id = %s AND NOT deleted;
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs')
 @rest_billing_project_users_only
 async def get_jobs_v1(request, userdata, batch_id):  # pylint: disable=unused-argument
+    request['batch_id'] = str(batch_id)
+    request['batch_operation'] = 'batch_list_jobs'
     q = request.query.get('q', '')
     last_job_id = request.query.get('last_job_id')
     if last_job_id is not None:
@@ -280,6 +282,8 @@ async def get_jobs_v1(request, userdata, batch_id):  # pylint: disable=unused-ar
 @routes.get('/api/v2alpha/batches/{batch_id}/jobs')
 @rest_billing_project_users_only
 async def get_jobs_v2(request, userdata, batch_id):  # pylint: disable=unused-argument
+    request['batch_id'] = str(batch_id)
+    request['batch_operation'] = 'batch_list_jobs'
     q = request.query.get('q', '')
     last_job_id = request.query.get('last_job_id')
     if last_job_id is not None:
@@ -735,6 +739,7 @@ async def get_batches(request, userdata):  # pylint: disable=unused-argument
     body = {'batches': batches}
     if last_batch_id is not None:
         body['last_batch_id'] = last_batch_id
+    request['batch_operation'] = 'batch_list_batches'
     return json_response(body)
 
 
@@ -755,9 +760,10 @@ def check_service_account_permissions(user, sa):
 @auth.rest_authenticated_users_only
 async def create_jobs(request: aiohttp.web.Request, userdata: dict):
     app = request.app
-
     batch_id = int(request.match_info['batch_id'])
     job_specs = await json_request(request)
+    request['batch_id'] = str(batch_id)
+    request['batch_operation'] = 'batch_create_jobs'
     return await _create_jobs(userdata, job_specs, batch_id, 1, app)
 
 
@@ -773,6 +779,8 @@ async def create_jobs_for_update(request: aiohttp.web.Request, userdata: dict):
     batch_id = int(request.match_info['batch_id'])
     update_id = int(request.match_info['update_id'])
     job_specs = await json_request(request)
+    request['batch_id'] = str(batch_id)
+    request['batch_operation'] = 'batch_create_jobs'
     return await _create_jobs(userdata, job_specs, batch_id, update_id, app)
 
 
@@ -1059,6 +1067,7 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
         # of pending parents
         if update_id == 1 and len(parent_ids) == 0:
             state = 'Ready'
+            time_ready = time_msecs()
             icr['n_ready_jobs'] += 1
             icr['ready_cores_mcpu'] += cores_mcpu
             if not always_run:
@@ -1066,6 +1075,7 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
                 icr['ready_cancellable_cores_mcpu'] += cores_mcpu
         else:
             state = 'Pending'
+            time_ready = None
 
         network = spec.get('network')
         if user != 'ci' and not (network is None or network == 'public'):
@@ -1091,6 +1101,7 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
                 inst_coll_name,
                 n_regions,
                 regions_bits_rep,
+                time_ready,
             )
         )
 
@@ -1112,8 +1123,8 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
             try:
                 await tx.execute_many(
                     '''
-INSERT INTO jobs (batch_id, job_id, update_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll, n_regions, regions_bits_rep)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO jobs (batch_id, job_id, update_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll, n_regions, regions_bits_rep, time_ready)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
                     jobs_args,
                     query_name='insert_jobs',
@@ -1245,6 +1256,8 @@ async def create_batch_fast(request, userdata):
             return json_response({'id': batch_id})
         raise
     await _commit_update(app, batch_id, update_id, user, db)
+    request['batch_id'] = str(batch_id)
+    request['batch_operation'] = 'batch_create_fast'
     return json_response({'id': batch_id})
 
 
@@ -1263,6 +1276,8 @@ async def create_batch(request, userdata):
         )
     else:
         update_id = None
+    request['batch_id'] = str(id)
+    request['batch_operation'] = 'batch_create_batch'
     return json_response({'id': id, 'update_id': update_id})
 
 
@@ -1408,6 +1423,8 @@ async def update_batch_fast(request, userdata):
             return json_response({'update_id': update_id, 'start_job_id': start_job_id})
         raise
     await _commit_update(app, batch_id, update_id, user, db)
+    request['batch_id'] = str(batch_id)
+    request['batch_operation'] = 'batch_update_fast'
     return json_response({'update_id': update_id, 'start_job_id': start_job_id})
 
 
@@ -1431,6 +1448,8 @@ async def create_update(request, userdata):
         raise web.HTTPBadRequest(reason=e.reason)
 
     update_id, _ = await _create_batch_update(batch_id, update_spec['token'], update_spec['n_jobs'], user, db)
+    request['batch_id'] = str(batch_id)
+    request['batch_operation'] = 'batch_create_update'
     return json_response({'update_id': update_id})
 
 
@@ -1570,12 +1589,16 @@ WHERE id = %s AND NOT deleted;
 @routes.get('/api/v1alpha/batches/{batch_id}')
 @rest_billing_project_users_only
 async def get_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
+    request['batch_id'] = str(batch_id)
+    request['batch_operation'] = 'batch_get_batch'
     return json_response(await _get_batch(request.app, batch_id))
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/cancel')
 @rest_billing_project_users_only
 async def cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
+    request['batch_id'] = str(batch_id)
+    request['batch_operation'] = 'batch_cancel_batch'
     await _handle_api_error(_cancel_batch, request.app, batch_id)
     return web.Response()
 
@@ -1586,6 +1609,9 @@ async def cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-a
 async def close_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
+
+    request['batch_id'] = str(batch_id)
+    request['batch_operation'] = 'batch_close_batch'
 
     app = request.app
     db: Database = app['db']
@@ -1625,6 +1651,9 @@ async def commit_update(request: web.Request, userdata):
 
     batch_id = int(request.match_info['batch_id'])
     update_id = int(request.match_info['update_id'])
+
+    request['batch_id'] = str(batch_id)
+    request['batch_operation'] = 'batch_commit_update'
 
     record = await db.select_and_fetchone(
         '''
@@ -1673,6 +1702,8 @@ async def _commit_update(app: web.Application, batch_id: int, update_id: int, us
 @routes.delete('/api/v1alpha/batches/{batch_id}')
 @rest_billing_project_users_only
 async def delete_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
+    request['batch_id'] = str(batch_id)
+    request['batch_operation'] = 'batch_delete_batch'
     await _delete_batch(request.app, batch_id)
     return web.Response()
 
@@ -1868,6 +1899,9 @@ WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 @rest_billing_project_users_only
 async def get_attempts(request, userdata, batch_id):  # pylint: disable=unused-argument
     job_id = int(request.match_info['job_id'])
+    request['batch_id'] = str(batch_id)
+    request['job_id'] = str(job_id)
+    request['batch_operation'] = 'batch_get_attempts'
     attempts = await _get_attempts(request.app, batch_id, job_id)
     return json_response(attempts)
 
@@ -1876,6 +1910,9 @@ async def get_attempts(request, userdata, batch_id):  # pylint: disable=unused-a
 @rest_billing_project_users_only
 async def get_job(request, userdata, batch_id):  # pylint: disable=unused-argument
     job_id = int(request.match_info['job_id'])
+    request['batch_id'] = str(batch_id)
+    request['job_id'] = str(job_id)
+    request['batch_operation'] = 'batch_get_job'
     status = await _get_job(request.app, batch_id, job_id)
     return json_response(status)
 
@@ -2848,14 +2885,17 @@ async def delete_batch_loop_body(app):
 class BatchFrontEndAccessLogger(AccessLogger):
     def __init__(self, logger: logging.Logger, log_format: str):
         super().__init__(logger, log_format)
-        self.exclude = [
-            (endpoint[0], re.compile(deploy_config.base_path('batch') + endpoint[1]))
-            for endpoint in [
-                ('POST', '/api/v1alpha/batches/\\d*/jobs/create'),
-                ('GET', '/api/v1alpha/batches/\\d*'),
-                ('GET', '/metrics'),
+        if DEFAULT_NAMESPACE == 'default':
+            self.exclude = [
+                (endpoint[0], re.compile(deploy_config.base_path('batch') + endpoint[1]))
+                for endpoint in [
+                    ('POST', '/api/v1alpha/batches/\\d*/jobs/create'),
+                    ('GET', '/api/v1alpha/batches/\\d*'),
+                    ('GET', '/metrics'),
+                ]
             ]
-        ]
+        else:
+            self.exclude = []
 
     def log(self, request, response, time):
         for method, path_expr in self.exclude:
