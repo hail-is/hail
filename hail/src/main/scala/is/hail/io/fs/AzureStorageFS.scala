@@ -18,7 +18,7 @@ import org.json4s.jackson.JsonMethods
 import org.json4s.Formats
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, FileNotFoundException, OutputStream}
-import java.nio.file.FileSystems
+import java.nio.file.Paths
 import java.time.Duration
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -66,53 +66,41 @@ class AzureStorageFSHttpsURL(
 
 
 object AzureStorageFS {
-  private val pathRegex = "/([^/]+)(.*)".r
+  private val HAIL_AZ_URI_REGEX = "^hail-az:\\/\\/([a-z0-9_\\-\\.]+)\\/([a-z0-9_\\-\\.]+)(\\/.*)?".r
+  private val AZURE_HTTPS_URI_REGEX = "^https:\\/\\/([a-z0-9_\\-\\.]+)\\.blob\\.core\\.windows\\.net\\/([a-z0-9_\\-\\.]+)(\\/.*)?".r
 
   private val log = Logger.getLogger(getClass.getName)
 
   val schemes: Array[String] = Array("hail-az", "https")
 
   def parseUrl(filename: String): AzureStorageFSURL = {
-    val uri = new URI(filename).normalize()
-
-    val scheme = uri.getScheme
-    if (scheme == null || !schemes.contains(scheme)) {
+    val scheme = new URI(filename).getScheme
+    if (scheme == "hail-az") {
+      parseHailAzUrl(filename)
+    } else if (scheme == "https") {
+      parseHttpsUrl(filename)
+    } else {
       throw new IllegalArgumentException(s"Invalid scheme, expected hail-az or https: $scheme")
     }
+  }
 
-    val authority = uri.getAuthority
-    if (authority == null) {
-      throw new IllegalArgumentException(s"Invalid path: $filename")
-    }
-    val account = scheme match {
-      case "hail-az" => authority
-      case "https" => {
-        if (authority.endsWith(".blob.core.windows.net")) {
-          authority.stripSuffix(".blob.core.windows.net")
-        } else {
-          throw new IllegalArgumentException(s"Invalid domain in blob URL: $authority")
-        }
-      }
-    }
+  private[this] def parseHttpsUrl(filename: String): AzureStorageFSHttpsURL = {
+    AZURE_HTTPS_URI_REGEX
+      .findFirstMatchIn(filename)
+      .map(m => new AzureStorageFSHttpsURL(m.group(1), m.group(2), parsePath(m.group(3))))
+      .getOrElse(throw new IllegalArgumentException("ABS URI must be of the form https://<ACCOUNT>.blob.core.windows.net/<CONTAINER>/<PATH>"))
+  }
 
-    val (container, path) = pathRegex.findFirstMatchIn(uri.getPath) match {
-      case Some(filenameMatch) =>
-        val container = filenameMatch.group(1)
-        val path = filenameMatch.group(2)
-        if (path != "") {
-          assert(path.startsWith("/"))
-          (container, path.substring(1))
-        } else {
-          (container, "")
-        }
-      case None =>
-          fatal(s"filename $filename is not in the correct format. hail-az://account/container/blobPath")
-    }
+  private[this] def parseHailAzUrl(filename: String): AzureStorageFSHailAzURL = {
+    HAIL_AZ_URI_REGEX
+      .findFirstMatchIn(filename)
+      .map(m => new AzureStorageFSHailAzURL(m.group(1), m.group(2), parsePath(m.group(3))))
+      .getOrElse(throw new IllegalArgumentException("hail-az URI must be of the form hail-az://<ACCOUNT>/<CONTAINER>/<PATH>"))
+  }
 
-    scheme match {
-      case "hail-az" => new AzureStorageFSHailAzURL(account, container, path)
-      case "https" => new AzureStorageFSHttpsURL(account, container, path)
-    }
+  private[this] def parsePath(maybeNullPath: String): String = {
+    val path = if (maybeNullPath == null) "" else maybeNullPath.stripPrefix("/")
+    Paths.get(path).normalize().toString
   }
 }
 
