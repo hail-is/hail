@@ -27,6 +27,11 @@ object GoogleStorageFS {
   private[this] val GCS_URI_REGEX = "^gs:\\/\\/([a-z0-9_\\-\\.]+)(\\/.*)?".r
 
   def getBucketPath(filename: String): (String, String) = {
+    val scheme = new URI(filename).getScheme
+    if (scheme == null || scheme != "gs") {
+      throw new IllegalArgumentException(s"Invalid scheme, expected gs: $scheme")
+    }
+
     GCS_URI_REGEX.findFirstMatchIn(filename) match {
       case Some(m) =>
         val bucket = m.group(1)

@@ -74,21 +74,28 @@ object AzureStorageFS {
   val schemes: Array[String] = Array("hail-az", "https")
 
   def parseUrl(filename: String): AzureStorageFSURL = {
-    parseHttpsUrl(filename)
-      .orElse(parseHailAzUrl(filename))
-      .getOrElse(throw new IllegalArgumentException("ABS URI must be of the form https://<ACCOUNT>.blob.core.windows.net/<CONTAINER>/<PATH>"))
+    val scheme = new URI(filename).getScheme
+    if (scheme == "hail-az") {
+      parseHailAzUrl(filename)
+    } else if (scheme == "https") {
+      parseHttpsUrl(filename)
+    } else {
+      throw new IllegalArgumentException(s"Invalid scheme, expected hail-az or https: $scheme")
+    }
   }
 
-  private[this] def parseHttpsUrl(filename: String): Option[AzureStorageFSHttpsURL] = {
+  private[this] def parseHttpsUrl(filename: String): AzureStorageFSHttpsURL = {
     AZURE_HTTPS_URI_REGEX
       .findFirstMatchIn(filename)
       .map(m => new AzureStorageFSHttpsURL(m.group(1), m.group(2), parsePath(m.group(3))))
+      .getOrElse(throw new IllegalArgumentException("ABS URI must be of the form https://<ACCOUNT>.blob.core.windows.net/<CONTAINER>/<PATH>"))
   }
 
-  private[this] def parseHailAzUrl(filename: String): Option[AzureStorageFSHailAzURL] = {
+  private[this] def parseHailAzUrl(filename: String): AzureStorageFSHailAzURL = {
     HAIL_AZ_URI_REGEX
       .findFirstMatchIn(filename)
       .map(m => new AzureStorageFSHailAzURL(m.group(1), m.group(2), parsePath(m.group(3))))
+      .getOrElse(throw new IllegalArgumentException("hail-az URI must be of the form hail-az://<ACCOUNT>/<CONTAINER>/<PATH>"))
   }
 
   private[this] def parsePath(maybeNullPath: String): String = {
