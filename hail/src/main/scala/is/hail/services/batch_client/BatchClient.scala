@@ -176,7 +176,7 @@ class BatchClient(
 
     val start = System.nanoTime()
 
-    Thread.sleep(1000)  // batch cannot possibly be done in less than 1000 milliseconds
+    Thread.sleep(300)  // batch cannot possibly be done in less than 300 milliseconds
 
     while (true) {
       val batch = retryTransientErrors { get(s"/api/v1alpha/batches/$batchID") }

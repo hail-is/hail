@@ -469,7 +469,7 @@ class ServiceBackend(Backend):
 
             with timings.step("wait driver"):
                 try:
-                    await asyncio.sleep(1)  # batch cannot possibly be done in less than 1 seconds
+                    await asyncio.sleep(0.6)  # batch cannot possibly be done in less than 0.6 seconds
                     await self._batch.wait(
                         description=name,
                         disable_progress_bar=self.disable_progress_bar,
