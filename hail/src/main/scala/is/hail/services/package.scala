@@ -41,18 +41,27 @@ package object services {
     // true error.
     val e = is.hail.shadedazure.reactor.core.Exceptions.unwrap(_e)
     e match {
-      case e: SocketException =>
-        e.getMessage != null && e.getMessage.contains("Connection reset")
-      case e: HttpResponseException =>
-        e.getStatusCode() == 400 && e.getMessage != null && (
-          e.getMessage.contains("Invalid grant: account not found") ||
-            e.getMessage.contains("{\"error\":\"unhandled_canonical_code_14\"}")
-        )
-      case e @ (_: SSLException | _: StorageException | _: IOException) =>
+      case e: SocketException
+          if e.getMessage != null && e.getMessage.contains("Connection reset") =>
+        true
+      case e: HttpResponseException
+          if e.getStatusCode() == 400 && e.getMessage != null && (
+            e.getMessage.contains("Invalid grant: account not found") ||
+              e.getMessage.contains("{\"error\":\"unhandled_canonical_code_14\"}")
+          ) =>
+        true
+      case e: IOException
+          if e.getMessage != null && e.getMessage.contains("Connection reset by peer") =>
+	// java.io.IOException: Connection reset by peer
+	//   at sun.nio.ch.FileDispatcherImpl.read0(NativeMethod) ~[?:1.8.0_362]
+	//   at sun.nio.ch.SocketDispatcher.read(SocketDispatcher.java:39)~[?:1.8.0_362]
+	//   at sun.nio.ch.IOUtil.readIntoNativeBuffer(IOUtil.java:223)~[?:1.8.0_362]
+	//   at sun.nio.ch.IOUtil.read(IOUtil.java:192) ~[?:1.8.0_362]
+	//   at sun.nio.ch.SocketChannelImpl.read(SocketChannelImpl.java:379) ~[?:1.8.0_362]
+        true
+      case e =>
         val cause = e.getCause
         cause != null && isLimitedRetriesError(cause)
-      case _ =>
-        false
     }
   }
 
@@ -67,12 +76,15 @@ package object services {
     e match {
       case e: NoHttpResponseException =>
         true
-      case e: HttpResponseException =>
-        RETRYABLE_HTTP_STATUS_CODES.contains(e.getStatusCode())
-      case e: ClientResponseException =>
-        RETRYABLE_HTTP_STATUS_CODES.contains(e.status)
-      case e: GoogleJsonResponseException =>
-        RETRYABLE_HTTP_STATUS_CODES.contains(e.getStatusCode())
+      case e: HttpResponseException
+          if RETRYABLE_HTTP_STATUS_CODES.contains(e.getStatusCode()) =>
+        true
+      case e: ClientResponseException
+          if RETRYABLE_HTTP_STATUS_CODES.contains(e.status) =>
+        true
+      case e: GoogleJsonResponseException
+          if RETRYABLE_HTTP_STATUS_CODES.contains(e.getStatusCode()) =>
+        true
       case e: HttpHostConnectException =>
         true
       case e: NoRouteToHostException =>
@@ -85,15 +97,17 @@ package object services {
         true
       case e: ConnectionClosedException =>
         true
-      case e: SocketException =>
-        e.getMessage != null && (
-          e.getMessage.contains("Connection timed out (Read failed)") ||
-            e.getMessage.contains("Broken pipe") ||
-            e.getMessage.contains("Connection refused"))
-      case e: EOFException =>
-        e.getMessage != null && (
-          e.getMessage.contains("SSL peer shut down incorrectly"))
-      case e: IllegalStateException =>
+      case e: SocketException
+          if e.getMessage != null && (
+            e.getMessage.contains("Connection timed out (Read failed)") ||
+              e.getMessage.contains("Broken pipe") ||
+              e.getMessage.contains("Connection refused")) =>
+        true
+      case e: EOFException
+          if e.getMessage != null && e.getMessage.contains("SSL peer shut down incorrectly") =>
+        true
+      case e: IllegalStateException
+          if e.getMessage.contains("Timeout on blocking read") =>
         // Caused by: java.lang.IllegalStateException: Timeout on blocking read for 30000000000 NANOSECONDS
         // reactor.core.publisher.BlockingSingleSubscriber.blockingGet(BlockingSingleSubscriber.java:123)
         // reactor.core.publisher.Mono.block(Mono.java:1727)
@@ -102,21 +116,20 @@ package object services {
         // is.hail.io.fs.AzureStorageFS$$anon$1.fill(AzureStorageFS.scala:152)
         // is.hail.io.fs.FSSeekableInputStream.read(FS.scala:141)
         // ...
-        e.getMessage.contains("Timeout on blocking read")
-      case e @ (_: SSLException | _: StorageException | _: IOException) =>
+        true
+      case e: java.net.SocketTimeoutException
+          if e.getMessage != null && e.getMessage.contains("connect timed out") =>
+        true
+      case e @ (_: SSLException | _: StorageException | _: IOException)
+          if e.getCause != null && NettyProxy.isRetryableNettyIOException(e.getCause) =>
+        true
+      case e =>
         val cause = e.getCause
-
-        (
-          NettyProxy.isRetryableNettyIOException(e)
-        ) || (
-          cause != null && isTransientError(cause)
-        )
-      case _ =>
-        false
+        cause != null && isTransientError(cause)
     }
   }
 
-  def retryTransientErrors[T](f: => T): T = {
+  def retryTransientErrors[T](f: => T, reset: Option[() => Unit] = None): T = {
     var delay = 0.1
     var errors = 0
     while (true) {
@@ -137,6 +150,7 @@ package object services {
           }
       }
       delay = sleepAndBackoff(delay)
+      reset.foreach(_())
     }
 
     throw new AssertionError("unreachable")

@@ -546,13 +546,16 @@ object TypeCheck {
         assert(x.typ == writer.returnType)
       case WriteMetadata(writeAnnotations, writer) =>
         assert(writeAnnotations.typ == writer.annotationType)
-      case x@ReadValue(path, spec, requestedType) =>
+      case x@ReadValue(path, reader, requestedType) =>
         assert(path.typ == TString)
-        assert(spec.encodedType.decodedPType(requestedType).virtualType == requestedType)
+        reader match {
+          case reader: ETypeValueReader =>
+            assert(reader.spec.encodedType.decodedPType(requestedType).virtualType == requestedType)
+          case _ => // do nothing, we can't in general typecheck an arbitrary value reader
+        }
       case WriteValue(_, path, writer, stagingFile) =>
         assert(path.typ == TString)
         assert(stagingFile.forall(_.typ == TString))
-        assert(writer.returnType == TString || writer.returnType == TBinary || writer.returnType == TVoid)
       case LiftMeOut(_) =>
       case Consume(_) =>
       case TableMapRows(child, newRow) =>

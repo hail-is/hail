@@ -9,7 +9,7 @@ from typing import Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from hailtop.utils import check_shell_output, time_msecs, time_ns
+from hailtop.utils import check_shell_output, sleep_and_backoff, time_msecs, time_ns
 
 log = logging.getLogger('resource_usage')
 
@@ -221,6 +221,7 @@ iptables -t mangle -L -v -n -x -w | grep "{self.veth_host}" | awk '{{ if ($6 == 
     async def __aenter__(self):
         async def periodically_measure():
             cancelled = False
+            delay = 0.1
             while True:
                 try:
                     await self.measure()
@@ -236,7 +237,7 @@ iptables -t mangle -L -v -n -x -w | grep "{self.veth_host}" | awk '{{ if ($6 == 
                     log.exception(f'while monitoring {self.container_name}')
                 finally:
                     if not cancelled:
-                        await asyncio.sleep(5)
+                        delay = await sleep_and_backoff(delay, 5)
 
         self.task = asyncio.ensure_future(periodically_measure())
         return self

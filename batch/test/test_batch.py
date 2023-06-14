@@ -147,7 +147,6 @@ def test_invalid_resource_requests(client: BatchClient):
         bb.submit()
 
 
-@skip_in_azure  # https://github.com/hail-is/hail/issues/12958
 def test_out_of_memory(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '10Gi'}
@@ -179,6 +178,20 @@ def test_quota_applies_to_volume(client: BatchClient):
     assert status['state'] == 'Failed', str((status, b.debug_info()))
     job_log = j.log()
     assert "fallocate failed: No space left on device" in job_log['main']
+
+
+def test_relative_volume_path_is_actually_absolute(client: BatchClient):
+    # https://github.com/hail-is/hail/pull/12990#issuecomment-1540332989
+    bb = create_batch(client)
+    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '5Gi'}
+    j = bb.create_job(
+        os.environ['HAIL_VOLUME_IMAGE'],
+        ['/bin/sh', '-c', 'ls / && ls . && ls /relative_volume && ! ls relative_volume'],
+        resources=resources,
+    )
+    b = bb.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
 def test_quota_shared_by_io_and_rootfs(client: BatchClient):
@@ -1048,7 +1061,6 @@ def test_pool_highcpu_instance(client: BatchClient):
     assert 'highcpu' in status['status']['worker'], str((status, b.debug_info()))
 
 
-@skip_in_azure  # https://github.com/hail-is/hail/issues/12958
 def test_pool_highcpu_instance_cheapest(client: BatchClient):
     bb = create_batch(client)
     resources = {'cpu': '0.25', 'memory': '50Mi'}

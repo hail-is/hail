@@ -1626,7 +1626,7 @@ def test_maybe_flexindex_table_by_expr_prefix_interval_match():
     assert t1._maybe_flexindex_table_by_expr((hl.str(mt1.row_idx), mt1.row_idx)) is None
 
 
-@pytest.mark.parametrize("width", [256, 512, 1024, 2048, pytest.param(3072, marks=pytest.mark.xfail)])
+@pytest.mark.parametrize("width", [256, 512, 1024, 2048, pytest.param(3072, marks=pytest.mark.xfail(strict=True))])
 def test_can_process_wide_tables(width):
     path = resource(f'width_scale_tests/{width}.tsv')
     ht = hl.import_table(path, impute=False)
@@ -2399,6 +2399,7 @@ def test_query_table_compound_key():
     ]
     assert hl.eval(queries) == expected
 
+
 def test_query_table_interval_key():
     f = new_temp_file(extension='ht')
 
@@ -2422,3 +2423,9 @@ def test_query_table_interval_key():
         [hl.Struct(idx=20, interval=hl.Interval(20, 70))],
     ]
     assert hl.eval(queries) == expected
+
+
+@pytest.mark.timeout(600)  # with sufficient available cores should take <=60s
+def test_large_number_of_partitions():
+    ht = hl.utils.range_table(1500, n_partitions=1500)
+    ht.collect()

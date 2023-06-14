@@ -17,7 +17,7 @@ argon2-cffi-bindings==21.2.0
     # via argon2-cffi
 arrow==1.2.3
     # via isoduration
-astroid==2.15.4
+astroid==2.15.5
     # via pylint
 asttokens==2.2.1
     # via stack-data
@@ -88,7 +88,7 @@ executing==1.2.0
     # via stack-data
 fastjsonschema==2.16.3
     # via nbformat
-fonttools==4.39.3
+fonttools==4.39.4
     # via matplotlib
 fqdn==1.5.1
     # via jsonschema
@@ -113,7 +113,7 @@ importlib-resources==5.12.0
     #   matplotlib
 iniconfig==2.0.0
     # via pytest
-ipykernel==6.22.0
+ipykernel==6.23.1
     # via
     #   ipywidgets
     #   jupyter
@@ -121,7 +121,7 @@ ipykernel==6.22.0
     #   nbclassic
     #   notebook
     #   qtconsole
-ipython==8.12.1
+ipython==8.12.2
     # via
     #   ipykernel
     #   ipywidgets
@@ -216,11 +216,11 @@ mypy-extensions==1.0.0
     # via
     #   black
     #   mypy
-nbclassic==0.5.6
+nbclassic==1.0.0
     # via notebook
 nbclient==0.7.4
     # via nbconvert
-nbconvert==7.3.1
+nbconvert==7.4.0
     # via
     #   jupyter
     #   jupyter-server
@@ -283,7 +283,7 @@ pillow==9.5.0
     #   matplotlib
 pkgutil-resolve-name==1.3.10
     # via jsonschema
-platformdirs==3.5.0
+platformdirs==3.5.1
     # via
     #   black
     #   jupyter-core
@@ -321,7 +321,7 @@ pygments==2.15.1
     #   nbconvert
     #   qtconsole
     #   sphinx
-pylint==2.17.3
+pylint==2.17.4
     # via -r hail/hail/python/dev/requirements.txt
 pyparsing==3.0.9
     # via matplotlib
@@ -335,6 +335,7 @@ pytest==7.3.1
     #   pytest-html
     #   pytest-instafail
     #   pytest-metadata
+    #   pytest-timeout
     #   pytest-xdist
 pytest-asyncio==0.21.0
     # via -r hail/hail/python/dev/requirements.txt
@@ -346,6 +347,8 @@ pytest-instafail==0.5.0
     # via -r hail/hail/python/dev/requirements.txt
 pytest-metadata==2.0.4
     # via pytest-html
+pytest-timeout==2.1.0
+    # via -r hail/hail/python/dev/requirements.txt
 pytest-timestamper==0.0.9
     # via -r hail/hail/python/dev/requirements.txt
 pytest-xdist==2.5.0
@@ -376,7 +379,7 @@ pyzmq==25.0.2
     #   nbclassic
     #   notebook
     #   qtconsole
-qtconsole==5.4.2
+qtconsole==5.4.3
     # via jupyter
 qtpy==2.3.1
     # via qtconsole
@@ -392,7 +395,7 @@ rfc3986-validator==0.1.1
     # via
     #   jsonschema
     #   jupyter-events
-ruff==0.0.264
+ruff==0.0.267
     # via -r hail/hail/python/dev/requirements.txt
 send2trash==1.8.2
     # via
@@ -488,27 +491,27 @@ traitlets==5.9.0
     #   nbsphinx
     #   notebook
     #   qtconsole
-types-chardet==5.0.4.5
+types-chardet==5.0.4.6
     # via -r hail/hail/python/dev/requirements.txt
 types-decorator==5.1.8.3
     # via -r hail/hail/python/dev/requirements.txt
 types-deprecated==1.2.9.2
     # via -r hail/hail/python/dev/requirements.txt
-types-pymysql==1.0.19.6
+types-pymysql==1.0.19.7
     # via -r hail/hail/python/dev/requirements.txt
-types-python-dateutil==2.8.19.12
+types-python-dateutil==2.8.19.13
     # via -r hail/hail/python/dev/requirements.txt
 types-pyyaml==6.0.12.9
     # via -r hail/hail/python/dev/requirements.txt
-types-requests==2.29.0.0
+types-requests==2.30.0.0
     # via -r hail/hail/python/dev/requirements.txt
-types-setuptools==67.7.0.1
+types-setuptools==67.7.0.2
     # via -r hail/hail/python/dev/requirements.txt
 types-six==1.16.21.8
     # via -r hail/hail/python/dev/requirements.txt
 types-tabulate==0.9.0.2
     # via -r hail/hail/python/dev/requirements.txt
-types-urllib3==1.26.25.12
+types-urllib3==1.26.25.13
     # via
     #   -r hail/hail/python/dev/requirements.txt
     #   types-requests

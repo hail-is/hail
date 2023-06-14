@@ -7,11 +7,14 @@ import traceback
 from typing import Optional
 
 import aiomysql
+import kubernetes_asyncio.client
+import kubernetes_asyncio.config
 import pymysql
 
 from gear.metrics import DB_CONNECTION_QUEUE_SIZE, SQL_TRANSACTIONS, PrometheusSQLTimer
 from hailtop.aiotools import BackgroundTaskManager
 from hailtop.auth.sql_config import SQLConfig
+from hailtop.config import get_deploy_config
 from hailtop.utils import sleep_and_backoff
 
 log = logging.getLogger('gear.database')
@@ -77,6 +80,19 @@ async def aexit(acontext_manager, exc_type=None, exc_val=None, exc_tb=None):
     return await acontext_manager.__aexit__(exc_type, exc_val, exc_tb)
 
 
+async def resolve_test_db_endpoint(sql_config: SQLConfig) -> SQLConfig:
+    service_name, namespace = sql_config.host[: -len('.svc.cluster.local')].split('.', maxsplit=1)
+    await kubernetes_asyncio.config.load_kube_config()
+    async with kubernetes_asyncio.client.ApiClient() as api:
+        client = kubernetes_asyncio.client.CoreV1Api(api)
+        db_service = await client.read_namespaced_service(service_name, namespace)
+        db_pod = await client.read_namespaced_pod(f'{db_service.spec.selector["app"]}-0', namespace)
+        sql_config_dict = sql_config.to_dict()
+        sql_config_dict['host'] = db_pod.status.host_ip
+        sql_config_dict['port'] = db_service.spec.ports[0].node_port
+        return SQLConfig.from_dict(sql_config_dict)
+
+
 def get_sql_config(maybe_config_file: Optional[str] = None) -> SQLConfig:
     if maybe_config_file is None:
         config_file = os.environ.get('HAIL_DATABASE_CONFIG_FILE', '/sql-config/sql-config.json')
@@ -108,6 +124,8 @@ def get_database_ssl_context(sql_config: Optional[SQLConfig] = None) -> ssl.SSLC
 @retry_transient_mysql_errors
 async def create_database_pool(config_file: Optional[str] = None, autocommit: bool = True, maxsize: int = 10):
     sql_config = get_sql_config(config_file)
+    if get_deploy_config().location() != 'k8s' and sql_config.host.endswith('svc.cluster.local'):
+        sql_config = await resolve_test_db_endpoint(sql_config)
     ssl_context = get_database_ssl_context(sql_config)
     assert ssl_context is not None
     return await aiomysql.create_pool(

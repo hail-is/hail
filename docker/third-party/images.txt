@@ -18,4 +18,4 @@ ubuntu:18.04
 ubuntu:19.04
 ubuntu:20.04
 ubuntu:bionic-20200921
-ubuntu:focal-20201106
+ubuntu:focal-20221019
