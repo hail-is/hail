@@ -2263,6 +2263,9 @@ steps:
       - name: add-jobs-ready-time
         script: /io/sql/add-jobs-ready-time.sql
         online: true
+      - name: set-test-min-standard-pool-size-to-3
+        script: /io/sql/set-test-min-standard-pool-size-to-3.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
