@@ -3408,7 +3408,7 @@ steps:
     inputs:
       - from: /hail_pip_version
         to: /io/hail_pip_version
-      - from: /just-wheel/wheel-container.tar
+      - from: /wheel-container.tar
         to: /io/wheel-container.tar
     scopes:
       - deploy
