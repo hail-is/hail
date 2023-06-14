@@ -3416,7 +3416,7 @@ steps:
     dependsOn:
       - default_ns
       - ci_utils_image
-      - build_hail_jar_and_wheel_only
+      - build_hail_jar_and_wheel
     clouds:
       - gcp
   - kind: runImage
