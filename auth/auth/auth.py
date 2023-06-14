@@ -53,6 +53,9 @@ uvloop.install()
 
 CLOUD = get_global_config()['cloud']
 ORGANIZATION_DOMAIN = os.environ['HAIL_ORGANIZATION_DOMAIN']
+DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
+
+is_test_deployment = DEFAULT_NAMESPACE != 'default'
 
 deploy_config = get_deploy_config()
 
@@ -124,7 +127,14 @@ async def check_valid_new_user(tx: Transaction, username, login_id, is_developer
 
 
 async def insert_new_user(
-    db: Database, username: str, login_id: Optional[str], is_developer: bool, is_service_account: bool
+    db: Database,
+    username: str,
+    login_id: Optional[str],
+    is_developer: bool,
+    is_service_account: bool,
+    *,
+    hail_identity: Optional[str] = None,
+    hail_credentials_secret_name: Optional[str] = None,
 ) -> bool:
     @transaction(db)
     async def _insert(tx):
@@ -134,10 +144,18 @@ async def insert_new_user(
 
         await tx.execute_insertone(
             '''
-INSERT INTO users (state, username, login_id, is_developer, is_service_account)
-VALUES (%s, %s, %s, %s, %s);
+INSERT INTO users (state, username, login_id, is_developer, is_service_account, hail_identity, hail_credentials_secret_name)
+VALUES (%s, %s, %s, %s, %s, %s, %s);
 ''',
-            ('creating', username, login_id, is_developer, is_service_account),
+            (
+                'creating',
+                username,
+                login_id,
+                is_developer,
+                is_service_account,
+                hail_identity,
+                hail_credentials_secret_name,
+            ),
         )
 
     await _insert()  # pylint: disable=no-value-for-parameter
@@ -367,8 +385,21 @@ async def create_user(request: web.Request, userdata):  # pylint: disable=unused
     is_developer = body['is_developer']
     is_service_account = body['is_service_account']
 
+    hail_identity = body.get('hail_identity')
+    hail_credentials_secret_name = body.get('hail_credentials_secret_name')
+    if (hail_identity or hail_credentials_secret_name) and not is_test_deployment:
+        raise web.HTTPBadRequest(text='Cannot specify an existing hail identity for a new user')
+
     try:
-        await insert_new_user(db, username, login_id, is_developer, is_service_account)
+        await insert_new_user(
+            db,
+            username,
+            login_id,
+            is_developer,
+            is_service_account,
+            hail_identity=hail_identity,
+            hail_credentials_secret_name=hail_credentials_secret_name,
+        )
     except AuthUserError as e:
         raise e.http_response()
 

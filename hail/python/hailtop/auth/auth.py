@@ -152,17 +152,24 @@ async def async_get_user(username: str, namespace: Optional[str] = None) -> dict
         )
 
 
-def create_user(username: str, login_id: str, is_developer: bool, is_service_account: bool, namespace: Optional[str] = None):
-    return async_to_blocking(async_create_user(username, login_id, is_developer, is_service_account, namespace=namespace))
-
-
-async def async_create_user(username: str, login_id: str, is_developer: bool, is_service_account: bool, namespace: Optional[str] = None):
+async def async_create_user(
+    username: str,
+    login_id: str,
+    is_developer: bool,
+    is_service_account: bool,
+    hail_identity: Optional[str],
+    hail_credentials_secret_name: Optional[str],
+    *,
+    namespace: Optional[str] = None
+):
     deploy_config, headers, _ = deploy_config_and_headers_from_namespace(namespace)
 
     body = {
         'login_id': login_id,
         'is_developer': is_developer,
         'is_service_account': is_service_account,
+        'hail_identity': hail_identity,
+        'hail_credentials_secret_name': hail_credentials_secret_name,
     }
 
     async with httpx.client_session(

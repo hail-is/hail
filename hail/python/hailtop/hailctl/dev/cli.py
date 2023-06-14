@@ -53,7 +53,6 @@ async def _deploy(branch: str, steps: List[str], excluded_steps: List[str], extr
 
     deploy_config = get_deploy_config()
     steps = unpack_comma_delimited_inputs(steps)
-    print(steps)
     excluded_steps = unpack_comma_delimited_inputs(excluded_steps)
     extra_config_dict = unpack_key_value_inputs(extra_config)
     async with CIClient(deploy_config) as ci_client:
