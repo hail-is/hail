@@ -1,13 +1,11 @@
 package is.hail.compatibility
 
-import is.hail.HailContext
 import is.hail.backend.HailStateManager
 import is.hail.expr.JSONAnnotationImpex
+import is.hail.io._
+import is.hail.rvd.{AbstractRVDSpec, IndexSpec2, IndexedRVDSpec2, RVDPartitioner}
 import is.hail.types.encoded._
 import is.hail.types.virtual._
-import is.hail.io._
-import is.hail.io.fs.FS
-import is.hail.rvd.{AbstractRVDSpec, IndexSpec2, IndexedRVDSpec2, RVD, RVDPartitioner}
 import is.hail.utils.{FastIndexedSeq, Interval}
 import org.json4s.JValue
 

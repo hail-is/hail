@@ -3,14 +3,15 @@ package is.hail.methods
 import breeze.linalg._
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.MatrixToTableFunction
+import is.hail.expr.ir.lowering.MonadLower
 import is.hail.expr.ir.{IntArrayBuilder, MatrixValue, TableValue}
+import is.hail.stats._
 import is.hail.types.virtual.{TArray, TFloat64, TStruct}
 import is.hail.types.{MatrixType, TableType}
-import is.hail.rvd.RVDType
-import is.hail.stats._
 import is.hail.utils._
+
+import scala.language.higherKinds
 
 case class LogisticRegression(
   test: String,
@@ -31,20 +32,18 @@ case class LogisticRegression(
 
   def preservesPartitionCounts: Boolean = true
 
-  def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
+  def execute[M[_]](mv: MatrixValue)(implicit M: MonadLower[M]): M[TableValue] = {
     val logRegTest = LogisticRegressionTest.tests(test)
     val tableType = typ(mv.typ)
     val newRVDType = tableType.canonicalRVDType
-
-    val multiPhenoSchema = TStruct(("logistic_regression", TArray(logRegTest.schema)))
 
     val (yVecs, cov, completeColIdx) = RegressionUtils.getPhenosCovCompleteSamples(mv, yFields.toArray, covFields.toArray)
 
     (0 until yVecs.cols).foreach(col => {
       if (!yVecs(::, col).forall(yi => yi == 0d || yi == 1d))
         fatal(s"For logistic regression, y at index ${col} must be bool or numeric with all present values equal to 0 or 1")
-      val sumY = sum(yVecs(::,col))
-      if (sumY == 0d || sumY == yVecs(::,col).length)
+      val sumY = sum(yVecs(::, col))
+      if (sumY == 0d || sumY == yVecs(::, col).length)
         fatal(s"For logistic regression, y at index ${col} must be non-constant")
     })
 
@@ -53,14 +52,14 @@ case class LogisticRegression(
     val d = n - k - 1
 
     if (d < 1)
-      fatal(s"$n samples and ${ k + 1 } ${ plural(k, "covariate") } (including x) implies $d degrees of freedom.")
+      fatal(s"$n samples and ${k + 1} ${plural(k, "covariate")} (including x) implies $d degrees of freedom.")
 
     info(s"logistic_regression_rows: running $test on $n samples for response variable y,\n"
-      + s"    with input variable x, and ${ k } additional ${ plural(k, "covariate") }...")
+      + s"    with input variable x, and ${k} additional ${plural(k, "covariate")}...")
 
     val nullFits = (0 until yVecs.cols).map(col => {
       val nullModel = new LogisticRegressionModel(cov, yVecs(::, col))
-      var nullFit = nullModel.fit(maxIter=maxIterations, tol=tolerance)
+      var nullFit = nullModel.fit(maxIter = maxIterations, tol = tolerance)
 
       if (!nullFit.converged)
         if (logRegTest == LogisticFirthTest)
@@ -106,7 +105,7 @@ case class LogisticRegression(
         RegressionUtils.setMeanImputedDoubles(X.data, n * k, completeColIdxBc.value, missingCompleteCols,
           ptr, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
         val logregAnnotations = (0 until _yVecs.cols).map(col => {
-          logRegTestBc.value.test(X, _yVecs(::,col), _nullFits(col), "logistic", maxIter=maxIterations, tol=tolerance)
+          logRegTestBc.value.test(X, _yVecs(::, col), _nullFits(col), "logistic", maxIter = maxIterations, tol = tolerance)
         })
 
         rvb.start(newRVDType.rowType)
@@ -125,6 +124,6 @@ case class LogisticRegression(
       }
     }
 
-    TableValue(ctx, tableType, BroadcastRow.empty(ctx), newRVD)
+    M.map(BroadcastRow.empty)(TableValue(tableType, _, newRVD))
   }
 }

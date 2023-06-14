@@ -1,5 +1,7 @@
 package is.hail.io.vcf
 
+import cats.data.Reader
+import cats.implicits.catsSyntaxFlatMapOps
 import htsjdk.variant.vcf._
 import is.hail.annotations._
 import is.hail.asm4s.HailClassLoader
@@ -1705,6 +1707,7 @@ class MatrixVCFReader(
   require(params.partitionsJSON.isEmpty || fileStatuses.length == 1, "reading with partitions can currently only read a single path")
 
   def rowUIDType = TTuple(TInt64, TInt64)
+
   def colUIDType = TInt64
 
   def fullMatrixTypeWithoutUIDs: MatrixType = MatrixType(
@@ -1715,7 +1718,7 @@ class MatrixVCFReader(
       Array(
         "locus" -> TLocus.schemaFromRG(referenceGenome.map(_.name)),
         "alleles" -> TArray(TString))
-      ++ vaSignature.fields.map(f => f.name -> f.typ.virtualType): _*),
+        ++ vaSignature.fields.map(f => f.name -> f.typ.virtualType): _*),
     rowKey = Array("locus", "alleles"),
     // rowKey = Array.empty[String],
     entryType = genotypeSignature.virtualType)
@@ -1725,8 +1728,8 @@ class MatrixVCFReader(
       FastIndexedSeq(
         "locus" -> PCanonicalLocus.schemaFromRG(referenceGenome.map(_.name), true),
         "alleles" -> PCanonicalArray(PCanonicalString(true), true))
-      ++ vaSignature.fields.map { f => f.name -> f.typ }
-      ++ FastIndexedSeq(
+        ++ vaSignature.fields.map { f => f.name -> f.typ }
+        ++ FastIndexedSeq(
         LowerMatrixIR.entriesFieldName -> PCanonicalArray(genotypeSignature, true),
         rowUIDFieldName -> PCanonicalTuple(true, PInt64Required, PInt64Required)): _*),
     fullType.key)
@@ -1770,101 +1773,105 @@ class MatrixVCFReader(
   override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
     VirtualTypeWithReq(PType.canonical(requestedType.globalType))
 
-  def executeGeneric(ctx: ExecuteContext, dropRows: Boolean = false): GenericTableValue = {
-    val fs = ctx.fs
-    val sm = ctx.stateManager
+  def executeGeneric[M[_]](dropRows: Boolean = false)(implicit M: MonadLower[M]): M[GenericTableValue] =
+    M.reader { ctx =>
+      val fs = ctx.fs
+      val sm = ctx.stateManager
 
-    val rgBc = referenceGenome.map(_.broadcast)
-    val localArrayElementsRequired = params.arrayElementsRequired
-    val localContigRecoding = params.contigRecoding
-    val localSkipInvalidLoci = params.skipInvalidLoci
-    val localInfoFlagFieldNames = infoFlagFieldNames
-    val localNSamples = nCols
-    val localFilterAndReplace = params.filterAndReplace
+      val rgBc = referenceGenome.map(_.broadcast)
+      val localArrayElementsRequired = params.arrayElementsRequired
+      val localContigRecoding = params.contigRecoding
+      val localSkipInvalidLoci = params.skipInvalidLoci
+      val localInfoFlagFieldNames = infoFlagFieldNames
+      val localNSamples = nCols
+      val localFilterAndReplace = params.filterAndReplace
 
-    val part = partitioner(ctx.stateManager)
-    val lines = part match {
-      case Some(partitioner) =>
-        GenericLines.readTabix(fs, fileStatuses(0), localContigRecoding, partitioner.rangeBounds)
-      case None =>
-        GenericLines.read(fs, fileStatuses, params.nPartitions, params.blockSizeInMB, params.minPartitions, params.gzAsBGZ, params.forceGZ)
-    }
+      val part = partitioner(ctx.stateManager)
+      val lines = part match {
+        case Some(partitioner) =>
+          GenericLines.readTabix(fs, fileStatuses(0), localContigRecoding, partitioner.rangeBounds)
+        case None =>
+          GenericLines.read(fs, fileStatuses, params.nPartitions, params.blockSizeInMB, params.minPartitions, params.gzAsBGZ, params.forceGZ)
+      }
 
-    val globals = Row(sampleIDs.zipWithIndex.map { case (s, i) => Row(s, i.toLong) }.toFastIndexedSeq)
+      val globals = Row(sampleIDs.zipWithIndex.map { case (s, i) => Row(s, i.toLong) }.toFastIndexedSeq)
 
-    val fullRowPType: PType = fullRVDType.rowType
+      val fullRowPType: PType = fullRVDType.rowType
 
-    val bodyPType = (requestedRowType: TStruct) => fullRowPType.subsetTo(requestedRowType).asInstanceOf[PStruct]
+      val bodyPType = (requestedRowType: TStruct) => fullRowPType.subsetTo(requestedRowType).asInstanceOf[PStruct]
 
-    val linesBody = if (dropRows) { (_: FS, _: Any) =>
-      CloseableIterator.empty[GenericLine]
-    } else
-      lines.body
-    val body = { (requestedType: TStruct) =>
-      val requestedPType = bodyPType(requestedType)
+      val linesBody = if (dropRows) { (_: FS, _: Any) =>
+        CloseableIterator.empty[GenericLine]
+      } else
+        lines.body
+      val body = { (requestedType: TStruct) =>
+        val requestedPType = bodyPType(requestedType)
 
-      { (region: Region, theHailClassLoader: HailClassLoader, fs: FS, context: Any) =>
-        val fileNum = context.asInstanceOf[Row].getInt(1)
-        val parseLineContext = new ParseLineContext(requestedType, makeJavaSet(localInfoFlagFieldNames), localNSamples, fileNum)
+        { (region: Region, theHailClassLoader: HailClassLoader, fs: FS, context: Any) =>
+          val fileNum = context.asInstanceOf[Row].getInt(1)
+          val parseLineContext = new ParseLineContext(requestedType, makeJavaSet(localInfoFlagFieldNames), localNSamples, fileNum)
 
-        val rvb = new RegionValueBuilder(sm, region)
+          val rvb = new RegionValueBuilder(sm, region)
 
-        val abs = new MissingArrayBuilder[String]
-        val abi = new MissingArrayBuilder[Int]
-        val abf = new MissingArrayBuilder[Float]
-        val abd = new MissingArrayBuilder[Double]
+          val abs = new MissingArrayBuilder[String]
+          val abi = new MissingArrayBuilder[Int]
+          val abf = new MissingArrayBuilder[Float]
+          val abd = new MissingArrayBuilder[Double]
 
-        val transformer = localFilterAndReplace.transformer()
+          val transformer = localFilterAndReplace.transformer()
 
-        linesBody(fs, context)
-          .filter { line =>
-            val text = line.toString
-            val newText = transformer(text)
-            if (newText != null) {
-              rvb.clear()
-              try {
-                val vcfLine = new VCFLine(newText, line.fileNum, line.offset, localArrayElementsRequired, abs, abi, abf, abd)
-                LoadVCF.parseLine(rgBc, localContigRecoding, localSkipInvalidLoci,
-                  requestedPType, rvb, parseLineContext, vcfLine)
-              } catch {
-                case e: Exception =>
-                  fatal(s"${ line.file }:offset ${ line.offset }: error while parsing line\n" +
-                    s"$newText\n", e)
-              }
-            } else
-              false
-          }.map { _ =>
+          linesBody(fs, context)
+            .filter { line =>
+              val text = line.toString
+              val newText = transformer(text)
+              if (newText != null) {
+                rvb.clear()
+                try {
+                  val vcfLine = new VCFLine(newText, line.fileNum, line.offset, localArrayElementsRequired, abs, abi, abf, abd)
+                  LoadVCF.parseLine(rgBc, localContigRecoding, localSkipInvalidLoci,
+                    requestedPType, rvb, parseLineContext, vcfLine)
+                } catch {
+                  case e: Exception =>
+                    fatal(s"${line.file}:offset ${line.offset}: error while parsing line\n" +
+                      s"$newText\n", e)
+                }
+              } else
+                false
+            }.map { _ =>
             rvb.result().offset
           }
+        }
       }
+
+      new GenericTableValue(
+        fullType,
+        rowUIDFieldName,
+        part,
+        { (requestedGlobalsType: Type) =>
+          val subset = fullType.globalType.valueSubsetter(requestedGlobalsType)
+          subset(globals).asInstanceOf[Row]
+        },
+        lines.contextType.asInstanceOf[TStruct],
+        lines.contexts,
+        bodyPType,
+        body
+      )
     }
 
-    new GenericTableValue(
-      fullType,
-      rowUIDFieldName,
-      part,
-      { (requestedGlobalsType: Type) =>
-        val subset = fullType.globalType.valueSubsetter(requestedGlobalsType)
-        subset(globals).asInstanceOf[Row]
-      },
-      lines.contextType.asInstanceOf[TStruct],
-      lines.contexts,
-      bodyPType,
-      body)
-  }
+  override def lowerGlobals[M[_]](requestedGlobalsType: TStruct)(implicit M: MonadLower[M]): M[IR] =
+    M.pure {
+      val globals = Row(sampleIDs.zipWithIndex.map(t => Row(t._1, t._2.toLong)).toFastIndexedSeq)
+      Literal.coerce(
+        requestedGlobalsType,
+        fullType.globalType.valueSubsetter(requestedGlobalsType).apply(globals)
+      )
+    }
 
-  override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
-    val globals = Row(sampleIDs.zipWithIndex.map(t => Row(t._1, t._2.toLong)).toFastIndexedSeq)
-    Literal.coerce(requestedGlobalsType,
-      fullType.globalType.valueSubsetter(requestedGlobalsType)
-        .apply(globals))
-  }
+  override def lower[M[_]: MonadLower](requestedType: TableType): M[TableStage] =
+    executeGeneric() >>= (_.toTableStage(requestedType, "VCF", params))
 
-  override def lower[M[_]: MonadLower](ctx: ExecuteContext, requestedType: TableType): M[TableStage] =
-    executeGeneric(ctx).toTableStage(ctx, requestedType, "VCF", params)
-
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue =
-    executeGeneric(ctx, dropRows).toTableValue(ctx, requestedType)
+  override def apply[M[_]: MonadLower](requestedType: TableType, dropRows: Boolean): M[TableValue] =
+    executeGeneric(dropRows) >>= (_.toTableValue(requestedType))
 
   override def toJValue: JValue = {
     implicit val formats: Formats = DefaultFormats
@@ -2025,7 +2032,8 @@ class VCFsReader(
       partitioner,
       parsedLines)
 
-    MatrixLiteral(ctx, typ, rvd, Row.empty, sampleIDs.map(Row(_)))
+    MatrixLiteral[({type F[A] = Reader[ExecuteContext, A]})#F](typ, rvd, Row.empty, sampleIDs.map(Row(_)))
+      .run(ctx)
   }
 
   def read(ctx: ExecuteContext): Array[MatrixIR] = {

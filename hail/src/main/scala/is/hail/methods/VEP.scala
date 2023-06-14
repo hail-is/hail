@@ -1,11 +1,12 @@
 package is.hail.methods
 
+import cats.implicits.toFunctorOps
 import com.fasterxml.jackson.core.JsonParseException
 import is.hail.annotations._
-import is.hail.backend.ExecuteContext
 import is.hail.expr._
-import is.hail.expr.ir.functions.{RelationalFunctions, TableToTableFunction}
 import is.hail.expr.ir.TableValue
+import is.hail.expr.ir.functions.{RelationalFunctions, TableToTableFunction}
+import is.hail.expr.ir.lowering.MonadLower
 import is.hail.io.fs.FS
 import is.hail.methods.VEP._
 import is.hail.rvd.RVD
@@ -21,6 +22,7 @@ import org.json4s.{Formats, JValue}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.language.higherKinds
 
 case class VEPConfiguration(
   command: Array[String],
@@ -129,7 +131,7 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
       globType)
   }
 
-  override def execute(ctx: ExecuteContext, tv: TableValue): TableValue = {
+  override def execute[M[_]: MonadLower](tv: TableValue): M[TableValue] = {
     assert(tv.typ.key == FastIndexedSeq("locus", "alleles"))
     assert(tv.typ.rowType.size == 2)
 
@@ -196,12 +198,12 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
                         case Some(value) =>
                           value.substring(4).split(",").toFastIndexedSeq
                         case None =>
-                          warn(s"No CSQ INFO field for VEP output variant ${ VariantMethods.locusAllelesToString(vepLocus, vepAlleles) }.\nVEP output: $s.")
+                          warn(s"No CSQ INFO field for VEP output variant ${VariantMethods.locusAllelesToString(vepLocus, vepAlleles)}.\nVEP output: $s.")
                           null
                       }
                       Some((Annotation(locus, alleles), a))
                     case None =>
-                      fatal(s"VEP output variant ${ VariantMethods.locusAllelesToString(vepLocus, vepAlleles) } not found in original variants.\nVEP output: $s")
+                      fatal(s"VEP output variant ${VariantMethods.locusAllelesToString(vepLocus, vepAlleles)} not found in original variants.\nVEP output: $s")
                   }
                 } else {
                   try {
@@ -218,7 +220,7 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
                       case Some(v@(locus, alleles)) =>
                         Some((Annotation(locus, alleles), a))
                       case None =>
-                        fatal(s"VEP output variant ${ VariantMethods.locusAllelesToString(vepLocus, vepAlleles) } not found in original variants.\nVEP output: $s")
+                        fatal(s"VEP output variant ${VariantMethods.locusAllelesToString(vepLocus, vepAlleles)} not found in original variants.\nVEP output: $s")
                     }
                   } catch {
                     case e: JsonParseException if localTolerateParseError =>
@@ -266,16 +268,10 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
       })
 
     val globalValue =
-      if (params.csq)
-        Row(csqHeader.getOrElse(""))
-      else
-        Row()
+      if (params.csq) Row(csqHeader.getOrElse("")) else Row()
 
     val newTT = typ(tv.typ)
-    TableValue(ctx,
-      newTT,
-      BroadcastRow(ctx, globalValue, newTT.globalType),
-      vepRVD)
+    BroadcastRow(globalValue, newTT.globalType).map(TableValue(newTT, _, vepRVD))
   }
 
   override def toJValue: JValue = {

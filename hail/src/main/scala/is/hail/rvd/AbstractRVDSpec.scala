@@ -1,6 +1,8 @@
 package is.hail.rvd
 
+import cats.implicits.{toFlatMapOps, toFunctorOps}
 import is.hail.annotations._
+import is.hail.backend.utils.assertA
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.compatibility
 import is.hail.expr.ir.lowering.{MonadLower, TableStage, TableStageDependency}
@@ -34,8 +36,8 @@ object AbstractRVDSpec {
       classOf[compatibility.UnpartitionedRVDSpec],
       classOf[AbstractTypedCodecSpec],
       classOf[TypedCodecSpec]),
-    typeHintFieldName = "name") + BufferSpec.shortTypeHints
-  }  +
+      typeHintFieldName = "name") + BufferSpec.shortTypeHints
+  } +
     new TStructSerializer +
     new TypeSerializer +
     new PTypeSerializer +
@@ -55,13 +57,12 @@ object AbstractRVDSpec {
 
   def partPath(path: String, partFile: String): String = path + "/parts/" + partFile
 
-  def writeSingle(
-    execCtx: ExecuteContext,
-    path: String,
-    rowType: PStruct,
-    bufferSpec: BufferSpec,
-    rows: IndexedSeq[Annotation]
-  ): Array[FileWriteMetadata] = {
+  def writeSingle(execCtx: ExecuteContext,
+                  path: String,
+                  rowType: PStruct,
+                  bufferSpec: BufferSpec,
+                  rows: IndexedSeq[Annotation]
+                 ): Array[FileWriteMetadata] = {
     val fs = execCtx.fs
     val partsPath = path + "/parts"
     fs.mkDir(partsPath)
@@ -90,27 +91,27 @@ object AbstractRVDSpec {
     Array(FileWriteMetadata(path, part0Count, bytesWritten))
   }
 
-  def readZippedLowered[M[_]: MonadLower](
-    ctx: ExecuteContext,
-    specLeft: AbstractRVDSpec,
-    specRight: AbstractRVDSpec,
-    pathLeft: String,
-    pathRight: String,
-    newPartitioner: Option[RVDPartitioner],
-    filterIntervals: Boolean,
-    requestedType: TStruct,
-    requestedKey: IndexedSeq[String],
-    uidFieldName: String
-  ): IR => M[TableStage] = {
+  def readZippedLowered[M[_]](specLeft: AbstractRVDSpec,
+                              specRight: AbstractRVDSpec,
+                              pathLeft: String,
+                              pathRight: String,
+                              newPartitioner: Option[RVDPartitioner],
+                              filterIntervals: Boolean,
+                              requestedType: TStruct,
+                              requestedKey: IndexedSeq[String],
+                              uidFieldName: String
+                             )
+                             (globals: IR)
+                             (implicit M: MonadLower[M]): M[TableStage] = {
     require(specRight.key.isEmpty)
-    val partitioner = specLeft.partitioner(ctx.stateManager)
+    val readPartitioner = M.reader(c => specLeft.partitioner(c.stateManager))
 
     newPartitioner match {
       case None =>
-
         val reader = PartitionZippedNativeReader(
           PartitionNativeReader(specLeft.typedCodecSpec, uidFieldName),
-          PartitionNativeReader(specRight.typedCodecSpec, uidFieldName))
+          PartitionNativeReader(specRight.typedCodecSpec, uidFieldName)
+        )
 
         val leftParts = specLeft.absolutePartPaths(pathLeft)
         val rightParts = specRight.absolutePartPaths(pathRight)
@@ -120,77 +121,71 @@ object AbstractRVDSpec {
           .map { (path1, path2, partIdx) => Row(Row(partIdx.toLong, path1), Row(partIdx.toLong, path2)) }
 
         val ctxIR = ToStream(Literal(TArray(reader.contextType), contextsValue))
-
-        val partKeyPrefix = partitioner.kType.fieldNames.slice(0, requestedKey.length).toIndexedSeq
-        assert(requestedKey == partKeyPrefix, s"$requestedKey != $partKeyPrefix")
-
-        { (globals: IR) =>
-          MonadLower[M].pure {
-            TableStage(
-              globals,
-              partitioner.coarsen(requestedKey.length),
-              TableStageDependency.none,
-              ctxIR,
-              ReadPartition(_, requestedType, reader))
-          }
+        readPartitioner.map { p =>
+          val partKeyPrefix = p.kType.fieldNames.slice(0, requestedKey.length).toIndexedSeq
+          assert(requestedKey == partKeyPrefix, s"$requestedKey != $partKeyPrefix")
+          TableStage(
+            globals,
+            p.coarsen(requestedKey.length),
+            TableStageDependency.none,
+            ctxIR,
+            ReadPartition(_, requestedType, reader))
         }
 
       case Some(np) =>
-        val (indexSpecLeft, indexSpecRight) = (specLeft, specRight) match {
-          case (l: Indexed, r: Indexed)  => (l.indexSpec, r.indexSpec)
-          case _ => throw new RuntimeException(s"attempted to read unindexed table as indexed")
-        }
+        for {
+          (indexSpecLeft, indexSpecRight) <- (specLeft, specRight) match {
+            case (l: Indexed, r: Indexed) => M.pure((l.indexSpec, r.indexSpec))
+            case _ => M.raiseError(new RuntimeException(s"attempted to read unindexed table as indexed"))
+          }
 
-        if (requestedKey.isEmpty)
-          throw new RuntimeException("cannot read indexed matrix with empty key")
+          _ <- assertA(requestedKey.isEmpty, "cannot read indexed matrix with empty key")
+          partitioner <- readPartitioner
+          extendedNewPartitioner = np.extendKey(partitioner.kType)
+          tmpPartitioner = extendedNewPartitioner.intersect(partitioner)
 
-        val extendedNewPartitioner = np.extendKey(partitioner.kType)
-        val tmpPartitioner = extendedNewPartitioner.intersect(partitioner)
+          partKeyPrefix = tmpPartitioner.kType.fieldNames.slice(0, requestedKey.length).toIndexedSeq
+          _ <- assertA(requestedKey == partKeyPrefix, s"$requestedKey != $partKeyPrefix")
 
-        val partKeyPrefix = tmpPartitioner.kType.fieldNames.slice(0, requestedKey.length).toIndexedSeq
-        assert(requestedKey == partKeyPrefix, s"$requestedKey != $partKeyPrefix")
+          reader = PartitionZippedIndexedNativeReader(
+            specLeft.typedCodecSpec, specRight.typedCodecSpec,
+            indexSpecLeft, indexSpecRight,
+            specLeft.key, uidFieldName
+          )
 
-        val reader = PartitionZippedIndexedNativeReader(
-          specLeft.typedCodecSpec, specRight.typedCodecSpec,
-          indexSpecLeft, indexSpecRight,
-          specLeft.key, uidFieldName)
+          absPathLeft = removeFileProtocol(pathLeft)
+          absPathRight = removeFileProtocol(pathRight)
+          partsAndIntervals =
+            if (specLeft.key.isEmpty) specLeft.partFiles.map { p => (p, null) }
+            else {
+              val partFiles = specLeft.partFiles
+              tmpPartitioner.rangeBounds.map { b => (partFiles(partitioner.lowerBoundInterval(b)), b) }
+            }
 
-        val absPathLeft = removeFileProtocol(pathLeft)
-        val absPathRight = removeFileProtocol(pathRight)
-        val partsAndIntervals: IndexedSeq[(String, Interval)] = if (specLeft.key.isEmpty) {
-          specLeft.partFiles.map { p => (p, null) }
-        } else {
-          val partFiles = specLeft.partFiles
-          tmpPartitioner.rangeBounds.map { b => (partFiles(partitioner.lowerBoundInterval(b)), b) }
-        }
+          kSize = specLeft.key.size
+          contextsValues =
+            partsAndIntervals.zipWithIndex.map { case ((partPath, interval), partIdx) =>
+              Row(
+                partIdx.toLong,
+                s"${absPathLeft}/parts/${partPath}",
+                s"${absPathRight}/parts/${partPath}",
+                s"${absPathLeft}/${indexSpecLeft.relPath}/${partPath}.idx",
+                RVDPartitioner.intervalToIRRepresentation(interval, kSize)
+              )
+            }
 
-        val kSize = specLeft.key.size
-        val contextsValues: IndexedSeq[Row] = partsAndIntervals.zipWithIndex.map { case ((partPath, interval), partIdx) =>
-          Row(
-            partIdx.toLong,
-            s"${ absPathLeft }/parts/${ partPath }",
-            s"${ absPathRight }/parts/${ partPath }",
-            s"${ absPathLeft }/${ indexSpecLeft.relPath }/${ partPath }.idx",
-            RVDPartitioner.intervalToIRRepresentation(interval, kSize))
-        }
-
-        val contexts = ir.ToStream(ir.Literal(TArray(reader.contextType), contextsValues))
-
-        val body = (ctx: IR) => ir.ReadPartition(ctx, requestedType, reader)
-
-        { (globals: IR) =>
-          val ts = TableStage(
+          ts = TableStage(
             globals,
             tmpPartitioner.coarsen(requestedKey.length),
             TableStageDependency.none,
-            contexts,
-            body
+            ir.ToStream(ir.Literal(TArray(reader.contextType), contextsValues.toIndexedSeq)),
+            (ctx: IR) => ir.ReadPartition(ctx, requestedType, reader)
           )
-          if (filterIntervals)
-            ts.repartitionNoShuffle(ctx, partitioner, dropEmptyPartitions = true)
-          else
-            ts.repartitionNoShuffle(ctx, extendedNewPartitioner.coarsen(requestedKey.length))
-        }
+
+          tableStage <-
+            if (filterIntervals) ts.repartitionNoShuffle(partitioner, dropEmptyPartitions = true)
+            else ts.repartitionNoShuffle(extendedNewPartitioner.coarsen(requestedKey.length))
+        } yield tableStage
     }
   }
 }
@@ -216,35 +211,34 @@ abstract class AbstractRVDSpec {
 
   def attrs: Map[String, String]
 
-  def readTableStage[M[_]: MonadLower](
-    ctx: ExecuteContext,
-    path: String,
-    requestedType: TableType,
-    uidFieldName: String,
-    newPartitioner: Option[RVDPartitioner] = None,
-    filterIntervals: Boolean = false
-  ): IR => M[TableStage] = newPartitioner match {
-    case Some(_) => fatal("attempted to read unindexed data as indexed")
-    case None =>
-      val part = partitioner(ctx.stateManager)
-      if (!part.kType.fieldNames.startsWith(requestedType.key))
-        fatal(s"Error while reading table ${ path }: legacy table written without key." +
-          s"\n  Read and write with version 0.2.70 or earlier")
+  def readTableStage[M[_]](path: String,
+                           requestedType: TableType,
+                           uidFieldName: String,
+                           newPartitioner: Option[RVDPartitioner] = None,
+                           filterIntervals: Boolean = false
+                          )(globals: IR)
+                          (implicit M: MonadLower[M]): M[TableStage] =
+    newPartitioner match {
+      case Some(_) => M.raiseError(new HailException("attempted to read unindexed data as indexed"))
+      case None =>
+        M.reader { ctx =>
+          val part = partitioner(ctx.stateManager)
+          if (!part.kType.fieldNames.startsWith(requestedType.key))
+            fatal(s"Error while reading table ${path}: legacy table written without key." +
+              s"\n  Read and write with version 0.2.70 or earlier")
 
-      val rSpec = typedCodecSpec
+          val rSpec = typedCodecSpec
 
-      val ctxType = TStruct("partitionIndex" -> TInt64, "partitionPath" -> TString)
-      val contexts = ir.ToStream(ir.Literal(
-        TArray(ctxType),
-        absolutePartPaths(path).zipWithIndex.map {
-          case (x, i) => Row(i.toLong, x)
-        }.toFastIndexedSeq))
+          val ctxType = TStruct("partitionIndex" -> TInt64, "partitionPath" -> TString)
+          val contexts = ir.ToStream(ir.Literal(
+            TArray(ctxType),
+            absolutePartPaths(path).zipWithIndex.map {
+              case (x, i) => Row(i.toLong, x)
+            }.toFastIndexedSeq))
 
-      val body = (ctx: IR) =>
-        ir.ReadPartition(ctx, requestedType.rowType, ir.PartitionNativeReader(rSpec, uidFieldName))
+          val body = (ctx: IR) =>
+            ir.ReadPartition(ctx, requestedType.rowType, ir.PartitionNativeReader(rSpec, uidFieldName))
 
-      (globals: IR) =>
-        MonadLower[M].pure {
           TableStage(
             globals,
             part.coarsen(part.kType.fieldNames.takeWhile(requestedType.rowType.hasField).length),
@@ -253,7 +247,7 @@ abstract class AbstractRVDSpec {
             body
           )
         }
-  }
+    }
 
   def write(fs: FS, path: String) {
     using(fs.create(path + "/metadata.json.gz")) { out =>
@@ -427,62 +421,60 @@ case class IndexedRVDSpec2(
 
   val attrs: Map[String, String] = _attrs
 
-  override def readTableStage[M[_]: MonadLower](
-    ctx: ExecuteContext,
-    path: String,
-    requestedType: TableType,
-    uidFieldName: String,
-    newPartitioner: Option[RVDPartitioner] = None,
-    filterIntervals: Boolean = false
-  ): IR => M[TableStage] = newPartitioner match {
-    case Some(np) =>
+  override def readTableStage[M[_]](path: String,
+                                    requestedType: TableType,
+                                    uidFieldName: String,
+                                    newPartitioner: Option[RVDPartitioner] = None,
+                                    filterIntervals: Boolean = false
+                                   )
+                                   (globals: IR)
+                                   (implicit M: MonadLower[M]):
+  M[TableStage] =
+    newPartitioner match {
+      case Some(np) =>
+        M.ask.flatMap { ctx =>
+          val part = partitioner(ctx.stateManager)
+          val extendedNP = np.extendKey(part.kType)
+          val tmpPartitioner = part.intersect(extendedNP)
 
-      val part = partitioner(ctx.stateManager)
-      val extendedNP = np.extendKey(part.kType)
-      val tmpPartitioner = part.intersect(extendedNP)
+          assert(key.nonEmpty)
 
-      assert(key.nonEmpty)
+          val rSpec = typedCodecSpec
+          val reader = ir.PartitionNativeReaderIndexed(rSpec, indexSpec, part.kType.fieldNames, uidFieldName)
 
-      val rSpec = typedCodecSpec
-      val reader = ir.PartitionNativeReaderIndexed(rSpec, indexSpec, part.kType.fieldNames, uidFieldName)
-
-      val absPath = removeFileProtocol(path)
-      val partPaths = tmpPartitioner.rangeBounds.map { b => partFiles(part.lowerBoundInterval(b)) }
+          val absPath = removeFileProtocol(path)
+          val partPaths = tmpPartitioner.rangeBounds.map { b => partFiles(part.lowerBoundInterval(b)) }
 
 
-      val kSize = part.kType.size
-      absolutePartPaths(path)
-      assert(tmpPartitioner.rangeBounds.size == partPaths.length)
-      val contextsValues: IndexedSeq[Row] = tmpPartitioner.rangeBounds.map { interval =>
-        val partIdx = part.lowerBoundInterval(interval)
-        val partPath = partFiles(partIdx)
-        Row(
-          partIdx.toLong,
-          s"${ absPath }/parts/${ partPath }",
-          s"${ absPath }/${ indexSpec.relPath }/${ partPath }.idx",
-          RVDPartitioner.intervalToIRRepresentation(interval, kSize))
-      }
+          val kSize = part.kType.size
+          absolutePartPaths(path)
+          assert(tmpPartitioner.rangeBounds.size == partPaths.length)
+          val contextsValues: IndexedSeq[Row] = tmpPartitioner.rangeBounds.map { interval =>
+            val partIdx = part.lowerBoundInterval(interval)
+            val partPath = partFiles(partIdx)
+            Row(
+              partIdx.toLong,
+              s"${absPath}/parts/${partPath}",
+              s"${absPath}/${indexSpec.relPath}/${partPath}.idx",
+              RVDPartitioner.intervalToIRRepresentation(interval, kSize))
+          }
 
-      assert(TArray(reader.contextType).typeCheck(contextsValues))
+          assert(TArray(reader.contextType).typeCheck(contextsValues))
+          val contexts = ir.ToStream(ir.Literal(TArray(reader.contextType), contextsValues))
+          val body = (ctx: IR) => ir.ReadPartition(ctx, requestedType.rowType, reader)
+          val ts = TableStage(
+            globals,
+            tmpPartitioner,
+            TableStageDependency.none,
+            contexts,
+            body)
+          if (filterIntervals) ts.repartitionNoShuffle(part, dropEmptyPartitions = true)
+          else ts.repartitionNoShuffle(extendedNP)
+        }
 
-      val contexts = ir.ToStream(ir.Literal(TArray(reader.contextType), contextsValues))
-
-      val body = (ctx: IR) => ir.ReadPartition(ctx, requestedType.rowType, reader)
-
-      { (globals: IR) =>
-        val ts = TableStage(
-          globals,
-          tmpPartitioner,
-          TableStageDependency.none,
-          contexts,
-          body)
-        if (filterIntervals) ts.repartitionNoShuffle(ctx, part, dropEmptyPartitions = true)
-        else ts.repartitionNoShuffle(ctx, extendedNP)
-      }
-
-    case None =>
-      super.readTableStage(ctx, path, requestedType, uidFieldName, newPartitioner, filterIntervals)
-  }
+      case None =>
+        super.readTableStage(path, requestedType, uidFieldName, newPartitioner, filterIntervals)(globals)
+    }
 }
 
 case class OrderedRVDSpec2(

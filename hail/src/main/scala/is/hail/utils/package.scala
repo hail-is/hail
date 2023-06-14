@@ -1,6 +1,6 @@
 package is.hail
 
-import cats.implicits.{catsSyntaxApply, toFunctorOps}
+import cats.syntax.all._
 import cats.{Applicative, Eval, Traverse, TraverseFilter}
 import is.hail.annotations.ExtendedOrdering
 import is.hail.check.Gen
@@ -92,7 +92,7 @@ package object utils extends Logging
 
   def format(s: String, substitutions: Any*): String = {
     substitutions.zipWithIndex.foldLeft(s) { case (str, (value, i)) =>
-      str.replace(s"@${ i + 1 }", value.toString)
+      str.replace(s"@${i + 1}", value.toString)
     }
   }
 
@@ -103,10 +103,10 @@ package object utils extends Logging
   }
 
   def checkGzippedFile(fs: FS,
-    input: String,
-    forceGZ: Boolean,
-    gzAsBGZ: Boolean,
-    maxSizeMB: Int = 128) {
+                       input: String,
+                       forceGZ: Boolean,
+                       gzAsBGZ: Boolean,
+                       maxSizeMB: Int = 128) {
     if (!forceGZ && !gzAsBGZ)
       fatal(
         s"""Cannot load file '$input'
@@ -119,7 +119,7 @@ package object utils extends Logging
       val fileSize = fs.getFileSize(input)
       if (fileSize > 1024 * 1024 * maxSizeMB)
         warn(
-          s"""file '$input' is ${ readableBytes(fileSize) }
+          s"""file '$input' is ${readableBytes(fileSize)}
              |  It will be loaded serially (on one core) due to usage of the 'force' argument.
              |  If it is actually block-gzipped, either rename to .bgz or use the 'force_bgz'
              |  argument.""".stripMargin)
@@ -308,7 +308,9 @@ package object utils extends Logging
 
   def rowIterator(r: Row): Iterator[Any] = new Iterator[Any] {
     var idx: Int = 0
+
     def hasNext: Boolean = idx < r.size
+
     def next: Any = {
       val a = r(idx)
       idx += 1
@@ -325,11 +327,11 @@ package object utils extends Logging
     if (str.matches("""[_a-zA-Z]\w*"""))
       str
     else
-      s"`${ StringEscapeUtils.escapeString(str, backticked = true) }`"
+      s"`${StringEscapeUtils.escapeString(str, backticked = true)}`"
   }
 
   def formatDouble(d: Double, precision: Int): String =
-    s"%.${ precision }f".format(d)
+    s"%.${precision}f".format(d)
 
   def uriPath(uri: String): String = new URI(uri).getPath
 
@@ -361,15 +363,15 @@ package object utils extends Logging
     mapAccumulateInstance.asInstanceOf[MapAccumulate[C, U]]
 
   /**
-    * An abstraction for building an {@code Array} of known size. Guarantees a left-to-right traversal
-    *
-    * @param xs      the thing to iterate over
-    * @param size    the size of array to allocate
-    * @param key     given the source value and its source index, yield the target index
-    * @param combine given the target value, the target index, the source value, and the source index, compute the new target value
-    * @tparam A
-    * @tparam B
-    */
+   * An abstraction for building an {@code Array} of known size. Guarantees a left-to-right traversal
+   *
+   * @param xs      the thing to iterate over
+   * @param size    the size of array to allocate
+   * @param key     given the source value and its source index, yield the target index
+   * @param combine given the target value, the target index, the source value, and the source index, compute the new target value
+   * @tparam A
+   * @tparam B
+   */
   def coalesce[A, B: ClassTag](xs: GenTraversableOnce[A])(size: Int, key: (A, Int) => Int, z: B)(combine: (B, A) => B): Array[B] = {
     val a = Array.fill(size)(z)
 
@@ -388,7 +390,7 @@ package object utils extends Logging
       val sb = new StringBuilder
       sb ++= "The maps do not have the same entries:" + newline
       for (failure <- failures) {
-        sb ++= s"  At key ${ failure._1 }, the left map has ${ failure._2 } and the right map has ${ failure._3 }" + newline
+        sb ++= s"  At key ${failure._1}, the left map has ${failure._2} and the right map has ${failure._3}" + newline
       }
       sb ++= s"  The left map is: $l" + newline
       sb ++= s"  The right map is: $r" + newline
@@ -398,8 +400,8 @@ package object utils extends Logging
     if (l.keySet != r.keySet) {
       println(
         s"""The maps do not have the same keys.
-           |  These keys are unique to the left-hand map: ${ l.keySet -- r.keySet }
-           |  These keys are unique to the right-hand map: ${ r.keySet -- l.keySet }
+           |  These keys are unique to the left-hand map: ${l.keySet -- r.keySet}
+           |  These keys are unique to the right-hand map: ${r.keySet -- l.keySet}
            |  The left map is: $l
            |  The right map is: $r
       """.stripMargin)
@@ -599,10 +601,10 @@ package object utils extends Logging
   def partSuffix(ctx: TaskContext): String = {
     val rng = new java.security.SecureRandom()
     val fileUUID = new java.util.UUID(rng.nextLong(), rng.nextLong())
-    s"${ ctx.stageId() }-${ ctx.partitionId() }-${ ctx.attemptNumber() }-$fileUUID"
+    s"${ctx.stageId()}-${ctx.partitionId()}-${ctx.attemptNumber()}-$fileUUID"
   }
 
-  def partFile(d: Int, i: Int, ctx: TaskContext): String = s"${ partFile(d, i) }-${ partSuffix(ctx) }"
+  def partFile(d: Int, i: Int, ctx: TaskContext): String = s"${partFile(d, i)}-${partSuffix(ctx)}"
 
   def mangle(strs: Array[String], formatter: Int => String = "_%d".format(_)): (Array[String], Array[(String, String)]) = {
     val b = new BoxedArrayBuilder[String]
@@ -633,7 +635,7 @@ package object utils extends Logging
 
   def optMatch[T, S](a: T)(pf: PartialFunction[T, S]): Option[S] = lift(pf)(a)
 
-  def using[R <: AutoCloseable, T](r: R)(consume: (R) => T): T = {
+  def using[R <: AutoCloseable, T](r: R)(consume: R => T): T = {
     var caught = false
     try {
       consume(r)
@@ -645,8 +647,9 @@ package object utils extends Logging
         } catch {
           case duringClose: Exception =>
             if (original == duringClose) {
-              log.info(s"""The exact same exception object, ${original}, was thrown by both
-                          |the consumer and the close method. I will throw the original.""".stripMargin)
+              log.info(
+                s"""The exact same exception object, ${original}, was thrown by both
+                   |the consumer and the close method. I will throw the original.""".stripMargin)
               throw original
             } else {
               duringClose.addSuppressed(original)
@@ -759,10 +762,10 @@ package object utils extends Logging
   }
 
   def toMapFast[T, K, V](
-    ts: TraversableOnce[T]
-  )(key: T => K,
-    value: T => V
-  ): collection.Map[K, V] = {
+                          ts: TraversableOnce[T]
+                        )(key: T => K,
+                          value: T => V
+                        ): collection.Map[K, V] = {
     val it = ts.toIterator
     val m = mutable.Map[K, V]()
     while (it.hasNext) {
@@ -773,9 +776,9 @@ package object utils extends Logging
   }
 
   def toMapIfUnique[K, K2, V](
-    kvs: Traversable[(K, V)]
-  )(keyBy: K => K2
-  ): Either[Map[K2, Traversable[K]], Map[K2, V]] = {
+                               kvs: Traversable[(K, V)]
+                             )(keyBy: K => K2
+                             ): Either[Map[K2, Traversable[K]], Map[K2, V]] = {
     val grouped = kvs.groupBy(x => keyBy(x._1))
 
     val dupes = grouped.filter { case (k, m) => m.size != 1 }
@@ -790,10 +793,10 @@ package object utils extends Logging
   }
 
   def dumpClassLoader(cl: ClassLoader) {
-    System.err.println(s"ClassLoader ${ cl.getClass.getCanonicalName }:")
+    System.err.println(s"ClassLoader ${cl.getClass.getCanonicalName}:")
     cl match {
       case cl: URLClassLoader =>
-        System.err.println(s"  ${ cl.getURLs.mkString(" ") }")
+        System.err.println(s"  ${cl.getURLs.mkString(" ")}")
       case _ =>
         System.err.println("  non-URLClassLoader")
     }
@@ -808,8 +811,8 @@ package object utils extends Logging
     using(new OutputStreamWriter(fs.create(path + "/README.txt"))) { out =>
       out.write(
         s"""This folder comprises a Hail (www.hail.is) native Table or MatrixTable.
-           |  Written with version ${ HailContext.get.version }
-           |  Created at ${ dateFormat.format(new Date()) }""".stripMargin)
+           |  Written with version ${HailContext.get.version}
+           |  Created at ${dateFormat.format(new Date())}""".stripMargin)
     }
   }
 
@@ -852,9 +855,9 @@ package object utils extends Logging
   }
 
   def drainInputStreamToOutputStream(
-    is: InputStream,
-    os: OutputStream
-  ): Unit = {
+                                      is: InputStream,
+                                      os: OutputStream
+                                    ): Unit = {
     val buffer = new Array[Byte](1024)
     var length = is.read(buffer)
     while (length != -1) {
@@ -972,7 +975,7 @@ package object utils extends Logging
   }
 
   def runAllKeepFirstError[A](executor: Executor): IndexedSeq[() => A] => (Option[Throwable], IndexedSeq[(Int, A)]) =
-    runAll[Option, A](executor) { case (opt, (_, e)) => opt.orElse(Some(e)) } (None)
+    runAll[Option, A](executor) { case (opt, (_, e)) => opt.orElse(Some(e)) }(None)
 
 
   implicit def traverseInstanceGenTraversable[S[+T] <: GenTraversable[T]]: Traverse[S] =
@@ -1005,8 +1008,19 @@ package object utils extends Logging
         }.map(_.result.asInstanceOf[S[B]])
 
     }
+
+  implicit def forceThunk[Arbitrary[_[_]], F[_]: Applicative: Arbitrary, A >: Null](thunk: Thunk[Arbitrary, A]): F[A] =
+    thunk.apply
 }
 
+abstract class Thunk[Arbitrary[_[_]], A >: Null] {
+  @transient @volatile private[this] var x: A = null
+
+  protected def run[F[_] : Arbitrary]: F[A]
+
+  def apply[F[_] : Arbitrary](implicit F: Applicative[F]): F[A] =
+    F.whenA(x == null)(synchronized(F.map(run)(x = _))) *> F.pure(x)
+}
 
 // FIXME: probably resolved in 3.6 https://github.com/json4s/json4s/commit/fc96a92e1aa3e9e3f97e2e91f94907fdfff6010d
 object GenericIndexedSeqSerializer extends Serializer[IndexedSeq[_]] {

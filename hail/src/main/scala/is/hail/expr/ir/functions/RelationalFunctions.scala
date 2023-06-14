@@ -1,17 +1,17 @@
 package is.hail.expr.ir.functions
 
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.lowering.TableStage
-import is.hail.expr.ir.{LowerMatrixIR, MatrixValue, RelationalSpec, TableReader, TableValue}
-import is.hail.types.virtual.Type
-import is.hail.types.{BlockMatrixType, MatrixType, RTable, TableType, TypeWithRequiredness}
+import is.hail.expr.ir.lowering.MonadLower
+import is.hail.expr.ir.{MatrixValue, RelationalSpec, TableValue}
 import is.hail.linalg.BlockMatrix
 import is.hail.methods._
+import is.hail.types.virtual.Type
+import is.hail.types._
 import is.hail.utils._
-import is.hail.rvd.RVDType
+import org.json4s.jackson.JsonMethods
 import org.json4s.{Extraction, JValue, ShortTypeHints}
-import org.json4s.jackson.{JsonMethods, Serialization}
 
+import scala.language.higherKinds
 
 abstract class MatrixToMatrixFunction {
   def typ(childType: MatrixType): MatrixType
@@ -26,7 +26,7 @@ abstract class MatrixToMatrixFunction {
 abstract class MatrixToTableFunction {
   def typ(childType: MatrixType): TableType
 
-  def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue
+  def execute[M[_]: MonadLower](mv: MatrixValue): M[TableValue]
 
   def preservesPartitionCounts: Boolean
 
@@ -36,7 +36,7 @@ abstract class MatrixToTableFunction {
 abstract class BlockMatrixToTableFunction {
   def typ(bmType: BlockMatrixType, auxType: Type): TableType
 
-  def execute(ctx: ExecuteContext, bm: BlockMatrix, aux: Any): TableValue
+  def execute[M[_]: MonadLower](bm: BlockMatrix, aux: Any): M[TableValue]
 }
 
 case class WrappedMatrixToTableFunction(
@@ -49,7 +49,8 @@ case class WrappedMatrixToTableFunction(
     function.typ(mType) // MatrixType RVDTypes will go away
   }
 
-  def execute(ctx: ExecuteContext, tv: TableValue): TableValue = function.execute(ctx, tv.toMatrixValue(colKey, colsFieldName, entriesFieldName))
+  def execute[M[_]: MonadLower](tv: TableValue): M[TableValue] =
+    function.execute(tv.toMatrixValue(colKey, colsFieldName, entriesFieldName))
 
   override def preservesPartitionCounts: Boolean = function.preservesPartitionCounts
 }
@@ -57,7 +58,7 @@ case class WrappedMatrixToTableFunction(
 abstract class TableToTableFunction {
   def typ(childType: TableType): TableType
 
-  def execute(ctx: ExecuteContext, tv: TableValue): TableValue
+  def execute[M[_]: MonadLower](tv: TableValue): M[TableValue]
 
   def preservesPartitionCounts: Boolean
 

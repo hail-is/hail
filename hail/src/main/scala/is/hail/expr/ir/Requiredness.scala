@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import cats.mtl.Ask
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.GetElement
 import is.hail.methods.ForceCountTable
@@ -10,6 +11,7 @@ import is.hail.types.virtual._
 import is.hail.utils._
 
 import scala.collection.mutable
+import scala.language.higherKinds
 
 object Requiredness {
   def apply(node: BaseIR, usesAndDefs: UsesAndDefs, ctx: ExecuteContext, env: Env[PType]): RequirednessAnalysis = {
@@ -19,8 +21,8 @@ object Requiredness {
     pass.result()
   }
 
-  def apply(node: BaseIR, ctx: ExecuteContext): RequirednessAnalysis =
-    apply(node, ComputeUsesAndDefs(node), ctx, Env.empty)
+  def apply[M[_]](node: BaseIR)(implicit M: Ask[M, ExecuteContext]): M[RequirednessAnalysis] =
+    M.reader(ctx => Requiredness(node, ComputeUsesAndDefs(node), ctx, Env.empty))
 }
 
 case class RequirednessAnalysis(r: Memo[BaseTypeWithRequiredness], states: Memo[IndexedSeq[TypeWithRequiredness]]) {

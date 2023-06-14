@@ -1,12 +1,14 @@
 package is.hail.expr.ir
 
 import cats.data.{OptionT, StateT}
+import cats.mtl.Ask
 import cats.syntax.all._
-import cats.{Foldable, Monad, Traverse}
+import cats.{Foldable, MonadThrow, Traverse}
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.spark.SparkTaskContext
-import is.hail.backend.{ExecuteContext, HailTaskContext}
+import is.hail.backend.utils._
+import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext}
 import is.hail.expr.ir.lowering.{Lower, LoweringPipeline, MonadLower}
 import is.hail.io.BufferSpec
 import is.hail.linalg.BlockMatrix
@@ -25,30 +27,37 @@ import scala.util.Try
 object Interpret {
   type Agg = (IndexedSeq[Row], TStruct)
 
-  def apply[M[_]: MonadLower](tir: TableIR, ctx: ExecuteContext): M[TableValue] =
-    apply[M](tir, ctx, optimize = true)
+  def apply[M[_]: MonadLower](tir: TableIR): M[TableValue] =
+    apply[M](tir, optimize = true)
 
   def apply[M[_]: MonadLower](tir: TableIR, optimize: Boolean): M[TableValue] =
-    for {lowered <- LoweringPipeline.legacyRelationalLowerer(optimize)(tir)}
-      yield lowered.asInstanceOf[TableIR].noSharing.analyzeAndExecute.asTableValue
+    for {
+      lowered <- LoweringPipeline.legacyRelationalLowerer(optimize)(tir)
+      intermediate <- lowered.asInstanceOf[TableIR].noSharing.analyzeAndExecute
+      tv <- intermediate.asTableValue
+    } yield tv
 
   def apply[M[_]: MonadLower](mir: MatrixIR, optimize: Boolean): M[TableValue] =
-    for {lowered <- LoweringPipeline.legacyRelationalLowerer(optimize)(mir)}
-      yield lowered.asInstanceOf[TableIR].analyzeAndExecute(ctx).asTableValue(ctx)
+    for {
+      lowered <- LoweringPipeline.legacyRelationalLowerer(optimize)(mir)
+      intermediate <- lowered.asInstanceOf[TableIR].analyzeAndExecute
+      tv <- intermediate.asTableValue
+    } yield tv
 
-  def apply[M[_]: MonadLower](bmir: BlockMatrixIR,  optimize: Boolean): M[BlockMatrix] =
-    for {lowered <- LoweringPipeline.legacyRelationalLowerer(optimize)(bmir)}
-      yield lowered.asInstanceOf[BlockMatrixIR].execute(ctx)
+  def apply[M[_]: MonadLower](bmir: BlockMatrixIR, optimize: Boolean): M[BlockMatrix] =
+    for {
+      lowered <- LoweringPipeline.legacyRelationalLowerer(optimize)(bmir)
+      bm <- lowered.asInstanceOf[BlockMatrixIR].execute
+    } yield bm
 
-  def apply[M[_]: MonadLower, A](ir: IR)(implicit ev: Null <:< A) : M[A] =
+  def apply[M[_]: MonadLower, A >: Null](ir: IR) : M[A] =
     apply[M, A](ir, Env.empty[(Any, Type)], FastIndexedSeq[(Any, Type)]())
 
-  def apply[M[_]: MonadLower, A](ir0: IR,
-                                 env: Env[(Any, Type)],
-                                 args: IndexedSeq[(Any, Type)],
-                                 optimize: Boolean = true
-                                 )
-                                 (implicit ev: Null <:< A): M[A] =
+  def apply[M[_]: MonadLower, A >: Null](ir0: IR,
+                                         env: Env[(Any, Type)],
+                                         args: IndexedSeq[(Any, Type)],
+                                         optimize: Boolean = true
+                                        ): M[A] =
     for {
       lowered <- LoweringPipeline.relationalLowerer(optimize)(env.m.foldLeft[IR](ir0) {
         case (acc, (k, (value, t))) => Let(k, Literal.coerce(t, value), acc)
@@ -68,9 +77,13 @@ object Interpret {
   : OptionT[M, Any] = {
 
     type F[A] = OptionT[M, A]
-    val F = Monad[F]
+    val F = MonadThrow[F]
 
-    def empty = OptionT.none[M, Any]
+    def empty =
+      OptionT.none[M, Any]
+
+    def readStateManager: F[HailStateManager] =
+      Ask[F, ExecuteContext].reader(_.stateManager)
 
     def interpret(ir: IR, env: Env[Any] = env, args: IndexedSeq[(Any, Type)] = args): F[Any] =
       run(ir, env, args, functionMemo)
@@ -85,7 +98,7 @@ object Interpret {
       case False() => F.pure(false)
       case Literal(_, value) => F.pure(value)
       case x@EncodedLiteral(codec, value) =>
-        F.lift(M.reader { ctx =>
+        OptionT.liftF(M.reader { ctx =>
           ctx.r.getPool().scopedRegion { r =>
             val (pt, addr) = codec.decodeArrays(ctx, x.typ, value.ba, ctx.r)
             SafeRow.read(pt, addr)
@@ -209,36 +222,36 @@ object Interpret {
       case ApplyUnaryPrimOp(op, x) =>
         for {xValue <- interpret(x, env, args)}
           yield op match {
-          case Bang() =>
-            assert(x.typ == TBoolean)
-            !xValue.asInstanceOf[Boolean]
-          case Negate() =>
-            assert(x.typ.isInstanceOf[TNumeric])
-            x.typ match {
-              case TInt32 => -xValue.asInstanceOf[Int]
-              case TInt64 => -xValue.asInstanceOf[Long]
-              case TFloat32 => -xValue.asInstanceOf[Float]
-              case TFloat64 => -xValue.asInstanceOf[Double]
-            }
-          case BitNot() =>
-            assert(x.typ.isInstanceOf[TIntegral])
-            x.typ match {
-              case TInt32 => ~xValue.asInstanceOf[Int]
-              case TInt64 => ~xValue.asInstanceOf[Long]
-            }
-          case BitCount() =>
-            assert(x.typ.isInstanceOf[TIntegral])
-            x.typ match {
-              case TInt32 => Integer.bitCount(xValue.asInstanceOf[Int])
-              case TInt64 => java.lang.Long.bitCount(xValue.asInstanceOf[Long])
-            }
-        }
+            case Bang() =>
+              assert(x.typ == TBoolean)
+              !xValue.asInstanceOf[Boolean]
+            case Negate() =>
+              assert(x.typ.isInstanceOf[TNumeric])
+              x.typ match {
+                case TInt32 => -xValue.asInstanceOf[Int]
+                case TInt64 => -xValue.asInstanceOf[Long]
+                case TFloat32 => -xValue.asInstanceOf[Float]
+                case TFloat64 => -xValue.asInstanceOf[Double]
+              }
+            case BitNot() =>
+              assert(x.typ.isInstanceOf[TIntegral])
+              x.typ match {
+                case TInt32 => ~xValue.asInstanceOf[Int]
+                case TInt64 => ~xValue.asInstanceOf[Long]
+              }
+            case BitCount() =>
+              assert(x.typ.isInstanceOf[TIntegral])
+              x.typ match {
+                case TInt32 => Integer.bitCount(xValue.asInstanceOf[Int])
+                case TInt64 => java.lang.Long.bitCount(xValue.asInstanceOf[Long])
+              }
+          }
 
       case ApplyComparisonOp(op, l, r) =>
         OptionT {
           for {
-            lValue <- interpret(l, env, args).value
-            rValue <- interpret(r, env, args).value
+            lValue <- interpret(l, env, args).getOrElse(null)
+            rValue <- interpret(r, env, args).getOrElse(null)
             stateManager <- M.reader(_.stateManager)
           } yield Some(op).filter(_.strict && (lValue == null || rValue == null)).map {
             case EQ(t, _) => t.ordering(stateManager).equiv(lValue, rValue)
@@ -268,7 +281,7 @@ object Interpret {
           val i = iValue.asInstanceOf[Int]
 
           if (i < 0 || i >= a.length) {
-            fatal(s"array index out of bounds: index=$i, length=${ a.length }", errorId = errorId)
+            fatal(s"array index out of bounds: index=$i, length=${a.length}", errorId = errorId)
           } else
             a.apply(i)
         }
@@ -324,13 +337,15 @@ object Interpret {
           startValue <- interpret(start, env, args)
           stopValue <- interpret(stop, env, args)
           stepValue <- interpret(step, env, args)
-          _ <- F.whenA(stepValue == 0) { fatal("Array range cannot have step size 0.", errorID) }
+          _ <- F.whenA(stepValue == 0) {
+            F.raiseError(new HailException("Array range cannot have step size 0.", errorID))
+          }
         } yield startValue.asInstanceOf[Int] until stopValue.asInstanceOf[Int] by stepValue.asInstanceOf[Int]
 
       case ArraySort(a, l, r, lessThan) =>
         interpret(a, env, args).flatMap { case aValue: IndexedSeq[Any] =>
           OptionT.liftF {
-            M.lift {
+            M.liftLower {
               Lower { (ctx, s0) =>
                 var s = s0
                 val sorted = Try {
@@ -346,7 +361,7 @@ object Interpret {
                       res match {
                         case Left(t) => throw t
                         case Right(r) =>
-                          if (r.isEmpty || r.contains(null)) fatal ("Result of sorting function cannot be missing.")
+                          if (r.isEmpty || r.contains(null)) fatal("Result of sorting function cannot be missing.")
                           else r.get.asInstanceOf[Boolean]
                       }
                     }
@@ -369,7 +384,7 @@ object Interpret {
 
       case _: CastToArray | _: ToArray | _: ToStream =>
         val c = ir.children(0).asInstanceOf[IR]
-        for { cValue <- interpret(c, env, args); sm <- OptionT.liftF(M.reader(_.stateManager)) }
+        for {cValue <- interpret(c, env, args); sm <- OptionT.liftF(M.reader(_.stateManager))}
           yield {
             val ordering = tcoerce[TIterable](c.typ).elementType.ordering(sm).toOrdering
             cValue match {
@@ -384,15 +399,16 @@ object Interpret {
         for {
           cValue <- interpret(orderedCollection, env, args)
           eValue <- OptionT.liftF(interpret(elem, env, args).value)
+          stateManager <- readStateManager
         } yield {
           cValue match {
             case s: Set[_] =>
               assert(!onKey)
-              s.count(elem.typ.ordering(ctx.stateManager).lt(_, eValue.orNull))
+              s.count(elem.typ.ordering(stateManager).lt(_, eValue.orNull))
 
             case d: Map[_, _] =>
               assert(onKey)
-              d.count { case (k, _) => elem.typ.ordering(ctx.stateManager).lt(k, eValue.orNull) }
+              d.count { case (k, _) => elem.typ.ordering(stateManager).lt(k, eValue.orNull) }
 
             case a: IndexedSeq[_] =>
               if (onKey) {
@@ -406,11 +422,11 @@ object Interpret {
                     if (i == null) null else i.start
                   }, i.pointType)
                 }
-                val ordering = eltT.ordering(ctx.stateManager)
+                val ordering = eltT.ordering(stateManager)
                 val lb = a.count(elem => ordering.lt(eltF(elem), eValue.orNull))
                 lb
               } else
-                a.count(elem.typ.ordering(ctx.stateManager).lt(_, eValue.orNull))
+                a.count(elem.typ.ordering(stateManager).lt(_, eValue.orNull))
           }
         }
 
@@ -451,33 +467,35 @@ object Interpret {
         }
 
       case StreamGroupByKey(a, key, missingEqual) =>
-        for {aValue <- interpret(a, env, args)}
-          yield {
-            val structType = tcoerce[TStruct](tcoerce[TStream](a.typ).elementType)
-            val seq = aValue.asInstanceOf[IndexedSeq[Row]]
-            if (seq.isEmpty)
-              FastIndexedSeq[IndexedSeq[Row]]()
-            else {
-              val outer = new BoxedArrayBuilder[IndexedSeq[Row]]()
-              val inner = new BoxedArrayBuilder[Row]()
-              val (kType, getKey) = structType.select(key)
-              val keyOrd = TBaseStruct.getJoinOrdering(ctx.stateManager, kType.types, missingEqual)
-              var curKey: Row = getKey(seq.head)
+        for {
+          aValue <- interpret(a, env, args)
+          stateManager <- readStateManager
+        } yield {
+          val structType = tcoerce[TStruct](tcoerce[TStream](a.typ).elementType)
+          val seq = aValue.asInstanceOf[IndexedSeq[Row]]
+          if (seq.isEmpty)
+            FastIndexedSeq[IndexedSeq[Row]]()
+          else {
+            val outer = new BoxedArrayBuilder[IndexedSeq[Row]]()
+            val inner = new BoxedArrayBuilder[Row]()
+            val (kType, getKey) = structType.select(key)
+            val keyOrd = TBaseStruct.getJoinOrdering(stateManager, kType.types, missingEqual)
+            var curKey: Row = getKey(seq.head)
 
-              seq.foreach { elt =>
-                val nextKey = getKey(elt)
-                if (!keyOrd.equiv(curKey, nextKey)) {
-                  outer += inner.result()
-                  inner.clear()
-                  curKey = nextKey
-                }
-                inner += elt
+            seq.foreach { elt =>
+              val nextKey = getKey(elt)
+              if (!keyOrd.equiv(curKey, nextKey)) {
+                outer += inner.result()
+                inner.clear()
+                curKey = nextKey
               }
-              outer += inner.result()
-
-              outer.result().toFastIndexedSeq
+              inner += elt
             }
+            outer += inner.result()
+
+            outer.result().toFastIndexedSeq
           }
+        }
 
       case StreamMap(a, name, body) =>
         for {
@@ -513,100 +531,104 @@ object Interpret {
         } yield res
 
       case StreamMultiMerge(as, key) =>
-        for {streams <- as.traverse(interpret(_, env, args).map(_.asInstanceOf[IndexedSeq[Row]]))}
-          yield {
-            val k = as.length
-            val tournament = Array.fill[Int](k)(-1)
-            val structType = tcoerce[TStruct](tcoerce[TStream](as.head.typ).elementType)
-            val (kType, getKey) = structType.select(key)
-            val heads = Array.fill[Int](k)(-1)
-            val ordering = kType.ordering(ctx.stateManager).toOrdering.on[Row](getKey)
+        for {
+          streams <- as.traverse(interpret(_, env, args).map(_.asInstanceOf[IndexedSeq[Row]]))
+          stateManager <- readStateManager
+        } yield {
+          val k = as.length
+          val tournament = Array.fill[Int](k)(-1)
+          val structType = tcoerce[TStruct](tcoerce[TStream](as.head.typ).elementType)
+          val (kType, getKey) = structType.select(key)
+          val heads = Array.fill[Int](k)(-1)
+          val ordering = kType.ordering(stateManager).toOrdering.on[Row](getKey)
 
-            def get(i: Int): Row = streams(i)(heads(i))
+          def get(i: Int): Row = streams(i)(heads(i))
 
-            def lt(li: Int, lv: Row, ri: Int, rv: Row): Boolean = {
-              val c = ordering.compare(lv, rv)
-              c < 0 || (c == 0 && li < ri)
-            }
-
-            def advance(i: Int) {
-              heads(i) += 1
-              var winner = if (heads(i) < streams(i).length) i else k
-              var j = (i + k) / 2
-              while (j != 0 && tournament(j) != -1) {
-                val challenger = tournament(j)
-                if (challenger != k && (winner == k || lt(j, get(challenger), i, get(winner)))) {
-                  tournament(j) = winner
-                  winner = challenger
-                }
-                j = j / 2
-              }
-              tournament(j) = winner
-            }
-
-            for (i <- 0 until k) {
-              advance(i)
-            }
-
-            val builder = new BoxedArrayBuilder[Row]()
-            while (tournament(0) != k) {
-              val i = tournament(0)
-              val elt = streams(i)(heads(i))
-              advance(i)
-              builder += elt
-            }
-            builder.result().toFastIndexedSeq
+          def lt(li: Int, lv: Row, ri: Int, rv: Row): Boolean = {
+            val c = ordering.compare(lv, rv)
+            c < 0 || (c == 0 && li < ri)
           }
+
+          def advance(i: Int) {
+            heads(i) += 1
+            var winner = if (heads(i) < streams(i).length) i else k
+            var j = (i + k) / 2
+            while (j != 0 && tournament(j) != -1) {
+              val challenger = tournament(j)
+              if (challenger != k && (winner == k || lt(j, get(challenger), i, get(winner)))) {
+                tournament(j) = winner
+                winner = challenger
+              }
+              j = j / 2
+            }
+            tournament(j) = winner
+          }
+
+          for (i <- 0 until k) {
+            advance(i)
+          }
+
+          val builder = new BoxedArrayBuilder[Row]()
+          while (tournament(0) != k) {
+            val i = tournament(0)
+            val elt = streams(i)(heads(i))
+            advance(i)
+            builder += elt
+          }
+          builder.result().toFastIndexedSeq
+        }
 
       case StreamZipJoin(as, key, curKeyName, curValsName, joinF) =>
-        for {streams <- as.traverse(interpret(_, env, args).map(_.asInstanceOf[IndexedSeq[Row]]))}
-          yield {
-            val k = as.length
-            val tournament = Array.fill[Int](k)(-1)
-            val structType = tcoerce[TStruct](tcoerce[TStream](as.head.typ).elementType)
-            val (kType, getKey) = structType.select(key)
-            val heads = Array.fill[Int](k)(-1)
-            val ordering = kType.ordering(ctx.stateManager).toOrdering.on[Row](getKey)
-            val hasKey = TBaseStruct.getJoinOrdering(ctx.stateManager, kType.types).equivNonnull _
+        for {
+          streams <- as.traverse(interpret(_, env, args).map(_.asInstanceOf[IndexedSeq[Row]]))
+          stateManager <- readStateManager
+        } yield {
+          val k = as.length
+          val tournament = Array.fill[Int](k)(-1)
+          val structType = tcoerce[TStruct](tcoerce[TStream](as.head.typ).elementType)
+          val (kType, getKey) = structType.select(key)
+          val heads = Array.fill[Int](k)(-1)
+          val ordering = kType.ordering(stateManager).toOrdering.on[Row](getKey)
+          val hasKey = TBaseStruct.getJoinOrdering(stateManager, kType.types).equivNonnull _
 
-            def get(i: Int): Row = streams(i)(heads(i))
+          def get(i: Int): Row = streams(i)(heads(i))
 
-            def advance(i: Int) {
-              heads(i) += 1
-              var winner = if (heads(i) < streams(i).length) i else k
-              var j = (i + k) / 2
-              while (j != 0 && tournament(j) != -1) {
-                val challenger = tournament(j)
-                if (challenger != k && (winner == k || ordering.lteq(get(challenger), get(winner)))) {
-                  tournament(j) = winner
-                  winner = challenger
-                }
-                j = j / 2
+          def advance(i: Int) {
+            heads(i) += 1
+            var winner = if (heads(i) < streams(i).length) i else k
+            var j = (i + k) / 2
+            while (j != 0 && tournament(j) != -1) {
+              val challenger = tournament(j)
+              if (challenger != k && (winner == k || ordering.lteq(get(challenger), get(winner)))) {
+                tournament(j) = winner
+                winner = challenger
               }
-              tournament(j) = winner
+              j = j / 2
             }
-
-            for (i <- 0 until k) {
-              advance(i)
-            }
-
-            val builder = new mutable.ArrayBuffer[Any]()
-            while (tournament(0) != k) {
-              val i = tournament(0)
-              val elt = Array.fill[Row](k)(null)
-              elt(i) = streams(i)(heads(i))
-              val curKey = getKey(elt(i))
-              advance(i)
-              var j = tournament(0)
-              while (j != k && hasKey(getKey(get(j)), curKey)) {
-                elt(j) = streams(j)(heads(j))
-                advance(j)
-                j = tournament(0)
-              }
-              builder += interpret(joinF, env.bind(curKeyName -> curKey, curValsName -> elt.toFastIndexedSeq), args)
-            }
-            builder.toFastIndexedSeq
+            tournament(j) = winner
           }
+
+          for (i <- 0 until k) {
+            advance(i)
+          }
+
+          val builder = new mutable.ArrayBuffer[Any]()
+          while (tournament(0) != k) {
+            val i = tournament(0)
+            val elt = Array.fill[Row](k)(null)
+            elt(i) = streams(i)(heads(i))
+            val curKey = getKey(elt(i))
+            advance(i)
+            var j = tournament(0)
+            while (j != k && hasKey(getKey(get(j)), curKey)) {
+              elt(j) = streams(j)(heads(j))
+              advance(j)
+              j = tournament(0)
+            }
+            builder += interpret(joinF, env.bind(curKeyName -> curKey, curValsName -> elt.toFastIndexedSeq), args)
+          }
+          builder.toFastIndexedSeq
+        }
 
       case StreamFilter(a, name, cond) =>
         for {
@@ -706,14 +728,16 @@ object Interpret {
         for {
           lValue <- interpret(left, env, args).map(_.asInstanceOf[IndexedSeq[Any]])
           rValue <- interpret(right, env, args).map(_.asInstanceOf[IndexedSeq[Any]])
+          stateManager <- readStateManager
         } yield {
           val (lKeyTyp, lGetKey) = tcoerce[TStruct](tcoerce[TStream](left.typ).elementType).select(lKey)
           val (rKeyTyp, rGetKey) = tcoerce[TStruct](tcoerce[TStream](right.typ).elementType).select(rKey)
           assert(lKeyTyp isIsomorphicTo rKeyTyp)
-          val keyOrd = TBaseStruct.getJoinOrdering(ctx.stateManager, lKeyTyp.types)
+          val keyOrd = TBaseStruct.getJoinOrdering(stateManager, lKeyTyp.types)
 
           def compF(lelt: Any, relt: Any): Int =
             keyOrd.compare(lGetKey(lelt.asInstanceOf[Row]), rGetKey(relt.asInstanceOf[Row]))
+
           def joinF(lelt: Any, relt: Any): Any =
             interpret(join, env.bind(l -> lelt, r -> relt), args)
 
@@ -828,7 +852,7 @@ object Interpret {
 
       case Die(message, _, errorId) =>
         val message_ = interpret(message).asInstanceOf[String]
-        fatal(if (message_ != null) message_ else "<exception message missing>",  errorId)
+        fatal(if (message_ != null) message_ else "<exception message missing>", errorId)
 
       case Trap(child) =>
         interpret(child).map(Row(null, _)).widen[Any].handleError {
@@ -856,7 +880,7 @@ object Interpret {
 
       case ir: AbstractApplyNode[_] =>
         OptionT.liftF {
-          M.lift {
+          M.liftLower {
             Lower { (ctx, s0) =>
               var state = s0
               val result = Try {
@@ -873,7 +897,7 @@ object Interpret {
                     })
 
                     val (s1, r) =
-                      Compile[Lower, AsmFunction2RegionLongLong](ctx,
+                      Compile[Lower, AsmFunction2RegionLongLong](
                         FastIndexedSeq(("in", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argTuple)))),
                         FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
                         MakeTuple.ordered(FastSeq(wrappedIR)),
@@ -914,217 +938,244 @@ object Interpret {
         }
 
       case TableCount(child) =>
-        F.pure {
-          child.partitionCounts
-            .map(_.sum)
-            .getOrElse(child.analyzeAndExecute(ctx).asTableValue(ctx).rvd.count())
-        }
+        child.partitionCounts.map(counts => F.pure[Long](counts.sum))
+          .getOrElse {
+            OptionT.liftF {
+              for {inter <- child.analyzeAndExecute; tv <- inter.asTableValue}
+                yield tv.rvd.count()
+            }
+          }
+          .widen
 
       case TableGetGlobals(child) =>
-        F.pure {
-          child.analyzeAndExecute(ctx).asTableValue(ctx).globals.safeJavaValue
+        OptionT.liftF {
+          for {inter <- child.analyzeAndExecute; tv <- inter.asTableValue}
+            yield tv.globals.safeJavaValue
         }
 
       case TableCollect(child) =>
-        F.pure {
-          val tv = child.analyzeAndExecute(ctx).asTableValue(ctx)
-          Row(tv.rvd.collect(ctx).toFastIndexedSeq, tv.globals.safeJavaValue)
+        OptionT.liftF {
+          for {inter <- child.analyzeAndExecute; tv <- inter.asTableValue; ctx <- M.ask}
+            yield Row(tv.rvd.collect(ctx).toFastIndexedSeq, tv.globals.safeJavaValue)
         }
 
       case TableMultiWrite(children, writer) =>
-        F.pure {
-          val tvs = children.map(_.analyzeAndExecute(ctx).asTableValue(ctx))
-          writer(ctx, tvs)
+        OptionT.liftF {
+          for {tvs <- children.traverse(_.analyzeAndExecute >>= (_.asTableValue)); ctx <- M.ask}
+            yield writer(ctx, tvs)
         }
 
       case TableWrite(child, writer) =>
-        F.pure {
-          writer(ctx, child.analyzeAndExecute(ctx).asTableValue(ctx))
+        OptionT.liftF {
+          for {tv <- child.analyzeAndExecute >>= (_.asTableValue); _ <- writer(tv)}
+            yield ()
         }
 
       case BlockMatrixWrite(child, writer) =>
-        F.pure {
-          writer(ctx, child.execute(ctx))
+        OptionT.liftF {
+          for {bm <- child.execute; ctx <- M.ask}
+            yield writer(ctx, bm)
         }
 
       case BlockMatrixMultiWrite(blockMatrices, writer) =>
-        F.pure {
-          writer(ctx, blockMatrices.map(_.execute(ctx)))
+        OptionT.liftF {
+          for {bms <- blockMatrices.traverse(_.execute); ctx <- M.ask}
+            yield writer(ctx, bms)
         }
 
       case TableToValueApply(child, function) =>
-        F.pure {
-          function.execute(ctx, child.analyzeAndExecute(ctx).asTableValue(ctx))
+        OptionT.liftF {
+          for {tv <- child.analyzeAndExecute >>= (_.asTableValue); ctx <- M.ask}
+            yield function.execute(ctx, tv)
         }
 
       case BlockMatrixToValueApply(child, function) =>
-        F.pure {
-          function.execute(ctx, child.execute(ctx))
+        OptionT.liftF {
+          for {bm <- child.execute; ctx <- M.ask}
+            yield function.execute(ctx, bm)
         }
 
       case BlockMatrixCollect(child) =>
-        F.pure {
-          val bm = child.execute(ctx)
-          // transpose because breeze toArray is column major
-          val breezeMat = bm.transpose().toBreezeMatrix()
-          val shape = IndexedSeq(bm.nRows, bm.nCols)
-          SafeNDArray(shape, breezeMat.toArray)
+        OptionT.liftF {
+          child.execute.map { bm =>
+            // transpose because breeze toArray is column major
+            val breezeMat = bm.transpose().toBreezeMatrix()
+            val shape = IndexedSeq(bm.nRows, bm.nCols)
+            SafeNDArray(shape, breezeMat.toArray)
+          }
         }
 
       case x@TableAggregate(child, query) =>
-        val value = child.analyzeAndExecute(ctx).asTableValue(ctx)
-        val fsBc = ctx.fsBc
-
-        val globalsBc = value.globals.broadcast(ctx.theHailClassLoader)
-        val globalsOffset = value.globals.value.offset
-
-        val res = genUID()
-
-        val extracted = agg.Extract(query, res, Requiredness(x, ctx))
-
-         val wrapped: M[Row] = if (extracted.aggs.isEmpty) {
+        OptionT.liftF {
           for {
-            (Some(PTypeReferenceSingleCodeType(rt: PTuple)), f) <-
-              Compile[M, AsmFunction2RegionLongLong](ctx,
-                FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)))),
-                FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
-                MakeTuple.ordered(FastSeq(extracted.postAggIR))
-              )
-            // TODO Is this right? where does wrapped run?
-          } yield ctx.scopedExecution((hcl, fs, htc, r) => SafeRow(rt, f(hcl, fs, htc, r)(r, globalsOffset)))
-        } else {
-          // A mutable reference to a byte array. If someone higher up the
-          // call stack holds a WrappedByteArray, we can set the reference
-          // to null to allow the array to be GCed.
-          class WrappedByteArray(_bytes: Array[Byte]) {
-            private var ref: Array[Byte] = _bytes
-            def bytes: Array[Byte] = ref
-            def clear(): Unit = {
-              ref = null
-            }
-          }
+            value <- child.analyzeAndExecute >>= (_.asTableValue)
+            ctx <- M.ask
+            globalsBc <- value.globals.broadcast
+            globalsOffset = value.globals.value.offset
 
-          for {
-            (_, initOp) <-
-              CompileWithAggregators[M, AsmFunction2RegionLongUnit](ctx,
-                extracted.states,
-                FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)))),
-                FastIndexedSeq(classInfo[Region], LongInfo), UnitInfo,
-                extracted.init
-              )
+            res = genUID()
 
-            (_, partitionOpSeq) <-
-              CompileWithAggregators[M, AsmFunction3RegionLongLongUnit](ctx,
-                extracted.states,
-                FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t))),
-                  ("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.rvd.rowPType)))),
-                FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), UnitInfo,
-                extracted.seqPerElt
-              )
+            req <- Requiredness(x)
+            extracted = agg.Extract(query, res, req)
 
-            useTreeAggregate = extracted.shouldTreeAggregate
-            isCommutative = extracted.isCommutative
-            _ = log.info(s"Aggregate: useTreeAggregate=${useTreeAggregate}")
-            _ = log.info(s"Aggregate: commutative=${isCommutative}")
+            wrapped: Row <- if (extracted.aggs.isEmpty) {
+              for {
+                (Some(PTypeReferenceSingleCodeType(rt: PTuple)), f) <-
+                  Compile[M, AsmFunction2RegionLongLong](
+                    FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)))),
+                    FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
+                    MakeTuple.ordered(FastSeq(extracted.postAggIR))
+                  )
 
+                row <- scopedExecution.run { case (hcl, fs, htc, r) =>
+                  M.pure {
+                    SafeRow(rt, f(hcl, fs, htc, r)(r, globalsOffset))
+                  }
+                }
 
-            spec = BufferSpec.defaultUncompressed
+              } yield row
+            } else {
+              // A mutable reference to a byte array. If someone higher up the
+              // call stack holds a WrappedByteArray, we can set the reference
+              // to null to allow the array to be GCed.
+              class WrappedByteArray(_bytes: Array[Byte]) {
+                private var ref: Array[Byte] = _bytes
 
-            // creates a region, giving ownership to the caller
-            read <- extracted.deserialize(ctx, spec).map { deserialize =>
-              (hcl: HailClassLoader, htc: HailTaskContext) => {
-                (a: WrappedByteArray) => {
-                  val r = Region(Region.SMALL, htc.getRegionPool())
-                  val res = deserialize(hcl, htc, r, a.bytes)
-                  a.clear()
-                  RegionValue(r, res)
+                def bytes: Array[Byte] = ref
+
+                def clear(): Unit = {
+                  ref = null
                 }
               }
-            }
 
-            // consumes a region, taking ownership from the caller
-            write <- extracted.serialize(ctx, spec).map { serialize =>
-              (hcl: HailClassLoader, htc: HailTaskContext, rv: RegionValue) => {
-                val a = serialize(hcl, htc, rv.region, rv.offset)
+              for {
+                (_, initOp) <-
+                  CompileWithAggregators[M, AsmFunction2RegionLongUnit](
+                    extracted.states,
+                    FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)))),
+                    FastIndexedSeq(classInfo[Region], LongInfo), UnitInfo,
+                    extracted.init
+                  )
+
+                (_, partitionOpSeq) <-
+                  CompileWithAggregators[M, AsmFunction3RegionLongLongUnit](
+                    extracted.states,
+                    FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t))),
+                      ("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.rvd.rowPType)))),
+                    FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), UnitInfo,
+                    extracted.seqPerElt
+                  )
+
+                useTreeAggregate = extracted.shouldTreeAggregate
+                isCommutative = extracted.isCommutative
+                _ = log.info(s"Aggregate: useTreeAggregate=$useTreeAggregate")
+                _ = log.info(s"Aggregate: commutative=$isCommutative")
+
+                spec = BufferSpec.defaultUncompressed
+
+                // creates a region, giving ownership to the caller
+                read <- extracted.deserialize(spec).map {
+                  deserialize =>
+                    (hcl: HailClassLoader, htc: HailTaskContext) => {
+                      (a: WrappedByteArray) => {
+                        val r = Region(Region.SMALL, htc.getRegionPool())
+                        val res = deserialize(hcl, htc, r, a.bytes)
+                        a.clear()
+                        RegionValue(r, res)
+                      }
+                    }
+                }
+
+                // consumes a region, taking ownership from the caller
+                write <- extracted.serialize(spec).map {
+                  serialize =>
+                    (hcl: HailClassLoader, htc: HailTaskContext, rv: RegionValue) => {
+                      val a = serialize(hcl, htc, rv.region, rv.offset)
+                      rv.region.invalidate()
+                      new WrappedByteArray(a)
+                    }
+                }
+
+                // takes ownership of both inputs, returns ownership of result
+                combOpF = extracted.combOpF(ctx, spec)
+
+                // returns ownership of a new region holding the partition aggregation
+                // result
+                fsBc = ctx.fsBc
+                itF = (theHailClassLoader: HailClassLoader, i: Int, ctx: RVDContext, it: Iterator[Long]) => {
+                  val partRegion = ctx.partitionRegion
+                  val globalsOffset = globalsBc.value.readRegionValue(partRegion, theHailClassLoader)
+                  val init = initOp(theHailClassLoader, fsBc.value, SparkTaskContext.get(), partRegion)
+                  val seqOps = partitionOpSeq(theHailClassLoader, fsBc.value, SparkTaskContext.get(), partRegion)
+                  val aggRegion = ctx.freshRegion(Region.SMALL)
+
+                  init.newAggState(aggRegion)
+                  init(partRegion, globalsOffset)
+                  seqOps.setAggState(aggRegion, init.getAggOffset())
+                  it.foreach {
+                    ptr =>
+                      seqOps(ctx.region, globalsOffset, ptr)
+                      ctx.region.clear()
+                  }
+
+                  RegionValue(aggRegion, seqOps.getAggOffset())
+                }
+
+                // creates a new region holding the zero value, giving ownership to
+                // the caller
+                mkZero = (theHailClassLoader: HailClassLoader, tc: HailTaskContext) => {
+                  val region = Region(Region.SMALL, tc.getRegionPool())
+                  val initF = initOp(theHailClassLoader, fsBc.value, tc, region)
+                  initF.newAggState(region)
+                  initF(region, globalsBc.value.readRegionValue(region, theHailClassLoader))
+                  RegionValue(region, initF.getAggOffset())
+                }
+
+                rv = value.rvd.combine[WrappedByteArray, RegionValue](ctx, mkZero, itF, read, write,
+                  combOpF, isCommutative, useTreeAggregate
+                )
+
+                (Some(PTypeReferenceSingleCodeType(rTyp: PTuple)), f) <-
+                  CompileWithAggregators[M, AsmFunction2RegionLongLong](
+                    extracted.states,
+                    FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)))),
+                    FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
+                    Let(res, extracted.results, MakeTuple.ordered(FastSeq(extracted.postAggIR)))
+                  )
+
+                _ <- assertA(rTyp.types(0).virtualType == query.typ)
+
+              } yield ctx.r.pool.scopedRegion { r =>
+                val resF = f(ctx.theHailClassLoader, fsBc.value, ctx.taskContext, r)
+                resF.setAggState(rv.region, rv.offset)
+                val resAddr = resF(r, globalsOffset)
+                val res = SafeRow(rTyp, resAddr)
+                resF.storeAggsToRegion()
                 rv.region.invalidate()
-                new WrappedByteArray(a)
+                res
               }
             }
-
-            // takes ownership of both inputs, returns ownership of result
-            combOpF = extracted.combOpF(ctx, spec)
-
-            // returns ownership of a new region holding the partition aggregation
-            // result
-            itF = (theHailClassLoader: HailClassLoader, i: Int, ctx: RVDContext, it: Iterator[Long]) => {
-              val partRegion = ctx.partitionRegion
-              val globalsOffset = globalsBc.value.readRegionValue(partRegion, theHailClassLoader)
-              val init = initOp(theHailClassLoader, fsBc.value, SparkTaskContext.get(), partRegion)
-              val seqOps = partitionOpSeq(theHailClassLoader, fsBc.value, SparkTaskContext.get(), partRegion)
-              val aggRegion = ctx.freshRegion(Region.SMALL)
-
-              init.newAggState(aggRegion)
-              init(partRegion, globalsOffset)
-              seqOps.setAggState(aggRegion, init.getAggOffset())
-              it.foreach { ptr =>
-                seqOps(ctx.region, globalsOffset, ptr)
-                ctx.region.clear()
-              }
-
-              RegionValue(aggRegion, seqOps.getAggOffset())
-            }
-
-            // creates a new region holding the zero value, giving ownership to
-            // the caller
-            mkZero = (theHailClassLoader: HailClassLoader, tc: HailTaskContext) => {
-              val region = Region(Region.SMALL, tc.getRegionPool())
-              val initF = initOp(theHailClassLoader, fsBc.value, tc, region)
-              initF.newAggState(region)
-              initF(region, globalsBc.value.readRegionValue(region, theHailClassLoader))
-              RegionValue(region, initF.getAggOffset())
-            }
-
-            rv = value.rvd.combine[WrappedByteArray, RegionValue](ctx, mkZero, itF, read, write,
-              combOpF, isCommutative, useTreeAggregate
-            )
-
-            (Some(PTypeReferenceSingleCodeType(rTyp: PTuple)), f) <-
-              CompileWithAggregators[M, AsmFunction2RegionLongLong](
-                ctx,
-                extracted.states,
-                FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)))),
-                FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
-                Let(res, extracted.results, MakeTuple.ordered(FastSeq(extracted.postAggIR)))
-              )
-
-            _ = assert(rTyp.types(0).virtualType == query.typ)
-
-          } yield ctx.r.pool.scopedRegion { r =>
-            val resF = f(ctx.theHailClassLoader, fsBc.value, ctx.taskContext, r)
-            resF.setAggState(rv.region, rv.offset)
-            val resAddr = resF(r, globalsOffset)
-            val res = SafeRow(rTyp, resAddr)
-            resF.storeAggsToRegion()
-            rv.region.invalidate()
-            res
-          }
+          } yield wrapped
         }
-
-        OptionT.liftF(wrapped.map(_.get(0)))
 
       case LiftMeOut(child) =>
         OptionT.liftF {
           for {
             (Some(PTypeReferenceSingleCodeType(rt)), makeFunction) <-
-              Compile[M, AsmFunction1RegionLong](ctx,
+              Compile[M, AsmFunction1RegionLong](
                 FastIndexedSeq(),
                 FastIndexedSeq(classInfo[Region]), LongInfo,
                 MakeTuple.ordered(FastSeq(child)),
                 optimize = false
               )
-          } yield ctx.scopedExecution { (hcl, fs, htc, r) =>
-            SafeRow.read(rt, makeFunction(hcl, fs, htc, r)(r)).asInstanceOf[Row](0)
-          }
+
+            r <- scopedExecution.run { case (hcl, fs, htc, r) =>
+              M.pure {
+                SafeRow.read(rt, makeFunction(hcl, fs, htc, r)(r))
+              }
+            }
+
+          } yield r.asInstanceOf[Row](0)
         }
 
       case UUID4(_) =>

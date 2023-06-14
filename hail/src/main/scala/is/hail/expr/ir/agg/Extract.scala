@@ -1,6 +1,6 @@
 package is.hail.expr.ir.agg
 
-import cats.implicits.toFunctorOps
+import cats.syntax.all.{toFunctorOps, toFlatMapOps}
 import is.hail.annotations.{Region, RegionPool, RegionValue}
 import is.hail.asm4s.{HailClassLoader, _}
 import is.hail.backend.spark.SparkTaskContext
@@ -188,44 +188,44 @@ class Aggs(original: IR, rewriteMap: Memo[IR], bindingNodesReferenced: Memo[Unit
 
   def eltOp(ctx: ExecuteContext): IR = seqPerElt
 
-  def deserialize[M[_]: MonadLower](ctx: ExecuteContext, spec: BufferSpec)
+  def deserialize[M[_]](spec: BufferSpec)(implicit M: MonadLower[M])
   : M[(HailClassLoader, HailTaskContext, Region, Array[Byte]) => Long] =
-    ir.CompileWithAggregators[M, AsmFunction1RegionUnit](ctx,
-      states,
-      FastIndexedSeq(),
-      FastIndexedSeq(classInfo[Region]), UnitInfo,
-      ir.DeserializeAggs(0, 0, spec, states)
-    ).map { case (_, f) =>
-      val fsBc = ctx.fsBc;
-      { (hcl: HailClassLoader, htc: HailTaskContext, aggRegion: Region, bytes: Array[Byte]) =>
-        val f2 = f(hcl, fsBc.value, htc, aggRegion)
-        f2.newAggState(aggRegion)
-        f2.setSerializedAgg(0, bytes)
-        f2(aggRegion)
-        f2.getAggOffset()
-      }
+    for {
+      (_, f) <- ir.CompileWithAggregators[M, AsmFunction1RegionUnit](
+        states,
+        FastIndexedSeq(),
+        FastIndexedSeq(classInfo[Region]), UnitInfo,
+        ir.DeserializeAggs(0, 0, spec, states)
+      )
+
+      fsBc <- M.reader(_.fsBc)
+    } yield { (hcl: HailClassLoader, htc: HailTaskContext, aggRegion: Region, bytes: Array[Byte]) =>
+      val f2 = f(hcl, fsBc.value, htc, aggRegion)
+      f2.newAggState(aggRegion)
+      f2.setSerializedAgg(0, bytes)
+      f2(aggRegion)
+      f2.getAggOffset()
     }
 
-  def serialize[M[_]: MonadLower](ctx: ExecuteContext, spec: BufferSpec): M[(HailClassLoader, HailTaskContext, Region, Long) => Array[Byte]] =
-    ir.CompileWithAggregators[M, AsmFunction1RegionUnit](ctx,
-      states,
-      FastIndexedSeq(),
-      FastIndexedSeq(classInfo[Region]), UnitInfo,
-      ir.SerializeAggs(0, 0, spec, states)
-    ).map { case (_, f) =>
-      val fsBc = ctx.fsBc;
-      { (hcl: HailClassLoader, htc: HailTaskContext, aggRegion: Region, off: Long) =>
+  def serialize[M[_]](spec: BufferSpec)(implicit M: MonadLower[M]): M[(HailClassLoader, HailTaskContext, Region, Long) => Array[Byte]] =
+    for {
+      (_, f) <- ir.CompileWithAggregators[M, AsmFunction1RegionUnit](
+        states,
+        FastIndexedSeq(),
+        FastIndexedSeq(classInfo[Region]), UnitInfo,
+        ir.SerializeAggs(0, 0, spec, states)
+      )
+      fsBc <- M.reader(_.fsBc)
+    } yield { (hcl: HailClassLoader, htc: HailTaskContext, aggRegion: Region, off: Long) =>
         val f2 = f(hcl, fsBc.value, htc, aggRegion)
         f2.setAggState(aggRegion, off)
         f2(aggRegion)
         f2.storeAggsToRegion()
         f2.getSerializedAgg(0)
       }
-    }
 
-  def combOpFSerializedWorkersOnly[M[_]: MonadLower](ctx: ExecuteContext, spec: BufferSpec)
-  : M[(Array[Byte], Array[Byte]) => Array[Byte]] =
-    combOpFSerializedFromRegionPool(ctx, spec).map(_(() => {
+  def combOpFSerializedWorkersOnly[M[_]: MonadLower](spec: BufferSpec): M[(Array[Byte], Array[Byte]) => Array[Byte]] =
+    combOpFSerializedFromRegionPool(spec).map(_(() => {
       val htc = SparkTaskContext.get()
       val hcl = theHailClassLoaderForSparkWorkers
       if (htc == null) {
@@ -234,22 +234,24 @@ class Aggs(original: IR, rewriteMap: Memo[IR], bindingNodesReferenced: Memo[Unit
       (htc.getRegionPool(), hcl, htc)
     }))
 
-  def combOpFSerializedFromRegionPool[M[_]: MonadLower](ctx: ExecuteContext, spec: BufferSpec)
+  def combOpFSerializedFromRegionPool[M[_]](spec: BufferSpec)(implicit M: MonadLower[M])
   : M[(() => (RegionPool, HailClassLoader, HailTaskContext)) => (Array[Byte], Array[Byte]) => Array[Byte]] =
-    ir.CompileWithAggregators[M, AsmFunction1RegionUnit](ctx,
-      states ++ states,
-      FastIndexedSeq(),
-      FastIndexedSeq(classInfo[Region]), UnitInfo,
-      Begin(FastSeq(
-        ir.DeserializeAggs(0, 0, spec, states),
-        ir.DeserializeAggs(nAggs, 1, spec, states),
-        Begin(aggs.zipWithIndex.map { case (sig, i) => CombOp(i, i + nAggs, sig) }),
-        SerializeAggs(0, 0, spec, states)
-      ))
-    ).map { case (_, f) =>
-      val fsBc = ctx.fsBc
-      poolGetter: (() => (RegionPool, HailClassLoader, HailTaskContext)) => { (bytes1: Array[Byte], bytes2: Array[Byte]) =>
-        val (pool, hcl, htc) = poolGetter()
+    for {
+      (_, f) <- ir.CompileWithAggregators[M, AsmFunction1RegionUnit](
+        states ++ states,
+        FastIndexedSeq(),
+        FastIndexedSeq(classInfo[Region]), UnitInfo,
+        Begin(FastSeq(
+          ir.DeserializeAggs(0, 0, spec, states),
+          ir.DeserializeAggs(nAggs, 1, spec, states),
+          Begin(aggs.zipWithIndex.map { case (sig, i) => CombOp(i, i + nAggs, sig) }),
+          SerializeAggs(0, 0, spec, states)
+        ))
+      )
+      fsBc <- M.reader(_.fsBc)
+    } yield { (getPool: () => (RegionPool, HailClassLoader, HailTaskContext)) =>
+      (bytes1: Array[Byte], bytes2: Array[Byte]) =>
+        val (pool, hcl, htc) = getPool()
         pool.scopedSmallRegion { r =>
           val f2 = f(hcl, fsBc.value, htc, r)
           f2.newAggState(r)
@@ -259,10 +261,9 @@ class Aggs(original: IR, rewriteMap: Memo[IR], bindingNodesReferenced: Memo[Unit
           f2.storeAggsToRegion()
           f2.getSerializedAgg(0)
         }
-      }
     }
 
-  // Takes ownership of both input regions, and returns ownership of region in
+// Takes ownership of both input regions, and returns ownership of region in
   // resulting RegionValue.
   def combOpF(ctx: ExecuteContext, spec: BufferSpec): (HailClassLoader, HailTaskContext, RegionValue, RegionValue) => RegionValue = {
     val fb = ir.EmitFunctionBuilder[AsmFunction4RegionLongRegionLongLong](

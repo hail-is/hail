@@ -1,8 +1,10 @@
 package is.hail.expr.ir.lowering
 
+import cats.mtl.Ask
 import cats.syntax.all._
 import is.hail.annotations.{Annotation, ExtendedOrdering, Region, SafeRow}
 import is.hail.asm4s.{AsmFunction1RegionLong, LongInfo, classInfo}
+import is.hail.backend.utils._
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.{ArrayFunctions, IRRandomness, UtilFunctions}
@@ -12,7 +14,7 @@ import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.physical.{PArray, PStruct}
 import is.hail.types.virtual._
 import is.hail.types.{RTable, TableType, VirtualTypeWithReq, tcoerce}
-import is.hail.utils._
+import is.hail.utils.{time => _, _}
 import org.apache.spark.sql.Row
 import org.json4s.JValue
 import org.json4s.JsonAST.JString
@@ -21,53 +23,55 @@ import scala.collection.mutable.ArrayBuffer
 import scala.language.higherKinds
 
 object LowerDistributedSort {
-  def localSort[M[_]](ctx: ExecuteContext, inputStage: TableStage, sortFields: IndexedSeq[SortField], rt: RTable)
-                     (implicit M: MonadLower[M]): M[TableReader] = {
-    val numPartitions = inputStage.partitioner.numPartitions
-    val collected = inputStage.collectWithGlobals("shuffle_local_sort")
-      ctx.timer.timeM("LowerDistributedSort.localSort.compile") {
-        Compile[M, AsmFunction1RegionLong](ctx,
-          FastIndexedSeq(),
-          FastIndexedSeq(classInfo[Region]), LongInfo,
-          collected,
-          print = None,
-          optimize = true
-        )
-      }
-        .map { case (Some(PTypeReferenceSingleCodeType(resultPType: PStruct)), f) =>
-
-          val rowsAndGlobal = ctx.scopedExecution { (hcl, fs, htc, r) =>
-            val fRunnable = ctx.timer.time("LowerDistributedSort.localSort.initialize")(f(hcl, fs, htc, r))
-            val resultAddress = ctx.timer.time("LowerDistributedSort.localSort.run")(fRunnable(ctx.r))
-            ctx.timer.time("LowerDistributedSort.localSort.toJavaObject")(SafeRow.read(resultPType, resultAddress)).asInstanceOf[Row]
-          }
-
-          val rowsType = resultPType.fieldType("rows").asInstanceOf[PArray]
-          val rowType = rowsType.elementType.asInstanceOf[PStruct]
-          val rows = rowsAndGlobal.getAs[IndexedSeq[Annotation]](0)
-          val kType = TStruct(sortFields.map(f => (f.field, rowType.virtualType.fieldType(f.field))): _*)
-
-          val sortedRows = localAnnotationSort(ctx, rows, sortFields, rowType.virtualType)
-
-          val nPartitionsAdj = math.max(math.min(sortedRows.length, numPartitions), 1)
-          val itemsPerPartition = math.max((sortedRows.length.toDouble / nPartitionsAdj).ceil.toInt, 1)
-
-          // partitioner needs keys to be ascending
-          val partitionerKeyType = TStruct(sortFields.takeWhile(_.sortOrder == Ascending).map(f => (f.field, rowType.virtualType.fieldType(f.field))): _*)
-          val partitionerKeyIndex = partitionerKeyType.fieldNames.map(f => rowType.fieldIdx(f))
-
-          val partitioner = new RVDPartitioner(ctx.stateManager, partitionerKeyType,
-            sortedRows.grouped(itemsPerPartition).map { group =>
-              val first = group.head.asInstanceOf[Row].select(partitionerKeyIndex)
-              val last = group.last.asInstanceOf[Row].select(partitionerKeyIndex)
-              Interval(first, last, includesStart = true, includesEnd = true)
-            }.toIndexedSeq)
-
-          val globalsIR = Literal(resultPType.fieldType("global").virtualType, rowsAndGlobal.get(1))
-
-          LocalSortReader(sortedRows, rowType.virtualType, globalsIR, partitioner, itemsPerPartition, rt)
+  def localSort[M[_]](inputStage: TableStage, sortFields: IndexedSeq[SortField], rt: RTable)
+                     (implicit M: MonadLower[M]): M[TableReader] =
+    for {
+      (Some(PTypeReferenceSingleCodeType(resultPType: PStruct)), f) <-
+        timeM("LowerDistributedSort.localSort.compile") {
+          Compile[M, AsmFunction1RegionLong](
+            FastIndexedSeq(),
+            FastIndexedSeq(classInfo[Region]), LongInfo,
+            inputStage.collectWithGlobals("shuffle_local_sort"),
+            print = None,
+            optimize = true
+          )
         }
-  }
+
+      numPartitions = inputStage.partitioner.numPartitions
+
+      rowsAndGlobal <- scopedExecution.run { case (hcl, fs, htc, r) =>
+        for {
+          fRunnable <- time("LowerDistributedSort.localSort.initialize")(f(hcl, fs, htc, r))
+          resultAddress <- time("LowerDistributedSort.localSort.run")(fRunnable(r))
+          row <- time("LowerDistributedSort.localSort.toJavaObject")(SafeRow.read(resultPType, resultAddress))
+        } yield row.asInstanceOf[Row]
+      }
+
+      rowsType = resultPType.fieldType("rows").asInstanceOf[PArray]
+      rowType = rowsType.elementType.asInstanceOf[PStruct]
+      rows = rowsAndGlobal.getAs[IndexedSeq[Annotation]](0)
+      kType = TStruct(sortFields.map(f => (f.field, rowType.virtualType.fieldType(f.field))): _*)
+
+      sortedRows <- localAnnotationSort(rows, sortFields, rowType.virtualType)
+
+      nPartitionsAdj = math.max(math.min(sortedRows.length, numPartitions), 1)
+      itemsPerPartition = math.max((sortedRows.length.toDouble / nPartitionsAdj).ceil.toInt, 1)
+
+      // partitioner needs keys to be ascending
+      partitionerKeyType = TStruct(sortFields.takeWhile(_.sortOrder == Ascending).map(f => (f.field, rowType.virtualType.fieldType(f.field))): _*)
+      partitionerKeyIndex = partitionerKeyType.fieldNames.map(f => rowType.fieldIdx(f))
+
+      stateManager <- M.reader(_.stateManager)
+      partitioner = new RVDPartitioner(stateManager, partitionerKeyType,
+        sortedRows.grouped(itemsPerPartition).map { group =>
+          val first = group.head.asInstanceOf[Row].select(partitionerKeyIndex)
+          val last = group.last.asInstanceOf[Row].select(partitionerKeyIndex)
+          Interval(first, last, includesStart = true, includesEnd = true)
+        }.toIndexedSeq)
+
+      globalsIR = Literal(resultPType.fieldType("global").virtualType, rowsAndGlobal.get(1))
+    } yield LocalSortReader(sortedRows, rowType.virtualType, globalsIR, partitioner, itemsPerPartition, rt)
+
 
   case class LocalSortReader(sortedRows: IndexedSeq[Annotation], rowType: TStruct, globals: IR, partitioner: RVDPartitioner, itemsPerPartition: Int, rt: RTable) extends TableReader {
     lazy val fullType: TableType = TableType(rowType, partitioner.kType.fieldNames, globals.typ.asInstanceOf[TStruct])
@@ -76,11 +80,12 @@ object LowerDistributedSort {
 
     override def partitionCounts: Option[IndexedSeq[Long]] = None
 
-    override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
-      assert(!dropRows)
-      import Lower.monadLowerInstanceForLower
-      TableExecuteIntermediate(lower(ctx, requestedType).runA(ctx, LoweringState())).asTableValue(ctx)
-    }
+    override def apply[M[_]: MonadLower](requestedType: TableType, dropRows: Boolean): M[TableValue] =
+      for {
+        _ <- assertA(!dropRows);
+        ts <- lower(requestedType);
+        tv <- TableStageIntermediate(ts).asTableValue
+      } yield tv
 
     override def isDistinctlyKeyed: Boolean = false // FIXME: No default value
 
@@ -98,76 +103,67 @@ object LowerDistributedSort {
 
     override def defaultRender(): String = "LocalSortReader"
 
-    override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
-      PruneDeadFields.upcast(ctx, globals, requestedGlobalsType)
-
-    override def lower[M[_]: MonadLower](ctx: ExecuteContext, requestedType: TableType): M[TableStage] =
-      MonadLower[M].pure {
-        TableStage(
-          globals = globals,
-          partitioner = partitioner.coarsen(requestedType.key.length),
-          TableStageDependency.none,
-          contexts = mapIR(
-            StreamGrouped(
-              ToStream(Literal(TArray(rowType), sortedRows)),
-              I32(itemsPerPartition))
-          )(ToArray(_)),
-          ToStream(_)
-        ).upcast(ctx, requestedType)
+    override def lowerGlobals[M[_] : MonadLower](requestedGlobalsType: TStruct): M[IR] =
+      MonadLower[M].reader { ctx =>
+        PruneDeadFields.upcast(ctx, globals, requestedGlobalsType)
       }
+
+    override def lower[M[_]](requestedType: TableType)
+                            (implicit M: MonadLower[M]): M[TableStage] =
+      TableStage(
+        globals = globals,
+        partitioner = partitioner.coarsen(requestedType.key.length),
+        TableStageDependency.none,
+        contexts = mapIR(
+          StreamGrouped(
+            ToStream(Literal(TArray(rowType), sortedRows)),
+            I32(itemsPerPartition))
+        )(ToArray(_)),
+        ToStream(_)
+      ).upcast(requestedType)(M)
   }
 
-  private def localAnnotationSort(
-    ctx: ExecuteContext,
+  private def localAnnotationSort[M[_]](
     annotations: IndexedSeq[Annotation],
     sortFields: IndexedSeq[SortField],
     rowType: TStruct
-  ): IndexedSeq[Annotation] = {
-    val sortColIndexOrd = sortFields.map { case SortField(n, so) =>
-      val i = rowType.fieldIdx(n)
-      val f = rowType.fields(i)
-      val fo = f.typ.ordering(ctx.stateManager)
-      if (so == Ascending) fo else fo.reverse
-    }.toArray
+  )(implicit M: Ask[M, ExecuteContext]): M[IndexedSeq[Annotation]] =
+    M.reader { ctx =>
+      val sortColIndexOrd = sortFields.map { case SortField(n, so) =>
+        val i = rowType.fieldIdx(n)
+        val f = rowType.fields(i)
+        val fo = f.typ.ordering(ctx.stateManager)
+        if (so == Ascending) fo else fo.reverse
+      }.toArray
 
-    val ord: Ordering[Annotation] = ExtendedOrdering.rowOrdering(sortColIndexOrd).toOrdering
+      val ord: Ordering[Annotation] = ExtendedOrdering.rowOrdering(sortColIndexOrd).toOrdering
 
-    val kType = TStruct(sortFields.map(f => (f.field, rowType.fieldType(f.field))): _*)
-    val kIndex = kType.fieldNames.map(f => rowType.fieldIdx(f))
-    ctx.timer.time("LowerDistributedSort.localSort.sort")(annotations.sortBy{ a: Annotation =>
-      a.asInstanceOf[Row].select(kIndex).asInstanceOf[Annotation]
-    }(ord))
-  }
+      val kType = TStruct(sortFields.map(f => (f.field, rowType.fieldType(f.field))): _*)
+      val kIndex = kType.fieldNames.map(f => rowType.fieldIdx(f))
+      ctx.timer.time("LowerDistributedSort.localSort.sort")(annotations.sortBy { a: Annotation =>
+        a.asInstanceOf[Row].select(kIndex).asInstanceOf[Annotation]
+      }(ord))
+    }
 
-  def distributedSort[M[_]](ctx: ExecuteContext,
-                            inputStage: TableStage,
+  def distributedSort[M[_]](inputStage: TableStage,
                             sortFields: IndexedSeq[SortField],
                             tableRequiredness: RTable,
                             optTargetNumPartitions: Option[Int] = None
-                           )(implicit M: MonadLower[M]): M[TableReader] = {
-    val oversamplingNum = 3
-    val seed = 7L
-    val maxBranchingFactor = ctx.getFlag("shuffle_max_branch_factor").toInt
-    val defaultBranchingFactor = if (inputStage.numPartitions < maxBranchingFactor) {
-      Math.max(2, inputStage.numPartitions)
-    } else {
-      maxBranchingFactor
-    }
-
-    val rowTypeRequiredness = tableRequiredness.rowType
-    val sizeCutoff = ctx.getFlag("shuffle_cutoff_to_local_sort").toInt
-
-    val (keyToSortBy, _) = inputStage.rowType.select(sortFields.map(sf => sf.field))
-
-    val spec = TypedCodecSpec(rowTypeRequiredness.canonicalPType(inputStage.rowType), BufferSpec.wireSpec)
-    val reader = PartitionNativeReader(spec, "__dummy_uid")
-    val initialTmpPath = ctx.createTmpPath("hail_shuffle_temp_initial")
-    val writer = PartitionNativeWriter(spec, keyToSortBy.fieldNames, initialTmpPath, None, None, trackTotalBytes = true)
-
-    log.info("DISTRIBUTED SORT: PHASE 1: WRITE DATA")
+                           )(implicit M: MonadLower[M]): M[TableReader] =
     for {
+      defaultBranchingFactor <- readFlag("shuffle_max_branch_factor").map { maxBranchingFactor =>
+        Math.min(maxBranchingFactor.toInt, Math.max(2, inputStage.numPartitions))
+      }
+      sizeCutoff <- readFlag("shuffle_cutoff_to_local_sort").map(_.toInt)
+
+      initialTmpPath <- newTmpPath("hail_shuffle_temp_initial")
+      spec = TypedCodecSpec(tableRequiredness.rowType.canonicalPType(inputStage.rowType), BufferSpec.wireSpec)
+      (keyToSortBy, _) = inputStage.rowType.select(sortFields.map(_.field))
+      writer = PartitionNativeWriter(spec, keyToSortBy.fieldNames, initialTmpPath, None, None, trackTotalBytes = true)
+
+      _ = log.info("DISTRIBUTED SORT: PHASE 1: WRITE DATA")
       (initialPartInfo, initialGlobals, intervalRange) <-
-        CompileAndEvaluate[M, Annotation](ctx,
+        CompileAndEvaluate[M, Annotation](
           inputStage.mapCollectWithGlobals("shuffle_initial_write")(WritePartition(_, UUID4(), writer)) {
             case (part, globals) =>
               val streamElement = Ref(genUID(), part.typ.asInstanceOf[TArray].elementType)
@@ -198,7 +194,9 @@ object LowerDistributedSort {
         Math.max(1L, totalNumberOfRows / targetNumPartitions)
       }
 
-      rand = new IRRandomness(seed)
+      rand = new IRRandomness(7L)
+      oversamplingNum = 3
+      reader = PartitionNativeReader(spec, "__dummy_uid")
 
       /*
       Loop state keeps track of three things. largeSegments are too big to sort locally so have to broken up.
@@ -312,7 +310,7 @@ object LowerDistributedSort {
         // Going to check now if it's fully sorted, as well as collect and sort all the samples.
         for {
           pivotsWithEndpointsAndInfoGroupedBySegmentNumber <-
-            for {r <- CompileAndEvaluate[M, Annotation](ctx, pivotsPerSegmentAndSortedCheck)}
+            for {r <- CompileAndEvaluate[M, Annotation](pivotsPerSegmentAndSortedCheck)}
               yield r.asInstanceOf[IndexedSeq[Row]].map { x =>
                 (
                   x(0).asInstanceOf[IndexedSeq[Row]],
@@ -351,10 +349,7 @@ object LowerDistributedSort {
           (newBigUnsortedSegments, newSmallSegments) <-
             if (unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber.nonEmpty) {
               val pivotsWithEndpointsGroupedBySegmentNumber = unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber.map { case (r, _) => r._1 }
-
               val pivotsWithEndpointsGroupedBySegmentNumberLiteral = Literal(TArray(TArray(keyToSortBy)), pivotsWithEndpointsGroupedBySegmentNumber)
-
-              val tmpPath = ctx.createTmpPath("hail_shuffle_temp")
               val unsortedPartitionDataPerSegment = unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber.map { case (_, idx) => partitionDataPerSegment(idx) }
 
               val partitionDataPerSegmentWithPivotIndex = unsortedPartitionDataPerSegment.zipWithIndex.map { case (partitionDataForOneSegment, indexIntoPivotsArray) =>
@@ -364,24 +359,25 @@ object LowerDistributedSort {
               val distributeContextsData = partitionDataPerSegmentWithPivotIndex.flatten.zipWithIndex.map { case (part, partIdx) => Row(part._1.last, part._2, partIdx, part._4) }
               val distributeContexts = ToStream(Literal(TArray(TStruct("segmentIdx" -> TInt32, "files" -> TArray(TString), "partIdx" -> TInt32, "indexIntoPivotsArray" -> TInt32)), distributeContextsData))
               val distributeGlobals = MakeStruct(IndexedSeq("pivotsWithEndpointsGroupedBySegmentIdx" -> pivotsWithEndpointsGroupedBySegmentNumberLiteral))
-
-              val distribute =
-                cdaIR(distributeContexts, distributeGlobals, s"shuffle_distribute_iteration_$i") { (ctxRef, globalsRef) =>
-                  val segmentIdx = GetField(ctxRef, "segmentIdx")
-                  val indexIntoPivotsArray = GetField(ctxRef, "indexIntoPivotsArray")
-                  val pivotsWithEndpointsGroupedBySegmentIdx = GetField(globalsRef, "pivotsWithEndpointsGroupedBySegmentIdx")
-                  val path = invoke("concat", TString, Str(tmpPath + "_"), invoke("str", TString, GetField(ctxRef, "partIdx")))
-                  val filenames = GetField(ctxRef, "files")
-                  val partitionStream = flatMapIR(ToStream(filenames)) { fileName =>
-                    ReadPartition(MakeStruct(Array("partitionIndex" -> I64(0), "partitionPath" -> fileName)), tcoerce[TStruct](spec._vType), reader)
-                  }
-                  MakeTuple.ordered(IndexedSeq(segmentIdx, StreamDistribute(partitionStream, ArrayRef(pivotsWithEndpointsGroupedBySegmentIdx, indexIntoPivotsArray), path, StructCompare(keyToSortBy, keyToSortBy, sortFields.toArray), spec)))
-                }
-
-              log.info(s"DISTRIBUTED SORT: PHASE ${i + 1}: STAGE 2: DISTRIBUTE")
               for {
+                tmpPath <- newTmpPath("hail_shuffle_temp")
+                distribute =
+                  cdaIR(distributeContexts, distributeGlobals, s"shuffle_distribute_iteration_$i") { (ctxRef, globalsRef) =>
+                    val segmentIdx = GetField(ctxRef, "segmentIdx")
+                    val indexIntoPivotsArray = GetField(ctxRef, "indexIntoPivotsArray")
+                    val pivotsWithEndpointsGroupedBySegmentIdx = GetField(globalsRef, "pivotsWithEndpointsGroupedBySegmentIdx")
+                    val path = invoke("concat", TString, Str(tmpPath + "_"), invoke("str", TString, GetField(ctxRef, "partIdx")))
+                    val filenames = GetField(ctxRef, "files")
+                    val partitionStream = flatMapIR(ToStream(filenames)) { fileName =>
+                      ReadPartition(MakeStruct(Array("partitionIndex" -> I64(0), "partitionPath" -> fileName)), tcoerce[TStruct](spec._vType), reader)
+                    }
+                    MakeTuple.ordered(IndexedSeq(segmentIdx, StreamDistribute(partitionStream, ArrayRef(pivotsWithEndpointsGroupedBySegmentIdx, indexIntoPivotsArray), path, StructCompare(keyToSortBy, keyToSortBy, sortFields.toArray), spec)))
+                  }
+
+                _ = log.info(s"DISTRIBUTED SORT: PHASE ${i + 1}: STAGE 2: DISTRIBUTE")
+
                 distributeResult <-
-                  for {distributeResult <- CompileAndEvaluate[M, Annotation](ctx, distribute)}
+                  for {distributeResult <- CompileAndEvaluate[M, Annotation](distribute)}
                     yield distributeResult.asInstanceOf[IndexedSeq[Row]].map { row =>
                       (row(0).asInstanceOf[Int], row(1).asInstanceOf[IndexedSeq[Row]].map { innerRow =>
                         (
@@ -423,7 +419,6 @@ object LowerDistributedSort {
             } else {
               M.pure((IndexedSeq.empty[SegmentResult], IndexedSeq.empty[SegmentResult]))
             }
-
           _ = log.info(s"DISTRIBUTED SORT: PHASE ${i + 1}: ${newSmallSegments.length}/${newSmallSegments.length + newBigUnsortedSegments.length} segments can be locally sorted")
         } yield (
           LoopState(newBigUnsortedSegments, loopState.smallSegments ++ newSmallSegments, loopState.readyOutputParts ++ outputPartitions),
@@ -451,7 +446,7 @@ object LowerDistributedSort {
       _ = log.info(s"DISTRIBUTED_SORT: ${needSortingFilenames.length} segments to sort")
 
       sortedFilenames <-
-        for {r <- CompileAndEvaluate[M, Annotation](ctx, sortedFilenamesIR)}
+        for {r <- CompileAndEvaluate[M, Annotation](sortedFilenamesIR)}
           yield r.asInstanceOf[IndexedSeq[Row]].map(_(0).asInstanceOf[String])
 
       newlySortedSegments = loopState.smallSegments.zip(sortedFilenames).map { case (sr, newFilename) =>
@@ -462,7 +457,6 @@ object LowerDistributedSort {
       orderedOutputPartitions = unorderedOutputPartitions.sortWith { (srt1, srt2) => lessThanForSegmentIndices(srt1.indices, srt2.indices) }
       keyed = sortFields.forall(sf => sf.sortOrder == Ascending)
     } yield DistributionSortReader(keyToSortBy, keyed, spec, orderedOutputPartitions, initialGlobalsLiteral, spec._vType.asInstanceOf[TStruct], tableRequiredness)
-  }
 
     def orderedGroupBy[T, U](is: IndexedSeq[T], func: T => U): IndexedSeq[(U, IndexedSeq[T])] = {
       val result = new ArrayBuffer[(U, IndexedSeq[T])](is.size)
@@ -651,13 +645,14 @@ case class DistributionSortReader(key: TStruct, keyed: Boolean, spec: TypedCodec
 
   override def partitionCounts: Option[IndexedSeq[Long]] = None
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
-    assert(!dropRows)
-    TableExecuteIntermediate(
-      lower(ctx, requestedType)(Lower.monadLowerInstanceForLower)
-        .runA(ctx, LoweringState())
-    ).asTableValue(ctx)
-  }
+  override def apply[M[_] : MonadLower](requestedType: TableType, dropRows: Boolean): M[TableValue] =
+    for {
+      _ <- assertA(!dropRows);
+      ts <- lower(requestedType)
+      tv <- TableStageIntermediate(ts).asTableValue
+    } yield tv
+
+
 
   override def isDistinctlyKeyed: Boolean = false // FIXME: No default value
 
@@ -675,11 +670,11 @@ case class DistributionSortReader(key: TStruct, keyed: Boolean, spec: TypedCodec
 
   override def defaultRender(): String = "DistributionSortReader"
 
-  override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
-    PruneDeadFields.upcast(ctx, globals, requestedGlobalsType)
+  override def lowerGlobals[M[_]](requestedGlobalsType: TStruct)(implicit M: MonadLower[M]): M[IR] =
+    M.reader { ctx => PruneDeadFields.upcast(ctx, globals, requestedGlobalsType) }
 
-  override def lower[M[_]: MonadLower](ctx: ExecuteContext, requestedType: TableType): M[TableStage] =
-    MonadLower[M].pure {
+  override def lower[M[_]](requestedType: TableType)(implicit M: MonadLower[M]): M[TableStage] =
+    M.reader { ctx =>
       val contextData = {
         var filesCount: Long = 0
         for (segment <- orderedOutputPartitions) yield {

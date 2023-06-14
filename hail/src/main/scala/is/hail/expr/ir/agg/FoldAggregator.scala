@@ -1,4 +1,6 @@
 package is.hail.expr.ir.agg
+
+import cats.data.Reader
 import is.hail.annotations.Region
 import is.hail.asm4s.Value
 import is.hail.backend.ExecuteContext
@@ -27,13 +29,12 @@ class FoldAggregator(val resultEmitType: EmitType, accumName: String, otherAccum
   }
 
   override protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: TypedRegionBackedAggState, other: TypedRegionBackedAggState): Unit = {
-
     val stateEV = state.get(cb).memoizeField(cb, "fold_agg_comb_op_state")
     val otherEV = other.get(cb).memoizeField(cb, "fold_agg_comb_op_other")
-    val env = EmitEnv(Env.apply((accumName, stateEV), (otherAccumName, otherEV)), IndexedSeq())
-    val pEnv = Env.apply((accumName, resultEmitType.storageType), (otherAccumName, resultEmitType.storageType))
+    val env = EmitEnv(Env((accumName, stateEV), (otherAccumName, otherEV)), IndexedSeq())
+    val pEnv = Env((accumName, resultEmitType.storageType), (otherAccumName, resultEmitType.storageType))
 
-    val emitCtx = EmitContext.analyze(ctx, combOpIR, pEnv)
+    val emitCtx = EmitContext.analyze[({type M[A] = Reader[ExecuteContext, A]})#M](combOpIR, pEnv).run(ctx)
     val emit = new Emit[Any](emitCtx, cb.emb.ecb.asInstanceOf[EmitClassBuilder[Any]], LoweringState())
     val ec = emit.emit(combOpIR, cb.emb.asInstanceOf[EmitMethodBuilder[Any]], env, None)
     ec.toI(cb).consume(cb, state.storeMissing(cb), sv => state.storeNonmissing(cb, sv))

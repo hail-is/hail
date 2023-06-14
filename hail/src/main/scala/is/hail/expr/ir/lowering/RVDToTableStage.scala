@@ -1,12 +1,12 @@
 package is.hail.expr.ir.lowering
 
-import cats.Applicative
-import cats.syntax.all.{toFlatMapOps, toFunctorOps}
+import cats.syntax.all._
 import is.hail.annotations.{BroadcastRow, Region, RegionValue}
 import is.hail.asm4s._
 import is.hail.backend.spark.{AnonymousDependency, SparkTaskContext}
+import is.hail.backend.utils.assertA
 import is.hail.backend.{BroadcastValue, ExecuteContext}
-import is.hail.expr.ir.{Compile, CompileIterator, GetField, IR, In, Let, MakeStruct, PartitionRVDReader, ReadPartition, StreamRange, ToArray, _}
+import is.hail.expr.ir._
 import is.hail.io.fs.FS
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.rvd.{RVD, RVDType}
@@ -31,23 +31,26 @@ case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader
 
   override def partitionCounts: Option[IndexedSeq[Long]] = None
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
-    assert(!dropRows)
-    (for {
+  override def apply[M[_]](requestedType: TableType, dropRows: Boolean)(implicit M: MonadLower[M]): M[TableValue] =
+    for {
+      _ <- assertA(!dropRows)
+      loweredGlobals <- lowerGlobals(requestedType.globalType)
+
       (Some(PTypeReferenceSingleCodeType(globType: PStruct)), f) <-
-        Compile[Lower, AsmFunction1RegionLong](ctx,
+        Compile[M, AsmFunction1RegionLong](
           FastIndexedSeq(),
           FastIndexedSeq(classInfo[Region]),
           LongInfo,
-          PruneDeadFields.upcast(ctx, globals, requestedType.globalType)
+          loweredGlobals
         )
 
-      gbAddr = f(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r) (ctx.r)
-      globRow = BroadcastRow(ctx, RegionValue(ctx.r, gbAddr), globType)
+      ctx <- M.ask
+      gbAddr = f(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)(ctx.r)
+      globRow = BroadcastRow(ctx.stateManager, RegionValue(ctx.r, gbAddr), globType)
 
       rowEmitType = SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(rvd.rowPType))
       (Some(PTypeReferenceSingleCodeType(newRowType: PStruct)), rowF) <-
-        Compile[Lower, AsmFunction2RegionLongLong](ctx,
+        Compile[M, AsmFunction2RegionLongLong](
           FastIndexedSeq(("row", rowEmitType)),
           FastIndexedSeq(classInfo[Region], LongInfo),
           LongInfo,
@@ -55,11 +58,10 @@ case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader
         )
 
       fsBc = ctx.fsBc
-    } yield TableValue(ctx, requestedType, globRow, rvd.mapPartitionsWithIndex(RVDType(newRowType, requestedType.key)) { case (i, ctx, it) =>
+    } yield TableValue(requestedType, globRow, rvd.mapPartitionsWithIndex(RVDType(newRowType, requestedType.key)) { case (i, ctx, it) =>
       val partF = rowF(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), ctx.partitionRegion)
       it.map { elt => partF(ctx.r, elt) }
-    })).runA(ctx, LoweringState())
-  }
+    })
 
   override def isDistinctlyKeyed: Boolean = false
 
@@ -77,13 +79,13 @@ case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader
 
   override def defaultRender(): String = "RVDTableReader"
 
-  override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
-    PruneDeadFields.upcast(ctx, globals, requestedGlobalsType)
-
-  override def lower[M[_]: MonadLower](ctx: ExecuteContext, requestedType: TableType): M[TableStage] =
-    Applicative[M].pure {
-      RVDToTableStage(rvd, globals).upcast(ctx, requestedType)
+  override def lowerGlobals[M[_]](requestedGlobalsType: TStruct)(implicit M: MonadLower[M]): M[IR] =
+    M.reader { ctx =>
+      PruneDeadFields.upcast(ctx, globals, requestedGlobalsType)
     }
+
+  override def lower[M[_]](requestedType: TableType)(implicit M: MonadLower[M]): M[TableStage] =
+    RVDToTableStage(rvd, globals).upcast(requestedType)(M)
 }
 
 object RVDToTableStage {
@@ -99,7 +101,7 @@ object RVDToTableStage {
 }
 
 object TableStageToRVD {
-  def apply[M[_]: MonadLower](ctx: ExecuteContext, _ts: TableStage): M[(BroadcastRow, RVD)] = {
+  def apply[M[_]](_ts: TableStage)(implicit M: MonadLower[M]): M[(BroadcastRow, RVD)] = {
 
     val ts = TableStage(letBindings = _ts.letBindings,
       broadcastVals = _ts.broadcastVals,
@@ -108,10 +110,6 @@ object TableStageToRVD {
       dependency = _ts.dependency,
       contexts = mapIR(_ts.contexts) { c => MakeStruct(FastSeq("context" -> c)) },
       partition = { ctx: Ref => _ts.partition(GetField(ctx, "context")) })
-
-    val sparkContext = ctx.backend
-      .asSpark("TableStageToRVD")
-      .sc
 
     val baseStruct = MakeStruct(FastSeq(
       ("globals", ts.globals),
@@ -123,16 +121,23 @@ object TableStageToRVD {
 
     for {
       (Some(PTypeReferenceSingleCodeType(gbPType: PStruct)), f) <-
-        Compile[M, AsmFunction1RegionLong](ctx, FastIndexedSeq(), FastIndexedSeq(classInfo[Region]), LongInfo, globalsAndBroadcastVals)
+        Compile[M, AsmFunction1RegionLong](
+          FastIndexedSeq(),
+          FastIndexedSeq(classInfo[Region]),
+          LongInfo,
+          globalsAndBroadcastVals
+        )
 
+      ctx <- M.ask
       gbAddr = f(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)(ctx.r)
 
       globPType = gbPType.fieldType("globals").asInstanceOf[PStruct]
-      globRow = BroadcastRow(ctx, RegionValue(ctx.r, gbPType.loadField(gbAddr, 0)), globPType)
+      globRow = BroadcastRow(ctx.stateManager, RegionValue(ctx.r, gbPType.loadField(gbAddr, 0)), globPType)
 
       bcValsPType = gbPType.fieldType("broadcastVals")
 
       bcValsSpec = TypedCodecSpec(bcValsPType, BufferSpec.wireSpec)
+      sparkContext = ctx.backend.asSpark("TableStageToRVD").sc
       encodedBcVals = sparkContext.broadcast(bcValsSpec.encodeValue(ctx, bcValsPType, gbPType.loadField(gbAddr, 1)))
       (decodedBcValsPType: PStruct, makeBcDec) = bcValsSpec.buildDecoder(ctx, bcValsPType.virtualType)
 
@@ -155,8 +160,7 @@ object TableStageToRVD {
       }
 
       (newRowPType: PStruct, makeIterator) <-
-        CompileIterator.forTableStageToRVD[M](
-          ctx,
+        CompileIterator.forTableStageToRVD(
           decodedContextPType,
           decodedBcValsPType,
           ts.broadcastVals.map(_._1).foldRight[IR](ts.partition(In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(decodedContextPType))))) { case (bcVal, acc) =>

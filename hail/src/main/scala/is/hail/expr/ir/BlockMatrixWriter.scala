@@ -5,7 +5,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
-import is.hail.expr.ir.lowering.{BlockMatrixStage2, LowererUnsupportedOperation}
+import is.hail.expr.ir.lowering.{BlockMatrixStage2, LowererUnsupportedOperation, MonadLower}
 import is.hail.io.fs.FS
 import is.hail.io.{StreamBufferSpec, TypedCodecSpec}
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata}
@@ -17,6 +17,7 @@ import is.hail.utils.richUtils.RichDenseMatrixDouble
 import org.json4s.{DefaultFormats, Formats, ShortTypeHints, jackson}
 
 import java.io.DataOutputStream
+import scala.language.higherKinds
 
 object BlockMatrixWriter {
   implicit val formats: Formats = new DefaultFormats() {
@@ -32,8 +33,8 @@ abstract class BlockMatrixWriter {
   def pathOpt: Option[String]
   def apply(ctx: ExecuteContext, bm: BlockMatrix): Any
   def loweredTyp: Type
-  def lower(ctx: ExecuteContext, s: BlockMatrixStage2, evalCtx: IRBuilder, eltR: TypeWithRequiredness): IR =
-    throw new LowererUnsupportedOperation(s"unimplemented writer: \n${ this.getClass }")
+  def lower[M[_]: MonadLower](s: BlockMatrixStage2, evalCtx: IRBuilder, eltR: TypeWithRequiredness): M[IR] =
+    MonadLower[M].raiseError(new LowererUnsupportedOperation(s"unimplemented writer: \n${ this.getClass }"))
 }
 
 case class BlockMatrixNativeWriter(
@@ -47,20 +48,22 @@ case class BlockMatrixNativeWriter(
 
   def loweredTyp: Type = TVoid
 
-  override def lower(ctx: ExecuteContext, s: BlockMatrixStage2, evalCtx: IRBuilder, eltR: TypeWithRequiredness): IR = {
-    val etype = EBlockMatrixNDArray(EType.fromTypeAndAnalysis(s.typ.elementType, eltR), encodeRowMajor = forceRowMajor, required = true)
-    val spec = TypedCodecSpec(etype, TNDArray(s.typ.elementType, Nat(2)), BlockMatrix.bufferSpec)
-    val writer = ETypeFileValueWriter(spec)
+  override def lower[M[_]](s: BlockMatrixStage2, evalCtx: IRBuilder, eltR: TypeWithRequiredness)
+                          (implicit M: MonadLower[M]): M[IR] =
+    M.reader { ctx =>
+      val etype = EBlockMatrixNDArray(EType.fromTypeAndAnalysis(s.typ.elementType, eltR), encodeRowMajor = forceRowMajor, required = true)
+      val spec = TypedCodecSpec(etype, TNDArray(s.typ.elementType, Nat(2)), BlockMatrix.bufferSpec)
+      val writer = ETypeFileValueWriter(spec)
 
-    val paths = s.collectBlocks(evalCtx, "block_matrix_native_writer") { (_, idx, block) =>
-      val suffix = strConcat("parts/part-", idx)
-      val filepath = strConcat(s"$path/", suffix)
-      WriteValue(block, filepath, writer,
-        if (stageLocally) Some(strConcat(s"${ctx.localTmpdir}/", suffix)) else None
-      )
+      val paths = s.collectBlocks(evalCtx, "block_matrix_native_writer") { (_, idx, block) =>
+        val suffix = strConcat("parts/part-", idx)
+        val filepath = strConcat(s"$path/", suffix)
+        WriteValue(block, filepath, writer,
+          if (stageLocally) Some(strConcat(s"${ctx.localTmpdir}/", suffix)) else None
+        )
+      }
+      RelationalWriter.scoped(path, overwrite, None)(WriteMetadata(paths, BlockMatrixNativeMetadataWriter(path, stageLocally, s.typ)))
     }
-    RelationalWriter.scoped(path, overwrite, None)(WriteMetadata(paths, BlockMatrixNativeMetadataWriter(path, stageLocally, s.typ)))
-  }
 }
 
 case class BlockMatrixNativeMetadataWriter(path: String, stageLocally: Boolean, typ: BlockMatrixType) extends MetadataWriter {
@@ -121,14 +124,14 @@ case class BlockMatrixBinaryWriter(path: String) extends BlockMatrixWriter {
 
   def loweredTyp: Type = TString
 
-  override def lower(ctx: ExecuteContext, s: BlockMatrixStage2, evalCtx: IRBuilder, eltR: TypeWithRequiredness): IR = {
-    val nd = s.collectLocal(evalCtx, "block_matrix_binary_writer")
-
-    val etype = ENumpyBinaryNDArray(s.typ.nRows, s.typ.nCols, true)
-    val spec = TypedCodecSpec(etype, TNDArray(s.typ.elementType, Nat(2)), new StreamBufferSpec())
-    val writer = ETypeFileValueWriter(spec)
-    WriteValue(nd, Str(path), writer)
-  }
+  override def lower[M[_]: MonadLower](s: BlockMatrixStage2, evalCtx: IRBuilder, eltR: TypeWithRequiredness): M[IR] =
+    MonadLower[M].pure {
+      val nd = s.collectLocal(evalCtx, "block_matrix_binary_writer")
+      val etype = ENumpyBinaryNDArray(s.typ.nRows, s.typ.nCols, true)
+      val spec = TypedCodecSpec(etype, TNDArray(s.typ.elementType, Nat(2)), new StreamBufferSpec())
+      val writer = ETypeFileValueWriter(spec)
+      WriteValue(nd, Str(path), writer)
+    }
 }
 
 case class BlockMatrixPersistWriter(id: String, storageLevel: String) extends BlockMatrixWriter {

@@ -306,9 +306,6 @@ class RVDPartitioner(
 }
 
 object RVDPartitioner {
-  def empty(ctx: ExecuteContext, typ: TStruct): RVDPartitioner = {
-    RVDPartitioner.empty(ctx.stateManager, typ)
-  }
 
   def empty(sm: HailStateManager, typ: TStruct): RVDPartitioner = {
     new RVDPartitioner(sm, typ, Array.empty[Interval])

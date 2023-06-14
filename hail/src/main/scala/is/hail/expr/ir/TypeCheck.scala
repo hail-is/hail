@@ -4,6 +4,7 @@ import cats.MonadThrow
 import cats.mtl.Ask
 import cats.syntax.all._
 import is.hail.backend.ExecuteContext
+import is.hail.backend.utils.unsafe
 import is.hail.expr.Nat
 import is.hail.expr.ir.streams.StreamUtils
 import is.hail.types.tcoerce
@@ -15,8 +16,9 @@ import scala.language.higherKinds
 import scala.reflect.ClassTag
 
 object TypeCheck {
-  def apply[M[_]](ir: BaseIR)(implicit A: Ask[M, ExecuteContext], M: MonadThrow[M]): M[Unit] =
-    A.ask.map(check(_, ir, BindingEnv.empty).run())
+  def apply[M[_]: MonadThrow](ir: BaseIR, env: BindingEnv[Type] = BindingEnv.empty)
+                             (implicit A: Ask[M, ExecuteContext]): M[Unit] =
+    A.ask.flatMap(ctx => unsafe(check(ctx, ir, env).run()))
 
   def apply(ctx: ExecuteContext, ir: IR, env: BindingEnv[Type]): Unit =
     try {

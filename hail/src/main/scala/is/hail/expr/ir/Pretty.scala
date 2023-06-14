@@ -24,9 +24,8 @@ object Pretty {
     pretty(ir)
   }
 
-  def apply[M[_]](ir: BaseIR, width: Int = 100, ribbonWidth: Int = 50, elideLiterals: Boolean = true, maxLen: Int = -1, allowUnboundRefs: Boolean = false)
-                 (implicit M: Ask[M, ExecuteContext]): M[String] =
-    M.reader(ctx => Pretty(ctx, ir, width, ribbonWidth, elideLiterals, maxLen, allowUnboundRefs))
+  def apply[M[_]](ir: BaseIR)(implicit M: Ask[M, ExecuteContext]): M[String] =
+    M.reader(ctx => Pretty(ctx, ir))
 
   def sexprStyle(ir: BaseIR, width: Int = 100, ribbonWidth: Int = 50, elideLiterals: Boolean = true, maxLen: Int = -1, allowUnboundRefs: Boolean = false): String = {
     val pretty = new Pretty(width, ribbonWidth, elideLiterals, maxLen, allowUnboundRefs, useSSA = false)

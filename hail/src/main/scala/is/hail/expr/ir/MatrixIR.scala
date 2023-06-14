@@ -1,10 +1,14 @@
 
 package is.hail.expr.ir
 
-import cats.Applicative
+import cats.implicits.catsSyntaxApply
+import cats.mtl.Ask
+import cats.syntax.all.{toFlatMapOps, toFunctorOps}
+import cats.{Applicative, Monad, MonadThrow}
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
+import is.hail.backend.utils._
 import is.hail.expr.ir.DeprecatedIRBuilder._
 import is.hail.expr.ir.functions.MatrixToMatrixFunction
 import is.hail.io.bgen.MatrixBGENReader
@@ -57,15 +61,13 @@ abstract sealed class MatrixIR extends BaseIR {
 }
 
 object MatrixLiteral {
-  def apply(ctx: ExecuteContext, typ: MatrixType, rvd: RVD, globals: Row, colValues: IndexedSeq[Row]): MatrixLiteral = {
-    val tt = typ.canonicalTableType
-    MatrixLiteral(typ,
-      TableLiteral(
-        TableValue(ctx, tt,
-          BroadcastRow(ctx, Row.fromSeq(globals.toSeq :+ colValues), typ.canonicalTableType.globalType),
-          rvd),
-        ctx.theHailClassLoader))
-  }
+  def apply[M[_]: Monad](typ: MatrixType, rvd: RVD, globals: Row, colValues: IndexedSeq[Row])
+                        (implicit M: Ask[M, ExecuteContext]): M[MatrixLiteral] =
+    for {
+      row <- BroadcastRow(Row.fromSeq(globals.toSeq :+ colValues), typ.canonicalTableType.globalType)
+      table <- TableLiteral(TableValue(typ.canonicalTableType, row, rvd))
+    } yield MatrixLiteral(typ, table)
+
 }
 
 case class MatrixLiteral(typ: MatrixType, tl: TableLiteral) extends MatrixIR {
@@ -184,26 +186,28 @@ abstract class MatrixHybridReader extends TableReaderWithExtraUID with MatrixRea
     tr
   }
 
-  def makeGlobalValue(ctx: ExecuteContext, requestedType: TStruct, values: => IndexedSeq[Row]): BroadcastRow = {
-    assert(fullType.globalType.size == 1)
-    val colType = requestedType.fieldOption(LowerMatrixIR.colsFieldName)
-      .map(fd => fd.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct])
+  def makeGlobalValue[M[_]: MonadThrow](requestedType: TStruct, values: => IndexedSeq[Row])
+                                       (implicit M: Ask[M, ExecuteContext]): M[BroadcastRow] =
+    assertA(fullType.globalType.size == 1) *> {
+      val colType = requestedType.fieldOption(LowerMatrixIR.colsFieldName)
+        .map(fd => fd.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct])
 
-    colType match {
-      case Some(ct) =>
-        assert(requestedType.size == 1)
-        val containedFields = ct.fieldNames.toSet
-        val colValueIndices = fullMatrixType.colType.fields
-          .filter(f => containedFields.contains(f.name))
-          .map(_.index)
-          .toArray
-        val arr = values.map(r => Row.fromSeq(colValueIndices.map(r.get))).toFastIndexedSeq
-        BroadcastRow(ctx, Row(arr), requestedType)
-      case None =>
-        assert(requestedType == TStruct.empty)
-        BroadcastRow(ctx, Row(), requestedType)
+      colType match {
+        case Some(ct) =>
+          assertA(requestedType.size == 1) *> {
+            val containedFields = ct.fieldNames.toSet
+            val colValueIndices = fullMatrixType.colType.fields
+              .filter(f => containedFields.contains(f.name))
+              .map(_.index)
+              .toArray
+            val arr = values.map(r => Row.fromSeq(colValueIndices.map(r.get))).toFastIndexedSeq
+            BroadcastRow(Row(arr), requestedType)
+          }
+        case None =>
+          assertA(requestedType == TStruct.empty) *>
+            BroadcastRow(Row(), requestedType)
+      }
     }
-  }
 }
 
 object MatrixNativeReader {

@@ -1,21 +1,20 @@
 package is.hail.methods
 
-import is.hail.utils._
-import is.hail.types._
-import is.hail.stats.{LogisticRegressionModel, RegressionUtils, eigSymD, GeneralizedChiSquaredDistribution}
-import is.hail.annotations.{Annotation, BroadcastRow, Region, UnsafeRow}
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV, _}
 import breeze.numerics._
+import is.hail.HailContext
+import is.hail.annotations.{Annotation, Region, UnsafeRow}
+import is.hail.expr.ir.functions.MatrixToTableFunction
+import is.hail.expr.ir.lowering.MonadLower
+import is.hail.expr.ir.{IntArrayBuilder, MatrixValue, TableValue}
+import is.hail.stats.{GeneralizedChiSquaredDistribution, LogisticRegressionModel, RegressionUtils, eigSymD}
+import is.hail.types._
+import is.hail.types.virtual.{TFloat64, TInt32, TStruct, Type}
+import is.hail.utils._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import com.sun.jna.Native
-import com.sun.jna.ptr.IntByReference
-import is.hail.HailContext
-import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.{IntArrayBuilder, MatrixValue, TableValue}
-import is.hail.expr.ir.functions.MatrixToTableFunction
-import is.hail.types.virtual.{TFloat64, TInt32, TStruct, Type}
-import is.hail.rvd.RVDType
+
+import scala.language.higherKinds
 
 /*
 Skat implements the burden test described in:
@@ -177,7 +176,7 @@ case class Skat(
 
   def preservesPartitionCounts: Boolean = false
 
-  def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
+  def execute[M[_]](mv: MatrixValue)(implicit M: MonadLower[M]): M[TableValue] = {
 
     if (maxSize <= 0 || maxSize > 46340)
       fatal(s"Maximum group size must be in [1, 46340], got $maxSize")
@@ -196,7 +195,7 @@ case class Skat(
     val d = n - k
 
     if (d < 1)
-      fatal(s"$n samples and $k ${ plural(k, "covariate") } (including intercept) implies $d degrees of freedom.")
+      fatal(s"$n samples and $k ${plural(k, "covariate")} (including intercept) implies $d degrees of freedom.")
     if (logistic) {
       val badVals = y.findAll(yi => yi != 0d && yi != 1d)
       if (badVals.nonEmpty)
@@ -254,11 +253,11 @@ case class Skat(
     def logisticSkat(): RDD[Row] = {
       val (sqrtV, res, cinvXtV) =
         if (k > 0) {
-          val logRegM = new LogisticRegressionModel(cov, y).fit(maxIter=logistic_max_iterations, tol=logistic_tolerance)
+          val logRegM = new LogisticRegressionModel(cov, y).fit(maxIter = logistic_max_iterations, tol = logistic_tolerance)
           if (!logRegM.converged)
             fatal("Failed to fit logistic regression null model (MLE with covariates only): " + (
               if (logRegM.exploded)
-                s"exploded at Newton iteration ${ logRegM.nIter }"
+                s"exploded at Newton iteration ${logRegM.nIter}"
               else
                 "Newton iteration failed to converge"))
           val mu = sigmoid(cov * logRegM.b)
@@ -286,7 +285,7 @@ case class Skat(
       def logisticTuple(x: BDV[Double], w: Double): SkatTuple = {
         val xw = x * math.sqrt(w)
         val sqrt_q = resBc.value dot xw
-        SkatTuple(sqrt_q * sqrt_q, xw *:* sqrtVBc.value , CinvXtVBc.value * xw)
+        SkatTuple(sqrt_q * sqrt_q, xw *:* sqrtVBc.value, CinvXtVBc.value * xw)
       }
 
       keyGsWeightRdd.map { case (key, vs) =>
@@ -308,7 +307,7 @@ case class Skat(
     val skatRdd = if (logistic) logisticSkat() else linearSkat()
 
     val tableType = typ(mv.typ)
-    TableValue(ctx, tableType.rowType, tableType.key, skatRdd)
+    TableValue(tableType.rowType, tableType.key, skatRdd)
   }
 
   def computeKeyGsWeightRdd(mv: MatrixValue,

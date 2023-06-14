@@ -22,7 +22,7 @@ class MemoryLeakSuite extends HailSuite {
         eval(
           ToArray(
             mapIR(ToStream(queries)) { r => ir.invoke("contains", TBoolean, lit, r) }
-          ), Env.empty, FastIndexedSeq(), None, None, false, ctx
+          ), Env.empty, FastIndexedSeq(), None, None, false
         ).runA(ctx, LoweringState())
         ctx.r.pool.getHighestTotalUsage
       }

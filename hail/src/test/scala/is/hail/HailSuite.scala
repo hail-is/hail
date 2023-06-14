@@ -1,16 +1,17 @@
 package is.hail
 
 import breeze.linalg.DenseMatrix
-import cats.implicits.{toFlatMapOps, toFoldableOps}
+import cats.Applicative
+import cats.implicits.catsSyntaxApply
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.annotations._
 import is.hail.backend.spark.SparkBackend
-import is.hail.backend.{BroadcastValue, ExecuteContext}
+import is.hail.backend.utils._
+import is.hail.backend.{BroadcastValue, ExecuteContext, MonadExecute}
 import is.hail.expr.ir._
 import is.hail.expr.ir.lowering.{Lower, LoweringState}
 import is.hail.io.fs.FS
-import is.hail.linalg.BlockMatrix
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.SparkContext
@@ -20,6 +21,9 @@ import org.testng.ITestContext
 import org.testng.annotations.{AfterMethod, BeforeClass, BeforeMethod}
 
 import java.io.{File, PrintWriter}
+import scala.annotation.tailrec
+import scala.language.{higherKinds, implicitConversions}
+import scala.util.control.NonFatal
 
 object HailSuite {
   val theHailClassLoader = TestUtils.theHailClassLoader
@@ -124,30 +128,27 @@ class HailSuite extends TestNGSuite {
       filteredExecStrats.foreach { strat =>
         val res = (strat match {
           case ExecStrategy.Interpret =>
-            assert(agg.isEmpty)
-            Interpret(ctx, x, env, args)
+            assertA[Lower](agg.isEmpty) *> Interpret(x, env, args)
           case ExecStrategy.InterpretUnoptimized =>
-            assert(agg.isEmpty)
-            Interpret(ctx, x, env, args, optimize = false)
+            assertA[Lower](agg.isEmpty) *> Interpret(x, env, args, optimize = false)
           case ExecStrategy.JvmCompile =>
-            assert(Forall(x, node => Compilable(node)))
-            eval(x, env, args, agg, bytecodePrinter =
-              Option(ctx.getFlag("jvm_bytecode_dump"))
+            assertA[Lower](Forall(x, node => Compilable(node))) *> eval(x, env, args, agg,
+              bytecodePrinter = Option(ctx.getFlag("jvm_bytecode_dump"))
                 .map { path =>
                   val pw = new PrintWriter(new File(path))
                   pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(ctx, x)}\n */\n\n")
                   pw
-                }, true, ctx)
+                }
+            )
           case ExecStrategy.JvmCompileUnoptimized =>
-            assert(Forall(x, node => Compilable(node)))
-            eval(x, env, args, agg, bytecodePrinter =
-              Option(ctx.getFlag("jvm_bytecode_dump"))
+            assertA[Lower](Forall(x, node => Compilable(node))) *> eval(x, env, args, agg,
+              bytecodePrinter = Option(ctx.getFlag("jvm_bytecode_dump"))
                 .map { path =>
                   val pw = new PrintWriter(new File(path))
                   pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(ctx, x)}\n */\n\n")
                   pw
                 },
-              optimize = false, ctx
+              optimize = false
             )
           case ExecStrategy.LoweredJVMCompile =>
             Lower.pure(loweredExecute(ctx, x, env, args, agg))
@@ -160,28 +161,24 @@ class HailSuite extends TestNGSuite {
     }
   }
 
-  def assertNDEvals(nd: IR, expected: Any)
-    (implicit execStrats: Set[ExecStrategy]) {
+  def assertNDEvals(nd: IR, expected: Any)(implicit execStrats: Set[ExecStrategy]): Unit =
     assertNDEvals(nd, Env.empty, FastIndexedSeq(), None, expected)
-  }
 
   def assertNDEvals(nd: IR, expected: (Any, IndexedSeq[Long]))
-    (implicit execStrats: Set[ExecStrategy]) {
+                   (implicit execStrats: Set[ExecStrategy]): Unit =
     if (expected == null)
       assertNDEvals(nd, Env.empty, FastIndexedSeq(), None, null, null)
     else
       assertNDEvals(nd, Env.empty, FastIndexedSeq(), None, expected._2, expected._1)
-  }
 
   def assertNDEvals(nd: IR, args: IndexedSeq[(Any, Type)], expected: Any)
-    (implicit execStrats: Set[ExecStrategy]) {
+                   (implicit execStrats: Set[ExecStrategy]): Unit =
     assertNDEvals(nd, Env.empty, args, None, expected)
-  }
 
   def assertNDEvals(nd: IR, agg: (IndexedSeq[Row], TStruct), expected: Any)
-    (implicit execStrats: Set[ExecStrategy]) {
+                   (implicit execStrats: Set[ExecStrategy]): Unit =
     assertNDEvals(nd, Env.empty, FastIndexedSeq(), Some(agg), expected)
-  }
+
 
   def assertNDEvals(
     nd: IR,
@@ -223,12 +220,8 @@ class HailSuite extends TestNGSuite {
     assertEvalsTo(arrayIR, env, args, agg, expected)
   }
 
-  def assertBMEvalsTo(
-    bm: BlockMatrixIR,
-    expected: DenseMatrix[Double]
-  )(
-    implicit execStrats: Set[ExecStrategy]
-  ): Unit = {
+  def assertBMEvalsTo(bm: BlockMatrixIR, expected: DenseMatrix[Double])
+                     (implicit execStrats: Set[ExecStrategy]): Unit = {
     ExecuteContext.scoped() { ctx =>
       val filteredExecStrats: Set[ExecStrategy] =
         if (HailContext.backend.isInstanceOf[SparkBackend]) execStrats
@@ -238,53 +231,70 @@ class HailSuite extends TestNGSuite {
         }
       filteredExecStrats.filter(ExecStrategy.interpretOnly).foreach { strat =>
         import Lower.monadLowerInstanceForLower
-        val res: Lower[BlockMatrix] = strat match {
-          case ExecStrategy.Interpret =>
-            Interpret(bm, ctx, optimize = true)
-          case ExecStrategy.InterpretUnoptimized =>
-            Interpret(bm, ctx, optimize = false)
-        }
-        assert(res.runA(ctx, LoweringState()).toBreezeMatrix() == expected)
+        assert(
+          Interpret[Lower](bm, optimize = strat == ExecStrategy.Interpret)
+            .runA(ctx, LoweringState())
+            .toBreezeMatrix() == expected
+        )
       }
       val expectedArray = Array.tabulate(expected.rows)(i => Array.tabulate(expected.cols)(j => expected(i, j)).toFastIndexedSeq).toFastIndexedSeq
       assertNDEvals(BlockMatrixCollect(bm), expectedArray)(filteredExecStrats.filterNot(ExecStrategy.interpretOnly))
     }
   }
 
-  def assertAllEvalTo(
-    xs: (IR, Any)*
-  )(
-    implicit execStrats: Set[ExecStrategy]
-  ): Unit = {
+  def assertAllEvalTo(xs: (IR, Any)*)(implicit execStrats: Set[ExecStrategy]): Unit =
     assertEvalsTo(MakeTuple.ordered(xs.toArray.map(_._1)), Row.fromSeq(xs.map(_._2)))
-  }
 
-  def assertEvalsTo(
-    x: IR,
-    expected: Any
-  )(
-    implicit execStrats: Set[ExecStrategy]
-  ) {
+  def assertEvalsTo(x: IR, expected: Any)(implicit execStrats: Set[ExecStrategy]): Unit =
     assertEvalsTo(x, Env.empty, FastIndexedSeq(), None, expected)
-  }
 
-  def assertEvalsTo(
-    x: IR,
-    args: IndexedSeq[(Any, Type)],
-    expected: Any
-  )(
-    implicit execStrats: Set[ExecStrategy]
-  ) {
+  def assertEvalsTo(x: IR, args: IndexedSeq[(Any, Type)], expected: Any)
+                   (implicit execStrats: Set[ExecStrategy]): Unit =
     assertEvalsTo(x, Env.empty, args, None, expected)
-  }
 
-  def assertEvalsTo(
-    x: IR,
-    agg: (IndexedSeq[Row], TStruct),
-    expected: Any
-  )(
-    implicit execStrats: Set[ExecStrategy]
-  ) {
+  def assertEvalsTo(x: IR, agg: (IndexedSeq[Row], TStruct), expected: Any)
+                   (implicit execStrats: Set[ExecStrategy]): Unit =
     assertEvalsTo(x, Env.empty, FastIndexedSeq(), Some(agg), expected)
-  }
+
+
+  type Execute[A] = ExecuteContext => A
+  implicit val monadExecuteInstanceFunction: MonadExecute[Execute] =
+    new MonadExecute[Execute] {
+      override def local[A](fa: Execute[A])(f: ExecuteContext => ExecuteContext): Execute[A] =
+        fa compose f
+
+      override def raiseError[A](e: Throwable): Execute[A] = {
+        val t = e.fillInStackTrace()
+        _ => throw t
+      }
+
+      override def handleErrorWith[A](fa: Execute[A])(f: Throwable => Execute[A]): Execute[A] =
+        ctx => try {
+          fa(ctx)
+        } catch {
+          case NonFatal(t) => f(t)(ctx)
+        }
+
+      override def applicative: Applicative[Execute] =
+        this
+
+      override def ask[E2 >: ExecuteContext]: Execute[E2] =
+        identity
+
+      override def flatMap[A, B](fa: Execute[A])(f: A => Execute[B]): Execute[B] =
+        ctx => f(fa(ctx))(ctx)
+
+      override def tailRecM[A, B](a0: A)(f: A => Execute[Either[A, B]]): Execute[B] = {
+        ctx =>
+          @tailrec def go(a: A): B = f(a)(ctx) match {
+            case Left(a) => go(a)
+            case Right(b) => b
+          }
+
+          go(a0)
+      }
+
+      override def pure[A](x: A): Execute[A] =
+        _ => x
+    }
 }

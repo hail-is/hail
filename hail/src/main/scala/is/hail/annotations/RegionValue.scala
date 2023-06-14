@@ -1,12 +1,11 @@
 package is.hail.annotations
 
-import java.io._
-
 import is.hail.asm4s.HailClassLoader
-import is.hail.types.physical.PType
-import is.hail.utils.{using, RestartableByteArrayInputStream}
 import is.hail.io._
+import is.hail.types.physical.PType
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
+
+import java.io._
 
 object RegionValue {
   def apply(): RegionValue = new RegionValue(null, 0)
@@ -47,10 +46,7 @@ object RegionValue {
   }
 }
 
-final class RegionValue(
-  var region: Region,
-  var offset: Long
-) extends UnKryoSerializable {
+final class RegionValue(var region: Region, var offset: Long) extends UnKryoSerializable {
   def getOffset: Long = offset
 
   def set(newRegion: Region, newOffset: Long) {

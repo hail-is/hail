@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import cats.syntax.all._
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.annotations.{BroadcastRow, ExtendedOrdering, SafeNDArray}
@@ -2634,8 +2635,8 @@ class IRSuite extends HailSuite {
   def valueIRs(ctx: ExecuteContext): Array[Array[Object]] = {
     val fs = ctx.fs
 
-    CompileAndEvaluate(ctx, invoke("index_bgen", TInt64,
-      Array[Type](TLocus("GRCh37")),
+    CompileAndEvaluate(
+      invoke("index_bgen", TInt64, Array[Type](TLocus("GRCh37")),
       Str("src/test/resources/example.8bits.bgen"),
       Str("src/test/resources/example.8bits.bgen.idx2"),
       Literal(TDict(TString, TString), Map("01" -> "1")),
@@ -2935,8 +2936,8 @@ class IRSuite extends HailSuite {
     try {
       val fs = ctx.fs
 
-      CompileAndEvaluate(ctx, invoke("index_bgen", TInt64,
-        Array[Type](TLocus("GRCh37")),
+      CompileAndEvaluate(
+        invoke("index_bgen", TInt64, Array[Type](TLocus("GRCh37")),
         Str("src/test/resources/example.8bits.bgen"),
         Str("src/test/resources/example.8bits.bgen.idx2"),
         Literal(TDict(TString, TString), Map("01" -> "1")),
@@ -3154,8 +3155,17 @@ class IRSuite extends HailSuite {
 
     val t1 = TableType(TStruct("a" -> TInt32), FastIndexedSeq("a"), TStruct("g1" -> TInt32, "g2" -> TFloat64))
     val t2 = TableType(TStruct("a" -> TInt32), FastIndexedSeq("a"), TStruct("g3" -> TInt32, "g4" -> TFloat64))
-    val tab1 = TableLiteral(TableValue(ctx, t1, BroadcastRow(ctx, Row(1, 1.1), t1.globalType), RVD.empty(ctx, t1.canonicalRVDType)), theHailClassLoader)
-    val tab2 = TableLiteral(TableValue(ctx, t2, BroadcastRow(ctx, Row(2, 2.2), t2.globalType), RVD.empty(ctx, t2.canonicalRVDType)), theHailClassLoader)
+    val tab1 = (for {
+      br <- BroadcastRow[Execute](Row(1, 1.1), t1.globalType)
+      tv = TableValue(t1, br, RVD.empty(ctx, t1.canonicalRVDType))
+      lit <- TableLiteral[Execute](tv)
+    } yield lit).apply(ctx)
+
+    val tab2 = (for {
+      br <- BroadcastRow[Execute](Row(2, 2.2), t2.globalType)
+      tv = TableValue(t2, br, RVD.empty(ctx, t2.canonicalRVDType))
+      lit <- TableLiteral[Execute](tv)
+    } yield lit).apply(ctx)
 
     assertEvalsTo(TableGetGlobals(TableJoin(tab1, tab2, "left")), Row(1, 1.1, 2, 2.2))
     assertEvalsTo(TableGetGlobals(TableMapGlobals(tab1, InsertFields(Ref("global", t1.globalType), IndexedSeq("g1" -> I32(3))))), Row(3, 1.1))
@@ -3358,12 +3368,14 @@ class IRSuite extends HailSuite {
     var memUsed = 0L
 
     ExecuteContext.scoped() { ctx =>
-      eval(ndSum, Env.empty, FastIndexedSeq(2 -> TInt32, startingArg -> ndType), None, None, true, ctx)
+      import Lower.monadLowerInstanceForLower
+      eval(ndSum, Env.empty, FastIndexedSeq(2 -> TInt32, startingArg -> ndType), None, None).runA(ctx, LoweringState())
       memUsed = ctx.r.pool.getHighestTotalUsage
     }
 
     ExecuteContext.scoped() { ctx =>
-      eval(ndSum, Env.empty, FastIndexedSeq(100 -> TInt32, startingArg -> ndType), None, None, true, ctx)
+      import Lower.monadLowerInstanceForLower
+      eval(ndSum, Env.empty, FastIndexedSeq(100 -> TInt32, startingArg -> ndType), None, None).runA(ctx, LoweringState())
       assert(memUsed == ctx.r.pool.getHighestTotalUsage)
     }
   }

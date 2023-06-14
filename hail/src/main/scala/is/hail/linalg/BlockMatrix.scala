@@ -2,7 +2,8 @@ package is.hail.linalg
 
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV, sum => breezeSum, _}
 import breeze.numerics.{abs => breezeAbs, log => breezeLog, pow => breezePow, sqrt => breezeSqrt}
-import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
+import breeze.stats.distributions.RandBasis
+import cats.data.Kleisli
 import is.hail._
 import is.hail.annotations._
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
@@ -19,7 +20,6 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.richUtils.{ByteTrackingOutputStream, RichArray, RichContextRDD, RichDenseMatrixDouble}
 import org.apache.commons.lang3.StringUtils
-import org.apache.commons.math3.random.MersenneTwister
 import org.apache.spark._
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark.mllib.linalg.distributed._
@@ -29,6 +29,7 @@ import org.json4s._
 
 import java.io._
 import scala.collection.immutable.NumericRange
+import scala.util.Try
 
 case class CollectMatricesRDDPartition(index: Int, firstPartition: Int, blockPartitions: Array[Partition], blockSize: Int, nRows: Int, nCols: Int) extends Partition {
   def nBlocks: Int = blockPartitions.length
@@ -202,8 +203,6 @@ object BlockMatrix {
   }
 
   def negationOp: BDM[Double] => BDM[Double] = -_
-
-  def reverseScalarDiv(r: BDM[Double], l: Double): BDM[Double] = l /:/ r
 
   object ops {
 
@@ -1346,7 +1345,8 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
         }
     }
 
-    TableValue(ctx, rowType, FastIndexedSeq(), entriesRDD)
+    type F[A] = Kleisli[Try, ExecuteContext, A]
+    TableValue[F](rowType, FastIndexedSeq(), entriesRDD).run(ctx).get
   }
 }
 

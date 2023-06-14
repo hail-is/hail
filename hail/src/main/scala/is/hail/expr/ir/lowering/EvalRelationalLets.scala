@@ -1,7 +1,6 @@
 package is.hail.expr.ir.lowering
 
 import cats.syntax.all._
-import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{BaseIR, CompileAndEvaluate, IR, RelationalLet, RelationalLetMatrixTable, RelationalLetTable, RelationalRef}
 import is.hail.utils.traverseInstanceGenTraversable
 
@@ -9,12 +8,12 @@ import scala.language.higherKinds
 
 object EvalRelationalLets {
   // need to run the rest of lowerings to eval.
-  def apply[M[_]: MonadLower](ir: BaseIR, ctx: ExecuteContext, passesBelow: LoweringPipeline): M[BaseIR] = {
+  def apply[M[_]: MonadLower](ir: BaseIR, passesBelow: LoweringPipeline): M[BaseIR] = {
     def execute(value: BaseIR, letsAbove: Map[String, IR]): M[IR] =
       for {
         lowered <- lower(value, letsAbove)
-        compilable <- passesBelow.apply(ctx, lowered)
-        result <- CompileAndEvaluate.evalToIR(ctx, compilable.asInstanceOf[IR])
+        compilable <- passesBelow.apply(lowered)
+        result <- CompileAndEvaluate.evalToIR(compilable.asInstanceOf[IR])
     } yield result
 
     def lower(ir: BaseIR, letsAbove: Map[String, IR]): M[BaseIR] = {

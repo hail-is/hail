@@ -1,12 +1,14 @@
 package is.hail.backend.spark
 
+import cats.data.Kleisli
 import cats.syntax.all._
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend._
+import is.hail.backend.utils._
 import is.hail.expr.ir.IRParser.parseType
+import is.hail.expr.ir._
 import is.hail.expr.ir.lowering._
-import is.hail.expr.ir.{IRParser, _}
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex, Validate}
 import is.hail.io.fs._
 import is.hail.io.plink.LoadPlink
@@ -19,7 +21,7 @@ import is.hail.types._
 import is.hail.types.encoded.EType
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.physical.{PStruct, PTuple}
-import is.hail.types.virtual.{TArray, TInterval, TStruct, TVoid}
+import is.hail.types.virtual.{TArray, TInterval, TVoid}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import is.hail.{HailContext, HailFeatureFlags}
@@ -415,7 +417,7 @@ class SparkBackend(
     ProgressBarBuilder.build(sc)
   }
 
-  private[this] def executionResultToAnnotation(ctx: ExecuteContext, result: Either[Unit, (PTuple, Long)]) = result match {
+  private[this] def executionResultToAnnotation(result: Either[Unit, (PTuple, Long)]) = result match {
     case Left(x) => x
     case Right((pt, off)) => SafeRow(pt, off).get(0)
   }
@@ -428,13 +430,11 @@ class SparkBackend(
     lowerBM: Boolean,
     print: Option[PrintWriter] = None
   ): Any =
-    executionResultToAnnotation(ctx,
-      _jvmLowerAndExecute[Lower](ctx, ir0, optimize, lowerTable, lowerBM, print)
-        .runA(ctx, LoweringState())
-    )
+    _jvmLowerAndExecute[Lower](ir0, optimize, lowerTable, lowerBM, print)
+      .map(executionResultToAnnotation)
+      .runA(ctx, LoweringState())
 
   private[this] def _jvmLowerAndExecute[M[_]](
-    ctx: ExecuteContext,
     ir0: IR,
     optimize: Boolean,
     lowerTable: Boolean,
@@ -449,39 +449,48 @@ class SparkBackend(
       case (false, false) => throw new LowererUnsupportedOperation("no lowering enabled")
     }
 
-    LoweringPipeline.darrayLowerer(optimize)(typesToLower)(ctx, ir0).flatMap { case ir: IR =>
+    LoweringPipeline.darrayLowerer(optimize)(typesToLower)(ir0).flatMap { case ir: IR =>
       if (!Compilable(ir))
-        M.raiseError(new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${Pretty(ctx, ir)}"))
-
-      ir.typ match {
-        case TVoid =>
-          for {
-            (_, f) <- ctx.timer.timeM("Compile") {
-                Compile[M, AsmFunction1RegionUnit](ctx,
+        raisePretty(pretty => new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${pretty(ir)}"))
+      else
+        ir.typ match {
+          case TVoid =>
+            for {
+              (_, f) <- timeM("Compile") {
+                Compile[M, AsmFunction1RegionUnit](
                   FastIndexedSeq(),
                   FastIndexedSeq(classInfo[Region]), UnitInfo,
                   ir,
                   print = print
                 )
               }
-          } yield ctx.timer.time("Run") {
-            Left(ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r)(r)))
-          }
 
-        case _ =>
-          for {
-            (Some(PTypeReferenceSingleCodeType(pt: PTuple)), f) <- ctx.timer.timeM("Compile") {
-              Compile[M, AsmFunction1RegionLong](ctx,
-                FastIndexedSeq(),
-                FastIndexedSeq(classInfo[Region]), LongInfo,
-                MakeTuple.ordered(FastSeq(ir)),
-                print = print
-              )
-            }
-          } yield ctx.timer.time("Run") {
-            Right((pt, ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r)(r))))
-          }
-      }
+              _ <- timeM("Run") {
+                scopedExecution.run { case (hcl, fs, htc, r) =>
+                  M.pure(f(hcl, fs, htc, r)(r))
+                }
+              }
+
+            } yield Left(())
+
+          case _ =>
+            for {
+              (Some(PTypeReferenceSingleCodeType(pt: PTuple)), f) <- timeM("Compile") {
+                Compile[M, AsmFunction1RegionLong](
+                  FastIndexedSeq(),
+                  FastIndexedSeq(classInfo[Region]), LongInfo,
+                  MakeTuple.ordered(FastSeq(ir)),
+                  print = print
+                )
+              }
+
+              results <- timeM("Run") {
+                scopedExecution.run { case (hcl, fs, htc, r) =>
+                  M.pure(f(hcl, fs, htc, r)(r))
+                }
+              }
+            } yield Right((pt, results))
+        }
     }
   }
 
@@ -489,26 +498,26 @@ class SparkBackend(
     withExecuteContext(timer) { ctx =>
       val queryID = Backend.nextID()
       log.info(s"starting execution of query $queryID of initial size ${ IRSize(ir) }")
-      val l = _execute[Lower](ctx, ir, optimize).runA(ctx, LoweringState())
-      val javaObjResult = ctx.timer.time("convertRegionValueToAnnotation")(executionResultToAnnotation(ctx, l))
+      val l = _execute[Lower](ir, optimize).runA(ctx, LoweringState())
+      val javaObjResult = ctx.timer.time("convertRegionValueToAnnotation")(executionResultToAnnotation(l))
       log.info(s"finished execution of query $queryID")
       javaObjResult
     }
 
-  private[this] def _execute[M[_]](ctx: ExecuteContext, ir: IR, optimize: Boolean)
+  private[this] def _execute[M[_]](ir: IR, optimize: Boolean)
                                   (implicit M: MonadLower[M])
-  : M[Either[Unit, (PTuple, Long)]] = {
-    TypeCheck(ctx, ir)
-    Validate(ir)
-    val lowerTable = getFlag("lower") != null
-    val lowerBM = getFlag("lower_bm") != null
-    _jvmLowerAndExecute(ctx, ir, optimize, lowerTable, lowerBM)
-      .handleErrorWith {
-        case e: LowererUnsupportedOperation if getFlag("lower_only") != null => M.raiseError(e)
-        case _: LowererUnsupportedOperation =>
-          CompileAndEvaluate._apply(ctx, ir, optimize)
-      }
-  }
+  : M[Either[Unit, (PTuple, Long)]] =
+    TypeCheck(ir) *> {
+      Validate(ir)
+      val lowerTable = getFlag("lower") != null
+      val lowerBM = getFlag("lower_bm") != null
+      _jvmLowerAndExecute(ir, optimize, lowerTable, lowerBM)
+        .handleErrorWith {
+          case e: LowererUnsupportedOperation if getFlag("lower_only") != null => M.raiseError(e)
+          case _: LowererUnsupportedOperation =>
+            CompileAndEvaluate._apply(ir, optimize)
+        }
+    }
 
   def executeLiteral(ir: IR): IR = {
     val t = ir.typ
@@ -517,7 +526,7 @@ class SparkBackend(
       withExecuteContext(timer) { ctx =>
         val queryID = Backend.nextID()
         log.info(s"starting execution of query $queryID} of initial size ${ IRSize(ir) }")
-        val literalIR = _execute[Lower](ctx, ir, optimize = true).runA(ctx, LoweringState()) match {
+        val literalIR = _execute[Lower](ir, optimize = true).runA(ctx, LoweringState()) match {
           case Left(_) => throw new HailException("Can't create literal")
           case Right((pt, addr)) => GetFieldByIdx(EncodedLiteral.fromPTypeAndAddress(pt, addr, ctx), 0)
         }
@@ -541,7 +550,7 @@ class SparkBackend(
       withExecuteContext(timer) { ctx =>
         val queryID = Backend.nextID()
         log.info(s"starting execution of query $queryID of initial size ${ IRSize(ir) }")
-        val res = _execute[Lower](ctx, ir, optimize = true).runA(ctx, LoweringState()) match {
+        val res = _execute[Lower](ir, optimize = true).runA(ctx, LoweringState()) match {
           case Left(_) => Array[Byte]()
           case Right((t, off)) => encodeToBytes(ctx, t, off, bufferSpecString)
         }
@@ -577,23 +586,24 @@ class SparkBackend(
     }
   }
 
-  def pyFromDF(df: DataFrame, jKey: java.util.List[String]): TableIR = {
+  def pyFromDF(df: DataFrame, jKey: java.util.List[String]): TableIR =
     ExecutionTimer.logTime("SparkBackend.pyFromDF") { timer =>
       val key = jKey.asScala.toArray.toFastIndexedSeq
       val signature = SparkAnnotationImpex.importType(df.schema).setRequired(true).asInstanceOf[PStruct]
       withExecuteContext(timer, selfContainedExecution = false) { ctx =>
-        TableLiteral(TableValue(ctx, signature.virtualType.asInstanceOf[TStruct], key, df.rdd, Some(signature)), ctx.theHailClassLoader)
+        type F[A] = Kleisli[Try, ExecuteContext, A]
+        (TableValue[F](signature.virtualType, key, df.rdd, Some(signature)) >>= (TableLiteral[F](_)))
+          .run(ctx)
+          .get
       }
     }
-  }
 
-  def pyToDF(tir: TableIR): DataFrame = {
+  def pyToDF(tir: TableIR): DataFrame =
     ExecutionTimer.logTime("SparkBackend.pyToDF") { timer =>
       withExecuteContext(timer, selfContainedExecution = false) { ctx =>
-        Interpret[Lower](tir, ctx).runA(ctx, LoweringState()).toDF()
+        Interpret[Lower](tir).runA(ctx, LoweringState()).toDF()
       }
     }
-  }
 
   def pyImportVCFs(
     files: java.util.List[String],
@@ -764,38 +774,35 @@ class SparkBackend(
     }
   }
 
-  override def lowerDistributedSort[M[_]: MonadLower](
-    ctx: ExecuteContext,
-    stage: TableStage,
-    sortFields: IndexedSeq[SortField],
-    rt: RTable
-  ): M[TableReader] =
+  override def lowerDistributedSort[M[_]](stage: TableStage, sortFields: IndexedSeq[SortField], rt: RTable)
+                                         (implicit M: MonadLower[M]): M[TableReader] =
     if (getFlag("use_new_shuffle") != null)
-      LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt)
+      LowerDistributedSort.distributedSort(stage, sortFields, rt)
     else
-      TableStageToRVD(ctx, stage).map { case (globals, rvd) =>
-        val globalsLit = globals.toEncodedLiteral(ctx.theHailClassLoader)
+      TableStageToRVD(stage).flatMap { case (globals, rvd) =>
+        M.map2(M.ask, globals.toEncodedLiteral) { (ctx, globalsLit) =>
 
-        if (sortFields.forall(_.sortOrder == Ascending))
-          RVDTableReader(rvd.changeKey(ctx, sortFields.map(_.field)), globalsLit, rt)
-        else {
-          val rowType = rvd.rowType
-          val sortColIndexOrd = sortFields.map { case SortField(n, so) =>
-            val i = rowType.fieldIdx(n)
-            val f = rowType.fields(i)
-            val fo = f.typ.ordering(ctx.stateManager)
-            if (so == Ascending) fo else fo.reverse
-          }.toArray
+          if (sortFields.forall(_.sortOrder == Ascending))
+            RVDTableReader(rvd.changeKey(ctx, sortFields.map(_.field)), globalsLit, rt)
+          else {
+            val rowType = rvd.rowType
+            val sortColIndexOrd = sortFields.map { case SortField(n, so) =>
+              val i = rowType.fieldIdx(n)
+              val f = rowType.fields(i)
+              val fo = f.typ.ordering(ctx.stateManager)
+              if (so == Ascending) fo else fo.reverse
+            }.toArray
 
-          val ord: Ordering[Annotation] = ExtendedOrdering.rowOrdering(sortColIndexOrd).toOrdering
+            val ord: Ordering[Annotation] = ExtendedOrdering.rowOrdering(sortColIndexOrd).toOrdering
 
-          val act = implicitly[ClassTag[Annotation]]
+            val act = implicitly[ClassTag[Annotation]]
 
-          val codec = TypedCodecSpec(rvd.rowPType, BufferSpec.wireSpec)
-          val rdd = rvd.keyedEncodedRDD(ctx, codec, sortFields.map(_.field)).sortBy(_._1)(ord, act)
-          val (rowPType: PStruct, orderedCRDD) = codec.decodeRDD(ctx, rowType, rdd.map(_._2))
+            val codec = TypedCodecSpec(rvd.rowPType, BufferSpec.wireSpec)
+            val rdd = rvd.keyedEncodedRDD(ctx, codec, sortFields.map(_.field)).sortBy(_._1)(ord, act)
+            val (rowPType: PStruct, orderedCRDD) = codec.decodeRDD(ctx, rowType, rdd.map(_._2))
 
-          RVDTableReader(RVD.unkeyed(rowPType, orderedCRDD), globalsLit, rt)
+            RVDTableReader(RVD.unkeyed(rowPType, orderedCRDD), globalsLit, rt)
+          }
         }
       }
 
@@ -806,17 +813,16 @@ class SparkBackend(
     longLifeTempFileManager.cleanup()
   }
 
-  def tableToTableStage[M[_]](ctx: ExecuteContext, inputIR: TableIR, analyses: LoweringAnalyses)
+  def tableToTableStage[M[_]](inputIR: TableIR, analyses: LoweringAnalyses)
                              (implicit M: MonadLower[M])
   : M[TableStage] =
-    CanLowerEfficiently(ctx, inputIR) match {
-      case Some(failReason) =>
+    CanLowerEfficiently(inputIR).flatMap {
+      case Left(failReason) =>
         log.info(s"SparkBackend: could not lower IR to table stage: $failReason")
-        M.pure(inputIR.analyzeAndExecute(ctx).asTableStage(ctx))
-      case None =>
-        LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
+        inputIR.analyzeAndExecute.flatMap(_.asTableStage)
+      case Right(_) =>
+        LowerTableIR.applyTable(inputIR, DArrayLowering.All, analyses)
     }
-
 }
 
 case class SparkBackendComputeRDDPartition(data: Array[Byte], index: Int) extends Partition

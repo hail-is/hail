@@ -1,7 +1,6 @@
 package is.hail.expr.ir.lowering
 
 import cats.syntax.all._
-import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.utils.traverseInstanceGenTraversable
 
@@ -28,10 +27,10 @@ object LowerToCDA {
         LowerBlockMatrixIR(ir, typesToLower, analyses)
 
       case node if node.children.exists(_.isInstanceOf[MatrixIR]) =>
-        M.raiseError(new LowererUnsupportedOperation(s"MatrixIR nodes must be lowered to TableIR nodes separately: \n${Pretty(node)}"))
+        Pretty(node).flatMap(s => M.raiseError(new LowererUnsupportedOperation(s"MatrixIR nodes must be lowered to TableIR nodes separately: \n$s")))
 
       case node =>
-        M.raiseError(new LowererUnsupportedOperation(s"Cannot lower: \n${Pretty(node)}"))
+        Pretty(node).flatMap(s => M.raiseError(new LowererUnsupportedOperation(s"Cannot lower: \n$s")))
     }
 }
 

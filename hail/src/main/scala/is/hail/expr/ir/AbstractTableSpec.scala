@@ -1,14 +1,13 @@
 package is.hail.expr.ir
 
-import java.io.OutputStreamWriter
-
-import is.hail.utils._
-import is.hail.types._
 import is.hail.io.fs.FS
 import is.hail.rvd._
+import is.hail.types._
+import is.hail.utils._
 import org.json4s.jackson.JsonMethods
-import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
+import org.json4s.{Formats, JValue}
 
+import java.io.OutputStreamWriter
 import scala.language.implicitConversions
 
 object SortOrder {

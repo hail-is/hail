@@ -2,17 +2,20 @@ package is.hail.methods
 
 import breeze.linalg._
 import breeze.numerics.sqrt
+import cats.implicits.toFlatMapOps
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.MatrixToTableFunction
+import is.hail.expr.ir.lowering.MonadLower
 import is.hail.expr.ir.{IntArrayBuilder, MatrixValue, TableValue}
+import is.hail.stats._
 import is.hail.types._
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual.{TArray, TFloat64, TInt32, TStruct}
-import is.hail.stats._
 import is.hail.utils._
 import net.sourceforge.jdistlib.T
+
+import scala.language.higherKinds
 
 case class LinearRegressionRowsSingle(
   yFields: Seq[String],
@@ -39,52 +42,53 @@ case class LinearRegressionRowsSingle(
 
   def preservesPartitionCounts: Boolean = true
 
-  def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
-    val (y, cov, completeColIdx) = RegressionUtils.getPhenosCovCompleteSamples(mv, yFields.toArray, covFields.toArray)
+  def execute[M[_]](mv: MatrixValue)(implicit M: MonadLower[M]): M[TableValue] =
+    M.ask.flatMap { ctx =>
+      val (y, cov, completeColIdx) = RegressionUtils.getPhenosCovCompleteSamples(mv, yFields.toArray, covFields.toArray)
 
-    val n = y.rows // n_complete_samples
-    val k = cov.cols // nCovariates
-    val d = n - k - 1
-    val dRec = 1d / d
+      val n = y.rows // n_complete_samples
+      val k = cov.cols // nCovariates
+      val d = n - k - 1
+      val dRec = 1d / d
 
-    if (d < 1)
-      fatal(s"$n samples and ${ k + 1 } ${ plural(k, "covariate") } (including x) implies $d degrees of freedom.")
+      if (d < 1)
+        fatal(s"$n samples and ${k + 1} ${plural(k, "covariate")} (including x) implies $d degrees of freedom.")
 
-    info(s"linear_regression_rows: running on $n samples for ${ y.cols } response ${ plural(y.cols, "variable") } y,\n"
-      + s"    with input variable x, and ${ k } additional ${ plural(k, "covariate") }...")
+      info(s"linear_regression_rows: running on $n samples for ${y.cols} response ${plural(y.cols, "variable")} y,\n"
+        + s"    with input variable x, and ${k} additional ${plural(k, "covariate")}...")
 
-    val Qt =
-      if (k > 0)
-        qr.reduced.justQ(cov).t
-      else
-        DenseMatrix.zeros[Double](0, n)
+      val Qt =
+        if (k > 0)
+          qr.reduced.justQ(cov).t
+        else
+          DenseMatrix.zeros[Double](0, n)
 
-    val Qty = Qt * y
+      val Qty = Qt * y
 
-    val backend = HailContext.backend
-    val completeColIdxBc = backend.broadcast(completeColIdx)
-    val yBc = backend.broadcast(y)
-    val QtBc = backend.broadcast(Qt)
-    val QtyBc = backend.broadcast(Qty)
-    val yypBc = backend.broadcast(y.t(*, ::).map(r => r dot r) - Qty.t(*, ::).map(r => r dot r))
+      val backend = HailContext.backend
+      val completeColIdxBc = backend.broadcast(completeColIdx)
+      val yBc = backend.broadcast(y)
+      val QtBc = backend.broadcast(Qt)
+      val QtyBc = backend.broadcast(Qty)
+      val yypBc = backend.broadcast(y.t(*, ::).map(r => r dot r) - Qty.t(*, ::).map(r => r dot r))
 
-    val fullRowType = mv.rvd.rowPType
-    val entryArrayType = MatrixType.getEntryArrayType(fullRowType)
-    val entryType = entryArrayType.elementType.asInstanceOf[PStruct]
-    assert(entryType.field(xField).typ.virtualType == TFloat64)
+      val fullRowType = mv.rvd.rowPType
+      val entryArrayType = MatrixType.getEntryArrayType(fullRowType)
+      val entryType = entryArrayType.elementType.asInstanceOf[PStruct]
+      assert(entryType.field(xField).typ.virtualType == TFloat64)
 
-    val entryArrayIdx = MatrixType.getEntriesIndex(fullRowType)
-    val fieldIdx = entryType.fieldIdx(xField)
+      val entryArrayIdx = MatrixType.getEntriesIndex(fullRowType)
+      val fieldIdx = entryType.fieldIdx(xField)
 
-    val tableType = typ(mv.typ)
-    val rvdType = tableType.canonicalRVDType
+      val tableType = typ(mv.typ)
+      val rvdType = tableType.canonicalRVDType
 
-    val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(fullRowType.fieldIdx(_)).toArray
-    val nDependentVariables = yFields.length
+      val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(fullRowType.fieldIdx(_)).toArray
+      val nDependentVariables = yFields.length
 
-    val sm = ctx.stateManager
-    val newRVD = mv.rvd.mapPartitionsWithContext(
-      rvdType) { (consumerCtx, it) =>
+      val sm = ctx.stateManager
+      val newRVD = mv.rvd.mapPartitionsWithContext(
+        rvdType) { (consumerCtx, it) =>
         val producerCtx = consumerCtx.freshContext
         val rvb = new RegionValueBuilder(sm)
 
@@ -170,8 +174,9 @@ case class LinearRegressionRowsSingle(
             }
           }
       }
-    TableValue(ctx, tableType, BroadcastRow.empty(ctx), newRVD)
-  }
+
+      M.map(BroadcastRow.empty[M])(TableValue(tableType, _, newRVD))
+    }
 }
 
 case class LinearRegressionRowsChained(
@@ -199,50 +204,49 @@ case class LinearRegressionRowsChained(
 
   def preservesPartitionCounts: Boolean = true
 
-  def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
+  def execute[M[_]](mv: MatrixValue)(implicit M: MonadLower[M]): M[TableValue] =
+    M.ask.flatMap { ctx =>
+      val localData = yFields.map(y => RegressionUtils.getPhenosCovCompleteSamples(mv, y.toArray, covFields.toArray))
 
-    val localData = yFields.map(y => RegressionUtils.getPhenosCovCompleteSamples(mv, y.toArray, covFields.toArray))
+      val k = covFields.length // nCovariates
+      val bcData = localData.zipWithIndex.map { case ((y, cov, completeColIdx), i) =>
+        val n = y.rows
+        val d = n - k - 1
+        if (d < 1)
+          fatal(s"$n samples and ${k + 1} ${plural(k, "covariate")} (including x) implies $d degrees of freedom.")
 
-    val k = covFields.length // nCovariates
-    val bcData = localData.zipWithIndex.map { case ((y, cov, completeColIdx), i) =>
-      val n = y.rows
-      val d = n - k - 1
-      if (d < 1)
-        fatal(s"$n samples and ${ k + 1 } ${ plural(k, "covariate") } (including x) implies $d degrees of freedom.")
+        info(s"linear_regression_rows[$i]: running on $n samples for ${y.cols} response ${plural(y.cols, "variable")} y,\n"
+          + s"    with input variable x, and ${k} additional ${plural(k, "covariate")}...")
 
-      info(s"linear_regression_rows[$i]: running on $n samples for ${ y.cols } response ${ plural(y.cols, "variable") } y,\n"
-        + s"    with input variable x, and ${ k } additional ${ plural(k, "covariate") }...")
+        val Qt =
+          if (k > 0)
+            qr.reduced.justQ(cov).t
+          else
+            DenseMatrix.zeros[Double](0, n)
+        val Qty = Qt * y
+        val yyp = y.t(*, ::).map(r => r dot r) - Qty.t(*, ::).map(r => r dot r)
 
-      val Qt =
-        if (k > 0)
-          qr.reduced.justQ(cov).t
-        else
-          DenseMatrix.zeros[Double](0, n)
-      val Qty = Qt * y
-      val yyp = y.t(*, ::).map(r => r dot r) - Qty.t(*, ::).map(r => r dot r)
+        ChainedLinregInput(n, y, completeColIdx, Qt, Qty, yyp, d)
+      }
 
-      ChainedLinregInput(n, y, completeColIdx, Qt, Qty, yyp, d)
-    }
+      val bc = HailContext.backend.broadcast(bcData)
+      val nGroups = bcData.length
 
-    val bc = HailContext.backend.broadcast(bcData)
-    val nGroups = bcData.length
+      val fullRowType = mv.rvd.rowPType
+      val entryArrayType = MatrixType.getEntryArrayType(fullRowType)
+      val entryType = entryArrayType.elementType.asInstanceOf[PStruct]
+      assert(entryType.field(xField).typ.virtualType == TFloat64)
+      assert(entryType.field(xField).typ.virtualType == TFloat64)
 
-    val fullRowType = mv.rvd.rowPType
-    val entryArrayType = MatrixType.getEntryArrayType(fullRowType)
-    val entryType = entryArrayType.elementType.asInstanceOf[PStruct]
-    assert(entryType.field(xField).typ.virtualType == TFloat64)
-    assert(entryType.field(xField).typ.virtualType == TFloat64)
+      val entryArrayIdx = MatrixType.getEntriesIndex(fullRowType)
+      val fieldIdx = entryType.fieldIdx(xField)
 
-    val entryArrayIdx = MatrixType.getEntriesIndex(fullRowType)
-    val fieldIdx = entryType.fieldIdx(xField)
+      val tableType = typ(mv.typ)
+      val rvdType = tableType.canonicalRVDType
+      val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(fullRowType.fieldIdx(_)).toArray
 
-    val tableType = typ(mv.typ)
-    val rvdType = tableType.canonicalRVDType
-    val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(fullRowType.fieldIdx(_)).toArray
-
-    val sm = ctx.stateManager
-    val newRVD = mv.rvd.mapPartitionsWithContext(
-      rvdType) { (consumerCtx, it) =>
+      val sm = ctx.stateManager
+      val newRVD = mv.rvd.mapPartitionsWithContext(rvdType) { (consumerCtx, it) =>
         val producerCtx = consumerCtx.freshContext
         val rvb = new RegionValueBuilder(sm)
 
@@ -360,8 +364,9 @@ case class LinearRegressionRowsChained(
             }
           }
       }
-    TableValue(ctx, tableType, BroadcastRow.empty(ctx), newRVD)
-  }
+
+      M.map(BroadcastRow.empty)(TableValue(tableType, _, newRVD))
+    }
 }
 
 case class ChainedLinregInput(

@@ -1,7 +1,11 @@
 package is.hail.expr.ir
 
+import cats.Monad
+import cats.implicits.{catsSyntaxApply, toFlatMapOps}
+import cats.mtl.Ask
 import is.hail.annotations._
 import is.hail.asm4s._
+import is.hail.backend.utils._
 import is.hail.backend.{BackendContext, ExecuteContext, HailTaskContext}
 import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
 import is.hail.expr.ir.analyses.{ComputeMethodSplits, ControlFlowPreventsSplit, ParentPointers, SemanticHash}
@@ -18,7 +22,7 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
 import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq, tcoerce}
-import is.hail.utils._
+import is.hail.utils.{time => _, _}
 import is.hail.variant.ReferenceGenome
 
 import java.io._
@@ -28,15 +32,17 @@ import scala.util.Try
 
 // class for holding all information computed ahead-of-time that we need in the emitter
 object EmitContext {
-  def analyze(ctx: ExecuteContext, ir: IR, pTypeEnv: Env[PType] = Env.empty): EmitContext = {
-    ctx.timer.time("EmitContext.analyze") {
-      val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
-      val requiredness = Requiredness.apply(ir, usesAndDefs, null, pTypeEnv)
-      val inLoopCriticalPath = ControlFlowPreventsSplit(ir, ParentPointers(ir), usesAndDefs)
-      val methodSplits = ComputeMethodSplits(ctx, ir, inLoopCriticalPath)
-      new EmitContext(ctx, requiredness, usesAndDefs, methodSplits, inLoopCriticalPath, Memo.empty[Unit])
+  def analyze[M[_]: Monad](ir: IR, pTypeEnv: Env[PType] = Env.empty)
+                          (implicit M: Ask[M, ExecuteContext]): M[EmitContext] =
+    M.ask.flatMap { ctx =>
+      time("EmitContext.analyze") {
+        val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
+        val requiredness = Requiredness.apply(ir, usesAndDefs, null, pTypeEnv)
+        val inLoopCriticalPath = ControlFlowPreventsSplit(ir, ParentPointers(ir), usesAndDefs)
+        val methodSplits = ComputeMethodSplits(ctx, ir, inLoopCriticalPath)
+        new EmitContext(ctx, requiredness, usesAndDefs, methodSplits, inLoopCriticalPath, Memo.empty[Unit])
+      }
     }
-  }
 }
 
 class EmitContext(
@@ -73,46 +79,42 @@ case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[EmitValue])
 object Emit {
   def apply[M[_]: MonadLower, C](ctx: EmitContext, ir: IR, fb: EmitFunctionBuilder[C], rti: TypeInfo[_], nParams: Int, aggs: Option[Array[AggStateSig]] = None)
   : M[Option[SingleCodeType]] =
-    MonadLower[M].lift {
-      Lower { (_, s) =>
-        TypeCheck(ctx.executeContext, ir)
-
-        val mb = fb.apply_method
-        val container = aggs.map { a =>
-          val c = fb.addAggStates(a)
-          AggContainer(a, c, () => ())
-        }
-        val emitter = new Emit[C](ctx, fb.ecb, s)
-        val region = mb.getCodeParam[Region](1)
-        val result = Try {
-          if (ir.typ == TVoid) {
-            fb.apply_method.voidWithBuilder { cb =>
-              val env = EmitEnv(Env.empty, (0 until nParams).map(i => mb.storeEmitParamAsField(cb, i + 2))) // this, region, ...
-              emitter.emitVoid(cb, ir, region, env, container, None)
-            }
-            None
-          } else {
-            var sct: SingleCodeType = null
-            fb.emitWithBuilder { cb =>
-
-              val env = EmitEnv(Env.empty, (0 until nParams).map(i => mb.storeEmitParamAsField(cb, i + 2))) // this, region, ...
-              val sc = emitter.emitI(ir, cb, region, env, container, None).handle(cb, {
-                cb._throw[RuntimeException](
-                  Code.newInstance[RuntimeException, String]("cannot return empty"))
-              })
-
-              val scp = SingleCodeSCode.fromSCode(cb, sc, region)
-              assert(scp.typ.ti == rti, s"type info mismatch: expect $rti, got ${scp.typ.ti}")
-              sct = scp.typ
-              scp.code
-            }
-            Some(sct)
-          }
-        }.toEither
-
-        (emitter.loweringState, result)
+    TypeCheck(ir) *> MonadLower[M].liftLower(Lower { (_, s) =>
+      val mb = fb.apply_method
+      val container = aggs.map { a =>
+        val c = fb.addAggStates(a)
+        AggContainer(a, c, () => ())
       }
-    }
+      val emitter = new Emit[C](ctx, fb.ecb, s)
+      val region = mb.getCodeParam[Region](1)
+      val result = Try {
+        if (ir.typ == TVoid) {
+          fb.apply_method.voidWithBuilder { cb =>
+            val env = EmitEnv(Env.empty, (0 until nParams).map(i => mb.storeEmitParamAsField(cb, i + 2))) // this, region, ...
+            emitter.emitVoid(cb, ir, region, env, container, None)
+          }
+          None
+        } else {
+          var sct: SingleCodeType = null
+          fb.emitWithBuilder { cb =>
+
+            val env = EmitEnv(Env.empty, (0 until nParams).map(i => mb.storeEmitParamAsField(cb, i + 2))) // this, region, ...
+            val sc = emitter.emitI(ir, cb, region, env, container, None).handle(cb, {
+              cb._throw[RuntimeException](
+                Code.newInstance[RuntimeException, String]("cannot return empty"))
+            })
+
+            val scp = SingleCodeSCode.fromSCode(cb, sc, region)
+            assert(scp.typ.ti == rti, s"type info mismatch: expect $rti, got ${scp.typ.ti}")
+            sct = scp.typ
+            scp.code
+          }
+          Some(sct)
+        }
+      }.toEither
+
+      (emitter.loweringState, result)
+    })
 }
 
 object AggContainer {
@@ -1167,7 +1169,6 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C], var loweringSta
               val (Some(PTypeReferenceSingleCodeType(t)), f) = {
                 val (s, result) =
                   Compile[Lower, AsmFunction3RegionLongLongLong](
-                    ctx.executeContext,
                     IndexedSeq(
                       (leftName, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(wrappedNodeType))),
                       (rightName, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(wrappedNodeType)))
@@ -1176,10 +1177,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C], var loweringSta
                     MakeTuple.ordered(FastSeq(tieBreaker))
                   ).run(ctx.executeContext, loweringState)
                 loweringState = s
-                result match {
-                  case Left(t) => throw t
-                  case Right(r) => r
-                }
+                result.fold(throw _, identity)
               }
 
               assert(t.virtualType == TTuple(TFloat64))

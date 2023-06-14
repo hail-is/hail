@@ -3,19 +3,19 @@ package is.hail.expr.ir
 import is.hail.HailSuite
 import is.hail.expr.Nat
 import is.hail.expr.ir.agg.CallStatsState
+import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
 import is.hail.expr.ir.lowering.LoweringState
-import is.hail.types.{BaseTypeWithRequiredness, RTable, TableType, TypeWithRequiredness, VirtualTypeWithReq, tcoerce}
-import is.hail.types.physical._
-import is.hail.types.virtual._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.stats.fetStruct
+import is.hail.types.physical._
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.interfaces.SStream
 import is.hail.types.physical.stypes.primitives.SInt32
+import is.hail.types.virtual._
+import is.hail.types._
 import is.hail.utils.{BoxedArrayBuilder, FastIndexedSeq, FastSeq}
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
-import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
 
 class RequirednessSuite extends HailSuite {
   val required: Boolean = true
@@ -473,12 +473,12 @@ class RequirednessSuite extends HailSuite {
 
   @Test(dataProvider = "valueIR")
   def testRequiredness(node: IR, expected: Any): Unit = {
-    TypeCheck(ctx, node)
+    TypeCheck[Execute](node).apply(ctx)
     val et = expected match {
       case pt: PType => EmitType(pt.sType, pt.required)
       case et: EmitType => et
     }
-    val res = Requiredness.apply(node, ctx)
+    val res = Requiredness[Execute](node).apply(ctx)
     val actual = res.r.lookup(node).asInstanceOf[TypeWithRequiredness]
     assert(actual.canonicalEmitType(node.typ) == et, s"\n\n${Pretty(ctx, node)}: \n$actual\n\n${ dump(res.r) }")
   }
@@ -487,7 +487,7 @@ class RequirednessSuite extends HailSuite {
     val n1 = Ref("foo", TInt32)
     val n2 = Let("foo", I32(1), MakeStruct(FastSeq("a" -> n1, "b" -> n1)))
     val node = InsertFields(n2, FastSeq("c" -> GetField(n2, "a"), "d" -> GetField(n2, "b")))
-    val res = Requiredness.apply(node, ctx)
+    val res = Requiredness[Execute](node).apply(ctx)
     val actual = tcoerce[TypeWithRequiredness](res.r.lookup(node)).canonicalPType(node.typ)
     assert(actual == PCanonicalStruct(required,
       "a" -> PInt32(required), "b" -> PInt32(required),
@@ -496,7 +496,7 @@ class RequirednessSuite extends HailSuite {
 
   @Test(dataProvider = "tableIR")
   def testTableRequiredness(node: TableIR, row: PType, global: PType): Unit = {
-    val res = Requiredness.apply(node, ctx)
+    val res = Requiredness[Execute](node).apply(ctx)
     val actual = res.r.lookup(node).asInstanceOf[RTable]
     assert(actual.rowType.canonicalPType(node.typ.rowType) == row, s"\n\n${Pretty(ctx, node)}: \n$actual\n\n${ dump(res.r) }")
     assert(actual.globalType.canonicalPType(node.typ.globalType) == global, s"\n\n${Pretty(ctx, node)}: \n$actual\n\n${ dump(res.r) }")
@@ -515,7 +515,7 @@ class RequirednessSuite extends HailSuite {
     ), None)
 
     val path = ctx.createTmpPath("test-table-requiredness", "ht")
-    CompileAndEvaluate(ctx, TableWrite(table, TableNativeWriter(path, overwrite = true)), false).runA(ctx, LoweringState())
+    CompileAndEvaluate(TableWrite(table, TableNativeWriter(path)), false).runA(ctx, LoweringState())
 
     val reader = TableNativeReader(fs, TableNativeReaderParameters(path, None))
     for (rType <- Array(table.typ,
@@ -524,7 +524,7 @@ class RequirednessSuite extends HailSuite {
       val row = reader.rowRequiredness(ctx, rType)
       val global = reader.globalRequiredness(ctx, rType)
       val node = TableRead(rType, dropRows = false, reader)
-      val res = Requiredness.apply(node, ctx)
+      val res = Requiredness[Execute](node).apply(ctx)
       val actual = res.r.lookup(node).asInstanceOf[RTable]
       assert(VirtualTypeWithReq(rType.rowType, actual.rowType) == row, s"\n\n${ Pretty(ctx, node) }: \n$actual\n\n${ dump(res.r) }")
       assert(VirtualTypeWithReq(rType.globalType, actual.globalType) == global, s"\n\n${ Pretty(ctx, node) }: \n$actual\n\n${ dump(res.r) }")
@@ -537,7 +537,7 @@ class RequirednessSuite extends HailSuite {
       PTupleField(0, PInt32(required)),
       PTupleField(4, PInt32(optional)),
       PTupleField(2, PCanonicalArray(PInt32(required), optional))), required)
-    val res = Requiredness.apply(node, ctx)
+    val res = Requiredness[Execute](node).apply(ctx)
     val actual = tcoerce[TypeWithRequiredness](res.r.lookup(node)).canonicalPType(node.typ)
     assert(actual == expected)
   }

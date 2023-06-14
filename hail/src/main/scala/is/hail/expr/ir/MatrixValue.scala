@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.backend.ExecuteContext
 import is.hail.io.{BufferSpec, FileWriteMetadata}
 import is.hail.linalg.RowMatrix
 import is.hail.rvd.{AbstractRVDSpec, RVD}
@@ -14,9 +14,9 @@ import is.hail.variant._
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
 
-case class MatrixValue(
-  typ: MatrixType,
-  tv: TableValue) {
+import scala.language.higherKinds
+
+case class MatrixValue(typ: MatrixType, tv: TableValue) {
   val colFieldType = tv.globals.t.fieldType(LowerMatrixIR.colsFieldName).asInstanceOf[PArray]
   assert(colFieldType.required)
   assert(colFieldType.elementType.required)
@@ -24,22 +24,23 @@ case class MatrixValue(
   lazy val globals: BroadcastRow = {
     val prevGlobals = tv.globals
     val newT = prevGlobals.t.deleteField(LowerMatrixIR.colsFieldName)
-    val rvb = new RegionValueBuilder(HailStateManager(Map.empty), prevGlobals.value.region)
+    val rvb = new RegionValueBuilder(prevGlobals.stateManager, prevGlobals.value.region)
     rvb.start(newT)
     rvb.startStruct()
     rvb.addFields(prevGlobals.t, prevGlobals.value,
       prevGlobals.t.fields.filter(_.name != LowerMatrixIR.colsFieldName).map(_.index).toArray)
     rvb.endStruct()
-    BroadcastRow(tv.ctx, RegionValue(prevGlobals.value.region, rvb.end()), newT)
+    new BroadcastRow(rvb.sm, RegionValue(prevGlobals.value.region, rvb.end()), newT)
   }
 
   lazy val colValues: BroadcastIndexedSeq = {
     val prevGlobals = tv.globals
     val field = prevGlobals.t.field(LowerMatrixIR.colsFieldName)
     val t = field.typ.asInstanceOf[PArray]
-    BroadcastIndexedSeq(tv.ctx,
+    BroadcastIndexedSeq(prevGlobals.stateManager,
       RegionValue(prevGlobals.value.region, prevGlobals.t.loadField(prevGlobals.value.offset, field.index)),
-      t)
+      t
+    )
   }
 
   val rvd: RVD = tv.rvd
@@ -305,12 +306,13 @@ object MatrixValue {
     rvb.addAnnotation(TArray(typ.colType), colValues)
 
     MatrixValue(typ,
-      TableValue(ctx, TableType(
+      TableValue(TableType(
         rowType = rvd.rowType,
         key = typ.rowKey,
         globalType = globalsType),
-        BroadcastRow(ctx, RegionValue(ctx.r, rvb.end()), globalsPType),
-        rvd))
+        BroadcastRow(ctx.stateManager, RegionValue(ctx.r, rvb.end()), globalsPType),
+        rvd
+      )
+    )
   }
-
 }

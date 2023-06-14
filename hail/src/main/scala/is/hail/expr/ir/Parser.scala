@@ -2002,7 +2002,7 @@ object IRParser {
         punctuation(it, ")")
         ir_value_expr(env)(it).map { ir =>
           val Row(starts: IndexedSeq[Long @unchecked], stops: IndexedSeq[Long @unchecked]) =
-            CompileAndEvaluate[Lower, Row](env.ctx, ir).runA(env.ctx, LoweringState())
+            CompileAndEvaluate[Lower, Row](ir).runA(env.ctx, LoweringState())
           RowIntervalSparsifier(blocksOnly, starts, stops)
         }
       case "PyBandSparsifier" =>
@@ -2010,21 +2010,21 @@ object IRParser {
         punctuation(it, ")")
         ir_value_expr(env)(it).map { ir =>
           val Row(l: Long, u: Long) =
-            CompileAndEvaluate[Lower, Row](env.ctx, ir).runA(env.ctx, LoweringState())
+            CompileAndEvaluate[Lower, Row](ir).runA(env.ctx, LoweringState())
           BandSparsifier(blocksOnly, l, u)
         }
       case "PyPerBlockSparsifier" =>
         punctuation(it, ")")
         ir_value_expr(env)(it).map { ir =>
           val indices: IndexedSeq[Int] =
-            CompileAndEvaluate[Lower, IndexedSeq[Int]](env.ctx, ir).runA(env.ctx, LoweringState())
+            CompileAndEvaluate[Lower, IndexedSeq[Int]](ir).runA(env.ctx, LoweringState())
           PerBlockSparsifier(indices)
         }
       case "PyRectangleSparsifier" =>
         punctuation(it, ")")
         ir_value_expr(env)(it).map { ir =>
           val rectangles: IndexedSeq[Long] =
-            CompileAndEvaluate[Lower, IndexedSeq[Long]](env.ctx, ir).runA(env.ctx, LoweringState())
+            CompileAndEvaluate[Lower, IndexedSeq[Long]](ir).runA(env.ctx, LoweringState())
           RectangleSparsifier(rectangles.grouped(4).toIndexedSeq)
         }
       case "RowIntervalSparsifier" =>

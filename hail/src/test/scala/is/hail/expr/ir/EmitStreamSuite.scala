@@ -17,7 +17,9 @@ import is.hail.variant.Call2
 import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
-import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
+
+import scala.language.higherKinds
+import scala.util.Try
 
 class EmitStreamSuite extends HailSuite {
 
@@ -50,15 +52,13 @@ class EmitStreamSuite extends HailSuite {
   def log(str: Code[String], enabled: Boolean = false): Code[Unit] =
     if (enabled) Code._println(str) else Code._empty
 
-  private def compileStream[F: TypeInfo, T](
-    streamIR: IR,
-    inputTypes: IndexedSeq[EmitParamType]
-  )(call: (F, Region, T) => Long): T => IndexedSeq[Any] = {
+  private def compileStream[F: TypeInfo, T](streamIR: IR, inputTypes: IndexedSeq[EmitParamType])
+                                           (call: (F, Region, T) => Long): T => IndexedSeq[Any] = {
     val fb = EmitFunctionBuilder[F](ctx, "F", (classInfo[Region]: ParamType) +: inputTypes.map(pt => pt: ParamType), LongInfo)
     val mb = fb.apply_method
     val ir = streamIR.deepCopy()
 
-    val emitContext = EmitContext.analyze(ctx, ir)
+    val emitContext = EmitContext.analyze[Execute](ir).apply(ctx)
 
     var arrayType: PType = null
     mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
@@ -67,7 +67,7 @@ class EmitStreamSuite extends HailSuite {
         case ToArray(s) => s
         case s => s
       }
-      TypeCheck(ctx, s)
+      TypeCheck[Execute](s).apply(ctx)
       EmitStream.produce(new Emit(emitContext, fb.ecb, LoweringState()), s, cb, cb.emb, region, EmitEnv(Env.empty, inputTypes.indices.map(i => mb.storeEmitParamAsField(cb, i + 2))), None)
         .consumeCode[Long](cb, 0L, { s =>
           val arr = StreamUtils.toArray(cb, s.asStream.getProducer(mb), region)
@@ -129,14 +129,16 @@ class EmitStreamSuite extends HailSuite {
       .apply(())
 
   private def evalStreamLen(streamIR: IR): Option[Int] = {
+    type F[A] = cats.data.Kleisli[Try, ExecuteContext, A]
     val fb = EmitFunctionBuilder[Region, Int](ctx, "eval_stream_len")
     val mb = fb.apply_method
     val region = mb.getCodeParam[Region](1)
     val ir = streamIR.deepCopy()
-    val emitContext = EmitContext.analyze(ctx, ir)
+
+    val emitContext = EmitContext.analyze[Execute](ir).apply(ctx)
 
     fb.emitWithBuilder { cb =>
-      TypeCheck(ctx, ir)
+      TypeCheck[Execute](ir).apply(ctx)
       val len = cb.newLocal[Int]("len", 0)
       val len2 = cb.newLocal[Int]("len2", -1)
 
@@ -632,8 +634,12 @@ class EmitStreamSuite extends HailSuite {
 
   @Test def testEmitAggScan() {
     def assertAggScan(ir: IR, inType: Type, tests: (Any, Any)*): Unit = {
-      val aggregate = compileStream(LoweringPipeline.compileLowerer(false).apply(ctx, ir).asInstanceOf[IR],
-        PType.canonical(inType))
+      import Lower.monadLowerInstanceForLower
+      val aggregate = compileStream(
+        LoweringPipeline.compileLowerer(false)(ir).runA(ctx, LoweringState()).asInstanceOf[IR],
+        PType.canonical(inType)
+      )
+
       for ((inp, expected) <- tests)
         assert(aggregate(inp) == expected, Pretty(ctx, ir))
     }
@@ -751,10 +757,11 @@ class EmitStreamSuite extends HailSuite {
       Ref("foldAcc", TFloat64) + Ref("foldVal", TFloat64)
     )))
 
-    val (Some(PTypeReferenceSingleCodeType(pt)), f) = Compile[Lower, AsmFunction2RegionLongLong](ctx,
+    val (Some(PTypeReferenceSingleCodeType(pt)), f) = Compile[Lower, AsmFunction2RegionLongLong](
       FastIndexedSeq(("in", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(t)))),
       FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
-      ir).runA(ctx, LoweringState())
+      ir
+    ).runA(ctx, LoweringState())
 
     pool.scopedSmallRegion { r =>
       val input = t.unstagedStoreJavaObject(ctx.stateManager, Row(null, IndexedSeq(1d, 2d), IndexedSeq(3d, 4d)), r)
@@ -878,12 +885,14 @@ class EmitStreamSuite extends HailSuite {
 
   def assertMemoryDoesNotScaleWithStreamSize(lowSize: Int = 50, highSize: Int = 2500)(f: IR => IR): Unit = {
     val memUsed1 = ExecuteContext.scoped() { ctx =>
-      eval(f(lowSize), Env.empty, FastIndexedSeq(), None, None, false, ctx)
+      import Lower.monadLowerInstanceForLower
+      eval(f(lowSize), Env.empty, FastIndexedSeq(), None, None, false).runA(ctx, LoweringState())
       ctx.r.pool.getHighestTotalUsage
     }
 
     val memUsed2 = ExecuteContext.scoped() { ctx =>
-      eval(f(highSize), Env.empty, FastIndexedSeq(), None, None, false, ctx)
+      import Lower.monadLowerInstanceForLower
+      eval(f(highSize), Env.empty, FastIndexedSeq(), None, None, false).runA(ctx, LoweringState())
       ctx.r.pool.getHighestTotalUsage
     }
 

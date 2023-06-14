@@ -1,5 +1,6 @@
 package is.hail.io.plink
 
+import cats.syntax.all._
 import is.hail.annotations.{Region, RegionValueBuilder}
 import is.hail.asm4s.HailClassLoader
 import is.hail.backend.ExecuteContext
@@ -330,174 +331,177 @@ class MatrixPLINKReader(
   override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
     VirtualTypeWithReq(PType.canonical(requestedType.globalType))
 
-  def executeGeneric(ctx: ExecuteContext): GenericTableValue = {
-    val localA2Reference = params.a2Reference
-    val variantsBc = ctx.backend.broadcast(variants)
-    val localNSamples = nSamples
-    val sm = ctx.stateManager
+  def executeGeneric[M[_]](implicit M: MonadLower[M]): M[GenericTableValue] =
+    M.reader { ctx =>
+      val localA2Reference = params.a2Reference
+      val variantsBc = ctx.backend.broadcast(variants)
+      val localNSamples = nSamples
+      val sm = ctx.stateManager
 
-    val localLocusType = TLocus.schemaFromRG(referenceGenome.map(_.name))
+      val localLocusType = TLocus.schemaFromRG(referenceGenome.map(_.name))
 
-    val contextType = TStruct(
-      "bed" -> TString,
-      "start" -> TInt32,
-      "end" -> TInt32,
-      "partitionIndex" -> TInt32)
+      val contextType = TStruct(
+        "bed" -> TString,
+        "start" -> TInt32,
+        "end" -> TInt32,
+        "partitionIndex" -> TInt32)
 
-    val contextsWithPartIdx = contexts.zipWithIndex.map { case (row: Row, partIdx: Int) =>
-      Row(row(0), row(1), row(2), partIdx)
-    }
+      val contextsWithPartIdx = contexts.zipWithIndex.map { case (row: Row, partIdx: Int) =>
+        Row(row(0), row(1), row(2), partIdx)
+      }
 
-    val fullRowPType = PCanonicalStruct(true,
-      "locus" -> PCanonicalLocus.schemaFromRG(referenceGenome.map(_.name), true),
-      "alleles" -> PCanonicalArray(PCanonicalString(true), true),
-      "rsid" -> PCanonicalString(true),
-      "cm_position" -> PFloat64(true),
-      LowerMatrixIR.entriesFieldName -> PCanonicalArray(PCanonicalStruct(true, "GT" -> PCanonicalCall()), true),
-      rowUIDFieldName -> PInt64Required)
+      val fullRowPType = PCanonicalStruct(true,
+        "locus" -> PCanonicalLocus.schemaFromRG(referenceGenome.map(_.name), true),
+        "alleles" -> PCanonicalArray(PCanonicalString(true), true),
+        "rsid" -> PCanonicalString(true),
+        "cm_position" -> PFloat64(true),
+        LowerMatrixIR.entriesFieldName -> PCanonicalArray(PCanonicalStruct(true, "GT" -> PCanonicalCall()), true),
+        rowUIDFieldName -> PInt64Required)
 
-    val bodyPType = (requestedRowType: TStruct) => fullRowPType.subsetTo(requestedRowType).asInstanceOf[PStruct]
+      val bodyPType = (requestedRowType: TStruct) => fullRowPType.subsetTo(requestedRowType).asInstanceOf[PStruct]
 
-    val body = { (requestedType: TStruct) =>
-      val hasLocus = requestedType.hasField("locus")
-      val hasAlleles = requestedType.hasField("alleles")
-      val hasRsid = requestedType.hasField("rsid")
-      val hasCmPos = requestedType.hasField("cm_position")
-      val hasRowUID = requestedType.hasField(rowUIDFieldName)
+      val body = { (requestedType: TStruct) =>
+        val hasLocus = requestedType.hasField("locus")
+        val hasAlleles = requestedType.hasField("alleles")
+        val hasRsid = requestedType.hasField("rsid")
+        val hasCmPos = requestedType.hasField("cm_position")
+        val hasRowUID = requestedType.hasField(rowUIDFieldName)
 
-      val hasEntries = requestedType.hasField(LowerMatrixIR.entriesFieldName)
-      val hasGT = hasEntries && (requestedType.fieldType(LowerMatrixIR.entriesFieldName).asInstanceOf[TArray]
-        .elementType.asInstanceOf[TStruct].hasField("GT"))
+        val hasEntries = requestedType.hasField(LowerMatrixIR.entriesFieldName)
+        val hasGT = hasEntries && (requestedType.fieldType(LowerMatrixIR.entriesFieldName).asInstanceOf[TArray]
+          .elementType.asInstanceOf[TStruct].hasField("GT"))
 
-      val requestedPType = bodyPType(requestedType)
+        val requestedPType = bodyPType(requestedType)
 
-      { (region: Region, theHailClassLoader: HailClassLoader, fs: FS, context: Any) =>
-        val c = context.asInstanceOf[Row]
-        val bed = c.getString(0)
-        val start = c.getInt(1)
-        val end = c.getInt(2)
+        { (region: Region, theHailClassLoader: HailClassLoader, fs: FS, context: Any) =>
+          val c = context.asInstanceOf[Row]
+          val bed = c.getString(0)
+          val start = c.getInt(1)
+          val end = c.getInt(2)
 
-        val blockLength = (localNSamples + 3) / 4
+          val blockLength = (localNSamples + 3) / 4
 
-        val rvb = new RegionValueBuilder(sm, region)
+          val rvb = new RegionValueBuilder(sm, region)
 
-        val is = fs.open(bed)
-        if (TaskContext.get != null) {
-          // FIXME: need to close InputStream for other backends too
-          TaskContext.get.addTaskCompletionListener[Unit] { (context: TaskContext) =>
-            is.close()
-          }
-        }
-        var offset: Long = 0
-
-        val input = new Array[Byte](blockLength)
-
-        val table = new Array[Int](4)
-        table(0) = if (localA2Reference) Call2.fromUnphasedDiploidGtIndex(2) else Call2.fromUnphasedDiploidGtIndex(0)
-        // 1 missing
-        table(2) = Call2.fromUnphasedDiploidGtIndex(1)
-        table(3) = if (localA2Reference) Call2.fromUnphasedDiploidGtIndex(0) else Call2.fromUnphasedDiploidGtIndex(2)
-
-        Iterator.range(start, end).flatMap { i =>
-          val variant = variantsBc.value(i)
-
-          val newOffset: Long = 3L + variant.index.toLong * blockLength
-          if (newOffset != offset) {
-            is match {
-              case base: Seekable =>
-                base.seek(newOffset)
-              case base: org.apache.hadoop.fs.Seekable =>
-                base.seek(newOffset)
+          val is = fs.open(bed)
+          if (TaskContext.get != null) {
+            // FIXME: need to close InputStream for other backends too
+            TaskContext.get.addTaskCompletionListener[Unit] { (context: TaskContext) =>
+              is.close()
             }
-            offset = newOffset
           }
+          var offset: Long = 0
 
-          is.readFully(input, 0, input.length)
+          val input = new Array[Byte](blockLength)
 
-          rvb.start(requestedPType)
-          rvb.startStruct()
+          val table = new Array[Int](4)
+          table(0) = if (localA2Reference) Call2.fromUnphasedDiploidGtIndex(2) else Call2.fromUnphasedDiploidGtIndex(0)
+          // 1 missing
+          table(2) = Call2.fromUnphasedDiploidGtIndex(1)
+          table(3) = if (localA2Reference) Call2.fromUnphasedDiploidGtIndex(0) else Call2.fromUnphasedDiploidGtIndex(2)
 
-          val locusAlleles = variant.locusAlleles.asInstanceOf[Row]
+          Iterator.range(start, end).flatMap { i =>
+            val variant = variantsBc.value(i)
 
-          if (hasLocus)
-            rvb.addAnnotation(localLocusType, locusAlleles.get(0))
-
-          if (hasAlleles) {
-            val alleles = locusAlleles.getAs[IndexedSeq[String]](1)
-            rvb.startArray(2)
-            rvb.addString(alleles(0))
-            rvb.addString(alleles(1))
-            rvb.endArray()
-          }
-
-          if (hasRsid)
-            rvb.addString(variant.rsid)
-          if (hasCmPos)
-            rvb.addDouble(variant.cmPos)
-
-          if (hasEntries) {
-            rvb.startArray(localNSamples)
-            if (hasGT) {
-              var i = 0
-              while (i < localNSamples) {
-                rvb.startStruct() // g
-                val x = (input(i >> 2) >> ((i & 3) << 1)) & 3
-                if (x == 1)
-                  rvb.setMissing()
-                else
-                  rvb.addCall(table(x))
-                rvb.endStruct() // g
-                i += 1
+            val newOffset: Long = 3L + variant.index.toLong * blockLength
+            if (newOffset != offset) {
+              is match {
+                case base: Seekable =>
+                  base.seek(newOffset)
+                case base: org.apache.hadoop.fs.Seekable =>
+                  base.seek(newOffset)
               }
-            } else {
-              var i = 0
-              while (i < localNSamples) {
-                rvb.startStruct() // g
-                rvb.endStruct() // g
-                i += 1
-              }
+              offset = newOffset
             }
 
-            rvb.endArray()
+            is.readFully(input, 0, input.length)
+
+            rvb.start(requestedPType)
+            rvb.startStruct()
+
+            val locusAlleles = variant.locusAlleles.asInstanceOf[Row]
+
+            if (hasLocus)
+              rvb.addAnnotation(localLocusType, locusAlleles.get(0))
+
+            if (hasAlleles) {
+              val alleles = locusAlleles.getAs[IndexedSeq[String]](1)
+              rvb.startArray(2)
+              rvb.addString(alleles(0))
+              rvb.addString(alleles(1))
+              rvb.endArray()
+            }
+
+            if (hasRsid)
+              rvb.addString(variant.rsid)
+            if (hasCmPos)
+              rvb.addDouble(variant.cmPos)
+
+            if (hasEntries) {
+              rvb.startArray(localNSamples)
+              if (hasGT) {
+                var i = 0
+                while (i < localNSamples) {
+                  rvb.startStruct() // g
+                  val x = (input(i >> 2) >> ((i & 3) << 1)) & 3
+                  if (x == 1)
+                    rvb.setMissing()
+                  else
+                    rvb.addCall(table(x))
+                  rvb.endStruct() // g
+                  i += 1
+                }
+              } else {
+                var i = 0
+                while (i < localNSamples) {
+                  rvb.startStruct() // g
+                  rvb.endStruct() // g
+                  i += 1
+                }
+              }
+
+              rvb.endArray()
+            }
+
+            if (hasRowUID)
+              rvb.addLong(i)
+
+            rvb.endStruct()
+
+            Some(rvb.end())
           }
-
-          if (hasRowUID)
-            rvb.addLong(i)
-
-          rvb.endStruct()
-
-          Some(rvb.end())
         }
       }
+
+      val tt = fullMatrixType.toTableType(LowerMatrixIR.entriesFieldName, LowerMatrixIR.colsFieldName)
+
+      new GenericTableValue(
+        tt,
+        rowUIDFieldName,
+        Some(partitioner),
+        { (requestedGlobalsType: Type) =>
+          val subset = tt.globalType.valueSubsetter(requestedGlobalsType)
+          subset(globals).asInstanceOf[Row]
+        },
+        contextType,
+        contextsWithPartIdx,
+        bodyPType,
+        body
+      )
     }
 
-    val tt = fullMatrixType.toTableType(LowerMatrixIR.entriesFieldName, LowerMatrixIR.colsFieldName)
+  override def apply[M[_]: MonadLower](requestedType: TableType, dropRows: Boolean): M[TableValue] =
+    executeGeneric >>= (_.toTableValue(requestedType))
 
-    new GenericTableValue(
-      tt,
-      rowUIDFieldName,
-      Some(partitioner),
-      { (requestedGlobalsType: Type) =>
-        val subset = tt.globalType.valueSubsetter(requestedGlobalsType)
-        subset(globals).asInstanceOf[Row]
-      },
-      contextType,
-      contextsWithPartIdx,
-      bodyPType,
-      body)
-  }
+  override def lowerGlobals[M[_]](requestedGlobalsType: TStruct)(implicit M: MonadLower[M]): M[IR] =
+    M.pure {
+      val tt = fullMatrixType.toTableType(LowerMatrixIR.entriesFieldName, LowerMatrixIR.colsFieldName)
+      val subset = tt.globalType.valueSubsetter(requestedGlobalsType)
+      Literal(requestedGlobalsType, subset(globals).asInstanceOf[Row])
+    }
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue =
-    executeGeneric(ctx).toTableValue(ctx, requestedType)
-
-  override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
-    val tt = fullMatrixType.toTableType(LowerMatrixIR.entriesFieldName, LowerMatrixIR.colsFieldName)
-    val subset = tt.globalType.valueSubsetter(requestedGlobalsType)
-    Literal(requestedGlobalsType, subset(globals).asInstanceOf[Row])
-  }
-
-  override def lower[M[_]: MonadLower](ctx: ExecuteContext, requestedType: TableType): M[TableStage] =
-    executeGeneric(ctx).toTableStage(ctx, requestedType, "PLINK file", params)
+  override def lower[M[_]: MonadLower](requestedType: TableType): M[TableStage] =
+    executeGeneric >>= (_.toTableStage(requestedType, "PLINK file", params))
 
   override def toJValue: JValue = {
     implicit val formats: Formats = DefaultFormats

@@ -2,8 +2,10 @@ package is.hail.expr.ir
 
 import breeze.linalg.DenseMatrix
 import breeze.numerics
+import cats.syntax.all.{catsSyntaxApply, toFlatMapOps, toFunctorOps}
 import is.hail.HailContext
-import is.hail.annotations.NDArray
+import is.hail.annotations.{Annotation, NDArray}
+import is.hail.backend.utils._
 import is.hail.backend.{BackendContext, ExecuteContext}
 import is.hail.expr.Nat
 import is.hail.expr.ir.lowering._
@@ -63,8 +65,8 @@ object BlockMatrixIR {
 abstract sealed class BlockMatrixIR extends BaseIR {
   def typ: BlockMatrixType
 
-  protected[ir] def execute(ctx: ExecuteContext): BlockMatrix =
-    fatal("tried to execute unexecutable IR:\n" + Pretty(ctx, this))
+  protected[ir] def execute[M[_]: MonadLower]: M[BlockMatrix] =
+    prettyFatal(pretty => "tried to execute unexecutable IR:\n" + pretty(this))
 
   def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixIR
 
@@ -81,7 +83,8 @@ case class BlockMatrixRead(reader: BlockMatrixReader) extends BlockMatrixIR {
     BlockMatrixRead(reader)
   }
 
-  override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = reader(ctx)
+  override protected[ir] def execute[M[_]](implicit M: MonadLower[M]): M[BlockMatrix] =
+    M.reader(reader.apply)
 
   val blockCostIsLinear: Boolean = true
 }
@@ -106,7 +109,7 @@ object BlockMatrixReader {
 abstract class BlockMatrixReader {
   def pathsUsed: Seq[String]
   def apply(ctx: ExecuteContext): BlockMatrix
-  def lower[M[_]: MonadLower](ctx: ExecuteContext, evalCtx: IRBuilder): M[BlockMatrixStage2] =
+  def lower[M[_]: MonadLower](evalCtx: IRBuilder): M[BlockMatrixStage2] =
     MonadLower[M].raiseError(new LowererUnsupportedOperation(s"BlockMatrixReader not implemented: ${ this.getClass }"))
 
   def fullType: BlockMatrixType
@@ -158,7 +161,7 @@ class BlockMatrixNativeReader(
 
   }
 
-  override def lower[M[_]: MonadLower](ctx: ExecuteContext, evalCtx: IRBuilder): M[BlockMatrixStage2] =
+  override def lower[M[_]: MonadLower](evalCtx: IRBuilder): M[BlockMatrixStage2] =
     MonadLower[M].pure {
       val fileNames = Literal(TArray(TString), metadata.partFiles)
 
@@ -210,7 +213,7 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
     BlockMatrix.fromBreezeMatrix(breezeMatrix, blockSize)
   }
 
-  override def lower[M[_]: MonadLower](ctx: ExecuteContext, evalCtx: IRBuilder): M[BlockMatrixStage2] =
+  override def lower[M[_]: MonadLower](evalCtx: IRBuilder): M[BlockMatrixStage2] =
     MonadLower[M].pure {
       val readFromNumpyEType = ENumpyBinaryNDArray(nRows, nCols, true)
       val readFromNumpySpec = TypedCodecSpec(readFromNumpyEType, TNDArray(TFloat64, Nat(2)), new StreamBufferSpec())
@@ -223,9 +226,7 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
           MakeTuple.ordered(FastSeq(blockCol.toL * blockSize.toLong, minIR((blockCol + 1).toL * blockSize.toLong, nCols), 1L)))))
       }
 
-      def blockIR(ctx: IR) = ctx
-
-      BlockMatrixStage2(FastIndexedSeq(), typ, contexts, blockIR)
+      BlockMatrixStage2(FastIndexedSeq(), typ, contexts, identity)
     }
 }
 
@@ -260,27 +261,26 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDen
 
   val blockCostIsLinear: Boolean = child.blockCostIsLinear
 
-  private def evalIR(ctx: ExecuteContext, ir: IR): Double = {
-    val res: Any = CompileAndEvaluate[Lower, Any](ctx, ir).runA(ctx, LoweringState())
-    if (res == null)
-      fatal("can't perform BlockMatrix operation on missing values!")
-    res.asInstanceOf[Double]
-  }
+  private def evalIR[M[_]](ir: IR)(implicit M: MonadLower[M]): M[Double] =
+    for {
+      res <- CompileAndEvaluate[M, Annotation](ir)
+      _ <- M.whenA(res == null) {
+        prettyFatal(pretty => s"can't perform block matrix operation on missing values!\n ir: ${pretty(ir)}")
+      }
+    } yield res.asInstanceOf[Double]
 
-  private def binaryOp(scalar: Double, f: (DenseMatrix[Double], Double) => DenseMatrix[Double]): DenseMatrix[Double] => DenseMatrix[Double] =
-    f(_, scalar)
-
-  override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
-    assert(
+  override protected[ir] def execute[M[_]](implicit M: MonadLower[M]): M[BlockMatrix] =
+  for {
+    _ <- assertA(
       f.isInstanceOf[ApplyUnaryPrimOp]
         || f.isInstanceOf[Apply]
         || f.isInstanceOf[ApplyBinaryPrimOp]
         || f.isInstanceOf[Ref]
     )
 
-    val prev = child.execute(ctx)
+    prev <- child.execute
 
-    val functionArgs = f match {
+    functionArgs = f match {
       case ApplyUnaryPrimOp(_, arg1) => IndexedSeq(arg1)
       case Apply(_, _, args, _, _) => args
       case ApplyBinaryPrimOp(_, l, r) => IndexedSeq(l, r)
@@ -288,49 +288,64 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDen
       case Constant(k) => IndexedSeq(k)
     }
 
-    assert(functionArgs.forall(ir => IsConstant(ir) || ir.isInstanceOf[Ref]),
+    _ <- assertA(functionArgs.forall(ir => IsConstant(ir) || ir.isInstanceOf[Ref]),
       "Spark backend without lowering does not support general mapping over " +
         "BlockMatrix entries. Use predefined functions like `BlockMatrix.abs`.")
 
+    (name, breezeF) <- {
+      type Matrix = DenseMatrix[Double]
+      f match {
+        case ApplyUnaryPrimOp(Negate(), _) =>
+          M.pure(("negate", -(_: Matrix)))
+        case Apply("abs", _, _, _, _) =>
+          M.pure(("abs", numerics.abs(_: Matrix)))
+        case Apply("log", _, _, _, _) =>
+          M.pure(("log", numerics.log(_: Matrix)))
+        case Apply("sqrt", _, _, _, _) =>
+          M.pure(("sqrt", numerics.sqrt(_: Matrix)))
+        case Apply("ceil", _, _, _, _) =>
+          M.pure(("ceil", numerics.ceil(_: Matrix)))
+        case Apply("floor", _, _, _, _) =>
+          M.pure(("floor", numerics.floor(_: Matrix)))
 
-    val (name, breezeF): (String, DenseMatrix[Double] => DenseMatrix[Double]) = f match {
-      case ApplyUnaryPrimOp(Negate(), _) => ("negate", BlockMatrix.negationOp)
-      case Apply("abs", _, _, _, _) => ("abs", numerics.abs(_))
-      case Apply("log", _, _, _, _) => ("log", numerics.log(_))
-      case Apply("sqrt", _, _, _,_) => ("sqrt", numerics.sqrt(_))
-      case Apply("ceil", _, _, _,_) => ("ceil", numerics.ceil(_))
-      case Apply("floor", _, _, _,_) => ("floor", numerics.floor(_))
-
-      case Apply("pow", _, Seq(Ref(`eltName`, _), r), _, _) if !Mentions(r, eltName) =>
-        ("**", binaryOp(evalIR(ctx, r), numerics.pow(_, _)))
-      case ApplyBinaryPrimOp(Add(), Ref(`eltName`, _), r) if !Mentions(r, eltName) =>
-        ("+", binaryOp(evalIR(ctx, r), _ + _))
-      case ApplyBinaryPrimOp(Add(), l, Ref(`eltName`, _)) if !Mentions(l, eltName) =>
-        ("+", binaryOp(evalIR(ctx, l), _ + _))
-      case ApplyBinaryPrimOp(Multiply(), Ref(`eltName`, _), r) if !Mentions(r, eltName) =>
-        val i = evalIR(ctx, r)
-        ("*", binaryOp(i, _ *:* _))
-      case ApplyBinaryPrimOp(Multiply(), l, Ref(`eltName`, _)) if !Mentions(l, eltName) =>
-        val i = evalIR(ctx, l)
-        ("*", binaryOp(i, _ *:* _))
-      case ApplyBinaryPrimOp(Subtract(), Ref(`eltName`, _), r) if !Mentions(r, eltName) =>
-        ("-", binaryOp(evalIR(ctx, r), (m, s) => m - s))
-      case ApplyBinaryPrimOp(Subtract(), l, Ref(`eltName`, _)) if !Mentions(l, eltName) =>
-        ("-", binaryOp(evalIR(ctx, l), (m, s) => s - m))
-      case ApplyBinaryPrimOp(FloatingPointDivide(), Ref(`eltName`, _), r) if !Mentions(r, eltName) =>
-        ("/", binaryOp(evalIR(ctx, r), (m, s) => m /:/ s))
-      case ApplyBinaryPrimOp(FloatingPointDivide(), l, Ref(`eltName`, _)) if !Mentions(l, eltName) =>
-        ("/", binaryOp(evalIR(ctx, l), BlockMatrix.reverseScalarDiv))
-      case Ref(`eltName`, _) =>
-        ("identity", identity(_))
-      case _: Ref | Constant(_) =>
-        ("const", binaryOp(evalIR(ctx, f), (m, s) => m := s))
-
-      case _ => fatal(s"Unsupported operation on BlockMatrices: ${Pretty(ctx, f)}")
+        case Apply("pow", _, Seq(Ref(`eltName`, _), r), _, _) if !Mentions(r, eltName) =>
+          for {exp <- evalIR(r)}
+            yield ("**", numerics.pow(_: Matrix, exp))
+        case ApplyBinaryPrimOp(Add(), Ref(`eltName`, _), r) if !Mentions(r, eltName) =>
+          for {term <- evalIR(r)}
+            yield ("+", (_: Matrix) :+= term)
+        case ApplyBinaryPrimOp(Add(), l, Ref(`eltName`, _)) if !Mentions(l, eltName) =>
+          for {term <- evalIR(l)}
+            yield ("+", (_: Matrix) :+= term)
+        case ApplyBinaryPrimOp(Multiply(), Ref(`eltName`, _), r) if !Mentions(r, eltName) =>
+          for {factor <- evalIR(r)}
+            yield ("*", (_: Matrix) *:* factor)
+        case ApplyBinaryPrimOp(Multiply(), l, Ref(`eltName`, _)) if !Mentions(l, eltName) =>
+          for {term <- evalIR(l)}
+            yield ("*", (_: Matrix) *:* term)
+        case ApplyBinaryPrimOp(Subtract(), Ref(`eltName`, _), r) if !Mentions(r, eltName) =>
+          for {term <- evalIR(r)}
+            yield ("-", (_: Matrix) - term)
+        case ApplyBinaryPrimOp(Subtract(), l, Ref(`eltName`, _)) if !Mentions(l, eltName) =>
+          for {term <- evalIR(l)}
+            yield ("-", term - (_: Matrix))
+        case ApplyBinaryPrimOp(FloatingPointDivide(), Ref(`eltName`, _), r) if !Mentions(r, eltName) =>
+          for {factor <- evalIR(r)}
+            yield ("/", (_: Matrix) /:/ factor)
+        case ApplyBinaryPrimOp(FloatingPointDivide(), l, Ref(`eltName`, _)) if !Mentions(l, eltName) =>
+          for {term <- evalIR(l)}
+            yield ("/", (_: Matrix) /:/ term)
+        case Ref(`eltName`, _) =>
+          M.pure(("identity", identity(_: Matrix)))
+        case _: Ref | Constant(_) =>
+          for {k <- evalIR(f)}
+            yield ("const", (_: Matrix) := k)
+        case _ =>
+          prettyFatal(pretty => s"Unsupported operation on BlockMatrices: ${pretty(f)}")
+      }
     }
 
-    prev.blockMap(breezeF, name, reqDense = needsDense)
-  }
+  } yield prev.blockMap(breezeF, name, reqDense = needsDense)
 }
 
 object SparsityStrategy {
@@ -394,54 +409,51 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, leftName: 
       sparsityStrategy)
   }
 
-  override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
-    assert(f.isInstanceOf[ApplyBinaryPrimOp] || f.isInstanceOf[Apply])
+  override protected[ir] def execute[M[_]](implicit M: MonadLower[M]): M[BlockMatrix] =
+    assertA(f.isInstanceOf[ApplyBinaryPrimOp] || f.isInstanceOf[Apply]) *>
+      (left match {
+        case BlockMatrixBroadcast(vectorIR: BlockMatrixIR, IndexedSeq(x), _, _) =>
+          coerceToVector(vectorIR).flatMap { vector =>
+            x match {
+              case 1 => rowVectorOnLeft(vector, right, f)
+              case 0 => colVectorOnLeft(vector, right, f)
+            }
+          }
+        case _ =>
+          left.execute.flatMap(matrixOnLeft(_, right, f))
+      })
 
-    left match {
-      case BlockMatrixBroadcast(vectorIR: BlockMatrixIR, IndexedSeq(x), _, _) =>
-        val vector = coerceToVector(ctx , vectorIR)
-        x match {
-          case 1 => rowVectorOnLeft(ctx, vector, right, f)
-          case 0 => colVectorOnLeft(ctx, vector, right, f)
-        }
-      case _ =>
-        matrixOnLeft(ctx, left.execute(ctx), right, f)
-    }
-  }
+  private def rowVectorOnLeft[M[_]: MonadLower](rowVector: Array[Double], right: BlockMatrixIR, f: IR): M[BlockMatrix] =
+    right.execute.map(opWithRowVector(_, rowVector, f, reverse = true))
 
-  private def rowVectorOnLeft(ctx: ExecuteContext, rowVector: Array[Double], right: BlockMatrixIR, f: IR): BlockMatrix =
-    opWithRowVector(right.execute(ctx), rowVector, f, reverse = true)
+  private def colVectorOnLeft[M[_]: MonadLower](colVector: Array[Double], right: BlockMatrixIR, f: IR): M[BlockMatrix] =
+    right.execute.map(opWithColVector(_, colVector, f, reverse = true))
 
-  private def colVectorOnLeft(ctx: ExecuteContext, colVector: Array[Double], right: BlockMatrixIR, f: IR): BlockMatrix =
-    opWithColVector(right.execute(ctx), colVector, f, reverse = true)
-
-  private def matrixOnLeft(ctx: ExecuteContext, matrix: BlockMatrix, right: BlockMatrixIR, f: IR): BlockMatrix = {
+  private def matrixOnLeft[M[_]: MonadLower](matrix: BlockMatrix, right: BlockMatrixIR, f: IR): M[BlockMatrix] = {
     right match {
       case BlockMatrixBroadcast(vectorIR, IndexedSeq(x), _, _) =>
-        x match {
-          case 1 =>
-            val rightAsRowVec = coerceToVector(ctx, vectorIR)
-            opWithRowVector(matrix, rightAsRowVec, f, reverse = false)
-          case 0 =>
-            val rightAsColVec = coerceToVector(ctx, vectorIR)
-            opWithColVector(matrix, rightAsColVec, f, reverse = false)
+        coerceToVector(vectorIR).map { v =>
+          x match {
+            case 1 => opWithRowVector(matrix, v, f, reverse = false)
+            case 0 => opWithColVector(matrix, v, f, reverse = false)
+          }
         }
       case _ =>
-        opWithTwoBlockMatrices(matrix, right.execute(ctx), f)
+        right.execute.map(opWithTwoBlockMatrices(matrix, _, f))
     }
   }
 
-  private def coerceToVector(ctx: ExecuteContext, ir: BlockMatrixIR): Array[Double] = {
+  private def coerceToVector[M[_]: MonadLower](ir: BlockMatrixIR): M[Array[Double]] = {
     ir match {
       case ValueToBlockMatrix(child, _, _) =>
-        Interpret[Lower, Any](ctx, child).runA(ctx, LoweringState()) match {
+        Interpret[M, Any](child).map {
           case vector: IndexedSeq[_] => vector.asInstanceOf[IndexedSeq[Double]].toArray
           case vector: NDArray =>
             val IndexedSeq(numRows, numCols) = vector.shape
             assert(numRows == 1L || numCols == 1L)
             vector.getRowMajorElements().asInstanceOf[IndexedSeq[Double]].toArray
         }
-      case _ => ir.execute(ctx).toBreezeMatrix().data
+      case _ => ir.execute.map(_.toBreezeMatrix().data)
     }
   }
 
@@ -506,26 +518,28 @@ case class BlockMatrixDot(left: BlockMatrixIR, right: BlockMatrixIR) extends Blo
 
   val blockCostIsLinear: Boolean = false
 
-  override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
-    var leftBM = left.execute(ctx)
-    var rightBM = right.execute(ctx)
-    val fs = ctx.fs
-    if (!left.blockCostIsLinear) {
-      val path = ctx.createTmpPath("blockmatrix-dot-left", "bm")
-      info(s"BlockMatrix multiply: writing left input with ${ leftBM.nRows } rows and ${ leftBM.nCols } cols " +
-        s"(${ leftBM.gp.nBlocks } blocks of size ${ leftBM.blockSize }) to temporary file $path")
-      leftBM.write(ctx, path)
-      leftBM = BlockMatrixNativeReader(fs, path).apply(ctx)
-    }
-    if (!right.blockCostIsLinear) {
-      val path = ctx.createTmpPath("blockmatrix-dot-right", "bm")
-      info(s"BlockMatrix multiply: writing right input with ${ rightBM.nRows } rows and ${ rightBM.nCols } cols " +
-        s"(${ rightBM.gp.nBlocks } blocks of size ${ rightBM.blockSize }) to temporary file $path")
-      rightBM.write(ctx, path)
-      rightBM = BlockMatrixNativeReader(fs, path).apply(ctx)
-    }
-    leftBM.dot(rightBM)
-  }
+  override protected[ir] def execute[M[_]](implicit M: MonadLower[M]): M[BlockMatrix] =
+    for {
+      leftBM <- left.execute
+      rightBM <- right.execute
+      ctx <- M.ask
+
+      leftBM <- if (left.blockCostIsLinear) M.pure(leftBM) else for {
+        path <- newTmpPath("blockmatrix-dot-left", "bm")
+        _ = info(s"BlockMatrix multiply: writing left input with ${leftBM.nRows} rows and ${leftBM.nCols} cols " +
+          s"(${leftBM.gp.nBlocks} blocks of size ${leftBM.blockSize}) to temporary file $path")
+        _ = leftBM.write(ctx, path)
+      } yield BlockMatrixNativeReader(ctx.fs, path).apply(ctx)
+
+      rightBM <- if (right.blockCostIsLinear) M.pure(rightBM) else for {
+        path <- newTmpPath("blockmatrix-dot-right", "bm")
+        _ = info(s"BlockMatrix multiply: writing right input with ${rightBM.nRows} rows and ${rightBM.nCols} cols " +
+          s"(${rightBM.gp.nBlocks} blocks of size ${rightBM.blockSize}) to temporary file $path")
+        _ = rightBM.write(ctx, path)
+      } yield BlockMatrixNativeReader(ctx.fs, path).apply(ctx)
+
+    } yield leftBM.dot(rightBM)
+
 }
 
 case class BlockMatrixBroadcast(
@@ -586,29 +600,29 @@ case class BlockMatrixBroadcast(
     BlockMatrixBroadcast(newChildren(0).asInstanceOf[BlockMatrixIR], inIndexExpr, shape, blockSize)
   }
 
-  override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
-    val childBm = child.execute(ctx)
-    val nRows = shape(0)
-    val nCols = shape(1)
+  override protected[ir] def execute[M[_]: MonadLower]: M[BlockMatrix] =
+    child.execute.map { childBm =>
+      val nRows = shape(0)
+      val nCols = shape(1)
 
-    inIndexExpr match {
-      case IndexedSeq() =>
-        val scalar = childBm.getElement(row = 0, col = 0)
-        BlockMatrix.fill(nRows, nCols, scalar, blockSize)
-      case IndexedSeq(0) =>
-        BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
-        broadcastColVector(childBm.toBreezeMatrix().data, nRows.toInt, nCols.toInt)
-      case IndexedSeq(1) =>
-        BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
-        broadcastRowVector(childBm.toBreezeMatrix().data, nRows.toInt, nCols.toInt)
+      inIndexExpr match {
+        case IndexedSeq() =>
+          val scalar = childBm.getElement(row = 0, col = 0)
+          BlockMatrix.fill(nRows, nCols, scalar, blockSize)
+        case IndexedSeq(0) =>
+          BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
+          broadcastColVector(childBm.toBreezeMatrix().data, nRows.toInt, nCols.toInt)
+        case IndexedSeq(1) =>
+          BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
+          broadcastRowVector(childBm.toBreezeMatrix().data, nRows.toInt, nCols.toInt)
         // FIXME: I'm pretty sure this case is broken.
-      case IndexedSeq(0, 0) =>
-        BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
-        BlockMatrixIR.toBlockMatrix(nRows.toInt, nCols.toInt, childBm.diagonal(), blockSize)
-      case IndexedSeq(1, 0) => childBm.transpose()
-      case IndexedSeq(0, 1) => childBm
+        case IndexedSeq(0, 0) =>
+          BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
+          BlockMatrixIR.toBlockMatrix(nRows.toInt, nCols.toInt, childBm.diagonal(), blockSize)
+        case IndexedSeq(1, 0) => childBm.transpose()
+        case IndexedSeq(0, 1) => childBm
+      }
     }
-  }
 
   private def broadcastRowVector(vec: Array[Double], nRows: Int, nCols: Int): BlockMatrix = {
     val data = ArrayBuffer[Double]()
@@ -663,15 +677,14 @@ case class BlockMatrixAgg(
     BlockMatrixAgg(newChildren(0).asInstanceOf[BlockMatrixIR], axesToSumOut)
   }
 
-  override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
-    val childBm = child.execute(ctx)
-
-    axesToSumOut match {
-      case IndexedSeq(0, 1) => BlockMatrixIR.toBlockMatrix(nRows = 1, nCols = 1, Array(childBm.sum()), typ.blockSize)
-      case IndexedSeq(0) => childBm.rowSum()
-      case IndexedSeq(1) => childBm.colSum()
+  override protected[ir] def execute[M[_]: MonadLower]: M[BlockMatrix] =
+    child.execute.map { childBm =>
+      axesToSumOut match {
+        case IndexedSeq(0, 1) => BlockMatrixIR.toBlockMatrix(nRows = 1, nCols = 1, Array(childBm.sum()), typ.blockSize)
+        case IndexedSeq(0) => childBm.rowSum()
+        case IndexedSeq(1) => childBm.colSum()
+      }
     }
-  }
 }
 
 case class BlockMatrixFilter(
@@ -716,16 +729,12 @@ case class BlockMatrixFilter(
     BlockMatrixFilter(newChildren(0).asInstanceOf[BlockMatrixIR], indices)
   }
 
-  override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
-    val bm = child.execute(ctx)
-    if (keepRow.isEmpty) {
-      bm.filterCols(keepCol)
-    } else if (keepCol.isEmpty) {
-      bm.filterRows(keepRow)
-    } else {
-      bm.filter(keepRow, keepCol)
-    }
-  }
+  override protected[ir] def execute[M[_]: MonadLower]: M[BlockMatrix] =
+    child.execute.map { bm =>
+      if (keepRow.isEmpty) bm.filterCols(keepCol)
+      else
+        if (keepCol.isEmpty) bm.filterRows(keepRow)
+        else bm.filter(keepRow, keepCol)}
 }
 
 case class BlockMatrixDensify(child: BlockMatrixIR) extends BlockMatrixIR {
@@ -742,8 +751,8 @@ case class BlockMatrixDensify(child: BlockMatrixIR) extends BlockMatrixIR {
     BlockMatrixDensify(newChild)
   }
 
-  override def execute(ctx: ExecuteContext): BlockMatrix =
-    child.execute(ctx).densify()
+  override protected[ir] def execute[M[_]: MonadLower]: M[BlockMatrix] =
+    child.execute.map(_.densify())
 }
 
 sealed abstract class BlockMatrixSparsifier {
@@ -855,8 +864,8 @@ case class BlockMatrixSparsify(
     BlockMatrixSparsify(newChild, sparsifier)
   }
 
-  override def execute(ctx: ExecuteContext): BlockMatrix =
-    sparsifier.sparsify(child.execute(ctx))
+  override protected[ir] def execute[M[_]: MonadLower]: M[BlockMatrix] =
+    child.execute.map(sparsifier.sparsify)
 }
 
 case class BlockMatrixSlice(child: BlockMatrixIR, slices: IndexedSeq[IndexedSeq[Long]]) extends BlockMatrixIR {
@@ -894,22 +903,22 @@ case class BlockMatrixSlice(child: BlockMatrixIR, slices: IndexedSeq[IndexedSeq[
     BlockMatrixSlice(newChildren(0).asInstanceOf[BlockMatrixIR], slices)
   }
 
-  override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
-    val bm = child.execute(ctx)
-    val IndexedSeq(rowKeep, colKeep) = slices.map { s =>
-      val IndexedSeq(start, stop, step) = s
-      start until stop by step
-    }
+  override protected[ir] def execute[M[_]: MonadLower]: M[BlockMatrix] =
+    child.execute.map { bm =>
+      val IndexedSeq(rowKeep, colKeep) = slices.map { s =>
+        val IndexedSeq(start, stop, step) = s
+        start until stop by step
+      }
 
-    val (childNRows, childNCols) = BlockMatrixIR.tensorShapeToMatrixShape(child)
-    if (isFullRange(rowKeep, childNRows)) {
-      bm.filterCols(colKeep.toArray)
-    } else if (isFullRange(colKeep, childNCols)) {
-      bm.filterRows(rowKeep.toArray)
-    } else {
-      bm.filter(rowKeep.toArray, colKeep.toArray)
+      val (childNRows, childNCols) = BlockMatrixIR.tensorShapeToMatrixShape(child)
+      if (isFullRange(rowKeep, childNRows)) {
+        bm.filterCols(colKeep.toArray)
+      } else if (isFullRange(colKeep, childNCols)) {
+        bm.filterRows(rowKeep.toArray)
+      } else {
+        bm.filter(rowKeep.toArray, colKeep.toArray)
+      }
     }
-  }
 
   private def isFullRange(r: NumericRange[Long], dimLength: Long): Boolean = {
     r.start == 0 && r.end == dimLength && r.step == 1
@@ -944,10 +953,10 @@ case class ValueToBlockMatrix(
     ValueToBlockMatrix(newChildren(0).asInstanceOf[IR], shape, blockSize)
   }
 
-  override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
+  override protected[ir] def execute[M[_]: MonadLower]: M[BlockMatrix] = {
     val IndexedSeq(nRows, nCols) = shape
     BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
-    CompileAndEvaluate[Lower, Any](ctx, child, true).runA(ctx, LoweringState()) match {
+    CompileAndEvaluate[M, Annotation](child, true).map {
       case scalar: Double =>
         assert(nRows == 1 && nCols == 1)
         BlockMatrix.fill(nRows, nCols, scalar, blockSize)
@@ -979,9 +988,10 @@ case class BlockMatrixRandom(
     BlockMatrixRandom(staticUID, gaussian, shape, blockSize)
   }
 
-  override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
-    BlockMatrix.random(shape(0), shape(1), blockSize, ctx.rngNonce, staticUID, gaussian)
-  }
+  override protected[ir] def execute[M[_]](implicit M: MonadLower[M]): M[BlockMatrix] =
+    M.reader { ctx =>
+      BlockMatrix.random(shape(0), shape(1), blockSize, ctx.rngNonce, staticUID, gaussian)
+    }
 }
 
 case class RelationalLetBlockMatrix(name: String, value: IR, body: BlockMatrixIR) extends BlockMatrixIR {

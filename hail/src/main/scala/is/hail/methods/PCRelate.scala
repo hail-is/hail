@@ -1,18 +1,19 @@
 package is.hail.methods
 
 import breeze.linalg.{DenseMatrix => BDM}
+import cats.implicits.toFlatMapOps
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.TableValue
+import is.hail.expr.ir.functions.BlockMatrixToTableFunction
+import is.hail.expr.ir.lowering.MonadLower
 import is.hail.linalg.BlockMatrix
 import is.hail.linalg.BlockMatrix.ops._
-import is.hail.utils._
-import is.hail.HailContext
-import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.functions.BlockMatrixToTableFunction
-import is.hail.expr.ir.TableValue
-import is.hail.types.{BlockMatrixType, TableType}
 import is.hail.types.virtual._
-import org.apache.spark.storage.StorageLevel
+import is.hail.types.{BlockMatrixType, TableType}
+import is.hail.utils._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
+import org.apache.spark.storage.StorageLevel
 
 import scala.language.{higherKinds, implicitConversions}
 
@@ -141,13 +142,14 @@ case class PCRelate(
   def typ(bmType: BlockMatrixType, auxType: Type): TableType =
     TableType(sig, keys, TStruct.empty)
 
-  def execute(ctx: ExecuteContext, g: M, value: Any): TableValue = {
-    val pcs = rowsToBDM(value.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Double]]])
-    assert(pcs.rows == g.nCols)
-    val r = computeResult(ctx, g, pcs)
-    val rdd = PCRelate.toRowRdd(r, blockSize, minKinship, statistics)
-    TableValue(ctx, sig, keys, rdd)
-  }
+  override def execute[F[_]](g: PCRelate.M, value: Any)(implicit F: MonadLower[F]): F[TableValue] =
+    F.ask.flatMap { ctx =>
+      val pcs = rowsToBDM(value.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Double]]])
+      assert(pcs.rows == g.nCols)
+      val r = computeResult(ctx, g, pcs)
+      val rdd = PCRelate.toRowRdd(r, blockSize, minKinship, statistics)
+      TableValue(sig, keys, rdd)
+    }
 
   def badmu(mu: Double): Boolean =
     mu <= maf || mu >= (1.0 - maf) || mu <= 0.0 || mu >= 1.0

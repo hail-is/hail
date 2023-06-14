@@ -1,38 +1,28 @@
 package is.hail.expr.ir.lowering
 
-import cats.mtl.{Ask, Stateful}
-import cats.syntax.all.toFlatMapOps
-import cats.{Applicative, Monad, MonadThrow}
-import is.hail.backend.ExecuteContext
+import cats.mtl.Stateful
+import cats.{Applicative, Monad}
+import is.hail.backend.{ExecuteContext, MonadExecute}
 
 import scala.annotation.tailrec
 import scala.language.{higherKinds, implicitConversions}
 
 trait MonadLower[M[_]]
-  extends MonadThrow[M]
-    with Ask[M, ExecuteContext]
+  extends MonadExecute[M]
     with Stateful[M, LoweringState] {
-
-  def lift[A](lower: Lower[A]): M[A]
-
-  def time[A](name: String)(a: => A): M[A] =
-    reader(_.timer.time(name)(a))
-
-  def timeM[A](name: String)(fa: M[A])(implicit M: MonadLower[M]): M[A] =
-    M.reader(_.timer).flatMap(_.timeM(name)(fa))
+  def liftLower[A](lower: Lower[A]): M[A]
 }
 
 object MonadLower {
-  @inline def apply[M[_]](implicit instance: MonadLower[M]): MonadLower[M] =
-    instance
+  @inline def apply[M[_]: MonadLower]: MonadLower[M] =
+    implicitly
 }
+
+
 
 final case class Lower[+A](run: (ExecuteContext, LoweringState) => (LoweringState, Either[Throwable, A])) {
   def runA(ctx: ExecuteContext, s: LoweringState): A =
-    run(ctx, s)._2 match {
-      case Right(a) => a
-      case Left(t) => throw t
-    }
+    run(ctx, s)._2.fold(throw _, identity)
 }
 
 object Lower extends MonadLower[Lower] {
@@ -44,13 +34,16 @@ object Lower extends MonadLower[Lower] {
   override def ask[E2 >: ExecuteContext]: Lower[E2] =
     Lower((ctx, s) => (s, Right(ctx.asInstanceOf[E2])))
 
+  override def local[A](fa: Lower[A])(f: ExecuteContext => ExecuteContext): Lower[A] =
+    Lower((ctx, s) => fa.run(f(ctx), s))
+
   override def get: Lower[LoweringState] =
     Lower((_, s) => (s, Right(s)))
 
   override def set(s: LoweringState): Lower[Unit] =
     Lower((_, _) => (s, Right(())))
 
-  override def lift[A](lower: Lower[A]): Lower[A] =
+  override def liftLower[A](lower: Lower[A]): Lower[A] =
     lower
 
   override def flatMap[A, B](fa: Lower[A])(f: A => Lower[B]): Lower[B] =
@@ -76,8 +69,10 @@ object Lower extends MonadLower[Lower] {
   override def pure[A](a: A): Lower[A] =
     Lower((_, s) => (s, Right(a)))
 
-  override def raiseError[A](e: Throwable): Lower[A] =
+  override def raiseError[A](e: Throwable): Lower[A] = {
+    e.fillInStackTrace()
     Lower((_, s) => (s, Left(e)))
+  }
 
   override def handleErrorWith[A](fa: Lower[A])(f: Throwable => Lower[A]): Lower[A] =
     Lower { (ctx, s0) =>

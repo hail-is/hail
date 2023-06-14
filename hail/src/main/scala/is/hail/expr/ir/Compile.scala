@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import cats.syntax.all._
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.{ExecuteContext, HailTaskContext}
+import is.hail.backend.HailTaskContext
 import is.hail.expr.ir.Compile.CompiledFunction
 import is.hail.expr.ir.agg.AggStateSig
 import is.hail.expr.ir.lowering.{Lower, LoweringPipeline, MonadLower}
@@ -25,83 +25,88 @@ object Compile {
 
   type CompiledFunction[T] = (Option[SingleCodeType], (HailClassLoader, FS, HailTaskContext, Region) => T)
 
-  def apply[M[_]: MonadLower, F: TypeInfo](
-    ctx: ExecuteContext,
-    params: IndexedSeq[(String, EmitParamType)],
-    expectedCodeParamTypes: IndexedSeq[TypeInfo[_]], expectedCodeReturnType: TypeInfo[_],
-    body: IR,
-    optimize: Boolean = true,
-    writeIRs: Boolean = false,
-    print: Option[PrintWriter] = None
-  ): M[CompiledFunction[F]] = {
-    val normalizeNames = new NormalizeNames(_.toString)
-    val normalizedBody = normalizeNames(body, Env(params.map { case (n, _) => n -> n }: _*))
-    val k = CodeCacheKey(FastIndexedSeq[AggStateSig](), params.map { case (n, pt) => (n, pt) }, normalizedBody)
+  def apply[M[_], F: TypeInfo](params: IndexedSeq[(String, EmitParamType)],
+                               expectedCodeParamTypes: IndexedSeq[TypeInfo[_]],
+                               expectedCodeReturnType: TypeInfo[_],
+                               body: IR,
+                               optimize: Boolean = true,
+                               writeIRs: Boolean = false,
+                               print: Option[PrintWriter] = None
+                              )
+                              (implicit M: MonadLower[M])
+  : M[CompiledFunction[F]] =
+    M.ask.flatMap { ctx =>
+      val normalizeNames = new NormalizeNames(_.toString)
+      val normalizedBody = normalizeNames(body, Env(params.map { case (n, _) => n -> n }: _*))
+      val k = CodeCacheKey(FastIndexedSeq[AggStateSig](), params.map { case (n, pt) => (n, pt) }, normalizedBody)
+      ctx.backend.lookupOrCompileCachedFunction[M, F](k,
+        for {
+          baseIR <- LoweringPipeline.compileLowerer(optimize) {
+            Subst(body, BindingEnv(params.zipWithIndex.foldLeft(Env.empty[IR]) {
+              case (env, ((name, typ), idx)) => env.bind(name, In(idx, typ))
+            }))
+          }
 
-    ctx.backend.lookupOrCompileCachedFunction[M, F](k,
-      for {
-        baseIR <- LoweringPipeline.compileLowerer(optimize)(ctx,
-          Subst(body, BindingEnv(params.zipWithIndex.foldLeft(Env.empty[IR]) {
-            case (env, ((name, typ), idx)) => env.bind(name, In(idx, typ))
-          }))
-        )
+          ir = baseIR.asInstanceOf[IR].noSharing
+          _ <- TypeCheck(ir)
 
-        ir = baseIR.asInstanceOf[IR].noSharing
-        _ = TypeCheck(ctx, ir, BindingEnv.empty)
+          returnParam = CodeParamType(SingleCodeType.typeInfoFromType(ir.typ))
 
-        returnParam = CodeParamType(SingleCodeType.typeInfoFromType(ir.typ))
+          fb = EmitFunctionBuilder[F](ctx, "Compiled",
+            CodeParamType(typeInfo[Region]) +: params.map { case (_, pt) =>
+              pt
+            }, returnParam, Some("Emit.scala")
+          )
 
-        fb = EmitFunctionBuilder[F](ctx, "Compiled",
-          CodeParamType(typeInfo[Region]) +: params.map { case (_, pt) =>
-            pt
-          }, returnParam, Some("Emit.scala")
-        )
+          _ = assert(fb.mb.parameterTypeInfo == expectedCodeParamTypes, s"expected $expectedCodeParamTypes, got ${fb.mb.parameterTypeInfo}")
+          _ = assert(fb.mb.returnTypeInfo == expectedCodeReturnType, s"expected $expectedCodeReturnType, got ${fb.mb.returnTypeInfo}")
 
-        _ = assert(fb.mb.parameterTypeInfo == expectedCodeParamTypes, s"expected $expectedCodeParamTypes, got ${fb.mb.parameterTypeInfo}")
-        _ = assert(fb.mb.returnTypeInfo == expectedCodeReturnType, s"expected $expectedCodeReturnType, got ${fb.mb.returnTypeInfo}")
-
-        emitContext = EmitContext.analyze(ctx, ir)
-        rt <- Emit(emitContext, ir, fb, expectedCodeReturnType, params.length)
-      } yield (rt, fb.resultWithIndex(writeIRs, print))
-    )
-  }
+          emitContext <- EmitContext.analyze(ir)
+          rt <- Emit(emitContext, ir, fb, expectedCodeReturnType, params.length)
+        } yield (rt, fb.resultWithIndex(writeIRs, print))
+      )
+    }
 }
 
 object CompileWithAggregators {
-  def apply[M[_]: MonadLower, F: TypeInfo](
-    ctx: ExecuteContext,
-    aggSigs: Array[AggStateSig],
-    params: IndexedSeq[(String, EmitParamType)],
-    expectedCodeParamTypes: IndexedSeq[TypeInfo[_]], expectedCodeReturnType: TypeInfo[_],
-    body: IR,
-    optimize: Boolean = true
-  ): M[CompiledFunction[F with FunctionWithAggRegion]] = {
-    val normalizeNames = new NormalizeNames(_.toString)
-    val normalizedBody = normalizeNames(body,
-      Env(params.map { case (n, _) => n -> n }: _*))
-    val k = CodeCacheKey(aggSigs, params.map { case (n, pt) => (n, pt) }, normalizedBody)
-    ctx.backend.lookupOrCompileCachedFunction[M, F with FunctionWithAggRegion](k,
-      for {
-        baseIR <- LoweringPipeline.compileLowerer(optimize)(ctx,
-          Subst(body, BindingEnv(params.zipWithIndex.foldLeft(Env.empty[IR]) {
-            case (env, ((name, typ), idx)) => env.bind(name, In(idx, typ))
-          }))
-        )
-        ir = baseIR.asInstanceOf[IR].noSharing
-        _ = TypeCheck(ctx, ir, BindingEnv(Env.fromSeq[Type](params.map { case (name, t) => name -> t.virtualType })))
+  def apply[M[_], F: TypeInfo](aggSigs: Array[AggStateSig],
+                               params: IndexedSeq[(String, EmitParamType)],
+                               expectedCodeParamTypes: IndexedSeq[TypeInfo[_]], expectedCodeReturnType: TypeInfo[_],
+                               body: IR,
+                               optimize: Boolean = true
+                              )
+                              (implicit M: MonadLower[M])
+  : M[CompiledFunction[F with FunctionWithAggRegion]] =
+    M.ask.flatMap { ctx =>
+      val normalizeNames = new NormalizeNames(_.toString)
+      val normalizedBody = normalizeNames(body,
+        Env(params.map { case (n, _) => n -> n }: _*))
+      val k = CodeCacheKey(aggSigs, params.map { case (n, pt) => (n, pt) }, normalizedBody)
+      ctx.backend.lookupOrCompileCachedFunction[M, F with FunctionWithAggRegion](k,
+        for {
+          baseIR <- LoweringPipeline.compileLowerer(optimize) {
+            Subst(body, BindingEnv(params.zipWithIndex.foldLeft(Env.empty[IR]) {
+              case (env, ((name, typ), idx)) => env.bind(name, In(idx, typ))
+            }))
+          }
 
-        fb = EmitFunctionBuilder[F](ctx, "CompiledWithAggs",
-          CodeParamType(typeInfo[Region]) +: params.map { case (_, pt) => pt },
-          SingleCodeType.typeInfoFromType(ir.typ), Some("Emit.scala")
-        )
+          ir = baseIR.asInstanceOf[IR].noSharing
+          _ <- TypeCheck(ir, BindingEnv(Env.fromSeq[Type](params.map {
+            case (name, t) => name -> t.virtualType
+          })))
 
-        emitContext = EmitContext.analyze(ctx, ir)
-        rt <- Emit(emitContext, ir, fb, expectedCodeReturnType, params.length, Some(aggSigs))
+          fb = EmitFunctionBuilder[F](ctx, "CompiledWithAggs",
+            CodeParamType(typeInfo[Region]) +: params.map { case (_, pt) => pt },
+            SingleCodeType.typeInfoFromType(ir.typ), Some("Emit.scala")
+          )
 
-        f = fb.resultWithIndex()
-      } yield (rt, f.asInstanceOf[(HailClassLoader, FS, HailTaskContext, Region) => (F with FunctionWithAggRegion)])
-    )
-  }
+          emitContext <- EmitContext.analyze(ir)
+          rt <- Emit(emitContext, ir, fb, expectedCodeReturnType, params.length, Some(aggSigs))
+
+          f = fb.resultWithIndex()
+        } yield (rt, f.asInstanceOf[(HailClassLoader, FS, HailTaskContext, Region) => (F with FunctionWithAggRegion)])
+      )
+    }
 }
 
 object CompileIterator {
@@ -145,41 +150,35 @@ object CompileIterator {
     }
   }
 
-  private def compileStepper[M[_]: MonadLower, F >: Null <: StepFunctionBase : TypeInfo](
-    ctx: ExecuteContext,
+  private def compileStepper[M[_], F >: Null <: StepFunctionBase : TypeInfo](
     body: IR,
     argTypeInfo: Array[ParamType],
     writeIRs: Boolean,
     printWriter: Option[PrintWriter]
-  ): M[(PType, (HailClassLoader, FS, HailTaskContext, Region) => F)] = {
+  )(implicit M: MonadLower[M])
+  : M[(PType, (HailClassLoader, FS, HailTaskContext, Region) => F)] =
+    for {
+      ctx <- M.ask
+      fb = EmitFunctionBuilder.apply[F](ctx, s"stream_${body.getClass.getSimpleName}", argTypeInfo.toFastIndexedSeq, CodeParamType(BooleanInfo), Some("Emit.scala"))
+      outerRegionField = fb.genFieldThisRef[Region]("outerRegion")
+      eltRegionField = fb.genFieldThisRef[Region]("eltRegion")
+      setF = fb.newEmitMethod("setRegions", FastIndexedSeq(CodeParamType(typeInfo[Region]), CodeParamType(typeInfo[Region])), CodeParamType(typeInfo[Unit]))
+      _ = setF.emit(Code(outerRegionField := setF.getCodeParam[Region](1), eltRegionField := setF.getCodeParam[Region](2)))
 
-    val fb = EmitFunctionBuilder.apply[F](ctx, s"stream_${body.getClass.getSimpleName}", argTypeInfo.toFastIndexedSeq, CodeParamType(BooleanInfo), Some("Emit.scala"))
-    val outerRegionField = fb.genFieldThisRef[Region]("outerRegion")
-    val eltRegionField = fb.genFieldThisRef[Region]("eltRegion")
-    val setF = fb.newEmitMethod("setRegions", FastIndexedSeq(CodeParamType(typeInfo[Region]), CodeParamType(typeInfo[Region])), CodeParamType(typeInfo[Unit]))
-    setF.emit(Code(outerRegionField := setF.getCodeParam[Region](1), eltRegionField := setF.getCodeParam[Region](2)))
+      stepF = fb.apply_method
+      stepFECB = stepF.ecb
 
-    val stepF = fb.apply_method
-    val stepFECB = stepF.ecb
+      outerRegion = outerRegionField
 
-    val outerRegion = outerRegionField
-
-    MonadLower[M].lift {
-      Lower { (ctx, s0) =>
-
-        val (s1, lowered) =
-          LoweringPipeline.compileLowerer(true).apply[Lower](ctx, body)
-            .run(ctx, s0)
-
-        val ir = lowered.asInstanceOf[IR].noSharing
-
-        TypeCheck(ctx, ir)
+      lowered <- LoweringPipeline.compileLowerer(true)(body)
+      ir = lowered.asInstanceOf[IR].noSharing
+      emitContext <- EmitContext.analyze(ir)
+      res <- MonadLower[M].liftLower(Lower { (_, state) =>
 
         var elementAddress: Settable[Long] = null
         var returnType: PType = null
 
-        val emitContext = EmitContext.analyze(ctx, ir)
-        val emitter = new Emit(emitContext, stepFECB, s1)
+        val emitter = new Emit(emitContext, stepFECB, state)
 
         stepF.emitWithBuilder[Boolean] { cb =>
           val env = EmitEnv(Env.empty, argTypeInfo.indices.filter(i => argTypeInfo(i).isInstanceOf[EmitParamType]).map(i => stepF.getEmitParam(cb, i + 1)))
@@ -236,20 +235,16 @@ object CompileIterator {
         getMB.emit(elementAddress.load())
 
         (emitter.loweringState, Right((returnType, fb.resultWithIndex(writeIRs, printWriter))))
-      }
-    }
-  }
+      })
+    } yield res
 
-  def forTableMapPartitions[M[_]: MonadLower](
-    ctx: ExecuteContext,
-    typ0: PStruct, streamElementType: PType,
-    ir: IR
-  ): M[(PType, (HailClassLoader, FS, HailTaskContext, RVDContext, Long, NoBoxLongIterator) => Iterator[java.lang.Long])] = {
+  def forTableMapPartitions[M[_] : MonadLower](typ0: PStruct, streamElementType: PType, ir: IR)
+  : M[(PType, (HailClassLoader, FS, HailTaskContext, RVDContext, Long, NoBoxLongIterator) => Iterator[java.lang.Long])] = {
     assert(typ0.required)
     assert(streamElementType.required)
     for {
       (eltPType, makeStepper) <- compileStepper[M, TMPStepFunction](
-        ctx, ir,
+        ir,
         Array[ParamType](
           CodeParamType(typeInfo[Object]),
           SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(typ0)),
@@ -268,16 +263,13 @@ object CompileIterator {
     })
   }
 
-  def forTableStageToRVD[M[_]: MonadLower](
-    ctx: ExecuteContext,
-    ctxType: PStruct, bcValsType: PType,
-    ir: IR
-  ): M[(PType, (HailClassLoader, FS, HailTaskContext, RVDContext, Long, Long) => Iterator[java.lang.Long])] = {
+  def forTableStageToRVD[M[_] : MonadLower](ctxType: PStruct, bcValsType: PType, ir: IR)
+  : M[(PType, (HailClassLoader, FS, HailTaskContext, RVDContext, Long, Long) => Iterator[java.lang.Long])] = {
     assert(ctxType.required)
     assert(bcValsType.required)
     for {
       (eltPType, makeStepper) <- compileStepper[M, TableStageToRVDStepFunction](
-        ctx, ir,
+        ir,
         Array[ParamType](
           CodeParamType(typeInfo[Object]),
           SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(ctxType)),

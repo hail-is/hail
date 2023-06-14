@@ -1,21 +1,18 @@
 package is.hail.methods
 
-import java.util
-import is.hail.annotations._
-import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.functions.MatrixToTableFunction
+import cats.syntax.all.{toFlatMapOps, toFunctorOps}
 import is.hail.expr.ir._
-import is.hail.sparkextras.ContextRDD
+import is.hail.expr.ir.functions.MatrixToTableFunction
+import is.hail.expr.ir.lowering.MonadLower
+import is.hail.methods.BitPackedVector._
 import is.hail.types._
-import is.hail.types.physical._
 import is.hail.types.virtual._
-import is.hail.rvd.RVD
 import is.hail.utils._
 import is.hail.variant._
-
 import org.apache.spark.rdd.RDD
 
-import BitPackedVector._
+import java.util
+import scala.language.higherKinds
 
 object BitPackedVector {
   final val GENOTYPES_PER_PACK: Int = 32
@@ -270,13 +267,13 @@ object LocalLDPrune {
     }, preservesPartitioning = true)
   }
 
-  def apply(ctx: ExecuteContext,
-    mt: MatrixValue,
-    callField: String = "GT", r2Threshold: Double = 0.2, windowSize: Int = 1000000, maxQueueSize: Int
-  ): TableValue = {
-    val pruner = LocalLDPrune(callField, r2Threshold, windowSize, maxQueueSize)
-    pruner.execute(ctx, mt)
-  }
+  def apply[M[_]: MonadLower](mt: MatrixValue,
+                              callField: String = "GT",
+                              r2Threshold: Double = 0.2,
+                              windowSize: Int = 1000000,
+                              maxQueueSize: Int
+                             ): M[TableValue] =
+    LocalLDPrune(callField, r2Threshold, windowSize, maxQueueSize).execute(mt)
 }
 
 case class LocalLDPrune(
@@ -284,11 +281,10 @@ case class LocalLDPrune(
 ) extends MatrixToTableFunction {
   require(maxQueueSize > 0, s"Maximum queue size must be positive. Found '$maxQueueSize'.")
 
-  override def typ(childType: MatrixType): TableType = {
+  override def typ(childType: MatrixType): TableType =
     TableType(
       rowType = childType.rowKeyStruct ++ TStruct("mean" -> TFloat64, "centered_length_rec" -> TFloat64),
       key = childType.rowKey, globalType = TStruct.empty)
-  }
 
   def preservesPartitionCounts: Boolean = false
 
@@ -303,14 +299,12 @@ case class LocalLDPrune(
     StreamLocalLDPrune(newRow, r2Threshold, windowSize, maxQueueSize, nCols)
   }
 
-  def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
-    val nSamples = mv.nCols
-    val fullRowPType = mv.rvRowPType
-    val localCallField = callField
-    val tableType = typ(mv.typ)
-    val ts = TableExecuteIntermediate(mv.toTableValue).asTableStage(ctx).mapPartition(Some(tableType.key)) { rows =>
-      makeStream(rows, MatrixType.entriesIdentifier, nSamples)
-    }.mapGlobals(_ => makestruct())
-    TableExecuteIntermediate(ts).asTableValue(ctx)
-  }
+  def execute[M[_]](mv: MatrixValue)(implicit M: MonadLower[M]): M[TableValue] =
+    for {
+      ts <- TableExecuteIntermediate(mv.toTableValue).asTableStage
+      imm = ts.mapPartition(Some(typ(mv.typ).key)) { rows =>
+        makeStream(rows, MatrixType.entriesIdentifier, mv.nCols)
+      }.mapGlobals(_ => makestruct())
+      tv <- TableStageIntermediate(imm).asTableValue
+    } yield tv
 }

@@ -1,18 +1,18 @@
 package is.hail.methods
 
-import is.hail.HailContext
+import cats.implicits.{catsSyntaxApply, toFlatMapOps}
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
+import is.hail.backend.utils._
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.MatrixToTableFunction
-import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PFloat64, PInt64, PString, PStruct}
+import is.hail.expr.ir.lowering.MonadLower
+import is.hail.sparkextras.ContextRDD
+import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PFloat64, PInt64}
 import is.hail.types.virtual.{TFloat64, TStruct}
 import is.hail.types.{MatrixType, TableType}
-import is.hail.rvd.RVDContext
-import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant.{AllelePair, Call, Genotype, HardCallView}
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
 import scala.language.higherKinds
@@ -345,10 +345,10 @@ case class IBD(
   def typ(childType: MatrixType): TableType =
     TableType(IBD.ibdPType.virtualType, IBD.ibdKey, TStruct.empty)
 
-  def execute(ctx: ExecuteContext, input: MatrixValue): TableValue = {
-    input.requireUniqueSamples("ibd")
-    val computeMaf = mafFieldName.map(IBD.generateComputeMaf(input, _))
-    val crdd = IBD.computeIBDMatrix(ctx, input, computeMaf, min, max, input.stringSampleIds, bounded)
-    TableValue(ctx, IBD.ibdPType, IBD.ibdKey, crdd)
-  }
+  def execute[M[_]](input: MatrixValue)(implicit M: MonadLower[M]): M[TableValue] =
+    unsafe(input.requireUniqueSamples("ibd")) *> M.ask.flatMap { ctx =>
+      val computeMaf = mafFieldName.map(IBD.generateComputeMaf(input, _))
+      val crdd = IBD.computeIBDMatrix(ctx, input, computeMaf, min, max, input.stringSampleIds, bounded)
+      TableValue(IBD.ibdPType, IBD.ibdKey, crdd)
+    }
 }

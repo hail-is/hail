@@ -17,7 +17,7 @@ case class LoweringPipeline(lowerings: LoweringPass*) {
           log.info(s"$context: IR size ${IRSize(ir)}: \n" + Pretty(ctx, ir))
       }
 
-    render(s"initial IR", ir0) *> lowerings.foldM(ir0) { case (ir, lower) =>
+    render(s"initial IR", ir0) *> FastSeq(lowerings: _*).foldM(ir0) { case (ir, lower) =>
       for {
         lowered <- lower(ir).handleErrorWith {
           case NonFatal(e) =>

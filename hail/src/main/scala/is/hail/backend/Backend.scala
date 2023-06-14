@@ -88,24 +88,23 @@ abstract class Backend {
   }
 
   def lowerDistributedSort[M[_]: MonadLower](
-    ctx: ExecuteContext,
     stage: TableStage,
     sortFields: IndexedSeq[SortField],
     rt: RTable
   ): M[TableReader]
 
   final def lowerDistributedSort[M[_]: MonadLower](
-    ctx: ExecuteContext,
     inputIR: TableIR,
     sortFields: IndexedSeq[SortField],
     rt: RTable
   ): M[TableReader] =
     for {
-      inputStage <- tableToTableStage(ctx, inputIR, LoweringAnalyses(inputIR, ctx))
-      sorted <- lowerDistributedSort(ctx, inputStage, sortFields, rt)
+      analyses <- LoweringAnalyses(inputIR)
+      inputStage <- tableToTableStage(inputIR, analyses)
+      sorted <- lowerDistributedSort(inputStage, sortFields, rt)
     } yield sorted
 
-  def tableToTableStage[M[_]: MonadLower](ctx: ExecuteContext, inputIR: TableIR, analyses: LoweringAnalyses)
+  def tableToTableStage[M[_]: MonadLower](inputIR: TableIR, analyses: LoweringAnalyses)
   : M[TableStage]
 }
 

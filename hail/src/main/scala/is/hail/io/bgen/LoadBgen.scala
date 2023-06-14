@@ -1,11 +1,12 @@
 package is.hail.io.bgen
 
+import cats.syntax.all.{toFlatMapOps, toFunctorOps}
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.streams.StreamProducer
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitSettable, EmitValue, IEmitCode, IR, IRParserEnvironment, Literal, LowerMatrixIR, MakeStruct, MatrixHybridReader, MatrixReader, PartitionNativeIntervalReader, PartitionReader, ReadPartition, Ref, StreamTake, TableExecuteIntermediate, TableNativeReader, TableReader, TableValue, ToStream}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitSettable, EmitValue, IEmitCode, IR, IRParserEnvironment, Literal, LowerMatrixIR, MakeStruct, MatrixHybridReader, MatrixReader, PartitionNativeIntervalReader, PartitionReader, ReadPartition, Ref, StreamTake, TableNativeReader, TableReader, TableStageIntermediate, TableValue, ToStream}
 import is.hail.io._
 import is.hail.io.fs.{FS, FileStatus, SeekableDataInputStream}
 import is.hail.io.index.{IndexReader, StagedIndexReader}
@@ -473,34 +474,37 @@ class MatrixBGENReader(
   override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
     VirtualTypeWithReq(PType.canonical(requestedType.globalType, required = true))
 
-  def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
-    val _lc = lower[Lower](ctx, requestedType).runA(ctx, LoweringState())
-    val lc = if (dropRows)
-      _lc.copy(partitioner = _lc.partitioner.copy(rangeBounds = Array[Interval]()),
-        contexts = StreamTake(_lc.contexts, 0))
-    else _lc
+  def apply[M[_]: MonadLower](requestedType: TableType, dropRows: Boolean): M[TableValue] =
+    for {
+      ts <- lower(requestedType)
+      lc = if (!dropRows) ts else ts.copy(
+          partitioner = ts.partitioner.copy(rangeBounds = Array[Interval]()),
+          contexts = StreamTake(ts.contexts, 0)
+        )
+      tv <- TableStageIntermediate(lc).asTableValue
+  } yield tv
 
-    TableExecuteIntermediate(lc).asTableValue(ctx)
-  }
+  override def lowerGlobals[M[_]](requestedGlobalType: TStruct)(implicit M: MonadLower[M]): M[IR] =
+    M.pure {
+      requestedGlobalType.fieldOption(LowerMatrixIR.colsFieldName) match {
+        case Some(f) =>
+          val ta = f.typ.asInstanceOf[TArray]
+          MakeStruct(FastSeq((LowerMatrixIR.colsFieldName, {
+            val arraysToZip = new BoxedArrayBuilder[IndexedSeq[Any]]()
+            val colType = ta.elementType.asInstanceOf[TStruct]
 
-  override def lowerGlobals(ctx: ExecuteContext, requestedGlobalType: TStruct): IR = {
-    requestedGlobalType.fieldOption(LowerMatrixIR.colsFieldName) match {
-      case Some(f) =>
-        val ta = f.typ.asInstanceOf[TArray]
-        MakeStruct(FastSeq((LowerMatrixIR.colsFieldName, {
-          val arraysToZip = new BoxedArrayBuilder[IndexedSeq[Any]]()
-          val colType = ta.elementType.asInstanceOf[TStruct]
-          if (colType.hasField("s"))
-            arraysToZip += sampleIds
-          if (colType.hasField(colUIDFieldName))
-            arraysToZip += sampleIds.indices.map(_.toLong)
+            if (colType.hasField("s"))
+              arraysToZip += sampleIds
 
-          val fields = arraysToZip.result()
-          Literal(ta, sampleIds.indices.map(i => Row.fromSeq(fields.map(_.apply(i)))))
-        })))
-      case None => MakeStruct(FastSeq())
+            if (colType.hasField(colUIDFieldName))
+              arraysToZip += sampleIds.indices.map(_.toLong)
+
+            val fields = arraysToZip.result()
+            Literal(ta, sampleIds.indices.map(i => Row.fromSeq(fields.map(_.apply(i)))))
+          })))
+        case None => MakeStruct(FastSeq())
+      }
     }
-  }
 
   override def toJValue: JValue = params.toJValue
 
@@ -513,68 +517,69 @@ class MatrixBGENReader(
     case _ => false
   }
 
-  override def lower[M[_] : MonadLower](ctx: ExecuteContext, requestedType: TableType): M[TableStage] =
-    MonadLower[M].pure {
-      val globals = lowerGlobals(ctx, requestedType.globalType)
-      variants match {
-        case Some(v) =>
-          val t0 = TableNativeReader.read(ctx.fs, v, None)
+  override def lower[M[_]](requestedType: TableType)(implicit M: MonadLower[M]): M[TableStage] =
+    lowerGlobals(requestedType.globalType).flatMap { globals =>
+      M.reader { ctx =>
+        variants match {
+          case Some(v) =>
+            val t0 = TableNativeReader.read(ctx.fs, v, None)
 
-          val contexts = new BoxedArrayBuilder[Row]()
-          val rangeBounds = new BoxedArrayBuilder[Interval]()
-          filePartitionInfo.zipWithIndex.foreach { case (file, fileIdx) =>
-            val filePartitioner = new RVDPartitioner(ctx.stateManager, tcoerce[TStruct](indexKeyType), file.intervals)
+            val contexts = new BoxedArrayBuilder[Row]()
+            val rangeBounds = new BoxedArrayBuilder[Interval]()
+            filePartitionInfo.zipWithIndex.foreach { case (file, fileIdx) =>
+              val filePartitioner = new RVDPartitioner(ctx.stateManager, tcoerce[TStruct](indexKeyType), file.intervals)
 
-            val filterKeyLen = t0.spec.table_type.key.length
-            val strictShortKey = filePartitioner.coarsen(filterKeyLen).strictify()
-            val strictBgenKey = strictShortKey.extendKey(filePartitioner.kType)
-            rangeBounds ++= strictBgenKey.rangeBounds
+              val filterKeyLen = t0.spec.table_type.key.length
+              val strictShortKey = filePartitioner.coarsen(filterKeyLen).strictify()
+              val strictBgenKey = strictShortKey.extendKey(filePartitioner.kType)
+              rangeBounds ++= strictBgenKey.rangeBounds
 
-            strictShortKey.partitionBoundsIRRepresentation.value.asInstanceOf[IndexedSeq[_]]
-              .foreach { interval =>
-                contexts += Row(fileIdx, interval)
-              }
-          }
-
-          val partitioner = new RVDPartitioner(ctx.stateManager, tcoerce[TStruct](indexKeyType), rangeBounds.result())
-
-          val reader = BgenPartitionReaderWithVariantFilter(
-            filePartitionInfo.map(_.metadata).toArray,
-            referenceGenome,
-            PartitionNativeIntervalReader(ctx.stateManager, v, t0.spec, "__dummy"))
-
-          TableStage(
-            globals = globals,
-            partitioner = partitioner,
-            dependency = TableStageDependency.none,
-            contexts = ToStream(Literal(TArray(reader.contextType), contexts.result().toFastIndexedSeq)),
-            (ref: Ref) => ReadPartition(ref, requestedType.rowType, reader)
-          )
-
-        case None =>
-          val partitioner = new RVDPartitioner(ctx.stateManager, tcoerce[TStruct](indexKeyType), filePartitionInfo.flatMap(_.intervals))
-          val reader = BgenPartitionReader(fileMetadata = filePartitionInfo.map(_.metadata).toArray, referenceGenome)
-
-          val contexts = new BoxedArrayBuilder[Row]()
-
-          var partIdx = 0
-          var fileIdx = 0
-          filePartitionInfo.foreach { file =>
-            assert(file.intervals.length == file.partN.length && file.intervals.length == file.partStarts.length)
-            file.intervals.indices.foreach { idxInFile =>
-              contexts += Row(fileIdx, file.partStarts(idxInFile), file.partN(idxInFile), partIdx)
-              partIdx += 1
+              strictShortKey.partitionBoundsIRRepresentation.value.asInstanceOf[IndexedSeq[_]]
+                .foreach { interval =>
+                  contexts += Row(fileIdx, interval)
+                }
             }
-            fileIdx += 1
-          }
 
-          TableStage(
-            globals = globals,
-            partitioner = partitioner,
-            dependency = TableStageDependency.none,
-            contexts = ToStream(Literal(TArray(reader.contextType), contexts.result().toFastIndexedSeq)),
-            (ref: Ref) => ReadPartition(ref, requestedType.rowType, reader)
-          )
+            val partitioner = new RVDPartitioner(ctx.stateManager, tcoerce[TStruct](indexKeyType), rangeBounds.result())
+
+            val reader = BgenPartitionReaderWithVariantFilter(
+              filePartitionInfo.map(_.metadata).toArray,
+              referenceGenome,
+              PartitionNativeIntervalReader(ctx.stateManager, v, t0.spec, "__dummy"))
+
+            TableStage(
+              globals = globals,
+              partitioner = partitioner,
+              dependency = TableStageDependency.none,
+              contexts = ToStream(Literal(TArray(reader.contextType), contexts.result().toFastIndexedSeq)),
+              (ref: Ref) => ReadPartition(ref, requestedType.rowType, reader)
+            )
+
+          case None =>
+            val partitioner = new RVDPartitioner(ctx.stateManager, tcoerce[TStruct](indexKeyType), filePartitionInfo.flatMap(_.intervals))
+            val reader = BgenPartitionReader(fileMetadata = filePartitionInfo.map(_.metadata).toArray, referenceGenome)
+
+            val contexts = new BoxedArrayBuilder[Row]()
+
+            var partIdx = 0
+            var fileIdx = 0
+            filePartitionInfo.foreach { file =>
+              assert(file.intervals.length == file.partN.length && file.intervals.length == file.partStarts.length)
+              file.intervals.indices.foreach { idxInFile =>
+                contexts += Row(fileIdx, file.partStarts(idxInFile), file.partN(idxInFile), partIdx)
+                partIdx += 1
+              }
+              fileIdx += 1
+            }
+
+            TableStage(
+              globals = globals,
+              partitioner = partitioner,
+              dependency = TableStageDependency.none,
+              contexts = ToStream(Literal(TArray(reader.contextType), contexts.result().toFastIndexedSeq)),
+              (ref: Ref) => ReadPartition(ref, requestedType.rowType, reader)
+            )
+        }
       }
     }
 }

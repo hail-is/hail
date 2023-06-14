@@ -1,12 +1,12 @@
 package is.hail.expr.ir
 
+import cats.syntax.all._
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.annotations.SafeNDArray
-import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
 import is.hail.expr.ir.TestUtils._
-import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR, LoweringState}
+import is.hail.expr.ir.lowering.{DArrayLowering, Lower, LowerTableIR, LoweringState}
 import is.hail.methods.ForceCountTable
 import is.hail.rvd.RVDPartitioner
 import is.hail.types._
@@ -15,9 +15,8 @@ import is.hail.utils._
 import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
 import org.scalatest.Inspectors.forAll
-import org.scalatest.{Failed, Outcome, Succeeded}
+import org.scalatest.{Failed, Succeeded}
 import org.testng.annotations.{DataProvider, Test}
-import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
 
 class TableIRSuite extends HailSuite {
 
@@ -583,8 +582,7 @@ class TableIRSuite extends HailSuite {
     val signature = TStruct(("field1", TString), ("field2", TInt32))
     val keyNames = FastIndexedSeq("field1", "field2")
     val tt = TableType(rowType = signature, key = keyNames, globalType = TStruct.empty)
-    val base = TableLiteral(
-      TableValue(ctx, tt.rowType, tt.key, rdd), theHailClassLoader)
+    val base = (TableValue(tt.rowType, tt.key, rdd) >>= (TableLiteral(_))).apply(ctx)
 
     // construct the table with a longer key, then copy the table to shorten the key in type, but not rvd
     val distinctCount = TableCount(TableDistinct(TableLiteral(tt.copy(key = FastIndexedSeq("field1")), base.rvd, base.enc, base.encodedGlobals)))
@@ -761,19 +759,22 @@ class TableIRSuite extends HailSuite {
 
   @Test def testTableWrite() {
     implicit val execStrats = ExecStrategy.interpretOnly
+    import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
+
     val table = TableRange(5, 4)
     val path = ctx.createTmpPath("test-table-write", "ht")
-    Interpret(ctx, TableWrite(table, TableNativeWriter(path))).runA(ctx, LoweringState())
-    val before = table.analyzeAndExecute(ctx).asTableValue(ctx)
+    Interpret(TableWrite(table, TableNativeWriter(path))).runA(ctx, LoweringState())
+    val before = (table.analyzeAndExecute >>= (_.asTableValue)).runA(ctx, LoweringState())
     val read = TableIR.read(fs, path, requestedType = Some(table.typ))
     assert(read.isDistinctlyKeyed)
-    val after = Interpret(read, ctx, false).runA(ctx, LoweringState())
+    val after = Interpret(read, false).runA(ctx, LoweringState())
     assert(before.globals.javaValue == after.globals.javaValue)
     assert(before.rdd.collect().toFastIndexedSeq == after.rdd.collect().toFastIndexedSeq)
   }
 
   @Test def testWriteKeyDistinctness(): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
+    import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
     val rt = TableRange(40, 4)
     val idxRef =  GetField(Ref("row", rt.typ.rowType), "idx")
     val at = TableMapRows(rt, MakeStruct(FastIndexedSeq(
@@ -786,37 +787,37 @@ class TableIRSuite extends HailSuite {
     )))
     val keyedByConst = TableKeyBy(at, IndexedSeq("const"))
     val pathConst = ctx.createTmpPath("test-table-write-distinctness", "ht")
-    Interpret(ctx, TableWrite(keyedByConst, TableNativeWriter(pathConst))).runA(ctx, LoweringState())
+    Interpret(TableWrite(keyedByConst, TableNativeWriter(pathConst))).runA(ctx, LoweringState())
     val readConst = TableIR.read(fs, pathConst)
     assert(!readConst.isDistinctlyKeyed)
 
     val keyedByHalf = TableKeyBy(at, IndexedSeq("half"))
     val pathHalf = ctx.createTmpPath("test-table-write-distinctness", "ht")
-    Interpret(ctx, TableWrite(keyedByHalf, TableNativeWriter(pathHalf))).runA(ctx, LoweringState())
+    Interpret(TableWrite(keyedByHalf, TableNativeWriter(pathHalf))).runA(ctx, LoweringState())
     val readHalf = TableIR.read(fs, pathHalf)
     assert(!readHalf.isDistinctlyKeyed)
 
     val keyedByIdxAndHalf = TableKeyBy(at, IndexedSeq("idx", "half"))
     val pathIdxAndHalf = ctx.createTmpPath("test-table-write-distinctness", "ht")
-    Interpret(ctx, TableWrite(keyedByIdxAndHalf, TableNativeWriter(pathIdxAndHalf))).runA(ctx, LoweringState())
+    Interpret(TableWrite(keyedByIdxAndHalf, TableNativeWriter(pathIdxAndHalf))).runA(ctx, LoweringState())
     val readIdxAndHalf = TableIR.read(fs, pathIdxAndHalf)
     assert(readIdxAndHalf.isDistinctlyKeyed)
 
     val keyedByOneRepeat = TableKeyBy(at, IndexedSeq("oneRepeat"))
     val pathOneRepeat = ctx.createTmpPath("test-table-write-distinctness", "ht")
-    Interpret(ctx, TableWrite(keyedByOneRepeat, TableNativeWriter(pathOneRepeat))).runA(ctx, LoweringState())
+    Interpret(TableWrite(keyedByOneRepeat, TableNativeWriter(pathOneRepeat))).runA(ctx, LoweringState())
     val readOneRepeat = TableIR.read(fs, pathOneRepeat)
     assert(!readOneRepeat.isDistinctlyKeyed)
 
     val keyedByOneMissing = TableKeyBy(at, IndexedSeq("oneMissing"))
     val pathOneMissing = ctx.createTmpPath("test-table-write-distinctness", "ht")
-    Interpret(ctx, TableWrite(keyedByOneMissing, TableNativeWriter(pathOneMissing))).runA(ctx, LoweringState())
+    Interpret(TableWrite(keyedByOneMissing, TableNativeWriter(pathOneMissing))).runA(ctx, LoweringState())
     val readOneMissing = TableIR.read(fs, pathOneMissing)
     assert(readOneMissing.isDistinctlyKeyed)
 
     val keyedByTwoMissing = TableKeyBy(at, IndexedSeq("twoMissing"))
     val pathTwoMissing = ctx.createTmpPath("test-table-write-distinctness", "ht")
-    Interpret(ctx, TableWrite(keyedByTwoMissing, TableNativeWriter(pathTwoMissing))).runA(ctx, LoweringState())
+    Interpret(TableWrite(keyedByTwoMissing, TableNativeWriter(pathTwoMissing))).runA(ctx, LoweringState())
     val readTwoMissing = TableIR.read(fs, pathTwoMissing)
     assert(!readTwoMissing.isDistinctlyKeyed)
   }
@@ -1076,8 +1077,9 @@ class TableIRSuite extends HailSuite {
         ApplyAggOp(Collect())(GetField(Ref("row", tableType.rowType), "rsid"))
       )))
     val optimized = Optimize(irToLower, "foo", ctx)
-    val analyses = LoweringAnalyses.apply(optimized, ctx)
-    LowerTableIR(optimized, DArrayLowering.All, ctx, analyses)
+    import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
+    (LoweringAnalyses[Lower](optimized) >>= (LowerTableIR(optimized, DArrayLowering.All, _)))
+      .runA(ctx, LoweringState())
   }
 
   @Test def testTableMapPartitions() {
@@ -1148,9 +1150,11 @@ class TableIRSuite extends HailSuite {
         Row((i / 5) * 5)
       }, Row("Hello")))
 
-    val e = intercept[HailException](TypeCheck(
-      ctx,
-      collect(TableMapPartitions(table, "g", "part", StreamFlatMap(StreamRange(0, 2, 1), "_", part)))))
+    val e = intercept[HailException] {
+      TypeCheck[Execute](
+        collect(TableMapPartitions(table, "g", "part", StreamFlatMap(StreamRange(0, 2, 1), "_", part)))
+      ).apply(ctx)
+    }
     assert("must iterate over the partition exactly once".r.findFirstIn(e.getCause.getMessage).isDefined)
   }
 

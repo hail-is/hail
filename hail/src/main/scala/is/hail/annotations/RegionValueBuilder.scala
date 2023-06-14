@@ -1,13 +1,11 @@
 package is.hail.annotations
 
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.backend.HailStateManager
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.variant.Locus
-import org.apache.spark.sql.Row
 
-class RegionValueBuilder(sm: HailStateManager, var region: Region) {
+class RegionValueBuilder(val sm: HailStateManager, var region: Region) {
   def this(sm: HailStateManager) = this(sm, null)
 
   var start: Long = _

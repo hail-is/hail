@@ -2,7 +2,6 @@ package is.hail.expr.ir
 
 import cats.implicits.toTraverseOps
 import cats.syntax.all._
-import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.lowering._
 import is.hail.types.virtual.TVoid
 import is.hail.utils._
@@ -17,21 +16,21 @@ object LowerOrInterpretNonCompilable {
     def evaluate(value: IR): M[IR] =
     for {
       preTime <- MonadLower[M].pure(System.nanoTime())
-      result <- CanLowerEfficiently(value) match {
-        case Some(failReason) =>
+      result <- CanLowerEfficiently(value).flatMap {
+        case Left(failReason) =>
           log.info(s"LowerOrInterpretNonCompilable: cannot efficiently lower query: $failReason")
           log.info(s"interpreting non-compilable result: ${ value.getClass.getSimpleName }")
           Interpret.alreadyLowered(value).map { v =>
             if (value.typ == TVoid) Begin(FastIndexedSeq())
             else Literal.coerce(value.typ, v)
           }
-        case None =>
+        case Right(()) =>
           log.info(s"LowerOrInterpretNonCompilable: whole stage code generation is a go!")
           log.info(s"lowering result: ${ value.getClass.getSimpleName }")
           for {
             fullyLowered <- LowerToDistributedArrayPass(DArrayLowering.All)(value)
             _ = log.info(s"compiling and evaluating result: ${ value.getClass.getSimpleName }")
-            ir <- CompileAndEvaluate.evalToIR(fullyLowered.asInstanceOf[IR],  optimize = true)
+            ir <- CompileAndEvaluate.evalToIR(fullyLowered.asInstanceOf[IR], optimize = true)
           } yield ir
       }
       _ = log.info(s"took ${ formatTime(System.nanoTime() - preTime) }")

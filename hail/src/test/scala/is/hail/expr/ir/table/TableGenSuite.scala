@@ -77,7 +77,7 @@ class TableGenSuite extends HailSuite {
   @Test(groups = Array("requiredness"))
   def testRequiredness: Unit = {
     val table = mkTableGen()
-    val analysis = Requiredness(table, ctx)
+    val analysis = Requiredness[Execute](table).apply(ctx)
     analysis.lookup(table).required shouldBe true
     analysis.states.m.isEmpty shouldBe true
   }

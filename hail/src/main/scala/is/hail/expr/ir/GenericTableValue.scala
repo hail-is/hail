@@ -1,6 +1,8 @@
 package is.hail.expr.ir
 
+import cats.mtl.Ask
 import cats.syntax.all._
+import is.hail.Thunk
 import is.hail.annotations.{BroadcastRow, Region}
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
@@ -143,9 +145,8 @@ class GenericTableValueRDD(
   }
 }
 
-abstract class LoweredTableReaderCoercer {
-  def coerce[M[_]: MonadLower](
-    ctx: ExecuteContext,
+trait LoweredTableReaderCoercer {
+  def apply[M[_]: MonadLower](
     globals: IR,
     contextType: Type,
     contexts: IndexedSeq[Any],
@@ -167,97 +168,102 @@ class GenericTableValue(
   assert(contextType.hasField("partitionIndex"))
   assert(contextType.fieldType("partitionIndex") == TInt32)
 
-  var ltrCoercer: LoweredTableReaderCoercer = _
-  def getLTVCoercer[M[_]](ctx: ExecuteContext, context: String, cacheKey: Any)
-                         (implicit M: MonadLower[M])
-  : M[LoweredTableReaderCoercer] = {
-    if (ltrCoercer != null) M.pure(ltrCoercer)
-    else LoweredTableReader.makeCoercer(
-        ctx,
-        fullTableType.key,
-        1,
-        uidFieldName,
-        contextType,
-        contexts,
-        fullTableType.keyType,
-        bodyPType,
-        body,
-        context,
-        cacheKey
-      ).map { c =>
-      ltrCoercer = c
-      c
-    }
-  }
+  def getLTVCoercer[M[_]](context: String, cacheKey: Any)(implicit M: MonadLower[M])
+  : M[LoweredTableReaderCoercer] =
+    LoweredTableReader.makeCoercer(
+      fullTableType.key,
+      1,
+      uidFieldName,
+      contextType,
+      contexts,
+      fullTableType.keyType,
+      bodyPType,
+      body,
+      context,
+      cacheKey
+    )
 
-  def toTableStage[M[_]](ctx: ExecuteContext, requestedType: TableType, context: String, cacheKey: Any)
-                        (implicit M: MonadLower[M]): M[TableStage] = {
-    val globalsIR = Literal(requestedType.globalType, globals(requestedType.globalType))
-    val requestedBody: (IR) => (IR) = (ctx: IR) => ReadPartition(ctx,
-      requestedType.rowType,
-      new PartitionIteratorLongReader(
-        fullTableType.rowType, uidFieldName, contextType,
-        (requestedType: Type) => bodyPType(requestedType.asInstanceOf[TStruct]),
-        (requestedType: Type) => body(requestedType.asInstanceOf[TStruct])))
-    var p: RVDPartitioner = null
-    partitioner match {
-      case Some(partitioner) =>
-        p = partitioner
-      case None if requestedType.key.isEmpty =>
-        p = RVDPartitioner.unkeyed(ctx.stateManager, contexts.length)
-      case None =>
+  def toTableStage[M[_]](requestedType: TableType, context: String, cacheKey: Any)
+                        (implicit M: MonadLower[M]): M[TableStage] =
+    M.ask.flatMap { ctx =>
+      val globalsIR = Literal(requestedType.globalType, globals(requestedType.globalType))
+      val requestedBody: IR => IR = (ctx: IR) =>
+        ReadPartition(
+          ctx,
+          requestedType.rowType,
+          new PartitionIteratorLongReader(
+            fullTableType.rowType, uidFieldName, contextType,
+            (requestedType: Type) => bodyPType(requestedType.asInstanceOf[TStruct]),
+            (requestedType: Type) => body(requestedType.asInstanceOf[TStruct])
+          )
+        )
+
+      (partitioner match {
+        case None if requestedType.key.isEmpty =>
+          Some(RVDPartitioner.unkeyed(ctx.stateManager, contexts.length))
+        case default =>
+          default
+      })
+        .map(p => M.pure {
+          TableStage(globalsIR, p, TableStageDependency.none, ToStream(Literal(TArray(contextType), contexts)), requestedBody)
+        })
+        .getOrElse {
+          getLTVCoercer(context, cacheKey).flatMap(
+            _.apply(globalsIR, contextType, contexts, requestedBody)
+          )
+        }
     }
-    if (p != null)
-      M.pure {
-        TableStage(globalsIR, p, TableStageDependency.none, ToStream(Literal(TArray(contextType), contexts)), requestedBody)
-      }
-    else
-      getLTVCoercer(ctx, context, cacheKey).flatMap(
-        _.coerce(ctx,globalsIR,contextType, contexts,requestedBody)
-      )
-  }
 
   def toContextRDD(fs: FS, requestedRowType: TStruct): ContextRDD[Long] = {
     val localBody = body(requestedRowType)
     ContextRDD(new GenericTableValueRDD(contexts, localBody(_, _, fs, _)))
   }
 
-  private[this] var rvdCoercer: RVDCoercer = _
-
-  def getRVDCoercer(ctx: ExecuteContext): RVDCoercer = {
-    if (rvdCoercer == null) {
-      rvdCoercer = RVD.makeCoercer(
-        ctx,
-        RVDType(bodyPType(fullTableType.rowType), fullTableType.key),
-        1,
-        toContextRDD(ctx.fs, fullTableType.keyType))
+  private type HasExecuteContext[F[_]] = Ask[F, ExecuteContext]
+  private[this] val rvdCoercer: Thunk[HasExecuteContext, RVDCoercer] =
+    new Thunk[HasExecuteContext, RVDCoercer] {
+      override protected def run[F[_]](implicit A: HasExecuteContext[F]): F[RVDCoercer] =
+        A.reader { ctx =>
+          RVD.makeCoercer(
+            ctx,
+            RVDType(bodyPType(fullTableType.rowType), fullTableType.key),
+            1,
+            toContextRDD(ctx.fs, fullTableType.keyType)
+          )
+        }
     }
+
+  def getRVDCoercer[M[_]](implicit M: MonadLower[M]): M[RVDCoercer] =
     rvdCoercer
-  }
 
-  def toTableValue(ctx: ExecuteContext, requestedType: TableType): TableValue = {
-    val requestedRowType = requestedType.rowType
-    val requestedRowPType = bodyPType(requestedType.rowType)
-    val crdd = toContextRDD(ctx.fs, requestedRowType)
+  def toTableValue[M[_]](requestedType: TableType)(implicit M: MonadLower[M]): M[TableValue] =
+    for {
+      ctx <- M.ask
+      requestedRowType = requestedType.rowType
+      requestedRowPType = bodyPType(requestedType.rowType)
+      crdd = toContextRDD(ctx.fs, requestedRowType)
 
-    val rvd = partitioner match {
-      case Some(partitioner) =>
-        RVD(
-          RVDType(requestedRowPType, fullTableType.key),
-          partitioner,
-          crdd)
-      case None if requestedType.key.isEmpty =>
-        RVD(
-          RVDType(requestedRowPType, fullTableType.key),
-          RVDPartitioner.unkeyed(ctx.stateManager, contexts.length),
-          crdd)
-      case None =>
-        getRVDCoercer(ctx).coerce(RVDType(requestedRowPType, fullTableType.key), crdd)
-    }
+      rvd <- partitioner match {
+        case Some(partitioner) =>
+          M.pure {
+            RVD(
+              RVDType(requestedRowPType, fullTableType.key),
+              partitioner,
+              crdd
+            )
+          }
+        case None if requestedType.key.isEmpty =>
+          M.pure {
+            RVD(
+              RVDType(requestedRowPType, fullTableType.key),
+              RVDPartitioner.unkeyed(ctx.stateManager, contexts.length),
+              crdd
+            )
+          }
+        case None =>
+          getRVDCoercer.map(_.coerce(RVDType(requestedRowPType, fullTableType.key), crdd))
+      }
 
-    TableValue(ctx,
-      requestedType,
-      BroadcastRow(ctx, globals(requestedType.globalType), requestedType.globalType),
-      rvd)
-  }
+      br <- BroadcastRow(globals(requestedType.globalType), requestedType.globalType)
+    } yield TableValue(requestedType, br, rvd)
 }

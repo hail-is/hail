@@ -1,6 +1,7 @@
 package is.hail.stats
 
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV}
+import cats.data.Reader
 import is.hail.annotations.{BroadcastRow, Region, RegionValue, RegionValueBuilder}
 import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkTaskContext
@@ -14,30 +15,37 @@ import is.hail.types.virtual.TStruct
 import is.hail.utils._
 import org.apache.spark.storage.StorageLevel
 
+import scala.language.higherKinds
+
 case class LMMData(gamma: Double, residualSq: Double, py: BDV[Double], px: BDM[Double], d: BDV[Double],
   ydy: Double, xdy: BDV[Double], xdx: BDM[Double], yOpt: Option[BDV[Double]], xOpt: Option[BDM[Double]])
 
 object LinearMixedModel {
   def pyApply(gamma: Double, residualSq: Double, py: Array[Double], px: BDM[Double], d: Array[Double],
-    ydy: Double, xdy: Array[Double], xdx: BDM[Double],
-    // yOpt, xOpt can be null
-    yOpt: Array[Double], xOpt: BDM[Double]): LinearMixedModel = {
+              ydy: Double, xdy: Array[Double], xdx: BDM[Double],
+              // yOpt, xOpt can be null
+              yOpt: Array[Double], xOpt: BDM[Double]): LinearMixedModel = {
 
     new LinearMixedModel(
       LMMData(gamma, residualSq, BDV(py), px, BDV(d), ydy, BDV(xdy), xdx, Option(yOpt).map(BDV(_)), Option(xOpt)))
   }
 
   private val rowType = PCanonicalStruct(true,
-      "idx" -> PInt64(),
-      "beta" -> PFloat64(),
-      "sigma_sq" -> PFloat64(),
-      "chi_sq" -> PFloat64(),
-      "p_value" -> PFloat64())
+    "idx" -> PInt64(),
+    "beta" -> PFloat64(),
+    "sigma_sq" -> PFloat64(),
+    "chi_sq" -> PFloat64(),
+    "p_value" -> PFloat64())
 
   private val tableType = TableType(rowType.virtualType, FastIndexedSeq("idx"), TStruct.empty)
 
   def toTableIR(ctx: ExecuteContext, rvd: RVD): TableIR = {
-    TableLiteral(TableValue(ctx, tableType, BroadcastRow.empty(ctx), rvd), ctx.theHailClassLoader)
+    type F[A] = Reader[ExecuteContext, A]
+    (for {
+      br <- BroadcastRow.empty[F]
+      tv = TableValue(tableType, br, rvd)
+      lit <- TableLiteral.apply[F](tv)
+    } yield lit).run(ctx)
   }
 }
 
@@ -119,7 +127,8 @@ class LinearMixedModel(lmmData: LMMData) {
     val rvd = RVD(
       RVDType(rowType, LinearMixedModel.tableType.key),
       pa_t.partitioner(),
-      ContextRDD.weaken(rdd).toCRDDPtr).persist(ctx, StorageLevel.MEMORY_AND_DISK)
+      ContextRDD.weaken(rdd).toCRDDPtr
+    ).persist(ctx, StorageLevel.MEMORY_AND_DISK)
 
     LinearMixedModel.toTableIR(ctx, rvd)
   }
@@ -185,7 +194,8 @@ class LinearMixedModel(lmmData: LMMData) {
     val rvd = RVD(
       RVDType(rowType, LinearMixedModel.tableType.key),
       pa_t.partitioner(),
-      ContextRDD.weaken(rdd).toCRDDPtr).persist(ctx, StorageLevel.MEMORY_AND_DISK)
+      ContextRDD.weaken(rdd).toCRDDPtr
+    ).persist(ctx, StorageLevel.MEMORY_AND_DISK)
 
     LinearMixedModel.toTableIR(ctx, rvd)
   }

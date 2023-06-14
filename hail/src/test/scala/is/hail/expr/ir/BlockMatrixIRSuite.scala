@@ -1,7 +1,9 @@
 package is.hail.expr.ir
 
 import breeze.linalg.{DenseMatrix => BDM}
+import cats.syntax.all._
 import is.hail.ExecStrategy.ExecStrategy
+import is.hail.backend.utils._
 import is.hail.expr.Nat
 import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
 import is.hail.expr.ir.lowering.{Lower, LoweringState}
@@ -38,10 +40,11 @@ class BlockMatrixIRSuite extends HailSuite {
 
   @Test def testBlockMatrixWriteRead() {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.interpretOnly
-    val tempPath = ctx.createTmpPath("test-blockmatrix-write-read", "bm")
-    Interpret(ctx, BlockMatrixWrite(ones, BlockMatrixNativeWriter(tempPath, false, false, false))).runA(ctx, LoweringState())
-
-    assertBMEvalsTo(BlockMatrixRead(BlockMatrixNativeReader(fs, tempPath)), BDM.fill[Double](N_ROWS, N_COLS)(1))
+    (for {
+      tempPath <- newTmpPath[Lower]("test-blockmatrix-write-read", "bm")
+      _ <- Interpret(BlockMatrixWrite(ones, BlockMatrixNativeWriter(tempPath, false, false, false)))
+    } yield assertBMEvalsTo(BlockMatrixRead(BlockMatrixNativeReader(fs, tempPath)), BDM.fill[Double](N_ROWS, N_COLS)(1)))
+      .runA(ctx, LoweringState())
   }
 
   @Test def testBlockMatrixMap() {

@@ -46,7 +46,7 @@ object FoldConstants {
           case _ => false
         } =>
         try {
-          Some(Literal.coerce(ir.typ, Interpret.alreadyLowered[Lower](ctx, ir).runA(ctx, LoweringState())))
+          Some(Literal.coerce(ir.typ, Interpret.alreadyLowered[Lower](ir).runA(ctx, LoweringState())))
         } catch {
           case _: HailException => None
         }

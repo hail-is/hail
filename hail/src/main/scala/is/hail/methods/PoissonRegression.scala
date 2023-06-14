@@ -3,14 +3,15 @@ package is.hail.methods
 import breeze.linalg._
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.MatrixToTableFunction
+import is.hail.expr.ir.lowering.MonadLower
 import is.hail.expr.ir.{IntArrayBuilder, MatrixValue, TableValue}
+import is.hail.stats._
 import is.hail.types.virtual.{TFloat64, TStruct}
 import is.hail.types.{MatrixType, TableType}
-import is.hail.rvd.RVDType
-import is.hail.stats._
 import is.hail.utils._
+
+import scala.language.higherKinds
 
 case class PoissonRegression(
   test: String,
@@ -30,7 +31,7 @@ case class PoissonRegression(
 
   def preservesPartitionCounts: Boolean = true
 
-  def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
+  def execute[M[_]](mv: MatrixValue)(implicit M: MonadLower[M]): M[TableValue] = {
     val poisRegTest = PoissonRegressionTest.tests(test)
     val tableType = typ(mv.typ)
     val newRVDType = tableType.canonicalRVDType
@@ -47,18 +48,18 @@ case class PoissonRegression(
     val d = n - k - 1
 
     if (d < 1)
-      fatal(s"$n samples and ${ k + 1 } ${ plural(k, "covariate") } (including x) implies $d degrees of freedom.")
+      fatal(s"$n samples and ${k + 1} ${plural(k, "covariate")} (including x) implies $d degrees of freedom.")
 
     info(s"poisson_regression_rows: running $test on $n samples for response variable y,\n"
-      + s"    with input variable x, and ${ k } additional ${ plural(k, "covariate") }...")
+      + s"    with input variable x, and ${k} additional ${plural(k, "covariate")}...")
 
     val nullModel = new PoissonRegressionModel(cov, y)
-    var nullFit = nullModel.fit(None, maxIter=maxIterations, tol=tolerance)
+    var nullFit = nullModel.fit(None, maxIter = maxIterations, tol = tolerance)
 
     if (!nullFit.converged)
       fatal("Failed to fit poisson regression null model (standard MLE with covariates only): " + (
         if (nullFit.exploded)
-          s"exploded at Newton iteration ${ nullFit.nIter }"
+          s"exploded at Newton iteration ${nullFit.nIter}"
         else
           "Newton iteration failed to converge"))
 
@@ -96,13 +97,13 @@ case class PoissonRegression(
         rvb.startStruct()
         rvb.addFields(fullRowType, ctx.r, ptr, copiedFieldIndices)
         poisRegTestBc.value
-          .test(X, yBc.value, nullFitBc.value, "poisson", maxIter=maxIterations, tol=tolerance)
+          .test(X, yBc.value, nullFitBc.value, "poisson", maxIter = maxIterations, tol = tolerance)
           .addToRVB(rvb)
         rvb.endStruct()
         rvb.end()
       }
     }
 
-    TableValue(ctx, tableType, BroadcastRow.empty(ctx), newRVD)
+    M.map(BroadcastRow.empty)(TableValue(tableType, _, newRVD))
   }
 }

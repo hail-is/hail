@@ -1,14 +1,13 @@
 package is.hail.expr.ir
 
+import cats.syntax.all._
 import is.hail.HailSuite
-import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
+import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
+import is.hail.expr.ir.lowering.{Lower, LoweringState}
 import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
 import is.hail.rvd.RVD
 import is.hail.types._
-import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
-import is.hail.expr.ir.lowering.LoweringState
-import is.hail.types.physical.PStruct
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -95,21 +94,25 @@ class PruneSuite extends HailSuite {
       fatal(s"IR did not rebuild the same:\n  Base:    $ir\n  Rebuilt: $rebuilt")
   }
 
-  lazy val tab = TableLiteral(TableKeyBy(
-    TableParallelize(
-      Literal(
-        TStruct(
-          "rows" -> TArray(TStruct("1" -> TString,
-            "2" -> TArray(TStruct("2A" -> TInt32)),
-            "3" -> TString,
-            "4" -> TStruct("A" -> TInt32, "B" -> TArray(TStruct("i" -> TString))),
-            "5" -> TString)),
-          "global" -> TStruct("g1" -> TInt32, "g2" -> TInt32)),
-        Row(FastIndexedSeq(Row("hi", FastIndexedSeq(Row(1)), "bye", Row(2, FastIndexedSeq(Row("bar"))), "foo")), Row(5, 10))),
-      None),
-    FastIndexedSeq("3"),
-    false).analyzeAndExecute(ctx).asTableValue(ctx),
-    theHailClassLoader)
+  lazy val tab = {
+    val tkb = TableKeyBy(
+      TableParallelize(
+        Literal(
+          TStruct(
+            "rows" -> TArray(TStruct("1" -> TString,
+              "2" -> TArray(TStruct("2A" -> TInt32)),
+              "3" -> TString,
+              "4" -> TStruct("A" -> TInt32, "B" -> TArray(TStruct("i" -> TString))),
+              "5" -> TString)),
+            "global" -> TStruct("g1" -> TInt32, "g2" -> TInt32)),
+          Row(FastIndexedSeq(Row("hi", FastIndexedSeq(Row(1)), "bye", Row(2, FastIndexedSeq(Row("bar"))), "foo")), Row(5, 10))),
+        None),
+      FastIndexedSeq("3")
+    )
+
+    (tkb.analyzeAndExecute >>= (_.asTableValue) >>= TableLiteral[Lower])
+      .runA(ctx, LoweringState())
+  }
 
   lazy val tr = TableRead(tab.typ, false, new FakeTableReader {
     override def pathsUsed: Seq[String] = Seq.empty
@@ -122,12 +125,15 @@ class PruneSuite extends HailSuite {
     TStruct("ck" -> TString, "c2" -> TInt32, "c3" -> TArray(TStruct("cc" -> TInt32))),
     FastIndexedSeq("rk"),
     TStruct("rk" -> TInt32, "r2" -> TStruct("x" -> TInt32), "r3" -> TArray(TStruct("rr" -> TInt32))),
-    TStruct("e1" -> TFloat64, "e2" -> TFloat64))
-  lazy val mat = MatrixLiteral(ctx,
+    TStruct("e1" -> TFloat64, "e2" -> TFloat64)
+  )
+
+  lazy val mat = MatrixLiteral[Execute](
     mType,
     RVD.empty(ctx, mType.canonicalTableType.canonicalRVDType),
     Row(1, 1.0),
-    FastIndexedSeq(Row("1", 2, FastIndexedSeq(Row(3)))))
+    FastIndexedSeq(Row("1", 2, FastIndexedSeq(Row(3))))
+  ).apply(ctx)
 
   lazy val mr = MatrixRead(mat.typ, false, false, new MatrixReader {
     def pathsUsed: IndexedSeq[String] = FastSeq()
@@ -480,7 +486,7 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testMatrixAnnotateRowsTableMemo() {
-    val tl = TableLiteral(Interpret(MatrixRowsTable(mat), ctx).runA(ctx, LoweringState()), theHailClassLoader)
+    val tl = (Interpret(MatrixRowsTable(mat)) >>= (TableLiteral[Lower](_: TableValue))).runA(ctx, LoweringState())
     val mart = MatrixAnnotateRowsTable(mat, tl, "foo", product=false)
     checkMemo(mart, subsetMatrixTable(mart.typ, "va.foo.r3", "va.r3"),
       Array(subsetMatrixTable(mat.typ, "va.r3"), subsetTable(tl.typ, "row.r3")))
@@ -1131,7 +1137,7 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testMatrixAnnotateRowsTableRebuild() {
-    val tl = TableLiteral(Interpret(MatrixRowsTable(mat), ctx).runA(ctx, LoweringState()), theHailClassLoader)
+    val tl = (Interpret(MatrixRowsTable(mat)) >>= (TableLiteral[Lower](_: TableValue))).runA(ctx, LoweringState())
     val mart = MatrixAnnotateRowsTable(mat, tl, "foo", product=false)
     checkRebuild(mart, subsetMatrixTable(mart.typ),
       (_: BaseIR, r: BaseIR) => {

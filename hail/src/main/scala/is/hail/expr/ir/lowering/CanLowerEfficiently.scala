@@ -1,6 +1,8 @@
 package is.hail.expr.ir.lowering
 
-import cats.implicits.toFoldableOps
+import cats.mtl.Ask
+import cats.syntax.all._
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.{TableCalculateNewPartitions, TableToValueFunction, WrappedMatrixToTableFunction}
 import is.hail.expr.ir.lowering.LowerDistributedSort.LocalSortReader
@@ -14,8 +16,8 @@ import is.hail.utils.traverseInstanceGenTraversable
 import scala.language.higherKinds
 
 object CanLowerEfficiently {
-  def apply[M[_]](ir0: BaseIR)(implicit M: MonadLower[M]): M[Either[String, Unit]] = 
-    M.ctx.reader { ctx =>
+  def apply[M[_]](ir0: BaseIR)(implicit M: Ask[M, ExecuteContext]): M[Either[String, Unit]] =
+    M.reader { ctx =>
       if (ctx.getFlag("no_whole_stage_codegen") != null) 
         Left("flag 'no_whole_stage_codegen' is enabled")
       else 
@@ -60,7 +62,7 @@ object CanLowerEfficiently {
                TableToValueApply(_, _: ForceCountTable) |
                TableToValueApply(_, _: NPartitionsTable) |
                TableToValueApply(_, _: TableCalculateNewPartitions) =>
-            Right()
+            Right(())
 
           case TableRead(_, _, _: TableFromBlockMatrixNativeReader) =>
             Left(s"no lowering for TableFromBlockMatrixNativeReader")
@@ -70,11 +72,11 @@ object CanLowerEfficiently {
 
           case TableIntervalJoin(_, _, _, product) =>
             if (product) Left("TableIntervalJoin with \"product=true\" has no lowered implementation")
-            else Right()
+            else Right(())
 
           case t: TableUnion =>
             if (t.children.length > 16) Left(s"TableUnion lowering generates deeply nested IR if it has many children")
-            else Right()
+            else Right(())
 
           case t: TableMultiWayZipJoin =>
             Left(s"TableMultiWayZipJoin is not passing tests due to problems in ptype inference in StreamZipJoin")
@@ -98,7 +100,7 @@ object CanLowerEfficiently {
 
           case TableWrite(_, writer) =>
             if (!writer.canLowerEfficiently) Left(s"writer has no efficient lowering: ${writer.getClass.getSimpleName}")
-            else Right()
+            else Right(())
 
           case TableMultiWrite(_, _) =>
             Left(s"no lowering available for TableMultiWrite")

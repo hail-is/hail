@@ -1,27 +1,29 @@
 package is.hail.expr.ir.lowering
 
-import cats.implicits.toFunctorOps
+import cats.Id
 import cats.syntax.all._
-import cats.{Applicative, Id}
+import is.hail.backend.utils._
 import is.hail.expr.ir._
 import is.hail.expr.ir.agg.Extract
 import is.hail.expr.ir.analyses.SemanticHash
-import is.hail.utils._
+import is.hail.utils.{time => _, _}
 
 import scala.language.higherKinds
-
 case class LoweringState(semhash: Option[SemanticHash.Type] = None
                         )
 
 object LoweringState {
   def nextHash[M[_]](implicit M: MonadLower[M]): M[Option[SemanticHash.Type]] =
     for {
-      s <- M.state.get
+      s <- M.get
       (h1, h2) = s.semhash match {
-        case Some(hash) => { val (h1, h2) = SemanticHash.split(hash); (Some(h1), Some(h2)) }
-        case None => (None, None)
+        case Some(hash) =>
+          val (h1, h2) = SemanticHash.split(hash);
+          (Some(h1), Some(h2))
+        case None =>
+          (None, None)
       }
-      _ <- M.state.set(s.copy(semhash = h2))
+      _ <- M.set(s.copy(semhash = h2))
     } yield h1
 }
 
@@ -31,11 +33,11 @@ trait LoweringPass {
   val context: String
 
   final def apply[M[_]](ir: BaseIR)(implicit M: MonadLower[M]): M[BaseIR] =
-    M.timeM(context) {
+    timeM(context) {
       for {
-        _ <- M.time("Verify")(before.verify(ir))
-        lowered <- M.timeM("LoweringTransformation")(transform(ir))
-        _ <- M.time("Verify")(after.verify(lowered))
+        _ <- time("Verify")(before.verify(ir))
+        lowered <- timeM("LoweringTransformation")(transform(ir))
+        _ <- time("Verify")(after.verify(lowered))
       } yield lowered
     }
 
@@ -47,8 +49,10 @@ case class OptimizePass(_context: String) extends LoweringPass {
   val before: IRState = AnyIR
   val after: IRState = AnyIR
 
-  override protected def transform[M[_]: MonadLower](ir: BaseIR): M[BaseIR] =
-    MonadLower[M].ctx.ask.map(Optimize(ir, context, _))
+  override protected def transform[M[_]](ir: BaseIR)(implicit M: MonadLower[M]): M[BaseIR] =
+    M.ask.flatMap { ctx =>
+      unsafe { Optimize(ir, context, ctx) }
+    }
 }
 
 case object LowerMatrixToTablePass extends LoweringPass {
@@ -65,10 +69,8 @@ case object LiftRelationalValuesToRelationalLets extends LoweringPass {
   val after: IRState = MatrixLoweredToTable
   val context: String = "LiftRelationalValuesToRelationalLets"
 
-  override protected def transform[M[_]: MonadLower](ir: BaseIR): M[BaseIR] =
-    Applicative[M].pure {
-      LiftRelationalValues(ir)
-    }
+  override protected def transform[M[_]](ir: BaseIR)(implicit M: MonadLower[M]): M[BaseIR] =
+    M.pure { LiftRelationalValues(ir) }
 }
 
 case object LegacyInterpretNonCompilablePass extends LoweringPass {
@@ -103,8 +105,8 @@ case object InlineApplyIR extends LoweringPass {
   val after: IRState = CompilableIRNoApply
   val context: String = "InlineApplyIR"
 
-  override protected def transform[M[_]: MonadLower](ir: BaseIR): M[BaseIR] =
-    Applicative[M].pure {
+  override protected def transform[M[_]](ir: BaseIR)(implicit M: MonadLower[M]): M[BaseIR] =
+    unsafe[M, BaseIR] {
       RewriteBottomUp[Id](ir, {
         case x: ApplyIR => Some(x.explicitNode)
         case _ => None
@@ -117,52 +119,58 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
   val after: IRState = EmittableIR
   val context: String = "LowerArrayAggsToRunAggs"
 
-  override protected def transform[M[_]: MonadLower](ir: BaseIR): M[BaseIR] =
-    MonadLower[M].ctx.reader { ctx =>
+  override protected def transform[M[_]: MonadLower](ir: BaseIR): M[BaseIR] = {
       val x = ir.noSharing
-      val r = Requiredness(x, ctx)
-      RewriteBottomUp[Id](x, {
-        case x@StreamAgg(a, name, query) =>
-          val res = genUID()
-          val aggs = Extract(query, res, r)
+      Requiredness(x).flatMap { r =>
+        unsafe {
+          RewriteBottomUp[Id](x, {
+            case x@StreamAgg(a, name, query) =>
+              val res = genUID()
+              val aggs = Extract(query, res, r)
 
-          val newNode = aggs.rewriteFromInitBindingRoot { root =>
-            Let(
-              res,
-              RunAgg(
-                Begin(FastSeq(
+              val newNode = aggs.rewriteFromInitBindingRoot { root =>
+                Let(
+                  res,
+                  RunAgg(
+                    Begin(FastSeq(
+                      aggs.init,
+                      StreamFor(a, name, aggs.seqPerElt)
+                    )),
+                    aggs.results,
+                    aggs.states
+                  ),
+                  root
+                )
+              }
+
+              if (newNode.typ != x.typ)
+                throw new RuntimeException(s"types differ:\n  new: ${newNode.typ}\n  old: ${x.typ}")
+
+              Some(newNode.noSharing)
+
+            case x@StreamAggScan(a, name, query) =>
+              val res = genUID()
+              val aggs = Extract(query, res, r, isScan = true)
+              val newNode = aggs.rewriteFromInitBindingRoot { root =>
+                RunAggScan(
+                  a,
+                  name,
                   aggs.init,
-                  StreamFor(
-                    a,
-                    name,
-                    aggs.seqPerElt))),
-                aggs.results,
-                aggs.states),
-              root)
-          }
+                  aggs.seqPerElt,
+                  Let(res, aggs.results, root),
+                  aggs.states
+                )
+              }
+              if (newNode.typ != x.typ)
+                throw new RuntimeException(s"types differ:\n  new: ${newNode.typ}\n  old: ${x.typ}")
 
-          if (newNode.typ != x.typ)
-            throw new RuntimeException(s"types differ:\n  new: ${newNode.typ}\n  old: ${x.typ}")
-          Some(newNode.noSharing)
-        case x@StreamAggScan(a, name, query) =>
-          val res = genUID()
-          val aggs = Extract(query, res, r, isScan = true)
-          val newNode = aggs.rewriteFromInitBindingRoot { root =>
-            RunAggScan(
-              a,
-              name,
-              aggs.init,
-              aggs.seqPerElt,
-              Let(res, aggs.results, root),
-              aggs.states
-            )
-          }
-          if (newNode.typ != x.typ)
-            throw new RuntimeException(s"types differ:\n  new: ${newNode.typ}\n  old: ${x.typ}")
-          Some(newNode.noSharing)
-        case _ => None
-      })
-    }
+              Some(newNode.noSharing)
+
+            case _ => None
+          })
+        }
+      }
+  }
 }
 
 case class EvalRelationalLetsPass(passesBelow: LoweringPipeline) extends LoweringPass {
@@ -189,10 +197,10 @@ case object ComputeSemanticHash extends LoweringPass {
   override val after: IRState = AnyIR
   override val context: String = "ComputeSemanticHash"
 
-  override protected def transform[M[_]: MonadLower](ir: BaseIR)(implicit M: MonadLower[M]): M[BaseIR] =
+  override protected def transform[M[_]](ir: BaseIR)(implicit M: MonadLower[M]): M[BaseIR] =
     for {
-      fs <- M.ctx.reader(_.fs)
-      _ <- M.state.modify(_.copy(semhash = Some(SemanticHash(fs)(ir))))
+      fs <- M.reader(_.fs)
+      _ <- M.modify(_.copy(semhash = Some(SemanticHash(fs)(ir))))
     }  yield ir
 
 }

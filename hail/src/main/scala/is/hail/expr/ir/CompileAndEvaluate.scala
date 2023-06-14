@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import cats.syntax.all._
 import is.hail.annotations.{Region, SafeRow}
 import is.hail.asm4s._
-import is.hail.backend.ExecuteContext
+import is.hail.backend.utils._
 import is.hail.expr.ir.lowering.{LoweringPipeline, MonadLower}
 import is.hail.types.physical.PTuple
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
@@ -14,19 +14,20 @@ import org.apache.spark.sql.Row
 import scala.language.higherKinds
 
 object CompileAndEvaluate {
-  def apply[M[_]: MonadLower, T](ctx: ExecuteContext, ir0: IR, optimize: Boolean = true): M[T] =
-    ctx.timer.timeM("CompileAndEvaluate") {
-      _apply(ctx, ir0, optimize).map {
+  def apply[M[_], T](ir0: IR, optimize: Boolean = true)
+                    (implicit M: MonadLower[M]): M[T] =
+    timeM("CompileAndEvaluate") {
+      _apply(ir0, optimize).map {
         case Left(()) => ().asInstanceOf[T]
         case Right((t, off)) => SafeRow(t, off).getAs[T](0)
       }
     }
 
-  def evalToIR[M[_]: MonadLower](ctx: ExecuteContext, ir0: IR, optimize: Boolean = true): M[IR] =
-    if (IsConstant(ir0)) MonadLower[M].pure(ir0)
-    else _apply(ctx, ir0, optimize).map {
-      case Left(_) => Begin(FastIndexedSeq())
-      case Right((pt, addr)) =>
+  def evalToIR[M[_]](ir0: IR, optimize: Boolean = true)(implicit M: MonadLower[M]): M[IR] =
+    if (IsConstant(ir0)) M.pure(ir0)
+    else M.product(_apply(ir0, optimize), M.ask).map {
+      case (Left(_), _) => Begin(FastIndexedSeq())
+      case (Right((pt, addr)), ctx) =>
         ir0.typ match {
           case _ if pt.isFieldMissing(addr, 0) => NA(ir0.typ)
           case TInt32 | TInt64 | TFloat32 | TFloat64 | TBoolean | TString =>
@@ -35,14 +36,14 @@ object CompileAndEvaluate {
         }
     }
 
-  def _apply[M[_]: MonadLower](ctx: ExecuteContext, ir0: IR, optimize: Boolean = true)
+  def _apply[M[_]](ir0: IR, optimize: Boolean = true)(implicit M: MonadLower[M])
   : M[Either[Unit, (PTuple, Long)]] =
-    LoweringPipeline.relationalLowerer(optimize)(ctx, ir0).flatMap { case ir: IR =>
+    LoweringPipeline.relationalLowerer(optimize)(ir0).flatMap { case ir: IR =>
       ir.typ match {
         case TVoid =>
           for {
-            (_, f) <- ctx.timer.timeM("Compile") {
-              Compile[M, AsmFunction1RegionUnit](ctx,
+            (_, f) <- timeM("Compile") {
+              Compile[M, AsmFunction1RegionUnit](
                 FastIndexedSeq(),
                 FastIndexedSeq(classInfo[Region]), UnitInfo,
                 ir,
@@ -51,17 +52,19 @@ object CompileAndEvaluate {
               )
             }
 
-            _ = ctx.scopedExecution { (hcl, fs, htc, r) =>
-              val fRunnable = ctx.timer.time("InitializeCompiledFunction")(f(hcl, fs, htc, r))
-              ctx.timer.time("RunCompiledVoidFunction")(fRunnable(r))
+            _ <- scopedExecution.run { case (hcl, fs, htc, r) =>
+              for {
+                fRunnable <- time("InitializeCompiledFunction")(f(hcl, fs, htc, r))
+                _ <- time("RunCompiledVoidFunction")(fRunnable(r))
+              } yield ()
             }
 
           } yield Left(())
 
         case _ =>
           for {
-            (Some(PTypeReferenceSingleCodeType(resType: PTuple)), f) <- ctx.timer.timeM("Compile") {
-              Compile[M, AsmFunction1RegionLong](ctx,
+            (Some(PTypeReferenceSingleCodeType(resType: PTuple)), f) <- timeM("Compile") {
+              Compile[M, AsmFunction1RegionLong](
                 FastIndexedSeq(),
                 FastIndexedSeq(classInfo[Region]), LongInfo,
                 MakeTuple.ordered(FastSeq(ir)),
@@ -70,8 +73,9 @@ object CompileAndEvaluate {
               )
             }
 
-            fRunnable = ctx.timer.time("InitializeCompiledFunction")(f(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r))
-            resultAddress = ctx.timer.time("RunCompiledFunction")(fRunnable(ctx.r))
+            ctx <- M.ask
+            fRunnable <- time("InitializeCompiledFunction")(f(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r))
+            resultAddress <- time("RunCompiledFunction")(fRunnable(ctx.r))
 
           } yield Right((resType, resultAddress))
       }

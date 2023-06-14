@@ -1,10 +1,14 @@
 package is.hail.expr.ir
 
+import cats.MonadThrow
+import cats.mtl.Ask
+import cats.syntax.all._
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s.{HailClassLoader, theHailClassLoaderForSparkWorkers}
 import is.hail.backend.spark.SparkTaskContext
-import is.hail.backend.{BroadcastValue, ExecuteContext, HailTaskContext}
+import is.hail.backend.utils.assertA
+import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.ir.lowering._
 import is.hail.io.exportTypes
@@ -20,6 +24,8 @@ import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.storage.StorageLevel
 
+import scala.language.higherKinds
+
 object TableExecuteIntermediate {
   def apply(tv: TableValue): TableExecuteIntermediate = new TableValueIntermediate(tv)
 
@@ -27,59 +33,61 @@ object TableExecuteIntermediate {
 }
 
 sealed trait TableExecuteIntermediate {
-  def asTableStage(ctx: ExecuteContext): TableStage
+  def asTableStage[M[_]: MonadLower]: M[TableStage]
 
-  def asTableValue(ctx: ExecuteContext): TableValue
+  def asTableValue[M[_]: MonadLower]: M[TableValue]
 
   def partitioner: RVDPartitioner
 }
 
 case class TableValueIntermediate(tv: TableValue) extends TableExecuteIntermediate {
-  def asTableStage(ctx: ExecuteContext): TableStage = {
-    RVDToTableStage(tv.rvd, tv.globals.toEncodedLiteral(ctx.theHailClassLoader))
-  }
+  override def asTableStage[M[_]](implicit M: MonadLower[M]): M[TableStage] =
+    for {globalsLit <- tv.globals.toEncodedLiteral}
+      yield RVDToTableStage(tv.rvd, globalsLit)
 
-  def asTableValue(ctx: ExecuteContext): TableValue = tv
+  override def asTableValue[M[_]](implicit M: MonadLower[M]): M[TableValue] =
+    M.pure(tv)
 
-  def partitioner: RVDPartitioner = tv.rvd.partitioner
+  override def partitioner: RVDPartitioner = tv.rvd.partitioner
 }
 
 case class TableStageIntermediate(ts: TableStage) extends TableExecuteIntermediate {
-  def asTableStage(ctx: ExecuteContext): TableStage = ts
+  override def asTableStage[M[_]](implicit M: MonadLower[M]): M[TableStage] =
+    M.pure(ts)
 
-  def asTableValue(ctx: ExecuteContext): TableValue = {
-    val (globals, rvd) = TableStageToRVD(ctx, ts)(Lower.monadLowerInstanceForLower).runA(ctx, LoweringState())
-    TableValue(ctx, TableType(ts.rowType, ts.key, ts.globalType), globals, rvd)
-  }
+  override def asTableValue[M[_]: MonadLower]: M[TableValue] =
+    for {(globals, rvd) <- TableStageToRVD(ts)}
+      yield TableValue(TableType(ts.rowType, ts.key, ts.globalType), globals, rvd)
 
-  def partitioner: RVDPartitioner = ts.partitioner
+  override def partitioner: RVDPartitioner = ts.partitioner
 }
 
 
 object TableValue {
-  def apply(ctx: ExecuteContext, rowType: PStruct, key: IndexedSeq[String], rdd: ContextRDD[Long]): TableValue = {
-    assert(rowType.required)
-    val tt = TableType(rowType.virtualType, key, TStruct.empty)
-    TableValue(ctx,
-      tt,
-      BroadcastRow.empty(ctx),
-      RVD.coerce(ctx, RVDType(rowType, key), rdd))
-  }
+  def apply[M[_]: MonadThrow](rowType: PStruct, key: IndexedSeq[String], rdd: ContextRDD[Long])
+                             (implicit M: Ask[M, ExecuteContext]): M[TableValue] =
+    for {
+      _ <- assertA(rowType.required)
+      br <- BroadcastRow.empty
+      rvd <- M.reader { ctx => RVD.coerce(ctx, RVDType(rowType, key), rdd) }
+    } yield TableValue(TableType(rowType.virtualType, key, TStruct.empty), br, rvd)
 
-  def apply(ctx: ExecuteContext, rowType: TStruct, key: IndexedSeq[String], rdd: RDD[Row], rowPType: Option[PStruct] = None): TableValue = {
+  def apply[M[_]: MonadThrow](rowType: TStruct, key: IndexedSeq[String], rdd: RDD[Row], rowPType: Option[PStruct] = None)
+                             (implicit M: Ask[M, ExecuteContext]): M[TableValue] = {
     val canonicalRowType = rowPType.getOrElse(PCanonicalStruct.canonical(rowType).setRequired(true).asInstanceOf[PStruct])
-    assert(canonicalRowType.required)
-    val tt = TableType(rowType, key, TStruct.empty)
-    TableValue(ctx,
-      tt,
-      BroadcastRow.empty(ctx),
-      RVD.coerce(ctx,
-        RVDType(canonicalRowType, key),
-        ContextRDD.weaken(rdd).toRegionValues(canonicalRowType)))
+    for {
+      _ <- assertA(canonicalRowType.required)
+      br <- BroadcastRow.empty
+      rvd <- M.reader { ctx =>
+        RVD.coerce(ctx,
+          RVDType(canonicalRowType, key),
+          ContextRDD.weaken(rdd).toRegionValues(canonicalRowType))
+      }
+    } yield TableValue(TableType(rowType, key, TStruct.empty), br, rvd)
   }
 }
 
-case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow, rvd: RVD) {
+case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
   if (typ.rowType != rvd.rowType)
     throw new RuntimeException(s"row mismatch:\n  typ: ${ typ.rowType.parsableString() }\n  rvd: ${ rvd.rowType.parsableString() }")
   if (!rvd.typ.key.startsWith(typ.key))
@@ -93,23 +101,26 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     rvd.toRows
 
   def persist(ctx: ExecuteContext, level: StorageLevel) =
-    TableValue(ctx, typ, globals, rvd.persist(ctx, level))
+    TableValue(typ, globals, rvd.persist(ctx, level))
 
-  def filterWithPartitionOp[P](theHailClassLoader: HailClassLoader, fs: BroadcastValue[FS], partitionOp: (HailClassLoader, FS, HailTaskContext, Region) => P)(pred: (P, RVDContext, Long, Long) => Boolean): TableValue = {
-    val localGlobals = globals.broadcast(theHailClassLoader)
-    copy(rvd = rvd.filterWithContext[(P, Long)](
-      { (partitionIdx, ctx) =>
-        val globalRegion = ctx.partitionRegion
-        (
-          partitionOp(theHailClassLoaderForSparkWorkers, fs.value, SparkTaskContext.get(), globalRegion),
-          localGlobals.value.readRegionValue(globalRegion, theHailClassLoaderForSparkWorkers)
-        )
-      }, { case ((p, glob), ctx, ptr) => pred(p, ctx, ptr, glob) }))
-  }
+  def filterWithPartitionOp[M[_], P](partitionOp: (HailClassLoader, FS, HailTaskContext, Region) => P)
+                                    (pred: (P, RVDContext, Long, Long) => Boolean)
+                                    (implicit M: Ask[M, ExecuteContext]): M[TableValue] =
+    M.applicative.map2(globals.broadcast, M.reader(_.fsBc)) { case (localGlobals, fs) =>
+      copy(rvd = rvd.filterWithContext[(P, Long)](
+        { (_, ctx) =>
+          val globalRegion = ctx.partitionRegion
+          (
+            partitionOp(theHailClassLoaderForSparkWorkers, fs.value, SparkTaskContext.get(), globalRegion),
+            localGlobals.value.readRegionValue(globalRegion, theHailClassLoaderForSparkWorkers)
+          )
+        },
+        { case ((p, glob), ctx, ptr) => pred(p, ctx, ptr, glob) }
+      ))
+    }
 
-  def filter(theHailClassLoader: HailClassLoader, fs: BroadcastValue[FS], p: (RVDContext, Long, Long) => Boolean): TableValue = {
-    filterWithPartitionOp(theHailClassLoader, fs, (_, _, _, _) => ())((_, ctx, ptr, glob) => p(ctx, ptr, glob))
-  }
+  def filter[M[_]](p: (RVDContext, Long, Long) => Boolean)(implicit M: Ask[M, ExecuteContext]): M[TableValue] =
+    filterWithPartitionOp((_, _, _, _) => ())((_, ctx, ptr, glob) => p(ctx, ptr, glob))
 
   def export(ctx: ExecuteContext, path: String, typesFile: String = null, header: Boolean = true, exportType: String = ExportType.CONCATENATED, delimiter: String = "\t") {
     val fs = ctx.fs
@@ -146,14 +157,15 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
       typ.rowType.schema.asInstanceOf[StructType])
   }
 
-  def rename(globalMap: Map[String, String], rowMap: Map[String, String]): TableValue = {
-    TableValue(ctx,
+  def rename(globalMap: Map[String, String], rowMap: Map[String, String]): TableValue =
+    TableValue(
       typ.copy(
         rowType = typ.rowType.rename(rowMap),
         globalType = typ.globalType.rename(globalMap),
-        key = typ.key.map(k => rowMap.getOrElse(k, k))),
-      globals.copy(t = globals.t.rename(globalMap)), rvd = rvd.cast(rvd.rowPType.rename(rowMap)))
-  }
+        key = typ.key.map(k => rowMap.getOrElse(k, k))
+      ),
+      globals.copy(t = globals.t.rename(globalMap)), rvd = rvd.cast(rvd.rowPType.rename(rowMap))
+    )
 
   def toMatrixValue(colKey: IndexedSeq[String],
     colsFieldName: String = LowerMatrixIR.colsFieldName,
@@ -183,10 +195,11 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
           globalsT.insertFields(FastIndexedSeq(
             colsFieldName -> PCanonicalArray(colsT.elementType.setRequired(true), true))))
 
-    val newTV = TableValue(ctx, typ, globals2, rvd)
+    val newTV = TableValue(typ, globals2, rvd)
 
     MatrixValue(mType, newTV.rename(
       Map(colsFieldName -> LowerMatrixIR.colsFieldName),
-      Map(entriesFieldName -> LowerMatrixIR.entriesFieldName)))
+      Map(entriesFieldName -> LowerMatrixIR.entriesFieldName))
+    )
   }
 }

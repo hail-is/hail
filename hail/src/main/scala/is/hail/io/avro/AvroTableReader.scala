@@ -1,6 +1,6 @@
 package is.hail.io.avro
 
-import cats.Applicative
+import cats.syntax.all.{toFlatMapOps, toFunctorOps}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.lowering._
@@ -47,11 +47,12 @@ class AvroTableReader(
 
   def renderShort(): String = defaultRender()
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue =
-    TableStageIntermediate(lower[Lower](ctx, requestedType).runA(ctx, LoweringState())).asTableValue(ctx)
+  override def apply[M[_]: MonadLower](requestedType: TableType, dropRows: Boolean): M[TableValue] =
+    for {ts <- lower(requestedType); tv <- TableStageIntermediate(ts).asTableValue}
+      yield tv
 
-  override def lower[M[_] : MonadLower](ctx: ExecuteContext, requestedType: TableType): M[TableStage] =
-    Applicative[M].pure {
+  override def lower[M[_]](requestedType: TableType)(implicit M: MonadLower[M]): M[TableStage] =
+    M.pure {
       val contexts = zip2(ToStream(Literal(TArray(TString), paths)), StreamIota(I32(0), I32(1)), ArrayZipBehavior.TakeMinLength) { (path, idx) =>
         MakeStruct(Array("partitionPath" -> path, "partitionIndex" -> Cast(idx, TInt64)))
       }
@@ -60,7 +61,7 @@ class AvroTableReader(
         partitioner,
         TableStageDependency.none,
         contexts,
-        ctx =>ReadPartition(ctx, requestedType.rowType, partitionReader)
+        ctx => ReadPartition(ctx, requestedType.rowType, partitionReader)
       )
     }
 }

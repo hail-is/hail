@@ -1,19 +1,15 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, HailSuite}
-import is.hail.expr._
-import is.hail.types._
-import is.hail.utils._
-import is.hail.TestUtils._
-import is.hail.check.{Gen, Prop}
-import is.hail.types.virtual._
-import org.testng.annotations.Test
-import is.hail.utils.{FastIndexedSeq, FastSeq}
-import is.hail.variant.Call2
-import is.hail.utils._
+import cats.syntax.all._
 import is.hail.expr.ir.DeprecatedIRBuilder._
-import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR, LoweringState}
+import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
+import is.hail.expr.ir.lowering.{DArrayLowering, Lower, LowerTableIR, LoweringState}
+import is.hail.types.virtual._
+import is.hail.utils._
+import is.hail.variant.Call2
+import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
+import org.testng.annotations.Test
 
 class AggregatorsSuite extends HailSuite {
 
@@ -818,10 +814,10 @@ class AggregatorsSuite extends HailSuite {
       AggFold(I32(0), Ref("bar", TInt32) + GetField(Ref("row", TStruct("idx" -> TInt32)), "idx"), barRef + bazRef, "bar", "baz", false)
     )
 
-    import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
-    val analyses = LoweringAnalyses.apply(myTableIR, ctx)
-    val myLoweredTableIR = LowerTableIR(myTableIR, DArrayLowering.All, ctx, analyses).runA(ctx, LoweringState())
-    assertEvalsTo(myLoweredTableIR, 4950)
+    (for {
+      analyses <- LoweringAnalyses.apply[Lower](myTableIR)
+      myLoweredTableIR <- LowerTableIR(myTableIR, DArrayLowering.All, analyses)
+    } yield assertEvalsTo(myLoweredTableIR, 4950)).runA(ctx, LoweringState())
   }
 
   @Test def testFoldScan(): Unit = {

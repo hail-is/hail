@@ -1,6 +1,7 @@
 package is.hail.expr.ir.lowering
 
 import cats.syntax.all._
+import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
 import is.hail.expr.ir.lowering.LowerDistributedSort.samplePartition
 import is.hail.expr.ir.{Apply, Ascending, Descending, Env, ErrorIDs, GetField, I32, Literal, LoweringAnalyses, MakeStruct, Ref, SelectFields, SortField, TableIR, TableMapRows, TableRange, ToArray, ToStream, mapIR}
 import is.hail.types.RTable
@@ -9,7 +10,6 @@ import is.hail.utils.FastIndexedSeq
 import is.hail.{ExecStrategy, HailSuite, TestUtils}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
-import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
 
 class LowerDistributedSortSuite extends HailSuite {
   implicit val execStrats = ExecStrategy.compileOnly
@@ -38,24 +38,23 @@ class LowerDistributedSortSuite extends HailSuite {
     val originalShuffleCutoff = backend.getFlag("shuffle_cutoff_to_local_sort")
     try {
       backend.setFlag("shuffle_cutoff_to_local_sort", "40")
-      val analyses: LoweringAnalyses = LoweringAnalyses.apply(myTable, ctx)
-      val rt = analyses.requirednessAnalysis.lookup(myTable).asInstanceOf[RTable]
       val res =
         (for {
-          stage <- LowerTableIR.applyTable(myTable, DArrayLowering.All, ctx, analyses)
-          sortedTs <- LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt)
-          sortedTs <- sortedTs.lower(ctx, myTable.typ.copy(key = FastIndexedSeq()))
+          analyses <- LoweringAnalyses[Lower](myTable)
+          rt = analyses.requirednessAnalysis.lookup(myTable).asInstanceOf[RTable]
+          stage <- LowerTableIR.applyTable(myTable, DArrayLowering.All, analyses)
+          sortedTs <- LowerDistributedSort.distributedSort(stage, sortFields, rt)
+          sortedTs <- sortedTs.lower(myTable.typ.copy(key = FastIndexedSeq()))
           res <- TestUtils.eval(sortedTs.mapCollect("test")(x => ToArray(x)),
-            Env.empty, FastIndexedSeq(), None, None, true, ctx
+            Env.empty, FastIndexedSeq(), None, None
           )
         } yield res).runA(ctx, LoweringState())
 
-
       val rowFunc = myTable.typ.rowType.select(sortFields.map(_.field))._2
       val unsortedCollect = is.hail.expr.ir.TestUtils.collect(myTable)
-      val unsortedAnalyses = LoweringAnalyses.apply(unsortedCollect, ctx)
+      val unsortedAnalyses = LoweringAnalyses[Execute](unsortedCollect).apply(ctx)
       val unsorted = TestUtils.eval {
-        LowerTableIR.apply(unsortedCollect, DArrayLowering.All, ctx, unsortedAnalyses)
+        LowerTableIR.apply(unsortedCollect, DArrayLowering.All, unsortedAnalyses)
           .runA(ctx, LoweringState())
       }.asInstanceOf[Row](0).asInstanceOf[IndexedSeq[Row]]
 

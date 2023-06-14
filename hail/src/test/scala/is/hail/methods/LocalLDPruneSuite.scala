@@ -1,22 +1,17 @@
 package is.hail.methods
 
 import breeze.linalg.{Vector => BVector}
-import is.hail.annotations.{Annotation, Region, RegionPool, RegionValue, RegionValueBuilder}
-import is.hail.backend.HailTaskContext
-import is.hail.backend.spark.SparkTaskContext
+import is.hail.annotations.Annotation
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
-import is.hail.expr.ir.{Interpret, LongArrayBuilder, MatrixValue, TableValue}
-import is.hail.types._
-import is.hail.types.physical.{PStruct, PType}
-import is.hail.types.virtual.{TArray, TString, TStruct}
+import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
+import is.hail.expr.ir.lowering.LoweringState
+import is.hail.expr.ir.{Interpret, MatrixValue, TableValue}
 import is.hail.utils._
 import is.hail.variant._
 import is.hail.{HailSuite, TestUtils}
 import org.apache.spark.rdd.RDD
 import org.testng.annotations.Test
-import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
-import is.hail.expr.ir.lowering.LoweringState
 
 object LocalLDPruneSuite {
   val variantByteOverhead = 50
@@ -113,7 +108,7 @@ class LocalLDPruneSuite extends HailSuite {
   val memoryPerCoreBytes = 256 * 1024 * 1024
   val nCores = 4
   lazy val mt =
-    Interpret(TestUtils.importVCF(ctx, "src/test/resources/sample.vcf.bgz", nPartitions = Option(10)), ctx, false)
+    Interpret(TestUtils.importVCF(ctx, "src/test/resources/sample.vcf.bgz", nPartitions = Option(10)), false)
       .runA(ctx, LoweringState())
       .toMatrixValue(Array("s"))
 
@@ -297,7 +292,10 @@ class LocalLDPruneSuite extends HailSuite {
   }
 
   @Test def testIsLocallyUncorrelated() {
-    val locallyPrunedVariantsTable = LocalLDPrune(ctx, mt, r2Threshold = 0.2, windowSize = 1000000, maxQueueSize = maxQueueSize)
+    val locallyPrunedVariantsTable =
+      LocalLDPrune(mt, maxQueueSize = maxQueueSize)
+        .runA(ctx, LoweringState())
+
     assert(isLocallyUncorrelated(mt, locallyPrunedVariantsTable, 0.2, 1000000))
     assert(!isGloballyUncorrelated(mt, locallyPrunedVariantsTable, 0.2, 1000000))
   }

@@ -158,30 +158,27 @@ class StringTableReader(
 
   override def pathsUsed: Seq[String] = params.files
 
-  override def lower[M[_] : MonadLower](ctx: ExecuteContext, requestedType: TableType): M[TableStage] =
-    MonadLower[M].pure {
-      val fs = ctx.fs
-      val lines = GenericLines.read(fs, fileStatuses, None, None, params.minPartitions, params.forceBGZ, params.forceGZ,
-        params.filePerPartition)
-      TableStage(globals = MakeStruct(FastSeq()),
+  override def lower[M[_]](requestedType: TableType)(implicit M: MonadLower[M]): M[TableStage] =
+    MonadLower[M].reader { ctx =>
+      val lines = GenericLines.read(
+        ctx.fs, fileStatuses, None, None, params.minPartitions, params.forceBGZ, params.forceGZ,
+        params.filePerPartition
+      )
+      TableStage(
+        globals = MakeStruct(FastSeq()),
         partitioner = RVDPartitioner.unkeyed(ctx.stateManager, lines.nPartitions),
         dependency = TableStageDependency.none,
         contexts = ToStream(Literal.coerce(TArray(lines.contextType), lines.contexts)),
-        body = { partitionContext: Ref => ReadPartition(partitionContext, requestedType.rowType, StringTablePartitionReader(lines, uidFieldName))
-        }
+        body = (partitionContext: Ref) =>
+          ReadPartition(partitionContext, requestedType.rowType, StringTablePartitionReader(lines, uidFieldName))
       )
     }
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
-    import Lower.monadLowerInstanceForLower
-    val lowering: Lower[TableValue] =
-      for {
-        ts <- lower(ctx, requestedType)
-        (broadCastRow, rvd) <- TableStageToRVD.apply(ctx, ts)
-      } yield TableValue(ctx, requestedType, broadCastRow, rvd)
-
-    lowering.runA(ctx, LoweringState())
-  }
+  override def apply[M[_]: MonadLower](requestedType: TableType, dropRows: Boolean): M[TableValue] =
+    for {
+      ts <- lower(requestedType)
+      (broadCastRow, rvd) <- TableStageToRVD(ts)
+    } yield TableValue(requestedType, broadCastRow, rvd)
 
   override def partitionCounts: Option[IndexedSeq[Long]] = None
 
