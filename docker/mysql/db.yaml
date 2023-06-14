@@ -10,7 +10,7 @@ data:
     ssl_key=/sql-config/server-key.pem
     require_secure_transport=ON
     log_bin_trust_function_creators=ON
-    max_connections=100
+    max_connections=500
     bind-address=0.0.0.0
 ---
 apiVersion: apps/v1

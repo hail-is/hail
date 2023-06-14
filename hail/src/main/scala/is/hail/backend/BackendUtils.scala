@@ -36,7 +36,9 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
     else if (contexts.length == 1 && backend.canExecuteParallelTasksOnDriver) {
       using(new LocalTaskContext(0, 0)) { htc =>
         using(htc.getRegionPool().getRegion()) { r =>
-          Array(f(theDriverHailClassLoader, fs, htc, r)(r, contexts(0), globals))
+          val compute = f(theDriverHailClassLoader, fs, htc, r)
+          val res = is.hail.services.retryTransientErrors { compute(r, contexts(0), globals) }
+          Array(res)
         }
       }
     } else {

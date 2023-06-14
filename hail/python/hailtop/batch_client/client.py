@@ -365,7 +365,7 @@ class BatchClient:
     def edit_billing_limit(self, project, limit):
         return async_to_blocking(self._async_client.edit_billing_limit(project, limit))
 
-    def supported_regions(self):
+    def supported_regions(self) -> List[str]:
         return async_to_blocking(self._async_client.supported_regions())
 
     def cloud(self):

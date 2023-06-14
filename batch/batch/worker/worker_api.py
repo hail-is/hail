@@ -23,10 +23,6 @@ class CloudWorkerAPI(abc.ABC, Generic[CredsType]):
     nameserver_ip: str
 
     @abc.abstractmethod
-    def get_compute_client(self):
-        raise NotImplementedError
-
-    @abc.abstractmethod
     def create_disk(self, instance_name: str, disk_name: str, size_in_gb: int, mount_path: str) -> CloudDisk:
         raise NotImplementedError
 
@@ -81,4 +77,8 @@ class CloudWorkerAPI(abc.ABC, Generic[CredsType]):
 
     @abc.abstractmethod
     async def unmount_cloudfuse(self, mount_base_path_data: str) -> None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def close(self):
         raise NotImplementedError

@@ -39,3 +39,6 @@ known-first-party = ["auth", "batch", "ci", "gear", "hailtop", "monitoring", "we
 "devbin/**/*" = ["ALL"]
 "docker/**/*" = ["ALL"]
 "query/**/*" = ["ALL"]
+
+[pytest]
+timeout = 120

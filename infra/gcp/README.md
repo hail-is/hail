@@ -164,6 +164,24 @@ Instructions:
   # git commit and push as desired.
   ```
 
+- If you want Zulip integration for alerts from CI and Grafana, create a zuliprc file:
+
+  ```sh
+  cat /tmp/zuliprc <<EOF
+  [api]
+  key=SECRET_KEY_HERE
+  email=YOUR_BOT_EMAIL_HERE
+  site=YOUR_SITE_HERE
+  EOF
+  ```
+
+- Encrypt the zuliprc with SOPS:
+
+  ```sh
+  sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/zuliprc \
+       >$HAIL/infra/gcp/$GITHUB_ORGANIZATION/zuliprc.enc
+  ```
+
 - Install terraform.
 
 - Run `terraform init`.

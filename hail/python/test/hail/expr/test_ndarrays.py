@@ -1092,13 +1092,8 @@ def test_concatenate_differing_shapes():
         ])
 
 
-def test_vstack():
+def test_vstack_1():
     ht = hl.utils.range_table(10)
-
-    def assert_table(a, b):
-        ht2 = ht.annotate(x=hl.nd.array(a), y=hl.nd.array(b))
-        ht2 = ht2.annotate(stacked=hl.nd.vstack([ht2.x, ht2.y]))
-        assert np.array_equal(ht2.collect()[0].stacked, np.vstack([a, b]))
 
     a = np.array([1, 2, 3])
     b = np.array([2, 3, 4])
@@ -1107,7 +1102,12 @@ def test_vstack():
     seq2 = hl.array([a, b])
     assert(np.array_equal(hl.eval(hl.nd.vstack(seq)), np.vstack(seq)))
     assert(np.array_equal(hl.eval(hl.nd.vstack(seq2)), np.vstack(seq)))
-    assert_table(a, b)
+    ht2 = ht.annotate(x=hl.nd.array(a), y=hl.nd.array(b))
+    ht2 = ht2.annotate(stacked=hl.nd.vstack([ht2.x, ht2.y]))
+    assert np.array_equal(ht2.collect()[0].stacked, np.vstack([a, b]))
+
+def test_vstack_2():
+    ht = hl.utils.range_table(10)
 
     a = np.array([[1], [2], [3]])
     b = np.array([[2], [3], [4]])
@@ -1115,7 +1115,9 @@ def test_vstack():
     seq2 = hl.array([a, b])
     assert(np.array_equal(hl.eval(hl.nd.vstack(seq)), np.vstack(seq)))
     assert(np.array_equal(hl.eval(hl.nd.vstack(seq2)), np.vstack(seq)))
-    assert_table(a, b)
+    ht2 = ht.annotate(x=hl.nd.array(a), y=hl.nd.array(b))
+    ht2 = ht2.annotate(stacked=hl.nd.vstack([ht2.x, ht2.y]))
+    assert np.array_equal(ht2.collect()[0].stacked, np.vstack([a, b]))
 
 
 def test_hstack():

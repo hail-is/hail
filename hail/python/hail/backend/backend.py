@@ -195,11 +195,12 @@ class Backend(abc.ABC):
     def persist_expression(self, expr: Expression) -> Expression:
         pass
 
-    def _initialize_flags(self) -> None:
+    def _initialize_flags(self, initial_flags: Dict[str, str]) -> None:
         self.set_flags(**{
             k: configuration_of('query', k, None, default, deprecated_envvar=deprecated_envvar)
             for k, (deprecated_envvar, default) in Backend._flags_env_vars_and_defaults.items()
-        })
+            if k not in initial_flags
+        }, **initial_flags)
 
     @abc.abstractmethod
     def set_flags(self, **flags: Mapping[str, str]):
