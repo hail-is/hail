@@ -1,5 +1,6 @@
 from typing import Dict, Optional, Callable, Awaitable, Mapping, Any, List, Union, Tuple, TypeVar, Set
 import abc
+import asyncio
 import math
 import struct
 from hail.expr.expressions.base_expression import Expression
@@ -468,6 +469,7 @@ class ServiceBackend(Backend):
 
             with timings.step("wait driver"):
                 try:
+                    await asyncio.sleep(0.5)  # batch cannot possibly be done in less than 0.5 seconds
                     await self._batch.wait(
                         description=name,
                         disable_progress_bar=self.disable_progress_bar,
