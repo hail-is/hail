@@ -25,13 +25,13 @@ from prometheus_async.aio.web import server_stats
 from gear import (
     AuthClient,
     Database,
+    K8sCache,
     check_csrf_token,
     json_request,
     json_response,
     monitor_endpoints_middleware,
     setup_aiohttp_session,
     transaction,
-    K8sCache,
 )
 from gear.clients import get_cloud_async_fs
 from gear.profiling import install_profiler_if_requested
