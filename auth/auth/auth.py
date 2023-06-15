@@ -7,6 +7,9 @@ from typing import List, Optional
 
 import aiohttp
 import aiohttp_session
+import kubernetes_asyncio.config
+import kubernetes_asyncio.client
+import kubernetes_asyncio.client.rest
 import uvloop
 from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
@@ -23,6 +26,7 @@ from gear import (
     monitor_endpoints_middleware,
     setup_aiohttp_session,
     transaction,
+    K8sCache,
 )
 from gear.cloud_config import get_global_config
 from gear.profiling import install_profiler_if_requested
@@ -389,6 +393,15 @@ async def create_user(request: web.Request, userdata):  # pylint: disable=unused
     hail_credentials_secret_name = body.get('hail_credentials_secret_name')
     if (hail_identity or hail_credentials_secret_name) and not is_test_deployment:
         raise web.HTTPBadRequest(text='Cannot specify an existing hail identity for a new user')
+    if hail_credentials_secret_name:
+        try:
+            k8s_cache: K8sCache = request.app['k8s_cache']
+            res = await k8s_cache.read_secret(hail_credentials_secret_name, DEFAULT_NAMESPACE)
+            log.info(res)
+        except kubernetes_asyncio.client.rest.ApiException as e:
+            raise web.HTTPBadRequest(
+                text=f'hail credentials secret name specified but was not found: {hail_credentials_secret_name}'
+            )
 
     try:
         await insert_new_user(
@@ -781,12 +794,20 @@ async def on_startup(app):
     app['client_session'] = httpx.client_session()
     app['flow_client'] = get_flow_client('/auth-oauth2-client-secret/client_secret.json')
 
+    kubernetes_asyncio.config.load_incluster_config()
+    app['k8s_client'] = kubernetes_asyncio.client.CoreV1Api()
+    app['k8s_cache'] = K8sCache(app['k8s_client'])
+
 
 async def on_cleanup(app):
     try:
-        await app['db'].async_close()
+        k8s_client: kubernetes_asyncio.client.CoreV1Api = app['k8s_client']
+        await k8s_client.api_client.rest_client.pool_manager.close()
     finally:
-        await app['client_session'].close()
+        try:
+            await app['db'].async_close()
+        finally:
+            await app['client_session'].close()
 
 
 class AuthAccessLogger(AccessLogger):

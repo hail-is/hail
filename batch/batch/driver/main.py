@@ -31,6 +31,7 @@ from gear import (
     monitor_endpoints_middleware,
     setup_aiohttp_session,
     transaction,
+    K8sCache,
 )
 from gear.clients import get_cloud_async_fs
 from gear.profiling import install_profiler_if_requested
@@ -59,7 +60,6 @@ from .canceller import Canceller
 from .driver import CloudDriver
 from .instance_collection import InstanceCollectionManager, JobPrivateInstanceManager, Pool
 from .job import mark_job_complete, mark_job_started
-from .k8s_cache import K8sCache
 
 uvloop.install()
 

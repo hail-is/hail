@@ -5,6 +5,7 @@ from .database import Database, Transaction, create_database_pool, resolve_test_
 from .http_server_utils import json_request, json_response
 from .metrics import monitor_endpoints_middleware
 from .session import setup_aiohttp_session
+from .k8s_cache import K8sCache
 
 __all__ = [
     'create_database_pool',
@@ -22,4 +23,5 @@ __all__ = [
     'json_request',
     'json_response',
     'resolve_test_db_endpoint',
+    'K8sCache',
 ]
