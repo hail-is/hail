@@ -222,8 +222,10 @@ async def compact_agg_billing_project_users_table(db: Database):
             next_key = await db.execute_and_fetchone(
                 f'''
 CREATE TEMPORARY TABLE {scratch_table_name} ENGINE=MEMORY
-AS (SELECT * FROM aggregated_billing_project_user_resources_v2
+AS (SELECT billing_project, `user`, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+    FROM aggregated_billing_project_user_resources_v2
     WHERE token != 0 {where_condition}
+    GROUP BY billing_project, `user`, resource_id
     ORDER BY billing_project, `user`, resource_id
     LIMIT 1000
     LOCK IN SHARE MODE
@@ -291,8 +293,10 @@ async def compact_agg_billing_project_users_by_date_table(db: Database):
             next_key = await db.execute_and_fetchone(
                 f'''
 CREATE TEMPORARY TABLE {scratch_table_name} ENGINE=MEMORY
-AS (SELECT * FROM aggregated_billing_project_user_resources_by_date_v2
+AS (SELECT billing_date, billing_project, `user`, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+    FROM aggregated_billing_project_user_resources_by_date_v2
     WHERE token != 0 {where_condition}
+    GROUP BY billing_date, billing_project, `user`, resource_id
     ORDER BY billing_date, billing_project, `user`, resource_id
     LIMIT 1000
     LOCK IN SHARE MODE
