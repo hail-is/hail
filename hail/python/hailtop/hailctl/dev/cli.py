@@ -36,7 +36,7 @@ def deploy(
         Optional[List[str]],
         Opt(
             '--extra-config',
-            '-e',
+            '-c',
             help='Comma-separated list of key=value pairs to add as extra config parameters.',
         ),
     ] = None,
