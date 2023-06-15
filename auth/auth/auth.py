@@ -396,11 +396,10 @@ async def create_user(request: web.Request, userdata):  # pylint: disable=unused
     if hail_credentials_secret_name:
         try:
             k8s_cache: K8sCache = request.app['k8s_cache']
-            res = await k8s_cache.read_secret(hail_credentials_secret_name, DEFAULT_NAMESPACE)
-            log.info(res)
+            await k8s_cache.read_secret(hail_credentials_secret_name, DEFAULT_NAMESPACE)
         except kubernetes_asyncio.client.rest.ApiException as e:
             raise web.HTTPBadRequest(
-                text=f'hail credentials secret name specified but was not found: {hail_credentials_secret_name}'
+                text=f'hail credentials secret name specified but was not found in namespace {DEFAULT_NAMESPACE}: {hail_credentials_secret_name}'
             )
 
     try:
