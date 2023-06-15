@@ -369,11 +369,8 @@ class Batch:
     async def cancel(self):
         await self._client._patch(f'/api/v1alpha/batches/{self.id}/cancel')
 
-    async def jobs(self, q=None, version=None):
-        if version is None:
-            version = 1
-        if not (isinstance(version, int) and version >= 1):
-            raise ValueError(f'version must be an integer with value 1 or 2. found {version}')
+    async def jobs(self, q: Optional[str] = None, version: Optional[int] = None):
+        version = version or 1
         last_job_id = None
         while True:
             params = {}

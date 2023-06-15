@@ -1,12 +1,9 @@
 import abc
-import re
 
 from ...exceptions import QueryError
 
 
 class Operator(abc.ABC):
-    regex: re.Pattern
-
     @abc.abstractmethod
     def to_sql(self) -> str:
         raise NotImplementedError
@@ -29,57 +26,41 @@ class ExactMatchOperator(MatchOperator, abc.ABC):
 
 
 class GreaterThanEqualOperator(ComparisonOperator):
-    regex = re.compile('([^>]+)(>=)(.+)')
-
     def to_sql(self) -> str:
         return '>='
 
 
 class LessThanEqualOperator(ComparisonOperator):
-    regex = re.compile('([^<]+)(<=)(.+)')
-
     def to_sql(self) -> str:
         return '<='
 
 
 class GreaterThanOperator(ComparisonOperator):
-    regex = re.compile('([^>]+)(>)(.+)')
-
     def to_sql(self) -> str:
         return '>'
 
 
 class LessThanOperator(ComparisonOperator):
-    regex = re.compile('([^<]+)(<)(.+)')
-
     def to_sql(self) -> str:
         return '<'
 
 
 class NotEqualExactMatchOperator(ExactMatchOperator, ComparisonOperator):
-    regex = re.compile('([^!]+)(!=)(.+)')
-
     def to_sql(self) -> str:
         return '!='
 
 
 class EqualExactMatchOperator(ExactMatchOperator, ComparisonOperator):
-    regex = re.compile('([^=]+)(==|=)(.+)')
-
     def to_sql(self) -> str:
         return '='
 
 
 class NotEqualPartialMatchOperator(PartialMatchOperator):
-    regex = re.compile('([^!]+)(!~)(.+)')
-
     def to_sql(self) -> str:
         return 'NOT LIKE'
 
 
 class EqualPartialMatchOperator(PartialMatchOperator):
-    regex = re.compile('([^=]+)(=~)(.+)')
-
     def to_sql(self) -> str:
         return 'LIKE'
 
