@@ -32,7 +32,7 @@ class DatabaseConflictError(Exception):
 
 
 class EventHandler:
-    def __init__(self, handler, event=None, bump_secs=60.0, min_delay_secs=0.1):
+    def __init__(self, handler, event=None, bump_secs=5.0, min_delay_secs=0.1):
         self.handler = handler
         if event is None:
             event = asyncio.Event()
