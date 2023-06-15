@@ -7,9 +7,9 @@ from typing import List, Optional
 
 import aiohttp
 import aiohttp_session
-import kubernetes_asyncio.config
 import kubernetes_asyncio.client
 import kubernetes_asyncio.client.rest
+import kubernetes_asyncio.config
 import uvloop
 from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
@@ -17,6 +17,7 @@ from prometheus_async.aio.web import server_stats  # type: ignore
 from gear import (
     AuthClient,
     Database,
+    K8sCache,
     Transaction,
     check_csrf_token,
     create_session,
@@ -26,7 +27,6 @@ from gear import (
     monitor_endpoints_middleware,
     setup_aiohttp_session,
     transaction,
-    K8sCache,
 )
 from gear.cloud_config import get_global_config
 from gear.profiling import install_profiler_if_requested
@@ -400,7 +400,7 @@ async def create_user(request: web.Request, userdata):  # pylint: disable=unused
         except kubernetes_asyncio.client.rest.ApiException as e:
             raise web.HTTPBadRequest(
                 text=f'hail credentials secret name specified but was not found in namespace {DEFAULT_NAMESPACE}: {hail_credentials_secret_name}'
-            )
+            ) from e
 
     try:
         await insert_new_user(
