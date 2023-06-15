@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Dict, List
 
 import aiohttp
 
-from gear import Database
+from gear import Database, K8sCache
 from hailtop import httpx
 from hailtop.aiotools import BackgroundTaskManager
 from hailtop.utils import Notice, retry_transient_errors, time_msecs
@@ -21,7 +21,6 @@ from ..globals import STATUS_FORMAT_VERSION, complete_states, tasks
 from ..instance_config import QuantifiedResource
 from ..spec_writer import SpecWriter
 from .instance import Instance
-from .k8s_cache import K8sCache
 
 if TYPE_CHECKING:
     from .instance_collection import InstanceCollectionManager  # pylint: disable=cyclic-import

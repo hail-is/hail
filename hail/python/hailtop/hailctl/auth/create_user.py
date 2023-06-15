@@ -13,11 +13,14 @@ async def polling_create_user(
     login_id: str,
     developer: bool,
     service_account: bool,
-    namespace: Optional[str],
-    wait: bool,
+    hail_identity: Optional[str],
+    hail_credentials_secret_name: Optional[str],
+    *,
+    namespace: Optional[str] = None,
+    wait: bool = False,
 ):
     try:
-        await async_create_user(username, login_id, developer, service_account, namespace)
+        await async_create_user(username, login_id, developer, service_account, hail_identity, hail_credentials_secret_name, namespace=namespace)
 
         if not wait:
             return

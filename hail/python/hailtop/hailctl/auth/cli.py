@@ -91,6 +91,8 @@ def create_user(
     login_id: Ann[str, Arg(help="In Azure, the user's object ID in AAD. In GCP, the Google email")],
     developer: bool = False,
     service_account: bool = False,
+    hail_identity: Optional[str] = None,
+    hail_credentials_secret_name: Optional[str] = None,
     namespace: NamespaceOption = None,
     wait: bool = False,
 ):
@@ -99,7 +101,7 @@ def create_user(
     '''
     from .create_user import polling_create_user  # pylint: disable=import-outside-toplevel
 
-    asyncio.run(polling_create_user(username, login_id, developer, service_account, namespace, wait))
+    asyncio.run(polling_create_user(username, login_id, developer, service_account, hail_identity, hail_credentials_secret_name, namespace=namespace, wait=wait))
 
 
 @app.command()
