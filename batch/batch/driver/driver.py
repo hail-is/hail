@@ -3,9 +3,7 @@ import datetime
 from typing import Awaitable, Callable
 
 from gear import Database
-from hailtop import aiotools
 
-from ..inst_coll_config import InstanceCollectionConfigs
 from .billing_manager import CloudBillingManager
 from .instance_collection import InstanceCollectionManager
 
@@ -33,19 +31,6 @@ class CloudDriver(abc.ABC):
     @property
     @abc.abstractmethod
     def billing_manager(self) -> CloudBillingManager:
-        raise NotImplementedError
-
-    @staticmethod
-    @abc.abstractmethod
-    async def create(
-        app,
-        db: Database,
-        machine_name_prefix: str,
-        namespace: str,
-        inst_coll_configs: InstanceCollectionConfigs,
-        credentials_file: str,
-        task_manager: aiotools.BackgroundTaskManager,
-    ) -> 'CloudDriver':
         raise NotImplementedError
 
     @abc.abstractmethod
