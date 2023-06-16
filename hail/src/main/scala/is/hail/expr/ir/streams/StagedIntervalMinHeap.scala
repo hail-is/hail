@@ -21,6 +21,7 @@ class StagedIntervalMinHeap(mb: EmitMethodBuilder[_],
 
   val region = mb.genFieldThisRef[Region]("region")
   val tmpTuple = mb.genFieldThisRef[Long]("tmp_tuple")
+  val mostRecentlyAddedIntervalData = mb.genFieldThisRef[Long]("tmp_tuple")
 
   val garbage = mb.genFieldThisRef[Long]("n_garbage_points")
   val maxSizeSoFar = mb.genFieldThisRef[Long]("max_size")
@@ -28,7 +29,6 @@ class StagedIntervalMinHeap(mb: EmitMethodBuilder[_],
   val resultArrayType: PCanonicalArray = PCanonicalArray(tupleType, true)
   val resultArraySType: SContainer = resultArrayType.sType
 
-  val mostRecentlyAdded = mb.newPField(tupleType.types(0).sType)
 
   val ab = new StagedArrayBuilder(tupleType, mb.ecb, region)
 
@@ -39,7 +39,8 @@ class StagedIntervalMinHeap(mb: EmitMethodBuilder[_],
   def initialize(cb: EmitCodeBuilder): Unit = {
     ab.initialize(cb)
     cb.assign(region, cb.emb.ecb.pool().get.invoke[Region]("getRegion"))
-    cb.assign(tmpTuple, region.invoke[Long, Long]("allocate", tupleType.size))
+    cb.assign(tmpTuple, region.invoke[Long, Long, Long]("allocate", tupleType.byteSize, 8L))
+    cb.assign(mostRecentlyAddedIntervalData, region.invoke[Long, Long, Long]("allocate", tupleType.types(0).byteSize, 8L))
   }
 
   def swap(cb: EmitCodeBuilder, _l: Value[Int], _r: Value[Int]): Unit = {
@@ -124,15 +125,21 @@ class StagedIntervalMinHeap(mb: EmitMethodBuilder[_],
       swap(cb, 1, ab.size)
       cb.assign(ab.size, ab.size - 1)
       bubbleDown(cb, 1)
+      cb.assign(garbage, garbage + 1)
     })
+
+    // needs to do GC
 
   }
 
   // adds an interval and data tuple to the priority queue
   def addInterval(cb: EmitCodeBuilder, tuple: SBaseStructValue): Unit = {
     ab.append(cb, tuple)
+    // copy memory for most recent interval since the memory in the builder is mutable and we can't save a pointer
+    cb += Region.copyFrom(tupleType.loadField(ab.elementOffset(cb, cb.memoize(ab.size - 1)), 0), mostRecentlyAddedIntervalData, tupleType.types(0).byteSize)
 
     bubbleUp(cb, ab.size)
+
 
   }
 
@@ -144,7 +151,8 @@ class StagedIntervalMinHeap(mb: EmitMethodBuilder[_],
 
   def size: Value[Int] = ab.size
 
-  def mostRecentlyAddedInterval: SIntervalValue = mostRecentlyAdded.asInterval
+  // used
+  def mostRecentlyAddedInterval(cb: EmitCodeBuilder): SIntervalValue = tupleType.types(0).loadCheapSCode(cb, mostRecentlyAddedIntervalData).asInterval
 
   def close(cb: EmitCodeBuilder): Unit = {
     cb += region.invoke[Unit]("invalidate")
