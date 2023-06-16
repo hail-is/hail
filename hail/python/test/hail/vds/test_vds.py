@@ -705,3 +705,19 @@ def test_filter_intervals_table():
     vds_filt = hl.vds.filter_intervals(vds, filter_intervals)
 
     assert vds_filt.variant_data.rows().select()._same(filter_vars)
+
+
+# issue 13183
+def test_ref_block_does_not_densify_to_next_contig():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
+    vds = hl.vds.filter_chromosomes(vds, keep=['chr1', 'chr2'])
+    ref = vds.reference_data
+    var = vds.variant_data.filter_entries(False)
+    # max out all chr1 refblocks, and truncate all chr2 refblocks so that nothing in chr2 should be densified
+    ref = ref.annotate_entries(END=hl.if_else(ref.locus.contig == 'chr1',
+                                              hl.parse_locus_interval('chr1', reference_genome=ref.locus.dtype.reference_genome).end.position,
+                                              ref.locus.position))
+    vds = hl.vds.VariantDataset(reference_data=ref, variant_data=var)
+    mt = hl.vds.to_dense_mt(vds)
+    mt = mt.filter_rows(mt.locus.contig == 'chr2')
+    assert mt.aggregate_entries(hl.agg.count()) == 0
