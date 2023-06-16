@@ -25,8 +25,15 @@ async def process_outstanding_events(db: Database, process_events_since: Callabl
 
 
 class CloudDriver(abc.ABC):
-    inst_coll_manager: InstanceCollectionManager
-    billing_manager: CloudBillingManager
+    @property
+    @abc.abstractmethod
+    def inst_coll_manager(self) -> InstanceCollectionManager:
+        raise NotImplementedError
+
+    @property
+    @abc.abstractmethod
+    def billing_manager(self) -> CloudBillingManager:
+        raise NotImplementedError
 
     @staticmethod
     @abc.abstractmethod
