@@ -442,6 +442,11 @@ object StreamJoin {
   }
 }
 
+// keys is a stream<struct>
+// intervals is a stream<tuple(interval<struct>, data)>
+// f is a function from an element of `keys` and an array of elements of `intervals` to the result of the join.
+final case class StreamIntervalJoin(keys: IR, intervals: IR, lKey: IndexedSeq[String], keyName: String, intervalDataName: String, f: IR) extends IR
+
 final case class StreamJoinRightDistinct(left: IR, right: IR, lKey: IndexedSeq[String], rKey: IndexedSeq[String], l: String, r: String, joinF: IR, joinType: String) extends IR {
   def isIntervalJoin: Boolean = {
     if (rKey.size != 1) return false

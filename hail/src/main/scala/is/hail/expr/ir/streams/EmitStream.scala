@@ -1449,6 +1449,69 @@ object EmitStream {
           SStreamValue(producer)
         }
 
+      case x@StreamIntervalJoin(keys, intervals, lKey, leftStructName, intervalDataName, joinF) =>
+        produce(keys, cb).flatMap(cb) { case keyStream: SStreamValue =>
+          produce(intervals, cb).map(cb) { case intervalStream: SStreamValue =>
+
+            // map over the keyStream
+            val keyProd = keyStream.getProducer(mb)
+            val intervalProd = intervalStream.getProducer(mb)
+            val minHeap = new StagedIntervalMinHeap(mb, intervalProd.element.st.asInstanceOf[SBaseStruct])
+
+            val leftStructField = mb.newPField(keyProd.element.st)
+
+            val intervalResultField = mb.newPField(minHeap.resultArraySType)
+
+            val eltRegion = mb.genFieldThisRef[Region]("interval_join_region")
+            val joinResult = EmitCode.fromI(mb)(cb => emit(joinF, cb,
+              region = eltRegion,
+              env = env.bind(leftStructName -> EmitValue.present(leftStructField), intervalDataName -> EmitValue.present(intervalResultField))))
+
+            new StreamProducer {
+              override def method: EmitMethodBuilder[_] = mb
+
+              override val length: Option[EmitCodeBuilder => Code[Int]] = keyProd.length
+
+              override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
+                keyProd.initialize(cb, outerRegion)
+                intervalProd.initialize(cb, outerRegion)
+              }
+
+              override val elementRegion: Settable[Region] = eltRegion
+
+              override val requiresMemoryManagementPerElement: Boolean = keyProd.requiresMemoryManagementPerElement || intervalProd.requiresMemoryManagementPerElement
+
+              override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
+
+
+                cb.goto(keyProd.LproduceElement)
+
+                cb.define(keyProd.LproduceElementDone)
+                val row = keyProd.element.toI(cb).get(cb).asBaseStruct
+                val key = row.subset(lKey: _*)
+                minHeap.dropLessThan(cb, key)
+                // now pull from the interval stream and insert into minheap while it is not exhausted and until
+                // the most-recent interval left endpoint is greater than the current key
+
+                cb.assign(leftStructField, row)
+                cb.assign(intervalResultField, minHeap.getAllContainedIntervalsAsArray(cb, eltRegion))
+                cb.goto(LproduceElementDone)
+
+                cb.define(keyProd.LendOfStream)
+                cb.goto(LendOfStream)
+              }
+
+              override val element: EmitCode = joinResult
+
+              override def close(cb: EmitCodeBuilder): Unit = {
+                minHeap.close(cb)
+                intervalProd.close(cb)
+                keyProd.close(cb)
+              }
+            }
+          }
+        }
+
       case x@StreamJoinRightDistinct(leftIR, rightIR, lKey, rKey, leftName, rightName, joinIR, joinType) =>
         produce(leftIR, cb).flatMap(cb) { case leftStream: SStreamValue =>
           produce(rightIR, cb).map(cb) { case rightStream: SStreamValue =>
