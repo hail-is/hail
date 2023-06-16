@@ -75,6 +75,32 @@ def create_vm_config(
 
     assert instance_config.is_valid_configuration(resource_rates.keys())
 
+    configs = []
+    touch_commands = []
+    for jvm_cores in (1, 2, 4, 8):
+        for _ in range(cores // jvm_cores):
+            idx = len(configs)
+            log_path = f'/batch/jvm-container-logs/jvm-{idx}.log'
+            touch_commands.append(f'touch {log_path}')
+
+            config = f'''
+<source>
+@type tail
+<parse>
+    # 'none' indicates the log is unstructured (text).
+    @type none
+</parse>
+path {log_path}
+pos_file /var/lib/google-fluentd/pos/jvm-{idx}.pos
+read_from_head true
+tag worker.log
+</source>
+'''
+            configs.append(config)
+
+    jvm_fluentd_config = '\n'.join(configs)
+    jvm_touch_command = '\n'.join(touch_commands)
+
     def scheduling() -> dict:
         result = {
             'automaticRestart': False,
@@ -193,6 +219,10 @@ tag run.log
 </source>
 EOF
 
+sudo tee /etc/google-fluentd/config.d/jvm-logs.conf <<EOF
+{jvm_fluentd_config}
+EOF
+
 sudo cp /etc/google-fluentd/google-fluentd.conf /etc/google-fluentd/google-fluentd.conf.bak
 head -n -1 /etc/google-fluentd/google-fluentd.conf.bak | sudo tee /etc/google-fluentd/google-fluentd.conf
 sudo tee -a /etc/google-fluentd/google-fluentd.conf <<EOF
@@ -203,8 +233,6 @@ labels {{
 </match>
 EOF
 rm /etc/google-fluentd/google-fluentd.conf.bak
-
-sudo service google-fluentd restart
 
 WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
 UNRESERVED_WORKER_DATA_DISK_SIZE_GB="{unreserved_disk_storage_gb}"
@@ -234,6 +262,11 @@ sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/cloudfuse/
 sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/cloudfuse /cloudfuse
 
 sudo mkdir -p /etc/netns
+
+mkdir -p /batch/jvm-container-logs/
+{jvm_touch_command}
+
+sudo service google-fluentd restart
 
 CORES=$(nproc)
 NAMESPACE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/namespace")
