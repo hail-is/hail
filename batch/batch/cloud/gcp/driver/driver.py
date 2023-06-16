@@ -137,9 +137,17 @@ ON DUPLICATE KEY UPDATE region = region;
         self.project = project
         self.namespace = namespace
         self.zone_monitor = zone_monitor
-        self.inst_coll_manager = inst_coll_manager
         self.job_private_inst_manager = job_private_inst_manager
-        self.billing_manager = billing_manager
+        self._billing_manager = billing_manager
+        self._inst_coll_manager = inst_coll_manager
+
+    @property
+    def billing_manager(self) -> GCPBillingManager:
+        return self._billing_manager
+
+    @property
+    def inst_coll_manager(self) -> InstanceCollectionManager:
+        return self._inst_coll_manager
 
     async def shutdown(self) -> None:
         try:

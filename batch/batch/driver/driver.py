@@ -3,9 +3,7 @@ import datetime
 from typing import Awaitable, Callable
 
 from gear import Database
-from hailtop import aiotools
 
-from ..inst_coll_config import InstanceCollectionConfigs
 from .billing_manager import CloudBillingManager
 from .instance_collection import InstanceCollectionManager
 
@@ -25,20 +23,14 @@ async def process_outstanding_events(db: Database, process_events_since: Callabl
 
 
 class CloudDriver(abc.ABC):
-    inst_coll_manager: InstanceCollectionManager
-    billing_manager: CloudBillingManager
-
-    @staticmethod
+    @property
     @abc.abstractmethod
-    async def create(
-        app,
-        db: Database,
-        machine_name_prefix: str,
-        namespace: str,
-        inst_coll_configs: InstanceCollectionConfigs,
-        credentials_file: str,
-        task_manager: aiotools.BackgroundTaskManager,
-    ) -> 'CloudDriver':
+    def inst_coll_manager(self) -> InstanceCollectionManager:
+        raise NotImplementedError
+
+    @property
+    @abc.abstractmethod
+    def billing_manager(self) -> CloudBillingManager:
         raise NotImplementedError
 
     @abc.abstractmethod
