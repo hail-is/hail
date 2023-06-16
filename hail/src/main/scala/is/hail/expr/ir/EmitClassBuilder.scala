@@ -333,7 +333,7 @@ class EmitClassBuilder[C](
   private[this] def encodeLiterals(): Array[AnyRef] = {
     val (literals, preEncodedLiterals) = emodb.literalsResult()
     val litType = PCanonicalTuple(true, literals.map(_._1.canonicalPType.setRequired(true)): _*)
-    val spec = TypedCodecSpec(litType, BufferSpec.defaultUncompressed)
+    val spec = TypedCodecSpec(litType, BufferSpec.wireSpec)
 
     cb.addInterface(typeInfo[FunctionWithLiterals].iname)
     val mb2 = newEmitMethod("addAndDecodeLiterals", FastIndexedSeq[ParamType](typeInfo[Array[AnyRef]]), typeInfo[Unit])
