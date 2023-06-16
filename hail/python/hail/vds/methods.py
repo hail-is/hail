@@ -41,7 +41,10 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
     ref = vds.reference_data
     # FIXME(chrisvittal) consider changing END semantics on VDS to make this better
     # see https://github.com/hail-is/hail/issues/13183 for why this is here and more discussion
-    ref = ref.transmute_entries(END_GLOBAL=hl.locus(ref.locus.contig, ref.END).global_position())
+    ref = ref.transmute_entries(END_GLOBAL=hl.locus(contig=ref.locus.contig,
+                                                    pos=ref.END,
+                                                    reference_genome=ref.locus.dtype.reference_genome
+                                                    ).global_position())
 
     ref = ref.drop(*(x for x in ('alleles', 'rsid', 'ref_allele') if x in ref.row))
     var = vds.variant_data
@@ -76,7 +79,7 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
                         lambda refs_at_this_row: hl.zip_with_index(hl.zip(dr._var_entries, dr.dense_ref)).map(
                             lambda tup: coalesce_join(hl.coalesce(refs_at_this_row[tup[0]],
                                                                   hl.or_missing(tup[1][1].END_GLOBAL >= dr.locus.global_position(),
-                                                                                tup[1][1])), tuple[1][0])
+                                                                                tup[1][1])), tup[1][0])
                         )),
     )
 
