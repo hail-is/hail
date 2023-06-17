@@ -709,6 +709,8 @@ class BashJob(Job):
                 raise BatchException(f"value for name '{name}' is not a dict. Found '{type(d)}' instead.")
             rg = self._batch._new_resource_group(self, d, root=name)
             self._resources[name] = rg
+            for rname, r in rg._resources.items():
+                self._resources_inverse[r] = f'{name}["{rname}"]'
             _add_resource_to_set(self._valid, rg)
         return self
 
