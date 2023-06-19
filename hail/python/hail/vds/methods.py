@@ -45,7 +45,8 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
     ref = ref.annotate_rows(locus_global_pos=ref.locus.global_position(), locus_pos=ref.locus.position)
     ref = ref.transmute_entries(END_GLOBAL=ref.locus_global_pos + (ref.END - ref.locus_pos))
 
-    ref = ref.drop(*(x for x in ('alleles', 'rsid', 'ref_allele') if x in ref.row))
+    to_drop = 'alleles', 'rsid', 'ref_allele', 'locus_global_pos', 'locus_pos'
+    ref = ref.drop(*(x for x in to_drop if x in ref.row))
     var = vds.variant_data
     refl = ref.localize_entries('_ref_entries')
     varl = var.localize_entries('_var_entries', '_var_cols')
