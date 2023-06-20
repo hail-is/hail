@@ -1883,7 +1883,6 @@ class Emit[C](
           val matType = PCanonicalNDArray(PFloat64Required, 2)
           val vecType = PCanonicalNDArray(PFloat64Required, 1)
           val intVecType = PCanonicalNDArray(PInt32Required, 1)
-          val resultType = PCanonicalTuple(true, vecType, matType)
 
           val W = vecType.constructUninitialized(FastIndexedSeq(n), cb, region)
           val work = vecType.constructUninitialized(FastIndexedSeq(SizeValueDyn(workSize)), cb, region)
@@ -1894,6 +1893,7 @@ class Emit[C](
 
             W
           } else {
+            val resultType = NDArrayEigh.pTypes(false, false).asInstanceOf[PCanonicalTuple]
             val Z = matType.constructUninitialized(FastIndexedSeq(n, n), cb, region)
             val iSuppZ = vecType.constructUninitialized(FastIndexedSeq(SizeValueDyn(cb.memoize(n * 2))), cb, region)
 
