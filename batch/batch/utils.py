@@ -227,14 +227,15 @@ AS (SELECT billing_project, `user`, resource_id, CAST(COALESCE(SUM(`usage`), 0) 
     WHERE token != 0 {where_condition}
     GROUP BY billing_project, `user`, resource_id
     ORDER BY billing_project, `user`, resource_id
-    LIMIT 1000
+    LIMIT 2
     LOCK IN SHARE MODE
 );
 
 DELETE aggregated_billing_project_user_resources_v2 FROM aggregated_billing_project_user_resources_v2
 INNER JOIN {scratch_table_name} ON aggregated_billing_project_user_resources_v2.billing_project = {scratch_table_name}.billing_project AND
                       aggregated_billing_project_user_resources_v2.`user` = {scratch_table_name}.`user` AND
-                      aggregated_billing_project_user_resources_v2.resource_id = {scratch_table_name}.resource_id;
+                      aggregated_billing_project_user_resources_v2.resource_id = {scratch_table_name}.resource_id
+WHERE token != 0;
 
 INSERT INTO aggregated_billing_project_user_resources_v2 (billing_project, `user`, resource_id, token, `usage`)
 SELECT billing_project, `user`, resource_id, 0, `usage`
@@ -298,7 +299,7 @@ AS (SELECT billing_date, billing_project, `user`, resource_id, CAST(COALESCE(SUM
     WHERE token != 0 {where_condition}
     GROUP BY billing_date, billing_project, `user`, resource_id
     ORDER BY billing_date, billing_project, `user`, resource_id
-    LIMIT 1000
+    LIMIT 2
     LOCK IN SHARE MODE
 );
 
@@ -306,7 +307,8 @@ DELETE aggregated_billing_project_user_resources_by_date_v2 FROM aggregated_bill
 INNER JOIN {scratch_table_name} ON aggregated_billing_project_user_resources_by_date_v2.billing_date = {scratch_table_name}.billing_date AND
                       aggregated_billing_project_user_resources_by_date_v2.billing_project = {scratch_table_name}.billing_project AND
                       aggregated_billing_project_user_resources_by_date_v2.`user` = {scratch_table_name}.`user` AND
-                      aggregated_billing_project_user_resources_by_date_v2.resource_id = {scratch_table_name}.resource_id;
+                      aggregated_billing_project_user_resources_by_date_v2.resource_id = {scratch_table_name}.resource_id
+WHERE token != 0;
 
 INSERT INTO aggregated_billing_project_user_resources_by_date_v2 (billing_date, billing_project, `user`, resource_id, token, `usage`)
 SELECT billing_date, billing_project, `user`, resource_id, 0, `usage`
