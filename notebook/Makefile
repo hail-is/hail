@@ -8,8 +8,8 @@ build-notebook:
 
 .PHONY: build-nginx
 build-nginx:
-	$(MAKE) -C ../docker hail-ubuntu
-	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat ../docker/hail-ubuntu-image-ref)'"}}' Dockerfile.nginx Dockerfile.nginx.out
+	$(MAKE) -C .. hail-ubuntu-image
+	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat ../hail-ubuntu-image)'"}}' Dockerfile.nginx Dockerfile.nginx.out
 	python3 ../ci/jinja2_render.py '{"deploy": $(DEPLOY), "default_ns": {"name": "$(NAMESPACE)"}}' nginx.conf nginx.conf.out
 	../docker-build.sh . Dockerfile.nginx.out $(NOTEBOOK_NGINX_IMAGE)
 
