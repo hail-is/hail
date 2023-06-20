@@ -39,7 +39,7 @@ object LowerDistributedSort {
 
       numPartitions = inputStage.partitioner.numPartitions
 
-      rowsAndGlobal <- scopedExecution.run { case (hcl, fs, htc, r) =>
+      rowsAndGlobal <- scopedExecution { case (hcl, fs, htc, r) =>
         for {
           fRunnable <- time("LowerDistributedSort.localSort.initialize")(f(hcl, fs, htc, r))
           resultAddress <- time("LowerDistributedSort.localSort.run")(fRunnable(r))

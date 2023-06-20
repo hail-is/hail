@@ -170,7 +170,7 @@ class LocalBackend(
             }
 
             _ <- timeM("Run") {
-              scopedExecution.run { case (hcl, fs, htc, r) => M.pure(f(hcl, fs, htc, r)(r)) }
+              scopedExecution { case (hcl, fs, htc, r) => M.pure(f(hcl, fs, htc, r)(r)) }
             }
           } yield (pt, 0)
 
@@ -187,7 +187,7 @@ class LocalBackend(
             }
 
             addr <- timeM("Run") {
-              scopedExecution.run { case (hcl, fs, htc, r) => M.pure(f(hcl, fs, htc, r)(r)) }
+              scopedExecution { case (hcl, fs, htc, r) => M.pure(f(hcl, fs, htc, r)(r)) }
             }
           } yield (pt, addr)
       }

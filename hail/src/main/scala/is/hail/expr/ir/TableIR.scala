@@ -342,7 +342,7 @@ object LoweredTableReader {
               optimize = true
             )
 
-          row <- scopedExecution.run { case (hcl, fs, htc, r) =>
+          row <- scopedExecution { case (hcl, fs, htc, r) =>
             M.pure(SafeRow(resultPType, f(hcl, fs, htc, r)(r)))
           }
 

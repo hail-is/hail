@@ -326,19 +326,20 @@ object Interpret {
         for {aValue <- interpret(a, env, args)}
           yield aValue.asInstanceOf[IndexedSeq[Any]].length
 
-      case StreamLen(a) => for {aValue <- interpret(a, env, args)}
-        yield aValue.asInstanceOf[IndexedSeq[Any]].length
+      case StreamLen(a) =>
+        for {aValue <- interpret(a, env, args)}
+          yield aValue.asInstanceOf[IndexedSeq[Any]].length
 
       case _: StreamIota =>
-        throw new UnsupportedOperationException
+        F.raiseError(new UnsupportedOperationException)
 
       case StreamRange(start, stop, step, _, errorID) =>
         for {
           startValue <- interpret(start, env, args)
           stopValue <- interpret(stop, env, args)
           stepValue <- interpret(step, env, args)
-          _ <- F.whenA(stepValue == 0) {
-            F.raiseError(new HailException("Array range cannot have step size 0.", errorID))
+          _ <- F.raiseWhen(stepValue == 0) {
+            new HailException("Array range cannot have step size 0.", errorID)
           }
         } yield startValue.asInstanceOf[Int] until stopValue.asInstanceOf[Int] by stepValue.asInstanceOf[Int]
 
@@ -414,12 +415,10 @@ object Interpret {
               if (onKey) {
                 val (eltF, eltT) = orderedCollection.typ.asInstanceOf[TContainer].elementType match {
                   case t: TBaseStruct => ( { (x: Any) =>
-                    val r = x.asInstanceOf[Row]
-                    if (r == null) null else r.get(0)
+                    if (x == null) null else x.asInstanceOf[Row].get(0)
                   }, t.types(0))
                   case i: TInterval => ( { (x: Any) =>
-                    val i = x.asInstanceOf[Interval]
-                    if (i == null) null else i.start
+                    if (x == null) null else x.asInstanceOf[Interval].start
                   }, i.pointType)
                 }
                 val ordering = eltT.ordering(stateManager)
@@ -812,8 +811,8 @@ object Interpret {
               FastSeq(fields: _*).traverse { case (name, ir) =>
                 F.pure((name, _: Any)) ap interpret(ir, env, args)
               }
-                .map(_.toMap)
-                .map { newValues =>
+                .map { kvs =>
+                  val newValues = kvs.toMap
                   val oldIndices = old.typ.asInstanceOf[TStruct].fields.map(f => f.name -> f.index).toMap
                   Row.fromSeq(fds.map(name => newValues.getOrElse(name, struct.get(oldIndices(name)))))
                 }
@@ -851,15 +850,16 @@ object Interpret {
         F.pure(a)
 
       case Die(message, _, errorId) =>
-        val message_ = interpret(message).asInstanceOf[String]
-        fatal(if (message_ != null) message_ else "<exception message missing>", errorId)
+        interpret(message).orElse(F.pure("<exception message missing>")) >>= { case msg: String =>
+          F.raiseError[Any](new HailException(msg, errorId))
+        }
 
       case Trap(child) =>
-        interpret(child).map(Row(null, _)).widen[Any].handleError {
+        interpret(child).map(Row(null, _)).widen[Any].handleErrorWith {
           case e: HailException =>
-            Row(Row(e.msg, e.errorId), null)
+            F.pure(Row(Row(e.msg, e.errorId), null))
           case t =>
-            throw t
+            F.raiseError(t)
         }
 
       case ConsoleLog(message, result) =>
@@ -961,38 +961,32 @@ object Interpret {
 
       case TableMultiWrite(children, writer) =>
         OptionT.liftF {
-          for {tvs <- children.traverse(_.analyzeAndExecute >>= (_.asTableValue)); ctx <- M.ask}
-            yield writer(ctx, tvs)
-        }
+          children.traverse(_.analyzeAndExecute >>= (_.asTableValue)) >>= writer[M]
+        }.widen
 
       case TableWrite(child, writer) =>
         OptionT.liftF {
-          for {tv <- child.analyzeAndExecute >>= (_.asTableValue); _ <- writer(tv)}
-            yield ()
-        }
+          child.analyzeAndExecute >>= (_.asTableValue) >>= writer[M]
+        }.widen
 
       case BlockMatrixWrite(child, writer) =>
         OptionT.liftF {
-          for {bm <- child.execute; ctx <- M.ask}
-            yield writer(ctx, bm)
-        }
+          child.execute >>= writer[M]
+        }.widen
 
       case BlockMatrixMultiWrite(blockMatrices, writer) =>
         OptionT.liftF {
-          for {bms <- blockMatrices.traverse(_.execute); ctx <- M.ask}
-            yield writer(ctx, bms)
-        }
+          blockMatrices.traverse(_.execute) >>= writer[M]
+        }.widen
 
       case TableToValueApply(child, function) =>
         OptionT.liftF {
-          for {tv <- child.analyzeAndExecute >>= (_.asTableValue); ctx <- M.ask}
-            yield function.execute(ctx, tv)
+          child.analyzeAndExecute >>= (_.asTableValue) >>= function.execute[M]
         }
 
       case BlockMatrixToValueApply(child, function) =>
         OptionT.liftF {
-          for {bm <- child.execute; ctx <- M.ask}
-            yield function.execute(ctx, bm)
+          child.execute >>= function.execute[M]
         }
 
       case BlockMatrixCollect(child) =>
@@ -1027,7 +1021,7 @@ object Interpret {
                     MakeTuple.ordered(FastSeq(extracted.postAggIR))
                   )
 
-                row <- scopedExecution.run { case (hcl, fs, htc, r) =>
+                row <- scopedExecution { case (hcl, fs, htc, r) =>
                   M.pure {
                     SafeRow(rt, f(hcl, fs, htc, r)(r, globalsOffset))
                   }
@@ -1112,10 +1106,9 @@ object Interpret {
                   init.newAggState(aggRegion)
                   init(partRegion, globalsOffset)
                   seqOps.setAggState(aggRegion, init.getAggOffset())
-                  it.foreach {
-                    ptr =>
-                      seqOps(ctx.region, globalsOffset, ptr)
-                      ctx.region.clear()
+                  it.foreach { ptr =>
+                    seqOps(ctx.region, globalsOffset, ptr)
+                    ctx.region.clear()
                   }
 
                   RegionValue(aggRegion, seqOps.getAggOffset())
@@ -1169,7 +1162,7 @@ object Interpret {
                 optimize = false
               )
 
-            r <- scopedExecution.run { case (hcl, fs, htc, r) =>
+            r <- scopedExecution { case (hcl, fs, htc, r) =>
               M.pure {
                 SafeRow.read(rt, makeFunction(hcl, fs, htc, r)(r))
               }

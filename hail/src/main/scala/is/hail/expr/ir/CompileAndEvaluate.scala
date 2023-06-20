@@ -52,7 +52,7 @@ object CompileAndEvaluate {
               )
             }
 
-            _ <- scopedExecution.run { case (hcl, fs, htc, r) =>
+            _ <- scopedExecution { case (hcl, fs, htc, r) =>
               for {
                 fRunnable <- time("InitializeCompiledFunction")(f(hcl, fs, htc, r))
                 _ <- time("RunCompiledVoidFunction")(fRunnable(r))

@@ -466,7 +466,7 @@ class SparkBackend(
               }
 
               _ <- timeM("Run") {
-                scopedExecution.run { case (hcl, fs, htc, r) =>
+                scopedExecution { case (hcl, fs, htc, r) =>
                   M.pure(f(hcl, fs, htc, r)(r))
                 }
               }
@@ -485,7 +485,7 @@ class SparkBackend(
               }
 
               results <- timeM("Run") {
-                scopedExecution.run { case (hcl, fs, htc, r) =>
+                scopedExecution { case (hcl, fs, htc, r) =>
                   M.pure(f(hcl, fs, htc, r)(r))
                 }
               }

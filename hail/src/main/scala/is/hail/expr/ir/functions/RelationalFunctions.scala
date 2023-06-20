@@ -74,7 +74,7 @@ abstract class TableToValueFunction {
 
   def unionRequiredness(childType: RTable, resultType: TypeWithRequiredness): Unit
 
-  def execute(ctx: ExecuteContext, tv: TableValue): Any
+  def execute[M[_]: MonadLower](tv: TableValue): M[Any]
 }
 
 case class WrappedMatrixToValueFunction(
@@ -89,13 +89,14 @@ case class WrappedMatrixToValueFunction(
 
   def unionRequiredness(childType: RTable, resultType: TypeWithRequiredness): Unit = function.unionRequiredness(childType, resultType)
 
-  def execute(ctx: ExecuteContext, tv: TableValue): Any = function.execute(ctx, tv.toMatrixValue(colKey, colsFieldName, entriesFieldName))
+  override def execute[M[_]: MonadLower](tv: TableValue): M[Any] =
+    function.execute(tv.toMatrixValue(colKey, colsFieldName, entriesFieldName))
 }
 
 abstract class MatrixToValueFunction {
   def typ(childType: MatrixType): Type
 
-  def execute(ctx: ExecuteContext, mv: MatrixValue): Any
+  def execute[M[_]: MonadLower](mv: MatrixValue): M[Any]
 
   def unionRequiredness(childType: RTable, resultType: TypeWithRequiredness): Unit
 
@@ -105,7 +106,7 @@ abstract class MatrixToValueFunction {
 abstract class BlockMatrixToValueFunction {
   def typ(childType: BlockMatrixType): Type
 
-  def execute(ctx: ExecuteContext, bm: BlockMatrix): Any
+  def execute[M[_]: MonadLower](bm: BlockMatrix): M[Any]
 }
 
 object RelationalFunctions {

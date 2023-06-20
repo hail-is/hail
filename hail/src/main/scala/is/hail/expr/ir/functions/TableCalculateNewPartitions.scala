@@ -1,11 +1,13 @@
 package is.hail.expr.ir.functions
 
-import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.TableValue
+import is.hail.expr.ir.lowering.MonadLower
+import is.hail.rvd.RVD
 import is.hail.types
 import is.hail.types.virtual._
-import is.hail.rvd.RVD
 import is.hail.utils._
+
+import scala.language.higherKinds
 
 case class TableCalculateNewPartitions(
   nPartitions: Int
@@ -23,16 +25,17 @@ case class TableCalculateNewPartitions(
     }
   }
 
-  def execute(ctx: ExecuteContext, tv: TableValue): Any = {
-    val rvd = tv.rvd
-    if (rvd.typ.key.isEmpty)
-      FastIndexedSeq()
-    else {
-      val ki = RVD.getKeyInfo(ctx, rvd.typ, rvd.typ.key.length, RVD.getKeys(ctx, rvd.typ, rvd.crdd))
-      if (ki.isEmpty)
+  def execute[M[_]](tv: TableValue)(implicit M: MonadLower[M]): M[Any] =
+    M.reader { ctx =>
+      val rvd = tv.rvd
+      if (rvd.typ.key.isEmpty)
         FastIndexedSeq()
-      else
-        RVD.calculateKeyRanges(ctx, rvd.typ, ki, nPartitions, rvd.typ.key.length).rangeBounds.toIndexedSeq
+      else {
+        val ki = RVD.getKeyInfo(ctx, rvd.typ, rvd.typ.key.length, RVD.getKeys(ctx, rvd.typ, rvd.crdd))
+        if (ki.isEmpty)
+          FastIndexedSeq()
+        else
+          RVD.calculateKeyRanges(ctx, rvd.typ, ki, nPartitions, rvd.typ.key.length).rangeBounds.toIndexedSeq
+      }
     }
-  }
 }

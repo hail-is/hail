@@ -315,7 +315,7 @@ class ServiceBackend(
                 optimize = true
               )
 
-              _ <- scopedExecution.run { case (hcl, fs, htc, r) =>
+              _ <- scopedExecution { case (hcl, fs, htc, r) =>
                 M.pure(f(hcl, fs, htc, r)(r))
               }
 
@@ -333,7 +333,7 @@ class ServiceBackend(
                 )
 
               retPType = pt.asInstanceOf[PBaseStruct]
-              off <- scopedExecution.run { case (hcl, fs, htc, r) =>
+              off <- scopedExecution { case (hcl, fs, htc, r) =>
                 M.pure(f(hcl, fs, htc, r)(r))
               }
 

@@ -1,6 +1,5 @@
 package is.hail.backend
 
-import cats.data.ContT
 import cats.mtl.{Ask, Local}
 import cats.syntax.all._
 import cats.{ApplicativeThrow, Monad, MonadThrow}
@@ -26,17 +25,15 @@ object MonadExecute {
 }
 
 object utils {
-  def scopedExecution[M[_], A](implicit M: MonadExecute[M]):
-  ContT[M, A, (HailClassLoader, FS, HailTaskContext, Region)] =
-    ContT { use =>
-      for {
-        ctx <- M.ask
-        taskContext = new LocalTaskContext(0, 0)
-        attempt <- use((ctx.theHailClassLoader, ctx.fs, taskContext, ctx.r)).attempt
-        _ = taskContext.close()
-        result <- attempt.fold(M.raiseError, M.pure)
-      } yield result
-    }
+  def scopedExecution[M[_], A](use: (HailClassLoader, FS, HailTaskContext, Region) => M[A])
+                              (implicit M: MonadExecute[M]): M[A] =
+    for {
+      ctx <- M.ask
+      taskContext = new LocalTaskContext(0, 0)
+      attempt <- use(ctx.theHailClassLoader, ctx.fs, taskContext, ctx.r).attempt
+      _ = taskContext.close()
+      result <- attempt.fold(M.raiseError, M.pure)
+    } yield result
 
   def time[M[_], A](name: String)(a: => A)(implicit M: Ask[M, ExecuteContext]): M[A] =
     M.reader(_.timer.time(name)(a))
