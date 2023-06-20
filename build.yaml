@@ -1645,7 +1645,7 @@ steps:
       - dev
     dependsOn:
       - default_ns
-      - base_image
+      - hail_ubuntu_image
       - create_certs
       - copy_third_party_images
   - kind: deploy
